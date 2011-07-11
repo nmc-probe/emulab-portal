@@ -1,0 +1,104 @@
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* All rights reserved.
+*
+* Permission to use, copy, modify and distribute this software is hereby
+* granted provided that (1) source code retains these copyright, permission,
+* and disclaimer notices, and (2) redistributions including binaries
+* reproduce the notices in supporting documentation.
+*
+* THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+* CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+* FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
+package protogeni.tools.instools
+{
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
+	import mx.controls.Alert;
+	
+	import protogeni.communication.CommunicationUtil;
+	import protogeni.communication.Request;
+	import protogeni.communication.RequestSliverUpdate;
+	import protogeni.resources.Sliver;
+	
+	/**
+	 * Adds a MC Node to a sliver
+	 * 
+	 * @author jreed
+	 * 
+	 */
+	public final class RequestAddMCNode extends Request
+	{
+		public var sliver:Sliver;
+		
+		public function RequestAddMCNode(s:Sliver):void
+		{
+			super("AddMCNode",
+				"Allocating a measurement controller.",
+				Instools.instoolsAddMCNode,
+				true,
+				true);
+			sliver = s;
+			sliver.changing = true;
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			
+			// Build up the args
+			op.addField("urn", sliver.slice.urn.full);
+			//we currently do not support virtual nodes as MCs
+			op.addField("virtualMC", 0);
+			op.addField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.Urn.full.toString()]);
+			op.addField("credentials", [sliver.slice.credential]);
+			//op.setUrl("https://www.uky.emulab.net/protogeni/xmlrpc");
+			op.setUrl(sliver.manager.Url);
+		
+		}
+		
+		override public function complete(code:Number, response:Object):*
+		{
+			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			{
+			  if (response.value.wasMCpresent) 
+			  {
+				  LogHandler.appendMessage(new LogMessage(op.getUrl(),
+					  "AddMCNode",
+					  "AddMCNode failed because a measurement controller has already been added to this slice.",
+					  true,
+					  LogMessage.TYPE_END));
+			  } 
+			  else 
+			  {
+				  Instools.updated_rspec[sliver.manager.Urn.full] = String(response.value.instrumentized_rspec);
+				  Instools.rspec_version[sliver.manager.Urn.full] = String(response.value.rspec_version);
+				  Main.geniHandler.requestHandler.pushRequest(new RequestSliverUpdate(sliver, new XML(response.value.instrumentized_rspec)));
+				  Main.geniHandler.requestHandler.pushRequest(new RequestPollInstoolsStatus(sliver));
+			  }
+			}
+			else
+			{
+				sliver.changing = false;
+				LogHandler.appendMessage(new LogMessage(op.getUrl(),
+					"AddMCNode",
+					"AddMCNode failed with the following message: " + String(response.output),
+					true,
+					LogMessage.TYPE_END));
+				Alert.show("There was a problem adding the MC Node on " + sliver.manager.Hrn + ". The error output was: " + String(response.output), "Problem adding MC Node");
+			}
+			
+			return null;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			sliver.changing = false;
+			return fail(event, fault);
+		}
+		
+		override public function cleanup():void {
+			super.cleanup();
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+		}
+	}
+}

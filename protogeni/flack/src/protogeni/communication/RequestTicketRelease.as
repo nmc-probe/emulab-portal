@@ -33,6 +33,7 @@ package protogeni.communication
 				"Releasing ticket for sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.hrn,
 				CommunicationUtil.releaseTicket);
 			sliver = newSliver;
+			sliver.changing = true;
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -53,6 +54,7 @@ package protogeni.communication
 		
 		override public function cleanup():void {
 			super.cleanup();
+			sliver.changing = false;
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 		}
 	}

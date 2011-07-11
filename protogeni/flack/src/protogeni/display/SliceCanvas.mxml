@@ -37,6 +37,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.resources.PhysicalNode;
 			import protogeni.resources.Slice;
 			import protogeni.resources.Sliver;
+			import protogeni.resources.SliverCollection;
 			import protogeni.resources.VirtualLink;
 			import protogeni.resources.VirtualLinkCollection;
 			import protogeni.resources.VirtualNode;
@@ -62,6 +63,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function load(newSlice:Slice):void
 			{
+				this.clear();
+				
 				slice = newSlice.clone(false);
 				
 				// Nodes
@@ -78,7 +81,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						this.addVirtualLinkToCanvas(l);
 				}
 				
-				edited = !slice.isCreated();
+				edited = false;
 			}
 			
 			/**
@@ -88,17 +91,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				redrawAllLinks();
 				
-				// Don't draw a slice while it's being created, wait until the end
-				if(!slice.hasAllAllocatedResources() && !slice.isStaged())
-					return;
-				
-				var unaddedNodes:VirtualNodeCollection = slice.GetAllNodes();
+				var unaddedNodes:VirtualNodeCollection = slice.slivers.VirtualNodes
 				
 				// Remove/replace old nodes
 				for(var i:int = 0; i < this.allNodes.length; i++)
 				{
 					var sn:SliceNode = allNodes[i];
-					var vn:VirtualNode = slice.getVirtualNodeWithId(sn.lastId);
+					var vn:VirtualNode = slice.slivers.getNodeWithClientId(sn.lastId);
 					if(vn == null)
 					{
 						this.removeElement(sn);
@@ -116,7 +115,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							}
 						}
 						//unadded.removeItemAt(unadded.getItemIndex(vn));
-						sn.setNode(slice.getVirtualNodeWithId(sn.lastId));
+						sn.setNode(slice.slivers.getNodeWithClientId(sn.lastId));
 						sn.resetToStatus();
 					}
 				}
@@ -125,13 +124,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				for each(var unaddedNode:VirtualNode in unaddedNodes.collection)
 					this.addVirtualNodeToCanvas(unaddedNode);
 				
-				var unaddedLinks:VirtualLinkCollection = slice.GetAllLinks();
+				var unaddedLinks:VirtualLinkCollection = slice.slivers.VirtualLinks;
 				
 				// Remove/replace old links
 				for(i = 0; i < this.allLinks.length; i++)
 				{
 					var sl:SliceLink = allLinks[i];
-					var vl:VirtualLink = slice.getVirtualLinkWithId(sl.lastId);
+					var vl:VirtualLink = slice.slivers.getLinkWithClientId(sl.lastId);
 					if(vl == null)
 					{
 						this.removeElement(sl.group);
@@ -150,7 +149,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							}
 						}
 						//unadded.removeItemAt(unadded.getItemIndex(vl));
-						sl.setLink(slice.getVirtualLinkWithId(sl.lastId));
+						sl.setLink(slice.slivers.getLinkWithClientId(sl.lastId));
 					}
 				}
 				
@@ -159,8 +158,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					this.addVirtualLinkToCanvas(unaddedLink);
 				
 				//hostWindow.loadNodes();
-				
-				edited = !slice.isCreated();
 			}
 			
 			/**
@@ -168,7 +165,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function refreshStatus():void
 			{
-				switch(this.slice.Status())
+				switch(this.slice.slivers.Status)
 				{
 					case Sliver.STATUS_READY:
 						this.setStyle("borderColor", "green");
@@ -189,6 +186,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						this.setStyle("borderColor", "#CDC2C2");
 						this.setStyle("backgroundColor", "#F6F6F6");
 				}
+			}
+			
+			public function clearStatus():void
+			{
+				this.setStyle("borderColor", "#CDC2C2");
+				this.setStyle("backgroundColor", "#F6F6F6");
+				
+				for each(var sn:SliceNode in this.allNodes)
+					sn.clearStatus();
 			}
 			
 			/**
@@ -363,6 +369,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				var sn:SliceNode = new SliceNode();
 				sn.setNode(virtualNode);
+				if(sn.node.flackY == -1 && y == -1 && locationCache[sn.node.clientId] != null) {
+					sn.node.flackX = locationCache[sn.node.clientId].x;
+					sn.node.flackY = locationCache[sn.node.clientId].y;
+				}
 				addSliceNode(sn, x, y);
 				return sn;
 			}
@@ -373,10 +383,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 * If outside of SliceCanvas, use addVirtualNode.
 			 */
 			public function addBasicCloneOfVirtualNode(virtualNode:VirtualNode, x:int = -1, y:int = -1):SliceNode {
-				var nvn:VirtualNode = new VirtualNode(slice.getOrCreateSliverFor(virtualNode.manager));
+				var nvn:VirtualNode = new VirtualNode(slice.getOrCreateForManager(virtualNode.manager));
 				nvn.Exclusive = virtualNode.Exclusive;
 				nvn.isDelayNode = virtualNode.isDelayNode;
-				nvn.clientId = slice.getUniqueVirtualNodeId(nvn);
+				nvn.clientId = slice.slivers.getUniqueVirtualNodeId(nvn);
 				return this.addVirtualNode(nvn, x, y);
 			}
 			
@@ -448,7 +458,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					return allNodes.getForPhysicalNode(physicalNode);
 				
 				var sn:SliceNode = new SliceNode();
-				var newVirtualNode:VirtualNode = new VirtualNode(slice.getOrCreateSliverFor(physicalNode.manager));
+				var newVirtualNode:VirtualNode = new VirtualNode(slice.getOrCreateForManager(physicalNode.manager));
 				newVirtualNode.setToPhysicalNode(physicalNode);
 				sn.setNode(newVirtualNode);
 				addSliceNode(sn, x, y);
@@ -546,12 +556,30 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				redrawAllLinks();
 			}
 			
+			// Used to draw nodes at the same place if the canvas is cleared between updates and node doesn't retain flack info
+			private var locationCache:Dictionary = new Dictionary();
+			
 			/**
 			 * Remove all of the resources
 			 */
-			public function clear():void {
-				while(this.allNodes.length > 0)
-					this.removeSliceNode(this.allNodes.getItemAt(0) as SliceNode);
+			public function clear(removeSlivers:Boolean = false):void {
+				
+				// Save in case this node comes back
+				for each(var sliceNode:SliceNode in this.allNodes)
+					locationCache[sliceNode.node.clientId] = {x:sliceNode.node.flackX, y:sliceNode.node.flackY};
+				
+				this.removeAllElements();
+				allNodes = new SliceNodeCollection();
+				allLinks = new SliceLinkCollection();
+				
+				if(removeSlivers)
+					this.slice.slivers = new SliverCollection();
+				
+				/*while(this.allNodes.length > 0) {
+					var removeNode:SliceNode = this.allNodes.getItemAt(0) as SliceNode;
+					locationCache[removeNode.id] = {x:removeNode.node.flackX, y:removeNode.node.flackY};
+					this.removeSliceNode(removeNode);
+				}*/
 			}
 			
 			/**
@@ -559,7 +587,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function isEdited():Boolean {
 				if(edited) {
-					return slice.isCreated() || this.allNodes.length > 0;
+					return slice.slivers.AllocatedAnyResources || this.allNodes.length > 0;
 				} else
 					return false;
 			}

@@ -1,4 +1,4 @@
-﻿/* GENIPUBLIC-COPYRIGHT
+/* GENIPUBLIC-COPYRIGHT
 * Copyright (c) 2008-2011 University of Utah and the Flux Group.
 * All rights reserved.
 *
@@ -12,52 +12,58 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package protogeni.tools.instools
 {
 	import com.mattism.http.xmlrpc.MethodFault;
 	
 	import flash.events.ErrorEvent;
 	
-	import protogeni.GeniEvent;
+	import protogeni.communication.CommunicationUtil;
+	import protogeni.communication.Request;
 	import protogeni.resources.Sliver;
 	
 	/**
-	 * Gets the manifest for a sliver using the ProtoGENI API
+	 * Restarts a sliver using the ProtoGENI API
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverResolve extends Request
+	public final class RequestInstoolsVersion extends Request
 	{
 		public var sliver:Sliver;
-		
-		public function RequestSliverResolve(newSliver:Sliver):void
+		public function RequestInstoolsVersion(s:Sliver):void
 		{
-			super("SliverResolve",
-				"Resolving sliver on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.hrn,
-				CommunicationUtil.resolveResource,
-				true,
-				true);
-			sliver = newSliver;
+			super("GetINSTOOLSVersion",
+				"Requesting current INSTOOLS version.",
+				Instools.instoolsGetVersion,true,true,true);
+			op.setUrl(s.manager.Url);
+			sliver = s;
 			sliver.changing = true;
-			
-			// Build up the args
-			op.addField("urn", sliver.urn.full);
-			op.addField("credentials", [sliver.credential]);
-			op.setUrl(sliver.manager.Url);
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			//op.setUrl("https://www.uky.emulab.net/protogeni/xmlrpc");
 		}
 		
 		override public function complete(code:Number, response:Object):*
 		{
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
-				sliver.parseManifest(new XML(response.value.manifest));
-				if(!sliver.slice.slivers.contains(sliver))
-					sliver.slice.slivers.add(sliver);
+				Instools.devel_version[sliver.manager.Urn.full.toString()] = String(response.value.devel_version);
+				Instools.stable_version[sliver.manager.Urn.full.toString()] = String(response.value.stable_version);
 				
-				return new RequestSliverStatus(sliver);
-			} else
+				Main.geniHandler.requestHandler.pushRequest(new RequestAddMCNode(sliver));
+				
+				/*
+				LogHandler.appendMessage(new LogMessage(op.getUrl(),
+					"GetINSTOOLSVersion",
+					String(Main.geniHandler.InstInfo.devel_version[sliver.manager.Urn.full]),
+					true,
+					LogMessage.TYPE_END));
+				*/
+			}
+			else
+			{
 				sliver.changing = false;
+			}
 			
 			return null;
 		}

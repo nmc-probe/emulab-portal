@@ -35,30 +35,33 @@ package protogeni.resources
 		public static const STATUS_MIXED:String = "mixed";
 		public static const STATUS_NA:String = "N/A";
 		
-		public var created:Boolean = false;
-		public var staged:Boolean = true;
-		
-		public var credential:Object = null;
-		public var manager:GeniManager = null;
-		public var rspec:XML = null;
 		[Bindable]
 		public var urn:IdnUrn = new IdnUrn();
 		
-		public var ticket:String;
-		public var manifest:XML;
+		[Bindable]
+		public var slice:Slice;
+		public var manager:GeniManager;
+		
+		public var credential:String = "";
+		public var expires:Date = null;
 		
 		public var state:String = "";
 		public var status:String = "";
 		
+		public var ticket:String = "";
+		public var request:XML = null;
+		public var manifest:XML = null;
+		public function get Created():Boolean {
+			return manifest != null;
+		}
+		
 		public var nodes:VirtualNodeCollection = new VirtualNodeCollection();
 		public var links:VirtualLinkCollection = new VirtualLinkCollection();
 		
-		[Bindable]
-		public var slice:Slice;
-		
-		public var expires:Date;
-		
 		public var extensionNamespaces:Vector.<Namespace> = new Vector.<Namespace>();
+		
+		public var processed:Boolean = false;
+		public var changing:Boolean = false;
 		
 		public function Sliver(owner:Slice,
 							   newManager:GeniManager = null)
@@ -67,55 +70,39 @@ package protogeni.resources
 			this.manager = newManager;
 		}
 		
-		public function reset():void
+		public function get StatusFinalized():Boolean {
+			return status == STATUS_READY || status == STATUS_FAILED;
+		}
+		
+		public function getBySliverId(id:String):VirtualComponent {
+			var obj:* = this.nodes.getBySliverId(id);
+			if(obj != null)
+				return obj;
+			return this.links.getBySliverId(id);
+		}
+		
+		public function clearResources():void
 		{
 			this.nodes = new VirtualNodeCollection();
 			this.links = new VirtualLinkCollection();
+			this.extensionNamespaces = new Vector.<Namespace>();
+		}
+		
+		public function clearState():void
+		{
 			this.state = "";
 			this.status = "";
+			this.processed = false;
+			this.changing = false;
 		}
 		
-		public function localNodes():VirtualNodeCollection
+		public function clearAll():void
 		{
-			var on:VirtualNodeCollection = new VirtualNodeCollection();
-			for each(var vn:VirtualNode in this.nodes.collection)
-			{
-				if(vn.manager == this.manager)
-					on.add(vn);
-			}
-			return on;
-		}
-		
-		public function outsideNodes():VirtualNodeCollection
-		{
-			var on:VirtualNodeCollection = new VirtualNodeCollection();
-			for each(var vn:VirtualNode in this.nodes.collection)
-			{
-				if(vn.manager != this.manager)
-					on.add(vn);
-			}
-			return on;
-		}
-		
-		public function getVirtualNodeFor(pn:PhysicalNode):VirtualNode
-		{
-			for each(var vn:VirtualNode in this.nodes.collection)
-			{
-				if(vn.physicalNode == pn)
-					return vn;
-			}
-			
-			return null;
-		}
-		
-		public function getRequestRspec(removeNonexplicitBinding:Boolean):XML
-		{
-			return this.manager.rspecProcessor.generateSliverRspec(this, removeNonexplicitBinding, slice.useInputRspecVersion);
-		}
-		
-		public function parseRspec(onlyListFromManifest:Boolean = true):void
-		{
-			return this.manager.rspecProcessor.processSliverRspec(this, onlyListFromManifest);
+			clearResources();
+			clearState();
+			this.request = null;
+			this.ticket = "";
+			this.manifest = null;
 		}
 		
 		public function removeOutsideReferences():void
@@ -126,6 +113,21 @@ package protogeni.resources
 					&& node.physicalNode.virtualNodes.contains(node))
 					node.physicalNode.virtualNodes.remove(node);
 			}
+		}
+		
+		public function parseManifest(newManifest:XML = null):void {
+			if(newManifest != null)
+				this.manifest = newManifest;
+			this.manager.rspecProcessor.processSliverRspec(this, this.manifest);
+		}
+		
+		public function parseRspec(newRspec:XML):void {
+			this.manager.rspecProcessor.processSliverRspec(this, newRspec);
+		}
+		
+		public function getRequestRspec(removeNonexplicitBinding:Boolean):XML
+		{
+			return this.manager.rspecProcessor.generateSliverRspec(this, removeNonexplicitBinding, slice.useInputRspecVersion);
 		}
 	}
 }

@@ -40,6 +40,7 @@ package protogeni.communication
 				true,
 				true);
 			sliver = newSliver;
+			sliver.changing = true;
 			newExpires = newExpirationDate;
 			
 			// Build up the args
@@ -75,6 +76,7 @@ package protogeni.communication
 		
 		override public function cleanup():void {
 			super.cleanup();
+			sliver.changing = false;
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 		}
 	}

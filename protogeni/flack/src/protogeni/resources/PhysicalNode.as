@@ -20,18 +20,10 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class PhysicalNode
+	public class PhysicalNode extends PhysicalComponent
 	{
 		public var owner:PhysicalNodeGroup;
 		
-		public var rspec:XML;
-		
-		[Bindable]
-		public var name:String;
-		[Bindable]
-		public var id:String;
-		[Bindable]
-		public var manager:GeniManager;
 		[Bindable]
 		public var exclusive:Boolean;
 		[Bindable]
@@ -55,8 +47,8 @@ package protogeni.resources
 		public function PhysicalNode(own:PhysicalNodeGroup,
 									 ownedBy:GeniManager)
 		{
+			super(ownedBy);
 			this.owner = own;
-			this.manager = ownedBy;
 		}
 		
 		public function IsSwitch():Boolean {

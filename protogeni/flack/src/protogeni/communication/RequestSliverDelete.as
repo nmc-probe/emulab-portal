@@ -41,6 +41,7 @@ package protogeni.communication
 				CommunicationUtil.deleteSlice,
 				true);
 			sliver = s;
+			sliver.changing = true;
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -54,8 +55,7 @@ package protogeni.communication
 				|| code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED)
 			{
 				sliver.removeOutsideReferences();
-				if(sliver.slice.slivers.contains(sliver))
-					sliver.slice.slivers.remove(sliver);
+				sliver.slice.slivers.remove(sliver);
 				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
 				{
@@ -64,7 +64,6 @@ package protogeni.communication
 						oldSliver.removeOutsideReferences();
 						old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
 					}
-					Main.geniDispatcher.dispatchSliceChanged(old);
 				}
 			}
 			else
@@ -82,6 +81,7 @@ package protogeni.communication
 		
 		override public function cleanup():void {
 			super.cleanup();
+			sliver.changing = false;
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_REMOVING);
 		}
 	}

@@ -62,6 +62,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.resources.Slice;
 			import protogeni.resources.Sliver;
 			import protogeni.resources.VirtualNode;
+			import protogeni.tools.instools.Instools;
 			
 			import spark.components.NavigatorContent;
 			import spark.components.Scroller;
@@ -86,6 +87,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				fr.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onFileSecurityError);
 				//Main.geniDispatcher.addEventListener(GeniEvent.GENIMANAGER_CHANGED, cmChanged);
 				Main.geniDispatcher.addEventListener(GeniEvent.SLICE_CHANGED, sliceChanged);
+				
+				sliceStatusRefresher.addEventListener(TimerEvent.TIMER, autorefresh);
+				sliceStatusRefresher.start();
+				setSidePane();
 			}
 			
 			/**
@@ -120,30 +125,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			/**
 			 * The slice has been changed somewhere, apply changes
 			 */
-			private var waitingForSliceUrn:String = "";
 			public function sliceChanged(e:GeniEvent):void
 			{
 				var changedSlice:Slice = e.changedObject as Slice;
-				if(waitingForSliceUrn.length>0) {
-					if(waitingForSliceUrn == changedSlice.urn.full
-						&& changedSlice.CompletelyReady) {
-						this.loadSlice(changedSlice);
-						waitingForSliceUrn = "";
-						
-						spinner.visible = (!changedSlice.CompletelyReady && !changedSlice.isStaged()) || this.sliceCanvas.slice.Status() == Sliver.STATUS_CHANGING;
-						if(spinner.visible)
-							spinner.startSpin();
-						else
-							spinner.stopSpin();
-					}
-				} else if(changedSlice.urn.full == sliceCanvas.slice.urn.full) {
-					refreshSlice();
-					
-					spinner.visible = (!changedSlice.CompletelyReady && !changedSlice.isStaged()) || this.sliceCanvas.slice.Status() == Sliver.STATUS_CHANGING;
-					if(spinner.visible)
-						spinner.startSpin();
-					else
-						spinner.stopSpin();
+				if(changedSlice.urn.full == sliceCanvas.slice.urn.full) {
+					this.loadSlice(changedSlice);
 				}
 			}
 			
@@ -152,30 +138,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function refreshInterface():void
 			{
-				var isCreated:Boolean;
-				
-				if(sliceCanvas.slice.slivers.length == 0)
-					isCreated = false;
-				
-				for each(var s:Sliver in sliceCanvas.slice.slivers.collection)
-				{
-					if(s.rspec != null && s.staged != true)
-					{
-						isCreated = true;
-						break;
-					}
-				}
-				
-				if(isCreated)
-				{
-					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
-					this.rspecButton.toolTip = "View RSPEC(s) from the created sliver(s)";
-				} else {
-					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteIcon);
-					this.rspecButton.toolTip = "Sliver(s) not created yet";
-				}
-				
-				switch(this.sliceCanvas.slice.Status())
+				switch(this.sliceCanvas.slice.slivers.Status)
 				{
 					case Sliver.STATUS_READY:
 						this.hrnLabel.styleName = "validStyle";
@@ -193,13 +156,19 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						this.hrnLabel.styleName = "unknownStyle";
 				}
 				
+				spinner.visible = this.sliceCanvas.slice.Changing;
+				if(spinner.visible)
+					spinner.startSpin();
+				else
+					spinner.stopSpin();
+				
 				// Expire time stuff
 				this.expireButton.toolTip = "";
 				var dateFormatter:DateTimeFormatter = new DateTimeFormatter(LocaleID.DEFAULT, DateTimeStyle.SHORT, DateTimeStyle.NONE);
 				if(this.sliceCanvas.slice.expires != null) {
 					var sliceExpiresDate:Date = this.sliceCanvas.slice.expires;
 					if(this.sliceCanvas.slice.slivers != null) {
-						var sliversExpire:Date = this.sliceCanvas.slice.slivers.expires();
+						var sliversExpire:Date = this.sliceCanvas.slice.slivers.Expires;
 						if(sliversExpire != null && sliversExpire.time < sliceExpiresDate.time) {
 							sliceExpiresDate = sliceExpiresDate;
 							this.expireButton.toolTip = "Sliver expires before slice in\n\t"
@@ -217,14 +186,41 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					
 					// If expires soon, let the user know
 					// less than one hour
-					if(sliceExpiresDate.time - (new Date()).time < (1000*60*60*1))
+					var hoursRemaining:Number = (sliceExpiresDate.time - (new Date()).time)/3600000;
+					if(hoursRemaining < 1)
 						this.expireButton.styleName = "failedStyle";
+					else if(hoursRemaining < 3)
+						this.expireButton.styleName = "inprogressStyle";
 					else
 						this.expireButton.styleName = "validStyle";
+				} else {
+					this.expireButton.toolTip = "";
+					this.expireButton.styleName = "unknownStyle";
 				}
 				
-				
 				this.sliceCanvas.refreshStatus();
+				
+				if(this.sliceCanvas.slice.slivers.AllocatedAnyResources
+					|| this.sliceCanvas.slice.slivers.Status == Sliver.STATUS_FAILED)
+				{
+					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
+					this.rspecButton.toolTip = "View RSPEC(s) from the created sliver(s)";
+				} else {
+					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteIcon);
+					this.rspecButton.toolTip = "No Sliver created yet";
+					
+					this.clearStatus();
+				}
+			}
+			
+			public function clearStatus():void
+			{
+				this.rspecButton.setStyle("icon", ImageUtil.pageWhiteIcon);
+				this.rspecButton.toolTip = "Sliver(s) not created yet";
+				
+				this.hrnLabel.styleName = "unknownStyle";
+				
+				this.sliceCanvas.clearStatus();
 			}
 			
 			/**
@@ -241,34 +237,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function loadSlice(s:Slice):void
 			{
-				if(!s.CompletelyReady) {
+				/*if(!s.CompletelyReady) {
 					spinner.visible = true;
 					spinner.startSpin();
 					waitingForSliceUrn = s.urn.full;
 					return;
-				}
-				sliceCanvas.load(s);
-				
-				/*
-				cms = new ArrayList();
-				cmsSrc = new Array();
-				for each(var gm:GeniManager in Main.geniHandler.GeniManagers)
-				{
-					if(gm.Status == GeniManager.STATUS_VALID)
-					{
-						cmsSrc.push(gm);
-						cms.addItem(gm.Hrn);
-					}
 				}*/
-				
-				//selectCm.selectedIndex = 0;
-				//loadNodes();
-				
+				sliceCanvas.load(s);
 				refreshInterface();
-				
-				sliceStatusRefresher.addEventListener(TimerEvent.TIMER, autorefresh);
-				sliceStatusRefresher.start();
-				setSidePane();
 			}
 			
 			/**
@@ -280,10 +256,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				if(this.autoRefreshCheckbox.selected
 					&& this.sliceCanvas.slice != null
-					&& this.sliceCanvas.slice.hasAllAllocatedResources()
-					&& !this.sliceCanvas.slice.isStaged()
+					&& !this.sliceCanvas.slice.slivers.StatusFinalized
 					&& Main.geniHandler.requestHandler.queue.isEmpty()
-					&& this.sliceCanvas.slice.Status() == Sliver.STATUS_CHANGING
 					&& !Main.offlineMode) {
 					Main.geniHandler.requestHandler.refreshSlice(sliceCanvas.slice, true);
 				}
@@ -305,7 +279,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 				for each(var s:Sliver in sliceCanvas.slice.slivers.collection)
 				{
-					if(s.rspec == null)
+					if(s.manifest == null)
 					{
 						Alert.show("There is no valid RSPEC for the slice yet", "No RSPEC");
 						return;
@@ -330,8 +304,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					tab.label = s.manager.Hrn;
 					
 					var reviewRspecText:AdvancedTextArea = new AdvancedTextArea();
-					if(s.rspec != null)
-						reviewRspecText.text = s.rspec.toString();
+					if(s.manifest != null)
+						reviewRspecText.text = s.manifest.toString();
 					else
 						reviewRspecText.text = "No valid RSPEC yet";
 					
@@ -355,7 +329,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				var slivers:Vector.<Sliver> = new Vector.<Sliver>();
 				if(sliceCanvas.slice.slivers.length > 1)
-					slivers.push(sliceCanvas.slice.slivers.getCombined());
+					slivers.push(sliceCanvas.slice.slivers.Combined);
 				for each(var useSliver:Sliver in sliceCanvas.slice.slivers.collection)
 					slivers.push(useSliver);
 				
@@ -385,15 +359,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 * Removes all resources from the slice canvas
 			 */
 			public function clearCanvas():void {
-				if(sliceCanvas.slice.isCreated())
+				if(sliceCanvas.slice.slivers.AllocatedAnyResources)
 					Alert.show("The slice has resources allocated to it.  Please delete the slice before trying to create a new slice.", "Allocated Resources Exist");
-				else if(sliceCanvas.slice.GetAllNodes().length > 0)
-					Alert.show("The slice already has resources waiting to be allocated.  Clear the slice anyways?", "Resources Exist",
+				else if(sliceCanvas.allNodes.length > 0)
+					Alert.show("The slice already has resources on the canvas.  Clear the slice anyways?", "Resources Exist",
 						Alert.YES|Alert.NO,
 						FlexGlobals.topLevelApplication as Sprite,
 						function closeClear(e:CloseEvent):void {
 							if(e.detail == Alert.YES)
-								sliceCanvas.clear();
+								sliceCanvas.clear(true);
 						});
 			}
 			
@@ -412,7 +386,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function saveRequestRspec():void {
 				loading = false;
-				fr.save(sliceCanvas.slice.slivers.getCombined().getRequestRspec(true).toXMLString(), this.sliceCanvas.slice.name+"_previewRspec.xml");
+				fr.save(sliceCanvas.slice.slivers.Combined.getRequestRspec(true).toXMLString(), this.sliceCanvas.slice.Name+"_previewRspec.xml");
 			}
 			
 			/**
@@ -420,7 +394,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function saveCredential():void {
 				loading = false;
-				fr.save(sliceCanvas.slice.credential, this.sliceCanvas.slice.name+"_sliceCredential.xml");
+				fr.save(sliceCanvas.slice.credential, this.sliceCanvas.slice.Name+"_sliceCredential.xml");
 			}
 			
 			/**
@@ -619,6 +593,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							if(event.detail == Alert.YES) {
 								DisplayUtil.viewUserWindow(true);
 							} else if(event.detail == Alert.NO) {
+								this.clearStatus();
 								Main.geniHandler.requestHandler.submitSlice(sliceCanvas.slice);
 							}
 						});
@@ -626,6 +601,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 				
 				sliceCanvas.slice.useInputRspecVersion = outputRspecDropdownlist.selectedItem;
+				this.clearStatus();
 				Main.geniHandler.requestHandler.submitSlice(sliceCanvas.slice);
 			}
 			
@@ -644,7 +620,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						break;
 				}
 				
-				var sliverExpiresDate:Date = this.sliceCanvas.slice.slivers.expires();
+				var sliverExpiresDate:Date = this.sliceCanvas.slice.slivers.Expires;
 				var newExpiresDate:Date = new Date();
 				if(sliverExpiresDate != null
 					&& (sliverExpiresDate.time + addTime) < this.sliceCanvas.slice.expires.time) {
@@ -811,6 +787,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 									toolTip="Restart slivers"
 									click="Main.geniHandler.requestHandler.restartSlice(sliceCanvas.slice);"
 									icon="{ImageUtil.repeatControlIcon}"/>
+			<s:Rect percentWidth="100" />
+			<components:ImageButton id="instrumentizeButton"
+									toolTip="Instrumentize experiment"
+									click="Instools.instrumentizeSlice(sliceCanvas.slice);"
+									icon="{ImageUtil.lightningIcon}"/>
+			<components:ImageButton id="gotoPortalButton"
+									toolTip="Go to portal"
+									click="Instools.goToPortal(sliceCanvas.slice);"
+									icon="{ImageUtil.barchartIcon}"/>
 			<s:Rect percentWidth="100" />
 			<components:ImageButton id="expireButton"
 									icon="{ImageUtil.timeIcon}"

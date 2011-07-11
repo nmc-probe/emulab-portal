@@ -58,7 +58,7 @@ package protogeni.resources
 			return true;
 		}
 		
-		public function getById(id:String):VirtualNode
+		public function getByClientId(id:String):VirtualNode
 		{
 			for each(var node:VirtualNode in this.collection)
 			{
@@ -79,7 +79,7 @@ package protogeni.resources
 			return null;
 		}
 		
-		public function getBySliverUrn(urn:String):VirtualNode
+		public function getBySliverId(urn:String):VirtualNode
 		{
 			for each(var node:VirtualNode in this.collection)
 			{
@@ -89,7 +89,7 @@ package protogeni.resources
 			return null;
 		}
 		
-		public function getByComponentUrn(urn:String):VirtualNode
+		public function getByComponentId(urn:String):VirtualNode
 		{
 			for each(var node:VirtualNode in this.collection)
 			{
@@ -97,6 +97,39 @@ package protogeni.resources
 					return node;
 			}
 			return null;
+		}
+		
+		public function getByPhysicalNode(node:PhysicalNode):VirtualNode
+		{
+			for each(var vn:VirtualNode in this.collection)
+			{
+				if(vn.physicalNode == node)
+					return vn;
+			}
+			
+			return null;
+		}
+		
+		public function getByManager(manager:GeniManager):VirtualNodeCollection
+		{
+			var newCollection:VirtualNodeCollection = new VirtualNodeCollection();
+			for each(var node:VirtualNode in this.collection)
+			{
+				if(node.manager == manager)
+					newCollection.add(node);
+			}
+			return newCollection;
+		}
+		
+		public function getByManagersOtherThan(manager:GeniManager):VirtualNodeCollection
+		{
+			var newCollection:VirtualNodeCollection = new VirtualNodeCollection();
+			for each(var node:VirtualNode in this.collection)
+			{
+				if(node.manager != manager)
+					newCollection.add(node);
+			}
+			return newCollection;
 		}
 	}
 }

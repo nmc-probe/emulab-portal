@@ -139,7 +139,7 @@ package protogeni.display.mapping
 			if(this.userResourcesOnly
 				&& (this.selectedSlice == null || this.selectedSlice == event.changedObject)) {
 				if(Main.debugMode)
-					trace("MAP...Slice populating...: " + (event.changedObject as Slice).name);
+					trace("MAP...Slice populating...: " + (event.changedObject as Slice).Name);
 				this.drawMap();
 			}
 		}

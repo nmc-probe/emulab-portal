@@ -14,6 +14,10 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import protogeni.resources.Sliver;
 	
 	public final class RequestSliverUpdate extends Request
@@ -34,8 +38,9 @@ package protogeni.communication
 				CommunicationUtil.updateSliver,
 				true);
 			sliver = newSliver;
-			sliver.created = false;
-			sliver.staged = false;
+			sliver.clearState();
+			sliver.changing = true;
+			sliver.manifest = null;
 			
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
@@ -59,14 +64,21 @@ package protogeni.communication
 			}
 			if (code == CommunicationUtil.GENIRESPONSE_REFUSED)
 			{
+				sliver.changing = false;
 				//
 			}
 			else
 			{
+				sliver.changing = false;
 				// do nothing
 			}
 			
 			return null;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			sliver.changing = false;
+			return super.fail(event, fault);
 		}
 		
 		override public function cleanup():void {

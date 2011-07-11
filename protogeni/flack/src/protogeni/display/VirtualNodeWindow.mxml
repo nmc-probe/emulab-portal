@@ -44,6 +44,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.resources.ProtogeniRspecProcessor;
 			import protogeni.resources.Sliver;
 			import protogeni.resources.SliverType;
+			import protogeni.resources.VirtualComponent;
 			import protogeni.resources.VirtualInterface;
 			import protogeni.resources.VirtualLink;
 			import protogeni.resources.VirtualLinkCollection;
@@ -72,15 +73,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				switch(node.status)
 				{
-					case VirtualNode.STATUS_READY:
+					case VirtualComponent.STATUS_READY:
 						this.statusImage.source = ImageUtil.flagGreenIcon;
 						break;
-					case VirtualNode.STATUS_FAILED:
+					case VirtualComponent.STATUS_FAILED:
 						this.statusImage.source = ImageUtil.flagRedIcon;
 						break;
-					case VirtualNode.STATUS_NOTREADY:
-					case VirtualNode.STATUS_CHANGING:
-					case VirtualNode.STATUS_UNKOWN:
+					case VirtualComponent.STATUS_NOTREADY:
+					case VirtualComponent.STATUS_CHANGING:
+					case VirtualComponent.STATUS_UNKOWN:
 						this.statusImage.source = ImageUtil.flagYellowIcon;
 						break;
 					default:
@@ -97,7 +98,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					previewRspecButton.includeInLayout = true;
 					previewRspecButton.visible = true;
 				}
-				if(node.rspec != null)
+				if(node.manifest != null)
 					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
 				
 				this.bindingVirtualRadiobutton.enabled = node.manager.supportsExclusiveNodes || node.manager.supportsSharedNodes;
@@ -267,7 +268,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public function save():Boolean
 			{
 				// Make sure the client_id is not taken
-				if(!this.node.sliver.slice.isIdUnique(this.node, this.idLabel.Text)) {
+				if(!this.node.sliver.slice.slivers.isIdUnique(this.node, this.idLabel.Text)) {
 					Alert.show(this.idLabel.Text + " is already in use, please choose a different client id");
 					return true;
 				}
@@ -326,12 +327,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function viewRspec():void
 			{
-				if(node.rspec != null)
+				if(node.manifest != null)
 				{
 					var rspecWindow:XmlWindow = new XmlWindow;
 					rspecWindow.showWindow();
 					rspecWindow.title = "Last Successful RSPEC from " + node.sliverId;
-					rspecWindow.loadXml(node.rspec);
+					rspecWindow.loadXml(node.manifest);
 				} else {
 					Alert.show("No previous RSPEC is available");
 				}

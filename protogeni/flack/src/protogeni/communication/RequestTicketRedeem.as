@@ -39,6 +39,7 @@ package protogeni.communication
 				"Updating ticket for sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.hrn,
 				CommunicationUtil.redeemTicket);
 			sliver = newSliver;
+			sliver.changing = true;
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -57,16 +58,13 @@ package protogeni.communication
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				sliver.credential = response.value[0];
-				sliver.created = true;
 				
-				sliver.manifest = new XML(response.value[1]);
-				sliver.rspec = sliver.manifest;
-				sliver.parseRspec();
+				sliver.parseManifest(new XML(response.value[1]));
 				
 				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
 				{
-					var oldSliver:Sliver = old.slivers.getByGm(sliver.manager);
+					var oldSliver:Sliver = old.slivers.getByManager(sliver.manager);
 					if(oldSliver != null)
 						old.slivers.remove(oldSliver);
 					old.slivers.add(sliver);

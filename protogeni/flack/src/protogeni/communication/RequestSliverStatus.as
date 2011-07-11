@@ -14,9 +14,14 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import protogeni.GeniEvent;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
+	import protogeni.resources.VirtualComponent;
 	import protogeni.resources.VirtualNode;
 	
 	/**
@@ -37,6 +42,7 @@ package protogeni.communication
 				true,
 				true);
 			sliver = newSliver;
+			sliver.changing = true;
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -55,16 +61,19 @@ package protogeni.communication
 			{
 				sliver.status = response.value.status;
 				sliver.state = response.value.state;
-				for each(var nodeObject:Object in response.value.details)
+				for(var sliverId:String in response.value.details)
 				{
-					var vn:VirtualNode = sliver.getVirtualNodeFor(sliver.manager.Nodes.GetByUrn(nodeObject.component_urn));
-					if(vn != null)
+					var sliverDetails:Object = response.value.details[sliverId];
+					
+					var virtualComponent:VirtualComponent = sliver.getBySliverId(sliverId);
+					if(virtualComponent != null)
 					{
-						vn.status = nodeObject.status;
-						vn.state = nodeObject.state;
-						vn.error = nodeObject.error;
+						virtualComponent.status = sliverDetails.status;
+						virtualComponent.state = sliverDetails.state;
+						virtualComponent.error = sliverDetails.error;
 					}
 				}
+				sliver.changing = !sliver.StatusFinalized;
 			}
 			// Slice was deleted
 			else if(code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED) {
@@ -79,11 +88,16 @@ package protogeni.communication
 						oldSliver.removeOutsideReferences();
 						old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
 					}
-					Main.geniDispatcher.dispatchSliceChanged(old);
 				}
+				sliver.changing = false;
 			}
 			
 			return null;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			sliver.changing = true;
+			return super.fail(event, fault);
 		}
 		
 		override public function cleanup():void {

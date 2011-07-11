@@ -223,15 +223,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			public function viewComponentRspec():void {
-				DisplayUtil.viewXml(node.rspec, "Advertisement RSPEC for " + node.name);
+				DisplayUtil.viewXml(node.advertisement, "Advertisement RSPEC for " + node.name);
 			}
 			
 			public function viewSliverRspec():void {
-				if(virtualNode == null)
+				if(virtualNode == null || virtualNode.manifest == null)
 					Alert.show("No Sliver RSPEC!");
-				else {
-					DisplayUtil.viewXml(virtualNode.rspec, "Request RSPEC for " + node.name);
-				}
+				else
+					DisplayUtil.viewXml(virtualNode.manifest, "Manifest RSPEC for " + node.name);
 			}
 		]]>
 	</fx:Script>

@@ -181,24 +181,38 @@ package protogeni.communication
 		public function submitSlice(slice:Slice):void
 		{
 			this.isPaused = false;
+			this.forceStop = false;
+			
+			// Invalidate the slice
+			var sliver:Sliver;
+			if(slice.slivers.length > 0) {
+				for each(sliver in slice.slivers.collection) {
+					sliver.clearState();
+				}
+			}
 			Main.geniDispatcher.dispatchSliceChanged(slice);
+			
 			var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(slice.urn.full);
-			if(old != null && old.hasAllocatedResources())
+			if(old != null && old.slivers.AllocatedAnyResources)
 			{
 				var newSlivers:SliverCollection = new SliverCollection();
 				var deleteSlivers:SliverCollection = new SliverCollection();
-				var updateSlivers:SliverCollection = slice.slivers.clone();
-				for each(var s:Sliver in old.slivers.collection)
-				{
-					if(slice.slivers.getByGm(s.manager) == null)
-						deleteSlivers.add(s);
+				var updateSlivers:SliverCollection = new SliverCollection();
+				for each(var oldSliver:Sliver in old.slivers.collection) {
+					if(oldSliver.Created)
+						updateSlivers.add(oldSliver);
 				}
-				for each(s in slice.slivers.collection)
+				for each(sliver in updateSlivers.collection)
 				{
-					if(old.slivers.getByGm(s.manager) == null)
+					if(slice.slivers.getByManager(sliver.manager) == null)
+						deleteSlivers.add(sliver);
+				}
+				for each(sliver in slice.slivers.collection)
+				{
+					if(updateSlivers.getByManager(sliver.manager) == null)
 					{
-						newSlivers.add(s);
-						updateSlivers.remove(s);
+						newSlivers.add(sliver);
+						updateSlivers.remove(sliver);
 					}
 				}
 				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
@@ -207,17 +221,10 @@ package protogeni.communication
 				for each(sliver in deleteSlivers.collection) {
 					if(sliver.manager.isAm)
 						pushRequest(new RequestSliverDeleteAm(sliver));
-					else if(sliver.manager is ProtogeniComponentManager)
+					else
 						pushRequest(new RequestSliverDelete(sliver));
 				}
 				
-				// Update
-				for each(sliver in updateSlivers.collection) {
-					sliver.created = false;
-					sliver.staged = false;
-					sliver.status = "";
-					sliver.state = "";
-				}
 				for each(sliver in updateSlivers.collection) {
 					if(sliver.manager.isAm) {
 						// Don't do for now
@@ -229,11 +236,11 @@ package protogeni.communication
 				
 				// Create
 				var addDelay:Boolean = false;
-				for each(var sliver:Sliver in newSlivers.collection) {
+				for each(sliver in newSlivers.collection) {
 					var request:Request;
 					if(sliver.manager.isAm)
 						request = new RequestSliverCreateAm(sliver);
-					else if(sliver.manager is ProtogeniComponentManager)
+					else
 						request = new RequestSliverCreate(sliver);
 					
 					// Add a delay for the other slivers in case there is any stitching
@@ -249,13 +256,9 @@ package protogeni.communication
 				if(slice.slivers.length > 0) {
 					Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
 					for each(sliver in slice.slivers.collection) {
-						sliver.created = false;
-						sliver.staged = false;
-					}
-					for each(sliver in slice.slivers.collection) {
 						if(sliver.manager.isAm)
 							pushRequest(new RequestSliverCreateAm(sliver));
-						else if(sliver.manager is ProtogeniComponentManager)
+						else
 							pushRequest(new RequestSliverCreate(sliver));
 					}
 				}
@@ -274,9 +277,7 @@ package protogeni.communication
 			if(slice.slivers.length > 0) {
 				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
 				for each(var sliver:Sliver in slice.slivers.collection) {
-					if(skipDone &&
-						(sliver.status == Sliver.STATUS_READY
-							|| sliver.status == Sliver.STATUS_FAILED))
+					if((skipDone && sliver.StatusFinalized) || !sliver.processed)
 						continue;
 					if(sliver.manager.isAm)
 						pushRequest(new RequestSliverStatusAm(sliver));
@@ -299,6 +300,7 @@ package protogeni.communication
 				for each(var sliver:Sliver in slice.slivers.collection) {
 					sliver.removeOutsideReferences();
 				}
+				slice.slivers = new SliverCollection();
 			}
 			this.isPaused = false;
 			this.forceStop = false;

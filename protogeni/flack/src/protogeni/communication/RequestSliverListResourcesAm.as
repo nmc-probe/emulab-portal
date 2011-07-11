@@ -14,6 +14,9 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
 	import flash.utils.ByteArray;
 	
 	import mx.utils.Base64Decoder;
@@ -44,6 +47,7 @@ package protogeni.communication
 			ignoreReturnCode = true;
 			op.timeout = 60;
 			sliver = s;
+			sliver.changing = true;
 			
 			// Build up the args
 			var options:Object = {geni_available:false, geni_compressed:true, geni_slice_urn:sliver.slice.urn.full};
@@ -71,20 +75,25 @@ package protogeni.communication
 				var bytes:ByteArray = decodor.toByteArray();
 				bytes.uncompress();
 				var decodedRspec:String = bytes.toString();
-				sliver.rspec = new XML(decodedRspec);
 				
-				sliver.created = true;
-				sliver.parseRspec();
+				sliver.parseManifest(new XML(decodedRspec));
 				
 				if(sliver.nodes.length > 0 && !sliver.slice.slivers.contains(sliver)) {
 					sliver.slice.slivers.add(sliver);
 					return new RequestSliverStatusAm(sliver);
-				}
+				} else
+					sliver.changing = false;
 			} catch(e:Error)
 			{
+				sliver.changing = false;
 			}
 			
 			return null;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			sliver.changing = false;
+			return super.fail(event, fault);
 		}
 		
 		override public function cleanup():void {

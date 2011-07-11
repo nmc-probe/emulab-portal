@@ -221,8 +221,8 @@ package
 			newSliceObject.urn = slice.urn.full;
 			
 			newSliceObject.slivers = [];
-			if(slice.isCreated()) {
-				for each(var sliver:Sliver in slice.slivers.collection) {
+			for each(var sliver:Sliver in slice.slivers.collection) {
+				if(sliver.Created) {
 					var newSliverObject:Object = new Object();
 					newSliverObject.managerUrn = sliver.manager.Urn.full;
 					newSliverObject.credential = sliver.credential;
@@ -231,7 +231,7 @@ package
 					newSliverObject.status = sliver.status;
 					newSliverObject.urn = sliver.urn.full;
 					var encodedSliverRspec:ByteArray = new ByteArray();
-					encodedSliverRspec.writeUTFBytes(sliver.rspec.toXMLString());
+					encodedSliverRspec.writeUTFBytes(sliver.manifest.toXMLString());
 					encodedSliverRspec.compress();
 					newSliverObject.rspec = encodedSliverRspec;
 					newSliceObject.slivers.push(newSliverObject);
@@ -566,20 +566,19 @@ package
 				newSlice.urn = new IdnUrn(sliceObject.urn);
 				
 				for each(var sliverObject:Object in sliceObject.slivers) {
-					var newSliver:Sliver = newSlice.getOrCreateSliverFor(Main.geniHandler.GeniManagers.getByUrn(sliverObject.managerUrn));
+					var newSliver:Sliver = newSlice.getOrCreateForManager(Main.geniHandler.GeniManagers.getByUrn(sliverObject.managerUrn));
 					newSliver.credential = sliverObject.credential;
 					newSliver.urn = new IdnUrn(sliverObject.urn);
 					newSliver.expires = sliverObject.expires;
-					newSliver.created = true;
 					newSliver.state = sliverObject.state;
 					newSliver.status = sliverObject.status;
 					
 					var compressedRspec:ByteArray = sliverObject.rspec;
 					compressedRspec.uncompress();
-					newSliver.rspec = new XML(compressedRspec.toString());
+					newSliver.manifest = new XML(compressedRspec.toString());
 					compressedRspec.compress();
 					
-					newSliver.parseRspec();
+					newSliver.parseManifest();
 				}
 				
 				Main.geniHandler.CurrentUser.slices.add(newSlice);

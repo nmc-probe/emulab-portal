@@ -36,19 +36,10 @@ package protogeni.resources
 	public class Slice
 	{
 		[Bindable]
-		public var hrn:String = null;
+		public var hrn:String = "";
 		[Bindable]
 		public var urn:IdnUrn = null;
-		public var creator:GeniUser = null;
-		public var credential:String = "";
-		public var slivers:SliverCollection = new SliverCollection();
-		
-		public var expires:Date;
-		
-		[Bindable]
-		public var useInputRspecVersion:Number = Util.defaultRspecVersion;
-		
-		public function get name():String {
+		public function get Name():String {
 			if(urn != null)
 				return urn.name;
 			else if(hrn != null)
@@ -57,204 +48,26 @@ package protogeni.resources
 				return "*No name*";
 		}
 		
+		public var creator:GeniUser = null;
+		public var credential:String = "";
+		public var slivers:SliverCollection;
+		
+		public var expires:Date = null;
+		
+		[Bindable]
+		public var useInputRspecVersion:Number = Util.defaultRspecVersion;
+		
+		private var _changing:Boolean = false;
+		public function set Changing(val:Boolean):void {
+			_changing = val;
+		}
+		public function get Changing():Boolean {
+			return slivers.Changing || _changing;
+		}
+		
 		public function Slice()
 		{
-		}
-		
-		public function get MakingCalls():Boolean {
-			var testNode:RequestQueueNode = Main.geniHandler.requestHandler.queue.head;
-			while(testNode != null) {
-				try {
-					if(testNode.item.sliver.slice == this)
-						return true;
-				} catch(e:Error) {}
-				try {
-					if(testNode.item.slice == this)
-						return true;
-				} catch(e:Error) {}
-				testNode = testNode.next;
-			}
-			return false;
-		}
-		
-		public function get CompletelyReady():Boolean {
-			// Return false if there are any calls being made for the slice
-			if(MakingCalls)
-				return false;
-			// Return false if any sliver hasn't gotten its status
-			if(this.credential.length > 0) {
-				for each(var sliver:Sliver in this.slivers.collection) {
-					if((!sliver.created || sliver.status == Sliver.STATUS_FAILED) || sliver.status.length == 0)
-						return false;
-				}
-				return true;
-			} else
-				return false;
-		}
-		
-		public function Status():String {
-			if(this.hrn == null) return null;
-			var status:String = "";
-			for each(var sliver:Sliver in this.slivers.collection) {
-				if(status.length == 0) status = sliver.status;
-				if(sliver.status.length > 0
-					&& sliver.status != Sliver.STATUS_READY
-					&& sliver.status != Sliver.STATUS_FAILED)
-					return Sliver.STATUS_CHANGING;
-				if(sliver.status != status)
-					status = Sliver.STATUS_MIXED;
-			}
-			return status;
-		}
-		
-		public function hasAllocatedResources():Boolean
-		{
-			if(this.slivers == null)
-				return false;
-			
-			for each(var existing:Sliver in this.slivers.collection)
-			{
-				if(existing.created)
-					return true;
-			}
-			return false;
-		}
-		
-		public function hasAllAllocatedResources():Boolean
-		{
-			if(this.slivers == null)
-				return false;
-			
-			for each(var existing:Sliver in this.slivers.collection)
-			{
-				if(!(existing.created || existing.status == Sliver.STATUS_FAILED || existing.staged))
-					return false;
-			}
-			return true;
-		}
-		
-		public function isStaged():Boolean {
-			if(this.slivers == null || this.slivers.collection.length == 0)
-				return false;
-			
-			for each(var existing:Sliver in this.slivers.collection)
-			{
-				if(!existing.staged)
-					return false;
-			}
-			return true;
-		}
-		
-		public function isCreated():Boolean {
-			if(this.slivers == null || this.slivers.length == 0)
-				return false;
-			
-			for each(var existing:Sliver in this.slivers.collection)
-			{
-				if(!(existing.created || existing.status == Sliver.STATUS_FAILED))
-					return false;
-			}
-			return true;
-		}
-		
-		public function GetAllNodes():VirtualNodeCollection
-		{
-			var nodes:VirtualNodeCollection = new VirtualNodeCollection();
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				for each(var n:VirtualNode in s.nodes.collection)
-				{
-					if(n.manager == s.manager)
-						nodes.add(n);
-				}
-				
-			}
-			return nodes;
-		}
-		
-		public function GetAllLinks():VirtualLinkCollection
-		{
-			var links:VirtualLinkCollection = new VirtualLinkCollection();
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				for each(var l:VirtualLink in s.links.collection)
-				{
-					if(!links.contains(l))
-						links.add(l);
-				}
-				
-			}
-			return links;
-		}
-		
-		public function GetPhysicalNodes():Vector.<PhysicalNode>
-		{
-			var nodes:Vector.<PhysicalNode> = new Vector.<PhysicalNode>();
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				for each(var n:VirtualNode in s.nodes.collection)
-				{
-					if(nodes.indexOf(n) == -1 && n.physicalNode != null)
-						nodes.push(n.physicalNode);
-				}
-				
-			}
-			return nodes;
-		}
-		
-		public function getVirtualNodeWithId(id:String):VirtualNode
-		{
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				var vn:VirtualNode = s.nodes.getById(id);
-				if(vn != null)
-					return vn;
-			}
-			return null;
-		}
-		
-		public function getVirtualInterfaceWithId(id:String):VirtualInterface
-		{
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				var vi:VirtualInterface = s.nodes.getByInterfaceId(id);
-				if(vi != null)
-					return vi;
-			}
-			return null;
-		}
-		
-		public function getVirtualLinkWithId(id:String):VirtualLink
-		{
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				var vl:VirtualLink = s.links.getById(id);
-				if(vl != null)
-					return vl;
-			}
-			return null;
-		}
-		
-		public function hasSliverFor(gm:GeniManager):Boolean
-		{
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				if(s.manager == gm)
-					return true;
-			}
-			return false;
-		}
-		
-		public function getOrCreateSliverFor(gm:GeniManager):Sliver
-		{
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				if(s.manager == gm)
-					return s;
-			}
-			var newSliver:Sliver = new Sliver(this, gm);
-			this.slivers.add(newSliver);
-			return newSliver;
+			slivers = new SliverCollection();
 		}
 		
 		public function removeOutsideReferences():void {
@@ -271,25 +84,26 @@ package protogeni.resources
 			newSlice.creator = this.creator;
 			newSlice.credential = this.credential;
 			newSlice.expires = this.expires;
+			newSlice._changing = this._changing;
+			newSlice.useInputRspecVersion = this.useInputRspecVersion;
 			
 			var sliver:Sliver;
 			
 			// Build up the basic slivers
-			// Build up the slivers with nodes
 			for each(sliver in this.slivers.collection)
 			{
-				var newSliver:Sliver = new Sliver(newSlice);
-				newSliver.created = sliver.created;
-				newSliver.credential = sliver.credential;
-				newSliver.manager = sliver.manager;
-				newSliver.rspec = sliver.rspec;
+				var newSliver:Sliver = new Sliver(newSlice, sliver.manager);
 				newSliver.urn = new IdnUrn(sliver.urn.full);
-				newSliver.ticket = sliver.ticket;
-				newSliver.manifest = sliver.manifest;
+				newSliver.credential = sliver.credential;
+				newSliver.expires = sliver.expires;
 				newSliver.state = sliver.state;
 				newSliver.status = sliver.status;
-				newSliver.expires = sliver.expires;
+				newSliver.ticket = sliver.ticket;
+				newSliver.request = sliver.request;
+				newSliver.manifest = sliver.manifest;
 				newSliver.extensionNamespaces = sliver.extensionNamespaces;
+				newSliver.processed = sliver.processed;
+				newSliver.changing = sliver.changing;
 				
 				newSlice.slivers.add(newSliver);
 			}
@@ -301,7 +115,7 @@ package protogeni.resources
 			// Build up the slivers with nodes
 			for each(sliver in this.slivers.collection)
 			{
-				newSliver = newSlice.slivers.getByGm(sliver.manager);
+				newSliver = newSlice.slivers.getByManager(sliver.manager);
 				
 				// Build up nodes
 				var retrace:Array = new Array();
@@ -334,7 +148,7 @@ package protogeni.resources
 					// supernode? add later ...
 					// subnodes? add later ...
 					retrace.push({clone:newNode, old:node});
-					newNode.rspec = node.rspec;
+					newNode.manifest = node.manifest;
 					newNode.error = node.error;
 					newNode.state = node.state;
 					newNode.status = node.status;
@@ -349,10 +163,11 @@ package protogeni.resources
 					
 					for each(var nodeSliver:Sliver in node.slivers.collection)
 					{
-						newNode.slivers.addIfNotExisting(newSlice.slivers.getByGm(nodeSliver.manager));
+						newNode.slivers.addIfNotExisting(newSlice.slivers.getByManager(nodeSliver.manager));
 						newSlice.slivers.getByUrn(nodeSliver.urn.full).nodes.add(newNode);
 					}
 					
+					// Copy interfaces
 					for each(var vi:VirtualInterface in node.interfaces.collection)
 					{
 						var newVirtualInterface:VirtualInterface = new VirtualInterface(newNode);
@@ -367,6 +182,10 @@ package protogeni.resources
 						// links? add later ...
 					}
 					
+					// Copy pipes
+					for each(var vp:Pipe in node.pipes.collection)
+						newNode.pipes.add(new Pipe(newNode.interfaces.GetByID(vp.source.id), newNode.interfaces.GetByID(vp.destination.id), vp.capacity, vp.latency, vp.packetLoss));
+					
 					//newSliver.nodes.addItem(newNode);
 					
 					oldNodeToCloneNode[node] = newNode;
@@ -378,11 +197,11 @@ package protogeni.resources
 					var cloneNode:VirtualNode = check.clone;
 					var oldNode:VirtualNode = check.old;
 					if(oldNode.superNode != null)
-						cloneNode.superNode = newSliver.nodes.getById(oldNode.clientId);
+						cloneNode.superNode = newSliver.nodes.getByClientId(oldNode.clientId);
 					if(oldNode.subNodes != null && oldNode.subNodes.length > 0)
 					{
 						for each(var subNode:VirtualNode in oldNode.subNodes.collection)
-						cloneNode.subNodes.add(newSliver.nodes.getById(subNode.clientId));
+							cloneNode.subNodes.add(newSliver.nodes.getByClientId(subNode.clientId));
 					}
 				}
 			}
@@ -390,7 +209,7 @@ package protogeni.resources
 			// Build up the links
 			for each(sliver in this.slivers.collection)
 			{
-				newSliver = newSlice.slivers.getByGm(sliver.manager);
+				newSliver = newSlice.slivers.getByManager(sliver.manager);
 				
 				for each(var link:VirtualLink in sliver.links.collection)
 				{
@@ -402,10 +221,11 @@ package protogeni.resources
 					newLink.type = link.type;
 					newLink.capacity = link.capacity;
 					newLink.linkType = link.linkType;
-					newLink.rspec = link.rspec;
+					newLink.manifest = link.manifest;
+					newLink.vlantag = link.vlantag;
 					for each(var linkSliver:Sliver in link.slivers.collection) {
-						newLink.slivers.add(newSlice.slivers.getByGm(linkSliver.manager));
-						newSlice.slivers.getByGm(linkSliver.manager).links.add(newLink);
+						newLink.slivers.add(newSlice.slivers.getByManager(linkSliver.manager));
+						newSlice.slivers.getByManager(linkSliver.manager).links.add(newLink);
 					}
 					
 					var slivers:Vector.<Sliver> = new Vector.<Sliver>();
@@ -424,7 +244,7 @@ package protogeni.resources
 		}
 		
 		public function ReadyIcon():Class {
-			switch(this.Status()) {
+			switch(this.slivers.Status) {
 				case Sliver.STATUS_READY : return ImageUtil.flagGreenIcon;
 				case Sliver.STATUS_NOTREADY : return ImageUtil.flagYellowIcon;
 				case Sliver.STATUS_FAILED : return ImageUtil.flagRedIcon;
@@ -432,99 +252,21 @@ package protogeni.resources
 			}
 		}
 		
-		public function isIdUnique(o:*, id:String):Boolean {
-			if(!this.GetAllLinks().isIdUnique(o, id))
-				return false;
-			if(!this.GetAllNodes().isIdUnique(o, id))
-				return false;
-			return true;
-		}
-		
-		public function getUniqueVirtualLinkId(l:VirtualLink = null):String
+		public function getOrCreateForManager(gm:GeniManager):Sliver
 		{
-			var highest:int = 0;
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				for each(var l:VirtualLink in s.links.collection)
-				{
-					try
-					{
-						if(l.clientId.substr(0,5) == "link-")
-						{
-							var testHighest:int = parseInt(l.clientId.substring(5));
-							if(testHighest >= highest)
-								highest = testHighest+1;
-						}
-					} catch(e:Error) { }
-				}
+			var newSliver:Sliver = this.slivers.getByManager(gm);
+			if(newSliver == null) {
+				newSliver = new Sliver(this, gm);
+				this.slivers.add(newSliver);
 			}
-			return "link-" + highest;
-		}
-		
-		public function getUniqueVirtualNodeId(n:VirtualNode = null):String
-		{
-			var newId:String;
-			if(n == null)
-				newId = "node-";
-			else
-			{
-				if(n.isDelayNode)
-					newId = "bridge-";
-				else if(n.Exclusive)
-					newId = "exclusive-";
-				else
-					newId = "shared-";
-			}
-			
-			var highest:int = 0;
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				for each(var testNode:VirtualNode in s.nodes.collection)
-				{
-					try
-					{
-						if(testNode.clientId.indexOf(newId) == 0) {
-							var testHighest:int = parseInt(testNode.clientId.substring(testNode.clientId.lastIndexOf("-")+1));
-							if(testHighest >= highest)
-								highest = testHighest+1;
-						}
-					} catch(e:Error) {}
-				}
-			}
-			
-			return newId + highest;
-		}
-		
-		public function getUniqueVirtualInterfaceId():String
-		{
-			var highest:int = 0;
-			for each(var s:Sliver in this.slivers.collection)
-			{
-				for each(var l:VirtualLink in s.links.collection)
-				{
-					for each(var i:VirtualInterface in l.interfaces.collection)
-					{
-						try
-						{
-							if(i.id.substr(0,10) == "interface-")
-							{
-								var testHighest:int = parseInt(i.id.substring(10));
-								if(testHighest >= highest)
-									highest = testHighest+1;
-							}
-						} catch(e:Error) { }
-					}
-					
-				}
-			}
-			return "interface-" + highest;
+			return newSliver;
 		}
 		
 		public function tryImport(rspec:String):Boolean {
 			// Tell user they need to delete
-			if(this.isCreated())
+			if(this.slivers.AllocatedAnyResources)
 				Alert.show("The slice has resources allocated to it.  Please delete the slice before trying to import.", "Allocated Resources Exist");
-			else if(this.GetAllNodes().length > 0)
+			else if(this.slivers.VirtualNodes.length > 0)
 				Alert.show("The slice already has resources waiting to be allocated.  Please clear the canvas before trying to import", "Resources Exist");
 			else {
 				var sliceRspec:XML;
@@ -653,18 +395,15 @@ package protogeni.resources
 				}
 				
 				if(detectedManager != null && detectedManagers.indexOf(detectedManager) == -1) {
-					var newSliver:Sliver = this.getOrCreateSliverFor(detectedManager);
-					newSliver.rspec = sliceRspec;
+					var newSliver:Sliver = this.getOrCreateForManager(detectedManager);
 					try {
-						newSliver.parseRspec(false);
-						newSliver.staged = true;
+						newSliver.parseRspec(sliceRspec);
 					} catch(e:Error) {
 						Alert.show("Error while parsing sliver RSPEC on " + detectedManager.Hrn + ": " + e.toString());
 						return false;
 					}
 					detectedManagers.push(detectedManager);
 				}
-				
 			}
 			
 			Main.geniDispatcher.dispatchSliceChanged(this);

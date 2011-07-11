@@ -14,6 +14,10 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import mx.controls.Alert;
 	
 	import protogeni.StringUtil;
@@ -42,6 +46,7 @@ package protogeni.communication
 				"Resolving slice named " + s.hrn,
 				CommunicationUtil.resolve);
 			slice = s;
+			slice.Changing = true;
 			isCreating = willBeCreating;
 			
 			// Build up the args
@@ -58,6 +63,7 @@ package protogeni.communication
 			{
 				if(isCreating)
 				{
+					slice.Changing = false;
 					Alert.show("Slice '" + slice.urn.full + "' already exists", "Error");
 					Main.Application().setStatus("Slice exists", true);
 				}
@@ -83,6 +89,7 @@ package protogeni.communication
 				}
 				else
 				{
+					slice.Changing = false;
 					Main.geniHandler.requestHandler.codeFailure(name, "Recieved GENI response other than success");
 					//Main.geniHandler.mapHandler.drawAll();
 				}
@@ -90,6 +97,11 @@ package protogeni.communication
 			}
 			
 			return newRequest;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			slice.Changing = false;
+			return super.fail(event, fault);
 		}
 		
 		override public function cleanup():void {

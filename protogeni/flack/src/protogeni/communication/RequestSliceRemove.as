@@ -14,6 +14,10 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import protogeni.GeniEvent;
 	import protogeni.resources.Slice;
 	
@@ -34,6 +38,7 @@ package protogeni.communication
 				"Remove slice named " + s.hrn,
 				CommunicationUtil.remove);
 			slice = s;
+			slice.Changing = true;
 			tryCreate = shouldTryCreate;
 			
 			// Build up the args
@@ -51,15 +56,23 @@ package protogeni.communication
 			{
 				if(tryCreate)
 					newRequest = new RequestSliceRegister(slice);
-				else
+				else {
+					slice.Changing = false;
 					Main.geniDispatcher.dispatchSliceChanged(slice, GeniEvent.ACTION_REMOVED);
+				}
 			}
 			else
 			{
+				slice.Changing = false;
 				Main.geniHandler.requestHandler.codeFailure(name, "Recieved GENI response other than success");
 			}
 			
 			return newRequest;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			slice.Changing = false;
+			return super.fail(event, fault);
 		}
 		
 		override public function cleanup():void {

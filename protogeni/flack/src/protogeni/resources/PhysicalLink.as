@@ -20,21 +20,13 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class PhysicalLink
+	public class PhysicalLink extends PhysicalComponent
 	{
 		public var owner:PhysicalLinkGroup;
 		
 		[Bindable]
-		public var name:String;
-		[Bindable]
-		public var id:String;
-		[Bindable]
-		public var manager:GeniManager;
-		[Bindable]
 		public var linkTypes:Vector.<String> = new Vector.<String>();
 		public var interfaceRefs:PhysicalNodeInterfaceCollection = new PhysicalNodeInterfaceCollection();
-		
-		public var rspec:XML;
 		
 		// TODEPRECIATE
 		[Bindable]
@@ -46,6 +38,7 @@ package protogeni.resources
 		
 		public function PhysicalLink(own:PhysicalLinkGroup)
 		{
+			super();
 			this.owner = own;
 		}
 		

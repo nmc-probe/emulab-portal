@@ -287,7 +287,7 @@ package protogeni.resources
 						}
 					}
 					
-					node.rspec = nodeXml;
+					node.advertisement = nodeXml;
 					ng.Add(node);
 					this.nodeNameDictionary[node.id] = node;
 					this.nodeNameDictionary[node.name] = node;
@@ -437,7 +437,7 @@ package protogeni.resources
 						}
 					}
 					
-					l.rspec = link;
+					l.advertisement = link;
 					
 					lg.Add(l);
 					for each(var addedInterfaces:PhysicalNodeInterface in l.interfaceRefs.collection) {
@@ -466,10 +466,10 @@ package protogeni.resources
 		}
 		
 		private var detectedInputRspecVersion:Number;
-		public function processSliverRspec(s:Sliver,
-										   onlyListFromManifest:Boolean):void
+		public function processSliverRspec(sliver:Sliver,
+										   rspec:XML):void
 		{
-			var defaultNamespace:Namespace = s.rspec.namespace();
+			var defaultNamespace:Namespace = rspec.namespace();
 			switch(defaultNamespace.uri) {
 				case XmlUtil.rspec01Namespace:
 					this.detectedInputRspecVersion = 0.1;
@@ -483,24 +483,28 @@ package protogeni.resources
 					break;
 			}
 			
-			if(s.rspec.@valid_until.length() == 1)
-				s.expires = Util.parseProtogeniDate(String(s.rspec.@valid_until));
-			if(s.rspec.@expires.length() == 1)
-				s.expires = Util.parseProtogeniDate(String(s.rspec.@expires));
+			if(rspec.@valid_until.length() == 1)
+				sliver.expires = Util.parseProtogeniDate(String(rspec.@valid_until));
+			if(rspec.@expires.length() == 1)
+				sliver.expires = Util.parseProtogeniDate(String(rspec.@expires));
 			
-			s.removeOutsideReferences();
-			s.nodes = new VirtualNodeCollection();
-			s.links = new VirtualLinkCollection();
+			var isManifest:Boolean = false;
+			if(rspec.@type.length() == 1)
+				isManifest = String(rspec.@type) == "manifest";
+			
+			sliver.removeOutsideReferences();
+			sliver.clearResources();
+			sliver.clearState();
 			
 			var nodesById:Dictionary = new Dictionary();
 			var interfacesById:Dictionary = new Dictionary();
 			
 			var localName:String;
 			
-			for each(var nodeXml:XML in s.rspec.defaultNamespace::node)
+			for each(var nodeXml:XML in rspec.defaultNamespace::node)
 			{
 				var cmNode:PhysicalNode;
-				var virtualNode:VirtualNode = new VirtualNode(s);
+				var virtualNode:VirtualNode = new VirtualNode(sliver);
 				if(this.detectedInputRspecVersion < 1)
 				{
 					var managerIdString:String = "";
@@ -512,7 +516,7 @@ package protogeni.resources
 					
 					// Don't add outside nodes ... do that if found when parsing links ...
 					virtualNode.manager = Main.geniHandler.GeniManagers.getByUrn(managerIdString);
-					if(virtualNode.manager != s.manager)
+					if(virtualNode.manager != sliver.manager)
 						continue;
 					
 					if(nodeXml.@component_urn.length() == 1)
@@ -520,7 +524,7 @@ package protogeni.resources
 					else if(nodeXml.@component_uuid.length() == 1)
 						componentIdString = String(nodeXml.@component_uuid);
 					if(componentIdString.length > 0) {
-						cmNode = s.manager.Nodes.GetByUrn(componentIdString);
+						cmNode = sliver.manager.Nodes.GetByUrn(componentIdString);
 						if(cmNode == null)
 							continue;
 						virtualNode.setToPhysicalNode(cmNode);
@@ -532,11 +536,11 @@ package protogeni.resources
 				{
 					// Don't add outside nodes ... do that if found when parsing links ...
 					virtualNode.manager = Main.geniHandler.GeniManagers.getByUrn(String(nodeXml.@component_manager_id));
-					if(virtualNode.manager != s.manager)
+					if(virtualNode.manager != sliver.manager)
 						continue;
 					
 					if(nodeXml.@component_id.length() == 1) {
-						cmNode = s.manager.Nodes.GetByUrn(String(nodeXml.@component_id));
+						cmNode = sliver.manager.Nodes.GetByUrn(String(nodeXml.@component_id));
 						// Don't add outside nodes ... do that if found when parsing links ...
 						if(cmNode == null)
 							continue;
@@ -577,7 +581,7 @@ package protogeni.resources
 				}
 				
 				// PlanetLab lists all, so this is to only keep sliver nodes
-				if(onlyListFromManifest
+				if(isManifest
 					&& virtualNode.sliverId.length == 0)
 					continue;
 				
@@ -654,8 +658,8 @@ package protogeni.resources
 								virtualNode.flackUnbound = String(nodeChildXml.@unbound) == "true" || String(nodeChildXml.@unbound) == "1";
 						} else {
 							// Preserve extensions
-							if(s.extensionNamespaces.indexOf(nodeChildXml.namespace()) == -1)
-								s.extensionNamespaces.push(nodeChildXml.namespace());
+							if(sliver.extensionNamespaces.indexOf(nodeChildXml.namespace()) == -1)
+								sliver.extensionNamespaces.push(nodeChildXml.namespace());
 							virtualNode.extensionsNodes.addItem(nodeChildXml);
 						}
 					}
@@ -671,23 +675,23 @@ package protogeni.resources
 					}
 				}
 				
-				virtualNode.rspec = nodeXml;
-				s.nodes.add(virtualNode);
+				virtualNode.manifest = nodeXml;
+				sliver.nodes.add(virtualNode);
 				nodesById[virtualNode.clientId] = virtualNode;
 				if(virtualNode.physicalNode != null)
 					virtualNode.physicalNode.virtualNodes.add(virtualNode);
 			}
 			
-			for each(var vn:VirtualNode in s.nodes.collection)
+			for each(var vn:VirtualNode in sliver.nodes.collection)
 			{
 				if(vn.physicalNode != null && vn.physicalNode.subNodeOf != null)
 				{
-					vn.superNode = s.nodes.getById(vn.physicalNode.subNodeOf.name);
-					s.nodes.getById(vn.physicalNode.subNodeOf.name).subNodes.add(vn);
+					vn.superNode = sliver.nodes.getByClientId(vn.physicalNode.subNodeOf.name);
+					sliver.nodes.getByClientId(vn.physicalNode.subNodeOf.name).subNodes.add(vn);
 				}
 			}
 			
-			for each(var linkXml:XML in s.rspec.defaultNamespace::link)
+			for each(var linkXml:XML in rspec.defaultNamespace::link)
 			{
 				var virtualLink:VirtualLink = new VirtualLink();
 				if(this.detectedInputRspecVersion < 1) {
@@ -729,10 +733,8 @@ package protogeni.resources
 									if(interfacedNode == null)
 									{
 										// Get outside node, don't add if not parsed in the other cm yet
-										interfacedNode = s.slice.getVirtualNodeWithId(nid);
-										if(interfacedNode == null
-											|| !(interfacedNode.sliver.created
-												|| interfacedNode.sliver.staged))
+										interfacedNode = sliver.slice.slivers.getNodeWithClientId(nid);
+										if(interfacedNode == null || !interfacedNode.sliver.processed)
 										{
 											virtualLink = null;
 											break;
@@ -759,10 +761,8 @@ package protogeni.resources
 									if(interfacedNodeInterface == null)
 									{
 										// Get outside node, don't add if not parsed in the other cm yet
-										interfacedNodeInterface = s.slice.getVirtualInterfaceWithId(niid);
-										if(interfacedNodeInterface == null
-											|| !(interfacedNodeInterface.owner.sliver.created
-												|| interfacedNodeInterface.owner.sliver.staged))
+										interfacedNodeInterface = sliver.slice.slivers.getInterfaceWithId(niid);
+										if(interfacedNodeInterface == null || !interfacedNodeInterface.owner.sliver.processed)
 										{
 											virtualLink = null;
 											break;
@@ -792,10 +792,10 @@ package protogeni.resources
 					continue;
 				
 				// Make sure this sliver actually uses this link
-				if(!virtualLink.slivers.contains(s))
+				if(!virtualLink.slivers.contains(sliver))
 					continue;
 				
-				virtualLink.rspec = linkXml;
+				virtualLink.manifest = linkXml;
 				
 				// Make sure nodes and link are in all the slivers
 				for each(var checkSliver:Sliver in virtualLink.slivers.collection) {
@@ -809,13 +809,13 @@ package protogeni.resources
 				
 				for each(var checkInterface:VirtualInterface in virtualLink.interfaces.collection) {
 					// Deal with links between managers
-					if(checkInterface.owner.manager != s.manager) {
+					if(checkInterface.owner.manager != sliver.manager) {
 						
 						if(virtualLink.linkType == VirtualLink.TYPE_NORMAL)
 							virtualLink.linkType = VirtualLink.TYPE_TUNNEL;
 						
-						if(!checkInterface.owner.slivers.contains(s))
-							checkInterface.owner.slivers.add(s);
+						if(!checkInterface.owner.slivers.contains(sliver))
+							checkInterface.owner.slivers.add(sliver);
 						
 						for each(var checkOtherInterface:VirtualInterface in virtualLink.interfaces.collection) {
 							if(checkOtherInterface != checkInterface
@@ -828,7 +828,7 @@ package protogeni.resources
 				}
 			}
 			
-			return;
+			sliver.processed = true;
 		}
 		
 		public function generateSliverRspec(s:Sliver,

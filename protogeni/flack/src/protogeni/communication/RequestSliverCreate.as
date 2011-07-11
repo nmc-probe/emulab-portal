@@ -25,6 +25,8 @@ package protogeni.communication
 	import protogeni.resources.Key;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
+	import protogeni.resources.VirtualComponent;
+	import protogeni.resources.VirtualNode;
 	
 	/**
 	 * Allocates resources to a sliver using the ProtoGENI API
@@ -35,27 +37,29 @@ package protogeni.communication
 	public final class RequestSliverCreate extends Request
 	{
 		public var sliver:Sliver;
+		private var sentRspec:String;
 		
 		public function RequestSliverCreate(s:Sliver, rspec:XML = null):void
 		{
 			super("SliverCreate",
 				"Creating sliver on " + s.manager.Hrn + " for slice named " + s.slice.hrn,
 				CommunicationUtil.createSliver,
-				true);
+				true,
+				false);
 			sliver = s;
-			s.created = false;
-			s.staged = false;
-			s.status = "";
-			s.state = "";
+			sliver.clearState();
+			sliver.changing = true;
+			sliver.manifest = null;
 			
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
 			if(rspec != null)
-				op.addField("rspec", rspec.toXMLString());
+				sentRspec = rspec.toXMLString()
 			else
-				op.addField("rspec", sliver.slice.slivers.getCombined().getRequestRspec(true).toXMLString());
+				sentRspec = sliver.slice.slivers.Combined.getRequestRspec(true).toXMLString();
+			op.addField("rspec", sentRspec);
 			var keys:Array = [];
 			for each(var key:Key in sliver.slice.creator.keys) {
 				keys.push({type:key.type, key:key.value});
@@ -73,16 +77,13 @@ package protogeni.communication
 				sliver.credential = response.value[0];
 				var cred:XML = new XML(sliver.credential);
 				sliver.urn = new IdnUrn(cred.credential.target_urn);
-				sliver.created = true;
 				
-				sliver.manifest = new XML(response.value[1]);
-				sliver.rspec = sliver.manifest;
-				sliver.parseRspec();
+				sliver.parseManifest(new XML(response.value[1]));
 
 				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
 				{
-					var oldSliver:Sliver = old.slivers.getByGm(sliver.manager);
+					var oldSliver:Sliver = old.slivers.getByManager(sliver.manager);
 					if(oldSliver != null)
 						old.slivers.remove(oldSliver);
 					old.slivers.add(sliver);
@@ -92,16 +93,27 @@ package protogeni.communication
 			}
 			else
 			{
-				failed();
+				failed(response.output);
 			}
 			
 			return null;
 		}
 		
-		private function failed():void {
+		private function failed(msg:String = ""):void {
 			sliver.status = Sliver.STATUS_FAILED;
 			sliver.state = Sliver.STATE_NA;
-			Alert.show("Failed to create sliver on " + sliver.manager.Hrn);
+			sliver.changing = false;
+			for each(var node:VirtualNode in sliver.nodes.collection) {
+				node.status = VirtualComponent.STATUS_FAILED;
+				node.error = "Sliver had error when creating";
+			}
+			var managerMsg:String = "";
+			if(msg != null && msg.length > 0)
+				managerMsg = " Manager reported error: " + msg + ".";
+			
+			Alert.show("Failed to create sliver on " + sliver.manager.Hrn+"!" + managerMsg, "Failed to create sliver");
+			
+			// TODO ask user if they want to continue
 			
 			/*
 			// Cancel remaining calls
@@ -121,14 +133,17 @@ package protogeni.communication
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):*
 		{
-			failed();
-			
+			failed(fault.getFaultString());
 			return null;
 		}
 		
 		override public function cleanup():void {
 			super.cleanup();
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_POPULATING);
+		}
+		
+		override public function getSent():String {
+			return op.getSent() + "\n\n********RSPEC********\n\n" + sentRspec;
 		}
 	}
 }

@@ -269,5 +269,13 @@
 		[Bindable]
 		[Embed(source="../../../images/world.png")]
 		public static var worldIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/lightning.png")]
+		public static var lightningIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/chart_bar.png")]
+		public static var barchartIcon:Class;
 	}
 }

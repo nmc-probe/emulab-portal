@@ -40,6 +40,7 @@ package protogeni.communication
 				false,
 				true);
 			slice = s;
+			slice.Changing = true;
 			renewSlivers = shouldRenewSlivers;
 			expirationDate = newExpirationDate;
 			
@@ -83,6 +84,7 @@ package protogeni.communication
 		
 		override public function cleanup():void {
 			super.cleanup();
+			slice.Changing = false;
 			Main.geniDispatcher.dispatchSliceChanged(slice);
 		}
 	}

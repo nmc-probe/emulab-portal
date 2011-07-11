@@ -52,7 +52,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					previewRspecButton.includeInLayout = true;
 					previewRspecButton.visible = true;
 				}
-				if(pl.rspec != null)
+				if(pl.manifest != null)
 					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
 				
 				if(link.capacity)
@@ -82,12 +82,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			public function viewRspec():void {
-				if(link.rspec != null)
+				if(link.manifest != null)
 				{
 					var rspecWindow:XmlWindow = new XmlWindow;
 					rspecWindow.showWindow();
 					rspecWindow.title = "Last Successful RSPEC from " + link.clientId;
-					rspecWindow.loadXml(link.rspec);
+					rspecWindow.loadXml(link.manifest);
 				} else {
 					Alert.show("No previous RSPEC is available");
 				}
@@ -123,7 +123,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function save():Boolean {
 				// Make sure the client_id is not taken
-				if(!this.link.slivers.collection[0].slice.isIdUnique(this.link, this.idLabel.Text)) {
+				if(!this.link.slivers.collection[0].slice.slivers.isIdUnique(this.link, this.idLabel.Text)) {
 					Alert.show(this.idLabel.Text + " is already in use, please choose a different client id");
 					return true;
 				}

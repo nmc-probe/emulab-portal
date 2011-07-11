@@ -43,6 +43,7 @@ VirtualNode for use on the slice canvas
 			import mx.core.DragSource;
 			import mx.managers.DragManager;
 			
+			import protogeni.resources.VirtualComponent;
 			import protogeni.resources.VirtualNode;
 			
 			[Bindable]
@@ -72,22 +73,22 @@ VirtualNode for use on the slice canvas
 			{
 				this.toolTip = "";
 				switch(node.status) {
-					case VirtualNode.STATUS_READY:
+					case VirtualComponent.STATUS_READY:
 						this.backgroundColor = 0x33FF33;
 						this.borderColor = 0x006600;
 						this.toolTip = node.state;
 						break;
-					case VirtualNode.STATUS_FAILED:
+					case VirtualComponent.STATUS_FAILED:
 						this.backgroundColor = 0xF08080;
 						this.borderColor = 0x990000;
 						this.toolTip = "Error: " + node.error;
 						break;
-					case VirtualNode.STATUS_CHANGING:
+					case VirtualComponent.STATUS_CHANGING:
 						this.backgroundColor = 0xFFCC00;
 						this.borderColor = 0xCC6600;
 						this.toolTip = "Status is changing...";
 						break;
-					case VirtualNode.STATUS_NOTREADY:
+					case VirtualComponent.STATUS_NOTREADY:
 						this.backgroundColor = 0xFFCC00;
 						this.borderColor = 0xCC6600;
 						this.toolTip = "Node is not ready";
@@ -108,6 +109,15 @@ VirtualNode for use on the slice canvas
 							toolTip = "State: " + node.state + " Status: " + node.status;
 				}
 
+				adjustWidth();
+			}
+			
+			public function clearStatus():void
+			{
+				this.toolTip = "";
+				this.backgroundColor = 0xEAEAEA;
+				this.borderColor = 0x2F4F4F;
+				
 				adjustWidth();
 			}
 			

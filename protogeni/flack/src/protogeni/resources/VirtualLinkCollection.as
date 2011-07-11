@@ -58,11 +58,21 @@ package protogeni.resources
 			return true;
 		}
 		
-		public function getById(id:String):VirtualLink
+		public function getByClientId(id:String):VirtualLink
 		{
 			for each(var link:VirtualLink in this.collection)
 			{
 				if(link.clientId == id)
+					return link;
+			}
+			return null;
+		}
+		
+		public function getBySliverId(id:String):VirtualLink
+		{
+			for each(var link:VirtualLink in this.collection)
+			{
+				if(link.sliverId == id)
 					return link;
 			}
 			return null;

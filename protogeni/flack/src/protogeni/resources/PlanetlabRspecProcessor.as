@@ -139,7 +139,7 @@ package protogeni.resources
 								default:
 							}
 						}
-						node.rspec = p.copy();
+						node.advertisement = p.copy();
 						node.tag = site;
 						node.available = true;
 						node.exclusive = false;
@@ -164,8 +164,8 @@ package protogeni.resources
 			return;
 		}
 		
-		public function processSliverRspec(s:Sliver,
-										   onlyListFromManifest:Boolean):void
+		public function processSliverRspec(sliver:Sliver,
+										   rspec:XML):void
 		{
 			/*var networkXml:XMLList = s.rspec.children();
 			for each(var siteXml:XML in networkXml[0].children()) {
@@ -178,6 +178,8 @@ package protogeni.resources
 					}
 				}
 			}*/
+			
+			sliver.processed = true;
 		}
 		
 		public function generateSliverRspec(s:Sliver, removeNonexplicitBinding:Boolean, overrideRspecVersion:Number):XML
@@ -201,7 +203,7 @@ package protogeni.resources
 			for each(var requestSite:Object in requestSites) {
 				var siteXml:XML = new XML("<site id=\""+requestSite.site.id+"\"><name>"+requestSite.site.name+"</name></site>");
 				for each(var addvn:VirtualNode in requestSite.nodes) {
-					var nodeXml:XML = addvn.physicalNode.rspec.copy();
+					var nodeXml:XML = addvn.physicalNode.advertisement.copy();
 					nodeXml.appendChild(<sliver/>);
 					siteXml.appendChild(nodeXml);
 				} 

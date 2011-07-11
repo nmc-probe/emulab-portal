@@ -20,7 +20,7 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class VirtualLink
+	public class VirtualLink extends VirtualComponent
 	{
 		public static const TYPE_NORMAL:int = 0;
 		public static const TYPE_TUNNEL:int = 1;
@@ -37,17 +37,11 @@ package protogeni.resources
 		}
 		
 		[Bindable]
-		public var clientId:String;
-		[Bindable]
-		public var sliverId:String;
-		[Bindable]
 		public var type:String;
 		[Bindable]
 		public var interfaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
 		
 		public var linkType:int = TYPE_NORMAL;
-		public var slivers:SliverCollection;
-		public var rspec:XML;
 		
 		[Bindable]
 		public var capacity:Number;
@@ -56,9 +50,7 @@ package protogeni.resources
 		
 		public function VirtualLink(owner:Sliver = null)
 		{
-			this.slivers = new SliverCollection();
-			if(owner != null)
-				this.slivers.add(owner);
+			super(owner);
 		}
 		
 		public function establish(first:VirtualNode, second:VirtualNode):Boolean
@@ -67,7 +59,7 @@ package protogeni.resources
 			var secondInterface:VirtualInterface = second.allocateInterface();
 			if(firstInterface == null || secondInterface == null)
 				return false;
-			this.clientId = slivers.collection[0].slice.getUniqueVirtualLinkId(this);
+			this.clientId = slivers.collection[0].slice.slivers.getUniqueVirtualLinkId(this);
 			first.interfaces.add(firstInterface);
 			second.interfaces.add(secondInterface);
 			firstInterface.virtualLinks.add(this);

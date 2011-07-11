@@ -42,6 +42,7 @@ package protogeni.communication
 				true);
 			ignoreReturnCode = true;
 			sliver = s;
+			sliver.changing = true;
 			
 			// Build up the args
 			op.pushField(sliver.slice.urn.full);
@@ -59,9 +60,10 @@ package protogeni.communication
 					var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 					if(old != null)
 					{
-						if(old.slivers.getByUrn(sliver.urn.full) != null)
+						if(old.slivers.getByUrn(sliver.urn.full) != null) {
+							old.removeOutsideReferences();
 							old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
-						Main.geniDispatcher.dispatchSliceChanged(old);
+						}
 					}
 				} else if(response == false) {
 					Alert.show("Recieved false when trying to delete sliver on " + this.sliver.manager.Hrn + ".");
@@ -83,6 +85,7 @@ package protogeni.communication
 		
 		override public function cleanup():void {
 			super.cleanup();
+			sliver.changing = false;
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_POPULATING);
 		}
 	}

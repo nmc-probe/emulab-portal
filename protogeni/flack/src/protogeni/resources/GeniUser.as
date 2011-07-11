@@ -46,6 +46,8 @@ package protogeni.resources
 		
 		public var sliceCredential:String = "";
 		
+		public var passwd:String = "";
+		
 		public function get Credential():String {
 			if(userCredential != null && userCredential.length > 0)
 				return userCredential;
@@ -59,9 +61,9 @@ package protogeni.resources
 			slices = new SliceCollection();
 		}
 		
-		// Just some simple encryption so it doesn't store in plain text...
 		public function setPassword(password:String,
 									store:Boolean):Boolean {
+			this.passwd = password;
 			if(store) {
 				if(FlackCache.userPassword != password) {
 					FlackCache.userPassword = password;

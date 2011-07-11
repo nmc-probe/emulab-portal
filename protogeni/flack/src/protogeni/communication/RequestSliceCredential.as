@@ -40,6 +40,7 @@ package protogeni.communication
 				CommunicationUtil.getCredential,
 				true);
 			slice = newSlice;
+			slice.Changing = true;
 			exploreAllManagers = shouldExploreAllManagers;
 			
 			// Build up the args
@@ -86,16 +87,13 @@ package protogeni.communication
 				}
 				
 			}
-			else
-			{
-				// skip errors
-			}
 			
 			return newCalls.head;
 		}
 		
 		override public function cleanup():void {
 			super.cleanup();
+			slice.Changing = false;
 			Main.geniDispatcher.dispatchSliceChanged(slice);
 		}
 	}

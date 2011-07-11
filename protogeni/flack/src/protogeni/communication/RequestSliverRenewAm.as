@@ -38,6 +38,7 @@ package protogeni.communication
 				true);
 			ignoreReturnCode = true;
 			sliver = newSliver;
+			sliver.changing = true;
 			
 			// Build up the args
 			op.pushField(sliver.slice.urn.full);
@@ -55,6 +56,7 @@ package protogeni.communication
 		
 		override public function cleanup():void {
 			super.cleanup();
+			sliver.changing = false;
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 		}
 	}

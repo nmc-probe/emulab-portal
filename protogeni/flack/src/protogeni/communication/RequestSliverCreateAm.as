@@ -44,10 +44,9 @@ package protogeni.communication
 				true);
 			ignoreReturnCode = true;
 			sliver = s;
-			s.created = false;
-			s.staged = false;
-			s.status = "";
-			s.state = "";
+			sliver.clearState();
+			sliver.changing = true;
+			sliver.manifest = null;
 			op.timeout = 360;
 			
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
@@ -58,7 +57,7 @@ package protogeni.communication
 			if(useRspec != null)
 				rspec = useRspec.toXMLString();
 			else
-				rspec = sliver.slice.slivers.getCombined().getRequestRspec(true).toXMLString();
+				rspec = sliver.slice.slivers.Combined.getRequestRspec(true).toXMLString();
 			op.pushField(rspec);
 			var userKeys:Array = [];
 			for each(var key:Key in sliver.slice.creator.keys) {
@@ -72,18 +71,18 @@ package protogeni.communication
 		{
 			try
 			{
-				sliver.created = true;
-				sliver.rspec = new XML(response);
+				sliver.manifest = new XML(response);
 			}
 			catch(e:Error)
 			{
+				sliver.changing = false;
 				Alert.show("Failed to create sliver on " + sliver.manager.Hrn);
 				return;
 			}
 			
 			try
 			{
-				sliver.parseRspec();
+				sliver.parseManifest();
 				
 				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
@@ -97,6 +96,7 @@ package protogeni.communication
 			}
 			catch(e:Error)
 			{
+				sliver.changing = false;
 				LogHandler.appendMessage(new LogMessage(sliver.manager.Url,
 					"SliverCreateAM",
 					e.toString(),
@@ -120,6 +120,7 @@ package protogeni.communication
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			sliver.changing = false;
 			Alert.show("Failed to create sliver on " + sliver.manager.Hrn);
 			return super.fail(event, fault);
 		}

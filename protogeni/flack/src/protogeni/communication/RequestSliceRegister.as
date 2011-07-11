@@ -34,6 +34,7 @@ package protogeni.communication
 				"Register slice named " + s.hrn,
 				CommunicationUtil.register);
 			slice = s;
+			slice.Changing = true;
 			
 			// Build up the args
 			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
@@ -44,7 +45,6 @@ package protogeni.communication
 		
 		override public function complete(code:Number, response:Object):*
 		{
-			var newRequest:Request = null;
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				slice.credential = String(response.value);
@@ -60,12 +60,11 @@ package protogeni.communication
 			{
 				Main.geniHandler.requestHandler.codeFailure(name, "Recieved GENI response other than success");
 			}
-			
-			return newRequest;
 		}
 		
 		override public function cleanup():void {
 			super.cleanup();
+			slice.Changing = false;
 			Main.geniDispatcher.dispatchSliceChanged(slice);
 		}
 	}

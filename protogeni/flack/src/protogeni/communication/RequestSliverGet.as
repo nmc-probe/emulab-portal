@@ -14,9 +14,14 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import protogeni.Util;
 	import protogeni.resources.GeniManager;
 	import protogeni.resources.IdnUrn;
+	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
 	
 	/**
@@ -36,6 +41,7 @@ package protogeni.communication
 				true,
 				true);
 			sliver = s;
+			sliver.changing = true;
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -63,12 +69,26 @@ package protogeni.communication
 				
 				newCall = new RequestSliverResolve(sliver);
 			}
-			else if(code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED)
+			else if(code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED
+				|| code == CommunicationUtil.GENIRESPONSE_BADARGS)
 			{
-				// NO SLICE FOUND HERE
+				sliver.slice.slivers.remove(sliver);
+				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
+				if(old != null)
+				{
+					var oldSliver:Sliver = old.slivers.getByManager(sliver.manager);
+					if(oldSliver != null)
+						old.slivers.remove(oldSliver);
+				}
+				sliver.changing = false;
 			}
 			
 			return newCall;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			sliver.changing = false;
+			return super.fail(event, fault);
 		}
 		
 		override public function cleanup():void {

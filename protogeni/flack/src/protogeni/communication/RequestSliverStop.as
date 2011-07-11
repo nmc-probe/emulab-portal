@@ -14,6 +14,10 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import protogeni.resources.Sliver;
 	
 	/**
@@ -31,6 +35,7 @@ package protogeni.communication
 			super("SliverStop", "Stopping sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.hrn,
 				CommunicationUtil.stopSliver);
 			sliver = newSliver;
+			sliver.changing = true;
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -46,10 +51,15 @@ package protogeni.communication
 			}
 			else
 			{
-				// ??
+				sliver.changing = false;
 			}
 			
 			return null;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			sliver.changing = false;
+			return super.fail(event, fault);
 		}
 		
 		override public function cleanup():void {

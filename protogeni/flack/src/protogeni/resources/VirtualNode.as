@@ -22,22 +22,11 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class VirtualNode
+	public class VirtualNode extends VirtualComponent
 	{
-		public static const STATUS_CHANGING:String = "changing";
-		public static const STATUS_READY:String = "ready";
-		public static const STATUS_NOTREADY:String = "notready";
-		public static const STATUS_FAILED:String = "failed";
-		public static const STATUS_UNKOWN:String = "unknown";
-		
 		[Bindable]
 		public var physicalNode:PhysicalNode;
 		public var _exclusive:Boolean;
-		[Bindable]
-		public var clientId:String;
-		[Bindable]
-		public var sliverId:String;
-		public var manager:GeniManager;
 		public var superNode:VirtualNode;
 		public var subNodes:VirtualNodeCollection = new VirtualNodeCollection();
 		
@@ -46,27 +35,9 @@ package protogeni.resources
 		
 		public var pipes:PipeCollection;
 		
-		[Bindable]
-		public var slivers:SliverCollection;
-		public function get sliver():Sliver {
-			if(slivers != null && slivers.length > 0)
-				return slivers.collection[0];
-			else
-				return null;
-		}
-		
-		[Bindable]
-		public var error:String;
-		[Bindable]
-		public var state:String = "N/A";
-		[Bindable]
-		public var status:String = "N/A";
-		
 		public var flackX:int = -1;
 		public var flackY:int = -1;
 		public var flackUnbound:Boolean = false;
-		
-		public var rspec:XML;
 		
 		public var sliverType:String = "";
 		
@@ -90,18 +61,18 @@ package protogeni.resources
 		// Extensions
 		public var extensionsNodes:XMLListCollection = new XMLListCollection();
 		
+		public var manager:GeniManager;
+		
 		// Depreciated
 		public var virtualizationType:String = "emulab-vnode";
 		public var virtualizationSubtype:String = "emulab-openvz";
 		
 		public function VirtualNode(owner:Sliver)
 		{
-			this.slivers = new SliverCollection();
+			super(owner);
+			
 			if(owner != null)
-			{
-				this.slivers.add(owner);
-				this.manager = owner.manager;
-			}
+				manager = owner.manager;
 			
 			this.interfaces = new VirtualInterfaceCollection();
 			this.pipes = new PipeCollection();
