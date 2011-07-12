@@ -34,7 +34,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			[Bindable]
 			public var slice:Slice;
-			private var status:String = "";
 			
 			[Bindable]
 			public var showCheckbox:CheckBox;
@@ -62,12 +61,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function update():void
 			{
-				// Don't do it if not needed
-				if(slice.slivers.Status == status)
-					return;
-				
-				status = slice.slivers.Status;
-
+				var status:String = slice.slivers.Status;
 				switch(status) {
 					case Sliver.STATUS_READY:
 						sliceSelect.styleName = "validStyle";
@@ -95,6 +89,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				   fontSize="10" />
 	<s:Button id="sliceButton"
 			   height="24"
-			   label="{slice.urn.name}"
-			   click="DisplayUtil.viewSlice(slice);" />
+			   label="{slice.Name}"
+			   click="DisplayUtil.viewSlice(Main.geniHandler.CurrentUser.slices.getByUrn(slice.urn.full));" />
 </s:HGroup>

@@ -48,6 +48,8 @@ package protogeni.communication
 			op.timeout = 60;
 			sliver = s;
 			sliver.changing = true;
+			sliver.message = "Listing resources";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			var options:Object = {geni_available:false, geni_compressed:true, geni_slice_urn:sliver.slice.urn.full};
@@ -80,19 +82,29 @@ package protogeni.communication
 				
 				if(sliver.nodes.length > 0 && !sliver.slice.slivers.contains(sliver)) {
 					sliver.slice.slivers.add(sliver);
+					sliver.message = "Resources listed";
 					return new RequestSliverStatusAm(sliver);
-				} else
+				} else {
 					sliver.changing = false;
+					sliver.message = "No resources found";
+					Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+				}
 			} catch(e:Error)
 			{
-				sliver.changing = false;
+				failed();
 			}
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		public function failed():void {
 			sliver.changing = false;
+			sliver.message = "Listing failed";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed();
 			return super.fail(event, fault);
 		}
 		

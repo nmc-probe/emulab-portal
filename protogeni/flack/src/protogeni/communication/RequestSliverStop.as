@@ -18,6 +18,7 @@ package protogeni.communication
 	
 	import flash.events.ErrorEvent;
 	
+	import protogeni.GeniEvent;
 	import protogeni.resources.Sliver;
 	
 	/**
@@ -36,6 +37,8 @@ package protogeni.communication
 				CommunicationUtil.stopSliver);
 			sliver = newSliver;
 			sliver.changing = true;
+			sliver.message = "Stopping";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -47,18 +50,22 @@ package protogeni.communication
 		{
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
+				sliver.message = "Stopped";
 				return new RequestSliverStatus(sliver);
 			}
 			else
-			{
-				sliver.changing = false;
-			}
+				failed();
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		public function failed():void {
 			sliver.changing = false;
+			sliver.message = "Stop failed";
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed();
 			return super.fail(event, fault);
 		}
 		

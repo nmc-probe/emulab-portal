@@ -18,14 +18,20 @@ package protogeni.communication
 	
 	import flash.events.ErrorEvent;
 	
+	import mx.controls.Alert;
+	
 	import protogeni.GeniEvent;
 	import protogeni.resources.Key;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
+	import protogeni.resources.VirtualComponent;
+	import protogeni.resources.VirtualNode;
 	
 	public final class RequestTicketRedeem extends Request
 	{
 		public var sliver:Sliver;
+		private var ticket:String = "";
+		private var manifest:String = "";
 		
 		/**
 		 * Redeems a ticket previously given to the user using the ProtoGENI API
@@ -40,6 +46,10 @@ package protogeni.communication
 				CommunicationUtil.redeemTicket);
 			sliver = newSliver;
 			sliver.changing = true;
+			sliver.message = "Redeeming ticket";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			
+			ticket = sliver.ticket;
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -59,7 +69,8 @@ package protogeni.communication
 			{
 				sliver.credential = response.value[0];
 				
-				sliver.parseManifest(new XML(response.value[1]));
+				manifest = response.value[1];
+				sliver.parseManifest(new XML(manifest));
 				
 				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
@@ -70,24 +81,72 @@ package protogeni.communication
 					old.slivers.add(sliver);
 				}
 				
+				sliver.message = "Ticket redeemed";
 				return new RequestSliverStart(sliver);
 			}
 			else
 			{
+				failed(response.output);
 				return new RequestTicketRelease(sliver);
 			}
 			
 			return null;
 		}
 		
+		private function failed(msg:String = ""):void {
+			sliver.status = Sliver.STATUS_FAILED;
+			sliver.state = Sliver.STATE_NA;
+			sliver.changing = false;
+			if(msg != null && msg.length > 0)
+				sliver.message = msg;
+			else
+				sliver.message = "Failed to redeem ticket"
+			for each(var node:VirtualNode in sliver.nodes.collection) {
+				node.status = VirtualComponent.STATUS_FAILED;
+				node.error = "Sliver had error when redeeming ticket: " + sliver.message;
+			}
+			
+			var managerMsg:String = "";
+			if(msg != null && msg.length > 0)
+				managerMsg = " Manager reported error: " + msg + ".";
+			
+			Alert.show("Failed to redeem ticket on " + sliver.manager.Hrn+"!" + managerMsg, "Failed to create sliver");
+			
+			// TODO ask user if they want to continue
+			
+			/*
+			// Cancel remaining calls
+			var tryDeleteNode:RequestQueueNode = this.node.next;
+			while(tryDeleteNode != null && tryDeleteNode.item is RequestSliverCreate && (tryDeleteNode.item as RequestSliverCreate).sliver.slice == sliver.slice)
+			{
+			(tryDeleteNode.item as RequestSliverCreate).sliver.status = Sliver.STATUS_FAILED;
+			(tryDeleteNode.item as RequestSliverCreate).sliver.state = Sliver.STATE_NA;
+			Main.geniHandler.requestHandler.remove(tryDeleteNode.item, false);
+			tryDeleteNode = tryDeleteNode.next;
+			}
+			
+			// Show the error
+			LogHandler.viewConsole();
+			*/
+		}
+		
 		override public function fail(event:ErrorEvent, fault:MethodFault):*
 		{
+			failed(fault.getFaultString());
 			return new RequestTicketRelease(sliver);
 		}
 		
 		override public function cleanup():void {
 			super.cleanup();
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_POPULATING);
+		}
+		
+		override public function getSent():String {
+			return "******** TICKET ********\n\n" + ticket + "\n\n******** XML-RPC ********" + op.getSent();
+		}
+		
+		override public function getResponse():String {
+			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********" + op.getResponse();
 		}
 	}
 }

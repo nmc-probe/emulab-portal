@@ -58,9 +58,11 @@ package protogeni.resources
 		
 		public function addIfNotExisting(s:Sliver):void
 		{
+			if(s == null)
+				return;
 			for each(var sliver:Sliver in this.collection)
 			{
-				if(sliver.manager == s.manager)
+ 				if(sliver.manager == s.manager)
 					return;
 			}
 			this.collection.push(s);
@@ -339,6 +341,14 @@ package protogeni.resources
 		public function get AllocatedAnyResources():Boolean {
 			for each(var sliver:Sliver in this.collection) {
 				if(sliver.Created)
+					return true;
+			}
+			return false;
+		}
+		
+		public function get HasAnyStatusInfo():Boolean {
+			for each(var sliver:Sliver in this.collection) {
+				if(sliver.message.length > 0 || sliver.changing || sliver.status.length > 0 || sliver.Created)
 					return true;
 			}
 			return false;

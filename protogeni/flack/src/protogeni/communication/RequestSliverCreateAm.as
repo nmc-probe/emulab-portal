@@ -24,6 +24,8 @@ package protogeni.communication
 	import protogeni.resources.Key;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
+	import protogeni.resources.VirtualComponent;
+	import protogeni.resources.VirtualNode;
 	
 	/**
 	 * Allocates resources to a sliver using the GENI AM API
@@ -34,7 +36,8 @@ package protogeni.communication
 	public final class RequestSliverCreateAm extends Request
 	{
 		public var sliver:Sliver;
-		public var rspec:String = "";
+		public var request:String = "";
+		public var manifest:String = "";
 		
 		public function RequestSliverCreateAm(s:Sliver, useRspec:XML = null):void
 		{
@@ -47,18 +50,19 @@ package protogeni.communication
 			sliver.clearState();
 			sliver.changing = true;
 			sliver.manifest = null;
-			op.timeout = 360;
-			
+			sliver.message = "Creating";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			
+			op.timeout = 360;
 			
 			// Build up the args
 			op.pushField(sliver.slice.urn.full);
 			op.pushField([sliver.slice.credential]);
 			if(useRspec != null)
-				rspec = useRspec.toXMLString();
+				request = useRspec.toXMLString();
 			else
-				rspec = sliver.slice.slivers.Combined.getRequestRspec(true).toXMLString();
-			op.pushField(rspec);
+				request = sliver.slice.slivers.Combined.getRequestRspec(true).toXMLString();
+			op.pushField(request);
 			var userKeys:Array = [];
 			for each(var key:Key in sliver.slice.creator.keys) {
 				userKeys.push(key.value);
@@ -71,12 +75,12 @@ package protogeni.communication
 		{
 			try
 			{
-				sliver.manifest = new XML(response);
+				manifest = String(response);
+				sliver.manifest = new XML(manifest);
 			}
 			catch(e:Error)
 			{
-				sliver.changing = false;
-				Alert.show("Failed to create sliver on " + sliver.manager.Hrn);
+				failed();
 				return;
 			}
 			
@@ -92,36 +96,56 @@ package protogeni.communication
 					old.slivers.add(sliver);
 				}
 				
+				sliver.message = "Created";
 				return new RequestSliverStatusAm(sliver);
 			}
 			catch(e:Error)
 			{
-				sliver.changing = false;
 				LogHandler.appendMessage(new LogMessage(sliver.manager.Url,
 					"SliverCreateAM",
-					e.toString(),
+					"Error parsing RSPEC\n\n" + e.toString(),
 					true,
 					LogMessage.TYPE_END));
-				/*
-				// Cancel remaining calls
-				var tryDeleteNode:RequestQueueNode = this.node.next;
-				while(tryDeleteNode != null && tryDeleteNode is RequestSliverCreate && (tryDeleteNode as RequestSliverCreate).sliver.slice == sliver.slice)
-				{
-					Main.geniHandler.requestHandler.remove(tryDeleteNode.item);
-					tryDeleteNode = tryDeleteNode.next;
-				}
-				
-				// Show the error
-				LogHandler.viewConsole();
-				*/
+				failed();
 			}
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		private function failed(msg:String = ""):void {
+			sliver.status = Sliver.STATUS_FAILED;
+			sliver.state = Sliver.STATE_NA;
 			sliver.changing = false;
-			Alert.show("Failed to create sliver on " + sliver.manager.Hrn);
+			
+			sliver.message = "Failed to create";
+			
+			for each(var node:VirtualNode in sliver.nodes.collection) {
+				node.status = VirtualComponent.STATUS_FAILED;
+				node.error = "Sliver had error when creating: " + sliver.message;
+			}
+			
+			Alert.show("Failed to create sliver on " + sliver.manager.Hrn+"!" , "Failed to create sliver");
+			
+			// TODO ask user if they want to continue
+			
+			/*
+			// Cancel remaining calls
+			var tryDeleteNode:RequestQueueNode = this.node.next;
+			while(tryDeleteNode != null && tryDeleteNode.item is RequestSliverCreate && (tryDeleteNode.item as RequestSliverCreate).sliver.slice == sliver.slice)
+			{
+			(tryDeleteNode.item as RequestSliverCreate).sliver.status = Sliver.STATUS_FAILED;
+			(tryDeleteNode.item as RequestSliverCreate).sliver.state = Sliver.STATE_NA;
+			Main.geniHandler.requestHandler.remove(tryDeleteNode.item, false);
+			tryDeleteNode = tryDeleteNode.next;
+			}
+			
+			// Show the error
+			LogHandler.viewConsole();
+			*/
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed();
 			return super.fail(event, fault);
 		}
 		
@@ -131,7 +155,11 @@ package protogeni.communication
 		}
 		
 		override public function getSent():String {
-			return op.getSent() + "\n\n********RSPEC********\n\n" + rspec;
+			return "******** REQUEST RSPEC ********\n\n" + request + "\n\n******** XML-RPC ********" + op.getSent();
+		}
+		
+		override public function getResponse():String {
+			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********" + op.getResponse();
 		}
 	}
 }

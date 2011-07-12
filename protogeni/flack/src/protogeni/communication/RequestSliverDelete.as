@@ -42,6 +42,8 @@ package protogeni.communication
 				true);
 			sliver = s;
 			sliver.changing = true;
+			sliver.message = "Deleting";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -65,17 +67,23 @@ package protogeni.communication
 						old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
 					}
 				}
+				sliver.message = "Deleted";
 			}
 			else
-			{
-				Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again.");
-			}
+				failed(response.output);
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		public function failed(msg:String = ""):void {
+			sliver.message = "Delete failed";
+			if(msg != null && msg.length > 0)
+				sliver.message += ": " + msg;
 			Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again.");
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed();
 			return super.fail(event, fault);
 		}
 		

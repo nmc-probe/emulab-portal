@@ -14,6 +14,10 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import mx.controls.Alert;
 	
 	import protogeni.DateUtil;
@@ -41,6 +45,9 @@ package protogeni.communication
 				true);
 			sliver = newSliver;
 			sliver.changing = true;
+			sliver.message = "Renewing";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			
 			newExpires = newExpirationDate;
 			
 			// Build up the args
@@ -65,13 +72,27 @@ package protogeni.communication
 						}
 					}
 				}
-			} else
-			{
-				Alert.show("RenewSliver didn't work on " + sliver.manager.Hrn + ", most likely due to the manager now allowing slivers to be renewed further than a certain time in the future.  Either try a smaller increment of time or try later.",
-				"Sliver not renewed");
+				
+				sliver.message = "Renewed";
 			}
+			else
+				failed();
 			
 			return null;
+		}
+		
+		public function failed(msg:String = ""):void {
+			Alert.show("RenewSliver didn't work on " + sliver.manager.Hrn + ", most likely due to the manager now allowing slivers to be renewed further than a certain time in the future.  Either try a smaller increment of time or try later.",
+				"Sliver not renewed");
+			sliver.changing = false;
+			sliver.message = "Renew failed";
+			if(msg != null && msg.length > 0)
+				sliver.message += ": " + msg;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed();
+			return super.fail(event, fault);
 		}
 		
 		override public function cleanup():void {

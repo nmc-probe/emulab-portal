@@ -18,12 +18,17 @@ package protogeni.communication
 	
 	import flash.events.ErrorEvent;
 	
+	import mx.controls.Alert;
+	
 	import protogeni.resources.Sliver;
+	import protogeni.resources.VirtualComponent;
+	import protogeni.resources.VirtualNode;
 	
 	public final class RequestSliverUpdate extends Request
 	{
 		public var sliver:Sliver;
-		public var rspec:String = "";
+		private var request:String = "";
+		private var ticket:String = "";
 		
 		/**
 		 * Creates a redeemable ticket for a sliver with a different configuration using the ProtoGENI API
@@ -41,16 +46,17 @@ package protogeni.communication
 			sliver.clearState();
 			sliver.changing = true;
 			sliver.manifest = null;
+			sliver.message = "Updating";
 			
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			// Build up the args
 			op.addField("sliver_urn", sliver.urn.full);
 			if(useRspec != null)
-				rspec = useRspec.toXMLString()
+				request = useRspec.toXMLString()
 			else
-				rspec = sliver.getRequestRspec(false).toXMLString();
-			op.addField("rspec", rspec);
+				request = sliver.getRequestRspec(false).toXMLString();
+			op.addField("rspec", request);
 			op.addField("credentials", [sliver.slice.credential]);
 			op.setUrl(sliver.manager.Url);
 		}
@@ -59,25 +65,58 @@ package protogeni.communication
 		{
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
-				sliver.ticket = response.value;
+				ticket = String(response.value);
+				sliver.ticket = ticket;
+				sliver.message = "Updated ticket recieved";
 				return new RequestTicketRedeem(sliver);
-			}
-			if (code == CommunicationUtil.GENIRESPONSE_REFUSED)
-			{
-				sliver.changing = false;
-				//
 			}
 			else
 			{
-				sliver.changing = false;
-				// do nothing
+				failed(response.output);
 			}
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		private function failed(msg:String = ""):void {
+			sliver.status = Sliver.STATUS_FAILED;
+			sliver.state = Sliver.STATE_NA;
 			sliver.changing = false;
+			if(msg != null && msg.length > 0)
+				sliver.message = msg;
+			else
+				sliver.message = "Failed to update"
+			for each(var node:VirtualNode in sliver.nodes.collection) {
+				node.status = VirtualComponent.STATUS_FAILED;
+				node.error = "Sliver had error when updating: " + sliver.message;
+			}
+			
+			var managerMsg:String = "";
+			if(msg != null && msg.length > 0)
+				managerMsg = " Manager reported error: " + msg + ".";
+			
+			Alert.show("Failed to update sliver on " + sliver.manager.Hrn+"!" + managerMsg, "Failed to create sliver");
+			
+			// TODO ask user if they want to continue
+			
+			/*
+			// Cancel remaining calls
+			var tryDeleteNode:RequestQueueNode = this.node.next;
+			while(tryDeleteNode != null && tryDeleteNode.item is RequestSliverCreate && (tryDeleteNode.item as RequestSliverCreate).sliver.slice == sliver.slice)
+			{
+			(tryDeleteNode.item as RequestSliverCreate).sliver.status = Sliver.STATUS_FAILED;
+			(tryDeleteNode.item as RequestSliverCreate).sliver.state = Sliver.STATE_NA;
+			Main.geniHandler.requestHandler.remove(tryDeleteNode.item, false);
+			tryDeleteNode = tryDeleteNode.next;
+			}
+			
+			// Show the error
+			LogHandler.viewConsole();
+			*/
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed(fault.getFaultString());
 			return super.fail(event, fault);
 		}
 		
@@ -87,7 +126,11 @@ package protogeni.communication
 		}
 		
 		override public function getSent():String {
-			return op.getSent() + "\n\n********RSPEC********\n\n" + rspec;
+			return "******** REQUEST RSPEC ********\n\n" + request + "\n\n******** XML-RPC ********" + op.getSent();
+		}
+		
+		override public function getResponse():String {
+			return "******** TICKET ********\n\n" + ticket + "\n\n******** XML-RPC ********" + op.getResponse();
 		}
 	}
 }

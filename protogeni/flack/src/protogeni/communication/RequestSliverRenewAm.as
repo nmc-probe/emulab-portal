@@ -14,7 +14,12 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import protogeni.DateUtil;
+	import protogeni.GeniEvent;
 	import protogeni.resources.IdnUrn;
 	import protogeni.resources.Sliver;
 	import protogeni.resources.VirtualNode;
@@ -39,6 +44,8 @@ package protogeni.communication
 			ignoreReturnCode = true;
 			sliver = newSliver;
 			sliver.changing = true;
+			sliver.message = "Renewing";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.pushField(sliver.slice.urn.full);
@@ -51,7 +58,12 @@ package protogeni.communication
 		{
 			// did it work???
 			
+			sliver.message = "Renewed";
 			return null;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			sliver.message = "Renew failed";
 		}
 		
 		override public function cleanup():void {

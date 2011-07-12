@@ -70,6 +70,13 @@ package protogeni.resources
 			slivers = new SliverCollection();
 		}
 		
+		public function clearState():void {
+			this._changing = false;
+			for each(var sliver:Sliver in this.slivers.collection) {
+				sliver.clearState();
+			}
+		}
+		
 		public function removeOutsideReferences():void {
 			for each(var s:Sliver in this.slivers.collection) {
 				s.removeOutsideReferences();
@@ -104,6 +111,7 @@ package protogeni.resources
 				newSliver.extensionNamespaces = sliver.extensionNamespaces;
 				newSliver.processed = sliver.processed;
 				newSliver.changing = sliver.changing;
+				newSliver.message = sliver.message;
 				
 				newSlice.slivers.add(newSliver);
 			}

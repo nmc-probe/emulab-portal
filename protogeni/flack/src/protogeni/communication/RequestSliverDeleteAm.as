@@ -43,6 +43,8 @@ package protogeni.communication
 			ignoreReturnCode = true;
 			sliver = s;
 			sliver.changing = true;
+			sliver.message = "";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.pushField(sliver.slice.urn.full);
@@ -72,14 +74,19 @@ package protogeni.communication
 			}
 			catch(e:Error)
 			{
-				Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again.");
+				failed();
 			}
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		public function failed():void {
 			Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again. A possibility is that the sliver doesn't exist.");
+			sliver.message = "Delete failed";
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed();
 			return super.fail(event, fault);
 		}
 		

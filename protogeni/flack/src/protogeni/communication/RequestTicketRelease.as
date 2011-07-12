@@ -14,6 +14,11 @@
 
 package protogeni.communication
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
+	import protogeni.GeniEvent;
 	import protogeni.resources.Key;
 	import protogeni.resources.Sliver;
 	
@@ -34,6 +39,8 @@ package protogeni.communication
 				CommunicationUtil.releaseTicket);
 			sliver = newSliver;
 			sliver.changing = true;
+			sliver.message = "Releaing ticket";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -45,17 +52,28 @@ package protogeni.communication
 		override public function complete(code:Number, response:Object):*
 		{
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
-			{
-				// Removed ticket
-			}
+				sliver.message = "Ticket released";
+			else
+				failed(response.output);
 			
+			return null;
+		}
+		
+		public function failed(msg:String = ""):void {
+			sliver.message = "Ticket release failed";
+			if(msg != null && msg.length > 0)
+				sliver.message += ": " + msg;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed(fault.getFaultString());
 			return null;
 		}
 		
 		override public function cleanup():void {
 			super.cleanup();
 			sliver.changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 		}
 	}
 }

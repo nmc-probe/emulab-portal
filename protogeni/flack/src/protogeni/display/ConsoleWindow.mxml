@@ -24,7 +24,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						contentCreationComplete="onCreationComplete()" 
 						close="LogHandler.closeConsole();" xmlns:communication="protogeni.communication.*" xmlns:components="protogeni.display.components.*">
 	<components:layout>
-		<s:VerticalLayout paddingBottom="0" paddingLeft="10" paddingRight="10" paddingTop="10"/>
+		<s:VerticalLayout paddingBottom="0" paddingLeft="4" paddingRight="4" paddingTop="10"/>
 	</components:layout>
 	<fx:Script>
 		<![CDATA[
@@ -249,13 +249,21 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			<s:Label text="Logs"  fontSize="14" fontWeight="bold"/>
 			<s:HGroup verticalAlign="middle">
 				<s:Button label="Clear" click="LogHandler.clear();" />
-				<components:DefaultLine height="24" />
-				<s:Label text="Sort" />
-				<components:ImageButton id="sortButton"
-									  icon="{ImageUtil.upIcon}"
-									  click="toggleSorting()"
-									  toolTip="Switch the ordering" />
+				<s:Rect />
+				<s:Button id="sortButton" label="Sort"
+						  height="24"
+						  icon="{ImageUtil.upIcon}"
+						  click="toggleSorting()"
+						  toolTip="Switch the ordering" />
 			</s:HGroup>
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:BitmapImage source="{ImageUtil.rightIcon}" />
+				<s:Label text="Sent" />
+				<s:Rect percentWidth="100" />
+				<s:BitmapImage source="{ImageUtil.rightIcon}" />
+				<s:Label text="Recieved" />
+			</s:HGroup>
+			<components:DefaultLine percentWidth="90" />
 			<s:Scroller height="100%" width="100%">
 				<s:VGroup height="100%" width="100%" id="logs" paddingRight="10" />
 			</s:Scroller>

@@ -37,7 +37,8 @@ package protogeni.communication
 	public final class RequestSliverCreate extends Request
 	{
 		public var sliver:Sliver;
-		private var sentRspec:String;
+		private var request:String = "";
+		private var manifest:String = "";
 		
 		public function RequestSliverCreate(s:Sliver, rspec:XML = null):void
 		{
@@ -50,16 +51,16 @@ package protogeni.communication
 			sliver.clearState();
 			sliver.changing = true;
 			sliver.manifest = null;
-			
+			sliver.message = "Creating";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
 			if(rspec != null)
-				sentRspec = rspec.toXMLString()
+				request = rspec.toXMLString()
 			else
-				sentRspec = sliver.slice.slivers.Combined.getRequestRspec(true).toXMLString();
-			op.addField("rspec", sentRspec);
+				request = sliver.slice.slivers.Combined.getRequestRspec(true).toXMLString();
+			op.addField("rspec", request);
 			var keys:Array = [];
 			for each(var key:Key in sliver.slice.creator.keys) {
 				keys.push({type:key.type, key:key.value});
@@ -78,7 +79,8 @@ package protogeni.communication
 				var cred:XML = new XML(sliver.credential);
 				sliver.urn = new IdnUrn(cred.credential.target_urn);
 				
-				sliver.parseManifest(new XML(response.value[1]));
+				manifest = response.value[1];
+				sliver.parseManifest(new XML(manifest));
 
 				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
@@ -89,6 +91,7 @@ package protogeni.communication
 					old.slivers.add(sliver);
 				}
 				
+				sliver.message = "Created";
 				return new RequestSliverStatus(sliver);
 			}
 			else
@@ -103,10 +106,15 @@ package protogeni.communication
 			sliver.status = Sliver.STATUS_FAILED;
 			sliver.state = Sliver.STATE_NA;
 			sliver.changing = false;
+			if(msg != null && msg.length > 0)
+				sliver.message = msg;
+			else
+				sliver.message = "Failed to create"
 			for each(var node:VirtualNode in sliver.nodes.collection) {
 				node.status = VirtualComponent.STATUS_FAILED;
-				node.error = "Sliver had error when creating";
+				node.error = "Sliver had error when creating: " + sliver.message;
 			}
+			
 			var managerMsg:String = "";
 			if(msg != null && msg.length > 0)
 				managerMsg = " Manager reported error: " + msg + ".";
@@ -143,7 +151,11 @@ package protogeni.communication
 		}
 		
 		override public function getSent():String {
-			return op.getSent() + "\n\n********RSPEC********\n\n" + sentRspec;
+			return "******** REQUEST RSPEC ********\n\n" + request + "\n\n******** XML-RPC ********" + op.getSent();
+		}
+		
+		override public function getResponse():String {
+			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********" + op.getResponse();
 		}
 	}
 }

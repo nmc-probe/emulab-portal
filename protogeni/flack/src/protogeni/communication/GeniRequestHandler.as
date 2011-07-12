@@ -165,6 +165,9 @@ package protogeni.communication
 		 */
 		public function createSlice(name:String):void
 		{
+			this.isPaused = false;
+			this.forceStop = false;
+			
 			var newSlice:Slice = new Slice();
 			newSlice.hrn = name;
 			newSlice.urn = IdnUrn.makeFrom(Main.geniHandler.CurrentUser.authority.Urn.authority, "slice", name);
@@ -184,36 +187,27 @@ package protogeni.communication
 			this.forceStop = false;
 			
 			// Invalidate the slice
-			var sliver:Sliver;
-			if(slice.slivers.length > 0) {
-				for each(sliver in slice.slivers.collection) {
-					sliver.clearState();
-				}
-			}
+			slice.clearState();
+			var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(slice.urn.full);
+			if(old != null)
+				old.clearState();
 			Main.geniDispatcher.dispatchSliceChanged(slice);
 			
-			var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(slice.urn.full);
+			var sliver:Sliver;
 			if(old != null && old.slivers.AllocatedAnyResources)
 			{
 				var newSlivers:SliverCollection = new SliverCollection();
 				var deleteSlivers:SliverCollection = new SliverCollection();
 				var updateSlivers:SliverCollection = new SliverCollection();
 				for each(var oldSliver:Sliver in old.slivers.collection) {
-					if(oldSliver.Created)
-						updateSlivers.add(oldSliver);
+					if(slice.slivers.getByManager(oldSliver.manager) == null)
+						deleteSlivers.add(oldSliver);
 				}
-				for each(sliver in updateSlivers.collection)
-				{
-					if(slice.slivers.getByManager(sliver.manager) == null)
-						deleteSlivers.add(sliver);
-				}
-				for each(sliver in slice.slivers.collection)
-				{
-					if(updateSlivers.getByManager(sliver.manager) == null)
-					{
-						newSlivers.add(sliver);
-						updateSlivers.remove(sliver);
-					}
+				for each(var newSliver:Sliver in slice.slivers.collection) {
+					if(old.slivers.getByManager(newSliver.manager) == null)
+						newSlivers.add(oldSliver);
+					else
+						updateSlivers.add(newSliver);
 				}
 				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
 				
@@ -274,6 +268,9 @@ package protogeni.communication
 		 */
 		public function refreshSlice(slice:Slice, skipDone:Boolean = false):void
 		{
+			this.isPaused = false;
+			this.forceStop = false;
+			
 			if(slice.slivers.length > 0) {
 				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
 				for each(var sliver:Sliver in slice.slivers.collection) {
@@ -295,15 +292,16 @@ package protogeni.communication
 		 */
 		public function regetSlice(slice:Slice):void
 		{
-			if(slice.slivers.length > 0) {
-				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
-				for each(var sliver:Sliver in slice.slivers.collection) {
-					sliver.removeOutsideReferences();
-				}
-				slice.slivers = new SliverCollection();
-			}
 			this.isPaused = false;
 			this.forceStop = false;
+			
+			slice.clearState();
+			for each(var sliver:Sliver in slice.slivers.collection) {
+				sliver.removeOutsideReferences();
+			}
+			slice.slivers = new SliverCollection();
+			Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
+			
 			this.pushRequest(new RequestSliceCredential(slice, true));
 		}
 		
@@ -316,6 +314,7 @@ package protogeni.communication
 		{
 			this.isPaused = false;
 			this.forceStop = false;
+			
 			this.pushRequest(new RequestUserResolve());
 		}
 		
@@ -327,8 +326,24 @@ package protogeni.communication
 		 */
 		public function deleteSlice(slice:Slice):void
 		{
+			this.isPaused = false;
+			this.forceStop = false;
+			
+			// Cancel remaining calls
+			var tryDeleteNode:RequestQueueNode = this.queue.head;
+			while(tryDeleteNode != null)
+			{
+				var testSlice:Slice = null;
+				if(tryDeleteNode.item.sliver != null)
+					testSlice = tryDeleteNode.item.sliver.slice;
+				else if(tryDeleteNode.item.slice != null)
+					testSlice = tryDeleteNode.item.slice;
+				if(testSlice != null && testSlice.urn.full == slice.urn.full)
+					this.remove(tryDeleteNode.item, false);
+				tryDeleteNode = tryDeleteNode.next;
+			}
+			
 			if(slice.slivers.length > 0) {
-				this.isPaused = false;
 				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
 				// SliceRemove doesn't work because the slice hasn't expired yet...
 				for each(var sliver:Sliver in slice.slivers.collection)
@@ -352,6 +367,8 @@ package protogeni.communication
 		 */
 		public function renewSlice(slice:Slice, newExpiresDate:Date):void {
 			this.isPaused = false;
+			this.forceStop = false;
+			
 			if(newExpiresDate.time < slice.expires.time) {
 				for each(var sliver:Sliver in slice.slivers.collection) {
 					if(sliver.expires.time < newExpiresDate.time) {

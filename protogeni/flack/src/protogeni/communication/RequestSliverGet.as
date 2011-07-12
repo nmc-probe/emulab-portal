@@ -18,6 +18,7 @@ package protogeni.communication
 	
 	import flash.events.ErrorEvent;
 	
+	import protogeni.GeniEvent;
 	import protogeni.Util;
 	import protogeni.resources.GeniManager;
 	import protogeni.resources.IdnUrn;
@@ -42,6 +43,8 @@ package protogeni.communication
 				true);
 			sliver = s;
 			sliver.changing = true;
+			sliver.message = "Getting credential";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -67,6 +70,7 @@ package protogeni.communication
 				sliver.urn = new IdnUrn(cred.credential.target_urn);
 				sliver.expires = Util.parseProtogeniDate(cred.credential.expires);
 				
+				sliver.message = "Credential recieved";
 				newCall = new RequestSliverResolve(sliver);
 			}
 			else if(code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED
@@ -81,13 +85,21 @@ package protogeni.communication
 						old.slivers.remove(oldSliver);
 				}
 				sliver.changing = false;
+				sliver.message = "No sliver here";
 			}
 			
 			return newCall;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		public function failed(msg:String = ""):void {
 			sliver.changing = false;
+			sliver.message = "Get credential failed";
+			if(msg != null && msg.length > 0)
+				sliver.message += ": " + msg;
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed(fault.getFaultString());
 			return super.fail(event, fault);
 		}
 		

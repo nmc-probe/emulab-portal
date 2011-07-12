@@ -44,6 +44,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.core.FlexGlobals;
 			import mx.events.CloseEvent;
 			import mx.events.DragEvent;
+			import mx.graphics.SolidColor;
 			import mx.managers.DragManager;
 			
 			import protogeni.DateUtil;
@@ -54,6 +55,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.display.components.DataButton;
 			import protogeni.display.components.DefaultWindow;
 			import protogeni.display.components.TextInputWindow;
+			import protogeni.display.components.XmlWindow;
 			import protogeni.display.mapping.GeniMapMarker;
 			import protogeni.resources.GeniManager;
 			import protogeni.resources.PhysicalNode;
@@ -64,6 +66,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.resources.VirtualNode;
 			import protogeni.tools.instools.Instools;
 			
+			import spark.components.BorderContainer;
 			import spark.components.NavigatorContent;
 			import spark.components.Scroller;
 			import spark.layouts.VerticalLayout;
@@ -138,21 +141,30 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function refreshInterface():void
 			{
+				this.viewStatusButton.visible = this.sliceCanvas.slice.slivers.HasAnyStatusInfo;
 				switch(this.sliceCanvas.slice.slivers.Status)
 				{
 					case Sliver.STATUS_READY:
 						this.hrnLabel.styleName = "validStyle";
+						if(this.viewStatusButton.visible)
+							this.viewStatusButton.setStyle("icon", ImageUtil.flagGreenIcon);
 						break;
 					case Sliver.STATUS_FAILED:
 						this.hrnLabel.styleName = "failedStyle";
+						if(this.viewStatusButton.visible)
+							this.viewStatusButton.setStyle("icon", ImageUtil.flagRedIcon);
 						break;
 					case Sliver.STATUS_CHANGING:
 					case Sliver.STATUS_NOTREADY:
 					case Sliver.STATUS_UNKOWN:
 					case Sliver.STATUS_MIXED:
 						this.hrnLabel.styleName = "inprogressStyle";
+						if(this.viewStatusButton.visible)
+							this.viewStatusButton.setStyle("icon", ImageUtil.flagYellowIcon);
 						break;
 					default:
+						if(this.viewStatusButton.visible)
+							this.viewStatusButton.setStyle("icon", ImageUtil.flagOrangeIcon);
 						this.hrnLabel.styleName = "unknownStyle";
 				}
 				
@@ -161,6 +173,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					spinner.startSpin();
 				else
 					spinner.stopSpin();
+				
+				if(currentPane == VIEW_STATUS && this.sliceCanvas.slice.slivers.length == 0) {
+					this.setSidePane(VIEW_MANAGERS);
+				}
+				else if(this.sliceCanvas.slice.Changing || currentPane == VIEW_STATUS) {
+					this.setSidePane(VIEW_STATUS);
+				}
 				
 				// Expire time stuff
 				this.expireButton.toolTip = "";
@@ -254,9 +273,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			private function autorefresh(e:TimerEvent):void
 			{
-				if(this.autoRefreshCheckbox.selected
-					&& this.sliceCanvas.slice != null
+				if(this.sliceCanvas.slice != null
 					&& !this.sliceCanvas.slice.slivers.StatusFinalized
+					&& this.sliceCanvas.slice.slivers.AllocatedAnyResources
 					&& Main.geniHandler.requestHandler.queue.isEmpty()
 					&& !Main.offlineMode) {
 					Main.geniHandler.requestHandler.refreshSlice(sliceCanvas.slice, true);
@@ -434,10 +453,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public static const VIEW_MANAGERS:int = 0;
 			public static const VIEW_MANAGER:int = 1;
 			public static const VIEW_COLLECTION:int = 2;
+			public static const VIEW_STATUS:int = 3;
+			public var currentPane:int = VIEW_MANAGERS;
 			public function setSidePane(type:int = VIEW_MANAGERS, data:* = null):void {
 				this.sidePane.removeAllElements();
+				currentPane = type;
 				switch(type) {
 					case VIEW_MANAGERS:
+					default:
 						for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
 							if(manager.Status == GeniManager.STATUS_VALID)
 								this.addManagerOption(manager, false);
@@ -458,6 +481,30 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						this.sidePane.addElement(toggleViewButton);
 						this.addNodeList(data);
 						break;
+					case VIEW_STATUS:
+						var options:HGroup = new HGroup();
+						var toggleStatusButton:ImageButton = new ImageButton();
+						toggleStatusButton.setStyle("icon", ImageUtil.leftIcon);
+						toggleStatusButton.toolTip = "View all the managers";
+						toggleStatusButton.addEventListener(MouseEvent.CLICK,
+							function toggleViewClicked(e:MouseEvent):void {
+								me.setSidePane(VIEW_MANAGERS);
+							});
+						options.addElement(toggleStatusButton);
+						var refreshStatusButton:ImageButton = new ImageButton();
+						refreshStatusButton.setStyle("icon", ImageUtil.refreshIcon);
+						refreshStatusButton.toolTip = "Refresh the slivers' status";
+						refreshStatusButton.addEventListener(MouseEvent.CLICK,
+							function toggleViewClicked(e:MouseEvent):void {
+								Main.geniHandler.requestHandler.refreshSlice(sliceCanvas.slice);
+							});
+						options.addElement(refreshStatusButton);
+						this.sidePane.addElement(options);
+						if(sliceCanvas.slice != null) {
+							for each(var sliver:Sliver in sliceCanvas.slice.slivers.collection)
+								addSliverStatus(sliver);
+						}
+						break;
 				}
 			}
 			
@@ -470,6 +517,91 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				for each(var node:PhysicalNode in nodes)
 					nodeCollection.addItem(node);
 				nodeList.load(nodeCollection);
+			}
+			
+			private function addSliverStatus(sliver:Sliver):void {
+				var sliverContainer:BorderContainer = new BorderContainer();
+				sliverContainer.height = 28;
+				sliverContainer.percentWidth = 100;
+				sliverContainer.setStyle("paddingTop", 4);
+				sliverContainer.setStyle("paddingBottom", 4);
+				sliverContainer.setStyle("paddingRight", 4);
+				sliverContainer.setStyle("paddingLeft", 4);
+				sliverContainer.backgroundFill = new SolidColor(ColorUtil.colorsDark[sliver.manager.colorIdx]);
+				this.sidePane.addElement(sliverContainer);
+				var sliverNameGroup:HGroup = new HGroup();
+				sliverNameGroup.percentWidth = 100;
+				sliverNameGroup.percentHeight = 100;
+				sliverNameGroup.verticalAlign = "middle";
+				sliverNameGroup.gap = 2;
+				sliverContainer.addElement(sliverNameGroup);
+				var managerName:Label = DisplayUtil.getLabel(sliver.manager.Hrn);
+				managerName.percentWidth = 100;
+				managerName.maxDisplayedLines = 1;
+				managerName.setStyle("color", ColorUtil.colorsLight[sliver.manager.colorIdx]);
+				managerName.setStyle("backgroundColor", ColorUtil.colorsDark[sliver.manager.colorIdx]);
+				sliverNameGroup.addElement(managerName);
+				
+				if(sliver.changing) {
+					var spinner:Spinner = new Spinner();
+					spinner.width = 18;
+					spinner.height = 18;
+					sliverNameGroup.addElement(spinner);
+					//spinner.x = (width / 2) - (spinner.width / 2);
+					//spinner.y = (height / 2) - (spinner.height / 2);
+					spinner.startSpin();
+				}
+				
+				if(sliver.manifest != null) {
+					var manifestButton:DataButton = new DataButton("",
+						"View the manifest",
+						ImageUtil.pageWhiteCodeIcon);
+					manifestButton.data = sliver.manifest;
+					manifestButton.addEventListener(MouseEvent.CLICK,
+						function openManifest(e:MouseEvent):void {
+							var rspecWindow:XmlWindow = new XmlWindow();
+							rspecWindow.showWindow();
+							rspecWindow.title = "Manifest RSPEC from " + sliver.manager.Hrn;
+							rspecWindow.loadXml((e.currentTarget as DataButton).data);
+						});
+					sliverNameGroup.addElement(manifestButton);
+				}
+				
+				var consoleButton:DataButton = new DataButton("",
+					"View log messages in the console",
+					ImageUtil.consoleIcon);
+				consoleButton.data = sliver.manager.Url;
+				consoleButton.addEventListener(MouseEvent.CLICK,
+					function openConsole(e:MouseEvent):void {
+						LogHandler.viewGroup((e.currentTarget as DataButton).data);
+					});
+				sliverNameGroup.addElement(consoleButton);
+				
+				if(sliver.message.length > 0) {
+					var statusLabel:Label = DisplayUtil.getLabel(sliver.message);
+					switch(sliver.status)
+					{
+						case Sliver.STATUS_READY:
+							statusLabel.styleName = "validStyle";
+							break;
+						case Sliver.STATUS_FAILED:
+							statusLabel.styleName = "failedStyle";
+							break;
+						case Sliver.STATUS_CHANGING:
+						case Sliver.STATUS_NOTREADY:
+						case Sliver.STATUS_UNKOWN:
+						case Sliver.STATUS_MIXED:
+							statusLabel.styleName = "inprogressStyle";
+							break;
+						default:
+							statusLabel.styleName = "unknownStyle";
+					}
+					this.sidePane.addElement(statusLabel);
+					var newLine:DefaultLine = new DefaultLine();
+					newLine.percentWidth = 100;
+					newLine.lineColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
+					this.sidePane.addElement(newLine);
+				}
 			}
 			
 			private function addManagerOption(manager:GeniManager, only:Boolean):void {
@@ -585,6 +717,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			public function tryCreateSlice():void {
+				if(sliceCanvas.slice.Changing) {
+					Alert.show("The slice is changing, please wait for the changes to complete");
+					return;
+				}
 				if(Main.geniHandler.CurrentUser.keys.length == 0) {
 					Alert.show("You don't have any public keys to use when logging in to your nodes.  Would you like to add any public keys?", "No public keys",
 						Alert.YES|Alert.NO|Alert.CANCEL,
@@ -762,13 +898,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					  height="24"
 					  icon="{ImageUtil.actionIcon}"
 					  click="tryCreateSlice()"/>
-			<components:ImageButton id="refreshButton"
-								 toolTip="Refresh slivers"
-								 click="Main.geniHandler.requestHandler.refreshSlice(sliceCanvas.slice);"
-								 icon="{ImageUtil.refreshIcon}"/>
-			<s:CheckBox id="autoRefreshCheckbox"
-						label="Autorefresh"
-						toolTip="Autorefresh the status of the slice/slivers?" selected="true" />
+			<components:ImageButton id="viewStatusButton"
+									toolTip="View the status of the slivers"
+									click="this.setSidePane(VIEW_STATUS);"
+									visible="false" includeInLayout="{viewStatusButton.visible}"/>
 			<components:ImageButton id="deleteButton"
 									toolTip="Delete slivers"
 									click="Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice);"

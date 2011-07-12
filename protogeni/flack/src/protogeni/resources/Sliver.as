@@ -62,12 +62,36 @@ package protogeni.resources
 		
 		public var processed:Boolean = false;
 		public var changing:Boolean = false;
+		public var message:String = "";
 		
 		public function Sliver(owner:Slice,
 							   newManager:GeniManager = null)
 		{
 			this.slice = owner;
 			this.manager = newManager;
+		}
+		
+		public function copyStatusFrom(sliver:Sliver):void {
+			this.status = sliver.status;
+			this.state = sliver.state;
+			this.changing = sliver.changing;
+			this.message = sliver.message;
+			for each(var copyNode:VirtualNode in sliver.nodes.collection) {
+				var myNode:VirtualNode = this.nodes.getByClientId(copyNode.clientId);
+				if(myNode != null) {
+					myNode.status = copyNode.status;
+					myNode.state = copyNode.state;
+					myNode.error = copyNode.error;
+				}
+			}
+			for each(var copyLink:VirtualLink in sliver.links.collection) {
+				var myLink:VirtualLink = this.links.getByClientId(copyLink.clientId);
+				if(myLink != null) {
+					myLink.status = copyLink.status;
+					myLink.state = copyLink.state;
+					myLink.error = copyLink.error;
+				}
+			}
 		}
 		
 		public function get StatusFinalized():Boolean {

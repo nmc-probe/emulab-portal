@@ -45,7 +45,8 @@ package protogeni
 		}
 		public static function showTutorial():void
 		{
-			navigateToURL(new URLRequest("https://www.protogeni.net/trac/protogeni/wiki/FlackTutorial"), "_blank");
+			navigateToURL(new URLRequest("http://www.netlab.uky.edu/p/instools"), "_blank");
+			//navigateToURL(new URLRequest("https://www.protogeni.net/trac/protogeni/wiki/FlackTutorial"), "_blank");
 		}
 		
 		public static function openWebsite(url:String):void

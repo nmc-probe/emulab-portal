@@ -19,6 +19,7 @@ package protogeni.communication
 	import flash.events.ErrorEvent;
 	
 	import protogeni.GeniEvent;
+	import protogeni.StringUtil;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
 	import protogeni.resources.VirtualComponent;
@@ -43,6 +44,7 @@ package protogeni.communication
 				true);
 			sliver = newSliver;
 			sliver.changing = true;
+			sliver.message = "Checking status";
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -51,12 +53,14 @@ package protogeni.communication
 		}
 		
 		override public function start():Operation {
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*
 		{
+			var old:Slice;
+			var oldSliver:Sliver;
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				sliver.status = response.value.status;
@@ -74,35 +78,59 @@ package protogeni.communication
 					}
 				}
 				sliver.changing = !sliver.StatusFinalized;
+				if(sliver.changing) {
+					if(sliver.status == Sliver.STATUS_FAILED)
+						sliver.message = "Failed";
+					else if(sliver.status == Sliver.STATUS_READY)
+						sliver.message = "Ready";
+					else
+						sliver.message = "Status is " + sliver.status;
+				}
+				else
+					sliver.message = "Status is " + sliver.status;
+				
+				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
+				if(old != null)
+				{
+					oldSliver = old.slivers.getByManager(sliver.manager);
+					if(oldSliver != null)
+						oldSliver.copyStatusFrom(sliver);
+				}
 			}
 			// Slice was deleted
 			else if(code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED) {
 				sliver.removeOutsideReferences();
 				if(sliver.slice.slivers.contains(sliver))
 					sliver.slice.slivers.remove(sliver);
-				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
+				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
 				{
-					var oldSliver:Sliver = old.slivers.getByUrn(sliver.urn.full);
+					oldSliver = old.slivers.getByUrn(sliver.urn.full);
 					if(oldSliver != null) {
 						oldSliver.removeOutsideReferences();
 						old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
 					}
 				}
 				sliver.changing = false;
+				sliver.message = "Status was deleted";
 			}
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		public function failed(msg:String = ""):void {
 			sliver.changing = true;
-			return super.fail(event, fault);
+			sliver.message = "Checking status failed";
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed(fault.getFaultString());
+			return null
 		}
 		
 		override public function cleanup():void {
 			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 		}
 	}
 }
