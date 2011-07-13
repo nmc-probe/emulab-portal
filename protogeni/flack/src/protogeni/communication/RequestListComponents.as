@@ -38,7 +38,7 @@ package protogeni.communication
 		public function RequestListComponents(shouldDiscoverResources:Boolean = true,
 											  shouldStartSlices:Boolean = false):void
 		{
-			super("ListComponents",
+			super("List managers",
 				"Getting the information for the component managers",
 				CommunicationUtil.listComponents);
 			startDiscoverResources = shouldDiscoverResources;

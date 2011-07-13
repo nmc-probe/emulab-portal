@@ -35,8 +35,8 @@ package protogeni.communication
 		
 		public function RequestGetVersion(newManager:ProtogeniComponentManager):void
 		{
-			super("GetVersion (" + StringUtil.shortenString(newManager.Url, 15) + ")",
-				"Getting the version of the component manager for " + newManager.Hrn,
+			super("Get version @ " + newManager.Hrn,
+				"Getting the version information of the component manager for " + newManager.Hrn,
 				CommunicationUtil.getVersion,
 				true,
 				true,

@@ -31,12 +31,12 @@ package protogeni.communication
 	{
 		public var sliver:Sliver;
 		
-		public function RequestSliverStart(s:Sliver):void
+		public function RequestSliverStart(sliverToStart:Sliver):void
 		{
-			super("SliverStart",
-				"Starting sliver on " + s.manager.Hrn + " for slice named " + s.slice.hrn,
+			super("Start sliver @ " + sliverToStart.manager.Hrn,
+				"Starting sliver on " + sliverToStart.manager.Hrn + " for slice named " + sliverToStart.slice.Name,
 				CommunicationUtil.startSliver);
-			sliver = s;
+			sliver = sliverToStart;
 			sliver.changing = true;
 			sliver.message = "Starting";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);

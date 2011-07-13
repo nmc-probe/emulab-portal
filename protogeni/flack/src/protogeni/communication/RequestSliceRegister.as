@@ -30,8 +30,8 @@ package protogeni.communication
 		
 		public function RequestSliceRegister(s:Slice):void
 		{
-			super("SliceRegister",
-				"Register slice named " + s.hrn,
+			super("Register " + s.Name,
+				"Register slice named " + s.Name,
 				CommunicationUtil.register);
 			slice = s;
 			slice.Changing = true;

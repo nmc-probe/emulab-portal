@@ -34,8 +34,8 @@ package protogeni.communication
 		
 		public function RequestListResourcesAmPublic(newAm:AggregateManager):void
 		{
-			super("ListResourcesAmPublic (" + StringUtil.shortenString(newAm.Url, 15) + ")",
-				"Listing resources for " + newAm.Url,
+			super("List public resources @ " + newAm.Hrn,
+				"Listing public resources for aggregate manager " + newAm.Hrn,
 				null,
 				true,
 				true,

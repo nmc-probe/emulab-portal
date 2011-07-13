@@ -26,8 +26,8 @@ package protogeni.communication
 	{
 		public function RequestGetCredential():void
 		{
-			super("GetCredential",
-				"Getting the basic user credential",
+			super("Get user credential",
+				"Getting user credential",
 				CommunicationUtil.getCredential);
 		}
 		

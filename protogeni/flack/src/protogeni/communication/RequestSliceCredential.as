@@ -35,8 +35,8 @@ package protogeni.communication
 		 */
 		public function RequestSliceCredential(newSlice:Slice, shouldExploreAllManagers:Boolean = false):void
 		{
-			super("SliceCredential",
-				"Getting the slice credential for " + newSlice.hrn,
+			super("Get credential for " + newSlice.Name,
+				"Getting the slice credential for " + newSlice.Name,
 				CommunicationUtil.getCredential,
 				true);
 			slice = newSlice;

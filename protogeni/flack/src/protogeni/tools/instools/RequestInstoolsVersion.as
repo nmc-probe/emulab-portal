@@ -18,7 +18,11 @@ package protogeni.tools.instools
 	
 	import flash.events.ErrorEvent;
 	
+	import mx.controls.Alert;
+	
+	import protogeni.GeniEvent;
 	import protogeni.communication.CommunicationUtil;
+	import protogeni.communication.Operation;
 	import protogeni.communication.Request;
 	import protogeni.resources.Sliver;
 	
@@ -33,14 +37,25 @@ package protogeni.tools.instools
 		public var sliver:Sliver;
 		public function RequestInstoolsVersion(s:Sliver):void
 		{
-			super("GetINSTOOLSVersion",
-				"Requesting current INSTOOLS version.",
-				Instools.instoolsGetVersion,true,true,true);
+			super("Get INSTOOLS version @ " + s.manager.Hrn,
+				"Requesting current INSTOOLS version at " + s.manager.Hrn,
+				Instools.instoolsGetVersion,
+				true,
+				true,
+				true);
 			op.setUrl(s.manager.Url);
 			sliver = s;
 			sliver.changing = true;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			sliver.message = "Waiting to get INSTOOLS version";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			
 			//op.setUrl("https://www.uky.emulab.net/protogeni/xmlrpc");
+		}
+		
+		override public function start():Operation {
+			sliver.message = "Getting INSTOOLS version";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*
@@ -49,6 +64,8 @@ package protogeni.tools.instools
 			{
 				Instools.devel_version[sliver.manager.Urn.full.toString()] = String(response.value.devel_version);
 				Instools.stable_version[sliver.manager.Urn.full.toString()] = String(response.value.stable_version);
+				
+				sliver.message = "Got INSTOOLS version";
 				
 				Main.geniHandler.requestHandler.pushRequest(new RequestAddMCNode(sliver));
 				
@@ -61,16 +78,22 @@ package protogeni.tools.instools
 				*/
 			}
 			else
-			{
-				sliver.changing = false;
-			}
+				failed(response.output);
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		public function failed(msg:String = ""):void {
 			sliver.changing = false;
-			return super.fail(event, fault);
+			sliver.message = "Get INSTOOLS version failed";
+			if(msg != null && msg.length > 0)
+				sliver.message += ": " + msg;
+			Alert.show("Failed to get INSTOOLS version on " + sliver.manager.Hrn + ". " + msg, "Problem getting INSTOOLS version");
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed(fault.getFaultString());
+			return null;
 		}
 		
 		override public function cleanup():void {

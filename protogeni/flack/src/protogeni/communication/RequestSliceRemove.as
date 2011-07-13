@@ -34,8 +34,8 @@ package protogeni.communication
 		
 		public function RequestSliceRemove(s:Slice, shouldTryCreate:Boolean = true):void
 		{
-			super("SliceRemove",
-				"Remove slice named " + s.hrn,
+			super("Remove " + s.Name,
+				"Remove slice named " + s.Name,
 				CommunicationUtil.remove);
 			slice = s;
 			slice.Changing = true;

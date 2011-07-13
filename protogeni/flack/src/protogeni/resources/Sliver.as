@@ -31,7 +31,7 @@ package protogeni.resources
 		public static const STATUS_READY:String = "ready";
 		public static const STATUS_NOTREADY:String = "notready";
 		public static const STATUS_FAILED:String = "failed";
-		public static const STATUS_UNKOWN:String = "unknown";
+		public static const STATUS_UNKNOWN:String = "unknown";
 		public static const STATUS_MIXED:String = "mixed";
 		public static const STATUS_NA:String = "N/A";
 		
@@ -62,7 +62,7 @@ package protogeni.resources
 		
 		public var processed:Boolean = false;
 		public var changing:Boolean = false;
-		public var message:String = "";
+		public var message:String = "Nothing done yet";
 		
 		public function Sliver(owner:Slice,
 							   newManager:GeniManager = null)
@@ -95,7 +95,9 @@ package protogeni.resources
 		}
 		
 		public function get StatusFinalized():Boolean {
-			return status == STATUS_READY || status == STATUS_FAILED;
+			return status == STATUS_READY
+				|| status == STATUS_FAILED
+				|| status == STATUS_UNKNOWN;
 		}
 		
 		public function getBySliverId(id:String):VirtualComponent {

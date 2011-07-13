@@ -14,13 +14,18 @@
 
 package protogeni.tools.instools
 {
-	import protogeni.communication.CommunicationUtil;
-	import protogeni.communication.Request;
+	import com.adobe.crypto.SHA1;
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
 	
 	import mx.controls.Alert;
-	import com.adobe.crypto.SHA1;
 	
+	import protogeni.GeniEvent;
 	import protogeni.Util;
+	import protogeni.communication.CommunicationUtil;
+	import protogeni.communication.Operation;
+	import protogeni.communication.Request;
 	import protogeni.resources.Sliver;
 	
 	/**
@@ -34,15 +39,16 @@ package protogeni.tools.instools
 		public var sliver:Sliver;
 		public function RequestInstrumentize(s:Sliver):void
 		{
-			super("InstoolsInstrumentize",
-				"Instrumentizing the experiment.",
+			super("Instrumentize @ " + s.manager.Hrn,
+				"Instrumentizing the experiment on " + s.manager.Hrn,
 				Instools.instoolsInstrumentize,
 				true,
 				true);
 			op.setUrl(s.manager.Url);
 			sliver = s;
 			sliver.changing = true;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			sliver.message = "Waiting to instrumentize";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			op.addField("urn", sliver.slice.urn.full);
 			//we currently do not support virtual nodes as MCs
@@ -58,10 +64,28 @@ package protogeni.tools.instools
 			//op.setUrl("https://www.uky.emulab.net/protogeni/xmlrpc");
 		}
 		
+		override public function start():Operation {
+			sliver.message = "Instrumentizing";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			return op;
+		}
+		
 		override public function complete(code:Number, response:Object):*
 		{
-			//do nothing
+			sliver.message = "Instrumentized";
 			
+			return null;
+		}
+		
+		public function failed(msg:String = ""):void {
+			sliver.message = "Instrumentizing failed";
+			if(msg != null && msg.length > 0)
+				sliver.message += ": " + msg;
+			Alert.show("Failed to Instrumentize on " + sliver.manager.Hrn + ". " + msg, "Problem instrumentizing");
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed(fault.getFaultString());
 			return null;
 		}
 		

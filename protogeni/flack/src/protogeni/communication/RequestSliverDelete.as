@@ -36,19 +36,26 @@ package protogeni.communication
 		
 		public function RequestSliverDelete(s:Sliver):void
 		{
-			super("SliverDelete",
-				"Deleting sliver on " + s.manager.Hrn + " for slice named " + s.slice.hrn,
+			super("Delete sliver @ " + s.manager.Hrn,
+				"Deleting sliver on component manager " + s.manager.Hrn + " for slice named " + s.slice.Name,
 				CommunicationUtil.deleteSlice,
 				true);
 			sliver = s;
 			sliver.changing = true;
-			sliver.message = "Deleting";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			sliver.processed = false;
+			sliver.message = "Waiting to delete";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
 			op.addField("credentials", [sliver.slice.credential]);
 			op.setUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			sliver.message = "Deleting";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

@@ -20,6 +20,7 @@ package protogeni.communication
 	
 	import mx.controls.Alert;
 	
+	import protogeni.GeniEvent;
 	import protogeni.resources.Sliver;
 	import protogeni.resources.VirtualComponent;
 	import protogeni.resources.VirtualNode;
@@ -38,16 +39,15 @@ package protogeni.communication
 		 */
 		public function RequestSliverUpdate(newSliver:Sliver, useRspec:XML = null):void
 		{
-			super("SliverUpdate",
-				"Updating sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.hrn,
+			super("Update sliver @ " + newSliver.manager.Hrn,
+				"Updating sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.Name,
 				CommunicationUtil.updateSliver,
 				true);
 			sliver = newSliver;
 			sliver.clearState();
 			sliver.changing = true;
 			sliver.manifest = null;
-			sliver.message = "Updating";
-			
+			sliver.message = "Waiting to update";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			// Build up the args
@@ -61,6 +61,12 @@ package protogeni.communication
 			op.setUrl(sliver.manager.Url);
 		}
 		
+		override public function start():Operation {
+			sliver.message = "Updating";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			return op;
+		}
+		
 		override public function complete(code:Number, response:Object):*
 		{
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
@@ -68,7 +74,9 @@ package protogeni.communication
 				ticket = String(response.value);
 				sliver.ticket = ticket;
 				sliver.message = "Updated ticket recieved";
-				return new RequestTicketRedeem(sliver);
+				var redeemTicket:RequestTicketRedeem = new RequestTicketRedeem(sliver);
+				redeemTicket.forceNext = true;
+				return redeemTicket;
 			}
 			else
 			{

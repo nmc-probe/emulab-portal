@@ -20,7 +20,9 @@ package protogeni.tools.instools
 	
 	import mx.controls.Alert;
 	
+	import protogeni.GeniEvent;
 	import protogeni.communication.CommunicationUtil;
+	import protogeni.communication.Operation;
 	import protogeni.communication.Request;
 	import protogeni.communication.RequestSliverUpdate;
 	import protogeni.resources.Sliver;
@@ -37,14 +39,15 @@ package protogeni.tools.instools
 		
 		public function RequestAddMCNode(s:Sliver):void
 		{
-			super("AddMCNode",
-				"Allocating a measurement controller.",
+			super("Add MC Node @ " + s.manager.Hrn,
+				"Allocating a measurement controller at " + s.manager.Hrn,
 				Instools.instoolsAddMCNode,
 				true,
 				true);
 			sliver = s;
 			sliver.changing = true;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			sliver.message = "Waiting to add MC Node";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.addField("urn", sliver.slice.urn.full);
@@ -54,7 +57,12 @@ package protogeni.tools.instools
 			op.addField("credentials", [sliver.slice.credential]);
 			//op.setUrl("https://www.uky.emulab.net/protogeni/xmlrpc");
 			op.setUrl(sliver.manager.Url);
+		}
 		
+		override public function start():Operation {
+			sliver.message = "Adding MC Node";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*
@@ -63,6 +71,7 @@ package protogeni.tools.instools
 			{
 			  if (response.value.wasMCpresent) 
 			  {
+				  sliver.message = "MC Node already added";
 				  LogHandler.appendMessage(new LogMessage(op.getUrl(),
 					  "AddMCNode",
 					  "AddMCNode failed because a measurement controller has already been added to this slice.",
@@ -71,6 +80,7 @@ package protogeni.tools.instools
 			  } 
 			  else 
 			  {
+				  sliver.message = "MC Node added";
 				  Instools.updated_rspec[sliver.manager.Urn.full] = String(response.value.instrumentized_rspec);
 				  Instools.rspec_version[sliver.manager.Urn.full] = String(response.value.rspec_version);
 				  Main.geniHandler.requestHandler.pushRequest(new RequestSliverUpdate(sliver, new XML(response.value.instrumentized_rspec)));
@@ -79,21 +89,23 @@ package protogeni.tools.instools
 			}
 			else
 			{
-				sliver.changing = false;
-				LogHandler.appendMessage(new LogMessage(op.getUrl(),
-					"AddMCNode",
-					"AddMCNode failed with the following message: " + String(response.output),
-					true,
-					LogMessage.TYPE_END));
-				Alert.show("There was a problem adding the MC Node on " + sliver.manager.Hrn + ". The error output was: " + String(response.output), "Problem adding MC Node");
+				failed(String(response.output));
 			}
 			
 			return null;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+		public function failed(msg:String = ""):void {
 			sliver.changing = false;
-			return fail(event, fault);
+			sliver.message = "Add MC Node failed";
+			if(msg != null && msg.length > 0)
+				sliver.message += ": " + msg;
+			Alert.show("There was a problem adding the MC Node on " + sliver.manager.Hrn + ". " + msg, "Problem adding MC Node");
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed(fault.getFaultString());
+			return null;
 		}
 		
 		override public function cleanup():void {

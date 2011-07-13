@@ -41,8 +41,8 @@ package protogeni.communication
 		
 		public function RequestSliverCreateAm(s:Sliver, useRspec:XML = null):void
 		{
-			super("SliverCreateAM",
-				"Creating sliver on " + s.manager.Hrn + " for slice named " + s.slice.hrn,
+			super("Create sliver @ " + s.manager.Hrn,
+				"Creating sliver on aggregate manager " + s.manager.Hrn + " for slice named " + s.slice.Name,
 				CommunicationUtil.createSliverAm,
 				true);
 			ignoreReturnCode = true;
@@ -50,7 +50,7 @@ package protogeni.communication
 			sliver.clearState();
 			sliver.changing = true;
 			sliver.manifest = null;
-			sliver.message = "Creating";
+			sliver.message = "Waiting to create";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			op.timeout = 360;
@@ -69,6 +69,12 @@ package protogeni.communication
 			}
 			op.pushField([{urn:Main.geniHandler.CurrentUser.urn.full, keys:userKeys}]);
 			op.setExactUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			sliver.message = "Creating";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

@@ -35,7 +35,7 @@ package protogeni.communication
 	{
 		public function RequestWhoAmI():void
 		{
-			super("WhoAmI",
+			super("Look up user",
 				"Finding out who I am",
 				CommunicationUtil.whoAmI);
 		}

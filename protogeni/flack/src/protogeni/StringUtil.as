@@ -24,7 +24,7 @@ package protogeni
 	{
 		// Makes the first letter uppercase
 		public static function firstToUpper (phrase:String):String {
-			return phrase.substring(1, 0).toUpperCase() + phrase.substring(1);
+			return  phrase.substring(1, 0).toUpperCase() + phrase.substring(1).toLowerCase();
 		}
 		
 		public static function replaceString(original:String, find:String, replace:String):String {

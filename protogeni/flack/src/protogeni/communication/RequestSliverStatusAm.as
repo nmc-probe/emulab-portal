@@ -18,6 +18,8 @@ package protogeni.communication
 	
 	import flash.events.ErrorEvent;
 	
+	import protogeni.GeniEvent;
+	import protogeni.StringUtil;
 	import protogeni.resources.IdnUrn;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
@@ -35,14 +37,16 @@ package protogeni.communication
 		
 		public function RequestSliverStatusAm(newSliver:Sliver):void
 		{
-			super("SliverStatusAM",
-				"Getting the sliver status on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.hrn,
+			super("Get sliver status @ " + newSliver.manager.Hrn,
+				"Getting the sliver status for aggregate manager " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.Name,
 				CommunicationUtil.sliverStatusAm,
 				true,
 				true);
 			ignoreReturnCode = true;
 			sliver = newSliver;
 			sliver.changing = true;
+			sliver.message = "Waiting to check status";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.pushField(sliver.slice.urn.full);
@@ -51,6 +55,7 @@ package protogeni.communication
 		}
 		
 		override public function start():Operation {
+			sliver.message = "Checking status";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			return op;
 		}
@@ -74,6 +79,9 @@ package protogeni.communication
 				}
 				
 				sliver.changing = !sliver.StatusFinalized;
+				sliver.message = StringUtil.firstToUpper(sliver.status);
+				if(sliver.changing)
+					sliver.message = "Status is " + sliver.message;
 			}
 			catch(e:Error)
 			{

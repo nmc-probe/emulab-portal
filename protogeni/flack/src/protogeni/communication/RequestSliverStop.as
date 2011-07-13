@@ -33,7 +33,8 @@ package protogeni.communication
 		
 		public function RequestSliverStop(newSliver:Sliver):void
 		{
-			super("SliverStop", "Stopping sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.hrn,
+			super("Stop sliver @ " + newSliver.manager.Hrn,
+				"Stopping sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.Name,
 				CommunicationUtil.stopSliver);
 			sliver = newSliver;
 			sliver.changing = true;

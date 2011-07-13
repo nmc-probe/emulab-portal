@@ -34,8 +34,8 @@ package protogeni.communication
 		 */
 		public function RequestTicketRelease(newSliver:Sliver):void
 		{
-			super("TicketRelease",
-				"Releasing ticket for sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.hrn,
+			super("Release ticket @ " + newSliver.manager.Hrn,
+				"Releasing ticket for sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.Name,
 				CommunicationUtil.releaseTicket);
 			sliver = newSliver;
 			sliver.changing = true;

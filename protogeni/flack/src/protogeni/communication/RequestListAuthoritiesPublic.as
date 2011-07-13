@@ -36,7 +36,7 @@ package protogeni.communication
 	{
 		public function RequestListAuthoritiesPublic():void
 		{
-			super("ListAuthoritiesPublic",
+			super("List authorities",
 				"Getting the list of slice authorities",
 				null);
 			op.setExactUrl(Main.geniHandler.salistUrl);

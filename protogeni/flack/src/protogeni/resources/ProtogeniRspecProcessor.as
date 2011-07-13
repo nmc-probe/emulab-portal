@@ -609,7 +609,9 @@ package protogeni.resources
 											virtualInterface.ip = String(ipXml.@address);
 											virtualInterface.type = String(ipXml.@type);
 											if(ipXml.@mask.length() == 1)
-												virtualInterface.mask = String(ipXml.@mask);
+												virtualInterface.netmask = String(ipXml.@mask);
+											else if(ipXml.@netmask.length() == 1)
+												virtualInterface.netmask = String(ipXml.@netmask);
 										}
 									}
 									if(virtualNode.physicalNode != null)
@@ -1031,8 +1033,8 @@ package protogeni.resources
 						if(currentLink.linkType == VirtualLink.TYPE_TUNNEL) {
 							var tunnelXml:XML = <ip />;
 							tunnelXml.@address = current.ip;
-							tunnelXml.@mask = "255.255.255.0";
-							tunnelXml.@type = "ipv4";
+							tunnelXml.@netmask = current.netmask;
+							tunnelXml.@type = current.type;
 							interfaceXml.appendChild(tunnelXml);
 						}
 					}

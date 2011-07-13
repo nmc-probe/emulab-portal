@@ -37,8 +37,8 @@ package protogeni.communication
 		
 		public function RequestDiscoverResources(newManager:ProtogeniComponentManager):void
 		{
-			super("DiscoverResources (" + StringUtil.shortenString(newManager.Hrn, 15) + ")",
-				"Discovering resources for " + newManager.Hrn,
+			super("List resources @ " + newManager.Hrn,
+				"Listing resources for " + newManager.Hrn,
 				CommunicationUtil.discoverResources,
 				true,
 				true,

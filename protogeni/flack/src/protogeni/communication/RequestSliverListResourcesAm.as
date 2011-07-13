@@ -37,13 +37,13 @@ package protogeni.communication
 	{
 		public var sliver:Sliver;
 		
-		public function RequestSliverListResourcesAm(s:Sliver/*, notFirst:Boolean = false*/):void
+		public function RequestSliverListResourcesAm(s:Sliver):void
 		{
-			super("ListResources(Sliver)AM (" + StringUtil.shortenString(s.manager.Url, 15) + ")",
-				"Listing resources for sliver on " + s.manager.Hrn + " on slice named " + s.slice.hrn,
+			super("Get manifest @ " + s.manager.Hrn,
+				"Listing resources for sliver on aggregate manager " + s.manager.Hrn + " on slice named " + s.slice.Name,
 				CommunicationUtil.listResourcesAm,
 				true,
-				true /*notFirst*/);
+				true);
 			ignoreReturnCode = true;
 			op.timeout = 60;
 			sliver = s;

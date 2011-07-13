@@ -18,6 +18,7 @@ package protogeni.communication
 	
 	import mx.utils.Base64Decoder;
 	
+	import protogeni.NetUtil;
 	import protogeni.StringUtil;
 	import protogeni.resources.GeniManager;
 	import protogeni.resources.ProtogeniComponentManager;
@@ -34,8 +35,8 @@ package protogeni.communication
 		
 		public function RequestDiscoverResourcesPublic(newCm:ProtogeniComponentManager):void
 		{
-			super("DiscoverResourcesPublic (" + StringUtil.shortenString(newCm.Url, 15) + ")",
-				"Publicly discovering resources for " + newCm.Url,
+			super("List public resources @ " + newCm.Hrn,
+				"Discovering public resources for " + newCm.Hrn,
 				null,
 				true,
 				true,

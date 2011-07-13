@@ -26,7 +26,7 @@ package protogeni.communication
 	{
 		public function RequestGetKeys():void
 		{
-			super("GetKeys",
+			super("Get SSH keys",
 				"Getting the ssh credential",
 				CommunicationUtil.getKeys);
 		}

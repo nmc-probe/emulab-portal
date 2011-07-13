@@ -25,6 +25,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
 			
+			import protogeni.display.components.XmlWindow;
 			import protogeni.resources.DiskImage;
 			import protogeni.resources.PhysicalLink;
 			import protogeni.resources.PhysicalNode;
@@ -232,6 +233,28 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				else
 					DisplayUtil.viewXml(virtualNode.manifest, "Manifest RSPEC for " + node.name);
 			}
+			
+			
+			// quick hack to get someone a list of interfaces a node connects to
+			/*
+			public function generateTable():void {
+				//  ||(null)||node name||interface name||
+				var table:String = "";
+				for each(var myInterface:PhysicalNodeInterface in node.interfaces.collection) {
+					for each(var myLink:PhysicalLink in myInterface.physicalLinks) {
+						for each(var checkInterface:PhysicalNodeInterface in myLink.interfaceRefs.collection) {
+							if(checkInterface != myInterface)
+								table += "||" + myInterface.id + "||" + checkInterface.owner.name + "||" + checkInterface.id + "||\n";
+						}
+					}
+				}
+				
+				var test:XmlWindow = new XmlWindow();
+				test.loadText(table);
+				test.showWindow();
+			}
+			*/
+			
 		]]>
 	</fx:Script>
 	

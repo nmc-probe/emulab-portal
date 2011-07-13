@@ -205,7 +205,7 @@ package protogeni.communication
 				}
 				for each(var newSliver:Sliver in slice.slivers.collection) {
 					if(old.slivers.getByManager(newSliver.manager) == null)
-						newSlivers.add(oldSliver);
+						newSlivers.add(newSliver);
 					else
 						updateSlivers.add(newSliver);
 				}
@@ -229,21 +229,11 @@ package protogeni.communication
 				}
 				
 				// Create
-				var addDelay:Boolean = false;
 				for each(sliver in newSlivers.collection) {
-					var request:Request;
 					if(sliver.manager.isAm)
-						request = new RequestSliverCreateAm(sliver);
+						pushRequest(new RequestSliverCreateAm(sliver));
 					else
-						request = new RequestSliverCreate(sliver);
-					
-					// Add a delay for the other slivers in case there is any stitching
-					if(addDelay)
-						request.op.delaySeconds = 15;
-					else
-						addDelay = true;
-					
-					pushRequest(request);
+						pushRequest(new RequestSliverCreate(sliver));
 				}
 			} else {
 				// Create

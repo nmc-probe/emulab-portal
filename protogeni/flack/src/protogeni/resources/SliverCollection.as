@@ -322,7 +322,7 @@ package protogeni.resources
 			var status:String = "";
 			for each(var sliver:Sliver in this.collection) {
 				if(status.length == 0) status = sliver.status;
-				if(sliver.status.length > 0 && (sliver.status != Sliver.STATUS_READY && sliver.status != Sliver.STATUS_FAILED))
+				if(sliver.status.length > 0 && !sliver.StatusFinalized)
 					return Sliver.STATUS_CHANGING;
 				if(sliver.status != status)
 					status = Sliver.STATUS_MIXED;
@@ -341,6 +341,14 @@ package protogeni.resources
 		public function get AllocatedAnyResources():Boolean {
 			for each(var sliver:Sliver in this.collection) {
 				if(sliver.Created)
+					return true;
+			}
+			return false;
+		}
+		
+		public function get Processing():Boolean {
+			for each(var sliver:Sliver in this.collection) {
+				if(sliver.changing && !sliver.processed)
 					return true;
 			}
 			return false;

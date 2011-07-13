@@ -33,7 +33,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.controls.Alert;
 			import mx.events.CloseEvent;
 			
+			import protogeni.NetUtil;
 			import protogeni.XmlUtil;
+			import protogeni.display.components.DataButton;
 			import protogeni.display.components.XmlWindow;
 			import protogeni.resources.DiskImage;
 			import protogeni.resources.ExecuteService;
@@ -81,9 +83,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						break;
 					case VirtualComponent.STATUS_NOTREADY:
 					case VirtualComponent.STATUS_CHANGING:
-					case VirtualComponent.STATUS_UNKOWN:
 						this.statusImage.source = ImageUtil.flagYellowIcon;
 						break;
+					case VirtualComponent.STATUS_UNKNOWN:
 					default:
 						this.statusImage.visible = false;
 						this.statusImage.includeInLayout = false;
@@ -100,6 +102,28 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 				if(node.manifest != null)
 					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
+				
+				if(node.loginServices.length > 0) {
+					this.loginText.text = node.loginServices[0].hostname;
+					
+					var sshButton:DataButton = new DataButton("","Start a SSH session",ImageUtil.linkIcon);
+					sshButton.data = "ssh://" + node.loginServices[0].hostname + ":" + node.loginServices[0].port;
+					sshButton.addEventListener(MouseEvent.CLICK,
+						function openSsh(e:MouseEvent):void {
+							NetUtil.openWebsite(e.currentTarget.data);
+						});
+					loginGroup.addElement(sshButton);
+					
+					var visitButton:DataButton = new DataButton("","Open a browser if node has a web server",ImageUtil.worldIcon);
+					visitButton.data = "http://" + node.loginServices[0].hostname;
+					visitButton.addEventListener(MouseEvent.CLICK,
+						function visit(e:MouseEvent):void {
+							NetUtil.openWebsite(e.currentTarget.data);
+						});
+					loginGroup.addElement(visitButton);
+					
+				} else
+					this.loginText.text = "None established";
 				
 				this.bindingVirtualRadiobutton.enabled = node.manager.supportsExclusiveNodes || node.manager.supportsSharedNodes;
 				if(this.bindingVirtualRadiobutton.enabled) {
@@ -174,14 +198,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					if(toSelect != null)
 						this.diskImageSelect.selectedItem = toSelect;
 				}
-				
-				if(node.loginServices.length > 0) {
-					this.loginText.text = node.loginServices[0].authentication + " on ";
-					if(node.loginServices[0].username.length > 0)
-						this.loginText.text += node.loginServices[0].username + "@";
-					this.loginText.text += node.loginServices[0].hostname + ":" + node.loginServices[0].port;
-				} else
-					this.loginText.text = "None established";
 
 				loadSlices();
 			}
@@ -393,9 +409,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							 toolTip="Preview the Request RSPEC" />
 	</s:HGroup>
 	
-	<s:HGroup width="100%" verticalAlign="middle">
-		<s:Label text="Login" fontWeight="bold" />
+	<s:HGroup id="loginGroup" width="100%" verticalAlign="middle">
+		<s:Label text="Hostname" fontWeight="bold" />
 		<mx:Label id="loginText" selectable="true" />
+		<s:Rect percentWidth="100" />
 	</s:HGroup>
 	
 	<mx:TabNavigator height="100%" width="100%">

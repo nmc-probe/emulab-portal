@@ -37,13 +37,8 @@ package protogeni.communication
 		
 		public function RequestSliceResolve(s:Slice, willBeCreating:Boolean = false):void
 		{
-			var name:String;
-			if(s.hrn == null)
-				name = StringUtil.shortenString(s.urn.full, 12);
-			else
-				name = s.hrn;
-			super("SliceResolve (" + name + ")",
-				"Resolving slice named " + s.hrn,
+			super("Resolve " + s.Name,
+				"Resolving slice named " + s.Name,
 				CommunicationUtil.resolve);
 			slice = s;
 			slice.Changing = true;

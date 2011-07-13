@@ -29,7 +29,7 @@ package protogeni.communication
 	{
 		public function RequestUserResolve():void
 		{
-			super("UserResolve",
+			super("Get user data",
 				"Resolve user",
 				CommunicationUtil.resolve);
 		}

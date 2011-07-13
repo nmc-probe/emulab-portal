@@ -183,7 +183,7 @@ package protogeni.resources
 						newVirtualInterface.physicalNodeInterface = vi.physicalNodeInterface;
 						newVirtualInterface.capacity = vi.capacity;
 						newVirtualInterface.ip = vi.ip;
-						newVirtualInterface.mask = vi.mask;
+						newVirtualInterface.netmask = vi.netmask;
 						newVirtualInterface.type = vi.type;
 						newNode.interfaces.add(newVirtualInterface);
 						oldInterfaceToCloneInterface[vi] = newVirtualInterface;
@@ -253,10 +253,13 @@ package protogeni.resources
 		
 		public function ReadyIcon():Class {
 			switch(this.slivers.Status) {
-				case Sliver.STATUS_READY : return ImageUtil.flagGreenIcon;
-				case Sliver.STATUS_NOTREADY : return ImageUtil.flagYellowIcon;
-				case Sliver.STATUS_FAILED : return ImageUtil.flagRedIcon;
-				default : return ImageUtil.flagOrangeIcon;
+				case Sliver.STATUS_READY: 		return ImageUtil.flagGreenIcon;
+				case Sliver.STATUS_MIXED:
+				case Sliver.STATUS_CHANGING:
+				case Sliver.STATUS_NOTREADY:	return ImageUtil.flagYellowIcon;
+				case Sliver.STATUS_FAILED:		return ImageUtil.flagRedIcon;
+				case Sliver.STATUS_UNKNOWN:
+				default:						return ImageUtil.flagOrangeIcon;
 			}
 		}
 		

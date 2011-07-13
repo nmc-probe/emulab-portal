@@ -28,7 +28,7 @@ package protogeni.communication
   {
     public function RequestGeniBundle():void
     {
-		super("CertBundle",
+		super("Geni cert bundle",
 			"Getting cert bundle",
 			null,
 			true);

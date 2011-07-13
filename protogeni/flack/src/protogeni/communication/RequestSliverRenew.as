@@ -38,7 +38,7 @@ package protogeni.communication
 		
 		public function RequestSliverRenew(newSliver:Sliver, newExpirationDate:Date):void
 		{
-			super("SliverRenew",
+			super("Renew sliver @ " + newSliver.manager.Hrn,
 				"Renewing sliver on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.hrn,
 				CommunicationUtil.renewSliver,
 				true,

@@ -41,8 +41,8 @@ package protogeni.communication
 		 */
 		public function RequestTicketRedeem(newSliver:Sliver):void
 		{
-			super("TicketRedeem",
-				"Updating ticket for sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.hrn,
+			super("Redeem ticket @ " + newSliver.manager.Hrn,
+				"Updating ticket for sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.Name,
 				CommunicationUtil.redeemTicket);
 			sliver = newSliver;
 			sliver.changing = true;
@@ -82,7 +82,9 @@ package protogeni.communication
 				}
 				
 				sliver.message = "Ticket redeemed";
-				return new RequestSliverStart(sliver);
+				var startSliver:RequestSliverStart = new RequestSliverStart(sliver);
+				startSliver.forceNext = true;
+				return startSliver;
 			}
 			else
 			{

@@ -14,9 +14,15 @@
 
 package protogeni.tools.instools
 {
+	import com.mattism.http.xmlrpc.MethodFault;
+	
+	import flash.events.ErrorEvent;
+	
 	import mx.controls.Alert;
 	
+	import protogeni.GeniEvent;
 	import protogeni.communication.CommunicationUtil;
+	import protogeni.communication.Operation;
 	import protogeni.communication.Request;
 	import protogeni.communication.RequestSliverStart;
 	import protogeni.resources.Sliver;
@@ -33,20 +39,27 @@ package protogeni.tools.instools
 		public var sliver:Sliver;
 		public function RequestPollInstoolsStatus(newSliver:Sliver):void
 		{
-			super("Poll InstoolsStatus",
-				"Getting the sliver status on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.hrn,
+			super("Poll Instools Status @ " + newSliver.manager.Hrn,
+				"Getting the sliver status on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.Name,
 				Instools.instoolsGetInstoolsStatus,
 				true,
 				true);
 			sliver = newSliver;
 			sliver.changing = true;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			sliver.message = "Waiting to poll INSTOOLS status";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.addField("urn", sliver.slice.urn.full);
 			op.addField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.Urn.full.toString()]);
 			op.addField("credentials", new Array(sliver.slice.credential));
 			op.setUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			sliver.message = "Polling INSTOOLS status";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*
@@ -63,6 +76,7 @@ package protogeni.tools.instools
 					case "INSTRUMENTIZE_COMPLETE":		//instrumentize is finished, experiment is ready, etc.
 						Instools.portal_url[sliver.manager.Urn.full] = String(response.value.portal_url);
 						sliver.changing = false;
+						sliver.message = "Instrumentizing complete";
 						break;
 					case "INSTALLATION_COMPLETE":		//MC has finished the startup scripts
 						if (Instools.started_instrumentize[sliver.manager.Urn.full] != "1")
@@ -70,6 +84,7 @@ package protogeni.tools.instools
 							var req1:RequestInstrumentize = new RequestInstrumentize(sliver);
 							Main.geniHandler.requestHandler.pushRequest(req1);
 							Instools.started_instrumentize[sliver.manager.Urn.full] = "1";
+							sliver.message = "Instrumentizing installed";
 						}
 						break;
 					case "MC_NOT_STARTED":				//MC has been added, but not started
@@ -77,6 +92,7 @@ package protogeni.tools.instools
 						{
 							Main.geniHandler.requestHandler.pushRequest(new RequestSliverStart(sliver));
 							Instools.started_MC[sliver.manager.Urn.full] = "1";
+							sliver.message = "MC not started";
 						}
 						break;
 					case "INSTRUMENTIZE_IN_PROGRESS":	//the instools server has started instrumentizing the nodes
@@ -90,8 +106,22 @@ package protogeni.tools.instools
 				}
 				
 				return req;
-			}
+			} else
+				failed(response.output);
 			
+			return null;
+		}
+		
+		public function failed(msg:String = ""):void {
+			sliver.changing = false;
+			sliver.message = "Poll INSTOOLS status failed";
+			if(msg != null && msg.length > 0)
+				sliver.message += ": " + msg;
+			Alert.show("Failed to poll INSTOOLS status on " + sliver.manager.Hrn + ". " + msg, "Problem polling INSTOOLS status");
+		}
+		
+		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			failed(fault.getFaultString());
 			return null;
 		}
 		

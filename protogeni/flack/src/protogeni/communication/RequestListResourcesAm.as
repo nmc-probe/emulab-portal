@@ -40,8 +40,8 @@ package protogeni.communication
 		
 		public function RequestListResourcesAm(newManager:GeniManager):void
 		{
-			super("ListResourcesAm (" + StringUtil.shortenString(newManager.Url, 15) + ")",
-				"Listing resources for " + newManager.Url,
+			super("List resources @ " + newManager.Hrn,
+				"Listing resources for aggregate manager " + newManager.Hrn,
 				CommunicationUtil.listResourcesAm,
 				true,
 				true,

@@ -37,7 +37,8 @@ package protogeni.communication
 		
 		public function RequestSliverGet(s:Sliver):void
 		{
-			super("SliverGet", "Getting the sliver on " + s.manager.Hrn + " on slice named " + s.slice.hrn,
+			super("Get credential @ " + s.manager.Hrn,
+				"Getting the sliver credential on " + s.manager.Hrn + " on slice named " + s.slice.Name,
 				CommunicationUtil.getSliver,
 				true,
 				true);

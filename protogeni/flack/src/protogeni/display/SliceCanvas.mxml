@@ -163,28 +163,33 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			/**
 			 * Refreshes the canvas based on the slice's status
 			 */
-			public function refreshStatus():void
+			public function refreshStatus(useSlice:Slice):void
 			{
-				switch(this.slice.slivers.Status)
-				{
-					case Sliver.STATUS_READY:
-						this.setStyle("borderColor", "green");
-						this.setStyle("backgroundColor", "#CCFFCC");
-						break;
-					case Sliver.STATUS_FAILED:
-						this.setStyle("borderColor", "red");
-						this.setStyle("backgroundColor", "#FFD9D9");
-						break;
-					case Sliver.STATUS_CHANGING:
-					case Sliver.STATUS_NOTREADY:
-					case Sliver.STATUS_UNKOWN:
-					case Sliver.STATUS_MIXED:
-						this.setStyle("borderColor", "#FF7F00");
-						this.setStyle("backgroundColor", "#FFE0C1");
-						break;
-					default:
-						this.setStyle("borderColor", "#CDC2C2");
-						this.setStyle("backgroundColor", "#F6F6F6");
+				var refreshSlice:Slice = useSlice;
+				if(refreshSlice == null && this.slice != null)
+					refreshSlice = this.slice;
+				if(refreshSlice != null) {
+					switch(refreshSlice.slivers.Status)
+					{
+						case Sliver.STATUS_READY:
+							this.setStyle("borderColor", "green");
+							this.setStyle("backgroundColor", "#CCFFCC");
+							break;
+						case Sliver.STATUS_FAILED:
+							this.setStyle("borderColor", "red");
+							this.setStyle("backgroundColor", "#FFD9D9");
+							break;
+						case Sliver.STATUS_CHANGING:
+						case Sliver.STATUS_NOTREADY:
+						case Sliver.STATUS_UNKNOWN:
+						case Sliver.STATUS_MIXED:
+							this.setStyle("borderColor", "#FF7F00");
+							this.setStyle("backgroundColor", "#FFE0C1");
+							break;
+						default:
+							this.setStyle("borderColor", "#CDC2C2");
+							this.setStyle("backgroundColor", "#F6F6F6");
+					}
 				}
 			}
 			

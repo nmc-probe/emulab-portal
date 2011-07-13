@@ -36,7 +36,7 @@ package protogeni.communication
 		
 		public function RequestGetVersionAm(newManager:GeniManager):void
 		{
-			super("GetVersion (" + StringUtil.shortenString(newManager.Url, 15) + ")",
+			super("Get version @ " + newManager.Hrn,
 				"Getting the version of the aggregate manager for " + newManager.Hrn,
 				CommunicationUtil.getVersionAm,
 				true,

@@ -30,17 +30,18 @@ package protogeni.communication
 	public final class RequestSliverResolve extends Request
 	{
 		public var sliver:Sliver;
+		public var manifest:String = "";
 		
 		public function RequestSliverResolve(newSliver:Sliver):void
 		{
-			super("SliverResolve",
-				"Resolving sliver on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.hrn,
+			super("Get manifest @ " + newSliver.manager.Hrn,
+				"Resolving sliver on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.Name,
 				CommunicationUtil.resolveResource,
 				true,
 				true);
 			sliver = newSliver;
 			sliver.changing = true;
-			sliver.message = "Resolving";
+			sliver.message = "Getting manifest";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
@@ -53,11 +54,12 @@ package protogeni.communication
 		{
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
-				sliver.parseManifest(new XML(response.value.manifest));
+				manifest = response.value.manifest;
+				sliver.parseManifest(new XML(manifest));
 				if(!sliver.slice.slivers.contains(sliver))
 					sliver.slice.slivers.add(sliver);
 				
-				sliver.message = "Resolved";
+				sliver.message = "Manifest recieved";
 				return new RequestSliverStatus(sliver);
 			} else
 				failed(response.output);
@@ -67,7 +69,7 @@ package protogeni.communication
 		
 		public function failed(msg:String = ""):void {
 			sliver.changing = false;
-			sliver.message = "Resolve failed";
+			sliver.message = "Getting manifest failed";
 			if(msg != null && msg.length > 0)
 				sliver.message += ": " + msg;
 		}
@@ -80,6 +82,10 @@ package protogeni.communication
 		override public function cleanup():void {
 			super.cleanup();
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+		}
+		
+		override public function getResponse():String {
+			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********" + op.getResponse();
 		}
 	}
 }

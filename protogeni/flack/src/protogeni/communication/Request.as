@@ -34,6 +34,7 @@ package protogeni.communication
 		public var startImmediately:Boolean;
 		public var removeImmediately:Boolean;
 		public var continueOnError:Boolean;
+		public var retryOnTimeout:Boolean;
 		public var running:Boolean = false;
 		public var nonXmlrpc:Boolean = false;
 		public var forceNext:Boolean = false;
@@ -47,7 +48,8 @@ package protogeni.communication
 								qualifiedMethod:Array = null,
 								shouldContinueOnErrors:Boolean = false,
 								shouldStartImmediately:Boolean = false,
-								shouldRemoveImmediately:Boolean = true):void
+								shouldRemoveImmediately:Boolean = true,
+								shouldRetryOnTimeout:Boolean = true):void
 		{
 			op = new Operation(qualifiedMethod, this);
 			op.timeout = 180;
@@ -56,6 +58,7 @@ package protogeni.communication
 			continueOnError = shouldContinueOnErrors;
 			startImmediately = shouldStartImmediately;
 			removeImmediately = shouldRemoveImmediately;
+			retryOnTimeout = shouldRetryOnTimeout;
 		}
 		
 		/**

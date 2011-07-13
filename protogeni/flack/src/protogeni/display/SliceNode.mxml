@@ -93,6 +93,7 @@ VirtualNode for use on the slice canvas
 						this.borderColor = 0xCC6600;
 						this.toolTip = "Node is not ready";
 						break;
+					case VirtualComponent.STATUS_UNKNOWN:
 					default:
 						this.backgroundColor = 0xEAEAEA;
 						this.borderColor = 0x2F4F4F;

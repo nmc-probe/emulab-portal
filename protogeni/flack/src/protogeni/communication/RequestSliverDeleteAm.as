@@ -36,20 +36,27 @@ package protogeni.communication
 		
 		public function RequestSliverDeleteAm(s:Sliver):void
 		{
-			super("SliverDeleteAM",
-				"Deleting sliver on " + s.manager.Hrn + " for slice named " + s.slice.hrn,
+			super("Delete sliver @ " + s.manager.Hrn,
+				"Deleting sliver on aggregate manager " + s.manager.Hrn + " for slice named " + s.slice.Name,
 				CommunicationUtil.deleteSliverAm,
 				true);
 			ignoreReturnCode = true;
 			sliver = s;
 			sliver.changing = true;
-			sliver.message = "";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			sliver.processed = false;
+			sliver.message = "Waiting to delete";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			// Build up the args
 			op.pushField(sliver.slice.urn.full);
 			op.pushField([sliver.slice.credential]);
 			op.setExactUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			sliver.message = "Deleting";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*
@@ -67,6 +74,7 @@ package protogeni.communication
 							old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
 						}
 					}
+					sliver.message = "Deleted";
 				} else if(response == false) {
 					Alert.show("Recieved false when trying to delete sliver on " + this.sliver.manager.Hrn + ".");
 				} else

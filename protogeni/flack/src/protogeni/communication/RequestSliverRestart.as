@@ -33,8 +33,8 @@ package protogeni.communication
 		
 		public function RequestSliverRestart(s:Sliver):void
 		{
-			super("SliverRestart",
-				"Restarting sliver on " + s.manager.Hrn + " for slice named " + s.slice.hrn,
+			super("Restart sliver @ " + s.manager.Hrn,
+				"Restarting sliver on " + s.manager.Hrn + " for slice named " + s.slice.Name,
 				CommunicationUtil.restartSliver);
 			sliver = s;
 			sliver.changing = true;

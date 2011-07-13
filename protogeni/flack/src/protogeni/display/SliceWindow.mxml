@@ -71,7 +71,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import spark.components.Scroller;
 			import spark.layouts.VerticalLayout;
 			
-			public var sliceStatusRefresher:Timer = new Timer(10000);
+			public var sliceStatusRefresher:Timer = new Timer(15000);
 			
 			private var fr:FileReference;
 			private var loading:Boolean;
@@ -139,97 +139,103 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			/**
 			 * Apply the slice information/status to just the window, not the slice canvas
 			 */
-			public function refreshInterface():void
+			public function refreshInterface(slice:Slice = null):void
 			{
-				this.viewStatusButton.visible = this.sliceCanvas.slice.slivers.HasAnyStatusInfo;
-				switch(this.sliceCanvas.slice.slivers.Status)
-				{
-					case Sliver.STATUS_READY:
-						this.hrnLabel.styleName = "validStyle";
-						if(this.viewStatusButton.visible)
-							this.viewStatusButton.setStyle("icon", ImageUtil.flagGreenIcon);
-						break;
-					case Sliver.STATUS_FAILED:
-						this.hrnLabel.styleName = "failedStyle";
-						if(this.viewStatusButton.visible)
-							this.viewStatusButton.setStyle("icon", ImageUtil.flagRedIcon);
-						break;
-					case Sliver.STATUS_CHANGING:
-					case Sliver.STATUS_NOTREADY:
-					case Sliver.STATUS_UNKOWN:
-					case Sliver.STATUS_MIXED:
-						this.hrnLabel.styleName = "inprogressStyle";
-						if(this.viewStatusButton.visible)
-							this.viewStatusButton.setStyle("icon", ImageUtil.flagYellowIcon);
-						break;
-					default:
-						if(this.viewStatusButton.visible)
-							this.viewStatusButton.setStyle("icon", ImageUtil.flagOrangeIcon);
-						this.hrnLabel.styleName = "unknownStyle";
-				}
-				
-				spinner.visible = this.sliceCanvas.slice.Changing;
-				if(spinner.visible)
-					spinner.startSpin();
-				else
-					spinner.stopSpin();
-				
-				if(currentPane == VIEW_STATUS && this.sliceCanvas.slice.slivers.length == 0) {
-					this.setSidePane(VIEW_MANAGERS);
-				}
-				else if(this.sliceCanvas.slice.Changing || currentPane == VIEW_STATUS) {
-					this.setSidePane(VIEW_STATUS);
-				}
-				
-				// Expire time stuff
-				this.expireButton.toolTip = "";
-				var dateFormatter:DateTimeFormatter = new DateTimeFormatter(LocaleID.DEFAULT, DateTimeStyle.SHORT, DateTimeStyle.NONE);
-				if(this.sliceCanvas.slice.expires != null) {
-					var sliceExpiresDate:Date = this.sliceCanvas.slice.expires;
-					if(this.sliceCanvas.slice.slivers != null) {
-						var sliversExpire:Date = this.sliceCanvas.slice.slivers.Expires;
-						if(sliversExpire != null && sliversExpire.time < sliceExpiresDate.time) {
-							sliceExpiresDate = sliceExpiresDate;
-							this.expireButton.toolTip = "Sliver expires before slice in\n\t"
-								+ DateUtil.getTimeUntil(sliversExpire)
-								+ "\n\ton "
-								+ dateFormatter.format(sliversExpire)
-								+ "\n\n";
-						}
+				var refreshSlice:Slice = slice;
+				if(refreshSlice == null && this.sliceCanvas.slice != null)
+					refreshSlice = this.sliceCanvas.slice;
+				if(refreshSlice != null) {
+					this.viewStatusButton.visible = refreshSlice.slivers.HasAnyStatusInfo;
+					switch(refreshSlice.slivers.Status)
+					{
+						case Sliver.STATUS_READY:
+							this.hrnLabel.styleName = "validStyle";
+							if(this.viewStatusButton.visible)
+								this.viewStatusButton.setStyle("icon", ImageUtil.flagGreenIcon);
+							break;
+						case Sliver.STATUS_FAILED:
+							this.hrnLabel.styleName = "failedStyle";
+							if(this.viewStatusButton.visible)
+								this.viewStatusButton.setStyle("icon", ImageUtil.flagRedIcon);
+							break;
+						case Sliver.STATUS_CHANGING:
+						case Sliver.STATUS_NOTREADY:
+						case Sliver.STATUS_MIXED:
+							this.hrnLabel.styleName = "inprogressStyle";
+							if(this.viewStatusButton.visible)
+								this.viewStatusButton.setStyle("icon", ImageUtil.flagYellowIcon);
+							break;
+						case Sliver.STATUS_UNKNOWN:
+						default:
+							if(this.viewStatusButton.visible)
+								this.viewStatusButton.setStyle("icon", ImageUtil.flagOrangeIcon);
+							this.hrnLabel.styleName = "unknownStyle";
 					}
 					
-					this.expireButton.toolTip += "Slice expires in\n\t"
-						+ DateUtil.getTimeUntil(this.sliceCanvas.slice.expires)
-						+ "\n\ton "
-						+ dateFormatter.format(this.sliceCanvas.slice.expires);
-					
-					// If expires soon, let the user know
-					// less than one hour
-					var hoursRemaining:Number = (sliceExpiresDate.time - (new Date()).time)/3600000;
-					if(hoursRemaining < 1)
-						this.expireButton.styleName = "failedStyle";
-					else if(hoursRemaining < 3)
-						this.expireButton.styleName = "inprogressStyle";
+					spinner.visible = refreshSlice.Changing;
+					if(spinner.visible)
+						spinner.startSpin();
 					else
-						this.expireButton.styleName = "validStyle";
-				} else {
-					this.expireButton.toolTip = "";
-					this.expireButton.styleName = "unknownStyle";
-				}
-				
-				this.sliceCanvas.refreshStatus();
-				
-				if(this.sliceCanvas.slice.slivers.AllocatedAnyResources
-					|| this.sliceCanvas.slice.slivers.Status == Sliver.STATUS_FAILED)
-				{
-					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
-					this.rspecButton.toolTip = "View RSPEC(s) from the created sliver(s)";
-				} else {
-					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteIcon);
-					this.rspecButton.toolTip = "No Sliver created yet";
+						spinner.stopSpin();
 					
-					this.clearStatus();
+					if(currentPane == VIEW_STATUS && refreshSlice.slivers.length == 0) {
+						this.setSidePane(VIEW_MANAGERS);
+					}
+					else if(refreshSlice.Changing || currentPane == VIEW_STATUS || refreshSlice.slivers.HasAnyStatusInfo) {
+						this.setSidePane(VIEW_STATUS, refreshSlice);
+					}
+					
+					// Expire time stuff
+					this.expireButton.toolTip = "";
+					var dateFormatter:DateTimeFormatter = new DateTimeFormatter(LocaleID.DEFAULT, DateTimeStyle.SHORT, DateTimeStyle.NONE);
+					if(refreshSlice.expires != null) {
+						var sliceExpiresDate:Date = refreshSlice.expires;
+						if(refreshSlice.slivers != null) {
+							var sliversExpire:Date = refreshSlice.slivers.Expires;
+							if(sliversExpire != null && sliversExpire.time < sliceExpiresDate.time) {
+								sliceExpiresDate = sliceExpiresDate;
+								this.expireButton.toolTip = "Sliver expires before slice in\n\t"
+									+ DateUtil.getTimeUntil(sliversExpire)
+									+ "\n\ton "
+									+ dateFormatter.format(sliversExpire)
+									+ "\n\n";
+							}
+						}
+						
+						this.expireButton.toolTip += "Slice expires in\n\t"
+							+ DateUtil.getTimeUntil(refreshSlice.expires)
+							+ "\n\ton "
+							+ dateFormatter.format(refreshSlice.expires);
+						
+						// If expires soon, let the user know
+						// less than one hour
+						var hoursRemaining:Number = (sliceExpiresDate.time - (new Date()).time)/3600000;
+						if(hoursRemaining < 1)
+							this.expireButton.styleName = "failedStyle";
+						else if(hoursRemaining < 3)
+							this.expireButton.styleName = "inprogressStyle";
+						else
+							this.expireButton.styleName = "validStyle";
+					} else {
+						this.expireButton.toolTip = "";
+						this.expireButton.styleName = "unknownStyle";
+					}
+					
+					this.sliceCanvas.refreshStatus(refreshSlice);
+					
+					if(refreshSlice.slivers.AllocatedAnyResources
+						|| refreshSlice.slivers.Status == Sliver.STATUS_FAILED)
+					{
+						this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
+						this.rspecButton.toolTip = "View RSPEC(s) from the created sliver(s)";
+					} else {
+						this.rspecButton.setStyle("icon", ImageUtil.pageWhiteIcon);
+						this.rspecButton.toolTip = "No Sliver created yet";
+						
+						this.clearStatus();
+					}
 				}
+				
 			}
 			
 			public function clearStatus():void
@@ -256,14 +262,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function loadSlice(s:Slice):void
 			{
-				/*if(!s.CompletelyReady) {
-					spinner.visible = true;
-					spinner.startSpin();
-					waitingForSliceUrn = s.urn.full;
-					return;
-				}*/
-				sliceCanvas.load(s);
-				refreshInterface();
+				// Things are very in limbo while processing, don't try to load
+				if(!s.slivers.Processing)
+					sliceCanvas.load(s);
+				refreshInterface(s);
 			}
 			
 			/**
@@ -482,6 +484,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						this.addNodeList(data);
 						break;
 					case VIEW_STATUS:
+						var viewSlice:Slice = data;
+						if(viewSlice == null && this.sliceCanvas.slice != null)
+							viewSlice = this.sliceCanvas.slice;
 						var options:HGroup = new HGroup();
 						var toggleStatusButton:ImageButton = new ImageButton();
 						toggleStatusButton.setStyle("icon", ImageUtil.leftIcon);
@@ -491,17 +496,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								me.setSidePane(VIEW_MANAGERS);
 							});
 						options.addElement(toggleStatusButton);
-						var refreshStatusButton:ImageButton = new ImageButton();
-						refreshStatusButton.setStyle("icon", ImageUtil.refreshIcon);
-						refreshStatusButton.toolTip = "Refresh the slivers' status";
+						var refreshStatusButton:DataButton = new DataButton("Check status","Refresh the slivers' status");
+						refreshStatusButton.data = viewSlice;
 						refreshStatusButton.addEventListener(MouseEvent.CLICK,
 							function toggleViewClicked(e:MouseEvent):void {
-								Main.geniHandler.requestHandler.refreshSlice(sliceCanvas.slice);
+								Main.geniHandler.requestHandler.refreshSlice(e.currentTarget.data);
 							});
 						options.addElement(refreshStatusButton);
 						this.sidePane.addElement(options);
-						if(sliceCanvas.slice != null) {
-							for each(var sliver:Sliver in sliceCanvas.slice.slivers.collection)
+						if(viewSlice != null) {
+							for each(var sliver:Sliver in viewSlice.slivers.collection)
 								addSliverStatus(sliver);
 						}
 						break;
@@ -589,7 +593,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							break;
 						case Sliver.STATUS_CHANGING:
 						case Sliver.STATUS_NOTREADY:
-						case Sliver.STATUS_UNKOWN:
+						case Sliver.STATUS_UNKNOWN:
 						case Sliver.STATUS_MIXED:
 							statusLabel.styleName = "inprogressStyle";
 							break;

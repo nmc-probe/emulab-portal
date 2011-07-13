@@ -34,8 +34,8 @@ package protogeni.communication
 		
 		public function RequestSliceRenew(s:Slice, newExpirationDate:Date, shouldRenewSlivers:Boolean = false):void
 		{
-			super("SliceRenew",
-				"Renewing slice named " + s.hrn,
+			super("Renew " + s.Name,
+				"Renewing slice named " + s.Name,
 				CommunicationUtil.renewSlice,
 				false,
 				true);

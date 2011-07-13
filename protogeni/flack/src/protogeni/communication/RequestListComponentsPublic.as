@@ -29,7 +29,7 @@ package protogeni.communication
 	{
 		public function RequestListComponentsPublic():void
 		{
-			super("ListComponentsPublic",
+			super("List public managers",
 				"Getting the information for the component managers",
 				null);
 			op.setExactUrl(Main.geniHandler.publicUrl);

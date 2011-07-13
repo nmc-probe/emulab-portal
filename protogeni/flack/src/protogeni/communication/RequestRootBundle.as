@@ -29,7 +29,10 @@ package protogeni.communication
 	{
 		public function RequestRootBundle():void
 		{
-			super("RootBundle", "Getting root bundle", null, true);
+			super("Get root bundle",
+				"Getting root bundle",
+				null,
+				true);
 			op.setExactUrl(Main.geniHandler.rootBundleUrl);
 			op.type = Operation.HTTP;
 			op.timeout = 20;

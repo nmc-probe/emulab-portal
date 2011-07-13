@@ -37,14 +37,15 @@ package protogeni.communication
 		
 		public function RequestSliverStatus(newSliver:Sliver):void
 		{
-			super("SliverStatus",
-				"Getting the sliver status on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.hrn,
+			super("Get sliver status @ " + newSliver.manager.Hrn,
+				"Getting the sliver status for component manager " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.hrn,
 				CommunicationUtil.sliverStatus,
 				true,
 				true);
 			sliver = newSliver;
 			sliver.changing = true;
-			sliver.message = "Checking status";
+			sliver.message = "Waiting to check status";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			// Build up the args
 			op.addField("slice_urn", sliver.slice.urn.full);
@@ -53,6 +54,7 @@ package protogeni.communication
 		}
 		
 		override public function start():Operation {
+			sliver.message = "Checking status";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			return op;
 		}
@@ -78,16 +80,9 @@ package protogeni.communication
 					}
 				}
 				sliver.changing = !sliver.StatusFinalized;
-				if(sliver.changing) {
-					if(sliver.status == Sliver.STATUS_FAILED)
-						sliver.message = "Failed";
-					else if(sliver.status == Sliver.STATUS_READY)
-						sliver.message = "Ready";
-					else
-						sliver.message = "Status is " + sliver.status;
-				}
-				else
-					sliver.message = "Status is " + sliver.status;
+				sliver.message = StringUtil.firstToUpper(sliver.status);
+				if(sliver.changing)
+					sliver.message = "Status is " + sliver.message;
 				
 				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
