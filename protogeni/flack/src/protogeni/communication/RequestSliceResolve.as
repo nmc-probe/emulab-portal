@@ -40,6 +40,8 @@ package protogeni.communication
 			super("Resolve " + s.Name,
 				"Resolving slice named " + s.Name,
 				CommunicationUtil.resolve);
+			this.forceNext = true;
+			
 			slice = s;
 			slice.Changing = true;
 			isCreating = willBeCreating;

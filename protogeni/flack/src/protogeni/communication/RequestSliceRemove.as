@@ -37,6 +37,8 @@ package protogeni.communication
 			super("Remove " + s.Name,
 				"Remove slice named " + s.Name,
 				CommunicationUtil.remove);
+			this.forceNext = true;
+			
 			slice = s;
 			slice.Changing = true;
 			tryCreate = shouldTryCreate;

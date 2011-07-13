@@ -33,6 +33,8 @@ package protogeni.communication
 			super("Register " + s.Name,
 				"Register slice named " + s.Name,
 				CommunicationUtil.register);
+			this.forceNext = true;
+			
 			slice = s;
 			slice.Changing = true;
 			
