@@ -19,11 +19,30 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 <s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
-		  xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:display="protogeni.display.*" gap="0"
-		  removedFromStage="cleanup()" xmlns:components="protogeni.display.components.*">
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:display="protogeni.display.*"
+		  xmlns:components="protogeni.display.components.*"
+		  gap="0"
+		  width="100%"
+		  addedToStage="init()"
+		  removedFromStage="cleanup()" >
 	<fx:Script>
 		<![CDATA[
 			import mx.events.FlexEvent;
+			
+			// init() is called for the application's applicationComplete event
+			public function init():void
+			{
+				this.stage.addEventListener(FullScreenEvent.FULL_SCREEN, fullScreenChange);
+				this.fullScreenChange();
+			}
+			
+			protected function fullScreenChange(event:FullScreenEvent = null):void
+			{
+				keyboardButton.visible =
+					keyboardButton.includeInLayout =
+						this.stage.displayState == StageDisplayState.FULL_SCREEN;
+			}
 			
 			[Bindable]
 			public var prompt:String;
@@ -54,6 +73,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			private function cleanup():void {
+				this.stage.removeEventListener(FullScreenEvent.FULL_SCREEN, fullScreenChange);
+				
 				if(removeEnter)
 					this.textInput.removeEventListener(FlexEvent.ENTER, enterFunction);
 				
@@ -74,7 +95,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		]]>
 	</fx:Script>
 	<s:TextInput id="textInput" height="24" width="100%" text="{text}" prompt="{prompt}" />
-	<components:ImageButton
+	<components:ImageButton id="keyboardButton"
 		icon="{ImageUtil.keyboardIcon}"
-		click="openKeyboard()" />
+		click="openKeyboard()" visible="false" includeInLayout="false" />
 </s:HGroup>

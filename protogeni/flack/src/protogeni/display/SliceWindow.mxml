@@ -71,8 +71,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import spark.components.Scroller;
 			import spark.layouts.VerticalLayout;
 			
-			public var sliceStatusRefresher:Timer = new Timer(15000);
-			
 			private var fr:FileReference;
 			private var loading:Boolean;
 			
@@ -91,8 +89,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				//Main.geniDispatcher.addEventListener(GeniEvent.GENIMANAGER_CHANGED, cmChanged);
 				Main.geniDispatcher.addEventListener(GeniEvent.SLICE_CHANGED, sliceChanged);
 				
-				sliceStatusRefresher.addEventListener(TimerEvent.TIMER, autorefresh);
-				sliceStatusRefresher.start();
 				setSidePane();
 			}
 			
@@ -117,7 +113,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 * Actually close the window
 			 */
 			public function doCloseWindow(event:Event=null):void {
-				sliceStatusRefresher.stop();
 				fr.removeEventListener(Event.SELECT, onFileSelect);
 				fr.removeEventListener(Event.COMPLETE, onFileComplete);
 				//Main.geniDispatcher.removeEventListener(GeniEvent.GENIMANAGER_CHANGED, cmChanged);
@@ -131,7 +126,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public function sliceChanged(e:GeniEvent):void
 			{
 				var changedSlice:Slice = e.changedObject as Slice;
-				if(changedSlice.urn.full == sliceCanvas.slice.urn.full) {
+				if(sliceCanvas.slice != null && changedSlice.urn.full == sliceCanvas.slice.urn.full) {
 					this.loadSlice(changedSlice);
 				}
 			}
@@ -181,7 +176,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					if(currentPane == VIEW_STATUS && refreshSlice.slivers.length == 0) {
 						this.setSidePane(VIEW_MANAGERS);
 					}
-					else if(refreshSlice.Changing || currentPane == VIEW_STATUS || refreshSlice.slivers.HasAnyStatusInfo) {
+					else if(refreshSlice.Changing
+						|| currentPane == VIEW_STATUS) {
 						this.setSidePane(VIEW_STATUS, refreshSlice);
 					}
 					
@@ -266,22 +262,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(!s.slivers.Processing)
 					sliceCanvas.load(s);
 				refreshInterface(s);
-			}
-			
-			/**
-			 * Called periodically to see if the slice needs to try to refresh its status
-			 * 
-			 * There's a better way to do this...
-			 */
-			private function autorefresh(e:TimerEvent):void
-			{
-				if(this.sliceCanvas.slice != null
-					&& !this.sliceCanvas.slice.slivers.StatusFinalized
-					&& this.sliceCanvas.slice.slivers.AllocatedAnyResources
-					&& Main.geniHandler.requestHandler.queue.isEmpty()
-					&& !Main.offlineMode) {
-					Main.geniHandler.requestHandler.refreshSlice(sliceCanvas.slice, true);
-				}
 			}
 			
 			/**
@@ -583,6 +563,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				if(sliver.message.length > 0) {
 					var statusLabel:Label = DisplayUtil.getLabel(sliver.message);
+					statusLabel.percentWidth = 100;
 					switch(sliver.status)
 					{
 						case Sliver.STATUS_READY:

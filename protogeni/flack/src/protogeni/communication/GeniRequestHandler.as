@@ -720,6 +720,8 @@ package protogeni.communication
 			{
 				if (next != null)
 					queue.push(next);
+				if(request.addAfter != null)
+					queue.push(request.addAfter);
 				//if(next != request)
 				request.cleanup();
 			}

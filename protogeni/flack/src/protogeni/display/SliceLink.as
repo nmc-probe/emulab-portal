@@ -128,7 +128,7 @@ package protogeni.display
 		
 		public function establish(start:SliceNode, end:SliceNode):Boolean
 		{
-			setLink(new VirtualLink(start.node.sliver));
+			setLink(new VirtualLink());
 			if(virtualLink.establish(start.node, end.node))
 			{
 				establishFromExisting(virtualLink);

@@ -43,6 +43,7 @@ VirtualNode for use on the slice canvas
 			import mx.core.DragSource;
 			import mx.managers.DragManager;
 			
+			import protogeni.resources.Sliver;
 			import protogeni.resources.VirtualComponent;
 			import protogeni.resources.VirtualNode;
 			

@@ -164,6 +164,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			private function init():void {
 				loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, uncaughtErrorHandler);
+				this.stage.addEventListener(FullScreenEvent.FULL_SCREEN, fullScreenChange);
 				
 				Main.geniHandler = new GeniHandler();
 				Main.geniHandler.mapHandler.map = map;
@@ -243,6 +244,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			//------------------------------------------
 			// GUI
+			protected function fullScreenChange(event:FullScreenEvent = null):void
+			{
+				if(this.stage.displayState == StageDisplayState.FULL_SCREEN)
+					Alert.show("You will not be able to use your keyboard in full screen mode due to Flash's security model. For an on-screen keyboard, click the keyboard icon next to text inputs");
+			}
+			
 			private function toggleFullScreen():void {
 				try {
 					switch (systemManager.stage.displayState) {

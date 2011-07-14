@@ -62,6 +62,7 @@ package protogeni.communication
 		
 		override public function complete(code:Number, response:Object):*
 		{
+			var request:Request = null;
 			try
 			{
 				sliver.status = response.geni_status;
@@ -80,15 +81,18 @@ package protogeni.communication
 				
 				sliver.changing = !sliver.StatusFinalized;
 				sliver.message = StringUtil.firstToUpper(sliver.status);
-				if(sliver.changing)
+				if(sliver.changing) {
 					sliver.message = "Status is " + sliver.message;
+					request = new RequestSliverStatus(this.sliver);
+					request.op.delaySeconds = this.op.delaySeconds + 20;
+				}
 			}
 			catch(e:Error)
 			{
 				sliver.changing = false;
 			}
 			
-			return null;
+			return request;
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {

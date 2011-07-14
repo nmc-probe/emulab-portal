@@ -40,6 +40,7 @@ package protogeni.communication
 		public var forceNext:Boolean = false;
 		public var ignoreReturnCode:Boolean = false;
 		public var numTries:int = 0;
+		public var addAfter:RequestQueueNode = null;
 		
 		public var node:RequestQueueNode;
 		

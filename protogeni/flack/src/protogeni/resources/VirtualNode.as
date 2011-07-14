@@ -31,6 +31,9 @@ package protogeni.resources
 		public var subNodes:VirtualNodeCollection = new VirtualNodeCollection();
 		
 		[Bindable]
+		public var sliver:Sliver;
+		
+		[Bindable]
 		public var interfaces:VirtualInterfaceCollection;
 		
 		public var pipes:PipeCollection;
@@ -69,8 +72,9 @@ package protogeni.resources
 		
 		public function VirtualNode(owner:Sliver)
 		{
-			super(owner);
+			super();
 			
+			this.sliver = owner;
 			if(owner != null)
 				manager = owner.manager;
 			

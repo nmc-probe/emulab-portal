@@ -40,6 +40,12 @@ package protogeni.resources
 		public var type:String;
 		[Bindable]
 		public var interfaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
+		public function get slivers():SliverCollection {
+			var mySlivers:SliverCollection = new SliverCollection();
+			for each(var virtualInterface:VirtualInterface in interfaces.collection)
+				mySlivers.addIfNotExisting(virtualInterface.owner.sliver);
+			return mySlivers;
+		}
 		
 		public var linkType:int = TYPE_NORMAL;
 		
@@ -48,9 +54,9 @@ package protogeni.resources
 		
 		public var vlantag:String = "";
 		
-		public function VirtualLink(owner:Sliver = null)
+		public function VirtualLink()
 		{
-			super(owner);
+			super();
 		}
 		
 		public function establish(first:VirtualNode, second:VirtualNode):Boolean
@@ -79,16 +85,16 @@ package protogeni.resources
 					this.setUpTunnels();
 				
 				// Make sure nodes are in both
-				if(!second.slivers.collection[0].nodes.contains(first))
-					second.slivers.collection[0].nodes.add(first);
-				if(!first.slivers.collection[0].nodes.contains(second))
-					first.slivers.collection[0].nodes.add(second);
+				if(!second.sliver.nodes.contains(first))
+					second.sliver.nodes.add(first);
+				if(!first.sliver.nodes.contains(second))
+					first.sliver.nodes.add(second);
 				
 				// Add relative slivers
-				if(this.slivers.collection[0].manager != first.slivers.collection[0].manager)
-					this.slivers.add(first.slivers.collection[0]);
-				else if(this.slivers.collection[0].manager != second.slivers.collection[0].manager)
-					this.slivers.add(second.slivers.collection[0]);
+				if(this.slivers.collection[0].manager != first.sliver.manager)
+					this.slivers.add(first.sliver);
+				else if(this.slivers.collection[0].manager != second.sliver.manager)
+					this.slivers.add(second.sliver);
 			}
 			
 			for each(var s:Sliver in this.slivers.collection)
@@ -121,20 +127,22 @@ package protogeni.resources
 		
 		public function remove():void
 		{
+			for each(var s:Sliver in this.slivers.collection)
+				s.links.remove(this);
+			
 			for each(var vi:VirtualInterface in this.interfaces.collection)
 			{
 				if(vi.id != "control")
 					vi.owner.interfaces.remove(vi);
 				
-				for(var i:int = 1; i < vi.owner.slivers.length; i++)
-				{
-					if(vi.owner.slivers.collection[i].links.getForNode(vi.owner).length == 0)
-						vi.owner.slivers.collection[i].nodes.remove(vi.owner);
+				// Removes nodes from slivers if it isn't linked to anymore
+				for each(var sliver:Sliver in vi.owner.sliver.slice.slivers.collection) {
+					if(sliver != vi.owner.sliver && sliver.links.getForNode(vi.owner).length == 0)
+						sliver.nodes.remove(vi.owner);
 				}
 			}
+			
 			this.interfaces = new VirtualInterfaceCollection();
-			for each(var s:Sliver in this.slivers.collection)
-				s.links.remove(this);
 		}
 		
 		public function isConnectedTo(target:GeniManager):Boolean

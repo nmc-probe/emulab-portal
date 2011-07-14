@@ -75,6 +75,8 @@ package protogeni.communication
 				sliver.ticket = ticket;
 				sliver.message = "Updated ticket recieved";
 				var redeemTicket:RequestTicketRedeem = new RequestTicketRedeem(sliver);
+				redeemTicket.addAfter = this.addAfter;
+				this.addAfter = null;
 				redeemTicket.forceNext = true;
 				return redeemTicket;
 			}
@@ -124,8 +126,11 @@ package protogeni.communication
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			failed(fault.getFaultString());
-			return super.fail(event, fault);
+			var msg:String = "";
+			if(fault != null)
+				msg = fault.getFaultString();
+			failed(msg);
+			return null;
 		}
 		
 		override public function cleanup():void {

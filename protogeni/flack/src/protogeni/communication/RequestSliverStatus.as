@@ -63,6 +63,7 @@ package protogeni.communication
 		{
 			var old:Slice;
 			var oldSliver:Sliver;
+			var request:Request = null;
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				sliver.status = response.value.status;
@@ -81,8 +82,11 @@ package protogeni.communication
 				}
 				sliver.changing = !sliver.StatusFinalized;
 				sliver.message = StringUtil.firstToUpper(sliver.status);
-				if(sliver.changing)
+				if(sliver.changing) {
 					sliver.message = "Status is " + sliver.message;
+					request = new RequestSliverStatus(this.sliver);
+					request.op.delaySeconds = this.op.delaySeconds + 20;
+				}
 				
 				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
@@ -110,7 +114,7 @@ package protogeni.communication
 				sliver.message = "Status was deleted";
 			}
 			
-			return null;
+			return request;
 		}
 		
 		public function failed(msg:String = ""):void {
@@ -119,7 +123,10 @@ package protogeni.communication
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			failed(fault.getFaultString());
+			var msg:String = "";
+			if(fault != null)
+				msg = fault.getFaultString();
+			failed(msg);
 			return null
 		}
 		

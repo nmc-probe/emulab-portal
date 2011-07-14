@@ -66,8 +66,11 @@ package protogeni.communication
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {
+			var msg:String = "";
+			if(fault != null)
+				msg = fault.getFaultString();
 			failed();
-			return super.fail(event, fault);
+			return null;
 		}
 		
 		override public function cleanup():void {

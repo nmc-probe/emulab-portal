@@ -310,31 +310,31 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				for each(var sub:VirtualNode in sliceNode.node.subNodes.collection)
 					removeVirtualNode(sub);
 				
-				// Remove links
+				// Remove links and any slivers the links may have used
 				while(sliceNode.links.length > 0)
-					sliceNode.links[0].removeLink();
+					(sliceNode.links[0] as SliceLink).removeLink();
 				
 				// Remove nodes
 				var s:Sliver;
-				for each(s in sliceNode.node.slivers.collection)
-				{
+				for each(s in slice.slivers.collection) {
 					if(s.nodes.contains(sliceNode.node))
 						s.nodes.remove(sliceNode.node);
 				}
 				
-				// Remove slivers which are empty or have no more nodes from their managers
-				for each(s in sliceNode.node.slivers.collection)
+				// Remove empty slivers
+				for (var i:int = 0; i < slice.slivers.length; i++)
 				{
-					if(slice.slivers.contains(s)) {
-						var deleteSliver:Boolean = true;
-						for each(var n:VirtualNode in s.nodes.collection) {
-							if(n.manager == s.manager) {
-								deleteSliver = false;
-								break;
-							}
+					s = slice.slivers.collection[i];
+					var deleteSliver:Boolean = true;
+					for each(var n:VirtualNode in s.nodes.collection) {
+						if(n.manager == s.manager) {
+							deleteSliver = false;
+							break;
 						}
-						if(deleteSliver)
-							slice.slivers.remove(s);
+					}
+					if(deleteSliver) {
+						slice.slivers.remove(s);
+						i--;
 					}
 				}
 				
@@ -374,7 +374,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				var sn:SliceNode = new SliceNode();
 				sn.setNode(virtualNode);
-				if(sn.node.flackY == -1 && y == -1 && locationCache[sn.node.clientId] != null) {
+				if(x == -1 && y == -1 && locationCache[sn.node.clientId] != null) {
 					sn.node.flackX = locationCache[sn.node.clientId].x;
 					sn.node.flackY = locationCache[sn.node.clientId].y;
 				}
@@ -406,8 +406,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				var sn:SliceNode = addVirtualNodeToCanvas(sliceNode, x, y);
 				sn.node.flackUnbound = true;
-				if(!sliceNode.slivers.collection[0].nodes.contains(sliceNode))
-					sliceNode.slivers.collection[0].nodes.add(sliceNode);
+				if(!sliceNode.sliver.nodes.contains(sliceNode))
+					sliceNode.sliver.nodes.add(sliceNode);
 				
 				// See if we need to connect to a parent node
 				if(sliceNode.superNode != null)
@@ -481,8 +481,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				var physicalNode:SliceNode = addPhysicalNodeToCanvas(pn, x, y);
 				physicalNode.node.flackUnbound = false;
-				if(!physicalNode.node.slivers.collection[0].nodes.contains(physicalNode.node))
-					physicalNode.node.slivers.collection[0].nodes.add(physicalNode.node);
+				if(!physicalNode.node.sliver.nodes.contains(physicalNode.node))
+					physicalNode.node.sliver.nodes.add(physicalNode.node);
 				
 				// See if we need to connect to a parent node
 				if(pn.subNodeOf != null)

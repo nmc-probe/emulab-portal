@@ -57,8 +57,10 @@ package protogeni.tools.instools
 		}
 		
 		override public function start():Operation {
+			sliver = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full).slivers.getByManager(sliver.manager);
 			sliver.message = "Polling INSTOOLS status";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			
 			return op;
 		}
 		
@@ -77,7 +79,7 @@ package protogeni.tools.instools
 						Instools.portal_url[sliver.manager.Urn.full] = String(response.value.portal_url);
 						sliver.changing = false;
 						sliver.message = "Instrumentizing complete";
-						break;
+						return null;
 					case "INSTALLATION_COMPLETE":		//MC has finished the startup scripts
 						if (Instools.started_instrumentize[sliver.manager.Urn.full] != "1")
 						{
@@ -115,8 +117,6 @@ package protogeni.tools.instools
 		public function failed(msg:String = ""):void {
 			sliver.changing = false;
 			sliver.message = "Poll INSTOOLS status failed";
-			if(msg != null && msg.length > 0)
-				sliver.message += ": " + msg;
 			Alert.show("Failed to poll INSTOOLS status on " + sliver.manager.Hrn + ". " + msg, "Problem polling INSTOOLS status");
 		}
 		

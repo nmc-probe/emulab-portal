@@ -812,20 +812,8 @@ package protogeni.resources
 				for each(var checkInterface:VirtualInterface in virtualLink.interfaces.collection) {
 					// Deal with links between managers
 					if(checkInterface.owner.manager != sliver.manager) {
-						
 						if(virtualLink.linkType == VirtualLink.TYPE_NORMAL)
 							virtualLink.linkType = VirtualLink.TYPE_TUNNEL;
-						
-						if(!checkInterface.owner.slivers.contains(sliver))
-							checkInterface.owner.slivers.add(sliver);
-						
-						for each(var checkOtherInterface:VirtualInterface in virtualLink.interfaces.collection) {
-							if(checkOtherInterface != checkInterface
-								&& !checkOtherInterface.owner.slivers.contains(checkInterface.owner.sliver)) {
-								checkOtherInterface.owner.slivers.add(checkInterface.owner.sliver);
-							}
-							
-						}
 					}
 				}
 			}

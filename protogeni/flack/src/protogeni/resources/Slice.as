@@ -131,7 +131,7 @@ package protogeni.resources
 				{
 					if(oldNodeToCloneNode[node] != null)
 						continue;
-					var newNode:VirtualNode = new VirtualNode(newSliver);
+					var newNode:VirtualNode = new VirtualNode(newSlice.slivers.getByManager(node.manager));
 					newNode.clientId = node.clientId;
 					newNode.physicalNode = node.physicalNode;
 					newNode.manager = node.manager;
@@ -169,10 +169,10 @@ package protogeni.resources
 					newNode.virtualizationType = node.virtualizationType;
 					newNode.virtualizationSubtype = node.virtualizationSubtype;
 					
-					for each(var nodeSliver:Sliver in node.slivers.collection)
-					{
-						newNode.slivers.addIfNotExisting(newSlice.slivers.getByManager(nodeSliver.manager));
-						newSlice.slivers.getByUrn(nodeSliver.urn.full).nodes.add(newNode);
+					// Add to slivers
+					for each(var sliverToAddNode:Sliver in this.slivers.collection) {
+						if(sliverToAddNode.nodes.contains(node))
+							newSlice.slivers.getByManager(sliverToAddNode.manager).nodes.add(newNode);
 					}
 					
 					// Copy interfaces
