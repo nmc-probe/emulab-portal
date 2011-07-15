@@ -57,6 +57,13 @@ package protogeni.resources
 			return null;
 		}
 		
+		public function get Slivers():SliverCollection {
+			var mySlivers:SliverCollection = new SliverCollection();
+			for each(var virtualInterface:VirtualInterface in this.collection)
+				mySlivers.addIfNotExisting(virtualInterface.owner.sliver);
+			return mySlivers;
+		}
+		
 		public function Links():Vector.<VirtualLink> {
 			var ac:Vector.<VirtualLink> = new Vector.<VirtualLink>();
 			for each(var ni:VirtualInterface in this.collection) {

@@ -54,12 +54,23 @@ package protogeni.communication
 			sliver.message = "Waiting to create";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
-			// Build up the args
-			op.addField("slice_urn", sliver.slice.urn.full);
+			op.timeout = 360;
+			
 			if(rspec != null)
 				request = rspec.toXMLString()
 			else
 				request = sliver.slice.slivers.Combined.getRequestRspec(true).toXMLString();
+			
+			op.setUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			sliver.message = "Creating";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			
+			op.clearFields();
+			
+			op.addField("slice_urn", sliver.slice.urn.full);
 			op.addField("rspec", request);
 			var keys:Array = [];
 			for each(var key:Key in sliver.slice.creator.keys) {
@@ -67,13 +78,7 @@ package protogeni.communication
 			}
 			op.addField("keys", keys);
 			op.addField("credentials", [sliver.slice.credential]);
-			op.setUrl(sliver.manager.Url);
-			op.timeout = 360;
-		}
-		
-		override public function start():Operation {
-			sliver.message = "Creating";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			
 			return op;
 		}
 		

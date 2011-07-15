@@ -62,11 +62,18 @@ package protogeni.communication
 			return false;
 		}
 		
+		/**
+		 * Adds a new item onto the queue.  If a request, just pushes.  If a
+		 * node, adds all all requests in the queue node's queue
+		 * @param newItem
+		 * 
+		 */
 		public function push(newItem:*) : void
 		{
 			var newNode:RequestQueueNode = null;
 			var newTail:RequestQueueNode = null;
 			
+			// Set the new node and tail for the group which will be pushed
 			if(newItem is RequestQueueNode)
 			{
 				newNode = newItem;
@@ -80,14 +87,16 @@ package protogeni.communication
 				newTail = newNode;
 			}
 			
+			// Queue isn't empty
 			if (tail != null)
 			{
+				// Force this request to be called before nextRequest
 				if(newNode.item.forceNext && nextRequest != null)
 				{
-					var parseNode:RequestQueueNode = head;
-					if(parseNode == nextRequest) {
+					if(head == nextRequest)
 						head = newNode;
-					} else {
+					else {
+						var parseNode:RequestQueueNode = head;
 						while(parseNode.next != nextRequest)
 							parseNode = parseNode.next;
 						parseNode.next = newNode;
@@ -95,20 +104,74 @@ package protogeni.communication
 					
 					newTail.next = nextRequest;
 					nextRequest = newNode;
-					newTail = tail;
-				} else {
+				}
+				// Tag on the end
+				else
+				{
 					tail.next = newNode;
 					if(nextRequest == null)
 						nextRequest = newNode;
+					tail = newTail;
 				}
 			}
+			// Queue is currently empty
 			else
 			{
 				head = newNode;
 				nextRequest = newNode;
+				tail = newTail;
 			}
-			tail = newTail;
 			
+			if(pushEvents)
+				Main.geniDispatcher.dispatchQueueChanged();
+		}
+		
+		public function remove(removeNode:RequestQueueNode):void
+		{
+			// No node to add
+			if(removeNode == null)
+				return;
+			
+			// Removing the head
+			if(head == removeNode)
+			{
+				// Move the next request back if it was the head
+				if(nextRequest == head)
+					nextRequest = head.next;
+				head = head.next;
+				// Update the tail if needed
+				if(head == null)
+					tail = null;
+			}
+			// Removing after the head
+			else
+			{
+				// Start the search after the head
+				var previousNode:RequestQueueNode = head;
+				var currentNode:RequestQueueNode = head.next;
+				
+				// Keep looking until currentNode is the node to remove
+				while(currentNode != null)
+				{
+					// Found our node to remove
+					if(currentNode == removeNode)
+					{
+						// Was the next request, move to next
+						if(nextRequest == currentNode)
+							nextRequest = currentNode.next;
+						// Have the previous node skip over this one
+						previousNode.next = currentNode.next;
+						// Update the tail if needed
+						if(previousNode.next == null)
+							tail = previousNode;
+						if(pushEvents)
+							Main.geniDispatcher.dispatchQueueChanged();
+						return;
+					}
+					previousNode = previousNode.next;
+					currentNode = currentNode.next;
+				}
+			}
 			if(pushEvents)
 				Main.geniDispatcher.dispatchQueueChanged();
 		}
@@ -155,19 +218,15 @@ package protogeni.communication
 				(nextRequest == head || nextRequest.item.startImmediately == true);
 		}
 		
-		public function front() : *
+		public function front():*
 		{
 			if (head != null)
-			{
 				return head.item;
-			}
 			else
-			{
 				return null;
-			}
 		}
 		
-		public function nextAndProgress() : *
+		public function nextAndProgress():*
 		{
 			var val:Object = next();
 			if(val != null)
@@ -175,16 +234,12 @@ package protogeni.communication
 			return val;
 		}
 		
-		public function next() : *
+		public function next():*
 		{
 			if (nextRequest != null)
-			{
 				return nextRequest.item;
-			}
 			else
-			{
 				return null;
-			}
 		}
 		
 		/*
@@ -216,37 +271,6 @@ package protogeni.communication
 				parseNode = parseNode.next;
 			}
 			return null;
-		}
-		
-		public function remove(removeNode:RequestQueueNode):void
-		{
-			if(removeNode == null)
-				return;
-			if(head == removeNode)
-			{
-				if(nextRequest == head)
-					nextRequest = head.next;
-				head = head.next;
-				if(head == null)
-					tail = null;
-			} else {
-				var previousNode:RequestQueueNode = head;
-				var currentNode:RequestQueueNode = head.next;
-				while(currentNode != null)
-				{
-					if(currentNode == removeNode)
-					{
-						if(nextRequest == currentNode)
-							nextRequest = currentNode.next;
-						previousNode.next = currentNode.next;
-						return;
-					}
-					previousNode = previousNode.next;
-					currentNode = currentNode.next;
-				}
-			}
-			if(pushEvents)
-				Main.geniDispatcher.dispatchQueueChanged();
 		}
 	}
 }

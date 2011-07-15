@@ -49,15 +49,20 @@ package protogeni.communication
 			ignoreReturnCode = true;
 			op.timeout = 60;
 			aggregateManager = newManager;
+			
+			op.setExactUrl(newManager.Url);
+		}
+		
+		override public function start():Operation {
+			op.clearFields();
 
-			// Build up the args
 			var options:Object = {geni_available:false, geni_compressed:true};
 			if(aggregateManager.rspecProcessor is ProtogeniRspecProcessor)
 				options.rspec_version = {type:"ProtoGENI", version:aggregateManager.outputRspecVersion};
-					
 			op.pushField([Main.geniHandler.CurrentUser.Credential]);
 			op.pushField(options);	
-			op.setExactUrl(newManager.Url);
+			
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

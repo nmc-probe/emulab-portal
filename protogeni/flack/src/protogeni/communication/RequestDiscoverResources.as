@@ -43,14 +43,19 @@ package protogeni.communication
 				true,
 				true,
 				false);
-			op.timeout = 60;
 			componentManager = newManager;
 			
+			op.timeout = 60;
+			op.setUrl(componentManager.Url);
+		}
+		
+		override public function start():Operation {
 			// Build up the args
+			op.clearFields();
 			op.addField("credentials", [Main.geniHandler.CurrentUser.Credential]);
 			op.addField("compress", true);
 			op.addField("rspec_version", componentManager.outputRspecVersion);
-			op.setUrl(newManager.Url);
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

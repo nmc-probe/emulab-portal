@@ -51,19 +51,22 @@ package protogeni.communication
 			sliver.message = "Listing resources";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
-			// Build up the args
-			var options:Object = {geni_available:false, geni_compressed:true, geni_slice_urn:sliver.slice.urn.full};
-			if(sliver.manager.rspecProcessor is ProtogeniRspecProcessor)
-				options.rspec_version = {type:"ProtoGENI", version:sliver.manager.outputRspecVersion};
-					
-			op.pushField([sliver.slice.credential]);
-			op.pushField(options);
 			op.setExactUrl(sliver.manager.Url);
 		}
 		
 		override public function start():Operation {
-			if(sliver.manager.Status == GeniManager.STATUS_VALID)
+			if(sliver.manager.Status == GeniManager.STATUS_VALID) {
+				op.clearFields();
+				
+				var options:Object = {geni_available:false, geni_compressed:true, geni_slice_urn:sliver.slice.urn.full};
+				if(sliver.manager.rspecProcessor is ProtogeniRspecProcessor)
+					options.rspec_version = {type:"ProtoGENI", version:sliver.manager.outputRspecVersion};
+				
+				op.pushField([sliver.slice.credential]);
+				op.pushField(options);
+				
 				return op;
+			}
 			else
 				return null;
 		}

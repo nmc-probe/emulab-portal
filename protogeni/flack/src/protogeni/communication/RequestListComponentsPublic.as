@@ -32,8 +32,9 @@ package protogeni.communication
 			super("List public managers",
 				"Getting the information for the component managers",
 				null);
-			op.setExactUrl(Main.geniHandler.publicUrl);
+			
 			op.type = Operation.HTTP;
+			op.setExactUrl(Main.geniHandler.publicUrl);
 		}
 		
 		// Should return Request or RequestQueueNode

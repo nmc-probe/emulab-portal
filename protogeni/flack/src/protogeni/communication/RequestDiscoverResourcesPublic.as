@@ -43,8 +43,8 @@ package protogeni.communication
 				false);
 			componentManager = newCm;
 			
-			op.setExactUrl(newCm.Url);
 			op.type = Operation.HTTP;
+			op.setExactUrl(componentManager.Url);
 		}
 		
 		override public function complete(code:Number, response:Object):*

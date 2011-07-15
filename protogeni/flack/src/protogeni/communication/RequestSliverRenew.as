@@ -50,11 +50,17 @@ package protogeni.communication
 			
 			newExpires = newExpirationDate;
 			
-			// Build up the args
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("expiration", DateUtil.toRFC3339(newExpirationDate));
-			op.addField("credentials", [sliver.slice.credential]);
 			op.setUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			op.clearFields();
+			
+			op.addField("slice_urn", sliver.slice.urn.full);
+			op.addField("expiration", DateUtil.toRFC3339(newExpires));
+			op.addField("credentials", [sliver.slice.credential]);
+			
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

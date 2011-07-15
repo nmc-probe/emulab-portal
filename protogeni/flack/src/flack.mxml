@@ -208,7 +208,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						return;
 				} catch(bad:Error) {}
 				
-				Main.geniHandler.requestHandler.pause();
+				//Main.geniHandler.requestHandler.pause();
 				
 				var errorMessage:String = "";
 				if(event.error is Error) {
@@ -234,7 +234,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					true);
 				
 				LogHandler.appendMessage(uncaughtErrorMessage);
-				LogHandler.viewConsole();
+				//LogHandler.viewConsole();
 				DisplayUtil.viewLogMessage(uncaughtErrorMessage);
 				
 				Alert.show("An uncaught error was thrown and has possibly corrupted any actions you were doing. The request queue was paused so any pending actions will not be run until you start the queue again.  If you believe the error was not serious, restart the queue and continue.\n\n"

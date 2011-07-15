@@ -47,15 +47,18 @@ package protogeni.communication
 			sliver.message = "Getting credential";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
-			// Build up the args
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("credentials", [sliver.slice.credential]);
 			op.setUrl(sliver.manager.Url);
 		}
 		
 		override public function start():Operation {
-			if(sliver.manager.Status == GeniManager.STATUS_VALID)
+			if(sliver.manager.Status == GeniManager.STATUS_VALID) {
+				op.clearFields();
+				
+				op.addField("slice_urn", sliver.slice.urn.full);
+				op.addField("credentials", [sliver.slice.credential]);
+				
 				return op;
+			}
 			else
 				return null;
 		}

@@ -40,12 +40,6 @@ package protogeni.resources
 		public var type:String;
 		[Bindable]
 		public var interfaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
-		public function get slivers():SliverCollection {
-			var mySlivers:SliverCollection = new SliverCollection();
-			for each(var virtualInterface:VirtualInterface in interfaces.collection)
-				mySlivers.addIfNotExisting(virtualInterface.owner.sliver);
-			return mySlivers;
-		}
 		
 		public var linkType:int = TYPE_NORMAL;
 		
@@ -65,7 +59,7 @@ package protogeni.resources
 			var secondInterface:VirtualInterface = second.allocateInterface();
 			if(firstInterface == null || secondInterface == null)
 				return false;
-			this.clientId = slivers.collection[0].slice.slivers.getUniqueVirtualLinkId(this);
+			this.clientId = first.sliver.slice.slivers.getUniqueVirtualLinkId(this);
 			first.interfaces.add(firstInterface);
 			second.interfaces.add(secondInterface);
 			firstInterface.virtualLinks.add(this);
@@ -83,25 +77,18 @@ package protogeni.resources
 					this.linkType = TYPE_GPENI;
 				else*/
 					this.setUpTunnels();
-				
-				// Make sure nodes are in both
-				if(!second.sliver.nodes.contains(first))
-					second.sliver.nodes.add(first);
-				if(!first.sliver.nodes.contains(second))
-					first.sliver.nodes.add(second);
-				
-				// Add relative slivers
-				if(this.slivers.collection[0].manager != first.sliver.manager)
-					this.slivers.add(first.sliver);
-				else if(this.slivers.collection[0].manager != second.sliver.manager)
-					this.slivers.add(second.sliver);
 			}
 			
-			for each(var s:Sliver in this.slivers.collection)
+			for each(var s:Sliver in this.interfaces.Slivers.collection) {
 				s.links.add(this);
+				if(!s.nodes.contains(first))
+					s.nodes.add(first);
+				if(!s.nodes.contains(second))
+					s.nodes.add(second);
+			}
 			
-				this.capacity = Math.floor(Math.min(firstInterface.capacity,
-													secondInterface.capacity));
+			this.capacity = Math.floor(Math.min(firstInterface.capacity,
+												secondInterface.capacity));
 			if (first.clientId.slice(0, 2) == "pg"
 					|| second.clientId.slice(0, 2) == "pg")
 				this.capacity = 1000000;
@@ -127,7 +114,7 @@ package protogeni.resources
 		
 		public function remove():void
 		{
-			for each(var s:Sliver in this.slivers.collection)
+			for each(var s:Sliver in this.interfaces.Slivers.collection)
 				s.links.remove(this);
 			
 			for each(var vi:VirtualInterface in this.interfaces.collection)

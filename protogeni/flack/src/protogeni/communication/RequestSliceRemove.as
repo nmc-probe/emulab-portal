@@ -43,11 +43,17 @@ package protogeni.communication
 			slice.Changing = true;
 			tryCreate = shouldTryCreate;
 			
-			// Build up the args
+			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+		}
+		
+		override public function start():Operation {
+			op.clearFields();
+			
 			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
 			op.addField("hrn", slice.urn.full);
 			op.addField("type", "Slice");
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

@@ -47,15 +47,18 @@ package protogeni.communication
 			sliver.message = "Waiting to delete";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
-			// Build up the args
-			op.pushField(sliver.slice.urn.full);
-			op.pushField([sliver.slice.credential]);
 			op.setExactUrl(sliver.manager.Url);
 		}
 		
 		override public function start():Operation {
 			sliver.message = "Deleting";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			
+			op.clearFields();
+			
+			op.pushField(sliver.slice.urn.full);
+			op.pushField([sliver.slice.credential]);
+			
 			return op;
 		}
 		

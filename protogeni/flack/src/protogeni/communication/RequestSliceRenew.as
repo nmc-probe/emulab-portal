@@ -44,10 +44,17 @@ package protogeni.communication
 			renewSlivers = shouldRenewSlivers;
 			expirationDate = newExpirationDate;
 			
+			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+		}
+		
+		override public function start():Operation {
+			op.clearFields();
+			
 			// Build up the args
 			op.addField("credential", slice.credential);
-			op.addField("expiration", DateUtil.toRFC3339(newExpirationDate));
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			op.addField("expiration", DateUtil.toRFC3339(expirationDate));
+			
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

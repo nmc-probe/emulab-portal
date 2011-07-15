@@ -41,11 +41,14 @@ package protogeni.communication
 		 */
 		override public function start():Operation
 		{
-			// Build up the args
 			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			op.clearFields();
+			
+			// Build up the args
 			op.addField("type", "User");
 			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
 			op.addField("hrn", Main.geniHandler.CurrentUser.urn.full);
+			
 			return op;
 		}
 		

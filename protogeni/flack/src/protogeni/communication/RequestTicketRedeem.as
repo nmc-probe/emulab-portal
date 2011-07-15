@@ -46,12 +46,20 @@ package protogeni.communication
 				CommunicationUtil.redeemTicket);
 			sliver = newSliver;
 			sliver.changing = true;
-			sliver.message = "Redeeming ticket";
+			sliver.message = "Waiting to redeem ticket";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			ticket = sliver.ticket;
 			
-			// Build up the args
+			op.setUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			sliver.message = "Redeeming ticket";
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			
+			op.clearFields();
+			
 			op.addField("slice_urn", sliver.slice.urn.full);
 			op.addField("credentials", [sliver.credential]);
 			op.addField("ticket", sliver.ticket);
@@ -60,7 +68,8 @@ package protogeni.communication
 				keys.push({type:key.type, key:key.value});
 			}
 			op.addField("keys", keys);
-			op.setUrl(sliver.manager.Url);
+			
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

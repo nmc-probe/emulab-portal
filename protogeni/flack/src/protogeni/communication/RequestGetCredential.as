@@ -29,11 +29,7 @@ package protogeni.communication
 			super("Get user credential",
 				"Getting user credential",
 				CommunicationUtil.getCredential);
-		}
-		
-		override public function start():Operation {
 			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
-			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

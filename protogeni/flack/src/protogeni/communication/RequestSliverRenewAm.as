@@ -33,6 +33,7 @@ package protogeni.communication
 	public final class RequestSliverRenewAm extends Request
 	{
 		public var sliver:Sliver;
+		public var expirationDate:Date;
 		
 		public function RequestSliverRenewAm(newSliver:Sliver, newExpirationDate:Date):void
 		{
@@ -42,16 +43,23 @@ package protogeni.communication
 				true,
 				true);
 			ignoreReturnCode = true;
+			expirationDate = newExpirationDate;
 			sliver = newSliver;
 			sliver.changing = true;
 			sliver.message = "Renewing";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
-			// Build up the args
+			op.setExactUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			op.clearFields();
+			
 			op.pushField(sliver.slice.urn.full);
 			op.pushField([sliver.slice.credential]);
-			op.pushField(DateUtil.toRFC3339(newExpirationDate));
-			op.setExactUrl(sliver.manager.Url);
+			op.pushField(DateUtil.toRFC3339(expirationDate));
+			
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

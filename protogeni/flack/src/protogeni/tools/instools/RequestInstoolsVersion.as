@@ -41,15 +41,14 @@ package protogeni.tools.instools
 				"Requesting current INSTOOLS version at " + s.manager.Hrn,
 				Instools.instoolsGetVersion,
 				true,
-				true,
 				true);
-			op.setUrl(s.manager.Url);
 			sliver = s;
 			sliver.changing = true;
 			sliver.message = "Waiting to get INSTOOLS version";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			//op.setUrl("https://www.uky.emulab.net/protogeni/xmlrpc");
+			op.setUrl(s.manager.Url);
 		}
 		
 		override public function start():Operation {
@@ -62,12 +61,12 @@ package protogeni.tools.instools
 		{
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
-				Instools.devel_version[sliver.manager.Urn.full.toString()] = String(response.value.devel_version);
-				Instools.stable_version[sliver.manager.Urn.full.toString()] = String(response.value.stable_version);
+				Instools.devel_version[sliver.manager.Urn.full] = String(response.value.devel_version);
+				Instools.stable_version[sliver.manager.Urn.full] = String(response.value.stable_version);
 				
 				sliver.message = "Got INSTOOLS version";
 				
-				Main.geniHandler.requestHandler.pushRequest(new RequestAddMCNode(sliver));
+				return new RequestAddMCNode(sliver);
 				
 				/*
 				LogHandler.appendMessage(new LogMessage(op.getUrl(),

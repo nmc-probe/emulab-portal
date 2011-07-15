@@ -73,7 +73,7 @@ package protogeni.tools.instools
 			  if (response.value.wasMCpresent) 
 			  {
 				  sliver.message = "MC Node already added";
-				  Main.geniHandler.requestHandler.pushRequest(new RequestPollInstoolsStatus(sliver));
+				  return new RequestPollInstoolsStatus(sliver);
 			  } 
 			  else 
 			  {
@@ -84,7 +84,8 @@ package protogeni.tools.instools
 				  var requestNewNode:RequestSliverUpdate = new RequestSliverUpdate(sliver, new XML(response.value.instrumentized_rspec));
 				  requestNewNode.forceNext = true;
 				  requestNewNode.addAfter = new RequestQueueNode(pollStatus);
-				  Main.geniHandler.requestHandler.pushRequest(requestNewNode);
+				  
+				  return requestNewNode;
 			  }
 			}
 			else

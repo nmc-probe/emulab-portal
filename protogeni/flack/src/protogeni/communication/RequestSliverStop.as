@@ -41,10 +41,16 @@ package protogeni.communication
 			sliver.message = "Stopping";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
-			// Build up the args
+			op.setUrl(sliver.manager.Url);
+		}
+		
+		override public function start():Operation {
+			op.clearFields();
+			
 			op.addField("slice_urn", sliver.slice.urn.full);
 			op.addField("credentials", [sliver.slice.credential]);
-			op.setUrl(sliver.manager.Url);
+			
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*

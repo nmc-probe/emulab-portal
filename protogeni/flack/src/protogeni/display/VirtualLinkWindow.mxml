@@ -48,7 +48,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public function loadLink(pl:VirtualLink):void {
 				link = pl;
 
-				if(pl.slivers.collection[0].manager.type == GeniManager.TYPE_PROTOGENI) {
+				if(pl.interfaces.Slivers.collection[0].manager.type == GeniManager.TYPE_PROTOGENI) {
 					previewRspecButton.includeInLayout = true;
 					previewRspecButton.visible = true;
 				}
@@ -108,7 +108,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							default:
 								var previewRspec:XmlWindow = new XmlWindow();
 								previewRspec.title = "Preview Request RSPEC for: " + link.clientId;
-								previewRspec.loadXml((link.slivers.collection[0].manager.rspecProcessor as ProtogeniRspecProcessor).generateLinkRspec(link));
+								previewRspec.loadXml((link.interfaces.Slivers.collection[0].manager.rspecProcessor as ProtogeniRspecProcessor).generateLinkRspec(link));
 								previewRspec.showWindow();
 						}
 					});
@@ -123,7 +123,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function save():Boolean {
 				// Make sure the client_id is not taken
-				if(!this.link.slivers.collection[0].slice.slivers.isIdUnique(this.link, this.idLabel.Text)) {
+				if(!this.link.interfaces.Slivers.collection[0].slice.slivers.isIdUnique(this.link, this.idLabel.Text)) {
 					Alert.show(this.idLabel.Text + " is already in use, please choose a different client id");
 					return true;
 				}
@@ -143,7 +143,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					link.capacity = Number(this.capacityInput.text);
 				else
 					link.capacity = NaN;
-				Main.geniDispatcher.dispatchSliceChanged(link.slivers.collection[0].slice);
+				Main.geniDispatcher.dispatchSliceChanged(link.interfaces.Slivers.collection[0].slice);
 				
 				return false;
 			}

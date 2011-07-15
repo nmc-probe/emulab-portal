@@ -59,7 +59,7 @@ package protogeni.tools.instools
 			passwd = SHA1.hash(Main.geniHandler.CurrentUser.passwd);
 			
 			op.addField("password", passwd);
-			op.addField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.Urn.full.toString()]);
+			op.addField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.Urn.full]);
 			op.addField("credentials", [sliver.slice.credential]);
 			//op.setUrl("https://www.uky.emulab.net/protogeni/xmlrpc");
 		}

@@ -47,15 +47,18 @@ package protogeni.communication
 			sliver.message = "Waiting to check status";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
-			// Build up the args
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("credentials", new Array(sliver.slice.credential));
 			op.setUrl(sliver.manager.Url);
 		}
 		
 		override public function start():Operation {
 			sliver.message = "Checking status";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			
+			op.clearFields();
+			
+			op.addField("slice_urn", sliver.slice.urn.full);
+			op.addField("credentials", new Array(sliver.slice.credential));
+			
 			return op;
 		}
 		
@@ -85,7 +88,7 @@ package protogeni.communication
 				if(sliver.changing) {
 					sliver.message = "Status is " + sliver.message;
 					request = new RequestSliverStatus(this.sliver);
-					request.op.delaySeconds = this.op.delaySeconds + 20;
+					request.op.delaySeconds = Math.min(60, this.op.delaySeconds + 15);
 				}
 				
 				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);

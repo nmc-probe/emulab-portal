@@ -51,19 +51,24 @@ package protogeni.communication
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			// Build up the args
-			op.addField("sliver_urn", sliver.urn.full);
 			if(useRspec != null)
 				request = useRspec.toXMLString()
 			else
 				request = sliver.getRequestRspec(false).toXMLString();
-			op.addField("rspec", request);
-			op.addField("credentials", [sliver.slice.credential]);
+			
 			op.setUrl(sliver.manager.Url);
 		}
 		
 		override public function start():Operation {
 			sliver.message = "Updating";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			
+			op.clearFields();
+			
+			op.addField("sliver_urn", sliver.urn.full);
+			op.addField("rspec", request);
+			op.addField("credentials", [sliver.slice.credential]);
+			
 			return op;
 		}
 		

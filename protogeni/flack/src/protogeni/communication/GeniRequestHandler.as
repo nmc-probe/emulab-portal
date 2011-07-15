@@ -540,7 +540,7 @@ package protogeni.communication
 				var url:String = request.op.getUrl();
 				var name:String = request.name;
 				LogHandler.appendMessage(new LogMessage(url,
-														name + "Removed",
+														name + " removed",
 														"Request removed",
 														false,
 														LogMessage.TYPE_OTHER));
@@ -665,7 +665,7 @@ package protogeni.communication
 				remove(request, false);
 			}
 			
-			var next:*;
+			var next:* = null;
 			try
 			{
 				if(code == CommunicationUtil.GENIRESPONSE_BUSY) {
@@ -704,7 +704,7 @@ package protogeni.communication
 			{
 				codeFailure(request.name, "Error caught in RPC-Handler Complete",
 							e,
-							!queue.front().continueOnError);
+							!(queue.front() as Request).continueOnError);
 				request.removeImmediately = true;
 				if(request.running)
 				{
@@ -717,14 +717,15 @@ package protogeni.communication
 			
 			// Find out what to do next
 			if(request.removeImmediately)
-			{
-				if (next != null)
-					queue.push(next);
-				if(request.addAfter != null)
-					queue.push(request.addAfter);
-				//if(next != request)
 				request.cleanup();
-			}
+			
+			// Add any requests this request added
+			if (next != null)
+				queue.push(next);
+			
+			// Add post-requests
+			if(request.addAfter != null)
+				queue.push(request.addAfter);
 			
 			tryNext();
 		}

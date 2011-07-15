@@ -39,8 +39,9 @@ package protogeni.communication
 			super("List authorities",
 				"Getting the list of slice authorities",
 				null);
-			op.setExactUrl(Main.geniHandler.salistUrl);
+			
 			op.type = Operation.HTTP;
+			op.setExactUrl(Main.geniHandler.salistUrl);
 		}
 		
 		// Should return Request or RequestQueueNode
@@ -77,11 +78,6 @@ package protogeni.communication
 			}
 			
 			return newCalls.head;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):*
-		{
-			var crap:* = 2;
 		}
 	}
 }

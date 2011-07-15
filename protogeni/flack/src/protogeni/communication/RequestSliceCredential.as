@@ -44,10 +44,17 @@ package protogeni.communication
 			exploreAllManagers = shouldExploreAllManagers;
 			
 			// Build up the args
+			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+		}
+		
+		override public function start():Operation {
+			op.clearFields();
+			
 			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
 			op.addField("urn", slice.urn.full);
 			op.addField("type", "Slice");
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			
+			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*
@@ -78,6 +85,8 @@ package protogeni.communication
 					}
 				} else {
 					for each(manager in Main.geniHandler.GeniManagers) {
+						if(manager.Status != GeniManager.STATUS_VALID)
+							continue;
 						newSliver = new Sliver(slice, manager);
 						if(manager.isAm)
 							Main.geniHandler.requestHandler.pushRequest(new RequestSliverListResourcesAm(newSliver));

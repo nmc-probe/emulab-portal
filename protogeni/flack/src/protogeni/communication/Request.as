@@ -31,12 +31,13 @@ package protogeni.communication
 		public var name:String;
 		[Bindable]
 		public var details:String;
+		public var running:Boolean = false;
+		public var nonXmlrpc:Boolean = false;
+		
 		public var startImmediately:Boolean;
 		public var removeImmediately:Boolean;
 		public var continueOnError:Boolean;
 		public var retryOnTimeout:Boolean;
-		public var running:Boolean = false;
-		public var nonXmlrpc:Boolean = false;
 		public var forceNext:Boolean = false;
 		public var ignoreReturnCode:Boolean = false;
 		public var numTries:int = 0;

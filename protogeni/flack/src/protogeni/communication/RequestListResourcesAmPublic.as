@@ -41,6 +41,7 @@ package protogeni.communication
 				true,
 				false);
 			aggregateManager = newAm;
+			
 			op.setExactUrl(aggregateManager.Url);
 			op.type = Operation.HTTP;
 		}

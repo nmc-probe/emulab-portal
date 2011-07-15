@@ -52,6 +52,7 @@ package protogeni.communication
 		 */
 		override public function start():Operation
 		{
+			op.clearFields();
 			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
 			return op;
 		}

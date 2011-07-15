@@ -750,8 +750,6 @@ package protogeni.resources
 												vi.ip = String(linkChildXml.@tunnel_ip);
 											virtualLink.interfaces.add(vi);
 											vi.virtualLinks.add(virtualLink);
-											if(!virtualLink.slivers.contains(interfacedNode.sliver))
-												virtualLink.slivers.add(interfacedNode.sliver);
 											break;
 										}
 									}
@@ -773,8 +771,6 @@ package protogeni.resources
 									if(virtualLink != null) {
 										virtualLink.interfaces.add(interfacedNodeInterface);
 										interfacedNodeInterface.virtualLinks.add(virtualLink);
-										if(!virtualLink.slivers.contains(interfacedNodeInterface.owner.sliver))
-											virtualLink.slivers.add(interfacedNodeInterface.owner.sliver);
 									}
 								}
 								break;
@@ -794,13 +790,13 @@ package protogeni.resources
 					continue;
 				
 				// Make sure this sliver actually uses this link
-				if(!virtualLink.slivers.contains(sliver))
+				if(!virtualLink.interfaces.Slivers.contains(sliver))
 					continue;
 				
 				virtualLink.manifest = linkXml;
 				
 				// Make sure nodes and link are in all the slivers
-				for each(var checkSliver:Sliver in virtualLink.slivers.collection) {
+				for each(var checkSliver:Sliver in virtualLink.interfaces.Slivers.collection) {
 					if(!checkSliver.links.contains(virtualLink))
 						checkSliver.links.add(virtualLink);
 					for each(var checkInterfaceExisting:VirtualInterface in virtualLink.interfaces.collection) {
@@ -1065,7 +1061,7 @@ package protogeni.resources
 			
 			var s:Sliver;
 			if(useInputRspecVersion >= 2) {
-				for each(s in vl.slivers.collection) {
+				for each(s in vl.interfaces.Slivers.collection) {
 					var cmXml:XML = <component_manager />;
 					cmXml.@name = s.manager.Urn.full;
 					linkXml.appendChild(cmXml);
@@ -1126,7 +1122,7 @@ package protogeni.resources
 			}
 			
 			if(vl.linkType == VirtualLink.TYPE_ION) {
-				for each(s in vl.slivers.collection) {
+				for each(s in vl.interfaces.Slivers.collection) {
 					var componentHopIonXml:XML = <component_hop />;
 					componentHopIonXml.@component_urn = IdnUrn.makeFrom(s.manager.Urn.authority, "link", "ion").full;
 					interfaceRefXml = <interface_ref />;
@@ -1136,7 +1132,7 @@ package protogeni.resources
 					linkXml.appendChild(componentHopIonXml);
 				}
 			} else if(vl.linkType == VirtualLink.TYPE_GPENI) {
-				for each(s in vl.slivers.collection) {
+				for each(s in vl.interfaces.Slivers.collection) {
 					var componentHopGpeniXml:XML = <component_hop />;
 					componentHopGpeniXml.@component_urn = IdnUrn.makeFrom(s.manager.Urn.authority,
 																			"link",

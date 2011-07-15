@@ -231,10 +231,8 @@ package protogeni.resources
 					newLink.linkType = link.linkType;
 					newLink.manifest = link.manifest;
 					newLink.vlantag = link.vlantag;
-					for each(var linkSliver:Sliver in link.slivers.collection) {
-						newLink.slivers.add(newSlice.slivers.getByManager(linkSliver.manager));
+					for each(var linkSliver:Sliver in link.interfaces.Slivers.collection)
 						newSlice.slivers.getByManager(linkSliver.manager).links.add(newLink);
-					}
 					
 					var slivers:Vector.<Sliver> = new Vector.<Sliver>();
 					for each(var i:VirtualInterface in link.interfaces.collection)

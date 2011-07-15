@@ -33,9 +33,10 @@ package protogeni.communication
 				"Getting root bundle",
 				null,
 				true);
-			op.setExactUrl(Main.geniHandler.rootBundleUrl);
+			
 			op.type = Operation.HTTP;
 			op.timeout = 20;
+			op.setExactUrl(Main.geniHandler.rootBundleUrl);
 		}
 		
 		override public function complete(code:Number, response:Object):*
