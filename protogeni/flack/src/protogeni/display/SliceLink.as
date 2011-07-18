@@ -23,6 +23,7 @@ package protogeni.display
 	import mx.graphics.SolidColor;
 	
 	import protogeni.display.components.ImageButton;
+	import protogeni.resources.VirtualComponent;
 	import protogeni.resources.VirtualLink;
 	
 	import spark.components.Group;
@@ -38,12 +39,12 @@ package protogeni.display
 	public final class SliceLink extends UIComponent
 	{
 		public static const NORMAL_COLOR:uint = 0x000000;
-		public static const TUNNEL_COLOR:uint = 0x00ffff;
-		public static const ION_COLOR:uint = 0xcc33cc;
-		public static const GPENI_COLOR:uint = 0x0000ff;
+		public static const TUNNEL_COLOR:uint = 0x00FFFF;
+		public static const ION_COLOR:uint = 0xCC33CC;
+		public static const GPENI_COLOR:uint = 0x0000FF;
 		
-		public static const INVALID_COLOR:uint = 0xff0000;
-		public static const VALID_COLOR:uint = 0x00ff00;
+		public static const INVALID_COLOR:uint = 0xFF0000;
+		public static const VALID_COLOR:uint = 0x00FF00;
 		
 		public static var color:uint;
 		
@@ -52,14 +53,16 @@ package protogeni.display
 		public var endNode:SliceNode;
 		public var established:Boolean = false;
 		//public var removeButton:ImageButton;
-		private var buttonGroup:HGroup;
-		public var group:Group;
-		public var groupColor:SolidColor;
 		public var canvas:SliceCanvas;
 		
 		private var rawSprite:Sprite;
 		
 		public var lastId:String = "";
+		
+		private var buttonGroup:HGroup;
+		public var group:Group;
+		//public var groupColor:SolidColor;
+		public var groupBackground:Rect;
 		
 		public function SliceLink(newCanvas:SliceCanvas)
 		{
@@ -70,7 +73,42 @@ package protogeni.display
 			addChild(rawSprite);
 			
 			color = NORMAL_COLOR;
-			groupColor = new SolidColor(color);
+			groupBackground = new Rect();
+			groupBackground.percentHeight = 100;
+			groupBackground.percentWidth = 100;
+			groupBackground.fill = new SolidColor(color);
+		}
+		
+		public function resetToStatus():void
+		{
+			this.toolTip = "";
+			switch(virtualLink.status) {
+				case VirtualComponent.STATUS_READY:
+					groupBackground.fill = new SolidColor(ColorUtil.validLight);
+					this.toolTip = virtualLink.state;
+					break;
+				case VirtualComponent.STATUS_FAILED:
+					groupBackground.fill = new SolidColor(ColorUtil.invalidLight);
+					this.toolTip = "Error: " + virtualLink.error;
+					break;
+				case VirtualComponent.STATUS_CHANGING:
+					groupBackground.fill = new SolidColor(ColorUtil.changingLight);
+					this.toolTip = "Status is changing...";
+					break;
+				case VirtualComponent.STATUS_NOTREADY:
+					groupBackground.fill = new SolidColor(ColorUtil.changingLight);
+					this.toolTip = "Link is not ready";
+					break;
+				case VirtualComponent.STATUS_UNKNOWN:
+				default:
+					groupBackground.fill = new SolidColor(color);
+			}
+		}
+		
+		public function clearStatus():void
+		{
+			this.toolTip = "";
+			groupBackground.fill = new SolidColor(color);
 		}
 		
 		public function isForNodes(first:SliceNode, second:SliceNode):Boolean
@@ -89,18 +127,14 @@ package protogeni.display
 			setLink(vl);
 			
 			group = new Group();
-			var d:Rect = new Rect();
-			d.percentHeight = 100;
-			d.percentWidth = 100;
-			d.fill = groupColor;
-			group.addElement(d);
+			group.addElement(groupBackground);
 			buttonGroup = new HGroup();
 			buttonGroup.gap = 2;
 			buttonGroup.paddingBottom = 2;
 			buttonGroup.paddingTop = 2;
 			buttonGroup.paddingRight = 2;
 			buttonGroup.paddingLeft = 2;
-			buttonGroup.setStyle("backgroundColor", 0xCCCCCC);
+			//buttonGroup.setStyle("backgroundColor", 0xCCCCCC);
 			group.addElement(buttonGroup);
 			
 			var removeButton:ImageButton = new ImageButton();
@@ -202,8 +236,7 @@ package protogeni.display
 				LineScaleMode.NORMAL, CapsStyle.ROUND);
 			rawSprite.graphics.moveTo(startX, startY);
 			rawSprite.graphics.lineTo(endX, endY);
-			
-			groupColor.color = color;
+			resetToStatus();
 		}
 	}
 }

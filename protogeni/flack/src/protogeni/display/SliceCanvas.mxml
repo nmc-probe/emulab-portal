@@ -150,6 +150,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						}
 						//unadded.removeItemAt(unadded.getItemIndex(vl));
 						sl.setLink(slice.slivers.getLinkWithClientId(sl.lastId));
+						sl.resetToStatus();
 					}
 				}
 				
@@ -168,7 +169,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				var refreshSlice:Slice = useSlice;
 				if(refreshSlice == null && this.slice != null)
 					refreshSlice = this.slice;
-				if(refreshSlice != null) {
+				if(refreshSlice != null && !refreshSlice.slivers.Processing) {
 					switch(refreshSlice.slivers.Status)
 					{
 						case Sliver.STATUS_READY:
@@ -200,6 +201,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				for each(var sn:SliceNode in this.allNodes)
 					sn.clearStatus();
+					
+				for each(var sl:SliceLink in this.allLinks)
+					sl.clearStatus();
 			}
 			
 			/**

@@ -227,6 +227,9 @@ package protogeni.resources
 					newLink.clientId = link.clientId;
 					newLink.sliverId = link.sliverId;
 					newLink.type = link.type;
+					newLink.error = link.error;
+					newLink.state = link.state;
+					newLink.status = link.status;
 					newLink.capacity = link.capacity;
 					newLink.linkType = link.linkType;
 					newLink.manifest = link.manifest;

@@ -30,6 +30,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.display.components.XmlWindow;
 			import protogeni.resources.GeniManager;
 			import protogeni.resources.ProtogeniRspecProcessor;
+			import protogeni.resources.VirtualComponent;
 			import protogeni.resources.VirtualInterface;
 			import protogeni.resources.VirtualInterfaceCollection;
 			import protogeni.resources.VirtualLink;
@@ -47,6 +48,29 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function loadLink(pl:VirtualLink):void {
 				link = pl;
+				
+				switch(link.status)
+				{
+					case VirtualComponent.STATUS_READY:
+						this.statusImage.source = ImageUtil.flagGreenIcon;
+						break;
+					case VirtualComponent.STATUS_FAILED:
+						this.statusImage.source = ImageUtil.flagRedIcon;
+						break;
+					case VirtualComponent.STATUS_NOTREADY:
+					case VirtualComponent.STATUS_CHANGING:
+						this.statusImage.source = ImageUtil.flagYellowIcon;
+						break;
+					case VirtualComponent.STATUS_UNKNOWN:
+					default:
+						this.statusImage.visible = false;
+						this.statusImage.includeInLayout = false;
+				}
+				if(link.error != null && link.error.length > 0)
+				{
+					errorButton.includeInLayout = true;
+					errorButton.visible = true;
+				}
 
 				if(pl.interfaces.Slivers.collection[0].manager.type == GeniManager.TYPE_PROTOGENI) {
 					previewRspecButton.includeInLayout = true;
@@ -150,12 +174,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		]]>
 	</fx:Script>
 	
-	<s:HGroup width="100%">
+	<s:HGroup width="100%" verticalAlign="middle">
 		<display:KeyboardTextInput id="idLabel" Text="{link.clientId}" toolTip="{link.sliverId}" width="100%" />
 		<components:ImageButton id="rspecButton"
 							 icon="{ImageUtil.pageWhiteIcon}"
 							 click="viewRspec()"
 							 toolTip="View the most recent valid RSPEC" />
+		<s:Image id="statusImage"
+				 toolTip="Status: {link.status}, State: {link.state}" />
+		<components:ImageButton id="errorButton" includeInLayout="false" visible="false" click="Alert.show(link.error,'Error Message')" />
+		<components:DefaultLine height="16" visible="false" />
 		<components:ImageButton id="previewRspecButton"
 							 visible="false" includeInLayout="false"
 							 icon="{ImageUtil.pageCodeIcon}"

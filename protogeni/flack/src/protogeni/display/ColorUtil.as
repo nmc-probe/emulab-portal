@@ -26,6 +26,15 @@
 	 */
 	public final class ColorUtil
 	{
+		public static const validDark:uint = 0x006600;
+		public static const validLight:uint = 0x27C427;
+		public static const invalidDark:uint = 0x990000;
+		public static const invalidLight:uint = 0xF08080;
+		public static const changingDark:uint = 0xCC6600;
+		public static const changingLight:uint = 0xFFCC00;
+		public static const unknownDark:uint = 0x2F4F4F;
+		public static const unknownLight:uint = 0xEAEAEA;
+		
 		public static const colorsLight:Array = new Array(
 			// light
 			0xCCCCCC,	// grey

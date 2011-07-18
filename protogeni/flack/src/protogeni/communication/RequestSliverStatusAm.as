@@ -52,7 +52,8 @@ package protogeni.communication
 		}
 		
 		override public function start():Operation {
-			sliver.message = "Checking status";
+			if(op.delaySeconds == 0)
+				sliver.message = "Checking status...";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			
 			op.clearFields();
@@ -83,10 +84,10 @@ package protogeni.communication
 				}
 				
 				sliver.changing = !sliver.StatusFinalized;
-				sliver.message = StringUtil.firstToUpper(sliver.status);
+				sliver.message = StringUtil.firstToUpper(sliver.status) + "!";
 				if(sliver.changing) {
-					sliver.message = "Status is " + sliver.message;
-					request = new RequestSliverStatus(this.sliver);
+					sliver.message = "Status is " + sliver.message + "...";
+					request = this;
 					request.op.delaySeconds = Math.min(60, this.op.delaySeconds + 15);
 				}
 			}

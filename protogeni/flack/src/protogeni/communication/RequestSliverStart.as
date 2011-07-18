@@ -58,6 +58,16 @@ package protogeni.communication
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				sliver.message = "Started";
+				// Don't add a sliver
+				var searchRequest:RequestQueueNode = Main.geniHandler.requestHandler.queue.head;
+				while(searchRequest != null) {
+					if(searchRequest.item is RequestSliverStatus) {
+						if(searchRequest.item.sliver.slice.urn.full == this.sliver.slice.urn.full
+							&& searchRequest.item.sliver.manager == this.sliver.manager)
+							return null;
+					}
+					searchRequest = searchRequest.next;
+				}
 				return new RequestSliverStatus(sliver);
 			}
 			// Already started

@@ -248,9 +248,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		<s:VGroup height="100%" width="50%" horizontalAlign="center">
 			<s:Label text="Logs"  fontSize="14" fontWeight="bold"/>
 			<s:HGroup verticalAlign="middle">
-				<s:Button label="Clear" click="LogHandler.clear();" />
+				<components:ImageButton icon="{ImageUtil.eraseIcon}"
+										click="LogHandler.clear();"
+										toolTip="Clear the log history" />
 				<s:Rect />
-				<s:Button id="sortButton" label="Sort"
+				<s:Button id="sortButton" label="Sort newest"
 						  height="24"
 						  icon="{ImageUtil.upIcon}"
 						  click="toggleSorting()"
@@ -307,11 +309,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								toolTip="Redraw the map"
 								click="Main.geniHandler.mapHandler.redrawFromScratch()" />
 		<components:DefaultLine height="90%" />
-		<s:Label text="Parallel Ops" />
 		<s:NumericStepper id="maxRunningStepper"
 						  value="{Main.geniHandler.requestHandler.maxRunning}"
 						  minimum="1"
 						  valueCommit="FlackCache.maxParallelRequests = maxRunningStepper.value; FlackCache.saveBasic(); Main.geniHandler.requestHandler.maxRunning = maxRunningStepper.value; Main.geniHandler.requestHandler.tryNext();" />
+		<s:Label text="Parallel requests" />
 		<components:DefaultLine height="90%" />
 		<s:DropDownList id="requestList" labelField="name" requireSelection="true" height="24" width="150">
 			<s:ArrayCollection>

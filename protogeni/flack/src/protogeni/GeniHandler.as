@@ -119,11 +119,6 @@ package protogeni
 					if(Util.findInAny(searchFrom, new Array(pn.id, pn.name), matchAll))
 						results.push(DisplayUtil.getPhysicalNodeButton(pn));
 				}
-				for each(var pl:PhysicalLink in manager.AllLinks)
-				{
-					//if(pl.urn == s)
-					//	results.push(DisplayUtil.getLinkButton((pn));
-				}
 			}
 			
 			for each(var slice:Slice in this.CurrentUser.slices)

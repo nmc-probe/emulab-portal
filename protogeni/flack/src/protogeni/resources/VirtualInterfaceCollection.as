@@ -64,7 +64,7 @@ package protogeni.resources
 			return mySlivers;
 		}
 		
-		public function Links():Vector.<VirtualLink> {
+		public function get Links():Vector.<VirtualLink> {
 			var ac:Vector.<VirtualLink> = new Vector.<VirtualLink>();
 			for each(var ni:VirtualInterface in this.collection) {
 				for each(var l:VirtualLink in ni.virtualLinks.collection) {
@@ -75,7 +75,7 @@ package protogeni.resources
 			return ac;
 		}
 		
-		public function Nodes():Vector.<VirtualNode> {
+		public function get Nodes():Vector.<VirtualNode> {
 			var ac:Vector.<VirtualNode> = new Vector.<VirtualNode>();
 			for each(var ni:VirtualInterface in this.collection) {
 				if(ac.indexOf(ni.owner) == -1)

@@ -59,9 +59,9 @@ VirtualNode for use on the slice canvas
 			public var canvas:SliceCanvas;
 			
 			[Bindable]
-			private var borderColor:uint = 0x2F4F4F;
+			private var borderColor:uint = ColorUtil.unknownLight;
 			[Bindable]
-			private var backgroundColor:uint = 0xEAEAEA;
+			private var backgroundColor:uint = ColorUtil.unknownDark;
 			[Bindable]
 			private var labelColor:uint;
 			[Bindable]
@@ -75,29 +75,29 @@ VirtualNode for use on the slice canvas
 				this.toolTip = "";
 				switch(node.status) {
 					case VirtualComponent.STATUS_READY:
-						this.backgroundColor = 0x33FF33;
-						this.borderColor = 0x006600;
+						this.backgroundColor = ColorUtil.validLight;
+						this.borderColor = ColorUtil.validDark;
 						this.toolTip = node.state;
 						break;
 					case VirtualComponent.STATUS_FAILED:
-						this.backgroundColor = 0xF08080;
-						this.borderColor = 0x990000;
+						this.backgroundColor = ColorUtil.invalidLight;
+						this.borderColor = ColorUtil.invalidDark;
 						this.toolTip = "Error: " + node.error;
 						break;
 					case VirtualComponent.STATUS_CHANGING:
-						this.backgroundColor = 0xFFCC00;
-						this.borderColor = 0xCC6600;
+						this.backgroundColor = ColorUtil.changingLight;
+						this.borderColor = ColorUtil.changingDark;
 						this.toolTip = "Status is changing...";
 						break;
 					case VirtualComponent.STATUS_NOTREADY:
-						this.backgroundColor = 0xFFCC00;
-						this.borderColor = 0xCC6600;
+						this.backgroundColor = ColorUtil.changingLight;
+						this.borderColor = ColorUtil.changingDark;
 						this.toolTip = "Node is not ready";
 						break;
 					case VirtualComponent.STATUS_UNKNOWN:
 					default:
-						this.backgroundColor = 0xEAEAEA;
-						this.borderColor = 0x2F4F4F;
+						this.backgroundColor = ColorUtil.unknownLight;
+						this.borderColor = ColorUtil.unknownDark;
 						if(node.state == null || node.status == null ||
 							(node.state.length == 0 && node.status.length == 0))
 						{
@@ -117,8 +117,8 @@ VirtualNode for use on the slice canvas
 			public function clearStatus():void
 			{
 				this.toolTip = "";
-				this.backgroundColor = 0xEAEAEA;
-				this.borderColor = 0x2F4F4F;
+				this.backgroundColor = ColorUtil.unknownLight;
+				this.borderColor = ColorUtil.unknownDark;
 				
 				adjustWidth();
 			}

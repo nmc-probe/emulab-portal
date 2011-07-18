@@ -49,17 +49,19 @@ package protogeni.tools.instools
 			sliver.message = "Waiting to poll INSTOOLS status";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
-			// Build up the args
-			op.addField("urn", sliver.slice.urn.full);
-			op.addField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.Urn.full.toString()]);
-			op.addField("credentials", new Array(sliver.slice.credential));
 			op.setUrl(sliver.manager.Url);
 		}
 		
 		override public function start():Operation {
+			// Make sure we're working on the most recent sliver
 			sliver = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full).slivers.getByManager(sliver.manager);
-			sliver.message = "Polling INSTOOLS status";
+			if(this.op.delaySeconds == 0)
+				sliver.message = "Polling INSTOOLS status";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			
+			op.addField("urn", sliver.slice.urn.full);
+			op.addField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.Urn.full.toString()]);
+			op.addField("credentials", new Array(sliver.slice.credential));
 			
 			return op;
 		}
@@ -69,7 +71,7 @@ package protogeni.tools.instools
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				// Try again if we need
-				var req:RequestPollInstoolsStatus = new RequestPollInstoolsStatus(sliver);
+				var req:RequestPollInstoolsStatus = this;
 				req.op.delaySeconds = 30;
 				
 				Instools.instools_status[sliver.manager.Urn.full] = String(response.value.status);
@@ -78,7 +80,7 @@ package protogeni.tools.instools
 					case "INSTRUMENTIZE_COMPLETE":		//instrumentize is finished, experiment is ready, etc.
 						Instools.portal_url[sliver.manager.Urn.full] = String(response.value.portal_url);
 						sliver.changing = false;
-						sliver.message = "Instrumentizing complete";
+						sliver.message = "Instrumentizing complete!";
 						return null;
 					case "INSTALLATION_COMPLETE":		//MC has finished the startup scripts
 						if (Instools.started_instrumentize[sliver.manager.Urn.full] != "1")
@@ -86,7 +88,7 @@ package protogeni.tools.instools
 							var req1:RequestInstrumentize = new RequestInstrumentize(sliver);
 							Main.geniHandler.requestHandler.pushRequest(req1);
 							Instools.started_instrumentize[sliver.manager.Urn.full] = "1";
-							sliver.message = "Instrumentizing installed";
+							sliver.message = "Instrumentizing installed...";
 						}
 						break;
 					case "MC_NOT_STARTED":				//MC has been added, but not started
@@ -94,11 +96,15 @@ package protogeni.tools.instools
 						{
 							Main.geniHandler.requestHandler.pushRequest(new RequestSliverStart(sliver));
 							Instools.started_MC[sliver.manager.Urn.full] = "1";
-							sliver.message = "MC not started";
+							sliver.message = "MC not started...";
 						}
 						break;
 					case "INSTRUMENTIZE_IN_PROGRESS":	//the instools server has started instrumentizing the nodes
+						sliver.message = "Instrumentize in progress...";
+						break;
 					case "INSTALLATION_IN_PROGRESS":	//MC is running it's startup scripts
+						sliver.message = "Instrumentize installing...";
+						break;
 					case "MC_NOT_PRESENT":				//The addMC/updatesliver calls haven't finished 
 					case "MC_UNSUPPORTED_OS":
 						break;
