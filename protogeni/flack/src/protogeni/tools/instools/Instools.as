@@ -64,6 +64,15 @@ package protogeni.tools.instools
 			}
 		}
 		
+		public static function hasAnyPortal(slice:Slice):Boolean {
+			for each(var sliver:Sliver in slice.slivers.collection) {
+				if(portal_url[sliver.manager.Urn.full] != null
+					&& portal_url[sliver.manager.Urn.full].length > 0)
+					return true;
+			}
+			return false;
+		}
+		
 		/**
 		 * Opens a browser to the instools portal site
 		 * 

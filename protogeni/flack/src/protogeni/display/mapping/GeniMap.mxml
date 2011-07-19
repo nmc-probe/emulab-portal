@@ -37,9 +37,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.google.maps.MapType;
 			import com.google.maps.MapZoomEvent;
 			import com.google.maps.PaneId;
+			import com.google.maps.StyledMapType;
+			import com.google.maps.StyledMapTypeOptions;
 			import com.google.maps.controls.NavigationControl;
 			import com.google.maps.interfaces.IPane;
 			import com.google.maps.interfaces.IPaneManager;
+			import com.google.maps.styles.MapTypeStyle;
+			import com.google.maps.styles.MapTypeStyleElementType;
+			import com.google.maps.styles.MapTypeStyleFeatureType;
+			import com.google.maps.styles.MapTypeStyleRule;
 			
 			import mx.controls.Alert;
 			import mx.core.FlexGlobals;
@@ -50,10 +56,24 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public var linkPane:IPane;
 			
 			private function onMapPreinitialize(event:Event):void {
+				var myStyles:Array = [
+					new MapTypeStyle(MapTypeStyleFeatureType.POI,
+						MapTypeStyleElementType.ALL,
+						[MapTypeStyleRule.visibility("off")]),
+					new MapTypeStyle(MapTypeStyleFeatureType.ROAD,
+						MapTypeStyleElementType.ALL,
+						[MapTypeStyleRule.lightness(60)])
+				];
+				
+				var myStyledMapOptions:StyledMapTypeOptions = new StyledMapTypeOptions({name: 'Flack', alt: 'Flack'});
+				var myStyleType:StyledMapType = new StyledMapType(myStyles, myStyledMapOptions);
+				
 				var myMapOptions:MapOptions = new MapOptions();
 				myMapOptions.zoom = 4;
 				myMapOptions.center = new LatLng(38,-97);
-				myMapOptions.mapType = MapType.PHYSICAL_MAP_TYPE;
+				myMapOptions.mapTypes = [myStyleType];
+				myMapOptions.mapType = myStyleType;
+				//myMapOptions.mapType = MapType.PHYSICAL_MAP_TYPE;
 				setInitOptions(myMapOptions);
 			}
 			

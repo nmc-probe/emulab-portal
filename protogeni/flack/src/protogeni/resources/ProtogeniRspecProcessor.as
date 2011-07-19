@@ -630,6 +630,8 @@ package protogeni.resources
 										virtualNode.diskImage = String(sliverTypeChild.@name);
 									else if(sliverTypeChild.localName() == "sliver_type_shaping")
 										sliverTypeShapingXml = sliverTypeChild;
+									else if(sliverTypeChild.localName() == "initscript" && virtualNode.manager is PlanetlabAggregateManager)
+										virtualNode.usesPlanetlabInitscript = true;
 								}
 								break;
 							case "services":
@@ -970,6 +972,11 @@ package protogeni.resources
 					var sliverDiskImageXml:XML = <disk_image />;
 					sliverDiskImageXml.@name = vn.diskImage;
 					sliverType.appendChild(sliverDiskImageXml);
+				}
+				if(vn.usesPlanetlabInitscript) {
+					var planetlabInitscriptXml:XML = <initscript name="emulab" />;
+					planetlabInitscriptXml.setNamespace(XmlUtil.planetlabNamespace);
+					sliverType.appendChild(planetlabInitscriptXml);
 				}
 				nodeXml.appendChild(sliverType);
 			}

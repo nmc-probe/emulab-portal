@@ -84,8 +84,7 @@ package protogeni.tools.instools
 		
 		public function failed(msg:String = ""):void {
 			sliver.changing = false;
-			sliver.message = "Get INSTOOLS version failed";
-			Alert.show("Failed to get INSTOOLS version on " + sliver.manager.Hrn + ". " + msg, "Problem getting INSTOOLS version");
+			sliver.message = "INSTOOLS not available";
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {

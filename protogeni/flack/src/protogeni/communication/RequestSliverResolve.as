@@ -94,7 +94,7 @@ package protogeni.communication
 		}
 		
 		override public function getResponse():String {
-			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********" + op.getResponse();
+			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********\n\n" + op.getResponse();
 		}
 	}
 }

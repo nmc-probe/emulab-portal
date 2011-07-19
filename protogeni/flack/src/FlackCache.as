@@ -19,6 +19,7 @@ package
 	import flash.events.NetStatusEvent;
 	import flash.net.SharedObject;
 	import flash.net.SharedObjectFlushStatus;
+	import flash.system.Capabilities;
 	import flash.utils.ByteArray;
 	
 	import mx.controls.Alert;
@@ -71,7 +72,7 @@ package
 		public static var userSslPem:String = "";
 		[Bindable]
 		public static var userPassword:String = "";
-		public static var maxParallelRequests:int = 3;
+		public static var maxParallelRequests:int;
 		public static var geniBundle:String = "";
 		public static var rootBundle:String = "";
 		
@@ -80,6 +81,11 @@ package
 			Main.geniDispatcher.addEventListener(GeniEvent.USER_CHANGED, updateUser);
 			Main.geniDispatcher.addEventListener(GeniEvent.SLICE_CHANGED, updateSlice);
 			Main.geniDispatcher.addEventListener(GeniEvent.SLICES_CHANGED, updateSlices);
+			
+			if(Capabilities.cpuArchitecture == "ARM")
+				maxParallelRequests = 1;
+			else
+				maxParallelRequests = 6;
 		}
 		
 		public function updateManager(event:GeniEvent):void {

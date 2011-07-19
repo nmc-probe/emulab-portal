@@ -268,16 +268,6 @@ package protogeni.resources
 			return links;
 		}
 		
-		public function get StatusFinalized():Boolean {
-			for each(var s:Sliver in this.collection)
-			{
-				if(!s.StatusFinalized)
-					return false;
-				
-			}
-			return true;
-		}
-		
 		public function get Combined():Sliver
 		{
 			if(this.collection.length == 0)
@@ -328,6 +318,25 @@ package protogeni.resources
 					status = Sliver.STATUS_MIXED;
 			}
 			return status;
+		}
+		
+		/**
+		 * Method to find out if the slivers are all finished through getting status
+		 * 
+		 * @return TRUE if there are slivers and if all of their status is finalized
+		 * 
+		 */
+		public function get StatusFinalized():Boolean {
+			if(this.collection.length == 0)
+				return false;
+			
+			for each(var s:Sliver in this.collection)
+			{
+				if(!s.StatusFinalized)
+					return false;
+				
+			}
+			return true;
 		}
 		
 		public function get Changing():Boolean {

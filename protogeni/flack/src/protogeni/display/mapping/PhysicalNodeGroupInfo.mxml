@@ -17,14 +17,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 -->
 
-<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
-		  xmlns:s="library://ns.adobe.com/flex/spark" 
-		  xmlns:mx="library://ns.adobe.com/flex/mx"
-		  xmlns:display="protogeni.display.*"
-		  xmlns:components="protogeni.display.components.*"
-		  width="150" height="130"
-		  horizontalAlign="center" gap="2" paddingLeft="0"
-		  mouseWheel="event.stopPropagation()">
+<mx:VBox xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 xmlns:components="protogeni.display.components.*"
+		 width="150" height="150"
+		 horizontalAlign="center"
+		 mouseWheel="event.stopPropagation()" >
+	
 	<fx:Script>
 		<![CDATA[
 			import com.google.maps.LatLng;
@@ -60,7 +60,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				else
 					linksInternal = "0";
 				linksExternal = g.ExternalLinks().toString();
-
+				
 				if(group.original.city.length == 0)
 				{
 					var geocoder:ClientGeocoder = new ClientGeocoder();
@@ -90,7 +90,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						function(event:GeocodingEvent):void {
 							//main.console.appendText("Geocoding failed!\n");
 						});
-
+					
 					geocoder.reverseGeocode(new LatLng(group.latitude, group.longitude));
 				}
 			}	
@@ -100,17 +100,17 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	<s:Label text="{group.original.city}"
 			 toolTip="{group.original.city}"
 			 id="txtLabel"
-			 maxDisplayedLines="1" />
-	<components:DefaultLine width="140" />
+			 maxDisplayedLines="1" maxWidth="{this.width-24}" />
+	<mx:HRule width="90%" />
 	<s:Label text="Nodes" fontWeight="bold"/>
-	<s:HGroup width="140" horizontalAlign="center">
+	<s:HGroup width="100%" horizontalAlign="center">
 		<s:Label text="{nodesAvailable}" id="txtNodesAvailable" />
 		<s:Label text="/"/>
 		<s:Label text="{nodesCount}" id="txtNodesCount"/>
 		<s:Label text="Available" fontStyle="italic"/>
 	</s:HGroup>
 	<s:Label text="Links" fontWeight="bold" />
-	<s:HGroup width="140">
+	<s:HGroup width="100%">
 		<s:VGroup width="50%" horizontalAlign="center">
 			<s:Label text="Internal" fontStyle="italic"/>
 			<s:Label text="{linksInternal}" id="txtLinksInternal"/>
@@ -120,6 +120,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			<s:Label text="{linksExternal}" id="txtLinksExternal"/>
 		</s:VGroup>
 	</s:HGroup>
-	<s:Button label="More Info" height="24" id="moreInfoButton" width="130"
+	<s:Button label="More Info" height="24" id="moreInfoButton" width="90%"
 			  click="if(group.collection.length > 1) DisplayUtil.viewNodeGroup(group); else DisplayUtil.viewPhysicalNode(group.collection[0]);"/>
-</s:VGroup>
+</mx:VBox>

@@ -85,12 +85,13 @@ package protogeni.communication
 					}
 				}
 				sliver.changing = !sliver.StatusFinalized;
-				sliver.message = StringUtil.firstToUpper(sliver.status) + "!";
+				sliver.message = StringUtil.firstToUpper(sliver.status);
 				if(sliver.changing) {
 					sliver.message = "Status is " + sliver.message + "...";
 					request = this;
 					request.op.delaySeconds = Math.min(60, this.op.delaySeconds + 15);
-				}
+				} else
+					sliver.message += "!";
 				
 				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)

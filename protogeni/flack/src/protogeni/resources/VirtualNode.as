@@ -66,6 +66,8 @@ package protogeni.resources
 		
 		public var manager:GeniManager;
 		
+		public var usesPlanetlabInitscript:Boolean = false;
+		
 		// Depreciated
 		public var virtualizationType:String = "emulab-vnode";
 		public var virtualizationSubtype:String = "emulab-openvz";

@@ -144,11 +144,11 @@ package protogeni.communication
 		}
 		
 		override public function getSent():String {
-			return "******** REQUEST RSPEC ********\n\n" + request + "\n\n******** XML-RPC ********" + op.getSent();
+			return "******** REQUEST RSPEC ********\n\n" + request + "\n\n******** XML-RPC ********\n\n" + op.getSent();
 		}
 		
 		override public function getResponse():String {
-			return "******** TICKET ********\n\n" + ticket + "\n\n******** XML-RPC ********" + op.getResponse();
+			return "******** TICKET ********\n\n" + ticket + "\n\n******** XML-RPC ********\n\n" + op.getResponse();
 		}
 	}
 }

@@ -74,13 +74,14 @@ package
 		
 		public function toString():String
 		{
-			return "-MSG-" + Main.version + "---------------\n" +
+			return "-MSG----------------------------\n" +
+				"Flack Version: " + Main.version + "\n" +
 				"Name: " + name + "\n" +
 				"Group ID: " + groupId + "\n" +
 				"Time: " + DateUtil.toRFC3339(timeStamp) + "\n" +
-				"Is Error?: " + isError + "\n" +
+				(isError ? "Error!!!\n" : "") +
 				"Details:\n" + details +
-				"\n-----------------END-";
+				"\n--------------------------------END-";
 		}
 	}
 }

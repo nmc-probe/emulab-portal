@@ -39,7 +39,7 @@ package protogeni.communication
 		{
 			super("Renew sliver @ " + newSliver.manager.Hrn,
 				"Renewing the sliver on aggregate manager " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.Name,
-				CommunicationUtil.sliverStatusAm,
+				CommunicationUtil.renewSliverAm,
 				true,
 				true);
 			ignoreReturnCode = true;
@@ -64,9 +64,11 @@ package protogeni.communication
 		
 		override public function complete(code:Number, response:Object):*
 		{
-			// did it work???
-			
-			sliver.message = "Renewed";
+			if(response == true) {
+				sliver.expires = expirationDate;
+				sliver.message = "Renewed";
+			} else
+				sliver.message = "Renew failed!";
 			return null;
 		}
 		
