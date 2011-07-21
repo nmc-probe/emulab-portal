@@ -83,7 +83,7 @@ package protogeni.resources
 					LogHandler.appendMessage(new LogMessage(this.manager.Url,
 															"Unsupported RSPEC",
 															msg,
-															true,
+															LogMessage.ERROR_FAIL,
 															LogMessage.TYPE_END));
 					// FIXME: probably needs to error in a different way...
 					this.manager.Status = GeniManager.STATUS_FAILED;

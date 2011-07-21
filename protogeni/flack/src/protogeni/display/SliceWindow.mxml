@@ -781,7 +781,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					try {
 						getRspec.load(getRspecRequest);
 					} catch(e:Error) {
-						Alert.show("Problem loading the URL\n\n" + e.toString());
+						Alert.show("Problem loading the RSPEC, check the URL and try again");
 					}
 				}
 			}
@@ -795,7 +795,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public function importError(e:*):void {
 				this.spinner.visible = false;
 				this.spinner.stopSpin();
-				Alert.show("Problem downloading the RSPEC\n\n" + e.toString());
+				Alert.show("Problem loading the RSPEC, check the URL and try again");
 			}
 			
 			public function tryToRegetSlice():void {

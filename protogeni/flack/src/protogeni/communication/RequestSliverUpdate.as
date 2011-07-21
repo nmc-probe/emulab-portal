@@ -78,7 +78,7 @@ package protogeni.communication
 			{
 				ticket = String(response.value);
 				sliver.ticket = ticket;
-				sliver.message = "Updated ticket recieved";
+				sliver.message = "Updated ticket received";
 				var redeemTicket:RequestTicketRedeem = new RequestTicketRedeem(sliver);
 				redeemTicket.addAfter = this.addAfter;
 				this.addAfter = null;

@@ -35,7 +35,9 @@ package protogeni.communication
 		{
 			super("Start sliver @ " + sliverToStart.manager.Hrn,
 				"Starting sliver on " + sliverToStart.manager.Hrn + " for slice named " + sliverToStart.slice.Name,
-				CommunicationUtil.startSliver);
+				CommunicationUtil.startSliver,
+				true,
+				true);
 			sliver = sliverToStart;
 			sliver.changing = true;
 			sliver.message = "Starting";

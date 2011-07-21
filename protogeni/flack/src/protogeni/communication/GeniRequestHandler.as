@@ -495,7 +495,7 @@ package protogeni.communication
 					LogHandler.appendMessage(new LogMessage(op.getUrl(),
 						start.name,
 						delayNotice + start.getSent(),
-						false,
+						LogMessage.ERROR_NONE,
 						LogMessage.TYPE_START));
 					
 					Main.geniDispatcher.dispatchQueueChanged();
@@ -558,7 +558,7 @@ package protogeni.communication
 				LogHandler.appendMessage(new LogMessage(url,
 														name + " removed",
 														"Request removed",
-														false,
+														LogMessage.ERROR_NONE,
 														LogMessage.TYPE_OTHER));
 				if(!queue.working())
 					tryNext();
@@ -590,7 +590,7 @@ package protogeni.communication
 				LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 					request.name + " timeout",
 					"Preparing to retry in " + request.op.delaySeconds  + " seconds",
-					true,
+					LogMessage.ERROR_WARNING,
 					LogMessage.TYPE_END ));
 			// Server not currently working
 			} else if(fault != null && fault.getFaultCode() == CommunicationUtil.XMLRPC_CURRENTLYNOTAVAILABLE){
@@ -601,7 +601,7 @@ package protogeni.communication
 				LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 					"Server currently not available",
 					"Preparing to retry in " + request.op.delaySeconds  + " seconds",
-					true,
+					LogMessage.ERROR_WARNING,
 					LogMessage.TYPE_END ));
 			// Get and give general info for the failure
 			} else {
@@ -630,7 +630,7 @@ package protogeni.communication
 				LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 					request.name,
 					failMessage,
-					true,
+					LogMessage.ERROR_FAIL,
 					LogMessage.TYPE_END));
 				Main.Application().setStatus(request.name + " failed!", true);
 				
@@ -687,15 +687,16 @@ package protogeni.communication
 				if(code == CommunicationUtil.GENIRESPONSE_BUSY) {
 					Main.Application().setStatus(request.name + " busy", true);
 					// exponential backoff using the first number as the basic unit of seconds
-					request.op.delaySeconds = Util.randomNumberBetween(10, 10 + Math.pow(2,request.numTries));
+					request.op.delaySeconds = Math.min(60, Util.randomNumberBetween(10, 10 + Math.pow(2,request.numTries)));
 					request.forceNext = true;
 					next = request;
 					LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 						request.name + " busy",
 						"Preparing to retry in " + request.op.delaySeconds  + " seconds",
-						true,
+						LogMessage.ERROR_WARNING,
 						LogMessage.TYPE_END ));
 				} else {
+					next = request.complete(code, response);
 					if(code != CommunicationUtil.GENIRESPONSE_SUCCESS && !request.ignoreReturnCode)
 					{
 						Main.Application().setStatus(request.name + " done", true);
@@ -704,16 +705,17 @@ package protogeni.communication
 							"------------------------\nResponse:\n" +
 							request.getResponse() +
 							"\n\n------------------------\nRequest:\n" + request.getSent(),
-							true, LogMessage.TYPE_END));
+							LogMessage.ERROR_FAIL,
+							LogMessage.TYPE_END));
 					} else {
 						Main.Application().setStatus(request.name + " done", false);
 						LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 																request.name,
 																request.getResponse(),
-																false,
+																LogMessage.ERROR_NONE,
 																LogMessage.TYPE_END));
 					}
-					next = request.complete(code, response);
+					
 				}
 			}
 			catch (e:Error)
@@ -740,8 +742,22 @@ package protogeni.communication
 				queue.push(next);
 			
 			// Add post-requests
-			if(request.addAfter != null && request != next)
-				queue.push(request.addAfter);
+			if(request.addAfter != null) {
+				// Don't add the next request if we are resending
+				if(request is Request && request != next) {
+					queue.push(request.addAfter);
+				} else if(request is RequestQueueNode) {
+					var testNode:RequestQueueNode = request as RequestQueueNode;
+					var foundOld:Boolean = false;
+					while(testNode != null) {
+						if(testNode.item == request)
+							foundOld = true;
+					}
+					if(!foundOld)
+						queue.push(request.addAfter);
+				}
+			}
+				
 			
 			tryNext();
 		}
@@ -803,13 +819,13 @@ package protogeni.communication
 			if(e != null)
 				LogHandler.appendMessage(new LogMessage("",
 														"Code Failure: " + name,detail + "\n\n" + e.toString() + "\n\n" + e.getStackTrace(),
-														true,
+														LogMessage.ERROR_FAIL,
 														LogMessage.TYPE_END));
 			else
 				LogHandler.appendMessage(new LogMessage("",
 														"Code Failure: " + name,
 														detail,
-														true,
+														LogMessage.ERROR_FAIL,
 														LogMessage.TYPE_END));
 			
 		}

@@ -54,9 +54,9 @@ package protogeni
 			navigateToURL(new URLRequest(url), "_blank");
 		}
 		
-		public static function openMail(recieverEmail:String, subject:String, body:String):void
+		public static function openMail(receiverEmail:String, subject:String, body:String):void
 		{
-			var mailRequest:URLRequest = new URLRequest("mailto:" + recieverEmail);
+			var mailRequest:URLRequest = new URLRequest("mailto:" + receiverEmail);
 			var mailVariables:URLVariables = new URLVariables();
 			mailVariables.subject = subject;
 			mailVariables.body = body;
@@ -118,7 +118,7 @@ package protogeni
 				LogHandler.appendMessage(new LogMessage(crossdomainUrl,
 														"Loading CrossDomain",
 														"Attempting to load a crossdomain.xml file so that calls may be made with the server located there.",
-														false,
+														LogMessage.ERROR_NONE,
 														LogMessage.TYPE_OTHER));
 				Security.loadPolicyFile(crossdomainUrl);
 			}

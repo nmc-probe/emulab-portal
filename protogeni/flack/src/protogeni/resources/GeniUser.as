@@ -83,7 +83,11 @@ package protogeni.resources
 						JSLoader.setClientInfo(password, FlackCache.userSslPem);
 						hasSetupJavascript = true;
 					} catch ( e:Error) {
-						LogHandler.appendMessage(new LogMessage("JS", "JS User Cert", e.toString(), true, LogMessage.TYPE_END));
+						LogHandler.appendMessage(new LogMessage("JS",
+							"JS User Cert",
+							e.toString(),
+							LogMessage.ERROR_FAIL,
+							LogMessage.TYPE_END));
 						return false;
 					}
 				} else

@@ -71,7 +71,7 @@ package protogeni.communication
 			}
 			else
 			{
-				//Main.geniHandler.requestHandler.codeFailure(name, "Recieved GENI response other than success");
+				//Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
 			}
 			
 			return newCalls.head;

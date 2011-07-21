@@ -65,7 +65,7 @@ package protogeni.communication
 				if(!sliver.slice.slivers.contains(sliver))
 					sliver.slice.slivers.add(sliver);
 				
-				sliver.message = "Manifest recieved";
+				sliver.message = "Manifest received";
 				return new RequestSliverStatus(sliver);
 			} else
 				failed(response.output);

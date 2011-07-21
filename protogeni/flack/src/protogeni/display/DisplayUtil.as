@@ -86,7 +86,7 @@ package protogeni.display
 		
 		public static function getLogMessageButton(msg:LogMessage):Button {
 			var img:Class;
-			if(msg.isError)
+			if(msg.errorType != LogMessage.ERROR_NONE)
 				img = ImageUtil.errorIcon;
 			else if(msg.type == LogMessage.TYPE_START)
 				img = ImageUtil.rightIcon;
@@ -100,8 +100,10 @@ package protogeni.display
 				img,
 				msg);
 			
-			if(msg.isError)
+			if(msg.errorType == LogMessage.ERROR_FAIL)
 				logButton.styleName = "failedStyle";
+			else if(msg.errorType == LogMessage.ERROR_WARNING)
+				logButton.styleName = "inprogressStyle";
 			
 			return logButton;
 		}

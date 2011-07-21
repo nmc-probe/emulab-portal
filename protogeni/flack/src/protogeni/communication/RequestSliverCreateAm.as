@@ -113,7 +113,7 @@ package protogeni.communication
 				LogHandler.appendMessage(new LogMessage(sliver.manager.Url,
 					"SliverCreateAM",
 					"Error parsing RSPEC\n\n" + e.toString(),
-					true,
+					LogMessage.ERROR_FAIL,
 					LogMessage.TYPE_END));
 				failed();
 			}

@@ -94,7 +94,6 @@ package protogeni.communication
 				var startSliver:RequestSliverStart = new RequestSliverStart(sliver);
 				startSliver.addAfter = this.addAfter;
 				this.addAfter = null;
-				startSliver.forceNext = true;
 				return startSliver;
 			}
 			else

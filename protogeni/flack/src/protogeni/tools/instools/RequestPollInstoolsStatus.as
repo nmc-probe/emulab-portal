@@ -24,6 +24,8 @@ package protogeni.tools.instools
 	import protogeni.communication.CommunicationUtil;
 	import protogeni.communication.Operation;
 	import protogeni.communication.Request;
+	import protogeni.communication.RequestQueue;
+	import protogeni.communication.RequestQueueNode;
 	import protogeni.communication.RequestSliverStart;
 	import protogeni.resources.Sliver;
 	import protogeni.resources.VirtualNode;
@@ -73,8 +75,9 @@ package protogeni.tools.instools
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				// Try again if we need
-				var req:RequestPollInstoolsStatus = this;
-				req.op.delaySeconds = 30;
+				var req:Request = null;
+				var reqQueue:RequestQueue = new RequestQueue();
+				this.op.delaySeconds = 30;
 				
 				Instools.instools_status[sliver.manager.Urn.full] = String(response.value.status);
 				var status:String = String(response.value.status);
@@ -84,12 +87,14 @@ package protogeni.tools.instools
 						sliver.changing = false;
 						sliver.status = Sliver.STATUS_READY;
 						sliver.message = "Instrumentizing complete!";
-						return null;
+						break;
 					case "INSTALLATION_COMPLETE":		//MC has finished the startup scripts
 						if (Instools.started_instrumentize[sliver.manager.Urn.full] != "1")
 						{
-							var req1:RequestInstrumentize = new RequestInstrumentize(sliver);
-							Main.geniHandler.requestHandler.pushRequest(req1);
+							req = new RequestInstrumentize(sliver);
+							req.forceNext = true;
+							reqQueue.push(req);
+							reqQueue.push(this);
 							Instools.started_instrumentize[sliver.manager.Urn.full] = "1";
 							sliver.message = "Instrumentizing installed...";
 							sliver.status = Sliver.STATUS_CHANGING;
@@ -98,7 +103,10 @@ package protogeni.tools.instools
 					case "MC_NOT_STARTED":				//MC has been added, but not started
 						if (Instools.started_MC[sliver.manager.Urn.full] != "1")
 						{
-							Main.geniHandler.requestHandler.pushRequest(new RequestSliverStart(sliver));
+							req = new RequestSliverStart(sliver);
+							req.forceNext = true;
+							reqQueue.push(req);
+							reqQueue.push(this);
 							Instools.started_MC[sliver.manager.Urn.full] = "1";
 							sliver.message = "MC not started...";
 							sliver.status = Sliver.STATUS_CHANGING;
@@ -107,28 +115,33 @@ package protogeni.tools.instools
 					case "INSTRUMENTIZE_IN_PROGRESS":	//the instools server has started instrumentizing the nodes
 						sliver.message = "Instrumentize in progress...";
 						sliver.status = Sliver.STATUS_CHANGING;
+						reqQueue.push(this);
 						break;
 					case "INSTALLATION_IN_PROGRESS":	//MC is running it's startup scripts
 						sliver.message = "Instrumentize installing...";
 						sliver.status = Sliver.STATUS_CHANGING;
+						reqQueue.push(this);
 						break;
 					case "MC_NOT_PRESENT":				//The addMC/updatesliver calls haven't finished 
 						sliver.message = "MC Node not added yet...";
 						sliver.status = Sliver.STATUS_CHANGING;
+						reqQueue.push(this);
 						break;
 					case "MC_UNSUPPORTED_OS":
 						sliver.message = "Unsupported OS!";
+						sliver.changing = false;
 						sliver.status = Sliver.STATUS_FAILED;
 						Alert.show("Unrecognized INSTOOLS status: " + status);
 						break;
 					default:
 						sliver.status = Sliver.STATUS_FAILED;
+						sliver.changing = false;
 						sliver.message = status + "!";
 						Alert.show("Unrecognized INSTOOLS status: " + status);
 						break;
 				}
 				
-				return req;
+				return reqQueue.head;
 			} else
 				failed(response.output);
 			

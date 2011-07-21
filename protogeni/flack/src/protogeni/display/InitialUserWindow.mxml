@@ -175,7 +175,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				{
 					spinner.visible = true;
 					spinner.startSpin();
-					LogHandler.appendMessage(new LogMessage(url, "Getting SSL Cert", "Attempting to load user SSL certificate", false, LogMessage.TYPE_START));
+					LogHandler.appendMessage(new LogMessage(url,
+						"Getting SSL Cert",
+						"Attempting to load user SSL certificate",
+						LogMessage.ERROR_NONE,
+						LogMessage.TYPE_START));
 					certSuccess = false;
 					asked = false;
 					certLoader.load(request);
@@ -185,7 +189,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					spinner.visible = false;
 					spinner.stopSpin();
 					LogHandler.appendMessage(new LogMessage(url, "Error", "\n\nException on HTTP Call: "
-						+ e.toString() + "\n\n", true));
+						+ e.toString() + "\n\n",
+						LogMessage.ERROR_FAIL));
 					checkCloseAfter();
 				}
 			}
@@ -194,10 +199,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(certLoader.data != null && (certLoader.data as String).indexOf("-----BEGIN RSA PRIVATE KEY-----") != -1) {
 					certSuccess = true;
 					sslPem.text = certLoader.data;
-					LogHandler.appendMessage(new LogMessage(certUrl, "Got SSL Cert", certLoader.data, false, LogMessage.TYPE_END));
+					LogHandler.appendMessage(new LogMessage(certUrl,
+						"Got SSL Cert", certLoader.data, LogMessage.ERROR_NONE, LogMessage.TYPE_END));
 					checkCloseAfter();
 				} else {
-					LogHandler.appendMessage(new LogMessage(certUrl, "Error", event.toString(), true, LogMessage.TYPE_END));
+					LogHandler.appendMessage(new LogMessage(certUrl,
+						"Error", event.toString(), LogMessage.ERROR_FAIL, LogMessage.TYPE_END));
 					askToLogin();
 				}
 				spinner.visible = false;
@@ -221,19 +228,22 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			private function securityErrorHandler(event:SecurityErrorEvent):void {
-				LogHandler.appendMessage(new LogMessage(certUrl, "Security Error", event.toString(), true, LogMessage.TYPE_END));
+				LogHandler.appendMessage(new LogMessage(certUrl,
+					"Security Error", event.toString(), LogMessage.ERROR_FAIL, LogMessage.TYPE_END));
 				askToLogin();
 			}
 			
 			private function ioErrorHandler(event:IOErrorEvent):void {
-				LogHandler.appendMessage(new LogMessage(certUrl, "IO Error", event.toString(), true, LogMessage.TYPE_END));
+				LogHandler.appendMessage(new LogMessage(certUrl,
+					"IO Error", event.toString(), LogMessage.ERROR_FAIL, LogMessage.TYPE_END));
 				askToLogin();
 			}
 			
 			private function httpStatusHandler(event:HTTPStatusEvent):void{
 				if(event.status != 200) {
-					LogHandler.appendMessage(new LogMessage(certUrl, "HTTP Status", "HTTP Status returned: "
-						+ event.status, true, LogMessage.TYPE_END));
+					LogHandler.appendMessage(new LogMessage(certUrl,
+						"HTTP Status", "HTTP Status returned: "
+						+ event.status, LogMessage.ERROR_FAIL, LogMessage.TYPE_END));
 					askToLogin();
 				}
 			}
@@ -319,7 +329,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					this.tryLoadCert(NetUtil.tryGetBaseUrl(selectedAuthority.Url) + certLocation);
 			}
 			
-			private function test():void {
+			private function tryParseCert():void {
 				try {
 					var certArray:ByteArray = PEM.readCertIntoArray(this.sslPem.text);
 					var cert:Asn1Field = DER.Parse(certArray);
@@ -327,12 +337,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					var urnString:String = subjAlt.getValue();
 					if(IdnUrn.isIdnUrn(urnString))
 						setUserUrn(urnString);
-				} catch(e:Error) { this.detectedUrnLabel.text = ""; }
+				} catch(e:Error) { this.detectedUrnLabel.text = "Please enter your pass phrase below."; }
 			}
 			
 			private function setUserUrn(urnString:String):void {
 				Main.geniHandler.CurrentUser.urn = new IdnUrn(urnString);
-				this.detectedUrnLabel.text = "Hello, " + Main.geniHandler.CurrentUser.urn.name + " from " + Main.geniHandler.CurrentUser.urn.authority;
+				this.detectedUrnLabel.text = "Hello, " + Main.geniHandler.CurrentUser.urn.name + " from " + Main.geniHandler.CurrentUser.urn.authority + ". Please enter your pass phrase below.";
 				setUserAuthority();
 			}
 			
@@ -358,8 +368,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		]]>
 	</fx:Script>
 
+	<s:Label text="Your private key and certificate need to be entered below." />
 	<s:HGroup width="100%" verticalAlign="middle">
-		<s:Label text="SSL Certificate" />
 		<components:ImageButton icon="{ImageUtil.saveIcon}"
 								toolTip="Save to file"
 								click="saving = true; fr.save(sslPem.text, 'encrypted.pem')" />
@@ -387,9 +397,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						dataProvider="{Main.geniHandler.GeniAuthorities}"
 						selectedItem="@{selectedAuthority}" />
 	</s:HGroup>
-			
-	<s:TextArea id="sslPem" prompt="Copy your private key and certificate here if you can't automatically load it"
-				width="100%" height="100%" valueCommit="test()" />
+	
+	<s:TextArea id="sslPem"
+				width="100%" height="100%"
+				valueCommit="tryParseCert()" />
 	<s:Label id="detectedUrnLabel" width="100%" />
 	<s:HGroup width="100%" verticalAlign="middle">
 		<s:Image source="{ImageUtil.passwordIcon}" />

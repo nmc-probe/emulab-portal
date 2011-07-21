@@ -28,6 +28,10 @@ package
 		public static const TYPE_START:int = 1;
 		public static const TYPE_END:int = 2;
 		
+		public static const ERROR_NONE:int = 0;
+		public static const ERROR_FAIL:int = 1;
+		public static const ERROR_WARNING:int = 2;
+		
 		/**
 		 * Identifier to group, like what CM it's associated with 
 		 */
@@ -46,7 +50,7 @@ package
 		/**
 		 * Was this an error?
 		 */
-		public var isError:Boolean;
+		public var errorType:int;
 		
 		/**
 		 * When did this event occur?
@@ -61,25 +65,30 @@ package
 		public function LogMessage(newGroupId:String = "",
 								   newName:String = "",
 								   newDetails:String = "",
-								   newIsError:Boolean = false,
+								   newIsError:int = ERROR_NONE,
 								   newType:int = 0)
 		{
 			groupId = newGroupId;
 			name = newName;
 			details = newDetails;
-			isError = newIsError;
+			errorType = newIsError;
 			timeStamp = new Date();
 			type = newType;
 		}
 		
 		public function toString():String
 		{
+			var errorString:String = "";
+			if(errorType == ERROR_FAIL)
+				errorString = "Error (fail)";
+			else if(errorType == ERROR_WARNING)
+				errorString = "Error (warning)";
 			return "-MSG----------------------------\n" +
 				"Flack Version: " + Main.version + "\n" +
 				"Name: " + name + "\n" +
 				"Group ID: " + groupId + "\n" +
 				"Time: " + DateUtil.toRFC3339(timeStamp) + "\n" +
-				(isError ? "Error!!!\n" : "") +
+				(errorType != ERROR_NONE ? errorString : "") +
 				"Details:\n" + details +
 				"\n--------------------------------END-";
 		}

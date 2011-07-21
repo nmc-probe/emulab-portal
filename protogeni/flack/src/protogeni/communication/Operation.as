@@ -190,8 +190,11 @@ package protogeni.communication
 					}
 					catch (e:Error)
 					{
-						LogHandler.appendMessage(new LogMessage(url, "Error", "\n\nException on XMLRPC Call: "
-							+ e.toString() + "\n\n", true));
+						LogHandler.appendMessage(new LogMessage(url,
+							"Error",
+							"\n\nException on XMLRPC Call: "
+							+ e.toString() + "\n\n",
+							LogMessage.ERROR_FAIL));
 					}
 					break;
 				case HTTP:
@@ -211,7 +214,8 @@ package protogeni.communication
 					catch (e:Error)
 					{
 						LogHandler.appendMessage(new LogMessage(url, "Error", "\n\nException on HTTP Call: "
-							+ e.toString() + "\n\n", true));
+							+ e.toString() + "\n\n",
+							LogMessage.ERROR_FAIL));
 					}
 					break;
 				default:

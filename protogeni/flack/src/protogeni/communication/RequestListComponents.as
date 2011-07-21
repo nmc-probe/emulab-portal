@@ -119,7 +119,11 @@ package protogeni.communication
 						}
 						Main.geniDispatcher.dispatchGeniManagerChanged(newGm);
 					} catch(e:Error) {
-						LogHandler.appendMessage(new LogMessage("", "ListComponents", "Couldn't add manager from list:\n" + obj.toString(), true, LogMessage.TYPE_END));
+						LogHandler.appendMessage(new LogMessage("",
+							"ListComponents",
+							"Couldn't add manager from list:\n" + obj.toString(),
+							LogMessage.ERROR_FAIL,
+							LogMessage.TYPE_END));
 					}
 				}
 				
@@ -134,7 +138,7 @@ package protogeni.communication
 			}
 			else
 			{
-				Main.geniHandler.requestHandler.codeFailure(name, "Recieved GENI response other than success");
+				Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
 			}
 			
 			return newCalls.head;

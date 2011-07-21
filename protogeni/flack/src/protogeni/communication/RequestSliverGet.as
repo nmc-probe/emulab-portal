@@ -75,7 +75,7 @@ package protogeni.communication
 				sliver.urn = GeniCredential.getTargetUrn(cred);
 				sliver.expires = GeniCredential.getExpires(cred);
 				
-				sliver.message = "Credential recieved";
+				sliver.message = "Credential received";
 				newCall = new RequestSliverResolve(sliver);
 			}
 			else if(code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED

@@ -79,7 +79,7 @@ package protogeni.communication
 					}
 					sliver.message = "Deleted";
 				} else if(response == false) {
-					Alert.show("Recieved false when trying to delete sliver on " + this.sliver.manager.Hrn + ".");
+					Alert.show("Received false when trying to delete sliver on " + this.sliver.manager.Hrn + ".");
 				} else
 					throw new Error();
 			}

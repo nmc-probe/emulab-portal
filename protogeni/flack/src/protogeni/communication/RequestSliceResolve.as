@@ -94,7 +94,7 @@ package protogeni.communication
 				else
 				{
 					slice.Changing = false;
-					Main.geniHandler.requestHandler.codeFailure(name, "Recieved GENI response other than success");
+					Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
 					//Main.geniHandler.mapHandler.drawAll();
 				}
 				

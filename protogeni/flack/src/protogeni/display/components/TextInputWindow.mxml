@@ -4,7 +4,7 @@
 						  xmlns:mx="library://ns.adobe.com/flex/mx"
 						  xmlns:components="protogeni.display.components.*"
 						  xmlns:display="protogeni.display.*"
-						  height="102" width="400">
+						  height="102" width="400" creationComplete="this.textInput.textInput.setFocus();">
 	<components:layout>
 		<s:VerticalLayout paddingLeft="2"
 						  paddingTop="2"
