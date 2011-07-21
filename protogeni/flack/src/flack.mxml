@@ -101,6 +101,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.mstrum.Oids;
 			
 			import mx.controls.Alert;
+			import mx.events.CloseEvent;
 			import mx.utils.Base64Decoder;
 			
 			import protogeni.GeniEvent;
@@ -311,6 +312,18 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 			}
 			
+			public function tryToStartOver():void {
+				Alert.show("Do you really want to clear and reload all data?",
+					"Reload all?",
+					Alert.YES|Alert.NO,
+					this,
+					function afterDecision(e:CloseEvent):void {
+						if(e.detail == Alert.YES)
+							startover();
+					}
+				);
+			}
+			
 			public function startover():void {
 				reinit();
 				Main.useCache = false;
@@ -374,7 +387,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								toolTip="Search for a resource" />
 		<components:ImageButton id="refreshButton"
 								icon="{ImageUtil.refreshIcon}"
-								click="startover()"
+								click="tryToStartOver()"
 								toolTip="Reload all data from scratch" />
 		<s:Button icon="{ImageUtil.noUserIcon}"
 				  click="loadUser()"

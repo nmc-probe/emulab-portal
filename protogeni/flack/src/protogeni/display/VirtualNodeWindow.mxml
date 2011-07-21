@@ -20,7 +20,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 <components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						xmlns:s="library://ns.adobe.com/flex/spark" 
 						xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:display="protogeni.display.*"
-						width="500" height="500"
+						width="510" height="500"
 						title="Node Information" xmlns:components="protogeni.display.components.*">
 	<fx:Declarations>
 		<s:RadioButtonGroup id="boundGroup" change="setBinding()" />
@@ -213,11 +213,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					if(toSelect != null)
 						this.diskImageSelect.selectedItem = toSelect;
 				}
-
-				loadSlices();
+				
+				fillLinksTo();
 			}
 			
-			public function loadSlices():void {
+			public function fillLinksTo():void {
+				if(linksVbox == null || node == null)
+					return;
 				linksVbox.removeAllElements();
 				var connectedNodes:VirtualNodeCollection = node.GetAllNodes();
 				
@@ -468,10 +470,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		<s:Rect percentWidth="100" />
 	</s:HGroup>
 	
-	<mx:TabNavigator height="100%" width="100%">
+	<mx:TabNavigator height="100%" width="100%" paddingTop="2" paddingLeft="2" paddingBottom="2" paddingRight="2">
 		<s:NavigatorContent label="Basic" height="100%" width="100%">
-			<s:VGroup height="100%" width="100%" paddingLeft="2" paddingBottom="2" paddingRight="2">
-
+			<s:VGroup height="100%" width="100%">
 				<s:HGroup width="100%" id="hierarchyVbox" />
 				
 				<s:Label text="Binding" fontWeight="bold" />
@@ -503,8 +504,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					</s:VGroup>
 				</s:HGroup>
 				
-				<mx:ViewStack id="detailsViewstack" width="100%">
-					<s:NavigatorContent id="detailsView" width="100%">
+				<mx:ViewStack id="detailsViewstack" width="100%" height="100%">
+					<s:NavigatorContent id="detailsView" width="100%" height="100%">
 						<s:VGroup id="nodeOptionsVgroup" width="100%">
 							<s:Label text="Disk Image" fontWeight="bold" />
 							<s:DropDownList id="diskImageSelect" width="100%"
@@ -515,34 +516,37 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							<s:TextInput id="diskImageText" width="100%"
 										 text="{node.diskImage}"
 										 prompt="Select image above or manually type OSID" />
-							
-							<s:Label text="Install" fontWeight="bold" />
-							<s:HGroup width="100%" verticalAlign="middle">
-								<s:TextInput id="installUrlText" width="55%"
-											 prompt="Archive URL" />
-								<s:ComboBox id="installFileTypeList" width="15%" prompt="File type">
-									<s:dataProvider>
-										<s:ArrayList>
-											<fx:String>tar.gz</fx:String>
-										</s:ArrayList>
-									</s:dataProvider>
-								</s:ComboBox>
-								<s:Label text="in" />
-								<s:TextInput id="installPathText" width="30%" text="/"
-											 prompt="Install path" />
-							</s:HGroup>
-							
-							<s:Label text="Execute" fontWeight="bold" />
-							<s:HGroup width="100%" verticalAlign="middle">
-								<s:TextInput id="executeCommandText" width="90%"
-											 prompt="Command" />
-								<s:Label text="using" />
-								<s:TextInput id="executeShellText" width="10%" text="sh"
-											 prompt="Shell? (sh, bash, etc.)" />
-							</s:HGroup>
+							<s:Scroller width="100%" height="100%">
+								<s:VGroup id="nodeServicesVgroup" width="100%">
+									<s:Label text="Install" fontWeight="bold" />
+									<s:HGroup width="100%" verticalAlign="middle">
+										<s:TextInput id="installUrlText" width="55%"
+													 prompt="Archive URL" />
+										<s:ComboBox id="installFileTypeList" width="15%" prompt="File type">
+											<s:dataProvider>
+												<s:ArrayList>
+													<fx:String>tar.gz</fx:String>
+												</s:ArrayList>
+											</s:dataProvider>
+										</s:ComboBox>
+										<s:Label text="in" />
+										<s:TextInput id="installPathText" width="30%" text="/"
+													 prompt="Install path" />
+									</s:HGroup>
+									
+									<s:Label text="Execute" fontWeight="bold" />
+									<s:HGroup width="100%" verticalAlign="middle">
+										<s:TextInput id="executeCommandText" width="90%"
+													 prompt="Command" />
+										<s:Label text="using" />
+										<s:TextInput id="executeShellText" width="10%" text="sh"
+													 prompt="Shell? (sh, bash, etc.)" />
+									</s:HGroup>
+								</s:VGroup>
+							</s:Scroller>
 						</s:VGroup>
 					</s:NavigatorContent>
-					<s:NavigatorContent id="delayView" width="100%">
+					<s:NavigatorContent id="delayView" width="100%" height="100%">
 						<s:DataGrid id="delayGrid" width="100%" height="100%" 
 									dataProvider="{pipes}"
 									rowHeight="24"
@@ -582,18 +586,18 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						</s:DataGrid> 
 					</s:NavigatorContent>
 				</mx:ViewStack>
-				
-				<s:Label text="Links to" fontWeight="bold"/>
-				<s:Scroller width="100%" height="100%">
-					<s:VGroup width="100%" height="100%" id="linksVbox" />
-				</s:Scroller>
 			</s:VGroup>
 		</s:NavigatorContent>
 		<s:NavigatorContent label="Extensions">
-			<s:VGroup width="100%" height="100%" paddingLeft="2" paddingBottom="2" paddingRight="2">
+			<s:VGroup width="100%" height="100%">
 				<s:Label text="Namespace declarations MUST be included for new extensions pasted below" />
 				<s:TextArea id="extensionsTextarea" width="100%" height="100%" creationComplete="extensionsTextarea.text = node.extensionsNodes.toXMLString()" />
 			</s:VGroup>
+		</s:NavigatorContent>
+		<s:NavigatorContent label="Links to">
+			<s:Scroller width="100%" height="100%">
+				<s:VGroup width="100%" height="100%" id="linksVbox" creationComplete="fillLinksTo();" />
+			</s:Scroller>
 		</s:NavigatorContent>
 	</mx:TabNavigator>
 

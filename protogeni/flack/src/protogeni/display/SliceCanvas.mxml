@@ -379,8 +379,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				var sn:SliceNode = new SliceNode();
 				sn.setNode(virtualNode);
 				if(x == -1 && y == -1 && locationCache[sn.node.clientId] != null) {
-					sn.node.flackX = locationCache[sn.node.clientId].x;
-					sn.node.flackY = locationCache[sn.node.clientId].y;
+					x = locationCache[sn.node.clientId].x;
+					y = locationCache[sn.node.clientId].y;
 				}
 				addSliceNode(sn, x, y);
 				return sn;
@@ -575,7 +575,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				// Save in case this node comes back
 				for each(var sliceNode:SliceNode in this.allNodes)
-					locationCache[sliceNode.node.clientId] = {x:sliceNode.node.flackX, y:sliceNode.node.flackY};
+					locationCache[sliceNode.node.clientId] = {x:sliceNode.getMiddleX(), y:sliceNode.getMiddleY()};
 				
 				this.removeAllElements();
 				allNodes = new SliceNodeCollection();

@@ -85,21 +85,14 @@ package protogeni.display.mapping
 		}
 		
 		public function clicked(e:Event):void {
-			if(showGroups.GetAll().length == nodeGroups.GetAll().length) {
-				this.openInfoWindow(
-					new InfoWindowOptions({
-						customContent:infoWindow,
-						customoffset: new Point(0, 10),
-						width:infoWindow.width,
-						height:infoWindow.height,
-						drawDefaultFrame:true
-					}));
-			} else {
-				var newCollection:ArrayCollection = new ArrayCollection();
-				for each(var node:PhysicalNode in showGroups.GetAll())
-					newCollection.addItem(node);
-				DisplayUtil.viewNodeCollection(newCollection);
-			}
+			this.openInfoWindow(
+				new InfoWindowOptions({
+					customContent:infoWindow,
+					customoffset: new Point(0, 10),
+					width:infoWindow.width,
+					height:infoWindow.height,
+					drawDefaultFrame:true
+				}));
 		}
 
 		public function setDefault():void {

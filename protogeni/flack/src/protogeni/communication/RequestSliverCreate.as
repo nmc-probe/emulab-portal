@@ -21,6 +21,7 @@ package protogeni.communication
 	import mx.controls.Alert;
 	
 	import protogeni.GeniEvent;
+	import protogeni.resources.GeniCredential;
 	import protogeni.resources.IdnUrn;
 	import protogeni.resources.Key;
 	import protogeni.resources.Slice;
@@ -87,8 +88,8 @@ package protogeni.communication
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				sliver.credential = response.value[0];
-				var cred:XML = new XML(sliver.credential);
-				sliver.urn = new IdnUrn(cred.credential.target_urn);
+				var cred:XML = (new GeniCredential(sliver.credential)).toXml();
+				sliver.urn = GeniCredential.getTargetUrn(cred);
 				
 				manifest = response.value[1];
 				sliver.parseManifest(new XML(manifest));

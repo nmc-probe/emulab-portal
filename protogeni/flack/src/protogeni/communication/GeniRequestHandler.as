@@ -149,6 +149,8 @@ package protogeni.communication
 		
 		public function discoverSliceAllocatedResources(slice:Slice):void {
 			for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
+				if(manager.Status != GeniManager.STATUS_VALID)
+					continue;
 				var newSliver:Sliver = new Sliver(slice, manager);
 				if(manager.isAm)
 					this.pushRequest(new RequestSliverListResourcesAm(newSliver));
@@ -292,7 +294,13 @@ package protogeni.communication
 			slice.slivers = new SliverCollection();
 			Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
 			
-			this.pushRequest(new RequestSliceCredential(slice, true));
+			// User only has a slice credential
+			if(Main.geniHandler.CurrentUser.userCredential.length == 0) {
+				this.discoverSliceAllocatedResources(slice);
+			}
+			// User has user credential
+			else
+				this.pushRequest(new RequestSliceCredential(slice, true));
 		}
 		
 		
@@ -305,7 +313,12 @@ package protogeni.communication
 			this.isPaused = false;
 			this.forceStop = false;
 			
-			this.pushRequest(new RequestUserResolve());
+			// User only has a slice credential
+			if(Main.geniHandler.CurrentUser.userCredential.length == 0) {
+				for each(var slice:Slice in Main.geniHandler.CurrentUser.slices)
+					this.regetSlice(slice);
+			} else
+				this.pushRequest(new RequestUserResolve());
 		}
 		
 		/**
@@ -476,9 +489,12 @@ package protogeni.communication
 					start.numTries++;
 					op.call(complete, failure);
 					Main.Application().setStatus(start.name, false);
+					var delayNotice:String = "";
+					if(op.delaySeconds > 0)
+						delayNotice = "Delayed for " + op.delaySeconds + " seconds...\n\n";
 					LogHandler.appendMessage(new LogMessage(op.getUrl(),
 						start.name,
-						start.getSent(),
+						delayNotice + start.getSent(),
 						false,
 						LogMessage.TYPE_START));
 					
@@ -724,7 +740,7 @@ package protogeni.communication
 				queue.push(next);
 			
 			// Add post-requests
-			if(request.addAfter != null)
+			if(request.addAfter != null && request != next)
 				queue.push(request.addAfter);
 			
 			tryNext();

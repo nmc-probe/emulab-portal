@@ -57,6 +57,14 @@ package protogeni.resources
 		
 		public var nodes:VirtualNodeCollection = new VirtualNodeCollection();
 		public var links:VirtualLinkCollection = new VirtualLinkCollection();
+		public function get VirtualComponents():Vector.<VirtualComponent> {
+			var components:Vector.<VirtualComponent> = new Vector.<VirtualComponent>();
+			for each(var node:VirtualNode in nodes.collection)
+				components.push(node);
+			for each(var link:VirtualLink in links.collection)
+				components.push(link);
+			return components;
+		}
 		
 		public var extensionNamespaces:Vector.<Namespace> = new Vector.<Namespace>();
 		
@@ -120,6 +128,8 @@ package protogeni.resources
 			this.status = "";
 			this.processed = false;
 			this.changing = false;
+			for each(var node:VirtualComponent in this.VirtualComponents)
+				node.clearState();
 		}
 		
 		public function clearAll():void

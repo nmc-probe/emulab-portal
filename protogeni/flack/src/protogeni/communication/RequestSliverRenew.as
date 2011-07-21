@@ -90,7 +90,6 @@ package protogeni.communication
 		public function failed(msg:String = ""):void {
 			Alert.show("RenewSliver didn't work on " + sliver.manager.Hrn + ", most likely due to the manager now allowing slivers to be renewed further than a certain time in the future.  Either try a smaller increment of time or try later.",
 				"Sliver not renewed");
-			sliver.changing = false;
 			sliver.message = "Renew failed";
 			if(msg != null && msg.length > 0)
 				sliver.message += ": " + msg;

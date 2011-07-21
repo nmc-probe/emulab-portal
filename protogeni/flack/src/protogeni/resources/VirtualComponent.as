@@ -21,6 +21,11 @@ package protogeni.resources
 		public var state:String = "N/A";
 		[Bindable]
 		public var status:String = "N/A";
+		public function clearState():void {
+			error = "";
+			state = "";
+			status = "";
+		}
 		
 		public function VirtualComponent()
 		{

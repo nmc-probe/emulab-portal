@@ -16,6 +16,7 @@ package protogeni.communication
 {
 	import protogeni.Util;
 	import protogeni.resources.AggregateManager;
+	import protogeni.resources.GeniCredential;
 	import protogeni.resources.GeniManager;
 	import protogeni.resources.PlanetlabAggregateManager;
 	import protogeni.resources.ProtogeniComponentManager;
@@ -44,11 +45,19 @@ package protogeni.communication
 			exploreAllManagers = shouldExploreAllManagers;
 			
 			// Build up the args
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			if(Main.geniHandler.CurrentUser.authority != null)
+				op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
 		}
 		
 		override public function start():Operation {
 			op.clearFields();
+			
+			// Just discover resources if we don't have a user credential;
+			if(Main.geniHandler.CurrentUser.userCredential.length == 0) {
+				this.cleanup();
+				Main.geniHandler.requestHandler.discoverSliceAllocatedResources(slice);
+				return null;
+			}
 			
 			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
 			op.addField("urn", slice.urn.full);
@@ -64,8 +73,8 @@ package protogeni.communication
 			{
 				slice.credential = String(response.value);
 				
-				var cred:XML = new XML(slice.credential);
-				slice.expires = Util.parseProtogeniDate(cred.credential.expires);
+				var cred:XML = (new GeniCredential(slice.credential)).toXml();
+				slice.expires = GeniCredential.getExpires(cred);
 				
 				var manager:GeniManager;
 				var newSliver:Sliver;

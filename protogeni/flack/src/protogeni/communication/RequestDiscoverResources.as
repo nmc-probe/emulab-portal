@@ -45,7 +45,7 @@ package protogeni.communication
 				false);
 			componentManager = newManager;
 			
-			op.timeout = 60;
+			op.timeout = 300;
 			op.setUrl(componentManager.Url);
 		}
 		

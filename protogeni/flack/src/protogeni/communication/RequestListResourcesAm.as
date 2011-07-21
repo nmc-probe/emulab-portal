@@ -47,7 +47,7 @@ package protogeni.communication
 				true,
 				false);
 			ignoreReturnCode = true;
-			op.timeout = 60;
+			op.timeout = 300;
 			aggregateManager = newManager;
 			
 			op.setExactUrl(newManager.Url);

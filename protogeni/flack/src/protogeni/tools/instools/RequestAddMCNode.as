@@ -62,7 +62,8 @@ package protogeni.tools.instools
 		
 		override public function start():Operation {
 			sliver.message = "Adding MC Node";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			sliver.changing = true;
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			return op;
 		}
 		
@@ -109,7 +110,7 @@ package protogeni.tools.instools
 		
 		override public function cleanup():void {
 			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 		}
 	}
 }

@@ -55,6 +55,10 @@ package protogeni.communication
 		
 		override public function complete(code:Number, response:Object):*
 		{
+			var getStatus:RequestSliverStatus = new RequestSliverStatus(sliver);
+			getStatus.addAfter = this.addAfter;
+			this.addAfter = null;
+			
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
 				sliver.message = "Started";
@@ -68,13 +72,13 @@ package protogeni.communication
 					}
 					searchRequest = searchRequest.next;
 				}
-				return new RequestSliverStatus(sliver);
+				return getStatus;
 			}
 			// Already started
 			else if(code == CommunicationUtil.GENIRESPONSE_REFUSED)
 			{
 				sliver.message = "Already started";
-				return new RequestSliverStatus(sliver);
+				return getStatus;
 			}
 			else
 				failed();

@@ -127,12 +127,8 @@ package protogeni.communication
 					if(Main.geniHandler.CurrentUser.userCredential.length > 0)
 						newCalls.push(new RequestUserResolve());
 					else if(Main.geniHandler.CurrentUser.sliceCredential.length > 0) {
-						for each(var slice:Slice in Main.geniHandler.CurrentUser.slices) {
-							if(slice.credential == Main.geniHandler.CurrentUser.sliceCredential) {
-								Main.geniHandler.requestHandler.discoverSliceAllocatedResources(slice);
-								break;
-							}
-						}
+						for each(var slice:Slice in Main.geniHandler.CurrentUser.slices)
+							newCalls.push(new RequestSliceCredential(slice));
 					}
 				}
 			}

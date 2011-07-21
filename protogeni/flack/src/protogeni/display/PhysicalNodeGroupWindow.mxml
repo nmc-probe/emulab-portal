@@ -42,7 +42,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function loadGroup(group:PhysicalNodeGroup):void {
 				if(group.city.length > 0)
-					title = group.city + " Node";
+					title += " for " + group.city;
 				var newCollection:ArrayCollection = new ArrayCollection();
 				for each(var node:PhysicalNode in group.collection)
 					newCollection.addItem(node);

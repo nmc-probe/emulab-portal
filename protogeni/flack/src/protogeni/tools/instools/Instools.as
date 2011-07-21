@@ -7,6 +7,7 @@ package protogeni.tools.instools
 	import flash.net.navigateToURL;
 	import flash.utils.Dictionary;
 	
+	import protogeni.GeniEvent;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
 
@@ -19,11 +20,11 @@ package protogeni.tools.instools
 	public class Instools
 	{
 		// Communication stuff
-		private static const inst:String = "instools";
-		public static var instoolsGetVersion:Array = new Array(inst, "GetINSTOOLSVersion");
-		public static var instoolsAddMCNode:Array = new Array(inst, "AddMCNode");
-		public static var instoolsGetInstoolsStatus:Array = new Array(inst, "getInstoolsStatus");
-		public static var instoolsInstrumentize:Array = new Array(inst, "Instrumentize");
+		public static const instoolsModule:String = "instools";
+		public static var instoolsGetVersion:Array = [instoolsModule, "GetINSTOOLSVersion"];
+		public static var instoolsAddMCNode:Array = [instoolsModule, "AddMCNode"];
+		public static var instoolsGetInstoolsStatus:Array = [instoolsModule, "getInstoolsStatus"];
+		public static var instoolsInstrumentize:Array = [instoolsModule, "Instrumentize"];
 		
 		// State stuff
 		public static var devel_version:Dictionary = new Dictionary();
@@ -57,6 +58,15 @@ package protogeni.tools.instools
 		 */
 		public static function instrumentizeSlice(slice:Slice):void
 		{
+			// Gets the queue ready to start if it's paused and clears the slice status
+			Main.geniHandler.requestHandler.isPaused = false;
+			Main.geniHandler.requestHandler.forceStop = false;
+			slice.clearState();
+			var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(slice.urn.full);
+			if(old != null)
+				old.clearState();
+			Main.geniDispatcher.dispatchSliceChanged(slice, GeniEvent.ACTION_STATUS);
+			
 			for each(var sliver:Sliver in slice.slivers.collection)
 			{
 				Clear(sliver);
@@ -81,11 +91,11 @@ package protogeni.tools.instools
 		 */
 		public static function goToPortal(slice:Slice):void
 		{
-			var boo:String = "secretkey";
 			var data:String = Main.geniHandler.CurrentUser.passwd;
+			var out:String = SHA1.hash(data);
+			//var boo:String = "secretkey";
 			//var out:String = Util.rc4encrypt(boo,data);
 			//out = encodeURI(out);
-			var out:String = SHA1.hash(data);
 			var userinfo:Array = Main.geniHandler.CurrentUser.hrn.split(".");
 			var portalURL:String = "https://portal.uky.emulab.net/geni/portal/log_on_slice.php";
 			var portalVars:URLVariables = new URLVariables();

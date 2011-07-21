@@ -72,9 +72,8 @@ package protogeni.resources
 		
 		public function clearState():void {
 			this._changing = false;
-			for each(var sliver:Sliver in this.slivers.collection) {
+			for each(var sliver:Sliver in this.slivers.collection)
 				sliver.clearState();
-			}
 		}
 		
 		public function removeOutsideReferences():void {

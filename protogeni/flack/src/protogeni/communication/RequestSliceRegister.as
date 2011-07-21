@@ -16,6 +16,7 @@ package protogeni.communication
 {
 	import protogeni.Util;
 	import protogeni.display.DisplayUtil;
+	import protogeni.resources.GeniCredential;
 	import protogeni.resources.Slice;
 	
 	/**
@@ -57,8 +58,8 @@ package protogeni.communication
 			{
 				slice.credential = String(response.value);
 				
-				var cred:XML = new XML(slice.credential);
-				slice.expires = Util.parseProtogeniDate(cred.credential.expires);
+				var cred:XML = (new GeniCredential(slice.credential)).toXml();
+				slice.expires = GeniCredential.getExpires(cred);
 				
 				Main.geniHandler.CurrentUser.slices.add(slice);
 				Main.geniDispatcher.dispatchSlicesChanged();

@@ -24,6 +24,8 @@ package protogeni.tools.instools
 	import protogeni.communication.CommunicationUtil;
 	import protogeni.communication.Operation;
 	import protogeni.communication.Request;
+	import protogeni.communication.RequestSliverStatus;
+	import protogeni.communication.RequestSliverStatusAm;
 	import protogeni.resources.Sliver;
 	
 	/**
@@ -44,7 +46,7 @@ package protogeni.tools.instools
 				true);
 			sliver = s;
 			sliver.changing = true;
-			sliver.message = "Waiting to get INSTOOLS version";
+			sliver.message = "Waiting to get INSTOOLS version...";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			//op.setUrl("https://www.uky.emulab.net/protogeni/xmlrpc");
@@ -52,8 +54,9 @@ package protogeni.tools.instools
 		}
 		
 		override public function start():Operation {
-			sliver.message = "Getting INSTOOLS version";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			sliver.message = "Getting INSTOOLS version...";
+			sliver.changing = true;
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			return op;
 		}
 		
@@ -64,7 +67,7 @@ package protogeni.tools.instools
 				Instools.devel_version[sliver.manager.Urn.full] = String(response.value.devel_version);
 				Instools.stable_version[sliver.manager.Urn.full] = String(response.value.stable_version);
 				
-				sliver.message = "Got INSTOOLS version";
+				sliver.message = "Got INSTOOLS version...";
 				
 				return new RequestAddMCNode(sliver);
 				
@@ -77,24 +80,27 @@ package protogeni.tools.instools
 				*/
 			}
 			else
-				failed(response.output);
+				return failed(response.output);
 			
 			return null;
 		}
 		
-		public function failed(msg:String = ""):void {
+		public function failed(msg:String = ""):* {
 			sliver.changing = false;
 			sliver.message = "INSTOOLS not available";
+			if(sliver.manager.isAm)
+				return new RequestSliverStatusAm(sliver);
+			else
+				return new RequestSliverStatus(sliver);
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			failed(fault.getFaultString());
-			return null;
+			return failed(fault.getFaultString());
 		}
 		
 		override public function cleanup():void {
 			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 		}
 	}
 }

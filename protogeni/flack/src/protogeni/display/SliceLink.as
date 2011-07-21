@@ -82,26 +82,30 @@ package protogeni.display
 		public function resetToStatus():void
 		{
 			this.toolTip = "";
-			switch(virtualLink.status) {
-				case VirtualComponent.STATUS_READY:
-					groupBackground.fill = new SolidColor(ColorUtil.validLight);
-					this.toolTip = virtualLink.state;
-					break;
-				case VirtualComponent.STATUS_FAILED:
-					groupBackground.fill = new SolidColor(ColorUtil.invalidLight);
-					this.toolTip = "Error: " + virtualLink.error;
-					break;
-				case VirtualComponent.STATUS_CHANGING:
-					groupBackground.fill = new SolidColor(ColorUtil.changingLight);
-					this.toolTip = "Status is changing...";
-					break;
-				case VirtualComponent.STATUS_NOTREADY:
-					groupBackground.fill = new SolidColor(ColorUtil.changingLight);
-					this.toolTip = "Link is not ready";
-					break;
-				case VirtualComponent.STATUS_UNKNOWN:
-				default:
-					groupBackground.fill = new SolidColor(color);
+			if(virtualLink == null) {
+				groupBackground.fill = new SolidColor(color);
+			} else {
+				switch(virtualLink.status) {
+					case VirtualComponent.STATUS_READY:
+						groupBackground.fill = new SolidColor(ColorUtil.validLight);
+						this.toolTip = virtualLink.state;
+						break;
+					case VirtualComponent.STATUS_FAILED:
+						groupBackground.fill = new SolidColor(ColorUtil.invalidLight);
+						this.toolTip = "Error: " + virtualLink.error;
+						break;
+					case VirtualComponent.STATUS_CHANGING:
+						groupBackground.fill = new SolidColor(ColorUtil.changingLight);
+						this.toolTip = "Status is changing...";
+						break;
+					case VirtualComponent.STATUS_NOTREADY:
+						groupBackground.fill = new SolidColor(ColorUtil.changingLight);
+						this.toolTip = "Link is not ready";
+						break;
+					case VirtualComponent.STATUS_UNKNOWN:
+					default:
+						groupBackground.fill = new SolidColor(color);
+				}
 			}
 		}
 		

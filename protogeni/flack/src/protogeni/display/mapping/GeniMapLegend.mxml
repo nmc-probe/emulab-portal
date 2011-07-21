@@ -36,6 +36,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		<![CDATA[
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
+			import mx.events.CloseEvent;
 			
 			import protogeni.GeniEvent;
 			import protogeni.communication.RequestUserResolve;
@@ -176,9 +177,18 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				Main.geniHandler.mapHandler.drawUserResources(this.sliceRadiogroup.selectedValue as Slice);
 			}
 			
-			public function regetSlices():void {
-				Main.geniHandler.requestHandler.regetSlices();
+			public function tryToRefreshUser():void {
+				Alert.show("Do you really want to clear and reload all user data including slices?",
+					"Reload user data?",
+					Alert.YES|Alert.NO,
+					Main.Application(),
+					function afterDecision(e:CloseEvent):void {
+						if(e.detail == Alert.YES)
+							Main.geniHandler.requestHandler.regetSlices();
+					}
+				);
 			}
+			
 		]]>
 	</fx:Script>
 	<s:VGroup width="100%" maxHeight="160"
@@ -206,7 +216,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						click="if(mineOnlyCheckbox.selected) Main.geniHandler.mapHandler.drawUserResources(selectedSlice); else Main.geniHandler.mapHandler.drawAll();" />
 			<components:ImageButton id="regetSlicesButton"
 									icon="{ImageUtil.refreshIcon}"
-									click="regetSlices()"
+									click="tryToRefreshUser();"
 									toolTip="Reload the slices" />
 		</s:HGroup>
 		<s:RadioButton label="All"

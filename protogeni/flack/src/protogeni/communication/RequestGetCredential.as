@@ -14,6 +14,7 @@
 
 package protogeni.communication
 {
+	import protogeni.resources.GeniCredential;
 	import protogeni.resources.IdnUrn;
 	
 	/**
@@ -38,7 +39,7 @@ package protogeni.communication
 			{
 				Main.geniHandler.CurrentUser.userCredential = String(response.value);
 				var cred:XML = new XML(response.value);
-				Main.geniHandler.CurrentUser.urn = new IdnUrn(cred.credential.owner_urn);
+				Main.geniHandler.CurrentUser.urn = GeniCredential.getOwnerUrn(cred);
 				Main.geniDispatcher.dispatchUserChanged();
 			}
 			else

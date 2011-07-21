@@ -137,8 +137,10 @@ VirtualNode for use on the slice canvas
 			public function adjustWidth():void
 			{
 				this.validateNow();
-				if(nameLabel != null)
+				if(nameLabel != null) {
 					width = width + (nameLabel.measuredWidth - nameLabel.width) + 5;
+					this.moveInside(new Point(this.getMiddleX(), this.getMiddleY()));
+				}
 			}
 			
 			public var lastId:String = "";
@@ -176,32 +178,37 @@ VirtualNode for use on the slice canvas
 				canvas.startLinkingFrom(this);
 			}
 			
-			public function setLocation(x:int = -1, y:int = -1):void
+			public function setLocation(newX:int = -1, newY:int = -1):void
 			{
-				var finalX:int = x;
-				var finalY:int = y;
-				if(x == -1)
-					finalX = Math.round(Math.random() * parent.width);
-				if(y == -1)
-					finalY = Math.round(Math.random() * parent.height);
+				var finalPoint:Point = new Point(newX, newY);
+				if(newX == -1)
+					finalPoint.x = Math.round(Math.random() * parent.width);
+				if(newY == -1)
+					finalPoint.y = Math.round(Math.random() * parent.height);
 				
+				// Make sure this is within bounds
+				this.moveInside(finalPoint);
+				
+				this.node.flackX = this.getMiddleX();
+				this.node.flackY = this.getMiddleY();
+			}
+			
+			public function moveInside(p:Point):void {
 				// right edge
-				if(finalX > (parent.width - this.width/2))
-					finalX = parent.width - this.width/2;
+				if(p.x > (parent.width - this.width/2))
+					p.x = parent.width - this.width/2;
 				// bottom edge
-				if(finalY > (parent.height - this.height/2))
-					finalY = parent.height - this.height/2;
+				if(p.y > (parent.height - this.height/2))
+					p.y = parent.height - this.height/2;
 				// left edge
-				if(finalX < this.width/2)
-					finalX = this.width/2;
+				if(p.x < this.width/2)
+					p.x = this.width/2;
 				// top edge
-				if(finalY < this.height/2)
-					finalY = this.height/2;
+				if(p.y < this.height/2)
+					p.y = this.height/2;
 				
-				this.x = finalX - (this.width/2);
-				this.y = finalY - (this.height/2);
-				this.node.flackX = this.x + this.width/2;
-				this.node.flackY = this.y + this.height/2;
+				this.x = p.x - (this.width/2);
+				this.y = p.y - (this.height/2);
 			}
 			
 			public function getMiddleX():int

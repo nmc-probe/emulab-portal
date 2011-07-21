@@ -47,7 +47,7 @@ package protogeni.tools.instools
 			op.setUrl(s.manager.Url);
 			sliver = s;
 			sliver.changing = true;
-			sliver.message = "Waiting to start instrumentize";
+			sliver.message = "Waiting to start instrumentize...";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			op.addField("urn", sliver.slice.urn.full);
@@ -65,20 +65,21 @@ package protogeni.tools.instools
 		}
 		
 		override public function start():Operation {
-			sliver.message = "Instrumentize starting";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			sliver.message = "Instrumentize starting...";
+			sliver.changing = true;
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			return op;
 		}
 		
 		override public function complete(code:Number, response:Object):*
 		{
-			sliver.message = "Instrumentize started";
+			sliver.message = "Instrumentize started...";
 			
 			return null;
 		}
 		
 		public function failed(msg:String = ""):void {
-			sliver.message = "Instrumentize starting failed";
+			sliver.message = "Instrumentize starting failed!";
 			Alert.show("Failed to Instrumentize on " + sliver.manager.Hrn + ". " + msg, "Problem instrumentizing");
 		}
 		
@@ -90,7 +91,7 @@ package protogeni.tools.instools
 		override public function cleanup():void {
 			super.cleanup();
 			sliver.changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 		}
 	}
 }

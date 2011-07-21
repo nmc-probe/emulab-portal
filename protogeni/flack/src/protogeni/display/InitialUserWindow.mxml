@@ -49,6 +49,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.NetUtil;
 			import protogeni.Util;
 			import protogeni.communication.RequestWhoAmI;
+			import protogeni.resources.GeniCredential;
 			import protogeni.resources.GeniUser;
 			import protogeni.resources.IdnUrn;
 			import protogeni.resources.Slice;
@@ -95,7 +96,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					Alert.show("You must suply a private key/certificate bundle");
 					return;
 				}
-				if(this.sliceCredentialRadiobutton.selected && Main.geniHandler.CurrentUser.sliceCredential.length == 0) {
+				if(this.sliceCredentialRadiobutton.selected
+					&& Main.geniHandler.CurrentUser.sliceCredential.length == 0) {
 					Alert.show("You haven't selected a slice credential.  Would you like to select one now to continue?", "No slice credential selected", Alert.YES|Alert.NO, Main.Application(),
 						function afterSelection(event:CloseEvent):void {
 							if(event.detail == Alert.YES)
@@ -118,7 +120,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				Main.geniHandler.mapHandler.clearAll();
 				Main.geniHandler.unauthenticatedMode = false;
 				if(this.userCredentialRadiobutton.selected) {
-					
 					if(Main.geniHandler.CurrentUser.authority == null) {
 						Main.geniHandler.CurrentUser.authority = authorities.selectedItem;
 						Main.geniHandler.requestHandler.pushRequest(new RequestWhoAmI());
@@ -131,7 +132,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					var userSlice:Slice = new Slice();
 					userSlice.urn = new IdnUrn(cred.credential.target_urn);
 					userSlice.credential = Main.geniHandler.CurrentUser.sliceCredential;
-					userSlice.expires = Util.parseProtogeniDate(cred.credential.expires);
+					userSlice.expires = GeniCredential.getExpires(cred);
 					userSlice.creator = Main.geniHandler.CurrentUser;
 					Main.geniHandler.CurrentUser.slices.add(userSlice);
 					
@@ -271,17 +272,29 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						this.passwordField.textInput.setFocus();
 					} else {
 						try{
-							Main.geniHandler.CurrentUser.sliceCredential = fr.data.readUTFBytes(fr.data.length);
-							
-							var cred:XML = new XML(Main.geniHandler.CurrentUser.sliceCredential);
-							Main.geniHandler.CurrentUser.urn = new IdnUrn(cred.credential.owner_urn);
-							var expires:Date = Util.parseProtogeniDate(cred.credential.expires);
-							if(expires < new Date()) {
-								Main.geniHandler.CurrentUser.sliceCredential = "";
-								Alert.show("The slice credential has expired on " + expires.toLocaleString() + ", try or create a newer slice");
+							var potentialCredential:String = fr.data.readUTFBytes(fr.data.length);
+							var cred:XML = new GeniCredential(potentialCredential).toXml();
+							if(cred == null) {
+								Alert.show("Not valid XML");
 								return;
 							}
 							
+							Main.geniHandler.CurrentUser.urn = GeniCredential.getOwnerUrn(cred);
+							if(Main.geniHandler.CurrentUser.urn == null) {
+								Alert.show("No user URN found");
+								return;
+							}
+							
+							var expires:Date = GeniCredential.getExpires(cred);
+							if(expires != null) {
+								if(expires < new Date()) {
+									Main.geniHandler.CurrentUser.sliceCredential = "";
+									Alert.show("The slice credential has expired on " + expires.toLocaleString() + ", try or create a newer slice");
+									return;
+								}
+							}
+							
+							Main.geniHandler.CurrentUser.sliceCredential = potentialCredential;
 							Main.geniDispatcher.dispatchUserChanged();
 							
 							sliceCredentialIcon.visible = true;
@@ -400,6 +413,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		<s:BitmapImage id="sliceCredentialIcon" source="{ImageUtil.availableIcon}" visible="false" />
 		<s:CheckBox label="Discover allocated resources"
 					id="discoverResourcesCheckbox"
+					selected="true"
 					enabled="{sliceCredentialRadiobutton.selected}" />
 	</s:HGroup>
 	<components:controlBarLayout>

@@ -20,6 +20,7 @@ package protogeni.communication
 	
 	import protogeni.GeniEvent;
 	import protogeni.Util;
+	import protogeni.resources.GeniCredential;
 	import protogeni.resources.GeniManager;
 	import protogeni.resources.IdnUrn;
 	import protogeni.resources.Slice;
@@ -70,9 +71,9 @@ package protogeni.communication
 			{
 				sliver.credential = String(response.value);
 				
-				var cred:XML = new XML(response.value);
-				sliver.urn = new IdnUrn(cred.credential.target_urn);
-				sliver.expires = Util.parseProtogeniDate(cred.credential.expires);
+				var cred:XML = new GeniCredential(sliver.credential).toXml();
+				sliver.urn = GeniCredential.getTargetUrn(cred);
+				sliver.expires = GeniCredential.getExpires(cred);
 				
 				sliver.message = "Credential recieved";
 				newCall = new RequestSliverResolve(sliver);

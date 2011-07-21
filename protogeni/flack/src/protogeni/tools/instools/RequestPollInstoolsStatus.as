@@ -46,7 +46,7 @@ package protogeni.tools.instools
 				true);
 			sliver = newSliver;
 			sliver.changing = true;
-			sliver.message = "Waiting to poll INSTOOLS status";
+			sliver.message = "Waiting to poll INSTOOLS status...";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			op.setUrl(sliver.manager.Url);
@@ -56,8 +56,10 @@ package protogeni.tools.instools
 			// Make sure we're working on the most recent sliver
 			sliver = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full).slivers.getByManager(sliver.manager);
 			if(this.op.delaySeconds == 0)
-				sliver.message = "Polling INSTOOLS status";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+				sliver.message = "Polling INSTOOLS status...";
+			sliver.changing = true;
+			sliver.status = Sliver.STATUS_CHANGING;
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			
 			op.addField("urn", sliver.slice.urn.full);
 			op.addField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.Urn.full.toString()]);
@@ -80,6 +82,7 @@ package protogeni.tools.instools
 					case "INSTRUMENTIZE_COMPLETE":		//instrumentize is finished, experiment is ready, etc.
 						Instools.portal_url[sliver.manager.Urn.full] = String(response.value.portal_url);
 						sliver.changing = false;
+						sliver.status = Sliver.STATUS_READY;
 						sliver.message = "Instrumentizing complete!";
 						return null;
 					case "INSTALLATION_COMPLETE":		//MC has finished the startup scripts
@@ -89,6 +92,7 @@ package protogeni.tools.instools
 							Main.geniHandler.requestHandler.pushRequest(req1);
 							Instools.started_instrumentize[sliver.manager.Urn.full] = "1";
 							sliver.message = "Instrumentizing installed...";
+							sliver.status = Sliver.STATUS_CHANGING;
 						}
 						break;
 					case "MC_NOT_STARTED":				//MC has been added, but not started
@@ -97,18 +101,29 @@ package protogeni.tools.instools
 							Main.geniHandler.requestHandler.pushRequest(new RequestSliverStart(sliver));
 							Instools.started_MC[sliver.manager.Urn.full] = "1";
 							sliver.message = "MC not started...";
+							sliver.status = Sliver.STATUS_CHANGING;
 						}
 						break;
 					case "INSTRUMENTIZE_IN_PROGRESS":	//the instools server has started instrumentizing the nodes
 						sliver.message = "Instrumentize in progress...";
+						sliver.status = Sliver.STATUS_CHANGING;
 						break;
 					case "INSTALLATION_IN_PROGRESS":	//MC is running it's startup scripts
 						sliver.message = "Instrumentize installing...";
+						sliver.status = Sliver.STATUS_CHANGING;
 						break;
 					case "MC_NOT_PRESENT":				//The addMC/updatesliver calls haven't finished 
+						sliver.message = "MC Node not added yet...";
+						sliver.status = Sliver.STATUS_CHANGING;
+						break;
 					case "MC_UNSUPPORTED_OS":
+						sliver.message = "Unsupported OS!";
+						sliver.status = Sliver.STATUS_FAILED;
+						Alert.show("Unrecognized INSTOOLS status: " + status);
 						break;
 					default:
+						sliver.status = Sliver.STATUS_FAILED;
+						sliver.message = status + "!";
 						Alert.show("Unrecognized INSTOOLS status: " + status);
 						break;
 				}
@@ -133,7 +148,7 @@ package protogeni.tools.instools
 		
 		override public function cleanup():void {
 			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 		}
 	}
 }
