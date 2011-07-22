@@ -79,7 +79,7 @@ package protogeni.communication
 					}
 				}
 				
-				sliver.message = "Renewed";
+				sliver.message = "Renewed, expires in " + DateUtil.getTimeUntil(sliver.expires);
 			}
 			else
 				failed();

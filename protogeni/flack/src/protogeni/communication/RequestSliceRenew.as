@@ -14,6 +14,8 @@
 
 package protogeni.communication
 {
+	import mx.controls.Alert;
+	
 	import protogeni.DateUtil;
 	import protogeni.Util;
 	import protogeni.display.DisplayUtil;
@@ -74,13 +76,15 @@ package protogeni.communication
 					old.expires = slice.expires;
 				}
 				
-				if(renewSlivers) {
+				if(renewSlivers && slice.slivers.length > 0) {
 					for each(var sliver:Sliver in slice.slivers.collection) {
 						if(sliver.manager.isAm)
 							newCalls.push(new RequestSliverRenewAm(sliver, slice.expires));
 						else
 							newCalls.push(new RequestSliverRenew(sliver, slice.expires));
 					}
+				} else {
+					Alert.show("Slice now expires in " + DateUtil.getTimeUntil(slice.expires), "Slice Renewed");
 				}
 			} else
 			{

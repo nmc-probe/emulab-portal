@@ -549,6 +549,7 @@ package protogeni.communication
 			{
 				Main.Application().setStatus(request.name + " canceled!", false);
 				request.cancel();
+				request.running = false;
 			}
 			queue.remove(queue.getRequestQueueNodeFor(request));
 			if(showAction)
@@ -576,6 +577,10 @@ package protogeni.communication
 		 */
 		private function failure(request:Request, event:ErrorEvent, fault:MethodFault):void
 		{
+			// Ignore if it isn't running anymore
+			if(!request.running)
+				return;
+			
 			request.running = false;
 			remove(request, false);
 			
@@ -675,6 +680,10 @@ package protogeni.communication
 		 */
 		private function complete(request:Request, code:Number, response:Object):void
 		{
+			// Ignore if it isn't running anymore
+			if(!request.running)
+				return;
+			
 			if(request.removeImmediately)
 			{
 				request.running = false;
