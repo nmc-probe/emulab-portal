@@ -90,8 +90,9 @@ package protogeni.communication
 					sliver.message = "Status is " + sliver.message + "...";
 					request = this;
 					request.op.delaySeconds = Math.min(60, this.op.delaySeconds + 15);
-				} else
+				} else {
 					sliver.message += "!";
+				}
 				
 				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
 				if(old != null)
@@ -123,7 +124,7 @@ package protogeni.communication
 		}
 		
 		public function failed(msg:String = ""):void {
-			sliver.changing = true;
+			sliver.changing = false;
 			sliver.message = "Checking status failed";
 		}
 		

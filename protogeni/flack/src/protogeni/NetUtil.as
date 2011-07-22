@@ -37,11 +37,11 @@ package protogeni
 	{
 		public static function showBecomingAUser():void
 		{
-			navigateToURL(new URLRequest("https://www.protogeni.net/trac/protogeni/wiki/FlackManual#BecomingaUser"), "_blank");
+			navigateToURL(new URLRequest("http://www.protogeni.net/trac/protogeni/wiki/FlackManual#BecomingaUser"), "_blank");
 		}
 		public static function showManual():void
 		{
-			navigateToURL(new URLRequest("https://www.protogeni.net/trac/protogeni/wiki/FlackManual"), "_blank");
+			navigateToURL(new URLRequest("http://www.protogeni.net/trac/protogeni/wiki/FlackManual"), "_blank");
 		}
 		public static function showTutorial():void
 		{

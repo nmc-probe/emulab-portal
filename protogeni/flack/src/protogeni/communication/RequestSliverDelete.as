@@ -39,6 +39,7 @@ package protogeni.communication
 			super("Delete sliver @ " + s.manager.Hrn,
 				"Deleting sliver on component manager " + s.manager.Hrn + " for slice named " + s.slice.Name,
 				CommunicationUtil.deleteSlice,
+				true,
 				true);
 			sliver = s;
 			sliver.changing = true;

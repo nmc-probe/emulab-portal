@@ -731,7 +731,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			public function viewExpires():void {
-				Alert.show(this.expireButton.toolTip);
+				Alert.show(this.expireButton.toolTip, "Expiration");
 			}
 			
 			public function renewSlice():void {
@@ -760,22 +760,27 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			public var getRspec:URLLoader;
+			public var getRspecRequest:URLRequest;
+			public function promptForUrl(url:String = ""):void {
+				var getUrlWindow:TextInputWindow = new TextInputWindow();
+				getUrlWindow.title = "Please enter the full URL for the RSPEC";
+				getUrlWindow.showWindow(true);
+				getUrlWindow.Text = url;
+				getUrlWindow.onCancel = null;
+				getUrlWindow.onSuccess = tryImportUrl;
+			}
+			
 			public function tryImportUrl(url:String = ""):void {
 				// Get a URL from the user if needed
-				if(url.length == 0) {
-					var getUrlWindow:TextInputWindow = new TextInputWindow();
-					getUrlWindow.title = "Please enter the full URL for the RSPEC";
-					getUrlWindow.showWindow(true);
-					getUrlWindow.onCancel = null;
-					getUrlWindow.onSuccess = tryImportUrl;
-				}
+				if(url.length == 0)
+					promptForUrl();
 				// Otherwise try to download
 				else
 				{
 					this.spinner.visible = true;
 					this.spinner.startSpin();
 					NetUtil.checkLoadCrossDomain(url);
-					var getRspecRequest:URLRequest = new URLRequest(url);
+					getRspecRequest = new URLRequest(url);
 					getRspec = new URLLoader();
 					getRspec.addEventListener(Event.COMPLETE, finishImport);
 					getRspec.addEventListener(ErrorEvent.ERROR, importError);
@@ -784,6 +789,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					try {
 						getRspec.load(getRspecRequest);
 					} catch(e:Error) {
+						promptForUrl(getRspecRequest.url);
 						Alert.show("Problem loading the RSPEC, check the URL and try again");
 					}
 				}
@@ -798,6 +804,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public function importError(e:*):void {
 				this.spinner.visible = false;
 				this.spinner.stopSpin();
+				promptForUrl(getRspecRequest.url);
 				Alert.show("Problem loading the RSPEC, check the URL and try again");
 			}
 			
@@ -917,6 +924,18 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					  height="24"
 					  icon="{ImageUtil.actionIcon}"
 					  click="tryCreateSlice()"/>
+			<components:ImageButton id="startButton"
+									height="24"
+									toolTip="Start slivers"
+									click="Main.geniHandler.requestHandler.startSlice(sliceCanvas.slice);"
+									icon="{ImageUtil.playControlIcon}"
+									enabled="{deleteButton.enabled}" />
+			<components:ImageButton id="stopButton"
+									toolTip="Stop slivers"
+									click="Main.geniHandler.requestHandler.stopSlice(sliceCanvas.slice);"
+									icon="{ImageUtil.stopControlIcon}"
+									enabled="{deleteButton.enabled}" />
+			<components:DefaultLine percentHeight="90" />
 			<components:ImageButton id="deleteButton"
 									toolTip="Delete slivers"
 									click="tryToDelete();"

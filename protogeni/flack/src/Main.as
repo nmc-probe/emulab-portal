@@ -55,6 +55,6 @@
 	
 	public static var allowCaching:Boolean = true;
 	
-	public static const version:String = "v2011-7-22.11:00AM";
+	public static const version:String = "vGEC11";
   }
 }
