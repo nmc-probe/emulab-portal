@@ -223,7 +223,6 @@ VirtualNode for use on the slice canvas
 		]]>
 	</fx:Script>
 	
-	
 	<components:ImageButton id="removeButton" icon="{ImageUtil.crossIcon}"
 						  mouseDown="remove(event)" />
 	<components:ImageButton id="infoButton" icon="{ImageUtil.infoIcon}"

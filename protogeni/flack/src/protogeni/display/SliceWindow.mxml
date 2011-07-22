@@ -223,13 +223,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						&& !refreshSlice.slivers.Status == Sliver.STATUS_FAILED)
 						this.clearStatus();
 					
-					this.startButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
+					this.deleteButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
 					this.rspecButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
 					this.instrumentizeButton.enabled = refreshSlice.slivers.StatusFinalized;
 					this.gotoPortalButton.enabled = Instools.hasAnyPortal(refreshSlice);
 				} else {
 					this.rspecButton.enabled = false;
-					this.startButton.enabled = false;
+					this.deleteButton.enabled = false;
 					this.instrumentizeButton.enabled = false;
 					this.gotoPortalButton.enabled = false;
 				}
@@ -735,13 +735,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			public function renewSlice():void {
-				var addTime:Number = 1000*60*60*6; // 6 hours
+				var addTime:Number = 1000*60*60*2; // 2 hours
 				switch(this.renewLengthDropdownlist.selectedIndex) {
 					case 1:
-						addTime *= 4;
+						addTime *= 3;
 						break;
 					case 2:
 						addTime *= 12;
+						break;
+					case 2:
+						addTime *= 48;
 						break;
 				}
 				
@@ -814,11 +817,35 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				sliceCanvas.clear();
 				Main.geniHandler.requestHandler.regetSlice(sliceCanvas.slice);
 			}
+			
+			public function tryToDelete():void {
+				Alert.show("Do you really want to deallocate all resources in the slice?",
+					"Delete slice?",
+					Alert.YES|Alert.NO,
+					this,
+					function afterDecision(e:CloseEvent):void {
+						if(e.detail == Alert.YES)
+							Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice);
+					}
+				);
+			}
 
 		]]>
 	</fx:Script>
 	
 	<s:HGroup width="100%" verticalAlign="middle" gap="2">
+		<components:ImageButton id="saveSliceCredentialButton"
+								toolTip="Save the slice credential to file"
+								click="saveCredential()"
+								icon="{ImageUtil.credentialIcon}" />
+		<components:ImageButton id="rspecButton"
+								icon="{ImageUtil.pageWhiteCodeIcon}"
+								click="viewRspecs()"
+								toolTip="View RSPEC(s) from the created sliver(s)" />
+		<components:ImageButton id="viewStatusButton"
+								toolTip="View the status of the slivers"
+								click="this.setSidePane(VIEW_STATUS);"
+								visible="false" includeInLayout="{viewStatusButton.visible}"/>
 		<s:Label id="hrnLabel" text="{sliceCanvas.slice.urn.name}"
 				 toolTip="{sliceCanvas.slice.urn.full}"
 				 fontSize="17"
@@ -862,15 +889,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								toolTip="Save preview RSPEC to file"
 								click="saveRequestRspec()" />
 		<components:DefaultLine height="14" visible="false" />
-		<components:ImageButton id="saveSliceCredentialButton"
-								toolTip="Save the slice credential to file"
-								click="saveCredential()"
-								icon="{ImageUtil.credentialIcon}" />
-		<components:DefaultLine height="14" visible="false" />
-		<components:ImageButton id="rspecButton"
-								icon="{ImageUtil.pageWhiteCodeIcon}"
-								click="viewRspecs()"
-								toolTip="View RSPEC(s) from the created sliver(s)" />
 		<components:ImageButton id="regetSliceButton"
 								icon="{ImageUtil.refreshIcon}"
 								click="tryToRegetSlice()"
@@ -899,59 +917,39 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					  height="24"
 					  icon="{ImageUtil.actionIcon}"
 					  click="tryCreateSlice()"/>
-			<components:ImageButton id="viewStatusButton"
-									toolTip="View the status of the slivers"
-									click="this.setSidePane(VIEW_STATUS);"
-									visible="false" includeInLayout="{viewStatusButton.visible}"/>
 			<components:ImageButton id="deleteButton"
 									toolTip="Delete slivers"
-									click="Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice);"
+									click="tryToDelete();"
 									icon="{ImageUtil.deleteIcon}"
-									enabled="{startButton.enabled}" />
-			<components:DefaultLine percentHeight="90" />
-			<components:ImageButton id="startButton"
-									height="24"
-									toolTip="Start slivers"
-									click="Main.geniHandler.requestHandler.startSlice(sliceCanvas.slice);"
-									icon="{ImageUtil.playControlIcon}"
 									enabled="false" />
-			<components:ImageButton id="stopButton"
-									toolTip="Stop slivers"
-									click="Main.geniHandler.requestHandler.stopSlice(sliceCanvas.slice);"
-									icon="{ImageUtil.stopControlIcon}"
-									enabled="{startButton.enabled}" />
-			<components:ImageButton id="restartButton"
-									toolTip="Restart slivers"
-									click="Main.geniHandler.requestHandler.restartSlice(sliceCanvas.slice);"
-									icon="{ImageUtil.repeatControlIcon}"
-									enabled="{startButton.enabled}" />
-			<s:Rect percentWidth="100" />
-			<components:ImageButton id="instrumentizeButton"
-									toolTip="Instrumentize experiment"
-									click="Instools.instrumentizeSlice(sliceCanvas.slice);"
-									icon="{ImageUtil.lightningIcon}"/>
-			<components:ImageButton id="gotoPortalButton"
-									toolTip="Go to portal"
-									click="Instools.goToPortal(sliceCanvas.slice);"
-									icon="{ImageUtil.barchartIcon}"/>
-			<s:Rect percentWidth="100" />
+			<components:DefaultLine percentHeight="90" />
 			<components:ImageButton id="expireButton"
 									icon="{ImageUtil.timeIcon}"
 									click="viewExpires()" />
 			<s:Button id="renewSliceButton"
-					  label="Add"
+					  label="Extend for"
 					  click="renewSlice()"
-					  height="24" width="60" />
+					  height="24" />
 			<s:DropDownList id="renewLengthDropdownlist" height="24" width="90"
 							requireSelection="true">
 				<s:dataProvider>
 					<s:ArrayList>
+						<fx:String>2 Hours</fx:String>
 						<fx:String>6 Hours</fx:String>
 						<fx:String>1 Day</fx:String>
 						<fx:String>3 Days</fx:String>
 					</s:ArrayList>
 				</s:dataProvider>
 			</s:DropDownList>
+			<s:Rect percentWidth="100" />
+			<s:Button id="instrumentizeButton" label="Instrumentize"
+									toolTip="Instrumentize experiment with INSTOOLS"
+									click="Instools.instrumentizeSlice(sliceCanvas.slice);"
+									icon="{ImageUtil.lightningIcon}" height="24"/>
+			<s:Button id="gotoPortalButton" label="Go to portal"
+									toolTip="Go to portal to see instrumentized data"
+									click="Instools.goToPortal(sliceCanvas.slice);"
+									icon="{ImageUtil.barchartIcon}" height="24"/>
 		</s:HGroup>
 	</components:controlBarContent>
 </components:DefaultWindow>

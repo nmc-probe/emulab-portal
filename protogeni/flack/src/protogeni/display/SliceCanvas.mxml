@@ -537,9 +537,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						startNode.y + startNode.height/2,
 						mouseX,
 						mouseY, currentNode != null);
-					addElement(tempLink);
+					this.addElement(tempLink);
 				} else if(tempLink != null && this.contains(tempLink))
-					removeElement(tempLink);
+					this.removeElement(tempLink);
 			}
 			
 			/**
@@ -553,9 +553,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						tempLink.drawEstablished();
 						edited = true;
 					} else
-						removeElement(tempLink);
+						this.removeElement(tempLink);
 				} else if(tempLink != null && contains(tempLink))
-					removeElement(tempLink);
+					this.removeElement(tempLink);
 				validateNow();
 				
 				// Reset
@@ -616,4 +616,5 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 		]]>
 	</fx:Script>
+	
 </s:BorderContainer>

@@ -89,7 +89,7 @@ package
 				"Group ID: " + groupId + "\n" +
 				"Time: " + DateUtil.toRFC3339(timeStamp) + "\n" +
 				(errorType != ERROR_NONE ? errorString : "") +
-				"Details:\n" + details +
+				"\nDetails:\n" + details +
 				"\n--------------------------------END-";
 		}
 	}

@@ -585,7 +585,7 @@ package protogeni.communication
 			if(event.errorID == CommunicationUtil.TIMEOUT) {
 				// backoff using the first number as the basic unit of seconds
 				request.op.delaySeconds = Util.randomNumberBetween(20, 40+request.numTries*10);
-				request.forceNext = true;
+				request.forceNext = !request.startImmediately;
 				next = request;
 				LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 					request.name + " timeout",
@@ -596,7 +596,7 @@ package protogeni.communication
 			} else if(fault != null && fault.getFaultCode() == CommunicationUtil.XMLRPC_CURRENTLYNOTAVAILABLE){
 				// backoff using the first number as the basic unit of seconds
 				request.op.delaySeconds = Util.randomNumberBetween(40, 60+request.numTries*20);
-				request.forceNext = true;
+				request.forceNext = !request.startImmediately;
 				next = request;
 				LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 					"Server currently not available",
@@ -688,7 +688,7 @@ package protogeni.communication
 					Main.Application().setStatus(request.name + " busy", true);
 					// exponential backoff using the first number as the basic unit of seconds
 					request.op.delaySeconds = Math.min(60, Util.randomNumberBetween(10, 10 + Math.pow(2,request.numTries)));
-					request.forceNext = true;
+					request.forceNext = !request.startImmediately;
 					next = request;
 					LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 						request.name + " busy",

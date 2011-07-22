@@ -395,6 +395,7 @@ package protogeni.resources
 						managerUrn = nodeXml.@component_manager_uuid;
 				} else
 					managerUrn = nodeXml.@component_manager_id;
+				
 				if(managerUrn.length == 0) {
 					Alert.show("All nodes must have a manager associated with them");
 					return false;
@@ -402,7 +403,10 @@ package protogeni.resources
 					detectedManager = Main.geniHandler.GeniManagers.getByUrn(managerUrn);
 				
 				if(detectedManager == null) {
-					Alert.show("All nodes must have a manager id for a known manager");
+					Alert.show("Unkown manager referenced: " + managerUrn);
+					return false;
+				} else if(detectedManager.Status != GeniManager.STATUS_VALID) {
+					Alert.show("Known manager referenced (" + managerUrn + "), but manager didn't load successfully. Please restart Flack.");
 					return false;
 				}
 				

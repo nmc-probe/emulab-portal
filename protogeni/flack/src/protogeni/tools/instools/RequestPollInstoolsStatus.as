@@ -128,10 +128,9 @@ package protogeni.tools.instools
 						reqQueue.push(this);
 						break;
 					case "MC_UNSUPPORTED_OS":
-						sliver.message = "Unsupported OS!";
-						sliver.changing = false;
-						sliver.status = Sliver.STATUS_FAILED;
-						Alert.show("Unrecognized INSTOOLS status: " + status);
+						sliver.message = "Unsupported OS! Maybe not booted...";
+						sliver.status = Sliver.STATUS_CHANGING;
+						reqQueue.push(this);
 						break;
 					default:
 						sliver.status = Sliver.STATUS_FAILED;
