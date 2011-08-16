@@ -160,6 +160,7 @@ package protogeni.resources
 					newNode.state = node.state;
 					newNode.status = node.status;
 					newNode.diskImage = node.diskImage;
+					newNode.hardwareType = node.hardwareType;
 					newNode.flackX = node.flackX;
 					newNode.flackY = node.flackY;
 					newNode.flackUnbound = node.flackUnbound;

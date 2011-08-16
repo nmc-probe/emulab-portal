@@ -50,6 +50,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.DateUtil;
 			import protogeni.GeniEvent;
 			import protogeni.NetUtil;
+			import protogeni.StringUtil;
 			import protogeni.Util;
 			import protogeni.display.components.AdvancedTextArea;
 			import protogeni.display.components.DataButton;
@@ -562,7 +563,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				sliverNameGroup.addElement(consoleButton);
 				
 				if(sliver.message.length > 0) {
-					var statusLabel:Label = DisplayUtil.getLabel(sliver.message);
+					var statusLabel:Label = DisplayUtil.getLabel(StringUtil.shortenString(sliver.message, 50));
 					statusLabel.percentWidth = 100;
 					switch(sliver.status)
 					{

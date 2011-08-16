@@ -44,6 +44,8 @@ package protogeni.resources
 		
 		public var sliverType:String = "";
 		
+		public var hardwareType:String = "";
+		
 		public var installServices:Vector.<InstallService> = new Vector.<InstallService>();
 		public var executeServices:Vector.<ExecuteService> = new Vector.<ExecuteService>();
 		public var loginServices:Vector.<LoginService> = new Vector.<LoginService>();

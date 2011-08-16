@@ -61,18 +61,27 @@ package com.mattism.http.xmlrpc
           inCert = false;
         }
       }
+	  if(key.length == 0) {
+		  throw new Error("No RSA private key found");
+	  }
+	  if(cert.length == 0) {
+		  throw new Error("No certificate found");
+	  }
       var iv : ByteArray = generateIv(key);
+	  // Password encrypted key
       if (iv != null)
       {
         var desKey : ByteArray = generateDesKey(password, iv);
         var clearKey : String = decodeKey(desKey, iv, key);
-        ExternalInterface.call("setClientCert", cert);
         ExternalInterface.call("setClientKey", clearKey);
       }
-      else
-      {
-		  throw new Error("Invalid Key: " + key);
-      }
+	  // Either an invalid key or not password protected ... assume the later
+	  else
+	  {
+		  ExternalInterface.call("setClientKey", key);
+		  //throw new Error("Invalid Key: " + key);
+	  }
+	  ExternalInterface.call("setClientCert", cert);
     }
 
     private static function generateIv(key : String) : ByteArray

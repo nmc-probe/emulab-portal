@@ -623,6 +623,9 @@ package protogeni.resources
 							case "disk_image":
 								virtualNode.diskImage = String(nodeChildXml.@name);
 								break;
+							case "hardware_type":
+								virtualNode.hardwareType = String(nodeChildXml.@name);
+								break;
 							case "sliver_type":
 								virtualNode.sliverType = String(nodeChildXml.@name);
 								for each(var sliverTypeChild:XML in nodeChildXml.children()) {
@@ -979,6 +982,12 @@ package protogeni.resources
 					sliverType.appendChild(planetlabInitscriptXml);
 				}
 				nodeXml.appendChild(sliverType);
+				
+				if(vn.hardwareType.length > 0) {
+					var hardwareXml:XML = <hardware_type />;
+					hardwareXml.@name = vn.hardwareType;
+					nodeXml.appendChild(hardwareXml);
+				}
 			}
 			
 			// Services

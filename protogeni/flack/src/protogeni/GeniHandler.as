@@ -22,7 +22,6 @@ package protogeni
 	import protogeni.resources.GeniManager;
 	import protogeni.resources.GeniManagerCollection;
 	import protogeni.resources.GeniUser;
-	import protogeni.resources.PhysicalLink;
 	import protogeni.resources.PhysicalNode;
 	import protogeni.resources.Slice;
 	import protogeni.resources.SliceAuthority;
@@ -44,7 +43,7 @@ package protogeni
 		public var requestHandler:GeniRequestHandler;
 		
 		[Bindable]
-		public var mapHandler:protogeni.display.mapping.GeniMapHandler;
+		public var mapHandler:GeniMapHandler;
 		
 		[Bindable]
 		public var CurrentUser:GeniUser;

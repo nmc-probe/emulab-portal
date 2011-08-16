@@ -14,6 +14,8 @@
 
 package protogeni.resources
 {
+	import protogeni.StringUtil;
+
 	/**
 	 * Holds resources for a slice at one manager
 	 * 
@@ -70,7 +72,11 @@ package protogeni.resources
 		
 		public var processed:Boolean = false;
 		public var changing:Boolean = false;
-		public var message:String = "Nothing done yet";
+		private var _message:String = "Nothing done yet";
+		public function get message():String { return _message; }
+		public function set message(msg:String):void {
+			_message = StringUtil.shortenString(msg, 200);
+		}
 		
 		public function Sliver(owner:Slice,
 							   newManager:GeniManager = null)

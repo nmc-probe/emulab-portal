@@ -73,7 +73,7 @@ package protogeni.communication
 		 * Starts authenticated GENI calls
 		 * 
 		 */
-		public function startAuthenticatedInitiationSequence(getSlices:Boolean = true):void
+		public function startAuthenticatedInitiationSequence(getSlices:Boolean = true, getManager:GeniManager = null):void
 		{
 			if(Main.geniHandler.unauthenticatedMode) {
 				DisplayUtil.viewInitialUserWindow();
@@ -86,7 +86,13 @@ package protogeni.communication
 				pushRequest(new RequestGetKeys());
 			}
 			
-			loadListAndComponentManagers(getSlices);
+			if(getManager != null) {
+				if(getManager.isAm)
+					pushRequest(new RequestGetVersionAm(getManager));
+				else
+					pushRequest(new RequestGetVersion(getManager as ProtogeniComponentManager));
+			} else
+				loadListAndComponentManagers(getSlices);
 			Main.Application().hideAuthenticate();
 		}
 		

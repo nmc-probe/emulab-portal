@@ -73,6 +73,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			[Bindable]
 			private var managersForVirtual:ArrayList;
 			
+			[Bindable]
+			private var hardwareForVirtual:ArrayList;
+			
 			public function loadNode(n:VirtualNode):void {
 				node = n;
 				
@@ -164,6 +167,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						managersForVirtual.addItem(manager);
 				}
 				this.managerList.selectedItem = node.manager;
+				hardwareForVirtual = node.manager.getTypes();
+				this.hardwareList.selectedItem = node.hardwareType;
 				setBinding();
 				
 				this.installFileTypeList.selectedIndex = 0;
@@ -367,6 +372,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						node.manager = this.managerList.selectedItem;
 					}
 					
+					if(this.hardwareList.selectedItem != null && this.hardwareList.selectedItem.length > 0) {
+						node.hardwareType = this.hardwareList.selectedItem;
+					}
+					
 					node.physicalNode = null;
 				} else if(this.bindingDelayRadiobutton.selected) {
 					node.Exclusive = true;
@@ -417,7 +426,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							case Alert.YES:
 								if(save())
 									return;
-								this.loadNode(node);
+								loadNode(node);
 							default:
 								var previewRspec:XmlWindow = new XmlWindow();
 								previewRspec.title = "Preview Request RSPEC for: " + node.clientId;
@@ -492,8 +501,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							<s:CheckBox id="exclusiveCheckbox"
 										label="Exclusive?" />
 							<s:DropDownList id="managerList"
+											toolTip="Select a manager..."
+											prompt="Select a manager..."
 											labelField="Hrn"
 											dataProvider="{managersForVirtual}"
+											width="100%" />
+							<s:Label text="Hardware Type" />
+							<s:DropDownList id="hardwareList"
+											toolTip="Select a hardware type..."
+											prompt="Select a hardware type..."
+											dataProvider="{hardwareForVirtual}"
 											width="100%" />
 						</s:VGroup>
 					</s:VGroup>
