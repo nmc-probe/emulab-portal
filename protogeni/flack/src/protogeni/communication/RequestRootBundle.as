@@ -56,20 +56,7 @@ package protogeni.communication
 			if(FlackCache.rootBundle.length == 0)
 				FlackCache.rootBundle = (new FallbackRootBundle()).toString();
 			FlackCache.saveBasic();
-			JSLoader.setServerCertificate("-----BEGIN CERTIFICATE-----\n" + 
-				"MIICLzCCAZigAwIBAgIETgDrgzANBgkqhkiG9w0BAQUFADBcMQswCQYDVQQGEwJV\n" + 
-				"UzELMAkGA1UECBMCTUExEjAQBgNVBAcTCUNhbWJyaWRnZTENMAsGA1UEChMER0VO\n" + 
-				"STEMMAoGA1UECxMDR1BPMQ8wDQYDVQQDEwZHUE8gQU0wHhcNMTEwNjIxMTkwNTM5\n" + 
-				"WhcNMTEwOTE5MTkwNTM5WjBcMQswCQYDVQQGEwJVUzELMAkGA1UECBMCTUExEjAQ\n" + 
-				"BgNVBAcTCUNhbWJyaWRnZTENMAsGA1UEChMER0VOSTEMMAoGA1UECxMDR1BPMQ8w\n" + 
-				"DQYDVQQDEwZHUE8gQU0wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBAIGRUysM\n" + 
-				"69UOg9VJs0cZoCQA1DpTeuzzkqA6VMfyRS5D+yBOFXExUIXnlsnJyMvCNWtfQ5gz\n" + 
-				"uX0q+T9e5tHiB3u5HESGIOB3FTigdKq8Fpyzxbk4llps8g5FYHSkwtDS4ENnKCXM\n" + 
-				"2X2Hk0TWBTpghgY9RRnzDxPC/thWVYRsO2LpAgMBAAEwDQYJKoZIhvcNAQEFBQAD\n" + 
-				"gYEAS51LgxUkB9LsiNZWZstlzynTOmoNvVy55swAJmyPieePaIi9W0y4lrqswEV1\n" + 
-				"a/MWqnEm74uTLLj0mVRSUHL6PUFDmT4JM5/0Gv05GZO7et7p4WIrf5jmd0XEKvMt\n" + 
-				"4dj1um7sEs+HeRLqQMG7MkUIK3s/aiq130cKHhb1oQnSbss=\n" + 
-				"-----END CERTIFICATE-----\n" + FlackCache.geniBundle + FlackCache.rootBundle);
+			JSLoader.setServerCertificate(FlackCache.geniBundle + FlackCache.rootBundle);
 		}
 	}
 }

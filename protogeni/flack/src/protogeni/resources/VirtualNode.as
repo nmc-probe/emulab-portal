@@ -14,6 +14,7 @@
 
 package protogeni.resources
 {
+	import mx.collections.ArrayCollection;
 	import mx.collections.XMLListCollection;
 
 	/**
@@ -133,7 +134,45 @@ package protogeni.resources
 					this.diskImage = DiskImage.getDiskImageLong(img, this.manager);
 			} else
 				this.diskImage = "";
-			
+		}
+		
+		public function preparePipes():void
+		{
+			for(var i:int = 0; i < this.interfaces.length; i++) {
+				var first:VirtualInterface = this.interfaces.collection[i];
+				if(first.id == "control")
+					continue;
+				for(var j:int = i+1; j < this.interfaces.length; j++) {
+					var second:VirtualInterface = this.interfaces.collection[j];
+					if(second.id == "control")
+						continue;
+					
+					var firstPipe:Pipe = pipes.getFor(first, second);
+					if(firstPipe == null)
+					{
+						firstPipe = new Pipe(first, second, Math.min(first.capacity, second.capacity));
+						pipes.add(firstPipe);
+					}
+					
+					var secondPipe:Pipe = pipes.getFor(second, first);
+					if(secondPipe == null)
+					{
+						secondPipe = new Pipe(second, first, Math.min(first.capacity, second.capacity));
+						pipes.add(secondPipe);
+					}
+				}
+			}
+		}
+		
+		public function cleanPipes():void {
+			for(var i:int = 0; i < this.pipes.length; i++) {
+				var pipe:Pipe = pipes.collection[i];
+				if(!interfaces.contains(pipe.source) || !interfaces.contains(pipe.destination))
+				{
+					pipes.remove(pipe);
+					i--;
+				}
+			}
 		}
 		
 		public function allocateInterface():VirtualInterface

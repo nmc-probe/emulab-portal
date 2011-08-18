@@ -44,8 +44,8 @@ package protogeni.resources
 		
 		// tunnel stuff
 		public var ip:String = "";
-		public var netmask:String = ""; // 255.255.255.0
-		public var type:String = ""; //ipv4
+		public var netmask:String = "255.255.255.0";
+		public var type:String = "ipv4";
 		
 		[Bindable]
 		public var virtualLinks:VirtualLinkCollection;

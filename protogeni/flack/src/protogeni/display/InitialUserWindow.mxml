@@ -143,16 +143,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					userSlice.creator = Main.geniHandler.CurrentUser;
 					Main.geniHandler.CurrentUser.slices.add(userSlice);
 					
-					/*if(this.aggregateUrlTextinput.text.length > 0) {
-						var newManager:AggregateManager = new AggregateManager();
-						newManager.Url = this.aggregateUrlTextinput.text;
-						newManager.Hrn = NetUtil.tryGetBaseUrl(newManager.Url);
-						newManager.Urn = IdnUrn.makeFrom(newManager.Hrn, "manager", "am");
-						newManager.rspecProcessor = new ProtogeniRspecProcessor(newManager);
-						Main.geniHandler.GeniManagers.add(newManager);
-						Main.geniHandler.requestHandler.startAuthenticatedInitiationSequence(this.discoverResourcesCheckbox.selected, newManager);
-					} else*/
-						Main.geniHandler.requestHandler.startAuthenticatedInitiationSequence(this.discoverResourcesCheckbox.selected);
+					Main.geniHandler.requestHandler.startAuthenticatedInitiationSequence(this.discoverResourcesCheckbox.selected);
 				}
 				Main.geniDispatcher.dispatchUserChanged();
 				closeWindow();
@@ -468,7 +459,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					id="discoverResourcesCheckbox"
 					selected="true"
 					enabled="{sliceCredentialRadiobutton.selected}" />
-		<!--<s:TextInput id="aggregateUrlTextinput" width="100%" prompt="Aggregate URL" visible="{sliceCredentialRadiobutton.selected}" />-->
 	</s:HGroup>
 	<components:controlBarLayout>
 		<s:HorizontalLayout paddingBottom="2" paddingLeft="2" paddingRight="2" paddingTop="2" />

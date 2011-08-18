@@ -1030,7 +1030,7 @@ package protogeni.resources
 				else {
 					interfaceXml.@client_id = current.id;
 					for each(var currentLink:VirtualLink in current.virtualLinks.collection) {
-						if(currentLink.linkType == VirtualLink.TYPE_TUNNEL) {
+						if(current.ip.length > 0) {
 							var tunnelXml:XML = <ip />;
 							tunnelXml.@address = current.ip;
 							tunnelXml.@netmask = current.netmask;
@@ -1084,7 +1084,7 @@ package protogeni.resources
 				}
 			}
 			
-			if (vl.linkType != VirtualLink.TYPE_TUNNEL && vl.capacity) {
+			if (vl.linkType != VirtualLink.TYPE_TUNNEL && (vl.capacity || vl.capacity > -1)) {
 				if(useInputRspecVersion < 1)
 					linkXml.appendChild(XML("<bandwidth>" + vl.capacity + "</bandwidth>"));
 				else {
@@ -1093,12 +1093,12 @@ package protogeni.resources
 							var sourcePropertyXml:XML = <property />;
 							sourcePropertyXml.@source_id = vl.interfaces.collection[i].id;
 							sourcePropertyXml.@dest_id = vl.interfaces.collection[j].id;
-							sourcePropertyXml.@capacity = vl.capacity;
+							sourcePropertyXml.@capacity = vl.interfaces.collection[j].owner.isDelayNode ? 0 : vl.capacity;
 							linkXml.appendChild(sourcePropertyXml);
 							var destPropertyXml:XML = <property />;
 							destPropertyXml.@source_id = vl.interfaces.collection[j].id;
 							destPropertyXml.@dest_id = vl.interfaces.collection[i].id;
-							destPropertyXml.@capacity = vl.capacity;
+							destPropertyXml.@capacity = vl.interfaces.collection[j].owner.isDelayNode ? 0 : vl.capacity;
 							linkXml.appendChild(destPropertyXml);
 						}
 					}
