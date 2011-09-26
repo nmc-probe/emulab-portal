@@ -57,6 +57,8 @@ package protogeni.resources
 			return manifest != null;
 		}
 		
+		public var manifestVersion:Number = NaN;
+		
 		public var nodes:VirtualNodeCollection = new VirtualNodeCollection();
 		public var links:VirtualLinkCollection = new VirtualLinkCollection();
 		public function get VirtualComponents():Vector.<VirtualComponent> {

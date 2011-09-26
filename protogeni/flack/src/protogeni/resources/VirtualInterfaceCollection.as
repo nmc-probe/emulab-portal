@@ -27,7 +27,7 @@ package protogeni.resources
 		public function add(ni:VirtualInterface):void {
 			for each(var t:VirtualInterface in this.collection)
 			{
-				if(t.id == ni.id)
+				if(t.owner.clientId == ni.owner.clientId && t.id == ni.id)
 					return;
 			}
 			this.collection.push(ni);

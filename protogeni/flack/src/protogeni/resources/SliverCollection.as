@@ -171,12 +171,24 @@ package protogeni.resources
 				newId = "node-";
 			else
 			{
-				if(n.isDelayNode)
-					newId = "bridge-";
-				else if(n.Exclusive)
-					newId = "exclusive-";
-				else
-					newId = "shared-";
+				switch(n.sliverType)
+				{
+					case SliverTypes.DELAY:
+						newId = "bridge-";
+						break;
+					case SliverTypes.RAWPC:
+						newId = "raw-";
+						break;
+					case SliverTypes.EMULAB_OPENVZ:
+						newId = "vm-";
+						break;
+					default:
+						if(n.exclusive)
+							newId = "exclusive-";
+						else
+							newId = "shared-";
+						break;
+				}
 			}
 			
 			var highest:int = 0;

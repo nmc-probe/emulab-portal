@@ -15,12 +15,14 @@
 package protogeni.resources
 {
 	import flash.events.Event;
+	import flash.system.Capabilities;
 	import flash.utils.Dictionary;
 	
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
 	import mx.core.FlexGlobals;
 	
+	import protogeni.DateUtil;
 	import protogeni.GeniEvent;
 	import protogeni.Util;
 	import protogeni.XmlUtil;
@@ -61,7 +63,7 @@ package protogeni.resources
 		
 		private var detectedOutputRspecVersion:Number;
 		public function processResourceRspec(afterCompletion:Function):void {
-			this.manager.clearComponents();
+			manager.clearComponents();
 			
 			Main.Application().setStatus("Parsing " + this.manager.Hrn + " RSPEC", false);
 			
@@ -473,13 +475,19 @@ package protogeni.resources
 			switch(defaultNamespace.uri) {
 				case XmlUtil.rspec01Namespace:
 					this.detectedInputRspecVersion = 0.1;
+					sliver.manifestVersion = 0.1;
+					sliver.slice.useInputRspecVersion = 0.1;
 					break;
 				case XmlUtil.rspec02Namespace:
 				case XmlUtil.rspec02MalformedNamespace: // I've seen two of these...
 					this.detectedInputRspecVersion = 0.2;
+					sliver.manifestVersion = 0.2;
+					sliver.slice.useInputRspecVersion = 0.2;
 					break;
 				case XmlUtil.rspec2Namespace:
 					this.detectedInputRspecVersion = 2;
+					sliver.manifestVersion = 2;
+					sliver.slice.useInputRspecVersion = 2;
 					break;
 			}
 			
@@ -552,7 +560,7 @@ package protogeni.resources
 					virtualNode.clientId = String(nodeXml.@virtual_id);
 					if(virtualNode.manager == null)
 						continue;
-					virtualNode._exclusive = String(nodeXml.@exclusive) == "1" || String(nodeXml.@exclusive).toLowerCase() == "true";
+					virtualNode.exclusive = String(nodeXml.@exclusive) == "1" || String(nodeXml.@exclusive).toLowerCase() == "true";
 					if(nodeXml.@sliver_urn.length() == 1)
 						virtualNode.sliverId = String(nodeXml.@sliver_urn);
 					else if(nodeXml.@sliver_uuid.length() == 1)
@@ -561,6 +569,11 @@ package protogeni.resources
 						if(virtualNode.loginServices.length == 0)
 							virtualNode.loginServices.push(new LoginService());
 						virtualNode.loginServices[0].port = String(nodeXml.@sshdport);
+					}
+					if(nodeXml.@startup_command.length() == 1) {
+						if(virtualNode.executeServices.length == 0)
+							virtualNode.executeServices.push(new ExecuteService());
+						virtualNode.executeServices[0].command = String(nodeXml.@startup_command);
 					}
 					if(nodeXml.@hostname.length() == 1) {
 						if(virtualNode.loginServices.length == 0)
@@ -576,7 +589,7 @@ package protogeni.resources
 					virtualNode.clientId = String(nodeXml.@client_id);
 					if(virtualNode.manager == null)
 						continue;
-					virtualNode._exclusive = String(nodeXml.@exclusive) == "true" || String(nodeXml.@exclusive) == "1";
+					virtualNode.exclusive = String(nodeXml.@exclusive) == "true" || String(nodeXml.@exclusive) == "1";
 					virtualNode.sliverId = String(nodeXml.@sliver_id);
 				}
 				
@@ -826,7 +839,8 @@ package protogeni.resources
 											removeNonexplicitBinding:Boolean,
 											overrideRspecVersion:Number):XML
 		{
-			var requestRspec:XML = new XML("<?xml version=\"1.0\" encoding=\"UTF-8\"?><rspec type=\"request\" />");
+			var requestRspec:XML = new XML("<?xml version=\"1.0\" encoding=\"UTF-8\"?><rspec type=\"request\" generated_by=\"Flack\" />");
+			requestRspec.@generated = DateUtil.toRFC3339(new Date());
 			
 			// Add namespaces
 			var defaultNamespace:Namespace;
@@ -847,6 +861,7 @@ package protogeni.resources
 			requestRspec.setNamespace(defaultNamespace);
 			if(useInputRspecVersion >= 2) {
 				requestRspec.addNamespace(XmlUtil.flackNamespace);
+				requestRspec.addNamespace(XmlUtil.clientNamespace);
 				for each(var extensionNs:Namespace in s.extensionNamespaces)
 					requestRspec.addNamespace(extensionNs);
 			}
@@ -867,7 +882,7 @@ package protogeni.resources
 					break;
 			}
 			for each(var testNode:VirtualNode in s.nodes.collection) {
-				if(testNode.isDelayNode) {
+				if(testNode.sliverType == SliverTypes.DELAY) {
 					requestRspec.addNamespace(XmlUtil.delayNamespace);
 					schemaLocations += " " + XmlUtil.delaySchemaLocation;
 					break;
@@ -883,6 +898,17 @@ package protogeni.resources
 			
 			for each(var vl:VirtualLink in s.links.collection) {
 				requestRspec.appendChild(generateLinkRspec(vl, useInputRspecVersion));
+			}
+			
+			if(useInputRspecVersion >= 2)
+			{
+				var clientInfoXml:XML = <info />;
+				clientInfoXml.setNamespace(XmlUtil.clientNamespace);
+				clientInfoXml.@name = "Flack";
+				clientInfoXml.@environment = "Flash Version: " + Capabilities.version + ", OS: " + Capabilities.os + ", Arch: " + Capabilities.cpuArchitecture + ", Screen: " + Capabilities.screenResolutionX + "x" + Capabilities.screenResolutionY+" @ "+Capabilities.screenDPI+" DPI with touchscreen type "+Capabilities.touchscreenType;
+				clientInfoXml.@version = Main.version;
+				clientInfoXml.@url = FlexGlobals.topLevelApplication.url;
+				requestRspec.appendChild(clientInfoXml);
 			}
 			
 			return requestRspec;
@@ -919,7 +945,7 @@ package protogeni.resources
 				}
 			}
 			
-			if (!vn.Exclusive)
+			if (!vn.exclusive)
 			{
 				if(useInputRspecVersion < 1) {
 					nodeXml.@virtualization_subtype = vn.virtualizationSubtype;
@@ -937,7 +963,7 @@ package protogeni.resources
 			
 			if(useInputRspecVersion < 2) {
 				var nodeType:String = "pc";
-				if (!vn.Exclusive)
+				if (!vn.exclusive)
 					nodeType = "pcvm";
 				var nodeTypeXml:XML = <node_type />;
 				nodeTypeXml.@type_name = nodeType;
@@ -952,7 +978,7 @@ package protogeni.resources
 			} else if (vn.sliverType.length > 0) {
 				var sliverType:XML = <sliver_type />
 				sliverType.@name = vn.sliverType;
-				if(vn.isDelayNode) {
+				if(vn.sliverType == SliverTypes.DELAY) {
 					var sliverTypeShapingXml:XML = <sliver_type_shaping />;
 					sliverTypeShapingXml.setNamespace(XmlUtil.delayNamespace);
 					//sliverTypeShapingXml.@xmlns = XmlUtil.delayNamespace.uri;
@@ -1093,12 +1119,12 @@ package protogeni.resources
 							var sourcePropertyXml:XML = <property />;
 							sourcePropertyXml.@source_id = vl.interfaces.collection[i].id;
 							sourcePropertyXml.@dest_id = vl.interfaces.collection[j].id;
-							sourcePropertyXml.@capacity = vl.interfaces.collection[j].owner.isDelayNode ? 0 : vl.capacity;
+							sourcePropertyXml.@capacity = vl.interfaces.collection[j].owner.sliverType == SliverTypes.DELAY ? 0 : vl.capacity;
 							linkXml.appendChild(sourcePropertyXml);
 							var destPropertyXml:XML = <property />;
 							destPropertyXml.@source_id = vl.interfaces.collection[j].id;
 							destPropertyXml.@dest_id = vl.interfaces.collection[i].id;
-							destPropertyXml.@capacity = vl.interfaces.collection[j].owner.isDelayNode ? 0 : vl.capacity;
+							destPropertyXml.@capacity = vl.interfaces.collection[j].owner.sliverType == SliverTypes.DELAY ? 0 : vl.capacity;
 							linkXml.appendChild(destPropertyXml);
 						}
 					}

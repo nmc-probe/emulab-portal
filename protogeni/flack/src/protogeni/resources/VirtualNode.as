@@ -27,7 +27,7 @@ package protogeni.resources
 	{
 		[Bindable]
 		public var physicalNode:PhysicalNode;
-		public var _exclusive:Boolean;
+		public var exclusive:Boolean;
 		public var superNode:VirtualNode;
 		public var subNodes:VirtualNodeCollection = new VirtualNodeCollection();
 		
@@ -54,16 +54,6 @@ package protogeni.resources
 		[Bindable]
 		public var diskImage:String = "";
 		
-		public function get isDelayNode():Boolean { return this.sliverType == "delay" };
-		public function set isDelayNode(value:Boolean):void {
-			if(value) {
-				this._exclusive = true;
-				this.sliverType = "delay";
-			} else {
-				Exclusive = this.Exclusive;
-			}
-		}
-		
 		// Extensions
 		public var extensionsNodes:XMLListCollection = new XMLListCollection();
 		
@@ -75,7 +65,7 @@ package protogeni.resources
 		public var virtualizationType:String = "emulab-vnode";
 		public var virtualizationSubtype:String = "emulab-openvz";
 		
-		public function VirtualNode(owner:Sliver)
+		public function VirtualNode(owner:Sliver, isExclusive:Boolean = true, newSliverType:String = "")
 		{
 			super();
 			
@@ -89,30 +79,9 @@ package protogeni.resources
 			var controlInterface:VirtualInterface = new VirtualInterface(this);
 			controlInterface.id = "control";
 			this.interfaces.add(controlInterface);
-		}
-		
-		public function get Exclusive():Boolean {
-			return this._exclusive;
-		}
-		
-		public function set Exclusive(value:Boolean):void {
-			this._exclusive = value;
-
-			if(this.physicalNode != null
-					&& this.physicalNode.sliverTypes.length == 1
-					&& this.physicalNode.sliverTypes[0].name != "N/A")
-				this.sliverType = this.physicalNode.sliverTypes[0].name;
-			else {
-				if(this.manager is ProtogeniComponentManager) {
-					if(this._exclusive)
-						sliverType = "raw-pc";
-					else
-						sliverType = "emulab-openvz";
-				} else if(this.manager is PlanetlabAggregateManager) {
-					sliverType = "plab-vnode";
-				}
-			}
 			
+			exclusive = isExclusive;
+			sliverType = newSliverType;
 		}
 		
 		public function setToPhysicalNode(node:PhysicalNode):void
@@ -120,8 +89,11 @@ package protogeni.resources
 			this.physicalNode = node;
 			this.clientId = node.name;
 			this.manager = node.manager;
-			this.sliverId = node.id;
-			this.Exclusive = node.exclusive;
+			this.sliverId = node.id; // XXX wtf?
+			this.exclusive = node.exclusive;
+			
+			if(node.sliverTypes.length == 1)
+				this.sliverType = node.sliverTypes[0].name;
 		}
 		
 		public function setDiskImage(img:String):void

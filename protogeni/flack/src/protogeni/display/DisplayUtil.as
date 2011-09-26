@@ -20,7 +20,7 @@ package protogeni.display
 	import protogeni.StringUtil;
 	import protogeni.communication.Request;
 	import protogeni.display.components.DataButton;
-	import protogeni.display.components.XmlWindow;
+	import protogeni.display.components.DocumentWindow;
 	import protogeni.resources.GeniManager;
 	import protogeni.resources.PhysicalLink;
 	import protogeni.resources.PhysicalLinkGroup;
@@ -380,7 +380,7 @@ package protogeni.display
 		}
 		
 		public static function viewXml(xml:XML, title:String):void {
-			var xmlView:XmlWindow = new XmlWindow();
+			var xmlView:DocumentWindow = new DocumentWindow();
 			xmlView.title = title;
 			xmlView.showWindow();
 			xmlView.loadXml(xml);

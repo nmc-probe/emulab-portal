@@ -20,10 +20,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 <components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						xmlns:s="library://ns.adobe.com/flex/spark" 
 						xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:display="protogeni.display.*"
-						width="510" height="500"
+						width="510" height="580"
 						title="Node Information" xmlns:components="protogeni.display.components.*">
 	<fx:Declarations>
 		<s:RadioButtonGroup id="boundGroup" change="setBinding()" />
+		<s:RadioButtonGroup id="unboundTypeGroup" change="setType()" />
 	</fx:Declarations>
 	<fx:Script>
 		<![CDATA[
@@ -36,11 +37,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.NetUtil;
 			import protogeni.XmlUtil;
 			import protogeni.display.components.DataButton;
-			import protogeni.display.components.XmlWindow;
+			import protogeni.display.components.DocumentWindow;
 			import protogeni.resources.DiskImage;
 			import protogeni.resources.ExecuteService;
 			import protogeni.resources.GeniManager;
-			import protogeni.resources.GeniManagerCollection;
 			import protogeni.resources.InstallService;
 			import protogeni.resources.Pipe;
 			import protogeni.resources.PipeCollection;
@@ -48,6 +48,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.resources.ProtogeniRspecProcessor;
 			import protogeni.resources.Sliver;
 			import protogeni.resources.SliverType;
+			import protogeni.resources.SliverTypes;
 			import protogeni.resources.VirtualComponent;
 			import protogeni.resources.VirtualInterface;
 			import protogeni.resources.VirtualLink;
@@ -55,7 +56,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.resources.VirtualNode;
 			import protogeni.resources.VirtualNodeCollection;
 			
-			import spark.components.NumericStepper;
 			import spark.primitives.BitmapImage;
 			import spark.primitives.Rect;
 			
@@ -112,7 +112,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
 				
 				if(node.loginServices.length > 0) {
-					this.loginText.text = node.loginServices[0].hostname;
+					this.loginText.text = node.loginServices[0].hostname + ":" + node.loginServices[0].port;
 					
 					var sshButton:DataButton = new DataButton("","Start a SSH session",ImageUtil.linkIcon);
 					sshButton.data = "ssh://" + node.loginServices[0].hostname + ":" + node.loginServices[0].port;
@@ -142,14 +142,18 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 				this.bindingDelayRadiobutton.enabled = node.manager.supportsDelayNodes;
 				
-				if(node.isDelayNode) {
+				if(node.sliverType == SliverTypes.DELAY) {
 					this.bindingDelayRadiobutton.selected = true;
 					this.bindingPhysicalRadiobutton.enabled = false;
 				}
 				else if(node.physicalNode != null)
 				{
 					this.bindingPhysicalRadiobutton.selected = true;
-					physicalVgroup.addElement(DisplayUtil.getPhysicalNodeButton(node.physicalNode));
+					physicalVgroup.addElementAt(DisplayUtil.getPhysicalNodeButton(node.physicalNode), 0);
+					if(node.sliverType == SliverTypes.RAWPC)
+						this.boundTypeLabel.text = "Raw PC";
+					else
+						this.boundTypeLabel.text = "VM";
 					if(node.physicalNode.manager is PlanetlabAggregateManager) {
 						usePlanetlabInitCheckbox.visible = true;
 						usePlanetlabInitCheckbox.selected = node.usesPlanetlabInitscript;
@@ -160,7 +164,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					this.bindingVirtualRadiobutton.selected = true;
 					this.bindingPhysicalRadiobutton.enabled = false;
 				}
-				this.exclusiveCheckbox.selected = node.Exclusive;
+				this.exclusiveCheckbox.selected = node.exclusive;
+				if(node.sliverType == SliverTypes.RAWPC)
+					this.rawRadiobutton.selected = true;
+				else
+					this.virtualRadiobutton.selected = true;
 				managersForVirtual = new ArrayList();
 				for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
 					if(manager.supportsExclusiveNodes || manager.supportsSharedNodes)
@@ -340,8 +348,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					// currently can't select a physical node here
 					node.usesPlanetlabInitscript = usePlanetlabInitCheckbox.selected;
 				} else if(this.bindingVirtualRadiobutton.selected) {
-					node.Exclusive = this.exclusiveCheckbox.selected;
-					
 					if(this.managerList.selectedItem != node.manager) {
 						var newManager:GeniManager = this.managerList.selectedItem;
 						var newSliver:Sliver = node.sliver.slice.getOrCreateForManager(newManager);
@@ -358,7 +364,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 											newSliver.links.add(vl);
 											break;
 										}
-										// Now the same manager
+											// Now the same manager
 										else if(otherInterface.owner.manager == newManager) {
 											vl.linkType = VirtualLink.TYPE_NORMAL;
 											node.sliver.links.remove(vl);
@@ -369,7 +375,18 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								}
 							}
 						}
-						node.manager = this.managerList.selectedItem;
+					}
+					node.manager = this.managerList.selectedItem;
+					
+					if(this.rawRadiobutton.selected)
+					{
+						node.sliverType = SliverTypes.RAWPC;
+						node.exclusive = true;
+					}
+					else
+					{
+						node.sliverType = SliverTypes.EMULAB_OPENVZ;
+						node.exclusive = this.exclusiveCheckbox.selected;
 					}
 					
 					if(this.hardwareList.selectedItem != null && this.hardwareList.selectedItem.length > 0) {
@@ -378,9 +395,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					
 					node.physicalNode = null;
 				} else if(this.bindingDelayRadiobutton.selected) {
-					node.Exclusive = true;
+					node.exclusive = true;
 					node.physicalNode = null;
-					node.isDelayNode = true;
+					node.sliverType = SliverTypes.DELAY;
 					node.pipes = new PipeCollection();
 					for each(var pipe:Pipe in pipes)
 						node.pipes.add(pipe);
@@ -404,7 +421,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				if(node.manifest != null)
 				{
-					var rspecWindow:XmlWindow = new XmlWindow;
+					var rspecWindow:DocumentWindow = new DocumentWindow;
 					rspecWindow.showWindow();
 					rspecWindow.title = "Last Successful RSPEC from " + node.sliverId;
 					rspecWindow.loadXml(node.manifest);
@@ -428,7 +445,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 									return;
 								loadNode(node);
 							default:
-								var previewRspec:XmlWindow = new XmlWindow();
+								var previewRspec:DocumentWindow = new DocumentWindow();
 								previewRspec.title = "Preview Request RSPEC for: " + node.clientId;
 								previewRspec.loadXml((node.manager.rspecProcessor as ProtogeniRspecProcessor).generateNodeRspec(node, true));
 								previewRspec.showWindow();
@@ -446,6 +463,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					loadDelayPipes();
 				} else
 					detailsViewstack.selectedChild = this.detailsView;
+			}
+			
+			protected function setType():void
+			{
+				this.exclusiveCheckbox.enabled = virtualRadiobutton.selected
 			}
 
 		]]>
@@ -486,26 +508,35 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				<s:Label text="Binding" fontWeight="bold" />
 				<s:HGroup width="100%">
-					<s:VGroup width="33%">
+					<s:VGroup width="40%">
 						<s:RadioButton id="bindingPhysicalRadiobutton"
-									   label="Physical"
+									   label="Bound"
 									   group="{boundGroup}" />
-						<s:VGroup id="physicalVgroup" />
-						<s:CheckBox id="usePlanetlabInitCheckbox" label="Run initscript"
-									visible="false" includeInLayout="{usePlanetlabInitCheckbox.visible}" />
+						<s:Rect/>
+						<s:VGroup id="physicalVgroup">
+							<s:Label id="boundTypeLabel" />
+							<s:CheckBox id="usePlanetlabInitCheckbox" label="Run initscript"
+										visible="false" includeInLayout="{usePlanetlabInitCheckbox.visible}" />
+						</s:VGroup>
+						
 					</s:VGroup>
-					<s:VGroup width="33%">
+					<s:VGroup width="40%">
 						<s:RadioButton id="bindingVirtualRadiobutton"
-									   label="Virtual" group="{boundGroup}" />
+									   label="Unbound" group="{boundGroup}" />
+						<s:Rect/>
 						<s:VGroup id="virtualVgroup" width="100%">
-							<s:CheckBox id="exclusiveCheckbox"
-										label="Exclusive?" />
 							<s:DropDownList id="managerList"
 											toolTip="Select a manager..."
 											prompt="Select a manager..."
-											labelField="Hrn"
+											labelField="Hrn" height="24"
 											dataProvider="{managersForVirtual}"
 											width="100%" />
+							<s:RadioButton id="rawRadiobutton" label="Raw PC" group="{unboundTypeGroup}" />
+							<s:RadioButton id="virtualRadiobutton" label="VM" group="{unboundTypeGroup}" />
+							<s:CheckBox id="exclusiveCheckbox"
+										label="Exclusive?" />
+							
+							
 							<s:Label text="Hardware Type" />
 							<s:DropDownList id="hardwareList"
 											toolTip="Select a hardware type..."
@@ -514,7 +545,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 											width="100%" />
 						</s:VGroup>
 					</s:VGroup>
-					<s:VGroup width="33%">
+					<s:VGroup width="20%">
 						<s:RadioButton id="bindingDelayRadiobutton"
 									   label="Delay"
 									   group="{boundGroup}" />

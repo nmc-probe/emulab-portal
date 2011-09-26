@@ -34,6 +34,8 @@ package protogeni
 		
 		public static var flackNamespace:Namespace = new Namespace("flack", "http://www.protogeni.net/resources/rspec/ext/flack/1");
 		
+		public static var clientNamespace:Namespace = new Namespace("client", "http://www.protogeni.net/resources/rspec/ext/client/1");
+		
 		public static var planetlabNamespace:Namespace = new Namespace("planetlab", "http://www.planet-lab.org/resources/ext/planetlab/1");
 		
 		public static function isKnownNamespace(ns:Namespace):Boolean {
@@ -43,6 +45,7 @@ package protogeni
 				case rspec2Namespace:
 				case xsiNamespace.uri:
 				case flackNamespace.uri:
+				case clientNamespace.uri:
 				case delayNamespace.uri:
 				case planetlabNamespace.uri:
 					return true;

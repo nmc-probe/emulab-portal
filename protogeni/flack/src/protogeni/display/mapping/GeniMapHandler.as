@@ -279,7 +279,7 @@ package protogeni.display.mapping
 					gmm.added = true;
 				}
 				idx++
-					myIndex++;
+				myIndex++;
 				if(((new Date()).time - startTime.time) > 60) {
 					if(Main.debugMode)
 						trace("Nodes added:" + idx);

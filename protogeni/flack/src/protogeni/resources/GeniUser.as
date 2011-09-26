@@ -78,7 +78,7 @@ package protogeni.resources
 		
 		public function tryToSetInJavascript(password:String):Boolean {
 			if(Main.useJavascript) {
-				if(password.length > 0 && FlackCache.userSslPem.length > 0) {
+				if(FlackCache.userSslPem.length > 0) {
 					try {
 						JSLoader.setClientInfo(password, FlackCache.userSslPem);
 						hasSetupJavascript = true;

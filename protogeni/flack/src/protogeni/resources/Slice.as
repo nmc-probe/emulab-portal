@@ -135,7 +135,7 @@ package protogeni.resources
 					newNode.physicalNode = node.physicalNode;
 					newNode.manager = node.manager;
 					newNode.sliverId = node.sliverId;
-					newNode._exclusive = node.Exclusive;
+					newNode.exclusive = node.exclusive;
 					newNode.sliverType = node.sliverType;
 					for each(var executeService:ExecuteService in node.executeServices) {
 						newNode.executeServices.push(new ExecuteService(executeService.command,

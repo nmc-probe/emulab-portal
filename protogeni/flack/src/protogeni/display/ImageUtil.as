@@ -95,6 +95,10 @@
 		public static var sharedIcon:Class;
 		
 		[Bindable]
+		[Embed(source="../../../images/computer.png")]
+		public static var rawIcon:Class;
+		
+		[Bindable]
 		[Embed(source="../../../images/drive_network.png")]
 		public static var physicalNodeIcon:Class;
         

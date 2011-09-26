@@ -96,13 +96,13 @@ package protogeni.resources
 					|| this.linkType == TYPE_ION)
 				this.capacity = 100000;
 			
-			if(first.isDelayNode || second.isDelayNode)
+			if(first.sliverType == SliverTypes.DELAY || second.sliverType == SliverTypes.DELAY)
 			{
 				this.capacity = 0;
 				// Make sure new pipes exist
-				if(first.isDelayNode)
+				if(first.sliverType == SliverTypes.DELAY)
 					first.preparePipes();
-				if(second.isDelayNode)
+				if(second.sliverType == SliverTypes.DELAY)
 					second.preparePipes();
 			}
 			
@@ -132,7 +132,7 @@ package protogeni.resources
 				if(vi.id != "control")
 					vi.owner.interfaces.remove(vi);
 				
-				if(vi.owner.isDelayNode)
+				if(vi.owner.sliverType == SliverTypes.DELAY)
 					vi.owner.cleanPipes();
 				
 				// Removes nodes from slivers if it isn't linked to anymore

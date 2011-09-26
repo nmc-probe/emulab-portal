@@ -27,7 +27,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.controls.Alert;
 			import mx.events.CloseEvent;
 			
-			import protogeni.display.components.XmlWindow;
+			import protogeni.display.components.DocumentWindow;
 			import protogeni.resources.GeniManager;
 			import protogeni.resources.ProtogeniRspecProcessor;
 			import protogeni.resources.VirtualComponent;
@@ -108,7 +108,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public function viewRspec():void {
 				if(link.manifest != null)
 				{
-					var rspecWindow:XmlWindow = new XmlWindow;
+					var rspecWindow:DocumentWindow = new DocumentWindow;
 					rspecWindow.showWindow();
 					rspecWindow.title = "Last Successful RSPEC from " + link.clientId;
 					rspecWindow.loadXml(link.manifest);
@@ -130,7 +130,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							case Alert.YES:
 								save();
 							default:
-								var previewRspec:XmlWindow = new XmlWindow();
+								var previewRspec:DocumentWindow = new DocumentWindow();
 								previewRspec.title = "Preview Request RSPEC for: " + link.clientId;
 								previewRspec.loadXml((link.interfaces.Slivers.collection[0].manager.rspecProcessor as ProtogeniRspecProcessor).generateLinkRspec(link));
 								previewRspec.showWindow();

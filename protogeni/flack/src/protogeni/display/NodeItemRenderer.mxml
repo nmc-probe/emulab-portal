@@ -51,7 +51,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				} else if(data is VirtualNode) {
 					var virtNode:VirtualNode = data as VirtualNode;
 					nodeName = virtNode.clientId;
-					if(virtNode.Exclusive)
+					if(virtNode.exclusive)
 						nodeImage.source = ImageUtil.exclusiveIcon;
 					else
 						nodeImage.source = ImageUtil.sharedIcon;

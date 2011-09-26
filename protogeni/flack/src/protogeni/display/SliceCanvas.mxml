@@ -38,6 +38,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.resources.Slice;
 			import protogeni.resources.Sliver;
 			import protogeni.resources.SliverCollection;
+			import protogeni.resources.SliverTypes;
 			import protogeni.resources.VirtualLink;
 			import protogeni.resources.VirtualLinkCollection;
 			import protogeni.resources.VirtualNode;
@@ -263,17 +264,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				} else if(event.dragSource.hasFormat("manager")) {
 					var dropManager:GeniManager = event.dragSource.dataForFormat('manager') as GeniManager;
 					if(dropManager.supportsExclusiveNodes) {
-						var exclusive:VirtualNode = new VirtualNode(null);
-						exclusive.clientId = "Exclusive";
-						exclusive.Exclusive = true;
+						var exclusive:VirtualNode = new VirtualNode(null, true, SliverTypes.RAWPC);
+						exclusive.clientId = "Raw";
 						exclusive.manager = dropManager;
 						addBasicCloneOfVirtualNode(exclusive,
 							SliceCanvas(event.currentTarget).mouseX,
 							SliceCanvas(event.currentTarget).mouseY);
 					} else if(dropManager.supportsSharedNodes) {
-						var shared:VirtualNode = new VirtualNode(null);
-						shared.clientId = "Shared";
-						shared.Exclusive = false;
+						var shared:VirtualNode = new VirtualNode(null, false, SliverTypes.EMULAB_OPENVZ);
+						shared.clientId = "Virtual";
 						shared.manager = dropManager;
 						addBasicCloneOfVirtualNode(shared,
 							SliceCanvas(event.currentTarget).mouseX,
@@ -392,9 +391,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 * If outside of SliceCanvas, use addVirtualNode.
 			 */
 			public function addBasicCloneOfVirtualNode(virtualNode:VirtualNode, x:int = -1, y:int = -1):SliceNode {
-				var nvn:VirtualNode = new VirtualNode(slice.getOrCreateForManager(virtualNode.manager));
-				nvn.Exclusive = virtualNode.Exclusive;
-				nvn.isDelayNode = virtualNode.isDelayNode;
+				var nvn:VirtualNode = new VirtualNode(slice.getOrCreateForManager(virtualNode.manager), virtualNode.exclusive, virtualNode.sliverType);
 				nvn.clientId = slice.slivers.getUniqueVirtualNodeId(nvn);
 				return this.addVirtualNode(nvn, x, y);
 			}
@@ -522,13 +519,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					for each(var sn:SliceNode in allNodes)
 					{
 						if(sn != startNode
-							&& sn.getRect(this).contains(mouseX, mouseY)
-							&& sn.allowLink
-							&& !allLinks.hasLinkFor(startNode, sn)
-							&& (!startNode.node.isDelayNode || sn.node.manager == startNode.node.manager))
+							&& sn.getRect(this).contains(mouseX, mouseY))
 						{
-							currentNode = sn;
-							break;
+							if(sn.allowLink
+								&& !allLinks.hasLinkFor(startNode, sn)
+								&& (startNode.node.sliverType != SliverTypes.DELAY || sn.node.manager == startNode.node.manager))
+							{
+								currentNode = sn;
+								break;
+							}
 						}
 					}
 					

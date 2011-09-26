@@ -56,7 +56,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.display.components.DataButton;
 			import protogeni.display.components.DefaultWindow;
 			import protogeni.display.components.TextInputWindow;
-			import protogeni.display.components.XmlWindow;
+			import protogeni.display.components.DocumentWindow;
 			import protogeni.display.mapping.GeniMapMarker;
 			import protogeni.resources.GeniManager;
 			import protogeni.resources.PhysicalNode;
@@ -64,6 +64,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.resources.Site;
 			import protogeni.resources.Slice;
 			import protogeni.resources.Sliver;
+			import protogeni.resources.SliverTypes;
 			import protogeni.resources.VirtualNode;
 			import protogeni.tools.instools.Instools;
 			
@@ -544,7 +545,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					manifestButton.data = sliver.manifest;
 					manifestButton.addEventListener(MouseEvent.CLICK,
 						function openManifest(e:MouseEvent):void {
-							var rspecWindow:XmlWindow = new XmlWindow();
+							var rspecWindow:DocumentWindow = new DocumentWindow();
 							rspecWindow.showWindow();
 							rspecWindow.title = "Manifest RSPEC from " + sliver.manager.Hrn;
 							rspecWindow.loadXml((e.currentTarget as DataButton).data);
@@ -615,41 +616,55 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				managerButton.percentWidth = 100;
 				managerHgroup.addElement(managerButton);
 
-				var addExclusiveButton:DataButton = new DataButton("",
-					"Add an exclusive node",
-					ImageUtil.exclusiveIcon,
+				var addRawButton:DataButton = new DataButton("",
+					"Add a raw node",
+					ImageUtil.rawIcon,
 					null,
 					"virtualnode");
 				if(manager.supportsExclusiveNodes) {
-					var exclusive:VirtualNode = new VirtualNode(null);
-					exclusive.clientId = "Exclusive";
-					exclusive.Exclusive = true;
-					exclusive.manager = manager;
-					addExclusiveButton.data = exclusive;
-					addExclusiveButton.addEventListener(MouseEvent.CLICK,
+					var raw:VirtualNode = new VirtualNode(null, true, SliverTypes.RAWPC);
+					raw.clientId = "Raw";
+					raw.manager = manager;
+					addRawButton.data = raw;
+					addRawButton.addEventListener(MouseEvent.CLICK,
 						function addExclusiveClicked(e:MouseEvent):void {
 							sliceCanvas.addBasicCloneOfVirtualNode(e.currentTarget.data);
 						});
 				} else
-					addExclusiveButton.visible = false; // include in the layout
-				managerHgroup.addElement(addExclusiveButton);
+					addRawButton.visible = false; // include in the layout
+				managerHgroup.addElement(addRawButton);
 				
-				var addSharedButton:DataButton = new DataButton("",
-					"Add a shared node",
-					ImageUtil.sharedIcon, null, "virtualnode");
+				var addExclusiveVirtualButton:DataButton = new DataButton("",
+					"Add an exclusive virtual node",
+					ImageUtil.exclusiveIcon, null, "virtualnode");
 				if(manager.supportsSharedNodes) {
-					var shared:VirtualNode = new VirtualNode(null);
-					shared.clientId = "Shared";
-					shared.Exclusive = false;
-					shared.manager = manager;
-					addSharedButton.data = shared;
-					addSharedButton.addEventListener(MouseEvent.CLICK,
+					var exclusiveVirtual:VirtualNode = new VirtualNode(null, true, SliverTypes.EMULAB_OPENVZ);
+					exclusiveVirtual.clientId = "Virtual";
+					exclusiveVirtual.manager = manager;
+					addExclusiveVirtualButton.data = exclusiveVirtual;
+					addExclusiveVirtualButton.addEventListener(MouseEvent.CLICK,
 						function addSharedClicked(e:MouseEvent):void {
-							sliceCanvas.addBasicCloneOfVirtualNode(shared);
+							sliceCanvas.addBasicCloneOfVirtualNode(e.currentTarget.data);
 						});
 				} else
-					addSharedButton.visible = false; // include in the layout
-				managerHgroup.addElement(addSharedButton);
+					addExclusiveVirtualButton.visible = false; // include in the layout
+				managerHgroup.addElement(addExclusiveVirtualButton);
+				
+				var addSharedVirtualButton:DataButton = new DataButton("",
+					"Add a shared virtual node",
+					ImageUtil.sharedIcon, null, "virtualnode");
+				if(manager.supportsSharedNodes) {
+					var sharedVirtual:VirtualNode = new VirtualNode(null, false, SliverTypes.EMULAB_OPENVZ);
+					sharedVirtual.clientId = "Virtual";
+					sharedVirtual.manager = manager;
+					addSharedVirtualButton.data = sharedVirtual;
+					addSharedVirtualButton.addEventListener(MouseEvent.CLICK,
+						function addSharedClicked(e:MouseEvent):void {
+							sliceCanvas.addBasicCloneOfVirtualNode(e.currentTarget.data);
+						});
+				} else
+					addSharedVirtualButton.visible = false; // include in the layout
+				managerHgroup.addElement(addSharedVirtualButton);
 				
 				var addDelayButton:DataButton = new DataButton("",
 					"Add a delay node",
@@ -658,9 +673,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					"virtualnode");
 				if(manager.supportsDelayNodes) {
 					addDelayButton.alpha = 0.8;
-					var delay:VirtualNode = new VirtualNode(null);
+					var delay:VirtualNode = new VirtualNode(null, true, SliverTypes.DELAY);
 					delay.clientId = "Delay";
-					delay.isDelayNode = true;
 					delay.manager = manager;
 					addDelayButton.data = delay;
 					addDelayButton.addEventListener(MouseEvent.CLICK,
