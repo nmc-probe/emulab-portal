@@ -292,7 +292,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					vertLayout.paddingBottom = 5;
 					vertLayout.paddingLeft = 5;
 					vertLayout.paddingRight = 5;
-					vertLayout.paddingTop = 5;
 					tab.layout = vertLayout;
 					tab.percentHeight = 100;
 					tab.percentWidth = 100;
@@ -861,7 +860,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	</fx:Script>
 	
 	<mx:HDividedBox width="100%" height="100%">
-		<s:VGroup id="dashboard" height="100%" width="240"
+		<s:VGroup id="dashboard" height="100%" width="230" gap="2"
 				  dragEnter="sidePane_dragEnterHandler(event)"
 				  dragDrop="sidePane_dragDropHandler(event)">
 			<s:ButtonBar dataProvider="{dashboardViewstack}"
@@ -877,7 +876,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 									toolTip="Resources"
 									icon="{ImageUtil.resourcesIcon}">
 					<s:Scroller width="100%" height="100%">
-						<s:VGroup id="sidePaneManagers" width="100%" height="100%" paddingRight="2" paddingLeft="2" />
+						<s:VGroup id="sidePaneManagers" width="100%" height="100%" paddingRight="2" paddingLeft="2" gap="2" />
 					</s:Scroller>
 				</s:NavigatorContent>
 				<s:NavigatorContent id="sliceView"
@@ -888,9 +887,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					<s:VGroup height="100%"
 							  width="100%"
 							  paddingLeft="2"
+							  gap="2"
 							  id="sliceGroup"
 							  creationComplete="updateSliversInfo();">
-						<s:HGroup width="100%" verticalAlign="middle" horizontalAlign="right">
+						<s:HGroup width="100%" verticalAlign="middle" horizontalAlign="right" gap="2">
 							<s:Button id="refreshStatusButton"
 									  label="Refresh status"
 									  toolTip="Refresh the slivers' status"
@@ -907,9 +907,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 													toolTip="View RSPEC(s) from the created sliver(s)" />
 						</s:HGroup>
 						<s:Scroller height="100%" width="100%">
-							<s:VGroup id="sidePaneSlices" width="100%" height="100%" />
+							<s:VGroup id="sidePaneSlices" width="100%" height="100%" gap="2" />
 						</s:Scroller>
-						<s:HGroup width="100%" verticalAlign="middle">
+						<s:HGroup width="100%" verticalAlign="middle" gap="2">
 							<components:ImageButton id="expireButton"
 													icon="{ImageUtil.timeIcon}"
 													click="viewExpires()" />
@@ -929,7 +929,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								</s:dataProvider>
 							</s:DropDownList>
 						</s:HGroup>
-						<s:HGroup width="100%" verticalAlign="middle">
+						<s:HGroup width="100%" verticalAlign="middle" gap="2">
 							<s:Button id="deleteButton"
 									  toolTip="Delete slivers"
 									  styleName="failedStyle"
@@ -968,17 +968,24 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							  paddingLeft="2"
 							  id="pluginGroup"
 							  creationComplete="refreshPluginPaneStatus(sliceCanvas.slice);">
+						<s:DropDownList id="pluginsDropdown" requireSelection="true" height="24" width="100%">
+							<s:dataProvider>
+								<s:ArrayCollection>
+									<fx:String>INSTOOLS</fx:String>
+								</s:ArrayCollection>
+							</s:dataProvider>
+						</s:DropDownList>
 						<s:Button id="instrumentizeButton"
 								  label="Instrumentize"
 								  toolTip="Instrumentize experiment with INSTOOLS"
-								  click="Instools.instrumentizeSlice(sliceCanvas.slice);"
+								  click="Instools.instrumentizeSlice(sliceCanvas.slice); setSidePane(VIEW_STATUS);"
 								  icon="{ImageUtil.lightningIcon}"
 								  height="32"
 								  width="100%" />
 						<s:Button id="gotoPortalButton"
 								  label="Go to portal"
 								  toolTip="Go to portal to see instrumentized data"
-								  click="Instools.goToPortal(sliceCanvas.slice);"
+								  click="Instools.goToPortal(sliceCanvas.slice); setSidePane(VIEW_STATUS);"
 								  icon="{ImageUtil.barchartIcon}"
 								  height="32"
 								  width="100%" />
@@ -988,7 +995,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			<s:HGroup width="100%"
 					  verticalAlign="middle"
 					  paddingBottom="2"
-					  paddingLeft="2">
+					  paddingLeft="2"
+					  gap="2">
 				<s:Button id="createButton"
 						  toolTip="Submit changes"
 						  label="Submit"

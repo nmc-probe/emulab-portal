@@ -97,19 +97,28 @@ package protogeni.communication
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):*
 		{
-			componentManager.errorMessage = event.toString();
-			componentManager.errorDescription = "";
-			if(componentManager.errorMessage.search("#2048") > -1)
-				componentManager.errorDescription = "Stream error, possibly due to server error.  Another possible error might be that you haven't added an exception for:\n" + componentManager.VisitUrl();
-			else if(componentManager.errorMessage.search("#2032") > -1)
-				componentManager.errorDescription = "IO error, possibly due to the server being down";
-			else if(componentManager.errorMessage.search("timed"))
-				componentManager.errorDescription = event.text;
-			
-			componentManager.Status = GeniManager.STATUS_FAILED;
-			Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			
-			return null;
+			var request:Request = null;
+			if((componentManager.Hrn == "ukgeni.cm" || componentManager.Hrn == "utahemulab.cm") && numTries < 3)
+			{
+				request = this;
+				request.op.delaySeconds = Math.min(60, op.delaySeconds + 15);
+				request.forceNext = true;
+			}
+			else
+			{
+				componentManager.errorMessage = event.toString();
+				componentManager.errorDescription = "";
+				if(componentManager.errorMessage.search("#2048") > -1)
+					componentManager.errorDescription = "Stream error, possibly due to server error.  Another possible error might be that you haven't added an exception for:\n" + componentManager.VisitUrl();
+				else if(componentManager.errorMessage.search("#2032") > -1)
+					componentManager.errorDescription = "IO error, possibly due to the server being down";
+				else if(componentManager.errorMessage.search("timed"))
+					componentManager.errorDescription = event.text;
+				
+				componentManager.Status = GeniManager.STATUS_FAILED;
+				Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
+			}
+			return request;
 		}
 		
 		override public function cancel():void

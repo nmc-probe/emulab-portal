@@ -202,11 +202,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			  id="userGroup"
 			  includeInLayout="false" visible="false">
 		<s:HGroup verticalAlign="middle"
-				  paddingRight="2" gap="2"
+				  gap="2" width="100%" paddingRight="2"
 				  visible="{Main.geniHandler.CurrentUser.authority != null}"
 				  includeInLayout="{Main.geniHandler.CurrentUser.authority != null}">
 			<display:KeyboardTextInput id="sliceName"
-									   prompt="Create slice..."
+									   prompt="Create slice..." maxChars="19" restrictString="a-zA-Z0-9\\-"
 									   width="100%"
 									   creationComplete="readyInput()" />
 			<components:ImageButton id="createButton"
@@ -240,7 +240,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	<s:VGroup width="100%" height="100%"
 			  paddingLeft="2" gap="2"
 			  id="managerGroup">
-		<s:HGroup verticalAlign="middle">
+		<s:HGroup verticalAlign="middle" paddingRight="2" width="100%">
 			<s:CheckBox id="selectAllCheckbox"
 						label="Show Managers"
 						change="selectAllChange()"

@@ -89,6 +89,8 @@ package protogeni.tools.instools
 						sliver.message = "Instrumentizing complete!";
 						break;
 					case "INSTALLATION_COMPLETE":		//MC has finished the startup scripts
+						sliver.message = "Instrumentize scripts installed...";
+						sliver.status = Sliver.STATUS_CHANGING;
 						if (Instools.started_instrumentize[sliver.manager.Urn.full] != "1")
 						{
 							req = new RequestInstrumentize(sliver);
@@ -96,11 +98,11 @@ package protogeni.tools.instools
 							reqQueue.push(req);
 							Instools.started_instrumentize[sliver.manager.Urn.full] = "1";
 						}
-						sliver.message = "Instrumentizing installed...";
-						sliver.status = Sliver.STATUS_CHANGING;
 						reqQueue.push(this);
 						break;
 					case "MC_NOT_STARTED":				//MC has been added, but not started
+						sliver.message = "MC not started...";
+						sliver.status = Sliver.STATUS_CHANGING;
 						if (Instools.started_MC[sliver.manager.Urn.full] != "1")
 						{
 							req = new RequestSliverStart(sliver);
@@ -108,8 +110,6 @@ package protogeni.tools.instools
 							reqQueue.push(req);
 							Instools.started_MC[sliver.manager.Urn.full] = "1";
 						}
-						sliver.message = "MC not started...";
-						sliver.status = Sliver.STATUS_CHANGING;
 						reqQueue.push(this);
 						break;
 					case "INSTRUMENTIZE_IN_PROGRESS":	//the instools server has started instrumentizing the nodes

@@ -44,6 +44,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			[Bindable]
 			public var prompt:String;
+			[Bindable]
+			public var restrictString:String = null;
+			[Bindable]
+			public var maxChars:int = 0;
 			
 			[Bindable]
 			private var text:String;
@@ -92,8 +96,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 		]]>
 	</fx:Script>
-	<s:TextInput id="textInput" height="24" width="100%" text="{text}" prompt="{prompt}" />
+	<s:TextInput id="textInput" height="24" width="100%"
+				 text="{text}"
+				 restrict="{restrictString}"
+				 maxChars="{maxChars}"
+				 prompt="{prompt}" />
 	<components:ImageButton id="keyboardButton"
 		icon="{ImageUtil.keyboardIcon}"
-		click="openKeyboard()" visible="false" includeInLayout="{keyboardButton.visible}" />
+		click="openKeyboard()"
+		visible="false"
+		includeInLayout="{keyboardButton.visible}" />
 </s:HGroup>
