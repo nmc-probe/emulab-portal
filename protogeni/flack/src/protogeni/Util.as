@@ -26,7 +26,7 @@ package protogeni
 	{
 		public static const defaultRspecVersion:Number = 2;
 		[Bindable]
-		public static var usableRspecVersions:ArrayCollection = new ArrayCollection([0.1, 0.2, 2]);
+		public static var usableRspecVersions:ArrayCollection = new ArrayCollection([0.1, 0.2, 2, 3]);
 		
 		// Takes the given bandwidth and creates a human readable string
 		public static function kbsToString(bandwidth:Number):String {

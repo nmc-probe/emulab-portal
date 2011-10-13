@@ -36,6 +36,7 @@ package protogeni.resources
 		public static const STATUS_UNKNOWN:String = "unknown";
 		public static const STATUS_MIXED:String = "mixed";
 		public static const STATUS_NA:String = "N/A";
+		public static const STATUS_STOPPED:String = "stopped";
 		
 		[Bindable]
 		public var urn:IdnUrn = new IdnUrn();
@@ -113,7 +114,8 @@ package protogeni.resources
 		public function get StatusFinalized():Boolean {
 			return status == STATUS_READY
 				|| status == STATUS_FAILED
-				|| status == STATUS_UNKNOWN;
+				|| status == STATUS_UNKNOWN
+				|| status == STATUS_STOPPED;
 		}
 		
 		public function getBySliverId(id:String):VirtualComponent {

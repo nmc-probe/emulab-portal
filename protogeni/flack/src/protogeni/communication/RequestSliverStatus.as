@@ -70,8 +70,11 @@ package protogeni.communication
 			var request:Request = null;
 			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
 			{
-				sliver.status = response.value.status;
 				sliver.state = response.value.state;
+				if(sliver.state == Sliver.STATE_STOPPED)
+					sliver.status = Sliver.STATUS_STOPPED;
+				else
+					sliver.status = response.value.status;
 				for(var sliverId:String in response.value.details)
 				{
 					var sliverDetails:Object = response.value.details[sliverId];
@@ -79,8 +82,11 @@ package protogeni.communication
 					var virtualComponent:VirtualComponent = sliver.getBySliverId(sliverId);
 					if(virtualComponent != null)
 					{
-						virtualComponent.status = sliverDetails.status;
 						virtualComponent.state = sliverDetails.state;
+						if(virtualComponent.state == Sliver.STATE_STOPPED)
+							virtualComponent.status = Sliver.STATUS_STOPPED;
+						else
+							virtualComponent.status = sliverDetails.status;
 						virtualComponent.error = sliverDetails.error;
 					}
 				}

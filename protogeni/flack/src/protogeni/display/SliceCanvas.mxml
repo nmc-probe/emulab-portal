@@ -185,6 +185,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						case Sliver.STATUS_NOTREADY:
 						case Sliver.STATUS_UNKNOWN:
 						case Sliver.STATUS_MIXED:
+						case Sliver.STATUS_STOPPED:
 							this.setStyle("borderColor", "#FF7F00");
 							this.setStyle("backgroundColor", "#FFE0C1");
 							break;
@@ -218,7 +219,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					selectedNode = event.dragSource.dataForFormat("physicalnode") as PhysicalNode;
 				if ((selectedNode != null
 						&& selectedNode.available
-						&& !allNodes.containsPhysicalNode(selectedNode)
 						&& (selectedNode.subNodeOf == null ||
 							selectedNode.subNodeOf.available)) ||
 					event.dragSource.hasFormat("canvas") ||
@@ -226,6 +226,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					event.dragSource.hasFormat("manager") ||
 					event.dragSource.hasFormat("virtualnode"))
 				{
+					if(allNodes.containsPhysicalNode(selectedNode))
+					{
+						var sn:SliceNode = allNodes.getForPhysicalNode(selectedNode);
+						if(sn.node.physicalNode != null && sn.node.physicalNode.virtualizationType.length == 0)
+							return;
+					}
 					DragManager.acceptDragDrop(SliceCanvas(event.currentTarget));
 				}
 			}
@@ -460,10 +466,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 */
 			public function addPhysicalNodeToCanvas(physicalNode:PhysicalNode, x:int = -1, y:int = -1):SliceNode
 			{
+				var sn:SliceNode;
 				if(allNodes.containsPhysicalNode(physicalNode))
-					return allNodes.getForPhysicalNode(physicalNode);
+				{
+					sn = allNodes.getForPhysicalNode(physicalNode);
+					if(sn.node.physicalNode != null && sn.node.physicalNode.virtualizationType.length == 0)
+						return sn;
+				}
 				
-				var sn:SliceNode = new SliceNode();
+				sn = new SliceNode();
 				var newVirtualNode:VirtualNode = new VirtualNode(slice.getOrCreateForManager(physicalNode.manager));
 				newVirtualNode.setToPhysicalNode(physicalNode);
 				sn.setNode(newVirtualNode);
@@ -477,8 +488,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public function addPhysicalNode(pn:PhysicalNode, x:int = -1, y:int = -1):SliceNode
 			{
 				// Don't duplicate
+				var sn:SliceNode;
 				if(allNodes.containsPhysicalNode(pn))
-					return allNodes.getForPhysicalNode(pn);
+				{
+					sn = allNodes.getForPhysicalNode(pn);
+					if(sn.node.physicalNode != null && sn.node.physicalNode.virtualizationType.length == 0)
+						return sn;
+				}
 				
 				var physicalNode:SliceNode = addPhysicalNodeToCanvas(pn, x, y);
 				physicalNode.node.flackUnbound = false;

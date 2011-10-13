@@ -593,7 +593,7 @@ package protogeni.communication
 			var next:*;
 			
 			// Timeout
-			if(event.errorID == CommunicationUtil.TIMEOUT) {
+			if(event.errorID == CommunicationUtil.TIMEOUT && request.retryOnTimeout) {
 				// backoff using the first number as the basic unit of seconds
 				request.op.delaySeconds = Util.randomNumberBetween(20, 40+request.numTries*10);
 				request.forceNext = !request.startImmediately;
@@ -604,7 +604,7 @@ package protogeni.communication
 					LogMessage.ERROR_WARNING,
 					LogMessage.TYPE_END ));
 			// Server not currently working
-			} else if(fault != null && fault.getFaultCode() == CommunicationUtil.XMLRPC_CURRENTLYNOTAVAILABLE){
+			} else if(fault != null && fault.getFaultCode() == CommunicationUtil.XMLRPC_CURRENTLYNOTAVAILABLE && request.retryOnError){
 				// backoff using the first number as the basic unit of seconds
 				request.op.delaySeconds = Util.randomNumberBetween(40, 60+request.numTries*20);
 				request.forceNext = !request.startImmediately;
@@ -618,6 +618,8 @@ package protogeni.communication
 			} else {
 				var failMessage:String = "";
 				var msg:String = "";
+				var showAlert:Boolean = false;
+				var alertText:String = "";
 				if (fault != null)
 				{
 					msg = fault.toString();
@@ -635,6 +637,11 @@ package protogeni.communication
 						else
 							failMessage += "\nIO Error, possibly due to server problems or you have no SSL certificate";
 					}
+					else if(msg.search("Certificate revoked") > -1)
+					{
+						showAlert = true;
+						alertText = "Certificate no longer valid, please make sure your are using your newest certificate!";
+					}
 					
 				}
 				failMessage += "\nURL: " + request.op.getUrl();
@@ -650,6 +657,9 @@ package protogeni.communication
 					LogHandler.viewConsole();
 				} else
 					next = request.fail(event, fault);
+				
+				if(showAlert)
+					Alert.show(alertText);
 			}
 			
 			// Find out what to do next

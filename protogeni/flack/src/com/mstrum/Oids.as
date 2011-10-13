@@ -421,5 +421,6 @@ package com.mstrum
 		// Need to find
 		public static const SUBJECT_ALT_NAME:String = "IdCeSubjectAltName";
 		public static const ACA_GROUP:String = "IdAcaGroup";
+		public static const AUTHORITY_INFO_ACCESS:String = "IdPeAuthorityInfoAccess";
 	}
 }

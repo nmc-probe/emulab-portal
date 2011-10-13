@@ -347,12 +347,36 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					try {
 						var certArray:ByteArray = PEM.readCertIntoArray(this.sslPem.text);
 						var cert:Asn1Field = DER.Parse(certArray);
-						var subjAlt:Asn1Field = cert.getHolderFor(Oids.SUBJECT_ALT_NAME);
-						var urnString:String = subjAlt.getValue();
+						var field:Asn1Field = cert.getHolderFor(Oids.SUBJECT_ALT_NAME);
+						var urnString:String = field.getValue();
 						if(IdnUrn.isIdnUrn(urnString))
 							setUserUrn(urnString);
 						else
 							throw new Error();
+						
+						field = cert.getHolderFor(Oids.AUTHORITY_INFO_ACCESS);
+						if(field != null)
+						{
+							var sliceAuthorityUrl:String = field.getValue();
+							var newAuthorityUrn:IdnUrn = IdnUrn.makeFrom(Main.geniHandler.CurrentUser.urn.authority, "authority", "sa");
+							var newAuthority:SliceAuthority;
+							for each(var auth:SliceAuthority in Main.geniHandler.GeniAuthorities.source)
+							{
+								if(auth.Urn.authority == newAuthorityUrn.authority)
+								{
+									auth.Url = sliceAuthorityUrl;
+									newAuthority = auth;
+									break;
+								}
+							}
+							if(auth == null)
+							{
+								newAuthority = new SliceAuthority(newAuthorityUrn.full, sliceAuthorityUrl);
+								Main.geniHandler.GeniAuthorities.addItem(newAuthority);
+							}
+							Main.geniHandler.CurrentUser.authority = newAuthority;
+							authorities.selectedItem = newAuthority;
+						}
 					} catch(e:Error) {
 						if(passwordGroup.visible)
 							this.detectedUrnLabel.text = "Please enter your pass phrase below.";
@@ -380,7 +404,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				for each(var sa:SliceAuthority in Main.geniHandler.GeniAuthorities.source) {
 					if(sa.Urn.authority == Main.geniHandler.CurrentUser.urn.authority) {
 						Main.geniHandler.CurrentUser.authority = sa;
-						this.authorities.selectedItem = sa;
+						
+						authorities.selectedItem = sa;
 						return;
 					}
 				}
@@ -426,6 +451,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						prompt="Select authority..."
 						dataProvider="{Main.geniHandler.GeniAuthorities}"
 						selectedItem="@{selectedAuthority}" />
+		<s:Button icon="{ImageUtil.addIcon}"
+				  height="24"
+				  label="Add"
+				  click="(new AddAuthorityWindow()).showWindow()" />
 	</s:HGroup>
 	
 	<s:TextArea id="sslPem"

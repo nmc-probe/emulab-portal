@@ -71,6 +71,7 @@ package protogeni.communication
 					try {
 						var newGm:GeniManager = null;
 						var url:String = obj.url;
+						//url = url.replace(":12369", "");
 						var newUrn:IdnUrn = new IdnUrn(obj.urn);
 						// Skip these managers for now...
 						/*if(obj.hrn == "cron.loni.org.cm"
@@ -83,7 +84,7 @@ package protogeni.communication
 						if(newUrn.name == "cm") {
 							var newCm:ProtogeniComponentManager = new ProtogeniComponentManager();
 							newCm.Hrn = obj.hrn;
-							newCm.Url = obj.url.substr(0, obj.url.length-3);
+							newCm.Url = url.substr(0, url.length-3);
 							newCm.Urn = newUrn;
 							newGm = newCm;
 							if(newCm.Hrn == "ukgeni.cm" || newCm.Hrn == "utahemulab.cm")
@@ -95,7 +96,7 @@ package protogeni.communication
 						{
 							var planetLabAm:PlanetlabAggregateManager = new PlanetlabAggregateManager();
 							planetLabAm.Hrn = obj.hrn;
-							planetLabAm.Url = StringUtil.makeSureEndsWith(obj.url, "/"); // needs this for forge...
+							planetLabAm.Url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
 							planetLabAm.registryUrl = planetLabAm.Url.replace("12346", "12345");
 							planetLabAm.Urn = newUrn;
 							newGm = planetLabAm;

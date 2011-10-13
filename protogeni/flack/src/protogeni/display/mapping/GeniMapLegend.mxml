@@ -26,6 +26,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		 top="5" bottom="16" right="5"
 		 title="Resources"
 		 creationComplete="init()">
+	<fx:Script>
+		<![CDATA[
+			import protogeni.display.AddManagerWindow;
+		]]>
+	</fx:Script>
 	<components:layout>
 		<s:VerticalLayout gap="2" paddingTop="2" horizontalAlign="center"/>
 	</components:layout>
@@ -192,7 +197,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		]]>
 	</fx:Script>
 	<s:VGroup width="100%" maxHeight="160"
-			  paddingLeft="2" gap="2"
+			  paddingLeft="2"
+			  gap="2"
 			  id="userGroup"
 			  includeInLayout="false" visible="false">
 		<s:HGroup verticalAlign="middle"
@@ -234,10 +240,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	<s:VGroup width="100%" height="100%"
 			  paddingLeft="2" gap="2"
 			  id="managerGroup">
-		<s:CheckBox id="selectAllCheckbox"
-					label="Show Managers"
-					change="selectAllChange()"
-					selected="true" />
+		<s:HGroup verticalAlign="middle">
+			<s:CheckBox id="selectAllCheckbox"
+						label="Show Managers"
+						change="selectAllChange()"
+						selected="true" />
+			<s:Rect percentWidth="100" />
+			<components:ImageButton icon="{ImageUtil.addIcon}"
+									click="(new AddManagerWindow()).showWindow()" />
+		</s:HGroup>
 		<s:Scroller height="100%" width="100%">
 			<s:VGroup width="100%" id="managerItems"
 					  gap="2" paddingRight="2" paddingBottom="2" />

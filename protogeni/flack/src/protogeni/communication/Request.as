@@ -24,7 +24,7 @@ package protogeni.communication
 	 * @author mstrum
 	 * 
 	 */
-	public class Request
+	public class Request extends Object
 	{
 		public var op:Operation;
 		[Bindable]
@@ -38,6 +38,7 @@ package protogeni.communication
 		public var removeImmediately:Boolean;
 		public var continueOnError:Boolean;
 		public var retryOnTimeout:Boolean;
+		public var retryOnError:Boolean = true;
 		public var forceNext:Boolean = false;
 		public var ignoreReturnCode:Boolean = false;
 		public var numTries:int = 0;

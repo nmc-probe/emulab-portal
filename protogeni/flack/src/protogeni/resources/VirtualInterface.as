@@ -22,12 +22,18 @@ package protogeni.resources
 	 */	
 	public class VirtualInterface
 	{
-		public static var tunnelNext:int = 1;
+		public static var tunnelFirst:int = 0;
+		public static var tunnelSecond:int = 1;
+		public static function startNextTunnel():void
+		{
+			tunnelFirst++;
+			tunnelSecond = 1;
+		}
 		public static function getNextTunnel():String
 		{
-			var first:int = ((tunnelNext >> 8) & 0xff);
-			var second:int = (tunnelNext & 0xff);
-			tunnelNext++;
+			var first:int = tunnelFirst & 0xff;
+			var second:int = tunnelSecond & 0xff;
+			tunnelSecond++;
 			return "192.168." + String(first) + "." + String(second);
 		}
 		

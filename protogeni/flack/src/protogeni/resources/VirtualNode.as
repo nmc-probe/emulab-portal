@@ -87,10 +87,24 @@ package protogeni.resources
 		public function setToPhysicalNode(node:PhysicalNode):void
 		{
 			this.physicalNode = node;
-			this.clientId = node.name;
+			if(!sliver.slice.slivers.isIdUnique(this, node.name))
+			{
+				var i:int = 1;
+				while(!sliver.slice.slivers.isIdUnique(this, node.name + "-" + i))
+					i++;
+				this.clientId = node.name + "-" + i;
+			}
+			else
+				this.clientId = node.name;
 			this.manager = node.manager;
 			this.sliverId = node.id; // XXX wtf?
 			this.exclusive = node.exclusive;
+			
+			if(node.virtualizationType.length > 0)
+			{
+				virtualizationType = node.virtualizationType;
+				virtualizationSubtype = "";
+			}
 			
 			if(node.sliverTypes.length == 1)
 				this.sliverType = node.sliverTypes[0].name;

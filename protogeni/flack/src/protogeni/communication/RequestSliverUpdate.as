@@ -16,9 +16,12 @@ package protogeni.communication
 {
 	import com.mattism.http.xmlrpc.MethodFault;
 	
+	import flash.display.Sprite;
 	import flash.events.ErrorEvent;
 	
 	import mx.controls.Alert;
+	import mx.core.FlexGlobals;
+	import mx.events.CloseEvent;
 	
 	import protogeni.GeniEvent;
 	import protogeni.resources.Sliver;
@@ -110,24 +113,22 @@ package protogeni.communication
 			if(msg != null && msg.length > 0)
 				managerMsg = " Manager reported error: " + msg + ".";
 			
-			Alert.show("Failed to update sliver on " + sliver.manager.Hrn+"!" + managerMsg, "Failed to create sliver");
-			
-			// TODO ask user if they want to continue
-			
-			/*
-			// Cancel remaining calls
-			var tryDeleteNode:RequestQueueNode = this.node.next;
-			while(tryDeleteNode != null && tryDeleteNode.item is RequestSliverCreate && (tryDeleteNode.item as RequestSliverCreate).sliver.slice == sliver.slice)
-			{
-			(tryDeleteNode.item as RequestSliverCreate).sliver.status = Sliver.STATUS_FAILED;
-			(tryDeleteNode.item as RequestSliverCreate).sliver.state = Sliver.STATE_NA;
-			Main.geniHandler.requestHandler.remove(tryDeleteNode.item, false);
-			tryDeleteNode = tryDeleteNode.next;
-			}
-			
-			// Show the error
-			LogHandler.viewConsole();
-			*/
+			Main.geniHandler.requestHandler.pause();
+			Alert.show(
+				"Failed to update sliver on " + sliver.manager.Hrn+"!" + managerMsg + ". Stop other calls and remove allocated resources?",
+				"Failed to update sliver",
+				Alert.YES|Alert.NO,
+				FlexGlobals.topLevelApplication as Sprite,
+				function askToContinue(e:CloseEvent):void
+				{
+					if(e.detail == Alert.YES)
+						Main.geniHandler.requestHandler.deleteSlice(sliver.slice);
+					else
+						Main.geniHandler.requestHandler.start(true);
+				},
+				null,
+				Alert.YES
+			);
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {

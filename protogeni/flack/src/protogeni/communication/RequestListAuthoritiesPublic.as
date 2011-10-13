@@ -57,6 +57,7 @@ package protogeni.communication
 						continue;
 					var sliceAuthorityLineParts:Array = sliceAuthorityLine.split(" ");
 					var sliceAuthority:SliceAuthority = new SliceAuthority(sliceAuthorityLineParts[0], sliceAuthorityLineParts[1], true);
+					//sliceAuthority.Url = sliceAuthority.Url.replace(":12369", "");
 					if(sliceAuthority.Name == "emulab.net")
 						Main.geniHandler.GeniAuthorities.addItemAt(sliceAuthority, 0);
 					else {

@@ -21,12 +21,17 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
 		  verticalAlign="middle" width="100%" gap="2"
-		  creationComplete="init()">
+		  creationComplete="init()" xmlns:components="protogeni.display.components.*">
 	<fx:Script>
 		<![CDATA[
 			import protogeni.GeniEvent;
+			import protogeni.communication.RequestGetVersion;
+			import protogeni.communication.RequestGetVersionAm;
 			import protogeni.display.DisplayUtil;
+			import protogeni.display.ImageUtil;
 			import protogeni.resources.GeniManager;
+			import protogeni.resources.ProtogeniComponentManager;
+			import protogeni.resources.ProtogeniRspecProcessor;
 			
 			import spark.components.Button;
 			import spark.components.Group;
@@ -64,19 +69,35 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(manager.Status == GeniManager.STATUS_FAILED) {
 					showCheckbox.styleName = "failedStyle";
 					this.toolTip = manager.errorDescription;
+					this.refreshButton.visible = true;
+					this.showCheckbox.visible = false;
+					this.spinner.stopSpin();
+					this.spinner.visible = false;
 				}
 				else if(manager.Status == GeniManager.STATUS_UNKOWN) {
 					showCheckbox.styleName = "unknownStyle";
 					this.toolTip = "Unknown status";
+					this.refreshButton.visible = false;
+					this.showCheckbox.visible = false;
+					this.spinner.stopSpin();
+					this.spinner.visible = false;
 				}
 				else if(manager.Status == GeniManager.STATUS_INPROGRESS) {
 					showCheckbox.styleName = "inprogressStyle";
 					this.toolTip = "In progress...";
+					this.refreshButton.visible = false;
+					this.showCheckbox.visible = false;
+					this.spinner.visible = true;
+					this.spinner.startSpin();
 				}
 				else if(manager.Status == GeniManager.STATUS_VALID)
 				{
 					showCheckbox.styleName = "validStyle";
 					this.toolTip = "Valid";
+					this.refreshButton.visible = false;
+					this.showCheckbox.visible = true;
+					this.spinner.stopSpin();
+					this.spinner.visible = false;
 				}
 			}
 			
@@ -87,10 +108,46 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				manager.Show = showCheckbox.selected;
 				Main.geniHandler.mapHandler.drawMap();
 			}
+			
+			public function refresh():void
+			{
+				refreshButton.visible = false;
+				showCheckbox.visible = false;
+				spinner.visible = true;
+				spinner.startSpin();
+				
+				if(manager.isAm)
+					Main.geniHandler.requestHandler.pushRequest(new RequestGetVersionAm(manager));
+				else
+					Main.geniHandler.requestHandler.pushRequest(new RequestGetVersion(manager as ProtogeniComponentManager));
+			}
 
 		]]>
 	</fx:Script>
-	<s:CheckBox id="showCheckbox"
-				selected="{manager.Show}"
-				change="setShow()" />
+	
+	<s:HGroup id="managerControlsGroup"
+			  width="24"
+			  verticalAlign="middle">
+		<s:CheckBox id="showCheckbox"
+					selected="{manager.Show}"
+					visible="false"
+					toolTip="Show on the map?"
+					includeInLayout="{showCheckbox.visible}"
+					change="setShow()" />
+		<components:ImageButton id="refreshButton"
+								styleName="failedStyle"
+								visible="false"
+								toolTip="Failed to get manager's resources, try again?"
+								includeInLayout="{refreshButton.visible}"
+								icon="{ImageUtil.refreshIcon}"
+								click="refresh()" />
+		<components:Spinner id="spinner"
+							width="21"
+							height="21"
+							x="{(width / 2) - (spinner.width / 2)}"
+							y="{(height / 2) - (spinner.height / 2)}"
+							visible="false"
+							includeInLayout="{spinner.visible}" />
+	</s:HGroup>
+	
 </s:HGroup>

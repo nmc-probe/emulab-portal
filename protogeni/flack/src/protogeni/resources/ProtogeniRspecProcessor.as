@@ -28,7 +28,7 @@ package protogeni.resources
 	import protogeni.XmlUtil;
 	
 	/**
-	 * Processes ProtoGENI RSPECS.  Supports 0.1, 0.2, 2.
+	 * Processes ProtoGENI RSPECS.  Supports 0.1, 0.2, 2, 3
 	 * 
 	 * @author mstrum
 	 * 
@@ -78,6 +78,9 @@ package protogeni.resources
 					break;
 				case XmlUtil.rspec2Namespace:
 					this.detectedOutputRspecVersion = 2;
+					break;
+				case XmlUtil.rspec3Namespace:
+					this.detectedOutputRspecVersion = 3;
 					break;
 				default:
 					var msg:String = "RSPEC with the namespace '" +this.defaultNamespace.uri+ "' is not supported.";
@@ -284,7 +287,11 @@ package protogeni.resources
 								if(parentName.length > 0)
 									subnodeList.addItem({subNode:node, parentName:parentName});
 							} else if(nodeChildXml.localName() == "node_type") {
-								node.hardwareTypes.push(nodeChildXml.@type_name);
+								var typeName:String = nodeChildXml.@type_name;
+								node.hardwareTypes.push(typeName);
+								node.virtualizationType = "juniper-lrouter";
+								if(typeName == "juniper-lrouter")
+									node.numVirtualAvailable = int(nodeChildXml.@type_slots);
 							}
 						}
 					}
@@ -489,6 +496,11 @@ package protogeni.resources
 					sliver.manifestVersion = 2;
 					sliver.slice.useInputRspecVersion = 2;
 					break;
+				case XmlUtil.rspec3Namespace:
+					this.detectedInputRspecVersion = 3;
+					sliver.manifestVersion = 3;
+					sliver.slice.useInputRspecVersion = 3;
+					break;
 			}
 			
 			if(rspec.@valid_until.length() == 1)
@@ -676,7 +688,7 @@ package protogeni.resources
 							virtualNode.flackY = int(nodeChildXml.@y);
 							if(nodeChildXml.@unbound.length() == 1)
 								virtualNode.flackUnbound = String(nodeChildXml.@unbound) == "true" || String(nodeChildXml.@unbound) == "1";
-						} else {
+						} else if(nodeChildXml.namespace().uri != XmlUtil.emulabNamespace.uri) {
 							// Preserve extensions
 							if(sliver.extensionNamespaces.indexOf(nodeChildXml.namespace()) == -1)
 								sliver.extensionNamespaces.push(nodeChildXml.namespace());
@@ -857,6 +869,9 @@ package protogeni.resources
 				case 2:
 					defaultNamespace = new Namespace(null, XmlUtil.rspec2Namespace);
 					break;
+				case 3:
+					defaultNamespace = new Namespace(null, XmlUtil.rspec3Namespace);
+					break;
 			}
 			requestRspec.setNamespace(defaultNamespace);
 			if(useInputRspecVersion >= 2) {
@@ -948,7 +963,8 @@ package protogeni.resources
 			if (!vn.exclusive)
 			{
 				if(useInputRspecVersion < 1) {
-					nodeXml.@virtualization_subtype = vn.virtualizationSubtype;
+					if(vn.virtualizationSubtype.length > 0)
+						nodeXml.@virtualization_subtype = vn.virtualizationSubtype;
 					nodeXml.@exclusive = 0;
 				} else {
 					nodeXml.@exclusive = "false";
@@ -964,7 +980,12 @@ package protogeni.resources
 			if(useInputRspecVersion < 2) {
 				var nodeType:String = "pc";
 				if (!vn.exclusive)
-					nodeType = "pcvm";
+				{
+					if(vn.physicalNode != null && vn.physicalNode.virtualizationType.length > 0)
+						nodeType = vn.physicalNode.virtualizationType;
+					else
+						nodeType = "pcvm";
+				}
 				var nodeTypeXml:XML = <node_type />;
 				nodeTypeXml.@type_name = nodeType;
 				nodeTypeXml.@type_slots = 1;

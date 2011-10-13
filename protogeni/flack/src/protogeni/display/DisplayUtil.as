@@ -118,12 +118,13 @@ package protogeni.display
 		}
 		
 		// Gets a button for the component manager
-		public static function getGeniManagerButton(gm:GeniManager):Button {
+		public static function getGeniManagerButton(gm:GeniManager, addClick:Boolean = true):Button {
 			var cmButton:DataButton = new DataButton(gm.Hrn,
 													"@ " + gm.Url,
 													null,
-													gm,
+													addClick ? gm : null,
 													"manager");
+			cmButton.data = gm;
 			cmButton.setStyle("chromeColor", ColorUtil.colorsDark[gm.colorIdx]);
 			cmButton.setStyle("color", ColorUtil.colorsLight[gm.colorIdx]);
 			return cmButton;

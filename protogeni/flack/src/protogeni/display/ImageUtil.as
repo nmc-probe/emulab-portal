@@ -281,5 +281,29 @@
 		[Bindable]
 		[Embed(source="../../../images/chart_bar.png")]
 		public static var barchartIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/plugin.png")]
+		public static var pluginIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/gear_in.png")]
+		public static var settingsIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/resources.png")]
+		public static var resourcesIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/document_inspector.png")]
+		public static var previewIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/stamp_pattern.png")]
+		public static var cloneIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/download.png")]
+		public static var importIcon:Class;
 	}
 }

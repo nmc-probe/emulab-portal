@@ -73,7 +73,12 @@ package protogeni
 			var hostPattern:RegExp = /^(http(s?):\/\/([^\/]+))(\/.*)?$/;
 			var match : Object = hostPattern.exec(url);
 			if (match != null)
-				return match[1];
+			{
+				if((match[1] as String).split(":").length > 2)
+					return (match[1] as String).substr(0, (match[1] as String).lastIndexOf(":"));
+				else
+					return match[1] as String;
+			}
 			else
 				return url;
 		}

@@ -41,6 +41,8 @@ package protogeni.communication
 				true,
 				true,
 				true);
+			// Was false, these two should always be loaded even on initial errors...
+			retryOnError = newManager.Hrn == "utahemulab.cm" || newManager.Hrn == "ukgeni.cm";
 			componentManager = newManager;
 			
 			op.setUrl(componentManager.Url);

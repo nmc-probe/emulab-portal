@@ -22,14 +22,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						xmlns:mx="library://ns.adobe.com/flex/mx"
 						xmlns:display="protogeni.display.*"
 						xmlns:components="protogeni.display.components.*"
-						title="Slice" minWidth="600" minHeight="220"
+						title="{sliceCanvas.slice.Name}"
+						minWidth="600" minHeight="220"
 						initialize="me = this;"
 						creationComplete="onCreationComplete()">
 	<components:layout>
-		<s:VerticalLayout paddingBottom="2"
-						  paddingLeft="2"
-						  paddingRight="2"
-						  paddingTop="2"
+		<s:VerticalLayout paddingRight="2"
 						  gap="2"/>
 	</components:layout>
 	<fx:Script>
@@ -44,6 +42,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.core.FlexGlobals;
 			import mx.events.CloseEvent;
 			import mx.events.DragEvent;
+			import mx.events.MenuEvent;
 			import mx.graphics.SolidColor;
 			import mx.managers.DragManager;
 			
@@ -54,9 +53,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import protogeni.Util;
 			import protogeni.display.components.AdvancedTextArea;
 			import protogeni.display.components.DataButton;
+			import protogeni.display.components.DefaultLine;
 			import protogeni.display.components.DefaultWindow;
-			import protogeni.display.components.TextInputWindow;
 			import protogeni.display.components.DocumentWindow;
+			import protogeni.display.components.TextInputWindow;
 			import protogeni.display.mapping.GeniMapMarker;
 			import protogeni.resources.GeniManager;
 			import protogeni.resources.PhysicalNode;
@@ -91,7 +91,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				//Main.geniDispatcher.addEventListener(GeniEvent.GENIMANAGER_CHANGED, cmChanged);
 				Main.geniDispatcher.addEventListener(GeniEvent.SLICE_CHANGED, sliceChanged);
 				
-				setSidePane();
+				var sidePane:int = VIEW_MANAGERS;
+				if(sliceCanvas.slice != null && sliceCanvas.slice.slivers != null && sliceCanvas.slice.slivers.AllocatedAnyResources)
+					sidePane = VIEW_STATUS;
+				setSidePane(sidePane);
 			}
 			
 			/**
@@ -142,33 +145,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(refreshSlice == null && this.sliceCanvas.slice != null)
 					refreshSlice = this.sliceCanvas.slice;
 				if(refreshSlice != null) {
-					this.viewStatusButton.visible = refreshSlice.slivers.HasAnyStatusInfo;
-					switch(refreshSlice.slivers.Status)
-					{
-						case Sliver.STATUS_READY:
-							this.hrnLabel.styleName = "validStyle";
-							if(this.viewStatusButton.visible)
-								this.viewStatusButton.setStyle("icon", ImageUtil.flagGreenIcon);
-							break;
-						case Sliver.STATUS_FAILED:
-							this.hrnLabel.styleName = "failedStyle";
-							if(this.viewStatusButton.visible)
-								this.viewStatusButton.setStyle("icon", ImageUtil.flagRedIcon);
-							break;
-						case Sliver.STATUS_CHANGING:
-						case Sliver.STATUS_NOTREADY:
-						case Sliver.STATUS_MIXED:
-							this.hrnLabel.styleName = "inprogressStyle";
-							if(this.viewStatusButton.visible)
-								this.viewStatusButton.setStyle("icon", ImageUtil.flagYellowIcon);
-							break;
-						case Sliver.STATUS_UNKNOWN:
-						default:
-							if(this.viewStatusButton.visible)
-								this.viewStatusButton.setStyle("icon", ImageUtil.flagOrangeIcon);
-							this.hrnLabel.styleName = "unknownStyle";
-					}
-					
 					spinner.visible = refreshSlice.Changing;
 					if(spinner.visible)
 						spinner.startSpin();
@@ -178,45 +154,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					if(currentPane == VIEW_STATUS && refreshSlice.slivers.length == 0) {
 						this.setSidePane(VIEW_MANAGERS);
 					}
-					else if(refreshSlice.Changing
+					else if((refreshSlice.Changing && refreshSlice.slivers != null && refreshSlice.slivers.length > 0)
 						|| currentPane == VIEW_STATUS) {
 						this.setSidePane(VIEW_STATUS, refreshSlice);
-					}
-					
-					// Expire time stuff
-					this.expireButton.toolTip = "";
-					var dateFormatter:DateTimeFormatter = new DateTimeFormatter(LocaleID.DEFAULT, DateTimeStyle.SHORT, DateTimeStyle.NONE);
-					if(refreshSlice.expires != null) {
-						var sliceExpiresDate:Date = refreshSlice.expires;
-						if(refreshSlice.slivers != null) {
-							var sliversExpire:Date = refreshSlice.slivers.Expires;
-							if(sliversExpire != null && sliversExpire.time < sliceExpiresDate.time) {
-								sliceExpiresDate = sliceExpiresDate;
-								this.expireButton.toolTip = "Sliver expires before slice in\n\t"
-									+ DateUtil.getTimeUntil(sliversExpire)
-									+ "\n\ton "
-									+ dateFormatter.format(sliversExpire)
-									+ "\n\n";
-							}
-						}
-						
-						this.expireButton.toolTip += "Slice expires in\n\t"
-							+ DateUtil.getTimeUntil(refreshSlice.expires)
-							+ "\n\ton "
-							+ dateFormatter.format(refreshSlice.expires);
-						
-						// If expires soon, let the user know
-						// less than one hour
-						var hoursRemaining:Number = (sliceExpiresDate.time - (new Date()).time)/3600000;
-						if(hoursRemaining < 1)
-							this.expireButton.styleName = "failedStyle";
-						else if(hoursRemaining < 3)
-							this.expireButton.styleName = "inprogressStyle";
-						else
-							this.expireButton.styleName = "validStyle";
-					} else {
-						this.expireButton.toolTip = "";
-						this.expireButton.styleName = "unknownStyle";
 					}
 					
 					this.sliceCanvas.refreshStatus(refreshSlice);
@@ -224,26 +164,31 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					if(!refreshSlice.slivers.AllocatedAnyResources
 						&& !refreshSlice.slivers.Status == Sliver.STATUS_FAILED)
 						this.clearStatus();
-					
-					this.deleteButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
-					this.rspecButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
-					this.instrumentizeButton.enabled = refreshSlice.slivers.StatusFinalized;
-					this.gotoPortalButton.enabled = Instools.hasAnyPortal(refreshSlice);
-				} else {
-					this.rspecButton.enabled = false;
-					this.deleteButton.enabled = false;
-					this.instrumentizeButton.enabled = false;
-					this.gotoPortalButton.enabled = false;
+				}
+				updateSliversInfo(refreshSlice);
+				refreshPluginPaneStatus(refreshSlice);
+			}
+			
+			public function refreshPluginPaneStatus(refreshSlice:Slice):void
+			{
+				if(pluginGroup != null)
+				{
+					if(refreshSlice != null) {
+						this.instrumentizeButton.enabled = refreshSlice.slivers.StatusFinalized;
+						this.gotoPortalButton.enabled = Instools.hasAnyPortal(refreshSlice);
+					} else {
+						this.instrumentizeButton.enabled = false;
+						this.gotoPortalButton.enabled = false;
+					}
 				}
 			}
 			
 			public function clearStatus():void
 			{
-				this.rspecButton.enabled = false;
+				if(rspecButton != null)
+					rspecButton.enabled = false;
 				
-				this.hrnLabel.styleName = "unknownStyle";
-				
-				this.sliceCanvas.clearStatus();
+				sliceCanvas.clearStatus();
 			}
 			
 			/**
@@ -262,7 +207,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				// Things are very in limbo while processing, don't try to load
 				if(!s.slivers.Processing)
+				{
+					if(sliceCanvas.slice == null && s.slivers != null && s.slivers.AllocatedAnyResources)
+						setSidePane(VIEW_STATUS);
 					sliceCanvas.load(s);
+				}
 				refreshInterface(s);
 			}
 			
@@ -378,7 +327,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			/**
 			 * Ask a user to paste a RSPEC
 			 */
-			public function importRspec():void {
+			public function importRspec(event:* = null):void {
 				var importWindow:ImportSliceWindow = new ImportSliceWindow();
 				importWindow.setSlice(this.sliceCanvas.slice);
 				importWindow.showWindow();
@@ -403,7 +352,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			/**
 			 * Ask the user to load a RSPEC from file
 			 */
-			protected function onFileBrowse(event:MouseEvent):void
+			protected function onFileBrowse(event:*):void
 			{
 				loading = true;
 				fr.browse([new FileFilter("RSPECs (*.txt, *.xml, *.rspec, *.*)", "*.txt;*.xml;*.rspec;*.*")])
@@ -440,21 +389,25 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public static const VIEW_STATUS:int = 3;
 			public var currentPane:int = VIEW_MANAGERS;
 			public function setSidePane(type:int = VIEW_MANAGERS, data:* = null):void {
-				this.sidePane.removeAllElements();
 				currentPane = type;
 				switch(type) {
 					case VIEW_MANAGERS:
 					default:
+						sidePaneManagers.removeAllElements();
 						for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
 							if(manager.Status == GeniManager.STATUS_VALID)
 								this.addManagerOption(manager, false);
 						}
 						break;
 					case VIEW_MANAGER:
+						sidePaneManagers.removeAllElements();
+						this.dashboardViewstack.selectedChild = resourcesView;
 						this.addManagerOption(data, true);
 						this.addNodeList(data.AllNodes);
 						break;
 					case VIEW_COLLECTION:
+						sidePaneManagers.removeAllElements();
+						this.dashboardViewstack.selectedChild = resourcesView;
 						var toggleViewButton:ImageButton = new ImageButton();
 						toggleViewButton.setStyle("icon", ImageUtil.leftIcon);
 						toggleViewButton.toolTip = "View all the managers";
@@ -462,35 +415,69 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							function toggleViewClicked(e:MouseEvent):void {
 								me.setSidePane(VIEW_MANAGERS);
 							});
-						this.sidePane.addElement(toggleViewButton);
+						this.sidePaneManagers.addElement(toggleViewButton);
 						this.addNodeList(data);
 						break;
 					case VIEW_STATUS:
-						var viewSlice:Slice = data;
-						if(viewSlice == null && this.sliceCanvas.slice != null)
-							viewSlice = this.sliceCanvas.slice;
-						var options:HGroup = new HGroup();
-						var toggleStatusButton:ImageButton = new ImageButton();
-						toggleStatusButton.setStyle("icon", ImageUtil.leftIcon);
-						toggleStatusButton.toolTip = "View all the managers";
-						toggleStatusButton.addEventListener(MouseEvent.CLICK,
-							function toggleViewClicked(e:MouseEvent):void {
-								me.setSidePane(VIEW_MANAGERS);
-							});
-						options.addElement(toggleStatusButton);
-						var refreshStatusButton:DataButton = new DataButton("Check status","Refresh the slivers' status");
-						refreshStatusButton.data = viewSlice;
-						refreshStatusButton.addEventListener(MouseEvent.CLICK,
-							function toggleViewClicked(e:MouseEvent):void {
-								Main.geniHandler.requestHandler.refreshSlice(e.currentTarget.data);
-							});
-						options.addElement(refreshStatusButton);
-						this.sidePane.addElement(options);
-						if(viewSlice != null) {
-							for each(var sliver:Sliver in viewSlice.slivers.collection)
-								addSliverStatus(sliver);
-						}
+						this.dashboardViewstack.selectedChild = this.sliceView;
+						updateSliversInfo();
 						break;
+				}
+			}
+			
+			private function updateSliversInfo(refreshSlice:Slice = null):void
+			{
+				if(refreshSlice == null)
+					refreshSlice = sliceCanvas.slice;
+				if(sliceGroup != null)
+				{
+					if(refreshSlice != null) {
+						expireButton.toolTip = "";
+						var dateFormatter:DateTimeFormatter = new DateTimeFormatter(LocaleID.DEFAULT, DateTimeStyle.SHORT, DateTimeStyle.NONE);
+						if(refreshSlice.expires != null) {
+							var sliceExpiresDate:Date = refreshSlice.expires;
+							if(refreshSlice.slivers != null) {
+								var sliversExpire:Date = refreshSlice.slivers.Expires;
+								if(sliversExpire != null && sliversExpire.time < sliceExpiresDate.time) {
+									sliceExpiresDate = sliceExpiresDate;
+									this.expireButton.toolTip = "Sliver expires before slice in\n\t"
+										+ DateUtil.getTimeUntil(sliversExpire)
+										+ "\n\ton "
+										+ dateFormatter.format(sliversExpire)
+										+ "\n\n";
+								}
+							}
+							
+							this.expireButton.toolTip += "Slice expires in\n\t"
+								+ DateUtil.getTimeUntil(refreshSlice.expires)
+								+ "\n\ton "
+								+ dateFormatter.format(refreshSlice.expires);
+							
+							// If expires soon, let the user know
+							// less than one hour
+							var hoursRemaining:Number = (sliceExpiresDate.time - (new Date()).time)/3600000;
+							if(hoursRemaining < 1)
+								this.expireButton.styleName = "failedStyle";
+							else if(hoursRemaining < 3)
+								this.expireButton.styleName = "inprogressStyle";
+							else
+								this.expireButton.styleName = "validStyle";
+						} else {
+							this.expireButton.toolTip = "";
+							this.expireButton.styleName = "unknownStyle";
+						}
+						this.deleteButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
+						this.rspecButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
+					} else {
+						this.rspecButton.enabled = false;
+						this.deleteButton.enabled = false;
+					}
+					
+					sidePaneSlices.removeAllElements();
+					if(refreshSlice != null) {
+						for each(var sliver:Sliver in refreshSlice.slivers.collection)
+						addSliverStatus(sliver);
+					}
 				}
 			}
 			
@@ -498,7 +485,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				var nodeList:NodeList = new NodeList();
 				nodeList.percentHeight = 100;
 				nodeList.percentWidth = 100;
-				this.sidePane.addElement(nodeList);
+				this.sidePaneManagers.addElement(nodeList);
 				var nodeCollection:ArrayCollection = new ArrayCollection();
 				for each(var node:PhysicalNode in nodes)
 					nodeCollection.addItem(node);
@@ -514,7 +501,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				sliverContainer.setStyle("paddingRight", 4);
 				sliverContainer.setStyle("paddingLeft", 4);
 				sliverContainer.backgroundFill = new SolidColor(ColorUtil.colorsDark[sliver.manager.colorIdx]);
-				this.sidePane.addElement(sliverContainer);
+				this.sidePaneSlices.addElement(sliverContainer);
 				var sliverNameGroup:HGroup = new HGroup();
 				sliverNameGroup.percentWidth = 100;
 				sliverNameGroup.percentHeight = 100;
@@ -529,13 +516,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				sliverNameGroup.addElement(managerName);
 				
 				if(sliver.changing) {
-					var spinner:Spinner = new Spinner();
-					spinner.width = 18;
-					spinner.height = 18;
-					sliverNameGroup.addElement(spinner);
-					//spinner.x = (width / 2) - (spinner.width / 2);
-					//spinner.y = (height / 2) - (spinner.height / 2);
-					spinner.startSpin();
+					var sliverSpinner:Spinner = new Spinner();
+					sliverSpinner.width = 18;
+					sliverSpinner.height = 18;
+					sliverNameGroup.addElement(sliverSpinner);
+					//sliverSpinner.x = (width / 2) - (sliverSpinner.width / 2);
+					//sliverSpinner.y = (height / 2) - (sliverSpinner.height / 2);
+					sliverSpinner.startSpin();
 				}
 				
 				if(sliver.manifest != null) {
@@ -583,11 +570,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						default:
 							statusLabel.styleName = "unknownStyle";
 					}
-					this.sidePane.addElement(statusLabel);
+					this.sidePaneSlices.addElement(statusLabel);
 					var newLine:DefaultLine = new DefaultLine();
 					newLine.percentWidth = 100;
 					newLine.lineColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
-					this.sidePane.addElement(newLine);
+					this.sidePaneSlices.addElement(newLine);
 				}
 			}
 			
@@ -595,26 +582,29 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				var managerHgroup:HGroup = new HGroup();
 				managerHgroup.percentWidth = 100;
 				managerHgroup.gap = 2;
-				var toggleViewButton:ImageButton = new ImageButton();
+				var toggleViewButton:Button;
 				if(only) {
+					toggleViewButton = new ImageButton();
 					toggleViewButton.setStyle("icon", ImageUtil.leftIcon);
 					toggleViewButton.toolTip = "View all the managers";
 					toggleViewButton.addEventListener(MouseEvent.CLICK,
 						function toggleViewClicked(e:MouseEvent):void {
 							me.setSidePane(VIEW_MANAGERS);
 						});
+					managerHgroup.addElement(toggleViewButton);
+					var managerButton:Button = DisplayUtil.getGeniManagerButton(manager);
+					managerButton.percentWidth = 100;
+					managerHgroup.addElement(managerButton);
 				} else {
-					toggleViewButton.setStyle("icon", ImageUtil.rightIcon);
+					toggleViewButton = DisplayUtil.getGeniManagerButton(manager);
+					toggleViewButton.percentWidth = 100;
 					toggleViewButton.toolTip = "Open the manager resources";
 					toggleViewButton.addEventListener(MouseEvent.CLICK,
 						function toggleViewClicked(e:MouseEvent):void {
 							me.setSidePane(VIEW_MANAGER, manager);
 						});
+					managerHgroup.addElement(toggleViewButton);
 				}
-				managerHgroup.addElement(toggleViewButton);
-				var managerButton:Button = DisplayUtil.getGeniManagerButton(manager);
-				managerButton.percentWidth = 100;
-				managerHgroup.addElement(managerButton);
 
 				var addRawButton:DataButton = new DataButton("",
 					"Add a raw node",
@@ -685,7 +675,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					addDelayButton.visible = false; // include in the layout
 				managerHgroup.addElement(addDelayButton);
 				
-				this.sidePane.addElement(managerHgroup);
+				this.sidePaneManagers.addElement(managerHgroup);
 			}
 			
 			protected function sidePane_dragEnterHandler(event:DragEvent):void
@@ -773,11 +763,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public var getRspec:URLLoader;
 			public var getRspecRequest:URLRequest;
+			public function importFromUrl(event:* = null):void {
+				promptForUrl();
+			}
+			
 			public function promptForUrl(url:String = ""):void {
 				var getUrlWindow:TextInputWindow = new TextInputWindow();
 				getUrlWindow.title = "Please enter the full URL for the RSPEC";
 				getUrlWindow.showWindow(true);
-				getUrlWindow.Text = url;
+				getUrlWindow.Text = url.length == 0  ? "http://" : url;
 				getUrlWindow.onCancel = null;
 				getUrlWindow.onSuccess = tryImportUrl;
 			}
@@ -808,14 +802,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			public function finishImport(e:Event):void {
-				this.spinner.visible = false;
-				this.spinner.stopSpin();
-				this.sliceCanvas.slice.tryImport(String(getRspec.data));
+				spinner.visible = false;
+				spinner.stopSpin();
+				sliceCanvas.slice.tryImport(String(getRspec.data));
 			}
 			
 			public function importError(e:*):void {
-				this.spinner.visible = false;
-				this.spinner.stopSpin();
+				spinner.visible = false;
+				spinner.stopSpin();
 				promptForUrl(getRspecRequest.url);
 				Alert.show("Problem loading the RSPEC, check the URL and try again");
 			}
@@ -848,139 +842,202 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					}
 				);
 			}
+			
+			[Bindable] 
+			public var menuData:Array = [
+				{label: "Import from file", icon: ImageUtil.openIcon, action: onFileBrowse},
+				{label: "Import from clipboard", icon: ImageUtil.pasteIcon, action: importRspec}, 
+				{label: "Import from the web", icon: ImageUtil.worldIcon, action: importFromUrl}
+			];
+			private var importAction:Function;
+			protected function importMenuButton_itemClickHandler(event:MenuEvent):void
+			{
+				importAction = event.item.action;
+				importAction(event);
+				importMenuButton.setStyle("icon", event.item.icon);
+			}
 
 		]]>
 	</fx:Script>
 	
-	<s:HGroup width="100%" verticalAlign="middle" gap="2">
-		<components:ImageButton id="saveSliceCredentialButton"
-								toolTip="Save the slice credential to file"
-								click="saveCredential()"
-								icon="{ImageUtil.credentialIcon}" />
-		<components:ImageButton id="rspecButton"
-								icon="{ImageUtil.pageWhiteCodeIcon}"
-								click="viewRspecs()"
-								toolTip="View RSPEC(s) from the created sliver(s)" />
-		<components:ImageButton id="viewStatusButton"
-								toolTip="View the status of the slivers"
-								click="this.setSidePane(VIEW_STATUS);"
-								visible="false" includeInLayout="{viewStatusButton.visible}"/>
-		<s:Label id="hrnLabel" text="{sliceCanvas.slice.urn.name}"
-				 toolTip="{sliceCanvas.slice.urn.full}"
-				 fontSize="17"
-				 fontWeight="bold" />
-		<components:Spinner id="spinner"
-							width="21"
-							height="21"
-							x="{(width / 2) - (spinner.width / 2)}"
-							y="{(height / 2) - (spinner.height / 2)}"
-							visible="false" includeInLayout="{spinner.visible}" />
-		<s:Rect percentWidth="100" />
-		<components:ImageButton id="clearCanvasButton"
-							 toolTip="Clear the canvas"
-							 click="clearCanvas()"
-							 icon="{ImageUtil.eraseIcon}" />
-		<components:DefaultLine height="14" visible="false" />
-		<components:ImageButton icon="{ImageUtil.pasteIcon}"
-							 toolTip="Paste RSPEC"
-							 click="importRspec()" />
-		<components:ImageButton icon="{ImageUtil.openIcon}"
-							 toolTip="Load RSPEC from file"
-							 click="onFileBrowse(event)" />
-		<components:ImageButton icon="{ImageUtil.worldIcon}"
-								toolTip="Load RSPEC from a URL"
-								click="tryImportUrl()" />
-		<components:DefaultLine height="14" visible="false" />
-		<s:Label text="Use RSPECv" />
-		<s:DropDownList id="outputRspecDropdownlist"
-						requireSelection="true"
-						width="58"
-						height="24"
-						dataProvider="{Util.usableRspecVersions}"
-						selectedItem="{sliceCanvas.slice.useInputRspecVersion}"
-						change="sliceCanvas.slice.useInputRspecVersion = outputRspecDropdownlist.selectedItem;">
-		</s:DropDownList>
-		<components:ImageButton id="previewRspecButton"
-								icon="{ImageUtil.pageCodeIcon}"
-								click="previewRspecs()"
-								toolTip="Preview the Request RSPEC" />
-		<components:ImageButton icon="{ImageUtil.saveIcon}"
-								toolTip="Save preview RSPEC to file"
-								click="saveRequestRspec()" />
-		<components:DefaultLine height="14" visible="false" />
-		<components:ImageButton id="regetSliceButton"
-								icon="{ImageUtil.refreshIcon}"
-								click="tryToRegetSlice()"
-								toolTip="Re-load the entire slice from scratch" />
-	</s:HGroup>
 	<mx:HDividedBox width="100%" height="100%">
-		<s:Scroller height="100%" minWidth="150">
-			<s:VGroup id="sidePane" height="100%" width="100%" gap="2"
-					  dragEnter="sidePane_dragEnterHandler(event)"
-					  dragDrop="sidePane_dragDropHandler(event)" />
-		</s:Scroller>
-
-		<display:SliceCanvas id="sliceCanvas" hostWindow="{this}" />
+		<s:VGroup id="dashboard" height="100%" width="240"
+				  dragEnter="sidePane_dragEnterHandler(event)"
+				  dragDrop="sidePane_dragDropHandler(event)">
+			<s:ButtonBar dataProvider="{dashboardViewstack}"
+						 requireSelection="true"
+						 skinClass="protogeni.display.skins.ButtonBarSkin"
+						 width="100%" />
+			<mx:ViewStack id="dashboardViewstack"
+						  width="100%"
+						  height="100%">
+				<s:NavigatorContent id="resourcesView"
+									width="100%"
+									height="100%"
+									toolTip="Resources"
+									icon="{ImageUtil.resourcesIcon}">
+					<s:Scroller width="100%" height="100%">
+						<s:VGroup id="sidePaneManagers" width="100%" height="100%" paddingRight="2" paddingLeft="2" />
+					</s:Scroller>
+				</s:NavigatorContent>
+				<s:NavigatorContent id="sliceView"
+									width="100%"
+									height="100%"
+									toolTip="Slice"
+									icon="{ImageUtil.settingsIcon}">
+					<s:VGroup height="100%"
+							  width="100%"
+							  paddingLeft="2"
+							  id="sliceGroup"
+							  creationComplete="updateSliversInfo();">
+						<s:HGroup width="100%" verticalAlign="middle" horizontalAlign="right">
+							<s:Button id="refreshStatusButton"
+									  label="Refresh status"
+									  toolTip="Refresh the slivers' status"
+									  click="Main.geniHandler.requestHandler.refreshSlice(sliceCanvas.slice);"
+									  height="24" />
+							<s:Rect percentWidth="100" />
+							<components:ImageButton id="saveSliceCredentialButton"
+													toolTip="Save the slice credential to file"
+													click="saveCredential()"
+													icon="{ImageUtil.credentialIcon}" />
+							<components:ImageButton id="rspecButton"
+													icon="{ImageUtil.pageWhiteCodeIcon}"
+													click="viewRspecs()"
+													toolTip="View RSPEC(s) from the created sliver(s)" />
+						</s:HGroup>
+						<s:Scroller height="100%" width="100%">
+							<s:VGroup id="sidePaneSlices" width="100%" height="100%" />
+						</s:Scroller>
+						<s:HGroup width="100%" verticalAlign="middle">
+							<components:ImageButton id="expireButton"
+													icon="{ImageUtil.timeIcon}"
+													click="viewExpires()" />
+							<s:Button id="renewSliceButton"
+									  label="Extend"
+									  click="renewSlice()"
+									  height="24" />
+							<s:DropDownList id="renewLengthDropdownlist" height="24" width="100%"
+											requireSelection="true">
+								<s:dataProvider>
+									<s:ArrayList>
+										<fx:String>2 Hours</fx:String>
+										<fx:String>6 Hours</fx:String>
+										<fx:String>1 Day</fx:String>
+										<fx:String>3 Days</fx:String>
+									</s:ArrayList>
+								</s:dataProvider>
+							</s:DropDownList>
+						</s:HGroup>
+						<s:HGroup width="100%" verticalAlign="middle">
+							<s:Button id="deleteButton"
+									  toolTip="Delete slivers"
+									  styleName="failedStyle"
+									  label="Delete"
+									  icon="{ImageUtil.deleteIcon}"
+									  width="100%"
+									  height="24"
+									  enabled="false"
+									  click="tryToDelete()" />
+							<components:ImageButton id="startButton"
+													height="24"
+													toolTip="Start slivers"
+													click="Main.geniHandler.requestHandler.startSlice(sliceCanvas.slice);"
+													icon="{ImageUtil.playControlIcon}"
+													enabled="{deleteButton.enabled}" />
+							<components:ImageButton id="stopButton"
+													toolTip="Stop slivers"
+													click="Main.geniHandler.requestHandler.stopSlice(sliceCanvas.slice);"
+													icon="{ImageUtil.stopControlIcon}"
+													enabled="{deleteButton.enabled}" />
+							<components:ImageButton id="restartButton"
+													toolTip="Restart slivers"
+													click="Main.geniHandler.requestHandler.restartSlice(sliceCanvas.slice);"
+													icon="{ImageUtil.repeatControlIcon}"
+													enabled="{deleteButton.enabled}" />
+						</s:HGroup>
+					</s:VGroup>
+				</s:NavigatorContent>
+				<s:NavigatorContent id="pluginView"
+									width="100%"
+									height="100%"
+									toolTip="Plugins"
+									icon="{ImageUtil.pluginIcon}">
+					<s:VGroup height="100%"
+							  width="100%"
+							  paddingLeft="2"
+							  id="pluginGroup"
+							  creationComplete="refreshPluginPaneStatus(sliceCanvas.slice);">
+						<s:Button id="instrumentizeButton"
+								  label="Instrumentize"
+								  toolTip="Instrumentize experiment with INSTOOLS"
+								  click="Instools.instrumentizeSlice(sliceCanvas.slice);"
+								  icon="{ImageUtil.lightningIcon}"
+								  height="32"
+								  width="100%" />
+						<s:Button id="gotoPortalButton"
+								  label="Go to portal"
+								  toolTip="Go to portal to see instrumentized data"
+								  click="Instools.goToPortal(sliceCanvas.slice);"
+								  icon="{ImageUtil.barchartIcon}"
+								  height="32"
+								  width="100%" />
+					</s:VGroup>
+				</s:NavigatorContent>
+			</mx:ViewStack>
+			<s:HGroup width="100%"
+					  verticalAlign="middle"
+					  paddingBottom="2"
+					  paddingLeft="2">
+				<s:Button id="createButton"
+						  toolTip="Submit changes"
+						  label="Submit"
+						  height="24" width="100%"
+						  icon="{ImageUtil.actionIcon}"
+						  click="tryCreateSlice()"/>
+				<components:ImageButton id="regetSliceButton"
+										icon="{ImageUtil.refreshIcon}"
+										click="tryToRegetSlice()"
+										toolTip="Re-load the entire slice from scratch" />
+			</s:HGroup>
+		</s:VGroup>
+		<s:VGroup height="100%" width="100%" gap="2" paddingBottom="2" paddingTop="2">
+			<s:HGroup width="100%" verticalAlign="middle" gap="2">
+				<components:ImageButton id="clearCanvasButton"
+										toolTip="Clear the canvas"
+										click="clearCanvas()"
+										icon="{ImageUtil.eraseIcon}" />
+				<s:Rect />
+				<mx:PopUpMenuButton id="importMenuButton"
+									height="24" width="48"
+									label=""
+									dataProvider="{menuData}"
+									showRoot="true"
+									toolTip="Import from..."
+									itemClick="importMenuButton_itemClickHandler(event)" />
+				<s:Rect />
+				<components:Spinner id="spinner"
+									width="21"
+									height="21"
+									x="{(width / 2) - (spinner.width / 2)}"
+									y="{(height / 2) - (spinner.height / 2)}"
+									visible="false" includeInLayout="{spinner.visible}" />
+				<s:Rect percentWidth="100" />
+				<s:Label text="Use RSPECv" />
+				<s:DropDownList id="outputRspecDropdownlist"
+								requireSelection="true"
+								width="58"
+								height="24"
+								dataProvider="{Util.usableRspecVersions}"
+								selectedItem="{sliceCanvas.slice.useInputRspecVersion}"
+								change="sliceCanvas.slice.useInputRspecVersion = outputRspecDropdownlist.selectedItem;">
+				</s:DropDownList>
+				<components:ImageButton id="previewRspecButton"
+										icon="{ImageUtil.previewIcon}"
+										click="previewRspecs()"
+										toolTip="Preview the Request RSPEC" />
+			</s:HGroup>
+			<display:SliceCanvas id="sliceCanvas" hostWindow="{this}" />
+		</s:VGroup>
 	</mx:HDividedBox>
-	<components:controlBarLayout>
-		<s:HorizontalLayout paddingBottom="2"
-							paddingLeft="2"
-							paddingRight="12"
-							paddingTop="2" />
-	</components:controlBarLayout>
-	<components:controlBarContent>
-		<s:HGroup enabled="{!Main.offlineMode}" verticalAlign="middle" height="100%" width="100%" gap="2">
-			<s:Button id="createButton"
-					  toolTip="Create slivers"
-					  label="Create"
-					  height="24"
-					  icon="{ImageUtil.actionIcon}"
-					  click="tryCreateSlice()"/>
-			<components:ImageButton id="startButton"
-									height="24"
-									toolTip="Start slivers"
-									click="Main.geniHandler.requestHandler.startSlice(sliceCanvas.slice);"
-									icon="{ImageUtil.playControlIcon}"
-									enabled="{deleteButton.enabled}" />
-			<components:ImageButton id="stopButton"
-									toolTip="Stop slivers"
-									click="Main.geniHandler.requestHandler.stopSlice(sliceCanvas.slice);"
-									icon="{ImageUtil.stopControlIcon}"
-									enabled="{deleteButton.enabled}" />
-			<components:DefaultLine percentHeight="90" />
-			<components:ImageButton id="deleteButton"
-									toolTip="Delete slivers"
-									click="tryToDelete();"
-									icon="{ImageUtil.deleteIcon}"
-									enabled="false" />
-			<components:DefaultLine percentHeight="90" />
-			<components:ImageButton id="expireButton"
-									icon="{ImageUtil.timeIcon}"
-									click="viewExpires()" />
-			<s:Button id="renewSliceButton"
-					  label="Extend for"
-					  click="renewSlice()"
-					  height="24" />
-			<s:DropDownList id="renewLengthDropdownlist" height="24" width="90"
-							requireSelection="true">
-				<s:dataProvider>
-					<s:ArrayList>
-						<fx:String>2 Hours</fx:String>
-						<fx:String>6 Hours</fx:String>
-						<fx:String>1 Day</fx:String>
-						<fx:String>3 Days</fx:String>
-					</s:ArrayList>
-				</s:dataProvider>
-			</s:DropDownList>
-			<s:Rect percentWidth="100" />
-			<s:Button id="instrumentizeButton" label="Instrumentize"
-									toolTip="Instrumentize experiment with INSTOOLS"
-									click="Instools.instrumentizeSlice(sliceCanvas.slice);"
-									icon="{ImageUtil.lightningIcon}" height="24"/>
-			<s:Button id="gotoPortalButton" label="Go to portal"
-									toolTip="Go to portal to see instrumentized data"
-									click="Instools.goToPortal(sliceCanvas.slice);"
-									icon="{ImageUtil.barchartIcon}" height="24"/>
-		</s:HGroup>
-	</components:controlBarContent>
 </components:DefaultWindow>

@@ -17,6 +17,7 @@ package protogeni.resources
 	import mx.collections.ArrayCollection;
 	import mx.collections.ArrayList;
 	
+	import protogeni.NetUtil;
 	import protogeni.Util;
 	import protogeni.XmlUtil;
 	import protogeni.communication.Request;
@@ -171,13 +172,7 @@ package protogeni.resources
 		
 		public function VisitUrl():String
 		{
-			var hostPattern:RegExp = /^(http(s?):\/\/([^\/]+))(\/.*)?$/;
-			var match:Object = hostPattern.exec(Url);
-			if (match != null)
-			{
-				return match[1];
-			} else
-				return Url;
+			return NetUtil.tryGetBaseUrl(Url);
 		}
 		
 		public function mightNeedSecurityException():Boolean

@@ -17,20 +17,23 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 -->
 
-<s:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 			   xmlns:s="library://ns.adobe.com/flex/spark" 
 			   xmlns:mx="library://ns.adobe.com/flex/mx"
 			   xmlns:display="protogeni.display.*"
-			   skinClass="protogeni.display.skins.TitleWindowSkin"
+			   xmlns:components="protogeni.display.components.*"
 			   title="{Main.version}"
-			   close="PopUpManager.removePopUp(this)"
 			   contentCreationComplete="init()">
-	<s:layout>
+	<components:layout>
 		<s:VerticalLayout horizontalAlign="center" />
-	</s:layout>
+	</components:layout>
 	
 	<fx:Script>
 		<![CDATA[
+			import com.mattism.http.xmlrpc.JSLoader;
+			
+			import mx.controls.Alert;
+			import mx.core.FlexGlobals;
 			import mx.managers.PopUpManager;
 			
 			import protogeni.NetUtil;
@@ -39,10 +42,52 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			[Bindable]
 			private var memoryString:String;
 			
+			private var fr:FileReference;
+			
 			public function init():void
 			{
 				memoryString =  (System.totalMemoryNumber/1048576).toFixed(2) + " MB";
+				
+				fr = new FileReference();
+				fr.addEventListener(Event.SELECT, onFileSelect);
+				fr.addEventListener(Event.COMPLETE, onFileComplete);
+				fr.addEventListener(IOErrorEvent.IO_ERROR, onFileIoError);
+				fr.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onFileSecurityError);
 			}
+			
+			private var saving:Boolean;
+			protected function loadBundle(event:MouseEvent):void
+			{
+				saving = false;
+				fr.browse([new FileFilter("Any file (*.*)", "*.*")])
+			}
+			
+			protected function saveBundle(event:MouseEvent):void
+			{
+				saving = true;
+				fr.save(JSLoader, 'trust_bundle.txt');
+			}
+			
+			public function onFileSelect(event:Event):void {
+				if(!saving)
+					fr.load();
+			}
+			
+			public function onFileComplete(event:Event):void {
+				if(!saving)
+				{
+					JSLoader.setServerCertificate(fr.data.readUTFBytes(fr.data.length));
+				}
+			}
+			
+			private function onFileIoError(event:IOErrorEvent):void {
+				Alert.show(event.toString(), "IO Error");
+			}
+			
+			private function onFileSecurityError(event:SecurityErrorEvent):void {
+				Alert.show(event.toString(), "Security Error");
+			}
+			
 		]]>
 	</fx:Script>
 	
@@ -58,7 +103,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				  height="24" />
 	</s:HGroup>
 	
-	<mx:TabNavigator width="100%" height="130" paddingTop="2">
+	<mx:TabNavigator width="100%" height="100%" paddingTop="2">
 		<s:NavigatorContent label="System" width="100%" height="100%">
 			<s:Scroller width="100%" height="100%">
 				<s:VGroup width="100%" height="100%"
@@ -126,5 +171,21 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				</s:VGroup>
 			</s:Scroller>
 		</s:NavigatorContent>
+		<s:NavigatorContent label="Trust Bundle" width="100%" height="100%">
+			<s:VGroup width="100%" height="100%">
+				<s:HGroup paddingLeft="4">
+					<s:Button icon="{ImageUtil.saveIcon}"
+							  label="Save to file"
+							  click="saveBundle(event)" />
+					<s:Button icon="{ImageUtil.copyIcon}"
+							  label="Copy to clipboard"
+							  click="System.setClipboard(JSLoader.serverCertificate)" />
+					<s:Button icon="{ImageUtil.openIcon}"
+							  label="Open trust bundle"
+							  click="loadBundle(event)" />
+				</s:HGroup>
+				<s:TextArea width="100%" height="100%" text="{JSLoader.serverCertificate}" editable="false" />
+			</s:VGroup>
+		</s:NavigatorContent>
 	</mx:TabNavigator>
-</s:TitleWindow>
+</components:DefaultWindow>

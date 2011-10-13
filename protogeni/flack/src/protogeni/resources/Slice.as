@@ -306,6 +306,9 @@ package protogeni.resources
 					case XmlUtil.rspec2Namespace:
 						detectedRspecVersion = 2;
 						break;
+					case XmlUtil.rspec3Namespace:
+						detectedRspecVersion = 3;
+						break;
 					default:
 						Alert.show("Please use a compatible RSPEC");
 						return false;
@@ -353,6 +356,9 @@ package protogeni.resources
 						break;
 					case XmlUtil.rspec2Namespace:
 						detectedRspecVersion = 2;
+						break;
+					case XmlUtil.rspec3Namespace:
+						detectedRspecVersion = 3;
 						break;
 				}
 			}

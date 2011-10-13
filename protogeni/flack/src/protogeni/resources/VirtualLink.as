@@ -113,6 +113,7 @@ package protogeni.resources
 		{
 			this.linkType = VirtualLink.TYPE_TUNNEL;
 			this.type = "gre-tunnel";
+			VirtualInterface.startNextTunnel();
 			for each(var i:VirtualInterface in this.interfaces.collection) {
 				if(i.ip.length == 0) {
 					i.ip = VirtualInterface.getNextTunnel();

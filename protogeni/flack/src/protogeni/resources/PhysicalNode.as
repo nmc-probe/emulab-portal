@@ -38,6 +38,9 @@ package protogeni.resources
 		[Bindable]
 		public var interfaces:PhysicalNodeInterfaceCollection = new PhysicalNodeInterfaceCollection();
 		
+		public var numVirtualAvailable:int = 0;
+		public var virtualizationType:String = "";
+		
 		// Sliced
 		public var virtualNodes:VirtualNodeCollection = new VirtualNodeCollection();
 		

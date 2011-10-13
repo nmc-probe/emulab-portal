@@ -55,6 +55,6 @@
 	
 	public static var allowCaching:Boolean = true;
 	
-	public static const version:String = "vGEC11.10";
+	public static const version:String = "v11.22";
   }
 }
