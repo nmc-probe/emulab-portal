@@ -33,14 +33,16 @@ package protogeni.communication
 	public final class RequestSliverDeleteAm extends Request
 	{
 		public var sliver:Sliver;
+		private var hideErrors:Boolean;
 		
-		public function RequestSliverDeleteAm(s:Sliver):void
+		public function RequestSliverDeleteAm(s:Sliver, shouldHideErrors:Boolean = false):void
 		{
 			super("Delete sliver @ " + s.manager.Hrn,
 				"Deleting sliver on aggregate manager " + s.manager.Hrn + " for slice named " + s.slice.Name,
 				CommunicationUtil.deleteSliverAm,
 				true,
 				true);
+			hideErrors = shouldHideErrors;
 			ignoreReturnCode = true;
 			sliver = s;
 			sliver.changing = true;
@@ -80,7 +82,8 @@ package protogeni.communication
 					}
 					sliver.message = "Deleted";
 				} else if(response == false) {
-					Alert.show("Received false when trying to delete sliver on " + this.sliver.manager.Hrn + ".");
+					if(!hideErrors)
+						Alert.show("Received false when trying to delete sliver on " + this.sliver.manager.Hrn + ".");
 				} else
 					throw new Error();
 			}
@@ -93,7 +96,8 @@ package protogeni.communication
 		}
 		
 		public function failed():void {
-			Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again. A possibility is that the sliver doesn't exist.");
+			if(!hideErrors)
+				Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again. A possibility is that the sliver doesn't exist.");
 			sliver.message = "Delete failed";
 		}
 		

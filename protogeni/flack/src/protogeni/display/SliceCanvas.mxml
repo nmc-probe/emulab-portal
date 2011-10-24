@@ -171,7 +171,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(refreshSlice == null && this.slice != null)
 					refreshSlice = this.slice;
 				if(refreshSlice != null && !refreshSlice.slivers.Processing) {
-					switch(refreshSlice.slivers.Status)
+					var sliceStatus:String = refreshSlice.slivers.Status;
+					if(Main.geniHandler.requestHandler.isSliceSubmitting(refreshSlice))
+						sliceStatus = Sliver.STATUS_CHANGING;
+					switch(sliceStatus)
 					{
 						case Sliver.STATUS_READY:
 							this.setStyle("borderColor", "green");
@@ -433,6 +436,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					sn.node.superNode.subNodes.add(sn.node);
 				}
 				
+				if(sliceNode.manager.inputRspecVersion < slice.useInputRspecVersion)
+					slice.useInputRspecVersion = sliceNode.manager.inputRspecVersion;
+				
+				edited = true;
+				
 				return sn;
 			}
 			
@@ -510,6 +518,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						physicalNode.node.superNode = allNodes.getForPhysicalNode(pn.subNodeOf).node;
 					physicalNode.node.superNode.subNodes.add(physicalNode.node);
 				}
+				if(pn.manager.inputRspecVersion < slice.useInputRspecVersion)
+					slice.useInputRspecVersion = pn.manager.inputRspecVersion;
 				edited = true;
 				return physicalNode;
 			}

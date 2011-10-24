@@ -112,10 +112,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
 				
 				if(node.loginServices.length > 0) {
+					this.usernameText.text = node.loginServices[0].username;
 					this.loginText.text = node.loginServices[0].hostname + ":" + node.loginServices[0].port;
 					
 					var sshButton:DataButton = new DataButton("","Start a SSH session",ImageUtil.linkIcon);
-					sshButton.data = "ssh://" + node.loginServices[0].hostname + ":" + node.loginServices[0].port;
+					sshButton.data = "ssh://" + node.loginServices[0].username + "@" + node.loginServices[0].hostname + ":" + node.loginServices[0].port;
 					sshButton.addEventListener(MouseEvent.CLICK,
 						function openSsh(e:MouseEvent):void {
 							NetUtil.openWebsite(e.currentTarget.data);
@@ -131,7 +132,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					loginGroup.addElement(visitButton);
 					
 				} else
+				{
+					this.usernameText.text = "None established";
 					this.loginText.text = "None established";
+				}
 				
 				this.bindingVirtualRadiobutton.enabled = node.manager.supportsExclusiveNodes || node.manager.supportsSharedNodes;
 				if(this.bindingVirtualRadiobutton.enabled) {
@@ -461,8 +465,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					detailsViewstack.selectedChild = this.delayView;
 					this.validateNow();
 					loadDelayPipes();
-				} else
-					detailsViewstack.selectedChild = this.detailsView;
+				} else {
+					if(this.node.sliverType == SliverTypes.JUNIPER_LROUTER)
+						detailsViewstack.selectedChild = this.nullView;
+					else
+						detailsViewstack.selectedChild = this.detailsView;
+				}
+					
 			}
 			
 			protected function setType():void
@@ -496,6 +505,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	</s:HGroup>
 	
 	<s:HGroup id="loginGroup" width="100%" verticalAlign="middle">
+		<s:Label text="Username" fontWeight="bold" />
+		<mx:Label id="usernameText" selectable="true" />
 		<s:Label text="Hostname" fontWeight="bold" />
 		<mx:Label id="loginText" selectable="true" />
 		<s:Rect percentWidth="100" />
@@ -632,6 +643,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								</s:ArrayList> 
 							</s:columns>
 						</s:DataGrid> 
+					</s:NavigatorContent>
+					<s:NavigatorContent id="nullView" width="100%" height="100%">
 					</s:NavigatorContent>
 				</mx:ViewStack>
 			</s:VGroup>

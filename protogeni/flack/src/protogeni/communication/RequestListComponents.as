@@ -91,6 +91,12 @@ package protogeni.communication
 								newCm.supportsIon = true;
 							if(newCm.Hrn == "wail.cm" || newCm.Hrn == "utahemulab.cm")
 								newCm.supportsGpeni = true;
+							if(newCm.Hrn == "shadowgeni.cm")
+							{
+								newCm.supportsDelayNodes = false;
+								newCm.supportsExclusiveNodes = false;
+								newCm.supportsSharedNodes = false;
+							}
 							
 						} else if(!Main.protogeniOnly)
 						{

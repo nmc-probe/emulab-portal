@@ -43,6 +43,11 @@ package protogeni.communication
 				true);
 			// Was false, these two should always be loaded even on initial errors...
 			retryOnError = newManager.Hrn == "utahemulab.cm" || newManager.Hrn == "ukgeni.cm";
+			if(newManager.Hrn == "cron.loni.org.cm")
+			{
+				this.op.timeout = 10;
+				this.retryOnTimeout = false;
+			}
 			componentManager = newManager;
 			
 			op.setUrl(componentManager.Url);
@@ -84,7 +89,7 @@ package protogeni.communication
 				// Set input version
 				componentManager.inputRspecVersion = Math.min(Util.defaultRspecVersion, maxInputRspecVersion);
 				
-				componentManager.Level = response.value.level;
+				componentManager.level = response.value.level;
 				r = new RequestDiscoverResources(componentManager);
 				r.forceNext = true;
 			}
@@ -98,7 +103,7 @@ package protogeni.communication
 		override public function fail(event:ErrorEvent, fault:MethodFault):*
 		{
 			var request:Request = null;
-			if((componentManager.Hrn == "ukgeni.cm" || componentManager.Hrn == "utahemulab.cm") && numTries < 3)
+			if(numTries < 2)
 			{
 				request = this;
 				request.op.delaySeconds = Math.min(60, op.delaySeconds + 15);

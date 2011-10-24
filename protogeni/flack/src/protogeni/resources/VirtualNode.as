@@ -27,15 +27,33 @@ package protogeni.resources
 	{
 		[Bindable]
 		public var physicalNode:PhysicalNode;
-		public var exclusive:Boolean;
 		public var superNode:VirtualNode;
 		public var subNodes:VirtualNodeCollection = new VirtualNodeCollection();
+		
+		public var exclusive:Boolean;
+		public function get Vm():Boolean
+		{
+			return hardwareType.indexOf("vm") > -1
+				|| (physicalNode != null && !physicalNode.exclusive)
+				|| sliverType == SliverTypes.EMULAB_OPENVZ
+				|| sliverType == SliverTypes.PLANETLAB;
+		}
 		
 		[Bindable]
 		public var sliver:Sliver;
 		
 		[Bindable]
 		public var interfaces:VirtualInterfaceCollection;
+		public function get HasUsableInterface():Boolean
+		{
+			if(physicalNode == null)
+				return true;
+			if(physicalNode.interfaces.length > 0 || physicalNode.manager.AllLinks.length > 0)
+				return true;
+			if(physicalNode.virtualizationType == SliverTypes.JUNIPER_LROUTER)
+				return true;
+			return false;
+		}
 		
 		public var pipes:PipeCollection;
 		
@@ -163,12 +181,20 @@ package protogeni.resources
 		
 		public function allocateInterface():VirtualInterface
 		{
+			var newVirtualInterface:VirtualInterface;
 			if(!IsBound())
 			{
-				var newVirtualInterface:VirtualInterface = new VirtualInterface(this);
+				newVirtualInterface = new VirtualInterface(this);
 				newVirtualInterface.id = this.clientId + ":if" + this.interfaces.length;
 				//newVirtualInterface.role = PhysicalNodeInterface.ROLE_EXPERIMENTAL;
 				newVirtualInterface.capacity = 100000;
+				//newVirtualInterface.isVirtual = true;
+				return newVirtualInterface;
+			} else if(sliverType == SliverTypes.JUNIPER_LROUTER) {
+				newVirtualInterface = new VirtualInterface(this);
+				newVirtualInterface.id = clientId + ":if" + this.interfaces.length;
+				//newVirtualInterface.role = PhysicalNodeInterface.ROLE_EXPERIMENTAL;
+				newVirtualInterface.capacity = 0;
 				//newVirtualInterface.isVirtual = true;
 				return newVirtualInterface;
 			} else {

@@ -33,20 +33,21 @@ package protogeni.communication
 	public final class RequestSliverDelete extends Request
 	{
 		public var sliver:Sliver;
+		private var hideErrors:Boolean;
 		
-		public function RequestSliverDelete(s:Sliver):void
+		public function RequestSliverDelete(s:Sliver, shouldHideErrors:Boolean = false):void
 		{
 			super("Delete sliver @ " + s.manager.Hrn,
 				"Deleting sliver on component manager " + s.manager.Hrn + " for slice named " + s.slice.Name,
 				CommunicationUtil.deleteSlice,
 				true,
 				true);
+			hideErrors = shouldHideErrors;
 			sliver = s;
 			sliver.changing = true;
 			sliver.processed = false;
 			sliver.message = "Waiting to delete";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-			
 			op.setUrl(sliver.manager.Url);
 		}
 		
@@ -90,7 +91,8 @@ package protogeni.communication
 			sliver.message = "Delete failed";
 			if(msg != null && msg.length > 0)
 				sliver.message += ": " + msg;
-			Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again.");
+			if(!hideErrors)
+				Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again.");
 		}
 		
 		override public function fail(event:ErrorEvent, fault:MethodFault):* {

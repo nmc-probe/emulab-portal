@@ -90,6 +90,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				fr.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onFileSecurityError);
 				//Main.geniDispatcher.addEventListener(GeniEvent.GENIMANAGER_CHANGED, cmChanged);
 				Main.geniDispatcher.addEventListener(GeniEvent.SLICE_CHANGED, sliceChanged);
+				Main.geniDispatcher.addEventListener(GeniEvent.QUEUE_CHANGED, queueChanged);
 				
 				var sidePane:int = VIEW_MANAGERS;
 				if(sliceCanvas.slice != null && sliceCanvas.slice.slivers != null && sliceCanvas.slice.slivers.AllocatedAnyResources)
@@ -122,6 +123,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				fr.removeEventListener(Event.COMPLETE, onFileComplete);
 				//Main.geniDispatcher.removeEventListener(GeniEvent.GENIMANAGER_CHANGED, cmChanged);
 				Main.geniDispatcher.removeEventListener(GeniEvent.SLICE_CHANGED, sliceChanged);
+				Main.geniDispatcher.removeEventListener(GeniEvent.QUEUE_CHANGED, queueChanged);
 				super.closeWindow(event);
 			}
 			
@@ -134,6 +136,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(sliceCanvas.slice != null && changedSlice.urn.full == sliceCanvas.slice.urn.full) {
 					this.loadSlice(changedSlice);
 				}
+			}
+			
+			public function queueChanged(e:GeniEvent):void
+			{
+				refreshInterface();
 			}
 			
 			/**
@@ -465,11 +472,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							this.expireButton.toolTip = "";
 							this.expireButton.styleName = "unknownStyle";
 						}
-						this.deleteButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
+						this.startButton .enabled = refreshSlice.slivers.AllocatedAnyResources;
 						this.rspecButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
 					} else {
 						this.rspecButton.enabled = false;
-						this.deleteButton.enabled = false;
+						this.startButton.enabled = false;
 					}
 					
 					sidePaneSlices.removeAllElements();
@@ -514,7 +521,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				managerName.setStyle("backgroundColor", ColorUtil.colorsDark[sliver.manager.colorIdx]);
 				sliverNameGroup.addElement(managerName);
 				
-				if(sliver.changing) {
+				if(Main.geniHandler.requestHandler.isSliverChanging(sliver)) {
 					var sliverSpinner:Spinner = new Spinner();
 					sliverSpinner.width = 18;
 					sliverSpinner.height = 18;
@@ -595,7 +602,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					managerButton.percentWidth = 100;
 					managerHgroup.addElement(managerButton);
 				} else {
-					toggleViewButton = DisplayUtil.getGeniManagerButton(manager);
+					toggleViewButton = DisplayUtil.getGeniManagerButton(manager, false);
 					toggleViewButton.percentWidth = 100;
 					toggleViewButton.toolTip = "Open the manager resources";
 					toggleViewButton.addEventListener(MouseEvent.CLICK,
@@ -714,6 +721,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					Alert.show("The slice is changing, please wait for the changes to complete");
 					return;
 				}
+				for each(var sliver:Sliver in sliceCanvas.slice.slivers.collection)
+				{
+					if(sliver.Created &&(sliver.manager.isAm || sliver.manager.level == GeniManager.LEVEL_MINIMAL))
+					{
+						Alert.show(sliver.manager.Hrn + " doesn't support updating. To continue you will need to delete and recreate the slice.");
+						return;
+					}
+				}
 				if(Main.geniHandler.CurrentUser.keys.length == 0) {
 					Alert.show("You don't have any public keys to use when logging in to your nodes.  Would you like to add any public keys?", "No public keys",
 						Alert.YES|Alert.NO|Alert.CANCEL,
@@ -722,7 +737,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							if(event.detail == Alert.YES) {
 								DisplayUtil.viewUserWindow(true);
 							} else if(event.detail == Alert.NO) {
-								this.clearStatus();
+								clearStatus();
+								setSidePane(VIEW_STATUS);
 								Main.geniHandler.requestHandler.submitSlice(sliceCanvas.slice);
 							}
 						});
@@ -730,7 +746,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 				
 				sliceCanvas.slice.useInputRspecVersion = outputRspecDropdownlist.selectedItem;
-				this.clearStatus();
+				clearStatus();
+				setSidePane(VIEW_STATUS);
 				Main.geniHandler.requestHandler.submitSlice(sliceCanvas.slice);
 			}
 			
@@ -831,15 +848,34 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			public function tryToDelete():void {
-				Alert.show("Do you really want to deallocate all resources in the slice?",
-					"Delete slice?",
-					Alert.YES|Alert.NO,
-					this,
-					function afterDecision(e:CloseEvent):void {
-						if(e.detail == Alert.YES)
-							Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice);
-					}
-				);
+				if(sliceCanvas.slice.slivers.AllocatedAnyResources)
+				{
+					Alert.show(
+						"Do you really want to deallocate all resources in the slice?",
+						"Deallocate resources?",
+						Alert.YES|Alert.NO,
+						this,
+						function afterDeleteDecision(e:CloseEvent):void
+						{
+							if(e.detail == Alert.YES)
+								Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice);
+						}
+					);
+				}
+				else
+				{
+					Alert.show(
+						"It looks like no resources have been allocated, run delete at all managers to ensure no resources are allocated?",
+						"Deallocate resources?",
+						Alert.YES|Alert.NO,
+						this,
+						function afterDeleteAllDecision(e:CloseEvent):void
+						{
+							if(e.detail == Alert.YES)
+								Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice, true);
+						}
+					);
+				}
 			}
 			
 			[Bindable] 
@@ -937,24 +973,24 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 									  icon="{ImageUtil.deleteIcon}"
 									  width="100%"
 									  height="24"
-									  enabled="false"
+									  enabled="{sliceCanvas.slice != null}"
 									  click="tryToDelete()" />
 							<components:ImageButton id="startButton"
 													height="24"
 													toolTip="Start slivers"
 													click="Main.geniHandler.requestHandler.startSlice(sliceCanvas.slice);"
 													icon="{ImageUtil.playControlIcon}"
-													enabled="{deleteButton.enabled}" />
+													enabled="false" />
 							<components:ImageButton id="stopButton"
 													toolTip="Stop slivers"
 													click="Main.geniHandler.requestHandler.stopSlice(sliceCanvas.slice);"
 													icon="{ImageUtil.stopControlIcon}"
-													enabled="{deleteButton.enabled}" />
+													enabled="{startButton.enabled}" />
 							<components:ImageButton id="restartButton"
 													toolTip="Restart slivers"
 													click="Main.geniHandler.requestHandler.restartSlice(sliceCanvas.slice);"
 													icon="{ImageUtil.repeatControlIcon}"
-													enabled="{deleteButton.enabled}" />
+													enabled="{startButton.enabled}" />
 						</s:HGroup>
 					</s:VGroup>
 				</s:NavigatorContent>

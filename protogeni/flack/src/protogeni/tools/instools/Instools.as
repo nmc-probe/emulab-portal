@@ -7,9 +7,14 @@ package protogeni.tools.instools
 	import flash.net.navigateToURL;
 	import flash.utils.Dictionary;
 	
+	import mx.controls.Alert;
+	
 	import protogeni.GeniEvent;
+	import protogeni.resources.PhysicalNode;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
+	import protogeni.resources.VirtualNode;
+	import protogeni.resources.VirtualNodeCollection;
 
 	/**
 	 * INSTOOLS support

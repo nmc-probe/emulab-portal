@@ -24,6 +24,7 @@ package protogeni.communication
 	import mx.events.CloseEvent;
 	
 	import protogeni.GeniEvent;
+	import protogeni.resources.GeniManager;
 	import protogeni.resources.Sliver;
 	import protogeni.resources.VirtualComponent;
 	import protogeni.resources.VirtualNode;
@@ -36,6 +37,8 @@ package protogeni.communication
 		
 		/**
 		 * Creates a redeemable ticket for a sliver with a different configuration using the ProtoGENI API
+		 * 
+		 * FULL only
 		 * 
 		 * @param newSliver
 		 * 
@@ -63,6 +66,12 @@ package protogeni.communication
 		}
 		
 		override public function start():Operation {
+			if(sliver.manager.level == GeniManager.LEVEL_MINIMAL)
+			{
+				LogHandler.appendMessage(new LogMessage(sliver.manager.Url, "Full API not supported", "This manager does not support this API call", LogMessage.ERROR_FAIL));
+				return null;
+			}
+			
 			sliver.message = "Updating";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 			

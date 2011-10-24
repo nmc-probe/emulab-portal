@@ -22,11 +22,6 @@ package protogeni.resources
 	 */
 	public class ProtogeniComponentManager extends GeniManager
 	{
-		public static const LEVEL_MINIMAL:int = 0;
-		public static const LEVEL_FULL:int = 1;
-		
-		public var Level:int;
-		
 		public function ProtogeniComponentManager()
 		{
 			super();

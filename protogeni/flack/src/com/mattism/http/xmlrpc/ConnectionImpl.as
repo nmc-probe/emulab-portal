@@ -156,22 +156,59 @@ package com.mattism.http.xmlrpc
 
     private function _onLoad( evt:Event ):void
     {
+		if (observeTimer) {
+			observeTimer.removeEventListener(TimerEvent.TIMER, timeoutError);
+		}
+		_fault = null;
+		
 		try
 		{
-	        if (observeTimer) {
-	                observeTimer.removeEventListener(TimerEvent.TIMER, timeoutError);
-	            }
-	      var responseXML:XML = new XML(this._response.data);
-	      _fault = null;
-		  if (this._response.bytesLoaded == 0)
-		  {
-			  trace("XMLRPC Fault: No data");
-			  dispatchEvent(new ErrorEvent(ErrorEvent.ERROR,
-				  false,
-				  false,
-				  "No data"));
-		  }
-		  else if (responseXML.fault.length() > 0)
+			if (this._response.bytesLoaded == 0)
+			{
+				trace("XMLRPC Fault: No data");
+				dispatchEvent(new ErrorEvent(ErrorEvent.ERROR,
+					false,
+					false,
+					"No data"));
+				return;
+			}
+			else
+				trace("XMLRPC result: " + _response.data);
+		}
+		catch (err:Error)
+		{
+			dispatchEvent(new ErrorEvent(ErrorEvent.ERROR,
+				false,
+				false,
+				"Problem checking result"));
+			return;
+		}
+		
+		var responseXML:XML = null;
+		try
+		{
+			responseXML = new XML(this._response.data);
+		}
+		catch (err:Error)
+		{
+			LogHandler.appendMessage(
+				new LogMessage(
+					this.getUrl(),
+					"Response was not XML",
+					this._response.data,
+					LogMessage.ERROR_FAIL
+				)
+			);
+			dispatchEvent(new ErrorEvent(ErrorEvent.ERROR,
+				false,
+				false,
+				"Response was not XML"));
+			return;
+		}
+		
+		try
+		{
+		  if (responseXML.fault.length() > 0)
 	      {
 	        // fault
 	        var parsedFault:Object = parseResponse(responseXML.fault.value.*[0]);
@@ -197,7 +234,7 @@ package com.mattism.http.xmlrpc
 		}
 		catch (err:Error)
 		{
-			dispatchEvent(new ErrorEvent(ErrorEvent.ERROR));
+			dispatchEvent(new ErrorEvent(ErrorEvent.ERROR, false, false, "Problem dealing with response"));
 		}
 			
     }

@@ -228,10 +228,8 @@ package protogeni.communication
 				}
 				
 				for each(sliver in updateSlivers.collection) {
-					if(sliver.manager.isAm) {
-						// Don't do for now
-						//pushRequest(new RequestSliverDeleteAm(sliver));
-						//pushRequest(new RequestSliverCreateAm(sliver));
+					if(sliver.manager.isAm || sliver.manager.level == GeniManager.LEVEL_MINIMAL) {
+						Alert.show(sliver.manager.Hrn + " doesn't support updating and will not be updated.");
 					} else
 						pushRequest(new RequestSliverUpdate(sliver));
 				}
@@ -333,7 +331,102 @@ package protogeni.communication
 		 * @param slice Slice to release resources from
 		 * 
 		 */
-		public function deleteSlice(slice:Slice):void
+		public function isSliceChanging(slice:Slice):Boolean
+		{
+			var tryFindNode:RequestQueueNode = this.queue.head;
+			while(tryFindNode != null)
+			{
+				try
+				{
+					if(tryFindNode.item.sliver != null)
+					{
+						if((tryFindNode.item.sliver.slice as Slice).urn.full == slice.urn.full)
+							return true;
+					}
+				}
+				catch(e:Error) {}
+				try
+				{
+					if(tryFindNode.item.slice != null)
+					{
+						if((tryFindNode.item.slice as Slice).urn.full == slice.urn.full)
+							return true;
+					}
+				}
+				catch(e:Error) {}
+				tryFindNode = tryFindNode.next;
+			}
+			return false;
+		}
+		
+		public function isSliceSubmitting(slice:Slice):Boolean
+		{
+			var tryFindNode:RequestQueueNode = this.queue.head;
+			while(tryFindNode != null)
+			{
+				if(tryFindNode.item is RequestSliverCreate
+					|| tryFindNode.item is RequestSliverCreateAm
+					|| tryFindNode.item is RequestSliverUpdate
+					|| tryFindNode.item is RequestTicketRedeem
+					|| tryFindNode.item is RequestSliverStatus
+					|| tryFindNode.item is RequestSliverStatusAm)
+				{
+					try
+					{
+						if(tryFindNode.item.sliver != null)
+						{
+							if((tryFindNode.item.sliver.slice as Slice).urn.full == slice.urn.full)
+								return true;
+						}
+					}
+					catch(e:Error) {}
+					try
+					{
+						if(tryFindNode.item.slice != null)
+						{
+							if((tryFindNode.item.slice as Slice).urn.full == slice.urn.full)
+								return true;
+						}
+					}
+					catch(e:Error) {}
+				}
+				tryFindNode = tryFindNode.next;
+			}
+			return false;
+		}
+		
+		/**
+		 * Deallocate all resources in the slice
+		 * 
+		 * @param slice Slice to release resources from
+		 * 
+		 */
+		public function isSliverChanging(sliver:Sliver):Boolean
+		{
+			var tryFindNode:RequestQueueNode = this.queue.head;
+			while(tryFindNode != null)
+			{
+				try
+				{
+					if(tryFindNode.item.sliver != null)
+					{
+						if((tryFindNode.item.sliver as Sliver).slice.urn.full == sliver.slice.urn.full && (tryFindNode.item.sliver as Sliver).manager == sliver.manager)
+							return true;
+					}
+				}
+				catch(e:Error) {}
+				tryFindNode = tryFindNode.next;
+			}
+			return false;
+		}
+		
+		/**
+		 * Deallocate all resources in the slice
+		 * 
+		 * @param slice Slice to release resources from
+		 * 
+		 */
+		public function deleteSlice(slice:Slice, allManagers:Boolean = false):void
 		{
 			this.isPaused = false;
 			this.forceStop = false;
@@ -352,9 +445,23 @@ package protogeni.communication
 				tryDeleteNode = tryDeleteNode.next;
 			}
 			
-			if(slice.slivers.length > 0) {
-				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
-				// SliceRemove doesn't work because the slice hasn't expired yet...
+			Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
+			// SliceRemove doesn't work because the slice hasn't expired yet...
+			if(allManagers)
+			{
+				for each(var manager:GeniManager in Main.geniHandler.GeniManagers)
+				{
+					if(manager.Status == GeniManager.STATUS_VALID)
+					{
+						var deleteSliver:Sliver = new Sliver(slice, manager);
+						if(manager.isAm)
+							this.pushRequest(new RequestSliverDeleteAm(deleteSliver, true));
+						else if(manager is ProtogeniComponentManager)
+							this.pushRequest(new RequestSliverDelete(deleteSliver, true));
+					}
+				}
+			}
+			else if(slice.slivers.length > 0) {
 				for each(var sliver:Sliver in slice.slivers.collection)
 				{
 					if(sliver.manager.isAm)
@@ -362,8 +469,8 @@ package protogeni.communication
 					else if(sliver.manager is ProtogeniComponentManager)
 						this.pushRequest(new RequestSliverDelete(sliver));
 				}
-				Main.geniDispatcher.dispatchSliceChanged(slice);
 			}
+			Main.geniDispatcher.dispatchSliceChanged(slice);
 		}
 		
 		/**
@@ -413,10 +520,16 @@ package protogeni.communication
 		 */
 		public function startSlice(slice:Slice):void
 		{
-			if(slice.slivers.length > 0) {
+			if(slice.slivers.length > 0)
+			{
 				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
 				for each(var sliver:Sliver in slice.slivers.collection)
-				pushRequest(new RequestSliverStart(sliver));
+				{
+					if(sliver.manager.level == GeniManager.LEVEL_FULL)
+						pushRequest(new RequestSliverStart(sliver));
+					else
+						pushRequest(new RequestSliverRestart(sliver));
+				}
 			}
 		}
 		
@@ -431,7 +544,12 @@ package protogeni.communication
 			if(slice.slivers.length > 0) {
 				Main.geniHandler.CurrentUser.slices.addOrReplace(slice);
 				for each(var sliver:Sliver in slice.slivers.collection)
-					pushRequest(new RequestSliverStop(sliver));
+				{
+					if(sliver.manager.level == GeniManager.LEVEL_FULL)
+						pushRequest(new RequestSliverStop(sliver));
+					else
+						Alert.show(sliver.manager.Hrn + " only supports the minimal API, which doesn't support stopping.");
+				}
 			}
 		}
 		
@@ -717,7 +835,10 @@ package protogeni.communication
 					next = request;
 					LogHandler.appendMessage(new LogMessage(request.op.getUrl(),
 						request.name + " busy",
-						"Preparing to retry in " + request.op.delaySeconds  + " seconds",
+						"Preparing to retry in " + request.op.delaySeconds  + " seconds."
+						+"\n\n------------------------\nResponse:\n" +
+						request.getResponse() +
+						"\n\n------------------------\nRequest:\n" + request.getSent(),
 						LogMessage.ERROR_WARNING,
 						LogMessage.TYPE_END ));
 				} else {

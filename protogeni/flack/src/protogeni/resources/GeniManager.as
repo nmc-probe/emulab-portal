@@ -39,6 +39,11 @@ package protogeni.resources
 		public static const TYPE_PROTOGENI:int = 0;
 		public static const TYPE_PLANETLAB:int = 1;
 		
+		public static const LEVEL_MINIMAL:int = 0;
+		public static const LEVEL_FULL:int = 1;
+		
+		public var level:int = 0;
+		
 		public static var processing:int = 0;
 		public static var maxProcessing:int = 1;
 		

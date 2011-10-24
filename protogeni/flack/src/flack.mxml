@@ -211,8 +211,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				LogHandler.appendMessage(uncaughtErrorMessage);
 				//LogHandler.viewConsole();
-				DisplayUtil.viewLogMessage(uncaughtErrorMessage);
 				
+				if(errorMessage.indexOf("Connection closed during handshake.") > -1)
+					return;
+				
+				DisplayUtil.viewLogMessage(uncaughtErrorMessage);
 				Alert.show("An uncaught error was thrown and has possibly corrupted any actions you were doing. The request queue was paused so any pending actions will not be run until you start the queue again.  If you believe the error was not serious, restart the queue and continue.\n\n"
 					+ "Please check the error log message and copy the details into a message and send to mstrum@flux.utah.edu.  Restart the client after you have gathered any RSPECs, error messages, etc that you don't want to lose.",
 					"Uncaught error", Alert.OK, this, null, ImageUtil.errorIcon);

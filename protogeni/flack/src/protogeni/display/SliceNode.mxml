@@ -129,7 +129,7 @@ VirtualNode for use on the slice canvas
 				lastId = n.clientId;
 				labelBackgroundColor = ColorUtil.colorsDark[node.manager.colorIdx];
 				labelColor = ColorUtil.colorsLight[node.manager.colorIdx];
-				allowLink = n.manager.AllLinks.length > 0;
+				allowLink = n.HasUsableInterface;
 				resetToStatus();
 				adjustWidth();
 			}
@@ -234,7 +234,7 @@ VirtualNode for use on the slice canvas
 			 styleName="{currentStyle}"
 			 maxDisplayedLines="1" />
 	<components:ImageButton id="addLink" icon="{ImageUtil.addIcon}"
-							visible="{this.allowLink}" includeInLayout="{this.allowLink}"
+							visible="{allowLink}" includeInLayout="{allowLink}"
 							mouseDown="mouseDownHandler(event)" />
 	
 </s:BorderContainer>

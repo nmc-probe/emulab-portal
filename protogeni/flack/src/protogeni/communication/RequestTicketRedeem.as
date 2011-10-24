@@ -24,12 +24,19 @@ package protogeni.communication
 	import mx.events.CloseEvent;
 	
 	import protogeni.GeniEvent;
+	import protogeni.resources.GeniManager;
 	import protogeni.resources.Key;
 	import protogeni.resources.Slice;
 	import protogeni.resources.Sliver;
 	import protogeni.resources.VirtualComponent;
 	import protogeni.resources.VirtualNode;
 	
+	/**
+	 * FULL only
+	 * 
+	 * @author mstrum
+	 * 
+	 */
 	public final class RequestTicketRedeem extends Request
 	{
 		public var sliver:Sliver;
@@ -58,6 +65,11 @@ package protogeni.communication
 		}
 		
 		override public function start():Operation {
+			if(sliver.manager.level == GeniManager.LEVEL_MINIMAL)
+			{
+				LogHandler.appendMessage(new LogMessage(sliver.manager.Url, "Full API not supported", "This manager does not support this API call", LogMessage.ERROR_FAIL));
+				return null;
+			}
 			sliver.message = "Redeeming ticket";
 			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
 			

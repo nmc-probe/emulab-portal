@@ -68,7 +68,20 @@ package protogeni.resources
 			this.interfaces.add(secondInterface);
 			
 			if(first.manager == second.manager)
+			{
 				this.linkType = TYPE_NORMAL;
+				if(first.sliverType == SliverTypes.JUNIPER_LROUTER)
+				{
+					VirtualInterface.startNextTunnel();
+					for each(var i:VirtualInterface in this.interfaces.collection) {
+						if(i.ip.length == 0) {
+							i.ip = VirtualInterface.getNextTunnel();
+							i.netmask = "255.255.0.0";
+							i.type = "ipv4";
+						}
+					}
+				}
+			}
 			else
 			{
 				/*if(first.manager.supportsIon && second.manager.supportsIon && Main.useIon)
@@ -117,7 +130,7 @@ package protogeni.resources
 			for each(var i:VirtualInterface in this.interfaces.collection) {
 				if(i.ip.length == 0) {
 					i.ip = VirtualInterface.getNextTunnel();
-					i.netmask = "255.255.255.0";
+					i.netmask = "255.255.0.0";
 					i.type = "ipv4";
 				}
 			}

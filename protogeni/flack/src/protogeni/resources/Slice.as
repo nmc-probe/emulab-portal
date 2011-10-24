@@ -62,7 +62,7 @@ package protogeni.resources
 			_changing = val;
 		}
 		public function get Changing():Boolean {
-			return slivers.Changing || _changing;
+			return slivers.Changing || Main.geniHandler.requestHandler.isSliceChanging(this);
 		}
 		
 		public function Slice()

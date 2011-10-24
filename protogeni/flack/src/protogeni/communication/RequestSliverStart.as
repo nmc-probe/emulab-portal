@@ -19,10 +19,13 @@ package protogeni.communication
 	import flash.events.ErrorEvent;
 	
 	import protogeni.GeniEvent;
+	import protogeni.resources.GeniManager;
 	import protogeni.resources.Sliver;
 	
 	/**
 	 * Starts a sliver using the ProtoGENI API
+	 * 
+	 * FULL only
 	 * 
 	 * @author mstrum
 	 * 
@@ -47,6 +50,11 @@ package protogeni.communication
 		}
 		
 		override public function start():Operation {
+			if(sliver.manager.level == GeniManager.LEVEL_MINIMAL)
+			{
+				LogHandler.appendMessage(new LogMessage(sliver.manager.Url, "Full API not supported", "This manager does not support this API call", LogMessage.ERROR_FAIL));
+				return null;
+			}
 			op.clearFields();
 			
 			op.addField("slice_urn", sliver.slice.urn.full);

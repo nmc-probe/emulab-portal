@@ -289,9 +289,13 @@ package protogeni.resources
 							} else if(nodeChildXml.localName() == "node_type") {
 								var typeName:String = nodeChildXml.@type_name;
 								node.hardwareTypes.push(typeName);
-								node.virtualizationType = "juniper-lrouter";
-								if(typeName == "juniper-lrouter")
-									node.numVirtualAvailable = int(nodeChildXml.@type_slots);
+								node.numVirtualAvailable = int(nodeChildXml.@type_slots);
+								if(typeName == SliverTypes.JUNIPER_LROUTER)
+								{
+									node.virtualizationType = SliverTypes.JUNIPER_LROUTER;
+									node.sliverTypes = new Vector.<SliverType>();
+									node.sliverTypes.push(new SliverType(SliverTypes.JUNIPER_LROUTER));
+								}
 							}
 						}
 					}
@@ -663,20 +667,32 @@ package protogeni.resources
 								}
 								break;
 							case "services":
-								for each(var servicesChild:XML in nodeChildXml.children()) {
-								if(servicesChild.localName() == "login")
-									virtualNode.loginServices.push(new LoginService(String(servicesChild.@authentication),
-										String(servicesChild.@hostname),
+								for each(var servicesChild:XML in nodeChildXml.children())
+								{
+									if(servicesChild.localName() == "login")
+									{
+										if(this.detectedInputRspecVersion < 1)
+											virtualNode.loginServices = new Vector.<LoginService>();
+										var newLoginService:LoginService = new LoginService(
+											String(servicesChild.@authentication),
+											String(servicesChild.@hostname),
 											String(servicesChild.@port),
-												String(servicesChild.@username)));
-								else if(servicesChild.localName() == "install")
-									virtualNode.installServices.push(new InstallService(String(servicesChild.@url),
-										String(servicesChild.@install_path),
-											String(servicesChild.@file_type)));
-								else if(servicesChild.localName() == "execute")
-									virtualNode.executeServices.push(new ExecuteService(String(servicesChild.@command),
-										String(servicesChild.@shell)));
-							}
+											String(servicesChild.@username)
+										);
+										virtualNode.loginServices.push(newLoginService);
+									}
+									else if(servicesChild.localName() == "install")
+									{
+										virtualNode.installServices.push(new InstallService(String(servicesChild.@url),
+											String(servicesChild.@install_path),
+												String(servicesChild.@file_type)));
+									}
+									else if(servicesChild.localName() == "execute")
+									{
+										virtualNode.executeServices.push(new ExecuteService(String(servicesChild.@command),
+											String(servicesChild.@shell)));
+									}
+								}
 								break;
 						}
 					}
@@ -778,6 +794,10 @@ package protogeni.resources
 										{
 											if(linkChildXml.@tunnel_ip.length() == 1)
 												vi.ip = String(linkChildXml.@tunnel_ip);
+											else if(linkChildXml.@IP.length() == 1)
+												vi.ip = String(linkChildXml.@IP);
+											if(linkChildXml.@netmask.length() == 1)
+												vi.netmask = String(linkChildXml.@netmask);
 											virtualLink.interfaces.add(vi);
 											vi.virtualLinks.add(virtualLink);
 											break;
@@ -1133,7 +1153,10 @@ package protogeni.resources
 			
 			if (vl.linkType != VirtualLink.TYPE_TUNNEL && (vl.capacity || vl.capacity > -1)) {
 				if(useInputRspecVersion < 1)
-					linkXml.appendChild(XML("<bandwidth>" + vl.capacity + "</bandwidth>"));
+				{
+					if(vl.capacity > 0)
+						linkXml.appendChild(XML("<bandwidth>" + vl.capacity + "</bandwidth>"));
+				}
 				else {
 					for(var i:int = 0; i < vl.interfaces.length; i++) {
 						for(var j:int = i+1; j < vl.interfaces.length; j++) {
@@ -1176,7 +1199,14 @@ package protogeni.resources
 						interfaceRefXml.@virtual_interface_id = "control";
 					}
 					else
+					{
+						if(currentVi.ip.length > 0)
+						{
+							interfaceRefXml.@IP = currentVi.ip;
+							interfaceRefXml.@netmask = currentVi.netmask;
+						}
 						interfaceRefXml.@virtual_interface_id = currentVi.id;
+					}
 				} else {
 					interfaceRefXml.@client_id = currentVi.id;
 				}

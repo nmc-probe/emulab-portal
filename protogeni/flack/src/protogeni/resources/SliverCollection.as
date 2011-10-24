@@ -353,7 +353,7 @@ package protogeni.resources
 		
 		public function get Changing():Boolean {
 			for each(var sliver:Sliver in this.collection) {
-				if(sliver.changing)
+				if(Main.geniHandler.requestHandler.isSliverChanging(sliver))
 					return true;
 			}
 			return false;
