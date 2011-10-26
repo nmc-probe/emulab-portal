@@ -165,7 +165,7 @@ package protogeni.resources
 					newNode.flackY = node.flackY;
 					newNode.flackUnbound = node.flackUnbound;
 					newNode.extensionsNodes = node.extensionsNodes;
-					newNode.usesPlanetlabInitscript = node.usesPlanetlabInitscript;
+					newNode.selectedPlanetLabInitscript = node.selectedPlanetLabInitscript;
 					// depreciated
 					newNode.virtualizationType = node.virtualizationType;
 					newNode.virtualizationSubtype = node.virtualizationSubtype;

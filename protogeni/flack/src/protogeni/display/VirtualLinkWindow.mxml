@@ -1,120 +1,99 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<!--
-
-GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
-All rights reserved.
-
-Permission to use, copy, modify and distribute this software is hereby
-granted provided that (1) source code retains these copyright, permission,
-and disclaimer notices, and (2) redistributions including binaries
-reproduce the notices in supporting documentation.
-
-THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
-CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
-FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
-
--->
-
 <components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-						xmlns:s="library://ns.adobe.com/flex/spark" 
-						xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:display="protogeni.display.*"
-						title="Link Information" xmlns:components="protogeni.display.components.*">
+						  xmlns:s="library://ns.adobe.com/flex/spark" 
+						  xmlns:mx="library://ns.adobe.com/flex/mx"
+						  title="Virtual Link"
+						  xmlns:components="protogeni.display.components.*">
 	<fx:Script>
 		<![CDATA[
-			import mx.collections.ArrayList;
+			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
 			import mx.events.CloseEvent;
 			
 			import protogeni.display.components.DocumentWindow;
-			import protogeni.resources.GeniManager;
 			import protogeni.resources.ProtogeniRspecProcessor;
 			import protogeni.resources.VirtualComponent;
 			import protogeni.resources.VirtualInterface;
-			import protogeni.resources.VirtualInterfaceCollection;
 			import protogeni.resources.VirtualLink;
 			
-			import spark.components.Button;
+			import spark.events.TextOperationEvent;
 			
 			[Bindable]
-			public var link:VirtualLink = null;
+			private var link:VirtualLink;
 			
 			[Bindable]
-			public var types:ArrayList;
-			
+			private var interfaces:ArrayCollection = new ArrayCollection();
 			[Bindable]
-			public var interfaces:ArrayList;
+			private var properties:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			public var types:ArrayList = new ArrayList();
 			
-			public function loadLink(pl:VirtualLink):void {
-				link = pl;
-				
-				switch(link.status)
+			public function loadLink(l:VirtualLink):void
+			{
+				link = l;
+				interfaces.removeAll();
+				if(link != null)
 				{
-					case VirtualComponent.STATUS_READY:
-						this.statusImage.source = ImageUtil.flagGreenIcon;
-						break;
-					case VirtualComponent.STATUS_FAILED:
-						this.statusImage.source = ImageUtil.flagRedIcon;
-						break;
-					case VirtualComponent.STATUS_NOTREADY:
-					case VirtualComponent.STATUS_CHANGING:
-						this.statusImage.source = ImageUtil.flagYellowIcon;
-						break;
-					case VirtualComponent.STATUS_UNKNOWN:
-					default:
-						this.statusImage.visible = false;
-						this.statusImage.includeInLayout = false;
+					clientIdInput.text = link.clientId;
+					errorButton.visible = link.error.length > 0;
+					manifestButton.visible = link.manifest != null;
+					if(link.status.length > 0)
+					{
+						statusImage.visible = true;
+						switch(link.status)
+						{
+							case VirtualComponent.STATUS_READY:
+								this.statusImage.source = ImageUtil.flagGreenIcon;
+								break;
+							case VirtualComponent.STATUS_FAILED:
+								this.statusImage.source = ImageUtil.flagRedIcon;
+								break;
+							case VirtualComponent.STATUS_NOTREADY:
+							case VirtualComponent.STATUS_CHANGING:
+							case VirtualComponent.STATUS_STOPPED:
+								this.statusImage.source = ImageUtil.flagYellowIcon;
+								break;
+							case VirtualComponent.STATUS_UNKNOWN:
+							default:
+								statusImage.visible = false;
+						}
+					}
+					
+					vlantagInput.text = link.vlantag;
+					
+					types = new ArrayList();
+					types.addItem({type:link.linkType, name:VirtualLink.TypeToString(link.linkType)});
+					if(link.linkType == VirtualLink.TYPE_TUNNEL) {
+						if(link.supportsGpeni())
+							types.addItem({type:VirtualLink.TYPE_GPENI, name:VirtualLink.TypeToString(VirtualLink.TYPE_GPENI)});
+						if(link.supportsIon())
+							types.addItem({type:VirtualLink.TYPE_ION, name:VirtualLink.TypeToString(VirtualLink.TYPE_ION)});
+					} else if(link.linkType != VirtualLink.TYPE_NORMAL) {
+						types.addItem({type:VirtualLink.TYPE_TUNNEL, name:VirtualLink.TypeToString(VirtualLink.TYPE_TUNNEL)});
+					}
+					typeList.selectedIndex = 0;
+					
+					// Interfaces
+					for each(var iface:VirtualInterface in link.interfaces.collection)
+					{
+						interfaces.addItem(
+							{
+								source: iface,
+								owner: iface.owner,
+								clientId: iface.id,
+								macAddress: iface.macAddress,
+								ipaddress: iface.ip,
+								ipnetmask: iface.netmask,
+								iptype: iface.type
+							}
+						);
+					}
 				}
-				if(link.error != null && link.error.length > 0)
-				{
-					errorButton.includeInLayout = true;
-					errorButton.visible = true;
-				}
-
-				if(pl.interfaces.Slivers.collection[0].manager.type == GeniManager.TYPE_PROTOGENI) {
-					previewRspecButton.includeInLayout = true;
-					previewRspecButton.visible = true;
-				}
-				if(pl.manifest != null)
-					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
-				
-				if(link.capacity)
-					capacityInput.text = link.capacity.toString();
-				
-				types = new ArrayList();
-				types.addItem({type:link.linkType, name:VirtualLink.TypeToString(link.linkType)});
-				if(link.linkType == VirtualLink.TYPE_TUNNEL) {
-					if(link.supportsGpeni())
-						types.addItem({type:VirtualLink.TYPE_GPENI, name:VirtualLink.TypeToString(VirtualLink.TYPE_GPENI)});
-					if(link.supportsIon())
-						types.addItem({type:VirtualLink.TYPE_ION, name:VirtualLink.TypeToString(VirtualLink.TYPE_ION)});
-				} else if(link.linkType != VirtualLink.TYPE_NORMAL) {
-					types.addItem({type:VirtualLink.TYPE_TUNNEL, name:VirtualLink.TypeToString(VirtualLink.TYPE_TUNNEL)});
-				}
-				typeList.selectedIndex = 0;
-				
-				loadInterfaces();
 			}
 			
-			public function loadInterfaces():void {
-				interfaces = new ArrayList();
-				
-				for each(var i:VirtualInterface in link.interfaces.collection) {
-					interfaces.addItem(i);
-				}
-			}
-			
-			public function viewRspec():void {
-				if(link.manifest != null)
-				{
-					var rspecWindow:DocumentWindow = new DocumentWindow;
-					rspecWindow.showWindow();
-					rspecWindow.title = "Last Successful RSPEC from " + link.clientId;
-					rspecWindow.loadXml(link.manifest);
-				} else {
-					Alert.show("No previous RSPEC is available");
-				}
+			public function initProperties():void
+			{
+				capacityInput.text = link.capacity.toString();
 			}
 			
 			public function previewRspec():void
@@ -138,71 +117,112 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					});
 			}
 			
-			public function success():void
+			public function viewManifest():void
+			{
+				if(link.manifest != null)
+				{
+					var rspecWindow:DocumentWindow = new DocumentWindow;
+					rspecWindow.showWindow();
+					rspecWindow.title = "Last Successful RSPEC from " + link.clientId;
+					rspecWindow.loadXml(link.manifest);
+				} else {
+					Alert.show("No previous RSPEC is available");
+				}
+			}
+			
+			public function trySaveAndClose():void
 			{
 				if(save())
 					return;
 				closeWindow();
 			}
 			
-			public function save():Boolean {
+			public function save():Boolean
+			{
 				// Make sure the client_id is not taken
-				if(!this.link.interfaces.Slivers.collection[0].slice.slivers.isIdUnique(this.link, this.idLabel.Text)) {
-					Alert.show(this.idLabel.Text + " is already in use, please choose a different client id");
+				// Make sure the client_id is not taken
+				if(!this.link.interfaces.Slivers.collection[0].slice.slivers.isIdUnique(this.link, this.clientIdInput.text)) {
+					Alert.show(clientIdInput.text + " is already in use, please choose a different client id");
 					return true;
 				}
 				
-				this.link.interfaces = new VirtualInterfaceCollection();
-				for each(var i:VirtualInterface in interfaces.source)
-					this.link.interfaces.add(i);
+				link.clientId = clientIdInput.text;
+				link.vlantag = vlantagInput.text;
 				
-				this.link.clientId = this.idLabel.Text;
-				if(link.linkType != this.typeList.selectedItem.type) {
-					if(this.typeList.selectedItem.type == VirtualLink.TYPE_TUNNEL)
+				if(link.linkType != this.typeList.selectedItem.type)
+				{
+					if(typeList.selectedItem.type == VirtualLink.TYPE_TUNNEL)
 						link.setUpTunnels();
 					else
 						link.linkType = this.typeList.selectedItem.type;
 				}
+				
 				if(this.capacityInput.text.length > 0)
 					link.capacity = Number(this.capacityInput.text);
 				else
 					link.capacity = NaN;
+				
+				for each(var ifaceObj:Object in interfaces)
+				{
+					var iface:VirtualInterface = ifaceObj.source;
+					iface.id = ifaceObj.clientId;
+					iface.ip = ifaceObj.ipaddress;
+					iface.netmask = ifaceObj.ipnetmask;
+					iface.type = ifaceObj.iptype;
+				}
+				
 				Main.geniDispatcher.dispatchSliceChanged(link.interfaces.Slivers.collection[0].slice);
 				
 				return false;
 			}
+			
 		]]>
 	</fx:Script>
-	
-	<s:HGroup width="100%" verticalAlign="middle">
-		<display:KeyboardTextInput id="idLabel" Text="{link.clientId}" toolTip="{link.sliverId}" width="100%" />
-		<components:ImageButton id="rspecButton"
-							 icon="{ImageUtil.pageWhiteIcon}"
-							 click="viewRspec()"
-							 toolTip="View the most recent valid RSPEC" />
+	<s:HGroup width="100%" verticalAlign="middle" paddingLeft="4" paddingRight="4">
+		<s:TextInput id="clientIdInput"
+					 width="100%"
+					 fontWeight="bold"
+					 fontSize="16"
+					 restrict="a-zA-Z0-9\\-"
+					 toolTip="{link.clientId}" />
 		<s:Image id="statusImage"
+				 visible="false" includeInLayout="{statusImage.visible}"
 				 toolTip="Status: {link.status}, State: {link.state}" />
-		<components:ImageButton id="errorButton" includeInLayout="false" visible="false" click="Alert.show(link.error,'Error Message')" />
-		<components:DefaultLine height="16" visible="false" />
-		<components:ImageButton id="previewRspecButton"
-							 visible="false" includeInLayout="false"
-							 icon="{ImageUtil.pageCodeIcon}"
-							 click="previewRspec()"
-							 toolTip="Preview the Request RSPEC" />
-	</s:HGroup>
-	
-	<s:HGroup verticalAlign="middle">
-		<s:Label text="Type" fontWeight="bold"/>
-		<s:DropDownList id="typeList" dataProvider="{types}" labelField="name" />
+		<components:ImageButton id="errorButton"
+								visible="false"
+								includeInLayout="{errorButton.visible}"
+								click="Alert.show(link.error,'Error Message')" />
+		<s:Button id="manifestButton"
+				  icon="{ImageUtil.pageWhiteCodeIcon}"
+				  visible="false" height="24"
+				  includeInLayout="{manifestButton.visible}"
+				  label="View Manifest"
+				  toolTip="View Manifest RSPEC"
+				  click="viewManifest()" />
+		<s:Button id="previewButton"
+				  icon="{ImageUtil.pageCodeIcon}"
+				  label="View Preview" height="24"
+				  toolTip="View Preview RSPEC"
+				  click="previewRspec()" />
 	</s:HGroup>
 	
 	<s:HGroup verticalAlign="middle" width="100%">
-		<s:Label text="Bandwidth" fontWeight="bold"/>
-		<s:TextInput id="capacityInput" resize="0-9" width="100%" />
-		<s:Label text="kb/s" />
+		<s:Label text="Type" fontWeight="bold"/>
+		<s:DropDownList id="typeList" dataProvider="{types}" labelField="name" width="100%" height="24" />
+		<s:Rect percentWidth="100" />
+		<s:Label text="VLAN Tag" fontWeight="bold"/>
+		<s:TextInput id="vlantagInput" prompt="Enter VLAN Tag..." restrict="0-9" width="100%" height="24" />
 	</s:HGroup>
 	
-	<s:Label text="Connects" fontWeight="bold" />
+	<s:VGroup width="100%">
+		<s:Label text="Capacity" fontWeight="bold"/>
+		<s:HGroup verticalAlign="middle" width="100%">
+			<s:TextInput id="capacityInput" height="24"
+						 restrict="0-9" width="100%" />
+			<s:Label text="kb/s" />
+		</s:HGroup>
+	</s:VGroup>
+	
 	<s:DataGrid id="interfaceGrid" width="100%" height="100%" 
 				dataProvider="{interfaces}"
 				rowHeight="24"
@@ -214,7 +234,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							  editable="false"
 							  itemRenderer="protogeni.display.components.GeniDataGridRenderer">
 				</s:GridColumn>
-				<s:GridColumn dataField="id"
+				<s:GridColumn dataField="clientId"
 							  headerText="Interface">
 					<s:itemEditor>
 						<fx:Component>
@@ -227,7 +247,25 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						</fx:Component>
 					</s:itemRenderer>
 				</s:GridColumn>
-				<s:GridColumn dataField="ip"
+				<s:GridColumn dataField="physicalName"
+							  headerText="Physical"
+							  editable="false">
+					<s:itemRenderer>
+						<fx:Component>
+							<s:DefaultGridItemRenderer />
+						</fx:Component>
+					</s:itemRenderer>
+				</s:GridColumn>
+				<s:GridColumn dataField="macAddress"
+							  headerText="MAC"
+							  editable="false">
+					<s:itemRenderer>
+						<fx:Component>
+							<s:DefaultGridItemRenderer />
+						</fx:Component>
+					</s:itemRenderer>
+				</s:GridColumn>
+				<s:GridColumn dataField="ipaddress"
 							  headerText="IP">
 					<s:itemEditor>
 						<fx:Component>
@@ -240,21 +278,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						</fx:Component>
 					</s:itemRenderer>
 				</s:GridColumn>
-				<s:GridColumn dataField="netmask" 
+				<s:GridColumn dataField="ipnetmask" 
 							  headerText="Mask">
-					<s:itemEditor>
-						<fx:Component>
-							<s:DefaultGridItemEditor />
-						</fx:Component>
-					</s:itemEditor>
-					<s:itemRenderer>
-						<fx:Component>
-							<s:DefaultGridItemRenderer />
-						</fx:Component>
-					</s:itemRenderer>
-				</s:GridColumn>
-				<s:GridColumn dataField="type" 
-							  headerText="Type">
 					<s:itemEditor>
 						<fx:Component>
 							<s:DefaultGridItemEditor />
@@ -271,7 +296,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	</s:DataGrid>
 	
 	<components:controlBarContent>
-		<s:Button id="okButton" label="Apply" icon="{ImageUtil.availableIcon}" click="success();" height="24" />
-		<s:Button id="cancelButton" label="Cancel" icon="{ImageUtil.cancelIcon}" click="closeWindow();" height="24" />
+		<s:Button id="okButton" height="24"
+				  label="Apply"
+				  icon="{ImageUtil.availableIcon}"
+				  click="trySaveAndClose();" />
+		<s:Button id="cancelButton" height="24"
+				  label="Cancel"
+				  icon="{ImageUtil.cancelIcon}"
+				  click="closeWindow();" />
 	</components:controlBarContent>
 </components:DefaultWindow>

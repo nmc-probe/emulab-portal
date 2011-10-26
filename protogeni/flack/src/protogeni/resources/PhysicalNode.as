@@ -47,6 +47,8 @@ package protogeni.resources
 		// Use for anything, more inmportantly any additions by non-Protogeni managers
 		public var tag:*;
 		
+		public var planetLabInitscripts:Vector.<String> = new Vector.<String>();
+		
 		public function PhysicalNode(own:PhysicalNodeGroup,
 									 ownedBy:GeniManager)
 		{

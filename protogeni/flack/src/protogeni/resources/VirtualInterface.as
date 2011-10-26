@@ -48,7 +48,6 @@ package protogeni.resources
 		public var sliverId:IdnUrn;
 		public var macAddress:String = "";
 		
-		// tunnel stuff
 		public var ip:String = "";
 		public var netmask:String = "255.255.255.0";
 		public var type:String = "ipv4";

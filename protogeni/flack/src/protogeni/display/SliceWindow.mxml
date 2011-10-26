@@ -780,7 +780,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public var getRspec:URLLoader;
 			public var getRspecRequest:URLRequest;
 			public function importFromUrl(event:* = null):void {
-				promptForUrl();
+				promptForUrl("http://protogeni.net/gec12.xml");
 			}
 			
 			public function promptForUrl(url:String = ""):void {

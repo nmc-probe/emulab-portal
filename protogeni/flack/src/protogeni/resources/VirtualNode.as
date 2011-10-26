@@ -77,7 +77,7 @@ package protogeni.resources
 		
 		public var manager:GeniManager;
 		
-		public var usesPlanetlabInitscript:Boolean = false;
+		public var selectedPlanetLabInitscript:String = "";
 		
 		// Depreciated
 		public var virtualizationType:String = "emulab-vnode";

@@ -7,6 +7,7 @@ package protogeni.resources
 		public static const STATUS_NOTREADY:String = "notready";
 		public static const STATUS_FAILED:String = "failed";
 		public static const STATUS_UNKNOWN:String = "unknown";
+		public static const STATUS_STOPPED:String = "stopped";
 		
 		[Bindable]
 		public var clientId:String;

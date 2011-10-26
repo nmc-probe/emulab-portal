@@ -27,8 +27,8 @@ package protogeni.resources
 		
 		public function SliverType(newName:String = "")
 		{
-			this.name = newName;
-			this.diskImages = new Vector.<DiskImage>();
+			name = newName;
+			diskImages = new Vector.<DiskImage>();
 		}
 	}
 }

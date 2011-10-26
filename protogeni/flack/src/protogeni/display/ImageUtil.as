@@ -305,5 +305,9 @@
 		[Bindable]
 		[Embed(source="../../../images/download.png")]
 		public static var importIcon:Class;
+		
+		[Bindable]
+		[Embed(source="../../../images/bricks.png")]
+		public static var extensionsIcon:Class;
 	}
 }

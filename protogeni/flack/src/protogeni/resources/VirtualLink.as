@@ -76,7 +76,7 @@ package protogeni.resources
 					for each(var i:VirtualInterface in this.interfaces.collection) {
 						if(i.ip.length == 0) {
 							i.ip = VirtualInterface.getNextTunnel();
-							i.netmask = "255.255.0.0";
+							i.netmask = "255.255.255.0";
 							i.type = "ipv4";
 						}
 					}
@@ -130,7 +130,7 @@ package protogeni.resources
 			for each(var i:VirtualInterface in this.interfaces.collection) {
 				if(i.ip.length == 0) {
 					i.ip = VirtualInterface.getNextTunnel();
-					i.netmask = "255.255.0.0";
+					i.netmask = "255.255.255.0";
 					i.type = "ipv4";
 				}
 			}

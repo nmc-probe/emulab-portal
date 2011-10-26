@@ -1,248 +1,478 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<!--
-
-GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
-All rights reserved.
-
-Permission to use, copy, modify and distribute this software is hereby
-granted provided that (1) source code retains these copyright, permission,
-and disclaimer notices, and (2) redistributions including binaries
-reproduce the notices in supporting documentation.
-
-THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
-CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
-FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
-
--->
-
 <components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-						xmlns:s="library://ns.adobe.com/flex/spark" 
-						xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:display="protogeni.display.*"
-						width="510" height="580"
-						title="Node Information" xmlns:components="protogeni.display.components.*">
+						  xmlns:s="library://ns.adobe.com/flex/spark" 
+						  xmlns:mx="library://ns.adobe.com/flex/mx"
+						  xmlns:components="protogeni.display.components.*"
+						  title="Virtual Node">
+	<components:layout>
+		<s:VerticalLayout gap="0" />
+	</components:layout>
 	<fx:Declarations>
-		<s:RadioButtonGroup id="boundGroup" change="setBinding()" />
-		<s:RadioButtonGroup id="unboundTypeGroup" change="setType()" />
+		<s:RadioButtonGroup id="boundGroup" valueCommit="boundGroup_valueCommitHandler(event)"/>
 	</fx:Declarations>
 	<fx:Script>
 		<![CDATA[
 			import mx.collections.ArrayCollection;
-			import mx.collections.ArrayList;
 			import mx.collections.XMLListCollection;
 			import mx.controls.Alert;
 			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
 			
 			import protogeni.NetUtil;
 			import protogeni.XmlUtil;
-			import protogeni.display.components.DataButton;
 			import protogeni.display.components.DocumentWindow;
 			import protogeni.resources.DiskImage;
 			import protogeni.resources.ExecuteService;
 			import protogeni.resources.GeniManager;
 			import protogeni.resources.InstallService;
+			import protogeni.resources.LoginService;
+			import protogeni.resources.PhysicalNode;
 			import protogeni.resources.Pipe;
 			import protogeni.resources.PipeCollection;
-			import protogeni.resources.PlanetlabAggregateManager;
 			import protogeni.resources.ProtogeniRspecProcessor;
 			import protogeni.resources.Sliver;
 			import protogeni.resources.SliverType;
 			import protogeni.resources.SliverTypes;
 			import protogeni.resources.VirtualComponent;
 			import protogeni.resources.VirtualInterface;
+			import protogeni.resources.VirtualInterfaceCollection;
 			import protogeni.resources.VirtualLink;
 			import protogeni.resources.VirtualLinkCollection;
 			import protogeni.resources.VirtualNode;
 			import protogeni.resources.VirtualNodeCollection;
 			
-			import spark.primitives.BitmapImage;
-			import spark.primitives.Rect;
+			import spark.collections.Sort;
+			import spark.collections.SortField;
 			
 			[Bindable]
-			public var node:VirtualNode = null;
+			public var backgroundColor:uint = 0xFFFFFF;
+			[Bindable]
+			public var titleColor:uint = 0x000000;
 			
 			[Bindable]
-			private var sliverTypes:ArrayList;
-			
-			public var sn:SliceNode;
+			private var node:VirtualNode;
 			
 			[Bindable]
-			private var pipes:ArrayCollection;
-			
+			private var managers:ArrayCollection = new ArrayCollection();
 			[Bindable]
-			private var managersForVirtual:ArrayList;
-			
+			private var physicalNodes:ArrayCollection = new ArrayCollection();
 			[Bindable]
-			private var hardwareForVirtual:ArrayList;
+			private var sliverTypes:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			private var hardwareForVirtual:ArrayList = new ArrayList();
+			[Bindable]
+			private var diskImages:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			private var planetlabInitscripts:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			private var pipes:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			private var interfaces:ArrayCollection = new ArrayCollection();
 			
-			public function loadNode(n:VirtualNode):void {
-				node = n;
-				
-				loadHierarchy();
-				
-				switch(node.status)
-				{
-					case VirtualComponent.STATUS_READY:
-						this.statusImage.source = ImageUtil.flagGreenIcon;
-						break;
-					case VirtualComponent.STATUS_FAILED:
-						this.statusImage.source = ImageUtil.flagRedIcon;
-						break;
-					case VirtualComponent.STATUS_NOTREADY:
-					case VirtualComponent.STATUS_CHANGING:
-						this.statusImage.source = ImageUtil.flagYellowIcon;
-						break;
-					case VirtualComponent.STATUS_UNKNOWN:
-					default:
-						this.statusImage.visible = false;
-						this.statusImage.includeInLayout = false;
-				}
-				if(node.error != null && node.error.length > 0)
-				{
-					errorButton.includeInLayout = true;
-					errorButton.visible = true;
-				}
-				
-				if(n.manager.type == GeniManager.TYPE_PROTOGENI) {
-					previewRspecButton.includeInLayout = true;
-					previewRspecButton.visible = true;
-				}
-				if(node.manifest != null)
-					this.rspecButton.setStyle("icon", ImageUtil.pageWhiteCodeIcon);
-				
-				if(node.loginServices.length > 0) {
-					this.usernameText.text = node.loginServices[0].username;
-					this.loginText.text = node.loginServices[0].hostname + ":" + node.loginServices[0].port;
-					
-					var sshButton:DataButton = new DataButton("","Start a SSH session",ImageUtil.linkIcon);
-					sshButton.data = "ssh://" + node.loginServices[0].username + "@" + node.loginServices[0].hostname + ":" + node.loginServices[0].port;
-					sshButton.addEventListener(MouseEvent.CLICK,
-						function openSsh(e:MouseEvent):void {
-							NetUtil.openWebsite(e.currentTarget.data);
-						});
-					loginGroup.addElement(sshButton);
-					
-					var visitButton:DataButton = new DataButton("","Open a browser if node has a web server",ImageUtil.worldIcon);
-					visitButton.data = "http://" + node.loginServices[0].hostname;
-					visitButton.addEventListener(MouseEvent.CLICK,
-						function visit(e:MouseEvent):void {
-							NetUtil.openWebsite(e.currentTarget.data);
-						});
-					loginGroup.addElement(visitButton);
-					
-				} else
-				{
-					this.usernameText.text = "None established";
-					this.loginText.text = "None established";
-				}
-				
-				this.bindingVirtualRadiobutton.enabled = node.manager.supportsExclusiveNodes || node.manager.supportsSharedNodes;
-				if(this.bindingVirtualRadiobutton.enabled) {
-					if(!node.manager.supportsExclusiveNodes || !node.manager.supportsSharedNodes) {
-						this.exclusiveCheckbox.selected = node.manager.supportsExclusiveNodes;
-						this.exclusiveCheckbox.enabled = false;
-					}
-				}
-				this.bindingDelayRadiobutton.enabled = node.manager.supportsDelayNodes;
-				
-				if(node.sliverType == SliverTypes.DELAY) {
-					this.bindingDelayRadiobutton.selected = true;
-					this.bindingPhysicalRadiobutton.enabled = false;
-				}
-				else if(node.physicalNode != null)
-				{
-					this.bindingPhysicalRadiobutton.selected = true;
-					physicalVgroup.addElementAt(DisplayUtil.getPhysicalNodeButton(node.physicalNode), 0);
-					if(node.sliverType == SliverTypes.RAWPC)
-						this.boundTypeLabel.text = "Raw PC";
-					else
-						this.boundTypeLabel.text = "VM";
-					if(node.physicalNode.manager is PlanetlabAggregateManager) {
-						usePlanetlabInitCheckbox.visible = true;
-						usePlanetlabInitCheckbox.selected = node.usesPlanetlabInitscript;
-					}
-				}
+			private function get SelectedManager():GeniManager
+			{
+				return managerList.selectedItem as GeniManager;
+			}
+			private function get SelectedBounded():Boolean
+			{
+				return boundRadiobutton.selected;
+			}
+			private function get SelectedBoundNode():PhysicalNode
+			{
+				return boundDropDownList.selectedItem as PhysicalNode;
+			}
+			private function get SelectedSliverType():String
+			{
+				if(sliverTypeDropDownList.selectedItem == null)
+					return "";
 				else
-				{
-					this.bindingVirtualRadiobutton.selected = true;
-					this.bindingPhysicalRadiobutton.enabled = false;
-				}
-				this.exclusiveCheckbox.selected = node.exclusive;
-				if(node.sliverType == SliverTypes.RAWPC)
-					this.rawRadiobutton.selected = true;
-				else
-					this.virtualRadiobutton.selected = true;
-				managersForVirtual = new ArrayList();
-				for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
-					if(manager.supportsExclusiveNodes || manager.supportsSharedNodes)
-						managersForVirtual.addItem(manager);
-				}
-				this.managerList.selectedItem = node.manager;
-				hardwareForVirtual = node.manager.getTypes();
-				this.hardwareList.selectedItem = node.hardwareType;
-				setBinding();
-				
-				this.installFileTypeList.selectedIndex = 0;
-				if(node.installServices.length > 0) {
-					this.installUrlText.text = node.installServices[0].url;
-					this.installFileTypeList.textInput.text = node.installServices[0].fileType;
-					this.installPathText.text = node.installServices[0].installPath;
-				}
-				
-				if(node.executeServices.length > 0) {
-					this.executeShellText.text = node.executeServices[0].shell;
-					this.executeCommandText.text = node.executeServices[0].command;
-				}
-
-				sliverTypes = new ArrayList();
-				var toSelect:Object = null;
-				if(node.physicalNode != null) {
-					for each(var sliverType:SliverType in node.physicalNode.sliverTypes) {
-						for each(var sliverDiskImage:DiskImage in sliverType.diskImages) {
-							var newSliverType:Object = new Object();
-							newSliverType.name = sliverType.name;
-							newSliverType.diskLongName = sliverDiskImage.name;
-							if(sliverDiskImage.name == n.diskImage)
-								toSelect = newSliverType;
-							newSliverType.diskShortName = DiskImage.getDiskImageShort(sliverDiskImage.name, node.manager);
-							newSliverType.diskDescription = sliverDiskImage.description;
-							newSliverType.diskOs = sliverDiskImage.os;
-							newSliverType.diskVersion = sliverDiskImage.version;
-							sliverTypes.addItem(newSliverType);
-						}
-					}
-					if(toSelect != null)
-						this.diskImageSelect.selectedItem = toSelect;
-				} else if(node.manager.DiskImages.length > 0) {
-					for each(var diskImage:DiskImage in node.manager.DiskImages) {
-						var newDiskType:Object = new Object();
-						newDiskType.name = "N/A";
-						newDiskType.diskLongName = diskImage.name;
-						if(diskImage.name == n.diskImage)
-							toSelect = newDiskType;
-						newDiskType.diskShortName = DiskImage.getDiskImageShort(diskImage.name, node.manager);
-						newDiskType.diskDescription = diskImage.description;
-						newDiskType.diskOs = diskImage.os;
-						newDiskType.diskVersion = diskImage.version;
-						sliverTypes.addItem(newDiskType);
-					}
-					if(toSelect != null)
-						this.diskImageSelect.selectedItem = toSelect;
-				}
-				
-				fillLinksTo();
+					return sliverTypeDropDownList.selectedItem;
 			}
 			
-			public function fillLinksTo():void {
-				if(linksVbox == null || node == null)
+			public function loadNode(n:VirtualNode):void
+			{
+				node = n;
+				physicalNodes = new ArrayCollection();
+				var nameSort:Sort = new Sort();
+				var dataSortField:SortField = new SortField("name");
+				nameSort.fields = [dataSortField];
+				
+				physicalNodes.sort = nameSort;
+				
+				// Build up lists
+				managers.removeAll();
+				for each(var manager:GeniManager in Main.geniHandler.GeniManagers)
+				{
+					if(manager.Status == GeniManager.STATUS_VALID)
+						managers.addItem(manager);
+				}
+				
+				clientIdInput.text = node.clientId;
+				backgroundColor = ColorUtil.colorsDark[node.manager.colorIdx];
+				errorButton.visible = node.error.length > 0;
+				manifestButton.visible = node.manifest != null;
+				if(node.status.length > 0)
+				{
+					statusImage.visible = true;
+					switch(node.status)
+					{
+						case VirtualComponent.STATUS_READY:
+							this.statusImage.source = ImageUtil.flagGreenIcon;
+							break;
+						case VirtualComponent.STATUS_FAILED:
+							this.statusImage.source = ImageUtil.flagRedIcon;
+							break;
+						case VirtualComponent.STATUS_NOTREADY:
+						case VirtualComponent.STATUS_CHANGING:
+						case VirtualComponent.STATUS_STOPPED:
+							statusImage.source = ImageUtil.flagYellowIcon;
+							break;
+						case VirtualComponent.STATUS_UNKNOWN:
+						default:
+							statusImage.visible = false;
+					}
+				}
+				if(node.loginServices.length > 0)
+				{
+					loginGroup.visible = true;
+					usernameText.text = node.loginServices[0].username;
+					hostnameText.text = node.loginServices[0].hostname;
+				}
+				
+				managerList.selectedItem = node.manager;
+				if(node.physicalNode != null)
+				{
+					boundRadiobutton.selected = true;
+					boundDropDownList.selectedItem = node.physicalNode;
+					loadBound();
+				}
+				else
+				{
+					unboundRadiobutton.selected = true;
+					loadUnbound();
+				}
+				exclusiveCheckbox.selected = node.exclusive;
+				
+				diskImageText.text = node.diskImage;
+				
+				if(node.installServices.length > 0)
+				{
+					for each(var installService:InstallService in node.installServices)
+						addInstallService(installService);
+				}
+				if(node.executeServices.length > 0)
+				{
+					for each(var executeService:ExecuteService in node.executeServices)
+						addExecuteService(executeService);
+				}
+				interfaces = new ArrayCollection();
+				for each(var iface:VirtualInterface in node.interfaces.collection)
+				{
+					interfaces.addItem(
+						{
+							source: iface,
+							clientId: iface.id,
+							macAddress: iface.macAddress,
+							ipaddress: iface.ip,
+							ipnetmask: iface.netmask,
+							iptype: iface.type
+						}
+					);
+				}
+				
+				pipes = new ArrayCollection();
+				var i:int;
+				// Make sure we have pipes for all interfaces
+				for(i = 0; i < interfaces.length; i++)
+				{
+					var first:VirtualInterface = node.interfaces.collection[i];
+					for(var j:int = i+1; j < interfaces.length; j++)
+					{
+						var second:VirtualInterface = node.interfaces.collection[j];
+						
+						var firstPipe:Pipe = node.pipes.getFor(first, second);
+						if(firstPipe == null)
+							firstPipe = new Pipe(first, second, Math.min(first.capacity, second.capacity));
+						pipes.addItem(
+							{
+								source: firstPipe,
+								capacity: firstPipe.capacity,
+								latency: firstPipe.latency,
+								packetLoss: firstPipe.packetLoss
+							}
+						);
+						
+						var secondPipe:Pipe = node.pipes.getFor(second, first);
+						if(secondPipe == null)
+							secondPipe = new Pipe(second, first, Math.min(first.capacity, second.capacity));
+						pipes.addItem(
+							{
+								source: secondPipe,
+								capacity: secondPipe.capacity,
+								latency: secondPipe.latency,
+								packetLoss: secondPipe.packetLoss
+							}
+						);
+					}
+				}
+			}
+			
+			public function initExtensions():void
+			{
+				extensionsTextarea.text = node.extensionsNodes.toXMLString();
+			}
+			
+			public function visitHost():void
+			{
+				if(node.loginServices.length > 0)
+				{
+					NetUtil.openWebsite("http://" + node.loginServices[0].hostname);
+				}
+			}
+			
+			public function openSsh():void
+			{
+				if(node.loginServices.length > 0)
+				{
+					NetUtil.openWebsite("ssh://" + node.loginServices[0].username + "@" + node.loginServices[0].hostname + ":" + node.loginServices[0].port);
+				}
+			}
+			
+			public function previewRspec():void
+			{
+				Alert.show("This preview will not show any changes made if changes have been made without applying.  Would you like to apply any changes before previewing?",
+					"Apply?",
+					Alert.YES|Alert.NO|Alert.CANCEL,
+					this,
+					function closeEvent(event:CloseEvent):void {
+						switch(event.detail) {
+							case Alert.CANCEL:
+								return;
+							case Alert.YES:
+								if(save())
+									return;
+								loadNode(node);
+							default:
+								var previewRspec:DocumentWindow = new DocumentWindow();
+								previewRspec.title = "Preview Request RSPEC for: " + node.clientId;
+								previewRspec.loadXml((node.manager.rspecProcessor as ProtogeniRspecProcessor).generateNodeRspec(node, true));
+								previewRspec.showWindow();
+						}
+					});
+			}
+			
+			public function viewManifest():void
+			{
+				if(node.manifest != null)
+				{
+					var rspecWindow:DocumentWindow = new DocumentWindow;
+					rspecWindow.showWindow();
+					rspecWindow.title = "Last Successful RSPEC from " + node.sliverId;
+					rspecWindow.loadXml(node.manifest);
+				} else {
+					Alert.show("No previous RSPEC is available");
+				}
+			}
+			
+			protected function managerList_valueCommitHandler(event:FlexEvent):void
+			{
+				physicalNodes.removeAll();
+				hardwareForVirtual.removeAll();
+				if(SelectedManager != null)
+				{
+					backgroundColor = ColorUtil.colorsDark[SelectedManager.colorIdx];
+					var selectableNodes:Vector.<PhysicalNode> = SelectedManager.AllNodes;
+					for each(var phyNode:PhysicalNode in selectableNodes)
+						physicalNodes.addItem(phyNode);
+					if(node.physicalNode != null
+						&& SelectedManager == node.physicalNode.manager
+						&& !physicalNodes.contains(node.physicalNode))
+					{
+						physicalNodes.addItem(node.physicalNode);
+					}
+					
+					physicalNodes.refresh();
+					
+					hardwareForVirtual = SelectedManager.getTypes();
+					
+					unboundVgroup.enabled = SelectedManager.supportsSharedNodes || SelectedManager.supportsExclusiveNodes;
+					if(SelectedManager != node.manager)
+					{
+						if(unboundVgroup.enabled)
+						{
+							unboundRadiobutton.selected = true;
+							loadUnbound();
+						}
+						else
+						{
+							boundRadiobutton.selected = true;
+						}
+					}
+					
+					sliverTypes.removeAll();
+					if(SelectedManager.type == GeniManager.TYPE_PLANETLAB)
+						sliverTypes.addItem(SliverTypes.PLANETLAB);
+					else
+					{
+						if(SelectedManager.Hrn == "shadownet.cm")
+							sliverTypes.addItem(SliverTypes.JUNIPER_LROUTER);
+						else
+						{
+							sliverTypes.addItem(SliverTypes.RAWPC);
+							sliverTypes.addItem(SliverTypes.EMULAB_OPENVZ);
+							if(SelectedManager.supportsDelayNodes)
+								sliverTypes.addItem(SliverTypes.DELAY);
+						}
+					}
+					
+					diskImages = SelectedManager.DiskImages;
+				}
+			}
+			
+			protected function boundDropDownList_valueCommitHandler(event:FlexEvent):void
+			{
+				boundRadiobutton.selected = true;
+				loadBound();
+			}
+			
+			private function loadUnbound():void
+			{
+				if(node.sliverType.length > 0 && node.sliverType != "N/A")
+				{
+					if(!sliverTypes.contains(node.sliverType))
+						sliverTypes.addItem(node.sliverType);
+					sliverTypeDropDownList.selectedItem = node.sliverType;
+				}
+				
+				if(sliverTypeDropDownList.selectedItem == null)
+					sliverTypeDropDownList.selectedIndex = 0;
+				
+				exclusiveCheckbox.enabled = true;
+			}
+			
+			private function loadBound():void
+			{
+				if(SelectedBoundNode != null)
+				{
+					exclusiveCheckbox.selected = SelectedBoundNode.exclusive;
+					
+					for each(var sliverType:SliverType in SelectedBoundNode.sliverTypes)
+					{
+						if(!sliverTypes.contains(sliverType) && sliverType.name != "N/A")
+							sliverTypes.addItem(sliverType);
+					}
+					
+					if(!sliverTypes.contains(node.sliverType) && node.sliverType != "N/A")
+						sliverTypes.addItem(node.sliverType);
+					if(node.sliverType != "N/A")
+						sliverTypeDropDownList.selectedItem = node.sliverType;
+					
+					if(sliverTypeDropDownList.selectedItem == null)
+						sliverTypeDropDownList.selectedIndex = 0;
+				}
+				
+				exclusiveCheckbox.enabled = false;
+			}
+			
+			protected function sliverTypeDropDownList_valueCommitHandler(event:FlexEvent):void
+			{
+				if(SelectedSliverType != null)
+				{
+					switch(SelectedSliverType)
+					{
+						case SliverTypes.EMULAB_OPENVZ:
+							exclusiveCheckbox.enabled = true;
+							diskImageGroup.visible = false;
+							detailsViewstack.selectedChild = detailsView;
+							break;
+						case SliverTypes.RAWPC:
+							exclusiveCheckbox.enabled = false;
+							exclusiveCheckbox.selected = true;
+							diskImageGroup.visible = true;
+							detailsViewstack.selectedChild = detailsView;
+							break;
+						case SliverTypes.DELAY:
+							exclusiveCheckbox.enabled = true;
+							diskImageGroup.visible = false;
+							detailsViewstack.selectedChild = delayView;
+							loadDelayPipes();
+							break;
+						case SliverTypes.PLANETLAB:
+							exclusiveCheckbox.enabled = false;
+							exclusiveCheckbox.selected = false;
+							diskImageGroup.visible = false;
+							detailsViewstack.selectedChild = planetlabView;
+							planetlabInitscripts.removeAll();
+							if(SelectedBoundNode != null)
+							{
+								for each(var initscript:String in SelectedBoundNode.planetLabInitscripts)
+									planetlabInitscripts.addItem(initscript);
+								if(node.selectedPlanetLabInitscript.length > 0)
+								{
+									if(!planetlabInitscripts.contains(node.selectedPlanetLabInitscript))
+										planetlabInitscripts.addItem(node.selectedPlanetLabInitscript);
+								}
+							}
+							
+							if(node.selectedPlanetLabInitscript.length > 0)
+								planetlabInitscriptDropdownlist.selectedItem = node.selectedPlanetLabInitscript;
+							break;
+						case SliverTypes.JUNIPER_LROUTER:
+							exclusiveCheckbox.enabled = false;
+							exclusiveCheckbox.selected = false;
+							diskImageGroup.visible = false;
+							detailsViewstack.selectedChild = detailsView;
+							break;
+					}
+				}
+			}
+			
+			protected function hardwareList_valueCommitHandler(event:FlexEvent):void
+			{
+				hardwareTypeCheckbox.selected = hardwareList.selectedItem != null
+			}
+			
+			protected function boundGroup_valueCommitHandler(event:FlexEvent):void
+			{
+				if(unboundRadiobutton.selected)
+					loadUnbound();
+				else
+					loadBound();
+			}
+			
+			private function addInstallService(installService:InstallService = null):void
+			{
+				var newInstallComponent:InstallServiceComponent = new InstallServiceComponent();
+				if(installService != null)
+				{
+					newInstallComponent.url = installService.url;
+					newInstallComponent.fileType = installService.fileType;
+					newInstallComponent.path = installService.installPath;
+				}
+				installVgroup.addElement(newInstallComponent);
+			}
+			
+			private function addExecuteService(executeService:ExecuteService = null):void
+			{
+				var newExecuteComponent:ExecuteServiceComponent = new ExecuteServiceComponent();
+				if(executeService != null)
+				{
+					newExecuteComponent.cmd = executeService.command;
+					newExecuteComponent.shell = executeService.shell;
+				}
+				executeVgroup.addElement(newExecuteComponent);
+			}
+			
+			public function fillLinksTo():void
+			{
+				if(linksVgroup == null || node == null)
 					return;
-				linksVbox.removeAllElements();
+				linksVgroup.removeAllElements();
 				var connectedNodes:VirtualNodeCollection = node.GetAllNodes();
 				
 				for each(var connectedNode:VirtualNode in connectedNodes.collection)
 				{
-					linksVbox.addElement(DisplayUtil.getVirtualNodeButton(connectedNode));
+					linksVgroup.addElement(DisplayUtil.getVirtualNodeButton(connectedNode));
 					
 					var connectedLinks:VirtualLinkCollection = node.GetLinks(connectedNode);
 					for each(var connectedLink:VirtualLink in connectedLinks.collection)
@@ -252,63 +482,42 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						space.width = 16;
 						pointLinkHbox.addElement(space);
 						pointLinkHbox.addElement(DisplayUtil.getVirtualLinkButton(connectedLink));
-						linksVbox.addElement(pointLinkHbox);
+						linksVgroup.addElement(pointLinkHbox);
 					}
 				}
 			}
 			
-			public function loadHierarchy():void
+			public function loadDelayPipes():void
 			{
-				hierarchyGroup.removeAllElements();
-				
-				hierarchyGroup.addElement(DisplayUtil.getSliceButton(node.sliver.slice));
-				hierarchyGroup.addElement(DisplayUtil.getLabel(">"));
-				hierarchyGroup.addElement(DisplayUtil.getGeniManagerButton(node.manager));
-				hierarchyGroup.addElement(DisplayUtil.getLabel(">"));
-				// Parent node info
-				if(node.superNode != null)
+				pipes.removeAll();
+				if(SelectedSliverType.length>0 && SelectedSliverType == SliverTypes.DELAY)
 				{
-					hierarchyGroup.addElement(DisplayUtil.getVirtualNodeButton(node.superNode));
-					hierarchyGroup.addElement(DisplayUtil.getLabel(">"));
-				}
-				
-				// Child node info
-				hierarchyVbox.removeAllElements();
-				if(node.subNodes.length > 0)
-				{
-					hierarchyVbox.addElement(DisplayUtil.getLabel("Subnodes:"));
-					for each(var subNode:VirtualNode in node.subNodes.collection)
+					for(var i:int = 0; i < node.interfaces.length; i++)
 					{
-						hierarchyVbox.addElement(DisplayUtil.getVirtualNodeButton(subNode));
-					}
-				}
-			}
-
-			public function loadDelayPipes():void {
-				pipes = new ArrayCollection();
-				for(var i:int = 0; i < this.node.interfaces.length; i++) {
-					var first:VirtualInterface = this.node.interfaces.collection[i];
-					if(first.id == "control")
-						continue;
-					for(var j:int = i+1; j < this.node.interfaces.length; j++) {
-						var second:VirtualInterface = this.node.interfaces.collection[j];
-						if(second.id == "control")
-							continue;
-
-						var firstPipe:Pipe = node.pipes.getFor(first, second);
-						if(firstPipe == null)
-							firstPipe = new Pipe(first, second, Math.min(first.capacity, second.capacity));
-						pipes.addItem(firstPipe);
-						
-						var secondPipe:Pipe = node.pipes.getFor(second, first);
-						if(secondPipe == null)
-							secondPipe = new Pipe(second, first, Math.min(first.capacity, second.capacity));
-						pipes.addItem(secondPipe);
+						var first:VirtualInterface = node.interfaces.collection[i];
+						for(var j:int = i+1; j < node.interfaces.length; j++)
+						{
+							var second:VirtualInterface = node.interfaces.collection[j];
+							
+							var firstPipe:Pipe = node.pipes.getFor(first, second);
+							if(firstPipe == null)
+							{
+								firstPipe = new Pipe(first, second, Math.min(first.capacity, second.capacity));
+								pipes.addItem(firstPipe);
+							}
+							
+							var secondPipe:Pipe = node.pipes.getFor(second, first);
+							if(secondPipe == null)
+							{
+								secondPipe = new Pipe(second, first, Math.min(first.capacity, second.capacity));
+								pipes.addItem(secondPipe);
+							}
+						}
 					}
 				}
 			}
 			
-			public function success():void
+			public function trySaveAndClose():void
 			{
 				if(save())
 					return;
@@ -317,9 +526,23 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function save():Boolean
 			{
+				// Make sure we HAVE a client id
+				if(clientIdInput.text.length == 0)
+				{
+					Alert.show("Either choose an unbound node or choose a node to bind to.", "No bound node indicated");
+					return true;
+				}
+				
 				// Make sure the client_id is not taken
-				if(!this.node.sliver.slice.slivers.isIdUnique(this.node, this.idLabel.Text)) {
-					Alert.show(this.idLabel.Text + " is already in use, please choose a different client id");
+				if(!this.node.sliver.slice.slivers.isIdUnique(this.node, this.clientIdInput.text)) {
+					Alert.show(this.clientIdInput.text + " is already in use, please choose a different client id");
+					return true;
+				}
+				
+				// Guarentee we have enough selected
+				if(boundRadiobutton.selected && SelectedBoundNode == null)
+				{
+					Alert.show("Either choose an unbound node or choose a node to bind to.", "No bound node indicated");
 					return true;
 				}
 				
@@ -346,263 +569,301 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					}
 				}
 				
-				// Save!
-				this.node.clientId = this.idLabel.Text;
-				if(this.bindingPhysicalRadiobutton.selected) {
-					// currently can't select a physical node here
-					node.usesPlanetlabInitscript = usePlanetlabInitCheckbox.selected;
-				} else if(this.bindingVirtualRadiobutton.selected) {
-					if(this.managerList.selectedItem != node.manager) {
-						var newManager:GeniManager = this.managerList.selectedItem;
-						var newSliver:Sliver = node.sliver.slice.getOrCreateForManager(newManager);
-						node.sliver.nodes.remove(node);
-						newSliver.nodes.add(node);
-						for each(var vi:VirtualInterface in node.interfaces.collection) {
-							for each(var vl:VirtualLink in vi.virtualLinks.collection) {
-								// See if we need to change the link due to the manager change
-								for each(var otherInterface:VirtualInterface in vl.interfaces.collection) {
-									if(otherInterface != vi) {
-										// Now will be links to another manager
-										if(otherInterface.owner.manager == node.manager) {
-											vl.setUpTunnels();
-											newSliver.links.add(vl);
-											break;
-										}
-											// Now the same manager
-										else if(otherInterface.owner.manager == newManager) {
-											vl.linkType = VirtualLink.TYPE_NORMAL;
-											node.sliver.links.remove(vl);
-											break;
-										}
-										// Otherwise still different managers, no changes needed
+				node.clientId = clientIdInput.text;
+				
+				if(SelectedManager != node.manager)
+				{
+					var newManager:GeniManager = this.managerList.selectedItem;
+					var newSliver:Sliver = node.sliver.slice.getOrCreateForManager(newManager);
+					node.sliver.nodes.remove(node);
+					newSliver.nodes.add(node);
+					for each(var vi:VirtualInterface in node.interfaces.collection) {
+						for each(var vl:VirtualLink in vi.virtualLinks.collection) {
+							// See if we need to change the link due to the manager change
+							for each(var otherInterface:VirtualInterface in vl.interfaces.collection) {
+								if(otherInterface != vi) {
+									// Now will be links to another manager
+									if(otherInterface.owner.manager == node.manager) {
+										vl.setUpTunnels();
+										newSliver.links.add(vl);
+										break;
 									}
+										// Now the same manager
+									else if(otherInterface.owner.manager == newManager) {
+										vl.linkType = VirtualLink.TYPE_NORMAL;
+										node.sliver.links.remove(vl);
+										break;
+									}
+									// Otherwise still different managers, no changes needed
 								}
 							}
 						}
 					}
-					node.manager = this.managerList.selectedItem;
-					
-					if(this.rawRadiobutton.selected)
-					{
-						node.sliverType = SliverTypes.RAWPC;
-						node.exclusive = true;
-					}
-					else
-					{
-						node.sliverType = SliverTypes.EMULAB_OPENVZ;
-						node.exclusive = this.exclusiveCheckbox.selected;
-					}
-					
-					if(this.hardwareList.selectedItem != null && this.hardwareList.selectedItem.length > 0) {
-						node.hardwareType = this.hardwareList.selectedItem;
-					}
-					
-					node.physicalNode = null;
-				} else if(this.bindingDelayRadiobutton.selected) {
-					node.exclusive = true;
-					node.physicalNode = null;
-					node.sliverType = SliverTypes.DELAY;
-					node.pipes = new PipeCollection();
-					for each(var pipe:Pipe in pipes)
-						node.pipes.add(pipe);
 				}
 				
-				node.installServices = new Vector.<InstallService>();
-				if(this.installUrlText.text.length > 0) {
-					node.installServices.push(new InstallService(this.installUrlText.text, this.installPathText.text, this.installFileTypeList.textInput.text));
+				// Save changes based on binding
+				if(this.unboundRadiobutton.selected)
+				{
+					if(!hardwareTypeCheckbox.selected)
+						this.node.hardwareType = "";
+					else
+						this.node.hardwareType = hardwareList.selectedItem;
+					node.physicalNode = null;
 				}
+				else
+				{
+					node.hardwareType = "";
+					node.physicalNode = this.SelectedBoundNode;
+				}
+				
+				node.sliverType = SelectedSliverType;
+				node.exclusive = exclusiveCheckbox.selected;
+				
+				// Save changes based on sliver type
+				if(node.sliverType == SliverTypes.RAWPC)
+					node.setDiskImage(diskImageText.text);
+				else
+					node.diskImage = "";
+				
+				node.installServices = new Vector.<InstallService>()
 				node.executeServices = new Vector.<ExecuteService>();
-				if(this.executeCommandText.text.length > 0) {
-					node.executeServices.push(new ExecuteService(this.executeCommandText.text, this.executeShellText.text));
+				if(node.sliverType == SliverTypes.RAWPC || node.sliverType == SliverTypes.EMULAB_OPENVZ)
+				{
+					var serviceIdx:int;
+					for(serviceIdx = 0; serviceIdx < installVgroup.numElements; serviceIdx++)
+					{
+						var installService:InstallService = (installVgroup.getElementAt(serviceIdx) as InstallServiceComponent).Service;
+						if(installService.url.length > 0)
+							node.installServices.push(installService);
+					}
+					for(serviceIdx = 0; serviceIdx < executeVgroup.numElements; serviceIdx++)
+					{
+						var executeService:ExecuteService = (executeVgroup.getElementAt(serviceIdx) as ExecuteServiceComponent).Service;
+						if(executeService.command.length > 0)
+							node.executeServices.push(executeService);
+					}
 				}
-				this.node.setDiskImage(diskImageText.text);
+				
+				// Save changes to pipes
+				node.pipes = new PipeCollection();
+				if(node.sliverType == SliverTypes.DELAY)
+				{
+					for each(var pipeObj:Object in pipes)
+					{
+						var pipe:Pipe = pipeObj.source;
+						pipe.capacity = pipeObj.capacity;
+						pipe.latency = pipeObj.latency;
+						pipe.packetLoss = pipeObj.packetLoss;
+						node.pipes.add(pipe);
+					}
+				}
+				
+				if(node.sliverType != SliverTypes.PLANETLAB || planetlabInitscriptDropdownlist.selectedItem == null)
+					node.selectedPlanetLabInitscript = "";
+				else
+					node.selectedPlanetLabInitscript = planetlabInitscriptDropdownlist.selectedItem;
+				
+				// Save changes to interfaces
+				for each(var ifaceObj:Object in interfaces)
+				{
+					var iface:VirtualInterface = ifaceObj.source;
+					iface.id = ifaceObj.clientId;
+					iface.ip = ifaceObj.ipaddress;
+					iface.netmask = ifaceObj.ipnetmask;
+					iface.type = ifaceObj.iptype;
+				}
+				
+				
 				Main.geniDispatcher.dispatchSliceChanged(node.sliver.slice);
 				
 				return false;
 			}
 			
-			public function viewRspec():void
-			{
-				if(node.manifest != null)
-				{
-					var rspecWindow:DocumentWindow = new DocumentWindow;
-					rspecWindow.showWindow();
-					rspecWindow.title = "Last Successful RSPEC from " + node.sliverId;
-					rspecWindow.loadXml(node.manifest);
-				} else {
-					Alert.show("No previous RSPEC is available");
-				}
-			}
-
-			public function previewRspec():void
-			{
-				Alert.show("This preview will not show any changes made if changes have been made without applying.  Would you like to apply any changes before previewing?",
-					"Apply?",
-					Alert.YES|Alert.NO|Alert.CANCEL,
-					this,
-					function closeEvent(event:CloseEvent):void {
-						switch(event.detail) {
-							case Alert.CANCEL:
-								return;
-							case Alert.YES:
-								if(save())
-									return;
-								loadNode(node);
-							default:
-								var previewRspec:DocumentWindow = new DocumentWindow();
-								previewRspec.title = "Preview Request RSPEC for: " + node.clientId;
-								previewRspec.loadXml((node.manager.rspecProcessor as ProtogeniRspecProcessor).generateNodeRspec(node, true));
-								previewRspec.showWindow();
-						}
-					});
-			}
-
-			protected function setBinding():void
-			{
-				this.physicalVgroup.enabled = this.bindingPhysicalRadiobutton.selected;
-				this.virtualVgroup.enabled = this.bindingVirtualRadiobutton.selected;
-				if(this.bindingDelayRadiobutton.selected) {
-					detailsViewstack.selectedChild = this.delayView;
-					this.validateNow();
-					loadDelayPipes();
-				} else {
-					if(this.node.sliverType == SliverTypes.JUNIPER_LROUTER)
-						detailsViewstack.selectedChild = this.nullView;
-					else
-						detailsViewstack.selectedChild = this.detailsView;
-				}
-					
-			}
-			
-			protected function setType():void
-			{
-				this.exclusiveCheckbox.enabled = virtualRadiobutton.selected
-			}
-
 		]]>
 	</fx:Script>
-	<s:HGroup width="100%" verticalAlign="middle" gap="2"
-			  id="hierarchyGroup" />
-	<s:HGroup width="100%" verticalAlign="middle" gap="2">
-		<display:KeyboardTextInput id="idLabel"
-								   Text="{node.clientId}"
-								   toolTip="{node.sliverId}"
-								   width="100%" />
-		<components:ImageButton id="rspecButton"
-							 icon="{ImageUtil.pageWhiteIcon}"
-							 click="viewRspec()"
-							 toolTip="View the most recent valid RSPEC" />
-		<s:Image id="statusImage"
-				 toolTip="Status: {node.status}, State: {node.state}" />
-		<components:ImageButton id="errorButton" includeInLayout="false" visible="false"
-								click="Alert.show(node.error,'Error Message')" />
-		<components:DefaultLine height="16" visible="false" />
-		<components:ImageButton id="previewRspecButton"
-							 visible="false" includeInLayout="false"
-							 icon="{ImageUtil.pageCodeIcon}"
-							 click="previewRspec()"
-							 toolTip="Preview the Request RSPEC" />
-	</s:HGroup>
 	
-	<s:HGroup id="loginGroup" width="100%" verticalAlign="middle">
+	<s:Group width="100%">
+		<s:Rect width="100%" height="100%">
+			<s:fill><s:SolidColor color="{backgroundColor}" /></s:fill>
+		</s:Rect>
+		
+		<s:HGroup width="100%"
+				  verticalAlign="middle"
+				  paddingLeft="4"
+				  paddingRight="4"
+				  paddingTop="4"
+				  paddingBottom="4">
+			<s:TextInput id="clientIdInput"
+						 width="100%"
+						 fontWeight="bold"
+						 fontSize="16"
+						 restrict="a-zA-Z0-9\\-"
+						 toolTip="{node.clientId}" />
+			<s:Image id="statusImage"
+					 visible="false" includeInLayout="{statusImage.visible}"
+					 toolTip="Status: {node.status}, State: {node.state}" />
+			<components:ImageButton id="errorButton"
+									visible="false"
+									includeInLayout="{errorButton.visible}"
+									click="Alert.show(node.error,'Error Message')" />
+			<s:Button id="manifestButton"
+					  icon="{ImageUtil.pageWhiteCodeIcon}"
+					  visible="false"
+					  includeInLayout="{manifestButton.visible}"
+					  label="View Manifest"
+					  toolTip="View Manifest RSPEC"
+					  click="viewManifest()" height="24" />
+			<s:Button id="previewButton"
+					  icon="{ImageUtil.pageCodeIcon}"
+					  label="View Preview"
+					  toolTip="View Preview RSPEC"
+					  click="previewRspec()" height="24" />
+		</s:HGroup>
+		
+	</s:Group>
+	
+	<s:HGroup id="loginGroup"
+			  width="100%"
+			  verticalAlign="middle"
+			  visible="false"
+			  horizontalAlign="center"
+			  paddingTop="4"
+			  paddingLeft="4"
+			  paddingRight="4"
+			  paddingBottom="4"
+			  includeInLayout="{loginGroup.visible}">
 		<s:Label text="Username" fontWeight="bold" />
 		<mx:Label id="usernameText" selectable="true" />
 		<s:Label text="Hostname" fontWeight="bold" />
-		<mx:Label id="loginText" selectable="true" />
-		<s:Rect percentWidth="100" />
+		<mx:Label id="hostnameText" selectable="true" />
+		<s:Button label="Visit" click="visitHost()" />
+		<s:Button label="SSH" click="openSsh()" />
 	</s:HGroup>
 	
-	<mx:TabNavigator height="100%" width="100%" paddingTop="2" paddingLeft="2" paddingBottom="2" paddingRight="2">
-		<s:NavigatorContent label="Basic" height="100%" width="100%">
+	<s:ButtonBar dataProvider="{sectionViewstack}"
+				 requireSelection="true"
+				 skinClass="protogeni.display.skins.ButtonBarSkin"
+				 width="100%" />
+	<mx:ViewStack id="sectionViewstack"
+				  width="100%"
+				  height="100%"
+				  paddingTop="4"
+				  paddingLeft="4"
+				  paddingRight="4"
+				  paddingBottom="4">
+		<s:NavigatorContent icon="{ImageUtil.infoIcon}" toolTip="Basic" height="100%" width="100%">
 			<s:VGroup height="100%" width="100%">
-				<s:HGroup width="100%" id="hierarchyVbox" />
-				
-				<s:Label text="Binding" fontWeight="bold" />
 				<s:HGroup width="100%">
-					<s:VGroup width="40%">
-						<s:RadioButton id="bindingPhysicalRadiobutton"
-									   label="Bound"
-									   group="{boundGroup}" />
-						<s:Rect/>
-						<s:VGroup id="physicalVgroup">
-							<s:Label id="boundTypeLabel" />
-							<s:CheckBox id="usePlanetlabInitCheckbox" label="Run initscript"
-										visible="false" includeInLayout="{usePlanetlabInitCheckbox.visible}" />
-						</s:VGroup>
+					<s:VGroup width="20%">
+						<s:Label text="Manager" fontWeight="bold" />
+						<s:DropDownList id="managerList"
+										toolTip="Select a manager..."
+										prompt="Select a manager..."
+										width="100%" height="24"
+										labelField="Hrn"
+										dataProvider="{managers}"
+										valueCommit="managerList_valueCommitHandler(event)" />
+					</s:VGroup>
+					
+					<s:VGroup width="60%">
+						<s:Label text="Binding" fontWeight="bold" />
+						<s:HGroup width="100%" verticalAlign="middle" id="unboundVgroup">
+							<s:RadioButton id="unboundRadiobutton"
+										   group="{boundGroup}"
+										   label="Unbound" />
+							<s:CheckBox id="hardwareTypeCheckbox" />
+							<s:DropDownList id="hardwareList"
+											toolTip="Type..."
+											prompt="Type..."
+											enabled="{!SelectedBounded}"
+											requireSelection="{hardwareTypeCheckbox.selected}"
+											labelField="name"
+											valueCommit="hardwareList_valueCommitHandler(event)"
+											dataProvider="{hardwareForVirtual}"
+											width="100%" height="24" />
+						</s:HGroup>
+						<s:HGroup width="100%" verticalAlign="middle" id="boundVgroup">
+							<s:RadioButton id="boundRadiobutton"
+										   group="{boundGroup}"
+										   label="Bound to" />
+							<s:DropDownList id="boundDropDownList"
+											dataProvider="{physicalNodes}"
+											width="100%" height="24"
+											valueCommit="boundDropDownList_valueCommitHandler(event)"
+											labelField="name" />
+							<components:ImageButton id="viewPhysicalNode"
+													icon="{ImageUtil.infoIcon}"
+													enabled="{boundDropDownList.selectedItem != null}"
+													click="DisplayUtil.viewPhysicalNode(boundDropDownList.selectedItem)" />
+						</s:HGroup>
 						
 					</s:VGroup>
-					<s:VGroup width="40%">
-						<s:RadioButton id="bindingVirtualRadiobutton"
-									   label="Unbound" group="{boundGroup}" />
-						<s:Rect/>
-						<s:VGroup id="virtualVgroup" width="100%">
-							<s:DropDownList id="managerList"
-											toolTip="Select a manager..."
-											prompt="Select a manager..."
-											labelField="Hrn" height="24"
-											dataProvider="{managersForVirtual}"
-											width="100%" />
-							<s:RadioButton id="rawRadiobutton" label="Raw PC" group="{unboundTypeGroup}" />
-							<s:RadioButton id="virtualRadiobutton" label="VM" group="{unboundTypeGroup}" />
-							<s:CheckBox id="exclusiveCheckbox"
-										label="Exclusive?" />
-							
-							
-							<s:Label text="Hardware Type" />
-							<s:DropDownList id="hardwareList"
-											toolTip="Select a hardware type..."
-											prompt="Select a hardware type..."
-											dataProvider="{hardwareForVirtual}"
-											width="100%" />
-						</s:VGroup>
-					</s:VGroup>
 					<s:VGroup width="20%">
-						<s:RadioButton id="bindingDelayRadiobutton"
-									   label="Delay"
-									   group="{boundGroup}" />
+						<s:Label text="Sliver Type" fontWeight="bold" />
+						<s:DropDownList id="sliverTypeDropDownList"
+										dataProvider="{sliverTypes}"
+										width="100%" height="24"
+										labelField="name"
+										valueCommit="sliverTypeDropDownList_valueCommitHandler(event)" />
+						<s:CheckBox id="exclusiveCheckbox"
+									label="Exclusive?" />
 					</s:VGroup>
 				</s:HGroup>
-				
 				<mx:ViewStack id="detailsViewstack" width="100%" height="100%">
 					<s:NavigatorContent id="detailsView" width="100%" height="100%">
-						<s:VGroup id="nodeOptionsVgroup" width="100%">
-							<s:Label text="Disk Image" fontWeight="bold" />
-							<s:DropDownList id="diskImageSelect" width="100%"
-											prompt="Select image to override default"
-											dataProvider="{sliverTypes}"
-											labelField="diskDescription"
-											change="diskImageText.text = diskImageSelect.selectedItem.diskLongName" />
-							<s:TextInput id="diskImageText" width="100%"
-										 text="{node.diskImage}"
-										 prompt="Select image above or manually type OSID" />
-							<s:Scroller width="100%" height="100%">
-								<s:VGroup id="nodeServicesVgroup" width="100%">
-									<s:Label text="Install" fontWeight="bold" />
+						<s:VGroup id="nodeOptionsVgroup" width="100%" height="100%">
+							<s:VGroup id="diskImageGroup" width="100%" includeInLayout="{diskImageGroup.visible}">
+								<s:HGroup width="100%" verticalAlign="middle">
+									<s:Label text="Disk Image" fontWeight="bold" />
+									<s:Rect />
+									<s:DropDownList id="diskImageSelect" width="100%" height="24"
+													prompt="Select image to override default"
+													dataProvider="{diskImages}"
+													labelField="description"
+													change="diskImageText.text = diskImageSelect.selectedItem.name" />
+								</s:HGroup>
+								<s:TextInput id="diskImageText" width="100%" height="24"
+											 prompt="Select image above, paste URN, or manually type OSID" />
+							</s:VGroup>
+							<s:HGroup width="100%" height="100%" id="servicesGroup">
+								<s:VGroup id="installServicesVgroup" width="50%" height="100%">
 									<s:HGroup width="100%" verticalAlign="middle">
-										<s:TextInput id="installUrlText" width="55%"
-													 prompt="Archive URL" />
-										<s:ComboBox id="installFileTypeList" width="15%" prompt="File type">
-											<s:dataProvider>
-												<s:ArrayList>
-													<fx:String>tar.gz</fx:String>
-												</s:ArrayList>
-											</s:dataProvider>
-										</s:ComboBox>
-										<s:Label text="in" />
-										<s:TextInput id="installPathText" width="30%" text="/"
-													 prompt="Install path" />
+										<s:Label text="Install" fontWeight="bold" />
+										<s:Rect percentWidth="100" />
+										<s:Button id="addInstallButton"
+												  icon="{ImageUtil.addIcon}"
+												  label="Add Install Service"
+												  click="addInstallService()" height="24" />
 									</s:HGroup>
 									
-									<s:Label text="Execute" fontWeight="bold" />
-									<s:HGroup width="100%" verticalAlign="middle">
-										<s:TextInput id="executeCommandText" width="90%"
-													 prompt="Command" />
-										<s:Label text="using" />
-										<s:TextInput id="executeShellText" width="10%" text="sh"
-													 prompt="Shell? (sh, bash, etc.)" />
-									</s:HGroup>
+									<s:Scroller width="100%" height="100%">
+										<s:VGroup id="installVgroup" width="100%" paddingRight="4" />
+									</s:Scroller>
 								</s:VGroup>
-							</s:Scroller>
+								<s:VGroup id="executeServicesVgroup" width="50%" height="100%">
+									<s:HGroup width="100%" verticalAlign="middle">
+										<s:Label text="Execute" fontWeight="bold" />
+										<s:Rect percentWidth="100" />
+										<s:Button id="addExecuteButton" height="24"
+												  icon="{ImageUtil.addIcon}"
+												  label="Add Execute Service"
+												  click="addExecuteService()" />
+									</s:HGroup>
+									<s:Scroller width="100%" height="100%">
+										<s:VGroup id="executeVgroup" width="100%" paddingRight="4" />
+									</s:Scroller>
+								</s:VGroup>
+							</s:HGroup>
+						</s:VGroup>
+					</s:NavigatorContent>
+					<s:NavigatorContent id="planetlabView" width="100%" height="100%">
+						<s:VGroup height="100%" width="100%">
+							<s:CheckBox id="usePlanetlabInitCheckbox"
+										label="Run" />
+							<s:DropDownList id="planetlabInitscriptDropdownlist"
+											dataProvider="{planetlabInitscripts}"
+											valueCommit="if(planetlabInitscriptDropdownlist.selectedItem != null) usePlanetlabInitCheckbox.selected = true"
+											width="100%" height="24" />
 						</s:VGroup>
 					</s:NavigatorContent>
 					<s:NavigatorContent id="delayView" width="100%" height="100%">
@@ -617,9 +878,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 											<fx:Component>
 												<s:GridItemRenderer>
 													<s:HGroup height="100%" verticalAlign="middle" paddingLeft="2">
-														<s:Label text="{data.sourceName}" />
-														<s:BitmapImage source="{ImageUtil.rightIcon}" />
-														<s:Label text="{data.destName}" />
+														<s:Label text="{data.src.clientId}" fontWeight="bold" />
+														<s:Label text="->" />
+														<s:Label text="{data.dst.clientId}" fontWeight="bold" />
 													</s:HGroup>
 												</s:GridItemRenderer>
 											</fx:Component>
@@ -644,26 +905,92 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							</s:columns>
 						</s:DataGrid> 
 					</s:NavigatorContent>
-					<s:NavigatorContent id="nullView" width="100%" height="100%">
-					</s:NavigatorContent>
 				</mx:ViewStack>
 			</s:VGroup>
 		</s:NavigatorContent>
-		<s:NavigatorContent label="Extensions">
-			<s:VGroup width="100%" height="100%">
-				<s:Label text="Namespace declarations MUST be included for new extensions pasted below" />
-				<s:TextArea id="extensionsTextarea" width="100%" height="100%" creationComplete="extensionsTextarea.text = node.extensionsNodes.toXMLString()" />
+		<s:NavigatorContent icon="{ImageUtil.linkIcon}" toolTip="Interfaces and Links" height="100%" width="100%">
+			<s:VGroup creationComplete="fillLinksTo();" width="100%" height="100%">
+				<s:DataGrid id="interfaceGrid" width="100%" height="40%" 
+							dataProvider="{interfaces}"
+							rowHeight="24"
+							editable="true">
+					<s:columns>
+						<s:ArrayList>
+							<s:GridColumn dataField="clientId"
+										  headerText="Interface">
+								<s:itemEditor>
+									<fx:Component>
+										<s:DefaultGridItemEditor />
+									</fx:Component>
+								</s:itemEditor>
+								<s:itemRenderer>
+									<fx:Component>
+										<s:DefaultGridItemRenderer />
+									</fx:Component>
+								</s:itemRenderer>
+							</s:GridColumn>
+							<s:GridColumn dataField="macAddress"
+										  headerText="MAC"
+										  editable="false">
+								<s:itemRenderer>
+									<fx:Component>
+										<s:DefaultGridItemRenderer />
+									</fx:Component>
+								</s:itemRenderer>
+							</s:GridColumn>
+							<s:GridColumn dataField="ipaddress"
+										  headerText="IP">
+								<s:itemEditor>
+									<fx:Component>
+										<s:DefaultGridItemEditor />
+									</fx:Component>
+								</s:itemEditor>
+								<s:itemRenderer>
+									<fx:Component>
+										<s:DefaultGridItemRenderer />
+									</fx:Component>
+								</s:itemRenderer>
+							</s:GridColumn>
+							<s:GridColumn dataField="ipnetmask" 
+										  headerText="Mask">
+								<s:itemEditor>
+									<fx:Component>
+										<s:DefaultGridItemEditor />
+									</fx:Component>
+								</s:itemEditor>
+								<s:itemRenderer>
+									<fx:Component>
+										<s:DefaultGridItemRenderer />
+									</fx:Component>
+								</s:itemRenderer>
+							</s:GridColumn>
+						</s:ArrayList> 
+					</s:columns>
+				</s:DataGrid>
+				<s:Scroller width="100%" height="60%">
+					<s:VGroup width="100%" height="100%" id="linksVgroup" />
+				</s:Scroller>
 			</s:VGroup>
 		</s:NavigatorContent>
-		<s:NavigatorContent label="Links to">
-			<s:Scroller width="100%" height="100%">
-				<s:VGroup width="100%" height="100%" id="linksVbox" creationComplete="fillLinksTo();" />
-			</s:Scroller>
+		<s:NavigatorContent icon="{ImageUtil.extensionsIcon}" toolTip="Extensions" height="100%" width="100%">
+			<s:VGroup width="100%" height="100%" creationComplete="initExtensions()">
+				<s:Label text="ALL Namespace declarations MUST be included for new extensions pasted below." />
+				<s:TextArea id="extensionsTextarea" width="100%" height="100%" />
+			</s:VGroup>
 		</s:NavigatorContent>
-	</mx:TabNavigator>
-
+	</mx:ViewStack>
+	
+	<components:controlBarLayout>
+		<s:HorizontalLayout gap="4" paddingBottom="4" paddingTop="4" paddingRight="4" paddingLeft="4" />
+	</components:controlBarLayout>
 	<components:controlBarContent>
-		<s:Button id="okButton" label="Apply" icon="{ImageUtil.availableIcon}" click="success();" height="24" />
-		<s:Button id="cancelButton" label="Cancel" icon="{ImageUtil.cancelIcon}" click="closeWindow();" height="24" />
+		<s:Button id="okButton"
+				  label="Apply"
+				  icon="{ImageUtil.availableIcon}"
+				  click="trySaveAndClose();" height="24" />
+		<s:Button id="cancelButton"
+				  label="Cancel"
+				  icon="{ImageUtil.cancelIcon}"
+				  click="closeWindow();" height="24" />
 	</components:controlBarContent>
 </components:DefaultWindow>

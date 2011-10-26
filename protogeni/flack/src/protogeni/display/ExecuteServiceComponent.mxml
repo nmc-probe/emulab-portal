@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  width="100%"
+		  verticalAlign="middle" xmlns:components="protogeni.display.components.*">
+	<fx:Script>
+		<![CDATA[
+			import protogeni.resources.ExecuteService;
+			
+			import spark.components.Group;
+			import spark.components.VGroup;
+			[Bindable]
+			public var cmd:String = "";
+			[Bindable]
+			public var shell:String = "sh";
+			
+			public function set Service(value:ExecuteService):void
+			{
+				cmd = value.command;
+				shell = value.shell;
+			}
+			public function get Service():ExecuteService
+			{
+				return new ExecuteService(cmd, shell);
+			}
+		]]>
+	</fx:Script>
+	<s:TextInput id="executeCommandText" width="90%" text="@{cmd}"
+				 prompt="Command" />
+	<s:Label text="using" />
+	<s:TextInput id="executeShellText" width="10%" text="@{shell}"
+				 prompt="Shell? (sh, bash, etc.)" />
+	<components:ImageButton icon="{ImageUtil.deleteIcon}"
+							click="(parent as Group).removeElement(this)" />
+</s:HGroup>
