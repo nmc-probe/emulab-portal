@@ -116,16 +116,13 @@ package protogeni
 			{
 				visitedSites[baseUrl] = true;
 				var crossdomainUrl:String = baseUrl;
-				if(protogeniSite)
-					crossdomainUrl += "/protogeni/crossdomain.xml";
-				else
-					crossdomainUrl += "/crossdomain.xml";
-				LogHandler.appendMessage(new LogMessage(crossdomainUrl,
+				LogHandler.appendMessage(new LogMessage(baseUrl,
 														"Loading CrossDomain",
 														"Attempting to load a crossdomain.xml file so that calls may be made with the server located there.",
 														LogMessage.ERROR_NONE,
 														LogMessage.TYPE_OTHER));
-				Security.loadPolicyFile(crossdomainUrl);
+				Security.loadPolicyFile(crossdomainUrl + "/protogeni/crossdomain.xml");
+				Security.loadPolicyFile(crossdomainUrl + "/crossdomain.xml");
 			}
 		}
 		

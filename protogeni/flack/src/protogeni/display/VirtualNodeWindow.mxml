@@ -136,7 +136,7 @@
 				{
 					loginGroup.visible = true;
 					usernameText.text = node.loginServices[0].username;
-					hostnameText.text = node.loginServices[0].hostname;
+					hostnameText.text = node.loginServices[0].hostname + (node.loginServices[0].port.length>0 ? ":"+node.loginServices[0].port : "");
 				}
 				
 				managerList.selectedItem = node.manager;

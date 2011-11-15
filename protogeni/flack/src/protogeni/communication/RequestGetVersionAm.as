@@ -55,7 +55,39 @@ package protogeni.communication
 			try
 			{
 				if(response.geni_api != null)
-					aggregateManager.Version = response.geni_api;
+					aggregateManager.Version = int(response.geni_api);
+				
+				// Fall back to V1 if unsupported, fail otherwise
+				var data:Object = response;
+				if(aggregateManager.Version > 1)
+				{
+					if(response.value.geni_api_versions != null)
+					{
+						for(var supportedApiVersion:String in response.value.geni_api_versions)
+						{
+							var supportedApiUrl:String = response.value.geni_api_versions[supportedApiVersion];
+							var supportedApiVersionNumber:Number = Number(supportedApiVersion);
+							
+							if(supportedApiVersionNumber == 1)
+							{
+								aggregateManager.Version = 1;
+								aggregateManager.Url = supportedApiUrl;
+								
+								// Try again with V1
+								r = new RequestGetVersionAm(aggregateManager);
+								r.forceNext = true;
+								return r;
+							}
+						}
+					}
+					
+					aggregateManager.errorMessage = "API v" + aggregateManager.Version + " is not supported";
+					aggregateManager.errorDescription = "API v" + aggregateManager.Version + " is not supported";
+					aggregateManager.Status = GeniManager.STATUS_FAILED;
+					Main.geniDispatcher.dispatchGeniManagerChanged(aggregateManager);
+					return null;
+				}
+				
 				aggregateManager.inputRspecVersions = new Vector.<Number>();
 				aggregateManager.outputRspecVersions = new Vector.<Number>();
 				var maxInputRspecVersion:Number = -1;

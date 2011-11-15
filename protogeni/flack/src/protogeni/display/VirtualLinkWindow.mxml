@@ -68,7 +68,9 @@
 							types.addItem({type:VirtualLink.TYPE_GPENI, name:VirtualLink.TypeToString(VirtualLink.TYPE_GPENI)});
 						if(link.supportsIon())
 							types.addItem({type:VirtualLink.TYPE_ION, name:VirtualLink.TypeToString(VirtualLink.TYPE_ION)});
-					} else if(link.linkType != VirtualLink.TYPE_NORMAL) {
+						if(link.oneManager())
+							types.addItem({type:VirtualLink.TYPE_NORMAL, name:VirtualLink.TypeToString(VirtualLink.TYPE_NORMAL)});
+					} else {
 						types.addItem({type:VirtualLink.TYPE_TUNNEL, name:VirtualLink.TypeToString(VirtualLink.TYPE_TUNNEL)});
 					}
 					typeList.selectedIndex = 0;
@@ -149,14 +151,6 @@
 				link.clientId = clientIdInput.text;
 				link.vlantag = vlantagInput.text;
 				
-				if(link.linkType != this.typeList.selectedItem.type)
-				{
-					if(typeList.selectedItem.type == VirtualLink.TYPE_TUNNEL)
-						link.setUpTunnels();
-					else
-						link.linkType = this.typeList.selectedItem.type;
-				}
-				
 				if(this.capacityInput.text.length > 0)
 					link.capacity = Number(this.capacityInput.text);
 				else
@@ -169,6 +163,14 @@
 					iface.ip = ifaceObj.ipaddress;
 					iface.netmask = ifaceObj.ipnetmask;
 					iface.type = ifaceObj.iptype;
+				}
+				
+				if(link.linkType != this.typeList.selectedItem.type)
+				{
+					if(typeList.selectedItem.type == VirtualLink.TYPE_TUNNEL)
+						link.setUpTunnels();
+					else
+						link.linkType = this.typeList.selectedItem.type;
 				}
 				
 				Main.geniDispatcher.dispatchSliceChanged(link.interfaces.Slivers.collection[0].slice);

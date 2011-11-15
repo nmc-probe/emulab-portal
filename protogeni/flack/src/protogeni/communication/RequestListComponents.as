@@ -120,7 +120,7 @@ package protogeni.communication
 						{
 							newGm.Status = GeniManager.STATUS_INPROGRESS;
 							if(newGm is AggregateManager)
-								newCalls.push(new RequestGetVersionAm(newGm as AggregateManager));
+								newCalls.push(new RequestGetVersionAm(newGm));
 							else if(newGm is ProtogeniComponentManager)
 								newCalls.push(new RequestGetVersion(newGm as ProtogeniComponentManager));
 						}

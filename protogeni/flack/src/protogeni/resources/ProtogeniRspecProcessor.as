@@ -763,6 +763,11 @@ package protogeni.resources
 							case "bandwidth":
 								virtualLink.capacity = Number(linkChildXml.toString());
 								break;
+							case "link_type":
+								var linkType:String = String(linkChildXml.@name).toLowerCase();
+								if(linkType == "gre-tunnel")
+									virtualLink.linkType = VirtualLink.TYPE_TUNNEL;
+								break;
 							case "property":
 								/*if(linkChildXml.@latency.length() == 1)
 								virtualLink.latency = Number(linkChildXml.@latency);

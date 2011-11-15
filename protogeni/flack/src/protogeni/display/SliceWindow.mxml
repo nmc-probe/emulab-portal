@@ -158,11 +158,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					else
 						spinner.stopSpin();
 					
-					if(currentPane == VIEW_STATUS && refreshSlice.slivers.length == 0) {
+					if(refreshSlice.slivers.length == 0) {
 						this.setSidePane(VIEW_MANAGERS);
 					}
-					else if((refreshSlice.Changing && refreshSlice.slivers != null && refreshSlice.slivers.length > 0)
-						|| currentPane == VIEW_STATUS) {
+					else if(refreshSlice.Changing && refreshSlice.slivers != null && refreshSlice.slivers.length > 0) {
 						this.setSidePane(VIEW_STATUS, refreshSlice);
 					}
 					
@@ -172,7 +171,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						&& !refreshSlice.slivers.Status == Sliver.STATUS_FAILED)
 						this.clearStatus();
 				}
-				updateSliversInfo(refreshSlice);
+				
+				if(slice != null || !Main.geniHandler.requestHandler.isSliceChanging(refreshSlice))
+					updateSliversInfo(refreshSlice);
+				
 				refreshPluginPaneStatus(refreshSlice);
 			}
 			
@@ -393,9 +395,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public static const VIEW_MANAGER:int = 1;
 			public static const VIEW_COLLECTION:int = 2;
 			public static const VIEW_STATUS:int = 3;
-			public var currentPane:int = VIEW_MANAGERS;
+			//
 			public function setSidePane(type:int = VIEW_MANAGERS, data:* = null):void {
-				currentPane = type;
+				
 				switch(type) {
 					case VIEW_MANAGERS:
 					default:
@@ -426,15 +428,21 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						break;
 					case VIEW_STATUS:
 						this.dashboardViewstack.selectedChild = this.sliceView;
+						this.validateNow();
 						updateSliversInfo();
 						break;
 				}
 			}
 			
-			private function updateSliversInfo(refreshSlice:Slice = null):void
+			private function updateSliversInfo(updateSlice:Slice = null):void
 			{
+				var refreshSlice:Slice = updateSlice;
 				if(refreshSlice == null)
+				{
+					if(Main.geniHandler.requestHandler.isSliceChanging(sliceCanvas.slice))
+						return;
 					refreshSlice = sliceCanvas.slice;
+				}
 				if(sliceGroup != null)
 				{
 					if(refreshSlice != null) {
@@ -479,10 +487,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						this.startButton.enabled = false;
 					}
 					
-					sidePaneSlices.removeAllElements();
-					if(refreshSlice != null) {
+					if(updateSlice != null) {
+						sidePaneSlices.removeAllElements();
 						for each(var sliver:Sliver in refreshSlice.slivers.collection)
-						addSliverStatus(sliver);
+							addSliverStatus(sliver);
 					}
 				}
 			}
@@ -801,7 +809,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				{
 					this.spinner.visible = true;
 					this.spinner.startSpin();
-					NetUtil.checkLoadCrossDomain(url);
+					NetUtil.checkLoadCrossDomain(url, true, true);
 					getRspecRequest = new URLRequest(url);
 					getRspec = new URLLoader();
 					getRspec.addEventListener(Event.COMPLETE, finishImport);
@@ -847,7 +855,35 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				Main.geniHandler.requestHandler.regetSlice(sliceCanvas.slice);
 			}
 			
-			public function tryToDelete():void {
+			[Bindable] 
+			public var menuData:Array = [
+				{label: "Import from file", icon: ImageUtil.openIcon, action: onFileBrowse},
+				{label: "Import from clipboard", icon: ImageUtil.pasteIcon, action: importRspec}, 
+				{label: "Import from the web", icon: ImageUtil.worldIcon, action: importFromUrl}
+			];
+			private var importAction:Function;
+			protected function importMenuButton_itemClickHandler(event:MenuEvent):void
+			{
+				importAction = event.item.action;
+				importAction(event);
+				importMenuButton.setStyle("icon", event.item.icon);
+			}
+			
+			[Bindable] 
+			public var deleteMenuData:Array = [
+				{label: "Delete", action: deleteSlice},
+				{label: "Force Delete", action: deleteSliceEverywhere}
+			];
+			
+			private var deleteAction:Function;
+			protected function deleteMenuButton_itemClickHandler(event:MenuEvent):void
+			{
+				deleteAction = event.item.action;
+				deleteAction();
+			}
+			
+			public function deleteSlice():void
+			{
 				if(sliceCanvas.slice.slivers.AllocatedAnyResources)
 				{
 					Alert.show(
@@ -865,31 +901,38 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				else
 				{
 					Alert.show(
-						"It looks like no resources have been allocated, run delete at all managers to ensure no resources are allocated?",
+						"It doesn't appear like there are allocated resources. Run deallocate at all managers?",
 						"Deallocate resources?",
 						Alert.YES|Alert.NO,
 						this,
-						function afterDeleteAllDecision(e:CloseEvent):void
+						function afterDecision(e:CloseEvent):void
 						{
 							if(e.detail == Alert.YES)
-								Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice, true);
+								doDeleteSliceEverywhere();
 						}
 					);
 				}
 			}
 			
-			[Bindable] 
-			public var menuData:Array = [
-				{label: "Import from file", icon: ImageUtil.openIcon, action: onFileBrowse},
-				{label: "Import from clipboard", icon: ImageUtil.pasteIcon, action: importRspec}, 
-				{label: "Import from the web", icon: ImageUtil.worldIcon, action: importFromUrl}
-			];
-			private var importAction:Function;
-			protected function importMenuButton_itemClickHandler(event:MenuEvent):void
+			public function deleteSliceEverywhere():void
 			{
-				importAction = event.item.action;
-				importAction(event);
-				importMenuButton.setStyle("icon", event.item.icon);
+				Alert.show(
+					"Do you really want to force deallocation at all managers?",
+					"Deallocate resources?",
+					Alert.YES|Alert.NO,
+					this,
+					function afterDecision(e:CloseEvent):void
+					{
+						if(e.detail == Alert.YES)
+							doDeleteSliceEverywhere();
+					}
+				);
+				
+			}
+			
+			public function doDeleteSliceEverywhere():void
+			{
+				Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice, true);
 			}
 
 		]]>
@@ -966,15 +1009,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							</s:DropDownList>
 						</s:HGroup>
 						<s:HGroup width="100%" verticalAlign="middle" gap="2">
-							<s:Button id="deleteButton"
-									  toolTip="Delete slivers"
-									  styleName="failedStyle"
-									  label="Delete"
-									  icon="{ImageUtil.deleteIcon}"
-									  width="100%"
-									  height="24"
-									  enabled="{sliceCanvas.slice != null}"
-									  click="tryToDelete()" />
+							<mx:PopUpMenuButton id="deleteMenuButton"
+												height="24" width="100%"
+												dataProvider="{deleteMenuData}"
+												showRoot="true"
+												styleName="failedStyle"
+												icon="{ImageUtil.deleteIcon}"
+												itemClick="deleteMenuButton_itemClickHandler(event)" />
 							<components:ImageButton id="startButton"
 													height="24"
 													toolTip="Start slivers"

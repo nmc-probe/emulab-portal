@@ -83,6 +83,7 @@ package protogeni.tools.instools
 				  Instools.rspec_version[sliver.manager.Urn.full] = String(response.value.rspec_version);
 				  var pollStatus:RequestPollInstoolsStatus = new RequestPollInstoolsStatus(sliver);
 				  var requestNewNode:RequestSliverUpdate = new RequestSliverUpdate(sliver, new XML(response.value.instrumentized_rspec));
+				  requestNewNode.startImmediately = true;
 				  requestNewNode.forceNext = true;
 				  requestNewNode.addAfter = new RequestQueueNode(pollStatus);
 				  

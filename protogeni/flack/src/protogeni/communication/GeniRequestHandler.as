@@ -453,7 +453,9 @@ package protogeni.communication
 				{
 					if(manager.Status == GeniManager.STATUS_VALID)
 					{
-						var deleteSliver:Sliver = new Sliver(slice, manager);
+						var deleteSliver:Sliver = slice.slivers.getByManager(manager);
+						if(deleteSliver == null)
+							deleteSliver = new Sliver(slice, manager);
 						if(manager.isAm)
 							this.pushRequest(new RequestSliverDeleteAm(deleteSliver, true));
 						else if(manager is ProtogeniComponentManager)

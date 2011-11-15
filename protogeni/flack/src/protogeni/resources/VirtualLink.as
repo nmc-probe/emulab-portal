@@ -191,6 +191,16 @@ package protogeni.resources
 			return false;
 		}
 		
+		public function oneManager():Boolean {
+			var managers:GeniManagerCollection = new GeniManagerCollection();
+			for each(var i:VirtualInterface in this.interfaces.collection)
+			{
+				if(!managers.contains(i.owner.manager))
+					managers.add(i.owner.manager);
+			}
+			return managers.length == 1;
+		}
+		
 		public function supportsIon():Boolean {
 			for each(var i:VirtualInterface in this.interfaces.collection)
 			{

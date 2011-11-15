@@ -125,7 +125,16 @@ package protogeni.resources
 			}
 			
 			if(node.sliverTypes.length == 1)
+			{
 				this.sliverType = node.sliverTypes[0].name;
+			}
+			else
+			{
+				if(node.exclusive)
+					sliverType = SliverTypes.RAWPC;
+				else
+					sliverType = SliverTypes.EMULAB_OPENVZ;
+			}
 		}
 		
 		public function setDiskImage(img:String):void

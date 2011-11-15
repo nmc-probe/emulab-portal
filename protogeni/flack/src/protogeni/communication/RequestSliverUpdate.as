@@ -92,6 +92,7 @@ package protogeni.communication
 				sliver.ticket = ticket;
 				sliver.message = "Updated ticket received";
 				var redeemTicket:RequestTicketRedeem = new RequestTicketRedeem(sliver);
+				redeemTicket.startImmediately = startImmediately;
 				redeemTicket.addAfter = this.addAfter;
 				this.addAfter = null;
 				redeemTicket.forceNext = true;
