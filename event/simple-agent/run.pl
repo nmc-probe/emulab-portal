@@ -1,2 +1,4 @@
-system("../../../pubsub/pubsubd -v -d -p 4001");
-system("./simple-agent -E delay-agent/single-node -s localhost -k /var/emulab/boot/eventkey -u foobar -p 4001");
+#system("../../../pubsub/pubsubd -v -d -p 4001");
+system("./disk-agent -E utahstud/stap3 -s event-server -u disk -p 16505");
+#-k /var/emulab/boot/eventkey
+

@@ -3,12 +3,12 @@
 # Copyright (c) 2010 University of Utah and the Flux Group.
 # All rights reserved.
 #
-gcc -DELVIN_COMPAT -c ../lib/event.c -o event.o -I../lib/ -I../../lib/libtb/ \
-  -I../../.. -L../../../pubsub
-gcc -DELVIN_COMPAT -c ../lib/util.c -o util.o -I../lib/ -I../../lib/libtb/ \
-  -I../../.. -L../../../pubsub
+gcc  -c /proj/utahstud/ydev/emulab-devel/clientside/lib/event/event.c -o event.o -I/proj/utahstud/ydev/emulab-devel/clientside/lib \
+-I /proj/utahstud/ydev/emulab-devel/clientside/lib/libtb -I/proj/utahstud/ydev/ -L/proj/utahstud/ydev/pubsub
+gcc  -c /proj/utahstud/ydev/emulab-devel/clientside/lib/event/util.c -o util.o -I/proj/utahstud/ydev/emulab-devel/clientside/lib \
+-I /proj/utahstud/ydev/emulab-devel/clientside/lib/libtb -I/proj/utahstud/ydev/ -L/proj/utahstud/ydev/pubsub
 ar crv libevent.a event.o util.o
 ranlib libevent.a
-g++ -DELVIN_COMPAT -o simple-agent -Wall -I../lib/ -I../../lib/libtb/ \
-  -I../../.. -L../../../pubsub main.cc libevent.a -lpubsub -lssl
+g++  -g -o disk-agent -Wall -I/proj/utahstud/ydev/emulab-devel/clientside/lib -I/proj/utahstud/ydev/emulab-devel/clientside/lib/libtb \
+  -I/proj/utahstud/ydev/emulab-devel/event/simple-agent -L/proj/utahstud/ydev/emulab-devel/event/simple-agent -L/proj/utahstud/ydev/pubsub disk-agent.cc libevent.a -ldevmapper -lpubsub -lssl
 
