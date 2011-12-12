@@ -457,17 +457,21 @@ int create_dm_device(char *args)
 	while(stream >> buf)
 		tokens.push_back(buf);
 
-	if(tokens.size() < 1) {
+	if(tokens.size() <= 1) {
 		cout << "ERROR: No arguments" << endl;
 		return 0;
 	}
-
 
 	/* Create a new dm device */
 	if(!(dmt = dm_task_create(DM_DEVICE_CREATE))){
 		cout << "in dm task create"<<endl;
 		return 0;
 	}
+
+	char *disk_name = const_cast<char *>(tokens[0].c_str());
+        /* Set properties on the new dm device */
+        if (!dm_task_set_name(dmt, disk_name))
+                goto out;
 
 	/* If only the name and file are given as input */
 	if(tokens.size() == 2) {
@@ -478,23 +482,6 @@ int create_dm_device(char *args)
 		}
 	}
 	
-	
-	if(tokens.size() > 2) {
-               int line=0;
-                stringstream ss;
-                for(size_t i=1; i<tokens.size(); i++) {
-                        ss << tokens[i] <<" ";
-                }
-                string s = ss.str();
-		
-                _table = const_cast<char *>(s.c_str());
-                if(!_parse_line(dmt, _table, "", ++line)) {
-                        cout<<"in parse_line"<<endl;
-                        goto out;
-                }
-
-	}		
-
 	if(tokens.size() > 2) {
 		int line=0;
 		stringstream ss;
@@ -520,6 +507,10 @@ int create_dm_device(char *args)
 		goto out;
 	}
         
+	if (!_device_info(disk_name)) {
+		goto out;
+	}
+
 	r=1;
 	out:
            dm_task_destroy(dmt);
@@ -544,7 +535,7 @@ int modify_dm_device(char *args)
         while(stream >> buf)
                 tokens.push_back(buf);
 
-        if(tokens.size() < 1) {
+        if(tokens.size() <= 1) {
                 cout << "ERROR: No arguments" << endl;
                 return 0;
         }
@@ -553,8 +544,9 @@ int modify_dm_device(char *args)
         if(!(dmt = dm_task_create(DM_DEVICE_RELOAD)))
                 return 0;
 
+	char *disk_name = const_cast<char *>(tokens[0].c_str());
         /* Set properties on the new dm device */
-        if (!dm_task_set_name(dmt, const_cast<char *>(tokens[0].c_str())))
+        if (!dm_task_set_name(dmt, disk_name))
                 goto out;
 
         if(tokens.size() == 2) {
@@ -586,6 +578,10 @@ int modify_dm_device(char *args)
         /* DM disk is created; Query it. */
         //printf("DM Disk: %s\n", dm_task_get_name(dmt));
 
+        if (!_device_info(disk_name)) {
+                goto out;
+	}
+ 
 	/* Resume this dm device for changes to take effect. */
 	resume_dm_device(const_cast<char *>(tokens[0].c_str()));
         r=1;
