@@ -35,6 +35,7 @@ use Exporter;
 	     TMCCCMD_MOTELOG TMCCCMD_BOOTWHAT TMCCCMD_ROOTPSWD
 	     TMCCCMD_LTMAP TMCCCMD_LTPMAP TMCCCMD_TOPOMAP TMCCCMD_LOADINFO
 	     TMCCCMD_TPMBLOB TMCCCMD_TPMPUB TMCCCMD_DHCPDCONF TMCCCMD_MANIFEST
+	     TMCCCMD_NODEUUID
 	     );
 
 # Must come after package declaration!
@@ -195,6 +196,7 @@ my %commandset =
       "loadinfo"        => {TAG => "loadinfo"},
       "dhcpdconf"       => {TAG => "dhcpdconf"},
       "manifest"        => {TAG => "manifest"},
+      "nodeuuid"	=> {TAG => "nodeuuid"},
     );
 
 #
@@ -265,6 +267,7 @@ sub TMCCCMD_TPMPUB()  { $commandset{"tpmpubkey"}->{TAG}; }
 sub TMCCCMD_LOADINFO()  { $commandset{"loadinfo"}->{TAG}; }
 sub TMCCCMD_DHCPDCONF()  { $commandset{"dhcpdconf"}->{TAG}; }
 sub TMCCCMD_MANIFEST()  { $commandset{"manifest"}->{TAG}; }
+sub TMCCCMD_NODEUUID()    { $commandset{"nodeuuid"}->{TAG}; }
 
 #
 # Caller uses this routine to set configuration of this library

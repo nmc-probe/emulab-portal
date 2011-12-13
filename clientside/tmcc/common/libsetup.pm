@@ -23,7 +23,7 @@ use Exporter;
 	 gettraceconfig genhostsfile getmotelogconfig calcroutes fakejailsetup
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
          getlinkdelayconfig getloadinfo getbootwhat 
-	 forcecopy
+	 forcecopy getnodeuuid
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs
 
@@ -39,7 +39,7 @@ use Exporter;
 	 CONFDIR LOGDIR TMDELAY TMBRIDGES TMJAILNAME TMSIMRC TMCC TMCCBIN
 	 TMNICKNAME TMSTARTUPCMD FINDIF
 	 TMROUTECONFIG TMLINKDELAY TMDELMAP TMTOPOMAP TMLTMAP TMLTPMAP
-	 TMGATEDCONFIG TMSYNCSERVER TMKEYHASH TMNODEID TMEVENTKEY
+	 TMGATEDCONFIG TMSYNCSERVER TMKEYHASH TMNODEID TMNODEUUID TMEVENTKEY
 	 TMCREATOR TMSWAPPER TMFWCONFIG TMGENVNODECONFIG
 	 INXENVM
        );
@@ -356,6 +356,7 @@ sub TMSYNCSERVER()	{ CONFDIR() . "/syncserver";}
 sub TMKEYHASH()		{ CONFDIR() . "/keyhash";}
 sub TMEVENTKEY()	{ CONFDIR() . "/eventkey";}
 sub TMNODEID()		{ CONFDIR() . "/nodeid";}
+sub TMNODEUUID()	{ CONFDIR() . "/nodeuuid";}
 sub TMROLE()		{ CONFDIR() . "/role";}
 sub TMSIMRC()		{ CONFDIR() . "/rc.simulator";}
 sub TMCREATOR()		{ CONFDIR() . "/creator";}
@@ -706,6 +707,9 @@ sub donodeid()
     my $nodeid;
     my @tmccresults;
 
+    # Do this too.
+    donodeuuid();
+
     if (tmcc(TMCCCMD_NODEID, undef, \@tmccresults) < 0) {
 	warn("*** WARNING: Could not get nodeid from server!\n");
 	return -1;
@@ -727,6 +731,39 @@ sub donodeid()
     system("echo '$nodeid' > ". TMNODEID);
     if ($?) {
 	warn "*** WARNING: Could not write nodeid to " . TMNODEID() . "\n";
+    }
+    return 0;
+}
+
+#
+# Get the nodeuuid
+#
+sub donodeuuid()
+{
+    my $nodeuuid;
+    my @tmccresults;
+
+    if (tmcc(TMCCCMD_NODEUUID, undef, \@tmccresults) < 0) {
+	warn("*** WARNING: Could not get nodeuuid from server!\n");
+	return -1;
+    }
+    return 0
+	if (! @tmccresults);
+
+    #
+    # There should be just one string. Ignore anything else.
+    #
+    if ($tmccresults[0] =~ /([-\w]*)/) {
+	$nodeuuid = $1;
+    }
+    else {
+	warn "*** WARNING: Bad nodeuuid line: $tmccresults[0]";
+	return -1;
+    }
+
+    system("echo '$nodeuuid' > ". TMNODEUUID);
+    if ($?) {
+	warn "*** WARNING: Could not write nodeuuid to " . TMNODEUUID() . "\n";
     }
     return 0;
 }
@@ -3048,6 +3085,20 @@ sub whatsmynickname()
     }
 
     return "$vname.$eid.$pid";
+}
+
+#
+# Return uuid for node.
+#
+sub getnodeuuid()
+{
+    my $uuidfile = TMNODEUUID();
+    my $nodeuuid = `cat $uuidfile`;
+    return undef
+	if ($?);
+	    
+    chomp($nodeuuid);
+    return $nodeuuid;
 }
 
 #

@@ -209,6 +209,7 @@ typedef struct {
 	char		testdb[TBDB_FLEN_TINYTEXT];
 	char		sharing_mode[TBDB_FLEN_TINYTEXT];
 	char            privkey[PRIVKEY_LEN+1];
+	char		nodeuuid[TBDB_FLEN_UUID];
         /* This key is a replacement for privkey, on protogeni resources */
 	char            external_key[PRIVKEY_LEN+1];
 } tmcdreq_t;
@@ -229,6 +230,7 @@ static event_handle_t	event_handle = NULL;
 
 COMMAND_PROTOTYPE(doreboot);
 COMMAND_PROTOTYPE(donodeid);
+COMMAND_PROTOTYPE(donodeuuid);
 COMMAND_PROTOTYPE(domanifest);
 COMMAND_PROTOTYPE(dostatus);
 COMMAND_PROTOTYPE(doifconfig);
@@ -337,6 +339,7 @@ struct command {
 } command_array[] = {
 	{ "reboot",	  FULLCONFIG_NONE, 0, doreboot },
 	{ "nodeid",	  FULLCONFIG_ALL,  0, donodeid },
+	{ "nodeuuid",	  FULLCONFIG_ALL,  0, donodeuuid },
 	{ "manifest",	  FULLCONFIG_ALL,  0, domanifest },
 	{ "status",	  FULLCONFIG_NONE, 0, dostatus },
 	{ "ifconfig",	  FULLCONFIG_ALL,  F_ALLOCATED, doifconfig },
@@ -1387,6 +1390,18 @@ COMMAND_PROTOTYPE(donodeid)
 	char		buf[MYBUFSIZE];
 
 	OUTPUT(buf, sizeof(buf), "%s\n", reqp->nodeid);
+	client_writeback(sock, buf, strlen(buf), tcp);
+	return 0;
+}
+
+/*
+ * Return emulab node uuid.
+ */
+COMMAND_PROTOTYPE(donodeuuid)
+{
+	char		buf[MYBUFSIZE];
+
+	OUTPUT(buf, sizeof(buf), "%s\n", reqp->nodeuuid);
 	client_writeback(sock, buf, strlen(buf), tcp);
 	return 0;
 }
@@ -5992,7 +6007,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " u.admin,dedicated_wa_types.attrvalue "
 				 "   AS isdedicated_wa, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
-				 " r.sharing_mode,e.geniflags "
+				 " r.sharing_mode,e.geniflags,n.uuid "
 				 "FROM nodes AS n "
 				 "LEFT JOIN reserved AS r ON "
 				 "  r.node_id=n.node_id "
@@ -6021,7 +6036,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "     (SELECT node_id FROM widearea_nodeinfo "
 				 "      WHERE privkey='%s') "
 				 "  AND notmcdinfo_types.attrvalue IS NULL",
-				 34, nodekey);
+				 35, nodekey);
 	}
 	else if (reqp->isvnode) {
 		char	clause[BUFSIZ];
@@ -6050,7 +6065,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " e.idx,e.creator_idx,e.swapper_idx, "
 				 " u.admin,null, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
-				 " r.sharing_mode,e.geniflags "
+				 " r.sharing_mode,e.geniflags,nv.uuid "
 				 "from nodes as nv "
 				 "left join nodes as np on "
 				 " np.node_id=nv.phys_nodeid "
@@ -6071,7 +6086,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "left join users as u on "
 				 " u.uid_idx=e.swapper_idx "
 				 "where nv.node_id='%s' and (%s)",
-				 34, reqp->vnodeid, clause);
+				 35, reqp->vnodeid, clause);
 	}
 	else {
 		char	clause[BUFSIZ];
@@ -6099,7 +6114,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " u.admin,dedicated_wa_types.attrvalue "
 				 "   as isdedicated_wa, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
-				 " r.sharing_mode,e.geniflags "
+				 " r.sharing_mode,e.geniflags,n.uuid "
 				 "from interfaces as i "
 				 "left join nodes as n on n.node_id=i.node_id "
 				 "left join reserved as r on "
@@ -6127,7 +6142,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "  on n.type=dedicated_wa_types.type "
 				 "where (%s) "
 				 "  and notmcdinfo_types.attrvalue is NULL",
-				 34, clause);
+				 35, clause);
 	}
 
 	if (!res) {
@@ -6153,6 +6168,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 	strncpy(reqp->pclass, row[14], sizeof(reqp->pclass));
 	strncpy(reqp->ptype,  row[15], sizeof(reqp->ptype));
 	strncpy(reqp->nodeid, row[2],  sizeof(reqp->nodeid));
+	strncpy(reqp->nodeuuid, row[34],  sizeof(reqp->nodeuuid));
 	if(nodekey != NULL) {
 		strncpy(reqp->privkey, nodekey, PRIVKEY_LEN);
 	}
