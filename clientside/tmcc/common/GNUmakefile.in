@@ -102,6 +102,7 @@ subboss-common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/bootsubnodes $(BINDIR)/bootsubnodes
 	$(INSTALL) -m 755 $(SRCDIR)/bootvnodes $(BINDIR)/bootvnodes
 	$(INSTALL) -m 755 $(SRCDIR)/startcmddone $(BINDIR)/startcmddone
+	$(INSTALL) -m 755 $(SRCDIR)/getblob $(BINDIR)/getblob
 	(cd config; $(MAKE) DESTDIR=$(DESTDIR) subboss-script-install)
 
 symlinks:	dir-install
@@ -132,9 +133,6 @@ subboss-local-script-install:	subboss-common-script-install
 	$(INSTALL) -m 755 $(SRCDIR)/sendevent $(BINDIR)/sendevent
 	$(INSTALL) -m 755 $(SRCDIR)/rc.testbed $(RCDIR)/rc.testbed
 	$(INSTALL) -m 755 $(SRCDIR)/rc.bootsetup $(RCDIR)/rc.bootsetup
-	$(INSTALL) -m 755 $(SRCDIR)/rc.slothd $(RCDIR)/rc.slothd
-	$(INSTALL) -m 755 $(SRCDIR)/rc.canaryd $(RCDIR)/rc.canaryd
-	$(INSTALL) -m 755 $(SRCDIR)/rc.linktest $(RCDIR)/rc.linktest
 	$(INSTALL) -m 755 $(SRCDIR)/rc.inelab $(RCDIR)/rc.inelab
 	$(INSTALL) -m 755 $(SRCDIR)/rc.pgeni $(RCDIR)/rc.pgeni
 	# Symlink this cause we invoke it from boss, and its too much
