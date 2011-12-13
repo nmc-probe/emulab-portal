@@ -1155,7 +1155,6 @@ Phase "rc.conf", "Adding testbed content to $RCCONF", sub {
 		   qq|nfs_client_enable="YES"|,
 		   qq|inetd_enable="YES"|,
 		   qq|inetd_flags="-wW -R 0"|,
-		   qq|xntpd_enable="YES"|,
 		   qq|syslogd_flags=""|,
 		   qq|tftpd_flags="-lvvvv -C 40 -s /tftpboot"|,
 		   qq|apache_enable="YES"|,
@@ -1171,6 +1170,13 @@ Phase "rc.conf", "Adding testbed content to $RCCONF", sub {
 			qq|named_flags=""|,
 			qq|named_uid="root"|,
 			qq|named_pidfile="$NAMED_PIDFILE"|));
+    }
+
+    # At FreeBSD 6, they also changed the name of the ntp start var.
+    if ($FBSD_MAJOR < 6) {
+	push(@strings, qq|xntpd_enable="YES"|);
+    } else {
+	push(@strings, qq|ntpd_enable="YES"|);
     }
 
     # add multicast route for frisbee
