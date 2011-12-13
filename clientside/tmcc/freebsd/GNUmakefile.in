@@ -60,6 +60,7 @@ install client-install:	common-install etc-install init-install \
 
 mfs-install:	destdircheck common-install etc-install \
 			script-install bin-install
+	$(INSTALL) -m 755 $(SRCDIR)/slicefix $(BINDIR)/slicefix
 	$(INSTALL) -m 755 $(SRCDIR)/camwce $(BINDIR)/camwce
 	cp $(SRCDIR)/mfs-rc.conf $(SYSETCDIR)/rc.conf
 	rm -f $(BINDIR)/rc/rc.mkelab
