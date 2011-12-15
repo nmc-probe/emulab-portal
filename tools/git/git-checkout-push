@@ -35,12 +35,6 @@ chomp $IN_WORK_TREE;
 chomp $IN_GIT_DIR;
 chomp $IS_BARE_REPO;
 
-#
-# For reasons not clear to me, one has to tell git where the actual working
-# tree is - this makes some layout assumptions that probably work most of
-# the time
-#
-
 if ($IS_BARE_REPO eq 'true') {
         print "*** ERROR: Repository being pushed to is bare ";
         print "(has no work tree), checkout aborted\n";
@@ -54,6 +48,9 @@ if ($IS_BARE_REPO eq 'true') {
 if ($IN_GIT_DIR eq 'true') {
 	chdir "$ENV{GIT_DIR}/..";
 	delete $ENV{GIT_DIR};
+} else {
+	print "*** ERROR: Not running from GIT_DIR.  Aborted\n";
+	exit(1);
 }
 
 #
