@@ -27,7 +27,8 @@ use Exporter;
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs
 
-	 TBDebugTimeStamp TBDebugTimeStampWithDate TBDebugTimeStampsOn
+	 TBDebugTimeStamp TBDebugTimeStampWithDate
+	 TBDebugTimeStampsOn TBDebugTimeStampsOff
 
 	 MFS REMOTE REMOTEDED CONTROL WINDOWS JAILED PLAB LOCALROOTFS IXP
 	 USESFS SHADOW FSRVTYPE PROJDIR EXPDIR
@@ -1312,8 +1313,8 @@ sub getifconfig($;$)
 		    if (defined($vnodeid) && $vnodeid =~ /.+\-(\d+)$/) {
 			my ($voutmac,$vinmac) = build_fake_macs($vnodeid,
 								$vmac);
-			if (defined($voutmac) && ! ($iface = findiface($voutmac))) {
-			    warn("*** WARNING: Could not map $voutmac to a veth (even with vnodeid hack)!\n");
+			if (defined($vinmac) && ! ($iface = findiface($vinmac))) {
+			    warn("*** WARNING: Could not map $vinmac to a veth (even with vnodeid hack)!\n");
 			    next;
 			}
 			elsif (!defined($voutmac)) {
@@ -2944,6 +2945,8 @@ sub genvnodesetup($;$$)
 	if ($issharedhost);
     tmccgetconfig();
 
+    donodeuuid();
+
     #
     # XXX: Get jail config.  For now we just snoop on this, but should do our
     # own later.
@@ -3256,6 +3259,11 @@ sub TBDebugTimeStampsOn()
 {
     $TIMESTAMPS = 1;
     $ENV{'TIMESTAMPS'} = "1";
+}
+sub TBDebugTimeStampsOff()
+{
+    $TIMESTAMPS = 0;
+    $ENV{'TIMESTAMPS'} = "0";
 }
 
 1;
