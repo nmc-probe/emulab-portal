@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004 University of Utah and the Flux Group.
+# Copyright (c) 2004-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -44,6 +44,7 @@ my $LOGFILE = "$LOGDIR/bootsetup.debug";
 use libsetup;
 use libtmcc;
 use librc;
+use libtestbed qw(TBBackGround);
 
 # XXX This is the outer bossname. We use an IP so we are not dependent
 # on the nameserver. The route to boss will have been added by DHCP on

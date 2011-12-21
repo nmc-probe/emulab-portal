@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2009-2010 University of Utah and the Flux Group.
+# Copyright (c) 2009-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -48,6 +48,7 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 # 
 use libsetup;
 use libtmcc;
+use libtestbed qw(TBBackGround);
 
 # Pull in libvnode
 use libvnode;

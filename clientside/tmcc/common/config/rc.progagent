@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004-2008, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2004-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -31,6 +31,7 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 use libsetup;
 use libtmcc;
 use librc;
+use libtestbed qw(TBBackGround);
 
 # This runs as a separate Local System service on XP.  Change to root.
 if (WINDOWS()) { $EUID = $UID = 0; }

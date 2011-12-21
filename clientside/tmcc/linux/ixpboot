@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # TODO: Startup command in rc.ixp. Use old version.
@@ -39,6 +39,7 @@ $| = 1;
 # 
 use libsetup;
 use libtmcc;
+use libtestbed qw(TBBackGround);
 
 # Need this below
 my ($pid, $eid) = check_nickname();

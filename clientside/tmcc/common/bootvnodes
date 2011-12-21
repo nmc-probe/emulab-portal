@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use Getopt::Std;
@@ -37,6 +37,7 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 # 
 use libsetup;
 use libtmcc;
+use libtestbed qw(TBBackGround);
 
 # Locals
 my $logname = "$LOGDIR/bootvnodes.debug";

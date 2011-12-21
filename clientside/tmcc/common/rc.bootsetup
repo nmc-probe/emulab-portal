@@ -40,7 +40,7 @@ if ($EUID != 0) {
 use libsetup;
 use libtmcc;
 use librc;
-use libtestbed ('TB_EVENTSERVER', 'TB_BOSSNODE');
+use libtestbed ('TB_EVENTSERVER', 'TB_BOSSNODE', 'TBBackGround');
 
 # Script specific goo.
 my $RCDIR	= "$BINDIR/rc";
