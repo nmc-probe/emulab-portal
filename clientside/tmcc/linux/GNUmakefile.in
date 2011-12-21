@@ -272,9 +272,11 @@ openvz-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/vnodectl $(BINDIR)/
 	echo "openvz" > $(ETCDIR)/genvmtype
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/vzmount-elab.sh $(BINDIR)/
-	-ln -sf $(BINDIR)/vzmount-elab.sh /etc/vz/conf/vps.mount
+	# No destdir in this symlink!
+	-ln -sf $(CLIENT_BINDIR)/vzmount-elab.sh /etc/vz/conf/vps.mount
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/vzumount-elab.sh $(BINDIR)/
-	-ln -sf $(BINDIR)/vzumount-elab.sh /etc/vz/conf/vps.umount
+	# No destdir in this symlink!
+	-ln -sf $(CLIENT_BINDIR)/vzumount-elab.sh /etc/vz/conf/vps.umount
 	$(INSTALL) -m 755 $(SRCDIR)/mkvnode.pl $(BINDIR)/mkvnode.pl
 
 xen-install:	dir-install
@@ -286,14 +288,20 @@ xen-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/xend-config.sxp $(SYSETCDIR)/xen/
 	$(INSTALL) -m 755 xen/emulab-cnet $(SYSETCDIR)/xen/scripts/
 
-OPENVZGUEST  = /vz/template/cache/emulab-default.tar.gz
 
-openvz-guest: $(OPENVZGUEST)
+
+OPENVZGUEST_TEMPLATE  = /vz.save/template/cache/emulab-default.tar.gz
+OPENVZGUEST           = /vz/template/cache/emulab-default.tar.gz
+
+openvz-guest: $(OPENVZGUEST_TEMPLATE)
 	-$(RM) -rf /tmp/guest
 	mkdir /tmp/guest
-	tar xzf $(OPENVZGUEST) -C /tmp/guest
+	tar xzf $(OPENVZGUEST_TEMPLATE) -C /tmp/guest
 	(cd $(OBJDIR) ; \
 		$(MAKE) DESTDIR=/tmp/guest client-install)
 	$(MAKE) DESTDIR=/tmp/guest openvz-install
-	tar czf $(OPENVZGUEST) -C /tmp/guest .
+	tar czf $(OPENVZGUEST_TEMPLATE) -C /tmp/guest .
 	-$(RM) -rf /tmp/guest
+	@if [ -e "$(OPENVZGUEST)" ]; then \
+		cp -fp $(OPENVZGUEST_TEMPLATE) $(OPENVZGUEST); \
+	fi
