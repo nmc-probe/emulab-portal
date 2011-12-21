@@ -14,7 +14,7 @@ use Exporter;
 	      VNODE_STATUS_MOUNTED
               ipToMac macAddSep fatal mysystem mysystem2
 	      makeIfaceMaps makeBridgeMaps
-	      findControlNet findIface findMac
+	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
               findVirtControlNet findDNS downloadImage setState
               getKernelVersion
@@ -282,6 +282,15 @@ sub findControlNet()
 sub findVirtControlNet()
 {
     return ($VCNET_NET, $VCNET_MASK, $VCNET_GW);
+}
+
+sub existsIface($) {
+    my $iface = shift;
+
+    return 1
+        if (exists($if2mac{$iface}));
+
+    return 0;
 }
 
 sub findIface($) {
