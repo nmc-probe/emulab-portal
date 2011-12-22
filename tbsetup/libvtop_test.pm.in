@@ -8000,6 +8000,7 @@ sub UpLoadTunnels($)
 	my $ip0       = $member0->ip();
 	my $ip1       = $member1->ip();
 	
+	
 	my $pnodename0 = ($virtnode0->_isvirtnode() ?
 			  $self->solution_v2v()->{$virtnode0->vname()} :
 			  $self->solution_v2p()->{$virtnode0->vname()});
@@ -8008,14 +8009,16 @@ sub UpLoadTunnels($)
 			  $self->solution_v2p()->{$virtnode1->vname()});
 	my $pnode0 = $self->pnodes()->{$pnodename0};
 	my $pnode1 = $self->pnodes()->{$pnodename1};
-    
+
 	#
 	# Need to map the server to the control net interface of the
 	# physical node.
 	#
-	my $peerip0 = Interface->LookupControl($pnode0);
-	my $peerip1 = Interface->LookupControl($pnode1);
-
+	my $peerip0 = ($virtnode0->_isvirtnode() ?
+		       $pnode0->jailip() : Interface->LookupControl($pnode0));
+	my $peerip1 = ($virtnode1->_isvirtnode() ?
+		       $pnode1->jailip() : Interface->LookupControl($pnode1));
+	
 	if (!defined($peerip0)) {
 	    tberror("No Control Network IP for $pnodename0!\n");
 	    return -1;
