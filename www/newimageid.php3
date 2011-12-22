@@ -418,6 +418,16 @@ function SPITFORM($formfields, $errors)
 	echo "                       > Yes
                   </td>
               </tr>\n";
+
+	echo "<tr>
+	          <td>MBR Version:<br>
+		  <td class=left>
+		      <input type=text
+			     name=\"formfields[mbr_version]\"
+			     value=\"" . $formfields["mbr_version"] . "\"
+			     size=2 maxlength=2>
+		  </td>
+	      </tr>\n";
     }
 
     echo "<tr>
@@ -478,6 +488,7 @@ if (!isset($submit)) {
     $defaults["shared"]      = "No";
     $defaults["global"]      = "No";
     $defaults["makedefault"] = "No";
+    $defaults["mbr_version"] = "";
 
     #
     # For users that are in one project and one subgroup, it is usually
@@ -615,6 +626,11 @@ $makedefault = 0;
 if (isset($formfields["makedefault"])) {
    $args["makedefault"] = $makedefault = 
        strcmp($formfields["makedefault"], "Yep") ? 0 : 1;
+}
+
+if (isset($formfields["mbr_version"]) &&
+    $formfields["mbr_version"] != "") {
+    $args["mbr_version"] = $formfields["mbr_version"];
 }
 
 #

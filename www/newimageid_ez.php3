@@ -545,7 +545,19 @@ function SPITFORM($formfields, $errors)
 	      </tr>\n";
 
     }
-    
+
+    if ($isadmin) {
+	echo "<tr>
+	          <td>MBR Version:<br>
+		  <td class=left>
+		      <input type=text
+			     name=\"formfields[mbr_version]\"
+			     value=\"" . $formfields["mbr_version"] . "\"
+			     size= maxlength=2>
+		  </td>
+	      </tr>\n";
+    }
+
     #
     # Shared?
     #
@@ -755,6 +767,7 @@ if (!isset($submit)) {
     $defaults["shared"]		 = "No";
     $defaults["global"]		 = "No";
     $defaults["reboot_waittime"] = "";
+    $defaults["mbr_version"]     = "";
 
     if (isset($nodetype) && $nodetype == "mote") {
 	# Defaults for mote-type nodes
@@ -952,6 +965,11 @@ if (isset($formfields["global"])) {
 if (isset($formfields["max_concurrent"]) &&
     $formfields["max_concurrent"] != "") {
     $args["max_concurrent"] = $formfields["max_concurrent"];
+}
+
+if (isset($formfields["mbr_version"]) &&
+    $formfields["mbr_version"] != "") {
+    $args["mbr_version"] = $formfields["mbr_version"];
 }
 
 if (isset($formfields["reboot_waittime"]) &&

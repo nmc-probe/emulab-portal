@@ -262,6 +262,18 @@ function SPITFORM($image, $formfields, $errors)
               <td class=left>". ($defaults["global"] ? "Yes" : "No") . "</td>
           </tr>\n";
 
+    if ($isadmin) {
+	echo "<tr>
+	          <td>MBR Version:<br>
+		  <td class=left>
+		      <input type=text
+			     name=\"formfields[mbr_version]\"
+			     value=\"" . $formfields["mbr_version"] . "\"
+			     size= maxlength=2>
+		  </td>
+	      </tr>\n";
+    }
+
     echo "<tr>
               <td align=center colspan=2>
                  <b><input type=submit name=submit value=Submit></b>
@@ -339,6 +351,11 @@ if (isset($formfields["description"]) && $formfields["description"] != "" &&
 if (isset($formfields["path"]) && $formfields["path"] != "" &&
     ($formfields["path"] != $image->path())) {
     $args["path"] = $formfields["path"];
+}
+
+if (isset($formfields["mbr_version"]) && $formfields["mbr_version"] != "" &&
+    $formfields["mbr_version"] != $image->mbr_version()) {
+    $args["mbr_version"] = $formfields["mbr_version"];
 }
 
 # The mtype_* checkboxes are dynamically generated.

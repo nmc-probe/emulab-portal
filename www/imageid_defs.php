@@ -267,7 +267,7 @@ class Image
 
 	# Unlink this here, so that the file is left behind in case of error.
 	# We can then create the image by hand from the xmlfile, if desired.
-	unlink($xmlname);
+	#unlink($xmlname);
 	return true;
     }
 
@@ -306,6 +306,7 @@ class Image
     function shared()		{ return $this->field("shared"); }
     function isglobal()		{ return $this->field("global"); }
     function updated()		{ return $this->field("updated"); }
+    function mbr_version()	{ return $this->field("mbr_version"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -470,6 +471,7 @@ class Image
 	$creator	= $this->creator();
 	$created	= $this->created();
 	$uuid           = $this->uuid();
+	$mbr_version    = $this->mbr_version();
 
 	if (!$description)
 	    $description = "&nbsp;";
@@ -615,6 +617,11 @@ class Image
 	echo "<tr>
                 <td>Internal ID: </td>
                 <td class=left>$imageid</td>
+              </tr>\n";
+
+	echo "<tr>
+                <td>MBR Version: </td>
+                <td class=left>$mbr_version</td>
               </tr>\n";
 
 	echo "<tr>
