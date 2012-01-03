@@ -288,8 +288,6 @@ xen-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/xend-config.sxp $(SYSETCDIR)/xen/
 	$(INSTALL) -m 755 xen/emulab-cnet $(SYSETCDIR)/xen/scripts/
 
-
-
 OPENVZGUEST_TEMPLATE  = /vz.save/template/cache/emulab-default.tar.gz
 OPENVZGUEST           = /vz/template/cache/emulab-default.tar.gz
 
@@ -299,7 +297,6 @@ openvz-guest: $(OPENVZGUEST_TEMPLATE)
 	tar xzf $(OPENVZGUEST_TEMPLATE) -C /tmp/guest
 	(cd $(OBJDIR) ; \
 		$(MAKE) DESTDIR=/tmp/guest client-install)
-	$(MAKE) DESTDIR=/tmp/guest openvz-install
 	tar czf $(OPENVZGUEST_TEMPLATE) -C /tmp/guest .
 	-$(RM) -rf /tmp/guest
 	@if [ -e "$(OPENVZGUEST)" ]; then \
