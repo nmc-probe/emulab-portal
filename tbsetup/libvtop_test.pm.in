@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package libvtop_test;
@@ -8015,9 +8015,11 @@ sub UpLoadTunnels($)
 	# physical node.
 	#
 	my $peerip0 = ($virtnode0->_isvirtnode() ?
-		       $pnode0->jailip() : Interface->LookupControl($pnode0));
+		       Interface->LookupControl($pnode0->phys_nodeid()) :
+		       Interface->LookupControl($pnode0));
 	my $peerip1 = ($virtnode1->_isvirtnode() ?
-		       $pnode1->jailip() : Interface->LookupControl($pnode1));
+		       Interface->LookupControl($pnode1->phys_nodeid()) :
+		       Interface->LookupControl($pnode1));
 	
 	if (!defined($peerip0)) {
 	    tberror("No Control Network IP for $pnodename0!\n");
