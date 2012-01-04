@@ -4787,7 +4787,8 @@ sub AllocNodes($)
 		#
 		if ($virtnode->_onsharednode()) {
 		    foreach my $virtlan ($virtnode->memberlist()) {
-			$virtlan->_encapstyle("vlan");
+			$virtlan->_encapstyle("vlan")
+			    if (!$virtlan->_tunnel());
 		    }
 		}
 	    }
