@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004, 2005, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -124,9 +124,15 @@ sub doboot()
 	my $authdir   = (WINDOWS() ? "/sshkeys/root" : "/root/.ssh");
 	my $authkeys  = $authdir . "/authorized_keys";
 	my $authkeys2 = $authkeys . "2";
+	my $oldumask  = umask(022);
 
-	my $oldumask = umask(022);
-	
+	if (! -e $authdir) {
+	    system("mkdir -p $authdir") == 0
+		or fatal("Could not create $authdir");
+	    system("chmod 700 $authdir") == 0
+		or fatal("Failed to chmod $authdir");
+	}
+
 	if (-e "$authkeys") {
 	    system("cp -pf $authkeys $authkeys2") == 0
 		or fatal("Could not backup root ssh authorized_keys file");
