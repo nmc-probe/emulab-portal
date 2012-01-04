@@ -8029,6 +8029,9 @@ sub UpLoadTunnels($)
 	    tberror("No Control Network IP for $pnodename1!\n");
 	    return -1;
 	}
+	$peerip0 = $peerip0->IP();
+	$peerip1 = $peerip1->IP();
+
 	$self->printdb("Tunnel: $member0 <-> $member1, ".
 		       "$ip0 <-> $ip1, $peerip0 <-> $peerip1\n");
 
