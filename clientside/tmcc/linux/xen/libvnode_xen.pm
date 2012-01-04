@@ -109,7 +109,7 @@ my %defaultImage = (
 );
 
 # where all our config files go
-my $VMDIR = "/var/emulab/vms";
+my $VMDIR = "/var/emulab/vms/vminfo";
 my $XENDIR = "/var/xen";
 
 # Xen LVM volume group name
@@ -339,9 +339,11 @@ sub rootPreConfig($)
     return 0;
 }
 
-sub rootPreConfigNetwork($$$)
+sub rootPreConfigNetwork($$$$)
 {
-    my ($node_ifs,$node_ifsets,$node_lds) = @_;
+    my ($vnode_id, undef, $vnconfig, $private) = @_;
+    my @node_ifs = @{ $vnconfig->{'ifconfig'} };
+    my @node_lds = @{ $vnconfig->{'ldconfig'} };
 
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the xennetwork lock after a long time!\n";
@@ -369,9 +371,10 @@ sub rootPostConfig($)
 # "internal" state.  If $raref is set, then we are in a RELOAD state machine
 # and need to walk the appropriate states.
 #
-sub vnodeCreate($$$)
+sub vnodeCreate($$$$)
 {
-    my ($vnode_id,$imagename,$raref) = @_;
+    my ($vnode_id, undef, $vnconfig, $private) = @_;
+    my $imagename = $vnconfig->{'image'};
     my %image = %defaultImage;
     my $inreload = 0;
 
@@ -523,8 +526,8 @@ sub vnodeCreate($$$)
 # XXX not that the callback only works when we can mount the VM OS's
 # filesystems!  Since all we do right now is Linux, this is easy.
 #
-sub vnodePreConfig($$$){
-    my ($vnode_id,$vmid,$callback) = @_;
+sub vnodePreConfig($$$$$){
+    my ($vnode_id, $vmid, $vnconfig, $private, $callback) = @_;
 
     #
     # XXX vnodeCreate is not called when a vnode was halted or is rebooting.
@@ -587,10 +590,10 @@ sub vnodePreConfig($$$){
 # XXX for now, I just perform all the actions here til everything is working.
 # This means they cannot easily be undone if something fails later on.
 #
-sub vnodePreConfigControlNetwork($$$$$$$$$$)
+sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 {
-    my ($vnode_id,$vmid,$ip,$mask,$mac,$gw,
-	$vname,$longdomain,$shortdomain,$bossip) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private,
+	$ip,$mask,$mac,$gw, $vname,$longdomain,$shortdomain,$bossip) = @_;
 
     if (!exists($vninfo{$vmid}) || !exists($vninfo{$vmid}{'cffile'})) {
 	die("libvnode_xen: vnodePreConfig: no state for $vnode_id!?");
@@ -632,9 +635,12 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$)
 #  - create config file lines for each interface
 #  - arrange for the correct routing
 #
-sub vnodePreConfigExpNetwork($)
+sub vnodePreConfigExpNetwork($$$$)
 {
-    my ($vnode_id,$vmid,$ifconfigs,$ldconfigs,$tunconfigs) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+    my $ifconfigs  = $vnconfig->{'ifconfig'};
+    my $ldconfigs  = $vnconfig->{'ldconfig'};
+    my $tunconfigs = $vnconfig->{'tunconfig'};
 
     # Keep track of links (and implicitly, bridges) that need to be created
     my @links = ();
@@ -720,8 +726,8 @@ sub vnodePreConfigExpNetwork($)
     return 0;
 }
 
-sub vnodeConfigResources($){
-    my ($vnode_id,$vmid) = @_;
+sub vnodeConfigResources($$$$){
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     #
     # Give the vnode some memory.
@@ -739,15 +745,15 @@ sub vnodeConfigResources($){
     return 0;
 }
 
-sub vnodeConfigDevices($$)
+sub vnodeConfigDevices($$$$)
 {
-    my ($vnode_id,$vmid) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
     return 0;
 }
 
-sub vnodeState($$)
+sub vnodeState($$$$)
 {
-    my ($vnode_id,$vmid) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     my $err = 0;
     my $out = VNODE_STATUS_UNKNOWN();
@@ -763,9 +769,9 @@ sub vnodeState($$)
     return ($err, $out);
 }
 
-sub vnodeBoot($)
+sub vnodeBoot($$$$)
 {
-    my ($vnode_id,$vmid) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     if (!exists($vninfo{$vmid}) ||
 	!exists($vninfo{$vmid}{'cffile'})) {
@@ -812,18 +818,26 @@ sub vnodePostConfig($)
     return 0;
 }
 
-sub vnodeReboot($)
+sub vnodeReboot($$$$)
 {
-    my ($id) = @_;
-    if ($id =~ m/(.*)/){
-        $id = $1;
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+
+    if ($vmid =~ m/(.*)/){
+        $vmid = $1;
     }
-    mysystem("/usr/sbin/xm reboot $id");
+    mysystem("/usr/sbin/xm reboot $vmid");
 }
 
-sub vnodeDestroy($)
+sub vz_vnodeTearDown($$$$)
 {
-    my ($vnode_id,$vmid) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+
+    return 0;
+}
+
+sub vnodeDestroy($$$$)
+{
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
     if ($vnode_id =~ m/(.*)/){
         $vnode_id = $1;
     }
@@ -833,8 +847,14 @@ sub vnodeDestroy($)
 	domainGone($vnode_id, 15);
     }
 
+    # Always do this.
+    return -1
+	if (vz_vnodeTearDown($vnode_id, $vmid, $vnconfig, $private));
+
     #
     # We do these whether or not the domain existed
+    #
+    # Note to Mike from Leigh; this should maybe move to TearDown above?
     #
     destroyExpBridges($vnode_id, $vninfo{$vmid}{'links'});
     if (findLVMLogicalVolume($vnode_id)) {
@@ -847,9 +867,9 @@ sub vnodeDestroy($)
     return 0;
 }
 
-sub vnodeHalt($)
+sub vnodeHalt($$$$)
 {
-    my ($vnode_id) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     if ($vnode_id =~ m/(.*)/) {
         $vnode_id = $1;
@@ -862,9 +882,9 @@ sub vnodeHalt($)
 }
 
 # XXX implement these!
-sub vnodeExec($$$)
+sub vnodeExec($$$$$)
 {
-    my ($vnode_id,$vmid,$command) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private, $command) = @_;
 
     if ($command eq "sleep 100000000") {
 	while (1) {
@@ -883,9 +903,9 @@ sub vnodeExec($$$)
     return -1;
 }
 
-sub vnodeUnmount($$)
+sub vnodeUnmount($$$$)
 {
-    my ($vnode_id,$vmid) = @_;
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     return 0;
 }

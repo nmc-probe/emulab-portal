@@ -26,7 +26,7 @@ RETVAL=0
 # can perform such actions.
 #
 # Find our vnode_id:
-vnodeid=`cat /var/emulab/vms/vnode.${VEID}`
+vnodeid=`cat /var/emulab/vms/vminfo/vnode.${VEID}`
 if [ -z $vnodeid ]; then
     echo "No vnodeid found for $VEID in $MYROOT/var/emulab/boot/realname;"
     echo "  cannot kill tmcc proxy!"

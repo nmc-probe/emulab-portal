@@ -33,7 +33,7 @@ RETVAL=0
 # can perform such actions.
 #
 # Find our vnode_id:
-vnodeid=`cat /var/emulab/vms/vnode.${VEID}`
+vnodeid=`cat /var/emulab/vms/vminfo/vnode.${VEID}`
 if [ -z $vnodeid ]; then
     echo "No vnodeid found for $VEID in /var/emulab/vnode.map;"
     echo "  cannot start tmcc proxy!"

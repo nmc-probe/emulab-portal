@@ -49,11 +49,10 @@ my $dojail	= 0;
 my $fakevnode   = 0;
 my $interactive = 0;
 my $usevcnetroutes = 0;
-my $useexisting = 0;
 my $doplab	= 0;
 my $cleaning	= 0;
 my $rebooting   = 0;
-my $leavejail   = 0;
+my $leavejail    = 0;
 my $timestamps  = 0;
 my $jailpid;
 my $cleanupstate = "SHUTDOWN";
@@ -69,6 +68,7 @@ $| = 1;
 # 
 use libsetup;
 use libtmcc;
+use libtestbed qw(TBBackGround);
 
 #
 # Forward declarations for prototype checking
@@ -120,9 +120,6 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"k"})) {
     $killit = 1;
-}
-if (defined($options{"e"})) {
-    $useexisting = 1;
 }
 if (defined($options{"h"})) {
     $haltit = 1;
@@ -220,6 +217,7 @@ $ENV{'TMCCVNODEID'} = $vnodeid;
 # 
 my $pidfile  = "/var/run/tbvnode-${vnodeid}.pid";
 my $logname  = "$LOGDIR/tbvnode-${vnodeid}.log";
+my $alllogs  = "$LOGDIR/tbvnode-${vnodeid}.all";
 
 #
 # Need the domain, but no conistent way to do it. Ask tmcc for the
@@ -278,9 +276,12 @@ if (-e $pidfile) {
     }
 }
 
-# Skip saving history from previous boot when its a fake jail.
-unlink($logname)
-    if (-e $logname && $fakevnode);
+# Tack the current log onto the end of a running file.
+if (-e $logname) {
+    system("/bin/cat $logname >> $alllogs")
+	if (! $fakevnode);
+    unlink($logname);
+}
 
 #
 # Okay, lets continue on so that ssh from Emulab exits right away.
@@ -339,27 +340,34 @@ sub handler ($) {
     }
     $SIG{TERM} = 'IGNORE';
     $SIG{INT}  = 'IGNORE';
+    $SIG{HUP}  = 'IGNORE';
     
     #
     # If we catch a TERM, we want to leave the jail around since TERM
-    # means the node is rebooting. We want to restart it later when the
-    # node reboots.
+    # means the physical node is rebooting. We want to restart the VM
+    # later when the node reboots. Ditto for HUP.
     #
-    if ($signame eq 'TERM') {
+    if ($signame eq 'TERM' || $signame eq 'HUP') {
 	$leavejail = 1;
     }
 
     fatal("Caught a SIG${signame}! Killing the vnode ...");
 }
+# We get this when the physical node is rebooting or when asked to "halt" the
+# container. In either case, transient state is removed, disk is retained.
 $SIG{TERM} = \&handler;
-$SIG{INT}  = \&handler;
+# Ditto for HUP.
+$SIG{HUP} = \&handler;
+# Kill and remove all state.
 $SIG{USR1} = \&handler;
+# Reboot the container (leave all state).
 $SIG{USR2} = \&handler;
+$SIG{INT}  = \&handler;
 
 #
 # Kill existing directory in case its still there.
 #
-if (!$fromboot && !$useexisting && -e CONFDIR()) {
+if (!$fromboot && -e CONFDIR()) {
     removeconfdir(CONFDIR());
 }
 if (! -e CONFDIR()) {
@@ -564,7 +572,7 @@ sub killvnode() {
 	    "    Bad data in pid: $mpid!\n");
     }
 
-    my $sigtosend = ($haltit ? 'TERM' : 'USR1');
+    my $sigtosend = ($haltit ? 'HUP' : 'USR1');
 	
     if ($doplab && $mpid eq '') {
 	# sometimes plab vservers die and don't rerun initscripts, so
@@ -673,9 +681,12 @@ sub cleanup()
     #
     if (defined($jailpid)) {
 	if ($leavejail) {
+	    # Leave disk intact, kill all other transient state.
+	    # Halting or physical node rebooting.
 	    kill('USR1', $jailpid);
 	}
 	else {
+	    # All trace removed.
 	    kill('HUP', $jailpid);
 	}
 	waitpid($jailpid, 0);
@@ -704,7 +715,8 @@ sub cleanup()
 }
 
 #
-# Reboot a vnode. Sort of odd, I know.
+# Reboot a vnode by sending appropriate signal to container process.
+# It will exit, but we know to restart it. 
 #
 sub reboot()
 {
@@ -717,7 +729,7 @@ sub reboot()
     # First force the jail to exit, but leaving it intact.
     #
     if (defined($jailpid)) {
-	kill('USR1', $jailpid);
+	kill('USR2', $jailpid);
 	waitpid($jailpid, 0);
 	undef($jailpid);
     }
@@ -847,14 +859,11 @@ sub removeconfdir($)
     my ($dir) = @_;
 
     if (-d "$dir/root" && !rmdir("$dir/root")) {
-	die("*** $0:\n".
-	    "    $dir/root is not empty! This is very bad!\n");
-    }
-    elsif (-e "$dir/vnode.info") {
-	die("*** $0:\n".
-	    "    $dir/vnode.info is still there. This is very bad!\n");
+	print STDERR "$dir/root is not empty! This is very bad!\n";
+	return -1;
     }
     system("rm -rf $dir");
+    return $? >> 8;
 }
 
 #
