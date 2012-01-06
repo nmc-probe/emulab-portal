@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -221,8 +221,21 @@ while (<FD>) {
 close(FD);
 
 if ($stype == -1) {
-    die("*** $0:\n".
-        "    Could not find partition $slice fdisk entry!\n");
+    #
+    # XXX if we are in the GEOM world and we do not find the 4th partition
+    # it may be because a previous gpart call noticed the unused partition
+    # and deleted it. This happens in elabinelab where we first repurpose
+    # the second (Linux) partition.
+    #
+    # If this happens, we just try re-creating the 4th partition. gpart
+    # will "do the right thing" in terms of offset and size.
+    #
+    if ($usegeom && $slice == 4) {
+	$stype = 0;
+    } else {
+	die("*** $0:\n".
+	    "    Could not find partition $slice fdisk entry!\n");
+    }
 }
 
 #
