@@ -9522,7 +9522,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 		mysql_free_result(res2);
 
 		if (inner_elab_boot) {
-			rc = snprintf(b, remain, " INNER_ELAB_BOOT=1");
+			rc = snprintf(b, remain, " INNER_ELAB_BOOT=1 INNER_ELAB_ROLE=%s", row[7]);
 			b += rc;
 			remain -= rc;
 			if (elabinelab_singlenet) {
