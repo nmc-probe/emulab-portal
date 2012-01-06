@@ -386,7 +386,7 @@ Phase "ports", "Installing ports", sub {
 	    }
 	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $OPS_PORT");
 	};
-	if ($FBSD_MAJOR > 4) {
+	if ($FBSD_MAJOR > 4 $FBSD_MAJOR < 8) {
 	    Phase "php", "Installing php${PHP_VERSION} package", sub {
 		if (!ExecQuiet("$PKG_INFO -e $PHP_PORT")) {
 		    PhaseSkip("Package already installed");
@@ -412,7 +412,8 @@ Phase "ports", "Installing ports", sub {
 	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
 	};
 	# XXX Ditto
-	if ($FBSD_MAJOR > 6 || ($FBSD_MAJOR == 6 && $FBSD_MINOR > 2)) {
+	if ($FBSD_MAJOR < 8 &&
+	    ($FBSD_MAJOR > 6 || ($FBSD_MAJOR == 6 && $FBSD_MINOR > 2))) {
 	    Phase "p5-DBD-mysql50", "Installing old Perl Mysql package", sub {
 		my $pname = `$PKG_INFO -E 'p5-DBD-mysql50-*' 2>/dev/null`;
 		chomp($pname);
