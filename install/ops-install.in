@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2011 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -238,7 +238,8 @@ my $CRONTAB         = "/etc/crontab";
 my $AUTHKEYS	    = "/root/.ssh/authorized_keys";
 my $SMBCONF_FILE    = "/usr/local/etc/smb.conf";
 my $SMBCONF_HEAD    = "$SMBCONF_FILE.head";
-my $APACHE_ETCDIR   = "/usr/local/etc/apache";
+my $APACHE_ETCDIR   = "@INSTALL_APACHE_CONFIG@";
+my $APACHE_VERSION  = @APACHE_VERSION@;
 my $HTTPD_CONF      = "$APACHE_ETCDIR/httpd.conf";
 my $PHP_INI         = "/usr/local/etc/php.ini";
 my $WWWDIR          = "/usr/local/www/data";
@@ -673,7 +674,11 @@ Phase "rc.conf", "Adding testbed content to rc.conf", sub {
 		      qq|nfs_server_flags="-u -t -n 16"|,
 		      qq|mountd_flags="-r -p 900"|,
 		      (($ISFS && $WINSUPPORT) ? qq|smbd_enable="YES"| : ()),
-		      qq|apache_enable="YES"|,
+		      (("$APACHE_VERSION" eq "22") ?
+		       (qq|apache22_enable="YES"|,
+			qq|apache22_flags="-DSSL"|) :
+		       (qq|apache_enable="YES"|,
+			qq|apache_flags="-DSSL"|)),
 		      qq|syslogd_flags=""|,
 		      ($CVSSUPPORT ? qq|cvsd_enable="YES"| : ()),
 		      qq|pubsubd_flags="-T 10"|);

@@ -7397,7 +7397,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	$eventfiles \
 	$winfiles \
 	$pelabfiles \
-	apache/GNUmakefile apache/httpd.conf-v1 apache/httpd.conf-v2 apache/php.ini \
+	apache/GNUmakefile apache/php.ini \
         xmlrpc/GNUmakefile xmlrpc/emulabclient.py xmlrpc/emulabserver.py \
 	xmlrpc/sshxmlrpc_client.py xmlrpc/sshxmlrpc_server.py \
 	xmlrpc/sslxmlrpc_client.py xmlrpc/sslxmlrpc_server.py \

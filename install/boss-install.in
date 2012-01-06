@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2011 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -115,7 +115,9 @@ my $ROOT_AUTHKEY    = "/root/.ssh/authorized_keys";
 
 my $CHECKUPUSER	    = "elabckup";
 
-my $APACHE_ETCDIR   = "/usr/local/etc/apache";
+my $APACHE_ETCDIR   = "@INSTALL_APACHE_CONFIG@";
+my $APACHE_VERSION  = @APACHE_VERSION@;
+my $APACHE_START    = "@APACHE_START_COMMAND@";
 my $SUDOERS         = "/usr/local/etc/sudoers";
 my $HTTPD_CONF      = "$APACHE_ETCDIR/httpd.conf";
 my $PHP_INI         = "/usr/local/etc/php.ini";
@@ -1157,7 +1159,11 @@ Phase "rc.conf", "Adding testbed content to $RCCONF", sub {
 		   qq|inetd_flags="-wW -R 0"|,
 		   qq|syslogd_flags=""|,
 		   qq|tftpd_flags="-lvvvv -C 40 -s /tftpboot"|,
-		   qq|apache_enable="YES"|,
+		   (("$APACHE_VERSION" eq "22") ?
+		    (qq|apache22_enable="YES"|,
+		     qq|apache22_flags="-DSSL"|) :
+		    (qq|apache_enable="YES"|,
+		     qq|apache_flags="-DSSL"|)),
 		   qq|pubsubd_flags="-T 10"|);
 
     # Starting at FreeBSD 6 we use the default version of bind, not the port.
@@ -1534,25 +1540,27 @@ Phase "sslcerts", "Setting up SSL certificates", sub {
 	    ExecQuietFatal("$CP $TOP_OBJDIR/ssl/$APACHE_KEYPEM ".
 			   "    $APACHE_KEYFILE");
 	};
-	Phase "rc.d", "Installing Apache startup file", sub {
-	    DoneIfExists("$RCDIR/apache.sh");
-	    my $sfile;
-	    if ($FBSD_MAJOR > 6) {
-		$sfile = "$RCDIR/apache";		
-	    } else {
-		$sfile = "$RCDIR/apache.sh.sample";
-	    }
-	    ExecQuietFatal("mv $sfile $RCDIR/apache.sh");
-	    if ($FBSD_MAJOR == 6) {
-		ExecQuietFatal("sed -i .orig ".
-			       "-e 's/^apache_enable/#apache_enable/' ".
-			       "$RCDIR/apache.sh");
-		ExecQuietFatal("/bin/rm -f $RCDIR/apache.sh.orig");
-	    }
-	};
+	if ($APACHE_VERSION eq "1.3") {
+	    Phase "rc.d", "Installing Apache startup file", sub {
+		DoneIfExists($APACHE_START);
+		my $sfile;
+		if ($FBSD_MAJOR > 6) {
+		    $sfile = "$RCDIR/apache";		
+		} else {
+		    $sfile = "$RCDIR/apache.sh.sample";
+		}
+		ExecQuietFatal("mv $sfile $APACHE_START");
+		if ($FBSD_MAJOR == 6) {
+		    ExecQuietFatal("sed -i .orig ".
+				   "-e 's/^apache_enable/#apache_enable/' ".
+				   "$APACHE_START");
+		    ExecQuietFatal("/bin/rm -f ${APACHE_START}.orig");
+		}
+	    };
+	}
 	Phase "starting", "Starting Apache server", sub {
 	    DoneIfExists("$VARRUN/httpd.pid");
-	    ExecQuietFatal("$RCDIR/apache.sh start");
+	    ExecQuietFatal("$APACHE_START start");
 	};
     };
     if ($FBSD_MAJOR > 4) {
@@ -1565,10 +1573,12 @@ Phase "sslcerts", "Setting up SSL certificates", sub {
 		ExecQuietFatal("$SCP $TOP_OBJDIR/ssl/$APACHE_KEYPEM_OPS ".
 			       "     ${USERNODE}:$APACHE_KEYFILE_OPS");
 	    };
-	    Phase "rc.d", "Installing Apache startup file", sub {
-		ExecQuietFatal("$SCP $RCDIR/apache.sh ".
-			       "     ${USERNODE}:$RCDIR/apache.sh");
-	    };
+	    if ($APACHE_VERSION eq "1.3") {
+		Phase "rc.d", "Installing Apache startup file", sub {
+		    ExecQuietFatal("$SCP $APACHE_START".
+				   "     ${USERNODE}:${APACHE_START}");
+		};
+	    }
 	};
     }
 };
