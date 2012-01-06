@@ -67,6 +67,10 @@ Simulator instproc init {args} {
     # Program list.
     $self instvar prog_list;
     array set prog_list {}
+    
+    # Disk list.
+    $self instvar disk_list;
+    array set disk_list {} 
 
     # EventGroup list.
     $self instvar eventgroup_list;
@@ -395,6 +399,7 @@ Simulator instproc run {} {
     $self instvar node_list
     $self instvar event_list
     $self instvar prog_list
+    $self instvar disk_list 
     $self instvar eventgroup_list
     $self instvar firewall_list
     $self instvar timeline_list
@@ -616,6 +621,9 @@ Simulator instproc run {} {
     foreach prog [array names prog_list] {
 	$prog updatedb "sql"
     }
+    foreach disk [array names disk_list] {
+        $disk updatedb "sql"
+    } 
     foreach egroup [array names eventgroup_list] {
 	$egroup updatedb "sql"
     }
@@ -1013,6 +1021,12 @@ Simulator instproc rename_program {old new} {
     set prog_list($new) {}
 }
 
+Simulator instproc rename_disk {old new} {
+    $self instvar disk_list
+    unset disk_list($old)
+    set disk_list($new) {}
+}
+
 Simulator instproc rename_eventgroup {old new} {
     $self instvar eventgroup_list
     unset eventgroup_list($old)
@@ -1208,6 +1222,13 @@ Simulator instproc use_subnet {subnet netmask} {
 Simulator instproc add_program {prog} {
     $self instvar prog_list
     set prog_list($prog) {}
+}
+
+# add_disk
+# Link to a new disk object.
+Simulator instproc add_disk {disk} {
+    $self instvar disk_list
+    set disk_list($disk) {}
 }
 
 # add_eventgroup
