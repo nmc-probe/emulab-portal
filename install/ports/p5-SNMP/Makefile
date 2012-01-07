@@ -19,7 +19,7 @@ DISTNAME=	ucd-snmp-${PORTVERSION}
 MAINTAINER=	perl@FreeBSD.org
 COMMENT=	A perl5 module for interfacing with the CMU SNMP library
 
-LIB_DEPENDS=	snmp.4:${PORTSDIR}/net-mgmt/net-snmp4
+LIB_DEPENDS=	snmp.4:${PORTSDIR}/misc/net-snmp4
 
 WRKSRC=		${WRKDIR}/${DISTNAME}/perl/SNMP
 
