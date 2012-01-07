@@ -23,6 +23,7 @@
 
 Class Simulator
 Class Program -superclass NSObject
+Class Disk -superclass NSObject
 Class EventGroup -superclass NSObject
 Class Firewall -superclass NSObject
 
@@ -1729,6 +1730,70 @@ Simulator instproc make_event {outer event} {
 		}
 	    }
 	}
+        "Disk" {
+            set otype DISK
+            set vname $obj
+            set vnode [$obj set node]
+            switch -- $cmd {
+		"set" -
+                "run" -
+                "start" {
+                    switch -- $cmd {
+                        "set" {
+                            set etype START
+                        }
+                        "run" {
+                            set etype RUN
+                        }
+                        "start" {
+                            set etype START
+                        }
+                    }
+                    ::GLOBALS::named-args $evargs [list \
+                        -name {} \
+                        -type {} \
+                        -mountpoint {} \
+                        -params {} \
+                    ]
+		    if {$(-name) == {} || $(-type) == {} || $(-mountpoint) == {}} {
+                            perror "Improper argument: at $(-name) or $(-type) or $(-mountpoint)"
+                            return
+                    } 					
+                    if {$(-name) != {}} {
+                        set args "NAME={$(-name)} "
+                    }
+                    if {$(-type) != {}} {
+                        set args "${args}TYPE=$(-type) "
+                    }
+                    if {$(-mountpoint) != {}} {
+                        set args "${args}MOUNTPOINT=$(-mountpoint) "
+                    }
+                    if {$(-params) != {}} {
+                        set args "${args}PARAMS=$(-params)"
+                    }  
+                } 
+		"create" {
+		    if {[llength $event] < 6} {
+                        perror "Wrong number of arguments: at $time $event"
+                        return
+                    }
+		    set args [lindex $event 2]
+              	    set etype CREATE
+	        }
+		"modify" {
+		    if {[llength $event] < 6} {
+                        	perror "Wrong number of arguments: at $time $event"
+                        	return
+               	    }
+		    set args [lindex $event 2]
+		    set etype MODIFY
+		}
+                unknown {
+                    punsup "$obj $cmd $args"
+                    return
+                }
+            }
+        }
 	"Console" {
 	    set otype CONSOLE
 	    set vname $obj
