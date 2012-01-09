@@ -778,7 +778,7 @@ Phase "patches", "Applying patches", sub {
 	    ExecQuietFatal("$PATCH -f -l -p0 -i $patchfile");
 	};
     }
-    if ($FBSD_MAJOR < 7) {
+    if ($FBSD_MAJOR < 8) {
 	Phase "Mysql.pm.patch", "Patching Mysql.pm", sub {
 	    my $patchfile = $MYSQL_PM_PATCH;
 	    $patchfile = `realpath $patchfile`;
