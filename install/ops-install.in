@@ -1011,7 +1011,7 @@ Phase "cron", "Adding cron jobs", sub {
 	my @cronlist = ("0 \t6\t*\t*\t*\troot\t$PREFIX/sbin/quotamail");
 	if ($WIKISUPPORT) {
 	    push(@cronlist,
-		 "*/15 \t*\t*\t*\t*\troot\t(cd /usr/local/www/data/twiki/bin;".
+		 "*/15 \t*\t*\t*\t*\troot\t(cd $WWWDIR/twiki/bin;".
 		 " ./mailnotify -q >> /var/tmp/mailnotify.log 2>&1)");
 	}
 	AppendToFileFatal($CRONTAB, @cronlist);
@@ -1171,6 +1171,20 @@ Phase "apache", "Installing apache config file", sub {
     DoneIfEdited("$HTTPD_CONF");
     ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/apache control-install");
 };
+Phase "dirs", "Creating Apache SSL directories ", sub {
+    PhaseSucceed()
+	if (-d "$APACHE_ETCDIR/ssl.crt" &&
+	    -d "$APACHE_ETCDIR/ssl.key");
+    
+    if (! -d "$APACHE_ETCDIR/ssl.crt") {
+	mkdir "$APACHE_ETCDIR/ssl.crt", 0700 or
+	    PhaseFail("Unable to create $APACHE_ETCDIR/ssl.crt : $!");
+    }
+    if (! -d "$APACHE_ETCDIR/ssl.key") {
+	mkdir "$APACHE_ETCDIR/ssl.key", 0700 or
+	    PhaseFail("Unable to create $APACHE_ETCDIR/ssl.key : $!");
+    }
+};
 Phase "php.ini", "Installing php.ini file", sub {
     DoneIfEdited($PHP_INI);
     ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/apache install-php-ini");
@@ -1182,6 +1196,10 @@ Phase "wikidocs", "Installing wikidocs redirect", sub {
 
     DoneIfExists("$WWWDIR/wikidocs/.htaccess");
 
+    if (! -e "$WWWDIR") {
+	mkdir("$WWWDIR", 0755) or
+	    PhaseFail("Unable to make $WWWDIR: $!");
+    }
     if (! -e "$WWWDIR/wikidocs") {
 	mkdir("$WWWDIR/wikidocs", 0755) or
 	    PhaseFail("Unable to make $WWWDIR/wikidocs: $!");
@@ -1405,7 +1423,7 @@ if ($CVSSUPPORT) {
 
 if ($BUGDBSUPPORT) {
     my $FLYSPRAYPWD   = "$ETCDIR/flyspray.pwd";
-    my $FLYSPRAYDIR   = "/usr/local/www/data/flyspray";
+    my $FLYSPRAYDIR   = "$WWWDIR/flyspray";
     my $FLYSPRAYURL   = "http://$OUTER_BOSS/downloads/flyspray-0.9.9.tgz";
     my $FLYSPRAYCONF  = "$ETCDIR/flyspray.conf.php";
     my $PHPCONFIG     = $PHP_INI;
@@ -1535,7 +1553,7 @@ if ($BUGDBSUPPORT) {
 }
 
 if ($WIKISUPPORT) {
-    my $WIKIDIR       = "/usr/local/www/data/twiki";
+    my $WIKIDIR       = "$WWWDIR/twiki";
     my $WIKICONF      = "LocalSite.cfg";
     my $WIKIURL       = "http://$OUTER_BOSS/downloads/twiki-4.1.tgz";
     my $localtarfile  = "/tmp/twiki.tgz";

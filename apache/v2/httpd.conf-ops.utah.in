@@ -725,8 +725,8 @@ ScriptAlias /cgi-bin/ "/usr/local/www/apache22/cgi-bin/"
 #
 # Mailman config stuff.
 #
-ScriptAlias /mailman/ /usr/lib/mailman/cgi-bin/
-<Directory /usr/lib/mailman/cgi-bin/>
+ScriptAlias /mailman/ /usr/local/mailman/cgi-bin/
+<Directory /usr/local/mailman/cgi-bin/>
     AllowOverride None
     Options ExecCGI
     Order allow,deny

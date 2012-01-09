@@ -778,27 +778,29 @@ Phase "patches", "Applying patches", sub {
 	    ExecQuietFatal("$PATCH -f -l -p0 -i $patchfile");
 	};
     }
-    Phase "Mysql.pm.patch", "Patching Mysql.pm", sub {
-	my $patchfile = $MYSQL_PM_PATCH;
-	$patchfile = `realpath $patchfile`;
-	chomp $patchfile;
-
-	my $dir;
-	foreach $prefix (@INC) {
-	    if (-e "$prefix/Mysql.pm") {
-		$dir = $prefix;
-		last;
+    if ($FBSD_MAJOR < 7) {
+	Phase "Mysql.pm.patch", "Patching Mysql.pm", sub {
+	    my $patchfile = $MYSQL_PM_PATCH;
+	    $patchfile = `realpath $patchfile`;
+	    chomp $patchfile;
+	    
+	    my $dir;
+	    foreach $prefix (@INC) {
+		if (-e "$prefix/Mysql.pm") {
+		    $dir = $prefix;
+		    last;
+		}
 	    }
-	}
-	if (!defined($dir)) {
-	    PhaseFail("Unable to find Mysql.pm");
-	}
-
-	if (!ExecQuiet("$PATCH -d $dir -C -f -l -R -i $patchfile")) {
-	    PhaseSkip("Patch already applied");
-	}
-	ExecQuietFatal("$PATCH -d $dir -f -l -i $patchfile");
-    };
+	    if (!defined($dir)) {
+		PhaseFail("Unable to find Mysql.pm");
+	    }
+	    
+	    if (!ExecQuiet("$PATCH -d $dir -C -f -l -R -i $patchfile")) {
+		PhaseSkip("Patch already applied");
+	    }
+	    ExecQuietFatal("$PATCH -d $dir -f -l -i $patchfile");
+	};
+    }
     Phase "perlselfloaderpatch", "Fixing perl self-loader", sub {
 	my $perldir = "/usr/local/lib/perl5/5.10.1";
 	DoneIfDoesntExist("$perldir/SelfLoader.pm");
@@ -1536,6 +1538,20 @@ Phase "sslcerts", "Setting up SSL certificates", sub {
 		       "      chmod 640 ${ETC_EMULAB_DIR}/${EMULAB_PEM}'  ");
     };
     Phase "apache", "Setting up Apache on boss", sub {
+	Phase "dirs", "Creating SSL directories ", sub {
+	    PhaseSucceed()
+		if (-d "$APACHE_ETCDIR/ssl.crt" &&
+		    -d "$APACHE_ETCDIR/ssl.key");
+
+	    if (! -d "$APACHE_ETCDIR/ssl.crt") {
+		mkdir "$APACHE_ETCDIR/ssl.crt", 0700 or
+		    PhaseFail("Unable to create $APACHE_ETCDIR/ssl.crt : $!");
+	    }
+	    if (! -d "$APACHE_ETCDIR/ssl.key") {
+		mkdir "$APACHE_ETCDIR/ssl.key", 0700 or
+		    PhaseFail("Unable to create $APACHE_ETCDIR/ssl.key : $!");
+	    }
+	};
 	Phase "cert", "Installing Apache SSL certificate", sub {
 	    DoneIfExists("$APACHE_CERTFILE");
 	    ExecQuietFatal("$CP $TOP_OBJDIR/ssl/$APACHE_CERTPEM ".
