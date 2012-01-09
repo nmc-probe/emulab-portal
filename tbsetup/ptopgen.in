@@ -2645,6 +2645,51 @@ sub print_type_relation
     my $osids = @_;
 }
 
+sub print_stitch_node
+{
+    my ($node, $iface, $link, $remote_iface, $capacity, $vlan_min,
+	$vlan_max, $vlan_will_translate) = @_;
+    my $node_urn = GeniHRN::Generate($OURDOMAIN, "node", $node);
+    my $iface_urn = GeniHRN::GenerateInterface($OURDOMAIN, $node, $iface);
+    my $link_urn = GeniHRN::Generate($OURDOMAIN, "link", $link);
+    # Capacity is in kilobits/sec but needs to be converted to bits/sec
+    my $bits = $capacity * 1000;
+    my $vlan_translate = "false";
+    if ($vlan_will_translate) {
+	$vlan_translate = "true";
+    }
+    print "<node id=\"$node_urn\">\n";
+    print "  <port id=\"$iface_urn\">\n";
+    print "    <capacity>$bits</capacity\n";
+    print "    <maximumReservableCapacity>$bits".
+	"</maximumReservableCapacity>\n";
+    print "    <minimumReservableCapacity>1000000".
+	"</minimumReservableCapacity>\n";
+    print "    <granularity>1000000</granularity>\n";
+    print "    <link id=\"$link_urn\">\n";
+    print "      <remoteLinkId>$remote_iface</remoteLinkId>\n";
+    print "      <trafficEngineeringMetric>10</trafficEngineeringMetric>\n";
+    print "      <capacity>$bits</capacity>\n";
+    print "      <maximumReservableCapacity>$bits".
+	"</maximumReservableCapacity>\n";
+    print "      <minimumReservableCapacity>1000000".
+	"</minimumReservableCapacity>\n";
+    print "      <granularity>1000000</granularity>\n";
+    print "      <SwitchingCapabilityDescriptors>\n";
+    print "        <switchingcapType>l2sc</switchingcapType>\n";
+    print "        <encodingType>ethernet</encodingType>\n";
+    print "        <switchingCapabilitySpecificInfo>\n";
+    print "          <interfaceMTU>9000</interfaceMTU>\n";
+    print "          <vlanRangeAvailability>$vlan_min-$vlan_max".
+	"</vlanRangeAvailability>\n";
+    print "          <vlanTranslation>$vlan_translate</vlanTranslation>\n";
+    print "        </switchingCapabilitySpecificInfo>\n";
+    print "      </SwitchingCapabilityDescriptors>\n";
+    print "    </link>\n";
+    print "  </port>\n";
+    print "</node>\n";
+}
+
 sub fatal($)
 {
     my ($mesg) = @_;
