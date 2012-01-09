@@ -22,6 +22,9 @@
 #      know how to change the workgroup programatically on a Windoze box.
    workgroup = EMULAB
 
+# Pid file; seemed to move in later versions.
+   pid directory = /var/run
+
 # server string is the equivalent of the NT Description field
    server string = Emulab Samba Server
 
