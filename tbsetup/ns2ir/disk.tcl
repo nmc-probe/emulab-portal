@@ -24,7 +24,7 @@ Program instproc init {s} {
     global ::GLOBALS::all_programs
 
     if {$all_programs == {}} {
-	# Create a default event group to hold all program agents.
+	# Create a default event group to hold all disk agents.
 	set foo [uplevel \#0 "set __all_programs [new EventGroup $s]"]
 	set all_programs $foo
     }
