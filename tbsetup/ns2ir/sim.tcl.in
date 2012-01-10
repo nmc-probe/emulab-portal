@@ -24,6 +24,7 @@
 Class Simulator
 Class Program -superclass NSObject
 Class Disk -superclass NSObject
+Class Custom -superclass NSObject
 Class EventGroup -superclass NSObject
 Class Firewall -superclass NSObject
 
@@ -72,6 +73,10 @@ Simulator instproc init {args} {
     # Disk list.
     $self instvar disk_list;
     array set disk_list {} 
+
+    #Custom list.
+    $self instvar custom_list;
+    array set custom_list{}
 
     # EventGroup list.
     $self instvar eventgroup_list;
@@ -401,6 +406,7 @@ Simulator instproc run {} {
     $self instvar event_list
     $self instvar prog_list
     $self instvar disk_list 
+    $self instvar custom_list
     $self instvar eventgroup_list
     $self instvar firewall_list
     $self instvar timeline_list
@@ -625,6 +631,9 @@ Simulator instproc run {} {
     foreach disk [array names disk_list] {
         $disk updatedb "sql"
     } 
+    foreach custom [array names custom_list] {
+        $custom updatedb "sql"
+    }
     foreach egroup [array names eventgroup_list] {
 	$egroup updatedb "sql"
     }
@@ -919,7 +928,7 @@ Simulator instproc at {time eventstring} {
     } else {
        set ptime [::GLOBALS::reltime-to-secs $time]
        if {$ptime == -1} {
-               perror "Invalid time spec: $time"
+  u            perror "Invalid time spec: $time"
                return
        }
        set time $ptime
@@ -1026,6 +1035,12 @@ Simulator instproc rename_disk {old new} {
     $self instvar disk_list
     unset disk_list($old)
     set disk_list($new) {}
+}
+
+Simulator instproc rename_custom {old new} {
+    $self instvar custom_list
+    unset custom_list($old)
+    set custom_list($new) {}
 }
 
 Simulator instproc rename_eventgroup {old new} {
@@ -1230,6 +1245,13 @@ Simulator instproc add_program {prog} {
 Simulator instproc add_disk {disk} {
     $self instvar disk_list
     set disk_list($disk) {}
+}
+
+# add_custom
+# Link to a new custom object.
+Simulator instproc add_custom {custom} {
+    $self instvar custom_list
+    set custom_list($custom) {}
 }
 
 # add_eventgroup
@@ -1791,6 +1813,25 @@ Simulator instproc make_event {outer event} {
                 unknown {
                     punsup "$obj $cmd $args"
                     return
+                }
+            }
+        }
+        "Custom" {
+            set otype CUSTOM
+            set vname $obj
+
+            switch -- $cmd {
+                "start" {
+                    set etype START
+ 		    set args [lindex $event 2]
+                }
+                "stop" {
+                    set etype STOP
+                    if {[llength $event] < 3} {
+                        perror "Wrong number of arguments: $obj $cmd $evargs"
+                        return
+                    }
+                    set args [lindex $event 2]
                 }
             }
         }
