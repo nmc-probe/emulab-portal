@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Implements the libvnode API for Xen support in Emulab.
@@ -375,6 +375,7 @@ sub vnodeCreate($$$$)
 {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
     my $imagename = $vnconfig->{'image'};
+    my $raref = $vnconfig->{'reloadinfo'};
     my %image = %defaultImage;
     my $inreload = 0;
 

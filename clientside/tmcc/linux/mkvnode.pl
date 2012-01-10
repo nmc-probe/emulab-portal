@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2009-2011 University of Utah and the Flux Group.
+# Copyright (c) 2009-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -424,7 +424,42 @@ if (-e "$VNDIR/vnode.info") {
 }
 
 #
-# Install handlers after down stale container teardown. 
+# Another wrinkle; tagged vlans might not be setup yet when we get
+# here, and we have to know those tags before we can proceed. We
+# need to spin, but with signals enabled since we do not want to
+# wait forever. Okay to get a signal and die at this point. 
+#
+if (0 && @{ $vnconfig{'ifconfig'} }) {
+  again:
+    foreach my $ifc (@{ $vnconfig{'ifconfig'} }) {
+	my $lan = $ifc->{LAN};
+	
+	next
+	    if ($ifc->{ITYPE} ne "vlan");
+
+	# got the tag.
+	next
+	    if ($ifc->{VTAG});
+
+	# no tag, wait and ask again.
+	print STDERR
+	    "$lan does not have a tag yet. Waiting, then asking again ...\n";
+
+	sleep(5);
+
+	my @tmp = ();
+	fatal("getifconfig($vnodeid): $!")
+	    if (getifconfig(\@tmp));
+	$vnconfig{"ifconfig"} = [ @tmp ];
+
+	# Just look through everything again; simple. 
+	goto again;
+    }
+}
+
+#
+# Install handlers *after* down stale container teardown, since we set
+# them to IGNORE during the teardown.
 # 
 # Ignore TERM since we want our caller to catch it first and then send
 # it down to us. 
@@ -689,6 +724,12 @@ sub TearDownStaleVM()
 	}
     }
 
+    # No interruptions during stale teardown.
+    $SIG{INT}  = 'IGNORE';
+    $SIG{USR1} = 'IGNORE';
+    $SIG{USR2} = 'IGNORE';
+    $SIG{HUP}  = 'IGNORE';
+
     #
     # if we fail to cleanup, store the state back to disk so that we
     # capture any changes. 
@@ -697,6 +738,11 @@ sub TearDownStaleVM()
 	StoreState();
 	return -1;
     }
+    $SIG{INT}  = 'DEFAULT';
+    $SIG{USR1} = 'DEFAULT';
+    $SIG{USR2} = 'DEFAULT';
+    $SIG{HUP}  = 'DEFAULT';
+    
     return 0;
 }
 
