@@ -300,8 +300,8 @@ if ($debug) {
 #
 fatal("getbootwhat($vnodeid): $!") 
     if (getbootwhat(\@tmp));
-if (scalar(@tmp)) {
-    if (defined($tmp[0]->{"WHAT"}) && $tmp[0]->{"WHAT"} =~ /frisbee-pcvm/) {
+if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
+    if ($tmp[0]->{"WHAT"} =~ /frisbee-pcvm/) {
 	#
 	# Ok, we're reloading, using the fake frisbee pcvm mfs.
 	#
@@ -322,6 +322,20 @@ if (scalar(@tmp)) {
 		      $tmp[0]->{"IMAGEID"} . " from loadinfo!");
 	    }
 	}
+    }
+    elsif ($tmp[0]->{"WHAT"} =~ /^\d*$/) {
+	#
+	# We are using bootwhat for a much different purpose then intended.
+	# It tells us a partition number, but that is meaningless. Look at
+	# the jailconfig to see what image should boot. That image better
+	# be resident already. 
+	#
+	if (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([-\w]+)$/) {
+	    $vnconfig{"image"}      = "$1-$2-$3";
+	}
+    }
+    else {
+	# The library will boot the default, whatever that is.
     }
 }
 
@@ -892,7 +906,7 @@ sub safeLibOp($$$;@) {
 				\%vnconfig, $vnstate->{'private'}, @args);
     };
     my $err = $@;
-    if (! defined(sigprocmask(SIG_UNBLOCK, $old_sigset))) {
+    if (! defined(sigprocmask(SIG_SETMASK, $old_sigset))) {
 	print STDERR "sigprocmask (UNBLOCK) failed!\n";
     }
     if ($err) {

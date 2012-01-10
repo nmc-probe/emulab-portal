@@ -30,7 +30,7 @@ use Exporter;
 	      vnodeUnmount
 	      vnodePreConfig vnodePreConfigControlNetwork
               vnodePreConfigExpNetwork vnodeConfigResources
-              vnodeConfigDevices vnodePostConfig vnodeExec
+              vnodeConfigDevices vnodePostConfig vnodeExec vnodeTearDown
 	    );
 
 %ops = ( 'init' => \&init,
@@ -40,6 +40,7 @@ use Exporter;
          'rootPostConfig' => \&rootPostConfig,
          'vnodeCreate' => \&vnodeCreate,
          'vnodeDestroy' => \&vnodeDestroy,
+	 'vnodeTearDown' => \&vnodeTearDown,
          'vnodeState' => \&vnodeState,
          'vnodeBoot' => \&vnodeBoot,
          'vnodeHalt' => \&vnodeHalt,
@@ -377,6 +378,7 @@ sub vnodeCreate($$$$)
     my $imagename = $vnconfig->{'image'};
     my $raref = $vnconfig->{'reloadinfo'};
     my %image = %defaultImage;
+    my $lvname;
     my $inreload = 0;
 
     my $vmid;
@@ -387,12 +389,12 @@ sub vnodeCreate($$$$)
 	fatal("xen_vnodeCreate: bad vnode_id $vnode_id!");
     }
 
-    my $lvname = $image{'name'};
-
     #
     # No image specified, use a default based on the dom0 OS.
     #
     if (!defined($imagename)) {
+	$lvname = $image{'name'};
+	
 	#
 	# Setup the default image now.
 	# XXX right now this is a hack where we just copy the dom0
@@ -405,17 +407,25 @@ sub vnodeCreate($$$$)
 	if (!findLVMLogicalVolume($vname)) {
 	    createRootDisk($vname);
 	}
-	$raref = { "IMAGETIME" => 0 };
-    } else {
+	$raref = { "IMAGEMTIME" => 0 };
+    }
+    elsif (!defined($raref)) {
+	#
+	# Boot existing image. The base volume has to exist, since we do
+	# not have any reload info to get it.
+	#
+	$lvname = $imagename;
+	if (!findLVMLogicalVolume($lvname)) {
+	    fatal("xen_vnodeCreate: ".
+		  "cannot find logical volume for $lvname, and no reload info");
+	}
+    }
+    else {
+	$lvname = $imagename;
 	$inreload = 1;
-    }
 
-    print STDERR "xen_vnodeCreate: loading image '$imagename'\n";
-    if (!defined($raref)) {
-	fatal("xen_vnodeCreate: cannot load image without loadinfo\n");
-    }
+	print STDERR "xen_vnodeCreate: loading image '$imagename'\n";
 
-    if ($inreload) {
 	# Tell stated we are getting ready for a reload
 	libvnode::setState("RELOADSETUP");
 
@@ -426,11 +436,11 @@ sub vnodeCreate($$$$)
 	# period afforded by the RELOADING state.
 	#
 	libvnode::setState("RELOADING");
-    }
 
-    $lvname = createImageDisk($imagename, $raref);
-    if (!$lvname) {
-	fatal("xen_vnodeCreate: cannot create logical volume for $imagename");
+	if (createImageDisk($imagename, $raref)) {
+	    fatal("xen_vnodeCreate: ".
+		  "cannot create logical volume for $imagename");
+	}
     }
 
     #
@@ -829,7 +839,7 @@ sub vnodeReboot($$$$)
     mysystem("/usr/sbin/xm reboot $vmid");
 }
 
-sub vz_vnodeTearDown($$$$)
+sub vnodeTearDown($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
@@ -850,7 +860,7 @@ sub vnodeDestroy($$$$)
 
     # Always do this.
     return -1
-	if (vz_vnodeTearDown($vnode_id, $vmid, $vnconfig, $private));
+	if (vnodeTearDown($vnode_id, $vmid, $vnconfig, $private));
 
     #
     # We do these whether or not the domain existed
@@ -974,22 +984,12 @@ sub createRootDisk($)
 
 #
 # Create a logical volume for the image if it doesn't already exist.
-# We include the time stamp in the volume name so that we detect and
-# automatically handle updated images.  Downloads an image as necessary.
-#
-# Returns the name of the logical volume, or zero on failure.
 #
 sub createImageDisk($$)
 {
     my ($image,$raref) = @_;
     my $tstamp = $raref->{'IMAGEMTIME'};
-
-    my $lvname = "$image.";
-    if (defined($tstamp)) {
-	$lvname .= $tstamp;
-    } else {
-	$lvname .= "0";
-    }
+    my $lvname = $image;
 
     #
     # We might be creating multiple vnodes with the same image, so grab
@@ -998,40 +998,56 @@ sub createImageDisk($$)
     my $imagelock = "xenimage.$lvname";
     my $locked = TBScriptLock($imagelock, TBSCRIPTLOCK_GLOBALWAIT(), 1800);
     if ($locked != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the $imagelock lock after a long time!\n";
-	return 0;
+	print STDERR "Could not get $imagelock lock after a long time!\n";
+	return -1;
     }
 
+    #
+    # Do we have the right image file already? No need to download it
+    # again if the timestamp matches. Note that we are using the mod
+    # time on the lvm volume path for this, which we set below when
+    # the image is downloaded.
+    #
     if (findLVMLogicalVolume($lvname)) {
-	if (!defined($tstamp)) {
-	    print STDERR
-		"libvnode_xen: WARNING: ",
-		"requested image $image has no timestamp and already exists; ",
-		"using existing (possibly outdated) version.\n";
+	my $imagepath = lvmVolumePath($lvname);
+
+	my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
+	    $mtime,undef,undef,undef) = stat($imagepath);
+	if ("$mtime" eq "$tstamp") {
+	    print "Found existing disk: $imagepath.\n";
+	    return 0;
 	}
-	TBScriptUnlock();
-	return $lvname;
+	print "mtime for $imagepath differ: local $mtime, server $tstamp\n";
+	if (GClvm($lvname)) {
+	    print STDERR "Could not GC or rename $lvname\n";
+	    return -1;
+	}
     }
 
     my $size = $XEN_LDSIZE;
     if (system("/usr/sbin/lvcreate -n $lvname -L ${size}G $VGNAME")) {
 	print STDERR "libvnode_xen: could not create disk for $image\n";
 	TBScriptUnlock();
-	return 0;
+	return -1;
     }
 
     # Now we just download the file, then let create do its normal thing
     my $imagepath = lvmVolumePath($lvname);
-    my $dret = libvnode::downloadImage($imagepath, 1, $raref);
+    if (libvnode::downloadImage($imagepath, 1, $raref)) {
+	print STDERR "libvnode_xen: could not download image $image\n";
+	TBScriptUnlock();
+	return -1;
+    }
+    # reload has finished, file is written... so let's set its mtime
+    utime(time(), $tstamp, $imagepath);
 
     #
     # XXX note that we don't declare RELOADDONE here since we haven't
     # actually created the vnode shadow disk yet.  That is the caller's
     # responsibility.
     #
-
     TBScriptUnlock();
-    return $lvname;
+    return 0;
 }
 
 sub replace_hack($)
@@ -1810,6 +1826,82 @@ sub findLVMOrigin($)
 	}
     }
     return "";
+}
+
+#
+# Rename or GC an image lvm. We can collect the lvm if there are no
+# other lvms based on it.
+#
+sub GClvm($)
+{
+    my ($image)  = @_;
+    my $oldest   = 0;
+    my $inuse    = 0;
+    my $found    = 0;
+
+    if (! open(LVS, "lvs --noheadings -o lv_name,origin xen-vg |")) {
+	print STDERR "Could not start lvs\n";
+	return -1;
+    }
+    while (<LVS>) {
+	my $line = $_;
+	my $imname;
+	my $origin;
+	
+	if ($line =~ /^\s*([-\w\.]+)\s*$/) {
+	    $imname = $1;
+	}
+	elsif ($line =~ /^\s*([-\w\.]+)\s+([-\w\.]+)$/) {
+	    $imname = $1;
+	    $origin = $2;
+	}
+	else {
+	    print STDERR "Unknown line from lvs: $line\n";
+	    return -1;
+	}
+	#print "$imname";
+	#print " : $origin" if (defined($origin));
+	#print "\n";
+
+	# The exact image we are trying to GC.
+	$found = 1
+	    if ($imname eq $image);
+
+	# If the origin is the image we are looking for,
+	# then we mark it as inuse.
+	$inuse = 1
+	    if (defined($origin) && $origin eq $image);
+
+	# We want to find the highest numbered backup for this image.
+	# Might not be any of course.
+	if ($imname =~ /^([-\w]+)\.(\d+)$/) {
+	    $oldest = $2
+		if ($1 eq $image && $2 > $oldest);
+	}
+    }
+    close(LVS);
+    return -1
+	if ($?);
+    print "found:$found, inuse:$inuse, oldest:$oldest\n";
+    if (!$found) {
+	print STDERR "GClvm($image): no such lvm found\n";
+	return -1;
+    }
+    if (!$inuse) {
+	print "GClvm($image): not in use; deleting\n";
+	system("lvremove -f /dev/xen-vg/$image");
+	return -1
+	    if ($?);
+	return 0;
+    }
+    $oldest++;
+    # rename nicely works even when snapshots exist
+    system("lvrename /dev/xen-vg/$image" . 
+	   " /dev/xen-vg/$image.$oldest");
+    return -1
+	if ($?);
+    
+    return 0;
 }
 
 1
