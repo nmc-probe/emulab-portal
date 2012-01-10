@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -6865,8 +6865,33 @@ COMMAND_PROTOTYPE(dojailconfig)
 		}
 	}
 	mysql_free_result(res);
+	bufp += OUTPUT(bufp, ebufp - bufp, "\"\n");
 
-	OUTPUT(bufp, ebufp - bufp, "\"\n");
+	/*
+	 * Get the image to be booted. There is an implicit assumption that
+	 * virtual nodes get a single partition table entry.
+	 */
+	res = mydb_query("select p.pid,g.gid,i.imagename from partitions as pa "
+			 "left join images as i on i.imageid=pa.imageid "
+			 "left join projects as p on i.pid_idx=p.pid_idx "
+			 "left join groups as g on i.gid_idx=g.gid_idx "
+			 "where pa.node_id='%s'",
+			 3, reqp->nodeid);
+
+	if (!res) {
+		error("dojailconfig: %s: DB Error getting image info!\n",
+		       reqp->nodeid);
+		return 1;
+	}
+	if (mysql_num_rows(res)) {
+		row = mysql_fetch_row(res);
+
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       "IMAGENAME=\"%s,%s,%s\"\n",
+			       row[0], row[1], row[2]);
+	}
+	mysql_free_result(res);
+
 	client_writeback(sock, buf, strlen(buf), tcp);
 	return 0;
 }
