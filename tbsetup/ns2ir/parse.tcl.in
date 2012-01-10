@@ -377,6 +377,7 @@ source ${GLOBALS::libdir}/sequence.tcl
 source ${GLOBALS::libdir}/console.tcl
 source ${GLOBALS::libdir}/topography.tcl
 source ${GLOBALS::libdir}/disk.tcl
+source ${GLOBALS::libdir}/custom.tcl
 
 ##################################################
 # Redifing Assignment
