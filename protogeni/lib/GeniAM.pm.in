@@ -27,8 +27,10 @@ use Compress::Zlib;
 use MIME::Base64;
 use XML::LibXML;
 use URI;
+use Date::Parse;
 use Data::Dumper;
 use Frontier::RPC2;
+use POSIX qw(strftime);
 
 # Disable UUID checks in GeniCredential.
 $GeniCredential::CHECK_UUID = 0;
@@ -547,9 +549,11 @@ sub SliverStatus()
     # include the pg status
     $status->{'pg_status'} = $pgstatus->{'status'};
 
-    # include the expiration
+    # include the expiration, converting to UTC
     my $slice = GeniSlice->Lookup($slice_urn);
-    $status->{'pg_expires'} = $slice->expires();
+    my @expires = gmtime(str2time($slice->expires()));
+    my $expires_str = POSIX::strftime("%Y-%m-%d %H:%M:%S", @expires);
+    $status->{'pg_expires'} = $expires_str;
 
     my $details = $pgstatus->{'details'};
     my @children = ();
