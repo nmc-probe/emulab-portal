@@ -552,7 +552,7 @@ sub SliverStatus()
     # include the expiration, converting to UTC
     my $slice = GeniSlice->Lookup($slice_urn);
     my @expires = gmtime(str2time($slice->expires()));
-    my $expires_str = POSIX::strftime("%Y-%m-%d %H:%M:%S", @expires);
+    my $expires_str = POSIX::strftime("%Y-%m-%dT%H:%M:%S", @expires);
     $status->{'pg_expires'} = $expires_str;
 
     my $details = $pgstatus->{'details'};
