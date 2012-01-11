@@ -12,7 +12,7 @@ sub DoUpdate($$$)
 
     if (!DBSlotExists("wires", "external_interface")) {
         DBQueryFatal("alter table wires add ".
-                     "  `external_interface` tinytext default NULL");
+                     "  `external_interface` tinytext NULL default NULL");
     }
 
     return 0;
