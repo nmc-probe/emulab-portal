@@ -112,7 +112,6 @@ my $OPS_PORT = "emulab-ops-1.4";
 my $FS_PORT = "emulab-fs-1.4";
 if ($FBSD_MAJOR > 4) {
     if ($FBSD_MAJOR > 7) {
-	# XXX someday...
 	$OPS_PORT = "emulab-ops-4.0";
 	$FS_PORT = "emulab-fs-4.0";
     } elsif ($FBSD_MAJOR == 7 && $FBSD_MINOR > 2) {
@@ -412,21 +411,22 @@ Phase "ports", "Installing ports", sub {
 	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
 	};
 	# XXX Ditto
-	if ($FBSD_MAJOR < 8 &&
-	    ($FBSD_MAJOR > 6 || ($FBSD_MAJOR == 6 && $FBSD_MINOR > 2))) {
-	    Phase "p5-DBD-mysql50", "Installing old Perl Mysql package", sub {
-		my $pname = `$PKG_INFO -E 'p5-DBD-mysql50-*' 2>/dev/null`;
-		chomp($pname);
-		if ($pname eq $P5DBD_PKG) {
-		    PhaseSkip("p5-DBD-mysql50 already up to date");
-		}
-		if (!$packagedir) {
-		    PhaseSkip("No package directory provided");
-		}
-		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_DEL -f $pname")
-		    if ($pname);
-		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $P5DBD_PKG");
-	    };
+	if ($FBSD_MAJOR > 6 || ($FBSD_MAJOR == 6 && $FBSD_MINOR > 2)) {
+	    if ($FBSD_MAJOR < 8) {
+		Phase "p5-DBD-mysql50", "Installing old Perl Mysql package", sub {
+		    my $pname = `$PKG_INFO -E 'p5-DBD-mysql50-*' 2>/dev/null`;
+		    chomp($pname);
+		    if ($pname eq $P5DBD_PKG) {
+			PhaseSkip("p5-DBD-mysql50 already up to date");
+		    }
+		    if (!$packagedir) {
+			PhaseSkip("No package directory provided");
+		    }
+		    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_DEL -f $pname")
+			if ($pname);
+		    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $P5DBD_PKG");
+		};
+	    }
 	    # XXX cannot seem to get these dependencies into emulab-ops
 	    if ($FBSD_MAJOR > 6) {
 		Phase "py-m2crypto", "Installing python m2crypto package", sub {
