@@ -2617,6 +2617,7 @@ CREATE TABLE `nodes` (
   `sshdport` int(11) NOT NULL default '11000',
   `jailflag` tinyint(3) unsigned NOT NULL default '0',
   `jailip` varchar(15) default NULL,
+  `jailipmask` varchar(15) default NULL,
   `sfshostid` varchar(128) default NULL,
   `stated_tag` varchar(32) default NULL,
   `rtabid` smallint(5) unsigned NOT NULL default '0',
@@ -4378,6 +4379,22 @@ CREATE TABLE `virt_lans` (
   KEY `pid` (`pid`,`eid`,`vname`),
   KEY `vnode` (`pid`,`eid`,`vnode`),
   KEY `pideid` (`pid`,`eid`,`vname`,`vnode`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `virt_node_attributes`
+--
+
+DROP TABLE IF EXISTS `virt_node_attributes`;
+CREATE TABLE `virt_node_attributes` (
+  `pid` varchar(48) NOT NULL default '',
+  `eid` varchar(32) NOT NULL default '',
+  `exptidx` int(11) NOT NULL default '0',
+  `vname` varchar(32) NOT NULL default '',
+  `attrkey` varchar(64) NOT NULL default '',
+  `attrvalue` tinytext,
+  PRIMARY KEY  (`exptidx`,`vname`,`attrkey`),
+  UNIQUE KEY `pideid` (`pid`,`eid`,`vname`,`attrkey`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
