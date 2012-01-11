@@ -47,7 +47,7 @@ sub DoUpdate($$$)
     
     DBQueryFatal("REPLACE INTO table_regex VALUES ".
 		 "('virt_node_attributes','attrvalue','text','regex', ".
-		 " '^[-\\\\w\\\\.+,\\\\s]+\$',0,255,NULL)");
+		 " '^[-\\\\w\\\\.\\\\+,\\\\s\\\\/:]+$',0,255,NULL)");
 
     return 0;
 }
