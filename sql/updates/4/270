@@ -14,4 +14,8 @@ sub DoUpdate($$$)
         DBQueryFatal("alter table wires add ".
                      "  `external_interface` tinytext default NULL");
     }
+
+    return 0;
 }
+
+1;
