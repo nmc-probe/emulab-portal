@@ -57,7 +57,7 @@ if (!GetOptions(\%opt, 'd', 'h', 't', 'o=s@') || @ARGV || $opt{h}) {
     exit 1;
 }
 
-my $testbranch = "master";
+my $testbranch = "default";
 if ($opt{d}) { $debug    = 1; }
 if ($opt{t}) { $testmode = 1; }
 
@@ -176,7 +176,7 @@ my $STDERRNULL = " 2> /dev/null";
 # Function Prototypes
 ######################################################################
 sub changed_files(@);
-sub get_mail_addresses(@);
+sub get_mail_addresses($@);
 sub uniq(@);
 sub flatten_arrayref($);
 sub commit_mail($\@@);
@@ -255,6 +255,7 @@ my @changed_files;
 # happened in the middle
 #
 my $newrev = $ENV{HG_NODE};
+exit 0 unless (defined $newrev);
 
 #
 # Figure out which commits we're interested in based on reference type
@@ -262,7 +263,7 @@ my $newrev = $ENV{HG_NODE};
 #
 
 if ($testmode) {
-    @commits = `$HG log --template '{node}\n' -l 3`;
+    @commits = `$HG log --template '{node}\n' -l 3 -r $testbranch`;
     chomp @commits;
 } else {
     @commits = get_commits('tip',$newrev);
@@ -286,7 +287,7 @@ debug("Changed files: ", join(",",@changed_files));
 #
 # Based on the list of files, figure out who to mail
 #
-my @mailaddrs = get_mail_addresses(@changed_files);
+my @mailaddrs = get_mail_addresses($branch, @changed_files);
 
 #
 # Send off the mail!
@@ -326,8 +327,8 @@ sub changed_files(@) {
 # Given a list of filenames, return the set of email addresses
 # the report should be sent to
 #
-sub get_mail_addresses(@) {
-    my (@changedfiles) = @_;
+sub get_mail_addresses($@) {
+    my ($branchname, @changedfiles) = @_;
     my (@addrs,@archiveaddrs);
     my $matched = 0;
 
@@ -361,6 +362,26 @@ sub get_mail_addresses(@) {
         my @branches = flatten_arrayref($branches);
         my @paths = flatten_arrayref($paths);
         my @addresses = flatten_arrayref($addresses);
+
+        #
+        # If the branch doesn't match, go on to the next entry
+        #
+        my $branch_matched = 0;
+        BRANCH: foreach my $branchRE (@branches) {
+            if (!defined($branchRE)) {
+                debug("Empty branch matched");
+                $branch_matched = 1;
+                last BRANCH;
+            } elsif ($branchname =~ $branchRE) {
+                debug("Matched branch regexp /$branchRE/");
+                $branch_matched = 1;
+                last BRANCH;
+            }
+        }
+
+        if (!$branch_matched) {
+            next ENTRY;
+        }
 
         #
         # If the path doesn't match, go on to the next entry
