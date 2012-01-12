@@ -1,4 +1,4 @@
-# -*- tcl -*-
+a -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
@@ -76,7 +76,7 @@ Simulator instproc init {args} {
 
     #Custom list.
     $self instvar custom_list;
-    array set custom_list{}
+    array set custom_list {}
 
     # EventGroup list.
     $self instvar eventgroup_list;

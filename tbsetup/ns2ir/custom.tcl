@@ -32,7 +32,6 @@ Program instproc init {s} {
 }
 
 Program instproc rename {old new} {
-    global ::GLOBALS::all_programs
     $self instvar sim
 
     $sim rename_program $old $new
@@ -65,8 +64,6 @@ Program instproc updatedb {DB} {
     }
 
     # Update the DB
-    spitxml_data "virt_custom" [list "vnode" "vname" "name"] [list $progvnode $self $name]
-
     $sim spitxml_data "virt_agents" [list "vnode" "vname" "objecttype" ] [list $progvnode $self $objtypes(CUSTOM) ]
 }
 
