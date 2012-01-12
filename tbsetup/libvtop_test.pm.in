@@ -5117,6 +5117,11 @@ sub AllocVirtNodes($)
 	    #
 	    $pnode->ModifyReservation({"vname" => $virtual}) == 0
 		or return -1 if (!$self->impotent());
+
+	    #
+	    # Not sure where to put this.
+	    #
+	    $pnode->SetJailIPFromVnode($experiment, $virtual);
 	}
 
 	# Since we have some extra physical vnodes reserved on this pnode,

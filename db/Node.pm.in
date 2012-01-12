@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Node;
@@ -13,7 +13,8 @@ use vars qw(@ISA @EXPORT $AUTOLOAD @EXPORT_OK);
 @EXPORT = qw();
 
 # Configure variables
-use vars qw($TB $BOSSNODE $WOL $OSSELECT $ISUTAH $CONTROL_NETMASK $TBOPS);
+use vars qw($TB $BOSSNODE $WOL $OSSELECT $ISUTAH $CONTROL_NETMASK
+            $TBOPS $JAILIPMASK);
 $TB	     = "@prefix@";
 $BOSSNODE    = "@BOSSNODE@";
 $TBOPS       = "@TBOPSEMAIL@";
@@ -23,6 +24,7 @@ $OSSELECT    = "$TB/bin/os_select";
 $ISUTAH	     = @TBMAINSITE@;
 # Need this for jail ip assignment.
 $CONTROL_NETMASK = "@CONTROL_NETMASK@";
+$JAILIPMASK  = "@JAILIPMASK@";
 
 use libdb;
 use libtestbed;
@@ -1897,6 +1899,7 @@ sub CreateVnodes($$$)
     my ($class, $rptr, $options) = @_;
     my @created   = ();
     my @tocreate  = ();
+    my @vlist     = ();
     require Interface;
     require NodeType;
     
@@ -2193,9 +2196,10 @@ sub CreateVnodes($$$)
 			"def_boot_osid" => $osid,
 			"update_accounts" => 1,
 			"jailflag" => $isjailed);
-	$nodesets{"jailip"} = $jailip
-	    if ($isjailed && !$isremote);
-
+	if ($isjailed && !$isremote) {
+	    $nodesets{"jailip"} = $jailip;
+	    $nodesets{"jailipmask"} = $JAILIPMASK;
+	}
 	my $statement = "insert into nodes set ".
 	    join(",", map("$_='" . $nodesets{$_} . "'", keys(%nodesets)));
 
@@ -3048,7 +3052,32 @@ sub GetJailIP($;$)
 	$pnet++;
 	$pnode2 -= $nodenumlimit;
     }
-    return "${IPBASE1}.${pnet}.${pnode2}.${num}";
+    return ("${IPBASE1}.${pnet}.${pnode2}.${num}", $JAILIPMASK);
+}
+
+#
+# Another variant of above, this one looks in the virt_node_attributes
+# table of the vnode assigned to the pnode.
+#
+sub SetJailIPFromVnode($$$)
+{
+    my ($self, $experiment, $vnode_id) = @_;
+    my ($jailip, $jailipmask);
+
+    return -1
+	if ($experiment->GetVirtNodeAttribute($vnode_id, \$jailip) < 0 ||
+	    $experiment->GetVirtNodeAttribute($vnode_id, \$jailipmask)  < 0);
+
+    if (defined($jailip)) {
+	if (!defined($jailipmask)) {
+	    print STDERR
+		"*** $vnode_id has a jailip attribute but no jailipmask.\n";
+	    return -1;
+	}
+	return $self->Update({"jailip" => $jailip,
+			      "jailipmask" => $jailipmask});
+    }
+    return 0;
 }
 
 #
@@ -3135,6 +3164,7 @@ sub CheckPreReserve($$)
     }
     return $result;
 }
+
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;
