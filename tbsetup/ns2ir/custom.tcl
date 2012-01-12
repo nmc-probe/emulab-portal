@@ -18,7 +18,7 @@ namespace eval GLOBALS {
     set new_classes(Custom) {}
 }
 
-Program instproc init {s} {
+Custom instproc init {s} {
     global ::GLOBALS::last_class
 
     $self set sim $s
@@ -31,7 +31,7 @@ Program instproc init {s} {
     set ::GLOBALS::last_class $self
 }
 
-Program instproc rename {old new} {
+Custom instproc rename {old new} {
     $self instvar sim
 
     $sim rename_custom $old $new
@@ -39,7 +39,7 @@ Program instproc rename {old new} {
 
 # updatedb DB
 # This adds rows to the virt_trafgens table corresponding to this agent.
-Program instproc updatedb {DB} {
+Custom instproc updatedb {DB} {
     var_import ::GLOBALS::pid
     var_import ::GLOBALS::eid
     var_import ::TBCOMPAT::objtypes
