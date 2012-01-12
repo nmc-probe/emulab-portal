@@ -1071,7 +1071,7 @@ REPLACE INTO table_regex VALUES ('virt_nodes','numeric_id','int','redirect','def
 REPLACE INTO table_regex VALUES ('virt_firewalls','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_firewalls','eid','text','redirect','experimenets:eid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_firewalls','fwname','text','redirect','virt_nodes:vname',0,0,NULL);
-REPLACE INTO table_regex VALUES ('virt_firewalls','type','text','regex','^(ipfw|ipfw2|ipchains|ipfw2-vlan)$',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_firewalls','type','text','regex','^(ipfw|ipfw2|iptables|ipfw2-vlan|iptables-vlan)$',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_firewalls','style','text','regex','^(open|closed|basic|emulab)$',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('mailman_lists','pid_idx','text','redirect','projects:pid_idx',0,0,NULL);

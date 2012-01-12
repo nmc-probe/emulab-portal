@@ -376,7 +376,7 @@ CREATE TABLE `datapository_databases` (
 
 DROP TABLE IF EXISTS `default_firewall_rules`;
 CREATE TABLE `default_firewall_rules` (
-  `type` enum('ipfw','ipfw2','ipchains','ipfw2-vlan') NOT NULL default 'ipfw',
+  `type` enum('ipfw','ipfw2','iptables','ipfw2-vlan', 'iptables-vlan') NOT NULL default 'ipfw',
   `style` enum('open','closed','basic','emulab') NOT NULL default 'basic',
   `enabled` tinyint(4) NOT NULL default '0',
   `ruleno` int(10) unsigned NOT NULL default '0',
@@ -4254,7 +4254,7 @@ CREATE TABLE `virt_firewalls` (
   `eid` varchar(32) NOT NULL default '',
   `exptidx` int(11) NOT NULL default '0',
   `fwname` varchar(32) NOT NULL default '',
-  `type` enum('ipfw','ipfw2','ipchains','ipfw2-vlan') NOT NULL default 'ipfw',
+  `type` enum('ipfw','ipfw2','iptables','ipfw2-vlan', 'iptables-vlan') NOT NULL default 'ipfw',
   `style` enum('open','closed','basic','emulab') NOT NULL default 'basic',
   `log` tinytext NOT NULL,
   PRIMARY KEY  (`exptidx`,`fwname`),
