@@ -26,7 +26,7 @@ Program instproc init {s} {
     $self set name {}
 
     # Link simulator to this new object.
-    $s add_program $self
+    $s add_custom $self
 
     set ::GLOBALS::last_class $self
 }
@@ -34,7 +34,7 @@ Program instproc init {s} {
 Program instproc rename {old new} {
     $self instvar sim
 
-    $sim rename_program $old $new
+    $sim rename_custom $old $new
 }
 
 # updatedb DB

@@ -16,19 +16,10 @@ Class Disk -superclass NSObject
 
 namespace eval GLOBALS {
     set new_classes(Disk) {}
-    variable all_programs {}
 }
 
 Program instproc init {s} {
     global ::GLOBALS::last_class
-    global ::GLOBALS::all_programs
-
-    if {$all_programs == {}} {
-	# Create a default event group to hold all disk agents.
-	set foo [uplevel \#0 "set __all_programs [new EventGroup $s]"]
-	set all_programs $foo
-    }
-    $all_programs add $self
 
     $self set sim $s
     $self set node {}
@@ -38,17 +29,15 @@ Program instproc init {s} {
     $self set params {}
 
     # Link simulator to this new object.
-    $s add_program $self
+    $s add_disk $self
 
     set ::GLOBALS::last_class $self
 }
 
 Program instproc rename {old new} {
-    global ::GLOBALS::all_programs
     $self instvar sim
 
-    $sim rename_program $old $new
-    $all_programs rename-agent $old $new
+    $sim rename_disk $old $new
 }
 
 # updatedb DB
