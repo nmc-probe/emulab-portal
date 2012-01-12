@@ -5121,7 +5121,8 @@ sub AllocVirtNodes($)
 	    #
 	    # Not sure where to put this.
 	    #
-	    $pnode->SetJailIPFromVnode($experiment, $virtual);
+	    $pnode->SetJailIPFromVnode($experiment, $virtual) == 0
+		or return -1 if (!$self->impotent());
 	}
 
 	# Since we have some extra physical vnodes reserved on this pnode,

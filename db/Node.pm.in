@@ -3065,8 +3065,10 @@ sub SetJailIPFromVnode($$$)
     my ($jailip, $jailipmask);
 
     return -1
-	if ($experiment->GetVirtNodeAttribute($vnode_id, \$jailip) < 0 ||
-	    $experiment->GetVirtNodeAttribute($vnode_id, \$jailipmask)  < 0);
+	if ($experiment->GetVirtNodeAttribute($vnode_id,
+					      "jailip", \$jailip) < 0 ||
+	    $experiment->GetVirtNodeAttribute($vnode_id,
+					      "jailipmask", \$jailipmask)  < 0);
 
     if (defined($jailip)) {
 	if (!defined($jailipmask)) {
