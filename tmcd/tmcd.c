@@ -7796,7 +7796,7 @@ COMMAND_PROTOTYPE(dofwinfo)
 		 * then the client doesn't need to do anything.
 		 * Set the FWIP to 0 to indicate this.
 		 */
-		if (strcmp(row[1], "ipfw2-vlan") == 0)
+		if (strcmp(row[1], "ipfw2-vlan") == 0 || strcmp(row[1], "iptables-vlan") == 0)
 			fwip = "0.0.0.0";
 		else
 			fwip = row[5];
