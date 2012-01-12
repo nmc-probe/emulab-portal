@@ -1,7 +1,7 @@
 # -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -2052,6 +2052,22 @@ proc tb-set-elabinelab-role-attribute {role key value {order 0}} {
 	}
 	lappend elabinelab_attributes "$r,$key,$value,$order"
     }
+}
+
+proc tb-get-elabinelab-role-attribute {role key} {
+    var_import ::TBCOMPAT::EINEROLE;
+    var_import ::TBCOMPAT::EINEKEY;
+    var_import ::TBCOMPAT::EINEVALUE;
+    var_import ::TBCOMPAT::EINEORDER;
+    var_import ::TBCOMPAT::elabinelab_attributes;
+
+    set ret {}
+    set i [lsearch -glob $elabinelab_attributes "$role,$key,*,0"]
+    if {$i > -1} {
+	set values [split [lindex $elabinelab_attributes $i] ","]
+	set ret [lindex $values 2]
+    }
+    return $ret
 }
 
 proc tb-unset-elabinelab-role-attribute {role key} {
