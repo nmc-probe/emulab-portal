@@ -179,7 +179,7 @@ sub changed_files(@);
 sub get_mail_addresses(@);
 sub uniq(@);
 sub flatten_arrayref($);
-sub commit_mail(\@@);
+sub commit_mail($\@@);
 sub get_commits($$);
 sub send_mail($$@);
 sub debug(@);
@@ -268,6 +268,9 @@ if ($testmode) {
     @commits = get_commits('tip',$newrev);
 }
 
+my $branch = `$HG log --template '{branch}\n' -r $newrev`;
+chomp $branch;
+
 # We only want to see *new* commits, which means that commits already
 # in the main repository need to be excluded too.
 if (defined $exclude_repo) {
@@ -289,7 +292,7 @@ my @mailaddrs = get_mail_addresses(@changed_files);
 # Send off the mail!
 #
 if (@mailaddrs) {
-    commit_mail(@commits,@mailaddrs);
+    commit_mail($branch,@commits,@mailaddrs);
 }
 
 debug("finishing");
@@ -435,8 +438,13 @@ sub flatten_arrayref($) {
 #
 # Send mail about a regular update commit
 #
-sub commit_mail(\@@) {
-    my ($commits,@mailaddrs) = @_;
+sub commit_mail($\@@) {
+    my ($branch,$commits,@mailaddrs) = @_;
+    my $node;
+
+
+    $node = `$HG log --template '{node}\n' -r $branch`;
+    chomp $node;
 
     #
     # Construct the subject line. For now, we just say what repo (if defined)
@@ -448,7 +456,7 @@ sub commit_mail(\@@) {
         $subject .= "[$reponame] ";
     }
 
-    $subject .= ' ' . 'updated';
+    $subject .= sprintf "branch $branch updated ($node)";
 
     my @fullbody;
     foreach my $rev (@$commits) {
