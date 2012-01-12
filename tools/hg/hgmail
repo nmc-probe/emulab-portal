@@ -443,7 +443,7 @@ sub commit_mail($\@@) {
     my $node;
 
 
-    $node = `$HG log --template '{node}\n' -r $branch`;
+    $node = `$HG log --template '{node|short}\n' -r $branch`;
     chomp $node;
 
     #
