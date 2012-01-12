@@ -1,7 +1,7 @@
 # -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -100,6 +100,10 @@ Node instproc init {s} {
     $self set nseconfig ""
     $self set sharing_mode ""
     $self set role ""
+
+    # Arbitrary key/value pairs to pass through to physical nodes.
+    $self instvar attributes
+    array set attributes {}
 
     $self set topo ""
 
@@ -200,6 +204,7 @@ Node instproc updatedb {DB} {
     $self instvar virthost
     $self instvar issubnode
     $self instvar desirelist
+    $self instvar attributes
     $self instvar nseconfig
     $self instvar simulated
     $self instvar sharing_mode
@@ -398,6 +403,12 @@ Node instproc updatedb {DB} {
     foreach desire [lsort [array names desirelist]] {
 	set weight $desirelist($desire)
 	$sim spitxml_data "virt_node_desires" [list "vname" "desire" "weight"] [list $self $desire $weight]
+    }
+
+    # Put in the attributes, too
+    foreach key [lsort [array names attributes]] {
+	set val $attributes($key)
+	$sim spitxml_data "virt_node_attributes" [list "vname" "attrkey" "attrvalue"] [list $self $key $val]
     }
 
     set agentname "$self"
@@ -661,6 +672,14 @@ Node instproc add-desire {desire weight} {
 	perror "\[add-desire] Desire $desire on $self already exists!"
     }
     set desirelist($desire) $weight
+}
+
+#
+# Add a key/value pair to the nide.
+#
+Node instproc add-attribute {key val} {
+    $self instvar attributes
+    set attributes($key) $val
 }
 
 Node instproc program-agent {args} {

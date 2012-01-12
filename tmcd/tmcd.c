@@ -308,6 +308,7 @@ COMMAND_PROTOTYPE(dodhcpdconf);
 COMMAND_PROTOTYPE(dosecurestate);
 COMMAND_PROTOTYPE(doquoteprep);
 COMMAND_PROTOTYPE(doimagekey);
+COMMAND_PROTOTYPE(donodeattributes);
 
 /*
  * The fullconfig slot determines what routines get called when pushing
@@ -416,6 +417,8 @@ struct command {
 	{ "securestate",  FULLCONFIG_NONE, F_REMREQSSL, dosecurestate},
 	{ "quoteprep",    FULLCONFIG_NONE, F_REMREQSSL, doquoteprep},
 	{ "imagekey",     FULLCONFIG_NONE, F_REQTPM, doimagekey},
+	{ "nodeattributes", FULLCONFIG_ALL, 0, donodeattributes},
+	
 };
 static int numcommands = sizeof(command_array)/sizeof(struct command);
 
@@ -6771,9 +6774,9 @@ COMMAND_PROTOTYPE(dojailconfig)
 	/*
 	 * Now need the sshdport and jailip for this node.
 	 */
-	res = mydb_query("select sshdport,jailip from nodes "
+	res = mydb_query("select sshdport,jailip,jailipmask from nodes "
 			 "where node_id='%s'",
-			 2, reqp->nodeid);
+			 3, reqp->nodeid);
 
 	if (!res) {
 		error("JAILCONFIG: %s: DB Error getting config!\n",
@@ -6790,7 +6793,8 @@ COMMAND_PROTOTYPE(dojailconfig)
 	bzero(buf, sizeof(buf));
 	if (row[1]) {
 		bufp += OUTPUT(bufp, ebufp - bufp,
-			       "JAILIP=\"%s,%s\"\n", row[1], JAILIPMASK);
+			       "JAILIP=\"%s,%s\"\n",
+			       row[1], (row[2] ? row[2] : JAILIPMASK));
 	}
 	bufp += OUTPUT(bufp, ebufp - bufp,
 		       "PORTRANGE=\"%d,%d\"\n"
@@ -6803,9 +6807,10 @@ COMMAND_PROTOTYPE(dojailconfig)
 		       "IPDIVERT=1\n"
 		       "ROUTING=%d\n"
 		       "DEVMEM=%d\n"
+		       "ELABINELAB=%d\n"
 		       "EVENTSERVER=\"event-server.%s\"\n",
 		       low, high, atoi(row[0]), reqp->islocal, reqp->islocal,
-		       OURDOMAIN);
+		       reqp->elab_in_elab, OURDOMAIN);
 
 	client_writeback(sock, buf, strlen(buf), tcp);
 	mysql_free_result(res);
@@ -9811,3 +9816,43 @@ COMMAND_PROTOTYPE(dotpmdummy)
 
 	return 0;
 }
+
+/*
+ * Return the virt_node_attributes for a node.
+ */
+COMMAND_PROTOTYPE(donodeattributes)
+{
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	char		buf[MYBUFSIZE];
+	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
+	int		nrows;
+
+	if (! reqp->allocated) {
+		return 0;
+	}
+	bzero(buf, sizeof(buf));
+
+	/*
+	 * Get all the *virt* attributes for the node.
+	 */
+	res = mydb_query("select attrkey,attrvalue "
+			 "   from virt_node_attributes "
+			 "where exptidx=%d and vname='%s'",
+			 2, reqp->exptidx, reqp->nickname);
+	if (res) {
+		nrows = (int)mysql_num_rows(res);
+		while (bufp < ebufp && nrows--) {
+			row = mysql_fetch_row(res);
+			if (row[0] && row[0][0] && row[1])
+				bufp += OUTPUT(bufp, ebufp - bufp,
+					       "%s=\"%s\"\n",
+					       row[0], row[1]);
+		}
+		mysql_free_result(res);
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+	return 0;
+}
+
+

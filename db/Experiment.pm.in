@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Experiment;
@@ -132,6 +132,7 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "virt_routes",
 		   "virt_vtypes",
 		   "virt_programs",
+		   "virt_node_attributes",
 		   "virt_node_desires",
 		   "virt_node_startloc",
 		   "virt_simnode_attributes",
@@ -4965,6 +4966,31 @@ sub MarkNonlocal($$$$)
     return -1
 	if ($self->TableUpdate("experiment_stats", $args));
 
+    return 0;
+}
+
+#
+# Lookup a key/value pair from the virt_node_attributes table.
+#
+sub GetVirtNodeAttribute($$$$)
+{
+    my ($self, $vname, $key, $pval) = @_;
+    $$pval = undef;
+
+    my $exptidx  = $self->idx();
+    my $safe_key = DBQuoteSpecial($key);
+
+    my $query_result =
+	DBQueryWarn("select attrvalue from virt_node_attributes ".
+		    "where exptidx='$exptidx' and vname='$vname' and ".
+		    "      attrkey=$safe_key");
+    return -1
+	if (!defined($query_result));
+    return 0
+	if (! $query_result->numrows);
+
+    my ($val) = $query_result->fetchrow_array();
+    $$pval = $val;
     return 0;
 }
 
