@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2011 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -111,16 +111,6 @@ register_shutdown_function("SPEWCLEANUP");
 # be an elabinelab experiment. 
 #
 if (isset($elabinelab_source)) {
-    #
-    # Make sure the IP really matches. 
-    #
-    if (! ($realnode = Node::LookupByIP($REMOTE_ADDR))) {
-	SPITERROR(403, "Could not map $REMOTE_ADDR to node object!");
-    }
-    if ($realnode->node_id() != $node_id) {
-	SPITERROR(403, "Not an elabinelab experiment!");
-    }
-    
     #
     # Must be an elabinelab experiment of course.
     #
