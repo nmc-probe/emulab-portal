@@ -4053,13 +4053,6 @@ COMMAND_PROTOTYPE(domounts)
 			/* Leave this logging on all the time for now. */
 			info("MOUNTS: %s", buf);
 		}
-
-		/*
-		 * Skip all this for a vnode; client does not ask.
-		 */
-		if (reqp->isvnode)
-			goto dousers;
-
 #ifdef FSSCRATCHDIR
 		/*
 		 * Return scratch mount if its defined.
@@ -4207,7 +4200,6 @@ COMMAND_PROTOTYPE(domounts)
 #endif
 		}
 	}
- dousers:
 	/*
 	 * Remote nodes do not get per-user mounts.
 	 * ProtoGeni nodes do not get them either.
@@ -8065,7 +8057,16 @@ COMMAND_PROTOTYPE(doemulabconfig)
 	 *
 	 * Note the single vs dual control network differences!
 	 */
-	if (reqp->singlenet) {
+	if (reqp->isvnode && reqp->singlenet) {
+		res = mydb_query("select r.node_id,r.inner_elab_role,"
+				 "   n.jailip,r.vname from reserved as r "
+				 "left join nodes as n on "
+				 "     n.node_id=r.node_id "
+				 "where r.pid='%s' and r.eid='%s' and "
+				 "      r.inner_elab_role is not null",
+				 4, reqp->pid, reqp->eid);
+	}
+	else if (reqp->singlenet) {
 		res = mydb_query("select r.node_id,r.inner_elab_role,"
 				 "   i.IP,r.vname from reserved as r "
 				 "left join interfaces as i on "
