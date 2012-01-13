@@ -712,6 +712,9 @@ Node instproc disk-agent {args} {
         -name {} -type {} -mountpoint {} -params {}
     }
 
+    if {$(-name) == {} && $(-type) == {} && $(-mountpoint) == {} && $(-params) == {}} {
+	return $curdisk
+    }	
     set curdisk [new Disk [$self set sim]]
     $curdisk set node $self
     $curdisk set name $(-name)
