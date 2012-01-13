@@ -706,6 +706,35 @@ Node instproc program-agent {args} {
     return $curprog
 }
 
+Node instproc disk-agent {args} {
+
+    ::GLOBALS::named-args $args {
+        -name {} -type {} -mountpoint {} -params {}
+    }
+
+    set curdisk [new Disk [$self set sim]]
+    $curdisk set node $self
+    $curdisk set name $(-name)
+    $curdisk set type $(-type)
+    $curdisk set mountpoint "{$(-mountpoint)}"
+    $curdisk set params "{$(-params)}"
+
+    return $curdisk
+}
+
+Node instproc custom-agent {args} {
+
+    ::GLOBALS::named-args $args {
+	-name {}
+    }
+
+    set customagent [new Custom [$self set sim]]
+    $customagent set node $self
+    $customagent set name $(-name)
+
+    return $customagent
+} 
+
 Node instproc topography {topo} {
     var_import ::TBCOMPAT::location_info
     $self instvar sim
