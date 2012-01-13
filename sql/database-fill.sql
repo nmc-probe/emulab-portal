@@ -1152,7 +1152,7 @@ REPLACE INTO table_regex VALUES ('virt_lans','implemented_by_link','text','redir
 
 REPLACE INTO table_regex VALUES ('elabinelab_attributes','role','text','regex','^(boss|router|ops|fs|node)$',0,0,NULL);
 REPLACE INTO table_regex VALUES ('elabinelab_attributes','attrkey','text','regex','^[-\\w\\.]+$',1,32,NULL);
-REPLACE INTO table_regex VALUES ('elabinelab_attributes','attrvalue','text','regex','^[-\\w\\.\\+,\\s\\/]+$',0,255,NULL);
+REPLACE INTO table_regex VALUES ('elabinelab_attributes','attrvalue','text','regex','^[-\\w\\.\\+,\\s\\/:]+$',0,255,NULL);
 REPLACE INTO table_regex VALUES ('elabinelab_attributes','ordering','int','redirect','default:tinyint',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('images','auth_key','text','regex','^[0-9a-fA-F,]+$',0,0,NULL);

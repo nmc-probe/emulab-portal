@@ -49,5 +49,8 @@ sub DoUpdate($$$)
 		 "('virt_node_attributes','attrvalue','text','regex', ".
 		 " '^[-\\\\w\\\\.\\\\+,\\\\s\\\\/:]+\$',0,255,NULL)");
 
+    DBQueryFatal("REPLACE INTO table_regex VALUES ".
+		 "('elabinelab_attributes','attrvalue','text','regex', ".
+		 " '^[-\\\\w\\\\.\\\\+,\\\\s\\\\/:]+\$',0,255,NULL)");
     return 0;
 }
