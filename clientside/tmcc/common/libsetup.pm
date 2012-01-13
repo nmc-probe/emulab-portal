@@ -2304,6 +2304,7 @@ sub getfwconfig($$;$)
     my @fwrules     = ();
     my @fwhosts	    = ();
     my %fwhostmacs  = ();
+    my %fwhostips   = ();
     my %fwsrvmacs   = ();
 
     $$infoptr = undef;
@@ -2374,8 +2375,9 @@ sub getfwconfig($$;$)
 	    push(@fwhosts,
 		 "NAME=$host IP=$ip ALIASES=''");
 
-	    # and save off the MACs
+	    # and save off the MACs and IPs
 	    $fwhostmacs{$host} = $mac;
+	    $fwhostips{$host} = $ip;
 	} elsif ($line =~ /$spat/) {
 	    my $srv = $1;
 	    my $ip = $2;
@@ -2461,6 +2463,10 @@ sub getfwconfig($$;$)
     if (%fwhostmacs) {
 	$fwinfo->{"MACS"} = \%fwhostmacs;
     }
+    if (%fwhostips) {
+	$fwinfo->{"IPS"} = \%fwhostips;
+    }
+    
 
     # make a pass over the rules, expanding variables
     my $bad = 0;

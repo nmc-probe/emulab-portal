@@ -1220,18 +1220,257 @@ sub os_getnfsmounts($)
     return 0;
 }
 
-sub os_fwconfig_line($@)
-{
-    my ($fwinfo, @fwrules) = @_;
-    my ($upline, $downline);
-    my $errstr = "*** WARNING: Linux firewall not implemented\n";
+sub os_fwconfig_line($@) {
+	my ($fwinfo, @fwrules) = @_;
+	my ($upline, $downline);
+	my $pdev;
+	my $vlandev;
+	my $myip;
+	my $mymask;
 
+	$myip = `cat $BOOTDIR/myip`;
+	chomp($myip);
+	$mymask = `cat $BOOTDIR/mynetmask`;
+	chomp($mymask);
 
-    warn $errstr;
-    $upline = "echo $errstr; exit 1";
-    $downline = "echo $errstr; exit 1";
+	if ($fwinfo->{TYPE} ne "iptables" && $fwinfo->{TYPE} ne "iptables-vlan") {
+		warn "*** WARNING: unsupported firewall type '", $fwinfo->{TYPE}, "'\n";
+		return ("false", "false");
+	}
 
-    return ($upline, $downline);
+	# XXX debugging
+	my $logaccept = defined($fwinfo->{LOGACCEPT}) ? $fwinfo->{LOGACCEPT} : 0;
+	my $logreject = defined($fwinfo->{LOGREJECT}) ? $fwinfo->{LOGREJECT} : 0;
+	my $dotcpdump = defined($fwinfo->{LOGTCPDUMP}) ? $fwinfo->{LOGTCPDUMP} : 0;
+
+	#
+	# Convert MAC info to a useable form and filter out the firewall itself
+	#
+	my $href = $fwinfo->{MACS};
+	while (my ($node,$mac) = each(%$href)) {
+		if ($mac eq $fwinfo->{OUT_IF}) {
+			delete($$href{$node});
+		} elsif ($mac =~ /^(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})$/) {
+			$$href{$node} = "$1:$2:$3:$4:$5:$6";
+		} else {
+			warn "*** WARNING: Bad MAC returned for $node in fwinfo: $mac\n";
+			return ("false", "false");
+		}
+	}
+	$href = $fwinfo->{SRVMACS};
+	while (my ($node,$mac) = each(%$href)) {
+		if ($mac eq $fwinfo->{OUT_IF}) {
+			delete($$href{$node});
+		} elsif ($mac =~ /^(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})$/) {
+			$$href{$node} = "$1:$2:$3:$4:$5:$6";
+		} else {
+			warn "*** WARNING: Bad MAC returned for $node in fwinfo: $mac\n";
+			return ("false", "false");
+		}
+	}
+
+	#
+	# VLAN enforced layer2 firewall with Linux iptables
+	#
+	if ($fwinfo->{TYPE} eq "iptables-vlan") {
+		if (!defined($fwinfo->{IN_VLAN})) {
+			warn "*** WARNING: no VLAN for iptables-vlan firewall, NOT SETUP!\n";
+			return ("false", "false");
+		}
+	
+		$pdev    = `$BINDIR/findif $fwinfo->{IN_IF}`;
+		chomp($pdev);
+		my $vlanno  = $fwinfo->{IN_VLAN};
+		$vlandev = $pdev . '.' . $vlanno;
+
+		$upline  = "modprobe 8021q\n";
+		$upline .= "vconfig add $pdev $vlanno > /dev/null\n";
+		$upline .= "ifconfig $vlandev up\n";
+		$upline .= "brctl addbr br0\n";
+		$upline .= "ifconfig br0 up\n";
+		$upline .= "brctl addif br0 $pdev\n";
+		$upline .= "brctl addif br0 $vlandev\n";
+
+		$upline .= "ifconfig br0 $myip netmask $mymask\n";
+		$upline .= "ip route flush dev br0\n";
+		$upline .= "ip route show | while read line; do\n";
+		$upline .= "    echo \$line | grep 'dev $pdev' > /dev/null || continue\n";
+		$upline .= "    new_route=`echo \$line | sed s/$pdev/br0/`\n";
+		$upline .= "    ip route del \$line\n";
+		$upline .= "    ip route add \$new_route\n";
+		$upline .= "done\n";
+		$upline .= "ifconfig $pdev 0.0.0.0\n";
+
+		$downline .= "    ifconfig $pdev $myip netmask $mymask\n";
+		$downline .= "    ip route flush dev $pdev\n";
+		$downline .= "    ip route show | while read line; do\n";
+		$downline .= "        echo \$line | grep 'dev br0' > /dev/null || continue\n";
+		$downline .= "        new_route=`echo \$line | sed s/br0/$pdev/`\n";
+		$downline .= "        ip route del \$line\n";
+		$downline .= "        ip route add \$new_route\n";
+		$downline .= "    done\n";
+		$downline .= "    ip route flush dev br0\n";
+		$downline .= "    ifconfig br0 down\n";
+		$downline .= "    ifconfig $vlandev down\n";
+		$downline .= "    brctl delif br0 $vlandev\n";
+		$downline .= "    brctl delif br0 $pdev\n";
+		$downline .= "    brctl delbr br0\n";
+		$downline .= "    vconfig rem $vlandev > /dev/null\n";
+
+		#
+		# Setup proxy ARP entries.
+		#
+		if (defined($fwinfo->{MACS})) {
+			$upline .= "ebtables -t nat -F PREROUTING\n";
+			# publish servers (including GW) on inside and for us on outside
+			if (defined($fwinfo->{SRVMACS})) {
+				my $href = $fwinfo->{SRVMACS};
+				while (my ($ip,$mac) = each %$href) {
+					$upline .= "ebtables -t nat -A PREROUTING -i $vlandev " .
+					  "-p ARP --arp-opcode Request " .
+					    "--arp-ip-dst $ip -j arpreply " .
+					      "--arpreply-mac $mac\n";
+				}
+			}
+
+			# provide node MACs to outside
+			my $href = $fwinfo->{MACS};
+			while (my ($node,$mac) = each %$href) {
+				my $ip = $fwinfo->{IPS}{$node};
+				$upline .= "ebtables -t nat -A PREROUTING -i $pdev " .
+				  "-p ARP --arp-opcode Request " .
+				    "--arp-ip-dst $ip -j arpreply " .
+				      "--arpreply-mac $mac\n";
+			}
+
+			$upline .= "ebtables -t nat -A PREROUTING -p ARP " .
+			  "--arp-ip-dst $myip -j ACCEPT\n";
+
+			$upline .= "ebtables -t nat -A PREROUTING -p ARP -j DROP\n";
+
+			if ($dotcpdump) {
+				$upline .= "    tcpdump -i $vlandev ".
+				  "-w $LOGDIR/in.tcpdump >/dev/null 2>&1 &\n";
+				$upline .= "    tcpdump -i $pdev ".
+				  "-w $LOGDIR/out.tcpdump not vlan >/dev/null 2>&1 &\n";
+				$downline .= "    killall tcpdump >/dev/null 2>&1\n";
+			}
+		
+		}
+
+		# XXX HACK ALERT
+		# The rules may contain hostnames which iptables will try to resolve.
+		# Normally this isn't a problem, but if we've set up a bridge device
+		# it may take a bit before the bridge starts letting packets through
+		# again.
+		$upline .= "sleep 30\n";
+
+	} else {
+		$upline .= "sysctl -w net.ipv4.ip_forward=1\n";
+		$downline .= "sysctl -w net.ipv4.ip_forward=0\n";
+	}
+
+	# XXX This is ugly.  Older version of iptables can't handle source or
+	# destination hosts or nets in the format a,b,c,d.  Newer versions of
+	# iptables automatically expand this to separate rules for each host/net,
+	# so we need to do the same thing here.  Since a rule could contain
+	# multiple sources and multiple dests, we expand each separately.
+	my @new_rules;
+	foreach my $rule (@fwrules) {
+		$rulestr = $rule->{RULE};
+		if ($rulestr =~ /^(.+)\s+(-s|--source)\s+([\S]+)(.+)/) {
+			push @new_rules, "$1 $2 $_ $4" for split(/,/, $3);
+		} else {
+			push @new_rules, $rulestr;
+		}
+	} 
+
+	@fwrules = ();
+	foreach my $rulestr (@new_rules) {
+		if ($rulestr =~ /^(.+)\s+(-d|--destination)\s+([\S]+)(.+)/) {
+			push @fwrules, "$1 $2 $_ $4" for split(/,/, $3);
+		} else {
+			push @fwrules, $rulestr;
+		}
+	}
+
+	@new_rules = ();
+	foreach my $rulestr (@fwrules) {
+		$rulestr =~ s/pdev/$pdev/g;
+		$rulestr =~ s/vlandev/$vlandev/g;
+		$rulestr =~ s/\s+me\s+/ $myip /g;
+
+		# Ugh. iptables wants port ranges in the form a:b, but
+		# our firewall variable expansion can contain a-b.  Try
+		# to fix it.
+		$rulestr =~ s/\s+--dport\s+(\S+)-(\S+)/ --dport $1:$2/;
+		$rulestr =~ s/\s+--sport\s+(\S+)-(\S+)/ --sport $1:$2/;
+		
+		if ($logaccept && $rulestr =~ /-j ACCEPT$/) {
+			if ($rulestr =~ /^iptables\s+/) {
+				push @new_rules, $rulestr;
+				$rulestr =~ s/ACCEPT$/LOG/;
+			} elsif ($rulestr =~ /^ebtables\s+/) {
+				$rulestr =~ s/ACCEPT$/--log -j ACCEPT/;
+			}
+			push @new_rules, $rulestr;
+		} elsif ($logreject && $rulestr =~ /-j (DENY|DROP)$/) {
+			my $action = $1;
+			if ($rulestr =~ /^iptables\s+/) {
+				push @new_rules, $rulestr;
+				$rulestr =~ s/$action$/LOG/;
+			} elsif ($rulestr =~ /^ebtables\s+/) {
+				$rulestr =~ s/$action$/--log -j $action/;
+			}
+			push @new_rules, $rulestr;
+		} else {
+			push @new_rules, $rulestr;
+		}
+	}
+	@fwrules = @new_rules;
+
+	foreach my $rulestr (@fwrules) {
+		if ($rulestr =~ /^iptables\s+/) {
+			$upline .= "    $rulestr || {\n";
+			$upline .= "        echo 'WARNING: could not load iptables rule:'\n";
+			$upline .= "        echo '  $rulestr'\n";
+			$upline .= "        iptables -F\n";
+			$upline .= "        exit 1\n";
+			$upline .= "    }\n";
+		} elsif ($rulestr =~ /^ebtables\s+/) {
+			$upline .= "    $rulestr || {\n";
+			$upline .= "        echo 'WARNING: could not load ebtables rule:'\n";
+			$upline .= "        echo '  $rulestr'\n";
+			$upline .= "        ebtables -F\n";
+			$upline .= "        exit 1\n";
+			$upline .= "    }\n";
+		}
+
+	}
+
+	# This is a brute-force way to flush all ebtables and iptables
+	# rules, delete all custom chains, and restore all built-in
+	# chains to their default policies.  This will produce errors
+	# since not all tables exist for both tools, and not every
+	# chain exists for all tables, so all output is sent to /dev/null.
+	for my $table (qw/filter nat mangle raw broute/) {
+		$downline .=
+		  "   iptables -t $table -F > /dev/null 2>&1 || true\n";
+		$downline .=
+		  "   iptables -t $table -X > /dev/null 2>&1 || true\n";
+		$downline .=
+		  "   ebtables -t $table -F > /dev/null 2>&1 || true\n";
+		$downline .=
+		  "   ebtables -t $table -X > /dev/null 2>&1 || true\n";
+		for my $chain (qw/INPUT OUTPUT FORWARD PREROUTING POSTROUTING BROUTING/) {
+			$downline .=
+			  "   iptables -t $table -P $chain ACCEPT > /dev/null 2>&1 || true\n";
+			$downline .=
+			  "   ebtables -t $table -P $chain ACCEPT > /dev/null 2>&1 || true\n";
+		}
+	}
+	
+	return ($upline, $downline);
 }
 
 sub os_fwrouteconfig_line($$$)

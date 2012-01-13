@@ -12,7 +12,8 @@ TBDB		= @TBDBNAME@
 MDOPTS		= --compact --skip-extended-insert --no-create-info --skip-set-charset
 
 FW_SCRIPTS	= initfwvars.pl
-FW_FILES	= open.sql closed.sql basic.sql elabinelab.sql
+FW_FILES	= open.sql closed.sql basic.sql elabinelab.sql iptables-open.sql iptables-closed.sql \
+		  iptables-basic.sql iptables-elabinelab.sql
 
 include $(OBJDIR)/Makeconf
 
@@ -23,6 +24,9 @@ include $(OBJDIR)/Makeconf
 all: $(FW_SCRIPTS) $(FW_FILES)
 
 include $(TESTBED_SRCDIR)/GNUmakerules
+
+iptables-%.sql: genconfig-iptables.pl
+	$(SRCDIR)/genconfig-iptables.pl -f $(SRCDIR)/iptables-fw-rules -M $* > $@
 
 %.sql: genconfig.pl
 	$(SRCDIR)/genconfig.pl -f $(SRCDIR)/fw-rules -M $* > $@
