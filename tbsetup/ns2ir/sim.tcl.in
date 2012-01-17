@@ -1,7 +1,7 @@
 # -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -772,7 +772,7 @@ Simulator instproc run {} {
     if {$elab_in_elab} {
 	foreach attr $elabinelab_attributes {
 	    set fields [list "role" "attrkey" "attrvalue" "ordering"]
-	    set values [split $attr ","]
+	    set values [split $attr ";"]
 	    $self spitxml_data "elabinelab_attributes" $fields $values
 	}
     }
