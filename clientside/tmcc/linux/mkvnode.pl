@@ -231,6 +231,7 @@ my %vnconfig = ( "vnodeid"   => $vnodeid,
 		 "ifconfig"  => undef,
 		 "ldconfig"  => undef,
 		 "tunconfig" => undef,
+		 "attributes"=> undef,
 );
 sub VNCONFIG($) { return $vnconfig{'config'}->{$_[0]}; }
 
@@ -272,6 +273,7 @@ $nodeuuid = $vnodeid if (!defined($nodeuuid));
 my %tmp;
 my @tmp;
 my $tmp;
+my %attrs;
 
 fatal("Could not get vnode config for $vnodeid")
     if (getgenvnodeconfig(\%tmp));
@@ -288,6 +290,10 @@ $vnconfig{"ldconfig"} = [ @tmp ];
 fatal("gettunnelconfig($vnodeid): $!")
     if (gettunnelconfig(\$tmp));
 $vnconfig{"tunconfig"} = $tmp;
+
+fatal("getnodeattributes($vnodeid): $!")
+    if (getnodeattributes(\%attrs));
+$vnconfig{"attributes"} = \%attrs;
 
 if ($debug) {
     print "VN Config:\n";
