@@ -93,7 +93,7 @@ my $VLANCONFIG = "/sbin/vconfig";
 my $MODPROBE = "/sbin/modprobe";
 my $DHCPCONF_FILE = "/etc/dhcpd.conf";
 
-my $debug = 0;
+my $debug  = 0;
 
 ##
 ## Randomly chosen convention section
@@ -149,6 +149,7 @@ my %vninfo = ();
 sub findRoot();
 sub copyRoot($$);
 sub createRootDisk($);
+sub createAuxDisk($$);
 sub replace_hacks($);
 sub disk_hacks($);
 sub configFile($);
@@ -156,7 +157,7 @@ sub domain0Memory();
 sub totalMemory();
 sub memoryPerVnode();
 sub hostIP($);
-sub createDHCP($);
+sub createDHCP();
 sub addDHCP($$$$);
 sub subDHCP($$);
 sub formatDHCP($$$);
@@ -321,9 +322,6 @@ sub rootPreConfig($)
     # that we (the physical host) are in the same subnet as the vnodes,
     # otherwise dhcpd will fail.
     #
-    # XXX Note also that createDHCP takes an array of hashes describing hosts.
-    # We could use this in the future to bulk-initialize the file.
-    #
     if (system("ifconfig $cnet_iface:1 | grep -q 'inet addr'")) {
 	print "Creating $cnet_iface:1 alias...\n"
 	    if ($debug);
@@ -333,7 +331,7 @@ sub rootPreConfig($)
 
     print "Creating dhcp.conf skeleton...\n"
         if ($debug);
-    createDHCP(undef);
+    createDHCP();
 
     mysystem("touch /var/run/xen.ready");
     TBScriptUnlock();
@@ -350,6 +348,9 @@ sub rootPreConfigNetwork($$$$)
 	print STDERR "Could not get the xennetwork lock after a long time!\n";
 	return -1;
     }
+
+    createDHCP()
+	if (! -e $DHCPCONF_FILE);
 
     #
     # If we blocked, it would be because vnodes have come or gone,
@@ -375,6 +376,7 @@ sub rootPostConfig($)
 sub vnodeCreate($$$$)
 {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
+    my $attributes = $vnconfig->{'attributes'};
     my $imagename = $vnconfig->{'image'};
     my $raref = $vnconfig->{'reloadinfo'};
     my %image = %defaultImage;
@@ -481,6 +483,56 @@ sub vnodeCreate($$$$)
 	$os = "Linux";
     }
 
+    my $auxdisks = "";
+    my $auxchar  = ord('b');
+    #
+    # Create a swap disk.
+    #
+    if ($os eq "FreeBSD") {
+	my $auxlvname = "${vnode_id}.swap";
+	if (createAuxDisk($auxlvname, "2G")) {
+	    print STDERR "libvnode_xen: could not create swap disk\n";
+	    return -1;
+	}
+	my $vndisk = lvmVolumePath($auxlvname);
+	my $vdisk  = "sd" . chr($auxchar++);
+	my $stanza = "phy:$vndisk,$vdisk,w";
+
+	$private->{'auxdisks'}->{$auxlvname} = $stanza;
+	$auxdisks = "$auxdisks , '$stanza'";
+
+	#
+	# Mark it as a linux swap partition. 
+	#
+	if (system("echo ',,S' | sfdisk $vndisk -N0")) {
+	    print STDERR "libvnode_xen: could not partition swap disk\n";
+	    return -1;
+	}
+    }
+
+    #
+    # Create aux disks.
+    #
+    if (exists($attributes->{'XEN_EXTRADISKS'})) {
+	my @list = split(",", $attributes->{'XEN_EXTRADISKS'});
+	foreach my $disk (@list) {
+	    my ($name,$size) = split(":", $disk);
+
+	    my $auxlvname = "${vnode_id}.${name}";
+	    if (createAuxDisk($auxlvname, $size)) {
+		print STDERR "libvnode_xen: could not create aux disk: $name\n";
+		return -1;
+	    }
+	    my $vndisk = lvmVolumePath($auxlvname);
+	    my $vdisk  = "sd" . chr($auxchar++);
+	    my $stanza = "phy:$vndisk,$vdisk,w";
+
+	    $private->{'auxdisks'}->{$auxlvname} = $stanza;
+	    $auxdisks = "$auxdisks , '$stanza'";
+	}
+	print "Auxdisks: $auxdisks\n" if ($debug);
+    }
+
     #
     # Create the config file and fill in the disk/filesystem related info.
     # Since we don't want to leave a partial config file in the event of
@@ -502,7 +554,7 @@ sub vnodeCreate($$$$)
     addConfig($vmid, "kernel = '$kernel'", 2);
     addConfig($vmid, "ramdisk = '$ramdisk'", 2)
 	if (defined($ramdisk));
-    addConfig($vmid, "disk = ['phy:$vndisk,$vdisk,w']", 2);
+    addConfig($vmid, "disk = ['phy:$vndisk,$vdisk,w' $auxdisks ]", 2);
 
     # XXX memory of over 768MB causes panic as of 8.2
     if ($os eq "FreeBSD" && memoryPerVnode() > 768) {
@@ -874,7 +926,20 @@ sub vnodeDestroy($$$$)
 		"libvnode_xen: could not destroy disk for $vnode_id\n";
 	}
     }
-
+    # Destroy the aux disks.
+    if (exists($private->{'auxdisks'})) {
+	foreach my $lvname (keys(%{ $private->{'auxdisks'} })) {
+	    if (findLVMLogicalVolume($lvname)) {
+		if (system("lvremove -f $VGNAME/$lvname")) {
+		    print STDERR
+			"libvnode_xen: could not destroy disk for $vnode_id\n";
+		}
+		else {
+		    delete($private->{'auxdisks'}->{$lvname});
+		}
+	    }
+	}
+    }
     return 0;
 }
 
@@ -885,9 +950,9 @@ sub vnodeHalt($$$$)
     if ($vnode_id =~ m/(.*)/) {
         $vnode_id = $1;
     }
-    mysystem("/usr/sbin/xm shutdown $vnode_id");
-    # XXX hang out awhile waiting for domain to disappear
-    domainGone($vnode_id, 15);
+    # This runs async so use -w. And actually destroys the container!
+    # Just wait, cause otherwise we get into an obvious race. 
+    mysystem("/usr/sbin/xm shutdown -w $vnode_id");
 
     return 0;
 }
@@ -980,6 +1045,30 @@ sub createRootDisk($)
     copyRoot(findRoot(), $full_path);
 
     TBScriptUnlock();
+}
+
+#
+# Create an extra, empty disk volume. The guest will have to partition it.
+#
+sub createAuxDisk($$)
+{
+    my ($lv,$size) = @_;
+    my $full_path = lvmVolumePath($lv);
+
+    #
+    # We only want to do this once.
+    #
+    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1200) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get the xennetwork lock after a long time!\n";
+	return -1;
+    }
+    system("/usr/sbin/lvcreate -n $lv -L ${size} $VGNAME");
+    if ($?) {
+	TBScriptUnlock();
+	return -1;
+    }
+    TBScriptUnlock();
+    return 0;
 }
 
 #
@@ -1161,10 +1250,13 @@ sub memoryPerVnode()
 # the hosted vnodes since they expect to find out there identity, and identify
 # their control net, via DHCP.
 #
-sub createDHCP($)
+sub createDHCP()
 {
     my ($all) = @_;
     my ($vnode_net,$vnode_mask,$vnode_gw) = findVirtControlNet();
+    my (undef,undef,
+	$cnet_mask,undef,$cnet_net,undef,$cnet_gw) = findControlNet();
+
     my $vnode_dns = findDNS($vnode_gw);
 
     open(FILE, ">$DHCPCONF_FILE") or die("Cannot write $DHCPCONF_FILE");
@@ -1177,26 +1269,30 @@ ddns-update-style  none;
 default-lease-time 604800;
 max-lease-time     704800;
 
+shared-network xen {
 subnet $vnode_net netmask $vnode_mask {
     option domain-name-servers $vnode_dns;
     option domain-name "emulab.net";
     option routers $vnode_gw;
 
     # INSERT VNODES AFTER
+
+    # INSERT VNODES BEFORE
+}
+
+subnet $cnet_net netmask $cnet_mask {
+    option domain-name-servers $vnode_dns;
+    option domain-name "emulab.net";
+    option routers $cnet_gw;
+
+    # INSERT VNODES AFTER
+
+    # INSERT VNODES BEFORE
+}
+}
+
 EOF
     ;
-
-    if (defined($all)) {
-	foreach (@$all) {
-	    my ($data) = @_;
-	    my $fqdn = $data->{'fqdn'};
-	    my $host = $1 if ($fqdn =~ m/(\w+)\..*/);
-	    my $ip = $data->{'ip'};
-	    my $mac = $data->{'mac'};
-	    print FILE formatDHCP($host, $ip, $mac), "\n";
-	}
-    }
-    print FILE "    # INSERT VNODES BEFORE\n}\n";
     close(FILE);
 
     # make sure dhcpd is running
@@ -1240,15 +1336,26 @@ sub modDHCP($$$$$)
     }
     $host = lc($host);
     $mac = lc($mac);
+    my $insubnet = 0;
     my $inrange = 0;
     my $found = 0;
     my $changed = 0;
     while (my $line = <OLD>) {
 	if ($found) {
 	    ;
-	} elsif ($line =~ /INSERT VNODES AFTER/) {
+	} elsif ($line =~ /^subnet\s*([\d\.]+)\s*netmask\s*([\d\.]+)/) {
+	    my $subnet  = $1;
+	    my $submask = $2;
+
+	    #
+	    # Is the IP we need to add, within this subnet?
+	    #
+	    $insubnet = 1
+		if (inet_ntoa(inet_aton($ip) &
+			      inet_aton($submask)) eq $subnet);
+	} elsif ($insubnet && $line =~ /INSERT VNODES AFTER/) {
 	    $inrange = 1;
-	} elsif ($line =~ /INSERT VNODES BEFORE/) {
+	} elsif ($insubnet && $line =~ /INSERT VNODES BEFORE/) {
 	    $inrange = 0;
 	    $found = 1;
 	    if (!$dorm) {
@@ -1839,7 +1946,7 @@ sub GClvm($)
     my $inuse    = 0;
     my $found    = 0;
 
-    if (! open(LVS, "lvs --noheadings -o lv_name,origin xen-vg |")) {
+    if (! open(LVS, "lvs --noheadings -o lv_name,origin $VGNAME |")) {
 	print STDERR "Could not start lvs\n";
 	return -1;
     }
@@ -1889,15 +1996,14 @@ sub GClvm($)
     }
     if (!$inuse) {
 	print "GClvm($image): not in use; deleting\n";
-	system("lvremove -f /dev/xen-vg/$image");
+	system("lvremove -f /dev/$VGNAME/$image");
 	return -1
 	    if ($?);
 	return 0;
     }
     $oldest++;
     # rename nicely works even when snapshots exist
-    system("lvrename /dev/xen-vg/$image" . 
-	   " /dev/xen-vg/$image.$oldest");
+    system("lvrename /dev/$VGNAME/$image /dev/$VGNAME/$image.$oldest");
     return -1
 	if ($?);
     
