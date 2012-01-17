@@ -188,6 +188,7 @@ while (<FD>) {
 		"    $disk: no partition table!\n");
 	}
 	$stype = 0;
+	next;
     }
     #
     # Format of fdisk output is:
