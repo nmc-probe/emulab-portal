@@ -315,6 +315,7 @@ sub SetupTBDir($);
 sub RecreateDir($$);
 sub CreateOpsJail($);
 sub SetupOpsJail();
+sub FindExtraFSConfig($);
 
 #
 # Boot Action.
@@ -625,22 +626,29 @@ sub SetupFsNode()
 	SetupTBDir($TBDIR);
     }
     RecreateDir("$FSDIR", 1);
-    mysystem("$BINDIR/mkextrafs.pl -f -2 $FSDIR");
-
-    #
-    # XXX mkextrafs does not create the second filesystem, it only creates
-    # the BSD partition.  So we need to determine the name of the disk
-    # device in use, and create a filesystem on that 'f' partition.
-    #
-    my $disk = `mount | grep '0s4e on $FSDIR'`;
-    if ($disk =~ /(\/dev\/\S+)s4e on/) {
-	$shareslice = "$1" . "s4f";
-	mysystem("newfs $shareslice");
-	# don't mount it yet, just remember
-    } else {
-	SetupFatal("Could not parse mount info to find extra partition");
+    my $fsdev = FindExtraFSConfig($FSDIR);
+    if ($fsdev) {
+	mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f -2 $FSDIR");
+	$shareslice = "/dev/$fsdev" . "s1f";
     }
+    else {
+	mysystem("$BINDIR/mkextrafs.pl -f -2 $FSDIR");
 
+	#
+	# XXX mkextrafs does not create the second filesystem, it only creates
+	# the BSD partition.  So we need to determine the name of the disk
+	# device in use, and create a filesystem on that 'f' partition.
+	#
+	my $disk = `mount | grep '0s4e on $FSDIR'`;
+	if ($disk =~ /(\/dev\/\S+)s4e on/) {
+	    $shareslice = "$1" . "s4f";
+	} else {
+	    SetupFatal("Could not parse mount info to find extra partition");
+	}
+    }
+    # don't mount it yet, just remember
+    mysystem("newfs $shareslice");
+	
     #
     # Download Emulab source if necessary
     #
@@ -1031,21 +1039,29 @@ sub SetupOpsNode($)
     if ($isfs) {
 	$FSDIR = $FSMOUNTDIR;
 	RecreateDir("$FSDIR", 1);
-	mysystem("$BINDIR/mkextrafs.pl -f -2 $FSDIR");
-
-	#
-	# XXX mkextrafs does not create the second filesystem, it only creates
-	# the BSD partition.  So we need to determine the name of the disk
-	# device in use, and create a filesystem on that 'f' partition.
-	#
-	my $disk = `mount | grep '0s4e on $FSDIR'`;
-	if ($disk =~ /(\/dev\/\S+)s4e on/) {
-	    $shareslice = "$1" . "s4f";
-	    mysystem("newfs $shareslice");
-	    # don't mount it yet, just remember
-	} else {
-	    SetupFatal("Could not parse mount info to find extra partition");
+	my $fsdev = FindExtraFSConfig($FSDIR);
+	if ($fsdev) {
+	    mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f -2 $FSDIR");
+	    $shareslice = "/dev/$fsdev" . "s1f";
 	}
+	else {
+	    mysystem("$BINDIR/mkextrafs.pl -f -2 $FSDIR");
+
+	    #
+	    # XXX mkextrafs does not create the second filesystem, it only
+	    # creates the BSD partition.  So we need to determine the
+	    # name of the disk device in use, and create a filesystem
+	    # on that 'f' partition.
+	    #
+	    my $disk = `mount | grep '0s4e on $FSDIR'`;
+	    if ($disk =~ /(\/dev\/\S+)s4e on/) {
+		$shareslice = "$1" . "s4f";
+	    } else {
+		SetupFatal("Could not parse mount info to find extra partition");
+	    }
+	}
+	# don't mount it yet, just remember
+	mysystem("newfs $shareslice");
     }
 
     #
@@ -1475,11 +1491,23 @@ sub SetupBossNode($)
 	RecreateDir($TBDIR, 1);
 	if ($isfs) {
 	    $FSDIR = $FSMOUNTDIR;
+	    my $qslice;
 	    
 	    #
 	    # If boss is acting as the FS, then need another partition for /q.
 	    #
-	    mysystem("$BINDIR/mkextrafs.pl -f -2 $TBDIR");
+	    my $fsdev = FindExtraFSConfig($TBDIR);
+	    if ($fsdev) {
+		mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f -2 $TBDIR");
+		$qslice = "/dev/$fsdev" . "s1f";
+	    }
+	    else {
+		mysystem("$BINDIR/mkextrafs.pl -f -2 $TBDIR");
+		my $disk = `mount | grep '0s4e on $TBDIR'`;
+		if ($disk =~ /(\/dev\/\S+)s4e on/) {
+		    $qslice = "$1" . "s4f";		
+		}
+	    }
 
 	    #
 	    # XXX mkextrafs does not create the second filesystem, it only
@@ -1487,9 +1515,7 @@ sub SetupBossNode($)
 	    # name of the disk device in use, and create a filesystem
 	    # on that 'f' partition.
 	    #
-	    my $disk = `mount | grep '0s4e on $TBDIR'`;
-	    if ($disk =~ /(\/dev\/\S+)s4e on/) {
-		my $qslice = "$1" . "s4f";
+	    if (defined($qslice)) {
 		mysystem("newfs $qslice");
 		mysystem("mkdir $FSMOUNTDIR");
 		mysystem("mount $qslice $FSMOUNTDIR");
@@ -1499,7 +1525,13 @@ sub SetupBossNode($)
 	    }
 	}
 	else {
-	    mysystem("$BINDIR/mkextrafs.pl -f $TBDIR");
+	    my $fsdev = FindExtraFSConfig($TBDIR);
+	    if ($fsdev) {
+		mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f $TBDIR");
+	    }
+	    else {
+		mysystem("$BINDIR/mkextrafs.pl -f $TBDIR");
+	    }
 	}
 	mysystem("mkdir $TBDIR/src $TBDIR/obj $TBDIR/data");
     }
@@ -1510,7 +1542,18 @@ sub SetupBossNode($)
 	RecreateDir("$TBDIR/data", 1);
 	if ($isfs) {
 	    $FSDIR = $FSMOUNTDIR;
-	    mysystem("$BINDIR/mkextrafs.pl -f -2 $TBDIR/data");
+	    my $fsdev = FindExtraFSConfig("$TBDIR/data");
+	    if ($fsdev) {
+		mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f -2 $TBDIR/data");
+		$shareslice = "/dev/$fsdev" . "s1f";
+	    }
+	    else {
+		mysystem("$BINDIR/mkextrafs.pl -f -2 $TBDIR/data");
+		my $disk = `mount | grep '0s4e on $TBDIR/data'`;
+		if ($disk =~ /(\/dev\/\S+)s4e on/) {
+		    $shareslice = "$1" . "s4f";		
+		}
+	    }
 	    
 	    #
 	    # XXX mkextrafs does not create the second filesystem, it only
@@ -1518,17 +1561,26 @@ sub SetupBossNode($)
 	    # name of the disk device in use, and create a filesystem
 	    # on that 'f' partition.
 	    #
-	    my $disk = `mount | grep '0s4e on $TBDIR'`;
-	    if ($disk =~ /(\/dev\/\S+)s4e on/) {
-		$shareslice = "$1" . "s4f";
+	    if ($shareslice) {
 		mysystem("newfs $shareslice");
 	    } else {
 		SetupFatal("Could not parse mount info to find extra partition");
 	    }
 	}
 	else {
-	    mysystem("$BINDIR/mkextrafs.pl -f $TBDIR/data");
+	    my $fsdev = FindExtraFSConfig("$TBDIR/data");
+	    if ($fsdev) {
+		mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f $TBDIR/data");
+	    }
+	    else {
+		mysystem("$BINDIR/mkextrafs.pl -f $TBDIR/data");
+	    }
 	}
+    }
+    my $fsdev = FindExtraFSConfig("$TBDIR/log");
+    if ($fsdev) {
+	RecreateDir("$TBDIR/log", 1);
+	mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f $TBDIR/log");
     }
 
     #
@@ -2994,8 +3046,32 @@ sub SetupTBDir($)
     my ($TBDIR) = @_;
 
     RecreateDir($TBDIR, 1);
+    if (my $dev = FindExtraFSConfig($TBDIR)) {
+	mysystem("$BINDIR/mkextrafs.pl -f -s 0 -r $dev -f $TBDIR");
+	goto done;
+    }
     mysystem("$BINDIR/mkextrafs.pl -s 2 -f $TBDIR");
+  done:
     mysystem("mkdir $TBDIR/src $TBDIR/obj");
+}
+
+#
+# Find override for mkextrafs.
+#
+sub FindExtraFSConfig($)
+{
+    my ($mountpoint) = @_;
+
+    if (exists($emulabconfig{"EXTRADISKS"})) {
+	my @disks = split(",", $emulabconfig{"EXTRADISKS"});
+	foreach my $disk (@disks) {
+	    my ($dev,$path) = split(":", $disk);
+	    if (defined($path) && $path eq $mountpoint) {
+		return $dev;
+	    }
+	}
+    }
+    return undef;
 }
 
 #
