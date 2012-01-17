@@ -1,11 +1,11 @@
 #!/bin/sh
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2004, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # PROVIDE: testbed
-# REQUIRE: pubsub
+# REQUIRE: pubsub sshd
 #
 
 . /etc/emulab/paths.sh
