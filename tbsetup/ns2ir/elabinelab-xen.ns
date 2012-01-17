@@ -1,0 +1,178 @@
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2004-2010, 2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+
+#
+# This file is intended to be included into another NS file. It is not
+# a stand alone file.
+# 
+set myboss [$ns node]
+set myops  [$ns node]
+
+tb-set-node-inner-elab-role $myboss boss+router
+tb-set-node-inner-elab-role $myops  ops+fs
+tb-set-colocate-factor 2
+
+if {[info exists ::TBCOMPAT::elabinelab_hardware("boss")]} {
+    namespace eval TBCOMPAT {
+        tb-set-hardware $myboss $elabinelab_hardware("boss")
+    }
+} else {
+    tb-set-hardware $myboss pcvm3000
+}
+if {[info exists ::TBCOMPAT::elabinelab_hardware("ops")]} {
+    namespace eval TBCOMPAT {
+        tb-set-hardware $myops $elabinelab_hardware("ops")
+    }
+} else {
+    tb-set-hardware $myops pcvm3000
+}
+
+if {[info exists ::TBCOMPAT::elabinelab_fixnodes("boss")]} {
+    namespace eval TBCOMPAT {
+        tb-fix-node $myboss $elabinelab_fixnodes("boss")
+    }
+}
+if {[info exists ::TBCOMPAT::elabinelab_fixnodes("ops")]} {
+    namespace eval TBCOMPAT {
+        tb-fix-node $myops $elabinelab_fixnodes("ops")
+    }
+}
+
+# Deal with tarfiles
+set myboss_tarfiles ""
+set myops_tarfiles  ""
+
+if {${::TBCOMPAT::elabinelab_source_tarfile} != ""} {
+    append myboss_tarfiles "/usr/src ${::TBCOMPAT::elabinelab_source_tarfile}"
+    append myops_tarfiles  "/usr/src ${::TBCOMPAT::elabinelab_source_tarfile}"
+}
+
+if {[info exists ::TBCOMPAT::elabinelab_tarfiles("boss")]} {
+    if {$myboss_tarfiles != ""} {
+	append myboss_tarfiles " "
+    }
+    namespace eval TBCOMPAT {
+	append myboss_tarfiles $elabinelab_tarfiles("boss")
+    }
+}
+if {[info exists ::TBCOMPAT::elabinelab_tarfiles("ops")]} {
+    if {$myops_tarfiles != ""} {
+	append myops_tarfiles " "
+    }
+    namespace eval TBCOMPAT {
+	append myops_tarfiles $elabinelab_tarfiles("ops")
+    }
+}
+if {$myboss_tarfiles != ""} {
+    tb-set-node-tarfiles $myboss $myboss_tarfiles
+}
+if {$myops_tarfiles != ""} {
+    tb-set-node-tarfiles $myops $myops_tarfiles
+}
+
+tb-make-soft-vtype pcslow {pc600 pc850}
+
+#
+# This is passed in by the parser, when wrapping an existing experiment.
+# The parser wrapper gets info about the wrapped experiment and passes it
+# along in the TBCOMPAT namespace.
+#
+if { ${::TBCOMPAT::elabinelab_maxpcs} != 0 } {
+    set maxpcs ${::TBCOMPAT::elabinelab_maxpcs}
+} else {
+    set maxpcs 0
+}
+
+set lanstr "myboss myops "
+for {set i 1} {$i <= $maxpcs} {incr i} {
+	set name "mypc${i}"
+	set $name [$ns node]
+	append lanstr "[set $name] "
+	tb-set-node-inner-elab-role [set $name] node
+
+	if {[info exists ::TBCOMPAT::elabinelab_nodeos($name)]} {
+	    namespace eval TBCOMPAT {
+        	tb-set-node-os [set $name] $elabinelab_nodeos($name)
+	    }
+	}
+
+	if {[info exists ::TBCOMPAT::elabinelab_fixnodes($name)]} {
+	    namespace eval TBCOMPAT {
+        	tb-fix-node [set $name] $elabinelab_fixnodes($name)
+	    }
+        } elseif {[info exists ::TBCOMPAT::elabinelab_hardware($name)]} {
+	    namespace eval TBCOMPAT {
+		tb-set-hardware [set $name] $elabinelab_hardware($name)
+	    }
+	} else {
+	    tb-set-hardware [set $name] pcslow
+	}
+}
+
+if { ${::GLOBALS::elabinelab_singlenet} == 0 } {
+    set publiclan [$ns make-lan $lanstr 100Mb 0ms]
+
+    tb-set-ip-lan $myboss $publiclan 10.200.1.252
+    tb-set-ip-lan $myops  $publiclan 10.200.1.253
+    for {set i 1} {$i <= $maxpcs} {incr i} {
+	set name "mypc${i}"
+	tb-set-ip-lan [set $name] $publiclan 10.200.1.$i
+    }
+}
+
+if {[info exists ::TBCOMPAT::elabinelab_nodeos("boss")]} {
+    namespace eval TBCOMPAT {
+        tb-set-node-os $myboss $elabinelab_nodeos("boss") XEN33-STD
+    }
+} else {
+    tb-set-node-os $myboss XEN-GUEST-FBSD8-STD XEN3-UPDATE
+}
+
+if {[info exists ::TBCOMPAT::elabinelab_nodeos("ops")]} {
+    namespace eval TBCOMPAT {
+        tb-set-node-os $myops $elabinelab_nodeos("ops") XEN33-STD
+    }
+} else {
+    tb-set-node-os $myops XEN-GUEST-FBSD8-STD XEN3-UPDATE
+}
+
+#
+# Special stuff to set the IP and mask for the xen nodes. Temporary
+# until we have a well defined method to assign publically routable
+# addresses to containers.
+#
+set bossip [tb-get-elabinelab-role-attribute "boss" "BOSS_JAILIP"]
+if { $bossip != {} } {
+   set bossipmask [tb-get-elabinelab-role-attribute "boss" "BOSS_JAILIPMASK"]
+   if { $bossipmask != {} } {
+      $myboss add-attribute "jailip" $bossip
+      $myboss add-attribute "jailipmask" $bossipmask
+   }
+}
+set opsip [tb-get-elabinelab-role-attribute "ops" "OPS_JAILIP"]
+if { $opsip != {} } {
+   set opsipmask [tb-get-elabinelab-role-attribute "ops" "OPS_JAILIPMASK"]
+   if { $opsipmask != {} } {
+      $myops add-attribute "jailip" $opsip
+      $myops add-attribute "jailipmask" $opsipmask
+   }
+}
+
+#
+# We need to tell the XEN host to add some disks to the guests. 
+#
+$myboss add-attribute XEN_EXTRADISKS "disk1:10G,disk2:10G,disk3:10G"
+$myops  add-attribute XEN_EXTRADISKS "disk1:4G,disk2:10G"
+
+#
+# Tell ElabinElab setup (rc.mkelab) as well.
+#
+# XXX The use of specific devices like da2 is not the best approach.
+# Note that the FreeBSD guest starts with the root disk on da0 and the
+# swap disk on da1. So we start at da2 ...
+#
+tb-set-elabinelab-role-attribute "boss" "EXTRADISKS" "da2:/usr/testbed,da3:/usr/testbed/data,da4:/usr/testbed/log"
+tb-set-elabinelab-role-attribute "ops"  "EXTRADISKS" "da2:/usr/testbed,da3:/q"
