@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -35,7 +35,7 @@ use Exporter;
 	     TMCCCMD_MOTELOG TMCCCMD_BOOTWHAT TMCCCMD_ROOTPSWD
 	     TMCCCMD_LTMAP TMCCCMD_LTPMAP TMCCCMD_TOPOMAP TMCCCMD_LOADINFO
 	     TMCCCMD_TPMBLOB TMCCCMD_TPMPUB TMCCCMD_DHCPDCONF TMCCCMD_MANIFEST
-	     TMCCCMD_NODEUUID
+	     TMCCCMD_NODEUUID TMCCCMD_NODEATTRIBUTES
 	     );
 
 # Must come after package declaration!
@@ -197,6 +197,7 @@ my %commandset =
       "dhcpdconf"       => {TAG => "dhcpdconf"},
       "manifest"        => {TAG => "manifest"},
       "nodeuuid"	=> {TAG => "nodeuuid"},
+      "nodeattributes"	=> {TAG => "nodeattributes"},
     );
 
 #
@@ -268,6 +269,7 @@ sub TMCCCMD_LOADINFO()  { $commandset{"loadinfo"}->{TAG}; }
 sub TMCCCMD_DHCPDCONF()  { $commandset{"dhcpdconf"}->{TAG}; }
 sub TMCCCMD_MANIFEST()  { $commandset{"manifest"}->{TAG}; }
 sub TMCCCMD_NODEUUID()    { $commandset{"nodeuuid"}->{TAG}; }
+sub TMCCCMD_NODEATTRIBUTES()   { $commandset{"nodeattributes"}->{TAG}; }
 
 #
 # Caller uses this routine to set configuration of this library

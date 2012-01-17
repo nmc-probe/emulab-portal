@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # TODO: Signal handlers for protecting db files.
@@ -22,7 +22,7 @@ use Exporter;
 	 ixpsetup libsetup_refresh gettopomap getfwconfig gettiptunnelconfig
 	 gettraceconfig genhostsfile getmotelogconfig calcroutes fakejailsetup
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
-         getlinkdelayconfig getloadinfo getbootwhat 
+         getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
 	 forcecopy getnodeuuid
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs
@@ -3108,6 +3108,38 @@ sub getnodeuuid()
 	    
     chomp($nodeuuid);
     return $nodeuuid;
+}
+
+#
+# Return the node attributes in a key/value array.
+#
+sub getnodeattributes($)
+{
+    my ($rptr) = @_;
+    my @tmccresults = ();
+    my %result = ();
+    my $issharedhost = SHAREDHOST();
+
+    my %tmccopts = ();
+    if ($issharedhost) {
+	$tmccopts{"nocache"} = 1;
+    }
+
+    if (tmcc(TMCCCMD_NODEATTRIBUTES, undef, \@tmccresults, %tmccopts) < 0) {
+	warn("*** WARNING: Could not get node attributes from server!\n");
+	%$rptr = ();
+	return -1;
+    }
+
+    foreach my $line (@tmccresults) {
+	if ($line =~ /^(.*)="(.*)"$/ ||
+	    $line =~ /^(.*)=(.+)$/) {
+	    $result{$1} = $2;
+	}
+    }
+
+    %$rptr = %result;
+    return 0;
 }
 
 #
