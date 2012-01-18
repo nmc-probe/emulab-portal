@@ -723,6 +723,18 @@ Node instproc disk-agent {args} {
     return $curdisk
 }
 
+Node instproc custom-agent {args} {
+	::GLOBALS::named-args $args {
+		-name {}
+	}
+	
+	set customagent [new Custom [$self set sim]]
+	$customagent set node $self
+	$customagent set name $(-name)
+
+	return $customagent
+}
+
 Node instproc topography {topo} {
     var_import ::TBCOMPAT::location_info
     $self instvar sim

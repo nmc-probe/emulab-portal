@@ -24,6 +24,7 @@
 Class Simulator
 Class Program -superclass NSObject
 Class Disk -superclass NSObject
+Class Custom -superclass NSObject
 Class EventGroup -superclass NSObject
 Class Firewall -superclass NSObject
 
@@ -72,6 +73,10 @@ Simulator instproc init {args} {
     # Disk list.
     $self instvar disk_list;
     array set disk_list {} 
+
+    # Custom list.
+	$self instvar custom_list;
+	array set custom_list {}
 
     # EventGroup list.
     $self instvar eventgroup_list;
@@ -401,6 +406,7 @@ Simulator instproc run {} {
     $self instvar event_list
     $self instvar prog_list
     $self instvar disk_list 
+	$self instvar custom_list
     $self instvar eventgroup_list
     $self instvar firewall_list
     $self instvar timeline_list
@@ -625,6 +631,9 @@ Simulator instproc run {} {
     foreach disk [array names disk_list] {
         $disk updatedb "sql"
     } 
+    foreach custom [array names custom_list] {
+        $custom updatedb "sql"
+    }
     foreach egroup [array names eventgroup_list] {
 	$egroup updatedb "sql"
     }
@@ -1028,6 +1037,12 @@ Simulator instproc rename_disk {old new} {
     set disk_list($new) {}
 }
 
+Simulator instproc rename_custom {old new} {
+    $self instvar custom_list
+    unset custom_list($old)
+    set custom_list($new) {}
+}
+
 Simulator instproc rename_eventgroup {old new} {
     $self instvar eventgroup_list
     unset eventgroup_list($old)
@@ -1230,6 +1245,13 @@ Simulator instproc add_program {prog} {
 Simulator instproc add_disk {disk} {
     $self instvar disk_list
     set disk_list($disk) {}
+}
+
+# add_custom
+# Link to a new custom object.
+Simulator instproc add_custom {custom} {
+    $self instvar custom_list
+    set custom_list($custom) {}
 }
 
 # add_eventgroup
@@ -1800,6 +1822,39 @@ Simulator instproc make_event {outer event} {
         }
         }   
     }
+	# Modify this as you need.
+	"Custom" {
+        set otype CUSTOM
+        set vname $obj
+        set vnode [$obj set node]
+        switch -- $cmd {
+        "start" {
+			set etype START
+            set default_cmd [$obj set name]
+            set args $default_cmd
+            #DEBUG
+            puts stdout "START: $args"
+		}		
+        "create" {
+			set etype CREATE
+            set default_cmd [$obj set name]
+            set args $default_cmd
+            #DEBUG
+            puts stdout "CREATE: $args"
+        }
+        "modify" {
+			set etype MODIFY
+            set default_cmd [$obj set name]
+            set args $default_cmd
+            #DEBUG
+            puts stdout "MODIFY: $args"
+        }
+        unknown {
+            punsup "$obj $cmd $args"
+            return
+        }
+	    }
+	}
 	"Console" {
 	    set otype CONSOLE
 	    set vname $obj
