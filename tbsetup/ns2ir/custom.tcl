@@ -8,7 +8,7 @@
 ######################################################################
 # Custom.tcl
 #
-# This defines the local custom agent.
+# This defines the local custom agent. Modify this as you need.
 #
 ######################################################################
 
