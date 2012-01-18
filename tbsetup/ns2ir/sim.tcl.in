@@ -24,7 +24,6 @@
 Class Simulator
 Class Program -superclass NSObject
 Class Disk -superclass NSObject
-Class Custom -superclass NSObject
 Class EventGroup -superclass NSObject
 Class Firewall -superclass NSObject
 
@@ -73,10 +72,6 @@ Simulator instproc init {args} {
     # Disk list.
     $self instvar disk_list;
     array set disk_list {} 
-
-    #Custom list.
-    $self instvar custom_list;
-    array set custom_list {}
 
     # EventGroup list.
     $self instvar eventgroup_list;
@@ -406,7 +401,6 @@ Simulator instproc run {} {
     $self instvar event_list
     $self instvar prog_list
     $self instvar disk_list 
-    $self instvar custom_list
     $self instvar eventgroup_list
     $self instvar firewall_list
     $self instvar timeline_list
@@ -631,9 +625,6 @@ Simulator instproc run {} {
     foreach disk [array names disk_list] {
         $disk updatedb "sql"
     } 
-    foreach custom [array names custom_list] {
-        $custom updatedb "sql"
-    }
     foreach egroup [array names eventgroup_list] {
 	$egroup updatedb "sql"
     }
@@ -1037,12 +1028,6 @@ Simulator instproc rename_disk {old new} {
     set disk_list($new) {}
 }
 
-Simulator instproc rename_custom {old new} {
-    $self instvar custom_list
-    unset custom_list($old)
-    set custom_list($new) {}
-}
-
 Simulator instproc rename_eventgroup {old new} {
     $self instvar eventgroup_list
     unset eventgroup_list($old)
@@ -1245,13 +1230,6 @@ Simulator instproc add_program {prog} {
 Simulator instproc add_disk {disk} {
     $self instvar disk_list
     set disk_list($disk) {}
-}
-
-# add_custom
-# Link to a new custom object.
-Simulator instproc add_custom {custom} {
-    $self instvar custom_list
-    set custom_list($custom) {}
 }
 
 # add_eventgroup
@@ -1752,89 +1730,76 @@ Simulator instproc make_event {outer event} {
 		}
 	    }
 	}
-        "Disk" {
-            set otype DISK
-            set vname $obj
-            set vnode [$obj set node]
+	"Disk" {
+	    set otype DISK
+		set vname $obj
+		set vnode [$obj set node]
+		switch -- $cmd {
+	    "set" -
+	    "run" -
+        "start" {
             switch -- $cmd {
-		"set" -
-                "run" -
-                "start" {
-                    switch -- $cmd {
-                        "set" {
-                            set etype START
-                        }
-                        "run" {
-                            set etype RUN
-                        }
-                        "start" {
-                            set etype START
-                        }
-                    }
-                    ::GLOBALS::named-args $evargs [list \
-                        -name {} \
-                        -type {} \
-                        -mountpoint {} \
-                        -params {} \
-                    ]
-		    if {$(-name) == {} || $(-type) == {} || $(-mountpoint) == {}} {
-                            perror "Improper argument: at $(-name) or $(-type) or $(-mountpoint)"
-                            return
-                    } 					
-                    if {$(-name) != {}} {
-                        set args "NAME={$(-name)} "
-                    }
-                    if {$(-type) != {}} {
-                        set args "${args}TYPE=$(-type) "
-                    }
-                    if {$(-mountpoint) != {}} {
-                        set args "${args}MOUNTPOINT=$(-mountpoint) "
-                    }
-                    if {$(-params) != {}} {
-                        set args "${args}PARAMS=$(-params)"
-                    }  
-                } 
-		"create" {
-		    if {[llength $event] < 6} {
-                        perror "Wrong number of arguments: at $time $event"
-                        return
-                    }
-		    set args [lindex $event 2]
-              	    set etype CREATE
-	        }
-		"modify" {
-		    if {[llength $event] < 6} {
-                        	perror "Wrong number of arguments: at $time $event"
-                        	return
-               	    }
-		    set args [lindex $event 2]
-		    set etype MODIFY
-		}
-                unknown {
-                    punsup "$obj $cmd $args"
-                    return
-                }
-            }
-        }
-        "Custom" {
-            set otype CUSTOM
-            set vname $obj
+            "set" {
+                set etype START
+             }
+		     "run" {
+			    set etype RUN
+             }
+             "start" {
+                set etype START
+             }
+             }
+		   
+		    #The initial arguments for disk-agent through NS
+ 
+            set default_name [$obj set name]
+		    set default_type [$obj set type]
+		    set default_mountpoint [$obj set mountpoint]
+		    set default_params [$obj set params]
 
-            switch -- $cmd {
-                "start" {
-                    set etype START
- 		    set args [lindex $event 2]
-                }
-                "stop" {
-                    set etype STOP
-                    if {[llength $event] < 3} {
-                        perror "Wrong number of arguments: $obj $cmd $evargs"
-                        return
-                    }
-                    set args [lindex $event 2]
-                }
-            }
+		
+			::GLOBALS::named-args $evargs [list \
+				-name $default_name \
+				-type $default_type \
+				-mountpoint $default_mountpoint \
+				-params $default_params \
+			]
+
+			if {$(-name) != {}} {
+				set args "NAME=$(-name) "
+			}
+			if {$(-type) != {}} {
+				set args "${args}TYPE=$(-type) "
+			}
+			if {$(-mountpoint) != {}} {
+				set args "${args}MOUNTPOINT=$(-mountpoint) "
+			}
+			if {$(-params) != {}} {
+				set args "${args}PARAMS=$(-params)"
+			}  
+			#DEBUG
+		    puts stdout "$args"
+		} 
+		"create" {
+     		set default_cmd [$obj set cmd]
+		    set args $default_cmd 
+			#DEBUG
+		    puts stdout "$args"
+            set etype CREATE
+     	}
+		"modify" {
+			set default_cmd [$obj set cmd]
+		    set args $default_cmd
+			#DEBUG
+		    puts stdout "$args"
+		    set etype MODIFY
+	    }
+        unknown {
+            punsup "$obj $cmd $args"
+            return
         }
+        }   
+    }
 	"Console" {
 	    set otype CONSOLE
 	    set vname $obj

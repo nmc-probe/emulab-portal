@@ -27,6 +27,7 @@ Disk instproc init {s} {
     $self set type {}
     $self set mountpoint {}
     $self set params {}
+	$self set cmd {}
 
     # Link simulator to this new object.
     $s add_disk $self
@@ -52,10 +53,11 @@ Disk instproc updatedb {DB} {
     $self instvar mountpoint 
     $self instvar params 
     $self instvar sim
+	$self instvar cmd
 
     if {$node == {}} {
-	perror "\[updatedb] $self has no node."
-	return
+		perror "\[updatedb] $self has no node."
+		return
     }
     set progvnode $node
 
@@ -64,13 +66,13 @@ Disk instproc updatedb {DB} {
     # program to the physical node on which the simulation runs
     #
     if {$progvnode != "ops"} {
-	if { [$node set simulated] == 1 } {
-	    set progvnode [$node set nsenode]
-	}
+		if { [$node set simulated] == 1 } {
+	    	set progvnode [$node set nsenode]
+		}
     }
 
     # Update the DB
-    spitxml_data "virt_disk" [list "vnode" "vname" "name" "type" "mountpoint" "params"] [list $progvnode $self $name $type $mountpoint $params ]
+    spitxml_data "virt_disk" [list "vnode" "vname" "name" "type" "mountpoint" "params" "cmd"] [list $progvnode $self $name $type $mountpoint $params $cmd]
 
     $sim spitxml_data "virt_agents" [list "vnode" "vname" "objecttype" ] [list $progvnode $self $objtypes(DISK) ]
 }
