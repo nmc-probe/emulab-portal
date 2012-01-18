@@ -41,7 +41,7 @@ my %imagenames    = (
 );
 
 my @osnames	  = ('FREEBSD-MFS', 'FRISBEE-MFS', 'NEWNODE-MFS',
-		     'OPSNODE-BSD', 'FW-IPFW', 'FW-IPFW2',
+		     'OPSNODE-BSD', 'FW-IPFW', 'FW-IPFW2', 'FW-IPTABLES',
 		     'RHL-STD', 'FBSD-STD', 'FBSD-JAIL', 'POWER-CONTROLLER');
 
 my @osids	   = ();
