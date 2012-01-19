@@ -316,7 +316,7 @@ iptables -A INPUT -p udp --dport 1434 -j DROP # BASIC,CLOSED,ELABINELAB+WINDOWS
 # DHCP requests from, and replies to, inside requests are always broadcast,
 # replies may be broadcast or unicast
 iptables -A INSIDE -p udp --sport 68 -d 255.255.255.255 --dport 67 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A OUTSIDE -p udp --sport 67 --dport 68 -j ACCEPT # BASIC,CLOSED,ELABINELAB
+iptables -A OUTSIDE -p udp --sport 67 --dport 68 -d 255.255.255.255 -j ACCEPT # BASIC,CLOSED,ELABINELAB
 
 #
 # TFTP with boss or ops
