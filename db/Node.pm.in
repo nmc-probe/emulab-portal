@@ -1898,6 +1898,8 @@ sub CreateVnodes($$$)
 {
     my ($class, $rptr, $options) = @_;
     my @created   = ();
+    my @ifaceargs = ();
+    my @interfaces= ();
     my @tocreate  = ();
     my @vlist     = ();
     require Interface;
@@ -2196,7 +2198,9 @@ sub CreateVnodes($$$)
 			"def_boot_osid" => $osid,
 			"update_accounts" => 1,
 			"jailflag" => $isjailed);
-	if ($isjailed && !$isremote) {
+	# This is deprecated and will be removed. We now create real
+	# interfaces, see below.
+	if (0 && $isjailed && !$isremote) {
 	    $nodesets{"jailip"} = $jailip;
 	    $nodesets{"jailipmask"} = $JAILIPMASK;
 	}
@@ -2266,15 +2270,63 @@ sub CreateVnodes($$$)
 
 	Node->MakeFake($vnodeid, \%nodesets, \%rsrvsets)
 	    if ($impotent);
-	    
+
 	push(@created, $vnodeid);
+
+	#
+	# Save up interfaces we need to create after table unlock.
+	#
+	if ($isjailed && !$isremote) {
+	    my $ifaceargs = {
+		"node_id"   => $vnodeid,
+		"card"      => 0,
+		"port"      => 1,
+		"iface"     => "eth0",
+		"role"      => TBDB_IFACEROLE_CONTROL(),
+		"MAC"       => "000000000000",
+		"IP"        => $jailip,
+		"mask"      => $JAILIPMASK,
+		"type"      => "generic",
+		"logical"   => 1,
+	    };
+	    push(@ifaceargs, $ifaceargs);
+	}
     }
     DBQueryFatal("unlock tables");
+
+    #
+    # Now create a control network interface for local jailed nodes.
+    # Now that tables are unlocked. 
+    #
+    foreach my $ifaceargs (@ifaceargs) {
+	my $vnodeid = $ifaceargs->{'node_id'};
+	my $node    = Node->Lookup($vnodeid);
+	if (!defined($node)) {
+	    print STDERR
+		"*** CreateVnodes: Could not lookup node object for $vnodeid\n";
+	    goto bad;
+	}
+	my $interface = ($impotent ?
+			 Interface->MakeFake($node, $ifaceargs) :
+			 Interface->Create($node, $ifaceargs));
+	if (!defined($interface)) {
+	    print STDERR
+		"*** CreateVnodes: Could not create interface for $vnodeid\n";
+	    goto bad;
+	}
+	print STDERR Dumper($interface)
+	    if ($debug);
+
+	push(@interfaces, $interface);
+    }
     @$rptr = @created;
     return 0;
 
   bad:
     if (!$impotent) {
+	foreach my $interface (@interfaces) {
+	    $interface->Delete();
+	}
 	foreach my $vnodeid (@created) {
 	    DBQueryWarn("delete from reserved where node_id='$vnodeid'");
 	    DBQueryWarn("delete from nodes where node_id='$vnodeid'");
@@ -2301,6 +2353,10 @@ sub DeleteVnodes(@)
     DBQueryFatal("unlock tables");
     
     foreach my $vnodeid (@vnodes) {
+	my $interface = Interface->LookupControl($vnodeid);
+	$interface->Delete()
+	    if (defined($interface));
+	
 	DBQueryWarn("delete from node_hostkeys where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_status where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_rusage where node_id='$vnodeid'");
@@ -3076,8 +3132,24 @@ sub SetJailIPFromVnode($$$)
 		"*** $vnode_id has a jailip attribute but no jailipmask.\n";
 	    return -1;
 	}
-	return $self->Update({"jailip" => $jailip,
-			      "jailipmask" => $jailipmask});
+	#
+	# We now create interface entries for local jailed nodes, so have
+	# to update the entry. We still use jailip under some circumstances.
+	#
+	if (!$self->isremotenode() && !defined($self->jailip())) {
+	    my $interface = Interface->LookupControl($self);
+	    if (!defined($interface)) {
+		print STDERR "*** $vnode_id does not have a control interface\n";
+		return -1;
+	    }
+	    $interface->Update({"IP"   => $jailip,
+				"mask" => $jailipmask})
+		== 0 or return -1;
+	}
+	else {
+	    return $self->Update({"jailip" => $jailip,
+				  "jailipmask" => $jailipmask});
+	}
     }
     return 0;
 }

@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -48,6 +48,7 @@ use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
 use Node;
+use Interface;
 
 #
 # Turn off line buffering on output
@@ -105,7 +106,16 @@ else {
                     exit(1);
                 }
 	    }
-	    $hostname = $node->phys_nodeid();
+	    else {
+		#
+		# jailip is deprecated, but nodes might still exist.
+		# Now we create interface table entries. 
+		#
+		my $interface = Interface->LookupControl($node);
+		if (! (defined($interface) || defined($node->jailip()))) {
+		    $hostname = $node->phys_nodeid();
+		}
+	    }
 	}
 	elsif ($node->isremotenode() && !$node->isdedicatedremote()) {
 	    $user = "emulabman";

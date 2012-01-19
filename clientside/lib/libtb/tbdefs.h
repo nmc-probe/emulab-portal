@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -16,6 +16,7 @@
 #define	TBDB_FLEN_NODECLASS	(10 + 1)
 #define	TBDB_FLEN_NODETYPE	(30 + 1)
 #define	TBDB_FLEN_IP		(16 + 1)
+#define	TBDB_FLEN_IPMASK	(16 + 1)
 #define TBDB_FLEN_EVOBJTYPE	128
 #define TBDB_FLEN_EVOBJNAME	128
 #define TBDB_FLEN_EVEVENTTYPE	128

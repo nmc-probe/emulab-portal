@@ -3506,33 +3506,6 @@ COMMAND_PROTOTYPE(dohosts)
 		hostcount += 2;
 	}
 
-#if 0
-	/*
-	 * List of control net addresses for jailed nodes.
-	 * Temporary.
-	 */
-	res = mydb_query("select r.node_id,r.vname,n.jailip "
-			 " from reserved as r "
-			 "left join nodes as n on n.node_id=r.node_id "
-			 "where r.pid='%s' and r.eid='%s' "
-			 "      and jailflag=1 and jailip is not null",
-			 3, reqp->pid, reqp->eid);
-	if (res) {
-	    if ((nrows = mysql_num_rows(res))) {
-		while (nrows--) {
-		    row = mysql_fetch_row(res);
-
-		    OUTPUT(buf, sizeof(buf),
-			   "NAME=%s IP=%s ALIASES='%s.%s.%s.%s'\n",
-			   row[0], row[2], row[1], reqp->eid, reqp->pid,
-			   OURDOMAIN);
-		    client_writeback(sock, buf, strlen(buf), tcp);
-		    hostcount++;
-		}
-	    }
-	    mysql_free_result(res);
-	}
-#endif
 	info("HOSTNAMES: %d hosts in list\n", hostcount);
 	host = hosts;
 	while (host) {
@@ -6716,6 +6689,7 @@ COMMAND_PROTOTYPE(dojailconfig)
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
+	char		jailip[TBDB_FLEN_IP], jailipmask[TBDB_FLEN_IPMASK];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
 	int		low, high;
 
@@ -6764,11 +6738,17 @@ COMMAND_PROTOTYPE(dojailconfig)
 	mysql_free_result(res);
 
 	/*
-	 * Now need the sshdport and jailip for this node.
+	 * Now need the sshdport and jailip for this node. The jailip
+	 * slot is not deprecated, but there might still exists nodes
+	 * created before we switched to creating real interface entries
+	 * for jailed nodes.
 	 */
-	res = mydb_query("select sshdport,jailip,jailipmask from nodes "
-			 "where node_id='%s'",
-			 3, reqp->nodeid);
+	res = mydb_query("select n.sshdport,n.jailip,n.jailipmask,i.IP,i.mask "
+			 "  from nodes as n "
+			 "left join interfaces as i on "
+			 "   i.node_id=n.node_id and i.role='ctrl' "
+			 "where n.node_id='%s'",
+			 5, reqp->nodeid);
 
 	if (!res) {
 		error("JAILCONFIG: %s: DB Error getting config!\n",
@@ -6781,12 +6761,19 @@ COMMAND_PROTOTYPE(dojailconfig)
 		return 0;
 	}
 	row   = mysql_fetch_row(res);
+	if (row[3]) {
+		strcpy(jailip, row[3]);
+		strcpy(jailipmask, row[4]);
+	}
+	else if (row[1]) {
+		strcpy(jailip, row[1]);
+		strcpy(jailipmask, (row[2] ? row[2] : JAILIPMASK));
+	}
 
 	bzero(buf, sizeof(buf));
-	if (row[1]) {
+	if (jailip[0]) {
 		bufp += OUTPUT(bufp, ebufp - bufp,
-			       "JAILIP=\"%s,%s\"\n",
-			       row[1], (row[2] ? row[2] : JAILIPMASK));
+			       "JAILIP=\"%s,%s\"\n", jailip, jailipmask);
 	}
 	bufp += OUTPUT(bufp, ebufp - bufp,
 		       "PORTRANGE=\"%d,%d\"\n"
@@ -8059,9 +8046,12 @@ COMMAND_PROTOTYPE(doemulabconfig)
 	 */
 	if (reqp->isvnode && reqp->singlenet) {
 		res = mydb_query("select r.node_id,r.inner_elab_role,"
-				 "   n.jailip,r.vname from reserved as r "
+				 "   IFNULL(i.IP,n.jailip),r.vname "
+				 "  from reserved as r "
 				 "left join nodes as n on "
 				 "     n.node_id=r.node_id "
+				 "left join interfaces as i on "
+				 "   i.node_id=r.node_id and i.role='ctrl' "
 				 "where r.pid='%s' and r.eid='%s' and "
 				 "      r.inner_elab_role is not null",
 				 4, reqp->pid, reqp->eid);
