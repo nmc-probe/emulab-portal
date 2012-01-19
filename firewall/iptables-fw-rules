@@ -88,6 +88,8 @@ iptables -A FORWARD -m physdev --physdev-in pdev -j OUTSIDE # BASIC,CLOSED,ELABI
 # Can talk to myself.  Does this do anything?
 # This appears to be used by elvind?
 #iptables -A INPUT -s me -d me -j ACCEPT # BASIC,CLOSED,ELABINELAB
+iptables -A INPUT -i lo -j ACCEPT # BASIC,CLOSED,ELABINELAB
+iptables -A OUTPUT -o lo -j ACCEPT # BASIC,CLOSED,ELABINELAB
 
 #
 # Nobody on the inside can talk to the firewall.
