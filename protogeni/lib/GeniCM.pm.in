@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniCM;
@@ -1058,7 +1058,18 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    # hardware specific pcvm type. 
 		    #
 		    my $pt = GeniXML::GetText("name", $usertype);
-		    $pctype = ($pctype eq "pcvm" ? "${pt}-vm" : $pt);
+		    if (!defined($pt)) {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+						 "Bad hardware_type");
+			goto bad;
+		    }
+		    if (defined($pctype) && $pctype eq "pcvm") {
+			$pctype = "${pt}-vm";
+		    }
+		    else {
+			$pctype = $pt;
+		    }
 		}
 	    }
 	}
