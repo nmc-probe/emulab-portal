@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -220,21 +220,6 @@ my $logname  = "$LOGDIR/tbvnode-${vnodeid}.log";
 my $alllogs  = "$LOGDIR/tbvnode-${vnodeid}.all";
 
 #
-# Need the domain, but no conistent way to do it. Ask tmcc for the
-# boss node and parse out the domain. 
-#
-my $DOMAINNAME = tmccbossname();
-die("Could not get bossname from tmcc!")
-    if (!defined($DOMAINNAME));
-
-if ($DOMAINNAME =~ /^[-\w]+\.(.*)$/) {
-    $DOMAINNAME = $1;
-}
-else {
-    die("Could not parse domain name!");
-}
-
-#
 # If killing/halting the virtual node, then kill the manager process.
 #
 if ($killit || $haltit) {
@@ -274,6 +259,21 @@ if (-e $pidfile) {
 	die("*** $0:\n".
 	    "    Not able to kill running vnode manager!\n");
     }
+}
+
+#
+# Need the domain, but no conistent way to do it. Ask tmcc for the
+# boss node and parse out the domain. 
+#
+my $DOMAINNAME = tmccbossname();
+die("Could not get bossname from tmcc!")
+    if (!defined($DOMAINNAME));
+
+if ($DOMAINNAME =~ /^[-\w]+\.(.*)$/) {
+    $DOMAINNAME = $1;
+}
+else {
+    die("Could not parse domain name!");
 }
 
 # Tack the current log onto the end of a running file.
@@ -380,9 +380,7 @@ if (! -e CONFDIR()) {
 # Inform the TMCD we are setting up. 
 #
 REBOOT:
-if (!($dojail && $islinux)) {
-    tmcc(TMCCCMD_STATE, "BOOTING");
-}
+tmcc(TMCCCMD_STATE, "BOOTING");
 
 #
 # Invoke vnode setup routine in the setup library. This will talk to
