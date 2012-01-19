@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # node reboot library. Basically the backend to the node_reboot script, but
@@ -908,7 +908,7 @@ sub RebootVNode($$) {
     #
     $UID = 0;
 
-    exec("$ssh -host $vnode $CLIENT_BIN/vnodesetup -r $addargs $vnode");
+    exec("$ssh -host $pnode $CLIENT_BIN/vnodesetup -r $addargs $vnode");
     exit(0);
 }
 
