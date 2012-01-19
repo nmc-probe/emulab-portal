@@ -144,7 +144,11 @@ sub doboot()
 	    $rc = firewaller();
 	    last SWITCH;
 	};
-	/^ipchains$/i && do {
+	/^iptables$/i && do {
+	    $rc = firewaller();
+	    last SWITCH;
+	};
+	/^iptables-vlan$/i && do {
 	    $rc = firewaller();
 	    last SWITCH;
 	};
