@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -1338,6 +1338,11 @@ sub handleCommand($$;$$) {
 
 #
 # Check if we need to generate an ISUP
+#
+# Turns out we DO NOT want the reload MFSs to generate an ISUP cause
+# that will screw up the reload by clearing it. How do we prevent
+# checkGenISUP() from generating an ISUP? Well, by adding an osfeature
+# to the MFSs that say they generate ISUP. Sheesh.
 #
 sub checkGenISUP($) {
     my ($node) = @_;
