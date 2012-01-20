@@ -7972,8 +7972,8 @@ COMMAND_PROTOTYPE(dofwinfo)
 	 */
 	if (vers > 33) {
 		res = mydb_query("select node_id,IP,mac from interfaces "
-				 "where role='ctrl' and node_id in "
-				 "('boss','ops','fs',"
+				 "where role='ctrl' and (node_id in "
+				 "('boss','ops','fs') or node_id in "
 				 "(select distinct subboss_id from subbosses))",
 				 3);
 		if (!res) {
