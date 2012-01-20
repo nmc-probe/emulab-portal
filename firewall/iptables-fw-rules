@@ -82,7 +82,9 @@ iptables -N INSIDE # BASIC,CLOSED,ELABINELAB
 iptables -F INSIDE # BASIC,CLOSED,ELABINELAB
 iptables -N OUTSIDE # BASIC,CLOSED,ELABINELAB
 iptables -F OUTSIDE # BASIC,CLOSED,ELABINELAB
-iptables -A FORWARD -m physdev --physdev-in vlandev -j INSIDE # BASIC,CLOSED,ELABINELAB
+
+# Inside nodes cannot spoof other IP addresses
+iptables -A FORWARD -m physdev --physdev-in vlandev -s EMULAB_CNET,0.0.0.0/32,255.255.255.255 -j INSIDE # BASIC,CLOSED,ELABINELAB
 iptables -A FORWARD -m physdev --physdev-in pdev -j OUTSIDE # BASIC,CLOSED,ELABINELAB
 
 # Can talk to myself.  Does this do anything?
@@ -132,17 +134,6 @@ iptables -A OUTSIDE -s EMULAB_GWIP -j ACCEPT # CLOSED,ELABINELAB
 #
 iptables -A INSIDE -d EMULAB_CNET -j DROP # CLOSED,ELABINELAB
 iptables -A OUTSIDE -d EMULAB_CNET -j DROP # CLOSED,ELABINELAB
-
-#
-# Inside nodes cannot spoof other IP addresses.
-#
-# Beyond this rule we no longer have to check to make sure that source
-# hosts like "boss" and "ops" come in the correct interface.
-#
-iptables -A INSIDE -s 0.0.0.0 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A INSIDE -s 255.255.255.255 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A INSIDE -s EMULAB_CNET -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A INSIDE -j DROP # BASIC,CLOSED,ELABINELAB
 
 # DNS to NS
 # Note: elabinelab myops/myfs use myboss for NS
@@ -316,7 +307,7 @@ iptables -A INPUT -p udp --dport 1434 -j DROP # BASIC,CLOSED,ELABINELAB+WINDOWS
 # DHCP requests from, and replies to, inside requests are always broadcast,
 # replies may be broadcast or unicast
 iptables -A INSIDE -p udp --sport 68 -d 255.255.255.255 --dport 67 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A OUTSIDE -p udp --sport 67 --dport 68 -d 255.255.255.255 -j ACCEPT # BASIC,CLOSED,ELABINELAB
+iptables -A OUTSIDE -p udp --sport 67 --dport 68 -d 255.255.255.255 0;269;0c-j ACCEPT # BASIC,CLOSED,ELABINELAB
 
 #
 # TFTP with boss or ops
@@ -341,6 +332,3 @@ iptables -A INSIDE -p tcp -d boss --dport 7777 -m conntrack --ctstate NEW -j ACC
 iptables -A INSIDE -p udp -d boss --dport 7777 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
 iptables -A OUTPUT -p tcp -s me -d boss --dport 7777 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
 iptables -A OUTPUT -p udp -s me -d boss --dport 7777 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
-
-# BRIDGE-SPECIFIC RULES
-
