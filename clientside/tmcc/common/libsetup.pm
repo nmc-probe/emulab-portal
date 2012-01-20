@@ -2436,9 +2436,11 @@ sub getfwconfig($$;$)
 	}
     }
 
-    # merge GW info into fwsrvmacs hash
-    $fwsrvmacs{$fwvars{"EMULAB_GWIP"}} = $fwvars{"EMULAB_GWMAC"};
-    $fwsrvmacs{$fwvars{"EMULAB_GWIP"}} =~ s/://g;
+    if (defined($fwvars{"EMULAB_GWIP"})) {
+        # merge GW info into fwsrvmacs hash
+        $fwsrvmacs{$fwvars{"EMULAB_GWIP"}} = $fwvars{"EMULAB_GWMAC"};
+        $fwsrvmacs{$fwvars{"EMULAB_GWIP"}} =~ s/://g;
+    }
 
     # info for proxy ARP, to publish inside...
     if (%fwsrvmacs) {
