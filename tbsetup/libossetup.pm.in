@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package libossetup;
@@ -1629,12 +1629,7 @@ sub Volunteers($)
 	#
 	# The wait times are totally bogus! Need a better way to do this.
 	#
-	if ($node->isremotenode()) {
-	    $node->_maxwait($reboot_time + (60 * $pnode->_vnodecount()));
-	}
-	else {
-	    $node->_maxwait($reboot_time + (40 * $pnode->_vnodecount()));
-	}
+	$node->_maxwait($reboot_time + (60 * $pnode->_vnodecount()));
 	$node->_seteupstatus($libossetup::SETUP_OKAY);
     }
     return @nodelist;
