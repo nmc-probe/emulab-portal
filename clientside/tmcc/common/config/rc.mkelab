@@ -513,6 +513,19 @@ sub doboot()
 	$emulabconfig{FS_PKG}       = "emulab-fs-4.0";
 	$emulabconfig{OPS_PKG}      = "emulab-ops-4.0";
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-4.0";
+	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-8.2-packages.tar.gz";
+    }
+    if (exists($emulabconfig{"PACKAGE_TARBALL"})) {
+	$emulabconfig{FS_PKG_DIR}   = "$TBDIR/packages";
+	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
+
+	#
+	# Grab the package tarball now.
+	#
+	mysystem("fetch -q -o /usr/packages.tar.gz ".
+		 "'http://${bossname}/downloads/" .
+		 $emulabconfig{PACKAGE_TARBALL} . "'");
     }
 
     #
@@ -655,6 +668,12 @@ sub SetupFsNode()
     if ($emulabconfig{"LOAD_ELABSOURCE"}) {
 	RecreateDir("$TBDIR/src", 1);
 	GetEmulabSource("$TBDIR/src");
+    }
+
+    # This avoids nfs mounts interruptions
+    if (exists($emulabconfig{PACKAGE_TARBALL})) {
+	RecreateDir("$TBDIR/packages", 1);
+	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR/packages");
     }
 
     #
@@ -828,8 +847,10 @@ sub SetupFsNode()
     # Lets mount the package dir so that we can pass off some stuff to
     # the install scripts.
     #
-    RecreateDir("/packages", 1);
-    mysystem("mount ${fsname}:" . $emulabconfig{FS_PKG_DIR} . " /packages");
+    if (! exists($emulabconfig{PACKAGE_TARBALL})) {
+	RecreateDir("/packages", 1);
+	mysystem("mount ${fsname}:" . $emulabconfig{FS_PKG_DIR} . " /packages");
+    }
 
     #
     # Need these for rc.conf.
@@ -942,8 +963,13 @@ sub SetupFsNode()
     #
     # Create the fs node.
     #
-    $ENV{"PKG_PATH"} = "/packages";
-    my $pkg = "-P $emulabconfig{FS_PKG} -p /packages";
+    if (exists($emulabconfig{PACKAGE_TARBALL})) {
+	$ENV{"PKG_PATH"} = "$TBDIR/packages";
+    }
+    else {
+	$ENV{"PKG_PATH"} = "/packages";
+    }
+    my $pkg = "-P $emulabconfig{FS_PKG} -p " . $ENV{"PKG_PATH"};
     mysystem("cd $TBDIR/obj/testbed/install; ".
 	     "   perl fs-install $pkg -b");
 
@@ -1070,6 +1096,12 @@ sub SetupOpsNode($)
     if ($emulabconfig{"LOAD_ELABSOURCE"}) {
 	RecreateDir("$TBDIR/src", 1);
 	GetEmulabSource("$TBDIR/src");
+    }
+
+    # This avoids nfs mounts interruptions
+    if (exists($emulabconfig{PACKAGE_TARBALL})) {
+	RecreateDir("$TBDIR/packages", 1);
+	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR/packages");
     }
 
     #
@@ -1258,8 +1290,10 @@ sub SetupOpsNode($)
     # Lets mount the package dir so that we can pass off some stuff to
     # the install scripts.
     #
-    RecreateDir("/packages", 1);
-    mysystem("mount ${fsname}:" . $emulabconfig{OPS_PKG_DIR} . " /packages");
+    if (! exists($emulabconfig{PACKAGE_TARBALL})) {
+	RecreateDir("/packages", 1);
+	mysystem("mount ${fsname}:" . $emulabconfig{OPS_PKG_DIR} . " /packages");
+    }
 
     #
     # Need these for rc.conf.
@@ -1378,8 +1412,13 @@ sub SetupOpsNode($)
     #
     # Create the ops node.
     #
-    $ENV{"PKG_PATH"} = "/packages";
-    my $pkg = "-P $emulabconfig{OPS_PKG} -p /packages " .
+    if (exists($emulabconfig{PACKAGE_TARBALL})) {
+	$ENV{"PKG_PATH"} = "$TBDIR/packages";
+    }
+    else {
+	$ENV{"PKG_PATH"} = "/packages";
+    }
+    my $pkg = "-P $emulabconfig{OPS_PKG} -p " . $ENV{"PKG_PATH"} . " " .
 	($isfs ? "-F $emulabconfig{FS_PKG}" : "");
     mysystem("cd $TBDIR/obj/testbed/install; ".
 	     "   perl ops-install $pkg -b -w ElabInElab ");
@@ -1589,6 +1628,12 @@ sub SetupBossNode($)
     if ($emulabconfig{"LOAD_ELABSOURCE"}) {
 	RecreateDir("$TBDIR/src", 1);
 	GetEmulabSource("$TBDIR/src");
+    }
+
+    # This avoids nfs mounts interruptions
+    if (exists($emulabconfig{PACKAGE_TARBALL})) {
+	RecreateDir("$TBDIR/packages", 1);
+	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR/packages");
     }
 
     #
@@ -1822,8 +1867,10 @@ sub SetupBossNode($)
     # Lets mount the package dir so that we can pass off some stuff to
     # the install scripts.
     #
-    RecreateDir("/packages", 1);
-    mysystem("mount ${fsname}:" . $emulabconfig{BOSS_PKG_DIR} . " /packages");
+    if (!exists($emulabconfig{PACKAGE_TARBALL})) {
+	RecreateDir("/packages", 1);
+	mysystem("mount ${fsname}:" . $emulabconfig{BOSS_PKG_DIR} . " /packages");
+    }
 
     #
     # Determine if we need to run a multicast router.
@@ -1994,8 +2041,13 @@ sub SetupBossNode($)
     #
     # Create the boss node. This will also install the software.
     #
-    $ENV{"PKG_PATH"} = "/packages";
-    my $pkg = "-P $emulabconfig{BOSS_PKG} -p /packages";
+    if (exists($emulabconfig{PACKAGE_TARBALL})) {
+	$ENV{"PKG_PATH"} = "$TBDIR/packages";
+    }
+    else {
+	$ENV{"PKG_PATH"} = "/packages";
+    }
+    my $pkg = "-P $emulabconfig{BOSS_PKG} -p " . $ENV{"PKG_PATH"};
     mysystem("cd $TBDIR/obj/testbed/install; ".
 	     "   perl boss-install $pkg -b -w ElabInElab");
 
