@@ -301,32 +301,35 @@ int run_dm_device(char *args)
 	if (_device_info(const_cast<char *>(dm_args["NAME"].c_str()))) {
 		/* DM device exists so we'll reload it with params supplied */
 		int r=0;
-        	uint64_t start=0, length=0;
-	        char *target_type=NULL, *params=NULL;
+		uint64_t start=0, length=0;
+	    char *target_type=NULL, *params=NULL;
+		
 		string params_str="", diskname="";
 		stringstream split;
 
-	 	if (!(dmt = dm_task_create(DM_DEVICE_RELOAD))){
-                        cout << "in dm task create"<<endl;
-                        return 0;
-                }		
+	 	if (!(dmt = dm_task_create(DM_DEVICE_RELOAD))) {
+            cout << "in dm task create"<<endl;
+            return 0;
+        }		
 		if ( !dm_task_set_name(dmt, const_cast<char *>(dm_args["NAME"].c_str()))){
 			dm_task_destroy(dmt);
-                        return 0;
+            return 0;
 		}
 	
 		if (!(_get_device_params(dm_args["NAME"].c_str()))) {
 			dm_task_destroy(dmt);
-                        return 0;
+            return 0;
 		}
 		cout << device_params[0] << device_params[1] << device_params[2] << device_params[3] << endl;
 	
-		start 		= strtoul (device_params[0].c_str(),NULL,0);
-		length 		= strtoul (device_params[1].c_str(),NULL,0);
+		start 		    = strtoul (device_params[0].c_str(),NULL,0);
+		length 		    = strtoul (device_params[1].c_str(),NULL,0);
 		target_type 	= const_cast<char *>(dm_args["TYPE"].c_str());
-		split		<< device_params[3];
+
+		split		   << device_params[3];
+
 		getline(split,diskname,' ');
-		params_str 	= diskname + " " + "0 "+ dm_args["PARAMS"];
+ 		params_str 	= diskname + " " + "0 "+ dm_args["PARAMS"];
 		cout << "diskname after "<<params_str<<endl;
 		params 		= const_cast<char *>(params_str.c_str());
 
