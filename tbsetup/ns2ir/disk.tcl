@@ -1,7 +1,7 @@
 # -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2006 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -23,11 +23,10 @@ Disk instproc init {s} {
 
     $self set sim $s
     $self set node {}
-    $self set name {}
     $self set type {}
     $self set mountpoint {}
-    $self set params {}
-	$self set cmd {}
+    $self set parameters {}
+    $self set command {}
 
     # Link simulator to this new object.
     $s add_disk $self
@@ -48,32 +47,32 @@ Disk instproc updatedb {DB} {
     var_import ::GLOBALS::eid
     var_import ::TBCOMPAT::objtypes
     $self instvar node
-    $self instvar name 
     $self instvar type 
     $self instvar mountpoint 
-    $self instvar params 
+    $self instvar parameters
     $self instvar sim
-	$self instvar cmd
+    $self instvar command
 
     if {$node == {}} {
-		perror "\[updatedb] $self has no node."
-		return
+	perror "\[updatedb] $self has no node."
+	return
     }
-    set progvnode $node
 
-    #
-    # if the attached node is a simulated one, we attach the
-    # program to the physical node on which the simulation runs
-    #
-    if {$progvnode != "ops"} {
-		if { [$node set simulated] == 1 } {
-	    	set progvnode [$node set nsenode]
-		}
+    set fields [list "vname" "diskname" "disktype" "mountpoint"]
+    set values [list $node $self $type $mountpoint]
+
+    if { $parameters != "" } {
+	lappend fields "parameters"
+	lappend values $parameters
+    }
+    if { $command != "" } {
+	lappend fields "command"
+	lappend values $command
     }
 
     # Update the DB
-    spitxml_data "virt_disk" [list "vnode" "vname" "name" "type" "mountpoint" "params" "cmd"] [list $progvnode $self $name $type $mountpoint $params $cmd]
+    spitxml_data "virt_node_disks" $fields $values
 
-    $sim spitxml_data "virt_agents" [list "vnode" "vname" "objecttype" ] [list $progvnode $self $objtypes(DISK) ]
+    $sim spitxml_data "virt_agents" [list "vnode" "vname" "objecttype" ] [list $node $self $objtypes(DISK) ]
 }
 

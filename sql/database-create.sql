@@ -4414,6 +4414,25 @@ CREATE TABLE `virt_node_desires` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `virt_node_disks`
+--
+
+DROP TABLE IF EXISTS `virt_node_disks`;
+CREATE TABLE `virt_node_disks` (
+  `pid` varchar(48) NOT NULL default '',
+  `eid` varchar(32) NOT NULL default '',
+  `exptidx` int(11) NOT NULL default '0',
+  `vname` varchar(32) NOT NULL default '',
+  `diskname` varchar(32) NOT NULL default '',
+  `disktype` varchar(32) NOT NULL default '',
+  `mountpoint` tinytext,
+  `parameters` tinytext,
+  `command` tinytext,
+  PRIMARY KEY  (`exptidx`,`vname`,`diskname`),
+  UNIQUE KEY `pideid` (`pid`,`eid`,`vname`,`diskname`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `virt_node_motelog`
 --
 

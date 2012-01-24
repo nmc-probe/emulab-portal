@@ -133,6 +133,7 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "virt_vtypes",
 		   "virt_programs",
 		   "virt_node_attributes",
+		   "virt_node_disks",
 		   "virt_node_desires",
 		   "virt_node_startloc",
 		   "virt_simnode_attributes",

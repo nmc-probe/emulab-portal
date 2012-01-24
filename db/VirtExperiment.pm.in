@@ -63,6 +63,7 @@ my $debug	      = 0;
      "virt_vtypes"		=> [ "name" ],
      "virt_programs"		=> [ "vname", "vnode" ],
      "virt_node_attributes"	=> [ "vname", "attrkey" ],
+     "virt_node_disks"		=> [ "vname", "diskname" ],
      "virt_user_environment"	=> [ "name", "value" ],
      "virt_bridges"		=> [ "vname", "vlink", "vport"],
      "nseconfigs"		=> [ "vname" ],
@@ -1152,6 +1153,11 @@ use vars qw(@ISA);
 use VirtExperiment;
 
 package VirtExperiment::VirtTableRow::virt_node_attributes;
+use vars qw(@ISA);
+@ISA = "VirtExperiment::VirtTableRow";
+use VirtExperiment;
+
+package VirtExperiment::VirtTableRow::virt_node_disks;
 use vars qw(@ISA);
 @ISA = "VirtExperiment::VirtTableRow";
 use VirtExperiment;

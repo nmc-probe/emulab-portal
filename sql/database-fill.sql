@@ -168,6 +168,8 @@ REPLACE INTO event_objecttypes VALUES (14,'TOPOGRAPHY');
 REPLACE INTO event_objecttypes VALUES (15,'LINKTRACE');
 REPLACE INTO event_objecttypes VALUES (16,'EVPROXY');
 REPLACE INTO event_objecttypes VALUES (17,'BGMON');
+REPLACE INTO event_objecttypes VALUES (18,'DISK');
+REPLACE INTO event_objecttypes VALUES (19,'CUSTOM');
 
 --
 -- Dumping data for table `exported_tables`
@@ -845,6 +847,15 @@ REPLACE INTO table_regex VALUES ('virt_lans','compat','int','redirect','default:
 REPLACE INTO table_regex VALUES ('virt_lans','layer','int','redirect','default:tinyint',1,2,NULL);
 REPLACE INTO table_regex VALUES ('virt_lans','ofenabled','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_lans','ofcontroller','text','redirect','default:tinytext',0,0,NULL);
+
+REPLACE INTO table_regex VALUES ('virt_node_disks','pid','text','redirect','projects:pid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_node_disks','eid','text','redirect','experiments:eid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_node_disks','vname','text','redirect','virt_nodes:vname',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_node_disks','diskname','text','regex','^[-\\w]+$',2,32,NULL);
+REPLACE INTO table_regex VALUES ('virt_node_disks','disktype','text','regex','^[-\\w]+$',2,32,NULL);
+REPLACE INTO table_regex VALUES ('virt_node_disks','mountpoint','text','redirect','default:tinytext',1,255,NULL);
+REPLACE INTO table_regex VALUES ('virt_node_disks','parameters','text','redirect','default:tinytext',1,255,NULL);
+REPLACE INTO table_regex VALUES ('virt_node_disks','command','text','redirect','default:tinytext',1,255,NULL);
 
 REPLACE INTO table_regex VALUES ('virt_node_attributes','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_attributes','eid','text','redirect','experiments:eid',0,0,NULL);

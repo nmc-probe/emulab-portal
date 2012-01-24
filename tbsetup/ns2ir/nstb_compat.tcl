@@ -1,7 +1,7 @@
 # -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -177,6 +177,14 @@ Program instproc init {args} {
 }
 
 Program instproc unknown {m args} {
+}
+
+Class Disk
+
+Disk instproc init {args} {
+}
+
+Disk instproc unknown {m args} {
 }
 
 Class Firewall
