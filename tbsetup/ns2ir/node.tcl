@@ -709,16 +709,15 @@ Node instproc program-agent {args} {
 Node instproc disk-agent {args} {
 
     ::GLOBALS::named-args $args {
-    	-name {} -type {}  -mountpoint {} -params {} -cmd {}
+    	-type {}  -mountpoint {} -parameters {} -command {}
     }
 
-	set curdisk [new Disk [$self set sim]]
+    set curdisk [new Disk [$self set sim]]
     $curdisk set node $self
-    $curdisk set name $(-name)
     $curdisk set type $(-type)
     $curdisk set mountpoint $(-mountpoint)
-    $curdisk set params $(-params)
-	$curdisk set cmd $(-cmd)
+    $curdisk set parameters $(-parameters)
+    $curdisk set command $(-command)
 
     return $curdisk
 }
