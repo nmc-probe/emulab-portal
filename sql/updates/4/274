@@ -57,7 +57,7 @@ sub DoUpdate($$$)
 		 " 'default:tinytext',1,255,NULL)");
 
     DBQueryFatal("REPLACE INTO event_objecttypes VALUES (18,'DISK')");
-    
+    DBQueryFatal("REPLACE INTO event_objecttypes VALUES (19,'CUSTOM')");
 
     return 0;
 }
