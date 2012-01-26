@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # For installation.
@@ -49,6 +49,8 @@ endif
 # is changed.
 # 
 all: $(RC_SCRIPTS) $(OPS_SCRIPTS) $(SUBBOSS_SCRIPTS) capture.sh 3.v0_gateway.sh
+
+control-build:	$(OPS_SCRIPTS) 
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
