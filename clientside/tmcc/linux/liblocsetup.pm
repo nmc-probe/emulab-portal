@@ -1287,6 +1287,7 @@ sub os_fwconfig_line($@) {
 		$upline .= "vconfig add $pdev $vlanno > /dev/null\n";
 		$upline .= "ifconfig $vlandev up\n";
 		$upline .= "brctl addbr br0\n";
+		$upline .= "brctl stp br0 on\n";
 		$upline .= "ifconfig br0 up\n";
 		$upline .= "brctl addif br0 $pdev\n";
 		$upline .= "brctl addif br0 $vlandev\n";
@@ -1429,12 +1430,16 @@ sub os_fwconfig_line($@) {
 	}
 	@fwrules = @new_rules;
 
+	# For now, if a rule fails to load we want to fail open, not closed.  Otherwise
+	# it may be difficult to debug things.
 	foreach my $rulestr (@fwrules) {
 		if ($rulestr =~ /^iptables\s+/) {
 			$upline .= "    $rulestr || {\n";
 			$upline .= "        echo 'WARNING: could not load iptables rule:'\n";
 			$upline .= "        echo '  $rulestr'\n";
 			$upline .= "        iptables -F\n";
+			$upline .= "        iptables -P INPUT ACCEPT\n";
+			$upline .= "        iptables -P OUTPUT ACCEPT\n";
 			$upline .= "        exit 1\n";
 			$upline .= "    }\n";
 		} elsif ($rulestr =~ /^ebtables\s+/) {
@@ -1442,6 +1447,8 @@ sub os_fwconfig_line($@) {
 			$upline .= "        echo 'WARNING: could not load ebtables rule:'\n";
 			$upline .= "        echo '  $rulestr'\n";
 			$upline .= "        ebtables -F\n";
+			$upline .= "        ebtables -P INPUT ACCEPT\n";
+			$upline .= "        ebtables -P OUTPUT ACCEPT\n";
 			$upline .= "        exit 1\n";
 			$upline .= "    }\n";
 		}

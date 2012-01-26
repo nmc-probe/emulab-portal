@@ -87,6 +87,9 @@ iptables -F OUTSIDE # BASIC,CLOSED,ELABINELAB
 iptables -A FORWARD -m physdev --physdev-in vlandev -s EMULAB_CNET,0.0.0.0/32,255.255.255.255 -j INSIDE # BASIC,CLOSED,ELABINELAB
 iptables -A FORWARD -m physdev --physdev-in pdev -j OUTSIDE # BASIC,CLOSED,ELABINELAB
 
+# Allow everything from the gateway, since the gateway may be part of the node control net
+iptables -A OUTSIDE -s EMULAB_GWIP -j ACCEPT # BASIC,CLOSED,ELABINELAB
+
 # Can talk to myself.  Does this do anything?
 # This appears to be used by elvind?
 #iptables -A INPUT -s me -d me -j ACCEPT # BASIC,CLOSED,ELABINELAB
