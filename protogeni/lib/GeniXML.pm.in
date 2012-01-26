@@ -32,7 +32,8 @@ use Carp qw(cluck carp);
 use vars qw($RSPEC_0_1 $RSPEC_0_2 $RSPEC_2 $RSPEC_3
             $RSPEC_0_1_NS $RSPEC_0_2_NS $RSPEC_2_NS
             $EMULAB_NS $XSI_NS $STITCH_NS
-            $REQUEST_URL $MANIFEST_URL);
+            $REQUEST_2_URL $MANIFEST_2_URL
+            $REQUEST_3_URL $MANIFEST_3_URL);
 $RSPEC_0_1 = "0.1";
 $RSPEC_0_2 = "0.2";
 $RSPEC_2 = "2";
@@ -46,8 +47,10 @@ our $EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 our $XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
 our $STITCH_NS = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
 
-$REQUEST_URL = "http://www.protogeni.net/resources/rspec/2/request.xsd";
-$MANIFEST_URL = "http://www.protogeni.net/resources/rspec/2/manifest.xsd";
+$REQUEST_2_URL = "http://www.protogeni.net/resources/rspec/2/request.xsd";
+$MANIFEST_2_URL = "http://www.protogeni.net/resources/rspec/2/manifest.xsd";
+$REQUEST_3_URL = "http://www.geni.net/resources/rspec/3/request.xsd";
+$MANIFEST_3_URL = "http://www.geni.net/resources/rspec/3/manifest.xsd";
 
 # Configure variables
 my $TB		   = "@prefix@";

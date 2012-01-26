@@ -2510,9 +2510,12 @@ sub SliverWorkAux($$$$$$$)
 						  $GeniXML::XSI_NS)->pop();
 	if (defined($schemaLocation) &&
 	    $schemaLocation->nodeType() == XML_ATTRIBUTE_NODE) {
-	    my $requestUrl = $GeniXML::REQUEST_URL;
-	    my $manifestUrl = $GeniXML::MANIFEST_URL;
 	    my $value = $schemaLocation->getValue();
+	    my $requestUrl = $GeniXML::REQUEST_2_URL;
+	    my $manifestUrl = $GeniXML::MANIFEST_2_URL;
+	    $value =~ s/$requestUrl/$manifestUrl/;
+	    $requestUrl = $GeniXML::REQUEST_3_URL;
+	    $manifestUrl = $GeniXML::MANIFEST_3_URL;
 	    $value =~ s/$requestUrl/$manifestUrl/;
 	    $schemaLocation->setValue($value);
 	}

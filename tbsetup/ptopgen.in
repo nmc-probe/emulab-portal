@@ -32,11 +32,11 @@ $V_3 = "3";
 $emulabns = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 # XXX: This needs to be changed
 $emulaburl = "http://www.protogeni.net/resources/rspec/ext/emulab/1/ptop_extension.xsd";
-$stitchns = "http://company.com/rspec/ext/stitch/1";
-$stitchurl = "http://company.com/rspec/ext/stitch/1/ad.xsd";
+$stitchns = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
+$stitchurl = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/stitch-schema.xsd";
 
 $stitchxml = <<'STITCH_END';
-<stitching xmlns="http://company.com/rspec/ext/stitch/1" lastUpdateTime="20110220:09:30:21">
+<stitching xmlns="http://hpn.east.isi.edu/rspec/ext/stitch/0.1/" lastUpdateTime="20110220:09:30:21">
 
 <aggregate id="urn:publicid:IDN+emulab.net+authority+cm" url="https://www.emulab.net/protogeni/xmlrpc/cm">
  <aggregatetype>protogeni</aggregatetype>
