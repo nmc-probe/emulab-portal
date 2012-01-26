@@ -22,7 +22,8 @@ endif
 
 include $(OBJDIR)/Makeconf
 
-CONFIG_FILES	= httpd.conf httpd.conf-ops php.ini
+OPS_FILES       = httpd.conf-ops php.ini
+CONFIG_FILES	= httpd.conf $(OPS_FILES)
 
 #
 # Move to Apache 22 ...
@@ -41,6 +42,8 @@ INSTALL_PHP_CONFIG = /usr/local/etc
 # is changed.
 # 
 all: $(CONFIG_FILES)
+
+control-build: $(OPS_FILES)
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
