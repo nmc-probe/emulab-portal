@@ -176,6 +176,15 @@ while (my ($node_id,$pid,$eid,$vname,$erole) = $db_result->fetchrow_array()) {
     }
     push @{$cnames{$node_id}}, "$vname.$eid.$pid";
 
+    # Temp hack for Leigh
+    if ($pid eq "testbed" and $eid eq "xen-leelab") {
+        push @{$cnames{$node_id}}, "${vname}.xenlab.$pid";
+
+        if (defined($erole) && $erole =~ /boss/) {
+            push @{$cnames{$node_id}}, "www.xenlab.$pid";
+        }
+    }
+
     #
     # Special case for inner elab boss; add CNAME for www.
     #
