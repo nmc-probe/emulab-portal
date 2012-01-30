@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniSA;
@@ -312,6 +312,13 @@ sub Resolve($)
 		}
 		$blob->{'subauthorities'} = \%subsas;
 	    }
+	    my @keys = ();
+	    if ($geniuser->GetKeyBundle(\@keys) != 0) {
+		print STDERR "Could not get keys for $geniuser\n";
+		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					    "Could not get public keys");
+	    }
+	    $blob->{'pubkeys'} = \@keys;
 	}
 
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
