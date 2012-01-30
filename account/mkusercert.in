@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -53,6 +53,8 @@ my $CACONFIG    = "$SSLDIR/ca.cnf";
 my $EMULAB_CERT = "$TB/etc/emulab.pem";
 my $EMULAB_KEY  = "$TB/etc/emulab.key";
 my $OPENSSL     = "/usr/bin/openssl";
+my $KEYGEN	= "/usr/bin/ssh-keygen";
+my $ADDKEY	= "$TB/sbin/addpubkey";
 my $WORKDIR     = "$TB/ssl";
 my $SAVEUID	= $UID;
 
@@ -471,6 +473,43 @@ if ($encrypted) {
 
     chown($user_number, $default_groupgid, "$target")
 	or fatal("Could not chown $target: $!");
+
+    chmod(0600, $target)
+	or fatal("Could not chmod $target: $!");
+
+    #
+    # Create an SSH key from the private key. Mostly for geni users,
+    # who tend not to know how to do such things.
+    #
+    my $pemfile = "$ssldir/encrypted.pem";
+    my $sshdir  = "$USERDIR/$user_uid/.ssh";
+    my $pphrase = User::escapeshellarg($password);
+    # This comment is special. It functions as a cross table reference
+    # between pubkeys and sslcerts. I might do this differently later.
+    my $comment = User::escapeshellarg("sslcert:${serial}");
+
+    # ssh-keygen whines and refuses to extract unless the mode is 600.
+    chmod(0600, $pemfile)
+	or fatal("Could not chmod $pemfile: $!");
+
+    system("$KEYGEN -P $pphrase -y -f $pemfile > $sshdir/encrypted.pub") == 0
+	or fatal("Could not extract ssh pubkey from $pemfile");
+
+    #
+    # The key format is identical to openssh, so just copy it over.
+    #
+    system("/bin/cp usercert_key.pem $sshdir/encrypted.key") == 0
+	or fatal("Could not copy private key to $sshdir/encrypted.key: $!");
+    chmod(0600, "$sshdir/encrypted.key")
+	or fatal("Could not chmod $sshdir/encrypted.key: $!");
+
+    #
+    # And add the pubkey to the DB. Mark it as nodelete and that it should
+    # remove existing key with same comment. 
+    #
+    $EUID = $UID;
+    system("$ADDKEY -s -N -R -C $comment -u $user_uid -f $sshdir/encrypted.pub")
+	== 0 or fatal("Could not add pubkey $sshdir/encrypted.pub");
 }
 
 TBScriptUnlock();

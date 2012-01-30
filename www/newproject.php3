@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -869,18 +869,16 @@ if (! $returning) {
 	elseif ($formfields["passphrase1"] != $formfields["passphrase2"]) {
 	    $errors["Confirm Pass Phrase"] = "Does not match Pass Phrase";
 	}
+	elseif (strlen($formfields["passphrase1"]) < $TBDB_MINPASSPHRASE) {
+	    $errors["Pass Phrase"] =
+		"Too short; $TBDB_MINPASSPHRASE char minimum";
+	}
 	elseif (! CHECKPASSWORD(($USERSELECTUIDS ?
 				 $formfields["proj_head_uid"] : "ignored"),
 				$formfields["passphrase1"],
 				$formfields["usr_name"],
 				$formfields["usr_email"], $checkerror)) {
 	    $errors["Pass Phrase"] = "$checkerror";
-	}
-	if (! (isset($_FILES['usr_keyfile']) &&
-	       $_FILES['usr_keyfile']['name'] != "" &&
-	       $_FILES['usr_keyfile']['name'] != "none")) {
-	    $errors["SSH Pub Key"] =
-		"You must provide an SSH pubkey to use Geni";
 	}
     }
 }

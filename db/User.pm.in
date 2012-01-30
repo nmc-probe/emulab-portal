@@ -1135,8 +1135,8 @@ sub SSLCert($$$;$)
 }
 
 #
-# Get user ssh keys. This is bogus; I am making sure not to return the
-# emulab key which is not encrypted. The keys table needs work.
+# Get user ssh keys, but do not include the "internal" keys, which
+# are the Emulab generated unencrypted keys.
 #
 sub GetSSHKeys($$)
 {
@@ -1151,8 +1151,7 @@ sub GetSSHKeys($$)
 
     my $query_result =
 	DBQueryWarn("select pubkey from user_pubkeys ".
-		    "where uid_idx='$uid_idx' and ".
-		    "      comment not like '%${OURDOMAIN}'");
+		    "where uid_idx='$uid_idx' and internal=0");
 
     return -1
 	if (!defined($query_result));
@@ -1179,8 +1178,7 @@ sub DeleteSSHKeys($)
 
     my $query_result =
 	DBQueryWarn("delete from user_pubkeys ".
-		    "where uid_idx='$uid_idx' and ".
-		    "      comment not like '%${OURDOMAIN}'");
+		    "where uid_idx='$uid_idx' and internal=0");
 
     return -1
 	if (!defined($query_result));
@@ -1189,8 +1187,7 @@ sub DeleteSSHKeys($)
 }
 
 #
-# Get (hopefully) unencrypted, locally-generated user ssh keys.  This is 
-# bogus; I am making sure to only return locally-generated keys.
+# Get (hopefully) unencrypted, locally-generated user ssh keys.
 #
 sub GetDefaultSSHKeys($$;$)
 {
@@ -1210,8 +1207,7 @@ sub GetDefaultSSHKeys($$;$)
 
     my $query_result =
 	DBQueryWarn("select pubkey from user_pubkeys ".
-		    "where uid_idx='$uid_idx' and ".
-		    "      comment like '%\@${OURDOMAIN}' $extra");
+		    "where uid_idx='$uid_idx' and internal=1 $extra");
 
     return -1
 	if (!defined($query_result));
@@ -1761,11 +1757,17 @@ sub HomeDir($)
 
 sub escapeshellarg($)
 {
-    my ($str) = @_;
+    my ($str)  = @_;
+    my @chars  = split('', $str);
+    my $result = "";
 
-    $str =~ s/[^[:alnum:]]/\\$&/g;
-    $str =~ /^(.+)$/; # untaint the result
-    return $1;
+    foreach my $ch (@chars) {
+        if ($ch eq '\'') {
+            $result = $result . "\'\\\'";
+	}
+	$result = $result . "$ch";
+    }
+    return "'$result'";
 }
 
 #

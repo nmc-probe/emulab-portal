@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -17,9 +17,13 @@ $isadmin   = ISADMIN();
 # Verify page arguments
 #
 $optargs = OptionalPageArguments("target_user", PAGEARG_USER,
-				 "p12", PAGEARG_BOOLEAN);
+				 "p12",  PAGEARG_BOOLEAN,
+				 "ssh",  PAGEARG_BOOLEAN);
 if (!isset($p12)) {
     $p12 = 0;
+}
+if (!isset($ssh)) {
+    $ssh = 0;
 }
 
 # Default to current user if not provided.
@@ -58,7 +62,7 @@ if ($p12) {
 }
 
 $query_result =& $target_user->TableLookUp("user_sslcerts",
-					   "cert,privkey",
+					   "cert,privkey,idx",
 					   "encrypted=1 and revoked is null");
 
 if (!mysql_num_rows($query_result)) {
@@ -69,12 +73,34 @@ $row  = mysql_fetch_array($query_result);
 $cert = $row["cert"];
 $key  = $row["privkey"];
 
-header("Content-Type: text/plain");
-echo "-----BEGIN RSA PRIVATE KEY-----\n";
-echo $key;
-echo "-----END RSA PRIVATE KEY-----\n";
-echo "-----BEGIN CERTIFICATE-----\n";
-echo $cert;
-echo "-----END CERTIFICATE-----\n";
+if ($ssh) {
+    $serial  = $row['idx'];
+    $comment = "sslcert:${serial}";
+    $pubkey_result =& $target_user->TableLookUp("user_pubkeys",
+						"pubkey",
+						"comment='$comment'");
+    if (!mysql_num_rows($query_result)) {
+	PAGEHEADER("Download SSL Certificate for $target_uid");
+	USERERROR("There is no SSH pubkey for certificate!", 1);
+    }
+    $row  = mysql_fetch_array($pubkey_result);
+    $pubkey = $row['pubkey'];
+    
+    header("Content-Type: text/plain");
+    echo "-----BEGIN RSA PRIVATE KEY-----\n";
+    echo $key;
+    echo "-----END RSA PRIVATE KEY-----\n";
+    echo $pubkey;
+    echo "\n";
+}
+else {
+    header("Content-Type: text/plain");
+    echo "-----BEGIN RSA PRIVATE KEY-----\n";
+    echo $key;
+    echo "-----END RSA PRIVATE KEY-----\n";
+    echo "-----BEGIN CERTIFICATE-----\n";
+    echo $cert;
+    echo "-----END CERTIFICATE-----\n";
+}
 
 ?>

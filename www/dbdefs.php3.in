@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Database Constants
@@ -32,6 +32,9 @@ $TBDB_EMAILLEN  = 64;
 $TBDB_MMLENGTH  = 64;
 $TBDB_ARCHIVE_TAGLEN = 64;
 $TBDB_ARCHIVE_MSGLEN = 2048;
+
+# Minimum length.
+$TBDB_MINPASSPHRASE = 10;
 
 #
 # Current policy is to prefix the EID with the PID. Make sure it is not

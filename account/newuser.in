@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -342,11 +342,6 @@ if (exists($xmlparse->{'attribute'}->{'passphrase'}) &&
 	fatal("Checkpass failed with $?");
     }
     $newuser_args{'initial_passphrase'} = $passphrase;
-
-    if (! (exists($xmlparse->{'attribute'}->{'pubkey'}) ||
-	   exists($xmlparse->{'pubkeys'}))) {
-	UserError("Must provide SSH pubkey when requesting SSL Certificate")
-    }
 }
 
 #

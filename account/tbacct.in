@@ -459,7 +459,7 @@ sub AddUser()
     if (defined($target_user->initial_passphrase())) {
 	my $pphrase = User::escapeshellarg($target_user->initial_passphrase());
 	
-	system("$MKUSERCERT -p '$pphrase' $user");
+	system("$MKUSERCERT -p $pphrase $user");
 	if ($?) {
 	    fatal("Could not create initial encrypted SSL certificate");
 	}

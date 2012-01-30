@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2003, 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -47,9 +47,18 @@ if (! mysql_num_rows($query_result)) {
     USERERROR("Public Key for user '$target_uid' does not exist!", 1);
 }
 
-$row    = mysql_fetch_array($query_result);
-$pubkey = $row['pubkey'];
-$chunky = chunk_split($pubkey, 70, "<br>\n");
+$row      = mysql_fetch_array($query_result);
+$pubkey   = $row['pubkey'];
+$chunky   = chunk_split($pubkey, 70, "<br>\n");
+$internal = $row['internal'];
+$nodelete = $row['nodelete'];
+
+#
+# Internal keys cannot be deleted without admin.
+#
+if (($internal || $nodelete) && !$isadmin) {
+    USERERROR("You are not allowed to delete your system keys!", 1);
+}
 
 #
 # We run this twice. The first time we are checking for a confirmation
@@ -94,6 +103,11 @@ if (!isset($confirmed)) {
               <td>$chunky</td>
            </tr>
           </table>\n";
+
+    if ($internal || $nodelete) {
+	echo "<center><font color=red size=+1>";
+	echo "This is an internal key!</font><center>";
+    }
     
     PAGEFOOTER();
     return;
