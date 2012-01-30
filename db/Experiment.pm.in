@@ -4995,5 +4995,25 @@ sub GetVirtNodeAttribute($$$$)
     return 0;
 }
 
+#
+# Mark all nodes for (account) update.
+#
+sub MarkNodesForUpdate($)
+{
+    my ($self) = @_;
+
+    my @nodelist = $self->NodeList(0, 1);
+    return 0
+	if (! @nodelist);
+
+    foreach my $node (@nodelist) {
+	next
+	    if ($node->erole() eq TBDB_RSRVROLE_NODE());
+
+	$node->MarkForUpdate();
+    }
+    return 0;
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
