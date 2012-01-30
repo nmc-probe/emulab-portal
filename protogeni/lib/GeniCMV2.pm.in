@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniCMV2;
@@ -1459,7 +1459,7 @@ sub RedeemTicket($)
 }
 
 #
-# Redeem a ticket
+# Bind a user to a sliver. 
 #
 sub BindToSlice($)
 {
@@ -1504,12 +1504,6 @@ sub BindToSlice($)
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
     }
-    # Bind for future slivers.
-    if ($slice->BindUser($user) != 0) {
-	$slice->UnLock();
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Error binding slice to user");
-    }
     if (defined($keys)) {
 	my $response = GeniCM::AddKeys($slice, $user, $keys);
 	if (GeniResponse::IsResponse($response)) {
@@ -1517,6 +1511,7 @@ sub BindToSlice($)
 	    return $response;
 	}
     }
+    $slice->MarkNodesForUpdate();
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }

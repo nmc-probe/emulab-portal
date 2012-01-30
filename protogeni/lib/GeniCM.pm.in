@@ -4193,18 +4193,13 @@ sub BindToSlice($)
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
     }
-    # Bind for future slivers.
-    if ($slice->BindUser($user) != 0) {
-	$slice->UnLock();
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Error binding slice to user");
-    }
     if (defined($keys)) {
 	my $response = AddKeys($slice, $user, $keys);
 	if (GeniResponse::IsResponse($response)) {
 	    $slice->UnLock();
 	    return $response;
 	}
+	$slice->MarkNodesForUpdate();
     }
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
