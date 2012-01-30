@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package User;
@@ -1278,6 +1278,7 @@ sub SetPassword($$$)
 sub SetWindowsPassword($$)
 {
     my ($self, $wpswd) = @_;
+    my $safe_password = DBQuoteSpecial($wpswd);
 
     # Must be a real reference. 
     return -1
@@ -1287,7 +1288,7 @@ sub SetWindowsPassword($$)
 
     return -1
 	if (! DBQueryWarn("update users set ".
-			  "  usr_w_pswd='$wpswd' ".
+			  "  usr_w_pswd=$safe_password ".
 			  "where uid_idx='$uid_idx'"));
 
     return Refresh($self);
@@ -1304,12 +1305,12 @@ sub SetNotes($$)
     return -1
 	if (! ref($self));
 
-    $notes = escapeshellarg($notes);
+    my $safe_notes = DBQuoteSpecial($notes);
     my $uid_idx = $self->uid_idx();
 
     return -1
 	if (! DBQueryWarn("update users set ".
-			  "  notes='$notes' ".
+			  "  notes=$safe_notes ".
 			  "where uid_idx='$uid_idx'"));
 
     return Refresh($self);
@@ -1327,10 +1328,11 @@ sub SetUserInterface($$)
 	if (! ref($self));
 
     my $uid_idx = $self->uid_idx();
+    my $safe_interface = DBQuoteSpecial($interface);
 
     return -1
 	if (! DBQueryWarn("update users set ".
-			  "  user_interface='$interface' ".
+			  "  user_interface=$safe_interface ".
 			  "where uid_idx='$uid_idx'"));
 
     return Refresh($self);
