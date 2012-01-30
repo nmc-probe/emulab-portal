@@ -3897,6 +3897,8 @@ CREATE TABLE `user_pubkeys` (
   `uid` varchar(8) NOT NULL default '',
   `uid_idx` mediumint(8) unsigned NOT NULL default '0',
   `idx` int(10) unsigned NOT NULL auto_increment,
+  `internal` tinyint(1) NOT NULL default '0',
+  `nodelete` tinyint(1) NOT NULL default '0',
   `pubkey` text,
   `stamp` datetime default NULL,
   `comment` varchar(128) NOT NULL default '',
