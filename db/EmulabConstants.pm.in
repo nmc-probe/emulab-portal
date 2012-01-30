@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Emulab constants.
@@ -168,7 +168,7 @@ use vars qw(@ISA @EXPORT);
 	 );
 
 use English;
-use vars qw($TB $TBOPS $TBOPSPID $EXPTLOGNAME $PROJROOT $MAINSITE);
+use vars qw($TB $TBOPS $TBOPSPID $EXPTLOGNAME $PROJROOT $MAINSITE $OURDOMAIN);
 
 # Configure variables
 $TB	     = "@prefix@";
@@ -177,6 +177,7 @@ $TBOPSPID    = "emulab-ops";
 $EXPTLOGNAME = "activity.log";
 $PROJROOT    = "@PROJROOT_DIR@";
 $MAINSITE    = @TBMAINSITE@;
+$OURDOMAIN   = "@OURDOMAIN@";
 
 1;
 @SELFLOADER_DATA@
