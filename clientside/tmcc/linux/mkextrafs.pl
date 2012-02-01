@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2005 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -18,10 +18,10 @@ sub mysystem($);
 
 sub usage()
 {
-    print("Usage: mkextrafs.pl [-f] [-lM] [-v <vglist>] <mountpoint>\n");
+    print("Usage: mkextrafs.pl [-f] [-s slice] [-lM] [-v <vglist>] <mountpoint>\n");
     exit(-1);
 }
-my  $optlist = "flv:M";
+my  $optlist = "fls:v:M";
 
 #
 # Yep, hardwired for now.  Should be options or queried via TMCC.
@@ -59,6 +59,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"f"})) {
     $forceit = 1;
+}
+if (defined($options{"s"})) {
+    $slice = $options{"s"};
 }
 if (defined($options{"l"})) {
     $lvm = 1;
