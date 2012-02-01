@@ -7471,6 +7471,7 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/lib/tmcd/GNUmakefile \
  clientside/GNUmakefile clientside/event/GNUmakefile \
  clientside/event/program-agent/GNUmakefile \
+ clientside/event/disk-agent/GNUmakefile \
  clientside/tools/GNUmakefile clientside/tools/pcapper/GNUmakefile \
  clientside/sensors/GNUmakefile clientside/sensors/slothd/GNUmakefile \
  clientside/sensors/slothd/sdisrunning clientside/sensors/slothd/sddeploy \

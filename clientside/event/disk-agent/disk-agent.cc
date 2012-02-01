@@ -28,6 +28,10 @@ extern "C" {
 	#include <libdevmapper.h>
 }
 
+#ifdef HAVE_ELVIN
+#include <elvin/elvin.h>
+#endif
+
 #include <sys/time.h>
 
 using namespace std;
