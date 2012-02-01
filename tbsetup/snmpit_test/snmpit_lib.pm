@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-LGPL
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -1207,12 +1207,18 @@ sub mapVlansToSwitches(@)
     #
     foreach my $vlan_id (@vlan_ids) {
 	my @ports   = uniq_ports(getVlanPorts($vlan_id),
-			   getExperimentVlanPorts($vlan_id));
-	my @devices = mapPortsToSwitches(@ports);
+				 getExperimentVlanPorts($vlan_id));
+	my %map     = mapPortsToDevices(@ports);
+
+	#
+	# We want to use the DB path if it exists.
+	#
+	my @trunks = getTrunksForVlan($vlan_id, keys(%map));
 
 	# And update the total set of switches.
-	foreach my $device (@devices) {
-	    $switches{$device} = 1;
+	foreach my $trunk (@trunks) {
+	    my ($src,$dst) = @$trunk;
+	    $switches{$src} = $switches{$dst} = 1;
 	}
     }
     my @sorted = sort {tbsort($a,$b)} keys %switches;
@@ -1236,11 +1242,17 @@ sub mapStaleVlansToSwitches(@)
 	# this. 
 	#
 	my @ports   = getExperimentVlanPorts($vlan_id);
-	my @devices = mapPortsToSwitches(@ports);
+	my %map     = mapPortsToDevices(@ports);
+
+	#
+	# We want to use the DB path if it exists.
+	#
+	my @trunks = getExperimentTrunksForVlan($vlan_id, keys(%map));
 
 	# And update the total set of switches.
-	foreach my $device (@devices) {
-	    $switches{$device} = 1;
+	foreach my $trunk (@trunks) {
+	    my ($src,$dst) = @$trunk;
+	    $switches{$src} = $switches{$dst} = 1;
 	}
     }
     my @sorted = sort {tbsort($a,$b)} keys %switches;
@@ -1271,6 +1283,12 @@ sub mapPortsToSwitches(@)
     # its trunks.
     #
     my @trunks = getTrunksFromSwitches(\%trunks, keys %devices);
+
+    #
+    # Now form a spanning tree to ensure there are no loops.
+    #
+    @trunks = SpanningTree(\@trunks);
+    
     foreach my $trunk (@trunks) {
 	my ($src,$dst) = @$trunk;
 	$devices{$src} = $devices{$dst} = 1;
