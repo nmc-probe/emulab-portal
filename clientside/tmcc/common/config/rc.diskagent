@@ -6,6 +6,8 @@
 #
 use English;
 use Getopt::Std;
+use POSIX ":sys_wait_h";
+use POSIX qw(setsid);
 
 sub usage()
 {
