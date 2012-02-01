@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -35,18 +35,32 @@ $target_uid = $target_user->uid();
 if (isset($finished)) {
     PAGEHEADER("Download SSL Certificate for user: $target_uid");
 
-    $url = CreateURL("getsslcert", $target_user);
+    $sslurl = CreateURL("getsslcert", $target_user);
+    $sshurl = CreateURL("getsslcert", $target_user, "ssh", 1);
     
     echo "<blockquote>
-          <a href='$url'>Download</a> your 
+          <a href='$sslurl'>Download</a> your 
           certificate and private key in PEM format, and then save
           it to a file in your .ssl directory.
           <br>
           <br>
-          You can also download it in <a href='$url&p12=1'><em>pkc12</em></a>
+          You can also download it in <a href='$sslurl&p12=1'><em>pkc12</em></a>
           format for loading
           into your web browser (if you do not know what this means, or why
           you need to do this, then ignore this).
+	  <br>
+	  <br>
+	  We have also created a SSH key pair for you, derived from your new 
+          ssl certificate, using the same pass phrase.
+          You can <a href='$sshurl'>Download</a> the private
+          key and load it into your ssh agent. The private key is typically
+	  placed in your .ssh directory on your desktop machine. If you are
+          running an agent such as
+	  <a href='http://www.chiark.greenend.org.uk/~sgtatham/putty/'>Putty</a>
+          or
+	  <a href='http://sshkeychain.sourceforge.net/'>SSHKeychain</a>,
+	  please consult the
+	  documentation for those programs.
           </blockquote>\n";
 	    
     PAGEFOOTER();

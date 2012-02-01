@@ -18,12 +18,16 @@ $isadmin   = ISADMIN();
 #
 $optargs = OptionalPageArguments("target_user", PAGEARG_USER,
 				 "p12",  PAGEARG_BOOLEAN,
-				 "ssh",  PAGEARG_BOOLEAN);
+				 "ssh",  PAGEARG_BOOLEAN,
+				 "pub",  PAGEARG_BOOLEAN);
 if (!isset($p12)) {
     $p12 = 0;
 }
 if (!isset($ssh)) {
     $ssh = 0;
+}
+if (!isset($pub)) {
+    $pub = 0;
 }
 
 # Default to current user if not provided.
@@ -90,8 +94,11 @@ if ($ssh) {
     echo "-----BEGIN RSA PRIVATE KEY-----\n";
     echo $key;
     echo "-----END RSA PRIVATE KEY-----\n";
-    echo $pubkey;
-    echo "\n";
+    # The user does not generally need this and it causes confusion.
+    if ($pub) {
+	echo $pubkey;
+	echo "\n";
+    }
 }
 else {
     header("Content-Type: text/plain");
