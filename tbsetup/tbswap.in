@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -1545,10 +1545,23 @@ sub doSwapin($) {
 	    print "Starting the event system.\n";
 	    TBDebugTimeStamp("eventsys_control started");
 	    if (system("eventsys_control start $pid,$eid")) {
-		tberror({type => 'secondary', severity => SEV_SECONDARY,
-			 error => ['eventsys_start_failed']},
-			"Failed to start the event system.");
-		return 1;
+		#
+		# If we are doing a modify, a failure here will result in
+		# a swapout and associated angry user. At this point I deem
+		# it better to let the swapin succeed without the event
+		# system running and just let testbed-ops know so that we
+		# can run eventsys_control manually.
+		#
+		if ($type == MODIFY) {
+		    tbwarn "Failed to start the event system, ".
+			   "must restart manually.";
+		    return 0;
+		} else {
+		    tberror({type => 'secondary', severity => SEV_SECONDARY,
+			     error => ['eventsys_start_failed']},
+			    "Failed to start the event system.");
+		    return 1;
+		}
 	    }
 	    TBDebugTimeStamp("eventsys_control finished");
 	}
