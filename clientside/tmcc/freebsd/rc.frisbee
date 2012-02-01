@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Optional flag argument says "do not reboot"
@@ -156,7 +156,9 @@ loadone() {
     NOCLFLUSH=""
     MBRVERS=""
     PREPARE=""
+    VGAONLY=""
     IMAGEID=""
+
     for parm in $_LOADINFO; do
         case $parm in
 	ADDR=*|\
@@ -170,6 +172,7 @@ loadone() {
 	MBRVERS=*|\
 	ASF=*|\
 	PREPARE=*|\
+	VGAONLY=*|\
         IMAGEID=*)
 	    # XXX need to parse better, eval is dangerous!
 	    eval $parm
@@ -191,6 +194,7 @@ loadone() {
     ACPI=${ACPI:-'unknown'}
     ASF=${ASF:-'unknown'}
     NOCLFLUSH=${NOCLFLUSH:-'unknown'}
+    VGAONLY=${VGAONLY:-'unknown'}
     MBRVERS=${MBRVERS:-'1'}
     PREPARE=${PREPARE:-'0'}
 
@@ -428,6 +432,7 @@ loadone() {
 	export SLICEFIX_ACPI=$ACPI
 	export SLICEFIX_ASF=$ASF
 	export SLICEFIX_NOCLFLUSH=$NOCLFLUSH
+	export SLICEFIX_VGAONLY=$VGAONLY
 	$BINDIR/slicefix $PART $DISK
 	echo "Image #$_NUM load complete at `date`"
 	return 0

@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -67,6 +67,24 @@ case $NOCLFLUSH in
     ;;
 *)
     NOCLFLUSH=unknown
+    ;;
+esac
+
+VGAONLY=${SLICEFIX_VGAONLY:-'unknown'}
+case $VGAONLY in
+0|no|NO)
+    VGAONLY=no
+    ;;
+1|yes|YES)
+    VGAONLY=yes
+    ;;
+*)
+    # XXX check the MFS filesystem
+    if [ -r $ETCDIR/isvgaonly ]; then
+	VGAONLY=yes
+    else
+	VGAONLY=unknown
+    fi
     ;;
 esac
 
@@ -151,6 +169,7 @@ dofreebsd() {
 	changeacpi=0
 	changeasf=0
 	changeclflush=0
+	changecons=0
 
 	fixit=0
 
@@ -245,6 +264,21 @@ dofreebsd() {
 
 	if [ $NOCLFLUSH != "unknown" ]; then
 	    fixit=1
+	fi
+
+	#
+	# If node doesn't have a serial port, make sure comconsole is not set!
+	#
+	if [ $VGAONLY = "yes" ]; then
+	    grep "^console=\"comconsole\"" /mnt/boot/loader.conf >/dev/null 2>&1
+	    case $? in
+	    0)
+		changecons=1
+		fixit=1
+		;;
+	    *)
+	        ;;
+	    esac
 	fi
 
         # check to see if we need to download any postconfig scripts:
@@ -354,6 +388,19 @@ EOF1
 hw.bge.allow_asf=1
 EOF2
 	    fi
+	fi
+
+	#
+	# Remove console="comconsole"
+	#
+	if [ $changecons -eq 1 ]; then
+	    echo "  disabling comconsole"
+	    sed -E -i $lcbak -e "/^console=\"comconsole\"/d" /mnt/boot/loader.conf || {
+		echo "Failed to update /boot/loader.conf"
+		umount $rootdev
+		return 1
+	    }
+	    lcbak=""
 	fi
 
 	#
