@@ -1774,7 +1774,7 @@ Simulator instproc make_event {outer event} {
 		   
 		    #The initial arguments for disk-agent through NS
  
-            set default_name $vname 
+            set default_name $obj 
 		    set default_type [$obj set type]
 		    set default_mountpoint [$obj set mountpoint]
 		    set default_params [$obj set parameters]
