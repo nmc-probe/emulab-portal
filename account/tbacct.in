@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -463,7 +463,7 @@ sub AddUser()
 	if ($?) {
 	    fatal("Could not create initial encrypted SSL certificate");
 	}
-	$target_user->Update({'initial_passphrase' => undef});
+	$target_user->Update({'initial_passphrase' => "NULL"});
     }
     
     if ($nocollabtools) {
