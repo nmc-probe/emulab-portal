@@ -84,7 +84,9 @@ INSERT INTO sitevariables VALUES ('protogeni/max_externalnodes',NULL,'1024','Whe
 INSERT INTO sitevariables VALUES ('protogeni/cm_uuid','28a10955-aa00-11dd-ad1f-001143e453fe','','The UUID of the local Component Manager.',0);
 INSERT INTO sitevariables VALUES ('protogeni/max_sliver_lifetime','90','90','The maximum sliver lifetime. When set limits the lifetime of a sliver on your CM. Also see protogeni/max_slice_lifetime.',0);
 INSERT INTO sitevariables VALUES ('protogeni/max_slice_lifetime','90','90','The maximum slice credential lifetime. When set limits the lifetime of a slice credential. Also see protogeni/max_sliver_lifetime.',0);
+INSERT INTO sitevariables VALUES ('protogeni/default_slice_lifetime','6','6','The default slice credential lifetime. In hours. Also see protogeni/max_slice_lifetime.',0);
 INSERT INTO sitevariables VALUES ('protogeni/max_components','-1','-1','Maximum number of components that can be allocated. -1 indicates any number of components can be allocated.',0);
+INSERT INTO sitevariables VALUES ('protogeni/warn_short_slices','0','0','When set, warn users about shortlived slices (see the sa_daemon).',0);
 INSERT INTO sitevariables VALUES ('general/minpoolsize','3','1','The Minimum size of the shared pool',0);
 INSERT INTO sitevariables VALUES ('general/maxpoolsize','5','1','The maximum size of the shared pool',0);
 INSERT INTO sitevariables VALUES ('protogeni/sa_uuid','2b437faa-aa00-11dd-ad1f-001143e453fe','','The UUID of the local Slice Authority.',0);

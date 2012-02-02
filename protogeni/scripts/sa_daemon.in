@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -20,6 +20,7 @@ sub usage()
 my $optlist   = "dn";
 my $debug     = 0;
 my $impotent  = 0;
+
 
 #
 # Configure variables
@@ -155,6 +156,16 @@ my $grace   = $hours * 3600;
 sub WarnSlices()
 {
     #
+    # Override the short slice warning.
+    #
+    my $warn_short_slices;
+    if (!libEmulab::GetSiteVar('protogeni/warn_short_slices', 
+			       \$warn_short_slices)) {
+	# Cannot get the value, default it to off.
+	$warn_short_slices = 0;
+    }
+
+    #
     # This query purposely skips slices that are attached to cooked
     # mode experiments; those that have a non-null exptidx of a local
     # experiment.
@@ -247,7 +258,7 @@ sub WarnSlices()
 	# email. Assume negative reenforcement will teach users what
 	# to do.
 	#
-	if ($stamp - $created < $grace) {
+	if ($stamp - $created < $grace && !$warn_short_slices) {
 	    print STDERR
 		"Short lived slice is going to expire: ".
 		"$geniuser,$idx,$hrn,$diff $unit\n";
