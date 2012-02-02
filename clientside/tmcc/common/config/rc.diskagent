@@ -38,6 +38,7 @@ if ($EUID != 0) {
 use libsetup;
 use libtmcc;
 use librc;
+use libtestbed qw(TBBackGround);
 
 # Script specific goo.
 my $LOGFILE = LOGDIR() . "/diskgent.debug";
