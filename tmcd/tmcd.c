@@ -9878,8 +9878,8 @@ COMMAND_PROTOTYPE(dodisks)
 
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       "DISK DISKNAME=%s DISKTYPE='%s' "
-				       "MOUNTPOINT='%s' MOUNTPOINT='%s' "
-				       "PARAMETERS='%s'\n",
+				       "MOUNTPOINT='%s' PARAMETERS='%s' "
+				       "COMMAND='%s'\n",
 				       row[0], 
 				       (row[1] ? row[1] : ""),
 				       (row[2] ? row[2] : ""),
