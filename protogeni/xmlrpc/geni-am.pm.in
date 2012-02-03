@@ -51,7 +51,6 @@ if ($GENI_VERSION eq "1.0" || $GENI_VERSION eq "2.0") {
 #----------------------------------------------------------------------
 sub ConvertResponseV1($)
 {
-    print STDERR "Convert Response 1: " . $GENI_VERSION . "\n";
     my ($geni_response) = @_;
 
     my $decoder = Frontier::RPC2->new();
@@ -80,7 +79,6 @@ sub ConvertResponseV1($)
 #----------------------------------------------------------------------
 sub ConvertResponseV2($)
 {
-    print STDERR "Convert Response 2: " . $GENI_VERSION . "\n";
     my ($geni_response) = @_;
 
     my $decoder = Frontier::RPC2->new();
