@@ -179,8 +179,8 @@ sub doboot()
 
     print "Starting Disk Agent ...\n";
 
-    my $server = getlocalevserver();
-    my $port   = "";
+    my $server = "event-server"; #getlocalevserver();
+    my $port   = "16505";
 
     if (SHADOW()) {
         my $boss = $ENV{'BOSSNAME'};
@@ -226,7 +226,7 @@ sub doboot()
            "-v $vname -r -p $elvind_port -t $TOKEN");
     }
     else {
-        system("$PAGENT -e $pid/$eid -s $server $port -l $LOGFILE ".
+        system("$PAGENT -e $pid/$eid -s $server -p $port -l $LOGFILE ".
            "-v $vname -t $TOKEN ".
            "-d -i $PIDFILE -k " . TMEVENTKEY() . " -c $CONFIG");
         exit(0)

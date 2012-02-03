@@ -21,11 +21,12 @@
 #include <sstream>
 #include <fstream>
 #include <cerrno>
+#include "log.h"
 #include <cstdio>
 #include <algorithm>
 #include <ctype.h>
 extern "C" {
-	#include <libdevmapper.h>
+	#include "libdevmapper.h"
 }
 
 #ifdef HAVE_ELVIN
@@ -100,20 +101,31 @@ void readArgs(int argc, char * argv[])
   cerr << "Processing arguments" << endl;
   string server;
   string port;
+  char *logfile = NULL;
+  string pidfile;
+  string configfile;
   string keyFile;
+  string tokenfile;
   string subscription;
+  string vnode;
   string group;
+  string LOGDIR = "/local/logs";
 
+  int isops, isplab;
+	
   // Prevent getopt from printing an error message.
   opterr = 0;
 
   /* get params from the optstring */
-  char const * argstring = "s:p:dE:k:u:g:";
+  char const * argstring = "hds:p:l:u:i:e:c:k:o:g:v:t:P";
   int option = getopt(argc, argv, argstring);
   while (option != -1)
   {
     switch (option)
     {
+	case 'h':
+	  usage(argv[0]);
+	  break;
     case 'd':
       g::debug = true;
       pubsub_debug = 1;
@@ -124,7 +136,13 @@ void readArgs(int argc, char * argv[])
     case 'p':
       port = optarg;
       break;
-    case 'E':
+	case 'l':
+	  logfile = optarg;
+	  break;
+	case 'c':
+	  configfile = optarg;
+	  break;
+    case 'e':
       g::experimentName = optarg;
       break;
     case 'k':
@@ -133,10 +151,26 @@ void readArgs(int argc, char * argv[])
     case 'u':
       subscription = optarg;
       break;
+	case 'o':
+	  LOGDIR = optarg;
+	  break;
+	case 'i':
+	  pidfile = optarg;
+	  break;
+	case 't':
+	  tokenfile = optarg;
+	  break;
+	case 'v':
+	  vnode = optarg;
+	  if(!(vnode == "ops"))
+	  		isops = 1;
+	  break;
+	case 'P':
+	  isplab = 1;
+	  break;
     case 'g':
       group = optarg;
       break;
-    case '?':
     default:
       usage(argv[0]);
       break;
@@ -148,13 +182,23 @@ void readArgs(int argc, char * argv[])
   if(server == "" || g::experimentName == "")
       usage(argv[0]);
 
+ /* if(g::debug)
+	loginit(0, logfile);
+  else {
+	if(logfile)
+		loginit(0, logfile);
+	else
+		loginit(1, "disk-agent");
+  }*/
+  //if(subscription == "")
+	//subscription = "DISK";
   initEvents(server, port, keyFile, subscription, group);
 }
 
 void usage(char * name)
 {
-  cerr << "Usage: " << name << " -E proj/exp -s server [-d] [-p port] "
-       << "[-i pidFile] [-k keyFile] [-u subscription] [-g group]" << endl;
+  cerr << "Usage: " << name << " -e proj/exp -s server [-h][-d] [-p port] "
+       << "[-l logfile] [-c config file] [-i pidFile] [-k keyFile] [-u subscription] [-g group]" << endl;
   exit(-1);
 }
 
@@ -191,7 +235,8 @@ void initEvents(string const & server, string const & port,
 
   address_tuple_free(eventTuple);
 
-  event_main(handle);
+  if(event_main(handle) == 0)
+	cout << "Event main stopped!" << endl;
 }
 
 void subscribe(event_handle_t handle, address_tuple_t eventTuple,
@@ -203,11 +248,15 @@ void subscribe(event_handle_t handle, address_tuple_t eventTuple,
     name += "," + group;
   }
   cerr << "Link subscription names: " << name << endl;
-  eventTuple->objname = const_cast<char *>(name.c_str());
-//  eventTuple->objtype = TBDB_OBJECTTYPE_DISK;
+  eventTuple->objname = ADDRESSTUPLE_ANY;//const_cast<char *>(name.c_str());
+  //eventTuple->objtype = TBDB_OBJECTTYPE_DISK;
   eventTuple->objtype = ADDRESSTUPLE_ANY;
-//  eventTuple->eventtype = TBDB_EVENTTYPE_MODIFY;
-  eventTuple->eventtype = ADDRESSTUPLE_ANY;
+  eventTuple->eventtype = 
+				TBDB_EVENTTYPE_START ","
+				TBDB_EVENTTYPE_RUN ","
+				TBDB_EVENTTYPE_CREATE ","
+				TBDB_EVENTTYPE_MODIFY;
+  //eventTuple->eventtype = ADDRESSTUPLE_ANY;
   eventTuple->expt = const_cast<char *>(g::experimentName.c_str());
   eventTuple->host = ADDRESSTUPLE_ANY;
   eventTuple->site = ADDRESSTUPLE_ANY;
@@ -251,20 +300,23 @@ void callback(event_handle_t handle,
     return;
   }
 
+  cerr << name << endl;
+
   if (event_notification_get_string(handle, notification, const_cast<char *>("EVENTTYPE"), type, EVENT_BUFFER_SIZE) == 0)
   {
     cerr << timestamp << ": ERROR: Could not get the event type" << endl;
     return;
   }
   string event = type;
-  
+  cerr << event << endl; 
+	 
   if (event_notification_get_string(handle, notification,const_cast<char *>("ARGS"), args, EVENT_BUFFER_SIZE) == 0)
   {
 	cerr << timestamp << ": ERROR: Could not get event arguments" << endl;
         return;
   }
 
-
+	cerr << args << endl; 
   /* Call the event handler routine based on the event */
   switch(eventtype[event])
   {
@@ -302,7 +354,7 @@ int run_dm_device(char *args)
                 return 0;
         }
 
-	if (_device_info(const_cast<char *>(dm_args["NAME"].c_str()))) {
+	if (_device_info(const_cast<char *>(dm_args["DISKNAME"].c_str()))) {
 		/* DM device exists so we'll reload it with params supplied */
 		int r=0;
 		uint64_t start=0, length=0;
@@ -315,12 +367,12 @@ int run_dm_device(char *args)
             cout << "in dm task create"<<endl;
             return 0;
         }		
-		if ( !dm_task_set_name(dmt, const_cast<char *>(dm_args["NAME"].c_str()))){
+		if ( !dm_task_set_name(dmt, const_cast<char *>(dm_args["DISKNAME"].c_str()))){
 			dm_task_destroy(dmt);
             return 0;
 		}
 	
-		if (!(_get_device_params(dm_args["NAME"].c_str()))) {
+		if (!(_get_device_params(dm_args["DISKNAME"].c_str()))) {
 			dm_task_destroy(dmt);
             return 0;
 		}
@@ -328,12 +380,12 @@ int run_dm_device(char *args)
 	
 		start 		    = strtoul (device_params[0].c_str(),NULL,0);
 		length 		    = strtoul (device_params[1].c_str(),NULL,0);
-		target_type 	= const_cast<char *>(dm_args["TYPE"].c_str());
+		target_type 	= const_cast<char *>(dm_args["DISKTYPE"].c_str());
 
 		split		   << device_params[3];
 
 		getline(split,diskname,' ');
- 		params_str 	= diskname + " " + "0 "+ dm_args["PARAMS"];
+ 		params_str 	= diskname + " " + "0 "+ dm_args["PARAMETERS"];
 		cout << "diskname after "<<params_str<<endl;
 		params 		= const_cast<char *>(params_str.c_str());
 
@@ -350,7 +402,7 @@ int run_dm_device(char *args)
 		}
 
 		/* Resume this dm device for changes to take effect. */
-		resume_dm_device(const_cast<char *>(dm_args["NAME"].c_str()));
+		resume_dm_device(const_cast<char *>(dm_args["DISKNAME"].c_str()));
 		dm_task_destroy(dmt);
 		return 1;
 
@@ -367,8 +419,8 @@ int run_dm_device(char *args)
         	}
 
 		/* Set properties on the new dm device */
-		string dm_disk_name = "/dev/mapper/"+dm_args["NAME"];
-		if (dm_args["NAME"] != "" and !dm_task_set_name(dmt, const_cast<char *>(dm_args["NAME"].c_str()))) {
+		string dm_disk_name = "/dev/mapper/"+dm_args["DISKNAME"];
+		if (dm_args["DISKNAME"] != "" and !dm_task_set_name(dmt, const_cast<char *>(dm_args["DISKNAME"].c_str()))) {
 			cout << "in task set name"<<endl;
 			dm_task_destroy(dmt);
 			return 0;
@@ -394,28 +446,28 @@ int run_dm_device(char *args)
                         return 0;
 		}
 		
-		cout << "Mapping the virtual disk " <<dm_args["NAME"] << "on "<<disk<< endl; 
+		cout << "Mapping the virtual disk " <<dm_args["DISKNAME"] << "on "<<disk<< endl; 
 		/* Hardcoding all the values.
 		 * Users not to worry about the geometry of the disk such as the start
 		 * sector, end sector, size etc
 		 */
 		start = 0;
 		size = strtoul(const_cast<char *>(str_size.c_str()), NULL, 0);
-		ttype = const_cast<char *>(dm_args["TYPE"].c_str());
-		if (dm_args["PARAMS"] != "") {
-			str = dm_args["PARAMS"].c_str();
+		ttype = const_cast<char *>(dm_args["DISKTYPE"].c_str());
+		if (dm_args["PARAMETERS"] != "") {
+			str = dm_args["PARAMETERS"].c_str();
 			str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
 			string params = disk + " 0 " + str;
 			params.erase(std::remove(params.begin(), params.end(), '\n'), params.end());
 			ptr = const_cast<char *>(params.c_str());
-			cout <<"PARAMS: "<<params<<endl;
+			cout <<"PARAMETERS: "<<params<<endl;
 		}
 	
 		else {
 			string params = disk+" 0";
 			params.erase(std::remove(params.begin(), params.end(), '\n'), params.end());
 			ptr = const_cast<char *>(params.c_str());
-			cout <<"PARAMS: "<<params<<endl;
+			cout <<"PARAMETERS: "<<params<<endl;
 		}
 
 		cout <<start<<" "<<size<<" "<<ttype<<" "<<ptr<<endl;
@@ -435,7 +487,7 @@ int run_dm_device(char *args)
 		str = dm_args["MOUNTPOINT"];
 		cmd = "sudo mount "+dm_disk_name+" "+str;
 		system(const_cast<char *>(cmd.c_str()));
-		cout << dm_args["NAME"] << " is mounted on " <<str <<endl;
+		cout << dm_args["DISKNAME"] << " is mounted on " <<str <<endl;
 
 		dm_task_destroy(dmt);
 		return 1;
@@ -734,10 +786,10 @@ int _parse_args(char *args)
 	if(args && (strlen(args) > 0)) {
         	char *value;
 	        int rc;
-        	if ((rc = event_arg_dup(args, "NAME", &value)) >= 0) {
+        	if ((rc = event_arg_dup(args, "DISKNAME", &value)) >= 0) {
                 	cout << "Arg:name"<<" Value:" <<value <<endl;
 			str=value;
-			dm_args["NAME"]=str;
+			dm_args["DISKNAME"]=str;
                 	value = NULL;
         	}
         
@@ -747,23 +799,23 @@ int _parse_args(char *args)
 			dm_args["MOUNTPOINT"]=value;
 	                value = NULL;
         	}
-	        if ((rc = event_arg_dup(args, "TYPE", &value)) >= 0) {
+	        if ((rc = event_arg_dup(args, "DISKTYPE", &value)) >= 0) {
         	        cout << "Arg:type"<<" Value:" <<value<<endl;
 			str=value;
-			dm_args["TYPE"]=value;			
+			dm_args["DISKTYPE"]=value;			
 	                value = NULL;
         	}
-        	if ((rc = event_arg_dup(args, "PARAMS", &value)) >= 0) {
+        	if ((rc = event_arg_dup(args, "PARAMETERS", &value)) >= 0) {
 			str=value;
 			cout << "Arg:params"<<" Value:" <<value<<endl;
-			dm_args["PARAMS"]=value;
+			dm_args["PARAMETERS"]=value;
                 	value = NULL;
         	}
 
   	}
 	
 	/* If the key-value pairs are not found then indicate it by a failure. */
-	if (dm_args["NAME"] == "" || dm_args["MOUNTPOINT"] == "" || dm_args["TYPE"] == "")
+	if (dm_args["DISKNAME"] == "" || dm_args["MOUNTPOINT"] == "" || dm_args["DISKTYPE"] == "")
 		return 0;
 	
 	return 1;

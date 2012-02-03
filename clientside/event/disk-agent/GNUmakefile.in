@@ -48,8 +48,8 @@ LIBS	 += -ldl
 endif
 CXXFLAGS = $(CFLAGS)
 
-disk-agent-debug: disk-agent.o version.o
-	$(CC) $(LDFLAGS) -o $@ disk-agent.o version.o $(LIBS)
+disk-agent-debug: disk-agent.o 
+	$(CXX) $(LDFLAGS) -o $@ disk-agent.o $(LIBS)
 
 $(PROGRAMS):	${TESTBED_LIBOBJDIR}/event/libevent.a \
 		${TESTBED_LIBSRCDIR}/event/event.h
