@@ -2013,8 +2013,8 @@ sub TBNodeStateWait ($$$$@) {
 # XXX only returns true for experiments with VLAN-based firewalls.
 # XXX this will need to change if we support multiple firewalls per experiment.
 #
-sub TBExptFirewall ($$;$$$) {
-    my ($pid, $eid, $fwnodep, $fwvlanidp, $fwvlanp) = @_;
+sub TBExptFirewall ($$;$$$$) {
+    my ($pid, $eid, $fwnodep, $fwvlanidp, $fwvlanp, $fwtypep) = @_;
     my $query_result;
 
     #
@@ -2038,7 +2038,7 @@ sub TBExptFirewall ($$;$$$) {
     # will be NULL.
     #
     $query_result =
-	DBQueryWarn("select r.node_id,f.vlan,f.vlanid from ".
+	DBQueryWarn("select r.node_id,f.vlan,f.vlanid,v.type from ".
 		    "   virt_firewalls as v ".
 		    "left join firewalls as f on f.pid=v.pid and f.eid=v.eid ".
 		    "left join reserved as r on r.pid=v.pid and ".
@@ -2062,6 +2062,8 @@ sub TBExptFirewall ($$;$$$) {
 	if (defined($fwvlanp));
     $$fwvlanidp = $row[2]
 	if (defined($fwvlanidp));
+    $$fwtypep = $row[3]
+	if (defined($fwtypep));
     return 1;
 }
 

@@ -196,7 +196,8 @@ exit(0)
 # See if the experiment is firewalled
 #
 my $firewall;
-my $firewalled = TBExptFirewall($pid, $eid, \$firewall);
+my $fwtype;
+my $firewalled = TBExptFirewall($pid, $eid, \$firewall, undef, undef, \$fwtype);
 
 #
 # Presetup; turn off firewall.
@@ -207,7 +208,11 @@ if ($fwboot) {
     
     print "Turning off firewall rules on $firewall\n";
     $UID = 0;
-    system("$SSH -host $firewall ipfw add 1 allow all from any to any");
+    if ($fwtype =~ /^iptables/) {
+        system("$SSH -host $firewall iptables -I FORWARD 1 -j ACCEPT");
+    } else {
+        system("$SSH -host $firewall ipfw add 1 allow all from any to any");
+    }
     if ($?) {
 	die("*** $0:\n".
 	    "    Error turning off firewall rules ($firewall)!\n");
@@ -600,13 +605,20 @@ skipsetup:
 #
 #
 if ($firewalled) {
+    my $cmd;
+
+    if ($fwtype =~ /^iptables/) {
+        $cmd = "$SSH -host $firewall iptables -D FORWARD 1";
+    } else {
+        $cmd = "$SSH -host $firewall ipfw delete 1";
+    }
     print "Turning firewall back on\n";
     $UID = 0;
-    system("$SSH -host $firewall ipfw delete 1");
+    system($cmd);
     if ($?) {
 	print STDERR "*** Error turning back on firewall rules ($firewall)!\n".
 		     "    Will retry again.\n";
-	system("$SSH -host $firewall ipfw delete 1");
+	system($cmd);
 	if ($?) {
 	    die("*** $0:\n".
 		"    Error turning back on firewall rules! Retry failed.\n");
