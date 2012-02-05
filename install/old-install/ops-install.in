@@ -1231,6 +1231,7 @@ Phase "database", "Setting up database", sub {
     };
     $password = `cat $ETCDIR/mysqld.pwd`;
     chomp($password);
+    $password = EscapeShellArg($password);
 
     Phase "initialize", "Initializing mysql", sub {
 	PhaseSkip("mysqld already initialzed")
@@ -1266,7 +1267,7 @@ Phase "database", "Setting up database", sub {
 	}
 	($exitval, @rows) =
 	    ExecQuietFatal("echo 'update user set ".
-			   " Password=PASSWORD(\"$password\") ".
+			   " Password=PASSWORD($password) ".
 			   "where user=\"root\"; flush privileges' | ".
 			   "$MYSQL -s -u root mysql");
     };
