@@ -9,6 +9,7 @@
 # under ns.
 
 namespace eval GLOBALS {
+    variable elabinelab_fw_type "ipfw2-vlan"
     variable security_level 0
     variable pid {}
     variable gid {}
@@ -137,6 +138,26 @@ proc tb-set-security-level {level} {
 	}
     }
     set ::GLOBALS::security_level $level
+}
+
+#
+# Set firewall type for firewalled elabinelab experiments
+#
+proc tb-set-elabinelab-fw-type {type} {
+
+    switch -- $type {
+        "ipfw2-vlan" {
+            set type "ipfw2-vlan"
+        }
+        "iptables-vlan" {
+            set type "iptables-vlan"
+        }
+        unknown  {
+            perror "\[tb-set-elabinelab-fw-type] $type is not a valid type"
+            return
+        }
+    }
+    set ::GLOBALS::elabinelab_fw_type $type
 }
 
 #

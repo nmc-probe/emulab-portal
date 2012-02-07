@@ -13,6 +13,7 @@ namespace eval TBCOMPAT {
     var_import ::GLOBALS::DB
     var_import ::GLOBALS::pid
     var_import ::GLOBALS::eid
+    var_import ::GLOBALS::elabinelab_fw_type
 
     # This is regular expression that matches slightly more than valid
     # IP addresses.  The only thing it doesn't check is that IP 
@@ -2184,6 +2185,27 @@ proc tb-set-security-level {level} {
 	}
     }
     set security_level $level
+}
+
+#
+# Set firewall type for firewalled elabinelab experiments
+#
+proc tb-set-elabinelab-fw-type {type} {
+    var_import ::GLOBALS::elabinelab_fw_type
+
+    switch -- $type {
+        "ipfw2-vlan" {
+            set type "ipfw2-vlan"
+        }
+        "iptables-vlan" {
+            set type "iptables-vlan"
+        }
+        unknown  {
+            perror "\[tb-set-elabinelab-fw-type] $type is not a valid type"
+            return
+        }
+    }
+    set elabinelab_fw_type $type
 }
 
 #
