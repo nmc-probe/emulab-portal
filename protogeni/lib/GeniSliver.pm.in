@@ -1249,7 +1249,15 @@ sub component_urn($)
 {
     my ($self)  = @_;
 
-    return GeniHRN::Generate("@OURDOMAIN@", "interface", $self->resource_id())
+    my ($linkname,$nodeid,$iface) = split('\.', $self->nickname());
+    if (! (defined($nodeid) && defined($iface))) {
+	print STDERR "Could not parse nickname for interface $self\n";
+	return undef;
+    }
+    my $node = Node->Lookup($nodeid);
+    my $phys_nodeid = $node->phys_nodeid();
+    return GeniHRN::GenerateInterface($OURDOMAIN, $phys_nodeid,
+				      $iface);
 }
 
 sub Create()
@@ -1284,14 +1292,13 @@ sub AnnotateManifest($$)
 	print STDERR "Could not parse nickname for interface $self\n";
 	return undef;
     }
-    my $component_urn = GeniHRN::GenerateInterface($OURDOMAIN, $nodeid, $iface);
 
     if (GeniXML::IsVersion0($rspec)) {
-	GeniXML::SetText("component_urn", $rspec, $component_urn);
+	GeniXML::SetText("component_urn", $rspec, $self->component_urn());
 	GeniXML::SetText("sliver_uuid", $rspec, $self->uuid());
     }
     else {
-	GeniXML::SetText("component_id", $rspec, $component_urn);
+	GeniXML::SetText("component_id", $rspec, $self->component_urn());
 	GeniXML::SetText("sliver_id", $rspec, $self->sliver_urn());
     }
 
