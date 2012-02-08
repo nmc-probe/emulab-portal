@@ -4477,6 +4477,27 @@ sub BindNonLocalUser($$$$$$)
     return 0;
 }
 
+sub HasNonLocalUsers($)
+{
+    my ($self) = @_;
+    return 0
+	if (! ref($self));
+
+    my $exptidx    = $self->idx();
+    my $query_result =
+	DBQueryWarn("select count(*) from nonlocal_user_accounts ".
+		    "where exptidx='$exptidx'");
+    return 0
+	if (!$query_result);
+    
+    if ($query_result->numrows) {
+	my ($count) = $query_result->fetchrow_array();
+	return $count > 0;
+    } else {
+	return 0;
+    }
+}
+
 #
 # Return physical interfaces for a link in an experiment.
 #

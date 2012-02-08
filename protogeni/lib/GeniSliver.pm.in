@@ -780,19 +780,21 @@ sub AnnotateManifest($)
 	}
 	GeniXML::SetText("name", $host, $vhostname);
     }
-    
-    my $services = GeniXML::FindFirst("n:services", $rspec);
-    if (! defined($services)) {
-	$services = GeniXML::AddElement("services", $rspec);
+
+    if ($experiment->HasNonLocalUsers()) {
+	my $services = GeniXML::FindFirst("n:services", $rspec);
+	if (! defined($services)) {
+	    $services = GeniXML::AddElement("services", $rspec);
+	}
+	my $login = GeniXML::FindFirst("n:login", $services);
+	if (! defined($login)) {
+	    $login = GeniXML::AddElement("login", $services);
+	}
+	GeniXML::SetText("authentication", $login, "ssh-keys");
+	GeniXML::SetText("hostname", $login, $phostname);
+	GeniXML::SetText("port", $login, $sshdport);
+	GeniXML::SetText("username", $login, $user->uid());
     }
-    my $login = GeniXML::FindFirst("n:login", $services);
-    if (! defined($login)) {
-	$login = GeniXML::AddElement("login", $services);
-    }
-    GeniXML::SetText("authentication", $login, "ssh-keys");
-    GeniXML::SetText("hostname", $login, $phostname);
-    GeniXML::SetText("port", $login, $sshdport);
-    GeniXML::SetText("username", $login, $user->uid());
 
     if ($self->UpdateRspec($rspec)) {
 	print STDERR "Could not insert annotated manifest for node $self ".
