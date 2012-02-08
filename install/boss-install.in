@@ -153,12 +153,12 @@ my $CTRLNODE_PEM    = "ctrlnode.pem";
 my $ETC_EMULAB_DIR  = "/etc/emulab";
 
 # Apache certs on both boss and ops
-my $APACHE_CERTPEM      = "apache.pem";
-my $APACHE_KEYPEM       = "apache.pem";
+my $APACHE_CERTPEM      = "apache_cert.pem";
+my $APACHE_KEYPEM       = "apache_key.pem";
 my $APACHE_CERTFILE     = "$APACHE_ETCDIR/ssl.crt/www.${OURDOMAIN}.crt";
 my $APACHE_KEYFILE      = "$APACHE_ETCDIR/ssl.key/www.${OURDOMAIN}.key";
-my $APACHE_CERTPEM_OPS  = "apache-ops.pem";
-my $APACHE_KEYPEM_OPS   = "apache-ops.pem";
+my $APACHE_CERTPEM_OPS  = "apache-ops_cert.pem";
+my $APACHE_KEYPEM_OPS   = "apache-ops_key.pem";
 my $APACHE_CERTFILE_OPS = "$APACHE_ETCDIR/ssl.crt/${USERNODE}.crt";
 my $APACHE_KEYFILE_OPS  = "$APACHE_ETCDIR/ssl.key/${USERNODE}.key";
 
@@ -1761,9 +1761,8 @@ Phase "firstuser", "Setting up initial user ($PROTOUSER)", sub {
     Phase "firstuser", "Calling 'firstuser' to create account", sub {
 	PhaseSkip("$PROTOUSER already created")
 	    if (-d "$USERROOT/$PROTOUSER");
-	my $safe_password = EscapeShellArg($password);
 	ExecQuietFatal("perl $TOP_OBJDIR/utils/firstuser -b ".
-		       (defined($password) ? " -p $safe_password" : ""));
+		       (defined($password) ? " -p $password" : ""));
     };
     Phase "Fixing", "Fixing up DB state for $PROTOUSER", sub {
 	my ($exitval, @rows) =
@@ -1815,9 +1814,8 @@ Phase "firstuser", "Setting up initial user ($PROTOUSER)", sub {
 Phase "chkupuser", "Setting up checkup user ($CHECKUPUSER)", sub {
     PhaseSkip("$CHECKUPUSER already created")
 	if (-d "$USERROOT/$CHECKUPUSER");
-    my $safe_password = EscapeShellArg($password);
     ExecQuietFatal("perl $TOP_OBJDIR/utils/firstuser -b ".
-		   (defined($password) ? " -p $safe_password" : "").
+		   (defined($password) ? " -p $password" : "").
 		   " -u $CHECKUPUSER -n 'Emulab Checkup User' ".
 		   "-e '@TBTESTSUITEEMAIL@'");
 };
