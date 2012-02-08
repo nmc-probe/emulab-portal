@@ -4499,6 +4499,49 @@ sub HasNonLocalUsers($)
 }
 
 #
+# Nonlocal users for this experiment.
+#
+sub NonLocalUsers($$)
+{
+    my ($self, $pref) = @_;
+    my @result = ();
+
+    # Must be a real reference.
+    return -1
+	if (!ref($self));
+
+    my $idx = $self->idx();
+
+    #
+    # Need to find the pubkeys, so need a list of current bindings.
+    #
+    my $query_result =
+	DBQueryWarn("select uid,uid_idx,urn from nonlocal_user_accounts ".
+		    "where exptidx='$idx'");
+    return -1
+	if (!$query_result);
+
+    while (my ($uid, $uid_idx, $urn) = $query_result->fetchrow_array()) {
+	my $pubkeys_result =
+	    DBQueryWarn("select pubkey from nonlocal_user_pubkeys ".
+			"where uid_idx='$uid_idx'");
+	return -1
+	    if (!$pubkeys_result);
+
+	my @pubkeys = ();
+	while (my ($pubkey) = $pubkeys_result->fetchrow_array()) {
+	    push(@pubkeys, {'type'   => 'ssh',
+			    'key'    => $pubkey});
+	}
+	push(@result, {"urn"      => $urn,
+		       "login"    => $uid,
+		       "keys"     => \@pubkeys});
+    }
+    $$pref = \@result;
+    return 0;
+}
+
+#
 # Return physical interfaces for a link in an experiment.
 #
 sub LinkInterfaces($$$)

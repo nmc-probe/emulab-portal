@@ -221,6 +221,20 @@ sub Resolve($)
 	    if (defined($manifest)) {
 		$blob->{'manifest'}   = $manifest;
 	    }
+	    # For key bindings.
+	    my $slice_experiment = $slice->GetExperiment();
+	    if (!defined($slice_experiment)) {
+		print STDERR "*** No Experiment for $slice\n";
+	    }
+	    else {
+		my $bindings;
+		if ($slice_experiment->NonLocalUsers(\$bindings)) {
+		    print STDERR "*** No bindings for $slice_experiment\n";
+		}
+		elsif (@{ $bindings }) {
+		    $blob->{'keys'} = $bindings;
+		}
+	    }
 	}
 	my $ticket = GeniTicket->SliceTicket($slice);
 	if (defined($ticket)) {
@@ -255,6 +269,20 @@ sub Resolve($)
 	my $blob = { "urn"          => $urn,
 		     "manifest"     => $manifest,
 		 };
+	# For key bindings.
+	my $slice_experiment = $slice->GetExperiment();
+	if (!defined($slice_experiment)) {
+	    print STDERR "*** No Experiment for $slice\n";
+	}
+	else {
+	    my $bindings;
+	    if ($slice_experiment->NonLocalUsers(\$bindings)) {
+		print STDERR "*** No bindings for $slice_experiment\n";
+	    }
+	    elsif (@{ $bindings }) {
+		$blob->{'keys'} = $bindings;
+	    }
+	}
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
     }
     if ($type eq "ticket") {
