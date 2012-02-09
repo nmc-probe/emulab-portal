@@ -232,7 +232,7 @@ sub Resolve($)
 		    print STDERR "*** No bindings for $slice_experiment\n";
 		}
 		elsif (@{ $bindings }) {
-		    $blob->{'keys'} = $bindings;
+		    $blob->{'users'} = $bindings;
 		}
 	    }
 	}
@@ -280,7 +280,7 @@ sub Resolve($)
 		print STDERR "*** No bindings for $slice_experiment\n";
 	    }
 	    elsif (@{ $bindings }) {
-		$blob->{'keys'} = $bindings;
+		$blob->{'users'} = $bindings;
 	    }
 	}
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
