@@ -477,7 +477,12 @@ sub vnodeCreate($$$$)
     my $os;
     if ($imagename =~ /BSD/) {
 	$os = "FreeBSD";
-	$image{'kernel'} = "/boot/freebsd8/kernel";
+	# XXX prefer a FreeBSD9 kernel if we have it
+	if (-r "/boot/freebsd9/kernel") {
+	    $image{'kernel'} = "/boot/freebsd9/kernel";
+	} else {
+	    $image{'kernel'} = "/boot/freebsd8/kernel";
+	}
 	undef $image{'ramdisk'};
     } else {
 	$os = "Linux";
@@ -556,10 +561,11 @@ sub vnodeCreate($$$$)
 	if (defined($ramdisk));
     addConfig($vmid, "disk = ['phy:$vndisk,$vdisk,w' $auxdisks ]", 2);
 
+    # No longer true after applying patch to 8.2
     # XXX memory of over 768MB causes panic as of 8.2
-    if ($os eq "FreeBSD" && memoryPerVnode() > 768) {
-	addConfig($vmid, "memory = 768", 1);
-    }
+    #if ($os eq "FreeBSD" && memoryPerVnode() > 768) {
+    #	addConfig($vmid, "memory = 768", 1);
+    #}
 
     if ($os eq "FreeBSD") {
 	addConfig($vmid, "extra = 'boot_verbose=1'", 2);
