@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniAM;
@@ -554,6 +554,21 @@ sub SliverStatus()
     my @expires = gmtime(str2time($slice->expires()));
     my $expires_str = POSIX::strftime("%Y-%m-%dT%H:%M:%S", @expires);
     $status->{'pg_expires'} = $expires_str;
+
+    # Grab the keys (logins) for inclusion.
+    my $slice_experiment = $slice->GetExperiment();
+    if (!defined($slice_experiment)) {
+	print STDERR "*** No Experiment for $slice\n";
+    }
+    else {
+	my $bindings;
+	if ($slice_experiment->NonLocalUsers(\$bindings)) {
+	    print STDERR "*** No bindings for $slice_experiment\n";
+	}
+	elsif (@{ $bindings }) {
+	    $status->{'users'} = $bindings;
+	}
+    }
 
     my $details = $pgstatus->{'details'};
     my @children = ();
