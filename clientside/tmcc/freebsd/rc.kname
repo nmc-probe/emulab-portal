@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004, 2005 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -9,6 +9,15 @@ use Getopt::Std;
 
 # Turn off line buffering on output
 $| = 1;
+
+# Drag in path stuff so we can find emulab stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+
+use libsetup;
+
+# XXX right now Xen FreeBSD guests don't have kernel files.
+exit(0)
+    if (INXENVM());
 
 #
 # Check to see what the kernel says was booted, and copy to /kernel.
