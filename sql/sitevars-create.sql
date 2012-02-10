@@ -106,6 +106,7 @@ INSERT INTO sitevariables VALUES ('general/idlepower_enable',NULL,'0','Enable id
 INSERT INTO sitevariables VALUES ('general/idlepower_idletime',NULL,'3600','Maximum number of seconds idle before a node is powered down to conserve electricity',0);
 INSERT INTO sitevariables VALUES ('general/autoswap_max',NULL,'120','Maximum number of hours for the experiment autoswap limit.',0);
 INSERT INTO sitevariables VALUES ('protogeni/show_sslcertbox','1','1','When set, users see option on join/start project pages to create SSL certificate.',0);
+INSERT INTO sitevariables VALUES ('protogeni/default_osname','','','The default os name used for ProtoGENI slivers when no os is specified on a node.',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
