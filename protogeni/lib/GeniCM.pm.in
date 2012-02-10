@@ -1104,7 +1104,10 @@ sub GetTicketAuxAux($$$$$$$$$)
 	# If no osname by this point, try for the default.
 	#
 	if (defined($node) && !defined($osname)) {
-	    if (defined($node->default_osid())) {	    
+	    my $protogeni_os = undef;
+	    if (GetSiteVar('protogeni/default_osname', \$protogeni_os)) {
+		$osname = $protogeni_os;
+	    } elsif (defined($node->default_osid())) {
 		my $osinfo = OSinfo->Lookup($node->default_osid());
 		$osname = $osinfo->osname()
 		    if (defined($osinfo));
