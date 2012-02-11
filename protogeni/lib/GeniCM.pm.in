@@ -1100,14 +1100,23 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    $pctype = $node->type()
 		if (!defined($pctype));
 	}
+
+	#
+	# If no osname, check for protogeni default osname
+	#
+	if (! defined($osname)) {
+	    my $protogeni_os = undef;
+	    if (GetSiteVar('protogeni/default_osname', \$protogeni_os)
+		&& $protogeni_os ne "") {
+		$osname = $protogeni_os;
+	    }
+	}
+
 	#
 	# If no osname by this point, try for the default.
 	#
 	if (defined($node) && !defined($osname)) {
-	    my $protogeni_os = undef;
-	    if (GetSiteVar('protogeni/default_osname', \$protogeni_os)) {
-		$osname = $protogeni_os;
-	    } elsif (defined($node->default_osid())) {
+	    if (defined($node->default_osid())) {
 		my $osinfo = OSinfo->Lookup($node->default_osid());
 		$osname = $osinfo->osname()
 		    if (defined($osinfo));
