@@ -32,6 +32,7 @@ my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $PROTOGENI_RPCNAME = "@PROTOGENI_RPCNAME@";
 my $PROTOGENI_RPCPORT = "@PROTOGENI_RPCPORT@";
+my $OUTERBOSS_XMLRPCPORT = "@OUTERBOSS_XMLRPCPORT@";
 my $PROTOGENI_WEBSITE = "@PROTOGENI_WEBSITE@";
 my $PROTOGENI_URL = "@PROTOGENI_URL@";
 my $geniuserid    = "geniuser";
@@ -277,7 +278,7 @@ close CROSS_OUT;
 
 chmod(0644, "$TB/www/protogeni/crossdomain.xml");
 
-my $FLASH_LINE = "flashpolicy stream tcp  nowait          root    /bin/echo               /bin/echo '<cross-domain-policy> <site-control permitted-cross-domain-policies=\"master-only\"/> <allow-access-from domain=\"*\" to-ports=\"80,443,$PROTOGENI_RPCPORT\"/> </cross-domain-policy>'";
+my $FLASH_LINE = "flashpolicy stream tcp  nowait          root    /bin/echo               /bin/echo '<cross-domain-policy> <site-control permitted-cross-domain-policies=\"master-only\"/> <allow-access-from domain=\"*\" to-ports=\"80,443,$PROTOGENI_RPCPORT,$OUTERBOSS_XMLRPCPORT\"/> </cross-domain-policy>'";
 
 my $restartinetd = 0;
 
