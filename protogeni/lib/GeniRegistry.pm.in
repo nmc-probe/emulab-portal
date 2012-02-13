@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniRegistry;
@@ -105,11 +105,11 @@ sub GetCredential($;$$)
 	    $credential->Delete();
 	}
 	else {
-	    print STDERR "Reusing $authority credential $credential\n";
+	    #print STDERR "Reusing $authority credential $credential\n";
 	    return $credential;
 	}
     }
-    print STDERR "Getting new credential for $authority\n";
+    #print STDERR "Getting new credential for $authority\n";
 
     my $url = $authority->url();
     if (!defined($url)) {
@@ -134,7 +134,7 @@ sub GetCredential($;$$)
 	return undef;
     }
     $credential->Store();
-    print STDERR "Got new credential for $authority: $credential\n";
+    #print STDERR "Got new credential for $authority: $credential\n";
     return $credential;
 }
 
@@ -518,7 +518,7 @@ sub GetCredential($;$$)
 	GeniCredential->Lookup($clearinghousecert->uuid(),
 			       $context->certificate()->uuid());
 
-    print "$clearinghousecred\n" if (defined($clearinghousecred));
+    #print STDERR "$clearinghousecred\n" if (defined($clearinghousecred));
 
     if (defined($clearinghousecred) &&
 	defined($clearinghousecred->expires())) {
@@ -529,11 +529,11 @@ sub GetCredential($;$$)
 	    $clearinghousecred->Delete();
 	}
 	else {
-	    print STDERR "Reusing clearinghouse credential\n";
+	    #print STDERR "Reusing clearinghouse credential\n";
 	    return $clearinghousecred;
 	}
     }
-    print STDERR "Getting new clearinghouse credential\n";
+    #print STDERR "Getting new clearinghouse credential\n";
 
     my $url = $clearinghousecert->URL();
     if (!defined($url)) {
