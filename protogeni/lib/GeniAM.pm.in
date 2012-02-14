@@ -44,7 +44,6 @@ sub SetGeniVersion($)
     if ($new_version eq "1.0") {
 	$API_VERSION = 1;
     }
-    print STDERR "Api version: " . $API_VERSION . "\n";
 }
 
 #
