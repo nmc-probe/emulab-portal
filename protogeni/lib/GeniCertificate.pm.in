@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniCertificate;
@@ -748,6 +748,37 @@ sub asText($)
 	return undef;
     }
     return join("", @certlines);
+}
+
+sub SubjectHash($)
+{
+    my ($self) = @_;
+
+    my @result = $self->PipeTo(0, "$OPENSSL x509 -subject_hash -noout");
+    if (! @result) {
+	print STDERR "Could not convert $self to subject hash\n";
+	return undef;
+    }
+    my $hash = $result[0];
+    if ($hash =~ /^(\w*)$/) {
+	return $1;
+    }
+    print STDERR "Bad sha1 value for $self\n";
+    return undef;
+}
+
+sub CommonName($)
+{
+    my ($self) = @_;
+
+    my @parts = split('/', $self->DN());
+    foreach my $part (@parts) {
+	my ($key,$val) = split('=', $part);
+	if ($key eq "CN") {
+	    return $val;
+	}
+    }
+    return undef;
 }
 
 sub sha1($)
