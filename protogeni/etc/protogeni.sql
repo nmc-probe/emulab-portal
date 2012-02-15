@@ -178,6 +178,16 @@ CREATE TABLE `geni_crls` (
   PRIMARY KEY  (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
+DROP TABLE IF EXISTS `geni_cas`;
+CREATE TABLE `geni_cas` (
+  `hash` varchar(40) NOT NULL default '',
+  `created` datetime default NULL,
+  `cert` text,
+  `DN` text,
+  PRIMARY KEY  (`hash`),
+  INDEX `DN` (`DN`(255))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
 CREATE TABLE `geni_manifests` (
   `idx` int(10) unsigned NOT NULL auto_increment,
   `slice_uuid` varchar(40) NOT NULL default '',
