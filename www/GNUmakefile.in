@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 SRCDIR		= @srcdir@
@@ -112,6 +112,7 @@ NLFILES += $(wildcard $(SRCDIR)/netlab/*.txt)
 PGENIFILES = 
 ifeq ($(PGENISUPPORT),1)
     PGENIFILES += $(wildcard $(SRCDIR)/protogeni/*.php3)
+    PGENIFILES += $(wildcard $(SRCDIR)/protogeni/*.php)
     PGENIFILES += $(wildcard $(SRCDIR)/protogeni/*.xml)
 endif
 

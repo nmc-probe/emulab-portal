@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Lets emulate register_globals=off for a while.
@@ -34,6 +34,7 @@ $CVSSUPPORT     = @CVSSUPPORT@;
 $MAILMANSUPPORT = @MAILMANSUPPORT@;
 $CHATSUPPORT    = @CHATSUPPORT@;
 $PROTOGENI      = @PROTOGENI_SUPPORT@;
+$ISCLRHOUSE     = @PROTOGENI_ISCLEARINGHOUSE@;
 $EXP_VIS        = @EXP_VIS_SUPPORT@;
 $ISOLATEADMINS  = @ISOLATEADMINS@;
 $CONTROL_NETWORK= "@CONTROL_NETWORK@";
