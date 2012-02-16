@@ -668,7 +668,7 @@ sub DumpDBGoo()
 	die("*** $0:\n".
 	    "    Could not lookup $bossnode\n")
 	    if (!defined($pnode));
-	my $ip = $pnode->GetJailIP();
+	my ($ip,$ipmask) = $pnode->GetJailIP();
 	die("*** $0:\n".
 	    "    Could not generate an IP for OPS jail\n")
 	    if (!defined($ip));
