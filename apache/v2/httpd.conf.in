@@ -1,3 +1,11 @@
+##
+## This file Added by Emulab - Version: 5.X
+## Do not remove the above line.
+##
+## This file is intended for use by sites running the emulab software. It
+## was installed by the testbed installation process.
+##
+
 #
 # This is the main Apache server configuration file.  It contains the
 # configuration directives that give the server its instructions.

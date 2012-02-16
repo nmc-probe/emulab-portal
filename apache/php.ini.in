@@ -1,5 +1,7 @@
 [PHP]
 ; Added for update 5.21
+; This file Added by Emulab - Version: 5.X
+; Do not remove the above line.
 
 ;
 ; So that quotes are not escaped. Needed for netbuild application.
