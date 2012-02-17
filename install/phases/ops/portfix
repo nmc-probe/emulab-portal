@@ -1,0 +1,95 @@
+#
+# 
+#
+use strict;
+use libinstall;
+use installvars;
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    # XXX Temporary. HA HA HA!
+    Phase "portfixup", "Fixing up packages", sub {
+	Phase "rsync", "Looking for rsync and installing", sub {
+	    if (!ExecQuiet("$PKG_INFO -x rsync")) {
+		PhaseSkip("rsync already installed");
+	    }
+	    my $pname = GetPackage("rsync", $packagedir);
+	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	};
+	if ($WINSUPPORT) {
+	    Phase "samba", "Looking for Samba and installing", sub {
+		if (!ISFS($server)) {
+		    PhaseSkip("Not FS Node");
+		}
+		if (!ExecQuiet("$PKG_INFO -x samba")) {
+		    PhaseSkip("samba already installed");
+		}
+		my $pname = GetPackage("samba", $packagedir);
+		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    };
+	    Phase "gcc30", "Looking for GCC 3.0 and installing", sub {
+		if ($FBSD_MAJOR > 4 ||
+		    !ExecQuiet("$PKG_INFO -x gcc30")) {
+		    PhaseSkip("GCC 3.0 or greater already installed");
+		}
+		my $pname = GetPackage("gcc30", $packagedir);
+		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    };
+	}
+	if ($FBSD_MAJOR > 6) {
+	    #
+	    # What a crock!  First, that the FreeBSD ports system
+	    # defaults to installing the zipped .egg files that have
+	    # to be unzipped per-user before use.  Second, that it
+	    # offers no easy way at package creation to override this.
+	    # Third, that there is no easy way that I could find in
+	    # the python eggs system to set a global cache directory
+	    # into which to unpack all eggs; you have to set
+	    # PYTHON_EGG_CACHE in the environment of every script.
+	    # Fourth, that the per-user default value might be in an
+	    # unwritable location.
+	    #
+	    # So, I am reduced to manually unpacking all .egg files
+	    # into the corresponding .egg directories after the
+	    # install!  Since this would totally screw any attempt
+	    # to update those packages, I just do it to the one
+	    # package that I know will fail otherwise.
+	    #
+	    Phase "m2crypto-egg", "Unpacking python m2crypto .egg", sub {
+		my $pydir = "/usr/local/lib/$PY_VER/site-packages";
+		my $egg = `ls -d $pydir/M2Crypto-*-py*-*.egg 2>/dev/null | tail -1`;
+		chomp($egg);
+		if (! -x $EASYINSTALL) {
+		    PhaseSkip("python easy_install missing");
+		}
+		if ($egg eq "") {
+		    PhaseSkip("egg not found");
+		}
+		if (-d "$egg") {
+		    PhaseSkip("egg already unpacked");
+		}
+		# XXX swig must be installed for easyinstall to exit correctly
+		Phase "swig", "Installing swig", sub {
+		    DoneIfPackageInstalled("swig");
+		    my $pname = GetPackage("swig", $packagedir);
+		    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+		};
+		ExecQuietFatal("mv $egg /var/tmp/");
+		$egg =~ s/$pydir//;
+		ExecQuietFatal("$EASYINSTALL -N -H None -Z /var/tmp$egg");
+		ExecQuietFatal("mv /var/tmp$egg $pydir/$egg.bak");
+	    };
+	}
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:

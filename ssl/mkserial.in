@@ -1,0 +1,29 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use English;
+use Getopt::Std;
+use strict;
+
+#
+# This script generates a new serial number file, using the Emulab DB
+# to get the next index. Used only when generating the initial set of
+# certificates, or when updating the initial certificates, as when the
+# domain name is changed.
+#
+use lib "../db";
+use lib "../tbsetup";
+use lib "@top_srcdir@/tbsetup";
+use emutil;
+
+my $serial = TBGetUniqueIndex("user_sslcerts");
+
+open(SER, ">serial")
+    or fatal("Could not create new serial file");
+printf SER "%08x\n", $serial;
+close(SER);
+
+exit(0);

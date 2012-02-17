@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -10,9 +10,16 @@ EVENTSYS	= @EVENTSYS@
 OBJDIR		= ..
 SUBDIR		= ssl
 
+# Installed certs and keys.
+APACHE_ETCDIR	    = @INSTALL_APACHE_CONFIG@
+APACHE_CERTFILE     = $(APACHE_ETCDIR)/ssl.crt/www.$(OURDOMAIN).crt
+APACHE_KEYFILE      = $(APACHE_ETCDIR)/ssl.key/www.$(OURDOMAIN).key
+APACHE_CERTFILE_OPS = $(APACHE_ETCDIR)/ssl.crt/$(USERNODE).crt
+APACHE_KEYFILE_OPS  = $(APACHE_ETCDIR)/ssl.key/$(USERNODE).key
+
 include $(OBJDIR)/Makeconf
 
-all:	emulab.pem server.pem localnode.pem ronnode.pem pcwa.pem ctrlnode.pem \
+all:	emulab.pem server.pem localnode.pem ctrlnode.pem \
 	capture.pem capture.fingerprint capture.sha1fingerprint \
 	keys mksig jabber.pem updatecert
 
@@ -32,145 +39,84 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 #
 pems:	emulab.pem server.pem client.pem
 
-emulab.pem:	dirsmade emulab.cnf
+emulab.pem:	dirsmade mkserial emulab.cnf emulab.key 
 	#
 	# Create the Certificate Authority.
-	# The certificate (no key!) is installed on both boss and remote nodes.
+	# The certificate is installed on both boss and remote nodes.
 	#
 	openssl req -new -x509 -days 2000 -config emulab.cnf \
-		    -keyout cakey.pem -out cacert.pem
-	cp cacert.pem emulab.pem
-	cp cakey.pem emulab.key
+		    -text -key emulab.key -out emulab.pem
 
-server.pem:	dirsmade server.cnf ca.cnf
-	#
-	# Create the server side private key and certificate request.
-	#
-	openssl req -new -config server.cnf \
-		-keyout server_key.pem -out server_req.pem
-	#
-	# Combine key and cert request.
-	#
-	cat server_key.pem server_req.pem > newreq.pem
+server.pem:	dirsmade mkserial server.cnf ca.cnf server.key server.req
+	# Create the serial file.
+	./mkserial
 	#
 	# Sign the server cert request, creating a server certificate.
 	#
 	openssl ca -batch -policy policy_match -config ca.cnf \
-		-out server_cert.pem \
-		-cert cacert.pem -keyfile cakey.pem \
-		-infiles newreq.pem
+		-out server.pem -cert emulab.pem -keyfile emulab.key \
+		-infiles server.req
 	#
 	# Combine the key and the certificate into one file which is installed
 	# on boss and used by tmcd.
 	#
-	cat server_key.pem server_cert.pem > server.pem
-	rm -f newreq.pem
+	cat server.key >> server.pem
 
 #
 # This is for the main web server on boss.
 # 
-apache.pem:	dirsmade apache.cnf ca.cnf
+apache.pem:	dirsmade mkserial apache.cnf ca.cnf apache.key apache.req
+	# Create the serial file.
+	./mkserial
 	#
-	# Create the server side private key and certificate request.
-	#
-	openssl req -new -config apache.cnf \
-		-keyout apache_key.pem -out apache_req.pem
-	#
-	# Combine key and cert request.
-	#
-	cat apache_key.pem apache_req.pem > newreq.pem
-	#
-	# Sign the apache cert request, creating a apache certificate.
+	# Sign the apache cert request, creating an apache certificate.
 	#
 	openssl ca -batch -policy policy_sslxmlrpc -config ca.cnf \
-		-out apache_cert.pem \
-		-cert cacert.pem -keyfile cakey.pem \
-		-infiles newreq.pem
-	#
-	# Combine the key and the certificate into one file. This file is
-	# is not actually installed though; the separate files will be
-	# installed into the apache cert/key directories by install/boss-install
-	# when the boss node is created.
-	#
-	cat apache_key.pem apache_cert.pem > apache.pem
-	rm -f newreq.pem
+		-out apache.pem -cert emulab.pem -keyfile emulab.key \
+		-infiles apache.req
 
 #
 # This is for the secondary web server on users.
 # 
-apache-ops.pem:	dirsmade apache2.cnf ca.cnf
+apache-ops.pem:	dirsmade mkserial apache-ops.cnf ca.cnf apache-ops.key apache-ops.req
+	# Create the serial file.
+	./mkserial
 	#
-	# Create the server side private key and certificate request.
-	#
-	openssl req -new -config apache2.cnf \
-		-keyout apache-ops_key.pem -out apache-ops_req.pem
-	#
-	# Combine key and cert request.
-	#
-	cat apache-ops_key.pem apache-ops_req.pem > newreq.pem
-	#
-	# Sign the apache cert request, creating a apache certificate.
+	# Sign the apache cert request, creating an apache certificate.
 	#
 	openssl ca -batch -policy policy_sslxmlrpc -config ca.cnf \
-		-out apache-ops_cert.pem \
-		-cert cacert.pem -keyfile cakey.pem \
-		-infiles newreq.pem
-	#
-	# Combine the key and the certificate into one file. This file is
-	# is not actually installed though; the separate files will be
-	# installed into the apache cert/key directories by install/boss-install
-	# when the boss node is created.
-	#
-	cat apache-ops_key.pem apache-ops_cert.pem > apache-ops.pem
-	rm -f newreq.pem
+		-out apache-ops.pem -cert emulab.pem -keyfile emulab.key \
+		-infiles apache-ops.req
 
-capture.pem:	dirsmade capture.cnf ca.cnf
-	#
-	# Create the server side private key and certificate request.
-	#
-	openssl req -new -config capture.cnf \
-		-keyout capture_key.pem -out capture_req.pem
-	#
-	# Combine key and cert request.
-	#
-	cat capture_key.pem capture_req.pem > newreq.pem
+capture.pem:	dirsmade mkserial capture.cnf ca.cnf capture.key capture.req
+	# Create the serial file.
+	./mkserial
 	#
 	# Sign the capture cert request, creating a capture certificate.
 	#
 	openssl ca -batch -policy policy_match -config ca.cnf \
-		-out capture_cert.pem \
-		-cert cacert.pem -keyfile cakey.pem \
-		-infiles newreq.pem
+		-out capture.pem -cert emulab.pem -keyfile emulab.key \
+		-infiles capture.req
 	#
 	# Combine the key and the certificate into one file which is installed
 	# on boss and used by capture.
 	#
-	cat capture_key.pem capture_cert.pem > capture.pem
-	rm -f newreq.pem
+	cat capture.key >> capture.pem
 
-jabber.pem:	dirsmade jabber.cnf ca.cnf
-	#
-	# Create the server side private key and certificate request.
-	#
-	openssl req -new -config jabber.cnf \
-		-keyout jabber_key.pem -out jabber_req.pem
-	#
-	# Combine key and cert request.
-	#
-	cat jabber_key.pem jabber_req.pem > newreq.pem
+jabber.pem:	dirsmade mkserial jabber.cnf ca.cnf jabber.key jabber.req
+	# Create the serial file.
+	./mkserial
 	#
 	# Sign the server cert request, creating a server certificate.
 	#
 	openssl ca -batch -policy policy_sslxmlrpc -config ca.cnf \
-		-out jabber_cert.pem \
-		-cert cacert.pem -keyfile cakey.pem \
-		-infiles newreq.pem
+		-out jabber.pem -cert emulab.pem -keyfile emulab.key \
+		-infiles jabber.req
 	#
 	# Combine the key and the certificate into one file which is installed
 	# on boss and used by tmcd.
 	#
-	cat jabber_key.pem jabber_cert.pem > jabber.pem
-	rm -f newreq.pem
+	cat jabber.key >> jabber.pem
 
 #
 # Generate the fingerprint of the capture certificate
@@ -185,20 +131,17 @@ capture.sha1fingerprint:	capture.pem
 	openssl x509 -sha1 -noout -fingerprint -in capture.pem \
 	    > capture.sha1fingerprint
 
-localnode.pem:	dirsmade localnode.cnf ca.cnf $(SRCDIR)/mkclient.sh
+localnode.pem:	dirsmade mkserial localnode.cnf ca.cnf localnode.key localnode.req
+	cat localnode.key >> localnode.req
+	# Create the serial file.
+	./mkserial
 	$(SRCDIR)/mkclient.sh localnode
 
-ctrlnode.pem:	dirsmade ctrlnode.cnf ca.cnf $(SRCDIR)/mkclient.sh
+ctrlnode.pem:	dirsmade mkserial ctrlnode.cnf ca.cnf ctrlnode.key ctrlnode.req
+	cat ctrlnode.key >> ctrlnode.req
+	# Create the serial file.
+	./mkserial
 	$(SRCDIR)/mkclient.sh ctrlnode
-
-ronnode.pem:	dirsmade ronnode.cnf ca.cnf $(SRCDIR)/mkclient.sh
-	$(SRCDIR)/mkclient.sh ronnode
-
-pcplab.pem:		dirsmade pcplab.cnf ca.cnf $(SRCDIR)/mkclient.sh
-	$(SRCDIR)/mkclient.sh pcplab
-
-pcwa.pem:		dirsmade pcwa.cnf ca.cnf $(SRCDIR)/mkclient.sh
-	$(SRCDIR)/mkclient.sh pcwa
 
 keys:		emulab_privkey.pem emulab_pubkey.pem
 
@@ -215,25 +158,71 @@ emulab_pubkey.pem:	emulab_privkey.pem
 	# 
 	openssl rsa -in emulab_privkey.pem -pubout -out emulab_pubkey.pem
 
-dirsmade:
+#
+# Rule to generate an rsa key with no encryption
+# If this fails, check to make sure that ~/.rnd is owned
+# by you and writable. 
+#
+%.key:
+	openssl genrsa -out $@ -rand .rand 1024
+
+# The point of the this is to recover the keys from where they were
+# originally installed. We do this cause people often lose their
+# original build tree, but if want to rebuild the certs, we usually
+# want the original keys. 
+recover-keys:
+	-cp $(INSTALL_DIR)/etc/emulab.key emulab.key
+	-cp $(APACHE_KEYFILE) apache.key
+	-openssl rsa -in $(INSTALL_DIR)/etc/server.pem -out server.key
+	-openssl rsa -in $(INSTALL_DIR)/etc/capture.pem -out capture.key
+	-openssl rsa -in $(INSTALL_DIR)/etc/jabber.pem -out jabber.key
+	-openssl rsa -in $(INSTALL_DIR)/etc/ctrlnode.pem -out ctrlnode.key
+	-openssl rsa -in $(INSTALL_DIR)/etc/client.pem -out localnode.key
+	-scp ${USERNODE}:${APACHE_KEYFILE_OPS} apache-ops.key
+	touch recover-keys
+
+#
+# Rule to generate a certificate request using the existing key.
+#
+%.req:
+	# No good place to put this. 
+	@chmod +x mkserial
+	openssl req -new -config $*.cnf -key $*.key -out $@
+	#
+	# Combine key and cert request.
+	#
+	cat $*.key >> $@
+
+dirsmade: 
 	-mkdir -p certs
 	-mkdir -p newcerts
 	-mkdir -p crl
-	echo "01" > serial
+	# The initial system certificates start here.
+	echo "0001" > serial
 	touch index.txt
 	touch dirsmade
 
 install-dirs:
 	-mkdir -p $(INSTALL_DIR)/ssl
-	-chmod 770 $(INSTALL_DIR)/ssl
+	chmod 770 $(INSTALL_DIR)/ssl
 	-mkdir -p $(INSTALL_DIR)/ssl/certs
 	-mkdir -p $(INSTALL_DIR)/ssl/newcerts
-	-chmod 775 $(INSTALL_DIR)/ssl/newcerts
+	chmod 775 $(INSTALL_DIR)/ssl/newcerts
 	-mkdir -p $(INSTALL_DIR)/ssl/crl
+	-mkdir -p $(INSTALL_DIR)/ssl/keys
 	-mkdir -p $(INSTALL_LIBDIR)/ssl
+	-mkdir -p $(APACHE_ETCDIR)/ssl.crt
+	-mkdir -p $(APACHE_ETCDIR)/ssl.key
+	chmod 700 $(APACHE_ETCDIR)/ssl.crt
+	chmod 700 $(APACHE_ETCDIR)/ssl.key
+
+$(INSTALL_DIR)/ssl/serial:
+	# It does not matter what we put in here; we use the DB to
+	# create unique serial numbers after initial install
 	echo "01" > $(INSTALL_DIR)/ssl/serial
+
+$(INSTALL_DIR)/ssl/index.txt:
 	touch $(INSTALL_DIR)/ssl/index.txt
-	touch install-dirs
 
 #
 # You do not want to run these targets unless you are sure you
@@ -242,12 +231,11 @@ install-dirs:
 install:	install-dirs $(INSTALL_SBINDIR)/mksig
 	@echo "BE VERY CAREFUL! INSTALLING NEW CERTS CAN CAUSE DISASTER!"
 
-boss-installX:	$(INSTALL_ETCDIR)/emulab.pem \
+boss-installX:	install-dirs \
+		$(INSTALL_DIR)/ssl/serial $(INSTALL_DIR)/ssl/index.txt \
+		$(INSTALL_ETCDIR)/emulab.pem \
 		$(INSTALL_ETCDIR)/emulab.key \
 		$(INSTALL_ETCDIR)/server.pem \
-		$(INSTALL_ETCDIR)/pcplab.pem \
-		$(INSTALL_ETCDIR)/pcwa.pem \
-		$(INSTALL_ETCDIR)/ronnode.pem \
 		$(INSTALL_ETCDIR)/ctrlnode.pem \
 		$(INSTALL_ETCDIR)/capture.pem \
 		$(INSTALL_ETCDIR)/capture.fingerprint \
@@ -261,10 +249,7 @@ boss-installX:	$(INSTALL_ETCDIR)/emulab.pem \
 	chmod 600 $(INSTALL_ETCDIR)/emulab.key
 	chmod 640 $(INSTALL_ETCDIR)/server.pem
 	chmod 640 $(INSTALL_ETCDIR)/client.pem
-	chmod 640 $(INSTALL_ETCDIR)/pcplab.pem
-	chmod 640 $(INSTALL_ETCDIR)/ronnode.pem
 	chmod 640 $(INSTALL_ETCDIR)/ctrlnode.pem
-	chmod 640 $(INSTALL_ETCDIR)/pcwa.pem
 	chmod 640 $(INSTALL_ETCDIR)/emulab_privkey.pem
 	chmod 640 $(INSTALL_ETCDIR)/capture.pem
 	chmod 644 $(INSTALL_ETCDIR)/capture.fingerprint
@@ -276,6 +261,7 @@ install-conf:	usercert.cnf syscert.cnf ca.cnf
 	$(INSTALL_DATA) ca.cnf $(INSTALL_LIBDIR)/ssl/ca.cnf
 
 remote-site-boss-install:	install-dirs \
+		$(INSTALL_DIR)/ssl/serial $(INSTALL_DIR)/ssl/index.txt \
 		$(INSTALL_ETCDIR)/emulab.pem \
 		$(INSTALL_ETCDIR)/emulab.key \
 		$(INSTALL_ETCDIR)/capture.pem \
@@ -294,6 +280,9 @@ remote-site-boss-install:	install-dirs \
 	chmod 640 $(INSTALL_ETCDIR)/server.pem
 	chmod 640 $(INSTALL_ETCDIR)/client.pem
 	chmod 640 $(INSTALL_ETCDIR)/ctrlnode.pem
+
+# Do not run this if you have a "real" web certificate.
+apache-install: $(APACHE_CERTFILE) $(APACHE_KEYFILE)
 
 client-install:
 	$(INSTALL_DATA) localnode.pem $(DESTDIR)$(CLIENT_ETCDIR)/client.pem
@@ -315,8 +304,8 @@ clearinghouse-install:	install-dirs \
 	chmod 640 $(INSTALL_ETCDIR)/emulab.pem
 	chmod 600 $(INSTALL_ETCDIR)/emulab.key
 
-tipserv-install:	$(INSTALL_SBINDIR)/capture.pem
-	chmod 640 $(INSTALL_SBINDIR)/capture.pem
+tipserv-install:	$(INSTALL_ETCDIR)/capture.pem
+	chmod 640 $(INSTALL_ETCDIR)/capture.pem
 
 usercert-install:	install-dirs
 	-mkdir -p $(INSTALL_LIBDIR)/ssl
@@ -326,6 +315,18 @@ usercert-install:	install-dirs
 clean:
 	@echo "BE VERY CAREFUL! CLEANING THE SSL DIR CAN CAUSE DISASTER!"
 
-cleanX:
-	rm -f *.pem serial index.txt *.old dirsmade *.cnf
-	rm -rf newcerts certs
+cleanX: clean-certs clean-keys
+	rm -f serial index.txt *.old dirsmade *.cnf
+	rm -f mkserial updatecert mksig
+	rm -rf newcerts certs crl
+
+#
+# Leave the private keys behind so that new certs use same keys;
+# existing certs still have valid sigs.
+#
+clean-certs:
+	rm -f *.pem *.req *.old *.cnf
+	rm -f *fingerprint
+
+clean-keys:
+	rm -f *.key

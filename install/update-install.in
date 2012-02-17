@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2010 University of Utah and the Flux Group.
+# Copyright (c) 2010-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -73,6 +73,7 @@ BEGIN
 use emdb;
 use libtestbed;
 use libinstall;
+use installvars;
 
 #
 # Parse command arguments.
@@ -291,7 +292,7 @@ elsif ($check) {
 }
 elsif ($impotent) {
     print "Running (impotent mode) pre-install updates  ...\n";
-    print "More detailed into saved to $logfile\n";
+    print "More detailed info saved to $logfile\n";
     RunUpdates("pre");
     print "Running (impotent mode) post-install updates  ...\n";
     RunUpdates("post");

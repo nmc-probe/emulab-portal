@@ -124,9 +124,6 @@ my @DAEMONS = ("emulab-watchdog", "progagent", "linktest",
 my @SYSDAEMONS = ("cron", "mountd", "ntpd", "sendmail",
 		  "syslogd", "nfsd", "rpcbind");
 
-# "Standard" packages
-my $PGENI_PKG = "emulab-protogeni-1.0";
-
 # or this...
 my $FSMOUNTDIR = "/q";
 my $OPSMOUNTDIR = "/ops";
@@ -171,6 +168,9 @@ my $NEEDMROUTED= -1;
 # Is ops a VM (Jail) on boss.
 my $OPSVM = 0;
 
+# Are we a XEN VM?
+my $XENVM = 0;
+
 #
 # Node to use as ntp server for inner nodes and other inner servers.
 # This node will use the outside "ntp1" server as its server.
@@ -192,6 +192,7 @@ my %emulabconfig = (
     "MFSTARBALL"  => "tftpboot-elabinelab.tar.gz",
     "MFSVERSION"  => "62",
     "MFSCONSOLE"  => "sio",
+    "PASSWORD"    => "ElabInElab",
 
     #
     # Elabinelab configuration options:
@@ -226,6 +227,10 @@ my %emulabconfig = (
     "CONFIG_SHAREDFS"	=> $SHAREDFS,
     "CONFIG_MROUTED"	=> $NEEDMROUTED,
     "CONFIG_OPSVM"	=> $OPSVM,
+    "CONFIG_NODBINIT"   => 0,
+
+    # Default protogeni package if LOAD_PROTOGENI is enabled.
+    "PGENI_PKG"		=> "emulab-protogeni-1.0",
 
     #
     # Elabinelab build options:
@@ -359,6 +364,15 @@ sub doboot()
 	$emulabconfig{"MFSVERSION"} = "62";
     }
 
+    # Determine if a XEN VM.
+    if (system("sysctl -n kern.vm_guest >/dev/null 2>&1") == 0) {
+	my $vm_guest = `sysctl -n kern.vm_guest`;
+	if ($vm_guest =~ /^xen$/) {
+	    $XENVM = 1;
+	    print "Running sinde a XEN VM\n";
+	}
+    }
+
     #
     # Need outer control router IP in lots of places.
     #
@@ -431,6 +445,10 @@ sub doboot()
     # Override the role when inside an ops jail. 
     $emulabconfig{"ROLE"} = "opsjail"
 	if ($opsjail);
+
+    # Override NTPSERVER when singlenet; okay to use inner ops.
+    $NTPSERVER = "ops"
+	if ($emulabconfig{"CONFIG_SINGLECNET"});
 
     #
     # XXX not-so-temporary: adjust package info.
@@ -514,6 +532,7 @@ sub doboot()
 	$emulabconfig{OPS_PKG}      = "emulab-ops-4.0";
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-4.0";
 	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-8.2-packages.tar.gz";
+	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-2.0";
     }
     if (exists($emulabconfig{"PACKAGE_TARBALL"})) {
 	$emulabconfig{FS_PKG_DIR}   = "$TBDIR/packages";
@@ -780,7 +799,7 @@ sub SetupFsNode()
     #
     # Load up packages if necessary
     #
-    if (!$emulabconfig{"CONFIG_NOSETUP"} && $installpkgs) {
+    if ($installpkgs) {
 	# XXX fer now: if not set, derive from the OPS info
 	if (!$emulabconfig{FS_PKG_DIR} || !$emulabconfig{FS_PKG}) {
 	    $emulabconfig{FS_PKG_DIR} = $emulabconfig{OPS_PKG_DIR};
@@ -1024,10 +1043,10 @@ sub SetupFsNode()
     mysystem("echo '/usr/local/etc/emulab/rc/rc.inelab' ".
 	     "   >> /etc/rc.local");
 
+    mysystem("cp -p $TBDIR/src/testbed/defs-elabinelab $TBDIR/src");
+
     return
 	if ($emulabconfig{"CONFIG_NOSETUP"});
-
-    mysystem("cp -p $TBDIR/src/testbed/defs-elabinelab $TBDIR/src");
 
     #
     # Copy the mirror tree into place. Do not use rsync.
@@ -1198,7 +1217,7 @@ sub SetupOpsNode($)
 
     #
     # And clear some other stuff.
-    # 
+    #
     mysystem("rm -rf $TBDIR/bin $TBDIR/lib");
     unlink("/etc/rc.conf.d/dhclient")
 	if (-e "/etc/rc.conf.d/dhclient");
@@ -1208,7 +1227,7 @@ sub SetupOpsNode($)
     #
     # Load up packages if necessary
     #
-    if (!$emulabconfig{"CONFIG_NOSETUP"} && $installpkgs) {
+    if ($installpkgs) {
 	#
 	# Do this as a separate step because PKG_DIR might be an NFS path,
 	# but we must do the NFS unmounts before running ops-install. 
@@ -1420,8 +1439,9 @@ sub SetupOpsNode($)
     }
     my $pkg = "-P $emulabconfig{OPS_PKG} -p " . $ENV{"PKG_PATH"} . " " .
 	($isfs ? "-F $emulabconfig{FS_PKG}" : "");
+    my $pswd = $emulabconfig{"PASSWORD"};
     mysystem("cd $TBDIR/obj/testbed/install; ".
-	     "   perl ops-install $pkg -b -w ElabInElab ");
+	     "   perl emulab-install $pkg -b -w $pswd ops");
 
     #
     # And install the ops side.
@@ -1761,7 +1781,7 @@ sub SetupBossNode($)
 
     #
     # And clear some other stuff.
-    # 
+    #
     mysystem("rm -rf $TBDIR/bin $TBDIR/lib");
     unlink("/etc/rc.conf.d/dhclient")
 	if (-e "/etc/rc.conf.d/dhclient");
@@ -1771,7 +1791,7 @@ sub SetupBossNode($)
     #
     # Load up packages if necessary
     #
-    if (!$emulabconfig{"CONFIG_NOSETUP"} && $installpkgs) {
+    if ($installpkgs) {
 	#
 	# Do this as a separate step because we need the NFS mounts, but
 	# must do the unmounts before running boss-install. 
@@ -1808,7 +1828,7 @@ sub SetupBossNode($)
 	    print "Installing the protogeni metaport.\n";
 	    # XXX lives in the boss package dir
 	    $ENV{"PKG_PATH"} = $emulabconfig{BOSS_PKG_DIR};
-	    mysystem("pkg_add -f $PGENI_PKG >>/tmp/perrs 2>&1");
+	    mysystem("pkg_add -f $emulabconfig{PGENI_PKG} >>/tmp/perrs 2>&1");
 	}
     }
 
@@ -2047,19 +2067,10 @@ sub SetupBossNode($)
     else {
 	$ENV{"PKG_PATH"} = "/packages";
     }
-    my $pkg = "-P $emulabconfig{BOSS_PKG} -p " . $ENV{"PKG_PATH"};
+    my $pkg  = "-P $emulabconfig{BOSS_PKG} -p " . $ENV{"PKG_PATH"};
+    my $pswd = $emulabconfig{"PASSWORD"};
     mysystem("cd $TBDIR/obj/testbed/install; ".
-	     "   perl boss-install $pkg -b -w ElabInElab");
-
-    #
-    # The above script wiped out the outer emulab root ssh pub keys from ops.
-    # We want to add them back so we can ssh into the node from outer Emulab.
-    #
-    mysystem("cat /root/.ssh/authorized_keys | ssh " . $emulabconfig{"OPSIP"} .
-	     " '(cat >> /root/.ssh/authorized_keys)'");
-    mysystem("cat /root/.ssh/authorized_keys | ssh " . $emulabconfig{"FSIP"} .
-	     " '(cat >> /root/.ssh/authorized_keys)'")
-	if ($emulabconfig{"OPSIP"} ne $emulabconfig{"FSIP"} && !$isfs);
+	     "   perl emulab-install $pkg -b -w $pswd boss");
 
     #
     # Need to tweak mrouted.conf as appropriate for an inner-elab
@@ -2079,16 +2090,6 @@ sub SetupBossNode($)
     }
 
     #
-    # XXX Remove conflicting package installed by boss-install.
-    # This can go away when the emulab-boss port has been updated.
-    #
-    if ($FBSD_VERSION >= 6) {
-	print "Removing conflicting bind package.\n";
-	system("pkg_delete -r -x bind9")
-	    if (-e "/usr/local/sbin/rndc");
-    }
-
-    #
     # Before we restart named, tweak the config to reflect the correct
     # NTP server for the inner nodes.
     #
@@ -2098,17 +2099,14 @@ sub SetupBossNode($)
     mysystem("sed -i '.orig' -E -e 's/^(ntp[12])[[:space:]]+IN[[:space:]]+CNAME[[:space:]]+ops/\\1 IN CNAME $NTPSERVER/' /etc/namedb/$ndbfile");
 
     #
-    # Setup up MFSes in /tftpboot.  Must be done after boss-install as
-    # it needs the inner .pem files.
-    #
-    SetupMFS($stuffdir);
-
-    #
     # Copy the creators ssl certificate into place. This allows the
     # inner boss to invoke the XMLRPC server on the outer boss for
     # doing things like power control, vlan setup, etc.
     #
     mysystem("cp -p $stuffdir/emulab.pem $RPCCERT");
+
+    goto skipsetup
+	if ($emulabconfig{"CONFIG_NODBINIT"});
 
     #
     # Set up a bunch of DB stuff.  This part will eventually be optional,
@@ -2373,7 +2371,7 @@ sub SetupOpsJail()
     #
     # Load up packages if necessary
     #
-    if (!$emulabconfig{"CONFIG_NOSETUP"} && $installpkgs) {
+    if ($installpkgs) {
 	#
 	# Do this as a separate step because PKG_DIR might be an NFS path,
 	# but we must do the NFS unmounts before running ops-install. 
@@ -2791,12 +2789,8 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^PROTOGENI_SUPPORT$/ && do {
-		    if ($emulabconfig{"LOAD_PROTOGENI"} && $FBSD_VERSION >= 6.2) {
-			print OUTDEFS "PROTOGENI_SUPPORT=1\n";
-		    }
-		    else {
-			print OUTDEFS "PROTOGENI_SUPPORT=0\n";
-		    }
+		    # Does not work to turn this on during initial setup.
+		    print OUTDEFS "PROTOGENI_SUPPORT=0\n";
 		    last SWITCH;
 		};
 		/^FSDIR_SCRATCH$/ && do {
@@ -2872,101 +2866,6 @@ sub CreateDefsFile($)
     close(OUTDEFS);
     mysystem("cat /tmp/defs-elabinelab");
     mysystem("mv -f /tmp/defs-elabinelab $defsfile");
-}
-
-sub SetupMFS($)
-{
-    my ($stuffdir) = @_;
-
-    if ($emulabconfig{"LOAD_MFS"}) {
-	#
-	# Unpack the tftpboot directory. It would be nice if this was part
-	# of boss install too. 
-	#
-	print "Copying over tftpboot tar file from web server and unpacking\n";
-	mysystem("wget -q -O $stuffdir/tftpboot.tar.gz ".
-		 "http://$bossname/downloads/".
-		 $emulabconfig{"MFSTARBALL"});
-
-	mysystem("tar xzf $stuffdir/tftpboot.tar.gz -C /tftpboot");
-
-	#
-	# Its the generic stuff; must localize.
-	#
-	my $fv = $emulabconfig{"MFSVERSION"};
-	if (! -e "/tftpboot/freebsd${fv}") {
-	    $fv = "47";
-	}
-	my $pdir = ".";
-	if (-d "/tftpboot/pxeboot${fv}") {
-	    $pdir = "pxeboot${fv}";
-	}
-	my $cons = $emulabconfig{"MFSCONSOLE"};
-	if (! -e "/tftpboot/$pdir/pxeboot.emu-${cons}") {
-	    $cons = "sio";
-	}
-
-	mysystem("cd /tftpboot; mv $pdir/pxeboot.emu-${cons} pxeboot.emu");
-	print "Using ${cons} version of pxeboot...\n";
-
-	mysystem("cd /tftpboot; mv freebsd${fv} freebsd");
-	print "Using freebsd${fv} version of admin MFS...\n";
-
-	mysystem("cd /tftpboot; mv frisbee${fv} frisbee");
-	print "Using frisbee${fv} version of disk load MFS...\n";
-
-	#
-	# Older tarballs didn't have FBSD-specific versions of newnode MFS.
-	#
-	if (! -e "/tftpboot/freebsd.newnode") {
-	    $fv = $emulabconfig{"MFSVERSION"};
-	    if (! -e "/tftpboot/freebsd${fv}.newnode") {
-		$fv = "47";
-	    }
-	    mysystem("cd /tftpboot; mv freebsd${fv}.newnode freebsd.newnode");
-	    print "Using freebsd${fv}.newnode version of newnode MFS...\n";
-	}
-    }
-
-    #
-    # Copy the inner SSL cert and root's public ssh keys to the MFSes
-    # so that they will talk to the inner boss properly.
-    # At Berkeley the frisbee MFS copies these to disk images,
-    # needing changes to slicefix, which always needs to be run now.
-    #
-    MungeMfsRoot("frisbee");
-    MungeMfsRoot("freebsd");
-    MungeMfsRoot("freebsd.newnode");
-
-    #
-    # Finally, create the compressed versions of the MFS files
-    #
-    mysystem("cd /tftpboot/frisbee/boot; ./prepare; ".
-	     "cd /tftpboot/freebsd/boot; ./prepare; ".
-	     "cd /tftpboot/freebsd.newnode/boot; ./prepare");
-}
-
-sub MungeMfsRoot($)
-{
-    my $tftpdir = shift;
-    my ($mount, $release);
-    
-    if ($FBSD_VERSION >= 5) {
-	$mount = "mdconfig -a -t vnode -f mfsroot -u 2; mount /dev/md2 /mnt;";
-	$release = "mdconfig -d -u 2;";
-    }
-    else {
-	$mount = "vnconfig -c vn1 mfsroot; mount /dev/vn1 /mnt;";
-	$release = "vnconfig -u vn1;";
-    }
-    # XXX assumes our caller will recompress the mfsrootball.
-    mysystem("cd /tftpboot/$tftpdir/boot; " .
-	     $mount .
-	     "cd /usr/testbed/etc;" .
-	     "cat /root/.ssh/*.pub >> /mnt/root/.ssh/authorized_keys2;" .
-	     "cp -p emulab.pem client.pem /mnt/etc/emulab;" .
-	     "umount /mnt;" .
-	     $release);
 }
 
 #

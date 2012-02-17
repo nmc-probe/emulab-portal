@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2010 University of Utah and the Flux Group.
+# Copyright (c) 2008-2010, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -9,8 +9,7 @@ use English;
 use Getopt::Std;
 
 #
-# Initialize an emulab to act as a protogeni emulab. Add optional -c
-# option if this is a clearinghouse.
+# Update a certificate using the existing private key.
 # 
 sub usage()
 {
@@ -80,9 +79,6 @@ sub UpdateCert($)
 {
     my ($file) = @_;
 
-    # Update by changing serial.
-    my $serial = TBGetUniqueIndex( "user_sslcerts" );
-
     #
     # Make sure we can get find the private key in the file, and
     # save it for later.
@@ -123,6 +119,9 @@ sub UpdateCert($)
 
     TBScriptLock("mkusercert") == 0 or
 	fatal("Could not get the lock!");
+
+    # Update by changing serial.
+    my $serial = TBGetUniqueIndex( "user_sslcerts" );
 
     #
     # Need an index file, which is the openssl version of the DB.

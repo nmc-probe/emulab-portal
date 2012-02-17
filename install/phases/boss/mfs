@@ -1,0 +1,167 @@
+#
+# 
+#
+use strict;
+use libinstall;
+use installvars;
+
+my $MFSTARBALL	    = "tftpboot-elabinelab.tar.gz";
+my $MFSURL	    = "http://www.emulab.net/downloads/$MFSTARBALL";
+my $MFSVERSION      = "62";
+my $MFSCONSOLE      = "sio";
+my $MFSDESCRIPTORS  = "$TOP_SRCDIR/install/descriptors-mfs.xml";
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    if ($FBSD_MAJOR >= 7.2) {
+	$MFSVERSION = "72";
+    }
+
+    Phase "mfs", "Setting up MFSs", sub {
+	my $localfile = "$TFTP_DIR/tftpboot.tar.gz";
+	
+	Phase "mfsfetch", "Fetching MFS tarball", sub {
+	    DoneIfExists($localfile);
+	    FetchFileFatal($MFSURL, $localfile);
+	};
+	Phase "mfsunpack", "Unpacking MFS tarball", sub {
+	    DoneIfExists("$TFTP_DIR/README");
+	    ExecQuietFatal("$TAR xzf $localfile -C $TFTP_DIR");
+	};
+	#
+	# Its the generic stuff; must localize.
+	#
+	my $fv = $MFSVERSION;
+	if (! -e "$TFTP_DIR/freebsd${fv}") {
+	    $fv = "47";
+	}
+	my $pdir = ".";
+	if (-d "$TFTP_DIR/pxeboot${fv}") {
+	    $pdir = "pxeboot${fv}";
+	}
+	my $cons = $MFSCONSOLE;
+	if (! -e "$TFTP_DIR/$pdir/pxeboot.emu-${cons}") {
+	    $cons = "sio";
+	}
+	Phase "pxemv", "Using ${cons} version of pxeboot", sub {
+	    DoneIfExists("$TFTP_DIR/pxeboot.emu");
+	    ExecQuietFatal("cd $TFTP_DIR; ".
+			   "$MV $pdir/pxeboot.emu-${cons} pxeboot.emu");
+	};
+	Phase "freemv", "Using freebsd${fv} version of admin MFS", sub {
+	    DoneIfExists("$TFTP_DIR/freebsd");
+	    ExecQuietFatal("cd $TFTP_DIR; $MV freebsd${fv} freebsd");
+	};
+	Phase "frismv", "Using frisbee${fv} version of disk load MFS", sub {
+	    DoneIfExists("$TFTP_DIR/frisbee");
+	    ExecQuietFatal("cd $TFTP_DIR; $MV frisbee${fv} frisbee");
+	};
+	#
+	# Older tarballs didn't have FBSD-specific versions of newnode MFS.
+	#
+	if (! -e "$TFTP_DIR/freebsd.newnode") {
+	    Phase "newnode", "Using freebsd${fv} version of newnode MFS", sub {
+		DoneIfExists("$TFTP_DIR/freebsd.newnode");
+		ExecQuietFatal("cd $TFTP_DIR; ".
+			       "$MV freebsd${fv}.newnode freebsd.newnode");
+	    };
+	}
+
+	#
+	# Copy the inner SSL cert and root's public ssh keys to the MFSes
+	# so that they will talk to the inner boss properly.
+	# At Berkeley the frisbee MFS copies these to disk images,
+	# needing changes to slicefix, which always needs to be run now.
+	#
+	MungeMfsRoot("frisbee");
+	MungeMfsRoot("freebsd");
+	MungeMfsRoot("freebsd.newnode");
+
+	#
+	# Finally, create the compressed versions of the MFS files
+	#
+	Phase "prepare1", "Compressing the frisbee MFS", sub {
+	    DoneIfExists("$TFTP_DIR/frisbee/boot/mfsroot.gz");
+	    ExecQuietFatal("cd $TFTP_DIR/frisbee/boot; ./prepare");
+	};
+	Phase "prepare2", "Compressing the freebsd MFS", sub {
+	    DoneIfExists("$TFTP_DIR/freebsd/boot/mfsroot.gz");
+	    ExecQuietFatal("cd $TFTP_DIR/freebsd/boot; ./prepare");
+	};
+	Phase "prepare3", "Compressing the newnode MFS", sub {
+	    DoneIfExists("$TFTP_DIR/freebsd.newnode/boot/mfsroot.gz");
+	    ExecQuietFatal("cd $TFTP_DIR/freebsd.newnode/boot; ./prepare");
+	};
+
+	#
+	# Load the descriptors into the DB. Do not do this in an elabinelab
+	# cause we get a bunch of conflicting DB state from the outer boss.
+	#
+	Phase "descriptors", "Loading the Image and OS IDS", sub {
+	    ExecQuietFatal("cd $TOP_OBJDIR/install; ".
+			   "   $SUDO -u $PROTOUSER $WAP ".
+			   "   perl load-descriptors $MFSDESCRIPTORS");
+	};
+	PhaseSucceed("done");
+    };
+    return 0;
+}
+
+sub MungeMfsRoot($)
+{
+    my $tftpdir = shift;
+    my $MFSROOT = "$TFTP_DIR/$tftpdir/boot/mfsroot";
+
+    Phase "Munge", "Munging the $tftpdir root file system", sub {
+	PhaseSkip("already munged")
+	    if (-e "${MFSROOT}.gz");
+	
+	if ($FBSD_MAJOR >= 5) {
+	    ExecQuietFatal("mdconfig -a -t vnode -f $MFSROOT -u 2");
+	    ExecQuietFatal("mount /dev/md2 /mnt");
+	}
+	else {
+	    ExecQuietFatal("vnconfig -c vn1 $MFSROOT");
+	    ExecQuietFatal("mount /dev/vn1 /mnt");
+	}
+
+	my ($status,@output) = 
+	    ExecQuiet("cat /root/.ssh/*.pub >> /mnt/root/.ssh/authorized_keys2");
+	
+	if ($status == 0) {
+	    ($status,@output) = 
+		ExecQuiet("cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem ".
+			  "   /mnt/etc/emulab");
+	}
+	
+	ExecQuietFatal("umount /mnt");
+	if ($FBSD_MAJOR >= 5) {
+	    ExecQuietFatal("mdconfig -d -u 2");
+	}
+	else {
+	    ExecQuietFatal("vnconfig -u vn1");
+	}
+	if ($status) {
+	    my $msg = join(' ', @output);
+	    PhaseFail("Unable to execute: '$msg'");
+	}
+	PhaseSucceed("Munged");
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:
+
+
+
+
+
+
