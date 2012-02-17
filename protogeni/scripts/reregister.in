@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -32,6 +32,7 @@ my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $SACERT	  = "$TB/etc/genisa.pem";
 my $CMCERT	  = "$TB/etc/genicm.pem";
 my $SESCERT	  = "$TB/etc/genises.pem";
+my $GETCACERTS    = "$TB/sbin/protogeni/getcacerts";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -62,6 +63,13 @@ if (! getopts($optlist, \%options)) {
 }
 usage()
     if (@ARGV);
+
+#
+# This file must exist. Should probably be in the DB instead.
+#
+if (! -e "$TB/etc/.protogeni_federated") {
+    fatal("You first need to email $TB/etc/emulab.pem to @PROTOGENI_EMAIL@\n");
+}
 
 #
 # Load the SA cert to act as caller context.
@@ -119,6 +127,8 @@ if (-e $SESCERT) {
 	fatal("Could not register SES cert at the clearinghouse");
     }
 }
+
+system("echo 'Do not remove this file' > $TB/etc/.protogeni_registered");
 exit(0);
 
 sub fatal($)

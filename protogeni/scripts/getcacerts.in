@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -16,9 +16,10 @@ sub usage()
     print "Usage: getcacerts [-l]\n";
     exit(1);
 }
-my $optlist = "lp";
+my $optlist = "lpf";
 my $nolog   = 0;
 my $nopost  = 0;
+my $force   = 0;
 
 #
 # Configure variables
@@ -60,12 +61,6 @@ if ($UID != 0) {
 }
 
 #
-# Do not run when the testbed is disabled.
-#
-exit(0)
-    if (NoLogins());
-
-#
 # Check args.
 #
 my %options = ();
@@ -78,7 +73,16 @@ if (defined($options{"l"})) {
 if (defined($options{"p"})) {
     $nopost  = 1;
 }
+if (defined($options{"f"})) {
+    $force  = 1;
+}
 my $restartapache = 0;
+
+#
+# Do not run when the testbed is disabled.
+#
+exit(0)
+    if (NoLogins() && !$force);
 
 # Record output in case of error.
 LogStart(0)
