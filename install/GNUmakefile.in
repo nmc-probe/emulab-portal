@@ -14,7 +14,7 @@ include $(OBJDIR)/Makeconf
 ifeq ($(STANDALONE_CLEARINGHOUSE),0)
 TARGETS	= libinstall.pm boss-install ops-install fs-install dump-descriptors \
 	load-descriptors update-install update-mfs update-testbed testbed-version \
-	update-ipdomain installvars.pm emulab-install
+	installvars.pm emulab-install
 else
 TARGETS = clrhouse-install
 endif
