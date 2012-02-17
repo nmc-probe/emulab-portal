@@ -357,7 +357,7 @@ sub ParseKey($) {
 	return 0;
     }
     
-    if ($keyline =~ /^(\d*\s\d*\s[0-9a-zA-Z]*) ([-\w\@\.\ ]*)\s*$/) {
+    if ($keyline =~ /^(\d*\s\d*\s[0-9a-zA-Z]*) ([-\w\@\.:\ ]*)\s*$/) {
         # Protocol 1
 	$type    = "ssh-rsa1";
 	$key     = $1;
@@ -369,13 +369,13 @@ sub ParseKey($) {
 	$key     = $1;
     }
     elsif ($keyline =~
-	   /^(ssh-rsa|ssh-dss) ([-\w\.\@\+\/\=]*) ([-\w\@\.\ ]*)$/) {
+	   /^(ssh-rsa|ssh-dss) ([-\w\.\@\+\/\=]*) ([-\w\@\.:\ ]*)$/) {
         # Protocol 2
 	$type    = $1;
 	$key     = "$1 $2";
 	$comment = $3;
     }
-    elsif ($keyline =~ /^(ssh-rsa|ssh-dss) ([-\w\.\@\+\/\=]*)$/) {
+    elsif ($keyline =~ /^(ssh-rsa|ssh-dss) ([-\w\.\@\+\/\=:]*)$/) {
         # Protocol 2 but no comment field
 	$type    = $1;
 	$key     = "$1 $2";
