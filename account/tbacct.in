@@ -380,7 +380,11 @@ sub AddUser()
 	    $EUID = 0;
 	    return 0;
 	}
-	fatal("$user is not active! Cannot build an account!");
+	if ($force) {
+	    $target_user->SetStatus(USERSTATUS_ACTIVE());
+	    $status = USERSTATUS_ACTIVE();
+	}
+	fatal("$user is not active! Cannot build an account! Use -f option.");
     }
 
     $UID = 0;
