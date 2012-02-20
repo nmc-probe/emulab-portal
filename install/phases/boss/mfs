@@ -100,8 +100,9 @@ sub Install($$$)
 	};
 
 	#
-	# Load the descriptors into the DB. Do not do this in an elabinelab
-	# cause we get a bunch of conflicting DB state from the outer boss.
+	# Load the descriptors into the DB. Inside an elabinelab these are
+	# already loaded, but the script will just skip over them without
+	# raising an error.
 	#
 	Phase "descriptors", "Loading the Image and OS IDS", sub {
 	    ExecQuietFatal("cd $TOP_OBJDIR/install; ".
