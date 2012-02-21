@@ -46,7 +46,8 @@ my %GENI_MODULES = ( "cm"        => "@prefix@/lib/protogeni-cm.pm",
 		     "ch"        => "@prefix@/lib/protogeni-ch.pm",
 		     "ses"       => "@prefix@/lib/protogeni-ses.pm",
 		     # XXX This is temporary! 
-		     "instools"  => "@prefix@/lib/protogeni-instools.pm",
+		     "instools"  =>
+		             "@prefix@/lib/instools/protogeni-instools.pm",
 );
 if ($PORTAL_ENABLE && !$PORTAL_ISPRIMARY) {
     $GENI_MODULES{"emulab"} = "@prefix@/lib/protogeni-emulab.pm";
