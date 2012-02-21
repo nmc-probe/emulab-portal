@@ -475,13 +475,18 @@ sub vnodeCreate($$$$)
     # XXX need a better way to determine this!
     #
     my $os;
-    if ($imagename =~ /BSD/) {
+    if ($imagename =~ /FBSD/) {
 	$os = "FreeBSD";
-	# XXX prefer a FreeBSD9 kernel if we have it
-	if (-r "/boot/freebsd9/kernel") {
+	if ($imagename =~ /FBSD9/) {
 	    $image{'kernel'} = "/boot/freebsd9/kernel";
-	} else {
+	} elsif ($imagename =~ /FBSD8/) {
 	    $image{'kernel'} = "/boot/freebsd8/kernel";
+	} else {
+	    $image{'kernel'} = "/boot/freebsd/kernel";
+	}
+	if (! -e "$image{'kernel'}") {
+	    print STDERR "libvnode_xen: no FreeBSD kernel for '$imagename' on $vnode_id\n";
+	    return -1;
 	}
 	undef $image{'ramdisk'};
     } else {
