@@ -1835,7 +1835,7 @@ SWIG_AsVal_unsigned_SS_int SWIG_PERL_DECL_ARGS_2(SV * obj, unsigned int *val)
 	 * malloc/free from perl
 	 */
 	callback_data_t allocate_callback_data() {
-		return (callback_data_t)malloc(sizeof(callback_data_t));
+		return (callback_data_t)malloc(sizeof(struct callback_data));
 	}
 
 	void free_callback_data(callback_data_t data) {

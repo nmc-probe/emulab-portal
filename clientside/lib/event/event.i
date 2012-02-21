@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2003, 2006 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -66,7 +66,7 @@ struct timeval {
 	 * malloc/free from perl
 	 */
 	callback_data_t allocate_callback_data() {
-		return (callback_data_t)malloc(sizeof(callback_data_t));
+		return (callback_data_t)malloc(sizeof(struct callback_data));
 	}
 
 	void free_callback_data(callback_data_t data) {
