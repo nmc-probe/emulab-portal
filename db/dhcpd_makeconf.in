@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -328,6 +328,9 @@ while (<IF>) {
 		    if (!$filename) {
 			# Get the type info for this type.
 			my $nodetype = NodeType->Lookup($row{"type"});
+			if (!$nodetype) {
+			    fatal("Could not find type info for $node_id");
+			}
 
 			# Get the type specific version of pxe_boot_path
 			my $nt_pxe_boot_path;
