@@ -522,7 +522,7 @@ sub doboot()
 	$emulabconfig{OPS_PKG}      = "emulab-ops-3.1";
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-3.1";
     }
-    elsif ($FBSD_VERSION == 8.2) {
+    elsif ($FBSD_VERSION >= 8.2) {
 	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/8.2/packages";
 	$emulabconfig{FS_PKG_DIR} .= ".elvincompat"
 	    if ($emulabconfig{"CONFIG_ELVIN"});
