@@ -194,6 +194,7 @@ if ($remove) {
 		    or fatal("Could not remove ${certfile}: $!");
 	    }
 	    Regenerate(0, 1);
+	    exit(0);
 	}
     }
     fatal("No matching certificate in either list");
