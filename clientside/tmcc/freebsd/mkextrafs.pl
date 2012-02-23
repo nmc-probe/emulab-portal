@@ -325,6 +325,7 @@ foreach my $line (@dl) {
 	my $size = $1;
 	my $off = $2;
 	my $rest = $3;
+	$rest =~ s/unused/4.2BSD/;
 	if ($twoparts) {
 	    my $esize = int($size / 16 * 0.7) * 16;
 	    $foff = $off + $esize;
@@ -341,6 +342,7 @@ foreach my $line (@dl) {
 	my $size = $1;
 	my $off = $2;
 	my $rest = $3;
+	$rest =~ s/unused/4.2BSD/;
 	if ($twoparts) {
 	    my $esize = int($size / 16 * 0.7) * 16;
 	    $foff = $off + $esize;
@@ -357,7 +359,7 @@ foreach my $line (@dl) {
     print DL $line;
 }
 if (!$bad && $twoparts && $fsize > 0) {
-    print DL "  f: $fsize $foff unused 0 0\n";
+    print DL "  f: $fsize $foff 4.2BSD 0 0\n";
 }
 close(DL);
 mysystem("disklabel -R -r $slicedev $tmpfile");
