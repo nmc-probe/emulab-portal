@@ -831,6 +831,12 @@ sub GetTicketAuxAux($$$$$$$$$)
 		}
 		$node = $pnode;
 	    }
+	    if (exists($namemap{$node_nickname})) {
+		$response =
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				    "Duplicate node $node_nickname");
+		goto bad;
+	    }
 	    $namemap{$node_nickname} = $node;
 	    $colomap{$colocate} = $node
 		if (defined($colocate));
@@ -863,6 +869,13 @@ sub GetTicketAuxAux($$$$$$$$$)
 	foreach my $linkref (GeniXML::FindNodes("n:interface",
 						$ref)->get_nodelist()) {
 	    my $virtual_id   = GeniXML::GetInterfaceId($linkref);
+	    if (exists($iface2node{$virtual_id})) {
+		$response =
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "Duplicate interface $virtual_id on ".
+					 "node $node_nickname");
+		goto bad;
+	    }
 	    $iface2node{$virtual_id} = $node_nickname;
 	}
 
@@ -1383,6 +1396,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     # Now deal with links for wildcarded nodes. 
     #
     my $linknum = 1;
+    my %linkexistsmap = ();
     
     foreach my $linkref (GeniXML::FindNodes("n:link",
 					    $rspec)->get_nodelist()) {
@@ -1402,6 +1416,14 @@ sub GetTicketAuxAux($$$$$$$$$)
 				     "Must provide a virtual_id for links");
 	    goto bad;
 	}
+
+	if (exists($linkexistsmap{$lanname})) {
+	    $response =
+		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				     "Duplicate link $lanname");
+	    goto bad;
+	}
+	$linkexistsmap{$lanname} = 1;
 
 	#
 	# Look for managers list; optional for now. If not specified then
