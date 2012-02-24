@@ -831,12 +831,6 @@ sub GetTicketAuxAux($$$$$$$$$)
 		}
 		$node = $pnode;
 	    }
-	    if (exists($namemap{$node_nickname})) {
-		$response =
-		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				    "Duplicate node $node_nickname");
-		goto bad;
-	    }
 	    $namemap{$node_nickname} = $node;
 	    $colomap{$colocate} = $node
 		if (defined($colocate));
@@ -844,6 +838,8 @@ sub GetTicketAuxAux($$$$$$$$$)
     }
 
     print GeniXML::Serialize($rspec);
+
+    my %nodeexistsmap = ();
 
     foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	my $component_id  = GeniXML::GetNodeId($ref);
@@ -864,6 +860,14 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $isbridge    = 0;
 	my $isfirewall  = 0;
 	
+	if (exists($nodeexistsmap{$node_nickname})) {
+	    $response =
+		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				     "Duplicate node $node_nickname");
+	    goto bad;
+	}
+	$nodeexistsmap{$node_nickname} = 1;
+
 	# Always populate iface2node mapping, even if we let the node
 	# pass through.
 	foreach my $linkref (GeniXML::FindNodes("n:interface",
