@@ -4,7 +4,7 @@
  * All rights reserved.
  */
 
-/* This program implements the Disk agent for Emulab Event System.
+/* This program implements the Disk agent for Emulab.
  * It listens to objtype "disk" and creates/modifies/ device mapper(DM)
  * disks. Also, we can inject errors of various types on these DM disks.
  */
@@ -46,6 +46,30 @@ using namespace std;
 #define MAX_BUFFER 4096
 #define err(msg, x...) fprintf(stderr, msg "\n", ##x)
 
+/**
+ * Structure used to track individual agents.
+ */
+struct diskinfo {
+    char        name[TBDB_FLEN_EVOBJNAME];
+
+    char           *initial_cmdline;
+    char           *cmdline;
+	char 		   *type;
+	char 		   *initial_type;
+	char		   *mountpoint;
+	char		   *initial_mountpoint;
+	char		   *parameters;
+	char		   *initial_parameters;	
+    int     pid;
+    struct diskinfo *next;
+};
+
+/**
+ * Refers to the head of the agent list.
+ */
+static struct diskinfo *diskinfos;
+
+
 char * _table = NULL;
 
 enum { EVENT_BUFFER_SIZE = 5000 };
@@ -60,6 +84,19 @@ vector<string> device_params;
 
 void readArgs(int argc, char * argv[]);
 void usage(char * name);
+
+/**
+ * Parse the configuration file containing the list of agents and their initial
+ * settings.
+ *
+ * @param filename The name of the config file.
+ * @return Zero on success, -1 otherwise.
+ */
+static int  parse_configfile(char *filename);
+static void set_disk(struct diskinfo *dinfo, char *args);
+
+
+
 // Reads the map file, initializes the pipe and pipeVault data
 // structure, and sets up the two subscription strings for events.
 void writePidFile(string const & pidFile);
@@ -72,22 +109,74 @@ void callback(event_handle_t handle,
               event_notification_t notification, void *data);
 void start(string);
 
+/**
+ * Handler for the TIME start event.  This callback will stop all running
+ * programs, reset the agent configuration to the original version specified in
+ * the config file, and delete all the files in the log directory.
+ *
+ * @param handle The connection to the event system.
+ * @param notification The start event.
+ * @param data NULL
+ */
+static void start_callback(event_handle_t handle,
+                   event_notification_t notification,
+                   void *data);
+
+
 //DM Device routines
-map<string, string> dm_args;
-int create_dm_device(char *);
-int run_dm_device(char *);
-int modify_dm_device(char *);
+int create_dm_device(struct diskinfo *dinfo, char *);
+int run_dm_device(struct diskinfo *dinfo, char *);
+int modify_dm_device(struct diskinfo *dinfo, char *);
 int resume_dm_device(char *);
 static int _device_info(char *);
 static int _parse_line(struct dm_task *, char *, const char *,int);
 static int _parse_file(struct dm_task *, const char *);
-static int _parse_args(char *);
 static void _display_info_long(struct dm_task *,  struct dm_info *);
 int _get_device_params(const char *);
 string exec_output(string);
 string itos(int );
 
-//void mkextrafs(string , string);
+
+/**
+ * Dump the diskinfos list to standard out.
+ */
+static void
+dump_diskinfos(void)
+{
+    struct diskinfo *pi;
+
+    for (pi = diskinfos; pi != NULL; pi = pi->next) {
+        printf(
+               "  Name: %s\n"
+               "  type: %s\n"
+               "  mountpoint: %s\n"
+               "  parameters: %s\n"
+               "  command: %s\n",
+               pi->name ? pi->name : "(not set)",
+               pi->type ? pi->type : "(not set)",
+               pi->mountpoint ? pi->mountpoint : "(not set)",
+               pi->parameters ? pi->parameters : "(not set)",
+               pi->cmdline ? pi->cmdline : "(not set)"
+               );
+    }
+}
+
+static struct diskinfo *
+find_agent(char *name)
+{
+    struct diskinfo *dinfo, *retval = NULL;
+
+    dinfo = diskinfos;
+    while (dinfo) {
+        if (! strcmp(dinfo->name, name)) {
+            retval = dinfo;
+            break;
+        }
+        dinfo = dinfo->next;
+    }
+
+    return retval;
+}
 
 int main(int argc, char * argv[])
 {
@@ -103,7 +192,7 @@ void readArgs(int argc, char * argv[])
   string port;
   char *logfile = NULL;
   string pidfile;
-  string configfile;
+  char *configfile;
   string keyFile;
   string tokenfile;
   string subscription;
@@ -192,6 +281,11 @@ void readArgs(int argc, char * argv[])
   }*/
   //if(subscription == "")
 	//subscription = "DISK";
+	
+  if (parse_configfile(configfile) != 0)
+      exit(1);
+
+
   initEvents(server, port, keyFile, subscription, group);
 }
 
@@ -235,22 +329,44 @@ void initEvents(string const & server, string const & port,
 
   address_tuple_free(eventTuple);
 
-  if(event_main(handle) == 0)
-	cout << "Event main stopped!" << endl;
+
+  /*
+   * Begin the event loop, waiting to receive event notifications:
+   */
+ 
+  while(1) {
+	if(event_main(handle) == 0)
+		cerr << "Event main stopped!" << endl;
+  }
 }
 
 void subscribe(event_handle_t handle, address_tuple_t eventTuple,
                string const & subscription, string const & group)
 {
+  char agentlist[MAX_BUFFER];
+  bzero(agentlist, sizeof(agentlist));
+  struct diskinfo *dinfo;
+
   string name = subscription;
   if (group != "")
   {
     name += "," + group;
   }
-  cerr << "Link subscription names: " << name << endl;
-  eventTuple->objname = ADDRESSTUPLE_ANY;//const_cast<char *>(name.c_str());
-  //eventTuple->objtype = TBDB_OBJECTTYPE_DISK;
-  eventTuple->objtype = ADDRESSTUPLE_ANY;
+  /*
+   * Cons up the agentlist for subscription below.
+   */
+  dinfo = diskinfos;
+  while (dinfo) {
+
+  	if (strlen(agentlist))
+        strcat(agentlist, ",");
+    	strcat(agentlist, dinfo->name);
+
+        dinfo = dinfo->next;
+  }
+
+  eventTuple->objname = agentlist;//const_cast<char *>(name.c_str());
+  eventTuple->objtype = TBDB_OBJECTTYPE_DISK;
   eventTuple->eventtype = 
 				TBDB_EVENTTYPE_START ","
 				TBDB_EVENTTYPE_RUN ","
@@ -265,8 +381,23 @@ void subscribe(event_handle_t handle, address_tuple_t eventTuple,
   if (event_subscribe(handle, callback, eventTuple, NULL) == NULL)
   {
     cerr << "Could not subscribe to " << eventTuple->eventtype << " event" << endl;
-    exit(1);
+
   }
+  
+    eventTuple->objtype   = TBDB_OBJECTTYPE_TIME;
+    eventTuple->objname   = ADDRESSTUPLE_ANY;
+    eventTuple->eventtype = TBDB_EVENTTYPE_START;
+
+    /*
+     * Subscribe to the TIME start event we specified above.
+     */
+    if (! event_subscribe(handle, start_callback, eventTuple, NULL)) {
+        cerr << "could not subscribe to event" << endl;
+    }
+
+  
+
+
 }
 
 void callback(event_handle_t handle,
@@ -277,6 +408,8 @@ void callback(event_handle_t handle,
   char type[EVENT_BUFFER_SIZE];
   char args[EVENT_BUFFER_SIZE];
   
+  struct diskinfo *dinfo;
+
   struct timeval basicTime;
   gettimeofday(&basicTime, NULL);
   map<string, int> eventtype;
@@ -310,32 +443,40 @@ void callback(event_handle_t handle,
   string event = type;
   cerr << event << endl; 
 	 
-  if (event_notification_get_string(handle, notification,const_cast<char *>("ARGS"), args, EVENT_BUFFER_SIZE) == 0)
-  {
-	cerr << timestamp << ": ERROR: Could not get event arguments" << endl;
-        return;
+  event_notification_get_string(handle, notification,const_cast<char *>("ARGS"), args, EVENT_BUFFER_SIZE); 
+  
+  cerr << args << endl; 
+
+  /* DEBUG */
+  cout <<"Config file"<<endl;
+  dump_diskinfos(); 	
+ 
+  /* Find the agent and */
+  dinfo = find_agent(name);
+  if (!dinfo) {
+      cout << "Invalid disk agent: "<< name <<endl;
+      return;
   }
 
-	cerr << args << endl; 
   /* Call the event handler routine based on the event */
   switch(eventtype[event])
   {
 	case 0:
 		/* Event is to create a dm disk */	
-		if(!create_dm_device(args))
+		if(!create_dm_device(dinfo, args))
 			cout << "DM failed" << endl;
 		event="";
 		break;
   	case 1:
 		/* Event is to modify the dm disk */
-		if(!modify_dm_device(args))
+		if(!modify_dm_device(dinfo, args))
 			cout << "DM failed" << endl;
 		event="";
 	 	break;	
 	case 2:
 		break;
 	case 3:
-		if(!run_dm_device(args))
+		if(!run_dm_device(dinfo, args))
 			 cout << "DM failed" << endl;
 		event="";
 		break;
@@ -345,18 +486,18 @@ void callback(event_handle_t handle,
  
 }
 
-int run_dm_device(char *args)
+int run_dm_device(struct diskinfo *dinfo, char *args)
 {
 	struct dm_task *dmt;
 
-	if (!(_parse_args(args))) {
-		cout << "Arguments are invalid" <<endl;
-                return 0;
-        }
+	set_disk(dinfo, args);
+    /* DEBUG */
+    cout <<"Event RUN"<<endl;
+    dump_diskinfos();
 
-	if (_device_info(const_cast<char *>(dm_args["DISKNAME"].c_str()))) {
+
+	if (_device_info(dinfo->name)) {
 		/* DM device exists so we'll reload it with params supplied */
-		int r=0;
 		uint64_t start=0, length=0;
 	    char *target_type=NULL, *params=NULL;
 		
@@ -367,12 +508,12 @@ int run_dm_device(char *args)
             cout << "in dm task create"<<endl;
             return 0;
         }		
-		if ( !dm_task_set_name(dmt, const_cast<char *>(dm_args["DISKNAME"].c_str()))){
+		if ( !dm_task_set_name(dmt, dinfo->name)){
 			dm_task_destroy(dmt);
             return 0;
 		}
 	
-		if (!(_get_device_params(dm_args["DISKNAME"].c_str()))) {
+		if (!(_get_device_params(dinfo->name))) {
 			dm_task_destroy(dmt);
             return 0;
 		}
@@ -380,29 +521,29 @@ int run_dm_device(char *args)
 	
 		start 		    = strtoul (device_params[0].c_str(),NULL,0);
 		length 		    = strtoul (device_params[1].c_str(),NULL,0);
-		target_type 	= const_cast<char *>(dm_args["DISKTYPE"].c_str());
+		target_type 	= dinfo->type;
 
 		split		   << device_params[3];
 
 		getline(split,diskname,' ');
- 		params_str 	= diskname + " " + "0 "+ dm_args["PARAMETERS"];
+ 		params_str 	= diskname + " " + "0 "+ dinfo->parameters;
 		cout << "diskname after "<<params_str<<endl;
 		params 		= const_cast<char *>(params_str.c_str());
 
 		cout <<start<<" "<<length<<" "<<target_type<<" "<<params<<endl;;	
 		
 		if (!dm_task_add_target(dmt, start, length, target_type, params)) {
- 			dm_task_destroy(dmt);
-                        return 0;
+				dm_task_destroy(dmt);
+                return 0;
 		}
 		/* Now that we have the dm ready; Run it. */
 		if (!dm_task_run(dmt)){
-			 dm_task_destroy(dmt);
-                        return 0;
+				dm_task_destroy(dmt);
+                return 0;
 		}
 
 		/* Resume this dm device for changes to take effect. */
-		resume_dm_device(const_cast<char *>(dm_args["DISKNAME"].c_str()));
+		resume_dm_device(dinfo->name);
 		dm_task_destroy(dmt);
 		return 1;
 
@@ -419,8 +560,9 @@ int run_dm_device(char *args)
         	}
 
 		/* Set properties on the new dm device */
-		string dm_disk_name = "/dev/mapper/"+dm_args["DISKNAME"];
-		if (dm_args["DISKNAME"] != "" and !dm_task_set_name(dmt, const_cast<char *>(dm_args["DISKNAME"].c_str()))) {
+		string prefix = "/dev/mapper/";
+		string dm_disk_name = prefix + dinfo->name;
+		if (!dm_task_set_name(dmt, dinfo->name)) {
 			cout << "in task set name"<<endl;
 			dm_task_destroy(dmt);
 			return 0;
@@ -429,7 +571,8 @@ int run_dm_device(char *args)
 		 * Using this partition we'll create the dm disk on top of it.
 		 */
 		cout << "Creating the disk partition ..." << endl;
-		cmd = "sudo ./mkextrafs -f "+dm_args["MOUNTPOINT"];  //This returns the newly partitioned disk name
+		prefix =  "sudo ./mkextrafs -f ";
+		cmd = prefix + dinfo->mountpoint;  //This returns the newly partitioned disk name
 		string disk = exec_output(cmd);           //exec_output will return the output from shell
 		if (disk == "") {
 			 dm_task_destroy(dmt);
@@ -443,19 +586,19 @@ int run_dm_device(char *args)
 		string str_size = exec_output(cmd);
 		if (str_size == "") {
 			dm_task_destroy(dmt);
-                        return 0;
+            return 0;
 		}
 		
-		cout << "Mapping the virtual disk " <<dm_args["DISKNAME"] << "on "<<disk<< endl; 
+		cout << "Mapping the virtual disk " << dinfo->name << "on "<<disk<< endl; 
 		/* Hardcoding all the values.
 		 * Users not to worry about the geometry of the disk such as the start
 		 * sector, end sector, size etc
 		 */
 		start = 0;
 		size = strtoul(const_cast<char *>(str_size.c_str()), NULL, 0);
-		ttype = const_cast<char *>(dm_args["DISKTYPE"].c_str());
-		if (dm_args["PARAMETERS"] != "") {
-			str = dm_args["PARAMETERS"].c_str();
+		ttype = dinfo->type;
+		if (dinfo->parameters != NULL) {
+			str = dinfo->parameters;
 			str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
 			string params = disk + " 0 " + str;
 			params.erase(std::remove(params.begin(), params.end(), '\n'), params.end());
@@ -484,10 +627,10 @@ int run_dm_device(char *args)
 
 		sleep(1);
 
-		str = dm_args["MOUNTPOINT"];
+		str = dinfo->mountpoint;
 		cmd = "sudo mount "+dm_disk_name+" "+str;
 		system(const_cast<char *>(cmd.c_str()));
-		cout << dm_args["DISKNAME"] << " is mounted on " <<str <<endl;
+		cout << dinfo->name << " is mounted on " <<str <<endl;
 
 		dm_task_destroy(dmt);
 		return 1;
@@ -501,25 +644,21 @@ int run_dm_device(char *args)
 * It takes the arguments through the buffer and
 * name specifies the name of the DM device.
 */
-int create_dm_device(char *args)
+int create_dm_device(struct diskinfo *dinfo, char *args)
 {
 	struct dm_task *dmt;
-	char *file = NULL;
-	char *_table = NULL;
 	string str="";
 	int r=0;
 
-	string buf;
-	vector<string> tokens;
-	stringstream stream(args);
+	set_disk(dinfo, args);
+    /* DEBUG */
+    cout <<"Event CREATE"<<endl;
+    dump_diskinfos();
 
-	while(stream >> buf)
-		tokens.push_back(buf);
-
-	if(tokens.size() <= 1) {
-		cout << "ERROR: No arguments" << endl;
-		return 0;
-	}
+    if(dinfo->cmdline == NULL) {
+        cout << "Cmdline is empty!" << endl;
+        return 0;
+    }
 
 	/* Create a new dm device */
 	if(!(dmt = dm_task_create(DM_DEVICE_CREATE))){
@@ -527,52 +666,30 @@ int create_dm_device(char *args)
 		return 0;
 	}
 
-	char *disk_name = const_cast<char *>(tokens[0].c_str());
-        /* Set properties on the new dm device */
-        if (!dm_task_set_name(dmt, disk_name))
-                goto out;
+    /* Set properties on the new dm device */
+	if (!dm_task_set_name(dmt, dinfo->name))
+        goto out;
 
-	/* If only the name and file are given as input */
-	if(tokens.size() == 2) {
-		file = const_cast<char *>(tokens[1].c_str());
-		if(!_parse_file(dmt,file)) {
-			cout << "in parse file"<<endl;
-			goto out;
-		}
+	/* Tokenize the command line */ 
+	if(!_parse_line(dmt, dinfo->cmdline, "", 0)) {
+		cout<<"in parse_line"<<endl;
+		goto out;	
 	}
 	
-	if(tokens.size() > 2) {
-		int line=0;
-		stringstream ss;
-		for(size_t i=1; i<tokens.size(); i++) {
-			ss << tokens[i] <<" ";
-		}
-		string s = ss.str();
-		_table = const_cast<char *>(s.c_str());
-		if(!_parse_line(dmt, _table, "", ++line)) {
-			cout<<"in parse_line"<<endl;
-			goto out;	
-		}
-	}
 	
-	/* add the dm device */
-
-//	if (!dm_task_add_target(dmt, start, size, ttype, ptr))
-//        	return 0;
-		
 	/* Now that we have the dm ready; Run it. */
-        if (!dm_task_run(dmt)){
+    if (!dm_task_run(dmt)){
 		cout <<"in task run"<<endl;
 		goto out;
 	}
         
-	if (!_device_info(disk_name)) {
+	if (!_device_info(dinfo->name)) {
 		goto out;
 	}
 
 	r=1;
 	out:
-           dm_task_destroy(dmt);
+       dm_task_destroy(dmt);
 	   return r; 
 }
 
@@ -580,75 +697,51 @@ int create_dm_device(char *args)
  * The new argumenets are specified through the buffer.
  * name specifies the DM deive name.
  */
-int modify_dm_device(char *args)
+int modify_dm_device(struct diskinfo *dinfo, char *args)
 {
-        struct dm_task *dmt;
+	struct dm_task *dmt;
 	int r=0;
-        char *file = NULL;
-        char *_table = NULL;
 
-        string buf;
-        vector<string> tokens;
-        stringstream stream(args);
+	set_disk(dinfo, args);
+    /* DEBUG */
+    cout <<"Event MODIFY"<<endl;
+    dump_diskinfos();
 
-        while(stream >> buf)
-                tokens.push_back(buf);
 
-        if(tokens.size() <= 1) {
-                cout << "ERROR: No arguments" << endl;
-                return 0;
-        }
-
-        /* Create a new dm device */
-        if(!(dmt = dm_task_create(DM_DEVICE_RELOAD)))
-                return 0;
-
-	char *disk_name = const_cast<char *>(tokens[0].c_str());
-        /* Set properties on the new dm device */
-        if (!dm_task_set_name(dmt, disk_name))
-                goto out;
-
-        if(tokens.size() == 2) {
-                file = const_cast<char *>(tokens[1].c_str());
-                if(!_parse_file(dmt,file))
-                        goto out;
-        }
-
-        if(tokens.size() > 2) {
-                int line=0;
-                stringstream ss;
-                for(size_t i=1; i<tokens.size(); i++) {
-                        ss << tokens[i] <<" ";
-                }
-                string s = ss.str();
-                _table = const_cast<char *>(s.c_str());
-                if(!_parse_line(dmt, _table, "", ++line))
-                        goto out;
-        }
-
-	/* Add the dm device */
-//	if (!dm_task_add_target(dmt, start, size, ttype, ptr))
-//                return 0;
-
-        /* Now that we have the dm ready; Run it. */
-        if (!dm_task_run(dmt))
-                goto out;
-
-        /* DM disk is created; Query it. */
-        //printf("DM Disk: %s\n", dm_task_get_name(dmt));
-
-        if (!_device_info(disk_name)) {
-                goto out;
+	if(dinfo->name == NULL || dinfo->cmdline == NULL) {
+		cout << "Diskname or cmdline is empty!" << endl;
+		return 0;
 	}
+
+    /* Create a new dm device */
+    if(!(dmt = dm_task_create(DM_DEVICE_RELOAD)))
+        return 0;
+
+    /* Set properties on the new dm device */
+    if (!dm_task_set_name(dmt, dinfo->name))
+        goto out;
+
+	/* Tokenize the cmdline */
+    if(!_parse_line(dmt, dinfo->cmdline, "", 0))
+        goto out;
+    
+
+    /* Now that we have the dm ready; Run it. */
+    if (!dm_task_run(dmt))
+        goto out;
+
+
+    if (!_device_info(dinfo->name)) 
+        goto out;
+	
  
 	/* Resume this dm device for changes to take effect. */
-	resume_dm_device(const_cast<char *>(tokens[0].c_str()));
-        r=1;
-        out:
-           dm_task_destroy(dmt);
-           return r;
-
-	
+	resume_dm_device(dinfo->name);
+        
+	r=1;
+    out:
+       dm_task_destroy(dmt);
+       return r;
 }
 
 
@@ -777,50 +870,6 @@ static int _parse_file(struct dm_task *dmt, const char *file)
         return r;
 }
 
-int _parse_args(char *args)
-{
-	char *value;
- 	string str; 
-	cout <<"Args: "<<args<<endl;
-	dm_args.clear();
-	if(args && (strlen(args) > 0)) {
-        	char *value;
-	        int rc;
-        	if ((rc = event_arg_dup(args, "DISKNAME", &value)) >= 0) {
-                	cout << "Arg:name"<<" Value:" <<value <<endl;
-			str=value;
-			dm_args["DISKNAME"]=str;
-                	value = NULL;
-        	}
-        
-        	if ((rc = event_arg_dup(args, "MOUNTPOINT", &value)) >= 0) {
-                	cout << "Arg:mountpoint"<<" Value:" <<value<<endl;
-			str=value;
-			dm_args["MOUNTPOINT"]=value;
-	                value = NULL;
-        	}
-	        if ((rc = event_arg_dup(args, "DISKTYPE", &value)) >= 0) {
-        	        cout << "Arg:type"<<" Value:" <<value<<endl;
-			str=value;
-			dm_args["DISKTYPE"]=value;			
-	                value = NULL;
-        	}
-        	if ((rc = event_arg_dup(args, "PARAMETERS", &value)) >= 0) {
-			str=value;
-			cout << "Arg:params"<<" Value:" <<value<<endl;
-			dm_args["PARAMETERS"]=value;
-                	value = NULL;
-        	}
-
-  	}
-	
-	/* If the key-value pairs are not found then indicate it by a failure. */
-	if (dm_args["DISKNAME"] == "" || dm_args["MOUNTPOINT"] == "" || dm_args["DISKTYPE"] == "")
-		return 0;
-	
-	return 1;
-}	
-
 string exec_output(string cmd)
 {
 	// setup
@@ -845,7 +894,6 @@ string exec_output(string cmd)
 static int _device_info(char *name)
 {
 	struct dm_task *dmt;
-	int r=0;
 	struct dm_info info;       
 
 	if (!(dmt = dm_task_create(DM_DEVICE_INFO)))
@@ -973,3 +1021,223 @@ string itos(int i)	// convert int to string
 	s << i;
 	return s.str();
 }
+
+static int
+parse_configfile(char *filename)
+{
+    FILE    *fp;
+    char    buf[BUFSIZ];
+	struct diskinfo *dinfo;
+
+    assert(filename != NULL);
+    assert(strlen(filename) > 0);
+
+    if ((fp = fopen(filename, "r")) == NULL) {
+        cout << "could not open configfile "<< filename <<endl;
+        return -1;
+    }
+
+    while (fgets(buf, sizeof(buf), fp)) {
+        int cc = strlen(buf);
+        if (buf[cc-1] == '\n')
+            buf[cc-1] = '\0';
+
+		if(!strncmp(buf, "DISK", 4)) {
+			char *value;
+			int rc;
+		
+			dinfo = (struct diskinfo *) calloc(1, sizeof(*dinfo));
+		
+			if(!dinfo) {
+				cout << "parse_configfile: out of memory" <<endl;
+				goto bad;
+			}
+
+            if ((rc = event_arg_get(buf, "DISKNAME", &value)) <= 0) {
+                cout << "parse_configfile: bad agent name" << endl;
+                goto bad;
+            }
+            else if (rc >= sizeof(dinfo->name)) {
+                cout << "parse_configfile: agent name is too long" << endl; 
+                goto bad;
+            }
+            strncpy(dinfo->name, value, rc);
+            dinfo->name[rc] = '\0';
+
+            if ((rc = event_arg_dup(buf, "DISKTYPE", &dinfo->type)) == 0) {
+            	free(dinfo->type);
+				dinfo->type = NULL;			    
+            }
+			dinfo->initial_type = dinfo->type;			
+
+            if ((rc = event_arg_dup(buf, "MOUNTPOINT", &dinfo->mountpoint)) == 0) {
+                free(dinfo->mountpoint);
+                dinfo->mountpoint = NULL;
+            }
+			dinfo->initial_mountpoint = dinfo->mountpoint;
+		
+            if ((rc = event_arg_dup(buf, "PARAMETERS", &dinfo->parameters)) == 0) {
+                free(dinfo->parameters);
+                dinfo->parameters = NULL;
+            }
+			dinfo->initial_parameters = dinfo->parameters;
+			
+            if ((rc = event_arg_dup(buf, "COMMAND", &dinfo->cmdline)) == 0) {
+				free(dinfo->cmdline);
+				dinfo->cmdline = NULL;
+            }
+			dinfo->initial_cmdline = dinfo->cmdline;			
+
+			dinfo->next = diskinfos;
+			diskinfos   = dinfo;
+			continue;
+		}
+	}
+    fclose(fp);
+    return 0;
+bad:
+	fclose(fp);
+	return -1;		
+}		
+		
+static void
+set_disk(struct diskinfo *dinfo, char *args)
+{
+    assert(dinfo != NULL);
+    assert(args != NULL);
+
+	cout << "Args in set_disk " << args << endl;
+    /*
+     * The args string holds the command line to execute. We allow
+     * this to be reset in dynamic events, but is optional; the cuurent
+     * command will be used by default, which initially comes from tmcd.
+     */
+    if (args && (strlen(args) > 0)) {
+        char *value;
+        int rc;
+
+        /*
+         * COMMAND is special. For backward compat it can contain
+         * whitespace but need not be quoted.  In fact, if the string
+         * is quoted, we just pass the quotes through to the program.
+         */
+        if ((rc = event_arg_get(args, "COMMAND", &value)) > 0) {
+            cout <<"COMMAND "<<value<<endl;
+			if (dinfo->cmdline != NULL) {
+                if (dinfo->cmdline != dinfo->initial_cmdline) {
+                    free(dinfo->cmdline);
+                    dinfo->cmdline = NULL;
+                }
+            }
+            /*
+             * XXX event_arg_get will return a pointer beyond
+             * any initial quote character.  We need to back the
+             * pointer up if that is the case.
+             */
+            if (value[-1] == '\'' || value[-1] == '{')
+                value--;
+            asprintf(&dinfo->cmdline, "%s", value);
+            value = NULL;
+        }
+        if ((rc = event_arg_dup(args, "DISKTYPE", &value)) >= 0) {
+			cout << "DISKTYPE "<<value<<endl;
+            if (dinfo->type != NULL) {
+                if (dinfo->type != dinfo->initial_type)
+                    free(dinfo->type);
+            }
+			if(rc == 0) {
+				dinfo->type = NULL;
+				free(value);
+			}
+			else if (rc > 0) {
+				dinfo->type = value;
+			}
+			else {
+				assert(0);
+			}
+			value = NULL;
+		}
+        if ((rc = event_arg_dup(args, "MOUNTPOINT", &value)) >= 0) {
+            if (dinfo->mountpoint != NULL) {
+                if (dinfo->mountpoint != dinfo->initial_mountpoint)
+                    free(dinfo->mountpoint);
+            }
+            if(rc == 0) {
+                dinfo->mountpoint = NULL;
+                free(value);
+            }
+            else if (rc > 0) {
+                dinfo->mountpoint = value;
+            }
+            else {
+                assert(0);
+            }
+            value = NULL;
+        }
+        if ((rc = event_arg_dup(args, "PARAMETERS", &value)) >= 0) {
+			cout << "TYPE "<<value<<endl;
+            if (dinfo->parameters != NULL) {
+                if (dinfo->parameters != dinfo->initial_parameters)
+                    free(dinfo->parameters);
+            }
+            if(rc == 0) {
+                dinfo->parameters = NULL;
+                free(value);
+            }
+            else if (rc > 0) {
+                dinfo->parameters = value;
+            }
+            else {
+                assert(0);
+            }
+            value = NULL;
+        }				
+		
+	}
+}
+
+
+static void
+start_callback(event_handle_t handle,
+           event_notification_t notification,
+           void *data)
+{
+    char        event[TBDB_FLEN_EVEVENTTYPE];
+
+    assert(handle != NULL);
+    assert(notification != NULL);
+    assert(data == NULL);
+
+    if (! event_notification_get_eventtype(handle, notification,
+                           event, sizeof(event))) {
+        cerr << "Could not get event from notification!\n" << endl;
+        return;
+    }
+
+    if (strcmp(event, TBDB_EVENTTYPE_START) == 0) {
+        struct diskinfo *dinfo;
+
+        for (dinfo = diskinfos; dinfo != NULL; dinfo = dinfo->next) {
+
+            if (dinfo->cmdline != dinfo->initial_cmdline) {
+                free(dinfo->cmdline);
+                dinfo->cmdline = dinfo->initial_cmdline;
+            }
+            if (dinfo->type != dinfo->initial_type) {
+                free(dinfo->type);
+                dinfo->type = dinfo->initial_type;
+            }
+            if (dinfo->mountpoint != dinfo->initial_mountpoint) {
+                free(dinfo->mountpoint);
+                dinfo->mountpoint = dinfo->initial_mountpoint;
+            }
+            if (dinfo->parameters != dinfo->initial_parameters) {
+                free(dinfo->parameters);
+                dinfo->parameters = dinfo->initial_parameters;
+            }
+
+        }
+	}
+}
+
+	
