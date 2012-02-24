@@ -1788,10 +1788,10 @@ Simulator instproc make_event {outer event} {
 			]
 
 			if {$(-name) != {}} {
-				set args "NAME=$(-name) "
+				set args "DISKNAME=$(-name) "
 			}
 			if {$(-type) != {}} {
-				set args "${args}TYPE=$(-type) "
+				set args "${args}DISKTYPE=$(-type) "
 			}
 			if {$(-mountpoint) != {}} {
 				set args "${args}MOUNTPOINT=$(-mountpoint) "
@@ -1803,15 +1803,32 @@ Simulator instproc make_event {outer event} {
 		    puts stdout "$args"
 		} 
 		"create" {
+
+            #The initial arguments for disk-agent through NS
+
+            set default_name $obj
+
+            set args "DISKNAME=$default_name "
+			set args "${args}DISKTYPE=  "
+			set args "${args}MOUNTPOINT=  "	
+			set args "${args}PARAMETERS=  "
      		set default_cmd [$obj set command]
-		    set args $default_cmd 
+		    set args "${args}COMMAND=$default_cmd" 
 			#DEBUG
 		    puts stdout "$args"
             set etype CREATE
      	}
 		"modify" {
-			set default_cmd [$obj set command]
-		    set args $default_cmd
+			#The initial arguments for disk-agent through NS
+
+            set default_name $obj
+
+            set args "DISKNAME=$default_name "
+            set args "${args}DISKTYPE=  "
+            set args "${args}MOUNTPOINT=  "
+            set args "${args}PARAMETERS=  "
+            set default_cmd [$obj set command]
+            set args "${args}COMMAND=$default_cmd"
 			#DEBUG
 		    puts stdout "$args"
 		    set etype MODIFY

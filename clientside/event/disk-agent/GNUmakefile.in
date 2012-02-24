@@ -27,7 +27,7 @@ CFLAGS   += -DCLIENT_BINDIR='"$(CLIENT_BINDIR)"'
 
 LDFLAGS  += -g -L${TESTBED_LIBOBJDIR}/event -L${TESTBED_LIBOBJDIR}/libtb 
 LIBS     += -levent -ltb -lcrypto -ldevmapper
-LIBS	 += -L/usr/local/lib -lpubsub -ldevmapper
+LIBS	 += -L/usr/local/lib -lpubsub
 LDFLAGS  += $(LDSTATIC)
 
 # Deal with the presence/absence of kerberos in the linux ssl library
