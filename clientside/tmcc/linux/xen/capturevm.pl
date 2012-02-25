@@ -9,6 +9,7 @@ use Getopt::Std;
 use English;
 use Errno;
 use Data::Dumper;
+use File::Basename;
 
 sub usage()
 {
@@ -91,6 +92,19 @@ while (<XM>) {
 close(XM);
 # Filled in later.
 $xminfo{"disksizes"} = "";
+
+#
+# Copy the kernel into the directory and change xminfo.
+#
+if (-e $xminfo{"kernel"}) {
+    Fatal($xminfo{"kernel"} . " does not exist");
+}
+my $kernel = $EXTRAFS;
+$kernel   .= "/$role" if (defined($role));
+$kernel   .= "/" . basename($xminfo{"kernel"});
+system("cp " . $xminfo{"kernel"} . " $kernel") == 0
+    or Fatal("Could not copy kernel to $kernel");
+$xminfo{"kernel"} = basename($xminfo{"kernel"});
 
 #
 # Parse the disk info.

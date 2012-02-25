@@ -22,6 +22,8 @@ my $debug       = 1;
 my $infomode    = 0;
 my $VMPATH      = "/var/xen/configs";
 my $VGNAME	= "xen-vg";
+my $IMAGEUNZIP  = "/usr/testbed/bin/imageunzip";
+my $IMAGEDUMP   = "/usr/testbed/bin/imagedump";
 
 #
 # Turn off line buffering on output
@@ -94,9 +96,6 @@ my %diskinfo = ();
 my %disksize = ();
 foreach my $disk (@$disklist) {
     if ($disk =~ /^phy:([^,]*)/) {
-	if (! -e $1) {
-	    Fatal("$disk does not exist")
-	}
 	$diskinfo{$1} = $disk;
     }
     else {
@@ -122,7 +121,7 @@ foreach my $physinfo (keys(%diskinfo)) {
 	$dev = $1;
     }
     else {
-	fatal("Could not parse $spec");
+	Fatal("Could not parse $spec");
     }
     #
     # Figure out the size of the LVM.
@@ -139,8 +138,8 @@ foreach my $physinfo (keys(%diskinfo)) {
 
     if (! -e $device) {
 	if (!$infomode) {
-	    system("/usr/sbin/lvcreate -n $lvmname -L $lvmsize $VGNAME") == 0
-		or fatal("Could not create lvm for $lvmname");
+	    system("lvcreate -n $lvmname -L $lvmsize $VGNAME") == 0
+		or Fatal("Could not create lvm for $lvmname");
 	}
     }
     # Rewrite the diskinfo path for new xm.conf
@@ -154,8 +153,9 @@ foreach my $physinfo (keys(%diskinfo)) {
 	#
 	# Mark it as a linux swap partition. 
 	#
-	if (system("echo ',,S' | sfdisk $device -N0")) {
-	    fatal("Could not mark $device as linux swap");
+	if (!$infomode &&
+	    system("echo ',,S' | sfdisk $device -N0")) {
+	    Fatal("Could not mark $device as linux swap");
 	}
 	next;
     }
@@ -172,10 +172,10 @@ foreach my $physinfo (keys(%diskinfo)) {
     #
     my $opts = "-W 256";
     if ($infomode) {
-	system("imagedump $filename");
+	system("$IMAGEDUMP $filename");
     }
     else {
-	system("imageunzip -o $opts $filename $device");
+	system("$IMAGEUNZIP -o $opts $filename $device");
     }
 }
 
