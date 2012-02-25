@@ -228,6 +228,7 @@ my %emulabconfig = (
     "CONFIG_MROUTED"	=> $NEEDMROUTED,
     "CONFIG_OPSVM"	=> $OPSVM,
     "CONFIG_NODBINIT"   => 0,
+    "CONFIG_GENIRACK"   => 0,
 
     # Default protogeni package if LOAD_PROTOGENI is enabled.
     "PGENI_PKG"		=> "emulab-protogeni-1.0",
@@ -1037,6 +1038,9 @@ sub SetupFsNode()
     close(RC);
 
   skipsetup:
+    return
+	if ($emulabconfig{"CONFIG_GENIRACK"});
+    
     #
     # Hmm, need to run this at startup though.
     # 
@@ -1236,6 +1240,7 @@ sub SetupOpsNode($)
 	    SetupFatal("Could not get package info from Emulab!");
 	}
 	print "Removing conflicting packages.\n";
+	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
 	system("pkg_delete -r -x mysql-client")
 	    if (-e "/usr/local/bin/mysql");
     
@@ -1393,7 +1398,34 @@ sub SetupOpsNode($)
     else {
 	print RC "defaultrouter=\"$bossnode_ip\"\n";
     }
-    print RC "hostname=\"" . $emulabconfig{"OPSNODE"} . "." . $domain . "\"\n";
+    if ($emulabconfig{"CONFIG_GENIRACK"} &&
+	exists($emulabconfig{"GENIRACK_OPSIP"}) &&
+	$emulabconfig{"CONFIG_SINGLECNET"}) {
+	my $GENIRACK_NETWORK = $emulabconfig{"GENIRACK_NETWORK"};
+	my $GENIRACK_NETMASK = $emulabconfig{"GENIRACK_NETMASK"};
+	my $GENIRACK_OPSIP   = $emulabconfig{"GENIRACK_OPSIP"};
+	my $GENIRACK_DOMAIN  = $emulabconfig{"GENIRACK_DOMAIN"};
+	
+	print RC "ifconfig_${outer_controlif}_alias0=".
+	    "\"inet $GENIRACK_OPSIP netmask $GENIRACK_NETMASK\"\n";
+
+	print RC "static_routes=\"\$static_routes genirack\"\n";
+	print RC "route_genirack=\"-net $GENIRACK_NETWORK ".
+	    " -netmask $GENIRACK_NETMASK -iface $outer_controlif\"\n";
+
+	print RC "hostname=\"" . "ops" . "." . $GENIRACK_DOMAIN . "\"\n";
+
+	#
+	# Need to enact these changes now before trying setup Emulab
+	#
+	mysystem("ifconfig $outer_controlif ".
+		 "inet $GENIRACK_OPSIP netmask $GENIRACK_NETMASK add");
+	#mysystem("route add -net $GENIRACK_NETWORK ".
+	#         "-netmask $GENIRACK_NETMASK -iface $outer_controlif");
+    }
+    else {
+	print RC "hostname=\"" . $emulabconfig{"OPSNODE"} . "." . $domain . "\"\n";
+    }
     close(RC);
 
     #
@@ -1507,6 +1539,9 @@ sub SetupOpsNode($)
     close(RC);
 
   skipsetup:
+    return
+	if ($emulabconfig{"CONFIG_GENIRACK"});
+
     #
     # Hmm, need to run this at startup though.
     # 
@@ -1800,6 +1835,7 @@ sub SetupBossNode($)
 	    SetupFatal("Could not get package info from Emulab!");
 	}
 	print "Removing conflicting packages.\n";
+	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
 	system("pkg_delete -r -x mysql-client")
 	    if (-e "/usr/local/bin/mysql");
 	system("pkg_delete -x net-snmp")
@@ -1943,10 +1979,37 @@ sub SetupBossNode($)
     if ($FBSD_VERSION >= 7) {
 	$tso = "-tso";
     }
-
     print RC "network_interfaces=\"$outer_controlif\"\n";
     print RC "ifconfig_${outer_controlif}=".
 	"\"inet $outer_ip netmask $outer_netmask $tso\"\n";
+
+    if ($emulabconfig{"CONFIG_GENIRACK"} &&
+	exists($emulabconfig{"GENIRACK_BOSSIP"}) &&
+	$emulabconfig{"CONFIG_SINGLECNET"}) {
+	my $GENIRACK_NETWORK = $emulabconfig{"GENIRACK_NETWORK"};
+	my $GENIRACK_NETMASK = $emulabconfig{"GENIRACK_NETMASK"};
+	my $GENIRACK_BOSSIP  = $emulabconfig{"GENIRACK_BOSSIP"};
+	my $GENIRACK_DOMAIN  = $emulabconfig{"GENIRACK_DOMAIN"};
+
+	print RC "ifconfig_${outer_controlif}_alias0=".
+	    "\"inet $GENIRACK_BOSSIP netmask $GENIRACK_NETMASK\"\n";
+
+	print RC "static_routes=\"\$static_routes genirack\"\n";
+	print RC "route_genirack=\"-net $GENIRACK_NETWORK ".
+	    " -netmask $GENIRACK_NETMASK -iface $outer_controlif\"\n";
+
+	print RC "hostname=\"" . "boss" . "." . $GENIRACK_DOMAIN . "\"\n";
+	#
+	# Need to enact these changes now before trying setup Emulab
+	#
+	mysystem("ifconfig $outer_controlif ".
+		 "inet $GENIRACK_BOSSIP netmask $GENIRACK_NETMASK add");
+	#mysystem("route add -net $GENIRACK_NETWORK ".
+	#	 "-netmask $GENIRACK_NETMASK -iface $outer_controlif");
+    }
+    else {
+	print RC "hostname=\"" . $emulabconfig{"BOSSNODE"} . "." . $domain . "\"\n";
+    }
 
     if (! $emulabconfig{"CONFIG_SINGLECNET"}) {
 	print RC "network_interfaces=\"\$network_interfaces $inner_controlif\"\n";
@@ -1962,6 +2025,9 @@ sub SetupBossNode($)
 	" -iface " . ($emulabconfig{"CONFIG_SINGLECNET"} ?
 		      $outer_controlif : $inner_controlif) . "\"\n";
 
+    # Points to outer control router.
+    print RC "defaultrouter=\"$outer_routerip\"\n";
+
     #
     # Use natd so that internal control network can talk to outside world.
     # Maybe make an option?
@@ -1973,9 +2039,6 @@ sub SetupBossNode($)
     print RC "natd_flags=\"-use_sockets -unregistered_only -same_ports ".
 	"-dynamic -log_facility local6\"\n";
 
-    # Points to outer control router.
-    print RC "defaultrouter=\"$outer_routerip\"\n";
-    print RC "hostname=\"" . $emulabconfig{"BOSSNODE"} . "." . $domain . "\"\n";
     # We act as the router for the inner ops and inner nodes.
     print RC "gateway_enable=\"YES\"\n";
 
@@ -2090,15 +2153,6 @@ sub SetupBossNode($)
     }
 
     #
-    # Before we restart named, tweak the config to reflect the correct
-    # NTP server for the inner nodes.
-    #
-    my $ndbfile = "${domain}.db.head";
-    mysystem("sed -i '.orig' -E -e 's/^(ntp[12])[[:space:]]+IN[[:space:]]+CNAME[[:space:]]+ops/\\1 IN CNAME $NTPSERVER/' /etc/namedb/$ndbfile");
-    $ndbfile = "${domain}.internal.db.head";
-    mysystem("sed -i '.orig' -E -e 's/^(ntp[12])[[:space:]]+IN[[:space:]]+CNAME[[:space:]]+ops/\\1 IN CNAME $NTPSERVER/' /etc/namedb/$ndbfile");
-
-    #
     # Copy the creators ssl certificate into place. This allows the
     # inner boss to invoke the XMLRPC server on the outer boss for
     # doing things like power control, vlan setup, etc.
@@ -2146,7 +2200,10 @@ sub SetupBossNode($)
     #
     mysystem("/usr/testbed/sbin/named_setup");
 
-  skipsetup:    
+  skipsetup:
+    return
+	if ($emulabconfig{"CONFIG_GENIRACK"});
+    
     #
     # Tack the frisbee mcast addr ipfw rule onto end of /etc/rc.local.
     #
@@ -2380,6 +2437,7 @@ sub SetupOpsJail()
 	    SetupFatal("Could not get package info from Emulab!");
 	}
 	print "Removing conflicting packages.\n";
+	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
 	system("pkg_delete -r -x mysql-client")
 	    if (-e "/usr/local/bin/mysql");
     
@@ -2539,17 +2597,36 @@ sub CreateDefsFile($)
 	}
     }
 
-    my $bossnode_ip     = $emulabconfig{"BOSSIP"};
-    my $opsnode_ip      = $emulabconfig{"OPSIP"};
-    my $fsnode_ip       = $emulabconfig{"FSIP"};
-    my $control_ip      = ($opsvm ? $bossnode_ip : $opsnode_ip);
-    my $control_netmask = "255.255.255.0";
+    my $bossnode_ip        = $emulabconfig{"BOSSIP"};
+    my $opsnode_ip         = $emulabconfig{"OPSIP"};
+    my $fsnode_ip          = $emulabconfig{"FSIP"};
+    my $control_ip         = ($opsvm ? $bossnode_ip : $opsnode_ip);
+    my $control_netmask    = "255.255.255.0";
+    my $bossnode_hostname  = $emulabconfig{"BOSSNODE"}; 
+    my $opsnode_hostname   = $emulabconfig{"OPSNODE"}; 
+    my $fsnode_hostname    = $emulabconfig{"FSNODE"};
+    my $ourdomain	   = $domain;
 
     #
     # The control network netmask differs if using a single control network. 
     #
     if ($emulabconfig{"CONFIG_SINGLECNET"}) {
 	$control_netmask = $outer_netmask;
+    }
+
+    #
+    # Ug.
+    #
+    if ($emulabconfig{"CONFIG_SINGLECNET"}) {
+	$bossnode_ip        = $emulabconfig{"GENIRACK_BOSSIP"};
+	$opsnode_ip         = $emulabconfig{"GENIRACK_OPSIP"};
+	$fsnode_ip          = $opsnode_ip;
+	$control_ip         = $opsnode_ip;
+	$control_netmask    = $emulabconfig{"GENIRACK_NETMASK"};
+	$bossnode_hostname  = "boss";
+	$opsnode_hostname   = "ops";
+	$fsnode_hostname    = "ops";
+	$ourdomain	    = $emulabconfig{"GENIRACK_DOMAIN"};
     }
     
     my $control_network = inet_ntoa(inet_aton($control_ip) &
@@ -2582,8 +2659,7 @@ sub CreateDefsFile($)
 	    # Look for things that include "changeme". Emails are special.
 	    #
 	    if ($val =~ /^(.*)\@(changeme)$/) {
-		my $opsnode = $emulabconfig{"OPSNODE"}; 
-		print OUTDEFS "${key}=${1}\@${opsnode}.${domain}\n";
+		print OUTDEFS "${key}=${1}\@${opsnode_hostname}.${ourdomain}\n";
 		next;
 	    }
 	    if (! ($val =~ /changeme/)) {
@@ -2593,8 +2669,7 @@ sub CreateDefsFile($)
 	
 	    SWITCH: for ($key) {
 		/^BOSSNODE$/ && do {
-		    my $bossnode = $emulabconfig{"BOSSNODE"}; 
-		    print OUTDEFS "BOSSNODE=${bossnode}.${domain}\n";
+		    print OUTDEFS "BOSSNODE=${bossnode_hostname}.${ourdomain}\n";
 		    last SWITCH;
 		};
 		/^OUTERBOSS_NODENAME$/ && do {
@@ -2607,26 +2682,27 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^USERNODE$/ && do {
-		    my $opsnode = $emulabconfig{"OPSNODE"}; 
-		    print OUTDEFS "USERNODE=${opsnode}.${domain}\n";
+		    print OUTDEFS "USERNODE=${opsnode_hostname}.${ourdomain}\n";
 		    last SWITCH;
 		};
 		/^FSNODE$/ && do {
-		    my $fsnode = $emulabconfig{"FSNODE"}; 
-		    print OUTDEFS "FSNODE=${fsnode}.${domain}\n";
+		    print OUTDEFS "FSNODE=${fsnode_hostname}.${ourdomain}\n";
 		    last SWITCH;
 		};
 		/^OURDOMAIN$/ && do {
-		    print OUTDEFS "OURDOMAIN=${domain}\n";
+		    print OUTDEFS "OURDOMAIN=${ourdomain}\n";
 		    last SWITCH;
 		};
 		/^WWWHOST$/ && do {
-		    my $bossnode = $emulabconfig{"BOSSNODE"}; 
-		    print OUTDEFS "WWWHOST=${bossnode}.${domain}\n";
+		    print OUTDEFS "WWWHOST=${bossnode_hostname}.${ourdomain}\n";
 		    last SWITCH;
 		};
 		/^THISHOMEBASE$/ && do {
 		    print OUTDEFS "THISHOMEBASE=MyEmulab.Net\n";
+		    last SWITCH;
+		};
+		/^NTPSERVER$/ && do {
+		    print OUTDEFS "NTPSERVER=${NTPSERVER}\n";
 		    last SWITCH;
 		};
 		/^TESTBED_NETWORK$/ && do {
