@@ -31,14 +31,15 @@ cvsup		IN	CNAME	boss
 
 ; Ops and names it is otherwise known as...
 %usernode_ina%
-ntp1		IN	CNAME	ops
-ntp2		IN	CNAME	ops
 event-server	IN	CNAME	ops
 wiki		IN	CNAME	ops
 
 ; Fs (may just be a CNAME for ops)
 %fsnode_ina%
 %fsnode_mx%
+
+; NTP is a CNAME to something
+%ntp_cname%
 
 ; Routers interfaces in the various subnets
 %private-router%

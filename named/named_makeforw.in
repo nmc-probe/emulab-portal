@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use Getopt::Std;
@@ -31,6 +31,7 @@ my $EXTERNAL_TESTBED_NETMASK = "@EXTERNAL_TESTBED_NETMASK@";
 my $BOSSNODE_IP              = "@BOSSNODE_IP@";
 my $USERNODE_IP              = "@USERNODE_IP@";
 my $FSNODE_IP                = "@FSNODE_IP@";
+my $NTPSERVER                = "@NTPSERVER@";
 my $EXTERNAL_BOSSNODE_IP     = "@EXTERNAL_BOSSNODE_IP@";
 my $EXTERNAL_USERNODE_IP     = "@EXTERNAL_USERNODE_IP@";
 my $EXTERNAL_FSNODE_IP       = "@EXTERNAL_FSNODE_IP@";
@@ -162,7 +163,14 @@ while (<IF>) {
 		} else {
 		    ;
 		}
-
+	    }
+	    elsif ($2 eq "ntp_cname") {
+		$internal_strings .=
+			"ntp1\t\tIN\tCNAME\t${NTPSERVER}\n".
+			"ntp2\t\tIN\tCNAME\t${NTPSERVER}\n";
+		$external_strings .=
+			"ntp1\t\tIN\tCNAME\t${NTPSERVER}\n".
+			"ntp2\t\tIN\tCNAME\t${NTPSERVER}\n";
 	    }
 	    elsif ($2 eq "private-router") {
                 my $foo = "private-router\tIN\tA\t${PRIVATE_ROUTER}\n";

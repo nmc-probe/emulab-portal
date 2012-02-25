@@ -45,6 +45,7 @@ SFSSUPPORT=0
 CVSSUPPORT=changeme
 NFSTRACESUPPORT=0
 ARCHIVESUPPORT=changeme
+NTPSERVER=changeme
 DISABLE_NSE=1
 # This means it is an inner elab!
 ELABINELAB=1
