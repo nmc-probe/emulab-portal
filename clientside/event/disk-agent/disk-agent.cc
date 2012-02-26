@@ -377,7 +377,7 @@ void subscribe(event_handle_t handle, address_tuple_t eventTuple,
   eventTuple->host = ADDRESSTUPLE_ANY;
   eventTuple->site = ADDRESSTUPLE_ANY;
   eventTuple->group = ADDRESSTUPLE_ANY;
-  eventTuple->scheduler = 1;
+  //eventTuple->scheduler = 1;
   if (event_subscribe(handle, callback, eventTuple, NULL) == NULL)
   {
     cerr << "Could not subscribe to " << eventTuple->eventtype << " event" << endl;
@@ -395,7 +395,7 @@ void subscribe(event_handle_t handle, address_tuple_t eventTuple,
         cerr << "could not subscribe to event" << endl;
     }
 
-  
+ 	dump_diskinfos(); 
 
 
 }
@@ -491,8 +491,17 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 	struct dm_task *dmt;
 
 	set_disk(dinfo, args);
+
+	/* Check if the required parameters for this event is supplied 
+	 */
+	if(!dinfo->type || !dinfo->mountpoint) 
+	{
+		cerr << "Disk type of mountpoint not specified" <<endl;
+		return 0;
+	}
+		
     /* DEBUG */
-    cout <<"Event RUN"<<endl;
+    cout <<"Event START/RUN"<<endl;
     dump_diskinfos();
 
 
@@ -650,6 +659,14 @@ int create_dm_device(struct diskinfo *dinfo, char *args)
 	string str="";
 	int r=0;
 
+    /* Check if the required parameters for this event is supplied
+     */
+    if(!dinfo->command)
+    {
+        cerr << "Command not specified" <<endl;
+        return 0;
+    }
+
 	set_disk(dinfo, args);
     /* DEBUG */
     cout <<"Event CREATE"<<endl;
@@ -701,6 +718,14 @@ int modify_dm_device(struct diskinfo *dinfo, char *args)
 {
 	struct dm_task *dmt;
 	int r=0;
+
+    /* Check if the required parameters for this event is supplied
+     */
+    if(!dinfo->command)
+    {
+        cerr << "Disk type of mountpoint not specified" <<endl;
+        return 0;
+    }
 
 	set_disk(dinfo, args);
     /* DEBUG */
