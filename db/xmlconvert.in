@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -92,6 +92,12 @@ my %virtual_tables =
      "virt_programs"		=> { rows  => undef, 
 				     tag   => "programs",
 				     row   => "program"},
+     "virt_node_attributes"	=> { rows  => undef, 
+				     tag   => "virt_node_attributes",
+				     row   => "virt_node_attribute"},
+     "virt_node_disks"      	=> { rows  => undef, 
+				     tag   => "virt_node_disks",
+				     row   => "virt_node_disk"},
      "virt_user_environment"	=> { rows  => undef, 
 				     tag   => "user_environments",
 				     row   => "user_environment"},

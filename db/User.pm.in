@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package User;
@@ -21,10 +21,10 @@ use File::Basename;
 use overload ('""' => 'Stringify');
 use vars qw($NEWUSER_FLAGS_PROJLEADER $NEWUSER_FLAGS_WIKIONLY
 	    $NEWUSER_FLAGS_WEBONLY $NEWUSER_FLAGS_ARCHIVED
-	    $NEWUSER_FLAGS_NOUUID
+	    $NEWUSER_FLAGS_NOUUID $NEWUSER_FLAGS_NONLOCAL
 	    $USERSTATUS_ACTIVE $USERSTATUS_FROZEN
 	    $USERSTATUS_UNAPPROVED $USERSTATUS_UNVERIFIED
-	    $USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED
+	    $USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED $USERSTATUS_NONLOCAL
 	    @EXPORT_OK);
 
 # Configure variables
@@ -48,6 +48,7 @@ $NEWUSER_FLAGS_WIKIONLY		= 0x02;
 $NEWUSER_FLAGS_WEBONLY		= 0x04;
 $NEWUSER_FLAGS_ARCHIVED		= 0x08;
 $NEWUSER_FLAGS_NOUUID		= 0x80;
+$NEWUSER_FLAGS_NONLOCAL		= 0x40;
 
 # Status values.
 $USERSTATUS_ACTIVE		= "active";
@@ -56,6 +57,7 @@ $USERSTATUS_UNAPPROVED		= "unapproved";
 $USERSTATUS_UNVERIFIED		= "unverified";
 $USERSTATUS_NEWUSER	        = "newuser";
 $USERSTATUS_ARCHIVED	        = "archived";
+$USERSTATUS_NONLOCAL	        = "nonlocal";
 
 # Why, why, why?
 @EXPORT_OK = qw($NEWUSER_FLAGS_PROJLEADER $NEWUSER_FLAGS_WIKIONLY
@@ -63,7 +65,7 @@ $USERSTATUS_ARCHIVED	        = "archived";
 		$NEWUSER_FLAGS_NOUUID
 		$USERSTATUS_ACTIVE $USERSTATUS_FROZEN
 		$USERSTATUS_UNAPPROVED $USERSTATUS_UNVERIFIED
-		$USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED);
+		$USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED $USERSTATUS_NONLOCAL);
 
 # Protos
 sub SetUserInterface($$);
@@ -90,6 +92,7 @@ sub Lookup($$)
 {
     my ($class, $token) = @_;
     my $status_archived = $USERSTATUS_ARCHIVED;
+    my $status_nonlocal = $USERSTATUS_NONLOCAL;
     my $query_result;
 
     # Look in cache first
@@ -105,13 +108,15 @@ sub Lookup($$)
 	    DBQueryWarn("select * from users where uid_idx='$token'");
     }
     elsif ($token =~ /^\w+$/) {
-	# When looking up by uid, only look for non-archived users;
-	# Must use an idx if you really want an archived user. This
-	# will prevent problems with code that has not yet been
-	# changed to use the idx field.
+	#
+	# When looking up by uid, only look for local non-archived users.
+	# We know that those are unique in the table.
+	#
 	$query_result =
 	    DBQueryWarn("select * from users ".
-			"where uid='$token' and status!='$status_archived'");
+			"where uid='$token' and ".
+			"      status!='$status_archived' and ".
+			"      status!='$status_nonlocal'");
     }
     else {
 	return undef;
@@ -181,6 +186,18 @@ sub chpasswd_expires($) { return field($_[0], "chpasswd_expires"); }
 sub wikiname($)		{ return field($_[0], "wikiname"); }
 sub wikionly($)		{ return field($_[0], "wikionly"); }
 sub mailman_password($) { return field($_[0], "mailman_password"); }
+sub initial_passphrase($) { return field($_[0], "initial_passphrase"); }
+sub active($)		{ return ($_[0]->status() eq "active"   ? 1 : 0); };
+sub newuser($)		{ return ($_[0]->status() eq "newuser" ? 1 : 0); };
+sub archived($)		{ return ($_[0]->status() eq "archived" ? 1 : 0); };
+sub frozen($)		{ return ($_[0]->status() eq "frozen" ? 1 : 0); };
+sub default_project($)	{ return field($_[0], "default_project"); }
+sub nocollabtools($)	{ return field($_[0], "nocollabtools"); }
+sub manager_urn($)	{ return field($_[0], "manager_urn"); }
+sub nonlocal_id($)	{ return field($_[0], "nonlocal_id"); }
+sub nonlocal_type($)	{ return field($_[0], "nonlocal_type"); }
+sub IsLocal($)		{ return (defined($_[0]->nonlocal_id()) ? 0 : 1); };
+sub IsNonLocal($)	{ return (defined($_[0]->nonlocal_id()) ? 1 : 0); };
 
 # Temporary data storage ... useful.
 sub GetTempData($$) { return field($_[0], "tempdata"); } 
@@ -259,11 +276,13 @@ sub LookupByWikiName($$)
 {
     my ($class, $wikiname) = @_;
     my $status_archived = $USERSTATUS_ARCHIVED;
+    my $status_nonlocal = $USERSTATUS_NONLOCAL;
     
     my $query_result =
 	DBQueryFatal("select uid_idx from users ".
 		     "where wikiname='$wikiname' and ".
-		     "      status!='$status_archived'");
+		     "      status!='$status_archived' and ".
+		     "      status!='$status_nonlocal'");
 
     return undef
 	if (! $query_result || !$query_result->numrows);
@@ -281,11 +300,14 @@ sub LookupByEmail($$)
 {
     my ($class, $email) = @_;
     my $status_archived = $USERSTATUS_ARCHIVED;
+    my $status_nonlocal = $USERSTATUS_NONLOCAL;
 
     my $query_result =
 	DBQueryFatal("select uid_idx from users ".
 		     "where LCASE(usr_email)=LCASE('$email') and ".
-		     "      status!='$status_archived'");
+		     "      status!='$status_archived' and ".
+		     "      status!='$status_nonlocal'");
+		     
 
     return undef
 	if (! $query_result || !$query_result->numrows);
@@ -302,12 +324,36 @@ sub LookupByUUID($$)
 {
     my ($class, $uuid) = @_;
     my $status_archived = $USERSTATUS_ARCHIVED;
+    my $status_nonlocal = $USERSTATUS_NONLOCAL;
     my $safe_uuid = DBQuoteSpecial($uuid);
 
     my $query_result =
 	DBQueryFatal("select uid_idx from users ".
 		     "where uid_uuid=$safe_uuid and ".
-		     "      status!='$status_archived'");
+		     "      status!='$status_archived' and ".
+		     "      status!='$status_nonlocal'");
+
+    return undef
+	if (! $query_result || !$query_result->numrows);
+
+    my ($uid_idx) = $query_result->fetchrow_array();
+
+    return User->Lookup($uid_idx);
+}
+
+#
+# Lookup a nonlocal user.
+#
+sub LookupNonLocal($$)
+{
+    my ($class, $urn) = @_;
+    my $status_nonlocal = $USERSTATUS_NONLOCAL;
+    my $safe_urn = DBQuoteSpecial($urn);
+
+    my $query_result =
+	DBQueryFatal("select uid_idx from users ".
+		     "where nonlocal_id=$safe_urn and ".
+		     "      status='$status_nonlocal'");
 
     return undef
 	if (! $query_result || !$query_result->numrows);
@@ -329,6 +375,7 @@ sub Create($$$$)
     my $wikionly = ($flags & $NEWUSER_FLAGS_WIKIONLY   ? 1 : 0);
     my $webonly  = ($flags & $NEWUSER_FLAGS_WEBONLY    ? 1 : 0);
     my $archived = ($flags & $NEWUSER_FLAGS_ARCHIVED   ? 1 : 0);
+    my $nonlocal = ($flags & $NEWUSER_FLAGS_NONLOCAL   ? 1 : 0);
     my $nouuid   = ($flags & $NEWUSER_FLAGS_NOUUID     ? 1 : 0);
 
     #
@@ -503,6 +550,17 @@ sub Create($$$$)
 	push(@insert_data, "usr_pswd='*'");
 	push(@insert_data, "usr_email='bouncer\@${OURDOMAIN}'");
     }
+    elsif ($nonlocal) {
+	if (! (exists($argref->{'nonlocal_id'}) &&
+	       exists($argref->{'nonlocal_type'}))) {
+	    print STDERR "*** User->Create(): ".
+		"Must provide nonlocal_id and nonlocal_type!\n";
+	    return undef;
+	}
+	push(@insert_data, "status='$USERSTATUS_NONLOCAL'");
+	push(@insert_data, "pswd_expires=now()");
+	push(@insert_data, "usr_pswd='*'");
+    }
     else {
 	push(@insert_data, "status='$USERSTATUS_NEWUSER'");
 	push(@insert_data, "pswd_expires=date_add(now(), interval 1 year)");
@@ -538,6 +596,10 @@ sub Delete($)
 
     my $uid_idx = $self->uid_idx();
 
+    DBQueryWarn("delete from user_pubkeys where uid_idx='$uid_idx'")
+	or return -1;
+    DBQueryWarn("delete from user_sslcerts where uid_idx='$uid_idx'")
+	or return -1;
     DBQueryWarn("delete from user_stats where uid_idx='$uid_idx'")
 	or return -1;
     DBQueryWarn("delete from users where uid_idx='$uid_idx'")
@@ -668,8 +730,8 @@ sub IsAdmin($)
     return 0
 	if (! ref($self));
 
+    # Only current user can pass IsAdmin test.
     if (!$self->SameUser($self->ThisUser())) {
-	print STDERR "*** IsAdmin: Must be invoked on current user!\n";
 	return 0;
     }
     #
@@ -844,11 +906,8 @@ sub ModUserInfo($$$$)
     }
 
     if (!keys %mods) {
-	if (!$noreport) {
-	    # Warn the user that the submit button was pressed with no effect.
-	    $$usrerr_ref = "Submit: Nothing changed";
-	    return undef;
-	}
+	# Nothing to do, fine.
+	return 1;
     }
     else {
 	# Send an audit e-mail reporting what is being changed.
@@ -940,16 +999,43 @@ sub Update($$)
 	if (! ref($self));
 
     my $uid_idx = $self->uid_idx();
+    my @sets   = ();
 
-    my $query = "update users set usr_modified=now(), ".
-	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
+    foreach my $key (keys(%{$argref})) {
+	my $val = $argref->{$key};
 
-    $query .= " where uid_idx='$uid_idx'";
+	# Treat NULL special.
+	push (@sets, "${key}=" . ($val eq "NULL" ?
+				  "NULL" : DBQuoteSpecial($val)));
+    }
+
+    my $query = "update users set usr_modified=now(), " . join(",", @sets) .
+	" where uid_idx='$uid_idx'";
 
     return -1
 	if (! DBQueryWarn($query));
 
     return Refresh($self);
+}
+
+#
+# Bump usr_modified.
+#
+sub BumpModified($)
+{
+    my ($self) = @_;
+    
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $uid_idx = $self->uid_idx();
+
+    return -1
+	if (!DBQueryWarn("update users set usr_modified=now() ".
+			 "where uid_idx='$uid_idx'"));
+
+    return 0;
 }
 
 #
@@ -1022,9 +1108,9 @@ sub SetStatus($$)
 #
 # Get user ssl certificate (pubkey). 
 #
-sub SSLCert($$$)
+sub SSLCert($$$;$)
 {
-    my ($self, $encrypted, $pref) = @_;
+    my ($self, $encrypted, $pref, $pkey) = @_;
     $encrypted = ($encrypted ? 1 : 0);
     
     # Must be a real reference. 
@@ -1034,21 +1120,23 @@ sub SSLCert($$$)
     my $uid_idx = $self->uid_idx();
 
     my $query_result =
-	DBQueryWarn("select cert from user_sslcerts ".
+	DBQueryWarn("select cert,privkey from user_sslcerts ".
 		    "where uid_idx='$uid_idx' and encrypted=$encrypted and ".
 		    "      revoked is null");
 		    
     return -1
 	if (!defined($query_result) || !$query_result->numrows);
 
-    my ($cert) = $query_result->fetchrow_array();
+    my ($cert,$privkey) = $query_result->fetchrow_array();
     $$pref = $cert;
+    $$pkey = $privkey
+	if (defined($pkey));
     return 0;
 }
 
 #
-# Get user ssh keys. This is bogus; I am making sure not to return the
-# emulab key which is not encrypted. The keys table needs work.
+# Get user ssh keys, but do not include the "internal" keys, which
+# are the Emulab generated unencrypted keys.
 #
 sub GetSSHKeys($$)
 {
@@ -1063,8 +1151,7 @@ sub GetSSHKeys($$)
 
     my $query_result =
 	DBQueryWarn("select pubkey from user_pubkeys ".
-		    "where uid_idx='$uid_idx' and ".
-		    "      comment not like '%${OURDOMAIN}'");
+		    "where uid_idx='$uid_idx' and internal=0");
 
     return -1
 	if (!defined($query_result));
@@ -1077,8 +1164,30 @@ sub GetSSHKeys($$)
 }
 
 #
-# Get (hopefully) unencrypted, locally-generated user ssh keys.  This is 
-# bogus; I am making sure to only return locally-generated keys.
+# Delete ssh keys, except for emulab created keys.
+#
+sub DeleteSSHKeys($)
+{
+    my ($self) = @_;
+    
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $uid_idx = $self->uid_idx();
+
+    my $query_result =
+	DBQueryWarn("delete from user_pubkeys ".
+		    "where uid_idx='$uid_idx' and internal=0");
+
+    return -1
+	if (!defined($query_result));
+
+    return 0;
+}
+
+#
+# Get (hopefully) unencrypted, locally-generated user ssh keys.
 #
 sub GetDefaultSSHKeys($$;$)
 {
@@ -1098,8 +1207,7 @@ sub GetDefaultSSHKeys($$;$)
 
     my $query_result =
 	DBQueryWarn("select pubkey from user_pubkeys ".
-		    "where uid_idx='$uid_idx' and ".
-		    "      comment like '%\@${OURDOMAIN}' $extra");
+		    "where uid_idx='$uid_idx' and internal=1 $extra");
 
     return -1
 	if (!defined($query_result));
@@ -1166,6 +1274,7 @@ sub SetPassword($$$)
 sub SetWindowsPassword($$)
 {
     my ($self, $wpswd) = @_;
+    my $safe_password = DBQuoteSpecial($wpswd);
 
     # Must be a real reference. 
     return -1
@@ -1175,7 +1284,7 @@ sub SetWindowsPassword($$)
 
     return -1
 	if (! DBQueryWarn("update users set ".
-			  "  usr_w_pswd='$wpswd' ".
+			  "  usr_w_pswd=$safe_password ".
 			  "where uid_idx='$uid_idx'"));
 
     return Refresh($self);
@@ -1192,12 +1301,12 @@ sub SetNotes($$)
     return -1
 	if (! ref($self));
 
-    $notes = escapeshellarg($notes);
+    my $safe_notes = DBQuoteSpecial($notes);
     my $uid_idx = $self->uid_idx();
 
     return -1
 	if (! DBQueryWarn("update users set ".
-			  "  notes='$notes' ".
+			  "  notes=$safe_notes ".
 			  "where uid_idx='$uid_idx'"));
 
     return Refresh($self);
@@ -1215,10 +1324,11 @@ sub SetUserInterface($$)
 	if (! ref($self));
 
     my $uid_idx = $self->uid_idx();
+    my $safe_interface = DBQuoteSpecial($interface);
 
     return -1
 	if (! DBQueryWarn("update users set ".
-			  "  user_interface='$interface' ".
+			  "  user_interface=$safe_interface ".
 			  "where uid_idx='$uid_idx'"));
 
     return Refresh($self);
@@ -1283,6 +1393,25 @@ sub SendVerifiedEmail($)
 		return -1;
 	}
     }
+    return 0;
+}
+
+sub SendEmail($$$)
+{
+    my ($self, $subject, $body) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $uid        = $self->uid();
+    my $user_email = $self->email();
+    my $user_name  = $self->name();
+
+    # Audit email.
+    SENDMAIL("$user_name <$user_email>", $subject, $body,
+	     $TBOPS, "Bcc: $TBAUDIT");
+
     return 0;
 }
 
@@ -1448,8 +1577,8 @@ sub GList($$)
     # of the list Order matters here, or we won't pick up all the groups
     # we need.
     #
-    $glist =~ s/ ?\b$default\b ?//;
-    $glist = $default . " " . $default . " " . $glist;
+    my @glist = grep {$_ != $default} split(/\s/, $glist);
+    $glist = $default . " " . $default . " @glist";
 
     return $glist;
 }
@@ -1495,6 +1624,10 @@ sub FlipTo($$)
     # Must be a real reference. 
     return -1
 	if (! ref($self));
+
+    # We must have been setuid to start with, and this allows us
+    # to flip to a different user in the case we already flipped.
+    $EUID = 0;
 
     my $glist = $self->GList($default_gid);
     return -1
@@ -1624,11 +1757,119 @@ sub HomeDir($)
 
 sub escapeshellarg($)
 {
-    my ($str) = @_;
+    my ($str)  = @_;
+    my @chars  = split('', $str);
+    my $result = "";
 
-    $str =~ s/[^[:alnum:]]/\\$&/g;
-    $str =~ /^(.+)$/; # untaint the result
-    return $1;
+    foreach my $ch (@chars) {
+        if ($ch eq '\'') {
+            $result = $result . "\'\\\'";
+	}
+	$result = $result . "$ch";
+    }
+    return "'$result'";
+}
+
+#
+# Check to see if a uid is valid.
+#
+sub ValidUID($$)
+{
+    my ($class, $uid) = @_;
+
+    return TBcheck_dbslot($uid, "users", "uid",
+			  TBDB_CHECKDBSLOT_WARN()|
+			  TBDB_CHECKDBSLOT_ERROR());
+}
+
+#
+# Default project. If not set in the users table, then look at the
+# project membership, and if only one project then use that. 
+#
+sub DefaultProject($)
+{
+    my ($self) = @_;
+    my $project = undef;
+    
+    require Project;
+    
+    if (defined($self->default_project())) {
+	$project = Project->Lookup($self->default_project());
+	return $project
+	    if (defined($project) && $project->LookupUser($self));
+    }
+    return $project
+	if ($self->FirstApprovedProject(\$project) == 0);
+    
+    return undef;
+}
+
+#
+# Cross loging from an emulab peer. Create a login entry, returning
+# the hash of the hash to use as a key.
+#
+sub CrossLogin($)
+{
+    my ($self) = @_;
+    my $uid     = $self->uid();
+    my $uid_idx = $self->uid_idx();
+    my $timeout = time() + 30;
+    my $opskey  = TBGenSecretKey();
+
+    my $key=`/bin/dd if=/dev/urandom count=256 bs=1 2> /dev/null | /sbin/sha256`;
+    return undef
+	if ($?);
+    if ($key =~ /^(\w*)$/) {
+	$key = $1;
+    }
+    else {
+	return undef;
+    }
+
+    #
+    # Note that this hash (of the key) is purposely a different algorithm
+    # then what is used in the normal web login path (in the php code).
+    # This is to protect against the hash being stolen out of the user
+    # browser and used to do an xlogin.
+    #
+    my $hash = `echo $key | /sbin/md5`;
+    return undef
+	if ($?);
+    if ($hash =~ /^(\w*)$/) {
+	$hash = $1;
+    }
+    else {
+	return undef;
+    }
+
+    return undef
+	if (!DBQueryWarn("replace into login set ".
+			 "  uid='$uid', uid_idx='$uid_idx', ".
+			 "  hashkey='$key', hashhash='$hash', ".
+			 "  timeout='$timeout', adminon=0, opskey='$opskey'"));
+    return $hash;
+}
+
+#
+# Return user_exports info, as a plain hash.
+#
+sub PeerExports($$)
+{
+    my ($self, $pref) = @_;
+    my $uid_idx = $self->uid_idx();
+    my $result  = {};
+
+    my $query_result =
+	DBQueryWarn("select e.*,p.* from user_exports as e ".
+		    "left join emulab_peers as p on p.name=e.peer ".
+		    "where e.uid_idx='$uid_idx'");
+
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $peer = $row->{'name'};
+	$result->{$peer} = $row;
+    }
+    $$pref = $result;
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

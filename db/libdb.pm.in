@@ -458,7 +458,7 @@ sub TBBootWhat($;$)
 
     if (!$query_result || !$query_result->numrows) {
 	print("*** Warning: No bootwhat info for $node\n");
-	return 0;
+	return undef;
     }
     my ($def_boot_osid, $def_boot_opmode,
 	$temp_boot_osid, $temp_boot_opmode,
@@ -474,8 +474,12 @@ sub TBBootWhat($;$)
     return ($def_boot_osid, $def_boot_opmode)
 	if (defined($def_boot_osid) && $def_boot_osid ne 0);
 
+    #
+    # If all info is clear, the node will boot into PXEWAIT.
+    # This is not an error.
+    #
     print("*** Warning: node '$node': All boot info was null!\n");
-    return undef;
+    return (0, 0);
 }
 
 #
@@ -1826,7 +1830,7 @@ sub TBNodeUpdateAccountsByUID($)
     my ($uid) = @_;
 
     DBQueryFatal("update users set usr_modified=now() ".
-		 "where uid='$uid' and status!='archived'");
+		 "where uid='$uid' and status='active'");
 
     my $query_result =
 	DBQueryFatal("select p.pid,pcremote_ok from users as u ".
@@ -2009,8 +2013,8 @@ sub TBNodeStateWait ($$$$@) {
 # XXX only returns true for experiments with VLAN-based firewalls.
 # XXX this will need to change if we support multiple firewalls per experiment.
 #
-sub TBExptFirewall ($$;$$$) {
-    my ($pid, $eid, $fwnodep, $fwvlanidp, $fwvlanp) = @_;
+sub TBExptFirewall ($$;$$$$) {
+    my ($pid, $eid, $fwnodep, $fwvlanidp, $fwvlanp, $fwtypep) = @_;
     my $query_result;
 
     #
@@ -2034,7 +2038,7 @@ sub TBExptFirewall ($$;$$$) {
     # will be NULL.
     #
     $query_result =
-	DBQueryWarn("select r.node_id,f.vlan,f.vlanid from ".
+	DBQueryWarn("select r.node_id,f.vlan,f.vlanid,v.type from ".
 		    "   virt_firewalls as v ".
 		    "left join firewalls as f on f.pid=v.pid and f.eid=v.eid ".
 		    "left join reserved as r on r.pid=v.pid and ".
@@ -2058,6 +2062,8 @@ sub TBExptFirewall ($$;$$$) {
 	if (defined($fwvlanp));
     $$fwvlanidp = $row[2]
 	if (defined($fwvlanidp));
+    $$fwtypep = $row[3]
+	if (defined($fwtypep));
     return 1;
 }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -26,6 +26,7 @@ my $TBOPS = "@TBSTATEDEMAIL@";
 my $REALTBOPS = "@TBOPSEMAIL@";
 my $TBDBNAME = "@TBDBNAME@";
 my $REALTBDBNAME = "tbdb"; # So we know if we're using the "real" db
+my $pxeselect = "$TB/bin/pxe_select";
 my $osselect = "$TB/bin/os_select";
 my $nodereboot = "$TB/bin/node_reboot";
 my $rebootlog  = "$TB/log/nodereboot.log";
@@ -38,6 +39,7 @@ $| = 1;
 
 use event;
 use libdb;
+use Node;
 use libtestbed;
 use TimeoutQueue;
 use Getopt::Std;
@@ -124,6 +126,7 @@ if ($opt{d}) {
 
 # Grab some constants into variables
 my $TBANYMODE    = TBDB_NODEOPMODE_ANY;
+my $TBPXERESET   = TBDB_TBCONTROL_PXERESET;
 my $TBRESET      = TBDB_TBCONTROL_RESET;
 my $TBTIMEOUT    = TBDB_TBCONTROL_TIMEOUT;
 my $PXEBOOT      = TBDB_TBCONTROL_PXEBOOT;
@@ -468,6 +471,24 @@ sub getValid() {
 }
 
 #
+# Check if a transition is valid. Actually, it is a check for an invalid
+# transition.
+#
+sub IsValidTransition($$$)
+{
+    my ($mode, $oldstate, $newstate) = @_;
+    my $isvalid = 1;
+
+    $isvalid = 0
+	if ($valid{$mode} &&
+	    ($valid{$mode}{$oldstate} || $valid{$mode}{"*"}) &&
+	    ! ($valid{$mode}{$oldstate}{$newstate} ||
+	       $valid{$mode}{"*"}{$newstate}));
+
+    return $isvalid;
+}
+
+#
 # Read the list of valid mode transitions from the database
 #
 sub getModeTrans() {
@@ -639,10 +660,10 @@ sub stateTransition($$) {
     $oldstate = $nodes{$node}{state};
     $mode     = $nodes{$node}{mode};
 
-    if ($oldstate && $mode && $valid{$mode} && $valid{$mode}{$oldstate} &&
-	!$valid{$mode}{$oldstate}{$newstate}) {
+    if ($oldstate && $mode && !IsValidTransition($mode,$oldstate,$newstate)) {
 	notify("Invalid transition for node $node from $mode/$oldstate " .
 	       "to $newstate\n");
+	
 	#
 	# Machines in the secure boot path are not allowed to jump
 	# willy-nilly into unknown states.
@@ -659,14 +680,17 @@ sub stateTransition($$) {
     if ($oldstate eq TBDB_NODESTATE_SECVIOLATION &&
 	$newstate ne TBDB_NODESTATE_SECVIOLATION) {
 	#
-	# Allow transitions to SHUTDOWN.
-	# This allows someone to reboot a node in the SECVIOLATION state
-	# getting it back to MINIMAL/SHUTDOWN.
+	# Allow transitions to SHUTDOWN/POWEROFF.
+	# This allows someone to reboot (turn-off and back on) a node in
+	# the SECVIOLATION state getting it back to MINIMAL/SHUTDOWN.
 	#
 	# XXX DEBUG ONLY!
 	# 
-	if ($soft_secviolation && $newstate eq TBDB_NODESTATE_SHUTDOWN) {
-	    notify("$node allowed to transition: SECVIOLATION => SHUTDOWN\n");
+	if ($soft_secviolation &&
+	    ($newstate eq TBDB_NODESTATE_SHUTDOWN ||
+	     $newstate eq TBDB_NODESTATE_POWEROFF ||
+	     $newstate eq TBDB_NODESTATE_GPXEBOOTING)) {
+	    notify("$node allowed to transition: SECVIOLATION => $newstate\n");
 	} else {
 	    notify("$node tried to leave SECVIOLATION (to $newstate)\n");
 	    $newstate = TBDB_NODESTATE_SECVIOLATION;
@@ -771,16 +795,21 @@ sub stateTransition($$) {
 		# This could come from any state as it just indicates that
 		# a machine with a gPXE dongle has rebooted.
 		#
-		# To differentiate BOOT from LOAD we check next_op_mode.
-		# It will be set to SECURELOAD when we need to go there,
-		# otherwise we force it to SECUREBOOT.
+		# To differentiate BOOT from LOAD:
+		# if next_op_mode is SECURELOAD, goto SECURELOAD
+		# else if mode/state is SECURELOAD/SHUTDOWN, goto SECURELOAD
+		# else goto SECUREBOOT.
 		#
 		debug("Running $SECUREBOOT trigger\n");
 		my $query_result =
 		    DBQueryWarn("select next_op_mode from nodes ".
 				"where node_id='$node'");
 		my ($nextmode) = $query_result->fetchrow();
-		if (!$nextmode || $nextmode ne TBDB_NODEOPMODE_SECURELOAD) {
+		if (!$nextmode) {
+		    $nextmode = $mode;
+		}
+		if ($nextmode ne TBDB_NODEOPMODE_SECURELOAD ||
+		    $oldstate ne TBDB_NODESTATE_SHUTDOWN) {
 		    $nextmode = TBDB_NODEOPMODE_SECUREBOOT;
 		}
 		if ($mode ne $nextmode) {
@@ -795,6 +824,13 @@ sub stateTransition($$) {
 		# See if we are in the right mode/osid.
 		#
 		my ($bootosid,$bootopmode) = TBBootWhat($node, $debug);
+		if (!defined($bootosid)) {
+		    info("$node: TBBootWhat say node doesn't exist!?");
+		    next;
+		} elsif ($bootosid == 0) {
+		    info("$node: should be in PXEWAIT, why are we here?!");
+		    next;
+		}
 
 		info("$node: BootWhat says $bootosid (mode $bootopmode).\n");
 		DBQueryFatal("update nodes set osid='$bootosid' ".
@@ -866,6 +902,12 @@ sub stateTransition($$) {
 		CheckPortRegistration($node);
 		next;
 	    };
+	    /^$TBPXERESET$/ && do {
+		# We successfully booted, so reset one-shot PXEboot if any
+		# Check if we really need to do a reset
+		handleCtrlEvent($node,$trig);
+		next;
+	    };
 	    /^$TBRESET$/ && do {
 		# We successfully booted, so clear some flags
 		$nodes{$node}{noretry}   = 0;
@@ -881,6 +923,11 @@ sub stateTransition($$) {
 			if (!defined($defosid));
 		}
 		elsif ($osid ne $defosid) {
+		    handleCtrlEvent($node,$trig);
+		}
+		# XXX tmp hack
+		elsif ($mode eq "WIMRELOAD") {
+		    info("$node: RESET in WIMRELOAD, but osid=defosid=$osid\n");
 		    handleCtrlEvent($node,$trig);
 		}
 		next;
@@ -1022,9 +1069,31 @@ sub opModeTransition($$;$) {
 sub handleCtrlEvent($$) {
     my ($node,$event) = @_;
 
+    # stated should use the node objects.
+    my $nodeobj = Node->Lookup($node);
+    if (!defined($nodeobj)) {
+	notify("handleCtrlEvent: Could not lookup node object for $node!\n");
+	return;
+    }
+    $nodeobj->FlushReserved();
     info("CtrlEvent: $node, $event\n");
 
     foreach ($event) {
+	/^$TBPXERESET$/ && do {
+	    #
+	    # Clear next_pxe_boot_path with pxe_select.
+	    #
+	    # Note that this will recreate the DHCPD config file and HUP it.
+	    # It will also ssh over to any subbosses and do the same.
+	    # Thus there is lost of potential to get hung or take a long time.
+	    #
+	    $cmd = "$pxeselect -d -c -1 $node";
+	    system($cmd) and
+		notify("$node/$event: Could not clear next_pxe_boot_path!\n");
+
+	    info("Performed $TBPXERESET for $node\n");
+	    next;
+	};
 	/^$TBRESET$/ && do {
 	    #
 	    # Clear next_boot_path with os_select.
@@ -1038,16 +1107,21 @@ sub handleCtrlEvent($$) {
 	};
 	(/^$TBRELOADDONEV1$/ || /^$TBRELOADDONEV2$/) && do {
 	    info("Clearing reload info for $node\n");
-	    DBQueryFatal("delete from current_reloads where node_id='$node'");
-	    my ($pid,$eid);
-	    NodeidToExp($node,\$pid,\$eid);
-	    if (($pid eq NODERELOADING_PID) && ($eid eq NODERELOADING_EID)) {
-		DBQueryFatal("delete from scheduled_reloads ".
-			     "where node_id='$node'");
-		DBQueryFatal("delete from reserved where node_id='$node'");
-		TBSetNodeHistory($node, TB_NODEHISTORY_OP_FREE,
-				 $UID, $pid, $eid);
-		info("Released $node from $pid/$eid\n");
+	    $nodeobj->ClearCurrentReload();
+	    $nodeobj->FlushReserved();
+	    my $experiment = $nodeobj->Reservation();
+	    if (defined($experiment) &&
+		$experiment->pid() eq NODERELOADING_PID &&
+		$experiment->eid() eq NODERELOADING_EID) {
+		$nodeobj->ClearSchedReload();
+		my $reserved_pid = $nodeobj->CheckPreReserve(1);
+		if (defined($reserved_pid)) {
+		    info("Setting pre reserve for $node to $reserved_pid\n");
+		}
+		$nodeobj->ClearReservation();
+		$nodeobj->SetNodeHistory(TB_NODEHISTORY_OP_FREE,
+					 undef, $experiment);
+		info("Released $node from $experiment\n");
 	    }
 	    if ($event eq $TBRELOADDONEV2) {
 		info("Sending an apod to $node\n");
@@ -1264,6 +1338,11 @@ sub handleCommand($$;$$) {
 
 #
 # Check if we need to generate an ISUP
+#
+# Turns out we DO NOT want the reload MFSs to generate an ISUP cause
+# that will screw up the reload by clearing it. How do we prevent
+# checkGenISUP() from generating an ISUP? Well, by adding an osfeature
+# to the MFSs that say they generate ISUP. Sheesh.
 #
 sub checkGenISUP($) {
     my ($node) = @_;

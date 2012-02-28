@@ -19,7 +19,7 @@ if {${::GLOBALS::explicit_firewall}} {
     set fw [new Firewall $ns]
     set ::GLOBALS::security_level $sl
 
-    $fw set-type ipfw2-vlan
+    $fw set-type ${::GLOBALS::elabinelab_fw_type}
         
     if {${::GLOBALS::security_level} == 1} {
 	$fw set-style basic

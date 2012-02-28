@@ -1,7 +1,7 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -46,9 +46,8 @@ my $reversedir			= "$mapdir/reverse";
 my $restart_named		= 1;
 my $sortem			= 0; # set to 1 to generated IP-sorted file
 my $dbg	= 0;
+my $domx = 0;
 my @row;
-
-use strict;
 
 # If we are disabled, just quietly exit
 if ($DISABLED) {
@@ -96,22 +95,39 @@ if ((my $locked = TBScriptLock("named", 1)) != TBSCRIPTLOCK_OKAY()) {
 }
 
 #
-# Grab the list of all nodes, including virtual and widearea nodes
+# Grab the list of all nodes with proper control network interfaces.
 #
 my $db_result =
-    DBQueryFatal("select n.node_id, n.role, n.jailip, i.IP, i.role, ".
+    DBQueryFatal("select n.node_id, n.role, null, i.IP, i.role, ".
                  "    r.inner_elab_role ".
 		 "  from nodes as n join interfaces as i ".
 		 "left join reserved as r on r.node_id=n.node_id ".
-		 "where (n.node_id=i.node_id and n.role='testnode' or ".
-		 "       n.phys_nodeid=i.node_id and n.role='virtnode') ".
-		 "    and (i.IP is not null or n.jailip is not null) ".
-		 "    and (i.card is null or ".
-		 "         i.role='" . TBDB_IFACEROLE_CONTROL() . "')");
+		 "where (n.node_id=i.node_id and ".
+                 "       (n.role='testnode' or n.role='virtnode')) ".
+		 "    and i.IP is not null ".
+		 "    and i.role='" . TBDB_IFACEROLE_CONTROL() . "'");
 
 my %routable;
 my %unroutable;
 my %reverse;
+
+process_nodes($db_result);
+
+#
+# Now get the static virtnodes and older dynamic virtnodes that used
+# jailip. The i2 join is to weed out the dynamic virtnodes we got in
+# the above query (nodes with a dynamic control network interface).
+#
+$db_result =
+    DBQueryFatal("select n.node_id, n.role, n.jailip, i.IP, i.role, ".
+                 "    r.inner_elab_role ".
+                 "  from nodes as n ".
+                 "left join interfaces as i on i.node_id=n.phys_nodeid ".
+                 "left join interfaces as i2 on i2.node_id=n.node_id ".
+                 "left join reserved as r on r.node_id=n.node_id ".
+                 "where n.role='virtnode' and i2.card is null and ".
+                 "      (i.IP is not null or n.jailip is not null) and ".
+                 "      i.role='" . TBDB_IFACEROLE_CONTROL() . "'");
 
 process_nodes($db_result);
 
@@ -160,11 +176,19 @@ while (my ($node_id,$pid,$eid,$vname,$erole) = $db_result->fetchrow_array()) {
     }
     push @{$cnames{$node_id}}, "$vname.$eid.$pid";
 
+    # Temp hack for Leigh
+    if ($pid eq "testbed" and $eid eq "xen-leelab") {
+        push @{$cnames{$node_id}}, "${vname}.xenlab.$pid";
+
+        if (defined($erole) && $erole =~ /boss/) {
+            push @{$cnames{$node_id}}, "www.xenlab.$pid";
+        }
+    }
+
     #
     # Special case for inner elab boss; add CNAME for www.
     #
-    if (defined($erole) &&
-        ($erole eq "boss" || $erole eq "boss+router")) {
+    if (defined($erole) && $erole =~ /boss/) {
         push @{$cnames{$node_id}}, "www.$eid.$pid";
     }
     #
@@ -433,13 +457,15 @@ sub make_forward_zonefile($$$) {
 	}
 
 	print MAP "$node_id\tIN\tA\t$node_rec->{IP}\n";
-	if (defined($node_rec->{inner_elab_role}) &&
-	    ($node_rec->{inner_elab_role} eq "ops" ||
-	     $node_rec->{inner_elab_role} eq "ops+fs")) {
-	    print MAP "\tIN\tMX 10\t$node_id\n";
-	}
-	else {
-	    print MAP "\tIN\tMX 10\t$USERS.\n";
+	if ($domx) {
+	    if (defined($node_rec->{inner_elab_role}) &&
+		($node_rec->{inner_elab_role} eq "ops" ||
+		 $node_rec->{inner_elab_role} eq "ops+fs")) {
+		print MAP "\tIN\tMX 10\t$node_id\n";
+	    }
+	    else {
+		print MAP "\tIN\tMX 10\t$USERS.\n";
+	    }
 	}
     }
 

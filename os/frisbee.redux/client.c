@@ -71,6 +71,7 @@ static struct in_addr serverip;
 #ifdef MASTER_SERVER
 static int	xfermethods = MS_METHOD_MULTICAST;
 #endif
+int		forcedirectio = 0;
 
 /* Forward Decls */
 static void	PlayFrisbee(void);
@@ -82,12 +83,12 @@ extern int	ImageUnzipInitKeys(char *uuidstr, char *sig_keyfile,
 				   char *enc_keyfile);
 extern int	ImageUnzipInit(char *filename, int slice, int debug, int zero,
 			       int nothreads, int dostype, int dodots,
-			       unsigned long writebufmem);
+			       unsigned long writebufmem, int directio);
 extern void	ImageUnzipSetChunkCount(unsigned long chunkcount);
 extern void	ImageUnzipSetMemory(unsigned long writebufmem);
 extern int	ImageWriteChunk(int chunkno, char *chunkdata, int chunksize);
 extern int	ImageUnzipChunk(char *chunkdata, int chunksize);
-extern void	ImageUnzipFlush(void);
+extern int	ImageUnzipFlush(void);
 extern int	ImageUnzipQuit(void);
 
 /*
@@ -159,6 +160,7 @@ char *usagestr =
  " -n              Do not use extra threads in diskwriter\n"
  " -q              Quiet mode (no dots)\n"
  " -N              Do not decompress the received data, just write to output.\n"
+ " -D DOS-ptype    Set the DOS partition type in slice mode.\n"
  " -S server-IP    Specify the IP address of the server to use.\n"
  " -p portnum      Specify a port number.\n"
  " -m mcastaddr    Specify a multicast address in dotted notation.\n"
@@ -187,12 +189,13 @@ char *usagestr =
  " -I ms           The time interval (millisec) between re-requests of a chunk.\n"
  " -R #            The max number of chunks we will request ahead.\n"
  " -O              Make chunk requests in increasing order (default is random order).\n"
+ " -f              Force use of direct IO (O_DIRECT) to reduce system cache effects.\n"
  "\n";
 
 void
 usage()
 {
-	fprintf(stderr, usagestr);
+	fprintf(stderr, "%s", usagestr);
 	exit(1);
 }
 
@@ -209,7 +212,7 @@ WriterStatusCallback(int isbusy)
 		hi = (totalrdata >> 32);
 		lo = totalrdata;
 	}
-	CLEVENT((isbusy < 2) ? 1 : 3, EV_CLIWRSTATUS, isbusy, hi, lo, 0);
+	CLEVENT((isbusy != 2) ? 1 : 3, EV_CLIWRSTATUS, isbusy, hi, lo, 0);
 }
 
 int
@@ -221,7 +224,7 @@ main(int argc, char **argv)
 	int	slice = 0;
 	char	*sig_keyfile = 0, *enc_keyfile = 0, *uuidstr = 0;
 
-	while ((ch = getopt(argc, argv, "dqhp:m:s:i:tbznT:r:E:D:C:W:S:M:R:I:ONc:e:u:K:B:F:Q:P:X:")) != -1)
+	while ((ch = getopt(argc, argv, "dqhp:m:s:i:tbznT:r:E:D:C:W:S:M:R:I:ONc:e:u:K:B:F:Q:P:X:f")) != -1)
 		switch(ch) {
 		case 'd':
 			debug++;
@@ -398,6 +401,10 @@ main(int argc, char **argv)
 			keepalive = atoi(optarg);
 			if (keepalive < 0)
 				keepalive = 0;
+			break;
+
+		case 'f':
+			forcedirectio++;
 			break;
 
 		case 'h':
@@ -629,7 +636,7 @@ main(int argc, char **argv)
 	 * The writer thread synchronizes only with us (the decompresser).
 	 */
 	ImageUnzipInit(filename, slice, debug, zero, nothreads, dostype,
-		       quiet ? 0 : 3, maxwritebufmem*1024*1024);
+		       quiet ? 0 : 3, maxwritebufmem*1024*1024, forcedirectio);
 
 	if (tracing) {
 		ClientTraceInit(traceprefix);
@@ -1073,7 +1080,9 @@ ChunkerStartup(void)
 	 * Make sure any asynchronous writes are done
 	 * and collect stats from the unzipper.
 	 */
-	ImageUnzipFlush();
+	if (ImageUnzipFlush())
+		pfatal("ImageUnzipFlush failed");
+
 #ifdef STATS
 	{
 		Stats.u.v1.decompblocks = decompblocks;
@@ -1730,7 +1739,8 @@ PlayFrisbee(void)
 					MAXBLOCKSIZE;
 			}
 			CLEVENT(1, EV_CLIJOINREP,
-				CHUNKSIZE, BLOCKSIZE,
+				p->msg.join2.chunksize,
+				p->msg.join2.blocksize,
 				(p->msg.join2.bytecount >> 32),
 				p->msg.join2.bytecount);
 			break;

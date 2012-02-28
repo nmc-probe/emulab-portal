@@ -34,18 +34,27 @@ WITH_LTHREADS	= 0
 ifneq ($(FBSDREL),5.3)
 ifneq ($(FBSDMAJ),7)
 ifneq ($(FBSDMAJ),8)
+ifneq ($(FBSDMAJ),9)
 WITH_LTHREADS	= 1
 endif
 endif
 endif
 endif
+endif
 
+#ifndef WITH_MSERVER_NULL
 WITH_MSERVER_NULL	= 1
+#endif
+#ifndef WITH_MSERVER_EMULAB
 WITH_MSERVER_EMULAB	= 1
+#endif
 
 include $(OBJDIR)/Makeconf
 
 all:	frisbee frisbeed mfrisbeed frisupload frisuploadd
+
+subboss:
+	$(MAKE) WITH_MSERVER_EMULAB=0 all
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
@@ -55,6 +64,7 @@ SHAREDOBJS	= log.o network.o trace.o utils.o
 
 ifeq ($(SYSTEM),Linux)
 PTHREADCFLAGS	+= -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -D_THREAD_SAFE -pthread
+PTHREADLIBS	+= -lrt
 else
 ifeq ($(WITH_LTHREADS),1)
 PTHREADCFLAGS	= -D_THREAD_SAFE -I/usr/local/include/pthread/linuxthreads
@@ -66,7 +76,11 @@ endif
 endif
 
 CLIENTFLAGS	= $(CFLAGS)
+ifeq ($(SYSTEM),Linux)
+CLIENTLIBS	= -lrt -lz $(PTHREADLIBS)
+else
 CLIENTLIBS	= -lz $(PTHREADLIBS)
+endif
 CLIENTOBJS	= client.o frisbee.o checksum.o disksize.o $(SHAREDOBJS)
 
 SERVERFLAGS	= $(CFLAGS)
@@ -83,7 +97,11 @@ MSERVERLIBS	=
 
 # Master server based image uploader client
 UPLOADFLAGS	= $(CFLAGS)
+ifeq ($(SYSTEM),Linux)
+UPLOADLIBS	= -lrt
+else
 UPLOADLIBS	=
+endif
 UPLOADOBJS	= upload.o uploadio.o log.o network.o utils.o
 
 # Master server based image uploader server
@@ -95,9 +113,10 @@ ifeq ($(WITH_MSERVER_EMULAB),1)
 # Emulab master server config
 MYSQLCFLAGS	= -I/usr/local/include
 MYSQLLIBS	= -L/usr/local/lib/mysql -lmysqlclient
-MSERVERFLAGS	+= -DUSE_EMULAB_CONFIG -DUSE_LOCALHOST_PROXY $(MYSQLCFLAGS) -I$(TESTBED_SRCDIR)/lib/libtb
+MSERVERFLAGS	+= -DUSE_EMULAB_CONFIG -DUSE_LOCALHOST_PROXY $(MYSQLCFLAGS) \
+		   -I$(TESTBED_LIBSRCDIR)/libtb
 MSERVEROBJS	+= config_emulab.o
-MSERVERLIBS	+= $(OBJDIR)/lib/libtb/libtb.a $(MYSQLLIBS)
+MSERVERLIBS	+= $(TESTBED_LIBOBJDIR)/libtb/libtb.a $(MYSQLLIBS)
 endif
 
 CFLAGS		= -O2 -g -Wall -fno-builtin-log $(LDSTATIC) $(PTHREADCFLAGS) -DSTATS -DMASTER_SERVER
@@ -112,6 +131,14 @@ ifeq ($(WITH_SIGNING),1)
 IUZFLAGS	+= -DSIGN_CHECKSUM
 endif
 IUZLIBS		+= -lcrypto
+endif
+
+#
+# Define this to use select to implement packet-receive-with-timeout
+# rather than using the SO_RCVTIMEO socket option.
+#
+ifeq ($(SYSTEM),CYGWIN_NT-5.1)
+CFLAGS		+= -DNO_SOCKET_TIMO
 endif
 
 #
@@ -168,10 +195,8 @@ frisuploadd-debug: $(UPLOADDOBJS)
 #	cp frisuploadd frisuploadd.debug
 #	strip frisuploadd
 
-mfrisbeed: $(MSERVEROBJS)
-	$(CC) $(LDFLAGS) $(MSERVERFLAGS) $(MSERVEROBJS) $(MSERVERLIBS) -o mfrisbeed
-	cp mfrisbeed mfrisbeed.debug
-	strip mfrisbeed
+mfrisbeed-debug: $(MSERVEROBJS)
+	$(CC) $(LDFLAGS) $(MSERVERFLAGS) $(MSERVEROBJS) $(MSERVERLIBS) -o $@
 
 frisuploader.o: $(SRCDIR)/frisuploader.c decls.h uploadio.h
 	$(CC) -c $(UPLOADDFLAGS) $(SRCDIR)/frisuploader.c
@@ -213,6 +238,9 @@ network.o:	decls.h utils.h
 trace.o:	decls.h trace.h log.h
 
 install:	$(INSTALL_SBINDIR)/mfrisbeed $(INSTALL_SBINDIR)/frisbeed $(INSTALL_SBINDIR)/frisbee $(INSTALL_SBINDIR)/frisuploadd
+
+subboss-install: subboss
+	$(MAKE) WITH_MSERVER_EMULAB=0 install
 
 client: frisbee frisupload
 

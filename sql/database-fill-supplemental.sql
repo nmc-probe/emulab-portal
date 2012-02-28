@@ -25,8 +25,22 @@ INSERT IGNORE INTO os_boot_cmd VALUES ('Linux','9.0','linkdelay','linkdelay');
 INSERT IGNORE INTO emulab_indicies (name,idx) VALUES ('cur_log_seq', 1);
 INSERT IGNORE INTO emulab_indicies (name,idx) VALUES ('frisbee_index', 1);
 INSERT IGNORE INTO emulab_indicies (name,idx) VALUES ('next_osid', 10000);
+-- The initial certs start at hardwired location cause no DB during install
+-- Push this up so that user certs start above it. 
+INSERT IGNORE INTO emulab_indicies (name,idx) VALUES ('user_sslcerts', 1000);
 INSERT IGNORE INTO emulab_locks (name,value) VALUES ('pool_daemon', 0);
 
 INSERT IGNORE INTO `interface_capabilities` VALUES ('generic','protocols','ethernet');
 INSERT IGNORE INTO `interface_capabilities` VALUES ('generic','ethernet_defspeed','100000');
 INSERT IGNORE INTO `interface_types` VALUES ('generic',100000,1,'Generic','Generic',1,'RJ45');
+
+-- For the external link support.
+INSERT INTO `node_types` VALUES ('bbgeni','bbgeni',NULL,NULL,0,0,0,0,0,0,0,0,0,0,0,0);
+INSERT INTO `node_types` VALUES ('bbgenivm','bbgenivm',NULL,NULL,1,0,0,1,0,0,0,0,0,0,0,0);
+INSERT INTO `node_type_attributes` VALUES ('bbgeni','rebootable','0','boolean');
+INSERT INTO `node_type_attributes` VALUES ('bbgeni','imageable','0','boolean');
+INSERT INTO `node_type_attributes` VALUES ('bbgenivm','rebootable','0','boolean');
+INSERT INTO `node_type_attributes` VALUES ('bbgenivm','imageable','0','boolean');
+INSERT INTO `interface_types` VALUES ('bbg',1000000,1,'Unknown','Gigabit Ethernet',1,'RJ45');
+INSERT INTO `interface_capabilities` VALUES ('bbg','ethernet_defspeed','1000000');
+INSERT INTO `interface_capabilities` VALUES ('bbg','protocols','ethernet');

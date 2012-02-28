@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2010 University of Utah and the Flux Group.
+# Copyright (c) 2005-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -23,8 +23,9 @@ sub usage()
 	                 "[-r pid:gid[,pid:gid]...] user\n";
     exit(-1);
 }
-my $optlist = "dr:a:m:";
+my $optlist = "dr:a:m:s";
 my $debug   = 0;
+my $silent  = 0;
 my $user;
 my @addlist = ();
 my @modlist = ();	# Just changing the trust value ...
@@ -94,6 +95,9 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"d"})) {
     $debug  = 1;
     $optarg = "-d";
+}
+if (defined($options{"s"})) {
+    $silent  = 1;
 }
 if (defined($options{"a"})) {
     my @tokens = split(",", $options{"a"});
@@ -183,11 +187,15 @@ if (AuditStart(0)) {
 #
 foreach my $token (@addlist) {
     my ($pid,$gid,$trust) = split(":", $token);
-    my $sendemail = 1;
+    my $sendemail = !$silent;
 
     my $group = Group->LookupByPidGid($pid, $gid);
     if (! defined($group)) {
 	fatal("Cannot find group object for $pid/$gid");
+    }
+    my $project = $group->GetProject();
+    if (! defined($project)) {
+	fatal("Cannot find project object for $group");
     }
 
     #
@@ -211,8 +219,9 @@ foreach my $token (@addlist) {
 	    or fatal("Could not modify $membership to $trust");
 
 	$sendemail = 0
-	    if ($ELABINELAB &&
-		$group->IsProjectGroup() && $group->IsLeader($target_user));
+	    if ($silent ||
+		($ELABINELAB &&
+		 $group->IsProjectGroup() && $group->IsLeader($target_user)));
     }
     else {
 	$group->AddMemberShip($target_user, $trust) == 0
@@ -222,7 +231,8 @@ foreach my $token (@addlist) {
     #
     # Tell chat subsystem to change groups ...
     #
-    if ($CHATSUPPORT) {
+    if ($CHATSUPPORT &&
+	!($project->IsNonLocal() || $target_user->nocollabtools())) {
 	system("$MODBUDDIES $optarg -a $pid:$gid $user") == 0 or
 	    fatal("$MODBUDDIES '-a $pid:$gid $user' failed!");
 
@@ -233,7 +243,7 @@ foreach my $token (@addlist) {
 	}
     }
 
-    if ($sendemail) {
+    if ($sendemail && !$project->IsNonLocal()) {
 	$group->SendApprovalEmail($this_user, $target_user) == 0 or
 	    fatal("Could not send approval email to $target_user in $group");
     }
@@ -256,8 +266,10 @@ foreach my $token (@modlist) {
     $membership->ModifyTrust($trust) == 0
 	    or fatal("Could not modify $membership to '$trust'");
 
-    $group->SendTrustChangeEmail($this_user, $target_user) == 0
-	or fatal("Could not send trust change email to $target_user");
+    if (!$silent) {
+	$group->SendTrustChangeEmail($this_user, $target_user) == 0
+	    or fatal("Could not send trust change email to $target_user");
+    }
 }
 
 #
@@ -271,6 +283,10 @@ foreach my $token (@remlist) {
     if (! defined($group)) {
 	fatal("Cannot find group object for $pid/$gid");
     }
+    my $project = $group->GetProject();
+    if (! defined($project)) {
+	fatal("Cannot find project object for $group");
+    }
 
     #
     # Special case; if pid==gid then delete from the project entirely.
@@ -278,11 +294,6 @@ foreach my $token (@remlist) {
     # so we know what to hand off to the callouts.
     #
     if ($pid eq $gid) {
-	my $project = Project->LookupByPid($pid);
-	
-	if (! defined($project)) {
-	    fatal("Cannot find group object for $pid/$gid");
-	}
 	$project->DeleteUser($target_user, \@delgroups) == 0
 	    or fatal("Could not delete $user from $project");
     }
@@ -305,7 +316,8 @@ foreach my $token (@remlist) {
     #
     # Tell chat subsystem to change groups ...
     #
-    if ($CHATSUPPORT) {
+    if ($CHATSUPPORT && 
+	!($project->IsNonLocal() || $target_user->nocollabtools())) {
 	my @optlist = ();
 
 	foreach my $delgroup (@delgroups) {
@@ -332,7 +344,7 @@ foreach my $token (@remlist) {
 # Call genelists, but just when adding or modifying. For deletion, it
 # is handled above.
 #
-if (@addlist || @modlist) {
+if ((@addlist || @modlist) && ! $target_user->nocollabtools()) {
     print "Updating email lists for user $user\n";
     
     system("$GENELISTS $optarg -u $user") == 0 or

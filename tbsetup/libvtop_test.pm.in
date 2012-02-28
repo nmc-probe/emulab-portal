@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package libvtop_test;
@@ -25,7 +25,9 @@ use Node;
 use NodeType;
 use Lan;
 use OSinfo;
+use Port;
 use English;
+use emutil qw(SpanningTree);
 use Data::Dumper;
 use Carp;
 use POSIX;
@@ -1132,6 +1134,7 @@ sub LoadVirtNodes($)
 			    $vnode->rpms(),
 			    $vnode->startupcmd(),
 			    $vnode->tarfiles(),
+			    $vnode->loadlist(),
 			    $vnode->failureaction(),
 			    $vnode->routertype() ]);
 
@@ -1223,15 +1226,21 @@ sub LoadVirtNodes($)
 	# use the default for the type of phys node that assign picks.
 	#
 	if (defined($osname) && $osname ne "") {
-	    my $osinfo = OSinfo->Lookup("$pid,$osname");
+	    my $ospid = $pid;
+	    
+	    if ($osname =~ /^(.*)\/(.*)$/) {
+		$ospid  = $1;
+		$osname = $2;
+	    }
+	    my $osinfo = OSinfo->Lookup("$ospid,$osname");
 	    if (!defined($osinfo)) {
 		$osinfo = OSinfo->LookupByName($osname);
 
 		if (!defined($osinfo)) {
 		    tberror({cause => 'user', type => 'primary',
 			     severity => SEV_ERROR,
-			     error => ['invalid_os', undef, $osname, $pid]},
-			    "Invalid OS $osname in project $pid!");
+			     error => ['invalid_os', undef, $osname, $ospid]},
+			    "Invalid OS $osname in project $ospid!");
 		    return -1;
 		}
 	    }
@@ -1254,7 +1263,13 @@ sub LoadVirtNodes($)
 	# Map the parent_osname to an OSID now.
 	#
 	if (defined($parent_osname) && $parent_osname ne "") {
-	    my $osinfo = OSinfo->Lookup("$pid,$parent_osname");
+	    my $ospid = $pid;
+	    
+	    if ($parent_osname =~ /^(.*)\/(.*)$/) {
+		$ospid  = $1;
+		$parent_osname = $2;
+	    }
+	    my $osinfo = OSinfo->Lookup("$ospid,$parent_osname");
 	    if (!defined($osinfo)) {
 		$osinfo = OSinfo->LookupByName($parent_osname);
 
@@ -1262,7 +1277,7 @@ sub LoadVirtNodes($)
 		    tberror({cause => 'user', type => 'primary',
 			     severity => SEV_ERROR,
 			     error => ['invalid_os', undef, $parent_osname, $pid]},
-			    "Invalid parent OS $parent_osname in project $pid!");
+			    "Invalid parent OS $parent_osname in project $ospid!");
 		    return -1;
 		}
 	    }
@@ -3436,13 +3451,14 @@ sub CreateVtop($)
     };
 
     # Initialize counters.
-    $self->{'COUNTERS'}->{'simcount'}    = 0;
-    $self->{'COUNTERS'}->{'remotecount'} = 0;
-    $self->{'COUNTERS'}->{'virtcount'}   = 0;
+    $self->{'COUNTERS'}->{'nodecount'}   = 0;
     $self->{'COUNTERS'}->{'plabcount'}   = 0;
     $self->{'COUNTERS'}->{'genicount'}   = 0;
-    $self->{'COUNTERS'}->{'physcount'}   = 0;
+    $self->{'COUNTERS'}->{'virtcount'}   = 0;
+    $self->{'COUNTERS'}->{'simcount'}    = 0;
+    $self->{'COUNTERS'}->{'remotecount'} = 0;
     $self->{'COUNTERS'}->{'sharedcount'} = 0;
+    $self->{'COUNTERS'}->{'physcount'}   = 0;
 
     #
     # Experiment wide options.
@@ -3873,9 +3889,11 @@ sub AddNodeToSolution($$$)
     return 0;
 }
 
-sub AddLinkToSolution($$$$$$$$)
+sub AddLinkToSolution($$$$$$$$;$)
 {
-    my ($self, $vlink, $trivial, $direct, $nodeA, $portA, $nodeB, $portB) = @_;
+    my ($self,
+	$vlink, $trivial, $direct, $nodeA, $portA, $nodeB, $portB,
+	$switchpath) = @_;
 	
     #
     # Map the solution back to our objects and store the results.
@@ -3898,6 +3916,7 @@ sub AddLinkToSolution($$$$$$$$)
     }
     elsif (($lan,$virtA) =
 	   ($vlink =~ m|^linkdelaysrc/([^/]+)/(.+)$|)) {
+	# This is the link between the original node and the delay node.
 	$virtlan = $self->vlans()->{$lan};
 	$member0 = $virtlan->members()->{$virtA};
 	$member0->_pnode($nodeA);
@@ -3944,10 +3963,13 @@ sub AddLinkToSolution($$$$$$$$)
     }
     elsif (($lan,$virtA) =
 	   ($vlink =~ m|^linkdelaydst/([^/]+)/(.+)$|)) {
+	# This is the link between the delay node and lannode.
 	$virtlan = $self->vlans()->{$lan};
 	# Special case since the other side is a lannode.
 	$member0 = $virtlan->members()->{$virtA};
 	$member0->_delayportB($portB);
+	# Stash the path here. Silly, but its easier.
+	$member0->_delaypath($switchpath);
     }
     elsif (($lan,$virtA,$virtB) =
 	   ($vlink =~ m|^linksdelaydst/(.+)/(.+),(.+)$|)) {
@@ -3958,6 +3980,8 @@ sub AddLinkToSolution($$$$$$$$)
 	$member0->_pport($portA);
 	$member0->_delaynode($nodeB);
 	$member0->_delayport($portB);
+	# Stash the path here. Silly, but its easier.
+	$member0->_delaypath($switchpath);
     }
     else {
 	tberror("Bad vlink in solution: $vlink\n");
@@ -3965,7 +3989,7 @@ sub AddLinkToSolution($$$$$$$$)
     }
 
     $self->solution_plinks()->{$vlink} =
-	[$linktag,$virtlan,$trivial,$direct,$member0,$member1];
+	[$linktag,$virtlan,$trivial,$direct,$member0,$member1,$switchpath];
     if (!$trivial) {
 	$self->printdb("  $vlink ".
 		       (defined($nodeA) ? "A:$nodeA:$portA " : "") .
@@ -4035,18 +4059,23 @@ sub ReadTextSolution($$)
 	my ($vlink,$rawA,$rawB) = undef;
 	my $trivial = 0;
 	my $direct  = 0;
+	my $swpath  = undef;
 
 	/^End Edges$/ && last EDGEWHILE;
         my @info = split;
 	my $line = $_;
-	$_ = $info[1]; # type
-        SWITCH1: {
+	my $type = $info[1];
+        SWITCH1: for ($type) {
 	    /^intraswitch$/ && do {
 		($vlink,$rawA,$rawB) = @info[0,3,5];
 		last SWITCH1;
 	    };
 	    /^interswitch$/ && do {
 		($vlink,$rawA,$rawB) = @info[0,3,$#info];
+		#
+		# We need to save the path through the switches for later.
+		#	
+		$swpath = getportlist(@info);
 		last SWITCH1;
 	    };
 	    /^direct$/ && do {
@@ -4067,26 +4096,52 @@ sub ReadTextSolution($$)
 	my ($nodeportA,$nodeportB) = undef;
 	my ($switchportA,$switchportB) = undef;
 	my ($nodeA,$portA,$nodeB,$portB) = undef;
-	
+
 	if (!$trivial) {
 	    ($nodeportA,$switchportA) = getnodeport($rawA);
+
+	    # TODO: Add this error checking code in once ptopgen_new
+	    # becomes standard
+#	    if (! defined($nodeportA) || ! defined($switchportA)) {
+#		tberror("Malformed interface pair A: $rawA\n");
+#		return -1;
+#	    }
+
+	    # Convert back to node:iface format.
 	    if (defined($nodeportA)) {
-		# Convert back to node:iface format.
 		$nodeportA =~ s/\//:/;
 		($nodeA,$portA) = split(":", $nodeportA);
 	    }
 
+	    my $isswitch = 1;
+	    if (defined($switchportA)) {
+		$switchportA =~ s/\//:/;
+		my ($switchA, $swportA) = split(":", $switchportA);
+		my $noderef = Node->Lookup($switchA);
+		$isswitch = $noderef->isswitch();
+	    }
+
 	    #
-	    # A direct link between two nodes; $rawA holds both sides
-	    # of the link (switchportA is really $nodeportB). 
+	    # If the link is direct and switchA is not a switch, this is
+	    # a link directly between two nodes:
 	    #
-	    if ($direct && defined($switchportA)) {
+	    # $rawA hold both sides of the link (switchportA is really
+	    # $nodeportB).
+	    if ($direct && ! $isswitch) {
 		$nodeportB   = $switchportA;
 		$switchportB = undef;
 	    }
 	    else {
 		($nodeportB,$switchportB) = getnodeport($rawB);
 	    }
+
+	    # TODO: Add this error checking code in once ptopgen_new
+	    # become standard
+#	    if (! defined($nodeportA)) {
+#		tberror("Malformed interface pair B: $rawB\n");
+#		return -1;
+#	    }
+
 	    if (defined($nodeportB)) {
 		# Convert back to node:iface format.
 		$nodeportB =~ s/\//:/;
@@ -4094,7 +4149,7 @@ sub ReadTextSolution($$)
 	    }
 	}
 	$self->AddLinkToSolution($vlink, $trivial, $direct,
-				 $nodeA, $portA, $nodeB, $portB);
+				 $nodeA, $portA, $nodeB, $portB, $swpath);
     }
     return 0;
 }
@@ -4732,7 +4787,8 @@ sub AllocNodes($)
 		#
 		if ($virtnode->_onsharednode()) {
 		    foreach my $virtlan ($virtnode->memberlist()) {
-			$virtlan->_encapstyle("vlan");
+			$virtlan->_encapstyle("vlan")
+			    if (!$virtlan->_tunnel());
 		    }
 		}
 	    }
@@ -5061,6 +5117,12 @@ sub AllocVirtNodes($)
 	    #
 	    $pnode->ModifyReservation({"vname" => $virtual}) == 0
 		or return -1 if (!$self->impotent());
+
+	    #
+	    # Not sure where to put this.
+	    #
+	    $pnode->SetJailIPFromVnode($experiment, $virtual) == 0
+		or return -1 if (!$self->impotent());
 	}
 
 	# Since we have some extra physical vnodes reserved on this pnode,
@@ -5185,6 +5247,35 @@ sub InterpLinks($)
 		    if ($interface->role() ne TBDB_IFACEROLE_EXPERIMENT() ||
 			!$wiredup);
 
+		#
+		# Gack. We need to make sure that we are connected to an
+		# ethernet switch, not something like an apcon or another
+		# node. Use the Port library for this.
+		#
+		my $port = Port->GetOtherEndByIface($pnodename, $iface);
+		if (!defined($port)) {
+		    tberror("Could not get Port other end for $interface\n");
+		    return -1;
+		}
+		next
+		    if (! $port->is_switch_side());
+		my $switchname = $port->node_id();
+		my $switch = Node->Lookup($switchname);
+		if (!defined($switch)) {
+		    tberror("Could not lookup node object for $switchname\n");
+		    return -1;
+		}
+		my $forwarding_protocols;
+		if ($switch->NodeTypeAttribute("forwarding_protocols",
+					       \$forwarding_protocols) ||
+		    !defined($forwarding_protocols) ||
+		    $forwarding_protocols eq "") {
+		    tberror("No forwarding_protocols set for $switch\n");
+		    return -1;
+		}
+		next
+		    if ($forwarding_protocols ne "ethernet");
+
 		my $speed = $self->interfacespeedmbps($type, "ethernet");
 		DBQueryWarn("update interfaces set " .
 			    "   current_speed='$speed',trunk=1 " .
@@ -5296,7 +5387,7 @@ sub InterpLinksAux($)
     while (@plinks) {
 	my $plink = shift(@plinks);
 	
-	my ($linktag,$virtlan,$trivial,$direct,$member0,$member1) =
+	my ($linktag,$virtlan,$trivial,$direct,$member0,$member1,$pathA) =
 	    @{$plinks{$plink}};
 	my $lan = $virtlan->vname();
 
@@ -5312,6 +5403,8 @@ sub InterpLinksAux($)
 	else {
 	    $self->printdb("plink $plink\n");
 	}
+	$self->printdb("  path - $pathA\n")
+	    if (defined($pathA));
 
 	# There is always a member0.
 	my $virtA  = $member0;
@@ -5341,10 +5434,13 @@ sub InterpLinksAux($)
 	    my $portB = $member0->_delayport();
 	    my $nodeD = $member1->_delaynode();
 	    my $portD = $member1->_delayport();
+	    my $pathB = $member1->_delaypath();
 
 	    $self->printdb("LINK delay: $virtA,$virtC - ".
 			   "$nodeA:$portA,$nodeB:$portB,".
 			   "$nodeD:$portD,$nodeC:$portC\n");
+	    $self->printdb(" path - $pathB\n")
+		if (defined($pathB));
 
 	    my $protolan    = ProtoLan->Create($experiment, "$lan",
 					       $self->impotent() ||
@@ -5365,6 +5461,10 @@ sub InterpLinksAux($)
 	    $protolandst->SetRole("delay");
 	    $protolansrc->SetAttribute("link/lan", $lan);
 	    $protolandst->SetAttribute("link/lan", $lan);
+	    $protolansrc->SetAttribute("switchpath", "$pathA")
+		if (defined($pathA));
+	    $protolandst->SetAttribute("switchpath", "$pathB")
+		if (defined($pathB));
 	    $protolan->SetRole("link/lan");
 	    $protolan->AddInterface($nodeC, $vnodeC, $vportC, $portC);
 	    $protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
@@ -5397,6 +5497,7 @@ sub InterpLinksAux($)
 	    # The delay node port/links
 	    my $nodeB = $member0->_delaynode();
 	    my $portB = $member0->_delayport();
+	    my $pathB = $member0->_delaypath();
 	    my $nodeD = $nodeB;
 	    my $portD = $member0->_delayportB();
 
@@ -5433,13 +5534,19 @@ sub InterpLinksAux($)
 		$protolanlan->SetAttribute("link/lan", $lan);
 	    }
 	    $protolanlan->AddMember($nodeD, $portD);
-	
+	    if (defined($pathB)) {
+		my $path = $protolanlan->GetAttribute("switchpath");
+		$protolanlan->SetAttribute("switchpath",
+					   AddToSwitchPath($path, $pathB));
+	    }
 	    my $protolanlink = ProtoLan->Create($experiment, $dlink,
 						$self->impotent(),
 						$protolan);
 	    $protolanlink->SetType("vlan");
 	    $protolanlink->SetRole("delay");
 	    $protolanlink->SetAttribute("link/lan", $lan);
+	    $protolanlink->SetAttribute("switchpath", "$pathA")
+		if (defined($pathA));
 	    $protolanlink->AddMember($nodeA, $portA);
 	    $protolanlink->AddMember($nodeB, $portB);
 
@@ -5695,6 +5802,8 @@ sub InterpLinksAux($)
 			$protovlan->SetType("vlan");
 			$protovlan->SetEncapStyle($virtlan->_encapstyle());
 			$protovlan->SetAttribute("link/lan", $lan);
+			$protovlan->SetAttribute("switchpath", "$pathA")
+			    if (defined($pathA));
 			$protovlans{$lan} = $protovlan;
 
 			$protovlan->AddMember($nodeA, $portA)
@@ -5717,6 +5826,8 @@ sub InterpLinksAux($)
 			$vlan_type = "vlan";
 			$vlan_role = "emulated";
 			$protolink->SetAttribute("link/lan", $lan);
+			$protolink->SetAttribute("switchpath", "$pathA")
+			    if (defined($pathA));
 		    }
 		    $protolink->SetType($vlan_type);
 		    $protolink->SetRole($vlan_role);
@@ -5749,6 +5860,8 @@ sub InterpLinksAux($)
 		    $protolink->SetType(($direct ? "direct" : "vlan"));
 		    $protolink->SetRole("link/lan");
 		    $protolink->SetAttribute("link/lan", $lan);
+		    $protolink->SetAttribute("switchpath", "$pathA")
+			if (defined($pathA));
 		    $protolink->AddInterface($nodeA, $vnodeA, $vportA, $portA);
 		    $protolink->AddInterface($nodeB, $vnodeB, $vportB, $portB);
 		    $protovlans{$lan} = $protolink;
@@ -5871,6 +5984,12 @@ sub InterpLinksAux($)
 			}
 			$protovlan->AddMember($nodeA, $portA)
 			    if (!$protovlan->IsMember($nodeA, $portA));
+
+			if (defined($pathA)) {
+			    my $path = $protovlan->GetAttribute("switchpath");
+			    $protovlan->SetAttribute("switchpath",
+						AddToSwitchPath($path, $pathA));
+			}
 		    }
 		
 		    #
@@ -5992,6 +6111,18 @@ sub InterpLinksAux($)
 			    ProtoLan->Lookup($experiment,
 					     $lan . "-delaylan");
 			$protolanlan->AddMember($nodeA, $portA);
+			if (defined($pathA)) {
+			    my $path = $protolanlan->GetAttribute("switchpath");
+			    $protolanlan->SetAttribute("switchpath",
+					       AddToSwitchPath($path, $pathA));
+			}
+		    }
+		    else {
+			if (defined($pathA)) {
+			    my $path = $protolan->GetAttribute("switchpath");
+			    $protolan->SetAttribute("switchpath",
+					    AddToSwitchPath($path, $pathA));
+			}
 		    }
 		}
 	    }
@@ -6290,7 +6421,7 @@ sub InitializePhysNode($$$)
 	#
 	# A normal user node (physical or virtual).
 	#
-	my ($cmdline,$rpms,$startupcmd,$tarfiles,
+	my ($cmdline,$rpms,$startupcmd,$tarfiles,$loadlist,
 	    $failureaction,$routertype) = @{ $virtnode->_settings() };
 
 	$osid = (defined($virtnode->_osinfo()) ?
@@ -6316,9 +6447,7 @@ sub InitializePhysNode($$$)
 		$role = TBDB_RSRVROLE_DELAYNODE();
 		$routertype = TBDB_ROUTERTYPE_NONE;
 	    }
-	    elsif (defined($inner_elab_role) &&
-		   ($inner_elab_role eq "boss" ||
-		    $inner_elab_role eq "boss+router")) {
+	    elsif (defined($inner_elab_role) && $inner_elab_role =~ /boss/) {
 		$cmdline = $self->osidbootcmd($osid, "linkdelay", "");
 	    }
 	    if (!defined($cmdline)) {
@@ -6349,6 +6478,7 @@ sub InitializePhysNode($$$)
 		     "deltas"            => '', 
 		     "ready"             => 0,
 		     "startupcmd"        => $startupcmd || '',
+		     "loadlist"          => $loadlist || '',
 		     "failureaction"     => $failureaction,
 		     "routertype"        => $routertype);
 
@@ -6433,8 +6563,7 @@ sub InitializePhysNode($$$)
 
 #
 # This is special. Look at the osid of the virtnodes on this pnode and
-# map to a suitable osid using the nextosid field. This overloads nextosid
-# to some extent ...
+# map to a suitable osid.
 #
 sub nodejailosid($$)
 {
@@ -6446,35 +6575,40 @@ sub nodejailosid($$)
     # features/desires). 
     #
     my $osinfo    = $virtnode->_osinfo();
-    my $posinfo   = $virtnode->_parent_osinfo();
-    my $nextosid;
+    my $nextosinfo;
 
     $self->printdb("nodejailosid: $virtnode, $osinfo\n");
 
-    if (!defined($posinfo)) {
-	return undef
-	    if (!defined($osinfo->nextosid()));
-	my $newosinfo = $osinfo->ResolveNextOSID($self->experiment());
-	return undef
-	    if (!defined($newosinfo));
-	$nextosid = $newosinfo->osid();
-    
-	if (defined($nextosid)) {
-	    $self->printdb("Mapping VM osinfo $osinfo to ".
-			   "$newosinfo on $virtnode\n");
-	}
-	else {
-	    tbwarn("Could not map jail osid to real osid on $virtnode\n");
+    #
+    # The old method was to use nextosid, but the new method uses
+    # the subos stuff.
+    #
+    if (defined($osinfo->def_parentosid())) {
+	$nextosinfo = OSinfo->Lookup($osinfo->def_parentosid());
+	if (!defined($nextosinfo)) {
+	    tbwarn("nodejailosid: could not resolve parent osid for $osinfo\n");
+	    return undef;
 	}
     }
     else {
-	# Don't try resolving nextosid if the vnode is booting a subOS.
-	$nextosid = $osinfo->osid();
-	$self->printdb("Mapping VM osinfo to subOS $osinfo".
-		       " on $virtnode\n");
+	if (!defined($osinfo->nextosid())) {
+	    tbwarn("nodejailosid: no nextosid defined for $osinfo\n");
+	    return undef;
+	}
+	$nextosinfo = $osinfo->ResolveNextOSID($self->experiment());
+	if (!defined($nextosinfo)) {
+	    tbwarn("nodejailosid: could not resolve nextosid for $osinfo\n");
+	    return undef;
+	}
     }
-
-    return $nextosid;
+    if (defined($nextosinfo)) {
+	$self->printdb("Mapping VM osinfo $osinfo to ".
+		       "$nextosinfo on $virtnode\n");
+    }
+    else {
+	tbwarn("nodejailosid: Could not map to real osid on $virtnode\n");
+    }
+    return $nextosinfo->osid();
 }
 
 sub osidbootcmd($$$$)
@@ -7462,11 +7596,45 @@ sub UploadVlans($)
 			    }
 			}
 			$self->printdb("Merged $protolanB into $protolanA\n");
+			if (defined($protolanA->GetAttribute("switchpath")) ||
+			    defined($protolanB->GetAttribute("switchpath"))) {
+			    $protolanA->SetAttribute("switchpath",
+			     AddToSwitchPath($protolanA->GetAttribute("switchpath"),
+					     $protolanB->GetAttribute("switchpath")));
+			}
 			$protolanB->Destroy();
 			goto again;
 		    }
 		}
 	    }
+	}
+    }
+
+    #
+    # Compute spanning tree for lan switch paths.
+    #
+    foreach my $protolan (ProtoLan->ProtoLanList()) {
+	my $swpath = $protolan->GetAttribute("switchpath");
+	if (defined($swpath) && $swpath ne "") {
+	    my @edges  = ();
+	    # Convert from string to [[], []]
+	    foreach my $edge (split(" ", $swpath)) {
+		my ($a,$b) = split(":", $edge);
+		push(@edges, [$a, $b]);
+	    }
+	    @edges  = SpanningTree(\@edges);
+	    # Convert back to string.
+	    my @swpath = ();
+	    foreach my $edge (@edges) {
+		my ($a, $b) = @$edge;
+		push(@swpath, "$a:$b");
+	    }
+	    $swpath = join(" ", @swpath);
+	    
+	    if ($self->verbose()) {
+		print STDERR "$protolan Spanning Tree: @swpath\n";
+	    }
+	    $protolan->SetAttribute("switchpath", $swpath);
 	}
     }
     
@@ -7689,7 +7857,7 @@ sub UpLoadIPAddresses($)
 		my $pnodename = $self->solution_v2p()->{$vnodename};
 		my $ip        = $member->ip();
 
-		$self->printdb("IP: $member - $pnodename:$iface $ip\n");
+		$self->printdb("IP(v): $member - $pnodename:$iface $ip\n");
 	    }
 	    else {
 		#
@@ -7839,6 +8007,7 @@ sub UpLoadTunnels($)
 	my $ip0       = $member0->ip();
 	my $ip1       = $member1->ip();
 	
+	
 	my $pnodename0 = ($virtnode0->_isvirtnode() ?
 			  $self->solution_v2v()->{$virtnode0->vname()} :
 			  $self->solution_v2p()->{$virtnode0->vname()});
@@ -7847,14 +8016,18 @@ sub UpLoadTunnels($)
 			  $self->solution_v2p()->{$virtnode1->vname()});
 	my $pnode0 = $self->pnodes()->{$pnodename0};
 	my $pnode1 = $self->pnodes()->{$pnodename1};
-    
+
 	#
 	# Need to map the server to the control net interface of the
 	# physical node.
 	#
-	my $peerip0 = Interface->LookupControl($pnode0);
-	my $peerip1 = Interface->LookupControl($pnode1);
-
+	my $peerip0 = ($virtnode0->_isvirtnode() ?
+		       Interface->LookupControl($pnode0->phys_nodeid()) :
+		       Interface->LookupControl($pnode0));
+	my $peerip1 = ($virtnode1->_isvirtnode() ?
+		       Interface->LookupControl($pnode1->phys_nodeid()) :
+		       Interface->LookupControl($pnode1));
+	
 	if (!defined($peerip0)) {
 	    tberror("No Control Network IP for $pnodename0!\n");
 	    return -1;
@@ -7863,6 +8036,9 @@ sub UpLoadTunnels($)
 	    tberror("No Control Network IP for $pnodename1!\n");
 	    return -1;
 	}
+	$peerip0 = $peerip0->IP();
+	$peerip1 = $peerip1->IP();
+
 	$self->printdb("Tunnel: $member0 <-> $member1, ".
 		       "$ip0 <-> $ip1, $peerip0 <-> $peerip1\n");
 
@@ -7890,6 +8066,10 @@ sub UpLoadTunnels($)
 	    tberror("Could not add $member1 to $tunnel\n");
 	    return -1;
 	}
+	my $tunnel_tag = `echo '$secretkey' | /usr/bin/cksum`;
+	if ($tunnel_tag =~ /^(\d+)/) {
+	    $tunnel_tag = $1;
+	}
 
 	# Need to set a bunch of attributes later returned by tmcd.
 	if ($iface0->SetAttribute("tunnel_ip", $ip0) ||
@@ -7903,6 +8083,7 @@ sub UpLoadTunnels($)
 	    $iface0->SetAttribute("tunnel_serverport", $ipport) ||
 	    $iface0->SetAttribute("tunnel_lan", $virtlan->vname()) ||
 	    $iface0->SetAttribute("tunnel_unit", $iface0->memberid() + 1) ||
+	    $iface0->SetAttribute("tunnel_tag", $tunnel_tag) ||
 	    $iface0->SetAttribute("tunnel_style", $virtlan->_encapstyle())) {
 	    tberror("Could not set attributes for $iface0 in $tunnel\n");
 	    return -1;
@@ -7918,6 +8099,7 @@ sub UpLoadTunnels($)
 	    $iface1->SetAttribute("tunnel_serverport", $ipport) ||
 	    $iface1->SetAttribute("tunnel_lan", $virtlan->vname()) ||
 	    $iface1->SetAttribute("tunnel_unit", $iface1->memberid() + 1) ||
+	    $iface1->SetAttribute("tunnel_tag", $tunnel_tag) ||
 	    $iface1->SetAttribute("tunnel_style", $virtlan->_encapstyle())) {
 	    tberror("Could not set attributes for $iface1 in $tunnel\n");
 	    return -1;
@@ -8063,6 +8245,46 @@ sub getnodeport($)
 	if ($B eq "(null)");
 
     return ($A, $B);
+}
+
+# getportlist
+# Takes the list of arguments on an edges line and returns the set of
+# ports spanned by that vlan.
+sub getportlist(@)
+{
+    my @info   = @_;
+    my @result = ();
+    # The beginning and end of the list are ignored for the path
+    # since we care only about the Trunk links.
+    @info = splice(@info, 4, $#info);
+
+    while (@info) {
+	#
+	# Traverse two at a time. We can deduce the switch pair
+	# from the first string, but thats a kludge.  The
+	# second string is supposed to be real interface info,
+	# but ignore that for now, until new ptopgen actually
+	# sets it.
+	#
+	my $field1 = shift(@info);
+	my $field2 = shift(@info);
+
+	if ($field1 =~ /^link\-/ &&
+	    $field2 eq "((null),(null))") {
+	    $field1 =~ s/^link\-//;
+	    push(@result, $field1);
+	}
+	elsif ($field1 =~ /^link\-([-\w]*):([-\w]*)/) {
+	    my $sw1 = $1;
+	    my $sw2 = $2;
+	    
+	    if ($field2 eq "($sw1/$sw2,$sw2/$sw1)" ||
+		$field2 eq "($sw2/$sw1,$sw1/$sw2)") {
+		push(@result, "$sw1:$sw2");
+	    }
+	}
+    }
+    return join(" ", @result);
 }
 
 # Get the type for an interface.
@@ -8555,6 +8777,34 @@ sub VnameToNode($$)
 	if (!defined($nodeid));
 
     return Node->Lookup($nodeid);
+}
+
+#
+# A switchpath is "SW1:SW2 SW2:SW3 ..." This function takes an
+# existing path, and adds new ones from the list, while watching for
+# duplicates.  We assume the new path is already unique since it came
+# right out of assign. Note that assign might spit out either SW1:SW2
+# or SW2:SW1, so have to watch for that too.
+#
+sub AddToSwitchPath($$)
+{
+    my ($cur, $new) = @_;
+
+    return $new
+	if (!defined($cur));
+    return $cur
+	if (!defined($new));
+
+    my @cur = split(" ", $cur);
+    my @new = split(" ", $new);
+    foreach my $n (@new) {
+	my ($s1,$s2) = split(":", $n);
+
+	push(@cur, $n)
+	    if (! ((grep {$_ eq $n} @cur) ||
+		   (grep {$_ eq "$s2:$s1"} @cur)));
+    }
+    return join(" ", @cur);
 }
 
 1;

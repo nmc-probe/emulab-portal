@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Node;
@@ -13,15 +13,18 @@ use vars qw(@ISA @EXPORT $AUTOLOAD @EXPORT_OK);
 @EXPORT = qw();
 
 # Configure variables
-use vars qw($TB $BOSSNODE $WOL $OSSELECT $ISUTAH $CONTROL_NETMASK);
+use vars qw($TB $BOSSNODE $WOL $OSSELECT $ISUTAH $CONTROL_NETMASK
+            $TBOPS $JAILIPMASK);
 $TB	     = "@prefix@";
 $BOSSNODE    = "@BOSSNODE@";
+$TBOPS       = "@TBOPSEMAIL@";
 $WOL         = "$TB/sbin/whol";
 $OSSELECT    = "$TB/bin/os_select";
 # XXX stinky hack detection
 $ISUTAH	     = @TBMAINSITE@;
 # Need this for jail ip assignment.
 $CONTROL_NETMASK = "@CONTROL_NETMASK@";
+$JAILIPMASK  = "@JAILIPMASK@";
 
 use libdb;
 use libtestbed;
@@ -60,7 +63,6 @@ sub checknodeid($$)
 	if (!exists($carped{$nid}) && open(MAIL, "| /usr/sbin/sendmail -t")) {
 	    $carped{$nid} = 1;
 	    require Carp;
-	    my $TBOPS = "@TBOPSEMAIL@";
 	    print MAIL "To: $TBOPS\n";
 	    print MAIL "Subject: NUL in node_id '$nid' ('$onid')\n";
 	    print MAIL "$msg\n";
@@ -178,6 +180,17 @@ sub Lookup($$)
 	$hash_copy->{$key} = $val;
     }
 
+    return LookupRow($class, $hash_copy);
+}
+
+#
+# Lookup a (physical) node based on an existing row from the database.
+# Useful for bulk lookups.
+#
+sub LookupRow($$)
+{
+    my ($class, $hash_copy) = @_;
+
     my $self            = {};
     $self->{"DBROW"}    = $hash_copy;
     $self->{"RSRV"}     = undef;
@@ -190,7 +203,7 @@ sub Lookup($$)
 
     # XXX debug
     my $row = $self->{"DBROW"};
-    $nodeid = checknodeid($row->{'node_id'}, "From DB");
+    my $nodeid = checknodeid($row->{'node_id'}, "From DB");
 
     # Add to cache.
     $nodes{$nodeid} = $self;
@@ -739,6 +752,16 @@ sub IsReserved($)
     return 1;
 }
 
+#
+# Set reserved member based on a database row. Useful for bulk lookups.
+#
+sub SetReservedRow($$)
+{
+    my ($self, $reserved) = @_;
+    if ($reserved->{"node_id"} eq $self->node_id()) {
+	$self->{"RSRV"} = $reserved;
+    }
+}
 
 sub GetSubboss($$)
 {
@@ -1248,8 +1271,11 @@ sub HasVirtualNodes($)
     my $node_id = $self->node_id();
 
     my $query_result = 
-	DBQueryWarn("select node_id from nodes ".
-		    "where phys_nodeid='$node_id' and node_id!=phys_nodeid");
+	DBQueryWarn("select nodes.node_id from nodes ".
+		    "left join reserved on reserved.node_id=nodes.node_id ".
+		    "where nodes.phys_nodeid='$node_id' and ".
+		    "      nodes.node_id!=nodes.phys_nodeid and ".
+		    "      reserved.node_id is not null");
     return -1
 	if (!$query_result);
     
@@ -1275,6 +1301,8 @@ sub L__reservation($$)
 sub vname($)		{ return L__reservation($_[0], 'vname'); }
 sub sharing_mode($)	{ return L__reservation($_[0], 'sharing_mode'); }
 sub erole($)		{ return L__reservation($_[0], 'erole'); }
+sub eid($)              { return L__reservation($_[0], 'eid'); }
+sub pid($)              { return L__reservation($_[0], 'pid'); }
 sub external_resource_index($) {
     return L__reservation($_[0], 'external_resource_index'); }
 sub external_resource_id($) {
@@ -1313,6 +1341,17 @@ sub LoadNodeAttributes($)
     }
 
     return 0;
+}
+
+# Iterate through rows adding node attributes. Each row is a hashref.
+sub PreloadNodeAttributes($$)
+{
+    my ($self, $rows) = @_;
+    $self->{"ATTRS"} = {};
+    foreach my $row (@{ $rows }) {
+	my $key = $row->{'attrkey'};
+	$self->{"ATTRS"}->{$key} = $row;
+    }
 }
 
 #
@@ -1389,6 +1428,14 @@ sub NodeTypeInfo($)
 	if (defined($nodetype));
     
     return $nodetype;
+}
+
+sub SetNodeTypeInfo($$)
+{
+    my ($self, $nodetype) = @_;
+    if ($self->type() eq $nodetype->type()) {
+	$self->{"TYPEINFO"} = $nodetype;
+    }
 }
 
 #
@@ -1851,7 +1898,10 @@ sub CreateVnodes($$$)
 {
     my ($class, $rptr, $options) = @_;
     my @created   = ();
+    my @ifaceargs = ();
+    my @interfaces= ();
     my @tocreate  = ();
+    my @vlist     = ();
     require Interface;
     require NodeType;
     
@@ -2148,9 +2198,12 @@ sub CreateVnodes($$$)
 			"def_boot_osid" => $osid,
 			"update_accounts" => 1,
 			"jailflag" => $isjailed);
-	$nodesets{"jailip"} = $jailip
-	    if ($isjailed && !$isremote);
-
+	# This is deprecated and will be removed. We now create real
+	# interfaces, see below.
+	if (0 && $isjailed && !$isremote) {
+	    $nodesets{"jailip"} = $jailip;
+	    $nodesets{"jailipmask"} = $JAILIPMASK;
+	}
 	my $statement = "insert into nodes set ".
 	    join(",", map("$_='" . $nodesets{$_} . "'", keys(%nodesets)));
 
@@ -2217,15 +2270,63 @@ sub CreateVnodes($$$)
 
 	Node->MakeFake($vnodeid, \%nodesets, \%rsrvsets)
 	    if ($impotent);
-	    
+
 	push(@created, $vnodeid);
+
+	#
+	# Save up interfaces we need to create after table unlock.
+	#
+	if ($isjailed && !$isremote) {
+	    my $ifaceargs = {
+		"node_id"   => $vnodeid,
+		"card"      => 0,
+		"port"      => 1,
+		"iface"     => "eth0",
+		"role"      => TBDB_IFACEROLE_CONTROL(),
+		"MAC"       => "000000000000",
+		"IP"        => $jailip,
+		"mask"      => $JAILIPMASK,
+		"type"      => "generic",
+		"logical"   => 1,
+	    };
+	    push(@ifaceargs, $ifaceargs);
+	}
     }
     DBQueryFatal("unlock tables");
+
+    #
+    # Now create a control network interface for local jailed nodes.
+    # Now that tables are unlocked. 
+    #
+    foreach my $ifaceargs (@ifaceargs) {
+	my $vnodeid = $ifaceargs->{'node_id'};
+	my $node    = Node->Lookup($vnodeid);
+	if (!defined($node)) {
+	    print STDERR
+		"*** CreateVnodes: Could not lookup node object for $vnodeid\n";
+	    goto bad;
+	}
+	my $interface = ($impotent ?
+			 Interface->MakeFake($node, $ifaceargs) :
+			 Interface->Create($node, $ifaceargs));
+	if (!defined($interface)) {
+	    print STDERR
+		"*** CreateVnodes: Could not create interface for $vnodeid\n";
+	    goto bad;
+	}
+	print STDERR Dumper($interface)
+	    if ($debug);
+
+	push(@interfaces, $interface);
+    }
     @$rptr = @created;
     return 0;
 
   bad:
     if (!$impotent) {
+	foreach my $interface (@interfaces) {
+	    $interface->Delete();
+	}
 	foreach my $vnodeid (@created) {
 	    DBQueryWarn("delete from reserved where node_id='$vnodeid'");
 	    DBQueryWarn("delete from nodes where node_id='$vnodeid'");
@@ -2252,6 +2353,10 @@ sub DeleteVnodes(@)
     DBQueryFatal("unlock tables");
     
     foreach my $vnodeid (@vnodes) {
+	my $interface = Interface->LookupControl($vnodeid);
+	$interface->Delete()
+	    if (defined($interface));
+	
 	DBQueryWarn("delete from node_hostkeys where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_status where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_rusage where node_id='$vnodeid'");
@@ -2348,6 +2453,68 @@ sub SetSchedReload($$;$)
 			  "(node_id, image_id, reload_type) values ".
 			  "('$node_id', '$imageid', '$type')"));
 
+    return 0;
+}
+
+sub GetSchedReload($)
+{
+    my ($self) = @_;
+
+    my $node_id = $self->node_id();
+
+    my $query_result =
+	DBQueryWarn("select image_id,reload_type from scheduled_reloads " .
+		    "where node_id='$node_id'");
+
+    return ()
+	if (! (defined($query_result) && $query_result->numrows));
+    
+    return $query_result->fetchrow_array();
+}
+
+sub ClearSchedReload($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id = $self->node_id();
+
+    DBQueryWarn("delete from scheduled_reloads where node_id='$node_id'");
+
+    return 0;
+}
+
+sub ClearCurrentReload($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id = $self->node_id();
+
+    DBQueryWarn("delete from current_reloads where node_id='$node_id'");
+
+    return 0;
+}
+
+sub ClearReservation($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id = $self->node_id();
+
+    if (DBQueryWarn("delete from reserved where node_id='$node_id'")) {
+	$self->FlushReserved();
+    }
     return 0;
 }
 
@@ -2611,19 +2778,66 @@ sub OSSelect($$$$)
 	$osinfo = $nextosinfo;
     }
     
-    print STDERR "Current opmode for $nodeid is $curmode.\n"
-	if ($debug);
-    print STDERR "Setting $field for $nodeid to $osinfo.\n"
-	if ($debug && defined($osinfo));
+    if (defined($osinfo) && !defined($field)) {
+	print STDERR "No field specified for OSSelect on $nodeid\n";
+	return -1;
+    }
 
-    # Set/Clear the osid.
-    DBQueryWarn("update nodes set ${field}=".
-		(defined($osinfo) ? "'" . $osinfo->osid() . "' " : "NULL ") .
-		"where node_id='$nodeid'")
-	or return -1;
+    if ($debug) {
+	print STDERR "Current opmode for $nodeid is $curmode.\n";
+	if (defined($osinfo)) {
+	    print STDERR "Setting $field for $nodeid to $osinfo.\n";
+	} elsif (defined($field)) {
+	    print STDERR "Clearing $field for $nodeid.\n";
+	} else {
+	    print STDERR "Clearing all boot_osids for $nodeid.\n";
+	}
+    }
 
-    return -1 
-	if ($self->ResetNextOpMode($debug) < 0);
+    if (!defined($field)) {
+	# Clear all osids.
+	DBQueryWarn("update nodes set ".
+		    "def_boot_osid=NULL,next_boot_osid=NULL,temp_boot_osid=NULL ".
+		    "where node_id='$nodeid'")
+	    or return -1;
+    } else {
+	# Set/Clear the osid.
+	DBQueryWarn("update nodes set ${field}=".
+		    (defined($osinfo) ? "'" . $osinfo->osid() . "' " : "NULL ") .
+		    "where node_id='$nodeid'")
+	    or return -1;
+
+	return -1 
+	    if ($self->ResetNextOpMode($debug) < 0);
+    }
+
+    return Refresh($self);
+}
+
+#
+#
+#
+sub PXESelect($$$$$)
+{
+    my ($self, $path, $field, $debug, $changedp) = @_;
+    my $nodeid  = $self->node_id();
+    my $didit = 0;
+
+    print STDERR "Setting $field for $nodeid to '$path'.\n"
+	if ($debug && $path);
+
+    my $cur = ($field eq "pxe_boot_path") ?
+	$self->pxe_boot_path() : $self->next_pxe_boot_path();
+    $cur = "" if (!$cur);
+    if ($cur ne $path) {
+	DBQueryWarn("update nodes set ${field}=".
+		    ($path ? "'$path'" : "NULL") .
+		    " where node_id='$nodeid'")
+	    or return -1;
+	$didit = 1;
+    }
+    $$changedp = $didit
+	if (defined($changedp));
 
     return Refresh($self);
 }
@@ -2644,10 +2858,19 @@ sub ResetNextOpMode($$)
     # screwed since we will not be able to figure out the opmode.
     #
     my ($bootosid, $bootopmode) = TBBootWhat($nodeid, $debug);
-    if (!$bootosid) {
+    if (!defined($bootosid)) {
 	print STDERR "Bootwhat query failed for $nodeid!\n";
 	return -1;
     }
+    #
+    # If it returned 0 the node is in PXEWAIT.
+    # For the node to do anything useful going forward, someone will
+    # have to first set one of the osids with os_select.
+    #
+    if ($bootosid == 0) {
+	return 0;
+    }
+
     print STDERR "Bootwhat says: $nodeid => $bootosid,$bootopmode\n"
 	if ($debug);
 
@@ -2831,6 +3054,191 @@ sub IsOSLoaded($$)
 
     return $query_result->numrows;
 }
+
+#
+# Determine an IP address for a jail node. Lifted from CreateVnodes() above.
+#
+sub GetJailIP($;$)
+{
+    my ($self, $num) = @_;
+    my $ipbase;
+
+    $num = 2
+	if (!defined($num));
+    
+    #
+    # Need IP for jailed nodes.
+    # 
+    my $IPBASE = TBDB_JAILIPBASE();
+    my $IPBASE1;
+    my $IPBASE2;
+    if ($IPBASE =~ /^(\d+).(\d+).(\d+).(\d+)/) {
+	$IPBASE1 = $1;
+	$IPBASE2 = $2;
+    }
+    else {
+	print STDERR "*** GetJailIP: Bad IPBASE '$IPBASE'\n";
+	return undef;
+    }
+
+    #
+    # Determine ipbase from the control IP (jailed nodes).
+    #
+    my $interface = Interface->LookupControl($self);
+    if (!defined($interface)) {
+	print STDERR "*** GetJailIP: No control interface for $self\n";
+	return undef;
+    }
+    my $ctrlip = $interface->IP();
+    if (!defined($ctrlip) || $ctrlip eq "") {
+	print STDERR "*** GetJailIP: No control IP for $interface\n";
+	return undef;
+    }
+    my $tmp = ~inet_aton($CONTROL_NETMASK) & inet_aton($ctrlip);
+    $ipbase = unpack("N", $tmp);
+    if ($ipbase == 0 || $ipbase < 0 || $ipbase > 0x3fff) {
+	print STDERR "*** GetJailIP: Bad ipbase '$ipbase' for $interface\n";
+	return undef;
+    }
+    
+    my $nodenumlimit = $ISUTAH ? 200 : 254;
+    my $pnet = $IPBASE2;
+    my $pnode2 = int($ipbase);
+    while ($pnode2 > $nodenumlimit) {
+	$pnet++;
+	$pnode2 -= $nodenumlimit;
+    }
+    return ("${IPBASE1}.${pnet}.${pnode2}.${num}", $JAILIPMASK);
+}
+
+#
+# Another variant of above, this one looks in the virt_node_attributes
+# table of the vnode assigned to the pnode.
+#
+sub SetJailIPFromVnode($$$)
+{
+    my ($self, $experiment, $vnode_id) = @_;
+    my ($jailip, $jailipmask);
+
+    return -1
+	if ($experiment->GetVirtNodeAttribute($vnode_id,
+					      "jailip", \$jailip) < 0 ||
+	    $experiment->GetVirtNodeAttribute($vnode_id,
+					      "jailipmask", \$jailipmask)  < 0);
+
+    if (defined($jailip)) {
+	if (!defined($jailipmask)) {
+	    print STDERR
+		"*** $vnode_id has a jailip attribute but no jailipmask.\n";
+	    return -1;
+	}
+	#
+	# We now create interface entries for local jailed nodes, so have
+	# to update the entry. We still use jailip under some circumstances.
+	#
+	if (!$self->isremotenode() && !defined($self->jailip())) {
+	    my $interface = Interface->LookupControl($self);
+	    if (!defined($interface)) {
+		print STDERR "*** $vnode_id does not have a control interface\n";
+		return -1;
+	    }
+	    $interface->Update({"IP"   => $jailip,
+				"mask" => $jailipmask})
+		== 0 or return -1;
+	}
+	else {
+	    return $self->Update({"jailip" => $jailip,
+				  "jailipmask" => $jailipmask});
+	}
+    }
+    return 0;
+}
+
+#
+# Check for, and update a node pre reservation.
+#
+sub CheckPreReserve($$)
+{
+    my ($self, $quiet) = @_;
+    my $result = undef;
+
+    #
+    # Look for a pre-reserve request.
+    #
+    my $type = $self->type();
+    my $node_id = $self->node_id();
+    
+    DBQueryWarn("lock tables node_reservations write, nodes write")
+	or return undef;
+
+    #
+    # Need to check for existing reserved_pid, but have to go to the DB,
+    # not look in the object ($self) since it might be stale.
+    #
+    my $query_result =
+	DBQueryWarn("select reserved_pid,count from nodes ".
+		    "left join node_reservations on ".
+		    "     node_reservations.pid=nodes.reserved_pid ".
+		    "where nodes.node_id='$node_id'");
+
+    goto done
+	if (!defined($query_result) || !$query_result->numrows);
+
+    #
+    # If there is a reserved pid already set for this node, check to see
+    # if the reervation request is still active. If not, we can clear it,
+    # which will allow it to be set again below, if needed.
+    #
+    my ($pid,$count) = $query_result->fetchrow_array();
+    if (defined($pid)) {
+	goto done
+	    if (defined($count));
+	
+	DBQueryWarn("update nodes set reserved_pid=null ".
+		    "where node_id='$node_id'");
+
+	if (!$quiet) {
+	    print "Clearing pre reserve for $node_id\n";
+	}
+    }
+    
+    $query_result =
+	DBQueryWarn("select pid,count from node_reservations ".
+		    "where count>0 and ".
+		    "       (types is null or ".
+		    "        FIND_IN_SET('$type', types)) ".
+		    "order by priority desc, created asc ".
+		    "limit 1");
+
+    goto done
+	if (!$query_result);
+    
+    if ($query_result->numrows) {
+	my ($pid,$count) = $query_result->fetchrow_array();
+
+	if (DBQueryWarn("update nodes set reserved_pid='$pid' ".
+			"where node_id='$node_id'")) {
+	    
+	    DBQueryWarn("update node_reservations set count=count-1 ".
+			"where pid='$pid'");
+	    
+	    $result = $pid;
+
+	    if ($count == 1) {
+		SENDMAIL($TBOPS, "Pre Reservation for $pid has completed",
+			 "The pre reservation request for project $pid, ".
+			 "has been fullfilled\n");
+	    }
+	}
+    }
+  done:
+    DBQueryWarn("unlock tables");
+    if (defined($result) && !$quiet) {
+	print "Setting pre reserve for $node_id to $result\n";
+    }
+    return $result;
+}
+
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

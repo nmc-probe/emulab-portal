@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniAM;
@@ -27,14 +27,24 @@ use Compress::Zlib;
 use MIME::Base64;
 use XML::LibXML;
 use URI;
+use Date::Parse;
 use Data::Dumper;
 use Frontier::RPC2;
+use POSIX qw(strftime);
 
 # Disable UUID checks in GeniCredential.
 $GeniCredential::CHECK_UUID = 0;
 
-my $API_VERSION = 1;
+my $API_VERSION = 2;
 my $MAINSITE    = @TBMAINSITE@;
+
+sub SetGeniVersion($)
+{
+    my ($new_version) = @_;
+    if ($new_version eq "1.0") {
+	$API_VERSION = 1;
+    }
+}
 
 #
 # Tell the client what API revision we support.  The correspondence
@@ -43,6 +53,8 @@ my $MAINSITE    = @TBMAINSITE@;
 #
 sub GetVersion()
 {
+    # $options is optional here for all versions
+    my ($options) = @_;
     my $me = GeniAuthority->Lookup($ENV{'MYURN'});
     if (!defined($me)) {
 	print STDERR "Could not find local authority object\n";
@@ -87,7 +99,7 @@ sub GetVersion()
 
     my $default_ad = {
 	"type" => "ProtoGENI",
-	"version" => $coder->string("0.1") };
+	"version" => $coder->string("2") };
     my $request_0_1 = {
 	"type" => "ProtoGENI",
 	"version" => $coder->string("0.1"),
@@ -108,6 +120,13 @@ sub GetVersion()
 	"schema" => "http://www.protogeni.net/resources/rspec/2/request.xsd",
 	"namespace" => "http://www.protogeni.net/resources/rspec/2",
 	"extensions" => ["http://www.protogeni.net/resources/rspec/ext/emulab/1"]
+    };
+    my $request_3 = {
+	"type" => "GENI",
+	"version" => $coder->string("3"),
+	"schema" => "http://www.geni.net/resources/rspec/3/request.xsd",
+        "namespace" => "http://www.geni.net/resources/rspec/3",
+        "extensions" => ["http://www.protogeni.net/resources/rspec/ext/emulab/1"]
     };
     my $ad_0_1 = {
         "type" => "ProtoGENI",
@@ -130,6 +149,20 @@ sub GetVersion()
         "namespace" => "http://www.protogeni.net/resources/rspec/2",
         "extensions" => ["http://www.protogeni.net/resources/rspec/ext/emulab/1"]
     };
+    my $ad_3 = {
+	"type" => "GENI",
+	"version" => $coder->string("3"),
+	"schema" => "http://www.geni.net/resources/rspec/3/ad.xsd",
+        "namespace" => "http://www.geni.net/resources/rspec/3",
+        "extensions" => ["http://www.protogeni.net/resources/rspec/ext/emulab/1"]
+    };
+
+    my $request_name = "request_rspec_versions";
+    my $ad_name = "ad_rspec_versions";
+    if ($API_VERSION > 1) {
+	$request_name = "geni_request_rspec_versions";
+	$ad_name = "geni_ad_rspec_versions";
+    }
 
     my $blob = {
 	"geni_api"   => $API_VERSION,
@@ -140,14 +173,24 @@ sub GetVersion()
 	"code_tag"   => $commithash,
 	# XXX
 	"hostname"   => $hostname,
-	"request_rspec_versions" => [$request_0_1, $request_0_2, $request_2],
-	"ad_rspec_versions" => [$ad_0_1, $ad_0_2, $ad_2],
-	"default_ad_rspec" => $default_ad
+	$request_name => [$request_0_1, $request_0_2, $request_2,
+			   $request_3],
+	$ad_name => [$ad_0_1, $ad_0_2, $ad_2, $ad_3],
+	"geni_api_versions" => {
+	    "1" => "$url/1.0",
+	    "2" => "$url/2.0"
+	}
     };
     $blob->{"peers"} = $peers
 	if ($MAINSITE);
-    
-    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+    $blob->{"default_ad_rspec"} = $default_ad
+	if ($API_VERSION == 1);
+
+    my $response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+    if ($API_VERSION > 1) {
+	$response->{"geni_api"} = $API_VERSION;
+    }
+    return $response;
 }
 
 # List this aggregates resources. Invokes GeniCMV2::Resolve or
@@ -155,10 +198,19 @@ sub GetVersion()
 sub ListResources()
 {
     my ($credentials, $options) = @_;
+    if (! defined($credentials) || ! defined($options)
+	|| ($API_VERSION > 1 && ! defined($options->{'geni_rspec_version'}))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
     my $available = $options->{'geni_available'};
     my $compress = $options->{'geni_compressed'};
     my $slice_urn = $options->{'geni_slice_urn'};
-    my $version    = $options->{'rspec_version'} || undef;
+    my $version;
+    if ($API_VERSION == 1) {
+	$version    = $options->{'rspec_version'} || undef;
+    } else {
+	$version    = $options->{'geni_rspec_version'};
+    }
 
     my $xml = undef;
     if ($slice_urn) {
@@ -189,10 +241,10 @@ sub ListResources()
     } else {
 	my $pgversion = undef;
 	if (! defined($version)) {
-	    $pgversion = "0.2";
+	    $pgversion = "2";
 	} elsif (defined($version->{'type'}) &&
-		 ($version->{'type'} eq "ProtoGENI" ||
-		  $version->{'type'} eq "protogeni")) {
+		 (lc($version->{'type'}) eq "protogeni"
+		  || lc($version->{'type'}) eq "geni")) {
 	    $pgversion = $version->{'version'};
 	} else {
 	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
@@ -285,6 +337,9 @@ sub auto_add_sa($)
     #
     # We want the URL! 
     #
+    goto goturl
+	if (defined($url));
+    
     # First get the list of registries from PLC.
     my $registry = GeniRegistry::PLC->Create();
     if (!defined($registry)) {
@@ -304,7 +359,8 @@ sub auto_add_sa($)
     my $authcertstr = @$signers[scalar(@$signers) - 1];
     my $authcert = GeniCertificate->LoadFromString($authcertstr);
     if (!defined($authcert)) {
-        print STDERR "auto_add_sa: could not get certificate from $authcertstr\n";
+        print STDERR
+	    "auto_add_sa: could not get certificate from $authcertstr\n";
         return;
     }
     my $authurn = $authcert->urn();
@@ -330,6 +386,7 @@ sub auto_add_sa($)
     # Gack. Replace the URL with a modified URL which says https.
     # Why does PLC set the scheme to http?
     #
+  goturl:
     my $uri = URI->new($url);
     $uri->scheme("https");
     $url = "$uri";
@@ -344,7 +401,12 @@ sub auto_add_sa($)
 # Create a sliver by allocating and starting resources.
 sub CreateSliver()
 {
-    my ($slice_urn, $credentials, $rspec, $users) = @_;
+    my ($slice_urn, $credentials, $rspec, $users, $options) = @_;
+    if (! defined($slice_urn) || ! defined($credentials)
+	|| ! defined($rspec) || ! defined($users)
+	|| (! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
 
     foreach my $cred (@$credentials) {
         # If we want to remove the SA(s) after this call, push them
@@ -402,7 +464,11 @@ sub CreateSliver()
 # instead.
 sub DeleteSliver()
 {
-    my ($slice_urn, $credentials) = @_;
+    my ($slice_urn, $credentials, $options) = @_;
+    if (! defined($slice_urn) || ! defined($credentials)
+	|| (! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
 
     my $delete_args = {
         'slice_urn' => $slice_urn,
@@ -450,7 +516,11 @@ sub XmlToJson
 # just passes on to the CM SliverStatus operation.
 sub SliverStatus()
 {
-    my ($slice_urn, $credentials) = @_;
+    my ($slice_urn, $credentials, $options) = @_;
+    if (! defined($slice_urn) || ! defined($credentials)
+	|| (! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
 
     my $status_args = {
         'slice_urn' => $slice_urn,
@@ -478,15 +548,30 @@ sub SliverStatus()
     # include the pg status
     $status->{'pg_status'} = $pgstatus->{'status'};
 
-    # include the expiration
+    # include the expiration, converting to UTC
     my $slice = GeniSlice->Lookup($slice_urn);
-    $status->{'pg_expires'} = $slice->expires();
+    my @expires = gmtime(str2time($slice->expires()));
+    my $expires_str = POSIX::strftime("%Y-%m-%dT%H:%M:%S", @expires);
+    $status->{'pg_expires'} = $expires_str;
+
+    # Grab the keys (logins) for inclusion.
+    my $slice_experiment = $slice->GetExperiment();
+    if (!defined($slice_experiment)) {
+	print STDERR "*** No Experiment for $slice\n";
+    }
+    else {
+	my $bindings;
+	if ($slice_experiment->NonLocalUsers(\$bindings)) {
+	    print STDERR "*** No bindings for $slice_experiment\n";
+	}
+	elsif (@{ $bindings }) {
+	    $status->{'users'} = $bindings;
+	}
+    }
 
     my $details = $pgstatus->{'details'};
     my @children = ();
     while ( my ($pgurn, $pgrstat) = each(%$details) ) {
-        # Look up the sliver so we can extract info from the manifest.
-        my $sliver = GeniSliver->Lookup($pgurn);
         my $child = {
             'geni_urn' => $pgurn,
             # XXX Need to massage status to one of the AM status values
@@ -494,6 +579,14 @@ sub SliverStatus()
             'geni_error' => $pgrstat->{'error'},
             'pg_status' => $pgrstat->{'status'},
         };
+        # Look up the sliver so we can extract info from the manifest.
+        my $sliver = GeniSliver->Lookup($pgurn);
+	if (!defined($sliver)) {
+	    $sliver = GeniAggregate->Lookup($pgurn);
+	}
+	# Signal an error?
+	next
+	    if (!defined($sliver));
 
         # Put manifest info in...
         my $manifest = $sliver->GetManifest(0);
@@ -522,7 +615,12 @@ sub SliverStatus()
 
 sub RenewSliver()
 {
-    my ($slice_urn, $credentials, $expiration_time) = @_;
+    my ($slice_urn, $credentials, $expiration_time, $options) = @_;
+    if (! defined($slice_urn) || ! defined($credentials)
+	|| ! defined($expiration_time)
+	|| (! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
 
     my $renew_args = {
         'slice_urn' => $slice_urn,
@@ -541,7 +639,11 @@ sub RenewSliver()
 
 sub Shutdown()
 {
-    my ($slice_urn, $credentials) = @_;
+    my ($slice_urn, $credentials, $options) = @_;
+    if (! defined($slice_urn) || ! defined($credentials)
+	|| (! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
 
     my $shutdown_args = {
         'slice_urn' => $slice_urn,

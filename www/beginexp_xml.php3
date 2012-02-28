@@ -64,6 +64,7 @@ $uid = $this_user->uid();
 
 # Need this below;
 $idleswaptimeout = TBGetSiteVar("idle/threshold");
+$autoswap_max    = TBGetSiteVar("general/autoswap_max");
 
 # Convert the xml into PHP datatypes; an array of arguments. We ignore the
 # the method for now. 
@@ -274,8 +275,8 @@ else {
 	$errors["Max. Duration"] = "No or invalid time provided";
     }
     # The user can override autoswap timeout, but limit unless an admin.
-    if ($formfields["exp_autoswap_timeout"] > 24 * 5 && !ISADMIN()) {
-	$errors["Max. Duration"] = "5 days maximum - ".
+    if ($formfields["exp_autoswap_timeout"] > $autoswap_max && !ISADMIN()) {
+	$errors["Max. Duration"] = "$autoswap_max hours maximum - ".
 	    "you must ask testbed operations for more";
     }
 }
@@ -446,7 +447,8 @@ if (isset($formfields["exp_linktest"]) && $formfields["exp_linktest"] != "") {
 #
 # Grab the unix GID for running scripts.
 #
-$unix_gid = $group->unix_gid();
+$unix_pgid = $project->unix_gid();
+$unix_ggid = $group->unix_gid();
 
 #
 # Run the backend script.
@@ -455,7 +457,7 @@ $unix_gid = $group->unix_gid();
 #
 set_time_limit(0);
 
-$retval = SUEXEC($uid, "$exp_pid,$unix_gid" . $extragroups ,
+$retval = SUEXEC($uid, "$unix_pgid,$unix_ggid" . $extragroups ,
 		 "webbatchexp $batcharg -E $exp_desc $exp_swappable ".
 		 "$linktestarg -p $exp_pid -g $exp_gid -e $exp_id ".
 		 ($nonsfile ? "" : "$thensfile"),

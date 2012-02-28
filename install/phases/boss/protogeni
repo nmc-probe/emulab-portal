@@ -1,0 +1,51 @@
+#
+# 
+#
+use strict;
+use libinstall;
+use installvars;
+use File::stat;
+
+my $INITCERTS	= "$PREFIX/sbin/protogeni/initcerts";
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    if ($isupdate) {
+	Phase "protogeni", "Updating protogeni subsystem", sub {
+	    PhaseSkip("Protogeni not enabled")
+		if (! $PGENISUPPORT);
+
+	    PhaseSkip("Certificates not modified")
+		if (PhaseWasSkipped("sslcerts"));
+
+	    #
+	    # Since the certs were regenerated, need to send the new CA
+	    # to the clearinghouse and then reregister the new PG certs.
+	    #
+	    unlink("$ETCDIR/.federated");
+	    unlink("$ETCDIR/.protogeni_federated");
+	    unlink("$ETCDIR/.protogeni_registered");
+
+	    #
+	    # Everything is handled in the protogeni code, including backup.
+	    #
+	    ExecQuietFatal("$INITCERTS -r -k");
+	    PhaseSucceed("Protogeni certificates updated");
+	};
+	return 0;
+    }
+    Phase "protogeni", "Installing protogeni subsystem", sub {
+	PhaseSkip("Protogeni not enabled")
+	    if (! $PGENISUPPORT);
+
+	ExecQuietFatal("cd $TOP_OBJDIR/protogeni/scripts; perl ./initsite");
+	PhaseSucceed("Protogeni installed");
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:

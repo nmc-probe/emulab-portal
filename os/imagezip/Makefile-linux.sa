@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -19,9 +19,10 @@ WITH_CRYPTO	= 1
 WITH_EXTFS	= 1
 WITH_FFS	= 1
 WITH_FAT	= 1
-WITH_NTFS	= 1
+WITH_NTFS	= 0
 WITH_HASH	= 0
-WITH_EXT4FS	= 0
+
+WITH_V3COMPAT   = 1
 
 PTHREADCFLAGS	= -D_THREAD_SAFE -pthread
 #PTHREADLIBS	= -L/usr/local/lib -llgcc_r
@@ -41,14 +42,14 @@ CFLAGS		+= -DWITH_CRYPTO -DSIGN_CHECKSUM
 LIBS		+= -lcrypto
 endif
 
+# Support generation of V3 images when "secure" features not used
+ifeq ($(WITH_V3COMPAT),1)
+CFLAGS		+= -DWITH_V3COMPAT
+endif
+
 ifeq ($(WITH_EXTFS),1)
 FSOBJS		+= extfs/extfs.o extfs/reloc_lilo.o
 CFLAGS		+= -DWITH_EXTFS -Iextfs
-endif
-
-ifeq ($(WITH_EXT4FS),1)
-FSOBJS		+= ext4fs/ext4fs.o ext4fs/reloc_lilo.o
-CFLAGS		+= -DWITH_EXT4FS -Iext4fs
 endif
 
 ifeq ($(WITH_FFS),1)

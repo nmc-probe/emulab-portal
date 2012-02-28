@@ -1,0 +1,46 @@
+#
+# 
+#
+use strict;
+use libinstall;
+use installvars;
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    my @adds = (qq|rpcbind_enable="YES"|,
+		qq|mountd_enable="YES"|,
+		qq|nfs_server_enable="YES"|,
+		qq|nfs_server_flags="-u -t -n 16"|,
+		qq|mountd_flags="-r -p 900"|,
+		((ISFS($server) && $WINSUPPORT) ? qq|smbd_enable="YES"| : ()),
+		qq|syslogd_flags=""|);
+
+    if ($server eq $OPS_SERVERNAME) {
+	@adds = (@adds,
+		 qq|sendmail_enable="YES"|,
+		 (("$APACHE_VERSION" eq "22") ?
+		  (qq|apache22_enable="YES"|,
+		   qq|apache22_flags="-DSSL"|) :
+		  (qq|apache_enable="YES"|,
+		   qq|apache_flags="-DSSL"|)),
+		 ($CVSSUPPORT ? qq|cvsd_enable="YES"| : ()),
+		 qq|pubsubd_flags="-T 10"|);
+    }
+
+    Phase "rc.conf", "Adding testbed content to rc.conf", sub {
+	DoneIfEdited($RCCONF);
+	BackUpFileFatal($RCCONF);
+	AppendToFileFatal($RCCONF, @adds);
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -30,8 +30,10 @@ BEGIN {
 }
 
 # Configure variables
-my $MAINSITE 	   = @TBMAINSITE@;
-my $TBOPS          = "@TBOPSEMAIL@";
+my $MAINSITE 	     = @TBMAINSITE@;
+my $TBOPS            = "@TBOPSEMAIL@";
+my $PORTAL_ENABLE    = @PORTAL_ENABLE@;
+my $PORTAL_ISPRIMARY = @PORTAL_ISPRIMARY@;
 my $MODULE;
 my $GENIURN;
 
@@ -44,24 +46,27 @@ my %GENI_MODULES = ( "cm"        => "@prefix@/lib/protogeni-cm.pm",
 		     "ch"        => "@prefix@/lib/protogeni-ch.pm",
 		     "ses"       => "@prefix@/lib/protogeni-ses.pm",
 		     # XXX This is temporary! 
-		     "instools"  => "@prefix@/lib/protogeni-instools.pm",
-    );
+		     "instools"  =>
+		             "@prefix@/lib/instools/protogeni-instools.pm",
+);
+if ($PORTAL_ENABLE && !$PORTAL_ISPRIMARY) {
+    $GENI_MODULES{"emulab"} = "@prefix@/lib/protogeni-emulab.pm";
+}
 
 # These variables are shared with the loaded module.
 use vars qw($EMULAB_PEMFILE $GENI_METHODS $GENI_VERSION
-	    $GENI_RESPONSE_CONVERTER);
+	    $GENI_RESPONSE_CONVERTER $PROJECT);
 
 # Testbed libraries.
 use lib '@prefix@/lib';
 use Genixmlrpc;
 use GeniResponse;
+use GeniHRN;
+use GeniUtil;
 use libaudit;
 use libEmulab;
 use libtestbed;
-
-# Geniuser.
-my $user  = "geniuser";
-my $group = "GeniSlices";
+use User;
 
 # Need a command line option.
 my $debug      = 0;
@@ -135,19 +140,7 @@ if (! (exists($ENV{'SSL_CLIENT_VERIFY'}) &&
 # so that there is an emulab user context, or many of the scripts we
 # invoke will complain and croak. 
 #
-my $unix_uid = getpwnam("$user") or
-    die("*** $0:\n".
-	"    No such user $user\n");
-my $unix_gid = getgrnam("$group") or
-    die("*** $0:\n".
-	"    No such group $group\n");
-
-# Flip to user and never go back
-$GID            = $unix_gid;
-$EGID           = "$unix_gid $unix_gid";
-$EUID = $UID    = $unix_uid;
-$ENV{'USER'}    = $user;
-$ENV{'LOGNAME'} = $user;
+GeniUtil::FlipToGeniUser();
 
 if (exists($ENV{'PATH_INFO'}) && $ENV{'PATH_INFO'} ne "") {
     my $pathinfo = $ENV{'PATH_INFO'};
@@ -155,6 +148,17 @@ if (exists($ENV{'PATH_INFO'}) && $ENV{'PATH_INFO'} ne "") {
     my @parts = split(/\//, $pathinfo);
     if (@parts) {
 	my $m = shift(@parts);
+	if( $m eq "project" ) {
+	    if (@parts) {
+		my $p = shift(@parts);
+		if ($p =~ /^[-\w]+$/) {
+		    $PROJECT = "$p";
+		}
+		if (@parts) {
+		    $m = shift(@parts);		
+		}
+	    }
+	}
 	if ($m =~ /^[-\w]+$/) {
 	    $MODULE = $m;
 	    if (@parts) {
@@ -165,25 +169,6 @@ if (exists($ENV{'PATH_INFO'}) && $ENV{'PATH_INFO'} ne "") {
 	    }
 	}
     }
-}
-
-#
-# The UUID of the client certificate is in the env var SSL_CLIENT_S_DN_CN.
-# If it actually looks like a UUID, then this correponds to an actual user,
-# and the supplied credentials/tickets must match. At present, if there is
-# no UUID, it is another emulab making a request directly, with no user
-# context, and we just let that pass for now.
-#
-if (exists($ENV{'SSL_CLIENT_S_DN_CN'}) &&
-    $ENV{'SSL_CLIENT_S_DN_CN'} =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
-    $ENV{'GENIUSER'} = $ENV{'SSL_CLIENT_S_DN_CN'};
-    $ENV{'GENIUUID'} = $ENV{'SSL_CLIENT_S_DN_CN'};
-}
-elsif (defined($MODULE) && ($MODULE eq $AM_MODULE)) {
-    # Do not expect a UUID if calling to the AM.
-}
-else {
-    XMLError(XMLRPC_APPLICATION_ERROR(), "Invalid certificate; no UUID");
 }
 
 #
@@ -213,7 +198,27 @@ if (exists($ENV{'SSL_CLIENT_CERT'})) {
 }
 XMLError(XMLRPC_APPLICATION_ERROR(),
 	 "Invalid authentication certificate; no URN. Please regenerate.")
-    if (!exists($ENV{'GENIURN'}));
+    if (! (defined($GENIURN) && GeniHRN::IsValid($GENIURN)));
+
+#
+# Lets make sure that local users do not get past here if their account
+# has been frozen. Their SSL certificate is still valid of course. We
+# probably want to also add a check for non-local users, but that needs
+# more thought.
+#
+my ($authority, $type, $id) = GeniHRN::Parse($GENIURN);
+if ($type eq "user" && GeniHRN::Authoritative($GENIURN, "@OURDOMAIN@")) {
+    #
+    # Check Emulab users table. 
+    #
+    my $user = User->Lookup($id);
+    XMLError(XMLRPC_APPLICATION_ERROR(),
+	     "Not a valid local user. Who are you really?")
+	if (!defined($user));
+    XMLError(XMLRPC_APPLICATION_ERROR(),
+	     "Your account is no longer active!")
+	if ($user->status() ne "active");
+}
 
 #
 # Reaching into the Frontier code so I can debug this crap.
@@ -242,21 +247,36 @@ if (!(defined($GENI_METHODS) && defined($EMULAB_PEMFILE))) {
     XMLError(XMLRPC_APPLICATION_ERROR(),
 	     "Internal error loading module; missing definitions");
 }
-# Temporary while we are running Instools stuff in Utah.
-if ($MODULE eq "instools" && $MAINSITE) {
-    $debug = 1;
-}
 
 #
 # So we know who/what we are acting as.
 #
+# Must be a require cause of the DB name that is set in the module file
+# which is not loaded until just above.
+require GeniCertificate;
+
 my $certificate = GeniCertificate->LoadFromFile($EMULAB_PEMFILE);
+
 if (!defined($certificate)) {
     die("*** $0:\n".
 	"    Could not get uuid from $EMULAB_PEMFILE\n");
 }
-$ENV{'MYUUID'} = $certificate->uuid();
-$ENV{'MYURN'}  = $certificate->urn();
+
+if( $PROJECT ) {
+    my $name = GeniHRN::Generate( "@OURDOMAIN@:$PROJECT", "authority",
+				  $MODULE );
+    my $authority = GeniAuthority->Lookup( $name );
+
+    if (!defined($authority)) {
+	die("*** $0:\n".
+	    "    Could not resolve requested authority\n");
+    }
+    $ENV{'MYUUID'} = $authority->uuid();
+    $ENV{'MYURN'}  = $authority->urn();
+} else {
+    $ENV{'MYUUID'} = $certificate->uuid();
+    $ENV{'MYURN'}  = $certificate->urn();
+}
 
 #
 # Create and set our RPC context for any calls we end up making.
@@ -326,9 +346,38 @@ $message .=
 $message .=
     "Start:   " . TBTimeStamp() . "\n";
 
+# Debug the CM and AM modules
+if ($MODULE eq "cm" || $MODULE eq $AM_MODULE) {
+    $debug = 0;
+
+    # Too much output.
+    if ($method eq "ListResources" ||
+	$method eq "DiscoverResources") {
+	$debug = 0;
+    }
+    # Happens too often and not interesting
+    if ($method eq "Resolve" ||
+	$method eq "SliverStatus" ||
+	$method eq "GetVersion") {
+	$debug = 0;
+    }
+    # We always want as much data as possible for these.
+    if ($method eq "CreateSliver" ||
+	$method eq "RedeemTicket" ||
+	$method eq "GetTicket") {
+	$debug = 2;
+    }
+}
+elsif ($MODULE eq "emulab") {
+    $debug = 2;
+}
+
 my $starttime = [gettimeofday()];
 eval { $result = &{ $GENI_METHODS->{$method} }(@{ $call->{'value'} }) };
 if ($@) {
+    # In case the callee flipped.
+    GeniUtil::FlipToGeniUser();
+    
     #
     # These errors should get mailed to tbops.
     #
@@ -341,6 +390,9 @@ if ($@) {
 		 "Error executing RPC:\n" . $@ . "\n\n" . $request);
 }
 else {
+    # In case the callee flipped.
+    GeniUtil::FlipToGeniUser();
+
     my $elapsed = tv_interval($starttime);
     $message .= "End:     " . TBTimeStamp() . "\n";
     $message .= "Elapsed: " . sprintf("%f", $elapsed) . "\n";
@@ -356,12 +408,15 @@ else {
 	    $message .= "Code:    " . $result->{'code'} . "\n";
 	}
 	$message .= "Output:  " . $result->{'output'} . "\n"
-	    if (defined($result->{'output'}));
+	    if (defined($result->{'output'}) && $result->{'output'} ne "");
 
-	$message .= "Result:\n"  . Dumper($result->{'value'}) . "\n\n";
+	if (GeniResponse::IsError($result) || $debug > 1) {
+	    $message .= "Result:\n"  . Dumper($result->{'value'}) . "\n\n";
+	}
     }
-    $message .= "Request:\n" . $request . "\n";
-    
+    if (GeniResponse::IsError($result) || $debug > 1) {
+	$message .= "Request:\n" . $request . "\n";
+    }
     AddAuditInfo("message", $message);
 
     if (! ref($result)) {
@@ -369,7 +424,7 @@ else {
 	# This could happen if the child forks. 
 	#
 	if ($result) {
-	    print STDERR "Child forked but returned an error\n";
+	    print STDERR "Forked child returned an error\n";
 	}
     }
     else {
@@ -385,9 +440,15 @@ else {
 	    $result->{'output'} = `cat $ENV{'TBAUDITLOG'}`;
 	}
 	# Do this after above so that silly comment is not sent to user.
-	if (GeniResponse::IsError($result) && $mailerrors &&
-	    $result->{'code'} != GENIRESPONSE_SEARCHFAILED()) {
-	    print STDERR "Mail Errors is on.\n";
+	if (GeniResponse::IsError($result)) {
+	    if ($result->{'code'} == GENIRESPONSE_SEARCHFAILED() ||
+		$result->{'code'} == GENIRESPONSE_BUSY) {
+		# Do not send debugging mail for these two errors.
+		$debug = 0;
+	    }
+	    elsif ($mailerrors) {
+		print STDERR "Mail Errors is on.\n";
+	    }
 	}
 
 	#

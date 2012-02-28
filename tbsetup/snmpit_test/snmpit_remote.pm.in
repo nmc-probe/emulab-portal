@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004-2011 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -74,7 +74,8 @@ sub commonTail($$)
     # over again.
     #
     my $args  = {"op"    => $op, "args"   => $arg};
-    my ($obj) = RPC::XML::smart_encode($args);
+    my $xs = RPC::XML::struct->new($args);
+    my $obj = RPC::XML::request->new('passthrough', $xs);
 
     my $response = libxmlrpc::CallMethod0("elabinelab", "vlansv3",
 					  {"xmldoc" => $obj->as_string()});

@@ -1,6 +1,6 @@
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2010 University of Utah and the Flux Group.
+# Copyright (c) 2008-2011 University of Utah and the Flux Group.
 # All rights reserved.
 # 
 # Permission to use, copy, modify and distribute this software is hereby
@@ -16,9 +16,8 @@ from urlparse import urlsplit, urlunsplit
 from urllib import splitport
 import xmlrpclib
 import M2Crypto
-from M2Crypto import X509
-import socket
-import time;
+import time
+import httplib
 
 # Debugging output.
 debug           = 0
@@ -38,6 +37,7 @@ EXTRACONF       = None
 SLICENAME       = "mytestslice"
 REQARGS         = None
 CMURI           = None
+SAURI           = None
 DELETE          = 0
 
 selfcredentialfile = None
@@ -48,30 +48,33 @@ if "Usage" not in dir():
     def Usage():
         print "usage: " + sys.argv[ 0 ] + " [option...]"
         print """Options:
+    -a file, --admincredentials=file    read admin credentials from file
     -c file, --credentials=file         read self-credentials from file
                                             [default: query from SA]
     -d, --debug                         be verbose about XML methods invoked
     -f file, --certificate=file         read SSL certificate from file
                                             [default: ~/.ssl/encrypted.pem]
-    -h, --help                          show options and usage"""
+    -h, --help                          show options and usage
+    -l uri, --sa=uri                    specify uri of slice authority
+                                            [default: local]
+    -m uri, --cm=uri                    specify uri of component manager
+                                            [default: local]"""
         if "ACCEPTSLICENAME" in globals():
             print """    -n name, --slicename=name           specify human-readable name of slice
                                             [default: mytestslice]"""
-            pass
-        print """    -m uri, --cm=uri           specify uri of component manager
-                                            [default: local]"""
         print """    -p file, --passphrase=file          read passphrase from file
                                             [default: ~/.ssl/password]
     -r file, --read-commands=file       specify additional configuration file
     -s file, --slicecredentials=file    read slice credentials from file
-                                            [default: query from SA]
-    -a file, --admincredentials=file    read admin credentials from file"""
+                                            [default: query from SA]"""
 
 try:
-    opts, REQARGS = getopt.getopt( sys.argv[ 1: ], "c:df:hn:p:r:s:m:a:",
-                                   [ "credentials=", "debug", "certificate=",
-                                     "help", "passphrase=", "read-commands=",
-                                     "slicecredentials=","admincredentials",                                     "slicename=", "cm=", "delete"] )
+    opts, REQARGS = getopt.getopt( sys.argv[ 1: ], "a:c:df:hl:m:n:p:r:s:",
+                                   [ "admincredentials=", "credentials=",
+                                     "debug", "certificate=",
+                                     "help", "sa=", "cm=", "slicename=",
+                                     "passphrase=", "read-commands=",
+                                     "slicecredentials=", "delete" ] )
 except getopt.GetoptError, err:
     print >> sys.stderr, str( err )
     Usage()
@@ -85,19 +88,21 @@ if "PROTOGENI_PASSPHRASE" in os.environ:
     PASSPHRASEFILE = os.environ[ "PROTOGENI_PASSPHRASE" ]
 
 for opt, arg in opts:
-    if opt in ( "-c", "--credentials" ):
+    if opt in ( "-a", "--admincredentials" ):
+        admincredentialfile = arg
+    elif opt in ( "-c", "--credentials" ):
         selfcredentialfile = arg
     elif opt in ( "-d", "--debug" ):
         debug = 1
-    elif opt in ( "--delete" ):
-        DELETE = 1
     elif opt in ( "-f", "--certificate" ):
         CERTIFICATE = arg
     elif opt in ( "-h", "--help" ):
         Usage()
         sys.exit( 0 )
-    elif opt in ( "-n", "--slicename" ):
-        SLICENAME = arg
+    elif opt in ( "-l", "--sa" ):
+        SAURI = arg
+        if SAURI[-2:] == "cm":
+            SAURI = SAURI[:-3]
     elif opt in ( "-m", "--cm" ):
         CMURI = arg
         if CMURI[-2:] == "cm":
@@ -106,22 +111,46 @@ for opt, arg in opts:
             CMURI = CMURI[:-5]
             pass
         pass
+    elif opt in ( "-n", "--slicename" ):
+        SLICENAME = arg
     elif opt in ( "-p", "--passphrase" ):
         PASSPHRASEFILE = arg
     elif opt in ( "-r", "--read-commands" ):
         EXTRACONF = arg
     elif opt in ( "-s", "--slicecredentials" ):
         slicecredentialfile = arg
-    elif opt in ( "-a", "--admincredentials" ):
-        admincredentialfile = arg
+    elif opt in ( "--delete" ):
+        DELETE = 1
 
-cert = X509.load_cert( CERTIFICATE )
+cert = M2Crypto.X509.load_cert( CERTIFICATE )
 
-# XMLRPC server: use www.emulab.net for the clearinghouse, and
-# the issuer of the certificate we'll identify with for everything else
-XMLRPC_SERVER   = { "ch" : "www.emulab.net",
-                    "default" : cert.get_issuer().CN }
-SERVER_PATH     = { "default" : ":443/protogeni/xmlrpc/" }
+# XMLRPC server: use www.emulab.net for the clearinghouse.
+XMLRPC_SERVER   = { "ch" : "www.emulab.net" }
+
+try:
+    extension = cert.get_ext("authorityInfoAccess")
+    val = extension.get_value()
+    if val.find('URI:') > 0:
+        url = val[val.find('URI:')+4:]
+	url = url.rstrip()
+	# strip trailing sa
+	if url.endswith('/sa') > 0:
+	    url = url[:-2]
+    	    pass
+	scheme, netloc, path, query, fragment = urlsplit(url)
+        host,port = splitport(netloc)
+	XMLRPC_SERVER["default"] = host
+        if port:
+	    path = ":" + port + path
+            pass
+        SERVER_PATH = { "default" : path }
+except LookupError, err:
+    pass
+
+if "default" not in XMLRPC_SERVER:
+    XMLRPC_SERVER["default"] = cert.get_issuer().CN
+    SERVER_PATH = { "default" : ":443/protogeni/xmlrpc/" }
+pass
 
 if os.path.exists( GLOBALCONF ):
     execfile( GLOBALCONF )
@@ -178,15 +207,11 @@ def geni_am_response_handler(method, method_args):
 #
 def do_method(module, method, params, URI=None, quiet=False, version=None,
               response_handler=None):
-    if not os.path.exists(CERTIFICATE):
-        return Fatal("error: missing emulab certificate: %s\n" % CERTIFICATE)
     
-    from M2Crypto.m2xmlrpclib import SSL_Transport
-    from M2Crypto import SSL
-
     if URI == None and CMURI and (module == "cm" or module == "cmv2"):
         URI = CMURI
-        pass
+    elif URI == None and SAURI and module == "sa":
+        URI = SAURI
 
     if URI == None:
         if module in XMLRPC_SERVER:
@@ -208,59 +233,61 @@ def do_method(module, method, params, URI=None, quiet=False, version=None,
         URI = URI + "/" + version
         pass
 
-    scheme, netloc, path, query, fragment = urlsplit(URI)
-    if not scheme:
-        URI = "https://" + URI
-        pass
-    
-    scheme, netloc, path, query, fragment = urlsplit(URI)
-    if scheme == "https":
-        host,port = splitport(netloc)
-        if not port:
-            netloc = netloc + ":443"
-            URI = urlunsplit((scheme, netloc, path, query, fragment));
-            pass
-        pass
+    url = urlsplit(URI, "https")
 
     if debug:
-#        print URI + " " + method + " " + str(params);
-        print URI + " " + method
-        pass
-    
-    ctx = SSL.Context("sslv23")
-    ctx.load_cert(CERTIFICATE, CERTIFICATE, PassPhraseCB)
-    ctx.set_verify(SSL.verify_none, 16)
-    ctx.set_allow_unknown_ca(0)
-    
-    # Get a handle on the server,
-    server = xmlrpclib.ServerProxy(URI, SSL_Transport(ctx), verbose=0)
-        
-    # Get a pointer to the function we want to invoke.
-    meth      = getattr(server, method)
-    meth_args = [ params ]
+        print str( url ) + " " + method
 
+    if url.scheme == "https":
+        if not os.path.exists(CERTIFICATE):
+            if not quiet:
+                print >> sys.stderr, "error: missing emulab certificate: " + CERTIFICATE
+            return (-1, None)
+
+        port = url.port if url.port else 443
+
+        ctx = M2Crypto.SSL.Context("sslv23")
+        ctx.load_cert(CERTIFICATE, CERTIFICATE, PassPhraseCB)
+        ctx.set_verify(M2Crypto.SSL.verify_none, 16)
+        ctx.set_allow_unknown_ca(0)
+    
+        server = M2Crypto.httpslib.HTTPSConnection( url.hostname, port, ssl_context = ctx )
+    elif url.scheme == "http":
+        port = url.port if url.port else 80
+        server = httplib.HTTPConnection( url.hostname, port )
+        
     if response_handler:
         # If a response handler was passed, use it and return the result.
         # This is the case when running the GENI AM.
-        return response_handler(meth, params)
+        def am_helper( server, path, body ):
+            server.request( "POST", path, body )
+            return xmlrpclib.loads( server.getresponse().read() )[ 0 ][ 0 ]
+            
+        return response_handler( ( lambda *x: am_helper( server, url.path, xmlrpclib.dumps( x, method ) ) ), params )
 
     #
     # Make the call. 
     #
     while True:
         try:
-            response = apply(meth, meth_args)
-            break
-        except xmlrpclib.Fault, e:
-            if not quiet: print >> sys.stderr, e.faultString
-            if e.faultCode == 503:
-                print >> sys.stderr, "Will try again in a moment. Be patient!"
+            server.request( "POST", url.path, xmlrpclib.dumps( (params,), method ) )
+            response = server.getresponse()
+            if response.status == 503:
+                if not quiet:
+                    print >> sys.stderr, "Will try again in a moment. Be patient!"
                 time.sleep(5.0)
                 continue
-                pass
+            elif response.status != 200:
+                if not quiet:
+                    print >> sys.stderr, response.status + " " + response.reason
+                return (-1,None)
+            response = xmlrpclib.loads( response.read() )[ 0 ][ 0 ]
+            break
+        except httplib.HTTPException, e:
+            if not quiet: print >> sys.stderr, e
             return (-1, None)
-        except xmlrpclib.ProtocolError, e:
-            if not quiet: print >> sys.stderr, e.errmsg
+        except xmlrpclib.Fault, e:
+            if not quiet: print >> sys.stderr, e.faultString
             return (-1, None)
         except M2Crypto.SSL.Checker.WrongHost, e:
             if not quiet:
@@ -271,7 +298,6 @@ def do_method(module, method, params, URI=None, quiet=False, version=None,
                 print >> sys.stderr, e
                 pass
             return (-1, None)
-        pass
 
     #
     # Parse the Response, which is a Dictionary. See EmulabResponse in the

@@ -1,8 +1,7 @@
 #
 # This is an example definitions file for configure.
 #
-# Use the --with-TBDEFS=filename to specify your own file.
-# If you add a variable, be sure to go and update configure.in.
+# ALL VARIABLES MUST BE DEFINED! DO NOT COMMENT OUT VARIABLES!
 #
 
 # The name of this installation
@@ -11,19 +10,22 @@ THISHOMEBASE=Example.Emulab.Net
 #
 # Various domain and host names
 #
+# NOTE: If a fully qualified hostname is used as an example, then
+# be sure to use a fully qualified hostname! Do not use an IP. 
+#
 
-# Host name of our web server (or host:port)
+# Fully-qualified hostname of the our web server.
 # This name should resolve to boss's IP address - though it can be a CNAME
 WWWHOST=www.example.emulab.net
 
-# Fully-quailified hostname of the boss node
+# Fully-qualified hostname of the boss node
 BOSSNODE=boss.example.emulab.net
 
-# Fully-quailified hostname of the ops (also called users) node
+# Fully-qualified hostname of the ops (also called users) node
 USERNODE=ops.example.emulab.net
 
-# Fully-quailified hostname of the fileserver (will probably be the same
-# as the ops node)
+# Fully-qualified hostname of the fileserver (will typically be the same
+# as the ops node; ops.example.emulab.net)
 FSNODE=fs.example.emulab.net
 
 #
@@ -109,6 +111,9 @@ FS_WITH_QUOTAS="/q /users"
 # SSL Certificate stuff. Used to customize config files in ssl directory.
 # Note that OrganizationalUnit is set in the cnf file.
 # CommonName is typically set to BOSSNODE and emailAddress to TBOPSEMAIL
+#
+# The Country *must* be a two letter abbreviation.
+# See: http://sustainablesources.com/resources/country-abbreviations/
 #
 SSLCERT_COUNTRY="US"
 SSLCERT_STATE="Utah"

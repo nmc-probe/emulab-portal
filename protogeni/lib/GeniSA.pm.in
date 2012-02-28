@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniSA;
@@ -39,9 +39,11 @@ use Time::Local;
 # Configure variables
 my $TB		   = "@prefix@";
 my $TBOPS          = "@TBOPSEMAIL@";
+my $MAINSITE 	   = @TBMAINSITE@;
 my $OURDOMAIN      = "@OURDOMAIN@";
 my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
 my $SLICESHUTDOWN  = "$TB/sbin/protogeni/shutdownslice";
+my $PROTOGENI_URL  = "@PROTOGENI_URL@";
 my $RegisterNow    = 0;
 my $API_VERSION    = 1.01;
 
@@ -65,6 +67,10 @@ sub GetCredential($)
     my ($argref) = @_;
     my $urn  = $argref->{'urn'};
     my $cred = $argref->{'credential'};
+
+    if (0 && $MAINSITE) {
+	print STDERR "Debugging getslicecred()\n";
+    }
 
     #
     # No credential, then return a generic credential giving user permission
@@ -142,6 +148,13 @@ sub GetCredential($)
     # the object referenced by the URN.
     #
     if (lc($type) eq "slice") {
+	#
+	# Bump the activity counter for the user. Lets us know in the
+	# main DB that a user is doing something useful.
+	#
+	$this_user->BumpActivity()
+	    if ($this_user->IsLocal());
+	
 	my $slice = GeniSlice->Lookup($urn);
 
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
@@ -282,7 +295,32 @@ sub Resolve($)
 		     "name"     => $geniuser->name(),
 		     "slices"   => \@sliceURNs
 		    };
-	
+
+	if ($geniuser->IsLocal()) {
+	    my @projects = ();
+	    my %subsas   = ();
+	    if ($geniuser->emulab_user()->ProjectMembershipList(\@projects)) {
+		print STDERR "Could not get project membership for $geniuser\n";
+	    }
+	    else {
+		foreach my $project (@projects) {
+		    my $pid = $project->pid();
+		    my $urn = GeniHRN::Generate("$OURDOMAIN:$pid",
+						"authority", "sa");
+		    my $url = "$PROTOGENI_URL/project/$pid/sa";
+		    $subsas{$urn} = $url;
+		}
+		$blob->{'subauthorities'} = \%subsas;
+	    }
+	    my @keys = ();
+	    if ($geniuser->GetKeyBundle(\@keys) != 0) {
+		print STDERR "Could not get keys for $geniuser\n";
+		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					    "Could not get public keys");
+	    }
+	    $blob->{'pubkeys'} = \@keys;
+	}
+
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
     }
     if ($type eq "slice") {
@@ -324,6 +362,8 @@ sub Resolve($)
 #
 sub Register($)
 {
+    require Experiment;
+    
     # FIXME once migration to URNs is complete, $type should be removed
     # (it's deduced automatically from the URN).
     my ($argref) = @_;
@@ -394,8 +434,20 @@ sub Register($)
 				    "Who are you? No local record");
     }
     
+    #
+    # Bump the activity counter for the user. Lets us know in the
+    # main DB that a user is doing something useful.
+    #
+    $this_user->BumpActivity()
+	if ($this_user->IsLocal());
+	
     if ( lc( $type ) eq "slice") {
 	my $expires = $argref->{'expiration'};
+
+	if (! Experiment->ValidEID($hrn)) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				"$hrn is not a valid slice name");
+	}
 
 	#
 	# Figure out new expiration time; this is the time at which we can
@@ -443,7 +495,8 @@ sub Register($)
 	    $expires = $when;
 	}
 	
-	my $urn = GeniHRN::Generate( "@OURDOMAIN@", "slice", $hrn );
+	my ($ourdomain, undef, undef) = GeniHRN::Parse( $ENV{ 'MYURN' } );
+	my $urn = GeniHRN::Generate( $ourdomain, "slice", $hrn );
 	
 	#
 	# When using this interface, the HRN does not correspond to an

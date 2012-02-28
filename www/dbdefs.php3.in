@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Database Constants
@@ -20,8 +20,10 @@ $NODERELOADPENDING_EID	= "reloadpending";
 # All these constants need to go at some point, replaced by data from
 # the regex table. 
 $TBDB_UIDLEN    = 8;
-$TBDB_PIDLEN    = 12;
-$TBDB_GIDLEN	= 12;
+# These are both shorter then the DB lengths, but since some images croak
+# on very long mount point names, we keep them short via this interface.
+$TBDB_PIDLEN    = 16;
+$TBDB_GIDLEN	= 16;
 $TBDB_UNIXGLEN	= 16;
 $TBDB_NODEIDLEN = 10;
 $TBDB_PHONELEN  = 32;
@@ -30,6 +32,9 @@ $TBDB_EMAILLEN  = 64;
 $TBDB_MMLENGTH  = 64;
 $TBDB_ARCHIVE_TAGLEN = 64;
 $TBDB_ARCHIVE_MSGLEN = 2048;
+
+# Minimum length.
+$TBDB_MINPASSPHRASE = 10;
 
 #
 # Current policy is to prefix the EID with the PID. Make sure it is not
@@ -54,6 +59,7 @@ define("TBDB_USERSTATUS_UNAPPROVED",	"unapproved");
 define("TBDB_USERSTATUS_UNVERIFIED",	"unverified");
 define("TBDB_USERSTATUS_FROZEN",	"frozen");
 define("TBDB_USERSTATUS_ARCHIVED",	"archived");
+define("TBDB_USERSTATUS_NONLOCAL",	"nonlocal");
 
 #
 # Type of new account.
@@ -139,7 +145,8 @@ $TB_OSID_MAX			= $TB_OSID_DESTROY;
 $TB_IMAGEID_READINFO		= 1;
 $TB_IMAGEID_MODIFYINFO		= 2;
 $TB_IMAGEID_ACCESS		= 3;
-$TB_IMAGEID_DESTROY		= 4;
+$TB_IMAGEID_EXPORT		= 4;
+$TB_IMAGEID_DESTROY		= 5;
 $TB_IMAGEID_MIN			= $TB_IMAGEID_READINFO;
 $TB_IMAGEID_MAX			= $TB_IMAGEID_DESTROY;
 
@@ -267,10 +274,10 @@ function TBValidNodeType($type)
     return 1;
 }
 
-function TBUidNodeLastLogin($uid)
+function TBUidNodeLastLogin($uid_idx)
 {
     $query_result =
-	DBQueryFatal("select * from uidnodelastlogin where uid='$uid'");
+	DBQueryFatal("select * from uidnodelastlogin where uid_idx='$uid_idx'");
 
     if (mysql_num_rows($query_result) == 0) {
 	return 0;
@@ -304,10 +311,10 @@ function TBNodeUidLastLogin($node_id)
 #
 # Return the last login for the users node.
 # 
-function TBUsersLastLogin($uid)
+function TBUsersLastLogin($uid_idx)
 {
     $query_result =
-	DBQueryFatal("select * from userslastlogin where uid='$uid'");
+	DBQueryFatal("select * from userslastlogin where uid_idx='$uid_idx'");
 
     if (mysql_num_rows($query_result) == 0) {
 	return 0;
@@ -358,6 +365,7 @@ function TBFreePCs()
                      "  and a.reserved_pid is null ".
 		     "  and nt.class = 'pc' and p.pid is null and ".
                      "      (a.eventstate='" . TBDB_NODESTATE_ISUP . "' or ".
+                     "       a.eventstate='" . TBDB_NODESTATE_POWEROFF . "' or ".
                      "       a.eventstate='" . TBDB_NODESTATE_PXEWAIT . "') and".
 		     "      (p.pid is null)");
     

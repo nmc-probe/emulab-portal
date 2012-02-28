@@ -45,6 +45,7 @@ SFSSUPPORT=0
 CVSSUPPORT=changeme
 NFSTRACESUPPORT=0
 ARCHIVESUPPORT=changeme
+NTPSERVER=changeme
 DISABLE_NSE=1
 # This means it is an inner elab!
 ELABINELAB=1
@@ -90,6 +91,12 @@ NAMED_FORWARDERS=changeme
 # Must localize to avoid conflict with outer emulab frisbeed.
 #
 FRISEBEEMCASTADDR=changeme
+#
+# Ops can be a VM on boss.
+#
+OPSVM_ENABLE=changeme
+OPSVM_MOUNTPOINT=changeme
+
 # testing
 MIN_UNIX_UID=500
 MIN_UNIX_GID=500

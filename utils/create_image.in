@@ -248,6 +248,23 @@ my $pid = $experiment->pid();
 my $eid = $experiment->eid();
 
 #
+# To avoid blowing a cavernous hole ("allow all TCP ports to boss")
+# in the per-experiment firewall, we don't use the frisbee uploader if
+# the node is firewalled.
+# 
+if ($usefup && $experiment->IsFirewalled()) {
+    print "*** WARNING: $node_id is firewalled, not using Frisbee uploader\n";
+    $usefup = 0;
+    if ($NONFS) {
+	$usenfs = 0;
+	$usessh = 1;
+    } else {
+	$usenfs = 1;
+	$usessh = 0;
+    }
+}
+
+#
 # Grab the imageid description from the DB. We do a permission check, but
 # mostly to avoid hard to track errors that would result if the user picked
 # the wrong one (which is likely to happen no matter what I do).
@@ -703,6 +720,11 @@ sub check_progress($$)
 {
     my (undef, $statusp) = @_;
 
+    if ($runticks == 0) {
+	print "$node_id: started image capture, ".
+	    "waiting up to " . int($maxwait/60) . " minutes\n";
+    }
+
     #
     # XXX frisbee uploader uploads into a temporary file and then moves
     # it into place. So track that tmp file here.
@@ -717,7 +739,7 @@ sub check_progress($$)
     #
     if (defined($statusp) && $statusp->{$node_id} ne "none") {
 	$result = $statusp->{$node_id};
-	print "$node_id: image capture has completed\n";
+	print "$node_id: image capture has completed: status='$result'\n";
 	return 0;
     }
 
@@ -727,6 +749,7 @@ sub check_progress($$)
     $runticks++;
     if ($runticks >= $maxticks) {
 	$result = "timeout";
+	print "$node_id: image capture has completed: timeout\n";
 	return 0;
     }
 
@@ -738,14 +761,25 @@ sub check_progress($$)
     # been exceeded.
     #
     my $cursize = (stat($fname))[7];
+    if ($usefup && !defined($cursize)) {
+	#
+	# XXX avoid an ugly race.
+	# When done, frisuploadd moves foo.tmp -> foo
+	# If we didn't find foo.tmp, try foo now.
+	#
+	$fname =~ s/\.tmp$//;
+	$cursize = (stat($fname))[7];
+    }
     if ($cursize > $maximagesize) {
 	$result = "toobig";
+	print "$node_id: image capture has completed: image too big\n";
 	return 0;
     }
     if ($cursize == $lastsize) {
 	$idleticks++;
 	if ($idleticks >= $maxidleticks) {
 	    $result = "timeout";
+	    print "$node_id: image capture has completed: idle timeout\n";
 	    return 0;
 	}
     } else {
@@ -755,7 +789,8 @@ sub check_progress($$)
     
     if (($runticks % $reportticks) == 0) {
 	my $curtdiff = int($runticks * $checkwait / 60);
-	print "Still waiting ... its been ". $curtdiff ." minutes.".
+	print "$node_id: still waiting ...".
+	    " it has been ". $curtdiff ." minutes.".
 	    " Current image size: $cursize bytes.\n";
     }
 

@@ -1,0 +1,55 @@
+#
+# Common settings for Emulab ports.
+#
+
+.if !defined(EMULAB_PORTVERSION)
+
+OSMAJOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/\..*//'
+OSMINOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/'
+
+.if ${OSMAJOR} > 7
+EMULAB_PORTVERSION=	4.0
+.else
+. if ${OSMAJOR} > 6
+.  if ${OSMINOR} > 2
+EMULAB_PORTVERSION=	3.1
+.  else
+EMULAB_PORTVERSION=	3.0
+.  endif
+. else
+.  if ${OSMAJOR} > 5
+.   if ${OSMINOR} >= 3
+EMULAB_PORTVERSION=	2.1
+.   else
+EMULAB_PORTVERSION=	2.0
+.   endif
+.  else
+EMULAB_PORTVERSION=	1.7
+.  endif
+. endif
+.endif
+
+#
+# Select PHP and Apache versions
+# Fix up some port diffs
+#
+.if ${EMULAB_PORTVERSION} == "4.0"
+PHP_VER=	5
+PERL_VER=	5.10.1
+APACHE_PORT=	www/apache22
+BOOST_PORT=	devel/boost-all
+P5SNMP_PORT=	misc/p5-SNMP
+.elif ${EMULAB_PORTVERSION} == "3.1"
+PHP_VER=	5
+PERL_VER=	5.10.1
+APACHE_PORT=	www/apache13-modssl
+BOOST_PORT=	devel/boost-all
+P5SNMP_PORT=	misc/p5-SNMP
+.else
+PHP_VER=	4
+APACHE_PORT=	www/apache13-modssl
+BOOST_PORT=	devel/boost
+P5SNMP_PORT=	net-mgmt/p5-SNMP
+.endif
+
+.endif

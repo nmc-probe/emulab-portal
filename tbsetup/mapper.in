@@ -49,16 +49,19 @@ sub usage ()
     print STDERR " -p   - Do a precheck for mapability on an empty testbed - ".
 		 "implies -n\n";
     print STDERR " -l   - Use rspec v2 instead of the text file format\n";
-    print STDERR " -z   - Randomize node order printed by ptopgen\n";
+#    print STDERR " -z   - Force new ptopgen\n";
+    print STDERR " -Z   - Force old ptopgen\n";
+    print STDERR " -A   - Tell ptopgen all nodes are free; only with -n\n";
     exit($WRAPPER_FAILED);
 }
-my $optlist    = "dvunfprqczxm:ko:altz";
+my $optlist    = "dvunfprqczxm:ko:altzZA";
 my $verbose    = 0;
 my $debug      = 0;
 my $fixmode    = 0;
 my $updating   = 0;
 my $impotent   = 0;
 my $precheck   = 0;
+my $allnodesfree = 0;
 my $toponly    = 0;
 my $prepass    = 0;
 my $alloconly  = 0;
@@ -74,7 +77,7 @@ my $warnings   = 0;
 my $maxrun     = 3;  # Maximum number of times we run assign.
 my $gotlock    = 0;
 my $userspec   = 0;
-my $randomize  = 0;
+my $use_old_ptopgen  = 0;
 my $vtop;
 
 #
@@ -86,8 +89,10 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $ASSIGN      = "$TB/libexec/assign";
 my $WRAPPER2    = "$TB/libexec/assign_wrapper2";
 my $PTOPGEN     = "$TB/libexec/ptopgen";
+my $PTOPGEN_NEW = "$TB/libexec/ptopgen_new";
 my $VTOPGEN     = "$TB/bin/vtopgen";
 my $NFREE       = "$TB/bin/nfree";
+my $XERCES	= "@HAVE_XERCES@";
 
 #
 # Load the Testbed support stuff. 
@@ -145,6 +150,9 @@ if (defined($options{"v"})) {
 if (defined($options{"a"})) {
     $alloconly++;
 }
+if (defined($options{"A"})) {
+    $allnodesfree++;
+}
 if (defined($options{"d"})) {
     $debug++;
 }
@@ -194,10 +202,21 @@ if (defined($options{"c"})) {
     $clear = 1;
 }
 if (defined($options{"l"})) {
-    $userspec = 1;
+    if ($XERCES) {
+	$userspec = 1;
+    } else {
+	fatal("Rspec v2 support requires that Xerces be installed");
+    }
+}
+if (defined($options{"Z"})) {
+    $use_old_ptopgen = 1;
 }
 if (defined($options{"z"})) {
-    $randomize = 1;
+#    $use_old_ptopgen = 0;
+#    $PTOPGEN = $PTOPGEN_NEW;
+}
+if ($allnodesfree && !$impotent) {
+    fatal("Not allowed to use -A without -n (impotent) option");
 }
 
 my $pid = $ARGV[0];
@@ -221,6 +240,8 @@ if (!TBAdmin() &&
 # multiplex_factor default.
 $mfactor = $experiment->multiplex_factor()
     if (!defined($mfactor) && defined($experiment->multiplex_factor()));
+# NS file can say to run the prepass.
+my $useprepass = $experiment->useprepass();
 
 my $newassign =
     EmulabFeatures->FeatureEnabled("NewAssign",
@@ -393,7 +414,13 @@ sub AssignLoop()
 	#
 	# When precheck is off, we do a precheck run if the first try fails
 	# to find a solution. This avoids looping on an unsolvable topology.
+	# But, if the reason we are here is cause we could not allocate nodes,
+	# then we found a solution, and so trying on an empty testbed is
+	# pointless; it will obviously find a solution again.
 	#
+	if (!$precheck && !$tried_precheck && ($retval == 2 || $retval == 3)) {
+	    $tried_precheck = 1;
+	}
 	if (!$precheck && !$tried_precheck) {
 	    chat("Trying assign on an empty testbed to verify mapability.\n");
 	    my $save_impotent = $impotent;
@@ -548,14 +575,14 @@ sub RunAssign($$)
     $ptopargs   .= "-h "
 	if ($vtop->sharednodecount());
     $ptopargs	.= "-a "
-    	if ($precheck);
+    	if ($precheck || $allnodesfree);
     $ptopargs	.= "-c " . $experiment->delay_capacity() . " "
     	if (defined($experiment->delay_capacity()));
     if ($userspec == 1) {
 	$ptopargs .= "-x -g 2 ";
     }
-    if ($randomize == 1) {
-	$ptopargs .= "-z ";
+    if ($use_old_ptopgen == 1) {
+	$ptopargs .= "-Z ";
     }
     $ptopargs .= "-l $typelimitfile"
 	if (scalar(keys(%admission_control)));
@@ -575,10 +602,12 @@ sub RunAssign($$)
     $cmd .= "-new"
 	if ($newassign);
     my $args = "";
-    $args .= "-f rspec " 
-	if ($userspec == 1);
-    $args .= "-f text "
-	if ($userspec == 0);
+    if ($XERCES) {
+	$args .= "-f rspec " 
+	    if ($userspec == 1);
+	$args .= "-f text "
+	    if ($userspec == 0);
+    }
     $args .= "$ptopfile $vtopfile";
     $args = "-P $args"
 	if (!$vtop->sharednodecount());
@@ -592,7 +621,7 @@ sub RunAssign($$)
 	if ($vtop->sharednodecount());
     
     # The prepass speeds up assign on big topos with virtual nodes.
-    if ($prepass) {
+    if ($prepass || $useprepass) {
     	$cmd = "assign_prepass";
     	$args = "-m $mfactor $args"
     	    if (defined($mfactor));

@@ -1,0 +1,47 @@
+#
+# Check that perl is installed properly.
+#
+use strict;
+use libinstall;
+use installvars;
+
+my $SUIDPERL = "/usr/bin/suidperl";
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    Phase "perl", "Checking for setuid perl", sub {
+	Phase "sperl", "Checking for sperl", sub {
+	    if (ExecQuiet("$PKG_INFO -L -x perl-5 | fgrep -q -s sperl") == 0) {
+		PhaseSkip("Perl is okay");
+	    }
+	    PhaseFail("setuid perl is not set up properly. Read the wiki!");
+	};
+        #
+        # New version perl does not appear to require this anymore. In fact, it
+        # seems to break things if it is!
+        #
+	if ($FBSD_MAJOR == 4) {
+	    Phase "suidperl", "Setting the suid bit on $SUIDPERL", sub {
+		PhaseSkip("Already done") if (-u $SUIDPERL);
+		ExecQuietFatal("$CHMOD u+s $SUIDPERL");
+	    };
+	}
+	else {
+	    Phase "suidperl", "UnSetting the suid bit on $SUIDPERL", sub {
+		PhaseSkip("Already done") if (! -u $SUIDPERL);
+		ExecQuietFatal("$CHMOD u-s $SUIDPERL");
+	    };
+	}
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:

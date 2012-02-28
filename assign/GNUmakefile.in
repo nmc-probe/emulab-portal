@@ -9,6 +9,7 @@ OBJDIR		= ..
 SUBDIR		= assign
 MAKEFILE_IN	= @srcdir@/GNUmakefile.in
 HAVE_XERCES	= @HAVE_XERCES@
+NEWER_BOOST	= @NEWER_BOOST@
 
 include $(OBJDIR)/Makeconf
 
@@ -31,13 +32,18 @@ OBJS=parse_top.o parse_ptop.o assign.o pclass.o vclass.o score.o \
 LIBS+= -lm
 LDFLAGS+= -pipe -O3
 CXXFLAGS = -pipe -I/usr/local/include -ftemplate-depth-40
-# For OSX w/ fink
-CXXFLAGS += -I/sw/include
+# For OSX w/ macports
+CXXFLAGS += -I/opt/local/include
+LIBS += -L/opt/local/lib
 
 ifeq ($(HAVE_XERCES),yes)
 CXXFLAGS += -DWITH_XML
 LIBS += -L/usr/local/lib -lxerces-c
 OBJS += parse_ptop_xml.o parse_vtop_xml.o parse_policy_xml.o parse_error_handler.o xmlhelpers.o parse_advertisement_rspec.o parse_request_rspec.o annotate_rspec_v2.o annotate_rspec.o annotate_vtop.o annotate.o rspec_parser_helper.o rspec_parser.o rspec_parser_v1.o rspec_parser_v2.o emulab_extensions_parser.o
+endif
+
+ifeq ($(NEWER_BOOST),yes)
+CXXFLAGS += -DNEWER_BOOST
 endif
 
 # Pick either this

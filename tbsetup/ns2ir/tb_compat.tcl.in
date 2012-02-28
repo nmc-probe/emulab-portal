@@ -1,7 +1,7 @@
 # -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -13,6 +13,7 @@ namespace eval TBCOMPAT {
     var_import ::GLOBALS::DB
     var_import ::GLOBALS::pid
     var_import ::GLOBALS::eid
+    var_import ::GLOBALS::elabinelab_fw_type
 
     # This is regular expression that matches slightly more than valid
     # IP addresses.  The only thing it doesn't check is that IP 
@@ -136,7 +137,7 @@ namespace eval TBCOMPAT {
     set elabinelab_attributes {}
     variable EINEROLE  {^(all|boss|ops|fs|router|node)$}
     variable EINEKEY   {^([-\w\.]+)$}
-    variable EINEVALUE {^([-\w\.\+\,\s\/]+)$}
+    variable EINEVALUE {^([-\w\.\+\,\s\/:]+)$}
     variable EINEORDER {^\d+$}
 
     # virt blobs stuff
@@ -614,6 +615,19 @@ proc tb-set-node-os {node os {parentos 0}} {
 	$node set parent_osid $parentos
     }
 }
+proc tb-set-node-loadlist {node loadlist} {
+    if {! ${GLOBALS::anonymous} && ! ${GLOBALS::passmode}} {
+	var_import ::TBCOMPAT::osids
+	set oslist [split $loadlist ","]
+	foreach os $oslist {
+	    if {! [info exists osids($os)]} {
+		perror "\[tb-set-node-loadlist] Invalid osid $os."
+		return
+	    }
+	}
+    }
+    $node set loadlist $loadlist
+}
 proc tb-set-node-cmdline {node cmdline} {
     $node set cmdline $cmdline
 }
@@ -784,7 +798,7 @@ proc tb-set-link-loss {srclink args} {
 	set lossrate [lindex $args 0]
     }
     if {([regexp $FLOAT $lossrate] == 0) ||
-	(($lossrate != 0) && ($lossrate > 1.0) || ($lossrate < 0.000005))} {
+	(($lossrate != 0) && (($lossrate > 1.0) || ($lossrate < 0.000005)))} {
 	perror "\[tb-set-link-loss] $lossrate is not a valid loss rate."
     }
     $reallink instvar loss
@@ -866,7 +880,7 @@ proc tb-set-link-simplex-backfill {link src bw} {
     }
     set port [$link get_port $src]
     if {$port == {}} {
-	perror "\[tb-set-link-simplex-params] $src is not in $link."
+	perror "\[tb-set-link-simplex-backfill] $src is not in $link."
 	return
     }
     set np [list $src $port]
@@ -887,7 +901,7 @@ proc tb-set-lan-loss {lan lossrate} {
 	return
     }
     if {([regexp $FLOAT $lossrate] == 0) ||
-	(($lossrate != 0) && ($lossrate > 1.0) || ($lossrate < 0.000005))} {
+	(($lossrate != 0) && (($lossrate > 1.0) || ($lossrate < 0.000005)))} {
 	perror "\[tb-set-lan-loss] $lossrate is not a valid loss rate."
     }
     $lan instvar loss
@@ -1017,7 +1031,7 @@ proc tb-set-node-lan-loss {node lan loss} {
 	return
     }
     if {([regexp $FLOAT $loss] == 0) ||
-	(($loss != 0) && ($loss > 1.0) || ($loss < 0.000005))} {
+	(($loss != 0) && (($loss > 1.0) || ($loss < 0.000005)))} {
 	perror "\[tb-set-link-loss] $loss is not a valid loss rate."
     }
     $lan set loss([list $node $port]) $loss
@@ -1126,7 +1140,7 @@ proc tb-set-link-simplex-params {link src delay bw loss} {
 	return
     }
     if {([regexp $FLOAT $loss] == 0) ||
-	(($loss != 0) && ($loss > 1.0) || ($loss < 0.000005))} {
+	(($loss != 0) && (($loss > 1.0) || ($loss < 0.000005)))} {
 	perror "\[tb-set-link-simplex-params] $loss is not a valid loss rate."
 	return
     }
@@ -1186,11 +1200,11 @@ proc tb-set-lan-simplex-params {lan node todelay tobw toloss fromdelay frombw fr
 	return
     }
     if {([regexp $FLOAT $toloss] == 0) ||
-	(($toloss != 0) && ($toloss > 1.0) || ($toloss < 0.000005))} {
+	(($toloss != 0) && (($toloss > 1.0) || ($toloss < 0.000005)))} {
 	perror "\[tb-set-link-loss] $toloss is not a valid loss rate."
     }
     if {([regexp $FLOAT $fromloss] == 0) ||
-	(($fromloss != 0) && ($fromloss > 1.0) || ($fromloss < 0.000005))} {
+	(($fromloss != 0) && (($fromloss > 1.0) || ($fromloss < 0.000005)))} {
 	perror "\[tb-set-link-loss] $fromloss is not a valid loss rate."
     }
 
@@ -2033,12 +2047,28 @@ proc tb-set-elabinelab-role-attribute {role key value {order 0}} {
 	# If role/key/ordering exactly matches an existing value,
 	# replace it to preserve uniqueness, otherwise just add it.
 	#
-	set i [lsearch -glob $elabinelab_attributes "$r,$key,*,$order"]
+	set i [lsearch -glob $elabinelab_attributes "$r;$key;*;$order"]
 	if {$i > -1} {
 	    set elabinelab_attributes [lreplace $elabinelab_attributes $i $i]
 	}
-	lappend elabinelab_attributes "$r,$key,$value,$order"
+	lappend elabinelab_attributes "$r;$key;$value;$order"
     }
+}
+
+proc tb-get-elabinelab-role-attribute {role key} {
+    var_import ::TBCOMPAT::EINEROLE;
+    var_import ::TBCOMPAT::EINEKEY;
+    var_import ::TBCOMPAT::EINEVALUE;
+    var_import ::TBCOMPAT::EINEORDER;
+    var_import ::TBCOMPAT::elabinelab_attributes;
+
+    set ret {}
+    set i [lsearch -glob $elabinelab_attributes "$role;$key;*;0"]
+    if {$i > -1} {
+	set values [split [lindex $elabinelab_attributes $i] ";"]
+	set ret [lindex $values 2]
+    }
+    return $ret
 }
 
 proc tb-unset-elabinelab-role-attribute {role key} {
@@ -2061,8 +2091,8 @@ proc tb-unset-elabinelab-role-attribute {role key} {
     }
 
     foreach r $roles {
-	while {[lsearch -glob $elabinelab_attributes "$r,$key,*"] > -1} {
-	    set i [lsearch -glob $elabinelab_attributes "$r,$key,*"]
+	while {[lsearch -glob $elabinelab_attributes "$r;$key;*"] > -1} {
+	    set i [lsearch -glob $elabinelab_attributes "$r;$key;*"]
 	    set elabinelab_attributes [lreplace $elabinelab_attributes $i $i]
 	}
     }
@@ -2076,8 +2106,8 @@ proc tb-set-node-inner-elab-role {node role} {
 	perror "\[tb-set-node-inner-elab-role] $node is not a node."
 	return
     }
-    if {[lsearch -exact {boss boss+router router ops ops+fs fs node} $role] == -1} {
-	perror "\[tb-set-node-inner-elab-role] type must be one of boss|boss+router|router|ops|ops+fs|fs|node"
+    if {[lsearch -exact {boss boss+router boss+fs+router router ops ops+fs fs node} $role] == -1} {
+	perror "\[tb-set-node-inner-elab-role] type must be one of boss|boss+router|boss+fs+router|router|ops|ops+fs|fs|node"
 	return
     }
     $node set inner_elab_role $role
@@ -2155,6 +2185,27 @@ proc tb-set-security-level {level} {
 	}
     }
     set security_level $level
+}
+
+#
+# Set firewall type for firewalled elabinelab experiments
+#
+proc tb-set-elabinelab-fw-type {type} {
+    var_import ::GLOBALS::elabinelab_fw_type
+
+    switch -- $type {
+        "ipfw2-vlan" {
+            set type "ipfw2-vlan"
+        }
+        "iptables-vlan" {
+            set type "iptables-vlan"
+        }
+        unknown  {
+            perror "\[tb-set-elabinelab-fw-type] $type is not a valid type"
+            return
+        }
+    }
+    set elabinelab_fw_type $type
 }
 
 #

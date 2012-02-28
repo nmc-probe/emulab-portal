@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -26,6 +26,9 @@ $optargs = OptionalPageArguments("submit",       PAGEARG_STRING,
 # See if we are in an initial Emulab setup.
 #
 $FirstInitState = (TBGetFirstInitState() == "createproject");
+
+# Need this below;
+$show_sslcertbox = TBGetSiteVar("protogeni/show_sslcertbox");
 
 #
 # If a uid came in, then we check to see if the login is valid.
@@ -66,18 +69,19 @@ function SPITFORM($formfields, $returning, $errors)
     global $usr_keyfile, $FirstInitState;
     global $ACCOUNTWARNING, $EMAILWARNING;
     global $WIKISUPPORT, $WIKIHOME, $USERSELECTUIDS;
-    global $WIKIDOCURL;
+    global $WIKIDOCURL, $TBMAINSITE;
+    global $PROTOGENI, $show_sslcertbox;
     
     PAGEHEADER("Start a New Testbed Project");
 
     #
     # First initialization gets different text
     #
-    if ($FirstInitState == "createproject") {
+    if ($FirstInitState) {
 	echo "<center><font size=+1>
 	      Please create your initial project.<br> A good Project Name
               for your first project is probably 'testbed', but you can
-              choose anything you like.
+              choose anything you like. 
               </font></center><br>\n";
     }
     else {
@@ -148,13 +152,11 @@ function SPITFORM($formfields, $returning, $errors)
               }
           </SCRIPT>\n";
 
-    echo "<table align=center border=1> 
-          <tr>
-            <td align=center colspan=3>
-                Fields marked with * are required.
-            </td>
-          </tr>\n
+    echo "<div align=left>
+             <font color=red size=-2>Fields marked with * are required</font>
+          </div>\n";
 
+    echo "<table align=center border=1> 
           <form enctype=multipart/form-data name=myform
                 action=newproject.php3 method=post>\n";
 
@@ -163,8 +165,8 @@ function SPITFORM($formfields, $returning, $errors)
         # Start user information stuff. Presented for new users only.
         #
 	echo "<tr>
-                  <th colspan=3>
-                      Project Head Information:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+                  <th colspan=3 class=center>
+                      Project Head Information<br>
                       <font size=-2>
                        (Prospective project leaders please read our
                        <a href='$WIKIDOCURL/AdminPolicies' target='_blank'>
@@ -175,12 +177,12 @@ function SPITFORM($formfields, $returning, $errors)
         #
         # UID:
         #
-	if ($USERSELECTUIDS || $FirstInitState == "createproject") {
+	if ($USERSELECTUIDS || $FirstInitState) {
 	    echo "<tr>
                       <td colspan=2>*<a
                              href='$WIKIDOCURL/SecReqs'
                              target=_blank>Username</a>
-                                (alphanumeric, lowercase):</td>
+                                (alphanumeric):</td>
                       <td class=left>
                           <input type=text
                                  name=\"formfields[proj_head_uid]\"
@@ -338,11 +340,11 @@ function SPITFORM($formfields, $returning, $errors)
 	# SSH public key
 	#
 	echo "<tr>
-                 <td colspan=2>Upload your SSH Pub Key[<b>2</b>]:<br>
-                                   (1K max)</td>
+                 <td colspan=2>Upload your SSH Pub Key[<b>3</b>]:<br>
+                                   (4K max)</td>
    
                  <td>
-                      <input type=hidden name=MAX_FILE_SIZE value=1024>
+                      <input type=hidden name=MAX_FILE_SIZE value=4096>
                       <input type=file
                              name=usr_keyfile
                              value=\"" .
@@ -373,12 +375,41 @@ function SPITFORM($formfields, $returning, $errors)
                              value=\"" . $formfields["password2"] . "\"
                              size=8></td>
              </tr>\n";
+
+	#
+	# Geni Passphrase.
+	#
+	if ($PROTOGENI && $show_sslcertbox && !$FirstInitState) {
+	    echo "<tr></tr><tr>
+                   <th class=center colspan=3>Geni Account<br>
+                 <a href='http://users.emulab.net/trac/emulab/wiki/GeniBlurb'
+			target=_blank><font size=-2>what's this?</font></a></th>
+                  </tr>\n";
+
+	    echo "<tr>
+                  <td colspan=2>Geni SSL Pass Phrase[<b>4</b>]:</td>
+                  <td class=left>
+                      <input type=password
+                             name=\"formfields[passphrase1]\"
+                             value=\"" . $formfields["passphrase1"] . "\"
+                             size=32></td>
+              </tr>\n";
+
+	    echo "<tr>
+                  <td colspan=2>Retype Geni Pass Phrase:</td>
+                  <td class=left>
+                      <input type=password
+                             name=\"formfields[passphrase2]\"
+                             value=\"" . $formfields["passphrase2"] . "\"
+                             size=32></td>
+             </tr>\n";
+	}
     }
 
     #
     # Project information
     #
-    echo "<tr><th colspan=3>
+    echo "<tr></tr><tr><th colspan=3 class=center>
                Project Information: 
                <!-- <em>(replace the example entries)</em> -->
               </th>
@@ -484,7 +515,7 @@ function SPITFORM($formfields, $returning, $errors)
     # Nodes and PCs and Users
     #
     echo "<tr>
-              <td colspan=2>*Estimated #of Project Members:</td>
+              <td colspan=2>*Estimated #of Project Members[<b>2</b>]:</td>
               <td class=left>
                   <input type=text
                          name=\"formfields[proj_members]\" 
@@ -496,7 +527,7 @@ function SPITFORM($formfields, $returning, $errors)
     echo "<tr>
               <td colspan=2>*Estimated #of
         <a href=\"$TBDOCBASE/hardware.php#tbpcs\" target='_blank'>
-                             PCs</a>:</td>
+                             PCs</a>[<b>2</b>]:</td>
               <td class=left>
                   <input type=text
                          name=\"formfields[proj_pcs]\"
@@ -505,7 +536,8 @@ function SPITFORM($formfields, $returning, $errors)
               </td>
           </tr>\n";
 
-    echo "<tr>
+    if ($TBMAINSITE) {
+	echo "<tr>
               <td colspan=2>Request Access to 
                   <a href=\"$WIKIDOCURL/widearea\"
                       target='_blank'>Planetlab PCs</a>:</td>
@@ -528,6 +560,7 @@ function SPITFORM($formfields, $returning, $errors)
 			   $formfields["proj_ronpcs"] : "") . ">Yes &nbsp
               </td>
           </tr>\n";
+    }
 
     #
     # Why!
@@ -555,12 +588,14 @@ function SPITFORM($formfields, $returning, $errors)
     echo "</form>
           </table>\n";
 
-    echo "<h4><blockquote><blockquote>
+    echo "<h4><blockquote><blockquote><blockquote>
           <ol>
             <li> Please consult our
                  <a href = '$WIKIDOCURL/SecReqs' target='_blank'>
                  security policies</a> for information
-                 regarding passwords and email addresses.\n";
+                 regarding passwords and email addresses.
+            <li> These estimates are for site planning purposes only,
+                 and are not actual limits on your project.\n";
     if (! $returning) {
 	echo "<li> If you want us to use your existing ssh public key,
                    then please specify the path to your
@@ -573,9 +608,15 @@ function SPITFORM($formfields, $returning, $errors)
                    use one of these commercial vendors, then please
                    upload the public key file and we will convert it
                    for you.\n";
+	if ($PROTOGENI && $show_sslcertbox && !$FirstInitState) {
+	    echo "<li>";
+	    echo "Pick a good pass phrase! They can be (much) longer than
+                  Unix passwords; 10 to 30 character phrases are good,
+                  and may include spaces and punctuation.";
+	}
     }
     echo "</ol>
-          </blockquote></blockquote>
+          </blockquote></blockquote></blockquote>
           </h4>\n";
 }
 
@@ -627,6 +668,8 @@ if (! isset($submit)) {
     $defaults["usr_phone"]      = "";
     $defaults["password1"]      = "";
     $defaults["password2"]      = "";
+    $defaults["passphrase1"]    = "";
+    $defaults["passphrase2"]    = "";
     
     $defaults["pid"]            = "";
     $defaults["proj_name"]      = "";
@@ -641,7 +684,7 @@ if (! isset($submit)) {
     $defaults["proj_plabpcs"]   = "";
     $defaults["proj_why"]       = "";
 
-    if ($FirstInitState == "createproject") {
+    if ($FirstInitState) {
 	$defaults["pid"]          = "testbed";
 	$defaults["proj_pcs"]     = "256";
 	$defaults["proj_members"] = "256";
@@ -672,7 +715,7 @@ $errors = array();
 # These fields are required!
 #
 if (! $returning) {
-    if ($USERSELECTUIDS || $FirstInitState == "createproject") {
+    if ($USERSELECTUIDS || $FirstInitState) {
 	if (!isset($formfields["proj_head_uid"]) ||
 	    strcmp($formfields["proj_head_uid"], "") == 0) {
 	    $errors["Username"] = "Missing Field";
@@ -748,6 +791,7 @@ if (! $returning) {
     if (isset($formfields["usr_URL"]) &&
 	strcmp($formfields["usr_URL"], "") &&
 	strcmp($formfields["usr_URL"], $HTTPTAG) &&
+	! $FirstInitState &&
 	! CHECKURL($formfields["usr_URL"], $urlerror)) {
 	$errors["Home Page URL"] = $urlerror;
     }
@@ -809,13 +853,33 @@ if (! $returning) {
     elseif (strcmp($formfields["password1"], $formfields["password2"])) {
 	$errors["Confirm Password"] = "Does not match Password";
     }
-    elseif (! CHECKPASSWORD((($USERSELECTUIDS ||
-			     $FirstInitState == "createproject") ?
+    elseif (! CHECKPASSWORD((($USERSELECTUIDS || $FirstInitState) ?
 			     $formfields["proj_head_uid"] : "ignored"),
 			    $formfields["password1"],
 			    $formfields["usr_name"],
 			    $formfields["usr_email"], $checkerror)) {
 	$errors["Password"] = "$checkerror";
+    }
+    if ($PROTOGENI && $show_sslcertbox &&
+	isset($formfields["passphrase1"]) && $formfields["passphrase1"] != "") {
+	if (!isset($formfields["passphrase2"]) ||
+	    $formfields["passphrase2"] == "") {
+	    $errors["Confirm Pass Phrase"] = "Missing Field";
+	}
+	elseif ($formfields["passphrase1"] != $formfields["passphrase2"]) {
+	    $errors["Confirm Pass Phrase"] = "Does not match Pass Phrase";
+	}
+	elseif (strlen($formfields["passphrase1"]) < $TBDB_MINPASSPHRASE) {
+	    $errors["Pass Phrase"] =
+		"Too short; $TBDB_MINPASSPHRASE char minimum";
+	}
+	elseif (! CHECKPASSWORD(($USERSELECTUIDS ?
+				 $formfields["proj_head_uid"] : "ignored"),
+				$formfields["passphrase1"],
+				$formfields["usr_name"],
+				$formfields["usr_email"], $checkerror)) {
+	    $errors["Pass Phrase"] = "$checkerror";
+	}
     }
 }
 
@@ -824,7 +888,12 @@ if (!isset($formfields["pid"]) ||
     $errors["Project Name"] = "Missing Field";
 }
 else {
-    if (!TBvalid_newpid($formfields["pid"])) {
+    # Lets not allow pids that are too long, via this interface.
+    if (strlen($formfields["pid"]) > $TBDB_PIDLEN) {
+	$errors["Project Name"] =
+	    "too long - $TBDB_PIDLEN chars maximum";
+    }
+    elseif (!TBvalid_newpid($formfields["pid"])) {
 	$errors["Project Name"] = TBFieldErrorString();
     }
     elseif (Project::LookupByPid($formfields["pid"])) {
@@ -845,7 +914,8 @@ if (!isset($formfields["proj_URL"]) ||
     strcmp($formfields["proj_URL"], $HTTPTAG) == 0) {    
     $errors["Project URL"] = "Missing Field";
 }
-elseif (! CHECKURL($formfields["proj_URL"], $urlerror)) {
+elseif (! $FirstInitState &&
+	! CHECKURL($formfields["proj_URL"], $urlerror)) {
     $errors["Project URL"] = $urlerror;
 }
 if (!isset($formfields["proj_funders"]) ||
@@ -935,8 +1005,8 @@ if (!$returning) {
 	$formfields["usr_URL"] != $HTTPTAG && $formfields["usr_URL"] != "") {
 	$args["URL"] = $formfields["usr_URL"];
     }
-    if ($USERSELECTUIDS || $FirstInitState == "createproject") {
-	$args["login"] = $formfields["proj_head_uid"];
+    if ($USERSELECTUIDS || $FirstInitState) {
+	$args["uid"] = $formfields["proj_head_uid"];
     }
 
     # Backend verifies pubkey and returns error.
@@ -946,6 +1016,10 @@ if (!$returning) {
 
 	$localfile = $_FILES['usr_keyfile']['tmp_name'];
 	$args["pubkey"] = file_get_contents($localfile);
+    }
+    if ($PROTOGENI && $show_sslcertbox &&
+	isset($formfields["passphrase1"]) && $formfields["passphrase1"] != "") {
+	$args["passphrase"] = $formfields["passphrase1"];
     }
 
     # Just collect the user XML args here and pass the file to NewNewProject.

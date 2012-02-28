@@ -1,12 +1,13 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
 use English;
 use Getopt::Long;
+use POSIX qw(strftime);
 
 #
 # Load the Testbed support stuff.
@@ -22,7 +23,8 @@ use libtestbed;
 sub usage()
 {
     print("Usage: mksyscert [-d] [-o file] [-p password] [-e email] ".
-	  "[-u url] [-i urn] [-k keyfile] [-a authority] <orgunit> [uuid]\n");
+	  "[-u url] [-i urn] [-k keyfile] [-a authority] <orgunit> " .
+	  "[-n] [uuid]\n");
     exit(-1);
 }
 my $debug    = 0;
@@ -34,6 +36,7 @@ my @urls;
 my $urn;
 my $oldkeyfile;
 my $authority;
+my $notca    = 0;
 my %optlist = ( "debug" => \$debug,
 		"password=s" => \$password,
 		"output=s" => \$outfile,
@@ -42,7 +45,8 @@ my %optlist = ( "debug" => \$debug,
 		"url=s" => \@urls,
 		"identifier=s" => \$urn,
 		"keyfile=s" => \$oldkeyfile,
-		"authority=s" => \$authority );
+		"authority=s" => \$authority,
+		"notca" => \$notca );
 
 #
 # Configure variables
@@ -158,6 +162,8 @@ if (@ARGV < 1) {
 my $orgunit = shift(@ARGV);
 my $uuid    = (@ARGV ? shift(@ARGV) : undef);
 
+my $is_ca = !$notca;
+
 # Moved before uuid generation. Might be a race, might not.
 TBScriptLock("mkusercert") == 0 or
     fatal("Could not get the lock!");
@@ -212,6 +218,12 @@ system("cp -f $TEMPLATE syscert.cnf") == 0
 open(TEMP, ">>syscert.cnf")
     or fatal("Could not open $TEMPLATE for append: $!");
 
+if (defined($urn)) {
+    print TEMP "subjectAltName=\@req_altname\n";
+}
+print TEMP "basicConstraints=critical,CA:" .
+    ( $is_ca ? "TRUE" : "FALSE" ) . "\n\n";
+
 if (@urls) {
     my $count = 0;
     foreach( @urls ) {
@@ -232,10 +244,12 @@ print TEMP "OU\t\t= \"$orgunit\"\n";
 print TEMP "CN\t\t= $uuid\n";
 print TEMP "emailAddress\t= $email\n";
 
-print TEMP "\n";
-print TEMP "[ req_altname ]\n";
-print TEMP "URI=$urn\n" if defined( $urn );
-print TEMP "\n";
+if (defined($urn)) {
+    print TEMP "\n";
+    print TEMP "[ req_altname ]\n";
+    print TEMP "URI=$urn\n";
+    print TEMP "\n";
+}
 
 close(TEMP)
     or fatal("Could not close syscert.cnf: $!");
@@ -264,9 +278,13 @@ if( defined( $oldkeyfile ) ) {
 
 #
 # Sign the client cert request, creating a client certificate.
+# We set the start date an hour in the past, to avoid clock skew
+# problems.
 #
+my $startdate = POSIX::strftime("%y%m%d%H%M%SZ", gmtime(time() - 3600));
+
 $UID = 0;
-system("$OPENSSL ca -batch -policy policy_sslxmlrpc ".
+system("$OPENSSL ca -batch -policy policy_sslxmlrpc -startdate $startdate ".
        " -name CA_syscerts -config $CACONFIG ".
        " -out syscert_cert.pem -cert $certfile -keyfile $keyfile ".
        " -infiles syscert_req.pem $outline") == 0

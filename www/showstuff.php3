@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007, 2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 #
@@ -143,7 +143,8 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 		         "left join node_types as nt on nt.type=n.type ".
 		         "left join node_status as ns on ns.node_id=r.node_id ".
 		         "left join os_info as oi on n.def_boot_osid=oi.osid ".
-			 "left join tiplines as tip on tip.node_id=r.node_id ".
+			 "left join tiplines as tip on tip.node_id=r.node_id and ".
+			 "     tip.disabled=0 ".
 		         "inner join nodelogtemp as t on t.node_id=r.node_id ".
 		         "left join nodelog as nl on nl.node_id=r.node_id and nl.reported=t.reported ".
 
@@ -165,7 +166,8 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 		         "left join node_types as nt on nt.type=n.type ".
 		         "left join node_status as ns on ns.node_id=r.node_id ".
 		         "left join os_info as oi on n.def_boot_osid=oi.osid ".
-			 "left join tiplines as tip on tip.node_id=r.node_id ".
+			 "left join tiplines as tip on tip.node_id=r.node_id and ".
+			 "     tip.disabled=0 ".
 		         "WHERE r.eid='$eid' and r.pid='$pid' ".
 			 "$classclause $noclassclause".
 		         "ORDER BY $sortclause");
@@ -176,7 +178,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
               <br>
               <a href=" . $_SERVER["REQUEST_URI"] . "#reserved_nodes>
                 <font size=+1><b>Reserved Nodes</b></font></a>
-              <a NAME=reserved_nodes>
+              <a NAME=reserved_nodes></a>
               <table id='nodetable' align=center border=1>
               <thead class='sort'>
               <tr>
@@ -208,7 +210,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 	}
 
         echo "  <th class='sorttable_nosort'><a href=\"$WIKIDOCURL/ssh_mine\">SSH</a></th>
-                <th class='sorttable_nosort'><a href=\"$WIKIDOCURL/kb25\">Console</a></th> .
+                <th class='sorttable_nosort'><a href=\"$WIKIDOCURL/kb25\">Console</a></th>
                 <th class='sorttable_nosort'>Log</th>";
 
 	# Only put out a RDP column header if there are any Windows nodes.

@@ -1,28 +1,15 @@
 # New ports collection makefile for: emulab-fs
 #
 
-# Need the major version number to figure out to do.
-OSMAJOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/\..*//'
-OSMINOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/'
+.include "../emulab-boss/Makefile.emulab"
+
+# XXX deal with out-of-sync-edness of original boss/ops ports
+.if ${EMULAB_PORTVERSION} == "1.7"
+EMULAB_PORTVERSION=	1.4
+.endif
 
 PORTNAME=	emulab-fs
-.if ${OSMAJOR} > 6
-.if ${OSMINOR} > 2
-PORTVERSION=	3.1
-.else
-PORTVERSION=	3.0
-.endif
-.else
-.if ${OSMAJOR} > 5
-.if ${OSMINOR} >= 3
-PORTVERSION=	2.1
-.else
-PORTVERSION=	2.0
-.endif
-.else
-PORTVERSION=	1.4
-.endif
-.endif
+PORTVERSION=	${EMULAB_PORTVERSION}
 CATEGORIES=	misc
 MASTER_SITES=	#none
 DISTFILES=	#none
@@ -45,29 +32,37 @@ PHP_VER=	4
 # We must make sure PERL is built with this.
 #
 .MAKEFLAGS+=	ENABLE_SUIDPERL=yes
-.if ${PORTVERSION} == "3.1"
+.if (${PORTVERSION} == "3.1" || ${PORTVERSION} == "4.0")
 .MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
-.else
-.if ${PORTVERSION} == "3.0"
+.elif ${PORTVERSION} == "3.0"
 .MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
-.endif
 .endif
 
 #
 # For samba, so that it doesn't suck in everything under the sun
 #
-.MAKEFLAGS+=	-DWITHOUT_WINBIND -DWITHOUT_LDAP -DWITHOUT_POPT -DWITHOUT_CUPS
+.MAKEFLAGS+=	-DWITHOUT_WINBIND -DWITHOUT_LDAP -DWITHOUT_POPT -DWITHOUT_CUPS -DWITHOUT_IPV6
 
 #
-# This prevents any ports from trying to run interactively - some, ask silly
-# questions without this option.
+# This prevents any ports from trying to run interactively - some, like the
+# net-snmp port, ask silly questions without this option.
 #
 .MAKEFLAGS+=	-DBATCH
+
+# We need the BUILD_DEPENDS above to wind up in the dependency list
+RUN_DEPENDS:= ${BUILD_DEPENDS}
 
 RUN_DEPENDS= gmake:${PORTSDIR}/devel/gmake \
 	sudo:${PORTSDIR}/security/sudo \
 	rsync:${PORTSDIR}/net/rsync \
+
+.if ${PORTVERSION} == "4.0"
+RUN_DEPENDS+= \
+	smbd:${PORTSDIR}/net/samba36
+.else
+RUN_DEPENDS+= \
 	smbd:${PORTSDIR}/net/samba3
+.endif
 
 NO_BUILD=	yes
 

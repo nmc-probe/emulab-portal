@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -61,6 +61,18 @@ $isfednode= $row["isfednode"];
 #
 $unroutable = ($ELABINELAB || !strncmp($CONTROL_NETWORK, "192.168.", 8));
 
+#
+# If we need a proxy host, determine whether it is ops or boss.
+# Normally it is ops, unless ops is a VM and it is in an inner elab.
+# In that case, there is no external DNS alias ("myops.eid.pid.emulab.net")
+# created for the inner ops so it cannot be the proxy.
+#
+if ($ELABINELAB && $OPS_VM) {
+    $PROXYNODE = $BOSSNODE;
+} else {
+    $PROXYNODE = $USERNODE;
+}
+
 if (!isset($pid)) {
     USERERROR("$node_id is not allocated to an experiment!", 1);
 }
@@ -70,7 +82,11 @@ header("Content-Type: text/x-testbed-ssh");
 header("Content-Disposition: inline; filename=$filename;");
 header("Content-Description: SSH description file for a testbed node");
 
-echo "hostname: $vname.$eid.$pid.$OURDOMAIN\n";
+if ($NONAMEDSETUP) {
+    echo "hostname: $node_id.$OURDOMAIN\n";
+} else {
+    echo "hostname: $vname.$eid.$pid.$OURDOMAIN\n";
+}
 echo "login:    $uid\n";
 
 if ($isvirt) {
@@ -89,14 +105,14 @@ if ($isvirt) {
 	# bounce through ops node to get there. They run sshd on
 	# on the standard port, but on a private IP.
 	#
-	echo "gateway: $USERNODE\n";
+	echo "gateway: $PROXYNODE\n";
     }
 }
 elseif ($unroutable) {
     #
     # If nodes are unroutable, gateway via the user node
     #
-    echo "gateway: $USERNODE\n";
+    echo "gateway: $PROXYNODE\n";
 }
 elseif ($issubnode && $class == 'ixp') {
     #

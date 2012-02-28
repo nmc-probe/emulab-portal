@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniCH;
@@ -215,18 +215,41 @@ sub GetCredential($)
 	my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
 	if (!defined($authority)) {
 	    print STDERR "Could not find local authority object\n";
-	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					"Who are you?");
+	    return GeniResponse->Create(GENIRESPONSE_ERROR,
+					undef, "Who am I?");
 	}
+	#
+	# Is this an "approved" CA (in the geni_cas table)?
+	#
+	my $safe_dn = DBQuoteSpecial($ENV{'SSL_CLIENT_I_DN'});
+	my $query_result =
+	    DBQueryWarn("select hash from geni_cas where DN=$safe_dn");
+	return GeniResponse->Create(GENIRESPONSE_ERROR)
+	    if (!defined($query_result));
+	
 	my $credential = GeniCredential->Create($authority, $caller_authority);
 	if (!defined($credential)) {
 	    print STDERR "Could not create credential for $caller_authority\n";
 	    return GeniResponse->Create(GENIRESPONSE_ERROR);
 	}
-	#
-	# We want this credential to be valid for a long time;
-	#
-	$credential->SetExpiration(time() + 24 * 60 * 60 * 120);
+
+	if (!$query_result->numrows) {
+	    #
+	    # We want this credential to be valid for a short time;
+	    #
+	    $credential->SetExpiration(time() + 120);
+
+	    #
+	    # And it has very limited permission
+	    #
+	    $credential->AddCapability("register_authority", 0);
+	}
+	else {
+	    #
+	    # We want this credential to be valid for a long time;
+	    #
+	    $credential->SetExpiration(time() + 24 * 60 * 60 * 120);
+	}
 	
 	if ($credential->Sign($GeniCredential::LOCALMA_FLAG) != 0) {
 	    $credential->Delete();
@@ -435,10 +458,22 @@ sub Register($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
-    $credential->HasPrivilege( "authority" ) or
-	$credential->HasPrivilege( "refresh" ) or
-	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
-				     "Insufficient privilege" );
+    #
+    # Initial registration permission.
+    #
+    if ($type eq "cm" || $type eq "sa" || $type eq "ses" || $type eq "am") {
+	$credential->HasPrivilege( "authority" ) or
+	    $credential->HasPrivilege( "refresh" ) or
+	    $credential->HasPrivilege( "register_authority" ) or
+	    return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+			 "Insufficient privilege to register authority");
+    }
+    else {
+	$credential->HasPrivilege( "authority" ) or
+	    $credential->HasPrivilege( "refresh" ) or
+	    return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+					 "Insufficient privilege" );
+    }
 
     #
     # Grab the uuid and hrn out of the certificate.
@@ -694,6 +729,13 @@ sub Register($)
 					"Please define PROTOGENI_DOMAIN");
 	}
 
+	# Need this info below. 
+	my $safe_dn = DBQuoteSpecial($ENV{'SSL_CLIENT_I_DN'});
+	my $query_result =
+	    DBQueryWarn("select hash from geni_cas where DN=$safe_dn");
+	return GeniResponse->Create(GENIRESPONSE_ERROR)
+	    if (!defined($query_result));
+
 	#
 	# Check for an existing authority. 
 	#
@@ -711,6 +753,14 @@ sub Register($)
 	    print STDERR "Could not register new authority\n";
 	    return GeniResponse->Create(GENIRESPONSE_ERROR);
 	}
+
+	#
+	# If the CA has not been "approved", the service starts out disabled
+	# so that it is not listed.
+	#
+	$authority->Disable(1)
+	    if (!$query_result->numrows);
+
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
     }
     return GeniResponse->Create(GENIRESPONSE_UNSUPPORTED);
@@ -874,6 +924,7 @@ sub ListComponents($)
 
     $credential->HasPrivilege( "authority" ) or
 	$credential->HasPrivilege( "resolve" ) or
+	$credential->HasPrivilege( "info" ) or
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
 

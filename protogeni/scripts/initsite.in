@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -14,12 +14,12 @@ use Getopt::Std;
 # 
 sub usage()
 {
-    print "Usage: initpgenisite [-c]\n";
+    print "Usage: initpgenisite\n";
     exit(1);
 }
-my $optlist = "c";
-my $asch    = 0;
-my $cflag   = "";
+my $optlist = "";
+my $asch    = @PROTOGENI_ISCLEARINGHOUSE@;
+my $cflag   = ($asch ? "-c" : "");
 
 #
 # Configure variables
@@ -30,7 +30,13 @@ my $TBLOGS        = "@TBLOGSEMAIL@";
 my $OURDOMAIN     = "@OURDOMAIN@";
 my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
-my $TBBASE        = "@TBBASE@";
+my $PROTOGENI_RPCNAME = "@PROTOGENI_RPCNAME@";
+my $PROTOGENI_RPCPORT = "@PROTOGENI_RPCPORT@";
+my $OUTERBOSS_XMLRPCPORT = "@OUTERBOSS_XMLRPCPORT@";
+my $PROTOGENI_WEBSITE  = "@PROTOGENI_WEBSITE@";
+my $PROTOGENI_GENIRACK = @PROTOGENI_GENIRACK@;
+my $PROTOGENI_PASSWORD = "@PROTOGENI_PASSWORD@";
+my $PROTOGENI_URL = "@PROTOGENI_URL@";
 my $geniuserid    = "geniuser";
 my $geniprojid    = "GeniSlices";
 my $PROTOUSER	  = "elabman";
@@ -43,6 +49,8 @@ my $GETCACERTS    = "$TB/sbin/protogeni/getcacerts";
 my $POSTCRL       = "$TB/sbin/protogeni/postcrl";
 my $GENCRL        = "$TB/sbin/protogeni/gencrl";
 my $GENCRLBUNDLE  = "$TB/sbin/protogeni/gencrlbundle";
+my $INITCERTS	  = "$TB/sbin/protogeni/initcerts";
+my $REGISTERCERTS = "$TB/sbin/protogeni/reregister";
 my $MKSYSCERT	  = "$TB/sbin/mksyscert";
 my $MKUSERCERT	  = "$TB/sbin/mkusercert";
 my $BATCHEXP      = "$TB/bin/batchexp";
@@ -51,6 +59,7 @@ my $SACERT	  = "$TB/etc/genisa.pem";
 my $CMCERT	  = "$TB/etc/genicm.pem";
 my $CHCERT	  = "$TB/etc/genich.pem";
 my $SESCERT	  = "$TB/etc/genises.pem";
+my $RPCCERT	  = "$TB/etc/genirpc.pem";
 my $SUDO	  = "/usr/local/bin/sudo";
 my $MYSQL         = "/usr/local/bin/mysql";
 my $MYSQLADMIN    = "/usr/local/bin/mysqladmin";
@@ -59,6 +68,10 @@ my $MYSQLDUMP     = "/usr/local/bin/mysqldump";
 my $PKG_INFO      = "/usr/sbin/pkg_info";
 my $FETCH	  = "/usr/bin/fetch";
 my $OPENSSL       = "/usr/bin/openssl";
+my $APACHE_START  = "@APACHE_START_COMMAND@";
+my $APACHE_CONF   = "@INSTALL_APACHE_CONFIG@/httpd.conf";
+my $APACHE_FLAGS  = ("@APACHE_VERSION@" == "22" ?
+		     "apache22_flags" : "apache_flags");
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -66,7 +79,6 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
 # Protos
 sub fatal($);
-sub UpdateCert($$$$);
 
 #
 # Turn off line buffering on output
@@ -76,12 +88,15 @@ $| = 1;
 # Load the Testbed support stuff.
 use lib "@prefix@/lib";
 use libtestbed;
+use emdb;
 use libdb qw(TBSetSiteVar TBOPSPID DBQueryFatal);
 use emutil qw(TBGetUniqueIndex);
 use User;
 use Project;
 use Experiment;
 use OSinfo;
+use libinstall;
+use installvars;
 
 if ($UID != 0) {
     fatal("Must be root to run this script\n");
@@ -93,10 +108,6 @@ if ($UID != 0) {
 my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
-}
-if (defined($options{"c"})) {
-    $asch  = 1;
-    $cflag = "-c";
 }
 
 #
@@ -157,40 +168,15 @@ if( $? == -1 ) {
     print "Root certificate updated.  You will need to send the new\n";
     print "certificate to the clearing house.\n";
 
-    unlink( "$TB/etc/.federated" );
+    unlink( "$TB/etc/.protogeni_federated" );
 }
 
 #
-# Have you sent in your certificate to Utah?
+# Set this differently for readability. 
 #
-if (!$asch && ! -e "$TB/etc/.federated") {
-    my $done = 0;
-    my $federated = 0;
-
-    while (!$done) {
-	print "Have you sent in your root certificate to Utah? [y/n]: ";
-
-	$_ = <STDIN>;
-	if ($_ =~ /^(y|yes)$/i) {
-	    $federated = 1;
-	    $done = 1;
-	}
-	elsif ($_ =~ /^(n|no)$/i) {
-	    $federated = 0;
-	    $done = 1;
-	}
-    }
-    if ($federated) {
-	system("/usr/bin/touch $TB/etc/.federated");
-    }
-    else {
-	print "Please email $TB/etc/emulab.pem to testbed-ops\@flux.utah.edu";
-	print "\n";
-	print "This is a public key, so no harm in sending it in email.\n";
-	print "Once you hear back from Utah, please rerun this script.\n";
-	exit(1);
-    }
-}
+$MAGIC_TESTBED_VERSION = "";
+$MAGIC_TESTBED_START   = "Added by Emulab for the ProtoGENI module";
+$MAGIC_TESTBED_END     = "End of Emulab added section";
 
 #
 # Packages.
@@ -208,27 +194,26 @@ my %packlist =
      );
 my $needpkgs = 0;
 
-foreach my $pkgname (sort(keys(%packlist))) {
-    my $pkgdir = $packlist{$pkgname};
-    
-    print STDERR "Checking for package $pkgname\n";
+Phase "ports", "Installing ports", sub {
+    foreach my $pkgname (sort(keys(%packlist))) {
+	my $pkgdir = $packlist{$pkgname};
 
-    next
-	if (system("$PKG_INFO -E '${pkgname}*' >/dev/null") == 0);
+	Phase "$pkgname", "Checking for $pkgname", sub {
+	    if (!ExecQuiet("$PKG_INFO -E '${pkgname}*'")) {
+		PhaseSkip("Already installed");
+	    }
+	    chdir "$pkgdir" or
+		PhaseFail("Unable to change to cd to $pkgdir");
 
-    print STDERR "Please install $pkgdir\n";
-    $needpkgs++;
-}
-if ($needpkgs) {
-    print STDERR "Then return to this script and start again.\n";
-    exit(1);
-}
+	    ExecQuietFatal("make -DBATCH install");
+	};
+    }
+};
 
 #
 # crossdomain.xml is needed to allow the flash client to talk to
 # this host.
 #
-
 my $crosstext = <<'CROSSEND';
 <?xml version="1.0"?>
 <cross-domain-policy>
@@ -236,18 +221,34 @@ my $crosstext = <<'CROSSEND';
 </cross-domain-policy>
 CROSSEND
 
-open CROSS_OUT, ">$TB/www/crossdomain.xml"
-    or fatal("Could not create $TB/www/crossdomain.xml");
-print CROSS_OUT $crosstext;
-close CROSS_OUT;
+Phase "crossdomain", "Installing www crossdomain.xml", sub {
+    Phase "create", "Creating file", sub {
+	DoneIfExists("$TB/www/crossdomain.xml");
+	CreateFileFatal("$TB/www/crossdomain.xml", $crosstext);
+    };
+    Phase "chmod", "Setting permissions", sub {
+	ExecQuietFatal("$CHMOD 0644 $TB/www/crossdomain.xml");
+    };
+};
 
-chmod(0644, "$TB/www/crossdomain.xml");
+Phase "dirs", "Creating directories", sub {
+    foreach my $dir ("$TB/www/protogeni",
+		     "$TB/etc/genicacerts",
+		     "$TB/www/protogeni/advertisements",
+		     "$TB/www/protogeni/authorities") {
+	Phase $dir, $dir, sub {
+	    PhaseSkip("already exists")
+		if (-e $dir);
+	    
+	    mkdir $dir, 0775 or
+		PhaseFail("Unable to create $dir : $!");
+	};
+    }
+};
 
-if (! -e "$TB/www/protogeni") {
-    mkdir("$TB/www/protogeni", 0775)
-	or fatal("Could not mkdir $TB/www/protogeni");
-}
-
+#
+# Another version of this file?
+#
 $crosstext = <<'CROSSEND';
 <?xml version="1.0"?>
 <cross-domain-policy>
@@ -256,387 +257,273 @@ $crosstext = <<'CROSSEND';
 </cross-domain-policy>
 CROSSEND
 
-open CROSS_OUT, ">$TB/www/protogeni/crossdomain.xml"
-    or fatal("Could not create $TB/www/protogeni/crossdomain.xml");
-print CROSS_OUT $crosstext;
-close CROSS_OUT;
+Phase "crossdomain2", "Installing protogeni crossdomain.xml", sub {
+    Phase "create", "Creating file", sub {
+	DoneIfExists("$TB/www/protogeni/crossdomain.xml");
+	CreateFileFatal("$TB/www/protogeni/crossdomain.xml", $crosstext);
+    };
+    Phase "chmod", "Setting permissions", sub {
+	ExecQuietFatal("$CHMOD 0644 $TB/www/protogeni/crossdomain.xml");
+    };
+};
 
-chmod(0644, "$TB/www/protogeni/crossdomain.xml");
+#
+# Flash Policy.
+#
+my $FLASH_LINE = "flashpolicy stream tcp  nowait          root    /bin/echo               /bin/echo '<cross-domain-policy> <site-control permitted-cross-domain-policies=\"master-only\"/> <allow-access-from domain=\"*\" to-ports=\"80,443,$PROTOGENI_RPCPORT,$OUTERBOSS_XMLRPCPORT\"/> </cross-domain-policy>'";
+
+Phase "flashpolicy", "Installing the flash policy", sub {
+    Phase "services", "Adding services entry", sub {
+	DoneIfEdited("/etc/services");
+	AppendToFileFatal("/etc/services", 'flashpolicy     843/tcp');
+    };
+    Phase "inetd", "Adding inetd.conf entry", sub {
+	DoneIfEdited("$INETD_CONF");
+	AppendToFileFatal($INETD_CONF, $FLASH_LINE);
+    };
+    Phase "restarting", "Restarting inetd", sub {
+	PhaseSkip("not changed")
+	    if (PhaseWasSkipped("inetd"));
+	HUPDaemon("inetd");
+    };
+};
 
 #
 # The web server needs to do client authentication, for the geni xmlrpc
 # interface. A bundle of CA certs from the trusted roots (emulabs) will
 # be used. This bundle will periodically update as sites come online.
 #
-if (! -e "$TB/etc/genica.bundle") {
-    system("/bin/cp $TB/etc/emulab.pem $TB/etc/genica.bundle") == 0
-	or fatal("Could not initialize $TB/etc/genica.bundle");
-}
-if (! -e "$TB/etc/genicrl.bundle") {
-    system("/usr/bin/touch $TB/etc/genicrl.bundle") == 0
-	or fatal("Could not initialize $TB/etc/genicrl.bundle");
-}
-
+Phase "bundles", "Installing SSL bundles", sub {
+    Phase "genica", "Installing genica.bundle", sub {
+	DoneIfExists("$TB/etc/genica.bundle");
+	ExecQuietFatal("$CP $TB/etc/emulab.pem $TB/etc/genica.bundle");
+	ExecQuietFatal("$CHMOD 0644 $TB/etc/genica.bundle");
+    };
+    Phase "genicrl", "Installing genicrl.bundle", sub {
+	DoneIfExists("$TB/etc/genicrl.bundle");
+	ExecQuietFatal("$TOUCH $TB/etc/genicrl.bundle");
+	ExecQuietFatal("$CHMOD 0644 $TB/etc/genicrl.bundle");
+    };
+};
 if ($asch) {
-    if (! -e "$TB/www/genica.bundle") {
-	system("/bin/cp $TB/etc/emulab.pem $TB/www/genica.bundle") == 0
-	    or fatal("Could not initialize $TB/www/genica.bundle");
-    }
-    chmod(0644, "$TB/www/genica.bundle");
-
-    # CRL 
-    if (! -e "$TB/www/genicrl.bundle") {
-	system("/usr/bin/touch $TB/www/genicrl.bundle") == 0
-	    or fatal("Could not initialize $TB/www/genicrl.bundle");
-    }
-    chmod(0644, "$TB/www/genicrl.bundle");
-
     #
-    # This is a pain. xmlsec1 cannot deal with a bundle of certs and so we
-    # need to split up the bundle into a directory of certs. I hope to deal
-    # with this at some point.
+    # For xmlsec1
     #
-    if (! -e "$TB/etc/genicacerts") {
-	mkdir("$TB/etc/genicacerts", 0755)
-	    or fatal("Could not mkdir $TB/etc/genicacerts");
-    }
-    system("/bin/cp $TB/etc/emulab.pem $TB/etc/genicacerts") == 0
-	or fatal("Could not initialize $TB/etc/genicacerts");
+    Phase "genicacerts", "Initial genicacerts directory", sub {
+	DoneIfExists("$TB/etc/genicacerts/emulab.pem");
+	ExecQuietFatal("$CP $TB/etc/emulab.pem $TB/etc/genicacerts");
+    };
+    Phase "wwwgenica", "Copying genica.bundle to www", sub {
+	DoneIfExists("$TB/www/genica.bundle");
+	ExecQuietFatal("$CP $TB/etc/genica.bundle $TB/www/genica.bundle");
+	ExecQuietFatal("$CHMOD 0644 $TB/www/genica.bundle");
+    };
+    Phase "wwwgenicrl", "Copying genicrl.bundle to www", sub {
+	DoneIfExists("$TB/www/genicrl.bundle");
+	ExecQuietFatal("$CP $TB/etc/genicrl.bundle $TB/www/genicrl.bundle");
+	ExecQuietFatal("$CHMOD 0644 $TB/www/genicrl.bundle");
+    };
 }
-if (! -e "$TB/lib/ssl/syscert.cnf" ||
-    system( "grep -q protogeni_oids \"$TB/lib/ssl/syscert.cnf\"" ) != 0 ) {
-    print "Please go to the ssl subdir of your build tree and do:\n";
-    print "    sudo gmake install-conf\n";
-    print "Then rerun this script\n";
-    exit(1);
-}
+
 #
 # I do not understand where this file comes from.
 #
-if (! -e "$TB/ssl/index.txt.attr" ||
-    system("egrep -q -s 'no' $TB/ssl/index.txt.attr")) {
-    system("echo 'unique_subject = no' > $TB/ssl/index.txt.attr") == 0
-	or fatal("Could not update $TB/ssl/index.txt.attr");
-}
-
-my $restartapache = 0;
-
-if (system("egrep -q -s 'PGENI' /usr/local/etc/apache/httpd.conf")) {
-    print "Please go to the apache subdir of your build tree and do:\n";
-    print "    gmake\n";
-    print "    sudo gmake install\n";
-    $restartapache++;
-}
-if (system("egrep -q -s 'DPGENI' /etc/rc.conf")) {
-    print "Please add 'apache_flags=\"-DSSL -DPGENI\"' to /etc/rc.conf\n";
-    $restartapache++;
-}
-if (!system("egrep -q -s 'apache_flags=\"-DSSL' " .
-	    "/usr/local/etc/rc.d/apache.sh")) {
-    system("sed -i .backup 's/apache_flags=\"-DSSL/" .
-	   "apache_flags=\"\${apache_flags--DSSL}/' " .
-	   "/usr/local/etc/rc.d/apache.sh");
-    $restartapache++;
-}
-if ($restartapache) {
-    print "Then restart apache:\n";
-    print "    sudo /usr/local/etc/rc.d/apache.sh restart\n";
-    print "Then rerun this script\n";
-    exit(1);
-}
+Phase "index", "Creating ssl index.txt.attr", sub {
+    BackUpFileFatal("$TB/ssl/index.txt.attr");
+    DeleteFileFatal("$TB/ssl/index.txt.attr");
+    CreateFileFatal("$TB/ssl/index.txt.attr", 'unique_subject = no');
+};
+Phase "sslcnf", "Updating ssl syscert.cnf", sub {
+    ExecQuietFatal("$GMAKE -C @top_builddir@/ssl install-conf");
+};
+Phase "apache", "Updating apache config", sub {
+    DoneIfIdentical("@top_builddir@/apache/httpd.conf", "$HTTPD_CONF");
+    BackUpFileFatal("$HTTPD_CONF");
+    ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/apache install");
+};
+Phase "rcconf", "Updating $RCCONF", sub {
+    DoneIfEdited($RCCONF);
+    AppendToFileFatal($RCCONF, "$APACHE_FLAGS=\"-DSSL -DPGENI\"");
+};
 
 #
-# On the clients, we have to get the bundle from Utah website and
+# user/project that slices (experiments) belong to.
+#
+my $geniuser = User->Lookup($geniuserid);
+Phase "geniuser", "Creating user $geniuserid", sub {
+    PhaseSkip("already created")
+	if (defined($geniuser));
+
+    PhaseFail("geniuser.xml does not exist")
+	if (! -e "$TB/etc/protogeni/geniuser.xml");
+
+    ExecQuietFatal("$SUDO -u $PROTOUSER ".
+		   "$WAP $NEWUSER $TB/etc/protogeni/geniuser.xml");
+
+    $geniuser = User->Lookup($geniuserid);
+    PhaseFail("$geniuserid did not create properly")
+	if (!defined($geniuser));
+    
+    if ($PROTOGENI_PASSWORD ne "") {
+	my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
+	my $salt = $salt_chars[rand(@salt_chars)] .
+	           $salt_chars[rand(@salt_chars)];
+	my $encpass = crypt($PROTOGENI_PASSWORD, "\$1\$${salt}");
+	$geniuser->SetPassword($encpass, "date_add(now(), interval 10 year)");
+    }
+    ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $TBACCT verify $geniuserid");
+};
+
+my $geniproj = Project->Lookup($geniprojid);
+Phase "geniproj", "Creating project $geniprojid", sub {
+    PhaseSkip("already created")
+	if (defined($geniproj));
+
+    PhaseFail("geniproj.xml does not exist")
+	if (! -e "$TB/etc/protogeni/geniproj.xml");
+
+    ExecQuietFatal("$SUDO -u $PROTOUSER ".
+		   "$WAP $NEWPROJ $TB/etc/protogeni/geniproj.xml");
+    ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $MKPROJ -s $geniprojid");
+
+    $geniproj = Project->Lookup($geniprojid);
+    PhaseFail("$geniprojid did not create")
+	if (!defined($geniproj));
+};
+$geniuser->Refresh();
+$geniproj->Refresh();
+
+# Create an encrypted certificate for the test scripts.
+Phase "usercert", "Creating certificate for $geniuserid", sub {
+    my $sslcert;
+    $geniuser->SSLCert(1, \$sslcert);
+
+    PhaseSkip("already created")
+	if (defined($sslcert));
+
+    my $passwd = substr(TBGenSecretKey(), 0, 10);
+    PhaseFail("failed to generate password")
+	if (!defined($passwd) || $passwd eq "");
+    
+    ExecQuietFatal("$SUDO -u $PROTOUSER ".
+		   "$WAP $MKUSERCERT -p '$passwd' $geniuserid");
+};
+
+# Now that we have the geniuser ...
+Phase "chown", "Changing ownership on dirs", sub {
+    ExecQuietFatal("$CHOWN $geniuserid ".
+		   "$TB/www/protogeni/advertisements ".
+		   "$TB/www/protogeni/authorities");
+};
+
+Phase "dbstuff", "Adding a few things to Emulab DB", sub {
+    #
+    # Need this fake type for now.
+    #
+    # It would be unusual if this OSID did not exist.
+    #
+    my $osinfo = OSinfo->Lookup(TBOPSPID(), "RHL-STD");
+    PhaseFail("RHL-STD does not exist")
+	if (!defined($osinfo));
+
+    my $osid = $osinfo->osid();
+
+    DBQueryWarn("replace into node_types (type,class,isvirtnode,isdynamic) ".
+		"values ('pcfake','pcvm',1,1)")
+	or PhaseFail("Error inserting node_types");
+	
+    DBQueryWarn("replace into node_type_attributes ".
+		"(type,attrkey,attrvalue,attrtype) values ".
+		"('pcfake','rebootable','1','boolean')")
+	or PhaseFail("Error inserting rebootable attribute");
+    
+    DBQueryWarn("replace into node_type_attributes ".
+		"(type,attrkey,attrvalue,attrtype) values ".
+		"('pcfake','default_osid','$osid','integer')")
+	or PhaseFail("Error inserting default_osid attribute");
+};
+    
+#
+# Databases.
+#
+Phase "databases", "Creating Databases", sub {
+    foreach my $dbname ("geni", "geni-ch", "geni-cm") {
+	Phase $dbname, "Creating DB $dbname", sub {
+	    if (!ExecQuiet("$MYSQLSHOW $dbname")) {
+		PhaseSkip("already exists");
+	    }
+	    ExecQuietFatal("$MYSQLADMIN create $dbname");
+	};
+	Phase "fill${dbname}", "Initializing DB $dbname", sub {
+	    if (!ExecQuiet("$MYSQLDUMP -d $dbname geni_users")) {
+		PhaseSkip("already initialized");
+	    }
+	    ExecQuietFatal("$MYSQL $dbname < $TB/etc/protogeni/protogeni.sql");
+	};
+	Phase "fix${dbname}", "Patching DB $dbname", sub {
+	    ExecQuietFatal("$MYSQL -e \"UPDATE geni_authorities ".
+			   "   SET type='ses' ".
+			   "WHERE hrn LIKE '%.ses' AND type='';\" $dbname");
+	};
+    }
+};
+
+#
+# This script builds the certs and registers them. Separate script so
+# it can be rerun independently, as when updating certificates.
+#
+Phase "initcerts", "Creating PG certificates", sub {
+    # This script will not overwrite existing certificates, so okay
+    # to call again even if certs already exist.
+    ExecQuietFatal("$INITCERTS");
+};
+
+#
+# On the clients, we have to get the bundle from the CH website and
 # then break it up for xmlsec (see above). We use a script for this
 # since the clients need to do this everytime a new client is added.
 # This script restarts apache.
 #
 if (!$asch) {
-    system("$GETCACERTS -l -p") == 0
-	or fatal("Could not get CA bundle from Utah");
-
+    Phase "getcacerts", "Getting current CA bundle", sub {
+	ExecQuietFatal("$GETCACERTS -l -p");
+    };
     #
     # This cron entry will autoupdate the CA/CRL certs by getting them from
-    # Utah.
+    # the CH website.
     #
-    if (system("egrep -q -s '$GETCACERTS' /etc/crontab")) {
-	print "Please add this line to /etc/crontab:\n\n";
-	print "13  4  *  *	*  root  $GETCACERTS\n\n";
-	print "Then rerun this script\n";
-	exit(1);
-    }
+    Phase "crontab", "Updating $CRONTAB", sub {
+	DoneIfEdited($CRONTAB);
+	AppendToFileFatal($CRONTAB,
+			  "13  4  *  *	*  root  $GETCACERTS");
+    };
 }
 else {
     #
     # But on the clearinghouse, we have to generate the CRL bundle for 
     # downloading by remote sites.
     #
-    if (system("egrep -q -s '$GENCRLBUNDLE' /etc/crontab")) {
-	print "Please add this line to /etc/crontab:\n\n";
-	print "10  4  *  *  *  root  $GENCRLBUNDLE\n\n";
-	print "Then rerun this script\n";
-	exit(1);
-    }
+    Phase "crontab", "Updating $CRONTAB", sub {
+	DoneIfEdited($CRONTAB);
+	AppendToFileFatal($CRONTAB,
+			  "10  4  *  *  *  root  $GENCRLBUNDLE");
+    };
 }
 
-#
-# user/project that slices (experiments) belong to.
-#
-my $geniuser = User->Lookup($geniuserid);
-if (!defined($geniuser)) {
-    fatal("Need to do an install in the protogeni/etc directory.")
-	if (! -e "$TB/etc/protogeni/geniuser.xml");
-
-    print "Creating Geni pseudo user ...\n";
-    system("$SUDO -u $PROTOUSER $WAP $NEWUSER $TB/etc/protogeni/geniuser.xml");
-    fatal("Could not create geni user")
-	if ($?);
-
-    system("$SUDO -u $PROTOUSER $WAP $TBACCT verify $geniuserid");
-    fatal("Could not verify geni user")
-	if ($?);
-
-    $geniuser = User->Lookup($geniuserid);    
-    fatal("Could not lookup $geniuserid")
-	if (!defined($geniuser));
-}
-my $geniproj = Project->Lookup($geniprojid);
-if (!defined($geniproj)) {
-    fatal("Need to do an install")
-	if (! -e "$TB/etc/protogeni/geniproj.xml");
-
-    print "Creating Geni slices project ...\n";
-    system("$SUDO -u $PROTOUSER $WAP $NEWPROJ $TB/etc/protogeni/geniproj.xml");
-    fatal("Could not create geni project")
-	if ($?);
-
-    system("$SUDO -u $PROTOUSER $WAP $MKPROJ -s $geniprojid");
-    fatal("Could not approve geni project")
-	if ($?);
-
-    $geniproj = Project->Lookup($geniprojid);
-    fatal("Could not lookup $geniprojid")
-	if (!defined($geniproj));
-}
-$geniuser->Refresh();
-$geniproj->Refresh();
-
-# Create an encrypted certificate for the test scripts.
-my $sslcert;
-$geniuser->SSLCert(1, \$sslcert);
-if (!defined($sslcert)) {
-    my $passwd = substr(TBGenSecretKey(), 0, 10);
-    system("$SUDO -u $PROTOUSER $WAP $MKUSERCERT -p '$passwd' $geniuserid");
-    fatal("Could not create encrypted certificate for geni user")
-	if ($?);
-}
-
-#
-# Need this fake type for now.
-#
-my $osinfo = OSinfo->Lookup(TBOPSPID(), "RHL-STD");
-if (!defined($osinfo)) {
-    fatal("No RHL-STD OSID in the ops project!");
-}
-my $osid = $osinfo->osid();
-
-DBQueryFatal("replace into node_types (type,class,isvirtnode,isdynamic) ".
-	     "values ('pcfake','pcvm',1,1)");
-DBQueryFatal("replace into node_type_attributes ".
-	     "(type,attrkey,attrvalue,attrtype) values ".
-	     "('pcfake','rebootable','1','boolean')");
-DBQueryFatal("replace into node_type_attributes ".
-	     "(type,attrkey,attrvalue,attrtype) values ".
-	     "('pcfake','default_osid','$osid','integer')");
-
-#
-# Databases.
-#
-print "Creating Databases ...\n";
-foreach my $dbname ("geni", "geni-ch", "geni-cm") {
-    if (system("$MYSQLSHOW $dbname >/dev/null 2>/dev/null")) {
-	system("$MYSQLADMIN create $dbname") == 0
-	    or fatal("Could not create DB: $dbname");
-    }
-    if (system("$MYSQLDUMP -d $dbname geni_users >/dev/null 2>/dev/null")) {
-	system("$MYSQL $dbname < $TB/etc/protogeni/protogeni.sql") == 0
-	    or fatal("Could not initialize DB: $dbname");
-    }
-}
-
-foreach my $dbname( "geni", "geni-ch", "geni-cm" ) {
-    system( "$MYSQL -e \"UPDATE geni_authorities SET type='ses' WHERE " .
-	    "hrn LIKE '%.ses' AND type='';\" $dbname" ) == 0
-	    or fatal( "Could not update SES type: $dbname" );
-}
-
-#
-# Now we can load the libraries.
-#
-require Genixmlrpc;
-require GeniRegistry;
-
-#
-# Generate the certs we need.
-#
-if (! -e $CMCERT) {
-    print "Creating CM certificate ...\n";
-    system("$SUDO -u $PROTOUSER $MKSYSCERT -o $CMCERT ".
-	   "  -u $TBBASE/protogeni/xmlrpc/cm " .
-	   "  -i urn:publicid:IDN+${OURDOMAIN}+authority+cm " .
-	   "$PGENIDOMAIN.cm") == 0
-	   or fatal("Could not generate $CMCERT");
-}
-if (! -e $SACERT) {
-    print "Creating SA certificate ...\n";
-    system("$SUDO -u $PROTOUSER $MKSYSCERT -o $SACERT ".
-	   "  -u $TBBASE/protogeni/xmlrpc/sa " .
-	   "  -i urn:publicid:IDN+${OURDOMAIN}+authority+sa " .
-	   "$PGENIDOMAIN.sa") == 0
-	   or fatal("Could not generate $SACERT");
-}
-if (! -e $SESCERT) {
-    print "Creating SES certificate ...\n";
-    system("$SUDO -u $PROTOUSER $MKSYSCERT -o $SESCERT ".
-	   "  -u $TBBASE/protogeni/xmlrpc/ses " .
-	   "  -i urn:publicid:IDN+${OURDOMAIN}+authority+ses " .
-	   "$PGENIDOMAIN.ses") == 0
-	   or fatal("Could not generate $SESCERT");
-}
-if ($asch) {
-    if (! -e $CHCERT) {
-	print "Creating CH certificate ...\n";
-	system("$SUDO -u $PROTOUSER $MKSYSCERT -o $CHCERT ".
-	       "  -u $TBBASE/protogeni/xmlrpc/ch " .
-	       "  -i urn:publicid:IDN+${OURDOMAIN}+authority+ch " .
-	       "$PGENIDOMAIN.ch") == 0
-	       or fatal("Could not generate $CHCERT");
-    }
-    UpdateCert( $CHCERT, "$TBBASE/protogeni/xmlrpc/ch",
-		"urn:publicid:IDN+${OURDOMAIN}+authority+ch",
-		"$PGENIDOMAIN.ch" );
+if (!$asch) {
     #
-    # Copy the CH certificate out to the web interface, but only the public
-    # key of course. 
+    # Register the certificates at the clearinghouse.
     #
-    my $chcertificate = GeniCertificate->LoadFromFile($CHCERT);
-    fatal("Could not load certificate from $CHCERT")
-	if (!defined($chcertificate));
-    
-    my $certfile = $chcertificate->WriteToFile();
-    if (system("$SUDO /bin/mv $certfile $TB/www/genich.pem")) {
-	$chcertificate->Delete();
-	unlink($certfile);
-	fatal("Could not mv $certfile to $TB/www/genich.pem");
-    }
-    chmod(0644, "$TB/www/genich.pem");
+    Phase "register", "Registering PG certificates", sub {
+	PhaseFail("You have not emailed your root CA to the clearinghouse yet!")
+	    if (! "$TB/etc/.protogeni_federated");
 
-    #
-    # Add the cert to the DB directly.
-    #
-    system("$ADDAUTHORITY -c $CHCERT ma") == 0
-	or fatal("Could not add MA certificate");
+	PhaseSkip("already registered")
+	    if (-e "$TB/etc/.protogeni_registered");
+	
+	ExecQuietFatal("$REGISTERCERTS");
+    };
 }
-else {
-    #
-    # Grab the CH certificate from Utah. Only one for now.
-    #
-    print "Fetching clearinghouse certificate from Utah ...\n";
-    system("$FETCH -q -o $CHCERT http://boss.emulab.net/genich.pem") == 0
-	or fatal("Could not fetch clearinghouse certificate from Utah");
-}
-
-#
-# Update obsolete (pre-URN) certificates.
-#
-UpdateCert( $CMCERT, "$TBBASE/protogeni/xmlrpc/cm",
-	    "urn:publicid:IDN+${OURDOMAIN}+authority+cm",
-	    "$PGENIDOMAIN.cm" );
-UpdateCert( $SACERT, "$TBBASE/protogeni/xmlrpc/sa",
-	    "urn:publicid:IDN+${OURDOMAIN}+authority+sa",
-	    "$PGENIDOMAIN.sa" );
-UpdateCert( $SESCERT, "$TBBASE/protogeni/xmlrpc/ses",
-	    "urn:publicid:IDN+${OURDOMAIN}+authority+ses",
-	    "$PGENIDOMAIN.ses" );
-
-#
-# Load the SA cert to act as caller context.
-#
-my $certificate = GeniCertificate->LoadFromFile($SACERT);
-if (!defined($certificate)) {
-    fatal("Could not load certificate from $SACERT\n");
-}
-my $context = Genixmlrpc->Context($certificate);
-if (!defined($context)) {
-    fatal("Could not create context to talk to clearinghouse");
-}
-
-#
-# Note that we had to send the clearinghouse $TB/etc/emulab.pem so they
-# know about this new site. That is sent out of band (email).
-#
-print "Getting credential to talk to clearinghouse ...\n";
-my $credential = GeniRegistry::ClearingHouse->GetCredential($context);
-if (!defined($credential)) {
-    fatal("Could not get credential to talk to clearinghouse");
-}
-my $clearinghouse = GeniRegistry::ClearingHouse->Create($context,
-							$credential);
-if (!defined($clearinghouse)) {
-    fatal("Could not create a clearinghouse client");
-}
-
-#
-# Add certs to the local SA database.
-#
-system("$ADDAUTHORITY $SACERT sa") == 0
-    or fatal("Could not add SA certificate");
-system("$ADDAUTHORITY $CMCERT cm") == 0
-    or fatal("Could not add CM certificate");
-system("$ADDAUTHORITY $SESCERT ses") == 0
-    or fatal("Could not add SES certificate");
-
-#
-# Add certs to the local CM database.
-#
-system("$ADDAUTHORITY -a $SACERT sa") == 0
-    or fatal("Could not add SA certificate to CM DB");
-system("$ADDAUTHORITY -a $CMCERT cm") == 0
-    or fatal("Could not add CM certificate to CM DB");
-
-#
-# Register our certs at the clearinghouse.
-#
-print "Registering SA cert at the clearinghouse.\n";
-if ($clearinghouse->Register("SA", $certificate->cert())) {
-    fatal("Could not register SA cert at the clearinghouse");
-}
-my $cmcert = GeniCertificate->LoadFromFile($CMCERT);
-if (!defined($cmcert)) {
-    fatal("Could not load certificate from $CMCERT\n");
-}
-print "Registering CM cert at the clearinghouse.\n";
-if ($clearinghouse->Register("CM", $cmcert->cert())) {
-    fatal("Could not register CM cert at the clearinghouse");
-}
-my $sescert = GeniCertificate->LoadFromFile($SESCERT);
-if (!defined($sescert)) {
-    fatal("Could not load certificate from $SESCERT\n");
-}
-# Don't treat SES registration failure as a fatal error quite yet, until
-# we're certain that server-side support exists everywhere.
-print "Registering SES cert at the clearinghouse.\n";
-if ($clearinghouse->Register("SES", $sescert->cert())) {
-    print("Warning: could not register SES cert at the clearinghouse\n");
-}
-
-#
-# Local SiteVars to hold the UUIDs.
-#
-TBSetSiteVar('protogeni/sa_uuid', $certificate->uuid());
-TBSetSiteVar('protogeni/cm_uuid', $cmcert->uuid());
-TBSetSiteVar('protogeni/ses_uuid', $sescert->uuid());
-
 exit(0);
 
 sub fatal($)
@@ -645,45 +532,4 @@ sub fatal($)
 
     die("*** $0:\n".
 	"    $msg\n");
-}
-
-# Add a URN to old certificates.  (This is horrible, mainly because
-# we want to reuse the same private keys.)
-sub UpdateCert($$$$)
-{
-    my ($cert, $url, $urn, $hrn) = @_;
-
-    if( system( "$OPENSSL x509 -text -noout < $cert | " .
-		"grep -q -i URI:urn:publicid:IDN" ) ) {
-	my $extfile = "/tmp/$$.ext"; # not worth trying to be secure
-	my $keyfile = "/tmp/$$.key";
-	my $uuid = qx{$OPENSSL x509 -subject -noout < $cert};
-
-	die "could not read subject from $cert"
-	    unless defined( $uuid );
-	die "no UUID found in subject"
-	    unless $uuid =~ /CN=([-a-f0-9]+)/;
-	$uuid = $1;
-
-	open( OLDFILE, "< $cert" ) or die "can't open $cert";
-	open( NEWFILE, "> $keyfile" ) or die "can't open $keyfile";
-	while( <OLDFILE> ) {
-	    print NEWFILE;
-	    last if /-----END RSA PRIVATE KEY-----/;
-	}
-	close OLDFILE;
-	close NEWFILE;
-
-	print "Adding URN to $cert...\n";
-
-	my $originalfile = "${cert}.orig";
-	-f $originalfile and
-	    die( "refusing to overwrite $originalfile" );
-	rename( "$cert", "$originalfile" ) or
-	    die( "could not rename $cert" );
-
-	system("$SUDO -u $PROTOUSER $MKSYSCERT -o $cert ".
-	       "  -u $url -i $urn -k $keyfile $hrn $uuid" ) == 0
-	       or fatal("Could not generate $cert");
-    }
 }

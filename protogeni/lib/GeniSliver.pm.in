@@ -260,6 +260,7 @@ sub aggregate_uuid($)	{ return field($_[0], "aggregate_uuid"); }
 sub rspec_string($)     { return field($_[0], "rspec_string"); }
 sub status($)		{ return field($_[0], "status"); }
 sub state($)		{ return field($_[0], "state"); }
+sub ErrorLog($)		{ return field($_[0], "errorlog"); }
 sub cert($)		{ return $_[0]->{'CERTIFICATE'}->cert(); }
 sub GetCertificate($)   { return $_[0]->{'CERTIFICATE'}; }
 sub rspec($)            { return $_[0]->{'RSPEC'}; }
@@ -270,6 +271,20 @@ sub sliver_urn($)
     my ($self)  = @_;
 
     return GeniHRN::Generate("@OURDOMAIN@", "sliver", $self->idx());
+}
+
+#
+# Equality test. Not strictly necessary in perl, but good form.
+#
+sub SameSliver($$)
+{
+    my ($self, $other) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! (ref($self) && ref($other)));
+
+    return $self->idx() == $other->idx();
 }
 
 #
@@ -300,6 +315,15 @@ sub Delete($$)
     delete($slivers{$idx});
     
     return 0;
+}
+
+#
+# Annotate the rspec with the proper information to become
+# a manifest. Returns undef because type is unknown
+#
+sub AnnotateManifest($)
+{
+    return undef;
 }
 
 #
@@ -338,6 +362,7 @@ sub UpdateRspec($$)
 			 "where idx='$idx'"));
     
     $self->{'RSPEC'} = $rspec;
+    $self->{'SLIVER'}->{'rspec_string'} = $rspec_string;
     return 0;
 }
 
@@ -455,6 +480,28 @@ sub SetState($$)
 			 "where idx='$idx'"));
     
     $self->{'SLIVER'}->{'state'} = $state;
+    return 0;
+}
+
+#
+# And the ErrorLog. These are intended to be short ...
+#
+sub SetErrorLog($$)
+{
+    my ($self, $log) = @_;
+    my $safe_log = DBQuoteSpecial($log);
+
+    return undef
+	if (! ref($self));
+
+    my $idx = $self->idx();
+    
+    return -1
+	if (!DBQueryWarn("update geni_slivers set ".
+			 "  errorlog=$safe_log ".
+			 "where idx='$idx'"));
+    
+    $self->{'SLIVER'}->{'errorlog'} = $log;
     return 0;
 }
 
@@ -595,7 +642,8 @@ use libdb qw(TBDB_ALLOCSTATE_RES_INIT_DIRTY TBDB_NODESTATE_SHUTDOWN
 	     TBResolveNextOSID TBDB_NODESTATE_ISUP TBDB_NODESTATE_TBFAILED
 	     TBDB_NODESTATE_PXEWAIT);
 
-# Error log for local physical node.
+# Error log for local physical node. This overrides the default method above,
+# since it is stored in the node.
 sub ErrorLog($)
 {
     my ($self)  = @_;
@@ -613,8 +661,9 @@ sub ErrorLog($)
     return $bootlog;
 }
 
-# Return the component URN. This is how a resource is resolved.
-sub component_urn($)
+# Return the resource URN. This is how a resource is resolved.
+# Resource urns may differ from component_urns (pcvm201-1 rather than pc201).
+sub resource_urn($)
 {
     my ($self)  = @_;
 
@@ -662,10 +711,51 @@ sub Create($$$$$$)
     my $resource_uuid = $node->uuid();
     my $resource_id   = $node->node_id();
     my $hrn           = "${PGENIDOMAIN}." . $node->node_id();
+
+    my $sliver = GeniSliver->Create($slice, $user, $resource_uuid, "Node",
+				    $resource_id, $hrn, $nickname, $rspec);
+    return undef
+	if (!defined($sliver));
+
+    return $sliver;
+}
+
+#
+# Annotate the rspec of this node with the proper information to become
+# a manifest. Returns LibXML tree or undef on failure.
+#
+sub AnnotateManifest($)
+{
+    my ($self) = @_;
+    my $rspec = GeniXML::Parse($self->rspec_string());
+    if (! defined($rspec)) {
+	print STDERR "Could not parse manifest rspec for node $self\n";
+	return undef;
+    }
+    my $node = Node->Lookup($self->resource_id());
+    if (!defined($node)) {
+	print STDERR "Could not map node $self to its object\n";
+	return undef;
+    }
+    my $user = GeniUser->Lookup($self->creator_uuid(), 1);
+    if (!defined($user)) {
+	print STDERR "Could not map sliver $self to its creator\n";
+	return undef;
+    }
+    my $experiment = $self->GetExperiment();
+    if (!defined($experiment)) {
+	print STDERR "Could not lookup experiment for sliver $self\n";
+	return undef;
+    }
+
     my $sshdport      = 22;
     my $hostname      = GeniUtil::FindHostname($node->node_id());
     my $phostname     = $hostname;
-
+    my $vhostname     = GeniUtil::FindVHostname($experiment, $node);
+    my $component_urn = GeniHRN::Generate("@OURDOMAIN@", "node",
+					  $node->phys_nodeid())
+;
+    
     if ($node->isvirtnode()) {
 	$sshdport  = $node->sshdport();
 	$phostname = GeniUtil::FindHostname($node->phys_nodeid());
@@ -678,32 +768,41 @@ sub Create($$$$$$)
 	GeniXML::SetText("hostname", $rspec, $hostname);
 	GeniXML::SetText("sshdport", $rspec, $sshdport)
 	    if (defined($sshdport));
-    }
-
-    my $services = GeniXML::FindFirst("n:services", $rspec);
-    if (! defined($services)) {
-	$services = GeniXML::AddElement("services", $rspec);
-    }
-    my $login = GeniXML::FindFirst("n:login", $services);
-    if (! defined($login)) {
-	$login = GeniXML::AddElement("login", $services);
-    }
-    GeniXML::SetText("authentication", $login, "ssh-keys");
-    GeniXML::SetText("hostname", $login, $phostname);
-    GeniXML::SetText("port", $login, $sshdport);
-    GeniXML::SetText("username", $login, $user->uid());
-
-    my $sliver = GeniSliver->Create($slice, $user, $resource_uuid, "Node",
-				    $resource_id, $hrn, $nickname, $rspec);
-    return undef
-	if (!defined($sliver));
-
-    if (GeniXML::IsVersion0($rspec)) {
-	GeniXML::SetText("sliver_uuid", $rspec, $sliver->uuid());
+	GeniXML::SetText("sliver_uuid", $rspec, $self->uuid());
+	GeniXML::SetText("sliver_urn", $rspec, $self->sliver_urn());
+	GeniXML::SetText("component_urn", $rspec, $self->resource_urn());
     } else {
-	GeniXML::SetText("sliver_id", $rspec, $sliver->sliver_urn());
+	GeniXML::SetText("sliver_id", $rspec, $self->sliver_urn());
+	GeniXML::SetText("component_id", $rspec, $component_urn);
+	my $host = GeniXML::FindFirst("n:host", $rspec);
+	if (! defined($host)) {
+	    $host = GeniXML::AddElement("host", $rspec);
+	}
+	GeniXML::SetText("name", $host, $vhostname);
     }
-    return $sliver;
+
+    if ($experiment->HasNonLocalUsers()) {
+	my $services = GeniXML::FindFirst("n:services", $rspec);
+	if (! defined($services)) {
+	    $services = GeniXML::AddElement("services", $rspec);
+	}
+	my $login = GeniXML::FindFirst("n:login", $services);
+	if (! defined($login)) {
+	    $login = GeniXML::AddElement("login", $services);
+	}
+	GeniXML::SetText("authentication", $login, "ssh-keys");
+	GeniXML::SetText("hostname", $login, $phostname);
+	GeniXML::SetText("port", $login, $sshdport);
+	GeniXML::SetText("username", $login, $user->uid());
+    }
+
+    if ($self->UpdateRspec($rspec)) {
+	print STDERR "Could not insert annotated manifest for node $self ".
+	    "into database";
+	return undef;
+    }
+
+    return $rspec;
 }
 
 #
@@ -833,10 +932,7 @@ sub UnProvision($;$)
 
 	my $virt_type = GeniXML::GetVirtualizationType($self->rspec());
 	my $sub_type  = GeniXML::GetVirtualizationSubtype($self->rspec());
-	if (!$node->isremotenode() &&
-	    (defined($virt_type) && $virt_type eq "emulab-vnode") &&
-	    !(defined($sub_type) &&
-	      ($sub_type eq "raw" || $sub_type eq "raw-pc"))) {
+	if (!$node->isremotenode() && $node->isvirtnode()) {
 	    my $pnode_id = $node->phys_nodeid();
 	    my $pnode = Node->Lookup($pnode_id);
 	    if (!defined($pnode)) {
@@ -1151,12 +1247,19 @@ use GeniCertificate;
 use GeniUtil;
 
 # Return the component URN. This is how a resource is resolved.
-# Return the component URN. This is how a resource is resolved.
 sub component_urn($)
 {
     my ($self)  = @_;
 
-    return GeniHRN::Generate("@OURDOMAIN@", "interface", $self->resource_id())
+    my ($linkname,$nodeid,$iface) = split('\.', $self->nickname());
+    if (! (defined($nodeid) && defined($iface))) {
+	print STDERR "Could not parse nickname for interface $self\n";
+	return undef;
+    }
+    my $node = Node->Lookup($nodeid);
+    my $phys_nodeid = $node->phys_nodeid();
+    return GeniHRN::GenerateInterface($OURDOMAIN, $phys_nodeid,
+				      $iface);
 }
 
 sub Create()
@@ -1165,31 +1268,47 @@ sub Create()
 
     # These are silly; uuids should go away for interfaces. 
     my $interface_uuid = GeniUtil::NewUUID();
-    my $component_urn  = GeniHRN::GenerateInterface($OURDOMAIN,
-						    $nodeid, $iface);
     my $nickname       = "$linkname.$nodeid.$iface";
     my $hrn            = "${PGENIDOMAIN}.$nodeid.$iface";
     my $resource_id    = "$nodeid//$iface";
 
-    #
-    # Add this stuff to the rspec (which becomes the manifest).
-    #
-    if (GeniXML::IsVersion0($rspec)) {
-	GeniXML::SetText("component_urn", $rspec, $component_urn);
-    } else {
-	GeniXML::SetText("component_id", $rspec, $component_urn);
-    }
     my $sliver = GeniSliver->Create($slice, $user, $interface_uuid,
 				    "Interface", $resource_id,
 				    $hrn, $nickname, $rspec);
     return undef
 	if (!defined($sliver));
-    if (GeniXML::IsVersion0($rspec)) {
-	GeniXML::SetText("sliver_uuid", $rspec, $sliver->uuid());
-    } else {
-	GeniXML::SetText("sliver_id", $rspec, $sliver->sliver_urn());
-    }
+
     return $sliver;
+}
+
+#
+# Annotate the rspec of this interface with the proper information to become
+# a manifest. Returns LibXML tree or undef on error.
+#
+sub AnnotateManifest($$)
+{
+    my ($self, $rspec) = @_;
+
+    my ($linkname,$nodeid,$iface) = split('\.', $self->nickname());
+    if (! (defined($nodeid) && defined($iface))) {
+	print STDERR "Could not parse nickname for interface $self\n";
+	return undef;
+    }
+
+    if (GeniXML::IsVersion0($rspec)) {
+	GeniXML::SetText("component_urn", $rspec, $self->component_urn());
+	GeniXML::SetText("sliver_uuid", $rspec, $self->uuid());
+    }
+    else {
+	GeniXML::SetText("component_id", $rspec, $self->component_urn());
+	GeniXML::SetText("sliver_id", $rspec, $self->sliver_urn());
+    }
+
+    if ($self->UpdateRspec($rspec)) {
+	print STDERR "Could not insert annotated manifest for $self\n";
+	return undef;
+    }
+    return $rspec;
 }
 
 sub Provision($)

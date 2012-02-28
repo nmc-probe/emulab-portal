@@ -698,12 +698,32 @@ COMMAND: foreach my $command (@commands) {
 	    last;
 	};
 	( /make/ ) && do {
+	    my ($vlan_name) = @args;
+	    
             if ($supplied_switches && !$skip_supplied) {
                 @devicenames = @supplied_switches;
             } elsif (@ports) {
-                # Have to operate on whole stacks so that trunks work
-                @devicenames =
-                    getSwitchesInStacks(getStacksForSwitches(getDeviceNames(@ports)));
+		my $vlanobj;
+		if ($vlan_name =~ /^\d*$/) {
+		    $vlanobj = VLan->Lookup($vlan_name);
+		}
+		else {
+		    $vlanobj = VLan->Lookup($experiment, $vlan_name);
+		}
+		if (defined($vlanobj)) {
+		    #
+		    # Need to know the entire port set, since -m is also
+		    # used to add ports to existing vlans.
+		    #
+		    # All devices needed includes trunks to transit.
+		    @devicenames = mapPortsToSwitches(
+			uniq(getVlanPorts($vlanobj->lanid()), @ports));
+		}
+		else {
+		    # All devices needed includes trunks to transit.
+		    @devicenames = mapPortsToSwitches(@ports);
+		}
+		debug("make: switch list: " . join(",",@devicenames) . "\n");
             } else {
                 @devicenames = getTestSwitches();
             }
@@ -850,6 +870,15 @@ COMMAND: foreach my $command (@commands) {
 	    my @oldvlans;
 	    VLan->StaleVlanList($experiment,\@oldvlans);
 
+	    #
+	    # No old or new vlans, then skip all of this. 
+	    #
+	    if (! (@newvlans || @oldvlans)) {
+                print "snmpit: $pid/$eid has no old or new VLANs ... ".
+		    "skipping\n";
+                next COMMAND;
+	    }
+
             if ($supplied_switches && !$skip_supplied) {
 		die("-X and -i cannot be used together\n");
             }
@@ -957,15 +986,32 @@ COMMAND: foreach my $command (@commands) {
     #
     # Order the vlans using the dependency information in the link field.
     #
-    if (@vlans) {
-	my %vlans    = map { $_ => VLan->Lookup($_) } @vlans;
-	my @newvlans = ();
-	my %newvlans = ();
-	#
-	# The "link" field in the vlan points to the vlan it is dependent
-	# on. So, we actually build up the list in reverse order, and then
-	# flip it around at the end. 
-	#
+    if (@vlans && ($opt{m} || $opt{t})) {
+	my %vlans    = ();
+ 	my @newvlans = ();
+ 	my %newvlans = ();
+
+	foreach my $vlanid (@vlans) {
+	    #
+	    # Lookup the vlan, but only numeric ones. Named vlans are
+	    # special and not something we need to worry about here. 
+	    #
+	    if (! ($vlanid =~ /^\d*$/)) {
+		push(@newvlans, $vlanid);
+		next;
+	    }
+	    my $vlan = VLan->Lookup($vlanid);
+	    if (!defined($vlan)) {
+		# Bad.
+		die("Cannot lookup vlan $vlanid\n");
+	    }
+	    $vlans{$vlanid} = $vlan;
+	}
+ 	#
+ 	# The "link" field in the vlan points to the vlan it is dependent
+ 	# on. So, we actually build up the list in reverse order, and then
+ 	# flip it around at the end. 
+ 	#
 	while (@vlans) {
 	    my @tmp = ();
 	    foreach my $vlanid (@vlans) {
@@ -981,14 +1027,12 @@ COMMAND: foreach my $command (@commands) {
 		    push(@tmp, $vlanid);
 		}
 	    }
-	    @vlans = @tmp
+	    @vlans = @tmp;
 	}
-	@vlans = reverse(@newvlans);
-	debug("VLANs: " . join(",",@vlans) . "\n");
-
-	print "VLANs: " . join(",",@vlans) . "\n";
+ 	@vlans = reverse(@newvlans);
+ 	debug("VLANs: " . join(",",@vlans) . "\n");
     }
-    
+
     my %stacks = ();
     if (! $ELABINELAB) {
 	#
@@ -2079,7 +2123,7 @@ sub doReset($@) {
 	next
 	    if (exists($notdeleted{$vlan_id}));
 	
-	clearReservedVlanTag($vlan_id)
+	VLan::ClearReservedVlanTag($vlan_id)
 	    if ($opt{C});
 	VLan->RecordVLanDeletion($vlan_id);
 
@@ -2193,7 +2237,7 @@ sub syncVlansFromTables($$) {
 		    }
 		    VLan->RecordVLanDeletion($vlanid) == 0
 			or goto bad;
-		    VLan->ClearReservedVlanTag($vlanid) == 0
+		    VLan::ClearReservedVlanTag($vlanid) == 0
 			or goto bad;
 		}
 	    }
@@ -2487,6 +2531,7 @@ sub doReserveVlanTags($$@) {
 	my $tag = $stack->newVlanNumber($vlanid, $vlanid);
 	if ($tag) {
 	    push(@assigned, [$vlan,$tag]);
+	    next;
 	}
 	elsif (!$opt{'blockmode'}) {
 	    #
@@ -2711,7 +2756,7 @@ sub doSyncVlansWithDB($) {
 		elsif (VLan->RecordVLanDeletion($vlan_id)) {
 		    $errors++;
 		}
-		elsif (VLan->ClearReservedVlanTag($vlan_id)) {
+		elsif (VLan::ClearReservedVlanTag($vlan_id)) {
 		    $errors++;
 		}
 	    }
@@ -2887,6 +2932,7 @@ sub doMakeVlan($$@) {
 	    "Stacks are " . join(", ",map {$_->{STACKID}} @$stacks) . "\n";
     }
     my ($stack) = @$stacks;
+    my $stackid = ($ELABINELAB ? $stack : $stack->{STACKID});	    
 
     #
     # We require a target VLan object for all vlans related to experiments,
@@ -2911,7 +2957,22 @@ sub doMakeVlan($$@) {
 	#
 	# Allow lookup by integer id.
 	#
-	if ($vlan_name =~ /^\d*$/) {
+	if (defined($stack) &&
+	    $stackid eq "Control" && $vlan_name eq "Control") {
+	    #
+	    # XXX Backwards compatability with older snmpit; allow "Control"
+	    # which is really in the holding experiment. 
+	    #
+	    my $exp = Experiment->Lookup(VLAN_PID(), VLAN_EID());
+	    if (!defined($exp)) {
+		die("Could not lookup vlan holding experiment\n");
+	    }
+	    $target_vlan = VLan->Lookup($exp, $vlan_name);
+	    if (!defined($target_vlan)) {
+		die("Could not lookup the control network vlan\n");
+	    }
+	}
+	elsif ($vlan_name =~ /^\d*$/) {
 	    $target_vlan = VLan->Lookup($vlan_name);
 	}
 	else {
@@ -2932,7 +2993,6 @@ sub doMakeVlan($$@) {
 	    $target_vlan->MarkManual();
 	    # XXX: Need a better way to figure out whether class is
 	    # Experimental or Control
-	    my $stackid = ($ELABINELAB ? $stack : $stack->{STACKID});	    
 	    if ($stackid eq "Control") {
 		$target_vlan->SetClass("Control");
 	    } else {
@@ -3038,7 +3098,8 @@ sub doMakeVlan($$@) {
 
     }
     if (!$errors) {
-	if (defined($source_vlan) && $source_vlan->KeepInSync()) {
+	if (defined($source_vlan) && !$source_vlan->SameVlan($target_vlan) &&
+	    $source_vlan->KeepInSync()) {
 	    # Yank the ports out of the old vlan.
 	    foreach my $port (@ports) {
 		if ($source_vlan->DelPort($port)) {
@@ -3046,9 +3107,9 @@ sub doMakeVlan($$@) {
 		    $errors++;
 		}
 	    }
-	    VLan->RecordVLanModification($source_vlan->id(), undef, @ports);
+	    VLan->RecordVLanModification($source_vlan->id(), undef, \@ports);
 	}
-	if (defined($target_vlan) && $target_vlan->KeepInSync()) {
+	if ($target_vlan->KeepInSync()) {
 	    # This updates the port list, so always call it.
 	    VLan->RecordVlanInsertion($target_vlan->id(), $stack->{STACKID});
 	}
@@ -3166,8 +3227,8 @@ sub doDeleteVlan($@) {
 	VLan->RecordVLanDeletion($vlan_id) == 0
 	    or $errors++;
 
-	VLan->ClearReservedVlanTag($vlan_id) == 0 or $errors++
-	    if ($opt{C} || (ref($vlan) && $vlan->IsInternal()));
+	VLan::ClearReservedVlanTag($vlan_id) == 0 or $errors++
+	    if ($opt{C} || (ref($vlan) && $vlan->IsManual()));
 
 	next
 	    if (!ref($vlan));

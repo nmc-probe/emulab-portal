@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-LGPL
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -37,6 +37,8 @@ use Exporter;
 		reserveVlanTag getReservedVlanTag clearReservedVlanTag
                 convertPortFromString convertPortsFromStrings
                 mapVlansToSwitches mapStaleVlansToSwitches
+		getTrunksForVlan getExperimentTrunksForVlan
+		setSwitchTrunkPath mapPortsToSwitches 
 );
 
 use English;
@@ -45,9 +47,11 @@ use libtestbed;
 use libtblog qw(tbdie tbwarn tbreport SEV_ERROR);
 use Experiment;
 use Lan;
+use emutil qw(SpanningTree);
 use strict;
 use SNMP;
 use Port;
+use Carp qw(cluck);
 
 my $TBOPS = libtestbed::TB_OPSEMAIL;
 
@@ -147,10 +151,10 @@ sub convertPortFromString($;$)
     return undef;			      
 }
 
-sub convertPortsFromStrings(@;$)
+sub convertPortsFromStrings($@)
 {
-    my (@strs, $dev) = @_; 
-    
+    my ($dev, @strs) = @_;
+
     return grep(defined($_), map(convertPortFromString($_, $dev), @strs)); 
 }
 
@@ -1064,6 +1068,130 @@ sub getTrunkPath($$$$) {
 }
 
 #
+# This is a replacement for getTrunksFromSwitches, used by the stack
+# module.  The idea is to use the path in the DB, as computed by
+# assign. Fall back to old method method if no path defined in the DB.
+# We need the switches in case we fall back, otherwise we do what
+# the DB says (as computed by assign), ignoring the switches. 
+#
+sub getTrunksForVlan($@)
+{
+    my ($vlan_id, @switches) = @_;
+    my %trunks = getTrunks();
+    
+    my $vlan = VLan->Lookup($vlan_id);
+    return ()
+	if (!defined($vlan));
+
+    print STDERR "getTrunksForVlan: $vlan_id: @switches\n";
+    
+    #
+    # We want to use the path that is in the DB.
+    #
+    my $path = $vlan->GetSwitchPath();
+    if (!defined($path) || $path eq "") {
+	#
+	# Nothing defined in the DB, so fall back to old method.
+	#
+	# One switch, cannot be a path.
+	# 
+	return ()
+	    if (scalar(@switches) < 2);
+	
+	my @trunks = getTrunksFromSwitches(\%trunks, @switches);
+
+	#
+	# Now form a spanning tree to ensure there are no loops.
+	#
+	@trunks = SpanningTree(\@trunks);
+
+	print STDERR " old style path: " .
+	    join(" ", map { join(":", @$_) } @trunks) . "\n";
+	return @trunks;
+    }
+    print STDERR " DB path: $path\n";
+    my @path = ();
+    foreach my $p (split(" ", $path)) {
+	my ($a,$b) = split(":", $p);
+	if (!exists($trunks{$a})) {
+	    print STDERR "No trunk entry for $a\n";
+	    next;
+	}
+	if (!exists($trunks{$a}->{$b})) {
+	    print STDERR "No trunk entry for $a:$b\n";
+	    next;
+	}
+	push(@path, [$a, $b]);
+    }
+    if (@path) {
+	print STDERR " new style path: ".
+	    join(" ", map { join(":", @$_) } @path) . "\n";
+    }
+    return @path;
+}
+
+#
+# Same as above, only we want the recorded switch path from vlans table,
+# since this might be a swapmod and the contents of the lans table is
+# not how things are now, but how they will be later. 
+#
+sub getExperimentTrunksForVlan($@)
+{
+    my ($vlan_id, @switches) = @_;
+    my %trunks = getTrunks();
+    
+    my $vlan = VLan->Lookup($vlan_id);
+    return ()
+	if (!defined($vlan));
+
+    print STDERR "getExperimentTrunksForVlan: $vlan_id: @switches\n";
+
+    #
+    # We want to use the path that is in the DB.
+    #
+    my $path = VLan->GetVlanSwitchPath($vlan);
+    if (!defined($path) || $path eq "") {
+	#
+	# Nothing defined in the DB, so fall back to old method.
+	#
+	# One switch, cannot be a path.
+	# 
+	return ()
+	    if (scalar(@switches) < 2);
+	
+	my @trunks = getTrunksFromSwitches(\%trunks, @switches);
+
+	#
+	# Now form a spanning tree to ensure there are no loops.
+	#
+	@trunks = SpanningTree(\@trunks);
+
+	print STDERR " old style path: " .
+	    join(" ", map { join(":", @$_) } @trunks) . "\n";
+	return @trunks;
+    }
+    print STDERR " DB path: $path\n";
+    my @path = ();
+    foreach my $p (split(" ", $path)) {
+	my ($a,$b) = split(":", $p);
+	if (!exists($trunks{$a})) {
+	    print STDERR "No trunk entry for $a\n";
+	    next;
+	}
+	if (!exists($trunks{$a}->{$b})) {
+	    print STDERR "No trunk entry for $a:$b\n";
+	    next;
+	}
+	push(@path, [$a, $b]);
+    }
+    if (@path) {
+	print STDERR " new style path: ".
+	    join(" ", map { join(":", @$_) } @path) . "\n";
+    }
+    return @path;
+}
+
+#
 # Given a set of vlans, determine *exactly* what devices are needed
 # for the ports and any trunks that need to be crossed. This is done
 # in the stack module, but really want to do this before the stack
@@ -1079,12 +1207,18 @@ sub mapVlansToSwitches(@)
     #
     foreach my $vlan_id (@vlan_ids) {
 	my @ports   = uniq_ports(getVlanPorts($vlan_id),
-			   getExperimentVlanPorts($vlan_id));
-	my @devices = mapPortsToSwitches(@ports);
+				 getExperimentVlanPorts($vlan_id));
+	my %map     = mapPortsToDevices(@ports);
+
+	#
+	# We want to use the DB path if it exists.
+	#
+	my @trunks = getTrunksForVlan($vlan_id, keys(%map));
 
 	# And update the total set of switches.
-	foreach my $device (@devices) {
-	    $switches{$device} = 1;
+	foreach my $trunk (@trunks) {
+	    my ($src,$dst) = @$trunk;
+	    $switches{$src} = $switches{$dst} = 1;
 	}
     }
     my @sorted = sort {tbsort($a,$b)} keys %switches;
@@ -1108,11 +1242,17 @@ sub mapStaleVlansToSwitches(@)
 	# this. 
 	#
 	my @ports   = getExperimentVlanPorts($vlan_id);
-	my @devices = mapPortsToSwitches(@ports);
+	my %map     = mapPortsToDevices(@ports);
+
+	#
+	# We want to use the DB path if it exists.
+	#
+	my @trunks = getExperimentTrunksForVlan($vlan_id, keys(%map));
 
 	# And update the total set of switches.
-	foreach my $device (@devices) {
-	    $switches{$device} = 1;
+	foreach my $trunk (@trunks) {
+	    my ($src,$dst) = @$trunk;
+	    $switches{$src} = $switches{$dst} = 1;
 	}
     }
     my @sorted = sort {tbsort($a,$b)} keys %switches;
@@ -1143,6 +1283,12 @@ sub mapPortsToSwitches(@)
     # its trunks.
     #
     my @trunks = getTrunksFromSwitches(\%trunks, keys %devices);
+
+    #
+    # Now form a spanning tree to ensure there are no loops.
+    #
+    @trunks = SpanningTree(\@trunks);
+    
     foreach my $trunk (@trunks) {
 	my ($src,$dst) = @$trunk;
 	$devices{$src} = $devices{$dst} = 1;
@@ -1153,6 +1299,22 @@ sub mapPortsToSwitches(@)
     }
     my @sorted = sort {tbsort($a,$b)} keys %switches;
     return @sorted;
+}
+
+#
+# 
+#
+sub setSwitchTrunkPath($)
+{
+    my ($vlan) = @_;
+    my %switches = ();
+
+    my @ports   = getVlanPorts($vlan->lanid());
+    my %map     = mapPortsToDevices(@ports);
+    my @trunks  = getTrunksForVlan($vlan->lanid(), keys(%map));
+    my $path    = join(" ", map { join(":", @$_) } @trunks);
+
+    return $vlan->SetSwitchPath($path);
 }
 
 #
@@ -1234,12 +1396,11 @@ sub getTrunksFromSwitches($@) {
     }
 
     #
-    # Last, remove any duplicates from the list of trunks
+    # Remove any duplicates from the list of trunks
     #
     my @trunks = getUniqueTrunks(@trunkList);
 
     return @trunks;
-
 }
 
 #

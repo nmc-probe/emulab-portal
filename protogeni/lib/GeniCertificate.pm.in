@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniCertificate;
@@ -150,7 +150,8 @@ sub email($)
 {
     my ($self) = @_;
 
-    if ($self->DN() =~ /\/emailAddress=(.*)/) {
+    if ($self->DN() =~ /\/emailAddress=(.*)/ ||
+	$self->DN() =~ /^emailAddress=(.*),/) {
 	return $1
 	    if ($1 ne "");
     }
@@ -175,7 +176,11 @@ sub Create($$;$)
 	if (!defined($uuid));
     $url  = (defined($url) ? "-u $url" : "");
 
-    if (! open(CERT, "$MKCERT -i \"$urn\" $url -e \"$email\" $hrn $uuid |")) {
+    my ($authority, $type, $name) = GeniHRN::Parse($urn);
+    my $caflag = $type eq "authority" ? "" : "-n";
+
+    if (! open(CERT, "$MKCERT $caflag -i \"$urn\" $url -e \"$email\" $hrn " .
+	       "$uuid |")) {
 	print STDERR "Could not start $MKCERT\n";
 	return undef;
     }
@@ -745,6 +750,37 @@ sub asText($)
     return join("", @certlines);
 }
 
+sub SubjectHash($)
+{
+    my ($self) = @_;
+
+    my @result = $self->PipeTo(0, "$OPENSSL x509 -subject_hash -noout");
+    if (! @result) {
+	print STDERR "Could not convert $self to subject hash\n";
+	return undef;
+    }
+    my $hash = $result[0];
+    if ($hash =~ /^(\w*)$/) {
+	return $1;
+    }
+    print STDERR "Bad sha1 value for $self\n";
+    return undef;
+}
+
+sub CommonName($)
+{
+    my ($self) = @_;
+
+    my @parts = split('/', $self->DN());
+    foreach my $part (@parts) {
+	my ($key,$val) = split('=', $part);
+	if ($key eq "CN") {
+	    return $val;
+	}
+    }
+    return undef;
+}
+
 sub sha1($)
 {
     my ($self) = @_;
@@ -814,6 +850,57 @@ sub DeleteCRL($$)
 	or return -1;
 
     return 0;
+}
+
+#
+# Load a key from a file and associate with the certificate object.
+#
+sub LoadKeyFromFile($$)
+{
+    my ($self, $filename) = @_;
+
+    if (!open(KEY, $filename)) {
+	print STDERR "Could not open file: $filename\n";
+	return -1;
+    }
+    
+    my $privkey;
+    my $string;
+    while (<KEY>) {
+	my $line = $_;
+	
+	if ($line =~ /^-----BEGIN RSA/) {
+	    $string = "";
+	    next;
+	}
+	if ($line =~ /^-----END RSA/) {
+	    $privkey = $string;
+	    $string = undef;
+	    next;
+	}
+	$string .= $line
+	    if (defined($string));
+    }
+    close(KEY);
+    if (!defined($privkey)) {
+	print STDERR "No private key found in $filename\n";
+	return -1;
+    }
+    $self->{'CERT'}->{'privkey'} = $privkey;
+    return 0;
+}
+
+sub WriteKeyToFile($)
+{
+    my ($self) = @_;
+
+    # We want this file to be passed back. 
+    my ($tempfile, $filename) = tempfile(UNLINK => 1);
+    print $tempfile "-----BEGIN RSA PRIVATE KEY-----\n";
+    print $tempfile $self->privkey();
+    print $tempfile "-----END RSA PRIVATE KEY-----\n";
+
+    return $filename;
 }
 
 ############################################################################

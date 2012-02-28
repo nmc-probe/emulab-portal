@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -13,7 +13,8 @@ include $(OBJDIR)/Makeconf
 
 ifeq ($(STANDALONE_CLEARINGHOUSE),0)
 TARGETS	= libinstall.pm boss-install ops-install fs-install dump-descriptors \
-	load-descriptors update-install update-mfs update-testbed testbed-version
+	load-descriptors update-install update-mfs update-testbed testbed-version \
+	installvars.pm emulab-install
 else
 TARGETS = clrhouse-install
 endif
@@ -27,10 +28,10 @@ all: $(TARGETS)
 include $(TESTBED_SRCDIR)/GNUmakerules
 
 install: $(INSTALL_LIBDIR)/libinstall.pm \
+	$(INSTALL_LIBDIR)/installvars.pm \
 	$(INSTALL_SBINDIR)/update-install \
 	$(INSTALL_SBINDIR)/update-testbed \
 	$(INSTALL_SBINDIR)/testbed-version
 
 clean: 
-	rm -f boss-install ops-install fs-install update-install
-	rm -f update-testbed
+	rm -f $(TARGETS)

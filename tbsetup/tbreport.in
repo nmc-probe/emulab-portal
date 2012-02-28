@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -199,7 +199,7 @@ if ($state eq EXPTSTATE_ACTIVE) {
 # this.
 #
 my $virtnodes_result =
-    DBQueryFatal("SELECT vname,osname,cmd_line,rpms," .
+    DBQueryFatal("SELECT vname,osname,parent_osname,cmd_line,rpms," .
 		 "startupcmd,tarfiles,type,fixed from virt_nodes ".
 		 "where pid='$pid' and eid='$eid' order by vname");
 
@@ -209,7 +209,7 @@ if ($shownodes) {
     print "--------------- ------------ --------------- ".
 	  "--------------------\n";
 
-    while (($vname,$osname,$cmd_line,$rpms,$startupcmd,
+    while (($vname,$osname,$parent_osname,$cmd_line,$rpms,$startupcmd,
 	    $tarfiles,$type,$fixed) = $virtnodes_result->fetchrow_array()) {
 	my $qualname = "$vname.$eid.$pid.$DOMAIN";
 
@@ -218,6 +218,9 @@ if ($shownodes) {
 	}
 
 	printf "%-15s %-12s %-15s %s\n", $vname, $type, $osname, $qualname;
+	if (defined($parent_osname) && $parent_osname ne "") {
+	    printf "   %-17s %s\n", "Parent Osname:", $parent_osname;
+	}
 	if (defined($cmd_line) && $cmd_line ne "") {
 	    printf "   %-17s %s\n", "Command Line:", $cmd_line;
 	}
@@ -232,6 +235,56 @@ if ($shownodes) {
 	}
     }
     print "\n";
+
+    my $attributes_result =
+        DBQueryFatal("SELECT vname,attrkey,attrvalue ".
+		     "  from virt_node_attributes ".
+		     "where pid='$pid' and eid='$eid' ".
+		     "order by vname,attrkey");
+
+    if ($attributes_result->numrows) {
+	print "\n";
+	print "Virtual Node Attributes:\n";
+	printf "%-15s %-20s Value\n", "ID", "Key";
+	print "--------------- -----------------------------".
+	    "--------------------\n";
+
+	my $lastvname = "";
+	while (my ($vname,$key,$value) = $attributes_result->fetchrow_array()) {
+	    if ($vname ne $lastvname) {
+		printf "%-15s %-20s %s\n", $vname, $key, $value;
+		$lastvname = $vname;
+		next;
+	    }
+	    printf "%-15s %-20s %s\n", "", $key, $value;
+	}
+	print "\n";
+    }
+
+    $attributes_result =
+        DBQueryFatal("SELECT role,attrkey,attrvalue ".
+		     "  from elabinelab_attributes ".
+		     "where pid='$pid' and eid='$eid' ".
+		     "order by role,ordering,attrkey");
+
+    if ($attributes_result->numrows) {
+	print "\n";
+	print "ElabInElab Attributes:\n";
+	printf "%-15s %-20s Value\n", "Role", "Key";
+	print "--------------- -----------------------------".
+	    "--------------------\n";
+
+	my $lastrole = "";
+	while (my ($role,$key,$value) = $attributes_result->fetchrow_array()) {
+	    if ($role ne $lastrole) {
+		printf "%-15s %-20s %s\n", $role, $key, $value;
+		$lastrole = $role;
+		next;
+	    }
+	    printf "%-15s %-20s %s\n", "", $key, $value;
+	}
+	print "\n";
+    }
 }
 
 #

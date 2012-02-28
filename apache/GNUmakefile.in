@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2002-2010 University of Utah and the Flux Group.
+# Copyright (c) 2002-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 #
@@ -22,7 +22,20 @@ endif
 
 include $(OBJDIR)/Makeconf
 
-CONFIG_FILES	= httpd.conf httpd.conf-ops
+OPS_FILES       = httpd.conf-ops php.ini
+CONFIG_FILES	= httpd.conf $(OPS_FILES)
+
+#
+# Move to Apache 22 ...
+#
+ifeq ($(APACHE_VERSION),22)
+# For VPATH.
+MOSTLY_SRCDIRS = ${SRCDIR}/v2
+SCRIPT_HACK     = 0
+else
+MOSTLY_SRCDIRS = ${SRCDIR}/v1
+endif
+INSTALL_PHP_CONFIG = /usr/local/etc
 
 #
 # Force dependencies to make sure configure regenerates if the .in file
@@ -30,7 +43,18 @@ CONFIG_FILES	= httpd.conf httpd.conf-ops
 # 
 all: $(CONFIG_FILES)
 
+control-build: $(OPS_FILES)
+
 include $(TESTBED_SRCDIR)/GNUmakerules
+
+#
+# Override version from GNUmakerules since the source is kept in a
+# different place, and the config script is a pain to work with.
+# Maybe we can just make this the default in GNUmakerules. 
+#
+%: %.in $(OBJDIR)/config.status
+	@echo "Regenerating $@ from $(subst $(TESTBED_SRCDIR)/,,$<)"
+	cd $(OBJDIR) && CONFIG_FILES=$(SUBDIR)/$@:$(subst $(TESTBED_SRCDIR)/,,$<) ./config.status
 
 # Like the INSTALL_ETCDIR target
 $(INSTALL_APACHE_CONFIG)/%: %
@@ -45,6 +69,8 @@ $(INSTALL_APACHE_CONFIG)/%: %
 # not be installed when we configure our software.
 #
 # XXX ugh, do the same thing to detect php5...
+#
+# Note that this is not needed for apache22.
 #
 httpd.conf.fixed: httpd.conf
 	-@cp httpd.conf httpd.conf.fixed
@@ -92,14 +118,28 @@ ifeq ($(SCRIPT_HACK),1)
 	$(INSTALL) -m 755 $(SRCDIR)/apache-emulab /usr/local/etc/rc.d/apache.sh
 endif
 
+ifeq ($(APACHE_VERSION),22)
+install: install-dirs install-scripts httpd.conf
+	$(INSTALL_DATA) httpd.conf $(INSTALL_APACHE_CONFIG)/httpd.conf
+
+control-install: install-dirs install-scripts httpd.conf-ops
+	$(INSTALL_DATA) httpd.conf-ops $(INSTALL_APACHE_CONFIG)/httpd.conf
+
+utah: httpd.conf.utah httpd.conf-ops.utah
+else
 install: install-dirs install-scripts httpd.conf.fixed
 	$(INSTALL_DATA) httpd.conf.fixed $(INSTALL_APACHE_CONFIG)/httpd.conf
 
 control-install: install-dirs install-scripts httpd.conf-ops.fixed
 	$(INSTALL_DATA) httpd.conf-ops.fixed $(INSTALL_APACHE_CONFIG)/httpd.conf
+endif
+
+install-php-ini: php.ini
+	$(INSTALL_DATA) php.ini $(INSTALL_PHP_CONFIG)/php.ini
 else
 install-scripts install control-install:
 	@echo "Cannot install Apache config in dev tree"
 endif
 
 clean:
+	rm -f $(CONFIG_FILES) *.fixed php.ini

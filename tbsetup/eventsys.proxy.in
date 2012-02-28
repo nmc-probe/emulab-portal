@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2006 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -25,13 +25,12 @@ sub usage()
 	"-l logfile -t record_file start|stop|replay\n";
     exit(-1);
 }
-my $optlist = "u:e:k:dl:g:t:aN";
+my $optlist = "u:e:k:dl:g:t:aNp:";
 my $debug   = 0;
 my $runagent= 0;
 my $user;
 my $pid;
 my $eid;
-my $gid;
 my $keyfile;
 my $logfile;
 my $recordfile;
@@ -48,6 +47,7 @@ my $agent    = "$TB/sbin/program-agent";
 my $PIDDIR   = "/var/run/emulab/evsched";
 my $PIDFILE;
 my $EXPDIR;
+my $epid;
 
 #
 # Turn off line buffering on output
@@ -92,6 +92,7 @@ if (@ARGV != 1) {
 if (! defined($options{"u"}) ||
     ! defined($options{"e"}) ||
     ! defined($options{"g"}) ||
+    ! defined($options{"p"}) ||
     ! defined($options{"l"}) ||
     ! defined($options{"k"})) {
     usage();
@@ -113,7 +114,8 @@ if (defined($options{"N"})) {
 $logfile    = $options{"l"};
 $keyfile    = $options{"k"};
 $user       = $options{"u"};
-$gid        = $options{"g"};
+$unix_gname  = $options{"g"};
+$unix_pname = $options{"p"};
 $action     = $ARGV[0];
 
 if ($options{"e"} =~ /^([-\w]*)\/([-\w]*)$/) {
@@ -125,6 +127,19 @@ else {
 }
 $PIDFILE = "$PIDDIR/${pid}_${eid}.pid";
 $EXPDIR  = PROJROOT() . "/$pid/exp/$eid";
+
+# Look for existing pid file and get it.
+if (-e $PIDFILE) {
+    $epid = `cat $PIDFILE`;
+    # untaint
+    if ($epid =~ /^(\d*)$/) {
+	$epid = $1;
+    }
+    else {
+	die("*** $0:\n".
+	    "    Bad data in pid: $epid!\n");
+    }
+}
 
 #
 # Deal with stop and replay.
@@ -139,15 +154,6 @@ if ($action eq "stop" || $action eq "replay") {
 	# complete.
 	system("$TB/bin/tevc -w -t 5 -e ${pid}/${eid} now __ns_teardown run");
 
-	my $epid = `cat $PIDFILE`;
-	# untaint
-	if ($epid =~ /^(\d*)$/) {
-	    $epid = $1;
-	}
-	else {
-	    die("*** $0:\n".
-		"    Bad data in pid: $epid!\n");
-	}
 	unlink($PIDFILE);
 
 	if (kill(0, $epid) || ! $!{ESRCH}) {
@@ -163,6 +169,16 @@ if ($action eq "stop" || $action eq "replay") {
     }
     # replay continues below, but give exiting scheduler a chance to react!
     sleep(1);
+}
+else {
+    #
+    # If asked to start, but already running, do nothing.
+    #
+    if (-e $PIDFILE && (kill(0, $epid) || ! $!{ESRCH})) {
+	print STDERR
+	    "*** event scheduler already running; not starting another\n";
+	exit(0);
+    }
 }
 
 #
@@ -183,13 +199,13 @@ my (undef,undef,$unix_uid) = getpwnam($user) or
     die("*** $0:\n".
 	"    No such user $user\n");
 
-my (undef,undef,$unix_ggid) = getgrnam($gid) or
+my (undef,undef,$unix_ggid) = getgrnam($unix_gname) or
     die("*** $0:\n".
-	"    No such group $gid\n");
+	"    No such group $unix_gname\n");
 
-my (undef,undef,$unix_pgid) = getgrnam($pid) or
+my (undef,undef,$unix_pgid) = getgrnam($unix_pname) or
     die("*** $0:\n".
-	"    No such group $pid\n");
+	"    No such group $unix_pname\n");
 
 my $LOGDIR = `dirname $logfile`;
 $LOGDIR =~ s/\s+$//;

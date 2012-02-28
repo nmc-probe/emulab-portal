@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2010 University of Utah and the Flux Group.
+# Copyright (c) 2005-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Group;
@@ -15,6 +15,7 @@ use vars qw(@ISA @EXPORT);
 
 use libdb;
 use libtestbed;
+use emutil;
 use User;
 use English;
 use Data::Dumper;
@@ -873,6 +874,8 @@ sub SendJoinEmail($$)
     my $usr_affil   = $user->affil();
     my $uid_idx     = $user->uid_idx();
     my $uid         = $user->uid();
+    my $wanted_sslcert = (defined($user->initial_passphrase()) ?
+			  "Yes" : "No");
 
     # And leader info
     my $leader      = $self->GetLeader();
@@ -908,6 +911,7 @@ sub SendJoinEmail($$)
 	 "ZIP/Postal Code: $usr_zip\n".
 	 "Country:         $usr_country\n".
 	 "Phone:           $usr_phone\n".
+	 "SSL Cert:        $wanted_sslcert\n".
 	 "\n".
 	 "Please return to $TBWWW,\n".
 	 "log in, select the 'New User Approval' page, and enter your\n".
@@ -1291,6 +1295,18 @@ sub BumpActivity($)
     return 0;
 }
 
+#
+# Check to see if a gid is valid.
+#
+sub ValidGID($$)
+{
+    my ($class, $gid) = @_;
+
+    return TBcheck_dbslot($gid, "groups", "gid",
+			  TBDB_CHECKDBSLOT_WARN()|
+			  TBDB_CHECKDBSLOT_ERROR());
+}
+
 ############################################################################
 
 package Group::MemberShip;
@@ -1371,8 +1387,8 @@ sub gid_idx($)          { return field($_[0], "gid_idx"); }
 sub trust($)            { return field($_[0], "trust"); }
 sub date_applied($)     { return field($_[0], "date_applied"); }
 sub date_approved($)    { return field($_[0], "date_approved"); }
-sub group($)            { return $_[0]->{'group'}; }
-sub user($ )            { return $_[0]->{'user'}; }
+sub group($)            { return $_[0]->{'GROUP'}; }
+sub user($ )            { return $_[0]->{'USER'}; }
 
 #
 # Refresh a class instance by reloading from the DB.
@@ -1482,6 +1498,9 @@ sub NewMemberShip($$$;$)
 		"     date_applied=now() $clause ")
 	or return -1;
 
+    # Mark as needing an update.
+    $user->BumpModified();
+
     return 0;
 }
 
@@ -1511,6 +1530,9 @@ sub DeleteMemberShip($$$)
     DBQueryWarn("delete from group_membership ".
 		"where gid_idx='$gid_idx' and uid_idx='$uid_idx'")
 	or return -1;
+
+    # Mark as needing an update.
+    $user->BumpModified();
 
     return 0;
 }
@@ -1543,6 +1565,9 @@ sub ModifyTrust($$)
     DBQueryWarn("update group_membership set trust='$trust' $clause ".
 		"where gid_idx='$gid_idx' and uid_idx='$uid_idx'")
 	or return -1;
+
+    # Mark as needing an update.
+    $self->user()->BumpModified();
 
     return Refresh($self);
 }
@@ -1647,6 +1672,29 @@ sub CheckTrustConsistency($$$$)
 	}
     }
     return 1;
+}
+
+#
+# Return group_exports info, as a plain hash.
+#
+sub PeerExports($$)
+{
+    my ($self, $pref) = @_;
+    my $pid_idx = $self->pid_idx();
+    my $gid_idx = $self->gid_idx();
+    my $result  = {};
+
+    my $query_result =
+	DBQueryWarn("select e.*,p.* from group_exports as e ".
+		    "left join emulab_peers as p on p.name=e.peer ".
+		    "where e.pid_idx='$pid_idx' and e.gid_idx='$gid_idx'");
+
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $peer = $row->{'name'};
+	$result->{$peer} = $row;
+    }
+    $$pref = $result;
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

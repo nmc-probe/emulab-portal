@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniSlice;
@@ -20,6 +20,7 @@ use GeniCertificate;
 use GeniUser;
 use GeniHRN;
 use English;
+use libEmulab;
 use emutil qw(TBGetUniqueIndex);
 use Date::Parse;
 use Data::Dumper;
@@ -153,6 +154,13 @@ sub Create($$$$;$$)
 {
     my ($class, $certificate, $creator, $authority, $exptidx, $lock) = @_;
     my @insert_data = ();
+    # This is in hours.
+    my $default_slice_lifetime;
+    if (!libEmulab::GetSiteVar('protogeni/default_slice_lifetime', 
+			       \$default_slice_lifetime)) {
+	# Cannot get the value, default it to 6 hours
+	$default_slice_lifetime = 6;
+    }
 
     # Every slice gets a new unique index.
     my $idx = TBGetUniqueIndex('next_exptidx', 1);
@@ -165,7 +173,8 @@ sub Create($$$$;$$)
 
     # Now tack on other stuff we need.
     push(@insert_data, "created=now()");
-    push(@insert_data, "expires=DATE_ADD(now(), INTERVAL 6 HOUR)");
+    push(@insert_data, "expires=DATE_ADD(now(), ".
+	                       "INTERVAL $default_slice_lifetime HOUR)");
     push(@insert_data, "sa_uuid='$sa_uuid'");
     push(@insert_data, "exptidx=$exptidx")
 	if (defined($exptidx));

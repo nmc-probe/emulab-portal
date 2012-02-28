@@ -11,7 +11,7 @@ SUBDIR		= os/imagezip
 DISTFILES	= global.h imagehdr.h queue.h sliceinfo.h \
 		  imagedump.c imagedump.8 imagezip.c imagezip.8 \
 		  imageunzip.c crc.c checksum.c disksize.c imageunzip.8 \
-		  extfs/*.[hc] ext4fs/*.[hc] fat/*.[hc] ffs/*.[hc] \
+		  extfs/*.[hc] fat/*.[hc] ffs/*.[hc] \
 		  ntfs/*.[hc] hashmap/*.[hc]
 
 EXPANDCOPYRIGHT	= /usr/site/lib/copyright/expand-copyr
@@ -49,7 +49,9 @@ WITH_LTHREADS	= 0
 ifneq ($(FBSDREL),5.3)
 ifneq ($(FBSDMAJ),7)
 ifneq ($(FBSDMAJ),8)
+ifneq ($(FBSDMAJ),9)
 WITH_LTHREADS	= 1
+endif
 endif
 endif
 endif
@@ -70,10 +72,10 @@ endif
 #
 WITH_FFS	= 1
 WITH_EXTFS	= 1
+WITH_EXT4FS	= 0
 WITH_NTFS	= @WINSUPPORT@
 WITH_FAT	= @WINSUPPORT@
 WITH_HASH	= 0
-WITH_EXT4FS	= 0
 
 include $(OBJDIR)/Makeconf
 
@@ -133,13 +135,6 @@ SUBDIRS		+= extfs
 ZIPLIBS		+= extfs/libextfs.a
 endif
 
-# EXT4
-ifeq ($(WITH_EXT4FS),1)
-CFLAGS		+= -DWITH_EXT4FS
-SUBDIRS		+= ext4fs
-ZIPLIBS		+= ext4fs/libext4fs.a
-endif
-
 # with NTFS
 ifeq ($(WITH_NTFS),1)
 ifndef HAVE_GCC3
@@ -147,11 +142,12 @@ CC		= gcc30
 endif
 
 #
-# Default to the old libntfs for now.
-# Once proven, switch to 2.0.0.
+# Default to the "lastest" libntfs (2.0.0).
+# If there are problems, switch back to:
+# NTFSVER		= 1.7.1
 #
 ifndef NTFSVER
-NTFSVER		= 1.7.1
+NTFSVER		= 2.0.0
 endif
 export		NTFSVER
 

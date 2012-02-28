@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -31,7 +31,7 @@ sub usage()
     print " -r      Force a regenerate of initial key for user\n";
     exit(-1);
 }
-my $optlist   = "dkniwfu:rX:";
+my $optlist   = "dkniwfu:rX:sRNC:S:";
 my $iskey     = 0;
 my $verify    = 0;
 my $initmode  = 0;
@@ -39,6 +39,9 @@ my $force     = 0;
 my $genmode   = 0;
 my $nobody    = 0;
 my $noemail   = 0;
+my $remove    = 0;
+my $nodelete  = 0;
+my $Comment;
 my $xmlfile;
 
 #
@@ -147,14 +150,26 @@ if (defined($options{"n"})) {
 if (defined($options{"i"})) {
     $initmode = 1;
 }
+if (defined($options{"N"})) {
+    $nodelete = 1;
+}
 if (defined($options{"r"})) {
     $force = 1;
+}
+if (defined($options{"R"})) {
+    $remove = 1;
+}
+if (defined($options{"s"})) {
+    $noemail = 1;
 }
 if (defined($options{"w"})) {
     $genmode = 1;
 }
 if (defined($options{"u"})) {
     $user = $options{"u"};
+}
+if (defined($options{"C"})) {
+    $Comment = $options{"C"};
 }
 if (defined($options{"X"})) {
     $xmlfile = $options{"X"};
@@ -282,8 +297,10 @@ else {
 # Check user
 #
 if (!$verify) {
-    # If its the user himself, then we can generate a new authkeys file. 
-    if (!$target_user->SameUser($this_user) && !TBAdmin()) {
+    # If its the user himself, then we can generate a new authkeys file.
+    # Assume nodelete option comes from internal script, so do not worry.
+    if (!$target_user->SameUser($this_user) && !$this_user->IsAdmin() &&
+	!$nodelete) {
 	fatal("You are not allowed to set pubkeys for $target_user\n");
     }
     if (-d "$HOMEDIR/$user_uid/.ssh") {
@@ -340,7 +357,7 @@ sub ParseKey($) {
 	return 0;
     }
     
-    if ($keyline =~ /^(\d*\s\d*\s[0-9a-zA-Z]*) ([-\w\@\.\ ]*)\s*$/) {
+    if ($keyline =~ /^(\d*\s\d*\s[0-9a-zA-Z]*) ([-\w\@\.:\ ]*)\s*$/) {
         # Protocol 1
 	$type    = "ssh-rsa1";
 	$key     = $1;
@@ -352,13 +369,13 @@ sub ParseKey($) {
 	$key     = $1;
     }
     elsif ($keyline =~
-	   /^(ssh-rsa|ssh-dss) ([-\w\.\@\+\/\=]*) ([-\w\@\.\ ]*)$/) {
+	   /^(ssh-rsa|ssh-dss) ([-\w\.\@\+\/\=]*) ([-\w\@\.:\ ]*)$/) {
         # Protocol 2
 	$type    = $1;
 	$key     = "$1 $2";
 	$comment = $3;
     }
-    elsif ($keyline =~ /^(ssh-rsa|ssh-dss) ([-\w\.\@\+\/\=]*)$/) {
+    elsif ($keyline =~ /^(ssh-rsa|ssh-dss) ([-\w\.\@\+\/\=:]*)$/) {
         # Protocol 2 but no comment field
 	$type    = $1;
 	$key     = "$1 $2";
@@ -380,13 +397,21 @@ sub ParseKey($) {
     # Make up a comment field for the DB. 
     #
     if (!defined($comment)) {
-	$comment = "$type-${user_email}";
+	$comment = (defined($Comment) ? $Comment : "$type-${user_email}");
     }
     $key = "$key $comment";
+    my $safe_key = DBQuoteSpecial($key);
+    my $safe_comment = DBQuoteSpecial($comment);
 
-    DBQueryFatal("replace into user_pubkeys ".
-		 "values ('$user_uid', '$user_dbid', ".
-		 "        0, '$key', now(), '$comment')");
+    if ($remove) {
+	DBQueryFatal("delete from user_pubkeys ".
+		     "where uid_idx='$user_dbid' and comment=$safe_comment");
+    }
+    DBQueryFatal("replace into user_pubkeys set ".
+		 " uid='$user_uid', uid_idx='$user_dbid', ".
+		 " internal='0', nodelete='$nodelete', ".
+		 " idx=NULL, stamp=now(), ".
+		 " pubkey=$safe_key, comment=$safe_comment");
 
     #
     # Mark user record as modified so nodes are updated.
@@ -466,9 +491,10 @@ sub InitUser()
 	my $ident = `cat $sshdir/identity.pub`;
 
 	if ($ident =~ /(\d*\s\d*\s[0-9a-zA-Z]*)\s([-\w\@\.]*)/) {
-	    DBQueryFatal("replace into user_pubkeys ".
-			 "values ('$user_uid', '$user_dbid', ".
-			 "        0, '$1 $2', now(), '$2')");
+	    DBQueryFatal("replace into user_pubkeys set ".
+			 " uid='$user_uid', uid_idx='$user_dbid', ".
+			 " internal='1', nodelete='1', idx=NULL, stamp=now(), ".
+			 " pubkey='$1 $2', comment='$2'");
 	}
 	else {
 	    fatal("Bad protocol 1 public key: $ident\n");
@@ -509,9 +535,10 @@ sub InitUser()
 
 	if ($ident =~
 	    /^(ssh-rsa [-\w\.\@\+\/\=]*) ([-\w\@\.\ ]*)$/) {
-	    DBQueryFatal("replace into user_pubkeys ".
-			 "values ('$user_uid', '$user_dbid', ".
-			 "        0, '$1 $2', now(), '$2')");
+	    DBQueryFatal("replace into user_pubkeys set ".
+			 " uid='$user_uid', uid_idx='$user_dbid', ".
+			 " internal='1', nodelete='1', idx=NULL, stamp=now(), ".
+			 " pubkey='$1 $2', comment='$2'");
 	}
 	else {
 	    fatal("Bad protocol 2 public key: $ident\n");

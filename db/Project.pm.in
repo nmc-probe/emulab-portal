@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2010 University of Utah and the Flux Group.
+# Copyright (c) 2005-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Project;
@@ -121,6 +121,12 @@ sub approved($)         { return field($_[0], "approved"); }
 sub wikiname($)         { return field($_[0], "wikiname"); }
 sub mailman_password($) { return field($_[0], "mailman_password"); }
 sub allow_workbench($)  { return field($_[0], "allow_workbench"); }
+sub hidden($)		{ return field($_[0], "hidden"); }
+sub IsLocal($)		{ return (defined($_[0]->nonlocal_id()) ? 0 : 1); };
+sub IsNonLocal($)	{ return (defined($_[0]->nonlocal_id()) ? 1 : 0); };
+sub nonlocal_id($)	{ return field($_[0], "nonlocal_id"); }
+sub nonlocal_type($)	{ return field($_[0], "nonlocal_type"); }
+sub manager_urn($)	{ return field($_[0], "manager_urn"); }
 
 # These come from the group not the project.
 sub unix_gid($)         { return $_[0]->{'GROUP'}->unix_gid(); }
@@ -135,6 +141,26 @@ sub LookupByPid($$)
 
     my $query_result =
 	DBQueryWarn("select pid_idx from projects where pid='$pid'");
+
+    return undef
+	if (! $query_result || !$query_result->numrows);
+
+    my ($pid_idx) = $query_result->fetchrow_array();
+
+    return Project->Lookup($pid_idx);
+}
+
+#
+# Lookup a nonlocal project.
+#
+sub LookupNonLocal($$)
+{
+    my ($class, $urn) = @_;
+    my $safe_urn = DBQuoteSpecial($urn);
+
+    my $query_result =
+	DBQueryFatal("select pid_idx from projects ".
+		     "where nonlocal_id=$safe_urn");
 
     return undef
 	if (! $query_result || !$query_result->numrows);
@@ -210,6 +236,8 @@ sub Update($$)
 sub Create($$$$)
 {
     my ($class, $pid, $leader, $argref) = @_;
+    my $unix_gname = $pid;
+    my $nonlocal   = (exists($argref->{'nonlocal_id'}) ? 1 : 0);
 	
     #
     # The array of inserts is assumed to be safe already. Generate
@@ -219,8 +247,31 @@ sub Create($$$$)
 		       map("$_=" . DBQuoteSpecial($argref->{$_}),
 			   keys(%{$argref})));
 
+    # Form a proper unix group name, which is limited to 16 chars.
+    if (length($pid) > 16) {
+	$unix_gname  = substr($pid, 0, 16);
+	my $maxtries = 9;
+	my $count    = 0;
+	while ($count < $maxtries) {
+	    my $query_result =
+		DBQueryFatal("select gid from groups ".
+			     "where unix_name='$unix_gname'");
+	    last
+		if (!$query_result->numrows);
+
+	    $count++;
+	    $unix_gname = substr($pid, 0, 15) . "$count";
+	}
+	if ($count == $maxtries) {
+	    print STDERR "Project->Create: ".
+		"Could not form a unique Unix group name!";
+	    return undef;
+	}
+    }
+
     # First create the underlying default group for the project.
-    my $newgroup = Group->Create(undef, $pid, $leader, 'Default Group', $pid);
+    my $newgroup =
+	Group->Create(undef, $pid, $leader, 'Default Group', $unix_gname);
     return undef
 	if (!defined($newgroup));
 
@@ -264,7 +315,7 @@ sub Create($$$$)
     #
     # Now create the per-project Admin List
     #
-    if ($MAILMANSUPPORT) {
+    if ($MAILMANSUPPORT && !$nonlocal) {
 	my $res = system("$ADDPROJADMINLIST $pid");
 	if ($res != 0) {
 	    SENDMAIL($TBOPS, "Addprojadminlist failed!", 
@@ -275,6 +326,26 @@ sub Create($$$$)
     }
 
     return $newproject;
+}
+
+#
+# Delete newly added project, as for errors.
+#
+sub Delete($)
+{
+    my ($self) = @_;
+    my $pid_idx = $self->pid_idx();
+    my $group   = $self->GetProjectGroup();
+
+    $group->Delete()
+	if (!defined($group));
+    
+    DBQueryWarn("delete from project_stats where pid_idx=$pid_idx")
+	or return -1;
+    DBQueryWarn("delete from projects where pid_idx=$pid_idx")
+	or return -1;
+
+    return 0;
 }
 
 #
@@ -362,6 +433,8 @@ sub SendNewProjectEmail($;$)
     my $wikiname           = $leader->wikiname();
     my $returning          = $leader->status() ne $User::USERSTATUS_NEWUSER;
     my $usr_returning      = ($returning ? "Yes" : "No");
+    my $wanted_sslcert     = (defined($leader->initial_passphrase()) ?
+			      "Yes" : "No");
     my $proj_desc	   = $self->description();
     my $proj_URL           = $self->URL();
     my $proj_funders       = $self->funders();
@@ -412,6 +485,7 @@ sub SendNewProjectEmail($;$)
 	     "ZIP/Postal Code: $usr_zip\n".
 	     "Country:         $usr_country\n".
 	     "Phone:           $usr_phone\n".
+	     "SSL Cert:        $wanted_sslcert\n".
 	     "Members:         $proj_members\n".
 	     "PCs:             $proj_pcs\n".
 	     "Planetlab PCs:   $proj_plabpcs\n".
@@ -610,6 +684,44 @@ sub GroupList($$)
 }
 
 #
+# Find specific group in project.
+#
+sub LookupGroup($$)
+{
+    my ($self, $gid) = @_;
+    my @grouplist = ();
+
+    # Must be a real reference. 
+    return -1
+	if (! (ref($self)));
+
+    my $pid_idx = $self->pid_idx();
+    my $clause;
+
+    if ($gid =~ /^\d*$/) {
+	$clause = "gid_idx='$gid'";
+    }
+    elsif ($gid =~ /^[-\w]*$/) {
+	$clause = "gid='$gid'";
+    }
+    else {
+	return undef;
+    }
+
+    my $query_result =
+	DBQueryWarn("select gid_idx from groups ".
+		    "where pid_idx=$pid_idx and $clause");
+    return undef
+	if (! $query_result);
+    
+    return undef
+	if (! $query_result->numrows);
+
+    my ($gid_idx) = $query_result->fetchrow_array();
+    return Group->Lookup($gid_idx);
+}
+
+#
 # Update the aggregate stats.
 #
 sub UpdateStats($$$$$)
@@ -662,6 +774,48 @@ sub BumpActivity($)
 		"where pid_idx='$pid_idx'");
 
     return 0;
+}
+
+#
+# Check to see if a pid is valid.
+#
+sub ValidPID($$)
+{
+    my ($class, $pid) = @_;
+
+    return TBcheck_dbslot($pid, "projects", "newpid",
+			  TBDB_CHECKDBSLOT_WARN()|
+			  TBDB_CHECKDBSLOT_ERROR());
+}
+
+#
+# Add a user to the Project
+#
+sub AddMemberShip($$;$)
+{
+    my ($self, $user, $trust) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! (ref($self) && ref($user)));
+
+    my $membership = $self->LookupUser($user);
+
+    if (defined($membership)) {
+	print "*** AddMemberShip: $user is already a member of $self!\n";
+	return -1;
+    }
+    return $self->{'GROUP'}->AddMemberShip($user, $trust);    
+}
+
+#
+# Return group_exports info, as a plain hash.
+#
+sub PeerExports($$)
+{
+    my ($self, $pref) = @_;
+
+    return $self->{'GROUP'}->PeerExports($pref);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

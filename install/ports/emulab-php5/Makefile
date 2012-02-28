@@ -2,6 +2,8 @@
 # Date created:         09 February 2006
 # Whom:                 stoller@flux.utah.edu
 
+.include "../emulab-boss/Makefile.emulab"
+
 #
 # These are for the php5-extensions port
 #
@@ -14,6 +16,7 @@ WITH_MCRYPT=yes
 WITH_MHASH=yes
 WITH_MYSQL=yes
 WITH_XML=yes
+WITH_SOCKETS=yes
 # Additions for mediawiki
 #WITH_ICONV=yes
 #WITH_READLINE=yes
@@ -23,19 +26,24 @@ WITHOUT_SQLITE=true
 WITHOUT_PDO_SQLITE=true
 
 #
-# For the PHP ports, so they will depend on the actual version of apache we're
-# installing
-#
-APACHE_PORT=www/apache13-modssl
-
-#
 # This prevents the option screen.
 #
 BATCH=yes
 
-#
-# But need this too!
-#
-.MAKEFLAGS+=	-DBATCH APACHE_PORT=www/apache13-modssl WITH_APACHE=yes
+# XXX avoid recursive variable defn
+AP_PORT=${APACHE_PORT}
 
+.MAKEFLAGS+=	-DBATCH APACHE_PORT=www/apache22 WITH_APACHE=yes
+
+PKGORIGIN=		misc/emulab-php5
 .include "../../lang/php5-extensions/Makefile"
+
+vars:
+	@echo "PORTVERSION=$(PORTVERSION)"
+	@echo "EMULAB_PORTVERSION=$(EMULAB_PORTVERSION)"
+	@echo ".MAKEFLAGS=$(.MAKEFLAGS)"
+	@echo "BUILD_DEPENDS=$(BUILD_DEPENDS)"
+	@echo "LIB_DEPENDS=$(LIB_DEPENDS)"
+	@echo "RUN_DEPENDS=$(RUN_DEPENDS)"
+	@echo "PERL_VER/ARCH=${PERL_VER}/${PERL_ARCH}"
+	@echo "APACHE_PORT=${APACHE_PORT}"

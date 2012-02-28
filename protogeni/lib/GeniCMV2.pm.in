@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniCMV2;
@@ -55,6 +55,7 @@ my $CREATEEXPT     = "$TB/bin/batchexp";
 my $ENDEXPT        = "$TB/bin/endexp";
 my $NALLOC	   = "$TB/bin/nalloc";
 my $NFREE	   = "$TB/bin/nfree";
+my $TEVC	   = "$TB/bin/tevc";
 my $AVAIL	   = "$TB/sbin/avail";
 my $PTOPGEN	   = "$TB/libexec/ptopgen";
 my $TBSWAP	   = "$TB/bin/tbswap";
@@ -81,13 +82,13 @@ my $API_VERSION    = 2;
 #
 sub GetVersion()
 {
-    my @input_rspec_versions = ( "0.1", "0.2", "2", "PG 0.1", "PG 0.2", "PG 2" );
-    my @ad_rspec_versions = ( "0.1", "0.2", "2", "PG 0.1", "PG 0.2", "PG 2" );
+    my @input_rspec_versions = ( "0.1", "0.2", "2", "3", "PG 0.1", "PG 0.2", "PG 2" );
+    my @ad_rspec_versions = ( "0.1", "0.2", "2", "3", "PG 0.1", "PG 0.2", "PG 2" );
     my $blob = {
 	"api" => $API_VERSION,
 	"level" => 1,
 	"input_rspec" => \@input_rspec_versions,
-	"output_rspec" => "0.2",
+	"output_rspec" => "2",
 	"ad_rspec" => \@ad_rspec_versions
     };
 
@@ -133,7 +134,8 @@ sub Resolve($)
 	    $admin = 1;
 	}
     }
-    elsif ($callertype eq "authority" && $callerid eq "cm") {
+    elsif ($callertype eq "authority" &&
+	   ($callerid eq "cm" || $callerid eq "sa")) {
 	$isauth = 1;
     }
     
@@ -206,7 +208,8 @@ sub Resolve($)
 	#
 	if (! ($isauth || $admin ||
 	       $slice->urn() eq $credential->target_urn())) {
-	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN());
+	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+					"No permission to resolve $slice\n");
 	}
 	# Return a blob.
 	my $blob = { "urn"          => $urn };
@@ -218,6 +221,20 @@ sub Resolve($)
 	    if (defined($manifest)) {
 		$blob->{'manifest'}   = $manifest;
 	    }
+	    # For key bindings.
+	    my $slice_experiment = $slice->GetExperiment();
+	    if (!defined($slice_experiment)) {
+		print STDERR "*** No Experiment for $slice\n";
+	    }
+	    else {
+		my $bindings;
+		if ($slice_experiment->NonLocalUsers(\$bindings)) {
+		    print STDERR "*** No bindings for $slice_experiment\n";
+		}
+		elsif (@{ $bindings }) {
+		    $blob->{'users'} = $bindings;
+		}
+	    }
 	}
 	my $ticket = GeniTicket->SliceTicket($slice);
 	if (defined($ticket)) {
@@ -227,14 +244,21 @@ sub Resolve($)
     }
     if ($type eq "sliver") {
 	my $sliver = $object;
+	my $slice  = $sliver->GetSlice();
+	return GeniResponse->Create(GENIRESPONSE_ERROR)
+	    if (!defined($slice));
 
 	#
 	# In this implementation, the caller must hold a valid slice
 	# or sliver credential for the slice being looked up. 
 	#
-	if (! ($admin ||
+	if (! ($admin || $isauth ||
 	       $sliver->urn() eq $credential->target_urn() ||
-	       $sliver->slice_uuid() eq $credential->target_uuid())) {
+	       $slice->urn() eq $credential->target_urn())) {
+	    print STDERR $sliver->urn() . "\n";
+	    print STDERR $slice->urn() . "\n";
+	    print STDERR $credential->target_urn() . "\n";
+	    print STDERR $ENV{'MYURN'} . "\n";
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN);
 	}
 	my $manifest = $sliver->GetManifest(1);
@@ -245,6 +269,20 @@ sub Resolve($)
 	my $blob = { "urn"          => $urn,
 		     "manifest"     => $manifest,
 		 };
+	# For key bindings.
+	my $slice_experiment = $slice->GetExperiment();
+	if (!defined($slice_experiment)) {
+	    print STDERR "*** No Experiment for $slice\n";
+	}
+	else {
+	    my $bindings;
+	    if ($slice_experiment->NonLocalUsers(\$bindings)) {
+		print STDERR "*** No bindings for $slice_experiment\n";
+	    }
+	    elsif (@{ $bindings }) {
+		$blob->{'users'} = $bindings;
+	    }
+	}
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
     }
     if ($type eq "ticket") {
@@ -636,7 +674,7 @@ sub GetSliver($)
 	if (defined($slice) && GeniResponse::IsResponse($slice));
 
     if (! (defined($slice) && defined($aggregate))) {
-	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No slice or aggregate here");
     }
     if ($slice_urn ne $slice->urn()) {
@@ -688,6 +726,7 @@ sub SliverAction($$$$$)
 {
     my ($action, $slice_urn, $sliver_urns, $credentials, $manifest) = @_;
     my $response;
+    my $isasync = 0;
 
     if (! (defined($credentials) &&
 	   (defined($slice_urn) || defined($sliver_urns)))) {
@@ -813,29 +852,52 @@ sub SliverAction($$$$$)
 	return 0;
     };
 
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
+    my $realuser = GeniCM::FlipToUser($slice, $user);
+    if (! (defined($realuser) && $realuser)) {
+	print STDERR "Error flipping to real user\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "FlipToUser Error");
+    }
+
     if (defined($slice_urn)) {
 	$response = &$CheckState($aggregate, $action);
 	goto bad
 	    if (GeniResponse::IsResponse($response));
 	    
-	if ($action eq "start" && defined($manifest)) {
-	    if ($aggregate->ProcessManifest($manifest)) {
+	if ($action eq "start" || $action eq "restart") {
+	    if (defined($manifest) &&
+		$aggregate->ProcessManifest($manifest)) {
 		$response = GeniResponse->Create(GENIRESPONSE_ERROR,
 						 undef,
 						 "Error processing manifest");
 		goto bad;
 	    }
+	    #
+	    # At this point we want to return and let the startsliver proceed
+	    # in the background
+	    #
+	    my $mypid = fork();
+	    if ($mypid) {
+		# Let the child get going.
+		sleep(1);
+		return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+	    }
+	    $isasync = 1;
+	    
+	    # This switches the file that we are writing to. 
+	    libaudit::AuditFork();
 	}
-	
 	$response = &$PerformAction($aggregate, $action);
 	goto bad
 	    if (GeniResponse::IsResponse($response));
 
-	if ($action eq "start" || $action eq "restart") {
-	    # GeniCM::UpdateManifest($slice);
-	}
 	$slice->UnLock();
-	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+	return ($isasync ? GENIRESPONSE_SUCCESS :
+		GeniResponse->Create(GENIRESPONSE_SUCCESS));
     }
     else {
 	my @slivers = ();
@@ -876,7 +938,7 @@ sub SliverAction($$$$$)
     }
   bad:
     $slice->UnLock();
-    return $response;
+    return ($isasync ? $response->{'code'} : $response);
 }
 
 #
@@ -941,17 +1003,21 @@ sub SliverStatus($)
     my $blob = {
 	"state"   => $aggregate->state(),
 	"status"  => $aggregate->status(),
+	"error"   => $aggregate->ErrorLog(),
 	"details" => {},
     };
-    
     foreach my $sliver (@slivers) {
-	next
-	    if ($sliver->isa("GeniAggregate"));
-	next
-	    if ($sliver->resource_type() ne "Node");
+	if ($sliver->isa("GeniAggregate")) {
+	    next
+		if (! (ref($sliver) eq "GeniAggregate::Link" ||
+		       ref($sliver) eq "GeniAggregate::Tunnel"));
+	}
+	elsif ($sliver->resource_type() ne "Node") {
+	    next;
+	}
 
 	my $sliver_urn    = $sliver->sliver_urn();
-	my $component_urn = $sliver->component_urn();
+	my $resource_id   = $sliver->resource_id();
 	my $state         = $sliver->state();
 	my $status        = $sliver->status();
 	my $error         = "";
@@ -964,7 +1030,7 @@ sub SliverStatus($)
 	    $error = $sliver->ErrorLog();
 	}
 	$blob->{'details'}->{$sliver_urn} = {
-	    "component_urn" => $component_urn,
+	    "component_urn" => $resource_id,
 	    "state"  => $state,
 	    "status" => $status,
 	    "error"  => $error,
@@ -1421,7 +1487,7 @@ sub RedeemTicket($)
 }
 
 #
-# Redeem a ticket
+# Bind a user to a sliver. 
 #
 sub BindToSlice($)
 {
@@ -1466,12 +1532,6 @@ sub BindToSlice($)
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
     }
-    # Bind for future slivers.
-    if ($slice->BindUser($user) != 0) {
-	$slice->UnLock();
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Error binding slice to user");
-    }
     if (defined($keys)) {
 	my $response = GeniCM::AddKeys($slice, $user, $keys);
 	if (GeniResponse::IsResponse($response)) {
@@ -1479,6 +1539,7 @@ sub BindToSlice($)
 	    return $response;
 	}
     }
+    $slice->MarkNodesForUpdate();
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
@@ -1537,6 +1598,16 @@ sub ReleaseTicket($)
     if ($ticket->slice_urn() ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "This ticket is for another slice");
+    }
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
+    my $realuser = GeniCM::FlipToUser($slice, $user);
+    if (! (defined($realuser) && $realuser)) {
+	print STDERR "Error flipping to real user\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "FlipToUser Error");
     }
     #
     # XXX Need to do a restore backup state operation if this ticket
@@ -1681,9 +1752,9 @@ sub ReserveVlanTags($)
     }
     
     my $slice_experiment = GeniCM::GeniExperiment($slice);
-    if (!defined($slice_experiment)) {
+    if (GeniResponse::IsResponse($slice_experiment)) {
 	print STDERR "Could not create new Geni slice experiment!\n";
-	$response = GeniResponse->Create(GENIRESPONSE_ERROR);
+	$response = $slice_experiment;
 	goto done;
     }
     my $pid = $slice_experiment->pid();
@@ -1712,6 +1783,13 @@ sub ReserveVlanTags($)
     if (! defined($rspec)) {
 	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 					 "Error Parsing rspec XML");
+	goto done;
+    }
+
+    my $rspecVersion = GeniXML::GetXmlVersion($rspec);
+    if (! defined($rspecVersion)) {
+	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "Unknown RSpec Version");
 	goto done;
     }
 
@@ -2067,6 +2145,83 @@ sub Credential2SliceAggregate($)
 	}
     }
     return ($slice, $aggregate);
+}
+
+#
+# Emulab specific function to inject events into the experiment event scheduler.
+#
+sub InjectEvent($)
+{
+    my ($argref) = @_;
+    my $slice_urn    = $argref->{'slice_urn'};
+    my $credentials  = $argref->{'credentials'};
+    my $time         = $argref->{'time'};
+    my $name         = $argref->{'name'};
+    my $event	     = $argref->{'event'};
+    my $args         = "";
+    my $waitmode     = 0;
+    
+    if (! (defined($credentials) && defined($slice_urn))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if (! (defined($time) && defined($name) && defined($event))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if (! ($time eq "now" || $time =~ /^\+\d*$/)) {
+	return GeniResponse->MalformedArgsResponse("Improper time argument");
+    }
+    if (! ($name =~ /^[-\w]*$/)) {
+	return GeniResponse->MalformedArgsResponse("Improper name argument");
+    }
+    if (! ($event =~ /^[-\w]*$/)) {
+	return GeniResponse->MalformedArgsResponse("Improper event argument");
+    }
+    if (exists($argref->{'args'})) {
+	if (ref($argref->{'args'}) ne "ARRAY") {
+	    return
+		GeniResponse->MalformedArgsResponse("Improper args argument");
+	}
+	my @args = @{ $argref->{'args'} };
+	# Sanitize for shell.
+	foreach my $arg (@args) {
+	    $arg =~ s/(')/'\\''/g;
+	    $args .= "'$arg' ";
+	}
+    }
+    $waitmode = 1
+	if (exists($argref->{'waitmode'}) && $argref->{'waitmode'});
+    
+    my $credential = CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my ($slice, $aggregate) = Credential2SliceAggregate($credential);
+    return $slice
+	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    if (! (defined($slice) && defined($aggregate))) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Sliver does not exist");
+    }
+    if ($slice_urn ne $slice->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+				    "Credential does not match the URN");
+    }
+    my $experiment = $slice->GetExperiment();
+    if (!defined($experiment)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "No local experiment for slice");
+    }
+    my $pid = $experiment->pid();
+    my $eid = $experiment->eid();
+    my $opt = ($waitmode ? "-w" : "");
+
+    my $output =
+	GeniUtil::ExecQuiet("$TEVC $opt -e $pid/$eid $time $name $event $args");
+    if ($?) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

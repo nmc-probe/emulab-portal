@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniAuthority;
@@ -38,6 +38,7 @@ my $BOSSNODE       = "@BOSSNODE@";
 my $OURDOMAIN      = "@OURDOMAIN@";
 my $SIGNCRED	   = "$TB/sbin/signgenicred";
 my $VERIFYCRED	   = "$TB/sbin/verifygenicred";
+my $PROTOGENI_URL  = "@PROTOGENI_URL@";
 
 # Cache of instances to avoid regenerating them.
 my %authorities    = ();
@@ -57,10 +58,36 @@ sub Lookup($$)
 	    DBQueryWarn("select uuid from geni_authorities ".
 			"where urn='$token'");
 
-	return undef
-	    if (! $query_result || !$query_result->numrows);
+	if( $query_result && $query_result->numrows ) {
+	    ($uuid) = $query_result->fetchrow_array();
+	} else {
+	    # A lexically valid name, which isn't in the authority
+	    # database.  First, we check if the authority corresponds
+	    # to a valid local project: we generate those on demand.
+	    my ($auth, $type, $id) = GeniHRN::Parse( $token );
 
-	($uuid) = $query_result->fetchrow_array();
+	    if( $type eq "authority" && $auth =~ /^@OURDOMAIN@:([-\w]+)$/ ) {
+		my $pid = $1;
+		
+		require Project;
+
+		my $project = Project->Lookup($pid);
+		return undef if (!defined($project));
+
+		my $url = "$PROTOGENI_URL/project/$pid/$id";
+
+		my $cert = GeniCertificate->Create(
+		    { "urn" => GeniHRN::Generate( "@OURDOMAIN@:$pid",
+						  "authority", $id ),
+		      "url" => $url,
+		      "email" => "@TBOPSEMAIL@",
+		      "hrn" => "@OURDOMAIN@.$pid.$id" } );
+
+		return GeniAuthority->Create( $cert, $url, $id );
+	    }
+
+	    return undef;
+	}
     }
     elsif ($token =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
 	$uuid = $token;
@@ -175,6 +202,7 @@ sub Create($$$$)
 sub field($$) { return ((! ref($_[0])) ? -1 : $_[0]->{'AUTHORITY'}->{$_[1]}); }
 sub uuid($)		{ return field($_[0], "uuid"); }
 sub expires($)		{ return field($_[0], "expires"); }
+sub created($)		{ return field($_[0], "created"); }
 sub uuid_prefix($)	{ return field($_[0], "uuid_prefix"); }
 sub urn($)		{ return field($_[0], "urn"); }
 sub url($)		{ return field($_[0], "url"); }
@@ -198,14 +226,18 @@ sub GetCertificate($)   { return $_[0]->{'CERT'}; }
 sub IsExpired($)
 {
     my ($self)  = @_;
-    my $expires = $self->expires();
+    my $created = $self->created();
+
+    #
+    # We are not storing an expires field yet, so lets just age things
+    # out periodically.
+    #
+    return 1
+	if (!defined($created) || $created eq "");
 
     return 1
-	if (!defined($expires) || $expires eq "");
-    
-    my $when = strptime($expires);
-
-    return ($when < time());
+	if (str2time($created) < (time() - (14 * 24 * 3600)));
+    return 0;
 }
 
 #
@@ -280,9 +312,18 @@ sub CreateFromRegistry($$$)
     my ($class, $type, $name) = @_;
 
     my $authority = GeniAuthority->Lookup($name);
-    return $authority
-	if (defined($authority) && $authority->urn());
-
+    if (defined($authority)) {
+	#
+	# Check for expiration.
+	#
+	if (!$authority->urn() || $authority->IsExpired()) {
+	    print STDERR "Aged out stale or expired $authority ...\n";
+	    $authority->Delete();
+	    $authority = undef;
+	}
+	return $authority
+	    if (defined($authority));
+    }
     my $clearinghouse = GeniRegistry::ClearingHouse->Create();
     return undef
 	if (!defined($clearinghouse));

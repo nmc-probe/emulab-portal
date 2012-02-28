@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2007 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -635,6 +635,7 @@ int sends_complete(struct agent *agent, const char *evtype)
 		{ TBDB_OBJECTTYPE_LINKTRACE, linktrace_completes },
 		{ TBDB_OBJECTTYPE_EVPROXY, NULL },
 		{ TBDB_OBJECTTYPE_BGMON, NULL },
+		{ TBDB_OBJECTTYPE_DISK, NULL },
 		{ NULL, NULL }
 	};
 

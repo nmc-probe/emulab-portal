@@ -11,4 +11,5 @@ EXTRA_PATCHES=  $(FILESDIR)/emulab-patch-SSL-Connection
 # Make sure we pick up all the standard port patches too
 PATCHDIR=	$(PORTSDIR)/security/py-m2crypto/files
 
+PKGORIGIN=		misc/emulab-py-m2crypto
 .include "../../security/py-m2crypto/Makefile"

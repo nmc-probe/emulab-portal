@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -1230,7 +1230,10 @@ function PAGEFOOTER($view = NULL) {
 	echo "        Help Forum</a>";
 	echo "    </td>";
     }
-    echo "        <td class=contact>Bug? Contact $TBMAILADDR</td>";
+    echo "        <td class=contact>Bug? Join the ";
+    echo "          <a href='http://groups.google.com/group/emulab-users'>";
+    echo "             Help Forum</a>";
+    echo "        </td>";
     echo "       </tr>\n";
     echo "      </table>\n";
     echo "      <!-- end copyright -->\n";

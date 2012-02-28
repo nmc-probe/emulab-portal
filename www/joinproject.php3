@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -15,6 +15,9 @@ if (isset($forwikionly) && $forwikionly == True) {
 } else {
     $old_forwikionly = False;
 }
+
+# Need this below;
+$show_sslcertbox = TBGetSiteVar("protogeni/show_sslcertbox");
 
 #
 # No PAGEHEADER since we spit out a Location header later. See below.
@@ -81,6 +84,7 @@ function SPITFORM($formfields, $returning, $errors)
     global $ACCOUNTWARNING, $EMAILWARNING;
     global $WIKISUPPORT, $forwikionly, $WIKIHOME, $USERSELECTUIDS;
     global $WIKIDOCURL;
+    global $PROTOGENI, $show_sslcertbox;
 
     if ($forwikionly)
 	PAGEHEADER("Wiki Registration");
@@ -160,8 +164,8 @@ function SPITFORM($formfields, $returning, $errors)
 
     echo "<table align=center border=1> 
           <tr>
-            <td align=center colspan=3>
-                Fields marked with * are required.
+            <td align=center colspan=3><font size=-1>
+                Fields marked with * are required.</font>
             </td>
           </tr>\n
 
@@ -179,7 +183,7 @@ function SPITFORM($formfields, $returning, $errors)
                       <td colspan=2>*<a
                              href='$WIKIDOCURL/SecReqs'
                              target=_blank>Username</a>
-                                (alphanumeric, lowercase):</td>
+                                (alphanumeric):</td>
                       <td class=left>
                           <input type=text
                                  name=\"formfields[joining_uid]\"
@@ -198,9 +202,11 @@ function SPITFORM($formfields, $returning, $errors)
                   <td colspan=2>*Full Name (first and last):</td>
                   <td class=left>
                       <input type=text
-                             name=\"formfields[usr_name]\"
-                             onchange=\"SetWikiName(myform);\"
-                             value=\"" . $formfields["usr_name"] . "\"
+                             name=\"formfields[usr_name]\" ";
+	if ($WIKISUPPORT) {
+	    echo "           onchange=\"SetWikiName(myform);\" ";
+	}
+	echo "               value=\"" . $formfields["usr_name"] . "\"
 	                     size=30>
                   </td>
               </tr>\n";
@@ -343,10 +349,10 @@ function SPITFORM($formfields, $returning, $errors)
 	    #
 	    echo "<tr>
                      <td colspan=2>Upload your SSH Pub Key[<b>2</b>]:<br>
-                                       (1K max)</td>
+                                       (4K max)</td>
    
                      <td>
-                          <input type=hidden name=MAX_FILE_SIZE value=1024>
+                          <input type=hidden name=MAX_FILE_SIZE value=4096>
                           <input type=file
                                  size=50
                                  name=usr_keyfile ";
@@ -379,7 +385,39 @@ function SPITFORM($formfields, $returning, $errors)
                              value=\"" . $formfields["password2"] . "\"
                              size=8></td>
              </tr>\n";
+
+	#
+	# Geni Passphrase.
+	#
+	if ($PROTOGENI && $show_sslcertbox) {
+	    echo "<tr></tr><tr>
+                   <th class=center colspan=3>Geni Account<br>
+                 <a href='http://users.emulab.net/trac/emulab/wiki/GeniBlurb'
+			target=_blank><font size=-2>what's this?</font></a></td>
+                  </tr>\n";
+
+	    echo "<tr>
+                  <td colspan=2>Geni SSL Pass Phrase[<b>3</b>]:</td>
+                  <td class=left>
+                      <input type=password
+                             name=\"formfields[passphrase1]\"
+                             value=\"" . $formfields["passphrase1"] . "\"
+                             size=32></td>
+              </tr>\n";
+
+	    echo "<tr>
+                  <td colspan=2>Retype Geni Pass Phrase:</td>
+                  <td class=left>
+                      <input type=password
+                             name=\"formfields[passphrase2]\"
+                             value=\"" . $formfields["passphrase2"] . "\"
+                             size=32></td>
+             </tr>\n";
+	}
     }
+    echo "<tr></tr><tr>
+              <th class=center colspan=3>Project Info</td>
+          </tr>\n";
 
     if (! $forwikionly) {
         #
@@ -428,7 +466,7 @@ function SPITFORM($formfields, $returning, $errors)
     if (!$returning && !$forwikionly) {
 	echo "<li> If you want us to use your existing ssh public key,
                    then please specify the path to your
-                   your identity.pub file.  <font color=red>NOTE:</font>
+                   identity.pub file.  <font color=red>NOTE:</font>
                    We use the <a href=http://www.openssh.org target='_blank'>OpenSSH</a>
                    key format,
                    which has a slightly different protocol 2 public key format
@@ -437,6 +475,12 @@ function SPITFORM($formfields, $returning, $errors)
                    use one of these commercial vendors, then please
                    upload the public key file and we will convert it
                    for you.";
+	if ($PROTOGENI && $show_sslcertbox) {
+	    echo "<li>";
+	    echo "Pick a good pass phrase! They can be (much) longer than
+                  Unix passwords; 10 to 30 character phrases are good,
+                  and may include spaces and punctuation.";
+	}
     }
     echo "</ol>
           </blockquote></blockquote>
@@ -506,6 +550,8 @@ if (! isset($submit)) {
     $defaults["usr_affil_abbrev"] = "";
     $defaults["password1"]   = "";
     $defaults["password2"]   = "";
+    $defaults["passphrase1"] = "";
+    $defaults["passphrase2"] = "";
     $defaults["wikiname"]    = "";
     $defaults["usr_URL"]     = "$HTTPTAG";
     $defaults["usr_country"] = "USA";
@@ -683,6 +729,27 @@ if (! $returning) {
 			    $formfields["usr_email"], $checkerror)) {
 	$errors["Password"] = "$checkerror";
     }
+    if ($PROTOGENI && $show_sslcertbox &&
+	isset($formfields["passphrase1"]) && $formfields["passphrase1"] != "") {
+	if (!isset($formfields["passphrase2"]) ||
+	    $formfields["passphrase2"] == "") {
+	    $errors["Confirm Pass Phrase"] = "Missing Field";
+	}
+	elseif ($formfields["passphrase1"] != $formfields["passphrase2"]) {
+	    $errors["Confirm Pass Phrase"] = "Does not match Pass Phrase";
+	}
+	elseif (strlen($formfields["passphrase1"]) < $TBDB_MINPASSPHRASE) {
+	    $errors["Pass Phrase"] =
+		"Too short; $TBDB_MINPASSPHRASE char minimum";
+	}
+	elseif (! CHECKPASSWORD(($USERSELECTUIDS ?
+				 $formfields["joining_uid"] : "ignored"),
+				$formfields["passphrase1"],
+				$formfields["usr_name"],
+				$formfields["usr_email"], $checkerror)) {
+	    $errors["Pass Phrase"] = "$checkerror";
+	}
+    }
 }
 if (!$forwikionly) {
     if (!isset($formfields["pid"]) || $formfields["pid"] == "") {
@@ -785,7 +852,7 @@ if (! $returning) {
 	$args["URL"] = $formfields["usr_URL"];
     }
     if ($USERSELECTUIDS) {
-	$args["login"] = $formfields["joining_uid"];
+	$args["uid"] = $formfields["joining_uid"];
     }
 
     # Backend verifies pubkey and returns error.
@@ -797,6 +864,10 @@ if (! $returning) {
 	    $localfile = $_FILES['usr_keyfile']['tmp_name'];
 	    $args["pubkey"] = file_get_contents($localfile);
 	}
+    }
+    if ($PROTOGENI && $show_sslcertbox &&
+	isset($formfields["passphrase1"]) && $formfields["passphrase1"] != "") {
+	$args["passphrase"] = $formfields["passphrase1"];
     }
     if (! ($user = User::NewNewUser(($forwikionly ?
 				     TBDB_NEWACCOUNT_WIKIONLY : 0),

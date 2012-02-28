@@ -1,7 +1,7 @@
 # -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -9,6 +9,7 @@
 # under ns.
 
 namespace eval GLOBALS {
+    variable elabinelab_fw_type "ipfw2-vlan"
     variable security_level 0
     variable pid {}
     variable gid {}
@@ -24,6 +25,7 @@ proc tb-set-node-service {service args} {}
 proc tb-add-node-service-hook {service args} {}
 proc tb-set-hardware {node type args} {}
 proc tb-set-node-os {node os {parentos 0}} {}
+proc tb-set-node-loadlist {node loadlist} {}
 proc tb-set-link-loss {src args} {}
 proc tb-set-lan-loss {lan rate} {}
 proc tb-set-node-rpms {node args} {}
@@ -139,6 +141,26 @@ proc tb-set-security-level {level} {
 }
 
 #
+# Set firewall type for firewalled elabinelab experiments
+#
+proc tb-set-elabinelab-fw-type {type} {
+
+    switch -- $type {
+        "ipfw2-vlan" {
+            set type "ipfw2-vlan"
+        }
+        "iptables-vlan" {
+            set type "iptables-vlan"
+        }
+        unknown  {
+            perror "\[tb-set-elabinelab-fw-type] $type is not a valid type"
+            return
+        }
+    }
+    set ::GLOBALS::elabinelab_fw_type $type
+}
+
+#
 # Set the startup command for a node. Replaces the tb-set-node-startup
 # command above, but we have to keep that one around for a while. This
 # new version dispatched to the node object, which uses a program object.
@@ -176,6 +198,14 @@ Program instproc init {args} {
 }
 
 Program instproc unknown {m args} {
+}
+
+Class Disk
+
+Disk instproc init {args} {
+}
+
+Disk instproc unknown {m args} {
 }
 
 Class Firewall

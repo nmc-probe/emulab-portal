@@ -1,0 +1,17 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2007 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use English;
+use Getopt::Std;
+
+# Drag in path stuff so we can find emulab stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+
+if (-e "$BINDIR/fixup-fstab-swaps") {
+    exec("$BINDIR/fixup-fstab-swaps");
+}
+
+exit(0);

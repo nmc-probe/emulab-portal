@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -75,21 +75,28 @@ function SPITFORM($formfields, $errors)
 	    $pubkey  = $row['pubkey'];
 	    $date    = $row['stamp'];
 	    $idx     = $row['idx'];
+	    $internal= $row['internal'];
+	    $nodelete= $row['nodelete'];
 	    $fnote   = "";
 
-	    if (strstr($comment, $BOSSNODE)) {
+	    if ($internal || $nodelete) {
 		$fnote = "[<b>1</b>]";
 	    }
 	    $chunky  = chunk_split("$pubkey $fnote", 75, "<br>\n");
 
 	    $delurl = CreateURL("deletepubkey", $target_user, "key", $idx);
 
-	    echo "<tr>
-                     <td align=center>
-                       <A href='$delurl'>
-                          <img alt='Delete Key' src=redball.gif></A>
-                     </td>
-                     <td>$chunky</td>
+	    echo "<tr>\n";
+	    if (($internal || $nodelete) && !$isadmin) {
+		echo "<td>&nbsp</td>";
+	    }
+	    else {
+		echo "<td align=center>
+                          <A href='$delurl'>
+                             <img alt='Delete Key' src=redball.gif></A>
+                      </td>";
+	    }
+	    echo "    <td>$chunky</td>
                   </tr>\n";
 	}
 	echo "</table>\n";
@@ -101,7 +108,7 @@ function SPITFORM($formfields, $errors)
     }
     echo "<blockquote><blockquote><blockquote>
           <ol>
-            <li> Please do not delete your Emulab generated public key.
+            <li> Your Emulab generated public keys may not be deleted.
           </ol>
           </blockquote></blockquote></blockquote>\n";
 

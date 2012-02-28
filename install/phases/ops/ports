@@ -1,0 +1,205 @@
+#
+# The template
+#
+use strict;
+use libinstall;
+use installvars;
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    Phase "ports", "Installing ports", sub {
+	Phase "packages", "Installing packages", sub {
+	    Phase "main", "Installing main package", sub {
+		if (!ExecQuiet("$PKG_INFO -e $OPS_PORT")) {
+		    PhaseSkip("Package already installed");
+		}
+		if (!$packagedir) {
+		    PhaseSkip("No package directory provided");
+		}
+		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $OPS_PORT");
+	    };
+	    if ($FBSD_MAJOR > 4 || $FBSD_MAJOR < 8) {
+		Phase "php", "Installing php${PHP_VERSION} package", sub {
+		    if (!ExecQuiet("$PKG_INFO -e $PHP_PORT")) {
+			PhaseSkip("Package already installed");
+		    }
+		    if (!$packagedir) {
+			PhaseSkip("No package directory provided");
+		    }
+		    # XXX ugh, make sure an older version is not installed
+		    if ($PHP_VERSION > 4) {
+			ExecQuiet("$PKG_DEL -f -x php4-");
+		    }
+		    ExecQuietFatal("$ENV PKG_PATH=$packagedir ".
+				   "     $PKG_ADD $PHP_PORT");
+		};
+	    }
+	    # XXX Also temporary
+	    Phase "pubsub", "Installing pubsub package", sub {
+		my $pspkg = $ELVIN_COMPAT ? "pubsub-elvincompat" : "pubsub";
+		if (!ExecQuiet("$PKG_INFO -x $pspkg")) {
+		    PhaseSkip("$pspkg already installed");
+		}
+		my $pname = GetPackage($pspkg, $packagedir);
+		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    };
+	    # XXX Ditto
+	    if ($FBSD_MAJOR > 6 || ($FBSD_MAJOR == 6 && $FBSD_MINOR > 2)) {
+		if ($FBSD_MAJOR < 8) {
+		    Phase "p5-DBD-mysql50",
+		    "Installing old Perl Mysql package", sub {
+			my $pname = `$PKG_INFO -E 'p5-DBD-mysql50-*' 2>/dev/null`;
+			chomp($pname);
+			if ($pname eq $P5DBD_PKG) {
+			    PhaseSkip("p5-DBD-mysql50 already up to date");
+			}
+			if (!$packagedir) {
+			    PhaseSkip("No package directory provided");
+			}
+			ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_DEL -f $pname")
+			    if ($pname);
+			ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $P5DBD_PKG");
+		    };
+		}
+		# XXX cannot seem to get these dependencies into emulab-ops
+		if ($FBSD_MAJOR > 6) {
+		    Phase "py-m2crypto", "Installing python m2crypto package", sub {
+			my $pname = `$PKG_INFO -E 'py*-m2crypto-*' 2>/dev/null`;
+			chomp($pname);
+			if ($pname eq $PYM2_PKG) {
+			    PhaseSkip("py-m2crypto already up to date");
+			}
+			if (!$packagedir) {
+			    PhaseSkip("No package directory provided");
+			}
+			ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_DEL -f $pname")
+			    if ($pname);
+			ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $PYM2_PKG");
+		    };
+		}
+	    }
+	};
+	Phase "fs-packages", "Installing FS packages", sub {
+	    if (!ISFS($server)) {
+		PhaseSkip("Not FS Node");
+	    }
+	    if (!ExecQuiet("$PKG_INFO -e $FS_PORT")) {
+		PhaseSkip("FS ports already installed");
+	    }
+	    if (!$packagedir) {
+		PhaseSkip("No package directory provided");
+	    }
+	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $FS_PORT");
+	};
+	if ($MAILMANSUPPORT) {
+	    Phase "mailman", "Installing Mailman package", sub {
+		if (!ExecQuiet("$PKG_INFO -x -E mailman")) {
+		    PhaseSkip("Mailman package already installed");
+		}
+		if (!$packagedir) {
+		    PhaseSkip("No package directory provided");
+		}
+		my $pname = GetPackage("mailman", $packagedir);
+		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    };
+	}
+	if ($CVSSUPPORT) {
+	    Phase "cvsd", "Installing cvsd package", sub {
+		PhaseSkip("cvsd not supported on ops")
+		    if ($FBSD_MAJOR < 6);
+
+		if (!ExecQuiet("$PKG_INFO -x -E cvsd")) {
+		    PhaseSkip("cvsd package already installed");
+		}
+		if (!$packagedir) {
+		    PhaseSkip("No package directory provided");
+		}
+		my $pname = GetPackage("cvsd", $packagedir);
+		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    };
+	}
+	if ($BUGDBSUPPORT) {
+	    Phase "flyspray", "Installing flyspray package support", sub {
+		PhaseSkip("flyspray not supported on ops")
+		    if ($FBSD_MAJOR < 6);
+		
+		if (!ExecQuiet("$PKG_INFO -x -E adodb")) {
+		    PhaseSkip("adodb package already installed");
+		}
+		if (!$packagedir) {
+		    PhaseSkip("No package directory provided");
+		}
+		my $pname = GetPackage("adodb", $packagedir);
+		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    };
+	}
+	PhaseSkip("Package directory provided; not installing from sources")
+	    if ($packagedir);
+	
+	Phase "pcopy", "Copying ports into place", sub {
+	    DoneIfExists("$PORTSMISCDIR/emulab-ops");
+	    ExecQuietFatal("$SH $TOP_SRCDIR/ports/ports-install");
+	};
+	my $pwd = `$PWD`;
+	chomp $pwd;
+	Phase "pinstall", "Installing ports (may take a while)", sub {
+	    if (!ExecQuiet("$PKG_INFO -e $OPS_PORT")) {
+		PhaseSkip("Ports already installed");
+	    }
+	    
+	    #
+	    # This port is dead-simple, so it's safe to do it from this script
+	    #
+	    chdir "$PORTSMISCDIR/emulab-ops" or
+		PhaseFail "Unable to change to $PORTSMISCDIR/emulab-ops: $!";
+	    ExecQuietFatal("make -DBATCH install");
+	};
+	Phase "fs-pinstall", "Installing FS ports (may take a while)", sub {
+	    if (!ISFS($server)) {
+		PhaseSkip("Not FS Node");
+	    }
+	    if (!ExecQuiet("$PKG_INFO -e $FS_PORT")) {
+		PhaseSkip("Ports already installed");
+	    }
+	    chdir "$PORTSMISCDIR/emulab-fs" or
+		PhaseFail "Unable to change to $PORTSMISCDIR/emulab-fs: $!";
+	    ExecQuietFatal("make -DBATCH install");
+	};
+	Phase "php-pinstall", "Installing PHP${PHP_VERSION} ports (may take a while)", sub {
+	    if (!ExecQuiet("$PKG_INFO -e $PHP_PORT")) {
+		PhaseSkip("Ports already installed");
+	    }
+	    # XXX ugh, make sure an older version is not installed
+	    if ($PHP_VERSION > 4) {
+		ExecQuiet("$PKG_DEL -f -x php4-");
+	    }
+	    chdir "$PORTSMISCDIR/emulab-php${PHP_VERSION}" or
+		PhaseFail "Unable to change to $PORTSMISCDIR/emulab-php${PHP_VERSION}: $!";
+	    ExecQuietFatal("make -DBATCH install");
+	};
+	if ($MAILMANSUPPORT) {
+	    Phase "mailman-pinstall", "Installing mailman ports", sub {
+		if (!ExecQuiet("$PKG_INFO -x -e mailman")) {
+		    PhaseSkip("Ports already installed");
+		}
+		chdir "$PORTSMISCDIR/emulab-mailman" or
+		    PhaseFail("Unable to change to ".
+			      "$PORTSMISCDIR/emulab-mailman: $!");
+		ExecQuietFatal("make -DBATCH install");
+	    };
+	}
+	chdir $pwd;
+    };
+    
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:

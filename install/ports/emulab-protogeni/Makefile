@@ -8,9 +8,13 @@ OSMINOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/[0-9][0-9]*\.\([0-9][0-9]*\).*/
 
 PORTNAME=	emulab-protogeni
 PORTVERSION=	1.0
+.if ${OSMAJOR} >= 8
+PORTVERSION=	2.0
+.else
 .if ${OSMAJOR} >= 7
 .if ${OSMINOR} >= 3
 PORTVERSION=	1.1
+.endif
 .endif
 .endif
 CATEGORIES=	misc
@@ -22,7 +26,7 @@ COMMENT=	"Meta-port for a protogeni site"
 MAINTAINER=	stoller@cs.utah.edu
 
 # XXX this crap should not be needed!
-.if ${PORTVERSION} == "1.1"
+.if ${PORTVERSION} != "1.0"
 PHP_VER=	5
 PERL_VER=	5.10.1
 .MAKEFLAGS+=	WITH_OPENSSL_BASE=yes
@@ -52,7 +56,11 @@ PHP_VER=	4
 # Various ports need to agree on what version of apache. Make sure this
 # agrees with what is in the emulab-ops and emulab-php4 metaports.
 #
+.if ${PORTVERSION} == "2.0"
+.MAKEFLAGS+=	APACHE_PORT=www/apache22
+.else
 .MAKEFLAGS+=	APACHE_PORT=www/apache13-modssl
+.endif
 
 #
 # This prevents any ports from trying to run interactively - some, like the

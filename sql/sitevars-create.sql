@@ -84,7 +84,9 @@ INSERT INTO sitevariables VALUES ('protogeni/max_externalnodes',NULL,'1024','Whe
 INSERT INTO sitevariables VALUES ('protogeni/cm_uuid','28a10955-aa00-11dd-ad1f-001143e453fe','','The UUID of the local Component Manager.',0);
 INSERT INTO sitevariables VALUES ('protogeni/max_sliver_lifetime','90','90','The maximum sliver lifetime. When set limits the lifetime of a sliver on your CM. Also see protogeni/max_slice_lifetime.',0);
 INSERT INTO sitevariables VALUES ('protogeni/max_slice_lifetime','90','90','The maximum slice credential lifetime. When set limits the lifetime of a slice credential. Also see protogeni/max_sliver_lifetime.',0);
+INSERT INTO sitevariables VALUES ('protogeni/default_slice_lifetime','6','6','The default slice credential lifetime. In hours. Also see protogeni/max_slice_lifetime.',0);
 INSERT INTO sitevariables VALUES ('protogeni/max_components','-1','-1','Maximum number of components that can be allocated. -1 indicates any number of components can be allocated.',0);
+INSERT INTO sitevariables VALUES ('protogeni/warn_short_slices','0','0','When set, warn users about shortlived slices (see the sa_daemon).',0);
 INSERT INTO sitevariables VALUES ('general/minpoolsize','3','1','The Minimum size of the shared pool',0);
 INSERT INTO sitevariables VALUES ('general/maxpoolsize','5','1','The maximum size of the shared pool',0);
 INSERT INTO sitevariables VALUES ('protogeni/sa_uuid','2b437faa-aa00-11dd-ad1f-001143e453fe','','The UUID of the local Slice Authority.',0);
@@ -100,6 +102,11 @@ INSERT INTO sitevariables VALUES ('images/create/maxsize',NULL,'6','Max size (GB
 INSERT INTO sitevariables VALUES ('general/testbed_shutdown',NULL,'0','Non-zero value indicates that the testbed is shutdown and scripts should not do anything when they run. DO NOT SET THIS BY HAND!',0);
 INSERT INTO sitevariables VALUES ('images/frisbee/maxrate_std',NULL,'72000000','Max bandwidth (Bytes/sec) at which to distribute standard images from the /usr/testbed/images directory.',0);
 INSERT INTO sitevariables VALUES ('images/frisbee/maxrate_usr',NULL,'54000000','Max bandwidth (Bytes/sec) at which to distribute user-defined images from the /proj/.../images directory.',0);
+INSERT INTO sitevariables VALUES ('general/idlepower_enable',NULL,'0','Enable idle power down to conserve electricity',0);
+INSERT INTO sitevariables VALUES ('general/idlepower_idletime',NULL,'3600','Maximum number of seconds idle before a node is powered down to conserve electricity',0);
+INSERT INTO sitevariables VALUES ('general/autoswap_max',NULL,'120','Maximum number of hours for the experiment autoswap limit.',0);
+INSERT INTO sitevariables VALUES ('protogeni/show_sslcertbox','1','1','When set, users see option on join/start project pages to create SSL certificate.',0);
+INSERT INTO sitevariables VALUES ('protogeni/default_osname','','','The default os name used for ProtoGENI slivers when no os is specified on a node.',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 

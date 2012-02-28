@@ -11,7 +11,7 @@ use Exporter;
 use vars qw(@ISA @EXPORT);
 
 @ISA = "Exporter";
-@EXPORT = qw(Parse ParseFile IsVersion0 FindNodes FindNodesNS
+@EXPORT = qw(Parse ParseFile GetXmlVersion IsVersion0 FindNodes FindNodesNS
 FindFirst FindElement FindAttr GetNodeByVirtualId GetLinkByVirtualId
 IsLanNode IsLocalNode IsTunnel GetExpires GetBandwidth GetIp GetVnodeId
 GetNodeId GetVirtualId GetInterfaceId GetInterfaceNodeId GetSliverId
@@ -29,16 +29,28 @@ use GeniHRN;
 use GeniUtil;
 use Carp qw(cluck carp);
 
-use vars qw($RSPEC_0_1 $RSPEC_0_2 $RSPEC_2 $EMULAB_NS $XSI_NS $REQUEST_URL $MANIFEST_URL);
+use vars qw($RSPEC_0_1 $RSPEC_0_2 $RSPEC_2 $RSPEC_3
+            $RSPEC_0_1_NS $RSPEC_0_2_NS $RSPEC_2_NS
+            $EMULAB_NS $XSI_NS $STITCH_NS
+            $REQUEST_2_URL $MANIFEST_2_URL
+            $REQUEST_3_URL $MANIFEST_3_URL);
 $RSPEC_0_1 = "0.1";
 $RSPEC_0_2 = "0.2";
 $RSPEC_2 = "2";
+$RSPEC_3 = "3";
 
-$EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
-$XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
+our $RSPEC_0_1_NS = "http://www.protogeni.net/resources/rspec/0.1";
+our $RSPEC_0_2_NS = "http://www.protogeni.net/resources/rspec/0.2";
+our $RSPEC_2_NS = "http://www.protogeni.net/resources/rspec/2";
+our $RSPEC_3_NS = "http://www.geni.net/resources/rspec/3";
+our $EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
+our $XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
+our $STITCH_NS = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
 
-$REQUEST_URL = "http://www.protogeni.net/resources/rspec/2/request.xsd";
-$MANIFEST_URL = "http://www.protogeni.net/resources/rspec/2/manifest.xsd";
+$REQUEST_2_URL = "http://www.protogeni.net/resources/rspec/2/request.xsd";
+$MANIFEST_2_URL = "http://www.protogeni.net/resources/rspec/2/manifest.xsd";
+$REQUEST_3_URL = "http://www.geni.net/resources/rspec/3/request.xsd";
+$MANIFEST_3_URL = "http://www.geni.net/resources/rspec/3/manifest.xsd";
 
 # Configure variables
 my $TB		   = "@prefix@";
@@ -82,10 +94,10 @@ sub ParseFile($)
 }
 
 # Determines the rspec version of a node by examining is namespace URI
-sub GetVersion($)
+sub GetXmlVersion($)
 {
     my ($node) = @_;
-    my $result = $RSPEC_0_1;
+    my $result = undef;
     my $ns = $node->namespaceURI();
     if (defined($ns)) {
 	if ($ns =~ /protogeni.net\/resources\/rspec\/0.1$/) {
@@ -94,6 +106,8 @@ sub GetVersion($)
 	    $result = $RSPEC_0_2;
 	} elsif ($ns =~ /protogeni.net\/resources\/rspec\/2$/) {
 	    $result = $RSPEC_2;
+	} elsif ($ns =~ /geni.net\/resources\/rspec\/3$/) {
+	    $result = $RSPEC_3;
 	} else {
 	    carp("Unknown rspec namespace: " . $ns);
 	    $result = $RSPEC_0_1;
@@ -104,8 +118,9 @@ sub GetVersion($)
 
 sub IsVersion0($)
 {
-    my $version = GetVersion($_[0]);
-    return $version eq $RSPEC_0_1 || $version eq $RSPEC_0_2;
+    my $version = GetXmlVersion($_[0]);
+    return defined($version)
+	&& ($version eq $RSPEC_0_1 || $version eq $RSPEC_0_2);
 }
 
 # Returns a NodeList for a given XPath using a given node as
@@ -339,7 +354,7 @@ sub GetMask($$)
 	    if (defined($id) && defined($testid) && $testid eq $id) {
 		my $ip = FindFirst("n:ip", $iface);
 		if (defined($ip)) {
-		    $result = GetText("mask", $ip);
+		    $result = GetFirstText($ip, "netmask", "mask");
 		}
 		last;
 	    }
@@ -379,7 +394,7 @@ sub GetVnodeId($)
     if (IsVersion0($node)) {
 	$result = GetNodeId($node);
     } else {
-	my $vnoderef = GeniXML::FindNodesNS("vnode", $node,
+	my $vnoderef = GeniXML::FindNodesNS("n:vnode", $node,
 					    $EMULAB_NS)->pop();
 	if (defined($vnoderef)) {
 	    $result = GetText("name", $vnoderef);
@@ -463,6 +478,42 @@ sub GetSubnodeOf($)
 	}
     }
     return $result;
+}
+
+sub GetServices($)
+{
+    my ($node) = @_;
+    my @result = ();
+    my @services = FindNodes("n:services", $node)->get_nodelist();
+
+    foreach my $service (@services) {
+	foreach my $current ($service->childNodes()) {
+	    my $item;
+	    my $type = $current->nodeName();
+	
+	    if ($type eq "execute") {
+		$type = "execute";
+		my $cmd  = GetText("command", $current);
+		my $shell= GetText("shell", $current);
+		$item = {"type"   => $type,
+			 "cmd"    => $cmd,
+			 "shell"  => $shell};
+	    }
+	    elsif ($type eq "install") {
+		$type = "install";
+		my $dir = GetText("install_path", $current);
+		my $url = GetText("url", $current);
+		$item = {"type"   => $type,
+			 "dir"    => $dir,
+			 "url"    => $url};
+	    }
+	    else {
+		next;
+	    }
+	    push(@result, $item);
+	}
+    }
+    return @result;
 }
 
 sub GetStartupCommand($)
@@ -714,7 +765,7 @@ sub CreateDocument($$)
 {
     my ($ns, $name) = @_;
     my $doc = XML::LibXML::Document->createDocument("1.0", "UTF-8");
-    my $root = $doc->createElementNS($ns, "rs:$name");
+    my $root = $doc->createElementNS($ns, "$name");
     $doc->setDocumentElement($root);
     return $doc;
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package emdbi;
@@ -65,6 +65,25 @@ sub Wrap($$$)
 sub pid($)	{ return $_[0]->{'PID'}; };
 sub dbh($)	{ return $_[0]->{'DBH'}; };
 sub dbname($)	{ return $_[0]->{'DBNAME'}; };
+
+#
+# Check for existence of DB
+#
+sub DBExists($$)
+{
+    my ($class, $dbname) = @_;
+    
+    require Mysql;
+    $Mysql::QUIET = 1;
+    my $dbh = Mysql->connect("localhost");
+    return undef
+	if (!defined($dbh));
+
+    my @dbs = $dbh->listdbs();
+    return 1
+	if (grep {$_ eq $dbname} @dbs);
+    return 0;
+}
 
 #
 # Need to wrap the return value. See below.
@@ -134,6 +153,21 @@ sub Wrap($$$)
 sub pid($)	{ return $_[0]->{'PID'}; };
 sub dbh($)	{ return $_[0]->{'DBH'}; };
 sub dbname($)	{ return $_[0]->{'DBNAME'}; };
+
+#
+# Check for existence of DB
+#
+sub DBExists($$)
+{
+    my ($class, $dbname) = @_;
+    
+    require DBI;
+
+    my @dbs = DBI->data_sources("mysql");
+    return 1
+	if (grep {$_ eq "DBI:mysql:$dbname"} @dbs);
+    return 0;
+}
 
 #
 # Wrap query for proper DBI syntax.
@@ -352,6 +386,23 @@ $DBErrorString     = "";
 @EXPORT            = qw($DBQUERY_MAXTRIES $DBQUERY_RECONNECT $DBErrorString
 			$DBCONN_EXITONERR $DBCONN_MAXTRIES $DBQUERY_DEBUG);
 
+my $queryCount = 0;
+
+#
+# Does DB exist yet.
+#
+sub DBExists($)
+{
+    my ($dbname) = @_;
+
+    if ($DBCONN_USEDBI) {
+	return emdbi_wrapper::DBI->DBExists($dbname);
+    }
+    else {
+	return emdbi_wrapper::Mysql->DBExists($dbname);
+    }
+}
+
 sub TBDBConnect($$)
 {
     my ($dbnum, $dbname) = @_;
@@ -498,11 +549,21 @@ sub DBQueryN($$)
     my $maxtries = $DBQUERY_MAXTRIES;
     my $result;
 
+    # Update query count total for debugging purposes
+    $queryCount += 1;
+
     # Not really forever :-)
     if (!$maxtries) {
 	$maxtries = 100000;
     }
 
+    # Mostly for ProtoGeni;
+    if (!defined($dbnum)) {
+	print STDERR "DB connection not setup:\n";
+	print STDERR "Query: '$query'\n";
+	return undef;
+    }
+    
     # Reconnect to mysqld in child of fork.
     if ($DB[$dbnum]->pid() != $PID) {
 	if (TBDBReconnect(1) != 0) {
@@ -786,6 +847,16 @@ END {
     # This error is probably due to some object being destroyed too
     # soon somewhere in the DBI/DBD modules.
     TBDBDisconnect();
+}
+
+sub ClearQueryCount()
+{
+    $queryCount = 0;
+}
+
+sub GetQueryCount()
+{
+    return $queryCount;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

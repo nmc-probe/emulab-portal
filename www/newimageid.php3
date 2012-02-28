@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -418,6 +418,16 @@ function SPITFORM($formfields, $errors)
 	echo "                       > Yes
                   </td>
               </tr>\n";
+
+	echo "<tr>
+	          <td>MBR Version:<br>
+		  <td class=left>
+		      <input type=text
+			     name=\"formfields[mbr_version]\"
+			     value=\"" . $formfields["mbr_version"] . "\"
+			     size=2 maxlength=2>
+		  </td>
+	      </tr>\n";
     }
 
     echo "<tr>
@@ -478,6 +488,7 @@ if (!isset($submit)) {
     $defaults["shared"]      = "No";
     $defaults["global"]      = "No";
     $defaults["makedefault"] = "No";
+    $defaults["mbr_version"] = "";
 
     #
     # For users that are in one project and one subgroup, it is usually
@@ -615,6 +626,11 @@ $makedefault = 0;
 if (isset($formfields["makedefault"])) {
    $args["makedefault"] = $makedefault = 
        strcmp($formfields["makedefault"], "Yep") ? 0 : 1;
+}
+
+if (isset($formfields["mbr_version"]) &&
+    $formfields["mbr_version"] != "") {
+    $args["mbr_version"] = $formfields["mbr_version"];
 }
 
 #
@@ -758,6 +774,8 @@ if (! ($image = Image::NewImageId(0, $imagename, $args, $errors))) {
 $pid = $image->pid();
 $gid_idx = $image->gid_idx();
 $group = Group::Lookup($gid_idx);
+$project = $image->Project();
+    
 
 SUBPAGESTART();
 SUBMENUSTART("More Options");
@@ -802,6 +820,7 @@ if (isset($node_id)) {
     # Grab the unix GID for running script.
     #
     $unix_gid  = $group->unix_gid();
+    $unix_pid  = $project->unix_gid();
     $safe_name = escapeshellarg($imagename);
 
     echo "<br>
@@ -809,7 +828,7 @@ if (isset($node_id)) {
           <br><br>\n";
     flush();
 
-    SUEXEC($uid, "$pid,$unix_gid",
+    SUEXEC($uid, "$unix_pid,$unix_gid",
 	   "webcreate_image -p $pid $safe_name $node_id",
 	   SUEXEC_ACTION_DUPDIE);
 

@@ -138,6 +138,7 @@ my %xmlfields =
      # The rest are optional, so we can skip passing ones that are not changing.
      "description"	=> ["description",	$SLOT_OPTIONAL],
      "path"		=> ["path",		$SLOT_OPTIONAL],
+     "mbr_version",	=> ["mbr_version",	$SLOT_OPTIONAL],
      "mtype_*"		=> ["mtype",		$SLOT_OPTIONAL],
     );
 #

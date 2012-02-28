@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2010 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 #
@@ -10,44 +10,21 @@
 #
 use POSIX qw(strftime);
 use Exporter;
-use vars qw(@EXPORT $TOP_OBJDIR $TOP_SRCDIR
-	    $TBROOT $LOGDIR $MAINSITE $PGENISUPPORT $GMAKE $PKG_INFO
-	    $PORTSDIR $VARRUN $RCDIR $MYSQL $DBNAME
-	    $PROJROOT $PROTOUSER $WAP
-	    $SQL_UPDATE_MAJOR_REVISION $INSTALL_UPDATE_MAJOR_REVISION
-	    $HAVE_XERCES);
+use vars qw(@EXPORT $TOP_SRCDIR $TOP_OBJDIR 
+	    $SQL_UPDATE_MAJOR_REVISION $INSTALL_UPDATE_MAJOR_REVISION 
+	    $MAGIC_TESTBED_VERSION $MAGIC_TESTBED_START $MAGIC_TESTBED_END);
 
-@EXPORT = qw($TOP_OBJDIR $TOP_SRCDIR
-	     $TBROOT $LOGDIR $MAINSITE $PGENISUPPORT $GMAKE $PKG_INFO
-	     $PORTSDIR $VARRUN $RCDIR $MYSQL $DBNAME
-	     $PROJROOT $PROTOUSER $WAP
+@EXPORT = qw($TOP_SRCDIR $TOP_OBJDIR
 	     $SQL_UPDATE_MAJOR_REVISION $INSTALL_UPDATE_MAJOR_REVISION
-	     $HAVE_XERCES);
-
-# Configure variables
-
-$TBROOT        = "@prefix@";
-$TOP_SRCDIR    = "@top_srcdir@";
-$LOGDIR        = "$TBROOT/log";
-$MAINSITE      = @TBMAINSITE@;
-$PGENISUPPORT  = @PROTOGENI_SUPPORT@;
-$GMAKE         = "/usr/local/bin/gmake";
-$PKG_INFO      = "/usr/sbin/pkg_info";
-$WAP           = "$TBROOT/sbin/withadminprivs";
-$PORTSDIR      = "/usr/ports";
-$VARRUN        = "/var/run";
-$RCDIR         = "/usr/local/etc/rc.d";
-$PROJROOT      = "@PROJROOT_DIR@";
-$PROTOUSER     = "elabman";
-
-$DBNAME        = "@TBDBNAME@";
-$MYSQL         = "/usr/local/bin/mysql";
-$HAVE_XERCES   = "@HAVE_XERCES@";
+	     $MAGIC_TESTBED_VERSION $MAGIC_TESTBED_START $MAGIC_TESTBED_END);
 
 # Change these if the major numbers in sql/updates or install/updates
 # are changed.
 $SQL_UPDATE_MAJOR_REVISION	= 4;
 $INSTALL_UPDATE_MAJOR_REVISION	= 5;
+
+# Configure vars
+$TOP_SRCDIR	= "@top_srcdir@";
 
 #
 # Make sure that output gets printed right away
@@ -57,9 +34,9 @@ $| = 1;
 #
 # Magic string that shows up in files already edited 
 #
-my $MAGIC_TESTBED_VERSION = $INSTALL_UPDATE_MAJOR_REVISION + ".0";
-my $MAGIC_TESTBED_START   = "Added by Emulab - Version: ";
-my $MAGIC_TESTBED_END     = "End of Emulab added section";
+$MAGIC_TESTBED_VERSION = $INSTALL_UPDATE_MAJOR_REVISION + ".0";
+$MAGIC_TESTBED_START   = "Added by Emulab - Version: ";
+$MAGIC_TESTBED_END     = "End of Emulab added section";
 
 sub MAGIC_TESTBED_START { $MAGIC_TESTBED_START . $MAGIC_TESTBED_VERSION; }
 sub MAGIC_TESTBED_END   { $MAGIC_TESTBED_END; }
@@ -69,6 +46,7 @@ my $updatemode = 0;
 
 # Used by update-install to bump the version number.
 sub SET_TESTBED_VERSION($)  { $updatemode = $MAGIC_TESTBED_VERSION = $_[0]; }
+
 
 # Set by update-install.
 my $impotent   = 0;
@@ -184,7 +162,7 @@ sub Phase($$$) {
 	    $$parentNonSkipped++;
 	    $libinstall::phaseResults{$name} = $_;
 	    $die = 1;
-	    $message = "Installation failed: $libinstall::reason";
+	    $message = "$libinstall::reason";
 	    if ($isSubPhase) {
 		#
 		# Propagate failure up the tree
@@ -281,7 +259,7 @@ sub Phase($$$) {
     # If we decided that we need to die, do that now
     #
     if ($die) {
-	print "\n##### Installation failed in phase $name. The error was:\n";
+	print "\n##### Installation failed in phase $name:\n";
 	print "$message\n";
 	PrintPhaseTrace();
 	PrintLastOutput();
@@ -426,7 +404,7 @@ sub DoneIfIdentical($$) {
     }
     system("cmp -s $filename1 $filename2");
     if (! $?) {
-	PhaseSkip("Files $filename1 and $filename2 are identical");
+	PhaseSkip("Files has not changed");
     }
 }
 
@@ -462,6 +440,52 @@ sub BackUpFileFatal($)
 
     ExecQuietFatal("/bin/cp -p $filename $backup")
 	if (!$impotent);
+
+    # Update the comment.
+    $libinstall::reason = "Backed up to $backup";
+}
+
+#
+# Delete a file or fail.
+#
+sub DeleteFileFatal($)
+{
+    my ($filename) = @_;
+
+    PhaseSucceed("Already deleted")
+	if (! -e $filename);
+
+    ExecQuietFatal("/bin/rm -f $filename")
+	if (!$impotent);
+
+    # Update the comment.
+    $libinstall::reason = "Deleted $filename";
+}
+
+#
+# Rename a directory or fail. 
+#
+sub BackupDirectoryFatal($)
+{
+    my ($path) = @_;
+    my $suffix = time();
+    my $backup = $path . "-" . $suffix;
+
+    PhaseFail("$path does not exist")
+	if (! -e $path);
+
+    if (-e $backup) {
+	sleep(1);
+	$backup = $path . "-" . time();
+	PhaseFail("$backup already exists")
+	    if (-e $backup);
+    }
+
+    ExecQuietFatal("rsync -a $path/ $backup")
+	if (!$impotent);
+    
+    # Update the comment.
+    $libinstall::reason = "Backed up to $backup";
 }
 
 #
@@ -737,7 +761,7 @@ sub GetPackage($$) {
 # Print out the phase stack that got us here
 #
 sub PrintPhaseTrace() {
-    print "-------------------------------------------------- Phase Stack\n";
+    print "-------------------- Phase Stack ----------------------------\n";
     my @tmpphase = @libinstall::phasestack;
     my @tmpdescr = @libinstall::descrstack;
     my ($phase, $descr);
@@ -769,6 +793,150 @@ sub GenSecretKey()
     my $key=`/bin/dd if=/dev/urandom count=128 bs=1 2> /dev/null | /sbin/md5`;
     chomp($key);
     return $key;
+}
+
+sub EscapeShellArg($)
+{
+    my ($str) = @_;
+    my @chars  = split('', $str);
+    my $result = "";
+
+    foreach my $ch (@chars) {
+        if ($ch eq '\'') {
+            $result = $result . "\'\\\'";
+	}
+	$result = $result . "$ch";
+    }
+    return "'$result'";
+}
+
+#
+# Update a file. The idea here is to comment out particular lines, as
+# described by the patterns, and then add the new lines.
+#
+# Returns undef if it succeeds, or an error string if it fails.
+#
+sub UpdateFileFatal($$@)
+{
+    my ($filename, $patterns, @lines) = @_;
+    my $old = "";
+    my $new = "";
+
+    if (! -e $filename) {
+	PhaseFail("Bad filename passed to UpdateFile");
+    }
+    open(FH,$filename) or
+	PhaseFail("Cannot open $filename for reading");
+    while (<FH>) {
+	$old .= $_;
+
+	foreach my $pat (@$patterns) {
+	    if ($_ =~ $pat) {
+		# XXX Deal with other file types (different comment char)
+		$new .= '# ';
+		last;
+	    }
+	}
+	$new .= $_;
+      pass:
+    }
+    close(FH);
+    PhaseSkip("No changes made")
+	if ($old eq $new);
+
+    # Stash old copy.
+    BackUpFileFatal($filename);
+    DeleteFileFatal($filename);
+    # and create new version.
+    CreateFileFatal($filename, $new . join("\n", @lines));
+    return undef;
+}
+
+#
+# Check to see if the phase is already done, as evidenced by the existence of
+# the *exact* text block in the file.
+#
+sub DoneIfUpdated($@)
+{
+    my ($filename, @lines) = @_;
+    my $block   = join("\n", @lines);
+
+    if (! -e $filename) {
+	PhaseFail("No such file $filename");
+    }
+    open(FH, $filename) or
+	PhaseFail("Could not open $filename");
+    local $/;
+    my $content = <FH>;
+    close(FH);
+
+    PhaseSkip("Already updated")
+	if ($content =~ /^($block)$/m);
+}
+
+#
+# Update a file by doing the equivalent of query/replace.
+#
+# Returns undef if it succeeds, or an error string if it fails.
+#
+sub QueryReplaceFileFatal($$)
+{
+    my ($filename, $replacements) = @_;
+    my $old = "";
+    my $new = "";
+
+    if (! -e $filename) {
+	PhaseFail("Bad filename passed to UpdateFile");
+    }
+    open(FH,$filename) or
+	PhaseFail("Cannot open $filename for reading");
+    while (<FH>) {
+	$old .= $_;
+
+	foreach my $ref (@$replacements) {
+	    my ($pat,$repl) = @$ref;
+	    
+	    if ($_ =~ $pat) {
+		$_ =~ s/$pat/$repl/ee;
+		last;
+	    }
+	}
+	$new .= $_;
+      pass:
+    }
+    close(FH);
+    PhaseSkip("No changes made")
+	if ($old eq $new);
+
+    # Stash old copy.
+    BackUpFileFatal($filename);
+    DeleteFileFatal($filename);
+    # and create new version.
+    CreateFileFatal($filename, $new);
+    return undef;
+}
+
+#
+# Get the subject of a certificate, broken into the parts.
+#
+sub ParseCertificate($)
+{
+    my ($filename) = @_;
+    my %results = ();
+
+    if (! -e $filename) {
+	return undef;
+    }
+    my $subject = `openssl x509 -subject -noout -in $filename`;
+    return undef
+	if ($?);
+    chomp($subject);
+    my @parts = split('/', $subject);
+    foreach my $part (@parts) {
+	my ($key,$val) = split('=', $part);
+	$results{$key} = $val;
+    }
+    return \%results;
 }
 
 1;

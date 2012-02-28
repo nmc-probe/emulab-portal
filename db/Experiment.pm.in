@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Experiment;
@@ -17,6 +17,7 @@ use libdb;
 use EmulabConstants;
 use libtestbed;
 use Node;
+use emutil;
 use Logfile;
 use English;
 use Data::Dumper;
@@ -34,7 +35,9 @@ use vars qw($EXPT_PRELOAD $EXPT_START $EXPT_SWAPIN $EXPT_SWAPUPDATE
 	    @EXPORT_OK
 	    $TB $BOSSNODE $CONTROL $TBOPS $PROJROOT $STAMPS $TBBASE  
 	    $TEVC $DBCONTROL $RSYNC $MKEXPDIR $TBPRERUN $TBSWAP   
-	    $TBREPORT $TBEND $DU $MD5);
+	    $TBREPORT $TBEND $DU $MD5
+	    $EXPT_ACCESS_READINFO $EXPT_ACCESS_MODIFY $EXPT_ACCESS_DESTROY
+	    $EXPT_ACCESS_UPDATE $EXPT_ACCESS_MIN $EXPT_ACCESS_MAX);
 	  
 # Configure variables
 $TB	     = "@prefix@";
@@ -90,6 +93,14 @@ $EXPT_SWAPOUT		= TBDB_STATS_SWAPOUT();
 $EXPT_SWAPMOD		= TBDB_STATS_SWAPMODIFY();
 $EXPT_SWAPUPDATE	= TBDB_STATS_SWAPUPDATE();
 
+# Experiment Access.
+$EXPT_ACCESS_READINFO   = TB_EXPT_READINFO();
+$EXPT_ACCESS_MODIFY     = TB_EXPT_MODIFY();
+$EXPT_ACCESS_DESTROY    = TB_EXPT_DESTROY();
+$EXPT_ACCESS_UPDATE     = TB_EXPT_UPDATE();
+$EXPT_ACCESS_MIN	= $EXPT_ACCESS_READINFO;
+$EXPT_ACCESS_MAX	= $EXPT_ACCESS_UPDATE;
+
 # Other flags.
 $EXPT_FLAGS_LOCALONLY   = 0x01;
 $EXPT_FLAGS_NAMESONLY   = 0x02;
@@ -121,6 +132,8 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "virt_routes",
 		   "virt_vtypes",
 		   "virt_programs",
+		   "virt_node_attributes",
+		   "virt_node_disks",
 		   "virt_node_desires",
 		   "virt_node_startloc",
 		   "virt_simnode_attributes",
@@ -773,11 +786,16 @@ sub Delete($;$)
 	print "*** WARNING: Not able to remove $userdir\n";
 	print "             Someone will need to do this by hand.\n";
 
+	# Try to move the directory.
+	my $moved = (system("/bin/mv -f $userdir ${userdir}.$$") == 0);
+
 	# NFS errors usually the result. Sometimes its cause there is
 	# someone in the directory, so its being held open.
         libtestbed::SENDMAIL($TBOPS,
 			     "Experiment::Delete: Could not remove directory",
-			     "Could not remove $userdir.\n".
+			     "Could not remove $userdir. ".
+			     ($moved ?
+			      "Renamed to ${userdir}.$$ ..." : "") . "\n" .
 			     "Someone will need to do this by hand.\n");
     }
     if (system("/bin/rm -rf $workdir")) {
@@ -1106,7 +1124,7 @@ sub Update($$)
     my $eid = $self->eid();
 
     my $query = "update experiments set ".
-	join(",", map("$_='" . $argref->{$_} . "'", keys(%{$argref})));
+	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
 
     $query .= " where pid='$pid' and eid='$eid'";
 
@@ -1339,7 +1357,8 @@ sub TableUpdate($$$;$)
 	if (! ref($self));
 
     if (ref($sets) eq "HASH") {
-	$sets = join(",", map("$_='" . $sets->{$_} . "'", keys(%{$sets})));
+	$sets = join(",",
+		     map("$_=" . DBQuoteSpecial($sets->{$_}), keys(%{$sets})));
     }
     my $exptidx = $self->idx();
 
@@ -1368,8 +1387,8 @@ sub AccessCheck($$$)
     return 0
 	if (! ref($self));
 
-    if ($access_type < TB_EXPT_MIN() ||
-	$access_type > TB_EXPT_MAX()) {
+    if ($access_type < $EXPT_ACCESS_MIN ||
+	$access_type > $EXPT_ACCESS_MAX) {
 	die("*** Invalid access type: $access_type!");
     }
 
@@ -1390,7 +1409,7 @@ sub AccessCheck($$$)
     #
     my $mintrust;
     
-    if ($access_type == TB_EXPT_READINFO()) {
+    if ($access_type == $EXPT_ACCESS_READINFO) {
 	$mintrust = PROJMEMBERTRUST_USER();
     }
     else {
@@ -2014,7 +2033,7 @@ sub PreSwap($$$$)
 
     # Must be a real reference. 
     return -1
-	if (! (ref($self) && ref($swapper)));
+	if (! ref($self) && ref($swapper));
 
     my $exptidx  = $self->idx();
     my $rsrcidx  = $self->rsrcidx();
@@ -4458,6 +4477,70 @@ sub BindNonLocalUser($$$$$$)
     return 0;
 }
 
+sub HasNonLocalUsers($)
+{
+    my ($self) = @_;
+    return 0
+	if (! ref($self));
+
+    my $exptidx    = $self->idx();
+    my $query_result =
+	DBQueryWarn("select count(*) from nonlocal_user_accounts ".
+		    "where exptidx='$exptidx'");
+    return 0
+	if (!$query_result);
+    
+    if ($query_result->numrows) {
+	my ($count) = $query_result->fetchrow_array();
+	return $count > 0;
+    } else {
+	return 0;
+    }
+}
+
+#
+# Nonlocal users for this experiment.
+#
+sub NonLocalUsers($$)
+{
+    my ($self, $pref) = @_;
+    my @result = ();
+
+    # Must be a real reference.
+    return -1
+	if (!ref($self));
+
+    my $idx = $self->idx();
+
+    #
+    # Need to find the pubkeys, so need a list of current bindings.
+    #
+    my $query_result =
+	DBQueryWarn("select uid,uid_idx,urn from nonlocal_user_accounts ".
+		    "where exptidx='$idx'");
+    return -1
+	if (!$query_result);
+
+    while (my ($uid, $uid_idx, $urn) = $query_result->fetchrow_array()) {
+	my $pubkeys_result =
+	    DBQueryWarn("select pubkey from nonlocal_user_pubkeys ".
+			"where uid_idx='$uid_idx'");
+	return -1
+	    if (!$pubkeys_result);
+
+	my @pubkeys = ();
+	while (my ($pubkey) = $pubkeys_result->fetchrow_array()) {
+	    push(@pubkeys, {'type'   => 'ssh',
+			    'key'    => $pubkey});
+	}
+	push(@result, {"urn"      => $urn,
+		       "login"    => $uid,
+		       "keys"     => \@pubkeys});
+    }
+    $$pref = \@result;
+    return 0;
+}
+
 #
 # Return physical interfaces for a link in an experiment.
 #
@@ -4862,6 +4945,138 @@ sub ReserveSharedBandwidth($;$$)
   bad:
     DBQueryWarn("unlock tables");
     return -1;
+}
+
+#
+# Get/Set ElabInElab attributes.
+#
+sub GetElabInElabAttrs($)
+{
+    my ($self) = @_;
+    my $idx = $self->idx();
+    my $foo = {};
+
+    my $query_result =
+	DBQueryWarn("select * from elabinelab_attributes ".
+		    "where exptidx='$idx'");
+
+    return undef
+	if (!$query_result);
+    return $foo
+	if (!$query_result->num_rows);
+
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $key   = $row->{'attrkey'};
+	my $value = $row->{'attrvalue'};
+	my $role  = $row->{'role'};
+	my $order = $row->{'ordering'};
+
+	if (!exists($foo->{$key})) {
+	    $foo->{$key} = {};
+	}
+	if (!exists($foo->{$key}->{$role})) {
+	    $foo->{$key}->{$role} = [];
+	}
+	$foo->{$key}->{$role}->[$order] = $value;
+    }
+    return $foo;
+}
+
+sub SetElabInElabAttr($$$$;$)
+{
+    my ($self, $role, $attrkey, $attrvalue, $ordering) = @_;
+    my $idx = $self->idx();
+    my $pid = $self->pid();
+    my $eid = $self->eid();
+
+    $ordering = 0
+	if (!defined($ordering));
+
+    my $safe_value = DBQuoteSpecial($attrvalue);
+
+    DBQueryWarn("replace into elabinelab_attributes set ".
+		"  pid='$pid', eid='$eid', exptidx='$idx', ".
+		"  role='$role', attrkey='$attrkey', ".
+		"  attrvalue=$safe_value, ordering='$ordering'")
+	or return -1;
+
+    return 0;
+}
+
+#
+# Check to see if an eid is valid.
+#
+sub ValidEID($$)
+{
+    my ($class, $eid) = @_;
+
+    return TBcheck_dbslot($eid, "experiments", "eid",
+			  TBDB_CHECKDBSLOT_WARN()|
+			  TBDB_CHECKDBSLOT_ERROR());
+}
+
+#
+# Mark as nonlocal.
+#
+sub MarkNonlocal($$$$)
+{
+    my ($self, $nonlocal_id, $nonlocal_user_id, $nonlocal_type) = @_;
+
+    my $args = {"nonlocal_id"       => $nonlocal_id,
+		"nonlocal_user_id"  => $nonlocal_user_id,
+		"nonlocal_type"     => $nonlocal_type};
+
+    return -1
+	if ($self->Update($args));
+    return -1
+	if ($self->TableUpdate("experiment_stats", $args));
+
+    return 0;
+}
+
+#
+# Lookup a key/value pair from the virt_node_attributes table.
+#
+sub GetVirtNodeAttribute($$$$)
+{
+    my ($self, $vname, $key, $pval) = @_;
+    $$pval = undef;
+
+    my $exptidx  = $self->idx();
+    my $safe_key = DBQuoteSpecial($key);
+
+    my $query_result =
+	DBQueryWarn("select attrvalue from virt_node_attributes ".
+		    "where exptidx='$exptidx' and vname='$vname' and ".
+		    "      attrkey=$safe_key");
+    return -1
+	if (!defined($query_result));
+    return 0
+	if (! $query_result->numrows);
+
+    my ($val) = $query_result->fetchrow_array();
+    $$pval = $val;
+    return 0;
+}
+
+#
+# Mark all nodes for (account) update.
+#
+sub MarkNodesForUpdate($)
+{
+    my ($self) = @_;
+
+    my @nodelist = $self->NodeList(0, 1);
+    return 0
+	if (! @nodelist);
+
+    foreach my $node (@nodelist) {
+	next
+	    if ($node->erole() eq TBDB_RSRVROLE_NODE());
+
+	$node->MarkForUpdate();
+    }
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

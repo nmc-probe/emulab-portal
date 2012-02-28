@@ -71,8 +71,12 @@ Firewall instproc set-type {targ} {
 	    set osid "FW-IPFW2"
 	    set cmdline "/kernel.fw"
 	}
-	"ipfw2" -
-	"ipchains" {
+	"iptables" -
+	"iptables-vlan" {
+	    set type $targ
+	    set osid "FW-IPTABLES"
+	}
+	"ipfw2"	{
 	    perror "\[set-type] firewall type $targ not yet implemented"
 	}
 	default {
