@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -21,357 +21,306 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				   xmlns:s="library://ns.adobe.com/flex/spark" 
 				   xmlns:mx="library://ns.adobe.com/flex/mx"
 				   width="100%" height="100%"
-				   backgroundColor="#F6F6F6" borderStyle="solid" borderColor="#CDC2C2"
-				   dragEnter="dragEnterHandler(event)"
-				   dragDrop="dragDropHandler(event)"
-				   mouseMove="mouseMoveHandler(event)"
-				   mouseUp="mouseUpHandler(event)">
+				   borderStyle="solid"
+				   styleName="normalCanvasStyle"
+				   implements="com.flack.geni.display.slicer.IComponentsArea"
+				   dragEnter="bordercontainer1_dragEnterHandler(event)"
+				   dragDrop="bordercontainer1_dragDropHandler(event)"
+				   mouseMove="bordercontainer1_mouseMoveHandler(event)"
+				   mouseDown="bordercontainer1_mouseDownHandler(event)"
+				   mouseUp="bordercontainer1_mouseUpHandler(event)"
+				   resize="bordercontainer1_resizeHandler(event)">
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		
+		.normalCanvasStyle {
+			borderColor: #CDC2C2;
+			backgroundColor: #F6F6F6;
+		}
+		
+		.inprogressCanvasStyle {
+			borderColor: #B2B300;
+			backgroundColor: #FEFF80;
+		}
+		
+		.failedCanvasStyle {
+			borderColor: red;
+			backgroundColor: #FFD9D9;
+		}
+		
+		.pausedCanvasStyle {
+			borderColor: FF6600;
+			backgroundColor: #FEB380;
+		}
+		
+		.validCanvasStyle {
+			borderColor: green;
+			backgroundColor: #CCFFCC;
+		}
+		
+	</fx:Style>
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.display.areas.SliceArea;
+			import com.flack.geni.resources.SliverTypes;
+			import com.flack.geni.resources.physical.PhysicalNode;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virtual.Sliver;
+			import com.flack.geni.resources.virtual.VirtualLink;
+			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.utils.ColorUtil;
+			
+			import flash.filters.DropShadowFilter;
+			import flash.filters.GlowFilter;
+			
 			import mx.controls.Alert;
+			import mx.core.UIComponent;
 			import mx.events.DragEvent;
+			import mx.events.ResizeEvent;
 			import mx.managers.DragManager;
 			
-			import protogeni.display.mapping.GeniMapMarker;
-			import protogeni.resources.GeniManager;
-			import protogeni.resources.PhysicalNode;
-			import protogeni.resources.Slice;
-			import protogeni.resources.Sliver;
-			import protogeni.resources.SliverCollection;
-			import protogeni.resources.SliverTypes;
-			import protogeni.resources.VirtualLink;
-			import protogeni.resources.VirtualLinkCollection;
-			import protogeni.resources.VirtualNode;
-			import protogeni.resources.VirtualNodeCollection;
+			import spark.components.List;
 			
-			import spark.components.List; 
+			public var host:SliceArea;
+			
+			private var editable:Boolean = true;
 			
 			[Bindable]
-			public var slice:Slice;
+			private var slice:Slice;
+			public function get SliceEditing():Slice
+			{
+				return slice;
+			}
+			public function set SliceEditing(s:Slice):void
+			{
+				slice = s;
+			}
 			
-			public var startNode:SliceNode = null;
-			public var currentNode:SliceNode = null;
-			public var tempLink:SliceLink;
-			public var hostWindow:SliceWindow;
-			
-			public var allNodes:SliceNodeCollection = new SliceNodeCollection();
-			public var allLinks:SliceLinkCollection = new SliceLinkCollection();
-			
-			private var edited:Boolean = false;
+			public var allNodes:CanvasNodeCollection = new CanvasNodeCollection();
+			public var allLinks:CanvasLinkCollection = new CanvasLinkCollection();
 			
 			/**
 			 * Loads a slice into the canvas
 			 */
 			public function load(newSlice:Slice):void
 			{
-				this.clear();
+				clear();
+				slice = newSlice;
 				
-				slice = newSlice.clone(false);
-				
-				// Nodes
-				for each(var sliver:Sliver in slice.slivers.collection)
-				{
-					for each(var n:VirtualNode in sliver.nodes.collection)
-						this.addVirtualNodeToCanvas(n);
-				}
-				
-				// Links
-				for each(var s:Sliver in slice.slivers.collection)
-				{
-					for each(var l:VirtualLink in s.links.collection)
-						this.addVirtualLinkToCanvas(l);
-				}
-				
-				edited = false;
+				updateCanvas();
 			}
 			
 			/**
-			 * Makes sure everything is up to date, adding or removing new things, etc.
+			 * Remove all of the resources except the slice
 			 */
-			public function refreshSlice():void
+			public function clear():void
 			{
-				redrawAllLinks();
-				
-				var unaddedNodes:VirtualNodeCollection = slice.slivers.VirtualNodes
-				
-				// Remove/replace old nodes
-				for(var i:int = 0; i < this.allNodes.length; i++)
+				removeAllElements();
+				allNodes = new CanvasNodeCollection();
+				allLinks = new CanvasLinkCollection();
+				styleName = "normalCanvasStyle";
+				selectedItem = null;
+				draggingNode = null;
+				drawingLink = false;
+				dropItem = null;
+				previewLink = null;
+				startNode = null;
+				endItem = null;
+				hoveredOverItem = null;
+			}
+			
+			private function updateCanvas(positionOnly:Boolean = false):void
+			{
+				var i:int;
+				// Remove stuff which doesn't exist at all anymore
+				// Make sure existing point to the correct ones
+				// Update old
+				for (i = 0; i < allNodes.length; i++)
 				{
-					var sn:SliceNode = allNodes[i];
-					var vn:VirtualNode = slice.slivers.getNodeWithClientId(sn.lastId);
-					if(vn == null)
+					var existingNode:CanvasNode = allNodes.collection[i];
+					if(!slice.nodes.contains(existingNode.Node)
+						&& slice.nodes.getByClientId(existingNode.Node.clientId) == null)
 					{
-						this.removeElement(sn);
-						allNodes.removeItemAt(i);
+						existingNode.removeFromCanvas();
+						allNodes.remove(existingNode);
 						i--;
 					}
 					else
 					{
-						for(var j:int = 0; j < unaddedNodes.length; j++)
-						{
-							if(unaddedNodes.collection[j].clientId == sn.lastId)
-							{
-								unaddedNodes.remove(unaddedNodes.collection[j]);
-								break;
-							}
-						}
-						//unadded.removeItemAt(unadded.getItemIndex(vn));
-						sn.setNode(slice.slivers.getNodeWithClientId(sn.lastId));
-						sn.resetToStatus();
+						existingNode.editable = editable;
+						if(slice.nodes.contains(existingNode.Node))
+							existingNode.Node = existingNode.Node;
+						else
+							existingNode.Node = slice.nodes.getByClientId(existingNode.Node.clientId);
 					}
 				}
-				
 				// Add new nodes
-				for each(var unaddedNode:VirtualNode in unaddedNodes.collection)
-					this.addVirtualNodeToCanvas(unaddedNode);
-				
-				var unaddedLinks:VirtualLinkCollection = slice.slivers.VirtualLinks;
-				
-				// Remove/replace old links
-				for(i = 0; i < this.allLinks.length; i++)
+				for each(var node:VirtualNode in slice.nodes.collection)
 				{
-					var sl:SliceLink = allLinks[i];
-					var vl:VirtualLink = slice.slivers.getLinkWithClientId(sl.lastId);
-					if(vl == null)
+					if(!allNodes.VirtualNodes.contains(node))
+						addVirtualNodeToCanvas(node);
+				}
+				
+				// Remove links no longer existing
+				// Update existing links
+				for(i = 0; i < allLinks.length; i++)
+				{
+					var existingLink:CanvasLink = allLinks.collection[i];
+					var newlyCreatedLink:VirtualLink = slice.links.getByClientId(existingLink.link.clientId);
+					if(!slice.links.contains(existingLink.link) && newlyCreatedLink == null)
 					{
-						this.removeElement(sl.group);
-						this.removeElement(sl);
-						allLinks.removeItemAt(i);
+						existingLink.removeFromCanvas();
+						allLinks.remove(existingLink);
 						i--;
 					}
 					else
 					{
-						for(j = 0; j < unaddedLinks.length; j++)
+						if(slice.links.contains(existingLink.link))
 						{
-							if(unaddedLinks.collection[j].clientId == sl.lastId)
-							{
-								unaddedLinks.remove(unaddedLinks.collection[j]);
-								break;
-							}
+							if(positionOnly)
+								existingLink.drawEstablished();
+							else
+								existingLink.establishFromExisting(existingLink.link);
 						}
-						//unadded.removeItemAt(unadded.getItemIndex(vl));
-						sl.setLink(slice.slivers.getLinkWithClientId(sl.lastId));
-						sl.resetToStatus();
+						else
+							existingLink.establishFromExisting(newlyCreatedLink);
+						existingLink.setEditable(editable);
 					}
 				}
+				// Add new links
+				for each(var link:VirtualLink in slice.links.collection)
+				{
+					if(!allLinks.VirtualLinks.contains(link))
+						addVirtualLinkToCanvas(link);
+				}
 				
-				// Add new
-				for each(var unaddedLink:VirtualLink in unaddedLinks.collection)
-					this.addVirtualLinkToCanvas(unaddedLink);
+				if(slice.useInputRspecInfo.version > slice.nodes.Managers.MaximumRspecVersion)
+					slice.useInputRspecInfo.version = slice.nodes.Managers.MaximumRspecVersion;
 				
-				//hostWindow.loadNodes();
+				switch(slice.Status)
+				{
+					case Sliver.STATUS_READY:
+					//case Sliver.EMULAB_ACTIVE:
+						styleName = "validCanvasStyle";
+						break;
+					case Sliver.STATUS_FAILED:
+					//case Sliver.EMULAB_TERMINATED:
+						styleName = "failedCanvasStyle";
+						break;
+					case Sliver.STATUS_STOPPED:
+					//case Sliver.EMULAB_SWAPPED:
+						styleName = "pausedCanvasStyle";
+						break;
+					case Sliver.STATUS_CHANGING:
+					case Sliver.STATUS_NOTREADY:
+					case Sliver.STATUS_UNKNOWN:
+					case Sliver.STATUS_MIXED:
+					//case Sliver.EMULAB_ACTIVATING:
+					//case Sliver.EMULAB_SWAPPING:
+					//case Sliver.EMULAB_TESTING:
+						styleName = "inprogressCanvasStyle";
+						break;
+					default:
+						styleName = "normalCanvasStyle";
+				}
 			}
 			
-			/**
-			 * Refreshes the canvas based on the slice's status
-			 */
-			public function refreshStatus(useSlice:Slice):void
+			public function updateInterface():void
 			{
-				var refreshSlice:Slice = useSlice;
-				if(refreshSlice == null && this.slice != null)
-					refreshSlice = this.slice;
-				if(refreshSlice != null && !refreshSlice.slivers.Processing) {
-					var sliceStatus:String = refreshSlice.slivers.Status;
-					if(Main.geniHandler.requestHandler.isSliceSubmitting(refreshSlice))
-						sliceStatus = Sliver.STATUS_CHANGING;
-					switch(sliceStatus)
-					{
-						case Sliver.STATUS_READY:
-							this.setStyle("borderColor", "green");
-							this.setStyle("backgroundColor", "#CCFFCC");
-							break;
-						case Sliver.STATUS_FAILED:
-							this.setStyle("borderColor", "red");
-							this.setStyle("backgroundColor", "#FFD9D9");
-							break;
-						case Sliver.STATUS_CHANGING:
-						case Sliver.STATUS_NOTREADY:
-						case Sliver.STATUS_UNKNOWN:
-						case Sliver.STATUS_MIXED:
-						case Sliver.STATUS_STOPPED:
-							this.setStyle("borderColor", "#FF7F00");
-							this.setStyle("backgroundColor", "#FFE0C1");
-							break;
-						default:
-							this.setStyle("borderColor", "#CDC2C2");
-							this.setStyle("backgroundColor", "#F6F6F6");
-					}
-				}
+				updateCanvas();
 			}
 			
 			public function clearStatus():void
 			{
-				this.setStyle("borderColor", "#CDC2C2");
-				this.setStyle("backgroundColor", "#F6F6F6");
+				styleName = "normalCanvasStyle";
 				
-				for each(var sn:SliceNode in this.allNodes)
+				for each(var sn:CanvasNode in allNodes.collection)
 					sn.clearStatus();
 					
-				for each(var sl:SliceLink in this.allLinks)
-					sl.clearStatus();
-			}
-			
-			/**
-			 * Allow the drag-drop if I know what the data being dragged is
-			 */
-			private  function dragEnterHandler(event:DragEvent):void {
-				var selectedNode:PhysicalNode = null;
-				if(event.dragInitiator is List && (event.dragInitiator as List).selectedItem is PhysicalNode)
-					selectedNode = (event.dragInitiator as List).selectedItem;
-				else if(event.dragSource.hasFormat("physicalnode"))
-					selectedNode = event.dragSource.dataForFormat("physicalnode") as PhysicalNode;
-				if ((selectedNode != null
-						&& selectedNode.available
-						&& (selectedNode.subNodeOf == null ||
-							selectedNode.subNodeOf.available)) ||
-					event.dragSource.hasFormat("canvas") ||
-					event.dragSource.hasFormat("marker") ||
-					event.dragSource.hasFormat("manager") ||
-					event.dragSource.hasFormat("virtualnode"))
-				{
-					if(allNodes.containsPhysicalNode(selectedNode))
-					{
-						var sn:SliceNode = allNodes.getForPhysicalNode(selectedNode);
-						if(sn.node.physicalNode != null && sn.node.physicalNode.virtualizationType.length == 0)
-							return;
-					}
-					DragManager.acceptDragDrop(SliceCanvas(event.currentTarget));
-				}
-			}
-			
-			/**
-			 * Do the drag-drop action
-			 */
-			private function dragDropHandler(event:DragEvent):void {
-				// Handle dragging from lists
-				if(event.dragInitiator is List)
-				{
-					if(List(event.dragInitiator).selectedItem is PhysicalNode)
-					{
-						addPhysicalNode(List(event.dragInitiator).selectedItem as PhysicalNode,
-							SliceCanvas(event.currentTarget).mouseX,
-							SliceCanvas(event.currentTarget).mouseY);
-						
-					} else if(List(event.dragInitiator).selectedItem is VirtualNode) {
-						addBasicCloneOfVirtualNode(List(event.dragInitiator).selectedItem as VirtualNode,
-							SliceCanvas(event.currentTarget).mouseX,
-							SliceCanvas(event.currentTarget).mouseY);
-					}
-				}
-				else if(event.dragSource.hasFormat("marker"))
-				{
-					var dragMarker:GeniMapMarker = event.dragSource.dataForFormat('marker') as GeniMapMarker;
-					this.hostWindow.setSidePane(SliceWindow.VIEW_COLLECTION, dragMarker.showGroups.GetAll());
-				} else if(event.dragSource.hasFormat("physicalnode")) {
-					addPhysicalNode(event.dragSource.dataForFormat('physicalnode') as PhysicalNode,
-						SliceCanvas(event.currentTarget).mouseX,
-						SliceCanvas(event.currentTarget).mouseY);
-				} else if(event.dragSource.hasFormat("virtualnode")) {
-					addBasicCloneOfVirtualNode(event.dragSource.dataForFormat('virtualnode') as VirtualNode,
-						SliceCanvas(event.currentTarget).mouseX,
-						SliceCanvas(event.currentTarget).mouseY);
-				} else if(event.dragSource.hasFormat("manager")) {
-					var dropManager:GeniManager = event.dragSource.dataForFormat('manager') as GeniManager;
-					if(dropManager.supportsExclusiveNodes) {
-						var exclusive:VirtualNode = new VirtualNode(null, true, SliverTypes.RAWPC);
-						exclusive.clientId = "Raw";
-						exclusive.manager = dropManager;
-						addBasicCloneOfVirtualNode(exclusive,
-							SliceCanvas(event.currentTarget).mouseX,
-							SliceCanvas(event.currentTarget).mouseY);
-					} else if(dropManager.supportsSharedNodes) {
-						var shared:VirtualNode = new VirtualNode(null, false, SliverTypes.EMULAB_OPENVZ);
-						shared.clientId = "Virtual";
-						shared.manager = dropManager;
-						addBasicCloneOfVirtualNode(shared,
-							SliceCanvas(event.currentTarget).mouseX,
-							SliceCanvas(event.currentTarget).mouseY);
-					} else {
-						this.hostWindow.setSidePane(SliceWindow.VIEW_MANAGER, dropManager);
-						Alert.show("This manager requires you to select specific resources. Please select from the list on the left or drag a marker from the map into the list to select a node at a specific location.");
-					}
-				}
-				
-				// Handle dragging old one
-				else if(this.contains(event.dragInitiator as DisplayObject))
-				{
-					SliceNode(event.dragInitiator).setLocation(SliceCanvas(event.currentTarget).mouseX - SliceNode(event.dragInitiator).startX,
-						SliceCanvas(event.currentTarget).mouseY - SliceNode(event.dragInitiator).startY);
-					redrawAllLinks();
-				}
+				for each(var cl:CanvasLink in allLinks.collection)
+					cl.clearStatus();
 			}
 			
 			/**
 			 * Removes a virtual node
 			 */
-			public function removeVirtualNode(virtualNode:VirtualNode):void
+			public function removeVirtualNode(node:VirtualNode):void
 			{
-				for each(var sn:SliceNode in this.allNodes)
+				for each(var sn:CanvasNode in this.allNodes.collection)
 				{
-					if(sn.node == virtualNode)
-						removeSliceNode(sn);
+					if(sn.Node == node)
+					{
+						removeCanvasNode(sn);
+						return;
+					}
 				}
 			}
 			
 			/**
 			 * Removes a slice node
 			 */
-			public function removeSliceNode(sliceNode:SliceNode):void
+			public function removeCanvasNode(sliceNode:CanvasNode):void
 			{
-				// Remove subnodes
-				for each(var sub:VirtualNode in sliceNode.node.subNodes.collection)
-					removeVirtualNode(sub);
+				slice.pushState();
+				slice.history.stateName = "Removed " + sliceNode.Node.clientId;
 				
-				// Remove links and any slivers the links may have used
-				while(sliceNode.links.length > 0)
-					(sliceNode.links[0] as SliceLink).removeLink();
+				sliceNode.Node.removeFromSlice();
+				updateCanvas();
 				
-				// Remove nodes
-				var s:Sliver;
-				for each(s in slice.slivers.collection) {
-					if(s.nodes.contains(sliceNode.node))
-						s.nodes.remove(sliceNode.node);
-				}
-				
-				// Remove empty slivers
-				for (var i:int = 0; i < slice.slivers.length; i++)
+				// Make sure everyone knows the slice history changed
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice
+				);
+			}
+			
+			public function removeVirtualLink(link:VirtualLink):void
+			{
+				for each(var cl:CanvasLink in this.allLinks.collection)
 				{
-					s = slice.slivers.collection[i];
-					var deleteSliver:Boolean = true;
-					for each(var n:VirtualNode in s.nodes.collection) {
-						if(n.manager == s.manager) {
-							deleteSliver = false;
-							break;
-						}
-					}
-					if(deleteSliver) {
-						slice.slivers.remove(s);
-						i--;
+					if(cl.link == link)
+					{
+						removeCanvasLink(cl);
+						return;
 					}
 				}
+			}
+			
+			public function removeCanvasLink(link:CanvasLink):void
+			{
+				slice.pushState();
+				slice.history.stateName = "Removed " + link.link.clientId;
 				
-				this.removeElement(sliceNode);
-				allNodes.removeItemAt(allNodes.getItemIndex(sliceNode));
-				//hostWindow.loadNodes();
-				edited = true;
+				link.link.removeFromSlice();
+				updateCanvas();
+				
+				// Make sure everyone knows the slice history changed
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice
+				);
 			}
 			
 			/**
 			 * Adds a virtual link to the canvas.  Nodes from the link should already be added prior to this call.  This is the method to create links from outside SliceCanvas.
 			 */
-			public function addVirtualLinkToCanvas(virtualLink:VirtualLink):SliceLink
+			public function addVirtualLinkToCanvas(virtualLink:VirtualLink):CanvasLink
 			{
-				if(this.allLinks.containsVirtualLink(virtualLink))
-					return this.allLinks.getForVirtualLink(virtualLink);
+				if(allLinks.VirtualLinks.contains(virtualLink))
+					return allLinks.getForVirtualLink(virtualLink);
 				
-				var sl:SliceLink = new SliceLink(this);
-				sl.establishFromExisting(virtualLink);
-				sl.drawEstablished();
-				this.addElement(sl);
+				var cl:CanvasLink = new CanvasLink(this);
+				cl.setEditable(editable);
+				addElement(cl);
+				allLinks.add(cl);
+				cl.establishFromExisting(virtualLink);
 				validateNow();
-				redrawAllLinks();
-				edited = true;
-				return sl;
+				return cl;
 			}
 			
 			/**
@@ -379,19 +328,81 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 * 
 			 * If outside of SliceCanvas, use addVirtualNode.
 			 */
-			public function addVirtualNodeToCanvas(virtualNode:VirtualNode, x:int = -1, y:int = -1):SliceNode
+			public function addVirtualNodeToCanvas(virtualNode:VirtualNode):CanvasNode
 			{
-				if(allNodes.containsVirtualNode(virtualNode))
+				if(allNodes.VirtualNodes.contains(virtualNode))
 					return allNodes.getForVirtualNode(virtualNode);
 				
-				var sn:SliceNode = new SliceNode();
-				sn.setNode(virtualNode);
-				if(x == -1 && y == -1 && locationCache[sn.node.clientId] != null) {
-					x = locationCache[sn.node.clientId].x;
-					y = locationCache[sn.node.clientId].y;
-				}
-				addSliceNode(sn, x, y);
+				var sn:CanvasNode = new CanvasNode();
+				sn.canvas = this;
+				sn.editable = editable;
+				allNodes.add(sn);
+				addElement(sn);
+				sn.Node = virtualNode;
+				validateNow();
 				return sn;
+			}
+			
+			/**
+			 * Does absolutely everything to add a physical node.  This is what should be called outside of SliceCanvas.
+			 */
+			public function addPhysicalNode(pn:PhysicalNode, x:int = -1, y:int = -1):void
+			{
+				if(!editable)
+				{
+					Alert.show("Canvas is not editable currently, most likely due to operations being performed");
+					return;
+				}
+				
+				if(!pn.available)
+					return;
+				if(pn.subNodeOf != null && !pn.subNodeOf.available)
+					return;
+				var existingNodes:VirtualNodeCollection = allNodes.VirtualNodes.getBoundTo(pn);
+				if(existingNodes.length > 0)
+				{
+					if(!existingNodes.collection[0].Vm)
+						return;
+				}
+				
+				// make sure this can happen...
+				var newVirtualNode:VirtualNode = new VirtualNode(slice,pn.manager as GeniManager);
+				newVirtualNode.Physical = pn;
+				newVirtualNode.flackInfo.unbound = false;
+				newVirtualNode.flackInfo.x = x;
+				newVirtualNode.flackInfo.y = y;
+				
+				slice.pushState();
+				
+				slice.history.stateName = "Added " + newVirtualNode.clientId;
+				slice.nodes.add(newVirtualNode);
+				
+				if(pn.subNodeOf != null)
+				{
+					var newSuperVirtualNode:VirtualNode = new VirtualNode(slice,pn.subNodeOf.manager as GeniManager);
+					newSuperVirtualNode.Physical = pn.subNodeOf;
+					newSuperVirtualNode.flackInfo.unbound = false;
+					newSuperVirtualNode.flackInfo.x = x == -1 ? -1 : x-40;
+					newSuperVirtualNode.flackInfo.y = y == -1 ? -1 : y-40;
+					newVirtualNode.superNode = newSuperVirtualNode;
+					if(newSuperVirtualNode.subNodes == null)
+						newSuperVirtualNode.subNodes = new VirtualNodeCollection();
+					newSuperVirtualNode.subNodes.add(newVirtualNode);
+					slice.nodes.add(newSuperVirtualNode);
+				}
+				
+				updateCanvas();
+				
+				// Make sure everyone knows the slice history changed
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice
+				);
+			}
+			
+			public function addCloneOf(virtualNode:VirtualNode):void
+			{
+				addBasicCloneOfVirtualNode(virtualNode);
 			}
 			
 			/**
@@ -399,246 +410,334 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 * 
 			 * If outside of SliceCanvas, use addVirtualNode.
 			 */
-			public function addBasicCloneOfVirtualNode(virtualNode:VirtualNode, x:int = -1, y:int = -1):SliceNode {
-				var nvn:VirtualNode = new VirtualNode(slice.getOrCreateForManager(virtualNode.manager), virtualNode.exclusive, virtualNode.sliverType);
-				nvn.clientId = slice.slivers.getUniqueVirtualNodeId(nvn);
-				return this.addVirtualNode(nvn, x, y);
-			}
-			
-			/**
-			 * Does absolutely everything to add a virtual node.  This is what should be called outside of SliceCanvas.
-			 */
-			public function addVirtualNode(sliceNode:VirtualNode, x:int = -1, y:int = -1):SliceNode
+			public function addBasicCloneOfVirtualNode(virtualNode:VirtualNode, x:int = -1, y:int = -1):void
 			{
-				// Don't duplicate
-				if(allNodes.containsVirtualNode(sliceNode))
-					return allNodes.getForVirtualNode(sliceNode);
-				
-				var sn:SliceNode = addVirtualNodeToCanvas(sliceNode, x, y);
-				sn.node.flackUnbound = true;
-				if(!sliceNode.sliver.nodes.contains(sliceNode))
-					sliceNode.sliver.nodes.add(sliceNode);
-				
-				// See if we need to connect to a parent node
-				if(sliceNode.superNode != null)
+				if(!editable)
 				{
-					if(!allNodes.containsVirtualNode(sliceNode.superNode))
-						sn.node.superNode = addVirtualNode(sliceNode.superNode, x + 40, y + 40).node;
-					else
-						sn.node.superNode = allNodes.getForVirtualNode(sliceNode.superNode).node;
-					sn.node.superNode.subNodes.add(sn.node);
-				} else if(sliceNode.physicalNode != null && sliceNode.physicalNode.subNodeOf != null)
-				{
-					if(!allNodes.containsPhysicalNode(sliceNode.physicalNode.subNodeOf))
-						sn.node.superNode = addPhysicalNode(sliceNode.physicalNode.subNodeOf, x + 40, y + 40).node;
-					else
-						sn.node.superNode = allNodes.getForPhysicalNode(sliceNode.physicalNode.subNodeOf).node;
-					sn.node.superNode.subNodes.add(sn.node);
-				}
-				
-				if(sliceNode.manager.inputRspecVersion < slice.useInputRspecVersion)
-					slice.useInputRspecVersion = sliceNode.manager.inputRspecVersion;
-				
-				edited = true;
-				
-				return sn;
-			}
-			
-			/**
-			 * Adds a slice node to the canvas and resources.
-			 * 
-			 * If outside of SliceCanvas, use addPhysicalNode.
-			 */
-			public function addSliceNode(sn:SliceNode, x:int = -1, y:int = -1):void
-			{
-				if(allNodes.contains(sn))
+					Alert.show("Canvas is not editable currently, most likely due to operations being performed");
 					return;
-				sn.canvas = this;
-				this.addElement(sn);
-				this.validateNow();
-				var addX:int = (x == -1) ? sn.node.flackX : x;
-				var addY:int = (y == -1) ? sn.node.flackY : y;
-				sn.setLocation(addX, addY);
-				sn.adjustWidth();
-				allNodes.addItem(sn);
-				edited = true;
-				
-				//if(sn.node.physicalNode != null && hostWindow.nodes != null && hostWindow.nodes.getItemIndex(sn.node.physicalNode) > -1)
-				//	hostWindow.nodes.removeItemAt(hostWindow.nodes.getItemIndex(sn.node.physicalNode));
-			}
-			
-			/**
-			 * Creates a slice node for the physical node and adds it to the canvas and resources.
-			 * 
-			 * If outside of SliceCanvas, use addPhysicalNode.
-			 */
-			public function addPhysicalNodeToCanvas(physicalNode:PhysicalNode, x:int = -1, y:int = -1):SliceNode
-			{
-				var sn:SliceNode;
-				if(allNodes.containsPhysicalNode(physicalNode))
-				{
-					sn = allNodes.getForPhysicalNode(physicalNode);
-					if(sn.node.physicalNode != null && sn.node.physicalNode.virtualizationType.length == 0)
-						return sn;
 				}
 				
-				sn = new SliceNode();
-				var newVirtualNode:VirtualNode = new VirtualNode(slice.getOrCreateForManager(physicalNode.manager));
-				newVirtualNode.setToPhysicalNode(physicalNode);
-				sn.setNode(newVirtualNode);
-				addSliceNode(sn, x, y);
-				return sn;
+				var nvn:VirtualNode = virtualNode.UnboundCloneFor(slice);
+				nvn.flackInfo.x = x;
+				nvn.flackInfo.y = y;
+				
+				slice.pushState();
+				
+				slice.history.stateName = "Added " + nvn.clientId;
+				slice.nodes.add(nvn);
+				var sliver:Sliver = slice.slivers.getOrCreateByManager(nvn.manager, slice);
+				//sliver.UnsubmittedChanges = true;
+				
+				addVirtualNodeToCanvas(nvn);
+				
+				// Make sure everyone knows the slice history changed
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice
+				);
 			}
 			
-			/**
-			 * Does absolutely everything to add a physical node.  This is what should be called outside of SliceCanvas.
-			 */
-			public function addPhysicalNode(pn:PhysicalNode, x:int = -1, y:int = -1):SliceNode
+			// Selected
+			private var selectedItem:DisplayObject;
+			private function set SelectedItem(value:*):void
 			{
-				// Don't duplicate
-				var sn:SliceNode;
-				if(allNodes.containsPhysicalNode(pn))
+				if(selectedItem != null)
 				{
-					sn = allNodes.getForPhysicalNode(pn);
-					if(sn.node.physicalNode != null && sn.node.physicalNode.virtualizationType.length == 0)
-						return sn;
-				}
-				
-				var physicalNode:SliceNode = addPhysicalNodeToCanvas(pn, x, y);
-				physicalNode.node.flackUnbound = false;
-				if(!physicalNode.node.sliver.nodes.contains(physicalNode.node))
-					physicalNode.node.sliver.nodes.add(physicalNode.node);
-				
-				// See if we need to connect to a parent node
-				if(pn.subNodeOf != null)
-				{
-					if(!allNodes.containsPhysicalNode(pn.subNodeOf))
-						physicalNode.node.superNode = addPhysicalNode(pn.subNodeOf, x + 40, y + 40).node;
+					if(selectedItem is CanvasNode)
+						(selectedItem as CanvasNode).setFilters([]);
 					else
-						physicalNode.node.superNode = allNodes.getForPhysicalNode(pn.subNodeOf).node;
-					physicalNode.node.superNode.subNodes.add(physicalNode.node);
+						(selectedItem as CanvasLink).setFilters([]);
 				}
-				if(pn.manager.inputRspecVersion < slice.useInputRspecVersion)
-					slice.useInputRspecVersion = pn.manager.inputRspecVersion;
-				edited = true;
-				return physicalNode;
-			}
-			
-			/**
-			 * Start a temporary link which will become real if the user finishes linking
-			 */
-			public function startLinkingFrom(node:SliceNode):void
-			{
-				startNode = node;
-				tempLink = new SliceLink(this);
-			}
-			
-			/**
-			 * See if we are doing anything while the mouse is down and moving
-			 */
-			protected function mouseMoveHandler(event:MouseEvent):void
-			{
-				if(startNode != null)
+				selectedItem = value;
+				if(value != null)
 				{
-					// See if a valid node is under
-					currentNode = null;
-					for each(var sn:SliceNode in allNodes)
+					if(selectedItem is CanvasNode)
+						(selectedItem as CanvasNode).setFilters([new DropShadowFilter()]);
+					else
+						(selectedItem as CanvasLink).setFilters([new DropShadowFilter()]);
+				}
+			}
+			private function get SelectedItem():*
+			{
+				return selectedItem;
+			}
+			public function set SelectedNode(n:VirtualNode):void
+			{
+				for each(var canvasNode:CanvasNode in this.allNodes.collection)
+				{
+					if(canvasNode.Node == n)
 					{
-						if(sn != startNode
-							&& sn.getRect(this).contains(mouseX, mouseY))
+						SelectedItem = canvasNode;
+						return;
+					}
+				}
+			}
+			public function get SelectedNode():VirtualNode
+			{
+				if(selectedItem != null && selectedItem is CanvasNode)
+				{
+					return (selectedItem as CanvasNode).Node;
+				}
+				else
+					return null;
+			}
+			
+			// Mouse stuff
+			public var draggingNode:CanvasNode;
+			public var previewLink:UIComponent;
+			public var startNode:CanvasNode = null;
+			public var endItem:* = null;
+			public var drawingLink:Boolean = false;
+			public var hoveredOverItem:* = null;
+			
+			protected function bordercontainer1_mouseMoveHandler(event:MouseEvent):void
+			{
+				// dragging node
+				if(draggingNode != null && event.buttonDown)
+				{
+					draggingNode.setLocation(mouseX - draggingNode.ContainerWidth/2, mouseY - draggingNode.ContainerHeight/2);
+					updateCanvas(true);
+					return;
+				}
+				
+				// Ignore while user is dragging from the outside
+				if(DragManager.isDragging)
+					return;
+				
+				var rawSprite:Sprite;
+				if(drawingLink)
+				{
+					endItem = null;
+					previewLink.filters = [];
+					rawSprite = previewLink.getChildAt(0) as Sprite;
+					rawSprite.graphics.clear();
+					var color:uint = ColorUtil.unknownDark;
+					// See if over a node
+					if(hoveredOverItem != null)
+					{
+						if(hoveredOverItem is CanvasNode)
 						{
-							if(sn.allowLink
-								&& !allLinks.hasLinkFor(startNode, sn)
-								&& (startNode.node.sliverType != SliverTypes.DELAY || sn.node.manager == startNode.node.manager))
+							var hoveredOverNode:CanvasNode = hoveredOverItem as CanvasNode;
+							if(hoveredOverNode != startNode)
 							{
-								currentNode = sn;
-								break;
+								if(hoveredOverNode.Node.HasUsableExperimentalInterface
+									&& startNode.Node.interfaces.Links.getConnectedToNode(hoveredOverNode.Node).length == 0)
+								{
+									color = ColorUtil.validDark;
+									previewLink.filters = [new GlowFilter(ColorUtil.validDark)];
+									endItem = hoveredOverNode;
+								}
+								else
+								{
+									color = ColorUtil.invalidDark;
+									previewLink.filters = [new GlowFilter(ColorUtil.invalidDark)];
+								}
+							}
+						}
+						else if(hoveredOverItem is CanvasLink)
+						{
+							var hoveredOverLink:CanvasLink = hoveredOverItem as CanvasLink;
+							if(!hoveredOverLink.link.interfaceRefs.Interfaces.Nodes.contains(startNode.Node))
+							{
+								color = ColorUtil.validDark;
+								previewLink.filters = [new GlowFilter(ColorUtil.validDark)]
+								endItem = hoveredOverLink;
+							}
+							else
+							{
+								color = ColorUtil.invalidDark;
+								previewLink.filters = [new GlowFilter(ColorUtil.invalidDark)];
 							}
 						}
 					}
-					
-					// Add sprite to Canvas display list
-					tempLink.drawEstablishing(startNode.x + startNode.width/2,
-						startNode.y + startNode.height/2,
-						mouseX,
-						mouseY, currentNode != null);
-					this.addElement(tempLink);
-				} else if(tempLink != null && this.contains(tempLink))
-					this.removeElement(tempLink);
-			}
-			
-			/**
-			 * Once the mouse button is unclicked, see if we need to do anything
-			 */
-			protected function mouseUpHandler(event:MouseEvent):void
-			{
-				// Add link if needed
-				if(startNode != null && currentNode != null) {
-					if(tempLink.establish(startNode, currentNode)) {
-						tempLink.drawEstablished();
-						edited = true;
-					} else
-						this.removeElement(tempLink);
-				} else if(tempLink != null && contains(tempLink))
-					this.removeElement(tempLink);
-				validateNow();
-				
-				// Reset
-				startNode = null;
-				currentNode = null;
-				tempLink = null;
-				redrawAllLinks();
-			}
-			
-			// Used to draw nodes at the same place if the canvas is cleared between updates and node doesn't retain flack info
-			private var locationCache:Dictionary = new Dictionary();
-			
-			/**
-			 * Remove all of the resources
-			 */
-			public function clear(removeSlivers:Boolean = false):void {
-				
-				// Save in case this node comes back
-				for each(var sliceNode:SliceNode in this.allNodes)
-					locationCache[sliceNode.node.clientId] = {x:sliceNode.getMiddleX(), y:sliceNode.getMiddleY()};
-				
-				this.removeAllElements();
-				allNodes = new SliceNodeCollection();
-				allLinks = new SliceLinkCollection();
-				
-				if(removeSlivers)
-					this.slice.slivers = new SliverCollection();
-				
-				/*while(this.allNodes.length > 0) {
-					var removeNode:SliceNode = this.allNodes.getItemAt(0) as SliceNode;
-					locationCache[removeNode.id] = {x:removeNode.node.flackX, y:removeNode.node.flackY};
-					this.removeSliceNode(removeNode);
-				}*/
-			}
-			
-			/**
-			 * Has the user changed anything?
-			 */
-			public function isEdited():Boolean {
-				if(edited) {
-					return slice.slivers.AllocatedAnyResources || this.allNodes.length > 0;
-				} else
-					return false;
-			}
-			
-			// RAW CHILDREN FUNCTIONS
-			
-			/**
-			 * Draws all links and sends to back so that nodes are on top
-			 */
-			public function redrawAllLinks():void
-			{
-				for each(var sl:SliceLink in allLinks)
+					rawSprite.graphics.lineStyle(3, color, 1.0, true,
+						LineScaleMode.NORMAL, CapsStyle.ROUND);
+					rawSprite.graphics.moveTo(startNode.MiddleX, startNode.MiddleY);
+					rawSprite.graphics.lineTo(mouseX, mouseY);
+				}
+				else
 				{
-					sl.drawEstablished();
-					this.setElementIndex(sl, 0);
+					if(hoveredOverItem != null)
+					{
+						startNode = null;
+						if(previewLink != null)
+						{
+							removeElement(previewLink);
+							previewLink = null;
+						}
+					}
+					// see if near node, preview link
+					else
+					{
+						for(var i:Number = 2; i < 60; i+=2)
+						{
+							var hitRect:Rectangle = new Rectangle(mouseX-i, mouseY-i, i*2, i*2);
+							for each(var cn:CanvasNode in allNodes.collection)
+							{
+								if(cn.getRect(this).intersects(hitRect))
+								{
+									startNode = cn;
+									
+									if(previewLink == null)
+									{
+										previewLink = new UIComponent();
+										rawSprite = new Sprite();
+										previewLink.addChild(rawSprite);
+										addElementAt(previewLink, 0);
+									}
+									else
+										rawSprite = previewLink.getChildAt(0) as Sprite;
+									
+									rawSprite.graphics.clear();
+									rawSprite.graphics.lineStyle(4, ColorUtil.unknownDark, 1.0, true,
+										LineScaleMode.NORMAL, CapsStyle.ROUND);
+									rawSprite.graphics.moveTo(cn.MiddleX, cn.MiddleY);
+									rawSprite.graphics.lineTo(mouseX, mouseY);
+									return;
+								}
+							}
+						}
+					}
+					if(previewLink != null)
+					{
+						startNode = null;
+						removeElement(previewLink);
+						previewLink = null;
+					}
 				}
 			}
+			
+			protected function bordercontainer1_mouseDownHandler(event:MouseEvent):void
+			{
+				if(startNode != null)
+				{
+					drawingLink = true;
+				}
+			}
+			
+			protected function bordercontainer1_mouseUpHandler(event:MouseEvent):void
+			{
+				draggingNode = null;
+				
+				if(drawingLink && endItem != null)
+				{
+					var newLink:VirtualLink = new VirtualLink(slice);
+					// Connect with a node
+					if(endItem is CanvasNode)
+					{
+						var connectNodes:VirtualNodeCollection = new VirtualNodeCollection();
+						connectNodes.add(startNode.Node);
+						connectNodes.add((endItem as CanvasNode).Node);
+						if(newLink.canEstablish(connectNodes))
+						{
+							slice.pushState();
+							if(!newLink.establish(connectNodes))
+							{
+								slice.history.stateName = "Established " + newLink.clientId;
+								slice.links.add(newLink);
+								addVirtualLinkToCanvas(newLink);
+							}
+						}
+					}
+					// Connect with a link
+					else if(endItem is CanvasLink)
+					{
+						var endLink:CanvasLink = endItem as CanvasLink;
+						if(newLink.canEstablish(connectNodes))
+						{
+							slice.pushState();
+							if(!endLink.link.addNode(startNode.Node))
+							{
+								slice.history.stateName = "Added " + startNode.Node.clientId + " to " + endLink.link.clientId;
+								endLink.establishFromExisting(endLink.link);
+							}
+						}
+					}
+				}
+				drawingLink = false;
+				startNode = null;
+				endItem = null;
+				if(previewLink != null)
+					removeElement(previewLink);
+				previewLink = null;
+			}
+			
+			// Drag and drop
+			
+			private var dropItem:* = null;
+			protected function bordercontainer1_dragEnterHandler(event:DragEvent):void
+			{
+				dropItem = null;
+				// Dragging a physical node?
+				if(event.dragInitiator is List && (event.dragInitiator as List).selectedItem is PhysicalNode)
+					dropItem = (event.dragInitiator as List).selectedItem;
+				else if(event.dragSource.hasFormat("physicalNode"))
+					dropItem = event.dragSource.dataForFormat("physicalNode");
+				else if(event.dragSource.hasFormat("virtualNode"))
+					dropItem = event.dragSource.dataForFormat("virtualNode");
+				if(dropItem != null)
+				{
+					if(dropItem is PhysicalNode)
+					{
+						var dropNode:PhysicalNode = dropItem as PhysicalNode;
+						if(!dropNode.available)
+							return;
+						if(dropNode.subNodeOf != null && !dropNode.subNodeOf.available)
+							return;
+						var existingNodes:VirtualNodeCollection = allNodes.VirtualNodes.getBoundTo(dropNode);
+						if(existingNodes.length > 0)
+						{
+							if(!existingNodes.collection[0].Vm)
+								return;
+						}
+					}
+					else if(dropItem is VirtualNode)
+					{
+						var dropVirtNode:VirtualNode = dropItem as VirtualNode;
+						dropVirtNode.slice = slice;
+						
+						// Make sure it's alright
+						if(dropVirtNode.sliverType.name == SliverTypes.FIREWALL)
+						{
+							var firewalls:VirtualNodeCollection = dropVirtNode.slice.nodes.getByManager(dropVirtNode.manager).getBySliverType(SliverTypes.FIREWALL);
+							if(firewalls.length > 0 && firewalls.collection[0] != dropVirtNode)
+								return;
+						}
+					}
+					DragManager.acceptDragDrop(SliceCanvas(event.currentTarget));
+				}
+			}
+			
+			protected function bordercontainer1_dragDropHandler(event:DragEvent):void
+			{
+				if(dropItem != null)
+				{
+					if(dropItem is PhysicalNode)
+						addPhysicalNode(dropItem, mouseX-48, mouseY-12);
+					else if(dropItem is VirtualNode)
+						addBasicCloneOfVirtualNode(dropItem, mouseX-48, mouseY-12);
+				}
+			}
+			
+			protected function bordercontainer1_resizeHandler(event:ResizeEvent):void
+			{
+				for each(var node:CanvasNode in allNodes.collection)
+				{
+					node.ensureInside();
+				}
+			}
+			
+			public function toggleEditable(isEditable:Boolean):void
+			{
+				editable = isEditable;
+				for each(var sn:CanvasNode in allNodes.collection)
+					sn.editable = isEditable;
+				
+				for each(var cl:CanvasLink in allLinks.collection)
+					cl.setEditable(editable);
+			}
+			
 		]]>
 	</fx:Script>
 	

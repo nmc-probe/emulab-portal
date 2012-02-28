@@ -65,7 +65,7 @@ HScrollBarThumbSkin and HScrollBarTrackSkin classes, respectively.
     <!---  The default skin class is HScrollBarTrackSkin.    
             @copy spark.components.supportClasses.TrackBase#track
             @see spark.skins.spark.HScrollBarTrackSkin -->
-    <s:Button id="track" left="16" right="15" width="54" height="24"
+    <s:Button id="track" left="22" right="21" width="54" height="24"
               focusEnabled="false"
               skinClass="spark.skins.spark.HScrollBarTrackSkin" />
 

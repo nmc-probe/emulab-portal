@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -17,217 +17,374 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 -->
 
-<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
-		  xmlns:display="protogeni.display.*"
-		  xmlns:components="protogeni.display.components.*"
-		  width="100%">
+		  xmlns:components="com.flack.shared.display.components.*"
+		  xmlns:display="com.flack.geni.display.*"
+		  xmlns:areas="com.flack.geni.display.areas.*"
+		  creationComplete="init()"
+		  paddingBottom="2" xmlns:areas1="com.flack.shared.display.areas.*">
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.GeniCache;
+			import com.flack.geni.resources.physical.HardwareType;
+			import com.flack.geni.resources.physical.HardwareTypeCollection;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.tasks.groups.GetManagerTaskGroup;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.areas.DocumentArea;
+			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
+			import com.flack.shared.resources.docs.RspecVersion;
+			import com.flack.shared.resources.docs.RspecVersionCollection;
+			import com.flack.shared.resources.sites.FlackManager;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.utils.ColorUtil;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.NetUtil;
+			import com.flack.shared.utils.ViewUtil;
+			
 			import mx.collections.ArrayCollection;
-			import mx.containers.TabNavigator;
 			import mx.controls.Alert;
 			
-			import protogeni.display.components.AdvancedTextArea;
-			import protogeni.display.components.DefaultWindow;
-			import protogeni.display.components.DocumentWindow;
-			import protogeni.resources.GeniManager;
-			
-			import spark.components.NavigatorContent;
-			import spark.layouts.VerticalLayout;
+			[Bindable]
+			private var manager:GeniManager = null;
 			
 			[Bindable]
-			private var gm:GeniManager = null;
+			private var nodeTypes:ArrayCollection;
+			[Bindable]
+			private var linkTypes:ArrayCollection;
 			
-			public function load(n:GeniManager):void
+			public function init():void
 			{
-				gm = n;
-				topHgroupcolor.color = ColorUtil.colorsDark[gm.colorIdx];
-				hrnLabel.setStyle("color", ColorUtil.colorsLight[gm.colorIdx]);
-				switch(gm.Status) {
-					case GeniManager.STATUS_FAILED:
-						this.statusIcon.source = ImageUtil.flagRedIcon;
-						this.statusIcon.toolTip = "Failed";
-						break;
-					case GeniManager.STATUS_INPROGRESS:
-						this.statusIcon.source = ImageUtil.flagYellowIcon;
-						this.statusIcon.toolTip = "In Progress";
-						break;
-					case GeniManager.STATUS_UNKOWN:
-						this.statusIcon.source = ImageUtil.flagOrangeIcon;
-						this.statusIcon.toolTip = "Unknown";
-						break;
-					case GeniManager.STATUS_VALID:
-						this.statusIcon.source = ImageUtil.flagGreenIcon;
-						this.statusIcon.toolTip = "Valid"
-						break;
-				}
-				messageButton.visible = gm.errorDescription.length > 0;
-				messageButton.includeInLayout = gm.errorDescription.length > 0;
-				rpsecButton.visible = gm.Rspec != null;
-				rpsecButton.includeInLayout = gm.Rspec != null;
-				graphInfoButton.visible = gm.Rspec != null;
-				graphInfoButton.includeInLayout = gm.Rspec != null;
-				nodesButton.label = gm.availableNodes + "/" + gm.AllNodes.length.toString() + " (" + gm.percentageAvailable.toFixed() + "%) Nodes Available";
-				
-				if(gm.DiskImages.length > 0) {
-					diskImageGroup.visible = true; 
-				}
-				
-				for each(var outputVersion:Number in gm.outputRspecVersions) {
-					outputVersionsHgroup.addElement(DisplayUtil.getLabel(outputVersion.toString(), outputVersion == gm.outputRspecVersion));
-				}
-				for each(var inputVersion:Number in gm.inputRspecVersions) {
-					inputVersionsHgroup.addElement(DisplayUtil.getLabel(inputVersion.toString(), inputVersion == gm.inputRspecVersion));
-				}
+				if(manager != null)
+					load(manager);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGER, tryUpdate);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_FINISHED, updateManagerTasking);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_STARTED, updateManagerTasking);
 			}
 			
-			public function viewRspec():void {
-				var rspecWindow:DocumentWindow = new DocumentWindow();
-				rspecWindow.showWindow();
-				rspecWindow.title = "Advertisement RSPEC from " + gm.Hrn;
-				rspecWindow.loadXml(gm.Rspec);
-			}
-			
-			public function viewMessage():void {
-				Alert.show(gm.errorDescription);
-			}
-			
-			public function openGraphInfo():void
+			public function updateManagerTasking(e:TaskEvent = null):void
 			{
-				var cw:DefaultWindow = new DefaultWindow();
-				cw.showWindow();
-				cw.title = "Graph information for " + gm.Hrn;
-				var tabContainer:TabNavigator = new TabNavigator();
-				tabContainer.percentHeight = 100;
-				tabContainer.percentWidth = 100;
-				
-				
-				// Full DOT graph
-				var dotTab:NavigatorContent = new NavigatorContent();
-				var vertLayout:VerticalLayout = new VerticalLayout();
-				vertLayout.paddingBottom = 5;
-				vertLayout.paddingLeft = 5;
-				vertLayout.paddingRight = 5;
-				dotTab.layout = vertLayout;
-				dotTab.label = "DOT";
-				var textd:AdvancedTextArea = new AdvancedTextArea();
-				textd.text = gm.getDotGraph();
-				dotTab.addElement(textd);
-				tabContainer.addChild(dotTab);
-				
-				// GraphML
-				var graphmlTab:NavigatorContent = new NavigatorContent();
-				var vertLayout2:VerticalLayout = new VerticalLayout();
-				vertLayout2.paddingBottom = 5;
-				vertLayout2.paddingLeft = 5;
-				vertLayout2.paddingRight = 5;
-				graphmlTab.layout = vertLayout2;
-				graphmlTab.label = "GraphML";
-				var textg:AdvancedTextArea = new AdvancedTextArea();
-				textg.text = gm.getGraphML();
-				graphmlTab.addElement(textg);
-				tabContainer.addChild(graphmlTab);
-				
-				/*
-				// Grouped DOT graph
-				var dotGroupedTab:NavigatorContent = new NavigatorContent();
-				dotGroupedTab.label = "Grouped DOT graph";
-				var textgd:TextArea = new TextArea();
-				textgd.percentHeight = 100;
-				textgd.percentWidth = 100;
-				textgd.text = gm.getDotGroupedGraph();
-				dotGroupedTab.addElement(textgd);
-				tabContainer.addChild(dotGroupedTab);
-				
-				// Grouped GraphML
-				var groupedgraphmlTab:NavigatorContent = new NavigatorContent();
-				groupedgraphmlTab.label = "Grouped GraphML";
-				var textgg:TextArea = new TextArea();
-				textgg.percentHeight = 100;
-				textgg.percentWidth = 100;
-				textgg.text = gm.getGroupedGraphML()
-				groupedgraphmlTab.addElement(textgg);
-				tabContainer.addChild(groupedgraphmlTab);
-				*/
-				
-				cw.addElement(tabContainer);
+				if(manager != null)
+				{
+					var working:Boolean = SharedMain.tasker.tasks.AllNotFinished.getRelatedTo(manager).length > 0;
+					if(!working && spinner.visible)
+					{
+						spinner.visible = false;
+						spinner.stopSpin();
+					}
+					else if(working && !spinner.visible)
+					{
+						spinner.visible = true;
+						spinner.startSpin();
+					}
+				}
 			}
-
+			
+			public function tryUpdate(e:FlackEvent):void
+			{
+				if(manager != null && e.changedObject == manager)
+					load(manager);
+			}
+			
+			public function load(newManager:GeniManager):void
+			{
+				manager = newManager;
+				title = manager.hrn;
+				backgroundColor = ColorUtil.colorsDark[manager.colorIdx];
+				titleColor = ColorUtil.colorsLight[manager.colorIdx];
+				if(initialized)
+				{
+					switch(manager.Status)
+					{
+						case FlackManager.STATUS_FAILED:
+							statusIcon.source = ImageUtil.flagRedIcon;
+							statusIcon.toolTip = "Failed";
+							break;
+						case FlackManager.STATUS_INPROGRESS:
+							statusIcon.source = ImageUtil.flagYellowIcon;
+							statusIcon.toolTip = "In Progress";
+							break;
+						case FlackManager.STATUS_UNKOWN:
+							statusIcon.source = ImageUtil.flagOrangeIcon;
+							statusIcon.toolTip = "Unknown";
+							break;
+						case FlackManager.STATUS_VALID:
+							statusIcon.source = ImageUtil.flagGreenIcon;
+							statusIcon.toolTip = "Valid"
+							break;
+					}
+					messageButton.visible = manager.errorDescription.length > 0;
+					resourcesGroup.visible = manager.advertisement != null;
+					deleteCacheButton.visible = GeniCache.wasManagerManuallyAdded(manager);
+					
+					apiLabel.text = manager.api.toString();
+					typeLabel.text = FlackManager.typeToString(manager.type);
+					
+					nodesButton.enabled = manager.nodes.length > 0;
+					linksButton.enabled = manager.links.length > 0;
+					
+					nodeTypes = new ArrayCollection();
+					var nodeHardwareTypes:HardwareTypeCollection = manager.nodes.Types;
+					for each(var nodeType:HardwareType in nodeHardwareTypes.collection)
+						nodeTypes.addItem(nodeType);
+					
+					linkTypes = new ArrayCollection();
+					for each(var linkType:String in manager.links.Types)
+						linkTypes.addItem(linkType);
+					
+					sliverTypesControl.load(manager.sliverTypes);
+					
+					var i:int;
+					var type:String;
+					
+					outputVersionsHgroup.removeAllElements();
+					if(manager.outputRspecVersions.length == 0)
+					{
+						outputVersionsHgroup.addElement(
+							ViewUtil.getLabel("None")
+						);
+					}
+					else
+					{
+						var outputVersionsByType:Vector.<String> = manager.outputRspecVersions.Types;
+						for each(type in outputVersionsByType)
+						{
+							var outputType:String = RspecVersion.typeToShort(type) + "v(";
+							var outputTypeVersions:RspecVersionCollection = manager.outputRspecVersions.getByType(type);
+							for(i = 0; i < outputTypeVersions.length; i++)
+							{
+								outputType += outputTypeVersions.collection[i].version;
+								if(i < outputTypeVersions.length-1)
+									outputType += ", "
+							}
+							outputType += ")";
+							outputVersionsHgroup.addElement(ViewUtil.getLabel(outputType));
+						}
+					}
+					
+					inputVersionsHgroup.removeAllElements();
+					if(manager.inputRspecVersions.length == 0)
+					{
+						inputVersionsHgroup.addElement(
+							ViewUtil.getLabel("None")
+						);
+					}
+					else
+					{
+						var inputVersionsByType:Vector.<String> = manager.inputRspecVersions.Types;
+						for each(type in inputVersionsByType)
+						{
+							var inputType:String = RspecVersion.typeToShort(type) + "v(";
+							var inputTypeVersions:RspecVersionCollection = manager.inputRspecVersions.getByType(type);
+							for(i = 0; i < inputTypeVersions.length; i++)
+							{
+								inputType += inputTypeVersions.collection[i].version;
+								if(i < inputTypeVersions.length-1)
+									inputType += ", "
+							}
+							inputType += ")";
+							inputVersionsHgroup.addElement(ViewUtil.getLabel(inputType));
+						}
+					}
+					updateManagerTasking();
+				}
+			}
+			
+			public function saveAdvertisement(event:MouseEvent):void
+			{
+				var saveTask:FileTask = new FileTask(manager.advertisement.document);
+				saveTask.fileName = manager.hrn + ".rspec";
+				saveTask.startOperation(event);
+			}
+			
+			public function viewLinks():void
+			{
+				var linksArea:PhysicalLinkCollectionArea = new PhysicalLinkCollectionArea();
+				linksArea.Links = manager.links;
+				openNext(linksArea);
+			}
+			
+			public function viewNodes():void
+			{
+				var nodesArea:PhysicalNodeCollectionArea = new PhysicalNodeCollectionArea();
+				nodesArea.Nodes = manager.nodes;
+				openNext(nodesArea);
+			}
+			
+			public function viewRspec():void
+			{
+				var rspecArea:DocumentArea = new DocumentArea();
+				rspecArea.Document = manager.advertisement.document;
+				rspecArea.title = "Advertisement for " + manager.hrn;
+				rspecArea.backgroundColor = backgroundColor;
+				rspecArea.titleColor = titleColor;
+				openNext(rspecArea);
+			}
+			
+			public function viewLogs():void
+			{
+				var logArea:LogMessagesRelatedToArea = new LogMessagesRelatedToArea();
+				logArea.RelatedTo = [manager];
+				logArea.title = "Logs for " + manager.hrn;
+				logArea.backgroundColor = backgroundColor;
+				logArea.titleColor = titleColor;
+				openNext(logArea);
+			}
+			
+			public function reloadMe():void
+			{
+				if(SharedMain.tasker.tasks.getOfClass(GetManagerTaskGroup).getRelatedTo(manager).length > 0)
+				{
+					Alert.show("There is already a task running or pending to load " + manager.hrn);
+					return;
+				}
+				var reloadTask:GetManagerTaskGroup = new GetManagerTaskGroup(manager);
+				reloadTask.forceRunNow = true;
+				SharedMain.tasker.add(reloadTask)
+			}
+			
 		]]>
 	</fx:Script>
+	
 	<s:Group width="100%">
 		<s:Rect width="100%" height="100%">
-			<s:fill><s:SolidColor id="topHgroupcolor" /></s:fill>
+			<s:fill><s:SolidColor color="{backgroundColor}" /></s:fill>
 		</s:Rect>
 		
-		<s:HGroup width="100%" verticalAlign="middle" paddingLeft="2">
+		<s:HGroup width="100%"
+				  verticalAlign="middle"
+				  paddingLeft="4"
+				  paddingRight="2"
+				  paddingTop="2"
+				  paddingBottom="2"
+				  gap="2">
 			<s:Image id="statusIcon" />
-			<s:Label text="{gm.Hrn}" toolTip="{gm.Urn.full}" fontSize="17" fontWeight="bold" width="100%" id="hrnLabel" />
-			<components:ImageButton id="urlButton"
-								 icon="{ImageUtil.worldIcon}"
-								 click="navigateToURL(new URLRequest(gm.VisitUrl()), '_blank');"
-								 toolTip="Visit {gm.Url}" />
-			<components:ImageButton id="consoleButton"
-								 icon="{ImageUtil.consoleIcon}"
-								 click="LogHandler.viewGroup(gm.Url);"
-								 toolTip="View log messages in the console" />
-			<components:ImageButton id="rpsecButton"
-								 icon="@Embed('../../../images/page_white_code.png')"
-								 click="viewRspec()"
-								 toolTip="View Advertisement RSPEC" />
-			<components:ImageButton id="graphInfoButton"
-								 icon="@Embed('../../../images/chart_organisation.png')"
-								 click="openGraphInfo()"
-								 toolTip="View the graph information" />
-			<components:ImageButton id="messageButton"
-								 icon="{ImageUtil.flagRedIcon}"
-								 click="viewMessage()"
-								 toolTip="{gm.errorMessage}" />
+			<s:Label text="{title}"
+					 color="{titleColor}"
+					 toolTip="{manager.id.full}"
+					 fontSize="17"
+					 fontWeight="bold"
+					 width="100%"
+					 id="hrnLabel" />
+			<components:Spinner id="spinner"
+								width="21"
+								height="21"
+								x="{(width / 2) - (spinner.width / 2)}"
+								y="{(height / 2) - (spinner.height / 2)}"
+								visible="false" includeInLayout="{spinner.visible}" />
+			<s:Button id="deleteCacheButton"
+					  icon="{ImageUtil.deleteIcon}"
+					  label="Remove"
+					  includeInLayout="{deleteCacheButton.visible}"
+					  toolTip="Remove this manually added manager from cache"
+					  click="GeniCache.removeManuallyAddedManager(manager); Alert.show('Manager removed from cache', 'Deleted')" />
+			<s:Button id="refreshButton"
+					  icon="{ImageUtil.refreshIcon}"
+					  label="Reload"
+					  toolTip="Reload all data for the manager"
+					  click="reloadMe()" />
+			<s:Button id="urlButton"
+					  icon="{ImageUtil.worldIcon}"
+					  toolTip="Visit {manager.Hostname}"
+					  label="Visit"
+					  click="NetUtil.openWebsite(manager.Hostname)" />
+			<s:Button id="consoleButton"
+					  icon="{ImageUtil.consoleIcon}"
+					  label="Logs"
+					  toolTip="View log messages in the console"
+					  click="viewLogs()" />
+			<s:Button id="messageButton"
+					  icon="{ImageUtil.flagRedIcon}"
+					  includeInLayout="{messageButton.visible}"
+					  label="Error!"
+					  toolTip="{manager.errorMessage}"
+					  click="Alert.show('Message: ' + manager.errorMessage + '\nDescription: ' + manager.errorDescription)" />
+			<components:ImageButton id="dockIcon"
+									icon="{ImageUtil.windowIcon}"
+									toolTip="Pop out to a window or in to the main window"
+									click="host.Docked ? popOut() : dock()" />
 		</s:HGroup>
 		
 	</s:Group>
 	
-	<s:HGroup>
-		<s:Button id="nodesButton" height="24"
-				  click="DisplayUtil.viewNodeCollection(new ArrayCollection(gm.AllNodesAsArray()));"/>
-		<s:Label id="nodesUnaddedLabel" fontWeight="bold" text="{this.gm.nodesUnadded}" />
-		<s:Label text="Nodes and" />
-		<s:Label id="linksUnaddedLabel" fontWeight="bold" text="{this.gm.linksUnadded}" />
-		<s:Label text="links not added" />
-	</s:HGroup>
-	
-	<s:VGroup id="diskImageGroup" visible="false" includeInLayout="{diskImageGroup.visible}" width="100%">
-		<s:Label text="Disk Images" fontWeight="bold" />
-		<s:DataGrid id="imageGrid" dataProvider="{gm.DiskImages}"
-					width="100%" height="106">
-			<s:columns>
-				<s:ArrayList>
-					<s:GridColumn headerText="OSID" dataField="name" />
-					<s:GridColumn headerText="Description" dataField="description">
-						<s:itemRenderer>
-							<fx:Component>
-								<s:GridItemRenderer>
-									<s:Label text="{data.description}"
-											 toolTip="{data.os} {data.version} ({data.description})"
-											 maxDisplayedLines="1"
-											 left="10" right="5" paddingTop="10" paddingBottom="5"/>
-								</s:GridItemRenderer>
-							</fx:Component>
-						</s:itemRenderer>
-					</s:GridColumn>
-				</s:ArrayList>
-			</s:columns>
-		</s:DataGrid>
+	<s:VGroup paddingLeft="2"
+			  paddingRight="2"
+			  gap="2"
+			  width="100%"
+			  height="100%">
+		<s:HGroup gap="2">
+			<s:Label text="Framework:"
+					 fontWeight="bold" />
+			<s:Label id="typeLabel" />
+			<s:Label text="API:"
+					 fontWeight="bold" />
+			<s:Label id="apiLabel" />
+		</s:HGroup>
+		<s:HGroup gap="2">
+			<s:Label text="Advertises:"
+					 fontWeight="bold" />
+			<s:HGroup id="outputVersionsHgroup" />
+			<s:Label text="Accepts:"
+					 fontWeight="bold" />
+			<s:HGroup id="inputVersionsHgroup" />
+		</s:HGroup>
+		<components:DefaultLine percentWidth="100"
+								lineThickness="2" />
+		<s:VGroup id="resourcesGroup"
+				  width="100%"
+				  height="100%" includeInLayout="{resourcesGroup.visible}"
+				  gap="2">
+			<s:HGroup width="100%"
+					  height="100%"
+					  gap="2">
+				<s:VGroup width="33%"
+						  height="100%"
+						  gap="2">
+					<s:Label text="RSPEC"
+							 fontWeight="bold" />
+					<s:Button id="rpsecViewButton"
+							  icon="{ImageUtil.advertisementIcon}"
+							  label="View"
+							  click="viewRspec()" />
+					<s:Button id="rpsecSaveButton"
+							  icon="{ImageUtil.saveIcon}"
+							  label="Save to file"
+							  click="saveAdvertisement(event)" />
+				</s:VGroup>
+				<s:VGroup width="33%"
+						  height="100%"
+						  gap="2">
+					<s:Label text="Nodes" fontWeight="bold" />
+					<s:Button id="nodesButton"
+							  label="{manager.nodes.length} Nodes ({manager.nodes.Available.length} Available)"
+							  click="viewNodes()" />
+					<s:Label text="Node Types"
+							 fontWeight="bold" />
+					<s:List id="nodeTypesList"
+							dataProvider="{nodeTypes}"
+							labelField="name"
+							height="100%" />
+				</s:VGroup>
+				<s:VGroup width="33%"
+						  height="100%"
+						  gap="2">
+					<s:Label text="Links" fontWeight="bold" />
+					<s:Button id="linksButton"
+							  label="{manager.links.length} Links"
+							  click="viewLinks()" />
+					<s:Label text="Link Types"
+							 fontWeight="bold" />
+					<s:List id="linkTypesList"
+							dataProvider="{linkTypes}"
+							height="100%" />
+				</s:VGroup>
+			</s:HGroup>
+			<display:SliverTypesControl id="sliverTypesControl" />
+		</s:VGroup>
 	</s:VGroup>
-	<s:Label text="RSPEC support" fontWeight="bold" />
-	<s:HGroup>
-		<s:Label text="Output:" fontWeight="bold" />
-		<s:HGroup id="outputVersionsHgroup" />
-	</s:HGroup>
-	<s:HGroup>
-		<s:Label text="Input:" fontWeight="bold" />
-		<s:HGroup id="inputVersionsHgroup" />
-	</s:HGroup>
-</s:VGroup>
+	
+</areas1:AreaContent>

@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,55 +12,18 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni
+package com.flack.shared.tasks.xmlrpc
 {
 	/**
-	 * Common XML values/function used around the library
+	 * Common values used for XML-RPC calls
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class XmlUtil
+	public class XmlrpcUtil
 	{
-		// Namespaces
-		public static const rspec01Namespace:String = "http://www.protogeni.net/resources/rspec/0.1";
-		public static const rspec02Namespace:String = "http://www.protogeni.net/resources/rspec/0.2";
-		public static const rspec02MalformedNamespace:String = "http://protogeni.net/resources/rspec/0.2";
-		public static const rspec2Namespace:String = "http://www.protogeni.net/resources/rspec/2";
-		public static const rspec3Namespace:String = "http://www.geni.net/resources/rspec/3";
-		
-		public static var xsiNamespace:Namespace = new Namespace("xsi", "http://www.w3.org/2001/XMLSchema-instance");
-		
-		public static var delayNamespace:Namespace = new Namespace("delay", "http://www.protogeni.net/resources/rspec/ext/delay/1");
-		public static var flackNamespace:Namespace = new Namespace("flack", "http://www.protogeni.net/resources/rspec/ext/flack/1");
-		public static var clientNamespace:Namespace = new Namespace("client", "http://www.protogeni.net/resources/rspec/ext/client/1");
-		public static var emulabNamespace:Namespace = new Namespace("rs", "http://www.protogeni.net/resources/rspec/ext/emulab/1");
-		public static var planetlabNamespace:Namespace = new Namespace("planetlab", "http://www.planet-lab.org/resources/ext/planetlab/1");
-		
-		public static function isKnownNamespace(ns:Namespace):Boolean {
-			switch(ns.uri) {
-				case rspec01Namespace:
-				case rspec02Namespace:
-				case rspec2Namespace:
-				case rspec3Namespace:
-				case xsiNamespace.uri:
-				case flackNamespace.uri:
-				case clientNamespace.uri:
-				case delayNamespace.uri:
-				case planetlabNamespace.uri:
-				case emulabNamespace.uri:
-					return true;
-				default:
-					return false;
-			}
-		}
-		
-		// Schemas
-		public static const rspec01SchemaLocation:String = "http://www.protogeni.net/resources/rspec/0.1 http://www.protogeni.net/resources/rspec/0.1/request.xsd";
-		public static const rspec02SchemaLocation:String = "http://www.protogeni.net/resources/rspec/0.2 http://www.protogeni.net/resources/rspec/0.2/request.xsd";
-		public static const rspec2SchemaLocation:String = "http://www.protogeni.net/resources/rspec/2 http://www.protogeni.net/resources/rspec/2/request.xsd";
-		public static const rspec3SchemaLocation:String = "http://www.geni.net/resources/rspec/3 http://www.geni.net/resources/rspec/3/request.xsd";
-		
-		public static const delaySchemaLocation:String = "http://www.protogeni.net/resources/rspec/ext/delay/1 http://www.protogeni.net/resources/rspec/ext/delay/1/request-delay.xsd";
+		// Fault codes
+		public static const FAULTCODE_CURRENTLYNOTAVAILABLE:int = 503;
+		public static const FAULTCODE_RESOURCEISBUSY:int = 14;
 	}
 }

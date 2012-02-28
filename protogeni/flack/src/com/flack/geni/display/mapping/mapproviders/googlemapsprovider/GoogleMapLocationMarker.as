@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,28 +12,22 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.display.mapping
+package com.flack.geni.display.mapping.mapproviders.googlemapsprovider
 {
+	import com.flack.geni.display.mapping.GeniMapNodeMarker;
+	import com.flack.geni.display.mapping.LatitudeLongitude;
+	import com.flack.geni.resources.physical.PhysicalLocation;
+	import com.flack.geni.resources.physical.PhysicalLocationCollection;
 	import com.google.maps.InfoWindowOptions;
 	import com.google.maps.LatLng;
 	import com.google.maps.MapMouseEvent;
 	import com.google.maps.overlays.Marker;
 	import com.google.maps.overlays.MarkerOptions;
 	
-	import flash.display.DisplayObject;
 	import flash.events.Event;
 	import flash.geom.Point;
 	
-	import mx.collections.ArrayCollection;
 	import mx.core.UIComponent;
-	import mx.events.FlexEvent;
-	
-	import protogeni.display.DisplayUtil;
-	import protogeni.resources.PhysicalNode;
-	import protogeni.resources.PhysicalNodeGroup;
-	import protogeni.resources.PhysicalNodeGroupCollection;
-	import protogeni.resources.Slice;
-	import protogeni.resources.VirtualNode;
 	
 	/**
 	 * Marker to be used for GENI resources on Google Maps
@@ -41,156 +35,111 @@ package protogeni.display.mapping
 	 * @author mstrum
 	 * 
 	 */
-	public class GeniMapMarker extends Marker
+	public class GoogleMapLocationMarker extends Marker implements GeniMapNodeMarker
 	{
-		public function GeniMapMarker(o:*)
+		public var infoWindow:UIComponent;
+		public var mapIcon:GoogleMapLocationMarkerIcon;
+		
+		[Bindable]
+		public var name:String = "";
+		
+		public var locations:PhysicalLocationCollection;
+		public var location:PhysicalLocation;
+		
+		public var nodes:*;
+		
+		public function get Visible():Boolean
 		{
-			if(o is Vector.<GeniMapMarker>)
-				this.cluster = o as Vector.<GeniMapMarker>;
+			return visible;
+		}
+		
+		public function GoogleMapLocationMarker(newLocations:PhysicalLocationCollection,
+												newNodes:*)
+		{
+			var newLocation:PhysicalLocation;
+			if(newLocations.length > 1)
+				newLocation = newLocations.Middle;
+			else
+				newLocation = newLocations.collection[0];
 			
-			var ll:LatLng;
-			// Single
-			if(o is PhysicalNodeGroup)
-				ll = new LatLng(o.latitude, o.longitude);
-				// Cluster marker
-			else if(cluster != null)
-				ll = cluster[0].getLatLng();
+			super(new LatLng(newLocation.latitude, newLocation.longitude));
 			
-			super(ll);
-			nodeGroups = new PhysicalNodeGroupCollection(null);
+			location = newLocation;
+			locations = newLocations;
 			
-			// Single marker
-			if(o is PhysicalNodeGroup)
-			{
-				cluster = new Vector.<GeniMapMarker>();
-				cluster.push(this);
-				this.nodeGroups.Add(o);
-			}
-			// Cluster marker
-			else if(cluster != null)
-			{
-				var type:int = cluster[0].nodeGroups.GetType();
-				for each(var m:GeniMapMarker in cluster) {
-					if(type != m.nodeGroups.GetType())
-						type = -1;
-					for each(var nodeGroup:PhysicalNodeGroup in m.nodeGroups.collection)
-						this.nodeGroups.Add(nodeGroup);
-				}
-				
-				
-			}
+			setLook(newNodes);
 			
-			setDefault();
 			addEventListener(MapMouseEvent.CLICK, clicked);
 		}
 		
-		public function clicked(e:Event):void {
-			this.openInfoWindow(
-				new InfoWindowOptions({
-					customContent:infoWindow,
-					customoffset: new Point(0, 10),
-					width:infoWindow.width,
-					height:infoWindow.height,
-					drawDefaultFrame:true
-				}));
+		public function destroy():void
+		{
+			removeEventListener(MapMouseEvent.CLICK, clicked);
+			if(mapIcon != null)
+				mapIcon.destroy();
 		}
-
-		public function setDefault():void {
-			var oldLength:int = showGroups.GetAll().length;
-			
-			// Set the show groups as the managers which are visible
-			showGroups = new PhysicalNodeGroupCollection(null);
-			for each(var testGroup:PhysicalNodeGroup in nodeGroups.collection) {
-				var newTestGroup:PhysicalNodeGroup = new PhysicalNodeGroup(testGroup.latitude, testGroup.longitude, testGroup.country, showGroups, testGroup);
-				for each(var testNode:PhysicalNode in testGroup.collection) {
-					if(testNode.manager.Show)
-						newTestGroup.Add(testNode);
-				}
-				if(newTestGroup.collection.length > 0)
-					showGroups.Add(newTestGroup);
-			}
-			
-			// Already shown correctly
-			if(showGroups.GetAll().length == oldLength)
+		
+		public function setLook(newNodes:*):void
+		{
+			// Don't redo marker
+			if(nodes != null && newNodes.sameAs(nodes))
 				return;
 			
-			if(showGroups.collection.length == 1) {
-				this.setOptions(new MarkerOptions({
-					icon:new PhysicalNodeGroupMarker(this),
-					//iconAllignment:MarkerOptions.ALIGN_RIGHT,
-					iconOffset:new Point(-18, -18)
-				}));
-				
-				var groupInfo:PhysicalNodeGroupInfo = new PhysicalNodeGroupInfo();
-				groupInfo.addEventListener(FlexEvent.CREATION_COMPLETE,
-					function loadNodeGroup(evt:FlexEvent):void {
-						groupInfo.Load(showGroups.collection[0]);
-						//clusterInfo.setZoomButton(bounds);
-					});
-				infoWindow = groupInfo;
-				
-			} else if(showGroups.collection.length > 1) {
-				this.setOptions(new MarkerOptions({
-					icon:new PhysicalNodeGroupMarker(this),
-					//icon:new PhysicalNodeGroupClusterMarker(this.showGroups.GetAll().length.toString(), this, showGroups.GetType()),
-					//iconAllignment:MarkerOptions.ALIGN_RIGHT,
-					iconOffset:new Point(-20, -20)
-				}));
-				
-				var clusterInfo:PhysicalNodeGroupClusterInfo = new PhysicalNodeGroupClusterInfo();
-				clusterInfo.addEventListener(FlexEvent.CREATION_COMPLETE,
-					function loadNodeGroup(evt:FlexEvent):void {
-						clusterInfo.Load(showGroups.collection);
-						//clusterInfo.setZoomButton(bounds);
-					});
-				infoWindow = clusterInfo;
-			}
+			nodes = newNodes;
 			
-		}
-		
-		// Either sets all nodes the user has or just from one slice
-		public function setUser(slice:Slice = null):void {
-			showGroups = new PhysicalNodeGroupCollection(null);
-			for each(var group:PhysicalNodeGroup in nodeGroups.collection) {
-				var newGroup:PhysicalNodeGroup = new PhysicalNodeGroup(group.latitude, group.longitude, group.country, showGroups, group);
-				for each(var node:PhysicalNode in group.collection) {
-					if(slice == null) {
-						if(node.virtualNodes.length > 0)
-							newGroup.Add(node);
-					} else {
-						for each(var virtualNode:VirtualNode in node.virtualNodes.collection) {
-							if(virtualNode.sliver.slice == slice) {
-								newGroup.Add(node);
-								break;
-							}
+			if(nodes != null)
+			{
+				if(mapIcon != null)
+					mapIcon.destroy();
+				mapIcon = new GoogleMapLocationMarkerIcon(this);
+				setOptions(
+					new MarkerOptions(
+						{
+							icon:mapIcon,
+							//icon:new PhysicalNodeGroupClusterMarker(this.showGroups.GetAll().length.toString(), this, showGroups.GetType()),
+							//iconAllignment:MarkerOptions.ALIGN_RIGHT,
+							iconOffset:new Point(-20, -20)
 						}
-					}
-				}
-				if(newGroup.collection.length > 0)
-					showGroups.Add(newGroup);
-			}
-
-			if(showGroups.collection.length == 1) {
-				this.setOptions(new MarkerOptions({
-					icon:new PhysicalNodeGroupMarker(this),
-					//iconAllignment:MarkerOptions.ALIGN_RIGHT,
-					iconOffset:new Point(-18, -18)
-				}));
-			} else if(showGroups.collection.length > 1) {
-				this.setOptions(new MarkerOptions({
-					icon:new PhysicalNodeGroupMarker(this),
-					//icon:new PhysicalNodeGroupClusterMarker(showGroups.GetAll().length.toString(), this, showGroups.GetType()),
-					//iconAllignment:MarkerOptions.ALIGN_RIGHT,
-					iconOffset:new Point(-20, -20)
-				}));
+					)
+				);
 			}
 		}
 		
-		public var infoWindow:UIComponent;
-		public var nodeGroups:PhysicalNodeGroupCollection;
-		public var info:DisplayObject;
-		public var added:Boolean = false;
-		public var cluster:Vector.<GeniMapMarker>;
-		public var showGroups:PhysicalNodeGroupCollection = new PhysicalNodeGroupCollection(null);
+		public function sameLocationAs(testLocations:Vector.<PhysicalLocation>):Boolean
+		{
+			if(testLocations.length != locations.length)
+				return false;
+			for each(var testLocation:PhysicalLocation in testLocations)
+			{
+				if(!locations.contains(testLocation))
+					return false;
+			}
+			return true;
+		}
+		
+		public function clicked(e:Event):void
+		{
+			var clusterInfo:GoogleMapLocationMarkerInfo = new GoogleMapLocationMarkerInfo();
+			clusterInfo.load(this);
+			infoWindow = clusterInfo;
+			
+			openInfoWindow(
+				new InfoWindowOptions(
+					{
+						customContent:infoWindow,
+						customoffset:new Point(0, 10),
+						width:infoWindow.width,
+						height:infoWindow.height,
+						drawDefaultFrame:true
+					}
+				)
+			);
+		}
+		
+		public function get LatitudeLongitudeLocation():LatitudeLongitude
+		{
+			var ll:LatLng = getLatLng();
+			return new LatitudeLongitude(ll.lat(), ll.lng());
+		}
 	}
 }

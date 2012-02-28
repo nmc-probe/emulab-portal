@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -19,150 +19,311 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 <s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
-		  xmlns:mx="library://ns.adobe.com/flex/mx">
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  dragDrop="dragEnterHandler(event)"
+		  dragEnter="dragEnterHandler(event)"
+		  gap="2">
+	<fx:Declarations>
+		<s:RadioButtonGroup id="exclusiveRadiobuttongroup"
+							change="exclusiveCheckbox.selected = true; filter();" />
+	</fx:Declarations>
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.display.mapping.mapproviders.googlemapsprovider.GoogleMapLocationMarker;
+			import com.flack.geni.resources.physical.HardwareType;
+			import com.flack.geni.resources.physical.HardwareTypeCollection;
+			import com.flack.geni.resources.physical.PhysicalNode;
+			import com.flack.geni.resources.physical.PhysicalNodeCollection;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.sites.GeniManagerCollection;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.utils.StringUtil;
+			
 			import mx.collections.ArrayCollection;
-			import mx.collections.Sort;
-			import mx.collections.SortField;
+			import mx.core.UIComponent;
+			import mx.events.DragEvent;
+			import mx.managers.DragManager;
 			
-			import protogeni.resources.PhysicalNode;
+			import spark.collections.Sort;
+			import spark.collections.SortField;
+			import spark.events.TextOperationEvent;
 			
-			public var nodes:ArrayCollection;
+			public var nodes:PhysicalNodeCollection;
 			
+			[Bindable]
+			public var viewCollection:PhysicalNodeCollection;
 			[Bindable]
 			public var viewNodes:ArrayCollection;
 			
 			[Bindable]
-			public var nodeTypes:ArrayCollection = new ArrayCollection();
+			private var nodeTypes:ArrayCollection;
 			
-			public var host:PhysicalNodeInfo;
+			[Bindable]
+			private var managers:ArrayCollection;
 			
-			public function load(group:ArrayCollection, newHost:PhysicalNodeInfo = null):void {
-				host = newHost;
+			[Bindable]
+			private var cpuSpeeds:ArrayCollection;
+			
+			[Bindable]
+			private var ramSizes:ArrayCollection;
+			
+			static public const SELECTED:String = "selected";
+			static public const FILTERED:String = "filtered";
+			//static public const CLICKED:String = "clicked";
+			
+			public function load(group:PhysicalNodeCollection):void
+			{
 				nodes = group;
-				viewNodes = nodes;
-
-				var tempNodeTypes:Array = [];
-				for each(var node:PhysicalNode in nodes) {
-					for each(var nodeType:String in node.hardwareTypes) {
-						if(tempNodeTypes.indexOf(nodeType) == -1)
-							tempNodeTypes.push(nodeType);
-					}
-				}
+				viewCollection = group;
 				
-				
-				this.typeCheckbox.visible =
-					this.types.visible =
-					this.typeCheckbox.includeInLayout =
-					this.types.includeInLayout =
-						tempNodeTypes.length > 0;
-				
-				if(tempNodeTypes.length > 0) {
-					tempNodeTypes.sort();
-					nodeTypes = new ArrayCollection(tempNodeTypes);
-					
-					if(tempNodeTypes.indexOf("pc") != -1)
-						this.types.selectedIndex = tempNodeTypes.indexOf("pc");
-					else
-						this.types.selectedIndex = 0;
-				}
+				viewNodes = new ArrayCollection();
+				for each(var node:PhysicalNode in group.collection)
+					viewNodes.addItem(node);
 				
 				var nameSort:Sort = new Sort();
-				var dataSortField:SortField = new SortField();
-				dataSortField.name = "name";
+				var dataSortField:SortField = new SortField("name");
 				nameSort.fields = [dataSortField];
 				
-				nodes.sort = nameSort;
-				nodes.refresh();
 				viewNodes.sort = nameSort;
 				viewNodes.refresh();
 				
-				if(nodes.length > 1) {
-					list.selectedIndex = 0;
-				} else {
-					list.visible = false;
-					list.includeInLayout = false;
+				// Types
+				nodeTypes = new ArrayCollection();
+				var groupTypes:HardwareTypeCollection = group.Types
+				for each(var nodeType:HardwareType in groupTypes.collection)
+					nodeTypes.addItem(nodeType);
+				
+				limitByTypeGroup.visible =
+					limitByTypeGroup.includeInLayout = nodeTypes.length > 1;
+				
+				if(nodeTypes.length > 0) {
+					if(nodeTypes.contains("pc") != -1)
+						typesList.selectedIndex = nodeTypes.getItemIndex("pc");
+					else
+						typesList.selectedIndex = 0;
 				}
 				
-				if(host != null)
-					host.load(group[0]);
+				// Managers
+				managers = new ArrayCollection();
 				
-				this.filterNodes();
+				var groupManagers:GeniManagerCollection = group.Managers;
+				limitByManagerGroup.visible =
+					limitByManagerGroup.includeInLayout = groupManagers.length > 1;
+				
+				if(limitByManagerGroup.visible)
+				{
+					for each(var manager:GeniManager in groupManagers.collection)
+						managers.addItem(manager);
+				}
+				var d:StringUtil
+				// Property filters
+				var values:Vector.<int> = group.CpuSpeeds;
+				var val:int;
+				limitByCpuGroup.visible = limitByCpuGroup.includeInLayout = values.length > 0;
+				cpuSpeeds = new ArrayCollection();
+				for each(val in values)
+					cpuSpeeds.addItem({value:val, label: StringUtil.mhzToString(val)});
+				
+				values = group.RamSizes;
+				limitByRamGroup.visible = limitByRamGroup.includeInLayout = values.length > 0;
+				ramSizes = new ArrayCollection();
+				for each(val in values)
+					ramSizes.addItem({value:val, label: StringUtil.mbToString(val)});
+				
+				filter();
 			}
 			
-			private function assignAvailableIcon(item:Object):Class {
-				/*if(!this.hideUnavailableCheckBox.selected)
+			private function filter():void
+			{
+				var filteredNodes:PhysicalNodeCollection;
+				
+				if(this.availableOnlyCheckBox.selected)
+					filteredNodes = nodes.Available;
+				else
+					filteredNodes = nodes.Clone;
+				
+				if(managerCheckbox.selected)
+					filteredNodes = filteredNodes.getByManager(managersList.selectedItem);
+				
+				if(typeCheckbox.selected)
+					filteredNodes = filteredNodes.getByType(typesList.selectedItem.name);
+				
+				if(exclusiveCheckbox.selected)
 				{
-					for each(var sn:SliceNode in this.sliceCanvas.allNodes)
-					{
-						if(!sn.node.isVirtual && sn.node.physicalNode == node)
-							return DisplayUtil.cancelIcon;
-					}
+					if(exclusiveRadiobutton.selected)
+						filteredNodes = filteredNodes.Exclusive;
+					else
+						filteredNodes = filteredNodes.Shared;
 				}
-				*/
-				return DisplayUtil.assignAvailabilityIcon(item as PhysicalNode);
+				
+				if(cpuCheckbox.selected)
+					filteredNodes = filteredNodes.getByMinimumCpuSpeed(int(cpuList.selectedItem.value));
+				
+				if(ramCheckbox.selected)
+					filteredNodes = filteredNodes.getByMinimumRamSize(int(ramList.selectedItem.value));
+				
+				if(searchField.text.length > 0)
+					filteredNodes = filteredNodes.searchByName(searchField.text);
+				
+				viewCollection = filteredNodes;
+				dispatchEvent(new FlackEvent(FILTERED));
+				
+				viewNodes.removeAll();
+				for each(var node:PhysicalNode in filteredNodes.collection)
+					viewNodes.addItem(node);
+				viewNodes.refresh();
 			}
 			
-			private function filterNodes():void {
-				// only show nodes of the selected type
-				if(typeCheckbox.selected) {
-					viewNodes = new ArrayCollection();
-					for each(var nodeOfType:PhysicalNode in nodes) {
-						for each(var nodeType:String in nodeOfType.hardwareTypes) {
-							if(nodeType == types.selectedItem) {
-								viewNodes.addItem(nodeOfType);
-								break;
-							}
-						}
-					}
-				} else {
-					viewNodes = new ArrayCollection();
-					for each(var nodeToAdd:PhysicalNode in nodes) {
-						viewNodes.addItem(nodeToAdd);
-					}
-				}
-
-				if(this.hideUnavailableCheckBox.selected)
+			/*protected function selectedItem(event:IndexChangeEvent = null):void
+			{
+				dispatchEvent(new GeniEvent(SELECTED, list.selectedItem, GeniEvent.ACTION_SELECTED));
+			}*/
+			
+			/*protected function clickedItem(event:MouseEvent):void
+			{
+				dispatchEvent(new GeniEvent(CLICKED, list.selectedItem, GeniEvent.ACTION_SELECTED));
+			}*/
+			
+			protected function dragEnterHandler(event:DragEvent):void
+			{
+				if (event.dragSource.hasFormat("manager") ||
+					event.dragSource.hasFormat("physicalMarker") ||
+					event.dragSource.hasFormat("physicalNodeCollection"))
 				{
-					for(var i:int = 0; i < viewNodes.length; i++) {
-						var node:PhysicalNode = viewNodes.getItemAt(i) as PhysicalNode;
-						if(!node.available) {
-							viewNodes.removeItemAt(i);
-							i--;
-						}
-					}
-					/*
-					for each(var sn:SliceNode in this.sliceCanvas.allNodes)
-					{
-						if(!sn.node.isVirtual &&
-							sn.node.manager == gm &&
-							nodes.getItemIndex(sn.node.physicalNode) > -1)
-							viewNodes.removeItemAt(nodes.getItemIndex(sn.node.physicalNode));
-					}
-					*/
+					DragManager.acceptDragDrop(event.target as UIComponent);
 				}
 			}
+			
+			protected function dragDropHandler(event:DragEvent):void
+			{
+				if(event.dragSource.hasFormat("physicalMarker"))
+					load((event.dragSource.dataForFormat('physicalMarker') as GoogleMapLocationMarker).nodes);
+				else if(event.dragSource.hasFormat("manager"))
+					load((event.dragSource.dataForFormat('manager') as GeniManager).nodes);
+				else if(event.dragSource.hasFormat("physicalNodeCollection"))
+					load(event.dragSource.dataForFormat('physicalNodeCollection') as PhysicalNodeCollection);
+			}
+			
+			protected function searchField_changeHandler(event:TextOperationEvent):void
+			{
+				filter();
+			}
+			
+			private var lastSelected:int = -1;
+			protected function list_mouseUpHandler(event:MouseEvent):void
+			{
+				if(lastSelected != list.selectedIndex)
+				{
+					lastSelected = list.selectedIndex;
+					dispatchEvent(new FlackEvent(SELECTED, list.selectedItem, FlackEvent.ACTION_SELECTED));
+				}
+			}
+			
 		]]>
 	</fx:Script>
-	<s:CheckBox id="typeCheckbox"
-				label="Show only"
-				selected="false"
-				valueCommit="filterNodes()" />
 	
-	<s:DropDownList id="types" height="24" width="100%"
-					dataProvider="{nodeTypes}"
-					requireSelection="true"
-					change="typeCheckbox.selected = true; filterNodes();" />
-
-	<s:CheckBox id="hideUnavailableCheckBox"
-				label="Hide unavailable"
-				selected="false"
-				valueCommit="filterNodes()" />
+	<s:VGroup width="100%" paddingLeft="2" paddingRight="2" gap="2">
+		
+		<s:TextInput id="searchField"
+					 prompt="Find by name..."
+					 toolTip="Type part of the name of a node to limit results"
+					 width="100%"
+					 change="searchField_changeHandler(event)" />
+		
+		<s:CheckBox id="availableOnlyCheckBox"
+					label="Available only"
+					toolTip="Limit results to available nodes only"
+					selected="false"
+					change="filter()" />
+		
+		<s:HGroup verticalAlign="middle"
+				  id="limitByExclusiveGroup"
+				  width="100%"
+				  gap="2"
+				  toolTip="Limit nodes based on if they are exclusive or shared">
+			<s:CheckBox id="exclusiveCheckbox"
+						change="filter();" />
+			<s:RadioButton label="Exclusive"
+						   id="exclusiveRadiobutton"
+						   group="{exclusiveRadiobuttongroup}"
+						   selected="true" />
+			<s:RadioButton label="Shared"
+						   id="sharedRadiobutton"
+						   group="{exclusiveRadiobuttongroup}" />
+		</s:HGroup>
+		
+		<s:HGroup verticalAlign="middle"
+				  id="limitByManagerGroup"
+				  width="100%"
+				  gap="2"
+				  toolTip="Select a manager to limit results to">
+			<s:CheckBox id="managerCheckbox"
+						change="filter();" />
+			<s:DropDownList id="managersList"
+							labelField="hrn"
+							width="100%"
+							dataProvider="{managers}"
+							change="managerCheckbox.selected = true; filter();"
+							requireSelection="true" />
+		</s:HGroup>
+		
+		<s:HGroup verticalAlign="middle"
+				  id="limitByTypeGroup"
+				  width="100%"
+				  gap="2"
+				  toolTip="Select a type to limit results to">
+			<s:CheckBox id="typeCheckbox"
+						change="filter();" />
+			<s:DropDownList id="typesList"
+							width="100%"
+							dataProvider="{nodeTypes}"
+							labelField="name"
+							requireSelection="true"
+							change="typeCheckbox.selected = true; filter();" />
+		</s:HGroup>
+		
+		<s:HGroup verticalAlign="middle"
+				  id="limitByCpuGroup"
+				  width="100%"
+				  gap="2"
+				  toolTip="Limit results to nodes based on CPU speed">
+			<s:CheckBox id="cpuCheckbox"
+						change="filter();" />
+			<s:Label text="CPU >=" />
+			<s:DropDownList id="cpuList"
+							labelField="label"
+							width="100%"
+							dataProvider="{cpuSpeeds}"
+							change="cpuCheckbox.selected = true; filter();"
+							requireSelection="true">
+			</s:DropDownList>
+		</s:HGroup>
+		
+		<s:HGroup verticalAlign="middle"
+				  id="limitByRamGroup"
+				  width="100%"
+				  gap="2"
+				  toolTip="Limit results to nodes based on memory size">
+			<s:CheckBox id="ramCheckbox"
+						change="filter();" />
+			<s:Label text="RAM >=" />
+			<s:DropDownList id="ramList"
+							labelField="label"
+							width="100%"
+							dataProvider="{ramSizes}"
+							change="ramCheckbox.selected = true; filter();"
+							requireSelection="true">
+			</s:DropDownList>
+		</s:HGroup>
+	</s:VGroup>
 	
-	<s:List width="100%" height="100%" id="list"
-			 dataProvider="{viewNodes}"
-			 itemRenderer="protogeni.display.NodeItemRenderer"
-			 dragEnabled="true"
-			 change="if(host != null) host.load(event.target.selectedItem)" />
+	<s:List width="100%"
+			height="100%"
+			id="list"
+			horizontalScrollPolicy="auto"
+			dataProvider="{viewNodes}"
+			itemRenderer="com.flack.geni.display.PhysicalNodeItemRenderer"
+			dragEnabled="true"
+			mouseUp="list_mouseUpHandler(event)" />
+	
 </s:VGroup>

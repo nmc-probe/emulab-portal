@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,143 +12,469 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
-{	
-	import com.google.maps.LatLng;
-	import com.google.maps.services.ClientGeocoder;
-	import com.google.maps.services.GeocodingEvent;
-	import com.google.maps.services.Placemark;
+package com.flack.geni.resources.physical
+{
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
 	
-	// Group of physical nodes located in one area
-	/**
-	 * Group of resources optionally located at the same coordinates.
-	 * 
-	 * @author mstrum
-	 * 
-	 */
-	public class PhysicalNodeGroup
+	import flash.utils.Dictionary;
+
+	public class PhysicalNodeCollection
 	{
-		public var owner:PhysicalNodeGroupCollection = null;
-		
-		public var latitude:Number;
-		public var longitude:Number;
-		public var country:String;
-		
-		[Bindable]
-		public var city:String = "";
-		
 		public var collection:Vector.<PhysicalNode>;
-		public var links:PhysicalLinkGroup = null;
-		
-		[Bindable]
-		public var original:PhysicalNodeGroup = null;
-		
-		public function PhysicalNodeGroup(lat:Number = -1,
-										  lng:Number = -1,
-										  cnt:String = "",
-										  own:PhysicalNodeGroupCollection = null,
-										  orig:PhysicalNodeGroup = null)
+		public function PhysicalNodeCollection()
 		{
-			this.collection = new Vector.<PhysicalNode>();
-			this.latitude = lat;
-			this.longitude = lng;
-			this.country = cnt;
-			this.owner = own;
-			this.original = orig;
-			if(this.original == null && !Main.offlineMode) {
-				this.Geocode();
-			}
+			collection = new Vector.<PhysicalNode>();
 		}
 		
-		public function Geocode():void {
-			try {
-				var geocoder:ClientGeocoder = new ClientGeocoder();
-				geocoder.addEventListener(GeocodingEvent.GEOCODING_SUCCESS,
-					function(event:GeocodingEvent):void {
-						var placemarks:Array = event.response.placemarks;
-						if (placemarks.length > 0) {
-							try {
-								var p:Placemark = event.response.placemarks[0] as Placemark;
-								var fullAddress : String = p.address;
-								var splitAddress : Array = fullAddress.split(',');
-								if(splitAddress.length == 3)
-									city = splitAddress[0];
-								else 
-									if(splitAddress.length == 4)
-										city = splitAddress[1];
-									else
-										city = fullAddress;
-								//nodeGroup.city = groupInfo.city;
-							} catch (err:Error) { }
-						}
-					});
-				
-				geocoder.addEventListener(GeocodingEvent.GEOCODING_FAILURE,
-					function(event:GeocodingEvent):void {
-						//Main.log.appendMessage(
-						//	new LogMessage("","Geocoding failed (" + event.status + " / " + event.eventPhase + ")","",true));
-					});
-				
-				geocoder.reverseGeocode(new LatLng(latitude, longitude));
-			} catch(e:Error) {}
+		public function add(node:PhysicalNode):void
+		{
+			collection.push(node);
 		}
 		
-		public function Add(n:PhysicalNode):void {
-			this.collection.push(n);
+		public function remove(node:PhysicalNode):void
+		{
+			var idx:int = collection.indexOf(node);
+			if(idx > -1)
+				collection.splice(idx, 1);
 		}
 		
-		public function GetByUrn(urn:String):PhysicalNode {
-			for each ( var n:PhysicalNode in this.collection ) {
-				if(n.id == urn)
+		public function contains(node:PhysicalNode):Boolean
+		{
+			return collection.indexOf(node) > -1;
+		}
+		
+		public function get length():int
+		{
+			return collection.length;
+		}
+		
+		/**
+		 * 
+		 * @param id ID of the node to find
+		 * @return Node with the given ID
+		 * 
+		 */
+		public function getById(id:String):PhysicalNode
+		{
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.id.full == id)
 					return n;
 			}
 			return null;
 		}
 		
-		public function GetByName(name:String):PhysicalNode {
-			for each ( var n:PhysicalNode in this.collection ) {
+		/**
+		 * 
+		 * @param name Name of the node to find
+		 * @return Node with the given name
+		 * 
+		 */
+		public function getByName(name:String):PhysicalNode
+		{
+			for each (var n:PhysicalNode in collection)
+			{
 				if(n.name == name)
 					return n;
 			}
 			return null;
 		}
 		
-		public function GetByType(type:String):PhysicalNodeGroup {
-			var group:PhysicalNodeGroup = new PhysicalNodeGroup();
-			for each ( var n:PhysicalNode in this.collection ) {
-				for each ( var nt:String in n.hardwareTypes ) {
-					if(nt == type) {
-						group.Add(n);
-						break;
-					}
-				}
+		/**
+		 * 
+		 * @param name Partial name to search for
+		 * @return All nodes with names which include 'name' in them
+		 * 
+		 */
+		public function searchByName(name:String):PhysicalNodeCollection
+		{
+			var nodes:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.name.indexOf(name) != -1)
+					nodes.add(n);
+			}
+			return nodes;
+		}
+		
+		/**
+		 * 
+		 * @param type Hardware type name we are looking for
+		 * @return Nodes of the given hardware type
+		 * 
+		 */
+		public function getByType(type:String):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.hardwareTypes.getByName(type) != null)
+					group.add(n);
 			}
 			return group;
 		}
 		
-		public function Available():Number {
-			var cnt:Number = 0;
-			for each ( var n:PhysicalNode in this.collection ) {
-				if(n.available)
-					cnt++;
+		/**
+		 * 
+		 * @param available Should the nodes be available?
+		 * @return Nodes with the same availability given
+		 * 
+		 */
+		public function getByAvailability(available:Boolean):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.available == available)
+					group.add(n);
 			}
-			return cnt;
+			return group;
 		}
 		
-		public function ExternalLinks():Number {
-			var cnt:Number = 0;
-			for each ( var n:PhysicalNode in this.collection ) {
-				for each ( var l:PhysicalLink in n.GetLinks() ) {
-					if(l.owner != n.owner.links)
-						cnt++;
+		/**
+		 * 
+		 * @param exclusive Should the nodes be exclusive?
+		 * @return Nodes with the same exclusivity given
+		 * 
+		 */
+		public function getByExclusivity(exclusive:Boolean):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.exclusive == exclusive)
+					group.add(n);
+			}
+			return group;
+		}
+		
+		/**
+		 * 
+		 * @param manager Manager we want nodes for
+		 * @return Nodes from the given manager
+		 * 
+		 */
+		public function getByManager(manager:GeniManager):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.manager == manager)
+					group.add(n);
+			}
+			return group;
+		}
+		
+		/**
+		 * 
+		 * @param managers Managers we are looking for
+		 * @return Nodes from the given managers
+		 * 
+		 */
+		public function getByManagers(managers:GeniManagerCollection):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(managers.contains(n.manager as GeniManager))
+					group.add(n);
+			}
+			return group;
+		}
+		
+		/**
+		 * 
+		 * @param id ID of the interface we are looking for
+		 * @return Node interface with the given ID
+		 * 
+		 */
+		public function getInterfaceById(id:String):PhysicalInterface
+		{
+			for each(var node:PhysicalNode in collection)
+			{
+				var ni:PhysicalInterface = node.interfaces.getById(id);
+				if(ni != null)
+					return ni;
+			}
+			return null;
+		}
+		
+		/**
+		 * 
+		 * @param capacity Minimum capacity (kbs) nodes should have for links
+		 * @return Nodes with at least the given capacity
+		 * 
+		 */
+		public function getByMinimumCapacity(capacity:Number):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.Links.MaximumCapacity >= capacity)
+					group.add(n);
+			}
+			return group;
+		}
+		
+		/**
+		 * 
+		 * @param speed Minimum CPU speed
+		 * @return Nodes with at least the CPU speed given
+		 * 
+		 */
+		public function getByMinimumCpuSpeed(speed:int):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.cpuSpeed >= speed)
+					group.add(n);
+			}
+			return group;
+		}
+		
+		/**
+		 * 
+		 * @param size Minimum RAM size
+		 * @return Nodes with at least the given amount of RAM
+		 * 
+		 */
+		public function getByMinimumRamSize(size:int):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.ramSize >= size)
+					group.add(n);
+			}
+			return group;
+		}
+		
+		/**
+		 * 
+		 * @param name Partial name
+		 * @param availableOnly Availability
+		 * @param type Hardware type
+		 * @return Nodes matching the given criteria
+		 * 
+		 */
+		public function search(name:String, availableOnly:Boolean = false, type:String = ""):PhysicalNodeCollection
+		{
+			var results:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each(var node:PhysicalNode in collection)
+			{
+				if(node.search(name, availableOnly, type))
+					results.add(node);
+			}
+			return results;
+		}
+		
+		/**
+		 * 
+		 * @param otherCollection Collection we want to know if it is the same as this
+		 * @return TRUE if the given collection is the same as this
+		 * 
+		 */
+		public function sameAs(otherCollection:PhysicalNodeCollection):Boolean
+		{
+			if(otherCollection.length != length)
+				return false;
+			for each(var node:PhysicalNode in collection)
+			{
+				if(!otherCollection.contains(node))
+					return false;
+			}
+			return true;
+		}
+		
+		/**
+		 * 
+		 * @return All available nodes
+		 * 
+		 */
+		public function get Available():PhysicalNodeCollection
+		{
+			return getByAvailability(true);
+		}
+		
+		/**
+		 * 
+		 * @return All exclusive nodes
+		 * 
+		 */
+		public function get Exclusive():PhysicalNodeCollection
+		{
+			return getByExclusivity(true);
+		}
+		
+		/**
+		 * 
+		 * @return All shared nodes
+		 * 
+		 */
+		public function get Shared():PhysicalNodeCollection
+		{
+			return getByExclusivity(false);
+		}
+		
+		/**
+		 * 
+		 * @return New instance of this collection
+		 * 
+		 */
+		public function get Clone():PhysicalNodeCollection
+		{
+			var clone:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each(var node:PhysicalNode in collection)
+				clone.add(node);
+			return clone;
+		}
+		
+		/**
+		 * 
+		 * @return All locations of nodes
+		 * 
+		 */
+		public function get Locations():PhysicalLocationCollection
+		{
+			var locations:PhysicalLocationCollection = new PhysicalLocationCollection();
+			for each(var node:PhysicalNode in collection)
+			{
+				if(!locations.contains(node.location))
+					locations.add(node.location);
+			}
+			return locations;
+		}
+		
+		/**
+		 * 
+		 * @return All managers for the nodes
+		 * 
+		 */
+		public function get Managers():GeniManagerCollection
+		{
+			if(this.length == 0)
+				return new GeniManagerCollection();
+			var d:Dictionary = new Dictionary();
+			var a:Vector.<GeniManager> = new Vector.<GeniManager>();
+			var biggestManager:GeniManager;
+			var max:int = 0;
+			for each(var node:PhysicalNode in collection)
+			{
+				if(a.indexOf(node.manager) == -1)
+				{
+					a.push(node.manager);
+					d[node.manager] = 1;
+				}
+				else
+					d[node.manager]++;
+				
+				if(d[node.manager] > max)
+				{
+					biggestManager = node.manager as GeniManager;
+					max = d[node.manager];
 				}
 			}
-			return cnt;
+			var group:GeniManagerCollection = new GeniManagerCollection();
+			group.add(biggestManager);
+			for each(var m:GeniManager in a)
+			{
+				if(m != biggestManager)
+					group.add(m);
+			}
+			return group;
 		}
 		
-		public function GetManager():GeniManager
+		/**
+		 * 
+		 * @return All hardware types
+		 * 
+		 */
+		public function get Types():HardwareTypeCollection
 		{
-			return this.collection[0].manager;
+			var types:HardwareTypeCollection = new HardwareTypeCollection();
+			for each(var node:PhysicalNode in collection)
+			{
+				for each(var nodeType:HardwareType in node.hardwareTypes.collection)
+				{
+					if(types.getByName(nodeType.name) == null)
+						types.add(nodeType);
+				}
+			}
+			types.collection = types.collection.sort(
+				function compareTypes(a:HardwareType, b:HardwareType):Number
+				{
+					if(a.name < b.name)
+						return -1;
+					else if(a.name == b.name)
+						return 0;
+					else
+						return 1;
+				});
+			return types;
+		}
+		
+		/**
+		 * 
+		 * @return All CPU speeds
+		 * 
+		 */
+		public function get CpuSpeeds():Vector.<int>
+		{
+			var speeds:Vector.<int> = new Vector.<int>();
+			for each(var node:PhysicalNode in collection)
+			{
+				if(node.cpuSpeed > 0)
+				{
+					var add:Boolean = true;
+					var i:int;
+					for(i = 0; i < speeds.length; i++)
+					{
+						if(speeds[i] == node.cpuSpeed)
+						{
+							add = false;
+							break;
+						}
+						else if(speeds[i] > node.cpuSpeed)
+							break;
+					}
+					if(add)
+						speeds.splice(i, 0, node.cpuSpeed);
+				}
+			}
+			return speeds;
+		}
+		
+		/**
+		 * 
+		 * @return All RAM sizes
+		 * 
+		 */
+		public function get RamSizes():Vector.<int>
+		{
+			var sizes:Vector.<int> = new Vector.<int>();
+			for each(var node:PhysicalNode in collection)
+			{
+				if(node.cpuSpeed > 0)
+				{
+					var add:Boolean = true;
+					var i:int;
+					for(i = 0; i < sizes.length; i++)
+					{
+						if(sizes[i] == node.ramSize)
+						{
+							add = false;
+							break;
+						}
+						else if(sizes[i] > node.ramSize)
+							break;
+					}
+					if(add)
+						sizes.splice(i, 0, node.ramSize);
+				}
+			}
+			return sizes;
 		}
 	}
 }

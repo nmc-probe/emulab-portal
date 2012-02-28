@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,108 +12,120 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.Util;
-	import protogeni.resources.GeniCredential;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.DateUtil;
 	
 	/**
-	 * Gets some info for the sliver like the sliver credential using the ProtoGENI API
+	 * Gets the sliver credential and adds a resolve call to get the manifest to the parent task.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverGet extends Request
+	public final class GetSliverCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
 		
-		public function RequestSliverGet(s:Sliver):void
+		/**
+		 * 
+		 * @param newSliver Sliver to get
+		 * 
+		 */
+		public function GetSliverCmTask(newSliver:Sliver)
 		{
-			super("Get credential @ " + s.manager.Hrn,
-				"Getting the sliver credential on " + s.manager.Hrn + " on slice named " + s.slice.Name,
-				CommunicationUtil.getSliver,
-				true,
-				true);
-			sliver = s;
-			sliver.changing = true;
-			sliver.message = "Getting credential";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.setUrl(sliver.manager.Url);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_GETSLIVER,
+				"Get sliver @ " + newSliver.manager.hrn,
+				"Gets the sliver credential for component manager named " + newSliver.manager.hrn,
+				"Get Sliver"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			sliver = newSliver;
 		}
 		
-		override public function start():Operation {
-			if(sliver.manager.Status == GeniManager.STATUS_VALID) {
-				op.clearFields();
+		override protected function createFields():void
+		{
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
+			{
+				sliver.credential =
+					new GeniCredential(
+						String(data),
+						GeniCredential.TYPE_SLIVER,
+						sliver.manager
+					);
+				sliver.id = sliver.credential.TargetId;
+				sliver.expires = sliver.credential.Expires;
 				
-				op.addField("slice_urn", sliver.slice.urn.full);
-				op.addField("credentials", [sliver.slice.credential]);
+				addMessage(
+					"Credential received",
+					sliver.credential.Raw,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				addMessage(
+					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
 				
-				return op;
+				parent.add(new ResolveSliverCmTask(sliver));
+				
+				super.afterComplete(addCompletedMessage);
+			}
+ 			else if(
+				code == ProtogeniXmlrpcTask.CODE_SEARCHFAILED ||
+				code == ProtogeniXmlrpcTask.CODE_BADARGS)
+			{
+				addMessage(
+					"No sliver",
+					"No sliver found here",
+					LogMessage.LEVEL_WARNING,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				super.afterComplete(true);
 			}
 			else
-				return null;
+				faultOnSuccess();
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterError(taskError:TaskError):void
 		{
-			var newCall:Request = null;
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
-			{
-				sliver.credential = String(response.value);
-				
-				var cred:XML = new GeniCredential(sliver.credential).toXml();
-				sliver.urn = GeniCredential.getTargetUrn(cred);
-				sliver.expires = GeniCredential.getExpires(cred);
-				
-				sliver.message = "Credential received";
-				newCall = new RequestSliverResolve(sliver);
-			}
-			else if(code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED
-				|| code == CommunicationUtil.GENIRESPONSE_BADARGS)
-			{
-				sliver.slice.slivers.remove(sliver);
-				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
-				if(old != null)
-				{
-					var oldSliver:Sliver = old.slivers.getByManager(sliver.manager);
-					if(oldSliver != null)
-						old.slivers.remove(oldSliver);
-				}
-				sliver.changing = false;
-				sliver.message = "No sliver here";
-			}
+			sliver.status = Sliver.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLIVER,
+				sliver,
+				FlackEvent.ACTION_STATUS
+			);
 			
-			return newCall;
+			super.afterError(taskError);
 		}
 		
-		public function failed(msg:String = ""):void {
-			sliver.changing = false;
-			sliver.message = "Get credential failed";
-			if(msg != null && msg.length > 0)
-				sliver.message += ": " + msg;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return super.fail(event, fault);
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+		override protected function runCancel():void
+		{
+			sliver.status = Sliver.STATUS_UNKNOWN;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLIVER,
+				sliver,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 	}
 }

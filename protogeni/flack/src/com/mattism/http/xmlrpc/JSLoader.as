@@ -19,14 +19,17 @@ package com.mattism.http.xmlrpc
 
   public class JSLoader extends EventDispatcher
   {
-	[Bindable]
-	public static var serverCertificate:String = "";
     public static function setServerCertificate(newCert : String) : void
     {
-		serverCertificate = newCert;
         ExternalInterface.call("setServerCert", newCert);
     }
-
+	
+	/**
+	 * 
+	 * @param password Password for the private key
+	 * @param pem PEM including the private key and ssl certificate
+	 * 
+	 */
     public static function setClientInfo(password : String,
                                          pem : String) : void
     {
@@ -78,12 +81,12 @@ package com.mattism.http.xmlrpc
         var clearKey : String = decodeKey(desKey, iv, key);
         ExternalInterface.call("setClientKey", clearKey);
       }
-	  // Either an invalid key or not password protected ... assume the later
-	  else
-	  {
+	  // Either an invalid key or not password protected ... assume the later...
+      else
+      {
 		  ExternalInterface.call("setClientKey", key);
 		  //throw new Error("Invalid Key: " + key);
-	  }
+      }
 	  ExternalInterface.call("setClientCert", cert);
     }
 

@@ -31,7 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 //http://code.google.com/p/as3corelib/source/browse/trunk/src/com/adobe/utils/DateUtil.as
-package protogeni
+package com.flack.shared.utils
 {
 	import mx.formatters.DateBase;
 	
@@ -453,7 +453,7 @@ package protogeni
 			catch (e:Error)
 			{
 				var eStr:String = "Unable to parse the string [" +str+ "] into a date. ";
-				eStr += "The internal error was: " + e.toString();
+				eStr += "The internal error was: " + StringUtil.errorToString(e);
 				throw new Error(eStr);
 			}
 			return finalDate;
@@ -589,7 +589,7 @@ package protogeni
 			catch (e:Error)
 			{
 				var eStr:String = "Unable to parse the string [" +str+ "] into a date. ";
-				eStr += "The internal error was: " + e.toString();
+				eStr += "The internal error was: " + StringUtil.errorToString(e);
 				throw new Error(eStr);
 			}
 			return finalDate;
@@ -662,13 +662,14 @@ package protogeni
 			catch (e:Error)
 			{
 				var eStr:String = "Unable to parse the string [" +str+ "] into a date. ";
-				eStr += "The internal error was: " + e.toString();
+				eStr += "The internal error was: " + StringUtil.errorToString(e);
 				throw new Error(eStr);
 			}
 			return finalDate;
 		}
 		
-		public static function toRFC3339(d:Date):String {
+		public static function toRFC3339(d:Date):String
+		{
 			var date:Number = d.getUTCDate();
 			var month:Number = d.getUTCMonth();
 			var hours:Number = d.getUTCHours();
@@ -806,35 +807,39 @@ package protogeni
 			return nd;
 		}
 		
-		public static function getTimeUntil(date:Date, short:Boolean=false):String {
-			return getTimeBetween(date, new Date());
+		public static function getTimeUntil(date:Date, short:Boolean=false):String
+		{
+			return getTimeBetween(new Date(), date, short);
 		}
 		
-		public static function getTimeBetween(beginning:Date, end:Date, short:Boolean=false):String {
-			var differenceInMilliseconds:Number = beginning.time - end.time;
+		public static function getTimeBetween(beginning:Date, end:Date, short:Boolean=false):String
+		{
+			if(end == null)
+				return "N/A";
+			var differenceInMilliseconds:Number = end.time - beginning.time;
 			var days:Number = Math.floor(differenceInMilliseconds/(1000*60*60*24));
 			var hours:Number = Math.floor(differenceInMilliseconds/(1000*60*60) - days*24);
 			var minutes:Number = Math.floor(differenceInMilliseconds/(1000*60) - days*24*60 - hours*60);
+			var seconds:Number = Math.floor(differenceInMilliseconds/1000 - days*24*60*60 - hours*60*60 - minutes*60);
 			
 			var value:String = "";
-			if(days != 0) {
-				value = days + " D";
-				if(!short)
-					value += "ays";
-			}
+			if(days != 0)
+				value = days + (short ? "d" : " day" + (days > 1 ? "s" : ""));
 			
 			if(hours != 0) {
 				if(value.length > 0)
-					value += ", ";
-				value += hours + " H";
-				if(!short)
-					value += "ours";
+					value += (short ? " " : ", ");
+				value += hours + (short ? "h" : " hour" + (hours > 1 ? "s" : ""));
 			}
-			if(value.length > 0)
-				value += ", ";
-			value += minutes + " M";
-			if(!short)
-				value += "inutes";
+			
+			if(minutes != 0) {
+				if(value.length > 0)
+					value += (short ? " " : ", ");
+				value += minutes + (short ? "m" : " minute" + (minutes > 1 ? "s" : ""));
+			}
+			
+			if(value.length == 0)
+				value += seconds + (short ? "s" : " second" + (seconds > 1 ? "s" : ""));
 			
 			return value;
 		}

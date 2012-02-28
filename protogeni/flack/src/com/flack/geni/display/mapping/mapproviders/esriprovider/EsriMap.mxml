@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<esri:Map xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:esri="http://www.esri.com/2008/ags"
+		  implements="com.flack.geni.display.mapping.GeniMap"
+		  creationComplete="init()"
+		  zoomEnd="map1_zoomEndHandler(event)"
+		  logoVisible="false"
+		  openHandCursorVisible="false"
+		  wrapAround180="true"
+		  height="100%"
+		  width="100%">
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.Graphic;
+			import com.esri.ags.SpatialReference;
+			import com.esri.ags.events.ZoomEvent;
+			import com.esri.ags.geometry.Extent;
+			import com.esri.ags.geometry.WebMercatorMapPoint;
+			import com.esri.ags.utils.WebMercatorUtil;
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.mapping.GeniMapLink;
+			import com.flack.geni.display.mapping.GeniMapNodeMarker;
+			import com.flack.geni.display.mapping.LatitudeLongitude;
+			import com.flack.geni.display.mapping.LatitudeLongitudeBounds;
+			import com.flack.geni.resources.physical.PhysicalLocationCollection;
+			
+			public function init():void
+			{
+				extent = WebMercatorUtil.geographicToWebMercator(new Extent(-141.850013, 12.582493, -53.519935, 52.607082, new SpatialReference(4326))) as Extent;
+			}
+			
+			public function get Ready():Boolean
+			{
+				return initialized;
+			}
+			
+			public function panToPoint(center:LatitudeLongitude):void
+			{
+				extent = extent.centerAt(new WebMercatorMapPoint(center.longitude, center.latitude));
+			}
+			
+			public function getZoomLevel():Number
+			{
+				return level;
+			}
+			
+			public function zoomToFit(bounds:LatitudeLongitudeBounds):void
+			{
+				extent = WebMercatorUtil.geographicToWebMercator(new Extent(bounds.west, bounds.south, bounds.east, bounds.north, new SpatialReference(4326))) as Extent;
+			}
+			
+			public function clearAllOverlays():void
+			{
+				markersLayer.clear();
+				linksLayer.clear();
+			}
+			
+			public function getNewNodeMarker(newLocations:PhysicalLocationCollection, newNodes:*):GeniMapNodeMarker
+			{
+				return new EsriMapNodeMarker(newLocations, newNodes);
+			}
+			
+			public function getNewLink(connectedNodes:Vector.<GeniMapNodeMarker>):GeniMapLink
+			{
+				return new EsriMapLink(connectedNodes);
+			}
+			
+			public function addNodeMarker(marker:GeniMapNodeMarker):void
+			{
+				var node:EsriMapNodeMarker = marker as EsriMapNodeMarker;
+				markersLayer.add(node);
+			}
+			
+			public function addLink(temp:GeniMapLink):void
+			{
+				var link:EsriMapLink = temp as EsriMapLink;
+				linksLayer.add(link.graphic);
+			}
+			
+			public function removeNodeMarker(marker:GeniMapNodeMarker):void
+			{
+				markersLayer.remove(marker as Graphic);
+			}
+			
+			public function removeLink(geniLink:GeniMapLink):void
+			{
+				linksLayer.remove((geniLink as EsriMapLink).graphic);
+			}
+			
+			protected function map1_zoomEndHandler(event:ZoomEvent):void
+			{
+				GeniMain.mapper.drawMap();
+			}
+			
+		]]>
+	</fx:Script>
+	<esri:OpenStreetMapLayer />
+	<esri:GraphicsLayer id="linksLayer" />
+	<esri:GraphicsLayer id="markersLayer" />
+</esri:Map>

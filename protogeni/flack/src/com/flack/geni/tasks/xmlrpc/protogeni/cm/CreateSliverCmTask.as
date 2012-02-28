@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,166 +12,113 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.display.Sprite;
-	import flash.events.ErrorEvent;
-	
-	import mx.controls.Alert;
-	import mx.core.FlexGlobals;
-	import mx.events.CloseEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.GeniCredential;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.Key;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualComponent;
-	import protogeni.resources.VirtualNode;
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.process.ParseRequestManifestTask;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.utils.DateUtil;
 	
 	/**
-	 * Allocates resources to a sliver using the ProtoGENI API
+	 * Creates a sliver based on the given RSPEC, usually generated for the entire slice.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverCreate extends Request
+	public final class CreateSliverCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
-		private var request:String = "";
-		private var manifest:String = "";
+		public var request:Rspec;
 		
-		public function RequestSliverCreate(s:Sliver, rspec:XML = null):void
+		/**
+		 * 
+		 * @param newSliver Sliver to allocate resources in
+		 * @param useRspec RSPEC used to allocate resources
+		 * 
+		 */
+		public function CreateSliverCmTask(newSliver:Sliver,
+										   useRspec:Rspec)
 		{
-			super("Create sliver @ " + s.manager.Hrn,
-				"Creating sliver on component manager " + s.manager.Hrn + " for slice named " + s.slice.hrn,
-				CommunicationUtil.createSliver,
-				true,
-				false);
-			sliver = s;
-			sliver.clearState();
-			sliver.changing = true;
-			sliver.manifest = null;
-			sliver.message = "Waiting to create";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_CREATESLIVER,
+				"Create sliver @ " + newSliver.manager.hrn,
+				"Creating sliver on component manager " + newSliver.manager.hrn + " for slice named " + newSliver.slice.hrn,
+				"Create Sliver"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			sliver = newSliver;
 			
-			op.timeout = 360;
+			request = useRspec;
 			
-			if(rspec != null)
-				request = rspec.toXMLString()
-			else
-				request = sliver.slice.slivers.Combined.getRequestRspec(true).toXMLString();
-			
-			op.setUrl(sliver.manager.Url);
-		}
-		
-		override public function start():Operation {
-			sliver.message = "Creating";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-			
-			op.clearFields();
-			
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("rspec", request);
-			var keys:Array = [];
-			for each(var key:Key in sliver.slice.creator.keys) {
-				keys.push({type:key.type, key:key.value});
-			}
-			op.addField("keys", keys);
-			op.addField("credentials", [sliver.slice.credential]);
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
-		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
-			{
-				sliver.credential = response.value[0];
-				var cred:XML = (new GeniCredential(sliver.credential)).toXml();
-				sliver.urn = GeniCredential.getTargetUrn(cred);
-				
-				manifest = response.value[1];
-				sliver.parseManifest(new XML(manifest));
-
-				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
-				if(old != null)
-				{
-					var oldSliver:Sliver = old.slivers.getByManager(sliver.manager);
-					if(oldSliver != null)
-						old.slivers.remove(oldSliver);
-					old.slivers.add(sliver);
-				}
-				
-				sliver.message = "Created";
-				return new RequestSliverStatus(sliver);
-			}
-			else
-			{
-				failed(response.output);
-			}
-			
-			return null;
-		}
-		
-		private function failed(msg:String = ""):void {
-			sliver.status = Sliver.STATUS_FAILED;
-			sliver.state = Sliver.STATE_NA;
-			sliver.changing = false;
-			if(msg != null && msg.length > 0)
-				sliver.message = msg;
-			else
-				sliver.message = "Failed to create"
-			for each(var node:VirtualNode in sliver.nodes.collection) {
-				node.status = VirtualComponent.STATUS_FAILED;
-				node.error = "Sliver had error when creating: " + sliver.message;
-			}
-			
-			var managerMsg:String = "";
-			if(msg != null && msg.length > 0)
-				managerMsg = " Manager reported error: " + msg + ".";
-			
-			Main.geniHandler.requestHandler.pause();
-			Alert.show(
-				"Failed to create sliver on " + sliver.manager.Hrn+"!" + managerMsg + ". Stop other calls and remove allocated resources?",
-				"Failed to create sliver",
-				Alert.YES|Alert.NO,
-				FlexGlobals.topLevelApplication as Sprite,
-				function askToContinue(e:CloseEvent):void
-				{
-					if(e.detail == Alert.YES)
-						Main.geniHandler.requestHandler.deleteSlice(sliver.slice);
-					else
-						Main.geniHandler.requestHandler.start(true);
-				},
-				null,
-				Alert.YES
+			addMessage(
+				"Waiting to create...",
+				"A sliver will be created at " + sliver.manager.hrn,
+				LogMessage.LEVEL_INFO,
+				LogMessage.IMPORTANCE_HIGH
 			);
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):*
+		override protected function runStart():void
 		{
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return null;
+			sliver.markStaged();
+			sliver.manifest = null;
+			
+			super.runStart();
 		}
 		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_POPULATING);
+		override protected function createFields():void
+		{
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("rspec", request.document);
+			var keys:Array = [];
+			for each(var key:String in sliver.slice.creator.keys) {
+				keys.push({type:"ssh", key:key}); // XXX type
+			}
+			addNamedField("keys", keys);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
 		
-		override public function getSent():String {
-			return "******** REQUEST RSPEC ********\n\n" + request + "\n\n******** XML-RPC ********\n\n" + op.getSent();
-		}
-		
-		override public function getResponse():String {
-			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********\n\n" + op.getResponse();
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
+			{
+				sliver.credential = new GeniCredential(data[0], GeniCredential.TYPE_SLICE, sliver.manager);
+				sliver.id = sliver.credential.TargetId;
+				sliver.expires = sliver.credential.Expires;
+				sliver.manifest = new Rspec(data[1],null,null,null, Rspec.TYPE_MANIFEST);
+				
+				addMessage(
+					"Credential received",
+					data[0],
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				addMessage(
+					"Manifest received",
+					data[1],
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				addMessage(
+					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				
+				super.afterComplete(addCompletedMessage);
+			}
+			else
+				faultOnSuccess();
 		}
 	}
 }

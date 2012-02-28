@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,293 +12,182 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package
+package com.flack.shared
 {
-	import com.hurlant.util.Base64;
-	
+	import flash.display.Sprite;
 	import flash.events.NetStatusEvent;
 	import flash.net.SharedObject;
 	import flash.net.SharedObjectFlushStatus;
 	import flash.system.Capabilities;
-	import flash.utils.ByteArray;
+	import flash.system.Security;
+	import flash.system.SecurityPanel;
 	
 	import mx.controls.Alert;
+	import mx.core.FlexGlobals;
 	import mx.events.CloseEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.GeniHandler;
-	import protogeni.NetUtil;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.Key;
-	import protogeni.resources.PhysicalNode;
-	import protogeni.resources.PhysicalNodeGroup;
-	import protogeni.resources.PlanetlabAggregateManager;
-	import protogeni.resources.PlanetlabRspecProcessor;
-	import protogeni.resources.ProtogeniComponentManager;
-	import protogeni.resources.ProtogeniRspecProcessor;
-	import protogeni.resources.Site;
-	import protogeni.resources.Slice;
-	import protogeni.resources.SliceAuthority;
-	import protogeni.resources.Sliver;
-	
+
 	/**
-	 * Manages data cached to file.  The basic cache uses common
-	 * settings used throughout flack.  The offline cache is
-	 * used to restore GENI data without making calls.
+	 * Handles saving and loading data from a cache kept on the client computer.
+	 * 
+	 * OSes other than Windows can have issues...
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public class FlackCache
+	public final class SharedCache
 	{
-		private static var _instance:FlackCache = new FlackCache();
-		public static function get instance():FlackCache { return _instance; } 
-		
-		private static var _basicSharedObject:SharedObject = null;
-		public static function get basicAvailable():Boolean
+		public static var _sharedObject:SharedObject = null;
+		public static function get Available():Boolean
 		{
-			return _basicSharedObject != null
-				&& _basicSharedObject.size > 0;
+			return _sharedObject != null
+				&& _sharedObject.size > 0;
 		}
-		private static var _offlineSharedObject:SharedObject = null;
-		public static function get offlineAvailable():Boolean
+		
+		public function SharedCache()
 		{
-			return _offlineSharedObject != null
-				&& _offlineSharedObject.size > 0;
-		}
-
-		[Bindable]
-		public static var userSslPem:String = "";
-		[Bindable]
-		public static var userPassword:String = "";
-		public static var maxParallelRequests:int;
-		public static var geniBundle:String = "";
-		public static var rootBundle:String = "";
-		
-		function FlackCache() {
-			Main.geniDispatcher.addEventListener(GeniEvent.GENIMANAGER_CHANGED, updateManager);
-			Main.geniDispatcher.addEventListener(GeniEvent.USER_CHANGED, updateUser);
-			Main.geniDispatcher.addEventListener(GeniEvent.SLICE_CHANGED, updateSlice);
-			Main.geniDispatcher.addEventListener(GeniEvent.SLICES_CHANGED, updateSlices);
-			
-			if(Capabilities.cpuArchitecture == "ARM")
-				maxParallelRequests = 1;
-			else
-				maxParallelRequests = 6;
 		}
 		
-		public function updateManager(event:GeniEvent):void {
-			if(!Main.offlineMode && !Main.useCache && event.action == GeniEvent.ACTION_POPULATED) {
-				setManagerOffline(event.changedObject as GeniManager);
-			}
+		public static function UsableCache():Boolean
+		{
+			// Only Windows doesn't usually error on cache
+			return Capabilities.os.charAt(0) == "W";
 		}
 		
-		public static function clearManagersOffline():void {
-			if(_offlineSharedObject == null)
-				loadOfflineSharedObject();
-			if(_offlineSharedObject == null)
-				return;
-			
-			_offlineSharedObject.data.managers = [];
-		}
-		
-		public static function setManagerOffline(manager:GeniManager):void {
-			if(_offlineSharedObject == null)
-				loadOfflineSharedObject();
-			if(_offlineSharedObject == null)
-				return;
-			
-			if(_offlineSharedObject.data.managers == null) {
-				_offlineSharedObject.data.managers = [];
-			} else {
-				for(var i:int = 0; i < _offlineSharedObject.data.managers.length; i++)
-					if(_offlineSharedObject.data.managers[i].urn == manager.Urn.full) {
-						_offlineSharedObject.data.managers.splice(i, 1);
-						break;
+		public static function loadAndApply():void
+		{
+			try {
+				_sharedObject = SharedObject.getLocal("geniCacheSharedObject");
+				if(_sharedObject.size > 0)
+				{
+					// Expire any data older than 24 hours
+					var expirePriorTo:Date = new Date();
+					expirePriorTo.time -= 1000*60*60*24;
+					
+					if(_sharedObject.data.userPassword != null)
+						SharedMain.user.password = _sharedObject.data.userPassword;
+					if(_sharedObject.data.userSslCert != null)
+						SharedMain.user.sslCert = _sharedObject.data.userSslCert;
+					
+					/*
+					if(_sharedObject.data.certBundle != null)
+					{
+						if(_sharedObject.data.certBundleCreated.time > expirePriorTo.time)
+							GeniMain.Bundle = _sharedObject.data.certBundle;
+						else
+							GeniMain.Bundle = "";
 					}
-			}
-			
-			var newManagerObject:Object = new Object();
-			newManagerObject.inputRspecVersion = manager.inputRspecVersion;
-			if(manager.rspecProcessor is PlanetlabRspecProcessor) {
-				return;
-				/*newManagerObject.sites = [];
-				for each(var site:Site in (manager as PlanetlabAggregateManager).sites) {
-					var siteObject:Object = new Object();
-					siteObject.hrn = site.hrn;
-					siteObject.latitude = site.latitude;
-					siteObject.longitude = site.longitude;
-					newManagerObject.sites.push(siteObject);
-				}*/
-			}
-			newManagerObject.colorIdx = manager.colorIdx;
-			newManagerObject.Hrn = manager.Hrn;
-			
-			var encodedManagerRspec:ByteArray = new ByteArray();
-			encodedManagerRspec.writeUTFBytes(manager.Rspec.toXMLString());
-			encodedManagerRspec.compress();
-			newManagerObject.Rspec = encodedManagerRspec;
-			
-			newManagerObject.Show = manager.Show;
-			newManagerObject.Status = manager.Status;
-			newManagerObject.supportsGpeni = manager.supportsGpeni;
-			newManagerObject.supportsIon = manager.supportsIon;
-			newManagerObject.type = manager.type;
-			if(manager.rspecProcessor is ProtogeniRspecProcessor)
-				newManagerObject.rspecType = GeniManager.TYPE_PROTOGENI;
-			else if(manager.rspecProcessor is PlanetlabRspecProcessor)
-				newManagerObject.rspecType = GeniManager.TYPE_PLANETLAB;
-			newManagerObject.Url = manager.Url;
-			newManagerObject.urn = manager.Urn.full;
-			newManagerObject.Version = manager.Version;
-			newManagerObject.isAm = manager.isAm;
-			newManagerObject.supportsExclusiveNodes = manager.supportsExclusiveNodes;
-			newManagerObject.supportsSharedNodes = manager.supportsSharedNodes;
-			newManagerObject.supportsDelayNodes = manager.supportsDelayNodes;
-			
-			_offlineSharedObject.data.managers.push(newManagerObject);
-			_offlineSharedObject.data.lastChange = new Date();
-		}
-		
-		public function updateUser(event:GeniEvent):void {
-			setUserOffline();
-		}
-		
-		public static function setUserOffline():void {
-			if(_offlineSharedObject == null)
-				loadOfflineSharedObject();
-			if(_offlineSharedObject == null)
-				return;
-			
-			// only have one set
-			if(Main.geniHandler.CurrentUser.userCredential != null && Main.geniHandler.CurrentUser.userCredential.length > 0) {
-				_offlineSharedObject.data.userCredential = Main.geniHandler.CurrentUser.userCredential;
-				_offlineSharedObject.data.sliceCredential = "";
-			} else if (Main.geniHandler.CurrentUser.sliceCredential != null && Main.geniHandler.CurrentUser.sliceCredential.length > 0) {
-				_offlineSharedObject.data.sliceCredential = Main.geniHandler.CurrentUser.sliceCredential;
-				_offlineSharedObject.data.userCredential = "";
-			}
-			_offlineSharedObject.data.hrn = Main.geniHandler.CurrentUser.hrn;
-			_offlineSharedObject.data.keys = [];
-			for each(var key:Key in Main.geniHandler.CurrentUser.keys)
-				_offlineSharedObject.data.keys.push(key.value);
-			_offlineSharedObject.data.name = Main.geniHandler.CurrentUser.name;
-			_offlineSharedObject.data.uid = Main.geniHandler.CurrentUser.uid;
-			if(Main.geniHandler.CurrentUser.urn != null)
-				_offlineSharedObject.data.urn = Main.geniHandler.CurrentUser.urn.full;
-		}
-		
-		public static function updateSlices(event:GeniEvent):void {
-			if(event.action == GeniEvent.ACTION_REMOVING) {
-				if(_offlineSharedObject == null)
-					loadOfflineSharedObject();
-				if(_offlineSharedObject == null)
-					return;
-				
-				_offlineSharedObject.data.slices = [];
-			}
-		}
-		
-		public static function updateSlice(event:GeniEvent):void {
-			setSliceOffline(event.changedObject as Slice);
-		}
-		
-		public static function setSliceOffline(slice:Slice):void {
-			if(_offlineSharedObject == null)
-				loadOfflineSharedObject();
-			if(_offlineSharedObject == null)
-				return;
-			
-			if(_offlineSharedObject.data.slices == null) {
-				_offlineSharedObject.data.slices = [];
-			} else {
-				for(var i:int = 0; i < _offlineSharedObject.data.slices.length; i++)
-					if(_offlineSharedObject.data.slices[i].urn == slice.urn.full) {
-						_offlineSharedObject.data.slices.splice(i, 1);
-						break;
+					
+					if(_sharedObject.data.authorities != null)
+					{
+						if(_sharedObject.data.authoritiesCreated.time > expirePriorTo.time)
+						{
+							GeniMain.geniUniverse.authorities = new GeniAuthorityCollection();
+							for each(var authorityObj:Object in _sharedObject.data.authorities)
+							{
+								GeniMain.geniUniverse.authorities.add(
+									new ProtogeniSliceAuthority(
+										authorityObj.id,
+										authorityObj.url,
+										authorityObj.workingCertGet
+									)
+								);
+							}
+							ignoreUpdate = true;
+							SharedMain.geniDispatcher.dispatchAuthoritiesChanged(GeniEvent.ACTION_POPULATED);
+						}
+						else
+							_sharedObject.data.authorities = [];
 					}
-			}
-			
-			var newSliceObject:Object = new Object();
-			newSliceObject.credential = slice.credential;
-			newSliceObject.expires = slice.expires;
-			newSliceObject.hrn = slice.hrn;
-			newSliceObject.urn = slice.urn.full;
-			
-			newSliceObject.slivers = [];
-			for each(var sliver:Sliver in slice.slivers.collection) {
-				if(sliver.Created) {
-					var newSliverObject:Object = new Object();
-					newSliverObject.managerUrn = sliver.manager.Urn.full;
-					newSliverObject.credential = sliver.credential;
-					newSliverObject.expires = sliver.expires;
-					newSliverObject.state = sliver.state;
-					newSliverObject.status = sliver.status;
-					newSliverObject.urn = sliver.urn.full;
-					var encodedSliverRspec:ByteArray = new ByteArray();
-					encodedSliverRspec.writeUTFBytes(sliver.manifest.toXMLString());
-					encodedSliverRspec.compress();
-					newSliverObject.rspec = encodedSliverRspec;
-					newSliceObject.slivers.push(newSliverObject);
+					
+					if(_sharedObject.data.managers != null)
+					{
+						if(_sharedObject.data.managersCreated.time > expirePriorTo.time)
+						{
+							GeniMain.geniUniverse.managers = new GeniManagerCollection();
+							for each(var managerObj:Object in _sharedObject.data.managers)
+							{
+								var newManager:GeniManager;
+								if(managerObj.type == GeniManager.TYPE_PROTOGENI)
+									newManager = new ProtogeniComponentManager();
+								else if(managerObj.type == GeniManager.TYPE_PLANETLAB)
+									newManager = new PlanetlabAggregateManager();
+								else
+									newManager = new GeniManager();
+								newManager.api = managerObj.api;
+								newManager.id = new IdnUrn(managerObj.id);
+								newManager.url = managerObj.url;
+								newManager.hrn = managerObj.hrn;
+								
+								GeniMain.geniUniverse.managers.add(newManager);
+							}
+							ignoreUpdate = true;
+							SharedMain.geniDispatcher.dispatchManagersChanged(GeniEvent.ACTION_POPULATED);
+						}
+						else
+							_sharedObject.data.managers = [];
+					}
+					*/
 				}
 			}
-			
-			_offlineSharedObject.data.slices.push(newSliceObject);
-		}
-		
-		/**
-		 * Loads the basic cache from file 
-		 * 
-		 */		
-		public static function loadBasicSharedObject():void {
-			try {
-				_basicSharedObject = SharedObject.getLocal("flackCacheSharedObject");
-				if(_basicSharedObject.size > 0) {
-					if(_basicSharedObject.data.userSslPem != null)
-						userSslPem = _basicSharedObject.data.userSslPem;
-					if(_basicSharedObject.data.userPassword != null)
-						userPassword = _basicSharedObject.data.userPassword;
-					if(_basicSharedObject.data.maxParallelRequests != null)
-						maxParallelRequests = _basicSharedObject.data.maxParallelRequests;
-					if(_basicSharedObject.data.geniBundle != null)
-						geniBundle = _basicSharedObject.data.geniBundle;
-					if(_basicSharedObject.data.rootBundle != null)
-						rootBundle = _basicSharedObject.data.rootBundle;
-				}
-			} catch(e:Error) {
-				Alert.show("It looks like Flash is unable to save/load local data." +
-					"  Would you like to load directions on how to enable local data?",
-					"Enable Local Data?", Alert.YES|Alert.NO, Main.Application(),
-					function allowData(e:CloseEvent):void {
-						if(e.detail == Alert.YES)
-							NetUtil.openWebsite("http://kb2.adobe.com/cps/408/kb408202.html");
-					});
-			}
-		}
-		
-		/**
-		 * Loads the offline shared object without applying anything 
-		 * 
-		 */		
-		public static function loadOfflineSharedObject():void {
-			try {
-				_offlineSharedObject = SharedObject.getLocal("offlineCacheSharedObject");
-			}
-			catch(e:Error) { }
-		}
-		
-		/**
-		 * Applies the cached data to Flack 
-		 * 
-		 */		
-		public static function applyBasic():void {
-			if (_basicSharedObject != null && _basicSharedObject.size > 0)
+			catch(e:Error)
 			{
-				if(userPassword.length > 0)
-					Main.geniHandler.CurrentUser.setPassword(userPassword, true);
+				Alert.show(
+					"Unable to create local cache. Open the storage settings where you can allow this application to use a local cache?",
+					"Open storage settings?",
+					Alert.YES|Alert.NO,
+					FlexGlobals.topLevelApplication as Sprite,
+					function allowData(e:CloseEvent):void
+					{
+						if(e.detail == Alert.YES)
+							Security.showSettings(SecurityPanel.LOCAL_STORAGE);
+					}
+				);
 				
-				Main.geniHandler.requestHandler.maxRunning = maxParallelRequests;
+			}
+		}
+		
+		// User
+		public static function updateUserSslPem(value:String):void
+		{
+			if(_sharedObject == null)
+				return;
+			
+			_sharedObject.data.userSslCert = value;
+		}
+		
+		public static function updateUserPassword(value:String):void
+		{
+			if(_sharedObject == null)
+				return;
+			
+			_sharedObject.data.userPassword = value;
+		}
+		
+		public static function clearUser():void
+		{
+			if(_sharedObject != null)
+			{
+				delete _sharedObject.data.userSslCert;
+				delete _sharedObject.data.userPassword;
+			}
+		}
+		
+		// Cert bundle
+		public static function updateCertBundle(value:String):void
+		{
+			if(_sharedObject == null || !UsableCache())
+				return;
+			
+			_sharedObject.data.certBundleCreated = new Date();
+			_sharedObject.data.certBundle = value;
+		}
+		
+		public static function clearCertBundle():void
+		{
+			if(_sharedObject != null)
+			{
+				delete _sharedObject.data.certBundleCreated;
+				delete _sharedObject.data.certBundle;
 			}
 		}
 		
@@ -306,30 +195,28 @@ package
 		 * Saves the basic cache to file
 		 * 
 		 */		
-		public static function saveBasic():void {
-			if(!Main.allowCaching)
+		public static function save():void
+		{
+			if(_sharedObject == null)
 				return;
-			if(_basicSharedObject == null)
-				return;
-
+			
 			var flushStatus:String = null;
-			try {
-				_basicSharedObject.data.userSslPem = userSslPem;
-				_basicSharedObject.data.userPassword = userPassword;
-				_basicSharedObject.data.maxParallelRequests = maxParallelRequests;
-				_basicSharedObject.data.geniBundle = geniBundle;
-				_basicSharedObject.data.rootBundle = rootBundle;
-				flushStatus = _basicSharedObject.flush();
-			} catch (e:Error) {
-				if(Main.debugMode)
-					trace("Problem saving shared object");
+			try
+			{
+				flushStatus = _sharedObject.flush();
+			}
+			catch (e:Error)
+			{
+				trace("Problem saving shared object");
 			}
 			
 			// deal with dialog to increase cache size
-			if (flushStatus != null) {
-				switch (flushStatus) {
+			if (flushStatus != null)
+			{
+				switch (flushStatus)
+				{
 					case SharedObjectFlushStatus.PENDING:
-						_basicSharedObject.addEventListener(NetStatusEvent.NET_STATUS, onFlushStatus);
+						_sharedObject.addEventListener(NetStatusEvent.NET_STATUS, onFlushStatus);
 						break;
 					case SharedObjectFlushStatus.FLUSHED:
 						// saved
@@ -344,252 +231,28 @@ package
 		 * @param event
 		 * 
 		 */		
-		private static function onFlushStatus(event:NetStatusEvent):void {
-			if(event.info.code == "SharedObject.Flush.Success") {
+		private static function onFlushStatus(event:NetStatusEvent):void
+		{
+			if(event.info.code == "SharedObject.Flush.Success")
+			{
 				// saved
-			} else
-				Main.allowCaching = false;
+			}
+			else
+			{
+				// XXX chose not to allow storage. Don't try again...
+			}
 			
-			_basicSharedObject.removeEventListener(NetStatusEvent.NET_STATUS, onFlushStatus);
-		}	
-		private static function onOfflineFlushStatus(event:NetStatusEvent):void {
-			if(event.info.code == "SharedObject.Flush.Success") {
-				// saved
-			} else
-				Main.allowCaching = false;
-			
-			_offlineSharedObject.removeEventListener(NetStatusEvent.NET_STATUS, onFlushStatus);
+			_sharedObject.removeEventListener(NetStatusEvent.NET_STATUS, onFlushStatus);
 		}
 		
 		/**
 		 * Clears and removes the cache from file 
 		 * 
 		 */
-		public static function clearAll():void {
-			if(_basicSharedObject != null) {
-				_basicSharedObject.clear();
-				if(!offlineAvailable)
-					loadOfflineSharedObject();
-			}
-			if(_offlineSharedObject != null)
-				_offlineSharedObject.clear();
-		}
-		
-		public static function clearOffline():void {
-			if(_offlineSharedObject == null)
-				loadOfflineSharedObject();
-			if(_offlineSharedObject != null)
-				_offlineSharedObject.clear();
-		}
-		
-		public static function saveOffline():void {
-			if(!Main.allowCaching)
-				return;
-			if(_offlineSharedObject == null)
-				loadOfflineSharedObject();
-			if(_offlineSharedObject == null)
-				return;
-			
-			var flushStatus:String = null;
-			try {
-				// save user info
-				setUserOffline();
-				
-				// save manager info
-				_offlineSharedObject.data.managers = [];
-				for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
-					if(manager.Status == GeniManager.STATUS_VALID)
-						setManagerOffline(manager);
-				}
-				
-				// Save slices
-				_offlineSharedObject.data.slices = [];
-				for each(var slice:Slice in Main.geniHandler.CurrentUser.slices) {
-					setSliceOffline(slice);
-				}
-				flushStatus = _offlineSharedObject.flush();
-			} catch (e:Error) {
-				if(Main.debugMode)
-					trace("Problem saving shared object");
-			}
-			
-			// deal with dialog to increase cache size
-			if (flushStatus != null) {
-				switch (flushStatus) {
-					case SharedObjectFlushStatus.PENDING:
-						_offlineSharedObject.addEventListener(NetStatusEvent.NET_STATUS, onOfflineFlushStatus);
-						break;
-					case SharedObjectFlushStatus.FLUSHED:
-						// saved
-						break;
-				}
-				
-			}
-		}
-		
-		public static function getOfflineLastChange():Date {
-			if(offlineAvailable) {
-				try {
-					return _offlineSharedObject.data.lastChange;
-				} catch(e:Error) {}
-			}
-			return null;
-		}
-		
-		private static var after:Function;
-		public static function applyOffline(includeUser:Boolean = true, afterDone:Function = null):void {
-			after = afterDone;
-			if(offlineAvailable) {
-				try {
-					// get user info
-					if(includeUser) {
-						if(_offlineSharedObject.data.credential != null) {
-							Main.geniHandler.CurrentUser.userCredential = _offlineSharedObject.data.credential;
-							Main.geniHandler.CurrentUser.sliceCredential = "";
-							_offlineSharedObject.data.credential = null;
-						}
-						else {
-							if(_offlineSharedObject.data.userCredential != null && _offlineSharedObject.data.userCredential.length > 0)
-								Main.geniHandler.CurrentUser.userCredential = _offlineSharedObject.data.userCredential;
-							else if(_offlineSharedObject.data.sliceCredential != null)
-								Main.geniHandler.CurrentUser.sliceCredential = _offlineSharedObject.data.sliceCredential;
-						}
-						
-						Main.geniHandler.CurrentUser.hrn = _offlineSharedObject.data.hrn;
-						Main.geniHandler.CurrentUser.keys = new Vector.<Key>();
-						for each(var key:String in _offlineSharedObject.data.keys)
-						Main.geniHandler.CurrentUser.keys.push(new Key(key));
-						Main.geniHandler.CurrentUser.name = _offlineSharedObject.data.name;
-						Main.geniHandler.CurrentUser.uid = _offlineSharedObject.data.uid;
-						Main.geniHandler.CurrentUser.urn = new IdnUrn(_offlineSharedObject.data.urn);
-						
-						Main.geniDispatcher.dispatchUserChanged();
-					}
-					
-					for each(var initialManagerObject:Object in _offlineSharedObject.data.managers) {
-						var initialManager:GeniManager;
-						if(initialManagerObject.type == GeniManager.TYPE_PROTOGENI) {
-							initialManager = new ProtogeniComponentManager();
-							(initialManager as ProtogeniComponentManager).inputRspecVersion = initialManagerObject.inputRspecVersion;
-						} else if(initialManagerObject.type == GeniManager.TYPE_PLANETLAB) {
-							initialManager = new PlanetlabAggregateManager();
-							if(initialManagerObject.rspecType == GeniManager.TYPE_PROTOGENI)
-								initialManager.rspecProcessor = new ProtogeniRspecProcessor(initialManager);
-						}
-						
-						initialManager.colorIdx = initialManagerObject.colorIdx;
-						initialManager.Hrn = initialManagerObject.Hrn;
-						
-						var compressedRspec:ByteArray = initialManagerObject.Rspec;
-						compressedRspec.uncompress();
-						initialManager.Rspec = new XML(compressedRspec.toString());
-						compressedRspec.compress();
-						
-						initialManager.Show = initialManagerObject.Show;
-						initialManager.Status = initialManagerObject.Status;
-						initialManager.supportsGpeni = initialManagerObject.supportsGpeni;
-						initialManager.supportsIon = initialManagerObject.supportsIon;
-						initialManager.isAm = initialManagerObject.isAm;
-						initialManager.supportsExclusiveNodes = initialManagerObject.supportsExclusiveNodes;
-						initialManager.supportsSharedNodes = initialManagerObject.supportsSharedNodes;
-						initialManager.supportsDelayNodes = initialManagerObject.supportsDelayNodes;
-						initialManager.type = initialManagerObject.type;
-						initialManager.Url = initialManagerObject.Url;
-						initialManager.Urn = new IdnUrn(initialManagerObject.urn);
-						initialManager.Version = initialManagerObject.Version;
-						initialManager.Status = GeniManager.STATUS_INPROGRESS;
-						
-						Main.geniHandler.GeniManagers.addItem(initialManager);
-						
-						Main.geniDispatcher.dispatchGeniManagerChanged(initialManager);
-					}
-					
-					Main.geniDispatcher.dispatchGeniManagersChanged();
-					
-					// get manager info
-					for each(var managerObject:Object in _offlineSharedObject.data.managers) {
-						var newManager:GeniManager = Main.geniHandler.GeniManagers.getByUrn(managerObject.urn);
-						
-						/*if(newManager.rspecProcessor is PlanetlabRspecProcessor) {
-							(newManager.rspecProcessor as PlanetlabRspecProcessor).callGetSites = false;
-							newManager.data = managerObject.sites;
-							newManager.rspecProcessor.processResourceRspec(
-								function parseSites(finishedManager:PlanetlabAggregateManager):void {
-									for each(var siteObject:Object in finishedManager.data) {
-										var site:Site = finishedManager.getSiteWithHrn(siteObject.hrn);
-										if(site != null) {
-											site.latitude = siteObject.latitude;
-											site.longitude = siteObject.longitude;
-											
-											var ng:PhysicalNodeGroup = finishedManager.Nodes.GetByLocation(site.latitude,site.longitude);
-											var tempString:String;
-											if(ng == null) {
-												ng = new PhysicalNodeGroup(site.latitude, site.longitude, "", finishedManager.Nodes);
-												finishedManager.Nodes.Add(ng);
-											}
-											for each(var n:PhysicalNode in site.nodes) {
-												ng.Add(n);
-											}
-										}
-									}
-									Main.geniDispatcher.dispatchGeniManagerChanged(finishedManager, GeniEvent.ACTION_POPULATED);
-									tryApplyOfflineSlices(finishedManager);
-								});
-						} else*/
-						if(includeUser)
-							newManager.rspecProcessor.processResourceRspec(tryApplyOfflineSlices);
-						else {
-							newManager.rspecProcessor.processResourceRspec(tryFinishApplying);
-						}
-					}
-					
-					Main.geniDispatcher.dispatchGeniManagersChanged();
-				} catch (e:Error) {
-					Alert.show(e.toString(), "Error applying offline data");
-				}
-			}
-		}
-		
-		public static function tryFinishApplying(manager:GeniManager):void {
-			for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
-				if(manager.Status == GeniManager.STATUS_INPROGRESS)
-					return;
-			}
-			after();
-		}
-		
-		public static function tryApplyOfflineSlices(manager:GeniManager):void {
-			for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
-				if(manager.Status == GeniManager.STATUS_INPROGRESS)
-					return;
-			}
-			for each(var sliceObject:Object in _offlineSharedObject.data.slices) {
-				var newSlice:Slice = new Slice();
-				newSlice.creator = Main.geniHandler.CurrentUser;
-				newSlice.credential = sliceObject.credential;
-				newSlice.expires = sliceObject.expires;
-				newSlice.hrn = sliceObject.hrn;
-				newSlice.urn = new IdnUrn(sliceObject.urn);
-				
-				for each(var sliverObject:Object in sliceObject.slivers) {
-					var newSliver:Sliver = newSlice.getOrCreateForManager(Main.geniHandler.GeniManagers.getByUrn(sliverObject.managerUrn));
-					newSliver.credential = sliverObject.credential;
-					newSliver.urn = new IdnUrn(sliverObject.urn);
-					newSliver.expires = sliverObject.expires;
-					newSliver.state = sliverObject.state;
-					newSliver.status = sliverObject.status;
-					
-					var compressedRspec:ByteArray = sliverObject.rspec;
-					compressedRspec.uncompress();
-					newSliver.manifest = new XML(compressedRspec.toString());
-					compressedRspec.compress();
-					
-					newSliver.parseManifest();
-				}
-				
-				Main.geniHandler.CurrentUser.slices.add(newSlice);
-			}
-			Main.geniDispatcher.dispatchUserChanged();
+		public static function clear():void
+		{
+			if(_sharedObject != null)
+				_sharedObject.clear();
 		}
 	}
 }

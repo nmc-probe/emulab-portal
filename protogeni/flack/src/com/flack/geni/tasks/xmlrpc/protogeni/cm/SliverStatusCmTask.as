@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,74 +12,80 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.StringUtil;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualComponent;
-	import protogeni.resources.VirtualNode;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.VirtualComponent;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.utils.MathUtil;
+	import com.flack.shared.utils.StringUtil;
 	
 	/**
-	 * Gets the sliver status using the ProtoGENI API
+	 * Finds out the status of all the resources in the sliver.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverStatus extends Request
+	public final class SliverStatusCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
-		
-		public function RequestSliverStatus(newSliver:Sliver):void
+		public var continueUntilDone:Boolean;
+		/**
+		 * 
+		 * @param newSliver Sliver to get status information for
+		 * @param shouldContinueUntilDone Continue until status is finalized?
+		 * 
+		 */
+		public function SliverStatusCmTask(newSliver:Sliver,
+										   shouldContinueUntilDone:Boolean = true)
 		{
-			super("Get sliver status @ " + newSliver.manager.Hrn,
-				"Getting the sliver status for component manager " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.hrn,
-				CommunicationUtil.sliverStatus,
-				true,
-				true);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_SLIVERSTATUS,
+				"Get sliver status @ " + newSliver.manager.hrn,
+				"Gets the sliver status for component manager " + newSliver.manager.hrn + " on slice named " + newSliver.slice.hrn,
+				"Get Sliver Status"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			
 			sliver = newSliver;
-			sliver.changing = true;
-			sliver.message = "Waiting to check status";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			continueUntilDone = shouldContinueUntilDone;
 			
-			op.setUrl(sliver.manager.Url);
+			addMessage(
+				"Waiting to get status...",
+				"Waiting to get sliver status at " + sliver.manager.hrn,
+				LogMessage.LEVEL_INFO,
+				LogMessage.IMPORTANCE_HIGH
+			);
 		}
 		
-		override public function start():Operation {
-			if(op.delaySeconds == 0)
-				sliver.message = "Checking status...";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.clearFields();
-			
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("credentials", new Array(sliver.slice.credential));
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			var old:Slice;
-			var oldSliver:Sliver;
-			var request:Request = null;
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				sliver.state = response.value.state;
+				sliver.state = data.state;
 				if(sliver.state == Sliver.STATE_STOPPED)
 					sliver.status = Sliver.STATUS_STOPPED;
 				else
-					sliver.status = response.value.status;
-				for(var sliverId:String in response.value.details)
+					sliver.status = data.status;
+				sliver.sliverIdToStatus[sliver.id.full] = sliver.status;
+				for(var sliverId:String in data.details)
 				{
-					var sliverDetails:Object = response.value.details[sliverId];
+					var sliverDetails:Object = data.details[sliverId];
 					
-					var virtualComponent:VirtualComponent = sliver.getBySliverId(sliverId);
+					var virtualComponent:VirtualComponent = sliver.slice.getBySliverId(sliverId);
 					if(virtualComponent != null)
 					{
 						virtualComponent.state = sliverDetails.state;
@@ -87,64 +93,55 @@ package protogeni.communication
 							virtualComponent.status = Sliver.STATUS_STOPPED;
 						else
 							virtualComponent.status = sliverDetails.status;
+						sliver.sliverIdToStatus[virtualComponent.id.full] = virtualComponent.status;
 						virtualComponent.error = sliverDetails.error;
 					}
 				}
-				sliver.changing = !sliver.StatusFinalized;
-				sliver.message = StringUtil.firstToUpper(sliver.status);
-				if(sliver.changing) {
-					sliver.message = "Status is " + sliver.message + "...";
-					request = this;
-					request.op.delaySeconds = Math.min(60, this.op.delaySeconds + 15);
-				} else {
-					sliver.message += "!";
-				}
 				
-				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
-				if(old != null)
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLIVER,
+					sliver,
+					FlackEvent.ACTION_STATUS
+				);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					sliver.slice,
+					FlackEvent.ACTION_STATUS
+				);
+				
+				if(sliver.StatusFinalized)
 				{
-					oldSliver = old.slivers.getByManager(sliver.manager);
-					if(oldSliver != null)
-						oldSliver.copyStatusFrom(sliver);
+					addMessage(
+						StringUtil.firstToUpper(sliver.status),
+						"Status was received and is finished. Current status is " + sliver.status,
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					super.afterComplete(addCompletedMessage);
 				}
-			}
-			// Slice was deleted
-			else if(code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED) {
-				sliver.removeOutsideReferences();
-				if(sliver.slice.slivers.contains(sliver))
-					sliver.slice.slivers.remove(sliver);
-				old = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
-				if(old != null)
+				else
 				{
-					oldSliver = old.slivers.getByUrn(sliver.urn.full);
-					if(oldSliver != null) {
-						oldSliver.removeOutsideReferences();
-						old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
+					addMessage(
+						StringUtil.firstToUpper(sliver.status) + "...",
+						"Status was received but is still changing. Current status is " + sliver.status,
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					// Continue until the status is finished if desired
+					if(continueUntilDone)
+					{
+						delay = MathUtil.randomNumberBetween(20, 60);
+						runCleanup();
+						start();
 					}
+					else
+						super.afterComplete(addCompletedMessage);
 				}
-				sliver.changing = false;
-				sliver.message = "Status was deleted";
 			}
-			
-			return request;
-		}
-		
-		public function failed(msg:String = ""):void {
-			sliver.changing = false;
-			sliver.message = "Checking status failed";
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return null
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			else
+				faultOnSuccess();
 		}
 	}
 }

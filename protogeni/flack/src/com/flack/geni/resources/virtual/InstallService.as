@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,8 +12,10 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.virtual
 {
+	import com.flack.geni.resources.Extensions;
+
 	/**
 	 * Archive to install on a resource
 	 * 
@@ -25,14 +27,22 @@ package protogeni.resources
 		public var url:String;
 		public var installPath:String;
 		public var fileType:String;
+		public var extensions:Extensions = new Extensions();
 		
+		/**
+		 * 
+		 * @param newUrl URL of archive to install
+		 * @param newInstallPath Path to install to
+		 * @param newFileType File type
+		 * 
+		 */
 		public function InstallService(newUrl:String = "",
 									   newInstallPath:String = "/",
 									   newFileType:String = "tar.gz")
 		{
-			this.url = newUrl;
-			this.installPath = newInstallPath;
-			this.fileType = newFileType;
+			url = newUrl;
+			installPath = newInstallPath;
+			fileType = newFileType;
 		}
 	}
 }

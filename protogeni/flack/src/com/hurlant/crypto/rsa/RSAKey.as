@@ -53,14 +53,14 @@ package com.hurlant.crypto.rsa
 			DP:BigInteger=null, DQ:BigInteger=null,
 			C:BigInteger=null) {
 				
-			this.n = N;
-			this.e = E;
-			this.d = D;
-			this.p = P;
-			this.q = Q;
-			this.dmp1 = DP;
-			this.dmq1 = DQ;
-			this.coeff = C;
+			n = N;
+			e = E;
+			d = D;
+			p = P;
+			q = Q;
+			dmp1 = DP;
+			dmq1 = DQ;
+			coeff = C;
 			// adjust a few flags.
 			canEncrypt = (n!=null&&e!=0);
 			canDecrypt = (canEncrypt&&d!=null);

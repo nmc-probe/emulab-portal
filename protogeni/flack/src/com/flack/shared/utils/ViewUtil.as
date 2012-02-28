@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
- * Copyright (c) 2008-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2012 University of Utah and the Flux Group.
  * All rights reserved.
  *
  * Permission to use, copy, modify and distribute this software is hereby
@@ -12,29 +12,18 @@
  * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
  */
  
-package protogeni.display
+package com.flack.shared.utils
 {
-	import mx.collections.ArrayCollection;
-	import mx.managers.PopUpManager;
+	import com.flack.shared.display.areas.AboutArea;
+	import com.flack.shared.display.areas.Area;
+	import com.flack.shared.display.areas.AreaContent;
+	import com.flack.shared.display.areas.LogMessageArea;
+	import com.flack.shared.display.components.DataButton;
+	import com.flack.shared.display.components.DefaultWindow;
+	import com.flack.shared.display.components.DocumentWindow;
+	import com.flack.shared.display.components.MultiDocumentWindow;
+	import com.flack.shared.logging.LogMessage;
 	
-	import protogeni.StringUtil;
-	import protogeni.communication.Request;
-	import protogeni.display.components.DataButton;
-	import protogeni.display.components.DocumentWindow;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.PhysicalLink;
-	import protogeni.resources.PhysicalLinkGroup;
-	import protogeni.resources.PhysicalNode;
-	import protogeni.resources.PhysicalNodeGroup;
-	import protogeni.resources.PhysicalNodeInterface;
-	import protogeni.resources.PlanetlabAggregateManager;
-	import protogeni.resources.ProtogeniComponentManager;
-	import protogeni.resources.Site;
-	import protogeni.resources.Slice;
-	import protogeni.resources.VirtualLink;
-	import protogeni.resources.VirtualNode;
-	
-	import spark.components.Button;
 	import spark.components.Label;
 	
 	/**
@@ -43,365 +32,110 @@ package protogeni.display
 	 * @author mstrum
 	 * 
 	 */
-	public final class DisplayUtil
+	public final class ViewUtil
 	{
 		public static const windowHeight:int = 400;
 		public static const windowWidth:int = 700;
 		public static const minComponentHeight:int = 24;
 		public static const minComponentWidth:int = 24;
 		
-		public static function getLabel(text:String, bold:Boolean = false):Label
+		public static function assignIcon(val:Boolean):Class
+		{
+			if (val)
+				return ImageUtil.availableIcon;
+			else
+				return ImageUtil.crossIcon;
+		}
+		
+		// Get labels
+		public static function getLabel(text:String, bold:Boolean = false, fontSize:Number = NaN):Label
 		{
 			var l:Label = new Label();
 			l.text = text;
 			if(bold)
 				l.setStyle("fontWeight", "bold");
+			if(fontSize)
+				l.setStyle("fontSize", fontSize);
 			return l;
 		}
-
-        // Gets an icon for a boolean value
-        public static function assignIcon(val:Boolean):Class {
-			if (val)
-	            return ImageUtil.availableIcon;
-	        else
-	            return ImageUtil.crossIcon;
-        }
-        
-        // Gets the icon for the given node
-        public static function assignAvailabilityIcon(val:PhysicalNode):Class {
-			if(val.virtualNodes != null && val.virtualNodes.length > 0)
-				return ImageUtil.ownedIcon;
-            else
-            {
-	            if (val.available) {
-					if(val.exclusive)
-						return ImageUtil.exclusiveIcon;
-					else
-						return ImageUtil.sharedIcon;
-				}
-	            else
-	                return ImageUtil.cancelIcon;
-            }
-        }
 		
-		public static function getLogMessageButton(msg:LogMessage):Button {
+		public static function viewDocument(document:String, title:String):void
+		{
+			var documentView:DocumentWindow = new DocumentWindow();
+			documentView.title = title;
+			documentView.Document = document;
+			documentView.showWindow();
+		}
+		
+		public static function viewDocuments(documents:Array, title:String):void
+		{
+			var documentsView:MultiDocumentWindow = new MultiDocumentWindow();
+			documentsView.title = title;
+			for each(var docInfo:Object in documents)
+				documentsView.addDocument(docInfo.title, docInfo.document);
+			documentsView.showWindow();
+		}
+		
+		public static function getButtonFor(data:*):DataButton
+		{
+			if(data is LogMessage)
+				return ViewUtil.getLogMessageButton(data);
+			return null;
+		}
+		
+		public static function getLogMessageButton(msg:LogMessage, handleClick:Boolean = true, useShortestMessage:Boolean = false):DataButton
+		{
 			var img:Class;
-			if(msg.errorType != LogMessage.ERROR_NONE)
+			if(msg.level != LogMessage.LEVEL_INFO)
 				img = ImageUtil.errorIcon;
-			else if(msg.type == LogMessage.TYPE_START)
-				img = ImageUtil.rightIcon;
-			else if(msg.type == LogMessage.TYPE_END)
-				img = ImageUtil.rightIcon;
 			else
-				img = ImageUtil.availableIcon;
-
-			var logButton:DataButton = new DataButton(msg.name,
-				msg.groupId,
-				img,
-				msg);
+				img = ImageUtil.rightIcon;
 			
-			if(msg.errorType == LogMessage.ERROR_FAIL)
+			var logButton:DataButton = new DataButton(
+				useShortestMessage ? msg.ShortestTitle : msg.Title,
+				StringUtil.shortenString(msg.message, 80, true),
+				img,
+				handleClick ? msg : null
+			);
+			logButton.data = msg;
+			if(msg.level == LogMessage.LEVEL_FAIL)
 				logButton.styleName = "failedStyle";
-			else if(msg.errorType == LogMessage.ERROR_WARNING)
+			else if(msg.level == LogMessage.LEVEL_WARNING)
 				logButton.styleName = "inprogressStyle";
 			
 			return logButton;
 		}
 		
-		public static function getRequestButton(r:Request):Button {
-			return new DataButton(r.name, r.details, null, r);
+		public static function viewContentInWindow(content:AreaContent):void
+		{
+			var area:Area = new Area();
+			var window:DefaultWindow = new DefaultWindow();
+			area.window = window;
+			window.title = content.title;
+			window.showWindow();
+			window.addElement(area);
+			area.Root = content;
 		}
 		
-		// Gets a button for the slice
-		public static function getSliceButton(s:Slice):Button {
-			return new DataButton(s.urn.name, s.urn.full, null, s);
+		public static function viewLogMessage(msg:LogMessage):void
+		{
+			var msgWindow:LogMessageArea = new LogMessageArea();
+			msgWindow.Message = msg;
+			viewContentInWindow(msgWindow);
 		}
 		
-		// Gets a button for the component manager
-		public static function getGeniManagerButton(gm:GeniManager, addClick:Boolean = true):Button {
-			var cmButton:DataButton = new DataButton(gm.Hrn,
-													"@ " + gm.Url,
-													null,
-													addClick ? gm : null,
-													"manager");
-			cmButton.data = gm;
-			cmButton.setStyle("chromeColor", ColorUtil.colorsDark[gm.colorIdx]);
-			cmButton.setStyle("color", ColorUtil.colorsLight[gm.colorIdx]);
-			return cmButton;
-		}
-		
-		// Gets a button for the component manager
-		public static function getSiteButton(s:Site):Button {
-			return new DataButton(s.id + " (" + s.name + ")",
-									s.name,
-									null,
-									s,
-									"site");
-		}
-		
-		// Gets a button for the physical node
-		public static function getPhysicalNodeButton(n:PhysicalNode):Button {
-			var nodeButton:DataButton = new DataButton(n.name,
-																"@" + n.manager.Hrn,
-																DisplayUtil.assignAvailabilityIcon(n),
-																n,
-																"physicalnode");
-			nodeButton.setStyle("chromeColor", ColorUtil.colorsDark[n.manager.colorIdx]);
-			nodeButton.setStyle("color", ColorUtil.colorsLight[n.manager.colorIdx]);
-			return nodeButton;
-		}
-		
-		public static function getPhysicalNodeGroupButton(ng:PhysicalNodeGroup):Button {
-			var newLabel:String;
-			if(ng.city.length == 0)
-				newLabel = ng.collection.length.toString() + " Nodes";
-			else
-				newLabel = ng.city + " (" + ng.collection.length + ")";
-			var nodeButton:DataButton = new DataButton(newLabel,
-														ng.GetManager().Hrn,
-														null,
-														ng,
-														"physicalnodegroup");
-			nodeButton.setStyle("chromeColor", ColorUtil.colorsDark[ng.GetManager().colorIdx]);
-			nodeButton.setStyle("color", ColorUtil.colorsLight[ng.GetManager().colorIdx]);
-			return nodeButton;
-		}
-		
-		// Gets a button for the physical node
-		public static function getVirtualNodeButton(n:VirtualNode):Button {
-			var nodeButton:DataButton = new DataButton(n.clientId,
-														"@"+n.manager.Hrn,
-														null,
-														n,
-														"virtualnode");
-			nodeButton.setStyle("chromeColor", ColorUtil.colorsDark[n.manager.colorIdx]);
-			nodeButton.setStyle("color", ColorUtil.colorsLight[n.manager.colorIdx]);
-			return nodeButton;
-		}
-		
-		// Gets a button for a physical link
-		public static function getPhysicalLinkWithInterfaceButton(ni:PhysicalNodeInterface, nl:PhysicalLink):Button {
-			return new DataButton(StringUtil.shortenString(ni.id, 50),
-				ni.id + " on " + nl.name,
-				ImageUtil.linkIcon,
-				nl);
-		}
-		
-		// Gets a button for the virtual link
-		public static function getVirtualLinkButton(vl:VirtualLink):Button {
-			return new DataButton(vl.clientId,
-				vl.clientId,
-				ImageUtil.linkIcon,
-				vl);
-		}
-		
-		public static function view(data:*):void {
-			if(data is PhysicalNode)
-				DisplayUtil.viewPhysicalNode(data);
-			else if(data is PhysicalNodeGroup)
-				DisplayUtil.viewNodeGroup(data);
-			else if(data is GeniManager)
-				DisplayUtil.viewGeniManager(data);
-			else if(data is VirtualNode)
-				DisplayUtil.viewVirtualNode(data);
-			else if(data is PhysicalLink)
-				DisplayUtil.viewPhysicalLink(data);
-			else if(data is PhysicalLinkGroup)
-				DisplayUtil.viewPhysicalLinkGroup(data);
-			else if(data is Slice)
-				DisplayUtil.viewSlice(data);
-			else if(data is SliceNode)
-				DisplayUtil.viewSliceNode(data);
-			else if(data is SliceLink)
-				DisplayUtil.viewSliceLink(data);
-			else if(data is Site)
-				DisplayUtil.viewSite(data);
-			else if(data is Request)
-				DisplayUtil.viewRequest(data);
-			else if(data is LogMessage)
-				DisplayUtil.viewLogMessage(data);
-		}
-		
-		public static function getButtonFor(data:*):Button {
-			if(data is PhysicalNode)
-				return DisplayUtil.getPhysicalNodeButton(data);
-			else if(data is PhysicalNodeGroup)
-				return DisplayUtil.getPhysicalNodeGroupButton(data);
-			else if(data is GeniManager)
-				return DisplayUtil.getGeniManagerButton(data);
-			else if(data is VirtualNode)
-				return DisplayUtil.getVirtualNodeButton(data);
-			else if(data is Slice)
-				return DisplayUtil.getSliceButton(data);
-			else if(data is SliceNode)
-				return DisplayUtil.getVirtualNodeButton((data as SliceNode).node);
-			else if(data is SliceLink)
-				return DisplayUtil.getVirtualLinkButton((data as SliceLink).virtualLink);
-			else if(data is Site)
-				return DisplayUtil.getSiteButton(data);
-			else if(data is Request)
-				return DisplayUtil.getRequestButton(data);
-			else if(data is LogMessage)
-				return DisplayUtil.getLogMessageButton(data);
-			return null;
-		}
-		
-		public static function viewLogMessage(msg:LogMessage):void {
-			var logw:LogMessageWindow = new LogMessageWindow();
-			logw.showWindow();
-			logw.setMessage(msg);
-		}
-		
-		// Opens a virtual link window
-		public static function viewVirtualLink(pl:VirtualLink):void {
-	    	var plWindow:VirtualLinkWindow = new VirtualLinkWindow();
-			plWindow.showWindow();
-       		plWindow.loadLink(pl);
-	    }
-		
-		// Opens a physical link window
-		public static function viewPhysicalLink(l:PhysicalLink):void {
-			var lgWindow:PhysicalLinkWindow = new PhysicalLinkWindow();
-			lgWindow.showWindow();
-       		lgWindow.loadLink(l);
-		}
-		
-		// Opens a group of physical links
-		public static function viewPhysicalLinkCollection(lc:ArrayCollection):void {
-			if(lc.length == 1)
-				viewPhysicalLink(lc[0]);
-			else {
-				var lgWindow:PhysicalLinkGroupWindow = new PhysicalLinkGroupWindow();
-				lgWindow.showWindow();
-	       		lgWindow.loadCollection(lc);
-			}
-		}
-		
-		// Opens a group of physical links
-		public static function viewPhysicalLinkGroup(lg:PhysicalLinkGroup):void {
-			var lgWindow:PhysicalLinkGroupWindow = new PhysicalLinkGroupWindow();
-			lgWindow.showWindow();
-       		lgWindow.loadGroup(lg);
-		}
-		
-		// Opens a component manager in a window
-		public static function viewGeniManager(gm:GeniManager):void {
-			if(gm is ProtogeniComponentManager) {
-				var cmWindow:ProtogeniManagerWindow = new ProtogeniManagerWindow();
-				cmWindow.showWindow();
-				cmWindow.load(gm as ProtogeniComponentManager);
-			} else if (gm is PlanetlabAggregateManager) {
-				var plmWindow:PlanetlabManagerWindow = new PlanetlabManagerWindow();
-				plmWindow.showWindow();
-				plmWindow.load(gm as PlanetlabAggregateManager);
-			}
-		}
-		
-		// Opens a physical node in a window
-		public static function viewPhysicalNode(n:PhysicalNode):void {
-			var ngWindow:PhysicalNodeWindow = new PhysicalNodeWindow();
-			ngWindow.showWindow();
-       		ngWindow.loadNode(n);
-		}
-		
-		public static function viewVirtualNode(n:VirtualNode):void {
-			var ngWindow:VirtualNodeWindow = new VirtualNodeWindow();
-			ngWindow.showWindow();
-			ngWindow.loadNode(n);
-		}
-		
-		public static function viewSliceNode(sn:SliceNode):void {
-			viewVirtualNode(sn.node);
-		}
-		
-		public static function viewSliceLink(sl:SliceLink):void {
-			viewVirtualLink(sl.virtualLink);
-		}
-		
-		// Opens a group of physical nodes in a window
-		public static function viewNodeGroup(ng:PhysicalNodeGroup):void {
-			var ngWindow:PhysicalNodeGroupWindow = new PhysicalNodeGroupWindow();
-			ngWindow.showWindow();
-       		ngWindow.loadGroup(ng);
-		}
-		
-		// Opens a group of physical nodes in a window
-		public static function viewNodeCollection(nc:ArrayCollection):void {
-			if(nc.length == 1)
-				viewPhysicalNode(nc[0]);
-			else {
-				var ngWindow:PhysicalNodeGroupWindow = new PhysicalNodeGroupWindow();
-				ngWindow.showWindow();
-	       		ngWindow.loadCollection(nc);
-			}
-		}
-		
-		// Opens a component manager in a window
-		public static function viewSlice(s:Slice):void {
-			var sWindow:SliceWindow = new SliceWindow();
-			sWindow.showWindow();
-			//try {
-				sWindow.loadSlice(s);
-			//} catch(e:Error) {
-			//	LogHandler.appendMessage(new LogMessage("", "View slice fail", e.toString(), true, LogMessage.TYPE_END));
-			//	Alert.show("Problem loading slice, try refreshing the page");
-			//}
-			
-		}
-		
-		public static function viewSite(s:Site):void {
-			var newCollection:ArrayCollection = new ArrayCollection();
-			for each(var node:PhysicalNode in s.nodes)
-			newCollection.addItem(node);
-			DisplayUtil.viewNodeCollection(newCollection);
-		}
-		
-		public static function viewRequest(r:Request):void {
-			var rWindow:RequestWindow = new RequestWindow();
-			rWindow.showWindow();
-			rWindow.load(r);
-		}
-		
-		public static function viewSearchWindow():void {
-			var searchWindow:SearchWindow = new SearchWindow();
-			searchWindow.showWindow();
-		}
-		
-		public static function viewAboutWindow():void {
-			var aboutWindow:AboutWindow = new AboutWindow();
-			PopUpManager.addPopUp(aboutWindow, Main.Application(), false);
-			PopUpManager.centerPopUp(aboutWindow);
-		}
-		
-		public static function viewUserWindow(viewKeys:Boolean = false):void {
-			var userWindow:UserWindow = new UserWindow();
-			userWindow.showWindow();
-			if(viewKeys)
-				userWindow.tabs.selectedChild = userWindow.keysTab;
-		}
-		
-		public static function viewXml(xml:XML, title:String):void {
-			var xmlView:DocumentWindow = new DocumentWindow();
-			xmlView.title = title;
-			xmlView.showWindow();
-			xmlView.loadXml(xml);
-		}
-		
-		public static function getButton(img:Class = null, imgOnly:Boolean = false):Button {
-			var b:Button = new Button();
-			if(imgOnly)
-				b.width = minComponentWidth;
-			b.height = minComponentHeight;
-			if(img != null)
-				b.setStyle("icon", img);
-			return b;
-		}
-		
-		private static var initialUserWindow:InitialUserWindow = null;
-		public static function viewInitialUserWindow():void {
-			if(initialUserWindow == null)
-				initialUserWindow = new InitialUserWindow();
-			initialUserWindow.showWindow(true);
+		public static function viewAbout():void
+		{
+			var area:Area = new Area();
+			var subarea:AboutArea = new AboutArea();
+			var window:DefaultWindow = new DefaultWindow();
+			window.maxHeight = 400;
+			window.maxWidth = 600;
+			area.window = window;
+			window.title = subarea.title;
+			window.showWindow();
+			window.addElement(area);
+			area.Root = subarea;
 		}
 	}
 }

@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,169 +12,126 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.display.Sprite;
-	import flash.events.ErrorEvent;
-	
-	import mx.controls.Alert;
-	import mx.core.FlexGlobals;
-	import mx.events.CloseEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.Key;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualComponent;
-	import protogeni.resources.VirtualNode;
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.process.ParseRequestManifestTask;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.DateUtil;
 	
 	/**
-	 * FULL only
+	 * Redeems an issued ticket. Only supported on the FULL API
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestTicketRedeem extends Request
+	public final class RedeemTicketCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
-		private var ticket:String = "";
-		private var manifest:String = "";
+		// hack, afterError should probably be called instead of setting this
+		public var success:Boolean = false;
 		
 		/**
-		 * Redeems a ticket previously given to the user using the ProtoGENI API
 		 * 
-		 * @param s
+		 * @param newSliver Sliver to redeem ticket for
 		 * 
 		 */
-		public function RequestTicketRedeem(newSliver:Sliver):void
+		public function RedeemTicketCmTask(newSliver:Sliver)
 		{
-			super("Redeem ticket @ " + newSliver.manager.Hrn,
-				"Updating ticket for sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.Name,
-				CommunicationUtil.redeemTicket);
-			sliver = newSliver;
-			sliver.changing = true;
-			sliver.message = "Waiting to redeem ticket";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			ticket = sliver.ticket;
-			
-			op.setUrl(sliver.manager.Url);
-		}
-		
-		override public function start():Operation {
-			if(sliver.manager.level == GeniManager.LEVEL_MINIMAL)
-			{
-				LogHandler.appendMessage(new LogMessage(sliver.manager.Url, "Full API not supported", "This manager does not support this API call", LogMessage.ERROR_FAIL));
-				return null;
-			}
-			sliver.message = "Redeeming ticket";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.clearFields();
-			
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("credentials", [sliver.credential]);
-			op.addField("ticket", sliver.ticket);
-			var keys:Array = [];
-			for each(var key:Key in sliver.slice.creator.keys) {
-				keys.push({type:key.type, key:key.value});
-			}
-			op.addField("keys", keys);
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
-		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
-			{
-				sliver.credential = response.value[0];
-				
-				manifest = response.value[1];
-				sliver.parseManifest(new XML(manifest));
-				
-				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
-				if(old != null)
-				{
-					var oldSliver:Sliver = old.slivers.getByManager(sliver.manager);
-					if(oldSliver != null)
-						old.slivers.remove(oldSliver);
-					old.slivers.add(sliver);
-				}
-				
-				sliver.message = "Ticket redeemed";
-				var startSliver:RequestSliverStart = new RequestSliverStart(sliver);
-				startSliver.addAfter = this.addAfter;
-				this.addAfter = null;
-				return startSliver;
-			}
-			else
-			{
-				failed(response.output);
-				return new RequestTicketRelease(sliver);
-			}
-			
-			return null;
-		}
-		
-		private function failed(msg:String = ""):void {
-			sliver.status = Sliver.STATUS_FAILED;
-			sliver.state = Sliver.STATE_NA;
-			sliver.changing = false;
-			if(msg != null && msg.length > 0)
-				sliver.message = msg;
-			else
-				sliver.message = "Failed to redeem ticket"
-			for each(var node:VirtualNode in sliver.nodes.collection) {
-				node.status = VirtualComponent.STATUS_FAILED;
-				node.error = "Sliver had error when redeeming ticket: " + sliver.message;
-			}
-			
-			var managerMsg:String = "";
-			if(msg != null && msg.length > 0)
-				managerMsg = " Manager reported error: " + msg + ".";
-			
-			Main.geniHandler.requestHandler.pause();
-			Alert.show(
-				"Failed to redeem ticket on " + sliver.manager.Hrn+"!" + managerMsg + ". Stop other calls and remove allocated resources?",
-				"Failed to redeem ticket",
-				Alert.YES|Alert.NO,
-				FlexGlobals.topLevelApplication as Sprite,
-				function askToContinue(e:CloseEvent):void
-				{
-					if(e.detail == Alert.YES)
-						Main.geniHandler.requestHandler.deleteSlice(sliver.slice);
-					else
-						Main.geniHandler.requestHandler.start(true);
-				},
-				null,
-				Alert.YES
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_REDEEMTICKET,
+				"ProtogeniXmlrpcTask ticket @ " + newSliver.manager.hrn,
+				"Updates ticket for sliver on " + newSliver.manager.hrn + " for slice named " + newSliver.slice.Name,
+				"Redeem Ticket"
 			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			sliver = newSliver;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):*
+		override protected function runStart():void
 		{
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return new RequestTicketRelease(sliver);
+			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
+			{
+				afterError(
+					new TaskError(
+						"Full API not supported",
+						TaskError.CODE_PROBLEM
+					)
+				);
+				return;
+			}
+			
+			sliver.markStaged();
+			sliver.manifest = null;
+			
+			super.runStart();
 		}
 		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_POPULATING);
+		override protected function createFields():void
+		{
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("credentials", [sliver.credential.Raw]);
+			addNamedField("ticket", sliver.ticket);
+			var keys:Array = [];
+			for each(var key:String in sliver.slice.creator.keys) {
+				keys.push({type:"ssh", key:key});
+			}
+			addNamedField("keys", keys);
 		}
 		
-		override public function getSent():String {
-			return "******** TICKET ********\n\n" + ticket + "\n\n******** XML-RPC ********\n\n" + op.getSent();
-		}
-		
-		override public function getResponse():String {
-			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********\n\n" + op.getResponse();
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
+			{
+				success = true;
+				sliver.credential = new GeniCredential(data[0], GeniCredential.TYPE_SLIVER, sliver.manager);
+				sliver.expires = sliver.credential.Expires;
+				sliver.manifest = new Rspec(data[1], null, null, null, Rspec.TYPE_MANIFEST);
+				
+				addMessage(
+					"Credential received",
+					data[0],
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				addMessage(
+					"Manifest received",
+					data[1],
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				addMessage(
+					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				parent.add(new StartSliverCmTask(sliver));
+			}
+			else
+			{
+				addMessage(
+					"Problem redeeming",
+					"There was a problem redeeming the ticket. The ticket will now be released.",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				parent.add(new ReleaseTicketCmTask(sliver));
+			}
+				
+			super.afterComplete(addCompletedMessage);
 		}
 	}
 }

@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,73 +12,71 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.http
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import mx.collections.ArrayList;
-	
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.PlanetlabAggregateManager;
-	import protogeni.resources.ProtogeniComponentManager;
-	import protogeni.resources.SliceAuthority;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.tasks.http.HttpTask;
 	
 	/**
-	 * Gets the list of managers for an unauthenticated user
+	 * Downloads a public list of ProtoGENI slice authorities
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestListAuthoritiesPublic extends Request
+	public class PublicListAuthoritiesTask extends HttpTask
 	{
-		public function RequestListAuthoritiesPublic():void
+		public function PublicListAuthoritiesTask()
 		{
-			super("List authorities",
-				"Getting the list of slice authorities",
-				null);
-			
-			op.type = Operation.HTTP;
-			op.setExactUrl(Main.geniHandler.salistUrl);
+			super(
+				"https://www.emulab.net/protogeni/authorities/salist.txt",
+				"Download authority list",
+				"Gets list of slice authorities"
+			);
 		}
 		
-		// Should return Request or RequestQueueNode
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var newCalls:RequestQueue = new RequestQueue();
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			//GeniMain.geniUniverse.authorities = new GeniAuthorityCollection();
+			
+			var sliceAuthorityLines:Array = data.split(/[\n\r]+/);
+			for each(var sliceAuthorityLine:String in sliceAuthorityLines)
 			{
-				Main.geniHandler.GeniAuthorities = new ArrayList();
-				var sliceAuthorityLines:Array = (response as String).split(/[\n\r]+/);
-				for each(var sliceAuthorityLine:String in sliceAuthorityLines) {
-					if(sliceAuthorityLine.length == 0)
-						continue;
-					var sliceAuthorityLineParts:Array = sliceAuthorityLine.split(" ");
-					var sliceAuthority:SliceAuthority = new SliceAuthority(sliceAuthorityLineParts[0], sliceAuthorityLineParts[1], true);
-					//sliceAuthority.Url = sliceAuthority.Url.replace(":12369", "");
-					if(sliceAuthority.Name == "emulab.net")
-						Main.geniHandler.GeniAuthorities.addItemAt(sliceAuthority, 0);
-					else {
-						var i:int;
-						for(i = 0; i < Main.geniHandler.GeniAuthorities.length; i++) {
-							var existingManager:SliceAuthority = Main.geniHandler.GeniAuthorities.getItemAt(i) as SliceAuthority;
-							if(sliceAuthority.Name < existingManager.Name && existingManager.Name != "emulab.net")
-								break;
-						}
-						Main.geniHandler.GeniAuthorities.addItemAt(sliceAuthority, i);
-					}
-				}
-				
-				Main.geniDispatcher.dispatchGeniAuthoritiesChanged();
-			}
-			else
-			{
-				//Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
+				if(sliceAuthorityLine.length == 0)
+					continue;
+				var sliceAuthorityLineParts:Array = sliceAuthorityLine.split(" ");
+				var sliceAuthority:ProtogeniSliceAuthority =
+					new ProtogeniSliceAuthority(
+						sliceAuthorityLineParts[0],
+						sliceAuthorityLineParts[1],
+						true
+					);
+				sliceAuthority.url = sliceAuthority.url.replace(":12369", "");
+				if(GeniMain.geniUniverse.authorities.getByUrl(sliceAuthority.url) == null)
+					GeniMain.geniUniverse.authorities.add(sliceAuthority);
+				addMessage(
+					"Added authority",
+					sliceAuthority.toString()
+				);
 			}
 			
-			return newCalls.head;
+			addMessage(
+				"Added "+GeniMain.geniUniverse.authorities.length+" authorities",
+				"Added "+GeniMain.geniUniverse.authorities.length+" authorities",
+				LogMessage.LEVEL_INFO,
+				LogMessage.IMPORTANCE_HIGH
+			);
+			
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_AUTHORITIES,
+				null,
+				FlackEvent.ACTION_POPULATED
+			);
+			
+			super.afterComplete(addCompletedMessage);
 		}
 	}
 }

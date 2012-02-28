@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -20,19 +20,44 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 <components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						  xmlns:s="library://ns.adobe.com/flex/spark" 
 						  xmlns:mx="library://ns.adobe.com/flex/mx"
-						  xmlns:display="protogeni.display.*"
-						  xmlns:components="protogeni.display.components.*"
-						  width="220" height="110"
-						  title="Choose Manager">
-	
+						  xmlns:components="com.flack.shared.display.components.*"
+						  width="220"
+						  height="110"
+						  title="Choose manager..."
+						  contentCreationComplete="afterCreation()">
+	<components:layout>
+		<s:VerticalLayout gap="4"
+						  verticalAlign="middle"
+						  paddingBottom="4"
+						  paddingTop="4"
+						  paddingLeft="4"
+						  paddingRight="4" />
+	</components:layout>
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.shared.utils.ImageUtil;
+			
+			import mx.collections.ArrayList;
 			import mx.controls.Alert;
 			
 			public var success:Function;
 			
-			public function submit():void {
-				if(this.managerDropDownList.selectedIndex == -1) {
+			[Bindable]
+			protected var managers:ArrayList;
+			
+			public function afterCreation():void
+			{
+				managers = new ArrayList();
+				for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
+					managers.addItem(manager);
+			}
+			
+			public function submit():void
+			{
+				if(managerDropDownList.selectedIndex == -1)
+				{
 					Alert.show("You must choose a manager or cancel");
 					return;
 				}
@@ -40,16 +65,29 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				closeWindow();
 			}
 			
+			public function cancel():void
+			{
+				success(null);
+				closeWindow();
+			}
+			
 		]]>
 	</fx:Script>
 	
 	<s:DropDownList id="managerDropDownList" width="100%"
-					dataProvider="{Main.geniHandler.GeniManagers}"
+					dataProvider="{managers}"
 					prompt="Choose a manager..."
-					labelField="Hrn" />
+					labelField="hrn" />
 	
+	<components:controlBarLayout>
+		<s:HorizontalLayout gap="4"
+							paddingBottom="4"
+							paddingTop="4"
+							paddingLeft="4"
+							paddingRight="4" />
+	</components:controlBarLayout>
 	<components:controlBarContent>
-		<s:Button id="cancelButton" label="Cancel" icon="{ImageUtil.cancelIcon}" click="closeWindow();" height="24" />
-		<s:Button id="okButton" label="Accept" icon="{ImageUtil.availableIcon}" click="submit();" height="24" />
+		<s:Button id="okButton" label="Accept" icon="{ImageUtil.availableIcon}" click="submit();" />
+		<s:Button id="cancelButton" label="Cancel" icon="{ImageUtil.cancelIcon}" click="cancel();" />
 	</components:controlBarContent>
 </components:DefaultWindow>

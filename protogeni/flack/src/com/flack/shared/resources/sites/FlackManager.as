@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,16 +12,14 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.shared.resources.sites
 {
-	import mx.collections.ArrayCollection;
-	import mx.collections.ArrayList;
-	
-	import protogeni.NetUtil;
-	import protogeni.Util;
-	import protogeni.XmlUtil;
-	import protogeni.communication.Request;
-	import protogeni.display.ColorUtil;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.resources.IdentifiableObject;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.utils.ColorUtil;
+	import com.flack.shared.utils.NetUtil;
 	
 	/**
 	 * Manager within the GENI world
@@ -29,261 +27,154 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class GeniManager
+	public class FlackManager extends IdentifiableObject
 	{
+		// Denotes the status the manager is in
 		public static const STATUS_UNKOWN:int = 0;
 		public static const STATUS_INPROGRESS:int = 1;
 		public static const STATUS_VALID:int = 2;
 		public static const STATUS_FAILED:int = 3;
 		
+		// What type of manager is this?
 		public static const TYPE_PROTOGENI:int = 0;
 		public static const TYPE_PLANETLAB:int = 1;
+		public static const TYPE_OTHER:int = 2;
+		public static const TYPE_OPENFLOW:int = 3;
+		public static const TYPE_ORCA:int = 4;
+		public static const TYPE_ORBIT:int = 5;
+		public static const TYPE_EMULAB:int = 6;
+		public static function typeToString(type:int):String
+		{
+			switch(type)
+			{
+				case FlackManager.TYPE_PROTOGENI:
+					return "ProtoGENI";
+				case FlackManager.TYPE_PLANETLAB:
+					return "PlanetLab";
+				case FlackManager.TYPE_OPENFLOW:
+					return "OpenFlow";
+				case FlackManager.TYPE_ORCA:
+					return "ORCA";
+				case FlackManager.TYPE_ORBIT:
+					return "ORBIT";
+				case FlackManager.TYPE_EMULAB:
+					return "Emulab";
+				default:
+					return "Unknown ("+type+")";
+			}
+		}
 		
-		public static const LEVEL_MINIMAL:int = 0;
-		public static const LEVEL_FULL:int = 1;
+		// Why did it fail?
+		public static const FAIL_GENERAL:int = 0;
+		public static const FAIL_NOTSUPPORTED:int = 1;
 		
-		public var level:int = 0;
-		
-		public static var processing:int = 0;
-		public static var maxProcessing:int = 1;
+		// Meta info
+		[Bindable]
+		public var url:String = "";
+		public function get Hostname():String
+		{
+			return NetUtil.tryGetBaseUrl(url);
+		}
 		
 		[Bindable]
-		public var Url:String = "";
+		public var hrn:String = "";
 		
-		[Bindable]
-		public var Hrn:String = "";
+		public var type:int;
 		
-		[Bindable]
-		public var Urn:IdnUrn = new IdnUrn();
+		public var api:ApiDetails;
+		public var apis:Vector.<ApiDetails> = new Vector.<ApiDetails>();
 		
-		[Bindable]
-		public var Version:int;
+		// Resources
+		public var advertisement:Rspec = null;
 		
-		[Bindable]
-		public var outputRspecVersion:Number;
-		[Bindable]
-		public var inputRspecVersion:Number;
+		// State
+		private var status:int = STATUS_UNKOWN;
+		public function get Status():int
+		{
+			return status;
+		}
+		public function set Status(value:int):void
+		{
+			if(value == status)
+				return;
+			status = value;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				this,
+				FlackEvent.ACTION_STATUS
+			);
+		}
 		
-		[Bindable]
-		public var outputRspecDefaultVersion:Number;
+		public var colorIdx:int = -1;
 		
-		public var inputRspecVersions:Vector.<Number>;
-		public var outputRspecVersions:Vector.<Number>;
-		
-		public var generated:Date;
-		public var expires:Date;
-		
+		public var errorType:int = 0;
 		[Bindable]
 		public var errorMessage:String = "";
 		public var errorDescription:String = "";
 		
-		[Bindable]
-		public var Status:int = STATUS_UNKOWN;
-		
-		public var Rspec:XML = null;
-		
-		public var supportsIon:Boolean = false;
-		public var supportsGpeni:Boolean = false;
-		public var supportsDelayNodes:Boolean = false;
-		public var supportsSharedNodes:Boolean = true;
-		public var supportsExclusiveNodes:Boolean = true;
-		
-		[Bindable]
-		public var Show:Boolean = true;
-		
-		public var Nodes:PhysicalNodeGroupCollection;
-		public var Links:PhysicalLinkGroupCollection = new PhysicalLinkGroupCollection();
-		
-		public var AllNodes:Vector.<PhysicalNode> = new Vector.<PhysicalNode>();
-		[Bindable]
-		public var DiskImages:ArrayCollection = new ArrayCollection();
-		
-		public var colorIdx:int;
-		
-		public var data:*;
-		
-		public var isAm:Boolean = false;
-		
-		public var linksUnadded:int = 0;
-		public var nodesUnadded:int = 0;
-		
-		public function AllNodesAsArray():Array {
-			var allNodesArray:Array = new Array();
-			for each (var elem:PhysicalNode in AllNodes) {
-				allNodesArray.push(elem);
-			}
-			return allNodesArray;
-		}
-		public var AllLinks:Vector.<PhysicalLink> = new Vector.<PhysicalLink>();
-		public function AllLinksAsArray():Array {
-			var allLinksArray:Array = new Array();
-			for each (var elem:PhysicalLink in AllLinks) {
-				allLinksArray.push(elem);
-			}
-			return allLinksArray;
-		}
-		
-		// For now set when RSPEC is parsed
-		public function get totalNodes():int {
-			if(this.AllNodes != null)
-				return this.AllNodes.length;
-			else
-				return 0;
-		}
-		
-		public function get availableNodes():int {
-			var count:int = 0;
-			if(this.AllNodes != null) {
-				for each(var node:PhysicalNode in this.AllNodes) {
-					if(node.available)
-						count++;
-				}
-				return count;
-			}
-			else
-				return 0;
-		}
-		
-		public function get unavailableNodes():int {
-			var count:int = 0;
-			if(this.AllNodes != null) {
-				for each(var node:PhysicalNode in this.AllNodes) {
-					if(!node.available)
-						count++;
-				}
-				return count;
-			}
-			else
-				return 0;
-		}
-		
-		public function get percentageAvailable():int {
-			if(this.AllNodes != null && this.AllNodes.length > 0) {
-				return (this.availableNodes * 100) / this.AllNodes.length;
-			}
-			else
-				return 0;
-		}
-		
-		public var rspecProcessor:RspecProcessorInterface;
-		
-		public var type:int;
-		
-		public function GeniManager()
+		/**
+		 * 
+		 * @param newType Type
+		 * @param newApi API type
+		 * @param newId IDN-URN
+		 * @param newHrn Human-readable name
+		 * 
+		 */
+		public function FlackManager(newType:int = TYPE_OTHER,
+									newApi:int = 0,
+									newId:String = "",
+									newHrn:String = "")
 		{
-			Nodes = new PhysicalNodeGroupCollection(this);
-			colorIdx = ColorUtil.getColorIdx();
+			super(newId);
+			type = newType;
+			api = new ApiDetails(newApi);
+			hrn = newHrn;
+			
+			colorIdx = ColorUtil.getColorIdxFor(id.authority);
 		}
 		
-		public function VisitUrl():String
-		{
-			return NetUtil.tryGetBaseUrl(Url);
-		}
-		
+		/**
+		 * 
+		 * @return TRUE if it appears the Flash socket security policy isn't installed
+		 * 
+		 */
 		public function mightNeedSecurityException():Boolean
 		{
 			return errorMessage.search("#2048") > -1;
 		}
 		
-		public function getAvailableNodes():Vector.<PhysicalNode>
-		{
-			var availNodes:Vector.<PhysicalNode> = new Vector.<PhysicalNode>();
-			for each(var n:PhysicalNode in AllNodes)
-			{
-				if(n.available)
-					availNodes.push(n);
-			}
-			return availNodes;
-		}
-		
-		public function getTypes():ArrayList
-		{
-			var tempNodeTypes:ArrayList = new ArrayList();
-			var tmp:Array = [];
-			for each(var node:PhysicalNode in this.AllNodes) {
-				for each(var nodeType:String in node.hardwareTypes) {
-					if(tmp.indexOf(nodeType) == -1)
-						tmp.push(nodeType);
-				}
-			}
-			tmp.sort();
-			for each(var t:String in tmp)
-				tempNodeTypes.addItem(t);
-			return tempNodeTypes;
-		}
-		
+		/**
+		 * Clears components, the advertisement, status, and error details
+		 * 
+		 */
 		public function clear():void
 		{
-			clearComponents();
-			Rspec = null;
-			Status = GeniManager.STATUS_UNKOWN;
+			advertisement = null;
+			Status = STATUS_UNKOWN;
 			errorMessage = "";
 			errorDescription = "";
 		}
 		
-		public function clearComponents():void {
-			this.Nodes = new PhysicalNodeGroupCollection(this);
-			this.Links = new PhysicalLinkGroupCollection();
-			this.nodesUnadded = 0;
-			this.linksUnadded = 0;
-			this.AllNodes = new Vector.<PhysicalNode>();
-			this.AllLinks = new Vector.<PhysicalLink>();
-			this.DiskImages = new ArrayCollection();
+		/**
+		 * 
+		 * @param value Desired client ID
+		 * @return Valid client ID usable at this manager
+		 * 
+		 */
+		public function makeValidClientIdFor(value:String):String
+		{
+			return value;
 		}
 		
-		public function getGraphML():String {
-			var graphMl:XML = new XML("<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml />");
-			var graphMlNamespace:Namespace = new Namespace(null, "http://graphml.graphdrawing.org/xmlns");
-			graphMl.setNamespace(graphMlNamespace);
-			var xsiNamespace:Namespace = XmlUtil.xsiNamespace;
-			graphMl.addNamespace(xsiNamespace);
-			graphMl.@xsiNamespace::schemaLocation = "http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd";
-			graphMl.@id = this.Hrn;
-			graphMl.@edgedefault = "undirected";
-			
-			for each(var node:PhysicalNode in this.AllNodes) {
-				var nodeXml:XML = <node />;
-				nodeXml.@id = node.id;
-				nodeXml.@name = node.name;
-				for each(var nodeInterface:PhysicalNodeInterface in node.interfaces.collection) {
-					var nodeInterfaceXml:XML = <port />;
-					nodeInterfaceXml.@name = nodeInterface.id;
-					nodeXml.appendChild(nodeInterfaceXml);
-				}
-				graphMl.appendChild(nodeXml);
-			}
-			
-			for each(var link:PhysicalLink in this.AllLinks) {
-				var hyperedgeXml:XML = <hyperedge />;
-				hyperedgeXml.@id = link.id;
-				for each(var linkInterface:PhysicalNodeInterface in link.interfaceRefs.collection) {
-					var endpointXml:XML = <endpoint />;
-					endpointXml.@node = linkInterface.owner.id;
-					endpointXml.@port = linkInterface.id;
-					hyperedgeXml.appendChild(endpointXml);
-				}
-				graphMl.appendChild(hyperedgeXml);
-			}
-			
-			return graphMl;
-		}
-		
-		public function getDotGraph():String {
-			var dot:String = "graph " + Util.getDotString(Hrn) + " {";
-			
-			for each(var node:PhysicalNode in this.AllNodes) {
-				dot += "\n\t" + Util.getDotString(node.name) + " [label=\""+node.name+"\"];";
-			}
-			
-			for each(var link:PhysicalLink in this.AllLinks) {
-				for(var i:int = 0; i < link.interfaceRefs.length; i++) {
-					for(var j:int = i+1; j < link.interfaceRefs.length; j++) {
-						dot += "\n\t" + Util.getDotString(link.interfaceRefs.collection[i].owner.name) + " -- " + Util.getDotString(link.interfaceRefs.collection[j].owner.name) + ";";
-					}
-				}
-			}
-			
-			return dot + "\n}";
+		override public function toString():String
+		{
+			var result:String = "[FlackManager ID=" + id.full
+				+ ", Url=" + url
+				+ ", Hrn=" + hrn
+				+ ", Type=" + type
+				+ ", Api=" + api.type
+				+ ", Status=" + Status + "]\n";
+			return result += "[/FlackManager]";
 		}
 	}
 }

@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,80 +12,61 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.Slice;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	
 	/**
-	 * Used to see if a slice exists before trying to create a new one.  Uses the ProtoGENI API.
+	 * Ensures that a slice has been removed. Only works when the slice has expired.
+	 * If no slice with the same name exists or if it is removed, the register task is added to the parent task.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliceRemove extends Request
+	public final class RemoveSliceSaTask extends ProtogeniXmlrpcTask
 	{
 		public var slice:Slice;
-		private var tryCreate:Boolean;
 		
-		public function RequestSliceRemove(s:Slice, shouldTryCreate:Boolean = true):void
+		/**
+		 * 
+		 * @param newSlice Slice to remove
+		 * 
+		 */
+		public function RemoveSliceSaTask(newSlice:Slice)
 		{
-			super("Remove " + s.Name,
-				"Remove slice named " + s.Name,
-				CommunicationUtil.remove);
-			this.forceNext = true;
-			
-			slice = s;
-			slice.Changing = true;
-			tryCreate = shouldTryCreate;
-			
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			super(
+				newSlice.authority.url,
+				"",
+				ProtogeniXmlrpcTask.METHOD_REMOVE,
+				"Remove " + newSlice.Name,
+				"Remove slice named " + newSlice.Name,
+				"Remove Slice"
+			);
+			relatedTo.push(newSlice);
+			slice = newSlice;
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-			
-			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
-			op.addField("hrn", slice.urn.full);
-			op.addField("type", "Slice");
-			
-			return op;
+		override protected function createFields():void
+		{
+			addNamedField("credential", slice.authority.userCredential.Raw);
+			addNamedField("urn", slice.id.full);
+			addNamedField("type", "Slice");
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=true):void
 		{
-			var newRequest:Request = null;
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS
-				|| code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED)
+			if (
+				code == ProtogeniXmlrpcTask.CODE_SUCCESS ||
+				code == ProtogeniXmlrpcTask.CODE_SEARCHFAILED
+			)
 			{
-				if(tryCreate)
-					newRequest = new RequestSliceRegister(slice);
-				else {
-					slice.Changing = false;
-					Main.geniDispatcher.dispatchSliceChanged(slice, GeniEvent.ACTION_REMOVED);
-				}
+				parent.add(new RegisterSliceSaTask(slice));
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-				slice.Changing = false;
-				Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
-			}
-			
-			return newRequest;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			slice.Changing = false;
-			return super.fail(event, fault);
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(slice);
+				faultOnSuccess();
 		}
 	}
 }

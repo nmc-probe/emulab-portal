@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<s:Scroller xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  width="100%"
+		  height="100%"
+		  creationComplete="init()"
+		  dragEnter="scroller1_dragEnterHandler(event)"
+		  dragDrop="scroller1_dragDropHandler(event)">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.DisplayUtil;
+			import com.flack.geni.display.PhysicalNodeList;
+			import com.flack.geni.display.areas.SliceArea;
+			import com.flack.geni.display.mapping.mapproviders.googlemapsprovider.GoogleMapLocationMarker;
+			import com.flack.geni.resources.physical.PhysicalNodeCollection;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.sites.GeniManagerCollection;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.components.DataButton;
+			import com.flack.shared.utils.ImageUtil;
+			
+			import mx.core.UIComponent;
+			import mx.events.DragEvent;
+			import mx.managers.DragManager;
+			
+			import spark.components.Button;
+			import spark.components.HGroup;
+			
+			public var host:SliceArea;
+			
+			public function init():void
+			{
+				setView();
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGERS, tryUpdateManagers);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGER, tryUpdateManagers);
+			}
+			
+			public function destroy():void
+			{
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_MANAGERS, tryUpdateManagers);
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_MANAGER, tryUpdateManagers);
+			}
+			
+			public function tryUpdateManagers(e:FlackEvent):void
+			{
+				if(currentView == VIEW_MANAGERS)
+				{
+					setView(VIEW_MANAGERS);
+				}
+			}
+			
+			// Side pane stuff
+			public static const VIEW_MANAGERS:int = 0;
+			public static const VIEW_MANAGER:int = 1;
+			public static const VIEW_COLLECTION:int = 2;
+			
+			public var currentView:int = VIEW_MANAGERS;
+			public function setView(type:int = VIEW_MANAGERS, data:* = null):void
+			{
+				switch(type)
+				{
+					case VIEW_MANAGERS:
+						if(currentView != VIEW_MANAGERS)
+							virtualGroup.removeAllElements();
+						
+						var viewManagers:GeniManagerCollection = GeniMain.geniUniverse.managers.Valid;
+						
+						// Keep manager info for managers already shown, remove any which are now non-existant
+						var i:int;
+						var managerItem:ManagerVirtualArea;
+						for(i = 0; i < virtualGroup.numElements; i++)
+						{
+							managerItem = virtualGroup.getElementAt(i) as ManagerVirtualArea;
+							if(!viewManagers.contains(managerItem.manager))
+							{
+								virtualGroup.removeElementAt(i);
+								i--;
+							}
+							else
+								viewManagers.remove(managerItem.manager);
+						}
+						
+						// Add managers not already existing
+						for each(var manager:GeniManager in viewManagers.collection)
+						{
+							var managerHrn:String = manager.hrn.toLowerCase();
+							for(i = 0; i < virtualGroup.numElements; i++)
+							{
+								managerItem = virtualGroup.getElementAt(i) as ManagerVirtualArea;
+								if(managerHrn < managerItem.manager.hrn.toLowerCase())
+									break;
+							}
+							managerItem = new ManagerVirtualArea();
+							managerItem.manager = manager;
+							managerItem.host = this;
+							virtualGroup.addElementAt(managerItem, i);
+						}
+						break;
+					case VIEW_MANAGER:
+						virtualGroup.removeAllElements();
+						
+						var selectedManager:GeniManager = data as GeniManager;
+						
+						var managerHgroup:HGroup = new HGroup();
+						managerHgroup.percentWidth = 100;
+						var managerToManagers:DataButton = backToManagerButton();
+						managerHgroup.addElement(managerToManagers);
+						var selectedManagerButton:Button = DisplayUtil.getGeniManagerButton(selectedManager);
+						selectedManagerButton.percentWidth = 100;
+						managerHgroup.addElement(selectedManagerButton);
+						virtualGroup.addElement(managerHgroup);
+						
+						addNodeList(selectedManager.nodes);
+						break;
+					case VIEW_COLLECTION:
+						virtualGroup.removeAllElements();
+						
+						var collectionHgroup:HGroup = new HGroup();
+						collectionHgroup.percentWidth = 100;
+						var collectionToManagers:DataButton = backToManagerButton();
+						collectionHgroup.addElement(collectionToManagers);
+						virtualGroup.addElement(collectionHgroup);
+						
+						addNodeList(data);
+						break;
+				}
+				currentView = type;
+			}
+			
+			public function backToManagerButton():DataButton
+			{
+				var backToManagersButton:DataButton = new DataButton("All", "View the list of all of the managers", ImageUtil.leftIcon);
+				backToManagersButton.addEventListener(MouseEvent.CLICK, backToManagers);
+				return backToManagersButton;
+			}
+			
+			public function addNodeList(nodes:PhysicalNodeCollection):void
+			{
+				var nodeList:PhysicalNodeList = new PhysicalNodeList();
+				nodeList.availableOnlyCheckBox.selected = true;
+				nodeList.load(nodes);
+				nodeList.percentWidth = 100;
+				nodeList.percentHeight = 100;
+				virtualGroup.addElement(nodeList);
+			}
+			
+			public function backToManagers(e:MouseEvent):void
+			{
+				setView();
+			}
+			
+			protected function scroller1_dragEnterHandler(event:DragEvent):void
+			{
+				if (event.dragSource.hasFormat("manager") ||
+					event.dragSource.hasFormat("physicalMarker") ||
+					event.dragSource.hasFormat("physicalNodeCollection"))
+				{
+					DragManager.acceptDragDrop(event.target as UIComponent);
+				}
+			}
+			
+			protected function scroller1_dragDropHandler(event:DragEvent):void
+			{
+				if(event.dragSource.hasFormat("physicalMarker"))
+				{
+					var dragMarker:GoogleMapLocationMarker = event.dragSource.dataForFormat('physicalMarker') as GoogleMapLocationMarker;
+					setView(VIEW_COLLECTION, dragMarker.nodes);
+				}
+				else if(event.dragSource.hasFormat("manager"))
+				{
+					setView(VIEW_MANAGER, event.dragSource.dataForFormat('manager'));
+				}
+				else if(event.dragSource.hasFormat("physicalNodeCollection"))
+				{
+					var dragGroup:PhysicalNodeCollection = event.dragSource.dataForFormat('physicalNodeCollection') as PhysicalNodeCollection;
+					setView(VIEW_COLLECTION, dragGroup);
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	<s:VGroup height="100%" width="100%" id="virtualGroup" paddingRight="2" paddingLeft="2" gap="2" />
+</s:Scroller>

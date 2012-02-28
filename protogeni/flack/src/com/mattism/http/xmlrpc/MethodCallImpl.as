@@ -24,37 +24,37 @@ package com.mattism.http.xmlrpc
                 private var _xml:XML;
 
                 public function MethodCallImpl(){
-                        this.removeParams();
+                        removeParams();
 
-                        this.debug("MethodCallImpl instance created. (v" + _VERSION + ")");
+                        debug("MethodCallImpl instance created. (v" + _VERSION + ")");
                 }
 
 
                 public function setName( name:String ):void {
-                        this._name=name;
+                        _name=name;
                 }
 
                 public function addParam(param_value:Object,param_type:String):void {
-                        this.debug("MethodCallImpl.addParam("+arguments+")");
-                        this._parameters.push({type:param_type,value:param_value});
+                        debug("MethodCallImpl.addParam("+arguments+")");
+                        _parameters.push({type:param_type,value:param_value});
                 }
 
                 public function removeParams():void {
-                        this._parameters=new Array();
+                        _parameters=new Array();
                 }
 
                 public function getXml():XML {
-                        this.debug("getXml()");
+                        debug("getXml()");
 
                         var ParentNode:XML;
                         var ChildNode:XML;
 
                         // Create the <methodCall>...</methodCall> root node
                         ParentNode = <methodCall />;
-                        this._xml = ParentNode;
+                        _xml = ParentNode;
 
                         // Create the <methodName>...</methodName> node
-                        ChildNode = <methodName>{this._name}</methodName>;
+                        ChildNode = <methodName>{_name}</methodName>;
                         ParentNode.appendChild(ChildNode);
 
                         // Create the <params>...</params> node
@@ -63,25 +63,25 @@ package com.mattism.http.xmlrpc
                         ParentNode = ChildNode;
 
                         // build nodes that hold all the params
-                        this.debug("Render(): Creating the params node.");
+                        debug("Render(): Creating the params node.");
 
                         var i:Number;
-                        for (i=0; i<this._parameters.length; i++) {
-                                this.debug("PARAM: " + [this._parameters[i].type,this._parameters[i].value]);
+                        for (i=0; i<_parameters.length; i++) {
+                                debug("PARAM: " + [_parameters[i].type,_parameters[i].value]);
                                 ChildNode = <param />;
-                                ChildNode.appendChild( this.createParamsNode(this._parameters[i]) );
+                                ChildNode.appendChild( createParamsNode(_parameters[i]) );
                                 ParentNode.appendChild(ChildNode);
                         }
-                        this.debug("Render(): Resulting XML document:");
-                        this.debug("Render(): " + this._xml.toXMLString());
+                        debug("Render(): Resulting XML document:");
+                        debug("Render(): " + _xml.toXMLString());
 
-                        return this._xml;
+                        return _xml;
                 }
 
 
           private function createParamsNode( parameter:Object ):XML
           {
-            this.debug("CreateParameterNode()");
+            debug("CreateParameterNode()");
             var Node:XML = <value />;
             var TypeNode:XML;
 			
@@ -123,9 +123,9 @@ package com.mattism.http.xmlrpc
               // Handle Explicit Simple Objects
               if ( XMLRPCUtils.isSimpleType(parameter.type) ) {
                 //cdata is really a string type with a cdata wrapper, so don't really make a 'cdata' tag
-                parameter = this.fixCDATAParameter(parameter);
+                parameter = fixCDATAParameter(parameter);
 
-                this.debug("CreateParameterNode(): Creating object '"+parameter.value+"' as type "+parameter.type);
+                debug("CreateParameterNode(): Creating object '"+parameter.value+"' as type "+parameter.type);
                 if(parameter.type == XMLRPCDataTypes.BOOLEAN)
 					parameter.value = parameter.value ? 1 : 0;
 				TypeNode = <{parameter.type}>{parameter.value}</{parameter.type}>;
@@ -136,23 +136,23 @@ package com.mattism.http.xmlrpc
               // Handle Array Objects
               if (parameter.type == XMLRPCDataTypes.ARRAY) {
                 var DataNode:XML;
-                this.debug("CreateParameterNode(): >> Begin Array");
+                debug("CreateParameterNode(): >> Begin Array");
                 TypeNode = <array />;
                 DataNode = <data />;
                 //for (var i:String in parameter.value) {
-                //      DataNode.appendChild(this.createParamsNode(parameter.value[i]));
+                //      DataNode.appendChild(createParamsNode(parameter.value[i]));
                 //}
                 for (var i:int=0; i<parameter.value.length; i++) {
-                  DataNode.appendChild( this.createParamsNode( parameter.value[i] ) );
+                  DataNode.appendChild( createParamsNode( parameter.value[i] ) );
                 }
                 TypeNode.appendChild(DataNode);
-                this.debug("CreateParameterNode(): << End Array");
+                debug("CreateParameterNode(): << End Array");
                 Node.appendChild(TypeNode);
                 return Node;
               }
               // Handle Struct Objects
               if (parameter.type == XMLRPCDataTypes.STRUCT) {
-                this.debug("CreateParameterNode(): >> Begin struct");
+                debug("CreateParameterNode(): >> Begin struct");
                 TypeNode = <struct />;
                 for (var x:String in parameter.value) {
                   var MemberNode:XML = <member />;
@@ -162,11 +162,11 @@ package com.mattism.http.xmlrpc
 
                   // add value node
 //                  MemberNode.appendChild(<value>{parameter.value[x]}</value>);
-                  MemberNode.appendChild(this.createParamsNode(parameter.value[x]));
+                  MemberNode.appendChild(createParamsNode(parameter.value[x]));
 
                   TypeNode.appendChild(MemberNode);
                 }
-                this.debug("CreateParameterNode(): << End struct");
+                debug("CreateParameterNode(): << End struct");
                 Node.appendChild(TypeNode);
                 return Node;
               }
@@ -193,8 +193,8 @@ package com.mattism.http.xmlrpc
 
 
                 public function cleanUp():void {
-                        //this.removeParams();
-                        //this.parseXML(null);
+                        //removeParams();
+                        //parseXML(null);
                 }
 
                 private function debug(a:Object):void {

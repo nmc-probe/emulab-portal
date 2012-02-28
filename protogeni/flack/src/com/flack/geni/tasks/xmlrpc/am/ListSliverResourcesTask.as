@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,108 +12,143 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	import flash.utils.ByteArray;
-	
-	import mx.utils.Base64Decoder;
-	
-	import protogeni.GeniEvent;
-	import protogeni.StringUtil;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.ProtogeniRspecProcessor;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.process.ParseRequestManifestTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.CompressUtil;
+	import com.flack.shared.utils.StringUtil;
 	
 	/**
-	 * Gets the manifest for the sliver using the GENI AM API
+	 * Lists the sliver's resources at the manager.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverListResourcesAm extends Request
+	public final class ListSliverResourcesTask extends AmXmlrpcTask
 	{
 		public var sliver:Sliver;
 		
-		public function RequestSliverListResourcesAm(s:Sliver):void
+		/**
+		 * 
+		 * @param newSliver Sliver for which to list resources allocated to the sliver's slice
+		 * 
+		 */
+		public function ListSliverResourcesTask(newSliver:Sliver)
 		{
-			super("Get manifest @ " + s.manager.Hrn,
-				"Listing resources for sliver on aggregate manager " + s.manager.Hrn + " on slice named " + s.slice.Name,
-				CommunicationUtil.listResourcesAm,
-				true,
-				true);
-			ignoreReturnCode = true;
-			op.timeout = 60;
-			sliver = s;
-			sliver.changing = true;
-			sliver.message = "Listing resources";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			super(
+				newSliver.manager.api.url,
+				AmXmlrpcTask.METHOD_LISTRESOURCES,
+				newSliver.manager.api.version,
+				"List sliver resources @ " + newSliver.manager.hrn,
+				"Listing sliver resources for aggregate manager " + newSliver.manager.hrn,
+				"List Sliver Resources"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			sliver = newSliver;
+		}
+		
+		override protected function createFields():void
+		{
+			addOrderedField([sliver.slice.credential.Raw]);
 			
-			op.setExactUrl(sliver.manager.Url);
-		}
-		
-		override public function start():Operation {
-			if(sliver.manager.Status == GeniManager.STATUS_VALID) {
-				op.clearFields();
-				
-				var options:Object = {geni_available:false, geni_compressed:true, geni_slice_urn:sliver.slice.urn.full};
-				if(sliver.manager.rspecProcessor is ProtogeniRspecProcessor)
-					options.rspec_version = {type:"ProtoGENI", version:sliver.manager.outputRspecVersion};
-				
-				op.pushField([sliver.slice.credential]);
-				op.pushField(options);
-				
-				return op;
-			}
+			var options:Object = 
+				{
+					geni_available: false,
+					geni_compressed: true,
+					geni_slice_urn: sliver.slice.id.full
+				};
+			var rspecVersion:Object = 
+				{
+					type: sliver.slice.useInputRspecInfo.type,
+					version: sliver.slice.useInputRspecInfo.version.toString()
+				};
+			if(apiVersion < 2)
+				options.rspec_version = rspecVersion;
 			else
-				return null;
+				options.geni_rspec_version = rspecVersion;
+			
+			addOrderedField(options);
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
+			// Sanity check for AM API 2+
+			if(apiVersion > 1)
+			{
+				if(genicode == AmXmlrpcTask.GENICODE_SEARCHFAILED || genicode == AmXmlrpcTask.GENICODE_BADARGS)
+				{
+					addMessage(
+						"No sliver",
+						"No sliver found here",
+						LogMessage.LEVEL_WARNING,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					super.afterComplete(true);
+				}
+				else if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
+				{
+					faultOnSuccess();
+					return;
+				}
+			}
+			
 			try
 			{
-				var decodor:Base64Decoder = new Base64Decoder();
-				decodor.decode(response as String);
-				var bytes:ByteArray = decodor.toByteArray();
-				bytes.uncompress();
-				var decodedRspec:String = bytes.toString();
+				var uncompressedRspec:String = CompressUtil.uncompress(data);
 				
-				sliver.parseManifest(new XML(decodedRspec));
+				addMessage(
+					"Manifest received",
+					uncompressedRspec,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
 				
-				if(sliver.nodes.length > 0 && !sliver.slice.slivers.contains(sliver)) {
-					sliver.slice.slivers.add(sliver);
-					sliver.message = "Resources listed";
-					return new RequestSliverStatusAm(sliver);
-				} else {
-					sliver.changing = false;
-					sliver.message = "No resources found";
-					Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-				}
-			} catch(e:Error)
-			{
-				failed();
+				sliver.manifest = new Rspec(uncompressedRspec,null,null,null, Rspec.TYPE_MANIFEST);
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				
+				super.afterComplete(addCompletedMessage);
+				
 			}
+			catch(e:Error)
+			{
+				afterError(
+					new TaskError(
+						StringUtil.errorToString(e),
+						TaskError.CODE_UNEXPECTED,
+						e
+					)
+				);
+			}
+		}
+		
+		override protected function afterError(taskError:TaskError):void
+		{
+			sliver.status = Sliver.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLIVER,
+				sliver,
+				FlackEvent.ACTION_STATUS
+			);
 			
-			return null;
+			super.afterError(taskError);
 		}
 		
-		public function failed():void {
-			sliver.changing = false;
-			sliver.message = "Listing failed";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			failed();
-			return super.fail(event, fault);
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_POPULATING);
+		override protected function runCancel():void
+		{
+			sliver.status = Sliver.STATUS_UNKNOWN;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLIVER,
+				sliver,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 	}
 }

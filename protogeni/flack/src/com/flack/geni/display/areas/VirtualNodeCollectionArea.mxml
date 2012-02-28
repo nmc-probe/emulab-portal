@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx"
+				   xmlns:areas="com.flack.geni.display.areas.*"
+				   xmlns:display="com.flack.geni.display.*"
+				   title="Virtual Nodes"
+				   creationComplete="init()" xmlns:areas1="com.flack.shared.display.areas.*">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.display.areas.AreaContent;
+			
+			private var nodes:VirtualNodeCollection;
+			private var selected:VirtualNode;
+			public function set Nodes(value:VirtualNodeCollection):void
+			{
+				nodes = value;
+				if(nodeList != null)
+				{
+					nodeList.load(nodes);
+					if(nodes.length > 0)
+						selectedNode(new FlackEvent("", nodeList.viewNodes.getItemAt(0)));
+					nodeList.list.selectedIndex = 0;
+				}
+			}
+			
+			public function init():void
+			{
+				areaForNode.window = host.window;
+				if(nodes != null)
+				{
+					nodeList.load(nodes);
+					
+					if(selected != null)
+						selectedNode(new FlackEvent("", selected));
+					else
+					{
+						if(nodes.length > 0)
+							selectedNode(new FlackEvent("", nodeList.viewNodes.getItemAt(0)));
+						nodeList.list.selectedIndex = 0;
+					}
+					initEvents();
+				}
+			}
+			
+			override public function initEvents():void
+			{
+				if(nodeList != null)
+				{
+					if(!nodeList.hasEventListener(VirtualNodeList.SELECTED))
+						nodeList.addEventListener(VirtualNodeList.SELECTED, selectedNode);
+				}
+			}
+			
+			override public function removeEvents():void
+			{
+				nodeList.removeEventListener(VirtualNodeList.SELECTED, selectedNode);
+			}
+			
+			public function selectedNode(e:FlackEvent):void
+			{
+				if(areaForNode != null)
+				{
+					var currentContent:AreaContent = areaForNode.Content;
+					selected = e.changedObject as VirtualNode;
+					if(currentContent != null && currentContent is VirtualNodeArea)
+						areaForNode.clear(false, (currentContent as VirtualNodeArea).load, selected);
+					else
+					{
+						var nodeInfo:VirtualNodeArea = new VirtualNodeArea();
+						nodeInfo.load(selected);
+						areaForNode.load(nodeInfo);
+					}
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	<mx:HDividedBox width="100%" height="100%">
+		<display:VirtualNodeList id="nodeList"
+								 width="200"
+								 height="100%"
+								 paddingTop="2" />
+		<areas1:Area id="areaForNode"
+					host="{host}"
+					width="100%"
+					height="100%" />
+	</mx:HDividedBox>
+</areas1:AreaContent>

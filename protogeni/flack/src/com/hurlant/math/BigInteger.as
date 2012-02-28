@@ -543,7 +543,7 @@ package com.hurlant.math
 		 * x[y(2-xy)] == 1 (mod m^2)
 		 * if y is 1/x mod m, then y(2-xy) is 1/x mod m^2
 		 * should reduce x and y(2-xy) by m^2 at each step to keep size bounded
-		 * [XXX unit test the living shit out of this.]
+		 * [XXX unit test the living shit out of ]
 		 */
 		bi_internal function invDigit():int {
 			if (t<1) return 0;
@@ -616,7 +616,7 @@ package com.hurlant.math
 
 		public function clone():BigInteger {
 			var r:BigInteger = new BigInteger;
-			this.copyTo(r);
+			copyTo(r);
 			return r;
 		}
 		
@@ -803,12 +803,12 @@ package com.hurlant.math
 			var f:int;
 			var m:int = Math.min(a.t, t);
 			for (i=0; i<m; ++i) {
-				r.a[i] = op(this.a[i],a.a[i]);
+				r.a[i] = op(a[i],a.a[i]);
 			}
 			if (a.t<t) {
 				f = a.s&DM;
 				for (i=m;i<t;++i) {
-					r.a[i] = op(this.a[i],f);
+					r.a[i] = op(a[i],f);
 				}
 				r.t = t;
 			} else {
@@ -997,14 +997,14 @@ package com.hurlant.math
 			var c:int = 0;
 			var m:int = Math.min(a.t, t);
 			while (i<m) {
-				c += this.a[i] + a.a[i];
+				c += a[i] + a.a[i];
 				r.a[i++] = c&DM;
 				c>>=DB;
 			}
 			if (a.t < t) {
 				c += a.s;
 				while (i<t) {
-					c += this.a[i];
+					c += a[i];
 					r.a[i++] = c&DM;
 					c >>= DB;
 				}

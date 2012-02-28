@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,9 +12,10 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.sites.managers
 {
-	import mx.collections.ArrayCollection;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.shared.resources.sites.ApiDetails;
 	
 	/**
 	 * PlanetLab implementation of the GENI AM API
@@ -22,52 +23,20 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class PlanetlabAggregateManager extends AggregateManager
+	public class PlanetlabAggregateManager extends GeniManager
 	{
 		public var registryUrl:String;
-		public var networkName:String;
-		public var sites:Vector.<Site>;
 		
-		public function PlanetlabAggregateManager()
+		/**
+		 * 
+		 * @param newId IDN-URN
+		 * 
+		 */
+		public function PlanetlabAggregateManager(newId:String)
 		{
-			super();
-			//this.Url = "https://planet-lab.org:12346/";
-			//this.registryUrl = "https://planet-lab.org:12345/";
-			//this.Hrn = "planet-lab.am";
-			//this.Urn = new IdnUrn("urn:publicid:IDN+planet-lab.org+authority+am");
-			this.sites = new Vector.<Site>();
-			this.type = GeniManager.TYPE_PLANETLAB;
-			this.supportsExclusiveNodes = false;
-			this.supportsSharedNodes = false;
-			
-			this.rspecProcessor = new PlanetlabRspecProcessor(this);
-		}
-		
-		public function getSiteWithHrn(n:String):Site
-		{
-			for each(var s:Site in this.sites) {
-				if(s.hrn == n)
-					return s;
-			}
-			return null;
-		}
-		
-		public function getSiteWithName(n:String):Site
-		{
-			for each(var s:Site in this.sites) {
-				if(s.name == n)
-					return s;
-			}
-			return null;
-		}
-		
-		public function getSiteWithId(i:String):Site
-		{
-			for each(var s:Site in this.sites) {
-				if(s.id == i)
-					return s;
-			}
-			return null;
+			super(TYPE_PLANETLAB, ApiDetails.API_GENIAM, newId);
+			this.supportsUnboundRawNodes = false;
+			this.supportsUnboundVmNodes = false;
 		}
 	}
 }

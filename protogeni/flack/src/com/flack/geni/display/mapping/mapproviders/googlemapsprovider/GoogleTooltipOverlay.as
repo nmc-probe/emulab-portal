@@ -7,8 +7,9 @@ Code provided in the official examples for Google Maps API for Flash
 
 */
 
-package protogeni.display.mapping {
-
+package com.flack.geni.display.mapping.mapproviders.googlemapsprovider
+{
+	import com.flack.geni.GeniMain;
 	import com.google.maps.LatLng;
 	import com.google.maps.MapEvent;
 	import com.google.maps.interfaces.IMap;
@@ -21,14 +22,12 @@ package protogeni.display.mapping {
 	import flash.text.TextField;
 	import flash.text.TextFieldAutoSize;
 	import flash.text.TextFormat;
-	
-	import mx.core.FlexGlobals;
 
 	/**
 	 * Box with text to show as an overlay on Google Maps API for Flash
 	 * 
 	 */
-	public class TooltipOverlay extends OverlayBase {
+	public class GoogleTooltipOverlay extends OverlayBase {
 		
 		private var latLng:LatLng;
 		private var label:String;
@@ -39,57 +38,68 @@ package protogeni.display.mapping {
 		private var borderColor:Object;
 		private var backgroundColor:Object;
 
-		public function TooltipOverlay(latLng:LatLng,
-									   label:String,
+		public function GoogleTooltipOverlay(newLatLng:LatLng,
+									   newLabel:String,
 									   edgeColor:Object,
-									   backColor:Object) {
+									   backColor:Object)
+		{
 			super();
-			this.borderColor = edgeColor;
-			this.backgroundColor = backColor;
-			this.latLng = latLng;
-			this.label = label;
+			borderColor = edgeColor;
+			backgroundColor = backColor;
+			latLng = newLatLng;
+			label = newLabel;
 			
-			this.addEventListener(MapEvent.OVERLAY_ADDED, onOverlayAdded);
-			this.addEventListener(MapEvent.OVERLAY_REMOVED, onOverlayRemoved);
+			addEventListener(MapEvent.OVERLAY_ADDED, onOverlayAdded);
+			addEventListener(MapEvent.OVERLAY_REMOVED, onOverlayRemoved);
 		}
 		
-		public override function getDefaultPane(map:IMap):IPane {
-			return FlexGlobals.topLevelApplication.map.linkPane;
+		public function destroy():void
+		{
+			removeEventListener(MapEvent.OVERLAY_ADDED, onOverlayAdded);
+			removeEventListener(MapEvent.OVERLAY_REMOVED, onOverlayRemoved);
+		}
+		
+		public override function getDefaultPane(map:IMap):IPane
+		{
+			return (GeniMain.mapper.map as GoogleMap).linkPane;
 		}
 		  
-		private function onOverlayAdded(event:MapEvent):void {
+		private function onOverlayAdded(event:MapEvent):void
+		{
 			var textFormat:TextFormat = new TextFormat();
 			textFormat.size = 15;
-			this.textField = new TextField();
-			this.textField.defaultTextFormat = textFormat;
-			this.textField.text = this.label;
-			this.textField.selectable = false;
-			this.textField.border = true;
-			this.textField.borderColor = borderColor as uint;
-			this.textField.background = true;
-			this.textField.multiline = false;
-			this.textField.autoSize = TextFieldAutoSize.CENTER;
-			this.textField.backgroundColor = backgroundColor as uint;
-			this.textField.mouseEnabled = false;
-			this.textField.filters = [new DropShadowFilter()];
+			textField = new TextField();
+			textField.defaultTextFormat = textFormat;
+			textField.text = this.label;
+			textField.selectable = false;
+			textField.border = true;
+			textField.borderColor = borderColor as uint;
+			textField.background = true;
+			textField.multiline = false;
+			textField.autoSize = TextFieldAutoSize.CENTER;
+			textField.backgroundColor = backgroundColor as uint;
+			textField.mouseEnabled = false;
+			textField.filters = [new DropShadowFilter()];
 			
 			button = new Sprite();
 			button.buttonMode=true;
 			button.useHandCursor = true;
 			button.addChild(textField);
 			 
-			this.addChild(button);
+			addChild(button);
 		}
 		
-		private function onOverlayRemoved(event:MapEvent):void {
-			this.removeChild(button);
-			this.textField = null;
+		private function onOverlayRemoved(event:MapEvent):void
+		{
+			removeChild(button);
+			textField = null;
 		}
 		
-		public override function positionOverlay(zoomChanged:Boolean):void {
-			var point:Point = this.pane.fromLatLngToPaneCoords(this.latLng);
-			this.textField.x = point.x - this.textField.width / 2;
-			this.textField.y = point.y - this.textField.height / 2;
+		public override function positionOverlay(zoomChanged:Boolean):void
+		{
+			var point:Point = pane.fromLatLngToPaneCoords(latLng);
+			textField.x = point.x - textField.width / 2;
+			textField.y = point.y - textField.height / 2;
 		}
 	}
 }

@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -17,892 +17,727 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 -->
 
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-						xmlns:s="library://ns.adobe.com/flex/spark" 
-						xmlns:mx="library://ns.adobe.com/flex/mx"
-						xmlns:display="protogeni.display.*"
-						xmlns:components="protogeni.display.components.*"
-						title="{sliceCanvas.slice.Name}"
-						minWidth="600" minHeight="220"
-						initialize="me = this;"
-						creationComplete="onCreationComplete()">
-	<components:layout>
-		<s:VerticalLayout paddingRight="2"
-						  gap="2"/>
-	</components:layout>
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  xmlns:display="com.flack.geni.display.*"
+		  xmlns:areas="com.flack.geni.display.areas.*"
+		  xmlns:slicer="com.flack.geni.display.slicer.*"
+		  xmlns:areas1="com.flack.shared.display.areas.*"
+		  creationComplete="init()"
+		  paddingBottom="2"
+		  title="{_slice.Name}">
+	<fx:Declarations>
+		<s:RadioButtonGroup id="componentsAreaTypeGroup" change="componentsAreaTypeGroup_changeHandler(event)" />
+	</fx:Declarations>
 	<fx:Script>
 		<![CDATA[
-			import flash.globalization.DateTimeFormatter;
-			import flash.globalization.DateTimeStyle;
-			import flash.globalization.LocaleID;
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.DisplayUtil;
+			import com.flack.geni.display.slicer.IComponentsArea;
+			import com.flack.geni.display.slicer.ImportSliceWindow;
+			import com.flack.geni.display.slicer.graphview.SliceCanvas;
+			import com.flack.geni.display.slicer.listview.SliceList;
+			import com.flack.geni.plugins.Plugin;
+			import com.flack.geni.plugins.PluginArea;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.sites.GeniManagerCollection;
+			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virtual.Sliver;
+			import com.flack.geni.resources.virtual.SliverCollection;
+			import com.flack.geni.resources.virtual.VirtualLink;
+			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virtual.extensions.SliceFlackInfo;
+			import com.flack.geni.tasks.groups.slice.DeleteSliversTaskGroup;
+			import com.flack.geni.tasks.groups.slice.GetSliceTaskGroup;
+			import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
+			import com.flack.geni.tasks.groups.slice.RefreshSliceStatusTaskGroup;
+			import com.flack.geni.tasks.groups.slice.RenewSliceTaskGroup;
+			import com.flack.geni.tasks.groups.slice.RestartSliceTaskGroup;
+			import com.flack.geni.tasks.groups.slice.RevertToManifestsTaskGroup;
+			import com.flack.geni.tasks.groups.slice.StartSliceTaskGroup;
+			import com.flack.geni.tasks.groups.slice.StopSliceTaskGroup;
+			import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;
+			import com.flack.geni.tasks.process.GenerateNsTask;
+			import com.flack.geni.tasks.process.GenerateRequestTask;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.areas.Area;
+			import com.flack.shared.display.areas.DocumentArea;
+			import com.flack.shared.display.areas.DocumentsArea;
+			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
+			import com.flack.shared.display.components.TextInputWindow;
+			import com.flack.shared.resources.docs.RspecVersion;
+			import com.flack.shared.resources.docs.RspecVersionCollection;
+			import com.flack.shared.resources.sites.FlackManager;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.tasks.TaskCollection;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.tasks.http.HttpTask;
+			import com.flack.shared.utils.DateUtil;
+			import com.flack.shared.utils.ImageUtil;
 			
 			import mx.collections.ArrayCollection;
-			import mx.containers.TabNavigator;
 			import mx.controls.Alert;
 			import mx.core.FlexGlobals;
+			import mx.core.IVisualElement;
 			import mx.events.CloseEvent;
-			import mx.events.DragEvent;
-			import mx.events.MenuEvent;
-			import mx.graphics.SolidColor;
-			import mx.managers.DragManager;
 			
-			import protogeni.DateUtil;
-			import protogeni.GeniEvent;
-			import protogeni.NetUtil;
-			import protogeni.StringUtil;
-			import protogeni.Util;
-			import protogeni.display.components.AdvancedTextArea;
-			import protogeni.display.components.DataButton;
-			import protogeni.display.components.DefaultLine;
-			import protogeni.display.components.DefaultWindow;
-			import protogeni.display.components.DocumentWindow;
-			import protogeni.display.components.TextInputWindow;
-			import protogeni.display.mapping.GeniMapMarker;
-			import protogeni.resources.GeniManager;
-			import protogeni.resources.PhysicalNode;
-			import protogeni.resources.PhysicalNodeGroup;
-			import protogeni.resources.Site;
-			import protogeni.resources.Slice;
-			import protogeni.resources.Sliver;
-			import protogeni.resources.SliverTypes;
-			import protogeni.resources.VirtualNode;
-			import protogeni.tools.instools.Instools;
+			import spark.components.Button;
+			import spark.primitives.Rect;
 			
-			import spark.components.BorderContainer;
-			import spark.components.NavigatorContent;
-			import spark.components.Scroller;
-			import spark.layouts.VerticalLayout;
-			
-			private var fr:FileReference;
-			private var loading:Boolean;
-			
-			private var me:SliceWindow;
-			
-			/**
-			 * Window has been created, prepare to handle everything
-			 */
-			public function onCreationComplete():void
+			public function get ComponentsArea():IComponentsArea
 			{
-				fr = new FileReference();
-				fr.addEventListener(Event.SELECT, onFileSelect);
-				fr.addEventListener(Event.COMPLETE, onFileComplete);
-				fr.addEventListener(IOErrorEvent.IO_ERROR, onFileIoError);
-				fr.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onFileSecurityError);
-				//Main.geniDispatcher.addEventListener(GeniEvent.GENIMANAGER_CHANGED, cmChanged);
-				Main.geniDispatcher.addEventListener(GeniEvent.SLICE_CHANGED, sliceChanged);
-				Main.geniDispatcher.addEventListener(GeniEvent.QUEUE_CHANGED, queueChanged);
-				
-				var sidePane:int = VIEW_MANAGERS;
-				if(sliceCanvas.slice != null && sliceCanvas.slice.slivers != null && sliceCanvas.slice.slivers.AllocatedAnyResources)
-					sidePane = VIEW_STATUS;
-				setSidePane(sidePane);
+				if(sliceComponentsArea != null && sliceComponentsArea.numElements == 1)
+					return sliceComponentsArea.getElementAt(0) as IComponentsArea;
+				else
+					return null;
 			}
 			
-			/**
-			 * Close the window if the user wants
-			 */
-			public override function closeWindow(event:Event=null):void {
-				if(sliceCanvas.isEdited()) {
-					Alert.show("The slice appears to have been edited. Close and clear any changes?",
-						"Confirm",
-						Alert.YES|Alert.NO,
-						FlexGlobals.topLevelApplication as Sprite,
-						function closeClear(e:CloseEvent):void {
-							if(e.detail == Alert.YES)
-								doCloseWindow(event);
-						});
-				} else
-					doCloseWindow(event);
-			}
-			
-			/**
-			 * Actually close the window
-			 */
-			public function doCloseWindow(event:Event=null):void {
-				fr.removeEventListener(Event.SELECT, onFileSelect);
-				fr.removeEventListener(Event.COMPLETE, onFileComplete);
-				//Main.geniDispatcher.removeEventListener(GeniEvent.GENIMANAGER_CHANGED, cmChanged);
-				Main.geniDispatcher.removeEventListener(GeniEvent.SLICE_CHANGED, sliceChanged);
-				Main.geniDispatcher.removeEventListener(GeniEvent.QUEUE_CHANGED, queueChanged);
-				super.closeWindow(event);
-			}
-			
-			/**
-			 * The slice has been changed somewhere, apply changes
-			 */
-			public function sliceChanged(e:GeniEvent):void
+			override public function get PendingChanges():Boolean
 			{
-				var changedSlice:Slice = e.changedObject as Slice;
-				if(sliceCanvas.slice != null && changedSlice.urn.full == sliceCanvas.slice.urn.full) {
-					this.loadSlice(changedSlice);
+				if(_slice != null)
+					return _slice.UnsubmittedChanges;
+				else
+					return false;
+			}
+			
+			[Bindable]
+			private var usableRspecVersions:ArrayCollection;
+			
+			[Bindable] 
+			public var importMenuData:Array = [
+				{
+					label: "Import from file",
+					icon: ImageUtil.openIcon,
+					action: importFromFile
+				},
+				{
+					label: "Import from clipboard",
+					icon: ImageUtil.pasteIcon,
+					action: importFromClipboard
+				}, 
+				{
+					label: "Import from the web",
+					icon: ImageUtil.worldIcon,
+					action: importFromWeb
 				}
-			}
+			];
 			
-			public function queueChanged(e:GeniEvent):void
-			{
-				refreshInterface();
-			}
+			[Bindable] 
+			public var deleteMenuData:Array = [
+				{
+					label: "Delete at used managers",
+					icon: ImageUtil.deleteIcon,
+					action: deleteSlice
+				},
+				{
+					label: "Delete everywhere",
+					icon: ImageUtil.deleteIcon,
+					action: deleteSliceEverywhere
+				}
+			];
 			
-			/**
-			 * Apply the slice information/status to just the window, not the slice canvas
-			 */
-			public function refreshInterface(slice:Slice = null):void
+			[Bindable] 
+			public var sliceMenuData:Array = [
+				{
+					label: "SSH Keys",
+					icon: ImageUtil.keyIcon,
+					action: viewKeys
+				},
+				{
+					label: "Manifests",
+					icon: ImageUtil.manifestIcon,
+					action: viewManifests
+				}, 
+				{
+					label: "Logs",
+					icon: ImageUtil.consoleIcon,
+					action: viewLogs
+				}, 
+				{
+					label: "Logins",
+					icon: ImageUtil.hostnameIcon,
+					action: viewLogin
+				}, 
+				{
+					label: "Credential",
+					icon: ImageUtil.credentialIcon,
+					action: viewCredential
+				}
+			];
+			
+			[Bindable]
+			private var _slice:Slice;
+			public function set slice(value:Slice):void
 			{
-				var refreshSlice:Slice = slice;
-				if(refreshSlice == null && this.sliceCanvas.slice != null)
-					refreshSlice = this.sliceCanvas.slice;
-				if(refreshSlice != null) {
-					spinner.visible = refreshSlice.Changing;
-					if(spinner.visible)
-						spinner.startSpin();
-					else
-						spinner.stopSpin();
+				_slice = value;
+				if(initialized)
+				{
+					if(ComponentsArea == null || ComponentsArea.SliceEditing == null)
+						loadComponentsAreaFor(_slice);
+					if(_slice.slivers.AllocatedAnyResources)
+						dashboardViewstack.selectedChild = sliceView;
+					updateSliceHistory();
 					
-					if(refreshSlice.slivers.length == 0) {
-						this.setSidePane(VIEW_MANAGERS);
-					}
-					else if(refreshSlice.Changing && refreshSlice.slivers != null && refreshSlice.slivers.length > 0) {
-						this.setSidePane(VIEW_STATUS, refreshSlice);
-					}
-					
-					this.sliceCanvas.refreshStatus(refreshSlice);
-					
-					if(!refreshSlice.slivers.AllocatedAnyResources
-						&& !refreshSlice.slivers.Status == Sliver.STATUS_FAILED)
-						this.clearStatus();
+					updateSliceChanging();
+					updateSliceVersion();
 				}
-				
-				if(slice != null || !Main.geniHandler.requestHandler.isSliceChanging(refreshSlice))
-					updateSliversInfo(refreshSlice);
-				
-				refreshPluginPaneStatus(refreshSlice);
+			}
+			public function get slice():Slice
+			{
+				return _slice;
 			}
 			
-			public function refreshPluginPaneStatus(refreshSlice:Slice):void
+			public function loadComponentsAreaFor(s:Slice):void
 			{
-				if(pluginGroup != null)
+				var currentArea:IComponentsArea = ComponentsArea;
+				if(s.flackInfo.view == SliceFlackInfo.VIEW_GRAPH)
 				{
-					if(refreshSlice != null) {
-						this.instrumentizeButton.enabled = refreshSlice.slivers.StatusFinalized;
-						this.gotoPortalButton.enabled = Instools.hasAnyPortal(refreshSlice);
-					} else {
-						this.instrumentizeButton.enabled = false;
-						this.gotoPortalButton.enabled = false;
-					}
-				}
-			}
-			
-			public function clearStatus():void
-			{
-				if(rspecButton != null)
-					rspecButton.enabled = false;
-				
-				sliceCanvas.clearStatus();
-			}
-			
-			/**
-			 * Refreshes the window and the slice canvas
-			 */
-			public function refreshSlice():void
-			{
-				sliceCanvas.refreshSlice();
-				refreshInterface();
-			}
-			
-			/**
-			 * Loads a slice
-			 */
-			public function loadSlice(s:Slice):void
-			{
-				// Things are very in limbo while processing, don't try to load
-				if(!s.slivers.Processing)
-				{
-					if(sliceCanvas.slice == null && s.slivers != null && s.slivers.AllocatedAnyResources)
-						setSidePane(VIEW_STATUS);
-					sliceCanvas.load(s);
-				}
-				refreshInterface(s);
-			}
-			
-			/**
-			 * Views the latest manifest RSPECs from the slice
-			 */
-			public function viewRspecs():void
-			{
-				if(sliceCanvas.slice == null) {
-					Alert.show("There is no slice loaded yet.");
-					return;
-				}
-				if(sliceCanvas.slice.slivers.length == 0)
-				{
-					Alert.show("There is no valid RSPEC for the slice yet", "No RSPEC");
-					return;
-				}
-				for each(var s:Sliver in sliceCanvas.slice.slivers.collection)
-				{
-					if(s.manifest == null)
+					graphRadiobutton.selected = true;
+					if(currentArea == null || !(currentArea is SliceCanvas))
 					{
-						Alert.show("There is no valid RSPEC for the slice yet", "No RSPEC");
-						return;
+						currentArea = new SliceCanvas();
+						(currentArea as SliceCanvas).host = this;
+						sliceComponentsArea.removeAllElements();
+						sliceComponentsArea.addElement(currentArea as IVisualElement);
 					}
 				}
-				var viewRspec:DefaultWindow = new DefaultWindow();
-				viewRspec.title = "Last Valid Request RSPEC(s) for: " + sliceCanvas.slice.hrn;
-				var tabs:TabNavigator = new TabNavigator();
-				tabs.percentHeight = 100;
-				tabs.percentWidth = 100;
-				viewRspec.addElement(tabs);
-				for each(s in sliceCanvas.slice.slivers.collection)
-				{
-					var tab:NavigatorContent = new NavigatorContent();
-					var vertLayout:VerticalLayout = new VerticalLayout();
-					vertLayout.paddingBottom = 5;
-					vertLayout.paddingLeft = 5;
-					vertLayout.paddingRight = 5;
-					tab.layout = vertLayout;
-					tab.percentHeight = 100;
-					tab.percentWidth = 100;
-					tab.label = s.manager.Hrn;
-					
-					var reviewRspecText:AdvancedTextArea = new AdvancedTextArea();
-					if(s.manifest != null)
-						reviewRspecText.text = s.manifest.toString();
-					else
-						reviewRspecText.text = "No valid RSPEC yet";
-					
-					tab.addElement(reviewRspecText);
-					tabs.addChild(tab);
-				}
-				viewRspec.showWindow();
-			}
-			
-			/**
-			 * View the RSPECs as they appear for the slice as it's currently drawn
-			 */
-			public function previewRspecs():void
-			{
-				var previewRspec:DefaultWindow = new DefaultWindow();
-				previewRspec.title = "Preview Request RSPEC(s) for: " + sliceCanvas.slice.hrn;
-				var tabs:TabNavigator = new TabNavigator();
-				tabs.percentHeight = 100;
-				tabs.percentWidth = 100;
-				previewRspec.addElement(tabs);
-				
-				var slivers:Vector.<Sliver> = new Vector.<Sliver>();
-				if(sliceCanvas.slice.slivers.length > 1)
-					slivers.push(sliceCanvas.slice.slivers.Combined);
-				for each(var useSliver:Sliver in sliceCanvas.slice.slivers.collection)
-					slivers.push(useSliver);
-				
-				for each(var s:Sliver in slivers)
-				{
-					var tab:NavigatorContent = new NavigatorContent();
-					var vertLayout:VerticalLayout = new VerticalLayout();
-					vertLayout.paddingBottom = 5;
-					vertLayout.paddingLeft = 5;
-					vertLayout.paddingRight = 5;
-					tab.layout = vertLayout;
-					tab.percentHeight = 100;
-					tab.percentWidth = 100;
-					tab.label = s.manager.Hrn;
-
-					var previewTextArea:AdvancedTextArea = new AdvancedTextArea();
-					previewTextArea.text = s.getRequestRspec(true).toString();
-
-					tab.addElement(previewTextArea);
-					tabs.addChild(tab);
-				}
-				previewRspec.showWindow();
-			}
-			
-			/**
-			 * Removes all resources from the slice canvas
-			 */
-			public function clearCanvas():void {
-				if(sliceCanvas.slice.slivers.AllocatedAnyResources)
-					Alert.show("The slice has resources allocated to it.  Please delete the slice before trying to create a new slice.", "Allocated Resources Exist");
-				else if(sliceCanvas.allNodes.length > 0)
-					Alert.show("The slice already has resources on the canvas.  Clear the slice anyways?", "Resources Exist",
-						Alert.YES|Alert.NO,
-						FlexGlobals.topLevelApplication as Sprite,
-						function closeClear(e:CloseEvent):void {
-							if(e.detail == Alert.YES)
-								sliceCanvas.clear(true);
-						});
-			}
-			
-			// Import and save
-			/**
-			 * Ask a user to paste a RSPEC
-			 */
-			public function importRspec(event:* = null):void {
-				var importWindow:ImportSliceWindow = new ImportSliceWindow();
-				importWindow.setSlice(this.sliceCanvas.slice);
-				importWindow.showWindow();
-			}
-			
-			/**
-			 * Ask the user to save the preview RSPEC to file
-			 */
-			public function saveRequestRspec():void {
-				loading = false;
-				fr.save(sliceCanvas.slice.slivers.Combined.getRequestRspec(true).toXMLString(), this.sliceCanvas.slice.Name+"_previewRspec.xml");
-			}
-			
-			/**
-			 * Ask the user to save the preview RSPEC to file
-			 */
-			public function saveCredential():void {
-				loading = false;
-				fr.save(sliceCanvas.slice.credential, this.sliceCanvas.slice.Name+"_sliceCredential.xml");
-			}
-			
-			/**
-			 * Ask the user to load a RSPEC from file
-			 */
-			protected function onFileBrowse(event:*):void
-			{
-				loading = true;
-				fr.browse([new FileFilter("RSPECs (*.txt, *.xml, *.rspec, *.*)", "*.txt;*.xml;*.rspec;*.*")])
-			}
-			
-			/**
-			 * The file was selected
-			 */
-			public function onFileSelect(event:Event):void {
-				if(loading)
-					fr.load();
-			}
-			
-			/**
-			 * The file is ready to read
-			 */
-			public function onFileComplete(event:Event):void {
-				if(loading)
-					sliceCanvas.slice.tryImport(fr.data.readUTFBytes(fr.data.length));
-			}
-			
-			private function onFileIoError(event:IOErrorEvent):void {
-				Alert.show(event.toString(), "IO Error");
-			}
-			
-			private function onFileSecurityError(event:SecurityErrorEvent):void {
-				Alert.show(event.toString(), "Security Error");
-			}
-			
-			// Side pane stuff
-			public static const VIEW_MANAGERS:int = 0;
-			public static const VIEW_MANAGER:int = 1;
-			public static const VIEW_COLLECTION:int = 2;
-			public static const VIEW_STATUS:int = 3;
-			//
-			public function setSidePane(type:int = VIEW_MANAGERS, data:* = null):void {
-				
-				switch(type) {
-					case VIEW_MANAGERS:
-					default:
-						sidePaneManagers.removeAllElements();
-						for each(var manager:GeniManager in Main.geniHandler.GeniManagers) {
-							if(manager.Status == GeniManager.STATUS_VALID)
-								this.addManagerOption(manager, false);
-						}
-						break;
-					case VIEW_MANAGER:
-						sidePaneManagers.removeAllElements();
-						this.dashboardViewstack.selectedChild = resourcesView;
-						this.addManagerOption(data, true);
-						this.addNodeList(data.AllNodes);
-						break;
-					case VIEW_COLLECTION:
-						sidePaneManagers.removeAllElements();
-						this.dashboardViewstack.selectedChild = resourcesView;
-						var toggleViewButton:ImageButton = new ImageButton();
-						toggleViewButton.setStyle("icon", ImageUtil.leftIcon);
-						toggleViewButton.toolTip = "View all the managers";
-						toggleViewButton.addEventListener(MouseEvent.CLICK,
-							function toggleViewClicked(e:MouseEvent):void {
-								me.setSidePane(VIEW_MANAGERS);
-							});
-						this.sidePaneManagers.addElement(toggleViewButton);
-						this.addNodeList(data);
-						break;
-					case VIEW_STATUS:
-						this.dashboardViewstack.selectedChild = this.sliceView;
-						this.validateNow();
-						updateSliversInfo();
-						break;
-				}
-			}
-			
-			private function updateSliversInfo(updateSlice:Slice = null):void
-			{
-				var refreshSlice:Slice = updateSlice;
-				if(refreshSlice == null)
-				{
-					if(Main.geniHandler.requestHandler.isSliceChanging(sliceCanvas.slice))
-						return;
-					refreshSlice = sliceCanvas.slice;
-				}
-				if(sliceGroup != null)
-				{
-					if(refreshSlice != null) {
-						expireButton.toolTip = "";
-						var dateFormatter:DateTimeFormatter = new DateTimeFormatter(LocaleID.DEFAULT, DateTimeStyle.SHORT, DateTimeStyle.NONE);
-						if(refreshSlice.expires != null) {
-							var sliceExpiresDate:Date = refreshSlice.expires;
-							if(refreshSlice.slivers != null) {
-								var sliversExpire:Date = refreshSlice.slivers.Expires;
-								if(sliversExpire != null && sliversExpire.time < sliceExpiresDate.time) {
-									sliceExpiresDate = sliceExpiresDate;
-									this.expireButton.toolTip = "Sliver expires before slice in\n\t"
-										+ DateUtil.getTimeUntil(sliversExpire)
-										+ "\n\ton "
-										+ dateFormatter.format(sliversExpire)
-										+ "\n\n";
-								}
-							}
-							
-							this.expireButton.toolTip += "Slice expires in\n\t"
-								+ DateUtil.getTimeUntil(refreshSlice.expires)
-								+ "\n\ton "
-								+ dateFormatter.format(refreshSlice.expires);
-							
-							// If expires soon, let the user know
-							// less than one hour
-							var hoursRemaining:Number = (sliceExpiresDate.time - (new Date()).time)/3600000;
-							if(hoursRemaining < 1)
-								this.expireButton.styleName = "failedStyle";
-							else if(hoursRemaining < 3)
-								this.expireButton.styleName = "inprogressStyle";
-							else
-								this.expireButton.styleName = "validStyle";
-						} else {
-							this.expireButton.toolTip = "";
-							this.expireButton.styleName = "unknownStyle";
-						}
-						this.startButton .enabled = refreshSlice.slivers.AllocatedAnyResources;
-						this.rspecButton.enabled = refreshSlice.slivers.AllocatedAnyResources;
-					} else {
-						this.rspecButton.enabled = false;
-						this.startButton.enabled = false;
-					}
-					
-					if(updateSlice != null) {
-						sidePaneSlices.removeAllElements();
-						for each(var sliver:Sliver in refreshSlice.slivers.collection)
-							addSliverStatus(sliver);
-					}
-				}
-			}
-			
-			private function addNodeList(nodes:Vector.<PhysicalNode>):void {
-				var nodeList:NodeList = new NodeList();
-				nodeList.percentHeight = 100;
-				nodeList.percentWidth = 100;
-				this.sidePaneManagers.addElement(nodeList);
-				var nodeCollection:ArrayCollection = new ArrayCollection();
-				for each(var node:PhysicalNode in nodes)
-					nodeCollection.addItem(node);
-				nodeList.load(nodeCollection);
-			}
-			
-			private function addSliverStatus(sliver:Sliver):void {
-				var sliverContainer:BorderContainer = new BorderContainer();
-				sliverContainer.height = 28;
-				sliverContainer.percentWidth = 100;
-				sliverContainer.setStyle("paddingTop", 4);
-				sliverContainer.setStyle("paddingBottom", 4);
-				sliverContainer.setStyle("paddingRight", 4);
-				sliverContainer.setStyle("paddingLeft", 4);
-				sliverContainer.backgroundFill = new SolidColor(ColorUtil.colorsDark[sliver.manager.colorIdx]);
-				this.sidePaneSlices.addElement(sliverContainer);
-				var sliverNameGroup:HGroup = new HGroup();
-				sliverNameGroup.percentWidth = 100;
-				sliverNameGroup.percentHeight = 100;
-				sliverNameGroup.verticalAlign = "middle";
-				sliverNameGroup.gap = 2;
-				sliverContainer.addElement(sliverNameGroup);
-				var managerName:Label = DisplayUtil.getLabel(sliver.manager.Hrn);
-				managerName.percentWidth = 100;
-				managerName.maxDisplayedLines = 1;
-				managerName.setStyle("color", ColorUtil.colorsLight[sliver.manager.colorIdx]);
-				managerName.setStyle("backgroundColor", ColorUtil.colorsDark[sliver.manager.colorIdx]);
-				sliverNameGroup.addElement(managerName);
-				
-				if(Main.geniHandler.requestHandler.isSliverChanging(sliver)) {
-					var sliverSpinner:Spinner = new Spinner();
-					sliverSpinner.width = 18;
-					sliverSpinner.height = 18;
-					sliverNameGroup.addElement(sliverSpinner);
-					//sliverSpinner.x = (width / 2) - (sliverSpinner.width / 2);
-					//sliverSpinner.y = (height / 2) - (sliverSpinner.height / 2);
-					sliverSpinner.startSpin();
-				}
-				
-				if(sliver.manifest != null) {
-					var manifestButton:DataButton = new DataButton("",
-						"View the manifest",
-						ImageUtil.pageWhiteCodeIcon);
-					manifestButton.data = sliver.manifest;
-					manifestButton.addEventListener(MouseEvent.CLICK,
-						function openManifest(e:MouseEvent):void {
-							var rspecWindow:DocumentWindow = new DocumentWindow();
-							rspecWindow.showWindow();
-							rspecWindow.title = "Manifest RSPEC from " + sliver.manager.Hrn;
-							rspecWindow.loadXml((e.currentTarget as DataButton).data);
-						});
-					sliverNameGroup.addElement(manifestButton);
-				}
-				
-				var consoleButton:DataButton = new DataButton("",
-					"View log messages in the console",
-					ImageUtil.consoleIcon);
-				consoleButton.data = sliver.manager.Url;
-				consoleButton.addEventListener(MouseEvent.CLICK,
-					function openConsole(e:MouseEvent):void {
-						LogHandler.viewGroup((e.currentTarget as DataButton).data);
-					});
-				sliverNameGroup.addElement(consoleButton);
-				
-				if(sliver.message.length > 0) {
-					var statusLabel:Label = DisplayUtil.getLabel(StringUtil.shortenString(sliver.message, 50));
-					statusLabel.percentWidth = 100;
-					switch(sliver.status)
-					{
-						case Sliver.STATUS_READY:
-							statusLabel.styleName = "validStyle";
-							break;
-						case Sliver.STATUS_FAILED:
-							statusLabel.styleName = "failedStyle";
-							break;
-						case Sliver.STATUS_CHANGING:
-						case Sliver.STATUS_NOTREADY:
-						case Sliver.STATUS_UNKNOWN:
-						case Sliver.STATUS_MIXED:
-							statusLabel.styleName = "inprogressStyle";
-							break;
-						default:
-							statusLabel.styleName = "unknownStyle";
-					}
-					this.sidePaneSlices.addElement(statusLabel);
-					var newLine:DefaultLine = new DefaultLine();
-					newLine.percentWidth = 100;
-					newLine.lineColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
-					this.sidePaneSlices.addElement(newLine);
-				}
-			}
-			
-			private function addManagerOption(manager:GeniManager, only:Boolean):void {
-				var managerHgroup:HGroup = new HGroup();
-				managerHgroup.percentWidth = 100;
-				managerHgroup.gap = 2;
-				var toggleViewButton:Button;
-				if(only) {
-					toggleViewButton = new ImageButton();
-					toggleViewButton.setStyle("icon", ImageUtil.leftIcon);
-					toggleViewButton.toolTip = "View all the managers";
-					toggleViewButton.addEventListener(MouseEvent.CLICK,
-						function toggleViewClicked(e:MouseEvent):void {
-							me.setSidePane(VIEW_MANAGERS);
-						});
-					managerHgroup.addElement(toggleViewButton);
-					var managerButton:Button = DisplayUtil.getGeniManagerButton(manager);
-					managerButton.percentWidth = 100;
-					managerHgroup.addElement(managerButton);
-				} else {
-					toggleViewButton = DisplayUtil.getGeniManagerButton(manager, false);
-					toggleViewButton.percentWidth = 100;
-					toggleViewButton.toolTip = "Open the manager resources";
-					toggleViewButton.addEventListener(MouseEvent.CLICK,
-						function toggleViewClicked(e:MouseEvent):void {
-							me.setSidePane(VIEW_MANAGER, manager);
-						});
-					managerHgroup.addElement(toggleViewButton);
-				}
-
-				var addRawButton:DataButton = new DataButton("",
-					"Add a raw node",
-					ImageUtil.rawIcon,
-					null,
-					"virtualnode");
-				if(manager.supportsExclusiveNodes) {
-					var raw:VirtualNode = new VirtualNode(null, true, SliverTypes.RAWPC);
-					raw.clientId = "Raw";
-					raw.manager = manager;
-					addRawButton.data = raw;
-					addRawButton.addEventListener(MouseEvent.CLICK,
-						function addExclusiveClicked(e:MouseEvent):void {
-							sliceCanvas.addBasicCloneOfVirtualNode(e.currentTarget.data);
-						});
-				} else
-					addRawButton.visible = false; // include in the layout
-				managerHgroup.addElement(addRawButton);
-				
-				var addExclusiveVirtualButton:DataButton = new DataButton("",
-					"Add an exclusive virtual node",
-					ImageUtil.exclusiveIcon, null, "virtualnode");
-				if(manager.supportsSharedNodes) {
-					var exclusiveVirtual:VirtualNode = new VirtualNode(null, true, SliverTypes.EMULAB_OPENVZ);
-					exclusiveVirtual.clientId = "Virtual";
-					exclusiveVirtual.manager = manager;
-					addExclusiveVirtualButton.data = exclusiveVirtual;
-					addExclusiveVirtualButton.addEventListener(MouseEvent.CLICK,
-						function addSharedClicked(e:MouseEvent):void {
-							sliceCanvas.addBasicCloneOfVirtualNode(e.currentTarget.data);
-						});
-				} else
-					addExclusiveVirtualButton.visible = false; // include in the layout
-				managerHgroup.addElement(addExclusiveVirtualButton);
-				
-				var addSharedVirtualButton:DataButton = new DataButton("",
-					"Add a shared virtual node",
-					ImageUtil.sharedIcon, null, "virtualnode");
-				if(manager.supportsSharedNodes) {
-					var sharedVirtual:VirtualNode = new VirtualNode(null, false, SliverTypes.EMULAB_OPENVZ);
-					sharedVirtual.clientId = "Virtual";
-					sharedVirtual.manager = manager;
-					addSharedVirtualButton.data = sharedVirtual;
-					addSharedVirtualButton.addEventListener(MouseEvent.CLICK,
-						function addSharedClicked(e:MouseEvent):void {
-							sliceCanvas.addBasicCloneOfVirtualNode(e.currentTarget.data);
-						});
-				} else
-					addSharedVirtualButton.visible = false; // include in the layout
-				managerHgroup.addElement(addSharedVirtualButton);
-				
-				var addDelayButton:DataButton = new DataButton("",
-					"Add a delay node",
-					ImageUtil.timeIcon,
-					null,
-					"virtualnode");
-				if(manager.supportsDelayNodes) {
-					addDelayButton.alpha = 0.8;
-					var delay:VirtualNode = new VirtualNode(null, true, SliverTypes.DELAY);
-					delay.clientId = "Delay";
-					delay.manager = manager;
-					addDelayButton.data = delay;
-					addDelayButton.addEventListener(MouseEvent.CLICK,
-						function addDelayClicked(e:MouseEvent):void {
-							sliceCanvas.addBasicCloneOfVirtualNode(e.currentTarget.data);
-						});
-				} else
-					addDelayButton.visible = false; // include in the layout
-				managerHgroup.addElement(addDelayButton);
-				
-				this.sidePaneManagers.addElement(managerHgroup);
-			}
-			
-			protected function sidePane_dragEnterHandler(event:DragEvent):void
-			{
-				if (event.dragSource.hasFormat("site") ||
-					event.dragSource.hasFormat("manager") ||
-					event.dragSource.hasFormat("marker") ||
-					event.dragSource.hasFormat("physicalnodegroup"))
-				{
-					DragManager.acceptDragDrop(VGroup(event.currentTarget));
-				}
-			}
-			
-			protected function sidePane_dragDropHandler(event:DragEvent):void
-			{
-				if(event.dragSource.hasFormat("marker"))
-				{
-					var dragMarker:GeniMapMarker = event.dragSource.dataForFormat('marker') as GeniMapMarker;
-					setSidePane(VIEW_COLLECTION, dragMarker.showGroups.GetAll());
-				} else if(event.dragSource.hasFormat("manager")) {
-					setSidePane(VIEW_MANAGER, event.dragSource.dataForFormat('manager'));
-				} else if(event.dragSource.hasFormat("site")) {
-					var dragSite:Site = event.dragSource.dataForFormat('site') as Site;
-					setSidePane(VIEW_COLLECTION, dragSite.nodes);
-				} else if(event.dragSource.hasFormat("physicalnodegroup")) {
-					var dragGroup:PhysicalNodeGroup = event.dragSource.dataForFormat('physicalnodegroup') as PhysicalNodeGroup;
-					setSidePane(VIEW_COLLECTION, dragGroup.collection);
-				}
-			}
-			
-			public function tryCreateSlice():void {
-				if(sliceCanvas.allNodes.length == 0) {
-					Alert.show("There are no resources.  Either add resources and then create or use delete if resources are already allocated.", "Cannot create");
-					return;
-				}
-				if(sliceCanvas.slice.Changing) {
-					Alert.show("The slice is changing, please wait for the changes to complete");
-					return;
-				}
-				for each(var sliver:Sliver in sliceCanvas.slice.slivers.collection)
-				{
-					if(sliver.Created &&(sliver.manager.isAm || sliver.manager.level == GeniManager.LEVEL_MINIMAL))
-					{
-						Alert.show(sliver.manager.Hrn + " doesn't support updating. To continue you will need to delete and recreate the slice.");
-						return;
-					}
-				}
-				if(Main.geniHandler.CurrentUser.keys.length == 0) {
-					Alert.show("You don't have any public keys to use when logging in to your nodes.  Would you like to add any public keys?", "No public keys",
-						Alert.YES|Alert.NO|Alert.CANCEL,
-						FlexGlobals.topLevelApplication as Sprite,
-						function choiceHandler(event:CloseEvent):void {
-							if(event.detail == Alert.YES) {
-								DisplayUtil.viewUserWindow(true);
-							} else if(event.detail == Alert.NO) {
-								clearStatus();
-								setSidePane(VIEW_STATUS);
-								Main.geniHandler.requestHandler.submitSlice(sliceCanvas.slice);
-							}
-						});
-					return;
-				}
-				
-				sliceCanvas.slice.useInputRspecVersion = outputRspecDropdownlist.selectedItem;
-				clearStatus();
-				setSidePane(VIEW_STATUS);
-				Main.geniHandler.requestHandler.submitSlice(sliceCanvas.slice);
-			}
-			
-			public function viewExpires():void {
-				Alert.show(this.expireButton.toolTip, "Expiration");
-			}
-			
-			public function renewSlice():void {
-				var addTime:Number = 1000*60*60*2; // 2 hours
-				switch(this.renewLengthDropdownlist.selectedIndex) {
-					case 3:
-						addTime *= 3;	// (1*3=) 3 days
-					case 2:
-						addTime *= 4;	// (6*4=) 1 day
-					case 1:
-						addTime *= 3;	// (2*3=) 6 hours
-				}
-				
-				var sliverExpiresDate:Date = this.sliceCanvas.slice.slivers.Expires;
-				var newExpiresDate:Date = new Date();
-				if(sliverExpiresDate != null
-					&& (sliverExpiresDate.time + addTime) < this.sliceCanvas.slice.expires.time) {
-					newExpiresDate.setTime(sliverExpiresDate.time + addTime);
-				} else {
-					newExpiresDate.setTime(this.sliceCanvas.slice.expires.time + addTime);
-				}
-				Main.geniHandler.requestHandler.renewSlice(this.sliceCanvas.slice, newExpiresDate);
-			}
-			
-			public var getRspec:URLLoader;
-			public var getRspecRequest:URLRequest;
-			public function importFromUrl(event:* = null):void {
-				promptForUrl("http://protogeni.net/gec12.xml");
-			}
-			
-			public function promptForUrl(url:String = ""):void {
-				var getUrlWindow:TextInputWindow = new TextInputWindow();
-				getUrlWindow.title = "Please enter the full URL for the RSPEC";
-				getUrlWindow.showWindow(true);
-				getUrlWindow.Text = url.length == 0  ? "http://" : url;
-				getUrlWindow.onCancel = null;
-				getUrlWindow.onSuccess = tryImportUrl;
-			}
-			
-			public function tryImportUrl(url:String = ""):void {
-				// Get a URL from the user if needed
-				if(url.length == 0)
-					promptForUrl();
-				// Otherwise try to download
 				else
 				{
-					this.spinner.visible = true;
-					this.spinner.startSpin();
-					NetUtil.checkLoadCrossDomain(url, true, true);
-					getRspecRequest = new URLRequest(url);
-					getRspec = new URLLoader();
-					getRspec.addEventListener(Event.COMPLETE, finishImport);
-					getRspec.addEventListener(ErrorEvent.ERROR, importError);
-					getRspec.addEventListener(IOErrorEvent.IO_ERROR, importError);
-					getRspec.addEventListener(SecurityErrorEvent.SECURITY_ERROR, importError);
-					try {
-						getRspec.load(getRspecRequest);
-					} catch(e:Error) {
-						promptForUrl(getRspecRequest.url);
-						Alert.show("Problem loading the RSPEC, check the URL and try again");
+					listRadiobutton.selected = true;
+					if(currentArea == null || !(currentArea is SliceList))
+					{
+						currentArea = new SliceList();
+						(currentArea as SliceList).host = this;
+						sliceComponentsArea.removeAllElements();
+						sliceComponentsArea.addElement(currentArea as IVisualElement);
+					}
+				}
+				sliceComponentsArea.validateNow();
+				currentArea.load(_slice);
+			}
+			
+			[Bindable]
+			public var plugins:ArrayCollection;
+			
+			public function init():void
+			{
+				usableRspecVersions = new ArrayCollection();
+				for each(var v:RspecVersion in GeniMain.usableRspecVersions.collection)
+					usableRspecVersions.addItem(v);
+				plugins = new ArrayCollection();
+				for each(var plugin:Plugin in GeniMain.plugins)
+				plugins.addItem(plugin);
+				if(_slice != null)
+				{
+					loadComponentsAreaFor(_slice);
+					if(_slice.slivers.AllocatedAnyResources)
+						dashboardViewstack.selectedChild = sliceView;
+					updateSliceChanging();
+					updateSliceHistory();
+					updateSliceVersion();
+				}
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_FINISHED, updateSliceChanging);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_STARTED, updateSliceChanging);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICE, sliceChanged);
+			}
+			
+			/*
+			override public function removeEvents():void
+			{
+				SharedMain.geniDispatcher.removeEventListener(GeniEvent.CHANGED_SLICE, sliceChanged);
+				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_FINISHED, updateSliceChanging);
+				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_STARTED, updateSliceChanging);
+			}
+			*/
+			
+			public function sliceChanged(e:FlackEvent):void
+			{
+				var changedSlice:Slice = e.changedObject as Slice;
+				if(_slice == changedSlice)
+					updateSlice();
+			}
+			
+			public function updateSliceChanging(e:TaskEvent = null):void
+			{
+				var tasksNotFinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
+				var stillWorking:Boolean = tasksNotFinished.getRelatedTo(_slice).length > 0;
+				if(!stillWorking && spinner.visible)
+				{
+					spinner.visible = false;
+					spinner.stopSpin();
+					importMenuButton.enabled = true;
+					clearCanvasButton.enabled = true;
+					cloneButton.enabled = true;
+					submitButton.enabled = true;
+					ComponentsArea.toggleEditable(true);
+				}
+				else if(stillWorking && !spinner.visible)
+				{
+					spinner.visible = true;
+					spinner.startSpin();
+					importMenuButton.enabled = false;
+					clearCanvasButton.enabled = false;
+					cloneButton.enabled = false;
+					submitButton.enabled = false;
+					ComponentsArea.toggleEditable(false);
+				}
+				updateSliceHistory();
+				// XXX toggle whether nodes can be deleted
+			}
+			
+			public function updateSlice():void
+			{
+				if(ComponentsArea != null)
+					ComponentsArea.updateInterface();
+				var workingSliceTasks:TaskCollection = SharedMain.tasker.tasks.AllNotFinished.getRelatedTo(_slice);
+				if(workingSliceTasks.length > 0 && dashboardViewstack.selectedChild != sliceView)
+				{
+					if(workingSliceTasks.getOfClass(GetSliceTaskGroup).length == 0 || _slice.slivers.AllocatedAnyResources)
+					{
+						dashboardViewstack.selectedChild = sliceView;
+						validateNow();
+					}
+				}
+				updateSliversInfo();
+				updateSliceHistory();
+				updateSliceVersion();
+			}
+			
+			public function updateSliceVersion():void
+			{
+				usableRspecVersions = new ArrayCollection();
+				var possibleRspecVersions:RspecVersionCollection = new RspecVersionCollection();
+				var usedManagers:GeniManagerCollection = _slice.nodes.Managers;
+				var first:Boolean = true;
+				for each(var usedManager:GeniManager in usedManagers.collection)
+				{
+					if(first)
+					{
+						for each(var usedManagerVersion:RspecVersion in usedManager.inputRspecVersions.collection)
+						{
+							var possibleRspecVersion:RspecVersion = GeniMain.usableRspecVersions.get(usedManagerVersion.type, usedManagerVersion.version);
+							if(possibleRspecVersion != null && !usableRspecVersions.contains(possibleRspecVersion))
+								usableRspecVersions.addItem(possibleRspecVersion);
+						}
+						first = false;
+					}
+					else
+					{
+						for (var i:int = 0; i < usableRspecVersions.length; i++)
+						{
+							var existing:RspecVersion = usableRspecVersions.getItemAt(i) as RspecVersion;
+							if(usedManager.inputRspecVersions.get(existing.type, existing.version) == null)
+							{
+								usableRspecVersions.removeItemAt(i);
+								i--;
+							}
+						}
+					}
+				}
+				
+				if(_slice != null && _slice.useInputRspecInfo != null)
+					outputRspecDropdownlist.selectedItem = GeniMain.usableRspecVersions.get(_slice.useInputRspecInfo.type, _slice.useInputRspecInfo.version);
+				else
+					outputRspecDropdownlist.selectedItem = GeniMain.usableRspecVersions.MaxVersion;
+			}
+			
+			public function updateSliceHistory():void
+			{
+				undoButton.enabled = !spinner.visible && _slice.CanGoBack;
+				redoButton.enabled = !spinner.visible && _slice.CanGoForward;
+				
+				undoButton.toolTip = "Undo"
+				if(undoButton.enabled)
+				{
+					if(_slice.history.stateName.length > 0)
+						undoButton.toolTip += " ("+_slice.history.stateName+")";
+				}
+				
+				
+				redoButton.toolTip = "Redo";
+				if(redoButton.enabled)
+					redoButton.toolTip += " ("+_slice.history.states[_slice.history.backIndex+1].note+")";
+			}
+			
+			public function updateSliversInfo():void
+			{
+				if(expiresLabel != null)
+				{
+					
+					startSliceButton.enabled  = _slice.slivers.AllocatedAnyResources;
+					
+					refreshStatusButton.enabled = slice.slivers.AllocatedAnyResources;
+					
+					if(slice.expires != null)
+					{
+						var hoursRemaining:uint = (_slice.EarliestExpires.time - (new Date()).time)/3600000;
+						if(hoursRemaining < 1)
+							expiresLabel.styleName = "failedStyle";
+						else if(hoursRemaining < 3)
+							expiresLabel.styleName = "inprogressStyle";
+						else
+							expiresLabel.styleName = "validStyle";
+						expiresLabel.text = DateUtil.getTimeUntil(_slice.EarliestExpires, true);
+						renewSliceButton.enabled = true;
+						renewLengthDropdownlist.enabled = true;
+					}
+					else
+					{
+						expiresLabel.text = "";
+						expiresLabel.styleName = "unknownStyle";
+						renewSliceButton.enabled = false;
+						renewLengthDropdownlist.enabled = false;
 					}
 				}
 			}
 			
-			public function finishImport(e:Event):void {
-				spinner.visible = false;
-				spinner.stopSpin();
-				sliceCanvas.slice.tryImport(String(getRspec.data));
+			override public function cancelPendingChanges():void
+			{
+				var revert:RevertToManifestsTaskGroup = new RevertToManifestsTaskGroup(slice);
+				revert.forceRunNow = true;
+				SharedMain.tasker.add(revert);
 			}
 			
-			public function importError(e:*):void {
-				spinner.visible = false;
-				spinner.stopSpin();
-				promptForUrl(getRspecRequest.url);
-				Alert.show("Problem loading the RSPEC, check the URL and try again");
+			// Side bar
+			
+			public function submitSlice():void
+			{
+				if(SliceWorking)
+					return;
+				if(slice.nodes.length == 0)
+				{
+					Alert.show(
+						"There are no resources to allocate. Add resources and then try again.",
+						"Cannot allocate"
+					);
+					return;
+				}
+				if(!slice.UnsubmittedChanges)
+				{
+					Alert.show(
+						"There are no changes to the slice to submit.",
+						"No changes"
+					);
+					return;
+				}
+				// if slice task is happenning, wait...
+				if(GeniMain.geniUniverse.user.keys.length == 0)
+				{
+					Alert.show(
+						"You don't have any public keys to use when logging in to your nodes.  Would you like to add any public keys?",
+						"No public keys",
+						Alert.YES|Alert.NO|Alert.CANCEL,
+						FlexGlobals.topLevelApplication as Sprite,
+						function choiceHandler(event:CloseEvent):void
+						{
+							if(event.detail == Alert.YES)
+								DisplayUtil.viewUser();
+							else if(event.detail == Alert.NO)
+								trySubmitSlice();
+						});
+					return;
+				}
+				
+				trySubmitSlice();
 			}
 			
-			public function tryToRegetSlice():void {
-				Alert.show("Do you really want to clear and reload this slice?",
+			public function trySubmitSlice():void
+			{
+				if(ComponentsArea != null)
+					ComponentsArea.clearStatus();
+				dashboardViewstack.selectedChild = sliceView;
+				SharedMain.tasker.add(new SubmitSliceTaskGroup(slice));
+			}
+			
+			public function regetSlice():void
+			{
+				Alert.show(
+					"Do you really want to clear and reload this slice?",
 					"Reload slice?",
 					Alert.YES|Alert.NO,
 					this,
-					function afterDecision(e:CloseEvent):void {
+					function afterDecision(e:CloseEvent):void
+					{
 						if(e.detail == Alert.YES)
-							regetSlice();
+							tryRegetSlice();
 					}
 				);
 			}
 			
-			public function regetSlice():void {
-				sliceCanvas.clear();
-				Main.geniHandler.requestHandler.regetSlice(sliceCanvas.slice);
+			public function tryRegetSlice():void
+			{
+				clearSlice();
+				SharedMain.tasker.add(new GetSliceTaskGroup(slice, false, true));
 			}
 			
-			[Bindable] 
-			public var menuData:Array = [
-				{label: "Import from file", icon: ImageUtil.openIcon, action: onFileBrowse},
-				{label: "Import from clipboard", icon: ImageUtil.pasteIcon, action: importRspec}, 
-				{label: "Import from the web", icon: ImageUtil.worldIcon, action: importFromUrl}
-			];
-			private var importAction:Function;
-			protected function importMenuButton_itemClickHandler(event:MenuEvent):void
+			// Slice canvas options
+			
+			public function tryClearSlice():void
 			{
-				importAction = event.item.action;
-				importAction(event);
-				importMenuButton.setStyle("icon", event.item.icon);
+				if(slice.nodes.length > 0)
+				{
+					Alert.show(
+						"Do you really want to clear the slice?",
+						"Confirm clear",
+						Alert.YES|Alert.CANCEL,
+						this,
+						function clearSliceDecision(e:CloseEvent):void
+						{
+							if(e.detail == Alert.YES)
+								clearSlice();
+						}
+					);
+				}
 			}
 			
-			[Bindable] 
-			public var deleteMenuData:Array = [
-				{label: "Delete", action: deleteSlice},
-				{label: "Force Delete", action: deleteSliceEverywhere}
-			];
-			
-			private var deleteAction:Function;
-			protected function deleteMenuButton_itemClickHandler(event:MenuEvent):void
+			public function clearSlice():void
 			{
-				deleteAction = event.item.action;
-				deleteAction();
+				slice.removeComponents();
+				slice.slivers.cleanup();
+				slice.history.clear();
+				if(ComponentsArea != null)
+					ComponentsArea.clear();
+				if(sliversPane != null)
+					sliversPane.clear();
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice
+				);
+				//updateSlice();
+				//updateSliversInfo();
 			}
 			
-			public function deleteSlice():void
+			public function importFromClipboard(event:* = null):void
 			{
-				if(sliceCanvas.slice.slivers.AllocatedAnyResources)
+				if(SliceWorking)
+					return;
+				
+				var importWindow:ImportSliceWindow = new ImportSliceWindow();
+				importWindow.slice = slice;
+				importWindow.showWindow();
+			}
+			
+			public function importFromFile(event:* = null):void
+			{
+				if(SliceWorking)
+					return;
+				
+				var importFile:FileTask = new FileTask();
+				importFile.addEventListener(TaskEvent.FINISHED, tryImportFromFile);
+				importFile.startOperation(event);
+			}
+			
+			public function tryImportFromFile(event:TaskEvent):void
+			{
+				if(event.task.Status == Task.STATUS_SUCCESS)
+					importFromString(event.task.data);
+			}
+			
+			public function importFromWeb(event:* = null):void
+			{
+				if(SliceWorking)
+					return;
+				
+				var getUrlWindow:TextInputWindow = new TextInputWindow();
+				getUrlWindow.title = "Please enter the full URL for the RSPEC";
+				getUrlWindow.Text = "http://";
+				getUrlWindow.showWindow(true);
+				getUrlWindow.onCancel = null;
+				getUrlWindow.onSuccess = tryImportFromWeb;
+			}
+			
+			public function tryImportFromWeb(url:String = ""):void
+			{
+				if(url.length == 0)
+					importFromWeb();
+				else
+				{
+					var importRspec:HttpTask = new HttpTask(url, "Import RSPEC from URL", "Imports a RSPEC from file");
+					importRspec.addEventListener(TaskEvent.FINISHED, finishedDownloadingRspec);
+					importRspec.start();
+				}
+			}
+			
+			public function finishedDownloadingRspec(finishedEvent:TaskEvent):void
+			{
+				if(finishedEvent.task.Status == Task.STATUS_SUCCESS)
+					importFromString(finishedEvent.task.data);
+			}
+			
+			public function importFromString(rspec:String):void
+			{
+				var importRspec:ImportSliceTaskGroup = new ImportSliceTaskGroup(slice, rspec, null, true);
+				importRspec.start();
+			}
+			
+			public function tryCloneSelected():void
+			{
+				if(ComponentsArea != null)
+				{
+					if(ComponentsArea.SelectedNode != null)
+					{
+						cloneSelected();
+					}
+					else
+						Alert.show(
+							"You must select a node to create a clone",
+							"No node selected"
+						);
+				}
+			}
+			
+			public function cloneSelected():void
+			{
+				if(ComponentsArea != null && ComponentsArea.SelectedNode != null)
+				{
+					slice.pushState();
+					
+					slice.history.stateName = "Cloned " + ComponentsArea.SelectedNode.clientId;
+					
+					slice.nodes.add(ComponentsArea.SelectedNode.UnboundCloneFor(_slice));
+					ComponentsArea.updateInterface();
+					
+					// Make sure everyone knows the slice history changed
+					SharedMain.sharedDispatcher.dispatchChanged(
+						FlackEvent.CHANGED_SLICE,
+						slice
+					);
+				}
+			}
+			
+			public function previewRspec():void
+			{
+				var previewArea:DocumentsArea = new DocumentsArea();
+				previewArea.title = "Preview Request RSPEC for " + slice.Name;
+				
+				var createSliceRspec:GenerateRequestTask = new GenerateRequestTask(slice);
+				createSliceRspec.start();
+				previewArea.addDocument("Unified Request RSPEC", createSliceRspec.requestRspec.document);
+				
+				for each(var sliver:Sliver in _slice.slivers.collection)
+				{
+					var createSliverNs:GenerateNsTask = new GenerateNsTask(sliver);
+					createSliverNs.start();
+					previewArea.addDocument("NS for " + sliver.manager.hrn, createSliverNs.nsDocument);
+				}
+				
+				previewArea.backgroundColor = backgroundColor;
+				previewArea.titleColor = titleColor;
+				openNext(previewArea);
+			}
+			
+			public function viewCredential(event:* = null):void
+			{
+				var credentialArea:DocumentArea = new DocumentArea();
+				credentialArea.Document = slice.credential.Raw;
+				credentialArea.title =  "Credential for " + slice.Name;
+				credentialArea.backgroundColor = backgroundColor;
+				credentialArea.titleColor = titleColor;
+				openNext(credentialArea);
+			}
+			
+			public function viewManifests(event:* = null):void
+			{
+				if(!_slice.slivers.AllocatedAnyResources)
+				{
+					Alert.show(
+						"There is no valid manifest for the slice yet",
+						"No manifests"
+					);
+					return;
+				}
+				
+				var manifestsArea:DocumentsArea = new DocumentsArea();
+				manifestsArea.title = "Last valid manifest RSPEC(s) for: " + slice.hrn;
+				
+				for each(var s:Sliver in slice.slivers.collection)
+					manifestsArea.addDocument(s.manager.hrn, s.Created ? s.manifest.document : "No manifest");
+				
+				openNext(manifestsArea);
+			}
+			
+			public function viewLogs(event:* = null):void
+			{
+				var logArea:LogMessagesRelatedToArea = new LogMessagesRelatedToArea();
+				logArea.RelatedTo = [slice];
+				logArea.title = "Logs for " + slice.Name;
+				logArea.backgroundColor = backgroundColor;
+				logArea.titleColor = titleColor;
+				openNext(logArea);
+			}
+			
+			public function viewNode(node:VirtualNode):void
+			{
+				var nodeArea:VirtualNodeArea = new VirtualNodeArea();
+				openNext(nodeArea);
+				nodeArea.node = node;
+			}
+			
+			public function viewLink(link:VirtualLink):void
+			{
+				var linkArea:VirtualLinkArea = new VirtualLinkArea();
+				openNext(linkArea);
+				linkArea.link = link;
+			}
+			
+			public function viewKeys(event:* = null):void
+			{
+				var subarea:GeniUserArea = new GeniUserArea();
+				openNext(subarea);
+				subarea.userViewstack.selectedChild = subarea.keysView;
+			}
+			
+			public function extendSlice():void
+			{
+				if(SliceWorking)
+					return;
+				
+				var dateExpires:Date = slice.EarliestExpires;
+				if(dateExpires != null)
+				{
+					var newDate:Date = new Date(dateExpires.time + Number(renewLengthDropdownlist.selectedItem.value)*60*60*1000);
+					
+					Alert.show(
+						"Extend slice and sliver expirations until " + DateUtil.getTimeUntil(newDate) + " from now?",
+						"Exend?",
+						Alert.YES|Alert.NO,
+						FlexGlobals.topLevelApplication as Sprite,
+						function chooseExpireFunction(e:CloseEvent):void
+						{
+							if(e.detail == Alert.YES)
+								SharedMain.tasker.add(new RenewSliceTaskGroup(slice, newDate));
+						}
+					);
+				}
+			}
+			
+			public function deleteSlice(event:* = null):void
+			{
+				if(slice.slivers.AllocatedAnyResources)
 				{
 					Alert.show(
 						"Do you really want to deallocate all resources in the slice?",
-						"Deallocate resources?",
+						"Confirm deallocation",
 						Alert.YES|Alert.NO,
 						this,
-						function afterDeleteDecision(e:CloseEvent):void
+						function afterDecision(e:CloseEvent):void
 						{
 							if(e.detail == Alert.YES)
-								Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice);
+							{
+								SharedMain.tasker.add(new DeleteSliversTaskGroup(slice.slivers, false));
+							}
 						}
 					);
 				}
 				else
 				{
 					Alert.show(
-						"It doesn't appear like there are allocated resources. Run deallocate at all managers?",
-						"Deallocate resources?",
+						"It doesn't appear like there are allocated resources. Run deallocate at all loaded managers?",
+						"No known allocated resources",
 						Alert.YES|Alert.NO,
 						this,
 						function afterDecision(e:CloseEvent):void
@@ -914,10 +749,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 			}
 			
-			public function deleteSliceEverywhere():void
+			public function deleteSliceEverywhere(event:* = null):void
 			{
 				Alert.show(
-					"Do you really want to force deallocation at all managers?",
+					"Do you really want to run deallocation at all loaded managers?",
 					"Deallocate resources?",
 					Alert.YES|Alert.NO,
 					this,
@@ -932,19 +767,182 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function doDeleteSliceEverywhere():void
 			{
-				Main.geniHandler.requestHandler.deleteSlice(sliceCanvas.slice, true);
+				var allManagerSlivers:SliverCollection = new SliverCollection();
+				for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
+				{
+					if(manager.Status == FlackManager.STATUS_VALID)
+						allManagerSlivers.add(new Sliver(_slice, manager));
+				}
+				SharedMain.tasker.add(new DeleteSliversTaskGroup(allManagerSlivers, false, false));
 			}
-
+			
+			public function startSlice():void
+			{
+				if(SliceWorking)
+					return;
+				
+				SharedMain.tasker.add(new StartSliceTaskGroup(slice));
+			}
+			
+			public function stopSlice():void
+			{
+				if(SliceWorking)
+					return;
+				
+				Alert.show(
+					"Continue stopping the slice?",
+					"Confirm stop",
+					Alert.YES|Alert.NO,
+					FlexGlobals.topLevelApplication as Sprite,
+					function chooseExpireFunction(e:CloseEvent):void
+					{
+						if(e.detail == Alert.YES)
+							SharedMain.tasker.add(new StopSliceTaskGroup(slice));
+					}
+				);
+			}
+			
+			public function restartSlice():void
+			{
+				if(SliceWorking)
+					return;
+				
+				Alert.show(
+					"Continue restarting the slice?",
+					"Confirm restart",
+					Alert.YES|Alert.NO,
+					FlexGlobals.topLevelApplication as Sprite,
+					function chooseExpireFunction(e:CloseEvent):void
+					{
+						if(e.detail == Alert.YES)
+							SharedMain.tasker.add(new RestartSliceTaskGroup(slice));
+					}
+				);
+			}
+			
+			public function refreshStatus():void
+			{
+				if(!slice.slivers.AllocatedAnyResources)
+				{
+					Alert.show(
+						"There are no resources allocated yet!",
+						"Nothing to do"
+					);
+					return;
+				}
+				var refreshStatusTask:RefreshSliceStatusTaskGroup = new RefreshSliceStatusTaskGroup(slice, false);
+				refreshStatusTask.forceRunNow = true;
+				SharedMain.tasker.add(refreshStatusTask);
+			}
+			
+			public function get SliceWorking():Boolean
+			{
+				if(SharedMain.tasker.tasks.AllNotFinished.getRelatedTo(_slice).length > 0)
+				{
+					Alert.show(
+						"There are tasks running on the slice, please wait for them to complete and then try again",
+						"Slice busy"
+					);
+					return true;
+				}
+				return false;
+			}
+			
+			protected function componentsAreaTypeGroup_changeHandler(event:Event):void
+			{
+				if(listRadiobutton.selected && slice.flackInfo.view != SliceFlackInfo.VIEW_LIST)
+				{
+					_slice.flackInfo.view = SliceFlackInfo.VIEW_LIST;
+					loadComponentsAreaFor(_slice);
+				}
+				else if(graphRadiobutton.selected && slice.flackInfo.view != SliceFlackInfo.VIEW_GRAPH)
+				{
+					_slice.flackInfo.view = SliceFlackInfo.VIEW_GRAPH;
+					loadComponentsAreaFor(_slice);
+				}
+			}
+			
+			public function tryUndo():void
+			{
+				if(_slice.CanGoBack)
+				{
+					var componentsArea:IComponentsArea = ComponentsArea;
+					if(componentsArea != null)
+						componentsArea.SelectedNode = null;
+					_slice.backState();
+				}
+				else
+					Alert.show(
+						"There is no history to undo",
+						"Nothing to do"
+					);
+			}
+			
+			public function tryRedo():void
+			{
+				if(_slice.history.states.length > _slice.history.backIndex+1)
+				{
+					var componentsArea:IComponentsArea = ComponentsArea;
+					if(componentsArea != null)
+						componentsArea.SelectedNode = null;
+					_slice.forwardState();
+				}
+				else
+					Alert.show(
+						"There is no history to redo",
+						"Nothing to do"
+					);
+			}
+			
+			public function viewLogin(event:* = null):void
+			{
+				if(!_slice.slivers.AllocatedAnyResources)
+				{
+					Alert.show(
+						"No resources allocated yet!",
+						"Nothing to do"
+					);
+					return;
+				}
+				var loginsArea:SliceLoginsArea = new SliceLoginsArea();
+				loginsArea.Slice = _slice;
+				openNext(loginsArea);
+			}
+			
 		]]>
 	</fx:Script>
 	
-	<mx:HDividedBox width="100%" height="100%">
-		<s:VGroup id="dashboard" height="100%" width="230" gap="2"
-				  dragEnter="sidePane_dragEnterHandler(event)"
-				  dragDrop="sidePane_dragDropHandler(event)">
+	<s:HGroup width="100%"
+			  height="100%"
+			  gap="2">
+		<s:VGroup id="dashboard"
+				  height="100%"
+				  width="220"
+				  gap="2">
+			<s:HGroup width="100%"
+					  height="26"
+					  verticalAlign="middle">
+				<s:Label width="100%"
+						 text="{title}"
+						 verticalAlign="middle"
+						 fontSize="16"
+						 fontWeight="bold"
+						 paddingLeft="4" paddingTop="4" />
+				<components:Spinner id="spinner"
+									width="21"
+									height="21"
+									x="{(width / 2) - (spinner.width / 2)}"
+									y="{(height / 2) - (spinner.height / 2)}"
+									visible="false" includeInLayout="{spinner.visible}" />
+				
+				<components:MenuButton id="sliceMenuButton"
+									   toolTip="Delete resources from the slice"
+									   menuData="{sliceMenuData}"
+									   label="View" />
+			</s:HGroup>
 			<s:ButtonBar dataProvider="{dashboardViewstack}"
 						 requireSelection="true"
-						 skinClass="protogeni.display.skins.ButtonBarSkin"
+						 skinClass="com.flack.shared.display.skins.ButtonBarSkin"
 						 width="100%" />
 			<mx:ViewStack id="dashboardViewstack"
 						  width="100%"
@@ -954,9 +952,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 									height="100%"
 									toolTip="Resources"
 									icon="{ImageUtil.resourcesIcon}">
-					<s:Scroller width="100%" height="100%">
-						<s:VGroup id="sidePaneManagers" width="100%" height="100%" paddingRight="2" paddingLeft="2" gap="2" />
-					</s:Scroller>
+					<slicer:ManagersVirtualPane host="{this}" />
 				</s:NavigatorContent>
 				<s:NavigatorContent id="sliceView"
 									width="100%"
@@ -965,73 +961,72 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 									icon="{ImageUtil.settingsIcon}">
 					<s:VGroup height="100%"
 							  width="100%"
-							  paddingLeft="2"
+							  creationComplete="updateSliversInfo();"
 							  gap="2"
-							  id="sliceGroup"
-							  creationComplete="updateSliversInfo();">
-						<s:HGroup width="100%" verticalAlign="middle" horizontalAlign="right" gap="2">
+							  paddingLeft="2">
+						<s:HGroup width="100%"
+								  verticalAlign="middle"
+								  gap="2">
 							<s:Button id="refreshStatusButton"
-									  label="Refresh status"
-									  toolTip="Refresh the slivers' status"
-									  click="Main.geniHandler.requestHandler.refreshSlice(sliceCanvas.slice);"
-									  height="24" />
-							<s:Rect percentWidth="100" />
-							<components:ImageButton id="saveSliceCredentialButton"
-													toolTip="Save the slice credential to file"
-													click="saveCredential()"
-													icon="{ImageUtil.credentialIcon}" />
-							<components:ImageButton id="rspecButton"
-													icon="{ImageUtil.pageWhiteCodeIcon}"
-													click="viewRspecs()"
-													toolTip="View RSPEC(s) from the created sliver(s)" />
+									  toolTip="Refresh the status on all slivers"
+									  label="Get Status"
+									  enabled="false"
+									  click="refreshStatus()" />
 						</s:HGroup>
-						<s:Scroller height="100%" width="100%">
-							<s:VGroup id="sidePaneSlices" width="100%" height="100%" gap="2" />
-						</s:Scroller>
-						<s:HGroup width="100%" verticalAlign="middle" gap="2">
-							<components:ImageButton id="expireButton"
-													icon="{ImageUtil.timeIcon}"
-													click="viewExpires()" />
+						<slicer:SliversPane id="sliversPane"
+											slice="{_slice}"
+											host="{this}" />
+						<s:HGroup width="100%"
+								  verticalAlign="middle"
+								  gap="2">
+							<components:MenuButton id="deleteMenuButton"
+												   width="100%"
+												   toolTip="Delete resources from the slice"
+												   menuData="{deleteMenuData}"
+												   styleName="failedStyle"
+												   icon="{ImageUtil.deleteIcon}"
+												   iconPlacement="left"
+												   label="Delete" />
+							<components:ImageButton id="startSliceButton"
+													toolTip="Start all slivers in the slice"
+													icon="{ImageUtil.playControlIcon}"
+													click="startSlice()" />
+							<components:ImageButton id="stopSliceButton"
+													toolTip="Stop all slivers in the slice"
+													enabled="{startSliceButton.enabled}"
+													icon="{ImageUtil.stopControlIcon}"
+													click="stopSlice()" />
+							<components:ImageButton id="restartSliceButton"
+													enabled="{startSliceButton.enabled}"
+													toolTip="Restart all slivers in the slice"
+													icon="{ImageUtil.repeatControlIcon}"
+													click="restartSlice()" />
+						</s:HGroup>
+						<s:HGroup id="renewGroup"
+								  width="100%"
+								  verticalAlign="middle"
+								  gap="2">
+							<s:Label id="expiresLabel"
+									 toolTip="Time left until soonest expiration" />
 							<s:Button id="renewSliceButton"
 									  label="Extend"
-									  click="renewSlice()"
-									  height="24" />
-							<s:DropDownList id="renewLengthDropdownlist" height="24" width="100%"
-											requireSelection="true">
+									  toolTip="Extend the expire time for the slice/slivers"
+									  click="extendSlice()" />
+							<s:DropDownList id="renewLengthDropdownlist"
+											toolTip="Amount of time to add"
+											width="100%"
+											enabled="{renewSliceButton.enabled}"
+											requireSelection="true"
+											labelField="label">
 								<s:dataProvider>
 									<s:ArrayList>
-										<fx:String>2 Hours</fx:String>
-										<fx:String>6 Hours</fx:String>
-										<fx:String>1 Day</fx:String>
-										<fx:String>3 Days</fx:String>
+										<fx:Object label="2 Hours" value="2" />
+										<fx:Object label="6 Hours" value="6" />
+										<fx:Object label="1 Day" value="24" />
+										<fx:Object label="3 Days" value="72" />
 									</s:ArrayList>
 								</s:dataProvider>
 							</s:DropDownList>
-						</s:HGroup>
-						<s:HGroup width="100%" verticalAlign="middle" gap="2">
-							<mx:PopUpMenuButton id="deleteMenuButton"
-												height="24" width="100%"
-												dataProvider="{deleteMenuData}"
-												showRoot="true"
-												styleName="failedStyle"
-												icon="{ImageUtil.deleteIcon}"
-												itemClick="deleteMenuButton_itemClickHandler(event)" />
-							<components:ImageButton id="startButton"
-													height="24"
-													toolTip="Start slivers"
-													click="Main.geniHandler.requestHandler.startSlice(sliceCanvas.slice);"
-													icon="{ImageUtil.playControlIcon}"
-													enabled="false" />
-							<components:ImageButton id="stopButton"
-													toolTip="Stop slivers"
-													click="Main.geniHandler.requestHandler.stopSlice(sliceCanvas.slice);"
-													icon="{ImageUtil.stopControlIcon}"
-													enabled="{startButton.enabled}" />
-							<components:ImageButton id="restartButton"
-													toolTip="Restart slivers"
-													click="Main.geniHandler.requestHandler.restartSlice(sliceCanvas.slice);"
-													icon="{ImageUtil.repeatControlIcon}"
-													enabled="{startButton.enabled}" />
 						</s:HGroup>
 					</s:VGroup>
 				</s:NavigatorContent>
@@ -1043,86 +1038,97 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					<s:VGroup height="100%"
 							  width="100%"
 							  paddingLeft="2"
-							  id="pluginGroup"
-							  creationComplete="refreshPluginPaneStatus(sliceCanvas.slice);">
-						<s:DropDownList id="pluginsDropdown" requireSelection="true" height="24" width="100%">
-							<s:dataProvider>
-								<s:ArrayCollection>
-									<fx:String>INSTOOLS</fx:String>
-								</s:ArrayCollection>
-							</s:dataProvider>
+							  gap="2">
+						<s:DropDownList id="pluginList"
+										width="100%"
+										requireSelection="true"
+										labelField="Title"
+										dataProvider="{plugins}"
+										valueCommit="pluginGroup.removeAllElements(); var pluginArea:PluginArea = pluginList.selectedItem.Area; pluginArea.slice = _slice; pluginArea.host = this; pluginGroup.addElement(pluginArea);">
 						</s:DropDownList>
-						<s:Button id="instrumentizeButton"
-								  label="Instrumentize"
-								  toolTip="Instrumentize experiment with INSTOOLS"
-								  click="Instools.instrumentizeSlice(sliceCanvas.slice); setSidePane(VIEW_STATUS);"
-								  icon="{ImageUtil.lightningIcon}"
-								  height="32"
-								  width="100%" />
-						<s:Button id="gotoPortalButton"
-								  label="Go to portal"
-								  toolTip="Go to portal to see instrumentized data"
-								  click="Instools.goToPortal(sliceCanvas.slice); setSidePane(VIEW_STATUS);"
-								  icon="{ImageUtil.barchartIcon}"
-								  height="32"
-								  width="100%" />
+						<s:Group id="pluginGroup"
+								 width="100%"
+								 height="100%" />
 					</s:VGroup>
 				</s:NavigatorContent>
 			</mx:ViewStack>
 			<s:HGroup width="100%"
 					  verticalAlign="middle"
-					  paddingBottom="2"
 					  paddingLeft="2"
 					  gap="2">
-				<s:Button id="createButton"
-						  toolTip="Submit changes"
-						  label="Submit"
-						  height="24" width="100%"
+				<s:Button id="submitButton"
+						  width="100%"
 						  icon="{ImageUtil.actionIcon}"
-						  click="tryCreateSlice()"/>
-				<components:ImageButton id="regetSliceButton"
+						  label="Submit" toolTip="Submit resources for allocation"
+						  click="submitSlice()" />
+				<components:ImageButton id="refreshButton"
+										toolTip="Reload slice from scratch"
 										icon="{ImageUtil.refreshIcon}"
-										click="tryToRegetSlice()"
-										toolTip="Re-load the entire slice from scratch" />
+										click="regetSlice()" />
 			</s:HGroup>
 		</s:VGroup>
-		<s:VGroup height="100%" width="100%" gap="2" paddingBottom="2" paddingTop="2">
-			<s:HGroup width="100%" verticalAlign="middle" gap="2">
+		<s:VGroup height="100%"
+				  width="100%"
+				  gap="2"
+				  paddingRight="2">
+			<s:HGroup width="100%"
+					  paddingTop="2"
+					  verticalAlign="middle"
+					  gap="2">
+				<s:RadioButton id="graphRadiobutton"
+							   group="{componentsAreaTypeGroup}" />
+				<s:Image source="{ImageUtil.graphIcon}"
+						 toolTip="View the slice as a graph" />
+				<s:RadioButton id="listRadiobutton"
+							   group="{componentsAreaTypeGroup}" />
+				<s:Image source="{ImageUtil.listIcon}"
+						 toolTip="View the slice as a list" />
+				<s:Rect />
 				<components:ImageButton id="clearCanvasButton"
 										toolTip="Clear the canvas"
-										click="clearCanvas()"
-										icon="{ImageUtil.eraseIcon}" />
+										icon="{ImageUtil.eraseIcon}"
+										click="tryClearSlice()" />
 				<s:Rect />
-				<mx:PopUpMenuButton id="importMenuButton"
-									height="24" width="48"
-									label=""
-									dataProvider="{menuData}"
-									showRoot="true"
-									toolTip="Import from..."
-									itemClick="importMenuButton_itemClickHandler(event)" />
+				<components:MenuButton id="importMenuButton"
+									   toolTip="Import from..."
+									   menuData="{importMenuData}"
+									   label="Import" />
 				<s:Rect />
-				<components:Spinner id="spinner"
-									width="21"
-									height="21"
-									x="{(width / 2) - (spinner.width / 2)}"
-									y="{(height / 2) - (spinner.height / 2)}"
-									visible="false" includeInLayout="{spinner.visible}" />
+				<components:ImageButton icon="{ImageUtil.undoIcon}"
+										id="undoButton"
+										toolTip="Undo"
+										click="tryUndo()" />
+				<components:ImageButton icon="{ImageUtil.redoIcon}"
+										id="redoButton"
+										toolTip="Redo"
+										click="tryRedo()" />
+				<s:Rect />
+				<components:ImageButton icon="{ImageUtil.cloneIcon}"
+										id="cloneButton"
+										toolTip="Clone the selected node"
+										click="tryCloneSelected()" />
 				<s:Rect percentWidth="100" />
-				<s:Label text="Use RSPECv" />
+				<s:Label text="Output" />
 				<s:DropDownList id="outputRspecDropdownlist"
 								requireSelection="true"
-								width="58"
-								height="24"
-								dataProvider="{Util.usableRspecVersions}"
-								selectedItem="{sliceCanvas.slice.useInputRspecVersion}"
-								change="sliceCanvas.slice.useInputRspecVersion = outputRspecDropdownlist.selectedItem;">
+								width="80"
+								dataProvider="{usableRspecVersions}"
+								labelField="ShortString"
+								change="_slice.useInputRspecInfo = outputRspecDropdownlist.selectedItem;">
 				</s:DropDownList>
 				<components:ImageButton id="previewRspecButton"
 										icon="{ImageUtil.previewIcon}"
-										click="previewRspecs()"
-										toolTip="Preview the Request RSPEC" />
+										toolTip="Preview the Request RSPEC"
+										click="previewRspec()" />
+				<components:ImageButton id="dockIcon"
+										icon="{ImageUtil.windowIcon}"
+										toolTip="Pop out to a window or in to the main window"
+										click="host.Docked ? popOut() : dock()" />
 			</s:HGroup>
-			<display:SliceCanvas id="sliceCanvas" hostWindow="{this}" />
+			<s:Group width="100%"
+					 height="100%"
+					 id="sliceComponentsArea" />
 		</s:VGroup>
-	</mx:HDividedBox>
-</components:DefaultWindow>
+	</s:HGroup>
+	
+</areas1:AreaContent>

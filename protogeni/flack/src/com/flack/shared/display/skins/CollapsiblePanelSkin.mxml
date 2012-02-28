@@ -29,7 +29,7 @@ in accordance with the terms of the license agreement accompanying it.
 	
 	<fx:Script fb:purpose="styling">
 
-		import protogeni.display.ImageUtil;
+		import com.flack.shared.utils.ImageUtil;
 			
 		/* Define the skin elements that should not be colorized. 
 		For panel, border and title backround are skinned, but the content area and title text are not. */

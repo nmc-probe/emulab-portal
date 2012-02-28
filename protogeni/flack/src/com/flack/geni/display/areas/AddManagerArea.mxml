@@ -1,129 +1,222 @@
 <?xml version="1.0" encoding="utf-8"?>
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-						  xmlns:s="library://ns.adobe.com/flex/spark" 
-						  xmlns:mx="library://ns.adobe.com/flex/mx"
-						  xmlns:components="protogeni.display.components.*"
-						  title="Add Manager"
-						  creationComplete="init()">
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  xmlns:display="com.flack.geni.display.*"
+		  xmlns:areas="com.flack.geni.display.areas.*"
+		  title="Add manager" xmlns:areas1="com.flack.shared.display.areas.*">
 	<fx:Script>
 		<![CDATA[
-			import com.mattism.http.xmlrpc.JSLoader;
+			import com.flack.geni.GeniCache;
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.sites.managers.OpenflowAggregateManager;
+			import com.flack.geni.resources.sites.managers.PlanetlabAggregateManager;
+			import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
+			import com.flack.geni.tasks.groups.GetManagerTaskGroup;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.resources.sites.ApiDetails;
+			import com.flack.shared.resources.sites.FlackManager;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.utils.ImageUtil;
 			
 			import mx.controls.Alert;
 			
-			import protogeni.communication.RequestGetVersion;
-			import protogeni.communication.RequestGetVersionAm;
-			import protogeni.resources.GeniManager;
-			import protogeni.resources.IdnUrn;
-			import protogeni.resources.PlanetlabAggregateManager;
-			import protogeni.resources.ProtogeniComponentManager;
+			import spark.components.Button;
+			import spark.primitives.Rect;
 			
-			private var fr:FileReference;
-			
-			public function init():void
+			public function tryOpenCert(event:MouseEvent):void
 			{
-				fr = new FileReference();
-				fr.addEventListener(Event.SELECT, onFileSelect);
-				fr.addEventListener(Event.COMPLETE, onFileComplete);
-				fr.addEventListener(IOErrorEvent.IO_ERROR, onFileIoError);
-				fr.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onFileSecurityError);
+				var openFile:FileTask = new FileTask();
+				openFile.addEventListener(TaskEvent.FINISHED, afterOpenCert);
+				openFile.startOperation(event);
 			}
 			
-			public function addAndClose():void
+			private function afterOpenCert(event:TaskEvent):void
 			{
+				if(event.task.Status == Task.STATUS_SUCCESS)
+					certTextarea.text = event.task.data;
+			}
+			
+			public function saveAndClose():void
+			{
+				if(urlTextinput.text.length == 0)
+				{
+					Alert.show("You must give a URL for the manager");
+					return;
+				}
+				
 				var newManager:GeniManager;
 				var managerType:int = int(typeList.selectedItem.value);
-				if(managerType == GeniManager.TYPE_PROTOGENI)
-					newManager = new ProtogeniComponentManager()
-				else if(managerType == GeniManager.TYPE_PLANETLAB)
-					newManager = new PlanetlabAggregateManager();
-				newManager.Urn = new IdnUrn(idTextinput.text);
-				newManager.Url = urlTextinput.text;
-				newManager.Hrn = hrnTextinput.text;
+				if(managerType == FlackManager.TYPE_PROTOGENI)
+					newManager = new ProtogeniComponentManager(idTextinput.text);
+				else if(managerType == FlackManager.TYPE_PLANETLAB)
+					newManager = new PlanetlabAggregateManager(idTextinput.text);
+				else if(managerType == FlackManager.TYPE_OPENFLOW)
+					newManager = new OpenflowAggregateManager(idTextinput.text);
+				else
+					newManager = new GeniManager(FlackManager.TYPE_OTHER, ApiDetails.API_GENIAM, idTextinput.text);
+				newManager.api.type = int(apiList.selectedItem.value);
+				newManager.url = urlTextinput.text;
+				newManager.api.url = newManager.url;
+				newManager.hrn = hrnTextinput.text;
 				
 				if(certTextarea.text.length > 0)
-					JSLoader.setServerCertificate(JSLoader.serverCertificate + "\n" + certTextarea.text);
+					SharedMain.Bundle += "\n" + certTextarea.text;
 				
-				Main.geniHandler.GeniManagers.add(newManager);
+				if(cacheCheckbox.selected)
+					GeniCache.addManagerManually(newManager, certTextarea.text);
 				
-				if(newManager.isAm)
-					Main.geniHandler.requestHandler.pushRequest(new RequestGetVersionAm(newManager));
-				else
-					Main.geniHandler.requestHandler.pushRequest(new RequestGetVersion(newManager as ProtogeniComponentManager));
+				GeniMain.geniUniverse.managers.add(newManager);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_MANAGER,
+					newManager,
+					FlackEvent.ACTION_CREATED
+				);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_MANAGERS,
+					null,
+					FlackEvent.ACTION_POPULATED
+				);
 				
-				closeWindow();
-			}
-			
-			protected function loadCert(event:MouseEvent):void
-			{
-				fr.browse([new FileFilter("Certificates (*.*)", "*.*")])
-			}
-			
-			public function onFileSelect(event:Event):void {
-				fr.load();
-			}
-			
-			public function onFileComplete(event:Event):void {
-				certTextarea.text = fr.data.readUTFBytes(fr.data.length);
-			}
-			
-			private function onFileIoError(event:IOErrorEvent):void {
-				Alert.show(event.toString(), "IO Error");
-			}
-			
-			private function onFileSecurityError(event:SecurityErrorEvent):void {
-				Alert.show(event.toString(), "Security Error");
+				SharedMain.tasker.add(new GetManagerTaskGroup(newManager));
+				
+				close();
 			}
 			
 		]]>
 	</fx:Script>
 	
-	<s:Label text="Type"
-			 fontWeight="bold" />
-	<s:DropDownList id="typeList"
-					requireSelection="true"
-					labelField="name">
-		<s:ArrayCollection>
-			<fx:Object name="ProtoGENI" value="0" />
-			<fx:Object name="PlanetLab" value="1" />
-		</s:ArrayCollection>
-	</s:DropDownList>
+	<s:Group width="100%">
+		<s:Rect width="100%" height="100%">
+			<s:fill><s:SolidColor color="{backgroundColor}" /></s:fill>
+		</s:Rect>
+		
+		<s:HGroup width="100%"
+				  verticalAlign="middle"
+				  paddingLeft="2"
+				  paddingRight="2"
+				  paddingTop="2"
+				  paddingBottom="2"
+				  gap="2">
+			<s:Label text="{title}"
+					 color="{titleColor}"
+					 fontSize="17"
+					 fontWeight="bold"
+					 width="100%"
+					 id="hrnLabel" />
+			<components:ImageButton id="dockIcon"
+									icon="{ImageUtil.windowIcon}"
+									toolTip="Pop out to a window or in to the main window"
+									click="host.Docked ? popOut() : dock()" />
+		</s:HGroup>
+		
+	</s:Group>
 	
-	<s:Label text="URN"
-			 fontWeight="bold" />
-	<s:TextInput id="idTextinput"
-				 prompt="eg. urn:publicid:IDN+uml.emulab.net+authority+sa"
-				 width="100%" />
-	
-	<s:Label text="URL"
-			 fontWeight="bold" />
-	<s:TextInput id="urlTextinput"
-				 prompt="eg. https://boss.uml.emulab.net/protogeni/xmlrpc/cm"
-				 width="100%" />
-	
-	<s:Label text="HRN"
-			 fontWeight="bold" />
-	<s:TextInput id="hrnTextinput"
-				 prompt="eg. utahemulab.cm"
-				 width="100%" />
-	
-	<s:HGroup width="100%" verticalAlign="middle">
-		<s:Label text="Server Certificate"
+	<s:VGroup width="100%"
+			  height="100%"
+			  paddingLeft="2"
+			  paddingRight="2"
+			  gap="2">
+		<s:HGroup gap="2">
+			<s:VGroup gap="2">
+				<s:Label text="Type"
+						 fontWeight="bold" />
+				<s:DropDownList id="typeList"
+								requireSelection="true"
+								labelField="name">
+					<s:ArrayList>
+						<fx:Object name="Other" value="2" />
+						<fx:Object name="ProtoGENI" value="0" />
+						<fx:Object name="PlanetLab" value="1" />
+						<fx:Object name="OpenFlow" value="3" />
+					</s:ArrayList>
+				</s:DropDownList>
+			</s:VGroup>
+			<s:VGroup gap="2">
+				<s:Label text="API"
+						 fontWeight="bold" />
+				<s:DropDownList id="apiList"
+								requireSelection="true"
+								labelField="name">
+					<s:ArrayList>
+						<fx:Object name="GENI AM" value="0" />
+						<fx:Object name="ProtoGENI" value="1" />
+					</s:ArrayList>
+				</s:DropDownList>
+			</s:VGroup>
+		</s:HGroup>
+		
+		<s:Label text="URN"
 				 fontWeight="bold" />
-		<s:Button icon="{ImageUtil.openIcon}"
-				  label="Open from file"
-				  height="24"
-				  click="loadCert(event)" />
-	</s:HGroup>
-	<s:TextArea width="100%" height="100%" id="certTextarea" />
+		<s:TextInput id="idTextinput"
+					 prompt="eg. urn:publicid:IDN+uml.emulab.net+authority+sa"
+					 width="100%" />
+		
+		<s:Label text="URL"
+				 fontWeight="bold" />
+		<s:TextInput id="urlTextinput"
+					 prompt="eg. https://boss.uml.emulab.net/protogeni/xmlrpc/cm"
+					 width="100%" />
+		
+		<s:Label text="HRN"
+				 fontWeight="bold" />
+		<s:TextInput id="hrnTextinput"
+					 prompt="eg. utahemulab.cm"
+					 width="100%" />
+		
+		<s:HGroup width="100%" verticalAlign="middle" paddingLeft="4" paddingRight="4">
+			<s:Label text="Server Certificate"
+					 fontWeight="bold" />
+			<s:Button icon="{ImageUtil.openIcon}"
+					  label="Open from file"
+					  click="tryOpenCert(event)" />
+		</s:HGroup>
+		<s:TextArea width="100%" height="100%" id="certTextarea" />
+	</s:VGroup>
 	
-	<components:controlBarContent>
-		<s:Button id="okButton"
-				  icon="{ImageUtil.availableIcon}"
-				  label="OK"
-				  click="addAndClose()" />
-		<s:Button label="Cancel"
-				  icon="{ImageUtil.cancelIcon}"
-				  click="closeWindow()" />
-	</components:controlBarContent>
-</components:DefaultWindow>
+	<s:Group width="100%">
+		<s:Rect width="100%" height="100%">
+			<s:fill><s:SolidColor color="0xCCCCCC" /></s:fill>
+		</s:Rect>
+		
+		<s:HGroup width="100%"
+				  verticalAlign="middle"
+				  paddingLeft="2"
+				  paddingRight="2"
+				  paddingTop="2"
+				  paddingBottom="2">
+			<s:Button id="okButton"
+					  label="Apply"
+					  icon="{ImageUtil.availableIcon}"
+					  click="saveAndClose();" />
+			<s:CheckBox id="cacheCheckbox" label="Keep in cache" />
+			<s:Button id="cancelButton"
+					  label="Cancel"
+					  icon="{ImageUtil.cancelIcon}"
+					  click="close();" />
+		</s:HGroup>
+	</s:Group>
+</areas1:AreaContent>

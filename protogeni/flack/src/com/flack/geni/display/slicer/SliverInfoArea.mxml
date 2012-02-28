@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  width="100%"
+		  gap="2"
+		  creationComplete="init()"
+		  remove="cleanup()">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.display.areas.SliceArea;
+			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virtual.Sliver;
+			import com.flack.geni.tasks.xmlrpc.am.DeleteSliverTask;
+			import com.flack.geni.tasks.xmlrpc.am.SliverStatusTask;
+			import com.flack.geni.tasks.xmlrpc.protogeni.cm.DeleteSliverCmTask;
+			import com.flack.geni.tasks.xmlrpc.protogeni.cm.RestartSliverCmTask;
+			import com.flack.geni.tasks.xmlrpc.protogeni.cm.SliverStatusCmTask;
+			import com.flack.geni.tasks.xmlrpc.protogeni.cm.StartSliverCmTask;
+			import com.flack.geni.tasks.xmlrpc.protogeni.cm.StopSliverCmTask;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.areas.DocumentArea;
+			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
+			import com.flack.shared.logging.LogMessage;
+			import com.flack.shared.logging.LogMessageCollection;
+			import com.flack.shared.resources.sites.ApiDetails;
+			import com.flack.shared.tasks.SerialTaskGroup;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.tasks.TaskCollection;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.utils.ColorUtil;
+			import com.flack.shared.utils.ImageUtil;
+			
+			import mx.controls.Alert;
+			import mx.core.FlexGlobals;
+			import mx.events.CloseEvent;
+			import mx.events.MenuEvent;
+			
+			import spark.components.BorderContainer;
+			
+			[Bindable]
+			public var sliver:Sliver;
+			
+			[Bindable]
+			public var host:SliceArea;
+			
+			[Bindable]
+			public var backColor:uint;
+			[Bindable]
+			public var frontColor:uint;
+			
+			public var actionMenuData:Array = [
+				{label: "View logs", icon: ImageUtil.consoleIcon, action: viewLogs},
+				{label: "View Manifest", icon: ImageUtil.manifestIcon, action: viewManifest},
+				{label: "Get status", icon: ImageUtil.refreshIcon, action: tryRefreshStatus},
+				{label: "Delete", icon: ImageUtil.deleteIcon, action: tryDelete}
+			];
+				
+			public function init():void
+			{
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_FINISHED, taskChanged);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_STARTED, taskChanged);
+				SharedMain.logger.addEventListener(FlackEvent.CHANGED_LOG, logChanged);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICE, sliceChanged);
+				
+				setSpinner();
+				setStatus();
+				
+				backColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
+				frontColor = ColorUtil.colorsLight[sliver.manager.colorIdx];
+				
+				var msgs:LogMessageCollection = SharedMain.logger.Logs.getRelatedTo([sliver]).Important;
+				if(msgs.length > 0)
+					setLog(msgs.collection[msgs.length-1]);
+				
+				if(sliver.manager.api.type == ApiDetails.API_PROTOGENI)
+				{
+					switch(sliver.manager.api.level)
+					{
+						case ApiDetails.LEVEL_FULL:
+							actionMenuData.push({label: "Start", icon: ImageUtil.playControlIcon, action: tryStart});
+							actionMenuData.push({label: "Stop", icon: ImageUtil.stopControlIcon, action: tryStop});
+						case ApiDetails.LEVEL_MINIMAL:
+							actionMenuData.push({label: "Restart", icon: ImageUtil.repeatControlIcon, action: tryRestart});
+					}
+				}
+				actionMenuButton.dataProvider = actionMenuData;
+			}
+			
+			public function cleanup():void
+			{
+				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_FINISHED, taskChanged);
+				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_STARTED, taskChanged);
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_SLICE, sliceChanged);
+				SharedMain.logger.removeEventListener(FlackEvent.CHANGED_LOG, logChanged);
+			}
+			
+			public function taskChanged(e:TaskEvent = null):void
+			{
+				setSpinner();
+			}
+			
+			public function sliceChanged(e:FlackEvent):void
+			{
+				var changedSlice:Slice = e.changedObject as Slice;
+				if(sliver.slice == changedSlice)
+					setStatus();
+			}
+			
+			public function setSpinner():void
+			{
+				var notFinished:TaskCollection = SharedMain.tasker.tasks.NotFinished.All.NotFinished;
+				var stillWorking:Boolean = notFinished.getRelatedTo(sliver).length > 0;
+				if(!stillWorking && spinner.visible)
+				{
+					spinner.visible = false;
+					spinner.stopSpin();
+				}
+				else if(stillWorking && !spinner.visible)
+				{
+					spinner.visible = true;
+					spinner.startSpin();
+				}
+			}
+			
+			public function setStatus():void
+			{
+				if(sliver.Created)
+				{
+					switch(sliver.status)
+					{
+						case Sliver.STATUS_READY:
+						//case Sliver.EMULAB_ACTIVE:
+							actionMenuButton.styleName = "validStyle";
+							break;
+						case Sliver.STATUS_STOPPED:
+						//case Sliver.EMULAB_SWAPPED:
+							actionMenuButton.styleName = "pausedStyle";
+							break;
+						case Sliver.STATUS_FAILED:
+						//case Sliver.EMULAB_TERMINATED:
+							actionMenuButton.styleName = "failedStyle";
+							break;
+						case Sliver.STATUS_CHANGING:
+						case Sliver.STATUS_NOTREADY:
+						case Sliver.STATUS_MIXED:
+						//case Sliver.EMULAB_ACTIVATING:
+						//case Sliver.EMULAB_SWAPPING:
+						//case Sliver.EMULAB_TESTING:
+							actionMenuButton.styleName = "inprogressStyle";
+							break;
+						case Sliver.STATUS_UNKNOWN:
+						default:
+							actionMenuButton.styleName = "unknownStyle";
+					}
+				}
+				else
+					actionMenuButton.styleName = "unknownStyle";
+			}
+			
+			public function logChanged(e:FlackEvent):void
+			{
+				if(e.action == FlackEvent.ACTION_CREATED)
+				{
+					var msg:LogMessage = e.changedObject as LogMessage;
+					if(msg.relatedToAny([sliver]) && msg.importance == LogMessage.IMPORTANCE_HIGH)
+						setLog(msg);
+				}
+			}
+			
+			public function setLog(msg:LogMessage):void
+			{
+				statusLabel.text = msg.ShortestTitle;
+				statusLabel.toolTip = msg.ShortMessage;
+				switch(msg.level)
+				{
+					case LogMessage.LEVEL_FAIL:
+					case LogMessage.LEVEL_DIE:
+						statusLabel.styleName = "failedStyle";
+						break;
+					case LogMessage.LEVEL_WARNING:
+						statusLabel.styleName = "inprogressStyle";
+						break;
+					default:
+						statusLabel.styleName = "unknownStyle";
+				}
+			}
+			
+			public function viewManifest():void
+			{
+				if(!sliver.Created)
+				{
+					Alert.show("No resources have been allocated, so there is no manifest to view.", "Cannot view manifest");
+					return;
+				}
+				
+				var credentialArea:DocumentArea = new DocumentArea();
+				credentialArea.Document = sliver.manifest.document;
+				credentialArea.title =  "Manifest for sliver on " + sliver.manager.hrn;
+				credentialArea.backgroundColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
+				credentialArea.titleColor = ColorUtil.colorsLight[sliver.manager.colorIdx];
+				host.openNext(credentialArea);
+			}
+			
+			public function viewLogs():void
+			{
+				var logArea:LogMessagesRelatedToArea = new LogMessagesRelatedToArea();
+				logArea.RelatedTo = [sliver];
+				logArea.title = "Logs for " + sliver.manager.hrn;
+				logArea.backgroundColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
+				logArea.titleColor = ColorUtil.colorsLight[sliver.manager.colorIdx];
+				host.openNext(logArea);
+			}
+			
+			private var action:Function;
+			protected function actionMenuButton_itemClickHandler(event:MenuEvent):void
+			{
+				action = event.item.action;
+				action();
+				actionMenuButton.setStyle("icon", event.item.icon);
+				actionMenuButton.toolTip = event.item.label;
+			}
+			
+			private function tryRefreshStatus():void
+			{
+				if(!sliver.Created)
+				{
+					Alert.show("No resources to check status", "Cannot check status");
+					return;
+				}
+				var task:Task = null;
+				if(sliver.manager.api.type == ApiDetails.API_GENIAM)
+					task = new SliverStatusTask(sliver, false);
+				else
+					task = new SliverStatusCmTask(sliver, false);
+				task.forceRunNow = true;
+				SharedMain.tasker.add(task);
+			}
+			
+			private function tryDelete():void
+			{
+				if(!sliver.Created)
+				{
+					Alert.show("No resources to delete", "Cannot delete");
+					return;
+				}
+				
+				var unfinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
+				if(unfinished.getRelatedTo(sliver).length > 0)
+				{
+					Alert.show(
+						"There are tasks running on the sliver, cancel them and delete?",
+						"Continue deleting?",
+						Alert.YES|Alert.NO,
+						FlexGlobals.topLevelApplication as Sprite,
+						function afterChoice(e:CloseEvent):void
+						{
+							if(e.detail == Alert.YES)
+							{
+								SharedMain.tasker.cancelUncompletedTasksRelatedTo(sliver);
+								runDelete();
+							}
+						}
+					);
+				}
+				else
+				{
+					Alert.show(
+						"Continue deleting the sliver on " + sliver.manager.hrn + " on slice " + sliver.slice.Name,
+						"Continue deleting?",
+						Alert.YES|Alert.NO,
+						FlexGlobals.topLevelApplication as Sprite,
+						function afterChoice(e:CloseEvent):void
+						{
+							if(e.detail == Alert.YES)
+							{
+								runDelete();
+							}
+						}
+					);
+				}
+			}
+			
+			private function runDelete():void
+			{
+				var task:Task = null;
+				if(sliver.manager.api.type == ApiDetails.API_GENIAM)
+					task = new DeleteSliverTask(sliver);
+				else
+					task = new DeleteSliverCmTask(sliver);
+				task.forceRunNow = true;
+				SharedMain.tasker.add(task);
+			}
+			
+			private function tryStart():void
+			{
+				if(!sliver.Created)
+				{
+					Alert.show("No resources to start", "Cannot start");
+					return;
+				}
+				var unfinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
+				if(unfinished.getRelatedTo(sliver).length > 0)
+				{
+					Alert.show("There are tasks running on the sliver, please wait for them to complete and try again.", "Sliver is running tasks");
+					return;
+				}
+				var taskGroup:SerialTaskGroup = new SerialTaskGroup(
+					"Start sliver at " + sliver.manager.hrn + " on slice " + sliver.slice.Name
+				);
+				taskGroup.add(new StartSliverCmTask(sliver));
+				taskGroup.add(new SliverStatusCmTask(sliver));
+				taskGroup.tasks.collection[1].delay = 10;
+				taskGroup.forceRunNow = true;
+				SharedMain.tasker.add(taskGroup);
+			}
+			
+			private function tryStop():void
+			{
+				if(!sliver.Created)
+				{
+					Alert.show("No resources to stop", "Cannot stop");
+					return;
+				}
+				var unfinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
+				if(unfinished.getRelatedTo(sliver).length > 0)
+				{
+					Alert.show("There are tasks running on the sliver, please wait for them to complete and try again.", "Sliver is running tasks");
+					return;
+				}
+				var taskGroup:SerialTaskGroup = new SerialTaskGroup(
+					"Stop sliver at " + sliver.manager.hrn + " on slice " + sliver.slice.Name
+				);
+				taskGroup.add(new StopSliverCmTask(sliver));
+				taskGroup.add(new SliverStatusCmTask(sliver));
+				taskGroup.tasks.collection[1].delay = 10;
+				taskGroup.forceRunNow = true;
+				SharedMain.tasker.add(taskGroup);
+			}
+			
+			private function tryRestart():void
+			{
+				if(!sliver.Created)
+				{
+					Alert.show("No resources to restart", "Cannot restart");
+					return;
+				}
+				var unfinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
+				if(unfinished.getRelatedTo(sliver).length > 0)
+				{
+					Alert.show("There are tasks running on the sliver, please wait for them to complete and try again.", "Sliver is running tasks");
+					return;
+				}
+				var taskGroup:SerialTaskGroup = new SerialTaskGroup(
+					"Restart sliver at " + sliver.manager.hrn + " on slice " + sliver.slice.Name
+				);
+				taskGroup.add(new RestartSliverCmTask(sliver));
+				taskGroup.add(new SliverStatusCmTask(sliver));
+				taskGroup.tasks.collection[1].delay = 10;
+				taskGroup.forceRunNow = true;
+				SharedMain.tasker.add(taskGroup);
+			}
+				
+		]]>
+	</fx:Script>
+	<s:BorderContainer id="sliverContainer"
+					   height="30"
+					   width="100%"
+					   backgroundColor="{backColor}">
+		<s:HGroup height="100%"
+				  width="100%"
+				  gap="2"
+				  verticalAlign="middle"
+				  paddingBottom="2"
+				  paddingLeft="2"
+				  paddingRight="2"
+				  paddingTop="2">
+			<s:Label text="{sliver.manager.hrn}"
+					 width="100%"
+					 maxDisplayedLines="1"
+					 color="{frontColor}" />
+			<components:Spinner id="spinner"
+								width="18"
+								height="18"
+								x="{(width / 2) - (spinner.width / 2)}"
+								y="{(height / 2) - (spinner.height / 2)}"
+								visible="false"
+								includeInLayout="{spinner.visible}" />
+			<mx:PopUpMenuButton id="actionMenuButton"
+								height="24" width="46"
+								label=""
+								showRoot="true"
+								itemClick="actionMenuButton_itemClickHandler(event)" />
+		</s:HGroup>
+	</s:BorderContainer>
+	<s:Label id="statusLabel" width="100%" paddingLeft="2" />
+	<components:DefaultLine percentWidth="100" lineColor="{backColor}" />
+</s:VGroup>

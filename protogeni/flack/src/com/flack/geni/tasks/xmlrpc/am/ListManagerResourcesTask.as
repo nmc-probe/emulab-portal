@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,121 +12,130 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	import flash.utils.ByteArray;
-	
-	import mx.utils.Base64Decoder;
-	
-	import protogeni.StringUtil;
-	import protogeni.resources.AggregateManager;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.PlanetlabAggregateManager;
-	import protogeni.resources.PlanetlabRspecProcessor;
-	import protogeni.resources.ProtogeniRspecProcessor;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.tasks.process.ParseAdvertisementTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.CompressUtil;
+	import com.flack.shared.utils.StringUtil;
 	
 	/**
-	 * Gets the manager's advertisement using the GENI AM API
+	 * Lists all of the manager's resources.  Adds a seperate task to the parent to parse the advertisement.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestListResourcesAm extends Request
+	public class ListManagerResourcesTask extends AmXmlrpcTask
 	{
-		private var aggregateManager:GeniManager;
+		public var manager:GeniManager;
 		
-		public function RequestListResourcesAm(newManager:GeniManager):void
+		/**
+		 * 
+		 * @param newManager Manager to list resources for
+		 * 
+		 */
+		public function ListManagerResourcesTask(newManager:GeniManager)
 		{
-			super("List resources @ " + newManager.Hrn,
-				"Listing resources for aggregate manager " + newManager.Hrn,
-				CommunicationUtil.listResourcesAm,
-				true,
-				true,
-				false);
-			ignoreReturnCode = true;
-			op.timeout = 300;
-			aggregateManager = newManager;
-			
-			op.setExactUrl(newManager.Url);
+			super(
+				newManager.api.url,
+				AmXmlrpcTask.METHOD_LISTRESOURCES,
+				newManager.api.version,
+				"List resources @ " + newManager.hrn,
+				"Listing resources for aggregate manager " + newManager.hrn,
+				"List Resources"
+			);
+			relatedTo.push(newManager);
+			manager = newManager;
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-
-			var options:Object = {geni_available:false, geni_compressed:true};
-			if(aggregateManager.rspecProcessor is ProtogeniRspecProcessor)
-				options.rspec_version = {type:"ProtoGENI", version:aggregateManager.outputRspecVersion};
-			op.pushField([Main.geniHandler.CurrentUser.Credential]);
-			op.pushField(options);	
+		override protected function createFields():void
+		{
+			addOrderedField([GeniMain.geniUniverse.user.credential.Raw]);
 			
-			return op;
+			var options:Object = 
+				{
+					geni_available: false,
+					geni_compressed: true
+				};
+			var rspecVersion:Object = 
+				{
+					type:manager.outputRspecVersion.type,
+					version:manager.outputRspecVersion.version.toString()
+				};
+			if(apiVersion < 2)
+				options.rspec_version = rspecVersion;
+			else
+				options.geni_rspec_version = rspecVersion;
+			
+			addOrderedField(options);	
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var r:Request = null;
+			// Sanity check for AM API 2+
+			if(apiVersion > 1)
+			{
+				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
+				{
+					faultOnSuccess();
+					return;
+				}
+			}
 			
 			try
 			{
-				var decodor:Base64Decoder = new Base64Decoder();
-				decodor.decode(response as String);
-				var bytes:ByteArray = decodor.toByteArray();
-				bytes.uncompress();
-				var decodedRspec:String = bytes.toString();
+				var uncompressedRspec:String = CompressUtil.uncompress(data);
 				
-				aggregateManager.Rspec = new XML(decodedRspec);
-				aggregateManager.rspecProcessor.processResourceRspec(after);
+				addMessage(
+					"Received advertisement",
+					uncompressedRspec,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
 				
-			} catch(e:Error)
-			{
-				//am.errorMessage = response;
-				//am.errorDescription = CommunicationUtil.GeniresponseToString(code) + ": " + am.errorMessage;
-				aggregateManager.Status = GeniManager.STATUS_FAILED;
-				this.removeImmediately = true;
-				Main.geniDispatcher.dispatchGeniManagerChanged(aggregateManager);
+				manager.advertisement = new Rspec(uncompressedRspec);
+				parent.add(new ParseAdvertisementTask(manager));
+				
+				super.afterComplete(addCompletedMessage);
+				
 			}
-			
-			return r;
+			catch(e:Error)
+			{
+				afterError(
+					new TaskError(
+						StringUtil.errorToString(e),
+						TaskError.CODE_UNEXPECTED,
+						e
+					)
+				);
+			}
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):*
+		override protected function afterError(taskError:TaskError):void
 		{
-			aggregateManager.errorMessage = event.toString();
-			aggregateManager.errorDescription = event.text;
-			if(aggregateManager.errorMessage.search("#2048") > -1)
-				aggregateManager.errorDescription = "Stream error, possibly due to server error.  Another possible error might be that you haven't added an exception for:\n" + aggregateManager.VisitUrl();
-			else if(aggregateManager.errorMessage.search("#2032") > -1)
-				aggregateManager.errorDescription = "IO error, possibly due to the server being down";
+			manager.Status = FlackManager.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager
+			);
 			
-			aggregateManager.Status = GeniManager.STATUS_FAILED;
-			Main.geniDispatcher.dispatchGeniManagerChanged(aggregateManager);
-			
-			return null;
+			super.afterError(taskError);
 		}
 		
-		override public function cancel():void
+		override protected function runCancel():void
 		{
-			aggregateManager.Status = GeniManager.STATUS_UNKOWN;
-			Main.geniDispatcher.dispatchGeniManagerChanged(aggregateManager);
-			op.cleanup();
-		}
-		
-		private function after(junk:GeniManager):void {
-			cleanup();
-		}
-		
-		override public function cleanup():void
-		{
-			if(aggregateManager.Status == GeniManager.STATUS_INPROGRESS)
-				aggregateManager.Status = GeniManager.STATUS_FAILED;
-			running = false;
-			Main.geniHandler.requestHandler.remove(this, false);
-			Main.geniDispatcher.dispatchGeniManagerChanged(aggregateManager);
-			op.cleanup();
-			Main.geniHandler.requestHandler.tryNext();
+			manager.Status = FlackManager.STATUS_UNKOWN;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager
+			);
 		}
 	}
 }

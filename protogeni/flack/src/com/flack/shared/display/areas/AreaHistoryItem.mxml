@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 xmlns:components="com.flack.shared.display.components.*"
+		 height="100%"
+		 useHandCursor="true"
+		 buttonMode="true"
+		 toolTip="Open {contentItem.title}"
+		 width="24"
+		 click="openContent()">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.shared.utils.ImageUtil;
+			
+			[Bindable]
+			public var contentItem:AreaContent;
+			
+			public function openContent():void
+			{
+				contentItem.host.moveTo(this);
+			}
+			
+			public function setBack():void
+			{
+				navImage.source = ImageUtil.leftIcon;
+			}
+			
+			public function setForward():void
+			{
+				navImage.source = ImageUtil.rightIcon;
+			}
+		]]>
+	</fx:Script>
+	
+	<s:Rect width="100%" height="100%">
+		<s:fill><s:SolidColor color="{contentItem.backgroundColor}" /></s:fill>
+	</s:Rect>
+	
+	<s:VGroup width="100%"
+			  height="100%"
+			  horizontalAlign="center"
+			  gap="2"
+			  paddingLeft="2"
+			  paddingRight="2"
+			  paddingTop="2"
+			  paddingBottom="2">
+		<s:BitmapImage id="navImage" />
+		<s:RichText text="{contentItem.title}"
+					rotation="-90"
+					width="100%"
+					height="100%"
+					color="{contentItem.titleColor}"
+					textAlign="end"
+					maxDisplayedLines="1"
+					verticalAlign="middle" />
+	</s:VGroup>
+	
+</s:Group>

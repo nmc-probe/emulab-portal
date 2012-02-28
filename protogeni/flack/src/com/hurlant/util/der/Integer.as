@@ -18,7 +18,7 @@ package com.hurlant.util.der
 		
 		public function Integer(type:uint, length:uint, b:ByteArray) {
 			this.type = type;
-			this.len = length;
+			len = length;
 			super(b);
 		}
 		

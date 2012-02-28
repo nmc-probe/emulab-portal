@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,59 +12,81 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.physical
 {
+	import com.flack.shared.resources.IdentifiableObject;
+
 	/**
 	 * Interface on a resource which is typically used to connect to links
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public class PhysicalNodeInterface
+	public class PhysicalInterface extends IdentifiableObject
 	{
 		public static const ROLE_CONTROL:int = 0;
 		public static const ROLE_EXPERIMENTAL:int = 1;
 		public static const ROLE_UNUSED:int = 2;
 		public static const ROLE_UNUSED_CONTROL:int = 3;
 		public static const ROLE_UNUSED_EXPERIMENTAL:int = 4;
+		public static const ROLE_PORT:int = 5;
 		public static function RoleStringFromInt(i:int):String
 		{
-			switch(i) {
+			switch(i)
+			{
 				case ROLE_CONTROL: return "control";
 				case ROLE_EXPERIMENTAL: return "experimental";
 				case ROLE_UNUSED: return "unused";
 				case ROLE_UNUSED_CONTROL: return "unused_control";
 				case ROLE_UNUSED_EXPERIMENTAL: return "unused_experimental";
+				case ROLE_UNUSED_EXPERIMENTAL: return "port";
 				default: return "";
 			}
 		}
 		public static function RoleIntFromString(s:String):int
 		{
-			switch(s) {
+			switch(s)
+			{
 				case "control": return ROLE_CONTROL;
 				case "experimental": return ROLE_EXPERIMENTAL;
 				case "unused": return ROLE_UNUSED;
 				case "unused_control": return ROLE_UNUSED_CONTROL;
 				case "unused_experimental": return ROLE_UNUSED_EXPERIMENTAL;
+				case "port": return ROLE_UNUSED_EXPERIMENTAL;
 				default: return -1;
 			}
+		}
+		
+		public function get Name():String
+		{
+			return id.name;
 		}
 		
 		[Bindable]
 		public var owner:PhysicalNode;
 		
-		[Bindable]
-		public var id:String;
-		public var role : int = -1;
+		public var role:int = -1;
 		public var publicIPv4:String = "";
+		public var num:Number;
 		
 		[Bindable]
-		public var physicalLinks:Vector.<PhysicalLink>;
+		public var links:PhysicalLinkCollection;
 		
-		public function PhysicalNodeInterface(own:PhysicalNode)
+		/**
+		 * 
+		 * @param own Owner node
+		 * 
+		 */
+		public function PhysicalInterface(own:PhysicalNode)
 		{
-			physicalLinks = new Vector.<PhysicalLink>();
-			this.owner = own;
+			super();
+			links = new PhysicalLinkCollection();
+			owner = own;
+		}
+		
+		override public function toString():String
+		{
+			return "[Interface ID="+id.full+"]";
 		}
 	}
 }

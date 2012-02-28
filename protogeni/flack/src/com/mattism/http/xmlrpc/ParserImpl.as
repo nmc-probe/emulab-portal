@@ -40,7 +40,7 @@ package com.mattism.http.xmlrpc
 				return xml.toString();
 			}
 			
-			return this._parse( xml );
+			return _parse( xml );
 		}
 		
 		private function _parse( node:XML ):Object {		
@@ -61,28 +61,28 @@ package com.mattism.http.xmlrpc
 					node.name() == ARRAY_NODE
 					) {
 					
-					this.debug("_parse(): >> " + node.name());
-					return this._parse( node.*[0] );
+					debug("_parse(): >> " + node.name());
+					return _parse( node.*[0] );
 				}
 				else if (node.name() == DATA_NODE) {
-					this.debug("_parse(): >> Begin Array");
+					debug("_parse(): >> Begin Array");
 					data = new Array();
 					for (i=0; i<node.children().length(); i++) {
-						data.push( this._parse(node.children()[i]) );
-						this.debug("_parse(): adding data to array: "+data[data.length-1]);
+						data.push( _parse(node.children()[i]) );
+						debug("_parse(): adding data to array: "+data[data.length-1]);
 					}
-					this.debug("_parse(): << End Array");
+					debug("_parse(): << End Array");
 					return data;
 				}
 				else if (node.name() == STRUCT_NODE) {
-					this.debug("_parse(): >> Begin Struct");
+					debug("_parse(): >> Begin Struct");
 					data = new Object();
 					for (i=0; i<node.children().length();i++) {
-						var temp:Object = this._parse(node.children()[i]);
+						var temp:Object = _parse(node.children()[i]);
 						data[temp.name]=temp.value;
-						this.debug("_parse(): Struct  item "+temp.name + ":" + temp.value);
+						debug("_parse(): Struct  item "+temp.name + ":" + temp.value);
 					}
-					this.debug("_parse(): << End Stuct");
+					debug("_parse(): << End Stuct");
 					return data;
 				}
 				else if (node.name() == MEMBER_NODE) {
@@ -93,19 +93,19 @@ package com.mattism.http.xmlrpc
 					*/
 					data = new Object();
 					data.name = node.name[0].toString();
-					data.value = this._parse(node.value[0]);
+					data.value = _parse(node.value[0]);
 					
 					return data;
 				}
 				else if (node.name() == "name") {
-					return this._parse(node.*[0]);
+					return _parse(node.*[0]);
 				}
 				else if ( XMLRPCUtils.isSimpleType(node.name()) ) {
-					return this.createSimpleType( node.name(), node.* );
+					return createSimpleType( node.name(), node.* );
 				}			
 			}
 			
-			this.debug("Received an invalid Response.");
+			debug("Received an invalid Response.");
 			return null;
 		}
 		
@@ -122,7 +122,7 @@ package com.mattism.http.xmlrpc
 					break;
 				
 				case XMLRPCDataTypes.DATETIME:
-					return this.getDateFromIso8601( value );
+					return getDateFromIso8601( value );
 					break;
 					
 				case XMLRPCDataTypes.BASE64:
@@ -159,7 +159,7 @@ package com.mattism.http.xmlrpc
 		}
 											
 		private function debug(a:String):void {
-			//trace(this._PRODUCT + " -> " + a);
+			//trace(_PRODUCT + " -> " + a);
 		}
 	}
 }

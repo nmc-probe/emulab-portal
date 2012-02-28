@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,56 +12,103 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
-	import protogeni.resources.Key;
-
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.GeniUser;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.utils.NetUtil;
+	
+	import flash.display.Sprite;
+	
+	import mx.controls.Alert;
+	import mx.core.FlexGlobals;
+	import mx.events.CloseEvent;
+	
 	/**
-	 * Gets the user's keys which can be used to put keys onto allocated resources later. Uses the ProtoGENI API.
+	 * Gets the user's public SSH keys
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestGetKeys extends Request
+	public class GetUserKeysSaTask extends ProtogeniXmlrpcTask
 	{
-		public function RequestGetKeys():void
-		{
-			super("Get SSH keys",
-				"Getting the ssh credential",
-				CommunicationUtil.getKeys);
-			
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
-		}
+		public var user:GeniUser;
+		public var replaceAll:Boolean;
 		
 		/**
-		 * Called immediately before the operation is run to add variables it may not have had when added to the queue
-		 * @return Operation to be run
+		 * 
+		 * @param newUser User to get keys for
+		 * @param shouldReplaceAll Replace the old keys with these, removing any which aren't returned in this call
 		 * 
 		 */
-		override public function start():Operation
+		public function GetUserKeysSaTask(newUser:GeniUser,
+										  shouldReplaceAll:Boolean = true)
 		{
-			op.clearFields();
-			op.addField("credential",Main.geniHandler.CurrentUser.Credential);
-			return op;
+			super(
+				newUser.authority.url,
+				"",
+				ProtogeniXmlrpcTask.METHOD_GETKEYS,
+				"Get SSH keys",
+				"Gets user's public keys"
+			);
+			relatedTo.push(newUser);
+			user = newUser;
+			replaceAll = shouldReplaceAll;
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			addNamedField("credential", user.credential.Raw);
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == CODE_SUCCESS)
 			{
-				Main.geniHandler.CurrentUser.keys = new Vector.<Key>();
-				for each(var keyObject:Object in response.value) {
-					Main.geniHandler.CurrentUser.keys.push(new Key(keyObject.key, keyObject.type));
+				if(replaceAll)
+					user.keys = new Vector.<String>();
+				for each(var keyObject:Object in data)
+				{
+					if(user.keys.indexOf(keyObject.key) == -1)
+					{
+						addMessage("Public key retrieved", keyObject.key);
+						user.keys.push(keyObject.key);
+					}
 				}
 				
-				Main.geniDispatcher.dispatchUserChanged();
+				addMessage(
+					user.keys.length + " public key(s) retrieved",
+					user.keys.length + " public key(s) retrieved",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				if(user.keys.length == 0)
+				{
+					Alert.show(
+						"You don't have any SSH keys, which are required to log into resources.  View online instructions for setting up your SSH keys?",
+						"", Alert.YES|Alert.NO, FlexGlobals.topLevelApplication as Sprite,
+						function visitSite(e:CloseEvent):void
+						{
+							if(e.detail == Alert.YES)
+								NetUtil.openWebsite(GeniMain.sshKeysSteps);
+						}
+					);
+				}
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_USER,
+					user
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-				Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
-			}
-			
-			return null;
+				faultOnSuccess();
 		}
 	}
 }

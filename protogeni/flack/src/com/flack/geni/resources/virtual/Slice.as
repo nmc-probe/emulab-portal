@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,20 +12,30 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.virtual
 {
-	import flash.utils.Dictionary;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.GeniUser;
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.sites.GeniAuthority;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.extensions.ClientInfo;
+	import com.flack.geni.resources.virtual.extensions.SliceFlackInfo;
+	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistory;
+	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistoryItem;
+	import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
+	import com.flack.geni.tasks.process.GenerateRequestTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.resources.IdentifiableObject;
+	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.resources.docs.RspecVersion;
+	import com.flack.shared.utils.DateUtil;
 	
-	import mx.collections.ArrayCollection;
-	import mx.controls.Alert;
-	import mx.events.CloseEvent;
-	
-	import protogeni.Util;
-	import protogeni.XmlUtil;
-	import protogeni.communication.CommunicationUtil;
-	import protogeni.communication.RequestQueueNode;
-	import protogeni.display.ChooseManagerWindow;
-	import protogeni.display.ImageUtil;
+	import flash.globalization.DateTimeFormatter;
+	import flash.globalization.DateTimeStyle;
+	import flash.globalization.LocaleID;
 
 	/**
 	 * Container for slivers
@@ -33,404 +43,455 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class Slice
+	public class Slice extends IdentifiableObject
 	{
 		[Bindable]
 		public var hrn:String = "";
-		[Bindable]
-		public var urn:IdnUrn = null;
-		public function get Name():String {
-			if(urn != null)
-				return urn.name;
+		public function get Name():String
+		{
+			if(id != null)
+				return id.name;
 			else if(hrn != null)
 				return hrn;
 			else
-				return "*No name*";
+				return "";
 		}
 		
 		public var creator:GeniUser = null;
-		public var credential:String = "";
-		public var slivers:SliverCollection;
+		public var authority:GeniAuthority = null;
+		public var credential:GeniCredential = null;
+		public var flackInfo:SliceFlackInfo = new SliceFlackInfo();
+		public var reportedManagers:GeniManagerCollection = new GeniManagerCollection();
+		public var description:String = "";
+		
+		public var slivers:SliverCollection = new SliverCollection();
+		public function get RelatedItems():Array
+		{
+			var results:Array = [this];
+			for each(var sliver:Sliver in slivers.collection)
+				results.push(sliver);
+			return results;
+		}
+		
+		public var nodes:VirtualNodeCollection = new VirtualNodeCollection();
+		public var links:VirtualLinkCollection = new VirtualLinkCollection();
 		
 		public var expires:Date = null;
-		
-		[Bindable]
-		public var useInputRspecVersion:Number = Util.defaultRspecVersion;
-		
-		private var _changing:Boolean = false;
-		public function set Changing(val:Boolean):void {
-			_changing = val;
-		}
-		public function get Changing():Boolean {
-			return slivers.Changing || Main.geniHandler.requestHandler.isSliceChanging(this);
-		}
-		
-		public function Slice()
+		public function get EarliestExpires():Date
 		{
-			slivers = new SliverCollection();
-		}
-		
-		public function clearState():void {
-			this._changing = false;
-			for each(var sliver:Sliver in this.slivers.collection)
-				sliver.clearState();
-		}
-		
-		public function removeOutsideReferences():void {
-			for each(var s:Sliver in this.slivers.collection) {
-				s.removeOutsideReferences();
+			if(expires != null)
+			{
+				if(slivers != null && slivers.length > 0)
+				{
+					var sliverExpires:Date = slivers.EarliestExpiration;
+					if(sliverExpires != null && sliverExpires < expires)
+						return sliverExpires;
+				}
+				return expires;
 			}
+			return null;
 		}
-		
-		public function clone(addOutsideReferences:Boolean = true):Slice
+		public function get ExpiresString():String
 		{
-			var newSlice:Slice = new Slice();
-			newSlice.hrn = this.hrn;
-			newSlice.urn = new IdnUrn(this.urn.full);
-			newSlice.creator = this.creator;
-			newSlice.credential = this.credential;
-			newSlice.expires = this.expires;
-			newSlice._changing = this._changing;
-			newSlice.useInputRspecVersion = this.useInputRspecVersion;
-			
-			var sliver:Sliver;
-			
-			// Build up the basic slivers
-			for each(sliver in this.slivers.collection)
+			var dateFormatter:DateTimeFormatter = new DateTimeFormatter(LocaleID.DEFAULT, DateTimeStyle.SHORT, DateTimeStyle.NONE);
+			var result:String = "";
+			if(expires != null)
 			{
-				var newSliver:Sliver = new Sliver(newSlice, sliver.manager);
-				newSliver.urn = new IdnUrn(sliver.urn.full);
-				newSliver.credential = sliver.credential;
-				newSliver.expires = sliver.expires;
-				newSliver.state = sliver.state;
-				newSliver.status = sliver.status;
-				newSliver.ticket = sliver.ticket;
-				newSliver.request = sliver.request;
-				newSliver.manifest = sliver.manifest;
-				newSliver.extensionNamespaces = sliver.extensionNamespaces;
-				newSliver.processed = sliver.processed;
-				newSliver.changing = sliver.changing;
-				newSliver.message = sliver.message;
-				
-				newSlice.slivers.add(newSliver);
-			}
-			
-			var oldNodeToCloneNode:Dictionary = new Dictionary();
-			var oldLinkToCloneLink:Dictionary = new Dictionary();
-			var oldInterfaceToCloneInterface:Dictionary = new Dictionary();
-			
-			// Build up the slivers with nodes
-			for each(sliver in this.slivers.collection)
-			{
-				newSliver = newSlice.slivers.getByManager(sliver.manager);
-				
-				// Build up nodes
-				var retrace:Array = new Array();
-				for each(var node:VirtualNode in sliver.nodes.collection)
+				var sliceExpiresDate:Date = expires;
+				if(slivers != null)
 				{
-					if(oldNodeToCloneNode[node] != null)
-						continue;
-					var newNode:VirtualNode = new VirtualNode(newSlice.slivers.getByManager(node.manager));
-					newNode.clientId = node.clientId;
-					newNode.physicalNode = node.physicalNode;
-					newNode.manager = node.manager;
-					newNode.sliverId = node.sliverId;
-					newNode.exclusive = node.exclusive;
-					newNode.sliverType = node.sliverType;
-					for each(var executeService:ExecuteService in node.executeServices) {
-						newNode.executeServices.push(new ExecuteService(executeService.command,
-																		executeService.shell));
-					}
-					for each(var installService:InstallService in node.installServices) {
-						newNode.installServices.push(new InstallService(installService.url,
-																		installService.installPath,
-																		installService.fileType));
-					}
-					for each(var loginService:LoginService in node.loginServices) {
-						newNode.loginServices.push(new LoginService(loginService.authentication,
-																	loginService.hostname,
-																	loginService.port,
-																	loginService.username));
-					}
-					// supernode? add later ...
-					// subnodes? add later ...
-					retrace.push({clone:newNode, old:node});
-					newNode.manifest = node.manifest;
-					newNode.error = node.error;
-					newNode.state = node.state;
-					newNode.status = node.status;
-					newNode.diskImage = node.diskImage;
-					newNode.hardwareType = node.hardwareType;
-					newNode.flackX = node.flackX;
-					newNode.flackY = node.flackY;
-					newNode.flackUnbound = node.flackUnbound;
-					newNode.extensionsNodes = node.extensionsNodes;
-					newNode.selectedPlanetLabInitscript = node.selectedPlanetLabInitscript;
-					// depreciated
-					newNode.virtualizationType = node.virtualizationType;
-					newNode.virtualizationSubtype = node.virtualizationSubtype;
-					
-					// Add to slivers
-					for each(var sliverToAddNode:Sliver in this.slivers.collection) {
-						if(sliverToAddNode.nodes.contains(node))
-							newSlice.slivers.getByManager(sliverToAddNode.manager).nodes.add(newNode);
-					}
-					
-					// Copy interfaces
-					for each(var vi:VirtualInterface in node.interfaces.collection)
+					var sliversExpire:Date = slivers.EarliestExpiration;
+					if(sliversExpire != null && sliversExpire.time < sliceExpiresDate.time)
 					{
-						var newVirtualInterface:VirtualInterface = new VirtualInterface(newNode);
-						newVirtualInterface.id = vi.id;
-						newVirtualInterface.physicalNodeInterface = vi.physicalNodeInterface;
-						newVirtualInterface.capacity = vi.capacity;
-						newVirtualInterface.ip = vi.ip;
-						newVirtualInterface.netmask = vi.netmask;
-						newVirtualInterface.type = vi.type;
-						newNode.interfaces.add(newVirtualInterface);
-						oldInterfaceToCloneInterface[vi] = newVirtualInterface;
-						// links? add later ...
+						sliceExpiresDate = sliceExpiresDate;
+						result = "Sliver expires before slice in\n\t"
+							+ DateUtil.getTimeUntil(sliversExpire)
+							+ "\n\ton "
+							+ dateFormatter.format(sliversExpire)
+							+ "\n\n";
 					}
-					
-					// Copy pipes
-					for each(var vp:Pipe in node.pipes.collection)
-						newNode.pipes.add(new Pipe(newNode.interfaces.GetByID(vp.source.id), newNode.interfaces.GetByID(vp.destination.id), vp.capacity, vp.latency, vp.packetLoss));
-					
-					//newSliver.nodes.addItem(newNode);
-					
-					oldNodeToCloneNode[node] = newNode;
 				}
 				
-				// supernode and subnodes need to be added after to ensure they were created
-				for each(var check:Object in retrace)
-				{
-					var cloneNode:VirtualNode = check.clone;
-					var oldNode:VirtualNode = check.old;
-					if(oldNode.superNode != null)
-						cloneNode.superNode = newSliver.nodes.getByClientId(oldNode.clientId);
-					if(oldNode.subNodes != null && oldNode.subNodes.length > 0)
-					{
-						for each(var subNode:VirtualNode in oldNode.subNodes.collection)
-							cloneNode.subNodes.add(newSliver.nodes.getByClientId(subNode.clientId));
-					}
-				}
+				result += "Slice expires in\n\t"
+					+ DateUtil.getTimeUntil(expires)
+					+ "\n\ton "
+					+ dateFormatter.format(expires);
 			}
+			else
+				result = "No expiration date yet";
 			
-			// Build up the links
-			for each(sliver in this.slivers.collection)
-			{
-				newSliver = newSlice.slivers.getByManager(sliver.manager);
-				
-				for each(var link:VirtualLink in sliver.links.collection)
-				{
-					if(oldLinkToCloneLink[link] != null)
-						continue;
-					var newLink:VirtualLink = new VirtualLink();
-					newLink.clientId = link.clientId;
-					newLink.sliverId = link.sliverId;
-					newLink.type = link.type;
-					newLink.error = link.error;
-					newLink.state = link.state;
-					newLink.status = link.status;
-					newLink.capacity = link.capacity;
-					newLink.linkType = link.linkType;
-					newLink.manifest = link.manifest;
-					newLink.vlantag = link.vlantag;
-					for each(var linkSliver:Sliver in link.interfaces.Slivers.collection)
-						newSlice.slivers.getByManager(linkSliver.manager).links.add(newLink);
-					
-					var slivers:Vector.<Sliver> = new Vector.<Sliver>();
-					for each(var i:VirtualInterface in link.interfaces.collection)
-					{
-						var newInterface:VirtualInterface = oldInterfaceToCloneInterface[i];
-						newLink.interfaces.add(newInterface);
-						newInterface.virtualLinks.add(newLink);
-					}
-					
-					oldLinkToCloneLink[link] = newLink;
-				}
-			}
-			
-			return newSlice;
+			return result;
 		}
 		
-		public function ReadyIcon():Class {
-			switch(this.slivers.Status) {
-				case Sliver.STATUS_READY: 		return ImageUtil.flagGreenIcon;
-				case Sliver.STATUS_MIXED:
-				case Sliver.STATUS_CHANGING:
-				case Sliver.STATUS_NOTREADY:	return ImageUtil.flagYellowIcon;
-				case Sliver.STATUS_FAILED:		return ImageUtil.flagRedIcon;
-				case Sliver.STATUS_UNKNOWN:
-				default:						return ImageUtil.flagOrangeIcon;
-			}
-		}
-		
-		public function getOrCreateForManager(gm:GeniManager):Sliver
+		public function get UnsubmittedChanges():Boolean
 		{
-			var newSliver:Sliver = this.slivers.getByManager(gm);
-			if(newSliver == null) {
-				newSliver = new Sliver(this, gm);
-				this.slivers.add(newSliver);
+			for each(var sliver:Sliver in slivers.collection)
+			{
+				if(sliver.UnsubmittedChanges)
+					return true;
 			}
-			return newSliver;
-		}
-		
-		public function tryImport(rspec:String):Boolean {
-			// Tell user they need to delete
-			if(this.slivers.AllocatedAnyResources)
-				Alert.show("The slice has resources allocated to it.  Please delete the slice before trying to import.", "Allocated Resources Exist");
-			else if(this.slivers.VirtualNodes.length > 0)
-				Alert.show("The slice already has resources waiting to be allocated.  Please clear the canvas before trying to import", "Resources Exist");
-			else {
-				var sliceRspec:XML;
-				try
-				{
-					sliceRspec = new XML(rspec);
-				}
-				catch(e:Error)
-				{
-					Alert.show("There is a problem with the XML: " + e.toString());
-					return false;
-				}
-				
-				var defaultNamespace:Namespace = sliceRspec.namespace();
-				var detectedRspecVersion:Number;
-				switch(defaultNamespace.uri) {
-					case XmlUtil.rspec01Namespace:
-						detectedRspecVersion = 0.1;
-						break;
-					case XmlUtil.rspec02Namespace:
-					case XmlUtil.rspec02MalformedNamespace:
-						detectedRspecVersion = 0.2;
-						break;
-					case XmlUtil.rspec2Namespace:
-						detectedRspecVersion = 2;
-						break;
-					case XmlUtil.rspec3Namespace:
-						detectedRspecVersion = 3;
-						break;
-					default:
-						Alert.show("Please use a compatible RSPEC");
-						return false;
-				}
-				
-				for each(var nodeXml:XML in sliceRspec.defaultNamespace::node)
-				{
-					var managerUrn:String;
-					if(detectedRspecVersion < 1) {
-						if(nodeXml.@component_manager_urn.length() == 1)
-							managerUrn = nodeXml.@component_manager_urn;
-						else
-							managerUrn = nodeXml.@component_manager_uuid;
-					} else
-						managerUrn = nodeXml.@component_manager_id;
-					if(managerUrn.length == 0) {
-						var chooseManagerWindow:ChooseManagerWindow = new ChooseManagerWindow();
-						chooseManagerWindow.success = function importWithDefault(manager:GeniManager):void {
-															doImport(sliceRspec, manager);
-														}
-						chooseManagerWindow.showWindow();
-						return true;
-					}
-				}
-				
-				return this.doImport(sliceRspec);
-			}
+			if(nodes.UnsubmittedChanges)
+				return true;
+			if(links.UnsubmittedChanges)
+				return true;
 			return false;
 		}
 		
-		public function doImport(sliceRspec:XML, defaultManager:GeniManager = null):Boolean {
+		[Bindable]
+		public var useInputRspecInfo:RspecVersion = GeniMain.usableRspecVersions.MaxVersion;
+		
+		// Client extension
+		public var clientInfo:ClientInfo = new ClientInfo();
+		
+		// Flack extension
+		public var history:SliceHistory = new SliceHistory();
+		
+		/**
+		 * 
+		 * @param id IDN-URN
+		 * 
+		 */
+		public function Slice(id:String = "")
+		{
+			super(id);
+		}
+		
+		public function pushState():void
+		{
+			// Don't push an empty state
+			if(nodes.length == 0)
+				return;
 			
-			// Detect managers
-			try {
-				var defaultNamespace:Namespace = sliceRspec.namespace();
-				var detectedRspecVersion:Number;
-				var detectedManagers:Vector.<GeniManager> = new Vector.<GeniManager>();
-				switch(defaultNamespace.uri) {
-					case XmlUtil.rspec01Namespace:
-						detectedRspecVersion = 0.1;
-						break;
-					case XmlUtil.rspec02Namespace:
-					case XmlUtil.rspec02MalformedNamespace:
-						detectedRspecVersion = 0.2;
-						break;
-					case XmlUtil.rspec2Namespace:
-						detectedRspecVersion = 2;
-						break;
-					case XmlUtil.rspec3Namespace:
-						detectedRspecVersion = 3;
-						break;
-				}
-			}
-			catch(e:Error)
+			// Remove any redo history
+			if(history.backIndex < history.states.length-1)
+				history.states.splice(history.backIndex+1, history.states.length - history.backIndex - 1);
+			
+			var oldHistory:SliceHistory = history;
+			
+			var getRspec:GenerateRequestTask = new GenerateRequestTask(this, null, false);
+			getRspec.start();
+			
+			oldHistory.states.push(
+				new SliceHistoryItem(
+					getRspec.requestRspec.document,
+					history.stateName
+				)
+			);
+			oldHistory.backIndex = history.states.length-1;
+			history = oldHistory;
+			history.stateName = "";
+			
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLICE,
+				this
+			);
+		}
+		
+		public function get CanGoBack():Boolean
+		{
+			return history.backIndex > -1 || nodes.length > 0;
+		}
+		
+		public function get CanGoForward():Boolean
+		{
+			return history.backIndex < history.states.length-1;
+		}
+		
+		public function backState():String
+		{
+			// Save the state to return in case user wants to redo
+			var oldRspec:String = "";
+			if(CanGoBack)
 			{
-				Alert.show("Please use a compatible RSPEC");
-				return false;
-			}
-			
-			this.slivers = new SliverCollection();
-			
-			// Set the unknown managers to the default manager if set
-			if(defaultManager != null) {
-				for each(var testNodeXml:XML in sliceRspec.defaultNamespace::node)
+				var saveRspec:GenerateRequestTask = new GenerateRequestTask(this, null, false);
+				saveRspec.start();
+				
+				history.states.splice(history.backIndex+1, 0,
+					new SliceHistoryItem(
+						saveRspec.requestRspec.document,
+						history.stateName
+					)
+				);
+				
+				oldRspec = saveRspec.requestRspec.document;
+				
+				if(history.backIndex > -1)
 				{
-					var testManagerUrn:String;
-					if(detectedRspecVersion < 1) {
-						if(testNodeXml.@component_manager_urn.length() == 1)
-							testManagerUrn = testNodeXml.@component_manager_urn;
-						else
-							testManagerUrn = testNodeXml.@component_manager_uuid;
-					} else
-						testManagerUrn = testNodeXml.@component_manager_id;
-					if(testManagerUrn.length == 0) {
-						if(detectedRspecVersion < 1)
-							testNodeXml.@component_manager_urn = defaultManager.Urn.full;
-						else
-							testNodeXml.@component_manager_id = defaultManager.Urn.full;
-					}
+					var oldHistory:SliceHistory = history;
+					var restoreHistoryItem:SliceHistoryItem = history.states.slice(history.backIndex, history.backIndex+1)[0];
+					
+					var importRspec:ImportSliceTaskGroup = new ImportSliceTaskGroup(this, restoreHistoryItem.rspec, null, true);
+					importRspec.start();
+					
+					// Remove old state which is now the current state
+					oldHistory.states.splice(oldHistory.backIndex, 1);
+					oldHistory.stateName = restoreHistoryItem.note;
+					oldHistory.backIndex--;
+					history = oldHistory;
+				}
+				else
+				{
+					removeComponents();
+					slivers.cleanup();
+					for each(var sliver:Sliver in this.slivers.collection)
+						sliver.UnsubmittedChanges = true;
 				}
 			}
 			
-			for each(var nodeXml:XML in sliceRspec.defaultNamespace::node)
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLICE,
+				this
+			);
+			
+			return oldRspec;
+		}
+		
+		public function forwardState():String
+		{
+			if(history.backIndex < history.states.length-1)
 			{
-				var managerUrn:String;
-				var detectedManager:GeniManager;
-				if(detectedRspecVersion < 1) {
-					if(nodeXml.@component_manager_urn.length() == 1)
-						managerUrn = nodeXml.@component_manager_urn;
-					else
-						managerUrn = nodeXml.@component_manager_uuid;
-				} else
-					managerUrn = nodeXml.@component_manager_id;
+				var oldHistory:SliceHistory = history;
+				var restoreHistoryItem:SliceHistoryItem = history.states.slice(history.backIndex+1, history.backIndex+2)[0];
 				
-				if(managerUrn.length == 0) {
-					Alert.show("All nodes must have a manager associated with them");
-					return false;
-				} else
-					detectedManager = Main.geniHandler.GeniManagers.getByUrn(managerUrn);
+				// Save the state to return in case user wants to undo
+				var saveRspec:GenerateRequestTask = new GenerateRequestTask(this, null, false);
+				saveRspec.start();
 				
-				if(detectedManager == null) {
-					Alert.show("Unkown manager referenced: " + managerUrn);
-					return false;
-				} else if(detectedManager.Status != GeniManager.STATUS_VALID) {
-					Alert.show("Known manager referenced (" + managerUrn + "), but manager didn't load successfully. Please restart Flack.");
-					return false;
-				}
+				// Save current state into history for undo
+				oldHistory.states.splice(history.backIndex+1, 0,
+					new SliceHistoryItem(
+						saveRspec.requestRspec.document,
+						history.stateName
+					)
+				);
 				
-				if(detectedManager != null && detectedManagers.indexOf(detectedManager) == -1) {
-					var newSliver:Sliver = this.getOrCreateForManager(detectedManager);
-					try {
-						newSliver.parseRspec(sliceRspec);
-					} catch(e:Error) {
-						Alert.show("Error while parsing sliver RSPEC on " + detectedManager.Hrn + ": " + e.toString());
-						return false;
-					}
-					detectedManagers.push(detectedManager);
+				var importRspec:ImportSliceTaskGroup = new ImportSliceTaskGroup(this, restoreHistoryItem.rspec, null, true);
+				importRspec.start();
+				
+				// Remove old state which is now the current state
+				oldHistory.states.splice(oldHistory.backIndex+2, 1);
+				oldHistory.stateName = restoreHistoryItem.note;
+				oldHistory.backIndex++;
+				history = oldHistory;
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					this
+				);
+				
+				return saveRspec.requestRspec.document
+			}
+			else
+				return "";
+		}
+		
+		public function resetStatus():void
+		{
+			for each(var statusSliver:Sliver in slivers.collection)
+			{
+				if(statusSliver.sliverIdToStatus[statusSliver.id.full] != null)
+					statusSliver.status = statusSliver.sliverIdToStatus[statusSliver.id.full];
+			}
+			for each(var statusNode:VirtualNode in nodes.collection)
+			{
+				var nodeSliver:Sliver = slivers.getByManager(statusNode.manager);
+				if(nodeSliver != null && nodeSliver.sliverIdToStatus[statusNode.id.full] != null)
+					statusNode.status = nodeSliver.sliverIdToStatus[statusNode.id.full];
+				else
+					statusNode.status = "";
+			}
+			for each(var statusLink:VirtualLink in links.collection)
+			{
+				var linkSlivers:SliverCollection = slivers.getByManagers(statusLink.interfaceRefs.Interfaces.Managers);
+				if(linkSlivers.length > 0 && linkSlivers.collection[0].sliverIdToStatus[statusLink.id.full] != null)
+					statusLink.status = linkSlivers.collection[0].sliverIdToStatus[statusLink.id.full];
+				else
+					statusLink.status = "";
+			}
+		}
+		
+		public function getBySliverId(sliverId:String):*
+		{
+			var obj:* = nodes.getBySliverId(sliverId);
+			if(obj != null) return obj;
+			obj = nodes.getInterfaceBySliverId(sliverId);
+			if(obj != null) return obj;
+			obj = links.getBySliverId(sliverId);
+			if(obj != null) return obj;
+			if(id.full == sliverId) return this;
+			obj = slivers.getBySliverId(sliverId);
+			if(obj != null) return obj;
+			return null;
+		}
+		
+		public function getByClientId(clientId:String):*
+		{
+			var obj:* = nodes.getByClientId(clientId);
+			if(obj != null) return obj;
+			obj = nodes.getInterfaceByClientId(clientId);
+			if(obj != null) return obj;
+			obj = links.getByClientId(clientId);
+			if(obj != null) return obj;
+			return null;
+		}
+		
+		public function isIdUnique(obj:*, testId:String):Boolean
+		{
+			var result:* = nodes.getByClientId(testId);
+			if(result != null && result != obj)
+				return false;
+			result = links.getByClientId(testId);
+			if(result != null && result != obj)
+				return false;
+			return true;
+		}
+		
+		public function getUniqueId(obj:*, base:String, start:int = 0):String
+		{
+			var start:int = start;
+			var highest:int = start;
+			while(!links.isIdUnique(obj, base + highest))
+				highest++;
+			while(!nodes.isIdUnique(obj, base + highest))
+				highest++;
+			if(id.full == base + highest)
+				highest++;
+			if(highest > start)
+				return getUniqueId(obj, base, highest);
+			else
+				return base + highest;
+		}
+		
+		public function get State():String
+		{
+			if(!slivers.AllocatedAnyResources)
+				return "";
+			
+			var state:String = "";
+			var usingManagers:GeniManagerCollection = nodes.Managers;
+			for each(var manager:GeniManager in usingManagers.collection)
+			{
+				var sliver:Sliver = slivers.getByManager(manager);
+				if(sliver == null || !sliver.Created)
+					return Sliver.STATE_MIXED;
+				else
+				{
+					if(state.length == 0) state = sliver.state;
+					if(sliver.state != state)
+						state = Sliver.STATE_MIXED;
 				}
 			}
+			return state;
+		}
+		
+		public function get Status():String
+		{
+			if(!slivers.AllocatedAnyResources || UnsubmittedChanges)
+				return "";
 			
-			Main.geniDispatcher.dispatchSliceChanged(this);
+			var status:String = "";
+			var usingManagers:GeniManagerCollection = nodes.Managers;
+			for each(var manager:GeniManager in usingManagers.collection)
+			{
+				var sliver:Sliver = slivers.getByManager(manager);
+				if(sliver == null || !sliver.Created)
+					return Sliver.STATUS_MIXED;
+				else
+				{
+					if(status.length == 0)
+					{
+						if(sliver.status.length == 0)
+							return Sliver.STATE_MIXED;
+						status = sliver.status;
+					}
+					if(sliver.status != status)
+						status = Sliver.STATUS_MIXED;
+				}
+			}
+			return status;
+		}
+		
+		public function get StatusesFinalized():Boolean
+		{
+			var usingManagers:GeniManagerCollection = nodes.Managers;
+			for each(var manager:GeniManager in usingManagers.collection)
+			{
+				var sliver:Sliver = slivers.getByManager(manager);
+				if(sliver == null || !sliver.Created)
+					return false;
+				else
+				{
+					if(!sliver.StatusFinalized)
+						return false;
+				}
+			}
 			return true;
+		}
+		
+		public function clearStatus():void
+		{
+			for each(var sliver:Sliver in slivers.collection)
+				sliver.clearStatus();
+		}
+		
+		/**
+		 * Removes manifests/sliver_ids from components and clears states.
+		 * 
+		 * Slivers still have manifests to indicate they were created.
+		 * 
+		 */
+		public function markStaged():void
+		{
+			for each(var sliver:Sliver in slivers.collection)
+				sliver.markStaged();
+				
+			for each(var virtualNode:VirtualNode in nodes.collection)
+			{
+				virtualNode.clearState();
+				virtualNode.id = new IdnUrn();
+				virtualNode.manifest = "";
+			}
+			for each(var virtualLink:VirtualLink in links.collection)
+			{
+				virtualLink.clearState();
+				virtualLink.id = new IdnUrn();
+				virtualLink.manifest = "";
+			}
+		}
+		
+		/**
+		 * Removes everything from the slice
+		 * 
+		 */
+		public function removeAll():void
+		{
+			clientInfo = new ClientInfo();
+			history = new SliceHistory();
+			
+			slivers = new SliverCollection();
+			
+			reportedManagers = new GeniManagerCollection();
+			
+			removeComponents();
+		}
+		
+		public function removeComponents():void
+		{
+			nodes = new VirtualNodeCollection();
+			links = new VirtualLinkCollection();
+		}
+		
+		override public function toString():String
+		{
+			var result:String = "[Slice ID="+id.full+"]\n";
+			for each(var sliver:Sliver in slivers.collection)
+				result += "\t"+sliver.toString() + "\n";
+			for each(var node:VirtualNode in nodes.collection)
+				result += "\t"+node.toString() + "\n";
+			for each(var link:VirtualLink in links.collection)
+				result += "\t"+link.toString() + "\n";
+			result += "\t[History States=\""+history.states.length+"\" /]\n";
+			return result+"[/Slice]";
 		}
 	}
 }

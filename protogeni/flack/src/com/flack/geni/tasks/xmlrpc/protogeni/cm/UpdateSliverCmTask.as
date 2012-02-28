@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,154 +12,109 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.tasks.TaskError;
 	
-	import flash.display.Sprite;
-	import flash.events.ErrorEvent;
-	
-	import mx.controls.Alert;
-	import mx.core.FlexGlobals;
-	import mx.events.CloseEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualComponent;
-	import protogeni.resources.VirtualNode;
-	
-	public final class RequestSliverUpdate extends Request
+	/**
+	 * Updates a sliver using a new RSPEC.  Only supported in the FULL API
+	 * 
+	 * @author mstrum
+	 * 
+	 */
+	public final class UpdateSliverCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
-		private var request:String = "";
-		private var ticket:String = "";
+		public var request:Rspec;
+		public var ticket:String;
 		
 		/**
-		 * Creates a redeemable ticket for a sliver with a different configuration using the ProtoGENI API
 		 * 
-		 * FULL only
-		 * 
-		 * @param newSliver
+		 * @param newSliver Sliver to update
+		 * @param useRspec New RSPEC to update sliver to
 		 * 
 		 */
-		public function RequestSliverUpdate(newSliver:Sliver, useRspec:XML = null):void
+		public function UpdateSliverCmTask(newSliver:Sliver,
+										   useRspec:Rspec)
 		{
-			super("Update sliver @ " + newSliver.manager.Hrn,
-				"Updating sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.Name,
-				CommunicationUtil.updateSliver,
-				true);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_UPDATESLIVER,
+				"Update sliver @ " + newSliver.manager.hrn,
+				"Updates sliver on " + newSliver.manager.hrn + " for slice named " + newSliver.slice.Name,
+				"Update Sliver"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			
 			sliver = newSliver;
-			sliver.clearState();
-			sliver.changing = true;
-			sliver.manifest = null;
-			sliver.message = "Waiting to update";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+			request = useRspec;
 			
-			// Build up the args
-			if(useRspec != null)
-				request = useRspec.toXMLString()
-			else
-				request = sliver.getRequestRspec(false).toXMLString();
-			
-			op.setUrl(sliver.manager.Url);
-		}
-		
-		override public function start():Operation {
-			if(sliver.manager.level == GeniManager.LEVEL_MINIMAL)
-			{
-				LogHandler.appendMessage(new LogMessage(sliver.manager.Url, "Full API not supported", "This manager does not support this API call", LogMessage.ERROR_FAIL));
-				return null;
-			}
-			
-			sliver.message = "Updating";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-			
-			op.clearFields();
-			
-			op.addField("sliver_urn", sliver.urn.full);
-			op.addField("rspec", request);
-			op.addField("credentials", [sliver.slice.credential]);
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
-		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
-			{
-				ticket = String(response.value);
-				sliver.ticket = ticket;
-				sliver.message = "Updated ticket received";
-				var redeemTicket:RequestTicketRedeem = new RequestTicketRedeem(sliver);
-				redeemTicket.startImmediately = startImmediately;
-				redeemTicket.addAfter = this.addAfter;
-				this.addAfter = null;
-				redeemTicket.forceNext = true;
-				return redeemTicket;
-			}
-			else
-			{
-				failed(response.output);
-			}
-			
-			return null;
-		}
-		
-		private function failed(msg:String = ""):void {
-			sliver.status = Sliver.STATUS_FAILED;
-			sliver.state = Sliver.STATE_NA;
-			sliver.changing = false;
-			if(msg != null && msg.length > 0)
-				sliver.message = msg;
-			else
-				sliver.message = "Failed to update"
-			for each(var node:VirtualNode in sliver.nodes.collection) {
-				node.status = VirtualComponent.STATUS_FAILED;
-				node.error = "Sliver had error when updating: " + sliver.message;
-			}
-			
-			var managerMsg:String = "";
-			if(msg != null && msg.length > 0)
-				managerMsg = " Manager reported error: " + msg + ".";
-			
-			Main.geniHandler.requestHandler.pause();
-			Alert.show(
-				"Failed to update sliver on " + sliver.manager.Hrn+"!" + managerMsg + ". Stop other calls and remove allocated resources?",
-				"Failed to update sliver",
-				Alert.YES|Alert.NO,
-				FlexGlobals.topLevelApplication as Sprite,
-				function askToContinue(e:CloseEvent):void
-				{
-					if(e.detail == Alert.YES)
-						Main.geniHandler.requestHandler.deleteSlice(sliver.slice);
-					else
-						Main.geniHandler.requestHandler.start(true);
-				},
-				null,
-				Alert.YES
+			addMessage(
+				"Waiting to update...",
+				"A sliver will be updated at " + sliver.manager.hrn,
+				LogMessage.LEVEL_INFO,
+				LogMessage.IMPORTANCE_HIGH
 			);
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return null;
+		override protected function createFields():void
+		{
+			addNamedField("sliver_urn", sliver.id.full);
+			addNamedField("rspec", request.document);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
 		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+		override protected function runStart():void
+		{
+			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
+			{
+				afterError(
+					new TaskError(
+						"Full API not supported",
+						TaskError.CODE_PROBLEM
+					)
+				);
+				return;
+			}
+			sliver.clearStatus();
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLICE,
+				sliver.slice,
+				FlackEvent.ACTION_STATUS
+			);
+			super.runStart();
 		}
 		
-		override public function getSent():String {
-			return "******** REQUEST RSPEC ********\n\n" + request + "\n\n******** XML-RPC ********\n\n" + op.getSent();
-		}
-		
-		override public function getResponse():String {
-			return "******** TICKET ********\n\n" + ticket + "\n\n******** XML-RPC ********\n\n" + op.getResponse();
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
+			{
+				ticket = String(data);
+				sliver.ticket = ticket;
+				
+				addMessage(
+					"Ticket received",
+					ticket,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				parent.add(new RedeemTicketCmTask(sliver));
+				
+				super.afterComplete(addCompletedMessage);
+			}
+			else
+				faultOnSuccess();
 		}
 	}
 }

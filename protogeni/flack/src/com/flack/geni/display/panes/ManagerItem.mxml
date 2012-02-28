@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -20,21 +20,27 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 <s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
-		  verticalAlign="middle" width="100%" gap="2"
-		  creationComplete="init()" xmlns:components="protogeni.display.components.*">
+		  xmlns:components="com.flack.shared.display.components.*"
+		  verticalAlign="middle"
+		  gap="2"
+		  width="100%"
+		  creationComplete="init()"
+		  remove="destroy()">
 	<fx:Script>
 		<![CDATA[
-			import protogeni.GeniEvent;
-			import protogeni.communication.RequestGetVersion;
-			import protogeni.communication.RequestGetVersionAm;
-			import protogeni.display.DisplayUtil;
-			import protogeni.display.ImageUtil;
-			import protogeni.resources.GeniManager;
-			import protogeni.resources.ProtogeniComponentManager;
-			import protogeni.resources.ProtogeniRspecProcessor;
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.DisplayUtil;
+			import com.flack.geni.display.areas.ManagerArea;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.tasks.groups.GetManagerTaskGroup;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.components.DataButton;
+			import com.flack.shared.resources.sites.FlackManager;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.utils.ImageUtil;
 			
-			import spark.components.Button;
-			import spark.components.Group;
+			import mx.core.FlexGlobals;
 			
 			[Bindable]
 			public var manager:GeniManager;
@@ -42,18 +48,28 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function init():void
 			{
-				var managerButton:Button = DisplayUtil.getGeniManagerButton(manager);
+				var managerButton:DataButton = DisplayUtil.getGeniManagerButton(manager, false);
 				managerButton.percentWidth = 100;
-				this.addElement(managerButton);
-				Main.geniDispatcher.addEventListener(GeniEvent.GENIMANAGER_CHANGED, tryUpdate);
+				managerButton.addEventListener(MouseEvent.CLICK, click);
+				addElement(managerButton);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGER, tryUpdate);
 				update();
 			}
 			
-			public function destroy():void {
-				Main.geniDispatcher.removeEventListener(GeniEvent.GENIMANAGER_CHANGED, tryUpdate);
+			public function destroy():void
+			{
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_MANAGER, tryUpdate);
 			}
 			
-			public function tryUpdate(e:GeniEvent):void {
+			private function click(event:MouseEvent):void
+			{
+				var managerArea:ManagerArea = new ManagerArea();
+				managerArea.load(manager);
+				FlexGlobals.topLevelApplication.viewContent(managerArea);
+			}
+			
+			public function tryUpdate(e:FlackEvent):void
+			{
 				if(e.changedObject == manager)
 					update();
 			}
@@ -66,36 +82,41 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				status = manager.Status;
 				
-				if(manager.Status == GeniManager.STATUS_FAILED) {
-					showCheckbox.styleName = "failedStyle";
-					this.toolTip = manager.errorDescription;
-					this.refreshButton.visible = true;
-					this.showCheckbox.visible = false;
-					this.spinner.stopSpin();
-					this.spinner.visible = false;
+				if(manager.Status == FlackManager.STATUS_FAILED)
+				{
+					//showCheckbox.styleName = "failedStyle";
+					toolTip = manager.errorDescription;
+					refreshButton.visible = true;
+					refreshButton.styleName = "failedStyle";
+					showCheckbox.visible = false;
+					spinner.stopSpin();
+					spinner.visible = false;
 				}
-				else if(manager.Status == GeniManager.STATUS_UNKOWN) {
-					showCheckbox.styleName = "unknownStyle";
-					this.toolTip = "Unknown status";
-					this.refreshButton.visible = false;
-					this.showCheckbox.visible = false;
-					this.spinner.stopSpin();
-					this.spinner.visible = false;
+				else if(manager.Status == FlackManager.STATUS_UNKOWN)
+				{
+					//showCheckbox.styleName = "unknownStyle";
+					toolTip = "Unknown status";
+					refreshButton.visible = true;
+					refreshButton.styleName = "";
+					showCheckbox.visible = false;
+					spinner.stopSpin();
+					spinner.visible = false;
 				}
-				else if(manager.Status == GeniManager.STATUS_INPROGRESS) {
-					showCheckbox.styleName = "inprogressStyle";
-					this.toolTip = "In progress...";
-					this.refreshButton.visible = false;
-					this.showCheckbox.visible = false;
-					this.spinner.visible = true;
-					this.spinner.startSpin();
+				else if(manager.Status == FlackManager.STATUS_INPROGRESS)
+				{
+					//showCheckbox.styleName = "inprogressStyle";
+					showCheckbox.visible = false;
+					toolTip = "In progress...";
+					refreshButton.visible = false;
+					spinner.visible = true;
+					spinner.startSpin();
 				}
-				else if(manager.Status == GeniManager.STATUS_VALID)
+				else if(manager.Status == FlackManager.STATUS_VALID)
 				{
 					showCheckbox.styleName = "validStyle";
+					this.showCheckbox.visible = true;
 					this.toolTip = "Valid";
 					this.refreshButton.visible = false;
-					this.showCheckbox.visible = true;
 					this.spinner.stopSpin();
 					this.spinner.visible = false;
 				}
@@ -103,41 +124,45 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function setShow():void
 			{
-				if(manager.Show == showCheckbox.selected)
-					return;
-				manager.Show = showCheckbox.selected;
-				Main.geniHandler.mapHandler.drawMap();
+				GeniMain.mapper.changeManager(manager, showCheckbox.selected);
 			}
 			
 			public function refresh():void
 			{
+				for each(var task:Task in SharedMain.tasker.tasks)
+				{
+					// Don't add a duplicate
+					if(task.State != Task.STATE_FINISHED
+						&& (task is GetManagerTaskGroup)
+						&& ((task as GetManagerTaskGroup).manager == manager))
+						return;
+				}
+				
 				refreshButton.visible = false;
 				showCheckbox.visible = false;
 				spinner.visible = true;
 				spinner.startSpin();
 				
-				if(manager.isAm)
-					Main.geniHandler.requestHandler.pushRequest(new RequestGetVersionAm(manager));
-				else
-					Main.geniHandler.requestHandler.pushRequest(new RequestGetVersion(manager as ProtogeniComponentManager));
+				var getManagerTask:GetManagerTaskGroup = new GetManagerTaskGroup(manager);
+				getManagerTask.forceRunNow = true;
+				SharedMain.tasker.add(getManagerTask);
 			}
-
+			
 		]]>
 	</fx:Script>
-	
 	<s:HGroup id="managerControlsGroup"
 			  width="24"
-			  verticalAlign="middle">
+			  verticalAlign="middle"
+			  horizontalAlign="center">
 		<s:CheckBox id="showCheckbox"
-					selected="{manager.Show}"
+					selected="true"
 					visible="false"
 					toolTip="Show on the map?"
 					includeInLayout="{showCheckbox.visible}"
 					change="setShow()" />
 		<components:ImageButton id="refreshButton"
-								styleName="failedStyle"
 								visible="false"
-								toolTip="Failed to get manager's resources, try again?"
+								toolTip="List resources?"
 								includeInLayout="{refreshButton.visible}"
 								icon="{ImageUtil.refreshIcon}"
 								click="refresh()" />
@@ -149,5 +174,4 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							visible="false"
 							includeInLayout="{spinner.visible}" />
 	</s:HGroup>
-	
 </s:HGroup>

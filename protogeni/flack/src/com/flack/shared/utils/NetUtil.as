@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,13 +12,9 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni
+package com.flack.shared.utils
 {
-	import com.mattism.http.xmlrpc.JSLoader;
-	
-	import flash.events.IEventDispatcher;
 	import flash.external.ExternalInterface;
-	import flash.net.URLLoader;
 	import flash.net.URLRequest;
 	import flash.net.URLVariables;
 	import flash.net.navigateToURL;
@@ -35,20 +31,7 @@ package protogeni
 	 */
 	public final class NetUtil
 	{
-		public static function showBecomingAUser():void
-		{
-			navigateToURL(new URLRequest("http://www.protogeni.net/trac/protogeni/wiki/FlackManual#BecomingaUser"), "_blank");
-		}
-		public static function showManual():void
-		{
-			navigateToURL(new URLRequest("http://www.protogeni.net/trac/protogeni/wiki/FlackManual"), "_blank");
-		}
-		public static function showTutorial():void
-		{
-			navigateToURL(new URLRequest("http://protogeni.net/tutorial"), "_blank");
-			//navigateToURL(new URLRequest("https://www.protogeni.net/trac/protogeni/wiki/FlackTutorial"), "_blank");
-		}
-		
+		public static const flashSocketSecurityPolicyUrl:String = "http://www.protogeni.net/trac/protogeni/wiki/FlackManual#AddingaFlashSocketSecurityPolicyServer";
 		public static function openWebsite(url:String):void
 		{
 			navigateToURL(new URLRequest(url), "_blank");
@@ -64,7 +47,8 @@ package protogeni
 			navigateToURL(mailRequest, "_blank");
 		}
 		
-		public static function runningFromWebsite():Boolean {
+		public static function runningFromWebsite():Boolean
+		{
 			return FlexGlobals.topLevelApplication.url.toLowerCase().indexOf("http") == 0;
 		}
 		
@@ -104,33 +88,28 @@ package protogeni
 			return (browser);
 		}
 		
-		private static var visitedSites:Dictionary = new Dictionary();
-		public static function checkLoadCrossDomain(url:String,
-													protogeniSite:Boolean = true,
-													force:Boolean = false):void
+		// Takes the given bandwidth and creates a human readable string
+		public static function kbsToString(bandwidth:Number):String
 		{
-			if(Main.useJavascript && !force)
-				return;
-			var baseUrl:String = tryGetBaseUrl(url);
-			if (visitedSites[baseUrl] != true)
-			{
-				visitedSites[baseUrl] = true;
-				var crossdomainUrl:String = baseUrl;
-				LogHandler.appendMessage(new LogMessage(baseUrl,
-														"Loading CrossDomain",
-														"Attempting to load a crossdomain.xml file so that calls may be made with the server located there.",
-														LogMessage.ERROR_NONE,
-														LogMessage.TYPE_OTHER));
-				Security.loadPolicyFile(crossdomainUrl + "/protogeni/crossdomain.xml");
-				Security.loadPolicyFile(crossdomainUrl + "/crossdomain.xml");
-			}
+			if(bandwidth < 1000)
+				return bandwidth + " Kb/s";
+			else if(bandwidth < 1000000)
+				return bandwidth / 1000 + " Mb/s";
+			else
+				return bandwidth / 1000000 + " Gb/s";
 		}
 		
-		public static function GetLoader():IEventDispatcher {
-			if(Main.useJavascript)
-				return new JSLoader();
-			else
-				return new URLLoader();
+		private static var visitedSites:Dictionary = new Dictionary();
+		public static function checkLoadCrossDomain(url:String):void
+		{
+			var baseUrl:String = tryGetBaseUrl(url);
+			if (visitedSites[baseUrl] == null)
+			{
+				visitedSites[baseUrl] = true;
+				
+				Security.loadPolicyFile(baseUrl + "/crossdomain.xml");
+				Security.loadPolicyFile(baseUrl + "/protogeni/crossdomain.xml");
+			}
 		}
 	}
 }

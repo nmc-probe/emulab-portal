@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,54 +12,88 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.ch
 {
-	import protogeni.StringUtil;
-	import protogeni.Util;
-	import protogeni.resources.AggregateManager;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.PlanetlabAggregateManager;
-	import protogeni.resources.ProtogeniComponentManager;
-	import protogeni.resources.Slice;
-	import protogeni.resources.SliceAuthority;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.GeniUser;
+	import com.flack.geni.resources.sites.GeniAuthority;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.IdnUrn;
 	
 	/**
-	 * Gets the list of component managers from the clearinghouse using the ProtoGENI API
+	 * Gets the user's ID and slice authority
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestWhoAmI extends Request
+	public final class WhoAmIChTask extends ProtogeniXmlrpcTask
 	{
-		public function RequestWhoAmI():void
+		public var user:GeniUser;
+		
+		/**
+		 * 
+		 * @param taskUser User we are looking up
+		 * 
+		 */
+		public function WhoAmIChTask(taskUser:GeniUser)
 		{
-			super("Look up user",
-				"Finding out who I am",
-				CommunicationUtil.whoAmI);
+			super(
+				GeniMain.geniUniverse.clearinghouse.url,
+				ProtogeniXmlrpcTask.MODULE_CH,
+				ProtogeniXmlrpcTask.METHOD_WHOAMI,
+				"Look me up",
+				"Returns information about who I am using the SSL certificate");
+			relatedTo.push(taskUser);
+			user = taskUser;
 		}
 		
-		// Should return Request or RequestQueueNode
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				Main.geniHandler.CurrentUser.urn = new IdnUrn(response.value.urn);
-				for each(var sa:SliceAuthority in Main.geniHandler.GeniAuthorities.source) {
-					if(sa.Urn.full == response.value.sa_urn) {
-						Main.geniHandler.CurrentUser.authority = sa;
+				user.id = new IdnUrn(data.urn);
+				var authorityId:String = data.sa_urn;
+				for each(var sa:GeniAuthority in GeniMain.geniUniverse.authorities.collection)
+				{
+					if(sa.id.full == authorityId)
+					{
+						user.authority = sa;
 						break;
 					}
 				}
+				
+				if(user.authority == null)
+				{
+					// XXX afterError? Make sure this doesn't break non-ProtoGENI users
+					addMessage(
+						"Authority not found",
+						authorityId,
+						LogMessage.LEVEL_WARNING,
+						LogMessage.IMPORTANCE_HIGH
+					);
+				}
+				else
+				{
+					addMessage(
+						"Authority found",
+						user.toString(),
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+				}
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_USER,
+					user
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-			}
-			
-			Main.geniHandler.requestHandler.startAuthenticatedInitiationSequence();
-			
-			return null;
+				faultOnSuccess();
 		}
 	}
 }

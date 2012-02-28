@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,22 +12,27 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.virtual
 {
+	import com.flack.geni.resources.Extensions;
+	import com.flack.geni.resources.physical.PhysicalInterface;
+	import com.flack.shared.resources.IdentifiableObject;
+	import com.flack.shared.resources.IdnUrn;
+
 	/**
 	 * Interface on a resource used to connect to other resources through links
 	 *  
 	 * @author mstrum
 	 * 
 	 */	
-	public class VirtualInterface
+	public class VirtualInterface extends IdentifiableObject
 	{
-		public static var tunnelFirst:int = 0;
 		public static var tunnelSecond:int = 1;
+		public static var tunnelFirst:int = 0;
 		public static function startNextTunnel():void
 		{
-			tunnelFirst++;
 			tunnelSecond = 1;
+			tunnelFirst++;
 		}
 		public static function getNextTunnel():String
 		{
@@ -37,49 +42,69 @@ package protogeni.resources
 			return "192.168." + String(first) + "." + String(second);
 		}
 		
-		[Bindable]
-		public var owner:VirtualNode;
-		public var physicalNodeInterface:PhysicalNodeInterface;
+		public var clientId:String = "";
 		
+		public var _owner:VirtualNode;
 		[Bindable]
-		public var id:String;
+		public function get Owner():VirtualNode
+		{
+			return _owner;
+		}
+		public function set Owner(newOwner:VirtualNode):void
+		{
+			_owner = newOwner;
+			if(_owner != null && clientId.length == 0)
+				clientId = _owner.slice.getUniqueId(this, _owner.clientId + ":if");
+		}
 		
-		public var componentId:String = "";
-		public var sliverId:IdnUrn;
+		public var physicalId:IdnUrn = new IdnUrn();
+		public function get Physical():PhysicalInterface
+		{
+			if(physicalId.full.length > 0 && _owner.Physical != null)
+				return _owner.Physical.interfaces.getById(physicalId.full);
+			else
+				return null;
+		}
+		public function set Physical(value:PhysicalInterface):void
+		{
+			if(value != null)
+				physicalId = new IdnUrn(value.id.full);
+			else
+				physicalId = new IdnUrn();
+		}
+		public function get Bound():Boolean
+		{
+			return physicalId.full.length > 0;
+		}
+		
 		public var macAddress:String = "";
 		
-		public var ip:String = "";
-		public var netmask:String = "255.255.255.0";
-		public var type:String = "ipv4";
+		// tunnel stuff
+		public var ip:Ip = new Ip();
 		
 		[Bindable]
-		public var virtualLinks:VirtualLinkCollection;
+		public var links:VirtualLinkCollection = new VirtualLinkCollection();
 
-		public var capacity:int = 100000;
+		public var capacity:Number;
 		
-		public function VirtualInterface(own:VirtualNode)
+		public var extensions:Extensions = new Extensions();
+		
+		/**
+		 * 
+		 * @param own Node where the interface will reside
+		 * @param newId IDN-URN
+		 * 
+		 */
+		public function VirtualInterface(own:VirtualNode,
+										 newId:String = "")
 		{
-			this.owner = own;
-			this.virtualLinks = new VirtualLinkCollection();
+			super(newId);
+			Owner = own;
 		}
 		
-		public function nodesOtherThan(node:VirtualNode = null):VirtualNodeCollection {
-			var ignoreNode:VirtualNode = node;
-			if(node == null)
-				ignoreNode = this.owner;
-			var ac:VirtualNodeCollection = new VirtualNodeCollection();
-			for each(var virtualLink:VirtualLink in this.virtualLinks.collection) {
-				for each(var destInterface:VirtualInterface in virtualLink.interfaces.collection) {
-					if(destInterface.owner != ignoreNode
-						&& !ac.contains(destInterface.owner))
-						ac.add(destInterface.owner);
-				}
-			}
-			return ac;
-		}
-		
-		public function IsBound():Boolean {
-			return this.physicalNodeInterface != null;
+		override public function toString():String
+		{
+			return "[Interface SliverID="+id.full+", ClientID="+clientId+"]";
 		}
 	}
 }

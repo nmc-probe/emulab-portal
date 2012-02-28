@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,107 +12,81 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
-	import protogeni.Util;
-	import protogeni.resources.AggregateManager;
-	import protogeni.resources.GeniCredential;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.PlanetlabAggregateManager;
-	import protogeni.resources.ProtogeniComponentManager;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.utils.DateUtil;
 	
-	public final class RequestSliceCredential extends Request
+	/**
+	 * Gets the slice credential for access to the slice.
+	 * 
+	 * @author mstrum
+	 * 
+	 */
+	public final class GetSliceCredentialSaTask extends ProtogeniXmlrpcTask
 	{
-		private var slice:Slice;
-		private var exploreAllManagers:Boolean;
+		public var slice:Slice;
 		
 		/**
-		 * Gets the slice credential from the user's slice authority using the ProtoGENI API
 		 * 
-		 * @param s slice which we need the credential for
+		 * @param taskSlice Slice for which we are getting the credential for
 		 * 
 		 */
-		public function RequestSliceCredential(newSlice:Slice, shouldExploreAllManagers:Boolean = false):void
+		public function GetSliceCredentialSaTask(taskSlice:Slice)
 		{
-			super("Get credential for " + newSlice.Name,
-				"Getting the slice credential for " + newSlice.Name,
-				CommunicationUtil.getCredential,
-				true);
-			slice = newSlice;
-			slice.Changing = true;
-			exploreAllManagers = shouldExploreAllManagers;
-			
-			// Build up the args
-			if(Main.geniHandler.CurrentUser.authority != null)
-				op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			super(
+				taskSlice.authority.url,
+				"",
+				ProtogeniXmlrpcTask.METHOD_GETCREDENTIAL,
+				"Get slice credential for " + taskSlice.Name,
+				"Getting the slice credential for " + taskSlice.Name,
+				"Get slice credential"
+			);
+			relatedTo.push(taskSlice);
+			slice = taskSlice;
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-			
-			// Just discover resources if we don't have a user credential;
-			if(Main.geniHandler.CurrentUser.userCredential.length == 0) {
-				this.cleanup();
-				Main.geniHandler.requestHandler.discoverSliceAllocatedResources(slice);
-				return null;
-			}
-			
-			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
-			op.addField("urn", slice.urn.full);
-			op.addField("type", "Slice");
-			
-			return op;
+		override protected function createFields():void
+		{
+			addNamedField("credential", slice.authority.userCredential.Raw);
+			addNamedField("urn", slice.id.full);
+			addNamedField("type", "Slice");
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var newCalls:RequestQueue = new RequestQueue();
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				slice.credential = String(response.value);
+				slice.credential = new GeniCredential(data, GeniCredential.TYPE_SLICE, slice.authority);
+				slice.expires = slice.credential.Expires;
 				
-				var cred:XML = (new GeniCredential(slice.credential)).toXml();
-				slice.expires = GeniCredential.getExpires(cred);
+				addMessage(
+					"Expires in " + DateUtil.getTimeUntil(slice.expires),
+					"Expires in " + DateUtil.getTimeUntil(slice.expires),
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				addMessage(
+					"Received",
+					"Credential retreived for slice.",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
 				
-				var manager:GeniManager;
-				var newSliver:Sliver;
-				if(!exploreAllManagers) {
-					for each(var s:Sliver in slice.slivers.collection) {
-						if(s.manager.isAm)
-							newCalls.push(new RequestSliverListResourcesAm(s));
-						else
-							newCalls.push(new RequestSliverGet(s));
-					}
-					
-					for each(manager in Main.geniHandler.GeniManagers) {
-						if(manager.isAm) {
-							newSliver = new Sliver(slice, manager);
-							Main.geniHandler.requestHandler.pushRequest(new RequestSliverListResourcesAm(newSliver));
-						}
-					}
-				} else {
-					for each(manager in Main.geniHandler.GeniManagers) {
-						if(manager.Status != GeniManager.STATUS_VALID)
-							continue;
-						newSliver = new Sliver(slice, manager);
-						if(manager.isAm)
-							Main.geniHandler.requestHandler.pushRequest(new RequestSliverListResourcesAm(newSliver));
-						else
-							newCalls.push(new RequestSliverGet(newSliver));
-					}
-				}
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice
+				);
 				
+				super.afterComplete(addCompletedMessage);
 			}
-			
-			return newCalls.head;
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			slice.Changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(slice);
+			else
+				faultOnSuccess();
 		}
 	}
 }

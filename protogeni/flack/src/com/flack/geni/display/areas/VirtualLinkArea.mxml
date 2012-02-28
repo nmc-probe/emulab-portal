@@ -1,25 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-						  xmlns:s="library://ns.adobe.com/flex/spark" 
-						  xmlns:mx="library://ns.adobe.com/flex/mx"
-						  title="Virtual Link"
-						  xmlns:components="protogeni.display.components.*">
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:areas="com.flack.geni.display.areas.*"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  creationComplete="init()"
+		  title="{link.clientId}" xmlns:areas1="com.flack.shared.display.areas.*">
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.resources.Property;
+			import com.flack.geni.resources.PropertyCollection;
+			import com.flack.geni.resources.virtual.LinkType;
+			import com.flack.geni.resources.virtual.VirtualComponent;
+			import com.flack.geni.resources.virtual.VirtualInterface;
+			import com.flack.geni.resources.virtual.VirtualLink;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.areas.DocumentArea;
+			import com.flack.shared.utils.ImageUtil;
+			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
-			import mx.events.CloseEvent;
-			
-			import protogeni.display.components.DocumentWindow;
-			import protogeni.resources.ProtogeniRspecProcessor;
-			import protogeni.resources.VirtualComponent;
-			import protogeni.resources.VirtualInterface;
-			import protogeni.resources.VirtualLink;
 			
 			import spark.events.TextOperationEvent;
 			
 			[Bindable]
-			private var link:VirtualLink;
+			public var link:VirtualLink;
 			
 			[Bindable]
 			private var interfaces:ArrayCollection = new ArrayCollection();
@@ -28,165 +52,253 @@
 			[Bindable]
 			public var types:ArrayList = new ArrayList();
 			
-			public function loadLink(l:VirtualLink):void
+			public function init():void
+			{
+				if(link != null)
+					load(link);
+			}
+			
+			override public function get PendingChanges():Boolean
+			{
+				return okButton.enabled;
+			}
+			
+			public function load(l:VirtualLink):void
+			{
+				if(l == null)
+					return;
+				confirmCanCloseAnd(finishLoading, l);
+			}
+			public function finishLoading(l:VirtualLink):void
 			{
 				link = l;
+				
 				interfaces.removeAll();
-				if(link != null)
+				if(initialized)
 				{
-					clientIdInput.text = link.clientId;
-					errorButton.visible = link.error.length > 0;
-					manifestButton.visible = link.manifest != null;
-					if(link.status.length > 0)
+					if(link != null)
 					{
-						statusImage.visible = true;
-						switch(link.status)
+						clientIdInput.text = link.clientId;
+						errorButton.visible = link.error.length > 0;
+						manifestButton.visible = link.manifest.length > 0;
+						if(link.status.length > 0)
 						{
-							case VirtualComponent.STATUS_READY:
-								this.statusImage.source = ImageUtil.flagGreenIcon;
-								break;
-							case VirtualComponent.STATUS_FAILED:
-								this.statusImage.source = ImageUtil.flagRedIcon;
-								break;
-							case VirtualComponent.STATUS_NOTREADY:
-							case VirtualComponent.STATUS_CHANGING:
-							case VirtualComponent.STATUS_STOPPED:
-								this.statusImage.source = ImageUtil.flagYellowIcon;
-								break;
-							case VirtualComponent.STATUS_UNKNOWN:
-							default:
-								statusImage.visible = false;
-						}
-					}
-					
-					vlantagInput.text = link.vlantag;
-					
-					types = new ArrayList();
-					types.addItem({type:link.linkType, name:VirtualLink.TypeToString(link.linkType)});
-					if(link.linkType == VirtualLink.TYPE_TUNNEL) {
-						if(link.supportsGpeni())
-							types.addItem({type:VirtualLink.TYPE_GPENI, name:VirtualLink.TypeToString(VirtualLink.TYPE_GPENI)});
-						if(link.supportsIon())
-							types.addItem({type:VirtualLink.TYPE_ION, name:VirtualLink.TypeToString(VirtualLink.TYPE_ION)});
-						if(link.oneManager())
-							types.addItem({type:VirtualLink.TYPE_NORMAL, name:VirtualLink.TypeToString(VirtualLink.TYPE_NORMAL)});
-					} else {
-						types.addItem({type:VirtualLink.TYPE_TUNNEL, name:VirtualLink.TypeToString(VirtualLink.TYPE_TUNNEL)});
-					}
-					typeList.selectedIndex = 0;
-					
-					// Interfaces
-					for each(var iface:VirtualInterface in link.interfaces.collection)
-					{
-						interfaces.addItem(
+							statusImage.visible = true;
+							switch(link.status)
 							{
-								source: iface,
-								owner: iface.owner,
-								clientId: iface.id,
-								macAddress: iface.macAddress,
-								ipaddress: iface.ip,
-								ipnetmask: iface.netmask,
-								iptype: iface.type
+								case VirtualComponent.STATUS_READY:
+									this.statusImage.source = ImageUtil.flagGreenIcon;
+									break;
+								case VirtualComponent.STATUS_FAILED:
+									this.statusImage.source = ImageUtil.flagRedIcon;
+									break;
+								case VirtualComponent.STATUS_NOTREADY:
+								case VirtualComponent.STATUS_CHANGING:
+								case VirtualComponent.STATUS_STOPPED:
+									this.statusImage.source = ImageUtil.flagYellowIcon;
+									break;
+								case VirtualComponent.STATUS_UNKNOWN:
+								default:
+									statusImage.visible = false;
 							}
-						);
+						}
+						
+						vlantagInput.text = link.vlantag;
+						
+						types.removeAll();
+						if(link.type.name.length > 0)
+							types.addItem(link.type.name);
+						if(link.type.name == LinkType.GRETUNNEL_V2) {
+							if(link.SupportsGpeni)
+								types.addItem(LinkType.GPENI);
+							if(link.SupportsIon)
+								types.addItem(LinkType.ION);
+						} else if(link.type.name != LinkType.LAN_V2) {
+							types.addItem(LinkType.GRETUNNEL_V2);
+						}
+						typeList.selectedIndex = 0;
+						
+						// Properties
+						properties = new ArrayCollection();
+						for each(var sourceInterface:VirtualInterface in link.interfaceRefs.Interfaces.collection)
+						{
+							for each(var destInterface:VirtualInterface in link.interfaceRefs.Interfaces.collection)
+							{
+								if(sourceInterface == destInterface)
+									continue;
+								var property:Property = link.properties.getFor(sourceInterface, destInterface);
+								if(property == null)
+									property = new Property(sourceInterface, destInterface);
+								properties.addItem(
+									{
+										source: property,
+										capacity: property.capacity,
+										latency: property.latency,
+										packetLoss: property.packetLoss
+									}
+								);
+							}
+						}
+						
+						// Interfaces
+						for each(var iface:VirtualInterface in link.interfaceRefs.Interfaces.collection)
+						{
+							interfaces.addItem(
+								{
+									source: iface,
+									owner: iface._owner,
+									clientId: iface.clientId,
+									macAddress: iface.macAddress,
+									physicalName: iface.physicalId.name,
+									ipaddress: iface.ip.address,
+									ipnetmask: iface.ip.netmask,
+									iptype: iface.ip.type
+								}
+							);
+						}
+						
+						okButton.enabled = false;
 					}
 				}
 			}
 			
 			public function initProperties():void
 			{
-				capacityInput.text = link.capacity.toString();
-			}
-			
-			public function previewRspec():void
-			{
-				Alert.show("This preview will not show any changes made if changes have been made without applying.  Would you like to apply any changes before previewing?",
-					"Apply?",
-					Alert.YES|Alert.NO|Alert.CANCEL,
-					this,
-					function closeEvent(event:CloseEvent):void {
-						switch(event.detail) {
-							case Alert.CANCEL:
-								return;
-							case Alert.YES:
-								save();
-							default:
-								var previewRspec:DocumentWindow = new DocumentWindow();
-								previewRspec.title = "Preview Request RSPEC for: " + link.clientId;
-								previewRspec.loadXml((link.interfaces.Slivers.collection[0].manager.rspecProcessor as ProtogeniRspecProcessor).generateLinkRspec(link));
-								previewRspec.showWindow();
-						}
-					});
+				capacityInput.text = link.Capacity.toString();
+				latencyInput.text = link.Latency.toString();
+				packetlossInput.text = link.PacketLoss.toString();
 			}
 			
 			public function viewManifest():void
 			{
-				if(link.manifest != null)
-				{
-					var rspecWindow:DocumentWindow = new DocumentWindow;
-					rspecWindow.showWindow();
-					rspecWindow.title = "Last Successful RSPEC from " + link.clientId;
-					rspecWindow.loadXml(link.manifest);
-				} else {
-					Alert.show("No previous RSPEC is available");
-				}
+				var manifestArea:DocumentArea = new DocumentArea();
+				manifestArea.Document = link.manifest;
+				manifestArea.title = "Manifest RSPEC for " + link.clientId;
+				openNext(manifestArea);
 			}
 			
-			public function trySaveAndClose():void
+			override public function cancelPendingChanges():void
+			{
+				finishLoading(link);
+			}
+			
+			public function cancelAndClose():void
+			{
+				cancelPendingChanges();
+				close();
+			}
+			
+			public function saveAndClose():void
 			{
 				if(save())
 					return;
-				closeWindow();
+				close();
 			}
 			
+			// true = failed
 			public function save():Boolean
 			{
 				// Make sure the client_id is not taken
-				// Make sure the client_id is not taken
-				if(!this.link.interfaces.Slivers.collection[0].slice.slivers.isIdUnique(this.link, this.clientIdInput.text)) {
-					Alert.show(clientIdInput.text + " is already in use, please choose a different client id");
+				if(!link.slice.isIdUnique(link, clientIdInput.text)) {
+					Alert.show("Client ID '" + clientIdInput.text + "' is already in use, please choose a different client id");
 					return true;
 				}
 				
-				link.clientId = clientIdInput.text;
-				link.vlantag = vlantagInput.text;
+				if(packetlossInput != null && Number(packetlossInput.text) > 1)
+				{
+					Alert.show("Packet loss should be a between 0 and 1 inclusive");
+					return true;
+				}
 				
-				if(this.capacityInput.text.length > 0)
-					link.capacity = Number(this.capacityInput.text);
-				else
-					link.capacity = NaN;
+				link.slice.pushState();
+				link.slice.history.stateName = "Edited " + link.clientId;
+				
+				link.clientId = clientIdInput.text;
+				//link.vlantag = vlantagInput.text;
+				
+				if(link.type.name != typeList.selectedItem)
+				{
+					if(typeList.selectedItem.type == LinkType.GRETUNNEL_V2)
+						link.setUpTunnels();
+					else
+						link.type.name = typeList.selectedItem.type;
+				}
+				
+				link.properties = new PropertyCollection();
+				for each(var propertyObj:Object in properties)
+				{
+					var property:Property = propertyObj.source;
+					property.capacity = propertyObj.capacity;
+					property.latency = propertyObj.latency;
+					property.packetLoss = propertyObj.packetLoss;
+					link.properties.add(property);
+				}
 				
 				for each(var ifaceObj:Object in interfaces)
 				{
 					var iface:VirtualInterface = ifaceObj.source;
-					iface.id = ifaceObj.clientId;
-					iface.ip = ifaceObj.ipaddress;
-					iface.netmask = ifaceObj.ipnetmask;
-					iface.type = ifaceObj.iptype;
+					iface.clientId = ifaceObj.clientId;
+					iface.ip.address = ifaceObj.ipaddress;
+					iface.ip.netmask = ifaceObj.ipnetmask;
+					iface.ip.type = ifaceObj.iptype;
 				}
 				
-				if(link.linkType != this.typeList.selectedItem.type)
-				{
-					if(typeList.selectedItem.type == VirtualLink.TYPE_TUNNEL)
-						link.setUpTunnels();
-					else
-						link.linkType = this.typeList.selectedItem.type;
-				}
+				link.unsubmittedChanges = true;
 				
-				Main.geniDispatcher.dispatchSliceChanged(link.interfaces.Slivers.collection[0].slice);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					link.slice
+				);
+				
+				okButton.enabled = false;
 				
 				return false;
 			}
 			
+			protected function capacityInput_changeHandler(event:TextOperationEvent):void
+			{
+				var newCapacity:Number = Number(capacityInput.text);
+				for each(var propertyObj:Object in properties)
+					propertyObj.capacity = newCapacity;
+				propertiesGrid.validateNow();
+				okButton.enabled = true;
+			}
+			
+			protected function latencyInput_changeHandler(event:TextOperationEvent):void
+			{
+				var newLatency:Number = Number(latencyInput.text);
+				for each(var propertyObj:Object in properties)
+				propertyObj.latency = newLatency;
+				propertiesGrid.validateNow();
+				okButton.enabled = true;
+			}
+			
+			protected function packetlossInput_changeHandler(event:TextOperationEvent):void
+			{
+				var newPacketLoss:Number = Number(packetlossInput.text);
+				for each(var propertyObj:Object in properties)
+				propertyObj.packetLoss = newPacketLoss;
+				propertiesGrid.validateNow();
+				okButton.enabled = true;
+			}
+			
 		]]>
 	</fx:Script>
-	<s:HGroup width="100%" verticalAlign="middle" paddingLeft="4" paddingRight="4">
+	
+	<s:HGroup width="100%"
+			  verticalAlign="middle"
+			  paddingLeft="2"
+			  paddingRight="2"
+			  paddingTop="2"
+			  paddingBottom="2"
+			  gap="2">
 		<s:TextInput id="clientIdInput"
 					 width="100%"
 					 fontWeight="bold"
 					 fontSize="16"
-					 restrict="a-zA-Z0-9\\-"
-					 toolTip="{link.clientId}" />
+					 restrict="a-zA-Z0-9\-"
+					 toolTip="{link.clientId}"
+					 change="okButton.enabled = true" />
 		<s:Image id="statusImage"
 				 visible="false" includeInLayout="{statusImage.visible}"
 				 toolTip="Status: {link.status}, State: {link.state}" />
@@ -195,116 +307,263 @@
 								includeInLayout="{errorButton.visible}"
 								click="Alert.show(link.error,'Error Message')" />
 		<s:Button id="manifestButton"
-				  icon="{ImageUtil.pageWhiteCodeIcon}"
-				  visible="false" height="24"
+				  icon="{ImageUtil.manifestIcon}"
+				  visible="false"
 				  includeInLayout="{manifestButton.visible}"
 				  label="View Manifest"
 				  toolTip="View Manifest RSPEC"
 				  click="viewManifest()" />
-		<s:Button id="previewButton"
-				  icon="{ImageUtil.pageCodeIcon}"
-				  label="View Preview" height="24"
-				  toolTip="View Preview RSPEC"
-				  click="previewRspec()" />
+		<components:ImageButton id="dockIcon"
+								icon="{ImageUtil.windowIcon}"
+								toolTip="Pop out to a window or in to the main window"
+								click="host.Docked ? popOut() : dock()" />
 	</s:HGroup>
 	
-	<s:HGroup verticalAlign="middle" width="100%">
-		<s:Label text="Type" fontWeight="bold"/>
-		<s:DropDownList id="typeList" dataProvider="{types}" labelField="name" width="100%" height="24" />
+	<s:HGroup verticalAlign="middle"
+			  paddingLeft="2"
+			  paddingRight="2"
+			  width="100%"
+			  gap="2">
+		<s:Label text="Type"
+				 fontWeight="bold"/>
+		<s:DropDownList id="typeList"
+						dataProvider="{types}"
+						width="100%"
+						change="okButton.enabled = true" />
 		<s:Rect percentWidth="100" />
-		<s:Label text="VLAN Tag" fontWeight="bold"/>
-		<s:TextInput id="vlantagInput" prompt="Enter VLAN Tag..." restrict="0-9" width="100%" height="24" />
+		<s:Label text="VLAN Tag"
+				 fontWeight="bold"/>
+		<s:TextInput id="vlantagInput"
+					 editable="false"
+					 restrict="0-9"
+					 width="100%" />
 	</s:HGroup>
 	
-	<s:VGroup width="100%">
-		<s:Label text="Capacity" fontWeight="bold"/>
-		<s:HGroup verticalAlign="middle" width="100%">
-			<s:TextInput id="capacityInput" height="24"
-						 restrict="0-9" width="100%" />
-			<s:Label text="kb/s" />
+	<s:ButtonBar dataProvider="{sectionViewstack}"
+				 requireSelection="true"
+				 skinClass="com.flack.shared.display.skins.ButtonBarSkin"
+				 width="100%" />
+	<mx:ViewStack id="sectionViewstack"
+				  width="100%"
+				  height="100%"
+				  paddingTop="2"
+				  paddingLeft="2"
+				  paddingRight="2"
+				  paddingBottom="2">
+		<s:NavigatorContent label="Interfaces"
+							height="100%"
+							width="100%">
+			<s:DataGrid id="interfaceGrid"
+						width="100%"
+						height="100%" 
+						dataProvider="{interfaces}"
+						rowHeight="24"
+						editable="true"
+						gridItemEditorSessionSave="okButton.enabled = true">
+				<s:columns>
+					<s:ArrayList>
+						<s:GridColumn headerText="Node"
+									  dataField="owner"
+									  editable="false"
+									  itemRenderer="com.flack.geni.display.GeniDataGridRenderer">
+						</s:GridColumn>
+						<s:GridColumn dataField="clientId"
+									  headerText="Interface">
+							<s:itemEditor>
+								<fx:Component>
+									<s:DefaultGridItemEditor />
+								</fx:Component>
+							</s:itemEditor>
+							<s:itemRenderer>
+								<fx:Component>
+									<s:DefaultGridItemRenderer />
+								</fx:Component>
+							</s:itemRenderer>
+						</s:GridColumn>
+						<s:GridColumn dataField="physicalName"
+									  headerText="Physical"
+									  editable="false">
+							<s:itemRenderer>
+								<fx:Component>
+									<s:DefaultGridItemRenderer />
+								</fx:Component>
+							</s:itemRenderer>
+						</s:GridColumn>
+						<s:GridColumn dataField="macAddress"
+									  headerText="MAC"
+									  editable="false">
+							<s:itemRenderer>
+								<fx:Component>
+									<s:DefaultGridItemRenderer />
+								</fx:Component>
+							</s:itemRenderer>
+						</s:GridColumn>
+						<s:GridColumn dataField="ipaddress"
+									  headerText="IP">
+							<s:itemEditor>
+								<fx:Component>
+									<s:DefaultGridItemEditor />
+								</fx:Component>
+							</s:itemEditor>
+							<s:itemRenderer>
+								<fx:Component>
+									<s:DefaultGridItemRenderer />
+								</fx:Component>
+							</s:itemRenderer>
+						</s:GridColumn>
+						<s:GridColumn dataField="ipnetmask" 
+									  headerText="Mask">
+							<s:itemEditor>
+								<fx:Component>
+									<s:DefaultGridItemEditor />
+								</fx:Component>
+							</s:itemEditor>
+							<s:itemRenderer>
+								<fx:Component>
+									<s:DefaultGridItemRenderer />
+								</fx:Component>
+							</s:itemRenderer>
+						</s:GridColumn>
+						<s:GridColumn dataField="iptype" 
+									  headerText="Type">
+							<s:itemEditor>
+								<fx:Component>
+									<s:DefaultGridItemEditor />
+								</fx:Component>
+							</s:itemEditor>
+							<s:itemRenderer>
+								<fx:Component>
+									<s:DefaultGridItemRenderer />
+								</fx:Component>
+							</s:itemRenderer>
+						</s:GridColumn>
+					</s:ArrayList> 
+				</s:columns>
+			</s:DataGrid>
+		</s:NavigatorContent>
+		<s:NavigatorContent label="Properties"
+							height="100%"
+							width="100%">
+			<s:VGroup width="100%"
+					  height="100%"
+					  gap="2"
+					  creationComplete="initProperties()">
+				<s:HGroup width="100%" gap="8">
+					<s:VGroup width="33%"
+							  gap="2">
+						<s:Label text="Capacity"
+								 fontWeight="bold"/>
+						<s:HGroup verticalAlign="middle"
+								  width="100%"
+								  gap="2">
+							<s:TextInput id="capacityInput"
+										 restrict="0-9"
+										 width="100%"
+										 change="capacityInput_changeHandler(event)" />
+							<s:Label text="kb/s" />
+						</s:HGroup>
+					</s:VGroup>
+					<s:VGroup width="33%"
+							  gap="2">
+						<s:Label text="Latency" fontWeight="bold"/>
+						<s:HGroup verticalAlign="middle"
+								  width="100%"
+								  gap="2">
+							<s:TextInput id="latencyInput"
+										 restrict="0-9"
+										 width="100%"
+										 change="latencyInput_changeHandler(event)" />
+							<s:Label text="ms" />
+						</s:HGroup>
+					</s:VGroup>
+					<s:VGroup width="33%"
+							  gap="2">
+						<s:Label text="Packet Loss"
+								 fontWeight="bold"/>
+						<s:HGroup verticalAlign="middle"
+								  width="100%"
+								  gap="2">
+							<s:TextInput id="packetlossInput"
+										 restrict="0-9."
+										 width="100%"
+										 change="packetlossInput_changeHandler(event)" />
+							<s:Label text="/1" />
+						</s:HGroup>
+					</s:VGroup>
+				</s:HGroup>
+				
+				<s:DataGrid id="propertiesGrid"
+							width="100%"
+							height="100%" 
+							dataProvider="{properties}"
+							rowHeight="24"
+							gridItemEditorSessionSave="okButton.enabled = true"
+							editable="true">
+					<s:columns>
+						<s:ArrayList>
+							<s:GridColumn headerText="Property"
+										  editable="false">
+								<s:itemRenderer>
+									<fx:Component>
+										<s:GridItemRenderer>
+											<fx:Script>
+												<![CDATA[
+													import com.flack.geni.resources.Property;
+													import com.flack.geni.resources.virtual.VirtualInterface;
+												]]>
+											</fx:Script>
+											<s:HGroup height="100%" verticalAlign="middle" paddingLeft="2">
+												<s:Label text="{data.source.source.clientId}" fontWeight="bold" />
+												<s:Label text="->" />
+												<s:Label text="{data.source.destination.clientId}" fontWeight="bold" />
+											</s:HGroup>
+										</s:GridItemRenderer>
+									</fx:Component>
+								</s:itemRenderer>
+							</s:GridColumn>
+							<s:GridColumn dataField="capacity"
+										  headerText="Capacity (kb/s)"
+										  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
+										  itemEditor="com.flack.shared.display.components.NumericEditor">
+							</s:GridColumn>
+							<s:GridColumn dataField="latency"
+										  headerText="Latency (ms)"
+										  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
+										  itemEditor="com.flack.shared.display.components.NumericEditor">
+							</s:GridColumn>
+							<s:GridColumn dataField="packetLoss"
+										  headerText="Packet Loss (/1)"
+										  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
+										  itemEditor="com.flack.shared.display.components.NumericEditor">
+							</s:GridColumn>
+						</s:ArrayList> 
+					</s:columns>
+				</s:DataGrid> 
+			</s:VGroup>
+		</s:NavigatorContent>
+	</mx:ViewStack>
+	
+	<s:Group width="100%">
+		<s:Rect width="100%" height="100%">
+			<s:fill><s:SolidColor color="0xCCCCCC" /></s:fill>
+		</s:Rect>
+		
+		<s:HGroup width="100%"
+				  verticalAlign="middle"
+				  paddingLeft="2"
+				  paddingRight="2"
+				  paddingTop="2"
+				  paddingBottom="2"
+				  gap="2">
+			<s:Button id="okButton"
+					  label="Apply"
+					  icon="{ImageUtil.availableIcon}"
+					  enabled="false"
+					  click="saveAndClose();" />
+			<s:Button id="cancelButton"
+					  label="Cancel"
+					  icon="{ImageUtil.cancelIcon}"
+					  click="cancelAndClose();" />
 		</s:HGroup>
-	</s:VGroup>
-	
-	<s:DataGrid id="interfaceGrid" width="100%" height="100%" 
-				dataProvider="{interfaces}"
-				rowHeight="24"
-				editable="true">
-		<s:columns>
-			<s:ArrayList>
-				<s:GridColumn headerText="Node"
-							  dataField="owner"
-							  editable="false"
-							  itemRenderer="protogeni.display.components.GeniDataGridRenderer">
-				</s:GridColumn>
-				<s:GridColumn dataField="clientId"
-							  headerText="Interface">
-					<s:itemEditor>
-						<fx:Component>
-							<s:DefaultGridItemEditor />
-						</fx:Component>
-					</s:itemEditor>
-					<s:itemRenderer>
-						<fx:Component>
-							<s:DefaultGridItemRenderer />
-						</fx:Component>
-					</s:itemRenderer>
-				</s:GridColumn>
-				<s:GridColumn dataField="physicalName"
-							  headerText="Physical"
-							  editable="false">
-					<s:itemRenderer>
-						<fx:Component>
-							<s:DefaultGridItemRenderer />
-						</fx:Component>
-					</s:itemRenderer>
-				</s:GridColumn>
-				<s:GridColumn dataField="macAddress"
-							  headerText="MAC"
-							  editable="false">
-					<s:itemRenderer>
-						<fx:Component>
-							<s:DefaultGridItemRenderer />
-						</fx:Component>
-					</s:itemRenderer>
-				</s:GridColumn>
-				<s:GridColumn dataField="ipaddress"
-							  headerText="IP">
-					<s:itemEditor>
-						<fx:Component>
-							<s:DefaultGridItemEditor />
-						</fx:Component>
-					</s:itemEditor>
-					<s:itemRenderer>
-						<fx:Component>
-							<s:DefaultGridItemRenderer />
-						</fx:Component>
-					</s:itemRenderer>
-				</s:GridColumn>
-				<s:GridColumn dataField="ipnetmask" 
-							  headerText="Mask">
-					<s:itemEditor>
-						<fx:Component>
-							<s:DefaultGridItemEditor />
-						</fx:Component>
-					</s:itemEditor>
-					<s:itemRenderer>
-						<fx:Component>
-							<s:DefaultGridItemRenderer />
-						</fx:Component>
-					</s:itemRenderer>
-				</s:GridColumn>
-			</s:ArrayList> 
-		</s:columns>
-	</s:DataGrid>
-	
-	<components:controlBarContent>
-		<s:Button id="okButton" height="24"
-				  label="Apply"
-				  icon="{ImageUtil.availableIcon}"
-				  click="trySaveAndClose();" />
-		<s:Button id="cancelButton" height="24"
-				  label="Cancel"
-				  icon="{ImageUtil.cancelIcon}"
-				  click="closeWindow();" />
-	</components:controlBarContent>
-</components:DefaultWindow>
+	</s:Group>
+</areas1:AreaContent>

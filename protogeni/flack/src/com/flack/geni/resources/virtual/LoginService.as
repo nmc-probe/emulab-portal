@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,8 +12,10 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.virtual
 {
+	import com.flack.geni.resources.Extensions;
+
 	/**
 	 * Login available to the user
 	 * 
@@ -24,18 +26,35 @@ package protogeni.resources
 	{
 		public var authentication:String;
 		public var hostname:String;
+		public function get FullHostname():String
+		{
+			return hostname + (port.length>0 ? ":"+port : "");
+		}
 		public var port:String;
 		public var username:String;
+		public function get FullLogin():String
+		{
+			return (username.length > 0 ? username + "@" : "") + FullHostname;
+		}
+		public var extensions:Extensions = new Extensions();
 		
+		/**
+		 * 
+		 * @param newAuth Type of authentication
+		 * @param newHost Hostname
+		 * @param newPort Port
+		 * @param newUser Username
+		 * 
+		 */
 		public function LoginService(newAuth:String = "",
 									 newHost:String = "",
 									 newPort:String = "",
 									 newUser:String = "")
 		{
-			this.authentication = newAuth;
-			this.hostname = newHost;
-			this.port = newPort;
-			this.username = newUser;
+			authentication = newAuth;
+			hostname = newHost;
+			port = newPort;
+			username = newUser;
 		}
 	}
 }

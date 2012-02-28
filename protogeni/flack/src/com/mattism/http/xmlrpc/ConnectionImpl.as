@@ -9,6 +9,11 @@
 
 package com.mattism.http.xmlrpc
 {
+  import com.flack.shared.SharedMain;
+  import com.flack.shared.logging.LogMessage;
+  import com.flack.shared.logging.Logger;
+  import com.flack.geni.GeniMain;
+  
   import flash.events.ErrorEvent;
   import flash.events.Event;
   import flash.events.EventDispatcher;
@@ -19,8 +24,6 @@ package com.mattism.http.xmlrpc
   import flash.net.URLRequest;
   import flash.net.URLRequestMethod;
   import flash.utils.Timer;
-  
-  import protogeni.communication.CommunicationUtil;
 
   public class ConnectionImpl extends EventDispatcher implements Connection
   {
@@ -32,91 +35,76 @@ package com.mattism.http.xmlrpc
 
     private var _url : String;
     public var _method : MethodCall;
+	public var _request : URLRequest;
     private var _rpc_response : Object;
     private var _parser : Parser;
-    public var _response:Object;
+    public var _response:JSLoader;
 	private var _parsed_response : Object;
 
     private var _fault : MethodFault;
-	
-	public var timeout:int = 60;
 
     public function ConnectionImpl(url : String)
     {
       //prepare method response handler
-      //this.ignoreWhite = true;
+      //ignoreWhite = true;
 
       //init method
-      this._method = new MethodCallImpl();
+      _method = new MethodCallImpl();
 
       //init parser
-      this._parser = new ParserImpl();
+      _parser = new ParserImpl();
 
       //init response
-	  if(Main.useJavascript)
-        this._response = new JSLoader();
-      else {
-		  this._response = new URLLoader();
-		  //this._response.addEventListener(Event.OPEN, open);
-		  //this._response.addEventListener(ProgressEvent.PROGRESS, progress);
-		  //this._response.addEventListener(HTTPStatusEvent.HTTP_STATUS, httpStatus);
-	  }
+	  _response = new JSLoader();
 			
-      this._response.addEventListener(Event.COMPLETE, this._onLoad);
-      this._response.addEventListener(IOErrorEvent.IO_ERROR, ioError);
-      this._response.addEventListener(SecurityErrorEvent.SECURITY_ERROR,
-                                      securityError);
+      _response.addEventListener(Event.COMPLETE, _onLoad);
+      _response.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityError);
+	  _response.addEventListener(IOErrorEvent.IO_ERROR, ioError);
+	  _response.addEventListener(IOErrorEvent.NETWORK_ERROR, ioError);
       if (url)
       {
-        this.setUrl( url );
+        setUrl( url );
       }
     }
+	
+	public function cancel():void {
+		_response.close();
+	}
 
     public function cleanup() : void
     {
-      this._response.removeEventListener(Event.COMPLETE, this._onLoad);
-//      this._response.removeEventListener(HTTPStatusEvent.HTTP_STATUS,
-//                                         httpStatus);
-      this._response.removeEventListener(IOErrorEvent.IO_ERROR, ioError);
-//      this._response.removeEventListener(Event.OPEN, open);
-//    this._response.removeEventListener(ProgressEvent.PROGRESS, progress);
-      this._response.removeEventListener(SecurityErrorEvent.SECURITY_ERROR,
-                                         securityError);
-	  this._response.removeEventListener(IOErrorEvent.NETWORK_ERROR, networkError);
-	  
-                if(observeTimer != null)
-                {
-                        observeTimer.stop();
-                        observeTimer = null;
-                }
+      _response.removeEventListener(Event.COMPLETE, _onLoad);
+      _response.removeEventListener(IOErrorEvent.IO_ERROR, ioError);
+	  _response.removeEventListener(IOErrorEvent.NETWORK_ERROR, ioError);
+      _response.removeEventListener(SecurityErrorEvent.SECURITY_ERROR, securityError);
     }
 
-    public function call(method : String) : void
+    public function call(method : String):void
     {
-      this._call( method );
+      _call( method );
     }
 
     private function _call( method:String ):void
     {
-      if ( !this.getUrl() )
+      if ( !getUrl() )
       {
         trace(ERROR_NO_URL);
         throw Error(ERROR_NO_URL);
       }
       else
       {
-        this.debug( "Call -> " + method+"() -> " + this.getUrl());
+        debug( "Call -> " + method+"() -> " + getUrl());
 
-        this._method.setName( method );
+        _method.setName( method );
 
-        var request:URLRequest = new URLRequest();
-        request.contentType = 'text/xml';
-        request.data = this._method.getXml();
-        request.method = URLRequestMethod.POST;
-        request.url = this.getUrl();
+        _request = new URLRequest();
+		_request.contentType = 'text/xml';
+		_request.data = _method.getXml();
+		_request.method = URLRequestMethod.POST;
+		_request.url = getUrl();
 
 		try {
-			this._response.load(request);
+			_response.load(_request);
 		}
 		catch (error:ArgumentError)
 		{
@@ -128,49 +116,25 @@ package com.mattism.http.xmlrpc
 			dispatchEvent(new SecurityErrorEvent(SecurityErrorEvent.SECURITY_ERROR, false, false, "Security error on load"));
 			trace("A SecurityError has occurred.");
 		}
-
-        observeTimeout(timeout);
       }
     }
 
-    public var observeTimer:Timer;
-    private function observeTimeout(sec:Number):void
-    {
-        observeTimer = new Timer(sec * 1000, 1);
-        observeTimer.addEventListener(
-           TimerEvent.TIMER, timeoutError, false, 1, true);
-        observeTimer.start();
-    }
-    private function timeoutError(e:TimerEvent):void
-        {
-                _fault = null;
-                this._response.close();
-                dispatchEvent(new ErrorEvent(ErrorEvent.ERROR,
-					false,
-					false,
-					"Operation timed out after " + observeTimer.delay/1000 + " seconds",
-					CommunicationUtil.TIMEOUT));
-                //dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR, false, false, 'request timeout'));
-                observeTimer = null;
-        }
-
     private function _onLoad( evt:Event ):void
     {
-		if (observeTimer) {
-			observeTimer.removeEventListener(TimerEvent.TIMER, timeoutError);
-		}
 		_fault = null;
 		
 		try
 		{
-			if (this._response.bytesLoaded == 0)
+			if (_response.bytesLoaded == 0)
 			{
 				trace("XMLRPC Fault: No data");
-				dispatchEvent(new ErrorEvent(ErrorEvent.ERROR,
-					false,
-					false,
-					"No data"));
-				return;
+				dispatchEvent(
+					new ErrorEvent(ErrorEvent.ERROR,
+						false,
+						false,
+						"No data"
+					)
+				);
 			}
 			else
 				trace("XMLRPC result: " + _response.data);
@@ -187,22 +151,28 @@ package com.mattism.http.xmlrpc
 		var responseXML:XML = null;
 		try
 		{
-			responseXML = new XML(this._response.data);
+			responseXML = new XML(_response.data);
 		}
 		catch (err:Error)
 		{
-			LogHandler.appendMessage(
+			SharedMain.logger.add(
 				new LogMessage(
-					this.getUrl(),
+					null,
+					"",
 					"Response was not XML",
-					this._response.data,
-					LogMessage.ERROR_FAIL
+					_response.data,
+					"",
+					LogMessage.LEVEL_FAIL
 				)
 			);
-			dispatchEvent(new ErrorEvent(ErrorEvent.ERROR,
-				false,
-				false,
-				"Response was not XML"));
+			dispatchEvent(
+				new ErrorEvent(
+					ErrorEvent.ERROR,
+					false,
+					false,
+					"Response was not XML: " + _response.data
+				)
+			);
 			return;
 		}
 		
@@ -216,10 +186,13 @@ package com.mattism.http.xmlrpc
 	        trace("XMLRPC Fault (" + _fault.getFaultCode() + "):\n"
 	              + _fault.getFaultString());
 	
-	        dispatchEvent(new ErrorEvent(ErrorEvent.ERROR,
-				false,
-				false,
-				_fault.toString()));
+	        dispatchEvent(
+				new ErrorEvent(ErrorEvent.ERROR,
+					false,
+					false,
+					_fault.toString()
+				)
+			);
 	      }
 	      else if (responseXML.params)
 	      {
@@ -229,21 +202,22 @@ package com.mattism.http.xmlrpc
 	      }
 	      else
 	      {
-	        dispatchEvent(new ErrorEvent(ErrorEvent.ERROR));
+	        dispatchEvent(new ErrorEvent(ErrorEvent.ERROR, false, false, "Not sure how to parse XML-RPC result."));
 	      }
 		}
 		catch (err:Error)
 		{
-			dispatchEvent(new ErrorEvent(ErrorEvent.ERROR, false, false, "Problem dealing with response"));
+			dispatchEvent(
+				new ErrorEvent(
+					ErrorEvent.ERROR,
+					false,
+					false,
+					"Error in _onload: " + err.toString(),
+					err.errorID
+				)
+			);
 		}
 			
-    }
-
-    protected function ioError(event : IOErrorEvent) : void
-    {
-      _fault = null;
-      dispatchEvent(new ErrorEvent(ErrorEvent.ERROR, false, false,
-                                   event.toString()));
     }
 
     protected function securityError(event : SecurityErrorEvent) : void
@@ -252,7 +226,7 @@ package com.mattism.http.xmlrpc
       dispatchEvent(event);
     }
 	
-	protected function networkError(event:IOErrorEvent) : void
+	protected function ioError(event:IOErrorEvent) : void
 	{
 		_fault = null;
 		dispatchEvent(event);
@@ -260,39 +234,39 @@ package com.mattism.http.xmlrpc
 
     private function parseResponse(xml:XML):Object
     {
-      return this._parser.parse( xml );
+      return _parser.parse( xml );
     }
 
-    //public function __resolve( method:String ):void { this._call( method ); }
+    //public function __resolve( method:String ):void { _call( method ); }
 
     public function getUrl() : String
     {
-      return this._url;
+      return _url;
     }
 
     public function setUrl(a : String) : void
     {
-      this._url = a;
+      _url = a;
     }
 
     public function addParam(o : Object, type : String) : void
     {
-      this._method.addParam( o,type );
+      _method.addParam( o,type );
     }
 
     public function removeParams() : void
     {
-      this._method.removeParams();
+      _method.removeParams();
     }
 
     public function getResponse() : Object
     {
-      return this._parsed_response;
+      return _parsed_response;
     }
 
     public function getFault() : MethodFault
     {
-      return this._fault;
+      return _fault;
     }
 
     override public function toString() : String
@@ -302,7 +276,7 @@ package com.mattism.http.xmlrpc
 
     private function debug(a : String) : void
     {
-      /*trace( this._PRODUCT + " -> " + a );*/
+      /*trace( _PRODUCT + " -> " + a );*/
     }
   }
 }

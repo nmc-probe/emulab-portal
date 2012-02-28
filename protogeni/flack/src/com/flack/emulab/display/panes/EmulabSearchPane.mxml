@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  width="100%"
+		  height="100%"
+		  gap="2"
+		  creationComplete="init()"
+		  remove="destroy()" xmlns:display="com.flack.emulab.display.*">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.emulab.EmulabMain;
+			import com.flack.emulab.display.PhysicalNodeList;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			
+			import mx.collections.ArrayCollection;
+			
+			[Bindable]
+			public var hardwareTypes:ArrayCollection;
+			
+			[Bindable]
+			public var managers:ArrayCollection;
+			
+			public function init():void
+			{
+				nodeList.addEventListener(PhysicalNodeList.SELECTED, selectedNode);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGER, changedUniverse);
+				
+				reloadNodes();
+			}
+			
+			public function destroy():void
+			{
+				nodeList.removeEventListener(PhysicalNodeList.SELECTED, selectedNode);
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_UNIVERSE, changedUniverse);
+			}
+			
+			public function changedUniverse(e:FlackEvent):void
+			{
+				if(e.action == FlackEvent.ACTION_POPULATED)
+					reloadNodes();
+			}
+			
+			public function changedManagers(e:FlackEvent):void
+			{
+				reloadNodes();
+			}
+			
+			public function reloadNodes():void
+			{
+				nodeList.load(EmulabMain.manager.nodes);
+			}
+			
+			public function selectedNode(e:FlackEvent):void
+			{
+				/*
+				var currentContent:AreaContent = FlexGlobals.topLevelApplication.viewingContent();
+				if(currentContent != null && currentContent is PhysicalNodeArea)
+					(currentContent as PhysicalNodeArea).load(e.changedObject as PhysicalNode);
+				else
+				{
+					var nodeArea:PhysicalNodeArea = new PhysicalNodeArea();
+					nodeArea.load(e.changedObject as PhysicalNode);
+					FlexGlobals.topLevelApplication.viewContent(nodeArea);
+				}
+				*/
+			}
+			
+		]]>
+	</fx:Script>
+	<display:PhysicalNodeList id="nodeList" width="100%" height="100%" />
+</s:VGroup>

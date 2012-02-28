@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,8 +12,12 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.sites.managers
 {
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.resources.sites.FlackManager;
+
 	/**
 	 * Federated ProtoGENI manager
 	 * 
@@ -22,12 +26,20 @@ package protogeni.resources
 	 */
 	public class ProtogeniComponentManager extends GeniManager
 	{
-		public function ProtogeniComponentManager()
+		/**
+		 * 
+		 * @param newId IDN-URN
+		 * 
+		 */
+		public function ProtogeniComponentManager(newId:String)
 		{
-			super();
-			this.rspecProcessor = new ProtogeniRspecProcessor(this);
-			this.type = GeniManager.TYPE_PROTOGENI;
-			this.supportsDelayNodes = true;
+			super(FlackManager.TYPE_PROTOGENI, ApiDetails.API_PROTOGENI, newId);
+			supportsDelayNodes = true;
+		}
+		
+		override public function makeValidClientIdFor(value:String):String
+		{
+			return value.replace(".", "");
 		}
 	}
 }

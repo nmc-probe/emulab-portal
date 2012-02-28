@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,8 +12,13 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.physical
 {
+	import com.flack.geni.resources.SliverType;
+	import com.flack.geni.resources.SliverTypeCollection;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.shared.resources.physical.PhysicalComponent;
+
 	/**
 	 * Resource as described by a manager's advertisement
 	 * 
@@ -22,79 +27,87 @@ package protogeni.resources
 	 */
 	public class PhysicalNode extends PhysicalComponent
 	{
-		public var owner:PhysicalNodeGroup;
+		public var location:PhysicalLocation;
 		
 		[Bindable]
 		public var exclusive:Boolean;
 		[Bindable]
 		public var available:Boolean;
 		[Bindable]
-		public var subNodeOf:PhysicalNode = null;
-		public var subNodes:Vector.<PhysicalNode> = new Vector.<PhysicalNode>();
+		public var subNodeOf:PhysicalNode;
+		public var subNodes:Vector.<PhysicalNode>;
 		[Bindable]
-		public var hardwareTypes:Vector.<String> = new Vector.<String>();
+		public var hardwareTypes:HardwareTypeCollection = new HardwareTypeCollection();
 		[Bindable]
-		public var sliverTypes:Vector.<SliverType> = new Vector.<SliverType>();
+		public var sliverTypes:SliverTypeCollection = new SliverTypeCollection();
 		[Bindable]
-		public var interfaces:PhysicalNodeInterfaceCollection = new PhysicalNodeInterfaceCollection();
+		public var interfaces:PhysicalInterfaceCollection = new PhysicalInterfaceCollection();
 		
-		public var numVirtualAvailable:int = 0;
-		public var virtualizationType:String = "";
+		public var cpuSpeed:int = 0;
+		public var ramSize:int = 0;
 		
-		// Sliced
-		public var virtualNodes:VirtualNodeCollection = new VirtualNodeCollection();
-		
-		// Use for anything, more inmportantly any additions by non-Protogeni managers
-		public var tag:*;
-		
-		public var planetLabInitscripts:Vector.<String> = new Vector.<String>();
-		
-		public function PhysicalNode(own:PhysicalNodeGroup,
-									 ownedBy:GeniManager)
+		/**
+		 * 
+		 * @param newManager Manager where the node is hosted
+		 * @param newId IDN-URN id
+		 * @param newName Short name for the node
+		 * @param newAdvertisement Advertisement
+		 * 
+		 */
+		public function PhysicalNode(newManager:GeniManager = null,
+									 newId:String = "",
+									 newName:String = "",
+									 newAdvertisement:String = "")
 		{
-			super(ownedBy);
-			this.owner = own;
+			super(newManager,
+				newId,
+				newName,
+				newAdvertisement
+			);
 		}
 		
-		public function IsSwitch():Boolean {
-			return this.hardwareTypes.indexOf("switch") > 1;
+		/**
+		 * 
+		 * @return TRUE if the node is a switch
+		 * 
+		 */
+		public function get IsSwitch():Boolean
+		{
+			return hardwareTypes.getByName("switch") != null;
 		}
 		
-		public function ConnectedSwitches():Vector.<PhysicalNode> {
-			var connectedNodes:Vector.<PhysicalNode> = this.GetNodes();
-			var connectedSwitches:Vector.<PhysicalNode> = new Vector.<PhysicalNode>();
-			for each(var connectedNode:PhysicalNode in connectedNodes) {
-				if(connectedNode.IsSwitch())
-					connectedSwitches.push(connectedNode);
-			}
-			return connectedSwitches;
-		}
-		
-		public function GetLatitude():Number {
-			return this.owner.latitude;
-		}
-		
-		public function GetLongitude():Number {
-			return this.owner.longitude;
-		}
-		
-		// Gets all links
-		public function GetLinks():Vector.<PhysicalLink> {
-			var ac:Vector.<PhysicalLink> = new Vector.<PhysicalLink>();
-			for each(var i:PhysicalNodeInterface in this.interfaces.collection) {
-				for each(var l:PhysicalLink in i.physicalLinks)
-					ac.push(l);
+		/**
+		 * 
+		 * @return All connected links
+		 * 
+		 */
+		public function get Links():PhysicalLinkCollection
+		{
+			var ac:PhysicalLinkCollection = new PhysicalLinkCollection;
+			for each(var i:PhysicalInterface in interfaces.collection)
+			{
+				for each(var l:PhysicalLink in i.links.collection)
+					ac.add(l);
 			}
 			return ac;
 		}
 		
-		// Get links to a certain node
-		public function GetNodeLinks(n:PhysicalNode):Vector.<PhysicalLink> {
-			var ac:Vector.<PhysicalLink> = new Vector.<PhysicalLink>();
-			for each(var i:PhysicalNodeInterface in this.interfaces.collection) {
-				for each(var l:PhysicalLink in i.physicalLinks) {
-					if(ac.indexOf(l) == -1 && l.GetNodes().indexOf(n) > -1) {
-						ac.push(l);
+		/**
+		 * 
+		 * @param node Other node
+		 * @return Common links between this and the other node
+		 * 
+		 */
+		public function getLinksWith(node:PhysicalNode):PhysicalLinkCollection
+		{
+			var ac:PhysicalLinkCollection = new PhysicalLinkCollection;
+			for each(var i:PhysicalInterface in interfaces.collection)
+			{
+				for each(var l:PhysicalLink in i.links.collection)
+				{
+					if(l.interfaces.Nodes.contains(node) && !ac.contains(l))
+					{
+						ac.add(l);
 						break;
 					}
 				}
@@ -102,19 +115,93 @@ package protogeni.resources
 			return ac;
 		}
 		
-		// Gets connected nodes
-		public function GetNodes():Vector.<PhysicalNode> {
-			var ac:Vector.<PhysicalNode> = new Vector.<PhysicalNode>();
-			for each(var i:PhysicalNodeInterface in this.interfaces.collection) {
-				for each(var l:PhysicalLink in i.physicalLinks) {
-					for each(var ln:PhysicalNode in l.GetNodes()) {
-						if(ln != this && ac.indexOf(ln) == -1)
-							ac.push(ln);
-					}
-				}
-			}
+		/**
+		 * 
+		 * @return All connected nodes
+		 * 
+		 */
+		public function get ConnectedNodes():PhysicalNodeCollection
+		{
+			var ac:PhysicalNodeCollection = interfaces.Links.Interfaces.Nodes;
+			ac.remove(this);
 			return ac;
 		}
 		
+		/**
+		 * 
+		 * @return All connected switches
+		 * 
+		 */
+		public function get ConnectedSwitches():PhysicalNodeCollection
+		{
+			var connectedNodes:PhysicalNodeCollection = ConnectedNodes;
+			var connectedSwitches:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each(var connectedNode:PhysicalNode in connectedNodes)
+			{
+				if(connectedNode.IsSwitch)
+					connectedSwitches.add(connectedNode);
+			}
+			return connectedSwitches;
+		}
+		
+		/**
+		 * 
+		 * @param name Partial name
+		 * @param availableOnly Should the node be available?
+		 * @param type Hardware type we are looking for
+		 * @return TRUE if this node meets the criteria
+		 * 
+		 */
+		public function search(name:String, availableOnly:Boolean, type:String):Boolean
+		{
+			if(availableOnly && !available)
+				return false;
+			if(type.length > 0 && hardwareTypes.getByName(type) == null)
+				return false;
+			if(name.length == 0)
+				return true;
+			
+			for each(var iface:PhysicalInterface in interfaces.collection)
+			{
+				if(iface.id.full.indexOf(name) != -1)
+					return true;
+			}
+			if(id.full.indexOf(name) != -1)
+				return true;
+			
+			return false;
+		}
+		
+		override public function toString():String
+		{
+			var result:String = "\t\t[PhysicalNode\n"
+				+"\t\t\tName="+name
+				+",\n\t\t\tID="+id.full
+				+",\n\t\t\tExclusive="+exclusive
+				+",\n\t\t\tManagerID="+manager.id.full
+				+",\n\t\t]";
+			if(interfaces.length > 0)
+			{
+				result += "\n\t\t\t[Interfaces]";
+				for each(var iface:PhysicalInterface in interfaces.collection)
+					result += "\n\t\t\t\t"+iface.toString();
+				result += "\n\t\t\t[/Interfaces]";
+			}
+			if(hardwareTypes.length > 0)
+			{
+				result += "\n\t\t\t[HardwareTypes]";
+				for each(var htype:String in hardwareTypes)
+					result += "\n\t\t\t\t[HardwareType Name="+htype+"]";
+				result += "\n\t\t\t[/HardwareTypes]";
+			}
+			if(sliverTypes.length > 0)
+			{
+				result += "\n\t\t\t[SliverTypes]";
+				for each(var sliverType:SliverType in sliverTypes.collection)
+					result += "\n\t\t\t\t"+sliverType.toString();
+				result += "\n\t\t\t[/SliverTypes]";
+			}
+			return result + "\n\t\t[/PhysicalNode]\n";
+		}
 	}
 }

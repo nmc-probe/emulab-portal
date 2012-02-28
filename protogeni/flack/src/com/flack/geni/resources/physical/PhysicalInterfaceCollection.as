@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,63 +12,108 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.physical
 {	
-	// Collection of interfaces from a physical node
-	public final class PhysicalNodeInterfaceCollection
+	/**
+	 * Collection of interfaces from a physical node
+	 * 
+	 * @author mstrum
+	 * 
+	 */
+	public final class PhysicalInterfaceCollection
 	{
-		public var collection:Vector.<PhysicalNodeInterface>;
-		public function PhysicalNodeInterfaceCollection()
+		public var collection:Vector.<PhysicalInterface>;
+		public function PhysicalInterfaceCollection()
 		{
-			this.collection = new Vector.<PhysicalNodeInterface>();
+			collection = new Vector.<PhysicalInterface>();
 		}
 		
-		public function add(ni:PhysicalNodeInterface):void {
-			this.collection.push(ni);
+		public function add(ni:PhysicalInterface):void
+		{
+			collection.push(ni);
 		}
 		
-		public function remove(vi:PhysicalNodeInterface):void
+		public function remove(vi:PhysicalInterface):void
 		{
 			var idx:int = collection.indexOf(vi);
 			if(idx > -1)
-				this.collection.splice(idx, 1);
+				collection.splice(idx, 1);
 		}
 		
-		public function contains(vi:PhysicalNodeInterface):Boolean
+		public function contains(vi:PhysicalInterface):Boolean
 		{
-			return this.collection.indexOf(vi) > -1;
+			return collection.indexOf(vi) > -1;
 		}
 		
-		public function get length():int{
-			return this.collection.length;
+		public function get length():int
+		{
+			return collection.length;
 		}
 		
-		public function GetByID(urn:String,
-								exact:Boolean = true):PhysicalNodeInterface {
-			for each(var ni:PhysicalNodeInterface in this.collection) {
-				if(ni.id == urn)
+		/**
+		 * 
+		 * @param id IDN-URN
+		 * @param exact Should the ID be exact? Should be FALSE if only a portion of the IDN-URN is known
+		 * @return Matching interface
+		 * 
+		 */
+		public function getById(id:String,
+								exact:Boolean = true):PhysicalInterface
+		{
+			for each(var ni:PhysicalInterface in collection)
+			{
+				if(ni.id.full == id)
 					return ni;
-				if(!exact && ni.id.indexOf(urn) != -1)
+				if(!exact && ni.id.full.indexOf(id) != -1)
 					return ni;
 			}
 			return null;
 		}
 		
-		public function Links():Vector.<PhysicalLink> {
-			var ac:Vector.<PhysicalLink> = new Vector.<PhysicalLink>();
-			for each(var ni:PhysicalNodeInterface in this.collection) {
-				for each(var l:PhysicalLink in ni.physicalLinks) {
-					ac.push(l);
-				}
+		/**
+		 * 
+		 * @return All links from the interfaces
+		 * 
+		 */
+		public function get Links():PhysicalLinkCollection
+		{
+			var ac:PhysicalLinkCollection = new PhysicalLinkCollection();
+			for each(var ni:PhysicalInterface in collection)
+			{
+				for each(var l:PhysicalLink in ni.links.collection)
+					ac.add(l);
 			}
 			return ac;
 		}
 		
-		public function Nodes():Vector.<PhysicalNode> {
-			var ac:Vector.<PhysicalNode> = new Vector.<PhysicalNode>();
-			for each(var ni:PhysicalNodeInterface in this.collection) {
-				if(ac.indexOf(ni.owner) == -1)
-					ac.push(ni.owner);
+		/**
+		 * 
+		 * @return All nodes hosting the interfaces
+		 * 
+		 */
+		public function get Nodes():PhysicalNodeCollection
+		{
+			var ac:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each(var ni:PhysicalInterface in collection)
+			{
+				if(!ac.contains(ni.owner))
+					ac.add(ni.owner);
+			}
+			return ac;
+		}
+		
+		/**
+		 * 
+		 * @return All locations where the interfaces exist
+		 * 
+		 */
+		public function get Locations():PhysicalLocationCollection
+		{
+			var ac:PhysicalLocationCollection = new PhysicalLocationCollection();
+			for each(var ni:PhysicalInterface in collection)
+			{
+				if(!ac.contains(ni.owner.location))
+					ac.add(ni.owner.location);
 			}
 			return ac;
 		}

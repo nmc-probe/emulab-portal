@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -18,55 +18,61 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 -->
 
 <components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-						xmlns:s="library://ns.adobe.com/flex/spark" 
-						xmlns:mx="library://ns.adobe.com/flex/mx"
-						xmlns:display="protogeni.display.*"
-						xmlns:components="protogeni.display.components.*"
-						title="Log in"
-						close="closeWindow()"
-						defaultButton="{okButton}"
-						contentCreationComplete="onCreationComplete()">
-	
+						  xmlns:s="library://ns.adobe.com/flex/spark" 
+						  xmlns:mx="library://ns.adobe.com/flex/mx"
+						  xmlns:components="com.flack.shared.display.components.*"
+						  title="Log in"
+						  creationComplete="onCreationComplete();"
+						  maxStartHeight="400" maxStartWidth="700">
+	<components:layout>
+		<s:VerticalLayout paddingTop="4" paddingBottom="4" />
+	</components:layout>
 	<fx:Declarations>
 		<s:RadioButtonGroup id="credentialGroup" />
 	</fx:Declarations>
+	
 	<fx:Script>
 		<![CDATA[
-			import com.hurlant.crypto.cert.X509Certificate;
-			import com.hurlant.crypto.rsa.RSAKey;
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.DisplayUtil;
+			import com.flack.geni.resources.docs.GeniCredential;
+			import com.flack.geni.resources.sites.GeniAuthority;
+			import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
+			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.tasks.http.PublicListAuthoritiesTask;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedCache;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.resources.IdnUrn;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.utils.DateUtil;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.NetUtil;
 			import com.hurlant.util.der.PEM;
 			import com.mstrum.Asn1Field;
 			import com.mstrum.DER;
 			import com.mstrum.Oids;
 			
+			import mx.collections.ArrayList;
 			import mx.controls.Alert;
 			import mx.core.FlexGlobals;
 			import mx.events.CloseEvent;
-			import mx.events.FlexEvent;
-			import mx.utils.Base64Encoder;
 			
-			import protogeni.GeniEvent;
-			import protogeni.NetUtil;
-			import protogeni.Util;
-			import protogeni.communication.RequestWhoAmI;
-			import protogeni.resources.AggregateManager;
-			import protogeni.resources.GeniCredential;
-			import protogeni.resources.GeniUser;
-			import protogeni.resources.IdnUrn;
-			import protogeni.resources.ProtogeniRspecProcessor;
-			import protogeni.resources.Slice;
-			import protogeni.resources.SliceAuthority;
-
-			private var certLoader:URLLoader;
-			private var closeAfter:Boolean = false;
-			
-			private var fr:FileReference;
-			
-			private static var certLocation:String = "/protogeni/getsslcert.php3";
-			private static var loginLocation:String = "/login.php3";
-			
-			[Bindable]
-			private var selectedAuthority:SliceAuthority;
+			public function onCreationComplete():void
+			{
+				fillAuthorityList();
+				
+				this.sslPem.text = GeniMain.geniUniverse.user.sslCert;
+				
+				this.authorities.selectedItem = GeniMain.geniUniverse.user.authority;
+				
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_AUTHORITIES, fillAuthorityList);
+				
+				passwordField.text = GeniMain.geniUniverse.user.password;
+				rememberPasswordCheckbox.selected = this.passwordField.text.length>0;
+			}
 			
 			private function get ValidPem():Boolean
 			{
@@ -74,363 +80,346 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					sslPem.text.indexOf("-----BEGIN CERTIFICATE-----") > -1;
 			}
 			
-			public function onCreationComplete():void
+			// Authorities
+			
+			[Bindable]
+			private var selectedAuthority:GeniAuthority;
+			
+			[Bindable]
+			private var authorityList:ArrayList;
+			private function fillAuthorityList(junk:* = null):void
 			{
-				this.authorities.selectedItem = Main.geniHandler.CurrentUser.authority;
-				this.authorities.setFocus();
-				if(Main.useJavascript) {
-					this.sslPem.text = FlackCache.userSslPem;
-					this.passwordField.Text = FlackCache.userPassword;
-					this.cacheCheckbox.selected = this.passwordField.Text.length > 0;
-				} else {
-					this.height = 130;
-					this.width = 250;
-				}
-				
-				fr = new FileReference();
-				fr.addEventListener(Event.SELECT, onFileSelect);
-				fr.addEventListener(Event.COMPLETE, onFileComplete);
-				fr.addEventListener(IOErrorEvent.IO_ERROR, onFileIoError);
-				fr.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onFileSecurityError);
-				
-				Main.geniDispatcher.addEventListener(GeniEvent.GENIAUTHORITIES_CHANGED, authoritiesChanged);
+				// Create List
+				authorityList = new ArrayList();
+				for each(var authority:GeniAuthority in GeniMain.geniUniverse.authorities.collection)
+					authorityList.addItem(authority);
+					
+				// Set to user's
+				if(GeniMain.geniUniverse.user.id != null)
+					setUserAuthority();
+				if(GeniMain.geniUniverse.user.authority != null)
+					authorities.selectedItem = GeniMain.geniUniverse.user.authority;
 			}
 			
-			public function trySubmit():void
+			private function setUserAuthority():void
 			{
-				if(!ValidPem) {
-					Alert.show("You must supply a valid private key/certificate bundle");
-					return;
+				for each(var sa:ProtogeniSliceAuthority in GeniMain.geniUniverse.authorities.collection)
+				{
+					if(sa.id.authority == GeniMain.geniUniverse.user.id.authority)
+					{
+						GeniMain.geniUniverse.user.authority = sa;
+						this.authorities.selectedItem = sa;
+						return;
+					}
 				}
-				
-				if(this.sliceCredentialRadiobutton.selected
-					&& Main.geniHandler.CurrentUser.sliceCredential.length == 0) {
-					Alert.show("You haven't selected a slice credential.  Would you like to select one now to continue?", "No slice credential selected", Alert.YES|Alert.NO, Main.Application(),
-						function afterSelection(event:CloseEvent):void {
-							if(event.detail == Alert.YES)
-								onFileBrowse(null);
-						});
-					return;
-				}
-				saveAndClose();
 			}
 			
-			public function saveAndClose():void
+			// Certificate
+			
+			private const certLocation:String = "/protogeni/getsslcert.php3";
+			private const loginLocation:String = "/login.php3";
+			
+			private var certLoader:URLLoader;
+			
+			private function tryDownloadCertificate():void
 			{
-				FlackCache.userSslPem = sslPem.text;
-				FlackCache.saveBasic();
-				if(!Main.geniHandler.CurrentUser.setPassword(passwordField.textInput.text, cacheCheckbox.selected)) {
-					Alert.show("Incorrect password", "It appears that the password is incorrect");
-					return;
-				}
-
-				Main.geniHandler.mapHandler.clearAll();
-				Main.geniHandler.unauthenticatedMode = false;
-				if(this.userCredentialRadiobutton.selected) {
-					if(Main.geniHandler.CurrentUser.authority == null) {
-						Main.geniHandler.CurrentUser.authority = authorities.selectedItem;
-						Main.geniHandler.requestHandler.pushRequest(new RequestWhoAmI());
-					} else
-						Main.geniHandler.requestHandler.startAuthenticatedInitiationSequence();
-					
-				} else {
-					var cred:XML = new XML(Main.geniHandler.CurrentUser.sliceCredential);
-					
-					var userSlice:Slice = new Slice();
-					userSlice.urn = new IdnUrn(cred.credential.target_urn);
-					userSlice.credential = Main.geniHandler.CurrentUser.sliceCredential;
-					userSlice.expires = GeniCredential.getExpires(cred);
-					userSlice.creator = Main.geniHandler.CurrentUser;
-					Main.geniHandler.CurrentUser.slices.add(userSlice);
-					
-					Main.geniHandler.requestHandler.startAuthenticatedInitiationSequence(this.discoverResourcesCheckbox.selected);
-				}
-				Main.geniDispatcher.dispatchUserChanged();
-				closeWindow();
+				if(selectedAuthority == null)
+					Alert.show("Please select your slice authority", "Select authority");
+				else
+					doDownloadCertificate(NetUtil.tryGetBaseUrl(selectedAuthority.url) + certLocation);
 			}
 			
-			public function visitLogin():void
+			public function doDownloadCertificate(url:String):void
 			{
-				var url:String = NetUtil.tryGetBaseUrl(selectedAuthority.Url) + loginLocation;
 				NetUtil.checkLoadCrossDomain(url);
-				NetUtil.openWebsite( url );
-			}
-			
-			public function checkCloseAfter():void
-			{
-				if(closeAfter && sslPem.text.length > 0){
-					saveAndClose();
-				} else
-					closeAfter = false;
-			}
-			
-			private var certUrl:String;
-			private var certSuccess:Boolean = false;
-			private var asked:Boolean = false;
-			public function tryLoadCert(url:String):void
-			{
-				certUrl = url;
-				NetUtil.checkLoadCrossDomain(url, true, true);
 				
 				var request:URLRequest = new URLRequest(url); 
-				certLoader = new URLLoader(); 
+				certLoader = new URLLoader();
 				certLoader.addEventListener(Event.COMPLETE, completeHandler);
 				certLoader.addEventListener(IOErrorEvent.IO_ERROR, ioErrorHandler);
-				certLoader.addEventListener(HTTPStatusEvent.HTTP_STATUS, httpStatusHandler);
 				certLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityErrorHandler);
 				try
 				{
 					spinner.visible = true;
 					spinner.startSpin();
-					LogHandler.appendMessage(new LogMessage(url,
-						"Getting SSL Cert",
-						"Attempting to load user SSL certificate",
-						LogMessage.ERROR_NONE,
-						LogMessage.TYPE_START));
-					certSuccess = false;
-					asked = false;
+					
 					certLoader.load(request);
 				}
 				catch (e:Error)
 				{
 					spinner.visible = false;
 					spinner.stopSpin();
-					LogHandler.appendMessage(new LogMessage(url, "Error", "\n\nException on HTTP Call: "
-						+ e.toString() + "\n\n",
-						LogMessage.ERROR_FAIL));
-					checkCloseAfter();
 				}
 			}
-			
-			private function completeHandler(event:Event):void {
-				if(certLoader.data != null && (certLoader.data as String).indexOf("-----BEGIN RSA PRIVATE KEY-----") != -1) {
-					certSuccess = true;
+			private function completeHandler(event:Event):void
+			{
+				if(certLoader.data != null && (certLoader.data as String).indexOf("-----BEGIN RSA PRIVATE KEY-----") != -1)
 					sslPem.text = certLoader.data;
-					LogHandler.appendMessage(new LogMessage(certUrl,
-						"Got SSL Cert", certLoader.data, LogMessage.ERROR_NONE, LogMessage.TYPE_END));
-					checkCloseAfter();
-				} else {
-					LogHandler.appendMessage(new LogMessage(certUrl,
-						"Error", event.toString(), LogMessage.ERROR_FAIL, LogMessage.TYPE_END));
+				else
 					askToLogin();
-				}
 				spinner.visible = false;
 				spinner.stopSpin();
+			}
 				
+			private function securityErrorHandler(event:Event):void
+			{
+				askToLogin();
+			}
+			
+			private function ioErrorHandler(event:IOErrorEvent):void
+			{
+				askToLogin();
 			}
 			
 			private function askToLogin():void
 			{
-				if(asked)
-					return;
-				asked = true;
 				spinner.visible = false;
 				spinner.stopSpin();
-				checkCloseAfter();
-				Alert.show("You must be logged in on the authority's website in order to automatically retrieve your SSL Cert.  Visit the login page? After login, come back here and try again.", "Visit login page?", Alert.YES|Alert.NO, Main.Application(), 
+				
+				Alert.show("You must be logged in on the authority's website in order to automatically retrieve your SSL Cert.  Visit the login page? After login, come back here and try again.", "Visit login page?", Alert.YES|Alert.NO, FlexGlobals.topLevelApplication as Sprite, 
 					function handleAction(e:CloseEvent):void {
 						if(e.detail == Alert.YES)
-							visitLogin();
+							NetUtil.openWebsite(NetUtil.tryGetBaseUrl(selectedAuthority.url) + loginLocation);
 					});
 			}
 			
-			private function securityErrorHandler(event:SecurityErrorEvent):void {
-				LogHandler.appendMessage(new LogMessage(certUrl,
-					"Security Error", event.toString(), LogMessage.ERROR_FAIL, LogMessage.TYPE_END));
-				askToLogin();
-			}
-			
-			private function ioErrorHandler(event:IOErrorEvent):void {
-				LogHandler.appendMessage(new LogMessage(certUrl,
-					"IO Error", event.toString(), LogMessage.ERROR_FAIL, LogMessage.TYPE_END));
-				askToLogin();
-			}
-			
-			private function httpStatusHandler(event:HTTPStatusEvent):void{
-				if(event.status != 200) {
-					LogHandler.appendMessage(new LogMessage(certUrl,
-						"HTTP Status", "HTTP Status returned: "
-						+ event.status, LogMessage.ERROR_FAIL, LogMessage.TYPE_END));
-					askToLogin();
-				}
-			}
-			
-			private var loadingPem:Boolean;
-			private var saving:Boolean;
-			protected function onFileBrowse(event:MouseEvent):void
+			private function tryParseCert():void
 			{
-				saving = false;
-				loadingPem = false;
-				fr.browse([new FileFilter("RSPECs (*.txt, *.xml, *.rspec)", "*.txt;*.xml;*.rspec")])
-			}
-			
-			protected function openPem(event:MouseEvent):void
-			{
-				saving = false;
-				loadingPem = true;
-				fr.browse([new FileFilter("PEMs (*.pem, *.txt, *.der, *.crt, *.key, *.*)", "*.pem;*.txt;*.der;*.crt;*.key;*.*")])
-			}
-			
-			public function onFileSelect(event:Event):void {
-				if(!saving)
-					fr.load();
-			}
-			
-			public function onFileComplete(event:Event):void {
-				if(!saving) {
-					if(loadingPem) {
-						/* var e:Base64Encoder = new Base64Encoder();
-						e.encodeBytes(fr.data, 0, fr.data.length);
-						var encoded:String = e.toString();
-						var d:Asn1Field = DER.Parse(fr.data);
-						var val:Asn1Field = d.getHolderFor(Oids.ACA_GROUP);
-						val = val; */
-						sslPem.text = fr.data.readUTFBytes(fr.data.length);
-						this.passwordField.textInput.setFocus();
-					} else {
-						try{
-							var potentialCredential:String = fr.data.readUTFBytes(fr.data.length);
-							var cred:XML = new GeniCredential(potentialCredential).toXml();
-							if(cred == null) {
-								Alert.show("Not valid XML");
-								return;
-							}
-							
-							Main.geniHandler.CurrentUser.urn = GeniCredential.getOwnerUrn(cred);
-							if(Main.geniHandler.CurrentUser.urn == null) {
-								Alert.show("No user URN found");
-								return;
-							}
-							
-							var expires:Date = GeniCredential.getExpires(cred);
-							if(expires != null) {
-								if(expires < new Date()) {
-									Main.geniHandler.CurrentUser.sliceCredential = "";
-									Alert.show("The slice credential has expired on " + expires.toLocaleString() + ", try or create a newer slice");
-									return;
-								}
-							}
-							
-							Main.geniHandler.CurrentUser.sliceCredential = potentialCredential;
-							Main.geniDispatcher.dispatchUserChanged();
-							
-							sliceCredentialIcon.visible = true;
-							sliceCredentialRadiobutton.selected = true;
-						}catch(e:Error) { }
-					}
-				}
-			}
-			
-			private function onFileIoError(event:IOErrorEvent):void {
-				Alert.show(event.toString(), "IO Error");
-			}
-			
-			private function onFileSecurityError(event:SecurityErrorEvent):void {
-				Alert.show(event.toString(), "Security Error");
-			}
-			
-			private function tryDownloadCert():void {
-				if(selectedAuthority == null) {
-					Alert.show("Please select your slice authority");
-				} else
-					this.tryLoadCert(NetUtil.tryGetBaseUrl(selectedAuthority.Url) + certLocation);
-			}
-			
-			private function tryParseCert():void {
 				// If everything is there, deal with it
 				if(ValidPem)
 				{
 					// Show the password box if a password is needed
-					passwordGroup.visible = passwordGroup.includeInLayout = sslPem.text.indexOf("DEK-Info:") > -1;
+					passwordGroup.visible = sslPem.text.indexOf("DEK-Info:") > -1;
+					rememberUnencryptedCertCheckbox.visible = !passwordGroup.visible;
 					
 					// Try to get info from the cert
-					try {
+					try
+					{
 						var certArray:ByteArray = PEM.readCertIntoArray(this.sslPem.text);
 						var cert:Asn1Field = DER.Parse(certArray);
-						var field:Asn1Field = cert.getHolderFor(Oids.SUBJECT_ALT_NAME);
-						var urnString:String = field.getValue();
+						var subjAlt:Asn1Field = cert.getHolderFor(Oids.SUBJECT_ALT_NAME);
+						var urnString:String = subjAlt.getValue();
 						if(IdnUrn.isIdnUrn(urnString))
-							setUserUrn(urnString);
+							setUserId(urnString);
 						else
 							throw new Error();
-						
-						field = cert.getHolderFor(Oids.AUTHORITY_INFO_ACCESS);
-						if(field != null)
-						{
-							var sliceAuthorityUrl:String = field.getValue();
-							var newAuthorityUrn:IdnUrn = IdnUrn.makeFrom(Main.geniHandler.CurrentUser.urn.authority, "authority", "sa");
-							var newAuthority:SliceAuthority;
-							for each(var auth:SliceAuthority in Main.geniHandler.GeniAuthorities.source)
-							{
-								if(auth.Urn.authority == newAuthorityUrn.authority)
-								{
-									auth.Url = sliceAuthorityUrl;
-									newAuthority = auth;
-									break;
-								}
-							}
-							if(auth == null)
-							{
-								newAuthority = new SliceAuthority(newAuthorityUrn.full, sliceAuthorityUrl);
-								Main.geniHandler.GeniAuthorities.addItem(newAuthority);
-							}
-							Main.geniHandler.CurrentUser.authority = newAuthority;
-							authorities.selectedItem = newAuthority;
-						}
-					} catch(e:Error) {
+					}
+					catch(e:Error)
+					{
 						if(passwordGroup.visible)
-							this.detectedUrnLabel.text = "Please enter your pass phrase below.";
+							this.detectedUrnLabel.text = "Please enter your private key passphrase below.";
 						else
 							this.detectedUrnLabel.text = "";
 					}
 					if(passwordGroup.visible)
-						this.passwordField.textInput.setFocus();
+						passwordField.setFocus();
 					else
 						this.okButton.setFocus();
-				} else {
-					passwordGroup.visible = passwordGroup.includeInLayout = false;
+				}
+				else
+				{
+					rememberUnencryptedCertCheckbox.visible = false;
+					passwordGroup.visible = false;
+					this.okButton.setFocus();
 				}
 			}
 			
-			private function setUserUrn(urnString:String):void {
-				Main.geniHandler.CurrentUser.urn = new IdnUrn(urnString);
-				this.detectedUrnLabel.text = "Hello, " + Main.geniHandler.CurrentUser.urn.name + " from " + Main.geniHandler.CurrentUser.urn.authority + ".";
+			private function setUserId(idString:String):void
+			{
+				GeniMain.geniUniverse.user.id = new IdnUrn(idString);
+				this.detectedUrnLabel.text = "Hello, " + GeniMain.geniUniverse.user.id.name + " from " + GeniMain.geniUniverse.user.id.authority + ".";
 				if(this.passwordGroup.visible)
-					this.detectedUrnLabel.text += " Please enter your pass phrase below.";
+					this.detectedUrnLabel.text += " Please enter your private key passphrase below.";
 				setUserAuthority();
 			}
 			
-			private function setUserAuthority():void {
-				for each(var sa:SliceAuthority in Main.geniHandler.GeniAuthorities.source) {
-					if(sa.Urn.authority == Main.geniHandler.CurrentUser.urn.authority) {
-						Main.geniHandler.CurrentUser.authority = sa;
+			private function trySavePem(event:MouseEvent):void
+			{
+				var savePemTask:FileTask = new FileTask(sslPem.text);
+				if(GeniMain.geniUniverse.user.id.full.length > 0)
+					savePemTask.fileName = GeniMain.geniUniverse.user.id.name + ".pem";
+				else
+					savePemTask.fileName = "flackUser.pem";
+				savePemTask.startOperation(event);
+			}
+			
+			private function tryOpenPem(event:MouseEvent):void
+			{
+				var openPemTask:FileTask = new FileTask();
+				openPemTask.addEventListener(TaskEvent.FINISHED, afterOpenPem);
+				openPemTask.startOperation(event);
+			}
+			
+			private function afterOpenPem(event:TaskEvent):void
+			{
+				if(event.task.Status == Task.STATUS_SUCCESS)
+					sslPem.text = event.task.data;
+				else if(event.task.Status != Task.STATUS_CANCELED)
+					Alert.show("Failed to load PEM", "Error");
+			}
+			
+			// Credential
+			
+			public var useCredential:GeniCredential;
+			
+			public function tryOpenCredential(event:MouseEvent):void
+			{
+				var openCredentialTask:FileTask = new FileTask();
+				openCredentialTask.addEventListener(TaskEvent.FINISHED, afterOpenCredential);
+				openCredentialTask.startOperation(event);
+			}
+			
+			private function afterOpenCredential(event:TaskEvent):void
+			{
+				if(event.task.Status == Task.STATUS_SUCCESS)
+				{
+					try
+					{
+						useCredential = new GeniCredential(event.task.data);
+						if(useCredential.Xml == null)
+						{
+							dontUseCredential("Not valid XML");
+							return;
+						}
 						
-						authorities.selectedItem = sa;
-						return;
+						GeniMain.geniUniverse.user.id = useCredential.OwnerId;
+						if(GeniMain.geniUniverse.user.id == null)
+						{
+							dontUseCredential("No user URN found");
+							return;
+						}
+						
+						var expires:Date = useCredential.Expires;
+						if(expires == null)
+						{
+							dontUseCredential("Could not find expire time");
+							return;
+						}
+						else if(expires < new Date())
+						{
+							dontUseCredential("The credential has expired " + DateUtil.getTimeBetween(expires, new Date()) + " ago, please select a credential which hasn't expired.");
+							return;
+						}
+						
+						// Credential is ready to be used!
+						if(useCredential.TargetId.type == IdnUrn.TYPE_SLICE)
+						{
+							useCredentialLabel.text = "Slice credential loaded for " + useCredential.TargetId.name;
+							useCredential.type = GeniCredential.TYPE_SLICE;
+							this.useCredentialRadiobutton.selected = true;
+						}
+						else if(useCredential.TargetId.type == IdnUrn.TYPE_USER)
+						{
+							useCredentialLabel.text = "User credential loaded for " + useCredential.TargetId.name;
+							useCredential.type = GeniCredential.TYPE_USER;
+							this.useCredentialRadiobutton.selected = true;
+						}
+						else
+						{
+							dontUseCredential("Credential with Target ID '"+useCredential.TargetId.full+"' is not a slice or user");
+							return;
+						}
 					}
+					catch(e:Error)
+					{
+						dontUseCredential();
+					}
+				}
+				else if(event.task.Status != Task.STATUS_CANCELED)
+				{
+					dontUseCredential("Credential failed to load");
 				}
 			}
 			
-			private function authoritiesChanged(event:GeniEvent):void {
-				if(Main.geniHandler.CurrentUser.urn != null) {
-					setUserAuthority();
+			private function dontUseCredential(errorMsg:String = ""):void
+			{
+				useCredential = null;
+				this.useCredentialLabel.text = "";
+				if(errorMsg.length > 0)
+					Alert.show(errorMsg, "Error");
+			}
+			
+			// Finish
+			
+			public function trySubmit():void
+			{
+				if(!ValidPem)
+					Alert.show("You must supply a valid private key/certificate combination", "No SSL PEM given");
+				else
+					saveAndClose();
+			}
+			
+			public function saveAndClose():void
+			{
+				if(GeniMain.geniUniverse.user.setSecurity(passwordField.text, sslPem.text))
+				{
+					Alert.show("It appears that the password is incorrect, try again", "Incorrect password");
+					return;
 				}
-				if(Main.geniHandler.CurrentUser.authority != null) {
-					this.authorities.selectedItem = Main.geniHandler.CurrentUser.authority;
+				if(this.rememberPasswordCheckbox.selected)
+					SharedCache.updateUserPassword(passwordField.text);
+				else
+					SharedCache.updateUserPassword("");
+				if(!rememberUnencryptedCertCheckbox.visible || rememberUnencryptedCertCheckbox.selected)
+					SharedCache.updateUserSslPem(sslPem.text);
+				else
+					SharedCache.updateUserSslPem("");
+				SharedCache.save();
+				
+				// Emulab
+				if(useCredentialRadiobutton.selected)
+				{
+					if(useCredential == null)
+					{
+						Alert.show("You haven't selected a valid credential.  Either select the option to get a user credential or select a valid credential from file.", "No credential selected");
+						return;
+					}
+					
+					GeniMain.geniUniverse.user.authority = null;
+					GeniMain.geniUniverse.user.credential = useCredential;
+					// Add the slice if using a slice credential
+					if(useCredential.type == GeniCredential.TYPE_SLICE)
+					{
+						var useSlice:Slice = new Slice(useCredential.TargetId.full);
+						useSlice.creator = GeniMain.geniUniverse.user;
+						useSlice.expires = useCredential.Expires;
+						useSlice.hrn = useSlice.id.name;
+						GeniMain.geniUniverse.user.slices.add(useSlice);
+						
+						SharedMain.sharedDispatcher.dispatchChanged(
+							FlackEvent.CHANGED_SLICE,
+							useSlice,
+							FlackEvent.ACTION_CREATED
+						);
+						SharedMain.sharedDispatcher.dispatchChanged(
+							FlackEvent.CHANGED_SLICES,
+							useSlice,
+							FlackEvent.ACTION_ADDED
+						);
+					}
 				}
+				else
+				{
+					GeniMain.geniUniverse.user.credential = null;
+					GeniMain.geniUniverse.user.authority = selectedAuthority;
+				}
+				
+				GeniMain.geniUniverse.loadAuthenticated();
+				
+				closeWindow();
 			}
 			
 		]]>
 	</fx:Script>
-
-	<s:Label text="Your private key and certificate need to be entered below." />
-	<s:HGroup width="100%" verticalAlign="middle">
+	
+	<s:Label text="Your private key and certificate need to be entered below." paddingLeft="4" paddingRight="4" />
+	<s:HGroup width="100%" verticalAlign="middle" paddingLeft="4" paddingRight="4">
 		<components:ImageButton icon="{ImageUtil.saveIcon}"
 								toolTip="Save to file"
-								click="saving = true; fr.save(sslPem.text, 'encrypted.pem')" />
+								click="trySavePem(event)" />
 		<components:ImageButton icon="{ImageUtil.openIcon}"
 								toolTip="Open from file"
-								click="openPem(event)" />
+								click="tryOpenPem(event)" />
 		<components:ImageButton icon="{ImageUtil.copyIcon}"
 								toolTip="Copy to clipboard"
 								click="System.setClipboard(sslPem.text)" />
@@ -441,63 +430,69 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							y="{(height / 2) - (spinner.height / 2)}"
 							visible="false" />
 		<s:Button label="Download"
-				  height="24"
 				  enabled="{selectedAuthority.workingCertGet}"
 				  icon="{ImageUtil.sslIcon}"
-				  click="tryDownloadCert();" />
+				  click="tryDownloadCertificate();" />
 		<s:Label text="from" />
-		<s:DropDownList id="authorities" labelField="Name"
-						width="100%" height="24"
+		<s:DropDownList id="authorities"
+						labelField="name"
+						width="100%"
 						prompt="Select authority..."
-						dataProvider="{Main.geniHandler.GeniAuthorities}"
+						dataProvider="{authorityList}"
 						selectedItem="@{selectedAuthority}" />
-		<s:Button icon="{ImageUtil.addIcon}"
-				  height="24"
-				  label="Add"
-				  click="(new AddAuthorityWindow()).showWindow()" />
+		<s:Button label="Refresh"
+				  icon="{ImageUtil.refreshIcon}"
+				  click="SharedMain.tasker.add(new PublicListAuthoritiesTask())" />		
+		<s:Button label="Add"
+				  icon="{ImageUtil.addIcon}"
+				  click="DisplayUtil.viewAddAuthorityWindow()" />
 	</s:HGroup>
 	
 	<s:TextArea id="sslPem"
 				width="100%" height="100%"
 				valueCommit="tryParseCert()"
 				change="tryParseCert()" />
-	<s:Label id="detectedUrnLabel" width="100%" />
-	<s:HGroup id="passwordGroup"
-			  width="100%"
-			  verticalAlign="middle"
-			  visible="false" includeInLayout="false">
-		<s:Image source="{ImageUtil.passwordIcon}" />
-		<display:KeyboardTextInput id="passwordField"
-								   width="100%"
-								   creationComplete="passwordField.textInput.displayAsPassword = true; passwordField.setEnter(trySubmit);"
-								   prompt="Enter your passphrase" />
-		<s:CheckBox id="cacheCheckbox" label="Remember" />
+	<s:HGroup verticalAlign="middle" paddingLeft="4" paddingRight="4">
+		<s:Label id="detectedUrnLabel" width="100%" />
+		<s:CheckBox id="rememberUnencryptedCertCheckbox" label="Remember" visible="false" includeInLayout="{rememberUnencryptedCertCheckbox.visible}" />
 	</s:HGroup>
 	
-	<s:HGroup verticalAlign="middle">
-		<s:RadioButton id="userCredentialRadiobutton"
+	<s:HGroup id="passwordGroup" width="100%" paddingLeft="4" paddingRight="4" verticalAlign="middle" visible="false" includeInLayout="{passwordGroup.visible}">
+		<s:Image source="{ImageUtil.keyIcon}" />
+		<s:TextInput id="passwordField"
+					 width="100%" 
+					 enter="trySubmit();"
+					 displayAsPassword="true"
+					 prompt="Enter your passphrase"/>
+		<s:CheckBox id="rememberPasswordCheckbox" label="Remember" />
+	</s:HGroup>
+	
+	<s:HGroup verticalAlign="middle" paddingLeft="4" paddingRight="4">
+		<s:RadioButton id="getCredentialRadiobutton"
 					   groupName="credentialGroup"
 					   label="Get user credential"
 					   selected="true" />
-		<s:RadioButton id="sliceCredentialRadiobutton"
+		<s:RadioButton id="useCredentialRadiobutton"
 					   groupName="credentialGroup"
-					   label="Use slice credential" />
-		<components:ImageButton icon="{ImageUtil.openIcon}" id="openSliceCredentialButton"
-								toolTip="Optionally use a slice credential which was saved to file"
-								click="onFileBrowse(event)" />
-		<s:BitmapImage id="sliceCredentialIcon" source="{ImageUtil.availableIcon}" visible="false" />
-		<s:CheckBox label="Discover allocated resources"
-					id="discoverResourcesCheckbox"
-					selected="true"
-					enabled="{sliceCredentialRadiobutton.selected}" />
+					   label="Use credential from file" />
+		<components:ImageButton icon="{ImageUtil.openIcon}"
+								id="openCredentialButton"
+								click="tryOpenCredential(event);" />
+		<s:Label id="useCredentialLabel" styleName="validStyle" fontWeight="bold" />
 	</s:HGroup>
+
 	<components:controlBarLayout>
-		<s:HorizontalLayout paddingBottom="2" paddingLeft="2" paddingRight="2" paddingTop="2" />
+		<s:HorizontalLayout verticalAlign="middle" paddingBottom="2" paddingLeft="2" paddingRight="2" paddingTop="2" />
 	</components:controlBarLayout>
 	<components:controlBarContent>
-		<s:Button id="okButton" label="OK" icon="{ImageUtil.authenticationIcon}" height="24"
+		<s:Button id="okButton"
+				  label="OK"
+				  icon="{ImageUtil.authenticationIcon}"
+				  height="24"
 				  click="trySubmit();" />
-		<s:Button label="Cancel" icon="{ImageUtil.crossIcon}" height="24"
+		<s:Button label="Cancel"
+				  icon="{ImageUtil.crossIcon}"
 				  click="closeWindow()" />
 	</components:controlBarContent>
+	
 </components:DefaultWindow>

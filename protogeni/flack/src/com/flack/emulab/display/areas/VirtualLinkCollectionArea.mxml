@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx"
+				   xmlns:areas1="com.flack.shared.display.areas.*"
+				   xmlns:display="com.flack.emulab.display.*"
+				   title="Virtual Links"
+				   creationComplete="init()">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.emulab.display.VirtualNodeList;
+			import com.flack.emulab.resources.virtual.VirtualLink;
+			import com.flack.emulab.resources.virtual.VirtualLinkCollection;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.display.areas.AreaContent;
+			
+			private var links:VirtualLinkCollection;
+			private var selected:VirtualLink;
+			public function set Links(value:VirtualLinkCollection):void
+			{
+				links = value;
+				if(linkList != null)
+					linkList.load(links);
+			}
+			
+			public function init():void
+			{
+				areaForLink.window = host.window;
+				if(links != null)
+				{
+					linkList.load(links);
+					
+					if(selected != null)
+						selectedLink(new FlackEvent("", selected));
+					else
+					{
+						if(links.length > 0)
+							selectedLink(new FlackEvent("", linkList.viewLinks.getItemAt(0)));
+						linkList.list.selectedIndex = 0;
+					}
+					initEvents();
+				}
+			}
+			
+			override public function initEvents():void
+			{
+				if(linkList != null)
+				{
+					if(!linkList.hasEventListener(VirtualNodeList.SELECTED))
+						linkList.addEventListener(VirtualNodeList.SELECTED, selectedLink);
+				}
+			}
+			
+			override public function removeEvents():void
+			{
+				linkList.removeEventListener(VirtualNodeList.SELECTED, selectedLink);
+			}
+			
+			public function selectedLink(e:FlackEvent):void
+			{
+				if(areaForLink != null)
+				{
+					var currentContent:AreaContent = areaForLink.Content;
+					selected = e.changedObject as VirtualLink;
+					if(currentContent != null && currentContent is VirtualLinkArea)
+						areaForLink.clear(false, (currentContent as VirtualLinkArea).load, selected);
+					else
+					{
+						var linkInfo:VirtualLinkArea = new VirtualLinkArea();
+						linkInfo.load(selected);
+						areaForLink.load(linkInfo);
+					}
+				}
+			}
+		]]>
+	</fx:Script>
+	<mx:HDividedBox width="100%"
+					height="100%">
+		<display:VirtualLinkList id="linkList"
+								 width="200"
+								 height="100%"
+								 paddingTop="2" />
+		<areas1:Area id="areaForLink"
+					host="{host}"
+					width="100%"
+					height="100%" />
+	</mx:HDividedBox>
+</areas1:AreaContent>

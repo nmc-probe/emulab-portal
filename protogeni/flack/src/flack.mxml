@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -20,41 +20,45 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 <s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
 			   xmlns:s="library://ns.adobe.com/flex/spark" 
 			   xmlns:mx="library://ns.adobe.com/flex/mx"
-			   xmlns:display="protogeni.display.*"
-			   xmlns:components="protogeni.display.components.*"
-			   xmlns:mapping="protogeni.display.mapping.*"
-			   minWidth="600" minHeight="400" 
-			   preinitialize="preinit();"
-			   applicationComplete="init();" >
+			   xmlns:panes="com.flack.geni.display.panes.*"
+			   xmlns:areas="com.flack.shared.display.areas.*"
+			   xmlns:components="com.flack.shared.display.components.*"
+			   minWidth="600"
+			   minHeight="400"
+			   preinitialize="onPreinitialize();"
+			   applicationComplete="afterReady();"
+			   resizeForSoftKeyboard="true" xmlns:panes1="com.flack.shared.display.panes.*">
 	<s:layout>
-		<s:BasicLayout/>
+		<s:HorizontalLayout gap="0" />
 	</s:layout>
 	
 	<fx:Style>
 		@namespace s "library://ns.adobe.com/flex/spark";
 		@namespace mx "library://ns.adobe.com/flex/mx";
-		@namespace display "protogeni.display.*";
-		@namespace components "protogeni.display.components.*";
-		@namespace mapping "protogeni.display.mapping.*";
-		
-		.authenticatedStyle {
-			chromeColor: #33FF33;
-			color: 006600;
-		}
-		
-		.unauthenticatedStyle {
-			chromeColor: #F08080;
-			color: #990000;
-		}
 		
 		.failedStyle {
 			chromeColor: #F08080;
 			color: #990000;
 		}
 		
+		.pausedStyle {
+			chromeColor: #F88017;
+			color: #C35617;
+		}
+		
+		.normalStyle {
+			chromeColor: #000000;
+			color: #000000;
+		}
+		
 		.validStyle {
 			chromeColor: #27C427;
 			color: #006600;
+		}
+		
+		.warningStyle {
+			chromeColor: #FFCC00;
+			color: #CC6600;
 		}
 		
 		.inprogressStyle {
@@ -68,54 +72,58 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		}
 		
 		s|TextArea {
-			skinClass: ClassReference("protogeni.display.skins.TextAreaSkin");
+			skinClass: ClassReference("com.flack.shared.display.skins.TextAreaSkin");
+		}
+		
+		s|TextInput {
+			skinClass: ClassReference("com.flack.shared.display.skins.TextInputSkin");
+		}
+		
+		s|Button {
+			skinClass: ClassReference("com.flack.shared.display.skins.ButtonSkin");
 		}
 		
 		s|Scroller {
-			skinClass: ClassReference("protogeni.display.skins.ScrollerSkin");
+			skinClass: ClassReference("com.flack.shared.display.skins.ScrollerSkin");
 		}
 		
 		s|CheckBox {
-			skinClass: ClassReference("protogeni.display.skins.CheckBoxSkin");
+			skinClass: ClassReference("com.flack.shared.display.skins.CheckBoxSkin");
 		}
 		
 		s|List {
-			skinClass: ClassReference("protogeni.display.skins.ListSkin");
+			skinClass: ClassReference("com.flack.shared.display.skins.ListSkin");
 		}
 		
 		s|RadioButton {
-			skinClass: ClassReference("protogeni.display.skins.RadioButtonSkin");
+			skinClass: ClassReference("com.flack.shared.display.skins.RadioButtonSkin");
 		}
 		
-		components|CollapsiblePanel {
-			skin-class: ClassReference('protogeni.display.skins.CollapsiblePanelSkin');
+		s|DropDownList {
+			skinClass: ClassReference("com.flack.shared.display.skins.DropDownListSkin");
 		}
 		
 	</fx:Style>
 	
 	<fx:Script>
 		<![CDATA[
-			import com.hurlant.util.der.DER;
-			import com.mstrum.Asn1Field;
-			import com.mstrum.DER;
-			import com.mstrum.Oids;
+			import com.flack.emulab.display.panes.EmulabSearchPane;
+			import com.flack.emulab.display.panes.EmulabUserPane;
+			import com.flack.geni.display.panes.GeniResourcesPane;
+			import com.flack.geni.display.panes.GeniSearchPane;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedCache;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.areas.AreaContent;
+			import com.flack.shared.logging.LogMessage;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.Tasker;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.ViewUtil;
 			
 			import mx.controls.Alert;
-			import mx.events.CloseEvent;
-			import mx.utils.Base64Decoder;
+			import mx.core.FlexGlobals;
 			
-			import protogeni.GeniEvent;
-			import protogeni.GeniHandler;
-			import protogeni.communication.RequestGeniBundle;
-			import protogeni.communication.RequestListAuthoritiesPublic;
-			import protogeni.communication.RequestRootBundle;
-			import protogeni.display.ColorUtil;
-			import protogeni.display.DisplayUtil;
-			import protogeni.display.ImageUtil;
-			import protogeni.resources.SliceAuthority;
-			
-			//------------------------------------------
-			// Embedded resources
 			[Bindable]
 			[Embed(source="../images/arrow_out.png")] 
 			private var arrowOut:Class;
@@ -123,54 +131,63 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			[Embed(source="../images/arrow_in.png")] 
 			private var arrowIn:Class;
 			
-			[Bindable]
-			public var allowAuthenticate:Boolean;
-			
-			public var geniLocalSharedObject:SharedObject;
-			
-			public var forceMapKey:String;
-			
-			private function preinit():void {
+			private function onPreinitialize():void
+			{
+				// XXX only leave what's needed for production
 				Security.allowDomain("*");
 				Security.allowInsecureDomain("*");
 				Security.allowDomain("localhost");	
-
-				ParamHandler.preload();
+				
+				// First, is this for GENI or Emulab?
+				try{
+					if(FlexGlobals.topLevelApplication.parameters.mode != null)
+					{
+						switch((FlexGlobals.topLevelApplication.parameters.mode as String).toLowerCase())
+						{
+							case "emulab":
+								SharedMain.mode = SharedMain.MODE_EMULAB;
+								break;
+							case "geni":
+								SharedMain.mode = SharedMain.MODE_GENI;
+						}
+					}
+				} catch(all:Error) {
+				}
+				
+				SharedMain.preinitMode();
 			}
 			
-			private function init():void {
+			private function afterReady():void
+			{
+				// Prepare for errors
 				loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, uncaughtErrorHandler);
-				this.stage.addEventListener(FullScreenEvent.FULL_SCREEN, fullScreenChange);
+				stage.addEventListener(FullScreenEvent.FULL_SCREEN, fullScreenChange);
 				
-				Main.geniHandler = new GeniHandler();
-				Main.geniHandler.mapHandler.map = map;
-				Main.geniDispatcher.addEventListener(GeniEvent.USER_CHANGED, userChanged);
-				Main.geniDispatcher.addEventListener(GeniEvent.QUEUE_CHANGED, queueChanged);
+				SharedMain.initMode();
 				
-				// Default behavior (public)
-				allowAuthenticate = true;
-				Main.geniHandler.unauthenticatedMode = true;
+				// Create our universe and get ready
+				//SharedCache.initialize();
+				SharedCache.loadAndApply();
+				SharedMain.loadParams();
 				
-				// Flash options
-				ParamHandler.load();
+				SharedMain.initPlugins();
 				
-				FlackCache.loadBasicSharedObject();
-				FlackCache.loadOfflineSharedObject();
-				FlackCache.applyBasic();
+				SharedMain.logger.addEventListener(FlackEvent.CHANGED_LOG, logEvent);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_FINISHED, taskerStatusUpdate);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_STARTED, taskerStatusUpdate);
 				
-				if(Main.debugMode)
-					LogHandler.viewConsole();
-				
-				// Load the certificate bundle
-				if(Main.useJavascript) {
-					Main.geniHandler.requestHandler.pushRequest(new RequestGeniBundle());
-					Main.geniHandler.requestHandler.pushRequest(new RequestRootBundle());
+				switch(SharedMain.mode)
+				{
+					case SharedMain.MODE_EMULAB:
+						resourcesView.addElement(new EmulabUserPane());
+						searchView.addElement(new EmulabSearchPane());
+						break;
+					case SharedMain.MODE_GENI:
+						resourcesView.addElement(new GeniResourcesPane());
+						searchView.addElement(new GeniSearchPane());
 				}
-				Main.geniHandler.requestHandler.pushRequest(new RequestListAuthoritiesPublic());
 				
-				// Always show the start options
-				var startOptions:StartOptionsWindow = new StartOptionsWindow();
-				startOptions.showWindow();
+				SharedMain.runFirst();
 			}
 			
 			private function uncaughtErrorHandler(event:UncaughtErrorEvent):void
@@ -179,59 +196,142 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				event.stopImmediatePropagation();
 				
 				// XXX Fix for dell streak 7, linux
-				try{
+				/*try{
 					if(event.error.errorID == 2063 || event.error.errorID == 2007)
 						return;
-				} catch(bad:Error) {}
-				
-				//Main.geniHandler.requestHandler.pause();
+				} catch(bad:Error) {}*/
 				
 				var errorMessage:String = "";
-				if(event.error is Error) {
+				if(event.error is Error)
+				{
 					var error:Error = event.error as Error;
 					var stackTrace:String = error.getStackTrace();
 					if(stackTrace != null)
 						errorMessage = stackTrace;
 					else
 						errorMessage = error.toString();
-				} else if(event.error is ErrorEvent) {
+				}
+				else if(event.error is ErrorEvent)
+				{
 					var errorEvent:ErrorEvent = event.error as ErrorEvent;
 					errorMessage = errorEvent.toString();
 				}
-				else {
-					try{
+				else
+				{
+					try
+					{
 						errorMessage = event.error.toString();
-					} catch(bad:Error) {}
+					}
+					catch(bad:Error) {}
 				}
 				
-				var uncaughtErrorMessage:LogMessage = new LogMessage("",
+				var uncaughtErrorMessage:LogMessage = new LogMessage(
+					null,
+					"",
 					"Uncaught Error",
 					"Error: " + errorMessage + "\n\nEvent: " + event.toString(),
-					LogMessage.ERROR_FAIL);
+					"",
+					LogMessage.LEVEL_DIE);
 				
-				LogHandler.appendMessage(uncaughtErrorMessage);
-				//LogHandler.viewConsole();
+				SharedMain.logger.add(uncaughtErrorMessage);
 				
 				if(errorMessage.indexOf("Connection closed during handshake.") > -1)
 					return;
 				
-				DisplayUtil.viewLogMessage(uncaughtErrorMessage);
-				Alert.show("An uncaught error was thrown and has possibly corrupted any actions you were doing. The request queue was paused so any pending actions will not be run until you start the queue again.  If you believe the error was not serious, restart the queue and continue.\n\n"
+				ViewUtil.viewLogMessage(uncaughtErrorMessage);
+				Alert.show(
+					"An uncaught error was thrown and has possibly corrupted any actions you were doing. The request queue was paused so any pending actions will not be run until you start the queue again.  If you believe the error was not serious, restart the queue and continue.\n\n"
 					+ "Please check the error log message and copy the details into a message and send to mstrum@flux.utah.edu.  Restart the client after you have gathered any RSPECs, error messages, etc that you don't want to lose.",
-					"Uncaught error", Alert.OK, this, null, ImageUtil.errorIcon);
+					"Uncaught error",
+					Alert.OK,
+					this,
+					null,
+					ImageUtil.errorIcon);
 			}
 			
-			//------------------------------------------
-			// GUI
+			
+			
+			private function taskerStatusUpdate(event:TaskEvent):void
+			{
+				if(SharedMain.tasker.tasks.Active.length > 0)
+				{
+					if(!spinner.visible)
+					{
+						spinner.startSpin();
+						spinner.visible = true;
+					}
+				}
+				else
+				{
+					if(spinner.visible)
+					{
+						spinner.stopSpin();
+						spinner.visible = false;
+					}
+				}
+				updateRemaining();
+			}
+			
+			private function logEvent(event:FlackEvent):void
+			{
+				if(event.action == FlackEvent.ACTION_CREATED)
+				{
+					var msg:LogMessage = event.changedObject as LogMessage;
+					if(msg.origin != null && !(msg.origin is Tasker) )
+					{
+						updateLabel.text = msg.Title;
+						if(msg.level == LogMessage.LEVEL_FAIL)
+							updateLabel.styleName = "failedStyle";
+						else if(msg.level == LogMessage.LEVEL_WARNING)
+							updateLabel.styleName = "inprogressStyle";
+						else
+							updateLabel.styleName = "normalStyle";
+					}
+				}
+				updateRemaining();
+			}
+			
+			public function updateRemaining():void
+			{
+				var remaining:int = SharedMain.tasker.Remaining;
+				if(remaining == 0)
+					remainingLabel.text = "";
+				else
+					remainingLabel.text = remaining + " Running";
+			}
+			
+			public function viewingContent():AreaContent
+			{
+				return contentAreaGroup.Content;
+			}
+			
+			public function viewContent(content:AreaContent):void
+			{
+				contentAreaGroup.load(content);
+			}
+			
+			public function viewAbout():void
+			{
+				ViewUtil.viewAbout();
+			}
+			
 			protected function fullScreenChange(event:FullScreenEvent = null):void
 			{
-				if(this.stage.displayState == StageDisplayState.FULL_SCREEN)
-					Alert.show("You will not be able to use your keyboard in full screen mode due to Flash's security model. For an on-screen keyboard, click the keyboard icon next to text inputs");
+				if(stage.displayState == StageDisplayState.FULL_SCREEN)
+				{
+					Alert.show(
+						"You may not be able to use your keyboard in full screen mode due to Flash's security model. Adobe is afraid programs will try to look like the operating system in full mode and trick users into entering a system password. Sorry for the inconvenience!",
+						"Keyboard not usable"
+					);
+				}
 			}
 			
-			private function toggleFullScreen():void {
-				try {
-					switch (systemManager.stage.displayState) {
+			private function toggleFullScreen():void
+			{
+				try
+				{
+					switch (systemManager.stage.displayState)
+					{
 						case StageDisplayState.FULL_SCREEN:
 							systemManager.stage.displayState = StageDisplayState.NORMAL;
 							fullscreenButton.setStyle("icon", arrowOut);
@@ -241,164 +341,90 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							fullscreenButton.setStyle("icon", arrowIn);
 							break;
 					}
-				} catch (err:SecurityError) {
-					Alert.show("Fullscreen isn't supported on the current system." +
-						"  Either you are running an older version of Fash or allowFullScreen is not set in the HTML object/embed tags.");
 				}
-			}
-			
-			public function userChanged(pe:GeniEvent):void {
-				if(Main.geniHandler.unauthenticatedMode &&
-					(Main.geniHandler.CurrentUser == null
-					|| Main.geniHandler.CurrentUser.Credential.length == 0))
+				catch (err:SecurityError)
 				{
-					this.userButton.setStyle("icon", ImageUtil.noUserIcon);
-					this.userButton.toolTip = "Log in";
-					this.userButton.label = "Log in";
-				} else {
-					this.userButton.setStyle("icon", ImageUtil.userIcon);
-					this.userButton.toolTip = "View user information"
-					if(Main.geniHandler.CurrentUser != null)
-						this.userButton.label = Main.geniHandler.CurrentUser.uid;
-					else
-						this.userButton.label = "";
+					Alert.show(
+						"Fullscreen isn't supported on the current system." +
+						"  Either you are running an older version of Fash or allowFullScreen is not set in the HTML object/embed tags."
+					);
 				}
-			}
-			
-			public function showAuthenticate():void
-			{
-				if(!allowAuthenticate)
-					return;
-				
-				userButton.styleName = "unauthenticatedStyle";
-			}
-			
-			public function hideAuthenticate():void
-			{
-				if(!allowAuthenticate)
-					return;
-				
-				userButton.styleName = "authenticatedStyle";
-			}
-			
-			protected function loadUser():void
-			{
-				if(Main.geniHandler.unauthenticatedMode && !Main.offlineMode) {
-					Main.geniHandler.requestHandler.startInitiationSequence(true);
-				} else {
-					DisplayUtil.viewUserWindow();
-				}
-			}
-			
-			public function tryToStartOver():void {
-				Alert.show("Do you really want to clear and reload all data?",
-					"Reload all?",
-					Alert.YES|Alert.NO,
-					this,
-					function afterDecision(e:CloseEvent):void {
-						if(e.detail == Alert.YES)
-							startover();
-					}
-				);
-			}
-			
-			public function startover():void {
-				reinit();
-				Main.useCache = false;
-				Main.geniHandler.requestHandler.startInitiationSequence(true);
-			}
-			
-			public function reinit():void
-			{
-				if(Main.geniHandler != null)
-					Main.geniHandler.clearAll();
-				ColorUtil.nextColorIdx = 0;
-				//Main.geniHandler = new GeniHandler();
-				//Main.geniHandler.mapHandler.map = map;
-			}
-			
-			public function queueChanged(event:GeniEvent):void {
-				var isWorking:Boolean = Main.geniHandler.requestHandler.queue.working();
-				var workingCount:int = Main.geniHandler.requestHandler.queue.workingCount();
-				var waitingCount:int = Main.geniHandler.requestHandler.queue.waitingCount();
-				spinner.visible = isWorking;
-				if(isWorking)
-					spinner.startSpin();
-				else
-					spinner.stopSpin();
-				if(isWorking && workingCount > 1)
-					waitingCountLabel.text = workingCount + " active";
-				else
-					waitingCountLabel.text = "";
-				if(waitingCount > 0) {
-					if(waitingCountLabel.text.length > 0)
-						waitingCountLabel.text += ", ";
-					waitingCountLabel.text += waitingCount + " waiting";
-				}
-			}
-			
-			public function setStatus(s:String, isError:Boolean):void
-			{
-				progressLabel.text = s;
-				
-				if(Main.geniHandler.requestHandler.queue.working())
-					progressLabel.styleName = "inprogressStyle";
-				else if(isError)
-					progressLabel.styleName = "failedStyle";
-				else
-					progressLabel.styleName = "validStyle";
 			}
 			
 		]]>
 	</fx:Script>
+	
+	<s:VGroup id="dashboard"
+			  height="100%"
+			  width="180"
+			  gap="2">
+		<s:ButtonBar dataProvider="{dashboardViewstack}"
+					 requireSelection="true"
+					 skinClass="com.flack.shared.display.skins.ButtonBarSkin"
+					 width="100%" />
+		<mx:ViewStack id="dashboardViewstack"
+					  width="100%"
+					  height="100%">
+			<s:NavigatorContent id="resourcesView"
+								width="100%"
+								height="100%"
+								toolTip="Resources"
+								icon="{ImageUtil.managerIcon}">
+				<!-- Specific to mode -->
+			</s:NavigatorContent>
+			<s:NavigatorContent id="searchView"
+								width="100%"
+								height="100%"
+								toolTip="Search"
+								icon="{ImageUtil.searchIcon}">
+				<!-- Specific to mode -->
+			</s:NavigatorContent>
+			<s:NavigatorContent id="geniView"
+								width="100%"
+								height="100%"
+								toolTip="Tasks"
+								icon="{ImageUtil.consoleIcon}">
+				<panes1:TaskPane />
+			</s:NavigatorContent>
+		</mx:ViewStack>
+	</s:VGroup>
+	
+	<areas:Area id="contentAreaGroup" />
+	
 	<s:controlBarLayout>
-		<s:HorizontalLayout verticalAlign="middle" gap="4" paddingTop="2" paddingBottom="2" paddingLeft="2" paddingRight="2" />
+		<s:HorizontalLayout paddingBottom="2"
+							paddingTop="2"
+							paddingLeft="2"
+							paddingRight="2"
+							gap="2"
+							verticalAlign="middle" />
 	</s:controlBarLayout>
 	<s:controlBarContent>
-		<components:ImageButton id="consoleButton"
-								icon="{ImageUtil.consoleIcon}"
-								click="LogHandler.viewConsole();" 
-								toolTip="View the request logs and queue"/>
-		<components:ImageButton id="searchButton"
-								icon="{ImageUtil.findIcon}"
-								click="DisplayUtil.viewSearchWindow()"
-								toolTip="Search for a resource" />
-		<components:ImageButton id="refreshButton"
-								icon="{ImageUtil.refreshIcon}"
-								click="tryToStartOver()"
-								toolTip="Reload all data from scratch" />
-		<s:Button icon="{ImageUtil.noUserIcon}"
-				  click="loadUser()"
-				  visible="{allowAuthenticate}"
-				  includeInLayout="{allowAuthenticate}"
-				  toolTip="Log in to get user-only features"
-				  label="Log in"
-				  styleName="unauthenticatedStyle"
-				  id="userButton" height="24" />
-		<s:Rect percentWidth="100" />
-		<s:Label text="Initialized" id="progressLabel"  fontStyle="normal" fontWeight="bold"/>
-		<components:Spinner id="spinner"
-							width="21"
-							height="21"
-							x="{(width / 2) - (spinner.width / 2)}"
-							y="{(height / 2) - (spinner.height / 2)}"
-							visible="false" />
-		<s:Label text="" id="waitingCountLabel"  fontStyle="normal" fontWeight="bold" maxDisplayedLines="1" />
-		<s:Rect percentWidth="100" />
-		<components:ImageButton id="resetZoomButton"
-								icon="@Embed('../images/zoom.png')"
-								click="map.resetZoom();"
-								toolTip="Reset zoom" />
+		<s:HGroup width="{dashboard.width-8}"
+				  verticalAlign="middle">
+			<s:Rect percentWidth="100" />
+			<s:Label id="remainingLabel"
+					 fontWeight="bold" />
+			<components:Spinner id="spinner"
+								width="21"
+								height="21"
+								x="{(width / 2) - (spinner.width / 2)}"
+								y="{(height / 2) - (spinner.height / 2)}"
+								visible="false" />
+		</s:HGroup>
+		<s:Label id="updateLabel"
+				 maxDisplayedLines="1"
+				 width="100%"
+				 fontWeight="bold" />
+		<s:Label text="{SharedMain.version}"
+				 color="0xC35617"
+				 fontWeight="bold" />
 		<components:ImageButton id="fullscreenButton"
 								icon="{arrowOut}"
 								click="toggleFullScreen()"
 								toolTip="Toggle fullscreen" />
-		<components:ImageButton id="helpButton"
-								icon="{ImageUtil.helpIcon}"
-								click="DisplayUtil.viewAboutWindow()"
-								toolTip="View about info and get help" />
+		<components:ImageButton icon="{ImageUtil.helpIcon}"
+								toolTip="View more information about Flack"
+								click="viewAbout()" />
 	</s:controlBarContent>
-	
-	<mapping:GeniMap id="map" />
-	<mapping:GeniMapLegend id="legend" />
 </s:Application>

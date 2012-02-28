@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,9 +12,16 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.virtual
 {
-	import protogeni.StringUtil;
+	import com.flack.geni.resources.Extensions;
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.shared.resources.IdentifiableObject;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.resources.docs.RspecVersion;
+	
+	import flash.utils.Dictionary;
 
 	/**
 	 * Holds resources for a slice at one manager
@@ -22,7 +29,7 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class Sliver
+	public class Sliver extends IdentifiableObject
 	{
 		public static const STATE_STARTED:String = "started";
 		public static const STATE_STOPPED:String = "stopped";
@@ -39,141 +46,141 @@ package protogeni.resources
 		public static const STATUS_STOPPED:String = "stopped";
 		
 		[Bindable]
-		public var urn:IdnUrn = new IdnUrn();
-		
-		[Bindable]
 		public var slice:Slice;
+		[Bindable]
 		public var manager:GeniManager;
 		
-		public var credential:String = "";
+		public var credential:GeniCredential;
 		public var expires:Date = null;
+		
+		[Bindable]
+		public var forceUseInputRspecInfo:RspecVersion;
 		
 		public var state:String = "";
 		public var status:String = "";
-		
-		public var ticket:String = "";
-		public var request:XML = null;
-		public var manifest:XML = null;
-		public function get Created():Boolean {
-			return manifest != null;
-		}
-		
-		public var manifestVersion:Number = NaN;
-		
-		public var nodes:VirtualNodeCollection = new VirtualNodeCollection();
-		public var links:VirtualLinkCollection = new VirtualLinkCollection();
-		public function get VirtualComponents():Vector.<VirtualComponent> {
-			var components:Vector.<VirtualComponent> = new Vector.<VirtualComponent>();
-			for each(var node:VirtualNode in nodes.collection)
-				components.push(node);
-			for each(var link:VirtualLink in links.collection)
-				components.push(link);
-			return components;
-		}
-		
-		public var extensionNamespaces:Vector.<Namespace> = new Vector.<Namespace>();
-		
-		public var processed:Boolean = false;
-		public var changing:Boolean = false;
-		private var _message:String = "Nothing done yet";
-		public function get message():String { return _message; }
-		public function set message(msg:String):void {
-			_message = StringUtil.shortenString(msg, 200);
-		}
-		
-		public function Sliver(owner:Slice,
-							   newManager:GeniManager = null)
+		public function get StatusFinalized():Boolean
 		{
-			this.slice = owner;
-			this.manager = newManager;
-		}
-		
-		public function copyStatusFrom(sliver:Sliver):void {
-			this.status = sliver.status;
-			this.state = sliver.state;
-			this.changing = sliver.changing;
-			this.message = sliver.message;
-			for each(var copyNode:VirtualNode in sliver.nodes.collection) {
-				var myNode:VirtualNode = this.nodes.getByClientId(copyNode.clientId);
-				if(myNode != null) {
-					myNode.status = copyNode.status;
-					myNode.state = copyNode.state;
-					myNode.error = copyNode.error;
-				}
-			}
-			for each(var copyLink:VirtualLink in sliver.links.collection) {
-				var myLink:VirtualLink = this.links.getByClientId(copyLink.clientId);
-				if(myLink != null) {
-					myLink.status = copyLink.status;
-					myLink.state = copyLink.state;
-					myLink.error = copyLink.error;
-				}
-			}
-		}
-		
-		public function get StatusFinalized():Boolean {
 			return status == STATUS_READY
 				|| status == STATUS_FAILED
 				|| status == STATUS_UNKNOWN
 				|| status == STATUS_STOPPED;
 		}
-		
-		public function getBySliverId(id:String):VirtualComponent {
-			var obj:* = this.nodes.getBySliverId(id);
-			if(obj != null)
-				return obj;
-			return this.links.getBySliverId(id);
-		}
-		
-		public function clearResources():void
+		public function clearStatus():void
 		{
-			this.nodes = new VirtualNodeCollection();
-			this.links = new VirtualLinkCollection();
-			this.extensionNamespaces = new Vector.<Namespace>();
-		}
-		
-		public function clearState():void
-		{
-			this.state = "";
-			this.status = "";
-			this.processed = false;
-			this.changing = false;
-			for each(var node:VirtualComponent in this.VirtualComponents)
+			state = "";
+			status = "";
+			var clearNodes:VirtualNodeCollection = slice.nodes.getByManager(manager);
+			for each(var node:VirtualNode in clearNodes.collection)
 				node.clearState();
+			var clearLinks:VirtualLinkCollection = slice.links.getConnectedToManager(manager);
+			for each(var link:VirtualLink in clearLinks.collection)
+				link.clearState();
 		}
 		
-		public function clearAll():void
+		public var sliverIdToStatus:Dictionary = new Dictionary();
+		
+		public var ticket:String = "";
+		public var manifest:Rspec = null;
+		
+		private var unsubmittedChanges:Boolean = true;
+		public function get UnsubmittedChanges():Boolean
 		{
-			clearResources();
-			clearState();
-			this.request = null;
-			this.ticket = "";
-			this.manifest = null;
+			if(unsubmittedChanges)
+				return true;
+			if(slice.nodes.getByManager(manager).UnsubmittedChanges)
+				return true;
+			if(slice.links.getConnectedToManager(manager).UnsubmittedChanges)
+				return true;
+			return false;
+		}
+		public function set UnsubmittedChanges(value:Boolean):void
+		{
+			unsubmittedChanges = value;
 		}
 		
-		public function removeOutsideReferences():void
+		public var extensions:Extensions = new Extensions();
+		
+		public function get Created():Boolean
 		{
-			for each(var node:VirtualNode in this.nodes.collection)
+			return manifest != null;
+		}
+		
+		public function get Nodes():VirtualNodeCollection
+		{
+			return slice.nodes.getByManager(manager);
+		}
+		
+		public function get Links():VirtualLinkCollection
+		{
+			return slice.links.getConnectedToManager(manager);
+		}
+		
+		/**
+		 * 
+		 * @param owner Slice for the sliver
+		 * @param newManager Manager where the sliver lies
+		 * 
+		 */
+		public function Sliver(owner:Slice,
+							   newManager:GeniManager = null)
+		{
+			super();
+			slice = owner;
+			manager = newManager;
+		}
+		
+		/**
+		 * Removes status and manifests from everything from this sliver, BUT not the sliver's manifest
+		 * 
+		 */
+		public function markStaged():void
+		{
+			// XXX unsubmittedChanges?
+			
+			state = "";
+			status = "";
+			if(slice != null)
 			{
-				if(node.physicalNode != null
-					&& node.physicalNode.virtualNodes.contains(node))
-					node.physicalNode.virtualNodes.remove(node);
+				for each(var virtualNode:VirtualNode in slice.nodes.collection)
+				{
+					if(virtualNode.manager == manager)
+						virtualNode.markStaged();
+				}
+				for each(var virtualLink:VirtualLink in slice.links.collection)
+				{
+					for each(var linkManager:GeniManager in virtualLink.interfaceRefs.Interfaces.Managers.collection)
+					{
+						if(linkManager == manager)
+						{
+							virtualLink.markStaged();
+							break;
+						}
+					}
+					
+				}
 			}
 		}
 		
-		public function parseManifest(newManifest:XML = null):void {
-			if(newManifest != null)
-				this.manifest = newManifest;
-			this.manager.rspecProcessor.processSliverRspec(this, this.manifest);
-		}
-		
-		public function parseRspec(newRspec:XML):void {
-			this.manager.rspecProcessor.processSliverRspec(this, newRspec);
-		}
-		
-		public function getRequestRspec(removeNonexplicitBinding:Boolean):XML
+		public function removeFromSlice():void
 		{
-			return this.manager.rspecProcessor.generateSliverRspec(this, removeNonexplicitBinding, slice.useInputRspecVersion);
+			slice.reportedManagers.remove(manager);
+			// Remove the nodes, no links will be left
+			for(var i:int = 0; i < slice.nodes.length; i++)
+			{
+				var node:VirtualNode = slice.nodes.collection[i];
+				if(node.manager == manager)
+				{
+					node.removeFromSlice();
+					i--;
+				}
+			}
+			// unsubmittedChanges = true;
+			slice.slivers.remove(this);
+		}
+		
+		override public function toString():String
+		{
+			return "[Sliver ID="+id.full+", Manager="+manager.id.full+", HasManifest="+Created+", Status="+status+", State="+state+"]";
 		}
 	}
 }

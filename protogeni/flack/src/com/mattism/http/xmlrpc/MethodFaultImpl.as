@@ -16,23 +16,23 @@ package com.mattism.http.xmlrpc
 		private var _fault:Object;
 		
 		public function MethodFaultImpl( o:Object ){
-			if ( o ) this.setFaultObject( o );
+			if ( o ) setFaultObject( o );
 		}
 		
 		public function getFaultCode():Number {
-			return Number( this._fault.faultCode );
+			return Number( _fault.faultCode );
 		}
 		
 		public function getFaultString():String {
-			return String( this._fault.faultString );
+			return String( _fault.faultString );
 		}
 		
 		public function getArgs():Array {
-			return new Array( this._fault.args );
+			return new Array( _fault.args );
 		}
 		
 		public function setFaultObject( o:Object ):void {
-			this._fault=o;
+			_fault=o;
 		}
 		
 		public function toString():String

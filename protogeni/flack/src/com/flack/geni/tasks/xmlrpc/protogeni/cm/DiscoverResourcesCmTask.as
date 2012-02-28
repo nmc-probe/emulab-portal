@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,115 +12,97 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	import flash.utils.ByteArray;
-	
-	import mx.utils.Base64Decoder;
-	
-	import protogeni.StringUtil;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.ProtogeniComponentManager;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.tasks.process.ParseAdvertisementTask;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.CompressUtil;
 	
 	/**
-	 * Gets the manager's advertisement using the ProtoGENI API
+	 * Gets the advertisement at the manager and adds a parse task to the parent task
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestDiscoverResources extends Request
+	public class DiscoverResourcesCmTask extends ProtogeniXmlrpcTask
 	{
-		private var componentManager:ProtogeniComponentManager;
+		public var manager:GeniManager;
 		
-		public function RequestDiscoverResources(newManager:ProtogeniComponentManager):void
+		/**
+		 * 
+		 * @param newManager Manager to discover resources at
+		 * 
+		 */
+		public function DiscoverResourcesCmTask(newManager:GeniManager)
 		{
-			super("List resources @ " + newManager.Hrn,
-				"Listing resources for " + newManager.Hrn,
-				CommunicationUtil.discoverResources,
-				true,
-				true,
-				false);
-			componentManager = newManager;
-			
-			op.timeout = 300;
-			op.setUrl(componentManager.Url);
+			super(
+				newManager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_DISCOVERRESOURCES,
+				"Discover resources @ " + newManager.hrn,
+				"Lists resources for component manager named " + newManager.hrn,
+				"Discover Resources"
+			);
+			relatedTo.push(newManager);
+			manager = newManager;
 		}
 		
-		override public function start():Operation {
-			// Build up the args
-			op.clearFields();
-			op.addField("credentials", [Main.geniHandler.CurrentUser.Credential]);
-			op.addField("compress", true);
-			op.addField("rspec_version", componentManager.outputRspecVersion);
-			return op;
+		override protected function createFields():void
+		{
+			addNamedField("credentials", [GeniMain.geniUniverse.user.credential.Raw]);
+			addNamedField("compress", true);
+			addNamedField("rspec_version", manager.outputRspecVersion.version);
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				var decodor:Base64Decoder = new Base64Decoder();
-				decodor.decode(response.value);
-				var bytes:ByteArray = decodor.toByteArray();
-				bytes.uncompress();
-				var decodedRspec:String = bytes.toString();
+				var uncompressedRspec:String = CompressUtil.uncompress(data);
 				
-				componentManager.Rspec = new XML(decodedRspec);
-				componentManager.rspecProcessor.processResourceRspec(after);
+				addMessage(
+					"Received advertisement",
+					uncompressedRspec,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				manager.advertisement = new Rspec(uncompressedRspec);
+				parent.add(new ParseAdvertisementTask(manager));
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-				componentManager.errorMessage = response.output;
-				componentManager.errorDescription = CommunicationUtil.GeniresponseToString(code) + ": " + componentManager.errorMessage;
-				componentManager.Status = GeniManager.STATUS_FAILED;
-				this.removeImmediately = true;
-				Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			}
-			
-			return null;
+				faultOnSuccess();
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):*
+		override protected function afterError(taskError:TaskError):void
 		{
-			componentManager.errorMessage = event.toString();
-			componentManager.errorDescription = "";
-			if(componentManager.errorMessage.search("#2048") > -1)
-				componentManager.errorDescription = "Stream error, possibly due to server error.  Another possible error might be that you haven't added an exception for:\n" + componentManager.VisitUrl();
-			else if(componentManager.errorMessage.search("#2032") > -1)
-				componentManager.errorDescription = "IO error, possibly due to the server being down";
-			else if(componentManager.errorMessage.search("timed"))
-				componentManager.errorDescription = event.text;
+			manager.Status = FlackManager.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
 			
-			componentManager.Status = GeniManager.STATUS_FAILED;
-			Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			
-			return null;
+			super.afterError(taskError);
 		}
 		
-		override public function cancel():void
+		override protected function runCancel():void
 		{
-			componentManager.Status = GeniManager.STATUS_UNKOWN;
-			Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			op.cleanup();
-		}
-		
-		private function after(junk:GeniManager):void {
-			cleanup();
-		}
-		
-		override public function cleanup():void
-		{
-			if(componentManager.Status == GeniManager.STATUS_INPROGRESS)
-				componentManager.Status = GeniManager.STATUS_FAILED;
-			running = false;
-			Main.geniHandler.requestHandler.remove(this, false);
-			Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			op.cleanup();
-			Main.geniHandler.mapHandler.drawMap();
-			Main.geniHandler.requestHandler.tryNext();
+			manager.Status = FlackManager.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 	}
 }

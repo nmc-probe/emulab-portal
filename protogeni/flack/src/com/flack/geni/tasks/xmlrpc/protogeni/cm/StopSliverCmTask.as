@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,84 +12,81 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.tasks.TaskError;
 	
 	/**
-	 * Stops a sliver using the ProtoGENI API
-	 * 
-	 * FULL only
+	 * Stops all resources in the sliver.  Only supported by the FULL API
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverStop extends Request
+	public final class StopSliverCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
 		
-		public function RequestSliverStop(newSliver:Sliver):void
+		/**
+		 * 
+		 * @param newSliver Sliver to stop resources in
+		 * 
+		 */
+		public function StopSliverCmTask(newSliver:Sliver)
 		{
-			super("Stop sliver @ " + newSliver.manager.Hrn,
-				"Stopping sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.Name,
-				CommunicationUtil.stopSliver);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_STOPSLIVER,
+				"Stop sliver @ " + newSliver.manager.hrn,
+				"Stops sliver on " + newSliver.manager.hrn + " for slice named " + newSliver.slice.Name,
+				"Stop Sliver"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
 			sliver = newSliver;
-			sliver.changing = true;
-			sliver.message = "Stopping";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.setUrl(sliver.manager.Url);
 		}
 		
-		override public function start():Operation {
-			if(sliver.manager.level == GeniManager.LEVEL_MINIMAL)
-			{
-				LogHandler.appendMessage(new LogMessage(sliver.manager.Url, "Full API not supported", "This manager does not support this API call", LogMessage.ERROR_FAIL));
-				return null;
-			}
-			op.clearFields();
-			
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("credentials", [sliver.slice.credential]);
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
+		}
+		
+		override protected function runStart():void
+		{
+			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
 			{
-				sliver.message = "Stopped";
-				return new RequestSliverStatus(sliver);
+				afterError(
+					new TaskError(
+						"Full API not supported",
+						TaskError.CODE_PROBLEM
+					)
+				);
+				return;
+			}
+			super.runStart();
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
+			{
+				addMessage(
+					"Stopped",
+					"Sliver was stopped",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-				failed();
-			
-			return null;
-		}
-		
-		public function failed():void {
-			sliver.changing = false;
-			sliver.message = "Stop failed";
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed();
-			return null;
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+				faultOnSuccess();
 		}
 	}
 }

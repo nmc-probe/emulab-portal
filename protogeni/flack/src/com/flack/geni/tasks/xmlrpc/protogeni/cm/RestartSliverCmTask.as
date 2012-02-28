@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,78 +12,64 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.logging.LogMessage;
 	
 	/**
-	 * Restarts a sliver using the ProtoGENI API
+	 * Restarts all resources in the sliver
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverRestart extends Request
+	public final class RestartSliverCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
 		
-		public function RequestSliverRestart(s:Sliver):void
+		/**
+		 * 
+		 * @param newSliver Sliver to restart resources for
+		 * 
+		 */
+		public function RestartSliverCmTask(newSliver:Sliver)
 		{
-			super("Restart sliver @ " + s.manager.Hrn,
-				"Restarting sliver on " + s.manager.Hrn + " for slice named " + s.slice.Name,
-				CommunicationUtil.restartSliver);
-			sliver = s;
-			sliver.changing = true;
-			sliver.message = "Restarting";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.setUrl(sliver.manager.Url);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_RESTARTSLIVER,
+				"Restart sliver @ " + newSliver.manager.hrn,
+				"Restarts sliver on " + newSliver.manager.hrn + " for slice named " + newSliver.slice.Name,
+				"Restart Sliver"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			sliver = newSliver;
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-			
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("credentials", [sliver.slice.credential]);
-			
-			return op;
+		override protected function createFields():void
+		{
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				sliver.message = "Restarted";
-				return new RequestSliverStatus(sliver);
+				addMessage(
+					"Restarted",
+					"Sliver was restarted",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-				failed();
-			
-			return null;
-		}
-		
-		public function failed(msg:String = ""):void {
-			sliver.changing = false;
-			sliver.message = "Restart failed";
-			if(msg != null && msg.length > 0)
-				sliver.message += ": " + msg;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return null;
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+				faultOnSuccess();
 		}
 	}
 }

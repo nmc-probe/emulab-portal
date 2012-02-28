@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -23,218 +23,329 @@ VirtualNode for use on the slice canvas
 
 -->
 
-<s:BorderContainer xmlns:fx="http://ns.adobe.com/mxml/2009" 
-				   xmlns:s="library://ns.adobe.com/flex/spark" 
-				   xmlns:mx="library://ns.adobe.com/flex/mx"
-				   xmlns:display="protogeni.display.*"
-				   xmlns:components="protogeni.display.components.*"
-				   initialize="adjustWidth();"
-				   width="164" height="29"
-				   borderStyle="solid"
-				   borderColor="{borderColor}"
-				   backgroundColor="{backgroundColor}"
-				   mouseDown="mouseMoveHandler(event)" >
-	<s:layout>
-		<s:HorizontalLayout paddingBottom="2" paddingLeft="2" paddingRight="2" paddingTop="2" gap="2" verticalAlign="middle" />
-	</s:layout>
+<s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  initialize="ensureInside();"
+		  gap="4"
+		  paddingLeft="0"
+		  paddingTop="0"
+		  paddingRight="0"
+		  paddingBottom="0">
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		
+		.normalNodeStyle {
+			borderColor: #2F4F4F;
+			backgroundColor: #EAEAEA;
+		}
+		
+		.inprogressNodeStyle {
+			borderColor: #B2B300;
+			backgroundColor: #E6E600;
+		}
+		
+		.failedNodeStyle {
+			borderColor: #990000;
+			backgroundColor: #F08080;
+		}
+		
+		.pausedNodeStyle {
+			borderColor: FF6600;
+			backgroundColor: #FF9900;
+		}
+		
+		.validNodeStyle {
+			borderColor: #006600;
+			backgroundColor: #27C427;
+		}
+		
+	</fx:Style>
 	<fx:Script>
 		<![CDATA[
-			import mx.collections.ArrayCollection;
-			import mx.core.DragSource;
-			import mx.managers.DragManager;
+			import com.flack.geni.resources.virtual.VirtualComponent;
+			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.shared.utils.ColorUtil;
+			import com.flack.shared.utils.ImageUtil;
 			
-			import protogeni.resources.Sliver;
-			import protogeni.resources.VirtualComponent;
-			import protogeni.resources.VirtualNode;
+			import flash.filters.GlowFilter;
+			
+			public function setFilters(newFilters:Array):void
+			{
+				nodeContainer.filters = newFilters;
+			}
 			
 			[Bindable]
-			public var node:VirtualNode;
-			public var links:ArrayCollection = new ArrayCollection();
+			public var editable:Boolean = true;
 			
 			[Bindable]
-			private var currentStyle:String;
+			private var node:VirtualNode;
+			public function set Node(newNode:VirtualNode):void
+			{
+				node = newNode;
+				labelBackgroundColor = ColorUtil.colorsDark[node.manager.colorIdx];
+				labelColor = ColorUtil.colorsLight[node.manager.colorIdx];
+				setLocation(node.flackInfo.x,node.flackInfo.y);
+				sliverTypeLabel.text = (node.exclusive ? "excl. " : "sh. ") + node.sliverType.name;
+				if(node.services.loginServices != null && node.services.loginServices.length > 0)
+				{
+					hostnameLabel.text = node.services.loginServices[0].FullHostname;
+					hostnameLabel.visible = hostnameLabel.includeInLayout = true;
+				}
+				else
+					hostnameLabel.visible = hostnameLabel.includeInLayout = false;
+				if(node.sliverType.selectedImage != null && node.sliverType.selectedImage.id.full.length > 0)
+				{
+					osidLabel.text = node.sliverType.selectedImage.Osid;
+					osidLabel.visible = osidLabel.includeInLayout = true;
+				}
+				else
+					osidLabel.visible = osidLabel.includeInLayout = false;
+				setStatus();
+			}
+			public function get Node():VirtualNode
+			{
+				return node;
+			}
 			
-			public var startX:int;
-			public var startY:int;
 			public var canvas:SliceCanvas;
 			
-			[Bindable]
-			private var borderColor:uint = ColorUtil.unknownLight;
-			[Bindable]
-			private var backgroundColor:uint = ColorUtil.unknownDark;
 			[Bindable]
 			private var labelColor:uint;
 			[Bindable]
 			private var labelBackgroundColor:uint;
 			
-			[Bindable]
-			public var allowLink:Boolean = true;
-			
-			public function resetToStatus():void
+			public function get AllowLink():Boolean
 			{
-				this.toolTip = "";
-				switch(node.status) {
-					case VirtualComponent.STATUS_READY:
-						this.backgroundColor = ColorUtil.validLight;
-						this.borderColor = ColorUtil.validDark;
-						this.toolTip = node.state;
-						break;
-					case VirtualComponent.STATUS_FAILED:
-						this.backgroundColor = ColorUtil.invalidLight;
-						this.borderColor = ColorUtil.invalidDark;
-						this.toolTip = "Error: " + node.error;
-						break;
-					case VirtualComponent.STATUS_CHANGING:
-						this.backgroundColor = ColorUtil.changingLight;
-						this.borderColor = ColorUtil.changingDark;
-						this.toolTip = "Status is changing...";
-						break;
-					case VirtualComponent.STATUS_NOTREADY:
-						this.backgroundColor = ColorUtil.changingLight;
-						this.borderColor = ColorUtil.changingDark;
-						this.toolTip = "Node is not ready";
-						break;
-					case VirtualComponent.STATUS_UNKNOWN:
-					default:
-						this.backgroundColor = ColorUtil.unknownLight;
-						this.borderColor = ColorUtil.unknownDark;
-						if(node.state == null || node.status == null ||
-							(node.state.length == 0 && node.status.length == 0))
+				return node.manager.SupportsLinks && node.HasUsableExperimentalInterface;
+			}
+			
+			public function setStatus():void
+			{
+				if(node != null)
+				{
+					if(node.unsubmittedChanges)
+					{
+						nodeContainer.styleName = "normalNodeStyle";
+						toolTip = "Unsubmitted changes (State: " + node.state + " Status: " + node.status + ")";
+					}
+					else
+					{
+						switch(node.status)
 						{
-							toolTip = "Name: " + node.clientId;
-							if(node.sliverId != null && node.sliverId.length > 0)
-								toolTip += "\nURN: " + node.sliverId;
-							if(node.manager != null)
-								toolTip += "\nManager: " + node.manager.Hrn;
+							case VirtualComponent.STATUS_READY:
+								nodeContainer.styleName = "validNodeStyle";
+								toolTip = node.state;
+								break;
+							case VirtualComponent.STATUS_FAILED:
+								nodeContainer.styleName = "failedNodeStyle";
+								toolTip = "Error: " + node.error;
+								break;
+							case VirtualComponent.STATUS_STOPPED:
+								nodeContainer.styleName = "pausedNodeStyle";
+								toolTip = "Stopped";
+								break;
+							case VirtualComponent.STATUS_CHANGING:
+								nodeContainer.styleName = "inprogressNodeStyle";
+								toolTip = "Status is changing...";
+								break;
+							case VirtualComponent.STATUS_NOTREADY:
+								nodeContainer.styleName = "inprogressNodeStyle";
+								toolTip = "Node is not ready";
+								break;
+							case VirtualComponent.STATUS_UNKNOWN:
+							default:
+								nodeContainer.styleName = "normalNodeStyle";
+								toolTip = "State: " + node.state + " Status: " + node.status;
 						}
-						else
-							toolTip = "State: " + node.state + " Status: " + node.status;
+					}
+				}
+				else
+				{
+					nodeContainer.styleName = "normalNodeStyle";
+					toolTip = "";
 				}
 
-				adjustWidth();
+				//adjustWidth();
 			}
 			
 			public function clearStatus():void
 			{
-				this.toolTip = "";
-				this.backgroundColor = ColorUtil.unknownLight;
-				this.borderColor = ColorUtil.unknownDark;
+				toolTip = "";
+				nodeContainer.styleName = "normalNodeStyle";
 				
-				adjustWidth();
+				//adjustWidth();
 			}
 			
-			public function setNode(n:VirtualNode):void
+			/*public function adjustWidth():void
 			{
-				node = n;
-				lastId = n.clientId;
-				labelBackgroundColor = ColorUtil.colorsDark[node.manager.colorIdx];
-				labelColor = ColorUtil.colorsLight[node.manager.colorIdx];
-				allowLink = n.HasUsableInterface;
-				resetToStatus();
-				adjustWidth();
-			}
-			
-			public function adjustWidth():void
-			{
-				this.validateNow();
-				if(nameLabel != null) {
-					width = width + (nameLabel.measuredWidth - nameLabel.width) + 5;
-					this.moveInside(new Point(this.getMiddleX(), this.getMiddleY()));
+				validateNow();
+				if(nameLabel != null)
+				{
+					//width = width + (nameLabel.measuredWidth - nameLabel.width);// + 5;
+					validateNow();
+					if(node != null)
+						ensureInside();
 				}
-			}
+			}*/
 			
-			public var lastId:String = "";
-			
-			public function removeLink(l:SliceLink):void
+			public function ensureInside(point:Point = null):void
 			{
-				links.removeItemAt(links.getItemIndex(l));
+				var newX:Number = point == null ? x : point.x;
+				var newY:Number = point == null ? y : point.y;
+				// right edge
+				if(parentDocument.width > 0 && (x + width) > parentDocument.width)
+					newX = parentDocument.width - width;
+				// bottom edge
+				if(parentDocument.height > 0 && (y + height) > parentDocument.height)
+					newY = parentDocument.height - height;
+				// left edge
+				if(x < 0)
+					newX = 0;
+				// top edge
+				if(y < 0)
+					newY = 0;
+				move(newX, newY);
 			}
 			
-			public function showInfo(event:MouseEvent):void
+			override public function move(x:Number, y:Number):void
 			{
-				event.stopImmediatePropagation();
-				DisplayUtil.viewSliceNode(this);
+				if(node != null)
+				{
+					// Don't consider moving a change
+					//if(x != node.flackInfo.x || y != node.flackInfo.y)
+					//	node.unsubmittedChanges = true;
+					node.flackInfo.x = x;
+					node.flackInfo.y = y;
+				}
+				super.move(x, y);
 			}
 			
-			public function remove(event:MouseEvent):void
+			public function showInfo(event:MouseEvent = null):void
 			{
-				event.stopImmediatePropagation();
-				canvas.removeSliceNode(this)
+				if(event != null)
+					event.stopImmediatePropagation();
+				//DisplayUtil.viewVirtualNode(node);
+				canvas.host.viewNode(node);
 			}
 			
-			private  function mouseMoveHandler(event:MouseEvent):void{
-				var d:Array = getObjectsUnderPoint(new Point(event.localX, event.localY));
-				var dragInitiator:BorderContainer = BorderContainer(event.currentTarget);
-				var ds:DragSource = new DragSource();
-				ds.addData(dragInitiator, "canvas"); 
-				
-				startX = event.localX;
-				startY = event.localY;
-				DragManager.doDrag(dragInitiator, ds, event);
+			public function remove(event:MouseEvent = null):void
+			{
+				if(event != null)
+					event.stopImmediatePropagation();
+				canvas.removeCanvasNode(this);
 			}
 			
-			private  function mouseDownHandler(event:MouseEvent):void{
-				event.stopImmediatePropagation();
-				canvas.startLinkingFrom(this);
+			public function removeFromCanvas():void
+			{
+				canvas.removeElement(this);
 			}
 			
-			public function setLocation(newX:int = -1, newY:int = -1):void
+			public function setLocation(newX:Number = -1, newY:Number = -1):void
 			{
 				var finalPoint:Point = new Point(newX, newY);
 				if(newX == -1)
-					finalPoint.x = Math.round(Math.random() * parent.width);
+					finalPoint.x = Math.round(Math.random() * (parentDocument.width-60));
 				if(newY == -1)
-					finalPoint.y = Math.round(Math.random() * parent.height);
+					finalPoint.y = Math.round(Math.random() * (parentDocument.height-28));
 				
 				// Make sure this is within bounds
-				this.moveInside(finalPoint);
-				
-				this.node.flackX = this.getMiddleX();
-				this.node.flackY = this.getMiddleY();
+				ensureInside(finalPoint);
 			}
 			
-			public function moveInside(p:Point):void {
-				// right edge
-				if(p.x > (parent.width - this.width/2))
-					p.x = parent.width - this.width/2;
-				// bottom edge
-				if(p.y > (parent.height - this.height/2))
-					p.y = parent.height - this.height/2;
-				// left edge
-				if(p.x < this.width/2)
-					p.x = this.width/2;
-				// top edge
-				if(p.y < this.height/2)
-					p.y = this.height/2;
-				
-				this.x = p.x - (this.width/2);
-				this.y = p.y - (this.height/2);
-			}
-			
-			public function getMiddleX():int
+			public function get MiddlePoint():Point
 			{
-				return x + width/2;
+				return new Point(MiddleX, MiddleY);
 			}
 			
-			public function getMiddleY():int
+			public function get MiddleX():Number
+			{
+				return x + nodeContainer.width/2;
+			}
+			
+			public function get MiddleY():Number
 			{
 				return y + height/2;
 			}
+			
+			public function get ContainerWidth():Number
+			{
+				return nodeContainer.width;
+			}
+			
+			public function get ContainerHeight():Number
+			{
+				return nodeContainer.height;
+			}
+			
+			protected function bordercontainer1_mouseDownHandler(event:MouseEvent):void
+			{
+				canvas.draggingNode = this;
+				canvas.setElementIndex(this, canvas.numElements-1);
+			}
+			
+			protected function bordercontainer1_rollOverHandler(event:MouseEvent):void
+			{
+				if(canvas.SelectedNode == null || canvas.SelectedNode != node)
+					nodeContainer.filters = [new GlowFilter(0x000000)];
+				canvas.hoveredOverItem = this;
+			}
+			
+			protected function bordercontainer1_rollOutHandler(event:MouseEvent):void
+			{
+				if(canvas.SelectedNode == null || canvas.SelectedNode != node)
+					nodeContainer.filters = [];
+				canvas.hoveredOverItem = null;
+			}
+			
+			protected function bordercontainer1_clickHandler(event:MouseEvent):void
+			{
+				canvas.SelectedNode = node;
+			}
+			
 		]]>
 	</fx:Script>
 	
-	<components:ImageButton id="removeButton" icon="{ImageUtil.crossIcon}"
-						  mouseDown="remove(event)" />
-	<components:ImageButton id="infoButton" icon="{ImageUtil.infoIcon}"
-						  mouseDown="showInfo(event)" />
-	<s:Label id="nameLabel"
-			 text="{node.clientId}"
-			 width="100%" height="100%" verticalAlign="middle" textAlign="center"
-			 color="{labelColor}" backgroundColor="{labelBackgroundColor}"
-			 styleName="{currentStyle}"
-			 maxDisplayedLines="1" />
-	<components:ImageButton id="addLink" icon="{ImageUtil.addIcon}"
-							visible="{allowLink}" includeInLayout="{allowLink}"
-							mouseDown="mouseDownHandler(event)" />
-	
-</s:BorderContainer>
+	<s:BorderContainer id="nodeContainer"
+					   buttonMode="true"
+					   useHandCursor="true"
+					   height="29"
+					   borderStyle="solid"
+					   styleName="normalNodeStyle"
+					   mouseDown="bordercontainer1_mouseDownHandler(event)"
+					   rollOver="bordercontainer1_rollOverHandler(event)"
+					   rollOut="bordercontainer1_rollOutHandler(event)"
+					   click="bordercontainer1_clickHandler(event)">
+		<s:layout>
+			<s:HorizontalLayout paddingBottom="2"
+								paddingLeft="2"
+								paddingRight="2"
+								paddingTop="2"
+								gap="2"
+								verticalAlign="middle" />
+		</s:layout>
+		<components:ImageButton id="removeButton"
+								icon="{ImageUtil.crossIcon}"
+								enabled="{editable}"
+								click="remove(event)"
+								mouseDown="event.stopImmediatePropagation();" />
+		<s:Label id="nameLabel"
+				 text="{node.clientId}"
+				 height="100%"
+				 verticalAlign="middle"
+				 textAlign="center"
+				 color="{labelColor}"
+				 backgroundColor="{labelBackgroundColor}"
+				 maxDisplayedLines="1" />
+		<components:ImageButton id="infoButton"
+								icon="{ImageUtil.infoIcon}"
+								click="showInfo(event)" mouseDown="event.stopImmediatePropagation();" />
+	</s:BorderContainer>
+	<s:VGroup id="extraGroup" gap="2">
+		<s:Label id="hostnameLabel" fontSize="10" visible="false" includeInLayout="false" />
+		<s:Label id="sliverTypeLabel" fontSize="10" />
+		<s:Label id="osidLabel" fontSize="10" visible="false" includeInLayout="false" />
+	</s:VGroup>
+</s:HGroup>

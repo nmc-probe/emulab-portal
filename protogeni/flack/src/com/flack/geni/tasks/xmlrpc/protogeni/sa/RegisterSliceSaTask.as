@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,69 +12,94 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
-	import protogeni.Util;
-	import protogeni.display.DisplayUtil;
-	import protogeni.resources.GeniCredential;
-	import protogeni.resources.Slice;
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.utils.DateUtil;
 	
 	/**
-	 * Creates a new slice and gets its credential using the ProtoGENI API
+	 * Registers the given slice at the slice authority.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliceRegister extends Request
+	public final class RegisterSliceSaTask extends ProtogeniXmlrpcTask
 	{
 		public var slice:Slice;
 		
-		public function RequestSliceRegister(s:Slice):void
+		/**
+		 * 
+		 * @param newSlice Slice to register
+		 * 
+		 */
+		public function RegisterSliceSaTask(newSlice:Slice)
 		{
-			super("Register " + s.Name,
-				"Register slice named " + s.Name,
-				CommunicationUtil.register);
-			this.forceNext = true;
+			super(
+				newSlice.authority.url,
+				"",
+				ProtogeniXmlrpcTask.METHOD_REGISTER,
+				"Register " + newSlice.Name,
+				"Register slice named " + newSlice.Name,
+				"Register Slice"
+			);
+			relatedTo.push(newSlice);
 			
-			slice = s;
-			slice.Changing = true;
-			
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			slice = newSlice;
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-			
-			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
-			op.addField("hrn", slice.urn.full);
-			op.addField("type", "Slice");
-			
-			return op;
+		override protected function createFields():void
+		{
+			addNamedField("credential", slice.authority.userCredential.Raw);
+			addNamedField("urn", slice.id.full);
+			addNamedField("type", "Slice");
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				slice.credential = String(response.value);
+				slice.credential = new GeniCredential(String(data), GeniCredential.TYPE_SLICE, slice.authority);
+				slice.expires = slice.credential.Expires;
 				
-				var cred:XML = (new GeniCredential(slice.credential)).toXml();
-				slice.expires = GeniCredential.getExpires(cred);
+				addMessage(
+					"Expires in " + DateUtil.getTimeUntil(slice.expires),
+					"Expires in " + DateUtil.getTimeUntil(slice.expires),
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				addMessage(
+					"Finished",
+					"Slice is created and ready to have resources allocated to it.",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
 				
-				Main.geniHandler.CurrentUser.slices.add(slice);
-				Main.geniDispatcher.dispatchSlicesChanged();
-				DisplayUtil.viewSlice(slice);
+				slice.creator.slices.add(slice);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice,
+					FlackEvent.ACTION_CREATED
+				);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice,
+					FlackEvent.ACTION_NEW
+				);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICES,
+					slice,
+					FlackEvent.ACTION_ADDED
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-				Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
-			}
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			slice.Changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(slice);
+				faultOnSuccess();
 		}
 	}
 }

@@ -18,7 +18,7 @@ package com.hurlant.util.der
 		
 		public function ByteString(type:uint = 0x04, length:uint = 0x00) {
 			this.type = type;
-			this.len = length;
+			len = length;
 		}
 		
 		public function getLength():uint

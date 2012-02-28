@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,54 +12,106 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.virtual
 {
-	import mx.collections.ArrayCollection;
-	import mx.collections.Sort;
-	import mx.collections.SortField;
-	import mx.utils.ObjectUtil;
-	
-	public final class SliceCollection extends ArrayCollection
+	/**
+	 * Collection of slices
+	 * 
+	 * @author mstrum
+	 * 
+	 */
+	public final class SliceCollection
 	{
-		public function SliceCollection(source:Array=null)
+		public var collection:Vector.<Slice>;
+		public function SliceCollection()
 		{
-			super(source);
+			collection = new Vector.<Slice>();
 		}
 		
-		public function add(s:Slice):void
+		public function add(slice:Slice):void
 		{
-			this.addItem(s);
-			Main.geniDispatcher.dispatchSlicesChanged();
+			collection.push(slice);
 		}
 		
-		public function getByUrn(urn:String):Slice
+		public function remove(slice:Slice):void
 		{
-			for each(var existing:Slice in this)
+			var idx:int = collection.indexOf(slice);
+			if(idx > -1)
+				collection.splice(idx, 1);
+		}
+		
+		public function contains(slice:Slice):Boolean
+		{
+			return collection.indexOf(slice) > -1;
+		}
+		
+		public function get length():int
+		{
+			return collection.length;
+		}
+		
+		/**
+		 * 
+		 * @param id IDN-URN
+		 * @return Slice with the given ID
+		 * 
+		 */
+		public function getById(id:String):Slice
+		{
+			for each(var existing:Slice in collection)
 			{
-				if(existing.urn.full == urn)
+				if(existing.id.full == id)
 					return existing;
 			}
 			return null;
 		}
 		
-		public function addOrReplace(s:Slice):void
+		/**
+		 * 
+		 * @param name Slice name
+		 * @return Slice with the given name
+		 * 
+		 */
+		public function getByName(name:String):Slice
 		{
-			for each(var existing:Slice in this)
+			for each(var existing:Slice in collection)
 			{
-				if(existing.urn.full == s.urn.full)
-				{
-					existing = s;
-					Main.geniDispatcher.dispatchSlicesChanged();
-					return;
-				}
+				if(existing.Name == name)
+					return existing;
 			}
-			add(s);
+			return null;
 		}
 		
-		public function removeOutsideReferences():void {
-			for each(var existing:Slice in this) {
-				existing.removeOutsideReferences();
+		/**
+		 * 
+		 * @return Nodes from all the slices
+		 * 
+		 */
+		public function get Nodes():VirtualNodeCollection
+		{
+			var nodes:VirtualNodeCollection = new VirtualNodeCollection();
+			for each(var existing:Slice in collection)
+			{
+				for each(var node:VirtualNode in existing.nodes.collection)
+					nodes.add(node);
 			}
+			return nodes;
+		}
+		
+		/**
+		 * 
+		 * @return Links from all the slices
+		 * 
+		 */
+		public function get Links():VirtualLinkCollection
+		{
+			var links:VirtualLinkCollection = new VirtualLinkCollection();
+			for each(var existing:Slice in collection)
+			{
+				for each(var link:VirtualLink in existing.links.collection)
+					links.add(link);
+			}
+			return links;
 		}
 	}
 }

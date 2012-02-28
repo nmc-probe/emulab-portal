@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,74 +12,128 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.mattism.http.xmlrpc.MethodFault;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.DateUtil;
+	import com.flack.shared.utils.StringUtil;
 	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.DateUtil;
-	import protogeni.GeniEvent;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualNode;
+	import mx.controls.Alert;
 	
 	/**
-	 * Gets the sliver status using the GENI AM API
+	 * Renews the sliver until the given date.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverRenewAm extends Request
+	public final class RenewSliverTask extends AmXmlrpcTask
 	{
 		public var sliver:Sliver;
-		public var expirationDate:Date;
+		public var newExpires:Date;
 		
-		public function RequestSliverRenewAm(newSliver:Sliver, newExpirationDate:Date):void
+		/**
+		 * 
+		 * @param renewSliver Sliver to renew
+		 * @param newExpirationDate Desired expiration date
+		 * 
+		 */
+		public function RenewSliverTask(renewSliver:Sliver,
+										newExpirationDate:Date)
 		{
-			super("Renew sliver @ " + newSliver.manager.Hrn,
-				"Renewing the sliver on aggregate manager " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.Name,
-				CommunicationUtil.renewSliverAm,
-				true,
-				true);
-			ignoreReturnCode = true;
-			expirationDate = newExpirationDate;
-			sliver = newSliver;
-			sliver.changing = true;
-			sliver.message = "Renewing";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.setExactUrl(sliver.manager.Url);
+			super(
+				renewSliver.manager.api.url,
+				AmXmlrpcTask.METHOD_RENEWSLIVER,
+				renewSliver.manager.api.version,
+				"Renew sliver @ " + renewSliver.manager.hrn,
+				"Renewing sliver on " + renewSliver.manager.hrn + " on slice named " + renewSliver.slice.hrn,
+				"Renew Sliver"
+			);
+			relatedTo.push(renewSliver);
+			relatedTo.push(renewSliver.slice);
+			relatedTo.push(renewSliver.manager);
+			sliver = renewSliver;
+			newExpires = newExpirationDate;
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-			
-			op.pushField(sliver.slice.urn.full);
-			op.pushField([sliver.slice.credential]);
-			op.pushField(DateUtil.toRFC3339(expirationDate));
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			if(response == true) {
-				sliver.expires = expirationDate;
-				sliver.message = "Renewed";
-			} else
-				sliver.message = "Renew failed!";
-			return null;
+			addOrderedField(sliver.slice.id.full);
+			addOrderedField([sliver.slice.credential.Raw]);
+			addOrderedField(DateUtil.toRFC3339(newExpires));
+			if(apiVersion > 1)
+				addOrderedField({});
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			sliver.message = "Renew failed";
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			sliver.changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			// Sanity check for AM API 2+
+			if(apiVersion > 1)
+			{
+				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
+				{
+					faultOnSuccess();
+					return;
+				}
+			}
+			
+			try
+			{
+				if(data == true)
+				{
+					sliver.expires = newExpires;
+					
+					SharedMain.sharedDispatcher.dispatchChanged(
+						FlackEvent.CHANGED_SLIVER,
+						sliver
+					);
+					SharedMain.sharedDispatcher.dispatchChanged(
+						FlackEvent.CHANGED_SLICE,
+						sliver.slice
+					);
+					
+					addMessage(
+						"Renewed",
+						"Renewed, sliver expires in " + DateUtil.getTimeUntil(sliver.expires),
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					super.afterComplete(addCompletedMessage);
+				}
+				else if(data == false)
+				{
+					Alert.show("Failed to renew sliver @ " + sliver.manager.hrn);
+					afterError(
+						new TaskError(
+							"Renew failed",
+							TaskError.CODE_PROBLEM
+						)
+					);
+				}
+				else
+				{
+					afterError(
+						new TaskError(
+							"Renew failed. Received incorrect data",
+							TaskError.CODE_UNEXPECTED
+						)
+					);
+				}
+			}
+			catch(e:Error)
+			{
+				afterError(
+					new TaskError(
+						StringUtil.errorToString(e),
+						TaskError.CODE_UNEXPECTED,
+						e
+					)
+				);
+			}
 		}
 	}
 }

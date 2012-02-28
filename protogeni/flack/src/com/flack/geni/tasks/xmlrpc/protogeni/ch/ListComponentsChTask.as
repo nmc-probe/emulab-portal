@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,143 +12,181 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.ch
 {
-	import protogeni.StringUtil;
-	import protogeni.Util;
-	import protogeni.resources.AggregateManager;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.PlanetlabAggregateManager;
-	import protogeni.resources.ProtogeniComponentManager;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.GeniCache;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.GeniUser;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.sites.managers.PlanetlabAggregateManager;
+	import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.shared.utils.StringUtil;
 	
 	/**
-	 * Gets the list of component managers from the clearinghouse using the ProtoGENI API
+	 * Gets the list and information for the component managers listed at a clearinghouse
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestListComponents extends Request
+	public class ListComponentsChTask extends ProtogeniXmlrpcTask
 	{
-		private var startDiscoverResources:Boolean;
-		private var startSlices:Boolean;
-		
-		public function RequestListComponents(shouldDiscoverResources:Boolean = true,
-											  shouldStartSlices:Boolean = false):void
-		{
-			super("List managers",
-				"Getting the information for the component managers",
-				CommunicationUtil.listComponents);
-			startDiscoverResources = shouldDiscoverResources;
-			startSlices = shouldStartSlices;
-		}
+		public var user:GeniUser;
 		
 		/**
-		 * Called immediately before the operation is run to add variables it may not have had when added to the queue
-		 * @return Operation to be run
+		 * 
+		 * @param newUser User making the call, needed for this call
 		 * 
 		 */
-		override public function start():Operation
+		public function ListComponentsChTask(newUser:GeniUser)
 		{
-			op.clearFields();
-			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
-			return op;
+			super(
+				GeniMain.geniUniverse.clearinghouse.url,
+				ProtogeniXmlrpcTask.MODULE_CH,
+				ProtogeniXmlrpcTask.METHOD_LISTCOMPONENTS,
+				"List managers",
+				"Gets the list and information for the component managers listed at a clearinghouse"
+			);
+			user = newUser;
 		}
 		
-		// Should return Request or RequestQueueNode
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			var newCalls:RequestQueue = new RequestQueue();
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			addNamedField("credential", user.credential.Raw);
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				Main.geniHandler.clearComponents();
-				FlackCache.clearManagersOffline();
+				GeniMain.geniUniverse.managers = new GeniManagerCollection();
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_MANAGERS,
+					null,
+					FlackEvent.ACTION_REMOVED
+				);
 				
-				for each(var obj:Object in response.value)
+				for each(var obj:Object in data)
 				{
-					try {
-						var newGm:GeniManager = null;
+					try
+					{
+						var newManager:GeniManager = null;
 						var url:String = obj.url;
-						//url = url.replace(":12369", "");
-						var newUrn:IdnUrn = new IdnUrn(obj.urn);
-						// Skip these managers for now...
-						/*if(obj.hrn == "cron.loni.org.cm"
-							|| obj.hrn == "cron.cct.lsu.edu.cm"
-							|| obj.hrn == "wigims.cm"
-							|| obj.hrn == "mygeni.cm"
-							|| obj.hrn.toLowerCase().indexOf("etri") > 0)
-							continue;*/
+						url = url.replace(":12369", "");
+						var newId:IdnUrn = new IdnUrn(obj.urn);
+						
 						// ProtoGENI Component Manager
-						if(newUrn.name == "cm") {
-							var newCm:ProtogeniComponentManager = new ProtogeniComponentManager();
-							newCm.Hrn = obj.hrn;
-							newCm.Url = url.substr(0, url.length-3);
-							newCm.Urn = newUrn;
-							newGm = newCm;
-							if(newCm.Hrn == "ukgeni.cm" || newCm.Hrn == "utahemulab.cm")
-								newCm.supportsIon = true;
-							if(newCm.Hrn == "wail.cm" || newCm.Hrn == "utahemulab.cm")
-								newCm.supportsGpeni = true;
-							if(newCm.Hrn == "shadowgeni.cm")
+						if(newId.name == ProtogeniXmlrpcTask.MODULE_CM)
+						{
+							var protogeniManager:ProtogeniComponentManager = new ProtogeniComponentManager(newId.full);
+							protogeniManager.hrn = obj.hrn;
+							protogeniManager.url = url.substr(0, url.length-3);
+							if(protogeniManager.hrn == "ukgeni.cm" || protogeniManager.hrn == "utahemulab.cm")
+								protogeniManager.supportsIon = true;
+							if(protogeniManager.hrn == "wail.cm" || protogeniManager.hrn == "utahemulab.cm")
+								protogeniManager.supportsGpeni = true;
+							if(protogeniManager.hrn == "utahemulab.cm")
+								protogeniManager.supportsFirewallNodes = true;
+							if(protogeniManager.hrn == "shadowgeni.cm")
 							{
-								newCm.supportsDelayNodes = false;
-								newCm.supportsExclusiveNodes = false;
-								newCm.supportsSharedNodes = false;
+								protogeniManager.supportsDelayNodes = false;
+								protogeniManager.supportsUnboundRawNodes = false;
+								protogeniManager.supportsUnboundVmNodes = false;
 							}
-							
-						} else if(!Main.protogeniOnly)
+							newManager = protogeniManager;
+						}
+						else if(newId.name == ProtogeniXmlrpcTask.MODULE_SA)
 						{
-							var planetLabAm:PlanetlabAggregateManager = new PlanetlabAggregateManager();
-							planetLabAm.Hrn = obj.hrn;
-							planetLabAm.Url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
-							planetLabAm.registryUrl = planetLabAm.Url.replace("12346", "12345");
-							planetLabAm.Urn = newUrn;
-							newGm = planetLabAm;
+							var planetLabManager:PlanetlabAggregateManager = new PlanetlabAggregateManager(newId.full);
+							planetLabManager.hrn = obj.hrn;
+							//url = "https://sfa-devel.planet-lab.org:12346";//"https://sfa-devel.planet-lab.org:12346";
+							planetLabManager.url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
+							planetLabManager.registryUrl = planetLabManager.url.replace("12346", "12345");
+							newManager = planetLabManager;
 						}
-						
-						var i:int;
-						for(i = 0; i < Main.geniHandler.GeniManagers.length; i++) {
-							var existingManager:GeniManager = Main.geniHandler.GeniManagers.getItemAt(i) as GeniManager;
-							if(newGm.Urn.authority < existingManager.Urn.authority && existingManager.Urn.authority != "emulab.net")
-								break;
-						}
-						Main.geniHandler.GeniManagers.addAt(newGm, i);
-						
-						if(startDiscoverResources)
+						else
 						{
-							newGm.Status = GeniManager.STATUS_INPROGRESS;
-							if(newGm is AggregateManager)
-								newCalls.push(new RequestGetVersionAm(newGm));
-							else if(newGm is ProtogeniComponentManager)
-								newCalls.push(new RequestGetVersion(newGm as ProtogeniComponentManager));
+							var otherManager:GeniManager = new GeniManager(FlackManager.TYPE_OTHER, ApiDetails.API_GENIAM, newId.full);
+							otherManager.hrn = obj.hrn;
+							otherManager.url = StringUtil.makeSureEndsWith(url, "/");
+							newManager = otherManager;
 						}
-						Main.geniDispatcher.dispatchGeniManagerChanged(newGm);
-					} catch(e:Error) {
-						LogHandler.appendMessage(new LogMessage("",
-							"ListComponents",
+						newManager.id = newId;
+						newManager.api.url = newManager.url;
+						
+						GeniMain.geniUniverse.managers.add(newManager);
+						
+						addMessage(
+							"Added manager",
+							newManager.toString(),
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH
+						);
+						
+						SharedMain.sharedDispatcher.dispatchChanged(
+							FlackEvent.CHANGED_MANAGER,
+							newManager,
+							FlackEvent.ACTION_CREATED
+						);
+						
+					}
+					catch(e:Error)
+					{
+						addMessage(
+							"Error adding",
 							"Couldn't add manager from list:\n" + obj.toString(),
-							LogMessage.ERROR_FAIL,
-							LogMessage.TYPE_END));
+							LogMessage.LEVEL_WARNING,
+							LogMessage.IMPORTANCE_HIGH
+						);
 					}
 				}
 				
-				if(startSlices) {
-					if(Main.geniHandler.CurrentUser.userCredential.length > 0)
-						newCalls.push(new RequestUserResolve());
-					else if(Main.geniHandler.CurrentUser.sliceCredential.length > 0) {
-						for each(var slice:Slice in Main.geniHandler.CurrentUser.slices)
-							newCalls.push(new RequestSliceCredential(slice));
+				addMessage(
+					"Added " + GeniMain.geniUniverse.managers.length + " manager(s)",
+					"Added " + GeniMain.geniUniverse.managers.length + " manager(s)",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				var manuallyAddedManagers:GeniManagerCollection = GeniCache.getManualManagers();
+				for each(var cachedManager:GeniManager in manuallyAddedManagers.collection)
+				{
+					if(GeniMain.geniUniverse.managers.getById(cachedManager.id.full) == null)
+					{
+						GeniMain.geniUniverse.managers.add(cachedManager);
+						
+						addMessage(
+							"Added cached manager",
+							cachedManager.toString(),
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH
+						);
+						
+						SharedMain.sharedDispatcher.dispatchChanged(
+							FlackEvent.CHANGED_MANAGER,
+							cachedManager,
+							FlackEvent.ACTION_CREATED
+						);
 					}
 				}
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_MANAGERS,
+					null,
+					FlackEvent.ACTION_POPULATED
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-				Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
-			}
-			
-			return newCalls.head;
+				faultOnSuccess();
 		}
 	}
 }

@@ -1,3 +1,17 @@
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
+* All rights reserved.
+*
+* Permission to use, copy, modify and distribute this software is hereby
+* granted provided that (1) source code retains these copyright, permission,
+* and disclaimer notices, and (2) redistributions including binaries
+* reproduce the notices in supporting documentation.
+*
+* THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+* CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+* FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 package com.mstrum
 {
 	// http://www.alvestrand.no/objectid/2.5.4.html
@@ -419,8 +433,11 @@ package com.mstrum
 		}
 		
 		// Need to find
+		public static const COMMON_NAME:String = "IdAtCommonName";
 		public static const SUBJECT_ALT_NAME:String = "IdCeSubjectAltName";
 		public static const ACA_GROUP:String = "IdAcaGroup";
-		public static const AUTHORITY_INFO_ACCESS:String = "IdPeAuthorityInfoAccess";
+		public static const ORG_NAME:String = "IdAtOrganizationName";
+		public static const EMAIL_ADDRESS:String = "IdEmailAddress";
+		
 	}
 }

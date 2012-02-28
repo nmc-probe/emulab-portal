@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,89 +12,93 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.process.ParseRequestManifestTask;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.tasks.TaskError;
 	
 	/**
-	 * Gets the manifest for a sliver using the ProtoGENI API
+	 * Retrieves the manifest for the sliver and adds a task to the parent to parse the manifest
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverResolve extends Request
+	public final class ResolveSliverCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
-		public var manifest:String = "";
 		
-		public function RequestSliverResolve(newSliver:Sliver):void
+		/**
+		 * 
+		 * @param newSliver Sliver to resolve
+		 * 
+		 */
+		public function ResolveSliverCmTask(newSliver:Sliver)
 		{
-			super("Get manifest @ " + newSliver.manager.Hrn,
-				"Resolving sliver on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.Name,
-				CommunicationUtil.resolveResource,
-				true,
-				true);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_RESOLVE,
+				"Resolve sliver @ " + newSliver.manager.hrn,
+				"Resolves sliver on component manager named " + newSliver.manager.hrn + " on slice named " + newSliver.slice.Name,
+				"Resolve Sliver"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
 			sliver = newSliver;
-			sliver.changing = true;
-			sliver.message = "Getting manifest";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.setUrl(sliver.manager.Url);
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-			
-			op.addField("urn", sliver.urn.full);
-			op.addField("credentials", [sliver.credential]);
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			addNamedField("urn", sliver.id.full);
+			addNamedField("credentials", [sliver.credential.Raw]);
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				manifest = response.value.manifest;
-				sliver.parseManifest(new XML(manifest));
-				if(!sliver.slice.slivers.contains(sliver))
-					sliver.slice.slivers.add(sliver);
+				addMessage(
+					"Manifest received",
+					data.manifest,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH);
 				
-				sliver.message = "Manifest received";
-				return new RequestSliverStatus(sliver);
-			} else
-				failed(response.output);
+				sliver.manifest = new Rspec(data.manifest,null, null,null, Rspec.TYPE_MANIFEST);
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				
+				super.afterComplete(addCompletedMessage);
+			}
+			else
+				faultOnSuccess();
+		}
+		
+		override protected function afterError(taskError:TaskError):void
+		{
+			sliver.status = Sliver.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLIVER,
+				sliver,
+				FlackEvent.ACTION_STATUS
+			);
 			
-			return null;
+			super.afterError(taskError);
 		}
 		
-		public function failed(msg:String = ""):void {
-			sliver.changing = false;
-			sliver.message = "Getting manifest failed";
-			if(msg != null && msg.length > 0)
-				sliver.message += ": " + msg;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return null;
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-		}
-		
-		override public function getResponse():String {
-			return "******** MANIFEST RSPEC ********\n\n" + manifest + "\n\n******** XML-RPC ********\n\n" + op.getResponse();
+		override protected function runCancel():void
+		{
+			sliver.status = Sliver.STATUS_UNKNOWN;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLIVER,
+				sliver,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 	}
 }

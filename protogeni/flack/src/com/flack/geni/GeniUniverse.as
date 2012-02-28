@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,145 +12,78 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni
+package com.flack.geni
 {
-	import mx.collections.ArrayList;
-	
-	import protogeni.communication.GeniRequestHandler;
-	import protogeni.display.DisplayUtil;
-	import protogeni.display.mapping.GeniMapHandler;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.GeniManagerCollection;
-	import protogeni.resources.GeniUser;
-	import protogeni.resources.PhysicalNode;
-	import protogeni.resources.Slice;
-	import protogeni.resources.SliceAuthority;
-	import protogeni.resources.SliceCollection;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualLink;
-	import protogeni.resources.VirtualNode;
-	
-	// Holds and handles all information regarding ProtoGENI
+	import com.flack.geni.display.windows.LoginWindow;
+	import com.flack.geni.resources.GeniUser;
+	import com.flack.geni.resources.sites.GeniAuthority;
+	import com.flack.geni.resources.sites.GeniAuthorityCollection;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.sites.clearinghouses.ProtogeniClearinghouse;
+	import com.flack.geni.tasks.groups.GetPublicResourcesTaskGroup;
+	import com.flack.geni.tasks.groups.GetResourcesTaskGroup;
+	import com.flack.geni.tasks.groups.GetUserTaskGroup;
+	import com.flack.geni.tasks.groups.InitializeUserTaskGroup;
+	import com.flack.shared.SharedMain;
+
 	/**
-	 * Holds all of the current GENI data, possibly the most referenced variable. Only one is needed.
+	 * Holds all of the things we care about, GeniMain holds a globally static instance of this.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class GeniHandler
+	public final class GeniUniverse
 	{
-		[Bindable]
-		public var requestHandler:GeniRequestHandler;
-		
-		[Bindable]
-		public var mapHandler:GeniMapHandler;
-		
-		[Bindable]
-		public var CurrentUser:GeniUser;
-		
-		[Bindable]
-		public var unauthenticatedMode:Boolean;
-		
-		public var publicUrl:String = "https://www.emulab.net/protogeni/advertisements/list.txt";
-		public var salistUrl:String = "https://www.emulab.net/protogeni/authorities/salist.txt";
-		public var certBundleUrl:String = "http://www.emulab.net/genica.bundle";
-		public var rootBundleUrl:String = "http://www.emulab.net/rootca.bundle";
-		
-		public var forceAuthority:SliceAuthority = null;
-		
-		public var forceMapKey:String = null;
-		
-		[Bindable]
-		public var GeniManagers:GeniManagerCollection;
-		
-		[Bindable]
-		public var GeniAuthorities:ArrayList;
-		
-		public function GeniHandler()
+		public var managers:GeniManagerCollection;
+		public function get user():GeniUser
 		{
-			this.requestHandler = new GeniRequestHandler();
-			this.mapHandler = new GeniMapHandler(Main.Application().map);
-			this.GeniManagers = new GeniManagerCollection();
-			this.GeniAuthorities = new ArrayList();
-			this.CurrentUser = new GeniUser();
-			this.unauthenticatedMode = true;
-
-			Main.geniDispatcher.dispatchUserChanged();
-			//Main.geniDispatcher.dispatchGeniManagersChanged();
-			Main.geniDispatcher.dispatchQueueChanged();
+			return SharedMain.user as GeniUser;
 		}
+		public var authorities:GeniAuthorityCollection;
+		public var clearinghouse:ProtogeniClearinghouse;
 		
-		public function destroy():void {
-			this.clearAll();
-			this.mapHandler.destruct();
-		}
-		
-		public function clearAll():void {
-			this.requestHandler.stop();
-			this.clearUser();
-			this.clearComponents();
-			this.mapHandler.clearAll();
-		}
-		
-		public function clearComponents():void
+		public function GeniUniverse()
 		{
-			Main.geniDispatcher.dispatchGeniManagersChanged(GeniEvent.ACTION_REMOVING);
-			Main.geniDispatcher.dispatchSlicesChanged(GeniEvent.ACTION_REMOVING);
-			this.GeniManagers = new GeniManagerCollection();
-			Main.geniDispatcher.dispatchGeniManagersChanged(GeniEvent.ACTION_REMOVED);
+			managers = new GeniManagerCollection();
+			SharedMain.user = new GeniUser();
+			authorities = new GeniAuthorityCollection();
+			clearinghouse = new ProtogeniClearinghouse();
 		}
 		
-		public function clearUser():void {
-			if(this.CurrentUser != null) {
-				this.CurrentUser.slices.removeOutsideReferences();
-				this.CurrentUser.slices = new SliceCollection();
-				Main.geniDispatcher.dispatchSlicesChanged(GeniEvent.ACTION_REMOVED);
-			}
-		}
-		
-		public function search(s:String, matchAll:Boolean):Array
+		public function loadPublic():void
 		{
-			var searchFrom:Array = s.split(' ');
-			var results:Array = new Array();
-			for each(var manager:GeniManager in this.GeniManagers)
+			SharedMain.tasker.add(new GetPublicResourcesTaskGroup());
+		}
+		
+		public function login():void
+		{
+			var loginWindow:LoginWindow = new LoginWindow();
+			loginWindow.showWindow(true);
+		}
+		
+		public function loadAuthenticated():void
+		{
+			// User is authenticated and either has a credential or an authority assigned to them
+			if(user.CertificateSetUp)
 			{
-				if(Util.findInAny(searchFrom, new Array(manager.Urn.full, manager.Hrn, manager.Url), matchAll))
-					results.push(DisplayUtil.getGeniManagerButton(manager));
-				for each(var pn:PhysicalNode in manager.AllNodes)
-				{
-					if(Util.findInAny(searchFrom, new Array(pn.id, pn.name), matchAll))
-						results.push(DisplayUtil.getPhysicalNodeButton(pn));
-				}
+				// XXX other frameworks
+				// Get user credential + key if they have an authority
+				if(user.authority == null || user.authority.type != GeniAuthority.TYPE_EMULAB)
+					SharedMain.tasker.add(new InitializeUserTaskGroup(user, true));
+				
+				SharedMain.tasker.add(new GetResourcesTaskGroup(managers.length == 0));
+				
+				SharedMain.tasker.add(
+					new GetUserTaskGroup(
+						user,
+						GeniMain.geniUniverse.user.authority != null,
+						true
+					)
+				);
 			}
-			
-			for each(var slice:Slice in this.CurrentUser.slices)
-			{
-				if(Util.findInAny(searchFrom,
-									new Array(slice.urn.full,
-												slice.hrn),
-									matchAll))
-					results.push(DisplayUtil.getSliceButton(slice));
-				for each(var sliver:Sliver in slice.slivers.collection)
-				{
-					//if(sliver.urn == s)
-					//results.push(DisplayUtil.getSliverButton();
-					for each(var vn:VirtualNode in sliver.nodes.collection)
-					{
-						//if(vn.urn == s || vn.uuid == s)
-						//results.push(DisplayUtil.getVirtualNodeButton());
-					}
-					for each(var vl:VirtualLink in sliver.links.collection)
-					{
-						//if(vn.urn == s || vn.uuid == s)
-						//results.push(DisplayUtil.getVirtualNodeButton());
-					}
-				}
-			}
-			
-			//if(this.CurrentUser.uid == s || this.CurrentUser.uuid == s)
-			//results.push(DisplayUtil.getLinkButton(this.CurrentUser);
-			
-			return results;
+			// Needs to authenticate
+			else
+				login();
 		}
 	}
 }

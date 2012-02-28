@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,54 +12,67 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.display
+package com.flack.geni.display.slicer.graphview
 {
-	import mx.collections.ArrayCollection;
-	
-	import protogeni.resources.VirtualLink;
+	import com.flack.geni.resources.virtual.VirtualLink;
+	import com.flack.geni.resources.virtual.VirtualLinkCollection;
 
-	public class SliceLinkCollection extends ArrayCollection
+	public class CanvasLinkCollection
 	{
-		public function SliceLinkCollection(source:Array=null)
+		public var collection:Vector.<CanvasLink>;
+		public function CanvasLinkCollection()
 		{
-			super(source);
+			collection = new Vector.<CanvasLink>();
 		}
 		
-		public function hasLinkFor(first:SliceNode, second:SliceNode):Boolean
+		public function add(link:CanvasLink):void
 		{
-			for each(var sl:SliceLink in this) {
-				if(sl.isForNodes(first, second))
-					return true;
-			}
-			return false;
+			collection.push(link);
 		}
 		
-		public function getLinksFor(node:SliceNode):SliceLinkCollection
+		public function remove(link:CanvasLink):int
 		{
-			var newSliceCollection:SliceLinkCollection = new SliceLinkCollection();
-			for each(var sl:SliceLink in this) {
-				if(sl.hasNode(node))
-					newSliceCollection.addItem(sl);
-			}
-			return newSliceCollection;
+			var idx:int = collection.indexOf(link);
+			if(idx > -1)
+				collection.splice(idx, 1);
+			return idx;
 		}
 		
-		public function containsVirtualLink(vl:VirtualLink):Boolean
+		public function contains(link:CanvasLink):Boolean
 		{
-			for each(var sl:SliceLink in this)
+			return collection.indexOf(link) > -1;
+		}
+		
+		public function get length():int
+		{
+			return collection.length;
+		}
+		
+		public function get VirtualLinks():VirtualLinkCollection
+		{
+			var links:VirtualLinkCollection = new VirtualLinkCollection();
+			for each (var cl:CanvasLink in collection)
+				links.add(cl.link);
+			return links;
+		}
+		
+		public function getForVirtualLinks(links:VirtualLinkCollection):CanvasLinkCollection
+		{
+			var results:CanvasLinkCollection = new CanvasLinkCollection();
+			for each (var cl:CanvasLink in collection)
 			{
-				if(sl.virtualLink == vl)
-					return true;
+				if(links.contains(cl.link))
+					results.add(cl);
 			}
-			return false;
+			return results;
 		}
 		
-		public function getForVirtualLink(vl:VirtualLink):SliceLink
+		public function getForVirtualLink(link:VirtualLink):CanvasLink
 		{
-			for each(var sl:SliceLink in this)
+			for each (var cl:CanvasLink in collection)
 			{
-				if(sl.virtualLink == vl)
-					return sl;
+				if(cl.link == link)
+					return cl;
 			}
 			return null;
 		}

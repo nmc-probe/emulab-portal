@@ -126,8 +126,8 @@ package com.hurlant.crypto.symmetric
 
 		public function DESKey(key:ByteArray) {
 			this.key = key;
-			this.encKey = generateWorkingKey(true, key, 0);
-			this.decKey = generateWorkingKey(false, key, 0);
+			encKey = generateWorkingKey(true, key, 0);
+			decKey = generateWorkingKey(false, key, 0);
 		}
 
 		public function getBlockSize():uint

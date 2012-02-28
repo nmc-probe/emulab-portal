@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -21,9 +21,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				xmlns:s="library://ns.adobe.com/flex/spark" 
 				xmlns:mx="library://ns.adobe.com/flex/mx"
 				height="24"
-				dataChange="setNode();">
+				dataChange="setNode();"
+				toolTip="{data.manager.hrn}">
 	<s:layout>
-		<s:HorizontalLayout useVirtualLayout="true" verticalAlign="middle" paddingLeft="2" paddingRight="2" />
+		<s:HorizontalLayout useVirtualLayout="true" verticalAlign="middle" paddingRight="2" />
 	</s:layout>
 	
 	<s:states>
@@ -34,33 +35,42 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	
 	<fx:Script>
 		<![CDATA[
-			import protogeni.resources.PhysicalNode;
-			import protogeni.resources.VirtualNode;
+			import com.flack.geni.resources.physical.PhysicalNode;
+			import com.flack.shared.utils.ColorUtil;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.ViewUtil;
 			
 			[Bindable]
 			private var nodeName:String;
 			
-			private function setNode():void {
+			[Bindable]
+			private var nodeColor:uint;
+			
+			private function setNode():void
+			{
 				if (data == null)
 					return;
-
-				if(data is PhysicalNode) {
-					var phyNode:PhysicalNode = data as PhysicalNode;
-					nodeName = phyNode.name;
-					nodeImage.source = DisplayUtil.assignAvailabilityIcon(phyNode);
-				} else if(data is VirtualNode) {
-					var virtNode:VirtualNode = data as VirtualNode;
-					nodeName = virtNode.clientId;
-					if(virtNode.exclusive)
-						nodeImage.source = ImageUtil.exclusiveIcon;
-					else
-						nodeImage.source = ImageUtil.sharedIcon;
-				}
+				
+				var phyNode:PhysicalNode = data as PhysicalNode;
+				nodeName = phyNode.name;
+				nodeColor = ColorUtil.colorsDark[phyNode.manager.colorIdx];
+				availableImage.source = ViewUtil.assignIcon(phyNode.available);
+				if(phyNode.exclusive)
+					exclusiveImage.source = ImageUtil.exclusiveIcon;
+				else
+					exclusiveImage.source = ImageUtil.sharedIcon;
 			}
 		]]>
 	</fx:Script>
 
-	<s:BitmapImage id="nodeImage" />
-	<s:Label id="nodeLabel" text="{nodeName}" maxDisplayedLines="1" />
+	<s:Rect width="4" height="100%">
+		<s:fill><s:SolidColor color="{nodeColor}" /></s:fill>
+	</s:Rect>
+	
+	<s:BitmapImage id="availableImage" />
+	<s:BitmapImage id="exclusiveImage" />
+	<s:Label id="nodeLabel"
+			 text="{nodeName}"
+			 maxDisplayedLines="1" />
 	
 </s:ItemRenderer>

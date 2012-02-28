@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -11,50 +11,142 @@
 * CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
- 
- package
+
+package com.flack.shared
 {
+	import com.flack.emulab.EmulabMain;
+	import com.flack.geni.GeniMain;
+	import com.flack.shared.logging.Logger;
+	import com.flack.shared.resources.FlackUser;
+	import com.flack.shared.tasks.Tasker;
+	import com.mattism.http.xmlrpc.JSLoader;
+	
+	import flash.system.Capabilities;
+	
 	import mx.core.FlexGlobals;
 	
-	import protogeni.GeniDispatcher;
-	import protogeni.GeniHandler;
-	
-  /**
-   * Global container for things we use
-   * 
-   * @author mstrum
-   * 
-   */
-  public class Main
-  {
 	/**
-	 * Gets the main application currently running
+	 * Global container for things we use
 	 * 
-	 * @return Flack
+	 * @author mstrum
 	 * 
-	 */	
-	public static function Application():flack {
-		return FlexGlobals.topLevelApplication as flack;
+	 */
+	public class SharedMain
+	{
+		public static const MODE_GENI:int = 0;
+		public static const MODE_EMULAB:int = 1;
+		
+		public static var mode:int = MODE_GENI;
+		public static function preinitMode():void
+		{
+			switch(mode)
+			{
+				case MODE_EMULAB:
+					EmulabMain.preinitMode();
+					break;
+				default:
+					GeniMain.preinitMode();
+			}
+		}
+		public static function initMode():void
+		{
+			switch(mode)
+			{
+				case MODE_EMULAB:
+					EmulabMain.initMode();
+					break;
+				default:
+					GeniMain.initMode();
+			}
+			
+		}
+		public static function loadParams():void
+		{
+			switch(mode)
+			{
+				case MODE_EMULAB:
+					EmulabMain.loadParams();
+					break;
+				default:
+					GeniMain.loadParams();
+			}
+		}
+		
+		public static function initPlugins():void
+		{
+			switch(mode)
+			{
+				case MODE_EMULAB:
+					EmulabMain.initPlugins();
+					break;
+				default:
+					GeniMain.initPlugins();
+			}
+		}
+		
+		public static function runFirst():void
+		{
+			switch(mode)
+			{
+				case MODE_EMULAB:
+					EmulabMain.runFirst();
+					break;
+				default:
+					GeniMain.runFirst();
+			}
+		}
+		
+		/**
+		 * Dispatches all geni events
+		 */
+		public static var sharedDispatcher:FlackDispatcher = new FlackDispatcher();
+		
+		/**
+		 * All logs of what has happened in Flack
+		 */
+		public static var logger:Logger = new Logger();
+		
+		public static var tasker:Tasker = new Tasker();
+		
+		[Bindable]
+		public static var user:FlackUser;
+		
+		[Bindable]
+		private static var bundle:String = "";
+		/**
+		 * Sets the SSL Cert bundle here and in Forge
+		 * 
+		 * @param value New SSL Cert bundle to use
+		 * 
+		 */
+		public static function set Bundle(value:String):void
+		{
+			bundle = value;
+			SharedCache.updateCertBundle(value);
+			JSLoader.setServerCertificate(value);
+		}
+		/**
+		 * 
+		 * @return SSL Cert bundle being used
+		 * 
+		 */
+		[Bindable]
+		public static function get Bundle():String
+		{
+			return bundle;
+		}
+		
+		/**
+		 * Flack version
+		 */
+		public static const version:String = "v13.22";
+		
+		public static function get ClientString():String
+		{
+			return "Client: Flack\n"
+				+"Version: "+ version + "\n"
+				+"Flash Version: " + Capabilities.version + ", OS: " + Capabilities.os + ", Arch: " + Capabilities.cpuArchitecture + ", Screen: " + Capabilities.screenResolutionX + "x" + Capabilities.screenResolutionY+" @ "+Capabilities.screenDPI+" DPI with touchscreen type "+Capabilities.touchscreenType + "\n"
+				+"URL: " + FlexGlobals.topLevelApplication.url;
+		}
 	}
-
-	[Bindable]
-	public static var geniHandler:GeniHandler;
-	public static var geniDispatcher:GeniDispatcher = new GeniDispatcher();
-
-	public static var debugMode:Boolean = false;
-	
-	[Bindable]
-	public static var useJavascript:Boolean = true;
-	
-	public static var protogeniOnly:Boolean = false;
-	
-	[Bindable]
-	public static var offlineMode:Boolean = false;
-	
-	public static var useCache:Boolean = false;
-	
-	public static var allowCaching:Boolean = true;
-	
-	public static const version:String = "v12.16";
-  }
 }

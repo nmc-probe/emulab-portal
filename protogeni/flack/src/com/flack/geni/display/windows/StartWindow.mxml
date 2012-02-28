@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -17,118 +17,45 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 -->
 
-<s:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-			   xmlns:s="library://ns.adobe.com/flex/spark" 
-			   xmlns:mx="library://ns.adobe.com/flex/mx"
-			   xmlns:display="protogeni.display.*"
-			   title="{Main.version}"
-			   skinClass="protogeni.display.skins.TitleWindowSkinNoCloseButton"
-			   close="closeWindow()"
-			   defaultButton="{this.loginButton}"
-			   contentCreationComplete="init();">
-	<s:layout>
-		<s:VerticalLayout horizontalAlign="center" />
-	</s:layout>
-	
+<components:PopupTitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+							 xmlns:s="library://ns.adobe.com/flex/spark" 
+							 xmlns:mx="library://ns.adobe.com/flex/mx"
+							 xmlns:components="com.flack.shared.display.components.*"
+							 skinClass="com.flack.shared.display.skins.TitleWindowSkinNoCloseButton"
+							 title="{SharedMain.version}" >
+	<components:layout>
+		<s:VerticalLayout horizontalAlign="center" paddingBottom="10" />
+	</components:layout>
 	<fx:Script>
 		<![CDATA[
-			import flash.globalization.DateTimeFormatter;
-			import flash.globalization.DateTimeStyle;
-			import flash.globalization.LocaleID;
-			
-			import mx.core.FlexGlobals;
-			import mx.core.IFlexDisplayObject;
-			import mx.managers.PopUpManager;
-			
-			import protogeni.NetUtil;
-			import protogeni.display.ImageUtil;
-			
-			[Bindable]
-			private var showOffline:Boolean = false;
-			
-			public function showWindow():void
-			{
-				showOffline = FlackCache.offlineAvailable;
-				
-				if(!this.isPopUp)
-					PopUpManager.addPopUp(this, FlexGlobals.topLevelApplication as DisplayObject, true);
-				else
-					PopUpManager.bringToFront(this);				
-				PopUpManager.centerPopUp(this);
-			}
-			
-			public function init():void {
-				this.closeButton = null;
-				this.loginButton.setFocus();
-				var lastChangeDate:Date = FlackCache.getOfflineLastChange();
-				if(lastChangeDate != null) {
-					useCachedAdvertisementsCheckbox.visible = true;
-					useCachedAdvertisementsCheckbox.includeInLayout = true;
-					var dateFormatter:DateTimeFormatter = new DateTimeFormatter(LocaleID.DEFAULT, DateTimeStyle.SHORT, DateTimeStyle.SHORT);
-					useCachedAdvertisementsCheckbox.toolTip = dateFormatter.format(lastChangeDate);
-				}
-			}
-			
-			public function closeWindow(event:Event = null):void
-			{
-				this.removeEventListener("close", closeWindow);
-				PopUpManager.removePopUp(this as IFlexDisplayObject);
-			}
-			
-			public function doPublic():void {
-				Main.geniHandler.unauthenticatedMode = true;
-				Main.geniHandler.requestHandler.startInitiationSequence();
-				this.closeWindow();
-			}
-			
-			public function doAuthenticate():void {
-				if(Main.useJavascript && Main.geniHandler.CurrentUser.hasSetupJavascript)
-					Main.geniHandler.unauthenticatedMode = false;
-				Main.useCache = this.useCachedAdvertisementsCheckbox.selected;
-				Main.geniHandler.requestHandler.startInitiationSequence(true);
-				this.closeWindow();
-			}
-			
-			public function doOffline():void {
-				Main.offlineMode = true;
-				FlackCache.loadOfflineSharedObject();
-				FlackCache.applyOffline();
-				this.closeWindow();
-			}
-			
+			import com.flack.geni.GeniMain;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.NetUtil;
 		]]>
 	</fx:Script>
 	
 	<s:BitmapImage source="{ImageUtil.logoIcon}" />
-	<s:VGroup width="100%" paddingTop="10" paddingBottom="10" horizontalAlign="center">
-		<s:Button label="Log in" id="loginButton"
-				  width="50%" height="28"
-				  icon="{ImageUtil.authenticationIcon}"
-				  toolTip="Log in to view and be able to allocate resources"
-				  click="doAuthenticate()" />
-		<s:CheckBox id="useCachedAdvertisementsCheckbox" label="Use cache"
-					visible="{showOffline}" includeInLayout="{showOffline}"/>
-		<s:Button label="Tutorial" id="tutorialButton"
-				  width="50%" height="28"
-				  icon="{ImageUtil.helpIcon}"
-				  toolTip="View a quick tutorial on how to use Flack"
-				  click="NetUtil.showTutorial();" />
-		<s:Label text="Not a user?" />
-		<s:Button label="View resources"
-				  width="50%" height="28"
-				  toolTip="View resources available in GENI, but allocation of resources is not available"
-				  click="doPublic()" />
-		<s:Button label="Become a user"
-				  width="50%" height="28"
-				  icon="{ImageUtil.userIcon}"
-				  toolTip="Follow a few simple steps to be able to allocate resources"
-				  click="NetUtil.showBecomingAUser();" />
-		<s:Label text="Offline?"
-				 visible="{showOffline}" includeInLayout="{showOffline}" />
-		<s:Button label="Load cached data"
-				  width="50%" height="28"
-				  visible="{showOffline}" includeInLayout="{showOffline}"
-				  toolTip="Use the last saved offline data"
-				  click="doOffline();" />
-	</s:VGroup>
-</s:TitleWindow>
+	<s:Button label="Log in"
+			  id="loginButton"
+			  width="50%" height="28"
+			  icon="{ImageUtil.authenticationIcon}"
+			  toolTip="Log in to view and be able to allocate resources"
+			  click="GeniMain.geniUniverse.loadAuthenticated(); closeWindow();" />
+	<s:Button label="Tutorial" id="tutorialButton"
+			  width="50%" height="28"
+			  icon="{ImageUtil.helpIcon}"
+			  toolTip="View a quick tutorial on how to use Flack"
+			  click="NetUtil.openWebsite(GeniMain.tutorialUrl);" />
+	<s:Label text="Not a user?" />
+	<s:Button label="View resources"
+			  width="50%" height="28"
+			  toolTip="View resources available in GENI, but allocation of resources is not available"
+			  click="GeniMain.geniUniverse.loadPublic(); closeWindow();" />
+	<s:Button label="Become a user"
+			  width="50%" height="28"
+			  icon="{ImageUtil.userIcon}"
+			  toolTip="Follow a few simple steps to be able to allocate resources"
+			  click="NetUtil.openWebsite(GeniMain.becomeUserUrl)" />
+	
+</components:PopupTitleWindow>

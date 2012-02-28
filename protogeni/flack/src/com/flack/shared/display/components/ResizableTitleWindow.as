@@ -1,30 +1,21 @@
 // Found at: http://flexponential.com/2010/01/10/resizable-titlewindow-in-flex-4/
-
-package protogeni.display.components
+package com.flack.shared.display.components
 {
+	import com.flack.shared.display.skins.ResizableTitleWindowSkin;
+	
 	import flash.display.DisplayObject;
 	import flash.events.Event;
 	import flash.events.MouseEvent;
 	import flash.geom.Point;
-	import flash.geom.Rectangle;
 	
-	import mx.core.FlexGlobals;
-	import mx.core.IFlexDisplayObject;
 	import mx.core.UIComponent;
 	import mx.events.SandboxMouseEvent;
-	import mx.managers.PopUpManager;
-	
-	import protogeni.display.skins.ResizableTitleWindowSkin;
-	
-	import spark.accessibility.TitleWindowAccImpl;
-	import spark.components.TitleWindow;
-	import spark.events.TitleWindowBoundsEvent;
 	
 	/**
 	 *  ResizableTitleWindow is a TitleWindow with
 	 *  a resize handle.
 	 */
-	public class ResizableTitleWindow extends TitleWindow
+	public class ResizableTitleWindow extends PopupTitleWindow
 	{
 		
 		//--------------------------------------------------------------------------
@@ -39,44 +30,7 @@ package protogeni.display.components
 		public function ResizableTitleWindow()
 		{
 			super();
-			this.setStyle("skinClass", ResizableTitleWindowSkin);
-			this.addEventListener("close", closeWindow);
-			this.addEventListener(TitleWindowBoundsEvent.WINDOW_MOVING, onWindowMoving);
-		}
-		
-		public function onWindowMoving(event:TitleWindowBoundsEvent):void {
-			var endBounds:Rectangle = event.afterBounds;
-			
-			// left edge of the stage
-			if (endBounds.x < (endBounds.width*-1 + 48))
-				endBounds.x = endBounds.width*-1 + 48;
-			
-			// right edge of the stage
-			if (endBounds.x > (FlexGlobals.topLevelApplication.width - 48))
-				endBounds.x = FlexGlobals.topLevelApplication.width - 48;
-			
-			// top edge of the stage
-			if (endBounds.y < 0)
-				endBounds.y = 0;
-			
-			// bottom edge of the stage
-			if (endBounds.y > (FlexGlobals.topLevelApplication.height - 48))
-				endBounds.y = FlexGlobals.topLevelApplication.height - 48;
-		}
-		
-		public function showWindow(modal:Boolean = false):void
-		{
-			if(!this.isPopUp)
-				PopUpManager.addPopUp(this, FlexGlobals.topLevelApplication as DisplayObject, modal);
-			else
-				PopUpManager.bringToFront(this);				
-			PopUpManager.centerPopUp(this);
-		}
-		
-		public function closeWindow(event:Event = null):void
-		{
-			this.removeEventListener("close", closeWindow);
-			PopUpManager.removePopUp(this as IFlexDisplayObject);
+			setStyle("skinClass", ResizableTitleWindowSkin);
 		}
 		
 		//--------------------------------------------------------------------------
@@ -182,9 +136,9 @@ package protogeni.display.components
 			
 			var nextWidth:Number = prevWidth + (event.stageX - clickOffset.x);
 			var nextHeight:Number = prevHeight + (event.stageY - clickOffset.y);
-			if(nextWidth > this.minWidth)
+			if(nextWidth > minWidth)
 				width = nextWidth;
-			if(nextHeight > this.minHeight)
+			if(nextHeight > minHeight)
 				height = nextHeight;
 			event.updateAfterEvent();
 		}

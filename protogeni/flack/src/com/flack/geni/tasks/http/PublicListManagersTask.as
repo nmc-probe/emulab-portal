@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,69 +12,71 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.http
 {
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.PlanetlabAggregateManager;
-	import protogeni.resources.ProtogeniComponentManager;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.tasks.http.HttpTask;
 	
 	/**
-	 * Gets the list of managers for an unauthenticated user
+	 * Downloads a list of cached advertisements
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestListComponentsPublic extends Request
+	public final class PublicListManagersTask extends HttpTask
 	{
-		public function RequestListComponentsPublic():void
+		public function PublicListManagersTask()
 		{
-			super("List public managers",
-				"Getting the information for the component managers",
-				null);
-			
-			op.type = Operation.HTTP;
-			op.setExactUrl(Main.geniHandler.publicUrl);
+			super(
+				"https://www.emulab.net/protogeni/advertisements/list.txt",
+				"Download advertisement list",
+				"Gets the list of advertisements"
+			);
 		}
 		
-		// Should return Request or RequestQueueNode
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var newCalls:RequestQueue = new RequestQueue();
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			GeniMain.geniUniverse.managers = new GeniManagerCollection();
+			
+			var lines:Array = (data as String).split(/[\n\r]+/); // no +?
+			for each(var line:String in lines)
 			{
-				Main.geniHandler.clearComponents();
-				
-				var a:Array = (response as String).split(/[\n\r]/);
-				for each(var s:String in a) {
-					if(s.length == 0)
-						continue;
-					var newCm:ProtogeniComponentManager = new ProtogeniComponentManager();
-					newCm.Url = op.getUrl().substring(0, op.getUrl().lastIndexOf('/')+1) + s;
-					newCm.Urn = new IdnUrn(s);
-					newCm.Hrn = newCm.Urn.authority;
-					Main.geniHandler.GeniManagers.add(newCm);
-					newCm.Status = GeniManager.STATUS_INPROGRESS;
-					Main.geniDispatcher.dispatchGeniManagerChanged(newCm);
-					newCalls.push(new RequestDiscoverResourcesPublic(newCm));
-				}
-				
-				if(!Main.protogeniOnly) {
-					var plc:PlanetlabAggregateManager = new PlanetlabAggregateManager();
-					plc.Url = "https://www.emulab.net/protogeni/plc.xml";
-					plc.Urn = IdnUrn.makeFrom("plc","authority","am");
-					Main.geniHandler.GeniManagers.add(plc);
-					plc.Status = GeniManager.STATUS_INPROGRESS;
-					Main.geniDispatcher.dispatchGeniManagerChanged(plc);
-					newCalls.push(new RequestListResourcesAmPublic(plc));
-				}
-			}
-			else
-			{
-				//Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
+				if(line.length == 0)
+					continue;
+				var newManager:ProtogeniComponentManager = new ProtogeniComponentManager(line);
+				newManager.url = url.substring(0, url.lastIndexOf('/')+1) + line;
+				newManager.hrn = newManager.id.authority;
+				GeniMain.geniUniverse.managers.add(newManager);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_MANAGER,
+					newManager,
+					FlackEvent.ACTION_CREATED
+				);
+				addMessage(
+					"Added manager",
+					newManager.toString())
+				;
 			}
 			
-			return newCalls.head;
+			addMessage(
+				"Added "+GeniMain.geniUniverse.managers.length+" managers",
+				"Added "+GeniMain.geniUniverse.managers.length+" managers",
+				LogMessage.LEVEL_INFO,
+				LogMessage.IMPORTANCE_HIGH
+			);
+			
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGERS,
+				null,
+				FlackEvent.ACTION_POPULATED
+			);
+			
+			super.afterComplete(addCompletedMessage);
 		}
 	}
 }

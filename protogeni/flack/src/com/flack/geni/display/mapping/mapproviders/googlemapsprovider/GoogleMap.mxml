@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -21,25 +21,33 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
 		  xmlns:maps="com.google.maps.*"
+		  implements="com.flack.geni.display.mapping.GeniMap"
 		  height="100%" width="100%"
 		  preinitialize="mappreinit()"
 		  mapevent_mappreinitialize="onMapPreinitialize(event)"
 		  mapevent_mapready="onMapReady(event)"
 		  sensor="false"
 		  ssl="true"
-		  key="ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hTJAI3wyjNM51iUcfoH5qR3p3QFHBQ_Ukk2jOVwrIST7TsKH0dxYswnyg">
+		  key="ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hTB6_C890sYLVE2xLEMoJ5sXdYx3RRb6pmMtDdaUQ3__5QzPrMwWmy1pg">
 	
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.mapping.GeniMapLink;
+			import com.flack.geni.display.mapping.GeniMapNodeMarker;
+			import com.flack.geni.display.mapping.LatitudeLongitude;
+			import com.flack.geni.display.mapping.LatitudeLongitudeBounds;
+			import com.flack.geni.resources.physical.PhysicalLocationCollection;
+			import com.flack.shared.utils.NetUtil;
 			import com.google.maps.LatLng;
 			import com.google.maps.LatLngBounds;
 			import com.google.maps.MapOptions;
-			import com.google.maps.MapType;
 			import com.google.maps.MapZoomEvent;
 			import com.google.maps.PaneId;
 			import com.google.maps.StyledMapType;
 			import com.google.maps.StyledMapTypeOptions;
 			import com.google.maps.controls.NavigationControl;
+			import com.google.maps.interfaces.IOverlay;
 			import com.google.maps.interfaces.IPane;
 			import com.google.maps.interfaces.IPaneManager;
 			import com.google.maps.styles.MapTypeStyle;
@@ -50,12 +58,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.controls.Alert;
 			import mx.core.FlexGlobals;
 			
-			import protogeni.NetUtil;
-			
 			public var ready:Boolean = false;
 			public var linkPane:IPane;
 			
-			private function onMapPreinitialize(event:Event):void {
+			public function get Ready():Boolean
+			{
+				return ready;
+			}
+			
+			private function onMapPreinitialize(event:Event):void
+			{
 				var myStyles:Array = [
 					new MapTypeStyle(MapTypeStyleFeatureType.POI,
 						MapTypeStyleElementType.ALL,
@@ -77,26 +89,25 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				setInitOptions(myMapOptions);
 			}
 			
-			private function mappreinit():void {
+			private function setkey():void
+			{
 				// Force a key
-				if(Main.Application().forceMapKey != null) {
-					key = Main.Application().forceMapKey;
-				}
-				// else detect a key from our default list
+				if(GeniMain.MapKey.length > 0)
+					key = GeniMain.MapKey;
+					// else detect a key from our default list
 				else if(NetUtil.runningFromWebsite())
 				{
 					var url:String = mx.core.FlexGlobals.topLevelApplication.url;
 					var domain:String = NetUtil.tryGetBaseUrl(url);
 					
 					switch(domain) {
+						/*
 						case "https://users.emulab.net":
 							key = "ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hRvSZn5G9iDjkMHpAGYHc8v1OnErBT5Vzf3wT7WhxaP7ouXIub2R00Wxg";
+							//key = "ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hTB6_C890sYLVE2xLEMoJ5sXdYx3RRb6pmMtDdaUQ3__5QzPrMwWmy1pg";
 							break;
 						case "https://boss.emulab.net":
 							key = "ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hTJAI3wyjNM51iUcfoH5qR3p3QFHBQ_Ukk2jOVwrIST7TsKH0dxYswnyg";
-							break;
-						case "https://www.protogeni.net":
-							key = "ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hRNcqKgyvlELbhgjE5kl-gFNsMkyxTLoim3vJsPX9zTdq5dy1yGCfLGqw";
 							break;
 						case "https://www.emulab.net":
 							key = "ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hTs-lXJm7muGCxX8DXwkteJsQ0kTxQBr46PQguVO7zD3fj3JMteHHpVDg";
@@ -104,14 +115,25 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						case "https://www.uky.emulab.net":
 							key = "ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hQ2ZMGWUBvfKOB0aFzbVnVtbMaqVhSmf6d5al1xSqOayWNOMqU861NJ8w";
 							break;
+						*/
+						case "https://www.protogeni.net":
+							key = "ABQIAAAAJfmFhYY_qvxp3r-UM7Zc6hRNcqKgyvlELbhgjE5kl-gFNsMkyxTLoim3vJsPX9zTdq5dy1yGCfLGqw";
+							break;
 						default:
-							Alert.show("It looks like the Google Maps key for "+domain+" wasn't found.  Map functionality won't work until the correct key is added to the binary or as a HTML parameter (see help documentation).", "Google Maps key not found");
+							Alert.show("It looks like the Google Maps key for the domain Flack is running on wasn't found.  Map functionality won't work until the correct key is added to the binary or as a HTML parameter (see help documentation).", "Google Maps key not found");
 					}
 				}
 			}
 			
-			private function onMapReady(event:Event):void {
+			private function mappreinit():void
+			{
+				//setkey();
+			}
+			
+			private function onMapReady(event:Event):void
+			{
 				addControl(new NavigationControl());
+				addControl(new GoogleZoomToAllControl());
 				enableScrollWheelZoom();
 				enableContinuousZoom();
 				
@@ -124,29 +146,107 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				addEventListener(MapZoomEvent.ZOOM_CHANGED, afterMove);
 				
 				ready = true;
-				Main.geniHandler.mapHandler.drawMap();
+				GeniMain.mapper.drawMap();
 			}
 			
 			private function afterMove(evt:MapZoomEvent):void
 			{
-				Main.geniHandler.mapHandler.drawMap();
+				GeniMain.mapper.drawMap();
 			}
 			
-			public function resetZoom():void {
-				var bounds:LatLngBounds = GeniMapHandler.getBounds();
+			public function resetZoom():void
+			{
+				var temp:LatitudeLongitudeBounds = GeniMain.mapper.getBounds();
+				var bounds:LatLngBounds = new LatLngBounds(new LatLng(temp.south, temp.west), new LatLng(temp.north, temp.east));
 				if(bounds != null) {
-					var bzl:Number  = this.getBoundsZoomLevel(bounds);
-					if(this.getZoom() != bzl)
-						this.setZoom(bzl);
+					var bzl:Number  = getBoundsZoomLevel(bounds);
+					if(getZoom() != bzl)
+						setZoom(bzl);
 					this.panTo( bounds.getCenter() );
-				} else
+				}
+				else
 					setDefaultZoom();
 			}
 			
-			public function setDefaultZoom():void {
+			public function setDefaultZoom():void
+			{
 				setZoom(4);
 				panTo(new LatLng(38,-97));
 			}
+			
+			public function panToPoint(center:LatitudeLongitude):void
+			{
+				panTo(new LatLng(center.latitude, center.longitude));
+			}
+			
+			public function getZoomLevel():Number
+			{
+				return getZoom();
+			}
+			
+			public function zoomToFit(bounds:LatitudeLongitudeBounds):void
+			{
+				setZoom(
+					getBoundsZoomLevel(
+						new LatLngBounds(
+							new LatLng(
+								bounds.north,
+								bounds.east
+							),
+							new LatLng(
+								bounds.south,
+								bounds.west
+							)
+						)
+					)
+				);
+			}
+			
+			public function clearAllOverlays():void
+			{
+				clearOverlays();
+			}
+			
+			public function getNewNodeMarker(newLocations:PhysicalLocationCollection, newNodes:*):GeniMapNodeMarker
+			{
+				return new GoogleMapLocationMarker(newLocations, newNodes);
+			}
+			
+			public function getNewLink(connectedNodes:Vector.<GeniMapNodeMarker>):GeniMapLink
+			{
+				return new GoogleMapLink(connectedNodes);
+			}
+			
+			public function addNodeMarker(marker:GeniMapNodeMarker):void
+			{
+				addOverlay(marker as IOverlay);
+			}
+			
+			public function addLink(temp:GeniMapLink):void
+			{
+				var link:GoogleMapLink = temp as GoogleMapLink;
+				link.generateLabels();
+				addOverlay(link.polyline);
+				for each(var addNewLabel:GoogleTooltipOverlay in link.labels)
+					addOverlay(addNewLabel);
+			}
+			
+			public function removeNodeMarker(marker:GeniMapNodeMarker):void
+			{
+				removeOverlay(marker as GoogleMapLocationMarker);
+			}
+			
+			public function removeLink(geniLink:GeniMapLink):void
+			{
+				var link:GoogleMapLink = geniLink as GoogleMapLink;
+				removeOverlay(link.polyline);
+				for each(var l:GoogleTooltipOverlay in link.labels)
+				{
+					removeOverlay(l);
+					l.destroy();
+				}
+			}
+			
 		]]>
 	</fx:Script>
 </maps:Map>

@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,51 +12,56 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package
+package com.flack.shared.logging
 {
-	import protogeni.display.ConsoleWindow;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
 	
+	import flash.events.EventDispatcher;
+
 	/**
-	 * Handles all of the logs application-wide
+	 * Top level handler for log messages throughout the geni library
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public class LogHandler
+	public class Logger extends EventDispatcher
 	{
-		public static var logs:Vector.<LogMessage> = new Vector.<LogMessage>();
-		private static var console:ConsoleWindow = null;
+		private var _logs:LogMessageCollection;
+		public function get Logs():LogMessageCollection
+		{
+			return _logs;
+		}
+		
+		public function Logger()
+		{
+			_logs = new LogMessageCollection();
+		}
 		
 		/**
-		 * Adds a message into the logs
+		 * Adds the message and dispatches an event
 		 * 
 		 * @param msg Message to add
 		 * 
 		 */
-		public static function appendMessage(msg:LogMessage):void {
-			logs.push(msg);
-			Main.geniDispatcher.dispatchLogsChanged(msg);
+		public function add(msg:LogMessage):void
+		{
+			_logs.add(msg);
+			dispatchEvent(new FlackEvent(FlackEvent.CHANGED_LOG, msg, FlackEvent.ACTION_CREATED));
 		}
 		
-		public static function viewConsole():void {
-			if(console == null)
-				console = new ConsoleWindow();
-			console.showWindow();
-		}
-		
-		public static function closeConsole():void {
-			console.closeWindow();
-			console = null;
-		}
-		
-		public static function viewGroup(s:String):void {
-			viewConsole();
-			console.openGroup(s);
-		}
-		
-		public static function clear():void {
-			logs = new Vector.<LogMessage>();
-			Main.geniDispatcher.dispatchLogsChanged();
+		/**
+		 * Dispatches a selected event for the owner.  Kind of dirty, but not used very much.
+		 * 
+		 * @param owner null or tasker indicates all messages, otherwise owner is selected
+		 * 
+		 */
+		public function view(owner:*):void
+		{
+			if(owner == SharedMain.tasker)
+				dispatchEvent(new FlackEvent(FlackEvent.CHANGED_LOG, null, FlackEvent.ACTION_SELECTED));
+			else
+				dispatchEvent(new FlackEvent(FlackEvent.CHANGED_LOG, owner, FlackEvent.ACTION_SELECTED));
 		}
 	}
 }

@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,33 +12,40 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.sites.authorities
 {
+	import com.flack.geni.resources.sites.GeniAuthority;
+
 	/**
 	 * Responsible for users and their slices in ProtoGENI
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public class SliceAuthority
+	public class ProtogeniSliceAuthority extends GeniAuthority
 	{
-		[Bindable]
-		public var Name:String;
-		[Bindable]
-		public var Urn:IdnUrn;
-		[Bindable]
-		public var Url:String;
-		[Bindable]
-		public var workingCertGet:Boolean = false;
-		
-		public function SliceAuthority(newUrn:String,
-									   newUrl:String,
-									   newWorkingCertGet:Boolean = false)
+		/**
+		 * 
+		 * @param newId IDN-URN
+		 * @param newUrl URL for XML-RPC calls
+		 * @param newWorkingCertGet Supports getting the certificate?
+		 * @param newParentAuthority Parent authority
+		 * 
+		 */
+		public function ProtogeniSliceAuthority(newId:String,
+												newUrl:String,
+												newWorkingCertGet:Boolean = false,
+												newParentAuthority:ProtogeniSliceAuthority = null)
 		{
-			this.Urn = new IdnUrn(newUrn);
-			this.Name = this.Urn.authority;
-			this.Url = newUrl;
-			this.workingCertGet = newWorkingCertGet;
+			super(
+				newId,
+				"",
+				newUrl,
+				TYPE_PROTOGENI,
+				newParentAuthority
+			);
+			name = id.authority;
+			workingCertGet = newWorkingCertGet;
 		}
 	}
 }

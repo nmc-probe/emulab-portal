@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,161 +12,214 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.StringUtil;
-	import protogeni.Util;
-	import protogeni.resources.AggregateManager;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.ProtogeniRspecProcessor;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.RspecVersion;
+	import com.flack.shared.resources.docs.RspecVersionCollection;
+	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.StringUtil;
 	
 	/**
-	 * Gets the GENI AM API version used by the manager using the GENI AM API
+	 * Gets version info from manager then adds task to get resources
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestGetVersionAm extends Request
+	public class GetVersionTask extends AmXmlrpcTask
 	{
-		private var aggregateManager:GeniManager;
+		public var manager:GeniManager;
 		
-		public function RequestGetVersionAm(newManager:GeniManager):void
+		/**
+		 * 
+		 * @param newManager Manager to get the version info for
+		 * 
+		 */
+		public function GetVersionTask(newManager:GeniManager)
 		{
-			super("Get version @ " + newManager.Hrn,
-				"Getting the version of the aggregate manager for " + newManager.Hrn,
-				CommunicationUtil.getVersionAm,
-				true,
-				true,
-				true);
-			ignoreReturnCode = true;
-			aggregateManager = newManager;
-			
-			op.setExactUrl(aggregateManager.Url);
+			super(
+				newManager.api.url,
+				AmXmlrpcTask.METHOD_GETVERSION,
+				NaN,
+				"Get version @ " + newManager.hrn,
+				"Getting the version information of the aggregate manager for " + newManager.hrn,
+				"Get Version"
+			);
+			maxTries = 1;
+			promptAfterMaxTries = false;
+			newManager.Status = FlackManager.STATUS_INPROGRESS;
+			relatedTo.push(newManager);
+			manager = newManager;
 		}
 		
-		// Should return Request or RequestQueueNode
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var r:Request = null;
+			// Sanity check for AM API 2+
+			if(apiVersion > 1)
+			{
+				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
+				{
+					faultOnSuccess();
+					return;
+				}
+			}
+			
 			try
 			{
-				if(response.geni_api != null)
-					aggregateManager.Version = int(response.geni_api);
+				manager.api.version = Number(data.geni_api);
 				
-				// Fall back to V1 if unsupported, fail otherwise
-				var data:Object = response;
-				if(aggregateManager.Version > 1)
+				manager.apis = new Vector.<ApiDetails>();
+				if(data.geni_api_versions != null)
 				{
-					if(response.value.geni_api_versions != null)
+					var highestSuppportedVersion:ApiDetails = manager.api;
+					for(var supportedApiVersion:String in data.geni_api_versions)
 					{
-						for(var supportedApiVersion:String in response.value.geni_api_versions)
-						{
-							var supportedApiUrl:String = response.value.geni_api_versions[supportedApiVersion];
-							var supportedApiVersionNumber:Number = Number(supportedApiVersion);
-							
-							if(supportedApiVersionNumber == 1)
-							{
-								aggregateManager.Version = 1;
-								aggregateManager.Url = supportedApiUrl;
-								
-								// Try again with V1
-								r = new RequestGetVersionAm(aggregateManager);
-								r.forceNext = true;
-								return r;
-							}
-						}
+						var supportedApiUrl:String = data.geni_api_versions[supportedApiVersion];
+						var supportedApi:ApiDetails = 
+							new ApiDetails(
+								manager.api.type,
+								Number(supportedApiVersion),
+								supportedApiUrl
+							);
+						if(supportedApi.version <= 2 && supportedApi.version > highestSuppportedVersion.version)
+							highestSuppportedVersion = supportedApi;
+						manager.apis.push(supportedApi);
 					}
-					
-					aggregateManager.errorMessage = "API v" + aggregateManager.Version + " is not supported";
-					aggregateManager.errorDescription = "API v" + aggregateManager.Version + " is not supported";
-					aggregateManager.Status = GeniManager.STATUS_FAILED;
-					Main.geniDispatcher.dispatchGeniManagerChanged(aggregateManager);
-					return null;
-				}
-				
-				aggregateManager.inputRspecVersions = new Vector.<Number>();
-				aggregateManager.outputRspecVersions = new Vector.<Number>();
-				var maxInputRspecVersion:Number = -1;
-				var usesProtogeniRspec:Boolean = false;
-				if(response.request_rspec_versions != null) {
-					for each(var requestRspecVersion:Object in response.request_rspec_versions) {
-						if(String(requestRspecVersion.type).toLowerCase() == "protogeni") {
-							usesProtogeniRspec = true;
-							var requestVersion:Number = Number(requestRspecVersion.version);
-							aggregateManager.inputRspecVersions.push(requestVersion);
-							if(requestVersion > maxInputRspecVersion)
-								maxInputRspecVersion = requestVersion;
-						}
-					}
-				}
-				var maxOutputRspecVersion:Number = -1;
-				if(response.ad_rspec_versions != null) {
-					for each(var adRspecVersion:Object in response.ad_rspec_versions) {
-						if(String(adRspecVersion.type).toLowerCase() == "protogeni") {
-							usesProtogeniRspec = true;
-							var adVersion:Number = Number(adRspecVersion.version);
-							aggregateManager.outputRspecVersions.push(adVersion);
-							if(adVersion > maxOutputRspecVersion)
-								maxOutputRspecVersion = adVersion;
-						}
-					}
-				}
-				if(response.default_ad_rspec != null) {
-					if(String(response.default_ad_rspec.type).toLowerCase() == "protogeni") {
-						usesProtogeniRspec = true;
-						aggregateManager.outputRspecDefaultVersion = Number(response.default_ad_rspec.version);
+					if(highestSuppportedVersion.version > manager.api.version)
+					{
+						// Set API to higher value and run GetVersion there
+						manager.api = highestSuppportedVersion;
+						
+						parent.add(new GetVersionTask(manager));
+						
+						super.afterComplete(addCompletedMessage);
+						
+						return;
 					}
 				}
 				
-				// Make sure aggregate uses protogeni if it supports it
-				if(usesProtogeniRspec) {
-
-					// Set output version
-					aggregateManager.outputRspecVersion = Math.min(Util.defaultRspecVersion, maxOutputRspecVersion);
-					
-					// Set input version
-					aggregateManager.inputRspecVersion = Math.min(Util.defaultRspecVersion, maxInputRspecVersion);
-					
-					aggregateManager.rspecProcessor = new ProtogeniRspecProcessor(aggregateManager);
+				manager.inputRspecVersions = new RspecVersionCollection();
+				manager.outputRspecVersions = new RspecVersionCollection();
+				
+				// Request RSPEC versions
+				var requestRspecVersions:Array = null;
+				switch(manager.api.version)
+				{
+					case 1:
+						requestRspecVersions = data.request_rspec_versions;
+						break;
+					case 2:
+					default:
+						requestRspecVersions = data.geni_request_rspec_versions;
+				}
+				if(requestRspecVersions != null)
+				{
+					for each(var requestRspecVersion:Object in requestRspecVersions)
+					{
+						var requestVersion:RspecVersion = 
+							new RspecVersion(
+								String(requestRspecVersion.type).toLowerCase(),
+								Number(requestRspecVersion.version)
+							);
+						manager.inputRspecVersions.add(requestVersion);
+					}
 				}
 				
-				// if supported, switch to pg_rspec
-				r = new RequestListResourcesAm(aggregateManager);
-				r.forceNext = true;
+				// Advertisement RSPEC versions
+				var adRspecVersions:Array = null;
+				switch(manager.api.version)
+				{
+					case 1:
+						adRspecVersions = data.ad_rspec_versions;
+						break;
+					case 2:
+					default:
+						adRspecVersions = data.geni_ad_rspec_versions;
+				}
+				if(adRspecVersions != null)
+				{
+					for each(var adRspecVersion:Object in adRspecVersions)
+					{
+						var adVersion:RspecVersion =
+							new RspecVersion(
+								String(adRspecVersion.type).toLowerCase(),
+								Number(adRspecVersion.version)
+							);
+						manager.outputRspecVersions.add(adVersion);
+					}
+				}
+				
+				// Make sure aggregate uses compatible rspec
+				if(manager.inputRspecVersions.UsableRspecVersions.length > 0 && manager.outputRspecVersions.UsableRspecVersions.length > 0)
+				{
+					manager.outputRspecVersion = manager.outputRspecVersions.UsableRspecVersions.MaxVersion;
+					manager.inputRspecVersion = manager.inputRspecVersions.UsableRspecVersions.MaxVersion;
+					
+					addMessage(
+						"Compatible",
+						"Input: "+manager.inputRspecVersion.toString()+"\nOutput:" + manager.outputRspecVersion.toString(),
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					SharedMain.sharedDispatcher.dispatchChanged(
+						FlackEvent.CHANGED_MANAGER,
+						manager
+					);
+					
+					parent.add(new ListManagerResourcesTask(manager));
+					
+					super.afterComplete(addCompletedMessage);
+				}
+				else
+				{
+					manager.errorType = FlackManager.FAIL_NOTSUPPORTED;
+					afterError(
+						new TaskError(
+							"ProtoGENI RSPEC not supported",
+							TaskError.CODE_PROBLEM
+						)
+					);
+				}
+						
 			}
 			catch(e:Error)
 			{
+				afterError(
+					new TaskError(
+						StringUtil.errorToString(e),
+						TaskError.CODE_UNEXPECTED,
+						e
+					)
+				);
 			}
-			
-			return r;
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):*
+		override protected function afterError(taskError:TaskError):void
 		{
-			aggregateManager.errorMessage = event.toString();
-			aggregateManager.errorDescription = "";
-			if(aggregateManager.errorMessage.search("#2048") > -1)
-				aggregateManager.errorDescription = "Stream error, possibly due to server error.  Another possible error might be that you haven't added an exception for:\n" + aggregateManager.VisitUrl();
-			else if(aggregateManager.errorMessage.search("#2032") > -1)
-				aggregateManager.errorDescription = "IO error, possibly due to the server being down";
-			else if(aggregateManager.errorMessage.search("timed"))
-				aggregateManager.errorDescription = event.text;
+			manager.Status = FlackManager.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
 			
-			aggregateManager.Status = GeniManager.STATUS_FAILED;
-			Main.geniDispatcher.dispatchGeniManagerChanged(aggregateManager);
-			
-			return null;
+			super.afterError(taskError);
 		}
 		
-		override public function cancel():void
+		override protected function runCancel():void
 		{
-			aggregateManager.Status = GeniManager.STATUS_UNKOWN;
-			Main.geniDispatcher.dispatchGeniManagerChanged(aggregateManager);
-			op.cleanup();
+			manager.Status = FlackManager.STATUS_UNKOWN;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 	}
 }

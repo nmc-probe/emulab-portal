@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,104 +12,115 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import mx.controls.Alert;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.StringUtil;
 	
 	/**
-	 * Releases all resources allocated to the sliver using the GENI AM API
+	 * Deallocates all resources in the sliver.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverDeleteAm extends Request
+	public final class DeleteSliverTask extends AmXmlrpcTask
 	{
 		public var sliver:Sliver;
-		private var hideErrors:Boolean;
-		
-		public function RequestSliverDeleteAm(s:Sliver, shouldHideErrors:Boolean = false):void
+		/**
+		 * 
+		 * @param deleteSliver Sliver for which to deallocate resources in
+		 * 
+		 */
+		public function DeleteSliverTask(deleteSliver:Sliver)
 		{
-			super("Delete sliver @ " + s.manager.Hrn,
-				"Deleting sliver on aggregate manager " + s.manager.Hrn + " for slice named " + s.slice.Name,
-				CommunicationUtil.deleteSliverAm,
-				true,
-				true);
-			hideErrors = shouldHideErrors;
-			ignoreReturnCode = true;
-			sliver = s;
-			sliver.changing = true;
-			sliver.processed = false;
-			sliver.message = "Waiting to delete";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-			
-			op.setExactUrl(sliver.manager.Url);
+			super(
+				deleteSliver.manager.api.url,
+				AmXmlrpcTask.METHOD_DELETESLIVER,
+				deleteSliver.manager.api.version,
+				"Delete sliver @ " + deleteSliver.manager.hrn,
+				"Deleting sliver on aggregate manager " + deleteSliver.manager.hrn + " for slice named " + deleteSliver.slice.Name,
+				"Delete Sliver"
+			);
+			relatedTo.push(deleteSliver);
+			relatedTo.push(deleteSliver.slice);
+			relatedTo.push(deleteSliver.manager);
+			sliver = deleteSliver;
 		}
 		
-		override public function start():Operation {
-			sliver.message = "Deleting";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-			
-			op.clearFields();
-			
-			op.pushField(sliver.slice.urn.full);
-			op.pushField([sliver.slice.credential]);
-			
-			return op;
+		override protected function createFields():void
+		{
+			addOrderedField(sliver.slice.id.full);
+			addOrderedField([sliver.slice.credential.Raw]);
+			if(apiVersion > 1)
+				addOrderedField({});
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
+			// Sanity check for AM API 2+
+			if(apiVersion > 1)
+			{
+				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS && genicode != AmXmlrpcTask.GENICODE_SEARCHFAILED)
+				{
+					faultOnSuccess();
+					return;
+				}
+			}
+			
 			try
 			{
-				if(response == true) {
-					if(sliver.slice.slivers.contains(sliver))
-						sliver.slice.slivers.remove(sliver);
-					var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
-					if(old != null)
-					{
-						if(old.slivers.getByUrn(sliver.urn.full) != null) {
-							old.removeOutsideReferences();
-							old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
-						}
-					}
-					sliver.message = "Deleted";
-				} else if(response == false) {
-					if(!hideErrors)
-						Alert.show("Received false when trying to delete sliver on " + this.sliver.manager.Hrn + ".");
-				} else
-					throw new Error();
+				if(data == true)
+				{
+					sliver.manifest = null;
+					sliver.removeFromSlice();
+					//sliver.UnsubmittedChanges = false;
+					
+					addMessage(
+						"Removed",
+						"Slice successfully removed",
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					SharedMain.sharedDispatcher.dispatchChanged(
+						FlackEvent.CHANGED_SLIVER,
+						sliver,
+						FlackEvent.ACTION_REMOVED
+					);
+					SharedMain.sharedDispatcher.dispatchChanged(
+						FlackEvent.CHANGED_SLICE,
+						sliver,
+						FlackEvent.ACTION_REMOVING
+					);
+					
+					super.afterComplete(addCompletedMessage);
+				}
+				else if(data == false)
+				{
+					afterError(
+						new TaskError(
+							"Received false when trying to delete sliver on " + sliver.manager.hrn + ".",
+							TaskError.CODE_PROBLEM
+						)
+					);
+				}
+				else
+					throw new Error("Invalid data received");
 			}
 			catch(e:Error)
 			{
-				failed();
+				afterError(
+					new TaskError(
+						StringUtil.errorToString(e),
+						TaskError.CODE_UNEXPECTED,
+						e
+					)
+				);
 			}
-			
-			return null;
-		}
-		
-		public function failed():void {
-			if(!hideErrors)
-				Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again. A possibility is that the sliver doesn't exist.");
-			sliver.message = "Delete failed";
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			failed();
-			return super.fail(event, fault);
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			sliver.changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_POPULATING);
 		}
 	}
 }

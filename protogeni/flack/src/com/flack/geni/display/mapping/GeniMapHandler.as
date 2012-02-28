@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,22 +12,30 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.display.mapping
+package com.flack.geni.display.mapping
 {
-	import com.google.maps.LatLng;
-	import com.google.maps.LatLngBounds;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.physical.PhysicalLink;
+	import com.flack.geni.resources.physical.PhysicalLinkCollection;
+	import com.flack.geni.resources.physical.PhysicalLocation;
+	import com.flack.geni.resources.physical.PhysicalLocationCollection;
+	import com.flack.geni.resources.physical.PhysicalNode;
+	import com.flack.geni.resources.physical.PhysicalNodeCollection;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virtual.VirtualLink;
+	import com.flack.geni.resources.virtual.VirtualLinkCollection;
+	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.resources.sites.FlackManager;
 	
 	import flash.events.Event;
+	import flash.utils.Dictionary;
 	
 	import mx.core.FlexGlobals;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.PhysicalLink;
-	import protogeni.resources.PhysicalLinkGroup;
-	import protogeni.resources.PhysicalNode;
-	import protogeni.resources.PhysicalNodeGroup;
-	import protogeni.resources.Slice;
 	
 	/**
 	 * Handles everything for drawing GENI resources onto Google Maps
@@ -39,130 +47,207 @@ package protogeni.display.mapping
 	{
 		public var map:GeniMap;
 		
-		public var nodeGroupMarkers:Vector.<GeniMapMarker> = new Vector.<GeniMapMarker>();
-		private var linkMarkers:Vector.<GeniMapLink> = new Vector.<GeniMapLink>();
-		private var nodeGroupClusterMarkers:Vector.<GeniMapMarker> = new Vector.<GeniMapMarker>();
+		// Filters
+		private var showManagers:Dictionary = new Dictionary();
+		private var selectedNodes:PhysicalNodeCollection = null;
+		private var userResourcesOnly:Boolean = false;
+		private var selectedSlice:Slice = null;
 		
-		public var userResourcesOnly:Boolean = false;
-		public var selectedSlice:Slice = null;
+		// What do we have and what will we draw?
+		private var allLocations:PhysicalLocationCollection = new PhysicalLocationCollection();
+		private var selectedLocations:PhysicalLocationCollection = new PhysicalLocationCollection();
+		
+		private var mappedMarkers:Vector.<GeniMapNodeMarker>;
+		private var mappedLinks:Vector.<GeniMapLink>;
+		
+		private var clusterer:LocationClusterer;
 		
 		public function GeniMapHandler(newMap:GeniMap)
 		{
 			map = newMap;
-			Main.geniDispatcher.addEventListener(GeniEvent.GENIMANAGER_CHANGED, managerChanged);
-			Main.geniDispatcher.addEventListener(GeniEvent.SLICE_CHANGED, sliceChanged);
-		}
-		
-		public function destruct():void {
 			clearAll();
-			Main.geniDispatcher.removeEventListener(GeniEvent.GENIMANAGER_CHANGED, managerChanged);
+			clusterer = new LocationClusterer(selectedLocations, 1)
+			SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGER, managerChanged);
+			SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICE, sliceChanged);
 		}
 		
-		public function clearAll():void {
-			if(map.ready)
-				map.clearOverlays();
+		public function destroy():void
+		{
+			clearAll();
+			SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_MANAGER, managerChanged);
+			SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_SLICE, sliceChanged);
+		}
+		
+		public function clearAll():void
+		{
+			if(map.Ready)
+				map.clearAllOverlays();
 			
-			if(drawing) {
+			if(drawing)
+			{
 				drawing = false;
 				FlexGlobals.topLevelApplication.stage.removeEventListener(Event.ENTER_FRAME, drawNext);
 			}
 			
-			nodeGroupMarkers = new Vector.<GeniMapMarker>();
-			linkMarkers = new Vector.<GeniMapLink>();
-			nodeGroupClusterMarkers = new Vector.<GeniMapMarker>();
+			allLocations = new PhysicalLocationCollection;
+			selectedLocations = new PhysicalLocationCollection;
+			
+			mappedMarkers = new Vector.<GeniMapNodeMarker>();
+			mappedLinks = new Vector.<GeniMapLink>();
+		}
+		
+		public function zoomToAll():void
+		{
+			var bounds:LatitudeLongitudeBounds = getBounds();
+			map.zoomToFit(bounds);
+			map.panToPoint(bounds.Center);
+		}
+		
+		// If nothing given, gives bounds for all resources
+		public function getBounds(a:Vector.<LatitudeLongitude> = null):LatitudeLongitudeBounds
+		{
+			var coords:Vector.<LatitudeLongitude>
+			if(a == null)
+			{
+				coords = new Vector.<LatitudeLongitude>();
+				for each(var m:PhysicalLocation in selectedLocations.collection)
+					coords.push(new LatitudeLongitude(m.latitude, m.longitude));
+			}
+			else
+				coords = a;
+			
+			if(coords.length == 0)
+				return new LatitudeLongitudeBounds();
+			
+			var s:Number = (coords[0] as LatitudeLongitude).latitude;
+			var n:Number = (coords[0] as LatitudeLongitude).latitude;
+			var w:Number = (coords[0] as LatitudeLongitude).longitude;
+			var e:Number = (coords[0] as LatitudeLongitude).longitude;
+			for each(var ll:LatitudeLongitude in coords)
+			{
+				if(ll.latitude < s)
+					s = ll.latitude;
+				else if(ll.latitude > n)
+					n = ll.latitude;
+				
+				if(ll.longitude < w)
+					w = ll.longitude;
+				if(ll.longitude > e)
+					e = ll.longitude;
+			}
+			
+			return new LatitudeLongitudeBounds(new LatitudeLongitude(s,w), new LatitudeLongitude(n,e));
+		}
+		
+		public function panToLocations(l:PhysicalLocationCollection, zoom:Boolean = false):void
+		{
+			var latlngs:Vector.<LatitudeLongitude> = new Vector.<LatitudeLongitude>();
+			for each(var location:PhysicalLocation in l.collection)
+				latlngs.push(new LatitudeLongitude(location.latitude, location.longitude));
+			var bounds:LatitudeLongitudeBounds = getBounds(latlngs);
+			if(zoom)
+				map.zoomToFit(bounds);
+			map.panToPoint(getBounds(latlngs).Center);
+		}
+		
+		public function panToLocation(l:PhysicalLocation):void
+		{
+			map.panToPoint(new LatitudeLongitude(l.latitude, l.longitude));
+		}
+		
+		// Handle managers as they are populated
+		public var changingManagers:Vector.<GeniManager> = new Vector.<GeniManager>();
+		public function managerChanged(event:FlackEvent):void
+		{
+			if(event.action != FlackEvent.ACTION_POPULATED)
+				return;
+			
+			var manager:GeniManager = event.changedObject as GeniManager;
+			
+			// Make sure old locations don't still exist
+			for(var i:int = 0; i < allLocations.length; i++)
+			{
+				if(allLocations.collection[i].managerId.full == manager.id.full)
+				{
+					allLocations.collection.splice(i, 1);
+					i--;
+				}
+			}
+			
+			// Add all of the new locations
+			for each(var location:PhysicalLocation in manager.locations.collection)
+				allLocations.add(location);
+				
+			if(showManagers[manager.id.full] == null)
+				showManagers[manager.id.full] = true;
+			
+			drawMap();
+		}
+		
+		public function sliceChanged(event:FlackEvent):void
+		{
+			if(userResourcesOnly
+				&& (selectedSlice == null || selectedSlice == event.changedObject))
+			{
+				drawMap();
+			}
+		}
+		
+		public function changeUserResources(draw:Boolean = true, slice:Slice = null, drawNow:Boolean = true):void
+		{
+			userResourcesOnly = draw;
+			selectedSlice = slice;
+			if(drawNow)
+				drawMap();
+		}
+		
+		public function changeShowUser(userOnly:Boolean = false, drawNow:Boolean = true):void
+		{
+			userResourcesOnly = userOnly;
+			if(drawNow)
+				drawMap();
+		}
+		
+		public function changeSelected(selected:PhysicalNodeCollection = null, drawNow:Boolean = true):void
+		{
+			selectedNodes = selected;
+			if(drawNow)
+				drawMap();
+		}
+		
+		public function changeManagers(managers:GeniManagerCollection = null, shouldShow:Boolean = true, drawNow:Boolean = true):void
+		{
+			var useManagers:GeniManagerCollection = managers ? managers : GeniMain.geniUniverse.managers;
+			for each(var manager:GeniManager in useManagers.collection)
+				showManagers[manager.id.full] = shouldShow;
+			if(drawNow)
+				drawMap();
+		}
+		
+		public function changeManager(manager:GeniManager, shouldShow:Boolean, drawNow:Boolean = true):void
+		{
+			showManagers[manager.id.full] = shouldShow;
+			if(drawNow)
+				drawMap();
 		}
 		
 		public function redrawFromScratch():void
 		{
 			clearAll();
-			for each(var gm:GeniManager in Main.geniHandler.GeniManagers) {
-				this.changingManagers.push(gm);
-			}
-			this.drawMapNow();
+			for each(var gm:GeniManager in GeniMain.geniUniverse.managers.collection)
+				changingManagers.push(gm);
+			drawMapNow();
 		}
 		
-		// If nothing given, gives bounds for all resources
-		public static function getBounds(a:Vector.<LatLng> = null):LatLngBounds
+		public function drawMap(junk:* = null):void
 		{
-			var coords:Vector.<LatLng>;
-			if(a == null) {
-				coords = new Vector.<LatLng>();
-				for each(var m:GeniMapMarker in Main.geniHandler.mapHandler.nodeGroupMarkers)
-				coords.push(m.getLatLng());
-			} else
-				coords = a;
-			
-			if(coords.length == 0)
-				return null;
-			
-			var s:Number = (coords[0] as LatLng).lat();
-			var n:Number = (coords[0] as LatLng).lat();
-			var w:Number = (coords[0] as LatLng).lng();
-			var e:Number = (coords[0] as LatLng).lng();
-			for each(var ll:LatLng in coords)
-			{
-				if(ll.lat() < s)
-					s = ll.lat();
-				else if(ll.lat() > n)
-					n = ll.lat();
-				
-				if(ll.lng() < w)
-					w = ll.lng();
-				if(ll.lng() > e)
-					e = ll.lng();
-			}
-			
-			return new LatLngBounds(new LatLng(s,w), new LatLng(n,e));
+			drawMapNow();
 		}
 		
-		public function zoomToPhysicalNode(n:PhysicalNode, zoom:Boolean = false):void
-		{
-			map.panTo(new LatLng(n.GetLatitude(), n.GetLongitude()));
-		}
-		
-		// Push any managers to be drawn
-		public var changingManagers:Vector.<GeniManager> = new Vector.<GeniManager>();
-		public function managerChanged(event:GeniEvent):void {
-			if(event.action != GeniEvent.ACTION_POPULATED)
-				return;
-			
-			if(Main.debugMode)
-				trace("MAP...New Manager Added: " + event.changedObject.Hrn);
-			this.changingManagers.push(event.changedObject);
-			this.drawMap();
-		}
-		
-		public function sliceChanged(event:GeniEvent):void {
-			if(event.action != GeniEvent.ACTION_POPULATING)
-				return;
-			
-			if(this.userResourcesOnly
-				&& (this.selectedSlice == null || this.selectedSlice == event.changedObject)) {
-				if(Main.debugMode)
-					trace("MAP...Slice populating...: " + (event.changedObject as Slice).Name);
-				this.drawMap();
-			}
-		}
-		
-		public function drawUserResources(slice:Slice = null):void {
-			this.selectedSlice = slice;
-			this.userResourcesOnly = true;
-			this.drawMap();
-		}
-		
-		public function drawAll():void {
-			this.userResourcesOnly = false;
-			this.drawMap();
-		}
-		
-		public function drawMap(junk:* = null):void {
-			this.drawMapNow();
-		}
-		
-		private static var LINK_ADD : int = 0;
-		private static var NODE_ADD : int = 1;
-		private static var CLUSTER : int = 2;
-		private static var CLUSTER_ADD : int = 3;
+		private static var PREPARE_LOCATIONS : int = 0;
+		private static var CLUSTER : int = 1;
+		private static var CLUSTER_ADD : int = 2;
+		private static var LINK_ADD : int = 3;
 		private static var DONE : int = 4;
 		
 		private static var MAX_WORK : int = 10;// 15;
@@ -173,277 +258,324 @@ package protogeni.display.mapping
 		public var drawAfter:Boolean = false;
 		
 		// Create cluster nodes and show/hide components
-		public function drawMapNow():void {
-			//Main.log.appendMessage(new LogMessage("", "Drawing map"));
-			
-			if(!map.ready)
+		public function drawMapNow():void
+		{
+			if(!map.Ready)
 				return;
 			
-			if(drawing) {
+			if(drawing) 
+			{
 				drawAfter = true;
 				return;
 			}
 			
 			drawing = true;
 			myIndex = 0;
-			if(changingManagers.length > 0 )
-				myState = LINK_ADD;
-			else
-				myState = CLUSTER;
+			myState = PREPARE_LOCATIONS;
+			
 			FlexGlobals.topLevelApplication.stage.addEventListener(Event.ENTER_FRAME, drawNext);
 		}
 		
-		public function drawNext(event:Event):void {
+		public function drawNext(event:Event):void
+		{
+			
+			// Stop and start over instead of finishing
+			if(drawAfter)
+			{
+				FlexGlobals.topLevelApplication.stage.removeEventListener(Event.ENTER_FRAME, drawNext);
+				drawing = false;
+				drawAfter = false;
+				drawMap();
+				return;
+			}
+			
 			var startTime:Date = new Date();
 			
-			if(myState == LINK_ADD) {
-				drawNextLink();
-				if(Main.debugMode)
-					trace("MapDrawL " + String((new Date()).time - startTime.time));
-			} else if(myState == NODE_ADD) {
-				drawNextNode();
-				if(Main.debugMode)
-					trace("MapDrawN " + String((new Date()).time - startTime.time));
-			} else if(myState == CLUSTER) {
+			if(myState == PREPARE_LOCATIONS)
+			{
+				prepareLocations();
+			}
+			else if(myState == CLUSTER)
+			{
 				doCluster();
-				if(Main.debugMode)
-					trace("MapDrawC " + String((new Date()).time - startTime.time));
-			} else if(myState == CLUSTER_ADD) {
-				drawCluster();
-				if(Main.debugMode)
-					trace("MapDrawCa " + String((new Date()).time - startTime.time));
-			} else if(myState == DONE) {
-				Main.Application().stage.removeEventListener(Event.ENTER_FRAME, drawNext);
+			}
+			else if(myState == CLUSTER_ADD)
+			{
+				doClusterAdd();
+			}
+			else if(myState == LINK_ADD)
+			{
+				doLinkAdd();
+			}
+			else if(myState == DONE)
+			{
+				FlexGlobals.topLevelApplication.stage.removeEventListener(Event.ENTER_FRAME, drawNext);
+				
 				drawing = false;
-				if(drawAfter) {
+				if(drawAfter)
+				{
 					drawAfter = false;
 					drawMap();
 				}
 			}
 		}
 		
-		public function drawNextLink():void {
-			var idx:int = 0;
-			var gm:GeniManager = changingManagers[0];
+		private var preparedPhysicalNodes:PhysicalNodeCollection;
+		private var preparedVirtualNodes:VirtualNodeCollection;
+		private var preparedPhysicalLinks:PhysicalLinkCollection;
+		private var preparedVirtualLinks:VirtualLinkCollection;
+		public function prepareLocations():void
+		{
+			var shownManagers:GeniManagerCollection = new GeniManagerCollection();
+			for(var managerId:String in showManagers)
+			{
+				if(showManagers[managerId])
+					shownManagers.add(GeniMain.geniUniverse.managers.getById(managerId));
+			}
 			
-			var startTime:Date = new Date();
-			
-			while(myIndex < gm.Links.collection.length) {
-				var linkGroup:PhysicalLinkGroup = gm.Links.collection[myIndex];
-				var add:Boolean = !linkGroup.IsSameSite();
-				if(add) {
-					for each(var v:PhysicalLink in linkGroup.collection)
+			if(userResourcesOnly)
+			{
+				preparedPhysicalLinks = null;
+				preparedPhysicalNodes = null;
+				if(selectedSlice == null)
+				{
+					preparedVirtualNodes = GeniMain.geniUniverse.user.slices.Nodes.getByManagers(shownManagers).Created;
+					preparedVirtualLinks = GeniMain.geniUniverse.user.slices.Links.getConnectedToManagers(shownManagers);
+				}
+				else
+				{
+					preparedVirtualNodes = selectedSlice.nodes.getByManagers(shownManagers).Created;
+					preparedVirtualLinks = selectedSlice.links.getConnectedToManagers(shownManagers);
+				}
+				if(selectedNodes != null)
+				{
+					for (var i:int=0; i < preparedVirtualNodes.length; i++)
 					{
-						if(v.linkTypes.indexOf("ipv4") > -1) {
-							add = false;
-							break;
+						var preparedVirtualNode:VirtualNode = preparedVirtualNodes.collection[i];
+						if(preparedVirtualNode.Physical == null || !selectedNodes.contains(preparedVirtualNode.Physical))
+						{
+							preparedVirtualNodes.remove(preparedVirtualNode);
+							i--;
 						}
 					}
 				}
-				
-				if(add) {
-					var gml:GeniMapLink = new GeniMapLink(linkGroup);
-					linkMarkers.push(gml);
-					map.addOverlay(gml.polyline);
-					map.addOverlay(gml.label);
-					gml.added = true;
-				}
-				
-				idx++
-					myIndex++;
-				if(((new Date()).time - startTime.time) > 60) {
-					if(Main.debugMode)
-						trace("Links added:" + idx);
-					return;
-				}
+				selectedLocations = preparedVirtualNodes.PhysicalNodes.Locations;
 			}
-			
-			myState = NODE_ADD;
-			myIndex = 0;
-			return;
-		}
-		
-		public function drawNextNode():void {
-			
-			var startTime:Date = new Date();
-			
-			var idx:int = 0;
-			var gm:GeniManager = changingManagers[0];
-			
-			while(myIndex < gm.Nodes.collection.length) {
-				var nodeGroup:PhysicalNodeGroup = gm.Nodes.collection[myIndex];
-				if(nodeGroup.collection.length > 0) {
-					var gmm:GeniMapMarker = new GeniMapMarker(nodeGroup);
-					map.addOverlay(gmm);
-					nodeGroupMarkers.push(gmm);
-					gmm.added = true;
+			else
+			{
+				preparedVirtualLinks = null;
+				preparedVirtualNodes = null;
+				preparedPhysicalLinks = new PhysicalLinkCollection();
+				if(selectedNodes != null)
+				{
+					preparedPhysicalNodes = selectedNodes.getByManagers(shownManagers);
+					selectedLocations = preparedPhysicalNodes.Locations;
 				}
-				idx++
-				myIndex++;
-				if(((new Date()).time - startTime.time) > 60) {
-					if(Main.debugMode)
-						trace("Nodes added:" + idx);
-					return;
+				else
+				{
+					preparedPhysicalNodes = new PhysicalNodeCollection();
+					selectedLocations = new PhysicalLocationCollection()
+					for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
+					{
+						if(manager.Status == FlackManager.STATUS_VALID)
+						{
+							if(showManagers[manager.id.full])
+							{
+								for each(var location:PhysicalLocation in manager.locations.collection)
+									selectedLocations.add(location);
+								for each(var node:PhysicalNode in manager.nodes.collection)
+									preparedPhysicalNodes.add(node);
+								for each(var link:PhysicalLink in manager.links.collection)
+								{
+									if(!link.SameSite && link.linkTypes.indexOf("ipv4") == -1)
+										preparedPhysicalLinks.add(link);
+								}
+							}
+						}
+					}
 				}
-			}
-			
-			changingManagers = changingManagers.slice(1);
-			if(changingManagers.length>0) {
-				myState = LINK_ADD;
-				myIndex = 0;
-				return;
 			}
 			
 			myState = CLUSTER;
 			myIndex = 0;
 		}
 		
-		private var clustersToAdd:Vector.<Vector.<GeniMapMarker>>;
-		public function doCluster():void {
+		private var clusteredMarkers:Vector.<PhysicalLocationCollection>;
+		public function doCluster():void
+		{
+			clusterer.zoom = map.getZoomLevel();
+			clusterer.locations = selectedLocations;
+			clusteredMarkers = clusterer.clusters;
+			locationToMarker = new Dictionary();
 			
-			// Limit to user resources if selected
-			// TODO: Add/Remove virtual links!
-			var marker:GeniMapMarker;
-			var slice:Slice = null;
-			var link:GeniMapLink;
-			if(this.userResourcesOnly) {
-				if(this.selectedSlice != null
-						&& this.selectedSlice.urn != null
-						&& this.selectedSlice.urn.full.length>0)
-					slice = selectedSlice;
-				for each(marker in this.nodeGroupMarkers)
-					marker.setUser(slice);
-				for each(marker in this.nodeGroupClusterMarkers)
-					marker.setUser(slice);
-				for each(link in this.linkMarkers) {
-					if(link.polyline.visible) {
-						link.polyline.hide();
-						link.label.visible = false;
-					}
-				}
-				
-				/*
-				// Draw virtual links
-				for each(var sliver:Sliver in selectedSlice.slivers)
+			// Hide shown markers which aren't included in the new shown locations
+			for each(var existingMarker:GeniMapNodeMarker in mappedMarkers)
+			{
+				if(existingMarker.Visible)
 				{
-				if(!sliver.manager.Show)
-				continue;
-				for each(var vl:VirtualLink in sliver.links) {
-				addVirtualLink(vl);
-				}	    			
-				}
-				*/
-			} else {
-				for each(marker in this.nodeGroupMarkers)
-					marker.setDefault();
-				for each(marker in this.nodeGroupClusterMarkers)
-					marker.setDefault();
-				for each(link in this.linkMarkers) {
-					if(!link.polyline.visible && link.group.GetManager().Show) {
-						link.polyline.show()
-						link.label.visible = true;
-					} else if(link.polyline.visible && !link.group.GetManager().Show) {
-						link.polyline.hide()
-						link.label.visible = false;
-					}
-				}
-			}
-			
-			// Cluster node groups close to each other
-			var clusterer:Clusterer = new Clusterer(nodeGroupMarkers, map.getZoom(), 40);
-			var clusteredMarkers:Vector.<Vector.<GeniMapMarker>> = clusterer.clusters;
-			clustersToAdd = new Vector.<Vector.<GeniMapMarker>>();
-			
-			// Show group markers that should be shown now, hide those that shouldn't
-			for each(var newArray:Vector.<GeniMapMarker> in clusteredMarkers) {
-				var shouldShow:Boolean = newArray.length == 1;
-				if(!shouldShow)
-					clustersToAdd.push(newArray);
-				for each(var newMarker:GeniMapMarker in newArray) {
-					if(!newMarker.visible && shouldShow && newMarker.showGroups.collection.length > 0)
-						newMarker.show();
-					else if(newMarker.visible &&
-							(newMarker.showGroups.collection.length == 0
-								|| !shouldShow))
-						newMarker.hide();
-				}
-			}
-			
-			var i:int;
-			var j:int;
-			var oldMarker:GeniMapMarker;
-			var found:Boolean;
-			var newMarkerArray:Vector.<GeniMapMarker>;
-			
-			// Hide markers no longer used
-			for(i = 0; i < nodeGroupClusterMarkers.length; i++) {
-				oldMarker = this.nodeGroupClusterMarkers[i] as GeniMapMarker;
-				found = false;
-				for(j = 0; j < clustersToAdd.length; j++) {
-					newMarkerArray = clustersToAdd[j];
-					if(newMarkerArray.length == oldMarker.cluster.length) {
-						found = true;
-						for each(var findMarker:GeniMapMarker in newMarkerArray) {
-							if(oldMarker.cluster.indexOf(findMarker) == -1) {
-								found = false;
-								break;
-							}
-						}
-						if(found) {
-							clustersToAdd.splice(j, 1);	// remove markers which will stay from the create array
+					var found:Boolean = false;
+					for each(var clusterMarker:PhysicalLocationCollection in clusteredMarkers)
+					{
+						if(existingMarker.sameLocationAs(clusterMarker.collection))
+						{
+							found = true;
 							break;
 						}
 					}
-				}
-				if(!found) {
-					if(oldMarker.visible)
-						oldMarker.hide();
-				} else {
-					if(oldMarker.visible && oldMarker.showGroups.collection.length == 0)
-						oldMarker.hide();
-					else if(!oldMarker.visible && oldMarker.showGroups.collection.length > 0)
-						oldMarker.show();
+					if(!found)
+						existingMarker.hide();
 				}
 			}
 			
-			if(clusteredMarkers == null)
-				myState = DONE;
-			else {
-				myIndex = 0;
-				myState = CLUSTER_ADD;
-			}
+			myState = CLUSTER_ADD;
+			myIndex = 0;
 		}
 		
-		
-		public function drawCluster():void {
+		private var locationToMarker:Dictionary;
+		public function doClusterAdd():void
+		{
+			var startTime:Date = new Date();
 			var idx:int = 0;
 			
-			var startTime:Date = new Date();
-			
-			while(myIndex < clustersToAdd.length) {
-				var cluster:Vector.<GeniMapMarker> = clustersToAdd[myIndex];
-				var marker:GeniMapMarker = new GeniMapMarker(cluster);
-				if(this.userResourcesOnly) {
-					var slice:Slice = null;
-					if(this.selectedSlice != null
-							&& this.selectedSlice.urn != null
-							&& this.selectedSlice.urn.full.length>0)
-						slice = selectedSlice;
-					marker.setUser(slice);
+			while(myIndex < clusteredMarkers.length)
+			{
+				var clusterMarker:PhysicalLocationCollection = clusteredMarkers[myIndex];
+				
+				var clusterNodes:*;
+				if(preparedPhysicalNodes != null)
+				{
+					var clusterPhysicalMarkerNodes:PhysicalNodeCollection = new PhysicalNodeCollection();
+					for each(var pnode:PhysicalNode in preparedPhysicalNodes.collection)
+					{
+						if(clusterMarker.contains(pnode.location))
+							clusterPhysicalMarkerNodes.add(pnode);
+					}
+					clusterNodes = clusterPhysicalMarkerNodes;
 				}
-				map.addOverlay(marker);
-				if(marker.showGroups.collection.length == 0)
-					marker.hide();
-				nodeGroupClusterMarkers.push(marker);
-				idx++;
+				else if(preparedVirtualNodes != null)
+				{
+					var clusterVirtualMarkerNodes:VirtualNodeCollection = new VirtualNodeCollection();
+					for each(var vnode:VirtualNode in preparedVirtualNodes.collection)
+					{
+						if(clusterMarker.contains(vnode.Physical.location))
+							clusterVirtualMarkerNodes.add(vnode);
+					}
+					clusterNodes = clusterVirtualMarkerNodes;
+				}
+				
+				var found:Boolean = false;
+				var myMarker:GeniMapNodeMarker;
+				for each(var existingMarker:GeniMapNodeMarker in mappedMarkers)
+				{
+					if(existingMarker.sameLocationAs(clusterMarker.collection))
+					{
+						found = true;
+						myMarker = existingMarker;
+						
+						existingMarker.setLook(clusterNodes);
+						
+						if(!existingMarker.Visible)
+							existingMarker.show();
+						break;
+					}
+				}
+				if(!found)
+				{
+					var newMarker:GeniMapNodeMarker = map.getNewNodeMarker(clusterMarker, clusterNodes);
+					myMarker = newMarker;
+					map.addNodeMarker(newMarker);
+					mappedMarkers.push(newMarker);
+					
+				}
+				
+				for each(var oldLocation:PhysicalLocation in clusterMarker.collection)
+					locationToMarker[oldLocation] = myMarker;
+				
+				idx++
 				myIndex++;
-				if(((new Date()).time - startTime.time) > 60) {
-					if(Main.debugMode)
-						trace("Clusters added:" + idx);
+				if(((new Date()).time - startTime.time) > 80) {
 					return;
 				}
 			}
-			clustersToAdd = null;
+			
+			myState = LINK_ADD;
+		}
+		
+		public function doLinkAdd():void
+		{
+			for each(var d:GeniMapLink in mappedLinks)
+			{
+				map.removeLink(d);
+			}
+			mappedLinks = new Vector.<GeniMapLink>();
+				
+			// cluster together
+			if(preparedPhysicalLinks != null)
+			{
+				for each(var plink:PhysicalLink in preparedPhysicalLinks.collection)
+				{
+					var allPlinkLocations:PhysicalLocationCollection = plink.interfaces.Locations;
+					var connectedPlinkMarkers:Vector.<GeniMapNodeMarker> = new Vector.<GeniMapNodeMarker>();
+					for each(var plinkLocation:PhysicalLocation in allPlinkLocations.collection)
+					{
+						if(connectedPlinkMarkers.indexOf(locationToMarker[plinkLocation]) == -1)
+							connectedPlinkMarkers.push(locationToMarker[plinkLocation]);
+					}
+					
+					var foundPlink:Boolean = false;
+					for each(var createdPlink:GeniMapLink in mappedLinks)
+					{
+						if(createdPlink.sameMarkersAs(connectedPlinkMarkers))
+						{
+							foundPlink = true;
+							createdPlink.addLink(plink);
+							break;
+						}
+					}
+					if(!foundPlink)
+					{
+						var newPlink:GeniMapLink = map.getNewLink(connectedPlinkMarkers);
+						newPlink.addLink(plink);
+						mappedLinks.push(newPlink);
+					}
+				}
+			}
+			else if(preparedVirtualLinks != null)
+			{
+				for each(var vlink:VirtualLink in preparedVirtualLinks.collection)
+				{
+					var allVlinkLocations:PhysicalLocationCollection = vlink.interfaceRefs.Interfaces.Nodes.PhysicalNodes.Locations;
+					var connectedVlinkMarkers:Vector.<GeniMapNodeMarker> = new Vector.<GeniMapNodeMarker>();
+					for each(var vlinkLocation:PhysicalLocation in allVlinkLocations.collection)
+					{
+						if(connectedVlinkMarkers.indexOf(locationToMarker[vlinkLocation]) == -1)
+							connectedVlinkMarkers.push(locationToMarker[vlinkLocation]);
+					}
+					
+					var foundVlink:Boolean = false;
+					for each(var createdVlink:GeniMapLink in mappedLinks)
+					{
+						if(createdVlink.sameMarkersAs(connectedVlinkMarkers))
+						{
+							foundVlink = true;
+							createdVlink.addLink(vlink);
+							break;
+						}
+					}
+					if(!foundVlink)
+					{
+						var newVlink:GeniMapLink = map.getNewLink(connectedVlinkMarkers);
+						newVlink.addLink(vlink);
+						mappedLinks.push(newVlink);
+					}
+				}
+			}
+			
+			// add
+			for each(var addNewLink:GeniMapLink in mappedLinks)
+			{
+				map.addLink(addNewLink);
+			}
 			
 			myState = DONE;
 		}

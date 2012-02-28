@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,8 +12,10 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.virtual
 {
+	import com.flack.geni.resources.Extensions;
+
 	/**
 	 * Script to run on a resource post-create
 	 * 
@@ -24,7 +26,14 @@ package protogeni.resources
 	{
 		public var shell:String;
 		public var command:String;
+		public var extensions:Extensions = new Extensions();
 		
+		/**
+		 * 
+		 * @param newCommand Command to execute
+		 * @param newShell Shell to run on
+		 * 
+		 */
 		public function ExecuteService(newCommand:String = "",
 									   newShell:String = "sh")
 		{

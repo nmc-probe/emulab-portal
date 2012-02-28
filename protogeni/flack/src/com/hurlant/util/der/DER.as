@@ -124,7 +124,7 @@ package com.hurlant.util.der
 					// fall through
 				case 0x03: // BIT STRING
 					if (der[der.position]==0) {
-						//trace("Horrible Bit String pre-padding removal hack."); // I wish I had the patience to find a spec for this.
+						//trace("Horrible Bit String pre-padding removal hack."); // I wish I had the patience to find a spec for 
 						der.position++;
 						len--;
 					}

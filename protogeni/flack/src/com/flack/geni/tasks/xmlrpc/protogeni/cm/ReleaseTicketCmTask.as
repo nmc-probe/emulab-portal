@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,86 +12,83 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.tasks.TaskError;
 	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.Key;
-	import protogeni.resources.Sliver;
-	
-	public final class RequestTicketRelease extends Request
+	/**
+	 * Releases a ticket which has been issued. Only supported on the FULL API.
+	 * 
+	 * If RedeemTicket fails, it needs to be tried again or released!
+	 * 
+	 * @author mstrum
+	 * 
+	 */
+	public final class ReleaseTicketCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
-		
 		/**
-		 * Redeems a ticket previously given to the user using the ProtoGENI API
 		 * 
-		 * FULL only
-		 * 
-		 * @param s
+		 * @param newSliver Sliver to release ticket for
 		 * 
 		 */
-		public function RequestTicketRelease(newSliver:Sliver):void
+		public function ReleaseTicketCmTask(newSliver:Sliver)
 		{
-			super("Release ticket @ " + newSliver.manager.Hrn,
-				"Releasing ticket for sliver on " + newSliver.manager.Hrn + " for slice named " + newSliver.slice.Name,
-				CommunicationUtil.releaseTicket);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_RELEASETICKET,
+				"Release ticket @ " + newSliver.manager.hrn,
+				"Releasing ticket for sliver on " + newSliver.manager.hrn + " for slice named " + newSliver.slice.Name,
+				"Release Ticket"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
 			sliver = newSliver;
-			sliver.changing = true;
-			sliver.message = "Releaing ticket";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.setUrl(sliver.manager.Url);
 		}
 		
-		override public function start():Operation {
-			if(sliver.manager.level == GeniManager.LEVEL_MINIMAL)
-			{
-				LogHandler.appendMessage(new LogMessage(sliver.manager.Url, "Full API not supported", "This manager does not support this API call", LogMessage.ERROR_FAIL));
-				return null;
-			}
-			
-			op.clearFields();
-			
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("ticket", sliver.ticket);
-			op.addField("credentials", [sliver.slice.credential]);
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
-				sliver.message = "Ticket released";
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("ticket", sliver.ticket);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
+		}
+		
+		override protected function runStart():void
+		{
+			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
+			{
+				afterError(
+					new TaskError(
+						"Full API not supported",
+						TaskError.CODE_PROBLEM
+					)
+				);
+				return;
+			}
+			super.runStart();
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
+			{
+				addMessage(
+					"Released",
+					"Ticket was released",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				super.afterComplete(addCompletedMessage);
+			}
 			else
-				failed(response.output);
-			
-			return null;
-		}
-		
-		public function failed(msg:String = ""):void {
-			sliver.message = "Ticket release failed";
-			if(msg != null && msg.length > 0)
-				sliver.message += ": " + msg;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return null;
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			sliver.changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+				faultOnSuccess();
 		}
 	}
 }

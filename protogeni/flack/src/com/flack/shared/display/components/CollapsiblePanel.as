@@ -17,7 +17,7 @@ the Initial Developer. All Rights Reserved.
 
 Contributor(s):
 */
-package protogeni.display.components
+package com.flack.shared.display.components
 {
 	import flash.events.MouseEvent;
 	

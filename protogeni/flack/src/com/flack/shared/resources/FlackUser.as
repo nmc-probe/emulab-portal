@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,8 +12,11 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.shared.resources
 {
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.utils.StringUtil;
 	import com.mattism.http.xmlrpc.JSLoader;
 
 	/**
@@ -22,76 +25,75 @@ package protogeni.resources
 	 * @author mstrum
 	 * 
 	 */
-	public class GeniUser
+	public class FlackUser extends IdentifiableObject
 	{
 		[Bindable]
-		public var uid:String;
+		public var uid:String = "";
 		
 		[Bindable]
-		public var hrn:String;
+		public var hrn:String = "";
 		[Bindable]
-		public var email:String;
+		public var email:String = "";
 		[Bindable]
-		public var name:String;
+		public var name:String = "";
+		
+		public var hasSetupSecurity:Boolean = false;
+		
+		public var password:String = "";
 		[Bindable]
-		public var authority:SliceAuthority;
-		public var userCredential:String = "";
-		public var keys:Vector.<Key> = new Vector.<Key>();
-		[Bindable]
-		public var urn:IdnUrn;
-		
-		public var slices:SliceCollection;
-		
-		public var hasSetupJavascript:Boolean = false;
-		
-		public var sliceCredential:String = "";
-		
-		public var passwd:String = "";
-		
-		public function get Credential():String {
-			if(userCredential != null && userCredential.length > 0)
-				return userCredential;
-			if(sliceCredential != null && sliceCredential.length > 0)
-				return sliceCredential;
-			return "";
-		}
-		
-		public function GeniUser()
+		public var sslCert:String = "";
+		public function get PrivateKey():String
 		{
-			slices = new SliceCollection();
+			var startIdx:int = sslCert.indexOf("-----BEGIN RSA PRIVATE KEY-----");
+			var endIdx:int = sslCert.lastIndexOf("-----END RSA PRIVATE KEY-----") + 30;
+			if(startIdx != -1 && endIdx != -1)
+				return sslCert.substring(startIdx, endIdx);
+			else
+				return "";
 		}
 		
-		public function setPassword(password:String,
-									store:Boolean):Boolean {
-			this.passwd = password;
-			if(store) {
-				if(FlackCache.userPassword != password) {
-					FlackCache.userPassword = password;
-					FlackCache.saveBasic();
-				}
-			} else if(FlackCache.userPassword.length > 0) {
-				FlackCache.userPassword = "";
-				FlackCache.saveBasic();
-			}
-			return tryToSetInJavascript(password);
+		public function FlackUser()
+		{
+			super();
 		}
 		
-		public function tryToSetInJavascript(password:String):Boolean {
-			if(Main.useJavascript) {
-				if(FlackCache.userSslPem.length > 0) {
-					try {
-						JSLoader.setClientInfo(password, FlackCache.userSslPem);
-						hasSetupJavascript = true;
-					} catch ( e:Error) {
-						LogHandler.appendMessage(new LogMessage("JS",
-							"JS User Cert",
-							e.toString(),
-							LogMessage.ERROR_FAIL,
-							LogMessage.TYPE_END));
-						return false;
-					}
-				} else
+		public function get CertificateSetUp():Boolean
+		{
+			return hasSetupSecurity;// && (authority != null || credential != null);
+		}
+		
+		/**
+		 * 
+		 * @param newPassword Password for the user's privake key
+		 * @param newCertificate SSL certificate to use
+		 * @return TRUE if failed, FALSE if successful
+		 * 
+		 */
+		public function setSecurity(newPassword:String, newCertificate:String):Boolean
+		{
+			if(newCertificate.length > 0)
+			{
+				try
+				{
+					JSLoader.setClientInfo(newPassword, newCertificate);
+					password = newPassword;
+					sslCert = newCertificate;
+					hasSetupSecurity = true;
 					return false;
+				}
+				catch (e:Error)
+				{
+					SharedMain.logger.add(
+						new LogMessage(
+							[this],
+							"",
+							"User Security",
+							"Problem setting user credentials in Forge: " + StringUtil.errorToString(e),
+							"",
+							LogMessage.LEVEL_FAIL
+						)
+					);
+				}
 			}
 			return true;
 		}

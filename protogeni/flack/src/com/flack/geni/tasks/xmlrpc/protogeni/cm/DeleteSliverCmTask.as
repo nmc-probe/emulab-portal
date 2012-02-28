@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,101 +12,82 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import mx.controls.Alert;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
 	
 	/**
-	 * Releases all resources in a sliver using the ProtoGENI API
+	 * Releases all resources allocated to the sliver.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverDelete extends Request
+	public final class DeleteSliverCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
-		private var hideErrors:Boolean;
 		
-		public function RequestSliverDelete(s:Sliver, shouldHideErrors:Boolean = false):void
+		/**
+		 * 
+		 * @param deleteSliver Sliver to deallocate resources for
+		 * 
+		 */
+		public function DeleteSliverCmTask(deleteSliver:Sliver)
 		{
-			super("Delete sliver @ " + s.manager.Hrn,
-				"Deleting sliver on component manager " + s.manager.Hrn + " for slice named " + s.slice.Name,
-				CommunicationUtil.deleteSlice,
-				true,
-				true);
-			hideErrors = shouldHideErrors;
-			sliver = s;
-			sliver.changing = true;
-			sliver.processed = false;
-			sliver.message = "Waiting to delete";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-			op.setUrl(sliver.manager.Url);
+			super(
+				deleteSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_DELETESLICE,
+				"Delete sliver @ " + deleteSliver.manager.hrn,
+				"Deleting sliver on component manager " + deleteSliver.manager.hrn + " for slice named " + deleteSliver.slice.Name,
+				"Delete Sliver"
+			);
+			relatedTo.push(deleteSliver);
+			relatedTo.push(deleteSliver.slice);
+			relatedTo.push(deleteSliver.manager);
+			sliver = deleteSliver;
 		}
 		
-		override public function start():Operation {
-			sliver.message = "Deleting";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-			
-			op.clearFields();
-			
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("credentials", [sliver.slice.credential]);
-			
-			return op;
+		override protected function createFields():void
+		{
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS
-				|| code == CommunicationUtil.GENIRESPONSE_SEARCHFAILED)
+			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS
+				|| code == ProtogeniXmlrpcTask.CODE_SEARCHFAILED)
 			{
-				sliver.removeOutsideReferences();
-				sliver.slice.slivers.remove(sliver);
-				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full);
-				if(old != null)
-				{
-					var oldSliver:Sliver = old.slivers.getByUrn(sliver.urn.full);
-					if(oldSliver != null) {
-						oldSliver.removeOutsideReferences();
-						old.slivers.remove(old.slivers.getByUrn(sliver.urn.full));
-					}
-				}
-				sliver.message = "Deleted";
+				sliver.manifest = null;
+				sliver.removeFromSlice();
+				//sliver.UnsubmittedChanges = false;
+				
+				addMessage(
+					"Removed",
+					"Slice successfully removed",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLIVER,
+					sliver,
+					FlackEvent.ACTION_REMOVED
+				);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					sliver.slice,
+					FlackEvent.ACTION_REMOVING
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-				failed(response.output);
-			
-			return null;
-		}
-		
-		public function failed(msg:String = ""):void {
-			sliver.message = "Delete failed";
-			if(msg != null && msg.length > 0)
-				sliver.message += ": " + msg;
-			if(!hideErrors)
-				Alert.show("Failed to delete sliver on " + this.sliver.manager.Hrn + ", check logs and try again.");
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return null;
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			sliver.changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_REMOVING);
+				faultOnSuccess();
 		}
 	}
 }

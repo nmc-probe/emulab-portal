@@ -1,65 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
 <components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						  xmlns:s="library://ns.adobe.com/flex/spark" 
 						  xmlns:mx="library://ns.adobe.com/flex/mx"
-						  xmlns:components="protogeni.display.components.*"
-						  title="Add Authority"
-						  creationComplete="init()">
+						  xmlns:components="com.flack.shared.display.components.*"
+						  title="Add Authority">
+	<components:layout>
+		<s:VerticalLayout paddingBottom="4" paddingTop="4" paddingLeft="4" paddingRight="4" />
+	</components:layout>
 	<fx:Script>
 		<![CDATA[
-			import com.mattism.http.xmlrpc.JSLoader;
-			
-			import mx.controls.Alert;
-			
-			import protogeni.resources.SliceAuthority;
-			
-			private var fr:FileReference;
-			
-			public function init():void
-			{
-				fr = new FileReference();
-				fr.addEventListener(Event.SELECT, onFileSelect);
-				fr.addEventListener(Event.COMPLETE, onFileComplete);
-				fr.addEventListener(IOErrorEvent.IO_ERROR, onFileIoError);
-				fr.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onFileSecurityError);
-			}
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.utils.ImageUtil;
 			
 			public function addAndClose():void
 			{
-				var newAuthority:SliceAuthority =
-					new SliceAuthority(
+				var newAuthority:ProtogeniSliceAuthority =
+					new ProtogeniSliceAuthority(
 						idTextinput.text,
 						urlTextinput.text,
 						workingCertGetCheckbox.selected
 					);
 				
 				if(certTextarea.text.length > 0)
-					JSLoader.setServerCertificate(JSLoader.serverCertificate + "\n" + certTextarea.text);
+					SharedMain.Bundle += "\n" + certTextarea.text;
 				
-				Main.geniHandler.GeniAuthorities.addItem(newAuthority);
-				Main.geniDispatcher.dispatchGeniAuthoritiesChanged();
+				GeniMain.geniUniverse.authorities.add(newAuthority);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_AUTHORITIES,
+					null,
+					FlackEvent.ACTION_POPULATED
+				);
 				closeWindow();
 			}
 			
-			protected function loadCert(event:MouseEvent):void
+			public function tryOpenCert(event:MouseEvent):void
 			{
-				fr.browse([new FileFilter("Certificates (*.*)", "*.*")])
+				var openFile:FileTask = new FileTask();
+				openFile.addEventListener(TaskEvent.FINISHED, afterOpenCert);
+				openFile.startOperation(event);
 			}
 			
-			public function onFileSelect(event:Event):void {
-				fr.load();
-			}
-			
-			public function onFileComplete(event:Event):void {
-				certTextarea.text = fr.data.readUTFBytes(fr.data.length);
-			}
-			
-			private function onFileIoError(event:IOErrorEvent):void {
-				Alert.show(event.toString(), "IO Error");
-			}
-			
-			private function onFileSecurityError(event:SecurityErrorEvent):void {
-				Alert.show(event.toString(), "Security Error");
+			private function afterOpenCert(event:TaskEvent):void
+			{
+				if(event.task.Status == Task.STATUS_SUCCESS)
+					certTextarea.text = event.task.data;
 			}
 			
 		]]>
@@ -91,8 +99,7 @@
 				 fontWeight="bold" />
 		<s:Button icon="{ImageUtil.openIcon}"
 				  label="Open from file"
-				  height="24"
-				  click="loadCert(event)" />
+				  click="tryOpenCert(event)" />
 	</s:HGroup>
 	<s:TextArea width="100%" height="100%" id="certTextarea" />
 	

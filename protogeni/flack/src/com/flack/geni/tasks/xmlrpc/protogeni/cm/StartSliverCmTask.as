@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,108 +12,93 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.tasks.TaskError;
 	
 	/**
-	 * Starts a sliver using the ProtoGENI API
-	 * 
-	 * FULL only
+	 * Starts the resources in the sliver.  Only supported in the FULL API
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverStart extends Request
+	public final class StartSliverCmTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
+		public var getStatus:Boolean
 		
-		public function RequestSliverStart(sliverToStart:Sliver):void
+		/**
+		 * 
+		 * @param newSliver Sliver to start resources in
+		 * 
+		 */
+		public function StartSliverCmTask(newSliver:Sliver)
 		{
-			super("Start sliver @ " + sliverToStart.manager.Hrn,
-				"Starting sliver on " + sliverToStart.manager.Hrn + " for slice named " + sliverToStart.slice.Name,
-				CommunicationUtil.startSliver,
-				true,
-				true);
-			sliver = sliverToStart;
-			sliver.changing = true;
-			sliver.message = "Starting";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.setUrl(sliver.manager.Url);
+			super(
+				newSliver.manager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_STARTSLIVER,
+				"Start sliver @ " + newSliver.manager.hrn,
+				"Starts sliver on " + newSliver.manager.hrn + " for slice named " + newSliver.slice.Name,
+				"Start Sliver"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			sliver = newSliver;
 		}
 		
-		override public function start():Operation {
-			if(sliver.manager.level == GeniManager.LEVEL_MINIMAL)
-			{
-				LogHandler.appendMessage(new LogMessage(sliver.manager.Url, "Full API not supported", "This manager does not support this API call", LogMessage.ERROR_FAIL));
-				return null;
-			}
-			op.clearFields();
-			
-			op.addField("slice_urn", sliver.slice.urn.full);
-			op.addField("credentials", [sliver.slice.credential]);
-			
-			return op;
+		override protected function createFields():void
+		{
+			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function runStart():void
 		{
-			var getStatus:RequestSliverStatus = new RequestSliverStatus(sliver);
-			getStatus.addAfter = this.addAfter;
-			this.addAfter = null;
-			
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
 			{
-				sliver.message = "Started";
-				// Don't add a sliver
-				var searchRequest:RequestQueueNode = Main.geniHandler.requestHandler.queue.head;
-				while(searchRequest != null) {
-					if(searchRequest.item is RequestSliverStatus) {
-						if(searchRequest.item.sliver.slice.urn.full == this.sliver.slice.urn.full
-							&& searchRequest.item.sliver.manager == this.sliver.manager)
-							return null;
-					}
-					searchRequest = searchRequest.next;
-				}
-				return getStatus;
+				afterError(
+					new TaskError(
+						"Full API not supported",
+						TaskError.CODE_PROBLEM
+					)
+				);
+				return;
 			}
-			// Already started
-			else if(code == CommunicationUtil.GENIRESPONSE_REFUSED)
+			super.runStart();
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				sliver.message = "Already started";
-				return getStatus;
+				addMessage(
+					"Started",
+					"Sliver was started",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				super.afterComplete(addCompletedMessage);
+			}
+			else if(code == ProtogeniXmlrpcTask.CODE_REFUSED)
+			{
+				addMessage(
+					"Already started",
+					"Sliver was already started",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-				failed();
-			
-			return null;
-		}
-		
-		public function failed(msg:String = ""):void {
-			sliver.changing = false;
-			sliver.message = "Start failed";
-			if(msg != null && msg.length > 0)
-				sliver.message += ": " + msg;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			var msg:String = "";
-			if(fault != null)
-				msg = fault.getFaultString();
-			failed(msg);
-			return null;
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
+				faultOnSuccess();
 		}
 	}
 }

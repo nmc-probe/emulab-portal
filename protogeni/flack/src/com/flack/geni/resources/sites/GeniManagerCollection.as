@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,60 +12,177 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.sites
 {
-	import mx.collections.ArrayCollection;
-	
-	import protogeni.GeniHandler;
-	
-	public final class GeniManagerCollection extends ArrayCollection
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.physical.PhysicalLink;
+	import com.flack.geni.resources.physical.PhysicalLinkCollection;
+	import com.flack.geni.resources.physical.PhysicalNode;
+	import com.flack.geni.resources.physical.PhysicalNodeCollection;
+	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.resources.sites.FlackManager;
+
+	/**
+	 * Collection of managers
+	 * 
+	 * @author mstrum
+	 * 
+	 */
+	public final class GeniManagerCollection
 	{
-		private var owner:GeniHandler;
-		
-		public function GeniManagerCollection(source:Array=null)
+		public var collection:Vector.<GeniManager>;
+		public function GeniManagerCollection()
 		{
-			super(source);
+			collection = new Vector.<GeniManager>();
 		}
 		
-		public function add(gm:GeniManager):void
+		public function add(manager:GeniManager):void
 		{
-			this.addItem(gm);
-			Main.geniDispatcher.dispatchGeniManagersChanged();
+			collection.push(manager);
 		}
 		
-		public function addAt(gm:GeniManager, index:int):void
+		public function remove(manager:GeniManager):void
 		{
-			this.addItemAt(gm, index);
-			Main.geniDispatcher.dispatchGeniManagersChanged();
+			var idx:int = collection.indexOf(manager);
+			if(idx > -1)
+				collection.splice(idx, 1);
 		}
 		
-		public function clear():void
+		public function contains(manager:GeniManager):Boolean
 		{
-			for each(var gm:GeniManager in this)
-			gm.clear();
-			Main.geniDispatcher.dispatchGeniManagersChanged();
+			return collection.indexOf(manager) > -1;
 		}
 		
-		public function getByUrn(urn:String):GeniManager
+		public function get length():int
 		{
-			var idnUrn:IdnUrn = new IdnUrn(urn);
-			for each(var gm:GeniManager in this)
+			return collection.length;
+		}
+		
+		/**
+		 * 
+		 * @return New instance of the same collection
+		 * 
+		 */
+		public function get Clone():GeniManagerCollection
+		{
+			var clone:GeniManagerCollection = new GeniManagerCollection();
+			for each(var manager:GeniManager in collection)
+				clone.add(manager);
+			return clone;
+		}
+		
+		/**
+		 * 
+		 * @return Managers which have reported resources
+		 * 
+		 */
+		public function get Valid():GeniManagerCollection
+		{
+			var validManagers:GeniManagerCollection = new GeniManagerCollection();
+			for each(var manager:GeniManager in collection)
 			{
-				// PlanetLab
-				if(gm.Urn.authority == idnUrn.authority)
+				if(manager.Status == FlackManager.STATUS_VALID)
+					validManagers.add(manager);
+			}
+			return validManagers;
+		}
+		
+		/**
+		 * 
+		 * @param id IDN-URN
+		 * @return Manager matching the ID
+		 * 
+		 */
+		public function getById(id:String):GeniManager
+		{
+			var idnUrn:IdnUrn = new IdnUrn(id);
+			for each(var gm:GeniManager in collection)
+			{
+				if(gm.id.authority == idnUrn.authority)
 					return gm;
 			}
 			return null;
 		}
 		
+		/**
+		 * 
+		 * @param id IDN-URN
+		 * @return Component matching the id
+		 * 
+		 */
+		public function getComponentById(id:String):*
+		{
+			for each(var gm:GeniManager in collection)
+			{
+				var component:* = gm.getById(id);
+				if(component != null)
+					return component;
+			}
+			return null;
+		}
+		
+		/**
+		 * 
+		 * @param hrn Human-readable name
+		 * @return Manager matching the hrn
+		 * 
+		 */
 		public function getByHrn(hrn:String):GeniManager
 		{
-			for each(var gm:GeniManager in this)
+			for each(var manager:GeniManager in collection)
 			{
-				if(gm.Hrn == hrn)
-					return gm;
+				if(manager.hrn == hrn)
+					return manager;
 			}
 			return null;
+		}
+		
+		/**
+		 * 
+		 * @return All nodes
+		 * 
+		 */
+		public function get Nodes():PhysicalNodeCollection
+		{
+			var results:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each(var manager:GeniManager in collection)
+			{
+				for each(var node:PhysicalNode in manager.nodes.collection)
+					results.add(node);
+			}
+			return results; 
+		}
+		
+		/**
+		 * 
+		 * @return All links
+		 * 
+		 */
+		public function get Links():PhysicalLinkCollection
+		{
+			var results:PhysicalLinkCollection = new PhysicalLinkCollection();
+			for each(var manager:GeniManager in collection)
+			{
+				for each(var link:PhysicalLink in manager.links.collection)
+					results.add(link);
+			}
+			return results; 
+		}
+		
+		/**
+		 * 
+		 * @return Maximum RSPEC supported by all of the managers
+		 * 
+		 */
+		public function get MaximumRspecVersion():Number
+		{
+			var max:Number = GeniMain.usableRspecVersions.MaxVersion.version;
+			for each(var manager:GeniManager in collection)
+			{
+				if(manager.inputRspecVersion.version < max)
+					max = manager.inputRspecVersion.version;
+			}
+			return max; 
 		}
 	}
 }

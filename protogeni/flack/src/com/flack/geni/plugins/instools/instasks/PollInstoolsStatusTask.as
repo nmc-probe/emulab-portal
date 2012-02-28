@@ -1,166 +1,184 @@
-/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
-* All rights reserved.
-*
-* Permission to use, copy, modify and distribute this software is hereby
-* granted provided that (1) source code retains these copyright, permission,
-* and disclaimer notices, and (2) redistributions including binaries
-* reproduce the notices in supporting documentation.
-*
-* THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
-* CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
-* FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
-*/
-
-package protogeni.tools.instools
+package com.flack.geni.plugins.instools.instasks
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
+	import com.flack.geni.plugins.instools.Instools;
+	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.geni.tasks.xmlrpc.protogeni.cm.StartSliverCmTask;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.MathUtil;
 	
 	import mx.controls.Alert;
 	
-	import protogeni.GeniEvent;
-	import protogeni.communication.CommunicationUtil;
-	import protogeni.communication.Operation;
-	import protogeni.communication.Request;
-	import protogeni.communication.RequestQueue;
-	import protogeni.communication.RequestQueueNode;
-	import protogeni.communication.RequestSliverStart;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualNode;
-	
-	/**
-	 * Polls a sliver for the instools status
-	 * 
-	 * @author jreed
-	 * 
-	 */
-	public final class RequestPollInstoolsStatus extends Request
+	public final class PollInstoolsStatusTask extends ProtogeniXmlrpcTask
 	{
 		public var sliver:Sliver;
-		public function RequestPollInstoolsStatus(newSliver:Sliver):void
+		public var details:SliceInstoolsDetails;
+		
+		public function PollInstoolsStatusTask(newSliver:Sliver, useDetails:SliceInstoolsDetails)
 		{
-			super("Poll Instools Status @ " + newSliver.manager.Hrn,
-				"Getting the sliver status on " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.Name,
-				Instools.instoolsGetInstoolsStatus,
-				true,
-				true);
+			super(
+				newSliver.manager.url,
+				Instools.instoolsModule + "/" + useDetails.apiVersion.toFixed(1),
+				Instools.getInstoolsStatus,
+				"Poll Instools Status @ " + newSliver.manager.hrn,
+				"Getting the sliver status on " + newSliver.manager.hrn + " on slice named " + newSliver.slice.Name,
+				"Poll INSTOOLS Status"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.manager);
+			relatedTo.push(newSliver.slice);
 			sliver = newSliver;
-			sliver.changing = true;
-			sliver.message = "Waiting to poll INSTOOLS status...";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.setUrl(sliver.manager.Url);
+			details = useDetails;
 		}
 		
-		override public function start():Operation {
-			// Make sure we're working on the most recent sliver
-			sliver = Main.geniHandler.CurrentUser.slices.getByUrn(sliver.slice.urn.full).slivers.getByManager(sliver.manager);
-			if(this.op.delaySeconds == 0)
-				sliver.message = "Polling INSTOOLS status...";
-			sliver.changing = true;
-			sliver.status = Sliver.STATUS_CHANGING;
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
-			
-			op.addField("urn", sliver.slice.urn.full);
-			op.addField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.Urn.full.toString()]);
-			op.addField("credentials", new Array(sliver.slice.credential));
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			addNamedField("urn", sliver.slice.id.full);
+			addNamedField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.id.full]);
+			addNamedField("credentials", [sliver.slice.credential.Raw]);
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code ==  ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				// Try again if we need
-				var req:Request = null;
-				var reqQueue:RequestQueue = new RequestQueue();
-				this.op.delaySeconds = 30;
-				
-				Instools.instools_status[sliver.manager.Urn.full] = String(response.value.status);
-				var status:String = String(response.value.status);
+				details.instools_status[sliver.manager.id.full] = String(data.status);
+				var status:String = String(data.status);
 				switch(status) {
 					case "INSTRUMENTIZE_COMPLETE":		//instrumentize is finished, experiment is ready, etc.
-						Instools.portal_url[sliver.manager.Urn.full] = String(response.value.portal_url);
-						sliver.changing = false;
+						details.portal_url[sliver.manager.id.full] = String(data.portal_url);
 						sliver.status = Sliver.STATUS_READY;
-						sliver.message = "Instrumentizing complete!";
-						break;
+						var msg:String = details.creating ? "Instrumentizing complete!" : "INSTOOLS running!";
+						addMessage(
+							msg,
+							msg,
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH
+						);
+						super.afterComplete(addCompletedMessage);
+						return;
 					case "INSTALLATION_COMPLETE":		//MC has finished the startup scripts
-						sliver.message = "Instrumentize scripts installed...";
-						sliver.status = Sliver.STATUS_CHANGING;
-						if (Instools.started_instrumentize[sliver.manager.Urn.full] != "1")
+						addMessage(
+							"Instrumentize scripts installed...",
+							"Instrumentize scripts installed...",
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH
+						);
+						if (details.started_instrumentize[sliver.manager.id.full] != "1")
 						{
-							req = new RequestInstrumentize(sliver);
-							req.forceNext = true;
-							reqQueue.push(req);
-							Instools.started_instrumentize[sliver.manager.Urn.full] = "1";
+							addMessage(
+								"Instrumentizing...",
+								"Instrumentizing...",
+								LogMessage.LEVEL_INFO,
+								LogMessage.IMPORTANCE_HIGH
+							);
+							parent.add(new InstrumentizeTask(sliver, details));
+							details.started_instrumentize[sliver.manager.id.full] = "1";
 						}
-						reqQueue.push(this);
 						break;
 					case "MC_NOT_STARTED":				//MC has been added, but not started
-						sliver.message = "MC not started...";
-						sliver.status = Sliver.STATUS_CHANGING;
-						if (Instools.started_MC[sliver.manager.Urn.full] != "1")
+						addMessage(
+							"MC not started...",
+							"MC not started...",
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH
+						);
+						if (details.started_MC[sliver.manager.id.full] != "1")
 						{
-							req = new RequestSliverStart(sliver);
-							req.forceNext = true;
-							reqQueue.push(req);
-							Instools.started_MC[sliver.manager.Urn.full] = "1";
+							addMessage(
+								"Starting...",
+								"Starting...",
+								LogMessage.LEVEL_INFO,
+								LogMessage.IMPORTANCE_HIGH
+							);
+							parent.add(new StartSliverCmTask(sliver));
+							details.started_MC[sliver.manager.id.full] = "1";
 						}
-						reqQueue.push(this);
 						break;
 					case "INSTRUMENTIZE_IN_PROGRESS":	//the instools server has started instrumentizing the nodes
-						sliver.message = "Instrumentize in progress...";
-						sliver.status = Sliver.STATUS_CHANGING;
-						reqQueue.push(this);
+						addMessage(
+							"Instrumentize in progress...",
+							"Instrumentize in progress...",
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH
+						);
 						break;
 					case "INSTALLATION_IN_PROGRESS":	//MC is running it's startup scripts
-						sliver.message = "Instrumentize installing...";
-						sliver.status = Sliver.STATUS_CHANGING;
-						reqQueue.push(this);
+						addMessage(
+							"Instrumentize installing...",
+							"Instrumentize installing...",
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH
+						);
 						break;
 					case "MC_NOT_PRESENT":				//The addMC/updatesliver calls haven't finished 
-						sliver.message = "MC Node not added yet...";
-						sliver.status = Sliver.STATUS_CHANGING;
-						reqQueue.push(this);
+						addMessage(
+							"MC Node not added yet...",
+							"MC Node not added yet...",
+							LogMessage.LEVEL_WARNING,
+							LogMessage.IMPORTANCE_HIGH
+						);
 						break;
 					case "MC_UNSUPPORTED_OS":
-						sliver.message = "Unsupported OS! Maybe not booted...";
-						sliver.status = Sliver.STATUS_CHANGING;
-						reqQueue.push(this);
+						addMessage(
+							"Unsupported OS! Maybe not booted...",
+							"Unsupported OS! Maybe not booted...",
+							LogMessage.LEVEL_WARNING,
+							LogMessage.IMPORTANCE_HIGH
+						);
 						break;
 					default:
 						sliver.status = Sliver.STATUS_FAILED;
-						sliver.changing = false;
-						sliver.message = status + "!";
+						addMessage(
+							status + "!",
+							status + "!"
+						);
 						Alert.show("Unrecognized INSTOOLS status: " + status);
-						break;
+						afterError(
+							new TaskError(
+								"Unrecognized INSTOOLS status: " + status,
+								TaskError.FAULT,
+								status
+							)
+						);
+						return;
 				}
 				
-				return reqQueue.head;
-			} else
-				failed(response.output);
-			
-			return null;
+				// At this point, still changing and polling...
+				sliver.status = Sliver.STATUS_CHANGING;
+				delay = MathUtil.randomNumberBetween(20, 60);
+				runCleanup();
+				start();
+			}
+			else
+				faultOnSuccess();
 		}
 		
-		public function failed(msg:String = ""):void {
-			sliver.changing = false;
-			sliver.message = "Poll INSTOOLS status failed";
-			Alert.show("Failed to poll INSTOOLS status on " + sliver.manager.Hrn + ". " + msg, "Problem polling INSTOOLS status");
+		override protected function afterError(taskError:TaskError):void
+		{
+			failed();
+			super.afterError(taskError);
 		}
 		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			failed(fault.getFaultString());
-			return null;
+		override protected function runCancel():void
+		{
+			failed();
 		}
 		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+		public function failed():void
+		{
+			addMessage(
+				"Poll INSTOOLS status failed",
+				"Poll INSTOOLS status failed",
+				LogMessage.LEVEL_FAIL,
+				LogMessage.IMPORTANCE_HIGH
+			);
+			Alert.show(
+				"Failed to poll INSTOOLS status on " + sliver.manager.hrn + ". ",
+				"Problem polling INSTOOLS status"
+			);
 		}
 	}
 }

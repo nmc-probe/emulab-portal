@@ -18,7 +18,7 @@ package com.hurlant.util.der
 		
 		public function PrintableString(type:uint, length:uint) {
 			this.type = type;
-			this.len = length;
+			len = length;
 		}
 		
 		public function getLength():uint

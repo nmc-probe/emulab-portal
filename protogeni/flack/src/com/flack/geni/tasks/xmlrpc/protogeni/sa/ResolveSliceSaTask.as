@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,105 +12,174 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import mx.controls.Alert;
-	
-	import protogeni.StringUtil;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
-	
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.display.components.TextInputWindow;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.tasks.TaskError;
+
 	/**
-	 * Gets information for the slice like what managers have slivers.  Uses the ProtoGENI API
+	 * If creating, used to check to make sure slice name is valid and not used.
+	 * If getting, gets basic information like what managers have slivers.
+	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliceResolve extends Request
+	public final class ResolveSliceSaTask extends ProtogeniXmlrpcTask
 	{
 		public var slice:Slice;
-		private var isCreating:Boolean;
+		public var isCreating:Boolean;
+		public var prompt:Boolean;
 		
-		public function RequestSliceResolve(s:Slice, willBeCreating:Boolean = false):void
+		/**
+		 * 
+		 * @param taskSlice Slice to resolve
+		 * @param creating Resolving before creating? FALSE if getting.
+		 * @param promptUserForName Prompt the user if a different slice name is needed
+		 * 
+		 */
+		public function ResolveSliceSaTask(taskSlice:Slice,
+										   creating:Boolean = false,
+										   promptUserForName:Boolean = false)
 		{
-			super("Resolve " + s.Name,
-				"Resolving slice named " + s.Name,
-				CommunicationUtil.resolve);
-			this.forceNext = true;
-			
-			slice = s;
-			slice.Changing = true;
-			isCreating = willBeCreating;
-			
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			super(
+				taskSlice.authority.url,
+				"",
+				ProtogeniXmlrpcTask.METHOD_RESOLVE,
+				"Resolve " + taskSlice.Name,
+				"Resolving slice named " + taskSlice.Name,
+				"Resolve Slice"
+			);
+			relatedTo.push(taskSlice);
+			slice = taskSlice;
+			isCreating = creating;
+			prompt = promptUserForName;
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-			
-			// Build up the args
-			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
-			op.addField("urn", slice.urn.full);
-			op.addField("type", "Slice");
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
+		override protected function runStart():void
 		{
-			var newRequest:Request = null;
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if(prompt)
 			{
-				if(isCreating)
-				{
-					slice.Changing = false;
-					Alert.show("Slice '" + slice.urn.full + "' already exists", "Error");
-					Main.Application().setStatus("Slice exists", true);
-				}
+				var promptForNameWindow:TextInputWindow = new TextInputWindow();
+				promptForNameWindow.onSuccess = userChoseName;
+				promptForNameWindow.onCancel = cancel;
+				promptForNameWindow.showWindow();
+				if(slice.Name.length > 0)
+					promptForNameWindow.title = "Slice name not valid, please try another";
 				else
-				{
-					slice.creator = Main.geniHandler.CurrentUser;
-					slice.hrn = response.value.hrn;
-					slice.urn = new IdnUrn(response.value.urn);
-					for each(var sliverCm:String in response.value.component_managers) {
-						var newSliver:Sliver = new Sliver(slice);
-						newSliver.manager = Main.geniHandler.GeniManagers.getByUrn(sliverCm);
-						slice.slivers.add(newSliver);
-					}
-					
-					newRequest = new RequestSliceCredential(slice);
-				}
+					promptForNameWindow.title = "Please enter a valid, non-existing slice name";
+				promptForNameWindow.Text = slice.Name;
 			}
 			else
+				super.runStart();
+		}
+		
+		public function userChoseName(newName:String):void
+		{
+			slice.id = IdnUrn.makeFrom(slice.authority.id.authority, IdnUrn.TYPE_SLICE, newName);
+			super.runStart();
+		}
+		
+		override protected function createFields():void
+		{
+			addNamedField("credential", slice.authority.userCredential.Raw);
+			addNamedField("urn", slice.id.full);
+			addNamedField("type", "Slice");
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			var msg:String;
+			if(isCreating)
 			{
-				if(isCreating)
+				if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 				{
-					newRequest = new RequestSliceRemove(slice);
+					afterError(
+						new TaskError(
+							"Already exists. Slice named " + slice.Name + " already exists",
+							TaskError.CODE_PROBLEM,
+							code
+						)
+					);
+				}
+				else if(code == ProtogeniXmlrpcTask.CODE_SEARCHFAILED)
+				{
+					// Good, the slice doesn't exist, run remove before creating
+					parent.add(new RemoveSliceSaTask(slice));
+					
+					addMessage(
+						"Valid",
+						"No other slice has the same name. Slice can be created.",
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					super.afterComplete(addCompletedMessage);
+				}
+				// Bad name
+				else if(code == ProtogeniXmlrpcTask.CODE_BADARGS)
+				{
+					afterError(
+						new TaskError(
+							"Bad name. Slice creation failed because of a bad name: " + slice.Name,
+							TaskError.CODE_PROBLEM,
+							code
+						)
+					);
+				}
+				else if(code == ProtogeniXmlrpcTask.CODE_FORBIDDEN)
+				{
+					afterError(
+						new TaskError(
+							"Forbidden. " + output,
+							TaskError.CODE_PROBLEM,
+							code
+						)
+					);
 				}
 				else
-				{
-					slice.Changing = false;
-					Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
-					//Main.geniHandler.mapHandler.drawAll();
-				}
-				
+					faultOnSuccess();
 			}
-			
-			return newRequest;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			slice.Changing = false;
-			return super.fail(event, fault);
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(slice);
+			// Getting
+			else
+			{
+				if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
+				{
+					slice.id = new IdnUrn(data.urn);
+					slice.hrn = data.hrn;
+					slice.reportedManagers = new GeniManagerCollection();
+					for each(var reportedManagerId:String in data.component_managers)
+					{
+						var manager:GeniManager = GeniMain.geniUniverse.managers.getById(reportedManagerId);
+						if(manager != null)
+							slice.reportedManagers.add(manager);
+					}
+					
+					addMessage(
+						"Resolved",
+						slice.Name + " was found with slivers on " + slice.reportedManagers.length + " known manager(s)",
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					SharedMain.sharedDispatcher.dispatchChanged(
+						FlackEvent.CHANGED_SLICE,
+						slice
+					);
+					
+					super.afterComplete(addCompletedMessage);
+				}
+				else
+					faultOnSuccess();
+			}
 		}
 	}
 }

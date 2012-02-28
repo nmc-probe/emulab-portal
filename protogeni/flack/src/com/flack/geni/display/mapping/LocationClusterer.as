@@ -1,38 +1,28 @@
-/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
-* All rights reserved.
-*
-* Permission to use, copy, modify and distribute this software is hereby
-* granted provided that (1) source code retains these copyright, permission,
-* and disclaimer notices, and (2) redistributions including binaries
-* reproduce the notices in supporting documentation.
-*
-* THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
-* CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
-* FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
-*/
+/**
+ * Distance based clustering solution for google maps markers.
+ * 
+ * <p>Algorithm based on Mika Tuupola's "Introduction to Marker 
+ * Clustering With Google Maps" adapted for use in a dynamic
+ * flash map.</p>
+ * 
+ * @author Kelvin Luck
+ * @see http://www.appelsiini.net/2008/11/introduction-to-marker-clustering-with-google-maps
+ */
 
-package protogeni.display.mapping
+package com.flack.geni.display.mapping
 {
+	import com.flack.geni.resources.physical.PhysicalLocation;
+	import com.flack.geni.resources.physical.PhysicalLocationCollection;
+	
 	import flash.geom.Point;
 	import flash.utils.Dictionary;
 
-	/**
-	 * Distance based clustering solution for google maps markers.
-	 * 
-	 * <p>Algorithm based on Mika Tuupola's "Introduction to Marker 
-	 * Clustering With Google Maps" adapted for use in a dynamic
-	 * flash map.</p>
-	 * 
-	 * @author Kelvin Luck
-	 * @see http://www.appelsiini.net/2008/11/introduction-to-marker-clustering-with-google-maps
-	 */
-	public class Clusterer 
+	public class LocationClusterer 
 	{
-		public static const DEFAULT_CLUSTER_RADIUS:int = 25;
+		public static const DEFAULT_CLUSTER_RADIUS:int = 70;
 
-		private var _clusters:Vector.<Vector.<GeniMapMarker>>;
-		public function get clusters():Vector.<Vector.<GeniMapMarker>>
+		private var _clusters:Vector.<PhysicalLocationCollection>;
+		public function get clusters():Vector.<PhysicalLocationCollection>
 		{
 			if (_invalidated) {
 				_clusters = calculateClusters();
@@ -41,14 +31,14 @@ package protogeni.display.mapping
 			return _clusters;
 		}
 
-		private var _markers:Vector.<GeniMapMarker>;
-		public function set markers(value:Vector.<GeniMapMarker>):void
+		private var _locations:PhysicalLocationCollection;
+		public function set locations(value:PhysicalLocationCollection):void
 		{
-			if (value != _markers) {
-				_markers = value;
-				_positionedMarkers = new Vector.<PositionedMarker>();
-				for each (var marker:GeniMapMarker in value) {
-					_positionedMarkers.push(new PositionedMarker(marker));
+			if (value != _locations) {
+				_locations = value;
+				_positionedLocations = new Vector.<PositionedLocation>();
+				for each (var marker:PhysicalLocation in value.collection) {
+					_positionedLocations.push(new PositionedLocation(marker));
 				}
 				_invalidated = true;
 			}
@@ -73,21 +63,21 @@ package protogeni.display.mapping
 		}
 
 		private var _invalidated:Boolean;
-		private var _positionedMarkers:Vector.<PositionedMarker>;
+		private var _positionedLocations:Vector.<PositionedLocation>;
 
-		public function Clusterer(markers:Vector.<GeniMapMarker>, zoom:int, clusterRadius:int = DEFAULT_CLUSTER_RADIUS)
+		public function LocationClusterer(newLocations:PhysicalLocationCollection, zoom:int, clusterRadius:int = DEFAULT_CLUSTER_RADIUS)
 		{
-			this.markers = markers;
+			locations = newLocations;
 			_zoom = zoom;
 			_clusterRadius = clusterRadius;
 			_invalidated = true;
 		}
 
-		private function calculateClusters():Vector.<Vector.<GeniMapMarker>>
+		private function calculateClusters():Vector.<PhysicalLocationCollection>
 		{
 			var positionedMarkers:Dictionary = new Dictionary();
-			var positionedMarker:PositionedMarker;
-			for each (positionedMarker in _positionedMarkers) {
+			var positionedMarker:PositionedLocation;
+			for each (positionedMarker in _positionedLocations) {
 				positionedMarkers[positionedMarker.id] = positionedMarker;
 			}
 			
@@ -95,20 +85,20 @@ package protogeni.display.mapping
 			// do the calculation once here (backwards).
 			var compareDistance:Number = Math.pow(_clusterRadius * Math.pow(2, 21 - _zoom), 2);
 			
-			var clusters:Vector.<Vector.<GeniMapMarker>> = new Vector.<Vector.<GeniMapMarker>>();
-			var cluster:Vector.<GeniMapMarker>;
+			var clusters:Vector.<PhysicalLocationCollection> = new Vector.<PhysicalLocationCollection>();
+			var cluster:PhysicalLocationCollection;
 			var p1:Point;
 			var p2:Point;
 			var x:int;
 			var y:int;
-			var compareMarker:PositionedMarker;
+			var compareMarker:PositionedLocation;
 			for each (positionedMarker in positionedMarkers) {
 				if (positionedMarker == null) {
 					continue;
 				}
 				positionedMarkers[positionedMarker.id] = null;
-				cluster = new Vector.<GeniMapMarker>();
-				cluster.push(positionedMarker.marker);
+				cluster = new PhysicalLocationCollection();
+				cluster.add(positionedMarker.location);
 				for each (compareMarker in positionedMarkers) {
 					if (compareMarker == null) {
 						continue;
@@ -118,7 +108,7 @@ package protogeni.display.mapping
 					x = p1.x - p2.x;
 					y = p1.y - p2.y;
 					if (x * x + y * y < compareDistance) {
-						cluster.push(compareMarker.marker);
+						cluster.add(compareMarker.location);
 						positionedMarkers[compareMarker.id] = null;
 					}
 				}
@@ -129,26 +119,25 @@ package protogeni.display.mapping
 	}
 }
 
-import com.google.maps.LatLng;
+import com.flack.geni.display.mapping.LatitudeLongitude;
+import com.flack.geni.resources.physical.PhysicalLocation;
 
 import flash.geom.Point;
 
-import protogeni.display.mapping.GeniMapMarker;
-
-internal class PositionedMarker
+internal class PositionedLocation
 {
 
 	public static const OFFSET:int = 268435456;
 	public static const RADIUS:Number = OFFSET / Math.PI;
 	
 	// public properties are quicker than getters - speed is important here...
-	public var position:LatLng;
+	public var position:LatitudeLongitude;
 	public var point:Point;
 
-	private var _marker:GeniMapMarker;
-	public function get marker():GeniMapMarker
+	private var _location:PhysicalLocation;
+	public function get location():PhysicalLocation
 	{
-		return _marker;
+		return _location;
 	}
 
 	private var _id:int;
@@ -159,17 +148,17 @@ internal class PositionedMarker
 
 	private static var globalId:int = 0;
 
-	public function PositionedMarker(marker:GeniMapMarker)
+	public function PositionedLocation(newLocation:PhysicalLocation)
 	{
-		_marker = marker;
+		_location = newLocation;
 		_id = globalId++;
-		position = marker.getLatLng();
+		position = new LatitudeLongitude(newLocation.latitude, newLocation.longitude);
 		
 		var o:int = OFFSET;
 		var r:Number = RADIUS;
 		var d:Number = Math.PI / 180;
-		var x:int = Math.round(o + r * position.lng() * d);
-		var lat:Number = position.lat();
+		var x:int = Math.round(o + r * position.longitude * d);
+		var lat:Number = position.latitude;
 		var y:int = Math.round(o - r * Math.log((1 + Math.sin(lat * d)) / (1 - Math.sin(lat * d))) / 2);
 		point = new Point(x, y);
 	}

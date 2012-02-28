@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,89 +12,92 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.http
 {
-	import flash.utils.ByteArray;
-	
-	import mx.utils.Base64Decoder;
-	
-	import protogeni.NetUtil;
-	import protogeni.StringUtil;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.ProtogeniComponentManager;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.tasks.process.ParseAdvertisementTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.tasks.http.HttpTask;
+	import com.flack.shared.utils.CompressUtil;
 	
 	/**
-	 * Gets a public advertisement for a ProtoGENI component manager
+	 * Downloads a cached advertisement RSPEC for the given manager
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestDiscoverResourcesPublic extends Request
+	public class PublicListResourcesTask extends HttpTask
 	{
-		private var componentManager:ProtogeniComponentManager;
+		public var manager:GeniManager;
 		
-		public function RequestDiscoverResourcesPublic(newCm:ProtogeniComponentManager):void
+		/**
+		 * 
+		 * @param newManager Manager to get public resources for
+		 * 
+		 */
+		public function PublicListResourcesTask(newManager:GeniManager)
 		{
-			super("List public resources @ " + newCm.Hrn,
-				"Discovering public resources for " + newCm.Hrn,
-				null,
-				true,
-				true,
-				false);
-			componentManager = newCm;
+			super(
+				newManager.url,
+				"Download advertisement for " + newManager.hrn,
+				"Downloads the advertisement at " + newManager.url
+			);
+			manager = newManager;
 			
-			op.type = Operation.HTTP;
-			op.setExactUrl(componentManager.Url);
+			manager.Status = FlackManager.STATUS_INPROGRESS;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			// Might be compressed
+			if(data.charAt(0) != '<')
 			{
-				var rspec:String = response as String;
-				if(rspec.charAt(0) != '<') {
-					var decodor:Base64Decoder = new Base64Decoder();
-					decodor.decode(rspec);
-					var bytes:ByteArray = decodor.toByteArray();
-					bytes.uncompress();
-					rspec = bytes.toString();
-				}
-				componentManager.Rspec = new XML(rspec);
-				componentManager.rspecProcessor.processResourceRspec(after);
-			}
-			else
-			{
-				componentManager.Status = GeniManager.STATUS_FAILED;
-				this.removeImmediately = true;
-				Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
+				data = CompressUtil.uncompress(data);
+				
+				addMessage(
+					"Received advertisement",
+					data,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
 			}
 			
-			return null;
+			manager.advertisement = new Rspec(XML(data));
+			parent.add(new ParseAdvertisementTask(manager));
+			
+			super.afterComplete(addCompletedMessage);
 		}
 		
-		override public function cancel():void
+		override protected function afterError(taskError:TaskError):void
 		{
-			componentManager.Status = GeniManager.STATUS_UNKOWN;
-			Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			op.cleanup();
+			manager.Status = FlackManager.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
+			
+			super.afterError(taskError);
 		}
 		
-		private function after(junk:GeniManager):void {
-			cleanup();
-		}
-		
-		override public function cleanup():void
+		override protected function runCancel():void
 		{
-			running = false;
-			if(componentManager.Status == GeniManager.STATUS_INPROGRESS)
-				componentManager.Status = GeniManager.STATUS_FAILED;
-			Main.geniHandler.requestHandler.remove(this, false);
-			Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			op.cleanup();
-			Main.geniHandler.mapHandler.drawMap();
-			if(componentManager.Status == GeniManager.STATUS_VALID)
-				Main.Application().setStatus("Parsing " + componentManager.Hrn + " RSPEC Done",false);
-			Main.geniHandler.requestHandler.tryNext();
+			manager.Status = FlackManager.STATUS_UNKOWN;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 	}
 }

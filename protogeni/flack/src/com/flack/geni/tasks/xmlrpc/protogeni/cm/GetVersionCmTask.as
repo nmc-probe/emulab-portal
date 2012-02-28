@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,125 +12,150 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.StringUtil;
-	import protogeni.Util;
-	import protogeni.resources.GeniManager;
-	import protogeni.resources.ProtogeniComponentManager;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.RspecVersion;
+	import com.flack.shared.resources.docs.RspecVersionCollection;
+	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.shared.tasks.TaskError;
 	
 	/**
-	 * Gets version and other information for a manager using the ProtoGENI API
+	 * Gets version information from the manager.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestGetVersion extends Request
+	public class GetVersionCmTask extends ProtogeniXmlrpcTask
 	{
-		private var componentManager:ProtogeniComponentManager;
+		public var manager:GeniManager;
 		
-		public function RequestGetVersion(newManager:ProtogeniComponentManager):void
+		/**
+		 * 
+		 * @param newManager Manager to get version info for
+		 * 
+		 */
+		public function GetVersionCmTask(newManager:GeniManager)
 		{
-			super("Get version @ " + newManager.Hrn,
-				"Getting the version information of the component manager for " + newManager.Hrn,
-				CommunicationUtil.getVersion,
-				true,
-				true,
-				true);
-			// Was false, these two should always be loaded even on initial errors...
-			retryOnError = newManager.Hrn == "utahemulab.cm" || newManager.Hrn == "ukgeni.cm";
-			if(newManager.Hrn == "cron.loni.org.cm")
-			{
-				this.op.timeout = 10;
-				this.retryOnTimeout = false;
-			}
-			componentManager = newManager;
-			
-			op.setUrl(componentManager.Url);
+			super(
+				newManager.url,
+				ProtogeniXmlrpcTask.MODULE_CM,
+				ProtogeniXmlrpcTask.METHOD_GETVERSION,
+				"Get version @ " + newManager.hrn,
+				"Gets the version information of the component manager named " + newManager.hrn,
+				"Get Version"
+			);
+			maxTries = 1;
+			promptAfterMaxTries = false;
+			newManager.Status = FlackManager.STATUS_INPROGRESS;
+			relatedTo.push(newManager);
+			manager = newManager;
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var r:Request = null;
-			try
+			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				componentManager.Version = response.value.api;
-				componentManager.inputRspecVersions = new Vector.<Number>();
-				componentManager.outputRspecVersions = new Vector.<Number>();
-				var maxInputRspecVersion:Number = -1;
-				for each(var inputVersion:Number in response.value.input_rspec) {
-					if(inputVersion) {
-						componentManager.inputRspecVersions.push(inputVersion);
-						if(inputVersion > maxInputRspecVersion)
-							maxInputRspecVersion = inputVersion;
-					}
-				}
-				for each(var outputVersion:Number in response.value.ad_rspec) {
-					if(outputVersion) {
-						componentManager.outputRspecVersions.push(outputVersion);
-					}
-				}
-				componentManager.outputRspecDefaultVersion = Number(response.value.output_rspec);
-				if(componentManager.outputRspecVersions.indexOf(componentManager.outputRspecDefaultVersion) == -1)
-					componentManager.outputRspecVersions.push(componentManager.outputRspecDefaultVersion);
+				manager.api.version = Number(data.api);
+				manager.api.level = int(data.level);
 				
-				// Set output version
-				if(componentManager.Hrn == "utahemulab.cm" || componentManager.Hrn == "ukgeni.cm")
-					componentManager.outputRspecVersion = 2;
+				manager.inputRspecVersions = new RspecVersionCollection();
+				manager.outputRspecVersions = new RspecVersionCollection();
+				
+				// request RSPEC versions
+				for each(var inputVersion:Number in data.input_rspec)
+				{
+					if(inputVersion)
+					{
+						var newInputVersion:RspecVersion =
+							new RspecVersion(
+								inputVersion < 3 ? RspecVersion.TYPE_PROTOGENI : RspecVersion.TYPE_GENI,
+								inputVersion
+							);
+						manager.inputRspecVersions.add(newInputVersion);
+					}
+				}
+				
+				// ad RSPEC versions
+				var outputRspecDefaultVersionNumber:Number = Number(data.output_rspec);
+				if(data.ad_rspec != null)
+				{
+					for each(var outputVersion:Number in data.ad_rspec)
+					{
+						if(outputVersion)
+						{
+							var newOutputVersion:RspecVersion =
+								new RspecVersion(
+									outputVersion < 3 ? RspecVersion.TYPE_PROTOGENI : RspecVersion.TYPE_GENI,
+									outputVersion
+								);
+							if(outputRspecDefaultVersionNumber == outputVersion)
+								manager.outputRspecVersion = newOutputVersion;
+							manager.outputRspecVersions.add(newOutputVersion);
+						}
+					}
+				}
 				else
-					componentManager.outputRspecVersion = 0.2;
-				if(componentManager.outputRspecVersions.indexOf(componentManager.outputRspecVersion) == -1)
-					componentManager.outputRspecVersions.push(componentManager.outputRspecVersion);
+				{
+					manager.outputRspecVersions.add(
+						new RspecVersion(
+							outputRspecDefaultVersionNumber < 3 ? RspecVersion.TYPE_PROTOGENI : RspecVersion.TYPE_GENI,
+							outputRspecDefaultVersionNumber
+						)
+					);
+					manager.outputRspecVersion = manager.outputRspecVersions.collection[0];
+				}
 				
-				// Set input version
-				componentManager.inputRspecVersion = Math.min(Util.defaultRspecVersion, maxInputRspecVersion);
 				
-				componentManager.level = response.value.level;
-				r = new RequestDiscoverResources(componentManager);
-				r.forceNext = true;
-			}
-			catch(e:Error)
-			{
-			}
-			
-			return r;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):*
-		{
-			var request:Request = null;
-			if(numTries < 2)
-			{
-				request = this;
-				request.op.delaySeconds = Math.min(60, op.delaySeconds + 15);
-				request.forceNext = true;
+				// Set defaults
+				if(manager.outputRspecVersion == null)
+					manager.outputRspecVersion = manager.outputRspecVersions.MaxVersion;
+				manager.inputRspecVersion = manager.inputRspecVersions.MaxVersion;
+				
+				addMessage(
+					"Version found",
+					"Input: "+manager.inputRspecVersion.toString()+"\nOutput:" + manager.outputRspecVersion.toString(),
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_MANAGER,
+					manager
+				);
+				
+				parent.add(new DiscoverResourcesCmTask(manager));
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-				componentManager.errorMessage = event.toString();
-				componentManager.errorDescription = "";
-				if(componentManager.errorMessage.search("#2048") > -1)
-					componentManager.errorDescription = "Stream error, possibly due to server error.  Another possible error might be that you haven't added an exception for:\n" + componentManager.VisitUrl();
-				else if(componentManager.errorMessage.search("#2032") > -1)
-					componentManager.errorDescription = "IO error, possibly due to the server being down";
-				else if(componentManager.errorMessage.search("timed"))
-					componentManager.errorDescription = event.text;
-				
-				componentManager.Status = GeniManager.STATUS_FAILED;
-				Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			}
-			return request;
+				faultOnSuccess();
 		}
 		
-		override public function cancel():void
+		override protected function afterError(taskError:TaskError):void
 		{
-			componentManager.Status = GeniManager.STATUS_UNKOWN;
-			Main.geniDispatcher.dispatchGeniManagerChanged(componentManager);
-			op.cleanup();
+			manager.Status = FlackManager.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
+			
+			super.afterError(taskError);
+		}
+		
+		override protected function runCancel():void
+		{
+			manager.Status = FlackManager.STATUS_FAILED;
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_MANAGER,
+				manager,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 	}
 }

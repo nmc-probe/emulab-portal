@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,56 +12,69 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.display
+package com.flack.geni.display.slicer.graphview
 {
+	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	
 	import mx.collections.ArrayCollection;
 	
-	import protogeni.resources.PhysicalNode;
-	import protogeni.resources.VirtualNode;
-	
-	public class SliceNodeCollection extends ArrayCollection
+	public class CanvasNodeCollection
 	{
-		public function SliceNodeCollection(source:Array=null)
+		public var collection:Vector.<CanvasNode>;
+		public function CanvasNodeCollection()
 		{
-			super(source);
+			collection = new Vector.<CanvasNode>();
 		}
 		
-		public function containsPhysicalNode(node:PhysicalNode):Boolean
+		public function add(node:CanvasNode):void
 		{
-			for each (var sn:SliceNode in this)
+			collection.push(node);
+		}
+		
+		public function remove(node:CanvasNode):int
+		{
+			var idx:int = collection.indexOf(node);
+			if(idx > -1)
+				collection.splice(idx, 1);
+			return idx;
+		}
+		
+		public function contains(node:CanvasNode):Boolean
+		{
+			return collection.indexOf(node) > -1;
+		}
+		
+		public function get length():int
+		{
+			return collection.length;
+		}
+		
+		public function get VirtualNodes():VirtualNodeCollection
+		{
+			var nodes:VirtualNodeCollection = new VirtualNodeCollection();
+			for each (var cn:CanvasNode in collection)
+				nodes.add(cn.Node);
+			return nodes;
+		}
+		
+		public function getForVirtualNodes(nodes:VirtualNodeCollection):CanvasNodeCollection
+		{
+			var results:CanvasNodeCollection = new CanvasNodeCollection();
+			for each (var cn:CanvasNode in collection)
 			{
-				if(sn.node.physicalNode == node)
-					return true;
+				if(nodes.contains(cn.Node))
+					results.add(cn);
 			}
-			return false;
+			return results;
 		}
 		
-		public function containsVirtualNode(node:VirtualNode):Boolean
+		public function getForVirtualNode(node:VirtualNode):CanvasNode
 		{
-			for each (var sn:SliceNode in this)
+			for each (var cn:CanvasNode in collection)
 			{
-				if(sn.node == node)
-					return true;
-			}
-			return false;
-		}
-		
-		public function getForPhysicalNode(node:PhysicalNode):SliceNode
-		{
-			for each (var sn:SliceNode in this)
-			{
-				if(sn.node.physicalNode == node)
-					return sn;
-			}
-			return null;
-		}
-		
-		public function getForVirtualNode(node:VirtualNode):SliceNode
-		{
-			for each (var sn:SliceNode in this)
-			{
-				if(sn.node == node)
-					return sn;
+				if(cn.Node == node)
+					return cn;
 			}
 			return null;
 		}
@@ -70,15 +83,15 @@ package protogeni.display
 		{
 			var completedCms:ArrayCollection = new ArrayCollection();
 			var completed:Array = new Array();
-			for each(var sn:SliceNode in this)
+			for each(var cn:CanvasNode in collection)
 			{
-				if(!completedCms.contains(sn.node.manager))
+				if(!completedCms.contains(cn.Node.manager))
 				{
-					var cmNodes:SliceNodeCollection = new SliceNodeCollection();
-					for each(var sncm:SliceNode in this)
+					var cmNodes:CanvasNodeCollection = new CanvasNodeCollection();
+					for each(var sncm:CanvasNode in collection)
 					{
-						if(sncm.node.manager == sn.node.manager)
-							cmNodes.addItem(sncm);
+						if(sncm.Node.manager == cn.Node.manager)
+							cmNodes.add(sncm);
 					}
 					if(cmNodes.length > 0)
 						completed.push(cmNodes);

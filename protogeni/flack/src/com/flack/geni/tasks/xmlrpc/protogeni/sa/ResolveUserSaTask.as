@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,84 +12,146 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.Slice;
-	import protogeni.resources.SliceCollection;
-	import protogeni.resources.Sliver;
+	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.GeniUser;
+	import com.flack.geni.resources.sites.GeniAuthority;
+	import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.tasks.SerialTaskGroup;
 	
 	/**
-	 * Gets the user information and list of slices from the user's slice authority using the ProtoGENI API
+	 * Gets user information, like name, email, list of slices, public keys, subauthorities, etc.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestUserResolve extends Request
+	public class ResolveUserSaTask extends ProtogeniXmlrpcTask
 	{
-		public function RequestUserResolve():void
-		{
-			super("Get user data",
-				"Resolve user",
-				CommunicationUtil.resolve);
-		}
+		public var user:GeniUser;
+		public var authority:GeniAuthority;
 		
 		/**
-		 * Called immediately before the operation is run to add variables it may not have had when added to the queue
-		 * @return Operation to be run
+		 * 
+		 * @param newUser User to resolve
+		 * @param newAuthority Authority to resolve at
 		 * 
 		 */
-		override public function start():Operation
+		public function ResolveUserSaTask(newUser:GeniUser,
+										  newAuthority:GeniAuthority)
 		{
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
-			op.clearFields();
-			
-			// Build up the args
-			op.addField("type", "User");
-			op.addField("credential", Main.geniHandler.CurrentUser.Credential);
-			op.addField("hrn", Main.geniHandler.CurrentUser.urn.full);
-			
-			return op;
+			super(
+				newAuthority.url,
+				"",
+				ProtogeniXmlrpcTask.METHOD_RESOLVE,
+				"Resolve user",
+				"Resolves the user"
+			);
+			authority = newAuthority;
+			relatedTo.push(newUser);
+			user = newUser;
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			var newCalls:RequestQueue = new RequestQueue();
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			addNamedField("type", "User");
+			addNamedField("credential", authority.userCredential.Raw);
+			addNamedField("hrn", GeniMain.geniUniverse.user.id.full);
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				for each(var slice:Slice in Main.geniHandler.CurrentUser.slices) {
-					if(slice.slivers.length > 0) {
-						for each(var sliver:Sliver in slice.slivers.collection)
-						sliver.removeOutsideReferences();
+				user.uid = data.uid;
+				user.hrn = data.hrn;
+				user.email = data.email;
+				user.name = data.name;
+				
+				// Remove slices from the authority being resolved
+				for(var i:int = 0; i < user.slices.length; i++)
+				{
+					if(user.slices.collection[i].authority.id.full == authority.id.full)
+					{
+						user.slices.remove(user.slices.collection[i]);
+						i--;
 					}
 				}
-				Main.geniHandler.CurrentUser.slices = new SliceCollection();
 				
-				Main.geniHandler.CurrentUser.uid = response.value.uid;
-				Main.geniHandler.CurrentUser.hrn = response.value.hrn;
-				Main.geniHandler.CurrentUser.email = response.value.email;
-				Main.geniHandler.CurrentUser.name = response.value.name;
-				
-				var slices:Array = response.value.slices;
-				if(slices != null && slices.length > 0) {
+				// Add slices
+				var slices:Array = data.slices;
+				if(slices != null && slices.length > 0)
+				{
 					for each(var sliceUrn:String in slices)
 					{
 						var userSlice:Slice = new Slice();
-						userSlice.urn = new IdnUrn(sliceUrn);
-						Main.geniHandler.CurrentUser.slices.add(userSlice);
-						newCalls.push(new RequestSliceResolve(userSlice));
+						userSlice.id = new IdnUrn(sliceUrn);
+						if(userSlice.id.authority != authority.id.authority)
+							continue;
+						userSlice.creator = user;
+						userSlice.authority = authority;
+						user.slices.add(userSlice);
+						SharedMain.sharedDispatcher.dispatchChanged(
+							FlackEvent.CHANGED_SLICE,
+							userSlice, FlackEvent.ACTION_CREATED
+						);
+						SharedMain.sharedDispatcher.dispatchChanged(
+							FlackEvent.CHANGED_SLICES,
+							userSlice,
+							FlackEvent.ACTION_ADDED
+						);
 					}
 				}
 				
-				Main.geniDispatcher.dispatchUserChanged();
-				Main.geniDispatcher.dispatchSlicesChanged();
+				if(data.pubkeys != null)
+				{
+					for each(var pubkey:Object in data.pubkeys)
+					{
+						if(user.keys.indexOf(pubkey.key) == -1)
+							user.keys.push(pubkey.key);
+					}
+				}
+				
+				// Add authorities which haven't been added yet
+				if(data.subauthorities != null)
+				{
+					for(var saId:String in data.subauthorities)
+					{
+						var saUrl:String = data.subauthorities[saId];
+						if(user.subAuthorities.getById(saId) == null)
+						{
+							var newAuthority:ProtogeniSliceAuthority = new ProtogeniSliceAuthority(saId, saUrl, false, user.authority as ProtogeniSliceAuthority);
+							user.subAuthorities.add(newAuthority);
+							var resolveUserAtSubauthority:SerialTaskGroup = new SerialTaskGroup("Resolve " + user.name + " @ " + newAuthority.name, "Resolves the user at a sub-authority");
+							resolveUserAtSubauthority.add(new GetUserCredentialSaTask(user, newAuthority));
+							resolveUserAtSubauthority.add(new ResolveUserSaTask(user, newAuthority));
+							parent.add(resolveUserAtSubauthority);
+						}
+					}
+				}
+				
+				addMessage(
+					"Resolved " + user.uid,
+					"Resolved and got all information for user " + user.uid,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_USER,
+					user
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-				Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
-			}
-			
-			return newCalls.head;
+				faultOnSuccess();
 		}
 	}
 }

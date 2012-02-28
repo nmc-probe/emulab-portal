@@ -19,7 +19,7 @@ package com.hurlant.util.der
 		public function UTCTime(type:uint, len:uint)
 		{
 			this.type = type;
-			this.len = len;
+			len = len;
 		}
 		
 		public function getLength():uint

@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,92 +12,88 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.utils.DateUtil;
+	
 	import mx.controls.Alert;
 	
-	import protogeni.DateUtil;
-	import protogeni.Util;
-	import protogeni.display.DisplayUtil;
-	import protogeni.resources.GeniCredential;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
-	
 	/**
-	 * Creates a new slice and gets its credential using the ProtoGENI API
-	 * 
-	 * @author mstrum
-	 * 
+	 * Renews a slice, NOT INCLUDING SLIVERS, until the given date.
 	 */
-	public final class RequestSliceRenew extends Request
+	public final class RenewSliceSaTask extends ProtogeniXmlrpcTask
 	{
 		public var slice:Slice;
-		private var renewSlivers:Boolean;
-		private var expirationDate:Date;
+		public var newExpires:Date;
 		
-		public function RequestSliceRenew(s:Slice, newExpirationDate:Date, shouldRenewSlivers:Boolean = false):void
+		/**
+		 * 
+		 * @param renewSlice Slice to renew
+		 * @param newExpirationDate Desired expiration date/time
+		 * 
+		 */
+		public function RenewSliceSaTask(renewSlice:Slice,
+										 newExpirationDate:Date)
 		{
-			super("Renew " + s.Name,
-				"Renewing slice named " + s.Name,
-				CommunicationUtil.renewSlice,
-				false,
-				true);
-			slice = s;
-			slice.Changing = true;
-			renewSlivers = shouldRenewSlivers;
-			expirationDate = newExpirationDate;
+			super(
+				renewSlice.creator.authority.url,
+				"",
+				ProtogeniXmlrpcTask.METHOD_RENEWSLICE,
+				"Renew " + renewSlice.Name,
+				"Renewing slice named " + renewSlice.Name,
+				"Renew Slice"
+			);
+			relatedTo.push(renewSlice);
+			slice = renewSlice;
+			newExpires = newExpirationDate;
 			
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			addMessage(
+				"Details",
+				"Adding " +DateUtil.getTimeBetween(slice.expires, newExpires)+ " for a total of "+DateUtil.getTimeUntil(newExpires)+" until expiration",
+				LogMessage.LEVEL_INFO,
+				LogMessage.IMPORTANCE_HIGH
+			);
 		}
 		
-		override public function start():Operation {
-			op.clearFields();
-			
-			// Build up the args
-			op.addField("credential", slice.credential);
-			op.addField("expiration", DateUtil.toRFC3339(expirationDate));
-			
-			return op;
+		override protected function createFields():void
+		{
+			addNamedField("credential", slice.credential.Raw);
+			addNamedField("expiration", DateUtil.toRFC3339(newExpires));
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var newCalls:RequestQueue = new RequestQueue();
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				slice.credential = String(response.value);
+				slice.credential = new GeniCredential(String(data), GeniCredential.TYPE_SLICE, slice.creator.authority);
+				slice.expires = slice.credential.Expires;
 				
-				var cred:XML = (new GeniCredential(slice.credential)).toXml();
-				slice.expires = GeniCredential.getExpires(cred);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice
+				);
 				
-				var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(slice.urn.full);
-				if(old != null) {
-					old.credential = slice.credential;
-					old.expires = slice.expires;
-				}
+				addMessage(
+					"Renewed",
+					"Renewed, expires in " + DateUtil.getTimeUntil(slice.expires),
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
 				
-				if(renewSlivers && slice.slivers.length > 0) {
-					for each(var sliver:Sliver in slice.slivers.collection) {
-						if(sliver.manager.isAm)
-							newCalls.push(new RequestSliverRenewAm(sliver, slice.expires));
-						else
-							newCalls.push(new RequestSliverRenew(sliver, slice.expires));
-					}
-				} else {
-					Alert.show("Slice now expires in " + DateUtil.getTimeUntil(slice.expires), "Slice Renewed");
-				}
-			} else
-			{
-				// failed because too long
+				super.afterComplete(addCompletedMessage);
 			}
-			
-			return newCalls.head;
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			slice.Changing = false;
-			Main.geniDispatcher.dispatchSliceChanged(slice);
+			else
+			{
+				Alert.show("Failed to renew slice " + slice.Name);
+				faultOnSuccess();
+			}
+				
 		}
 	}
 }

@@ -1,22 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
 <s:GridItemRenderer
 	xmlns:fx="http://ns.adobe.com/mxml/2009"
 	xmlns:s="library://ns.adobe.com/flex/spark">
 	
 	<fx:Script>
 		<![CDATA[
-			import protogeni.display.DisplayUtil;
+			import com.flack.shared.display.components.DataButton;
 			
-			import spark.components.Button;
 			override public function prepare(hasBeenRecycled:Boolean):void
 			{
 				this.removeAllElements();
-				if(data && data[column.dataField]) {
-					var newButton:Button = DisplayUtil.getButtonFor(data[column.dataField]);
-					if(newButton != null) {
+				if(data && data[column.dataField])
+				{
+					var newButton:DataButton = DisplayUtil.getButtonFor(data[column.dataField]);
+					if(newButton != null)
+					{
 						newButton.percentWidth = 100;
 						newButton.percentHeight = 100;
-						this.addElement(newButton);
+						addElement(newButton);
 					}
 				}
 			}

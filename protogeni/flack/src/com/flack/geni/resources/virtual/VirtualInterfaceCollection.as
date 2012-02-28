@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,9 +12,17 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.resources
+package com.flack.geni.resources.virtual
 {
-	// Collection of interfaces from a node in a sliver/slice
+	import com.flack.geni.resources.physical.PhysicalInterface;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
+
+	/**
+	 * Collection of interfaces from a node in a sliver/slice
+	 * 
+	 * @author mstrum
+	 * 
+	 */
 	public final class VirtualInterfaceCollection
 	{
 		[Bindable]
@@ -24,64 +32,144 @@ package protogeni.resources
 			collection = new Vector.<VirtualInterface>();
 		}
 		
-		public function add(ni:VirtualInterface):void {
-			for each(var t:VirtualInterface in this.collection)
-			{
-				if(t.owner.clientId == ni.owner.clientId && t.id == ni.id)
-					return;
-			}
-			this.collection.push(ni);
+		public function add(virtualInterface:VirtualInterface):void
+		{
+			collection.push(virtualInterface);
 		}
 		
-		public function remove(vi:VirtualInterface):void
+		public function remove(virtualInterface:VirtualInterface):void
 		{
-			var idx:int = this.collection.indexOf(vi);
+			var idx:int = collection.indexOf(virtualInterface);
 			if(idx > -1)
-				this.collection.splice(idx, 1);
+				collection.splice(idx, 1);
 		}
 		
-		public function contains(vi:VirtualInterface):Boolean
+		public function contains(virtualInterface:VirtualInterface):Boolean
 		{
-			return this.collection.indexOf(vi) > -1;
+			return collection.indexOf(virtualInterface) > -1;
 		}
 		
-		public function get length():int{
-			return this.collection.length;
+		public function get length():int
+		{
+			return collection.length;
 		}
 		
-		public function GetByID(urn:String):VirtualInterface {
-			for each(var ni:VirtualInterface in this.collection) {
-				if(ni.id == urn)
-					return ni;
+		/**
+		 * 
+		 * @param id Sliver ID
+		 * @return Interface with the given sliver ID
+		 * 
+		 */
+		public function getBySliverId(id:String):VirtualInterface
+		{
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				if(testInterface.id.full == id)
+					return testInterface;
 			}
 			return null;
 		}
 		
-		public function get Slivers():SliverCollection {
-			var mySlivers:SliverCollection = new SliverCollection();
-			for each(var virtualInterface:VirtualInterface in this.collection)
-				mySlivers.addIfNotExisting(virtualInterface.owner.sliver);
-			return mySlivers;
+		/**
+		 * 
+		 * @param id Client ID
+		 * @return Interface with the given client ID
+		 * 
+		 */
+		public function getByClientId(id:String):VirtualInterface
+		{
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				if(testInterface.clientId == id)
+					return testInterface;
+			}
+			return null;
 		}
 		
-		public function get Links():Vector.<VirtualLink> {
-			var ac:Vector.<VirtualLink> = new Vector.<VirtualLink>();
-			for each(var ni:VirtualInterface in this.collection) {
-				for each(var l:VirtualLink in ni.virtualLinks.collection) {
-					if(ac.indexOf(l) == -1)
-						ac.push(l);
+		/**
+		 * 
+		 * @param physicalInterface Physical interface
+		 * @return Virtual interface bound to the given physical interface
+		 * 
+		 */
+		public function getBoundTo(physicalInterface:PhysicalInterface):VirtualInterface
+		{
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				if(testInterface.Physical == physicalInterface)
+					return testInterface;
+			}
+			return null;
+		}
+		
+		/**
+		 * 
+		 * @param testing Object wishing to use the client ID
+		 * @param id Desired client ID
+		 * @return TRUE if object can use the client ID
+		 * 
+		 */
+		public function isIdUnique(testing:*, id:String):Boolean
+		{
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				if(testInterface == testing)
+					continue;
+				if(testInterface.clientId == id)
+					return false;
+			}
+			return true;
+		}
+		
+		/**
+		 * 
+		 * @return All links
+		 * 
+		 */
+		public function get Links():VirtualLinkCollection
+		{
+			var links:VirtualLinkCollection = new VirtualLinkCollection();
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				for each(var testLink:VirtualLink in testInterface.links.collection)
+				{
+					if(!links.contains(testLink))
+						links.add(testLink);
 				}
 			}
-			return ac;
+			return links;
 		}
 		
-		public function get Nodes():Vector.<VirtualNode> {
-			var ac:Vector.<VirtualNode> = new Vector.<VirtualNode>();
-			for each(var ni:VirtualInterface in this.collection) {
-				if(ac.indexOf(ni.owner) == -1)
-					ac.push(ni.owner);
+		/**
+		 * 
+		 * @return All nodes
+		 * 
+		 */
+		public function get Nodes():VirtualNodeCollection
+		{
+			var nodes:VirtualNodeCollection = new VirtualNodeCollection();
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				if(!nodes.contains(testInterface.Owner))
+					nodes.add(testInterface.Owner);
 			}
-			return ac;
+			return nodes;
+		}
+		
+		/**
+		 * 
+		 * @return Managers
+		 * 
+		 */
+		public function get Managers():GeniManagerCollection
+		{
+			var managers:GeniManagerCollection = new GeniManagerCollection();
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				if(!managers.contains(testInterface.Owner.manager))
+					managers.add(testInterface.Owner.manager);
+			}
+			return managers;
 		}
 	}
 }

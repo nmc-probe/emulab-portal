@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,23 +12,20 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.display
+package com.flack.geni.display.slicer.graphview
 {
+	import com.flack.geni.resources.virtual.LinkType;
+	import com.flack.geni.resources.virtual.VirtualComponent;
+	import com.flack.geni.resources.virtual.VirtualLink;
+	import com.flack.shared.utils.ColorUtil;
+	
 	import flash.display.CapsStyle;
 	import flash.display.LineScaleMode;
 	import flash.display.Sprite;
-	import flash.events.MouseEvent;
+	
+	import flash.filters.GlowFilter;
 	
 	import mx.core.UIComponent;
-	import mx.graphics.SolidColor;
-	
-	import protogeni.display.components.ImageButton;
-	import protogeni.resources.VirtualComponent;
-	import protogeni.resources.VirtualLink;
-	
-	import spark.components.Group;
-	import spark.components.HGroup;
-	import spark.primitives.Rect;
 	
 	/**
 	 * VirtualLink for use on the slice canvas
@@ -36,7 +33,7 @@ package protogeni.display
 	 * @author mstrum
 	 * 
 	 */
-	public final class SliceLink extends UIComponent
+	public final class CanvasLink extends UIComponent
 	{
 		public static const NORMAL_COLOR:uint = 0x000000;
 		public static const TUNNEL_COLOR:uint = 0x00FFFF;
@@ -48,23 +45,21 @@ package protogeni.display
 		
 		public static var color:uint;
 		
-		public var virtualLink:VirtualLink;
-		public var startNode:SliceNode;
-		public var endNode:SliceNode;
-		public var established:Boolean = false;
-		//public var removeButton:ImageButton;
+		public var link:VirtualLink;
 		public var canvas:SliceCanvas;
 		
 		private var rawSprite:Sprite;
 		
-		public var lastId:String = "";
+		public var buttonGroups:Vector.<CanvasLinkLabel>
 		
-		private var buttonGroup:HGroup;
-		public var group:Group;
-		//public var groupColor:SolidColor;
-		public var groupBackground:Rect;
+		public function setFilters(newFilters:Array):void
+		{
+			rawSprite.filters = newFilters;
+			for each(var d:CanvasLinkLabel in buttonGroups)
+				d.setFilters(newFilters);
+		}
 		
-		public function SliceLink(newCanvas:SliceCanvas)
+		public function CanvasLink(newCanvas:SliceCanvas)
 		{
 			super();
 			canvas = newCanvas;
@@ -73,174 +68,146 @@ package protogeni.display
 			addChild(rawSprite);
 			
 			color = NORMAL_COLOR;
-			groupBackground = new Rect();
-			groupBackground.percentHeight = 100;
-			groupBackground.percentWidth = 100;
-			groupBackground.fill = new SolidColor(color);
+			
+			buttonGroups = new Vector.<CanvasLinkLabel>()
 		}
 		
-		public function resetToStatus():void
+		public function setToStatus():void
 		{
-			this.toolTip = "";
-			if(virtualLink == null) {
-				groupBackground.fill = new SolidColor(color);
-			} else {
-				switch(virtualLink.status) {
+			var newBackgroundColor:uint = color;
+			if(link != null)
+			{
+				switch(link.status)
+				{
 					case VirtualComponent.STATUS_READY:
-						groupBackground.fill = new SolidColor(ColorUtil.validLight);
-						this.toolTip = virtualLink.state;
+						newBackgroundColor = ColorUtil.validLight;
+						toolTip = link.state;
 						break;
 					case VirtualComponent.STATUS_FAILED:
-						groupBackground.fill = new SolidColor(ColorUtil.invalidLight);
-						this.toolTip = "Error: " + virtualLink.error;
+						newBackgroundColor = ColorUtil.invalidLight;
+						toolTip = "Error: " + link.error;
 						break;
 					case VirtualComponent.STATUS_CHANGING:
-						groupBackground.fill = new SolidColor(ColorUtil.changingLight);
-						this.toolTip = "Status is changing...";
+						newBackgroundColor = ColorUtil.changingLight;
+						toolTip = "Status is changing...";
 						break;
 					case VirtualComponent.STATUS_NOTREADY:
-						groupBackground.fill = new SolidColor(ColorUtil.changingLight);
-						this.toolTip = "Link is not ready";
+						newBackgroundColor = ColorUtil.changingLight;
+						toolTip = "Link is not ready";
 						break;
 					case VirtualComponent.STATUS_UNKNOWN:
 					default:
-						groupBackground.fill = new SolidColor(color);
+						newBackgroundColor = color;
 				}
+			}
+			else
+				toolTip = "";
+			
+			for each(var d:CanvasLinkLabel in buttonGroups)
+			{
+				d.Link = link;
+				d.color = newBackgroundColor;
 			}
 		}
 		
 		public function clearStatus():void
 		{
-			this.toolTip = "";
-			groupBackground.fill = new SolidColor(color);
-		}
-		
-		public function isForNodes(first:SliceNode, second:SliceNode):Boolean
-		{
-			return ((startNode == first && endNode == second)
-				|| (startNode == second && endNode == first));
-		}
-		
-		public function hasNode(node:SliceNode):Boolean
-		{
-			return startNode == node || endNode == node;
+			toolTip = "";
+			for each(var d:CanvasLinkLabel in buttonGroups)
+				d.color = ColorUtil.unknownLight;
 		}
 		
 		public function establishFromExisting(vl:VirtualLink):void
 		{
-			setLink(vl);
+			removeButtonsFromCanvas();
+			link = vl;
 			
-			group = new Group();
-			group.addElement(groupBackground);
-			buttonGroup = new HGroup();
-			buttonGroup.gap = 2;
-			buttonGroup.paddingBottom = 2;
-			buttonGroup.paddingTop = 2;
-			buttonGroup.paddingRight = 2;
-			buttonGroup.paddingLeft = 2;
-			//buttonGroup.setStyle("backgroundColor", 0xCCCCCC);
-			group.addElement(buttonGroup);
-			
-			var removeButton:ImageButton = new ImageButton();
-			removeButton.setStyle("icon", ImageUtil.crossIcon);
-			removeButton.addEventListener(MouseEvent.CLICK, removeLink);
-			buttonGroup.addElement(removeButton);
-			
-			var infoButton:ImageButton = new ImageButton();
-			infoButton.setStyle("icon", ImageUtil.infoIcon);
-			infoButton.addEventListener(MouseEvent.CLICK, viewLink);
-			buttonGroup.addElement(infoButton);
-			
-			canvas.addElement(group);
-			canvas.allLinks.addItem(this);
-
-			// For now just assume there's two ...
-			startNode = this.canvas.allNodes.getForVirtualNode(virtualLink.interfaces.collection[0].owner);
-			startNode.links.addItem(this);
-			
-			endNode = this.canvas.allNodes.getForVirtualNode(virtualLink.interfaces.collection[1].owner);
-			endNode.links.addItem(this);
-
-			established = true;
-		}
-		
-		public function establish(start:SliceNode, end:SliceNode):Boolean
-		{
-			setLink(new VirtualLink());
-			if(virtualLink.establish(start.node, end.node))
+			buttonGroups = new Vector.<CanvasLinkLabel>();
+			var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
+			for(var i:int = 0; i < canvasNodes.length; i++)
 			{
-				establishFromExisting(virtualLink);
-				return true;
-			} else {
-				virtualLink = null;
-				return false;
+				for(var j:int = i+1; j < canvasNodes.length; j++)
+				{
+					var newLinkContainer:CanvasLinkLabel = new CanvasLinkLabel();
+					newLinkContainer.color = color;
+					newLinkContainer.canvasLink = this;
+					canvas.addElementAt(newLinkContainer, 0);
+					newLinkContainer.validateNow();
+					newLinkContainer.Link = link;
+					
+					buttonGroups.push(newLinkContainer);
+				}
 			}
+			canvas.validateNow();
+			canvas.setElementIndex(this, 0);
+			drawEstablished();
 		}
 		
-		public function setLink(vl:VirtualLink):void
+		private var editable:Boolean = true;
+		public function setEditable(isEditable:Boolean):void
 		{
-			virtualLink = vl;
-			lastId = vl.clientId;
+			editable = isEditable;
+			for each(var g:CanvasLinkLabel in buttonGroups)
+				g.editable = editable;
 		}
 		
-		public function removeLink(event:MouseEvent = null):void
+		private function removeButtonsFromCanvas():void
 		{
-			virtualLink.remove();
-			startNode.removeLink(this);
-			endNode.removeLink(this);
-			canvas.removeElement(group);
+			for each(var g:CanvasLinkLabel in buttonGroups)
+				canvas.removeElement(g);
+		}
+		
+		public function removeFromCanvas():void
+		{
+			removeButtonsFromCanvas();
 			canvas.removeElement(this);
-			canvas.allLinks.removeItemAt(canvas.allLinks.getItemIndex(this));
 		}
 		
-		public function viewLink(event:MouseEvent = null):void
-		{
-			DisplayUtil.viewVirtualLink(virtualLink);
-		}
 		
 		public function drawEstablished():void
 		{
 			color = NORMAL_COLOR;
-			switch(virtualLink.linkType) {
-				case VirtualLink.TYPE_TUNNEL:
+			switch(link.type.name) {
+				case LinkType.GRETUNNEL_V2:
 					color = TUNNEL_COLOR;
 					break;
-				case VirtualLink.TYPE_GPENI:
+				case LinkType.GPENI:
 					color = GPENI_COLOR;
 					break;
-				case VirtualLink.TYPE_ION:
+				case LinkType.ION:
 					color = ION_COLOR;
 					break;
 			}
-			drawLink(startNode.getMiddleX(),
-				startNode.getMiddleY(),
-				endNode.getMiddleX(),
-				endNode.getMiddleY());
-			group.x = ((startNode.getMiddleX() + endNode.getMiddleX()) / 2) - (group.width/2 + 1);
-			group.y = ((startNode.getMiddleY() + endNode.getMiddleY()) / 2) - (group.height/2);
+			drawLink();
 		}
 		
-		public function drawEstablishing(startX:int,
-										 startY:int,
-										 endX:int,
-										 endY:int,
-										 ready:Boolean):void
-		{
-			color = ready ? VALID_COLOR : INVALID_COLOR;
-			drawLink(startX, startY, endX, endY);
-		}
-		
-		public function drawLink(startX:int,
-								 startY:int,
-								 endX:int,
-								 endY:int):void
+		private function drawLink():void
 		{
 			rawSprite.graphics.clear();
-			rawSprite.graphics.lineStyle(4, color, 1.0, true,
+			rawSprite.graphics.lineStyle(2, color, 1.0, true,
 				LineScaleMode.NORMAL, CapsStyle.ROUND);
-			rawSprite.graphics.moveTo(startX, startY);
-			rawSprite.graphics.lineTo(endX, endY);
-			resetToStatus();
+			
+			var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
+			
+			var buttonGroupsIdx:int = 0;
+			for(var i:int = 0; i < canvasNodes.length; i++)
+			{
+				var firstCanvasNode:CanvasNode = canvasNodes.collection[i];
+				for(var j:int = i+1; j < canvasNodes.length; j++, buttonGroupsIdx++)
+				{
+					var secondCanvasNode:CanvasNode = canvasNodes.collection[j];
+					
+					var buttonGroup:CanvasLinkLabel = buttonGroups[buttonGroupsIdx];
+					buttonGroup.Link = link;
+					buttonGroup.x = (firstCanvasNode.MiddleX + secondCanvasNode.MiddleX)/2 - (buttonGroup.ContainerWidth/2 + 1);
+					buttonGroup.y = (firstCanvasNode.MiddleY + secondCanvasNode.MiddleY)/2 - (buttonGroup.ContainerHeight/2);
+					
+					rawSprite.graphics.moveTo(firstCanvasNode.MiddleX, firstCanvasNode.MiddleY);
+					rawSprite.graphics.lineTo(secondCanvasNode.MiddleX, secondCanvasNode.MiddleY);
+				}
+			}
+			
+			setToStatus();
 		}
 	}
 }

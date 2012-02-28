@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,101 +12,152 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.mattism.http.xmlrpc.MethodFault;
-	
-	import flash.events.ErrorEvent;
-	
-	import protogeni.GeniEvent;
-	import protogeni.StringUtil;
-	import protogeni.resources.IdnUrn;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualNode;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.VirtualComponent;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.MathUtil;
+	import com.flack.shared.utils.StringUtil;
 	
 	/**
-	 * Gets the sliver status using the GENI AM API
+	 * Gets the status of the resources in the sliver.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestSliverStatusAm extends Request
+	public final class SliverStatusTask extends AmXmlrpcTask
 	{
 		public var sliver:Sliver;
-		
-		public function RequestSliverStatusAm(newSliver:Sliver):void
+		/**
+		 * Keep running until status is final
+		 */
+		public var continueUntilDone:Boolean;
+		/**
+		 * 
+		 * @param newSliver Sliver to get status for
+		 * @param shouldContinueUntilDone Continue running until status is finalized?
+		 * 
+		 */
+		public function SliverStatusTask(newSliver:Sliver,
+										 shouldContinueUntilDone:Boolean = true)
 		{
-			super("Get sliver status @ " + newSliver.manager.Hrn,
-				"Getting the sliver status for aggregate manager " + newSliver.manager.Hrn + " on slice named " + newSliver.slice.Name,
-				CommunicationUtil.sliverStatusAm,
-				true,
-				true);
-			ignoreReturnCode = true;
+			super(
+				newSliver.manager.api.url,
+				AmXmlrpcTask.METHOD_SLIVERSTATUS,
+				newSliver.manager.api.version,
+				"Get sliver status @ " + newSliver.manager.hrn,
+				"Getting the sliver status for aggregate manager " + newSliver.manager.hrn + " on slice named " + newSliver.slice.Name,
+				"Get Sliver Status"
+			);
+			relatedTo.push(newSliver);
+			relatedTo.push(newSliver.slice);
+			relatedTo.push(newSliver.manager);
+			
 			sliver = newSliver;
-			sliver.changing = true;
-			sliver.message = "Waiting to check status";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice, GeniEvent.ACTION_STATUS);
+			continueUntilDone = shouldContinueUntilDone;
 			
-			op.setExactUrl(sliver.manager.Url);
+			addMessage(
+				"Waiting to get status...",
+				"Waiting to get sliver status at " + sliver.manager.hrn,
+				LogMessage.LEVEL_INFO,
+				LogMessage.IMPORTANCE_HIGH
+			);
 		}
 		
-		override public function start():Operation {
-			if(op.delaySeconds == 0)
-				sliver.message = "Checking status...";
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
-			
-			op.clearFields();
-			
-			op.pushField(sliver.slice.urn.full);
-			op.pushField([sliver.slice.credential]);
-			
-			return op;
-		}
-		
-		override public function complete(code:Number, response:Object):*
+		override protected function createFields():void
 		{
-			var request:Request = null;
+			addOrderedField(sliver.slice.id.full);
+			addOrderedField([sliver.slice.credential.Raw]);
+			if(apiVersion > 1)
+				addOrderedField({});
+		}
+		
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
+		{
+			// Sanity check for AM API 2+
+			if(apiVersion > 1)
+			{
+				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
+				{
+					faultOnSuccess();
+					return;
+				}
+			}
+			
 			try
 			{
-				sliver.status = response.geni_status;
-				sliver.urn = new IdnUrn(response.geni_urn);
-				for each(var nodeObject:Object in response.geni_resources)
+				sliver.status = data.geni_status;
+				sliver.id = new IdnUrn(data.geni_urn);
+				sliver.sliverIdToStatus[sliver.id.full] = sliver.status;
+				for each(var componentObject:Object in data.geni_resources)
 				{
-					var vn:VirtualNode = sliver.nodes.getBySliverId(nodeObject.geni_urn);
-					if(vn == null)
-						vn = sliver.nodes.getByComponentId(nodeObject.geni_urn);
-					if(vn != null)
+					var sliverComponent:VirtualComponent = sliver.slice.getBySliverId(componentObject.geni_urn);
+					if(sliverComponent != null)
 					{
-						vn.status = nodeObject.geni_status;
-						vn.error = nodeObject.geni_error;
+						sliverComponent.status = componentObject.geni_status;
+						sliver.sliverIdToStatus[sliverComponent.id.full] = sliverComponent.status;
+						
+						sliverComponent.error = componentObject.geni_error;
 					}
 				}
 				
-				sliver.changing = !sliver.StatusFinalized;
-				sliver.message = StringUtil.firstToUpper(sliver.status) + "!";
-				if(sliver.changing) {
-					sliver.message = "Status is " + sliver.message + "...";
-					request = this;
-					request.op.delaySeconds = Math.min(60, this.op.delaySeconds + 15);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLIVER,
+					sliver,
+					FlackEvent.ACTION_STATUS
+				);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					sliver.slice,
+					FlackEvent.ACTION_STATUS
+				);
+				
+				if(sliver.StatusFinalized)
+				{
+					addMessage(
+						StringUtil.firstToUpper(sliver.status),
+						"Status was received and is finished. Current status is " + sliver.status,
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					super.afterComplete(addCompletedMessage);
+				}
+				else
+				{
+					addMessage(
+						StringUtil.firstToUpper(sliver.status) + "...",
+						"Status was received but is still changing. Current status is " + sliver.status,
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					// Continue until the status is finished if desired
+					if(continueUntilDone)
+					{
+						delay = MathUtil.randomNumberBetween(20, 60);
+						runCleanup();
+						start();
+					}
+					else
+						super.afterComplete(addCompletedMessage);
 				}
 			}
 			catch(e:Error)
 			{
-				sliver.changing = false;
+				afterError(
+					new TaskError(
+						StringUtil.errorToString(e),
+						TaskError.CODE_UNEXPECTED,
+						e
+					)
+				);
 			}
-			
-			return request;
-		}
-		
-		override public function fail(event:ErrorEvent, fault:MethodFault):* {
-			sliver.changing = false;
-			return super.fail(event, fault);
-		}
-		
-		override public function cleanup():void {
-			super.cleanup();
-			Main.geniDispatcher.dispatchSliceChanged(sliver.slice);
 		}
 	}
 }

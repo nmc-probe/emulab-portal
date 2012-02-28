@@ -1,116 +1,145 @@
-package protogeni.tools.instools
+package com.flack.geni.plugins.instools
 {
-	import com.adobe.crypto.SHA1;
+	import com.flack.geni.plugins.Plugin;
+	import com.flack.geni.plugins.PluginArea;
+	import com.flack.geni.plugins.instools.instasks.InstrumentizeSliceGroupTask;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.tasks.TaskCollection;
 	
-	import flash.net.URLRequest;
-	import flash.net.URLVariables;
-	import flash.net.navigateToURL;
 	import flash.utils.Dictionary;
 	
 	import mx.controls.Alert;
 	
-	import protogeni.GeniEvent;
-	import protogeni.resources.PhysicalNode;
-	import protogeni.resources.Slice;
-	import protogeni.resources.Sliver;
-	import protogeni.resources.VirtualNode;
-	import protogeni.resources.VirtualNodeCollection;
-
-	/**
-	 * INSTOOLS support
-	 * 
-	 * @author jreed
-	 * 
-	 */
-	public class Instools
+	public class Instools implements Plugin
 	{
-		// Communication stuff
-		public static const instoolsModule:String = "instools";
-		public static var instoolsGetVersion:Array = [instoolsModule, "GetINSTOOLSVersion"];
-		public static var instoolsAddMCNode:Array = [instoolsModule, "AddMCNode"];
-		public static var instoolsGetInstoolsStatus:Array = [instoolsModule, "getInstoolsStatus"];
-		public static var instoolsInstrumentize:Array = [instoolsModule, "Instrumentize"];
+		public function get Title():String { return "INSTOOLS" };
+		public function get Area():PluginArea { return new InstoolsArea() };
 		
-		// State stuff
-		public static var devel_version:Dictionary = new Dictionary();
-		public static var stable_version:Dictionary = new Dictionary();
-		
-		public static var updated_rspec:Dictionary = new Dictionary();
-		public static var rspec_version:Dictionary = new Dictionary();
-		
-		public static var instools_status:Dictionary = new Dictionary();
-		public static var portal_url:Dictionary = new Dictionary();
-		public static var started_instrumentize:Dictionary = new Dictionary();
-		public static var started_MC:Dictionary = new Dictionary();
-
-		public static function Clear(s:Sliver):void
+		public function Instools()
 		{
-			devel_version[s.manager.Urn.full] = "";
-			stable_version[s.manager.Urn.full] = "";
-			updated_rspec[s.manager.Urn.full] = "";
-			rspec_version[s.manager.Urn.full] = "";
-			instools_status[s.manager.Urn.full] = "";
-			portal_url[s.manager.Urn.full] = "";
-			started_instrumentize[s.manager.Urn.full] = "";
-			started_MC[s.manager.Urn.full] = "";
+			super();
 		}
 		
-		/**
-		 * Attempts to instrumentize the slice
-		 * 
-		 * @param slice
-		 * 
-		 */
-		public static function instrumentizeSlice(slice:Slice):void
+		public function init():void
 		{
-			// Gets the queue ready to start if it's paused and clears the slice status
-			Main.geniHandler.requestHandler.isPaused = false;
-			Main.geniHandler.requestHandler.forceStop = false;
-			slice.clearState();
-			var old:Slice = Main.geniHandler.CurrentUser.slices.getByUrn(slice.urn.full);
-			if(old != null)
-				old.clearState();
-			Main.geniDispatcher.dispatchSliceChanged(slice, GeniEvent.ACTION_STATUS);
-			
-			for each(var sliver:Sliver in slice.slivers.collection)
+			SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICE, slicePopulated);
+		}
+		
+		// Once a slice is populated, figure out if it is instrumentized if there is a MC node present
+		public function slicePopulated(e:FlackEvent):void
+		{
+			if(e.action == FlackEvent.ACTION_POPULATED)
 			{
-				Clear(sliver);
-				Main.geniHandler.requestHandler.pushRequest(new RequestInstoolsVersion(sliver));
+				var slice:Slice = e.changedObject as Slice;
+				var hasMCNode:Boolean = false;
+				for each(var sliver:Sliver in slice.slivers.collection)
+				{
+					if(doesSliverHaveMc(sliver))
+						hasMCNode = true;
+				}
+				if(hasMCNode)
+				{
+					instrumentizeSlice(slice, false, 1, false, true);
+				}
 			}
 		}
 		
-		public static function hasAnyPortal(slice:Slice):Boolean {
-			for each(var sliver:Sliver in slice.slivers.collection) {
-				if(portal_url[sliver.manager.Urn.full] != null
-					&& portal_url[sliver.manager.Urn.full].length > 0)
+		// XML-RPC Module
+		public static const instoolsModule:String = "instools";
+		
+		// XML-RPC Methods
+		public static const getInstoolsVersion:String = "GetINSTOOLSVersion";
+		public static const addMCNode:String = "AddMCNode";
+		public static const getInstoolsStatus:String = "getInstoolsStatus";
+		public static const instrumentize:String = "Instrumentize";
+		
+		// Global INSTOOLS version
+		public static var devel_version:Dictionary = new Dictionary();
+		public static var stable_version:Dictionary = new Dictionary();
+		
+		public static var instruemtizeDetails:Dictionary = new Dictionary();
+		
+		public static function doesSliverHaveMc(sliver:Sliver):Boolean
+		{
+			if(sliver.Created)
+			{
+				if(sliver.manifest.document.indexOf("MC=\"1\"") != -1)
 					return true;
 			}
 			return false;
 		}
 		
 		/**
-		 * Opens a browser to the instools portal site
 		 * 
 		 * @param slice
+		 * @return TRUE on success
 		 * 
 		 */
+		public static function instrumentizeSlice(slice:Slice, creating:Boolean = true, useVersion:Number = 1, useVirtualMCs:Boolean = false, ignoreOtherTasks:Boolean = false):void
+		{
+			var newDetails:SliceInstoolsDetails = resetSliceDetails(slice, creating, useVersion, useVirtualMCs);
+			
+			if(!ignoreOtherTasks)
+			{
+				var pendingTasks:TaskCollection = SharedMain.tasker.tasks.NotFinished;
+				// Wait for any slice tasks to finish before trying to instrumentize
+				if(pendingTasks.All.NotFinished.getRelatedTo(slice).length > 0)
+				{
+					Alert.show("There are tasks running which involve the slice, please wait for them to finish.");
+					return;
+				}
+			}
+			
+			if(!creating)
+			{
+				for each(var sliver:Sliver in slice.slivers.collection)
+				{
+					newDetails.MC_present[sliver.manager.id.full] = doesSliverHaveMc(sliver);
+				}
+			}
+			
+			// Do it!
+			var instrumentizeTask:InstrumentizeSliceGroupTask = new InstrumentizeSliceGroupTask(newDetails);
+			instrumentizeTask.forceRunNow = true;
+			SharedMain.tasker.add(instrumentizeTask);
+		}
+		
+		public static function resetSliceDetails(slice:Slice, creating:Boolean = true, useVersion:Number = 1, useVirtualMCs:Boolean = false):SliceInstoolsDetails
+		{
+			// Clear any cached info for the slice and initalize
+			if(instruemtizeDetails[slice.id.full] != null)
+				delete instruemtizeDetails[slice.id.full];
+			var newDetails:SliceInstoolsDetails = new SliceInstoolsDetails(slice, useVersion, creating, useVirtualMCs);
+			instruemtizeDetails[slice.id.full] = newDetails;
+			return newDetails;
+		}
+		
 		public static function goToPortal(slice:Slice):void
 		{
-			var data:String = Main.geniHandler.CurrentUser.passwd;
-			var out:String = SHA1.hash(data);
-			//var boo:String = "secretkey";
-			//var out:String = Util.rc4encrypt(boo,data);
-			//out = encodeURI(out);
-			var userinfo:Array = Main.geniHandler.CurrentUser.hrn.split(".");
-			var portalURL:String = "https://portal.uky.emulab.net/geni/portal/log_on_slice.php";
-			var portalVars:URLVariables = new URLVariables();
-			portalVars.user = userinfo[1];
-			portalVars.cert = userinfo[0];
-			portalVars.slice = slice.Name;
-			portalVars.pass = out;
-			var req:URLRequest = new URLRequest(portalURL);
-			req.data = portalVars;
-			navigateToURL(req, "_blank");
+			var sliceDetails:SliceInstoolsDetails = instruemtizeDetails[slice.id.full];
+			if(sliceDetails == null)
+				Alert.show("Slice either has not been instrumentized or the instrumentation details have not been retrieved. Please click the instrumentize button if you need to instrumentize the slice or if the slice is already instrumentized.");
+			else
+			{
+				if(sliceDetails.hasAnyPortal())
+					sliceDetails.goToPortal();
+				else
+				{
+					var pendingTasks:TaskCollection = SharedMain.tasker.tasks.NotFinished.getOfClass(InstrumentizeSliceGroupTask);
+					for each(var pendingInstrumentizeTask:InstrumentizeSliceGroupTask in pendingTasks.collection)
+					{
+						if(pendingInstrumentizeTask.details.slice == slice)
+						{
+							Alert.show("The slice is currently being instrumentized, please wait for the portal to be created.");
+							return;
+						}
+					}
+					Alert.show("The slice doesn't have any portal information yet.");
+				}
+			}
 		}
 	}
 }

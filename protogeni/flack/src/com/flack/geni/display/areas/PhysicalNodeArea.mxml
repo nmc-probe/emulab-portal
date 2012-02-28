@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -17,23 +17,34 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 -->
 
-<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
-		  xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:display="protogeni.display.*" xmlns:components="protogeni.display.components.*">
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  xmlns:display="com.flack.geni.display.*"
+		  xmlns:areas="com.flack.geni.display.areas.*"
+		  creationComplete="init()"
+		  paddingBottom="2" xmlns:areas1="com.flack.shared.display.areas.*">
 	<fx:Script>
 		<![CDATA[
-			import mx.collections.ArrayCollection;
-			import mx.controls.Alert;
+			import com.flack.geni.display.DisplayUtil;
+			import com.flack.geni.resources.physical.HardwareType;
+			import com.flack.geni.resources.physical.PhysicalInterface;
+			import com.flack.geni.resources.physical.PhysicalInterfaceCollection;
+			import com.flack.geni.resources.physical.PhysicalLink;
+			import com.flack.geni.resources.physical.PhysicalLinkCollection;
+			import com.flack.geni.resources.physical.PhysicalNode;
+			import com.flack.geni.resources.physical.PhysicalNodeCollection;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.shared.display.areas.DocumentArea;
+			import com.flack.shared.display.components.DataButton;
+			import com.flack.shared.utils.ColorUtil;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.NetUtil;
+			import com.flack.shared.utils.StringUtil;
+			import com.flack.shared.utils.ViewUtil;
 			
-			import protogeni.display.components.DocumentWindow;
-			import protogeni.resources.DiskImage;
-			import protogeni.resources.PhysicalLink;
-			import protogeni.resources.PhysicalNode;
-			import protogeni.resources.PhysicalNodeInterface;
-			import protogeni.resources.SliverType;
-			import protogeni.resources.VirtualLink;
-			import protogeni.resources.VirtualLinkCollection;
-			import protogeni.resources.VirtualNode;
+			import mx.collections.ArrayCollection;
 			
 			import spark.components.Button;
 			import spark.primitives.Rect;
@@ -42,73 +53,67 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public var node:PhysicalNode = null;
 			
 			[Bindable]
-			public var virtualNode:VirtualNode = null;
-			
-			[Bindable]
 			private var nodeTypes:ArrayCollection = null;
 			
-			[Bindable]
-			private var sliverTypes:ArrayList;
+			public function init():void
+			{
+				if(node != null)
+					load(node);
+			}
 			
-			public function load(n:PhysicalNode):void {
+			public function load(n:PhysicalNode):void
+			{
+				if(n == null)
+					return;
 				node = n;
-				virtualNode = null;
-				
-				imgAvailable.source = DisplayUtil.assignAvailabilityIcon(n);
-				if(n.virtualNodes != null && n.virtualNodes.length > 0)
-					imgAvailable.toolTip = "Allocated, ";
-				else
-					if(n.available)
-						imgAvailable.toolTip = "Available, ";
-					else
-						imgAvailable.toolTip = "Not available, ";
-				if(n.exclusive)
-					imgAvailable.toolTip += "Exclusive";
-				else
-					imgAvailable.toolTip += "Not exclusive";
-				
-				physicalLinksVbox.removeAllElements();
-				
-				var endpointArray:ArrayCollection = new ArrayCollection();
-				var startpointArray:ArrayCollection = new ArrayCollection();
-				
-				if(Main.geniHandler.mapHandler.selectedSlice != null
-					&& Main.geniHandler.mapHandler.selectedSlice.hrn != null
-					&& Main.geniHandler.mapHandler.selectedSlice.hrn.length>0)
+				title = node.name;
+				backgroundColor = ColorUtil.colorsDark[node.manager.colorIdx];
+				titleColor = ColorUtil.colorsLight[node.manager.colorIdx];
+				if(initialized)
 				{
-					for each(var vn:VirtualNode in node.virtualNodes.collection)
+					imgAvailable.source = ViewUtil.assignIcon(n.available);
+					if(n.available)
+						imgAvailable.toolTip = "Available";
+					else
+						imgAvailable.toolTip = "Not available";
+					
+					if(n.exclusive)
 					{
-						if(vn.sliver.slice == Main.geniHandler.mapHandler.selectedSlice)
-						{
-							virtualNode = vn;
-							break;
-						}
+						imgExclusive.source = ImageUtil.exclusiveIcon;
+						imgExclusive.toolTip = "Exclusive";
 					}
+					else
+					{
+						imgExclusive.source = ImageUtil.sharedIcon;
+						imgExclusive.toolTip = "Not exclusive";
+					}
+					
+					loadCharacteristics();
+					
+					nodeTypes = new ArrayCollection();
+					for each(var nt:HardwareType in node.hardwareTypes.collection)
+						nodeTypes.addItem(nt);
+					
+					loadHierarchy();
+					
+					sliverTypesControl.load(node.sliverTypes);
+					
+					loadPhysicalLinks();
 				}
-				
-				sliverButton.visible = virtualNode != null;
-				sliverButton.includeInLayout = virtualNode != null;
-
-				nodeTypes = new ArrayCollection();
-				for each(var nt:String in node.hardwareTypes)
-					nodeTypes.addItem(nt);
-				
-				loadPhysicalLinks();
-				loadSlices();
-				loadHierarchy();
-				
-				sliverTypes = new ArrayList();
-				for each(var sliverType:SliverType in node.sliverTypes) {
-					for each(var diskImage:DiskImage in sliverType.diskImages) {
-						var newSliverType:Object = new Object();
-						newSliverType.name = sliverType.name;
-						newSliverType.diskLongName = diskImage.name;
-						newSliverType.diskShortName = DiskImage.getDiskImageShort(diskImage.name, node.manager);
-						newSliverType.diskDescription = diskImage.description;
-						newSliverType.diskOs = diskImage.os;
-						newSliverType.diskVersion = diskImage.version;
-						sliverTypes.addItem(newSliverType);
-					}
+			}
+			
+			public function loadCharacteristics():void
+			{
+				characteristicsVgroup.removeAllElements();
+				if(node.cpuSpeed > 0)
+				{
+					characteristicsVgroup.addElement(ViewUtil.getLabel("CPU", true));
+					characteristicsVgroup.addElement(ViewUtil.getLabel(StringUtil.mhzToString(node.cpuSpeed)));
+				}
+				if(node.ramSize > 0)
+				{
+					characteristicsVgroup.addElement(ViewUtil.getLabel("RAM", true));
+					characteristicsVgroup.addElement(ViewUtil.getLabel(StringUtil.mbToString(node.ramSize)));
 				}
 			}
 			
@@ -122,8 +127,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					var managerHbox:HGroup = new HGroup();
 					managerHbox.verticalAlign = "middle";
 					managerHbox.gap = 4;
-					managerHbox.addElement(DisplayUtil.getLabel("Hosted on"));
-					managerHbox.addElement(DisplayUtil.getGeniManagerButton(node.manager));
+					managerHbox.addElement(ViewUtil.getLabel("Hosted on"));
+					var managerButton:DataButton = DisplayUtil.getGeniManagerButton(node.manager as GeniManager, false);
+					managerButton.addEventListener(MouseEvent.CLICK, viewManager);
+					managerHbox.addElement(managerButton);
 					hierarchyVbox.addElement(managerHbox);
 					
 					// Parent node info
@@ -132,202 +139,250 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						var parentNodeHbox:HGroup = new HGroup();
 						parentNodeHbox.verticalAlign = "middle";
 						parentNodeHbox.gap = 4;
-						parentNodeHbox.addElement(DisplayUtil.getLabel("Subnode of"));
-						parentNodeHbox.addElement(DisplayUtil.getPhysicalNodeButton(node.subNodeOf));
+						parentNodeHbox.addElement(ViewUtil.getLabel("Subnode of"));
+						var parentButton:DataButton = DisplayUtil.getPhysicalNodeButton(node.subNodeOf, false);
+						parentButton.addEventListener(MouseEvent.CLICK, viewNode);
+						parentNodeHbox.addElement(parentButton);
 						hierarchyVbox.addElement(parentNodeHbox);
 					}
 					
 					// Child node info
-					if(node.subNodes.length > 0)
+					if(node.subNodes != null && node.subNodes.length > 0)
 					{
 						var subNodesLabel:Label = new Label();
 						hierarchyVbox.addElement(subNodesLabel);
 						subNodesLabel.text = "Subnodes:";
 						for each(var subNode:PhysicalNode in node.subNodes)
 						{
-							hierarchyVbox.addElement(DisplayUtil.getPhysicalNodeButton(subNode));
+							var childButton:DataButton = DisplayUtil.getPhysicalNodeButton(subNode, false);
+							childButton.addEventListener(MouseEvent.CLICK, viewNode);
+							hierarchyVbox.addElement(childButton);
 						}
 					}
 				}
 			}
 			
-			public function loadSlices():void {
-				if(sliceLinksVbox != null) {
-					sliceLinksVbox.removeAllElements();
-					if(virtualNode != null) {
-						var connectedNodes:Vector.<PhysicalNode> = virtualNode.GetPhysicalNodes();
+			public function loadPhysicalLinks():void
+			{
+				if(interfacesLinkToGroup != null)
+				{
+					interfacesLinkToGroup.removeAllElements();
+					interfacesGroup.removeAllElements();
+					
+					var interfacesButton:DataButton = DisplayUtil.getPhysicalInterfaceCollectionButton(node.interfaces, false)
+					interfacesButton.addEventListener(MouseEvent.CLICK, viewInterfaces);
+					interfacesGroup.addElement(interfacesButton);
+					interfacesGroup.addElement(ViewUtil.getLabel("connected with", true));
+					
+					var allLinks:PhysicalLinkCollection = node.Links;
+					var linksButton:DataButton = DisplayUtil.getPhysicalLinkCollectionButton(allLinks, false);
+					linksButton.addEventListener(MouseEvent.CLICK, viewLinks);
+					interfacesGroup.addElement(linksButton);
+					
+					var connectedNodes:PhysicalNodeCollection = node.ConnectedNodes;
+					if(connectedNodes.length > 0)
+					{
+						var nodesButton:DataButton = DisplayUtil.getPhysicalNodeCollectionButton(connectedNodes, false);
+						nodesButton.addEventListener(MouseEvent.CLICK, viewNodes);
+						interfacesGroup.addElement(nodesButton);
 						
-						sliceLinksNavigator.label = "Slice (" + connectedNodes.length + " Nodes)"
-						var connectedLabel:Label = new Label();
-						if(connectedNodes.length > 0)
-							connectedLabel.text = "Connected on " + virtualNode.sliver.slice.hrn + " to";
-						else
-							connectedLabel.text = "No linked nodes on " + virtualNode.sliver.slice.hrn;
-						sliceLinksVbox.addElement(connectedLabel);
-						
-						for each(var connectedNode:PhysicalNode in connectedNodes)
+						for each(var n:PhysicalNode in connectedNodes.collection)
 						{
-							sliceLinksVbox.addElement(DisplayUtil.getPhysicalNodeButton(connectedNode));
+							var nodeButton:DataButton = DisplayUtil.getPhysicalNodeButton(n, false);
+							nodeButton.addEventListener(MouseEvent.CLICK, viewNode);
+							interfacesLinkToGroup.addElement(nodeButton);
 							
-							var connectedLinks:VirtualLinkCollection = virtualNode.GetLinksForPhysical(connectedNode);
-							for each(var connectedLink:VirtualLink in connectedLinks.collection)
+							var connectedLinks:PhysicalLinkCollection = n.getLinksWith(node);
+							for each(var l:PhysicalLink in connectedLinks.collection)
 							{
-								var pointLinkHbox:HGroup = new HGroup();
+								var startInterface:PhysicalInterface;
+								var endInterface:PhysicalInterface;
+								for each(var testInterface:PhysicalInterface in l.interfaces.collection)
+								{
+									if(testInterface.owner == n)
+										endInterface = testInterface;
+									if(testInterface.owner == node)
+										startInterface = testInterface;
+								}
+								
+								var linkHbox:HGroup = new HGroup();
 								var space:Rect = new Rect();
 								space.width = 16;
-								pointLinkHbox.addElement(space);
-								pointLinkHbox.addElement(DisplayUtil.getVirtualLinkButton(connectedLink));
-								sliceLinksVbox.addElement(pointLinkHbox);
+								linkHbox.addElement(space);
+								
+								var linkButton:DataButton = DisplayUtil.getPhysicalLinkButton(l, false);
+								linkButton.addEventListener(MouseEvent.CLICK, viewLink);
+								linkButton.label = NetUtil.kbsToString(l.Capacity) + " (" + startInterface.id.name + " -> " + endInterface.id.name + ")";
+								linkHbox.addElement(linkButton);
+								
+								interfacesLinkToGroup.addElement(linkHbox);
 							}
 						}
-					} else if(linkTabs.getChildren().length > 1)
-						sliceLinksNavigator.visible = false;
+					}
 				}
 			}
 			
-			public function loadPhysicalLinks():void {
-				if(physicalLinksVbox != null)
+			public function viewComponentRspec():void
+			{
+				var rspecArea:DocumentArea = new DocumentArea();
+				rspecArea.Document = node.advertisement;
+				rspecArea.title = "Advertisement for " + node.name;
+				rspecArea.backgroundColor = backgroundColor;
+				rspecArea.titleColor = titleColor;
+				openNext(rspecArea);
+			}
+			
+			public function viewLink(e:MouseEvent):void
+			{
+				viewLinkArea((e.target as DataButton).data as PhysicalLink);
+			}
+			
+			public function viewLinkArea(l:PhysicalLink):void
+			{
+				var linkArea:PhysicalLinkArea = new PhysicalLinkArea();
+				linkArea.load(l);
+				openNext(linkArea);
+			}
+			
+			public function viewLinks(e:MouseEvent):void
+			{
+				var l:PhysicalLinkCollection = (e.target as DataButton).data as PhysicalLinkCollection;
+				if(l.length == 1)
 				{
-					physicalLinksVbox.removeAllElements();
-					var nodes:Vector.<PhysicalNode> = node.GetNodes();
-					physicalLinksNavigator.label = "Physical (" + nodes.length + " Nodes)"
-					var connectedLabel:Label = new Label();
-					if(nodes.length > 0)
-						connectedLabel.text = "Connected to";
-					else
-						connectedLabel.text = "No physically linked nodes";
-					physicalLinksVbox.addElement(connectedLabel);
-					
-					for each(var n:PhysicalNode in nodes) {
-						physicalLinksVbox.addElement(DisplayUtil.getPhysicalNodeButton(n));
-						
-						var nodeLinks:Vector.<PhysicalLink> = n.GetNodeLinks(node);
-						for each(var l:PhysicalLink in nodeLinks) {
-							var endInterface:PhysicalNodeInterface;
-							for each(var testInterface:PhysicalNodeInterface in l.interfaceRefs.collection) {
-								if(testInterface.owner == n) {
-									endInterface = testInterface;
-									break;
-								}
-							}
-							
-							var linkHbox:HGroup = new HGroup();
-							var space:Rect = new Rect();
-							space.width = 16;
-							linkHbox.addElement(space);
-							var endInterfaceButton:Button = DisplayUtil.getPhysicalLinkWithInterfaceButton(endInterface, l);
-							linkHbox.addElement(endInterfaceButton);
-							physicalLinksVbox.addElement(linkHbox);
-						}
-					}
+					viewLinkArea(l.collection[0]);
+					return;
 				}
+				var linksArea:PhysicalLinkCollectionArea = new PhysicalLinkCollectionArea();
+				linksArea.Links = l;
+				openNext(linksArea);
 			}
 			
-			public function viewComponentRspec():void {
-				DisplayUtil.viewXml(node.advertisement, "Advertisement RSPEC for " + node.name);
+			public function viewNode(e:MouseEvent):void
+			{
+				viewNodeArea((e.target as DataButton).data as PhysicalNode);
 			}
 			
-			public function viewSliverRspec():void {
-				if(virtualNode == null || virtualNode.manifest == null)
-					Alert.show("No Sliver RSPEC!");
-				else
-					DisplayUtil.viewXml(virtualNode.manifest, "Manifest RSPEC for " + node.name);
+			public function viewNodeArea(n:PhysicalNode):void
+			{
+				var nodeArea:PhysicalNodeArea = new PhysicalNodeArea();
+				nodeArea.load(n);
+				openNext(nodeArea);
 			}
 			
-			
-			// quick hack to get someone a list of interfaces a node connects to
-			/*
-			public function generateTable():void {
-				//  ||(null)||node name||interface name||
-				var table:String = "";
-				for each(var myInterface:PhysicalNodeInterface in node.interfaces.collection) {
-					for each(var myLink:PhysicalLink in myInterface.physicalLinks) {
-						for each(var checkInterface:PhysicalNodeInterface in myLink.interfaceRefs.collection) {
-							if(checkInterface != myInterface)
-								table += "||" + myInterface.id + "||" + checkInterface.owner.name + "||" + checkInterface.id + "||\n";
-						}
-					}
+			public function viewNodes(e:MouseEvent):void
+			{
+				var n:PhysicalNodeCollection = (e.target as DataButton).data as PhysicalNodeCollection;
+				if(n.length == 1)
+				{
+					viewNodeArea(n.collection[0]);
+					return;
 				}
-				
-				var test:XmlWindow = new XmlWindow();
-				test.loadText(table);
-				test.showWindow();
+				var nodesArea:PhysicalNodeCollectionArea = new PhysicalNodeCollectionArea();
+				nodesArea.Nodes = n;
+				openNext(nodesArea);
 			}
-			*/
+			
+			public function viewManager(e:MouseEvent):void
+			{
+				var m:GeniManager = (e.target as DataButton).data as GeniManager;
+				var managerArea:ManagerArea = new ManagerArea();
+				managerArea.load(m);
+				openNext(managerArea);
+			}
+			
+			public function viewInterfaces(e:MouseEvent):void
+			{
+				var interfaces:PhysicalInterfaceCollection = (e.target as DataButton).data as PhysicalInterfaceCollection;
+				if(interfaces.length == 1)
+				{
+					viewInterfaceArea(interfaces.collection[0]);
+					return;
+				}
+				var interfacesArea:PhysicalInterfaceCollectionArea = new PhysicalInterfaceCollectionArea();
+				interfacesArea.Interfaces = interfaces;
+				openNext(interfacesArea);
+			}
+			
+			public function viewInterfaceArea(ni:PhysicalInterface):void
+			{
+				var interfaceArea:PhysicalInterfaceArea = new PhysicalInterfaceArea();
+				interfaceArea.load(ni);
+				openNext(interfaceArea);
+			}
 			
 		]]>
 	</fx:Script>
 	
-	<s:HGroup width="100%" verticalAlign="middle">
-		<s:Image id="imgAvailable" />
-		<s:Label text="{node.name}" toolTip="{node.id}" fontSize="17" fontWeight="bold" width="100%" />
-		<components:ImageButton id="locateButton"
-							 icon="{ImageUtil.mapIcon}"
-							 click="Main.geniHandler.mapHandler.zoomToPhysicalNode(node)"
-							 toolTip="View Advertisement RSPEC" />
-		<components:ImageButton id="componentButton"
-							 icon="{ImageUtil.pageWhiteCodeIcon}"
-							 click="viewComponentRspec()"
-							 toolTip="View Advertisement RSPEC" />
-		<components:ImageButton id="sliverButton"
-							 icon="{ImageUtil.pageCodeIcon}"
-							 click="viewSliverRspec()"
-							 toolTip="View Request RSPEC" visible="false" />
-	</s:HGroup>
-	<s:HGroup width="100%">
-		<s:Label text="Types" fontWeight="bold" />
-		<s:List id="typeList" dataProvider="{nodeTypes}" labelField="name" height="68" />
-		<s:VGroup width="100%">
-			<s:Label text="Hierarchy" fontWeight="bold"/>
-			<s:VGroup width="100%" height="100%" gap="4" id="hierarchyVbox" />
-		</s:VGroup>
-	</s:HGroup>
+	<s:Group width="100%">
+		<s:Rect width="100%" height="100%">
+			<s:fill><s:SolidColor color="{backgroundColor}" /></s:fill>
+		</s:Rect>
+		
+		<s:HGroup width="100%"
+				  verticalAlign="middle"
+				  paddingLeft="2"
+				  paddingRight="2"
+				  paddingTop="2"
+				  paddingBottom="2"
+				  gap="2">
+			<s:Image id="imgAvailable" />
+			<s:Image id="imgExclusive" />
+			<s:Label text="{title}"
+					 color="{titleColor}"
+					 id="nameLabel"
+					 toolTip="{node.id.full}"
+					 fontSize="17"
+					 fontWeight="bold"
+					 width="100%" />
+			<s:Button id="componentButton"
+					  icon="{ImageUtil.advertisementIcon}"
+					  label="View RSPEC"
+					  toolTip="View Advertisement RSPEC"
+					  click="viewComponentRspec()" />
+			<components:ImageButton id="dockIcon"
+									icon="{ImageUtil.windowIcon}"
+									toolTip="Pop out to a window or in to the main window"
+									click="host.Docked ? popOut() : dock()" />
+		</s:HGroup>
+		
+	</s:Group>
 	
-	<s:Label text="Sliver Types / Disk Images" fontWeight="bold" />
-	<s:DataGrid id="sliverGrid" dataProvider="{sliverTypes}" width="100%" height="106">
-		<s:columns>
-			<s:ArrayList>
-				<s:GridColumn dataField="name" headerText="Sliver Type"/>
-				<s:GridColumn headerText="OSID">
-					<s:itemRenderer>
-						<fx:Component>
-							<s:GridItemRenderer>
-								<s:Label text="{data.diskShortName}" toolTip="{data.diskLongName}"
-										 maxDisplayedLines="1"
-										 left="10" right="5" paddingTop="10" paddingBottom="5"/>
-							</s:GridItemRenderer>
-						</fx:Component>
-					</s:itemRenderer>
-				</s:GridColumn>
-				<s:GridColumn headerText="Description">
-					<s:itemRenderer>
-						<fx:Component>
-							<s:GridItemRenderer>
-								<s:Label text="{data.diskDescription}" toolTip="{data.diskOs} {data.diskVersion}"
-										 maxDisplayedLines="1"
-										 left="10" right="5" paddingTop="10" paddingBottom="5"/>
-							</s:GridItemRenderer>
-						</fx:Component>
-					</s:itemRenderer>
-				</s:GridColumn>
-			</s:ArrayList>
-		</s:columns>
-	</s:DataGrid>
+	<s:VGroup height="100%"
+			  width="100%"
+			  paddingRight="2"
+			  paddingLeft="2"
+			  gap="2">
+		<s:HGroup width="100%"
+				  gap="2">
+			<s:VGroup id="characteristicsVgroup"
+					  gap="2" />
+			<s:Label text="Types" fontWeight="bold" />
+			<s:List id="typeList" dataProvider="{nodeTypes}" labelField="name" height="68" />
+			<s:VGroup width="100%"
+					  gap="2">
+				<s:Label text="Hierarchy" fontWeight="bold"/>
+				<s:VGroup width="100%"
+						  height="100%"
+						  gap="2"
+						  id="hierarchyVbox" />
+			</s:VGroup>
+		</s:HGroup>
+		
+		<display:SliverTypesControl id="sliverTypesControl" />
+		
+		<s:HGroup width="100%"
+				  height="100%"
+				  gap="2">
+			<s:VGroup id="interfacesGroup"
+					  gap="2" />
+			<s:Scroller width="100%"
+						height="100%">
+				<s:VGroup id="interfacesLinkToGroup"
+						  width="100%"
+						  height="100%"
+						  gap="2" />
+			</s:Scroller>
+		</s:HGroup>
+	</s:VGroup>
 	
-	<s:HGroup width="100%" height="100%">
-		<s:Label text="Links to" fontWeight="bold"/>
-		<mx:TabNavigator id="linkTabs" width="100%" height="100%" paddingTop="2" paddingRight="2" paddingLeft="2" paddingBottom="2">
-			<s:NavigatorContent label="Physical" width="100%" height="100%" id="physicalLinksNavigator">
-				<s:Scroller width="100%" height="100%">
-					<s:VGroup id="physicalLinksVbox" width="100%" height="100%" />
-				</s:Scroller>
-			</s:NavigatorContent>
-			<s:NavigatorContent label="Slice" width="100%" height="100%" id="sliceLinksNavigator">
-				<s:Scroller width="100%" height="100%">
-					<s:VGroup id="sliceLinksVbox" width="100%" height="100%" />
-				</s:Scroller>
-			</s:NavigatorContent>
-		</mx:TabNavigator>
-	</s:HGroup>
-	
-</s:VGroup>
+</areas1:AreaContent>

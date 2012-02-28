@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -20,35 +20,20 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 <components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						xmlns:s="library://ns.adobe.com/flex/spark" 
 						xmlns:mx="library://ns.adobe.com/flex/mx"
-						xmlns:display="protogeni.display.*"
-						xmlns:components="protogeni.display.components.*">
+						xmlns:components="com.flack.shared.display.components.*"
+						xmlns:view="com.flack.geni.view.*">
 	<fx:Script>
 		<![CDATA[
-			import protogeni.display.ImageUtil;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.utils.ImageUtil;
 			
 			[Bindable]
-			public var xmlString:String;
-			
-			public function loadXml(val:XML):void {
-				if(val != null) {
-					xmlString = val.toXMLString();
-				} else {
-					xmlString = "No document found";
-				}
-			}
-			
-			public function loadText(val:String):void {
-				xmlString = val;
+			private var doc:String = "";
+			public function set Document(value:String):void {
+				if(value != null)
+					doc = value;
 			}
 		]]>
 	</fx:Script>
-	<s:HGroup>
-		<components:ImageButton icon="{ImageUtil.saveIcon}"
-							 toolTip="Save to file"
-							 click="(new FileReference()).save(txt.text, 'doc.xml')" />
-		<components:ImageButton icon="{ImageUtil.copyIcon}"
-							 toolTip="Copy to clipboard"
-							 click="System.setClipboard(xmlString)" />
-	</s:HGroup>
-	<s:TextArea id="txt" width="100%" height="100%"  editable="false" text="{xmlString}"/>
+	<components:AdvancedTextArea text="{doc}" />
 </components:DefaultWindow>

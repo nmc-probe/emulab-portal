@@ -1,5 +1,5 @@
-﻿/* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+/* GENIPUBLIC-COPYRIGHT
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,42 +12,75 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni.communication
+package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
-	import protogeni.resources.GeniCredential;
-	import protogeni.resources.IdnUrn;
+	import com.flack.geni.resources.GeniUser;
+	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.sites.GeniAuthority;
+	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
+	import com.flack.shared.logging.LogMessage;
 	
 	/**
-	 * Gets the user's credential from their slice authority using the ProtoGENI API
+	 * Gets the user's credential.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class RequestGetCredential extends Request
+	public class GetUserCredentialSaTask extends ProtogeniXmlrpcTask
 	{
-		public function RequestGetCredential():void
+		public var user:GeniUser;
+		public var authority:GeniAuthority;
+		
+		/**
+		 * 
+		 * @param newUser User for which we are getting the credential for
+		 * @param newAuthority Authority where we want to get the credential from
+		 * 
+		 */
+		public function GetUserCredentialSaTask(newUser:GeniUser, newAuthority:GeniAuthority)
 		{
-			super("Get user credential",
-				"Getting user credential",
-				CommunicationUtil.getCredential);
-			op.setExactUrl(Main.geniHandler.CurrentUser.authority.Url);
+			super(
+				newAuthority.url,
+				"",
+				ProtogeniXmlrpcTask.METHOD_GETCREDENTIAL,
+				"Get user credential",
+				"Gets the user's credential to perform authenticated actions with"
+			);
+			authority = newAuthority;
+			relatedTo.push(newUser);
+			user = newUser;
 		}
 		
-		override public function complete(code:Number, response:Object):*
+		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if (code == CommunicationUtil.GENIRESPONSE_SUCCESS)
+			if (code == CODE_SUCCESS)
 			{
-				Main.geniHandler.CurrentUser.userCredential = String(response.value);
-				var cred:XML = new XML(response.value);
-				Main.geniHandler.CurrentUser.urn = GeniCredential.getOwnerUrn(cred);
-				Main.geniDispatcher.dispatchUserChanged();
+				var userCredential:GeniCredential = new GeniCredential(String(data), GeniCredential.TYPE_USER, user.authority);
+				if(user.authority == authority)
+				{
+					user.credential = userCredential;
+					user.id = user.credential.OwnerId;
+				}
+				authority.userCredential = userCredential;
+				
+				addMessage(
+					"Retrieved",
+					userCredential.Raw,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_USER,
+					user
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			else
-			{
-				Main.geniHandler.requestHandler.codeFailure(name, "Received GENI response other than success");
-			}
-			
-			return null;
+				faultOnSuccess();
 		}
 	}
 }

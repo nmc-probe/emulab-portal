@@ -1,5 +1,5 @@
 /* GENIPUBLIC-COPYRIGHT
-* Copyright (c) 2008-2011 University of Utah and the Flux Group.
+* Copyright (c) 2008-2012 University of Utah and the Flux Group.
 * All rights reserved.
 *
 * Permission to use, copy, modify and distribute this software is hereby
@@ -12,46 +12,74 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package protogeni
+package com.flack.shared
 {
 	import flash.events.Event;
 	
 	/**
-	 * Event within the GENI world
+	 * Event within our world
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class GeniEvent extends Event
+	public final class FlackEvent extends Event
 	{
-		public static const ACTION_CHANGED:int = 0;
-		public static const ACTION_REMOVING:int = 1;
-		public static const ACTION_CREATED:int = 2;
-		public static const ACTION_POPULATED:int = 3;
-		public static const ACTION_REMOVED:int = 4;
-		public static const ACTION_POPULATING:int = 5;
-		public static const ACTION_STATUS:int = 6;
+		// Actions
+		public static const ACTION_CREATED:int = 0;
+		public static const ACTION_STATUS:int = 1;
+		public static const ACTION_CHANGED:int = 2;
+		public static const ACTION_POPULATING:int = 3;
+		public static const ACTION_POPULATED:int = 4;
+		public static const ACTION_REMOVING:int = 5;
+		public static const ACTION_REMOVED:int = 6;
+		public static const ACTION_ADDED:int = 7;
+		public static const ACTION_SELECTED:int = 9;
+		public static const ACTION_NEW:int = 10;
 		
-		public static const GENIMANAGER_CHANGED:String = "genimanager_changed";
-		public static const GENIMANAGERS_CHANGED:String = "genimanagers_changed";
-		public static const QUEUE_CHANGED:String = "queue_changed";
-		public static const USER_CHANGED:String = "user_changed";
-		public static const SLICE_CHANGED:String = "slice_changed";
-		public static const SLIVER_CHANGED:String = "sliver_changed";
-		public static const SLICES_CHANGED:String = "slices_changed";
-		public static const LOGS_CHANGED:String = "logs_changed";
-		public static const GENIAUTHORITIES_CHANGED:String = "geniauthorities_changed";
+		// Types of objects which change and get events thrown for
+		public static const CHANGED_MANAGERS:String = "managers_changed";
+		public static const CHANGED_MANAGER:String = "manager_changed";
+		public static const CHANGED_USER:String = "user_changed";
+		public static const CHANGED_TASK:String = "task_changed";
+		public static const CHANGED_LOG:String = "log_changed";
+		public static const CHANGED_UNIVERSE:String = "universe_changed";
+		// GENI
+		public static const CHANGED_SLICES:String = "slices_changed";
+		public static const CHANGED_SLICE:String = "slice_changed";
+		public static const CHANGED_SLIVER:String = "sliver_changed";
+		public static const CHANGED_AUTHORITIES:String = "authorities_changed";
+		// Emulab
+		public static const CHANGED_EXPERIMENTS:String = "experiments_changed";
+		public static const CHANGED_EXPERIMENT:String = "experiment_changed";
 		
+		/**
+		 * Object which has changed
+		 */
 		public var changedObject:Object = null;
+		/**
+		 * Action taken on the changedObject
+		 */
 		public var action:int;
 		
-		public function GeniEvent(type:String,
-								  object:Object = null,
+		/**
+		 * 
+		 * @param newType Type of event
+		 * @param newChangedObject Object which the event is about
+		 * @param newAction Action the object has taken
+		 * 
+		 */
+		public function FlackEvent(newType:String,
+								  newChangedObject:Object = null,
 								  newAction:int = 0)
 		{
-			super(type);
-			changedObject = object;
+			super(newType);
+			changedObject = newChangedObject;
 			action = newAction;
+		}
+		
+		override public function clone():Event
+		{
+			return new FlackEvent(type, changedObject, action);
 		}
 	}
 }

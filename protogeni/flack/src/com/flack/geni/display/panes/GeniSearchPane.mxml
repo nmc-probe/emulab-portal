@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  xmlns:display="com.flack.geni.display.*"
+		  width="100%"
+		  height="100%"
+		  gap="2"
+		  creationComplete="init()"
+		  remove="destroy()">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.areas.PhysicalNodeArea;
+			import com.flack.geni.resources.physical.PhysicalNode;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.areas.AreaContent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.core.FlexGlobals;
+			
+			[Bindable]
+			public var hardwareTypes:ArrayCollection;
+			
+			[Bindable]
+			public var managers:ArrayCollection;
+			
+			public function init():void
+			{
+				nodeList.addEventListener(PhysicalNodeList.SELECTED, selectedNode);
+				nodeList.addEventListener(PhysicalNodeList.FILTERED, filtered);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_UNIVERSE, changedUniverse);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGERS, changedManagers);
+				
+				reloadNodes();
+			}
+			
+			public function destroy():void
+			{
+				nodeList.removeEventListener(PhysicalNodeList.SELECTED, selectedNode);
+				nodeList.removeEventListener(PhysicalNodeList.FILTERED, filtered);
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_UNIVERSE, changedUniverse);
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_MANAGERS, changedManagers);
+			}
+			
+			public function changedUniverse(e:FlackEvent):void
+			{
+				if(e.action == FlackEvent.ACTION_POPULATED)
+					reloadNodes();
+			}
+			
+			public function changedManagers(e:FlackEvent):void
+			{
+				reloadNodes();
+			}
+			
+			public function reloadNodes():void
+			{
+				nodeList.load(GeniMain.geniUniverse.managers.Nodes);
+			}
+			
+			private var previouslyMapped:Boolean = false;
+			private function changeShow():void
+			{
+				if(showCheckbox.selected && nodeList.viewCollection != null && nodeList.viewCollection.length > 0)
+					GeniMain.mapper.panToLocations(nodeList.viewCollection.Locations, true);
+				if(showCheckbox.selected || previouslyMapped)
+				{
+					GeniMain.mapper.changeSelected(showCheckbox.selected ? nodeList.viewCollection : null);
+					previouslyMapped = showCheckbox.selected;
+				}
+			}
+			
+			public function selectedNode(e:FlackEvent):void
+			{
+				var currentContent:AreaContent = FlexGlobals.topLevelApplication.viewingContent();
+				if(currentContent != null && currentContent is PhysicalNodeArea)
+					(currentContent as PhysicalNodeArea).load(e.changedObject as PhysicalNode);
+				else
+				{
+					var nodeArea:PhysicalNodeArea = new PhysicalNodeArea();
+					nodeArea.load(e.changedObject as PhysicalNode);
+					FlexGlobals.topLevelApplication.viewContent(nodeArea);
+				}
+			}
+			
+			public function filtered(e:FlackEvent):void
+			{
+				changeShow();
+			}
+			
+		]]>
+	</fx:Script>
+	<s:VGroup paddingLeft="2"
+			  paddingRight="2"
+			  width="100%">
+		<s:CheckBox id="showCheckbox"
+					label="Map"
+					toolTip="Limit mapped resources to search results"
+					valueCommit="changeShow()" />
+	</s:VGroup>
+	<display:PhysicalNodeList id="nodeList" width="100%" height="100%" />
+</s:VGroup>

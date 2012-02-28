@@ -3,7 +3,7 @@
 <!--
 
 GENIPUBLIC-COPYRIGHT
-Copyright (c) 2008-2011 University of Utah and the Flux Group.
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
 All rights reserved.
 
 Permission to use, copy, modify and distribute this software is hereby
@@ -17,80 +17,87 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 -->
 
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-			   xmlns:s="library://ns.adobe.com/flex/spark" 
-			   xmlns:mx="library://ns.adobe.com/flex/mx"
-			   xmlns:display="protogeni.display.*"
-			   xmlns:components="protogeni.display.components.*"
-			   title="{Main.version}"
-			   contentCreationComplete="init()">
-	<components:layout>
-		<s:VerticalLayout horizontalAlign="center" />
-	</components:layout>
-	
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  xmlns:display="com.flack.geni.display.*"
+		  xmlns:areas="com.flack.geni.display.areas.*"
+		  title="About Flack {SharedMain.version}"
+		  initialize="afterReady()"
+		  horizontalAlign="center" xmlns:areas1="com.flack.shared.display.areas.*">
 	<fx:Script>
 		<![CDATA[
-			import com.mattism.http.xmlrpc.JSLoader;
+			import com.flack.geni.GeniCache;
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.tasks.groups.GetCertBundlesTaskGroup;
+			import com.flack.geni.tasks.tests.TestCcrTaskGroup;
+			import com.flack.geni.tasks.tests.TestSliceFailureModesTaskGroup;
+			import com.flack.geni.tasks.tests.TestSliceHistoryTaskGroup;
+			import com.flack.geni.tasks.tests.TestSliceSuccessModesTaskGroup;
+			import com.flack.shared.SharedCache;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.TaskGroup;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.tasks.http.JsHttpTask;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.NetUtil;
+			import com.flack.shared.utils.ViewUtil;
 			
 			import mx.controls.Alert;
-			import mx.core.FlexGlobals;
-			import mx.managers.PopUpManager;
-			
-			import protogeni.NetUtil;
-			import protogeni.display.ImageUtil;
 			
 			[Bindable]
 			private var memoryString:String;
 			
-			private var fr:FileReference;
-			
-			public function init():void
+			public function afterReady():void
 			{
 				memoryString =  (System.totalMemoryNumber/1048576).toFixed(2) + " MB";
-				
-				fr = new FileReference();
-				fr.addEventListener(Event.SELECT, onFileSelect);
-				fr.addEventListener(Event.COMPLETE, onFileComplete);
-				fr.addEventListener(IOErrorEvent.IO_ERROR, onFileIoError);
-				fr.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onFileSecurityError);
 			}
 			
-			private var saving:Boolean;
-			protected function loadBundle(event:MouseEvent):void
+			private function saveBundleToFile(event:MouseEvent):void
 			{
-				saving = false;
-				fr.browse([new FileFilter("Any file (*.*)", "*.*")])
+				var savePublicKeyTask:FileTask = new FileTask(SharedMain.Bundle);
+				savePublicKeyTask.startOperation(event);
 			}
 			
-			protected function saveBundle(event:MouseEvent):void
+			private function loadBundleFromFile(event:MouseEvent):void
 			{
-				saving = true;
-				fr.save(JSLoader, 'trust_bundle.txt');
+				var loadBundleTask:FileTask = new FileTask();
+				loadBundleTask.addEventListener(TaskEvent.FINISHED, afterLoadBundle);
+				loadBundleTask.startOperation(event);
 			}
 			
-			public function onFileSelect(event:Event):void {
-				if(!saving)
-					fr.load();
-			}
-			
-			public function onFileComplete(event:Event):void {
-				if(!saving)
+			private function afterLoadBundle(event:TaskEvent):void
+			{
+				if(event.task.Status == Task.STATUS_SUCCESS)
 				{
-					JSLoader.setServerCertificate(fr.data.readUTFBytes(fr.data.length));
+					SharedMain.Bundle = event.task.data;
 				}
 			}
 			
-			private function onFileIoError(event:IOErrorEvent):void {
-				Alert.show(event.toString(), "IO Error");
-			}
-			
-			private function onFileSecurityError(event:SecurityErrorEvent):void {
-				Alert.show(event.toString(), "Security Error");
+			private function runTest(task:Task):void
+			{
+				task.forceRunNow = true;
+				SharedMain.tasker.add(task);
+				if(task is TaskGroup)
+				{
+					var taskGroupArea:TaskGroupArea = new TaskGroupArea();
+					taskGroupArea.taskGroup = task as TaskGroup;
+					ViewUtil.viewContentInWindow(taskGroupArea);
+				}
+				else
+				{
+					var taskArea:TaskArea = new TaskArea();
+					taskArea.task = task;
+					ViewUtil.viewContentInWindow(taskArea);
+				}
 			}
 			
 		]]>
 	</fx:Script>
-	
+
 	<s:Image useHandCursor="true" buttonMode="true"
 			 source="{ImageUtil.logoIcon}"
 			 toolTip="Visit our website"
@@ -99,58 +106,83 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	<s:HGroup horizontalAlign="center">
 		<s:Button label="Open the manual"
 				  icon="{ImageUtil.helpIcon}"
-				  click="NetUtil.showManual();"
-				  height="24" />
+				  click="NetUtil.openWebsite(GeniMain.manualUrl);" />
 	</s:HGroup>
 	
-	<mx:TabNavigator width="100%" height="100%" paddingTop="2">
-		<s:NavigatorContent label="System" width="100%" height="100%">
-			<s:Scroller width="100%" height="100%">
-				<s:VGroup width="100%" height="100%"
-						  paddingBottom="4" paddingLeft="4" paddingRight="4" paddingTop="4">
-					<s:HGroup width="100%">
+	<mx:TabNavigator width="100%"
+					 height="100%"
+					 paddingTop="2">
+		<s:NavigatorContent label="System"
+							width="100%"
+							height="100%">
+			<s:Scroller width="100%"
+						height="100%">
+				<s:HGroup width="100%" height="100%" horizontalAlign="center" verticalAlign="middle">
+					<s:VGroup horizontalAlign="right"
+							  paddingBottom="2"
+							  paddingLeft="2"
+							  paddingRight="2"
+							  paddingTop="2">
 						<s:Label text="Flash Version" fontWeight="bold" />
-						<s:Label text="{Capabilities.version}" />
-					</s:HGroup>
-					<s:HGroup width="100%">
-						<s:Label text="with debug support?" fontWeight="bold" />
-						<s:Label text="{Capabilities.isDebugger}" />
-					</s:HGroup>
-					<s:HGroup width="100%">
-						<s:Label text="Memory Used" fontWeight="bold" />
-						<s:Label text="{memoryString}" />
-					</s:HGroup>
-					<s:HGroup width="100%">
-						<s:Label text="Running" fontWeight="bold" />
-						<s:Label text="{Capabilities.os} on {Capabilities.cpuArchitecture}" />
-					</s:HGroup>
-					<s:HGroup width="100%">
+						<s:Label text="Debug Support" fontWeight="bold" />
+						<s:Label text="Memory" fontWeight="bold" />
+						<s:Label text="System" fontWeight="bold" />
 						<s:Label text="Screen" fontWeight="bold" />
+					</s:VGroup>
+					<s:VGroup horizontalAlign="left"
+							  paddingBottom="2"
+							  paddingLeft="2"
+							  paddingRight="2"
+							  paddingTop="2">
+						<s:Label text="{Capabilities.version}" />
+						<s:Label text="{Capabilities.isDebugger}" />
+						<s:Label text="{memoryString}" />
+						<s:Label text="{Capabilities.os} on {Capabilities.cpuArchitecture}" />
 						<s:Label text="{Capabilities.screenResolutionX}x{Capabilities.screenResolutionY} @ {Capabilities.screenDPI} DPI with touchscreen type {Capabilities.touchscreenType}" />
-					</s:HGroup>
+					</s:VGroup>
+				</s:HGroup>
+			</s:Scroller>
+		</s:NavigatorContent>
+		<s:NavigatorContent label="Cache"
+							width="100%"
+							height="100%">
+			<s:Scroller width="100%"
+						height="100%">
+				<s:VGroup width="100%"
+						  height="100%"
+						  horizontalAlign="center"
+						  verticalAlign="middle"
+						  paddingBottom="2"
+						  paddingLeft="2"
+						  paddingRight="2"
+						  paddingTop="2">
+					<s:Button label="Delete entire cache"
+							  click="SharedCache.clear(); Alert.show('Deleted entire cache', 'Deleted');" />
+					<s:Button label="Delete certificate bundle cache"
+							  click="SharedCache.clearCertBundle(); Alert.show('Deleted certificate bundle cache', 'Deleted');" />
+					<s:Button label="Delete user cache"
+							  click="SharedCache.clearUser(); Alert.show('Deleted user cache', 'Deleted');" />
+					<s:Button label="Delete manually added managers"
+							  click="GeniCache.clearManualManagers(); Alert.show('Deleted manually added managers', 'Deleted');" />
+					<s:Button label="Delete default managers to list"
+							  toolTip="Deletes the list of managers to get resources at by default and asks you next time which managers to list"
+							  click="GeniCache.clearManagersToWatch(); Alert.show('Deleted list of default managers to get resources at', 'Deleted');" />
 				</s:VGroup>
 			</s:Scroller>
 		</s:NavigatorContent>
-		<s:NavigatorContent label="Cache" width="100%" height="100%">
-			<s:Scroller width="100%" height="100%">
-				<s:VGroup width="100%" height="100%" horizontalAlign="center"
-						  paddingBottom="4" paddingLeft="4" paddingRight="4" paddingTop="4">
-					<s:Button label="Save for offline"
-							  click="FlackCache.saveOffline();"
-							  height="24" />
-					<s:Button label="Delete All"
-							  click="FlackCache.clearAll();"
-							  height="24" />
-					<s:Button label="Delete Offline-Use Data"
-							  click="FlackCache.clearOffline();"
-							  height="24" />
-				</s:VGroup>
-			</s:Scroller>
-		</s:NavigatorContent>
-		<s:NavigatorContent label="Special Thanks" width="100%" height="100%">
-			<s:Scroller width="100%" height="100%">
-				<s:VGroup width="100%" horizontalAlign="center" gap="2"
-						  paddingBottom="4" paddingLeft="4" paddingRight="4" paddingTop="4">
+		<s:NavigatorContent label="Special Thanks"
+							width="100%"
+							height="100%">
+			<s:Scroller width="100%"
+						height="100%">
+				<s:VGroup width="100%"
+						  horizontalAlign="center"
+						  verticalAlign="middle"
+						  gap="2"
+						  paddingBottom="2"
+						  paddingLeft="2"
+						  paddingRight="2"
+						  paddingTop="2">
 					<mx:LinkButton label="Forge (JavaScript TLS)"
 								   toolTip="Copyright (c) 2009-2010 Digital Bazaar, Inc. All rights reserved."
 								   height="24">
@@ -171,21 +203,58 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				</s:VGroup>
 			</s:Scroller>
 		</s:NavigatorContent>
-		<s:NavigatorContent label="Trust Bundle" width="100%" height="100%">
-			<s:VGroup width="100%" height="100%">
-				<s:HGroup paddingLeft="4">
+		<s:NavigatorContent label="Trust Bundle"
+							width="100%"
+							height="100%">
+			<s:VGroup width="100%"
+					  height="100%"
+					  gap="2">
+				<s:HGroup paddingLeft="2"
+						  gap="2">
 					<s:Button icon="{ImageUtil.saveIcon}"
 							  label="Save to file"
-							  click="saveBundle(event)" />
+							  click="saveBundleToFile(event);" />
 					<s:Button icon="{ImageUtil.copyIcon}"
 							  label="Copy to clipboard"
-							  click="System.setClipboard(JSLoader.serverCertificate)" />
+							  click="System.setClipboard(SharedMain.Bundle)" />
 					<s:Button icon="{ImageUtil.openIcon}"
 							  label="Open trust bundle"
-							  click="loadBundle(event)" />
+							  click="loadBundleFromFile(event)" />
+					<s:Button icon="{ImageUtil.refreshIcon}"
+							  label="Re-download trust bundle"
+							  click="SharedMain.tasker.add(new GetCertBundlesTaskGroup())" />
 				</s:HGroup>
-				<s:TextArea width="100%" height="100%" text="{JSLoader.serverCertificate}" editable="false" />
+				<s:TextArea width="100%"
+							height="100%"
+							text="{SharedMain.Bundle}"
+							editable="false" />
 			</s:VGroup>
+			
+		</s:NavigatorContent>
+		<s:NavigatorContent label="Tests"
+							width="100%"
+							height="100%">
+			<s:VGroup width="100%"
+					  height="100%"
+					  horizontalAlign="center"
+					  verticalAlign="middle" clipAndEnableScrolling="true"
+					  gap="2">
+				<s:Button label="Test Slice Success Modes"
+						  click="runTest(new TestSliceSuccessModesTaskGroup())" />
+				<s:Button label="Test Slice Failure Modes"
+						  click="runTest(new TestSliceFailureModesTaskGroup())" />
+				<s:Button label="Test Slice History"
+						  click="runTest(new TestSliceHistoryTaskGroup())" />
+				<s:Button label="Test CCR Tutorial"
+						  click="runTest(new TestCcrTaskGroup())" />
+				<s:HGroup width="100%">
+					<s:TextInput id="httpInput" width="100%" />
+					<s:Button click="runTest(new JsHttpTask(httpInput.text))" />
+				</s:HGroup>
+				
+			</s:VGroup>
+			
 		</s:NavigatorContent>
 	</mx:TabNavigator>
-</components:DefaultWindow>
+	
+</areas1:AreaContent>

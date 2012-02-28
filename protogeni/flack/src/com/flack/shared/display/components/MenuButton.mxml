@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Button xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  click="showMenu()"
+		  icon="{ImageUtil.bulletDownIcon}"
+		  iconPlacement="right">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.shared.utils.ImageUtil;
+			
+			import mx.controls.Alert;
+			import mx.controls.Menu;
+			import mx.events.MenuEvent;
+			
+			[Bindable] 
+			public var menuData:Array;
+			
+			private var menu:Menu;
+			
+			public function showMenu():void
+			{
+				if(menu == null)
+				{
+					menu = Menu.createMenu(null, menuData, false);
+					menu.addEventListener(MenuEvent.ITEM_CLICK, itemClicked);
+					menu.labelField="label";
+					menu.iconField="icon";
+					var global:Point = parent.localToGlobal(new Point(this.x, this.y+this.height));
+					menu.show(global.x, global.y);
+				}
+				else
+					menu.show();
+			}
+			
+			protected function itemClicked(event:MenuEvent):void
+			{
+				event.item.action(event);
+			}
+			
+		]]>
+	</fx:Script>
+</s:Button>

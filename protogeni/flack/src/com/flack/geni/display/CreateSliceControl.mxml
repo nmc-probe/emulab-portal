@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  width="100%"
+		  gap="2"
+		  verticalAlign="middle"
+		  creationComplete="init()"
+		  remove="destroy()">
+	
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.resources.sites.GeniAuthority;
+			import com.flack.geni.tasks.groups.GetUserTaskGroup;
+			import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.tasks.TaskCollection;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.utils.ImageUtil;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			
+			[Bindable]
+			public var authorities:ArrayCollection = new ArrayCollection();
+			
+			public function init():void
+			{
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_USER, tryUpdateUser);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_FINISHED, updateSliceCreating);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_STARTED, updateSliceCreating);
+				tryUpdateUser();
+				updateSliceCreating();
+			}
+			
+			public function destroy():void
+			{
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_USER, tryUpdateUser);
+				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_FINISHED, updateSliceCreating);
+				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_STARTED, updateSliceCreating);
+			}
+			
+			public function tryUpdateUser(e:FlackEvent = null):void
+			{
+				authorities = new ArrayCollection();
+				if(GeniMain.geniUniverse != null)
+				{
+					if(GeniMain.geniUniverse.user.authority != null)
+						authorities.addItem(GeniMain.geniUniverse.user.authority);
+					for each(var sa:GeniAuthority in GeniMain.geniUniverse.user.subAuthorities.collection)
+						authorities.addItem(sa);
+					enabled = GeniMain.geniUniverse.user.HasCredential;
+				}
+				else
+					enabled = false;
+			}
+			
+			public function updateSliceCreating(e:TaskEvent = null):void
+			{
+				var tasksNotFinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
+				var stillWorking:Boolean = tasksNotFinished.getOfClass(CreateSliceTaskGroup).length > 0
+				if(!stillWorking && spinner.visible)
+				{
+					spinner.visible = false;
+					spinner.stopSpin();
+				}
+				else if(stillWorking && !spinner.visible)
+				{
+					spinner.visible = true;
+					spinner.startSpin();
+				}
+			}
+			
+			public function createSlice():void
+			{
+				if(sliceNameTextinput.text.length == 0)
+				{
+					Alert.show(
+						"Please input a name for the slice",
+						"No name"
+					);
+					sliceNameTextinput.setFocus();
+					//focusManager.setFocus(sliceNameTextinput);
+					return;
+				}
+				
+				var createSliceTask:CreateSliceTaskGroup = new CreateSliceTaskGroup(sliceNameTextinput.text, authoritiesList.selectedItem)
+				createSliceTask.forceRunNow = SharedMain.tasker.tasks.NotFinished.getOfClass(GetUserTaskGroup).length==0;
+				if(!createSliceTask.forceRunNow)
+				{
+					Alert.show(
+						sliceNameTextinput.text + " will be created after all of the current operations complete...",
+						"Task queued"
+					);
+				}
+				SharedMain.tasker.add(createSliceTask);
+				sliceNameTextinput.text = "";
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:HGroup width="100%" verticalAlign="middle">
+		<s:DropDownList id="authoritiesList"
+						dataProvider="{authorities}"
+						labelField="name"
+						width="100%"
+						requireSelection="true"
+						toolTip="Select an authority"
+						prompt="Choose authority..." />
+	</s:HGroup>
+	
+	<s:HGroup width="100%"
+			  verticalAlign="middle"
+			  gap="2">
+		<s:TextInput id="sliceNameTextinput"
+					 prompt="Create slice..."
+					 toolTip="Input a name for the new slice"
+					 restrict="a-zA-Z0-9\-"
+					 maxChars="19"
+					 width="100%"
+					 enter="createSlice();" />
+		<components:Spinner id="spinner"
+							width="21"
+							height="21"
+							x="{(width / 2) - (spinner.width / 2)}"
+							y="{(height / 2) - (spinner.height / 2)}"
+							visible="false" includeInLayout="{spinner.visible}" />
+		<components:ImageButton id="createButton"
+								toolTip="Create a blank slice to be able to allocate resources in"
+								icon="{ImageUtil.actionIcon}"
+								click="createSlice()" />
+	</s:HGroup>
+	
+	
+</s:VGroup>
