@@ -41,9 +41,12 @@ $stitchxml = <<'STITCH_END';
 <aggregate id="urn:publicid:IDN+emulab.net+authority+cm" url="https://www.emulab.net/protogeni/xmlrpc/cm">
  <aggregatetype>protogeni</aggregatetype>
  <stitchingmode>chainANDTree</stitchingmode>
- <scheduledServices>false</scheduledServices>
- <negotiatedServices>false</negotiatedServices>
- <Lifetime start="2011-06-01T20:57:53Z" end="2011-06-01T20:57:53Z"/>
+ <scheduledservices>false</scheduledservices>
+ <negotiatedservices>false</negotiatedservices>
+ <lifetime id="urn:publicid:IDN+emulab.net+authority+cm">
+    <start type="time">2011-06-01T20:57:53Z</start>
+    <end type="time">2011-06-01T20:57:53Z</end>
+ </lifetime>
 
  <node id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-kans">
   <port id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-kans:10">
@@ -58,15 +61,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
   <port id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-kans:(null)">
@@ -81,15 +86,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
  </node>
@@ -107,15 +114,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
   <port id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-wash:11">
@@ -130,15 +139,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
   <port id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-wash:(null)">
@@ -153,15 +164,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
  </node>
@@ -179,15 +192,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
   <port id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-losa:(null)">
@@ -202,15 +217,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
  </node>
@@ -228,15 +245,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
   <port id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-hous:(null)">
@@ -251,15 +270,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
  </node>
@@ -277,15 +298,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
   <port id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-atla:(null)">
@@ -300,15 +323,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
  </node>
@@ -326,15 +351,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
   <port id="urn:publicid:IDN+emulab.net+interface+procurve-pgeni-salt:(null)">
@@ -349,15 +376,17 @@ $stitchxml = <<'STITCH_END';
       <maximumReservableCapacity>10000000000</maximumReservableCapacity>
       <minimumReservableCapacity>1000000</minimumReservableCapacity>
       <granularity>1000000</granularity>
-      <SwitchingCapabilityDescriptors>
+      <switchingCapabilityDescriptor>
         <switchingcapType>l2sc</switchingcapType>
         <encodingType>ethernet</encodingType>
         <switchingCapabilitySpecificInfo>
+          <switchingCapabilitySpecificInfo_L2sc>
            <interfaceMTU>9000</interfaceMTU>
            <vlanRangeAvailability>2-4094</vlanRangeAvailability>
            <vlanTranslation>true</vlanTranslation>
+          </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
-      </SwitchingCapabilityDescriptors>
+      </switchingCapabilityDescriptor>
     </link>
   </port>
  </node>
@@ -2675,16 +2704,18 @@ sub print_stitch_node
     print "      <minimumReservableCapacity>1000000".
 	"</minimumReservableCapacity>\n";
     print "      <granularity>1000000</granularity>\n";
-    print "      <SwitchingCapabilityDescriptors>\n";
+    print "      <switchingCapabilityDescriptor>\n";
     print "        <switchingcapType>l2sc</switchingcapType>\n";
     print "        <encodingType>ethernet</encodingType>\n";
     print "        <switchingCapabilitySpecificInfo>\n";
+    print "         <switchingCapabilitySpecificInfo_L2sc>\n";
     print "          <interfaceMTU>9000</interfaceMTU>\n";
     print "          <vlanRangeAvailability>$vlan_min-$vlan_max".
 	"</vlanRangeAvailability>\n";
     print "          <vlanTranslation>$vlan_translate</vlanTranslation>\n";
+    print "         </switchingCapabilitySpecificInfo_L2sc>\n";
     print "        </switchingCapabilitySpecificInfo>\n";
-    print "      </SwitchingCapabilityDescriptors>\n";
+    print "      </switchingCapabilityDescriptor>\n";
     print "    </link>\n";
     print "  </port>\n";
     print "</node>\n";
