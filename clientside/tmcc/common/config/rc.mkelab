@@ -1429,6 +1429,16 @@ sub SetupOpsNode($)
     close(RC);
 
     #
+    # Localize the timezone for the Geni Racks
+    #
+    if ($emulabconfig{"CONFIG_GENIRACK"} &&
+	exists($emulabconfig{"GENIRACK_TIMEZONE"})) {
+	my $zonefile = $emulabconfig{"GENIRACK_TIMEZONE"};
+	
+	mysystem("cp -fp /usr/share/zoneinfo/$zonefile /etc/localtime");
+    }
+
+    #
     # Remove some cruft from /etc/syslog.conf
     #
     mysystem("cat /etc/syslog.conf | grep -v '\@users' > /tmp/syslog.conf");
@@ -1491,7 +1501,20 @@ sub SetupOpsNode($)
     closedir(DIR);
 
     foreach my $list (@lists) {
-	mysystem("echo ${creator}\@${outer_domain} > /etc/mail/lists/$list");
+	if ($emulabconfig{"CONFIG_GENIRACK"}) {
+	    my $where = "genirack-ops\@flux.utah.edu";
+	    
+	    if ($list eq "testbed-logs") {
+		$where = "genirack-logs\@flux.utah.edu";
+	    }
+	    elsif ($list eq "testbed-stated") {
+		$where = "genirack-stated\@flux.utah.edu";
+	    }
+	    mysystem("echo '$where' > /etc/mail/lists/$list");
+	}
+	else {
+	    mysystem("echo ${creator}\@${outer_domain} > /etc/mail/lists/$list");
+	}
     }
 
     #
@@ -2052,6 +2075,16 @@ sub SetupBossNode($)
     close(RC);
 
     #
+    # Localize the timezone for the Geni Racks
+    #
+    if ($emulabconfig{"CONFIG_GENIRACK"} &&
+	exists($emulabconfig{"GENIRACK_TIMEZONE"})) {
+	my $zonefile = $emulabconfig{"GENIRACK_TIMEZONE"};
+	
+	mysystem("cp -fp /usr/share/zoneinfo/$zonefile /etc/localtime");
+    }
+
+    #
     # Remove some cruft from /etc/syslog.conf
     #
     mysystem("cat /etc/syslog.conf | grep -v '\@users' > /tmp/syslog.conf");
@@ -2606,6 +2639,7 @@ sub CreateDefsFile($)
     my $opsnode_hostname   = $emulabconfig{"OPSNODE"}; 
     my $fsnode_hostname    = $emulabconfig{"FSNODE"};
     my $ourdomain	   = $domain;
+    my $thishomebase       = "MyEmulab.Net";
 
     #
     # The control network netmask differs if using a single control network. 
@@ -2627,6 +2661,8 @@ sub CreateDefsFile($)
 	$opsnode_hostname   = "ops";
 	$fsnode_hostname    = "ops";
 	$ourdomain	    = $emulabconfig{"GENIRACK_DOMAIN"};
+	$thishomebase       = $emulabconfig{"GENIRACK_HOMEBASE"}
+	    if (defined($emulabconfig{"GENIRACK_HOMEBASE"}));
     }
     
     my $control_network = inet_ntoa(inet_aton($control_ip) &
@@ -2698,7 +2734,7 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^THISHOMEBASE$/ && do {
-		    print OUTDEFS "THISHOMEBASE=MyEmulab.Net\n";
+		    print OUTDEFS "THISHOMEBASE=${thishomebase}\n";
 		    last SWITCH;
 		};
 		/^NTPSERVER$/ && do {
@@ -2864,11 +2900,6 @@ sub CreateDefsFile($)
 		    }
 		    last SWITCH;
 		};
-		/^PROTOGENI_SUPPORT$/ && do {
-		    # Does not work to turn this on during initial setup.
-		    print OUTDEFS "PROTOGENI_SUPPORT=0\n";
-		    last SWITCH;
-		};
 		/^FSDIR_SCRATCH$/ && do {
 		    if ($emulabconfig{"CONFIG_SCRATCHFS"}) {
 			print OUTDEFS "FSDIR_SCRATCH=$FSMOUNTDIR/scratch\n";
@@ -2937,6 +2968,21 @@ sub CreateDefsFile($)
 	else {
 		print OUTDEFS $_;
 	}
+    }
+    if ($emulabconfig{"CONFIG_PROTOGENI"} ||
+	$emulabconfig{"CONFIG_GENIRACK"}) {
+	my $protogeni_domain = lc($thishomebase);
+	if (defined($emulabconfig{"GENIRACK_HOMEBASE"})) {
+	    $protogeni_domain = lc($emulabconfig{"GENIRACK_HOMEBASE"});
+	}
+	my $protogeni_password = "";
+	if (defined($emulabconfig{"PROTOGENI_PASSWORD"})) {
+	    $protogeni_gmocpswd = lc($emulabconfig{"PROTOGENI_PASSWORD"});
+	}
+	print OUTDEFS "PROTOGENI_SUPPORT=1\n";
+	print OUTDEFS "PROTOGENI_GENIRACK=1\n";
+	print OUTDEFS "PROTOGENI_DOMAIN=\"$protogeni_domain\"\n";
+	print OUTDEFS "PROTOGENI_PASSWORD=\"$protogeni_password\"\n";
     }
     close(INDEFS);
     close(OUTDEFS);

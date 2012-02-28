@@ -33,7 +33,9 @@ my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $PROTOGENI_RPCNAME = "@PROTOGENI_RPCNAME@";
 my $PROTOGENI_RPCPORT = "@PROTOGENI_RPCPORT@";
 my $OUTERBOSS_XMLRPCPORT = "@OUTERBOSS_XMLRPCPORT@";
-my $PROTOGENI_WEBSITE = "@PROTOGENI_WEBSITE@";
+my $PROTOGENI_WEBSITE  = "@PROTOGENI_WEBSITE@";
+my $PROTOGENI_GENIRACK = @PROTOGENI_GENIRACK@;
+my $PROTOGENI_PASSWORD = "@PROTOGENI_PASSWORD@";
 my $PROTOGENI_URL = "@PROTOGENI_URL@";
 my $geniuserid    = "geniuser";
 my $geniprojid    = "GeniSlices";
@@ -345,38 +347,6 @@ Phase "rcconf", "Updating $RCCONF", sub {
 };
 
 #
-# On the clients, we have to get the bundle from the CH website and
-# then break it up for xmlsec (see above). We use a script for this
-# since the clients need to do this everytime a new client is added.
-# This script restarts apache.
-#
-if (!$asch) {
-    Phase "getcacerts", "Getting current CA bundle", sub {
-	ExecQuietFatal("$GETCACERTS -l -p");
-    };
-    #
-    # This cron entry will autoupdate the CA/CRL certs by getting them from
-    # the CH website.
-    #
-    Phase "crontab", "Updating $CRONTAB", sub {
-	DoneIfEdited($CRONTAB);
-	AppendToFileFatal($CRONTAB,
-			  "13  4  *  *	*  root  $GETCACERTS");
-    };
-}
-else {
-    #
-    # But on the clearinghouse, we have to generate the CRL bundle for 
-    # downloading by remote sites.
-    #
-    Phase "crontab", "Updating $CRONTAB", sub {
-	DoneIfEdited($CRONTAB);
-	AppendToFileFatal($CRONTAB,
-			  "10  4  *  *  *  root  $GENCRLBUNDLE");
-    };
-}
-
-#
 # user/project that slices (experiments) belong to.
 #
 my $geniuser = User->Lookup($geniuserid);
@@ -389,11 +359,19 @@ Phase "geniuser", "Creating user $geniuserid", sub {
 
     ExecQuietFatal("$SUDO -u $PROTOUSER ".
 		   "$WAP $NEWUSER $TB/etc/protogeni/geniuser.xml");
-    ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $TBACCT verify $geniuserid");
 
     $geniuser = User->Lookup($geniuserid);
-    PhaseFail("$geniuserid did not create")
+    PhaseFail("$geniuserid did not create properly")
 	if (!defined($geniuser));
+    
+    if ($PROTOGENI_PASSWORD ne "") {
+	my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
+	my $salt = $salt_chars[rand(@salt_chars)] .
+	           $salt_chars[rand(@salt_chars)];
+	my $encpass = crypt($PROTOGENI_PASSWORD, "\$1\$${salt}");
+	$geniuser->SetPassword($encpass, "date_add(now(), interval 10 year)");
+    }
+    ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $TBACCT verify $geniuserid");
 };
 
 my $geniproj = Project->Lookup($geniprojid);
@@ -440,7 +418,9 @@ Phase "chown", "Changing ownership on dirs", sub {
 
 Phase "dbstuff", "Adding a few things to Emulab DB", sub {
     #
-    # Need this fake type for now. It would be unusual if it did not exist.
+    # Need this fake type for now.
+    #
+    # It would be unusual if this OSID did not exist.
     #
     my $osinfo = OSinfo->Lookup(TBOPSPID(), "RHL-STD");
     PhaseFail("RHL-STD does not exist")
@@ -497,6 +477,38 @@ Phase "initcerts", "Creating PG certificates", sub {
     # to call again even if certs already exist.
     ExecQuietFatal("$INITCERTS");
 };
+
+#
+# On the clients, we have to get the bundle from the CH website and
+# then break it up for xmlsec (see above). We use a script for this
+# since the clients need to do this everytime a new client is added.
+# This script restarts apache.
+#
+if (!$asch) {
+    Phase "getcacerts", "Getting current CA bundle", sub {
+	ExecQuietFatal("$GETCACERTS -l -p");
+    };
+    #
+    # This cron entry will autoupdate the CA/CRL certs by getting them from
+    # the CH website.
+    #
+    Phase "crontab", "Updating $CRONTAB", sub {
+	DoneIfEdited($CRONTAB);
+	AppendToFileFatal($CRONTAB,
+			  "13  4  *  *	*  root  $GETCACERTS");
+    };
+}
+else {
+    #
+    # But on the clearinghouse, we have to generate the CRL bundle for 
+    # downloading by remote sites.
+    #
+    Phase "crontab", "Updating $CRONTAB", sub {
+	DoneIfEdited($CRONTAB);
+	AppendToFileFatal($CRONTAB,
+			  "10  4  *  *  *  root  $GENCRLBUNDLE");
+    };
+}
 
 if (!$asch) {
     #

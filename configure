@@ -825,6 +825,8 @@ PROTOGENI_DOMAIN
 PROTOGENI_RPCPORT
 PROTOGENI_RPCNAME
 PROTOGENI_URL
+PROTOGENI_GENIRACK
+PROTOGENI_PASSWORD
 STANDALONE_CLEARINGHOUSE
 GMAP_API_KEY
 NODE_USAGE_SUPPORT
@@ -4974,6 +4976,8 @@ done
 
 
 
+
+
 #
 # Offer both versions of the email addresses that have the @ escaped
 # for perl (the default), and that don't
@@ -5065,6 +5069,8 @@ PROTOGENI_WEBSITE="www.emulab.net"
 PROTOGENI_DOMAIN="unknown"
 PROTOGENI_RPCPORT=12369
 PROTOGENI_RPCNAME=""
+PROTOGENI_GENIRACK=0
+PROTOGENI_PASSWORD=""
 STANDALONE_CLEARINGHOUSE=0
 NODE_USAGE_SUPPORT=0
 EXP_VIS_SUPPORT=0
@@ -7184,7 +7190,7 @@ fi
 #
 # Check for protogeni rspec.
 #
-if test "$PROTOGENI_SUPPORT" = "1"; then
+if test "$PROTOGENI_SUPPORT" = "1" && test $ELABINELAB = "0"; then
    if test ! -e "$srcdir/protogeni/rspec-geni/.git"; then
 	{ $as_echo "$as_me:$LINENO: WARNING: protogeni/rspec-geni submodule not intialized yet" >&5
 $as_echo "$as_me: WARNING: protogeni/rspec-geni submodule not intialized yet" >&2;};

@@ -188,7 +188,8 @@ elsif ($server eq "boss") {
 	      #
 	      'boss/dhcpd', 'boss/named', 'boss/flyspray',
 	      'boss/firstuser', 'boss/checkupuser', 'boss/wikidocs',
-	      'boss/mfs', 'boss/experiments',
+	      'boss/mfs', 'boss/images', 'boss/experiments',
+	      'boss/protogeni'
 	     );
 }
 elsif ($server eq "fs") {

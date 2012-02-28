@@ -1,0 +1,36 @@
+#
+# 
+#
+use strict;
+use libinstall;
+use installvars;
+
+my $DESCRIPTORS  = "$TOP_SRCDIR/install/descriptors-v2.xml";
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    Phase "IDs", "Setting up Image and OS ids", sub {
+	#
+	# Load the descriptors into the DB. Inside an elabinelab these are
+	# already loaded, but the script will just skip over them without
+	# raising an error.
+	#
+	Phase "descriptors", "Loading the Image and OS IDS", sub {
+	    ExecQuietFatal("cd $TOP_OBJDIR/install; ".
+			   "   $SUDO -u $PROTOUSER $WAP ".
+			   "   perl load-descriptors $DESCRIPTORS");
+	};
+	PhaseSucceed("done");
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:

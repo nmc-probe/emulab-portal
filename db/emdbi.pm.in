@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package emdbi;
@@ -557,6 +557,13 @@ sub DBQueryN($$)
 	$maxtries = 100000;
     }
 
+    # Mostly for ProtoGeni;
+    if (!defined($dbnum)) {
+	print STDERR "DB connection not setup:\n";
+	print STDERR "Query: '$query'\n";
+	return undef;
+    }
+    
     # Reconnect to mysqld in child of fork.
     if ($DB[$dbnum]->pid() != $PID) {
 	if (TBDBReconnect(1) != 0) {

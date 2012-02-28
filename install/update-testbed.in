@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2010-2011 University of Utah and the Flux Group.
+# Copyright (c) 2010-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -142,12 +142,18 @@ if ($SRCDIR =~ /^\//) {
 }
 
 my @INCDIRS = ("-I${objdir}", "-I${objdir}/../tbsetup",
-	       "-I${objdir}/../db", "-I${objdir}/../event/lib", 
+	       "-I${objdir}/../db", "-I${objdir}/../event/lib",
+	       "-I${objdir}/../clientside/lib/event", 
+	       "-I${objdir}/../clientside/lib/libtb", 
 	       "-I${abssrcdir}/tbsetup",
 	       "-I${abssrcdir}/install",
+	       "-I${abssrcdir}/clientside/lib/event",
 	       # To catch a few extra things that do not normally change.
 	       "-I@prefix@/lib"
 	       );
+if ($PGENISUPPORT) {
+    @INCDIRS = (@INCDIRS, "-I${objdir}/../protogeni/lib");
+}
 
 # Chicken or Egg.
 # XXX only set specific fields as the ns_include field may not be there yet.
