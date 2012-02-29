@@ -64,10 +64,10 @@ TBUSEDBI=1
 # Note that OrganizationalUnit is set in the cnf file.
 # CommonName is typically set to BOSSNODE and emailAddress to TBOPSEMAIL
 #
-SSLCERT_COUNTRY="US"
-SSLCERT_STATE="Utah"
-SSLCERT_LOCALITY="Salt Lake City Virtual World"
-SSLCERT_ORGNAME="Utah Network ElabInElab"
+SSLCERT_COUNTRY=changeme
+SSLCERT_STATE=changeme
+SSLCERT_LOCALITY=changeme
+SSLCERT_ORGNAME=changeme
 #
 # Network config stuff. Used to generate initial named and dhcpd config files.
 #

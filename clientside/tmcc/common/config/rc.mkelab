@@ -2961,6 +2961,38 @@ sub CreateDefsFile($)
 		    }
 		    last SWITCH;
 		};
+		/^SSLCERT_COUNTRY$/ && do {
+		    my $value = "US";
+		    if (exists($emulabconfig{"SSLCERT_COUNTRY"})) {
+			my $value = $emulabconfig{"SSLCERT_COUNTRY"};
+		    }
+		    print OUTDEFS "SSLCERT_COUNTRY=${value}\n";
+		    last SWITCH;
+		};
+		/^SSLCERT_STATE$/ && do {
+		    my $value = "Utah";
+		    if (exists($emulabconfig{"SSLCERT_STATE"})) {
+			my $value = $emulabconfig{"SSLCERT_STATE"};
+		    }
+		    print OUTDEFS "SSLCERT_STATE=${value}\n";
+		    last SWITCH;
+		};
+		/^SSLCERT_LOCALITY=$/ && do {
+		    my $value = "Salt Lake Sim City";
+		    if (exists($emulabconfig{"SSLCERT_LOCALITY"})) {
+			my $value = $emulabconfig{"SSLCERT_LOCALITY"};
+		    }
+		    print OUTDEFS "SSLCERT_LOCALITY=${value}\n";
+		    last SWITCH;
+		};
+		/^SSLCERT_ORGNAME$/ && do {
+		    my $value = "Utah Network Second Life";
+		    if (exists($emulabconfig{"SSLCERT_ORGNAME"})) {
+			my $value = $emulabconfig{"SSLCERT_ORGNAME"};
+		    }
+		    print OUTDEFS "SSLCERT_ORGNAME=${value}\n";
+		    last SWITCH;
+		};
 
 		print OUTDEFS $line;
 	    }
