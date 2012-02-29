@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -21,6 +21,7 @@ $isadmin   = ISADMIN();
 # Verify Page Arguments.
 #
 $optargs = OptionalPageArguments("showtype",   PAGEARG_STRING,
+				 "slice_uuid", PAGEARG_STRING,
 				 "index",      PAGEARG_INTEGER);
 $showtypes = array();
 
@@ -51,8 +52,17 @@ if (! $isadmin) {
 if (isset($showtypes["aggregates"])) {
     $myindex = $index;
     $dblink  = GetDBLink("cm");
-    $clause  = ($myindex ? "and idx<$myindex " : "");
+    $clause  = "";
 
+    if ($myindex) {
+	$clause = "and idx<$myindex ";
+    }
+    elseif (isset($slice_uuid)) {
+	if (!preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $slice_uuid)) {
+	    USERERROR("Invalid slice uuid", 1);
+	}
+	$clause = "and slice_uuid='$slice_uuid' ";
+    }
     $query_result =
 	DBQueryFatal("select * from aggregate_history ".
 		     "where `type`='Aggregate' $clause ".
@@ -127,8 +137,17 @@ if (isset($showtypes["aggregates"])) {
 if (isset($showtypes["tickets"])) {
     $myindex = $index;
     $dblink  = GetDBLink("cm");
-    $clause  = ($myindex ? "where idx<$myindex " : "");
+    $clause  = "";
 
+    if ($myindex) {
+	$clause = "where idx<$myindex ";
+    }
+    elseif (isset($slice_uuid)) {
+	if (!preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $slice_uuid)) {
+	    USERERROR("Invalid slice uuid", 1);
+	}
+	$clause = "where slice_uuid='$slice_uuid' ";
+    }
     $query_result =
 	DBQueryFatal("select * from ticket_history ".
 		     "$clause ".

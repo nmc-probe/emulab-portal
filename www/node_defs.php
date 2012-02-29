@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include_once("osinfo_defs.php");
@@ -1308,8 +1308,9 @@ class Node
 # Show history.
 #
 function ShowNodeHistory($node = null,
-			 $showall = 0, $count = 20, $reverse = 1) {
+			 $showall = 0, $count = 20, $reverse = 1, $date = null) {
     global $TBSUEXEC_PATH;
+    global $PROTOGENI;
     $atime = 0;
     $ftime = 0;
     $rtime = 0;
@@ -1333,6 +1334,9 @@ function ShowNodeHistory($node = null,
     }
     if ($count) {
 	    $opt .= " -n $count";
+    }
+    if ($date) {
+	$opt = " -d " . escapeshellarg($date);
     }
     if ($fp = popen("$TBSUEXEC_PATH nobody nobody ".
 		    "  webnode_history $opt $node_id", "r")) {
@@ -1358,8 +1362,11 @@ function ShowNodeHistory($node = null,
 	echo "<tr>
 	       $nodestr
                <th>Pid</th>
-               <th>Eid</th>
-               <th>Allocated By</th>
+               <th>Eid</th>";
+	if ($PROTOGENI) {
+	    echo "<th>Slice</th>";
+	}
+        echo " <th>Allocated By</th>
                <th>Allocation Date</th>
 	       <th>Duration</th>
               </tr>\n";
@@ -1400,27 +1407,46 @@ function ShowNodeHistory($node = null,
 		$durstr = sprintf("%s%ds", $durstr, $duration);
 		$uid = $results[4];
 		$pid = $results[5];
+		$slice = "--";
 		if ($pid == "FREE") {
 		    $pid = "--";
 		    $eid = "--";
 		    $uid = "--";
 		} else {
 		    $eid = $results[6];
+		    if ($results[7]) {
+			$experiment_stats = ExperimentStats::Lookup($results[7]);
+			if ($experiment_stats &&
+			    $experiment_stats->slice_uuid()) {
+			    $url = CreateURL("genihistory",
+					     "slice_uuid",
+					     $experiment_stats->slice_uuid());
+			    $slice = "<a href='$url'>" .
+				"<img src=\"greenball.gif\" border=0></a>";
+			}
+		    }
 		}
+		
 		if ($node_id == "") {
 		    echo "<tr>
                           <td>$nodeid</td>
                           <td>$pid</td>
-                          <td>$eid</td>
-                          <td>$uid</td>
+                          <td>$eid</td>";
+		    if ($PROTOGENI) {
+			echo "<td>$slice</td>";
+		    }
+                    echo "<td>$uid</td>
                           <td>$datestr</td>
                           <td>$durstr</td>
                           </tr>\n";
 		} else {
 		    echo "<tr>
                           <td>$pid</td>
-                          <td>$eid</td>
-                          <td>$uid</td>
+                          <td>$eid</td>";
+		    if ($PROTOGENI) {
+			echo "<td>$slice</td>";
+		    }
+                    echo "<td>$uid</td>
                           <td>$datestr</td>
                           <td>$durstr</td>
                           </tr>\n";

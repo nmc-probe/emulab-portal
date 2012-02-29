@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -14,7 +14,7 @@ $this_user = CheckLoginOrDie();
 $uid       = $this_user->uid();
 $isadmin   = ISADMIN();
 
-if (! ($isadmin || OPSGUY())) {
+if (! ($isadmin || OPSGUY() || STUDLY())) {
     USERERROR("Cannot view node history.", 1);
 }
 
@@ -24,6 +24,7 @@ if (! ($isadmin || OPSGUY())) {
 $optargs = OptionalPageArguments("showall",   PAGEARG_BOOLEAN,
 				 "reverse",   PAGEARG_BOOLEAN,
 				 "count",     PAGEARG_INTEGER,
+				 "datetime",  PAGEARG_STRING,
 				 "node",      PAGEARG_NODE);
 
 #
@@ -39,6 +40,9 @@ if (!isset($count)) {
 }
 if (!isset($reverse)) {
     $reverse = 1;
+}
+if (!isset($datetime)) {
+    $datetime = "";
 }
 $node_id = (isset($node) ? $node->node_id() : "");
 
@@ -80,7 +84,35 @@ if ($count != 0) {
     echo "all";
 }
 
-ShowNodeHistory((isset($node) ? $node : null), $showall, $count, $reverse);
+#
+# Spit out a date form.
+#
+if ($datetime == "") {
+    $datetime = "mm/dd/yy HH:MM";
+}
+if ($node_id != "") {
+    echo "<br>";
+    echo "<form action=shownodehistory.php3?$opts method=post>
+      <b>Show Datetime:</b> 
+      <input type=text
+             name=datetime
+             size=20
+             value=\"$datetime\">
+      <b><input type=submit name=search value=Search></b>\n";
+    echo "</form><br><br>\n";
+}
+
+if ($node_id != "" && $datetime != "" && $datetime != "mm/dd/yy HH:MM") {
+    if (strtotime($datetime)) {
+	ShowNodeHistory($node, 1, 1, 0, $datetime);
+    }
+    else {
+	USERERROR("Invalid date specified", 1);
+    }
+}
+else {
+    ShowNodeHistory((isset($node) ? $node : null), $showall, $count, $reverse);
+}
 
 #
 # Standard Testbed Footer

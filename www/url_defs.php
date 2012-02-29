@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2006-2010 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -114,6 +114,7 @@ $url_mapping["cvswebwrap"]          = "cvsweb/cvswebwrap.php3";
 $url_mapping["profile"]             = "profile.php";
 $url_mapping["submitpub"]           = "submitpub.php";
 $url_mapping["showslice"]           = "showslice.php";
+$url_mapping["genihistory"]         = "genihistory.php";
 $url_mapping["showmanifest"]        = "showmanifest.php";
 	     
 #

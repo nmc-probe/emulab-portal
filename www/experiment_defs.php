@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 #
@@ -1306,6 +1306,7 @@ class ExperimentStats
     function pid_idx()      { return $this->field('pid_idx'); }
     function gid_idx()      { return $this->field('gid_idx'); }
     function archive_idx()  { return $this->field('archive_idx'); }
+    function slice_uuid()   { return $this->field('slice_uuid'); }
 
     function Project() {
 	return Project::Lookup($this->pid_idx());

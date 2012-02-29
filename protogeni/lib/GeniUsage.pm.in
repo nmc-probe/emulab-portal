@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2009, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2009, 2010, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniUsage;
@@ -39,6 +39,7 @@ sub NewSliver($$$$)
     my $sliver_hrn     = $sliver->hrn();
     my $slice_uuid     = $slice->uuid();
     my $slice_hrn      = $slice->hrn();
+    my $exptidx        = $slice->exptidx();
     my $owner_uuid     = $owner->uuid();
     my $owner_hrn      = $owner->hrn();
     my $resource_uuid  = $sliver->resource_uuid();
@@ -55,6 +56,8 @@ sub NewSliver($$$$)
     push(@insert_data, "resource_uuid='$resource_uuid'");
     push(@insert_data, "resource_type='$resource_type'");
     push(@insert_data, "created=now()");
+    push(@insert_data, "exptidx=$exptidx")
+	if (defined($exptidx));
 
     if (defined($sliver->component_uuid())) {
 	my $component = $sliver->GetComponent();
@@ -122,6 +125,7 @@ sub NewAggregate($$$$)
     my $aggregate_type = $aggregate->type();
     my $slice_uuid     = $slice->uuid();
     my $slice_hrn      = $slice->hrn();
+    my $exptidx        = $slice->exptidx();
     my $owner_uuid     = $owner->uuid();
     my $owner_hrn      = $owner->hrn();
 
@@ -135,6 +139,8 @@ sub NewAggregate($$$$)
     push(@insert_data, "creator_uuid='$owner_uuid'");
     push(@insert_data, "creator_hrn=" . DBQuoteSpecial($owner_hrn));
     push(@insert_data, "created=now()");
+    push(@insert_data, "exptidx=$exptidx")
+	if (defined($exptidx));
 
     # Insert into DB.
     if (!DBQueryWarn("insert into aggregate_history set " .

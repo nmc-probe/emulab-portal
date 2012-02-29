@@ -938,6 +938,8 @@ CREATE TABLE `experiment_stats` (
   `archive_idx` int(10) unsigned default NULL,
   `last_error` int(10) unsigned default NULL,
   `dpdbname` varchar(64) default NULL,
+  `geniflags` int(10) unsigned default NULL,
+  `slice_uuid` varchar(40) default NULL,
   `nonlocal_id` varchar(128) default NULL,
   `nonlocal_user_id` varchar(128) default NULL,
   `nonlocal_type` tinytext,

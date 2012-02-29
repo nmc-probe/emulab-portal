@@ -1,11 +1,14 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
 use Getopt::Std;
+use Date::Parse;
+use Time::Local;
+use Math::BigInt;
 
 #
 # Drill down the node history data in the DB
@@ -48,7 +51,7 @@ sub usage {
     exit(1);
 }
 
-my $optlist = "ARS:aln:rswv";
+my $optlist = "ARS:aln:rswvd:";
 my $warnme = 0;
 my $verbose = 0;
 my $showall = 0;
@@ -57,6 +60,7 @@ my $list = 0;
 my $summary = 0;
 my $raw = 0;
 my $numrecs = 0;
+my $datetime;
 
 #
 # Sort stuff.  sortby value should correspond to record field format:
@@ -131,6 +135,10 @@ if (defined($options{"r"})) {
 if (defined($options{"s"})) {
     $summary = 1;
 }
+if (defined($options{"d"})) {
+    $datetime = timelocal(strptime($options{"d"}));
+    $summary  = 0;
+}
 if (defined($options{"w"})) {
     $warnme = 1;
 }
@@ -159,7 +167,7 @@ if (@nodes == 1) {
 my $orderby = " ORDER BY stamp ASC";
 
 my $query_result =
-    DBQueryFatal("SELECT node_id,stamp,op,uid,pid,eid ".
+    DBQueryFatal("SELECT node_id,stamp,op,uid,pid,eid,experiment_stats.exptidx ".
 		 "FROM node_history,experiment_stats ".
 		 "WHERE node_history.exptidx=experiment_stats.exptidx ".
 		 "$querymod $orderby");
@@ -169,6 +177,7 @@ my @records;
 
 while (my %row = $query_result->fetchhash()) {
     my $pideid = "$row{pid}/$row{eid}";
+    my $exptidx = $row{"exptidx"};
     my $node = $row{node_id};
     my $stamp = $row{stamp};
     my $uid = $row{uid};
@@ -178,10 +187,10 @@ while (my %row = $query_result->fetchhash()) {
     # from the epoch til now.
     #
     if (!defined($nodeinfo{$node})) {
-	$nodeinfo{$node} = [ "", $epoch, "root" ];
+	$nodeinfo{$node} = [ "", undef, $epoch, "root" ];
     }
 
-    my ($opideid, $ostamp, $ouid) = @{$nodeinfo{$node}};
+    my ($opideid, $oidx, $ostamp, $ouid) = @{$nodeinfo{$node}};
     my $elapsed = $stamp - $ostamp;
 
     #
@@ -194,7 +203,7 @@ while (my %row = $query_result->fetchhash()) {
 		if ($warnme);
 	    # XXX possibly missing state in the DB, treat as move
 	}
-	$nodeinfo{$node} = [ $pideid, $stamp, $uid ];
+	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
     }
 
     #
@@ -205,30 +214,30 @@ while (my %row = $query_result->fetchhash()) {
 	    print STDERR "$node: mismatched alloc,free records: $opideid,$pideid\n"
 		if ($warnme);
 	}
-	$nodeinfo{$node} = [ "", $stamp, $uid ];
+	$nodeinfo{$node} = [ "", undef, $stamp, $uid ];
     }
     elsif ($row{op} eq "move") {
 	if (!$raw) {
 	    # Moves from reloadpending to reloading are combined as reloading
 	    if ($opideid eq "emulab-ops/reloadpending" &&
 		$pideid eq "emulab-ops/reloading") {
-		$nodeinfo{$node} = [ $pideid, $ostamp, $ouid ];
+		$nodeinfo{$node} = [ $pideid, $exptidx, $ostamp, $ouid ];
 		next;
 	    }
 	}
-	$nodeinfo{$node} = [ $pideid, $stamp, $uid ];
+	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
     }
 
     # save off the record
-    push(@records, [ $node, $opideid, $ouid, $ostamp, $elapsed ]);
+    push(@records, [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed ]);
 }
 
 # Include the current state of nodes in a final record
 my $stamp = time();
 for $node (keys(%nodeinfo)) {
-    my ($opideid, $ostamp, $ouid) = @{$nodeinfo{$node}};
+    my ($opideid, $oidx, $ostamp, $ouid) = @{$nodeinfo{$node}};
     my $elapsed = $stamp - $ostamp;
-    push(@records, [ $node, $opideid, $ouid, $ostamp, $elapsed ]);
+    push(@records, [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed ]);
 }
 
 # Prune the list based on date range (someday)
@@ -255,7 +264,7 @@ if ($numrecs && $numrecs < $#records) {
 # and printing (if desired).
 #
 for my $rec (@records) {
-    my ($node, $pideid, $uid, $stamp, $elapsed) = @{$rec};
+    my ($node, $pideid, $exptidx, $uid, $stamp, $elapsed) = @{$rec};
 
     if (!defined($nodestats{$node})) {
 	$nodestats{$node} = [ 0, 0, 0, 0 ];
@@ -282,23 +291,58 @@ for my $rec (@records) {
 	    my $end = ctime($stamp + $elapsed);
 	    chomp($end);
 
-	    print "$node: $pideid from $start til $end ($elapsed sec)\n"
+	    if ($datetime) {
+		my $d = Math::BigInt->new($datetime);
+		my $s = Math::BigInt->new($stamp);
+		my $e = Math::BigInt->new($elapsed);
+		$e->badd($s);
+		my $c1  = $s->bcmp($d);
+		my $c2  = $e->bcmp($d);
+
+		next
+		    if ($c1 < 0 && $c2 <= 0);
+
+		if ($c1 <= 0 && $c2 > 0) {
+		    print "$node: $pideid($exptidx) from $start til $end ".
+			"($elapsed sec)\n"
+			if ($isalloced);
+		    last;
+		}
+	    }
+	    print "$node: $pideid($exptidx) from $start til $end ($elapsed sec)\n"
 		if (!$showalloconly || $isalloced);
 	} else {
 	    my ($pid, $eid);
 	    if ($pideid eq "") {
 		$pid = $eid = "<FREE>";
+		$exptidx = 0;
 	    } else {
 		($pid, $eid) = split("/", $pideid);
 	    }
-	    print "$node REC $stamp $elapsed $uid $pid $eid\n"
+	    if ($datetime) {
+		my $d = Math::BigInt->new($datetime);
+		my $s = Math::BigInt->new($stamp);
+		my $e = Math::BigInt->new($elapsed);
+		$e->badd($s);
+		my $c1  = $s->bcmp($d);
+		my $c2  = $e->bcmp($d);
+
+		next
+		    if ($c1 < 0 && $c2 <= 0);
+
+		if ($c1 <= 0 && $c2 > 0) {
+		    print "$node REC $stamp $elapsed $uid $pid $eid $exptidx\n";
+		    last;
+		}
+	    }
+	    print "$node REC $stamp $elapsed $uid $pid $eid $exptidx\n"
 		if (!$showalloconly || $isalloced);
 	}
     }
 }
 
 print scalar(@records) . " records\n"
-    if ($list && $verbose);
+    if (0 && $list && $verbose);
 
 #
 # Print out summary information
