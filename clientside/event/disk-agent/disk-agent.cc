@@ -449,7 +449,6 @@ void callback(event_handle_t handle,
 
   /* DEBUG */
   cout <<"Config file"<<endl;
-  dump_diskinfos(); 	
  
   /* Find the agent and */
   dinfo = find_agent(name);
@@ -496,7 +495,7 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 	 */
 	if(!dinfo->type || !dinfo->mountpoint) 
 	{
-		cerr << "Disk type of mountpoint not specified" <<endl;
+		cerr << "Disk type or mountpoint not specified" <<endl;
 		return 0;
 	}
 		
@@ -535,11 +534,15 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 		split		   << device_params[3];
 
 		getline(split,diskname,' ');
+		
+		if(dinfo->parameters == NULL)
+			dinfo->parameters = " ";
+
  		params_str 	= diskname + " " + "0 "+ dinfo->parameters;
 		cout << "diskname after "<<params_str<<endl;
 		params 		= const_cast<char *>(params_str.c_str());
 
-		cout <<start<<" "<<length<<" "<<target_type<<" "<<params<<endl;;	
+		cout <<"start"<<start<<" "<<"len"<<length<<" "<<"target_type"<<target_type<<" "<<params<<endl;	
 		
 		if (!dm_task_add_target(dmt, start, length, target_type, params)) {
 				dm_task_destroy(dmt);
@@ -570,6 +573,13 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 
 		/* Set properties on the new dm device */
 		string prefix = "/dev/mapper/";
+		
+		if(dinfo->name == NULL)
+		{
+			cerr << "Disk name not specified!" <<endl;
+			return 0;
+		}
+
 		string dm_disk_name = prefix + dinfo->name;
 		if (!dm_task_set_name(dmt, dinfo->name)) {
 			cout << "in task set name"<<endl;
@@ -581,6 +591,12 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 		 */
 		cout << "Creating the disk partition ..." << endl;
 		prefix =  "sudo ./mkextrafs -f ";
+		
+		if(dinfo->mountpoint == NULL)
+		{
+			cerr << "Mountpoint not specified!" << endl;
+			return 0;
+		}
 		cmd = prefix + dinfo->mountpoint;  //This returns the newly partitioned disk name
 		string disk = exec_output(cmd);           //exec_output will return the output from shell
 		if (disk == "") {
@@ -659,15 +675,8 @@ int create_dm_device(struct diskinfo *dinfo, char *args)
 	string str="";
 	int r=0;
 
-    /* Check if the required parameters for this event is supplied
-     */
-    if(!dinfo->command)
-    {
-        cerr << "Command not specified" <<endl;
-        return 0;
-    }
-
 	set_disk(dinfo, args);
+
     /* DEBUG */
     cout <<"Event CREATE"<<endl;
     dump_diskinfos();
@@ -719,22 +728,16 @@ int modify_dm_device(struct diskinfo *dinfo, char *args)
 	struct dm_task *dmt;
 	int r=0;
 
-    /* Check if the required parameters for this event is supplied
-     */
-    if(!dinfo->command)
-    {
-        cerr << "Disk type of mountpoint not specified" <<endl;
-        return 0;
-    }
-
 	set_disk(dinfo, args);
+
+
     /* DEBUG */
     cout <<"Event MODIFY"<<endl;
     dump_diskinfos();
 
 
-	if(dinfo->name == NULL || dinfo->cmdline == NULL) {
-		cout << "Diskname or cmdline is empty!" << endl;
+	if(dinfo->cmdline == NULL) {
+		cout << "Cmdline is empty!" << endl;
 		return 0;
 	}
 
@@ -1089,6 +1092,30 @@ parse_configfile(char *filename)
             strncpy(dinfo->name, value, rc);
             dinfo->name[rc] = '\0';
 
+            if ((rc = event_arg_get(buf,
+                        "COMMAND",
+                        &dinfo->cmdline)) > 0) {
+                dinfo->cmdline[strlen(dinfo->cmdline) - 1] =
+                    '\0'; // remove trailing single quote
+                /* Prepend exec to replace the 'csh' */
+                asprintf(&dinfo->cmdline,
+                     "%s",
+                     dinfo->cmdline);
+            }
+            dinfo->initial_cmdline = dinfo->cmdline;
+
+
+            if ((rc = event_arg_get(buf,
+                         "PARAMETERS",
+                         &value)) > 0) {
+				dinfo->parameters[strlen(dinfo->parameters) - 1] =
+					'\0';
+				asprintf(&dinfo->parameters,
+                     "%s",
+                     dinfo->parameters);
+            }
+            dinfo->initial_parameters = dinfo->parameters;
+
             if ((rc = event_arg_dup(buf, "DISKTYPE", &dinfo->type)) == 0) {
             	free(dinfo->type);
 				dinfo->type = NULL;			    
@@ -1101,17 +1128,6 @@ parse_configfile(char *filename)
             }
 			dinfo->initial_mountpoint = dinfo->mountpoint;
 		
-            if ((rc = event_arg_dup(buf, "PARAMETERS", &dinfo->parameters)) == 0) {
-                free(dinfo->parameters);
-                dinfo->parameters = NULL;
-            }
-			dinfo->initial_parameters = dinfo->parameters;
-			
-            if ((rc = event_arg_dup(buf, "COMMAND", &dinfo->cmdline)) == 0) {
-				free(dinfo->cmdline);
-				dinfo->cmdline = NULL;
-            }
-			dinfo->initial_cmdline = dinfo->cmdline;			
 
 			dinfo->next = diskinfos;
 			diskinfos   = dinfo;
@@ -1166,10 +1182,12 @@ set_disk(struct diskinfo *dinfo, char *args)
         }
         if ((rc = event_arg_dup(args, "DISKTYPE", &value)) >= 0) {
 			cout << "DISKTYPE "<<value<<endl;
+			#if 0
             if (dinfo->type != NULL) {
                 if (dinfo->type != dinfo->initial_type)
                     free(dinfo->type);
             }
+			#endif
 			if(rc == 0) {
 				dinfo->type = NULL;
 				free(value);
@@ -1183,10 +1201,13 @@ set_disk(struct diskinfo *dinfo, char *args)
 			value = NULL;
 		}
         if ((rc = event_arg_dup(args, "MOUNTPOINT", &value)) >= 0) {
+			cout << "MOUNTPOINT "<<value<<endl;
+			#if 0
             if (dinfo->mountpoint != NULL) {
                 if (dinfo->mountpoint != dinfo->initial_mountpoint)
                     free(dinfo->mountpoint);
             }
+			#endif
             if(rc == 0) {
                 dinfo->mountpoint = NULL;
                 free(value);
@@ -1199,12 +1220,14 @@ set_disk(struct diskinfo *dinfo, char *args)
             }
             value = NULL;
         }
-        if ((rc = event_arg_dup(args, "PARAMETERS", &value)) >= 0) {
-			cout << "TYPE "<<value<<endl;
-            if (dinfo->parameters != NULL) {
+	    if ((rc = event_arg_get(args, "PARAMETERS", &value)) > 0) {
+			cout << "PARAMETERS" <<value<<endl;
+			#if 0
+			if (dinfo->parameters != NULL) {
                 if (dinfo->parameters != dinfo->initial_parameters)
                     free(dinfo->parameters);
             }
+			#endif
             if(rc == 0) {
                 dinfo->parameters = NULL;
                 free(value);
@@ -1215,9 +1238,16 @@ set_disk(struct diskinfo *dinfo, char *args)
             else {
                 assert(0);
             }
+            /*
+             * XXX event_arg_get will return a pointer beyond
+             * any initial quote character.  We need to back the
+             * pointer up if that is the case.
+             */
+            if (value[-1] == '\'' || value[-1] == '{')
+                value--;
+            asprintf(&dinfo->parameters, "%s", value);
             value = NULL;
-        }				
-		
+        }
 	}
 }
 
