@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -160,6 +160,10 @@ my %xmlfields =
      # OS and Image ID's, referenced by their integer index.
      "attr_integer_*_osid"   => ["attr_osid",	$SLOT_OPTIONAL],
      "attr_integer_*_imageid"=> ["attr_imageid",$SLOT_OPTIONAL],
+
+     # OS and Image ID's, referenced by their pid,name 
+     "attr_string_*_osid"   => ["attr_string",	$SLOT_OPTIONAL],
+     "attr_string_*_imageid"=> ["attr_string", $SLOT_OPTIONAL],
 
      # The name of a single attribute to add to the list.
      "new_attr"		=> ["attr_name",	$SLOT_OPTIONAL],
@@ -376,21 +380,38 @@ if (my $new_attr = exists($editnodetype_args{'new_attr'})) {
 	if (exists($prev_attrs->{$new_attr_name}));
 }
 
+my %osids     = ();
+my %mfsosids  = ();
+my %osidmap   = ();
+my %imageids  = ();
+my %imagemap  = ();
+
 # Get lists of ids for checking the special "attr_*_*id" attributes.
 $query_result =
     DBQueryFatal("select osid,osname,pid from os_info ".
 		 "where (path='' or path is NULL) ".
 		 "order by pid,osname");
-my $osids = $query_result->fetchall_hashref("osid");
+while (my ($osid,$osname,$pid) = $query_result->fetchrow_array()) {
+    $osids{$osid} = "$pid,$osname";
+    $osidmap{"$pid,$osname"} = $osid;
+}
+    
 $query_result =
     DBQueryFatal("select osid,osname,pid from os_info ".
 		 "where (path is not NULL and path!='') ".
 		 "order by pid,osname");
-my $mfsosids = $query_result->fetchall_hashref("osid");
+while (my ($osid,$osname,$pid) = $query_result->fetchrow_array()) {
+    $mfsosids{$osid} = "$pid,$osname";
+    $osidmap{"$pid,$osname"} = $osid;
+}
+
 $query_result =
     DBQueryFatal("select imageid,imagename,pid from images ".
 		 "order by pid,imagename");
-my $imageids = $query_result->fetchall_hashref("imageid");
+while (my ($imageid,$imagename,$pid) = $query_result->fetchrow_array()) {
+    $imageids{$imageid} = "$pid,$imagename";
+    $imagemap{"$pid,$imagename"} = $imageid;
+}
 
 # Separate out the attr types and names from the other argument keys.
 my ($attr_name, $attr_type, $attr_value);
@@ -447,26 +468,73 @@ foreach $attr_name (@attr_names) {
     # Check the osid and imageid attribute values against the id lists.
     # Under the web page interface, these come to us from selectors.
     if ($attr_type eq "osid") {
+	if ($attr_value =~ /^([^,]+),([^,]+)$/) {
+	    if (!exists($osidmap{"$1,$2"})) {
+		UserError("NodeType OSID Attr: $attr_name is not an osid.")
+	    }
+	    my $new_attr_value = $osidmap{"$1,$2"};
+	    print STDERR "Mapping $attr_name: $attr_value -> $new_attr_value\n"
+		if ($debug);
+	    
+	    $attr_value = $new_attr_value;
+	    $attr_values{$attr_name} = $attr_value;
+	}
+	elsif (! ($attr_value =~ /^(\d*)$/)) {
+	    UserError("Invalid osid value for $attr_name");
+	}
 	if ($attr_name =~ /mfs/) {
 	    UserError("NodeType MFS OSID Attr: $attr_name is not an mfs_osid.")
-		if (!exists($mfsosids->{$attr_value}));
+		if (!exists($mfsosids{$attr_value}));
 	}
 	else {
 	    UserError("NodeType OSID Attr: $attr_name is not an osid.")
-		if (!exists($osids->{$attr_value}));
+		if (!exists($osids{$attr_value}));
 	}
 	$attr_types{$attr_name} = "integer"; # An idx is an integer attr.
     }
     elsif ($attr_type eq "imageid") {
+	if ($attr_value =~ /^([^,]+),([^,]+)$/) {
+	    if (!exists($imagemap{"$1,$2"})) {
+		UserError("NodeType Image ID Attr: $attr_name is not an imageid.")
+	    }
+	    my $new_attr_value = $imagemap{"$1,$2"};
+	    print STDERR "Mapping $attr_name: $attr_value -> $new_attr_value\n"
+		if ($debug);
+
+	    $attr_value = $new_attr_value;
+	    $attr_values{$attr_name} = $attr_value;
+	}
+	elsif (! ($attr_value =~ /^(\d*)$/)) {
+	    UserError("Invalid image id value for $attr_name");
+	}
+	
 	UserError("NodeType Image ID Attr: $attr_name is not an imageid.")
-	    if (!exists($imageids->{$attr_value}));
+	    if (!exists($imageids{$attr_value}));
 	$attr_types{$attr_name} = "integer"; # An idx is an integer attr.
     }
     elsif ($attr_type eq "imageids") {
+	my @newvals = ();
+	    
 	foreach my $k (split /,/, $attr_value) {
-	    UserError("NodeType Image ID Attr: $attr_name contains an invalid imageid.")
-		if (!exists($imageids->{$k}));
+	    if ($k =~ /^([^:]+):([^:]+)$/) {
+		if (!exists($imagemap{"$1,$2"})) {
+		    UserError("NodeType Image ID Attr: $attr_name is not an imageid.")
+		}
+		my $new_k = $imagemap{"$1,$2"};
+		print STDERR "Mapping $attr_name: $attr_value -> $new_k\n"
+		    if ($debug);
+		$k = $new_k;
+	    }
+	    elsif (! ($k =~ /^(\d*)$/)) {
+		UserError("Invalid image id value for $attr_name");
+	    }
+	    push(@newvals, $k);
+	    
+	    UserError("NodeType Image ID Attr: ".
+		      "$attr_name contains an invalid imageid.")
+		if (!exists($imageids{$k}));
 	}
+	$attr_values{$attr_name} = join(",", @newvals);
 	$attr_types{$attr_name} = "string"; # really a comma seperated list
     }
 }
