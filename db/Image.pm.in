@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2007-2011 University of Utah and the Flux Group.
+# Copyright (c) 2007-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Image;
@@ -134,6 +134,7 @@ sub global($)           { return field($_[0], "global"); }
 sub updated($)          { return field($_[0], "updated"); }
 sub mbr_version($)      { return field($_[0], "mbr_version"); }
 sub access_key($)       { return field($_[0], "access_key"); }
+sub uuid($)             { return field($_[0], "uuid"); }
 
 #
 # Get a list of all running frisbee images.
@@ -293,35 +294,21 @@ sub Create($$$$$$$$)
 	# Lock tables unlocks previous locks as a side-effect.
 	DBQueryWarn("lock tables osidtoimageid write, images write, ".
 		    "nodes as n write, node_type_attributes as a write");
-	#
-	# Need a list of node types. We join this over the nodes table so that
-	# we get a list of just the nodes that are currently in the testbed, not
-	# just in the node_types table.
-	#
-	my $types_result =
-	    DBQueryWarn("select distinct n.type from nodes as n ".
-			 "left join node_type_attributes as a on a.type=n.type ".
-			 "where a.attrkey='imageable' and ".
-			 "      a.attrvalue!='0'");
-	my @mtypes_array;
-	my @map_updates;
-	while (my ($type) = $types_result->fetchrow_array()) {
-	    push(@mtypes_array, $type);
 
-	    # Remember when we get one of the mtype_$type args.  These aren't DB
-	    # columns to update, but instead control re-creating the rows in the
-	    # osidtoimageid table for this imageid, below.
-	    my $mtype = "mtype_$type";
-	    if (exists($argref->{$mtype})) {
-		my $value = $argref->{$mtype};
-		##printf "argref->{$mtype} %s\n", $value;
-		if ($value eq "1") {
-		    push(@map_updates, $type);
-		}
+	#
+	# Dig out the mtypes we want to turn on. The caller has already
+	# sanity checked them to make sure the types actually exist, and
+	# that there are nodes matching that type.
+	#
+	my @map_updates = ();
+	foreach my $key (grep(/^mtype_/, keys(%{$argref}))) {
+	    if ($argref->{$key} eq "1") {
+		$key =~ s/^mtype_//;
+		push(@map_updates, $key);
 	    }
 	}
 
-	my @osid_array;
+	my @osid_array = ();
 	for (my $i = 1; $i <= 4; $i++) {
 	    my $foo = $image->field("part${i}_osid");
 	    if (defined($foo)) {
