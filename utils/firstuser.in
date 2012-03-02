@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 #
@@ -217,6 +217,17 @@ if (!defined($opts{u})) {
 		 "   gid_idx=$pid_idx, gid_uuid='$gid_uuid'");
 
     DBQueryFatal("replace into emulab_indicies set name='next_gid',idx=10000");
+
+    #
+    # Do this, cause after mkproj below, the extra groups are going to
+    # be removed. 
+    #
+    DBQueryFatal("insert into unixgroup_membership set ".
+		 " uid='$protouser', uid_idx='$uid', gid='$tbadmin' ");
+    DBQueryFatal("insert into unixgroup_membership set ".
+		 " uid='$protouser', uid_idx='$uid', gid='wheel' ");
+    DBQueryFatal("insert into unixgroup_membership set ".
+		 " uid='$protouser', uid_idx='$uid', gid='mysql' ");
 }
 
 # Flip UID to the new user so that the mk* scripts are happy - they can't
