@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2008, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -328,11 +328,6 @@ else {
     @mtypes_array = ("pc");
     $xmlfields{"mtype_pc"} = ["mtype", $SLOT_OPTIONAL];
 }
-
-while (my ($type) = $types_result->fetchrow_array()) {
-    push(@mtypes_array, $type);
-    $xmlfields{"mtype_$type"} = ["mtype", $SLOT_OPTIONAL];
-}
 ## printf "%s mtypes\n", $#mtypes_array + 1;
 ## foreach my $x (@mtypes_array) { printf "%s\n", $x; }
 ## print "\n";
@@ -396,11 +391,13 @@ for (my $i = 1; $i <= 4; $i++) {
 		    if (!$isadmin);
 		delete($newimageid_args{$foo});
 	    }
-	    elsif (!OSinfo->Lookup($thisosid)) {
-		UserError("Partition $i OS: No such OS defined");
+	    # Allow for pid,osname and osid
+	    elsif (my $osinfo = OSinfo->Lookup($thisosid)) {
+		push(@osid_array, $osinfo->osid());
+		$newimageid_args{$foo} = $osinfo->osid();
 	    }
 	    else {
-		push(@osid_array, $thisosid);
+		UserError("Partition $i OS: No such OS defined");
 	    }
 	}
     }
@@ -417,12 +414,15 @@ if (!exists($newimageid_args{"default_osid"}) ||
     $newimageid_args{"default_osid"} eq "none") {
     UserError("Boot OS: Not Selected");
 }
-elsif (!OSinfo->Lookup($newimageid_args{"default_osid"})) {
-    UserError("Boot OS: No such OS defined");
-}
-else {
+# allow for pid,osname and osid
+elsif (my $osinfo = OSinfo->Lookup($newimageid_args{"default_osid"})) {
+    $newimageid_args{"default_osid"} = $osinfo->osid();
+    
     UserError("Boot OS: Invalid; Must be one of the partitions")
 	if (!grep($_ eq $newimageid_args{"default_osid"}, @osid_array));
+}
+else {
+    UserError("Boot OS: No such OS defined");
 }
 
 #
