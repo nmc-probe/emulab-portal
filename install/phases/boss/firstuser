@@ -50,6 +50,11 @@ sub Install($$$)
 			   "  where uid=\"$PROTOUSER\"' | $MYSQL -s $DBNAME");
 	    ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $TBACCT -b thaw $PROTOUSER");
 	};
+
+	#
+	# Note that account/tbacct has a special case for the protouser;
+	# the initial unencrypted keys are not created, so this check works.
+	#
 	Phase "DSAKey", "Adding DSA key to $PROTOUSER account", sub {
 	    my ($exitval, @rows) =
 		ExecQuiet("echo 'select * from user_pubkeys ".
