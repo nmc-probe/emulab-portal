@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -15,13 +15,14 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print("Usage: newimageid [-v] <xmlfile>\n");
+    print("Usage: newimageid [-v] [-a] <xmlfile>\n");
     exit(-1);
 }
-my $optlist = "dvf";
+my $optlist = "dvfa";
 my $debug   = 0;
 my $force   = 0;
-my $verify  = 0;	# Check data and return status only. 
+my $verify  = 0;	# Check data and return status only.
+my $allpc   = 0;        # insert mappings for all pc types. 
 
 #
 # Configure variables
@@ -76,6 +77,9 @@ if (defined($options{"f"})) {
 }
 if (defined($options{"v"})) {
     $verify = 1;
+}
+if (defined($options{"a"})) {
+    $allpc = 1;
 }
 if (@ARGV != 1) {
     usage();
@@ -309,33 +313,37 @@ if (exists($newimageid_args{"nodetype"}) &&
 # we get a list of just the nodes that are currently in the testbed, not
 # just in the node_types table.  Limit by class if given.
 #
-my $types_querystring = "select distinct n.type from nodes as n ".
-    "left join node_types as nt on n.type=nt.type ".
-    "left join node_type_attributes as a on a.type=n.type ".
-    "where a.attrkey='imageable' and ".
-    "      a.attrvalue!='0' and n.role='testnode'";
+my $types_querystring;
+if ($allpc) {
+    $types_querystring = "select nt.type,nt.class from node_types as nt ".
+	"left join node_type_attributes as a on a.type=nt.type ".
+	"where a.attrkey='imageable' and a.attrvalue!='0'";
+}
+else {
+    $types_querystring = "select distinct n.type,nt.class from nodes as n ".
+	"left join node_types as nt on n.type=nt.type ".
+	"left join node_type_attributes as a on a.type=n.type ".
+	"where a.attrkey='imageable' and ".
+	"      a.attrvalue!='0' and n.role='testnode'";
+}
 if ($nodeclass) {
     $types_querystring .= " and nt.class='$nodeclass' ";
 }
 my $types_result = DBQueryFatal($types_querystring);
 
 # Save the valid types in a new array for later.
-my @mtypes_array;
+my %mtypes_array;
 
 if ($types_result->numrows) {
-    while (my ($type) = $types_result->fetchrow_array()) {
-	push(@mtypes_array, $type);
+    while (my ($type,$class) = $types_result->fetchrow_array()) {
+	$mtypes_array{$type} = $class;
 	$xmlfields{"mtype_$type"} = ["mtype", $SLOT_OPTIONAL];
     }
 }
 else {
-    @mtypes_array = ("pc");
+    $mtypes_array{"pc"} = "pc";
     $xmlfields{"mtype_pc"} = ["mtype", $SLOT_OPTIONAL];
 }
-
-## printf "%s mtypes\n", $#mtypes_array + 1;
-## foreach my $x (@mtypes_array) { printf "%s\n", $x; }
-## print "\n";
 
 #
 # Now do special checks.
@@ -479,11 +487,10 @@ if (!exists($newimageid_args{"mbr_version"}) && defined($node_id)) {
 # See what node types this image will work on. Must be at least one!
 #
 UserError("Node Types: Must have at least one node type")
-    if ($#mtypes_array < 0);
-my $typeclause = join(" or ", map("type='$_'", @mtypes_array));
+    if (!keys(%mtypes_array));
+my $node_types_selected = 0;
 
 # Check validity of mtype_* args, since the keys are dynamically generated.
-my $node_types_selected = 0;
 my @mtype_keys = grep(/^mtype_/, keys(%newimageid_args));
 foreach $key (@mtype_keys) {
     my $value = $newimageid_args{$key};
@@ -492,7 +499,7 @@ foreach $key (@mtype_keys) {
 
     my $type = $key;
     $type =~ s/^mtype_//;
-    my $match = grep(/^${type}$/, @mtypes_array);
+    my $match = grep(/^${type}$/, keys(%mtypes_array));
     if ($match == 0) {
 	$errors{$key} = "Illegal node type."
     }
@@ -500,6 +507,21 @@ foreach $key (@mtype_keys) {
 	$node_types_selected++;
     }
 }
+#
+# When -a specified, add mappings for all pc types, does not matter if
+# there are nodes of that type. Skip the stub pc/pc entry though.
+#
+if ($allpc) {
+    foreach my $type (keys(%mtypes_array)) {
+	my $class = $mtypes_array{$type};
+	next
+	    if ($class ne "pc" || $type eq $class);
+
+	$newimageid_args{"mtype_${type}"} = "1";
+	$node_types_selected++;
+    }
+}
+
 UserError("Node Types: Must select at least one node type")
     if ($node_types_selected == 0 && !$force);
 
