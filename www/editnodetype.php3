@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -754,7 +754,7 @@ function SetNodeType($node_type, $args, &$errors) {
 
     # Unlink this here, so that the file is left behind in case of error.
     # We can then create the nodetype by hand from the xmlfile, if desired.
-    unlink($xmlname);
+    #unlink($xmlname);
     return true;
 }
 
