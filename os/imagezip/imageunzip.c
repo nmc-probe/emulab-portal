@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -31,9 +31,6 @@
 #include "checksum.h"
 #ifndef NOTHREADS
 #include <pthread.h>
-#endif
-#ifndef WITH_CRYPTO
-#include <sha.h>
 #endif
 
 /*
