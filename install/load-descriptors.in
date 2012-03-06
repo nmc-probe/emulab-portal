@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2007-2010 University of Utah and the Flux Group.
+# Copyright (c) 2007-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -16,12 +16,13 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print STDOUT "Usage: load-descriptors [-f] filename\n";
+    print STDOUT "Usage: load-descriptors [-f] [-a] filename\n";
     exit(-1);
 }
-my $optlist = "df";
+my $optlist = "dfa";
 my $force   = 0;
 my $debug   = 0;
+my $alltypes= 0;
 
 #
 # These are the OSIDs that are used to populate the osidtoimageid table
@@ -83,6 +84,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"a"})) {
+    $alltypes = 1;
 }
 if (defined($options{"f"})) {
     $force = 1;
@@ -181,7 +185,7 @@ foreach my $osname (keys(%osinfos)) {
 foreach my $imagename (keys(%images)) {
     my ($xmlparse, $string) = @{ $images{$imagename} };
     my $ezid  = exists($xmlparse->{'attribute'}->{"OS"});
-    my $which = ($ezid ? $NEWIMAGE_EZ : $NEWIMAGE);
+    my $which = ($ezid ? "$NEWIMAGE_EZ -a " : $NEWIMAGE);
 
     next
 	if (! $ezid);
