@@ -42,7 +42,6 @@
 /* Top level links, no dropdowns. */
 .menu ul li.toplevel a {
         color: #FFF;
-	text-decoration:underline;
 }
 
 .menu li,
