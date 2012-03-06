@@ -53,9 +53,22 @@ $frisbee_mfs = OSinfo::LookupByName($emulab_ops,"FRISBEE-MFS");
 
 # The default image comes from a site variable to avoid hardwiring here.
 $default_imagename = TBGetSiteVar("general/default_imagename");
-$default_image = Image::LookupByName($emulab_ops, $default_imagename);
 
-if ($freebsd_mfs == null || $default_image == null ||
+# And is now a comma separated list for multi image load.
+$default_imageids = preg_split('/,/', $default_imagename);
+
+for ($i = 0; $i != count($default_imageids); $i++) {
+    $image = Image::LookupByName($emulab_ops, $default_imageids[$i]);
+    if ($image == null) {
+	PAGEERROR("You must add images from Utah into your database" .
+		  " before adding a nodetype. ".
+		  "See installation documentation for details!",1);
+    }
+    $default_imageids[$i] = $image->imageid();
+}
+$default_imagename = join(',', $default_imageids);
+
+if ($freebsd_mfs == null || 
     $rhl_std == null || $fbsd_std == null || $frisbee_mfs == null) {
     PAGEERROR("You must add images from Utah into your database" .
               " before adding a nodetype. ".
@@ -82,7 +95,7 @@ $initial_attributes = array(
     array("attrkey" => "control_network", "attrvalue" => "X",
 	  "attrtype" => "integer"),
     array("attrkey" => "default_imageid",
-	  "attrvalue" => $default_image->imageid(),
+	  "attrvalue" => $default_imagename,
 	  "attrtype" => "string"),
     array("attrkey" => "default_osid", "attrvalue" => $rhl_std->osid(),
 	  "attrtype" => "integer"),
