@@ -57,6 +57,11 @@ my $vnodeid = $ARGV[0];
 my $path    = $ARGV[1];
 my $XMINFO  = "$path/xm.conf";
 
+if (! -e $IMAGEUNZIP) {
+    $IMAGEUNZIP  = "/usr/local/bin/imageunzip";
+    $IMAGEDUMP   = "/usr/local/bin/imagedump";
+}
+
 #
 # We need this file to figure out the disk info.
 #
