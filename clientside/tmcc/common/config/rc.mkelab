@@ -2640,7 +2640,8 @@ sub CreateDefsFile($)
     my $fsnode_hostname    = $emulabconfig{"FSNODE"};
     my $ourdomain	   = $domain;
     my $thishomebase       = "MyEmulab.Net";
-
+    my $cookiesuffix       = $eid;
+    
     #
     # The control network netmask differs if using a single control network. 
     #
@@ -2651,7 +2652,7 @@ sub CreateDefsFile($)
     #
     # Ug.
     #
-    if ($emulabconfig{"CONFIG_SINGLECNET"}) {
+    if ($emulabconfig{"CONFIG_GENIRACK"}) {
 	$bossnode_ip        = $emulabconfig{"GENIRACK_BOSSIP"};
 	$opsnode_ip         = $emulabconfig{"GENIRACK_OPSIP"};
 	$fsnode_ip          = $opsnode_ip;
@@ -2662,6 +2663,8 @@ sub CreateDefsFile($)
 	$fsnode_hostname    = "ops";
 	$ourdomain	    = $emulabconfig{"GENIRACK_DOMAIN"};
 	$thishomebase       = $emulabconfig{"GENIRACK_HOMEBASE"}
+	    if (defined($emulabconfig{"GENIRACK_HOMEBASE"}));
+	$cookiesuffix       = $emulabconfig{"GENIRACK_HOMEBASE"}
 	    if (defined($emulabconfig{"GENIRACK_HOMEBASE"}));
     }
     
@@ -2839,7 +2842,7 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^TBCOOKIESUFFIX$/ && do {
-		    print OUTDEFS "TBCOOKIESUFFIX=\"$eid\"\n";
+		    print OUTDEFS "TBCOOKIESUFFIX=\"$cookiesuffix\"\n";
 		    last SWITCH;
 		};
 
@@ -3003,6 +3006,7 @@ sub CreateDefsFile($)
     }
     if ($emulabconfig{"CONFIG_PROTOGENI"} ||
 	$emulabconfig{"CONFIG_GENIRACK"}) {
+	my $config_genirack  = $emulabconfig{"CONFIG_GENIRACK"};
 	my $protogeni_domain = lc($thishomebase);
 	if (defined($emulabconfig{"GENIRACK_HOMEBASE"})) {
 	    $protogeni_domain = lc($emulabconfig{"GENIRACK_HOMEBASE"});
@@ -3012,7 +3016,7 @@ sub CreateDefsFile($)
 	    $protogeni_gmocpswd = lc($emulabconfig{"PROTOGENI_PASSWORD"});
 	}
 	print OUTDEFS "PROTOGENI_SUPPORT=1\n";
-	print OUTDEFS "PROTOGENI_GENIRACK=1\n";
+	print OUTDEFS "PROTOGENI_GENIRACK=$config_genirack\n";
 	print OUTDEFS "PROTOGENI_DOMAIN=\"$protogeni_domain\"\n";
 	print OUTDEFS "PROTOGENI_PASSWORD=\"$protogeni_password\"\n";
     }
