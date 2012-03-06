@@ -804,7 +804,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
     global $BASEPATH, $TBMAINSITE, $THISHOMEBASE, $ELABINELAB, $FANCYBANNER;
     global $TBDIR, $WWW;
     global $MAINPAGE;
-    global $TBDOCBASE;
+    global $TBDOCBASE, $GENIRACK;
     global $autorefresh, $currentusage, $javascript_debug, $login_user;
 
     $MAINPAGE = !strcmp($TBDIR, "/usr/testbed/");
@@ -913,9 +913,11 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 	    echo "<a id='topcellimage' href='$TBDOCBASE/index.php3'>";
 	    echo "<img border='0' ";
 	    echo "alt='$THISHOMEBASE - the network testbed' ";
-	    if ($FANCYBANNER)
+	    if ($FANCYBANNER) {
 		echo "src='$BASEPATH/fancy-sheader-" .
-		    strtolower($THISHOMEBASE) . ".png' ";
+		    ($GENIRACK ? "genirack" : strtolower($THISHOMEBASE)) .
+		    ".png' ";
+	    }
 	    elseif ($ELABINELAB) {
 		echo "height='54' ";
 		echo "src='$BASEPATH/overlay.elabinelab.gif' ";
@@ -933,7 +935,8 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 		echo "<a href='$TBDOCBASE/index.php3'>
                         <img height='100px' width='365px' border='0' ";
 		echo "src='$BASEPATH/fancy-header-" .
-			strtolower($THISHOMEBASE) . ".png' ";
+		    ($GENIRACK ? "genirack" : strtolower($THISHOMEBASE)) .
+		    ".png' ";
 		echo "></a>\n";
 	    }
 	    else {
@@ -1573,7 +1576,7 @@ class menuBar
 			$mouseover =
 			    "onmouseover=\"return escape('$string')\"";
 		    }
-		    echo "<li class=toplevel><a $mouseover href=\"$link\">$text</a></li>\n";
+		    echo "<ul><li class=toplevel><a $mouseover href=\"$link\">$text</a></li></ul>\n";
 		}
 	    }
 	    else {
