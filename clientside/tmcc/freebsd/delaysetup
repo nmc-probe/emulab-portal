@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -125,11 +125,15 @@ elsif ($FBSD_VERSION == 5) {
     $KERNELJAIL  = "/boot/kernel.linkdelay/kernel";
     $KERNELLDELAY= "/boot/kernel.linkdelay/kernel";
 }
-else {
-    # for 6.x and above, we use the same kernel for all.
+elsif ($FBSD_VERSION < 8) {
+    # for 6.x and 7.x, we use the same kernel for all.
     # XXX ok not quite yet til we characterize the effect of polling.
     $KERNELDELAY = "/boot/kernel.poll/kernel";
     $KERNELJAIL = $KERNELLDELAY = "/boot/kernel/kernel";
+}
+else {
+    # for 8.x and above, we really do use the same kernel for all.
+    $KERNELDELAY = $KERNELJAIL = $KERNELLDELAY = "/boot/kernel/kernel";
 }
 
 # for all kernels right now
