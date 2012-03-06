@@ -57,6 +57,10 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 #
 $| = 1;
 
+#
+# Late in the process we want to load modules after they are installed.
+#
+use lib "@prefix@/lib";
 use libinstall;
 use installvars;
 
