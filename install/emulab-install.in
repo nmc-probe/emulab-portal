@@ -58,9 +58,25 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 $| = 1;
 
 #
-# Late in the process we want to load modules after they are installed.
+# We want to use modules late in the install process. 
 #
-use lib "@prefix@/lib";
+BEGIN
+{
+    if (-e "../Makeconf") {
+	my $srcdir = "@top_srcdir@";
+	my $objdir = `/bin/pwd`;
+	chomp($objdir);
+	unshift(@INC, "$objdir/../db");
+	if ($srcdir =~ /^\//) {
+	    unshift(@INC, "$srcdir/install");
+	    unshift(@INC, "$srcdir/tbsetup");
+	} else {
+	    unshift(@INC, "$objdir/$srcdir/install");
+	    unshift(@INC, "$objdir/$srcdir/tbsetup");
+	}
+	unshift(@INC, "$objdir/../tbsetup");
+    }
+}
 use libinstall;
 use installvars;
 
