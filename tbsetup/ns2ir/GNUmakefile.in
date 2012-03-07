@@ -15,12 +15,13 @@ SUBDIR		= tbsetup/ns2ir
 include $(OBJDIR)/Makeconf
 
 LIB_STUFF    = lanlink.tcl node.tcl sim.tcl tb_compat.tcl null.tcl \
-  			   nsobject.tcl traffic.tcl vtype.tcl parse.tcl program.tcl \
-			   nsenode.tcl nstb_compat.tcl event.tcl firewall.tcl \
-			   elabinelab.ns elabinelab-withfsnode.ns elabinelab-opsvm.ns \
-			   fw.ns timeline.tcl sequence.tcl \
-			   topography.tcl console.tcl path.tcl \
-			   disk.tcl custom.tcl 
+		nsobject.tcl traffic.tcl vtype.tcl parse.tcl program.tcl \
+		nsenode.tcl nstb_compat.tcl event.tcl firewall.tcl \
+		elabinelab.ns elabinelab-withfsnode.ns elabinelab-opsvm.ns \
+		fw.ns timeline.tcl sequence.tcl \
+		topography.tcl console.tcl path.tcl \
+		disk.tcl custom.tcl elabinelab-xen.ns
+
 BOSSLIBEXEC  = parse-ns
 USERLIBEXEC  = parse.proxy
 
