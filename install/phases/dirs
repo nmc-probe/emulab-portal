@@ -13,7 +13,7 @@ sub Install($$$)
     return 0
 	if ($isupdate);
 
-    my @TESTBED_DIRS = ([$PREFIX, "0775"]);
+    my @TESTBED_DIRS = ([$PREFIX, "0775"],["$PREFIX/etc", "0755"]);
     if ($server eq $OPS_SERVERNAME || $server eq $FS_SERVERNAME) {
 	push(@TESTBED_DIRS, ([$USERROOT, "0755"],
 			     [$PROJROOT, "0755"],
