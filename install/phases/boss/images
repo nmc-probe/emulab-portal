@@ -5,7 +5,11 @@ use strict;
 use libinstall;
 use installvars;
 
-my $DESCRIPTORS  = "$TOP_SRCDIR/install/descriptors-v2.xml";
+my $UTAHURL       = "http://www.emulab.net/downloads";
+my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-v3.xml";
+my @STDIMAGES     = ("FBSD73-STD", "FEDORA10-STD");
+my @MBRS          = ("emulab-mbr.dd", "emulab-mbr2.dd");
+my $STDIMAGESURL  = "$UTAHURL/images-STD";
 
 sub Install($$$)
 {
@@ -15,18 +19,45 @@ sub Install($$$)
     return 0
 	if ($isupdate);
 
-    Phase "IDs", "Setting up Image and OS ids", sub {
+    Phase "IDs", "Setting up Images and OSs", sub {
 	#
-	# Load the descriptors into the DB. Inside an elabinelab these are
-	# already loaded, but the script will just skip over them without
-	# raising an error.
+	# Load up the initial descriptors. 
+	# Load up the images from boss.
 	#
 	Phase "descriptors", "Loading the Image and OS IDS", sub {
 	    ExecQuietFatal("cd $TOP_OBJDIR/install; ".
 			   "   $SUDO -u $PROTOUSER $WAP ".
-			   "   perl load-descriptors $DESCRIPTORS");
+			   "   perl load-descriptors -a $DESCRIPTORS");
 	};
-	PhaseSucceed("done");
+	foreach my $imagename (@STDIMAGES) {
+	    my $localfile = "$PREFIX/images/${imagename}.ndz";
+	    my $url       = "$STDIMAGESURL/${imagename}.ndz";
+	    
+	    Phase "$imagename", "Fetching $imagename. Patience!", sub {
+		DoneIfExists($localfile);
+		FetchFileFatal($url, $localfile);
+	    };
+	}
+	foreach my $mbr (@MBRS) {
+	    my $localfile = "$PREFIX/images/$mbr";
+	    my $url       = "$UTAHURL/$mbr";
+	    
+	    Phase "$mbr", "Fetching $mbr.", sub {
+		DoneIfExists($localfile);
+		FetchFileFatal($url, $localfile);
+	    };
+	}
+	#
+	# The sitevar is how the reload daemon knows what to reload nodes
+	# with, by default. Now a comma separated list.
+	#
+	my $idlist = join(",", @STDIMAGES);
+	
+	Phase "sitevar", "Setting sitevar $DEFAULTIMAGESITEVAR", sub {
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "'$DEFAULTIMAGESITEVAR' '$idlist'");
+	};
+	PhaseSucceed("done")
     };
     return 0;
 }
