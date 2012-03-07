@@ -785,6 +785,13 @@ sub PrintLastOutput() {
     print "--------------------------------------------------------------\n";
 }
 
+sub LastOutput() {
+    if (!$libinstall::lastCommand) {
+	return ();
+    }
+    return @libinstall::lastExecOutput;
+}
+
 #
 # Get me a secret
 #
