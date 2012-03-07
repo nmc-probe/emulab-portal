@@ -10,6 +10,7 @@ my $MFSURL	    = "http://www.emulab.net/downloads/$MFSTARBALL";
 my $MFSVERSION      = "62";
 my $MFSCONSOLE      = "sio";
 my $MFSDESCRIPTORS  = "$TOP_SRCDIR/install/descriptors-mfs.xml";
+my $ZONEINFO	    = "/usr/share/zoneinfo";
 
 sub Install($$$)
 {
@@ -118,6 +119,7 @@ sub MungeMfsRoot($)
 {
     my $tftpdir = shift;
     my $MFSROOT = "$TFTP_DIR/$tftpdir/boot/mfsroot";
+    my $status  = 0;
 
     Phase "Munge", "Munging the $tftpdir root file system", sub {
 	PhaseSkip("already munged")
@@ -132,15 +134,27 @@ sub MungeMfsRoot($)
 	    ExecQuietFatal("mount /dev/vn1 /mnt");
 	}
 
-	my ($status,@output) = 
-	    ExecQuiet("cat /root/.ssh/*.pub >> /mnt/root/.ssh/authorized_keys2");
-	
-	if ($status == 0) {
-	    ($status,@output) = 
-		ExecQuiet("cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem ".
-			  "   /mnt/etc/emulab");
+	if (! -e "/mnt/root/.ssh" &&
+	    ExecQuiet("$MKDIR -m 700 /mnt/root/.ssh")) {
+	    $status = 1;
+	    goto done;
 	}
-	
+	if ($ELABINELAB &&
+	    # Combine with outer boss keys.
+	    ExecQuiet("$CAT $AUTHKEYS > /mnt/root/.ssh/authorized_keys2")) {
+	    $status = 1;
+	    goto done;
+	}
+	if (ExecQuiet("cat /root/.ssh/*.pub >> /mnt/root/.ssh/authorized_keys2") ||
+	    ExecQuiet("$CHMOD 600 /mnt/root/.ssh/authorized_keys2") ||
+	    ExecQuiet("cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem ".
+		      "   /mnt/etc/emulab") ||
+	    ExecQuiet("cp -p $IMAGEKEYS_DIR/* /mnt/etc/ssh") ||
+	    ExecQuiet("cp -p $ZONEINFO/$OURTIMEZONE /mnt/etc/localtime")) {
+	    $status = 1;
+	}
+
+      done:
 	ExecQuietFatal("umount /mnt");
 	if ($FBSD_MAJOR >= 5) {
 	    ExecQuietFatal("mdconfig -d -u 2");
@@ -149,7 +163,7 @@ sub MungeMfsRoot($)
 	    ExecQuietFatal("vnconfig -u vn1");
 	}
 	if ($status) {
-	    my $msg = join(' ', @output);
+	    my $msg = join(' ', libinstall::LastOutput());
 	    PhaseFail("Unable to execute: '$msg'");
 	}
 	PhaseSucceed("Munged");
