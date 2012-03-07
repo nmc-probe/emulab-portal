@@ -19,6 +19,28 @@ sub Install($$$)
 	    ExecQuietFatal("$SSH_KEYGEN -t rsa -P '' -f $ROOT_PRIVKEY");
 	};
 	#
+	# Create a set of hostkeys for the images.
+	#
+	Phase "imagekeysdir", "Creating $IMAGEKEYS_DIR", sub {
+	    DoneIfExists($IMAGEKEYS_DIR);
+	    mkdir $IMAGEKEYS_DIR,0775 or
+		PhaseFail("Unable to create $IMAGEKEYS_DIR : $!");
+	    ExecQuietFatal("$CHGRP tbadmin $IMAGEKEYS_DIR");
+	};
+	my %keytypes = (
+	    "rsa1"	=> "ssh_host_key",
+	    "rsa"	=> "ssh_host_rsa_key",
+	    "dsa"	=> "ssh_host_dsa_key");
+	    
+	Phase "imagekeys", "Creating host keys for images", sub {
+	    foreach my $type (keys(%keytypes)) {
+		my $name = $keytypes{$type};
+
+		ExecQuietFatal("$SSH_KEYGEN -t $type -N '' ".
+			       "   -f $IMAGEKEYS_DIR/$name");
+	    }
+	};
+	#
 	# Stick it into the DB.
 	# WARNING: This sitevar (node/ssh_pubkey) is referenced in tmcd.c
 	#
