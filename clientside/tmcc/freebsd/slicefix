@@ -170,6 +170,10 @@ dofreebsd() {
 	changeasf=0
 	changeclflush=0
 	changecons=0
+	changecerts=0
+	changehostkeys=0
+	changerootkeys=0
+	changezone=0
 
 	fixit=0
 
@@ -287,6 +291,65 @@ dofreebsd() {
 	    $BINDIR/osconfig -c -m /mnt -D $rootdev -s FreeBSD postload
 	    if [ $? -eq 0 ]; then
 		doosconfig=1
+		fixit=1
+	    fi
+	fi
+
+	# Check the certs.
+	if [ -e $ETCDIR/emulab.pem ]; then
+	    cmp -s $ETCDIR/emulab.pem /mnt/etc/emulab/emulab.pem
+
+	    if [ $? -ne 0 ]; then
+		changecerts=1
+		fixit=1
+	    fi
+	fi
+	if [ -e $ETCDIR/client.pem ]; then
+	    cmp -s $ETCDIR/client.pem /mnt/etc/emulab/client.pem
+
+	    if [ $? -ne 0 ]; then
+		changecerts=1
+		fixit=1
+	    fi
+	fi
+
+	# Check the root keys
+	if [ -e /root/.ssh/authorized_keys2 ]; then
+	    cmp -s /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys
+	    if [ $? -ne 0 ]; then
+		changerootkeys=1
+		fixit=1
+	    fi
+	fi
+	
+	# Check the host keys.
+	if [ -e /etc/ssh/ssh_host_key -a -d /mnt/etc/ssh ]; then
+	    cmp -s /etc/ssh/ssh_host_key /mnt/etc/ssh/ssh_host_key
+	    if [ $? -ne 0 ]; then
+		changehostkeys=1
+		fixit=1
+	    fi
+	fi
+	if [ -e /etc/ssh/ssh_host_rsa_key -a -d /mnt/etc/ssh ]; then
+	    cmp -s /etc/ssh/ssh_host_rsa_key /mnt/etc/ssh/ssh_host_rsa_key
+	    if [ $? -ne 0 ]; then
+		changehostkeys=1
+		fixit=1
+	    fi
+	fi
+	if [ -e /etc/ssh/ssh_host_dsa_key -a -d /mnt/etc/ssh ]; then
+	    cmp -s /etc/ssh/ssh_host_dsa_key /mnt/etc/ssh/ssh_host_dsa_key
+	    if [ $? -ne 0 ]; then
+		changehostkeys=1
+		fixit=1
+	    fi
+	fi
+
+	# Check the time zone.
+	if [ -e /etc/localtime ]; then
+	    cmp -s /etc/localtime /mnt/etc/localtime
+	    if [ $? -ne 0 ]; then
+		changezone=1
 		fixit=1
 	    fi
 	fi
@@ -424,6 +487,71 @@ EOF2
 # ${on}able CLFLUSH (hw.clflush_disable)
 hw.clflush_disable=$NOCLFLUSH
 EOF1
+	fi
+
+	# Copy in new certs
+	if [ $changecerts -eq 1 ]; then
+	    echo "  updating /etc/emulab/{emulab.pem,client.pem}"
+
+	    if [ ! -d /mnt/etc/emulab ]; then
+		mkdir -m 755 /mnt/etc/emulab || {
+	            echo "Failed to mkdir /mnt/etc/emulab"
+		    umount $rootdev
+		    return 1
+		}
+	    fi
+	    cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem /mnt/etc/emulab || {
+	        echo "Failed to create $ETCDIR/emulab.pem or $ETCDIR/client.pem"
+		umount $rootdev
+		return 1
+	    }
+	fi
+
+	# Copy in new root keys
+	if [ $changerootkeys -eq 1 ]; then
+	    echo "  updating /root/.ssh/authorized_keys2"
+
+	    if [ ! -d /mnt/root/.ssh ]; then
+		mkdir -m 700 /mnt/root/.ssh || {
+	            echo "Failed to mkdir /root/.ssh"
+		    umount $rootdev
+		    return 1
+		}
+	    fi
+	    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh || {
+	        echo "Failed to create /root/.ssh/authorized_keys2"
+		umount $rootdev
+		return 1
+	    }
+	fi
+
+	# Copy in new host keys
+	if [ $changehostkeys -eq 1 ]; then
+	    echo "  updating /etc/ssh/hostkeys"
+
+	    if [ ! -d /mnt/etc/ssh ]; then
+		mkdir -m 755 /mnt/etc/ssh || {
+	            echo "Failed to mkdir /mnt/etc/ssh"
+		    umount $rootdev
+		    return 1
+		}
+	    fi
+	    cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh || {
+	        echo "Failed to create /etc/ssh/hostkeys"
+		umount $rootdev
+		return 1
+	    }
+	fi
+
+	# Copy in new localtime
+	if [ $changezone -eq 1 ]; then
+	    echo "  updating /etc/localtime"
+
+	    cp -p /etc/localtime /mnt/etc/localtime || {
+	        echo "Failed to create /etc/localtime"
+		umount $rootdev
+		return 1
+	    }
 	fi
 
 	# actually run any postconfig scripts if we're supposed to:
@@ -594,6 +722,111 @@ dolinux() {
 	if [ -f /mnt/var/lib/random-seed -a -c /dev/urandom ]; then
 	    echo "  updating /var/lib/random-seed"
 	    dd if=/dev/urandom of=/mnt/var/lib/random-seed bs=512 count=1 >/dev/null 2>&1
+	fi
+
+	# Check the certs.
+	if [ ! -d /mnt/etc/emulab ]; then
+	    mkdir -m 755 /mnt/etc/emulab || {
+	        echo "Failed to mkdir /mnt/etc/emulab"
+		umount $rootdev
+		return 1
+	    }
+	fi
+	if [ -e $ETCDIR/emulab.pem ]; then
+	    cmp -s $ETCDIR/emulab.pem /mnt/etc/emulab/emulab.pem
+
+	    if [ $? -ne 0 ]; then
+		echo "  updating /mnt/etc/emulab/emulab.pem"
+		cp -p $ETCDIR/emulab.pem /mnt/etc/emulab || {
+	            echo "Failed to create $ETCDIR/emulab.pem"
+		    umount $rootdev
+		    return 1
+		}
+	    fi
+	fi
+	if [ -e $ETCDIR/client.pem ]; then
+	    cmp -s $ETCDIR/client.pem /mnt/etc/emulab/client.pem
+
+	    if [ $? -ne 0 ]; then
+		echo "  updating /mnt/etc/emulab/client.pem"
+		cp -p $ETCDIR/client.pem /mnt/etc/emulab || {
+	            echo "Failed to create $ETCDIR/client.pem"
+		    umount $rootdev
+		    return 1
+		}
+	    fi
+	fi
+
+	# Check the root keys
+	if [ -e /root/.ssh/authorized_keys2 ]; then
+	    cmp -s /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys
+	    if [ $? -ne 0 ]; then
+		echo "  updating /root/.ssh/authorized_keys2"
+
+		if [ ! -d /mnt/root/.ssh ]; then
+		    mkdir -m 700 /mnt/root/.ssh || {
+			echo "Failed to mkdir /root/.ssh"
+			umount $rootdev
+			return 1
+		    }
+		fi
+		cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh || {
+	            echo "Failed to create /root/.ssh/authorized_keys2"
+		    umount $rootdev
+		    return 1
+		}
+	    fi
+	fi
+
+	changehostkeys=0
+	# Check the host keys.
+	if [ -e /etc/ssh/ssh_host_key -a -d /mnt/etc/ssh ]; then
+	    cmp -s /etc/ssh/ssh_host_key /mnt/etc/ssh/ssh_host_key
+	    if [ $? -ne 0 ]; then
+		changehostkeys=1
+	    fi
+	fi
+	if [ -e /etc/ssh/ssh_host_rsa_key -a -d /mnt/etc/ssh ]; then
+	    cmp -s /etc/ssh/ssh_host_rsa_key /mnt/etc/ssh/ssh_host_rsa_key
+	    if [ $? -ne 0 ]; then
+		changehostkeys=1
+	    fi
+	fi
+	if [ -e /etc/ssh/ssh_host_dsa_key -a -d /mnt/etc/ssh ]; then
+	    cmp -s /etc/ssh/ssh_host_dsa_key /mnt/etc/ssh/ssh_host_dsa_key
+	    if [ $? -ne 0 ]; then
+		changehostkeys=1
+	    fi
+	fi
+	if [ $changehostkeys -eq 1 ]; then
+	    echo "  updating /etc/ssh/hostkeys"
+
+	    if [ ! -d /mnt/etc/ssh ]; then
+		mkdir -m 755 /mnt/etc/ssh || {
+	            echo "Failed to mkdir /mnt/etc/ssh"
+		    umount $rootdev
+		    return 1
+		}
+	    fi
+	    cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh || {
+	        echo "Failed to create /etc/ssh/hostkeys"
+		umount $rootdev
+		return 1
+	    }
+	fi
+
+	# Check the time zone.
+	if [ -e /etc/localtime ]; then
+	    cmp -s /etc/localtime /mnt/etc/localtime
+	    if [ $? -ne 0 ]; then
+		echo "  updating /etc/localtime"
+
+		cp -p /etc/localtime /mnt/etc/localtime || {
+	            echo "Failed to create /etc/localtime"
+		    umount $rootdev
+		    return 1
+		}
+	    fi
 	fi
 
 	# run any postconfig scripts:
