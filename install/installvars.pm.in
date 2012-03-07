@@ -136,6 +136,7 @@ $CONTROL_NETMASK	= "@CONTROL_NETMASK@";
 $PUBLIC_NETMASK		= "@PUBLIC_NETMASK@";
 $LOGFACIL		= '@TBLOGFACIL@';
 $QUOTA_FSLIST		= '@FS_WITH_QUOTAS@';
+$OURTIMEZONE	        = "@OURTIMEZONE@";
 
 $LOGDIR			= "$TBROOT/log";
 $ETCDIR			= "$PREFIX/etc";
@@ -158,6 +159,7 @@ $ARCHSUPPORT		= @ARCHIVESUPPORT@;
 #
 $CHGRP			= "/usr/bin/chgrp";
 $CHMOD			= "/bin/chmod";
+$MKDIR			= "/bin/mkdir";
 $TOUCH			= "/usr/bin/touch";
 $CHOWN			= "/usr/sbin/chown";
 $PW			= "/usr/sbin/pw";
@@ -291,6 +293,7 @@ $SMBCONF_HEAD		= "$SMBCONF_FILE.head";
 
 $TFTP_DIR	        = "$PREFIX/tftpboot";
 $TFTP_PROJ_DIR		= "$TFTP_DIR/proj";
+$IMAGEKEYS_DIR	        = "$ETCDIR/image_hostkeys";
 
 $DEFAULTIMAGESITEVAR    = "general/default_imagename";
 
