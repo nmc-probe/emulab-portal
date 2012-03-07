@@ -15,6 +15,9 @@ tb-set-node-inner-elab-role $myboss boss+router
 tb-set-node-inner-elab-role $myops  ops+fs
 tb-set-colocate-factor 2
 
+tb-set-node-failure-action $myboss "nonfatal"
+tb-set-node-failure-action $myops  "nonfatal"
+
 if {[info exists ::TBCOMPAT::elabinelab_hardware("boss")]} {
     namespace eval TBCOMPAT {
         tb-set-hardware $myboss $elabinelab_hardware("boss")
@@ -164,8 +167,18 @@ if { $opsip != {} } {
 #
 # We need to tell the XEN host to add some disks to the guests. 
 #
-$myboss add-attribute XEN_EXTRADISKS "disk1:10G,disk2:10G,disk3:10G"
-$myops  add-attribute XEN_EXTRADISKS "disk1:4G,disk2:10G"
+set bossdisks [tb-get-elabinelab-role-attribute "boss" "XEN_EXTRADISKS"]
+if { $bossdisks != {} } {
+    $myboss add-attribute XEN_EXTRADISKS $bossdisks
+} else {
+    $myboss add-attribute XEN_EXTRADISKS "disk1:10G,disk2:10G,disk3:10G"
+}
+set opsdisks [tb-get-elabinelab-role-attribute "ops" "XEN_EXTRADISKS"]
+if { $opsdisks != {} } {
+    $myops add-attribute XEN_EXTRADISKS $opsdisks
+} else {
+    $myops add-attribute XEN_EXTRADISKS "disk1:4G,disk2:10G"
+}
 
 #
 # Tell ElabinElab setup (rc.mkelab) as well.
