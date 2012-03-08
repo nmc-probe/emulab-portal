@@ -1244,6 +1244,11 @@ sub SetupOpsNode($)
 	system("pkg_delete -r -x mysql-client")
 	    if (-e "/usr/local/bin/mysql");
     
+	# XXX 8.2 image is out of sync right now
+	if ($FBSD_VERSION == 8.2) {
+	    system("pkg_delete -f -x rpm-3");
+	}
+    
 	# XXX 7.3 image is out of sync right now
 	if ($FBSD_VERSION == 7.3) {
 	    system("pkg_delete -f -x python25 -x py25");
@@ -1863,6 +1868,11 @@ sub SetupBossNode($)
 	    if (-e "/usr/local/bin/mysql");
 	system("pkg_delete -x net-snmp")
 	    if (-e "/usr/local/include/net-snmp");
+
+	# XXX 8.2 image is out of sync right now
+	if ($FBSD_VERSION == 8.2) {
+	    system("pkg_delete -f -x rpm-3");
+	}
     
 	# XXX 7.3 image is out of sync right now
 	if ($FBSD_VERSION == 7.3) {
@@ -2473,6 +2483,11 @@ sub SetupOpsJail()
 	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
 	system("pkg_delete -r -x mysql-client")
 	    if (-e "/usr/local/bin/mysql");
+    
+	# XXX 8.2 image is out of sync right now
+	if ($FBSD_VERSION == 8.2) {
+	    system("pkg_delete -f -x rpm-3");
+	}
     
 	# XXX 7.3 image is out of sync right now
 	if ($FBSD_VERSION == 7.3) {
