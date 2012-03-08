@@ -137,6 +137,7 @@ sub MungeMfsRoot($)
     my $tftpdir = shift;
     my $MFSROOT = "$TFTP_DIR/$tftpdir/boot/mfsroot";
     my $status  = 0;
+    my @status  = ();
 
     Phase "Munge", "Munging the $tftpdir root file system", sub {
 	PhaseSkip("already munged")
@@ -167,8 +168,10 @@ sub MungeMfsRoot($)
 	    ExecQuiet("cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem ".
 		      "   /mnt/etc/emulab") ||
 	    ExecQuiet("cp -p $IMAGEKEYS_DIR/* /mnt/etc/ssh") ||
-	    ExecQuiet("cp -p $ZONEINFO/$OURTIMEZONE /mnt/etc/localtime")) {
+	    ExecQuiet("cp -p $ZONEINFO/$OURTIMEZONE /mnt/etc/localtime") ||
+	    ExecQuiet("cp /dev/null /mnt/.localized")) {
 	    $status = 1;
+	    goto done;
 	}
 
 	#
@@ -179,11 +182,17 @@ sub MungeMfsRoot($)
 	# We should have a more general way to set the console on a per
 	# node basis.
 	#
-	if ($MFSCONSOLE eq "vga") {
-	    ExecQuietFatal("cp /dev/null /mnt/etc/emulab/isvgaonly");
+	if ($MFSCONSOLE eq "vga" &&
+	    ExecQuiet("cp /dev/null /mnt/etc/emulab/isvgaonly")) {
+	    $status = 1;
+	    goto done;
 	}
-	
+
       done:
+	# Save actual error till after unmounting the mfs.
+	if ($status) {
+	    @output = libinstall::LastOutput();
+	}
 	ExecQuietFatal("umount /mnt");
 	if ($FBSD_MAJOR >= 5) {
 	    ExecQuietFatal("mdconfig -d -u 2");
@@ -192,7 +201,7 @@ sub MungeMfsRoot($)
 	    ExecQuietFatal("vnconfig -u vn1");
 	}
 	if ($status) {
-	    my $msg = join(' ', libinstall::LastOutput());
+	    my $msg = join(' ', @output);
 	    PhaseFail("Unable to execute: '$msg'");
 	}
 	PhaseSucceed("Munged");
