@@ -20,10 +20,11 @@ sub usage()
     print STDERR "  -m      dump just the MFS descriptors.\n";
     print STDERR "  -v 1    first generation STD images (FBSD410, RHL90)\n";
     print STDERR "  -v 2    second generation STD images (FBSD62, FC6)\n";
-    print STDERR "Default version is 1.\n";
+    print STDERR "  -v 3    second generation STD images (FBSD73, FEDORA10)\n";
+    print STDERR "Default version is 2.\n";
     exit(-1);
 }
-my $version = 1;
+my $version = 2;
 my $mfsonly = 0;
 my $images;
 
@@ -39,11 +40,21 @@ my %imagenames    = (
     # included here to resolve nextosid entries for FW-IPFW and FBSD-JAIL
     "2" => ['FBSD62+FC6-STD', 'FBSD62-STD', 'FC6-STD', 'FBSD410-STD',
 	    'FBSD410-IPFW2', 'UBUNTU10-STD-FW'],
+    # No longer using combined images.
+    # The UBUNTU10 image is for FW-IPTABLES link. 
+    "3" => ['FBSD82-STD', 'FEDORA10-STD', 'UBUNTU10-STD-FW'],
 );
 
-my @osnames	  = ('FREEBSD-MFS', 'FRISBEE-MFS', 'NEWNODE-MFS',
-		     'OPSNODE-BSD', 'FW-IPFW', 'FW-IPFW2', 'FW-IPTABLES',
-		     'RHL-STD', 'FBSD-STD', 'FBSD-JAIL', 'POWER-CONTROLLER');
+my %osnames	  = (
+    "1" => ['FREEBSD-MFS', 'FRISBEE-MFS', 'NEWNODE-MFS',
+	    'OPSNODE-BSD', 'FW-IPFW', 'FW-IPFW2', 'FW-IPTABLES',
+	    'RHL-STD', 'FBSD-STD', 'FBSD-JAIL', 'POWER-CONTROLLER'],
+    "2" => ['FREEBSD-MFS', 'FRISBEE-MFS', 'NEWNODE-MFS',
+	    'OPSNODE-BSD', 'FW-IPFW', 'FW-IPFW2', 'FW-IPTABLES',
+	    'RHL-STD', 'FBSD-STD', 'FBSD-JAIL', 'POWER-CONTROLLER'],
+    "3" => ['FREEBSD-MFS', 'FRISBEE-MFS', 'NEWNODE-MFS', 'FW-IPTABLES',
+	    'OPSNODE-BSD', 'RHL-STD', 'FBSD-STD', 'POWER-CONTROLLER'],
+);
 
 my @osids	   = ();
 
@@ -59,6 +70,10 @@ my %mappings       = (
     "2" => {
 	"RHL-STD"  => "FC6-STD",
 	"FBSD-STD" => "FBSD62-STD",
+    },
+    "3" => {
+	"RHL-STD"  => "FEDORA10-STD",
+	"FBSD-STD" => "FBSD82-STD",
     }
 );
 
@@ -120,7 +135,7 @@ elsif (defined($images)) {
     $version    = 0;
     $mfsonly    = 0;
     %mappings   = ();
-    @osnames    = ();
+    %osnames    = ("$version" => []);
     %imagenames = ("$version" => $images);
 }
 usage()
@@ -159,7 +174,7 @@ foreach my $imagename (@{$imagenames{$version}}) {
 #
 # And the OSs
 #
-foreach my $osname (@osnames) {
+foreach my $osname (@{$osnames{$version}}) {
     my $osinfo = OSinfo->Lookup("$protoproj,$osname");
     if (!defined($osinfo)) {
 	fatal("Cannot find os descriptor for $osname");

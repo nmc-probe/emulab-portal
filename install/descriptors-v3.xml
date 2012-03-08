@@ -3,7 +3,7 @@
     <value>FEDORA10-STD</value>
 </mapping>
 <mapping name="FBSD-STD">
-    <value>FBSD73-STD</value>
+    <value>FBSD82-STD</value>
 </mapping>
 <osid>
  <attribute name="OS"><value>FreeBSD</value></attribute>
@@ -33,6 +33,19 @@
  <attribute name="version"><value>4.X</value></attribute>
 </osid>
 <osid>
+ <attribute name="OS"><value>Linux</value></attribute>
+ <attribute name="description"><value>IPTables Firewall</value></attribute>
+ <attribute name="features"><value>ping,ssh,ipod,isup,veths,linktest</value></attribute>
+ <attribute name="magic"><value></value></attribute>
+ <attribute name="mustclean"><value>1</value></attribute>
+ <attribute name="nextosid"><value>emulab-ops,UBUNTU10-STD-FW</value></attribute>
+ <attribute name="op_mode"><value>NORMALv2</value></attribute>
+ <attribute name="osname"><value>FW-IPTABLES</value></attribute>
+ <attribute name="pid"><value>emulab-ops</value></attribute>
+ <attribute name="reboot_waittime"><value>120</value></attribute>
+ <attribute name="shared"><value>0</value></attribute>
+</osid>
+<osid>
  <attribute name="OS"><value>Other</value></attribute>
  <attribute name="description"><value>Stub descriptor for power controllers of any kind</value></attribute>
  <attribute name="magic"><value></value></attribute>
@@ -43,6 +56,18 @@
  <attribute name="reboot_waittime"><value>60</value></attribute>
  <attribute name="shared"><value>0</value></attribute>
  <attribute name="version"><value>0.00</value></attribute>
+</osid>
+<osid>
+ <attribute name="OS"><value>FreeBSD</value></attribute>
+ <attribute name="description"><value>Any Version of FreeBSD</value></attribute>
+ <attribute name="features"><value>ping,ssh,ipod,isup,veths,veth-ne,veth-en,mlinks,linktest,linkdelays,vlans</value></attribute>
+ <attribute name="magic"><value>FreeBSD</value></attribute>
+ <attribute name="mustclean"><value>1</value></attribute>
+ <attribute name="op_mode"><value>NORMAL</value></attribute>
+ <attribute name="osname"><value>FBSD-STD</value></attribute>
+ <attribute name="pid"><value>emulab-ops</value></attribute>
+ <attribute name="reboot_waittime"><value>150</value></attribute>
+ <attribute name="shared"><value>1</value></attribute>
 </osid>
 <osid>
  <attribute name="OS"><value>FreeBSD</value></attribute>
@@ -57,18 +82,6 @@
  <attribute name="reboot_waittime"><value>150</value></attribute>
  <attribute name="shared"><value>1</value></attribute>
  <attribute name="version"><value>6.2</value></attribute>
-</osid>
-<osid>
- <attribute name="OS"><value>FreeBSD</value></attribute>
- <attribute name="description"><value>Any Version of FreeBSD</value></attribute>
- <attribute name="features"><value>ping,ssh,ipod,isup,veths,veth-ne,veth-en,mlinks,linktest,linkdelays,vlans</value></attribute>
- <attribute name="magic"><value>FreeBSD</value></attribute>
- <attribute name="mustclean"><value>1</value></attribute>
- <attribute name="op_mode"><value>NORMAL</value></attribute>
- <attribute name="osname"><value>FBSD-STD</value></attribute>
- <attribute name="pid"><value>emulab-ops</value></attribute>
- <attribute name="reboot_waittime"><value>150</value></attribute>
- <attribute name="shared"><value>1</value></attribute>
 </osid>
 <osid>
  <attribute name="OS"><value>Linux</value></attribute>
@@ -114,17 +127,32 @@
 </image>
 <image>
  <attribute name="OS"><value>FreeBSD</value></attribute>
- <attribute name="description"><value>FreeBSD 7.3</value></attribute>
+ <attribute name="description"><value>FreeBSD 8.2 32-bit version</value></attribute>
  <attribute name="gid"><value>emulab-ops</value></attribute>
  <attribute name="global"><value>1</value></attribute>
- <attribute name="imagename"><value>FBSD73-STD</value></attribute>
+ <attribute name="imagename"><value>FBSD82-STD</value></attribute>
  <attribute name="loadpart"><value>1</value></attribute>
  <attribute name="mbr_version"><value>2</value></attribute>
  <attribute name="op_mode"><value>NORMALv2</value></attribute>
- <attribute name="osfeatures"><value>ping,ssh,ipod,isup,mlinks,linktest,linkdelays,vlans</value></attribute>
- <attribute name="path"><value>/usr/testbed/images/FBSD73-STD.ndz</value></attribute>
+ <attribute name="osfeatures"><value>ping,ssh,ipod,isup,mlinks,linktest,vlans</value></attribute>
+ <attribute name="path"><value>/usr/testbed/images/FBSD82-STD.ndz</value></attribute>
  <attribute name="pid"><value>emulab-ops</value></attribute>
  <attribute name="shared"><value>0</value></attribute>
- <attribute name="version"><value>7.3</value></attribute>
+ <attribute name="version"><value>8.2</value></attribute>
+</image>
+<image>
+ <attribute name="OS"><value>Linux</value></attribute>
+ <attribute name="description"><value>Firewall image based on ubuntu 10</value></attribute>
+ <attribute name="gid"><value>emulab-ops</value></attribute>
+ <attribute name="global"><value>1</value></attribute>
+ <attribute name="imagename"><value>UBUNTU10-STD-FW</value></attribute>
+ <attribute name="loadpart"><value>2</value></attribute>
+ <attribute name="mbr_version"><value>2</value></attribute>
+ <attribute name="op_mode"><value>NORMALv2</value></attribute>
+ <attribute name="osfeatures"><value>ping,ssh,ipod,isup,linktest</value></attribute>
+ <attribute name="path"><value>/proj/emulab-ops/images/UBUNTU10-STD-FW.ndz</value></attribute>
+ <attribute name="pid"><value>emulab-ops</value></attribute>
+ <attribute name="shared"><value>1</value></attribute>
+ <attribute name="version"><value>10</value></attribute>
 </image>
 </descriptors>
