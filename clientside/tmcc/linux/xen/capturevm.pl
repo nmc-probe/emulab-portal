@@ -96,7 +96,7 @@ $xminfo{"disksizes"} = "";
 #
 # Copy the kernel into the directory and change xminfo.
 #
-if (-e $xminfo{"kernel"}) {
+if (! -e $xminfo{"kernel"}) {
     Fatal($xminfo{"kernel"} . " does not exist");
 }
 my $kernel = $EXTRAFS;
