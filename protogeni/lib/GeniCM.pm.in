@@ -1124,7 +1124,8 @@ sub GetTicketAuxAux($$$$$$$$$)
 	if (! defined($osname)) {
 	    my $protogeni_os = undef;
 	    if (GetSiteVar('protogeni/default_osname', \$protogeni_os)
-		&& $protogeni_os ne "") {
+		&& $protogeni_os ne ""
+		&& (! defined($pctype) || $pctype ne "bbgeni")) {
 		$osname = $protogeni_os;
 	    }
 	}
