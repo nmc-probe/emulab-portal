@@ -38,7 +38,7 @@ my %imagenames    = (
     # XXX note that the FBSD410* images may not work on all HW but are
     # included here to resolve nextosid entries for FW-IPFW and FBSD-JAIL
     "2" => ['FBSD62+FC6-STD', 'FBSD62-STD', 'FC6-STD', 'FBSD410-STD',
-	    'FBSD410-IPFW2', 'UBUNTU10-STD'],
+	    'FBSD410-IPFW2', 'UBUNTU10-STD-FW'],
 );
 
 my @osnames	  = ('FREEBSD-MFS', 'FRISBEE-MFS', 'NEWNODE-MFS',

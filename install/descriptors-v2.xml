@@ -37,7 +37,7 @@
  <attribute name="features"><value>ping,ssh,ipod,isup,veths,linktest</value></attribute>
  <attribute name="magic"><value></value></attribute>
  <attribute name="mustclean"><value>1</value></attribute>
- <attribute name="nextosid"><value>emulab-ops,UBUNTU10-STD</value></attribute>
+ <attribute name="nextosid"><value>emulab-ops,UBUNTU10-STD-FW</value></attribute>
  <attribute name="op_mode"><value>NORMALv2</value></attribute>
  <attribute name="osname"><value>FW-IPTABLES</value></attribute>
  <attribute name="pid"><value>emulab-ops</value></attribute>
@@ -200,15 +200,15 @@
 </image>
 <image>
  <attribute name="OS"><value>Linux</value></attribute>
- <attribute name="description"><value>Ubuntu 10.04.1 32-bit (Lucid Lynx)</value></attribute>
+ <attribute name="description"><value>Firewall based on Ubuntu 10.04.1 32-bit (Lucid Lynx)</value></attribute>
  <attribute name="gid"><value>emulab-ops</value></attribute>
  <attribute name="global"><value>1</value></attribute>
- <attribute name="imagename"><value>UBUNTU10-STD</value></attribute>
+ <attribute name="imagename"><value>UBUNTU10-STD-FW</value></attribute>
  <attribute name="loadpart"><value>2</value></attribute>
  <attribute name="mbr_version"><value>2</value></attribute>
  <attribute name="op_mode"><value>NORMALv2</value></attribute>
  <attribute name="osfeatures"><value>ping,ssh,ipod,isup,linktest</value></attribute>
- <attribute name="path"><value>/usr/testbed/images/UBUNTU10-STD.ndz</value></attribute>
+ <attribute name="path"><value>/usr/testbed/images/UBUNTU10-STD-FW.ndz</value></attribute>
  <attribute name="pid"><value>emulab-ops</value></attribute>
  <attribute name="shared"><value>0</value></attribute>
  <attribute name="version"><value>10</value></attribute>
