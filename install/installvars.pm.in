@@ -143,6 +143,7 @@ $LOGDIR			= "$TBROOT/log";
 $ETCDIR			= "$PREFIX/etc";
 $LIBDIR			= "$PREFIX/lib";
 $WAP			= "$TBROOT/sbin/withadminprivs";
+$TESTBED_CONTROL	= "$TBROOT/sbin/testbed-control";
 
 $ELVIN_COMPAT		= @ELVIN_COMPAT@;
 $MAILMANSUPPORT		= @MAILMANSUPPORT@;
