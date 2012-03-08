@@ -8,7 +8,7 @@ use installvars;
 my $MFSTARBALL	    = "tftpboot-elabinelab.tar.gz";
 my $MFSURL	    = "http://www.emulab.net/downloads/$MFSTARBALL";
 my $MFSVERSION      = "62";
-my $MFSCONSOLE      = "sio";
+my $MFSCONSOLE      = $NODECONSOLE;
 my $MFSDESCRIPTORS  = "$TOP_SRCDIR/install/descriptors-mfs.xml";
 my $ZONEINFO	    = "/usr/share/zoneinfo";
 
@@ -85,6 +85,23 @@ sub Install($$$)
 	MungeMfsRoot("freebsd.newnode");
 
 	#
+	# Fix the console device in the MFSes
+	#
+	Phase "mfsconsole", "Setting the console for MFSes", sub {	
+	    my %consmap = (
+		"sio"  => "com",
+		"sio2" => "com",
+		"vga"  => "vid",
+		"null" => "null"
+	    );
+	    my $consdev = $consmap{$cons} . "console";
+	    foreach my $mfs ("frisbee", "freebsd", "freebsd.newnode") {
+		AppendToFileFatal("$TFTP_DIR/$mfs/boot/loader.conf.orig",
+				  "console=\"$consdev\"");
+	    }
+	};
+
+	#
 	# Finally, create the compressed versions of the MFS files
 	#
 	Phase "prepare1", "Compressing the frisbee MFS", sub {
@@ -154,6 +171,18 @@ sub MungeMfsRoot($)
 	    $status = 1;
 	}
 
+	#
+	# XXX tmp hack.
+	# If console is VGA, create the magic file that tells slicefix
+	# to ensure that serial console is disabled in any FreeBSD image
+	# that is loaded (in case the machine has no serial port).
+	# We should have a more general way to set the console on a per
+	# node basis.
+	#
+	if ($MFSCONSOLE eq "vga") {
+	    ExecQuietFatal("cp /dev/null /mnt/etc/emulab/isvgaonly");
+	}
+	
       done:
 	ExecQuietFatal("umount /mnt");
 	if ($FBSD_MAJOR >= 5) {
@@ -174,9 +203,3 @@ sub MungeMfsRoot($)
 # Local Variables:
 # mode:perl
 # End:
-
-
-
-
-
-

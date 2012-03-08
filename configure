@@ -732,6 +732,7 @@ FS_WITH_QUOTAS
 TRACK_INTERSWITCH_BANDWIDTH
 TIMESTAMPS
 OURTIMEZONE
+NODECONSOLE
 UNIFIED_BOSS_AND_OPS
 DISABLE_NSE
 DISABLE_NAMED_SETUP
@@ -4978,6 +4979,7 @@ done
 
 
 
+
 #
 # Offer both versions of the email addresses that have the @ escaped
 # for perl (the default), and that don't
@@ -5082,6 +5084,7 @@ NEEDMROUTED=0
 OPSVM_ENABLE=0
 OPSVM_MOUNTPOINT="/ops"
 OURTIMEZONE="America/Denver"
+NODECONSOLE="sio"
 PORTAL_ENABLE=0
 PORTAL_ISPRIMARY=0
 

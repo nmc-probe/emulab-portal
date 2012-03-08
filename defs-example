@@ -239,6 +239,18 @@ NOSHAREDFS=0
 NFSRACY=1
 
 #
+# Set the type of the console on nodes. This is used when customizing
+# the MFSes at Emulab setup time and for customizing the image loaded
+# on a node at experiment setup time.
+#
+# "sio"	 use the "com1" serial port
+# "sio2" use the "com2" serial port
+# "vga"  use the VGA device
+# "null" don't use a console
+#
+NODECONSOLE="sio"
+
+#
 # Set this if you are running:
 #	- Perl 5.8
 #	- Perl 5.10 with SelfLoader version 1.18 or greater
