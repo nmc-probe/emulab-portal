@@ -224,7 +224,7 @@ sub CreateExtraFS()
     system("mkdir $EXTRAFS") == 0
 	or fatal("mkdir($EXTRAFS) failed");
     
-    system("/usr/sbin/lvcreate -n extrafs -L 50G $VGNAME") == 0
+    system("/usr/sbin/lvcreate -n extrafs -L 100G $VGNAME") == 0
 	or fatal("lvcreate failed");
 
     system("mke2fs -j /dev/$VGNAME/extrafs") == 0
