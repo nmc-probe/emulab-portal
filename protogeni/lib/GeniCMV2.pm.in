@@ -141,6 +141,11 @@ sub Resolve($)
     
     if ($type eq "node") {
 	my $node  = $object;
+	# Not sure about this, but I do know that Resolving a virtnode
+	# is not useful right now. 
+	if ($node->isvirtnode()) {
+	    $node = Node->Lookup($node->phys_nodeid());
+	}
 	my $rspec = GeniCM::GetAdvertisement(0, $node->node_id(), "0.1", undef);
 	if (! defined($rspec)) {
 	    print STDERR "Could not get advertisement for $node!\n";
