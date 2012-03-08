@@ -1,0 +1,113 @@
+#
+# Additional stuff for setting up the geni racks. 
+#
+#  Add the switch stack stuff
+#  Add the pc type info (update osidtoimageid table).
+#  Rebuild without elabinelab?
+#  Make a copy of the defs file.
+#  Real Emacs?
+#
+# This has to happen after reboot. Not sure yet ... 
+#  Remove /usr/local/etc/rc.d/zzz-inelab.sh
+#  Rerun /usr/local/etc/emulab/rc/rc.freebsd since swapon failed. 
+#
+use strict;
+use libinstall;
+use installvars;
+use libtestbed;
+
+my $EMULABDEVEL  = "git://git-public.flux.utah.edu/emulab-devel.git";
+my $EMULABSTABLE = "git://git-public.flux.utah.edu/emulab-stable.git";
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    Phase "genirack", "Doing additional Geni Rack tasks", sub {
+	PhaseSkip("Not a Rack")
+	    if (!$PROTOGENI_GENIRACK);
+
+	#
+	# Have not figured this out yet; it runs during boss setup but
+        # the line in fstab gets lost. Run again and it works fine. 
+	#
+	Phase "swapon", "Reruning rc.freebsd", sub {
+	    PhaseSkip("already enabled") unless `grep -q swap $FSTAB`;
+	    ExecQuietFatal("/usr/local/etc/emulab/rc/rc.freebsd");
+	};
+
+	#
+	# Create a clone of emulab-devel while we are close to the server.
+	#
+	Phase "cloning1", "Cloning emulab-devel repository", sub {
+	    DoneIfExists("$PREFIX/src/emulab-devel");
+	    ExecQuietFatal("cd $PREFIX/src; ".
+			   "    git clone $EMULABDEVEL emulab-devel");
+	};
+	Phase "cloning2", "Cloning emulab-stable repository", sub {
+	    DoneIfExists("$PREFIX/src/emulab-stable");
+	    ExecQuietFatal("cd $PREFIX/src; ".
+			   "    git clone $EMULABSTABLE emulab-stable");
+	};
+
+	#
+	# Shutdown the testbed for this.
+	#
+	Phase "shutdown", "Shutting down the testbed", sub {
+	    PhaseSkip("not running")
+		if (!CheckDaemonRunning("stated"));
+	    ExecQuietFatal("$TESTBED_CONTROL shutdown");
+	};
+
+	#
+	# Need to remove the ELABINELAB flag.
+	#
+	my $OLDDEFSFILE = "$main::TOP_SRCDIR/defs-elabinelab";
+	my $NEWDEFSFILE = "$main::TOP_SRCDIR/defs-genirack";
+	
+	Phase "elabinelab", "Removing ELABINELAB from defs file", sub {
+	    DoneIfExists($NEWDEFSFILE);
+	    ExecQuietFatal("cat $OLDDEFSFILE | ".
+			   "   sed -e 's/^ELABINELAB/#ELABINELAB/' ".
+			   "   > $NEWDEFSFILE");
+	};
+
+	#
+	# Build and install software without ELABINELAB defined.
+	#
+	Phase "Software", "Rebuilding and Reinstalling Software", sub {
+	    Phase "cleaning", "Cleaning (please be patient)", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE clean");
+	    };
+	    Phase "config", "Configuring (please be patient)", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR; ".
+			       "   $main::TOP_SRCDIR/configure ".
+			       "      --with-TBDEFS=$NEWDEFSFILE ".
+			       "      --disable-windows");
+	    };
+	    Phase "building", "Building (please be patient)", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE");
+	    };
+	    Phase "installing", "Installing (please be patient)", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE boss-install");
+	    };
+	    Phase "postinstall", "Post Installing Testbed Software", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE post-install");
+	    };
+	    Phase "rc.testbed", "Installing testbed RC scripts", sub {
+		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d install");
+	    };
+	};
+	
+	PhaseSucceed("Rack Setup Done");
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:
