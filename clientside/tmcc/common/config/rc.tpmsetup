@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2009 University of Utah and the Flux Group.
+# Copyright (c) 2009-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -42,10 +42,33 @@ use librc;
 #my $RCDIR	= "$BINDIR/rc";
 
 #
-# Not all clients support this.
+# Make sure we have a TPM.
+# For now this means we are running Linux MFS and trousers is installed.
 #
-#exit(0)
-#    if (MFS());
+sub gottpm()
+{
+    # must be MFS..
+    if (MFS()) {
+	my $sysname = `uname -s`;
+	chomp($sysname);
+
+	# ..and Linux
+	if ($sysname eq "Linux") {
+	    # ..and have trousers
+	    if (-x "/usr/sbin/tcsd") {
+		return 1;
+	    }
+
+	    # XXX right now only warn if Linux MFS
+	    print STDERR "WARNING: no TPM support, setup skipped\n";
+	}
+    }
+
+    return 0;
+}
+
+exit(0)
+    if (!gottpm());
 
 # Protos.
 sub doboot();
@@ -97,77 +120,77 @@ exit(0);
 #
 sub doboot()
 {
-	# Here we get the keyblob which is ready to be loaded into the TPM
-	# via tpm-openssl-engine.  This key is saved in $BINDIR/tpm.key.
-	# I am not sure if this is the best place to save this stuff.  I also
-	# get the tpm x509 cert (which is supposed to be signed by the CA)
-	# from tmcd.  It is also stored as $BINDIR/tpm.cert
+    # Here we get the keyblob which is ready to be loaded into the TPM
+    # via tpm-openssl-engine.  This key is saved in $BINDIR/tpm.key.
+    # I am not sure if this is the best place to save this stuff.  I also
+    # get the tpm x509 cert (which is supposed to be signed by the CA)
+    # from tmcd.  It is also stored as $BINDIR/tpm.cert
 
-	my @tpmblob;
-	my @tpmpub;
+    my @tpmblob;
+    my @tpmpub;
 
-	#if (tmcc(TMCCCMD_TPMBLOB, "hex", \@tpmblob) < 0) {
-	if (tmcc(TMCCCMD_TPMBLOB, undef, \@tpmblob) < 0) {
-		#fatal("Could not get tpmblob from server");
-		print STDOUT "Could not get tpmblob from server";
-		return;
-	}
-	$str = $tpmblob[0];
-	if(!$str) {
-		#fatal("no tpmblob in database")
-		print STDOUT "no tpmblob in database";
-		return;
-	}
+    #if (tmcc(TMCCCMD_TPMBLOB, "hex", \@tpmblob) < 0) {
+    if (tmcc(TMCCCMD_TPMBLOB, undef, \@tpmblob) < 0) {
+	#fatal("Could not get tpmblob from server");
+	print STDOUT "Could not get tpmblob from server\n";
+	return;
+    }
+    $str = $tpmblob[0];
+    if (!$str) {
+	#fatal("no tpmblob in database")
+	print STDOUT "no tpmblob in database\n";
+	return;
+    }
 
-	# Sanity check and trim BLOB= or BLOBHEX=
-	if($str =~ /^BLOBHEX=/){
-		$str = substr($str, 8);
-	}elsif($str =~ /^BLOB=/){
-		$str = substr($str, 5);
-	}else{
-		#fatal("corrupt key blob: @tpmblob");
-		print STDOUT "corrupt key blob: @tpmblob";
-		return;
-	}
+    # Sanity check and trim BLOB= or BLOBHEX=
+    if ($str =~ /^BLOBHEX=/) {
+	$str = substr($str, 8);
+    } elsif ($str =~ /^BLOB=/) {
+	$str = substr($str, 5);
+    } else {
+	#fatal("corrupt key blob: @tpmblob");
+	print STDOUT "corrupt key blob: @tpmblob\n";
+	return;
+    }
 
-	# Strip off newline
-	# XXX: should check the newline probably
-	$len = length($str);
-	$str = substr($str, 0, $len-1);
+    # Strip off newline
+    # XXX: should check the newline probably
+    $len = length($str);
+    $str = substr($str, 0, $len-1);
 
-	open(FD, ">$BINDIR/tpm.key");
-	print FD pack("H*", $str);
-	close(FD);
+    open(FD, ">$BINDIR/tpm.key");
+    print FD pack("H*", $str);
+    close(FD);
 
-	if (tmcc(TMCCCMD_TPMPUB, undef, \@tpmpub) < 0) {
-		#fatal("Could not get tpmpub from server");
-		print STDOUT "Could not get tpmpub from server";
-		return;
-	}
+    if (tmcc(TMCCCMD_TPMPUB, undef, \@tpmpub) < 0) {
+	#fatal("Could not get tpmpub from server");
+	print STDOUT "Could not get tpmpub from server\n";
+	return;
+    }
 
-	$str = $tpmpub[0];
-	if(!$str) {
-		#fatal("no tpm x509 cert in database")
-		print STDOUT "no tpm x509 cert in database";
-		return;
-	}
+    $str = $tpmpub[0];
+    if (!$str) {
+	#fatal("no tpm x509 cert in database")
+	print STDOUT "no tpm x509 cert in database\n";
+	return;
+    }
 
-	# Trim TPMPUB=
-	if($str =~ /^TPMPUB=/){
-		$str = substr($str, 7);
-	}else{
-		#fatal("bogus tpmpub: @tpmpub");
-		print STDOUT "bogus tpmpub: @tpmpub";
-		return;
-	}
+    # Trim TPMPUB=
+    if ($str =~ /^TPMPUB=/){
+	$str = substr($str, 7);
+    } else {
+	#fatal("bogus tpmpub: @tpmpub");
+	print STDOUT "bogus tpmpub: @tpmpub\n";
+	return;
+    }
 
-	open(FD, ">$BINDIR/tpm.cert");
-	print FD $str;
-	$size = @tpmpub;
-	for($i = 1;$i < $size;$i++){
-		print FD $tpmpub[$i];
-	}
-	close(FD);
+    open(FD, ">$BINDIR/tpm.cert");
+    print FD $str;
+    $size = @tpmpub;
+    for($i = 1; $i < $size; $i++) {
+	print FD $tpmpub[$i];
+    }
+    close(FD);
 }
 
 #
