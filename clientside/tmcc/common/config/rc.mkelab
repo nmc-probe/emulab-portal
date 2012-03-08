@@ -1239,10 +1239,16 @@ sub SetupOpsNode($)
 	if (!$emulabconfig{OPS_PKG_DIR} || !$emulabconfig{OPS_PKG}) {
 	    SetupFatal("Could not get package info from Emulab!");
 	}
+	my $pdir = $emulabconfig{OPS_PKG_DIR};
+	
 	print "Removing conflicting packages.\n";
 	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
 	system("pkg_delete -r -x mysql-client")
 	    if (-e "/usr/local/bin/mysql");
+
+	if (-e "$pdir/emacs-23") {
+	    system("pkg_delete -f -x emacs");
+	}
     
 	# XXX 8.2 image is out of sync right now
 	if ($FBSD_VERSION == 8.2) {
@@ -1266,6 +1272,11 @@ sub SetupOpsNode($)
 		$emulabconfig{FS_PKG_DIR} = $emulabconfig{OPS_PKG_DIR};
 		($emulabconfig{FS_PKG} = $emulabconfig{OPS_PKG}) =~ s/ops/fs/;
 	    }
+	}
+	if (-e "$pdir/emacs-23") {
+	    $ENV{"PKG_PATH"} = "$pdir/emacs-23";
+	    system("pkg_add $pdir/emacs-23/emacs*");
+	    $ENV{"PKG_PATH"} = "$pdir";
 	}
     }
 
@@ -1567,9 +1578,6 @@ sub SetupOpsNode($)
     close(RC);
 
   skipsetup:
-    return
-	if ($emulabconfig{"CONFIG_GENIRACK"});
-
     #
     # Hmm, need to run this at startup though.
     # 
@@ -1862,6 +1870,8 @@ sub SetupBossNode($)
 	if (!$emulabconfig{BOSS_PKG_DIR} || !$emulabconfig{BOSS_PKG}) {
 	    SetupFatal("Could not get package info from Emulab!");
 	}
+	my $pdir = $emulabconfig{BOSS_PKG_DIR};
+	
 	print "Removing conflicting packages.\n";
 	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
 	system("pkg_delete -r -x mysql-client")
@@ -1880,6 +1890,10 @@ sub SetupBossNode($)
 	    system("pkg_delete -f -x sudo -x png -x tiff");
 	}
 
+	if (-e "$pdir/emacs-23") {
+	    system("pkg_delete -f -x emacs");
+	}
+	
 	print "Installing the boss metaport.\n";
 	RecreateDir("/usr/ports", 1);
 	$ENV{"PKG_PATH"} = $emulabconfig{BOSS_PKG_DIR};
@@ -1898,6 +1912,11 @@ sub SetupBossNode($)
 	    # XXX lives in the boss package dir
 	    $ENV{"PKG_PATH"} = $emulabconfig{BOSS_PKG_DIR};
 	    mysystem("pkg_add -f $emulabconfig{PGENI_PKG} >>/tmp/perrs 2>&1");
+	}
+	if (-e "$pdir/emacs-23") {
+	    $ENV{"PKG_PATH"} = "$pdir/emacs-23";
+	    system("pkg_add $pdir/emacs-23/emacs*");
+	    $ENV{"PKG_PATH"} = "$pdir";
 	}
     }
 
@@ -2244,14 +2263,13 @@ sub SetupBossNode($)
     mysystem("/usr/testbed/sbin/named_setup");
 
   skipsetup:
-    return
-	if ($emulabconfig{"CONFIG_GENIRACK"});
     
     #
     # Tack the frisbee mcast addr ipfw rule onto end of /etc/rc.local.
     #
     mysystem("echo 'ipfw add 10 allow udp from any to 224.0.0.0/4' ".
-	     "   >> /etc/rc.local");
+	     "   >> /etc/rc.local")
+	if (! $emulabconfig{"CONFIG_GENIRACK"});
 
     #
     # Hmm, need to run this at startup though.
