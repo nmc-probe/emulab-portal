@@ -25,6 +25,11 @@ sub Install($$$)
 	}
     }
 
+    Phase "etcdir", "Creating $PREFIX/etc", sub {
+	DoneIfExists("$PREFIX/etc");
+	mkdir "$PREFIX/etc",0755 or
+	    PhaseFail("Unable to create $PREFIX/etc: $!");
+    };
     Phase "dirs", "Setting directory permissions", sub {
     	  foreach my $dirref (@TESTBED_DIRS) {
 	      my ($dir, $newmode) = @$dirref;
