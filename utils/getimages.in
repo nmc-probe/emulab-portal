@@ -1,0 +1,201 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use strict;
+use English;
+use Getopt::Std;
+use XML::Simple;
+use Date::Parse;
+use Time::Local;
+use Data::Dumper;
+use File::Temp qw(tempfile);
+
+#
+# Checkin at the master (Utah) to see if we should download and install
+# any new images
+#
+sub usage()
+{
+    print STDERR "Usage: getimages\n";
+    print STDERR "  -h     This message\n";
+    print STDERR "  -n     Impotent mode; just check and report.\n";
+    exit(-1);
+}
+my $optlist  = "hndt:";
+my $debug    = 0;
+my $impotent = 0;
+my $testfile;
+
+# Protos
+sub fatal($);
+
+#
+# Configure variables
+#
+my $TB		 = "@prefix@";
+my $METAURL      = "http://www.emulab.net/genirack-imageinfo.xml";
+my $FETCH	 = "/usr/bin/fetch";
+my $metadata	 = "/tmp/imageinfo-$$.xml";
+my $NEWIMAGE_EZ  = "$TB/bin/newimageid_ez";
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use emdb;
+use Image;
+use OSinfo;
+use libaudit;
+use EmulabConstants;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{'h'})) {
+    usage();
+}
+if (defined($options{'n'})) {
+    $impotent = 1;
+}
+if (defined($options{'d'})) {
+    $debug = 1;
+}
+if (defined($options{'t'})) {
+    $testfile = $options{'t'};
+}
+usage()
+    if (@ARGV);
+
+# Only root.
+if ($UID && !$impotent) {
+    die("*** $0:\n".
+	"    Must run this as root!\n");
+}
+
+#
+# Fetch the metadata, which tells what to do.
+#
+if (!defined($testfile)) {
+    print "Fetching metadata from the server\n"
+	if ($debug);
+    system("$FETCH -o $metadata $METAURL") == 0
+	or fatal("Could not fetch $METAURL");
+}
+else {
+    $metadata = $testfile;
+}
+
+#
+# Must wrap the parser in eval since it exits on error.
+#
+my $xmlparse = eval { XMLin($metadata,
+			    VarAttr => 'name',
+			    ForceArray => ['image'],
+			    ContentKey => '-content',
+			    SuppressEmpty => undef); };
+fatal($@)
+    if ($@);
+
+#
+#
+#
+foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
+    my $attributes = $xmlparse->{'image'}->{$imageid}->{'attribute'};
+
+    if ($debug) {
+	print STDERR Data::Dumper->Dump([$attributes], [$imageid]);
+    }
+
+    my $metaurl  = $attributes->{'metaurl'};
+    my $imageurl = $attributes->{'imageurl'};
+    my $modtime  = timegm(strptime($attributes->{'modtime'}));
+
+    #
+    # If we have an entry in the DB, we use the created/updated stamps
+    # to determine if we need to download a new version.
+    #
+    # Lookup will sanity check the imageid string.
+    #
+    my $image = Image->Lookup(TBOPSPID(), $imageid);
+    if (defined($image)) {
+	my $lastmod;
+
+	print "Local descriptor found: $image\n";
+	if (defined($image->updated())) {
+	    $lastmod = timelocal(strptime($image->updated()));
+	}
+	else {
+	    $lastmod = timelocal(strptime($image->created()));
+	}
+	if ($lastmod >= $modtime) {
+	    print "Image has not changed, skipping ...\n";
+	    next;
+	}
+    }
+    print "Image has changed, downloading ...\n";
+
+    my ($fh, $metafilename) = tempfile(UNLINK => !$debug);
+    fatal("Could not create temporary file")
+	if (!defined($fh));
+    close($fh);
+
+    #
+    # Grab the metadata file
+    #
+    print "Fetching $metaurl\n";
+    system("$FETCH  -o $filename $metaurl") == 0
+	or fatal("Could not fetch $metaurl");
+
+    #
+    # Load up the descriptor if we do not have it.
+    #
+    if (!defined($image)) {
+	system("$NEWIMAGE_EZ -a $metafilename") == 0
+	    or fatal("Could not create descriptor for $imageid");
+    }
+    $image = Image->Lookup(TBOPSPID(), $imageid);
+    if (!defined($image)) {
+	fatal("Could not lookup newly created descriptor for $imageid");
+    }
+
+    my $imagefilename = "$TB/images/${imageid}.ndz";
+    print "Fetching $imageurl\n";
+    system("$FETCH  -o ${imagefilename}.$$ $imageurl") == 0
+	or fatal("Could not fetch $imageurl");
+    rename("${imagefilename}", "${imagefilename}.old")
+	if (-e "${imagefilename}");
+    rename("${imagefilename}.$$", "${imagefilename}") or
+	fatal("Could not rename ${imagefilename}.$$: $!");
+}
+
+exit(0);
+
+sub fatal($)
+{
+    my ($mesg) = $_[0];
+
+    unlink($metadata)
+	if (-e $metadata);
+    die("*** $0:\n".
+	"    $mesg\n");
+}
+
+
