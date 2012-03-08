@@ -34,7 +34,7 @@ check-submodule:
 	    false; \
 	fi
 ifeq ($(ELABINELAB),0)
-	@if [ ! -e "$(RSPECGENI)" ]; then \
+	@if [ -e "$(SRCDIR)/.git" -a ! -e "$(RSPECGENI)" ]; then \
 	    echo '*** rspec-geni has not been updated; you need to reconfigure!'; \
 	    false; \
 	fi
