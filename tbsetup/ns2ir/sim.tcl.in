@@ -1804,6 +1804,7 @@ Simulator instproc make_event {outer event} {
 		} 
 		"create" {
 
+			set etype CREATE
             #The initial arguments for disk-agent through NS
 
             set default_name $obj
@@ -1813,12 +1814,19 @@ Simulator instproc make_event {outer event} {
 			set args "${args}MOUNTPOINT=  "	
 			set args "${args}PARAMETERS=  "
      		set default_cmd [$obj set command]
-		    set args "${args}COMMAND=$default_cmd" 
+
+			::GLOBALS::named-args $evargs [list \
+				-command $default_cmd
+			]
+
+			if {$(-command) != {}} {
+                set args "${args}COMMAND=$(-command)"
+            }
 			#DEBUG
 		    puts stdout "$args"
-            set etype CREATE
      	}
 		"modify" {
+			set etype MODIFY
 			#The initial arguments for disk-agent through NS
 
             set default_name $obj
@@ -1828,10 +1836,17 @@ Simulator instproc make_event {outer event} {
             set args "${args}MOUNTPOINT=  "
             set args "${args}PARAMETERS=  "
             set default_cmd [$obj set command]
-            set args "${args}COMMAND=$default_cmd"
+
+            ::GLOBALS::named-args $evargs [list \
+                -command $default_cmd
+            ]
+
+            if {$(-command) != {}} {
+                set args "${args}COMMAND=$(-command)"
+            }
+
 			#DEBUG
 		    puts stdout "$args"
-		    set etype MODIFY
 	    }
         unknown {
             punsup "$obj $cmd $args"
