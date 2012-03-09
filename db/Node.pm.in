@@ -1517,6 +1517,17 @@ sub default_imageid($;$) {
     return NodeTypeInfo($self)->default_imageid($stuff);
 }
 
+sub default_pxeboot($) {
+    my ($self) = @_;
+    my $val = undef;
+
+    if (NodeAttribute($self, "pxe_boot_path", \$val) == 0 && defined($val)) {
+	return $val;
+    }
+
+    return NodeTypeAttribute($self, "pxe_boot_path", undef);
+}
+
 #
 # And these are the less common attributes, but still common enough to
 # warrant shortcuts.

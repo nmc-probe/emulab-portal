@@ -45,7 +45,7 @@ $| = 1;
 use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
-use NodeType;
+use Node;
 
 #
 # PXE boot constants
@@ -314,11 +314,13 @@ while (<IF>) {
 
 		    #
 		    # Handle alternate boot program filename if it exists.
-		    # Use mutable nodes.next_pxe_boot_path or
-		    # nodes.pxe_boot_path if one is defined.
-		    # Otherwise use the node_types.pxe_boot_path if it is
-		    # defined.  Otherwise don't set anything (use the global
-		    # default).
+		    # Order is:
+		    #
+		    # 1. nodes.next_pxe_boot_path for node
+		    # 2. nodes.pxe_boot_path for node
+		    # 3. "pxe_boot_path" node_attribute for node
+		    # 4. "pxe_boot_path" node_type_attribute for node type
+		    # 5. don't set (i.e., use the dhcpd.conf global default).
 		    #
 		    my $pxeboot = $row{"next_pxe_boot_path"};
 		    if (!$pxeboot) {
@@ -326,20 +328,13 @@ while (<IF>) {
 		    }
 		    $filename = SetupPXEBoot($node_id, $mac, 1, $pxeboot);
 		    if (!$filename) {
-			# Get the type info for this type.
-			my $nodetype = NodeType->Lookup($row{"type"});
-			if (!$nodetype) {
-			    fatal("Could not find type info for $node_id");
+			# Get the node or node type default
+			my $nobj = Node->Lookup($node_id);
+			if (!$nobj) {
+			    fatal("Could not find Node info for $node_id");
 			}
-
-			# Get the type specific version of pxe_boot_path
-			my $nt_pxe_boot_path;
-			$nodetype->pxe_boot_path(\$nt_pxe_boot_path) == 0
-                            or fatal("Could not get pxe_boot_path for ".
-				     "$node_id");
-
-			$filename = SetupPXEBoot($node_id, $mac, 0,
-						 $nt_pxe_boot_path);
+			my $path = $nobj->default_pxeboot();
+			$filename = SetupPXEBoot($node_id, $mac, 0, $path);
 		    }
 		    if ($filename) {
 			$filename = "${spaces}\tfilename \"$filename\";\n";

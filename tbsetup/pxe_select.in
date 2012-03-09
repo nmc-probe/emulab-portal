@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -152,8 +152,11 @@ foreach my $node (@nodes) {
 	my $npb = $nodeobject->next_pxe_boot_path();
 	my $pb = $nodeobject->pxe_boot_path();
 	if (!$pb) {
-	    $nodeobject->NodeTypeAttribute("pxe_boot_path", \$pb);
-	    if ($pb) {
+	    if (!$nodeobject->NodeAttribute("pxe_boot_path", \$pb) &&
+		defined($pb)) {
+		$pb = "$pb (NODE DEFAULT)";
+	    } elsif (!$nodeobject->NodeTypeAttribute("pxe_boot_path", \$pb) &&
+		     defined($pb)) {
 		$pb = "$pb (NODE TYPE DEFAULT)";
 	    } else {
 		$pb = "/tftpboot/pxeboot.emu (SYSTEM DEFAULT)";

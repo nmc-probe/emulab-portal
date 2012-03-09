@@ -9442,6 +9442,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 
 		if (rc < 0) {
 			error("dodhcpdconf: error creating output\n");
+			mysql_free_result(res);
 			return 1;
 		}
 
@@ -9467,6 +9468,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 				error("dodhcpconf: %s: "
 				      "DB Error getting experiment info for %s:%s\n",
 				      row[6], row[5]);
+				mysql_free_result(res);
 				return 1;
 			}
 
@@ -9492,6 +9494,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 				error("dodhcpconf: %s: "
 				      "DB Error getting experiment info for %s:%s\n",
 				      row[6], row[5]);
+				mysql_free_result(res);
 				return 1;
 			}
 
@@ -9513,6 +9516,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 			error("dodhcpconf: %s: "
 			      "DB Error getting subbosses for %s\n",
 			      row[0]);
+			mysql_free_result(res);
 			return 1;
 		}
 
@@ -9533,6 +9537,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 
 			if (rc < 0) {
 				error("dodhcpdconf: error creating output\n");
+				mysql_free_result(res);
 				return 1;
 			}
 
@@ -9573,6 +9578,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 
 			if (rc < 0) {
 				error("dodhcpdconf: error creating output\n");
+				mysql_free_result(res);
 				return 1;
 			}
 
@@ -9583,6 +9589,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 
 			if (rc < 0) {
 				error("dodhcpdconf: error creating output\n");
+				mysql_free_result(res);
 				return 1;
 			}
 
@@ -9590,13 +9597,22 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 			remain -= rc;
 		} else {
 			MYSQL_ROW row2;
-			res2 = mydb_query("select attrvalue from node_type_attributes where "
-			                  "attrkey = 'pxe_boot_path' and type = '%s'", 1, row[4]);
+
+			/* See if there is a default value for the node */
+			res2 = mydb_query("select attrvalue from node_attributes where "
+			                  "attrkey = 'pxe_boot_path' and node_id = '%s'", 1, row[0]);
+			if (res2 && (int)mysql_num_rows(res2) == 0) {
+				/* or for the node type */
+				mysql_free_result(res2);
+				res2 = mydb_query("select attrvalue from node_type_attributes where "
+						  "attrkey = 'pxe_boot_path' and type = '%s'", 1, row[4]);
+			}
 
 			if (!res2) {
 				error("dodhcpconf: %s: "
-				      "DB Error getting pxe_boot_path for %s\n",
+				      "DB Error getting pxe_boot_path from attributes for %s\n",
 				      row[0]);
+				mysql_free_result(res);
 				return 1;
 			}
 
@@ -9605,12 +9621,14 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 				row2 = mysql_fetch_row(res2);
 				rc = 0;
 
-				if (row2[0]!= NULL) {
+				if (row2[0] != NULL) {
 					rc = snprintf(b, remain, " FILENAME=\"%s\"", row2[0]);
 				}
 
 				if (rc < 0) {
 					error("dodhcpdconf: error creating output\n");
+					mysql_free_result(res2);
+					mysql_free_result(res);
 					return 1;
 				}
 
