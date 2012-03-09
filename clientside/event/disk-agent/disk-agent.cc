@@ -20,10 +20,16 @@
 #include <iomanip>
 #include <sstream>
 #include <fstream>
+#include <paths.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/resource.h>
 #include <cerrno>
 #include "log.h"
 #include <cstdio>
 #include <algorithm>
+#include <dirent.h>
 #include <ctype.h>
 extern "C" {
 	#include "libdevmapper.h"
@@ -46,6 +52,9 @@ using namespace std;
 #define MAX_BUFFER 4096
 #define err(msg, x...) fprintf(stderr, msg "\n", ##x)
 
+/* Hard coding the number of disks we allow for now to keep things simpler */
+#define MAX_DISKS 10
+
 /**
  * Structure used to track individual agents.
  */
@@ -61,6 +70,7 @@ struct diskinfo {
 	char		   *parameters;
 	char		   *initial_parameters;	
     int     pid;
+	unsigned long   token;
     struct diskinfo *next;
 };
 
@@ -69,6 +79,13 @@ struct diskinfo {
  */
 static struct diskinfo *diskinfos;
 
+/* Maximum allowed disks */
+static int numdisks;
+
+/* Maximum allowed disk partitions */
+static int volindex = 0;
+
+static char *LOGDIR = "/local/logs";
 
 char * _table = NULL;
 
@@ -107,11 +124,10 @@ void subscribe(event_handle_t handle, address_tuple_t eventTuple,
                string const & subscription, string const & group);
 void callback(event_handle_t handle,
               event_notification_t notification, void *data);
-void start(string);
 
 /**
  * Handler for the TIME start event.  This callback will stop all running
- * programs, reset the agent configuration to the original version specified in
+ * disks, reset the disk agent configuration to the original version specified in
  * the config file, and delete all the files in the log directory.
  *
  * @param handle The connection to the event system.
@@ -135,6 +151,39 @@ static void _display_info_long(struct dm_task *,  struct dm_info *);
 int _get_device_params(const char *);
 string exec_output(string);
 string itos(int );
+
+/* Initialize the partitions that will be used by disk-agent.
+ * LVM is being used to make logical volumes to ease the pain
+ * instead of having to deal with physical volumes.
+ * We allow 10 disks as of now. Maybe we should change this in
+ * the future.
+ */
+void init_volumes(void)
+{
+        string cmd;
+
+        #if 0
+        cmd = "sudo vgremove /dev/emulab -ff";
+        system(const_cast<char *>(cmd.c_str()));
+
+        cmd = "sudo pvremove /dev/sda4 -ff";
+        system(const_cast<char *>(cmd.c_str()));
+        #endif
+
+        /* Since creating partitions on real disk is painful, we
+         * make use of lvm and give logical volumes to host disks.
+         * mkextrafs script which will create 10 logical volumes.
+         */
+        cout << "Creating the disk partition ..." << endl;
+        cmd = "sudo /usr/local/etc/emulab/mymkextrafs -f -lM /mnt";
+        int i = system(const_cast<char *>(cmd.c_str()));
+        if(i)
+        {
+                cerr << "Failed to init logical vols" <<endl;
+                exit(1);
+        }
+
+}
 
 
 /**
@@ -161,6 +210,86 @@ dump_diskinfos(void)
     }
 }
 
+/*
+ * Open a new log file for a program agent and update the symlink used to refer
+ * to the latest invocation of the agent.
+ *
+ * @param pinfo The proginfo we are opening the logs for.
+ * @param type The log type: "out" for standard out and "err" for standard
+ * error.
+ * @return The new file descriptor or -1 if there was a failure.
+ */
+static int
+open_logfile(struct diskinfo *dinfo, const char *type)
+{
+    char buf[BUFSIZ], buf2[BUFSIZ];
+    int error = 0, retval;
+
+    assert(dinfo != NULL);
+    assert(type != NULL);
+    assert((strcmp(type, "out") == 0) || (strcmp(type, "err") == 0));
+
+    /*
+     * Construct the name of the log file, which is made up of the program
+     * agent name, the event token, and the type (e.g. out, err).
+     */
+    snprintf(buf, sizeof(buf),
+         "%s/%s.%s.%lu",
+         LOGDIR, dinfo->name, type, dinfo->token);
+    if ((retval = open(buf, O_WRONLY|O_CREAT|O_TRUNC, 0640)) < 0) {
+        errorc("could not create log file %s\n", buf);
+    }
+    else {
+        /*
+         * We've successfully created the file, now create the
+         * symlinks to that refer to the last run and a tagged run.
+         */
+        snprintf(buf, sizeof(buf),
+             "./%s.%s.%lu",
+             dinfo->name, type, dinfo->token);
+        snprintf(buf2, sizeof(buf2),
+             "%s/%s.%s",
+             LOGDIR, dinfo->name, type);
+        if ((unlink(buf2) < 0) && (errno != ENOENT)) {
+            error = 1;
+            errorc("could not unlink old last run link %s\n",
+                   buf2);
+        }
+        else if (symlink(buf, buf2) < 0) {
+            error = 1;
+            errorc("could not symlink last run %s\n", buf);
+        }
+        #if 0
+        if (dinfo->tag != NULL) {
+            snprintf(buf2, sizeof(buf2),
+                 "%s/%s.%s.%s",
+                 LOGDIR, dinfo->name, dinfo->tag, type);
+            if ((unlink(buf2) < 0) && (errno != ENOENT)) {
+                error = 1;
+                errorc("could not unlink old tag link %s\n",
+                       buf2);
+            }
+            else if (symlink(buf, buf2) < 0) {
+                error = 1;
+                errorc("could not symlink tagged run %s\n",
+                       buf);
+            }
+        }
+        #endif
+
+    }
+
+    if (error) {
+        close(retval);
+        retval = -1;
+    }
+
+    return retval;
+}
+
+/*
+ * Returns the disk agent structure given the disk name
+ */
 static struct diskinfo *
 find_agent(char *name)
 {
@@ -185,6 +314,9 @@ int main(int argc, char * argv[])
   return 0;
 }
 
+/*
+ * Parse the command line arguments and initialize the event system
+ */
 void readArgs(int argc, char * argv[])
 {
   cerr << "Processing arguments" << endl;
@@ -283,7 +415,10 @@ void readArgs(int argc, char * argv[])
 	//subscription = "DISK";
 	
   if (parse_configfile(configfile) != 0)
+  {
+      cerr << "Error while parsing config file" <<endl;
       exit(1);
+  }
 
 
   initEvents(server, port, keyFile, subscription, group);
@@ -296,6 +431,9 @@ void usage(char * name)
   exit(-1);
 }
 
+/*
+ * Initialize the event system and listen for notifications
+ */
 void initEvents(string const & server, string const & port,
                 string const & keyFile, string const & subscription,
                 string const & group)
@@ -340,6 +478,9 @@ void initEvents(string const & server, string const & port,
   }
 }
 
+/*
+ * Subscribes to the events we want from the event system.
+ */
 void subscribe(event_handle_t handle, address_tuple_t eventTuple,
                string const & subscription, string const & group)
 {
@@ -365,19 +506,17 @@ void subscribe(event_handle_t handle, address_tuple_t eventTuple,
         dinfo = dinfo->next;
   }
 
-  eventTuple->objname = agentlist;//const_cast<char *>(name.c_str());
+  eventTuple->objname = agentlist;
   eventTuple->objtype = TBDB_OBJECTTYPE_DISK;
   eventTuple->eventtype = 
 				TBDB_EVENTTYPE_START ","
 				TBDB_EVENTTYPE_RUN ","
 				TBDB_EVENTTYPE_CREATE ","
 				TBDB_EVENTTYPE_MODIFY;
-  //eventTuple->eventtype = ADDRESSTUPLE_ANY;
   eventTuple->expt = const_cast<char *>(g::experimentName.c_str());
   eventTuple->host = ADDRESSTUPLE_ANY;
   eventTuple->site = ADDRESSTUPLE_ANY;
   eventTuple->group = ADDRESSTUPLE_ANY;
-  //eventTuple->scheduler = 1;
   if (event_subscribe(handle, callback, eventTuple, NULL) == NULL)
   {
     cerr << "Could not subscribe to " << eventTuple->eventtype << " event" << endl;
@@ -395,11 +534,13 @@ void subscribe(event_handle_t handle, address_tuple_t eventTuple,
         cerr << "could not subscribe to event" << endl;
     }
 
- 	dump_diskinfos(); 
-
-
 }
 
+/*
+ * Event handler:
+ * Receives notification from the event system.
+ * Calls appropriate event handler.
+ */
 void callback(event_handle_t handle,
               event_notification_t notification,
               void * data)
@@ -407,6 +548,8 @@ void callback(event_handle_t handle,
   char name[EVENT_BUFFER_SIZE];
   char type[EVENT_BUFFER_SIZE];
   char args[EVENT_BUFFER_SIZE];
+  unsigned long   token = ~0;
+  int pid, in_fd, out_fd = -1, err_fd = -1;
   
   struct diskinfo *dinfo;
 
@@ -441,14 +584,9 @@ void callback(event_handle_t handle,
     return;
   }
   string event = type;
-  cerr << event << endl; 
 	 
   event_notification_get_string(handle, notification,const_cast<char *>("ARGS"), args, EVENT_BUFFER_SIZE); 
   
-  cerr << args << endl; 
-
-  /* DEBUG */
-  cout <<"Config file"<<endl;
  
   /* Find the agent and */
   dinfo = find_agent(name);
@@ -456,6 +594,44 @@ void callback(event_handle_t handle,
       cout << "Invalid disk agent: "<< name <<endl;
       return;
   }
+
+  event_notification_get_int32(handle, notification,
+                     "TOKEN", (int32_t *)&token);
+
+    /*
+     * The command is going to be run via the shell.
+     * We do not know anything about the command line, so we reinit
+     * the log file so that any output goes into a different file. If
+     * the user command line includes a redirection, that will get the
+     * output since the sh will set up the descriptors appropriately.
+     */
+    if (((out_fd = open_logfile(dinfo, "out")) < 0) ||
+        ((err_fd = open_logfile(dinfo, "err")) < 0)) {
+        if (out_fd >= 0)
+            close(out_fd);
+        if (err_fd >= 0)
+            close(err_fd);
+
+        cerr << "could not setup log files" <<endl;
+        exit(1);
+    }
+
+    if (out_fd != STDOUT_FILENO) {
+        dup2(out_fd, STDOUT_FILENO);
+        close(out_fd);
+    }
+    if (err_fd != STDERR_FILENO) {
+        dup2(err_fd, STDERR_FILENO);
+        close(err_fd);
+    }
+
+    close(STDIN_FILENO);
+    if ((in_fd = open(_PATH_DEVNULL, O_RDONLY)) >= 0) {
+        if (in_fd != STDIN_FILENO) {
+            dup2(in_fd, STDIN_FILENO);
+            close(in_fd);
+        }
+    }
 
   /* Call the event handler routine based on the event */
   switch(eventtype[event])
@@ -485,6 +661,12 @@ void callback(event_handle_t handle,
  
 }
 
+/*
+ * Handles case where user specifies a disk type and a mountpoint.
+ * This routine creates a new disk if it does not exist and mounts it.
+ * If the disk already exists then it will simply change the parameters
+ * specified by the user.
+ */
 int run_dm_device(struct diskinfo *dinfo, char *args)
 {
 	struct dm_task *dmt;
@@ -542,7 +724,7 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 		cout << "diskname after "<<params_str<<endl;
 		params 		= const_cast<char *>(params_str.c_str());
 
-		cout <<"start"<<start<<" "<<"len"<<length<<" "<<"target_type"<<target_type<<" "<<params<<endl;	
+		cout <<"start: "<<start<<" "<<"len: "<<length<<" "<<"target_type: "<<target_type<<"parameters: "<<params<<endl;	
 		
 		if (!dm_task_add_target(dmt, start, length, target_type, params)) {
 				dm_task_destroy(dmt);
@@ -586,24 +768,47 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 			dm_task_destroy(dmt);
 			return 0;
 		}
-		/* Making use of mkextrafs script which will create a new partition.
-		 * Using this partition we'll create the dm disk on top of it.
+
+		/* 
+		 * Need to find out which logical volume is free;
+		 * We can check this based on the open count of
+  		 * logical volumes. Simple scan through the list 
+         * logical volumes that we have created looking for
+		 * the first free volume.
 		 */
-		cout << "Creating the disk partition ..." << endl;
-		prefix =  "sudo ./mkextrafs -f ";
-		
-		if(dinfo->mountpoint == NULL)
+		volindex=1;
+		int count=0;
+		do
 		{
-			cerr << "Mountpoint not specified!" << endl;
-			return 0;
+				++count;
+				cmd = "sudo lvdisplay emulab/vol"+itos(volindex)+" | grep open | cut -d ' ' -f 21-21";
+				string open_count_str = exec_output(cmd);
+				int open_count = atoi(const_cast<char *>(open_count_str.c_str()));     
+				if(open_count > 0)
+						++volindex;
+				else
+                                break;
+		}while(count <= 10);
+
+		if(count == 10)
+		{
+				cerr << "No logical volumes free to map disks!" <<endl;
+				return 0;
 		}
-		cmd = prefix + dinfo->mountpoint;  //This returns the newly partitioned disk name
-		string disk = exec_output(cmd);           //exec_output will return the output from shell
-		if (disk == "") {
-			 dm_task_destroy(dmt);
-                        return 0;
-		}	
-		cout << "Disk partition: " << disk <<endl;
+
+		cmd = "sudo mkfs.ext3 /dev/emulab/vol"+itos(volindex);
+		int i = system(const_cast<char *>(cmd.c_str()));
+		if(i)
+		{
+				if(volindex > 1)
+					--volindex;
+				cerr << "mkfs failed for /dev/emulab/vol"+volindex <<endl ;
+				dm_task_destroy(dmt);
+				return 0;
+		}
+		sleep(1);
+		string disk = "/dev/emulab/vol"+itos(volindex);
+
 		/* So we have the new partition. Find out the
 		 * size of partition to create the new dm disk.
 		 */
@@ -615,7 +820,8 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 		}
 		
 		cout << "Mapping the virtual disk " << dinfo->name << "on "<<disk<< endl; 
-		/* Hardcoding all the values.
+		/*
+		 * Hardcoding all the values.
 		 * Users not to worry about the geometry of the disk such as the start
 		 * sector, end sector, size etc
 		 */
@@ -652,15 +858,39 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 
 		sleep(1);
 
-		str = dinfo->mountpoint;
-		cmd = "sudo mount "+dm_disk_name+" "+str;
-		system(const_cast<char *>(cmd.c_str()));
-		cout << dinfo->name << " is mounted on " <<str <<endl;
+		dm_disk_name.erase(std::remove(dm_disk_name.begin(), dm_disk_name.end(), ' '), dm_disk_name.end());
 
+		_device_info(const_cast<char *>(dm_disk_name.c_str()));
+		if(dinfo->mountpoint == NULL)
+		{
+				cerr << "Mountpoint not specified!" << endl;
+				dm_task_destroy(dmt);
+				return 0;
+		}
+		str = dinfo->mountpoint;
+		cmd = "sudo mkdir -p "+str;
+		i = system(const_cast<char *>(cmd.c_str()));
+		if(i)
+		{
+				cerr << "Could not create mountpoint" <<endl;
+				dm_task_destroy(dmt);
+				return 0;
+		}
+
+		cmd = "sudo mount -t ext3 "+dm_disk_name+" "+str;
+		i = system(const_cast<char *>(cmd.c_str()));
+		if(i)
+		{
+				--volindex;
+				cerr << "mount failed " <<endl;
+				dm_task_destroy(dmt);
+				return 0;
+		}
+		cout << dinfo->name << " is mounted on " <<str <<endl;
 		dm_task_destroy(dmt);
 		return 1;
 	}
-
+	return 1;
 }
 
 
@@ -791,10 +1021,11 @@ int resume_dm_device(char *name)
         if (!dm_task_set_name(dmt, name))
                 goto out;
 
+	#if 0
 	/* This adds the dm device node */
         if (!dm_task_set_add_node(dmt, DM_ADD_NODE_ON_RESUME))
                 goto out;
-
+	#endif
          /* Now that we have the dm device. Run it to make it alive. */
         if (!dm_task_run(dmt))
                 goto out;
@@ -898,6 +1129,11 @@ static int _parse_file(struct dm_task *dmt, const char *file)
         return r;
 }
 
+/*
+ * Helper routine which executes a shell command
+ * and returns the output. This comes in handy for
+ * knowing the status of dm devices for example.
+ */
 string exec_output(string cmd)
 {
 	// setup
@@ -919,6 +1155,7 @@ string exec_output(string cmd)
 	return data;
 }
 
+/* Prints the status of DM device */
 static int _device_info(char *name)
 {
 	struct dm_task *dmt;
@@ -947,6 +1184,7 @@ static int _device_info(char *name)
         	return info.exists ? 1 : 0;
 }
 
+/* Prints a detailed status of DM device */
 static void _display_info_long(struct dm_task *dmt, struct dm_info *info)
 {
         const char *uuid;
@@ -1000,28 +1238,32 @@ static void _display_info_long(struct dm_task *dmt, struct dm_info *info)
         printf("\n");
 }
 
+/*
+ * Extract the properties of existing DM device.
+ * Useful when altering some properties of DM device.
+ */
 int _get_device_params(const char *name)
 {
         struct dm_info info;
         struct dm_task *dmt;
-	uint64_t start, length;
-	char *target_type, *params;
+		uint64_t start, length;
+		char *target_type, *params;
 
-        void *next = NULL;
-	int r=0;
-	unsigned long long size;
+		void *next = NULL;
+		int r=0;
+		unsigned long long size;
 	
-	device_params.clear();
-        if (!(dmt = dm_task_create(DM_DEVICE_TABLE)))
-                return 0;
+		device_params.clear();
+		if (!(dmt = dm_task_create(DM_DEVICE_TABLE)))
+		return 0;
 
-        if (!dm_task_set_name(dmt,name))
-                goto out;
+		if (!dm_task_set_name(dmt,name))
+				goto out;
 
-        if (!dm_task_run(dmt))
-                goto out;
+		if (!dm_task_run(dmt))
+				goto out;
 
-        if (!dm_task_get_info(dmt, &info) || !info.exists)
+		if (!dm_task_get_info(dmt, &info) || !info.exists)
                 goto out;
 
         do {
@@ -1037,19 +1279,24 @@ int _get_device_params(const char *name)
 
         } while (next);
 
-      r=1;
-      out:
-        dm_task_destroy(dmt);
+		r=1;
+		out:
+		dm_task_destroy(dmt);
         return r;
 }
 
-string itos(int i)	// convert int to string
+/* convert int to string */
+string itos(int i)	
 {
 	stringstream s;
 	s << i;
 	return s.str();
 }
 
+/* 
+ * Parse the config file which lists the initial 
+ * disk configuration of disk agents.
+ */
 static int
 parse_configfile(char *filename)
 {
@@ -1107,9 +1354,16 @@ parse_configfile(char *filename)
 
             if ((rc = event_arg_get(buf,
                          "PARAMETERS",
-                         &value)) > 0) {
+                         &dinfo->parameters)) > 0) {
 				dinfo->parameters[strlen(dinfo->parameters) - 1] =
 					'\0';
+
+				/* Since event_arg_get simply returns the entire string,
+				   we need to prune out foreign chars */
+				char *ptr = strstr(dinfo->parameters, "COMMAND=");
+				if(*ptr != NULL)
+						*ptr = '\0';
+
 				asprintf(&dinfo->parameters,
                      "%s",
                      dinfo->parameters);
@@ -1141,6 +1395,10 @@ bad:
 	return -1;		
 }		
 		
+/*
+ * Helper routine to populate the disk agent list
+ * in memory. 
+ */
 static void
 set_disk(struct diskinfo *dinfo, char *args)
 {
@@ -1163,7 +1421,6 @@ set_disk(struct diskinfo *dinfo, char *args)
          * is quoted, we just pass the quotes through to the program.
          */
         if ((rc = event_arg_get(args, "COMMAND", &value)) > 0) {
-            cout <<"COMMAND "<<value<<endl;
 			if (dinfo->cmdline != NULL) {
                 if (dinfo->cmdline != dinfo->initial_cmdline) {
                     free(dinfo->cmdline);
@@ -1177,17 +1434,31 @@ set_disk(struct diskinfo *dinfo, char *args)
              */
             if (value[-1] == '\'' || value[-1] == '{')
                 value--;
+            /* Since event_arg_get simply returns the entire string,
+               we need to prune out foreign chars */
+            char *ptr;
+            if(((ptr = strstr(value, "PARAMETERS=")) || (ptr = strstr(value, "DISKTYPE=")) || (ptr = strstr(value, "MOUNTPOINT="))) != NULL)
+                *ptr = '\0';
+
+            cout <<"COMMAND "<<value<<endl;
             asprintf(&dinfo->cmdline, "%s", value);
             value = NULL;
         }
+        else
+        {    if (dinfo->cmdline != NULL) {
+                if (dinfo->cmdline != dinfo->initial_cmdline) {
+                    free(dinfo->cmdline);
+                    dinfo->cmdline = NULL;
+                }
+            }
+        }
+
         if ((rc = event_arg_dup(args, "DISKTYPE", &value)) >= 0) {
 			cout << "DISKTYPE "<<value<<endl;
-			#if 0
             if (dinfo->type != NULL) {
                 if (dinfo->type != dinfo->initial_type)
                     free(dinfo->type);
             }
-			#endif
 			if(rc == 0) {
 				dinfo->type = NULL;
 				free(value);
@@ -1202,12 +1473,10 @@ set_disk(struct diskinfo *dinfo, char *args)
 		}
         if ((rc = event_arg_dup(args, "MOUNTPOINT", &value)) >= 0) {
 			cout << "MOUNTPOINT "<<value<<endl;
-			#if 0
             if (dinfo->mountpoint != NULL) {
                 if (dinfo->mountpoint != dinfo->initial_mountpoint)
                     free(dinfo->mountpoint);
             }
-			#endif
             if(rc == 0) {
                 dinfo->mountpoint = NULL;
                 free(value);
@@ -1222,35 +1491,78 @@ set_disk(struct diskinfo *dinfo, char *args)
         }
 	    if ((rc = event_arg_get(args, "PARAMETERS", &value)) > 0) {
 			cout << "PARAMETERS" <<value<<endl;
-			#if 0
 			if (dinfo->parameters != NULL) {
                 if (dinfo->parameters != dinfo->initial_parameters)
                     free(dinfo->parameters);
             }
-			#endif
-            if(rc == 0) {
-                dinfo->parameters = NULL;
-                free(value);
+			/* Since event_arg_get simply returns the entire string,
+			   we need to prune out foreign chars */
+			char *ptr;
+			if(((ptr = strstr(value, "COMMAND=")) || (ptr = strstr(value, "DISKTYPE=")) || (ptr = strstr(value, "MOUNTPOINT="))) != NULL)
+				*ptr = '\0';
+
+			cout << "PARAMETERS" <<value<<endl;
+			dinfo->parameters = value;
+		   /*
+			* XXX event_arg_get will return a pointer beyond
+			* any initial quote character.  We need to back the
+			* pointer up if that is the case.
+			*/
+			if (value[-1] == '\'' || value[-1] == '{')
+				value--;
+			asprintf(&dinfo->parameters, "%s", value);
+			value = NULL;
+
+		}
+		else
+		{
+			if(dinfo->parameters != NULL)
+			{
+            	if(dinfo->parameters != dinfo->initial_parameters) {
+                	free(dinfo->parameters);
+                    dinfo->parameters = NULL;
+                }
             }
-            else if (rc > 0) {
-                dinfo->parameters = value;
-            }
-            else {
-                assert(0);
-            }
-            /*
-             * XXX event_arg_get will return a pointer beyond
-             * any initial quote character.  We need to back the
-             * pointer up if that is the case.
-             */
-            if (value[-1] == '\'' || value[-1] == '{')
-                value--;
-            asprintf(&dinfo->parameters, "%s", value);
-            value = NULL;
+
         }
+        
+		cout<<"After set disk"<<endl;
+		dump_diskinfos();
 	}
 }
 
+/**
+ * Find the file extension of the given path while ignoring any numerical
+ * extensions.  For example, calling this function with "foo.zip.1" and
+ * "foo.zip" will return a pointer to "zip.1" and "zip" respectively.
+ *
+ * @param path The path to search for a file extension within.
+ * @return NULL if no extension could be found, otherwise a pointer to the
+ * first character of the extension.
+ */
+static char *fileext(char *path)
+{
+    int has_token = 0, lpc, len;
+    char *retval = NULL;
+
+    assert(path != NULL);
+
+    len = strlen(path);
+    for (lpc = len - 1; (lpc > 0) && (retval == NULL); lpc--) {
+        if (path[lpc] == '.') {
+            int dummy;
+
+            if (has_token)
+                retval = &path[lpc + 1];
+            else if (sscanf(&path[lpc + 1], "%d", &dummy) == 1)
+                has_token = 1;
+            else
+                retval = &path[lpc + 1];
+        }
+    }
+
+    return retval;
+}
 
 static void
 start_callback(event_handle_t handle,
@@ -1268,9 +1580,10 @@ start_callback(event_handle_t handle,
         cerr << "Could not get event from notification!\n" << endl;
         return;
     }
-
+	cerr << "In start_callback before if"<<endl;
     if (strcmp(event, TBDB_EVENTTYPE_START) == 0) {
         struct diskinfo *dinfo;
+        DIR *dir;
 
         for (dinfo = diskinfos; dinfo != NULL; dinfo = dinfo->next) {
 
@@ -1292,7 +1605,51 @@ start_callback(event_handle_t handle,
             }
 
         }
-	}
+        if ((dir = opendir(LOGDIR)) == NULL) {
+            errorc("Cannot clean log directory: %s", dir);
+        }
+        else {
+            struct dirent *de;
+
+            while ((de = readdir(dir)) != NULL) {
+                char *ext = NULL;
+                char path[1024];
+                int len = strlen(de->d_name);
+                int got_path = 0, file_or_link = 0;
+                if ((len > 0) && (len < sizeof(path)))
+                    got_path = sscanf(de->d_name,
+                              "%1024[^.].",
+                              path) == 1;
+#ifndef __CYGWIN__
+                file_or_link = (de->d_type == DT_REG) ||
+                  (de->d_type == DT_LNK);
+#else  /* __CYGWIN__ */
+                /* Cygwin struct dirent doesn't have d_type. */
+                struct stat st;     /* Use stat instead. */
+                file_or_link = got_path &&
+                  (stat(path, &st) == 0) &&
+                  ((st.st_mode == S_IFREG) ||
+                    (st.st_mode == S_IFLNK));
+#endif /* __CYGWIN__ */
+                if ((file_or_link) &&
+                    (find_agent(path) != NULL) &&
+                    ((ext = fileext(de->d_name)) != NULL) &&
+                    ((strncmp(ext, "out", 3) == 0) ||
+                     (strncmp(ext, "err", 3) == 0) ||
+                     (strncmp(ext, "status", 6) == 0))) {
+                    snprintf(path,
+                         sizeof(path),
+                         "%s/%s",
+                         LOGDIR,
+                         de->d_name);
+                    unlink(path);
+                }
+            }
+            closedir(dir);
+            dir = NULL;
+        }
+    }
 }
+
 
 	
