@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2009-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2009-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -148,14 +148,15 @@ tmcd_tpm_generate_nonce(unsigned char *nonce)
     int byte_count = 0;
     bzero(nonce,TPM_NONCE_BYTES);
     
-    /* Nonce must be 160 bits long, and we must be quite sure that we will
-     * never use the same one twice.  We put three things into the nonce to
-     * make it unique:
-     * 1) Timestamp to the best accuracy we can get
+    /*
+     * Nonce must be 160 bits (20 bytes) long, and we must be quite sure that
+     * we will never use the same one twice.  We put three things into the
+     * nonce to make it unique:
+     * 1) Timestamp to the best accuracy we can get (8 bytes)
      * 2) The PID of the current process, to avoid someone asking two 
-     *    different tmcds for nonces at thte same time
+     *    different tmcds for nonces at the same time (2 bytes)
      * 3) A local counter, in case someone can ask for nonces faster than our
-     *    clock resolution
+     *    clock resolution (4 bytes)
      */
 
     // timestamp
@@ -183,6 +184,7 @@ tmcd_tpm_generate_nonce(unsigned char *nonce)
     }
     bcopy(&nonce_counter, nonce + byte_count, sizeof(nonce_counter));
     byte_count += sizeof(nonce_counter);
+    nonce_counter++;
 
     // TODO: Maybe hash to avoid giving away info on state on boss?
 
