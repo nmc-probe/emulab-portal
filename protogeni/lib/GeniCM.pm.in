@@ -1202,6 +1202,28 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    }
 	}
 	elsif (my @services = GeniXML::GetServices($ref)) {
+	    my $startupCommand = undef;
+	    my $startupCount = 0;
+	    foreach my $service (@services) {
+		if ($service->{'type'} eq "execute") {
+		    if ($startupCount == 0) {
+			$startupCommand = $service->{'cmd'};
+		    }
+		    ++$startupCount;
+		}
+	    }
+
+	    if ($startupCount == 1 && defined($startupCommand)) {
+		if (! TBcheck_dbslot($startupCommand, "virt_nodes", "startupcmd",
+				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					     "Invalid startup command");
+		    goto bad;
+		}
+		$nodeblob->{'startupcmd'} = $startupCommand;
+
+	    } else { # BEGIN TEMPORARY ELSE
 	    my $count = 0;
 	    my $startfile = $slice_experiment->UserDir() .
 		"/geni_startup." . $node_nickname;
@@ -1259,6 +1281,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    print STARTUP "exit 0\n";
 	    close(STARTUP);
 	    chmod(0755, $startfile);
+	    } # END TEMPORARY ELSE
 	}
 
 	my $virtnode = $virtexperiment->NewTableRow("virt_nodes", $nodeblob);
