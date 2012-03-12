@@ -175,7 +175,7 @@ void init_volumes(void)
          * mkextrafs script which will create 10 logical volumes.
          */
         cout << "Creating the disk partition ..." << endl;
-        cmd = "sudo /usr/local/etc/emulab/mymkextrafs -f -lM /mnt";
+        cmd = "sudo /usr/testbed/bin/mymkextrafs -f -lM /mnt";
         int i = system(const_cast<char *>(cmd.c_str()));
         if(i)
         {
