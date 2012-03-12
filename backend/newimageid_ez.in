@@ -538,22 +538,25 @@ if (!$isadmin && defined($node_id)) {
 	DBQueryFatal("select oi.type from osidtoimageid as oi ".
 		     "left join partitions as p on oi.osid=p.osid ".
 		     "where p.node_id='$node_id' and p.partition=$loadpart");
-    my %otypes;
-    while (my ($ntype) = $query_result->fetchrow_array()) {
-	$otypes{$ntype} = 1;
-    }
-    my @invalid_node_types;
-    foreach my $ntype (@mtype_keys) {
-        $ntype =~ s/^mtype_//;
-	if (!exists($otypes{$ntype})) {
-	    push @invalid_node_types, $ntype;
+    if ($query_result->numrows != 0) {
+	my %otypes;
+	while (my ($ntype) = $query_result->fetchrow_array()) {
+	    $otypes{$ntype} = 1;
 	}
-    }
-    if (@invalid_node_types) {
-	UserError("Node Types: Current image on $node_id".
-		  " cannot run on the following node types: ". 
-		  join(' ', @invalid_node_types));
-		  
+	my @invalid_node_types;
+	foreach my $ntype (@mtype_keys) {
+	    $ntype =~ s/^mtype_//;
+	    if (!exists($otypes{$ntype})) {
+	        push @invalid_node_types, $ntype;
+	    }
+        }
+	if (@invalid_node_types) {
+	    UserError("Node Types: Current image on $node_id".
+		      " cannot run on the following node types: ". 
+		      join(' ', @invalid_node_types));
+        }
+    } else {
+	UserError("Partition: No image originally loaded in partition $loadpart on $node_id; this is probably not the partition you meant to save");
     }
 }
 
