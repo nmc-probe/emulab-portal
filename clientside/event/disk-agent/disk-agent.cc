@@ -1444,14 +1444,6 @@ set_disk(struct diskinfo *dinfo, char *args)
             asprintf(&dinfo->cmdline, "%s", value);
             value = NULL;
         }
-        else
-        {    if (dinfo->cmdline != NULL) {
-                if (dinfo->cmdline != dinfo->initial_cmdline) {
-                    free(dinfo->cmdline);
-                    dinfo->cmdline = NULL;
-                }
-            }
-        }
 
         if ((rc = event_arg_dup(args, "DISKTYPE", &value)) >= 0) {
 			cout << "DISKTYPE "<<value<<endl;
@@ -1514,20 +1506,6 @@ set_disk(struct diskinfo *dinfo, char *args)
 			value = NULL;
 
 		}
-		else
-		{
-			if(dinfo->parameters != NULL)
-			{
-            	if(dinfo->parameters != dinfo->initial_parameters) {
-                	free(dinfo->parameters);
-                    dinfo->parameters = NULL;
-                }
-            }
-
-        }
-        
-		cout<<"After set disk"<<endl;
-		dump_diskinfos();
 	}
 }
 
