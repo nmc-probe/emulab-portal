@@ -707,7 +707,7 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 			dm_task_destroy(dmt);
             return 0;
 		}
-		cout << device_params[0] << device_params[1] << device_params[2] << device_params[3] << endl;
+		cout << device_params[0] << device_params[1] << device_params[2] << device_params[3] << device_params[4] << endl;
 	
 		start 		    = strtoul (device_params[0].c_str(),NULL,0);
 		length 		    = strtoul (device_params[1].c_str(),NULL,0);
@@ -715,10 +715,19 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 
 		split		   << device_params[3];
 
+		/* Get the diskname from dm parameters */
 		getline(split,diskname,' ');
 		
 		if(dinfo->parameters == NULL)
 			dinfo->parameters = " ";
+	
+		/* For error DM type, we might not the disk name.
+		 * So we store the major:minor number in device_params[4].
+		 * Useful for converting error disk back to linear.
+		 */  
+           	
+		 if(diskname == "")
+			diskname = device_params[4];
 
  		params_str 	= diskname + " " + "0 "+ dinfo->parameters;
 		cout << "diskname after "<<params_str<<endl;
@@ -1248,6 +1257,7 @@ int _get_device_params(const char *name)
         struct dm_task *dmt;
 		uint64_t start, length;
 		char *target_type, *params;
+		string diskname;
 
 		void *next = NULL;
 		int r=0;
@@ -1266,16 +1276,18 @@ int _get_device_params(const char *name)
 		if (!dm_task_get_info(dmt, &info) || !info.exists)
                 goto out;
 
+		diskname = itos(info.major)+":"+itos(info.minor);
+		
         do {
                 next = dm_get_next_target(dmt, next, &start, &length,
                                           &target_type, &params);
                 size += length;
 		
-		device_params.push_back(itos(start));
-		device_params.push_back(itos(length));
-		device_params.push_back(target_type);
-		device_params.push_back(params);
-	
+				device_params.push_back(itos(start));
+				device_params.push_back(itos(length));
+				device_params.push_back(target_type);
+				device_params.push_back(params);
+				device_params.push_back(diskname);	
 
         } while (next);
 
