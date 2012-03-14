@@ -37,6 +37,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.VirtualLink;
 	import com.flack.geni.resources.virtual.VirtualNode;
 	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virtual.extensions.MCInfo;
 	import com.flack.geni.resources.virtual.extensions.SliceFlackInfo;
 	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistory;
 	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistoryItem;
@@ -66,18 +67,20 @@ package com.flack.geni.tasks.process
 		public var sliver:Sliver;
 		public var rspec:Rspec;
 		public var markUnsubmitted:Boolean;
+		public var parseManifest:Boolean;
 		private var xmlDocument:XML;
 		
 		/**
 		 * 
 		 * @param newSliver Sliver for which to parse the rspec for
 		 * @param newRspec Rspec to parse
-		 * @param shouldMarkUnsubmitted Mark all resources as unsubmitted
+		 * @param shouldMarkUnsubmitted Mark all resources as unsubmitted, must be false to import manifest values
 		 * 
 		 */
 		public function ParseRequestManifestTask(newSliver:Sliver,
 												 newRspec:Rspec,
-												 shouldMarkUnsubmitted:Boolean = false)
+												 shouldMarkUnsubmitted:Boolean = false,
+												 shouldParseManifest:Boolean = false)
 		{
 			super(
 				"Process RSPEC @ " + newSliver.manager.hrn,
@@ -92,6 +95,7 @@ package com.flack.geni.tasks.process
 			sliver = newSliver;
 			rspec = newRspec;
 			markUnsubmitted = shouldMarkUnsubmitted;
+			parseManifest = shouldParseManifest;
 		}
 		
 		override protected function runCleanup():void
@@ -123,6 +127,7 @@ package com.flack.geni.tasks.process
 				switch(defaultNamespace.uri)
 				{
 					case RspecUtil.rspec01Namespace:
+					case RspecUtil.rspec01MalformedNamespace:
 						rspec.info = new RspecVersion(RspecVersion.TYPE_PROTOGENI, 0.1);
 						break;
 					case RspecUtil.rspec02Namespace:
@@ -225,8 +230,7 @@ package com.flack.geni.tasks.process
 						);
 						return;
 					}
-					var virtualNodeManager:GeniManager =
-						GeniMain.geniUniverse.managers.getById(managerIdString);
+					var virtualNodeManager:GeniManager = GeniMain.geniUniverse.managers.getById(managerIdString);
 					if(virtualNodeManager == null)
 					{
 						afterError(
@@ -288,12 +292,15 @@ package com.flack.geni.tasks.process
 						virtualNode.physicalId = new IdnUrn(componentIdString);
 						if(virtualNode.Physical == null)
 						{
-							// switch from error to warning
 							addMessage(
 								"Physical Node with ID '"+componentIdString+"' was not found.",
 								"Physical Node with ID '"+componentIdString+"' was not found.",
 								LogMessage.LEVEL_WARNING
 							);
+							// If not looking for manifest info, don't care if exists
+							// otherwise clear the component_id if not found
+							if(rspec.type != Rspec.TYPE_MANIFEST)
+								virtualNode.physicalId.full = "";
 						}
 					}
 					
@@ -317,6 +324,13 @@ package com.flack.geni.tasks.process
 							if(virtualNode.services.loginServices.length == 0)
 								virtualNode.services.loginServices.push(new LoginService());
 							virtualNode.services.loginServices[0].hostname = String(nodeXml.@hostname);
+						}
+						if(nodeXml.@tarfiles.length() == 1) {
+							if(virtualNode.services.installServices == null)
+								virtualNode.services.installServices = new Vector.<InstallService>();
+							if(virtualNode.services.installServices.length == 0)
+								virtualNode.services.installServices.push(new InstallService());
+							virtualNode.services.installServices[0].url = String(nodeXml.@tarfiles);
 						}
 						if(nodeXml.@startup_command.length() == 1) {
 							if(virtualNode.services.executeServices == null)
@@ -355,9 +369,14 @@ package com.flack.geni.tasks.process
 					}
 					else
 					{
-						virtualNode.exclusive = 
-							String(nodeXml.@exclusive) == "true"
-							|| String(nodeXml.@exclusive) == "1";
+						virtualNode.exclusive = String(nodeXml.@exclusive) == "true" || String(nodeXml.@exclusive) == "1";
+					}
+					
+					// Hack for INSTOOLS w/o namespace
+					if(String(nodeXml.@MC) == "1")
+					{
+						virtualNode.mcInfo = new MCInfo();
+						virtualNode.mcInfo.type = String(nodeXml.@mc_type);
 					}
 					
 					// Get interfaces first
@@ -370,11 +389,16 @@ package com.flack.geni.tasks.process
 						{
 							if(interfaceXml.@virtual_id.length() == 1)
 								virtualInterfaceClientId = String(interfaceXml.@virtual_id);
-							// V1 didn't have sliver ids for interfaces...
-							virtualInterfaceSliverId = IdnUrn.makeFrom(
-								sliver.manager.id.authority,
-								"interface",
-								virtualInterfaceClientId).full;
+							if(interfaceXml.@sliver_urn.length() == 1)
+								virtualInterfaceSliverId = String(interfaceXml.@sliver_urn);
+							else
+							{
+								// V1 didn't have sliver ids for interfaces...
+								virtualInterfaceSliverId = IdnUrn.makeFrom(
+									sliver.manager.id.authority,
+									"interface",
+									virtualInterfaceClientId).full;
+							}
 						}
 						else
 						{
@@ -415,21 +439,22 @@ package com.flack.geni.tasks.process
 						if(virtualInterfaceSliverId.length > 0)
 							virtualInterface.id = new IdnUrn(virtualInterfaceSliverId);
 						
+						if(interfaceXml.@component_id.length() == 1 && IdnUrn.isIdnUrn(String(interfaceXml.@component_id)))
+						{
+							virtualInterface.physicalId = new IdnUrn(String(interfaceXml.@component_id));
+							if(virtualInterface.Physical == null)
+							{
+								// Switched from error to warning
+								addMessage(
+									"Interface not found. Physical interface with ID '"+String(interfaceXml.@component_id)+"' was not found.",
+									"Interface not found. Physical interface with ID '"+String(interfaceXml.@component_id)+"' was not found.",
+									LogMessage.LEVEL_WARNING
+								);
+							}
+						}
+						
 						if(rspec.info.version >= 2)
 						{
-							if(interfaceXml.@component_id.length() == 1)
-							{
-								virtualInterface.physicalId = new IdnUrn(String(interfaceXml.@component_id));
-								if(virtualInterface.Physical == null)
-								{
-									// Switched from error to warning
-									addMessage(
-										"Interface not found. Physical interface with ID '"+String(interfaceXml.@component_id)+"' was not found.",
-										"Interface not found. Physical interface with ID '"+String(interfaceXml.@component_id)+"' was not found.",
-										LogMessage.LEVEL_WARNING
-									);
-								}
-							}
 							if(interfaceXml.@mac_address.length() == 1)
 								virtualInterface.macAddress = String(interfaceXml.@mac_address);
 							
@@ -472,6 +497,9 @@ package com.flack.geni.tasks.process
 									break;
 								case "node_type":
 									virtualNode.hardwareType = new HardwareType(String(nodeChildXml.@type_name), Number(nodeChildXml.@type_slots));
+									// Hack for if subvirtualization_type isn't set...
+									if(virtualNode.hardwareType.name == "pcvm")
+										virtualNode.sliverType.name = SliverTypes.EMULAB_OPENVZ;
 									break;
 								case "hardware_type":
 									virtualNode.hardwareType = new HardwareType(String(nodeChildXml.@name));
@@ -539,16 +567,17 @@ package com.flack.geni.tasks.process
 								case "services":
 									if(virtualNode.manager == sliver.manager)
 									{
-										virtualNode.services = new Services();
+										if(rspec.info.version >= 2)
+											virtualNode.services = new Services();
 										for each(var servicesChild:XML in nodeChildXml.children())
 										{
 											if(servicesChild.localName() == "login")
 											{
-												// XXX markUnsubmitted means this is an import
-												if(!markUnsubmitted)
+												if(parseManifest)
 												{
-													if(rspec.info.version < 1)
+													if(virtualNode.services.loginServices == null)
 														virtualNode.services.loginServices = new Vector.<LoginService>();
+													
 													var loginService:LoginService =
 														new LoginService(
 															String(servicesChild.@authentication),
@@ -556,11 +585,23 @@ package com.flack.geni.tasks.process
 															String(servicesChild.@port),
 															String(servicesChild.@username)
 														);
-													loginService.extensions.buildFromOriginal(servicesChild, [defaultNamespace.uri]);
-													
-													if(virtualNode.services.loginServices == null)
-														virtualNode.services.loginServices = new Vector.<LoginService>();
-													virtualNode.services.loginServices.push(loginService);
+													if(rspec.info.version < 1)
+													{
+														if(virtualNode.services.loginServices.length == 1)
+														{
+															virtualNode.services.loginServices[0].authentication = loginService.authentication;
+															virtualNode.services.loginServices[0].hostname = loginService.hostname;
+															virtualNode.services.loginServices[0].port = loginService.port;
+															virtualNode.services.loginServices[0].username = loginService.username;
+														}
+														else
+															virtualNode.services.loginServices.push(loginService);
+													}
+													else
+													{
+														loginService.extensions.buildFromOriginal(servicesChild, [defaultNamespace.uri]);
+														virtualNode.services.loginServices.push(loginService);
+													}
 												}
 											}
 											else if(servicesChild.localName() == "install")
@@ -593,8 +634,7 @@ package com.flack.geni.tasks.process
 									}
 									break;
 								case "host":
-									// XXX markUnsubmitted means this is an import
-									if(!markUnsubmitted)
+									if(parseManifest)
 									{
 										virtualNode.host = new Host(String(nodeChildXml.@name));
 										if(virtualNode.manager == sliver.manager)
@@ -613,8 +653,7 @@ package com.flack.geni.tasks.process
 								if(nodeChildXml.@unbound.length() == 1)
 								{
 									virtualNode.flackInfo.unbound = String(nodeChildXml.@unbound).toLowerCase() == "true" || String(nodeChildXml.@unbound) == "1";
-									// XXX markUnsubmitted means this is an import, so make sure unbound nodes are really unbound
-									if(virtualNode.flackInfo.unbound && markUnsubmitted)
+									if(virtualNode.flackInfo.unbound && !parseManifest)
 										virtualNode.physicalId.full = "";
 								}
 							}
@@ -693,7 +732,14 @@ package com.flack.geni.tasks.process
 							{
 								var interfacedNode:VirtualNode = sliver.slice.nodes.getByClientId(referencedNodeClientId);
 								if(interfacedNode != null)
+								{
 									interfacedInterface = interfacedNode.interfaces.getByClientId(referencedInterfaceClientId);
+									if(referencedInterfaceClientId == "control" && interfacedInterface == null)
+									{
+										interfacedInterface = new VirtualInterface(interfacedNode, "control");
+										interfacedNode.interfaces.add(interfacedInterface);
+									}
+								}
 							}
 							else
 								interfacedInterface = sliver.slice.nodes.getInterfaceByClientId(referencedInterfaceClientId);
@@ -733,6 +779,10 @@ package com.flack.geni.tasks.process
 								interfacedInterface.ip = new Ip(String(interfaceRefXml.@IP));
 							if(interfaceRefXml.@netmask.length() == 1)
 								interfacedInterface.ip.netmask = String(interfaceRefXml.@netmask);
+							if(interfaceRefXml.@sliver_urn.length() == 1)
+								interfacedInterface.id = new IdnUrn(interfaceRefXml.@sliver_urn);
+							if(interfaceRefXml.@component_urn.length() == 1)
+								interfacedInterface.physicalId = new IdnUrn(interfaceRefXml.@component_urn);
 						}
 						else
 						{
@@ -781,6 +831,7 @@ package com.flack.geni.tasks.process
 						{
 							case LinkType.GRETUNNEL_V1:
 								virtualLink.type.name = LinkType.GRETUNNEL_V2;
+								break;
 							case LinkType.LAN_V1:
 								virtualLink.type.name = LinkType.LAN_V2;
 						}

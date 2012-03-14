@@ -64,13 +64,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				fillAuthorityList();
 				
-				this.sslPem.text = GeniMain.geniUniverse.user.sslCert;
+				this.sslPem.text = SharedMain.user.sslCert;
 				
 				this.authorities.selectedItem = GeniMain.geniUniverse.user.authority;
 				
 				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_AUTHORITIES, fillAuthorityList);
 				
-				passwordField.text = GeniMain.geniUniverse.user.password;
+				passwordField.text = SharedMain.user.password;
 				rememberPasswordCheckbox.selected = this.passwordField.text.length>0;
 			}
 			
@@ -95,7 +95,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					authorityList.addItem(authority);
 					
 				// Set to user's
-				if(GeniMain.geniUniverse.user.id != null)
+				if(SharedMain.user.id != null)
 					setUserAuthority();
 				if(GeniMain.geniUniverse.user.authority != null)
 					authorities.selectedItem = GeniMain.geniUniverse.user.authority;
@@ -105,7 +105,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				for each(var sa:ProtogeniSliceAuthority in GeniMain.geniUniverse.authorities.collection)
 				{
-					if(sa.id.authority == GeniMain.geniUniverse.user.id.authority)
+					if(sa.id.authority == SharedMain.user.id.authority)
 					{
 						GeniMain.geniUniverse.user.authority = sa;
 						this.authorities.selectedItem = sa;
@@ -226,8 +226,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			private function setUserId(idString:String):void
 			{
-				GeniMain.geniUniverse.user.id = new IdnUrn(idString);
-				this.detectedUrnLabel.text = "Hello, " + GeniMain.geniUniverse.user.id.name + " from " + GeniMain.geniUniverse.user.id.authority + ".";
+				SharedMain.user.id = new IdnUrn(idString);
+				this.detectedUrnLabel.text = "Hello, " + SharedMain.user.id.name + " from " + SharedMain.user.id.authority + ".";
 				if(this.passwordGroup.visible)
 					this.detectedUrnLabel.text += " Please enter your private key passphrase below.";
 				setUserAuthority();
@@ -236,8 +236,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			private function trySavePem(event:MouseEvent):void
 			{
 				var savePemTask:FileTask = new FileTask(sslPem.text);
-				if(GeniMain.geniUniverse.user.id.full.length > 0)
-					savePemTask.fileName = GeniMain.geniUniverse.user.id.name + ".pem";
+				if(SharedMain.user.id.full.length > 0)
+					savePemTask.fileName = SharedMain.user.id.name + ".pem";
 				else
 					savePemTask.fileName = "flackUser.pem";
 				savePemTask.startOperation(event);
@@ -282,8 +282,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							return;
 						}
 						
-						GeniMain.geniUniverse.user.id = useCredential.OwnerId;
-						if(GeniMain.geniUniverse.user.id == null)
+						SharedMain.user.id = useCredential.OwnerId;
+						if(SharedMain.user.id == null)
 						{
 							dontUseCredential("No user URN found");
 							return;
@@ -351,7 +351,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function saveAndClose():void
 			{
-				if(GeniMain.geniUniverse.user.setSecurity(passwordField.text, sslPem.text))
+				if(SharedMain.user.setSecurity(passwordField.text, sslPem.text))
 				{
 					Alert.show("It appears that the password is incorrect, try again", "Incorrect password");
 					return;

@@ -103,7 +103,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							}
 						}
 						
-						vlantagInput.text = link.vlantag;
+						vlantagLabel.visible = link.vlantag.length > 0;
+						if(vlantagLabel.visible)
+							vlantagLabel.text = link.vlantag;
 						
 						types.removeAll();
 						if(link.type.name.length > 0)
@@ -113,7 +115,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								types.addItem(LinkType.GPENI);
 							if(link.SupportsIon)
 								types.addItem(LinkType.ION);
-						} else if(link.type.name != LinkType.LAN_V2) {
+							if(link.interfaceRefs.Interfaces.Managers.length == 1)
+								types.addItem(LinkType.LAN_V2);
+						}
+						else
+						{
 							types.addItem(LinkType.GRETUNNEL_V2);
 						}
 						typeList.selectedIndex = 0;
@@ -214,14 +220,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				link.slice.history.stateName = "Edited " + link.clientId;
 				
 				link.clientId = clientIdInput.text;
-				//link.vlantag = vlantagInput.text;
 				
-				if(link.type.name != typeList.selectedItem)
+				for each(var ifaceObj:Object in interfaces)
 				{
-					if(typeList.selectedItem.type == LinkType.GRETUNNEL_V2)
-						link.setUpTunnels();
-					else
-						link.type.name = typeList.selectedItem.type;
+					var iface:VirtualInterface = ifaceObj.source;
+					iface.clientId = ifaceObj.clientId;
+					iface.ip.address = ifaceObj.ipaddress;
+					iface.ip.netmask = ifaceObj.ipnetmask;
+					iface.ip.type = ifaceObj.iptype;
 				}
 				
 				link.properties = new PropertyCollection();
@@ -234,13 +240,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					link.properties.add(property);
 				}
 				
-				for each(var ifaceObj:Object in interfaces)
+				if(link.type.name != typeList.selectedItem)
 				{
-					var iface:VirtualInterface = ifaceObj.source;
-					iface.clientId = ifaceObj.clientId;
-					iface.ip.address = ifaceObj.ipaddress;
-					iface.ip.netmask = ifaceObj.ipnetmask;
-					iface.ip.type = ifaceObj.iptype;
+					if(typeList.selectedItem == LinkType.GRETUNNEL_V2)
+						link.setUpTunnels();
+					else
+						link.type.name = typeList.selectedItem;
 				}
 				
 				link.unsubmittedChanges = true;
@@ -332,11 +337,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						change="okButton.enabled = true" />
 		<s:Rect percentWidth="100" />
 		<s:Label text="VLAN Tag"
-				 fontWeight="bold"/>
-		<s:TextInput id="vlantagInput"
-					 editable="false"
-					 restrict="0-9"
-					 width="100%" />
+				 fontWeight="bold" visible="{vlantagLabel.visible}" includeInLayout="{vlantagLabel.visible}"/>
+		<s:Label id="vlantagLabel" visible="false" includeInLayout="{vlantagLabel.visible}" />
 	</s:HGroup>
 	
 	<s:ButtonBar dataProvider="{sectionViewstack}"

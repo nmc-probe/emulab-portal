@@ -6,6 +6,9 @@ package com.flack.emulab.resources.virtual
 	
 	public class VirtualNode extends NamedObject
 	{
+		static public const TYPE_NODE:int = 0;
+		static public const TYPE_BRIDGE:int = 1;
+		
 		static public const FAILUREACTION_FATAL:String = "fatal";
 		static public const FAILUREACTION_NONFATAL:String = "nonfatal";
 		
@@ -18,6 +21,8 @@ package com.flack.emulab.resources.virtual
 		public var commandLine:String = "";
 		public var tarFiles:Vector.<TarFile> = null;
 		public var rpmFiles:Vector.<String> = null;
+		
+		public var type:int = TYPE_NODE;
 		
 		public var physicalName:String = "";
 		public function set Physical(newPhysicalNode:PhysicalNode):void
@@ -51,7 +56,7 @@ package com.flack.emulab.resources.virtual
 		public var failureAction:String = "";
 		public var desires:Vector.<NameValuePair> = null;
 		
-		public var interfaces:VirtualInterfaceCollection = null;
+		public var interfaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
 		
 		public var unsubmittedChanges:Boolean = true;
 		
@@ -104,6 +109,7 @@ package com.flack.emulab.resources.virtual
 				newClone.rpmFiles.push(rpmFile);
 			for each(var tarFile:TarFile in tarFiles)
 				newClone.tarFiles.push(new TarFile(tarFile.directory, tarFile.path));
+			newClone.type = type;
 			return newClone;
 		}
 	}

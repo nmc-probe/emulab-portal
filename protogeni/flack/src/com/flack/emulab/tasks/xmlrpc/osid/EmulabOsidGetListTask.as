@@ -1,9 +1,14 @@
 package com.flack.emulab.tasks.xmlrpc.osid
 {
 	import com.flack.emulab.EmulabMain;
+	import com.flack.emulab.resources.physical.Osid;
+	import com.flack.emulab.resources.physical.OsidCollection;
 	import com.flack.emulab.tasks.xmlrpc.EmulabXmlrpcTask;
 	
+	import flash.events.Event;
 	import flash.utils.Dictionary;
+	
+	import mx.core.FlexGlobals;
 	
 	public class EmulabOsidGetListTask extends EmulabXmlrpcTask
 	{
@@ -26,11 +31,28 @@ package com.flack.emulab.tasks.xmlrpc.osid
 			addOrderedField(args);
 		}
 		
+		private var myIndex:int;
+		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			if (code == EmulabXmlrpcTask.CODE_SUCCESS)
 			{
-				// the return value is a hash table containing the OS IDs and their descriptions.
+				EmulabMain.manager.osids = new OsidCollection();
+				for(var osidString:String in data)
+				{
+					var osidObject:Object = data[osidString];
+					var newOsid:Osid = new Osid(
+						osidString,
+						osidObject.OS,
+						osidObject.version,
+						osidObject.description,
+						osidObject.pid,
+						osidObject.creator,
+						osidObject.created
+					);
+					EmulabMain.manager.osids.add(newOsid);
+				}
+				
 				super.afterComplete(addCompletedMessage);
 			}
 			else

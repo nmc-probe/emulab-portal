@@ -1,83 +1,100 @@
 package com.flack.geni.display.mapping.mapproviders.esriprovider
 {
+	import com.esri.ags.Graphic;
 	import com.esri.ags.Map;
 	import com.esri.ags.geometry.Geometry;
+	import com.esri.ags.geometry.MapPoint;
 	import com.esri.ags.symbols.MarkerSymbol;
+	import com.esri.ags.symbols.Symbol;
+	import com.flack.geni.resources.physical.PhysicalNodeCollection;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.VirtualNodeCollection;
 	import com.flack.shared.utils.ColorUtil;
 	
 	import flash.display.Sprite;
+	import flash.events.MouseEvent;
+	import flash.filters.DropShadowFilter;
 	import flash.text.TextField;
 	import flash.text.TextFieldAutoSize;
 	
-	public class EsriMapNodeMarkerSymbol extends MarkerSymbol
+	import mx.core.DragSource;
+	import mx.core.IUIComponent;
+	import mx.core.UIComponent;
+	import mx.managers.DragManager;
+	
+	public class EsriMapNodeMarkerSymbol extends Symbol
 	{
-		private var marker:EsriMapNodeMarker
+		private var marker:EsriMapNodeMarker;
 		public function EsriMapNodeMarkerSymbol(newMarker:EsriMapNodeMarker)
 		{
 			super();
 			marker = newMarker;
 		}
 		
-		override public function draw(sprite:Sprite, geometry:Geometry, attributes:Object, map:Map):void
+		override public function draw(sprite:Sprite,
+									  geometry:Geometry,
+									  attributes:Object,
+									  map:Map):void
 		{
-			/*
-			var loc:int;
-			if(managers.length > 1)
+			if (geometry is MapPoint)
 			{
-				var numShownManagers:int = Math.min(managers.length, 5);
-				loc = 3*(numShownManagers-1);
-				for(var i:int = numShownManagers-1; i > -1; i--)
+				var managers:GeniManagerCollection = marker.nodes.Managers;
+				
+				var mapPoint:MapPoint = MapPoint(geometry) as MapPoint;
+				sprite.x = toScreenX(map, mapPoint.x)-14-Math.min(3*((marker.nodes as PhysicalNodeCollection).Locations.length-1), 6)/2;
+				sprite.y = toScreenY(map, mapPoint.y)-14-Math.min(3*((marker.nodes as PhysicalNodeCollection).Locations.length-1), 6)/2;
+				
+				
+				var loc:int;
+				if(managers.length > 1)
 				{
-					sprite.graphics.lineStyle(2, ColorUtil.colorsMedium[managers.collection[i].colorIdx], 1);
-					sprite.graphics.beginFill(ColorUtil.colorsDark[managers.collection[i].colorIdx], 1);
-					sprite.graphics.drawRoundRect(loc, loc, 28, 28, 10, 10);
-					loc -= 3;
+					var numShownManagers:int = Math.min(managers.length, 5);
+					loc = 3*(numShownManagers-1);
+					for(var i:int = numShownManagers-1; i > -1; i--)
+					{
+						sprite.graphics.lineStyle(2, ColorUtil.colorsMedium[managers.collection[i].colorIdx], 1);
+						sprite.graphics.beginFill(ColorUtil.colorsDark[managers.collection[i].colorIdx], 1);
+						sprite.graphics.drawRoundRect(loc, loc, 28, 28, 10, 10);
+						loc -= 3;
+					}
 				}
-			}
-			else
-			{
-				if(newMarker.nodes is PhysicalNodeCollection)
-					loc = Math.min(3*((newMarker.nodes as PhysicalNodeCollection).Locations.length-1), 6);
-				else if(newMarker.nodes is VirtualNodeCollection)
-					loc = Math.min(3*((newMarker.nodes as VirtualNodeCollection).PhysicalNodes.Locations.length-1), 6);
-				while(loc > -1)
+				else
 				{
-					sprite.graphics.lineStyle(2, ColorUtil.colorsMedium[managers.collection[0].colorIdx], 1);
-					sprite.graphics.beginFill(ColorUtil.colorsDark[managers.collection[0].colorIdx], 1);
-					sprite.graphics.drawRoundRect(loc, loc, 28, 28, 10, 10);
-					loc -= 3;
+					if(marker.nodes is PhysicalNodeCollection)
+						loc = Math.min(3*((marker.nodes as PhysicalNodeCollection).Locations.length-1), 6);
+					else if(marker.nodes is VirtualNodeCollection)
+						loc = Math.min(3*((marker.nodes as VirtualNodeCollection).PhysicalNodes.Locations.length-1), 6);
+					while(loc > -1)
+					{
+						sprite.graphics.lineStyle(2, ColorUtil.colorsMedium[managers.collection[0].colorIdx], 1);
+						sprite.graphics.beginFill(ColorUtil.colorsDark[managers.collection[0].colorIdx], 1);
+						sprite.graphics.drawRoundRect(loc, loc, 28, 28, 10, 10);
+						loc -= 3;
+					}
 				}
+				
+				var labelMc:TextField = new TextField();
+				labelMc.textColor = ColorUtil.colorsLight[managers.collection[0].colorIdx];
+				labelMc.selectable = false;
+				labelMc.border = false;
+				labelMc.embedFonts = false;
+				labelMc.mouseEnabled = false;
+				labelMc.width = 28;
+				labelMc.height = 28;
+				labelMc.htmlText = marker.nodes.length.toString();
+				labelMc.autoSize = TextFieldAutoSize.CENTER;
+				labelMc.y = 4;
+				sprite.addChild(labelMc);
+				
+				// Apply the drop shadow filter to the box.
+				var shadow:DropShadowFilter = new DropShadowFilter();
+				shadow.distance = 5;
+				shadow.angle = 25;
+				sprite.filters = [shadow];
+				
+				sprite.buttonMode = true;
+				sprite.useHandCursor = true;
 			}
-			*/
-			
-			var labelMc:TextField = new TextField();
-			labelMc.textColor = ColorUtil.colorsLight[marker.nodes.Managers.collection[0].colorIdx];
-			labelMc.selectable = false;
-			labelMc.border = false;
-			labelMc.embedFonts = false;
-			labelMc.mouseEnabled = false;
-			labelMc.width = 28;
-			labelMc.height = 28;
-			labelMc.htmlText = "<b>"+marker.nodes.length.toString()+"</b>";
-			labelMc.autoSize = TextFieldAutoSize.CENTER;
-			labelMc.y = 4;
-			sprite.addChild(labelMc);
-		}
-		
-		override public function initialize(sprite:Sprite, geometry:Geometry, attributes:Object, map:Map):void
-		{
-			var labelMc:TextField = new TextField();
-			labelMc.textColor = ColorUtil.colorsLight[marker.nodes.Managers.collection[0].colorIdx];
-			labelMc.selectable = false;
-			labelMc.border = false;
-			labelMc.embedFonts = false;
-			labelMc.mouseEnabled = false;
-			labelMc.width = 28;
-			labelMc.height = 28;
-			labelMc.htmlText = "<b>"+marker.nodes.length.toString()+"</b>";
-			labelMc.autoSize = TextFieldAutoSize.CENTER;
-			labelMc.y = 4;
-			sprite.addChild(labelMc);
 		}
 	}
 }

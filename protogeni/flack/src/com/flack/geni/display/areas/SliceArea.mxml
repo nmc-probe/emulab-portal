@@ -60,7 +60,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.tasks.groups.slice.StopSliceTaskGroup;
 			import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;
 			import com.flack.geni.tasks.process.GenerateNsTask;
-			import com.flack.geni.tasks.process.GenerateRequestTask;
+			import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.Area;
@@ -614,9 +614,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				var previewArea:DocumentsArea = new DocumentsArea();
 				previewArea.title = "Preview Request RSPEC for " + slice.Name;
 				
-				var createSliceRspec:GenerateRequestTask = new GenerateRequestTask(slice);
+				var createSliceRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(slice);
 				createSliceRspec.start();
-				previewArea.addDocument("Unified Request RSPEC", createSliceRspec.requestRspec.document);
+				previewArea.addDocument("Unified Request RSPEC", createSliceRspec.resultRspec.document);
 				
 				for each(var sliver:Sliver in _slice.slivers.collection)
 				{

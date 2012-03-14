@@ -69,6 +69,7 @@ VirtualNode for use on the slice canvas
 			import com.flack.geni.resources.virtual.VirtualNode;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.StringUtil;
 			
 			import flash.filters.GlowFilter;
 			
@@ -103,6 +104,16 @@ VirtualNode for use on the slice canvas
 				}
 				else
 					osidLabel.visible = osidLabel.includeInLayout = false;
+				if((!node.Bound && node.hardwareType.name.length > 0) || (node.Bound && node.Physical != null))
+				{
+					if(node.Bound)
+						bindingLabel.text = "=> " + StringUtil.shortenString(node.Physical.name, 30);
+					else
+						bindingLabel.text = node.hardwareType.name;
+					bindingLabel.visible = bindingLabel.includeInLayout = true;
+				}
+				else
+					bindingLabel.visible = bindingLabel.includeInLayout = false;
 				setStatus();
 			}
 			public function get Node():VirtualNode
@@ -347,5 +358,6 @@ VirtualNode for use on the slice canvas
 		<s:Label id="hostnameLabel" fontSize="10" visible="false" includeInLayout="false" />
 		<s:Label id="sliverTypeLabel" fontSize="10" />
 		<s:Label id="osidLabel" fontSize="10" visible="false" includeInLayout="false" />
+		<s:Label id="bindingLabel" fontSize="10" visible="false" includeInLayout="false" />
 	</s:VGroup>
 </s:HGroup>

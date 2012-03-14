@@ -55,7 +55,7 @@ package com.flack.geni.tasks.groups.slice
 			{
 				var sliver:Sliver = slice.slivers.collection[i];
 				if(sliver.Created)
-					add(new ParseRequestManifestTask(sliver, sliver.manifest));
+					add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
 				else
 				{
 					slice.slivers.remove(sliver);

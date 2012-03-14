@@ -139,7 +139,7 @@ package com.flack.shared
 		/**
 		 * Flack version
 		 */
-		public static const version:String = "v13.22";
+		public static const version:String = "v13.33";
 		
 		public static function get ClientString():String
 		{

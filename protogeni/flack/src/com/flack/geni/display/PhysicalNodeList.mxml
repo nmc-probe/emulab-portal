@@ -20,7 +20,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 <s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
-		  dragDrop="dragEnterHandler(event)"
+		  dragDrop="dragDropHandler(event)"
 		  dragEnter="dragEnterHandler(event)"
 		  gap="2">
 	<fx:Declarations>
@@ -197,11 +197,18 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			protected function dragDropHandler(event:DragEvent):void
 			{
 				if(event.dragSource.hasFormat("physicalMarker"))
-					load((event.dragSource.dataForFormat('physicalMarker') as GoogleMapLocationMarker).nodes);
+				{
+					var dragMarker:GoogleMapLocationMarker = event.dragSource.dataForFormat('physicalMarker') as GoogleMapLocationMarker;
+					load(dragMarker.nodes);
+				}
 				else if(event.dragSource.hasFormat("manager"))
+				{
 					load((event.dragSource.dataForFormat('manager') as GeniManager).nodes);
+				}
 				else if(event.dragSource.hasFormat("physicalNodeCollection"))
+				{
 					load(event.dragSource.dataForFormat('physicalNodeCollection') as PhysicalNodeCollection);
+				}
 			}
 			
 			protected function searchField_changeHandler(event:TextOperationEvent):void

@@ -71,7 +71,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH);
 				
 				sliver.manifest = new Rspec(data.manifest,null, null,null, Rspec.TYPE_MANIFEST);
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
 				
 				super.afterComplete(addCompletedMessage);
 			}

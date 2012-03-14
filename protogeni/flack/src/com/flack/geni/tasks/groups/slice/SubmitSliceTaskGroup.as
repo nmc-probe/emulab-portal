@@ -20,7 +20,7 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.SliverCollection;
-	import com.flack.geni.tasks.process.GenerateRequestTask;
+	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetUserKeysSaTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -57,6 +57,7 @@ package com.flack.geni.tasks.groups.slice
 		public var requestRspec:Rspec;
 		
 		private var comfirmWithUser:Boolean;
+		private var skipUnchangedSlivers:Boolean;
 		private var deletingAfterProblem:Boolean = false;
 		private var prompting:Boolean = false;
 		
@@ -67,7 +68,8 @@ package com.flack.geni.tasks.groups.slice
 		 * 
 		 */
 		public function SubmitSliceTaskGroup(submitSlice:Slice,
-											 shouldConfirmWithUser:Boolean = true)
+											 shouldConfirmWithUser:Boolean = true,
+											 shouldSkipUnchangedSlivers:Boolean = false)
 		{
 			super(
 				"Submit " + submitSlice.Name,
@@ -76,6 +78,7 @@ package com.flack.geni.tasks.groups.slice
 			relatedTo.push(submitSlice);
 			slice = submitSlice;
 			comfirmWithUser = shouldConfirmWithUser;
+			skipUnchangedSlivers = shouldSkipUnchangedSlivers;
 		}
 		
 		override protected function runStart():void
@@ -106,14 +109,14 @@ package com.flack.geni.tasks.groups.slice
 				);
 				
 				// Get the RSPEC which will be submitted
-				var generateNewRspec:GenerateRequestTask = new GenerateRequestTask(slice);
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(slice);
 				generateNewRspec.start();
 				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
 				{
 					afterError(generateNewRspec.error);
 					return;
 				}
-				requestRspec = generateNewRspec.requestRspec;
+				requestRspec = generateNewRspec.resultRspec;
 				addMessage(
 					"Generated request",
 					requestRspec.document,
@@ -131,7 +134,10 @@ package com.flack.geni.tasks.groups.slice
 					if(existingSliver.Created)
 					{
 						if(newManagers.contains(existingSliver.manager))
-							updateSlivers.add(existingSliver);
+						{
+							if(existingSliver.UnsubmittedChanges || !skipUnchangedSlivers)
+								updateSlivers.add(existingSliver);
+						}
 						else
 							deleteSlivers.add(existingSliver);
 						newManagers.remove(existingSliver.manager);

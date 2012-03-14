@@ -171,7 +171,7 @@
 			var idx:int = 0;
 			switch(name)
 			{
-				case "emulab.net+authority":
+				case "emulab.net":
 					return useColorIdx(0);
 				case "schooner.wail.wisc.edu":
 					return useColorIdx(1);

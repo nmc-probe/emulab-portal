@@ -18,6 +18,7 @@ package com.flack.geni.tasks.groups
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.ParallelTaskGroup;
 	import com.flack.shared.tasks.Task;
+	import com.flack.shared.tasks.http.HttpTask;
 	import com.flack.shared.tasks.http.JsHttpTask;
 	
 	/**
@@ -41,7 +42,7 @@ package com.flack.geni.tasks.groups
 			);
 			
 			add(
-				new JsHttpTask(
+				new HttpTask(
 					"http://www.emulab.net/rootca.bundle",
 					"Download root bundle",
 					"Downloads the root cert bundle"
@@ -49,7 +50,7 @@ package com.flack.geni.tasks.groups
 			);
 			
 			add(
-				new JsHttpTask(
+				new HttpTask(
 					"http://www.emulab.net/genica.bundle",
 					"Download GENI bundle",
 					"Downloads the GENI cert bundle"

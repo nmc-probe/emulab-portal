@@ -37,6 +37,8 @@ package com.flack.emulab
 	 */
 	public class EmulabMain
 	{
+		public static var URL_NSCOMMANDS:String = "http://users.emulab.net/trac/emulab/wiki/nscommands";
+		
 		public static var manager:EmulabManager;
 		public static function get user():EmulabUser
 		{

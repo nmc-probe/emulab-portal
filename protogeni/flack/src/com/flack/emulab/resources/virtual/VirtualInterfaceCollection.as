@@ -74,6 +74,16 @@ package com.flack.emulab.resources.virtual
 			return null;
 		}
 		
+		public function getByHost(node:VirtualNode):VirtualInterface
+		{
+			for each(var existing:VirtualInterface in collection)
+			{
+				if(existing.node == node)
+					return existing;
+			}
+			return null;
+		}
+		
 		public function get Links():VirtualLinkCollection
 		{
 			var links:VirtualLinkCollection = new VirtualLinkCollection();

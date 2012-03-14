@@ -113,7 +113,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
 				
 				super.afterComplete(addCompletedMessage);
 			}

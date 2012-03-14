@@ -34,19 +34,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			[Bindable]
 			public var url:String = "";
 			[Bindable]
-			public var fileType:String = "tar.gz";
-			[Bindable]
 			public var path:String = "/";
 			
 			public function set Service(value:InstallService):void
 			{
 				url = value.url;
-				fileType = value.fileType;
 				path = value.installPath;
 			}
 			public function get Service():InstallService
 			{
-				return new InstallService(url, path, fileType);
+				return new InstallService(url, path);
 			}
 		]]>
 	</fx:Script>
@@ -54,16 +51,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				 width="55%"
 				 text="@{url}"
 				 prompt="Archive URL" />
-	<s:ComboBox id="installFileTypeList"
-				width="15%"
-				prompt="File type"
-				selectedItem="@{fileType}">
-		<s:dataProvider>
-			<s:ArrayList>
-				<fx:String>tar.gz</fx:String>
-			</s:ArrayList>
-		</s:dataProvider>
-	</s:ComboBox>
 	<s:Label text="in" />
 	<s:TextInput id="installPathText"
 				 width="30%"

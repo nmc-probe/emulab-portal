@@ -15,6 +15,7 @@
 		<![CDATA[
 			import com.esri.ags.Graphic;
 			import com.esri.ags.SpatialReference;
+			import com.esri.ags.events.MapMouseEvent;
 			import com.esri.ags.events.ZoomEvent;
 			import com.esri.ags.geometry.Extent;
 			import com.esri.ags.geometry.WebMercatorMapPoint;
@@ -96,7 +97,7 @@
 			
 		]]>
 	</fx:Script>
-	<esri:OpenStreetMapLayer />
+	<esri:OpenStreetMapLayer  />
 	<esri:GraphicsLayer id="linksLayer" />
 	<esri:GraphicsLayer id="markersLayer" />
 </esri:Map>

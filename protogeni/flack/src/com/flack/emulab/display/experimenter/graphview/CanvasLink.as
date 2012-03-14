@@ -19,9 +19,9 @@ package com.flack.emulab.display.experimenter.graphview
 	import flash.display.CapsStyle;
 	import flash.display.LineScaleMode;
 	import flash.display.Sprite;
-	
 	import flash.filters.DropShadowFilter;
 	import flash.filters.GlowFilter;
+	import flash.geom.Point;
 	
 	import mx.core.UIComponent;
 	
@@ -33,28 +33,32 @@ package com.flack.emulab.display.experimenter.graphview
 	 */
 	public final class CanvasLink extends UIComponent
 	{
-		public static const NORMAL_COLOR:uint = 0x000000;
-		public static const TUNNEL_COLOR:uint = 0x00FFFF;
-		public static const ION_COLOR:uint = 0xCC33CC;
-		public static const GPENI_COLOR:uint = 0x0000FF;
-		
-		public static const INVALID_COLOR:uint = 0xFF0000;
-		public static const VALID_COLOR:uint = 0x00FF00;
-		
-		public static var color:uint;
+		public static const DARK_COLOR:uint = 0xCC33CC;
+		public static const LIGHT_COLOR:uint = 0x000000;
 		
 		public var link:VirtualLink;
 		public var canvas:ExperimentCanvas;
 		
 		private var rawSprite:Sprite;
 		
-		public var buttonGroups:Vector.<CanvasLinkLabel>
+		public var button:CanvasLinkLabel;
+		public var buttons:Vector.<CanvasBranchLabel>;
+		public function getButtonFor(cn:CanvasNode):CanvasBranchLabel
+		{
+			for each(var bl:CanvasBranchLabel in buttons)
+			{
+				if(bl.iface.node == cn.Node)
+					return bl;
+			}
+			return null;
+		}
 		
 		public function setFilters(newFilters:Array):void
 		{
 			rawSprite.filters = newFilters;
-			for each(var d:CanvasLinkLabel in buttonGroups)
-				d.setFilters(newFilters);
+			button.setFilters(newFilters);
+			for each(var bl:CanvasBranchLabel in buttons)
+				bl.setFilters(newFilters);
 		}
 		
 		public function CanvasLink(newCanvas:ExperimentCanvas)
@@ -65,9 +69,8 @@ package com.flack.emulab.display.experimenter.graphview
 			rawSprite = new Sprite();
 			addChild(rawSprite);
 			
-			color = NORMAL_COLOR;
-			
-			buttonGroups = new Vector.<CanvasLinkLabel>()
+			button = new CanvasLinkLabel();
+			buttons = new Vector.<CanvasBranchLabel>();
 		}
 		
 		public function establishFromExisting(vl:VirtualLink):void
@@ -75,22 +78,39 @@ package com.flack.emulab.display.experimenter.graphview
 			removeButtonsFromCanvas();
 			link = vl;
 			
-			buttonGroups = new Vector.<CanvasLinkLabel>();
-			var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaces.Nodes);
-			for(var i:int = 0; i < canvasNodes.length; i++)
+			button.labelBackgroundColor = DARK_COLOR;
+			button.labelColor = LIGHT_COLOR;
+			button.canvasLink = this;
+			if(link.type == VirtualLink.TYPE_LAN)
 			{
-				for(var j:int = i+1; j < canvasNodes.length; j++)
+				button.x = link.x;
+				button.y = link.y;
+			}
+			if(canvas.contains(button))
+				canvas.setElementIndex(button, 0);
+			else
+				canvas.addElementAt(button, 0);
+			button.validateNow();
+			button.Link = link;
+			
+			if(link.type == VirtualLink.TYPE_LAN)
+			{
+				buttons = new Vector.<CanvasBranchLabel>();
+				var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaces.Nodes);
+				for each(var node:CanvasNode in canvasNodes.collection)
 				{
-					var newLinkContainer:CanvasLinkLabel = new CanvasLinkLabel();
-					newLinkContainer.color = color;
-					newLinkContainer.canvasLink = this;
-					canvas.addElementAt(newLinkContainer, 0);
-					newLinkContainer.validateNow();
-					newLinkContainer.Link = link;
+					var newBranchLabel:CanvasBranchLabel = new CanvasBranchLabel();
+					newBranchLabel.labelBackgroundColor = DARK_COLOR;
+					newBranchLabel.canvasLink = this;
+					canvas.addElementAt(newBranchLabel, 0);
+					newBranchLabel.validateNow();
+					newBranchLabel.setTo(link, link.interfaces.getByHost(node.Node));
 					
-					buttonGroups.push(newLinkContainer);
+					buttons.push(newBranchLabel);
 				}
 			}
+			
+			
 			canvas.validateNow();
 			canvas.setElementIndex(this, 0);
 			drawEstablished();
@@ -100,66 +120,99 @@ package com.flack.emulab.display.experimenter.graphview
 		public function setEditable(isEditable:Boolean):void
 		{
 			editable = isEditable;
-			for each(var g:CanvasLinkLabel in buttonGroups)
+			button.editable = editable;
+			for each(var g:CanvasBranchLabel in buttons)
 				g.editable = editable;
 		}
 		
 		private function removeButtonsFromCanvas():void
 		{
-			for each(var g:CanvasLinkLabel in buttonGroups)
+			for each(var g:CanvasBranchLabel in buttons)
 				canvas.removeElement(g);
 		}
 		
 		public function removeFromCanvas():void
 		{
 			removeButtonsFromCanvas();
+			canvas.removeElement(button);
 			canvas.removeElement(this);
 		}
 		
+		public function removeBranch(bl:CanvasBranchLabel):void
+		{
+			link.removeInterface(bl.iface);
+			canvas.removeElement(bl);
+			buttons.splice(buttons.indexOf(bl), 1);
+			drawEstablished();
+		}
+		
+		public function get MiddlePoint():Point
+		{
+			return button.MiddlePoint;
+		}
+		
+		public function get MiddleX():Number
+		{
+			return button.MiddleX;
+		}
+		
+		public function get MiddleY():Number
+		{
+			return button.MiddleY;
+		}
+		
+		public function get ContainerWidth():Number
+		{
+			return button.ContainerWidth;
+		}
+		
+		public function get ContainerHeight():Number
+		{
+			return button.ContainerHeight;
+		}
+		
+		public function setLocation(newX:Number = -1, newY:Number = -1):void
+		{
+			button.setLocation(newX, newY);
+		}
 		
 		public function drawEstablished():void
 		{
-			color = NORMAL_COLOR;
-			/*
-			switch(link.type.name) {
-				case LinkType.GRETUNNEL_V2:
-					color = TUNNEL_COLOR;
-					break;
-				case LinkType.GPENI:
-					color = GPENI_COLOR;
-					break;
-				case LinkType.ION:
-					color = ION_COLOR;
-					break;
-			}
-			*/
-			drawLink();
-		}
-		
-		private function drawLink():void
-		{
 			rawSprite.graphics.clear();
-			rawSprite.graphics.lineStyle(2, color, 1.0, true,
-				LineScaleMode.NORMAL, CapsStyle.ROUND);
+			rawSprite.graphics.lineStyle(
+				2,
+				DARK_COLOR,
+				1.0,
+				true,
+				LineScaleMode.NORMAL,
+				CapsStyle.ROUND
+			);
 			
 			var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaces.Nodes);
 			
-			var buttonGroupsIdx:int = 0;
-			for(var i:int = 0; i < canvasNodes.length; i++)
+			if(link.type == VirtualLink.TYPE_LAN)
 			{
-				var firstCanvasNode:CanvasNode = canvasNodes.collection[i];
-				for(var j:int = i+1; j < canvasNodes.length; j++, buttonGroupsIdx++)
+				button.x = link.x;
+				button.y = link.y;
+				for each(var cnode:CanvasNode in canvasNodes.collection)
 				{
-					var secondCanvasNode:CanvasNode = canvasNodes.collection[j];
+					rawSprite.graphics.moveTo(button.MiddleX, button.MiddleY);
+					rawSprite.graphics.lineTo(cnode.MiddleX, cnode.MiddleY);
 					
-					var buttonGroup:CanvasLinkLabel = buttonGroups[buttonGroupsIdx];
-					buttonGroup.Link = link;
-					buttonGroup.x = (firstCanvasNode.MiddleX + secondCanvasNode.MiddleX)/2 - (buttonGroup.ContainerWidth/2 + 1);
-					buttonGroup.y = (firstCanvasNode.MiddleY + secondCanvasNode.MiddleY)/2 - (buttonGroup.ContainerHeight/2);
-					
-					rawSprite.graphics.moveTo(firstCanvasNode.MiddleX, firstCanvasNode.MiddleY);
-					rawSprite.graphics.lineTo(secondCanvasNode.MiddleX, secondCanvasNode.MiddleY);
+					var buttonGroup:CanvasBranchLabel = getButtonFor(cnode);
+					buttonGroup.setTo(link, link.interfaces.getByHost(cnode.Node));
+					buttonGroup.x = (button.MiddleX + cnode.MiddleX)/2 - (buttonGroup.ContainerWidth/2 + 1);
+					buttonGroup.y = (button.MiddleY + cnode.MiddleY)/2 - (buttonGroup.ContainerHeight/2);
 				}
+			}
+			else
+			{
+				button.Link = link;
+				button.x = (canvasNodes.collection[0].MiddleX + canvasNodes.collection[1].MiddleX)/2 - (button.ContainerWidth/2 + 1);
+				button.y = (canvasNodes.collection[0].MiddleY + canvasNodes.collection[1].MiddleY)/2 - (button.ContainerHeight/2);
+				
+				rawSprite.graphics.moveTo(canvasNodes.collection[0].MiddleX, canvasNodes.collection[0].MiddleY);
+				rawSprite.graphics.lineTo(canvasNodes.collection[1].MiddleX, canvasNodes.collection[1].MiddleY);
 			}
 		}
 	}

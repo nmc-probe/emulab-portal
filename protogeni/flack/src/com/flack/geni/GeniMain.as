@@ -16,6 +16,7 @@ package com.flack.geni
 {
 	import com.flack.geni.display.mapping.GeniMap;
 	import com.flack.geni.display.mapping.GeniMapHandler;
+	import com.flack.geni.display.mapping.mapproviders.esriprovider.EsriMap;
 	import com.flack.geni.display.mapping.mapproviders.googlemapsprovider.GoogleMap;
 	import com.flack.geni.display.windows.StartWindow;
 	import com.flack.geni.plugins.Plugin;

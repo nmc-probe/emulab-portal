@@ -63,7 +63,10 @@ package com.flack.geni.tasks.groups.slice
 				if(updateSliver.manager.api.type == ApiDetails.API_PROTOGENI)
 				{
 					if(updateSliver.manager.api.level == ApiDetails.LEVEL_FULL)
+					{
+						relatedTo.push(updateSliver);
 						add(new UpdateSliverCmTask(updateSliver, rspec));
+					}
 				}
 			}
 		}

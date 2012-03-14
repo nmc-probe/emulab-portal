@@ -14,17 +14,17 @@
 
 package com.flack.geni.tasks.process
 {
-	import com.flack.shared.resources.IdnUrn;
+	import com.flack.geni.RspecUtil;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverTypes;
-	import com.flack.shared.resources.docs.Rspec;
-	import com.flack.shared.resources.docs.RspecVersion;
+	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.geni.resources.virtual.ExecuteService;
 	import com.flack.geni.resources.virtual.GeniManagerReference;
 	import com.flack.geni.resources.virtual.InstallService;
 	import com.flack.geni.resources.virtual.LinkType;
+	import com.flack.geni.resources.virtual.LoginService;
 	import com.flack.geni.resources.virtual.Pipe;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
@@ -36,10 +36,12 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.VirtualNodeCollection;
 	import com.flack.geni.resources.virtual.extensions.ClientInfo;
 	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistoryItem;
+	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.utils.CompressUtil;
 	import com.flack.shared.utils.DateUtil;
-	import com.flack.geni.RspecUtil;
 	
 	import flash.system.System;
 	
@@ -49,12 +51,13 @@ package com.flack.geni.tasks.process
 	 * @author mstrum
 	 * 
 	 */
-	public final class GenerateRequestTask extends Task
+	public final class GenerateRequestManifestTask extends Task
 	{
 		public var slice:Slice;
 		public var sliver:Sliver;
 		public var includeHistory:Boolean;
-		public var requestRspec:Rspec;
+		public var includeManifest:Boolean;
+		public var resultRspec:Rspec;
 		
 		/**
 		 * 
@@ -63,7 +66,7 @@ package com.flack.geni.tasks.process
 		 * @param shouldIncludeHistory Include the history?
 		 * 
 		 */
-		public function GenerateRequestTask(newSlice:Slice, newSliverOnly:Sliver = null, shouldIncludeHistory:Boolean = true)
+		public function GenerateRequestManifestTask(newSlice:Slice, newSliverOnly:Sliver = null, shouldIncludeHistory:Boolean = true, shouldIncludeManifestInfo:Boolean = false)
 		{
 			super(
 				"Generate request RSPEC",
@@ -77,13 +80,14 @@ package com.flack.geni.tasks.process
 			slice = newSlice;
 			sliver = newSliverOnly;
 			includeHistory = shouldIncludeHistory;
+			includeManifest = shouldIncludeManifestInfo;
 		}
 		
 		override protected function runStart():void
 		{
 			if(sliver != null && sliver.forceUseInputRspecInfo != null)
 			{
-				requestRspec = new Rspec(
+				resultRspec = new Rspec(
 					"",
 					sliver.forceUseInputRspecInfo,
 					null, null, Rspec.TYPE_REQUEST
@@ -91,7 +95,7 @@ package com.flack.geni.tasks.process
 			}
 			else
 			{
-				requestRspec = new Rspec(
+				resultRspec = new Rspec(
 					"",
 					slice.useInputRspecInfo,
 					null, null, Rspec.TYPE_REQUEST
@@ -104,13 +108,13 @@ package com.flack.geni.tasks.process
 				xmlDocument = slice.slivers.collection[0].extensions.createAndApply("rspec");
 			else
 				xmlDocument = <rspec />;
-			xmlDocument.@type = "request";
+			xmlDocument.@type = includeManifest ? "manifest" : "request";
 			xmlDocument.@generated_by = "Flack";
 			xmlDocument.@generated = DateUtil.toRFC3339(new Date());
 			
 			// Add default namespaces
 			var defaultNamespace:Namespace;
-			switch(requestRspec.info.version)
+			switch(resultRspec.info.version)
 			{
 				case 0.1:
 					defaultNamespace = new Namespace(null, RspecUtil.rspec01Namespace);
@@ -126,7 +130,7 @@ package com.flack.geni.tasks.process
 					break;
 			}
 			xmlDocument.setNamespace(defaultNamespace);
-			if(requestRspec.info.version >= 2)
+			if(resultRspec.info.version >= 2)
 			{
 				xmlDocument.addNamespace(RspecUtil.flackNamespace);
 				xmlDocument.addNamespace(RspecUtil.clientNamespace);
@@ -136,7 +140,7 @@ package com.flack.geni.tasks.process
 			
 			// Add default schema locations
 			var schemaLocations:String;
-			switch(requestRspec.info.version)
+			switch(resultRspec.info.version)
 			{
 				case 0.1:
 					schemaLocations = RspecUtil.rspec01SchemaLocation;
@@ -153,25 +157,21 @@ package com.flack.geni.tasks.process
 			}
 			var nodes:VirtualNodeCollection = sliver == null ? slice.nodes : sliver.Nodes;
 			var links:VirtualLinkCollection = sliver == null ? slice.links : sliver.Links;
-			for each(var testNode:VirtualNode in nodes.collection)
+			if(nodes.getBySliverType(SliverTypes.DELAY).length > 0)
 			{
-				if(testNode.sliverType.name == SliverTypes.DELAY)
-				{
-					xmlDocument.addNamespace(RspecUtil.delayNamespace);
-					schemaLocations += " " + RspecUtil.delaySchemaLocation;
-					break;
-				}
+				xmlDocument.addNamespace(RspecUtil.delayNamespace);
+				schemaLocations += " " + RspecUtil.delaySchemaLocation;
 			}
 			xmlDocument.@xsiNamespace::schemaLocation = schemaLocations;
 			// XXX add extension schema namespaces...
 			
 			for each(var node:VirtualNode in nodes.collection)
-				xmlDocument.appendChild(generateNodeRspec(node, false, requestRspec.info));
+				xmlDocument.appendChild(generateNodeRspec(node, false, resultRspec.info));
 			
 			for each(var link:VirtualLink in links.collection)
-				xmlDocument.appendChild(generateLinkRspec(link, requestRspec.info));
+				xmlDocument.appendChild(generateLinkRspec(link, resultRspec.info));
 			
-			if(requestRspec.info.version >= 2)
+			if(resultRspec.info.version >= 2)
 			{
 				// Add client extension
 				slice.clientInfo = new ClientInfo();
@@ -208,10 +208,10 @@ package com.flack.geni.tasks.process
 				xmlDocument.appendChild(sliceInfoXml);
 			}
 			
-			requestRspec.document = xmlDocument.toXMLString();
+			resultRspec.document = xmlDocument.toXMLString();
 			System.disposeXML(xmlDocument);
 			
-			data = requestRspec;
+			data = resultRspec;
 				
 			super.afterComplete(false);
 		}
@@ -248,11 +248,23 @@ package com.flack.geni.tasks.process
 					nodeTypeXml.@type_slots = 1;
 					nodeXml.appendChild(nodeTypeXml);
 				}
+				if(includeManifest && node.id != null && node.id.full.length > 0)
+					nodeXml.@sliver_urn = node.id.full;
 			}
 			else
 			{
 				nodeXml.@client_id = node.clientId;
 				nodeXml.@component_manager_id = node.manager.id.full;
+				if(includeManifest && node.id != null && node.id.full.length > 0)
+					nodeXml.@sliver_id = node.id.full;
+			}
+			
+			// Hack for INSTOOLS w/o namespace
+			if(node.mcInfo != null)
+			{
+				nodeXml.@MC = "1";
+				if(node.mcInfo.type.length > 0)
+					nodeXml.@mc_type = node.mcInfo.type;
 			}
 			
 			if (node.Bound && !(removeNonexplicitBinding && node.flackInfo.unbound))
@@ -282,6 +294,17 @@ package com.flack.geni.tasks.process
 					nodeXml.@exclusive = 1;
 				else
 					nodeXml.@exclusive = "true";
+			}
+			
+			// If node is at a location, include it
+			// Mostly so managers outside of this node's manager can know a location
+			if(node.Physical != null && node.Physical.location.latitude != PhysicalLocation.defaultLatitude)
+			{
+				var locationXml:XML = <location />;
+				locationXml.@latitude = node.Physical.location.latitude;
+				locationXml.@longitude = node.Physical.location.longitude;
+				locationXml.@country = node.Physical.location.country;
+				nodeXml.appendChild(locationXml);
 			}
 			
 			if(node.hardwareType.name.length > 0)
@@ -377,6 +400,23 @@ package com.flack.geni.tasks.process
 					nodeXml.@startup_command = node.services.executeServices[0].command;
 				if(node.services.installServices != null && node.services.installServices.length > 0)
 					nodeXml.@tarfiles = node.services.installServices[0].url;
+				if(includeManifest && node.services.loginServices != null && node.services.loginServices.length > 0)
+				{
+					var servicesXml:XML = <services />;
+					for each(var login1Service:LoginService in node.services.loginServices)
+					{
+						var login1Xml:XML = <login />
+						login1Xml.@authentication = login1Service.authentication;
+						login1Xml.@hostname = login1Service.hostname;
+						login1Xml.@port = login1Service.port;
+						login1Xml.@username = login1Service.username;
+						servicesXml.appendChild(login1Xml);
+						
+						nodeXml.@hostname = login1Service.hostname;
+						nodeXml.@sshdport = login1Service.port;
+					}
+					nodeXml.appendChild(servicesXml);
+				}
 			}
 			else
 			{
@@ -398,8 +438,19 @@ package com.flack.geni.tasks.process
 						var installXml:XML = installService.extensions.createAndApply("install");
 						installXml.@install_path = installService.installPath;
 						installXml.@url = installService.url;
-						installXml.@file_type = installService.fileType;
 						serviceXml.appendChild(installXml);
+					}
+				}
+				if(includeManifest && node.services.loginServices != null)
+				{
+					for each(var loginService:LoginService in node.services.loginServices)
+					{
+						var loginXml:XML = loginService.extensions.createAndApply("login");
+						loginXml.@authentication = loginService.authentication;
+						loginXml.@hostname = loginService.hostname;
+						loginXml.@port = loginService.port;
+						loginXml.@username = loginService.username;
+						serviceXml.appendChild(loginXml);
 					}
 				}
 				
@@ -414,10 +465,26 @@ package com.flack.geni.tasks.process
 			{
 				var interfaceXml:XML = current.extensions.createAndApply("interface");
 				if(version.version < 1)
+				{
 					interfaceXml.@virtual_id = current.clientId;
+					if(includeManifest)
+					{
+						if(current.id != null && current.id.full.length > 0)
+							interfaceXml.@sliver_urn = current.id.full;
+						//if(current.physicalId != null && current.physicalId.full.length > 0)
+						//	interfaceXml.@component_id = current.physicalId.full.substr(current.physicalId.full.lastIndexOf(":"));
+					}
+				}
 				else
 				{
 					interfaceXml.@client_id = current.clientId;
+					if(includeManifest)
+					{
+						if(current.id != null && current.id.full.length > 0)
+							interfaceXml.@sliver_id = current.id.full;
+						if(current.physicalId != null && current.physicalId.full.length > 0)
+							interfaceXml.@component_id = current.physicalId.full;
+					}
 					if(current.ip != null && current.ip.address.length > 0)
 					{
 						var ipXml:XML = current.ip.extensions.createAndApply("ip");
@@ -448,9 +515,17 @@ package com.flack.geni.tasks.process
 			var linkXml:XML = link.extensions.createAndApply("link");
 			
 			if(version.version < 1)
+			{
 				linkXml.@virtual_id = link.clientId;
+				if(includeManifest && link.id != null && link.id.full.length > 0)
+					linkXml.@sliver_urn = link.id.full;
+			}
 			else
+			{
 				linkXml.@client_id = link.clientId;
+				if(includeManifest && link.id != null && link.id.full.length > 0)
+					linkXml.@sliver_id = link.id.full;
+			}
 			
 			var manager:GeniManager;
 			
@@ -473,6 +548,14 @@ package com.flack.geni.tasks.process
 				if(version.version < 1)
 				{
 					interfaceRefXml.@virtual_node_id = currentReference.referencedInterface.Owner.clientId;
+					if(includeManifest)
+					{
+						if(currentReference.referencedInterface.id != null && currentReference.referencedInterface.id.full.length > 0)
+							interfaceRefXml.@sliver_urn = currentReference.referencedInterface.id.full;
+						if(currentReference.referencedInterface.physicalId != null && currentReference.referencedInterface.physicalId.full.length > 0)
+							interfaceRefXml.@component_urn = currentReference.referencedInterface.physicalId.full;
+					}
+					
 					if (link.type.name == LinkType.GRETUNNEL_V2)
 					{
 						interfaceRefXml.@tunnel_ip = currentReference.referencedInterface.ip.address;
@@ -497,7 +580,10 @@ package com.flack.geni.tasks.process
 			if(version.version < 1)
 			{
 				if(link.Capacity > 0)
+				{
 					linkXml.appendChild(XML("<bandwidth>" + link.Capacity + "</bandwidth>"));
+					linkXml.@bandwidth = link.Capacity;
+				}
 				if(link.Latency > 0)
 					linkXml.appendChild(XML("<latency>" + link.Latency + "</latency>"));
 				if(link.PacketLoss > 0)
@@ -521,14 +607,17 @@ package com.flack.geni.tasks.process
 			{
 				case LinkType.GRETUNNEL_V1:
 				case LinkType.GRETUNNEL_V2:
+					var gretunnel_type:XML = link.type.extensions.createAndApply("link_type");
 					if(version.version < 1)
-						linkXml.@link_type = LinkType.GRETUNNEL_V1;
-					else
 					{
-						var gretunnel_type:XML = link.type.extensions.createAndApply("link_type");
-						gretunnel_type.@name = LinkType.GRETUNNEL_V2;
-						linkXml.appendChild(gretunnel_type);
+						gretunnel_type.setChildren(LinkType.GRETUNNEL_V1);
+						linkXml.@link_type = LinkType.GRETUNNEL_V1;
+						gretunnel_type.@name = LinkType.GRETUNNEL_V1;
+						gretunnel_type.@link_type = LinkType.GRETUNNEL_V1;
 					}
+					else
+						gretunnel_type.@name = LinkType.GRETUNNEL_V2;
+					linkXml.appendChild(gretunnel_type);
 					break;
 				case LinkType.ION:
 					for each(manager in link.interfaceRefs.Interfaces.Managers.collection)
@@ -565,6 +654,7 @@ package com.flack.geni.tasks.process
 					var lan_type:XML = link.type.extensions.createAndApply("link_type");
 					if(version.version < 1)
 					{
+						lan_type.setChildren(LinkType.LAN_V1);
 						linkXml.@link_type = LinkType.LAN_V1;
 						lan_type.@link_type = LinkType.LAN_V1;
 						lan_type.@name = LinkType.LAN_V1;

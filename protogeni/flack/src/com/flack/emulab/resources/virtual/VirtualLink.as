@@ -27,7 +27,7 @@ package com.flack.emulab.resources.virtual
 		
 		public var type:int;
 		
-		public var interfaces:VirtualInterfaceCollection = null;
+		public var interfaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
 		
 		// LINK ONLY
 		public var queueing:String = "";
@@ -41,6 +41,11 @@ package com.flack.emulab.resources.virtual
 		public var wirelessProtocol:String = "";
 		public var wirelessAccessPoint:VirtualNode;
 		public var wirelessSettings:Vector.<NameValuePair> = null;
+		
+		// Tracing
+		public var tracing:String = "";
+		public var tracingFilter:String = "";
+		public var tracingLength:Number = NaN;
 		
 		// other
 		public var endNodeShaping:Boolean = false;
@@ -136,7 +141,9 @@ package com.flack.emulab.resources.virtual
 		public function canEstablish(nodes:VirtualNodeCollection):Boolean
 		{
 			// Needs to connect at least two nodes
-			if(nodes == null || nodes.collection.length < 2)
+			if(nodes == null
+				|| nodes.length == 0
+				|| (type == VirtualLink.TYPE_LINK && nodes.length != 2))
 				return false;
 			
 			return true;
@@ -152,13 +159,20 @@ package com.flack.emulab.resources.virtual
 			interfaces = new VirtualInterfaceCollection();
 			for each(var connectedNode:VirtualNode in nodes.collection)
 			{
-				interfaces.add(connectedNode.allocateExperimentalInterface());
+				var newInterface:VirtualInterface = connectedNode.allocateExperimentalInterface();
+				interfaces.add(newInterface);
+				connectedNode.interfaces.add(newInterface);
+				newInterface.link = this;
 				connectedNode.unsubmittedChanges = true;
 			}
 			
 			name = experiment.getUniqueId(this, "link");
 			
-			//type = LinkType.LAN_V2;
+			/*
+			setUpProperties();
+			if(sameManager && needsCapacity)
+				Capacity = 100000;
+			*/
 			
 			unsubmittedChanges = true;
 			
@@ -176,8 +190,7 @@ package com.flack.emulab.resources.virtual
 		
 		public function addNode(node:VirtualNode):Boolean
 		{
-			// Must already be established
-			if(interfaces.length < 2)
+			if(type == VirtualLink.TYPE_LINK && interfaces.length > 1)
 				return true;
 			
 			// Allocate interface needed

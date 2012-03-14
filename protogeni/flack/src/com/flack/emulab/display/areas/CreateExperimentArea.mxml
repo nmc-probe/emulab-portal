@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<areas:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:areas="com.flack.shared.display.areas.*">
+	<fx:Script>
+		<![CDATA[
+			
+		]]>
+	</fx:Script>
+	<s:HGroup width="100%">
+		<s:Label text="Project" />
+		<s:DropDownList width="100%" />
+	</s:HGroup>
+	<s:HGroup width="100%">
+		<s:Label text="Group" />
+		<s:DropDownList width="100%" />
+	</s:HGroup>
+	<s:HGroup width="100%">
+		<s:Label text="Name" />
+		<s:TextInput width="100%" restrict="a-zA-Z0-9\-" text="@{title}" />
+	</s:HGroup>
+	<s:HGroup width="100%">
+		<s:Label text="Description" />
+		<s:TextArea id="descriptionTextArea"
+					width="100%"
+					verticalScrollPolicy="off"
+					updateComplete="descriptionTextArea.height = descriptionTextArea.scroller.viewport.contentHeight + 2" />
+	</s:HGroup>
+	<s:HGroup width="100%">
+		<s:CheckBox label="Idle swap after" />
+		<s:NumericStepper />
+		<s:Label text="hours" />
+	</s:HGroup>
+	<s:HGroup width="100%">
+		<s:Label text="Why?" />
+		<s:TextArea id="idleSwapReasonTextArea"
+					width="100%"
+					verticalScrollPolicy="off"
+					updateComplete="idleSwapReasonTextArea.height = idleSwapReasonTextArea.scroller.viewport.contentHeight + 2" />
+	</s:HGroup>
+	<s:HGroup width="100%">
+		<s:CheckBox label="Swap after" />
+		<s:NumericStepper />
+		<s:Label text="hours" />
+	</s:HGroup>
+	<s:HGroup width="100%">
+		<s:Label text="Why?" />
+		<s:TextArea id="maxDurationReasonTextArea"
+					width="100%"
+					verticalScrollPolicy="off"
+					updateComplete="maxDurationReasonTextArea.height = maxDurationReasonTextArea.scroller.viewport.contentHeight + 2" />
+	</s:HGroup>
+	<s:CheckBox label="Batch mode" />
+	<s:CheckBox label="Do not swap in" />
+</areas:AreaContent>

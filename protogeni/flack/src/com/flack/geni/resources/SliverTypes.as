@@ -27,6 +27,9 @@ package com.flack.geni.resources
 		static public var RAWPC_V2:String = "raw-pc";
 		static public var EMULAB_OPENVZ:String = "emulab-openvz";
 		
+		// Reference CM
+		static public var QEMUPC:String = "qemu-pc"
+		
 		// Planet-lab
 		static public var PLANETLAB_V1:String = "plab-vnode";
 		static public var PLANETLAB_V2:String = "plab-vserver";

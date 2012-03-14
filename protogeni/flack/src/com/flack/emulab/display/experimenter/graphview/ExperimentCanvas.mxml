@@ -116,9 +116,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function loadOptions():void
 			{
+				host.normalExperimentOptionsVgroup.visible = true;
+				host.extendedExperimentOptions.visible = true;
 				host.optionsGroup.removeAllElements();
+				
+				// Options group
 				var addNodeButton:DataButton = new DataButton(
-					"Node",
+					"Raw",
 					"Add a raw node",
 					ImageUtil.rawIcon,
 					null,
@@ -133,6 +137,40 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				addNodeButton.addEventListener(MouseEvent.CLICK, addVirtualNode);
 				host.optionsGroup.addElement(addNodeButton);
 				
+				var addVmButton:DataButton = new DataButton(
+					"VM",
+					"Add a raw node",
+					ImageUtil.rawIcon,
+					null,
+					"virtualNode"
+				);
+				var vm:VirtualNode = new VirtualNode(
+					null,
+					"vm"
+				);
+				vm.hardwareType = "pcvm";
+				addVmButton.setStyle("chromeColor", 0x99FFFF);
+				addVmButton.data = vm;
+				addVmButton.addEventListener(MouseEvent.CLICK, addVirtualNode);
+				host.optionsGroup.addElement(addVmButton);
+				
+				var addBridgeButton:DataButton = new DataButton(
+					"Bridge",
+					"Add a bridge node",
+					ImageUtil.rawIcon,
+					null,
+					"virtualNode"
+				);
+				var bridge:VirtualNode = new VirtualNode(
+					null,
+					"bridge"
+				);
+				bridge.type = VirtualNode.TYPE_BRIDGE;
+				addBridgeButton.setStyle("chromeColor", 0x99FFFF);
+				addBridgeButton.data = bridge;
+				addBridgeButton.addEventListener(MouseEvent.CLICK, addVirtualNode);
+				host.optionsGroup.addElement(addBridgeButton);
+				
 				var addLanButton:DataButton = new DataButton(
 					"LAN",
 					"Add a LAN",
@@ -144,7 +182,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					null,
 					"lan"
 				);
-				addLanButton.setStyle("chromeColor", 0x99FFFF);
+				lan.type = VirtualLink.TYPE_LAN;
+				addLanButton.setStyle("chromeColor", 0xCC33CC);
 				addLanButton.data = lan;
 				addLanButton.addEventListener(MouseEvent.CLICK, addVirtualLan);
 				host.optionsGroup.addElement(addLanButton);
@@ -188,11 +227,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				allLinks = new CanvasLinkCollection();
 				styleName = "normalCanvasStyle";
 				selectedItems = null;
-				draggingNode = null;
+				draggingItem = null;
 				drawingLink = false;
 				dropItem = null;
 				previewLink = null;
-				startNode = null;
+				startItem = null;
 				endItem = null;
 				hoveredOverItem = null;
 			}
@@ -542,9 +581,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			}
 			
 			// Mouse stuff
-			public var draggingNode:CanvasNode;
+			public var draggingItem:*;
 			public var previewLink:UIComponent;
-			public var startNode:CanvasNode = null;
+			public var startItem:* = null;
 			public var endItem:* = null;
 			public var drawingLink:Boolean = false;
 			public var hoveredOverItem:* = null;
@@ -552,9 +591,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			protected function bordercontainer1_mouseMoveHandler(event:MouseEvent):void
 			{
 				// dragging node
-				if(draggingNode != null && event.buttonDown)
+				if(draggingItem != null && event.buttonDown)
 				{
-					draggingNode.setLocation(mouseX - draggingNode.ContainerWidth/2, mouseY - draggingNode.ContainerHeight/2);
+					draggingItem.setLocation(mouseX - draggingItem.ContainerWidth/2, mouseY - draggingItem.ContainerHeight/2);
 					updateCanvas(true);
 					return;
 				}
@@ -571,15 +610,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					rawSprite = previewLink.getChildAt(0) as Sprite;
 					rawSprite.graphics.clear();
 					var color:uint = ColorUtil.unknownDark;
-					// See if over a node
+					// See if over an item
 					if(hoveredOverItem != null)
 					{
 						if(hoveredOverItem is CanvasNode)
 						{
 							var hoveredOverNode:CanvasNode = hoveredOverItem as CanvasNode;
-							if(hoveredOverNode != startNode)
+							if(hoveredOverNode != startItem)
 							{
-								if(startNode.Node.interfaces.Links.getConnectedToNode(hoveredOverNode.Node).length == 0)
+								if(startItem is CanvasLink
+									|| startItem.Node.interfaces.Links.getConnectedToNode(hoveredOverNode.Node).length == 0)
 								{
 									color = ColorUtil.validDark;
 									previewLink.filters = [new GlowFilter(ColorUtil.validDark)];
@@ -592,10 +632,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								}
 							}
 						}
-						else if(hoveredOverItem is CanvasLink)
+						else if(hoveredOverItem is CanvasLinkLabel)
 						{
-							var hoveredOverLink:CanvasLink = hoveredOverItem as CanvasLink;
-							if(!hoveredOverLink.link.interfaces.Nodes.contains(startNode.Node))
+							var hoveredOverLink:CanvasLink = (hoveredOverItem as CanvasLinkLabel).canvasLink;
+							if(startItem is CanvasNode
+								&& hoveredOverLink.link.type == VirtualLink.TYPE_LAN
+								&& !hoveredOverLink.link.interfaces.Nodes.contains(startItem.Node))
 							{
 								color = ColorUtil.validDark;
 								previewLink.filters = [new GlowFilter(ColorUtil.validDark)]
@@ -610,21 +652,21 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					}
 					rawSprite.graphics.lineStyle(3, color, 1.0, true,
 						LineScaleMode.NORMAL, CapsStyle.ROUND);
-					rawSprite.graphics.moveTo(startNode.MiddleX, startNode.MiddleY);
+					rawSprite.graphics.moveTo(startItem.MiddleX, startItem.MiddleY);
 					rawSprite.graphics.lineTo(mouseX, mouseY);
 				}
 				else
 				{
 					if(hoveredOverItem != null)
 					{
-						startNode = null;
+						startItem = null;
 						if(previewLink != null)
 						{
 							removeElement(previewLink);
 							previewLink = null;
 						}
 					}
-					// see if near node, preview link
+					// see if near node or lan, preview link
 					else
 					{
 						for(var i:Number = 2; i < 60; i+=2)
@@ -634,7 +676,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							{
 								if(cn.getRect(this).intersects(hitRect))
 								{
-									startNode = cn;
+									startItem = cn;
 									
 									if(previewLink == null)
 									{
@@ -654,11 +696,41 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 									return;
 								}
 							}
+							for each(var cl:CanvasLink in allLinks.collection)
+							{
+								if(cl.button.getRect(this).intersects(hitRect))
+								{
+									startItem = cl;
+									
+									if(previewLink == null)
+									{
+										previewLink = new UIComponent();
+										rawSprite = new Sprite();
+										previewLink.addChild(rawSprite);
+										addElementAt(previewLink, 0);
+									}
+									else
+										rawSprite = previewLink.getChildAt(0) as Sprite;
+									
+									rawSprite.graphics.clear();
+									rawSprite.graphics.lineStyle(
+										4,
+										ColorUtil.unknownDark,
+										1.0,
+										true,
+										LineScaleMode.NORMAL,
+										CapsStyle.ROUND
+									);
+									rawSprite.graphics.moveTo(cl.button.MiddleX, cl.button.MiddleY);
+									rawSprite.graphics.lineTo(mouseX, mouseY);
+									return;
+								}
+							}
 						}
 					}
 					if(previewLink != null)
 					{
-						startNode = null;
+						startItem = null;
 						removeElement(previewLink);
 						previewLink = null;
 					}
@@ -667,7 +739,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			protected function bordercontainer1_mouseDownHandler(event:MouseEvent):void
 			{
-				if(startNode != null)
+				if(startItem != null)
 				{
 					drawingLink = true;
 				}
@@ -675,41 +747,58 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			protected function bordercontainer1_mouseUpHandler(event:MouseEvent):void
 			{
-				draggingNode = null;
+				draggingItem = null;
+				var connectNodes:VirtualNodeCollection = new VirtualNodeCollection();
 				
 				if(drawingLink && endItem != null)
 				{
-					var newLink:VirtualLink = new VirtualLink(experiment);
-					// Connect with a node
-					if(endItem is CanvasNode)
+					if(startItem is CanvasLink)
 					{
-						var connectNodes:VirtualNodeCollection = new VirtualNodeCollection();
-						connectNodes.add(startNode.Node);
-						connectNodes.add((endItem as CanvasNode).Node);
-						if(newLink.canEstablish(connectNodes))
+						if(endItem is CanvasNode)
 						{
-							if(!newLink.establish(connectNodes))
+							var startLink:CanvasLink = startItem as CanvasLink;
+							connectNodes.add(endItem.Node);
+							if(startLink.link.canEstablish(connectNodes))
 							{
-								experiment.links.add(newLink);
-								addVirtualLinkToCanvas(newLink);
+								if(!startLink.link.addNode(endItem.Node))
+								{
+									startLink.establishFromExisting(startLink.link);
+								}
 							}
 						}
 					}
-					// Connect with a link
-					else if(endItem is CanvasLink)
+					else if(startItem is CanvasNode)
 					{
-						var endLink:CanvasLink = endItem as CanvasLink;
-						if(newLink.canEstablish(connectNodes))
+						if(endItem is CanvasNode)
 						{
-							if(!endLink.link.addNode(startNode.Node))
+							var newLink:VirtualLink = new VirtualLink(experiment);
+							connectNodes.add(startItem.Node);
+							connectNodes.add(endItem.Node);
+							if(newLink.canEstablish(connectNodes))
 							{
-								endLink.establishFromExisting(endLink.link);
+								if(!newLink.establish(connectNodes))
+								{
+									experiment.links.add(newLink);
+									addVirtualLinkToCanvas(newLink);
+								}
+							}
+						}
+						else if(endItem is CanvasLink)
+						{
+							var endLink:CanvasLink = endItem as CanvasLink;
+							connectNodes.add(startItem.Node);
+							if(endLink.link.canEstablish(connectNodes))
+							{
+								if(!endLink.link.addNode(startItem.Node))
+								{
+									endLink.establishFromExisting(endLink.link);
+								}
 							}
 						}
 					}
 				}
 				drawingLink = false;
-				startNode = null;
+				startItem = null;
 				endItem = null;
 				if(previewLink != null)
 					removeElement(previewLink);
@@ -767,6 +856,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						addPhysicalNode(dropItem, mouseX-48, mouseY-12);
 					else if(dropItem is VirtualNode)
 						addBasicCloneOfVirtualNode(dropItem, mouseX-48, mouseY-12);
+					else if(dropItem is VirtualLink)
+						addBasicCloneOfVirtualLink(dropItem, mouseX-48, mouseY-12);
 				}
 			}
 			

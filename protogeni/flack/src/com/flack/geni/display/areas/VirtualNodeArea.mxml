@@ -499,7 +499,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(installService != null)
 				{
 					newInstallComponent.url = installService.url;
-					newInstallComponent.fileType = installService.fileType;
 					newInstallComponent.path = installService.installPath;
 				}
 				installVgroup.addElement(newInstallComponent);

@@ -22,6 +22,7 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.physical.PhysicalInterface;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.virtual.extensions.MCInfo;
 	import com.flack.geni.resources.virtual.extensions.NodeFlackInfo;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.utils.StringUtil;
@@ -141,6 +142,8 @@ package com.flack.geni.resources.virtual
 		
 		// Flack extension
 		public var flackInfo:NodeFlackInfo = new NodeFlackInfo();
+		
+		public var mcInfo:MCInfo;
 		
 		/**
 		 * 
@@ -376,7 +379,7 @@ package com.flack.geni.resources.virtual
 		{
 			var result:String = "[VirtualNode "+StringProperties
 				+",\n\t\tClientID="+clientId
-				+",\n\t\tComponentID="+(Bound ? Physical.id.full : "")
+				+",\n\t\tComponentID="+(Bound ? physicalId.full : "")
 				+",\n\t\tExclusive="+exclusive
 				+",\n\t\tManagerID="+manager.id.full
 				+",\n\t\tHost="+host.name

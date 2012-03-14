@@ -23,6 +23,7 @@ package com.flack.shared.tasks.http
 	
 	import flash.events.ErrorEvent;
 	import flash.events.Event;
+	import flash.events.HTTPStatusEvent;
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
 	import flash.net.URLLoader;
@@ -78,6 +79,8 @@ package com.flack.shared.tasks.http
 			urlLoader.addEventListener(IOErrorEvent.IO_ERROR, callIoErrorFailure);
 			urlLoader.addEventListener(IOErrorEvent.NETWORK_ERROR, callIoErrorFailure);
 			urlLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, callSecurityFailure);
+			//urlLoader.addEventListener(HTTPStatusEvent.HTTP_RESPONSE_STATUS, callHttpStatus);
+			urlLoader.addEventListener(HTTPStatusEvent.HTTP_STATUS, callHttpStatus);
 			try
 			{
 				urlLoader.load(urlRequest);
@@ -114,6 +117,11 @@ package com.flack.shared.tasks.http
 		public function callSecurityFailure(event:SecurityErrorEvent):void
 		{
 			afterError(new TaskError(event.toString(), TaskError.FAULT));
+		}
+		
+		public function callHttpStatus(event:HTTPStatusEvent):void
+		{
+			this.addMessage("HTTP", event.toString());
 		}
 		
 		override protected function runTimeout():Boolean

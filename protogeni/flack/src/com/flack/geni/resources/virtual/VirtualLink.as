@@ -18,6 +18,7 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.PropertyCollection;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.virtual.extensions.LinkFlackInfo;
 
 	/**
 	 * Link between resources within a slice
@@ -37,6 +38,9 @@ package com.flack.geni.resources.virtual
 		public var vlantag:String = "";
 		
 		public var properties:PropertyCollection = new PropertyCollection();
+		
+		// Flack extension
+		public var flackInfo:LinkFlackInfo = new LinkFlackInfo();
 		
 		/**
 		 * Capacity (kbs)
@@ -281,9 +285,7 @@ package com.flack.geni.resources.virtual
 			
 			setUpProperties();
 			if(sameManager && needsCapacity)
-			{
 				Capacity = 100000;
-			}
 			unsubmittedChanges = true;
 			
 			return false;
@@ -298,8 +300,8 @@ package com.flack.geni.resources.virtual
 		public function canAddNode(node:VirtualNode):Boolean
 		{
 			// Must already be established
-			if(interfaceRefs.length < 2)
-				return false;
+			/*if(interfaceRefs.length < 2)
+				return false;*/
 			
 			// Make sure we can allocate
 			if(node.allocateExperimentalInterface() == null)
@@ -317,8 +319,8 @@ package com.flack.geni.resources.virtual
 		public function addNode(node:VirtualNode):Boolean
 		{
 			// Must already be established
-			if(interfaceRefs.length < 2)
-				return true;
+			/*if(interfaceRefs.length < 2)
+				return true;*/
 			
 			// Allocate interface needed
 			var newInterface:VirtualInterface = node.allocateExperimentalInterface();
@@ -330,6 +332,7 @@ package com.flack.geni.resources.virtual
 			newInterface.Owner.interfaces.add(newInterface);
 			newInterface.links.add(this);
 			
+			// If new node is on a different manager, must be a GRE tunnel
 			if(type.name == LinkType.LAN_V2 && node.manager != interfaceRefs.collection[0].referencedInterface.Owner.manager)
 				type.name = LinkType.GRETUNNEL_V2;
 			

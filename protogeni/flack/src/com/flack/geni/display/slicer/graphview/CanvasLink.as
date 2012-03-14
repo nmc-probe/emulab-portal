@@ -50,7 +50,7 @@ package com.flack.geni.display.slicer.graphview
 		
 		private var rawSprite:Sprite;
 		
-		public var buttonGroups:Vector.<CanvasLinkLabel>
+		public var buttonGroups:Vector.<CanvasLinkLabel>;
 		
 		public function setFilters(newFilters:Array):void
 		{
@@ -184,8 +184,14 @@ package com.flack.geni.display.slicer.graphview
 		private function drawLink():void
 		{
 			rawSprite.graphics.clear();
-			rawSprite.graphics.lineStyle(2, color, 1.0, true,
-				LineScaleMode.NORMAL, CapsStyle.ROUND);
+			rawSprite.graphics.lineStyle(
+				2,
+				color,
+				1.0,
+				true,
+				LineScaleMode.NORMAL,
+				CapsStyle.ROUND
+			);
 			
 			var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
 			

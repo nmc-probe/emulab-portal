@@ -26,6 +26,7 @@ package com.flack.emulab.resources.virtual
 		public function VirtualInterface(newNode:VirtualNode, newName:String="")
 		{
 			super(newName);
+			node = newNode;
 		}
 	}
 }

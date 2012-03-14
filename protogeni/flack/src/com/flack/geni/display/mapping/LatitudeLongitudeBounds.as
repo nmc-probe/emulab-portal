@@ -10,7 +10,9 @@ package com.flack.geni.display.mapping
 		public function get Center():LatitudeLongitude
 		{
 			if(!isNaN(north) && !isNaN(south) && !isNaN(east) && !isNaN(west))
-				return new LatitudeLongitude((north-south)/2, (east-west)/2);
+			{
+				return new LatitudeLongitude((north+south)/2, (east+west)/2);
+			}
 			else
 				return null;
 		}

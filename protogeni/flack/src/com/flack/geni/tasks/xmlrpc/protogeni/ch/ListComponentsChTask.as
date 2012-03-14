@@ -94,7 +94,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 								protogeniManager.supportsGpeni = true;
 							if(protogeniManager.hrn == "utahemulab.cm")
 								protogeniManager.supportsFirewallNodes = true;
-							if(protogeniManager.hrn == "shadowgeni.cm")
+							if(protogeniManager.hrn == "shadowgeni.cm" || protogeniManager.hrn == "mygeni.cm")
 							{
 								protogeniManager.supportsDelayNodes = false;
 								protogeniManager.supportsUnboundRawNodes = false;

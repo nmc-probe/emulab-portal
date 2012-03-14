@@ -21,6 +21,7 @@ package com.flack.shared.utils
 	import flash.system.Security;
 	import flash.utils.Dictionary;
 	
+	import mx.controls.Alert;
 	import mx.core.FlexGlobals;
 	
 	/**
@@ -106,9 +107,9 @@ package com.flack.shared.utils
 			if (visitedSites[baseUrl] == null)
 			{
 				visitedSites[baseUrl] = true;
-				
-				Security.loadPolicyFile(baseUrl + "/crossdomain.xml");
 				Security.loadPolicyFile(baseUrl + "/protogeni/crossdomain.xml");
+				Security.loadPolicyFile(baseUrl + "/crossdomain.xml");
+				Security.loadPolicyFile(baseUrl + ":843");
 			}
 		}
 	}

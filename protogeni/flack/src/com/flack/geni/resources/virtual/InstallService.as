@@ -38,7 +38,7 @@ package com.flack.geni.resources.virtual
 		 */
 		public function InstallService(newUrl:String = "",
 									   newInstallPath:String = "/",
-									   newFileType:String = "tar.gz")
+									   newFileType:String = "")
 		{
 			url = newUrl;
 			installPath = newInstallPath;

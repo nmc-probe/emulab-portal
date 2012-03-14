@@ -25,7 +25,7 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistory;
 	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistoryItem;
 	import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
-	import com.flack.geni.tasks.process.GenerateRequestTask;
+	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.resources.IdentifiableObject;
@@ -168,12 +168,12 @@ package com.flack.geni.resources.virtual
 			
 			var oldHistory:SliceHistory = history;
 			
-			var getRspec:GenerateRequestTask = new GenerateRequestTask(this, null, false);
+			var getRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(this, null, false);
 			getRspec.start();
 			
 			oldHistory.states.push(
 				new SliceHistoryItem(
-					getRspec.requestRspec.document,
+					getRspec.resultRspec.document,
 					history.stateName
 				)
 			);
@@ -203,17 +203,17 @@ package com.flack.geni.resources.virtual
 			var oldRspec:String = "";
 			if(CanGoBack)
 			{
-				var saveRspec:GenerateRequestTask = new GenerateRequestTask(this, null, false);
+				var saveRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(this, null, false);
 				saveRspec.start();
 				
 				history.states.splice(history.backIndex+1, 0,
 					new SliceHistoryItem(
-						saveRspec.requestRspec.document,
+						saveRspec.resultRspec.document,
 						history.stateName
 					)
 				);
 				
-				oldRspec = saveRspec.requestRspec.document;
+				oldRspec = saveRspec.resultRspec.document;
 				
 				if(history.backIndex > -1)
 				{
@@ -254,13 +254,13 @@ package com.flack.geni.resources.virtual
 				var restoreHistoryItem:SliceHistoryItem = history.states.slice(history.backIndex+1, history.backIndex+2)[0];
 				
 				// Save the state to return in case user wants to undo
-				var saveRspec:GenerateRequestTask = new GenerateRequestTask(this, null, false);
+				var saveRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(this, null, false);
 				saveRspec.start();
 				
 				// Save current state into history for undo
 				oldHistory.states.splice(history.backIndex+1, 0,
 					new SliceHistoryItem(
-						saveRspec.requestRspec.document,
+						saveRspec.resultRspec.document,
 						history.stateName
 					)
 				);
@@ -279,7 +279,7 @@ package com.flack.geni.resources.virtual
 					this
 				);
 				
-				return saveRspec.requestRspec.document
+				return saveRspec.resultRspec.document
 			}
 			else
 				return "";

@@ -10,7 +10,7 @@ package com.flack.emulab.resources.virtual
 		
 		public var type:String = "";
 		public var style:String = "";
-		public var rules:Vector.<NumberValuePair> = null;
+		public var rules:Vector.<NumberValuePair> = new Vector.<NumberValuePair>();
 		
 		public function Firewall()
 		{

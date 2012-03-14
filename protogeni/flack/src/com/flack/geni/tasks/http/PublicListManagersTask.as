@@ -21,6 +21,10 @@ package com.flack.geni.tasks.http
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.http.HttpTask;
+	import com.flack.shared.tasks.http.JsHttpTask;
+	import com.flack.shared.utils.NetUtil;
+	
+	import flash.system.Security;
 	
 	/**
 	 * Downloads a list of cached advertisements
@@ -33,7 +37,7 @@ package com.flack.geni.tasks.http
 		public function PublicListManagersTask()
 		{
 			super(
-				"https://www.emulab.net/protogeni/advertisements/list.txt",
+				"https://www.emulab.net/protogeni/pub/list.txt", // advertisements
 				"Download advertisement list",
 				"Gets the list of advertisements"
 			);

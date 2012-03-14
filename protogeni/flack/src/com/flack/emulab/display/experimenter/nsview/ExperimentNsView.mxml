@@ -25,16 +25,22 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	
 	<fx:Script>
 		<![CDATA[
+			import com.flack.emulab.EmulabMain;
 			import com.flack.emulab.display.areas.ExperimentArea;
 			import com.flack.emulab.resources.virtual.Experiment;
+			import com.flack.emulab.tasks.process.GenerateNsTask;
+			import com.flack.shared.display.components.DataButton;
 			import com.flack.shared.display.components.MenuButton;
 			import com.flack.shared.tasks.Task;
 			import com.flack.shared.tasks.TaskEvent;
 			import com.flack.shared.tasks.file.FileTask;
 			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.NetUtil;
 			
 			import flash.desktop.Clipboard;
 			import flash.desktop.ClipboardFormats;
+			
+			import mx.controls.Button;
 			
 			[Bindable] 
 			public var importMenuData:Array = [
@@ -42,11 +48,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					label: "Import from file",
 					icon: ImageUtil.openIcon,
 					action: importFromFile
-				},
-				{
-					label: "Import from clipboard",
-					icon: ImageUtil.pasteIcon,
-					action: importFromClipboard
 				}
 			];
 			
@@ -70,17 +71,54 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				clear();
 				experiment = newExperiment;
-				text = experiment.nsfile;
+				if(experiment.nsfile.length > 0)
+					text = experiment.nsfile;
+				{
+					var createNsFile:GenerateNsTask = new GenerateNsTask(experiment);
+					createNsFile.start();
+					text = createNsFile.data;
+				}
 			}
 			
 			public function loadOptions():void
 			{
+				host.normalExperimentOptionsVgroup.visible = false;
+				host.extendedExperimentOptions.visible = false;
 				host.optionsGroup.removeAllElements();
+				
+				var viewNsHelpButton:DataButton = new DataButton("NS Commands", "View documentation on NS commands", ImageUtil.infoIcon);
+				viewNsHelpButton.addEventListener(MouseEvent.CLICK, viewNsHelp);
+				host.optionsGroup.addElement(viewNsHelpButton);
+				
 				var importMenuButton:MenuButton = new MenuButton();
+				importMenuButton.label = "Import";
 				importMenuButton.toolTip = "Import from...";
 				importMenuButton.menuData = importMenuData;
-				importMenuButton.label = "Import";
 				host.optionsGroup.addElement(importMenuButton);
+				
+				var saveButton:DataButton = new DataButton("Save to file", "Save NS file to disk", ImageUtil.saveIcon);
+				saveButton.addEventListener(MouseEvent.CLICK, save);
+				host.optionsGroup.addElement(saveButton);
+				
+				var copyButton:DataButton = new DataButton("Copy", "Copy NS file to clipboard", ImageUtil.saveIcon);
+				saveButton.addEventListener(MouseEvent.CLICK, copy);
+				host.optionsGroup.addElement(copyButton);
+			}
+			
+			public function viewNsHelp(event:MouseEvent):void
+			{
+				NetUtil.openWebsite(EmulabMain.URL_NSCOMMANDS);
+			}
+			
+			public function save(event:MouseEvent):void
+			{
+				var saveDocumentTask:FileTask = new FileTask(text);
+				saveDocumentTask.startOperation(event);
+			}
+			
+			public function copy(event:MouseEvent):void
+			{
+				System.setClipboard(text)
 			}
 			
 			/**
@@ -115,11 +153,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				if(event.task.Status == Task.STATUS_SUCCESS)
 					importFromString(event.task.data);
-			}
-			
-			public function importFromClipboard(event:* = null):void
-			{
-				importFromString(Clipboard.generalClipboard.getData(ClipboardFormats.TEXT_FORMAT).toString());
 			}
 			
 			public function importFromString(nsFile:String):void

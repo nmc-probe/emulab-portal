@@ -24,6 +24,7 @@ package com.flack.geni
 	{
 		// RSPEC namespaces
 		public static const rspec01Namespace:String = "http://www.protogeni.net/resources/rspec/0.1";
+		public static const rspec01MalformedNamespace:String = "http://protogeni.net/resources/rspec/0.1";
 		public static const rspec02Namespace:String = "http://www.protogeni.net/resources/rspec/0.2";
 		public static const rspec02MalformedNamespace:String = "http://protogeni.net/resources/rspec/0.2";
 		public static const rspec2Namespace:String = "http://www.protogeni.net/resources/rspec/2";

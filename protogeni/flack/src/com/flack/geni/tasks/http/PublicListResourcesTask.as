@@ -23,6 +23,7 @@ package com.flack.geni.tasks.http
 	import com.flack.shared.resources.sites.FlackManager;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.tasks.http.HttpTask;
+	import com.flack.shared.tasks.http.JsHttpTask;
 	import com.flack.shared.utils.CompressUtil;
 	
 	/**
@@ -72,7 +73,7 @@ package com.flack.geni.tasks.http
 				);
 			}
 			
-			manager.advertisement = new Rspec(XML(data));
+			manager.advertisement = new Rspec(data);
 			parent.add(new ParseAdvertisementTask(manager));
 			
 			super.afterComplete(addCompletedMessage);

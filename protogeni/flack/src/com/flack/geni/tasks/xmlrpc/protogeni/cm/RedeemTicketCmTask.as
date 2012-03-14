@@ -47,7 +47,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				newSliver.manager.url,
 				ProtogeniXmlrpcTask.MODULE_CM,
 				ProtogeniXmlrpcTask.METHOD_REDEEMTICKET,
-				"ProtogeniXmlrpcTask ticket @ " + newSliver.manager.hrn,
+				"Redeem ticket @ " + newSliver.manager.hrn,
 				"Updates ticket for sliver on " + newSliver.manager.hrn + " for slice named " + newSliver.slice.Name,
 				"Redeem Ticket"
 			);
@@ -79,7 +79,10 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		override protected function createFields():void
 		{
 			addNamedField("slice_urn", sliver.slice.id.full);
-			addNamedField("credentials", [sliver.credential.Raw]);
+			if(sliver.credential != null && sliver.credential.Raw.length > 0)
+				addNamedField("credentials", [sliver.credential.Raw]);
+			else
+				addNamedField("credentials", [sliver.slice.credential.Raw]);
 			addNamedField("ticket", sliver.ticket);
 			var keys:Array = [];
 			for each(var key:String in sliver.slice.creator.keys) {
@@ -116,7 +119,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
 				parent.add(new StartSliverCmTask(sliver));
 			}
 			else

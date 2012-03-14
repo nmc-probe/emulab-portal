@@ -22,7 +22,7 @@ package com.flack.emulab.resources.physical
 	 * @author mstrum
 	 * 
 	 */
-	public class DiskImage extends NamedObject
+	public class Osid extends NamedObject
 	{
 		public var os:String;
 		public var description:String;
@@ -35,7 +35,7 @@ package com.flack.emulab.resources.physical
 		//public var fullosid:String;
 		//public var shared:Boolean;
 		
-		public function DiskImage(newName:String = "",
+		public function Osid(newName:String = "",
 								  newOs:String = "",
 								  newVersion:String = "",
 								  newDescription:String = "",

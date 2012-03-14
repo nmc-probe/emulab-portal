@@ -7,7 +7,7 @@ package com.flack.emulab.resources.virtual
 		public var command:String = "";
 		public var directory:String = "";
 		public var timeout:Number = NaN;
-		public var expectedExitCode:int = 0;
+		public var expectedExitCode:Number = NaN;
 		
 		public var unsubmittedChanges:Boolean = true;
 		

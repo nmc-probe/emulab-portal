@@ -19,27 +19,36 @@ package com.flack.emulab.resources.physical
 	 * @author mstrum
 	 * 
 	 */
-	public class DiskImageCollection
+	public class OsidCollection
 	{
-		public var collection:Vector.<DiskImage>;
-		public function DiskImageCollection()
+		public var collection:Vector.<Osid>;
+		public function OsidCollection()
 		{
-			collection = new Vector.<DiskImage>();
+			collection = new Vector.<Osid>();
 		}
 		
-		public function add(ht:DiskImage):void
+		public function add(ht:Osid):void
 		{
+			var htName:String = ht.name.toLowerCase();
+			for(var i:int = 0; i < collection.length; i++)
+			{
+				if(collection[i].name.toLowerCase() > htName)
+				{
+					collection.splice(i, 0, ht);
+					return;
+				}
+			}
 			collection.push(ht);
 		}
 		
-		public function remove(ht:DiskImage):void
+		public function remove(ht:Osid):void
 		{
 			var idx:int = collection.indexOf(ht);
 			if(idx > -1)
 				collection.splice(idx, 1);
 		}
 		
-		public function contains(ht:DiskImage):Boolean
+		public function contains(ht:Osid):Boolean
 		{
 			return collection.indexOf(ht) > -1;
 		}
@@ -47,6 +56,28 @@ package com.flack.emulab.resources.physical
 		public function get length():int
 		{
 			return collection.length;
+		}
+		
+		public function getByName(name:String):Osid
+		{
+			for each(var osid:Osid in collection)
+			{
+				if(osid.name == name)
+					return osid;
+			}
+			return null;
+		}
+		
+		public function searchByName(name:String):OsidCollection
+		{
+			var searchName:String = name.toLowerCase();
+			var osids:OsidCollection = new OsidCollection();
+			for each (var o:Osid in collection)
+			{
+				if(o.name.toLowerCase().indexOf(searchName) != -1)
+					osids.add(o);
+			}
+			return osids;
 		}
 	}
 }

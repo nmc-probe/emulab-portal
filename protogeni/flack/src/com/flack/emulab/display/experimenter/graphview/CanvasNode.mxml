@@ -33,36 +33,6 @@ VirtualNode for use on the slice canvas
 		  paddingTop="0"
 		  paddingRight="0"
 		  paddingBottom="0">
-	<fx:Style>
-		@namespace s "library://ns.adobe.com/flex/spark";
-		@namespace mx "library://ns.adobe.com/flex/mx";
-		
-		.normalNodeStyle {
-			borderColor: #2F4F4F;
-			backgroundColor: #EAEAEA;
-		}
-		
-		.inprogressNodeStyle {
-			borderColor: #B2B300;
-			backgroundColor: #E6E600;
-		}
-		
-		.failedNodeStyle {
-			borderColor: #990000;
-			backgroundColor: #F08080;
-		}
-		
-		.pausedNodeStyle {
-			borderColor: FF6600;
-			backgroundColor: #FF9900;
-		}
-		
-		.validNodeStyle {
-			borderColor: #006600;
-			backgroundColor: #27C427;
-		}
-		
-	</fx:Style>
 	<fx:Script>
 		<![CDATA[
 			import com.flack.emulab.resources.virtual.VirtualNode;
@@ -212,7 +182,7 @@ VirtualNode for use on the slice canvas
 			
 			protected function bordercontainer1_mouseDownHandler(event:MouseEvent):void
 			{
-				canvas.draggingNode = this;
+				canvas.draggingItem = this;
 				canvas.setElementIndex(this, canvas.numElements-1);
 			}
 			
@@ -245,7 +215,7 @@ VirtualNode for use on the slice canvas
 					   useHandCursor="true"
 					   height="29"
 					   borderStyle="solid"
-					   styleName="normalNodeStyle"
+					   backgroundColor="{labelBackgroundColor}"
 					   mouseDown="bordercontainer1_mouseDownHandler(event)"
 					   rollOver="bordercontainer1_rollOverHandler(event)"
 					   rollOut="bordercontainer1_rollOutHandler(event)"
@@ -266,14 +236,14 @@ VirtualNode for use on the slice canvas
 		<s:Label id="nameLabel"
 				 text="{node.name}"
 				 height="100%"
+				 color="{labelColor}"
 				 verticalAlign="middle"
 				 textAlign="center"
-				 color="{labelColor}"
-				 backgroundColor="{labelBackgroundColor}"
 				 maxDisplayedLines="1" />
 		<components:ImageButton id="infoButton"
 								icon="{ImageUtil.infoIcon}"
-								click="showInfo(event)" mouseDown="event.stopImmediatePropagation();" />
+								click="showInfo(event)"
+								mouseDown="event.stopImmediatePropagation();" />
 	</s:BorderContainer>
 	<s:VGroup id="extraGroup" gap="2">
 		<s:Label id="osidLabel" fontSize="10" visible="false" includeInLayout="false" />

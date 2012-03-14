@@ -17,17 +17,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
 -->
 
-<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
-			   xmlns:s="library://ns.adobe.com/flex/spark" 
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009"
+			   xmlns:s="library://ns.adobe.com/flex/spark"
 			   xmlns:mx="library://ns.adobe.com/flex/mx"
 			   xmlns:panes="com.flack.geni.display.panes.*"
 			   xmlns:areas="com.flack.shared.display.areas.*"
 			   xmlns:components="com.flack.shared.display.components.*"
-			   minWidth="600"
-			   minHeight="400"
-			   preinitialize="onPreinitialize();"
-			   applicationComplete="afterReady();"
-			   resizeForSoftKeyboard="true" xmlns:panes1="com.flack.shared.display.panes.*">
+			   xmlns:panes1="com.flack.shared.display.panes.*"
+			   minWidth="600" minHeight="400" applicationComplete="afterReady();"
+			   preinitialize="onPreinitialize();" resizeForSoftKeyboard="true">
 	<s:layout>
 		<s:HorizontalLayout gap="0" />
 	</s:layout>

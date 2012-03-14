@@ -34,7 +34,7 @@ package com.flack.geni.tasks.groups
 	 * @author mstrum
 	 * 
 	 */
-	public class GetPublicResourcesTaskGroup extends ParallelTaskGroup
+	public class GetPublicResourcesTaskGroup extends SerialTaskGroup
 	{
 		private var shouldListManagers:Boolean;
 		private var shouldGetResources:Boolean;

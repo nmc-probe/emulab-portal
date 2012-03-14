@@ -32,6 +32,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.GeniMain;
 			import com.flack.geni.tasks.groups.GetCertBundlesTaskGroup;
 			import com.flack.geni.tasks.tests.TestCcrTaskGroup;
+			import com.flack.geni.tasks.tests.TestCombineMultipleTaskGroup;
 			import com.flack.geni.tasks.tests.TestSliceFailureModesTaskGroup;
 			import com.flack.geni.tasks.tests.TestSliceHistoryTaskGroup;
 			import com.flack.geni.tasks.tests.TestSliceSuccessModesTaskGroup;
@@ -247,6 +248,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						  click="runTest(new TestSliceHistoryTaskGroup())" />
 				<s:Button label="Test CCR Tutorial"
 						  click="runTest(new TestCcrTaskGroup())" />
+				<s:Button label="Test Combine"
+						  click="runTest(new TestCombineMultipleTaskGroup())" />
 				<s:HGroup width="100%">
 					<s:TextInput id="httpInput" width="100%" />
 					<s:Button click="runTest(new JsHttpTask(httpInput.text))" />

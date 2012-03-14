@@ -112,7 +112,7 @@ package com.flack.geni.tasks.xmlrpc.am
 				);
 				
 				sliver.manifest = new Rspec(uncompressedRspec,null,null,null, Rspec.TYPE_MANIFEST);
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
 				
 				super.afterComplete(addCompletedMessage);
 				

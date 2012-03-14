@@ -118,7 +118,7 @@ package com.flack.geni.tasks.xmlrpc.am
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest));
+				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
 				
 				super.afterComplete(addCompletedMessage);
 			}

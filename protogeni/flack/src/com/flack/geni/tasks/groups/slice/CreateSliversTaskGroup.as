@@ -19,6 +19,9 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.am.CreateSliverTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateSliverCmTask;
+	import com.flack.geni.tasks.xmlrpc.protogeni.cm.GetTicketCmTask;
+	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RedeemTicketCmTask;
+	import com.flack.geni.tasks.xmlrpc.protogeni.cm.StartSliverCmTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.sites.ApiDetails;
@@ -64,7 +67,12 @@ package com.flack.geni.tasks.groups.slice
 				if(newSliver.manager.api.type == ApiDetails.API_GENIAM)
 					add(new CreateSliverTask(newSliver, rspec));
 				else
-					add(new CreateSliverCmTask(newSliver, rspec));
+				{
+					if(newSliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
+						add(new CreateSliverCmTask(newSliver, rspec));
+					else
+						add(new GetTicketCmTask(newSliver, rspec));
+				}
 			}
 		}
 		
@@ -78,6 +86,12 @@ package com.flack.geni.tasks.groups.slice
 				msg = " creating sliver on " + (task as CreateSliverTask).sliver.manager.hrn;
 			else if(task is ParseRequestManifestTask)
 				msg = " parsing the manifest on " + (task as ParseRequestManifestTask).sliver.manager.hrn;
+			else if(task is GetTicketCmTask)
+				msg = " updating sliver on " + (task as GetTicketCmTask).sliver.manager.hrn;
+			else if(task is RedeemTicketCmTask)
+				msg = " redeeming ticket on " + (task as RedeemTicketCmTask).sliver.manager.hrn;
+			else if(task is StartSliverCmTask)
+				msg = " starting the sliver on " + (task as StartSliverCmTask).sliver.manager.hrn;
 			Alert.show(
 				"Problem" + msg + ". Continue with the remaining actions?",
 				"Continue?",

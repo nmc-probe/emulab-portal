@@ -14,6 +14,7 @@
 
 package com.flack.emulab.resources.sites
 {
+	import com.flack.emulab.resources.physical.OsidCollection;
 	import com.flack.emulab.resources.physical.PhysicalNodeCollection;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
@@ -26,6 +27,7 @@ package com.flack.emulab.resources.sites
 	 */
 	public class EmulabManager extends FlackManager
 	{
+		public var osids:OsidCollection = new OsidCollection();
 		[Bindable]
 		public var nodes:PhysicalNodeCollection = new PhysicalNodeCollection();
 		public function EmulabManager(newId:String)

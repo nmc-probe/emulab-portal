@@ -75,6 +75,9 @@ package com.flack.emulab.resources.virtual
 		
 		public var environmentVariables:Vector.<NameValuePair> = null;
 		
+		public var delayOs:String = "";
+		public var jailOs:String = "";
+		
 		public var nodes:VirtualNodeCollection;
 		public var links:VirtualLinkCollection;
 		public var trafficFlows:Vector.<TrafficFlow> = new Vector.<TrafficFlow>();
