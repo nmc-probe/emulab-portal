@@ -9680,6 +9680,15 @@ COMMAND_PROTOTYPE(dobootwhat)
 		bufp += OUTPUT(bufp, ebufp - bufp,
 			      "STATUS=success TYPE=%d",
 			      boot_whatp->type);
+
+		/*
+		 * XXX older, "cdboot" parsers for the bootwhat info will
+		 * blow up if FLAGS= is included anywhere on the line.
+		 */
+		if (vers > 34)
+			bufp += OUTPUT(bufp, ebufp - bufp, " FLAGS=%d",
+				       boot_whatp->flags);
+
 		if (boot_whatp->type == BIBOOTWHAT_TYPE_PART) {
 			bufp += OUTPUT(bufp, ebufp - bufp, " WHAT=%d",
 				      boot_whatp->what.partition);

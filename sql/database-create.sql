@@ -2855,7 +2855,7 @@ CREATE TABLE `os_info` (
   `path` tinytext,
   `magic` tinytext,
   `machinetype` varchar(30) NOT NULL default '',
-  `osfeatures` set('ping','ssh','ipod','isup','veths','veth-ne','veth-en','mlinks','linktest','linkdelays','vlans','suboses') default NULL,
+  `osfeatures` set('ping','ssh','ipod','isup','veths','veth-ne','veth-en','mlinks','linktest','linkdelays','vlans','suboses','ontrustedboot') default NULL,
   `ezid` tinyint(4) NOT NULL default '0',
   `shared` tinyint(4) NOT NULL default '0',
   `mustclean` tinyint(4) NOT NULL default '1',

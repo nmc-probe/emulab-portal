@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -26,6 +26,7 @@
 #ifdef USE_MYSQL_DB
 
 static int parse_multiboot_path(char *path, boot_what_t *info);
+static void parse_features(char *path, boot_what_t *info);
 static void parse_mfs_path(char *path, boot_what_t *info);
 static int boot_newnode_mfs(struct in_addr, int, boot_what_t *);
 
@@ -71,18 +72,24 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 #define DEF_BOOT_CMDLINE	1
 #define DEF_BOOT_PATH		2
 #define DEF_BOOT_MFS		3
-#define DEF_BOOT_PARTITION	4
-#define TEMP_BOOT_OSID		5
-#define TEMP_BOOT_PATH		6
-#define TEMP_BOOT_MFS		7
-#define TEMP_BOOT_PARTITION	8
-#define NEXT_BOOT_OSID		9
-#define NEXT_BOOT_CMDLINE	10
-#define NEXT_BOOT_PATH		11
-#define NEXT_BOOT_MFS		12
-#define NEXT_BOOT_PARTITION	13
-#define PID			14
-#define PXE_BOOT_PATH		15
+#define DEF_BOOT_FEATURES	4
+#define DEF_BOOT_PARTITION	5
+#define TEMP_BOOT_OSID		6
+#define TEMP_BOOT_PATH		7
+#define TEMP_BOOT_MFS		8
+#define TEMP_BOOT_FEATURES	9
+#define TEMP_BOOT_PARTITION	10
+#define NEXT_BOOT_OSID		11
+#define NEXT_BOOT_CMDLINE	12
+#define NEXT_BOOT_PATH		13
+#define NEXT_BOOT_MFS		14
+#define NEXT_BOOT_FEATURES	15
+#define NEXT_BOOT_PARTITION	16
+#define PID			17
+#define PXE_BOOT_PATH		18
+
+#define NCOLS			19
+
 #define DEFINED(x)		(row[(x)] != NULL && row[(x)][0] != '\0')
 #define TOINT(x)		(atoi(row[(x)]))
 
@@ -93,11 +100,14 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 		 * else!
 		 */
 		res = mydb_query("select n.def_boot_osid, n.def_boot_cmd_line, "
-				 "        odef.path, odef.mfs, pdef.partition, "
+				 "        odef.path, odef.mfs, "
+				 "        odef.osfeatures, pdef.partition, "
 				 "       n.temp_boot_osid, "
-				 "        otemp.path, otemp.mfs, ptemp.partition, "
+				 "        otemp.path, otemp.mfs, "
+				 "        otemp.osfeatures, ptemp.partition, "
 				 "       n.next_boot_osid, n.next_boot_cmd_line, "
-				 "        onext.path, onext.mfs, pnext.partition, "
+				 "        onext.path, onext.mfs, "
+				 "        onext.osfeatures, pnext.partition, "
 				 "       r.pid,n.pxe_boot_path "
 				 " from nodes as n "
 				 "left join reserved as r on n.node_id=r.node_id "
@@ -123,15 +133,18 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 				 "  on n.type=nobootinfo_types.type "
 				 "where n.node_id='%s' "
 				 "  and nobootinfo_types.attrvalue is NULL",
-				 16, node_id);
+				 NCOLS, node_id);
 	}
 	else if (! haskey) {
 		res = mydb_query("select n.def_boot_osid, n.def_boot_cmd_line, "
-				 "        odef.path, odef.mfs, pdef.partition, "
+				 "        odef.path, odef.mfs, "
+				 "        odef.osfeatures, pdef.partition, "
 				 "       n.temp_boot_osid, "
-				 "        otemp.path, otemp.mfs, ptemp.partition, "
+				 "        otemp.path, otemp.mfs, "
+				 "        otemp.osfeatures, ptemp.partition, "
 				 "       n.next_boot_osid, n.next_boot_cmd_line, "
-				 "        onext.path, onext.mfs, pnext.partition, "
+				 "        onext.path, onext.mfs, "
+				 "        onext.osfeatures, pnext.partition, "
 				 "       r.pid,n.pxe_boot_path "
 				 " from interfaces as i "
 				 "left join nodes as n on i.node_id=n.node_id "
@@ -158,7 +171,7 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 				 "  on n.type=nobootinfo_types.type "
 				 "where i.IP='%s' "
 				 "  and nobootinfo_types.attrvalue is NULL",
-				 16, inet_ntoa(ipaddr));
+				 NCOLS, inet_ntoa(ipaddr));
 
 		/* Get boot drive from DB */
 		res2 = mydb_query("select attrvalue from node_attributes as a, nodes as n, interfaces as i where "
@@ -194,11 +207,14 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 	else { /* User provided a widearea hostkey, so they don't have a necessarily-unique IP address. */
 		/* This is meant to be similar to the above, but queries on the wideareanodekey instead. */
 		res = mydb_query("SELECT n.def_boot_osid, n.def_boot_cmd_line, "
-				 "odef.path, odef.mfs, pdef.partition, "
+				 " odef.path, odef.mfs, "
+				 " odef.osfeatures, pdef.partition, "
 				 "n.temp_boot_osid, "
-				 "otemp.path, otemp.mfs, ptemp.partition, "
+				 " otemp.path, otemp.mfs, "
+				 " otemp.osfeatures, ptemp.partition, "
 				 "n.next_boot_osid, n.next_boot_cmd_line, "
-				 "onext.path, onext.mfs, pnext.partition, "
+				 " onext.path, onext.mfs, "
+				 " onext.osfeatures, pnext.partition, "
 				 "r.pid,n.pxe_boot_path "
 				 "FROM nodes AS n "
 				 "LEFT JOIN reserved AS r ON n.node_id=r.node_id "
@@ -213,7 +229,7 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 				 	"AS nobootinfo_types ON n.type=nobootinfo_types.type "
 				 "WHERE n.node_id IN "
 					"(SELECT node_id FROM widearea_nodeinfo WHERE privkey='%s') "
-					"AND nobootinfo_types.attrvalue IS NULL;", 16, savedkey);
+					"AND nobootinfo_types.attrvalue IS NULL;", NCOLS, savedkey);
 	}
 	
 	if (!res) {
@@ -270,6 +286,7 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 		if (DEFINED(NEXT_BOOT_PATH)) {
 			if (DEFINED(NEXT_BOOT_MFS) && TOINT(NEXT_BOOT_MFS) == 1){
 				info->type = BIBOOTWHAT_TYPE_MFS;
+				parse_features(row[NEXT_BOOT_FEATURES], info);
 				parse_mfs_path(row[NEXT_BOOT_PATH], info);
 			}
 			else {
@@ -310,6 +327,7 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 		if (DEFINED(TEMP_BOOT_PATH)) {
 			if (DEFINED(TEMP_BOOT_MFS) && TOINT(TEMP_BOOT_MFS) == 1){
 				info->type = BIBOOTWHAT_TYPE_MFS;
+				parse_features(row[TEMP_BOOT_FEATURES], info);
 				parse_mfs_path(row[TEMP_BOOT_PATH], info);
 			}
 			else {
@@ -342,6 +360,7 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 		if (DEFINED(DEF_BOOT_PATH)) {
 			if (DEFINED(DEF_BOOT_MFS) && TOINT(DEF_BOOT_MFS) == 1) {
 				info->type = BIBOOTWHAT_TYPE_MFS;
+				parse_features(row[DEF_BOOT_FEATURES], info);
 				parse_mfs_path(row[DEF_BOOT_PATH], info);
 			}
 			else {
@@ -522,6 +541,14 @@ parse_mfs_path(char *str, boot_what_t *info)
 	strcpy(info->what.mfs, inet_ntoa(hip));
 	strncat(info->what.mfs, path,
 		sizeof(info->what.mfs)-strlen(info->what.mfs));
+}
+
+static void
+parse_features(char *str, boot_what_t *info)
+{
+	if (strstr(str, "ontrustedboot")) {
+		info->flags |= BIBOOTWHAT_FLAGS_SECURE;
+	}
 }
 
 /*

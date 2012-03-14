@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2011 University of Utah and the Flux Group.
  * All rights reserved.
  *
  * Derived from boot/bootwhat.h in the OSKit.
@@ -116,5 +116,6 @@ typedef struct boot_what {
 
 /* Flags */
 #define BIBOOTWHAT_FLAGS_CMDLINE	0x01	/* Kernel to boot */ 
+#define BIBOOTWHAT_FLAGS_SECURE		0x02	/* Part of secure boot chain */
 
 #endif /* _EMULAB_BOOTWHAT_H_ */
