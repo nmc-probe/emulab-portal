@@ -14,7 +14,6 @@ sub DoUpdate($$$)
 		 "     'veth-en','mlinks','linktest','linkdelays',".
 		 "     'vlans','suboses','ontrustedboot')".
 		 " default NULL");
-    }
     return 0;
 }
 1;
