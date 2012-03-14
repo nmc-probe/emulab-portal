@@ -798,9 +798,13 @@ sub stateTransition($$) {
 		# To differentiate BOOT from LOAD:
 		# if next_op_mode is SECURELOAD, goto SECURELOAD
 		# else if mode/state is SECURELOAD/SHUTDOWN, goto SECURELOAD
+		# else if mode/state is SECURELOAD/REBOOTING, goto SECURELOAD
 		# else goto SECUREBOOT.
 		#
-		debug("Running $SECUREBOOT trigger\n");
+		# The SHUTDOWN case handles os_load.
+		# The REBOOT case handles the forced reboot following PXEWAIT
+		# (inflicted by bootinfo--see bootinfo_mysql.c).
+		#
 		my $query_result =
 		    DBQueryWarn("select next_op_mode from nodes ".
 				"where node_id='$node'");
@@ -808,8 +812,10 @@ sub stateTransition($$) {
 		if (!$nextmode) {
 		    $nextmode = $mode;
 		}
+		info("Running $SECUREBOOT trigger with $nextmode/$oldstate\n");
 		if ($nextmode ne TBDB_NODEOPMODE_SECURELOAD ||
-		    $oldstate ne TBDB_NODESTATE_SHUTDOWN) {
+		    ($oldstate ne TBDB_NODESTATE_SHUTDOWN &&
+		     $oldstate ne TBDB_NODESTATE_REBOOTING)) {
 		    $nextmode = TBDB_NODEOPMODE_SECUREBOOT;
 		}
 		if ($mode ne $nextmode) {
@@ -1282,11 +1288,23 @@ sub handleCommand($$;$$) {
 
 	    my $nodelist=join(" ",@nodes);
 	    info("Rebooting nodes: $nodelist\n");
+	    #
+	    # XXX for reboot of nodes in PXEWAIT:
+	    # force == 0,1 -> wake them up, let them re-query
+	    # force == 2   -> wake them up, make them reboot
+	    # force == 3   -> just power cycle em
+	    #
+	    my $opt = "-r";
+	    if ($force == 2) {
+		$opt .= " -b";
+	    } elsif ($force == 3) {
+		$opt .= " -k";
+	    }
 	    # Permissions were checked in order to send the message,
 	    # so we don't need to do any fancy stuff here.
-	    my $cmd = "$nodereboot -r $nodelist";
+	    my $cmd = "$nodereboot $opt $nodelist";
 	    debug("$cmd\n");
-	    system("(date; $cmd) >>$rebootlog 2>&1 &") and
+	    system("(echo \"`date`: $cmd\"; $cmd) >>$rebootlog 2>&1 &") and
 		notify("$params/$command: ".
 		       "Command '$cmd' failed, error $?: $!\n");
 
@@ -1313,6 +1331,10 @@ sub handleCommand($$;$$) {
 	    if ($soft_secviolation && $func eq "off" && @nodes > 0 &&
 		$nodes{$nodes[0]}{state} eq TBDB_NODESTATE_SECVIOLATION) {
 		info("soft SECVIOLATION: NOT powering off $params\n");
+
+		# XXX don't get stuck reloading disk over and over...
+		system("$osselect -d -c -1 $nodelist");
+
 		next;
 	    }
 

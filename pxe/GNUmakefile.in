@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -87,4 +87,4 @@ client-install: bootinfoclient
 	$(INSTALL_PROGRAM) bootinfoclient $(DESTDIR)$(CLIENT_BINDIR)
 
 clean: 
-	rm -f *.o core bootinfo bootinfosend testmysql bootinfo_version.c
+	rm -f *.o core bootinfo bootinfosend bootinfoclient testmysql bootinfo_version.c

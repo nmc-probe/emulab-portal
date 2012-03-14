@@ -404,6 +404,41 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 	}
 	rval = 1;
  done:
+
+	/*
+	 * XXX horrific state-specific hack.
+	 *
+	 * Currently, for nodes that use the gPXE boot dongle, they exit
+	 * secure mode (do a TPM "sign-off") before entering PXEWAIT when
+	 * freed. When such a node is allocated and it has to reload its
+	 * disk, we must reboot the node so that the TPM sign off PCR is
+	 * cleared and the secure boot path is cleanly restarted.
+	 *
+	 * For reasons too bogus to talk about, we cannot currently do
+	 * this from stated. So here we detect a wakeup from PXEWAIT for
+	 * the purposes of reloading the disk via the "secure MFS".
+	 */
+	if (!rval && !node_id && info->type == BIBOOTWHAT_TYPE_MFS &&
+	    (info->flags & BIBOOTWHAT_FLAGS_SECURE) != 0) {
+		res2 = mydb_query("select op_mode,eventstate from "
+				  " nodes as n, interfaces as i "
+				  " where n.node_id=i.node_id and i.IP='%s'",
+				  2, ipstr);
+		if (res2) {
+			if (mysql_num_rows(res2)) {
+				row2 = mysql_fetch_row(res2);
+				error("Secure booting node %s in %s/%s\n",
+				      ipstr, row2[0], row2[1]);
+				if (strcmp(row2[0], "PXEKERNEL") == 0 &&
+				    strcmp(row2[1], "PXEBOOTING") == 0) {
+					info->type = BIBOOTWHAT_TYPE_REBOOT;
+					error("Forcing reboot of %s\n", ipstr);
+				}
+			}
+			mysql_free_result(res2);
+		}
+	}
+
 	mysql_free_result(res);
 	return rval;
 }
