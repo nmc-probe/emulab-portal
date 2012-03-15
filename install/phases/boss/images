@@ -7,7 +7,7 @@ use installvars;
 
 my $UTAHURL       = "http://www.emulab.net/downloads";
 my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-v3.xml";
-my @STDIMAGES     = ("FBSD73-STD", "FEDORA10-STD");
+my @STDIMAGES     = ("FBSD82-STD", "FEDORA10-STD");
 my @MBRS          = ("emulab-mbr.dd", "emulab-mbr2.dd");
 my $STDIMAGESURL  = "$UTAHURL/images-STD";
 
