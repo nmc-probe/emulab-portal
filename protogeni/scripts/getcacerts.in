@@ -195,6 +195,10 @@ if ($?) {
 
     $restartapache = 1;
 }
+unlink("/tmp/genica.bundle.$$")
+    if (-e "/tmp/genica.bundle.$$");
+system("/bin/rm -rf /tmp/genicacerts.$$")
+    if (-e "/tmp/genicacerts.$$");
 
 #
 # Prepend the local/latest CRL with what we got from Utah.
@@ -220,6 +224,8 @@ if ($?) {
 
     $restartapache = 1;
 }
+unlink("/tmp/genicrl.bundle.$$")
+    if (-e "/tmp/genicrl.bundle.$$");
 
 if ($restartapache) {
     system("$APACHE_START restart") == 0
