@@ -631,6 +631,12 @@ dolinux() {
 		dunit=`echo $disk | sed -e 's/mfid\([0-9][0-9]*\)/\1/'`
 		lrootdev="8${dunit}${part}"
 		;;
+	# Adaptec
+	aacd[0-7])
+		dunit=`echo $disk | sed -e 's/aacd\([0-7]\)/\1/'`
+		dtype="sd"
+		lrootdev="8${dunit}${part}"
+		;;
 	# Megaraid
 	amrd[0-7])
 		dunit=`echo $disk | sed -e 's/amrd\([0-7]\)/\1/'`
