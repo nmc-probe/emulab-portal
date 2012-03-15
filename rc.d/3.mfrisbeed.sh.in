@@ -51,6 +51,20 @@ stop)
     ;;
 esac
 
+#
+# See if the testbed is "shutdown"; The variable has three values.
+#  0  - Testbed is enabled.
+#  1  - Testbed is disabled.
+# -1  - Testbed is coming back online, so start up daemons.
+#
+if [ -x @prefix@/sbin/setsitevar ]; then
+    disabled=`@prefix@/sbin/setsitevar -c general/testbed_shutdown`
+    if [ $disabled -gt 0 ]; then
+	echo -n " mfrisbeed disabled"
+	exit 0
+    fi
+fi
+
 echo -n " mfrisbeed"
 rm -f /var/run/frisbeed-*.pid
 args="-C emulab -i @BOSSNODE_IP@"
