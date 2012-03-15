@@ -131,6 +131,7 @@ AC_SUBST(TRACK_INTERSWITCH_BANDWIDTH)
 AC_SUBST(TIMESTAMPS)
 AC_SUBST(OURTIMEZONE)
 AC_SUBST(NODECONSOLE)
+AC_SUBST(MFSVERSION)
 AC_SUBST(UNIFIED_BOSS_AND_OPS)
 AC_SUBST(DISABLE_NSE)
 AC_SUBST(DISABLE_NAMED_SETUP)
@@ -239,6 +240,7 @@ AC_SUBST(OPSVM_ENABLE)
 AC_SUBST(OPSVM_MOUNTPOINT)
 AC_SUBST(PORTAL_ENABLE)
 AC_SUBST(PORTAL_ISPRIMARY)
+AC_SUBST(LINUX_FSNODE)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -345,8 +347,10 @@ OPSVM_ENABLE=0
 OPSVM_MOUNTPOINT="/ops"
 OURTIMEZONE="America/Denver"
 NODECONSOLE="sio"
+MFSVERSION=""
 PORTAL_ENABLE=0
 PORTAL_ISPRIMARY=0
+LINUX_FSNODE=0
 
 #
 # XXX You really don't want to change these!
@@ -691,6 +695,8 @@ AC_ARG_WITH(apache-config-dir,
 [
     INSTALL_APACHE_CONFIG="$withval"
 ],[
+    foo=`httpd -V`
+    echo "httpd: '$foo'"
     foo=`httpd -V | grep SERVER_CONFIG_FILE | grep 'apache2'`
     if test "$foo" = ""; then
         INSTALL_APACHE_CONFIG="/usr/local/etc/apache"
@@ -801,6 +807,9 @@ fi
 if test $WINSUPPORT -eq 0; then
 	winfiles="";
 else
+	if test $LINUX_FSNODE -ne 0; then
+		AC_MSG_ERROR([You cannot define LINUX_FSNODE with windows support]);
+	fi
 	winfiles="os/imagezip/ntfs/GNUmakefile \
 		  os/imagezip/ntfs/liblocale/GNUmakefile \
 		  os/imagezip/ntfs/libntfs/GNUmakefile \

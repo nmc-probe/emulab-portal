@@ -733,6 +733,7 @@ TRACK_INTERSWITCH_BANDWIDTH
 TIMESTAMPS
 OURTIMEZONE
 NODECONSOLE
+MFSVERSION
 UNIFIED_BOSS_AND_OPS
 DISABLE_NSE
 DISABLE_NAMED_SETUP
@@ -841,6 +842,7 @@ OPSVM_ENABLE
 OPSVM_MOUNTPOINT
 PORTAL_ENABLE
 PORTAL_ISPRIMARY
+LINUX_FSNODE
 TBOPSEMAIL
 TBOPSEMAIL_NOSLASH
 TBROBOCOPSEMAIL
@@ -4980,6 +4982,8 @@ done
 
 
 
+
+
 #
 # Offer both versions of the email addresses that have the @ escaped
 # for perl (the default), and that don't
@@ -5085,8 +5089,10 @@ OPSVM_ENABLE=0
 OPSVM_MOUNTPOINT="/ops"
 OURTIMEZONE="America/Denver"
 NODECONSOLE="sio"
+MFSVERSION=""
 PORTAL_ENABLE=0
 PORTAL_ISPRIMARY=0
+LINUX_FSNODE=0
 
 #
 # XXX You really don't want to change these!
@@ -5618,6 +5624,8 @@ if test "${with_apache_config_dir+set}" = set; then
 
 else
 
+    foo=`httpd -V`
+    echo "httpd: '$foo'"
     foo=`httpd -V | grep SERVER_CONFIG_FILE | grep 'apache2'`
     if test "$foo" = ""; then
         INSTALL_APACHE_CONFIG="/usr/local/etc/apache"
@@ -5745,6 +5753,11 @@ fi
 if test $WINSUPPORT -eq 0; then
 	winfiles="";
 else
+	if test $LINUX_FSNODE -ne 0; then
+		{ { $as_echo "$as_me:$LINENO: error: You cannot define LINUX_FSNODE with windows support" >&5
+$as_echo "$as_me: error: You cannot define LINUX_FSNODE with windows support" >&2;}
+   { (exit 1); exit 1; }; };
+	fi
 	winfiles="os/imagezip/ntfs/GNUmakefile \
 		  os/imagezip/ntfs/liblocale/GNUmakefile \
 		  os/imagezip/ntfs/libntfs/GNUmakefile \
