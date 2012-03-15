@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -48,6 +48,7 @@ my $DISABLED	= "@DISABLE_EXPORTS_SETUP@";
 my $WINSUPPORT  = @WINSUPPORT@;
 my $ISOLATEADMIN= @ISOLATEADMINS@;
 my $NOSHAREDFS	= @NOSHAREDFS@;
+my $LINUX_FSNODE= @LINUX_FSNODE@;
 
 # XXX for TESTMODE: output to stdout
 my $TOSTDOUT	= 0;
@@ -63,7 +64,8 @@ my $smbconftail = "/var/tmp/smbconf.tail";
 my @row; 
 
 # For determining file server mountpoints (XXX BSD specific)
-my $MOUNTPROG	= "/sbin/mount";
+my $MOUNTPROG	= ($LINUX_FSNODE ? "/bin/mount" : "/sbin/mount");
+# Need the linux equiv for this.
 my $EXPORT_PAT	= q(on ([\S]+)\s\(.*NFS exported.*\));
 
 #
@@ -393,10 +395,16 @@ sub sortbyip {
 foreach my $str ( keys(%ipgroups) ) {
     my @iplist = sort sortbyip @{ $ipgroups{$str} };
 
-    print MAP "$str -maproot=root @iplist\n";
-    
-    print "$str -maproot=root @iplist\n"
-	if ($debug);
+    if ($LINUX_FSNODE) {
+	print MAP "$str -rw,no_root_squash,no_subtree_check @iplist\n";
+	print "$str -rw,no_root_squash,no_subtree_check @iplist\n"
+	    if ($debug);
+    }
+    else {
+	print MAP "$str -maproot=root @iplist\n";
+	print "$str -maproot=root @iplist\n"
+	    if ($debug);
+    }
 }
 
 print MAP "\n";

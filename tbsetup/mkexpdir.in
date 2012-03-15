@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2009, 2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -21,12 +21,14 @@ sub usage()
 }
 
 sub fatal($;$);
+sub chowner($$$);
 
 #
 # Configure variables
 #
-my $TB       = "@prefix@";
-my $TBOPS    = "@TBOPSEMAIL@";
+my $TB		= "@prefix@";
+my $TBOPS	= "@TBOPSEMAIL@";
+my $LINUX_FSNODE= @LINUX_FSNODE@;
 
 #
 # Turn off line buffering on output
@@ -107,7 +109,7 @@ if (! chmod(0770, "$eid")) {
     exit($exitval);
 }
 
-if (! chown($UID, $unix_gid, "$eid")) {
+if (! chowner($UID, $unix_gid, "$eid")) {
     $exitval = $ERRNO;
     print "Could not chown $eid to $UID/$unix_gid in $expdir: $!\n";
     rmdir($eid);
@@ -148,7 +150,7 @@ if (! -e $workdir) {
     if (! mkdir($workdir, 0775)) {
 	fatal("Could not create $workdir: $!");
     }
-    if (! chown($UID, $unix_gid, "$workdir")) {
+    if (! chowner($UID, $unix_gid, "$workdir")) {
 	fatal("Could not chown $workdir to $UID/$unix_gid: $!");
     }
 }
@@ -162,7 +164,7 @@ if (! -e $expinfo) {
     if (! mkdir($expinfo, 0777)) {
 	fatal("Could not create $expinfo: $!");
     }
-    if (! chown($UID, $unix_gid, "$expinfo")) {
+    if (! chowner($UID, $unix_gid, "$expinfo")) {
 	fatal("Could not chown $expinfo to $UID/$unix_gid: $!");
     }
 }
@@ -196,5 +198,25 @@ sub fatal($;$)
 
     tberror($msg);
     exit($exitval);
+}
+
+sub chowner($$$)
+{
+    my ($uid, $gid, $file) = @_;
+
+    if (0 && $LINUX_FSNODE) {
+	#
+	# use chgrp because linux NFS does not allow to chown !!
+	# set chgrp suid root -- only on boss !!!
+	#
+	# XXX I do not think this is the case for linux in general, so
+	# change the if expression above if you must.
+	#
+	system("/usr/bin/chgrp", $gid, $file);
+	return ($? ? 0 : 1);
+    }
+    else {
+	return chown($uid, $gid, $file);
+    }
 }
 
