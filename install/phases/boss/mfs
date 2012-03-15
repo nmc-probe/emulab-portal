@@ -7,9 +7,9 @@ use installvars;
 
 my $MFSTARBALL	    = "tftpboot-elabinelab.tar.gz";
 my $MFSURL	    = "http://www.emulab.net/downloads/$MFSTARBALL";
-my $MFSVERSION      = "62";
 my $MFSCONSOLE      = $NODECONSOLE;
 my $MFSDESCRIPTORS  = "$TOP_SRCDIR/install/descriptors-mfs.xml";
+my $LOCALIZE_MFS    = "$PREFIX/sbin/localize_mfs";
 my $ZONEINFO	    = "/usr/share/zoneinfo";
 
 sub Install($$$)
@@ -20,8 +20,14 @@ sub Install($$$)
     return 0
 	if ($isupdate);
 
-    if ($FBSD_MAJOR >= 7.2) {
-	$MFSVERSION = "72";
+    # Configure can override setting it here.
+    if ($MFSVERSION eq "") {
+	if ($FBSD_MAJOR >= 7.2) {
+	    $MFSVERSION = "72";
+	}
+	else {
+	    $MFSVERSION = "62";
+	}
     }
 
     Phase "mfs", "Setting up MFSs", sub {
@@ -75,16 +81,6 @@ sub Install($$$)
 	}
 
 	#
-	# Copy the inner SSL cert and root's public ssh keys to the MFSes
-	# so that they will talk to the inner boss properly.
-	# At Berkeley the frisbee MFS copies these to disk images,
-	# needing changes to slicefix, which always needs to be run now.
-	#
-	MungeMfsRoot("frisbee");
-	MungeMfsRoot("freebsd");
-	MungeMfsRoot("freebsd.newnode");
-
-	#
 	# Fix the console device in the MFSes
 	#
 	Phase "mfsconsole", "Setting the console for MFSes", sub {	
@@ -102,19 +98,15 @@ sub Install($$$)
 	};
 
 	#
-	# Finally, create the compressed versions of the MFS files
+	# Localize the MFSs
 	#
-	Phase "prepare1", "Compressing the frisbee MFS", sub {
-	    DoneIfExists("$TFTP_DIR/frisbee/boot/mfsroot.gz");
-	    ExecQuietFatal("cd $TFTP_DIR/frisbee/boot; ./prepare");
-	};
-	Phase "prepare2", "Compressing the freebsd MFS", sub {
-	    DoneIfExists("$TFTP_DIR/freebsd/boot/mfsroot.gz");
-	    ExecQuietFatal("cd $TFTP_DIR/freebsd/boot; ./prepare");
-	};
-	Phase "prepare3", "Compressing the newnode MFS", sub {
-	    DoneIfExists("$TFTP_DIR/freebsd.newnode/boot/mfsroot.gz");
-	    ExecQuietFatal("cd $TFTP_DIR/freebsd.newnode/boot; ./prepare");
+	Phase "localize", "Localizing the MFSes", sub {
+	    foreach my $mfs ("frisbee", "freebsd", "freebsd.newnode") {
+		Phase "$mfs", "Localizing $mfs", sub {
+		    DoneIfExists("$TFTP_DIR/$mfs/boot/mfsroot.gz");
+		    ExecQuietFatal("$LOCALIZE_MFS $TFTP_DIR/$mfs");
+		};
+	    }
 	};
 
 	#
@@ -128,83 +120,6 @@ sub Install($$$)
 			   "   perl load-descriptors $MFSDESCRIPTORS");
 	};
 	PhaseSucceed("done");
-    };
-    return 0;
-}
-
-sub MungeMfsRoot($)
-{
-    my $tftpdir = shift;
-    my $MFSROOT = "$TFTP_DIR/$tftpdir/boot/mfsroot";
-    my $status  = 0;
-    my @status  = ();
-
-    Phase "Munge", "Munging the $tftpdir root file system", sub {
-	PhaseSkip("already munged")
-	    if (-e "${MFSROOT}.gz");
-	
-	if ($FBSD_MAJOR >= 5) {
-	    ExecQuietFatal("mdconfig -a -t vnode -f $MFSROOT -u 2");
-	    ExecQuietFatal("mount /dev/md2 /mnt");
-	}
-	else {
-	    ExecQuietFatal("vnconfig -c vn1 $MFSROOT");
-	    ExecQuietFatal("mount /dev/vn1 /mnt");
-	}
-
-	if (! -e "/mnt/root/.ssh" &&
-	    ExecQuiet("$MKDIR -m 700 /mnt/root/.ssh")) {
-	    $status = 1;
-	    goto done;
-	}
-	if ($ELABINELAB &&
-	    # Combine with outer boss keys.
-	    ExecQuiet("$CAT $AUTHKEYS > /mnt/root/.ssh/authorized_keys2")) {
-	    $status = 1;
-	    goto done;
-	}
-	if (ExecQuiet("cat /root/.ssh/*.pub >> /mnt/root/.ssh/authorized_keys2") ||
-	    ExecQuiet("$CHMOD 600 /mnt/root/.ssh/authorized_keys2") ||
-	    ExecQuiet("cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem ".
-		      "   /mnt/etc/emulab") ||
-	    ExecQuiet("cp -p $IMAGEKEYS_DIR/* /mnt/etc/ssh") ||
-	    ExecQuiet("cp -p $ZONEINFO/$OURTIMEZONE /mnt/etc/localtime") ||
-	    ExecQuiet("cp /dev/null /mnt/.localized")) {
-	    $status = 1;
-	    goto done;
-	}
-
-	#
-	# XXX tmp hack.
-	# If console is VGA, create the magic file that tells slicefix
-	# to ensure that serial console is disabled in any FreeBSD image
-	# that is loaded (in case the machine has no serial port).
-	# We should have a more general way to set the console on a per
-	# node basis.
-	#
-	if ($MFSCONSOLE eq "vga" &&
-	    ExecQuiet("cp /dev/null /mnt/etc/emulab/isvgaonly")) {
-	    $status = 1;
-	    goto done;
-	}
-
-      done:
-	# Save actual error till after unmounting the mfs.
-	if ($status) {
-	    @output = libinstall::LastOutput();
-	}
-	ExecQuietFatal("umount /mnt");
-	if ($FBSD_MAJOR >= 5) {
-	    ExecQuietFatal("mdconfig -d -u 2");
-	}
-	else {
-	    ExecQuietFatal("vnconfig -u vn1");
-	}
-	if ($status) {
-	    my $msg = join(' ', @output);
-	    PhaseFail("Unable to execute: '$msg'");
-	}
-	PhaseSucceed("Munged");
     };
     return 0;
 }

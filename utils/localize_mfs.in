@@ -1,0 +1,413 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2010-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use English;
+use strict;
+use Getopt::Std;
+use Data::Dumper;
+
+#
+# Localize an MFS (FreeBSD or Linux variants).
+#
+sub usage()
+{
+    print("Usage: localize_mfs [-d] <path>\n");
+    exit(-1);
+}
+my $optlist = "d";
+my $debug   = 0;
+
+#
+# Configure variables
+#
+my $TB		= "@prefix@";
+my $ETCDIR	= "$TB/etc";
+my $ELABINELAB  = @ELABINELAB@;
+my $MFSCONSOLE  = "@NODECONSOLE@";
+my $OURTIMEZONE = "@OURTIMEZONE@";
+
+# Need these below.
+my $FBSD_MAJOR;
+my $FBSD_MINOR;
+
+#
+# Untaint the path
+#
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/usr/bin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Load the Testbed support stuff.
+#
+use lib "@prefix@/lib";
+use emdb;
+use libEmulab;
+
+my $CHGRP	= "/usr/bin/chgrp";
+my $CHMOD	= "/bin/chmod";
+my $MKDIR	= "/bin/mkdir";
+my $CHOWN	= "/usr/sbin/chown";
+my $CAT		= "/bin/cat";
+my $CP		= "/bin/cp";
+my $MV		= "/bin/mv";
+my $RM		= "/bin/rm";
+my $PW		= "/usr/sbin/pw";
+my $CPIO	= "/usr/bin/cpio";
+my $SED		= "/usr/bin/sed";
+my $MOUNT	= "/sbin/mount";
+my $UMOUNT	= "/sbin/umount";
+my $MDCONFIG    = "/sbin/mdconfig";
+my $AUTHKEYS	= "/root/.ssh/authorized_keys";
+my $ZONEINFO    = "/usr/share/zoneinfo";
+my $IMAGEKEYS_DIR = "$ETCDIR/image_hostkeys";
+
+# Protos
+sub fatal($);
+sub LocalizeBSD();
+sub LocalizeLinux($);
+sub ExecQuiet($);
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+usage() 
+    if (@ARGV != 1);
+my $path = $ARGV[0];
+
+fatal("$path does not exist")
+    if (! -e $path);
+
+if (`uname -r` =~ /^(\d+)\.(\d+)/) {
+    $FBSD_MAJOR = $1;
+    $FBSD_MINOR = $2;
+}
+else {
+    fatal("Could not determine what version of FreeBSD you are running!");
+}
+
+chdir($path) or
+    fatal("Could not chdir to $path");
+
+#
+# We must have a password hash in the DB.
+#
+my $passhash;
+
+if (!GetSiteVar("images/root_password", \$passhash)) {
+    fatal("Could not get sitevar images/root_password");
+}
+if ($passhash eq "") {
+    fatal("The sitevar images/root_password is not set!");
+}
+
+#
+# Figure out what kind of thing to localize.
+#
+if (-e "boot" && -e "boot/mfsroot") {
+    LocalizeBSD();
+    exit(0);
+}
+foreach my $extension ("lzma", "bz2", "gz") {
+    if (-e "initramfs.${extension}") {
+	LocalizeLinux($extension);
+	exit(0);
+    }
+    if (-e "initramfs") {
+	LocalizeLinux("");
+	exit(0);
+    }
+}
+# Oops, do not know what to do.
+fatal("Do not know what to do with $path");
+
+#
+# Localize a FreeBSD MFS.
+#
+sub LocalizeBSD()
+{
+    my $configed = 0;
+    my $mounted  = 0;
+    my $mpoint   = "/mfsmount";
+    my $mfsroot  = "mfsroot";
+
+    if (-e "boot") {
+	chdir("boot") or
+	    fatal("Could not chdir into boot directory");
+    }
+    if (! -e $mpoint) {
+	system("$MKDIR $mpoint") == 0
+	    or fatal("Could not mkdir $mpoint");
+    }
+    
+    my $Undo = sub () {
+	if ($mounted) {
+	    ExecQuiet("$UMOUNT $mpoint") == 0
+		or fatal("Could not unmount $mpoint: mfsroot is still active!");
+	}
+	if ($configed) {
+	    my $cmd = ($FBSD_MAJOR >= 5 ?
+		       "$MDCONFIG -d -u 2" : "vnconfig -u vn1");
+	    
+	    ExecQuiet($cmd) == 0
+		or fatal("Could not unconfig: mfsroot is still active!");
+	}
+    };
+
+    #
+    # Work on a copy.
+    #
+    ExecQuiet("$CP -pf $mfsroot ${mfsroot}.new") == 0
+	or fatal("Could not make a copy of $mfsroot");
+
+    #
+    # Mount up the MFS.
+    #
+    my $cmd = ($FBSD_MAJOR >= 5 ? 
+	       "$MDCONFIG -a -t vnode -f ${mfsroot}.new -u 2" :
+	       "vnconfig -c vn1 ${mfsroot}.new");
+    ExecQuiet($cmd) == 0
+	or goto bad;
+    $configed = 1;
+
+    $cmd = ($FBSD_MAJOR >= 5 ?
+	    "$MOUNT /dev/md2 $mpoint" : "$MOUNT /dev/vn1 $mpoint");
+    ExecQuiet($cmd) == 0
+	or goto bad;
+    $mounted = 1;
+
+    #
+    # Okay, now we can localize
+    #
+    if (! -e "$mpoint/root/.ssh" &&
+	ExecQuiet("$MKDIR -m 700 $mpoint/root/.ssh")) {
+	goto bad;
+    }
+    if ($ELABINELAB &&
+	# Combine with outer boss root user ssh keys.
+	ExecQuiet("$CAT $AUTHKEYS > $mpoint/root/.ssh/authorized_keys2")) {
+	goto bad;
+    }
+    # And add the current boss root user ssh keys.
+    if (ExecQuiet("$CAT /root/.ssh/*.pub >> $mpoint/root/.ssh/authorized_keys2") ||
+	ExecQuiet("$CHMOD 600 $mpoint/root/.ssh/authorized_keys2")) {
+	goto bad;
+    }
+    # Boss certificate. Need emulab.pem for TPM. 
+    ExecQuiet("$CP -p $ETCDIR/emulab.pem $ETCDIR/client.pem $mpoint/etc/emulab")
+	== 0 or goto bad;
+    # All MFSs and images get the same ssh host keys.
+    ExecQuiet("$CP -p $IMAGEKEYS_DIR/* $mpoint/etc/ssh")
+	== 0 or goto bad;
+    # Copy boss timezone into the MFS.
+    ExecQuiet("$CP -p $ZONEINFO/$OURTIMEZONE $mpoint/etc/localtime")
+	== 0 or goto bad;
+    # Localize the root/toor password from the sitevar
+    ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod toor -h 0")
+	== 0 or goto bad;
+    ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod root -h 0")
+	== 0 or goto bad;
+
+    #
+    # XXX tmp hack.
+    # If console is VGA, create the magic file that tells slicefix
+    # to ensure that serial console is disabled in any FreeBSD image
+    # that is loaded (in case the machine has no serial port).
+    # We should have a more general way to set the console on a per
+    # node basis.
+    #
+    if ($MFSCONSOLE eq "vga" &&
+	ExecQuiet("$CP /dev/null $mpoint/etc/emulab/isvgaonly")) {
+	goto bad;
+    }
+
+    #
+    # Mark as "localized". This tells slicefix that it should copy all
+    # the above stuff into the image.
+    #
+    ExecQuiet("$CP /dev/null $mpoint/.localized")
+	== 0 or goto bad;
+    
+    &$Undo();
+
+    #
+    # Now copy back and compress. 
+    #
+    ExecQuiet("$MV -f $mfsroot ${mfsroot}.old") == 0
+	or fatal("Could not save old $mfsroot");
+    ExecQuiet("$MV -f ${mfsroot}.new ${mfsroot}") == 0
+	or fatal("Could not rename new $mfsroot");
+    ExecQuiet("./prepare") == 0
+	or fatal("Could not prepare the MFS");
+    
+    return 0;
+
+  bad:
+    &$Undo();
+    exit(1);
+}
+
+#
+# Localize a Lnux MFS
+#
+sub LocalizeLinux($)
+{
+    my ($extension) = @_;
+    my $compression;
+    my $mpoint   = "extracted_initramfs";
+    my $initfs   = "initramfs";
+
+    if ($extension eq "lzma") {
+	$compression = "lzma";
+    }
+    elsif ($extension eq "bz2") {
+	$compression = "bzip2";
+    }
+    elsif ($extension eq "gz") {
+	$compression = "gzip";
+    }
+
+    ExecQuiet("$RM -rf $mpoint") == 0
+	or fatal("Could not remove old $mpoint directory");
+    ExecQuiet("$MKDIR $mpoint") == 0
+	or fatal("Could not create $mpoint directory");
+    chdir("$mpoint") or
+	    fatal("Could not chdir into $mpoint directory");
+    
+    # Extract
+    if (defined($compression)) {
+	ExecQuiet("$compression -dc | cpio -idu < ../${initfs}.${extension}")
+	    == 0 or fatal("Could not extract ${initfs}.${extension}");
+    }
+    else {
+	ExecQuiet("$CPIO -idu < ../${initfs}") == 0
+	    or fatal("Could not extract ${initfs}");
+    }
+
+    #
+    # Okay, now we can localize
+    #
+    if (! -e "$mpoint/root/.ssh" &&
+	ExecQuiet("$MKDIR -m 700 $mpoint/root/.ssh")) {
+	goto bad;
+    }
+    if ($ELABINELAB &&
+	# Combine with outer boss root user ssh keys.
+	ExecQuiet("$CAT $AUTHKEYS > $mpoint/root/.ssh/authorized_keys")) {
+	goto bad;
+    }
+    # And add the current boss root user ssh keys.
+    if (ExecQuiet("$CAT /root/.ssh/*.pub >> $mpoint/root/.ssh/authorized_keys") ||
+	ExecQuiet("$CHMOD 600 $mpoint/root/.ssh/authorized_keys")) {
+	goto bad;
+    }
+    # Boss certificate. Need emulab.pem for TPM. 
+    ExecQuiet("$CP -p $ETCDIR/emulab.pem $ETCDIR/client.pem $mpoint/etc/emulab")
+	== 0 or goto bad;
+    # All MFSs and images get the same ssh host keys.
+    ExecQuiet("$CP -p $IMAGEKEYS_DIR/* $mpoint/etc/ssh")
+	== 0 or goto bad;
+    # Copy boss timezone into the MFS.
+    ExecQuiet("$CP -p $ZONEINFO/$OURTIMEZONE $mpoint/etc/localtime")
+	== 0 or goto bad;
+
+    # And the root/toor passwords.
+    ExecQuiet("$SED -i .orig -e 's,^root:\([^:]*\),root:$passhash,' ".
+	      "              -e 's,^toor:\([^:]*\),toor:$passhash,' ".
+	      "     $mpoint/etc/shadow")
+	== 0 or goto bad;
+
+    #
+    # Mark as "localized". This tells slicefix that it should copy all
+    # the above stuff into the image.
+    #
+    ExecQuiet("$CP /dev/null $mpoint/.localized")
+	== 0 or goto bad;
+
+    #
+    # Compress it back.
+    #
+    if (defined($compression)) {
+	ExecQuiet("find . | $CPIO -H newc -o | $compression -c9 ".
+		  "  > ../${initfs}.${extension}.new")
+	    == 0 or fatal("Could not compress ${initfs}.${extension}.new");
+	ExecQuiet("$MV -f ../${initfs}.${extension} ../${initfs}.${extension}.old")
+	    == 0 or fatal("Could not back up ${initfs}.${extension}");
+	ExecQuiet("$MV -f ../${initfs}.${extension}.new ../${initfs}.${extension}")
+	    == 0 or fatal("Could not rename new ${initfs}.${extension}");
+    }
+    else {
+	ExecQuiet("find . | $CPIO -H newc -o > ../${initfs}.new") == 0
+	    or fatal("Could not compress ${initfs}");
+	ExecQuiet("$MV -f ../${initfs} ../${initfs}.old")
+	    == 0 or fatal("Could not back up ${initfs}");
+	ExecQuiet("$MV -f ../${initfs}.new ../${initfs}")
+	    == 0 or fatal("Could not rename new ${initfs}");
+    }
+    system("$RM -rf $mpoint")
+	if (!$debug);
+    
+  bad:
+    # Noting to undo, but leave the extracted stuff around for debugging.
+    exit(1);
+}
+
+#
+# Run a command, being sure to capture all output. 
+#
+sub ExecQuiet($)
+{
+    #
+    # Use a pipe read, so that we save away the output
+    #
+    my ($command) = @_;
+    my $output    = "";
+
+    if ($debug) {
+	print STDERR "exec('$command')\n";
+    }
+
+    if (!open(PIPE,"$command 2>&1 |")) {
+	print STDERR "Failed pipe('$command')\n";
+	return -1;
+    }
+    while (<PIPE>) {
+	$output .= $_;
+    }
+    close(PIPE);
+    my $exit_value  = $? >> 8;
+
+    if ($exit_value) {
+	print STDERR "Failed: exec('$command'):\n";
+    }
+    if ($debug || $exit_value) {
+	print STDERR "$output\n";
+    }
+    
+    return $exit_value;
+}
+
+sub fatal($)
+{
+    my ($mesg) = @_;
+
+    print STDERR "*** $0:\n".
+	         "    $mesg\n";
+    exit(-1);
+}
+
