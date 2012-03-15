@@ -491,7 +491,7 @@ sub commit_mail($\@@) {
         # Just use regular hg log command, with purty +/- summary at the
         # bottom (formatted to be narrow enough for email)
         #
-        my $showcommand = "$HG log --stat ";
+        my $showcommand = "$HG log --stat -v ";
         if (defined($showcommit_extra)) {
             $showcommand .= "$showcommit_extra ";
         }
