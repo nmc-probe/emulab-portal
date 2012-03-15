@@ -1,8 +1,8 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2003 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -31,9 +31,10 @@ sub usage()
                 "setsitevar\n".
 		"  - displays list of all sitevar names and values.\n".
 		"\n".  
-		"setsitevar <variablename>\n".
+		"setsitevar [-c] <variablename>\n".
 		"  - displays name, description, value, \n".
 		"    and default value for <variablename>.\n".
+		"    With -c option, just display current value.\n".
 		"\n".
 		"setsitevar <variablename> -\n".
 		"  - sets <variablename> to default value.\n".
@@ -43,6 +44,8 @@ sub usage()
 
     exit(-1);
 }
+my $optlist    = "dc";
+my $curvalue   = 0;
 
 #
 # Configure variables
@@ -55,12 +58,23 @@ use libdb;
 #
 $| = 1;
 
-$name = shift;
-
-if (defined $name && $name eq "-h") {
+#
+# Check args.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"h"})) {
+    usage();
+}
+if (defined($options{"c"})) {
+    $curvalue = 1;
+}
+usage()
+    if (!@ARGV);
 
+$name  = shift;
 $value = shift;
 
 shift and usage(); # too many args
@@ -110,6 +124,14 @@ if ($result->numrows == 0) {
 # List a specific sitevar in detail
 #
 if (! defined $value) {
+    if ($curvalue) {
+	if (defined $currentvalue) {
+	    print "$currentvalue\n";
+	} else {
+	    print "$default\n";
+	}
+	exit(0)
+    }
     print "sitevar name:  $name\n".
 	  "description:   $desc\n".
 	  "value:         ";
