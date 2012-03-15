@@ -52,6 +52,9 @@ sub Install($$$)
 	if (-d "$TFTP_DIR/pxeboot${fv}") {
 	    $pdir = "pxeboot${fv}";
 	}
+	elsif (-d "$TFTP_DIR/pxeboot72") {
+	    $pdir = "pxeboot72";
+	}
 	my $cons = $MFSCONSOLE;
 	if (! -e "$TFTP_DIR/$pdir/pxeboot.emu-${cons}") {
 	    $cons = "sio";
