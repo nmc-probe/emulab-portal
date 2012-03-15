@@ -1251,6 +1251,7 @@ sub SSLPassPhrase($$$)
 sub SetPassword($$$)
 {
     my ($self, $encoding, $expires) = @_;
+    my $safe_encoding = DBQuoteSpecial($encoding);
 
     # Must be a real reference. 
     return -1
@@ -1261,7 +1262,7 @@ sub SetPassword($$$)
     # Clear the chpasswd stuff anytime passwd is set.
     return -1
 	if (! DBQueryWarn("update users set ".
-			  "  usr_pswd='$encoding', pswd_expires=$expires, ".
+			  "  usr_pswd=$safe_encoding, pswd_expires=$expires, ".
 			  "  chpasswd_key=NULL,chpasswd_expires=0 ".
 			  "where uid_idx='$uid_idx'"));
 
