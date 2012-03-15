@@ -3042,7 +3042,13 @@ sub CreateDefsFile($)
 	}
 	my $protogeni_password = "";
 	if (defined($emulabconfig{"PROTOGENI_PASSWORD"})) {
-	    $protogeni_gmocpswd = lc($emulabconfig{"PROTOGENI_PASSWORD"});
+	    #
+	    # Convert to an encrypted hash.
+	    #
+	    my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
+	    my $salt = $salt_chars[rand(@salt_chars)] .
+		       $salt_chars[rand(@salt_chars)];
+	    $protogeni_password = crypt($PROTOGENI_PASSWORD, "\$1\$${salt}");
 	}
 	print OUTDEFS "PROTOGENI_SUPPORT=1\n";
 	print OUTDEFS "PROTOGENI_GENIRACK=$config_genirack\n";

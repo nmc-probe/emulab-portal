@@ -363,13 +363,13 @@ Phase "geniuser", "Creating user $geniuserid", sub {
     $geniuser = User->Lookup($geniuserid);
     PhaseFail("$geniuserid did not create properly")
 	if (!defined($geniuser));
-    
+
+    #
+    # This comes in as an encrypted hash.
+    #
     if ($PROTOGENI_PASSWORD ne "") {
-	my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
-	my $salt = $salt_chars[rand(@salt_chars)] .
-	           $salt_chars[rand(@salt_chars)];
-	my $encpass = crypt($PROTOGENI_PASSWORD, "\$1\$${salt}");
-	$geniuser->SetPassword($encpass, "date_add(now(), interval 10 year)");
+	$geniuser->SetPassword($PROTOGENI_PASSWORD,
+			       "date_add(now(), interval 10 year)");
     }
     ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $TBACCT verify $geniuserid");
 };
