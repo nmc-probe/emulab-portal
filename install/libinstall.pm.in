@@ -53,6 +53,7 @@ my $impotent   = 0;
 my $logfp;
 sub SET_IMPOTENT_MODE($)	    { $impotent = 1; $logfp = $_[0]; };
 sub IMPOTENT_MODE()		    { return $impotent; }
+sub SET_LOG_OUTPUT($)		    { $logfp = $_[0]; };
 
 #
 # Some programs we may call
@@ -113,11 +114,11 @@ sub Phase($$$) {
     if ($firstSubPhase) {
 	print "\n";
 	printf $logfp "\n"
-	    if ($impotent);
+	    if (defined($logfp));
     }
     printf "%-50s", $descrstring;
     printf $logfp "%-50s", $descrstring
-	if ($impotent);
+	if (defined($logfp));
 
     #
     # Clear these, as we don't want to see the outputs of previous phases
@@ -142,6 +143,8 @@ sub Phase($$$) {
     my $stop = 0;
     if ($hasSubPhase) {
 	print  "| " x ($depth -1) . "+-" . "--" x (24 - $depth) . "> ";
+	print $logfp  "| " x ($depth -1) . "+-" . "--" x (24 - $depth) . "> "
+	    if (defined($logfp));
     }
 
     #
@@ -151,7 +154,7 @@ sub Phase($$$) {
 	(/^skip$/) && do {
 	    print "[ Skipped ($libinstall::reason) ]\n";
 	    print $logfp "[ Skipped ($libinstall::reason) ]\n"
-		if ($impotent && defined($logfp));
+		if (defined($logfp));
 	    $$parentSkipped++;
 	    $libinstall::phaseResults{$name} = $_;
 	    last SWITCH;
@@ -175,7 +178,7 @@ sub Phase($$$) {
 	(/^stop$/) && do {
 	    print "[ Stopped    ]\n";
 	    print $logfp "[ Stopped ($libinstall::reason) ]\n"
-		if ($impotent && defined($logfp));
+		if (defined($logfp));
 	    $$parentNonSkipped++;
 	    $message = "$libinstall::reason";
 	    if ($impotent) {
@@ -203,18 +206,18 @@ sub Phase($$$) {
 	    if ($hasSubPhase && $skipped && ($nonSkipped == 0)) {
 		print "[ Skipped   ] ($stamp)\n";
 		print $logfp "[ Skipped   ]\n"
-		    if ($impotent && defined($logfp));
+		    if (defined($logfp));
 		$libinstall::phaseResults{$name} = "skip";
 		$$parentSkipped++;
 	    } else {
-		if ($impotent) {
-		    if (defined($logfp)) {
-			print $logfp "[ $libinstall::reason ]\n";
+		if (defined($logfp)) {
+		    print $logfp "[ Succeeded ]\n";
 		    
-			print $logfp 
-			    "> " . join("\n> ", @libinstall::loglines) . "\n"
-			    if (@libinstall::loglines);
-		    }
+		    print $logfp 
+			"> " . join("\n> ", @libinstall::loglines) . "\n"
+			if (@libinstall::loglines);
+		}
+		if ($impotent) {
 		    print "[ $libinstall::reason ]\n";
 		}
 		else {
@@ -231,6 +234,8 @@ sub Phase($$$) {
 	# the wrong value
 	#
 	print "[ ERROR     ]\n";
+	print $logfp "[ ERROR     ]\n"
+	    if (defined($logfp));
 	$$parentNonSkipped++;
 	$message = "Internal error - Bad exception:\n$_";
 	$libinstall::phaseResults{$name} = "fail";
@@ -247,11 +252,15 @@ sub Phase($$$) {
     # If we decided that we need to stop, do that now
     #
     if ($stop) {
-	print "\n";
-	print "############################################################\n";
-	print "Installation stopped in phase $name. The reason is:\n";
-	print "$message\n";
-	print "############################################################\n";
+	my $message =
+	    "\n" .
+	    "############################################################\n" .
+	    "Installation stopped in phase $name. The reason is:\n" .
+	    "$message\n" .
+	    "############################################################\n";
+	print $message;
+	print $logfp $message
+	    if (defined($logfp));
 	exit -1;
     }
 
@@ -259,8 +268,11 @@ sub Phase($$$) {
     # If we decided that we need to die, do that now
     #
     if ($die) {
-	print "\n##### Installation failed in phase $name:\n";
-	print "$message\n";
+	my $message = 
+	    "\n##### Installation failed in phase $name:\n" . "$message\n";
+	print $message;
+	print $logfp $message
+	    if (defined($logfp));
 	PrintPhaseTrace();
 	PrintLastOutput();
 	print "Please send the above output to testbed-ops\@emulab.net\n";
@@ -529,8 +541,11 @@ sub DoneIfMounted($)
 sub AppendToFile($@) {
     my ($filename, @lines) = @_;
 
+    if (defined($logfp)) {
+	print $logfp "Append to file: $filename\n";
+	print $logfp "@lines\n";
+    }
     if ($impotent) {
-	PhaseLog(@lines);
 	PhaseWouldHave("append to $filename");
 	return undef;
     }
@@ -567,8 +582,11 @@ sub AppendToFileFatal($@) {
 sub CreateFile($;@) {
     my ($filename,@lines) = @_;
 
+    if (defined($logfp)) {
+	print $logfp "Create file: $filename\n";
+	print $logfp "@lines\n";
+    }
     if ($impotent) {
-	PhaseLog(@lines);
 	PhaseWouldHave("create $filename");
 	return undef;
     }
@@ -622,6 +640,18 @@ sub ExecQuiet(@) {
     close(PIPE);
 
     my $exit_value  = $? >> 8;
+
+    #
+    # Detailed logging.
+    #
+    if (defined($logfp)) {
+	print $logfp "\n";
+	print $logfp "Exec('$commandstr')\n";
+	if (@output) {
+	    print $logfp "@output";
+	    print $logfp "\n";
+	}
+    }
 
     @libinstall::lastExecOutput = @output;
     $libinstall::lastCommand = $commandstr;
@@ -761,15 +791,21 @@ sub GetPackage($$) {
 # Print out the phase stack that got us here
 #
 sub PrintPhaseTrace() {
-    print "-------------------- Phase Stack ----------------------------\n";
+    my $message =
+	"-------------------- Phase Stack ----------------------------\n";
     my @tmpphase = @libinstall::phasestack;
     my @tmpdescr = @libinstall::descrstack;
     my ($phase, $descr);
     while (@tmpdescr) {
 	($phase, $descr) = (pop @tmpphase, pop @tmpdescr);
-	printf "%-10s %-50s\n", $phase, $descr;
+	$message .= sprintf "%-10s %-50s\n", $phase, $descr;
     }
-    print "--------------------------------------------------------------\n";
+    $message .=
+	"--------------------------------------------------------------\n";
+
+    print $message;
+    print $logfp $message
+	if (defined($logfp));
 }
 
 #
@@ -779,17 +815,24 @@ sub PrintLastOutput() {
     if (!$libinstall::lastCommand) {
 	return;
     }
-    print "------------------------------------------ Last Command Output\n";
-    print "Command: $libinstall::lastCommand\n";
-    print @libinstall::lastExecOutput;
-    print "--------------------------------------------------------------\n";
+    my $message =
+	"------------------------------------------ Last Command Output\n" .
+	"Command: $libinstall::lastCommand\n" .
+	"@libinstall::lastExecOutput" .
+	"--------------------------------------------------------------\n";
+    print $message;
+    print $logfp $message
+	if (defined($logfp));
 }
 
 sub LastOutput() {
     if (!$libinstall::lastCommand) {
 	return ();
     }
-    return @libinstall::lastExecOutput;
+    return ("------------------------------------------ Last Command Output\n",
+	    "Command: $libinstall::lastCommand\n",
+	    @libinstall::lastExecOutput,
+	    "--------------------------------------------------------------\n");
 }
 
 #

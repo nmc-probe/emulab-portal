@@ -14,10 +14,10 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print STDERR "Usage: update-install [-v | -n] [-s] [-f] [<version>]\n";
+    print STDERR "Usage: update-install [-v | -n | -l] [-s] [-f] [<version>]\n";
     exit(-1);
 }
-my $optlist = "dsfvp:qa:cin";
+my $optlist = "dsfvp:qa:cinl";
 my $debug   = 0;
 my $force   = 0;
 my $single  = 0;
@@ -25,6 +25,7 @@ my $verify  = 0;
 my $quiet   = 0;
 my $check   = 0;
 my $impotent= 0;
+my $logit   = 0;
 my $path    = ".";
 my $phase;
 my $version;
@@ -36,13 +37,13 @@ my $logfp;
 #
 my $TB	      = "@prefix@";
 my $TBOPS     = "@TBOPSEMAIL@";
-my $logfile   = "/var/tmp/install.$$";
+my $logfile   = "/var/tmp/update-install.log";
 
 # Protos
 sub Fatal($);
 
 # un-taint path
-$ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
+$ENV{'PATH'} = '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/site/bin';
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
 #
@@ -99,6 +100,9 @@ if (defined($options{"i"}) || defined($options{"n"})) {
 if (defined($options{"f"})) {
     $force = 1;
 }
+if (defined($options{"l"})) {
+    $logit = 1;
+}
 if (defined($options{"v"})) {
     $verify = 1;
 }
@@ -143,12 +147,24 @@ sub MarkForReboot($)
     return 0;
 }
 
-if ($impotent) {
+if ($impotent || $logit) {
+    if (-e $logfile) {
+	system("/bin/mv -f $logfile ${logfile}.$$") == 0
+	    or Fatal("Could not back up $logfile");
+    }
+    
     open(LOGFP, "> $logfile")
 	or Fatal("Could not open $logfile");
     $logfp = *LOGFP;
 
-    SET_IMPOTENT_MODE($logfp);
+    if ($impotent) {
+	SET_IMPOTENT_MODE($logfp);
+    }
+    else {
+	SET_LOG_OUTPUT($logfp);
+    }
+    print "A more detailed log file is being written to $logfile\n";
+    sleep(2);
 }
 
 #

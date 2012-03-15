@@ -14,9 +14,10 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print STDERR "Usage: emulab-install [-c] [-i script] boss|ops|fs\n";
+    print STDERR "Usage: emulab-install [-c | -l] [-i script] boss|ops|fs\n";
     print STDERR
 	"-c        - Syntax check install scripts by loading them only\n" .
+	"-l        - Generate a complete log file in /tmp. Defaults on\n" .
 	"-i <name> - Run (or check) just the one install script\n" .
 	"-b        - Batch mode, do not ask for confirmation\n" .
 	"-s        - Turn on makes. Huh?\n" .
@@ -25,13 +26,14 @@ sub usage()
 	"-p <dir>  - Set the package directory\n";
     exit(-1);
 }
-my $optlist	= "dsi:p:qcbP:F:w:nu";
+my $optlist	= "dsi:p:qcbP:F:w:nul";
 my $debug	= 0;
 my $single	= 0;
 my $quiet	= 0;
 my $check	= 0;
 my $impotent    = 0;
 my $updatemode  = 0;
+my $logit       = 1;
 my $batchmode	= 0;
 my $phasepath	= "@srcdir@/phases";
 my $phase;
@@ -92,6 +94,9 @@ if (defined($options{"d"})) {
 }
 if (defined($options{"b"})) {
     $batchmode = 1;
+}
+if (defined($options{"l"})) {
+    $logit = 1;
 }
 if (defined($options{"c"})) {
     $check = 1;
@@ -164,9 +169,16 @@ if ($UID && !($check || $impotent)) {
 if (! ($batchmode || $check || $impotent)) {
     if ($updatemode) {
 	print STDERR 
-	    "WARNING: This script is ONLY intended to be run your $server node,\n".
-	    "and only if you are updating the IP addresses/subnet and/or the\n",
-	    "domain name of your installation. Continue? [y/N] ";
+	    "WARNING: This script is ONLY intended to be run your $server node";
+	if ($single) {
+	    print STDERR ".\n" . "Continue? [y/N] ";
+	}
+	else {
+	    print STDERR
+		",\n".
+		"and only if you are updating the IP addresses/subnet and/or\n".
+		"domain name of your installation. Continue? [y/N] ";
+	}
     }
     else {
 	print STDERR 
@@ -177,12 +189,24 @@ if (! ($batchmode || $check || $impotent)) {
     die "Aborted!\n" unless ($response =~ /^y/i);
 }
 
-if ($impotent) {
+if (($impotent || $logit) && !$check) {
+    if (-e $logfile) {
+	system("/bin/mv -f $logfile ${logfile}.$$") == 0
+	    or Fatal("Could not back up $logfile");
+    }
+    
     open(LOGFP, "> $logfile")
 	or Fatal("Could not open $logfile");
     $logfp = *LOGFP;
 
-    SET_IMPOTENT_MODE($logfp);
+    if ($impotent) {
+	SET_IMPOTENT_MODE($logfp);
+    }
+    else {
+	SET_LOG_OUTPUT($logfp);
+    }
+    print "A more detailed log file is being written to $logfile\n";
+    sleep(2);
 }
 
 #
@@ -199,7 +223,8 @@ elsif ($server eq "boss") {
 	      'apache', 'boss/rcfiles', 'boss/rcconf', 'boss/syslog',
 	      'boss/database', 'etchosts', 'resolvetest',
 	      'exports', 'nfsmounts', 'boss/mibs', 'boss/crontab', 'sudoers',
-	      'boss/ssh', 'boss/rndc', 'boss/loaderconf', 'boss/sysctlconf',
+	      'boss/ssh', 'boss/hostkeys',
+	      'boss/rndc', 'boss/loaderconf', 'boss/sysctlconf',
 	      'boss/sslcerts', 'boss/mailman', 'boss/pubsub',
 	      'boss/software',
               #
@@ -229,8 +254,9 @@ elsif ($server eq "ops") {
 
 #
 # In update mode, we want to run etchosts at the very end.
+# Also allow running a single script in update mode. 
 #
-if ($updatemode) {
+if ($updatemode && !$single) {
     push(@files, "boss/update-ipdomain")
 	if ($server eq $BOSS_SERVERNAME);
     
@@ -314,6 +340,9 @@ if ($updatemode) {
     }
     exit(0);
 }
+
+exit(0)
+    if ($single);
 
 #
 # Stuff to do at the end.
