@@ -146,7 +146,7 @@ tmcd_tpm_generate_nonce(unsigned char *nonce)
     pid_t pid;
 
     int byte_count = 0;
-    bzero(nonce,TPM_NONCE_BYTES);
+    memset(nonce,0,TPM_NONCE_BYTES);
     
     /*
      * Nonce must be 160 bits (20 bytes) long, and we must be quite sure that
@@ -167,7 +167,7 @@ tmcd_tpm_generate_nonce(unsigned char *nonce)
     if (sizeof(time) + byte_count > TPM_NONCE_BYTES) {
         return -1;
     }
-    bcopy(&time, nonce, sizeof(time));
+    memcpy(&time, nonce, sizeof(time));
     byte_count += sizeof(time);
 
     // pid
@@ -175,14 +175,14 @@ tmcd_tpm_generate_nonce(unsigned char *nonce)
     if (sizeof(pid) + byte_count > TPM_NONCE_BYTES) {
         return -1;
     }
-    bcopy(&pid, nonce + byte_count, sizeof(pid));
+    memcpy(&pid, nonce + byte_count, sizeof(pid));
     byte_count += sizeof(pid);
 
     // counter
     if (sizeof(nonce_counter) + byte_count > TPM_NONCE_BYTES) {
         return -1;
     }
-    bcopy(&nonce_counter, nonce + byte_count, sizeof(nonce_counter));
+    memcpy(&nonce_counter, nonce + byte_count, sizeof(nonce_counter));
     byte_count += sizeof(nonce_counter);
     nonce_counter++;
 
