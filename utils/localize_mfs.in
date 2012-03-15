@@ -218,9 +218,9 @@ sub LocalizeBSD()
     ExecQuiet("$CP -p $ZONEINFO/$OURTIMEZONE $mpoint/etc/localtime")
 	== 0 or goto bad;
     # Localize the root/toor password from the sitevar
-    ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod toor -h 0")
+    ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod toor -H 0")
 	== 0 or goto bad;
-    ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod root -h 0")
+    ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod root -H 0")
 	== 0 or goto bad;
 
     #
