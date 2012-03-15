@@ -289,7 +289,7 @@ tmcd_sslaccept(int sock, struct sockaddr *addr, socklen_t *addrlen, int ms)
 	 * handshake or not. Clear the buffer to avoid confusing
 	 * the last connection with this new connection. 
 	 */
-	bzero(nosslbuf, strlen(SPEAKSSL));
+	memset(nosslbuf, 0, strlen(SPEAKSSL));
 	      
 	if ((cc = read(newsock, nosslbuf, strlen(SPEAKSSL))) <= 0) {
 		if (cc < 0) {
