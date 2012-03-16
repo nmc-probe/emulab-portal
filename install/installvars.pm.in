@@ -300,6 +300,7 @@ $TFTP_PROJ_DIR		= "$TFTP_DIR/proj";
 $IMAGEKEYS_DIR	        = "$ETCDIR/image_hostkeys";
 
 $DEFAULTIMAGESITEVAR    = "general/default_imagename";
+$IMAGEPASSWORDSITEVAR   = "images/root_password";
 
 $MAILMANDIR		= "/usr/local/mailman";
 $MAILMANCFG		= "$MAILMANDIR/Mailman/mm_cfg.py";
