@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2008-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -33,6 +33,9 @@
 
 #define TPM_PASS_HASH	"\x71\x10\xed\xa4\xd0\x9e\x06\x2a\xa5\xe4" \
 			"\xa3\x90\xb0\xa5\x72\xac\x0d\x2c\x02\x20"
+
+/* Change this if you every change the hash! */
+#define DQ_VERSION	"1.1"
 
 /*
  * Helpers like madness!
@@ -292,7 +295,8 @@ static int parse_nonce(char *nstr, char *dst)
 
 static void usage(char *name)
 {
-	fprintf(stderr, "%s - do a quote for Emulab\n", name);
+	fprintf(stderr, "%s - do a quote for Emulab (version %s)\n",
+		name, DQ_VERSION);
 	fprintf(stderr, "\n");
 	fprintf(stderr, "%s takes the quoteprep info either as\n", name);
 	fprintf(stderr, "arguments or it reads them from stdin and does a\n");
