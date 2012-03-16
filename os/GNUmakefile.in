@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -59,12 +59,16 @@ else
 endif
 
 mfs:
+	$(MAKE) -C frisbee.redux client
+	$(MAKE) -C growdisk client
 	$(MAKE) -C imagezip client
 	$(MAKE) -C zapdisk mfs
 
 mfs-install: mfs
 	$(INSTALL_PROGRAM) $(SRCDIR)/create-image $(LBINDIR)/
 	$(INSTALL_PROGRAM) $(SRCDIR)/create-swapimage $(LBINDIR)/
+	CLIENT_BINDIR=/usr/local/bin $(MAKE) -e -C frisbee.redux client-install
+	CLIENT_BINDIR=/usr/local/bin $(MAKE) -e -C growdisk client-install
 	$(MAKE) -C imagezip client-install
 	$(MAKE) -C zapdisk mfs-install
 
@@ -81,9 +85,7 @@ else
 	CLIENT_BINDIR=/usr/local/bin $(MAKE) -e -C growdisk client-install
 endif
 
-cdboot-install: mfs-install frisbee-mfs
-	$(MAKE) -e -C frisbee.redux client-install
-	$(MAKE) -e -C growdisk client-install
+cdboot-install: mfs-install
 
 remote-install: 
 
