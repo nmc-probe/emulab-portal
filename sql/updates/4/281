@@ -67,15 +67,6 @@ sub DoUpdate($$$)
 	}
     }
 
-    # tweak a previous transition that wasn't quite right
-    DBQueryFatal("UPDATE mode_transitions SET state2='SHUTDOWN' WHERE ".
-		 "  state1='TPMSIGNOFF' AND op_mode2='PXEKERNEL' AND ".
-		 "  state2='BOOTING'");
-
-    # no need to BOOTING, CHECKGENISUP as those will happen in next BOOTING
-    DBQueryFatal("UPDATE state_triggers SET `trigger`='PXEBOOT' WHERE ".
-		 "  op_mode='SECUREBOOT' AND state='TPMSIGNOFF'");
-
     return 0;
 }
 1;
