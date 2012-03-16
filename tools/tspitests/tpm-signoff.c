@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2008-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -12,9 +12,6 @@
 #include <tss/tspi.h>
 
 #define TSS_ERROR_CODE(x)       (x & 0xFFF)
-
-#define TPM_PASS_HASH	"\x71\x10\xed\xa4\xd0\x9e\x06\x2a\xa5\xe4" \
-			"\xa3\x90\xb0\xa5\x72\xac\x0d\x2c\x02\x20"
 
 TSS_HCONTEXT hContext;
 
