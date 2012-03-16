@@ -15,7 +15,7 @@ use vars qw(@ISA @EXPORT);
 @EXPORT = qw(TBDB_CHECKDBSLOT_NOFLAGS TBDB_CHECKDBSLOT_WARN
 	     TBDB_CHECKDBSLOT_ERROR TBcheck_dbslot TBFieldErrorString
 	     TBGetUniqueIndex ParRun VersionInfo UpdateVersionInfo
-	     SpanningTree BackTraceOnWarning);
+	     SpanningTree BackTraceOnWarning PassWordHash);
 
 use emdb;
 use English;
@@ -613,6 +613,21 @@ sub BackTraceOnWarning($)
     else {
 	$SIG{__WARN__} = 'DEFAULT';
     }
+}
+
+#
+# Convert to an encrypted hash.
+#
+sub PassWordHash($)
+{
+    my ($password) = @_;
+    
+    my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
+    my $salt = $salt_chars[rand(@salt_chars)] .
+	       $salt_chars[rand(@salt_chars)];
+    my $passhash = crypt($password, "\$1\$${salt}");
+
+    return $passhash;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
