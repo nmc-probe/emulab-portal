@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Optional flag argument says "do not reboot"
@@ -438,11 +438,17 @@ BOSSIP=${BOSSINFO##* }
 STATUS=`$BINDIR/tmcc status`
 
 if [ $secure -eq 1 ]; then
-	echo "Requesting secure load info data..."
-	# -v 33 is temporary until tmcc binary is updated
-	if ! $BINDIR/tmcc -v 33 -T imagekey > /tmp/secureloadinfo.out; then
-		echo "*** Failed to get secure loadinfo data" 1>&2
-		exit 2
+	## XXX this is done by "script1.sh" which takes pain to ensure we don't
+	## hang accessing the TPM.
+	#echo "Requesting secure load info data..."
+	## -v 33 is temporary until tmcc binary is updated
+	#if ! $BINDIR/tmcc -v 33 -T imagekey > /tmp/secureloadinfo.out; then
+	#	echo "*** Failed to get secure loadinfo data" 1>&2
+	#	exit 2
+	#fi
+	if [ ! -e "/tmp/secureloadinfo.out" ]; then
+		echo "*** No secureloadinfo data!" 1>&2
+		exit 3
 	fi
 else
 	$BINDIR/tmcc state RELOADSETUP
