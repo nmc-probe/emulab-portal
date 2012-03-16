@@ -4,6 +4,7 @@
 use strict;
 use libinstall;
 use installvars;
+use emutil;
 
 my $MFSTARBALL	    = "tftpboot-elabinelab.tar.gz";
 my $MFSURL	    = "http://www.emulab.net/downloads/$MFSTARBALL";
@@ -98,6 +99,50 @@ sub Install($$$)
 		AppendToFileFatal("$TFTP_DIR/$mfs/boot/loader.conf.orig",
 				  "console=\"$consdev\"");
 	    }
+	};
+
+	#
+	# Before we localize, need to set the MFS password sitevar,
+	# since localize will break otherwise.
+	#
+	Phase "password", "Setting up MFS password", sub {
+	    my $passhash;
+	    
+	    my ($status, @output) =
+		ExecQuiet("$PREFIX/sbin/setsitevar -c $IMAGEPASSWORDSITEVAR");
+	    PhaseFail("setsitevar failed")
+		if ($status);
+	    if (@output) {
+		chomp($output[0]);
+		PhaseSkip("already set")
+		    if ($output[0] ne "");
+	    }
+
+	    #
+	    # Use the same password for everything.
+	    #
+	    if (defined($password)) {
+		$passhash = PassWordHash($password);
+	    }
+	    else {
+		#
+		# Use current root password, since we know people will
+		# choose reasonable root passwords.
+		#
+		($status,@output) =
+		    ExecQuiet("egrep '^root:' /etc/master.passwd");
+		PhaseFail("egrep failed")
+		    if ($status);
+		if (@output && $output[0] ne '' &&
+		    $output[0] =~ /^root:([^:]*)/) {
+		    $passhash = $1;
+		}
+	    }
+	    PhaseFail("Could not determine image password")
+		if (!defined($passhash));
+
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "   $IMAGEPASSWORDSITEVAR '$passhash'");
 	};
 
 	#
