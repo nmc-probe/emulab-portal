@@ -40,47 +40,50 @@ sub Install($$$)
 	PhaseSkip("Protogeni not enabled")
 	    if (! $PGENISUPPORT);
 
-	PhaseSkip("Protogeni installed")
-	    if (-e "$ETCDIR/.protogeni_registered");
+	Phase "initsite", "Calling protogeni initsite", sub {
+	    PhaseSkip("Protogeni installed")
+		if (-e "$ETCDIR/.protogeni_registered");
 
-	ExecQuietFatal("cd $TOP_OBJDIR/protogeni/scripts; perl ./initsite");
-	PhaseSucceed("Protogeni installed");
-    };
-    Phase "version_info", "Initializing version_info table", sub {
-	my $SQLUPDATES = "$TOP_SRCDIR/protogeni/updates";
+	    ExecQuietFatal("cd $TOP_OBJDIR/protogeni/scripts; perl ./initsite");
+	    PhaseSucceed("Protogeni installed");
+	};
+	Phase "version_info", "Initializing version_info table", sub {
+	    my $SQLUPDATES = "$TOP_SRCDIR/protogeni/updates";
 
-	#
-	# Highest numbered file.
-	#
-	my ($exitval, @results) =
-	    ExecQuiet("cd $SQLUPDATES ; ls | sort -n -r | head -1");
-	if ($exitval) {
-	    PhaseFail("Error getting sql update list");
-	}
-	my $sqlfile = $results[0];
-	chomp($sqlfile);
+	    #
+	    # Highest numbered file.
+	    #
+	    my ($exitval, @results) =
+		ExecQuiet("cd $SQLUPDATES ; ls | sort -n -r | head -1");
+	    if ($exitval) {
+		PhaseFail("Error getting sql update list");
+	    }
+	    my $sqlfile = $results[0];
+	    chomp($sqlfile);
 
-	#
-	# Check each DB.
-	#
-	foreach my $db ("geni", "geni-cm", "geni-ch") {
-	    Phase "$db", "Initializing $db database", sub {
-		($exitval, @results) =
-		    ExecQuiet("echo 'select * from version_info ".
+	    #
+	    # Check each DB.
+	    #
+	    foreach my $db ("geni", "geni-cm", "geni-ch") {
+		Phase "$db", "Initializing $db database", sub {
+		    ($exitval, @results) =
+			ExecQuiet("echo 'select * from version_info ".
 			      "      where name=\"dbrev\" and value!=\"0\" ' ".
 			      "      | $MYSQL -s $db");
-		if ($exitval) {
-		    PhaseFail("Error running query");
-		}
-		if (scalar(@results)) {
-		    PhaseSkip("Already done");
-		}
-		ExecQuietFatal("echo 'replace into version_info set ".
-			       "  name=\"dbrev\", value=\"$sqlfile\"' ".
-			       "| $MYSQL -s $db");
-	    };
-	}
-	PhaseSucceed("done");
+		    if ($exitval) {
+			PhaseFail("Error running query");
+		    }
+		    if (scalar(@results)) {
+			PhaseSkip("Already done");
+		    }
+		    ExecQuietFatal("echo 'replace into version_info set ".
+				   "  name=\"dbrev\", value=\"$sqlfile\"' ".
+				   "| $MYSQL -s $db");
+		};
+	    }
+	    PhaseSucceed("done");
+	};
+	PhaseSucceed("Protogeni installed");
     };
     return 0;
 }
