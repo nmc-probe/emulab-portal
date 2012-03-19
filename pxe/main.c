@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -58,8 +58,9 @@ cleanup()
 int
 main(int argc, char **argv)
 {
-	int			sock, length, mlen, err, c;
+	int			sock, mlen, err, c;
 	struct sockaddr_in	name, client;
+	socklen_t		length;
 	boot_info_t		boot_info;
 	int		        port = BOOTWHAT_DSTPORT;
 	FILE			*fp;
@@ -194,6 +195,11 @@ log_bootwhat(struct in_addr ipaddr, boot_what_t *bootinfo)
 		info("%s: REPLY: boot from partition %d\n",
 		     ipstr, bootinfo->what.partition);
 		break;
+	case BIBOOTWHAT_TYPE_DISKPART:
+		info("%s: REPLY: boot from disk/partition 0x%x/%d\n",
+		     ipstr, bootinfo->what.dp.disk,
+		     bootinfo->what.dp.partition);
+		break;
 	case BIBOOTWHAT_TYPE_SYSID:
 		info("%s: REPLY: boot from partition with sysid %d\n",
 		     ipstr, bootinfo->what.sysid);
@@ -211,6 +217,9 @@ log_bootwhat(struct in_addr ipaddr, boot_what_t *bootinfo)
 		break;
 	case BIBOOTWHAT_TYPE_REBOOT:
 		info("%s: REPLY: reboot (alternate PXE boot)\n", ipstr);
+		break;
+	default:
+		info("%s: REPLY: UNKNOWN (type=%d)\n", ipstr, bootinfo->type);
 		break;
 	}
 	if (bootinfo->cmdline[0]) {
