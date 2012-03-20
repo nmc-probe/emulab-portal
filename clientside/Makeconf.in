@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 # 
 # Most of the configure-substitution magic is done here.
@@ -55,3 +55,4 @@ ELVIN_COMPAT    = @ELVIN_COMPAT@
 WITH_EMULAB     = @WITH_EMULAB@
 TESTBED_LIBSRCDIR  = ${TESTBED_SRCDIR}/lib
 TESTBED_LIBOBJDIR  = ${OBJDIR}/lib
+TESTBED_IMAGEZIPSRCDIR = ${OBJDIR}/os/imagezip

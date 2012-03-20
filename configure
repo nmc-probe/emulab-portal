@@ -5758,10 +5758,10 @@ else
 $as_echo "$as_me: error: You cannot define LINUX_FSNODE with windows support" >&2;}
    { (exit 1); exit 1; }; };
 	fi
-	winfiles="os/imagezip/ntfs/GNUmakefile \
-		  os/imagezip/ntfs/liblocale/GNUmakefile \
-		  os/imagezip/ntfs/libntfs/GNUmakefile \
-		  os/imagezip/fat/GNUmakefile"
+	winfiles="clientside/os/imagezip/ntfs/GNUmakefile \
+		  clientside/os/imagezip/ntfs/liblocale/GNUmakefile \
+		  clientside/os/imagezip/ntfs/libntfs/GNUmakefile \
+		  clientside/os/imagezip/fat/GNUmakefile"
 	optional_subdirs="$optional_subdirs";
         cat >>confdefs.h <<_ACEOF
 #define WINSUPPORT 1
@@ -7310,11 +7310,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	db/idletimes db/idlemail db/xmlconvert \
 	db/libdb.py db/elabinelab_bossinit \
 	ipod/GNUmakefile \
-	os/GNUmakefile os/split-image.sh os/imagezip/GNUmakefile \
-	os/imagezip/ffs/GNUmakefile os/imagezip/extfs/GNUmakefile \
-	os/imagezip/hashmap/GNUmakefile \
-	os/frisbee.redux/GNUmakefile os/growdisk/GNUmakefile \
-        os/zapdisk/GNUmakefile \
+	os/GNUmakefile os/split-image.sh \
 	pxe/GNUmakefile pxe/bootinfo.restart \
 	security/GNUmakefile security/lastlog_daemon \
         sensors/GNUmakefile \
@@ -7544,7 +7540,14 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/tmcc/cygwinxp/GNUmakefile clientside/tmcc/dp/GNUmakefile \
  clientside/tmcc/openbsd/GNUmakefile clientside/tmcc/ron/GNUmakefile \
  clientside/tmcc/plab/GNUmakefile \
- clientside/os/dijkstra/GNUmakefile clientside/os/genhostsfile/GNUmakefile"
+ clientside/os/dijkstra/GNUmakefile clientside/os/genhostsfile/GNUmakefile \
+ clientside/os/growdisk/GNUmakefile \
+ clientside/os/zapdisk/GNUmakefile \
+ clientside/os/frisbee.redux/GNUmakefile \
+ clientside/os/imagezip/GNUmakefile \
+ clientside/os/imagezip/ffs/GNUmakefile \
+ clientside/os/imagezip/extfs/GNUmakefile \
+ clientside/os/imagezip/hashmap/GNUmakefile"
 
 #
 # Do this for easy distclean.

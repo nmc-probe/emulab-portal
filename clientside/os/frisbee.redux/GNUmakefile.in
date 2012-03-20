@@ -1,13 +1,12 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
-
 SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
-OBJDIR		= ../..
-SUBDIR		= os/frisbee.redux
+OBJDIR		= @top_builddir@
+SUBDIR		= $(subst $(TESTBED_SRCDIR)/,,$(SRCDIR))
 
 DISTFILES	= TODO client.c decls.h event.c event.h log.c log.h \
 		  network.c queue.h server.c trace.c trace.h utils.c utils.h
@@ -58,7 +57,7 @@ subboss:
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
-FRISBEEDIR	= $(OBJDIR)/os/imagezip
+FRISBEEDIR	= $(TESTBED_IMAGEZIPSRCDIR)
 
 SHAREDOBJS	= log.o network.o trace.o utils.o
 

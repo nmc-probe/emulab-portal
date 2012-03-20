@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 AC_PREREQ(2.62)
@@ -206,7 +206,14 @@ outfiles="Makeconf GNUmakefile \
 	  tmcc/openbsd/GNUmakefile tmcc/ron/GNUmakefile \
 	  tmcc/plab/GNUmakefile \
 	  os/GNUmakefile os/syncd/GNUmakefile \
-	  os/dijkstra/GNUmakefile os/genhostsfile/GNUmakefile"
+	  os/dijkstra/GNUmakefile os/genhostsfile/GNUmakefile \
+	  os/frisbee.redux/GNUmakefile \
+	  os/growdisk/GNUmakefile \
+	  os/zapdisk/GNUmakefile \
+	  os/imagezip/GNUmakefile \
+	  os/imagezip/ffs/GNUmakefile \
+	  os/imagezip/extfs/GNUmakefile \
+	  os/imagezip/hashmap/GNUmakefile"
 
 #
 # Do this for easy distclean.

@@ -4881,7 +4881,14 @@ outfiles="Makeconf GNUmakefile \
 	  tmcc/openbsd/GNUmakefile tmcc/ron/GNUmakefile \
 	  tmcc/plab/GNUmakefile \
 	  os/GNUmakefile os/syncd/GNUmakefile \
-	  os/dijkstra/GNUmakefile os/genhostsfile/GNUmakefile"
+	  os/dijkstra/GNUmakefile os/genhostsfile/GNUmakefile \
+	  os/frisbee.redux/GNUmakefile \
+	  os/growdisk/GNUmakefile \
+	  os/zapdisk/GNUmakefile \
+	  os/imagezip/GNUmakefile \
+	  os/imagezip/ffs/GNUmakefile \
+	  os/imagezip/extfs/GNUmakefile \
+	  os/imagezip/hashmap/GNUmakefile"
 
 #
 # Do this for easy distclean.

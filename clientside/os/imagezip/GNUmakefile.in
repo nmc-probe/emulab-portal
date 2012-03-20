@@ -1,13 +1,13 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
-
 SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
-OBJDIR		= ../..
-SUBDIR		= os/imagezip
+OBJDIR		= @top_builddir@
+SUBDIR		= $(subst $(TESTBED_SRCDIR)/,,$(SRCDIR))
+
 DISTFILES	= global.h imagehdr.h queue.h sliceinfo.h \
 		  imagedump.c imagedump.8 imagezip.c imagezip.8 \
 		  imageunzip.c crc.c checksum.c disksize.c imageunzip.8 \
@@ -218,6 +218,8 @@ version.c: imagezip.c imageunzip.c imagedump.c
 	echo >$@ "char build_info[] = \"Built `date +%d-%b-%Y` by `id -nu`@`hostname | sed 's/\..*//'`:`pwd`\";"
 
 install: $(INSTALL_BINDIR)/imagezip $(INSTALL_BINDIR)/imageunzip $(INSTALL_BINDIR)/imagedump $(INSTALL_BINDIR)/imagehash
+
+boss-install: install
 
 client: all
 client-install: client

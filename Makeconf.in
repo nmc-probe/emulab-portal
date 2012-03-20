@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 # 
 # Most of the configure-substitution magic is done here.
@@ -102,3 +102,4 @@ MERGE_BUILD_SANDBOX = @MERGE_BUILD_SANDBOX@
 EXP_VIS_SUPPORT    = @EXP_VIS_SUPPORT@
 TESTBED_LIBSRCDIR  = ${TESTBED_SRCDIR}/clientside/lib
 TESTBED_LIBOBJDIR  = ${OBJDIR}/clientside/lib
+TESTBED_IMAGEZIPSRCDIR = ${OBJDIR}/clientside/os/imagezip
