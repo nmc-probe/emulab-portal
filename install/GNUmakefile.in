@@ -31,7 +31,8 @@ install: $(INSTALL_LIBDIR)/libinstall.pm \
 	$(INSTALL_LIBDIR)/installvars.pm \
 	$(INSTALL_SBINDIR)/update-install \
 	$(INSTALL_SBINDIR)/update-testbed \
-	$(INSTALL_SBINDIR)/testbed-version
+	$(INSTALL_SBINDIR)/testbed-version \
+	$(INSTALL_SBINDIR)/load-descriptors
 
 clean: 
 	rm -f $(TARGETS)
