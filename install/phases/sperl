@@ -5,6 +5,7 @@ use strict;
 use libinstall;
 use installvars;
 
+my $PERL     = "/usr/bin/perl";
 my $SUIDPERL = "/usr/bin/suidperl";
 
 sub Install($$$)
@@ -16,6 +17,17 @@ sub Install($$$)
 	if ($isupdate);
 
     Phase "perl", "Checking for setuid perl", sub {
+	#
+	# See if suidperl is supported. Perl 5.12 and beyond don't have it.
+	#
+	if (-x $PERL) {
+	    my $vstr = `$PERL -v | grep version`;
+	    if ($vstr =~ /This is perl 5, version (\d+),/) {
+		if (int($1) >= 12) {
+		    PhaseSkip("Not used");
+		}
+	    }
+	}
 	Phase "sperl", "Checking for sperl", sub {
 	    if (ExecQuiet("$PKG_INFO -L -x perl-5 | fgrep -q -s sperl") == 0) {
 		PhaseSkip("Perl is okay");

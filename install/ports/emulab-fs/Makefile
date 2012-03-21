@@ -19,20 +19,12 @@ COMMENT=	"Meta-port for an Emulab fs node"
 MAINTAINER=	testbed-ops@flux.utah.edu
 
 #
-# Select PHP and Apache versions
-# Fix up some port diffs
-#
-.if ${PORTVERSION} == "3.1"
-PHP_VER=	5
-.else
-PHP_VER=	4
-.endif
-
-#
 # We must make sure PERL is built with this.
 #
 .MAKEFLAGS+=	ENABLE_SUIDPERL=yes
-.if (${PORTVERSION} == "3.1" || ${PORTVERSION} == "4.0")
+.if ${PORTVERSION} == "5.0"
+.MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
+.elif (${PORTVERSION} == "3.1" || ${PORTVERSION} == "4.0")
 .MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
 .elif ${PORTVERSION} == "3.0"
 .MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
@@ -56,7 +48,7 @@ RUN_DEPENDS= gmake:${PORTSDIR}/devel/gmake \
 	sudo:${PORTSDIR}/security/sudo \
 	rsync:${PORTSDIR}/net/rsync \
 
-.if ${PORTVERSION} == "4.0"
+.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0")
 RUN_DEPENDS+= \
 	smbd:${PORTSDIR}/net/samba36
 .else

@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 
 # Get rid of a bunch of nasty built-in implicit rules,
@@ -36,21 +36,43 @@ $(INSTALL_ETCDIR)/%: %
 	-mkdir -p $(INSTALL_ETCDIR)
 	$(INSTALL_DATA) $< $@
 
-$(addprefix $(INSTALL_SBINDIR)/, $(SETUID_SBIN_SCRIPTS)): $(INSTALL_SBINDIR)/%: %
+$(addprefix $(INSTALL_SBINDIR)/, $(SETUID_SBIN_PROGS)): $(INSTALL_SBINDIR)/%: %
 	echo "Installing (setuid) $<"
 	-mkdir -p $(INSTALL_SBINDIR)
 	$(SUDO) $(INSTALL) -o root -m 4755 $< $@
 
-$(addprefix $(INSTALL_BINDIR)/, $(SETUID_BIN_SCRIPTS)): $(INSTALL_BINDIR)/%: %
+$(addprefix $(INSTALL_BINDIR)/, $(SETUID_BIN_PROGS)): $(INSTALL_BINDIR)/%: %
 	echo "Installing (setuid) $<"
 	-mkdir -p $(INSTALL_BINDIR)
 	$(SUDO) $(INSTALL) -o root -m 4755 $< $@
 
-$(addprefix $(INSTALL_LIBEXECDIR)/, $(SETUID_LIBX_SCRIPTS)): $(INSTALL_LIBEXECDIR)/%: %
+$(addprefix $(INSTALL_LIBEXECDIR)/, $(SETUID_LIBX_PROGS)): $(INSTALL_LIBEXECDIR)/%: %
 	echo "Installing (setuid) $<"
 	-mkdir -p $(INSTALL_LIBEXECDIR)
 	$(SUDO) $(INSTALL) -o root -m 4755 $< $@
 
+$(addprefix $(INSTALL_SBINDIR)/, $(SETUID_SBIN_SCRIPTS)): $(INSTALL_SBINDIR)/%: % $(INSTALL_SUIDDIR)/%
+	echo "Installing (link to wrapper) $<"
+	-mkdir -p $(INSTALL_SBINDIR)
+	-rm -f $@
+	ln -s $(INSTALL_LIBEXECDIR)/runsuid $@
+
+$(addprefix $(INSTALL_BINDIR)/, $(SETUID_BIN_SCRIPTS)): $(INSTALL_BINDIR)/%: % $(INSTALL_SUIDDIR)/%
+	echo "Installing (link to wrapper) $<"
+	-mkdir -p $(INSTALL_BINDIR)
+	-rm -f $@
+	ln -s $(INSTALL_LIBEXECDIR)/runsuid $@
+
+$(addprefix $(INSTALL_LIBEXECDIR)/, $(SETUID_LIBX_SCRIPTS)): $(INSTALL_LIBEXECDIR)/%: % $(INSTALL_SUIDDIR)/%
+	echo "Installing (link to wrapper) $<"
+	-mkdir -p $(INSTALL_LIBEXECDIR)
+	-rm -f $@
+	ln -s $(INSTALL_LIBEXECDIR)/runsuid $@
+
+$(INSTALL_SUIDDIR)/%: %
+	echo "Installing (real script) $<"
+	-mkdir -p $(INSTALL_SUIDDIR)
+	$(INSTALL_PROGRAM) $< $@	
 
 CFLAGS += $(LOCALCFLAGS)
 

@@ -2,38 +2,27 @@
 # Date created:         21 July 2009
 # Whom:                 stoller@flux.utah.edu
 
-# Need the major version number to figure out to do.
-OSMAJOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/\..*//'
-OSMINOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/'
+.include "../emulab-boss/Makefile.emulab"
 
-PORTNAME=	emulab-protogeni
-PORTVERSION=	1.0
-.if ${OSMAJOR} >= 8
+# XXX deal with out-of-sync-edness of meta ports
+.if ${EMULAB_PORTVERSION} == "5.0"
+PORTVERSION=	3.0
+.elif ${EMULAB_PORTVERSION} == "4.0"
 PORTVERSION=	2.0
 .else
-.if ${OSMAJOR} >= 7
-.if ${OSMINOR} >= 3
 PORTVERSION=	1.1
 .endif
-.endif
-.endif
+
+PORTNAME=	emulab-protogeni
 CATEGORIES=	misc
 MASTER_SITES=	#none
 DISTFILES=	#none
 EXTRACT_ONLY=	#none
 COMMENT=	"Meta-port for a protogeni site"
 
-MAINTAINER=	stoller@cs.utah.edu
+MAINTAINER=	testbed-ops@flux.utah.edu
 
-# XXX this crap should not be needed!
-.if ${PORTVERSION} != "1.0"
-PHP_VER=	5
-PERL_VER=	5.10.1
 .MAKEFLAGS+=	WITH_OPENSSL_BASE=yes
-.else
-PHP_VER=	4
-.MAKEFLAGS+=	WITH_OPENSSL_PORT=yes
-.endif
 
 #
 # We set this so that the mysql server port doesn't do name resolution
@@ -56,7 +45,7 @@ PHP_VER=	4
 # Various ports need to agree on what version of apache. Make sure this
 # agrees with what is in the emulab-ops and emulab-php4 metaports.
 #
-.if ${PORTVERSION} == "2.0"
+.if ${PORTVERSION} != "1.1"
 .MAKEFLAGS+=	APACHE_PORT=www/apache22
 .else
 .MAKEFLAGS+=	APACHE_PORT=www/apache13-modssl

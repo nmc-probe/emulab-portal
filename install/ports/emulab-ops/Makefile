@@ -28,7 +28,9 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 # We must make sure PERL is built with this.
 #
 .MAKEFLAGS+=	ENABLE_SUIDPERL=yes
-.if (${PORTVERSION} == "3.1" || ${PORTVERSION} == "4.0")
+.if ${PORTVERSION} == "5.0"
+.MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
+.elif (${PORTVERSION} == "3.1" || ${PORTVERSION} == "4.0")
 .MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
 .elif ${PORTVERSION} == "3.0"
 .MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
@@ -52,7 +54,7 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 # agrees with what is in the emulab-ops and emulab-php* metaports.
 #
 .MAKEFLAGS+=	-DWITH_APACHE
-.if ${PORTVERSION} == "4.0"
+.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0")
 .MAKEFLAGS+=	APACHE_PORT=www/apache22
 .MAKEFLAGS+=	WITH_SUEXEC=yes
 .else
@@ -77,7 +79,7 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 .if (${PORTVERSION} == "1.4" || ${PORTVERSION} == "2.0")
 BUILD_DEPENDS=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Mysql.pm:${PORTSDIR}/databases/p5-DBD-mysql50
-.elif (${PORTVERSION} == "4.0")
+.elif (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0")
 # back to a standard p5-DBD-mysql50 install
 BUILD_DEPENDS=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/DBD/mysql.pm:${PORTSDIR}/databases/p5-DBD-mysql50 \
@@ -98,7 +100,7 @@ LIB_DEPENDS+= mhash.2:${PORTSDIR}/security/mhash \
 	mysqlclient.15:${PORTSDIR}/databases/mysql50-client
 .endif
 .if ${OSMAJOR} >= 7
-LIB_DEPENDS+= xmlrpc.9:${PORTSDIR}/net/xmlrpc-c
+LIB_DEPENDS+= xmlrpc:${PORTSDIR}/net/xmlrpc-c
 .endif
 
 .if defined(ELVIN_COMPAT)
@@ -126,7 +128,7 @@ RUN_DEPENDS+= ${LOCALBASE}/libexec/elvind:${PORTSDIR}/misc/elvind
 .endif
 
 # apache related ports
-.if ${PORTVERSION} == "4.0"
+.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0")
 RUN_DEPENDS+=	\
 	${LOCALBASE}/libexec/apache22/mod_ssl.so:${PORTSDIR}/${APACHE_PORT} \
 	${LOCALBASE}/libexec/apache22/mod_fastcgi.so:${PORTSDIR}/www/mod_fastcgi
@@ -137,7 +139,8 @@ RUN_DEPENDS+=	\
 .endif
 
 # m2crypto port
-.if (${PORTVERSION} == "3.0" || ${PORTVERSION} == "3.1" || ${PORTVERSION} == "4.0")
+.if (${PORTVERSION} == "3.0" || ${PORTVERSION} == "3.1" || \
+     ${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0")
 # must handle patching of m2crypto when the port is built
 # also needs swig to install!
 RUN_DEPENDS+=	\
@@ -150,7 +153,7 @@ RUN_DEPENDS+=	\
 .endif
 
 # misc. old vs. new port stuff
-.if ${PORTVERSION} == "4.0"
+.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0")
 RUN_DEPENDS+=	\
 	autoconf:${PORTSDIR}/devel/autoconf \
 	libtool:${PORTSDIR}/devel/libtool

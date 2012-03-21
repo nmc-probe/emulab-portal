@@ -156,6 +156,7 @@ install-mkdirs:
 	-mkdir -p $(INSTALL_TOPDIR)/log/mysql
 	-mkdir -p $(INSTALL_TOPDIR)/etc
 	-mkdir -p $(INSTALL_TOPDIR)/www
+	-mkdir -p $(INSTALL_TOPDIR)/suidbin
 	-mkdir -p $(INSTALL_TOPDIR)/ssl
 	-chmod 770 $(INSTALL_TOPDIR)/ssl
 ifeq ($(STANDALONE_CLEARINGHOUSE),0)

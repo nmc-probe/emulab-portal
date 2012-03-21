@@ -62,6 +62,7 @@ INSTALL_LIBEXECDIR = @libexecdir@
 INSTALL_ETCDIR  = @sysconfdir@
 INSTALL_INCDIR  = @includedir@
 INSTALL_WWWDIR	= @exec_prefix@/www
+INSTALL_SUIDDIR = @exec_prefix@/suidbin
 INSTALL_RCDIR	= @INSTALL_RCDIR@
 INSTALL_APACHE_CONFIG = @INSTALL_APACHE_CONFIG@
 

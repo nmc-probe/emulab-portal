@@ -7,6 +7,9 @@
 OSMAJOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/\..*//'
 OSMINOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/'
 
+.if ${OSMAJOR} > 8
+EMULAB_PORTVERSION=	5.0
+.else
 .if ${OSMAJOR} > 7
 EMULAB_PORTVERSION=	4.0
 .else
@@ -28,12 +31,20 @@ EMULAB_PORTVERSION=	1.7
 .  endif
 . endif
 .endif
+.endif
 
 #
 # Select PHP and Apache versions
 # Fix up some port diffs
 #
-.if ${EMULAB_PORTVERSION} == "4.0"
+.if ${EMULAB_PORTVERSION} == "5.0"
+PHP_VER=	5
+PERL_VER=	5.12.4
+PYTHON_DEFAULT_VERSION=python2.7
+APACHE_PORT=	www/apache22
+BOOST_PORT=	devel/boost-all
+P5SNMP_PORT=	misc/p5-SNMP
+.elif ${EMULAB_PORTVERSION} == "4.0"
 PHP_VER=	5
 PERL_VER=	5.10.1
 APACHE_PORT=	www/apache22

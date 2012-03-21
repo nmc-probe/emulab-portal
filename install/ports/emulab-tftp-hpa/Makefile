@@ -9,7 +9,7 @@ PORTNAME=	tftp-hpa
 PORTVERSION=	0.48
 #CATEGORIES=	net
 CATEGORIES=	misc
-MASTER_SITES=	ftp://www.kernel.org/pub/software/network/tftp/
+MASTER_SITES=	http://www.emulab.net/distributions/
 PKGNAMEPREFIX=	emulab-
 DISTNAME=	${PORTNAME}-${PORTVERSION}
 

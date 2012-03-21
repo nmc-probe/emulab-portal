@@ -1,5 +1,7 @@
 #
 # This port has been "expired" from the official FreeBSD ports tree.
+# Note: removed "snmpnetstat" from BIN= as it causes install to fail.
+#       I don't think we need it so I didn't track the failure down.
 #
 # New ports collection makefile for:	ucd-snmp
 # Date created:				26 June 1996
@@ -84,7 +86,7 @@ MLINKS=		snmptrap.1 snmpinform.1 \
 		snmp_sess_api.3 snmp_sess_send.3 \
 		snmp_sess_api.3 snmp_sess_session.3 \
 		snmp_sess_api.3 snmp_sess_timeout.3
-BIN=		snmpbulkwalk snmpget snmpgetnext snmpnetstat snmpset \
+BIN=		snmpbulkwalk snmpget snmpgetnext snmpset \
 		snmpstatus snmptest snmptranslate snmptrap snmpwalk
 SBIN=		snmpd snmptrapd
 

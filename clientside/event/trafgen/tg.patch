@@ -1,6 +1,6 @@
 diff -ru dist/tg2.0/src/tg/config.h tg2.0/src/tg/config.h
---- dist/tg2.0/src/tg/config.h	Thu Jan 24 16:30:09 2002
-+++ tg2.0/src/tg/config.h	Wed Aug 25 14:37:32 2004
+--- dist/tg2.0/src/tg/config.h	2002-01-24 16:30:09.000000000 -0700
++++ tg2.0/src/tg/config.h	2012-03-21 16:54:20.000000000 -0600
 @@ -14,7 +14,7 @@
  
  /* Maximum packet buffer size.						*/
@@ -11,9 +11,28 @@ diff -ru dist/tg2.0/src/tg/config.h tg2.0/src/tg/config.h
  /* Maximum value from random-number generator.				*/
  
 diff -ru dist/tg2.0/src/tg/log.c tg2.0/src/tg/log.c
---- dist/tg2.0/src/tg/log.c	Thu Jan 24 16:30:09 2002
-+++ tg2.0/src/tg/log.c	Wed Aug 25 14:37:32 2004
-@@ -268,6 +268,11 @@
+--- dist/tg2.0/src/tg/log.c	2002-01-24 16:30:09.000000000 -0700
++++ tg2.0/src/tg/log.c	2012-03-21 16:58:39.000000000 -0600
+@@ -23,7 +23,6 @@
+ #include <sys/utsname.h> 
+ #include <sys/param.h>
+ #include <errno.h>
+-#include <utmp.h>
+ 
+ #include "config.h"
+ #include "distribution.h"
+@@ -31,6 +30,10 @@
+ #include "decode.h"
+ #include "log.h"
+ 
++/* XXX utmp.h is defunct */
++#define UT_NAMESIZE 32
++#define UT_HOSTSIZE 256
++
+ /* Type definitions local to this file.					*/
+ 
+ #define FPRINTF		(void) fprintf
+@@ -268,6 +271,11 @@
  	char		*cp = buf;
  	char		ctl;
  
@@ -25,7 +44,7 @@ diff -ru dist/tg2.0/src/tg/log.c tg2.0/src/tg/log.c
  	/* Encode record type.						*/
  
  	*cp++ = LOGTYPE_ACCEPT;
-@@ -326,6 +331,11 @@
+@@ -326,6 +334,11 @@
  	char		*cp = buf;
  	char		ctl;
  
@@ -37,7 +56,7 @@ diff -ru dist/tg2.0/src/tg/log.c tg2.0/src/tg/log.c
  	/* Encode record type.						*/
  
  	*cp++ = LOGTYPE_ERROR;
-@@ -391,6 +401,11 @@
+@@ -391,6 +404,11 @@
  	char		*cp = buf;
  	char		ctl;
  
@@ -49,7 +68,7 @@ diff -ru dist/tg2.0/src/tg/log.c tg2.0/src/tg/log.c
  	/* Encode record type.						*/
  
  	*cp++ = LOGTYPE_RX;
-@@ -459,6 +474,11 @@
+@@ -459,6 +477,11 @@
  	char		*cp = buf;
  	char		ctl;
  
@@ -61,7 +80,7 @@ diff -ru dist/tg2.0/src/tg/log.c tg2.0/src/tg/log.c
  	/* Encode record type.						*/
  
  	*cp++ = LOGTYPE_SETUP;
-@@ -510,6 +530,11 @@
+@@ -510,6 +533,11 @@
  	char		*cp = buf;
  	char		ctl;
  
@@ -73,7 +92,7 @@ diff -ru dist/tg2.0/src/tg/log.c tg2.0/src/tg/log.c
  	/* Encode record type.						*/
  
  	*cp++ = LOGTYPE_TEARDOWN;
-@@ -568,6 +593,11 @@
+@@ -568,6 +596,11 @@
  	char		*cp = buf;
  	char		ctl;
  
@@ -85,7 +104,7 @@ diff -ru dist/tg2.0/src/tg/log.c tg2.0/src/tg/log.c
  	/* Encode record type.						*/
  
  	*cp++ = LOGTYPE_TX;
-@@ -717,6 +747,10 @@
+@@ -717,6 +750,10 @@
  
  	extern FILE	*log_fp;
  	
@@ -97,8 +116,8 @@ diff -ru dist/tg2.0/src/tg/log.c tg2.0/src/tg/log.c
  	  (void) fclose (log_fp);
  
 diff -ru dist/tg2.0/src/tg/prot_dgram.c tg2.0/src/tg/prot_dgram.c
---- dist/tg2.0/src/tg/prot_dgram.c	Thu Jan 24 16:30:10 2002
-+++ tg2.0/src/tg/prot_dgram.c	Wed Aug 25 14:37:32 2004
+--- dist/tg2.0/src/tg/prot_dgram.c	2002-01-24 16:30:10.000000000 -0700
++++ tg2.0/src/tg/prot_dgram.c	2012-03-21 16:54:20.000000000 -0600
 @@ -198,6 +198,22 @@
  	for (;;)
  		{
@@ -167,8 +186,8 @@ diff -ru dist/tg2.0/src/tg/prot_dgram.c tg2.0/src/tg/prot_dgram.c
  	}
  
 diff -ru dist/tg2.0/src/tg/prot_stream.c tg2.0/src/tg/prot_stream.c
---- dist/tg2.0/src/tg/prot_stream.c	Thu Jan 24 16:30:10 2002
-+++ tg2.0/src/tg/prot_stream.c	Wed Aug 25 14:37:32 2004
+--- dist/tg2.0/src/tg/prot_stream.c	2002-01-24 16:30:10.000000000 -0700
++++ tg2.0/src/tg/prot_stream.c	2012-03-21 16:54:20.000000000 -0600
 @@ -147,6 +147,22 @@
  	for (;;)
  		{
@@ -241,8 +260,8 @@ diff -ru dist/tg2.0/src/tg/prot_stream.c tg2.0/src/tg/prot_stream.c
  	return (result);
  	}
 diff -ru dist/tg2.0/src/tg/prot_tcp.c tg2.0/src/tg/prot_tcp.c
---- dist/tg2.0/src/tg/prot_tcp.c	Thu Jan 24 16:30:10 2002
-+++ tg2.0/src/tg/prot_tcp.c	Wed Aug 25 14:37:32 2004
+--- dist/tg2.0/src/tg/prot_tcp.c	2002-01-24 16:30:10.000000000 -0700
++++ tg2.0/src/tg/prot_tcp.c	2012-03-21 16:54:20.000000000 -0600
 @@ -93,6 +93,12 @@
  
  #endif /* QOSDEBUG */
@@ -312,8 +331,8 @@ diff -ru dist/tg2.0/src/tg/prot_tcp.c tg2.0/src/tg/prot_tcp.c
  			{
  			(void)close(sfd);
 diff -ru dist/tg2.0/src/tg/prot_test.c tg2.0/src/tg/prot_test.c
---- dist/tg2.0/src/tg/prot_test.c	Thu Jan 24 16:30:10 2002
-+++ tg2.0/src/tg/prot_test.c	Wed Aug 25 14:37:32 2004
+--- dist/tg2.0/src/tg/prot_test.c	2002-01-24 16:30:10.000000000 -0700
++++ tg2.0/src/tg/prot_test.c	2012-03-21 16:54:20.000000000 -0600
 @@ -447,6 +447,7 @@
  
  	if (!test_get_packets(prtab, fd, endtout))
@@ -323,8 +342,8 @@ diff -ru dist/tg2.0/src/tg/prot_test.c tg2.0/src/tg/prot_test.c
  		}
  	else
 diff -ru dist/tg2.0/src/tg/prot_udp.c tg2.0/src/tg/prot_udp.c
---- dist/tg2.0/src/tg/prot_udp.c	Thu Jan 24 16:30:10 2002
-+++ tg2.0/src/tg/prot_udp.c	Wed Aug 25 14:37:32 2004
+--- dist/tg2.0/src/tg/prot_udp.c	2002-01-24 16:30:10.000000000 -0700
++++ tg2.0/src/tg/prot_udp.c	2012-03-21 16:54:20.000000000 -0600
 @@ -47,7 +47,7 @@
  
  /* Apply QOS parameters to an existing fd.                              */
@@ -380,8 +399,8 @@ diff -ru dist/tg2.0/src/tg/prot_udp.c tg2.0/src/tg/prot_udp.c
  			{
  			    (void)close(sfd);
 diff -ru dist/tg2.0/src/tg/tg.y tg2.0/src/tg/tg.y
---- dist/tg2.0/src/tg/tg.y	Thu Jan 24 16:30:10 2002
-+++ tg2.0/src/tg/tg.y	Tue Oct  5 16:53:50 2004
+--- dist/tg2.0/src/tg/tg.y	2002-01-24 16:30:10.000000000 -0700
++++ tg2.0/src/tg/tg.y	2012-03-21 16:54:20.000000000 -0600
 @@ -133,7 +133,11 @@
  char                    *version = "2.0";	/* TG program version.	*/
  char			*ofile = NULL;

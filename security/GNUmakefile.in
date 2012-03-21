@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -11,13 +11,13 @@ SUBDIR		= security
 
 include $(OBJDIR)/Makeconf
 
-BINS		= suexec
+BINS		= suexec runsuid
 SBINS		= genlastlog lastlog_daemon
 
 # These scripts installed setuid, with sudo. 
 SETUID_BIN_SCRIPTS   = 
-SETUID_SBIN_SCRIPTS  = 
-SETUID_LIBX_SCRIPTS  = suexec
+SETUID_SBIN_SCRIPTS  =
+SETUID_LIBX_PROGS    = suexec runsuid
 
 #
 # Force dependencies on the scripts so that they will be rerun through
@@ -35,6 +35,9 @@ suexec:		suexec.c suexec.h
 		-DDOC_ROOT='"$(prefix)/libexec/"' \
 		-DSAFE_PATH='"$(prefix)/libexec:/usr/local/bin:/usr/bin:/bin"'\
 		-o suexec $<
+
+runsuid:	runsuid.c ${OBJDIR}/config.h
+	$(CC) $(CFLAGS) -I${OBJDIR} -o runsuid $<
 
 genlastlog:	genlastlog.c
 	$(CC) $(CFLAGS) -I/usr/local/include -I$(TESTBED_LIBSRCDIR)/libtb \
