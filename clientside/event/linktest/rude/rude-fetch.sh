@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
 
 version=0.70
 srcurl="http://sourceforge.net/projects/rude/files/rude/rude-$version"

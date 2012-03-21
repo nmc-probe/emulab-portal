@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
 
 version=2.0.2
 srcurl="http://sourceforge.net/projects/iperf/files/iperf/iperf 2.02 source"
@@ -25,7 +30,7 @@ if [ ! -d $dir/iperf-$version/src ]; then
       $fetch http://$host/$tarball
       if [ $? -ne 0 ]; then
            echo "Failed..."
-           echo "Downloading rude source from \"$srcurl\" to $dir ..."
+           echo "Downloading iperf source from \"$srcurl\" to $dir ..."
            $fetch "$srcurl/$tarball" || {
 	       echo "ERROR: iperf-fetch: $fetch failed"
 	       exit 1
