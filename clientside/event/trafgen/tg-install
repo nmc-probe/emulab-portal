@@ -1,11 +1,13 @@
 #!/bin/sh
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004, 2009 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
-#	cd from <builddir>/event/trafgen to testbed/event/trafgen
+version=2.0
+srcurl="http://www.postel.org/tg"
+tarball="tg${version}.tar.gz"
 
 if [ -x /usr/bin/fetch ]; then
     fetch=/usr/bin/fetch
@@ -16,31 +18,42 @@ else
     exit 1
 fi
 
-if [ -n "$2" ]; then host=$2; else host=www.emulab.net ; fi
+if [ -n "$1" ]; then srcdir=$1; else srcdir=$PWD ; fi
+if [ -n "$2" ]; then tarball=$2; fi
+if [ -n "$3" ]; then host=$3; else host=www.emulab.net ; fi
+dir=$PWD
 
-if [ ! -d $1/tg2.0/src ]; then
-    cd $1
-    if [ ! -f tg2.0.tar.gz ]; then
-      echo "Downloading tg2.0 source from $host to $1 ..."
-      $fetch http://$host/tg2.0.tar.gz
+if [ ! -d $dir/tg${version}/src ]; then
+    if [ ! -f "$tarball" ]; then
+      cd $dir
+      echo "Downloading tg source from $host to $dir ..."
+      $fetch http://$host/$tarball
       if [ $? -ne 0 ]; then
            echo "Failed..."
-           echo "Downloading tg2.0 source from www.postel.org to $1 ..."
-           $fetch http://www.postel.org/tg/tg2.0.tar.gz || {
+           echo "Downloading tg source from \"$srcurl\" to $dir ..."
+           $fetch "$srcurl/$tarball" || {
 	       echo "ERROR: tg-install: $fetch failed"
 	       exit 1
 	   }
       fi
     fi
-    echo "Unpacking/patching tg2.0 source ..."
-    tar xzof tg2.0.tar.gz || {
+    echo "Unpacking/patching tg${version} source ..."
+    tar xzof $tarball || {
         echo "ERROR: tg-install: tar failed"
 	exit 1
     }
-    patch -p0 < tg.patch || {
+    # XXX hack to deal with relative paths...argh!
+    case $srcdir in
+    /*)
+	;;
+    *)
+        srcdir="../$srcdir"
+	;;
+    esac
+    patch -p0 < $srcdir/tg.patch || {
         echo "ERROR: tg-install: patch failed"
 	exit 1
     }
-    rm -f tg2.0.tar.gz tg2.0/*/*/*.orig
+    rm -f tg${version}/*/*/*.orig
 fi
 exit 0

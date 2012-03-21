@@ -1,14 +1,16 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
 OBJDIR		= @top_builddir@
 SUBDIR		= $(subst $(TESTBED_SRCDIR)/,,$(SRCDIR))
-TGSRCDIR	= $(SRCDIR)/tg2.0/src/tg
+TGSRCDIR	= tg2.0/src/tg
 PROGRAMS	= trafgen
+
+TARBALL		= tg2.0.tar.gz
 
 vpath %.c	$(TGSRCDIR)
 vpath %.l	$(TGSRCDIR)
@@ -31,7 +33,10 @@ OBJS = \
 
 include $(OBJDIR)/Makeconf
 
-all:	tg2.0 $(PROGRAMS)
+# XXX if we have to fetch the source, then we need to reinvoke make so
+# that vpath works correctly
+all:	tg2.0
+	$(MAKE) $(PROGRAMS)
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
@@ -114,7 +119,7 @@ install:
 boss-install:
 control-install:
 
-client: $(PROGRAMS)
+client: all
 client-install: client
 	$(INSTALL_PROGRAM) trafgen$(EXE) $(DESTDIR)$(CLIENT_BINDIR)/trafgen$(EXE)
 
@@ -122,7 +127,4 @@ clean:
 	/bin/rm -f lex.yy.c y.* *.o $(PROGRAMS) *-debug
 
 tg2.0:
-	@echo ""
-	@echo "WARNING! You must first install the tg2.0 distribution"
-	@echo "WARNING! See $(SRCDIR)/README"
-	@echo ""
+	$(SRCDIR)/tg-install $(SRCDIR)

@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 SRCDIR		= @srcdir@
@@ -29,18 +29,12 @@ endif
 endif
 endif
 
-all:	trafgen-fetch all-subdirs
+all:	all-subdirs
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
-# XXX Yeah, this doesn't belong here but I can't make the trafgen
-# makefile work if it unpacks the tarball itself
-#
-trafgen-fetch:
-	$(SRCDIR)/trafgen/tg-install $(SRCDIR)/trafgen
-
 boss-install:   boss-install-subdirs
-client:		trafgen-fetch client-subdirs
+client:		client-subdirs
 client-install: client client-install-subdirs
 control-install: control-install-subdirs
 subboss:
@@ -59,4 +53,4 @@ frisbee-mfs-install:
 	@$(MAKE) -C $(dir $@) $(basename $(notdir $@))
 %-subdirs: $(addsuffix /%.MAKE,$(SUBDIRS)) ;
 
-.PHONY:	$(SUBDIRS) trafgen-fetch
+.PHONY:	$(SUBDIRS)
