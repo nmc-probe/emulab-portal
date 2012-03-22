@@ -2069,6 +2069,14 @@ sub SetupBossNode($)
     }
 
     #
+    # XXX ugh, right now mrouted seems to crash FBSD9
+    #
+    if ($FBSD_VERSION > 8 && $emulabconfig{"CONFIG_MROUTED"}) {
+	print "WARNING: disabling mrouted due to potential kernel crashes\n";
+	$emulabconfig{"CONFIG_MROUTED"} = 0;
+    }
+
+    #
     # Need to create an /etc/rc.conf that is more suitable for boss.
     # I took most of this from our real boss node. It will be modified
     # by the boss-install script below.
@@ -2164,6 +2172,17 @@ sub SetupBossNode($)
     print RC "natd_enable=\"YES\"\n";
     print RC "natd_flags=\"-use_sockets -unregistered_only -same_ports ".
 	"-dynamic -log_facility local6\"\n";
+    #
+    # XXX Woeful hackage!
+    # There seems to be a race with the ipfw and ipdivert code.
+    # By default, rc.firewall adds a "divert" rule before the ipdivert
+    # module is loaded, and the "ipfw add" command fails. However, if we
+    # put the ipdivert module in /boot/loader.conf so it gets loaded at
+    # boot time, everything is fine. So we do that!
+    #
+    if ($FBSD_VERSION > 8) {
+	mysystem("echo 'ipdivert_load="YES"' >> /boot/loader.conf");
+    }
 
     # We act as the router for the inner ops and inner nodes.
     print RC "gateway_enable=\"YES\"\n";
