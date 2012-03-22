@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -169,6 +169,10 @@ sub tblog( $@ ) {
 
     my $res = dblog($priority, $parms, $mesg) unless $mesg =~ /^\s+$/;
     
+    # XXX argh! Keep perl from complaining about unused SOUT var
+    if (0) {
+	print SOUT format_message(scriptname(), $priority, $mesg);
+    }
     print SERR format_message(scriptname(), $priority, $mesg);
 
     return $res;
