@@ -42,7 +42,7 @@ char *badvars[] = {
 	"IFS=", "CDPATH=", "ENV=", "BASH_ENV="
 };
 
-static int debug = 1;
+static int debug = 0;
 
 static void
 sanedir(char *dir)
@@ -104,12 +104,10 @@ main(int argc, char **argv)
 	int i, len;
 	extern char **environ;
 
-#if 0
-	if (getuid()) {
+	if (geteuid()) {
 		fprintf(stderr, "%s: not running as root; not suid?\n", name);
 		exit(1);
 	}
-#endif
 
 	/* Check the state of the SUIDDIR */
 	sanedir(SUIDDIR);
