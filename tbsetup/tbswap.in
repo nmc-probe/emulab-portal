@@ -1023,7 +1023,8 @@ sub doSwapin($) {
     if (($type > MODIFY && @expswitches)
 	|| ($type == MODIFY && (!defined($perexpstack) && @expswitches))) {
 	print STDERR "Creating per-experiment switch stack.\n";
-	AddPerExperimentSwitchStack($experiment,@expswitches);
+	AddPerExperimentSwitchStack($experiment,undef,undef,undef,undef,
+				    @expswitches);
 	$perexpstack = GetPerExperimentSwitchStackName($experiment);
     }
     elsif ($type == MODIFY && defined($perexpstack)

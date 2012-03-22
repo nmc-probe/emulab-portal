@@ -10,9 +10,18 @@ sub Install($$$)
     my ($server, $isupdate, $impotent) = @_;
 
     my @LOCAL_HOSTS         = ($OURDOMAIN,$BOSSNODE,$USERNODE,$FSNODE);
-    my @LOCAL_MAILING_LISTS = grep(/$OURDOMAIN$/, @MAILING_LISTS);
-    my @MAILING_LIST_NAMES  = map { /^([\w-]+)\@/ } @LOCAL_MAILING_LISTS;
     
+    # covert to list names and remove duplicates
+    my @MAILING_LIST_NAMES = ();
+    my %gotit = ();
+    foreach my $name (@LOCAL_MAILING_LISTS) {
+	if ($name =~ /^([\w-]+)\@/) {
+	    push(@MAILING_LIST_NAMES, $1)
+		if (!exists($gotit{$1}));
+	    $gotit{$1} = 1;
+	}
+    }
+
     Phase "sendmail","Configuring sendmail", sub {
 	if ($isupdate) {
 	    Phase "localhosts", "Updating $LOCAL_HOSTNAMES", sub {

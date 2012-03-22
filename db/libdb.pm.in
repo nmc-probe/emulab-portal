@@ -2574,8 +2574,8 @@ sub GetPerExperimentSwitchStack($) {
 #
 # Add a per-experiment switch stack type, and add switches to that stack.
 #
-sub AddPerExperimentSwitchStack($@;$$$) {
-    my ($expt,@switches,$leader,$snmp_community,$min_vlan,$max_vlan) = @_;
+sub AddPerExperimentSwitchStack($$$$$@) {
+    my ($expt,$leader,$snmp_community,$min_vlan,$max_vlan,@switches) = @_;
     my $scomm = $snmp_community;
 
     my $stack_id = GetPerExperimentSwitchStackName($expt);
