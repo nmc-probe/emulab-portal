@@ -15,6 +15,7 @@
 package com.flack.geni.resources.virtual
 {
 	import com.flack.geni.resources.physical.PhysicalInterface;
+	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
 
 	/**
@@ -97,6 +98,16 @@ package com.flack.geni.resources.virtual
 			for each(var testInterface:VirtualInterface in collection)
 			{
 				if(testInterface.Physical == physicalInterface)
+					return testInterface;
+			}
+			return null;
+		}
+		
+		public function getByHost(vnode:VirtualNode):VirtualInterface
+		{
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				if(testInterface._owner == vnode)
 					return testInterface;
 			}
 			return null;

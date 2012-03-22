@@ -35,6 +35,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.resources.physical.PhysicalNodeCollection;
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.GeniManagerCollection;
+			import com.flack.geni.resources.virtual.LinkType;
+			import com.flack.geni.resources.virtual.VirtualLink;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.components.DataButton;
@@ -54,6 +56,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				setView();
 				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGERS, tryUpdateManagers);
 				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_MANAGER, tryUpdateManagers);
+				
+				
 			}
 			
 			public function destroy():void
@@ -69,6 +73,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					setView(VIEW_MANAGERS);
 				}
 			}
+			
+			
 			
 			// Side pane stuff
 			public static const VIEW_MANAGERS:int = 0;

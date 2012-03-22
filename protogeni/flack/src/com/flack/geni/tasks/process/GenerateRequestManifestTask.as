@@ -349,8 +349,8 @@ package com.flack.geni.tasks.process
 						{
 							var pipeXml:XML = <pipe />;
 							pipeXml.setNamespace(RspecUtil.delayNamespace);
-							pipeXml.@source = pipe.src.id.full;
-							pipeXml.@dest = pipe.dst.id.full;
+							pipeXml.@source = pipe.src.clientId
+							pipeXml.@dest = pipe.dst.clientId;
 							if(pipe.capacity)
 								pipeXml.@capacity = pipe.capacity;
 							else
@@ -663,6 +663,15 @@ package com.flack.geni.tasks.process
 						lan_type.@name = LinkType.LAN_V2;
 					linkXml.appendChild(lan_type);
 					break;
+			}
+			
+			if(version.version >= 2 && link.flackInfo.x != -1)
+			{
+				var flackXml:XML = <link_info />;
+				flackXml.setNamespace(RspecUtil.flackNamespace);
+				flackXml.@x = link.flackInfo.x;
+				flackXml.@y = link.flackInfo.y;
+				linkXml.appendChild(flackXml);
 			}
 			
 			return linkXml;

@@ -22,8 +22,8 @@ package com.flack.geni.display.slicer.graphview
 	import flash.display.CapsStyle;
 	import flash.display.LineScaleMode;
 	import flash.display.Sprite;
-	
 	import flash.filters.GlowFilter;
+	import flash.geom.Point;
 	
 	import mx.core.UIComponent;
 	
@@ -35,28 +35,45 @@ package com.flack.geni.display.slicer.graphview
 	 */
 	public final class CanvasLink extends UIComponent
 	{
-		public static const NORMAL_COLOR:uint = 0x000000;
-		public static const TUNNEL_COLOR:uint = 0x00FFFF;
-		public static const ION_COLOR:uint = 0xCC33CC;
-		public static const GPENI_COLOR:uint = 0x0000FF;
+		public static const NORMAL_DARK:uint = 0x000000;
+		public static const NORMAL_LIGHT:uint = 0xFFFFFF;
+		public static const TUNNEL_DARK:uint = 0x00FFFF;
+		public static const TUNNEL_LIGHT:uint = 0x000000;
+		public static const ION_DARK:uint = 0xCC33CC;
+		public static const ION_LIGHT:uint = 0x000000;
+		public static const GPENI_DARK:uint = 0x0000FF;
+		public static const GPENI_LIGHT:uint = 0x000000;
 		
 		public static const INVALID_COLOR:uint = 0xFF0000;
 		public static const VALID_COLOR:uint = 0x00FF00;
 		
-		public static var color:uint;
+		public var labelColor:uint;
+		public var labelBackgroundColor:uint;
+		public var linkColor:uint;
 		
 		public var link:VirtualLink;
 		public var canvas:SliceCanvas;
 		
 		private var rawSprite:Sprite;
 		
-		public var buttonGroups:Vector.<CanvasLinkLabel>;
+		public var button:CanvasLinkMain;
+		public var buttons:Vector.<CanvasLinkBranch>;
+		public function getButtonFor(cn:CanvasNode):CanvasLinkBranch
+		{
+			for each(var bl:CanvasLinkBranch in buttons)
+			{
+				if(bl.iface.Owner == cn.Node)
+					return bl;
+			}
+			return null;
+		}
 		
 		public function setFilters(newFilters:Array):void
 		{
 			rawSprite.filters = newFilters;
-			for each(var d:CanvasLinkLabel in buttonGroups)
-				d.setFilters(newFilters);
+			button.setFilters(newFilters);
+			for each(var bl:CanvasLinkBranch in buttons)
+				bl.setFilters(newFilters);
 		}
 		
 		public function CanvasLink(newCanvas:SliceCanvas)
@@ -67,53 +84,20 @@ package com.flack.geni.display.slicer.graphview
 			rawSprite = new Sprite();
 			addChild(rawSprite);
 			
-			color = NORMAL_COLOR;
+			labelBackgroundColor = NORMAL_DARK;
+			labelColor = NORMAL_LIGHT;
+			linkColor = NORMAL_DARK;
 			
-			buttonGroups = new Vector.<CanvasLinkLabel>()
-		}
-		
-		public function setToStatus():void
-		{
-			var newBackgroundColor:uint = color;
-			if(link != null)
-			{
-				switch(link.status)
-				{
-					case VirtualComponent.STATUS_READY:
-						newBackgroundColor = ColorUtil.validLight;
-						toolTip = link.state;
-						break;
-					case VirtualComponent.STATUS_FAILED:
-						newBackgroundColor = ColorUtil.invalidLight;
-						toolTip = "Error: " + link.error;
-						break;
-					case VirtualComponent.STATUS_CHANGING:
-						newBackgroundColor = ColorUtil.changingLight;
-						toolTip = "Status is changing...";
-						break;
-					case VirtualComponent.STATUS_NOTREADY:
-						newBackgroundColor = ColorUtil.changingLight;
-						toolTip = "Link is not ready";
-						break;
-					case VirtualComponent.STATUS_UNKNOWN:
-					default:
-						newBackgroundColor = color;
-				}
-			}
-			else
-				toolTip = "";
-			
-			for each(var d:CanvasLinkLabel in buttonGroups)
-			{
-				d.Link = link;
-				d.color = newBackgroundColor;
-			}
+			button = new CanvasLinkMain();
+			buttons = new Vector.<CanvasLinkBranch>();
 		}
 		
 		public function clearStatus():void
 		{
 			toolTip = "";
-			for each(var d:CanvasLinkLabel in buttonGroups)
+			button.labelBackgroundColor = ColorUtil.unknownLight;
+			button.labelColor = ColorUtil.unknownDark;
+			for each(var d:CanvasLinkBranch in buttons)
 				d.color = ColorUtil.unknownLight;
 		}
 		
@@ -122,22 +106,35 @@ package com.flack.geni.display.slicer.graphview
 			removeButtonsFromCanvas();
 			link = vl;
 			
-			buttonGroups = new Vector.<CanvasLinkLabel>();
-			var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
-			for(var i:int = 0; i < canvasNodes.length; i++)
+			button.canvasLink = this;
+			if(link.Lan)
 			{
-				for(var j:int = i+1; j < canvasNodes.length; j++)
+				button.x = link.flackInfo.x;
+				button.y = link.flackInfo.y;
+			}
+			if(canvas.contains(button))
+				canvas.setElementIndex(button, 0);
+			else
+				canvas.addElementAt(button, 0);
+			button.validateNow();
+			button.Link = link;
+			
+			if(link.Lan)
+			{
+				buttons = new Vector.<CanvasLinkBranch>();
+				var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
+				for each(var node:CanvasNode in canvasNodes.collection)
 				{
-					var newLinkContainer:CanvasLinkLabel = new CanvasLinkLabel();
-					newLinkContainer.color = color;
-					newLinkContainer.canvasLink = this;
-					canvas.addElementAt(newLinkContainer, 0);
-					newLinkContainer.validateNow();
-					newLinkContainer.Link = link;
+					var newBranchLabel:CanvasLinkBranch = new CanvasLinkBranch();
+					newBranchLabel.canvasLink = this;
+					canvas.addElementAt(newBranchLabel, 0);
+					newBranchLabel.validateNow();
+					newBranchLabel.setTo(link, link.interfaceRefs.Interfaces.getByHost(node.Node));
 					
-					buttonGroups.push(newLinkContainer);
+					buttons.push(newBranchLabel);
 				}
 			}
+			
 			canvas.validateNow();
 			canvas.setElementIndex(this, 0);
 			drawEstablished();
@@ -147,37 +144,116 @@ package com.flack.geni.display.slicer.graphview
 		public function setEditable(isEditable:Boolean):void
 		{
 			editable = isEditable;
-			for each(var g:CanvasLinkLabel in buttonGroups)
+			button.editable = editable;
+			for each(var g:CanvasLinkBranch in buttons)
 				g.editable = editable;
 		}
 		
 		private function removeButtonsFromCanvas():void
 		{
-			for each(var g:CanvasLinkLabel in buttonGroups)
+			for each(var g:CanvasLinkBranch in buttons)
 				canvas.removeElement(g);
 		}
 		
 		public function removeFromCanvas():void
 		{
 			removeButtonsFromCanvas();
+			canvas.removeElement(button);
 			canvas.removeElement(this);
 		}
 		
+		public function removeBranch(bl:CanvasLinkBranch):void
+		{
+			link.removeInterface(bl.iface);
+			canvas.removeElement(bl);
+			buttons.splice(buttons.indexOf(bl), 1);
+			drawEstablished();
+		}
+		
+		public function get MiddlePoint():Point
+		{
+			return button.MiddlePoint;
+		}
+		
+		public function get MiddleX():Number
+		{
+			return button.MiddleX;
+		}
+		
+		public function get MiddleY():Number
+		{
+			return button.MiddleY;
+		}
+		
+		public function get ContainerWidth():Number
+		{
+			return button.ContainerWidth;
+		}
+		
+		public function get ContainerHeight():Number
+		{
+			return button.ContainerHeight;
+		}
+		
+		public function setLocation(newX:Number = -1, newY:Number = -1):void
+		{
+			if(newX != 0 && newX != -1 && link.flackInfo.x == -1)
+			{
+				link.flackInfo.x = newX;
+				link.flackInfo.y = newY;
+			}
+			button.setLocation(newX, newY);
+		}
 		
 		public function drawEstablished():void
 		{
-			color = NORMAL_COLOR;
+			labelColor = NORMAL_LIGHT;
+			labelBackgroundColor = NORMAL_DARK;
 			switch(link.type.name) {
 				case LinkType.GRETUNNEL_V2:
-					color = TUNNEL_COLOR;
+					labelBackgroundColor = TUNNEL_DARK;
+					labelColor = TUNNEL_LIGHT;
 					break;
 				case LinkType.GPENI:
-					color = GPENI_COLOR;
+					labelBackgroundColor = GPENI_DARK;
+					labelColor = GPENI_LIGHT;
 					break;
 				case LinkType.ION:
-					color = ION_COLOR;
+					labelBackgroundColor = ION_DARK;
+					labelColor = ION_LIGHT;
 					break;
 			}
+			
+			var newLinkColor:uint = labelBackgroundColor;
+			if(link != null)
+			{
+				switch(link.status)
+				{
+					case VirtualComponent.STATUS_READY:
+						newLinkColor = ColorUtil.validLight;
+						toolTip = link.state;
+						break;
+					case VirtualComponent.STATUS_FAILED:
+						newLinkColor = ColorUtil.invalidLight;
+						toolTip = "Error: " + link.error;
+						break;
+					case VirtualComponent.STATUS_CHANGING:
+						newLinkColor = ColorUtil.changingLight;
+						toolTip = "Status is changing...";
+						break;
+					case VirtualComponent.STATUS_NOTREADY:
+						newLinkColor = ColorUtil.changingLight;
+						toolTip = "Link is not ready";
+						break;
+					case VirtualComponent.STATUS_UNKNOWN:
+					default:
+						newLinkColor = labelBackgroundColor;
+				}
+			}
+			else
+				toolTip = "";
+			linkColor = newLinkColor;
+			
 			drawLink();
 		}
 		
@@ -186,7 +262,7 @@ package com.flack.geni.display.slicer.graphview
 			rawSprite.graphics.clear();
 			rawSprite.graphics.lineStyle(
 				2,
-				color,
+				linkColor,
 				1.0,
 				true,
 				LineScaleMode.NORMAL,
@@ -195,25 +271,45 @@ package com.flack.geni.display.slicer.graphview
 			
 			var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
 			
-			var buttonGroupsIdx:int = 0;
-			for(var i:int = 0; i < canvasNodes.length; i++)
+			if(link.Lan)
 			{
-				var firstCanvasNode:CanvasNode = canvasNodes.collection[i];
-				for(var j:int = i+1; j < canvasNodes.length; j++, buttonGroupsIdx++)
+				button.draggable = true;
+				if(link.flackInfo.x != -1)
 				{
-					var secondCanvasNode:CanvasNode = canvasNodes.collection[j];
+					button.x = link.flackInfo.x;
+					button.y = link.flackInfo.y;
+				}
+				else
+				{
+					button.x = canvasNodes.MiddleX-48;
+					button.y = canvasNodes.MiddleY-12;
+				}
+				for each(var cnode:CanvasNode in canvasNodes.collection)
+				{
+					rawSprite.graphics.moveTo(button.MiddleX, button.MiddleY);
+					rawSprite.graphics.lineTo(cnode.MiddleX, cnode.MiddleY);
 					
-					var buttonGroup:CanvasLinkLabel = buttonGroups[buttonGroupsIdx];
-					buttonGroup.Link = link;
-					buttonGroup.x = (firstCanvasNode.MiddleX + secondCanvasNode.MiddleX)/2 - (buttonGroup.ContainerWidth/2 + 1);
-					buttonGroup.y = (firstCanvasNode.MiddleY + secondCanvasNode.MiddleY)/2 - (buttonGroup.ContainerHeight/2);
-					
-					rawSprite.graphics.moveTo(firstCanvasNode.MiddleX, firstCanvasNode.MiddleY);
-					rawSprite.graphics.lineTo(secondCanvasNode.MiddleX, secondCanvasNode.MiddleY);
+					var buttonGroup:CanvasLinkBranch = getButtonFor(cnode);
+					buttonGroup.setTo(link, link.interfaceRefs.Interfaces.getByHost(cnode.Node));
+					buttonGroup.x = (button.MiddleX + cnode.MiddleX)/2 - (buttonGroup.ContainerWidth/2 + 1);
+					buttonGroup.y = (button.MiddleY + cnode.MiddleY)/2 - (buttonGroup.ContainerHeight/2);
+					buttonGroup.color = labelBackgroundColor;
 				}
 			}
-			
-			setToStatus();
+			else
+			{
+				removeButtonsFromCanvas();
+				if(buttons.length > 0)
+					buttons = new Vector.<CanvasLinkBranch>();
+				button.Link = link;
+				button.x = (canvasNodes.collection[0].MiddleX + canvasNodes.collection[1].MiddleX)/2 - (button.ContainerWidth/2 + 1);
+				button.y = (canvasNodes.collection[0].MiddleY + canvasNodes.collection[1].MiddleY)/2 - (button.ContainerHeight/2);
+				
+				rawSprite.graphics.moveTo(canvasNodes.collection[0].MiddleX, canvasNodes.collection[0].MiddleY);
+				rawSprite.graphics.lineTo(canvasNodes.collection[1].MiddleX, canvasNodes.collection[1].MiddleY);
+			}
+			button.labelBackgroundColor = labelBackgroundColor;
+			button.labelColor = labelColor;
 		}
 	}
 }

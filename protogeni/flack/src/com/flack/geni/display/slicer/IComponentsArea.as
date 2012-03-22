@@ -15,6 +15,7 @@
 package com.flack.geni.display.slicer
 {
 	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virtual.VirtualComponent;
 	import com.flack.geni.resources.virtual.VirtualNode;
 
 	public interface IComponentsArea
@@ -33,6 +34,6 @@ package com.flack.geni.display.slicer
 		
 		function toggleEditable(editable:Boolean):void;
 		
-		function addCloneOf(node:VirtualNode):void;
+		function addCloneOf(virtualComponent:VirtualComponent):void;
 	}
 }

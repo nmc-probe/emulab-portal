@@ -18,7 +18,9 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.PropertyCollection;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.geni.resources.virtual.extensions.LinkFlackInfo;
+	import com.flack.shared.utils.StringUtil;
 
 	/**
 	 * Link between resources within a slice
@@ -150,7 +152,7 @@ package com.flack.geni.resources.virtual
 		
 		/**
 		 * 
-		 * @return TRUE if link is one-way
+		 * @return TRUE if link is point-to-point and one-way
 		 * 
 		 */
 		public function get Simplex():Boolean
@@ -165,7 +167,7 @@ package com.flack.geni.resources.virtual
 		
 		/**
 		 * 
-		 * @return TRUE if link is two-way
+		 * @return TRUE if link is point-to-point and two-way
 		 * 
 		 */
 		public function get Duplex():Boolean
@@ -178,14 +180,9 @@ package com.flack.geni.resources.virtual
 			return false;
 		}
 		
-		/**
-		 * 
-		 * @return TRUE if LAN
-		 * 
-		 */
 		public function get Lan():Boolean
 		{
-			return interfaceRefs.length > 2;
+			return interfaceRefs.length > 2 || flackInfo.x != -1;
 		}
 		
 		/**
@@ -196,8 +193,8 @@ package com.flack.geni.resources.virtual
 		 */
 		public function canEstablish(nodes:VirtualNodeCollection):Boolean
 		{
-			// Needs to connect at least two nodes
-			if(nodes == null || nodes.collection.length < 2)
+			// Needs to connect nodes
+			if(nodes == null || nodes.length == 0)
 				return false;
 			
 			// Try to allocate interfaces needed
@@ -219,7 +216,7 @@ package com.flack.geni.resources.virtual
 		public function establish(nodes:VirtualNodeCollection):Boolean
 		{
 			// Needs to connect at least two nodes
-			if(nodes == null || nodes.collection.length < 2)
+			if(nodes == null || nodes.length == 0)
 				return true;
 			
 			// Allocate interfaces needed
@@ -236,10 +233,17 @@ package com.flack.geni.resources.virtual
 				interfaceRefs.add(newInterface);
 			}
 			
-			clientId = nodes.collection[0].slice.getUniqueId(this, "link");
+			var sameManager:Boolean = interfaceRefs.Interfaces.Managers.length == 1;
 			
-			var firstManager:GeniManager = nodes.collection[0].manager;
-			var sameManager:Boolean = true;
+			// Links between managers are only point-to-point
+			if(!sameManager && nodes.length != 2)
+			{
+				interfaceRefs = new VirtualInterfaceReferenceCollection();
+				return true;
+			}
+			
+			clientId = nodes.collection[0].slice.getUniqueId(this, nodes.length > 2 ? "lan" : "link");
+			
 			var needsIps:Boolean = false;
 			var needsCapacity:Boolean = true;
 			var addedInterface:VirtualInterface;
@@ -247,8 +251,6 @@ package com.flack.geni.resources.virtual
 			{
 				addedInterface.Owner.interfaces.add(addedInterface);
 				addedInterface.links.add(this);
-				if(firstManager != addedInterface.Owner.manager)
-					sameManager = false;
 				if(addedInterface.Owner.sliverType.name == SliverTypes.JUNIPER_LROUTER)
 					needsIps = true;
 				if(!addedInterface.Owner.Vm)
@@ -303,6 +305,22 @@ package com.flack.geni.resources.virtual
 			/*if(interfaceRefs.length < 2)
 				return false;*/
 			
+			// LANs need nodes of the same manager
+			if(type.name == LinkType.LAN_V2)
+			{
+				if(interfaceRefs.length != 0 && interfaceRefs.Interfaces.Managers.collection[0] != node.manager)
+					return false;
+			}
+			else if(type.name != LinkType.LAN_V2)
+			{
+				if(interfaceRefs.length >= 2)
+					return false;
+			}
+			
+			// Don't add duplicates
+			if(interfaceRefs.Interfaces.Nodes.contains(node))
+				return false;
+			
 			// Make sure we can allocate
 			if(node.allocateExperimentalInterface() == null)
 				return false;
@@ -321,6 +339,18 @@ package com.flack.geni.resources.virtual
 			// Must already be established
 			/*if(interfaceRefs.length < 2)
 				return true;*/
+			
+			// LANs need nodes of the same manager
+			if(type.name == LinkType.LAN_V2)
+			{
+				if(interfaceRefs.length > 0 && interfaceRefs.Interfaces.Managers.collection[0] != node.manager)
+					return false;
+			}
+			else if(type.name != LinkType.LAN_V2)
+			{
+				if(interfaceRefs.length >= 2)
+					return false;
+			}
 			
 			// Allocate interface needed
 			var newInterface:VirtualInterface = node.allocateExperimentalInterface();
@@ -489,6 +519,17 @@ package com.flack.geni.resources.virtual
 					return false;
 			}
 			return true;
+		}
+		
+		public function UnboundCloneFor(newSlice:Slice):VirtualLink
+		{
+			var newClone:VirtualLink = new VirtualLink(newSlice);
+			if(newSlice.isIdUnique(newClone, clientId))
+				newClone.clientId = clientId;
+			else
+				newClone.clientId = newSlice.getUniqueId(newClone, StringUtil.makeSureEndsWith(clientId,"-"));
+			newClone.type = type;
+			return newClone;
 		}
 		
 		override public function toString():String

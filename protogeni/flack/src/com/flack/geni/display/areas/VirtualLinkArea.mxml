@@ -120,7 +120,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						}
 						else
 						{
-							types.addItem(LinkType.GRETUNNEL_V2);
+							if(link.interfaceRefs.length == 2)
+								types.addItem(LinkType.GRETUNNEL_V2);
 						}
 						typeList.selectedIndex = 0;
 						

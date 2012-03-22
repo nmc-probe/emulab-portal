@@ -159,11 +159,6 @@ VirtualNode for use on the slice canvas
 									enabled="{editable}"
 									click="remove(event)"
 									mouseDown="event.stopImmediatePropagation();" />
-			<components:ImageButton id="infoButton"
-									useHandCursor="true" buttonMode="true"
-									icon="{ImageUtil.infoIcon}"
-									click="view(event)"
-									mouseDown="event.stopImmediatePropagation();" />
 		</s:HGroup>
 	</s:Group>
 	<s:VGroup id="extraGroup" gap="2" visible="false" includeInLayout="false">

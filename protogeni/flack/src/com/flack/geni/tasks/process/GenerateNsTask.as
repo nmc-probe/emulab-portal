@@ -122,7 +122,7 @@ package com.flack.geni.tasks.process
 				for each(var connectedNode:VirtualNode in connectedNodes.collection)
 					connectedNodesList += "$"+connectedNode.clientId+" ";
 				nsDocument += "set "+link.clientId+" [$ns ";
-				if(link.Lan)
+				if(!link.Simplex )
 				{
 					nsDocument += "make-lan \""+connectedNodesList+"\" "+nsCapacity+"kb "+link.Latency+"ms]";
 					if(link.PacketLoss > 0)

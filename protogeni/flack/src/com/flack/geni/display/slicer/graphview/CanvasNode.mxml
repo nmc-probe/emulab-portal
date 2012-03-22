@@ -293,7 +293,7 @@ VirtualNode for use on the slice canvas
 			
 			protected function bordercontainer1_mouseDownHandler(event:MouseEvent):void
 			{
-				canvas.draggingNode = this;
+				canvas.draggingItem = this;
 				canvas.setElementIndex(this, canvas.numElements-1);
 			}
 			

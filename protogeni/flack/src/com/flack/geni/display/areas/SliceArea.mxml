@@ -43,6 +43,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.plugins.PluginArea;
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.GeniManagerCollection;
+			import com.flack.geni.resources.virtual.LinkType;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.geni.resources.virtual.SliverCollection;
@@ -67,6 +68,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.shared.display.areas.DocumentArea;
 			import com.flack.shared.display.areas.DocumentsArea;
 			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
+			import com.flack.shared.display.components.DataButton;
 			import com.flack.shared.display.components.TextInputWindow;
 			import com.flack.shared.resources.docs.RspecVersion;
 			import com.flack.shared.resources.docs.RspecVersionCollection;
@@ -225,12 +227,25 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function init():void
 			{
+				var addLanButton:DataButton = new DataButton(
+					"LAN",
+					"Add a LAN",
+					ImageUtil.lanIcon,
+					null,
+					"virtualLan");
+				var virtualLan:VirtualLink = new VirtualLink(null);
+				virtualLan.clientId = "Lan";
+				virtualLan.type.name = LinkType.LAN_V2;
+				addLanButton.data = virtualLan;
+				addLanButton.addEventListener(MouseEvent.CLICK, addVirtualLan);
+				extraArea.addElementAt(addLanButton, 0);
+				
 				usableRspecVersions = new ArrayCollection();
 				for each(var v:RspecVersion in GeniMain.usableRspecVersions.collection)
 					usableRspecVersions.addItem(v);
 				plugins = new ArrayCollection();
 				for each(var plugin:Plugin in GeniMain.plugins)
-				plugins.addItem(plugin);
+					plugins.addItem(plugin);
 				if(_slice != null)
 				{
 					loadComponentsAreaFor(_slice);
@@ -243,6 +258,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				SharedMain.tasker.addEventListener(TaskEvent.CHILD_FINISHED, updateSliceChanging);
 				SharedMain.tasker.addEventListener(TaskEvent.CHILD_STARTED, updateSliceChanging);
 				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICE, sliceChanged);
+			}
+			
+			public function addVirtualLan(e:MouseEvent):void
+			{
+				ComponentsArea.addCloneOf(e.currentTarget.data);
 			}
 			
 			/*
@@ -1107,7 +1127,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 										id="cloneButton"
 										toolTip="Clone the selected node"
 										click="tryCloneSelected()" />
-				<s:Rect percentWidth="100" />
+				<s:HGroup id="extraArea" width="100%" />
 				<s:Label text="Output" />
 				<s:DropDownList id="outputRspecDropdownlist"
 								requireSelection="true"

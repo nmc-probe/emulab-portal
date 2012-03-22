@@ -35,6 +35,7 @@ VirtualNode for use on the slice canvas
 		  paddingBottom="0">
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.resources.virtual.VirtualInterface;
 			import com.flack.geni.resources.virtual.VirtualLink;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
@@ -43,11 +44,14 @@ VirtualNode for use on the slice canvas
 			
 			public var canvasLink:CanvasLink;
 			
+			public var iface:VirtualInterface;
 			[Bindable]
-			private var link:VirtualLink;
-			public function set Link(l:VirtualLink):void
+			public var link:VirtualLink;
+			public function setTo(l:VirtualLink, i:VirtualInterface):void
 			{
 				link = l;
+				iface = i;
+				
 				var viewExtra:Boolean = false;
 				if(l.Capacity)
 				{
@@ -115,24 +119,22 @@ VirtualNode for use on the slice canvas
 			protected function rollOverHandler(event:MouseEvent):void
 			{
 				linkContainer.filters = [new GlowFilter(0x000000)];
-				for each(var bg:CanvasLinkLabel in canvasLink.buttonGroups)
-					bg.setFilters([new GlowFilter(0x000000)]);
+				canvasLink.setFilters([new GlowFilter(0x000000)]);
 				canvasLink.canvas.hoveredOverItem = this;
 			}
 			
 			protected function rollOutHandler(event:MouseEvent):void
 			{
 				linkContainer.filters = [];
-				for each(var bg:CanvasLinkLabel in canvasLink.buttonGroups)
-					bg.setFilters([]);
-				canvasLink.canvas.hoveredOverItem = null;
+				canvasLink.setFilters([]);
+				(canvasLink.canvas as SliceCanvas).hoveredOverItem = null;
 			}
 			
 			public function remove(event:MouseEvent = null):void
 			{
 				if(event != null)
 					event.stopImmediatePropagation();
-				canvasLink.canvas.removeCanvasLink(canvasLink);
+				canvasLink.removeBranch(this);
 			}
 			
 			public function viewLink(event:MouseEvent = null):void
@@ -155,10 +157,6 @@ VirtualNode for use on the slice canvas
 									icon="{ImageUtil.crossIcon}"
 									enabled="{editable}"
 									click="remove(event)"
-									mouseDown="event.stopImmediatePropagation();" />
-			<components:ImageButton id="infoButton"
-									icon="{ImageUtil.infoIcon}"
-									click="viewLink(event)"
 									mouseDown="event.stopImmediatePropagation();" />
 		</s:HGroup>
 	</s:Group>

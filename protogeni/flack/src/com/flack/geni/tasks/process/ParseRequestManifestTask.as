@@ -913,6 +913,15 @@ package com.flack.geni.tasks.process
 									break;
 							}
 						}
+						// Extensions
+						else
+						{
+							if(linkChildXml.namespace() == RspecUtil.flackNamespace)
+							{
+								virtualLink.flackInfo.x = int(linkChildXml.@x);
+								virtualLink.flackInfo.y = int(linkChildXml.@y);
+							}
+						}
 					}
 					
 					// Make sure links between managers aren't normal

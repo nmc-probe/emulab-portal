@@ -17,6 +17,8 @@ package com.flack.geni.display.slicer.graphview
 	import com.flack.geni.resources.virtual.VirtualNode;
 	import com.flack.geni.resources.virtual.VirtualNodeCollection;
 	
+	import flash.geom.Point;
+	
 	import mx.collections.ArrayCollection;
 	
 	public class CanvasNodeCollection
@@ -98,6 +100,22 @@ package com.flack.geni.display.slicer.graphview
 				}
 			}
 			return completed;
+		}
+		
+		public function get MiddleX():Number
+		{
+			var x:Number = 0;
+			for each(var cn:CanvasNode in collection)
+				x += cn.MiddleX;
+			return x/length;
+		}
+		
+		public function get MiddleY():Number
+		{
+			var y:Number = 0;
+			for each(var cn:CanvasNode in collection)
+				y += cn.MiddleY;
+			return y/length;
 		}
 	}
 }

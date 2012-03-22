@@ -70,6 +70,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.resources.virtual.Sliver;
+			import com.flack.geni.resources.virtual.VirtualComponent;
 			import com.flack.geni.resources.virtual.VirtualLink;
 			import com.flack.geni.resources.virtual.VirtualLinkCollection;
 			import com.flack.geni.resources.virtual.VirtualNode;
@@ -302,7 +303,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			 * 
 			 * If outside of SliceCanvas, use addVirtualNode.
 			 */
-			public function addCloneOf(virtualNode:VirtualNode):void
+			public function addCloneOf(virtualComponent:VirtualComponent):void
 			{
 				if(!editable)
 				{
@@ -310,19 +311,26 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					return;
 				}
 				
-				var nvn:VirtualNode = virtualNode.UnboundCloneFor(slice);
-				
-				slice.pushState();
-				slice.history.stateName = "Added " + virtualNode.clientId
-				slice.nodes.add(nvn);
-				
-				updateInterface();
-				
-				// Make sure everyone knows the slice history changed
-				SharedMain.sharedDispatcher.dispatchChanged(
-					FlackEvent.CHANGED_SLICE,
-					slice
-				);
+				if(virtualComponent is VirtualNode)
+				{
+					var nvn:VirtualNode = (virtualComponent as VirtualNode).UnboundCloneFor(slice);
+					
+					slice.pushState();
+					slice.history.stateName = "Added " + nvn.clientId
+					slice.nodes.add(nvn);
+					
+					updateInterface();
+					
+					// Make sure everyone knows the slice history changed
+					SharedMain.sharedDispatcher.dispatchChanged(
+						FlackEvent.CHANGED_SLICE,
+						slice
+					);
+				}
+				else if(virtualComponent is VirtualLink)
+				{
+					Alert.show("LANs are not supported in this view");
+				}
 			}
 			
 			/**
