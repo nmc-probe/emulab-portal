@@ -1,0 +1,134 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2012 University of Utah and the Flux Group.
+# All rights reserved.
+
+
+# Drag in path stuff so we can find emulab stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+
+use libsetup;
+use liblocsetup;
+
+#
+# Set up bridging in a way that will make Xen 4 happy
+#
+
+# Default bridgename
+my $XENBR = "xenbr0";
+# Locations of some binaries we use, really should be in liblocsetup.pm
+my $BRCTL = "/sbin/brctl";
+my $IPBIN = "/bin/ip";
+my $IFCONFIGBIN = "/sbin/ifconfig";
+
+sub usage()
+{
+    print "Usage: xenbridge-setup [interface]\n";
+    print  "interface defaults to control net if not specificed\n";
+    exit(1);
+}
+
+my $interface = undef;
+if (@ARGV == 1) {
+    $interface = $ARGV[0];
+} elsif (@ARGV != 0) {
+    usage();
+}
+
+#
+# If we weren't given an interface, find the control net
+#
+if (!defined($interface)) {
+    my $cnetfile = "$BOOTDIR/controlif";
+    if (-e $cnetfile) {
+        $interface = `cat $cnetfile`;
+        chomp $interface;
+    } else {
+        die "Unable to open control net file $cnetfile\n";
+    }
+}
+
+print "xenbridge-setup: Using interface $interface\n";
+
+#
+# Grab the IP configuration from the current control net interface
+#
+open(IFOUTPUT,"$IFCONFIGBIN $interface |")
+    or die "xenbridge-setup: Unable to run $IFCONFIGBIN!\n";
+my ($address,$netmask);
+while (!eof(IFOUTPUT)) {
+    my $line = <IFOUTPUT>;
+    chomp $line;
+    if ($line =~ /^\s+inet\s+addr:(\d+\.\d+\.\d+\.\d+).*Mask:(\d+\.\d+\.\d+\.\d+)/) {
+        $address = $1;
+        $netmask = $2;
+    }
+}
+if (!$address || !$netmask) {
+    die "xenbridge-setup: Unable to determine IP address and mask for $interface\n";
+}
+
+print "xenbridge-setup: Using IP address $address and mask $netmask\n";
+
+#
+# Get the default route
+#
+open(ROUTEOUTPUT,"$IPBIN route list |")
+    or die "xenbridge-setup: Unable to get route list!\n";
+my ($defroute);
+while (!eof(ROUTEOUTPUT)) {
+    my $line = <ROUTEOUTPUT>;
+    chomp $line;
+    if ($line =~ /^default via (\d+\.\d+\.\d+\.\d+)/) {
+        $defroute = $1;
+    }
+}
+
+if (!$defroute) {
+    die "xenbridge-setup: Unable to determine default route\n";
+}
+
+print "xenbridge-setup: Using default route $defroute\n";
+
+# 
+# Make the bridge
+#
+if (system "$BRCTL addbr $XENBR") {
+    die "xenbridge-setup: Unable to create bridge $XENBR\n";
+}
+
+#
+# Remove address from the control net
+#
+if (system "$IPBIN address flush dev $interface\n") {
+    die "xenbridge-setup: Unable to remove $address from $interface\n";
+}
+
+#
+# Add control net interface to the bridge
+#
+if (system "$BRCTL addif $XENBR $interface") {
+    die "xenbridge-setup: Unable to add $interface to bridge $XENBR\n";
+}
+
+# 
+# Move IP address from the old control net to the bridge
+#
+if (system "$IFCONFIGBIN $XENBR inet $address netmask $netmask") {
+    die "xenbridge-setup: Unable to add address $address to bridge $XENBR\n";
+}
+
+#
+# Add back the default route
+#
+if (system "$IPBIN route add default via $defroute") {
+    die "xenbridge-setup: Unable to add back default route $defroute\n";
+}
+
+#
+# Change control net interface file
+#
+open(CONTROLIF,">$BOOTDIR/controlif");
+print CONTROLIF "$XENBR\n";
+close(CONTROLIF);
