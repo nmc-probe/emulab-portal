@@ -2181,7 +2181,7 @@ sub SetupBossNode($)
     # boot time, everything is fine. So we do that!
     #
     if ($FBSD_VERSION > 8) {
-	mysystem("echo 'ipdivert_load="YES"' >> /boot/loader.conf");
+	mysystem("echo 'ipdivert_load=\"YES\"' >> /boot/loader.conf");
     }
 
     # We act as the router for the inner ops and inner nodes.
