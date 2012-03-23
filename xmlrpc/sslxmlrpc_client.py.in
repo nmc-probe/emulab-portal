@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004 University of Utah and the Flux Group.
+# Copyright (c) 2004, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 # 
 # Permission to use, copy, modify and distribute this software is hereby
@@ -220,6 +220,10 @@ except getopt.error, e:
     pass
 
 class MySSL_Transport(SSL_Transport):
+    def parse_response(self, file):
+        # compatibility interface
+        return self._parse_response(file, None)
+
     def _parse_response(self, file, sock):
         stuff = ""
         
