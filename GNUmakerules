@@ -69,6 +69,13 @@ $(addprefix $(INSTALL_LIBEXECDIR)/, $(SETUID_LIBX_SCRIPTS)): $(INSTALL_LIBEXECDI
 	-rm -f $@
 	ln -s $(INSTALL_LIBEXECDIR)/runsuid $@
 
+# Special libexec rule for scripts invoked by suexec (cannot be a symlink)
+$(addprefix $(INSTALL_LIBEXECDIR)/, $(SETUID_SUEXEC_SCRIPTS)): $(INSTALL_LIBEXECDIR)/%: % $(INSTALL_SUIDDIR)/%
+	echo "Installing (hard link to wrapper) $<"
+	-mkdir -p $(INSTALL_LIBEXECDIR)
+	-rm -f $@
+	ln $(INSTALL_LIBEXECDIR)/runsuid $@
+
 $(INSTALL_SUIDDIR)/%: %
 	echo "Installing (real script) $<"
 	-mkdir -p $(INSTALL_SUIDDIR)

@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -105,7 +105,8 @@ SETUID_SBIN_SCRIPTS  = mkproj rmgroup mkgroup frisbeehelper \
 			rmuser idleswap named_setup exports_setup \
 			sfskey_update setgroups newnode_reboot vnode_setup \
 			elabinelab nfstrace rmproj
-SETUID_LIBX_SCRIPTS  = console_setup spewlogfile
+SETUID_LIBX_SCRIPTS  = console_setup
+SETUID_SUEXEC_SCRIPTS= spewlogfile
 
 ifeq ($(SYSTEM),FreeBSD)
 SUBDIRS  += ipassign
