@@ -51,11 +51,9 @@ genlastlog:	genlastlog.c
 
 install: $(addprefix $(INSTALL_LIBEXECDIR)/, $(BINS)) \
 	$(addprefix $(INSTALL_SBINDIR)/, $(SBINS))
-	@echo "Don't forget to do a post-install as root"
 
 post-install:
-	chown root $(INSTALL_LIBEXECDIR)/suexec
-	chmod u+s $(INSTALL_LIBEXECDIR)/suexec
+	@echo "post-install no longer required"
 
 #
 # Control node installation (okay, plastic)

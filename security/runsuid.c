@@ -48,17 +48,29 @@ static void
 sanedir(char *dir)
 {
 	struct stat sb;
+	char *rpath;
 
-	if (stat(dir, &sb) != 0) {
+	if ((rpath = realpath(dir, NULL)) == NULL) {
+		perror(dir);
+		exit(1);
+	}
+	if (strncmp(rpath, TBROOT, strlen(TBROOT)) != 0) {
+		fprintf(stderr, "%s: must be in %s\n", dir, TBROOT);
+		exit(1);
+	}
+
+	if (stat(rpath, &sb) != 0) {
 		perror(dir);
 		exit(1);
 	}
 	if (sb.st_uid != 0 ||
 	    !S_ISDIR(sb.st_mode) || (sb.st_mode & (S_IWGRP|S_IWOTH)) != 0) {
 		fprintf(stderr, "%s: must be root-owned, unwritable dir\n",
-			SUIDDIR);
+			dir);
 		exit(1);
 	}
+
+	free(rpath);
 }
 
 static char **
