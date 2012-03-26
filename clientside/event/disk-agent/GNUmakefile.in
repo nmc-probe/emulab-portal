@@ -9,7 +9,7 @@ OBJDIR		= @top_builddir@
 SUBDIR		= $(subst $(TESTBED_SRCDIR)/,,$(SRCDIR))
 
 SYSTEM	       := $(shell uname -s)
-PROGRAMS	= program-agent
+PROGRAMS	= disk-agent
 
 include $(OBJDIR)/Makeconf
 
@@ -25,9 +25,9 @@ CFLAGS	 += -I/usr/local/include
 CFLAGS	 += -DHAVE_PUBSUB
 CFLAGS   += -DCLIENT_BINDIR='"$(CLIENT_BINDIR)"'
 
-LDFLAGS  += -g -L${TESTBED_LIBOBJDIR}/event -L${TESTBED_LIBOBJDIR}/libtb
-LIBS     += -levent -ltb -lcrypto
-LIBS	 += -L/usr/local/lib -lpubsub
+LDFLAGS  += -g -L${TESTBED_LIBOBJDIR}/event -L${TESTBED_LIBOBJDIR}/libtb 
+LIBS     += -levent -ltb -lcrypto -ldevmapper
+LIBS	 += -L/usr/local/lib -lpubsub -ldevmapper
 LDFLAGS  += $(LDSTATIC)
 
 # Deal with the presence/absence of kerberos in the linux ssl library
@@ -46,32 +46,24 @@ endif
 endif
 LIBS	 += -ldl
 endif
+CXXFLAGS = $(CFLAGS)
 
-version.c: program-agent.c
-	echo >$@ "char build_info[] = \"Built on `date +%d-%b-%Y` by `id -nu`@`hostname | sed 's/\..*//'`:`pwd`\";"
-
-program-agent-debug: program-agent.o version.o
-	$(CC) $(LDFLAGS) -o $@ program-agent.o version.o $(LIBS)
+disk-agent-debug: disk-agent.o 
+	$(CXX) $(LDFLAGS) -o $@ disk-agent.o $(LIBS)
 
 $(PROGRAMS):	${TESTBED_LIBOBJDIR}/event/libevent.a \
 		${TESTBED_LIBSRCDIR}/event/event.h
 
-boss-install:	$(INSTALL_DIR)/opsdir/sbin/program-agent
-	-mkdir -p $(INSTALL_DIR)/opsdir/man/man8
-	$(INSTALL) -m 0644 $(SRCDIR)/program-agent.8 \
-		$(INSTALL_DIR)/opsdir/man/man8/program-agent.8
+boss-install:	$(INSTALL_DIR)/opsdir/sbin/disk-agent
 
-control-install:	$(INSTALL_SBINDIR)/program-agent
+control-install:	$(INSTALL_SBINDIR)/disk-agent
 
 post-install:
 
 client: $(PROGRAMS)
 client-install: client
-	$(INSTALL_PROGRAM) program-agent$(EXE) $(DESTDIR)$(CLIENT_BINDIR)/program-agent$(EXE)
-	chmod u+s-w $(DESTDIR)$(CLIENT_BINDIR)/program-agent
-
-	-mkdir -p $(DESTDIR)$(CLIENT_MANDIR)/man8
-	$(INSTALL) -m 644 $(SRCDIR)/program-agent.8 $(DESTDIR)$(CLIENT_MANDIR)/man8/program-agent.8
+	$(INSTALL_PROGRAM) disk-agent$(EXE) $(DESTDIR)$(CLIENT_BINDIR)/disk-agent$(EXE)
+	chmod u+s-w $(DESTDIR)$(CLIENT_BINDIR)/disk-agent
 
 clean:
 	/bin/rm -f *.o $(PROGRAMS)

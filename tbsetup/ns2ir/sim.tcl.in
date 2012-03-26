@@ -1774,47 +1774,79 @@ Simulator instproc make_event {outer event} {
 		   
 		    #The initial arguments for disk-agent through NS
  
-            set default_name [$obj set name]
+            set default_name $obj 
 		    set default_type [$obj set type]
 		    set default_mountpoint [$obj set mountpoint]
-		    set default_params [$obj set params]
+		    set default_params [$obj set parameters]
 
 		
 			::GLOBALS::named-args $evargs [list \
 				-name $default_name \
 				-type $default_type \
 				-mountpoint $default_mountpoint \
-				-params $default_params \
+				-parameters $default_params \
 			]
 
 			if {$(-name) != {}} {
-				set args "NAME=$(-name) "
+				set args "DISKNAME=$(-name) "
 			}
 			if {$(-type) != {}} {
-				set args "${args}TYPE=$(-type) "
+				set args "${args}DISKTYPE=$(-type) "
 			}
 			if {$(-mountpoint) != {}} {
 				set args "${args}MOUNTPOINT=$(-mountpoint) "
 			}
-			if {$(-params) != {}} {
-				set args "${args}PARAMS=$(-params)"
+			if {$(-parameters) != {}} {
+				set args "${args}PARAMETERS=$(-parameters)"
 			}  
 			#DEBUG
 		    puts stdout "$args"
 		} 
 		"create" {
-     		set default_cmd [$obj set cmd]
-		    set args $default_cmd 
+
+			set etype CREATE
+            #The initial arguments for disk-agent through NS
+
+            set default_name $obj
+
+            set args "DISKNAME=$default_name "
+			set args "${args}DISKTYPE=  "
+			set args "${args}MOUNTPOINT=  "	
+			set args "${args}PARAMETERS=  "
+     		set default_cmd [$obj set command]
+
+			::GLOBALS::named-args $evargs [list \
+				-command $default_cmd
+			]
+
+			if {$(-command) != {}} {
+                set args "${args}COMMAND=$(-command)"
+            }
 			#DEBUG
 		    puts stdout "$args"
-            set etype CREATE
      	}
 		"modify" {
-			set default_cmd [$obj set cmd]
-		    set args $default_cmd
+			set etype MODIFY
+			#The initial arguments for disk-agent through NS
+
+            set default_name $obj
+
+            set args "DISKNAME=$default_name "
+            set args "${args}DISKTYPE=  "
+            set args "${args}MOUNTPOINT=  "
+            set args "${args}PARAMETERS=  "
+            set default_cmd [$obj set command]
+
+            ::GLOBALS::named-args $evargs [list \
+                -command $default_cmd
+            ]
+
+            if {$(-command) != {}} {
+                set args "${args}COMMAND=$(-command)"
+            }
+
 			#DEBUG
 		    puts stdout "$args"
-		    set etype MODIFY
 	    }
         unknown {
             punsup "$obj $cmd $args"
