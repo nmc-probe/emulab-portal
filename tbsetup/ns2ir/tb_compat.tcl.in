@@ -131,6 +131,7 @@ namespace eval TBCOMPAT {
     variable elabinelab_nodeos
     variable elabinelab_source_tarfile ""
     variable elabinelab_tarfiles
+    variable elabinelab_cnetspeed 0
 
     # Elabinelab attribute stuff.
     variable elabinelab_attributes

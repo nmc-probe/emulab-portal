@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004-2010 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -135,7 +135,12 @@ for {set i 1} {$i <= $maxpcs} {incr i} {
 }
 
 if { ${::GLOBALS::elabinelab_singlenet} == 0 } {
-    set publiclan [$ns make-lan $lanstr 100Mb 0ms]
+    if { ${::TBCOMPAT::elabinelab_cnetspeed} != 0 } {
+	set _cnetspeed ${::TBCOMPAT::elabinelab_cnetspeed}
+    } else {
+	set _cnetspeed 100
+    }
+    set publiclan [$ns make-lan $lanstr ${_cnetspeed}Mb 0ms]
 
     tb-set-ip-lan $myboss $publiclan 10.200.1.252
     tb-set-ip-lan $myops  $publiclan 10.200.1.253

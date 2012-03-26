@@ -730,6 +730,7 @@ sub SetupFsNode()
     my $inner_controlif;
     my $inner_ip;
     my $inner_netmask;
+    my $inner_speed;
 
     if (! $emulabconfig{"CONFIG_SINGLECNET"}) {
 	if (getifconfig(\@ifacelist) != 0 || !@ifacelist) {
@@ -738,6 +739,16 @@ sub SetupFsNode()
 	$inner_controlif = $ifacelist[0]->{IFACE};
 	$inner_ip        = $ifacelist[0]->{IPADDR};
 	$inner_netmask   = $ifacelist[0]->{IPMASK};
+	$inner_speed     = $ifacelist[0]->{SPEED};
+	if ($inner_speed =~ /^(100|1000)Mbps$/) {
+	    $inner_speed = $1;
+	} else {
+	    print STDERR
+		"*** Unrecognized inner control net speed '$inner_speed';".
+		" defaulting to 100Mbps\n";
+		
+	    $inner_speed = "100";
+	}
     }
 
     #
@@ -926,7 +937,7 @@ sub SetupFsNode()
 	print RC "network_interfaces=\"\$network_interfaces $inner_controlif\"\n";
 	print RC "ifconfig_${inner_controlif}=".
 	    "\"inet $inner_ip netmask $inner_netmask ".
-	    "media 100baseTX mediaopt full-duplex\"\n";
+	    "media ${inner_speed}baseTX mediaopt full-duplex\"\n";
     }
     print RC "network_interfaces=\"\$network_interfaces lo0\"\n";
     print RC "static_routes=\"outerboss vnodes\"\n";
@@ -1159,6 +1170,7 @@ sub SetupOpsNode($)
     my $inner_controlif;
     my $inner_ip;
     my $inner_netmask;
+    my $inner_speed;
 
     if (! $emulabconfig{"CONFIG_SINGLECNET"}) {
 	if (getifconfig(\@ifacelist) != 0 || !@ifacelist) {
@@ -1167,6 +1179,16 @@ sub SetupOpsNode($)
 	$inner_controlif = $ifacelist[0]->{IFACE};
 	$inner_ip        = $ifacelist[0]->{IPADDR};
 	$inner_netmask   = $ifacelist[0]->{IPMASK};
+	$inner_speed     = $ifacelist[0]->{SPEED};
+	if ($inner_speed =~ /^(100|1000)Mbps$/) {
+	    $inner_speed = $1;
+	} else {
+	    print STDERR
+		"*** Unrecognized inner control net speed '$inner_speed';".
+		" defaulting to 100Mbps\n";
+		
+	    $inner_speed = "100";
+	}
     }
 
     #
@@ -1394,7 +1416,7 @@ sub SetupOpsNode($)
 	print RC "network_interfaces=\"\$network_interfaces $inner_controlif\"\n";
 	print RC "ifconfig_${inner_controlif}=".
 	    "\"inet $inner_ip netmask $inner_netmask ".
-	    "media 100baseTX mediaopt full-duplex\"\n";
+	    "media ${inner_speed}baseTX mediaopt full-duplex\"\n";
     }
     print RC "network_interfaces=\"\$network_interfaces lo0\"\n";
     print RC "static_routes=\"outerboss vnodes\"\n";
@@ -1781,6 +1803,7 @@ sub SetupBossNode($)
     my $inner_controlif;
     my $inner_ip;
     my $inner_netmask;
+    my $inner_speed;
 
     if (! $emulabconfig{"CONFIG_SINGLECNET"}) {
 	if (getifconfig(\@ifacelist) != 0 || !@ifacelist) {
@@ -1789,6 +1812,16 @@ sub SetupBossNode($)
 	$inner_controlif = $ifacelist[0]->{IFACE};
 	$inner_ip        = $ifacelist[0]->{IPADDR};
 	$inner_netmask   = $ifacelist[0]->{IPMASK};
+	$inner_speed     = $ifacelist[0]->{SPEED};
+	if ($inner_speed =~ /^(100|1000)Mbps$/) {
+	    $inner_speed = $1;
+	} else {
+	    print STDERR
+		"*** Unrecognized inner control net speed '$inner_speed';".
+		" defaulting to 100Mbps\n";
+		
+	    $inner_speed = "100";
+	}
     }
 
     #
@@ -2063,7 +2096,7 @@ sub SetupBossNode($)
 	print RC "network_interfaces=\"\$network_interfaces $inner_controlif\"\n";
 	print RC "ifconfig_${inner_controlif}=".
 	    "\"inet $inner_ip netmask $inner_netmask ".
-	    "media 100baseTX mediaopt full-duplex\"\n";
+	    "media ${inner_speed}baseTX mediaopt full-duplex\"\n";
     }
     print RC "network_interfaces=\"\$network_interfaces lo0\"\n";
     print RC "static_routes=\"outerboss vnodes\"\n";
