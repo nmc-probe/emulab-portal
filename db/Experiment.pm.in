@@ -3793,7 +3793,7 @@ sub SetupNetworkAgents($)
 	    $groupname = "${bridgename}-tracemon";
 	}
 	else {
-	    $groupname = "${vlanname}-tracemon}";
+	    $groupname = "${vlanname}-tracemon";
 	}
 	DBQueryFatal("insert into event_groups ".
 		     " (exptidx, pid, eid, idx, group_name, agent_name) ".
