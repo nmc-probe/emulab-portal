@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2010 University of Utah and the Flux Group.
+ * Copyright (c) 2010-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -175,7 +175,7 @@ void init_volumes(void)
          * mkextrafs script which will create 10 logical volumes.
          */
         cout << "Creating the disk partition ..." << endl;
-        cmd = "sudo /usr/testbed/bin/mymkextrafs -f -lM /mnt";
+        cmd = "sudo /usr/testbed/bin/mymkextrafs -q -l -m vol1,vol2,vol3,vol4,vol5,vol6,vol7,vol8,vol9,vol10";
         int i = system(const_cast<char *>(cmd.c_str()));
         if(i)
         {
@@ -1640,6 +1640,3 @@ start_callback(event_handle_t handle,
         }
     }
 }
-
-
-	
