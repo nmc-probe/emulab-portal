@@ -35,7 +35,6 @@ my $PROTOGENI_RPCPORT = "@PROTOGENI_RPCPORT@";
 my $OUTERBOSS_XMLRPCPORT = "@OUTERBOSS_XMLRPCPORT@";
 my $PROTOGENI_WEBSITE  = "@PROTOGENI_WEBSITE@";
 my $PROTOGENI_GENIRACK = @PROTOGENI_GENIRACK@;
-my $PROTOGENI_PASSWORD = "@PROTOGENI_PASSWORD@";
 my $PROTOGENI_URL = "@PROTOGENI_URL@";
 my $geniuserid    = "geniuser";
 my $geniprojid    = "GeniSlices";
@@ -364,13 +363,6 @@ Phase "geniuser", "Creating user $geniuserid", sub {
     PhaseFail("$geniuserid did not create properly")
 	if (!defined($geniuser));
 
-    #
-    # This comes in as an encrypted hash.
-    #
-    if ($PROTOGENI_PASSWORD ne "") {
-	$geniuser->SetPassword($PROTOGENI_PASSWORD,
-			       "date_add(now(), interval 10 year)");
-    }
     ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $TBACCT verify $geniuserid");
 };
 
