@@ -60,8 +60,10 @@ my $GPXELINUXPREFIX = "$PXEBOOTDIR/gpxelinux";
 my $GPXELINUXBOOT   = "gpxelinux.0";
 
 my $CRTLTAG	    = TBDB_IFACEROLE_CONTROL();
+my $MNGMNTTAG	    = TBDB_IFACEROLE_MANAGEMENT();
 my $DHCPD_CONF	    = "/usr/local/etc/dhcpd.conf";
 my $DHCPD_TEMPLATE  = "/usr/local/etc/dhcpd.conf.template";
+my $DHCPD_TAIL      = "/usr/local/etc/dhcpd.conf.tail";
 my %servernodes	    = ();
 my %dhcp_subbosses  = ();
 my %tftp_subbosses  = ();
@@ -222,7 +224,7 @@ while (<IF>) {
 				"       n.pxe_boot_path,n.next_pxe_boot_path,".
 				"       i.IP,i.MAC,r.pid,r.eid,r.vname, ".
 				"       r.inner_elab_role,r.inner_elab_boot, ".
-				"       r.plab_role,r.plab_boot ".
+				"       r.plab_role,r.plab_boot,i.role ".
 				"from nodes as n ".
 				"left join interfaces as i on ".
 				"     n.node_id=i.node_id ".
@@ -231,7 +233,9 @@ while (<IF>) {
 				"     n.node_id=r.node_id ".
 				"where (n.type='$nodetype' or ".
 				"       t.class='$nodetype') and ".
-				"      i.role='$CRTLTAG' ".
+				"      (i.role='$CRTLTAG' or ".
+				"       (i.role='$MNGMNTTAG' and ".
+				"        t.isremotenode=0)) ".
 				"order BY n.priority");
 		if (! $query_result) {
 		    fatal("Could not dhcpd data from DB!");
@@ -240,6 +244,7 @@ while (<IF>) {
 		while (my %row = $query_result->fetchhash()) {
 		    my $ip  = $row{"IP"};
 		    my $mac = $row{"MAC"};
+		    my $role = $row{"role"};
 		    my $node_id;
 		    my $next_server = "";
 		    my $bootinfo_server = "";
@@ -247,6 +252,10 @@ while (<IF>) {
 		    my $dns = "";
 		    my $booting = "";
 		    my $filename = "";
+
+		    # Management ports, nothing special to do.
+		    goto spit
+			if ($role eq TBDB_IFACEROLE_MANAGEMENT());
 
 		    if ($vnames && defined($row{"vname"})) {
 			$node_id = $row{"vname"};
@@ -339,7 +348,7 @@ while (<IF>) {
 		    if ($filename) {
 			$filename = "${spaces}\tfilename \"$filename\";\n";
 		    }
-
+		  spit:
 		    # Need to make MAC look right..
 		    $mac =~ s/(..)\B/$1:/g;
 
@@ -365,6 +374,11 @@ close(IF);
 if ($install) {
     close(OF) or
 	fatal("Could not close $outfile");
+
+    if (-e $DHCPD_TAIL) {
+	system("cat $DHCPD_TAIL >> $outfile") == 0 or
+	    fatal("Could not add tail to $outfile");
+    }
 
     if (-e $DHCPD_CONF) {
 	system("cp -fp $DHCPD_CONF ${DHCPD_CONF}.old") == 0 or

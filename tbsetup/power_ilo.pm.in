@@ -2,14 +2,14 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2008-2010 University of Utah and the Flux Group.
+# Copyright (c) 2008-2010, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
 #
 # Handle iLO or iLO 2 remote power control.
 # Also handle DRAC since its so similar.
-# Node must have an interface such that role='other' and
+# Node must have an interface such that role='mngmnt' and
 # interface_type='ilo2' or 'ilo'.
 #
 # Supports either pubkey or passwd auth, depending on what's in db.
@@ -66,7 +66,8 @@ sub iloctrl($$@) {
     # grab ilo IP and auth info
     foreach my $n (@nodes) {
 	my $res = DBQueryFatal("select IP from interfaces" . 
-			       " where node_id='$n' and role='other'" . 
+			       " where node_id='$n' and ".
+			       " role='" . TBDB_IFACEROLE_MANAGEMENT() . "'" . 
 			       "   and interface_type='$type'");
 	if (!defined($res) || !$res || $res->num_rows() == 0) {
 	    warn "No $type interface for $n; cannot find $type IP!\n";
