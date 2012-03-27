@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Interface;
@@ -535,6 +535,31 @@ sub LookupControl($)
 	DBQueryWarn("select card,port from interfaces ".
 		    "where node_id='$nodeid' and ".
 		    "      role='" . TBDB_IFACEROLE_CONTROL()  . "'");
+
+    return undef
+	if (!$query_result);
+    return undef
+	if (!$query_result->numrows);
+
+    my ($card, $port) = $query_result->fetchrow_array();
+
+    return Interface->Lookup($nodeid, $card, $port);
+}
+
+#
+# Lookup the management interface for a node.
+#
+sub LookupManagement($)
+{
+    my ($class, $nodeid) = @_;
+
+    $nodeid = $nodeid->node_id()
+	if (ref($nodeid));
+
+    my $query_result =
+	DBQueryWarn("select card,port from interfaces ".
+		    "where node_id='$nodeid' and ".
+		    "      role='" . TBDB_IFACEROLE_MANAGEMENT()  . "'");
 
     return undef
 	if (!$query_result);
