@@ -4,6 +4,7 @@
 #
 elabinelab="@ELABINELAB@"
 configfile="/usr/local/etc/dhcpd.conf"
+extraifs="@DHCPD_EXTRAIFS@"
 case "$1" in
 	start)
 		# limit to control network
@@ -14,7 +15,7 @@ case "$1" in
 		if [ -x @prefix@/sbin/daemon_wrapper ]; then
 			echo -n " dhcpd wrapper"
 			@prefix@/sbin/daemon_wrapper \
-			  /usr/local/sbin/dhcpd -f $cnetif -cf $configfile
+			  /usr/local/sbin/dhcpd -f $cnetif $extraifs -cf $configfile
 		fi
 		;;
 	stop)
