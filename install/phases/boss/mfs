@@ -85,23 +85,6 @@ sub Install($$$)
 	}
 
 	#
-	# Fix the console device in the MFSes
-	#
-	Phase "mfsconsole", "Setting the console for MFSes", sub {	
-	    my %consmap = (
-		"sio"  => "com",
-		"sio2" => "com",
-		"vga"  => "vid",
-		"null" => "null"
-	    );
-	    my $consdev = $consmap{$cons} . "console";
-	    foreach my $mfs ("frisbee", "freebsd", "freebsd.newnode") {
-		AppendToFileFatal("$TFTP_DIR/$mfs/boot/loader.conf.orig",
-				  "console=\"$consdev\"");
-	    }
-	};
-
-	#
 	# Before we localize, need to set the MFS password sitevar,
 	# since localize will break otherwise.
 	#
