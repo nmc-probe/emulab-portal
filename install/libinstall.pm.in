@@ -41,12 +41,8 @@ $MAGIC_TESTBED_END     = "End of Emulab added section";
 sub MAGIC_TESTBED_START { $MAGIC_TESTBED_START . $MAGIC_TESTBED_VERSION; }
 sub MAGIC_TESTBED_END   { $MAGIC_TESTBED_END; }
 
-# When used in update mode, printing is a little different.
-my $updatemode = 0;
-
 # Used by update-install to bump the version number.
-sub SET_TESTBED_VERSION($)  { $updatemode = $MAGIC_TESTBED_VERSION = $_[0]; }
-
+sub SET_TESTBED_VERSION($)  { $MAGIC_TESTBED_VERSION = $_[0]; }
 
 # Set by update-install.
 my $impotent   = 0;
