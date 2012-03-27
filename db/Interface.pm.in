@@ -312,7 +312,10 @@ sub Create($$$)
     my $length     = $argref->{'length'};
     my $iface      = $argref->{'iface'};
     my $logical    = $argref->{'logical'};
-    
+
+    if ($ifrole eq TBDB_IFACEROLE_MANAGEMENT()) {
+	$wire_type = "Management";
+    }
     $iface = "eth$card"    
 	if (!defined($iface));
     $port = 1
@@ -416,11 +419,12 @@ sub Create($$$)
 #
 # Delete a logical interface.
 #
-sub Delete($)
+sub Delete($;$)
 {
-    my ($self) = @_;
+    my ($self, $real) = @_;
+    my $logical = ($real ? 0 : 1);
 
-    if (! $self->logical()) {
+    if ($logical && !$self->logical()) {
 	print STDERR "Refusing to delete real $self\n";
 	return -1;
     }
@@ -434,9 +438,26 @@ sub Delete($)
 			 "      port='$port'"));
     return -1
 	if (!DBQueryWarn("delete from interfaces ".
-			 "where logical=1 and ".
+			 "where logical=$logical and ".
 			 "      node_id='$node_id' and card='$card' and ".
 			 "      port='$port'"));
+    return 0;
+}
+
+#
+# Delete this interface's wire entry.
+#
+sub DeleteWire($)
+{
+    my ($self) = @_;
+    my $node_id = $self->node_id();
+    my $card    = $self->card();
+    my $port    = $self->port();
+
+    return -1
+	if (!DBQueryWarn("delete from wires ".
+			 "where node_id1='$node_id' and card1='$card' and ".
+			 "      port1='$port'"));
     return 0;
 }
 
