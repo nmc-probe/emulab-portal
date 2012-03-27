@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -33,7 +33,7 @@ SUBBOSS_SCRIPTS	= $(addprefix $(SRCDIR)/, \
 		    rc.keys rc.trafgen rc.tarfiles rc.rpms rc.progagent \
 		    rc.startcmd rc.simulator rc.firewall \
 		    rc.tiptunnels rc.trace rc.motelog rc.fakejail \
-		    rc.tpmsetup rc.mksubboss rc.diskagent) # XXX: Add rc.blobs?
+		    rc.tpmsetup rc.mksubboss) # XXX: Add rc.blobs?
 
 include $(OBJDIR)/Makeconf
 

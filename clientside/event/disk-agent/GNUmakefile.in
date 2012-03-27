@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 SRCDIR		= @srcdir@
@@ -30,6 +30,13 @@ LIBS     += -levent -ltb -lcrypto -ldevmapper
 LIBS	 += -L/usr/local/lib -lpubsub -ldevmapper
 LDFLAGS  += $(LDSTATIC)
 
+# Make sure we have libdevmapper
+ifneq ($(wildcard /usr/lib/libdevmapper.so*),)
+HAVEDEVMAPPER=1
+else
+HAVEDEVMAPPER=0
+endif
+
 # Deal with the presence/absence of kerberos in the linux ssl library
 ifeq ($(SYSTEM),Linux)
 ifneq ($(LDSTATIC),)
@@ -48,22 +55,26 @@ LIBS	 += -ldl
 endif
 CXXFLAGS = $(CFLAGS)
 
+# client-side only
+boss-install:
+control-install:
+post-install:
+
+ifeq ($(HAVEDEVMAPPER),0)
+$(PROGRAMS) client client-install:
+	@echo "*** WARNING: no libdevmapper, not building disk-agent"
+else
 disk-agent-debug: disk-agent.o 
 	$(CXX) $(LDFLAGS) -o $@ disk-agent.o $(LIBS)
 
 $(PROGRAMS):	${TESTBED_LIBOBJDIR}/event/libevent.a \
 		${TESTBED_LIBSRCDIR}/event/event.h
 
-boss-install:	$(INSTALL_DIR)/opsdir/sbin/disk-agent
-
-control-install:	$(INSTALL_SBINDIR)/disk-agent
-
-post-install:
-
 client: $(PROGRAMS)
+
 client-install: client
 	$(INSTALL_PROGRAM) disk-agent$(EXE) $(DESTDIR)$(CLIENT_BINDIR)/disk-agent$(EXE)
-	chmod u+s-w $(DESTDIR)$(CLIENT_BINDIR)/disk-agent
+endif
 
 clean:
 	/bin/rm -f *.o $(PROGRAMS)

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004 University of Utah and the Flux Group.
+# Copyright (c) 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -45,16 +45,17 @@ my $LOGFILE = LOGDIR() . "/diskgent.debug";
 my $WRAPLOG = LOGDIR() . "/diskwrap.debug";
 my $PIDFILE = (FAKEJAILED() ? CONFDIR() : "/var/run") . "/diskagent.pid";
 my $CONFIG  = CONFDIR() . "/diskagents";
-my $PAGENT  = "$BINDIR/disk-agent";
+my $DAGENT  = "$BINDIR/disk-agent";
 my $TOKEN   = "/var/tmp/diskagent-token";
 
+my $sysname = `uname -s`;
+chomp($sysname);
 
 #
 # Not all clients support this.
 #
 exit(0)
-	if (MFS() || (REMOTE() && !(REMOTEDED() || PLAB() || FAKEJAILED()
-                || JAILED())));
+    if (MFS() || REMOTE() || PLAB() || ! -e "$DAGENT");
 
 # Protos.
 sub doboot();
@@ -116,20 +117,20 @@ sub doboot()
     # that we cannot report errors to the caller.
     #
     if (my $childpid = TBBackGround($WRAPLOG)) {
-    sleep(2);
+	sleep(2);
 
-    # This catches most startup problems.
-    my $foo = waitpid($childpid, &WNOHANG);
-    if ($foo) {
-        my $status = $?;
-        unlink($PIDFILE);
+	# This catches most startup problems.
+	my $foo = waitpid($childpid, &WNOHANG);
+	if ($foo) {
+	    my $status = $?;
+	    unlink($PIDFILE);
 
-        system("cat $WRAPLOG")
-        if (-s $WRAPLOG);
+	    system("cat $WRAPLOG")
+		if (-s $WRAPLOG);
 
-        fatal("Failed to program agent: $foo $status!");
-    }
-    exit(0);
+	    fatal("Failed to program agent: $foo $status!");
+	}
+	exit(0);
     }
     # Fully disconnect from bootup.
     setsid();
@@ -137,118 +138,82 @@ sub doboot()
     $TOKEN .= ".$$";
 
     while (1) {
-    if (tmcc(TMCCCMD_DISKS, undef, \@agents) < 0) {
-        fatal("Could not get progagent config from server!");
-    }
-    unlink $CONFIG;
-    #
-    # We want to run disk-agent even if there are currently no
-    # registered agents.  But to do that, we need a UID which we
-    # get from the TMCC creator command.  Note that if we do not
-    # get a UID, we just exit normally without starting the agent.
-    # This is backward compatible and enables us to boot up unallocated
-    # nodes (though I am not sure they would ever reach this script).
-    #
-    if (@agents == 0) {
-        my @tmccresults;
-        if (tmcc(TMCCCMD_CREATOR, undef, \@tmccresults) < 0) {
-        fatal("Could not get UID for progagent from server!");
-        }
-        if ($tmccresults[0] =~ / SWAPPER=([-\w]*)/) {
-        push(@agents, "UID=$1\n");
-        } elsif ($tmccresults[0] =~ /^CREATOR=([-\w]*)/) {
-        push(@agents, "UID=$1\n");
-        } else {
-        warning("Cannot determine UID for program agent, not running");
-        exit(0);
-        }
-    }
+	if (tmcc(TMCCCMD_DISKS, undef, \@agents) < 0) {
+	    fatal("Could not get progagent config from server!");
+	}
+	unlink $CONFIG;
 
-    #
-    # Write the data to the file. The rc script will interpret it.
-    # Note that one of the lines (the first) indicates what user to
-    # run the agent as.
-    #
-    if (!open(RUN, ">$CONFIG")) {
-        fatal("Could not open $CONFIG: $!");
-    }
-    foreach my $line (@agents) {
-        print RUN "$line";
-    }
-    close(RUN);
+	#
+	# We want to run disk-agent even if there are currently no
+	# registered agents.  But to do that, we need a UID which we
+	# get from the TMCC creator command.  Note that if we do not
+	# get a UID, we just exit normally without starting the agent.
+	# This is backward compatible and enables us to boot up unallocated
+	# nodes (though I am not sure they would ever reach this script).
+	#
+	if (@agents == 0) {
+	    my @tmccresults;
+	    if (tmcc(TMCCCMD_CREATOR, undef, \@tmccresults) < 0) {
+		fatal("Could not get UID for progagent from server!");
+	    }
+	    if ($tmccresults[0] =~ / SWAPPER=([-\w]*)/) {
+		push(@agents, "UID=$1\n");
+	    } elsif ($tmccresults[0] =~ /^CREATOR=([-\w]*)/) {
+		push(@agents, "UID=$1\n");
+	    } else {
+		warning("Cannot determine UID for program agent, not running");
+		exit(0);
+	    }
+	}
 
-    print "Starting Disk Agent ...\n";
+	#
+	# Write the data to the file. The rc script will interpret it.
+	# Note that one of the lines (the first) indicates what user to
+	# run the agent as.
+	#
+	if (!open(RUN, ">$CONFIG")) {
+	    fatal("Could not open $CONFIG: $!");
+	}
+	foreach my $line (@agents) {
+	    print RUN "$line";
+	}
+	close(RUN);
 
-    my $server = "event-server"; #getlocalevserver();
-    my $port   = "16505";
+	print "Starting Disk Agent ...\n";
 
-    if (SHADOW()) {
-        my $boss = $ENV{'BOSSNAME'};
-        if (!defined($boss)) {
-        fatal("BOSSNAME is not set in the environment");
-        }
-        my ($domain) = ($boss =~ /^[^\.]+\.(.*)$/);
-        $server = "event-server.${domain}";
+	my $server = getlocalevserver();
+	my $port   = "";
 
-        #
-        # See if we need to connect to the compatability gateway.
-        # Version 0, no elvin compat.
-        #
-        if (exists($ENV{'V0_COMPAT'})) {
-        $port = "-p " . $ENV{'V0_COMPAT'};
-        }
-    }
+	if (SHADOW()) {
+	    my $boss = $ENV{'BOSSNAME'};
+	    if (!defined($boss)) {
+		fatal("BOSSNAME is not set in the environment");
+	    }
+	    my ($domain) = ($boss =~ /^[^\.]+\.(.*)$/);
+	    $server = "event-server.${domain}";
+	}
 
-    #
-    # PlanetLab nodes don't have a fixed elvind port, so we need to
-    # look that up and pass it in.  Also for plab, we always restart
-    # a dead program-agent, regardless of the cause.
-    #
-    if (PLAB()) {
-        my $elvind_port;
+	system("$DAGENT -e $pid/$eid -s $server -p $port -l $LOGFILE ".
+	       "-v $vname -t $TOKEN ".
+	       "-d -i $PIDFILE -k " . TMEVENTKEY() . " -c $CONFIG");
+	exit(0)
+	    if (! $?);
 
-        if (tmcc(TMCCCMD_PLABCONFIG, undef, \@tmccresults) < 0) {
-        # this failure does happen...
-        warning("Could not get plabconfig from server, ".
-            "waiting awhile and trying again...");
-        sleep(5);
-        next;
-        }
-        if ($tmccresults[0] =~ /ELVIND_PORT=(\d+)/) {
-        $elvind_port = $1;
-        }
-        else {
-        # this failure should not happen
-        fatal("invalid format for plabconfig info");
-        }
-        system("$PAGENT -P -e $pid/$eid -s $server -l $LOGFILE ".
-           "-d -i $PIDFILE -k " . TMEVENTKEY() . " -c $CONFIG ".
-           "-v $vname -r -p $elvind_port -t $TOKEN");
-    }
-    else {
-        system("$PAGENT -e $pid/$eid -s $server -p $port -l $LOGFILE ".
-           "-v $vname -t $TOKEN ".
-           "-d -i $PIDFILE -k " . TMEVENTKEY() . " -c $CONFIG");
-        exit(0)
-        if (! $?);
+	# Like the magic exit code? This means the agent was told by boss
+	# to exit so that we can regen the config file and then restart.
+	# There is most certainly a better way to do this.
+	if ($? >> 8 != 45) {
+	    fatal("Disk agent exited with non-zero status: $?");
+	}
 
-        # Like the magic exit code? This means the agent was told by boss
-        # to exit so that we can regen the config file and then restart.
-        # There is most certainly a better way to do this.
-        if ($? >> 8 != 45) {
-        fatal("Disk agent exited with non-zero status: $?");
-        }
-    }
+	print "Disk Agent died ($?), restarting...\n";
 
-    print "Disk Agent died ($?), restarting...\n";
-
-    #
-    # We want to restart, go around the loop again. Turn the cache off.
-    #
-    libtmcc::configtmcc("nocache", 1);
+	#
+	# We want to restart, go around the loop again. Turn the cache off.
+	#
+	libtmcc::configtmcc("nocache", 1);
     }
     return;
-
 }
 
 #
@@ -260,12 +225,11 @@ sub doshutdown()
     # Kill the process.
     #
     if (-e $PIDFILE) {
-    system("kill `cat $PIDFILE`");
-    # Does not unlink its own pidfile.
-    unlink $PIDFILE;
+	system("kill `cat $PIDFILE`");
+	# Does not unlink its own pidfile.
+	unlink $PIDFILE;
     }
     return;
-
 }
 
 #
@@ -284,7 +248,6 @@ sub docleanup()
 {
     # Remove config file; will be regenerated at next boot.
     if (-e $CONFIG) {
-    unlink $CONFIG;
+	unlink $CONFIG;
     }
-
 }
