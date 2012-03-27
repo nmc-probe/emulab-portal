@@ -100,3 +100,6 @@ OPSVM_MOUNTPOINT=changeme
 # testing
 MIN_UNIX_UID=500
 MIN_UNIX_GID=500
+
+# Which console to use in the MFS. We need to set this for GeniRacks.
+NODECONSOLE=changeme
