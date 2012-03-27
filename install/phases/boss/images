@@ -20,6 +20,24 @@ sub Install($$$)
 	if ($isupdate);
 
     Phase "IDs", "Setting up Images and OSs", sub {
+	if ($PROTOGENI_GENIRACK) {
+	    #
+	    # Load up the nodetype. It will be the same on every machine,
+	    # and if we do it before loading the descriptors, then we
+	    # do not have to go back and change the type mappings.
+	    #
+	    my $NODETYPE     = "dl360";
+	    my $CREATETYPE   = "$PREFIX/bin/editnodetype";
+	    
+	    Phase "nodetype", "Creating Protogeni nodetype", sub {
+		my $nodetype = NodeType->Lookup($NODETYPE);
+		PhaseSkip("already created")
+		    if (defined($NODETYPE));
+		ExecQuietFatal("$SUDO -u $PROTOUSER ".
+			       "         $WAP $CREATENODE $NODETYPEXML");
+	    };
+	}
+	
 	#
 	# Load up the initial descriptors. 
 	# Load up the images from boss.
