@@ -42,14 +42,6 @@ if [ ! -d $dir/tg${version}/src ]; then
         echo "ERROR: tg-install: tar failed"
 	exit 1
     }
-    # XXX hack to deal with relative paths...argh!
-    case $srcdir in
-    /*)
-	;;
-    *)
-        srcdir="../$srcdir"
-	;;
-    esac
     patch -p0 < $srcdir/tg.patch || {
         echo "ERROR: tg-install: patch failed"
 	exit 1
