@@ -169,6 +169,7 @@ define("TBDB_IFACEROLE_FAKE",		"fake");
 define("TBDB_IFACEROLE_GW",		"gw");
 define("TBDB_IFACEROLE_OTHER",		"other");
 define("TBDB_IFACEROLE_OUTER_CONTROL",  "outer_ctrl");
+define("TBDB_IFACEROLE_MANAGEMENT",	"mngmnt");
 
 # Node states that the web page cares about.
 define("TBDB_NODESTATE_ISUP",		"ISUP");
