@@ -3250,6 +3250,35 @@ sub CheckPreReserve($$)
     return $result;
 }
 
+#
+# Add an outlet entry. Optional authorization info.
+#
+sub AddOutlet($$$$)
+{
+    my ($self, $powerid, $outlet, $authinfo) = @_;
+
+    my $safe_powerid = DBQuoteSpecial($powerid);
+    my $safe_outlet  = DBQuoteSpecial($outlet);
+    my $node_id      = $self->node_id();
+
+    DBQueryWarn("replace into outlets set ".
+		"  node_id='$node_id', power_id=$safe_powerid, ".
+		"  outlet=$safe_outlet")
+	or return -1;
+
+    if (defined($authinfo)) {
+	my $key_type = DBQuoteSpecial($authinfo->{"key_type"});
+	my $key_role = DBQuoteSpecial($authinfo->{"key_role"});
+	my $key_uid  = DBQuoteSpecial($authinfo->{"key_uid"});
+	my $key      = DBQuoteSpecial($authinfo->{"key"});
+	
+	DBQueryWarn("replace into outlets_remoteauth set ".
+		    "  node_id='$node_id', key_type=$key_type, ".
+		    "  key_role=$key_role, key_uid=$key_uid, mykey=$key")
+	    or return -1;
+    }
+    return 0;
+}
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;
