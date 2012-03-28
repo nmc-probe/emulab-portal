@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -54,6 +54,9 @@ openvz-install:	baselinux-common-install common-install \
 
 dir-install:
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/init.d
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/dhcp
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system
 
 baselinux-%: dir-install
 	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) $(subst baselinux-,,$@))
