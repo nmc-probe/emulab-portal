@@ -163,20 +163,12 @@ void init_volumes(void)
 {
         string cmd;
 
-        #if 0
-        cmd = "sudo vgremove /dev/emulab -ff";
-        system(const_cast<char *>(cmd.c_str()));
-
-        cmd = "sudo pvremove /dev/sda4 -ff";
-        system(const_cast<char *>(cmd.c_str()));
-        #endif
-
         /* Since creating partitions on real disk is painful, we
          * make use of lvm and give logical volumes to host disks.
          * mkextrafs script which will create 10 logical volumes.
          */
         cout << "Creating the disk partition ..." << endl;
-        cmd = "sudo /usr/testbed/bin/mymkextrafs -q -l -m vol1,vol2,vol3,vol4,vol5,vol6,vol7,vol8,vol9,vol10";
+        cmd = "sudo /usr/testbed/bin/mkextrafs -q -l -m vol1,vol2,vol3,vol4,vol5,vol6,vol7,vol8,vol9,vol10";
         int i = system(const_cast<char *>(cmd.c_str()));
         if(i)
         {
