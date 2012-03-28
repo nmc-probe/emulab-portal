@@ -33,6 +33,7 @@
 #include <ctype.h>
 extern "C" {
 	#include "libdevmapper.h"
+	#include "be_user.h" 
 }
 
 #ifdef HAVE_ELVIN
@@ -330,15 +331,14 @@ void readArgs(int argc, char * argv[])
   string subscription;
   string vnode;
   string group;
+  string user;
   string LOGDIR = "/local/logs";
 
-  int isops, isplab;
-	
   // Prevent getopt from printing an error message.
   opterr = 0;
 
   /* get params from the optstring */
-  char const * argstring = "hds:p:l:u:i:e:c:k:o:g:v:t:P";
+  char const * argstring = "hds:p:l:u:i:e:c:k:o:g:v:t:U:";
   int option = getopt(argc, argv, argstring);
   while (option != -1)
   {
@@ -383,14 +383,12 @@ void readArgs(int argc, char * argv[])
 	  break;
 	case 'v':
 	  vnode = optarg;
-	  if(!(vnode == "ops"))
-	  		isops = 1;
-	  break;
-	case 'P':
-	  isplab = 1;
 	  break;
     case 'g':
       group = optarg;
+      break;
+    case 'U':
+      user = optarg;
       break;
     default:
       usage(argv[0]);
@@ -400,8 +398,10 @@ void readArgs(int argc, char * argv[])
   }
 
   /*Check if all params are specified, otherwise, print usage and exit*/
-  if(server == "" || g::experimentName == "")
+  if(server == "" || user == "" || g::experimentName == "")
       usage(argv[0]);
+
+  be_user(const_cast<char *>(user.c_str()));
 
  /* if(g::debug)
 	loginit(0, logfile);
@@ -426,7 +426,7 @@ void readArgs(int argc, char * argv[])
 
 void usage(char * name)
 {
-  cerr << "Usage: " << name << " -e proj/exp -s server [-h][-d] [-p port] "
+  cerr << "Usage: " << name << " -e proj/exp -s server -U user [-h][-d] [-p port] "
        << "[-l logfile] [-c config file] [-i pidFile] [-k keyFile] [-u subscription] [-g group]" << endl;
   exit(-1);
 }
