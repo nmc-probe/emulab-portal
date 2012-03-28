@@ -28,6 +28,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		<![CDATA[
 			import com.flack.geni.resources.Property;
 			import com.flack.geni.resources.PropertyCollection;
+			import com.flack.geni.resources.sites.SupportedLinkType;
+			import com.flack.geni.resources.sites.SupportedLinkTypeCollection;
 			import com.flack.geni.resources.virtual.LinkType;
 			import com.flack.geni.resources.virtual.VirtualComponent;
 			import com.flack.geni.resources.virtual.VirtualInterface;
@@ -41,6 +43,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.controls.Alert;
 			
 			import spark.events.TextOperationEvent;
+
+
 			
 			[Bindable]
 			public var link:VirtualLink;
@@ -108,22 +112,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							vlantagLabel.text = link.vlantag;
 						
 						types.removeAll();
-						if(link.type.name.length > 0)
+						var supportedTypes:SupportedLinkTypeCollection = link.interfaceRefs.Interfaces.Managers.CommonLinkTypes;
+						for each(var supportedType:SupportedLinkType in supportedTypes.collection)
+							types.addItem(supportedType.name);
+						if(supportedTypes.getByName(link.type.name) == null)
 							types.addItem(link.type.name);
-						if(link.type.name == LinkType.GRETUNNEL_V2) {
-							if(link.SupportsGpeni)
-								types.addItem(LinkType.GPENI);
-							if(link.SupportsIon)
-								types.addItem(LinkType.ION);
-							if(link.interfaceRefs.Interfaces.Managers.length == 1)
-								types.addItem(LinkType.LAN_V2);
-						}
-						else
-						{
-							if(link.interfaceRefs.length == 2)
-								types.addItem(LinkType.GRETUNNEL_V2);
-						}
-						typeList.selectedIndex = 0;
+						typeList.selectedItem = link.type.name;
 						
 						// Properties
 						properties = new ArrayCollection();

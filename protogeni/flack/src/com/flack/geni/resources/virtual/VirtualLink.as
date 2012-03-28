@@ -19,6 +19,8 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.sites.SupportedLinkType;
+	import com.flack.geni.resources.sites.SupportedLinkTypeCollection;
 	import com.flack.geni.resources.virtual.extensions.LinkFlackInfo;
 	import com.flack.shared.utils.StringUtil;
 
@@ -180,11 +182,6 @@ package com.flack.geni.resources.virtual
 			return false;
 		}
 		
-		public function get Lan():Boolean
-		{
-			return interfaceRefs.length > 2 || flackInfo.x != -1;
-		}
-		
 		/**
 		 * 
 		 * @param nodes Nodes wanting to create link for
@@ -195,6 +192,10 @@ package com.flack.geni.resources.virtual
 		{
 			// Needs to connect nodes
 			if(nodes == null || nodes.length == 0)
+				return false;
+			
+			// Need to have some link type which is available
+			if(nodes.Managers.CommonLinkTypes.length == 0)
 				return false;
 			
 			// Try to allocate interfaces needed
@@ -215,8 +216,7 @@ package com.flack.geni.resources.virtual
 		 */
 		public function establish(nodes:VirtualNodeCollection):Boolean
 		{
-			// Needs to connect at least two nodes
-			if(nodes == null || nodes.length == 0)
+			if(!canEstablish(nodes))
 				return true;
 			
 			// Allocate interfaces needed
@@ -233,16 +233,24 @@ package com.flack.geni.resources.virtual
 				interfaceRefs.add(newInterface);
 			}
 			
-			var sameManager:Boolean = interfaceRefs.Interfaces.Managers.length == 1;
-			
-			// Links between managers are only point-to-point
-			if(!sameManager && nodes.length != 2)
+			var supportedTypes:SupportedLinkTypeCollection = nodes.Managers.CommonLinkTypes;
+			var selectedType:SupportedLinkType = null;
+			if(supportedTypes.length == 1)
+				selectedType = supportedTypes.collection[0];
+			else if(supportedTypes.length > 1)
+			{
+				selectedType = supportedTypes.getByName(LinkType.LAN_V2);
+				if(selectedType == null)
+					selectedType = supportedTypes.getByName(LinkType.GRETUNNEL_V2);
+				if(selectedType == null)
+					selectedType = supportedTypes.collection[0];
+			}
+			// Make sure the link can support the nodes
+			if(selectedType.maxConnections < nodes.length)
 			{
 				interfaceRefs = new VirtualInterfaceReferenceCollection();
 				return true;
 			}
-			
-			clientId = nodes.collection[0].slice.getUniqueId(this, nodes.length > 2 ? "lan" : "link");
 			
 			var needsIps:Boolean = false;
 			var needsCapacity:Boolean = true;
@@ -258,36 +266,44 @@ package com.flack.geni.resources.virtual
 				addedInterface.Owner.unsubmittedChanges = true;
 			}
 			
-			if(sameManager)
+			switch(selectedType.name)
 			{
-				type.name = LinkType.LAN_V2;
-				if(needsIps)
-				{
-					VirtualInterface.startNextTunnel();
-					for each(addedInterface in interfaceRefs.Interfaces.collection)
+				case LinkType.LAN_V2:
+					clientId = nodes.collection[0].slice.getUniqueId(this, "lan");
+					type.name = LinkType.LAN_V2;
+					if(needsIps)
 					{
-						if(addedInterface.ip == null || addedInterface.ip.address.length == 0)
+						VirtualInterface.startNextTunnel();
+						for each(addedInterface in interfaceRefs.Interfaces.collection)
 						{
-							addedInterface.ip = new Ip(VirtualInterface.getNextTunnel());
-							addedInterface.ip.netmask = "255.255.255.0";
-							addedInterface.ip.type = "ipv4";
+							if(addedInterface.ip == null || addedInterface.ip.address.length == 0)
+							{
+								addedInterface.ip = new Ip(VirtualInterface.getNextTunnel());
+								addedInterface.ip.netmask = "255.255.255.0";
+								addedInterface.ip.type = "ipv4";
+							}
 						}
 					}
-				}
-			}
-			else
-			{
-				/*if(first.manager.supportsIon && second.manager.supportsIon && Main.useIon)
-					linkType = TYPE_ION;
-				else if (first.manager.supportsGpeni && second.manager.supportsGpeni && Main.useGpeni)
-					linkType = TYPE_GPENI;
-				else*/
-				setUpTunnels();
+					if(needsCapacity)
+						Capacity = 100000;
+					break;
+				case LinkType.ION:
+					clientId = nodes.collection[0].slice.getUniqueId(this, "ion");
+					setUpTunnels();
+					break;
+				case LinkType.GPENI:
+					clientId = nodes.collection[0].slice.getUniqueId(this, "gpeni");
+					setUpTunnels();
+					break;
+				case LinkType.GRETUNNEL_V2:
+					clientId = nodes.collection[0].slice.getUniqueId(this, "tunnel");
+					setUpTunnels();
+					break;
+				default:
+					clientId = nodes.collection[0].slice.getUniqueId(this, selectedType.name);
 			}
 			
 			setUpProperties();
-			if(sameManager && needsCapacity)
-				Capacity = 100000;
 			unsubmittedChanges = true;
 			
 			return false;
@@ -301,23 +317,33 @@ package com.flack.geni.resources.virtual
 		 */
 		public function canAddNode(node:VirtualNode):Boolean
 		{
-			// Must already be established
-			/*if(interfaceRefs.length < 2)
-				return false;*/
+			var supportedLinkType:SupportedLinkType = node.manager.supportedLinkTypes.getByName(type.name);
 			
-			// LANs need nodes of the same manager
-			if(type.name == LinkType.LAN_V2)
+			// Node must support same link type
+			if(supportedLinkType == null)
+				return false;
+			
+			// Link type must support adding another node
+			if(interfaceRefs.length >= supportedLinkType.maxConnections)
+				return false;
+			
+			// If link only supports same manager, cannot add from another manager
+			if(interfaceRefs.length > 0
+				&& !supportedLinkType.supportsManyManagers
+				&& interfaceRefs.collection[0].referencedInterface.Owner.manager != node.manager)
 			{
-				if(interfaceRefs.length != 0 && interfaceRefs.Interfaces.Managers.collection[0] != node.manager)
-					return false;
-			}
-			else if(type.name != LinkType.LAN_V2)
-			{
-				if(interfaceRefs.length >= 2)
-					return false;
+				return false;
 			}
 			
-			// Don't add duplicates
+			// If link only supports different managers, cannot add from existing manager
+			if(interfaceRefs.length > 0
+				&& !supportedLinkType.supportsSameManager
+				&& interfaceRefs.Interfaces.Managers.contains(node.manager))
+			{
+				return false;
+			}
+			
+			// Don't add new interfaces to the same node
 			if(interfaceRefs.Interfaces.Nodes.contains(node))
 				return false;
 			
@@ -336,21 +362,8 @@ package com.flack.geni.resources.virtual
 		 */
 		public function addNode(node:VirtualNode):Boolean
 		{
-			// Must already be established
-			/*if(interfaceRefs.length < 2)
-				return true;*/
-			
-			// LANs need nodes of the same manager
-			if(type.name == LinkType.LAN_V2)
-			{
-				if(interfaceRefs.length > 0 && interfaceRefs.Interfaces.Managers.collection[0] != node.manager)
-					return false;
-			}
-			else if(type.name != LinkType.LAN_V2)
-			{
-				if(interfaceRefs.length >= 2)
-					return false;
-			}
+			if(!canAddNode(node))
+				return true;
 			
 			// Allocate interface needed
 			var newInterface:VirtualInterface = node.allocateExperimentalInterface();
@@ -361,13 +374,6 @@ package com.flack.geni.resources.virtual
 			
 			newInterface.Owner.interfaces.add(newInterface);
 			newInterface.links.add(this);
-			
-			// If new node is on a different manager, must be a GRE tunnel
-			if(type.name == LinkType.LAN_V2 && node.manager != interfaceRefs.collection[0].referencedInterface.Owner.manager)
-				type.name = LinkType.GRETUNNEL_V2;
-			
-			if(type.name == LinkType.GRETUNNEL_V2)
-				setUpTunnels();
 			
 			setUpProperties();
 			unsubmittedChanges = true;
@@ -501,21 +507,11 @@ package com.flack.geni.resources.virtual
 			}
 		}
 		
-		public function get SupportsIon():Boolean
+		public function supportsType(name:String):Boolean
 		{
 			for each(var i:VirtualInterface in interfaceRefs.Interfaces.collection)
 			{
-				if(!i.Owner.manager.supportsIon)
-					return false;
-			}
-			return true;
-		}
-		
-		public function get SupportsGpeni():Boolean
-		{
-			for each(var i:VirtualInterface in interfaceRefs.Interfaces.collection)
-			{
-				if(!i.Owner.manager.supportsGpeni)
+				if(i.Owner.manager.supportedLinkTypes.getByName(name) == null)
 					return false;
 			}
 			return true;

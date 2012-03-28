@@ -33,6 +33,11 @@ package com.flack.shared
 	 */
 	public class SharedMain
 	{
+		/**
+		 * Flack version
+		 */
+		public static const version:String = "v14.3";
+		
 		public static const MODE_GENI:int = 0;
 		public static const MODE_EMULAB:int = 1;
 		
@@ -135,11 +140,6 @@ package com.flack.shared
 		{
 			return bundle;
 		}
-		
-		/**
-		 * Flack version
-		 */
-		public static const version:String = "v14.0";
 		
 		public static function get ClientString():String
 		{

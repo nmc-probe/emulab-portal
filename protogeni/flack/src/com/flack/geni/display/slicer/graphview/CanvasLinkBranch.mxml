@@ -119,14 +119,14 @@ VirtualNode for use on the slice canvas
 			protected function rollOverHandler(event:MouseEvent):void
 			{
 				linkContainer.filters = [new GlowFilter(0x000000)];
-				canvasLink.setFilters([new GlowFilter(0x000000)]);
+				//canvasLink.setFilters([new GlowFilter(0x000000)]);
 				canvasLink.canvas.hoveredOverItem = this;
 			}
 			
 			protected function rollOutHandler(event:MouseEvent):void
 			{
 				linkContainer.filters = [];
-				canvasLink.setFilters([]);
+				//canvasLink.setFilters([]);
 				(canvasLink.canvas as SliceCanvas).hoveredOverItem = null;
 			}
 			

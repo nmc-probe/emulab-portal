@@ -45,6 +45,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.resources.physical.PhysicalNode;
 			import com.flack.geni.resources.physical.PhysicalNodeCollection;
 			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.sites.SupportedSliverType;
 			import com.flack.geni.resources.virtual.ExecuteService;
 			import com.flack.geni.resources.virtual.InstallService;
 			import com.flack.geni.resources.virtual.Pipe;
@@ -332,7 +333,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							hardwareList.selectedItem = hardwareType;
 					}
 					
-					unboundVgroup.enabled = SelectedManager.supportsUnboundRawNodes || SelectedManager.supportsUnboundVmNodes;
+					unboundVgroup.enabled = SelectedManager.supportedSliverTypes.SupportsUnbound;
 					if(SelectedManager != node.manager)
 					{
 						if(unboundVgroup.enabled)
@@ -364,11 +365,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				sliverTypes.removeAll();
 				if(SelectedManager != null)
 				{
-					for each(var sliverType:SliverType in SelectedManager.sliverTypes.collection)
+					for each(var supportedType:SupportedSliverType in SelectedManager.supportedSliverTypes.collection)
 					{
-						sliverTypes.addItem(sliverType);
-						if(sliverType.name == node.sliverType.name)
-							sliverTypeDropDownList.selectedItem = sliverType;
+						sliverTypes.addItem(supportedType.type);
+						if(supportedType.type.name == node.sliverType.name)
+							sliverTypeDropDownList.selectedItem = supportedType.type;
 					}
 					
 					if(sliverTypeDropDownList.selectedItem == null)

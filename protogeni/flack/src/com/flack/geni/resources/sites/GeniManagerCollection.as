@@ -15,6 +15,7 @@
 package com.flack.geni.resources.sites
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.SliverTypeCollection;
 	import com.flack.geni.resources.physical.PhysicalLink;
 	import com.flack.geni.resources.physical.PhysicalLinkCollection;
 	import com.flack.geni.resources.physical.PhysicalNode;
@@ -183,6 +184,88 @@ package com.flack.geni.resources.sites
 					max = manager.inputRspecVersion.version;
 			}
 			return max; 
+		}
+		
+		/**
+		 * 
+		 * @return List of link types which are usable within the given managers
+		 * 
+		 */
+		public function get CommonLinkTypes():SupportedLinkTypeCollection
+		{
+			var supportedTypes:SupportedLinkTypeCollection = new SupportedLinkTypeCollection();
+			if(collection.length > 0)
+			{
+				for each(var initialType:SupportedLinkType in collection[0].supportedLinkTypes.collection)
+					supportedTypes.add(initialType);
+			}
+			var i:int = 0;
+			var supportedType:SupportedLinkType = null;
+			for each(var manager:GeniManager in collection)
+			{
+				for(i = 0; i < supportedTypes.length; i++)
+				{
+					supportedType = supportedTypes.collection[i];
+					if(manager.supportedLinkTypes.getByName(supportedType.name) == null)
+					{
+						supportedTypes.remove(supportedType);
+						i--;
+					}
+				}
+			}
+			for(i = 0; i < supportedTypes.length; i++)
+			{
+				supportedType = supportedTypes.collection[i];
+				if((!supportedType.supportsManyManagers && length > 1)
+					|| (!supportedType.supportsSameManager && length == 1))
+				{
+					supportedTypes.remove(supportedType);
+					i--;
+				}
+			}
+			return supportedTypes;
+		}
+		
+		/**
+		 * 
+		 * @return List of sliver types available at all of the managers
+		 * 
+		 */
+		public function get CommonSliverTypes():SupportedSliverTypeCollection
+		{
+			var supportedTypes:SupportedSliverTypeCollection = new SupportedSliverTypeCollection();
+			if(collection.length > 0)
+			{
+				for each(var initialType:SupportedSliverType in collection[0].supportedSliverTypes.collection)
+					supportedTypes.add(initialType);
+			}
+			for each(var manager:GeniManager in collection)
+			{
+				for(var i:int = 0; i < supportedTypes.length; i++)
+				{
+					var supportedType:SupportedSliverType = supportedTypes.collection[i];
+					if(manager.supportedSliverTypes.getByName(supportedType.type.name) == null)
+					{
+						supportedTypes.remove(supportedType);
+						i--;
+					}
+				}
+			}
+			return supportedTypes;
+		}
+		
+		public function get SupportedSliverTypes():SupportedSliverTypeCollection
+		{
+			var supportedTypes:SupportedSliverTypeCollection = new SupportedSliverTypeCollection();
+			for each(var manager:GeniManager in collection)
+			{
+				for each(var supportedType:SupportedSliverType in manager.supportedSliverTypes.collection)
+				{
+					if(supportedTypes.getByName(supportedType.type.name) == null)
+						supportedTypes.add(supportedType);
+				}
+			}
+			return supportedTypes;
 		}
 	}
 }

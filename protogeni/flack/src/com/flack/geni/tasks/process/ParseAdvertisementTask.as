@@ -25,6 +25,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.SupportedSliverType;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -283,16 +284,6 @@ package com.flack.geni.tasks.process
 				
 				if (myState == DONE)
 				{
-					// Add any sliver types which aren't advertisemed but are known to exist
-					if(manager.supportsDelayNodes && manager.sliverTypes.getByName(SliverTypes.DELAY) == null)
-					{
-						manager.sliverTypes.add(new SliverType(SliverTypes.DELAY));
-					}
-					if(manager.supportsFirewallNodes && manager.sliverTypes.getByName(SliverTypes.FIREWALL) == null)
-					{
-						manager.sliverTypes.add(new SliverType(SliverTypes.FIREWALL));
-					}
-					
 					// Show warning if anything was skipped
 					var msgLevel:int = 
 						(skippedNodes > 0 || skippedLinks > 0)
@@ -427,14 +418,7 @@ package com.flack.geni.tasks.process
 								}
 							}
 							if(nodeTypeSliverType != null)
-							{
-								var managerTypeSliverType:SliverType = manager.sliverTypes.getByName(nodeTypeSliverType.name);
-								if(managerTypeSliverType == null)
-								{
-									managerTypeSliverType = new SliverType(nodeTypeSliverType.name);
-									manager.sliverTypes.add(managerTypeSliverType);
-								}
-							}
+								manager.supportedSliverTypes.getOrCreateByName(nodeTypeSliverType.name);
 						}
 					}
 					else
@@ -445,12 +429,7 @@ package com.flack.geni.tasks.process
 							// Don't add non-VMs if node is shared
 							if(!node.exclusive && !SliverTypes.isVm(newSliverType.name))
 								continue;
-							var managerSliverType:SliverType = manager.sliverTypes.getByName(newSliverType.name);
-							if(managerSliverType == null)
-							{
-								managerSliverType = new SliverType(newSliverType.name);
-								manager.sliverTypes.add(managerSliverType);
-							}
+							var managerSliverType:SliverType = manager.supportedSliverTypes.getOrCreateByName(newSliverType.name).type;
 							for each(var sliverTypeChildXml:XML in nodeSliverTypeXml.children())
 							{
 								if(sliverTypeChildXml.namespace() == defaultNamespace)
@@ -510,10 +489,7 @@ package com.flack.geni.tasks.process
 								{
 									hardwareTypeSliverType = new SliverType(newHardwareType.name);
 									node.sliverTypes.add(hardwareTypeSliverType);
-									
-									var managerHardwareTypeSliverType:SliverType = manager.sliverTypes.getByName(newHardwareType.name);
-									if(managerHardwareTypeSliverType == null)
-										manager.sliverTypes.add(new SliverType(newHardwareType.name));
+									manager.supportedSliverTypes.getOrCreateByName(newHardwareType.name);
 								}
 							}
 						}
@@ -565,12 +541,7 @@ package com.flack.geni.tasks.process
 									addToSliverType = node.sliverTypes.collection[0];
 								}
 								
-								var managerAddToSliverType:SliverType = manager.sliverTypes.getByName(addToSliverType.name);
-								if(managerAddToSliverType == null)
-								{
-									managerAddToSliverType = new SliverType(addToSliverType.name);
-									manager.sliverTypes.add(managerAddToSliverType);
-								}
+								var managerAddToSliverType:SliverType = manager.supportedSliverTypes.getOrCreateByName(addToSliverType.name).type;
 								var newDiskImage:DiskImage = managerAddToSliverType.diskImages.getByLongId(String(nodeChildXml.@name));
 								if(newDiskImage == null)
 								{
@@ -671,9 +642,6 @@ package com.flack.geni.tasks.process
 					
 					var datapathSliverType:SliverType = new SliverType(SliverTypes.OPENFLOW_SWITCH);
 					node.sliverTypes.add(datapathSliverType);
-					var managerDatapathSliverType:SliverType = manager.sliverTypes.getByName(SliverTypes.OPENFLOW_SWITCH);
-					if(managerDatapathSliverType == null)
-						manager.sliverTypes.add(new SliverType(SliverTypes.OPENFLOW_SWITCH));
 					
 					node.hardwareTypes.add(new HardwareType(SliverTypes.OPENFLOW_SWITCH));
 					

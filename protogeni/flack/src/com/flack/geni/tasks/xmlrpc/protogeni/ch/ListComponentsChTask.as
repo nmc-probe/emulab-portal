@@ -17,10 +17,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 	import com.flack.geni.GeniCache;
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.resources.GeniUser;
+	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.sites.SupportedSliverType;
 	import com.flack.geni.resources.sites.managers.PlanetlabAggregateManager;
 	import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
+	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -88,18 +91,34 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							var protogeniManager:ProtogeniComponentManager = new ProtogeniComponentManager(newId.full);
 							protogeniManager.hrn = obj.hrn;
 							protogeniManager.url = url.substr(0, url.length-3);
-							if(protogeniManager.hrn == "ukgeni.cm" || protogeniManager.hrn == "utahemulab.cm")
-								protogeniManager.supportsIon = true;
-							if(protogeniManager.hrn == "wail.cm" || protogeniManager.hrn == "utahemulab.cm")
-								protogeniManager.supportsGpeni = true;
-							if(protogeniManager.hrn == "utahemulab.cm")
-								protogeniManager.supportsFirewallNodes = true;
-							if(protogeniManager.hrn == "shadowgeni.cm" || protogeniManager.hrn == "mygeni.cm")
+							
+							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
+							
+							// Link Types (not advertised...)
+							if(protogeniManager.hrn == "ukgeni.cm"
+								|| protogeniManager.hrn == "utahemulab.cm")
 							{
-								protogeniManager.supportsDelayNodes = false;
-								protogeniManager.supportsUnboundRawNodes = false;
-								protogeniManager.supportsUnboundVmNodes = false;
+								protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.ION);
 							}
+							if(protogeniManager.hrn == "wail.cm"
+								|| protogeniManager.hrn == "utahemulab.cm")
+							{
+								protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GPENI);
+							}
+							
+							// Node Types (not advertised yet...)
+							if(protogeniManager.hrn == "utahemulab.cm")
+							{
+								protogeniManager.supportedSliverTypes.getOrCreateByName(SliverTypes.FIREWALL);
+							}
+							if(protogeniManager.hrn == "utahemulab.cm"
+								|| protogeniManager.hrn == "ukgeni.cm"
+								|| protogeniManager.hrn == "jonlab.cm")
+							{
+								protogeniManager.supportedSliverTypes.getOrCreateByName(SliverTypes.DELAY);
+							}
+							
 							newManager = protogeniManager;
 						}
 						else if(newId.name == ProtogeniXmlrpcTask.MODULE_SA)
@@ -109,6 +128,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							//url = "https://sfa-devel.planet-lab.org:12346";//"https://sfa-devel.planet-lab.org:12346";
 							planetLabManager.url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
 							planetLabManager.registryUrl = planetLabManager.url.replace("12346", "12345");
+							
+							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+							
 							newManager = planetLabManager;
 						}
 						else

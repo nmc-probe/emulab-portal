@@ -62,14 +62,10 @@ VirtualNode for use on the slice canvas
 			public var labelBackgroundColor:uint;
 			
 			[Bindable]
-			public var draggable:Boolean = false;
-			
-			[Bindable]
 			private var link:VirtualLink;
 			public function set Link(newLink:VirtualLink):void
 			{
 				link = newLink;
-				draggable = link.flackInfo.x != -1 || link.interfaceRefs.length > 2;
 				var viewExtra:Boolean = false;
 				if(link.Capacity)
 				{
@@ -95,7 +91,14 @@ VirtualNode for use on the slice canvas
 				}
 				else
 					delayLabel.visible = delayLabel.includeInLayout = false;
-				extraGroup.visible = extraGroup.includeInLayout = viewExtra;;
+				extraGroup.visible = extraGroup.includeInLayout = viewExtra;
+				
+				if(x == 0 && y == 0 && link.interfaceRefs.length == 0)
+				{
+					link.flackInfo.x = 0;
+					link.flackInfo.y = 0;
+					setLocation(-1, -1);
+				}
 			}
 			public function get Link():VirtualLink
 			{
@@ -131,7 +134,8 @@ VirtualNode for use on the slice canvas
 					link.flackInfo.x = x;
 					link.flackInfo.y = y;
 				}
-				super.move(x, y);
+				if(x > -1 && y > -1)
+					super.move(x, y);
 			}
 			
 			public function showInfo(event:MouseEvent = null):void
@@ -193,11 +197,8 @@ VirtualNode for use on the slice canvas
 			
 			protected function bordercontainer1_mouseDownHandler(event:MouseEvent):void
 			{
-				if(draggable)
-				{
-					canvasLink.canvas.draggingItem = canvasLink;
-					(canvasLink.canvas as SliceCanvas).setElementIndex(this, canvasLink.canvas.numElements-1);
-				}
+				canvasLink.canvas.draggingItem = canvasLink;
+				(canvasLink.canvas as SliceCanvas).setElementIndex(this, canvasLink.canvas.numElements-1);
 			}
 			
 			protected function bordercontainer1_rollOverHandler(event:MouseEvent):void
@@ -213,30 +214,25 @@ VirtualNode for use on the slice canvas
 				canvasLink.setFilters([]);
 				canvasLink.canvas.hoveredOverItem = null;
 			}
-			
-			protected function bordercontainer1_clickHandler(event:MouseEvent):void
-			{
-				canvasLink.canvas.SelectedItem = canvasLink;
-			}
 		]]>
 	</fx:Script>
 	
 	<s:BorderContainer id="linkContainer"
 					   buttonMode="true"
 					   useHandCursor="true"
-					   height="29"
+					   cornerRadius="14"
+					   height="28"
 					   borderStyle="solid"
 					   borderColor="{labelBackgroundColor}"
 					   backgroundColor="{labelBackgroundColor}"
 					   mouseDown="bordercontainer1_mouseDownHandler(event)"
 					   rollOver="bordercontainer1_rollOverHandler(event)"
-					   rollOut="bordercontainer1_rollOutHandler(event)"
-					   click="bordercontainer1_clickHandler(event)">
+					   rollOut="bordercontainer1_rollOutHandler(event)">
 		<s:layout>
-			<s:HorizontalLayout paddingBottom="2"
-								paddingLeft="2"
-								paddingRight="2"
-								paddingTop="2"
+			<s:HorizontalLayout paddingBottom="0"
+								paddingLeft="6"
+								paddingRight="6"
+								paddingTop="0"
 								gap="2"
 								verticalAlign="middle" />
 		</s:layout>
@@ -247,6 +243,7 @@ VirtualNode for use on the slice canvas
 								mouseDown="event.stopImmediatePropagation();" />
 		<s:Label id="nameLabel"
 				 text="{link.clientId}"
+				 fontSize="10"
 				 height="100%"
 				 verticalAlign="middle"
 				 textAlign="center"

@@ -20,6 +20,7 @@ package com.flack.geni
 	import com.flack.geni.display.mapping.mapproviders.googlemapsprovider.GoogleMap;
 	import com.flack.geni.display.windows.StartWindow;
 	import com.flack.geni.plugins.Plugin;
+	import com.flack.geni.plugins.example.Example;
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.ontime.Ontime;
 	import com.flack.geni.tasks.groups.GetCertBundlesTaskGroup;
@@ -65,7 +66,8 @@ package com.flack.geni
 		{
 			plugins = new Vector.<Plugin>();
 			plugins.push(new Instools());
-			plugins.push(new Ontime());
+			plugins.push(new Example());
+			// Add new plugins
 			for each(var plugin:Plugin in plugins)
 				plugin.init();
 		}

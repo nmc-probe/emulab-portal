@@ -107,7 +107,7 @@ package com.flack.geni.display.slicer.graphview
 			link = vl;
 			
 			button.canvasLink = this;
-			if(link.Lan)
+			if(link.flackInfo.x != -1)
 			{
 				button.x = link.flackInfo.x;
 				button.y = link.flackInfo.y;
@@ -119,7 +119,7 @@ package com.flack.geni.display.slicer.graphview
 			button.validateNow();
 			button.Link = link;
 			
-			if(link.Lan)
+			if(link.interfaceRefs.length > 2)
 			{
 				buttons = new Vector.<CanvasLinkBranch>();
 				var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
@@ -197,7 +197,7 @@ package com.flack.geni.display.slicer.graphview
 		
 		public function setLocation(newX:Number = -1, newY:Number = -1):void
 		{
-			if(newX != 0 && newX != -1 && link.flackInfo.x == -1)
+			if(newX != 0 && newX != 0 && link.flackInfo.x == -1)
 			{
 				link.flackInfo.x = newX;
 				link.flackInfo.y = newY;
@@ -271,24 +271,31 @@ package com.flack.geni.display.slicer.graphview
 			
 			var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
 			
-			if(link.Lan)
+			if(link.flackInfo.x != -1)
 			{
-				button.draggable = true;
-				if(link.flackInfo.x != -1)
+				button.x = link.flackInfo.x;
+				button.y = link.flackInfo.y;
+			}
+			else
+			{
+				button.x = canvasNodes.MiddleX-48;
+				button.y = canvasNodes.MiddleY-12;
+			}
+			
+			if(canvasNodes.length < 3)
+			{
+				removeButtonsFromCanvas();
+				if(buttons.length > 0)
+					buttons = new Vector.<CanvasLinkBranch>();
+			}
+			
+			for each(var cnode:CanvasNode in canvasNodes.collection)
+			{
+				rawSprite.graphics.moveTo(button.MiddleX, button.MiddleY);
+				rawSprite.graphics.lineTo(cnode.MiddleX, cnode.MiddleY);
+				
+				if(canvasNodes.length > 2)
 				{
-					button.x = link.flackInfo.x;
-					button.y = link.flackInfo.y;
-				}
-				else
-				{
-					button.x = canvasNodes.MiddleX-48;
-					button.y = canvasNodes.MiddleY-12;
-				}
-				for each(var cnode:CanvasNode in canvasNodes.collection)
-				{
-					rawSprite.graphics.moveTo(button.MiddleX, button.MiddleY);
-					rawSprite.graphics.lineTo(cnode.MiddleX, cnode.MiddleY);
-					
 					var buttonGroup:CanvasLinkBranch = getButtonFor(cnode);
 					buttonGroup.setTo(link, link.interfaceRefs.Interfaces.getByHost(cnode.Node));
 					buttonGroup.x = (button.MiddleX + cnode.MiddleX)/2 - (buttonGroup.ContainerWidth/2 + 1);
@@ -296,18 +303,8 @@ package com.flack.geni.display.slicer.graphview
 					buttonGroup.color = labelBackgroundColor;
 				}
 			}
-			else
-			{
-				removeButtonsFromCanvas();
-				if(buttons.length > 0)
-					buttons = new Vector.<CanvasLinkBranch>();
-				button.Link = link;
-				button.x = (canvasNodes.collection[0].MiddleX + canvasNodes.collection[1].MiddleX)/2 - (button.ContainerWidth/2 + 1);
-				button.y = (canvasNodes.collection[0].MiddleY + canvasNodes.collection[1].MiddleY)/2 - (button.ContainerHeight/2);
-				
-				rawSprite.graphics.moveTo(canvasNodes.collection[0].MiddleX, canvasNodes.collection[0].MiddleY);
-				rawSprite.graphics.lineTo(canvasNodes.collection[1].MiddleX, canvasNodes.collection[1].MiddleY);
-			}
+			
+			button.Link = link;
 			button.labelBackgroundColor = labelBackgroundColor;
 			button.labelColor = labelColor;
 		}

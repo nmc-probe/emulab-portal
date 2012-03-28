@@ -15,6 +15,8 @@
 package com.flack.geni.resources.sites.managers
 {
 	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.SupportedLinkType;
+	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
 
@@ -34,7 +36,6 @@ package com.flack.geni.resources.sites.managers
 		public function ProtogeniComponentManager(newId:String)
 		{
 			super(FlackManager.TYPE_PROTOGENI, ApiDetails.API_PROTOGENI, newId);
-			supportsDelayNodes = true;
 		}
 		
 		override public function makeValidClientIdFor(value:String):String

@@ -35,8 +35,6 @@ package com.flack.geni.resources.sites.managers
 		public function PlanetlabAggregateManager(newId:String)
 		{
 			super(TYPE_PLANETLAB, ApiDetails.API_GENIAM, newId);
-			this.supportsUnboundRawNodes = false;
-			this.supportsUnboundVmNodes = false;
 		}
 	}
 }

@@ -486,5 +486,21 @@ package com.flack.geni.resources.virtual
 			}
 			return logins;
 		}
+		
+		public function get MiddleX():Number
+		{
+			var middleX:Number = 0;
+			for each(var n:VirtualNode in collection)
+				middleX += n.flackInfo.x;
+			return middleX/length;
+		}
+		
+		public function get MiddleY():Number
+		{
+			var middleY:Number = 0;
+			for each(var n:VirtualNode in collection)
+				middleY += n.flackInfo.y;
+			return middleY/length;
+		}
 	}
 }

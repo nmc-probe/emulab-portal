@@ -227,19 +227,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function init():void
 			{
-				var addLanButton:DataButton = new DataButton(
-					"LAN",
-					"Add a LAN",
-					ImageUtil.lanIcon,
-					null,
-					"virtualLan");
-				var virtualLan:VirtualLink = new VirtualLink(null);
-				virtualLan.clientId = "Lan";
-				virtualLan.type.name = LinkType.LAN_V2;
-				addLanButton.data = virtualLan;
-				addLanButton.addEventListener(MouseEvent.CLICK, addVirtualLan);
-				extraArea.addElementAt(addLanButton, 0);
-				
 				usableRspecVersions = new ArrayCollection();
 				for each(var v:RspecVersion in GeniMain.usableRspecVersions.collection)
 					usableRspecVersions.addItem(v);
@@ -260,10 +247,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICE, sliceChanged);
 			}
 			
-			public function addVirtualLan(e:MouseEvent):void
-			{
-				ComponentsArea.addCloneOf(e.currentTarget.data);
-			}
+			
 			
 			/*
 			override public function removeEvents():void

@@ -33,18 +33,13 @@ package com.flack.geni.resources.sites
 	 */
 	public class GeniManager extends FlackManager
 	{
-		public var supportsIon:Boolean = false;
-		public var supportsGpeni:Boolean = false;
-		public var supportsDelayNodes:Boolean = false;
-		public var supportsFirewallNodes:Boolean = false;
-		public var supportsUnboundRawNodes:Boolean = true;
-		public var supportsUnboundVmNodes:Boolean = true;
-		public function get SupportsLinks():Boolean
-		{
-			return links != null && links.length > 0;
-		}
+		// Advertised Resources
+		[Bindable]
+		public var nodes:PhysicalNodeCollection;
+		[Bindable]
+		public var links:PhysicalLinkCollection;
 		
-		// Support
+		// Support Information
 		public var inputRspecVersions:RspecVersionCollection = new RspecVersionCollection();
 		[Bindable]
 		public var inputRspecVersion:RspecVersion = null;
@@ -53,12 +48,12 @@ package com.flack.geni.resources.sites
 		[Bindable]
 		public var outputRspecVersion:RspecVersion = null;
 		
-		[Bindable]
-		public var nodes:PhysicalNodeCollection;
-		[Bindable]
-		public var links:PhysicalLinkCollection;
-		
-		public var sliverTypes:SliverTypeCollection = new SliverTypeCollection();
+		public var supportedSliverTypes:SupportedSliverTypeCollection = new SupportedSliverTypeCollection();
+		public var supportedLinkTypes:SupportedLinkTypeCollection = new SupportedLinkTypeCollection();
+		public function get SupportsLinks():Boolean
+		{
+			return supportedLinkTypes.length > 0;
+		}
 		
 		public var locations:PhysicalLocationCollection;
 		
@@ -103,7 +98,8 @@ package com.flack.geni.resources.sites
 		{
 			nodes = new PhysicalNodeCollection();
 			links = new PhysicalLinkCollection();
-			sliverTypes = new SliverTypeCollection();
+			//supportedSliverTypes = new SupportedSliverTypeCollection();
+			//supportedLinkTypes = new SupportedLinkTypeCollection();
 			locations = new PhysicalLocationCollection();
 		}
 		

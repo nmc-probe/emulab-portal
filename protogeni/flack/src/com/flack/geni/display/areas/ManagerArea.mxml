@@ -136,7 +136,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					for each(var linkType:String in manager.links.Types)
 						linkTypes.addItem(linkType);
 					
-					sliverTypesControl.load(manager.sliverTypes);
+					sliverTypesControl.load(manager.supportedSliverTypes.SliverTypes);
 					
 					var i:int;
 					var type:String;

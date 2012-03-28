@@ -34,8 +34,6 @@ package com.flack.geni.resources.sites.managers
 		public function OpenflowAggregateManager(newId:String)
 		{
 			super(TYPE_OPENFLOW, ApiDetails.API_GENIAM, newId);
-			supportsUnboundRawNodes = false;
-			supportsUnboundVmNodes = false;
 		}
 	}
 }

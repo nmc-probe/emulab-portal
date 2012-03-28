@@ -2,6 +2,7 @@ package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
+	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
@@ -39,7 +40,7 @@ package com.flack.geni.plugins.instools.instasks
 		override protected function createFields():void
 		{
 			addNamedField("urn", sliver.slice.id.full);
-			addNamedField("virtualMC", details.useVirtualMCs ? sliver.manager.supportsUnboundVmNodes : 0);
+			addNamedField("virtualMC", details.useVirtualMCs ? sliver.manager.supportedSliverTypes.getByName(SliverTypes.EMULAB_OPENVZ) != null : 0);
 			addNamedField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.id.full]);
 			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
