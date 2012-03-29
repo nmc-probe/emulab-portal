@@ -5484,8 +5484,9 @@ COMMAND_PROTOTYPE(doquoteprep)
             sprintf(nonce_hex + (i*2),"%.02x",nonce[i]);
         }
         nonce_hex[TPM_NONCE_BYTES*2] = '\0';
-        // XXX
-        info("NONCE: %s\n", nonce_hex);
+
+	if (debug)
+		info("%s: NONCE %s\n", reqp->nodeid, nonce_hex);
 
         // Store the nonce in the database. It expires in one minute, and we
         // overwrite any existing nonces for this node/state combo
