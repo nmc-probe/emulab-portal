@@ -11,9 +11,9 @@ my $HP_MIB_FTP    = "http://www.emulab.net/downloads";
 
 my @CISCO_MIBS = ("CISCO-SMI", "CISCO-TC", "CISCO-VTP-MIB", "CISCO-PAGP-MIB",
     "CISCO-PRIVATE-VLAN-MIB", "CISCO-STACK-MIB", "CISCO-VLAN-MEMBERSHIP-MIB",
-		  "CISCO-C2900-MIB", "BRIDGE-MIB", "CISCO-CONFIG-COPY-MIB");
+		  "CISCO-C2900-MIB", "CISCO-CONFIG-COPY-MIB");
 
-my @HP_MIBS = ("HP-ICF-OID");
+my @HP_MIBS = ("HP-ICF-OID", "BRIDGE-MIB");
 
 sub Install($$$)
 {
