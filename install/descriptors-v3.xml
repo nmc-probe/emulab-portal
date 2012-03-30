@@ -1,6 +1,6 @@
 <descriptors>
 <mapping name="RHL-STD">
-    <value>FEDORA10-STD</value>
+    <value>FEDORA15-STD</value>
 </mapping>
 <mapping name="FBSD-STD">
     <value>FBSD82-STD</value>
@@ -111,19 +111,19 @@
 </osid>
 <image>
  <attribute name="OS"><value>Fedora</value></attribute>
- <attribute name="description"><value>Standard 32-bit Fedora 10 image</value></attribute>
+ <attribute name="description"><value>Standard 32-bit Fedora 15 image</value></attribute>
  <attribute name="gid"><value>emulab-ops</value></attribute>
  <attribute name="global"><value>1</value></attribute>
- <attribute name="imagename"><value>FEDORA10-STD</value></attribute>
+ <attribute name="imagename"><value>FEDORA15-STD</value></attribute>
  <attribute name="loadpart"><value>2</value></attribute>
  <attribute name="mbr_version"><value>2</value></attribute>
  <attribute name="op_mode"><value>NORMALv2</value></attribute>
  <attribute name="osfeatures"><value>ping,ssh,ipod,isup,linktest,vlans</value></attribute>
- <attribute name="path"><value>/usr/testbed/images/FEDORA10-STD.ndz</value></attribute>
+ <attribute name="path"><value>/usr/testbed/images/FEDORA15-STD.ndz</value></attribute>
  <attribute name="pid"><value>emulab-ops</value></attribute>
  <attribute name="reboot_waittime"><value>120</value></attribute>
  <attribute name="shared"><value>0</value></attribute>
- <attribute name="version"><value>10</value></attribute>
+ <attribute name="version"><value>15</value></attribute>
 </image>
 <image>
  <attribute name="OS"><value>FreeBSD</value></attribute>
