@@ -150,7 +150,7 @@
  <attribute name="mbr_version"><value>2</value></attribute>
  <attribute name="op_mode"><value>NORMALv2</value></attribute>
  <attribute name="osfeatures"><value>ping,ssh,ipod,isup,linktest</value></attribute>
- <attribute name="path"><value>/proj/emulab-ops/images/UBUNTU10-STD-FW.ndz</value></attribute>
+ <attribute name="path"><value>/usr/testbed/images/UBUNTU10-STD-FW.ndz</value></attribute>
  <attribute name="pid"><value>emulab-ops</value></attribute>
  <attribute name="shared"><value>0</value></attribute>
  <attribute name="version"><value>10</value></attribute>
