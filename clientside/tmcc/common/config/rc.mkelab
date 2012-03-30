@@ -180,6 +180,11 @@ my $XENVM = 0;
 my $NTPSERVER = "boss";
 
 #
+# The default password to use.
+#
+my $DEFAULT_PASSWORD = "ElabInElab";
+
+#
 # Defaults for configuration attributes (options).
 # These can be overridden if values are passed in via the emulabconfig command.
 #
@@ -192,7 +197,7 @@ my %emulabconfig = (
     "MFSTARBALL"  => "tftpboot-elabinelab.tar.gz",
     "MFSVERSION"  => "62",
     "MFSCONSOLE"  => "sio",
-    "PASSWORD"    => "ElabInElab",
+    "PASSWORD"    => $DEFAULT_PASSWORD,
 
     #
     # Elabinelab configuration options:
@@ -558,6 +563,21 @@ sub doboot()
 	    (stat("$BINDIR/mkextrafs.pl"))[9]) {
 	    mysystem("cp /tmp/mkextrafs.pl $BINDIR/");
 	}
+    }
+
+    #
+    # If we get a password setting, change root/toor.
+    #
+    if ($emulabconfig{"PASSWORD"} ne $DEFAULT_PASSWORD) {
+	#
+	# Convert to an encrypted hash.
+	#
+	my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
+	my $salt = $salt_chars[rand(@salt_chars)] .
+	           $salt_chars[rand(@salt_chars)];
+	my $passhash = crypt($emulabconfig{"PASSWORD"}, "\$1\$${salt}");
+	mysystem("echo '$passhash' | /usr/sbin/pw usermod toor -H 0");
+	mysystem("echo '$passhash' | /usr/sbin/pw usermod root -H 0");
     }
 
     if (!$opsjail) {
@@ -1778,6 +1798,13 @@ sub SetupBossNode($)
     mysystem("cp -fp ~${creator}/.ssl/emulab.pem $stuffdir");
 
     #
+    # Extra config variables. 
+    #
+    if (-e "$expdir/configvars.txt") {
+	mysystem("cp -fp $expdir/configvars.txt $TBDIR");
+    }
+
+    #
     # Stash the IP of the outer emulab for tmcc (and script above).
     # We use an IP to avoid DNS issues (there will be a DNS running inside).
     # Ditto for the current router. Need that for later (rc.inelab).
@@ -2292,7 +2319,6 @@ sub SetupBossNode($)
     mysystem("/usr/testbed/sbin/named_setup");
 
   skipsetup:
-    
     #
     # Tack the frisbee mcast addr ipfw rule onto end of /etc/rc.local.
     #
@@ -2703,7 +2729,9 @@ sub CreateDefsFile($)
     my $ourdomain	   = $domain;
     my $thishomebase       = "MyEmulab.Net";
     my $cookiesuffix       = $eid;
-    
+    my $router_ip          = ($emulabconfig{"CONFIG_SINGLECNET"} ?
+			      $outer_routerip : $bossnode_ip);
+
     #
     # The control network netmask differs if using a single control network. 
     #
@@ -2728,6 +2756,7 @@ sub CreateDefsFile($)
 	    if (defined($emulabconfig{"GENIRACK_HOMEBASE"}));
 	$cookiesuffix       = $emulabconfig{"GENIRACK_HOMEBASE"}
 	    if (defined($emulabconfig{"GENIRACK_HOMEBASE"}));
+	$router_ip          = $emulabconfig{"GENIRACK_ROUTER"};
     }
     
     my $control_network = inet_ntoa(inet_aton($control_ip) &
@@ -2827,16 +2856,7 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^CONTROL_ROUTER_IP$/ && do {
-		    my $control_router_ip;
-		    
-		    if ($emulabconfig{"CONFIG_SINGLECNET"}) {
-			$control_router_ip = $outer_routerip;
-		    }
-		    else {
-			$control_router_ip = $bossnode_ip;
-		    }
-		    print OUTDEFS "CONTROL_ROUTER_IP=$control_router_ip\n";
-		    
+		    print OUTDEFS "CONTROL_ROUTER_IP=$router_ip\n";
 		    last SWITCH;
 		};
 		/^CONTROL_NETWORK$/ && do {
@@ -2852,16 +2872,7 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^PRIVATE_ROUTER$/ && do {
-		    my $private_router;
-		    
-		    if ($emulabconfig{"CONFIG_SINGLECNET"}) {
-			$private_router = $outer_routerip;
-		    }
-		    else {
-			$private_router = $bossnode_ip;
-		    }
-		    
-		    print OUTDEFS "PRIVATE_ROUTER=$private_router\n";
+		    print OUTDEFS "PRIVATE_ROUTER=$router_ip\n";
 		    last SWITCH;
 		};
 		/^PRIVATE_NETMASK$/ && do {
@@ -2873,15 +2884,7 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^PUBLIC_ROUTER$/ && do {
-		    my $public_router;
-		    
-		    if ($emulabconfig{"CONFIG_SINGLECNET"}) {
-			$public_router = $outer_routerip;
-		    }
-		    else {
-			$public_router = $bossnode_ip;
-		    }
-		    print OUTDEFS "PUBLIC_ROUTER=$public_router\n";
+		    print OUTDEFS "PUBLIC_ROUTER=$router_ip\n";
 		    last SWITCH;
 		};
 		/^PUBLIC_NETMASK$/ && do {
@@ -3058,6 +3061,16 @@ sub CreateDefsFile($)
 		    print OUTDEFS "SSLCERT_ORGNAME=\"${value}\"\n";
 		    last SWITCH;
 		};
+		/^NODECONSOLE$/ && do {
+		    my $value = $emulabconfig{"MFSCONSOLE"};
+		    print OUTDEFS "NODECONSOLE=\"${value}\"\n";
+		    last SWITCH;
+		};
+		/^MFSVERSION$/ && do {
+		    my $value = $emulabconfig{"MFSVERSION"};
+		    print OUTDEFS "MFSVERSION=\"${value}\"\n";
+		    last SWITCH;
+		};
 
 		print OUTDEFS $line;
 	    }
@@ -3073,21 +3086,11 @@ sub CreateDefsFile($)
 	if (defined($emulabconfig{"GENIRACK_HOMEBASE"})) {
 	    $protogeni_domain = lc($emulabconfig{"GENIRACK_HOMEBASE"});
 	}
-	my $protogeni_password = "";
-	if (defined($emulabconfig{"PROTOGENI_PASSWORD"})) {
-	    #
-	    # Convert to an encrypted hash.
-	    #
-	    my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
-	    my $salt = $salt_chars[rand(@salt_chars)] .
-		       $salt_chars[rand(@salt_chars)];
-	    $protogeni_password = crypt($emulabconfig{"PROTOGENI_PASSWORD"},
-					"\$1\$${salt}");
-	}
 	print OUTDEFS "PROTOGENI_SUPPORT=1\n";
 	print OUTDEFS "PROTOGENI_GENIRACK=$config_genirack\n";
 	print OUTDEFS "PROTOGENI_DOMAIN=\"$protogeni_domain\"\n";
-	print OUTDEFS "PROTOGENI_PASSWORD=\"$protogeni_password\"\n";
+	print OUTDEFS "FANCYBANNER=1\n";
+	print OUTDEFS "ISOLATEADMINS=0\n";
     }
     close(INDEFS);
     close(OUTDEFS);
