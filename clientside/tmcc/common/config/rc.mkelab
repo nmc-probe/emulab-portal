@@ -1045,7 +1045,10 @@ sub SetupFsNode()
 	# issue.  Note that when elabinelab setup finishes, boss and ops
 	# will be rebooted and we will again be bound to port 900.
 	#
-	mysystem("mountd -r");
+	# XXX: nfsd start above may have already started mountd, so don't
+	# fail if this mountd restart fails!
+	#
+	system("mountd -r");
     } else {
 	# XXX FBSD4 is such a pain...
 	mysystem("nfsd -u -t -n 8");
@@ -1593,7 +1596,10 @@ sub SetupOpsNode($)
 	# issue.  Note that when elabinelab setup finishes, boss and ops
 	# will be rebooted and we will again be bound to port 900.
 	#
-	mysystem("mountd -r");
+	# XXX: nfsd start above may have already started mountd, so don't
+	# fail if this mountd restart fails!
+	#
+	system("mountd -r");
 	mysystem("/etc/rc.d/sendmail start");
     } else {
 	# XXX FBSD4 is such a pain...
