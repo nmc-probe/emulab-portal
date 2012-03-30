@@ -6,7 +6,9 @@ use libinstall;
 use installvars;
 use emutil;
 
-my $MFSTARBALL	    = "tftpboot-elabinelab.tar.gz";
+my $MFSTARBALL	    = ($ELABINELAB ?
+		       "tftpboot-elabinelab.tar.gz" :
+		       "tftpboot-latest.tar.gz");
 my $MFSURL	    = "http://www.emulab.net/downloads/$MFSTARBALL";
 my $MFSCONSOLE      = $NODECONSOLE;
 my $MFSDESCRIPTORS  = "$TOP_SRCDIR/install/descriptors-mfs.xml";
@@ -60,10 +62,10 @@ sub Install($$$)
 	if (! -e "$TFTP_DIR/$pdir/pxeboot.emu-${cons}") {
 	    $cons = "sio";
 	}
-	Phase "pxemv", "Using ${cons} version of pxeboot", sub {
+	Phase "pxemv", "Using ${cons} version of $pdir", sub {
 	    DoneIfExists("$TFTP_DIR/pxeboot.emu");
 	    ExecQuietFatal("cd $TFTP_DIR; ".
-			   "$MV $pdir/pxeboot.emu-${cons} pxeboot.emu");
+			   "$CP -p $pdir/pxeboot.emu-${cons} pxeboot.emu");
 	};
 	Phase "freemv", "Using freebsd${fv} version of admin MFS", sub {
 	    DoneIfExists("$TFTP_DIR/freebsd");
