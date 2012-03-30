@@ -110,9 +110,10 @@ if (!$lvm || ($lvm && $lmonster)) {
 }
 
 #
-# XXX determine the disk based on the root fs
+# XXX determine the disk based on the root fs.
+# Note: 'rootfs' grep is because Fedora 15 df shows two lines for "/" 
 #
-my $rootdev = `df | egrep '/\$'`;
+my $rootdev = `df | egrep '/\$' | grep -v rootfs`;
 if ($rootdev =~ /^\/dev\/([a-z]+)\d+\s+/) {
     $disk = $1;
 }
