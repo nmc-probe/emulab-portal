@@ -77,6 +77,8 @@ etc-install:	dir-install sysetc-remove sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/passwd $(ETCDIR)/passwd
 	$(INSTALL) -m 600 $(SRCDIR)/shadow $(ETCDIR)/shadow
 	$(INSTALL) -m 600 $(SRCDIR)/gshadow $(ETCDIR)/gshadow
+	$(INSTALL) -m 755 $(SRCDIR)/rc.local $(ETCDIR)/rc.d/rc.local
+	$(INSTALL) -m 755 $(SRCDIR)/testbed $(ETCDIR)/rc.d/init.d/testbed
 	@echo "fedora-specific etc-install done"
 
 sysetc-install:	ifcfgs dir-install
