@@ -144,22 +144,6 @@ sub doboot()
 	unlink $CONFIG;
 
 	#
-	# Find out who to run as
-	#
-	my @tmccresults;
-	if (tmcc(TMCCCMD_CREATOR, undef, \@tmccresults) < 0) {
-	    fatal("Could not get UID for disk agent from server!");
-	}
-	if ($tmccresults[0] =~ / SWAPPER=([-\w]*)/) {
-	    $runas = $1;
-	} elsif ($tmccresults[0] =~ /^CREATOR=([-\w]*)/) {
-	    $runas = $1;
-	} else {
-	    warning("Cannot determine UID for program agent, not running");
-	    exit(0);
-	}
-
-	#
 	# Write the data to the file. The rc script will interpret it.
 	# Note that one of the lines (the first) indicates what user to
 	# run the agent as.
@@ -187,7 +171,7 @@ sub doboot()
 	}
 
 	system("$DAGENT -e $pid/$eid -s $server $port -l $LOGFILE ".
-	       "-v $vname -t $TOKEN -U $runas ".
+	       "-v $vname -t $TOKEN -U root ".
 	       "-d -i $PIDFILE -k " . TMEVENTKEY() . " -c $CONFIG");
 	exit(0)
 	    if (! $?);

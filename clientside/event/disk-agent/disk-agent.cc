@@ -168,7 +168,7 @@ void init_volumes(void)
          * mkextrafs script which will create 10 logical volumes.
          */
         cout << "Creating the disk partition ..." << endl;
-        cmd = "sudo /usr/testbed/bin/mkextrafs -q -l -m vol1,vol2,vol3,vol4,vol5,vol6,vol7,vol8,vol9,vol10";
+        cmd = "/usr/testbed/bin/mkextrafs -q -l -m vol1,vol2,vol3,vol4,vol5,vol6,vol7,vol8,vol9,vol10";
         int i = system(const_cast<char *>(cmd.c_str()));
         if(i)
         {
@@ -302,7 +302,8 @@ find_agent(char *name)
 
 int main(int argc, char * argv[])
 {
-  cerr << "Beginning program" << endl;
+  cout << "Beginning program" << endl;
+  init_volumes();
   readArgs(argc, argv);
   return 0;
 }
@@ -312,11 +313,11 @@ int main(int argc, char * argv[])
  */
 void readArgs(int argc, char * argv[])
 {
-  cerr << "Processing arguments" << endl;
+  cout << "Processing arguments" << endl;
   string server;
   string port;
   char *logfile = NULL;
-  string pidfile;
+  char *pidfile = NULL;
   char *configfile;
   string keyFile;
   string tokenfile;
@@ -324,7 +325,8 @@ void readArgs(int argc, char * argv[])
   string vnode;
   string group;
   string user;
-  string LOGDIR = "/local/logs";
+  char buf[MAX_BUFFER];
+  FILE *fp;
 
   // Prevent getopt from printing an error message.
   opterr = 0;
@@ -393,16 +395,31 @@ void readArgs(int argc, char * argv[])
   if(server == "" || user == "" || g::experimentName == "")
       usage(argv[0]);
 
+  /*
+   * Write out a pidfile if root.
+   */
+  if (!getuid()) {
+		if (pidfile)
+            strcpy(buf, pidfile);
+        else
+            sprintf(buf, "%s/diskagent.pid", _PATH_VARRUN);
+        fp = fopen(buf, "w");
+        if (fp != NULL) {
+            fprintf(fp, "%d\n", getpid());
+            (void) fclose(fp);
+        }
+  }
+
   be_user(const_cast<char *>(user.c_str()));
 
- /* if(g::debug)
+  if(g::debug)
 	loginit(0, logfile);
   else {
 	if(logfile)
 		loginit(0, logfile);
 	else
 		loginit(1, "disk-agent");
-  }*/
+  }
   //if(subscription == "")
 	//subscription = "DISK";
 	
@@ -430,7 +447,7 @@ void initEvents(string const & server, string const & port,
                 string const & keyFile, string const & subscription,
                 string const & group)
 {
-  cerr << "Initializing event system" << endl;
+  cout << "Initializing event system" << endl;
   string serverString = "elvin://" + server;
   event_handle_t handle;
   if (port != "")
@@ -568,7 +585,6 @@ void callback(event_handle_t handle,
     return;
   }
 
-  cerr << name << endl;
 
   if (event_notification_get_string(handle, notification, const_cast<char *>("EVENTTYPE"), type, EVENT_BUFFER_SIZE) == 0)
   {
@@ -631,24 +647,24 @@ void callback(event_handle_t handle,
 	case 0:
 		/* Event is to create a dm disk */	
 		if(!create_dm_device(dinfo, args))
-			cout << "DM failed" << endl;
+			cerr << "DM failed" << endl;
 		event="";
 		break;
   	case 1:
 		/* Event is to modify the dm disk */
 		if(!modify_dm_device(dinfo, args))
-			cout << "DM failed" << endl;
+			cerr << "DM failed" << endl;
 		event="";
 	 	break;	
 	case 2:
 		break;
 	case 3:
 		if(!run_dm_device(dinfo, args))
-			 cout << "DM failed" << endl;
+			 cerr << "DM failed" << endl;
 		event="";
 		break;
 	default:
-		cout << "Don't recognize the event type" << endl;
+		cerr << "Don't recognize the event type" << endl;
   }
  
 }
@@ -782,7 +798,7 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 		do
 		{
 				++count;
-				cmd = "sudo lvdisplay emulab/vol"+itos(volindex)+" | grep open | cut -d ' ' -f 21-21";
+				cmd = "lvdisplay emulab/vol"+itos(volindex)+" | grep open | cut -d ' ' -f 21-21";
 				string open_count_str = exec_output(cmd);
 				int open_count = atoi(const_cast<char *>(open_count_str.c_str()));     
 				if(open_count > 0)
@@ -797,7 +813,7 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 				return 0;
 		}
 
-		cmd = "sudo mkfs.ext3 /dev/emulab/vol"+itos(volindex);
+		cmd = "mkfs.ext3 /dev/emulab/vol"+itos(volindex);
 		int i = system(const_cast<char *>(cmd.c_str()));
 		if(i)
 		{
@@ -813,7 +829,7 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 		/* So we have the new partition. Find out the
 		 * size of partition to create the new dm disk.
 		 */
-		cmd = "sudo blockdev --getsz "+disk;
+		cmd = "blockdev --getsz "+disk;
 		string str_size = exec_output(cmd);
 		if (str_size == "") {
 			dm_task_destroy(dmt);
@@ -869,7 +885,7 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 				return 0;
 		}
 		str = dinfo->mountpoint;
-		cmd = "sudo mkdir -p "+str;
+		cmd = "mkdir -p "+str;
 		i = system(const_cast<char *>(cmd.c_str()));
 		if(i)
 		{
@@ -878,7 +894,7 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 				return 0;
 		}
 
-		cmd = "sudo mount -t ext3 "+dm_disk_name+" "+str;
+		cmd = "mount -t ext3 "+dm_disk_name+" "+str;
 		i = system(const_cast<char *>(cmd.c_str()));
 		if(i)
 		{
@@ -913,7 +929,7 @@ int create_dm_device(struct diskinfo *dinfo, char *args)
     dump_diskinfos();
 
     if(dinfo->cmdline == NULL) {
-        cout << "Cmdline is empty!" << endl;
+        cerr << "Cmdline is empty!" << endl;
         return 0;
     }
 
@@ -1144,7 +1160,7 @@ string exec_output(string cmd)
 
 	// do it
 	if (!(stream = popen(cmd.c_str(), "r"))) {
-		cout << "Exec failed" << endl;
+		cerr << "Exec failed" << endl;
 		data="";
 		goto out;
 	}
@@ -1312,7 +1328,7 @@ parse_configfile(char *filename)
     assert(strlen(filename) > 0);
 
     if ((fp = fopen(filename, "r")) == NULL) {
-        cout << "could not open configfile "<< filename <<endl;
+        cerr << "could not open configfile "<< filename <<endl;
         return -1;
     }
 
@@ -1328,16 +1344,16 @@ parse_configfile(char *filename)
 			dinfo = (struct diskinfo *) calloc(1, sizeof(*dinfo));
 		
 			if(!dinfo) {
-				cout << "parse_configfile: out of memory" <<endl;
+				cerr << "parse_configfile: out of memory" <<endl;
 				goto bad;
 			}
 
             if ((rc = event_arg_get(buf, "DISKNAME", &value)) <= 0) {
-                cout << "parse_configfile: bad agent name" << endl;
+                cerr << "parse_configfile: bad agent name" << endl;
                 goto bad;
             }
             else if (rc >= sizeof(dinfo->name)) {
-                cout << "parse_configfile: agent name is too long" << endl; 
+                cerr << "parse_configfile: agent name is too long" << endl; 
                 goto bad;
             }
             strncpy(dinfo->name, value, rc);
