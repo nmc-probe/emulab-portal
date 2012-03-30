@@ -739,6 +739,56 @@ dolinux() {
 	    linux=`lilogetkernel $lconf`
 	fi
 
+	#
+	# Blacklist the hp ilo stuff.
+	#
+	modules="hpilo hpwdt"
+	for mod in ${modules}; do
+	    grep $mod /mnt/etc/modprobe.d/blacklist.conf >/dev/null 2>&1
+	    case $? in
+	    0)
+		;;
+	    *)
+		echo "  blacklisting $mod"
+                echo "blacklist $mod" >> /mnt/etc/modprobe.d/blacklist.conf
+	        ;;
+	    esac
+        done
+
+	#
+	# Console. If there is no serial console, need to modify the
+	# grub config to use the vga only. 
+	#
+	if [ $VGAONLY = "yes" ]; then
+	    grep -E '^terminal.*serial' $gconf >/dev/null 2>&1
+	    case $? in
+	    0)
+		echo "  changing grub terminal to console"
+	        sed -i .preemulab -e "s;^terminal;#terminal;" $gconf || {
+		    echo "Failed to update terminal line in $gconf"
+		    umount $rootdev
+		    return 1
+		}
+		echo "terminal --timeout=5 console" >> $gconf
+		;;
+	    *)
+	        ;;
+	    esac
+	    grep -E "console=ttyS" $gconf >/dev/null 2>&1
+	    case $? in
+	    0)
+		echo "  changing grub kernel command to console"
+		sed -i .preemulab -e 's;ttyS[^ ]*;tty0;' $gconf || {
+		    echo "Failed to update console in $gconf"
+		    umount $rootdev
+		    return 1
+		}
+	        ;;
+	    *)
+	        ;;
+	    esac
+	fi
+
 	if [ -f /mnt/var/lib/random-seed -a -c /dev/urandom ]; then
 	    echo "  updating /var/lib/random-seed"
 	    dd if=/dev/urandom of=/mnt/var/lib/random-seed bs=512 count=1 >/dev/null 2>&1
