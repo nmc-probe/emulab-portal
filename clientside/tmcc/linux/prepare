@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -22,7 +22,7 @@ my $FSTAB       = "/etc/fstab";
 my $LOGDIR      = "/var/log";
 my $RUNDIR      = "/var/run";
 my $HISTORY     = ".bash_history";
-my $MAILFILE    = "/var/spool/mail/root";
+my $MAILDIR     = "/var/spool/mail";
 my $NTPDRIFT1   = "/etc/ntp/drift";
 my $NTPDRIFT2   = "/var/lib/ntp/drift";
 my $SFSUSERS    = "/etc/sfs/sfs_users";
@@ -233,11 +233,8 @@ if (-f "/root/$HISTORY") {
         die("Could not unlink /root/$HISTORY: $!");
 }
 
-print "Removing root's mailfile ...\n";
-if (-f $MAILFILE) {
-    unlink($MAILFILE) or
-        die("Could not unlink $MAILFILE: $!");
-}
+print "Cleaning mail spool files ...\n";
+system("rm -rf $MAILDIR/*");
 
 #
 # Remove the iftab file (maps ifaces to mac addrs and renames ifaces according
