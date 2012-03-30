@@ -21,6 +21,8 @@ sub Install($$$)
 
     Phase "IDs", "Setting up Images and OSs", sub {
 	if ($PROTOGENI_GENIRACK) {
+	    require NodeType;
+	    
 	    #
 	    # Load up the nodetype. It will be the same on every machine,
 	    # and if we do it before loading the descriptors, then we
@@ -28,13 +30,14 @@ sub Install($$$)
 	    #
 	    my $NODETYPE     = "dl360";
 	    my $CREATETYPE   = "$PREFIX/bin/editnodetype";
+	    my $NODETYPEXML  = "$TOP_SRCDIR/install/genirack-nodetype.xml";
 	    
 	    Phase "nodetype", "Creating Protogeni nodetype", sub {
 		my $nodetype = NodeType->Lookup($NODETYPE);
 		PhaseSkip("already created")
 		    if (defined($NODETYPE));
 		ExecQuietFatal("$SUDO -u $PROTOUSER ".
-			       "         $WAP $CREATENODE $NODETYPEXML");
+			       "         $WAP $CREATETYPE $NODETYPEXML");
 	    };
 	}
 	
