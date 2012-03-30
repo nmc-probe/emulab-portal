@@ -1,6 +1,6 @@
-diff -ur ./aomdv/aomdv.cc ../../ns-allinone-2.34-patched/ns-2.34/aomdv/aomdv.cc
---- ./aomdv/aomdv.cc	2009-06-14 10:35:44.000000000 -0700
-+++ ../../ns-allinone-2.34-patched/ns-2.34/aomdv/aomdv.cc	2009-12-21 18:59:34.000000000 -0800
+diff -ur ../../ns-allinone-2.34.orig/ns-2.34/aomdv/aomdv.cc ./aomdv/aomdv.cc
+--- ../../ns-allinone-2.34.orig/ns-2.34/aomdv/aomdv.cc	2009-06-14 11:35:44.000000000 -0600
++++ ./aomdv/aomdv.cc	2012-03-30 10:58:10.000000000 -0600
 @@ -86,6 +86,7 @@
  #include <aomdv/aomdv_packet.h>
  #include <random.h>
@@ -9,9 +9,20 @@ diff -ur ./aomdv/aomdv.cc ../../ns-allinone-2.34-patched/ns-2.34/aomdv/aomdv.cc
  //#include <energy-model.h>
  
  #define max(a,b)        ( (a) > (b) ? (a) : (b) )
-diff -ur ./tcl/lan/vlan.tcl ../../ns-allinone-2.34-patched/ns-2.34/tcl/lan/vlan.tcl
---- ./tcl/lan/vlan.tcl	2009-06-14 10:35:40.000000000 -0700
-+++ ../../ns-allinone-2.34-patched/ns-2.34/tcl/lan/vlan.tcl	2009-12-21 18:56:42.000000000 -0800
+diff -ur ../../ns-allinone-2.34.orig/ns-2.34/emulate/net-pcap.cc ./emulate/net-pcap.cc
+--- ../../ns-allinone-2.34.orig/ns-2.34/emulate/net-pcap.cc	2009-06-14 11:35:45.000000000 -0600
++++ ./emulate/net-pcap.cc	2012-03-30 11:01:19.000000000 -0600
+@@ -55,6 +55,7 @@
+ #include <sys/systeminfo.h>
+ #endif
+ 
++#include <net/bpf.h>
+ #ifdef __cplusplus
+ extern "C" {
+ #include <pcap.h>
+diff -ur ../../ns-allinone-2.34.orig/ns-2.34/tcl/lan/vlan.tcl ./tcl/lan/vlan.tcl
+--- ../../ns-allinone-2.34.orig/ns-2.34/tcl/lan/vlan.tcl	2009-06-14 11:35:40.000000000 -0600
++++ ./tcl/lan/vlan.tcl	2012-03-30 10:58:10.000000000 -0600
 @@ -143,8 +143,12 @@
  		$src add-neighbor $self
  
@@ -40,9 +51,9 @@ diff -ur ./tcl/lan/vlan.tcl ../../ns-allinone-2.34-patched/ns-2.34/tcl/lan/vlan.
  	return $lan
  }
  
-diff -ur ./tcl/lib/ns-lib.tcl ../../ns-allinone-2.34-patched/ns-2.34/tcl/lib/ns-lib.tcl
---- ./tcl/lib/ns-lib.tcl	2009-06-14 10:35:41.000000000 -0700
-+++ ../../ns-allinone-2.34-patched/ns-2.34/tcl/lib/ns-lib.tcl	2009-12-21 18:56:42.000000000 -0800
+diff -ur ../../ns-allinone-2.34.orig/ns-2.34/tcl/lib/ns-lib.tcl ./tcl/lib/ns-lib.tcl
+--- ../../ns-allinone-2.34.orig/ns-2.34/tcl/lib/ns-lib.tcl	2009-06-14 11:35:41.000000000 -0600
++++ ./tcl/lib/ns-lib.tcl	2012-03-30 10:58:10.000000000 -0600
 @@ -261,6 +261,11 @@
  		$self multicast $args
  	}
@@ -98,3 +109,4 @@ diff -ur ./tcl/lib/ns-lib.tcl ../../ns-allinone-2.34-patched/ns-2.34/tcl/lib/ns-
  }
  
  Simulator instproc duplex-intserv-link { n1 n2 bw pd sched signal adc args } {
+Only in ../../ns-allinone-2.34.orig/ns-2.34/tcl/lib: ns-link.tcl.orig
