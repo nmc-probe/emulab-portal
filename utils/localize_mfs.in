@@ -170,7 +170,7 @@ sub LocalizeBSD()
     };
 
     #
-    # Map from $NODECONSOLE to config setting.
+    # Map from $MFSCONSOLE to config setting.
     #
     my %consmap = (
 	"sio"  => "com",
@@ -178,8 +178,8 @@ sub LocalizeBSD()
 	"vga"  => "vid",
 	"null" => "null"
     );
-    if (!exists($consmap{$NODECONSOLE})) {
-	fatal("Do not know what to do with console: $NODECONSOLE");
+    if (!exists($consmap{$MFSCONSOLE})) {
+	fatal("Do not know what to do with console: $MFSCONSOLE");
     }
 
     #
@@ -236,7 +236,7 @@ sub LocalizeBSD()
     ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod root -H 0")
 	== 0 or goto bad;
     # Localize the console to use.
-    my $consdev = $consmap{$NODECONSOLE} . "console";
+    my $consdev = $consmap{$MFSCONSOLE} . "console";
     ExecQuiet("echo 'console=\"$consdev\"' >> loader.conf.orig")
 	== 0 or goto bad;
 
