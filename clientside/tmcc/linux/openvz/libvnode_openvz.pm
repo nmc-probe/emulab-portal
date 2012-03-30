@@ -381,7 +381,7 @@ sub vz_rootPreConfig {
 
     # Ug, pre-create a bunch of imq devices, since adding new ones
     # does not work right yet.
-    mysystem("$MODPROBE imq numdevs=$MAXIMQ");
+    mysystem("$MODPROBE imq");
     mysystem("$MODPROBE ipt_IMQ");
 
     # Create a DB to manage them.
@@ -1268,6 +1268,10 @@ sub vz_vnodePreConfig {
     }
 
     foreach my $dev (keys(%devs)) {
+        if (! -d "/sys/class/net/$dev") {
+	    system("$IP link add name $dev type imq");
+        }
+	    
 	if ($devs{$dev} == 1) {
 	    mysystem("$VZCTL $VZDEBUGOPTS set $vnode_id --netdev_add $dev --save");
 	}
