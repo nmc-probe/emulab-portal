@@ -248,9 +248,20 @@ sub LocalizeBSD()
     # We should have a more general way to set the console on a per
     # node basis.
     #
-    if ($MFSCONSOLE eq "vga" &&
-	ExecQuiet("$CP /dev/null $mpoint/etc/emulab/isvgaonly")) {
-	goto bad;
+    if ($MFSCONSOLE eq "vga") {
+	ExecQuiet("$CP /dev/null $mpoint/etc/emulab/isvgaonly") == 0
+	    or goto bad;
+	# Fix for a paths.sh messup on the MFS.
+	if (-e "$mpoint/etc/testbed" &&
+	    ExecQuiet("$CP /dev/null $mpoint/etc/testbed/isvgaonly")) {
+	    goto bad;
+	}
+    }
+    else {
+	unlink("$mpoint/etc/emulab/isvgaonly")
+	    if (-e "$mpoint/etc/emulab/isvgaonly");
+	unlink("$mpoint/etc/testbed/isvgaonly")
+	    if (-e "$mpoint/etc/testbed/isvgaonly");
     }
 
     #
