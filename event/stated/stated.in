@@ -1796,6 +1796,15 @@ sub info($) {
     print strftime("%b %e %H:%M:%S", localtime) . " [$$]: $message";
 }
 
+# XXX for child: stderr goes to log (stdout goes to parent)
+sub cinfo($) {
+    my $message = shift;
+
+    # Print out log entries like this:
+    # Sep 20 09:36:00 [238]: Reloading state from database
+    print STDERR strftime("%b %e %H:%M:%S", localtime) . " [$$]: $message";
+}
+
 sub restart_wrap { $sigrestart=1; }
 
 # This gets called if we catch a signal USR1
@@ -1933,13 +1942,13 @@ sub StartEvents()
 
     # Plain exit in the child.
     $SIG{TERM} = sub {
-	print STDERR "Caught a TERM in child. Exiting ...\n";
+	cinfo("Caught a TERM in child. Exiting ...\n");
 	exit(0);
     };
 
     # Make sure this child starts writing into the new logfile.
     $SIG{USR2} = sub {
-	print STDERR "Caught a USR2 in child\n";
+	cinfo("Caught a USR2 in child\n");
 	# Only STDERR can be redirected to the newfile. STDOUT is writing
 	# to the parent process.
 	close(STDERR);
@@ -1948,7 +1957,7 @@ sub StartEvents()
 	$OUTPUT_AUTOFLUSH = 1;
 	# restore default output.
 	select STDOUT;
-	print STDERR "Opened new logfile in child\n";
+	cinfo("Opened new logfile in child\n");
     };
 
     #
@@ -1971,8 +1980,7 @@ sub StubHandleEvent($$$) {
     #
     print "OBJTYPE='$objtype', OBJNAME='$objname', EVENTTYPE='$eventtype'\n";
     if (1) {
-	print STDERR
-	    "OBJTYPE='$objtype', OBJNAME='$objname', EVENTTYPE='$eventtype'\n";
+	cinfo("OBJTYPE='$objtype', OBJNAME='$objname', EVENTTYPE='$eventtype'\n");
     }
     return 0;
 }
