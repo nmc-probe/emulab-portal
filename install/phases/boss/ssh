@@ -14,7 +14,7 @@ sub Install($$$)
 	if ($isupdate);
 
     Phase "ssh", "Setting up root ssh from boss to ops", sub {
-	Phase "keygen", "Creating root private key", sub {
+	Phase "keygen", "Creating root RSA private key", sub {
 	    DoneIfExists($ROOT_PRIVKEY);
 	    ExecQuietFatal("$SSH_KEYGEN -t rsa -P '' -f $ROOT_PRIVKEY");
 	};
@@ -29,6 +29,14 @@ sub Install($$$)
 			   "       where name='node/ssh_pubkey'\" | ".
 			   "$MYSQL $DBNAME");
 	};
+	#
+	# Also create a DSA key. Useful and sometimes required.
+	#
+	Phase "keygen", "Creating root DSA private key", sub {
+	    DoneIfExists($ROOT_DSA_PRIVKEY);
+	    ExecQuietFatal("$SSH_KEYGEN -t dsa -P '' -f $ROOT_DSA_PRIVKEY");
+	};
+	
 	Phase "ssh", "Editing ssh config file", sub {
 	    DoneIfEdited($SSH_CONFIG);
 	    AppendToFileFatal($SSH_CONFIG,

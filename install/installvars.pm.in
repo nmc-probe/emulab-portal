@@ -283,6 +283,8 @@ $PROTOUSER_KEY		= "$main::TOP_SRCDIR/install/elabman_dsa.pub";
 $ROOT_PRIVKEY		= "/root/.ssh/id_rsa";
 $ROOT_PUBKEY		= "$ROOT_PRIVKEY.pub";
 $ROOT_AUTHKEY		= "/root/.ssh/authorized_keys";
+$ROOT_DSA_PRIVKEY	= "/root/.ssh/id_dsa";
+$ROOT_DSA_PUBKEY	= "$ROOT_DSA_PRIVKEY.pub";
 
 $INIT_PRIVKEY		= "$main::TOP_SRCDIR/install/identity";
 $CACERT			= "$TBROOT/etc/emulab.pem";
