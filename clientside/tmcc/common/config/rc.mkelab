@@ -2069,14 +2069,6 @@ sub SetupBossNode($)
     }
 
     #
-    # XXX ugh, right now mrouted seems to crash FBSD9
-    #
-    if ($FBSD_VERSION > 8 && $emulabconfig{"CONFIG_MROUTED"}) {
-	print "WARNING: disabling mrouted due to potential kernel crashes\n";
-	$emulabconfig{"CONFIG_MROUTED"} = 0;
-    }
-
-    #
     # Need to create an /etc/rc.conf that is more suitable for boss.
     # I took most of this from our real boss node. It will be modified
     # by the boss-install script below.
