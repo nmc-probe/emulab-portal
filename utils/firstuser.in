@@ -189,6 +189,7 @@ print "Creating user in database...\n";
 DBQueryFatal("insert into users set uid='$protouser', usr_created=now(), " .
 	     "usr_name='$protouser_name', uid_uuid='$uid_uuid', ".
 	     "usr_addr='DO NOT DELETE THIS ACCOUNT', ".
+	     "nocollabtools=1, ".
 	     "usr_pswd='$encpass', unix_uid=$uid, notes='$protouser_notes', ".
 	     "usr_modified=now(), admin=1, webonly=0, status='active',".
 	     "usr_shell='$protouser_shell', usr_email='$protouser_email', ".
