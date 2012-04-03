@@ -61,4 +61,4 @@ post-install:
 control-install:
 
 clean:
-	rm -f *.o genlastlog suexec core
+	rm -f *.o genlastlog suexec runsuid core

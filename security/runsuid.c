@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include "config.h"
 
@@ -50,7 +51,11 @@ sanedir(char *dir)
 	struct stat sb;
 	char *rpath;
 
-	if ((rpath = realpath(dir, NULL)) == NULL) {
+	if ((rpath = malloc(PATH_MAX)) == NULL) {
+		fprintf(stderr, "no memory!\n");
+		exit(2);
+	}
+	if (realpath(dir, rpath) == NULL) {
 		perror(dir);
 		exit(1);
 	}
