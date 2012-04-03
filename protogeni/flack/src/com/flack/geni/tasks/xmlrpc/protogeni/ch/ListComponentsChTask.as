@@ -16,6 +16,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 {
 	import com.flack.geni.GeniCache;
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.plugins.emulab.DelaySliverType;
+	import com.flack.geni.plugins.emulab.FirewallSliverType;
+	import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
 	import com.flack.geni.resources.GeniUser;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
@@ -95,6 +98,11 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
 							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
 							
+							if(protogeniManager.hrn == "shadownet.cm")
+							{
+								protogeniManager.supportedLinkTypes.getByName(LinkType.LAN_V2).requiresIpAddresses = true;
+							}
+							
 							// Link Types (not advertised...)
 							if(protogeniManager.hrn == "ukgeni.cm"
 								|| protogeniManager.hrn == "utahemulab.cm")
@@ -110,13 +118,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							// Node Types (not advertised yet...)
 							if(protogeniManager.hrn == "utahemulab.cm")
 							{
-								protogeniManager.supportedSliverTypes.getOrCreateByName(SliverTypes.FIREWALL);
+								protogeniManager.supportedSliverTypes.getOrCreateByName(FirewallSliverType.TYPE_FIREWALL);
 							}
 							if(protogeniManager.hrn == "utahemulab.cm"
 								|| protogeniManager.hrn == "ukgeni.cm"
 								|| protogeniManager.hrn == "jonlab.cm")
 							{
-								protogeniManager.supportedSliverTypes.getOrCreateByName(SliverTypes.DELAY);
+								protogeniManager.supportedSliverTypes.getOrCreateByName(DelaySliverType.TYPE_DELAY);
 							}
 							
 							newManager = protogeniManager;
@@ -129,7 +137,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							planetLabManager.url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
 							planetLabManager.registryUrl = planetLabManager.url.replace("12346", "12345");
 							
-							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+							planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+							
+							planetLabManager.supportedSliverTypes.getOrCreateByName(PlanetlabSliverType.TYPE_PLANETLAB_V2);
 							
 							newManager = planetLabManager;
 						}

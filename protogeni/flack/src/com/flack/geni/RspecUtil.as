@@ -32,14 +32,10 @@ package com.flack.geni
 		
 		// Namespaces with prefixes
 		public static var xsiNamespace:Namespace = new Namespace("xsi", "http://www.w3.org/2001/XMLSchema-instance");
-		public static var delayNamespace:Namespace = new Namespace("delay", "http://www.protogeni.net/resources/rspec/ext/delay/1");
-		public static var firewallNamespace:Namespace = new Namespace("firewall", "http://www.protogeni.net/resources/rspec/ext/firewall/1");
 		public static var flackNamespace:Namespace = new Namespace("flack", "http://www.protogeni.net/resources/rspec/ext/flack/1");
 		public static var clientNamespace:Namespace = new Namespace("client", "http://www.protogeni.net/resources/rspec/ext/client/1");
 		public static var historyNamespace:Namespace = new Namespace("history", "http://www.protogeni.net/resources/rspec/ext/history/1");
 		public static var emulabNamespace:Namespace = new Namespace("rs", "http://www.protogeni.net/resources/rspec/ext/emulab/1");
-		public static var planetlabNamespace:Namespace = new Namespace("planetlab", "http://www.planet-lab.org/resources/sfa/ext/planetlab/1");
-		public static var openflow3Namespace:Namespace = new Namespace("openflow", "http://www.geni.net/resources/rspec/ext/openflow/3");
 		
 		public static function isKnownNamespace(uri:String):Boolean
 		{
@@ -53,9 +49,6 @@ package com.flack.geni
 				case xsiNamespace.uri:
 				case flackNamespace.uri:
 				case clientNamespace.uri:
-				case delayNamespace.uri:
-				case planetlabNamespace.uri:
-				case openflow3Namespace.uri:
 					return true;
 				default:
 					return false;
@@ -84,7 +77,5 @@ package com.flack.geni
 		public static const rspec02SchemaLocation:String = "http://www.protogeni.net/resources/rspec/0.2 http://www.protogeni.net/resources/rspec/0.2/request.xsd";
 		public static const rspec2SchemaLocation:String = "http://www.protogeni.net/resources/rspec/2 http://www.protogeni.net/resources/rspec/2/request.xsd";
 		public static const rspec3SchemaLocation:String = "http://www.geni.net/resources/rspec/3 http://www.geni.net/resources/rspec/3/request.xsd";
-		
-		public static const delaySchemaLocation:String = "http://www.protogeni.net/resources/rspec/ext/delay/1 http://www.protogeni.net/resources/rspec/ext/delay/1/request-delay.xsd";
 	}
 }

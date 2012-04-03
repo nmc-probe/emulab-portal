@@ -30,6 +30,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.display.mapping.mapproviders.googlemapsprovider.GoogleMapLocationMarker;
+			import com.flack.geni.resources.SliverType;
+			import com.flack.geni.resources.SliverTypeCollection;
 			import com.flack.geni.resources.physical.HardwareType;
 			import com.flack.geni.resources.physical.HardwareTypeCollection;
 			import com.flack.geni.resources.physical.PhysicalNode;
@@ -56,7 +58,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public var viewNodes:ArrayCollection;
 			
 			[Bindable]
-			private var nodeTypes:ArrayCollection;
+			private var nodeHardwareTypes:ArrayCollection;
+			
+			[Bindable]
+			private var nodeSliverTypes:ArrayCollection;
 			
 			[Bindable]
 			private var managers:ArrayCollection;
@@ -88,19 +93,27 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				viewNodes.refresh();
 				
 				// Types
-				nodeTypes = new ArrayCollection();
-				var groupTypes:HardwareTypeCollection = group.Types
-				for each(var nodeType:HardwareType in groupTypes.collection)
-					nodeTypes.addItem(nodeType);
+				nodeHardwareTypes = new ArrayCollection();
+				var groupHardwareTypes:HardwareTypeCollection = group.HardwareTypes;
+				for each(var nodeHardwareType:HardwareType in groupHardwareTypes.collection)
+					nodeHardwareTypes.addItem(nodeHardwareType);
+					
+				nodeSliverTypes = new ArrayCollection();
+				var groupSliverTypes:SliverTypeCollection = group.SliverTypes;
+				for each(var nodeSliverType:SliverType in groupSliverTypes.collection)
+					nodeSliverTypes.addItem(nodeSliverType);
 				
-				limitByTypeGroup.visible =
-					limitByTypeGroup.includeInLayout = nodeTypes.length > 1;
+				limitByHardwareTypeGroup.visible =
+					limitByHardwareTypeGroup.includeInLayout = nodeHardwareTypes.length > 1;
 				
-				if(nodeTypes.length > 0) {
-					if(nodeTypes.contains("pc") != -1)
-						typesList.selectedIndex = nodeTypes.getItemIndex("pc");
+				limitBySliverTypeGroup.visible =
+					limitBySliverTypeGroup.includeInLayout = nodeSliverTypes.length > 1;
+				
+				if(nodeHardwareTypes.length > 0) {
+					if(nodeHardwareTypes.contains("pc") != -1)
+						hardwareTypesList.selectedIndex = nodeHardwareTypes.getItemIndex("pc");
 					else
-						typesList.selectedIndex = 0;
+						hardwareTypesList.selectedIndex = 0;
 				}
 				
 				// Managers
@@ -145,8 +158,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(managerCheckbox.selected)
 					filteredNodes = filteredNodes.getByManager(managersList.selectedItem);
 				
-				if(typeCheckbox.selected)
-					filteredNodes = filteredNodes.getByType(typesList.selectedItem.name);
+				if(hardwareTypeCheckbox.selected)
+					filteredNodes = filteredNodes.getByHardwareType(hardwareTypesList.selectedItem.name);
+				
+				if(sliverTypeCheckbox.selected)
+					filteredNodes = filteredNodes.getBySliverType(sliverTypesList.selectedItem.name);
 				
 				if(exclusiveCheckbox.selected)
 				{
@@ -275,18 +291,33 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		</s:HGroup>
 		
 		<s:HGroup verticalAlign="middle"
-				  id="limitByTypeGroup"
+				  id="limitByHardwareTypeGroup"
 				  width="100%"
 				  gap="2"
-				  toolTip="Select a type to limit results to">
-			<s:CheckBox id="typeCheckbox"
+				  toolTip="Select a hardware type to limit results to">
+			<s:CheckBox id="hardwareTypeCheckbox"
 						change="filter();" />
-			<s:DropDownList id="typesList"
+			<s:DropDownList id="hardwareTypesList"
 							width="100%"
-							dataProvider="{nodeTypes}"
+							dataProvider="{nodeHardwareTypes}"
 							labelField="name"
 							requireSelection="true"
-							change="typeCheckbox.selected = true; filter();" />
+							change="hardwareTypeCheckbox.selected = true; filter();" />
+		</s:HGroup>
+		
+		<s:HGroup verticalAlign="middle"
+				  id="limitBySliverTypeGroup"
+				  width="100%"
+				  gap="2"
+				  toolTip="Select a hardware type to limit results to">
+			<s:CheckBox id="sliverTypeCheckbox"
+						change="filter();" />
+			<s:DropDownList id="sliverTypesList"
+							width="100%"
+							dataProvider="{nodeSliverTypes}"
+							labelField="name"
+							requireSelection="true"
+							change="sliverTypeCheckbox.selected = true; filter();" />
 		</s:HGroup>
 		
 		<s:HGroup verticalAlign="middle"

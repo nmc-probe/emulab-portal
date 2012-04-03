@@ -26,6 +26,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		  initialize="init()">
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
 			import com.flack.geni.resources.DiskImage;
 			import com.flack.geni.resources.SliverType;
 			import com.flack.geni.resources.SliverTypeCollection;
@@ -38,9 +39,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			[Bindable]
 			private var diskImages:ArrayCollection;
 			[Bindable]
-			private var initScripts:ArrayCollection;
-			[Bindable]
-			private var datapathPorts:ArrayCollection;
+			private var extraData:ArrayCollection;
 			
 			public function load(types:SliverTypeCollection):void
 			{
@@ -59,37 +58,17 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				var selectedSliverType:SliverType = sliverTypesList.selectedItem as SliverType;
 				if(selectedSliverType != null && initialized)
 				{
-					switch(selectedSliverType.name)
+					if(selectedSliverType.sliverTypeSpecific != null)
+						extraData = selectedSliverType.sliverTypeSpecific.SimpleList;
+					else
 					{
-						case SliverTypes.OPENFLOW_SWITCH:
-							datapathPorts = new ArrayCollection();
-							/*
-							if(selectedSliverType != null && selectedSliverType.openflowDatapath != null)
-							{
-								for each(var port:OpenflowPort in selectedSliverType.openflowDatapath.ports.collection)
-									datapathPorts.addItem(port.name + " (#"+port.num+")");
-							}
-							*/
-							sliverDetailsViewstack.selectedChild = openflowView;
-							break;
-						case SliverTypes.PLANETLAB_V1:
-						case SliverTypes.PLANETLAB_V2:
-							initScripts = new ArrayCollection();
-							if(selectedSliverType != null)
-							{
-								for each(var initScript:String in selectedSliverType.planetLabInitscripts)
-								initScripts.addItem(initScript);
-							}
-							sliverDetailsViewstack.selectedChild = planetlabView;
-							break;
-						default:
-							diskImages = new ArrayCollection();
-							if(selectedSliverType != null)
-							{
-								for each(var diskImage:DiskImage in selectedSliverType.diskImages.collection)
-								diskImages.addItem(diskImage);
-							}
-							sliverDetailsViewstack.selectedChild = diskImageView;
+						diskImages = new ArrayCollection();
+						if(selectedSliverType != null)
+						{
+							for each(var diskImage:DiskImage in selectedSliverType.diskImages.collection)
+							diskImages.addItem(diskImage);
+						}
+						sliverDetailsViewstack.selectedChild = diskImageView;
 					}
 				}
 			}
@@ -153,30 +132,17 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				</s:DataGrid>
 			</s:VGroup>
 		</s:NavigatorContent>
-		<s:NavigatorContent id="planetlabView"
+		<s:NavigatorContent id="extraView"
 							height="100%"
 							width="100%">
 			<s:VGroup width="100%"
 					  height="100%"
 					  gap="2">
-				<s:Label text="Initscripts"
+				<s:Label text="Values"
 						 fontWeight="bold" />
 				<s:List width="100%"
 						height="100%"
-						dataProvider="{initScripts}" />
-			</s:VGroup>
-		</s:NavigatorContent>
-		<s:NavigatorContent id="openflowView"
-							height="100%"
-							width="100%">
-			<s:VGroup width="100%"
-					  height="100%"
-					  gap="2">
-				<s:Label text="Datapath Ports"
-						 fontWeight="bold" />
-				<s:List width="100%"
-						height="100%"
-						dataProvider="{datapathPorts}" />
+						dataProvider="{extraData}" />
 			</s:VGroup>
 		</s:NavigatorContent>
 	</mx:ViewStack>

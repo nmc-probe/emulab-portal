@@ -194,35 +194,48 @@ package com.flack.geni.resources.sites
 		public function get CommonLinkTypes():SupportedLinkTypeCollection
 		{
 			var supportedTypes:SupportedLinkTypeCollection = new SupportedLinkTypeCollection();
+			var supportedType:SupportedLinkType = null;
+			var i:int = 0;
+			var manager:GeniManager = null;
 			if(collection.length > 0)
 			{
-				for each(var initialType:SupportedLinkType in collection[0].supportedLinkTypes.collection)
-					supportedTypes.add(initialType);
-			}
-			var i:int = 0;
-			var supportedType:SupportedLinkType = null;
-			for each(var manager:GeniManager in collection)
-			{
-				for(i = 0; i < supportedTypes.length; i++)
+				var sourceManager:GeniManager = collection[0];
+				for each(supportedType in sourceManager.supportedLinkTypes.collection)
 				{
-					supportedType = supportedTypes.collection[i];
-					if(manager.supportedLinkTypes.getByName(supportedType.name) == null)
+					var addType:SupportedLinkType = supportedType.Clone;
+					if((supportedType.supportsManyManagers && length > 1) || (supportedType.supportsSameManager && length == 1))
 					{
-						supportedTypes.remove(supportedType);
-						i--;
+						for(i = 0; i < length; i++)
+						{
+							manager = collection[i];
+							var testLinkType:SupportedLinkType = manager.supportedLinkTypes.getByName(supportedType.name);
+							// Make sure the same type exists and it is still usable
+							if(testLinkType == null ||
+								(!testLinkType.supportsManyManagers && length > 1) ||
+								(!testLinkType.supportsSameManager && length == 1))
+							{
+								addType = null;
+								break;
+							}
+							else
+							{
+								// Settings can only be the least common denominator
+								if(testLinkType.maxConnections < addType.maxConnections)
+									addType.maxConnections = testLinkType.maxConnections;
+								if(testLinkType.requiresIpAddresses && !addType.requiresIpAddresses)
+									addType.requiresIpAddresses = true;
+								if(testLinkType.level > addType.level)
+									addType.level = testLinkType.level;
+							}
+						}
 					}
+					else
+						addType = null;
+					if(addType != null)
+						supportedTypes.add(addType);
 				}
 			}
-			for(i = 0; i < supportedTypes.length; i++)
-			{
-				supportedType = supportedTypes.collection[i];
-				if((!supportedType.supportsManyManagers && length > 1)
-					|| (!supportedType.supportsSameManager && length == 1))
-				{
-					supportedTypes.remove(supportedType);
-					i--;
-				}
-			}
+			
 			return supportedTypes;
 		}
 		

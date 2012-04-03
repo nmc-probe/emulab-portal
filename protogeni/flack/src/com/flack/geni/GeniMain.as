@@ -20,9 +20,10 @@ package com.flack.geni
 	import com.flack.geni.display.mapping.mapproviders.googlemapsprovider.GoogleMap;
 	import com.flack.geni.display.windows.StartWindow;
 	import com.flack.geni.plugins.Plugin;
-	import com.flack.geni.plugins.example.Example;
+	import com.flack.geni.plugins.emulab.Emulab;
 	import com.flack.geni.plugins.instools.Instools;
-	import com.flack.geni.plugins.ontime.Ontime;
+	import com.flack.geni.plugins.openflow.Openflow;
+	import com.flack.geni.plugins.planetlab.Planetlab;
 	import com.flack.geni.tasks.groups.GetCertBundlesTaskGroup;
 	import com.flack.geni.tasks.http.PublicListAuthoritiesTask;
 	import com.flack.shared.SharedMain;
@@ -66,7 +67,9 @@ package com.flack.geni
 		{
 			plugins = new Vector.<Plugin>();
 			plugins.push(new Instools());
-			plugins.push(new Example());
+			plugins.push(new Emulab());
+			plugins.push(new Planetlab());
+			plugins.push(new Openflow());
 			// Add new plugins
 			for each(var plugin:Plugin in plugins)
 				plugin.init();

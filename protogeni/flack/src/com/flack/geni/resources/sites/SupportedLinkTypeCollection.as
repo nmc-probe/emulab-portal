@@ -50,5 +50,20 @@ package com.flack.geni.resources.sites
 			}
 			return supportedType;
 		}
+		
+		public function preferredType(numConnections:int = int.MAX_VALUE):SupportedLinkType
+		{
+			var preferred:SupportedLinkType = null;
+			if(length > 0)
+			{
+				for(var i:int = 0; i < length; i++)
+				{
+					var testType:SupportedLinkType = collection[i];
+					if(testType.maxConnections >= numConnections && (preferred == null || testType.level < preferred.level))
+						preferred = testType;
+				}
+			}
+			return preferred;
+		}
 	}
 }

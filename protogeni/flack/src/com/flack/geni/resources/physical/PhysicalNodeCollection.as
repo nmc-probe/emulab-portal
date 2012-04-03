@@ -14,6 +14,8 @@
 
 package com.flack.geni.resources.physical
 {
+	import com.flack.geni.resources.SliverType;
+	import com.flack.geni.resources.SliverTypeCollection;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
 	
@@ -104,12 +106,23 @@ package com.flack.geni.resources.physical
 		 * @return Nodes of the given hardware type
 		 * 
 		 */
-		public function getByType(type:String):PhysicalNodeCollection
+		public function getByHardwareType(type:String):PhysicalNodeCollection
 		{
 			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
 			for each (var n:PhysicalNode in collection)
 			{
 				if(n.hardwareTypes.getByName(type) != null)
+					group.add(n);
+			}
+			return group;
+		}
+		
+		public function getBySliverType(type:String):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if(n.sliverTypes.getByName(type) != null)
 					group.add(n);
 			}
 			return group;
@@ -391,7 +404,7 @@ package com.flack.geni.resources.physical
 		 * @return All hardware types
 		 * 
 		 */
-		public function get Types():HardwareTypeCollection
+		public function get HardwareTypes():HardwareTypeCollection
 		{
 			var types:HardwareTypeCollection = new HardwareTypeCollection();
 			for each(var node:PhysicalNode in collection)
@@ -404,6 +417,30 @@ package com.flack.geni.resources.physical
 			}
 			types.collection = types.collection.sort(
 				function compareTypes(a:HardwareType, b:HardwareType):Number
+				{
+					if(a.name < b.name)
+						return -1;
+					else if(a.name == b.name)
+						return 0;
+					else
+						return 1;
+				});
+			return types;
+		}
+		
+		public function get SliverTypes():SliverTypeCollection
+		{
+			var types:SliverTypeCollection = new SliverTypeCollection();
+			for each(var node:PhysicalNode in collection)
+			{
+				for each(var nodeType:SliverType in node.sliverTypes.collection)
+				{
+					if(types.getByName(nodeType.name) == null)
+						types.add(nodeType);
+				}
+			}
+			types.collection = types.collection.sort(
+				function compareTypes(a:SliverType, b:SliverType):Number
 				{
 					if(a.name < b.name)
 						return -1;

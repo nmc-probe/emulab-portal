@@ -22,10 +22,15 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.physical.PhysicalInterface;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.SupportedLinkType;
+	import com.flack.geni.resources.sites.SupportedLinkTypeCollection;
+	import com.flack.geni.resources.sites.SupportedSliverType;
 	import com.flack.geni.resources.virtual.extensions.MCInfo;
 	import com.flack.geni.resources.virtual.extensions.NodeFlackInfo;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.utils.StringUtil;
+	import com.flack.geni.plugins.emulab.Pipe;
+	import com.flack.geni.plugins.emulab.PipeCollection;
 
 	/**
 	 * Resource within a slice
@@ -62,30 +67,23 @@ package com.flack.geni.resources.virtual
 					clientId = slice.getUniqueId(this, newPhysicalNode.name+"-");
 			}
 			
-			if(newPhysicalNode.sliverTypes.length == 1)
+			// Set sliver type to known type if it's there
+			if(newPhysicalNode.exclusive && newPhysicalNode.sliverTypes.getByName(SliverTypes.RAWPC_V2) != null)
+			{
+				sliverType.name = SliverTypes.RAWPC_V2;
+				sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(SliverTypes.RAWPC_V2).diskImages;
+			}
+			else if(!newPhysicalNode.exclusive && newPhysicalNode.sliverTypes.getByName(SliverTypes.EMULAB_OPENVZ) != null)
+			{
+				sliverType.name = SliverTypes.EMULAB_OPENVZ;
+				sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(SliverTypes.EMULAB_OPENVZ).diskImages;
+			}
+			else
 			{
 				sliverType.name = newPhysicalNode.sliverTypes.collection[0].name;
 				sliverType.diskImages = newPhysicalNode.sliverTypes.collection[0].diskImages;
 			}
-			else
-			{
-				if(newPhysicalNode.exclusive)
-				{
-					if(newPhysicalNode.sliverTypes.getByName(SliverTypes.RAWPC_V2) != null)
-					{
-						sliverType.name = SliverTypes.RAWPC_V2;
-						sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(SliverTypes.RAWPC_V2).diskImages;
-					}
-				}
-				else
-				{
-					if(newPhysicalNode.sliverTypes.getByName(SliverTypes.EMULAB_OPENVZ) != null)
-					{
-						sliverType.name = SliverTypes.EMULAB_OPENVZ;
-						sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(SliverTypes.EMULAB_OPENVZ).diskImages;
-					}
-				}
-			}
+			
 			unsubmittedChanges = true;
 		}
 		public function get Bound():Boolean
@@ -96,9 +94,18 @@ package com.flack.geni.resources.virtual
 		public var exclusive:Boolean;
 		public function get Vm():Boolean
 		{
-			return hardwareType.name.indexOf("vm") > -1
-				|| (Physical != null && !Physical.exclusive)
-				|| SliverTypes.isVm(sliverType.name);
+			var supportedSliverType:SupportedSliverType = manager.supportedSliverTypes.getByName(sliverType.name);
+			// Detectable
+			if(supportedSliverType == null)
+				return supportedSliverType.supportsShared;
+			// Hardcoded if detectable setting isn't available
+			else
+			{
+				return hardwareType.name.indexOf("vm") > -1
+					|| (Physical != null && !Physical.exclusive)
+					|| manager.supportedSliverTypes.getByName(sliverType.name).supportsShared;
+			}
+			
 		}
 		
 		public var superNode:VirtualNode;
@@ -110,11 +117,19 @@ package com.flack.geni.resources.virtual
 		public var interfaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
 		public function get HasUsableExperimentalInterface():Boolean
 		{
+			var supportedSliverType:SupportedSliverType = manager.supportedSliverTypes.getByName(sliverType.name);
 			if(!Bound || Physical == null)
-				return true;
-			
-			if(sliverType.name == SliverTypes.JUNIPER_LROUTER)
-				return true;
+			{
+				if(supportedSliverType == null)
+					return true;
+				else
+					return supportedSliverType.supportsInterfaces;
+			}
+			else
+			{
+				if(supportedSliverType != null && supportedSliverType.interfacesUnadvertised)
+					return true;
+			}
 			
 			for each (var candidate:PhysicalInterface in Physical.interfaces.collection)
 			{
@@ -143,6 +158,7 @@ package com.flack.geni.resources.virtual
 		// Flack extension
 		public var flackInfo:NodeFlackInfo = new NodeFlackInfo();
 		
+		// Remove when uky creates an extension
 		public var mcInfo:MCInfo;
 		
 		/**
@@ -169,8 +185,15 @@ package com.flack.geni.resources.virtual
 		
 		public function allocateExperimentalInterface():VirtualInterface
 		{
-			if(!Bound || Physical == null || sliverType.name == SliverTypes.JUNIPER_LROUTER)
+			var supportedSliverType:SupportedSliverType = manager.supportedSliverTypes.getByName(sliverType.name);
+			if(!Bound ||
+				Physical == null ||
+				(supportedSliverType != null &&
+					supportedSliverType.interfacesUnadvertised &&
+					supportedSliverType.supportsInterfaces))
+			{
 				return new VirtualInterface(this);
+			}
 			else
 			{
 				for each (var candidate:PhysicalInterface in Physical.interfaces.collection)
@@ -190,63 +213,9 @@ package com.flack.geni.resources.virtual
 			return null;
 		}
 		
-		/**
-		 * Removes pipes not needed or adds missing pipes. Safe for any node type to call.
-		 * 
-		 */
-		public function cleanupPipes():void
-		{
-			if(sliverType.name == SliverTypes.DELAY)
-			{
-				if(sliverType.pipes == null)
-					sliverType.pipes = new PipeCollection();
-				var i:int;
-				// Make sure we have pipes for all interfaces
-				for(i = 0; i < interfaces.length; i++)
-				{
-					var first:VirtualInterface = interfaces.collection[i];
-					for(var j:int = i+1; j < interfaces.length; j++)
-					{
-						var second:VirtualInterface = interfaces.collection[j];
-						
-						var firstPipe:Pipe = sliverType.pipes.getFor(first, second);
-						if(firstPipe == null)
-						{
-							firstPipe = new Pipe(first, second, Math.min(first.capacity, second.capacity));
-							sliverType.pipes.add(firstPipe);
-							unsubmittedChanges = true;
-						}
-						
-						var secondPipe:Pipe = sliverType.pipes.getFor(second, first);
-						if(secondPipe == null)
-						{
-							secondPipe = new Pipe(second, first, Math.min(first.capacity, second.capacity));
-							sliverType.pipes.add(secondPipe);
-							unsubmittedChanges = true;
-						}
-					}
-				}
-				
-				// Remove pipes for interfaces which don't exist
-				for(i = 0; i < sliverType.pipes.length; i++)
-				{
-					var pipe:Pipe = sliverType.pipes.collection[i];
-					if(!interfaces.contains(pipe.src) || !interfaces.contains(pipe.dst))
-					{
-						sliverType.pipes.remove(pipe);
-						unsubmittedChanges = true;
-						i--;
-					}
-				}
-			}
-			else
-			{
-				if(sliverType.pipes != null && sliverType.pipes.length > 0)
-					unsubmittedChanges = true;
-				sliverType.pipes = null;
-			}
-		}
 		
+		
+		// XXX situations when this can't happen and return failed?
 		public function switchTo(newManager:GeniManager):void
 		{
 			if(newManager == manager)
@@ -262,30 +231,19 @@ package com.flack.geni.resources.virtual
 			manager = newManager;
 			oldSliver.UnsubmittedChanges = true;
 			
-			for each(var vi:VirtualInterface in interfaces.collection)
+			var connectedLinks:VirtualLinkCollection = interfaces.Links;
+			for each(var vl:VirtualLink in connectedLinks.collection)
 			{
-				for each(var vl:VirtualLink in vi.links.collection)
+				var supportedTypes:SupportedLinkTypeCollection = vl.interfaceRefs.Interfaces.Managers.CommonLinkTypes;
+				// Link type not valid anymore, change
+				if(supportedTypes.getByName(vl.type.name) == null)
 				{
-					// See if we need to change the link due to the manager change
-					for each(var otherInterface:VirtualInterface in vl.interfaceRefs.Interfaces.collection)
-					{
-						if(otherInterface != vi)
-						{
-							// Now will be links to another manager
-							if(otherInterface._owner.manager == oldManager)
-							{
-								vl.setUpTunnels();
-								break;
-							}
-							// Now the same manager
-							else if(otherInterface._owner.manager == manager)
-							{
-								vl.type.name = LinkType.LAN_V2;
-								break;
-							}
-							// Otherwise still different managers, no changes needed
-						}
-					}
+					var selectedType:SupportedLinkType = supportedTypes.preferredType(vl.interfaceRefs.length);
+					if(selectedType != null)
+						vl.changeToType(selectedType);
+					// Link not valid anymore
+					else
+						vl.removeNode(this);
 				}
 			}
 		}
@@ -335,13 +293,7 @@ package com.flack.geni.resources.virtual
 				newClone.clientId = clientId;
 			else
 				newClone.clientId = newClone.slice.getUniqueId(newClone, StringUtil.makeSureEndsWith(clientId,"-"));
-			if(sliverType.selectedImage != null)
-				newClone.sliverType.selectedImage = new DiskImage(sliverType.selectedImage.id.full);
-			newClone.sliverType.diskImages = sliverType.diskImages;
-			newClone.sliverType.extensions = sliverType.extensions.Clone;
-			newClone.sliverType.selectedPlanetLabInitscript = sliverType.selectedPlanetLabInitscript;
-			newClone.sliverType.firewallStyle = sliverType.firewallStyle;
-			newClone.sliverType.firewallType = sliverType.firewallType;
+			newClone.sliverType = sliverType.Clone;
 			if(hardwareType.name.length > 0)
 			{
 				newClone.hardwareType.name = hardwareType.name;

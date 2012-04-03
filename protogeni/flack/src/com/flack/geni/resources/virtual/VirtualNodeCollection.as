@@ -14,6 +14,7 @@
 
 package com.flack.geni.resources.virtual
 {
+	import com.flack.geni.plugins.SliverTypeInterface;
 	import com.flack.geni.resources.physical.PhysicalInterface;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.physical.PhysicalNodeCollection;
@@ -115,6 +116,29 @@ package com.flack.geni.resources.virtual
 					slices.add(node.slice);
 			}
 			return slices;
+		}
+		
+		public function get UniqueSliverTypeInterfaces():Vector.<SliverTypeInterface>
+		{
+			var ifaces:Vector.<SliverTypeInterface> = new Vector.<SliverTypeInterface>();
+			for each(var node:VirtualNode in collection)
+			{
+				if(node.sliverType.sliverTypeSpecific != null)
+				{
+					var add:Boolean = true;
+					for each(var existing:SliverTypeInterface in ifaces)
+					{
+						if(existing.Name == node.sliverType.sliverTypeSpecific.Name)
+						{
+							add = false;
+							break;
+						}
+					}
+					if(add)
+						ifaces.push(node.sliverType.sliverTypeSpecific);
+				}
+			}
+			return ifaces;
 		}
 		
 		/**

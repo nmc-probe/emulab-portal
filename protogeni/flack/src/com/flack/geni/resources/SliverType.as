@@ -14,8 +14,9 @@
 
 package com.flack.geni.resources
 {
+	import com.flack.geni.plugins.SliverTypeInterface;
+	import com.flack.geni.plugins.emulab.PipeCollection;
 	import com.flack.geni.resources.physical.DiskImageCollection;
-	import com.flack.geni.resources.virtual.PipeCollection;
 
 	/**
 	 * Describes the sliver environment which will be given to the user
@@ -32,20 +33,13 @@ package com.flack.geni.resources
 		// Advertised
 		// Standard
 		public var diskImages:DiskImageCollection = new DiskImageCollection();
-		// Planetlab
-		public var planetLabInitscripts:Vector.<String> = null;
 		
 		// Requestables
 		// Standard
 		[Bindable]
 		public var selectedImage:DiskImage = null;
-		// Planetlab
-		public var selectedPlanetLabInitscript:String = "";
-		// Firewall
-		public var firewallStyle:String = "open";
-		public var firewallType:String = "";
-		// Delay
-		public var pipes:PipeCollection = null;
+		
+		public var sliverTypeSpecific:SliverTypeInterface = null;
 		
 		/**
 		 * 
@@ -55,6 +49,25 @@ package com.flack.geni.resources
 		public function SliverType(newName:String = "")
 		{
 			name = newName;
+			sliverTypeSpecific = SliverTypes.getSliverTypeInterface(newName);
+		}
+		
+		public function get Clone():SliverType
+		{
+			var newSliverType:SliverType = new SliverType(name);
+			if(selectedImage != null)
+				newSliverType.selectedImage = new DiskImage(
+					selectedImage.id.full,
+					selectedImage.os,
+					selectedImage.version,
+					selectedImage.description,
+					selectedImage.isDefault
+				);
+			newSliverType.diskImages = diskImages;
+			if(sliverTypeSpecific != null)
+				newSliverType.sliverTypeSpecific = sliverTypeSpecific.Clone;
+			newSliverType.extensions = extensions.Clone;
+			return newSliverType;
 		}
 		
 		public function toString():String

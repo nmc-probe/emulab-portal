@@ -36,6 +36,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.display.DisplayUtil;
 			import com.flack.geni.display.slicer.ExecuteServiceComponent;
 			import com.flack.geni.display.slicer.InstallServiceComponent;
+			import com.flack.geni.plugins.SliverTypePart;
+			import com.flack.geni.plugins.emulab.Pipe;
+			import com.flack.geni.plugins.emulab.PipeCollection;
 			import com.flack.geni.resources.DiskImage;
 			import com.flack.geni.resources.Extensions;
 			import com.flack.geni.resources.SliverType;
@@ -46,10 +49,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.resources.physical.PhysicalNodeCollection;
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.SupportedSliverType;
+			import com.flack.geni.resources.sites.SupportedSliverTypeCollection;
 			import com.flack.geni.resources.virtual.ExecuteService;
 			import com.flack.geni.resources.virtual.InstallService;
-			import com.flack.geni.resources.virtual.Pipe;
-			import com.flack.geni.resources.virtual.PipeCollection;
 			import com.flack.geni.resources.virtual.VirtualComponent;
 			import com.flack.geni.resources.virtual.VirtualInterface;
 			import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
@@ -88,10 +90,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			private var hardwareForVirtual:ArrayCollection = new ArrayCollection();
 			[Bindable]
 			private var diskImages:ArrayCollection = new ArrayCollection();
-			[Bindable]
-			private var planetlabInitscripts:ArrayCollection = new ArrayCollection();
-			[Bindable]
-			private var pipes:ArrayCollection = new ArrayCollection();
+			
 			[Bindable]
 			private var interfaces:ArrayCollection = new ArrayCollection();
 			
@@ -232,46 +231,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						);
 					}
 					
-					pipes = new ArrayCollection();
-					var i:int;
-					// Make sure we have pipes for all interfaces
-					for(i = 0; i < interfaces.length; i++)
-					{
-						var first:VirtualInterface = node.interfaces.collection[i];
-						for(var j:int = i+1; j < interfaces.length; j++)
-						{
-							var second:VirtualInterface = node.interfaces.collection[j];
-							
-							var firstPipe:Pipe;
-							if(node.sliverType.pipes != null)
-								firstPipe = node.sliverType.pipes.getFor(first, second)
-							if(firstPipe == null)
-								firstPipe = new Pipe(first, second, Math.min(first.capacity, second.capacity));
-							pipes.addItem(
-								{
-									source: firstPipe,
-									capacity: firstPipe.capacity,
-									latency: firstPipe.latency,
-									packetLoss: firstPipe.packetLoss
-								}
-							);
-							
-							var secondPipe:Pipe;
-							if(node.sliverType.pipes != null)
-								secondPipe = node.sliverType.pipes.getFor(second, first);
-							if(secondPipe == null)
-								secondPipe = new Pipe(second, first, Math.min(first.capacity, second.capacity));
-							pipes.addItem(
-								{
-									source: secondPipe,
-									capacity: secondPipe.capacity,
-									latency: secondPipe.latency,
-									packetLoss: secondPipe.packetLoss
-								}
-							);
-						}
-					}
-					
 					okButton.enabled = false;
 				}
 			}
@@ -322,7 +281,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					
 					physicalNodes.refresh();
 					
-					var hardwareTypes:HardwareTypeCollection = SelectedManager.nodes.Types;
+					var hardwareTypes:HardwareTypeCollection = SelectedManager.nodes.HardwareTypes;
 					var selectHardwareType:String = "";
 					if(node != null && !node.Bound)
 						selectHardwareType = node.hardwareType.name;
@@ -365,7 +324,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				sliverTypes.removeAll();
 				if(SelectedManager != null)
 				{
-					for each(var supportedType:SupportedSliverType in SelectedManager.supportedSliverTypes.collection)
+					var unboundTypes:SupportedSliverTypeCollection = SelectedManager.supportedSliverTypes.Unbound;
+					for each(var supportedType:SupportedSliverType in unboundTypes.collection)
 					{
 						sliverTypes.addItem(supportedType.type);
 						if(supportedType.type.name == node.sliverType.name)
@@ -392,6 +352,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							sliverTypeDropDownList.selectedItem = sliverType;
 					}
 					
+					if(SelectedBoundNode.sliverTypes.getByName(node.sliverType.name) == null)
+					{
+						sliverTypes.addItem(node.sliverType);
+						sliverTypeDropDownList.selectedItem = node.sliverType;
+					}
+					
 					if(sliverTypeDropDownList.selectedItem == null)
 						sliverTypeDropDownList.selectedIndex = 0;
 				}
@@ -403,68 +369,46 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				if(SelectedSliverType != null)
 				{
-					switch(SelectedSliverType.name)
+					var supportedType:SupportedSliverType = SelectedManager.supportedSliverTypes.getByName(SelectedSliverType.name);
+					//exclusiveCheckbox.enabled = supportedType.supportsExclusive && supportedType.supportsShared;
+					diskImageGroup.visible = supportedType.supportsDiskImage;
+					if(diskImageGroup.visible)
 					{
-						case SliverTypes.EMULAB_OPENVZ:
-							exclusiveCheckbox.enabled = !SelectedBounded;
-							diskImageGroup.visible = false;
-							detailsViewstack.selectedChild = detailsView;
-							break;
-						case SliverTypes.RAWPC_V2:
-							exclusiveCheckbox.enabled = false;
-							exclusiveCheckbox.selected = true;
-							diskImageGroup.visible = true;
-							detailsViewstack.selectedChild = detailsView;
-							break;
-						case SliverTypes.DELAY:
-							exclusiveCheckbox.enabled = !SelectedBounded;
-							diskImageGroup.visible = false;
-							detailsViewstack.selectedChild = delayView;
-							loadDelayPipes();
-							break;
-						case SliverTypes.FIREWALL:
-							exclusiveCheckbox.enabled = false;
-							exclusiveCheckbox.selected = true;
-							diskImageGroup.visible = false;
-							detailsViewstack.selectedChild = firewallView;
-							if(firewallStyleDropdownlist != null)
-							{
-								if(node.sliverType.firewallStyle.length > 0)
-									firewallStyleDropdownlist.selectedItem = node.sliverType.firewallStyle;
-								else
-									firewallStyleDropdownlist.selectedIndex = 0;
-							}
-							break;
-						case SliverTypes.PLANETLAB_V1:
-						case SliverTypes.PLANETLAB_V2:
-							exclusiveCheckbox.enabled = false;
-							exclusiveCheckbox.selected = false;
-							diskImageGroup.visible = false;
-							detailsViewstack.selectedChild = planetlabView;
-							planetlabView.validateNow();
-							planetlabInitscripts.removeAll();
-							for each(var initscript:String in SelectedSliverType.planetLabInitscripts)
-							planetlabInitscripts.addItem(initscript);
-							if(planetlabInitscriptDropdownlist != null)
-							{
-								if(node.sliverType.selectedPlanetLabInitscript.length > 0)
-									planetlabInitscriptDropdownlist.selectedItem = node.sliverType.selectedPlanetLabInitscript;
-							}
-							break;
-						case SliverTypes.JUNIPER_LROUTER:
-							exclusiveCheckbox.enabled = false;
-							exclusiveCheckbox.selected = false;
-							diskImageGroup.visible = false;
-							detailsViewstack.selectedChild = detailsView;
-							break;
+						diskImages.removeAll();
+						for each(var diskImage:DiskImage in SelectedSliverType.diskImages.collection)
+						{
+							diskImages.addItem(diskImage);
+							if(diskImage.id.full == this.diskImageText.text)
+								diskImageSelect.selectedItem = diskImage;
+						}
+					}
+					if(supportedType.supportsExclusive && !supportedType.supportsShared)
+					{
+						exclusiveCheckbox.enabled = false;
+						exclusiveCheckbox.selected = true;
+					}
+					else if(supportedType.supportsShared && !supportedType.supportsExclusive)
+					{
+						exclusiveCheckbox.enabled = false;
+						exclusiveCheckbox.selected = false;
+					}
+					else
+					{
+						exclusiveCheckbox.enabled = !SelectedBounded;
 					}
 					
-					diskImages.removeAll();
-					for each(var diskImage:DiskImage in SelectedSliverType.diskImages.collection)
+					if(SelectedSliverType.sliverTypeSpecific == null || SelectedSliverType.sliverTypeSpecific.Part == null)
+						detailsViewstack.selectedChild = detailsView;
+					else
 					{
-						diskImages.addItem(diskImage);
-						if(diskImage.id.full == this.diskImageText.text)
-							diskImageSelect.selectedItem = diskImage;
+						extraView.removeAllElements();
+						detailsViewstack.selectedChild = extraView;
+						var part:SliverTypePart = SelectedSliverType.sliverTypeSpecific.Part;
+						if(part != null)
+						{
+							extraView.addElement(part);
+							part.initTo(node, SelectedSliverType);
+						}
 					}
 					
 					if(!okButton.enabled)
@@ -550,36 +494,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 			}
 			
-			public function loadDelayPipes():void
-			{
-				pipes.removeAll();
-				if(SelectedSliverType != null && SelectedSliverType.name == SliverTypes.DELAY)
-				{
-					for(var i:int = 0; i < node.interfaces.length; i++)
-					{
-						var first:VirtualInterface = node.interfaces.collection[i];
-						for(var j:int = i+1; j < node.interfaces.length; j++)
-						{
-							var second:VirtualInterface = node.interfaces.collection[j];
-							
-							var firstPipe:Pipe = node.sliverType.pipes.getFor(first, second);
-							if(firstPipe == null)
-							{
-								firstPipe = new Pipe(first, second, Math.min(first.capacity, second.capacity));
-								pipes.addItem(firstPipe);
-							}
-							
-							var secondPipe:Pipe = node.sliverType.pipes.getFor(second, first);
-							if(secondPipe == null)
-							{
-								secondPipe = new Pipe(second, first, Math.min(first.capacity, second.capacity));
-								pipes.addItem(secondPipe);
-							}
-						}
-					}
-				}
-			}
-			
 			override public function cancelPendingChanges():void
 			{
 				finishLoading(node);
@@ -622,7 +536,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 				
 				// Make sure we aren't trying to bind to a resource which cannot be bound to any more
-				if(boundRadiobutton.selected && SelectedBoundNode != null && exclusiveCheckbox.selected && !SliverTypes.isVm(SelectedSliverType.name))
+				if(boundRadiobutton.selected
+					&& SelectedBoundNode != null
+					&& exclusiveCheckbox.selected
+					&& !SelectedManager.supportedSliverTypes.getByName(SelectedSliverType.name).supportsShared)
 				{
 					var boundNodes:VirtualNodeCollection = node.slice.nodes.getBoundTo(SelectedBoundNode);
 					if(boundNodes.length > 0)
@@ -639,15 +556,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 				
 				// Make sure we can use the sliver_type
-				if(SelectedSliverType != null && SelectedSliverType.name == SliverTypes.FIREWALL)
-				{
-					var firewalls:VirtualNodeCollection = node.slice.nodes.getByManager(node.manager).getBySliverType(SliverTypes.FIREWALL);
-					if(firewalls.length > 0 && firewalls.collection[0] != node)
-					{
-						Alert.show(node.manager.hrn + " already has a firewall node ("+firewalls.collection[0].clientId+")");
-						return true;
-					}
-				}
+				if(SelectedSliverType.sliverTypeSpecific != null && !SelectedSliverType.sliverTypeSpecific.canAdd(node))
+					return true;
 				
 				// Make sure extensions are valid
 				var newNodeExtensions:Extensions = null;
@@ -695,70 +605,54 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					node.physicalId.full = this.SelectedBoundNode.id.full;
 				}
 				
-				if(SelectedSliverType != null)
-					node.sliverType.name = SelectedSliverType.name;
-				else
-					node.sliverType.name = "";
 				node.exclusive = exclusiveCheckbox.selected;
-				
-				// Save changes based on sliver type
-				if(node.sliverType.name == SliverTypes.RAWPC_V2)
-					node.sliverType.selectedImage = new DiskImage(diskImageText.text);
-				else
-					node.sliverType.selectedImage = null;
-				
 				node.services.installServices = null;
 				node.services.executeServices = null;
-				if(node.sliverType.name == SliverTypes.RAWPC_V2 || node.sliverType.name == SliverTypes.EMULAB_OPENVZ)
+				node.sliverType.selectedImage = null;
+				if(SelectedSliverType != null)
 				{
-					var serviceIdx:int;
-					if(installVgroup.numElements > 0)
+					var selectedType:SupportedSliverType = SelectedManager.supportedSliverTypes.getByName(SelectedSliverType.name);
+					node.sliverType.name = SelectedSliverType.name;
+					if(detailsViewstack.selectedChild == detailsView)
 					{
-						node.services.installServices = new Vector.<InstallService>();
-						for(serviceIdx = 0; serviceIdx < installVgroup.numElements; serviceIdx++)
+						if(selectedType.supportsDiskImage && diskImageText.text.length > 0)
+							node.sliverType.selectedImage = new DiskImage(diskImageText.text);
+						var serviceIdx:int;
+						if(selectedType.supportsInstallService)
 						{
-							var installService:InstallService = (installVgroup.getElementAt(serviceIdx) as InstallServiceComponent).Service;
-							if(installService.url.length > 0)
-								node.services.installServices.push(installService);
+							if(installVgroup.numElements > 0)
+							{
+								node.services.installServices = new Vector.<InstallService>();
+								for(serviceIdx = 0; serviceIdx < installVgroup.numElements; serviceIdx++)
+								{
+									var installService:InstallService = (installVgroup.getElementAt(serviceIdx) as InstallServiceComponent).Service;
+									if(installService.url.length > 0)
+										node.services.installServices.push(installService);
+								}
+							}
+						}
+						if(selectedType.supportsExecuteService)
+						{
+							if(executeVgroup.numElements > 0)
+							{
+								node.services.executeServices = new Vector.<ExecuteService>();
+								for(serviceIdx = 0; serviceIdx < executeVgroup.numElements; serviceIdx++)
+								{
+									var executeService:ExecuteService = (executeVgroup.getElementAt(serviceIdx) as ExecuteServiceComponent).Service;
+									if(executeService.command.length > 0)
+										node.services.executeServices.push(executeService);
+								}
+							}
 						}
 					}
-					if(executeVgroup.numElements > 0)
-					{
-						node.services.executeServices = new Vector.<ExecuteService>();
-						for(serviceIdx = 0; serviceIdx < executeVgroup.numElements; serviceIdx++)
-						{
-							var executeService:ExecuteService = (executeVgroup.getElementAt(serviceIdx) as ExecuteServiceComponent).Service;
-							if(executeService.command.length > 0)
-								node.services.executeServices.push(executeService);
-						}
-					}
-					
+					else if(detailsViewstack.selectedChild == extraView && extraView.numElements == 1)
+						(extraView.getElementAt(0) as SliverTypePart).saveTo(node);
 				}
-				
-				// Save changes to pipes
-				node.sliverType.pipes = null;
-				if(node.sliverType.name == SliverTypes.DELAY)
+				else
 				{
-					node.sliverType.pipes = new PipeCollection();
-					for each(var pipeObj:Object in pipes)
-					{
-						var pipe:Pipe = pipeObj.source;
-						pipe.capacity = pipeObj.capacity;
-						pipe.latency = pipeObj.latency;
-						pipe.packetLoss = pipeObj.packetLoss;
-						node.sliverType.pipes.add(pipe);
-					}
+					node.sliverType.name = "";
+					node.sliverType.selectedImage = null;
 				}
-				
-				if(node.sliverType.name != SliverTypes.PLANETLAB_V1 || node.sliverType.name != SliverTypes.PLANETLAB_V2 || planetlabInitscriptDropdownlist.selectedItem == null)
-					node.sliverType.selectedPlanetLabInitscript = "";
-				else
-					node.sliverType.selectedPlanetLabInitscript = planetlabInitscriptDropdownlist.selectedItem;
-				
-				if(node.sliverType.name != SliverTypes.FIREWALL)
-					node.sliverType.firewallStyle = "";
-				else
-					node.sliverType.firewallStyle = firewallStyleDropdownlist.selectedItem;
 				
 				// Save changes to interfaces
 				for each(var ifaceObj:Object in interfaces)
@@ -1033,83 +927,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							</s:HGroup>
 						</s:VGroup>
 					</s:NavigatorContent>
-					<s:NavigatorContent id="planetlabView"
+					<s:NavigatorContent id="extraView"
 										width="100%"
 										height="100%">
-						<s:VGroup height="100%"
-								  width="100%"
-								  gap="2">
-							<s:CheckBox id="usePlanetlabInitCheckbox"
-										label="Run initscript" />
-							<s:DropDownList id="planetlabInitscriptDropdownlist"
-											dataProvider="{planetlabInitscripts}"
-											valueCommit="if(planetlabInitscriptDropdownlist.selectedItem != null) usePlanetlabInitCheckbox.selected = true"
-											width="100%" />
-						</s:VGroup>
-					</s:NavigatorContent>
-					<s:NavigatorContent id="firewallView"
-										width="100%"
-										height="100%">
-						<s:VGroup height="100%"
-								  width="100%"
-								  gap="2">
-							<s:HGroup width="100%"
-									  gap="2"
-									  verticalAlign="middle">
-								<s:Label text="Style" />
-								<s:DropDownList id="firewallStyleDropdownlist"
-												width="100%">
-									<s:ArrayCollection>
-										<fx:String>closed</fx:String>
-										<fx:String>open</fx:String>
-										<fx:String>basic</fx:String>
-									</s:ArrayCollection>
-								</s:DropDownList>
-							</s:HGroup>
-						</s:VGroup>
-					</s:NavigatorContent>
-					<s:NavigatorContent id="delayView"
-										width="100%"
-										height="100%">
-						<s:DataGrid id="delayGrid"
-									width="100%"
-									height="100%" 
-									dataProvider="{pipes}"
-									rowHeight="24"
-									editable="true">
-							<s:columns>
-								<s:ArrayList>
-									<s:GridColumn headerText="Pipe" editable="false">
-										<s:itemRenderer>
-											<fx:Component>
-												<s:GridItemRenderer>
-													<s:HGroup height="100%" verticalAlign="middle" paddingLeft="2">
-														<s:Label text="{data.source.src.clientId}" fontWeight="bold" />
-														<s:Label text="->" />
-														<s:Label text="{data.source.dst.clientId}" fontWeight="bold" />
-													</s:HGroup>
-												</s:GridItemRenderer>
-											</fx:Component>
-										</s:itemRenderer>
-									</s:GridColumn>
-									<s:GridColumn dataField="capacity"
-												  headerText="Capacity"
-												  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
-												  itemEditor="com.flack.shared.display.components.NumericEditor">
-									</s:GridColumn>
-									<s:GridColumn dataField="latency" 
-												  headerText="Latency"
-												  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
-												  itemEditor="com.flack.shared.display.components.NumericEditor">
-									</s:GridColumn>
-									<s:GridColumn dataField="packetLoss" 
-												  headerText="Packet Loss"
-												  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
-												  itemEditor="com.flack.shared.display.components.NumericEditor">
-									</s:GridColumn>
-								</s:ArrayList> 
-							</s:columns>
-						</s:DataGrid> 
 					</s:NavigatorContent>
 				</mx:ViewStack>
 			</s:VGroup>

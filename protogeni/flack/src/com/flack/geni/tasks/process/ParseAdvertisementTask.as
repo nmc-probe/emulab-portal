@@ -15,6 +15,7 @@
 package com.flack.geni.tasks.process
 {
 	import com.flack.geni.RspecUtil;
+	import com.flack.geni.plugins.RspecProcessInterface;
 	import com.flack.geni.resources.DiskImage;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverType;
@@ -74,7 +75,6 @@ package com.flack.geni.tasks.process
 		}
 		
 		private static var NODE_PARSE : int = 0;
-		private static var DATAPATH_PARSE : int = 3;
 		private static var LINK_PARSE : int = 1;
 		private static var DONE : int = 2;
 		
@@ -234,16 +234,8 @@ package com.flack.geni.tasks.process
 						String(xmlDocument.@generated)
 					);
 			
-			if(manager.type == FlackManager.TYPE_OPENFLOW)
-			{
-				myState = DATAPATH_PARSE;
-				nodes = xmlDocument.*::datapath;
-			}
-			else
-			{
-				myState = NODE_PARSE;
-				nodes = xmlDocument.defaultNamespace::node;
-			}
+			myState = NODE_PARSE;
+			nodes = xmlDocument.defaultNamespace::node;
 			links = xmlDocument.defaultNamespace::link;
 			
 			skippedNodes = 0;
@@ -264,8 +256,6 @@ package com.flack.geni.tasks.process
 			var startTime:Date = new Date();
 			if (myState == NODE_PARSE)	    	
 				parseNextNode();
-			else if (myState == DATAPATH_PARSE)	    	
-				parseNextDatapath();
 			else if (myState == LINK_PARSE)
 				parseNextLink();
 			else
@@ -281,6 +271,17 @@ package com.flack.geni.tasks.process
 				FlexGlobals.topLevelApplication.stage.removeEventListener(
 					Event.ENTER_FRAME, parseNext
 				);
+				
+				// Process plugin stuff
+				/*
+				var namespaces:Array = xmlDocument.namespaceDeclarations();
+				for each(var namespace:Namespace in namespaces)
+				{
+					var processor:RspecProcessInterface = SliverTypes.getRspecProcessInterface(namespace.uri);
+					if(processor != null)
+						processor.applyFrom(manager, xmlDocument);
+				}
+				*/
 				
 				if (myState == DONE)
 				{
@@ -427,7 +428,7 @@ package com.flack.geni.tasks.process
 						{
 							var newSliverType:SliverType = new SliverType(String(nodeSliverTypeXml.@name));
 							// Don't add non-VMs if node is shared
-							if(!node.exclusive && !SliverTypes.isVm(newSliverType.name))
+							if(!node.exclusive && !(node.manager as GeniManager).supportedSliverTypes.getByName(newSliverType.name).supportsShared)
 								continue;
 							var managerSliverType:SliverType = manager.supportedSliverTypes.getOrCreateByName(newSliverType.name).type;
 							for each(var sliverTypeChildXml:XML in nodeSliverTypeXml.children())
@@ -451,20 +452,9 @@ package com.flack.geni.tasks.process
 											newSliverType.diskImages.add(newSliverDiskImage);
 									}
 								}
-								else
-								{
-									if(sliverTypeChildXml.namespace() == RspecUtil.planetlabNamespace)
-									{
-										if(sliverTypeChildXml.localName() == "initscript")
-										{
-											if(newSliverType.planetLabInitscripts == null)
-												newSliverType.planetLabInitscripts = new Vector.<String>();
-											newSliverType.planetLabInitscripts.push(String(sliverTypeChildXml.@name));
-										}
-									}
-								}
-								
 							}
+							if(newSliverType.sliverTypeSpecific != null)
+								newSliverType.sliverTypeSpecific.applyFromAdvertisedSliverTypeXml(node, nodeSliverTypeXml);
 							node.sliverTypes.add(newSliverType);
 						}
 						
@@ -481,8 +471,7 @@ package com.flack.geni.tasks.process
 									newHardwareType.slots = Number(emulabNodeTypes[0].@type_slots);
 							}
 							node.hardwareTypes.add(newHardwareType);
-							if(newHardwareType.name == SliverTypes.OPENFLOW_SWITCH
-								|| newHardwareType.name == SliverTypes.JUNIPER_LROUTER)
+							if(newHardwareType.name == SliverTypes.JUNIPER_LROUTER)
 							{
 								var hardwareTypeSliverType:SliverType = node.sliverTypes.getByName(newHardwareType.name);
 								if(hardwareTypeSliverType == null)
@@ -619,75 +608,6 @@ package com.flack.geni.tasks.process
 					parentNode.subNodes.push(subNode);
 					obj.subNode.subNodeOf = parentNode;
 				}
-			}
-			
-			myState = LINK_PARSE;
-			myIndex = 0;
-			return;
-		}
-		
-		private function parseNextDatapath():void
-		{
-			var startTime:Date = new Date();
-			var idx:int = 0;
-			
-			while(myIndex < nodes.length())
-			{
-				try
-				{
-					var nodeXml:XML = nodes[myIndex];
-					
-					var node:PhysicalNode = new PhysicalNode(manager, String(nodeXml.@component_id));
-					node.name = String(nodeXml.@dpid);
-					
-					var datapathSliverType:SliverType = new SliverType(SliverTypes.OPENFLOW_SWITCH);
-					node.sliverTypes.add(datapathSliverType);
-					
-					node.hardwareTypes.add(new HardwareType(SliverTypes.OPENFLOW_SWITCH));
-					
-					// Get location info
-					var lat:Number = PhysicalLocation.defaultLatitude;
-					var lng:Number = PhysicalLocation.defaultLongitude;
-					var country:String = "Unknown";
-					
-					// Assign to a group based on location
-					var location:PhysicalLocation = manager.locations.getAt(lat,lng);
-					if(location == null)
-					{
-						location = new PhysicalLocation(manager, lat, lng, country);
-						manager.locations.add(location);
-					}
-					node.location = location;
-					location.nodes.add(node);
-					
-					node.exclusive = false;
-					
-					var portsXml:XMLList = nodeXml.*::port;
-					for each(var portXml:XML in portsXml)
-					{
-						var dpPort:PhysicalInterface = new PhysicalInterface(node);
-						dpPort.role = PhysicalInterface.ROLE_PORT;
-						dpPort.id = IdnUrn.makeFrom(node.id.authority, "port", String(portXml.@name));
-						dpPort.num = Number(portXml.@num);
-						node.interfaces.add(dpPort);
-					}
-						
-					node.available = node.interfaces.length > 0;
-					
-					node.advertisement = nodeXml.toXMLString();
-					nodeNameDictionary[node.id] = node;
-					nodeNameDictionary[node.name] = node;
-					manager.nodes.add(node);
-				}
-				// skip if some problem
-				catch(e:Error)
-				{
-					skippedNodes++;
-				}
-				idx++;
-				myIndex++;
-				if(((new Date()).time - startTime.time) > 60)
-					return;
 			}
 			
 			myState = LINK_PARSE;

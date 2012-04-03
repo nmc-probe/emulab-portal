@@ -87,7 +87,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				// Types
 				nodeTypes = new ArrayCollection();
-				var groupTypes:HardwareTypeCollection = group.PhysicalNodes.Types;
+				var groupTypes:HardwareTypeCollection = group.PhysicalNodes.HardwareTypes;
 				for each(var nodeType:HardwareType in groupTypes.collection)
 					nodeTypes.addItem(nodeType);
 				
@@ -142,7 +142,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					filteredNodes = filteredNodes.getByManager(managersList.selectedItem);
 				
 				if(typeCheckbox.selected)
-					filteredNodes = filteredNodes.getByPhysicalNodes(filteredNodes.PhysicalNodes.getByType(typesList.selectedItem.name));
+					filteredNodes = filteredNodes.getByPhysicalNodes(filteredNodes.PhysicalNodes.getByHardwareType(typesList.selectedItem.name));
 				
 				if(exclusiveCheckbox.selected)
 				{

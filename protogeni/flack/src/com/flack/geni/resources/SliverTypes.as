@@ -14,6 +14,13 @@
 
 package com.flack.geni.resources
 {
+	import com.flack.geni.plugins.Plugin;
+	import com.flack.geni.plugins.RspecProcessInterface;
+	import com.flack.geni.plugins.SliverTypeInterface;
+	import com.flack.geni.plugins.SliverTypePart;
+	
+	import flash.utils.Dictionary;
+
 	public class SliverTypes
 	{
 		// V1
@@ -22,44 +29,33 @@ package com.flack.geni.resources
 		static public var JUNIPER_LROUTER:String = "juniper-lrouter";
 		
 		// V2
-		static public var DELAY:String = "delay";
-		static public var FIREWALL:String = "firewall";
 		static public var RAWPC_V2:String = "raw-pc";
 		static public var EMULAB_OPENVZ:String = "emulab-openvz";
 		
 		// Reference CM
 		static public var QEMUPC:String = "qemu-pc"
 		
-		// Planet-lab
-		static public var PLANETLAB_V1:String = "plab-vnode";
-		static public var PLANETLAB_V2:String = "plab-vserver";
-		
 		static public var XEN_VM:String = "xen-vm";
 		
-		// OpenFlow
-		static public var OPENFLOW_SWITCH:String = "openflow-switch";
-		
-		/**
-		 * Is the sliver_type a virtual machine instead of being raw metal?
-		 * 
-		 * @param name name of sliver_type
-		 * @return TRUE if sliver_type is not a raw resource
-		 * 
-		 */
-		static public function isVm(name:String):Boolean
+		private static var sliverTypeToInterface:Dictionary = new Dictionary();
+		public static function addSliverTypeInterface(name:String, iface:SliverTypeInterface):void
 		{
-			switch(name)
-			{
-				case JUNIPER_LROUTER:
-				case EMULAB_OPENVZ:
-				case PLANETLAB_V1:
-				case PLANETLAB_V2:
-				case XEN_VM:
-				case OPENFLOW_SWITCH:
-					return true;
-				default:
-					return false;
-			}
+			sliverTypeToInterface[name] = iface;
+		}
+		public static function getSliverTypeInterface(name:String):SliverTypeInterface
+		{
+			return sliverTypeToInterface[name];
+		}
+		
+		// XXX ugly, ugly, ugly ... but will do for now
+		private static var rspecProcessToInterface:Dictionary = new Dictionary();
+		public static function addRspecProcessInterface(name:String, iface:RspecProcessInterface):void
+		{
+			rspecProcessToInterface[name] = iface;
+		}
+		public static function getRspecProcessInterface(name:String):RspecProcessInterface
+		{
+			return rspecProcessToInterface[name];
 		}
 		
 	}

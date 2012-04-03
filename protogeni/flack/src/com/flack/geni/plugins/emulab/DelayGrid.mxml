@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugins:SliverTypePart xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			xmlns:s="library://ns.adobe.com/flex/spark" 
+			xmlns:mx="library://ns.adobe.com/flex/mx"
+			xmlns:plugins="com.flack.geni.plugins.*">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.resources.SliverType;
+			import com.flack.geni.resources.SliverTypes;
+			import com.flack.geni.resources.virtual.VirtualInterface;
+			import com.flack.geni.resources.virtual.VirtualNode;
+			
+			import mx.collections.ArrayCollection;
+			
+			[Bindable]
+			private var pipes:ArrayCollection = new ArrayCollection();
+			
+			override public function initTo(node:VirtualNode, sliverType:SliverType):void
+			{
+				pipes = new ArrayCollection();
+				var existingPipes:PipeCollection;
+				if(node.sliverType.sliverTypeSpecific != null && node.sliverType.sliverTypeSpecific is DelaySliverType)
+					existingPipes = (node.sliverType.sliverTypeSpecific as DelaySliverType).pipes;
+				var i:int;
+				// Make sure we have pipes for all interfaces
+				for(i = 0; i < node.interfaces.length; i++)
+				{
+					var first:VirtualInterface = node.interfaces.collection[i];
+					for(var j:int = i+1; j < node.interfaces.length; j++)
+					{
+						var second:VirtualInterface = node.interfaces.collection[j];
+						
+						var firstPipe:Pipe;
+						if(existingPipes != null)
+							firstPipe = existingPipes.getFor(first, second);
+						if(firstPipe == null)
+							firstPipe = new Pipe(first, second, Math.min(first.capacity, second.capacity));
+						pipes.addItem(
+							{
+								source: firstPipe,
+								capacity: firstPipe.capacity,
+								latency: firstPipe.latency,
+								packetLoss: firstPipe.packetLoss
+							}
+						);
+						
+						var secondPipe:Pipe;
+						if(existingPipes != null)
+							secondPipe = existingPipes.getFor(second, first);
+						if(secondPipe == null)
+							secondPipe = new Pipe(second, first, Math.min(first.capacity, second.capacity));
+						pipes.addItem(
+							{
+								source: secondPipe,
+								capacity: secondPipe.capacity,
+								latency: secondPipe.latency,
+								packetLoss: secondPipe.packetLoss
+							}
+						);
+					}
+				}
+			}
+			
+			override public function saveTo(node:VirtualNode):void
+			{
+				var newSliverType:DelaySliverType = new DelaySliverType();
+				newSliverType.pipes = null;
+				if(node.sliverType.name == DelaySliverType.TYPE_DELAY)
+				{
+					newSliverType.pipes = new PipeCollection();
+					for each(var pipeObj:Object in pipes)
+					{
+						var pipe:Pipe = pipeObj.source;
+						pipe.capacity = pipeObj.capacity;
+						pipe.latency = pipeObj.latency;
+						pipe.packetLoss = pipeObj.packetLoss;
+						newSliverType.pipes.add(pipe);
+					}
+				}
+				node.sliverType.sliverTypeSpecific = newSliverType;
+			}
+			
+		]]>
+	</fx:Script>
+	<s:DataGrid xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%"
+				dataProvider="{pipes}"
+				rowHeight="24"
+				editable="true">
+		<s:columns>
+			<s:ArrayList>
+				<s:GridColumn headerText="Pipe" editable="false">
+					<s:itemRenderer>
+						<fx:Component>
+							<s:GridItemRenderer>
+								<s:HGroup height="100%" verticalAlign="middle" paddingLeft="2">
+									<s:Label text="{data.source.src.clientId}" fontWeight="bold" />
+									<s:Label text="->" />
+									<s:Label text="{data.source.dst.clientId}" fontWeight="bold" />
+								</s:HGroup>
+							</s:GridItemRenderer>
+						</fx:Component>
+					</s:itemRenderer>
+				</s:GridColumn>
+				<s:GridColumn dataField="capacity"
+							  headerText="Capacity"
+							  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
+							  itemEditor="com.flack.shared.display.components.NumericEditor">
+				</s:GridColumn>
+				<s:GridColumn dataField="latency" 
+							  headerText="Latency"
+							  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
+							  itemEditor="com.flack.shared.display.components.NumericEditor">
+				</s:GridColumn>
+				<s:GridColumn dataField="packetLoss" 
+							  headerText="Packet Loss"
+							  itemRenderer="com.flack.shared.display.components.NumericGridRenderer"
+							  itemEditor="com.flack.shared.display.components.NumericEditor">
+				</s:GridColumn>
+			</s:ArrayList> 
+		</s:columns>
+	</s:DataGrid>
+</plugins:SliverTypePart>

@@ -188,7 +188,7 @@ package com.flack.geni.resources.virtual
 		 * @return TRUE if link can be made
 		 * 
 		 */
-		public function canEstablish(nodes:VirtualNodeCollection):Boolean
+		public static function canEstablish(nodes:VirtualNodeCollection):Boolean
 		{
 			// Needs to connect nodes
 			if(nodes == null || nodes.length == 0)
@@ -211,10 +211,11 @@ package com.flack.geni.resources.virtual
 		/**
 		 * 
 		 * @param nodes Nodes wanting to be linked
+		 * @param useType Link type to use, fail if not available
 		 * @return TRUE if error
 		 * 
 		 */
-		public function establish(nodes:VirtualNodeCollection):Boolean
+		public function establish(nodes:VirtualNodeCollection, useType:String = ""):Boolean
 		{
 			if(!canEstablish(nodes))
 				return true;
@@ -233,80 +234,92 @@ package com.flack.geni.resources.virtual
 				interfaceRefs.add(newInterface);
 			}
 			
+			// Select the link type
 			var supportedTypes:SupportedLinkTypeCollection = nodes.Managers.CommonLinkTypes;
 			var selectedType:SupportedLinkType = null;
-			if(supportedTypes.length == 1)
-				selectedType = supportedTypes.collection[0];
-			else if(supportedTypes.length > 1)
-			{
-				selectedType = supportedTypes.getByName(LinkType.LAN_V2);
-				if(selectedType == null)
-					selectedType = supportedTypes.getByName(LinkType.GRETUNNEL_V2);
-				if(selectedType == null)
-					selectedType = supportedTypes.collection[0];
-			}
+			// If explicitly chosen, use the given link type
+			if(useType.length > 0)
+				selectedType = supportedTypes.getByName(useType);
+			else
+				selectedType = supportedTypes.preferredType(nodes.length);
+			
 			// Make sure the link can support the nodes
-			if(selectedType.maxConnections < nodes.length)
+			if(selectedType == null || selectedType.maxConnections < nodes.length)
 			{
 				interfaceRefs = new VirtualInterfaceReferenceCollection();
 				return true;
 			}
 			
-			var needsIps:Boolean = false;
-			var needsCapacity:Boolean = true;
-			var addedInterface:VirtualInterface;
-			for each(addedInterface in interfaceRefs.Interfaces.collection)
+			for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
 			{
 				addedInterface.Owner.interfaces.add(addedInterface);
+				if(addedInterface.Owner.sliverType.sliverTypeSpecific != null)
+					addedInterface.Owner.sliverType.sliverTypeSpecific.interfaceAdded(addedInterface);
 				addedInterface.links.add(this);
-				if(addedInterface.Owner.sliverType.name == SliverTypes.JUNIPER_LROUTER)
-					needsIps = true;
-				if(!addedInterface.Owner.Vm)
-					needsCapacity = false;
 				addedInterface.Owner.unsubmittedChanges = true;
 			}
 			
-			switch(selectedType.name)
-			{
-				case LinkType.LAN_V2:
-					clientId = nodes.collection[0].slice.getUniqueId(this, "lan");
-					type.name = LinkType.LAN_V2;
-					if(needsIps)
-					{
-						VirtualInterface.startNextTunnel();
-						for each(addedInterface in interfaceRefs.Interfaces.collection)
-						{
-							if(addedInterface.ip == null || addedInterface.ip.address.length == 0)
-							{
-								addedInterface.ip = new Ip(VirtualInterface.getNextTunnel());
-								addedInterface.ip.netmask = "255.255.255.0";
-								addedInterface.ip.type = "ipv4";
-							}
-						}
-					}
-					if(needsCapacity)
-						Capacity = 100000;
-					break;
-				case LinkType.ION:
-					clientId = nodes.collection[0].slice.getUniqueId(this, "ion");
-					setUpTunnels();
-					break;
-				case LinkType.GPENI:
-					clientId = nodes.collection[0].slice.getUniqueId(this, "gpeni");
-					setUpTunnels();
-					break;
-				case LinkType.GRETUNNEL_V2:
-					clientId = nodes.collection[0].slice.getUniqueId(this, "tunnel");
-					setUpTunnels();
-					break;
-				default:
-					clientId = nodes.collection[0].slice.getUniqueId(this, selectedType.name);
-			}
+			changeToType(selectedType);
 			
 			setUpProperties();
 			unsubmittedChanges = true;
 			
 			return false;
+		}
+		
+		public function changeToType(selectedType:SupportedLinkType):void
+		{
+			var needsCapacity:Boolean = true;
+			for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
+			{
+				if(!addedInterface.Owner.Vm)
+					needsCapacity = false;
+			}
+			
+			// Establish or change clientId according to type if possible
+			if(clientId.length == 0)
+				clientId = slice.getUniqueId(this, selectedType.name);
+			else if(selectedType.name != type.name && clientId.indexOf(type.name) == 0)
+				clientId = clientId.replace(type.name, selectedType.name);
+			
+			switch(selectedType.name)
+			{
+				case LinkType.LAN_V1:
+				case LinkType.LAN_V2:
+					type.name = LinkType.LAN_V2;
+					if(needsCapacity)
+						Capacity = 100000;
+					break;
+				case LinkType.ION:
+					type.name = LinkType.ION;
+					break;
+				case LinkType.GPENI:
+					type.name = LinkType.GPENI;
+					break;
+				case LinkType.GRETUNNEL_V1:
+				case LinkType.GRETUNNEL_V2:
+					type.name = LinkType.GRETUNNEL_V2;
+					break;
+				default:
+					type.name = selectedType.name;
+			}
+			
+			if(selectedType.requiresIpAddresses)
+				setupIpAddresses();
+		}
+		
+		public function setupIpAddresses():void
+		{
+			VirtualInterface.startNextTunnel();
+			for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
+			{
+				if(addedInterface.ip == null || addedInterface.ip.address.length == 0)
+				{
+					addedInterface.ip = new Ip(VirtualInterface.getNextTunnel());
+					addedInterface.ip.netmask = "255.255.255.0";
+					addedInterface.ip.type = "ipv4";
+				}
+			}
 		}
 		
 		/**
@@ -375,6 +388,11 @@ package com.flack.geni.resources.virtual
 			newInterface.Owner.interfaces.add(newInterface);
 			newInterface.links.add(this);
 			
+			// XXX change?
+			
+			if(node.sliverType.sliverTypeSpecific != null)
+				node.sliverType.sliverTypeSpecific.interfaceAdded(newInterface);
+			
 			setUpProperties();
 			unsubmittedChanges = true;
 			
@@ -418,7 +436,8 @@ package com.flack.geni.resources.virtual
 			
 			interfaceReference.referencedInterface.Owner.interfaces.remove(iface);
 			interfaceReference.referencedInterface.links.remove(this);
-			interfaceReference.referencedInterface.Owner.cleanupPipes();
+			if(interfaceReference.referencedInterface.Owner.sliverType.sliverTypeSpecific != null)
+				interfaceReference.referencedInterface.Owner.sliverType.sliverTypeSpecific.interfaceRemoved(iface);
 			
 			interfaceRefs.remove(interfaceReference);
 			
@@ -451,25 +470,6 @@ package com.flack.geni.resources.virtual
 			for each(var iface:VirtualInterface in interfacesToRemove.collection)
 			{
 				removeInterface(iface);
-			}
-		}
-		
-		/**
-		 * Sets up tunnels for all of the interfaces
-		 * 
-		 */
-		public function setUpTunnels():void
-		{
-			type.name = LinkType.GRETUNNEL_V2;
-			VirtualInterface.startNextTunnel();
-			for each(var i:VirtualInterface in interfaceRefs.Interfaces.collection)
-			{
-				if(i.ip == null || i.ip.address.length == 0)
-				{
-					i.ip = new Ip(VirtualInterface.getNextTunnel());
-					i.ip.netmask = "255.255.255.0";
-					i.ip.type = "ipv4";
-				}
 			}
 		}
 		

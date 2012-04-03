@@ -15,6 +15,8 @@
 package com.flack.geni.tasks.process
 {
 	import com.flack.geni.RspecUtil;
+	import com.flack.geni.plugins.SliverTypeInterface;
+	import com.flack.geni.plugins.emulab.Pipe;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.physical.PhysicalLocation;
@@ -25,7 +27,6 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.InstallService;
 	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.resources.virtual.LoginService;
-	import com.flack.geni.resources.virtual.Pipe;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.VirtualInterface;
@@ -157,13 +158,16 @@ package com.flack.geni.tasks.process
 			}
 			var nodes:VirtualNodeCollection = sliver == null ? slice.nodes : sliver.Nodes;
 			var links:VirtualLinkCollection = sliver == null ? slice.links : sliver.Links;
-			if(nodes.getBySliverType(SliverTypes.DELAY).length > 0)
+			// Add extra namespaces/schemas for the sliver types
+			var sliverExtensionInterfaces:Vector.<SliverTypeInterface> = nodes.UniqueSliverTypeInterfaces;
+			for each(var sliverInterface:SliverTypeInterface in sliverExtensionInterfaces)
 			{
-				xmlDocument.addNamespace(RspecUtil.delayNamespace);
-				schemaLocations += " " + RspecUtil.delaySchemaLocation;
+				var sliverNamespace:Namespace = sliverInterface.namespace;
+				if(sliverNamespace != null)
+					xmlDocument.addNamespace(sliverNamespace);
+				schemaLocations += " " + sliverInterface.schema;
 			}
 			xmlDocument.@xsiNamespace::schemaLocation = schemaLocations;
-			// XXX add extension schema namespaces...
 			
 			for each(var node:VirtualNode in nodes.collection)
 				xmlDocument.appendChild(generateNodeRspec(node, false, resultRspec.info));
@@ -338,57 +342,14 @@ package com.flack.geni.tasks.process
 			{
 				var sliverType:XML = node.sliverType.extensions.createAndApply("sliver_type");
 				sliverType.@name = node.sliverType.name;
-				if(node.sliverType.name == SliverTypes.DELAY)
-				{
-					var sliverTypeShapingXml:XML = <sliver_type_shaping />;
-					sliverTypeShapingXml.setNamespace(RspecUtil.delayNamespace);
-					//sliverTypeShapingXml.@xmlns = XmlUtil.delayNamespace.uri;
-					if(node.sliverType.pipes != null)
-					{
-						for each(var pipe:Pipe in node.sliverType.pipes.collection)
-						{
-							var pipeXml:XML = <pipe />;
-							pipeXml.setNamespace(RspecUtil.delayNamespace);
-							pipeXml.@source = pipe.src.clientId
-							pipeXml.@dest = pipe.dst.clientId;
-							if(pipe.capacity)
-								pipeXml.@capacity = pipe.capacity;
-							else
-								pipeXml.@capacity = 0;
-							if(pipe.packetLoss)
-								pipeXml.@packet_loss = pipe.packetLoss;
-							else
-								pipeXml.@packet_loss = 0;
-							if(pipe.latency)
-								pipeXml.@latency = pipe.latency;
-							else
-								pipeXml.@latency = 0;
-							sliverTypeShapingXml.appendChild(pipeXml);
-						}
-					}
-					
-					sliverType.appendChild(sliverTypeShapingXml);
-				}
-				else if(node.sliverType.name == SliverTypes.FIREWALL)
-				{
-					var firewallConfigXml:XML = <firewall_config />;
-					firewallConfigXml.setNamespace(RspecUtil.firewallNamespace);
-					firewallConfigXml.@style = node.sliverType.firewallStyle;
-					if(node.sliverType.firewallType.length > 0)
-						firewallConfigXml.@type = node.sliverType.firewallType;
-					sliverType.appendChild(firewallConfigXml);
-				}
+				if(node.sliverType.sliverTypeSpecific != null)
+					node.sliverType.sliverTypeSpecific.applyToSliverTypeXml(node, sliverType);
+				
 				if(node.sliverType.selectedImage != null && node.sliverType.selectedImage.id.full.length > 0)
 				{
 					var sliverDiskImageXml:XML = node.sliverType.selectedImage.extensions.createAndApply("disk_image");
 					sliverDiskImageXml.@name = node.sliverType.selectedImage.id.full;
 					sliverType.appendChild(sliverDiskImageXml);
-				}
-				if(node.sliverType.selectedPlanetLabInitscript.length > 0)
-				{
-					var planetlabInitscriptXml:XML = new XML("<initscript name=\""+node.sliverType.selectedPlanetLabInitscript+"\" />");
-					planetlabInitscriptXml.setNamespace(RspecUtil.planetlabNamespace);
-					sliverType.appendChild(planetlabInitscriptXml);
 				}
 				nodeXml.appendChild(sliverType);
 			}

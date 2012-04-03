@@ -83,6 +83,7 @@ package com.flack.shared.tasks.http
 			urlLoader.addEventListener(HTTPStatusEvent.HTTP_STATUS, callHttpStatus);
 			try
 			{
+				addMessage("Loading", "Loading from " + url);
 				urlLoader.load(urlRequest);
 			}
 			catch (e:Error)

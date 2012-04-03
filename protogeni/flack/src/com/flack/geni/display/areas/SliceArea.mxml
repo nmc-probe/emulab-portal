@@ -232,7 +232,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					usableRspecVersions.addItem(v);
 				plugins = new ArrayCollection();
 				for each(var plugin:Plugin in GeniMain.plugins)
-					plugins.addItem(plugin);
+				{
+					if(plugin.Area != null)
+						plugins.addItem(plugin);
+				}
 				if(_slice != null)
 				{
 					loadComponentsAreaFor(_slice);
@@ -290,7 +293,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					ComponentsArea.toggleEditable(false);
 				}
 				updateSliceHistory();
-				// XXX toggle whether nodes can be deleted
 			}
 			
 			public function updateSlice():void

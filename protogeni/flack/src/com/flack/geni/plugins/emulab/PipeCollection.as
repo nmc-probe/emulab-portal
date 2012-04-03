@@ -12,8 +12,10 @@
 * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 */
 
-package com.flack.geni.resources.virtual
+package com.flack.geni.plugins.emulab
 {
+	import com.flack.geni.resources.virtual.VirtualInterface;
+
 	/**
 	 * Collection of pipes
 	 * @author mstrum

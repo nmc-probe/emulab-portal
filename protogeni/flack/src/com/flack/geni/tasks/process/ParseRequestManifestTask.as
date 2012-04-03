@@ -18,6 +18,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.resources.DiskImage;
 	import com.flack.geni.resources.Property;
+	import com.flack.geni.resources.SliverType;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.physical.HardwareType;
 	import com.flack.geni.resources.sites.GeniManager;
@@ -28,8 +29,6 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.Ip;
 	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.resources.virtual.LoginService;
-	import com.flack.geni.resources.virtual.Pipe;
-	import com.flack.geni.resources.virtual.PipeCollection;
 	import com.flack.geni.resources.virtual.Services;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.VirtualInterface;
@@ -344,7 +343,7 @@ package com.flack.geni.tasks.process
 							switch(String(nodeXml.@virtualization_type))
 							{
 								case SliverTypes.JUNIPER_LROUTER:
-									virtualNode.sliverType.name = SliverTypes.JUNIPER_LROUTER;
+									virtualNode.sliverType = new SliverType(SliverTypes.JUNIPER_LROUTER);
 									break;
 								case SliverTypes.EMULAB_VNODE:
 								default:
@@ -353,16 +352,16 @@ package com.flack.geni.tasks.process
 										switch(String(nodeXml.@virtualization_type))
 										{
 											case SliverTypes.EMULAB_OPENVZ:
-												virtualNode.sliverType.name = SliverTypes.EMULAB_OPENVZ;
+												virtualNode.sliverType = new SliverType(SliverTypes.EMULAB_OPENVZ);
 												break;
 											case SliverTypes.RAWPC_V1:
 											default:
-												virtualNode.sliverType.name = SliverTypes.RAWPC_V2;
+												virtualNode.sliverType = new SliverType(SliverTypes.RAWPC_V2);
 												break;
 										}
 									}
 									else
-										virtualNode.sliverType.name = SliverTypes.RAWPC_V2;
+										virtualNode.sliverType = new SliverType(SliverTypes.RAWPC_V2);
 									break;
 							}
 						}
@@ -521,48 +520,21 @@ package com.flack.geni.tasks.process
 												virtualNode.sliverType.selectedImage = diskImageV2;
 											}
 										}
-										else
-										{
-											if(sliverTypeChild.namespace() == RspecUtil.delayNamespace)
-											{
-												if(sliverTypeChild.localName() == "sliver_type_shaping")
-												{
-													virtualNode.sliverType.pipes = new PipeCollection();
-													for each(var pipeXml:XML in sliverTypeChild.children())
-													{
-														virtualNode.sliverType.pipes.add(
-															new Pipe(
-																virtualNode.interfaces.getByClientId(String(pipeXml.@source)),
-																virtualNode.interfaces.getByClientId(String(pipeXml.@dest)),
-																pipeXml.@capacity.length() == 1 ? Number(pipeXml.@capacity) : NaN,
-																pipeXml.@latency.length() == 1 ? Number(pipeXml.@latency) : NaN,
-																pipeXml.@packet_loss.length() == 1 ? Number(pipeXml.@packet_loss) : NaN
-															)
-														);
-													}
-												}
-											}
-											else if(sliverTypeChild.namespace() == RspecUtil.planetlabNamespace)
-											{
-												if(sliverTypeChild.localName() == "initscript")
-												{
-													virtualNode.sliverType.selectedPlanetLabInitscript = String(sliverTypeChild.@name);
-												}
-												
-											}
-											else if(sliverTypeChild.namespace() == RspecUtil.firewallNamespace)
-											{
-												if(sliverTypeChild.localName() == "firewall_config")
-												{
-													virtualNode.sliverType.firewallStyle = String(sliverTypeChild.@style);
-													virtualNode.sliverType.firewallType = String(sliverTypeChild.@type);
-												}
-												
-											}
-										}
 									}
+									virtualNode.sliverType.sliverTypeSpecific = SliverTypes.getSliverTypeInterface(virtualNode.sliverType.name);
+									if(virtualNode.sliverType.sliverTypeSpecific != null)
+										virtualNode.sliverType.sliverTypeSpecific.applyFromSliverTypeXml(virtualNode, nodeChildXml);
 									if(virtualNode.manager == sliver.manager)
-										virtualNode.sliverType.extensions.buildFromOriginal(nodeChildXml, [defaultNamespace.uri, RspecUtil.delayNamespace.uri, RspecUtil.planetlabNamespace.uri]);
+									{
+										var knownNamespaces:Array = [defaultNamespace.uri];
+										if(virtualNode.sliverType.sliverTypeSpecific != null)
+										{
+											var sliverNamespace:Namespace = virtualNode.sliverType.sliverTypeSpecific.namespace;
+											if(sliverNamespace != null)
+												knownNamespaces.push(sliverNamespace.uri);
+										}
+										virtualNode.sliverType.extensions.buildFromOriginal(nodeChildXml, knownNamespaces);
+									}
 									break;
 								case "services":
 									if(virtualNode.manager == sliver.manager)

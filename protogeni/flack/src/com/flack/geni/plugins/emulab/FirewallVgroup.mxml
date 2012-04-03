@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugins:SliverTypePart xmlns:fx="http://ns.adobe.com/mxml/2009" 
+						xmlns:s="library://ns.adobe.com/flex/spark" 
+						xmlns:mx="library://ns.adobe.com/flex/mx"
+						xmlns:plugins="com.flack.geni.plugins.*">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.resources.SliverType;
+			import com.flack.geni.resources.SliverTypes;
+			import com.flack.geni.resources.virtual.VirtualNode;
+			
+			override public function initTo(node:VirtualNode, sliverType:SliverType):void
+			{
+				if(node.sliverType.sliverTypeSpecific != null && node.sliverType.sliverTypeSpecific is FirewallSliverType)
+					firewallStyleDropdownlist.selectedItem = (node.sliverType.sliverTypeSpecific as FirewallSliverType).firewallStyle
+				else
+					firewallStyleDropdownlist.selectedIndex = 0;
+			}
+			
+			override public function saveTo(node:VirtualNode):void
+			{
+				var newSliverType:FirewallSliverType = new FirewallSliverType();
+				if(node.sliverType.name != FirewallSliverType.TYPE_FIREWALL)
+					newSliverType.firewallStyle = "";
+				else
+					newSliverType.firewallStyle = firewallStyleDropdownlist.selectedItem;
+				node.sliverType.sliverTypeSpecific = newSliverType;
+			}
+			
+		]]>
+	</fx:Script>
+	<s:HGroup width="100%"
+			  gap="2"
+			  verticalAlign="middle">
+		<s:Label text="Style" />
+		<s:DropDownList id="firewallStyleDropdownlist"
+						width="100%">
+			<s:ArrayCollection>
+				<fx:String>closed</fx:String>
+				<fx:String>open</fx:String>
+				<fx:String>basic</fx:String>
+			</s:ArrayCollection>
+		</s:DropDownList>
+	</s:HGroup>
+</plugins:SliverTypePart>

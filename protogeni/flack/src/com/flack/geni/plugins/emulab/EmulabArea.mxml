@@ -3,7 +3,7 @@
 					xmlns:s="library://ns.adobe.com/flex/spark" 
 					xmlns:mx="library://ns.adobe.com/flex/mx"
 					xmlns:plugins="com.flack.geni.plugins.*"
-					Title="Example">
+					Title="Emulab">
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.resources.SliverTypes;
@@ -24,7 +24,7 @@
 				for each(var checkLink:VirtualLink in host.slice.links.collection)
 				{
 					if(checkLink.type.name == LinkType.LAN_V2
-						&& checkLink.interfaceRefs.Interfaces.Nodes.getBySliverType(SliverTypes.DELAY).length == 0
+						&& checkLink.interfaceRefs.Interfaces.Nodes.getBySliverType(DelaySliverType.TYPE_DELAY).length == 0
 						&& checkLink.interfaceRefs.length == 2)
 					{
 						changeLinks.add(checkLink);
@@ -37,7 +37,7 @@
 						changeLink.interfaceRefs.collection[0].referencedInterface.Owner.manager,
 						host.slice.getUniqueId(null, "delay"),
 						true,
-						SliverTypes.DELAY);
+						DelaySliverType.TYPE_DELAY);
 					var originalNodes:VirtualNodeCollection = changeLink.interfaceRefs.Interfaces.Nodes;
 					newDelayNode.flackInfo.x = originalNodes.MiddleX;
 					newDelayNode.flackInfo.y = originalNodes.MiddleY;
@@ -58,8 +58,6 @@
 					rightLinkNodes.add(newDelayNode);
 					rightLink.establish(rightLinkNodes);
 					host.slice.links.add(rightLink);
-					
-					newDelayNode.cleanupPipes();
 				}
 				
 				SharedMain.sharedDispatcher.dispatchChanged(

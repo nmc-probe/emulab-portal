@@ -552,7 +552,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							{
 								if(startItem is CanvasNode)
 								{
-									if(hoveredOverNode.Node.HasUsableExperimentalInterface
+									var connectingNodes:VirtualNodeCollection = new VirtualNodeCollection();
+									connectingNodes.add(startItem.Node);
+									connectingNodes.add(hoveredOverItem.Node);
+									if(VirtualLink.canEstablish(connectingNodes)
 										&& startItem.Node.interfaces.Links.getConnectedToNode(hoveredOverNode.Node).length == 0)
 									{
 										color = ColorUtil.validDark;
@@ -706,7 +709,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						{
 							var startLink:CanvasLink = startItem as CanvasLink;
 							connectNodes.add(endItem.Node);
-							if(startLink.link.canEstablish(connectNodes))
+							if(VirtualLink.canEstablish(connectNodes))
 							{
 								slice.pushState();
 								if(!startLink.link.addNode(endItem.Node))
@@ -721,12 +724,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					{
 						if(endItem is CanvasNode)
 						{
-							var newLink:VirtualLink = new VirtualLink(slice);
 							connectNodes.add(startItem.Node);
 							connectNodes.add(endItem.Node);
-							if(newLink.canEstablish(connectNodes))
+							if(VirtualLink.canEstablish(connectNodes))
 							{
 								slice.pushState();
+								var newLink:VirtualLink = new VirtualLink(slice);
 								if(!newLink.establish(connectNodes))
 								{
 									slice.history.stateName = "Established " + newLink.clientId;
@@ -738,8 +741,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						else if(endItem is CanvasLink)
 						{
 							var endLink:CanvasLink = endItem as CanvasLink;
-							connectNodes.add(startItem.Node);
-							if(endLink.link.canEstablish(connectNodes))
+							if(endLink.link.canAddNode(startItem.Node))
 							{
 								slice.pushState();
 								if(!endLink.link.addNode(startItem.Node))
@@ -799,12 +801,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						dropVirtNode.slice = slice;
 						
 						// Make sure it's alright
-						if(dropVirtNode.sliverType.name == SliverTypes.FIREWALL)
-						{
-							var firewalls:VirtualNodeCollection = dropVirtNode.slice.nodes.getByManager(dropVirtNode.manager).getBySliverType(SliverTypes.FIREWALL);
-							if(firewalls.length > 0 && firewalls.collection[0] != dropVirtNode)
-								return;
-						}
+						if(dropVirtNode.sliverType.sliverTypeSpecific != null && !dropVirtNode.sliverType.sliverTypeSpecific.canAdd(dropVirtNode))
+							return;
 					}
 					else if(dropItem is VirtualLink)
 					{

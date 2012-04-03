@@ -88,6 +88,7 @@ package com.flack.geni.tasks.groups
 				if(bundleTask.data != null)
 					combinedBundle += bundleTask.data + "\n";
 			}
+			
 			SharedMain.Bundle = combinedBundle;
 			
 			addMessage(
