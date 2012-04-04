@@ -366,7 +366,7 @@ Phase "geniuser", "Creating user $geniuserid", sub {
     ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $TBACCT verify $geniuserid");
 
     # No need for email lists.
-    $geniuser->Update({'nocollabtools' => 1});
+    $geniuser->Update({'nocollabtools' => '1', 'stud' => '1'});
 };
 
 my $geniproj = Project->Lookup($geniprojid);
