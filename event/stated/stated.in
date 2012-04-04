@@ -464,7 +464,7 @@ sub getValid() {
 			      "FROM state_transitions");
 
     my %valid;
-    while (my ($mode,$state1, $state2) = $result->fetchrow()) {
+    while (my ($mode, $state1, $state2) = $result->fetchrow()) {
 	$valid{$mode}{$state1}{$state2} = 1;
     }
     return %valid;
@@ -477,15 +477,28 @@ sub getValid() {
 sub IsValidTransition($$$)
 {
     my ($mode, $oldstate, $newstate) = @_;
-    my $isvalid = 1;
 
-    $isvalid = 0
-	if ($valid{$mode} &&
-	    ($valid{$mode}{$oldstate} || $valid{$mode}{"*"}) &&
-	    ! ($valid{$mode}{$oldstate}{$newstate} ||
-	       $valid{$mode}{"*"}{$newstate}));
+    # If there are no transitions for mode, then all transitions are invalid.
+    if (!exists($valid{$mode})) {
+	return 0;
+    }
 
-    return $isvalid;
+    # See if there is a specific transition for mode/oldstate -> newstate
+    if (exists($valid{$mode}{$oldstate}) &&
+	exists($valid{$mode}{$oldstate}{$newstate}) &&
+	$valid{$mode}{$oldstate}{$newstate} == 1) {
+	return 1;
+    }
+
+    # See if there is a wildcard transition for mode/* -> newstate
+    if (exists($valid{$mode}{"*"}) &&
+	exists($valid{$mode}{"*"}{$newstate}) &&
+	$valid{$mode}{"*"}{$newstate} == 1) {
+	return 1;
+    }
+
+    # Otherwise, transition is invalid.
+    return 0;
 }
 
 #
@@ -674,6 +687,7 @@ sub stateTransition($$) {
             notify("Moving $node to $newstate because it's in $mode\n");
         }
     }
+
     #
     # Nodes that are in the SECVIOLATION state are not allowed to leave!
     #

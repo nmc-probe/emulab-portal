@@ -678,6 +678,13 @@ REPLACE INTO state_transitions VALUES ('WIMRELOAD','SHUTDOWN','PXEBOOTING','Wron
 REPLACE INTO state_transitions VALUES ('WIMRELOAD','RELOADSETUP','SHUTDOWN','Error');
 REPLACE INTO state_transitions VALUES ('WIMRELOAD','RELOADING','SHUTDOWN','Error');
 REPLACE INTO state_transitions VALUES ('PXEKERNEL','PXEBOOTING','REBOOTING','ForcedReboot');
+REPLACE INTO state_transitions VALUES ('PXEFBSD','BOOTING','MFSSETUP','BootOK');
+REPLACE INTO state_transitions VALUES ('PXEFBSD','BOOTING','SHUTDOWN','Error');
+REPLACE INTO state_transitions VALUES ('PXEFBSD','MFSSETUP','ISUP','BootDone');
+REPLACE INTO state_transitions VALUES ('PXEFBSD','MFSSETUP','SHUTDOWN','Error');
+REPLACE INTO state_transitions VALUES ('PXEFBSD','ISUP','SHUTDOWN','Reboot');
+REPLACE INTO state_transitions VALUES ('PXEFBSD','SHUTDOWN','PXEBOOTING','DHCP');
+REPLACE INTO state_transitions VALUES ('SECURELOAD','TPMSIGNOFF','GPXEBOOTING','ReloadDone');
 
 --
 -- Dumping data for table `state_triggers`
