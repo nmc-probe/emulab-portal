@@ -64,6 +64,10 @@ if (! getopts($optlist, \%options)) {
 usage()
     if (@ARGV);
 
+if ($UID != 0) {
+    fatal("Must be root to run this script\n");
+}
+
 #
 # This file must exist. Should probably be in the DB instead.
 #
