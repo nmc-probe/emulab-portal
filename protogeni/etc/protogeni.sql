@@ -6,6 +6,7 @@ CREATE TABLE `geni_users` (
   `uuid` varchar(40) NOT NULL default '',
   `created` datetime default NULL,
   `expires` datetime default NULL,
+  `last_activity` datetime default NULL,
   `locked` datetime default NULL,
   `archived` datetime default NULL,
   `status` enum('active','archived','frozen') NOT NULL default 'frozen',
@@ -278,33 +279,48 @@ CREATE TABLE `aggregate_history` (
   `idx` mediumint(8) unsigned NOT NULL default '0',
   `uuid` varchar(40) NOT NULL default '',
   `hrn` varchar(256) NOT NULL default '',
+  `urn` tinytext,
   `type` varchar(40) NOT NULL default '',
   `exptidx` int(11) NOT NULL default '0',
+  `slice_urn` tinytext,
   `slice_uuid` varchar(40) NOT NULL default '',
   `slice_hrn` varchar(256) NOT NULL default '',
-  `creator_uuid` varchar(40) NOT NULL default '',
   `creator_hrn` varchar(256) NOT NULL default '',
+  `creator_uuid` varchar(40) NOT NULL default '',
+  `creator_urn` tinytext,
   `created` datetime default NULL,
   `destroyed` datetime default NULL,
+  `reported` datetime default NULL,
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `uuid` (`uuid`),
-  INDEX `slice_uuid` (`slice_uuid`)
+  INDEX `slice_uuid` (`slice_uuid`),
+  INDEX `slice_urn` (`slice_urn`(255)),
+  INDEX `slice` (`slice_uuid`,`slice_urn`(255)),
+  INDEX `urn` (`urn`(255)),
+  INDEX `aggregate` (`uuid`,`urn`(255))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 CREATE TABLE `manifest_history` (
   `idx` int(10) unsigned NOT NULL auto_increment,
   `aggregate_uuid` varchar(40) NOT NULL default '',
+  `aggregate_urn` tinytext,
   `created` datetime default NULL,
+  `reported` datetime default NULL,
+  `rspec` text,
   `manifest` text,
-  PRIMARY KEY  (`idx`)
+  PRIMARY KEY  (`idx`),
+  INDEX `aggregate_urn` (`aggregate_urn`(255)),
+  KEY `created` (`created`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 DROP TABLE IF EXISTS `ticket_history`;
 CREATE TABLE `ticket_history` (
   `idx` mediumint(8) unsigned NOT NULL default '0',
   `uuid` varchar(40) NOT NULL default '',
+  `owner_urn` tinytext,
   `owner_uuid` varchar(40) NOT NULL default '',
   `owner_hrn` varchar(256) NOT NULL default '',
+  `slice_urn` tinytext,
   `slice_uuid` varchar(40) NOT NULL default '',
   `slice_hrn` varchar(256) NOT NULL default '',
   `created` datetime default NULL,
@@ -316,7 +332,9 @@ CREATE TABLE `ticket_history` (
   `rspec_string` text,
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `uuid` (`uuid`),
-  INDEX `slice_uuid` (`slice_uuid`)
+  INDEX `slice_uuid` (`slice_uuid`),
+  INDEX `slice_urn` (`slice_urn`(255)),
+  INDEX `slice` (`slice_uuid`,`slice_urn`(255))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 DROP TABLE IF EXISTS `client_slivers`;

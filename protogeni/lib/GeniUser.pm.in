@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniUser;
@@ -201,6 +201,7 @@ sub uid($)		{ return field($_[0], "uid"); }
 sub hrn($)		{ return field($_[0], "hrn"); }
 sub uuid($)		{ return field($_[0], "uuid"); }
 sub expires($)		{ return field($_[0], "expires"); }
+sub last_activity($)	{ return field($_[0], "last_activity"); }
 sub status($)		{ return field($_[0], "status"); }
 sub created($)		{ return field($_[0], "created"); }
 sub archived($)		{ return field($_[0], "archived"); }
@@ -448,6 +449,25 @@ sub Archive($)
     my $idx = $self->idx();
 
     DBQueryWarn("update geni_users set status='archived' ".
+		"where idx='$idx'")
+	or return -1;
+    
+    return 0;
+}
+
+#
+# Bump activity.
+#
+sub BumpActivity($)
+{
+    my ($self) = @_;
+
+    return 0
+	if (! ref($self));
+
+    my $idx = $self->idx();
+
+    DBQueryWarn("update geni_users set last_activity=now() ".
 		"where idx='$idx'")
 	or return -1;
     
