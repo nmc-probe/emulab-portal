@@ -953,6 +953,210 @@ sub ListComponents($)
 }
 
 #
+# Post a new history record
+#
+sub PostHistoryRecord($)
+{
+    my ($argref) = @_;
+    my $cred    = $argref->{'credential'};
+    my $record  = $argref->{'record'};
+
+    if (! defined($cred)) {
+	return GeniResponse->MalformedArgsResponse();
+    }
+    if (! defined($record)) {
+	return GeniResponse->MalformedArgsResponse();
+    }
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR "Could not find local authority object\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    my $credential = CheckCredential($cred, $authority);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+   
+    $credential->HasPrivilege( "authority" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+
+    my $caller_authority = GeniAuthority->Lookup($ENV{'GENIURN'});
+    if (!defined($caller_authority)) {
+	print STDERR "Could not find authority object for caller.\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    if ($caller_authority->type() ne "cm") {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Only CMs can do this");
+    }
+    if ($caller_authority->disabled()) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "You are not an enabled CM");
+    }
+    
+    #
+    # Verify all of the slots.
+    #
+    my @insert_data = ();
+    foreach my $slot ("uuid", "slice_uuid", "creator_uuid") {
+	my $uuid = $record->{$slot};
+	
+	if (!defined($uuid) || $uuid eq "") {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Missing slot: $slot");
+	}
+	if (! ($uuid =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/)) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Improper format for slot: $slot");
+	}
+	push(@insert_data, "$slot=" . DBQuoteSpecial($uuid));
+    }
+    foreach my $slot ("urn", "slice_urn", "creator_urn") {
+	my $urn = $record->{$slot};
+
+	if (!defined($urn) || $urn eq "") {
+	    #
+	    # Early records did not have slice/creator urns, so let that slide.
+	    #
+	    next
+		if ($slot eq "slice_urn" || $slot eq "creator_urn");
+	    
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Missing slot: $slot");
+	}
+	if (!GeniHRN::IsValid($urn)) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Improper format for slot: $slot");
+	}
+	push(@insert_data, "$slot=" . DBQuoteSpecial($urn));
+    }
+    foreach my $slot ("hrn", "slice_hrn", "creator_hrn") {
+	my $hrn = $record->{$slot};
+	
+	if (!defined($hrn) || $hrn eq "") {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Missing slot: $slot");
+	}
+	if (! ($hrn =~ /^[-\w\.]+$/)) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Improper format for slot: $slot");
+	}
+	push(@insert_data, "$slot=" . DBQuoteSpecial($hrn));
+    }
+    foreach my $slot ("created", "destroyed") {
+	my $date = $record->{$slot};
+	next
+	    if (!defined($date) || $date eq "");
+
+	if (ref($date) eq 'Frontier::RPC2::DateTime::ISO8601') {
+	    $date = $date->value;
+	    $record->{$slot} = $date;
+	}
+	
+	# Leave dates as GMT
+	if (! ($date =~ /^[-\w:.\/]+/)) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Improper date format: $slot");
+	}
+	push(@insert_data, "$slot=" . DBQuoteSpecial($date));
+    }
+    # Only toplevel aggregates
+    if (! (defined($record->{'type'}) && $record->{'type'} eq "Aggregate")) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Illegal type in record");
+    }
+    push(@insert_data, "type='Aggregate'");
+
+    #
+    # Make sre that the urn for the aggregate matches the urn of the caller.
+    #
+    my ($thisdomain) = GeniHRN::Parse($record->{'urn'});
+    if ($caller_authority->domain() ne $thisdomain) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Domain mismatch in aggregate urn");
+    }
+
+    #
+    # These were verified above. Now see if we already have a record, and
+    # are just adding a manifest or the destroyed date.
+    #
+    my $aggregate_uuid = DBQuoteSpecial($record->{'uuid'});
+    my $aggregate_urn  = DBQuoteSpecial($record->{'urn'});
+    my $aggregate_idx;
+
+    my $query_result =
+	DBQueryWarn("select * from aggregate_history ".
+		    "where uuid=$aggregate_uuid and urn=$aggregate_urn");
+
+    return GeniResponse->Create(GENIRESPONSE_ERROR)
+	if (!defined($query_result));
+
+    if (! $query_result->numrows) {
+	#
+	# Insert new record.
+	#
+	print STDERR Dumper(\@insert_data);
+	
+	if (1) {
+	    # Every aggregate gets a new unique index.
+	    my $nextidx = TBGetUniqueIndex('next_aggregate_history', 1);
+	    
+	    DBQueryWarn("insert into aggregate_history set idx=$nextidx,  " .
+			join(",", @insert_data))
+		or return GeniResponse->Create(GENIRESPONSE_ERROR);
+	}
+    }
+    else {
+	my $row = $query_result->fetchrow_hashref();
+	$aggregate_idx = $row->{'idx'};
+
+	#
+	# Inserting a destroyed timestamp?
+	#
+	if (defined($record->{'destroyed'})) {
+	    if (defined($row->{'destroyed'})) {
+		print STDERR "Aggregate history record $aggregate_idx already ".
+		    "has a destroyed timestamp\n";
+	    }
+	    else {
+		my $destroyed = DBQuoteSpecial($record->{'destroyed'});
+		DBQueryWarn("update aggregate_history set ".
+			    "  destroyed=$destroyed ".
+			    "where idx='$aggregate_idx'");
+	    }
+	}
+    }
+
+    #
+    # Optional Manifest. 
+    #
+    if (exists($record->{'manifest'})) {
+	my $created = DBQuoteSpecial($record->{'created'});
+	my $manifest_result = 
+	    DBQueryWarn("select idx from manifest_history ".
+			"where aggregate_uuid=$aggregate_uuid and ".
+			"      aggregate_urn=$aggregate_urn and ".
+			"      created=$created");
+	return GeniResponse->Create(GENIRESPONSE_ERROR)
+	    if (!defined($manifest_result));
+
+	# Ignore manifest with same date.
+	if (!$manifest_result->numrows) {
+	    my $safe_manifest = DBQuoteSpecial($record->{'manifest'});
+	    if (1) {
+		DBQueryWarn("insert into manifest_history set idx=NULL, " .
+			    " aggregate_uuid=$aggregate_uuid, " .
+			    " aggregate_urn=$aggregate_urn, " .
+			    " created=$created, manifest=$safe_manifest")
+		    or return GeniResponse->Create(GENIRESPONSE_ERROR);
+	    }
+	}
+    }
+
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+}
+
+#
 # Post a new CRL
 #
 sub PostCRL($)

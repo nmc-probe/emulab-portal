@@ -365,6 +365,24 @@ sub PostCRL($$)
 }
 
 #
+# Post a history record. The caller wants the response object.
+#
+sub PostHistoryRecord($$$)
+{
+    my ($self, $record) = @_;
+    my $url = $self->authority()->url();
+
+    my $response =
+	Genixmlrpc::CallMethod($url,
+			       $self->context(),
+			       "PostHistoryRecord",
+			       { "credential" =>
+				     $self->credential()->asString(),
+			         "record"     => $record });
+    return $response;
+}
+
+#
 # Register a sliver at an SA
 #
 sub RegisterSliver($$$)

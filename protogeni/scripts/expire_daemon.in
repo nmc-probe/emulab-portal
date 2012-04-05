@@ -1,12 +1,15 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
 use English;
 use Getopt::Std;
+use Data::Dumper;
+use Date::Parse;
+use POSIX qw(strftime);
 
 #
 # Look for things that need to be expired and resources released. This is
@@ -20,10 +23,11 @@ sub usage()
     print "Usage: expire_daemon [-d] [-i]\n";
     exit(1);
 }
-my $optlist   = "di";
+my $optlist   = "dnis";
 my $debug     = 0;
 my $idlecheck = 0;
 my $impotent  = 0;
+my $oneshot   = 0;
 
 #
 # Configure variables
@@ -32,6 +36,7 @@ my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $TBLOGS        = "@TBLOGSEMAIL@";
 my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
+my $OURDOMAIN     = "@OURDOMAIN@";
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $LOGFILE       = "$TB/log/expire_daemon.log";
 my $IDLETIMES	  = "$TB/sbin/idletimes";
@@ -75,6 +80,12 @@ if (defined($options{"d"})) {
 if (defined($options{"i"})) {
     $idlecheck = 1;
 }
+if (defined($options{"s"})) {
+    $oneshot = 1;
+}
+if (defined($options{"n"})) {
+    $impotent = 1;
+}
 
 # Do this early so that we talk to the right DB.
 use vars qw($GENI_DBNAME);
@@ -90,12 +101,13 @@ require GeniCM;
 require GeniCertificate;
 require GeniCredential;
 require GeniAggregate;
+require Genixmlrpc;
+use GeniResponse;
 use Experiment;
 use Node;
 use libtestbed;
 use emutil;
 use libEmulab;
-use POSIX qw(strftime);
 
 #
 # So we know who/what we are acting as.
@@ -109,17 +121,19 @@ Genixmlrpc->SetTimeout(10);
 $ENV{'MYUUID'} = $certificate->uuid();
 $ENV{'MYURN'} = "urn:publicid:IDN+@OURDOMAIN@+authority+cm";
 
-if (CheckDaemonRunning("expire_daemon")) {
-    fatal("Not starting another expire daemon!");
-}
-# Go to ground.
-if (! $debug) {
-    if (TBBackGround($LOGFILE)) {
-	exit(0);
+if (!$oneshot) {
+    if (CheckDaemonRunning("expire_daemon")) {
+	fatal("Not starting another expire daemon!");
     }
-}
-if (MarkDaemonRunning("expire_daemon")) {
-    fatal("Could not mark daemon as running!");
+    # Go to ground.
+    if (! $debug) {
+	if (TBBackGround($LOGFILE)) {
+	    exit(0);
+	}
+    }
+    if (MarkDaemonRunning("expire_daemon")) {
+	fatal("Could not mark daemon as running!");
+    }
 }
 #
 # Setup a signal handler for newsyslog.
@@ -133,7 +147,7 @@ sub handler()
     $EUID = $SAVEEUID;
 }
 $SIG{HUP} = \&handler
-    if (!$debug);
+    if (! ($debug || $oneshot));
 
 GeniUtil::FlipToGeniUser();
 
@@ -557,6 +571,214 @@ sub ReportOrphanedCerts()
 	     $TBOPS);
 }
 
+#
+# Push stats up to the clearing house.
+#
+sub PushStats()
+{
+    my $lastidx = VersionInfo("aggregates_pushed");
+    if (!defined($lastidx)) {
+	$lastidx = 0;
+	UpdateVersionInfo("aggregates_pushed", 0) == 0
+	    or return -1;
+    }
+
+    #
+    # Look for any records we have not reported. Note that we do not mark
+    # a record as reported until it actually has a destroyed date. We still
+    # send in the record though, we just might report it again when it is
+    # destroyed. The CH will notice that.
+    #
+    # Limit to small number of records at a time to avoid pounding the CH.
+    #
+    my $query_result =
+	GeniDB::DBQueryWarn("select * from aggregate_history ".
+			    "where idx>$lastidx or ".
+			    "      (idx<=$lastidx and reported is null) ".
+			    "limit 20");
+    return -1
+	if (!$query_result);
+    return 0
+	if (!$query_result->numrows);
+    
+    my $clearinghouse = GeniRegistry::ClearingHouse->Create();
+    if (!defined($clearinghouse)) {
+	print STDERR "Could not create a clearinghouse client\n";
+	return -1;
+    }
+    
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $aggregate_uuid = $row->{'uuid'};
+	my $aggregate_idx  = $row->{'idx'};
+
+	# Older records do not have this, but easy to generate.
+	if (!defined($row->{'urn'}) || $row->{'urn'} eq "") {
+	    $row->{'urn'} =
+		GeniHRN::Generate($OURDOMAIN, "sliver", $aggregate_idx);
+	}
+	my $aggregate_urn = $row->{'urn'};
+
+	#
+	# If not destroyed, check for active aggregate. Maybe something
+	# went wrong. There is a bit of race here; the aggregate might
+	# have been destroyed in the meantime. Try to deal with that, but
+	# in the end it is not that important, we can just fix up the
+	# record.
+	#
+	if (!defined($row->{'destroyed'})) {
+	    my $aggregate = GeniAggregate->Lookup($aggregate_idx);
+	    if (!defined($aggregate)) {
+		sleep(2);
+		my $history_result =
+		    GeniDB::DBQueryWarn("select destroyed from aggregate_history ".
+					"where idx='$aggregate_idx'");
+
+		return -1
+		    if (!defined($history_result));
+
+		if ($history_result->numrows == 0) {
+		    #
+		    # No idea what happened and not much to do.
+		    #
+		    print STDERR "aggregate_history record for ".
+			"$aggregate_uuid ($aggregate_idx) is gone!\n";
+		    next;
+		}
+		my ($destroyed) = $history_result->fetchrow_array();
+		if (!defined($destroyed)) {
+		    #
+		    # Fix up the record.
+		    #
+		    print STDERR "aggregate_history says $aggregate_idx not ".
+			"destroyed, but no aggregate exists. Fixing record\n";
+		    GeniDB::DBQueryWarn("update aggregate_history set ".
+					"  destroyed=now() ".
+					"where idx='$aggregate_idx'")
+			or return -1;
+		    # We can catch it next loop.
+		    next;
+		}
+		# Update and continue.
+		$row->{'destroyed'} = $destroyed;
+	    }
+	}
+	
+	#
+	# Find the manifests that have not been reported. We do not
+	# record updates in a formal manner, except that there will
+	# be a manifest record for each update.
+	#
+	my $manifest_results =
+	    GeniDB::DBQueryWarn("select idx,created,manifest ".
+				"  from manifest_history ".
+				"where aggregate_uuid='$aggregate_uuid' and ".
+				"      reported is null");
+	return -1
+	    if (!$manifest_results);
+
+	#
+	# If there are no manifests, and the index is less then then
+	# the cutoff, this is one that is waiting to terminate. There
+	# is no reason to send a new record. 
+	#
+	my $count = $manifest_results->numrows;
+
+	if (!$count && $aggregate_idx <= $lastidx &&
+	    !defined($row->{'destroyed'})) {
+	    print STDERR "Skipping running aggregate $aggregate_idx\n";
+	    next;
+	}
+
+	#
+	# No manifests is okay, probably means we are reporting the demise
+	# of an aggregate we reported earlier.
+	#
+	do {
+	    $count--;
+	    my ($manifest_idx, $manifest_created, $manifest) =
+		$manifest_results->fetchrow_array();
+
+	    if (defined($manifest_idx)) {
+		$row->{'manifest'} = $manifest;
+		# convert to gmt
+		$row->{'created'} =
+		    POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
+				    gmtime(str2time($manifest_created)));
+	    }
+	    else {
+		# convert to gmt
+		$row->{'created'} =
+		    POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
+				    gmtime(str2time($row->{'created'})));
+	    }
+	    if (defined($row->{'destroyed'})) {
+		# convert to gmt
+		$row->{'destroyed'} =
+		    POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
+				    gmtime(str2time($row->{'destroyed'})));
+	    }
+	    else {
+		# Do not send undefined value.
+		delete($row->{'destroyed'});
+	    }
+	    # Do not send this. 
+	    delete($row->{'reported'});
+	    
+	    if ($impotent) {
+		print STDERR "Would post:\n";
+		print STDERR Dumper($row);
+		next;
+	    } else {
+		print STDERR "Posting aggregate record: $aggregate_urn\n";
+		print STDERR "Posting with manifest: $manifest_idx\n"
+		    if (defined($manifest_idx));
+	    }
+	    my $response = $clearinghouse->PostHistoryRecord($row);
+	    if (!defined($response)) {
+		print STDERR "Could not talk to clearinghouse\n";
+		return -1;
+	    }
+	    if ($response->code() != GENIRESPONSE_SUCCESS) {
+		print STDERR "Error posting history record: ".
+		    $response->output() . "\n";
+		return -1;
+	    }
+	    #
+	    # Mark manifest reported.
+	    #
+	    if (defined($manifest_idx)) {
+		GeniDB::DBQueryWarn("update manifest_history set reported=now() ".
+				    "where idx='$manifest_idx'")
+		    or return -1;
+	    }
+	    sleep(1);
+	} while ($count > 0);
+
+	next
+	    if ($impotent);
+
+	#
+	# Mark aggregate record reported if destroyed.
+	#
+	if (defined($row->{'destroyed'})) {
+	    GeniDB::DBQueryWarn("update aggregate_history set reported=now() ".
+				"where idx='$aggregate_idx'")
+		or return -1;
+	}
+	#
+	# Update the last idx we reported on, for the next time.
+	#
+	UpdateVersionInfo("aggregates_pushed", $aggregate_idx) == 0
+	    or return -1;
+    }
+    return 0;
+}
+
+if ($oneshot) {
+    PushStats();
+    exit(0);
+}
+
 # Do this once at startup
 sleep(5);
 ReportLockedSlices();
@@ -578,6 +800,7 @@ while (1) {
     ExpireSlices();
     ShutdownSlices();
     RegisterSlices();
+    PushStats();
 
     $counter += $SLEEP_INTERVAL;
     if ($counter >= (24 * 60 * 60)) {
