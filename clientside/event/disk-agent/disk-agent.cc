@@ -56,6 +56,9 @@ using namespace std;
 /* Hard coding the number of disks we allow for now to keep things simpler */
 #define MAX_DISKS 10
 
+/* Need a flag to init vols */
+int done_init_vols = 0;
+
 /**
  * Structure used to track individual agents.
  */
@@ -168,7 +171,7 @@ void init_volumes(void)
          * mkextrafs script which will create 10 logical volumes.
          */
         cout << "Creating the disk partition ..." << endl;
-        cmd = "/usr/testbed/bin/mkextrafs -q -l -m vol1,vol2,vol3,vol4,vol5,vol6,vol7,vol8,vol9,vol10";
+        cmd = "/usr/testbed/bin/mkextrafs -f -q -l -m vol1,vol2,vol3,vol4,vol5,vol6,vol7,vol8,vol9,vol10";
         int i = system(const_cast<char *>(cmd.c_str()));
         if(i)
         {
@@ -303,7 +306,6 @@ find_agent(char *name)
 int main(int argc, char * argv[])
 {
   cout << "Beginning program" << endl;
-  init_volumes();
   readArgs(argc, argv);
   return 0;
 }
@@ -645,12 +647,28 @@ void callback(event_handle_t handle,
   switch(eventtype[event])
   {
 	case 0:
+		/* Avoid creating lvm partitions until needed
+  		   done_init_flags is being used for this purpose
+		 */
+		if(!done_init_vols) {
+			init_volumes();
+			done_init_vols=1;
+		}
+
 		/* Event is to create a dm disk */	
 		if(!create_dm_device(dinfo, args))
 			cerr << "DM failed" << endl;
 		event="";
 		break;
   	case 1:
+        /* Avoid creating lvm partitions until needed
+           done_init_flags is being used for this purpose
+         */
+        if(!done_init_vols) {
+            init_volumes();
+            done_init_vols=1;
+        }
+
 		/* Event is to modify the dm disk */
 		if(!modify_dm_device(dinfo, args))
 			cerr << "DM failed" << endl;
@@ -659,6 +677,14 @@ void callback(event_handle_t handle,
 	case 2:
 		break;
 	case 3:
+        /* Avoid creating lvm partitions until needed
+           done_init_flags is being used for this purpose
+         */
+        if(!done_init_vols) {
+            init_volumes();
+            done_init_vols=1;
+        }
+
 		if(!run_dm_device(dinfo, args))
 			 cerr << "DM failed" << endl;
 		event="";
@@ -752,6 +778,12 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 				dm_task_destroy(dmt);
                 return 0;
 		}
+		/* After running dm_task_run, dm_devices would
+			not appear in /dev/mapper. Need to call these
+			routines to fix that.
+		*/
+		dm_udev_wait(0);
+		dm_task_update_nodes();
 
 		/* Resume this dm device for changes to take effect. */
 		resume_dm_device(dinfo->name);
@@ -823,7 +855,6 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 				dm_task_destroy(dmt);
 				return 0;
 		}
-		sleep(1);
 		string disk = "/dev/emulab/vol"+itos(volindex);
 
 		/* So we have the new partition. Find out the
@@ -873,7 +904,8 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 			return 0;
 		}
 
-		sleep(1);
+		dm_udev_wait(0);
+        dm_task_update_nodes();
 
 		dm_disk_name.erase(std::remove(dm_disk_name.begin(), dm_disk_name.end(), ' '), dm_disk_name.end());
 
@@ -955,7 +987,10 @@ int create_dm_device(struct diskinfo *dinfo, char *args)
 		cout <<"in task run"<<endl;
 		goto out;
 	}
-        
+	
+	dm_udev_wait(0);
+    dm_task_update_nodes();        
+
 	if (!_device_info(dinfo->name)) {
 		goto out;
 	}
@@ -1005,6 +1040,8 @@ int modify_dm_device(struct diskinfo *dinfo, char *args)
     if (!dm_task_run(dmt))
         goto out;
 
+    dm_udev_wait(0);
+    dm_task_update_nodes();
 
     if (!_device_info(dinfo->name)) 
         goto out;
@@ -1043,16 +1080,18 @@ int resume_dm_device(char *name)
         if (!dm_task_set_add_node(dmt, DM_ADD_NODE_ON_RESUME))
                 goto out;
 	#endif
-         /* Now that we have the dm device. Run it to make it alive. */
-        if (!dm_task_run(dmt))
-                goto out;
+    /* Now that we have the dm device. Run it to make it alive. */
+    if (!dm_task_run(dmt))
+		goto out;
 
-        /* DM disk is created; Query it. */
-        //printf("Name: %s\n", dm_task_get_name(dmt));
-        r=1;
-        out:
-           dm_task_destroy(dmt);
-           return r;
+    dm_udev_wait(0);
+    dm_task_update_nodes();
+
+	/* DM disk is created; Query it. */
+	r=1;
+    out:
+        dm_task_destroy(dmt);
+        return r;
 }
 
 /*This routine basically sets the properties specified in the buffer
@@ -1189,6 +1228,8 @@ static int _device_info(char *name)
         if (!dm_task_run(dmt))
                 goto out;
 
+	    dm_udev_wait(0);
+    	dm_task_update_nodes();
 
         if (!dm_task_get_info(dmt, &info))
                 goto out;
@@ -1270,6 +1311,7 @@ int _get_device_params(const char *name)
 		void *next = NULL;
 		int r=0;
 		unsigned long long size;
+		int minor_number;
 	
 		device_params.clear();
 		if (!(dmt = dm_task_create(DM_DEVICE_TABLE)))
@@ -1281,9 +1323,19 @@ int _get_device_params(const char *name)
 		if (!dm_task_run(dmt))
 				goto out;
 
+	    dm_udev_wait(0);
+    	dm_task_update_nodes();
+
 		if (!dm_task_get_info(dmt, &info) || !info.exists)
                 goto out;
 
+		/* This is a hack for now to make things work with lvm vols
+		   We create 10 lvm vols and the major:minor number decided
+		   by device mapper rolls back and so subtracting it by 10.
+	       If we increase the lvm vols then we have to change this.
+		*/
+
+		minor_number = info.minor - 10;
 		diskname = itos(info.major)+":"+itos(info.minor);
 		
         do {
@@ -1361,7 +1413,7 @@ parse_configfile(char *filename)
 
             if ((rc = event_arg_get(buf,
                         "COMMAND",
-                        &dinfo->cmdline)) > 0) {
+                        &dinfo->cmdline)) >= 0) {
                 dinfo->cmdline[strlen(dinfo->cmdline) - 1] =
                     '\0'; // remove trailing single quote
                 /* Prepend exec to replace the 'csh' */
@@ -1382,7 +1434,7 @@ parse_configfile(char *filename)
 				   we need to prune out foreign chars */
 				char *ptr = strstr(dinfo->parameters, "COMMAND=");
 				if(*ptr != NULL)
-						*ptr = '\0';
+						*(ptr-1) = '\0';
 
 				asprintf(&dinfo->parameters,
                      "%s",
@@ -1460,13 +1512,13 @@ set_disk(struct diskinfo *dinfo, char *args)
             if(((ptr = strstr(value, "PARAMETERS=")) || (ptr = strstr(value, "DISKTYPE=")) || (ptr = strstr(value, "MOUNTPOINT="))) != NULL)
                 *ptr = '\0';
 
-            cout <<"COMMAND "<<value<<endl;
+            printf("COMMAND: %s\n",value);
             asprintf(&dinfo->cmdline, "%s", value);
             value = NULL;
         }
 
         if ((rc = event_arg_dup(args, "DISKTYPE", &value)) >= 0) {
-			cout << "DISKTYPE "<<value<<endl;
+			printf("DISKTYPE: %s\n",value);
             if (dinfo->type != NULL) {
                 if (dinfo->type != dinfo->initial_type)
                     free(dinfo->type);
@@ -1484,7 +1536,7 @@ set_disk(struct diskinfo *dinfo, char *args)
 			value = NULL;
 		}
         if ((rc = event_arg_dup(args, "MOUNTPOINT", &value)) >= 0) {
-			cout << "MOUNTPOINT "<<value<<endl;
+			printf("MOUNTPOINT: %s\n",value);
             if (dinfo->mountpoint != NULL) {
                 if (dinfo->mountpoint != dinfo->initial_mountpoint)
                     free(dinfo->mountpoint);
@@ -1502,7 +1554,7 @@ set_disk(struct diskinfo *dinfo, char *args)
             value = NULL;
         }
 	    if ((rc = event_arg_get(args, "PARAMETERS", &value)) > 0) {
-			cout << "PARAMETERS" <<value<<endl;
+			printf("PARAMETERS: %s\n",value);
 			if (dinfo->parameters != NULL) {
                 if (dinfo->parameters != dinfo->initial_parameters)
                     free(dinfo->parameters);
@@ -1513,7 +1565,7 @@ set_disk(struct diskinfo *dinfo, char *args)
 			if(((ptr = strstr(value, "COMMAND=")) || (ptr = strstr(value, "DISKTYPE=")) || (ptr = strstr(value, "MOUNTPOINT="))) != NULL)
 				*ptr = '\0';
 
-			cout << "PARAMETERS" <<value<<endl;
+			printf("PARAMETERS after pruning: %s\n",value);
 			dinfo->parameters = value;
 		   /*
 			* XXX event_arg_get will return a pointer beyond
@@ -1527,6 +1579,8 @@ set_disk(struct diskinfo *dinfo, char *args)
 
 		}
 	}
+	cout << "after set_disk "<<endl;
+	dump_diskinfos();
 }
 
 /**
