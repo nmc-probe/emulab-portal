@@ -25,6 +25,7 @@ $optargs = OptionalPageArguments("showall",   PAGEARG_BOOLEAN,
 				 "reverse",   PAGEARG_BOOLEAN,
 				 "count",     PAGEARG_INTEGER,
 				 "datetime",  PAGEARG_STRING,
+				 "IP",        PAGEARG_STRING,
 				 "node",      PAGEARG_NODE);
 
 #
@@ -43,6 +44,12 @@ if (!isset($reverse)) {
 }
 if (!isset($datetime)) {
     $datetime = "";
+}
+if (isset($IP)) {
+    $node = Node::LookupByIP($IP);
+    if (! $node) {
+	USERERROR("Cannot map $IP to a node", 1);
+    }
 }
 $node_id = (isset($node) ? $node->node_id() : "");
 
