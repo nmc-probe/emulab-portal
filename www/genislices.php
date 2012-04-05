@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -39,7 +39,7 @@ else {
 #
 PAGEHEADER("Geni Slice List");
 
-if (! $isadmin) {
+if (! ($isadmin || STUDLY())) {
     USERERROR("You do not have permission to view Geni slice list!", 1);
 }
 

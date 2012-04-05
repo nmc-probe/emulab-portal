@@ -72,8 +72,8 @@ if (isset($showtypes["aggregates"])) {
     $table = array('#id'	   => 'aggregate',
 		   '#title'        => "Aggregate History",
 		   '#headings'     => array("idx"          => "ID",
-					    "slice_hrn"    => "Slice HRN",
-					    "creator_hrn"  => "Creator HRN",
+					    "slice_hrn"    => "Slice HRN/URN",
+					    "creator_hrn"  => "Creator HRN/URN",
 					    "created"      => "Created",
 					    "Destroyed"    => "Destroyed",
 					    "Manifest"     => "Manifest"));
@@ -85,12 +85,24 @@ if (isset($showtypes["aggregates"])) {
 	    $uuid        = $row["uuid"];
 	    $slice_hrn   = $row["slice_hrn"];
 	    $creator_hrn = $row["creator_hrn"];
+	    $slice_urn   = $row["slice_urn"];
+	    $creator_urn = $row["creator_urn"];
 	    $created     = $row["created"];
 	    $destroyed   = $row["destroyed"];
 
+	    # If we have urns, show those instead.
+	    $slice_info = $slice_hrn;
+	    if (isset($slice_urn)) {
+		$slice_info = "$slice_urn";
+	    }
+	    $creator_info = $creator_hrn;
+	    if (isset($creator_urn)) {
+		$creator_info = "$creator_urn";
+	    }
+
 	    $tablerow = array("idx"       => $idx,
-			      "hrn"       => $slice_hrn,
-			      "creator"   => $creator_hrn,
+			      "hrn"       => $slice_info,
+			      "creator"   => $creator_info,
 			      "created"   => $created,
 			      "destroyed" => $destroyed);
 
