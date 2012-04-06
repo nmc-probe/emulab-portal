@@ -56,7 +56,7 @@ using namespace std;
 /* Hard coding the number of disks we allow for now to keep things simpler */
 #define MAX_DISKS 10
 
-/* Need a flag to init vols */
+/* A flag to init vols only when required */
 int done_init_vols = 0;
 
 /**
@@ -207,10 +207,10 @@ dump_diskinfos(void)
 }
 
 /*
- * Open a new log file for a program agent and update the symlink used to refer
+ * Open a new log file for a disk agent and update the symlink used to refer
  * to the latest invocation of the agent.
  *
- * @param pinfo The proginfo we are opening the logs for.
+ * @param dinfo The dinfo we are opening the logs for.
  * @param type The log type: "out" for standard out and "err" for standard
  * error.
  * @return The new file descriptor or -1 if there was a failure.
@@ -657,7 +657,7 @@ void callback(event_handle_t handle,
 
 		/* Event is to create a dm disk */	
 		if(!create_dm_device(dinfo, args))
-			cerr << "DM failed" << endl;
+			cerr << "DM failed in create_dm_device()" << endl;
 		event="";
 		break;
   	case 1:
@@ -671,7 +671,7 @@ void callback(event_handle_t handle,
 
 		/* Event is to modify the dm disk */
 		if(!modify_dm_device(dinfo, args))
-			cerr << "DM failed" << endl;
+			cerr << "DM failed in modify_dm_device()" << endl;
 		event="";
 	 	break;	
 	case 2:
@@ -686,7 +686,7 @@ void callback(event_handle_t handle,
         }
 
 		if(!run_dm_device(dinfo, args))
-			 cerr << "DM failed" << endl;
+			 cerr << "DM failed in run_dm_device()" << endl;
 		event="";
 		break;
 	default:
@@ -798,9 +798,9 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 
 		/* DM device does not exist. So we'll create it. */
 		if(!(dmt = dm_task_create(DM_DEVICE_CREATE))){
-                	cout << "in dm task create"<<endl;
-	                return 0;
-        	}
+        	cout << "in dm task create"<<endl;
+	        return 0;
+       	}
 
 		/* Set properties on the new dm device */
 		string prefix = "/dev/mapper/";
@@ -825,8 +825,8 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
          * logical volumes that we have created looking for
 		 * the first free volume.
 		 */
-		volindex=1;
-		int count=0;
+		volindex  = 1;
+		int count = 0;
 		do
 		{
 				++count;
@@ -834,9 +834,9 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 				string open_count_str = exec_output(cmd);
 				int open_count = atoi(const_cast<char *>(open_count_str.c_str()));     
 				if(open_count > 0)
-						++volindex;
+					++volindex;
 				else
-                                break;
+         	    	break;
 		}while(count <= 10);
 
 		if(count == 10)
@@ -1068,12 +1068,12 @@ int resume_dm_device(char *name)
 	int r=0;
 
 	/* This creates a dm device to be RESUMED */
-        if (!(dmt = dm_task_create(DM_DEVICE_RESUME)))
-                return 0;
+    if (!(dmt = dm_task_create(DM_DEVICE_RESUME)))
+    	return 0;
 
 	/* This sets up the name of dm device */
-        if (!dm_task_set_name(dmt, name))
-                goto out;
+    if (!dm_task_set_name(dmt, name))
+    	goto out;
 
 	#if 0
 	/* This adds the dm device node */
@@ -1120,7 +1120,7 @@ static int _parse_line(struct dm_task *dmt, char *buffer, const char *file,
 
         if (sscanf(ptr, "%llu %llu %s %n",
                    &start, &size, ttype, &n) < 3) {
-                err("Invalid format on line %d of table %s", line, file);
+                printf("Invalid format on line %d of table %s", line, file);
                 return 0;
         }
 
@@ -1220,19 +1220,19 @@ static int _device_info(char *name)
 	if (!(dmt = dm_task_create(DM_DEVICE_INFO)))
                 return 0;
 
-        /* Set properties on the new dm device */
-        if (!dm_task_set_name(dmt, name))
-                goto out;
+	/* Set properties on the new dm device */
+    if (!dm_task_set_name(dmt, name))
+    	goto out;
 
 
-        if (!dm_task_run(dmt))
-                goto out;
+	if (!dm_task_run(dmt))
+        goto out;
 
-	    dm_udev_wait(0);
-    	dm_task_update_nodes();
+	dm_udev_wait(0);
+    dm_task_update_nodes();
 
-        if (!dm_task_get_info(dmt, &info))
-                goto out;
+    if (!dm_task_get_info(dmt, &info))
+        goto out;
 	
 	if (info.exists)
 		_display_info_long(dmt, &info);
@@ -1331,7 +1331,7 @@ int _get_device_params(const char *name)
 
 		/* This is a hack for now to make things work with lvm vols
 		   We create 10 lvm vols and the major:minor number decided
-		   by device mapper rolls back and so subtracting it by 10.
+		   by device mapper rolls back, so subtracting it by 10.
 	       If we increase the lvm vols then we have to change this.
 		*/
 
@@ -1427,14 +1427,15 @@ parse_configfile(char *filename)
             if ((rc = event_arg_get(buf,
                          "PARAMETERS",
                          &dinfo->parameters)) > 0) {
-				dinfo->parameters[strlen(dinfo->parameters) - 1] =
-					'\0';
 
 				/* Since event_arg_get simply returns the entire string,
 				   we need to prune out foreign chars */
 				char *ptr = strstr(dinfo->parameters, "COMMAND=");
 				if(*ptr != NULL)
 						*(ptr-1) = '\0';
+
+				dinfo->parameters[strlen(dinfo->parameters) - 1] =
+						'\0';
 
 				asprintf(&dinfo->parameters,
                      "%s",
@@ -1460,6 +1461,9 @@ parse_configfile(char *filename)
 			continue;
 		}
 	}
+    cout <<"After parse_config "<<endl;
+    dump_diskinfos();
+
     fclose(fp);
     return 0;
 bad:
@@ -1477,7 +1481,7 @@ set_disk(struct diskinfo *dinfo, char *args)
     assert(dinfo != NULL);
     assert(args != NULL);
 
-	cout << "Args in set_disk " << args << endl;
+	printf("Args in set_disk : %s\n",args);
     /*
      * The args string holds the command line to execute. We allow
      * this to be reset in dynamic events, but is optional; the cuurent
@@ -1632,7 +1636,6 @@ start_callback(event_handle_t handle,
         cerr << "Could not get event from notification!\n" << endl;
         return;
     }
-	cerr << "In start_callback before if"<<endl;
     if (strcmp(event, TBDB_EVENTTYPE_START) == 0) {
         struct diskinfo *dinfo;
         DIR *dir;
