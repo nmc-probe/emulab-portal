@@ -1,0 +1,72 @@
+#!/usr/bin/perl -w
+
+if (scalar(@ARGV) != 1) {
+    print "Usage: add_rack_nodes <type>\n";
+    exit(1);
+}
+
+my $type = $ARGV[0];
+
+our $TB = "/usr/testbed";
+
+use IPC::Open2;
+
+sub sequentialSystem($$)
+{
+  my $program = shift(@_);
+  my $input = shift(@_);
+  local(*CHILD_OUT, *CHILD_IN);
+  my $childpid = open2(*CHILD_OUT, *CHILD_IN, $program)
+    or die("Can't open program $program\n");
+  print CHILD_IN $input;
+  close(CHILD_IN);
+  waitpid($childpid, 0);
+  my @output = <CHILD_OUT>;
+  return join("", @output);
+}
+
+sub newAction(@)
+{
+  my $blob = "";
+  $blob .= "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+  $blob .= "<newnode>\n";
+  my %actions = @_;
+  for my $key (keys(%actions)) {
+    $blob .= "  <attribute name=\"" . $key . "\">\n";
+    $blob .= "    <value>" . $actions{$key} . "</value>\n";
+    $blob .= "  </attribute>\n";
+  }
+  $blob .= "</newnode>\n";
+  return sequentialSystem("perl -wT ./newscript.in", $blob);
+}
+
+# Reboot Nodes
+# Wait for Nodes to Boot
+
+# Gather Node IDs
+my $nodeText = newAction("table" => "node",
+			 "command" => "list");
+my @nodeListText = split("\n", $nodeText);
+my @nodeList = ();
+foreach my $node (@nodeListText) {
+    my @fields = split(" ", $node);
+    if (scalar(@fields) >= 1) {
+	push(@nodeList, $fields[0]);
+    }
+}
+
+# Set Node Types
+foreach my $node (@nodeList) {
+    newAction("table" => "node",
+	      "id" => $node,
+	      "command" => "update",
+	      "type" => $type);
+}
+
+# Associate Interfaces with Switch Ports
+system("perl newnode_research.in");
+
+# Commit Changes
+foreach my $node (@nodeList) {
+    newAction("table" => "node", "id" => $node, "command" => "commit");
+}

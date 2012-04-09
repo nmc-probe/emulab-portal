@@ -9,13 +9,15 @@ use strict;
 use Getopt::Std;
 use XML::Simple;
 use Data::Dumper;
+use IO::Handle;
+use URI::Escape;
 
 #
 # Create a new node from a XML description. 
 #
 sub usage()
 {
-    print("Usage: newnode [-d] [-v] [-f] <xmlfile>\n\n");
+    print("Usage: newnode [-d] [-v] [-f] [xmlfile]\n\n");
     print("  -d  print debug information\n");
     print("  -v  verify permissions: do not execute commands\n");
     print("  -n  print out commands: do not execute commands\n");
@@ -46,7 +48,6 @@ $| = 1;
 #
 # Load the Testbed support stuff.
 #
-#use lib "@prefix@/lib";
 use lib "/usr/testbed/lib";
 use libdb;
 use libtestbed;
@@ -84,10 +85,13 @@ if (defined($options{"v"})) {
 if (defined($options{"n"})) {
     $fake = 1;
 }
-if (@ARGV != 1) {
+if (@ARGV > 1) {
     usage();
 }
-my $xmlfile  = shift(@ARGV);
+my $xmlfile;
+if (scalar(@ARGV) >= 1) {
+  $xmlfile = shift(@ARGV);
+}
 
 #
 # Map invoking user to object. 
@@ -110,20 +114,22 @@ else {
     # Check the filename when invoked from the web interface; must be a
     # file in /tmp.
     #
-    if ($xmlfile =~ /^([-\w\.\/]+)$/) {
-	$xmlfile = $1;
-    }
-    else {
-	fatal("Bad data in pathname: $xmlfile");
-    }
+    if (defined($xmlfile)) {
+	if ($xmlfile =~ /^([-\w\.\/]+)$/) {
+	    $xmlfile = $1;
+	}
+	else {
+	    fatal("Bad data in pathname: $xmlfile");
+	}
 
-    # Use realpath to resolve any symlinks.
-    my $translated = `realpath $xmlfile`;
-    if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
-	$xmlfile = $1;
-    }
-    else {
-	fatal("Bad data in translated pathname: $xmlfile");
+	# Use realpath to resolve any symlinks.
+	my $translated = `realpath $xmlfile`;
+	if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
+	    $xmlfile = $1;
+	}
+	else {
+	    fatal("Bad data in translated pathname: $xmlfile");
+	}
     }
 
     # The web interface (and in the future the xmlrpc interface) sets this.
@@ -199,12 +205,23 @@ my %interfacetypefields =
 #
 # Must wrap the parser in eval since it exits on error.
 #
-my $xmlparse = eval { XMLin($xmlfile,
-			    VarAttr => 'name',
-			    ContentKey => '-content',
-			    SuppressEmpty => undef); };
-fatal($@)
-    if ($@);
+my $xmlparse;
+if (defined($xmlfile)) {
+  $xmlparse = eval { XMLin($xmlfile,
+			   VarAttr => 'name',
+			   ContentKey => '-content',
+			   SuppressEmpty => undef); };
+  fatal($@)
+      if ($@);
+} else {
+    my $handle = new IO::Handle;
+    $xmlparse = eval { XMLin($handle->fdopen(fileno(STDIN),"r"),
+			     VarAttr => 'name',
+			     ContentKey => '-content',
+			     SuppressEmpty => undef); };
+  fatal($@)
+      if ($@);
+}
 
 #
 # Process and dump the errors (formatted for the web interface).
@@ -405,8 +422,9 @@ sub PrintResult($)
     while (@current = $result->fetchrow()) {
 	for (my $i = 0; $i < scalar(@current); ++$i) {
 	    if (! defined($current[$i])) {
-		$current[$i] = "<NULL>";
+		$current[$i] = "NULL";
 	    }
+	    $current[$i] = uri_escape($current[$i]);
 	}
 	print join(" ", @current)."\n";
     }
