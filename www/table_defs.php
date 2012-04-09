@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 $footnotes = null;
@@ -89,7 +89,7 @@ function TableRender($attributes, $rows)
 		$html .= "<td>$text</td>";
 	    }
 	}
-	$html .= "</tr>";
+	$html .= "</tr>\n";
     }
     $html .= "</tbody>\n";
     $html .= "</table>\n";

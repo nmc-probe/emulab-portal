@@ -7,7 +7,6 @@
 include("defs.php3");
 include_once("geni_defs.php");
 include("table_defs.php");
-include_once('JSON.php');
 
 #
 #
@@ -45,10 +44,19 @@ if (!$slice) {
     USERERROR("No such slice $slice_idx", 1);
 }
 
+function GeneratePopupDiv($id, $text) {
+    return "<div id=\"$id\" ".
+	"style='display:none;width:700;height:400;overflow:auto;'>\n" .
+	"$text\n".
+	"</div>\n";
+}
+$manifestidx = 0;
+
 # The table attributes:
 $table = array('#id'	   => 'form1',
 	       '#title'    => "Slice $slice_idx ($showtype)");
 $rows = array();
+$popups = array();
 
 $rows[] = array("idx"      => $slice->idx());
 $rows[] = array("hrn"      => $slice->hrn());
@@ -63,12 +71,12 @@ if ($slice->locked()) {
     $rows[] = array("locked"  => $slice->locked());
 }
 if (($manifest = $slice->GetManifest())) {
-    $json = new Services_JSON();
-    $manifest = $json->encode($manifest);
+    $popups[] = GeneratePopupDiv("manifest$manifestidx", $manifest);
     $rows[] = array("manifest" =>
 		    "<a href='#' title='' ".
-		    "onclick='PopUpWindow($manifest);'>".
-		    "Click to View</a>");
+		    "onclick='PopUpWindowFromDiv(\"manifest$manifestidx\");'".
+		    ">manifest</a>\n");
+    $manifestidx++;
 }
 
 $experiment = Experiment::LookupByUUID($slice->uuid());
@@ -131,13 +139,13 @@ if ($clientslivers && count($clientslivers)) {
 		     "created"  => $clientsliver->created());
 
 	if ($clientsliver->manifest()) {
-	    $json = new Services_JSON();
-	    $manifest = $json->encode($clientsliver->manifest());
-	    
+	    $popups[] = GeneratePopupDiv("manifest$manifestidx",
+					 $clientsliver->manifest());
 	    $row["manifest"] =
 		"<a href='#' title='' ".
-		"onclick='PopUpWindow($manifest);'>".
+		"onclick='PopUpWindow(\"manifest$manifestidx\");'>".
 		"Manifest</a>";
+	    $manifestidx++;
 	}
 	else {
 	    $row["manifest"] = "Unknown";
@@ -147,6 +155,9 @@ if ($clientslivers && count($clientslivers)) {
 
     list ($html, $button) = TableRender($table, $rows);
     echo $html;
+}
+foreach ($popups as $i => $popup) {
+    echo "$popup\n";
 }
 
 #

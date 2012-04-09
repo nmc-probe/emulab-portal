@@ -497,3 +497,10 @@ function PopUpWindow(text)
     myWindow.document.close();
 }
 
+function PopUpWindowFromDiv(id)
+{
+    var mydiv = getObjbyName(id);
+    PopUpWindow(mydiv.innerHTML);
+}
+
+

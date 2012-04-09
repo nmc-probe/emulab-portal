@@ -7,7 +7,6 @@
 include("defs.php3");
 include_once("geni_defs.php");
 include("table_defs.php");
-include_once('JSON.php');
 
 #
 #
@@ -16,28 +15,24 @@ include_once('JSON.php');
 $this_user = CheckLoginOrDie();
 $uid       = $this_user->uid();
 $isadmin   = ISADMIN();
+$searchbox = "user/slice urn or slice uuid or date";
 
 #
 # Verify Page Arguments.
 #
-$optargs = OptionalPageArguments("showtype",   PAGEARG_STRING,
+$optargs = OptionalPageArguments("searchfor",  PAGEARG_STRING,
+				 "search",     PAGEARG_STRING,
 				 "slice_uuid", PAGEARG_STRING,
+				 "ch",         PAGEARG_BOOLEAN,
 				 "index",      PAGEARG_INTEGER);
-$showtypes = array();
-
-if (!isset($showtype)) {
-    $showtypes["aggregates"] = "aggregates";
-    $showtypes["tickets"]    = "tickets";
-    $index = 0;
-}
-else {
-    if (! ($showtype == "aggregates"|| $showtype == "tickets")) {
-	USERERROR("Improper argument: showtype=$showtype", 1);
-    }
-    $showtypes[$showtype] = $showtype;
-}
 if (!isset($index)) {
     $index = 0;
+}
+if (!isset($searchfor)) {
+    $searchfor = $searchbox;
+}
+if (!isset($ch)) {
+    $ch = 0;
 }
 
 #
@@ -45,23 +40,77 @@ if (!isset($index)) {
 #
 PAGEHEADER("Geni History");
 
-if (! $isadmin) {
+if (! ($isadmin || STUDLY())) {
     USERERROR("You do not have permission to view Geni slice list!", 1);
 }
 
-if (isset($showtypes["aggregates"])) {
+#
+# Spit out a search form
+#
+echo "<br>";
+echo "<form action=genihistory.php method=post>
+      <b>Search:</b> 
+      <input type=text
+             name=searchfor
+             size=50
+             value=\"$searchfor\"";
+if ($searchfor == $searchbox) {
+    echo "   onfocus='focus_text(this, \"$searchfor\")'
+             onblur='blur_text(this, \"$searchfor\")'";
+}
+echo " />
+      <b><input type=submit name=search value=Go></b> ";
+if ($ISCLRHOUSE) {
+    echo "<input type=checkbox name=ch value=1 ".
+	($ch ? "checked" : "") . "> Search CH";
+}
+echo "</form>\n";
+
+function GeneratePopupDiv($id, $text) {
+    return "<div id=\"$id\" ".
+	"style='display:none;width:700;height:400;overflow:auto;'>\n" .
+	"$text\n".
+	"</div>\n";
+}
+
+if (1) {
     $myindex = $index;
-    $dblink  = GetDBLink("cm");
+    $dblink  = GetDBLink(($ch ? "ch" : "cm"));
     $clause  = "";
 
-    if ($myindex) {
-	$clause = "and idx<$myindex ";
-    }
-    elseif (isset($slice_uuid)) {
+    if (isset($slice_uuid)) {
 	if (!preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $slice_uuid)) {
 	    USERERROR("Invalid slice uuid", 1);
 	}
 	$clause = "and slice_uuid='$slice_uuid' ";
+    }
+    else {
+	if ($myindex) {
+	    $clause = "and idx<$myindex ";
+	}
+	if (isset($search) && isset($searchfor)) {
+	    $safe_searchfor = addslashes($searchfor);
+
+	    if (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $searchfor)) {
+		$clause = "$clause and slice_uuid='$safe_searchfor' ";
+	    }
+	    elseif (preg_match("/^urn:publicid:IDN\+[-\w\.]+\+slice\+[-\w]*$/",
+			       $searchfor)) {
+		$clause = "$clause and slice_urn='$safe_searchfor' ";
+	    }
+	    elseif (preg_match("/^urn:publicid:IDN\+[-\w\.]+\+user\+[-\w]*$/",
+			       $searchfor)) {
+		$clause = "$clause and creator_urn='$safe_searchfor' ";
+	    }
+	    elseif (strtotime($searchfor)) {
+		$ts = strtotime($searchfor);
+		$clause = "$clause and ($ts >= UNIX_TIMESTAMP(created) && ".
+		    "(destroyed is null or $ts <= UNIX_TIMESTAMP(destroyed)))";
+	    }
+	    else {
+		USERERROR("Invalid search specification", 1);
+	    }
+	}
     }
     $query_result =
 	DBQueryFatal("select * from aggregate_history ".
@@ -78,6 +127,7 @@ if (isset($showtypes["aggregates"])) {
 					    "Destroyed"    => "Destroyed",
 					    "Manifest"     => "Manifest"));
     $rows = array();
+    $popups = array();
 
     if (mysql_num_rows($query_result)) {
 	while ($row = mysql_fetch_array($query_result)) {
@@ -114,12 +164,13 @@ if (isset($showtypes["aggregates"])) {
 	    if (mysql_num_rows($manifest_result)) {
 		$mrow = mysql_fetch_array($manifest_result);
 		$manifest = $mrow["manifest"];
-		$manifest = $json->encode($manifest);
-	    
+
+		$stuff = GeneratePopupDiv("manifest$idx", $manifest);
+		$popups[] = $stuff;
 		$tablerow["manifest"] =
 		    "<a href='#' title='' ".
-		    "onclick='PopUpWindow($manifest);'>".
-		    "manifest</a>";
+		    "onclick='PopUpWindowFromDiv(\"manifest$idx\");'".
+		    ">manifest</a>\n";
 	    }
 	    else {
 		$tablerow["Manifest"] = "Unknown";
@@ -130,109 +181,35 @@ if (isset($showtypes["aggregates"])) {
 	list ($html, $button) = TableRender($table, $rows);
 	echo $html;
 
+	foreach ($popups as $i => $popup) {
+	    echo "$popup\n";
+	}
+
 	$query_result =
 	    DBQueryFatal("select count(*) from aggregate_history ".
-			 "where `type`='Aggregate' and idx<$myindex",
+			 "where `type`='Aggregate' and idx<$myindex $clause ",
 			 $dblink);
 
 	$row = mysql_fetch_array($query_result);
 	$remaining = $row[0];
 
 	if ($remaining) {
+	    $opts = "";
+	    if ($ch) {
+		$opts .= "&ch=$ch";
+	    }
+	    if (isset($search)) {
+		$opts .= "&search=yes&searchfor=" .
+		    rawurlencode($searchfor);
+	    }
 	    echo "<center>".
-	      "<a href='genihistory.php?index=$myindex&showtype=aggregates'>".
+	      "<a href='genihistory.php?index=${myindex}${opts}'>".
 	      "More Entries</a></center><br>\n";
 	}
     }
 }
 
-if (isset($showtypes["tickets"])) {
-    $myindex = $index;
-    $dblink  = GetDBLink("cm");
-    $clause  = "";
 
-    if ($myindex) {
-	$clause = "where idx<$myindex ";
-    }
-    elseif (isset($slice_uuid)) {
-	if (!preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $slice_uuid)) {
-	    USERERROR("Invalid slice uuid", 1);
-	}
-	$clause = "where slice_uuid='$slice_uuid' ";
-    }
-    $query_result =
-	DBQueryFatal("select * from ticket_history ".
-		     "$clause ".
-		     "order by idx desc limit 20",
-		     $dblink);
-
-    $table = array('#id'	   => 'tickets',
-		   '#title'        => "Ticket History",
-		   '#headings'     => array("idx"          => "ID",
-					    "slice_hrn"    => "Slice HRN",
-					    "owner_hrn"    => "Owner HRN",
-					    "created"      => "Created",
-					    "redeemed"     => "Redeemed",
-					    "expired"      => "Expired",
-					    "released"     => "Released",
-					    "rspec"        => "Rspec"));
-    $rows = array();
-
-    if (mysql_num_rows($query_result)) {
-	$json = new Services_JSON();
-	
-	while ($row = mysql_fetch_array($query_result)) {
-	    $idx         = $row["idx"];
-	    $uuid        = $row["uuid"];
-	    $slice_hrn   = $row["slice_hrn"];
-	    $owner_hrn   = $row["owner_hrn"];
-	    $created     = $row["created"];
-	    $redeemed    = $row["redeemed"];
-	    $expired     = $row["expired"];
-	    $released    = $row["released"];
-	    $rspec       = $row["rspec_string"];
-
-	    $tablerow = array("idx"       => $idx,
-			 "slice"     => $slice_hrn,
-			 "owner"     => $owner_hrn,
-			 "created"   => $created,
-			 "redeemed"  => $redeemed,
-			 "expired"   => $expired,
-			 "released"  => $released);
-
-	    if ($rspec) {
-		$rspec = $json->encode($rspec);
-	    
-		$tablerow["rspec"] =
-		    "<a href='#' title='' ".
-		    "onclick='PopUpWindow($rspec);'>".
-		    "rspec</a>";
-	    }
-	    else {
-		$tablerow["rspec"] = "Unknown";
-	    }
-
-	    $rows[]  = $tablerow;
-	    $myindex = $idx;
-	}
-	list ($html, $button) = TableRender($table, $rows);
-	echo $html;
-
-	$query_result =
-	    DBQueryFatal("select count(*) from ticket_history ".
-			 "where idx<$myindex",
-			 $dblink);
-
-	$row = mysql_fetch_array($query_result);
-	$remaining = $row[0];
-
-	if ($remaining) {
-	    echo "<center>".
-		"<a href='genihistory.php?index=$myindex&showtype=tickets'>".
-		"More Entries</a></center><br>\n";
-	}
-    }
-}
 
 #
 # Standard Testbed Footer
