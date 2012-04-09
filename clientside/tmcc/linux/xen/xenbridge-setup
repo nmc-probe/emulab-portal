@@ -3,7 +3,9 @@
 # EMULAB-COPYRIGHT
 # Copyright (c) 2012 University of Utah and the Flux Group.
 # All rights reserved.
-
+#
+use Getopt::Std;
+use English;
 
 # Drag in path stuff so we can find emulab stuff.
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
@@ -24,9 +26,18 @@ my $IFCONFIGBIN = "/sbin/ifconfig";
 
 sub usage()
 {
-    print "Usage: xenbridge-setup [interface]\n";
-    print  "interface defaults to control net if not specificed\n";
+    print "Usage: xenbridge-setup [-b bridgename] [interface]\n";
+    print  "Interface defaults to control net if not specificed\n";
+    print  "Use -b option to name bridge (defaults to xenbr0)\n";
     exit(1);
+}
+my $optlist  = "b:";
+my %options  = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"b"})) {
+    $XENBR = $options{"b"};
 }
 
 my $interface = undef;
@@ -74,22 +85,26 @@ print "xenbridge-setup: Using IP address $address and mask $netmask\n";
 #
 # Get the default route
 #
+my ($defroute, $defiface);
 open(ROUTEOUTPUT,"$IPBIN route list |")
     or die "xenbridge-setup: Unable to get route list!\n";
-my ($defroute);
 while (!eof(ROUTEOUTPUT)) {
     my $line = <ROUTEOUTPUT>;
     chomp $line;
     if ($line =~ /^default via (\d+\.\d+\.\d+\.\d+)/) {
-        $defroute = $1;
+	$defroute = $1;
+    }
+    if ($line =~ /^default via [\w\.\/]*\s*dev\s*([\w]*)/) {
+	$defiface = $1;
     }
 }
-
 if (!$defroute) {
     die "xenbridge-setup: Unable to determine default route\n";
 }
-
-print "xenbridge-setup: Using default route $defroute\n";
+my $iscontrol = ($defiface eq $interface ? 1 : 0);
+if ($iscontrol) {
+    print "xenbridge-setup: Using default route $defroute via $defiface\n";
+}
 
 # 
 # Make the bridge
@@ -122,13 +137,17 @@ if (system "$IFCONFIGBIN $XENBR inet $address netmask $netmask") {
 #
 # Add back the default route
 #
-if (system "$IPBIN route add default via $defroute") {
+if ($iscontrol &&
+    system "$IPBIN route add default via $defroute") {
     die "xenbridge-setup: Unable to add back default route $defroute\n";
 }
 
 #
 # Change control net interface file
 #
-open(CONTROLIF,">$BOOTDIR/controlif");
-print CONTROLIF "$XENBR\n";
-close(CONTROLIF);
+if ($iscontrol) {
+    open(CONTROLIF,">$BOOTDIR/controlif");
+    print CONTROLIF "$XENBR\n";
+    close(CONTROLIF);
+}
+
