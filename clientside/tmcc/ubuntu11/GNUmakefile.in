@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -36,6 +36,7 @@ RCDIR		= $(SYSETCDIR)
 RRCDIR		= /etc
 INSTALL		= /usr/bin/install -c 
 COMMON		= $(SRCDIR)/../common
+DEFRUNLVLDIR   ?= $(SYSETCDIR)/rc3.d
 
 install client-install:	common-install etc-install \
 			script-install bin-install sysetc-fixup
@@ -76,5 +77,16 @@ sysetc-fixup:
 
 script-install:	dir-install $(SCRIPTS)
 	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) script-install)
+
+genirack-install:
+	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) genirack-install)
+	$(INSTALL) -m 755 $(SRCDIR)/genirack.sh $(RCDIR)/init.d/genirack.sh
+	-ln -sf $(RCDIR)/init.d/genirack.sh $(DEFRUNLVLDIR)/S10genirack.sh
+	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc2.d/S10genirack.sh
+	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc4.d/S10genirack.sh
+	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc5.d/S10genirack.sh
+	$(INSTALL) -m 644 $(SRCDIR)/interfaces-genirack $(SYSETCDIR)/network/interfaces
+	$(INSTALL) -m 644 $(SRCDIR)/isc-dhcp-server $(SYSETCDIR)/default/
+	$(INSTALL) -m 644 $(SRCDIR)/dhcpd.conf $(SYSETCDIR)/dhcp/
 
 sfs-install:
