@@ -7,7 +7,7 @@
     <value>ping,ssh,isup,linktest</value>
   </attribute>
   <attribute name="version">
-    <value>8</value>
+    <value>15</value>
   </attribute>
   <attribute name="reboot_waittime">
     <value>120</value>
@@ -34,7 +34,7 @@
     <value>Fedora</value>
   </attribute>
   <attribute name="nextosid">
-    <value>emulab-ops,FEDORA8-OVZ-STD</value>
+    <value>emulab-ops,FEDORA15-OPENVZ-STD</value>
   </attribute>
 </osid>
 <image>
@@ -42,22 +42,22 @@
     <value>1</value>
   </attribute>
   <attribute name="version">
-    <value>8</value>
+    <value>15</value>
   </attribute>
   <attribute name="osfeatures">
     <value>ping,ssh,ipod,isup,veths,veth-ne,mlinks,linktest,linkdelays,vlans,suboses</value>
   </attribute>
   <attribute name="path">
-    <value>/usr/testbed/images/FEDORA8-OVZ-STD.ndz</value>
+    <value>/usr/testbed/images/FEDORA15-OPENVZ-STD.ndz</value>
   </attribute>
   <attribute name="mbr_version">
-    <value>1</value>
+    <value>2</value>
   </attribute>
   <attribute name="loadpart">
     <value>2</value>
   </attribute>
   <attribute name="description">
-    <value>Standard Fedora8 image with support for OpenVZ vnodes.</value>
+    <value>Standard Fedora15 image with support for OpenVZ vnodes.</value>
   </attribute>
   <attribute name="op_mode">
     <value>NORMALv2</value>
@@ -66,7 +66,7 @@
     <value>0</value>
   </attribute>
   <attribute name="imagename">
-    <value>FEDORA8-OVZ-STD</value>
+    <value>FEDORA15-OPENVZ-STD</value>
   </attribute>
   <attribute name="pid">
     <value>emulab-ops</value>
