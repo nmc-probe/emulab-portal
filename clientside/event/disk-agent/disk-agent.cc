@@ -1426,7 +1426,7 @@ parse_configfile(char *filename)
 
             if ((rc = event_arg_get(buf,
                          "PARAMETERS",
-                         &dinfo->parameters)) > 0) {
+                         &dinfo->parameters)) >= 0) {
 
 				/* Since event_arg_get simply returns the entire string,
 				   we need to prune out foreign chars */
