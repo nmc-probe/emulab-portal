@@ -201,8 +201,11 @@ sub Lookup($$$$)
 
     return undef
 	if (!$query_result);
+    # If a management interface, the lack of an interface_state
+    # record is not a big deal, so let it slide.
     return undef
-	if (!$query_result->numrows);
+	if (!$query_result->numrows &&
+	    $iface_row->{'role'} ne TBDB_IFACEROLE_MANAGEMENT());
 
     my $state_row = $query_result->fetchrow_hashref();
 
