@@ -13,7 +13,7 @@ sub InstallUpdate($$)
     #
     # Need to run this after the protogeni SQL update and install
     #
-    if ($phase eq "post") {
+    if ($PGENISUPPORT && $phase eq "post") {
 	Phase "cacontrol", "Initializing protogeni ca table", sub {
 	    ExecQuietFatal("$CACONTROL -i");
 	};
