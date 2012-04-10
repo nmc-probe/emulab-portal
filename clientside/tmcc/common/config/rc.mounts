@@ -25,6 +25,7 @@ $| = 1;
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
 # Script specific goo
+my $MOUNT       = "/bin/mount";
 my $MOUNTDB	= "$VARDIR/db/mountdb";
 my $SFSMOUNTDB  = "$VARDIR/db/sfsmountdb";
 my $vnodeid;
@@ -628,6 +629,7 @@ sub VMunmount()
     my $JAILDB  = CONFDIR() . "/mounts";
     my $errors  = 0;
     my @deletes = ();
+    my %mounts;
 
     #
     # No NFS mounts on remote nodes.
@@ -641,17 +643,26 @@ sub VMunmount()
     # be reported back via failure code.
     #
     dbmopen(%SDB, $JAILDB,  0444);
-    
+
+    if (!open MOUNT, "$MOUNT|") {
+	fatal("Could not get current mounts: $!");
+    }
+    while (<MOUNT>) {
+        @_ = split /\s+/, $_;
+        $mounts{$_[2]} = 1;
+    }
+    close MOUNT;
+
     while (my ($remote, $path) = each %SDB) {
+	next if (not exists $mounts{$path});
 	print STDOUT "  Unmounting $path\n";
-	
 	if (system("$UMOUNT $path")) {
 	    #
 	    # If the directory is empty (rmdir works), then lets not
 	    # call it an error.
 	    #
 	    if (!rmdir("$path")) {
-		warning("Could not unmount or rmdir $path");
+		warning("Could not unmount or rmdir $path: $!");
 		$errors++;
 	    }
 	}
