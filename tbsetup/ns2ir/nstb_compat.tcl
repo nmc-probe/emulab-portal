@@ -309,6 +309,9 @@ Simulator instproc make-cloud {nodes bw delay args} {
 Simulator instproc make-path {linklist} {
 }
 
+Simulator instproc make-portinvlan {node token} {
+}
+
 Node instproc program-agent {args} {
 }
 

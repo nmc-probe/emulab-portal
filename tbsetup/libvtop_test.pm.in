@@ -2651,6 +2651,75 @@ sub GenVirtLans($)
 		next;
 	    }
 	}
+	elsif (@members == 1) {
+	    #
+	    # Special case that we use to connect a port to a vlan
+	    # in another experiment. There is no delay or other stuff.
+	    #
+	    my $member     = $members[0];
+	    my $lannode    = "portlan/$vname";
+	    my $virtnode   = $member->virt_node();
+	    my $vnodevname = $virtnode->vname();
+	    my $porttoken;
+
+	    #
+	    # Need to map the name of the lan we want to join, to
+	    # a real vlan object. 
+	    #
+	    foreach my $lan_setting ($self->virt_lan_settings()->Rows()) {
+		next
+		    if ($vname ne $lan_setting->vname());
+
+		my $capkey = $lan_setting->capkey();
+		my $capval = $lan_setting->capval();
+
+		if ($capkey eq "portvlan") {
+		    $porttoken = $capval;
+		    last;
+		}
+	    }
+	    if (!defined($porttoken)) {
+		tberror("No target vlan for $vname!\n");
+		return -1;
+	    }
+	    #
+	    # Map the token.
+	    #
+	    my $rowref = Lan->LookupSharedVLanByToken($porttoken);
+	    if (!defined($rowref)) {
+		tberror("No shared vlan exists for $porttoken!\n");
+		return -1;
+	    }
+	    my $portvlan = Lan->Lookup($rowref->{'lanid'});
+	    if (!defined($portvlan)) {
+		tberror("Target vlan for $porttoken does not exist!\n");
+		return -1;
+	    }
+	    # Very primitive access check.
+	    if (! ($rowref->{'open'} || $self->user()->IsAdmin())) {
+		tberror("Target vlan for $porttoken is not open!\n");
+		return -1;
+	    }
+	    $vlan->_portvlan($portvlan);
+
+	    # Lan node for assign.
+	    $self->createNode($lannode, $mycmurn, "lan", '1', '',
+			      { 'virtualization_type' => 'raw' });
+	    
+	    # So we ignore it when it comes back from assign.
+	    $self->lannodes()->{$lannode} = 1;
+
+	    my $others = {};
+	    my $plink  = "portlan/$vname/$member";
+
+	    $self->createLink($vname, $plink,
+			      [$virtnode->_cmurn()],
+			      {'virtual_node_id' => $vnodevname,
+			       'virtual_interface_id' =>"$member" },
+			      {'virtual_node_id' => $lannode,
+			       'virtual_interface_id' =>"$member" },
+			      '*', $protocol, $others);
+	}
 	elsif (@members == 2 && !$vlan->_bridged()) {
 	    #
 	    # We treat LANs with two members specially - they are just links
@@ -3955,7 +4024,7 @@ sub AddLinkToSolution($$$$$$$$;$)
 	}
     }
     elsif (($lan,$virtA) =
-	   ($vlink =~ m|^fakelan/([^/]+)/(.+)$|)) {
+	   ($vlink =~ /^(?:fakelan|portlan)\/([^\/]+)\/(.+)$/)) {
 	$virtlan = $self->vlans()->{$lan};
 	$member0 = $virtlan->members()->{$virtA};
 	$member0->_pnode($nodeA);
@@ -6201,6 +6270,26 @@ sub InterpLinksAux($)
 	    #
 	    $self->SetUpTracing($virtlan, $member0, $nodeA, undef, $portA);
 	}
+	elsif ($linktag eq "portlan") {
+	    my $portvlan = $virtlan->_portvlan();
+	    
+	    #
+	    # No trivial links, emulated links, delays, vlans. 
+	    # This is a port in an existing lan in another experiment.
+	    #
+	    $self->printdb("PortLan - $virtA - $nodeA:$portA\n");
+	    
+	    my $protolan = ProtoLan->Lookup($experiment, $lan);
+	    $protolan = ProtoLan->Create($experiment, $lan,
+				 $self->impotent() || $self->alloconly())
+		if (!defined($protolan));
+	    $protolan->SetType("portlan");
+	    $protolan->SetRole("port/lan");
+	    $protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
+	    $protolan->SetAttribute("link/lan", $lan);
+	    $protolan->SetAttribute("target_lanid", $portvlan->lanid());
+	    $portmap{$virtA} = $portA;
+	}
 	elsif ($plink =~ m|^linkdelaydst/([^/]+)/(.+)$| ||
 	       $plink =~ m|^linksdelaydst/(.+)/(.+),(.+)$|) {
 	    next;
@@ -7733,6 +7822,82 @@ sub UploadVlans($)
 		    or return -1;
 	    }
 	}
+	#
+	# Deal with port vlans.
+	#
+	foreach my $lan (@lans) {
+	    next
+		if ($lan->type() ne "portlan");
+
+	    my $lanname;
+	    $lan->GetAttribute("link/lan", \$lanname);
+	    my $virtlan = $self->vlans()->{$lanname};
+	    
+	    if (!defined($virtlan)) {
+		tberror("$lanname does not exist for portvlan\n");
+		return -1;
+	    }
+	    my $portvlan = $virtlan->_portvlan();
+
+	    #
+	    # The idea here is to remove any members for this lan
+	    # from the target lan, and then add the new ones. This
+	    # violates update, in that an error after this will not
+	    # restore the missing ports. Need to fix that.
+	    #
+	    my @members;
+	    if ($portvlan->MemberList(\@members) != 0) {
+		tberror("Could not get member list for $portvlan\n");
+		return -1;
+	    }
+	    foreach my $member (@members) {
+		my $member_exptidx;
+		my $member_lanname;
+		$member->GetAttribute("portlan_exptidx", \$member_exptidx);
+		$member->GetAttribute("portlan_lanname", \$member_lanname);
+
+		# Not a port in an external lan; a native port.
+		next
+		    if (!defined($member_exptidx) && !defined($member_lanname));
+
+		if (! (defined($member_exptidx) && defined($member_lanname))) {
+		    tberror("Could not get idx/lanname from $member\n");
+		    return -1;
+		}
+		next
+		    if (! ($member_exptidx == $exptidx &&
+			   $member_lanname eq $lanname));
+
+		# Delete the member.
+		$self->printdb("Deleting $member from $portvlan\n");
+		if ($portvlan->DelMember($member)) {
+		    tberror("Could not delete $member from $portvlan\n");
+		    return -1;
+		}
+	    }
+	    #
+	    # Now add new members.
+	    #
+	    if ($lan->MemberList(\@members) != 0) {
+		tberror("Could not get member list for $lan\n");
+		return -1;
+	    }
+	    foreach my $member (@members) {
+		my $nodeid;
+		my $iface;
+
+		$member->GetNodeIface(\$nodeid, \$iface);
+		my $newmember = $portvlan->AddMember($nodeid, $iface);
+		if (!defined($newmember)) {
+		    tberror("Could not add $member to $portvlan\n");
+		    return -1;
+		}
+		$self->printdb("Added $newmember to $portvlan\n");
+		# Mark where the member came from.
+		$newmember->SetAttribute("portlan_exptidx", $exptidx);
+		$newmember->SetAttribute("portlan_lanname", $lanname);
+	    }
+	}
     }
     else {
 	$self->printdb("Dumping final protolans table.\n");
@@ -7819,7 +7984,6 @@ sub UploadVlans($)
 	    }
 	}
     }
-    return 0;
 }
 
 #

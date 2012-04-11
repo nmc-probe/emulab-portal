@@ -1,0 +1,152 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use strict;
+use English;
+use Getopt::Std;
+
+#
+# Grant and revoke shared vlan access.
+#
+sub usage()
+{
+    print STDERR "Usage: sharevlan [-o] eid lanname token\n";
+    print STDERR "       sharevlan -r eid lanname\n";
+    print STDERR " -r    Revoke sharing instead\n";
+    print STDERR " -o    Sharing is open to everyone.\n";
+    exit(-1);
+}
+my $optlist  = "hro";
+my $revoke   = 0;
+my $open     = 0;
+
+# Protos
+sub fatal($);
+
+#
+# Please do not run as root. Hard to track what has happened.
+#
+if ($UID == 0) {
+    die("*** $0:\n".
+	"    Please do not run this as root!\n");
+}
+
+#
+# Configure variables
+#
+my $TB		 = "@prefix@";
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use emdb;
+use libtestbed;
+use Experiment;
+use EmulabConstants;
+use Lan;
+use User;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{'h'})) {
+    usage();
+}
+if (defined($options{'o'})) {
+    $open = 1;
+}
+if (defined($options{'r'})) {
+    $revoke = 1;
+
+    usage()
+	if (@ARGV != 2);
+}
+else {
+    usage()
+	if (@ARGV != 3);
+}
+
+my $eid     = $ARGV[0];
+my $lanname = $ARGV[1];
+my $token   = $ARGV[2] if (!$revoke);
+
+#
+# Verify user, must be admin.
+#
+my $this_user = User->ThisUser();
+if (! defined($this_user)) {
+    fatal("You ($UID) do not exist!");
+}
+if (!$this_user->IsAdmin()) {
+    fatal("You are not a testbed administrator!");
+}
+
+my $experiment = Experiment->Lookup($eid);
+if (!defined($experiment)) {
+    fatal("No such experiment $eid");
+}
+if ($experiment->state() ne EXPTSTATE_ACTIVE()) {
+    fatal("Experiment is not active");
+}
+my $vlan = VLan->Lookup($experiment, $lanname);
+if (!defined($vlan)) {
+    fatal("No such lan in $experiment");
+}
+my $lanid = $vlan->lanid();
+
+if ($revoke) {
+    DBQueryFatal("delete from shared_vlans where lanid='$lanid'");
+    exit(0);
+}
+my $query_result =
+    DBQueryFatal("select * from shared_vlans where lanid='$lanid'");
+if ($query_result->numrows) {
+    fatal("$lanname is already shared");
+}
+if (! ($token =~ /^[-\w]*$/)) {
+    fatal("Illegal characters in token"); 
+}
+$query_result =
+    DBQueryFatal("select * from shared_vlans where token='token'");
+if ($query_result->numrows) {
+    fatal("$token is already used in the shared vlans table");
+}
+my $pid = $experiment->pid();
+$eid    = $experiment->eid();
+my $idx = $experiment->idx();
+my $uid = $this_user->uid();
+my $uid_idx = $this_user->uid_idx();
+
+DBQueryFatal("insert into shared_vlans set open='$open', ".
+	     "  pid='$pid', eid='$eid', exptidx='$idx', ".
+	     "  token='$token', lanid='$lanid', vname='$lanname', ".
+	     "  created=now(), creator='$uid', creator_idx='$uid_idx'");
+exit(0);
+
+sub fatal($)
+{
+    my ($mesg) = $_[0];
+
+    die("*** $0:\n".
+	"    $mesg\n");
+}
+

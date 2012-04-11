@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2007-2011 University of Utah and the Flux Group.
+# Copyright (c) 2007-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Lan;
@@ -231,6 +231,21 @@ sub vidx($)	  { return field($_[0], 'vidx'); }
 sub ready($)	  { return field($_[0], 'ready'); }
 sub link($)	  { return field($_[0], 'link'); }
 sub type($)	  { return field($_[0], 'type'); }
+
+#
+# Lookup an internal vlan (in the vlan-holding experiment).
+#
+sub LookupInternal($$)
+{
+    my ($class, $vname) = @_;
+
+    require Experiment;
+    my $experiment = Experiment->Lookup(VLAN_PID(), VLAN_EID());
+    return undef
+	if (!defined($experiment));
+
+    return Lan->Lookup($experiment, $vname);
+}
 
 #
 # Create a new (empty) lan. Ready bit is set to zero. 
@@ -1228,6 +1243,23 @@ sub Initialize($)
     return 0;
 }
 
+#
+# Look for a shared vlan by token. Just return the row reference.
+# Be fancy later if needed.
+#
+sub LookupSharedVLanByToken($$)
+{
+    my ($class, $token) = @_;
+
+    my $query_result =
+	DBQueryWarn("select * from shared_vlans ".
+		    "where token='$token'");
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    return $query_result->fetchrow_hashref();
+}
+
 ############################################################################
 #
 # Lan::Member is just a set of attributes in the DB associated with an
@@ -1305,6 +1337,7 @@ sub lanid($)    { return $_[0]->GetLan()->lanid(); }
 sub vname($)	{ return $_[0]->GetLan()->vname(); }
 sub GetLan($)   { return $_[0]->{'LAN'}; }
 sub memberid($) { return $_[0]->{'MEMBERID'}; }
+sub attributes($) { return $_[0]->{'ATTRS'}; }
 
 #
 # Stringify for output.

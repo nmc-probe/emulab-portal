@@ -5079,5 +5079,158 @@ sub MarkNodesForUpdate($)
     return 0;
 }
 
+#
+# Look for a lan with ports in another lan. These are currently labled
+# with the incredibly obtuse "portlan" type instead of vlan. If one of
+# these exist, then we have to call snmpit on the experiment that holds
+# the target vlan so it can update its ports.
+#
+sub SyncPortLans($)
+{
+    my ($self) = @_;
+    require Lan;
+
+    my @lans;
+    if (Lan->ExperimentLans($self, \@lans) != 0) {
+	tberror("Could not get list of all lans for $self\n");
+	return -1;
+    }
+    my %portlans = ();
+    foreach my $lan (@lans) {
+	next
+	    if ($lan->type() ne "portlan");
+
+	my $target_lanid;
+	$lan->GetAttribute("target_lanid", \$target_lanid) == 0
+	    or return -1;
+
+	my $portvlan = Lan->Lookup($target_lanid);
+	if (!defined($portvlan)) {
+	    tberror("Could not lookup portvlan $target_lanid\n");
+	    return -1;
+	}
+
+	#
+	# Call snmpit once for each experiment that owns one of the
+	# target vlans.
+	#
+	my $experiment = $portvlan->GetExperiment();
+	return -1
+	    if (!defined($experiment));
+	
+	$portlans{$experiment->idx()} = $experiment;
+    }
+    #
+    # Now do it.
+    #
+    foreach my $idx (keys(%portlans)) {
+	my $experiment = $portlans{$idx};
+	my $pid = $experiment->pid();
+	my $eid = $experiment->eid();
+
+	print "Syncing target vlans in $experiment\n";
+	mysystem("$TB/bin/snmpit -f --redirect-err -X $pid $eid");
+	return -1
+	    if ($?);
+    }
+    return 0;
+}
+
+#
+# When swapping out an experiment, need to clear the ports from the
+# shared lans. 
+#
+sub ClearPortLans($)
+{
+    my ($self) = @_;
+    require Lan;
+
+    my @lans;
+    if (Lan->ExperimentLans($self, \@lans) != 0) {
+	tberror("Could not get list of all lans for $self\n");
+	return -1;
+    }
+    my %portlans = ();
+    foreach my $lan (@lans) {
+	next
+	    if ($lan->type() ne "portlan");
+
+	my $target_lanid;
+	$lan->GetAttribute("target_lanid", \$target_lanid) == 0
+	    or return -1;
+
+	my $portvlan = Lan->Lookup($target_lanid);
+	if (!defined($portvlan)) {
+	    tberror("Could not lookup portvlan $target_lanid\n");
+	    return -1;
+	}
+
+	#
+	# The idea here is to remove any members for this lan
+	# from the target lan. Then sync the target. 
+	#
+	my @members;
+	if ($portvlan->MemberList(\@members) != 0) {
+	    tberror("Could not get member list for $portvlan\n");
+	    return -1;
+	}
+	foreach my $member (@members) {
+	    my $member_exptidx;
+	    my $member_lanname;
+	    $member->GetAttribute("portlan_exptidx", \$member_exptidx);
+	    $member->GetAttribute("portlan_lanname", \$member_lanname);
+	    
+	    # Not a port in an external lan; a native port.
+	    next
+		if (!defined($member_exptidx) && !defined($member_lanname));
+
+	    if (! (defined($member_exptidx) || defined($member_lanname))) {
+		tberror("Could not get idx/lanname from $member\n");
+		return -1;
+	    }
+	    next
+		if (! ($member_exptidx == $self->idx() &&
+		       $member_lanname eq $lan->vname()));
+
+	    # Delete the member.
+	    if ($portvlan->DelMember($member)) {
+		tberror("Could not delete $member from $portvlan\n");
+		return -1;
+	    }
+	}
+	#
+	# Call snmpit once for each experiment that owns one of the
+	# target vlans.
+	#
+	my $experiment = $portvlan->GetExperiment();
+	return -1
+	    if (!defined($experiment));
+	my $pid = $experiment->pid();
+	my $eid = $experiment->eid();
+	
+	print "Syncing target vlans in $experiment\n";
+	mysystem("$TB/bin/snmpit -f --redirect-err -X $pid $eid");
+	return -1
+	    if ($?);
+    }
+    return 0;
+}
+
+#
+# Is this experiment sharing any vlans.
+#
+sub SharingVlans($)
+{
+    my ($self) = @_;
+
+    my $query_result =
+	DBQueryWarn("select * from shared_vlans ".
+		    "where exptidx='$idx'");
+    return -1
+	if (!$query_result);
+
+    return $query_result->numrows;
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;

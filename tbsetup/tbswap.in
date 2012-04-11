@@ -611,6 +611,18 @@ sub doSwapout($) {
     if ($type >= RETRY) {
 	print "Removing dynamic blobs.\n";
 	$experiment->RemoveBlobs();
+
+	print "Clearing shared port vlans.\n";
+	if ($experiment->ClearPortLans()) {
+	    tberror({type => 'summary', severity => SEV_SECONDARY,
+		     error => ['vlan_reset_failed']},
+		    "Failed to remove ports from shared vlans");
+	    #
+	    # If this fails, we cannot release the nodes cause they
+	    # have ports in someone elses vlan. Bad.
+	    #
+	    return -1;
+	}
     }
 
     if ($type >= CLEANUP) {
@@ -1428,6 +1440,19 @@ sub doSwapin($) {
 	    return 1;
 	}
 	TBDebugTimeStamp("snmpit finished");
+    }
+
+    #
+    # Look for ports in shared vlans. This method will call snmpit
+    # as needed,
+    #
+    if (!$experiment->skipvlans()) {
+	if ($experiment->SyncPortLans()) {
+	    tberror({type => 'summary', severity => SEV_SECONDARY,
+		     error => ['vlan_setup_failed']},
+		    "Failed to sync port lans");
+	    return 1;
+	}
     }
 
     # No need to do this except during a real swapin.

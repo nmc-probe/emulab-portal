@@ -308,6 +308,23 @@ Simulator instproc make-lan {nodelist bw delay args} {
     return $curlan
 }
 
+# A variant that creates a lan with a single member.
+Simulator instproc make-portinvlan {node token} {
+    var_import ::GLOBALS::last_class
+    $self instvar id_counter
+    $self instvar lanlink_list
+
+    set curlan tblan-lan[incr id_counter]
+    
+    Lan $curlan $self $node 0 0 {}
+    set lanlink_list($curlan) {}
+    set last_class $curlan
+
+    $curlan set_setting "portvlan" $token
+    
+    return $curlan
+}
+
 # make-path <linklist>
 Simulator instproc make-path {linklist args} {
     var_import ::GLOBALS::last_class
@@ -532,13 +549,6 @@ Simulator instproc run {} {
     foreach lan [lsort [array names lanlink_list]] {
 	if {! [regexp {^[-0-9A-Za-z]+$} $lan]} {
 	    perror "\[run] Invalid lan/link name $lan.  Can only contain \[-0-9A-Za-z\] for symmetry with node DNS limitations."
-	}
-    }
-
-    # Check for one node lans
-    foreach lan [array names lanlink_list] {
-	if {[llength [$lan set nodelist]] <= 1} {
-	    perror "\[run] $lan has only a single node.  LANs must have at least 2 nodes in them."
 	}
     }
 
