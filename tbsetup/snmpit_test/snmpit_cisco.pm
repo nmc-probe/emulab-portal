@@ -2,7 +2,7 @@
 
 #
 # EMULAB-LGPL
-# Copyright (c) 2000-2009, 2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -1074,6 +1074,7 @@ sub opPortVlan($$$@) {
 	$retval = snmpitGetWarn($self->{SESS},
 			["vlanTrunkPortDynamicState",$index]);
 	if (!$retval) {
+	    print STDERR "ERROR: $port - Failed to get DynamicState\n";
 	    $errors++;
 	    next;
 	}
@@ -1102,6 +1103,7 @@ sub opPortVlan($$$@) {
 	    #
 	    $retval = snmpitGet($self->{SESS},[$PortVlanMemb,$index]);
 	    if ($remove && ($retval ne $vlan_number)) {
+		print STDERR "ERROR: $port - wrong vlan_number: $retval\n";
 		$errors++;
 		next;
 	    }
@@ -1121,6 +1123,7 @@ sub opPortVlan($$$@) {
 	    next if ($retval);  # should not enable or disable existing trunks
 	}
 	if (!$retval) {
+	    print STDERR "ERROR: opPortVlan failed on $port\n";
 	    $errors++;
 	    next;
 	} else {
