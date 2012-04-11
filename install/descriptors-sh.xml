@@ -33,49 +33,5 @@
   <attribute name="OS">
     <value>Fedora</value>
   </attribute>
-  <attribute name="nextosid">
-    <value>emulab-ops,FEDORA15-OPENVZ-STD</value>
-  </attribute>
 </osid>
-<image>
-  <attribute name="global">
-    <value>1</value>
-  </attribute>
-  <attribute name="version">
-    <value>15</value>
-  </attribute>
-  <attribute name="osfeatures">
-    <value>ping,ssh,ipod,isup,veths,veth-ne,mlinks,linktest,linkdelays,vlans,suboses</value>
-  </attribute>
-  <attribute name="path">
-    <value>/usr/testbed/images/FEDORA15-OPENVZ-STD.ndz</value>
-  </attribute>
-  <attribute name="mbr_version">
-    <value>2</value>
-  </attribute>
-  <attribute name="loadpart">
-    <value>2</value>
-  </attribute>
-  <attribute name="description">
-    <value>Standard Fedora15 image with support for OpenVZ vnodes.</value>
-  </attribute>
-  <attribute name="op_mode">
-    <value>NORMALv2</value>
-  </attribute>
-  <attribute name="shared">
-    <value>0</value>
-  </attribute>
-  <attribute name="imagename">
-    <value>FEDORA15-OPENVZ-STD</value>
-  </attribute>
-  <attribute name="pid">
-    <value>emulab-ops</value>
-  </attribute>
-  <attribute name="OS">
-    <value>Fedora</value>
-  </attribute>
-  <attribute name="gid">
-    <value>emulab-ops</value>
-  </attribute>
-</image>
 </descriptors>
