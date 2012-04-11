@@ -596,7 +596,7 @@ sub PushStats()
 			    "where type='Aggregate' and ".
 			    "      (idx>$lastidx or ".
 			    "       (idx<=$lastidx and reported is null)) ".
-			    "limit 25");
+			    "limit 100");
     return -1
 	if (!$query_result);
     return 0
