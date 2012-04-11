@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -189,6 +189,14 @@ sub ProbeCMs()
 		print OUT $resources;
 		print OUT "\n";
 		close(OUT);
+
+		# Make a comrpessed copy.
+		system("cat $ADDIR/$urn | gzip > $ADDIR/${urn}.gz");
+		if ($?) {
+		    notify("Could not compress $ADDIR/$urn\n");
+		    unlink("$ADDIR/${urn}.gz")
+			if (-e "$ADDIR/${urn}.gz");
+		}
 
 		# Save the name so we can write the text file at the end.
 		$ads{$urn} = $urn;
