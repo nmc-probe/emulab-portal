@@ -1112,11 +1112,7 @@ sub PostHistoryRecord($)
 	# Inserting a destroyed timestamp?
 	#
 	if (defined($record->{'destroyed'})) {
-	    if (defined($row->{'destroyed'})) {
-		print STDERR "Aggregate history record $aggregate_idx already ".
-		    "has a destroyed timestamp\n";
-	    }
-	    else {
+	    if (!defined($row->{'destroyed'})) {
 		my $destroyed = DBQuoteSpecial($record->{'destroyed'});
 		DBQueryWarn("update aggregate_history set ".
 			    "  destroyed=$destroyed ".
