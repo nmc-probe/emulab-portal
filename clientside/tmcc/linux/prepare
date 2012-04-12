@@ -28,6 +28,7 @@ my $NTPDRIFT2   = "/var/lib/ntp/drift";
 my $SFSUSERS    = "/etc/sfs/sfs_users";
 my $SFSHOSTKEY  = "/etc/sfs/sfs_host_key";
 my $VARACCTDIR  = "/var/account";
+my $VARACCTSDIR = "/var/log/sa";
 my $IFTAB       = "/etc/iftab";
 my $ANACRON     = "/usr/sbin/anacron";
 
@@ -189,7 +190,7 @@ opendir(LOG,$LOGDIR) or
 while ($dirent = readdir(LOG)) {
     my $file = $LOGDIR . "/" . $dirent;
     if (-f $file) {
-        if (($file =~ /\.\d$/) || ($file =~ /\.\d\.gz$/)) {
+        if ($file =~ /\.\d$/ || $file =~ /\.\d\.gz$/ || $file =~ /-\d{8}$/) {
             # Remove archived logfiles
             unlink($file) or
                 die("Could not unlink $file: $!");
@@ -201,6 +202,29 @@ while ($dirent = readdir(LOG)) {
     }
 }
 closedir(LOG);
+
+my $XLOGDIR = "$LOGDIR/xen";
+if (-d $XLOGDIR) {
+    print "Cleaning Xen logfiles ...\n";
+    opendir(LOG,$XLOGDIR) or
+	die("Could not open directory $XLOGDIR: $!");
+
+    while ($dirent = readdir(LOG)) {
+	my $file = $XLOGDIR . "/" . $dirent;
+	if (-f $file) {
+	    if ($file =~ /\.\d$/ || $file =~ /\.\d\.gz$/) {
+		# Remove archived logfiles
+		unlink($file) or
+		    die("Could not unlink $file: $!");
+	    } elsif (-s $file) {
+		# Truncate other logfiles - many do not get re-created
+		truncate($file,0) or
+		    die("Could not truncate $file: $!");
+	    }
+	}
+    }
+    closedir(LOG);
+}
 
 print "Removing accounting files ...\n";
 if ( -f "$LOGDIR/pacct" ) {
@@ -221,6 +245,11 @@ if (-d $VARACCTDIR) {
 	}
     }
     closedir(VARACCT);
+}
+
+if (-d $VARACCTSDIR) {
+    print "Removing accounting summary files ...\n";
+    system("rm -f $VARACCTSDIR/*");
 }
 
 print "Removing root's history ...\n";
