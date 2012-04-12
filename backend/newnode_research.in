@@ -194,17 +194,17 @@ foreach my $key (keys(%mac_list)) {
 my $current_card = 0;
 foreach my $iface_key (sort(keys(%iface_sort))) {
     $mac_list{$iface_sort{$iface_key}}->{'card'} = $current_card;
-#    my $id = $mac_list{$iface_sort{$iface_key}}->{'id'};
-#    my $card = $mac_list{$iface_sort{$iface_key}}->{'iface'};
-#    print STDERR "iface $id:$card\n";
+    my $id = $mac_list{$iface_sort{$iface_key}}->{'id'};
+    my $card = $mac_list{$iface_sort{$iface_key}}->{'iface'};
+    print STDERR "iface $id:$card\n";
     ++$current_card;
 }
 
 foreach my $card_key (sort(keys(%card_sort))) {
     $mac_list{$card_sort{$card_key}}->{'card'} = $current_card;
-#    my $id = $mac_list{$card_sort{$card_key}}->{'id'};
-#    my $card = $mac_list{$card_sort{$card_key}}->{'card'};
-#    print STDERR "card $id:$card\n";
+    my $id = $mac_list{$card_sort{$card_key}}->{'id'};
+    my $card = $mac_list{$card_sort{$card_key}}->{'card'};
+    print STDERR "card $id:$card\n";
     ++$current_card;
 }
 

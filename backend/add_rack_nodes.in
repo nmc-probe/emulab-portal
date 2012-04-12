@@ -8,7 +8,10 @@ if (scalar(@ARGV) != 1) {
 my $type = $ARGV[0];
 
 our $TB = "/usr/testbed";
+our $IP_START = "155.98.34.11";
 
+use lib "/usr/testbed/lib";
+use libdb;
 use IPC::Open2;
 
 sub sequentialSystem($$)
@@ -55,12 +58,51 @@ foreach my $node (@nodeListText) {
     }
 }
 
+my @octets = split(/\./, $IP_START);
+if (scalar(@octets) != 4) {
+    print STDERR "Start IP Address is not a well-formed IPv4 address.\n";
+    print STDERR join(" -- ", @octets)."\n";
+    exit(1);
+}
+
+my %used_ips = ();
+my $dbresult = DBQueryFatal("select IP from interfaces where role='ctrl'");
+while (my ($ip) = $dbresult->fetchrow_array) {
+    $used_ips{$ip} = 1;
+}
+
+my %node2ip = ();
+foreach my $node (@nodeList) {
+    my $done = 0;
+    while (! $done) {
+	my $current = join(".", @octets);
+	if (! exists($used_ips{$current})) {
+	    $node2ip{$node} = $current;
+	    $done = 1;
+	}
+	$octets[3] += 1;
+	if ($octets[3] > 254) {
+	    $octets[3] = 1;
+	    $octets[2] += 1;
+	}
+	if ($octets[2] > 254) {
+	    $octets[2] = 1;
+	    $octets[1] += 1;
+	}
+	if ($octets[1] > 254) {
+	    $octets[1] = 1;
+	    $octets[0] += 1;
+	}
+    }
+}
+
 # Set Node Types
 foreach my $node (@nodeList) {
     newAction("table" => "node",
 	      "id" => $node,
 	      "command" => "update",
-	      "type" => $type);
+	      "type" => $type,
+	      "IP" => $node2ip{$node});
 }
 
 # Associate Interfaces with Switch Ports
@@ -68,5 +110,5 @@ system("perl newnode_research.in");
 
 # Commit Changes
 foreach my $node (@nodeList) {
-    newAction("table" => "node", "id" => $node, "command" => "commit");
+#    newAction("table" => "node", "id" => $node, "command" => "commit");
 }
