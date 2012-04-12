@@ -14,10 +14,10 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print("Usage: localize_mfs [-d] <path>\n");
+    print("Usage: localize_mfs [-d] [-c vga|sio|null] <path>\n");
     exit(-1);
 }
-my $optlist = "d";
+my $optlist = "dc:";
 my $debug   = 0;
 
 #
@@ -85,6 +85,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"c"})) {
+    $MFSCONSOLE = $options{"c"};
 }
 usage() 
     if (@ARGV != 1);
