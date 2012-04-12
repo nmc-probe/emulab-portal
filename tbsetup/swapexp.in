@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -648,6 +648,11 @@ else {
  	ExitWithStatus(1,
 		       "Experiment $pid/$eid is locked down; cannot swap!\n")
 	    if ($lockdown && !$lockforce);
+
+	ExitWithStatus(1,
+		       "Experiment is sharing vlans; cannot swap or modify!\n")
+	    if (($inout eq "out" || $inout eq "modify") &&
+		$experiment->SharingVlans());
 
 	#
 	# Check the state for the various operations.
