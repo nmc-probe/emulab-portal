@@ -94,6 +94,10 @@ SWITCH: for ($action) {
 	docleanup();
 	last SWITCH;
     };
+    /^reset$/i && do {
+	docleanup();
+	last SWITCH;
+    };
     fatal("Invalid action: $action");
 }
 exit(0);
