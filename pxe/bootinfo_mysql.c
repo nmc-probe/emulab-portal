@@ -429,8 +429,7 @@ query_bootinfo_db(struct in_addr ipaddr, char *node_id, int version,
 				row2 = mysql_fetch_row(res2);
 				error("Secure booting node %s in %s/%s\n",
 				      ipstr, row2[0], row2[1]);
-				if (strcmp(row2[0], "PXEKERNEL") == 0 &&
-				    strcmp(row2[1], "PXEBOOTING") == 0) {
+				if (strcmp(row2[0], "PXEKERNEL") == 0) {
 					info->type = BIBOOTWHAT_TYPE_REBOOT;
 					error("Forcing reboot of %s\n", ipstr);
 				}

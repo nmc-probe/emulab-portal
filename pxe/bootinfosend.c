@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -159,6 +159,11 @@ main(int argc, char **argv)
 			fatal("Could not send bootinfo packet!");
 		}
 #ifdef	EVENTSYS
+		/*
+		 * Keep the great state machine rolling forward...
+		 * Pretend that the client sent a request before we
+		 * send a reply.
+		 */
 		bievent_send(target.sin_addr, (void *) NULL,
 			     TBDB_NODESTATE_PXEBOOTING);
 		switch (boot_whatp->type) {
