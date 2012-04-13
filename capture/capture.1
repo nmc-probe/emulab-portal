@@ -1,6 +1,6 @@
 .\"
 .\" EMULAB-COPYRIGHT
-.\" Copyright (c) 2000 University of Utah and the Flux Group.
+.\" Copyright (c) 2000, 2012 University of Utah and the Flux Group.
 .\" All rights reserved.
 .\"
 
@@ -14,6 +14,7 @@
 .Nm capture
 .Op Fl s Ar speed
 .Op Fl H
+.Op Fl T Ar seconds
 .Ar remote-name
 .Ar dev-name
 .Sh DESCRIPTION
@@ -29,6 +30,16 @@ The options are as follows:
 Set the speed in bps (2400, 9600, 115200, etc)
 .It Fl H
 Use hardware flow control
+.It Fl T Ar sinterval
+If more than
+.Ar sinterval
+seconds have elapsed since the
+last output to the device, put out a timestamp of the form "STAMP{time}"
+reflecting the current time.
+If
+.Fl L
+is also specified, then the stamp will be of the form "STAMP{delta@time}"
+where delta reflects the actual number of seconds since the last output.
 .Sh CONFIGURATION
 You should run one copy of
 .Nm capture

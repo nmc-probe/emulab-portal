@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2008 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -124,6 +124,7 @@ char	*Machine;
 int	logfd = -1, runfd, devfd = -1, ptyfd = -1;
 int	hwflow = 0, speed = B9600, debug = 0, runfile = 0, standalone = 0;
 int	stampinterval = -1;
+int	stamplast = 0;
 sigset_t actionsigmask;
 sigset_t allsigmask;
 int	 powermon = 0;
@@ -325,7 +326,7 @@ main(int argc, char **argv)
 	else
 		Progname = *argv;
 
-	while ((op = getopt(argc, argv, "rds:Hb:ip:c:T:aou:v:Pm")) != EOF)
+	while ((op = getopt(argc, argv, "rds:Hb:ip:c:T:aou:v:PmL")) != EOF)
 		switch (op) {
 #ifdef	USESOCKETS
 #ifdef  WITHSSL
@@ -365,6 +366,9 @@ main(int argc, char **argv)
 			if ((i = atoi(optarg)) == 0 ||
 			    (speed = val2speed(i)) == 0)
 				usage();
+			break;
+		case 'L':
+			stamplast = 1;
 			break;
 		case 'T':
 			stampinterval = atoi(optarg);
@@ -894,17 +898,26 @@ dropped:
 			if (stampinterval >= 0) {
 				static time_t laststamp;
 				struct timeval tv;
-				char stampbuf[40], *cts;
-				time_t now;
+				char stampbuf[64], *cts;
+				time_t now, delta;
 
 				gettimeofday(&tv, 0);
 				now = tv.tv_sec;
+				delta = now - laststamp;
 				if (stampinterval == 0 ||
-				    now > laststamp + stampinterval) {
+				    delta > stampinterval) {
 					cts = ctime(&now);
 					cts[24] = 0;
-					snprintf(stampbuf, sizeof stampbuf,
-						 "\nSTAMP{%s}\n", cts);
+					if (stamplast && laststamp)
+						snprintf(stampbuf,
+							 sizeof stampbuf,
+							 "\nSTAMP{%u@%s}\n",
+							 (unsigned)delta, cts);
+					else
+						snprintf(stampbuf,
+							 sizeof stampbuf,
+							 "\nSTAMP{%s}\n",
+							 cts);
 					write(logfd, stampbuf,
 					      strlen(stampbuf));
 				}
@@ -1182,7 +1195,7 @@ char *optstr =
 #endif
 "[-b bossnode] [-p bossport] [-i] "
 #endif
-"-HdraoP [-s speed] [-T stampinterval]";
+"-HdraoPL [-s speed] [-T stampinterval]";
 void
 usage(void)
 {
