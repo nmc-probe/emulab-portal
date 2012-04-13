@@ -21,7 +21,7 @@ fi
 if [ -n "$1" ]; then srcdir=$1; else srcdir=$PWD ; fi
 if [ -n "$2" ]; then tarball=$2; fi
 if [ -n "$3" ]; then host=$3; else host=www.emulab.net ; fi
-dir=$PWD
+dir=`pwd`
 
 if [ ! -d $dir/iperf-$version/src ]; then
     if [ ! -f "$tarball" ]; then
