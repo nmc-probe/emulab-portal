@@ -5222,6 +5222,7 @@ sub ClearPortLans($)
 sub SharingVlans($)
 {
     my ($self) = @_;
+    my $idx = $self->idx();
 
     my $query_result =
 	DBQueryWarn("select * from shared_vlans ".
