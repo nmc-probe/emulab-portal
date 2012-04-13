@@ -989,10 +989,6 @@ sub PostHistoryRecord($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Only CMs can do this");
     }
-    if ($caller_authority->disabled()) {
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "You are not an enabled CM");
-    }
     
     #
     # Verify all of the slots.
