@@ -17,6 +17,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 	import com.flack.geni.GeniCache;
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.emulab.DelaySliverType;
+	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.FirewallSliverType;
 	import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
 	import com.flack.geni.resources.GeniUser;
@@ -98,7 +99,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
 							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
 							
-							if(protogeniManager.hrn == "shadownet.cm")
+							if(protogeniManager.hrn == "shadowgeni.cm")
 							{
 								protogeniManager.supportedLinkTypes.getByName(LinkType.LAN_V2).requiresIpAddresses = true;
 							}
@@ -114,6 +115,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							{
 								protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GPENI);
 							}
+							if(protogeniManager.hrn == "ukgeni.cm"
+								|| protogeniManager.hrn == "utahemulab.cm"
+								|| protogeniManager.hrn == "wail.cm"
+								|| protogeniManager.hrn == "shadowgeni.cm")
+							{
+								protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.VLAN);
+							}
 							
 							// Node Types (not advertised yet...)
 							if(protogeniManager.hrn == "utahemulab.cm")
@@ -126,6 +134,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							{
 								protogeniManager.supportedSliverTypes.getOrCreateByName(DelaySliverType.TYPE_DELAY);
 							}
+							
+							if(protogeniManager.hrn == "utahemulab.cm"
+								|| protogeniManager.hrn == "ukgeni.cm"
+								|| protogeniManager.hrn == "wail.cm")
+							{
+								protogeniManager.supportedSliverTypes.getOrCreateByName(EmulabBbgSliverType.TYPE_EMULAB_BBG);
+							}
+							
 							
 							newManager = protogeniManager;
 						}

@@ -39,7 +39,7 @@ package com.flack.geni.resources.virtual
 		public var manifest:String = "";
 		public function get Created():Boolean
 		{
-			return manifest != null;
+			return manifest != null && manifest.length > 0;
 		}
 		public var unsubmittedChanges:Boolean = true;
 		

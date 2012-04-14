@@ -195,7 +195,7 @@ package com.flack.geni.resources.virtual
 				return false;
 			
 			// Need to have some link type which is available
-			if(nodes.Managers.CommonLinkTypes.length == 0)
+			if(nodes.Managers.CommonLinkTypes.supportedFor(nodes).length == 0)
 				return false;
 			
 			// Try to allocate interfaces needed
@@ -235,7 +235,7 @@ package com.flack.geni.resources.virtual
 			}
 			
 			// Select the link type
-			var supportedTypes:SupportedLinkTypeCollection = nodes.Managers.CommonLinkTypes;
+			var supportedTypes:SupportedLinkTypeCollection = nodes.Managers.CommonLinkTypes.supportedFor(nodes);
 			var selectedType:SupportedLinkType = null;
 			// If explicitly chosen, use the given link type
 			if(useType.length > 0)
@@ -253,9 +253,9 @@ package com.flack.geni.resources.virtual
 			for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
 			{
 				addedInterface.Owner.interfaces.add(addedInterface);
+				addedInterface.links.add(this);
 				if(addedInterface.Owner.sliverType.sliverTypeSpecific != null)
 					addedInterface.Owner.sliverType.sliverTypeSpecific.interfaceAdded(addedInterface);
-				addedInterface.links.add(this);
 				addedInterface.Owner.unsubmittedChanges = true;
 			}
 			
@@ -269,12 +269,7 @@ package com.flack.geni.resources.virtual
 		
 		public function changeToType(selectedType:SupportedLinkType):void
 		{
-			var needsCapacity:Boolean = true;
-			for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
-			{
-				if(!addedInterface.Owner.Vm)
-					needsCapacity = false;
-			}
+			
 			
 			// Establish or change clientId according to type if possible
 			if(clientId.length == 0)
@@ -282,13 +277,20 @@ package com.flack.geni.resources.virtual
 			else if(selectedType.name != type.name && clientId.indexOf(type.name) == 0)
 				clientId = clientId.replace(type.name, selectedType.name);
 			
+			var makeCapacity:Number = selectedType.defaultCapacity;
 			switch(selectedType.name)
 			{
 				case LinkType.LAN_V1:
 				case LinkType.LAN_V2:
 					type.name = LinkType.LAN_V2;
-					if(needsCapacity)
-						Capacity = 100000;
+					for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
+					{
+						if(addedInterface.Owner.Vm)
+						{
+							makeCapacity = 100000;
+							break;
+						}
+					}
 					break;
 				case LinkType.ION:
 					type.name = LinkType.ION;
@@ -304,22 +306,16 @@ package com.flack.geni.resources.virtual
 					type.name = selectedType.name;
 			}
 			
+			if(!isNaN(makeCapacity))
+				Capacity = makeCapacity;
+			
 			if(selectedType.requiresIpAddresses)
 				setupIpAddresses();
 		}
 		
 		public function setupIpAddresses():void
 		{
-			VirtualInterface.startNextTunnel();
-			for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
-			{
-				if(addedInterface.ip == null || addedInterface.ip.address.length == 0)
-				{
-					addedInterface.ip = new Ip(VirtualInterface.getNextTunnel());
-					addedInterface.ip.netmask = "255.255.255.0";
-					addedInterface.ip.type = "ipv4";
-				}
-			}
+			interfaceRefs.Interfaces.setupIpAddresses(false);
 		}
 		
 		/**
@@ -407,14 +403,10 @@ package com.flack.geni.resources.virtual
 		public function removeNode(node:VirtualNode):void
 		{
 			var interfacesToCheck:VirtualInterfaceCollection = interfaceRefs.Interfaces;
-			for(var i:int = 0; i < interfacesToCheck.length; i++)
+			for each(var vi:VirtualInterface in interfacesToCheck.collection)
 			{
-				var vi:VirtualInterface = interfacesToCheck.collection[i];
 				if(vi.Owner == node)
-				{
 					removeInterface(vi);
-					i--;
-				}
 			}
 			unsubmittedChanges = true;
 		}
@@ -432,14 +424,17 @@ package com.flack.geni.resources.virtual
 			else
 				interfaceReference = iface;
 			
-			properties.removeAnyWithInterface(interfaceReference.referencedInterface);
-			
-			interfaceReference.referencedInterface.Owner.interfaces.remove(iface);
-			interfaceReference.referencedInterface.links.remove(this);
-			if(interfaceReference.referencedInterface.Owner.sliverType.sliverTypeSpecific != null)
-				interfaceReference.referencedInterface.Owner.sliverType.sliverTypeSpecific.interfaceRemoved(iface);
-			
-			interfaceRefs.remove(interfaceReference);
+			if(interfaceReference != null)
+			{
+				properties.removeAnyWithInterface(interfaceReference.referencedInterface);
+				
+				interfaceReference.referencedInterface.Owner.interfaces.remove(iface);
+				interfaceReference.referencedInterface.links.remove(this);
+				if(interfaceReference.referencedInterface.Owner.sliverType.sliverTypeSpecific != null)
+					interfaceReference.referencedInterface.Owner.sliverType.sliverTypeSpecific.interfaceRemoved(iface);
+				
+				interfaceRefs.remove(interfaceReference);
+			}
 			
 			unsubmittedChanges = true;
 		}
@@ -525,6 +520,7 @@ package com.flack.geni.resources.virtual
 			else
 				newClone.clientId = newSlice.getUniqueId(newClone, StringUtil.makeSureEndsWith(clientId,"-"));
 			newClone.type = type;
+			newClone.flackInfo.unboundVlantag = flackInfo.unboundVlantag;
 			return newClone;
 		}
 		

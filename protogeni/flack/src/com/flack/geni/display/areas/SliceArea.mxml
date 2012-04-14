@@ -576,7 +576,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function importFromString(rspec:String):void
 			{
-				var importRspec:ImportSliceTaskGroup = new ImportSliceTaskGroup(slice, rspec, null, true);
+				var importRspec:ImportSliceTaskGroup = new ImportSliceTaskGroup(
+					slice,
+					rspec,
+					null,
+					true
+				);
 				importRspec.start();
 			}
 			
@@ -619,8 +624,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				var previewArea:DocumentsArea = new DocumentsArea();
 				previewArea.title = "Preview Request RSPEC for " + slice.Name;
-				
-				var createSliceRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(slice);
+				_slice.ensureSliversExist();
+				var createSliceRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(slice, true, false, false);
 				createSliceRspec.start();
 				previewArea.addDocument("Unified Request RSPEC", createSliceRspec.resultRspec.document);
 				

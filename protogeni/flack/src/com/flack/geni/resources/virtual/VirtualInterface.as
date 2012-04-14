@@ -78,6 +78,7 @@ package com.flack.geni.resources.virtual
 		}
 		
 		public var macAddress:String = "";
+		public var vmac:String = "";
 		
 		// tunnel stuff
 		public var ip:Ip = new Ip();

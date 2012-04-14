@@ -15,6 +15,7 @@
 package com.flack.geni.tasks.tests 
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
 	import com.flack.geni.resources.virtual.Slice;
@@ -90,7 +91,7 @@ package com.flack.geni.tasks.tests
 					GeniMain.geniUniverse.managers.getByHrn("utahemulab.cm"),
 					"goodNode",
 					true,
-					SliverTypes.RAWPC_V2
+					RawPcSliverType.TYPE_RAWPC_V2
 				);
 				
 				var newBadNode:VirtualNode = new VirtualNode(
@@ -98,7 +99,7 @@ package com.flack.geni.tasks.tests
 					badManager,
 					"badNode",
 					true,
-					SliverTypes.RAWPC_V2
+					RawPcSliverType.TYPE_RAWPC_V2
 				);
 				
 				// Order matters, slivers are created in the order they are added

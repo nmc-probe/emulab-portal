@@ -16,11 +16,13 @@ package com.flack.geni.tasks.xmlrpc.am
 {
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.StringUtil;
 	
@@ -42,7 +44,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * 
 		 */
 		public function CreateSliverTask(newSliver:Sliver,
-										 newRspec:Rspec)
+										 newRspec:Rspec = null)
 		{
 			super(
 				newSliver.manager.api.url,
@@ -71,6 +73,25 @@ package com.flack.geni.tasks.xmlrpc.am
 		{
 			sliver.markStaged();
 			sliver.manifest = null;
+			
+			// Generate a rspec if needed
+			if(request == null)
+			{
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, false, false);
+				generateNewRspec.start();
+				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
+				{
+					afterError(generateNewRspec.error);
+					return;
+				}
+				request = generateNewRspec.resultRspec;
+				addMessage(
+					"Generated request",
+					request.document,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+			}
 			
 			super.runStart();
 		}

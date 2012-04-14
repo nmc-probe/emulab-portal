@@ -16,12 +16,17 @@ package com.flack.geni.tasks.process
 {
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.RspecUtil;
+	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
+	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+	import com.flack.geni.plugins.emulab.RawPcSliverType;
+	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.DiskImage;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverType;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.physical.HardwareType;
 	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.geni.resources.virtual.ExecuteService;
 	import com.flack.geni.resources.virtual.GeniManagerReference;
 	import com.flack.geni.resources.virtual.Host;
@@ -32,8 +37,10 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.Services;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.VirtualInterface;
+	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
 	import com.flack.geni.resources.virtual.VirtualInterfaceReference;
 	import com.flack.geni.resources.virtual.VirtualLink;
+	import com.flack.geni.resources.virtual.VirtualLinkCollection;
 	import com.flack.geni.resources.virtual.VirtualNode;
 	import com.flack.geni.resources.virtual.VirtualNodeCollection;
 	import com.flack.geni.resources.virtual.extensions.MCInfo;
@@ -151,10 +158,13 @@ package com.flack.geni.tasks.process
 				}
 				sliver.slice.useInputRspecInfo = new RspecVersion(rspec.info.type, rspec.info.version);
 				
-				if(xmlDocument.@valid_until.length() == 1)
-					sliver.expires = DateUtil.parseRFC3339(String(xmlDocument.@valid_until));
-				if(xmlDocument.@expires.length() == 1)
-					sliver.expires = DateUtil.parseRFC3339(String(xmlDocument.@expires));
+				if(parseManifest)
+				{
+					if(xmlDocument.@valid_until.length() == 1)
+						sliver.expires = DateUtil.parseRFC3339(String(xmlDocument.@valid_until));
+					if(xmlDocument.@expires.length() == 1)
+						sliver.expires = DateUtil.parseRFC3339(String(xmlDocument.@expires));
+				}
 				
 				sliver.markStaged();
 				
@@ -244,7 +254,7 @@ package com.flack.geni.tasks.process
 					if(virtualNodeManager != sliver.manager)
 						continue;
 					
-					if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST)
+					if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST && parseManifest)
 					{
 						// nodes from their manager's manifests without sliver_ids aren't in the sliver...
 						if(sliverIdString.length == 0)
@@ -280,7 +290,7 @@ package com.flack.geni.tasks.process
 					else if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST)
 						virtualNode.unsubmittedChanges = false;
 					
-					if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST)
+					if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST && parseManifest)
 					{
 						virtualNode.id = new IdnUrn(sliverIdString);
 						virtualNode.manifest = nodeXml.toXMLString();
@@ -310,19 +320,22 @@ package com.flack.geni.tasks.process
 					{
 						virtualNode.exclusive = String(nodeXml.@exclusive) == "1"
 							|| String(nodeXml.@exclusive).toLowerCase() == "true";
-						if(nodeXml.@sshdport.length() == 1) {
-							if(virtualNode.services.loginServices == null)
-								virtualNode.services.loginServices = new Vector.<LoginService>();
-							if(virtualNode.services.loginServices.length == 0)
-								virtualNode.services.loginServices.push(new LoginService());
-							virtualNode.services.loginServices[0].port = String(nodeXml.@sshdport);
-						}
-						if(nodeXml.@hostname.length() == 1) {
-							if(virtualNode.services.loginServices == null)
-								virtualNode.services.loginServices = new Vector.<LoginService>();
-							if(virtualNode.services.loginServices.length == 0)
-								virtualNode.services.loginServices.push(new LoginService());
-							virtualNode.services.loginServices[0].hostname = String(nodeXml.@hostname);
+						if(parseManifest)
+						{
+							if(nodeXml.@sshdport.length() == 1) {
+								if(virtualNode.services.loginServices == null)
+									virtualNode.services.loginServices = new Vector.<LoginService>();
+								if(virtualNode.services.loginServices.length == 0)
+									virtualNode.services.loginServices.push(new LoginService());
+								virtualNode.services.loginServices[0].port = String(nodeXml.@sshdport);
+							}
+							if(nodeXml.@hostname.length() == 1) {
+								if(virtualNode.services.loginServices == null)
+									virtualNode.services.loginServices = new Vector.<LoginService>();
+								if(virtualNode.services.loginServices.length == 0)
+									virtualNode.services.loginServices.push(new LoginService());
+								virtualNode.services.loginServices[0].hostname = String(nodeXml.@hostname);
+							}
 						}
 						if(nodeXml.@tarfiles.length() == 1) {
 							if(virtualNode.services.installServices == null)
@@ -342,26 +355,29 @@ package com.flack.geni.tasks.process
 						{
 							switch(String(nodeXml.@virtualization_type))
 							{
-								case SliverTypes.JUNIPER_LROUTER:
-									virtualNode.sliverType = new SliverType(SliverTypes.JUNIPER_LROUTER);
+								case JuniperRouterSliverType.TYPE_JUNIPER_LROUTER:
+									virtualNode.sliverType = new SliverType(JuniperRouterSliverType.TYPE_JUNIPER_LROUTER);
 									break;
 								case SliverTypes.EMULAB_VNODE:
 								default:
 									if(nodeXml.@virtualization_subtype.length() == 1)
 									{
-										switch(String(nodeXml.@virtualization_type))
+										switch(String(nodeXml.@virtualization_subtype))
 										{
-											case SliverTypes.EMULAB_OPENVZ:
-												virtualNode.sliverType = new SliverType(SliverTypes.EMULAB_OPENVZ);
+											case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
+												virtualNode.sliverType = new SliverType(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ);
 												break;
-											case SliverTypes.RAWPC_V1:
+											case EmulabBbgSliverType.TYPE_EMULAB_BBG:
+												virtualNode.sliverType = new SliverType(EmulabBbgSliverType.TYPE_EMULAB_BBG);
+												break;
+											case RawPcSliverType.TYPE_RAWPC_V1:
 											default:
-												virtualNode.sliverType = new SliverType(SliverTypes.RAWPC_V2);
+												virtualNode.sliverType = new SliverType(RawPcSliverType.TYPE_RAWPC_V2);
 												break;
 										}
 									}
 									else
-										virtualNode.sliverType = new SliverType(SliverTypes.RAWPC_V2);
+										virtualNode.sliverType = new SliverType(RawPcSliverType.TYPE_RAWPC_V2);
 									break;
 							}
 						}
@@ -435,7 +451,7 @@ package com.flack.geni.tasks.process
 							virtualNode.interfaces.add(virtualInterface);
 						}
 						virtualInterface.clientId = virtualInterfaceClientId;
-						if(virtualInterfaceSliverId.length > 0)
+						if(virtualInterfaceSliverId.length > 0 && parseManifest)
 							virtualInterface.id = new IdnUrn(virtualInterfaceSliverId);
 						
 						if(interfaceXml.@component_id.length() == 1 && IdnUrn.isIdnUrn(String(interfaceXml.@component_id)))
@@ -454,26 +470,36 @@ package com.flack.geni.tasks.process
 						
 						if(rspec.info.version >= 2)
 						{
-							if(interfaceXml.@mac_address.length() == 1)
+							if(parseManifest && interfaceXml.@mac_address.length() == 1)
 								virtualInterface.macAddress = String(interfaceXml.@mac_address);
 							
-							for each(var ipXml:XML in interfaceXml.children())
+							for each(var ipXml:XML in interfaceXml.defaultNamespace::ip)
 							{
-								if(ipXml.localName() == "ip")
-								{
-									virtualInterface.ip.address = String(ipXml.@address);
-									virtualInterface.ip.type = String(ipXml.@type);
-									if(ipXml.@mask.length() == 1)
-										virtualInterface.ip.netmask = String(ipXml.@mask);
-									else if(ipXml.@netmask.length() == 1)
-										virtualInterface.ip.netmask = String(ipXml.@netmask);
-									if(virtualNode.manager == sliver.manager)
-										virtualInterface.ip.extensions.buildFromOriginal(ipXml, [defaultNamespace.uri]);
-								}
+								virtualInterface.ip.address = String(ipXml.@address);
+								virtualInterface.ip.type = String(ipXml.@type);
+								if(ipXml.@mask.length() == 1)
+									virtualInterface.ip.netmask = String(ipXml.@mask);
+								else if(ipXml.@netmask.length() == 1)
+									virtualInterface.ip.netmask = String(ipXml.@netmask);
+								if(virtualNode.manager == sliver.manager)
+									virtualInterface.ip.extensions.buildFromOriginal(ipXml, [defaultNamespace.uri]);
 							}
 						}
+						
+						var flackNamespace:Namespace = RspecUtil.flackNamespace;
+						for each(var interfaceFlackXml:XML in interfaceXml.flackNamespace::interface_info)
+						{
+							if(interfaceFlackXml.@addressUnset.length() == 1)
+							{
+								var addressUnset:Boolean = String(interfaceFlackXml.@addressUnset).toLowerCase() == "true" || String(interfaceFlackXml.@addressUnset) == "1";
+								if(addressUnset && !parseManifest)
+									virtualInterface.ip = new Ip();
+							}
+						}
+						
 						if(virtualNode.manager == sliver.manager)
-							virtualInterface.extensions.buildFromOriginal(interfaceXml, [defaultNamespace.uri]);
+							virtualInterface.extensions.buildFromOriginal(interfaceXml, [defaultNamespace.uri, RspecUtil.flackNamespace.uri]);
+						
 						interfacesById[virtualInterface.clientId] = virtualInterface;
 						if(virtualInterface.id.full.length > 0)
 							interfacesById[virtualInterface.id.full] = virtualInterface;
@@ -498,7 +524,7 @@ package com.flack.geni.tasks.process
 									virtualNode.hardwareType = new HardwareType(String(nodeChildXml.@type_name), Number(nodeChildXml.@type_slots));
 									// Hack for if subvirtualization_type isn't set...
 									if(virtualNode.hardwareType.name == "pcvm")
-										virtualNode.sliverType.name = SliverTypes.EMULAB_OPENVZ;
+										virtualNode.sliverType.name = EmulabOpenVzSliverType.TYPE_EMULABOPENVZ;
 									break;
 								case "hardware_type":
 									virtualNode.hardwareType = new HardwareType(String(nodeChildXml.@name));
@@ -636,12 +662,14 @@ package com.flack.geni.tasks.process
 					
 					if(virtualNode.manager == sliver.manager)
 					{
+						var ignoreUris:Array = [defaultNamespace.uri, RspecUtil.flackNamespace.uri];
+						if(!parseManifest)
+						{
+							ignoreUris.push(RspecUtil.emulabNamespace);
+						}
 						virtualNode.extensions.buildFromOriginal(
 							nodeXml,
-							[
-								defaultNamespace.uri,
-								RspecUtil.flackNamespace.uri
-							]
+							ignoreUris
 						);
 					}
 				}
@@ -684,7 +712,8 @@ package com.flack.geni.tasks.process
 					var virtualLink:VirtualLink = sliver.slice.links.getByClientId(virtualLinkClientIdString);
 					if(virtualLink == null)
 						virtualLink = new VirtualLink(sliver.slice);
-					virtualLink.id = new IdnUrn(virtualLinkSliverIdString);
+					if(virtualLinkSliverIdString.length > 0 && parseManifest)
+						virtualLink.id = new IdnUrn(virtualLinkSliverIdString);
 					virtualLink.clientId = virtualLinkClientIdString;
 					
 					// Get interfaces first, make sure this is valid
@@ -751,14 +780,21 @@ package com.flack.geni.tasks.process
 								interfacedInterface.ip = new Ip(String(interfaceRefXml.@IP));
 							if(interfaceRefXml.@netmask.length() == 1)
 								interfacedInterface.ip.netmask = String(interfaceRefXml.@netmask);
-							if(interfaceRefXml.@sliver_urn.length() == 1)
-								interfacedInterface.id = new IdnUrn(interfaceRefXml.@sliver_urn);
 							if(interfaceRefXml.@component_urn.length() == 1)
 								interfacedInterface.physicalId = new IdnUrn(interfaceRefXml.@component_urn);
+							if(parseManifest)
+							{
+								if(interfaceRefXml.@sliver_urn.length() == 1)
+									interfacedInterface.id = new IdnUrn(interfaceRefXml.@sliver_urn);
+								if(interfaceRefXml.@VMAC.length() == 1)
+									interfacedInterface.vmac = String(interfaceRefXml.@VMAC);
+								if(interfaceRefXml.@MAC.length() == 1)
+									interfacedInterface.macAddress = String(interfaceRefXml.@MAC);
+							}
 						}
 						else
 						{
-							if(interfaceRefXml.@sliver_id.length() == 1)
+							if(parseManifest && interfaceRefXml.@sliver_id.length() == 1)
 								interfacedInterface.id = new IdnUrn(interfaceRefXml.@sliver_id);
 							if(interfaceRefXml.@component_id.length() == 1)
 							{
@@ -805,14 +841,16 @@ package com.flack.geni.tasks.process
 								virtualLink.type.name = LinkType.GRETUNNEL_V2;
 								break;
 							case LinkType.LAN_V1:
+							case LinkType.LAN_V2:
 								virtualLink.type.name = LinkType.LAN_V2;
+								break;
+							case "vlan":
+								virtualLink.type.name = LinkType.VLAN;
 						}
 					}
-					else
-					{
-						if(linkXml.@vlantag.length() == 1)
-							virtualLink.vlantag = String(linkXml.@vlantag);
-					}
+					
+					if(parseManifest && linkXml.@vlantag.length() == 1)
+						virtualLink.vlantag = String(linkXml.@vlantag);
 					
 					for each(var linkChildXml:XML in linkXml.children())
 					{
@@ -866,8 +904,12 @@ package com.flack.geni.tasks.process
 									{
 										case LinkType.GRETUNNEL_V1:
 											virtualLink.type.name = LinkType.GRETUNNEL_V2;
+											break;
 										case LinkType.LAN_V1:
 											virtualLink.type.name = LinkType.LAN_V2;
+											break;
+										case "vlan":
+											virtualLink.type.name = LinkType.VLAN;
 									}
 									virtualLink.type.extensions.buildFromOriginal(linkChildXml, [defaultNamespace.uri]);
 									break;
@@ -892,6 +934,12 @@ package com.flack.geni.tasks.process
 							{
 								virtualLink.flackInfo.x = int(linkChildXml.@x);
 								virtualLink.flackInfo.y = int(linkChildXml.@y);
+								if(linkChildXml.@unboundVlantag.length() == 1)
+								{
+									virtualLink.flackInfo.unboundVlantag = String(linkChildXml.@unboundVlantag).toLowerCase() == "true" || String(linkChildXml.@unboundVlantag) == "1";
+									if(virtualLink.flackInfo.unboundVlantag && !parseManifest)
+										virtualLink.vlantag = "";
+								}
 							}
 						}
 					}
@@ -901,6 +949,48 @@ package com.flack.geni.tasks.process
 						virtualLink.type.name = LinkType.GRETUNNEL_V2;
 					
 					virtualLink.extensions.buildFromOriginal(linkXml, [defaultNamespace.uri]);
+					
+					switch(virtualLink.type.name)
+					{
+						case LinkType.VLAN:
+							// If a BBG node from this sliver gets a vlantag, edit the vlan link outside of the manager
+							var linkManagers:GeniManagerCollection = virtualLink.interfaceRefs.Interfaces.Managers;
+							if(virtualLink.vlantag.length > 0 && linkManagers.length == 1 && linkManagers.collection[0] == sliver.manager)
+							{
+								var bbgNodes:VirtualNodeCollection = virtualLink.interfaceRefs.Interfaces.Nodes.getBySliverType(EmulabBbgSliverType.TYPE_EMULAB_BBG);
+								for each(var bbgNode:VirtualNode in bbgNodes.collection)
+								{
+									var externalVlans:VirtualLinkCollection = bbgNode.interfaces.Links.getByType(LinkType.VLAN).getConnectedToMultipleManagers();
+									var sourceIfaces:VirtualInterfaceCollection = virtualLink.interfaceRefs.Interfaces.getByHostOtherThan(bbgNode);
+									var sourceBbgIface:VirtualInterface = virtualLink.interfaceRefs.Interfaces.getByHost(bbgNode);
+									for each(var vlan:VirtualLink in externalVlans.collection)
+									{
+										vlan.vlantag = virtualLink.vlantag;
+										var destIfaces:VirtualInterfaceCollection = vlan.interfaceRefs.Interfaces.getByHostOtherThan(bbgNode);
+										if(sourceBbgIface != null)
+										{
+											for each(var destIface:VirtualInterface in destIfaces.collection)
+											{
+												destIface.ip.address = sourceBbgIface.ip.address;
+												destIface.ip.netmask = sourceBbgIface.ip.netmask;
+												destIface.ip.type = sourceBbgIface.ip.type;
+											}
+										}
+										
+										for each(var sourceIface:VirtualInterface in sourceIfaces.collection)
+										{
+											vlan.interfaceRefs.add(sourceIface);
+											sourceIface.links.add(vlan);
+											sourceIface.links.remove(virtualLink);
+											virtualLink.interfaceRefs.remove(sourceIface);
+										}
+										vlan.removeNode(bbgNode);
+									}
+								}
+							}
+							break;
+						default:
+					}
 					
 					// detect that the link has been entirely created before setting the manifest
 					var isManifestFinished:Boolean = rspec.type == Rspec.TYPE_MANIFEST;
@@ -920,17 +1010,6 @@ package com.flack.geni.tasks.process
 					
 					if(isManifestFinished)
 						virtualLink.manifest = linkXml.toXMLString();
-				}
-				
-				// Client extension
-				var clientSliceInfo:XMLList = xmlDocument.child(new QName(RspecUtil.clientNamespace, "client_info"));
-				if(clientSliceInfo.length() == 1)
-				{
-					var clientSliceInfoXml:XML = clientSliceInfo[0];
-					sliver.slice.clientInfo.name = clientSliceInfoXml.@name;
-					sliver.slice.clientInfo.version = clientSliceInfoXml.@version;
-					sliver.slice.clientInfo.environment = clientSliceInfoXml.@description;
-					sliver.slice.clientInfo.url = clientSliceInfoXml.@url;
 				}
 				
 				// History extension

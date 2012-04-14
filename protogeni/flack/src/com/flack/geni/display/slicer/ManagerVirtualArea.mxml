@@ -27,6 +27,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.display.DisplayUtil;
+			import com.flack.geni.plugins.emulab.RawPcSliverType;
 			import com.flack.geni.resources.SliverTypes;
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.SupportedSliverType;
@@ -65,18 +66,18 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					null,
 					"virtualNode"
 				);
-				if(managerTypes.getByName(SliverTypes.RAWPC_V1) != null ||
-					managerTypes.getByName(SliverTypes.RAWPC_V2) != null)
+				if(managerTypes.getByName(RawPcSliverType.TYPE_RAWPC_V1) != null ||
+					managerTypes.getByName(RawPcSliverType.TYPE_RAWPC_V2) != null)
 				{
 					var raw:VirtualNode = new VirtualNode(
 						null,
 						manager,
 						"PC",
 						true,
-						SliverTypes.RAWPC_V2
+						RawPcSliverType.TYPE_RAWPC_V2
 					);
-					managerTypes.remove(managerTypes.getByName(SliverTypes.RAWPC_V1));
-					managerTypes.remove(managerTypes.getByName(SliverTypes.RAWPC_V2));
+					managerTypes.remove(managerTypes.getByName(RawPcSliverType.TYPE_RAWPC_V1));
+					managerTypes.remove(managerTypes.getByName(RawPcSliverType.TYPE_RAWPC_V2));
 					addRawButton.setStyle("chromeColor", ColorUtil.colorsDark[manager.colorIdx]);
 					addRawButton.setStyle("color", ColorUtil.colorsLight[manager.colorIdx]);
 					addRawButton.data = raw;

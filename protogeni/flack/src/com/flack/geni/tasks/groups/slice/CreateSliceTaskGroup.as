@@ -45,16 +45,16 @@ package com.flack.geni.tasks.groups.slice
 		 * @param promptOnInvalidName Prompt the user to change name if not successful?
 		 * 
 		 */
-		public function CreateSliceTaskGroup(newSliceName:String,
-											 newAuthority:GeniAuthority,
+		public function CreateSliceTaskGroup(newSliceName:String = "",
+											 newAuthority:GeniAuthority = null,
 											 promptOnInvalidName:Boolean = true)
 		{
 			super(
 				"Create " + newSliceName,
-				"Creates an empty slice named " + newSliceName + " on " + newAuthority.name
+				"Creates an empty slice named " + newSliceName
 			);
 			sliceName = newSliceName;
-			authority = newAuthority;
+			authority = newAuthority == null ? GeniMain.geniUniverse.user.authority : newAuthority;
 			prompt = promptOnInvalidName;
 		}
 		
@@ -62,7 +62,11 @@ package com.flack.geni.tasks.groups.slice
 		{
 			if(tasks.length == 0)
 			{
-				newSlice = new Slice(IdnUrn.makeFrom(authority.id.authority, IdnUrn.TYPE_SLICE, sliceName).full);
+				newSlice = new Slice(IdnUrn.makeFrom(
+					authority.id.authority,
+					IdnUrn.TYPE_SLICE,
+					sliceName).full
+				);
 				newSlice.hrn = sliceName;
 				newSlice.creator = GeniMain.geniUniverse.user;
 				newSlice.authority = authority;

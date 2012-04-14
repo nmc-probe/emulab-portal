@@ -184,6 +184,17 @@ package com.flack.geni.resources.virtual
 			return connectedLinks;
 		}
 		
+		public function getConnectedToMultipleManagers():VirtualLinkCollection
+		{
+			var connectedLinks:VirtualLinkCollection = new VirtualLinkCollection();
+			for each(var link:VirtualLink in collection)
+			{
+				if(link.interfaceRefs.Interfaces.Managers.length > 1)
+					connectedLinks.add(link);
+			}
+			return connectedLinks;
+		}
+		
 		/**
 		 * 
 		 * @param managers Managers

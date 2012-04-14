@@ -1,5 +1,6 @@
 package com.flack.geni.resources.sites
 {
+	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.resources.virtual.LinkType;
 
 	public class SupportedLinkType
@@ -9,6 +10,7 @@ package com.flack.geni.resources.sites
 		public var supportsManyManagers:Boolean = false;
 		public var requiresIpAddresses:Boolean = false;
 		public var supportsSameManager:Boolean = true;
+		public var defaultCapacity:Number = NaN;
 		public var level:int = int.MAX_VALUE;
 		
 		public function SupportedLinkType(newName:String)
@@ -16,19 +18,25 @@ package com.flack.geni.resources.sites
 			name = newName;
 			switch(name)
 			{
+				case LinkType.VLAN:
+					maxConnections = 2;
+					supportsManyManagers = true;
+					defaultCapacity = 100000;
+					level = 25;
+					break;
 				case LinkType.ION:
 				case LinkType.GPENI:
 					maxConnections = 2;
 					supportsManyManagers = true;
 					supportsSameManager = false;
-					level = 2;
+					level = 100;
 					break;
 				case LinkType.GRETUNNEL_V1:
 				case LinkType.GRETUNNEL_V2:
 					maxConnections = 2;
 					supportsManyManagers = true;
 					requiresIpAddresses = true;
-					level = 1;
+					level = 50;
 					break;
 				case LinkType.LAN_V2:
 					level = 0;

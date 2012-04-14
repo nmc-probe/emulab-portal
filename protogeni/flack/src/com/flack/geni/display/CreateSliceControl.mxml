@@ -105,15 +105,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					return;
 				}
 				
-				var createSliceTask:CreateSliceTaskGroup = new CreateSliceTaskGroup(sliceNameTextinput.text, authoritiesList.selectedItem)
-				createSliceTask.forceRunNow = SharedMain.tasker.tasks.NotFinished.getOfClass(GetUserTaskGroup).length==0;
-				if(!createSliceTask.forceRunNow)
-				{
-					Alert.show(
-						sliceNameTextinput.text + " will be created after all of the current operations complete...",
-						"Task queued"
-					);
-				}
+				var createSliceTask:CreateSliceTaskGroup = new CreateSliceTaskGroup(sliceNameTextinput.text, authoritiesList.selectedItem);
+				createSliceTask.forceRunNow = true;
 				SharedMain.tasker.add(createSliceTask);
 				sliceNameTextinput.text = "";
 			}

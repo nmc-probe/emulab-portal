@@ -56,6 +56,24 @@ package com.flack.geni.resources.virtual
 		[Bindable]
 		public var forceUseInputRspecInfo:RspecVersion;
 		
+		/**
+		 * 
+		 * @return Manually selected version, slice-selected version, or the max supported version
+		 * 
+		 */
+		public function get UseInputRspecInfo():RspecVersion
+		{
+			if(forceUseInputRspecInfo != null)
+				return forceUseInputRspecInfo;
+			else
+			{
+				if(manager.inputRspecVersions.get(slice.useInputRspecInfo.type, slice.useInputRspecInfo.version) != null)
+					return slice.useInputRspecInfo;
+				else
+					return manager.inputRspecVersions.UsableRspecVersions.MaxVersion;
+			}
+		}
+		
 		public var state:String = "";
 		public var status:String = "";
 		public function get StatusFinalized():Boolean

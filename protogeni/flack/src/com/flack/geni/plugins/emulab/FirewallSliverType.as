@@ -51,12 +51,10 @@ package com.flack.geni.plugins.emulab
 		
 		public function canAdd(node:VirtualNode):Boolean
 		{
+			// There can only be one firewall per manager
 			var existingFirewall:VirtualNodeCollection = node.slice.nodes.getByManager(node.manager).getBySliverType(FirewallSliverType.TYPE_FIREWALL);
 			if(existingFirewall.length > 0 && existingFirewall.collection[0] != node)
-			{
-				Alert.show(node.manager.hrn + " already has a firewall node ("+existingFirewall.collection[0].clientId+")");
 				return false;
-			}
 			return true;
 		}
 		

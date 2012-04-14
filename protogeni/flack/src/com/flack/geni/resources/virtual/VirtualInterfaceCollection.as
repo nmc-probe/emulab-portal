@@ -16,6 +16,7 @@ package com.flack.geni.resources.virtual
 {
 	import com.flack.geni.resources.physical.PhysicalInterface;
 	import com.flack.geni.resources.physical.PhysicalNode;
+	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
 
 	/**
@@ -113,6 +114,28 @@ package com.flack.geni.resources.virtual
 			return null;
 		}
 		
+		public function getByManager(manager:GeniManager):VirtualInterfaceCollection
+		{
+			var ifaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
+			for each(var iface:VirtualInterface in collection)
+			{
+				if(iface._owner.manager == manager)
+					ifaces.add(iface);
+			}
+			return ifaces;
+		}
+		
+		public function getByHostOtherThan(vnode:VirtualNode):VirtualInterfaceCollection
+		{
+			var ifaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
+			for each(var testInterface:VirtualInterface in collection)
+			{
+				if(testInterface._owner != vnode)
+					ifaces.add(testInterface);
+			}
+			return ifaces;
+		}
+		
 		/**
 		 * 
 		 * @param testing Object wishing to use the client ID
@@ -181,6 +204,20 @@ package com.flack.geni.resources.virtual
 					managers.add(testInterface.Owner.manager);
 			}
 			return managers;
+		}
+		
+		public function setupIpAddresses(forceNew:Boolean = false):void
+		{
+			VirtualInterface.startNextTunnel();
+			for each(var addedInterface:VirtualInterface in collection)
+			{
+				if(forceNew || addedInterface.ip == null || addedInterface.ip.address.length == 0)
+				{
+					addedInterface.ip = new Ip(VirtualInterface.getNextTunnel());
+					addedInterface.ip.netmask = "255.255.255.0";
+					addedInterface.ip.type = "ipv4";
+				}
+			}
 		}
 	}
 }

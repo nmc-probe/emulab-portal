@@ -52,7 +52,7 @@ package com.flack.geni.tasks.tests
 			(new ParseRequestManifestTask(new Sliver(blankSlice, GeniMain.geniUniverse.managers.getByHrn("utahemulab.cm")) , new Rspec((new TestsliceRspecRight()).toString()), true)).start();
 			(new ParseRequestManifestTask(new Sliver(blankSlice, GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm")) , new Rspec((new TestsliceRspecLeft()).toString()), true)).start();
 			
-			var generate:GenerateRequestManifestTask = new GenerateRequestManifestTask(blankSlice);
+			var generate:GenerateRequestManifestTask = new GenerateRequestManifestTask(blankSlice.slivers.collection[0], true, false, false);
 			generate.start();
 			
 			var test:String = generate.resultRspec.document;

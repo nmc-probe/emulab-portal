@@ -47,6 +47,10 @@ package com.flack.geni
 		public static const tutorialUrl:String = "https://www.protogeni.net/trac/protogeni/wiki/FlackTutorial";
 		public static const sshKeysSteps:String = "http://www.protogeni.net/trac/protogeni/wiki/Tutorial#UploadingSSHKeys";
 		
+		public static var rspecListUrl:String = "";
+		[Bindable]
+		public static var viewList:Boolean = false;
+		
 		public static function preinitMode():void
 		{
 			GeniMain.geniUniverse = new GeniUniverse();
@@ -157,6 +161,14 @@ package com.flack.geni
 		
 		public static function loadParams():void
 		{
+			try{
+				if(FlexGlobals.topLevelApplication.parameters.rspeclisturl != null)
+				{
+					rspecListUrl = FlexGlobals.topLevelApplication.parameters.rspeclisturl;
+				}
+			} catch(all:Error) {
+			}
+			
 			/*
 			try{
 			if(FlexGlobals.topLevelApplication.parameters.mode != null)

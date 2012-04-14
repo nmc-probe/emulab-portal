@@ -39,5 +39,35 @@ package com.flack.geni.resources.virtual
 		{
 			address = newAddress;
 		}
+		
+		public function get Base():uint
+		{
+			var netmaskSubparts:Array = netmask.split('.');
+			var baseSubparts:Array = netmask.split('.');
+			
+			var ipBase:uint = 0;
+			for(var i:int = netmaskSubparts.length-1; i > -1; i--)
+			{
+				var netmaskSubpart:uint = new uint(netmaskSubparts[i]);
+				var baseSubpart:uint = new uint(baseSubparts[i]);
+				ipBase |= (((netmaskSubpart & baseSubpart) & 0xFF) << i*8);
+			}
+			
+			return ipBase;
+		}
+		
+		public function get Space():uint
+		{
+			var netmaskSubparts:Array = netmask.split('.');
+			var baseSubparts:Array = netmask.split('.');
+			
+			var ipSpace:uint = 0;
+			for(var i:int = netmaskSubparts.length-1; i > -1; i--)
+			{
+				var netmaskSubpart:uint = new uint(netmaskSubparts[i]);
+				ipSpace |= (((~netmaskSubpart) & 0xFF) << i*8);
+			}
+			return ipSpace;
+		}
 	}
 }

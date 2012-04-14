@@ -5,14 +5,15 @@
 						xmlns:plugins="com.flack.geni.plugins.*">
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.display.areas.VirtualNodeArea;
 			import com.flack.geni.resources.SliverType;
 			import com.flack.geni.resources.SliverTypes;
 			import com.flack.geni.resources.virtual.VirtualNode;
 			
-			override public function initTo(node:VirtualNode, sliverType:SliverType):void
+			override public function initTo(sliverType:SliverType):void
 			{
-				if(node.sliverType.sliverTypeSpecific != null && node.sliverType.sliverTypeSpecific is FirewallSliverType)
-					firewallStyleDropdownlist.selectedItem = (node.sliverType.sliverTypeSpecific as FirewallSliverType).firewallStyle
+				if(host.node.sliverType.sliverTypeSpecific != null && host.node.sliverType.sliverTypeSpecific is FirewallSliverType)
+					firewallStyleDropdownlist.selectedItem = (host.node.sliverType.sliverTypeSpecific as FirewallSliverType).firewallStyle
 				else
 					firewallStyleDropdownlist.selectedIndex = 0;
 			}
@@ -34,7 +35,8 @@
 			  verticalAlign="middle">
 		<s:Label text="Style" />
 		<s:DropDownList id="firewallStyleDropdownlist"
-						width="100%">
+						width="100%"
+						change="host.okButton.enabled = true;">
 			<s:ArrayCollection>
 				<fx:String>closed</fx:String>
 				<fx:String>open</fx:String>

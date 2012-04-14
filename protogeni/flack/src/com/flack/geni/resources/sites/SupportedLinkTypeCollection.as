@@ -1,5 +1,8 @@
 package com.flack.geni.resources.sites
 {
+	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+
 	public class SupportedLinkTypeCollection
 	{
 		public var collection:Vector.<SupportedLinkType>;
@@ -30,6 +33,15 @@ package com.flack.geni.resources.sites
 			return collection.length;
 		}
 		
+		public function get Clone():SupportedLinkTypeCollection
+		{
+			var clone:SupportedLinkTypeCollection = new SupportedLinkTypeCollection();
+			for each(var supportedType:SupportedLinkType in collection)
+				clone.add(supportedType);
+			return clone;
+		}
+		
+		
 		public function getByName(name:String):SupportedLinkType
 		{
 			for each(var supportedType:SupportedLinkType in collection)
@@ -49,6 +61,24 @@ package com.flack.geni.resources.sites
 				add(supportedType);
 			}
 			return supportedType;
+		}
+		
+		public function supportedFor(nodes:VirtualNodeCollection):SupportedLinkTypeCollection
+		{
+			var supportedTypes:SupportedLinkTypeCollection = Clone;
+			for each(var node:VirtualNode in nodes.collection)
+			{
+				if(node.manager.supportedSliverTypes.getByName(node.sliverType.name).limitToLinkType.length > 0)
+				{
+					var supportedType:SupportedLinkType = supportedTypes.getByName(node.manager.supportedSliverTypes.getByName(node.sliverType.name).limitToLinkType);
+					supportedTypes = new SupportedLinkTypeCollection();
+					if(supportedType != null)
+						supportedTypes.add(supportedType);
+					else
+						return supportedTypes;
+				}
+			}
+			return supportedTypes;
 		}
 		
 		public function preferredType(numConnections:int = int.MAX_VALUE):SupportedLinkType

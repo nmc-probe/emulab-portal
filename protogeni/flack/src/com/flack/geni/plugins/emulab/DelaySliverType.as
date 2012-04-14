@@ -4,8 +4,13 @@ package com.flack.geni.plugins.emulab
 	import com.flack.geni.plugins.SliverTypeInterface;
 	import com.flack.geni.plugins.SliverTypePart;
 	import com.flack.geni.resources.physical.PhysicalNode;
+	import com.flack.geni.resources.virtual.Ip;
 	import com.flack.geni.resources.virtual.VirtualInterface;
+	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
 	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.hurlant.util.der.ByteString;
+	
+	import flash.utils.ByteArray;
 	
 	import mx.collections.ArrayCollection;
 
@@ -167,6 +172,9 @@ package com.flack.geni.plugins.emulab
 					i--;
 				}
 			}
+			
+			// Ensure everything connected is on the same subnet
+			node.interfaces.Links.Interfaces.getByHostOtherThan(node).setupIpAddresses(true);
 		}
 	}
 }

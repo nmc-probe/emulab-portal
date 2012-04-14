@@ -16,10 +16,12 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
 	import com.flack.geni.resources.docs.GeniCredential;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.tasks.Task;
 	import com.flack.shared.utils.DateUtil;
 	
 	/**
@@ -40,7 +42,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * 
 		 */
 		public function CreateSliverCmTask(newSliver:Sliver,
-										   useRspec:Rspec)
+										   useRspec:Rspec = null)
 		{
 			super(
 				newSliver.manager.url,
@@ -69,6 +71,25 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		{
 			sliver.markStaged();
 			sliver.manifest = null;
+			
+			// Generate a rspec if needed
+			if(request == null)
+			{
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, false, false);
+				generateNewRspec.start();
+				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
+				{
+					afterError(generateNewRspec.error);
+					return;
+				}
+				request = generateNewRspec.resultRspec;
+				addMessage(
+					"Generated request",
+					request.document,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+			}
 			
 			super.runStart();
 		}

@@ -406,8 +406,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						var part:SliverTypePart = SelectedSliverType.sliverTypeSpecific.Part;
 						if(part != null)
 						{
+							part.host = this;
 							extraView.addElement(part);
-							part.initTo(node, SelectedSliverType);
+							part.initTo(SelectedSliverType);
 						}
 					}
 					
@@ -947,7 +948,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							height="40%" 
 							dataProvider="{interfaces}"
 							rowHeight="24"
-							editable="true">
+							editable="true"
+							gridItemEditorSessionSave="okButton.enabled = true">
 					<s:columns>
 						<s:ArrayList>
 							<s:GridColumn dataField="clientId"

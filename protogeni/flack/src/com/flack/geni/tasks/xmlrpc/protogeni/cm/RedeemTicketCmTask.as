@@ -97,6 +97,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			{
 				success = true;
 				sliver.credential = new GeniCredential(data[0], GeniCredential.TYPE_SLIVER, sliver.manager);
+				sliver.id = sliver.credential.TargetId;
 				sliver.expires = sliver.credential.Expires;
 				sliver.manifest = new Rspec(data[1], null, null, null, Rspec.TYPE_MANIFEST);
 				

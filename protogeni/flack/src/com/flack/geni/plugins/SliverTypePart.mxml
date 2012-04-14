@@ -7,12 +7,14 @@
 		  gap="2">
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.display.areas.VirtualNodeArea;
 			import com.flack.geni.resources.SliverType;
 			import com.flack.geni.resources.virtual.VirtualNode;
 			
-			public function initTo(node:VirtualNode, sliverType:SliverType):void
+			public var host:VirtualNodeArea;
+			
+			public function initTo(sliverType:SliverType):void
 			{
-				
 			}
 			
 			public function saveTo(node:VirtualNode):void

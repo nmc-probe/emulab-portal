@@ -15,6 +15,7 @@
 package com.flack.geni.tasks.tests
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.VirtualNode;
@@ -77,7 +78,7 @@ package com.flack.geni.tasks.tests
 					GeniMain.geniUniverse.managers.getByHrn("utahemulab.cm"),
 					"test0",
 					true,
-					SliverTypes.RAWPC_V2
+					RawPcSliverType.TYPE_RAWPC_V2
 				);
 				slice.nodes.add(addFirstNode);
 				slice.history.stateName = "Added first node";
@@ -88,7 +89,7 @@ package com.flack.geni.tasks.tests
 					addFirstNode.manager,
 					"test1",
 					true,
-					SliverTypes.RAWPC_V2
+					RawPcSliverType.TYPE_RAWPC_V2
 				);
 				slice.nodes.add(addSecondNode);
 				slice.history.stateName = "Added second node";
@@ -99,7 +100,7 @@ package com.flack.geni.tasks.tests
 					addFirstNode.manager,
 					"test2",
 					true,
-					SliverTypes.RAWPC_V2
+					RawPcSliverType.TYPE_RAWPC_V2
 				);
 				slice.nodes.add(addThirdNode);
 				slice.history.stateName = "Added third node";

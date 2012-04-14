@@ -72,6 +72,13 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				 text="{initialText}"
 				 enter="success()" />
 	
+	<components:controlBarLayout>
+		<s:HorizontalLayout verticalAlign="middle"
+							paddingBottom="2"
+							paddingLeft="2"
+							paddingRight="2"
+							paddingTop="2" />
+	</components:controlBarLayout>
 	<components:controlBarContent>
 		<s:Button id="okButton"
 				  label="OK"

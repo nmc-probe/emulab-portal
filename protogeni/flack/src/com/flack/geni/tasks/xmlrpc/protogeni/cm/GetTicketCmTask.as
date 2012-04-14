@@ -15,13 +15,17 @@
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskError;
+	
+	import mx.controls.Alert;
 	
 	/**
 	 * Updates a sliver using a new RSPEC.  Only supported in the FULL API
@@ -42,7 +46,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * 
 		 */
 		public function GetTicketCmTask(newSliver:Sliver,
-										useRspec:Rspec)
+										useRspec:Rspec = null)
 		{
 			super(
 				newSliver.manager.url,
@@ -86,6 +90,25 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				);
 				return;
 			}
+			
+			if(request == null)
+			{
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, false, false);
+				generateNewRspec.start();
+				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
+				{
+					afterError(generateNewRspec.error);
+					return;
+				}
+				request = generateNewRspec.resultRspec;
+				addMessage(
+					"Generated request",
+					request.document,
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+			}
+			
 			super.runStart();
 		}
 		
@@ -108,7 +131,11 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				super.afterComplete(addCompletedMessage);
 			}
 			else
+			{
+				if(output.indexOf("must release") != -1)
+					Alert.show("Ticket must expire before trying again");
 				faultOnSuccess();
+			}
 		}
 	}
 }

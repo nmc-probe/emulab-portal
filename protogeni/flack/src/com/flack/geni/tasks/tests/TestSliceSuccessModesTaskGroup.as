@@ -15,6 +15,7 @@
 package com.flack.geni.tasks.tests 
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.virtual.Slice;
@@ -911,7 +912,7 @@ package com.flack.geni.tasks.tests
 					GeniMain.geniUniverse.managers.getByHrn("utahemulab.cm"),
 					"test0",
 					true,
-					SliverTypes.RAWPC_V2
+					RawPcSliverType.TYPE_RAWPC_V2
 				);
 				slice.nodes.add(utahNode1);
 				var utahNode2:VirtualNode = new VirtualNode(
@@ -919,7 +920,7 @@ package com.flack.geni.tasks.tests
 					GeniMain.geniUniverse.managers.getByHrn("utahemulab.cm"),
 					"test1",
 					true,
-					SliverTypes.RAWPC_V2
+					RawPcSliverType.TYPE_RAWPC_V2
 				);
 				slice.nodes.add(utahNode2);
 				

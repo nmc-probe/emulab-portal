@@ -16,6 +16,10 @@ package com.flack.geni.tasks.process
 {
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.plugins.RspecProcessInterface;
+	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
+	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+	import com.flack.geni.plugins.emulab.RawPcSliverType;
+	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.DiskImage;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverType;
@@ -397,26 +401,31 @@ package com.flack.geni.tasks.process
 							);
 							node.hardwareTypes.add(newNodeType);
 							var nodeTypeSliverType:SliverType = null;
-							if(newNodeType.name == SliverTypes.JUNIPER_LROUTER)
+							switch(newNodeType.name)
 							{
-								node.sliverTypes.add(new SliverType(SliverTypes.JUNIPER_LROUTER));
-								nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
-							}
-							else if(newNodeType.name == "pcvm")
-							{
-								if(node.manager.type != FlackManager.TYPE_PLANETLAB)
-								{
-									node.sliverTypes.add(new SliverType(SliverTypes.EMULAB_OPENVZ));
+								case "pcvm":
+									if(node.manager.type != FlackManager.TYPE_PLANETLAB)
+									{
+										node.sliverTypes.add(new SliverType(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ));
+										nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
+									}
+									break;
+								case "pc":
+									if(node.exclusive && node.manager.type != FlackManager.TYPE_PLANETLAB)
+									{
+										node.sliverTypes.add(new SliverType(RawPcSliverType.TYPE_RAWPC_V2));
+										nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
+									}
+									break;
+								case JuniperRouterSliverType.TYPE_JUNIPER_LROUTER:
+									node.sliverTypes.add(new SliverType(JuniperRouterSliverType.TYPE_JUNIPER_LROUTER));
 									nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
-								}
-							}
-							else if(newNodeType.name == "pc" && node.exclusive)
-							{
-								if(node.manager.type != FlackManager.TYPE_PLANETLAB)
-								{
-									node.sliverTypes.add(new SliverType(SliverTypes.RAWPC_V2));
+									break;
+								case "bbgeni":
+									node.sliverTypes.add(new SliverType(EmulabBbgSliverType.TYPE_EMULAB_BBG));
 									nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
-								}
+									break;
+								default:
 							}
 							if(nodeTypeSliverType != null)
 								manager.supportedSliverTypes.getOrCreateByName(nodeTypeSliverType.name);
@@ -471,16 +480,26 @@ package com.flack.geni.tasks.process
 									newHardwareType.slots = Number(emulabNodeTypes[0].@type_slots);
 							}
 							node.hardwareTypes.add(newHardwareType);
-							if(newHardwareType.name == SliverTypes.JUNIPER_LROUTER)
+							var hardwareTypeSliverType:SliverType = node.sliverTypes.getByName(newHardwareType.name);
+							if(hardwareTypeSliverType == null)
 							{
-								var hardwareTypeSliverType:SliverType = node.sliverTypes.getByName(newHardwareType.name);
-								if(hardwareTypeSliverType == null)
+								switch(newHardwareType.name)
 								{
-									hardwareTypeSliverType = new SliverType(newHardwareType.name);
+									case JuniperRouterSliverType.TYPE_JUNIPER_LROUTER:
+										hardwareTypeSliverType = new SliverType(newHardwareType.name);
+										break;
+									case "bbgeni":
+										hardwareTypeSliverType = new SliverType(EmulabBbgSliverType.TYPE_EMULAB_BBG);
+										break;
+									default:
+								}
+								if(hardwareTypeSliverType != null)
+								{
 									node.sliverTypes.add(hardwareTypeSliverType);
-									manager.supportedSliverTypes.getOrCreateByName(newHardwareType.name);
+									manager.supportedSliverTypes.getOrCreateByName(hardwareTypeSliverType.name);
 								}
 							}
+							
 						}
 					}
 					
@@ -522,7 +541,7 @@ package com.flack.geni.tasks.process
 							}
 							else if(nodeChildXml.localName() == "disk_image")
 							{
-								var addToSliverType:SliverType = node.sliverTypes.getByName(SliverTypes.RAWPC_V2);
+								var addToSliverType:SliverType = node.sliverTypes.getByName(RawPcSliverType.TYPE_RAWPC_V2);
 								if(addToSliverType == null)
 								{
 									if(node.sliverTypes.getByName("N/A") == null)
@@ -573,9 +592,9 @@ package com.flack.geni.tasks.process
 					if(node.sliverTypes.length == 0)
 					{
 						if(node.hardwareTypes.getByName("pcpg") != null)
-							node.sliverTypes.add(new SliverType(SliverTypes.RAWPC_V2));
+							node.sliverTypes.add(new SliverType(RawPcSliverType.TYPE_RAWPC_V2));
 						if(node.hardwareTypes.getByName("pcvmpg") != null)
-							node.sliverTypes.add(new SliverType(SliverTypes.EMULAB_OPENVZ));
+							node.sliverTypes.add(new SliverType(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ));
 					}
 					
 					node.advertisement = nodeXml.toXMLString();

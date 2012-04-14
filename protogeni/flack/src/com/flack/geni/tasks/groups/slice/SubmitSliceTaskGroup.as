@@ -15,11 +15,17 @@
 package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.SliverCollection;
+	import com.flack.geni.resources.virtual.SliverCollectionCollection;
+	import com.flack.geni.resources.virtual.VirtualLink;
+	import com.flack.geni.resources.virtual.VirtualLinkCollection;
+	import com.flack.geni.resources.virtual.VirtualNode;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetUserKeysSaTask;
 	import com.flack.shared.FlackEvent;
@@ -30,8 +36,10 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.shared.tasks.SerialTaskGroup;
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.tasks.TaskEvent;
 	
 	import flash.display.Sprite;
+	import flash.utils.Dictionary;
 	
 	import mx.controls.Alert;
 	import mx.core.FlexGlobals;
@@ -53,8 +61,6 @@ package com.flack.geni.tasks.groups.slice
 		public var deleteSlivers:SliverCollection;
 		public var updateSlivers:SliverCollection;
 		public var newSlivers:SliverCollection;
-		
-		public var requestRspec:Rspec;
 		
 		private var comfirmWithUser:Boolean;
 		private var skipUnchangedSlivers:Boolean;
@@ -81,13 +87,28 @@ package com.flack.geni.tasks.groups.slice
 			skipUnchangedSlivers = shouldSkipUnchangedSlivers;
 		}
 		
+		private function tryAgain(event:TaskEvent):void
+		{
+			runStart();
+		}
+		
 		override protected function runStart():void
 		{
 			// First run
 			if(tasks.length == 0)
 			{
+				// Instantiate the slice if needed
+				if(!slice.Instantiated)
+				{
+					var instantiate:CreateSliceTaskGroup = new CreateSliceTaskGroup();
+					instantiate.addEventListener(TaskEvent.FINISHED, tryAgain);
+					return;
+				}
+				
 				// Can't try to submit a slice which is empty, delete it
-				if(slice.nodes.length == 0 && slice.links.length == 0 && slice.slivers.Created.length == 0)
+				if(slice.nodes.length == 0
+					&& slice.links.length == 0
+					&& slice.slivers.Created.length == 0)
 				{
 					afterError(
 						new TaskError(
@@ -104,22 +125,6 @@ package com.flack.geni.tasks.groups.slice
 				addMessage(
 					"Generating request",
 					slice.toString(),
-					LogMessage.LEVEL_INFO,
-					LogMessage.IMPORTANCE_HIGH
-				);
-				
-				// Get the RSPEC which will be submitted
-				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(slice);
-				generateNewRspec.start();
-				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
-				{
-					afterError(generateNewRspec.error);
-					return;
-				}
-				requestRspec = generateNewRspec.resultRspec;
-				addMessage(
-					"Generated request",
-					requestRspec.document,
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
@@ -215,15 +220,63 @@ package com.flack.geni.tasks.groups.slice
 		
 		private function applyChanges():void
 		{
+			// Make sure to replace existing slice if there is a disconnect
+			var existingSlice:Slice = GeniMain.geniUniverse.user.slices.getById(slice.id.full);
+			if(existingSlice != null && existingSlice != slice)
+			{
+				GeniMain.geniUniverse.user.slices.remove(existingSlice);
+				GeniMain.geniUniverse.user.slices.add(slice);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					slice
+				);
+			}
 			if(GeniMain.geniUniverse.user.authority != null)
 				add(new GetUserKeysSaTask(GeniMain.geniUniverse.user, false));
 			if(deleteSlivers.length > 0)
 				add(new DeleteSliversTaskGroup(deleteSlivers));
-			if(updateSlivers.length > 0)
-				add(new UpdateSliversTaskGroup(updateSlivers, requestRspec));
-			if(newSlivers.length > 0)
-				add(new CreateSliversTaskGroup(newSlivers, requestRspec));
 			
+			// Create graph w/o dependancies
+			var sliverGraph:SliverCollectionCollection = new SliverCollectionCollection();
+			for each(var updateSliver:Sliver in updateSlivers.collection)
+				sliverGraph.getOrAdd(updateSliver);
+			for each(var createSliver:Sliver in newSlivers.collection)
+				sliverGraph.getOrAdd(createSliver);
+			// Add dependancies
+			for each(var node:VirtualNode in slice.nodes.collection)
+			{
+				if(node.sliverType.name == EmulabBbgSliverType.TYPE_EMULAB_BBG)
+				{
+					var connectedManagers:GeniManagerCollection = node.interfaces.Links.Interfaces.Managers;
+					connectedManagers.remove(node.manager);
+					for each(var connectedManager:GeniManager in connectedManagers.collection)
+					{
+						sliverGraph.add(slice.slivers.getByManager(connectedManager), slice.slivers.getByManager(node.manager));
+					}
+				}
+			}
+			// Just update & create if no dependancies
+			if(sliverGraph.numDependencies == 0)
+			{
+				if(updateSlivers.length > 0)
+					add(new UpdateSliversTaskGroup(updateSlivers));
+				if(newSlivers.length > 0)
+					add(new CreateSliversTaskGroup(newSlivers));
+			}
+			// Linearize to get create order
+			else
+			{
+				var orderedSlivers:SliverCollection = sliverGraph.getLinearized(slice);
+				for each(var orderedSliver:Sliver in orderedSlivers.collection)
+				{
+					var sliverCollection:SliverCollection = new SliverCollection();
+					sliverCollection.add(orderedSliver);
+					if(updateSlivers.contains(orderedSliver))
+						add(new UpdateSliversTaskGroup(sliverCollection));
+					else
+						add(new CreateSliversTaskGroup(sliverCollection));
+				}
+			}
 			add(new RefreshSliceStatusTaskGroup(slice));
 			
 			super.runStart();

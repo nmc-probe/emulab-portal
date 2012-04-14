@@ -52,7 +52,7 @@ package com.flack.geni.tasks.groups.slice
 		 * 
 		 */
 		public function CreateSliversTaskGroup(createSlivers:SliverCollection,
-											   requestRspec:Rspec,
+											   requestRspec:Rspec = null,
 											   askToContinueOnFailure:Boolean = true)
 		{
 			super(

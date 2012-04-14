@@ -14,6 +14,8 @@
 
 package com.flack.geni.tasks.process
 {
+	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.virtual.ExecuteService;
 	import com.flack.geni.resources.virtual.InstallService;
@@ -67,9 +69,9 @@ package com.flack.geni.tasks.process
 			var nodes:VirtualNodeCollection = sliver.Nodes;
 			for each(var node:VirtualNode in nodes.collection)
 			{
-				if(node.sliverType.name != SliverTypes.RAWPC_V1
-					&& node.sliverType.name != SliverTypes.RAWPC_V2
-					&& node.sliverType.name != SliverTypes.EMULAB_OPENVZ)
+				if(node.sliverType.name != RawPcSliverType.TYPE_RAWPC_V1
+					&& node.sliverType.name != RawPcSliverType.TYPE_RAWPC_V2
+					&& node.sliverType.name != EmulabOpenVzSliverType.TYPE_EMULABOPENVZ)
 				{
 					nsDocument += "# Skipped '"+node.clientId+"' which was unsupported sliver type '"+node.sliverType.name+"'\n";
 					continue;
@@ -81,7 +83,7 @@ package com.flack.geni.tasks.process
 					nsDocument += "tb-fix-node $"+node.clientId+" "+node.physicalId.name+"\n";
 				if(node.hardwareType.name.length > 0)
 					nsDocument += "tb-set-hardware $"+node.clientId+" "+node.hardwareType.name+"\n";
-				if(node.sliverType.name == SliverTypes.EMULAB_OPENVZ)
+				if(node.sliverType.name == EmulabOpenVzSliverType.TYPE_EMULABOPENVZ)
 				{
 					nsDocument += "tb-set-hardware $"+node.clientId+" pcvm\n";
 					nsDocument += "tb-set-node-os $"+node.clientId+" OPENVZ-STD\n";

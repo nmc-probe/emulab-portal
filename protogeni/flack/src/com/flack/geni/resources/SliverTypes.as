@@ -24,13 +24,7 @@ package com.flack.geni.resources
 	public class SliverTypes
 	{
 		// V1
-		static public var RAWPC_V1:String = "raw";
 		public static var EMULAB_VNODE:String = "emulab-vnode";
-		static public var JUNIPER_LROUTER:String = "juniper-lrouter";
-		
-		// V2
-		static public var RAWPC_V2:String = "raw-pc";
-		static public var EMULAB_OPENVZ:String = "emulab-openvz";
 		
 		// Reference CM
 		static public var QEMUPC:String = "qemu-pc"

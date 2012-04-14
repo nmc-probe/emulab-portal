@@ -109,7 +109,7 @@ package com.flack.geni.tasks.process
 			}
 			catch(e:Error)
 			{
-				msg = "There is a problem with the XML: " + StringUtil.errorToString(e);
+				msg = "The document was either not XML or is not formatted correctly!";
 				Alert.show(msg);
 				afterError(
 					new TaskError(
@@ -297,7 +297,7 @@ package com.flack.geni.tasks.process
 				var importSliver:Sliver = slice.slivers.getByManager(managerWithResources);
 				if(importSliver == null)
 					importSliver = new Sliver(slice, managerWithResources);
-				parent.add(new ParseRequestManifestTask(importSliver, importRspec, true));
+				parent.add(new ParseRequestManifestTask(importSliver, importRspec, false));
 			}
 			
 			afterComplete(false);

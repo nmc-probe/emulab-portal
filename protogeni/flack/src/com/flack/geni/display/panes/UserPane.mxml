@@ -56,6 +56,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.resources.sites.GeniAuthority;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.tasks.groups.GetUserTaskGroup;
+			import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.components.ImageButton;
@@ -154,6 +155,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			  label="Log in"
 			  toolTip="Log in to access user data"
 			  click="openUser()" />
+	<s:Button id="listButton"
+			  width="100%" visible="{GeniMain.viewList}" includeInLayout="{GeniMain.viewList}"
+			  label="List" />
 	<components:DefaultLine percentWidth="100"
 							lineThickness="2" />
 	<s:HGroup width="100%"
@@ -184,7 +188,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	<s:Scroller height="100%" width="100%">
 		<s:VGroup width="100%"
 				  id="userItems"
-				  gap="2" />
+				  gap="2"
+				  paddingRight="2" />
 	</s:Scroller>
 	
 </s:VGroup>

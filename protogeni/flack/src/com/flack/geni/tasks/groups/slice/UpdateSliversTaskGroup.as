@@ -48,7 +48,8 @@ package com.flack.geni.tasks.groups.slice
 		 * @param requestRspec Request RSPEC to send to each manager
 		 * 
 		 */
-		public function UpdateSliversTaskGroup(updateSlivers:SliverCollection, requestRspec:Rspec)
+		public function UpdateSliversTaskGroup(updateSlivers:SliverCollection,
+											   requestRspec:Rspec = null)
 		{
 			super(
 				"Update "+updateSlivers.length+" sliver(s)",

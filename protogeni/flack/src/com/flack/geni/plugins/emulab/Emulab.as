@@ -18,6 +18,10 @@ package com.flack.geni.plugins.emulab
 		{
 			SliverTypes.addSliverTypeInterface(DelaySliverType.TYPE_DELAY, new DelaySliverType());
 			SliverTypes.addSliverTypeInterface(FirewallSliverType.TYPE_FIREWALL, new FirewallSliverType());
+			SliverTypes.addSliverTypeInterface(RawPcSliverType.TYPE_RAWPC_V1, new RawPcSliverType());
+			SliverTypes.addSliverTypeInterface(RawPcSliverType.TYPE_RAWPC_V2, new RawPcSliverType());
+			SliverTypes.addSliverTypeInterface(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ, new EmulabOpenVzSliverType());
+			SliverTypes.addSliverTypeInterface(EmulabBbgSliverType.TYPE_EMULAB_BBG, new EmulabBbgSliverType());
 		}
 	}
 }

@@ -32,6 +32,8 @@ package com.flack.geni.resources.virtual.extensions
 		 */
 		public var y:int = -1;
 		
+		public var unboundVlantag:Boolean = true;
+		
 		public function LinkFlackInfo()
 		{
 		}

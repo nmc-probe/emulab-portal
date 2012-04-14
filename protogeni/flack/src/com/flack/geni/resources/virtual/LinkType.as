@@ -29,6 +29,7 @@ package com.flack.geni.resources.virtual
 		public static const GRETUNNEL_V2:String = "gre-tunnel";
 		public static const ION:String = "ion";
 		public static const GPENI:String = "gpeni";
+		public static const VLAN:String = "VLAN";
 		
 		public var name:String;
 		public var extensions:Extensions = new Extensions();

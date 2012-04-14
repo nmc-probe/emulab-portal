@@ -15,6 +15,10 @@
 package com.flack.geni.resources.virtual
 {
 	import com.flack.geni.RspecUtil;
+	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+	import com.flack.geni.plugins.emulab.Pipe;
+	import com.flack.geni.plugins.emulab.PipeCollection;
+	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.DiskImage;
 	import com.flack.geni.resources.SliverType;
 	import com.flack.geni.resources.SliverTypes;
@@ -29,8 +33,6 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.virtual.extensions.NodeFlackInfo;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.utils.StringUtil;
-	import com.flack.geni.plugins.emulab.Pipe;
-	import com.flack.geni.plugins.emulab.PipeCollection;
 
 	/**
 	 * Resource within a slice
@@ -62,21 +64,21 @@ package com.flack.geni.resources.virtual
 			if(clientId.length == 0)
 			{
 				if(slice.isIdUnique(this, newPhysicalNode.name))
-					clientId = newPhysicalNode.name;
+					clientId = manager.makeValidClientIdFor(newPhysicalNode.name);
 				else
-					clientId = slice.getUniqueId(this, newPhysicalNode.name+"-");
+					clientId = slice.getUniqueId(this, manager.makeValidClientIdFor(newPhysicalNode.name+"-"));
 			}
 			
 			// Set sliver type to known type if it's there
-			if(newPhysicalNode.exclusive && newPhysicalNode.sliverTypes.getByName(SliverTypes.RAWPC_V2) != null)
+			if(newPhysicalNode.exclusive && newPhysicalNode.sliverTypes.getByName(RawPcSliverType.TYPE_RAWPC_V2) != null)
 			{
-				sliverType.name = SliverTypes.RAWPC_V2;
-				sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(SliverTypes.RAWPC_V2).diskImages;
+				sliverType.name = RawPcSliverType.TYPE_RAWPC_V2;
+				sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(RawPcSliverType.TYPE_RAWPC_V2).diskImages;
 			}
-			else if(!newPhysicalNode.exclusive && newPhysicalNode.sliverTypes.getByName(SliverTypes.EMULAB_OPENVZ) != null)
+			else if(!newPhysicalNode.exclusive && newPhysicalNode.sliverTypes.getByName(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ) != null)
 			{
-				sliverType.name = SliverTypes.EMULAB_OPENVZ;
-				sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(SliverTypes.EMULAB_OPENVZ).diskImages;
+				sliverType.name = EmulabOpenVzSliverType.TYPE_EMULABOPENVZ;
+				sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ).diskImages;
 			}
 			else
 			{

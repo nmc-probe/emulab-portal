@@ -32,6 +32,7 @@ package com.flack.geni.resources.virtual
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.utils.DateUtil;
+	import com.mapquest.tilemap.util.NullableBoolean;
 	
 	import flash.globalization.DateTimeFormatter;
 	import flash.globalization.DateTimeStyle;
@@ -60,6 +61,11 @@ package com.flack.geni.resources.virtual
 		public var creator:GeniUser = null;
 		public var authority:GeniAuthority = null;
 		public var credential:GeniCredential = null;
+		public function get Instantiated():Boolean
+		{
+			return credential != null && credential.Raw.length > 0;
+		}
+		
 		public var flackInfo:SliceFlackInfo = new SliceFlackInfo();
 		public var reportedManagers:GeniManagerCollection = new GeniManagerCollection();
 		public var description:String = "";
@@ -140,9 +146,6 @@ package com.flack.geni.resources.virtual
 		[Bindable]
 		public var useInputRspecInfo:RspecVersion = GeniMain.usableRspecVersions.MaxVersion;
 		
-		// Client extension
-		public var clientInfo:ClientInfo = new ClientInfo();
-		
 		// Flack extension
 		public var history:SliceHistory = new SliceHistory();
 		
@@ -168,7 +171,7 @@ package com.flack.geni.resources.virtual
 			
 			var oldHistory:SliceHistory = history;
 			
-			var getRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(this, null, false);
+			var getRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(this, false, false, false);
 			getRspec.start();
 			
 			oldHistory.states.push(
@@ -203,7 +206,11 @@ package com.flack.geni.resources.virtual
 			var oldRspec:String = "";
 			if(CanGoBack)
 			{
-				var saveRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(this, null, false);
+				var saveRspec:GenerateRequestManifestTask = null;
+				if(slivers.length > 0)
+					saveRspec = new GenerateRequestManifestTask(slivers.collection[0], false, false, false, useInputRspecInfo);
+				else
+					saveRspec = new GenerateRequestManifestTask(null, false, false, false, useInputRspecInfo);
 				saveRspec.start();
 				
 				history.states.splice(history.backIndex+1, 0,
@@ -254,7 +261,11 @@ package com.flack.geni.resources.virtual
 				var restoreHistoryItem:SliceHistoryItem = history.states.slice(history.backIndex+1, history.backIndex+2)[0];
 				
 				// Save the state to return in case user wants to undo
-				var saveRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(this, null, false);
+				var saveRspec:GenerateRequestManifestTask = null;
+				if(slivers.length > 0)
+					saveRspec = new GenerateRequestManifestTask(slivers.collection[0], false, false, false, useInputRspecInfo);
+				else
+					saveRspec = new GenerateRequestManifestTask(null, false, false, false, useInputRspecInfo);
 				saveRspec.start();
 				
 				// Save current state into history for undo
@@ -459,13 +470,18 @@ package com.flack.geni.resources.virtual
 			}
 		}
 		
+		public function ensureSliversExist():void
+		{
+			for each(var manager:GeniManager in this.nodes.Managers.collection)
+				slivers.getOrCreateByManager(manager, this);
+		}
+		
 		/**
 		 * Removes everything from the slice
 		 * 
 		 */
 		public function removeAll():void
 		{
-			clientInfo = new ClientInfo();
 			history = new SliceHistory();
 			
 			slivers = new SliverCollection();

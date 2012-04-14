@@ -16,7 +16,11 @@ package com.flack.geni.tasks.process
 {
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.plugins.SliverTypeInterface;
+	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
+	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
 	import com.flack.geni.plugins.emulab.Pipe;
+	import com.flack.geni.plugins.emulab.RawPcSliverType;
+	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.physical.PhysicalLocation;
@@ -30,6 +34,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.VirtualInterface;
+	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
 	import com.flack.geni.resources.virtual.VirtualInterfaceReference;
 	import com.flack.geni.resources.virtual.VirtualLink;
 	import com.flack.geni.resources.virtual.VirtualLinkCollection;
@@ -54,8 +59,10 @@ package com.flack.geni.tasks.process
 	 */
 	public final class GenerateRequestManifestTask extends Task
 	{
-		public var slice:Slice;
 		public var sliver:Sliver;
+		public var slice:Slice;
+		public var useRspecVersion:RspecVersion;
+		public var includeOnlySliver:Boolean;
 		public var includeHistory:Boolean;
 		public var includeManifest:Boolean;
 		public var resultRspec:Rspec;
@@ -67,7 +74,11 @@ package com.flack.geni.tasks.process
 		 * @param shouldIncludeHistory Include the history?
 		 * 
 		 */
-		public function GenerateRequestManifestTask(newSlice:Slice, newSliverOnly:Sliver = null, shouldIncludeHistory:Boolean = true, shouldIncludeManifestInfo:Boolean = false)
+		public function GenerateRequestManifestTask(newSource:*,
+													shouldIncludeHistory:Boolean = true,
+													shouldIncludeManifestInfo:Boolean = false,
+													shouldIncludeOnlySliver:Boolean = false,
+													newUseRspecVersion:RspecVersion = null)
 		{
 			super(
 				"Generate request RSPEC",
@@ -76,21 +87,37 @@ package com.flack.geni.tasks.process
 				null,
 				0,
 				0,
-				false,
-				[newSlice]);
-			slice = newSlice;
-			sliver = newSliverOnly;
+				false);
+			if(newSource is Slice)
+				slice = newSource;
+			else
+			{
+				sliver = newSource;
+				slice = sliver.slice;
+				relatedTo.push(sliver);
+			}
+			relatedTo.push(slice);
 			includeHistory = shouldIncludeHistory;
 			includeManifest = shouldIncludeManifestInfo;
+			includeOnlySliver = shouldIncludeOnlySliver;
+			useRspecVersion = newUseRspecVersion;
 		}
 		
 		override protected function runStart():void
 		{
-			if(sliver != null && sliver.forceUseInputRspecInfo != null)
+			if(useRspecVersion != null)
 			{
 				resultRspec = new Rspec(
 					"",
-					sliver.forceUseInputRspecInfo,
+					useRspecVersion,
+					null, null, Rspec.TYPE_REQUEST
+				);
+			}
+			else if(sliver != null)
+			{
+				resultRspec = new Rspec(
+					"",
+					sliver.UseInputRspecInfo,
 					null, null, Rspec.TYPE_REQUEST
 				);
 			}
@@ -104,11 +131,16 @@ package com.flack.geni.tasks.process
 			}
 			
 			
-			var xmlDocument:XML;
-			if(slice.slivers.length > 0)
-				xmlDocument = slice.slivers.collection[0].extensions.createAndApply("rspec");
+			var xmlDocument:XML = null;
+			if(sliver != null)
+				xmlDocument = sliver.extensions.createAndApply("rspec");
 			else
-				xmlDocument = <rspec />;
+			{
+				if(slice.slivers.length > 0)
+					xmlDocument = slice.slivers.collection[0].extensions.createAndApply("rspec");
+				else
+					xmlDocument = <rspec />;
+			}
 			xmlDocument.@type = includeManifest ? "manifest" : "request";
 			xmlDocument.@generated_by = "Flack";
 			xmlDocument.@generated = DateUtil.toRFC3339(new Date());
@@ -156,8 +188,8 @@ package com.flack.geni.tasks.process
 					schemaLocations = RspecUtil.rspec3SchemaLocation;
 					break;
 			}
-			var nodes:VirtualNodeCollection = sliver == null ? slice.nodes : sliver.Nodes;
-			var links:VirtualLinkCollection = sliver == null ? slice.links : sliver.Links;
+			var nodes:VirtualNodeCollection = slice.nodes;
+			var links:VirtualLinkCollection = slice.links;
 			// Add extra namespaces/schemas for the sliver types
 			var sliverExtensionInterfaces:Vector.<SliverTypeInterface> = nodes.UniqueSliverTypeInterfaces;
 			for each(var sliverInterface:SliverTypeInterface in sliverExtensionInterfaces)
@@ -170,46 +202,58 @@ package com.flack.geni.tasks.process
 			xmlDocument.@xsiNamespace::schemaLocation = schemaLocations;
 			
 			for each(var node:VirtualNode in nodes.collection)
-				xmlDocument.appendChild(generateNodeRspec(node, false, resultRspec.info));
+			{
+				var nodeXml:XML = generateNodeRspec(node, false, resultRspec.info);
+				if(nodeXml != null)
+					xmlDocument.appendChild(nodeXml);
+			}
 			
 			for each(var link:VirtualLink in links.collection)
-				xmlDocument.appendChild(generateLinkRspec(link, resultRspec.info));
+			{
+				var linkXml:XML = generateLinkRspec(link, resultRspec.info);
+				if(linkXml != null)
+					xmlDocument.appendChild(linkXml);
+			}
 			
 			if(resultRspec.info.version >= 2)
 			{
 				// Add client extension
-				slice.clientInfo = new ClientInfo();
+				var clientInfo:ClientInfo = new ClientInfo();
 				var clientInfoXml:XML = <client_info />;
 				clientInfoXml.setNamespace(RspecUtil.clientNamespace);
-				clientInfoXml.@name = slice.clientInfo.name;
-				clientInfoXml.@environment = slice.clientInfo.environment;
-				clientInfoXml.@version = slice.clientInfo.version;
-				clientInfoXml.@url = slice.clientInfo.url;
+				clientInfoXml.@name = clientInfo.name;
+				clientInfoXml.@environment = clientInfo.environment;
+				clientInfoXml.@version = clientInfo.version;
+				clientInfoXml.@url = clientInfo.url;
 				xmlDocument.appendChild(clientInfoXml);
 				
-				// Add history extension
-				if(includeHistory && slice.history.states.length > 0)
+				if(sliver != null)
 				{
-					var sliceHistoryXml:XML = <slice_history />;
-					sliceHistoryXml.@backIndex = slice.history.backIndex;
-					sliceHistoryXml.@note = slice.history.stateName;
-					sliceHistoryXml.setNamespace(RspecUtil.historyNamespace);
-					for each(var state:SliceHistoryItem in slice.history.states)
+					// history
+					if(includeHistory && sliver.slice.history.states.length > 0)
 					{
-						var slicHistoryItemXml:XML = <state>{CompressUtil.compress(state.rspec)}</state>;
-						if(state.note.length > 0)
-							sliceHistoryXml.@note = state.note;
-						slicHistoryItemXml.setNamespace(RspecUtil.historyNamespace);
-						sliceHistoryXml.appendChild(new XML(slicHistoryItemXml));
+						var sliceHistoryXml:XML = <slice_history />;
+						sliceHistoryXml.@backIndex = sliver.slice.history.backIndex;
+						sliceHistoryXml.@note = sliver.slice.history.stateName;
+						sliceHistoryXml.setNamespace(RspecUtil.historyNamespace);
+						for each(var state:SliceHistoryItem in sliver.slice.history.states)
+						{
+							var slicHistoryItemXml:XML = <state>{CompressUtil.compress(state.rspec)}</state>;
+							if(state.note.length > 0)
+								sliceHistoryXml.@note = state.note;
+							slicHistoryItemXml.setNamespace(RspecUtil.historyNamespace);
+							sliceHistoryXml.appendChild(new XML(slicHistoryItemXml));
+						}
+						xmlDocument.appendChild(sliceHistoryXml);
 					}
-					xmlDocument.appendChild(sliceHistoryXml);
+					
+					// add flack extension
+					var sliceInfoXml:XML = <slice_info />;
+					sliceInfoXml.setNamespace(RspecUtil.flackNamespace);
+					sliceInfoXml.@view = sliver.slice.flackInfo.view;
+					xmlDocument.appendChild(sliceInfoXml);
 				}
 				
-				// add flack extension
-				var sliceInfoXml:XML = <slice_info />;
-				sliceInfoXml.setNamespace(RspecUtil.flackNamespace);
-				sliceInfoXml.@view = slice.flackInfo.view;
-				xmlDocument.appendChild(sliceInfoXml);
 			}
 			
 			resultRspec.document = xmlDocument.toXMLString();
@@ -224,33 +268,45 @@ package com.flack.geni.tasks.process
 										  removeNonexplicitBinding:Boolean,
 										  version:RspecVersion):XML
 		{
+			if(sliver != null
+				&& node.sliverType.name == EmulabBbgSliverType.TYPE_EMULAB_BBG
+				&& node.manager != sliver.manager)
+			{
+				return null;
+			}
+			
 			var nodeXml:XML = node.extensions.createAndApply("node");
 			if(version.version < 1)
 			{
 				nodeXml.@virtual_id = node.clientId;
 				nodeXml.@component_manager_uuid = node.manager.id.full;
 				nodeXml.@component_manager_urn = node.manager.id.full;
-				if(node.sliverType.name == SliverTypes.JUNIPER_LROUTER)
-					nodeXml.@virtualization_type = SliverTypes.JUNIPER_LROUTER;
+				if(node.sliverType.name == JuniperRouterSliverType.TYPE_JUNIPER_LROUTER)
+					nodeXml.@virtualization_type = JuniperRouterSliverType.TYPE_JUNIPER_LROUTER;
 				else
 				{
 					nodeXml.@virtualization_type = "emulab-vnode";
-					if(node.sliverType.name == SliverTypes.EMULAB_OPENVZ)
-						nodeXml.@virtualization_subtype = SliverTypes.EMULAB_OPENVZ;
+					if(node.sliverType.name == EmulabOpenVzSliverType.TYPE_EMULABOPENVZ)
+						nodeXml.@virtualization_subtype = EmulabOpenVzSliverType.TYPE_EMULABOPENVZ;
+					if(node.sliverType.name == EmulabBbgSliverType.TYPE_EMULAB_BBG)
+						nodeXml.@virtualization_subtype = EmulabBbgSliverType.TYPE_EMULAB_BBG;
 				}
 				if(node.hardwareType.name.length == 0)
 				{
 					var nodeType:String = "";
-					if(node.sliverType.name == SliverTypes.RAWPC_V2)
+					if(node.sliverType.name == RawPcSliverType.TYPE_RAWPC_V2)
 						nodeType = "pc";
-					else if(node.sliverType.name == SliverTypes.EMULAB_OPENVZ)
+					else if(node.sliverType.name == EmulabOpenVzSliverType.TYPE_EMULABOPENVZ)
 						nodeType = "pcvm";
-					else if(node.sliverType.name == SliverTypes.JUNIPER_LROUTER)
-						nodeType = SliverTypes.JUNIPER_LROUTER;
-					var nodeTypeXml:XML = <node_type />;
-					nodeTypeXml.@type_name = nodeType;
-					nodeTypeXml.@type_slots = 1;
-					nodeXml.appendChild(nodeTypeXml);
+					else if(node.sliverType.name == JuniperRouterSliverType.TYPE_JUNIPER_LROUTER)
+						nodeType = JuniperRouterSliverType.TYPE_JUNIPER_LROUTER;
+					if(nodeType.length > 0)
+					{
+						var nodeTypeXml:XML = <node_type />;
+						nodeTypeXml.@type_name = nodeType;
+						nodeTypeXml.@type_slots = 1;
+						nodeXml.appendChild(nodeTypeXml);
+					}
 				}
 				if(includeManifest && node.id != null && node.id.full.length > 0)
 					nodeXml.@sliver_urn = node.id.full;
@@ -455,24 +511,31 @@ package com.flack.geni.tasks.process
 						interfaceXml.appendChild(ipXml);
 					}
 				}
+				
+				var interfaceFlackXml:XML = <interface_info />;
+				interfaceFlackXml.setNamespace(RspecUtil.flackNamespace);
+				interfaceFlackXml.@addressUnset = current.ip == null || current.ip.address.length  == 0;
+				interfaceXml.appendChild(interfaceFlackXml);
+				
 				nodeXml.appendChild(interfaceXml);
 			}
 			
-			if(version.version >= 2)
-			{
-				var flackXml:XML = <node_info />;
-				flackXml.setNamespace(RspecUtil.flackNamespace);
-				flackXml.@x = node.flackInfo.x;
-				flackXml.@y = node.flackInfo.y;
-				flackXml.@unbound = node.flackInfo.unbound;
-				nodeXml.appendChild(flackXml);
-			}
+			// Meh, add into older rspec versions too...
+			var flackXml:XML = <node_info />;
+			flackXml.setNamespace(RspecUtil.flackNamespace);
+			flackXml.@x = node.flackInfo.x;
+			flackXml.@y = node.flackInfo.y;
+			flackXml.@unbound = node.flackInfo.unbound;
+			nodeXml.appendChild(flackXml);
 			
 			return nodeXml;
 		}
 		
 		public function generateLinkRspec(link:VirtualLink, version:RspecVersion):XML
 		{
+			if(link.interfaceRefs.length == 0)
+				return null;
+			
 			var linkXml:XML = link.extensions.createAndApply("link");
 			
 			if(version.version < 1)
@@ -487,6 +550,9 @@ package com.flack.geni.tasks.process
 				if(includeManifest && link.id != null && link.id.full.length > 0)
 					linkXml.@sliver_id = link.id.full;
 			}
+			
+			if(link.vlantag.length > 0)
+				linkXml.@vlantag = link.vlantag;
 			
 			var manager:GeniManager;
 			
@@ -528,9 +594,15 @@ package com.flack.geni.tasks.process
 						if(currentReference.referencedInterface.ip != null && currentReference.referencedInterface.ip.address.length > 0)
 						{
 							interfaceRefXml.@IP = currentReference.referencedInterface.ip.address;
-							interfaceRefXml.@netmask = currentReference.referencedInterface.ip.netmask;
+							if(currentReference.referencedInterface.ip.netmask.length > 0)
+								interfaceRefXml.@netmask = currentReference.referencedInterface.ip.netmask;
 						}
 					}
+					
+					if(currentReference.referencedInterface.macAddress.length > 0)
+						interfaceRefXml.@MAC = currentReference.referencedInterface.macAddress;
+					if(currentReference.referencedInterface.vmac.length > 0)
+						interfaceRefXml.@VMAC = currentReference.referencedInterface.vmac;
 				}
 				else
 					interfaceRefXml.@client_id = currentReference.referencedInterface.clientId;
@@ -624,16 +696,45 @@ package com.flack.geni.tasks.process
 						lan_type.@name = LinkType.LAN_V2;
 					linkXml.appendChild(lan_type);
 					break;
+				case LinkType.VLAN:
+					// Don't include if external VLAN depends on this VLAN
+					var vlanManagers:GeniManagerCollection = link.interfaceRefs.Interfaces.Managers;
+					if(sliver != null)
+					{
+						if(vlanManagers.length > 1)
+						{
+							if(link.vlantag.length == 0)
+								return null;
+						}
+						else if(vlanManagers.length == 1
+							&& vlanManagers.collection[0] != sliver.manager)
+						{
+							return null;
+						}
+					}
+					if(version.version < 1)
+					{
+						linkXml.@link_type = LinkType.VLAN;
+					}
+					else
+					{						// Moved to here, was messing up 
+						var vlan_type:XML = link.type.extensions.createAndApply("link_type");
+						vlan_type.setChildren(LinkType.VLAN);
+						vlan_type.@link_type = LinkType.VLAN;
+						vlan_type.@name = LinkType.VLAN;
+						linkXml.appendChild(vlan_type);
+					}
+					
+					break;
 			}
 			
-			if(version.version >= 2 && link.flackInfo.x != -1)
-			{
-				var flackXml:XML = <link_info />;
-				flackXml.setNamespace(RspecUtil.flackNamespace);
-				flackXml.@x = link.flackInfo.x;
-				flackXml.@y = link.flackInfo.y;
-				linkXml.appendChild(flackXml);
-			}
+			// Meh, add into older rspec versions too...
+			var flackXml:XML = <link_info />;
+			flackXml.setNamespace(RspecUtil.flackNamespace);
+			flackXml.@x = link.flackInfo.x;
+			flackXml.@y = link.flackInfo.y;
+			flackXml.@unboundVlantag = link.flackInfo.unboundVlantag;
+			linkXml.appendChild(flackXml);
 			
 			return linkXml;
 		}

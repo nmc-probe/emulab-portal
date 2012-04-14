@@ -10,11 +10,12 @@
 			import com.flack.geni.resources.virtual.VirtualNode;
 			
 			import mx.collections.ArrayCollection;
+			import mx.events.FlexEvent;
 			
 			[Bindable]
 			private var planetlabInitscripts:ArrayCollection = null;
 			
-			override public function initTo(node:VirtualNode, sliverType:SliverType):void
+			override public function initTo(sliverType:SliverType):void
 			{
 				planetlabInitscripts = new ArrayCollection();
 				if(sliverType.sliverTypeSpecific is PlanetlabSliverType)
@@ -39,12 +40,20 @@
 					newSliverType.selectedInitscript = planetlabInitscriptDropdownlist.selectedItem;
 				node.sliverType.sliverTypeSpecific = newSliverType;
 			}
+			
+			protected function planetlabInitscriptDropdownlist_valueCommitHandler(event:FlexEvent):void
+			{
+				if(planetlabInitscriptDropdownlist.selectedItem != null)
+					usePlanetlabInitCheckbox.selected = true;
+			}
+			
 		]]>
 	</fx:Script>
 	<s:CheckBox id="usePlanetlabInitCheckbox"
 				label="Run initscript" />
 	<s:DropDownList id="planetlabInitscriptDropdownlist"
 					dataProvider="{planetlabInitscripts}"
-					valueCommit="if(planetlabInitscriptDropdownlist.selectedItem != null) usePlanetlabInitCheckbox.selected = true"
+					valueCommit="planetlabInitscriptDropdownlist_valueCommitHandler(event)"
+					change="host.okButton.enabled = true;"
 					width="100%" />
 </plugins:SliverTypePart>
