@@ -60,21 +60,25 @@ my $hide_trivial_merges = get_config("hidetrivialmerges",undef);
 #
 my %opt;
 Getopt::Long::Configure("no_ignore_case");
-if (!GetOptions(\%opt, 'd', 'h', 't', 'T=s', 'o=s@') || @ARGV || $opt{h}) {
+if (!GetOptions(\%opt, 'd', 'h', 't', 'T=s', 'C=s', 'o=s@')
+        || @ARGV || $opt{h}) {
     print STDERR "Usage: gitmail [-h|-d]\n";
     print STDERR "  -h     this message\n";
     print STDERR "  -d     enable debugging output and don't send mail\n";
     print STDERR "  -t     test mode - operate on last 3 commits to master\n";
     print STDERR "  -T br  like '-t', but use branch 'br' instead of master\n";
+    print STDERR "  -C n   in test mode, use the last n commits for testing \n";
     print STDERR "  -o o=v give option o the value v (may be given multiple\n";
     print STDERR "         times)\n";
     exit 1;
 }
 
 my $testbranch = "master";
+my $testcommits = 3;
 if ($opt{d}) { $debug    = 1; }
 if ($opt{t}) { $testmode = 1; }
 if ($opt{T}) { $testmode = 1; $testbranch = $opt{T} }
+if ($opt{C}) { $testcommits = $opt{C} }
 
 #
 # Name of this repository - set it to a string to get it included in the
@@ -289,7 +293,7 @@ if ($testmode) {
     #
     # Provide a simple way to grab some commits - the three most recent ones
     #
-    @reflines = ("$newrev~3 $newrev $fullref");
+    @reflines = ("$newrev~'$testcommits' $newrev $fullref");
 } else {
     #
     # Get all of the references that are being pushed from stdin - we do this in
