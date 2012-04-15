@@ -289,7 +289,7 @@ if ($testmode) {
     #
     # Provide a simple way to grab some commits - the three most recent ones
     #
-    @reflines = ("$newrev~2 $newrev $fullref");
+    @reflines = ("$newrev~3 $newrev $fullref");
 } else {
     #
     # Get all of the references that are being pushed from stdin - we do this in
