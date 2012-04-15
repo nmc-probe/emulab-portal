@@ -186,6 +186,12 @@ my $exclude_repo = get_config("excluderepo",undef);
 #
 my @repo_keywords = get_config("keyword",undef);
 
+#
+# If defined, produce a summary at the top of the mail if there are at least
+# this many commits
+#
+my $summary_threshold = get_config("summarythreshold",undef);
+
 ######################################################################
 # Constants
 ######################################################################
@@ -226,6 +232,7 @@ sub revparse($);
 sub changed_files(@);
 sub get_mail_addresses($@);
 sub get_merge_base($$);
+sub get_summary($);
 sub uniq(@);
 sub flatten_arrayref($);
 sub commit_mail($\@$@);
@@ -714,6 +721,20 @@ sub commit_mail($\@$@) {
 
     $actionstring .= "\n\n";
 
+    #
+    # Make a pretty summary of commits if there are enough of them
+    #
+    my $summary;
+    if (defined($summary_threshold) && scalar(@$commits) >= $summary_threshold
+            && !$separate_mail) {
+        my @summaries;
+        foreach my $rev (@$commits) {
+            push @summaries, get_summary($rev);
+        }
+        $summary = join("\n",@summaries) . 
+            "\n\n" . "="x72 . "\n\n";
+    }
+
     my @fullbody;
     foreach my $rev (@$commits) {
         #
@@ -775,7 +796,9 @@ sub commit_mail($\@$@) {
     #
     if (!$separate_mail && @fullbody) {
         send_mail($subject,
-            $actionstring . join("\n" . "-"x72 . "\n\n",
+            $actionstring .
+            $summary .
+            join("\n" . "-"x72 . "\n\n",
                                  map { join "",@$_} @fullbody),
             short_refname($refname),
             @mailaddrs);
@@ -1051,6 +1074,20 @@ sub get_merge_base($$)
 	chomp $mb;
 
 	return $mb
+}
+
+#
+# Returns a one-line summary of the given commit. Ensures that the resulting
+# line is suitable for mail (ie. truncates it to 72 characters)
+# (assumes the object passed in is a commit object; doesn't check!)
+#
+sub get_summary($) {
+    my ($rev) = @_;
+    # I would imagine there's a less hacky way to get the summary of one
+    # commit? 'git show' insists on printing the diff, though
+    my $oneliner = `$GIT log --oneline '$rev~'..'$rev'`;
+    chomp $oneliner;
+    return substr($oneliner,0,72);
 }
 
 #
