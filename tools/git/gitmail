@@ -237,6 +237,13 @@ my $patch_size_limit = get_config("patchsizelimit",10000);
 #
 my $max_patches = get_config("maxpatches",20);
 
+#
+# URL for a gitweb server for this repository. If set, links will
+# be sent for each commit pointing to the entry on gitweb
+# For example: http://git-public.flux.utah.edu/?p=emulab-devel.git
+#
+my $gitweb_url = get_config("gitweburl",undef);
+
 ######################################################################
 # Constants
 ######################################################################
@@ -815,7 +822,7 @@ sub commit_mail($$$\@$@) {
     #
     # Make a pretty summary of commits if there are enough of them
     #
-    my $summary;
+    my $summary = "";
     if (!$disable_summary && defined($summary_threshold)
             && scalar(@$commits) >= $summary_threshold && !$separate_mail) {
         my @summaries;
@@ -868,6 +875,14 @@ sub commit_mail($$$\@$@) {
 			next;
 		}
 	}
+
+        #
+        # Add a URL to look at the commit if set for this repo
+        #
+	if (defined($gitweb_url)) {
+            my $shortrev = short_hash($rev);
+	    push @commit_text, "\n${gitweb_url};a=commitdiff;h=$shortrev\n";
+        }
 
         #
         # Grab patches - we do this seperately so that we can put them down
