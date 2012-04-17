@@ -685,6 +685,8 @@ REPLACE INTO state_transitions VALUES ('PXEFBSD','MFSSETUP','SHUTDOWN','Error');
 REPLACE INTO state_transitions VALUES ('PXEFBSD','ISUP','SHUTDOWN','Reboot');
 REPLACE INTO state_transitions VALUES ('PXEFBSD','SHUTDOWN','PXEBOOTING','DHCP');
 REPLACE INTO state_transitions VALUES ('SECURELOAD','TPMSIGNOFF','GPXEBOOTING','ReloadDone');
+REPLACE INTO state_transitions VALUES ('SECUREBOOT','SHUTDOWN','GPXEBOOTING','QuoteOK');
+REPLACE INTO state_transitions VALUES ('SECUREBOOT','SHUTDOWN','SECVIOLATION','QuoteFailed');
 
 --
 -- Dumping data for table `state_triggers`
