@@ -211,8 +211,10 @@ my $disable_summary = get_config("nosummary",undef);
 # Style used for displaying summaries. Supported styles:
 #   hashes - Include hash and summary
 #   bare   - Include summary only
+#   list   - Like bare, but formatted to look more like a list
+#   name   - Prefix summary with author name
 #
-my $summary_style = get_config("summarystyle","hashes");
+my $summary_style = get_config("summarystyle","list");
 
 ######################################################################
 # Constants
@@ -1127,7 +1129,11 @@ sub get_summary($) {
     if ($summary_style eq "hashes") {
         $oneliner = `$GIT log --oneline $revs`;
     } elsif ($summary_style eq "bare") {
-        $oneliner = `$GIT log --format='format:  %s' $revs`;
+        $oneliner = `$GIT log --format='format:%s' $revs`;
+    } elsif ($summary_style eq "list") {
+        $oneliner = `$GIT log --format='format: - %s' $revs`;
+    } elsif ($summary_style eq "name") {
+        $oneliner = `$GIT log --format='format:%cN: %s' $revs`;
     } else {
         warn "gitmail: Bad summary style '$summary_style'\n";
         $oneliner = `$GIT log --oneline $revs`;
