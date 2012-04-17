@@ -253,13 +253,14 @@ sub change_type($$$);
 sub ref_type($);
 sub rev_type($);
 sub revparse($);
+sub short_hash($);
 sub changed_files(@);
 sub get_mail_addresses($@);
 sub get_merge_base($$);
 sub get_summary($);
 sub uniq(@);
 sub flatten_arrayref($);
-sub commit_mail($\@$@);
+sub commit_mail($$$\@$@);
 sub get_commits($$$);
 sub send_mail($$$@);
 sub short_refname($);
@@ -459,7 +460,7 @@ foreach my $refline (@reflines) {
     # Send off the mail!
     #
     if (@mailaddrs) {
-        commit_mail($ct,@commits,$refname,@mailaddrs);
+        commit_mail($ct,$oldrev,$newrev,@commits,$refname,@mailaddrs);
     }
 }
 
@@ -538,6 +539,16 @@ sub revparse($) {
     }
     chomp $parsedrev;
     return $parsedrev;
+}
+
+#
+# Take a git hash and return the short (abbreviated) form.
+#
+sub short_hash($) {
+    my ($hash) = @_;
+    my $short = `$GIT rev-parse --short $hash $STDERRNULL`;
+    chomp($short);
+    return $short;
 }
 
 #
@@ -716,7 +727,7 @@ sub flatten_arrayref($) {
 # Send mail about a regular update commit
 #
 sub commit_mail($\@$@) {
-    my ($ct,$commits,$refname,@mailaddrs) = @_;
+    my ($ct,$oldrev,$newrev,$commits,$refname,@mailaddrs) = @_;
 
     #
     # Construct the subject line. For now, we just say what repo (if defined)
@@ -760,6 +771,10 @@ sub commit_mail($\@$@) {
         $actionstring .= "  to point to the following commit:";
     } elsif ($ct eq $CT_DELETE) {
 	$actionstring .= ".  It previously pointed to the following commit:";
+    } elsif ($ct eq $CT_UPDATE) {
+        my $oldshort = short_hash($oldrev);
+        my $newshort = short_hash($newrev);
+	$actionstring .= ": $oldshort..$newshort";
     }
 
     $actionstring .= "\n\n";
