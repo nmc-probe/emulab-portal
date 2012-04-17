@@ -268,6 +268,8 @@ sub debug(@);
 sub object_exists($$);
 sub filter_out_objects_in_repo($@);
 sub generate_messageid();
+sub get_hostname();
+sub get_pathname();
 
 ######################################################################
 # Main Body
@@ -1005,6 +1007,12 @@ sub send_mail($$$@) {
         print MAIL "X-Git-Ref: $refname\n";
 
         #
+        # Add headers to help people figure out where this repo lives
+        #
+        print MAIL "X-Git-Repo-Host: " . get_hostname() . "\n";
+        print MAIL "X-Git-Repo-Path: " . get_pathname() . "\n";
+
+        #
         # Marks end of headers
         #
         print MAIL "\n";
@@ -1206,4 +1214,23 @@ sub generate_messageid() {
     debug("generated message id $msgid");
 
     return $msgid;
+}
+
+#
+# Get the hostame - right now, only supports using the 'hostname' command, by
+# might be configurable at some point in the future
+#
+sub get_hostname() {
+    my $hostname = `$HOSTNAME -f $STDERRNULL`;
+    chomp $hostname;
+    return $hostname;
+}
+
+#
+# Gets the path for the repo
+#
+sub get_pathname() {
+    my $pwd = `$GIT rev-parse --show-toplevel $STDERRNULL`;
+    chomp $pwd;
+    return $pwd;
 }
