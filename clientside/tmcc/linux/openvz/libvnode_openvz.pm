@@ -1054,9 +1054,11 @@ sub vz_vnodeTearDown {
     # Delete the ip links
     if (exists($private->{'iplinks'})) {
 	foreach my $iface (keys(%{ $private->{'iplinks'} })) {
-	    mysystem2("$IP link del dev $iface");
-	    goto badbad
-		if ($?);
+            if (-e "/sys/class/net/$iface") {
+	        mysystem2("$IP link del dev $iface");
+	        goto badbad
+		  if ($?);
+            }
 	    delete($private->{'iplinks'}->{$iface});
 	}
     }
@@ -1504,6 +1506,7 @@ sub vz_vnodePreConfigControlNetwork {
     print FD "DOMAIN=$longdomain\n";
     print FD "NOZEROCONF=yes\n";
     close(FD);
+    mysystem("$VZCTL $VZDEBUGOPTS set $vnode_id --hostname $vname.$longdomain --save");
 
     #
     # dhclient-exit-hooks normally writes this stuff on linux, so we'd better
@@ -1628,6 +1631,7 @@ sub vz_vnodePreConfigExpNetwork {
 				      $ifc->{VMAC});
 
 	($ethmac,$vethmac) = (macAddSep($ethmac),macAddSep($vethmac));
+	print "DEBUG ethmac=$ethmac, vethmac=$vethmac\n";
 
 	if ($USE_MACVLAN) {
 	    #
@@ -1637,7 +1641,7 @@ sub vz_vnodePreConfigExpNetwork {
 	    my $vname = "mv$vmid.$ifc->{ID}";
 	    if (! -d "/sys/class/net/$vname") {
 		mysystem("$IP link add link $physdev name $vname ".
-			 "  address $vethmac type macvlan mode bridge ");
+			 "  address $ethmac type macvlan mode bridge ");
 		$private->{'iplinks'}->{$vname} = $physdev;
 	    }
 	    #
