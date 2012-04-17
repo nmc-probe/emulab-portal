@@ -728,7 +728,7 @@ sub flatten_arrayref($) {
 #
 # Send mail about a regular update commit
 #
-sub commit_mail($\@$@) {
+sub commit_mail($$$\@$@) {
     my ($ct,$oldrev,$newrev,$commits,$refname,@mailaddrs) = @_;
 
     #
