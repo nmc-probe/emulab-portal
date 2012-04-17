@@ -190,7 +190,13 @@ my @repo_keywords = get_config("keyword",undef);
 # If defined, produce a summary at the top of the mail if there are at least
 # this many commits
 #
-my $summary_threshold = get_config("summarythreshold",undef);
+my $summary_threshold = get_config("summarythreshold",2);
+
+#
+# Disable summry messages; they are now on by default
+# this many commits
+#
+my $disable_summary = get_config("nosummary",undef);
 
 ######################################################################
 # Constants
@@ -725,8 +731,8 @@ sub commit_mail($\@$@) {
     # Make a pretty summary of commits if there are enough of them
     #
     my $summary;
-    if (defined($summary_threshold) && scalar(@$commits) >= $summary_threshold
-            && !$separate_mail) {
+    if (!$disable_summary && defined($summary_threshold)
+            && scalar(@$commits) >= $summary_threshold && !$separate_mail) {
         my @summaries;
         foreach my $rev (@$commits) {
             push @summaries, get_summary($rev);
