@@ -1137,7 +1137,7 @@ sub get_config($$) {
     if ($opt{o}) {
         my @values;
         foreach my $pair (@{$opt{o}}) {
-            my ($name,$value) = split /=/, $pair;
+            my ($name,$value) = split /=/, $pair, 2;
             if ($name eq $var) {
                 debug("Using config value $value for $name from command line");
                 if ($multivalue) {
