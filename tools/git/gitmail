@@ -1289,7 +1289,9 @@ sub get_hostname() {
 # Gets the path for the repo
 #
 sub get_pathname() {
-    my $pwd = `$GIT rev-parse --show-toplevel $STDERRNULL`;
+    # Unfortunately, older versions of git don't have '--show-toplevel'
+    #my $pwd = `$GIT rev-parse --show-toplevel $STDERRNULL`;
+    my $pwd = `pwd`;
     chomp $pwd;
     return $pwd;
 }
