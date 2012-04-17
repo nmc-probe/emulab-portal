@@ -216,6 +216,27 @@ my $disable_summary = get_config("nosummary",undef);
 #
 my $summary_style = get_config("summarystyle","list");
 
+#
+# If set, puts a set of patches at the bottom of the mail, after all
+# commit messages
+#
+my $include_patches = get_config("includepatches",undef);
+
+#
+# Patch style: currently supported options are 'default' and 'word'
+#
+my $patch_style = get_config("patchstyle","default");
+
+#
+# Limit to the number of lines in an individual patch
+#
+my $patch_size_limit = get_config("patchsizelimit",10000);
+
+#
+# Limit to the number of patches to include in a single mail
+#
+my $max_patches = get_config("maxpatches",20);
+
 ######################################################################
 # Constants
 ######################################################################
@@ -231,6 +252,16 @@ my $HOSTNAME = get_config("hostname","hostname");
 # Magic 'hash' that indicates an empty or non-existant rev
 #
 my $EMPTYREV = "0"x40;
+
+#
+# Separator between commits
+#
+my $SEP = "\n" . "-"x72 . "\n\n";
+
+#
+# Separator between body parts
+#
+my $BODYSEP = "\n" . "="x72 . "\n\n";
 
 #
 # Types of changes
@@ -791,11 +822,11 @@ sub commit_mail($$$\@$@) {
         foreach my $rev (@$commits) {
             push @summaries, get_summary($rev);
         }
-        $summary = join("\n",@summaries) . 
-            "\n\n" . "="x72 . "\n\n";
+        $summary = join("\n",@summaries) . "\n" . $BODYSEP;
     }
 
-    my @fullbody;
+    my @commitmessages;
+    my @patches;
     foreach my $rev (@$commits) {
         #
         # Just use regular git show command, with purty +/- summary at the
@@ -803,7 +834,7 @@ sub commit_mail($$$\@$@) {
         #
         my $showcommand = "$GIT show $showcommit_args '$rev'";
         debug("running '$showcommand'");
-        my @body = `$showcommand`;
+        my @commit_text = `$showcommand`;
         
         if ($hide_trivial_merges) {
 	        my $is_merge = 0;
@@ -815,7 +846,7 @@ sub commit_mail($$$\@$@) {
 		# of git-show will not change.  We could use --pretty
 		# to produce exactly the format we want, but since we've
 		# already called git-show we'll just use that.
-	        for (@body) {
+	        for (@commit_text) {
 		        $is_merge = 1 if (/^Merge:/);
 			if (/^ /) {
 				if (not defined $subject) {
@@ -838,24 +869,52 @@ sub commit_mail($$$\@$@) {
 		}
 	}
 
+        #
+        # Grab patches - we do this seperately so that we can put them down
+        # below the commit logs
+        #
+	my @patch_text;
+	if (defined($include_patches) && $include_patches &&
+                scalar(@$commits) <= $max_patches) {
+	    my $patchcommand = "$GIT show --format='format:commit %H'";
+	    if ($patch_style eq "word") {
+	        $patchcommand .= " --word-diff";
+            }
+	    $patchcommand .= " '$rev'";
+	    debug("running '$patchcommand'");
+	    @patch_text = `$patchcommand $STDERRNULL`;
+
+            # Just nuke the patch if it's too long
+            if (scalar(@patch_text) > $patch_size_limit) {
+                @patch_text = ();
+            }
+        }
+
         if ($separate_mail) {
             # Send this message by itself
-            send_mail($subject,$actionstring . join("",@body),
-                short_refname($refname), @mailaddrs);
+            send_mail($subject,
+                $actionstring . join("",@commit_text) . "\n" .
+                    join("",@patch_text),
+                short_refname($refname),
+                @mailaddrs);
         } else {
-            push @fullbody,\@body;
+            push @commitmessages,\@commit_text;
+            if (scalar(@patch_text)) {
+                push @patches, \@patch_text;
+            }
         }
     }
 
     #
     # Send all the changes together in one message
     #
-    if (!$separate_mail && @fullbody) {
+    if (!$separate_mail && @commitmessages) {
         send_mail($subject,
             $actionstring .
             $summary .
-            join("\n" . "-"x72 . "\n\n",
-                                 map { join "",@$_} @fullbody),
+            join($SEP, map { join "",@$_} @commitmessages) .
+            (scalar(@patches) ? "$BODYSEP" : "") .
+            join("\n", map { join "",@$_} @patches),
             short_refname($refname),
             @mailaddrs);
     }
