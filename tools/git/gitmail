@@ -164,10 +164,19 @@ my $detach = get_config("detach",undef);
 my $separate_mail = get_config("separatemail",undef);
 
 #
-# If set, these arguments will be passed *in addition* to the regular arguments
-# to 'git show' to produce descriptions of commits
+# Select a style for displaying commits.
+# Supported styles are:
+#   default - default style, includes commig log and summary of changed files
+#   diff    - include a diff, like 'git show' does by default
+#   wdiff    - like diff, but word-diff (useful for LaTeX, etc.)
 #
-my $showcommit_extra = get_config("showcommitextra",undef);
+my $commit_style = get_config("commitstyle","default");
+
+#
+# If set, overrides the options to 'git show' that would be set by the
+# 'commitstyle' option.
+#
+my $showcommit_args = get_config("showcommitargs",undef);
 
 #
 # If set, check all commit objects to see if they exist in the repository
@@ -329,6 +338,25 @@ if ($detach && !$debug) {
     exit if $pid;
     setsid                  or die "Can't start a new session: $!";
     open STDERR, '>&STDOUT' or die "Can't dup stdout: $!";
+}
+
+#
+# Figure out args we'll use to 'git show'
+#
+if (!defined($showcommit_args)) {
+    if ($commit_style eq "default") {
+        $showcommit_args = "--numstat --shortstat";
+    } elsif ($commit_style eq "diff") {
+        $showcommit_args = "";
+    } elsif ($commit_style eq "wdiff") {
+        $showcommit_args = "--word-diff";
+    } else {
+        warn "gitmail: Bad commit display style '$commit_style'\n";
+        $showcommit_args = "--numstat --shortstat";
+    }
+    debug("Using predefined commit args: '$showcommit_args'");
+} else {
+    debug("Using showcommit_args: '$showcommit_args'");
 }
 
 #
@@ -747,11 +775,7 @@ sub commit_mail($\@$@) {
         # Just use regular git show command, with purty +/- summary at the
         # bottom (formatted to be narrow enough for email)
         #
-        my $showcommand = "$GIT show --numstat --shortstat ";
-        if (defined($showcommit_extra)) {
-            $showcommand .= "$showcommit_extra ";
-        }
-        $showcommand .= "'$rev'";
+        my $showcommand = "$GIT show $showcommit_args '$rev'";
         debug("running '$showcommand'");
         my @body = `$showcommand`;
         
