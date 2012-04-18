@@ -431,6 +431,9 @@ $robotexp =
     TBExptContainsNodeCT($pid,$eid,'motehost') || 
     TBExptContainsNodeCT($pid,$eid,'powermon');
 
+# See below.
+my $sharingvlans = $experiment->SharingVlans();
+
 #
 # We have to protect against trying to end an experiment that is currently
 # in the process of being terminated. We use a "wrapper" state (actually
@@ -651,8 +654,7 @@ else {
 
 	ExitWithStatus(1,
 		       "Experiment is sharing vlans; cannot swap or modify!\n")
-	    if (($inout eq "out" || $inout eq "modify") &&
-		$experiment->SharingVlans());
+	    if (($inout eq "out" || $inout eq "modify") && $sharingvlans);
 
 	#
 	# Check the state for the various operations.
