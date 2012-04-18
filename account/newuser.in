@@ -323,7 +323,7 @@ else {
 # Check the passphrase if supplied.
 #
 if (exists($xmlparse->{'attribute'}->{'passphrase'}) &&
-    $xmlparse->{'attribute'}->{'passphrase'}->{'value'} != "") {
+    $xmlparse->{'attribute'}->{'passphrase'}->{'value'} ne "") {
     my $passphrase = $xmlparse->{'attribute'}->{'passphrase'}->{'value'};
     
     my $checkpass_args = escapeshellarg($passphrase);
