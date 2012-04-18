@@ -1,8 +1,8 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2004, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2004, 2007, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -186,8 +186,9 @@ while (my ($bridgeid, $linkid) = $query_result->fetchrow_array) {
 # Grab virtual lan configuration from the DB
 #
 $query_result =
-    DBQueryFatal("select vname,member,cost,mask " .
-		 "from virt_lans where pid='$pid' and eid='$eid'");
+    DBQueryFatal("select vname,count(member) as memcount from virt_lans ".
+		 "where pid='$pid' and eid='$eid' ".
+		 "group by vname having memcount > 1");
 if (!$query_result->numrows) {
     warn("*** $0:\n".
 	 "    No links or lans in experiment $pid/$eid!\n");
@@ -206,28 +207,35 @@ my %costs = ();
 my %masks = ();
 my %lan2iface = ();
 my %iface2lan = ();
-while (my ($vlan_name,$member,$cost,$mask) = $query_result->fetchrow_array) {
-    my($vnode, $iface) = split(":", $member);
 
-    # If this is a bridge node, skip address assignment for it.
-    next
-	if (exists($bridges{$vnode}));
+while (my ($vlan_name) = $query_result->fetchrow_array) {
+    my $vlan_result =
+	DBQueryFatal("select member,cost,mask from virt_lans ".
+		     "where vname='$vlan_name' and pid='$pid' and eid='$eid'");
+    
+    while (my ($member,$cost,$mask) = $vlan_result->fetchrow_array) {
+	my ($vnode, $iface) = split(":", $member);
 
-    my $vlan = getRoot($vlan_name);
-    if (! defined($lans{$vlan})) {
-	$lans{$vlan} = [];
+	# If this is a bridge node, skip address assignment for it.
+	next
+	    if (exists($bridges{$vnode}));
+
+	my $vlan = getRoot($vlan_name);
+	if (! defined($lans{$vlan})) {
+	    $lans{$vlan} = [];
+	}
+	if (! defined($vnode2index{$vnode})) {
+	    $vnode2index{$vnode} = $vindex;
+	    $index2vnode{$vindex} = $vnode;
+	    $vindex++;
+	}
+
+	push(@{$lans{$vlan}},$vnode2index{$vnode});
+	$lan2iface{$vlan}->{$vnode} = $iface;
+	$iface2lan{$vnode}->{$iface} = $vlan_name;
+	$costs{$vlan} = int($cost);
+	$masks{$vlan} = inet_aton($mask);
     }
-    if (! defined($vnode2index{$vnode})) {
-        $vnode2index{$vnode} = $vindex;
-        $index2vnode{$vindex} = $vnode;
-        $vindex++;
-    }
-
-    push(@{$lans{$vlan}},$vnode2index{$vnode});
-    $lan2iface{$vlan}->{$vnode} = $iface;
-    $iface2lan{$vnode}->{$iface} = $vlan_name;
-    $costs{$vlan} = int($cost);
-    $masks{$vlan} = inet_aton($mask);
 }
 
 #
@@ -265,6 +273,9 @@ my %lan2index = ();
 my %index2lan = ();
 while (my ($vlan, $membptr) = each %lans) {
     my @members = @{$membptr};
+    next
+	if (@members < 2);
+    
     $index2lan{$lindex} = $vlan;
     $lan2index{$vlan} = $lindex;
     $lindex++;
