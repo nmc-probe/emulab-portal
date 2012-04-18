@@ -71,6 +71,8 @@ use User;
 # Need a command line option.
 my $debug      = 0;
 my $mailerrors = 1;
+# Flag for XMLERROR.
+my $logging    = 0;
 
 # Determined by version.
 my $responder;
@@ -94,8 +96,13 @@ sub XMLError($$)
     my ($code, $string) = @_;
 
     my $decoder = Frontier::RPC2->new();
+    my $string  = $decoder->encode_fault($code, $string);
+
+    # Make sure the error goes back to user not into the debug file.
+    LogEnd(0)
+	if ($logging);
     print "Content-Type: text/xml \n\n";
-    print $decoder->encode_fault($code, $string);
+    print $string;
     exit(0);
 }
 
@@ -294,6 +301,7 @@ if ($MAINSITE) {
 else {
     LogStart(0, undef, LIBAUDIT_LOGTBOPS());
 }
+$logging = 1;
 
 # CC errors to Utah for now.
 AddAuditInfo("cc", "protogeni-errors\@flux.utah.edu");
@@ -307,9 +315,10 @@ my $call;
 my $response;
 
 $request =~ s/(<\?XML\s+VERSION)/\L$1\E/;
+$request =~ s/[^[:ascii:]]+//g;
 eval { $call = $decoder->decode($request) };
 if ($@) {
-    XMLError(XMLRPC_PARSE_ERROR(), "error decoding RPC:\n" . $@);
+    XMLError(XMLRPC_PARSE_ERROR(), "error decoding RPC:\n" . "$@");
 }
 if ($call->{'type'} ne 'call') {
     XMLError(XMLRPC_APPLICATION_ERROR(),
