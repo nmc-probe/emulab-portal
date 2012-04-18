@@ -1345,8 +1345,10 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    $ifacemap{$node_nickname}->{$virtual_id} = {"rspec" => $linkref,
 							"vport" => $vport};
 
+	    my $member = "$node_nickname:$vport";
+
 	    # This is used after the mapper runs since it uses vname:vport.
-	    $vportmap{"$node_nickname:$vport"} = {"rspec" => $linkref};
+	    $vportmap{$member} = {"rspec" => $linkref};
 	}
 
 	#
@@ -1423,6 +1425,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 					   "hoplist" => \@hoplist };
 	}
     }
+    
     #
     # Now deal with links for wildcarded nodes. 
     #
@@ -1725,7 +1728,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 
 	    my $ip = GeniXML::GetIp($ref, $nodemap{$node_nickname}->{'rspec'});
 	    my $mask = GeniXML::GetMask($ref, $nodemap{$node_nickname}->{'rspec'});
-	    
+
 	  stitch:
 	    # XXX
 	    $ip     = "10.10.${linknum}.${ifacenum}" if (!defined($ip));
@@ -1765,7 +1768,23 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    if (defined($bblob->{'latency'}));
 		$bridge_vname = $bblob->{'name'};
 	    }
+	    
+	    # Watch for shared lans; we have to add the lan entries for them.
+	    my $shared_vlan = GeniXML::GetSharedLanName($linkref);
+	    if (defined($shared_vlan)) {
+		# This is the magic for libvtop.
+		$virtexperiment->NewTableRow("virt_lan_settings",
+					     {"vname"   => $lanname,
+					      "capkey"  => "portvlan",
+					      "capval"  => $shared_vlan});
 
+		# Clear all this.
+		$bandwidth = 0;
+		$latency   = 0.0;
+		$lossrate  = 0.0;
+	    }
+	    
+	  stitch:	    
 	    my $virtlan =
 		$virtexperiment->NewTableRow("virt_lans",
 					 {"vname"       => $lanname,

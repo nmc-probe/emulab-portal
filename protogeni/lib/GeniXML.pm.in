@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2010-2011 University of Utah and the Flux Group.
+# Copyright (c) 2010-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniXML;
@@ -31,7 +31,7 @@ use Carp qw(cluck carp);
 
 use vars qw($RSPEC_0_1 $RSPEC_0_2 $RSPEC_2 $RSPEC_3
             $RSPEC_0_1_NS $RSPEC_0_2_NS $RSPEC_2_NS
-            $EMULAB_NS $XSI_NS $STITCH_NS
+            $EMULAB_NS $XSI_NS $STITCH_NS $SHAREDVLAN_NS
             $REQUEST_2_URL $MANIFEST_2_URL
             $REQUEST_3_URL $MANIFEST_3_URL);
 $RSPEC_0_1 = "0.1";
@@ -46,6 +46,7 @@ our $RSPEC_3_NS = "http://www.geni.net/resources/rspec/3";
 our $EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 our $XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
 our $STITCH_NS = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
+our $SHAREDVLAN_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
 $REQUEST_2_URL = "http://www.protogeni.net/resources/rspec/2/request.xsd";
 $MANIFEST_2_URL = "http://www.protogeni.net/resources/rspec/2/manifest.xsd";
@@ -665,6 +666,24 @@ sub GetDelayPipes($)
 	}
     }
     return @result;
+}
+
+sub GetSharedLanName($)
+{
+    my ($iface) = @_;
+
+    if (! IsVersion0($iface)) {
+	my $interface_name = FindNodesNS("vlan:link_shared_vlan", $iface,
+					 $SHAREDVLAN_NS)->pop();
+
+	if (defined($interface_name)) {
+	    my $name = GetText("name", $interface_name);
+	    if (defined($name) and $name ne "") {
+		return $name;
+	    }
+	}
+    }
+    return undef;
 }
 
 # Takes an attribute/element name, *NOT AN XPATH* and a node and sets

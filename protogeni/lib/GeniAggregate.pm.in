@@ -1071,6 +1071,10 @@ sub Start($$$)
 	    $msg .= "Failed to setup vlans";
 	    goto bad;
 	}
+	if ($experiment->SyncPortLans()) {
+	    $msg .= "Failed to add ports to shared vlans";
+	    goto bad;
+	}
     }
 
     #
@@ -1301,6 +1305,10 @@ sub Stop($$)
     %vnodes = %tmp;
 
     if ($version >= 2) {
+	if ($experiment->ClearPortLans()) {
+	    $msg .= "Failed to remove ports from shared vlans";
+	    goto bad;
+	}
 	system("$SNMPIT -r $pid $eid");
 	if ($?) {
 	    $msg .= "Failed to remove vlans";
