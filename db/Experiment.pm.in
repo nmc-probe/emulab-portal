@@ -5129,7 +5129,7 @@ sub SyncPortLans($)
 	my $eid = $experiment->eid();
 
 	print "Syncing target vlans in $experiment\n";
-	mysystem("$TB/bin/snmpit -f --redirect-err -X $pid $eid");
+	mysystem("$TB/bin/snmpit_test -f --redirect-err -X $pid $eid");
 	return -1
 	    if ($?);
     }
@@ -5209,7 +5209,7 @@ sub ClearPortLans($)
 	my $eid = $experiment->eid();
 	
 	print "Syncing target vlans in $experiment\n";
-	mysystem("$TB/bin/snmpit -f --redirect-err -X $pid $eid");
+	mysystem("$TB/bin/snmpit_test -f --redirect-err -X $pid $eid");
 	return -1
 	    if ($?);
     }
