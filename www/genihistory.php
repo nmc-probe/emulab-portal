@@ -107,6 +107,9 @@ if (1) {
 		$clause = "$clause and ($ts >= UNIX_TIMESTAMP(created) && ".
 		    "(destroyed is null or $ts <= UNIX_TIMESTAMP(destroyed)))";
 	    }
+	    elseif ($searchfor == $searchbox) {
+		# Just a press of the ch box, so dump out the CH records.
+	    }
 	    else {
 		USERERROR("Invalid search specification", 1);
 	    }
