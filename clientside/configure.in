@@ -83,6 +83,14 @@ CLIENT_BINDIR="/usr/local/etc/emulab"
 CLIENT_VARDIR="/var/emulab"
 CLIENT_MANDIR="/usr/local/man"
 
+# XXX compat. We have no business expanding these on the client side!
+AC_SUBST(PROJROOT_DIR)
+AC_SUBST(EVENTSERVER)
+AC_SUBST(NOSHAREDFS)
+PROJROOT_DIR="/proj"
+EVENTSERVER="event-server"
+NOSHAREDFS=0
+
 TBLOGFACIL="local5"
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
 AC_DEFINE_UNQUOTED(LOG_TESTBED, $LOG_TESTBED)

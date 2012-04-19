@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2010 University of Utah and the Flux Group.
+# Copyright (c) 2010-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -11,13 +11,20 @@ use strict;
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin';
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
+# Drag in path stuff so we can find emulab stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+use libsetup qw(getlocalevserver);
+
 my $linktest = "@CLIENT_BINDIR@/linktest.pl";
+my $evserver = getlocalevserver();
+# XXX don't *even* pretend that we can change this
+my $projdir = "/proj";
 
 my @emulab_defaults = (
-    "PROJDIR=@PROJROOT_DIR@",
+    "PROJDIR=$projdir",
     "VARDIR=@CLIENT_VARDIR@",
     "BINDIR=@CLIENT_BINDIR@",
-    "EVENTSERVER=@EVENTSERVER@"
+    "EVENTSERVER=$evserver"
 );
 
 my $argString = join(" ", @emulab_defaults);

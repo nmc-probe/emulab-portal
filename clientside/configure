@@ -716,6 +716,9 @@ CLIENT_ETCDIR
 CLIENT_BINDIR
 CLIENT_VARDIR
 CLIENT_MANDIR
+PROJROOT_DIR
+EVENTSERVER
+NOSHAREDFS
 LOG_TESTBED
 TBLOGFACIL
 PYTHON
@@ -4158,6 +4161,14 @@ CLIENT_ETCDIR="/etc/emulab"
 CLIENT_BINDIR="/usr/local/etc/emulab"
 CLIENT_VARDIR="/var/emulab"
 CLIENT_MANDIR="/usr/local/man"
+
+# XXX compat. We have no business expanding these on the client side!
+
+
+
+PROJROOT_DIR="/proj"
+EVENTSERVER="event-server"
+NOSHAREDFS=0
 
 TBLOGFACIL="local5"
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
