@@ -13,7 +13,7 @@ use Data::Dumper;
 use File::Temp qw(tempfile);
 
 #
-# Add a management interface for a node. ilo, ilo2, drac.
+# Add a management interface for a node. ilo, ilo2, ilo3, drac.
 # When adding for a local node, try to insert switch info if -s is given.
 # Also restart DHCPD since we now add entries for local management interfaces.
 #
@@ -23,7 +23,7 @@ sub usage()
     print STDERR "  [-s <switchinfo>] <node_id> mac IP arg1 arg2\n";
     print STDERR "       management_iface -r <node_id>\n";
     print STDERR "  -h       This message\n";
-    print STDERR "  -t type  Management type; ilo, ilo2, drac\n";
+    print STDERR "  -t type  Management type; ilo, ilo2, ilo3, drac\n";
     print STDERR "  -s info  Optional switch info; switch,card,port\n";
     print STDERR "  -s -     Search output of switchmac to find switch info\n";
     print STDERR "  -a pswd  Password auth; provide login and password.\n";
@@ -95,7 +95,8 @@ if (defined($options{'s'})) {
 if (defined($options{'t'})) {
     $type = $options{'t'};
     usage()
-	if (! ($type eq "ilo" || $type eq "ilo2" || $type eq "drac"));
+	if (! ($type eq "ilo" || $type eq "ilo2" || $type eq "ilo3" ||
+	       $type eq "drac"));
 }
 if (defined($options{'a'})) {
     $authtype = $options{'a'};

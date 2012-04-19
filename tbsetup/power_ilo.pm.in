@@ -7,10 +7,10 @@
 #
 
 #
-# Handle iLO or iLO 2 remote power control.
+# Handle iLO[23] remote power control.
 # Also handle DRAC since its so similar.
 # Node must have an interface such that role='mngmnt' and
-# interface_type='ilo2' or 'ilo'.
+# interface_type='ilo[23]'.
 #
 # Supports either pubkey or passwd auth, depending on what's in db.
 #
@@ -41,7 +41,7 @@ my %portinfo = ();
 
 #
 # usage: iloctrl(type, cmd, nodes)
-# type = { "ilo" | "ilo2" }
+# type = { "ilo" | "ilo2" | "ilo3" }
 # cmd = { "cycle" | "on" | "off" }
 # nodes = list of one or more physical node names
 #
@@ -171,7 +171,8 @@ sub iloexec($$$$$$$;$) {
 	return -11;
     }
 
-    if ($type ne 'ilo' && $type ne 'ilo2' && $type ne "drac") {
+    if ($type ne 'ilo' && $type ne 'ilo2' && $type ne 'ilo3' &&
+	$type ne "drac") {
 	warn "Unsupported iLO/DRAC type $type!";
 	return -7;
     }
@@ -300,7 +301,8 @@ sub iloexec($$$$$$$;$) {
 	    }
 
 	    if ($line =~ /$rval$/) {
-		print $pty "$sval\r\n";
+		print $pty $sval;
+		print $pty ($type eq "ilo3" ? "\r" : "\r\n");
 		if ($debug) {
 		    print "sent '$sval'\n";
 		}
