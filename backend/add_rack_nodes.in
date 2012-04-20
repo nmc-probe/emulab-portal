@@ -110,5 +110,5 @@ system("perl newnode_research.in");
 
 # Commit Changes
 foreach my $node (@nodeList) {
-#    newAction("table" => "node", "id" => $node, "command" => "commit");
+    newAction("table" => "node", "id" => $node, "command" => "commit");
 }
