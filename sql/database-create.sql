@@ -2368,11 +2368,13 @@ DROP TABLE IF EXISTS `node_history`;
 CREATE TABLE `node_history` (
   `history_id` int(10) unsigned NOT NULL auto_increment,
   `node_id` varchar(32) NOT NULL default '',
-  `op` enum('alloc','free','move') NOT NULL default 'alloc',
+  `op` enum('alloc','free','move','create','destroy') NOT NULL default 'alloc',
   `uid` varchar(8) NOT NULL default '',
   `uid_idx` mediumint(8) unsigned NOT NULL default '0',
   `exptidx` int(10) unsigned default NULL,
   `stamp` int(10) unsigned default NULL,
+  `cnet_IP` varchar(15) default NULL,
+  `phys_nodeid` varchar(32) default NULL,
   PRIMARY KEY  (`history_id`),
   KEY `node_id` (`node_id`,`history_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
