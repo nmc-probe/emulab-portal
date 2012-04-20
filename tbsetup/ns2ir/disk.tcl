@@ -1,3 +1,4 @@
+
 # -*- tcl -*-
 #
 # EMULAB-COPYRIGHT
@@ -24,6 +25,7 @@ Disk instproc init {s} {
     $self set sim $s
     $self set node {}
     $self set type {}
+    $self set size 0
     $self set mountpoint {}
     $self set parameters {}
     $self set command {}
@@ -48,6 +50,7 @@ Disk instproc updatedb {DB} {
     var_import ::TBCOMPAT::objtypes
     $self instvar node
     $self instvar type 
+    $self instvar size
     $self instvar mountpoint 
     $self instvar parameters
     $self instvar sim
@@ -58,8 +61,8 @@ Disk instproc updatedb {DB} {
 	return
     }
 
-    set fields [list "vname" "diskname" "disktype" "mountpoint"]
-    set values [list $node $self $type $mountpoint]
+    set fields [list "vname" "diskname" "disktype" "disksize" "mountpoint"]
+    set values [list $node $self $type $size $mountpoint]
 
     if { $parameters != "" } {
 	lappend fields "parameters"

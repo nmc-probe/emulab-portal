@@ -1786,6 +1786,7 @@ Simulator instproc make_event {outer event} {
  
             set default_name $obj 
 		    set default_type [$obj set type]
+		    set default_size [$obj set size]
 		    set default_mountpoint [$obj set mountpoint]
 		    set default_params [$obj set parameters]
 
@@ -1793,6 +1794,7 @@ Simulator instproc make_event {outer event} {
 			::GLOBALS::named-args $evargs [list \
 				-name $default_name \
 				-type $default_type \
+				-size $default_size \
 				-mountpoint $default_mountpoint \
 				-parameters $default_params \
 			]
@@ -1802,6 +1804,9 @@ Simulator instproc make_event {outer event} {
 			}
 			if {$(-type) != {}} {
 				set args "${args}DISKTYPE=$(-type) "
+			}
+			if {$(-size) != {}} {
+				set args "${args}DISKSIZE=$(-size) "
 			}
 			if {$(-mountpoint) != {}} {
 				set args "${args}MOUNTPOINT=$(-mountpoint) "
@@ -1821,6 +1826,7 @@ Simulator instproc make_event {outer event} {
 
             set args "DISKNAME=$default_name "
 			set args "${args}DISKTYPE=  "
+			set args "${args}DISKSIZE=  "
 			set args "${args}MOUNTPOINT=  "	
 			set args "${args}PARAMETERS=  "
      		set default_cmd [$obj set command]
@@ -1843,6 +1849,7 @@ Simulator instproc make_event {outer event} {
 
             set args "DISKNAME=$default_name "
             set args "${args}DISKTYPE=  "
+            set args "${args}DISKSIZE=  "
             set args "${args}MOUNTPOINT=  "
             set args "${args}PARAMETERS=  "
             set default_cmd [$obj set command]

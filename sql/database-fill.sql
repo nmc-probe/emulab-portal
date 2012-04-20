@@ -867,6 +867,7 @@ REPLACE INTO table_regex VALUES ('virt_node_disks','eid','text','redirect','expe
 REPLACE INTO table_regex VALUES ('virt_node_disks','vname','text','redirect','virt_nodes:vname',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_disks','diskname','text','regex','^[-\\w]+$',2,32,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_disks','disktype','text','regex','^[-\\w]+$',2,32,NULL);
+REPLACE INTO table_regex VALUES ('virt_node_disks','disksize','int','redirect','default:int',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_disks','mountpoint','text','redirect','default:tinytext',1,255,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_disks','parameters','text','redirect','default:tinytext',1,255,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_disks','command','text','redirect','default:tinytext',1,255,NULL);

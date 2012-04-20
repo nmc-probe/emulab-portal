@@ -4452,6 +4452,7 @@ CREATE TABLE `virt_node_disks` (
   `vname` varchar(32) NOT NULL default '',
   `diskname` varchar(32) NOT NULL default '',
   `disktype` varchar(32) NOT NULL default '',
+  `disksize` int(11) unsigned NOT NULL default '0',
   `mountpoint` tinytext,
   `parameters` tinytext,
   `command` tinytext,
