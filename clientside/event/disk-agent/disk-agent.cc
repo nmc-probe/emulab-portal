@@ -78,10 +78,22 @@ struct diskinfo {
     struct diskinfo *next;
 };
 
-/**
+/*
  * Refers to the head of the agent list.
  */
 static struct diskinfo *diskinfos;
+
+
+/*
+ * The name of the token file, which holds a completion token.
+ */
+static char  *tokenfile;
+
+/*
+ * Our vnode name, for subscribing to events for the program agent itself.
+ */
+static char             *vnode;
+
 
 /* Maximum allowed disks */
 static int numdisks;
@@ -144,9 +156,9 @@ static void start_callback(event_handle_t handle,
 
 
 //DM Device routines
-int create_dm_device(struct diskinfo *dinfo, char *);
-int run_dm_device(struct diskinfo *dinfo, char *);
-int modify_dm_device(struct diskinfo *dinfo, char *);
+int create_dm_device(struct diskinfo *dinfo, unsigned long   token, char *);
+int run_dm_device(struct diskinfo *dinfo, unsigned long   token, char *);
+int modify_dm_device(struct diskinfo *dinfo, unsigned long   token, char *);
 int resume_dm_device(char *);
 static int _device_info(char *);
 static int _parse_line(struct dm_task *, char *, const char *,int);
@@ -322,9 +334,7 @@ void readArgs(int argc, char * argv[])
   char *pidfile = NULL;
   char *configfile;
   string keyFile;
-  string tokenfile;
   string subscription;
-  string vnode;
   string group;
   string user;
   char buf[MAX_BUFFER];
@@ -478,6 +488,33 @@ void initEvents(string const & server, string const & port,
 
   address_tuple_free(eventTuple);
 
+  /* Completion Event support for disk-agent */
+  if (tokenfile && access(tokenfile, R_OK) == 0) {
+       FILE    *fp;
+       unsigned long   token = ~0;
+       string buf = vnode;
+       buf = buf+"disk_agent";
+
+        if ((fp = fopen(tokenfile, "r")) != NULL) {
+                if (fscanf(fp, "%lu", &token) == 1) {
+                        event_do(handle,
+                                 EA_Experiment, const_cast<char *>(g::experimentName.c_str()),
+                                 EA_Type, TBDB_OBJECTTYPE_DISK,
+                                 EA_Name, const_cast<char *>(buf.c_str()),
+                                 EA_Event, TBDB_EVENTTYPE_COMPLETE,
+                                 EA_ArgInteger, "ERROR", 0,
+                                 EA_ArgInteger, "CTOKEN", token,
+                                 EA_TAG_DONE);
+                  }
+                  else {
+                         printf("tokenfile could not be parsed!\n");
+                  }
+         }
+         else {
+                  printf("Could not open token file for reading!");
+         }
+    }
+
 
   /*
    * Begin the event loop, waiting to receive event notifications:
@@ -487,6 +524,7 @@ void initEvents(string const & server, string const & port,
 	if(event_main(handle) == 0)
 		cerr << "Event main stopped!" << endl;
   }
+
 }
 
 /*
@@ -646,6 +684,7 @@ void callback(event_handle_t handle,
   /* Call the event handler routine based on the event */
   switch(eventtype[event])
   {
+	int ret;
 	case 0:
 		/* Avoid creating lvm partitions until needed
   		   done_init_flags is being used for this purpose
@@ -655,9 +694,20 @@ void callback(event_handle_t handle,
 			done_init_vols=1;
 		}
 
-		/* Event is to create a dm disk */	
-		if(!create_dm_device(dinfo, args))
-			cerr << "DM failed in create_dm_device()" << endl;
+		/* Create a dm device with the given command line */
+        if(!(ret = create_dm_device(dinfo, token, args)))
+			   cerr << "DM failed in create_dm_device()" << endl;
+
+		/* Send completion event back to the event system */
+	    event_do(handle,
+				EA_Experiment, const_cast<char *>(g::experimentName.c_str()),
+				EA_Type, TBDB_OBJECTTYPE_DISK,
+				EA_Name, dinfo->name,
+				EA_Event, TBDB_EVENTTYPE_COMPLETE,
+				EA_ArgInteger, "ERROR", !ret,
+				EA_ArgInteger, "CTOKEN", token,
+				EA_TAG_DONE);
+
 		event="";
 		break;
   	case 1:
@@ -669,9 +719,20 @@ void callback(event_handle_t handle,
             done_init_vols=1;
         }
 
-		/* Event is to modify the dm disk */
-		if(!modify_dm_device(dinfo, args))
+		/* Modify the dm disk with the give command line */
+		if(!(ret = modify_dm_device(dinfo, token, args)))
 			cerr << "DM failed in modify_dm_device()" << endl;
+
+		/* Send completion event back to the event system */
+        event_do(handle,
+                EA_Experiment, const_cast<char *>(g::experimentName.c_str()),
+                EA_Type, TBDB_OBJECTTYPE_DISK,
+                EA_Name, dinfo->name,
+                EA_Event, TBDB_EVENTTYPE_COMPLETE,
+                EA_ArgInteger, "ERROR", !ret,
+                EA_ArgInteger, "CTOKEN", token,
+                EA_TAG_DONE);
+	
 		event="";
 	 	break;	
 	case 2:
@@ -684,9 +745,22 @@ void callback(event_handle_t handle,
             init_volumes();
             done_init_vols=1;
         }
-
-		if(!run_dm_device(dinfo, args))
+		
+		/* Run the dm device with the given args */
+		if(!(ret = run_dm_device(dinfo, token, args)))
 			 cerr << "DM failed in run_dm_device()" << endl;
+
+		/* Send completion event back to the event system */
+        event_do(handle,
+                EA_Experiment, const_cast<char *>(g::experimentName.c_str()),
+                EA_Type, TBDB_OBJECTTYPE_DISK,
+                EA_Name, dinfo->name,
+                EA_Event, TBDB_EVENTTYPE_COMPLETE,
+                EA_ArgInteger, "ERROR", !ret,
+                EA_ArgInteger, "CTOKEN", token,
+                EA_TAG_DONE);
+
+
 		event="";
 		break;
 	default:
@@ -701,7 +775,7 @@ void callback(event_handle_t handle,
  * If the disk already exists then it will simply change the parameters
  * specified by the user.
  */
-int run_dm_device(struct diskinfo *dinfo, char *args)
+int run_dm_device(struct diskinfo *dinfo,  unsigned long token, char *args)
 {
 	struct dm_task *dmt;
 
@@ -715,6 +789,8 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 		return 0;
 	}
 		
+	dinfo->token = token;
+
     /* DEBUG */
     cout <<"Event START/RUN"<<endl;
     dump_diskinfos();
@@ -948,13 +1024,15 @@ int run_dm_device(struct diskinfo *dinfo, char *args)
 * It takes the arguments through the buffer and
 * name specifies the name of the DM device.
 */
-int create_dm_device(struct diskinfo *dinfo, char *args)
+int create_dm_device(struct diskinfo *dinfo, unsigned long token, char *args)
 {
 	struct dm_task *dmt;
 	string str="";
 	int r=0;
 
 	set_disk(dinfo, args);
+
+	dinfo->token = token;
 
     /* DEBUG */
     cout <<"Event CREATE"<<endl;
@@ -1005,13 +1083,14 @@ int create_dm_device(struct diskinfo *dinfo, char *args)
  * The new argumenets are specified through the buffer.
  * name specifies the DM deive name.
  */
-int modify_dm_device(struct diskinfo *dinfo, char *args)
+int modify_dm_device(struct diskinfo *dinfo, unsigned long token, char *args)
 {
 	struct dm_task *dmt;
 	int r=0;
 
 	set_disk(dinfo, args);
 
+	dinfo->token = token;
 
     /* DEBUG */
     cout <<"Event MODIFY"<<endl;
@@ -1557,7 +1636,7 @@ set_disk(struct diskinfo *dinfo, char *args)
             }
             value = NULL;
         }
-	    if ((rc = event_arg_get(args, "PARAMETERS", &value)) > 0) {
+	    if ((rc = event_arg_get(args, "PARAMETERS", &value)) >= 0) {
 			printf("PARAMETERS: %s\n",value);
 			if (dinfo->parameters != NULL) {
                 if (dinfo->parameters != dinfo->initial_parameters)
