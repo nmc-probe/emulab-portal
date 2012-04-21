@@ -709,7 +709,6 @@ function ValidateArgument($name, $arg)
 	PAGEARGERROR("Invalid argument for '$name': $arg");
 	break;
 
-    case PAGEARG_INTEGER:
     case PAGEARG_GUID:
     case PAGEARG_VERS:
     case PAGEARG_INSTANCE:
@@ -726,6 +725,7 @@ function ValidateArgument($name, $arg)
 	PAGEARGERROR("Invalid argument for '$name': $arg");
 	break;
 
+    case PAGEARG_INTEGER:
     case PAGEARG_NUMERIC:
 	if (is_numeric($arg)) {
 	    return 1;
