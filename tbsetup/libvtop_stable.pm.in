@@ -5016,7 +5016,9 @@ sub AllocVirtNodes($)
 					"verbose"  => $self->verbose(),
 					"impotent" => $self->impotent(),
 					"sharedokay" => $sharedokay,
-					"regression" => $self->regression()})
+					"regression" => $self->regression(),
+					"user"       => $self->user(),
+				       })
 		    < 0) {
 		    tberror("Could not allocate vnodes on $physical\n");
 		    return -1;
