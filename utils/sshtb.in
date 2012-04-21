@@ -12,13 +12,12 @@ use English;
 # An ssh frontend to determine if the node is local or remote, and to
 # add in special options.
 #
-# NOTE THE DIFFERENT SYNTAX!
-# 
-
 sub usage()
 {
-    print STDOUT
-	"Usage: sshtb [ssh args] -host <hostname> [command and args ...]\n";
+    print STDERR
+	"Usage: sshtb [ssh args] [-mng] -host <hostname> [command and args]\n";
+    print STDERR
+	"       Use -mng option to talk to ilo/drac interface\n";
     exit(-1);
 }
 
@@ -40,6 +39,7 @@ my $hostname;
 my $chpid       = 0;
 # Run command on the local machine.
 my $runlocal    = 0;
+my $domng       = 0;
 
 #
 # Testbed Support libraries
@@ -49,6 +49,7 @@ use libdb;
 use libtestbed;
 use Node;
 use Interface;
+use EmulabConstants;
 
 #
 # Turn off line buffering on output
@@ -69,6 +70,10 @@ if (@ARGV < 2) {
 # Find everything before the -host.
 while (@ARGV) {
     my $arg = shift(@ARGV);
+    if ($arg eq "-mng") {
+	$domng = 1;
+	next;
+    }
     if ($arg eq "-host") {
 	$hostname = shift(@ARGV);
 	last;
@@ -95,6 +100,7 @@ if ($hostname eq $FSNODE && $FSNODE eq $BOSSNODE) {
 else {
     my $user;
     my $node = Node->Lookup($hostname);
+    my $key;
 
     if (defined($node)) {
 	if ($node->isvirtnode()) {
@@ -115,6 +121,30 @@ else {
 		if (! (defined($interface) || defined($node->jailip()))) {
 		    $hostname = $node->phys_nodeid();
 		}
+	    }
+	}
+	elsif ($domng) {
+	    #
+	    # We want to log into the management port. 
+	    #
+	    my $interface = Interface->LookupManagement($node);
+	    if (! defined($interface)) {
+		print STDERR "No management interface for $node\n";
+		exit(1);
+	    }
+	    $hostname = $interface->IP();
+	    
+	    #
+	    # Also need info from the outlets authorization table.
+	    #
+	    ($user,$key) = $node->GetOutletAuthInfo("ssh-key");
+	    if (!defined($user)) {
+		print STDERR "No authinfo user defined for $node\n";
+		exit(1);
+	    }
+	    if (! -e $key) {
+		print STDERR "Key $key does not exist\n";
+		exit(1);
 	    }
 	}
 	elsif ($node->isremotenode() && !$node->isdedicatedremote()) {
@@ -151,6 +181,7 @@ else {
 
     @cmdargs = (@sshargs, @args,
 		(defined($user) ? ("-l", "$user") : ()),
+		(defined($key)  ? ("-i", "$key") : ()),
 		$hostname, @ARGV);
 }
 
