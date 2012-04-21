@@ -1944,6 +1944,7 @@ sub CreateVnodes($$$)
 	$options->{'regression'};
     my $sharedokay = defined($options->{'sharedokay'}) &&
 	$options->{'sharedokay'};
+    my $user    = $options->{'user'} if (exists($options->{'user'}));
     my $pid     = $options->{'pid'};
     my $eid     = $options->{'eid'};
     my $count   = $options->{'count'};
@@ -2330,6 +2331,21 @@ sub CreateVnodes($$$)
 
 	push(@interfaces, $interface);
     }
+    #
+    # Finally, add the history records.
+    #
+    if (!$impotent) {
+	foreach my $vnodeid (@created) {
+	    my $node = Node->Lookup($vnodeid);
+	    if (!defined($node)) {
+		print STDERR
+		    "*** CreateVnodes: Could not lookup $vnodeid\n";
+		next;
+	    }
+	    $node->SetNodeHistory(TB_NODEHISTORY_OP_CREATE(),
+				   $user, $experiment);
+	}
+    }
     @$rptr = @created;
     return 0;
 
@@ -2387,6 +2403,8 @@ sub SetNodeHistory($$$$)
 
     my $exptidx = $experiment->idx();
     my $nodeid  = $self->node_id();
+    my $cnet_ip;
+    my $phys_nodeid;
     my $now     = time();
     my $uid;
     my $uid_idx;
@@ -2436,10 +2454,46 @@ sub SetNodeHistory($$$$)
 	    }
 	}
     }
+    elsif ($op eq TB_NODEHISTORY_OP_CREATE()) {
+	#
+	# No need to waste space on cnet_IP for phys nodes, or on
+	# the destroy op. Ditto the phys_nodeid. 
+	#
+	require Interface;
+
+	# Lets make sure no one calls this for a real node.
+	if (! $self->isvirtnode()) {
+	    print STDERR
+		"*** SetNodeHistory: '$op' issued for phys node $self\n";
+	    return -1;
+	}
+	
+	my $interface = Interface->LookupControl($self);
+	if (!defined($interface)) {
+	    print STDERR
+		"*** SetNodeHistory: No control interface for $self\n";
+	}
+	$cnet_ip = $interface->IP();
+	if (!defined($cnet_ip) || $cnet_ip eq "") {
+	    print STDERR "*** SetNodeHistory: No control IP for $interface\n";
+	}
+	$phys_nodeid = $self->phys_nodeid();
+    }
+    elsif ($op eq TB_NODEHISTORY_OP_DESTROY()) {
+	# Lets make sure no one calls this for a real node.
+	if (! $self->isvirtnode()) {
+	    print STDERR
+		"*** SetNodeHistory: '$op' issued for phys node $self\n";
+	    return -1;
+	}
+    }
+
     return DBQueryWarn("insert into node_history set ".
-		       "  history_id=0, node_id='$nodeid', op='$op', ".
-		       "  uid='$uid', uid_idx='$uid_idx', ".
-		       "  stamp=$now, exptidx=$exptidx");
+	       "  history_id=0, node_id='$nodeid', op='$op', ".
+	       "  uid='$uid', uid_idx='$uid_idx', ".
+	       (defined($cnet_ip) ? "cnet_IP='$cnet_ip'," : "").
+	       (defined($phys_nodeid) ? "phys_nodeid='$phys_nodeid'," : "").
+	       "  stamp=$now, exptidx=$exptidx");
 }
 
 #

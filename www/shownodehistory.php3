@@ -46,14 +46,23 @@ if (!isset($datetime)) {
     $datetime = "";
 }
 if (isset($IP)) {
+    if (! preg_match('/^[0-9\.]+$/', $IP)) {    
+	USERERROR("Does not look like a valid IP address.", 1);
+    }
     $node = Node::LookupByIP($IP);
-    if (! $node) {
-	USERERROR("Cannot map $IP to a node", 1);
+    #
+    # No record might mean the node does not exist, or that it
+    # is a virtual node. We are going to pass IP through to the
+    # backend in either case.
+    #
+    if ($node && $node->isremotenode()) {
+	unset($node);
     }
 }
-$node_id = (isset($node) ? $node->node_id() : "");
+$node_id  = (isset($node) ? $node->node_id() : "");
+$node_opt = (isset($node) ? "&node_id=$node_id" : "");
 
-$opts="node_id=$node_id&count=$count&reverse=$reverse";
+$opts="count=$count&reverse=$reverse$node_opt";
 echo "<b>Show records:</b> ";
 if ($showall) {
     echo "<a href='shownodehistory.php3?$opts'>allocated only</a>,
@@ -63,7 +72,7 @@ if ($showall) {
           <a href='shownodehistory.php3?$opts&showall=1'>all</a>";
 }
 
-$opts="node_id=$node_id&count=$count&showall=$showall";
+$opts="count=$count&showall=$showall$node_opt";
 echo "<br><b>Order by:</b> ";
 if ($reverse == 0) {
     echo "<a href='shownodehistory.php3?$opts&reverse=1'>lastest first</a>,
@@ -73,7 +82,7 @@ if ($reverse == 0) {
           <a href='shownodehistory.php3?$opts&reverse=0'>earliest first</a>";
 }
 
-$opts="node_id=$node_id&showall=$showall&reverse=$reverse";
+$opts="showall=$showall&reverse=$reverse$node_opt";
 echo "<br><b>Show number:</b> ";
 if ($count != 20) {
     echo "<a href='shownodehistory.php3?$opts&count=20'>first 20</a>, ";
@@ -97,6 +106,7 @@ if ($count != 0) {
 if ($datetime == "") {
     $datetime = "mm/dd/yy HH:MM";
 }
+# Only display search form for a specific node.
 if ($node_id != "") {
     echo "<br>";
     echo "<form action=shownodehistory.php3?$opts method=post>
@@ -111,14 +121,15 @@ if ($node_id != "") {
 
 if ($node_id != "" && $datetime != "" && $datetime != "mm/dd/yy HH:MM") {
     if (strtotime($datetime)) {
-	ShowNodeHistory($node, 1, 1, 0, $datetime);
+	ShowNodeHistory($node, 1, 1, 0, $datetime, $IP);
     }
     else {
 	USERERROR("Invalid date specified", 1);
     }
 }
 else {
-    ShowNodeHistory((isset($node) ? $node : null), $showall, $count, $reverse);
+    ShowNodeHistory((isset($node) ? $node : null),
+		    $showall, $count, $reverse, null, $IP);
 }
 
 #

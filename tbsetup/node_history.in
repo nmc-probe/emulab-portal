@@ -51,7 +51,7 @@ sub usage {
     exit(1);
 }
 
-my $optlist = "ARS:aln:rswvd:";
+my $optlist = "ARS:aln:rswvd:i:";
 my $warnme = 0;
 my $verbose = 0;
 my $showall = 0;
@@ -61,6 +61,7 @@ my $summary = 0;
 my $raw = 0;
 my $numrecs = 0;
 my $datetime;
+my $ip;
 
 #
 # Sort stuff.  sortby value should correspond to record field format:
@@ -139,6 +140,10 @@ if (defined($options{"d"})) {
     $datetime = timelocal(strptime($options{"d"}));
     $summary  = 0;
 }
+if (defined($options{"i"})) {
+    $ip = $options{"i"};
+    $summary  = 0;
+}
 if (defined($options{"w"})) {
     $warnme = 1;
 }
@@ -162,12 +167,16 @@ my $querymod = "";
 if (@nodes == 1) {
     $querymod = " AND node_id='$nodes[0]'";
 }
+elsif (defined($ip)) {
+    $querymod = " AND cnet_ip='$ip'";
+}
 
 # XXX maybe it would be better to sort them here in perl, outside the DB?
 my $orderby = " ORDER BY stamp ASC";
 
 my $query_result =
-    DBQueryFatal("SELECT node_id,stamp,op,uid,pid,eid,experiment_stats.exptidx ".
+    DBQueryFatal("SELECT node_id,stamp,op,uid,pid,eid, ".
+		 "    experiment_stats.exptidx,cnet_ip,phys_nodeid ".
 		 "FROM node_history,experiment_stats ".
 		 "WHERE node_history.exptidx=experiment_stats.exptidx ".
 		 "$querymod $orderby");
@@ -226,6 +235,22 @@ while (my %row = $query_result->fetchhash()) {
 	    }
 	}
 	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
+    }
+    elsif ($row{op} eq "create") {
+	if ($opideid ne "") {
+	    print STDERR "$node: dup alloc: already allocated to $opideid\n"
+		if ($warnme);
+	    # XXX possibly missing state in the DB.
+	}
+	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
+    }
+    elsif ($row{op} eq "destroy") {
+	if ($opideid ne $pideid) {
+	    print STDERR "$node: mismatched create,destroy records: ".
+		"$opideid,$pideid\n"
+		if ($warnme);
+	}
+	$nodeinfo{$node} = [ "", undef, $stamp, $uid ];
     }
 
     # save off the record

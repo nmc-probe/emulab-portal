@@ -1308,7 +1308,8 @@ class Node
 # Show history.
 #
 function ShowNodeHistory($node = null,
-			 $showall = 0, $count = 20, $reverse = 1, $date = null) {
+			 $showall = 0, $count = 20, $reverse = 1,
+			 $date = null, $IP = null) {
     global $TBSUEXEC_PATH;
     global $PROTOGENI;
     $atime = 0;
@@ -1337,6 +1338,9 @@ function ShowNodeHistory($node = null,
     }
     if ($date) {
 	$opt = " -d " . escapeshellarg($date);
+    }
+    if ($IP) {
+	$opt = " -i " . escapeshellarg($IP);
     }
     if ($fp = popen("$TBSUEXEC_PATH nobody nobody ".
 		    "  webnode_history $opt $node_id", "r")) {
