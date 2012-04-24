@@ -9896,7 +9896,7 @@ COMMAND_PROTOTYPE(dodisks)
 			 "parameters,command "
 			 "   from virt_node_disks "
 			 "where exptidx=%d and vname='%s'",
-			 5, reqp->exptidx, reqp->nickname);
+			 6, reqp->exptidx, reqp->nickname);
 	if (res) {
 		nrows = (int)mysql_num_rows(res);
 		while (bufp < ebufp && nrows--) {
