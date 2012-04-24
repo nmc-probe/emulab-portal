@@ -155,9 +155,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			  label="Log in"
 			  toolTip="Log in to access user data"
 			  click="openUser()" />
-	<s:Button id="listButton"
-			  width="100%" visible="{GeniMain.viewList}" includeInLayout="{GeniMain.viewList}"
-			  label="List" />
 	<components:DefaultLine percentWidth="100"
 							lineThickness="2" />
 	<s:HGroup width="100%"
@@ -169,10 +166,19 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								click="tryReloadUser()" />
 		<s:Label text="Slices"
 				 fontSize="14"
+				 width="100%"
 				 fontWeight="bold" />
+		<display:CreateSliceControl id="sliceCreateGroup"
+									enabled="false" />
 	</s:HGroup>
-	<display:CreateSliceControl id="sliceCreateGroup"
-								enabled="false" />
+	
+	<s:Button id="listButton"
+			  width="100%" chromeColor="0x27C427"
+			  height="32"
+			  visible="{GeniMain.viewList}"
+			  includeInLayout="{GeniMain.viewList}"
+			  label="Tutorial examples" />
+	
 	<s:CheckBox id="mineOnlyCheckbox"
 				enabled="{sliceCreateGroup.enabled}"
 				selected="false"

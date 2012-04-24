@@ -16,6 +16,7 @@ package com.flack.geni.plugins.instools
 		public var apiVersion:Number;
 		public var creating:Boolean;
 		public var useVirtualMCs:Boolean;
+		public var useStableINSTOOLS:Boolean;
 		
 		public var updated_rspec:Dictionary = new Dictionary();
 		public var rspec_version:Dictionary = new Dictionary();
@@ -27,12 +28,13 @@ package com.flack.geni.plugins.instools
 		public var started_MC:Dictionary = new Dictionary();
 		public var MC_present:Dictionary = new Dictionary();
 		
-		public function SliceInstoolsDetails(useSlice:Slice, useApiVersion:Number, isCreating:Boolean = true, shouldUseVirtualMCs:Boolean = false)
+		public function SliceInstoolsDetails(useSlice:Slice, useApiVersion:Number, isCreating:Boolean = true, shouldUseVirtualMCs:Boolean = false, shouldUseStableINSTOOLS:Boolean = true)
 		{
 			slice = useSlice;
 			apiVersion = useApiVersion;
 			creating = isCreating;
 			useVirtualMCs = shouldUseVirtualMCs;
+			useStableINSTOOLS = shouldUseStableINSTOOLS;
 		}
 		
 		public function clearAll():void

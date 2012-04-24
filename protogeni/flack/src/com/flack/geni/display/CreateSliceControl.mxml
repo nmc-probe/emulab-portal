@@ -21,7 +21,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
 		  xmlns:components="com.flack.shared.display.components.*"
-		  width="100%"
 		  gap="2"
 		  verticalAlign="middle"
 		  creationComplete="init()"
@@ -42,9 +41,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
 			
-			[Bindable]
-			public var authorities:ArrayCollection = new ArrayCollection();
-			
 			public function init():void
 			{
 				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_USER, tryUpdateUser);
@@ -63,13 +59,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function tryUpdateUser(e:FlackEvent = null):void
 			{
-				authorities = new ArrayCollection();
 				if(GeniMain.geniUniverse != null)
 				{
-					if(GeniMain.geniUniverse.user.authority != null)
-						authorities.addItem(GeniMain.geniUniverse.user.authority);
-					for each(var sa:GeniAuthority in GeniMain.geniUniverse.user.subAuthorities.collection)
-						authorities.addItem(sa);
 					enabled = GeniMain.geniUniverse.user.HasCredential;
 				}
 				else
@@ -92,58 +83,29 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 			}
 			
-			public function createSlice():void
+			public function createSlice(event:* = null):void
 			{
-				if(sliceNameTextinput.text.length == 0)
-				{
-					Alert.show(
-						"Please input a name for the slice",
-						"No name"
-					);
-					sliceNameTextinput.setFocus();
-					//focusManager.setFocus(sliceNameTextinput);
-					return;
-				}
-				
-				var createSliceTask:CreateSliceTaskGroup = new CreateSliceTaskGroup(sliceNameTextinput.text, authoritiesList.selectedItem);
+				var createSliceTask:CreateSliceTaskGroup = new CreateSliceTaskGroup();
 				createSliceTask.forceRunNow = true;
 				SharedMain.tasker.add(createSliceTask);
-				sliceNameTextinput.text = "";
 			}
 			
 		]]>
 	</fx:Script>
 	
-	<s:HGroup width="100%" verticalAlign="middle">
-		<s:DropDownList id="authoritiesList"
-						dataProvider="{authorities}"
-						labelField="name"
-						width="100%"
-						requireSelection="true"
-						toolTip="Select an authority"
-						prompt="Choose authority..." />
-	</s:HGroup>
-	
-	<s:HGroup width="100%"
-			  verticalAlign="middle"
+	<s:HGroup verticalAlign="middle"
 			  gap="2">
-		<s:TextInput id="sliceNameTextinput"
-					 prompt="Create slice..."
-					 toolTip="Input a name for the new slice"
-					 restrict="a-zA-Z0-9\-"
-					 maxChars="19"
-					 width="100%"
-					 enter="createSlice();" />
 		<components:Spinner id="spinner"
 							width="21"
 							height="21"
 							x="{(width / 2) - (spinner.width / 2)}"
 							y="{(height / 2) - (spinner.height / 2)}"
 							visible="false" includeInLayout="{spinner.visible}" />
-		<components:ImageButton id="createButton"
-								toolTip="Create a blank slice to be able to allocate resources in"
-								icon="{ImageUtil.actionIcon}"
-								click="createSlice()" />
+		<s:Button  label="New"
+				   id="newSliceButton"
+				   icon="{ImageUtil.actionIcon}"
+				   click="createSlice()"
+				   toolTip="Create a slice to be able to allocate resources in" />
 	</s:HGroup>
 	
 	

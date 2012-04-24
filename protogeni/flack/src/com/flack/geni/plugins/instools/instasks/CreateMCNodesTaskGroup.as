@@ -1,8 +1,10 @@
 package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;
 	import com.flack.geni.tasks.xmlrpc.am.CreateSliverTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateSliverCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RedeemTicketCmTask;
@@ -35,77 +37,51 @@ package com.flack.geni.plugins.instools.instasks
 			relatedTo.push(newDetails.slice);
 			details = newDetails;
 			
-			for each(var sliver:Sliver in details.slice.slivers.collection)
+			if(details.creating)
 			{
-				if(details.MC_present[sliver.manager.id.full] != null
-					&& !details.MC_present[sliver.manager.id.full])
-				{
-					var sliverToContact:Sliver;
-					if(details.cmurn_to_contact[sliver.manager.id.full] != null)
-						sliverToContact = details.slice.slivers.getOrCreateByManager(GeniMain.geniUniverse.managers.getById(details.cmurn_to_contact[sliver.manager.id.full]) , details.slice);
-					else
-						sliverToContact = sliver;
-					var newRspec:Rspec = new Rspec(new XML(details.updated_rspec[sliver.manager.id.full]));
-					if(details.creating)
-					{
-						if(sliverToContact.Created)
-						{
-							if(sliverToContact.manager.api.type == ApiDetails.API_PROTOGENI && sliverToContact.manager.api.level == ApiDetails.LEVEL_FULL)
-								add(new UpdateSliverCmTask(sliver, newRspec));
-							else
-							{
-								addMessage(
-									"Couldn't update " + sliverToContact.manager.hrn,
-									sliverToContact.manager.hrn + " either doesn't use the protogeni api or does not support the full api",
-									LogMessage.LEVEL_WARNING
-								);
-							}
-						}
-						else
-						{
-							if(sliverToContact.manager.api.type == ApiDetails.API_GENIAM)
-								add(new CreateSliverTask(sliverToContact, newRspec));
-							else
-								add(new CreateSliverCmTask(sliver, newRspec));
-						}
-					}
-					else
-					{
-						Alert.show("Adding MC Nodes before slivers are created is not currently supported!");
-						// XXX nothing to do for now, we don't support not creating slivers / adding MC nodes before slivers are created
-						// TODO in the future probably just import MC Nodes without submitting
-					}
-				}
+				if(details.slice.UnsubmittedChanges)
+					add(new SubmitSliceTaskGroup(newDetails.slice, false));
 				else
 				{
-					addMessage(
-						"Nothing to do",
-						"Nothing to do for " + sliver.manager.hrn
-					);
+					// XXX no changes?
 				}
 			}
 		}
 		
 		override public function completedTask(task:Task):void
 		{
-			// Got the versions, start adding MC Nodes
-			if(task is RedeemTicketCmTask)
+			for each(var sliver:Sliver in details.slice.slivers.collection)
 			{
-				var redeemTask:RedeemTicketCmTask = task as RedeemTicketCmTask;
-				details.MC_present[redeemTask.sliver.manager.id.full] = redeemTask.success;
+				if(details.cmurn_to_contact[sliver.manager.id.full] == null || details.cmurn_to_contact[sliver.manager.id.full] == sliver.manager.id.full)
+					details.MC_present[sliver.manager.id.full] = Instools.doesSliverHaveMc(sliver);
+				else
+				{
+					var otherSliver:Sliver = details.slice.slivers.getByManager(GeniMain.geniUniverse.managers.getById(details.cmurn_to_contact[sliver.manager.id.full]));
+					details.MC_present[sliver.manager.id.full] = Instools.doesSliverHaveJuniperMc(otherSliver);
+					/*
+					for (var key:String in Instools.mcLocation)
+					{
+					if (Instools.mcLocation[key] == otherSliver.manager.id.full)
+					{
+					details.MC_present[key] = otherSliver.sliver.Created;
+					}
+					}*/
+					if (Instools.devel_version[otherSliver.manager.id.full] == null)
+						add(new InstoolsVersionTask(otherSliver, details));
+				}
 			}
 			super.completedTask(task);
 		}
 		
 		override public function erroredTask(task:Task):void
 		{
-			var msg:String = "";
-			if(task is UpdateSliverCmTask)
-				msg = " updating sliver on " + (task as UpdateSliverCmTask).sliver.manager.hrn;
-			else if(task is RedeemTicketCmTask)
-				msg = " redeeming ticket on " + (task as RedeemTicketCmTask).sliver.manager.hrn;
-			if(msg.length > 0)
-				Alert.show("Problem" + msg + ". To instrumentize this sliver, try instrumentizing at a later time.  INSTOOLS will continue instrumenting the other slivers.");
+			Alert.show("Problem!");
+			super.erroredTask(task);
+		}
+		
+		override public function canceledTask(task:Task):void
+		{
+			Alert.show("Problem!");
 			super.erroredTask(task);
 		}
 	}

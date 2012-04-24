@@ -31,8 +31,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		<![CDATA[
 			import com.flack.shared.display.components.DefaultWindow;
 			
+			import mx.controls.Alert;
 			import mx.core.FlexGlobals;
 			import mx.core.IVisualElement;
+			import mx.events.CloseEvent;
 			
 			public var window:DefaultWindow = null;
 			
@@ -134,7 +136,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				var newHistoryItem:AreaHistoryItem = new AreaHistoryItem();
 				newHistoryItem.setBack();
-				newHistoryItem.contentItem = contentItem;
+				newHistoryItem.ContentItem = contentItem;
 				backwardHistoryGroup.addElement(newHistoryItem);
 			}
 			
@@ -142,7 +144,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				var newHistoryItem:AreaHistoryItem = new AreaHistoryItem();
 				newHistoryItem.setForward();
-				newHistoryItem.contentItem = contentItem;
+				newHistoryItem.ContentItem = contentItem;
 				forwardHistoryGroup.addElementAt(newHistoryItem, 0);
 			}
 			
@@ -151,6 +153,32 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(content == null)
 					return;
 				
+				// See if the forward history has pending changes
+				for(var i:int = 0; i < forwardHistoryGroup.numElements; i++)
+				{
+					var forwardHistoryItem:AreaHistoryItem = forwardHistoryGroup.getElementAt(i) as AreaHistoryItem;
+					if(forwardHistoryItem.ContentItem.PendingChanges)
+					{
+						Alert.show(
+							"'" + forwardHistoryItem.ContentItem.title + "' has pending changes. Continue to load '" + content.title + "' and lose changes?",
+							"Continue and lose changes?",
+							Alert.YES|Alert.CANCEL,
+							FlexGlobals.topLevelApplication as Sprite,
+							function checkContinue(e:CloseEvent):void
+							{
+								if(e.detail == Alert.YES)
+									performLoadNext(content);
+							}
+						);
+						return;
+					}
+				}
+				
+				performLoadNext(content);
+			}
+			
+			private function performLoadNext(content:AreaContent):void
+			{
 				if(contentArea.numElements == 1)
 				{
 					addBackwards(contentArea.getElementAt(0) as AreaContent);
@@ -171,13 +199,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						window.closeWindow();
 				}
 				else
+				{
+					//moveTo(backwardHistoryGroup.getElementAt(backwardHistoryGroup.numElements-1) as AreaHistoryItem);
+					contentArea.removeAllElements();
 					moveTo(backwardHistoryGroup.getElementAt(backwardHistoryGroup.numElements-1) as AreaHistoryItem);
+				}
 			}
 			
 			public function moveTo(historyItem:AreaHistoryItem):void
 			{
-				// See if user really wants to leave yet
-				
 				// Do it!
 				var removedItem:IVisualElement;
 				if(backwardHistoryGroup.contains(historyItem))
@@ -215,7 +245,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					}
 				}
 				
-				contentArea.addElement((removedItem as AreaHistoryItem).contentItem);
+				contentArea.addElement((removedItem as AreaHistoryItem).ContentItem);
 			}
 			
 			public function popOutContent():void

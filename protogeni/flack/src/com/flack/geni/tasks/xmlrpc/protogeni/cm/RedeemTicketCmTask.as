@@ -24,6 +24,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.DateUtil;
 	
+	import mx.controls.Alert;
+	
 	/**
 	 * Redeems an issued ticket. Only supported on the FULL API
 	 * 
@@ -131,8 +133,12 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
+				Alert.show("Problem redeeming ticket at " + sliver.manager.hrn);
 				
+				// Release the ticket so the user can get another
 				parent.add(new ReleaseTicketCmTask(sliver));
+				// Re-get the sliver to represent how it currently is
+				parent.add(new GetSliverCmTask(sliver));
 			}
 				
 			super.afterComplete(addCompletedMessage);

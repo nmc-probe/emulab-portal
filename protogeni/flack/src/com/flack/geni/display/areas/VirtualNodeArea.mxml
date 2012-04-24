@@ -731,6 +731,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 									icon="{ImageUtil.windowIcon}"
 									toolTip="Pop out to a window or in to the main window"
 									click="host.Docked ? popOut() : dock()" />
+			<components:ImageButton id="closeIcon"
+									icon="{ImageUtil.crossIcon}"
+									toolTip="Close"
+									click="close()" />
 		</s:HGroup>
 		
 	</s:Group>

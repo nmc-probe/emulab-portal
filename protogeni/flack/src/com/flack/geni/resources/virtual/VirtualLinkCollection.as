@@ -178,7 +178,7 @@ package com.flack.geni.resources.virtual
 			var connectedLinks:VirtualLinkCollection = new VirtualLinkCollection();
 			for each(var link:VirtualLink in collection)
 			{
-				if(link.interfaceRefs.Interfaces.Managers.contains(manager) && !connectedLinks.contains(link))
+				if((link.managerRefs.Managers.contains(manager) || link.interfaceRefs.Interfaces.Managers.contains(manager)) && !connectedLinks.contains(link))
 					connectedLinks.add(link);
 			}
 			return connectedLinks;
@@ -189,7 +189,7 @@ package com.flack.geni.resources.virtual
 			var connectedLinks:VirtualLinkCollection = new VirtualLinkCollection();
 			for each(var link:VirtualLink in collection)
 			{
-				if(link.interfaceRefs.Interfaces.Managers.length > 1)
+				if(link.interfaceRefs.Interfaces.Managers.length > 1 || link.managerRefs.length > 1)
 					connectedLinks.add(link);
 			}
 			return connectedLinks;
@@ -207,6 +207,11 @@ package com.flack.geni.resources.virtual
 			for each(var link:VirtualLink in collection)
 			{
 				var linkManagers:GeniManagerCollection = link.interfaceRefs.Interfaces.Managers;
+				for each(var refManager:GeniManagerReference in link.managerRefs.collection)
+				{
+					if(!linkManagers.contains(refManager.referencedManager))
+						linkManagers.add(refManager.referencedManager);
+				}
 				var valid:Boolean = true;
 				for each(var linkedManager:GeniManager in linkManagers.collection)
 				{

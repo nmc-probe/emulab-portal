@@ -181,9 +181,9 @@ package com.flack.geni.resources.virtual
 		
 		public function removeFromSlice():void
 		{
-			slice.reportedManagers.remove(manager);
-			// Remove the nodes, no links will be left
-			for(var i:int = 0; i < slice.nodes.length; i++)
+			var i:int = 0;
+			// Remove the nodes
+			for(i = 0; i < slice.nodes.length; i++)
 			{
 				var node:VirtualNode = slice.nodes.collection[i];
 				if(node.manager == manager)
@@ -192,7 +192,22 @@ package com.flack.geni.resources.virtual
 					i--;
 				}
 			}
+			// Remove the links (should only be any w/o interfaces to nodes)
+			for(i = 0; i < slice.links.length; i++)
+			{
+				var link:VirtualLink = slice.links.collection[i];
+				if(link.managerRefs.contains(manager))
+				{
+					link.managerRefs.remove(manager);
+					if(link.managerRefs.length == 0 && link.interfaceRefs.length == 0)
+					{
+						link.removeFromSlice();
+					}
+					i--;
+				}
+			}
 			// unsubmittedChanges = true;
+			slice.reportedManagers.remove(manager);
 			slice.slivers.remove(this);
 		}
 		

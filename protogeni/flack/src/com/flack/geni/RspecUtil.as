@@ -36,6 +36,7 @@ package com.flack.geni
 		public static var clientNamespace:Namespace = new Namespace("client", "http://www.protogeni.net/resources/rspec/ext/client/1");
 		public static var historyNamespace:Namespace = new Namespace("history", "http://www.protogeni.net/resources/rspec/ext/history/1");
 		public static var emulabNamespace:Namespace = new Namespace("rs", "http://www.protogeni.net/resources/rspec/ext/emulab/1");
+		public static var sharedVlanNamespace:Namespace = new Namespace("vlan", "http://www.protogeni.net/resources/rspec/ext/shared-vlan/1");
 		
 		public static function isKnownNamespace(uri:String):Boolean
 		{

@@ -352,7 +352,8 @@ VirtualNode for use on the slice canvas
 				 maxDisplayedLines="1" />
 		<components:ImageButton id="infoButton"
 								icon="{ImageUtil.infoIcon}"
-								click="showInfo(event)" mouseDown="event.stopImmediatePropagation();" />
+								click="showInfo(event)"
+								mouseDown="event.stopImmediatePropagation();" />
 	</s:BorderContainer>
 	<s:VGroup id="extraGroup" gap="2">
 		<s:Label id="hostnameLabel" fontSize="10" visible="false" includeInLayout="false" />

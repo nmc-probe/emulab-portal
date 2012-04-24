@@ -475,6 +475,7 @@ package com.flack.geni.tasks.process
 							
 							for each(var ipXml:XML in interfaceXml.defaultNamespace::ip)
 							{
+								virtualInterface.ip.unset = false;
 								virtualInterface.ip.address = String(ipXml.@address);
 								virtualInterface.ip.type = String(ipXml.@type);
 								if(ipXml.@mask.length() == 1)
@@ -941,6 +942,11 @@ package com.flack.geni.tasks.process
 										virtualLink.vlantag = "";
 								}
 							}
+							else if(linkChildXml.namespace() == RspecUtil.sharedVlanNamespace)
+							{
+								if(linkChildXml.@name.length() == 1)
+									virtualLink.sharedVlanName = linkChildXml.@name;
+							}
 						}
 					}
 					
@@ -948,7 +954,7 @@ package com.flack.geni.tasks.process
 					if(virtualLink.interfaceRefs.Interfaces.Managers.length > 1 && virtualLink.type.name == LinkType.LAN_V2)
 						virtualLink.type.name = LinkType.GRETUNNEL_V2;
 					
-					virtualLink.extensions.buildFromOriginal(linkXml, [defaultNamespace.uri]);
+					virtualLink.extensions.buildFromOriginal(linkXml, [defaultNamespace.uri, RspecUtil.sharedVlanNamespace.uri]);
 					
 					switch(virtualLink.type.name)
 					{

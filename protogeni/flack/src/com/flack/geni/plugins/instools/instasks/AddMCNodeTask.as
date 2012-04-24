@@ -1,12 +1,16 @@
 package com.flack.geni.plugins.instools.instasks
 {
+	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
 	import com.flack.geni.resources.SliverTypes;
+	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.tasks.TaskError;
 	
 	import mx.controls.Alert;
@@ -41,8 +45,8 @@ package com.flack.geni.plugins.instools.instasks
 		override protected function createFields():void
 		{
 			addNamedField("urn", sliver.slice.id.full);
-			addNamedField("virtualMC", details.useVirtualMCs ? sliver.manager.supportedSliverTypes.getByName(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ) != null : 0);
-			addNamedField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.id.full]);
+			addNamedField("virtualMC", details.useVirtualMCs ? sliver.manager.supportedSliverTypes.Shared.length > 0 : 0);
+			addNamedField("INSTOOLS_VERSION", details.useStableINSTOOLS ? Instools.stable_version[sliver.manager.id.full] : Instools.devel_version[sliver.manager.id.full]);
 			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
 		
@@ -50,8 +54,19 @@ package com.flack.geni.plugins.instools.instasks
 		{
 			if (code ==  ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
+				// Determine the sliver where the MC node will exist
+				var parseSliver:Sliver = sliver;
 				if(data.cmurn_to_contact != null)
-					details.cmurn_to_contact[sliver.manager.id.full] = String(data.cmurn_to_contact);
+				{
+					var mcManager:GeniManager = GeniMain.geniUniverse.managers.getById(String(data.cmurn_to_contact));
+					if(mcManager == null)
+					{
+						// XXX error, manager not available
+					}
+					parseSliver = sliver.slice.slivers.getOrCreateByManager(mcManager, sliver.slice);
+					details.cmurn_to_contact[sliver.manager.id.full] = parseSliver.manager.id.full;
+				}
+				Instools.mcLocation[sliver.manager.id.full] = parseSliver.manager.id.full;
 				details.MC_present[sliver.manager.id.full] = Boolean(data.wasMCpresent);
 				if (details.MC_present[sliver.manager.id.full]) 
 				{
@@ -64,8 +79,14 @@ package com.flack.geni.plugins.instools.instasks
 				} 
 				else 
 				{
-					details.updated_rspec[sliver.manager.id.full] = String(data.instrumentized_rspec);
+					var newRspec:Rspec = new Rspec(String(data.instrumentized_rspec));
+					
+					details.updated_rspec[sliver.manager.id.full] = newRspec.document;
 					details.rspec_version[sliver.manager.id.full] = String(data.rspec_version);
+					
+					// Parse into slice with unsubmitted changes
+					var parse:ParseRequestManifestTask = new ParseRequestManifestTask(parseSliver, newRspec, true, true);
+					parse.start();
 					
 					addMessage(
 						"Recieved new request with MC Node added",

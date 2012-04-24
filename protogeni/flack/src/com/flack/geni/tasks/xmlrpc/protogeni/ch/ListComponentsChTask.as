@@ -98,6 +98,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							
 							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
 							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
+							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
 							
 							if(protogeniManager.hrn == "shadowgeni.cm")
 							{
@@ -154,6 +155,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							planetLabManager.registryUrl = planetLabManager.url.replace("12346", "12345");
 							
 							planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+							planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
 							
 							planetLabManager.supportedSliverTypes.getOrCreateByName(PlanetlabSliverType.TYPE_PLANETLAB_V2);
 							
@@ -164,6 +166,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							var otherManager:GeniManager = new GeniManager(FlackManager.TYPE_OTHER, ApiDetails.API_GENIAM, newId.full);
 							otherManager.hrn = obj.hrn;
 							otherManager.url = StringUtil.makeSureEndsWith(url, "/");
+							
+							otherManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
+							
 							newManager = otherManager;
 						}
 						newManager.id = newId;

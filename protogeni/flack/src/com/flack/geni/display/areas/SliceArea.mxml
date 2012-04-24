@@ -43,7 +43,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.plugins.PluginArea;
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.GeniManagerCollection;
-			import com.flack.geni.resources.virtual.LinkType;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.geni.resources.virtual.SliverCollection;
@@ -68,7 +67,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.shared.display.areas.DocumentArea;
 			import com.flack.shared.display.areas.DocumentsArea;
 			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
-			import com.flack.shared.display.components.DataButton;
 			import com.flack.shared.display.components.TextInputWindow;
 			import com.flack.shared.resources.docs.RspecVersion;
 			import com.flack.shared.resources.docs.RspecVersionCollection;
@@ -145,15 +143,25 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			[Bindable] 
 			public var sliceMenuData:Array = [
 				{
+					label: "Preview request document(s)",
+					icon: ImageUtil.previewIcon,
+					action: previewRspec
+				},
+				{
+					label: "Original request document(s)",
+					icon: ImageUtil.previewIcon,
+					action: viewOriginalRspec
+				}, 
+				{
+					label: "Manifest document(s)",
+					icon: ImageUtil.manifestIcon,
+					action: viewManifests
+				}, 
+				{
 					label: "SSH Keys",
 					icon: ImageUtil.keyIcon,
 					action: viewKeys
 				},
-				{
-					label: "Manifests",
-					icon: ImageUtil.manifestIcon,
-					action: viewManifests
-				}, 
 				{
 					label: "Logs",
 					icon: ImageUtil.consoleIcon,
@@ -620,12 +628,33 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 			}
 			
-			public function previewRspec():void
+			public function previewRspec(event:* = null):void
 			{
 				var previewArea:DocumentsArea = new DocumentsArea();
 				previewArea.title = "Preview Request RSPEC for " + slice.Name;
 				_slice.ensureSliversExist();
 				var createSliceRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(slice, true, false, false);
+				createSliceRspec.start();
+				previewArea.addDocument("Unified Request RSPEC", createSliceRspec.resultRspec.document);
+				
+				for each(var sliver:Sliver in _slice.slivers.collection)
+				{
+					var createSliverNs:GenerateNsTask = new GenerateNsTask(sliver);
+					createSliverNs.start();
+					previewArea.addDocument("NS for " + sliver.manager.hrn, createSliverNs.nsDocument);
+				}
+				
+				previewArea.backgroundColor = backgroundColor;
+				previewArea.titleColor = titleColor;
+				openNext(previewArea);
+			}
+			
+			public function viewOriginalRspec(event:* = null):void
+			{
+				var previewArea:DocumentsArea = new DocumentsArea();
+				previewArea.title = "Original Request RSPEC for " + slice.Name;
+				_slice.ensureSliversExist();
+				var createSliceRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(slice, false, false, false, true);
 				createSliceRspec.start();
 				previewArea.addDocument("Unified Request RSPEC", createSliceRspec.resultRspec.document);
 				
@@ -684,15 +713,19 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			public function viewNode(node:VirtualNode):void
 			{
 				var nodeArea:VirtualNodeArea = new VirtualNodeArea();
-				openNext(nodeArea);
 				nodeArea.node = node;
+				openNext(nodeArea);
+				// Hack for now, ensuring nothing has changed
+				nodeArea.cancelPendingChanges();
 			}
 			
 			public function viewLink(link:VirtualLink):void
 			{
 				var linkArea:VirtualLinkArea = new VirtualLinkArea();
-				openNext(linkArea);
 				linkArea.link = link;
+				openNext(linkArea);
+				// Hack for now, ensuring nothing has changed
+				linkArea.cancelPendingChanges();
 			}
 			
 			public function viewKeys(event:* = null):void
@@ -1127,14 +1160,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								labelField="ShortString"
 								change="_slice.useInputRspecInfo = outputRspecDropdownlist.selectedItem;">
 				</s:DropDownList>
-				<components:ImageButton id="previewRspecButton"
-										icon="{ImageUtil.previewIcon}"
-										toolTip="Preview the Request RSPEC"
-										click="previewRspec()" />
 				<components:ImageButton id="dockIcon"
 										icon="{ImageUtil.windowIcon}"
 										toolTip="Pop out to a window or in to the main window"
 										click="host.Docked ? popOut() : dock()" />
+				<components:ImageButton id="closeIcon"
+										icon="{ImageUtil.crossIcon}"
+										toolTip="Close"
+										click="close()" />
 			</s:HGroup>
 			<s:Group width="100%"
 					 height="100%"

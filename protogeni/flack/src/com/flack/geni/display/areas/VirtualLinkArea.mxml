@@ -43,8 +43,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import mx.controls.Alert;
 			
 			import spark.events.TextOperationEvent;
-
-
 			
 			[Bindable]
 			public var link:VirtualLink;
@@ -115,9 +113,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						var supportedTypes:SupportedLinkTypeCollection = link.interfaceRefs.Interfaces.Managers.CommonLinkTypes;
 						for each(var supportedType:SupportedLinkType in supportedTypes.collection)
 						{
+							if(supportedType.name.length == 0)
+								supportedType.name = "Unspecified";
 							types.addItem(supportedType);
-							if(supportedType.name == link.type.name)
-								typeList.selectedItem = supportedType;
+							if(supportedType.name == link.type.name || (supportedType.name == "Unspecified" && link.type.name.length == 0))
+								typeList.selectedIndex = types.length-1;
 						}
 						if(supportedTypes.getByName(link.type.name) == null)
 						{
@@ -240,10 +240,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					link.properties.add(property);
 				}
 				
+				link.clientId = clientIdInput.text;
+				
+				if(typeList.selectedItem.name == "Unspecified")
+					typeList.selectedItem.name = "";
 				if(link.type.name != typeList.selectedItem)
 					link.changeToType(typeList.selectedItem);
-				
-				link.clientId = clientIdInput.text;
 				
 				link.unsubmittedChanges = true;
 				
@@ -319,6 +321,10 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								icon="{ImageUtil.windowIcon}"
 								toolTip="Pop out to a window or in to the main window"
 								click="host.Docked ? popOut() : dock()" />
+		<components:ImageButton id="closeIcon"
+								icon="{ImageUtil.crossIcon}"
+								toolTip="Close"
+								click="close()" />
 	</s:HGroup>
 	
 	<s:HGroup verticalAlign="middle"

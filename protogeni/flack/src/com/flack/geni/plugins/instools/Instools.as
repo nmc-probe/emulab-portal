@@ -55,18 +55,32 @@ package com.flack.geni.plugins.instools
 		public static const addMCNode:String = "AddMCNode";
 		public static const getInstoolsStatus:String = "getInstoolsStatus";
 		public static const instrumentize:String = "Instrumentize";
+		public static const saveManifest:String = "SaveManifest";
 		
 		// Global INSTOOLS version
 		public static var devel_version:Dictionary = new Dictionary();
 		public static var stable_version:Dictionary = new Dictionary();
 		
-		public static var instruemtizeDetails:Dictionary = new Dictionary();
+		public static var instrumentizeDetails:Dictionary = new Dictionary();
+		
+		public static var mcLocation:Dictionary = new Dictionary();
 		
 		public static function doesSliverHaveMc(sliver:Sliver):Boolean
 		{
 			if(sliver.Created)
 			{
-				if(sliver.manifest.document.indexOf("MC=\"1\"") != -1)
+				// See if MC node is at manager
+				if((sliver.manifest.document.indexOf("MC=\"1\"") != -1) && (sliver.manifest.document.indexOf("mc_type=\"juniper\"") == -1))
+					return true;
+			}
+			return false;
+		}
+		
+		public static function doesSliverHaveJuniperMc(sliver:Sliver):Boolean
+		{
+			if(sliver.Created)
+			{
+				if(sliver.manifest.document.indexOf("mc_type=\"juniper\"") != -1)
 					return true;
 			}
 			return false;
@@ -78,9 +92,9 @@ package com.flack.geni.plugins.instools
 		 * @return TRUE on success
 		 * 
 		 */
-		public static function instrumentizeSlice(slice:Slice, creating:Boolean = true, useVersion:Number = 1, useVirtualMCs:Boolean = false, ignoreOtherTasks:Boolean = false):void
+		public static function instrumentizeSlice(slice:Slice, creating:Boolean = true, useVersion:Number = 1, useVirtualMCs:Boolean = false, ignoreOtherTasks:Boolean = false, useStableINSTOOLS:Boolean = true):void
 		{
-			var newDetails:SliceInstoolsDetails = resetSliceDetails(slice, creating, useVersion, useVirtualMCs);
+			var newDetails:SliceInstoolsDetails = resetSliceDetails(slice, creating, useVersion, useVirtualMCs, useStableINSTOOLS);
 			
 			if(!ignoreOtherTasks)
 			{
@@ -107,19 +121,19 @@ package com.flack.geni.plugins.instools
 			SharedMain.tasker.add(instrumentizeTask);
 		}
 		
-		public static function resetSliceDetails(slice:Slice, creating:Boolean = true, useVersion:Number = 1, useVirtualMCs:Boolean = false):SliceInstoolsDetails
+		public static function resetSliceDetails(slice:Slice, creating:Boolean = true, useVersion:Number = 1, useVirtualMCs:Boolean = false, useStableINSTOOLS:Boolean = true):SliceInstoolsDetails
 		{
 			// Clear any cached info for the slice and initalize
-			if(instruemtizeDetails[slice.id.full] != null)
-				delete instruemtizeDetails[slice.id.full];
-			var newDetails:SliceInstoolsDetails = new SliceInstoolsDetails(slice, useVersion, creating, useVirtualMCs);
-			instruemtizeDetails[slice.id.full] = newDetails;
+			if(instrumentizeDetails[slice.id.full] != null)
+				delete instrumentizeDetails[slice.id.full];
+			var newDetails:SliceInstoolsDetails = new SliceInstoolsDetails(slice, useVersion, creating, useVirtualMCs, useStableINSTOOLS);
+			instrumentizeDetails[slice.id.full] = newDetails;
 			return newDetails;
 		}
 		
 		public static function goToPortal(slice:Slice):void
 		{
-			var sliceDetails:SliceInstoolsDetails = instruemtizeDetails[slice.id.full];
+			var sliceDetails:SliceInstoolsDetails = instrumentizeDetails[slice.id.full];
 			if(sliceDetails == null)
 				Alert.show("Slice either has not been instrumentized or the instrumentation details have not been retrieved. Please click the instrumentize button if you need to instrumentize the slice or if the slice is already instrumentized.");
 			else

@@ -27,6 +27,7 @@ package com.flack.geni.resources.virtual
 		public var address:String;
 		public var netmask:String = "";
 		public var type:String = "";
+		public var unset:Boolean = true;
 		
 		public var extensions:Extensions = new Extensions();
 		

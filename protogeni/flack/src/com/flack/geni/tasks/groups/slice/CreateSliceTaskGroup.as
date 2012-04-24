@@ -72,7 +72,7 @@ package com.flack.geni.tasks.groups.slice
 				newSlice.authority = authority;
 				relatedTo.push(newSlice);
 					
-				add(new ResolveSliceSaTask(newSlice, true));
+				add(new ResolveSliceSaTask(newSlice, true, sliceName.length == 0));
 			}
 			
 			super.runStart();

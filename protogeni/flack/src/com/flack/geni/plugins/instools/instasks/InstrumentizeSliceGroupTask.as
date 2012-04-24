@@ -48,18 +48,23 @@ package com.flack.geni.plugins.instools.instasks
 				else
 					add(new PollInstoolsStatusTaskGroup(details));
 			}
-			// Added the nodes, go ahead and create
+				// Added the nodes, go ahead and create
 			else if(task is AddMCNodesTaskGroup)
 			{
 				add(new CreateMCNodesTaskGroup(details));
 			}
-			// Created the MC Nodes, make sure slice is ready
+				// Created the MC Nodes, make sure slice is ready
 			else if(task is CreateMCNodesTaskGroup)
 			{
 				add(new RefreshSliceStatusTaskGroup(details.slice));
 			}
-			// Slice is ready, instrumentize/check for status
+				// Send the manifests to the CMs.
 			else if(task is RefreshSliceStatusTaskGroup)
+			{
+				add(new SaveManifestTaskGroup(details));
+			}
+				// Slice is ready, instrumentize/check for status
+			else if(task is SaveManifestTaskGroup)
 			{
 				add(new PollInstoolsStatusTaskGroup(details));
 			}

@@ -65,6 +65,7 @@ package com.flack.geni.tasks.process
 		public var includeOnlySliver:Boolean;
 		public var includeHistory:Boolean;
 		public var includeManifest:Boolean;
+		public var applyOriginalSettings:Boolean;
 		public var resultRspec:Rspec;
 		
 		/**
@@ -78,6 +79,7 @@ package com.flack.geni.tasks.process
 													shouldIncludeHistory:Boolean = true,
 													shouldIncludeManifestInfo:Boolean = false,
 													shouldIncludeOnlySliver:Boolean = false,
+													shouldApplyOriginalSettings:Boolean = false,
 													newUseRspecVersion:RspecVersion = null)
 		{
 			super(
@@ -100,6 +102,7 @@ package com.flack.geni.tasks.process
 			includeHistory = shouldIncludeHistory;
 			includeManifest = shouldIncludeManifestInfo;
 			includeOnlySliver = shouldIncludeOnlySliver;
+			applyOriginalSettings = shouldApplyOriginalSettings;
 			useRspecVersion = newUseRspecVersion;
 		}
 		
@@ -203,7 +206,7 @@ package com.flack.geni.tasks.process
 			
 			for each(var node:VirtualNode in nodes.collection)
 			{
-				var nodeXml:XML = generateNodeRspec(node, false, resultRspec.info);
+				var nodeXml:XML = generateNodeRspec(node, applyOriginalSettings, resultRspec.info);
 				if(nodeXml != null)
 					xmlDocument.appendChild(nodeXml);
 			}
@@ -217,26 +220,29 @@ package com.flack.geni.tasks.process
 			
 			if(resultRspec.info.version >= 2)
 			{
-				// Add client extension
-				var clientInfo:ClientInfo = new ClientInfo();
-				var clientInfoXml:XML = <client_info />;
-				clientInfoXml.setNamespace(RspecUtil.clientNamespace);
-				clientInfoXml.@name = clientInfo.name;
-				clientInfoXml.@environment = clientInfo.environment;
-				clientInfoXml.@version = clientInfo.version;
-				clientInfoXml.@url = clientInfo.url;
-				xmlDocument.appendChild(clientInfoXml);
+				if(!applyOriginalSettings)
+				{
+					// Add client extension
+					var clientInfo:ClientInfo = new ClientInfo();
+					var clientInfoXml:XML = <client_info />;
+					clientInfoXml.setNamespace(RspecUtil.clientNamespace);
+					clientInfoXml.@name = clientInfo.name;
+					clientInfoXml.@environment = clientInfo.environment;
+					clientInfoXml.@version = clientInfo.version;
+					clientInfoXml.@url = clientInfo.url;
+					xmlDocument.appendChild(clientInfoXml);
+				}
 				
-				if(sliver != null)
+				if(slice != null)
 				{
 					// history
-					if(includeHistory && sliver.slice.history.states.length > 0)
+					if(includeHistory && slice.history.states.length > 0)
 					{
 						var sliceHistoryXml:XML = <slice_history />;
-						sliceHistoryXml.@backIndex = sliver.slice.history.backIndex;
-						sliceHistoryXml.@note = sliver.slice.history.stateName;
+						sliceHistoryXml.@backIndex = slice.history.backIndex;
+						sliceHistoryXml.@note = slice.history.stateName;
 						sliceHistoryXml.setNamespace(RspecUtil.historyNamespace);
-						for each(var state:SliceHistoryItem in sliver.slice.history.states)
+						for each(var state:SliceHistoryItem in slice.history.states)
 						{
 							var slicHistoryItemXml:XML = <state>{CompressUtil.compress(state.rspec)}</state>;
 							if(state.note.length > 0)
@@ -247,11 +253,14 @@ package com.flack.geni.tasks.process
 						xmlDocument.appendChild(sliceHistoryXml);
 					}
 					
-					// add flack extension
-					var sliceInfoXml:XML = <slice_info />;
-					sliceInfoXml.setNamespace(RspecUtil.flackNamespace);
-					sliceInfoXml.@view = sliver.slice.flackInfo.view;
-					xmlDocument.appendChild(sliceInfoXml);
+					if(!applyOriginalSettings)
+					{
+						// add flack extension
+						var sliceInfoXml:XML = <slice_info />;
+						sliceInfoXml.setNamespace(RspecUtil.flackNamespace);
+						sliceInfoXml.@view = slice.flackInfo.view;
+						xmlDocument.appendChild(sliceInfoXml);
+					}
 				}
 				
 			}
@@ -358,7 +367,7 @@ package com.flack.geni.tasks.process
 			
 			// If node is at a location, include it
 			// Mostly so managers outside of this node's manager can know a location
-			if(node.Physical != null && node.Physical.location.latitude != PhysicalLocation.defaultLatitude)
+			if(node.Physical != null && node.Physical.location.latitude != PhysicalLocation.defaultLatitude && !(removeNonexplicitBinding && node.flackInfo.unbound))
 			{
 				var locationXml:XML = <location />;
 				locationXml.@latitude = node.Physical.location.latitude;
@@ -502,7 +511,7 @@ package com.flack.geni.tasks.process
 						if(current.physicalId != null && current.physicalId.full.length > 0)
 							interfaceXml.@component_id = current.physicalId.full;
 					}
-					if(current.ip != null && current.ip.address.length > 0)
+					if(current.ip != null && current.ip.address.length > 0 && !(removeNonexplicitBinding && current.ip.unset))
 					{
 						var ipXml:XML = current.ip.extensions.createAndApply("ip");
 						ipXml.@address = current.ip.address;
@@ -514,7 +523,7 @@ package com.flack.geni.tasks.process
 				
 				var interfaceFlackXml:XML = <interface_info />;
 				interfaceFlackXml.setNamespace(RspecUtil.flackNamespace);
-				interfaceFlackXml.@addressUnset = current.ip == null || current.ip.address.length  == 0;
+				interfaceFlackXml.@addressUnset = current.ip == null || current.ip.unset;
 				interfaceXml.appendChild(interfaceFlackXml);
 				
 				nodeXml.appendChild(interfaceXml);
@@ -533,7 +542,7 @@ package com.flack.geni.tasks.process
 		
 		public function generateLinkRspec(link:VirtualLink, version:RspecVersion):XML
 		{
-			if(link.interfaceRefs.length == 0)
+			if(link.interfaceRefs.length == 0 && link.sharedVlanName.length == 0)
 				return null;
 			
 			var linkXml:XML = link.extensions.createAndApply("link");
@@ -554,9 +563,22 @@ package com.flack.geni.tasks.process
 			if(link.vlantag.length > 0)
 				linkXml.@vlantag = link.vlantag;
 			
+			if(link.sharedVlanName.length > 0)
+			{
+				var sharedVlan:XML =  <link_shared_vlan />;
+				sharedVlan.setNamespace(RspecUtil.sharedVlanNamespace);
+				sharedVlan.@name = link.sharedVlanName;
+				linkXml.appendChild(sharedVlan);
+			}
+			
 			var manager:GeniManager;
 			
 			var managersCollection:GeniManagerCollection = link.interfaceRefs.Interfaces.Managers;
+			for each(var refManager:GeniManagerReference in link.managerRefs.collection)
+			{
+				if(!managersCollection.contains(refManager.referencedManager))
+					managersCollection.add(refManager.referencedManager);
+			}
 			for each(manager in managersCollection.collection)
 			{
 				var cmXml:XML;
@@ -726,6 +748,7 @@ package com.flack.geni.tasks.process
 					}
 					
 					break;
+				default:
 			}
 			
 			// Meh, add into older rspec versions too...

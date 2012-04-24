@@ -67,19 +67,24 @@ package com.flack.geni.tasks.xmlrpc.protogeni.sa
 		override protected function runStart():void
 		{
 			if(prompt)
-			{
-				var promptForNameWindow:TextInputWindow = new TextInputWindow();
-				promptForNameWindow.onSuccess = userChoseName;
-				promptForNameWindow.onCancel = cancel;
-				promptForNameWindow.showWindow();
-				if(slice.Name.length > 0)
-					promptForNameWindow.title = "Slice name not valid, please try another";
-				else
-					promptForNameWindow.title = "Please enter a valid, non-existing slice name";
-				promptForNameWindow.Text = slice.Name;
-			}
+				promptName();
 			else
 				super.runStart();
+		}
+		
+		public function promptName():void
+		{
+			var promptForNameWindow:TextInputWindow = new TextInputWindow();
+			promptForNameWindow.onSuccess = userChoseName;
+			promptForNameWindow.onCancel = cancel;
+			promptForNameWindow.showWindow();
+			promptForNameWindow.valueTextinput.restrict = "a-zA-Z0-9\-";
+			promptForNameWindow.valueTextinput.maxChars = 19;
+			if(slice.Name.length > 0)
+				promptForNameWindow.title = "Slice name not valid, please try another";
+			else
+				promptForNameWindow.title = "Please enter a valid, non-existing slice name";
+			promptForNameWindow.Text = slice.Name;
 		}
 		
 		public function userChoseName(newName:String):void

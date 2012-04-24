@@ -30,6 +30,7 @@ package com.flack.geni.resources.virtual
 		public static const ION:String = "ion";
 		public static const GPENI:String = "gpeni";
 		public static const VLAN:String = "VLAN";
+		public static const UNSPECIFIED:String = "";
 		
 		public var name:String;
 		public var extensions:Extensions = new Extensions();
@@ -39,7 +40,7 @@ package com.flack.geni.resources.virtual
 		 * @param newName Name of the link type
 		 * 
 		 */
-		public function LinkType(newName:String = LAN_V2)
+		public function LinkType(newName:String = UNSPECIFIED)
 		{
 			name = newName;
 		}

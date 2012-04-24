@@ -93,7 +93,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			// Generate a rspec if needed
 			if(request == null)
 			{
-				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, false, false);
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, true, false);
 				generateNewRspec.start();
 				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
 				{

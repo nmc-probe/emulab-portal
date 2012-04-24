@@ -37,7 +37,8 @@ package com.flack.geni.plugins.instools.instasks
 		{
 			addNamedField("urn", sliver.slice.id.full);
 			addNamedField("password", SHA1.hash(GeniMain.geniUniverse.user.password));
-			addNamedField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.id.full]);
+			addNamedField("INSTOOLS_VERSION", details.useStableINSTOOLS ? Instools.stable_version[sliver.manager.id.full] : Instools.devel_version[sliver.manager.id.full]);
+			//addNamedField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.id.full]);
 			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
 		

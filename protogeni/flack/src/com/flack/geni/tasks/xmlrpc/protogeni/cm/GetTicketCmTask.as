@@ -133,7 +133,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			else
 			{
 				if(output.indexOf("must release") != -1)
-					Alert.show("Ticket must expire before trying again");
+					Alert.show("Ticket must expire before trying again.");
+				if(output.indexOf("active sliver") != -1)
+					Alert.show("Sliver already exists, try refreshing the slice.");
 				faultOnSuccess();
 			}
 		}

@@ -26,13 +26,31 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		 buttonMode="true"
 		 toolTip="Open {contentItem.title}"
 		 width="24"
-		 click="openContent()">
+		 click="openContent()"
+		 mouseOver="group1_mouseOverHandler(event)"
+		 mouseOut="group1_mouseOutHandler(event)">
 	<fx:Script>
 		<![CDATA[
 			import com.flack.shared.utils.ImageUtil;
 			
 			[Bindable]
-			public var contentItem:AreaContent;
+			private var contentItem:AreaContent;
+			
+			public function set ContentItem(value:AreaContent):void
+			{
+				contentItem = value;
+				barColor = value.backgroundColor;
+				titleColor = value.titleColor;
+			}
+			public function get ContentItem():AreaContent
+			{
+				return contentItem;
+			}
+			
+			[Bindable]
+			private var barColor:uint;
+			[Bindable]
+			private var titleColor:uint;
 			
 			public function openContent():void
 			{
@@ -48,11 +66,24 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				navImage.source = ImageUtil.rightIcon;
 			}
+			
+			protected function group1_mouseOverHandler(event:MouseEvent):void
+			{
+				barColor = 0xFFFF66;
+				titleColor = 0x000000;
+			}
+			
+			protected function group1_mouseOutHandler(event:MouseEvent):void
+			{
+				barColor = contentItem.backgroundColor;
+				titleColor = contentItem.titleColor;
+			}
+			
 		]]>
 	</fx:Script>
 	
 	<s:Rect width="100%" height="100%">
-		<s:fill><s:SolidColor color="{contentItem.backgroundColor}" /></s:fill>
+		<s:fill><s:SolidColor color="{barColor}" /></s:fill>
 	</s:Rect>
 	
 	<s:VGroup width="100%"
@@ -68,7 +99,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					rotation="-90"
 					width="100%"
 					height="100%"
-					color="{contentItem.titleColor}"
+					color="{titleColor}"
 					textAlign="end"
 					maxDisplayedLines="1"
 					verticalAlign="middle" />

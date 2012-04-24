@@ -41,6 +41,8 @@ package com.flack.geni.resources.virtual
 		
 		public var vlantag:String = "";
 		
+		public var sharedVlanName:String = "";
+		
 		public var properties:PropertyCollection = new PropertyCollection();
 		
 		// Flack extension
@@ -269,13 +271,7 @@ package com.flack.geni.resources.virtual
 		
 		public function changeToType(selectedType:SupportedLinkType):void
 		{
-			
-			
-			// Establish or change clientId according to type if possible
-			if(clientId.length == 0)
-				clientId = slice.getUniqueId(this, selectedType.name);
-			else if(selectedType.name != type.name && clientId.indexOf(type.name) == 0)
-				clientId = clientId.replace(type.name, selectedType.name);
+			var oldTypeName:String = type.name;
 			
 			var makeCapacity:Number = selectedType.defaultCapacity;
 			switch(selectedType.name)
@@ -284,13 +280,13 @@ package com.flack.geni.resources.virtual
 				case LinkType.LAN_V2:
 					type.name = LinkType.LAN_V2;
 					for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
+				{
+					if(addedInterface.Owner.Vm)
 					{
-						if(addedInterface.Owner.Vm)
-						{
-							makeCapacity = 100000;
-							break;
-						}
+						makeCapacity = 100000;
+						break;
 					}
+				}
 					break;
 				case LinkType.ION:
 					type.name = LinkType.ION;
@@ -311,6 +307,12 @@ package com.flack.geni.resources.virtual
 			
 			if(selectedType.requiresIpAddresses)
 				setupIpAddresses();
+			
+			// Establish or change clientId according to type if possible
+			if(clientId.length == 0)
+				clientId = slice.getUniqueId(this, type.name.length == 0 ? "link" : type.name);
+			else if(oldTypeName != type.name && clientId.indexOf(oldTypeName) == 0)
+				clientId = clientId.replace(oldTypeName, type.name.length == 0 ? "link" : type.name);
 		}
 		
 		public function setupIpAddresses():void

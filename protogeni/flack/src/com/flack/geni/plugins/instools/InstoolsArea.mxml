@@ -50,7 +50,7 @@
 				}
 				
 				// Allow portal if ready
-				var details:SliceInstoolsDetails = Instools.instruemtizeDetails[slice.id.full];
+				var details:SliceInstoolsDetails = Instools.instrumentizeDetails[slice.id.full];
 				gotoPortalButton.enabled = details != null && details.hasAnyPortal();
 			}
 			
@@ -62,7 +62,12 @@
 			
 			public function tryInstrumentize():void
 			{
-				Instools.instrumentizeSlice(slice, true, versionDropdownlist.selectedItem, useVirtualMcsRadiobutton.selected);
+				var useStableINSTOOLS:Boolean;
+				if (versionINSTOOLSDropdownlist.selectedItem == "Stable")
+					useStableINSTOOLS = true;
+				else
+					useStableINSTOOLS = false;
+				Instools.instrumentizeSlice(slice, true, versionDropdownlist.selectedItem, useVirtualMcsRadiobutton.selected, false, useStableINSTOOLS);
 				host.dashboardViewstack.selectedChild = host.sliceView;
 			}
 		]]>
@@ -89,11 +94,20 @@
 	
 	<s:VGroup width="100%">
 		<s:HGroup width="100%" verticalAlign="middle">
-			<s:Label text="APIv" />
+			<s:Label text="INSTOOLS APIv" />
 			<s:DropDownList id="versionDropdownlist" width="100%" requireSelection="true">
 				<s:ArrayCollection>
-					<fx:Number>1</fx:Number>
+					<!-- <fx:Number>1</fx:Number> -->
 					<fx:Number>2</fx:Number>
+				</s:ArrayCollection>
+			</s:DropDownList>
+		</s:HGroup>
+		<s:HGroup width="100%" verticalAlign="middle">
+			<s:Label text="INSTOOLSv" />
+			<s:DropDownList id="versionINSTOOLSDropdownlist" width="100%" requireSelection="true">
+				<s:ArrayCollection>
+					<fx:String>Stable</fx:String>
+					<fx:String>Devel</fx:String>
 				</s:ArrayCollection>
 			</s:DropDownList>
 		</s:HGroup>

@@ -22,7 +22,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 							 xmlns:mx="library://ns.adobe.com/flex/mx"
 							 xmlns:components="com.flack.shared.display.components.*"
 							 skinClass="com.flack.shared.display.skins.TitleWindowSkinNoCloseButton"
-							 title="{SharedMain.version}" >
+							 title="{SharedMain.version}">
 	<components:layout>
 		<s:VerticalLayout horizontalAlign="center" paddingBottom="10" />
 	</components:layout>
@@ -36,15 +36,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	</fx:Script>
 	
 	<s:BitmapImage source="{ImageUtil.logoIcon}" />
-	<s:Button label="Log in with list" visible="false" includeInLayout="false"
-			  id="loginWithListButton"
-			  width="50%" height="28"
-			  icon="{ImageUtil.authenticationIcon}"
-			  toolTip="Log in to view and be able to allocate resources"
-			  click="GeniMain.viewList = true; GeniMain.geniUniverse.loadAuthenticated(); closeWindow();" />
 	<s:Button label="Log in"
 			  id="loginButton"
-			  width="50%" height="28"
+			  width="50%" height="28" chromeColor="0x27C427"
 			  icon="{ImageUtil.authenticationIcon}"
 			  toolTip="Log in to view and be able to allocate resources"
 			  click="GeniMain.geniUniverse.loadAuthenticated(); closeWindow();" />

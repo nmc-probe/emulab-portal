@@ -165,6 +165,7 @@ package com.flack.geni
 				if(FlexGlobals.topLevelApplication.parameters.rspeclisturl != null)
 				{
 					rspecListUrl = FlexGlobals.topLevelApplication.parameters.rspeclisturl;
+					viewList = true;
 				}
 			} catch(all:Error) {
 			}

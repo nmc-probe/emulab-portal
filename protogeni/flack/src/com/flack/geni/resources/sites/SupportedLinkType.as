@@ -21,7 +21,7 @@ package com.flack.geni.resources.sites
 				case LinkType.VLAN:
 					maxConnections = 2;
 					supportsManyManagers = true;
-					defaultCapacity = 100000;
+					defaultCapacity = 500;
 					level = 25;
 					break;
 				case LinkType.ION:
@@ -40,6 +40,10 @@ package com.flack.geni.resources.sites
 					break;
 				case LinkType.LAN_V2:
 					level = 0;
+					break;
+				case LinkType.UNSPECIFIED:
+					supportsManyManagers = true;
+					level = 1000;
 					break;
 				default:
 			}
