@@ -306,7 +306,7 @@ sub WarnSlices()
 		     "from slice $urn,\n".
 		     "is going to expire in approximately $diff $unit.\n".
 		     "Please renew it or let it expire if you not using it.\n",
-		     undef, "CC: $TBOPS");
+		     undef);
 	}
 	$warned{$idx}  = time();
 	$expires{$idx} = $stamp;
