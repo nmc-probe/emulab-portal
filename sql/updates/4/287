@@ -13,6 +13,7 @@ sub DoUpdate($$$)
 	Fatal("No 'op' slot in 'node_history' table");
     }
     if (! ($type =~ /create/)) {
+        print "  *** Updating a big table ... please be very patient.\n";
 	DBQueryFatal("alter table node_history change `op` `op` ".
 		     "  enum('alloc','free','move','create','destroy') ".
 		     "  NOT NULL default 'alloc'");
