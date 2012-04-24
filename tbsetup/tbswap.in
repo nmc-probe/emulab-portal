@@ -908,6 +908,7 @@ sub doSwapout($) {
 	$experiment->RemovePhysicalState(1);
 	# Special. 
 	$experiment->ClearPortRegistration();
+	$experiment->ClearPortRange();
     }
 
     tblog_set_cleanup(0);

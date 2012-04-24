@@ -159,7 +159,6 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "virt_client_service_opts");
 
 %physicalTables = ("delays"     => ["node_id", "vname", "vnode0", "vnode1"],
-		   "ipport_ranges" => undef,
 		   "v2pmap"        => ["node_id", "vname"],
 		   "linkdelays"    => ["node_id", "vlan", "vnode"],
 		   "traces"        => ["node_id", "idx"],
@@ -4693,6 +4692,21 @@ sub GetPortRange($)
 
     my ($low,$high) = $query_result->fetchrow_array();
     return ($low, $high);
+}
+#
+# This has to be done at swapout, but not during a swapmod since
+# that would mess up the existing port assignments.
+# So it is a special case, not in the physicalTables list.
+#
+sub ClearPortRange($)
+{
+    my ($self) = @_;
+    my $idx = $self->idx();
+
+    DBQueryWarn("delete from ipport_ranges where exptidx=$idx")
+	or return -1;
+
+    return 0;
 }
 
 #

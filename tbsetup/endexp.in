@@ -577,6 +577,10 @@ EmulabFeatures->DeleteAll($experiment) == 0 or
 $experiment->ClearReservedVlanTags() == 0 or
     fatal("Could not delete reserved vlan tags for $experiment");
 
+# Just in case ...
+$experiment->ClearPortRange() == 0 or
+    fatal("Could not delete ip port range for $experiment");
+
 #
 # Send email now, since once we call Delete() the log file is going
 # to be unlinked.

@@ -8552,9 +8552,11 @@ sub SetPortRange($)
     my ($newlow,$newhigh) = $self->experiment()->GetPortRange();
     if (!defined($newlow)) {
 	#
-	# It is okay to do this in impotent mode; it is harmless.
+	# We allocate a port range but do not save it. This is
+	# okay since we do not store the per-node assignments.
 	#
-	($newlow,$newhigh) = $self->experiment()->SetPortRange(0);
+	($newlow,$newhigh) =
+	    $self->experiment()->SetPortRange($self->impotent());
     }
     if (!defined($newlow)) {
 	tberror("Could not set the portrange!\n");
