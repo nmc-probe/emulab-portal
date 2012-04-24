@@ -9892,7 +9892,8 @@ COMMAND_PROTOTYPE(dodisks)
 	/*
 	 * Get all the *virt* disks for the node.
 	 */
-	res = mydb_query("select diskname,disktype,mountpoint,parameters,command "
+	res = mydb_query("select diskname,disktype,disksize,mountpoint,"
+			 "parameters,command "
 			 "   from virt_node_disks "
 			 "where exptidx=%d and vname='%s'",
 			 5, reqp->exptidx, reqp->nickname);
@@ -9903,13 +9904,15 @@ COMMAND_PROTOTYPE(dodisks)
 
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       "DISK DISKNAME=%s DISKTYPE='%s' "
+				       "DISKSIZE='%s' "
 				       "MOUNTPOINT='%s' PARAMETERS='%s' "
 				       "COMMAND='%s'\n",
 				       row[0], 
 				       (row[1] ? row[1] : ""),
 				       (row[2] ? row[2] : ""),
 				       (row[3] ? row[3] : ""),
-				       (row[4] ? row[4] : ""));
+				       (row[4] ? row[4] : ""),
+				       (row[5] ? row[5] : ""));
 		}
 		mysql_free_result(res);
 		client_writeback(sock, buf, strlen(buf), tcp);
