@@ -1286,6 +1286,87 @@ sub List($)
 }
 
 #
+# Read the history records. Only a CH or delegated CH credential
+# is allowed to do this. 
+#
+sub ReadHistoryRecords($)
+{
+    my ($argref) = @_;
+    my $cred     = $argref->{'credential'};
+    my $index    = $argref->{'index'};
+    my $count    = $argref->{'count'};
+
+    if (! (defined($cred))) {
+	return GeniResponse->MalformedArgsResponse("credential");
+    }
+    if (defined($count)) {
+	if (! (($count =~ /^\d*$/) && $count > 0 && $count <= 100)) {
+	    return GeniResponse->MalformedArgsResponse("count");
+	}
+    }
+    else {
+	$count = 10;
+    }
+    if (defined($index)) {
+	if (! (($index =~ /^\d*$/) && $index > 0)) {
+	    return GeniResponse->MalformedArgsResponse("index");
+	}
+    }
+    else {
+	$index = 10;
+    }
+
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR "Could not find local authority object\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    my $credential = CheckCredential($cred, $authority);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+   
+    $credential->HasPrivilege("readhistory") or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+
+    my $query_result =
+	DBQueryWarn("select a.*,m.manifest from aggregate_history as a ".
+		    "left join manifest_history as m on ".
+		    "     m.aggregate_urn=a.urn ".
+		    "where a.idx>=$index limit $count");
+
+    return GeniResponse->Create(GENIRESPONSE_ERROR)
+	if (!$query_result);
+    
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				"Mo matching records")
+	if (! $query_result->numrows);
+
+    my @results = ();
+
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my %blob = ();
+
+	$row->{'slice_urn'} = $row->{'slice_hrn'}
+	    if (!defined($row->{'slice_urn'}));
+
+	$blob{'index'}        = $row->{'idx'};
+	$blob{'uuid'}         = $row->{'uuid'};
+	$blob{'urn'}          = $row->{'urn'};
+	$blob{'slice_urn'}    = $row->{'slice_urn'};
+	$blob{'slice_uuid'}   = $row->{'slice_uuid'};
+	$blob{'creator_urn'}  = $row->{'creator_urn'};
+	$blob{'creator_uuid'} = $row->{'creator_uuid'};
+	$blob{'created'}      = $row->{'created'};
+	$blob{'destroyed'}    = $row->{'destroyed'};
+	$blob{'manifest'}     = $row->{'manifest'};
+
+	push(@results, \%blob);
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@results);
+}
+
+#
 # Initial credential check.
 #
 sub CheckCredential($;$)

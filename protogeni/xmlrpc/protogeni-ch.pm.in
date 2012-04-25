@@ -36,6 +36,7 @@ $GENI_METHODS = {
     "List"                  => \&GeniCH::List,
     "WhoAmI"		    => \&GeniCH::WhoAmI,
     "PostHistoryRecord"	    => \&GeniCH::PostHistoryRecord,
+    "ReadHistoryRecords"    => \&GeniCH::ReadHistoryRecords,
 };
 
 1;
