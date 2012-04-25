@@ -24,7 +24,7 @@ use Exporter;
 use lib "@prefix@/lib";
 use libdb;
 use emutil;
-
+use English;
 use IO::Pty;
 use POSIX qw(setsid);
 use POSIX ":sys_wait_h";
@@ -240,10 +240,10 @@ sub iloexec($$$$$$$;$) {
     defined ($pid = fork()) || die "fork: $!";
     if (!$pid) {
 	# Flip to UID 0 to ensure we can read whatever private key we need
-	$EUID = 0;
+	$UID = $EUID = 0;
 	
 	if ($debug) {
-	    print "Flipped to root: $EUID\n";
+	    print "Flipped to root: $UID,$EUID\n";
 	}
 
 	# Connect our kid to the tty so the parent can chat through the pty
