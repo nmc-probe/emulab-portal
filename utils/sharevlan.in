@@ -14,14 +14,16 @@ use Getopt::Std;
 sub usage()
 {
     print STDERR "Usage: sharevlan [-o] eid lanname token\n";
-    print STDERR "       sharevlan -r eid lanname\n";
+    print STDERR "       sharevlan -r token\n";
     print STDERR " -r    Revoke sharing instead\n";
     print STDERR " -o    Sharing is open to everyone.\n";
+    print STDERR " -l    List all shared vlans\n";
     exit(-1);
 }
-my $optlist  = "hro";
+my $optlist  = "hrol";
 my $revoke   = 0;
 my $open     = 0;
+my $list     = 0;
 
 # Protos
 sub fatal($);
@@ -74,20 +76,19 @@ if (defined($options{'h'})) {
 if (defined($options{'o'})) {
     $open = 1;
 }
-if (defined($options{'r'})) {
+if (defined($options{'l'})) {
+    $list = 1;
+}
+elsif (defined($options{'r'})) {
     $revoke = 1;
 
     usage()
-	if (@ARGV != 2);
+	if (@ARGV != 1);
 }
 else {
     usage()
 	if (@ARGV != 3);
 }
-
-my $eid     = $ARGV[0];
-my $lanname = $ARGV[1];
-my $token   = $ARGV[2] if (!$revoke);
 
 #
 # Verify user, must be admin.
@@ -99,6 +100,41 @@ if (! defined($this_user)) {
 if (!$this_user->IsAdmin()) {
     fatal("You are not a testbed administrator!");
 }
+
+if ($list) {
+    my $query_result =
+	DBQueryFatal("select * from shared_vlans order by token");
+    exit(0)
+	if (! $query_result->numrows);
+
+    printf("%-15s %-15s %-15s %-15s %s\n",
+	   "PID", "EID", "Token", "Lan", "Who");
+    print "-------------------------------------------------------------\n";
+	
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $pid      = $row->{'pid'};
+	my $eid      = $row->{'eid'};
+	my $token    = $row->{'token'};
+	my $lan      = $row->{'vname'};
+	my $created  = $row->{'created'};
+	my $creator  = $row->{'creator'};
+
+	printf("%-15s %-15s %-15s %-15s %s\n",
+	       $pid, $eid, $token, $lan, $creator);
+    }
+    exit(0);
+}
+
+if ($revoke) {
+    my $token = $ARGV[0];
+    
+    DBQueryFatal("delete from shared_vlans where token='$token'");
+    exit(0);
+}
+
+my $eid     = $ARGV[0];
+my $lanname = $ARGV[1];
+my $token   = $ARGV[2];
 
 my $experiment = Experiment->Lookup($eid);
 if (!defined($experiment)) {
@@ -113,10 +149,6 @@ if (!defined($vlan)) {
 }
 my $lanid = $vlan->lanid();
 
-if ($revoke) {
-    DBQueryFatal("delete from shared_vlans where lanid='$lanid'");
-    exit(0);
-}
 my $query_result =
     DBQueryFatal("select * from shared_vlans where lanid='$lanid'");
 if ($query_result->numrows) {
