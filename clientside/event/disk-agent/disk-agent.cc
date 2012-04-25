@@ -73,6 +73,8 @@ struct diskinfo {
 	char		   *initial_mountpoint;
 	char		   *parameters;
 	char		   *initial_parameters;	
+	char		   *volname;
+	unsigned long   size;
     int     pid;
 	unsigned long   token;
     struct diskinfo *next;
@@ -177,13 +179,27 @@ string itos(int );
 void init_volumes(void)
 {
         string cmd;
+		stringstream vol_list;
+		struct diskinfo *pi;
 
         /* Since creating partitions on real disk is painful, we
          * make use of lvm and give logical volumes to host disks.
-         * mkextrafs script which will create 10 logical volumes.
+         * mkextrafs script which will create logical volumes of 
+		 * specified size.
          */
         cout << "Creating the disk partition ..." << endl;
-        cmd = "/usr/testbed/bin/mkextrafs -f -q -l -m vol1,vol2,vol3,vol4,vol5,vol6,vol7,vol8,vol9,vol10";
+        for (pi = diskinfos; pi != NULL; pi = pi->next) {
+               vol_list << (pi->volname) << ",";
+        }
+        vol_list << " -z ";
+        for (pi = diskinfos; pi != NULL; pi = pi->next) {
+                vol_list << (pi->size) << ",";
+        }
+
+        cout << "Volume list and size list" <<endl;
+        cout << vol_list.str() <<endl;
+        cmd = "/usr/testbed/bin/mkextrafs -f -q -l -m "+vol_list.str();
+
         int i = system(const_cast<char *>(cmd.c_str()));
         if(i)
         {
@@ -208,12 +224,16 @@ dump_diskinfos(void)
                "  type: %s\n"
                "  mountpoint: %s\n"
                "  parameters: %s\n"
-               "  command: %s\n",
+               "  command: %s\n"
+			   "  vol_name: %s\n"
+			   "  vol_size: %lu MB\n",	
                pi->name ? pi->name : "(not set)",
                pi->type ? pi->type : "(not set)",
                pi->mountpoint ? pi->mountpoint : "(not set)",
                pi->parameters ? pi->parameters : "(not set)",
-               pi->cmdline ? pi->cmdline : "(not set)"
+               pi->cmdline ? pi->cmdline : "(not set)",
+			   pi->volname ? pi->volname : "(not set)",
+			   pi->size ? pi->size : 0
                );
     }
 }
@@ -432,8 +452,6 @@ void readArgs(int argc, char * argv[])
 	else
 		loginit(1, "disk-agent");
   }
-  //if(subscription == "")
-	//subscription = "DISK";
 	
   if (parse_configfile(configfile) != 0)
   {
@@ -894,44 +912,17 @@ int run_dm_device(struct diskinfo *dinfo,  unsigned long token, char *args)
 			return 0;
 		}
 
-		/* 
-		 * Need to find out which logical volume is free;
-		 * We can check this based on the open count of
-  		 * logical volumes. Simple scan through the list 
-         * logical volumes that we have created looking for
-		 * the first free volume.
+		/* Make a default ext3 filesystem on the lvm volume.
+ 		 * The lvm volume will have the size specified by
+		 * the user. And therefore maintained in the dinfo
+		 * structure. 
 		 */
-		volindex  = 1;
-		int count = 0;
-		do
-		{
-				++count;
-				cmd = "lvdisplay emulab/vol"+itos(volindex)+" | grep open | cut -d ' ' -f 21-21";
-				string open_count_str = exec_output(cmd);
-				int open_count = atoi(const_cast<char *>(open_count_str.c_str()));     
-				if(open_count > 0)
-					++volindex;
-				else
-         	    	break;
-		}while(count <= 10);
-
-		if(count == 10)
-		{
-				cerr << "No logical volumes free to map disks!" <<endl;
-				return 0;
-		}
-
-		cmd = "mkfs.ext3 /dev/emulab/vol"+itos(volindex);
+        cmd = dinfo->volname;
+		cmd = "mkfs.ext3 /dev/emulab/"+cmd;
 		int i = system(const_cast<char *>(cmd.c_str()));
-		if(i)
-		{
-				if(volindex > 1)
-					--volindex;
-				cerr << "mkfs failed for /dev/emulab/vol"+volindex <<endl ;
-				dm_task_destroy(dmt);
-				return 0;
-		}
-		string disk = "/dev/emulab/vol"+itos(volindex);
+
+		string disk = dinfo->volname;
+		disk = "/dev/emulab/"+disk;
 
 		/* So we have the new partition. Find out the
 		 * size of partition to create the new dm disk.
@@ -946,8 +937,8 @@ int run_dm_device(struct diskinfo *dinfo,  unsigned long token, char *args)
 		cout << "Mapping the virtual disk " << dinfo->name << "on "<<disk<< endl; 
 		/*
 		 * Hardcoding all the values.
-		 * Users not to worry about the geometry of the disk such as the start
-		 * sector, end sector, size etc
+		 * Users need not to worry about the geometry of the disk such as the start
+		 * sector, end sector, size etc.
 		 */
 		start = 0;
 		size = strtoul(const_cast<char *>(str_size.c_str()), NULL, 0);
@@ -1409,12 +1400,14 @@ int _get_device_params(const char *name)
                 goto out;
 
 		/* This is a hack for now to make things work with lvm vols
-		   We create 10 lvm vols and the major:minor number decided
-		   by device mapper rolls back, so subtracting it by 10.
-	       If we increase the lvm vols then we have to change this.
-		*/
+         * numdisks keeps track of the total disks created.
+		 * To determine the minor number of the dm disk, I'm subtracting
+		 * it with numdisks. This is a side effect of the way device
+		 * mapper manages dm disks when we are mapping disks on top
+		 * of lvm volume.
+		 */
 
-		minor_number = info.minor - 10;
+		minor_number = info.minor - (numdisks+1);
 		diskname = itos(info.major)+":"+itos(info.minor);
 		
         do {
@@ -1454,6 +1447,8 @@ parse_configfile(char *filename)
     FILE    *fp;
     char    buf[BUFSIZ];
 	struct diskinfo *dinfo;
+	int count = 0;
+	char volstr[10];
 
     assert(filename != NULL);
     assert(strlen(filename) > 0);
@@ -1528,12 +1523,32 @@ parse_configfile(char *filename)
             }
 			dinfo->initial_type = dinfo->type;			
 
+			if (((rc = event_arg_get(buf, "DISKSIZE", &value)) > 0)) {
+				if (sscanf(value, "%d", &dinfo->size) != 1) {
+					printf("parse_configfile: "
+							"malformed command: %s\n",
+							buf);
+					 goto bad;
+				}
+			}
+			else
+				dinfo->size = 0;
+
             if ((rc = event_arg_dup(buf, "MOUNTPOINT", &dinfo->mountpoint)) == 0) {
                 free(dinfo->mountpoint);
                 dinfo->mountpoint = NULL;
             }
 			dinfo->initial_mountpoint = dinfo->mountpoint;
 		
+			/* Convert the count from int to string.
+			 * This is to name the lvm volumes.
+			 */
+			stringstream countstr;
+			countstr << count;
+			string tmp = "vol"+countstr.str();
+			asprintf(&dinfo->volname,"%s", const_cast<char *>(tmp.c_str()));
+			numdisks++;
+			count++;
 
 			dinfo->next = diskinfos;
 			diskinfos   = dinfo;
