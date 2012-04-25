@@ -25,7 +25,7 @@ sub Install($$$)
 
     # Configure can override setting it here.
     if ($MFSVERSION eq "") {
-	if ($FBSD_MAJOR >= 7.2) {
+	if ($FBSD_MAJOR > 7 || ($FBSD_MAJOR == 7 && $FBSD_MINOR >= 2)) {
 	    $MFSVERSION = "72";
 	}
 	else {
