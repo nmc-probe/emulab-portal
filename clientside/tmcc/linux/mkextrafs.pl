@@ -227,7 +227,7 @@ if ($lvm) {
 	    my $cmd = "lvcreate -n $lv -L ". $sizelist[$cnt]. "M ". $vglist[0];
 
 	    #DEBUG
-	    print("\n$cnt: $cmd");
+	    #print("\n$cnt: $cmd");
 
 	    if (system($cmd)) {
 		die("*** $0:\n".
@@ -261,7 +261,7 @@ if ($lvm) {
 		my $cmd = "lvcreate -n $lv -L ${vol_size}M ". $vglist[0];
 
 		#DEBUG
-		print("\n$cnt: $cmd");
+		#print("\n$cnt: $cmd");
 
 		if (system($cmd)) {
 		    die("*** $0:\n".
