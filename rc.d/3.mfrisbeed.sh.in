@@ -68,6 +68,8 @@ fi
 echo -n " mfrisbeed"
 rm -f /var/run/frisbeed-*.pid
 args="-C emulab -i @BOSSNODE_IP@"
+# to allow broadcast, uncomment the following line
+#args="$args -x ucast,mcast,bcast"
 # if an inner elab, use outer boss as our parent
 if [ -n "@OUTERBOSS_NODENAME@" ]; then
     args="$args -S @OUTERBOSS_NODENAME@"

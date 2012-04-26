@@ -309,6 +309,10 @@ loadone() {
 	    ispath=0
 	fi
     else
+	#
+	# Note: if you want to use broadcast rather that multicast as
+	# the distribution method, add "-X bcast" to the IMAGEID= below.
+	#
         IMAGEID="-B 30 -F $IMAGEID"
 	isurl=0
 	ispath=0
