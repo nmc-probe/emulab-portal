@@ -172,6 +172,7 @@ outfiles="Makeconf GNUmakefile \
           lib/event/GNUmakefile \
 	  event/GNUmakefile \
 	  event/program-agent/GNUmakefile \
+	  event/disk-agent/GNUmakefile \
 	  event/link-agent/GNUmakefile \
 	  event/proxy/GNUmakefile \
 	  event/tevc/GNUmakefile \
