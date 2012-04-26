@@ -18,10 +18,10 @@ sub mysystem($);
 
 sub usage()
 {
-    print("Usage: mkextrafs.pl [-fq] [-s slice] [-lM] [-v <vglist>] [-m <lvlist>] <mountpoint>\n");
+    print("Usage: mkextrafs.pl [-fq] [-s slice] [-lM] [-v <vglist>] [-m <lvlist>] [-z <lvsize>] <mountpoint>\n");
     exit(-1);
 }
-my  $optlist = "fqls:v:Mm:";
+my  $optlist = "fqls:v:Mm:z:";
 
 #
 # Yep, hardwired for now.  Should be options or queried via TMCC.
@@ -77,6 +77,9 @@ if (defined($options{"v"})) {
 if (defined($options{"m"})) {
     @lvlist = split(/,/,$options{"m"});
 }
+if (defined($options{"z"})) {
+    @sizelist = split(/,/,$options{"z"});
+}
 if (defined($options{"M"})) {
     $lmonster = 1;
     if (@vglist > 1 || @lvlist > 1) {
@@ -91,9 +94,17 @@ if (scalar(@vglist) == 0) {
 if (scalar(@lvlist) == 0) {
     @lvlist = ('emulab',);
 }
+if (scalar(@sizelist) == 0) {
+    @sizelist = ('0',);
+}
 if (@vglist > 1 && @lvlist > 1) {
 	die("*** $0:\n".
 	    "    You cannot specify multiple volume groups and logical volumes!\n");
+}
+if (scalar(@lvlist) != scalar(@sizelist)) {
+	die("*** $0:\n".
+            "    Some of the lvm vols have no size specified in the -z list." .
+	    "	 If you do not want any particular size then specify 0 instead.\n");
 }
 
 my $mountpoint;
@@ -205,12 +216,59 @@ if ($lvm) {
 	}
     }
 
-    my $pct = int(100 / scalar(@lvlist));
+    #
+    # First, create LVMs whose size is specified.
+    #
+    my $cnt = -1;
+    my $vols_left = scalar(@lvlist);
     foreach my $lv (@lvlist) {
-	if (system("lvcreate -n $lv -l ${pct}\%VG $vglist[0]")) {
-	    die("*** $0:\n".
-		"    'lvcreate -n $lv -l ${pct}\%VG $vglist[0]' failed!\n");
+	$cnt = $cnt + 1;
+	if ($sizelist[$cnt] != 0) {
+	    my $cmd = "lvcreate -n $lv -L ". $sizelist[$cnt]. "M ". $vglist[0];
+
+	    #DEBUG
+	    print("\n$cnt: $cmd");
+
+	    if (system($cmd)) {
+		die("*** $0:\n".
+		    "    '$cmd' failed!\n");
+	    }
+		
+	    $vols_left = $vols_left - 1;
+    	}
+    }
+
+    #
+    # Now divide up the remaining volume group space among the other LVMs.
+    #
+    if ($vols_left > 0) {
+	$cnt = -1;
+	my $vgspace = `vgs --noheadings -o vg_free --units m $vglist[0]`;
+	if ($vgspace =~ /\s+([\d\.]+)m/) {
+	    # leave some space for rounding to extent boundaries
+	    $vgspace = int($1) - (4 * $vols_left);
+	} else {
+	    $vgspace = 0;
 	}
+	if ($vgspace == 0) {
+	    die("*** $0:\n".
+		"    no VG space for remaining volumes!\n");
+	}
+	$vol_size = int($vgspace / $vols_left);
+	foreach my $lv (@lvlist) {
+	    $cnt = $cnt + 1;
+	    if ($sizelist[$cnt] == 0) {
+		my $cmd = "lvcreate -n $lv -L ${vol_size}M ". $vglist[0];
+
+		#DEBUG
+		print("\n$cnt: $cmd");
+
+		if (system($cmd)) {
+		    die("*** $0:\n".
+			"    '$cmd' failed!\n");
+		}
+	    }		
+	}	
     }
 
     if ($lmonster) {
@@ -269,5 +327,5 @@ sub mysystem($)
 		"    Failed: '$command'\n");
 	}
     }
-    return 0
+    return 0;
 }
