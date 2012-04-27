@@ -886,10 +886,12 @@ sub commit_mail($$$\@$@) {
 
         #
         # Grab patches - we do this seperately so that we can put them down
-        # below the commit logs
+        # below the commit logs. (Note: we don't print patches when a ref is
+        # deleted, that doesn't make any sense.)
         #
 	my @patch_text;
-	if (defined($include_patches) && $include_patches &&
+	if ($ct ne $CT_DELETE &&
+                defined($include_patches) && $include_patches &&
                 scalar(@$commits) <= $max_patches) {
 	    my $patchcommand = "$GIT show --format='format:commit %H'";
 	    if ($patch_style eq "word") {
