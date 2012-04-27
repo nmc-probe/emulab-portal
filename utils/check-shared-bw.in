@@ -1,0 +1,59 @@
+#!/usr/bin/perl -w                                                              
+
+# Checks to see if the bandwidth remaining on shared interfaces
+# matches the maximum capacity - used capacity for those interfaces
+
+# Usage: check-shared-bw.in
+
+our $TB = "/usr/testbed";                                                       
+
+use lib "/usr/testbed/lib";
+use libdb;
+
+# Get max bandwidth for interface types on all matching nodes
+
+# Key is node:iface
+%iface_bw = ();
+my $dbresult = DBQueryFatal("select i.node_id, i.iface, t.max_speed " .
+			    "from interfaces as i " .
+			    "left join interface_types as t " .
+			    "  on i.interface_type=t.type ".
+			    " left join reserved as r on i.node_id=r.node_id ".
+			    "where r.erole='sharedhost'");
+while (my ($node, $iface, $max_speed) = $dbresult->fetchrow_array) {
+    $iface_bw{"$node:$iface"} = $max_speed;
+}
+
+# Find all vinterface usage
+$dbresult = DBQueryFatal("select v.node_id, v.iface, v.bandwidth ".
+			 "from vinterfaces as v ".
+			 "left join reserved as r on v.node_id=r.node_id ".
+			 "where r.erole='sharedhost'");
+while (my ($node, $iface, $bw) = $dbresult->fetchrow_array) {
+    my $key = "$node:$iface";
+    if (exists($iface_bw{$key})) {
+	$iface_bw{$key} -= $bw;
+    }
+}
+
+# Find remaining bandwidth for interfaces
+%iface_remaining = ();
+$dbresult = DBQueryFatal("select i.node_id, i.iface, i.remaining_bandwidth ".
+			 "from interface_state as i ".
+			 "left join reserved as r on i.node_id=r.node_id ".
+			 "where r.erole='sharedhost'");
+while (my ($node, $iface, $bw) = $dbresult->fetchrow_array) {
+    $iface_remaining{"$node:$iface"} = $bw;
+}
+
+foreach my $key (sort(keys(%iface_remaining))) {
+    if (! exists($iface_bw{$key})) {
+	print STDERR "$key is in interface_state, but not " .
+	    "interfaces.\n";
+    } elsif ($iface_bw{$key} != $iface_remaining{$key}) {
+	print STDERR "$key\thas\t" . $iface_remaining{$key} .
+	    "\tshould have\t" . $iface_bw{$key} . "\n";
+    }
+}
+
+print STDERR scalar(keys(%iface_remaining)) . " interfaces analyzed\n";
