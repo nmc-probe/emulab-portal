@@ -3,11 +3,21 @@
 # Checks to see if the bandwidth remaining on shared interfaces
 # matches the maximum capacity - used capacity for those interfaces
 
-# Usage: check-shared-bw.in
+# Usage: check-shared-bw [-f]
+#
+# -f   -- Fix any problems encountered.
 
-our $TB = "/usr/testbed";                                                       
+$shouldFix = 0;
+if (scalar(@ARGV) == 1 && $ARGV[0] eq "-f") {
+    $shouldFix = 1;
+} elsif (scalar(@ARGV) > 0) {
+    print STDERR "Usage: check-shared-bw [-f]\n";
+    exit(1);
+}
 
-use lib "/usr/testbed/lib";
+our $TB = "@prefix@";
+
+use lib "@prefix@/lib";
 use libdb;
 
 # Get max bandwidth for interface types on all matching nodes
@@ -53,6 +63,14 @@ foreach my $key (sort(keys(%iface_remaining))) {
     } elsif ($iface_bw{$key} != $iface_remaining{$key}) {
 	print STDERR "$key\thas\t" . $iface_remaining{$key} .
 	    "\tshould have\t" . $iface_bw{$key} . "\n";
+	if ($shouldFix) {
+	    my ($node, $iface) = split(":", $key);
+	    my $query = "update interface_state " .
+		"set remaining_bandwidth=" . $iface_bw{$key} . " " .
+		"where node_id='$node' and iface='$iface'";
+	    print "Running: " . $query . "\n";
+	    DBQueryFatal($query);
+	}
     }
 }
 
