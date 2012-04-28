@@ -92,13 +92,14 @@ package com.flack.geni.tasks.process
 				false);
 			if(newSource is Slice)
 				slice = newSource;
-			else
+			else if(newSource is Sliver)
 			{
 				sliver = newSource;
 				slice = sliver.slice;
 				relatedTo.push(sliver);
 			}
-			relatedTo.push(slice);
+			if(slice != null)
+				relatedTo.push(slice);
 			includeHistory = shouldIncludeHistory;
 			includeManifest = shouldIncludeManifestInfo;
 			includeOnlySliver = shouldIncludeOnlySliver;
@@ -139,7 +140,7 @@ package com.flack.geni.tasks.process
 				xmlDocument = sliver.extensions.createAndApply("rspec");
 			else
 			{
-				if(slice.slivers.length > 0)
+				if(slice != null && slice.slivers.length > 0)
 					xmlDocument = slice.slivers.collection[0].extensions.createAndApply("rspec");
 				else
 					xmlDocument = <rspec />;

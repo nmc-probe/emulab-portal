@@ -31,6 +31,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.display.DisplayUtil;
 			import com.flack.geni.display.PhysicalNodeList;
 			import com.flack.geni.display.areas.SliceArea;
+			import com.flack.geni.display.mapping.GeniMapNodeMarker;
 			import com.flack.geni.display.mapping.mapproviders.googlemapsprovider.GoogleMapLocationMarker;
 			import com.flack.geni.resources.SliverTypeCollection;
 			import com.flack.geni.resources.physical.PhysicalNodeCollection;
@@ -225,8 +226,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				if(event.dragSource.hasFormat("physicalMarker"))
 				{
-					var dragMarker:GoogleMapLocationMarker = event.dragSource.dataForFormat('physicalMarker') as GoogleMapLocationMarker;
-					setView(VIEW_COLLECTION, dragMarker.nodes);
+					var dragMarker:GeniMapNodeMarker = event.dragSource.dataForFormat('physicalMarker') as GeniMapNodeMarker;
+					setView(VIEW_COLLECTION, dragMarker.Nodes);
 				}
 				else if(event.dragSource.hasFormat("manager"))
 				{

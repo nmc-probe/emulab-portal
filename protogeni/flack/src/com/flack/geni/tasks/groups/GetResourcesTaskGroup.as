@@ -118,7 +118,9 @@ package com.flack.geni.tasks.groups
 				afterComplete();
 			else
 			{
-				if(GeniCache.shouldAskWhichManagersToWatch() && GeniMain.geniUniverse.user.authority.type != GeniAuthority.TYPE_EMULAB)
+				if(GeniCache.shouldAskWhichManagersToWatch()
+					&& !GeniMain.loadAllManagers
+					&& GeniMain.geniUniverse.user.authority.type != GeniAuthority.TYPE_EMULAB)
 				{
 					var askWindow:ChooseManagersToWatchWindow = new ChooseManagersToWatchWindow();
 					askWindow.callAfter = getResources;

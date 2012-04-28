@@ -6,15 +6,34 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 	import com.flack.geni.display.mapping.LatitudeLongitude;
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.physical.PhysicalLocationCollection;
+	import com.flack.geni.resources.physical.PhysicalNodeCollection;
+	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	
+	import flash.events.MouseEvent;
+	
+	import mx.controls.Alert;
+	import mx.core.DragSource;
+	import mx.events.DragEvent;
+	import mx.managers.DragManager;
 	
 	public class EsriMapNodeMarker extends Graphic implements GeniMapNodeMarker
 	{
 		public var locations:PhysicalLocationCollection;
 		public var location:PhysicalLocation;
 		
-		public var nodes:*;
+		private var nodes:*;
+		public function get Nodes():*
+		{
+			return nodes;
+		}
+		public function set Nodes(value:*):void
+		{
+			nodes = value;
+		}
 		
 		public var mapPoint:WebMercatorMapPoint;
+		
+		private var allowDragging:Boolean = false;
 		
 		public function EsriMapNodeMarker(newLocations:PhysicalLocationCollection,
 										  newNodes:*)
@@ -28,13 +47,54 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 			var newMapPoint:WebMercatorMapPoint = new WebMercatorMapPoint(newLocation.longitude, newLocation.latitude);
 			
 			super(newMapPoint);
+			attributes = {marker: this};
 			
 			mapPoint = newMapPoint;
-			nodes = newNodes;
+			Nodes = newNodes;
 			location = newLocation;
 			locations = newLocations;
 			
 			symbol = new EsriMapNodeMarkerSymbol(this);
+			
+			addEventListener(MouseEvent.MOUSE_MOVE, drag);
+			addEventListener(MouseEvent.MOUSE_DOWN, mouseDown);
+			addEventListener(MouseEvent.ROLL_OUT, mouseExit);
+		}
+		
+		public function destroy():void
+		{
+			removeEventListener(MouseEvent.MOUSE_MOVE, drag);
+			removeEventListener(MouseEvent.MOUSE_DOWN, mouseDown);
+			removeEventListener(MouseEvent.ROLL_OUT, mouseExit);
+		}
+		
+		private function mouseDown(event:MouseEvent):void
+		{
+			allowDragging = true;
+		}
+		
+		private function mouseExit(event:MouseEvent):void
+		{
+			allowDragging = false;
+		}
+		
+		public function drag(e:MouseEvent):void
+		{
+			if(allowDragging)
+			{
+				var ds:DragSource = new DragSource();
+				if(nodes is PhysicalNodeCollection)
+					ds.addData(this, 'physicalMarker');
+				else if(nodes is VirtualNodeCollection)
+					ds.addData(this, 'virtualMarker');
+				DragManager.doDrag(this, ds, e, (symbol as EsriMapNodeMarkerSymbol).getCopy());
+			}
+		}
+		
+		public function t(e:MouseEvent):void
+		{
+			e.stopPropagation();
+			Alert.show("test");
 		}
 		
 		public function get Visible():Boolean

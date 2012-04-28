@@ -18,6 +18,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.emulab.DelaySliverType;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
+	import com.flack.geni.plugins.emulab.EmulabSppSliverType;
 	import com.flack.geni.plugins.emulab.FirewallSliverType;
 	import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
 	import com.flack.geni.resources.GeniUser;
@@ -128,6 +129,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							if(protogeniManager.hrn == "utahemulab.cm")
 							{
 								protogeniManager.supportedSliverTypes.getOrCreateByName(FirewallSliverType.TYPE_FIREWALL);
+								protogeniManager.supportedSliverTypes.getOrCreateByName(EmulabSppSliverType.TYPE_EMULAB_SPP);
 							}
 							if(protogeniManager.hrn == "utahemulab.cm"
 								|| protogeniManager.hrn == "ukgeni.cm"

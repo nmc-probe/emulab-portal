@@ -4,6 +4,9 @@ package com.flack.geni.display.mapping
 
 	public interface GeniMapNodeMarker
 	{
+		function get Nodes():*;
+		function set Nodes(value:*):void;
+		
 		function get Visible():Boolean;
 		function get LatitudeLongitudeLocation():LatitudeLongitude;
 		function sameLocationAs(testLocations:Vector.<PhysicalLocation>):Boolean;

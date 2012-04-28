@@ -210,7 +210,7 @@ package com.flack.geni.resources.virtual
 				if(slivers.length > 0)
 					saveRspec = new GenerateRequestManifestTask(slivers.collection[0], false, false, false, false, useInputRspecInfo);
 				else
-					saveRspec = new GenerateRequestManifestTask(null, false, false, false, false, useInputRspecInfo);
+					saveRspec = new GenerateRequestManifestTask(this, false, false, false, false, useInputRspecInfo);
 				saveRspec.start();
 				
 				history.states.splice(history.backIndex+1, 0,
@@ -265,7 +265,7 @@ package com.flack.geni.resources.virtual
 				if(slivers.length > 0)
 					saveRspec = new GenerateRequestManifestTask(slivers.collection[0], false, false, false, false, useInputRspecInfo);
 				else
-					saveRspec = new GenerateRequestManifestTask(null, false, false, false, false, useInputRspecInfo);
+					saveRspec = new GenerateRequestManifestTask(this, false, false, false, false, useInputRspecInfo);
 				saveRspec.start();
 				
 				// Save current state into history for undo

@@ -20,6 +20,14 @@ package com.flack.geni.display.mapping.mapproviders.mapquestprovider
 		public var location:PhysicalLocation;
 		
 		public var nodes:*;
+		public function get Nodes():*
+		{
+			return nodes;
+		}
+		public function set Nodes(value:*):void
+		{
+			nodes = value;
+		}
 		
 		public function get Visible():Boolean
 		{

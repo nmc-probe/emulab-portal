@@ -119,7 +119,6 @@
 				  label="Continue"
 				  click="finish()" />
 		<s:CheckBox id="dontAskAgainButton"
-					selected="true"
 					label="Don't ask again" />
 	</components:controlBarContent>
 </components:PopupTitleWindow>

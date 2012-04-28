@@ -23,7 +23,7 @@ package com.flack.geni.resources.sites.clearinghouses
 	 */
 	public class ProtogeniClearinghouse extends IdentifiableObject
 	{
-		public const url:String = "https://boss.emulab.net/protogeni/xmlrpc/";
+		public var url:String = "https://boss.emulab.net/protogeni/xmlrpc/";
 		
 		public function ProtogeniClearinghouse()
 		{

@@ -22,6 +22,8 @@ package com.flack.geni.plugins.emulab
 			SliverTypes.addSliverTypeInterface(RawPcSliverType.TYPE_RAWPC_V2, new RawPcSliverType());
 			SliverTypes.addSliverTypeInterface(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ, new EmulabOpenVzSliverType());
 			SliverTypes.addSliverTypeInterface(EmulabBbgSliverType.TYPE_EMULAB_BBG, new EmulabBbgSliverType());
+			SliverTypes.addSliverTypeInterface(EmulabSppSliverType.TYPE_EMULAB_SPP, new EmulabSppSliverType());
+			SliverTypes.addSliverTypeInterface(Netfpga2SliverType.TYPE_NETFPGA2, new Netfpga2SliverType());
 		}
 	}
 }

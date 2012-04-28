@@ -24,8 +24,11 @@ package com.flack.geni
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.openflow.Openflow;
 	import com.flack.geni.plugins.planetlab.Planetlab;
+	import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
+	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.tasks.groups.GetCertBundlesTaskGroup;
 	import com.flack.geni.tasks.http.PublicListAuthoritiesTask;
+	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.display.areas.MapContent;
 	import com.flack.shared.resources.docs.RspecVersion;
@@ -47,6 +50,14 @@ package com.flack.geni
 		public static const tutorialUrl:String = "https://www.protogeni.net/trac/protogeni/wiki/FlackTutorial";
 		public static const sshKeysSteps:String = "http://www.protogeni.net/trac/protogeni/wiki/Tutorial#UploadingSSHKeys";
 		
+		// Portal
+		public static var securityPreset:Boolean = false;
+		public static var loadAllManagers:Boolean = false;
+		public static var useSa:ProtogeniSliceAuthority = null;
+		public static var useSlice:Slice = null;
+		public static var chUrl:String = "";
+		
+		// Tutorial
 		public static var rspecListUrl:String = "";
 		[Bindable]
 		public static var viewList:Boolean = false;
@@ -59,7 +70,7 @@ package com.flack.geni
 		public static var mapper:GeniMapHandler;
 		public static function initMode():void
 		{
-			var map:GeniMap = new GoogleMap();
+			var map:GeniMap = new EsriMap();
 			var mapContent:MapContent = new MapContent();
 			FlexGlobals.topLevelApplication.contentAreaGroup.Root = mapContent;
 			mapContent.addElement(map as IVisualElement);
@@ -81,15 +92,23 @@ package com.flack.geni
 		
 		public static function runFirst():void
 		{
-			// Initial tasks
-			if(SharedMain.Bundle.length == 0)
-				SharedMain.tasker.add(new GetCertBundlesTaskGroup());
-			if(GeniMain.geniUniverse.authorities.length == 0)
-				SharedMain.tasker.add(new PublicListAuthoritiesTask());
+			if(securityPreset)
+			{
+				geniUniverse.loadAuthenticated();
+			}
+			else
+			{
+				// Initial tasks
+				if(SharedMain.Bundle.length == 0)
+					SharedMain.tasker.add(new GetCertBundlesTaskGroup());
+				if(GeniMain.geniUniverse.authorities.length == 0)
+					SharedMain.tasker.add(new PublicListAuthoritiesTask());
+				
+				// Load initial window
+				var startWindow:StartWindow = new StartWindow();
+				startWindow.showWindow(true, true);
+			}
 			
-			// Load initial window
-			var startWindow:StartWindow = new StartWindow();
-			startWindow.showWindow(true, true);
 		}
 		
 		[Bindable]
@@ -161,11 +180,56 @@ package com.flack.geni
 		
 		public static function loadParams():void
 		{
+			// External examples
 			try{
 				if(FlexGlobals.topLevelApplication.parameters.rspeclisturl != null)
 				{
 					rspecListUrl = FlexGlobals.topLevelApplication.parameters.rspeclisturl;
 					viewList = true;
+				}
+			} catch(all:Error) {
+			}
+			
+			// Portal
+			try{
+				if(FlexGlobals.topLevelApplication.parameters.securitypreset != null)
+				{
+					securityPreset = FlexGlobals.topLevelApplication.parameters.securitypreset == "1";
+					geniUniverse.user.hasSetupSecurity = true;
+				}
+			} catch(all:Error) {
+			}
+			try{
+				if(FlexGlobals.topLevelApplication.parameters.loadallmanagers != null)
+				{
+					loadAllManagers = FlexGlobals.topLevelApplication.parameters.loadallmanagers == "1";
+				}
+			} catch(all:Error) {
+			}
+			try{
+				if(FlexGlobals.topLevelApplication.parameters.saurl != null && FlexGlobals.topLevelApplication.parameters.saurn != null)
+				{
+					useSa = new ProtogeniSliceAuthority(FlexGlobals.topLevelApplication.parameters.saurn, FlexGlobals.topLevelApplication.parameters.saurl);
+					geniUniverse.user.authority = useSa;
+					geniUniverse.authorities.add(useSa);
+				}
+			} catch(all:Error) {
+			}
+			try{
+				if(FlexGlobals.topLevelApplication.parameters.churl != null)
+				{
+					chUrl = FlexGlobals.topLevelApplication.parameters.churl;
+					geniUniverse.clearinghouse.url = chUrl;
+				}
+			} catch(all:Error) {
+			}
+			try{
+				if(FlexGlobals.topLevelApplication.parameters.sliceurn != null)
+				{
+					useSlice = new Slice(FlexGlobals.topLevelApplication.parameters.sliceurn);
+					useSlice.authority = geniUniverse.user.authority;
+					useSlice.creator = geniUniverse.user;
+					geniUniverse.user.slices.add(useSlice);
 				}
 			} catch(all:Error) {
 			}

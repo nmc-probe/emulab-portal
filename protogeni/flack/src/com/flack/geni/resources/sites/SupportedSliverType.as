@@ -3,7 +3,9 @@ package com.flack.geni.resources.sites
 	import com.flack.geni.plugins.emulab.DelaySliverType;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+	import com.flack.geni.plugins.emulab.EmulabSppSliverType;
 	import com.flack.geni.plugins.emulab.FirewallSliverType;
+	import com.flack.geni.plugins.emulab.Netfpga2SliverType;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
 	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
@@ -43,6 +45,9 @@ package com.flack.geni.resources.sites
 					interfacesUnadvertised = true;
 					limitToLinkType = LinkType.VLAN;
 					break;
+				case EmulabSppSliverType.TYPE_EMULAB_SPP:
+					supportsUnbound = false;
+					break;
 				case "openflow-switch":
 					supportsExclusive = false;
 					supportsShared = false;
@@ -59,6 +64,10 @@ package com.flack.geni.resources.sites
 					supportsDiskImage = true;
 					supportsInstallService = true;
 					supportsExecuteService = true;
+					break;
+				case Netfpga2SliverType.TYPE_NETFPGA2:
+					supportsUnbound = false;
+					supportsShared = false;
 					break;
 				case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
 				case SliverTypes.XEN_VM:

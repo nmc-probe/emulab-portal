@@ -1151,7 +1151,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 										id="cloneButton"
 										toolTip="Clone the selected node"
 										click="tryCloneSelected()" />
-				<s:HGroup id="extraArea" width="100%" />
 				<s:Label text="Output" />
 				<s:DropDownList id="outputRspecDropdownlist"
 								requireSelection="true"
@@ -1160,6 +1159,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 								labelField="ShortString"
 								change="_slice.useInputRspecInfo = outputRspecDropdownlist.selectedItem;">
 				</s:DropDownList>
+				<s:HGroup id="extraArea" width="100%" />
 				<components:ImageButton id="dockIcon"
 										icon="{ImageUtil.windowIcon}"
 										toolTip="Pop out to a window or in to the main window"

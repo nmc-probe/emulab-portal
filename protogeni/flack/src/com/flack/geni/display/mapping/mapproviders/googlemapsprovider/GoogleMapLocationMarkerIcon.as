@@ -130,7 +130,7 @@ package com.flack.geni.display.mapping.mapproviders.googlemapsprovider
 					ds.addData(marker, 'physicalMarker');
 				else if(marker.nodes is VirtualNodeCollection)
 					ds.addData(marker, 'virtualMarker');
-				var d:GoogleMapLocationMarkerIcon = new GoogleMapLocationMarkerIcon(marker)
+				var d:GoogleMapLocationMarkerIcon = new GoogleMapLocationMarkerIcon(marker);
 				DragManager.doDrag(this, ds, e, d);
 			}
 		}

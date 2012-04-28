@@ -38,11 +38,11 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 		{
 			if (geometry is MapPoint)
 			{
-				var managers:GeniManagerCollection = marker.nodes.Managers;
+				var managers:GeniManagerCollection = marker.Nodes.Managers;
 				
 				var mapPoint:MapPoint = MapPoint(geometry) as MapPoint;
-				sprite.x = toScreenX(map, mapPoint.x)-14-Math.min(3*((marker.nodes as PhysicalNodeCollection).Locations.length-1), 6)/2;
-				sprite.y = toScreenY(map, mapPoint.y)-14-Math.min(3*((marker.nodes as PhysicalNodeCollection).Locations.length-1), 6)/2;
+				sprite.x = toScreenX(map, mapPoint.x)-14-Math.min(3*((marker.Nodes as PhysicalNodeCollection).Locations.length-1), 6)/2;
+				sprite.y = toScreenY(map, mapPoint.y)-14-Math.min(3*((marker.Nodes as PhysicalNodeCollection).Locations.length-1), 6)/2;
 				
 				
 				var loc:int;
@@ -60,10 +60,10 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 				}
 				else
 				{
-					if(marker.nodes is PhysicalNodeCollection)
-						loc = Math.min(3*((marker.nodes as PhysicalNodeCollection).Locations.length-1), 6);
-					else if(marker.nodes is VirtualNodeCollection)
-						loc = Math.min(3*((marker.nodes as VirtualNodeCollection).PhysicalNodes.Locations.length-1), 6);
+					if(marker.Nodes is PhysicalNodeCollection)
+						loc = Math.min(3*((marker.Nodes as PhysicalNodeCollection).Locations.length-1), 6);
+					else if(marker.Nodes is VirtualNodeCollection)
+						loc = Math.min(3*((marker.Nodes as VirtualNodeCollection).PhysicalNodes.Locations.length-1), 6);
 					while(loc > -1)
 					{
 						sprite.graphics.lineStyle(2, ColorUtil.colorsMedium[managers.collection[0].colorIdx], 1);
@@ -81,7 +81,7 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 				labelMc.mouseEnabled = false;
 				labelMc.width = 28;
 				labelMc.height = 28;
-				labelMc.htmlText = marker.nodes.length.toString();
+				labelMc.htmlText = marker.Nodes.length.toString();
 				labelMc.autoSize = TextFieldAutoSize.CENTER;
 				labelMc.y = 4;
 				sprite.addChild(labelMc);
@@ -95,6 +95,63 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 				sprite.buttonMode = true;
 				sprite.useHandCursor = true;
 			}
+		}
+		
+		public function getCopy():UIComponent
+		{
+			var managers:GeniManagerCollection = marker.Nodes.Managers;
+			
+			var holder:UIComponent = new UIComponent();
+			var sprite:Sprite = new Sprite();
+			var loc:int;
+			if(managers.length > 1)
+			{
+				var numShownManagers:int = Math.min(managers.length, 5);
+				loc = 3*(numShownManagers-1);
+				for(var i:int = numShownManagers-1; i > -1; i--)
+				{
+					sprite.graphics.lineStyle(2, ColorUtil.colorsMedium[managers.collection[i].colorIdx], 1);
+					sprite.graphics.beginFill(ColorUtil.colorsDark[managers.collection[i].colorIdx], 1);
+					sprite.graphics.drawRoundRect(loc, loc, 28, 28, 10, 10);
+					loc -= 3;
+				}
+			}
+			else
+			{
+				if(marker.Nodes is PhysicalNodeCollection)
+					loc = Math.min(3*((marker.Nodes as PhysicalNodeCollection).Locations.length-1), 6);
+				else if(marker.Nodes is VirtualNodeCollection)
+					loc = Math.min(3*((marker.Nodes as VirtualNodeCollection).PhysicalNodes.Locations.length-1), 6);
+				while(loc > -1)
+				{
+					sprite.graphics.lineStyle(2, ColorUtil.colorsMedium[managers.collection[0].colorIdx], 1);
+					sprite.graphics.beginFill(ColorUtil.colorsDark[managers.collection[0].colorIdx], 1);
+					sprite.graphics.drawRoundRect(loc, loc, 28, 28, 10, 10);
+					loc -= 3;
+				}
+			}
+			
+			var labelMc:TextField = new TextField();
+			labelMc.textColor = ColorUtil.colorsLight[managers.collection[0].colorIdx];
+			labelMc.selectable = false;
+			labelMc.border = false;
+			labelMc.embedFonts = false;
+			labelMc.mouseEnabled = false;
+			labelMc.width = 28;
+			labelMc.height = 28;
+			labelMc.htmlText = "<b>"+marker.Nodes.length.toString()+"</b>";
+			labelMc.autoSize = TextFieldAutoSize.CENTER;
+			labelMc.y = 4;
+			sprite.addChild(labelMc);
+			holder.addChild(sprite);
+			
+			// Apply the drop shadow filter to the box.
+			var shadow:DropShadowFilter = new DropShadowFilter();
+			shadow.distance = 5;
+			shadow.angle = 25;
+			holder.filters = [shadow];
+			
+			return holder;
 		}
 	}
 }

@@ -123,7 +123,7 @@ package com.flack.geni.display.mapping.mapproviders.googlemapsprovider
 			}
 		}
 		
-		public function openLinks(e:Event):void
+		public function openLinks(e:MouseEvent):void
 		{
 			e.stopImmediatePropagation();
 			DisplayUtil.view(links);

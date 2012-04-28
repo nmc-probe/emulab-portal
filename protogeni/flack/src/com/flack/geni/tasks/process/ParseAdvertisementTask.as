@@ -18,6 +18,8 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.plugins.RspecProcessInterface;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+	import com.flack.geni.plugins.emulab.EmulabSppSliverType;
+	import com.flack.geni.plugins.emulab.Netfpga2SliverType;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.DiskImage;
@@ -425,6 +427,14 @@ package com.flack.geni.tasks.process
 									node.sliverTypes.add(new SliverType(EmulabBbgSliverType.TYPE_EMULAB_BBG));
 									nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
 									break;
+								case "spp":
+									node.sliverTypes.add(new SliverType(EmulabSppSliverType.TYPE_EMULAB_SPP));
+									nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
+									break;
+								case "netfpga2":
+									node.sliverTypes.add(new SliverType(Netfpga2SliverType.TYPE_NETFPGA2));
+									nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
+									break;
 								default:
 							}
 							if(nodeTypeSliverType != null)
@@ -486,10 +496,16 @@ package com.flack.geni.tasks.process
 								switch(newHardwareType.name)
 								{
 									case JuniperRouterSliverType.TYPE_JUNIPER_LROUTER:
-										hardwareTypeSliverType = new SliverType(newHardwareType.name);
+										hardwareTypeSliverType = new SliverType(JuniperRouterSliverType.TYPE_JUNIPER_LROUTER);
 										break;
 									case "bbgeni":
 										hardwareTypeSliverType = new SliverType(EmulabBbgSliverType.TYPE_EMULAB_BBG);
+										break;
+									case "spp":
+										hardwareTypeSliverType = new SliverType(EmulabSppSliverType.TYPE_EMULAB_SPP);
+										break;
+									case "netfpga2":
+										hardwareTypeSliverType = new SliverType(Netfpga2SliverType.TYPE_NETFPGA2);
 										break;
 									default:
 								}

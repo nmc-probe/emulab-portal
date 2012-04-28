@@ -14,17 +14,23 @@
 
 package com.flack.geni
 {
+	import com.flack.geni.display.areas.SliceArea;
 	import com.flack.geni.display.windows.LoginWindow;
 	import com.flack.geni.resources.GeniUser;
 	import com.flack.geni.resources.sites.GeniAuthority;
 	import com.flack.geni.resources.sites.GeniAuthorityCollection;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.geni.resources.sites.clearinghouses.ProtogeniClearinghouse;
+	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.tasks.groups.GetPublicResourcesTaskGroup;
 	import com.flack.geni.tasks.groups.GetResourcesTaskGroup;
 	import com.flack.geni.tasks.groups.GetUserTaskGroup;
 	import com.flack.geni.tasks.groups.InitializeUserTaskGroup;
+	import com.flack.geni.tasks.groups.slice.GetSliceTaskGroup;
+	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
+	
+	import mx.core.FlexGlobals;
 
 	/**
 	 * Holds all of the things we care about, GeniMain holds a globally static instance of this.
@@ -67,19 +73,29 @@ package com.flack.geni
 			if(user.CertificateSetUp)
 			{
 				// XXX other frameworks
-				// Get user credential + key if they have an authority
+				// Get user credential + keys if they have an authority
 				if(user.authority == null || user.authority.type != GeniAuthority.TYPE_EMULAB)
 					SharedMain.tasker.add(new InitializeUserTaskGroup(user, true));
 				
 				SharedMain.tasker.add(new GetResourcesTaskGroup(managers.length == 0));
 				
-				SharedMain.tasker.add(
-					new GetUserTaskGroup(
-						user,
-						GeniMain.geniUniverse.user.authority != null,
-						true
-					)
-				);
+				if(GeniMain.useSlice != null)
+				{
+					SharedMain.tasker.add(new GetSliceTaskGroup(GeniMain.useSlice, true, true));
+					var sliceArea:SliceArea = new SliceArea();
+					FlexGlobals.topLevelApplication.viewContent(sliceArea);
+					sliceArea.slice = GeniMain.useSlice;
+				}
+				else
+				{
+					SharedMain.tasker.add(
+						new GetUserTaskGroup(
+							user,
+							GeniMain.geniUniverse.user.authority != null,
+							true
+						)
+					);
+				}
 			}
 			// Needs to authenticate
 			else

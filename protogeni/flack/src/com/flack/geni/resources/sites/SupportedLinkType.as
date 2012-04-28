@@ -1,6 +1,8 @@
 package com.flack.geni.resources.sites
 {
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
+	import com.flack.geni.resources.SliverType;
+	import com.flack.geni.resources.SliverTypeCollection;
 	import com.flack.geni.resources.virtual.LinkType;
 
 	public class SupportedLinkType
@@ -22,7 +24,7 @@ package com.flack.geni.resources.sites
 					maxConnections = 2;
 					supportsManyManagers = true;
 					defaultCapacity = 500;
-					level = 25;
+					level = 1500;
 					break;
 				case LinkType.ION:
 				case LinkType.GPENI:

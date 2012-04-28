@@ -7,14 +7,16 @@
 		  creationComplete="init()"
 		  zoomEnd="map1_zoomEndHandler(event)"
 		  logoVisible="false"
+		  load="afterLoaded()"
 		  openHandCursorVisible="false"
-		  wrapAround180="true"
+		  wrapAround180="false"
 		  height="100%"
 		  width="100%">
 	<fx:Script>
 		<![CDATA[
 			import com.esri.ags.Graphic;
 			import com.esri.ags.SpatialReference;
+			import com.esri.ags.events.MapEvent;
 			import com.esri.ags.events.MapMouseEvent;
 			import com.esri.ags.events.ZoomEvent;
 			import com.esri.ags.geometry.Extent;
@@ -30,6 +32,11 @@
 			public function init():void
 			{
 				extent = WebMercatorUtil.geographicToWebMercator(new Extent(-141.850013, 12.582493, -53.519935, 52.607082, new SpatialReference(4326))) as Extent;
+			}
+			
+			public function afterLoaded():void
+			{
+				defaultGraphicsLayer.visible = false;
 			}
 			
 			public function get Ready():Boolean
@@ -77,7 +84,10 @@
 			public function addLink(temp:GeniMapLink):void
 			{
 				var link:EsriMapLink = temp as EsriMapLink;
-				linksLayer.add(link.graphic);
+				link.generateLabels();
+				linksLayer.add(link.lineGraphic);
+				for each(var addNewLabel:EsriMapLinkMarker in link.labelGraphics)
+					linkLabelsLayer.add(addNewLabel);
 			}
 			
 			public function removeNodeMarker(marker:GeniMapNodeMarker):void
@@ -87,7 +97,10 @@
 			
 			public function removeLink(geniLink:GeniMapLink):void
 			{
-				linksLayer.remove((geniLink as EsriMapLink).graphic);
+				var link:EsriMapLink = geniLink as EsriMapLink;
+				linksLayer.remove(link.lineGraphic);
+				for each(var addNewLabel:EsriMapLinkMarker in link.labelGraphics)
+					linkLabelsLayer.remove(addNewLabel);
 			}
 			
 			protected function map1_zoomEndHandler(event:ZoomEvent):void
@@ -97,7 +110,10 @@
 			
 		]]>
 	</fx:Script>
-	<esri:OpenStreetMapLayer  />
+	<esri:OpenStreetMapLayer />
 	<esri:GraphicsLayer id="linksLayer" />
-	<esri:GraphicsLayer id="markersLayer" />
+	<esri:GraphicsLayer id="linkLabelsLayer" />
+	<esri:GraphicsLayer id="markersLayer"
+						autoMoveGraphicsToTop="true"
+						infoWindowRenderer="com.flack.geni.display.mapping.mapproviders.esriprovider.EsriMapNodeMarkerInfo" />
 </esri:Map>
