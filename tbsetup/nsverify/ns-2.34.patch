@@ -109,4 +109,3 @@ diff -ur ../../ns-allinone-2.34.orig/ns-2.34/tcl/lib/ns-lib.tcl ./tcl/lib/ns-lib
  }
  
  Simulator instproc duplex-intserv-link { n1 n2 bw pd sched signal adc args } {
-Only in ../../ns-allinone-2.34.orig/ns-2.34/tcl/lib: ns-link.tcl.orig
