@@ -298,12 +298,18 @@ genirack-install:
 OPENVZGUEST_TEMPLATE  = /vz.save/template/cache/emulab-default.tar.gz
 OPENVZGUEST           = /vz/template/cache/emulab-default.tar.gz
 
-openvz-guest: $(OPENVZGUEST_TEMPLATE)
+openvz-guest: openvz-guest-unpack openvz-guest-install openvz-guest-pack
+
+openvz-guest-unpack: $(OPENVZGUEST_TEMPLATE)
 	-$(RM) -rf /tmp/guest
 	mkdir /tmp/guest
 	tar xzf $(OPENVZGUEST_TEMPLATE) -C /tmp/guest
+
+openvz-guest-install: $(OPENVZGUEST_TEMPLATE)
 	(cd $(OBJDIR) ; \
 		$(MAKE) DESTDIR=/tmp/guest client-install)
+
+openvz-guest-pack: $(OPENVZGUEST_TEMPLATE)
 	tar czf $(OPENVZGUEST_TEMPLATE) -C /tmp/guest .
 	-$(RM) -rf /tmp/guest
 	@if [ -e "$(OPENVZGUEST)" ]; then \
