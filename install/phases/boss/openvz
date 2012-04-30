@@ -40,6 +40,18 @@ sub Install($$$)
 		DoneIfExists($localfile);
 		FetchFileFatal($url, $localfile);
 	    };
+	    $localfile = "$PREFIX/images/${imagename}.xml";
+	    $url       = "$STDIMAGESURL/${imagename}.xml";
+	    
+	    Phase "${imagename}_xml", "Fetching $imagename metadata.", sub {
+		DoneIfExists($localfile);
+		FetchFileFatal($url, $localfile);
+	    };
+	    Phase "${imagename}_load", "Loading the image descriptor.", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR/install; ".
+			       "   $SUDO -u $PROTOUSER $WAP ".
+			       "   perl load-descriptors -a $localfile");
+	    };
 	}
 
 	#
