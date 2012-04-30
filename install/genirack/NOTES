@@ -1,0 +1,160 @@
+Setting up the control node:
+
+Need the following info:
+
+1. Hostname for the control node.
+2. IP and netmask for the control node.
+3. IP for the ilo interface on the control node (same netmask).
+4. IP for your DNS server.
+5. IP for your default router.
+
+* Send Utah all of the above info so that we can "bake" an image
+  for you. Once you hear back from us, you may continue with these
+  instructions.
+
+  Waiting, waiting, waiting ...
+
+* Power on the control switch (Procurve 2610 in the top slot).
+
+* Attach a console to the control node and power on the node. You will
+  wait a while for the "HP ProLiant" screen. Wait until it says "press
+  any key for Option ROM messages" and then right after the screen
+  switches, type F8 to get into the iLo configuration. Gotta be fast
+  on this. If you miss it, power cycle. 
+
+* Once the iLo screen comes up, right arrow to Network and choose the
+  DHCP option. You want to make sure DHCP is off. F10 to save and then
+  esc to go back. Then choose the NIC option. Fill in the iLo
+  IP/Mask/Router, then F10 to save and then esc to exit. iLo will
+  reset.
+
+* At this point you can go back to your desk and work from there.
+
+* Using your web browser, go to the iLo IP you set, and login using
+  Administrator and the iLo password that is stamped on top of the
+  control node, or in the data file you received.
+
+* Click on the Remote Console tab, and then on remote console. Click
+  on the java launch button. Wait for the popup boxes that ask you
+  to trust it. Say yes of course, and wait for the console window to
+  appear.
+
+* Go to the Virtual Media tab, and then on the right hand side specify
+  the url of the boot ISO image. This will be something like:
+  
+	http://155.98.32.70/downloads/genirack.iso
+	
+  which is Utah's web server. Check the box to boot from the CD on the
+  next reset, and then click the reset button.
+  
+* Wait for the node to boot. It should boot from the virtual CD drive
+  since there is no other boot media, but if not you can hit F11 on
+  the next go around, which will give you a list of options. Type
+  whatever number is to the left of the CD choice. 
+
+* The ISO will load and give you a boot prompt. Just hit return. You
+  will evntually get a shell prompt after a lot of noisy output.
+
+* Fire up the network:
+
+	ifconfig eth0 inet Control_IP netmask Control_Mask
+	route add default gw Gateway_IP
+
+  The Control_IP is *NOT* the iLo IP you used above. It is the IP you
+  have assigned to the control node itself.
+
+* Transfer the control node image from Utah:
+
+	cd /tmp
+	wget http://155.98.32.70/downloads/genirack.ndz
+
+  This is about a 1GB so it will take a while.
+
+* Write the image file to the disk using Emulab decompression tool:
+
+	/usr/bin/imageunzip -o genirack.ndz /dev/cciss/c0d0
+
+  This will take a little while.
+
+* Set the boot order so that the control node does not try to boot
+  from the network, unless all else fails.
+
+	cd /TOOLKIT
+	./setbootorder floppy cdrom usb hd pxe
+
+* Type "reboot" at the shell prompt. With any luck, the node will boot
+  first time.
+
+* At this point we need to configure the switches with static IP
+  addresses. This is a bit tricky since the only way to do this is to
+  have DHCP return a dynamic address so we can telnet to the switch
+  long enough to change its address. Yes, this is a pain but we cannot
+  have multiple DHCP servers running since that would confuse boss.
+  Login to the control node as root.
+
+	/usr/sbin/dhcpd -4 -cf /etc/dhcp/dhcpd.conf xenbr1 xenbr2
+
+  Now power on the experimental switch, and power cycle the control
+  switch so that it will restart its dhcp cycle. You will lose
+  connectivity to the control node for a moment or two.
+
+  Once you get connectivity back, tail the end of the /var/log/syslog to
+  see if the switches have made their DHCP requests.
+
+* At some point you will be able to telnet to 10.1.1.253 and 10.2.1.253.
+  These are the IPs assigned by dhcp.
+
+  First telnet to 10.1.1.253. This is the control switch (2610). You want
+  to issue the following commands at the prompt.
+
+  2610> config
+  2610(config)> vlan 1 ip address 10.1.1.253/24
+  2610(config)> ip default-gateway 10.1.1.254
+  2610(config)> vlan 1 ip igmp
+  2610(config)> vlan 1 ip igmp querier
+  2610(config)> no web-management
+  2610(config)> password all (type in same password for manager/operator)
+  2610(config)> no snmp-server community public
+  2610(config)> snmp-server community XXXXX manager unrestricted
+  2610(config)> write memory
+  2610(config)> reload
+
+  REMEMBER YOUR PASSWORD and COMMUNITY XXXXX
+  REMEMBER YOUR PASSWORD and COMMUNITY XXXXX
+  REMEMBER YOUR PASSWORD and COMMUNITY XXXXX
+
+  The switch will take moment to reset so you might lose your connection
+  to the control node.
+
+* Now telnet to 10.2.1.253. This is the experimental switch.
+
+  5400> config
+  5400(config)> vlan 1 ip address 10.2.1.253/24
+  5400(config)> ip default-gateway 10.2.1.254
+  5400(config)> no web-management
+  5400(config)> password all (type in same password for manager/operator)
+  5400(config)> no snmp-server community public
+  5400(config)> snmp-server community XXXXX manager unrestricted
+  5400(config)> write memory
+  5400(config)> reload
+
+  USE THE SAME PASSWORD and COMMUNITY XXXXX
+  USE THE SAME PASSWORD and COMMUNITY XXXXX
+  USE THE SAME PASSWORD and COMMUNITY XXXXX
+  
+* The 5400 will take longer to reset. Be sure you can telnet back to the
+  both switches and login with the password you used above. Once you are
+  sure that is the case, kill off dhcpd on the control node.
+
+	sudo killall dhcpd
+
+  Make sure it died by doing:
+
+	ps auxwww | grep dhcpd
+
+* Initialize the LVM partition. We use LVMs for the boss/ops filesystems.
+
+	pvcreate /dev/sda4
+	vgcreate xen-vg /dev/sda4
+    	vgchange -a y xen-vg
+
