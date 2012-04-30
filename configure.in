@@ -695,9 +695,7 @@ AC_ARG_WITH(apache-config-dir,
 [
     INSTALL_APACHE_CONFIG="$withval"
 ],[
-    foo=`httpd -V`
-    echo "httpd: '$foo'"
-    foo=`httpd -V | grep SERVER_CONFIG_FILE | grep 'apache2'`
+    foo=`/usr/local/sbin/httpd -V | grep SERVER_CONFIG_FILE | grep 'apache2'`
     if test "$foo" = ""; then
         INSTALL_APACHE_CONFIG="/usr/local/etc/apache"
 	APACHE_VERSION="1.3"
