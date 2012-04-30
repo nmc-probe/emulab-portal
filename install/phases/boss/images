@@ -30,7 +30,7 @@ sub Install($$$)
 	    #
 	    my $NODETYPE     = "dl360";
 	    my $CREATETYPE   = "$PREFIX/bin/editnodetype";
-	    my $NODETYPEXML  = "$TOP_SRCDIR/install/genirack-nodetype.xml";
+	    my $NODETYPEXML  = "$TOP_SRCDIR/install/genirack/nodetype.xml";
 	    
 	    Phase "nodetype", "Creating Protogeni nodetype", sub {
 		my $nodetype = NodeType->Lookup($NODETYPE);

@@ -1,35 +1,105 @@
 #
 # Additional stuff for setting up the geni racks. 
 #
-#  Add the switch stack stuff
-#  Add the pc type info (update osidtoimageid table).
-#  Rebuild without elabinelab?
-#  Make a copy of the defs file.
-#  Real Emacs?
+# ILO tasks.
+#   Create elabman account with password and key.
+#   Change power on setting.
+#   Change logout timeout.
+#
+# BIOS tasks.
+#   Change boot order.
+#
+# Switch tasks:
+#  2610> vlan 1 ip address 10.1.1.253/24
+#  2610> ip default-gateway 10.1.1.254
+#  5400> vlan 1 ip address 10.2.1.253/24
+#  5400> ip default-gateway 10.2.1.254
+#  2610> show ip igmp
+#  2610> vlan 1 ip igmp
+#  2610> vlan 1 ip igmp querier
+#  both> no web-management
+#  both> password all (type in password).
+#  both> no snmp-server community public
+#  both> snmp-server community XXXXX manager unrestricted
+#  both> write memory
+#
+# Control node image changes before it can booted.
+#  fix up the interfaces file.
+#  Add /etc/hostname .
+#  Turn off emulab boot stuff.
+#  Comment out swap partition from fstab
+#  Blacklist hpilo hpdwt radeon
+#  Fix up grub.cfg (console, terminal, timeout, add /bin/sh entry).
+#  Add /etc/resolv.conf
+#  Set Root password.
+#  Turn off dhclient stuff?
+#  Add elabman account since it was blown away by prepare.
+#  Remove emulab-cnet-found from /etc/init/rc-sysinit.conf
 #
 # This has to happen after reboot. Not sure yet ... 
 #  Remove /usr/local/etc/rc.d/zzz-inelab.sh
-#  Rerun /usr/local/etc/emulab/rc/rc.freebsd since swapon failed. 
 #
 use strict;
 use libinstall;
 use installvars;
 use libtestbed;
+use emutil;
+use emdb;
+use User;
+use NodeType;
 
 my $EMULABDEVEL  = "git://git-public.flux.utah.edu/emulab-devel.git";
 my $EMULABSTABLE = "git://git-public.flux.utah.edu/emulab-stable.git";
+my $NODETYPEXML  = "$TOP_SRCDIR/install/genirack/nodetype.xml";
+my $SWITCHSQL    = "$TOP_SRCDIR/install/genirack/tbdb.sql";
+my $CONFIGVARS   = "$PREFIX/configvars.txt";
+my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-8.2-ports.tar.gz";
+
+my %INTERFACES = (
+    "xn1"   => "inet 10.1.1.1 netmask 255.255.255.0",
+    "xn2"   => "inet 10.2.1.1 netmask 255.255.255.0",
+    "xn3"   => "inet 10.3.1.1 netmask 255.255.255.0",
+);
+
+my %SWITCHES = (
+    "procurve1"       => "10.1.1.253",
+    "procurve2"       => "10.2.1.253",
+    "procurve1-alt"   => "10.3.1.253",
+);
 
 sub Install($$$)
 {
     my ($server, $isupdate, $impotent) = @_;
+    my %configvars = ();
 
     # Replace if this script does an update for ip/domain.
     return 0
 	if ($isupdate);
 
+    SET_TESTBED_VERSION("Genirack");
+
     Phase "genirack", "Doing additional Geni Rack tasks", sub {
 	PhaseSkip("Not a Rack")
 	    if (!$PROTOGENI_GENIRACK);
+
+	Phase "config", "Reading in config variables", sub {
+	    PhaseFail("No config file")
+		if (! -e $CONFIGVARS);
+	    
+	    open(CN, $CONFIGVARS)
+		 or PhaseFail("Could not open $CONFIGVARS: $!");
+	    while (<CN>) {
+		if ($_ =~ /^([-\w]*)\s*=\s*(.*)$/) {
+		    my $key = $1;
+		    my $val = $2;
+		    if ($val =~ /^'(.*)'$/) {
+			$val = $1;
+		    }
+		    $configvars{$key} = "$val";
+		}
+	    }
+	    close(CN);
+	};
 
 	#
 	# Have not figured this out yet; it runs during boss setup but
@@ -39,6 +109,18 @@ sub Install($$$)
 	    PhaseSkip("already enabled") unless `grep -q swap $FSTAB`;
 	    ExecQuietFatal("/usr/local/etc/emulab/rc/rc.freebsd");
 	};
+
+	#
+	# Update elabman password.
+	#
+	if (exists($configvars{'PROTOGENI_PASSWORD'}) &&
+	    $configvars{'PROTOGENI_PASSWORD'} ne "") {
+	    my $geniuser = User->Lookup("geniuser");
+	    PhaseFail("No geniuser account")
+		if (!defined($geniuser));
+	    my $passhash = PassWordHash($configvars{'PROTOGENI_PASSWORD'});
+	    $geniuser->SetPassword($passhash);
+	}
 
 	#
 	# Create a clone of emulab-devel while we are close to the server.
@@ -54,6 +136,18 @@ sub Install($$$)
 			   "    git clone $EMULABSTABLE emulab-stable");
 	};
 
+	#
+	# Also grab the port source while close to the server.
+	#
+	Phase "portsrc", "Getting port source tarball", sub {
+	    DoneIfExists("$PREFIX/ports.tar.gz");
+	    FetchFileFatal($PORTSRC, "$PREFIX/ports.tar.gz");
+	};
+	Phase "ports", "Unpacking port source tarball", sub {
+	    DoneIfExists("$PREFIX/ports/Mk");
+	    ExecQuietFatal("cd $PREFIX; $TAR zxf $PREFIX/ports.tar.gz");
+	};
+	
 	#
 	# Shutdown the testbed for this.
 	#
@@ -102,7 +196,66 @@ sub Install($$$)
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d install");
 	    };
 	};
+
+	#
+	# Add /etc/hosts and /etc/rc.conf entries for the switches. 
+	#
+	Phase "etchosts", "Adding hosts entries for switches", sub {
+	    my @strings = ();
+	    
+	    foreach my $switch (keys(%SWITCHES)) {
+		my $ip = $SWITCHES{$switch};
+		push(@strings, "$ip\t$switch");
+	    }
+	    DoneIfEdited($HOSTS);
+	    AppendToFileFatal($HOSTS, @strings);
+	};
+	Phase "rcconf", "Adding rcconf entries for interfaces", sub {
+	    my @strings = ();
+	    my @ifaces  = ();
+
+	    foreach my $iface (keys(%INTERFACES)) {
+		my $line = $INTERFACES{$iface};
+		push(@strings, "ifconfig_${iface}=\"$line\"");
+		push(@ifaces, $iface);
+	    }
+	    push(@strings, "network_interfaces=\"\$network_interfaces @ifaces\"");
+	    DoneIfEdited($RCCONF);
+	    AppendToFileFatal($RCCONF, @strings);
+	};
+
+	#
+	# Add in the switch stuff which is all hard coded sql.
+	#
+	Phase "sql", "Adding switch goo to the database", sub {
+	    ExecQuietFatal("$MYSQL $DBNAME < $SWITCHSQL");
+	};
+
+	#
+	# Update the DB with the switch community string.
+	#
+	if (exists($configvars{'GENIRACK_COMMUNITY'})) {
+	    my $safe_password = DBQuoteSpecial($configvars{'GENIRACK_COMMUNITY'});
+	    DBQueryWarn("update switch_stack_types set ".
+			"snmp_community=$safe_password")
+		or PhaseFail("Could not set snmp community strings");
+	}
+
+	#
+	# Shutdown DHCP and fix the dynamic range that rc.mkelab changed.
+	# This is okay since the subnet is different then Emulab.
+	#
+	Phase "dhcpd", "Fixing dhcpd configuration", sub {
+	    ExecQuietFatal("/bin/rm -f $DHCPD_TEMPLATE");
+	    ExecQuietFatal("cd $TOP_OBJDIR/dhcpd; $GMAKE install");
+	    ExecQuietFatal("$DHCPD_MAKECONF -i");
+	};
 	
+	Phase "rc.conf", "Adding jail network alias to xn0", sub {
+	    DoneIfEdited($RCCONF);
+	    AppendToFileFatal($RCCONF,
+	      "ifconfig_xn0_alias0=\"inet 172.17.254.254 netmask 255.240.0.0\"");
+	};
 	PhaseSucceed("Rack Setup Done");
     };
     return 0;
