@@ -39,6 +39,7 @@ use EmulabConstants;
 use libEmulab;
 use Lan;
 use Experiment;
+use NodeType;
 use English;
 use Data::Dumper;
 use XML::Simple;
@@ -1316,7 +1317,10 @@ sub GetTicketAuxAux($$$$$$$$$)
 
 	# Store reference so we can munge it below. 
 	$nodemap{$node_nickname} = {"rspec"    => $ref,
-				    "virtnode" => $virtnode};
+				    "virtnode" => $virtnode,
+				    # Grab the type object for later.
+				    "nodetype" => NodeType->Lookup($pctype),
+	};
 	
 	#
 	# Look for interface forward declarations that will be used later
@@ -1513,11 +1517,22 @@ sub GetTicketAuxAux($$$$$$$$$)
 					     {"vname" => $lanname});
 	    }
 	}
+
+	#
+	# Sanity check, and determine if the link has any virtnodes
+	# in it, cause that is going to change the default bandwidth
+	# we use for the entire link or lan.
+	#
+	# Zero bandwidth acts as a wildcard to assign. But if the
+	# link includes any virtual nodes, default to 100Mb since we
+	# do not want a VM to consume all available bw unless the user
+	# specifically requests it.
+	#
+	my $default_bandwidth = 0;
 	
 	foreach my $ref (@interfaces) {
 	    my $node_nickname = GeniXML::GetInterfaceNodeId($ref);
 	    my $iface_id = GeniXML::GetInterfaceId($ref);
-	    my ($iface_ref,$iface_name,$iface_vport);
 
 	    if (!defined($iface_id)) {
 		$response =
@@ -1535,6 +1550,21 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				 "$lanname: Need node id for links");
 		goto bad;
+	    }
+	    my $nodetype = $nodemap{$node_nickname}->{'nodetype'};
+	    if (defined($nodetype) && $nodetype->isvirtnode()) {
+		# 100Mb
+		$default_bandwidth = 100000;
+	    }
+	}
+
+	foreach my $ref (@interfaces) {
+	    my $node_nickname = GeniXML::GetInterfaceNodeId($ref);
+	    my $iface_id = GeniXML::GetInterfaceId($ref);
+	    my ($iface_ref,$iface_name,$iface_vport);
+
+	    if (! GeniXML::IsVersion0($ref) && defined($iface_id)) {
+		$node_nickname = $iface2node{$iface_id};
 	    }
 
 	    #
@@ -1734,7 +1764,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    $ip     = "10.10.${linknum}.${ifacenum}" if (!defined($ip));
 	    $mask   = "255.255.255.0" if (!defined($mask));
 	    my $member    = "$node_nickname:$iface_vport";
-	    my $bandwidth = 100000;
+	    my $bandwidth = $default_bandwidth;
 	    my $latency   = 0.0;
 	    my $lossrate  = 0.0;
 	    my $estbw     = undef;
