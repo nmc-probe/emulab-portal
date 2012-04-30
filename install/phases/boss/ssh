@@ -44,6 +44,25 @@ sub Install($$$)
 			      "   StrictHostKeyChecking no",
 			      "   Protocol 2,1");
 	};
+	# GPO wants this turned off.
+	if ($PROTOGENI_GENIRACK) {
+	    Phase "sshdconfig", "Turning off password authentication", sub {
+		DoneIfEdited($SSHD_CONFIG);
+		
+		ExecQuietFatal("sed -i.orig ".
+			       "  -e 's/PasswordAuth/#PasswordAuth/' ".
+			       "$SSHD_CONFIG");
+
+		AppendToFileFatal($SSHD_CONFIG, "PasswordAuthentication no");
+
+		# HUP the server so the changes take effect
+		if (-r "/var/run/sshd.pid") {
+		    my $dpid = `cat /var/run/sshd.pid`;
+		    chomp($dpid);
+		    ExecQuiet("kill -HUP $dpid");
+		}
+	    };
+	}
 	if ($ELABINELAB) {
 	    Phase "opskey", "Combining outer keys with new key", sub {
 		# Combine with outer boss keys.

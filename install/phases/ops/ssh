@@ -23,9 +23,18 @@ sub Install($$$)
 		ExecQuietFatal("sed -i.orig -e 's/Protocol/#Protocol/' ".
 			       "$SSHD_CONFIG");
 	    }
-	    AppendToFileFatal($SSHD_CONFIG,
-			      "PermitRootLogin yes",
-			      "Protocol 2,1");
+	    my @strings = ("PermitRootLogin yes",
+			   "Protocol 2,1");
+
+	    # GPO wants this turned off.
+	    if ($PROTOGENI_GENIRACK) {
+		ExecQuietFatal("sed -i.orig ".
+			       "  -e 's/PasswordAuth/#PasswordAuth/' ".
+			       "$SSHD_CONFIG");
+		push(@strings, "PasswordAuthentication no");
+	    }
+	    AppendToFileFatal($SSHD_CONFIG, @strings);
+
 	    # HUP the server so the changes take effect
 	    if (-r "/var/run/sshd.pid") {
 		my $dpid = `cat /var/run/sshd.pid`;
