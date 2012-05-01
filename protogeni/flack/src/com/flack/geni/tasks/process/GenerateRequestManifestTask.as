@@ -652,9 +652,12 @@ package com.flack.geni.tasks.process
 					var propertyXml:XML = property.extensions.createAndApply("property");
 					propertyXml.@source_id = (property.source as VirtualInterface).clientId;
 					propertyXml.@dest_id = (property.destination as VirtualInterface).clientId;
-					propertyXml.@capacity = property.capacity;
-					propertyXml.@latency = property.latency;
-					propertyXml.@packet_loss = property.packetLoss;
+					if(property.capacity > 0)
+						propertyXml.@capacity = property.capacity;
+					if(property.latency > 0)
+						propertyXml.@latency = property.latency;
+					if(property.packetLoss > 0)
+						propertyXml.@packet_loss = property.packetLoss;
 					linkXml.appendChild(propertyXml);
 				}
 			}

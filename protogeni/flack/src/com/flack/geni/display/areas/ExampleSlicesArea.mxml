@@ -4,57 +4,78 @@
 				   xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:areas="com.flack.shared.display.areas.*">
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.ChooseManagerWindow;
+			import com.flack.geni.plugins.emulab.FirewallSliverType;
+			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.sites.GeniManagerCollection;
+			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			
 			import mx.core.FlexGlobals;
+			
+			public var slice:Slice;
+			
+			public function applyAndClose():void
+			{
+				SharedMain.sharedDispatcher.dispatchChanged(FlackEvent.CHANGED_SLICE, slice);
+				close();
+			}
 			
 			public function createEmpty():void
 			{
-				var emptyExperiment:Experiment = new Experiment(EmulabMain.manager);
-				openExperiment(emptyExperiment);
+				slice.removeAll();
+				
+				applyAndClose();
 			}
 			
 			public function createEmptyWithFirewall():void
 			{
-				var firewalledExperiment:Experiment = new Experiment(EmulabMain.manager);
-				firewalledExperiment.firewall = new Firewall();
-				firewalledExperiment.firewall.style = Firewall.STYLE_BASIC;
-				firewalledExperiment.firewall.type = Firewall.TYPE_IPFW2VLAN;
-				openExperiment(firewalledExperiment);
+				var askForManager:ChooseManagerWindow = new ChooseManagerWindow();
+				askForManager.success = createEmptyWithFirewallOn;
+				askForManager.ManagersToList = GeniMain.geniUniverse.managers.getBySupportedSliverType(FirewallSliverType.TYPE_FIREWALL);
+				askForManager.showWindow();
 			}
 			
-			public function createElabInElab():void
+			public function createEmptyWithFirewallOn(newManager:GeniManager):void
 			{
-				var elabinelabExperiment:Experiment = new Experiment(EmulabMain.manager);
-				elabinelabExperiment.elabinelab = new ElabInElab();
-				elabinelabExperiment.elabinelab.maxPcs = 3;
-				openExperiment(elabinelabExperiment);
+				slice.removeAll();
+				
+				var newFirewall:VirtualNode = new VirtualNode(slice, newManager, newManager.hrn+"-firewall", true, FirewallSliverType.TYPE_FIREWALL);
+				slice.nodes.add(newFirewall);
+				
+				applyAndClose();
 			}
 			
-			public function createWiredLanWithDuplexLinkExample():void
+			public function createLanWithDuplexLinkExample():void
 			{
-				openExperiment(null);
-			}
-			
-			public function createBatchModeExample():void
-			{
-				openExperiment(null);
+				slice.removeAll();
+				
+				
+				
+				applyAndClose();
 			}
 			
 			public function createSimplexLinkExample():void
 			{
-				openExperiment(null);
+				slice.removeAll();
+				
+				
+				
+				applyAndClose();
 			}
 			
-			public function createWirelessLanExample():void
+			public function createDuplexLinkExample():void
 			{
-				openExperiment(null);
+				slice.removeAll();
+				
+				
+				
+				applyAndClose();
 			}
 			
-			public function openExperiment(exp:Experiment):void
-			{
-				var experimentArea:ExperimentArea = new ExperimentArea();
-				experimentArea.experiment = exp;
-				FlexGlobals.topLevelApplication.contentAreaGroup.loadNext(experimentArea);
-			}
 		]]>
 	</fx:Script>
 	<s:Scroller height="100%"

@@ -23,8 +23,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						  xmlns:components="com.flack.shared.display.components.*"
 						  width="220"
 						  height="110"
-						  title="Choose manager..."
-						  contentCreationComplete="afterCreation()">
+						  title="Choose manager...">
 	<components:layout>
 		<s:VerticalLayout gap="4"
 						  verticalAlign="middle"
@@ -37,6 +36,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		<![CDATA[
 			import com.flack.geni.GeniMain;
 			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.sites.GeniManagerCollection;
 			import com.flack.shared.utils.ImageUtil;
 			
 			import mx.collections.ArrayList;
@@ -44,15 +44,15 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public var success:Function;
 			
-			[Bindable]
-			protected var managers:ArrayList;
-			
-			public function afterCreation():void
+			public function set ManagersToList(value:GeniManagerCollection):void
 			{
 				managers = new ArrayList();
-				for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
+				for each(var manager:GeniManager in value.collection)
 					managers.addItem(manager);
 			}
+			
+			[Bindable]
+			protected var managers:ArrayList;
 			
 			public function submit():void
 			{

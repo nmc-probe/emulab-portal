@@ -194,6 +194,7 @@ package com.flack.geni.tasks.process
 				{
 					var askForManager:ChooseManagerWindow = new ChooseManagerWindow();
 					askForManager.success = preSelectedManager;
+					askForManager.ManagersToList = GeniMain.geniUniverse.managers.Valid;
 					askForManager.showWindow();
 					Alert.show("There were resources detected without a manager selected, please select which manager you would like to use.");
 					return;

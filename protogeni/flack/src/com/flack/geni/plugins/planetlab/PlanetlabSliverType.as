@@ -38,7 +38,12 @@ package com.flack.geni.plugins.planetlab
 		public function get Clone():SliverTypeInterface
 		{
 			var clone:PlanetlabSliverType = new PlanetlabSliverType();
-			clone.initscripts = initscripts;
+			if(initscripts != null)
+			{
+				clone.initscripts = new Vector.<String>();
+				for each(var iscript:String in initscripts)
+					clone.initscripts.push(iscript);
+			}
 			clone.selectedInitscript = selectedInitscript;
 			return clone;
 		}

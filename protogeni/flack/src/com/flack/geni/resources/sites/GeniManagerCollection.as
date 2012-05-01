@@ -138,6 +138,17 @@ package com.flack.geni.resources.sites
 			return null;
 		}
 		
+		public function getBySupportedSliverType(name:String):GeniManagerCollection
+		{
+			var managers:GeniManagerCollection = new GeniManagerCollection();
+			for each(var manager:GeniManager in collection)
+			{
+				if(manager.supportedSliverTypes.getByName(name) != null)
+					managers.add(manager);
+			}
+			return managers;
+		}
+		
 		/**
 		 * 
 		 * @return All nodes

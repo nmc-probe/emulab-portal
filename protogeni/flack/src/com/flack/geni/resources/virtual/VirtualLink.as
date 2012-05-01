@@ -279,14 +279,16 @@ package com.flack.geni.resources.virtual
 				case LinkType.LAN_V1:
 				case LinkType.LAN_V2:
 					type.name = LinkType.LAN_V2;
+					/*
 					for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
-				{
-					if(addedInterface.Owner.Vm)
 					{
-						makeCapacity = 100000;
-						break;
+						if(addedInterface.Owner.Vm)
+						{
+							makeCapacity = 100000;
+							break;
+						}
 					}
-				}
+					*/
 					break;
 				case LinkType.ION:
 					type.name = LinkType.ION;

@@ -45,7 +45,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				sliverTypes = new ArrayCollection();
 				for each(var sliverType:SliverType in types.collection)
+				{
 					sliverTypes.addItem(sliverType);
+				}
 			}
 			
 			public function init():void
@@ -59,14 +61,19 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(selectedSliverType != null && initialized)
 				{
 					if(selectedSliverType.sliverTypeSpecific != null)
+					{
 						extraData = selectedSliverType.sliverTypeSpecific.SimpleList;
+						sliverDetailsViewstack.selectedChild = extraView;
+					}
 					else
 					{
 						diskImages = new ArrayCollection();
 						if(selectedSliverType != null)
 						{
 							for each(var diskImage:DiskImage in selectedSliverType.diskImages.collection)
-							diskImages.addItem(diskImage);
+							{
+								diskImages.addItem(diskImage);
+							}
 						}
 						sliverDetailsViewstack.selectedChild = diskImageView;
 					}

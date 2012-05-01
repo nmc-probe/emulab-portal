@@ -49,7 +49,9 @@ package com.flack.geni.resources
 		public function SliverType(newName:String = "")
 		{
 			name = newName;
-			sliverTypeSpecific = SliverTypes.getSliverTypeInterface(newName);
+			var topLevelInterface:SliverTypeInterface = SliverTypes.getSliverTypeInterface(newName);
+			if(topLevelInterface != null)
+				sliverTypeSpecific = topLevelInterface.Clone;
 		}
 		
 		public function get Clone():SliverType

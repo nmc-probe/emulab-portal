@@ -123,6 +123,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					label: "Import from the web",
 					icon: ImageUtil.worldIcon,
 					action: importFromWeb
+				}, 
+				{
+					label: "Import from example",
+					icon: ImageUtil.extensionsIcon,
+					action: importFromExample
 				}
 			];
 			
@@ -523,6 +528,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				);
 				//updateSlice();
 				//updateSliversInfo();
+			}
+			
+			public function importFromExample(event:* = null):void
+			{
+				if(SliceWorking)
+					return;
+				
+				var importWindow:ImportSliceWindow = new ImportSliceWindow();
+				importWindow.slice = slice;
+				importWindow.showWindow();
 			}
 			
 			public function importFromClipboard(event:* = null):void
