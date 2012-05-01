@@ -98,6 +98,33 @@ AC_SUBST(LOG_TESTBED)
 AC_SUBST(TBLOGFACIL)
 
 #
+# Allow enabling of NTFS support in imagezip
+#
+AC_SUBST(OUTERBOSS_NODENAME)
+AC_SUBST(WINSUPPORT)
+OUTERBOSS_NODENAME=""
+WINSUPPORT=0
+
+AC_ARG_ENABLE(windows,
+[  --enable-windows[[=yes/no]]  Enable Windows FAT/NTFS support in imagezip [[default=no]]])
+
+if test "$enable_windows" = "no"; then
+	WINSUPPORT=0;
+elif test "$enable_windows" = "yes"; then
+	WINSUPPORT=1;
+fi
+
+if test $WINSUPPORT -eq 0; then
+	winfiles="";
+else
+	winfiles="os/imagezip/ntfs/GNUmakefile \
+		  os/imagezip/ntfs/liblocale/GNUmakefile \
+		  os/imagezip/ntfs/libntfs/GNUmakefile \
+		  os/imagezip/fat/GNUmakefile"
+        AC_DEFINE_UNQUOTED(WINSUPPORT, 1)
+fi
+
+#
 # Allow tbdefs file that is supplied to full emulab build
 #
 AC_ARG_WITH(TBDEFS,
@@ -223,6 +250,7 @@ outfiles="Makeconf GNUmakefile \
 	  os/imagezip/GNUmakefile \
 	  os/imagezip/ffs/GNUmakefile \
 	  os/imagezip/extfs/GNUmakefile \
+	  $winfiles \
 	  os/imagezip/hashmap/GNUmakefile"
 
 #

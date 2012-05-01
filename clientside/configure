@@ -721,6 +721,8 @@ EVENTSERVER
 NOSHAREDFS
 LOG_TESTBED
 TBLOGFACIL
+OUTERBOSS_NODENAME
+WINSUPPORT
 PYTHON
 GREP
 EGREP
@@ -731,6 +733,7 @@ LTLIBOBJS'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
+enable_windows
 with_TBDEFS
 enable_elvin_compat
 enable_TPM
@@ -1370,6 +1373,7 @@ Optional Features:
   --disable-option-checking  ignore unrecognized --enable/--with options
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+  --enable-windows[=yes/no]  Enable Windows FAT/NTFS support in imagezip [default=no]
   --enable-elvin_compat[=yes/no]  Include Elvin Hash compat [default=no]
   --enable-TPM[=yes/no]           Include TPM support [default=no]
 
@@ -4180,6 +4184,39 @@ _ACEOF
 
 
 #
+# Allow enabling of NTFS support in imagezip
+#
+
+
+OUTERBOSS_NODENAME=""
+WINSUPPORT=0
+
+# Check whether --enable-windows was given.
+if test "${enable_windows+set}" = set; then
+  enableval=$enable_windows;
+fi
+
+
+if test "$enable_windows" = "no"; then
+	WINSUPPORT=0;
+elif test "$enable_windows" = "yes"; then
+	WINSUPPORT=1;
+fi
+
+if test $WINSUPPORT -eq 0; then
+	winfiles="";
+else
+	winfiles="os/imagezip/ntfs/GNUmakefile \
+		  os/imagezip/ntfs/liblocale/GNUmakefile \
+		  os/imagezip/ntfs/libntfs/GNUmakefile \
+		  os/imagezip/fat/GNUmakefile"
+        cat >>confdefs.h <<_ACEOF
+#define WINSUPPORT 1
+_ACEOF
+
+fi
+
+#
 # Allow tbdefs file that is supplied to full emulab build
 #
 
@@ -4901,6 +4938,7 @@ outfiles="Makeconf GNUmakefile \
 	  os/imagezip/GNUmakefile \
 	  os/imagezip/ffs/GNUmakefile \
 	  os/imagezip/extfs/GNUmakefile \
+	  $winfiles \
 	  os/imagezip/hashmap/GNUmakefile"
 
 #
