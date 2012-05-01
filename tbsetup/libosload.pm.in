@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Osload library. Basically the backend to the osload script, but also used
@@ -790,29 +790,25 @@ sub GetImageInfo($;$)
 
     if (! -R $imagepath) {
 	#
-	# If the image doesn't exist and we are in an inner elab,
-	# make sure real boss has it and see how big it is.
+	# There are two reasons why a legit image might not be readable.
+	# One is that we are in an elabinelab and the image has just not
+	# been downloaded yet. The other is that we are attempting to
+	# access a shared (via the grantimage mechanism) image which the
+	# caller cannot directly access.
 	#
-	# Note that we don't actually pre-fetch the image here,
-	# that will be done automatically when the image is first requested.
+	# For either case, making a proxy query request via frisbee will
+	# tell us whether the image is accessible and, if so, its size.
 	#
-	if ($ELABINELAB) {
-	    my $frisimageid = $rowref->{'pid'} . "/" . $rowref->{'imagename'};
-
-	    my $attr = `$FRISBEE -S $OUTERBOSS -Q $frisimageid`;
-	    if ($attr =~ /error=0/) {
-		if ($attr =~ /size=(\d+)/) {
-		    $imagesize = $1;
-		} else {
-		    $imagesize = 1 * 1024 * 1024 * 1024;
-		}
+	my $frisimageid = $rowref->{'pid'} . "/" . $rowref->{'imagename'};
+	my $attr = `$FRISBEE -S localhost -Q $frisimageid -P $node`;
+	if ($attr =~ /error=0/) {
+	    if ($attr =~ /size=(\d+)/) {
+		$imagesize = $1;
 	    } else {
-		tberror "Query to $OUTERBOSS for info on $image failed!";
-		$imageinfo{$imageid} = 'BADIMAGE';
-		return 0;
+		$imagesize = 1 * 1024 * 1024 * 1024;
 	    }
 	} else {
-	    tberror "$imagepath does not exist or cannot be read!";
+	    tberror "$image: access not allowed or image does not exist.";
 	    $imageinfo{$imageid} = 'BADIMAGE';
 	    return 0;
 	}
