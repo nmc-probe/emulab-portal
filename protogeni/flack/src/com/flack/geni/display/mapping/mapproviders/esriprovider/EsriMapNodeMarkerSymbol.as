@@ -31,6 +31,22 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 			marker = newMarker;
 		}
 		
+		override public function clear(sprite:Sprite):void
+		{
+			removeAllChildren(sprite);
+			sprite.graphics.clear();
+			sprite.x = 0;
+			sprite.y = 0;
+			sprite.filters = [];
+			sprite.buttonMode = false;
+		}
+		
+		
+		override public function destroy(sprite:Sprite):void
+		{
+			clear(sprite);
+		}
+		
 		override public function draw(sprite:Sprite,
 									  geometry:Geometry,
 									  attributes:Object,
@@ -74,7 +90,9 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 				}
 				
 				var labelMc:TextField = new TextField();
-				labelMc.textColor = ColorUtil.colorsLight[managers.collection[0].colorIdx];
+				// Temp fix...
+				if(managers.length > 0)
+					labelMc.textColor = ColorUtil.colorsLight[managers.collection[0].colorIdx];
 				labelMc.selectable = false;
 				labelMc.border = false;
 				labelMc.embedFonts = false;

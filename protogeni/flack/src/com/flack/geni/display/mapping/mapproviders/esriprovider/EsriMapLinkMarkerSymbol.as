@@ -44,6 +44,22 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 			label = newLabel;
 		}
 		
+		override public function clear(sprite:Sprite):void
+		{
+			removeAllChildren(sprite);
+			sprite.graphics.clear();
+			sprite.x = 0;
+			sprite.y = 0;
+			sprite.filters = [];
+			sprite.buttonMode = false;
+		}
+		
+		
+		override public function destroy(sprite:Sprite):void
+		{
+			clear(sprite);
+		}
+		
 		override public function draw(sprite:Sprite,
 									  geometry:Geometry,
 									  attributes:Object,

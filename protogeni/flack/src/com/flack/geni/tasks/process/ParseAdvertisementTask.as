@@ -446,8 +446,9 @@ package com.flack.geni.tasks.process
 						for each(var nodeSliverTypeXml:XML in nodeXml.defaultNamespace::sliver_type)
 						{
 							var newSliverType:SliverType = new SliverType(String(nodeSliverTypeXml.@name));
+							var supportedSliverType:SupportedSliverType = (node.manager as GeniManager).supportedSliverTypes.getByName(newSliverType.name);
 							// Don't add non-VMs if node is shared
-							if(!node.exclusive && !(node.manager as GeniManager).supportedSliverTypes.getByName(newSliverType.name).supportsShared)
+							if(!node.exclusive && supportedSliverType != null && !supportedSliverType.supportsShared)
 								continue;
 							var managerSliverType:SliverType = manager.supportedSliverTypes.getOrCreateByName(newSliverType.name).type;
 							for each(var sliverTypeChildXml:XML in nodeSliverTypeXml.children())
@@ -552,7 +553,7 @@ package com.flack.geni.tasks.process
 								{
 									var parentId:String = String(nodeChildXml.@component_id);
 									if(parentId.length > 0)
-										subnodeList.addItem({subNode:node, parentName:parentId});
+										subnodeList.push({subNode:node, parentName:parentId});
 								}
 							}
 							else if(nodeChildXml.localName() == "disk_image")
@@ -585,7 +586,7 @@ package com.flack.geni.tasks.process
 							{
 								var parentName:String = nodeChildXml.toString();
 								if(parentName.length > 0)
-									subnodeList.addItem({subNode:node, parentName:parentName});
+									subnodeList.push({subNode:node, parentName:parentName});
 							}
 						}
 						else if(nodeChildXml.namespace() == RspecUtil.emulabNamespace)

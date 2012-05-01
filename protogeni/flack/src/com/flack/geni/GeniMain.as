@@ -17,7 +17,6 @@ package com.flack.geni
 	import com.flack.geni.display.mapping.GeniMap;
 	import com.flack.geni.display.mapping.GeniMapHandler;
 	import com.flack.geni.display.mapping.mapproviders.esriprovider.EsriMap;
-	import com.flack.geni.display.mapping.mapproviders.googlemapsprovider.GoogleMap;
 	import com.flack.geni.display.windows.StartWindow;
 	import com.flack.geni.plugins.Plugin;
 	import com.flack.geni.plugins.emulab.Emulab;
@@ -28,7 +27,6 @@ package com.flack.geni
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.tasks.groups.GetCertBundlesTaskGroup;
 	import com.flack.geni.tasks.http.PublicListAuthoritiesTask;
-	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.display.areas.MapContent;
 	import com.flack.shared.resources.docs.RspecVersion;

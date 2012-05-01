@@ -9,7 +9,7 @@
 		  logoVisible="false"
 		  load="afterLoaded()"
 		  openHandCursorVisible="false"
-		  wrapAround180="false"
+		  wrapAround180="true"
 		  height="100%"
 		  width="100%">
 	<fx:Script>
@@ -36,7 +36,7 @@
 			
 			public function afterLoaded():void
 			{
-				defaultGraphicsLayer.visible = false;
+				//defaultGraphicsLayer.visible = false;
 			}
 			
 			public function get Ready():Boolean

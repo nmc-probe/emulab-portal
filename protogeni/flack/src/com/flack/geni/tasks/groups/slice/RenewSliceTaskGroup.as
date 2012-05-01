@@ -60,7 +60,7 @@ package com.flack.geni.tasks.groups.slice
 				if(slice.expires != null && expires.time < slice.expires.time)
 				{
 					addMessage(
-						"Only sliver need renewing",
+						"Only slivers need renewing",
 						"Slice will expire after the new expires time, renewing slivers",
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
@@ -112,23 +112,35 @@ package com.flack.geni.tasks.groups.slice
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			var earliestSliverExpiration:Date = slice.slivers.EarliestExpiration;
-			if(earliestSliverExpiration < slice.expires)
+			if(earliestSliverExpiration == null)
 			{
 				addMessage(
-					"Renewed. Slivers expire before slice in "+DateUtil.getTimeUntil(earliestSliverExpiration) +".",
-					"Slivers will start to expire in " + DateUtil.getTimeUntil(earliestSliverExpiration) + ". The slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
+					"Renewed. Slice espires in "+DateUtil.getTimeUntil(slice.expires)+".",
+					"Slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
 			}
 			else
 			{
-				addMessage(
-					"Renewed. All expire at the same time in "+DateUtil.getTimeUntil(slice.expires)+".",
-					"Slivers and slice will start to expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
-					LogMessage.LEVEL_INFO,
-					LogMessage.IMPORTANCE_HIGH
-				);
+				if(earliestSliverExpiration < slice.expires)
+				{
+					addMessage(
+						"Renewed. Slivers expire before slice in "+DateUtil.getTimeUntil(earliestSliverExpiration) +".",
+						"Slivers will start to expire in " + DateUtil.getTimeUntil(earliestSliverExpiration) + ". The slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+				}
+				else
+				{
+					addMessage(
+						"Renewed. All expire at the same time in "+DateUtil.getTimeUntil(slice.expires)+".",
+						"Slivers and slice will start to expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+				}
 			}
 			super.afterComplete(addCompletedMessage);
 		}

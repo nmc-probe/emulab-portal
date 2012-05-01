@@ -63,7 +63,7 @@ package com.flack.geni.tasks.tests
 			);
 		}
 		
-		// 3a. Import slice from RSPEC
+		// Import slice from RSPEC
 		public function firstSliceCreated(event:TaskEvent):void
 		{
 			if(event.task.Status != Task.STATUS_SUCCESS)
@@ -74,7 +74,9 @@ package com.flack.geni.tasks.tests
 				
 				addTest(
 					"Import RSPEC",
-					new ImportSliceTaskGroup((event.task as CreateSliceTaskGroup).newSlice, (new TestsliceRspec()).toString()), 
+					new ImportSliceTaskGroup(
+						(event.task as CreateSliceTaskGroup).newSlice,
+						(new TestsliceRspec()).toString()),
 					firstSliceImported
 				);
 			}
