@@ -4875,6 +4875,7 @@ outfiles="Makeconf GNUmakefile \
 	  tmcc/freebsd/init/6/GNUmakefile \
 	  tmcc/freebsd/init/7/GNUmakefile \
 	  tmcc/freebsd/init/8/GNUmakefile \
+	  tmcc/freebsd/init/9/GNUmakefile \
 	  tmcc/freebsd/supfile tmcc/freebsd/sethostname \
 	  tmcc/linux/GNUmakefile tmcc/linux/supfile \
 	  tmcc/linux/sethostname.dhclient \
