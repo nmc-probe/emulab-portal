@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2003 University of Utah and the Flux Group.
+ * Copyright (c) 2003-2012 University of Utah and the Flux Group.
  *
  * teachswitch.c - Send a packet directly on each interface of a machine, so 
  * that the switch can learn our MAC
@@ -35,7 +35,7 @@
 const int MAX_INTERFACES = 8;
 const int SLEEP_TIME = 30;
 #if defined(__FreeBSD__)
-const int MAX_BPFNUM = 16;
+const int MAX_BPFNUM = 32;
 #endif
 
 /*
