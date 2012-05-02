@@ -1,29 +1,56 @@
 #!/usr/bin/perl -w                                                              
+#
+# GENIPUBLIC-COPYRIGHT
+# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use strict;
+use English;
+use Getopt::Std;
 
+#
 # Checks to see if the bandwidth remaining on shared interfaces
 # matches the maximum capacity - used capacity for those interfaces
-
-# Usage: check-shared-bw [-f]
 #
-# -f   -- Fix any problems encountered.
-
-$shouldFix = 0;
-if (scalar(@ARGV) == 1 && $ARGV[0] eq "-f") {
-    $shouldFix = 1;
-} elsif (scalar(@ARGV) > 0) {
-    print STDERR "Usage: check-shared-bw [-f]\n";
+sub usage()
+{
+    print "Usage: check-shared-bw [-d] [-f]\n";
     exit(1);
 }
+my $optlist    = "df";
+my $debug      = 0;
+my $shouldFix  = 0;
+
 
 our $TB = "@prefix@";
 
 use lib "@prefix@/lib";
 use libdb;
+use libaudit;
+
+#
+# Check args.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"f"})) {
+    $shouldFix = 1;
+}
+usage()
+    if (@ARGV);
+
+# Record output in case of error.
+LogStart(0, undef, LIBAUDIT_LOGTBOPS());
 
 # Get max bandwidth for interface types on all matching nodes
 
 # Key is node:iface
-%iface_bw = ();
+my %iface_bw = ();
 my $dbresult = DBQueryFatal("select i.node_id, i.iface, t.max_speed " .
 			    "from interfaces as i " .
 			    "left join interface_types as t " .
@@ -47,7 +74,7 @@ while (my ($node, $iface, $bw) = $dbresult->fetchrow_array) {
 }
 
 # Find remaining bandwidth for interfaces
-%iface_remaining = ();
+my %iface_remaining = ();
 $dbresult = DBQueryFatal("select i.node_id, i.iface, i.remaining_bandwidth ".
 			 "from interface_state as i ".
 			 "left join reserved as r on i.node_id=r.node_id ".
@@ -64,6 +91,7 @@ foreach my $key (sort(keys(%iface_remaining))) {
 	print STDERR "$key\thas\t" . $iface_remaining{$key} .
 	    "\tshould have\t" . $iface_bw{$key} . "\n";
 	if ($shouldFix) {
+	    print STDERR "Fixing interface ...\n";
 	    my ($node, $iface) = split(":", $key);
 	    my $query = "update interface_state " .
 		"set remaining_bandwidth=" . $iface_bw{$key} . " " .
@@ -74,4 +102,8 @@ foreach my $key (sort(keys(%iface_remaining))) {
     }
 }
 
-print STDERR scalar(keys(%iface_remaining)) . " interfaces analyzed\n";
+print STDERR scalar(keys(%iface_remaining)) . " interfaces analyzed\n"
+    if ($debug);
+
+exit(0);
+
