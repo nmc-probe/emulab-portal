@@ -253,15 +253,18 @@ while (<IF>) {
 		    my $booting = "";
 		    my $filename = "";
 
-		    # Management ports, nothing special to do.
-		    goto spit
-			if ($role eq TBDB_IFACEROLE_MANAGEMENT());
-
 		    if ($vnames && defined($row{"vname"})) {
 			$node_id = $row{"vname"};
 		    }
 		    else {
 			$node_id = $row{"node_id"};
+		    }
+		    
+		    # Management ports, nothing special to do.
+		    if ($role eq TBDB_IFACEROLE_MANAGEMENT()) {
+			$hostname =
+			    "${spaces}\toption host-name \"${node_id}-mng\";\n";
+			goto spit;
 		    }
 
 		    my $tag;
