@@ -1275,6 +1275,22 @@ sub SetupOpsNode($)
     mysystem("rm -f /usr/local/etc/rc.d/testbed.sh");
 
     #
+    # Write the config variables out. genirack install phase needs it.
+    #
+    open(CF, "> $TBDIR/configvars.txt")
+	or SetupFatal("Could not create $TBDIR/configvars.txt");
+    foreach my $opt (keys %emulabconfig) {
+	my $val = $emulabconfig{$opt};
+
+	# Do not write anything that looks like a password
+	next
+	    if ($opt =~ /password/i);
+	
+	print CF "$opt='$val'\n";
+    }
+    close(CF);
+
+    #
     # And clear some other stuff.
     #
     mysystem("rm -rf $TBDIR/bin $TBDIR/lib");
@@ -1816,11 +1832,15 @@ sub SetupBossNode($)
     mysystem("cp -fp ~${creator}/.ssl/emulab.pem $stuffdir");
 
     #
-    # Extra config variables. 
+    # Write the config variables out. genirack install phase needs it.
     #
-    if (-e "$expdir/configvars.txt") {
-	mysystem("cp -fp $expdir/configvars.txt $TBDIR");
+    open(CF, "> $TBDIR/configvars.txt")
+	or SetupFatal("Could not create $TBDIR/configvars.txt");
+    foreach my $opt (keys %emulabconfig) {
+	my $val = $emulabconfig{$opt};
+	print CF "$opt='$val'\n";
     }
+    close(CF);
 
     #
     # Stash the IP of the outer emulab for tmcc (and script above).
