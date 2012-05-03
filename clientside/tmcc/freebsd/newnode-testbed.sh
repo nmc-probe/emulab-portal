@@ -5,6 +5,7 @@
 # All rights reserved.
 #
 # PROVIDE: testbed
+# REQUIRE: sshd
 #
 
 . /etc/emulab/paths.sh
