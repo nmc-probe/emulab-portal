@@ -1,0 +1,102 @@
+#
+# Additional stuff for setting up the geni racks. 
+#
+# This has to happen after reboot. Not sure yet ... 
+#  remove rc.local
+#
+use strict;
+use libinstall;
+use installvars;
+
+my $CONFIGVARS   = "$PREFIX/configvars.txt";
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+    my %configvars = ();
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    SET_TESTBED_VERSION("Genirack");
+
+    Phase "genirack", "Doing additional Geni Rack tasks", sub {
+	PhaseSkip("Not a Rack")
+	    if (!$PROTOGENI_GENIRACK);
+
+	Phase "config", "Reading in config variables", sub {
+	    PhaseFail("No config file")
+		if (! -e $CONFIGVARS);
+	    
+	    open(CN, $CONFIGVARS)
+		 or PhaseFail("Could not open $CONFIGVARS: $!");
+	    while (<CN>) {
+		if ($_ =~ /^([-\w]*)\s*=\s*(.*)$/) {
+		    my $key = $1;
+		    my $val = $2;
+		    if ($val =~ /^'(.*)'$/) {
+			$val = $1;
+		    }
+		    $configvars{$key} = "$val";
+		}
+	    }
+	    close(CN);
+	};
+
+	#
+	# Have not figured this out yet; it runs during boss setup but
+        # the line in fstab gets lost. Run again and it works fine. 
+	#
+	Phase "swapon", "Reruning rc.freebsd", sub {
+	    PhaseSkip("already enabled") unless `grep -q swap $FSTAB`;
+	    ExecQuietFatal("/usr/local/etc/emulab/rc/rc.freebsd");
+	};
+
+	Phase "rclocal", "Removing rc.local", sub {
+	    PhaseSkip("already deleted")
+		if (! -e $RCLOCAL);
+
+	    DeleteFileFatal($RCLOCAL);
+	};
+
+	Phase "rcconf", "Updating rcconf for actual boot", sub {
+	    my @strings = ();
+	    
+	    push(@strings,
+		 "ifconfig_xn0=\"inet ". $configvars{"GENIRACK_OPSIP"} . 
+		 " netmask " . $configvars{"GENIRACK_NETMASK"} . " -tso\"");
+	    # Actual default router.
+	    push(@strings,
+		 "defaultrouter=\"" . $configvars{"GENIRACK_ROUTER"} . "\"");
+	    # Going to lose all static routes below, so add this back.
+	    push(@strings,
+		 "syslogd_flags=\"-a " .
+		 $configvars{"GENIRACK_NETWORK"} . "/24\"");
+
+	    #
+	    # Okay, we want to comment out a bunch of stuff.
+	    #
+	    my @patterns = (qr(^natd),
+			    qr(^firewall),
+			    qr(^defaultrouter),
+			    qr(^static_routes),
+			    qr(^route_genirack),
+			    qr(^route_outerboss),
+			    qr(^route_vnodes),
+			    qr(^ifconfig_xn0),
+			    qr(^ifconfig_xn0_alias0),
+			    qr(^syslogd_flags),
+	    );
+	    DoneIfEdited($RCCONF);
+	    UpdateFileFatal($RCCONF, \@patterns, @strings);
+	};
+
+	PhaseSucceed("Rack Setup Done");
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:

@@ -47,13 +47,18 @@ use emutil;
 use emdb;
 use User;
 use NodeType;
+use OSinfo;
 
 my $EMULABDEVEL  = "git://git-public.flux.utah.edu/emulab-devel.git";
 my $EMULABSTABLE = "git://git-public.flux.utah.edu/emulab-stable.git";
 my $NODETYPEXML  = "$TOP_SRCDIR/install/genirack/nodetype.xml";
 my $SWITCHSQL    = "$TOP_SRCDIR/install/genirack/tbdb.sql";
 my $CONFIGVARS   = "$PREFIX/configvars.txt";
+my $ILOPASSWORD  = "$PREFIX/etc/ilo.pswd";
 my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-8.2-ports.tar.gz";
+my $ZZZ		 = "/usr/local/etc/rc.d/zzz-inelab.sh";
+my $DEFAULTOSID  = "FEDORA15-STD";
+my $PGOSSITEVAR  = "protogeni/default_osname";
 
 my %INTERFACES = (
     "xn1"   => "inet 10.1.1.1 netmask 255.255.255.0",
@@ -110,8 +115,14 @@ sub Install($$$)
 	    ExecQuietFatal("/usr/local/etc/emulab/rc/rc.freebsd");
 	};
 
+	Phase "rclocal", "Removing $ZZZ", sub {
+	    PhaseSkip("already deleted")
+		if (! -e $ZZZ);
+	    DeleteFileFatal($ZZZ);
+	};
+
 	#
-	# Update elabman password.
+	# Update geniuser password.
 	#
 	if (exists($configvars{'PROTOGENI_PASSWORD'}) &&
 	    $configvars{'PROTOGENI_PASSWORD'} ne "") {
@@ -122,6 +133,29 @@ sub Install($$$)
 	    $geniuser->SetPassword($passhash);
 	}
 
+	#
+	# This is the password to use when creating the elabman user
+	# on each node iLo.
+	#
+	if (exists($configvars{'GENIRACK_ILO_PASSWORD'}) &&
+	    $configvars{'GENIRACK_ILO_PASSWORD'} ne "" &&
+	    ! -e $ILOPASSWORD) {
+	    CreateFileFatal($ILOPASSWORD, $configvars{'GENIRACK_ILO_PASSWORD'});
+	    ExecQuietFatal("$CHMOD 400 $ILOPASSWORD");
+	}
+
+	#
+	# A reasonable default image.
+	#
+	Phase "sitevar", "Setting sitevar $PGOSSITEVAR", sub {
+	    my $osinfo = OSinfo->LookupByName($DEFAULTOSID);
+	    PhaseFail("Could not look up $DEFAULTOSID osid")
+		if (!defined($osinfo));
+	    
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "'$PGOSSITEVAR' '$DEFAULTOSID'");
+	};
+	
 	#
 	# Create a clone of emulab-devel while we are close to the server.
 	#
@@ -210,7 +244,18 @@ sub Install($$$)
 	    DoneIfEdited($HOSTS);
 	    AppendToFileFatal($HOSTS, @strings);
 	};
-	Phase "rcconf", "Adding rcconf entries for interfaces", sub {
+
+	#
+	# Also need to do:
+	#
+	# * Comment out all the natd stuff.
+	# * Comment out all static route lines except frisbee.
+	# * Comment out firewall stuff.
+	# * Comment out xn0 alias.
+	# * Set the xn0 config to the real config.
+	# * Set the defaultrouter to the real one. 
+	
+	Phase "rcconf", "Updating rcconf for actual boot", sub {
 	    my @strings = ();
 	    my @ifaces  = ();
 
@@ -219,9 +264,37 @@ sub Install($$$)
 		push(@strings, "ifconfig_${iface}=\"$line\"");
 		push(@ifaces, $iface);
 	    }
-	    push(@strings, "network_interfaces=\"\$network_interfaces @ifaces\"");
+	    push(@strings,
+		 "network_interfaces=\"\$network_interfaces @ifaces\"");
+	    push(@strings,
+		 "ifconfig_xn0=\"inet ". $configvars{"GENIRACK_BOSSIP"} . 
+		 " netmask " . $configvars{"GENIRACK_NETMASK"} . " -tso\"");
+	    # Jail network.
+	    push(@strings,
+		 "ifconfig_xn0_alias0=\"inet 172.17.254.254 ".
+		 "netmask 255.240.0.0\"");
+	    # Actual default router.
+	    push(@strings,
+		 "defaultrouter=\"" . $configvars{"GENIRACK_ROUTER"} . "\"");
+	    # Going to lose all static routes below, so add this back.
+	    push(@strings,
+		 "static_routes=\"\$static_routes frisbee\"");
+
+	    #
+	    # Okay, we want to comment out a bunch of stuff.
+	    #
+	    my @patterns = (qr(^natd),
+			    qr(^firewall),
+			    qr(^defaultrouter),
+			    qr(^static_routes),
+			    qr(^route_genirack),
+			    qr(^route_outerboss),
+			    qr(^route_vnodes),
+			    qr(^ifconfig_xn0),
+			    qr(^ifconfig_xn0_alias0),
+	    );
 	    DoneIfEdited($RCCONF);
-	    AppendToFileFatal($RCCONF, @strings);
+	    UpdateFileFatal($RCCONF, \@patterns, @strings);
 	};
 
 	#
@@ -249,12 +322,6 @@ sub Install($$$)
 	    ExecQuietFatal("/bin/rm -f $DHCPD_TEMPLATE");
 	    ExecQuietFatal("cd $TOP_OBJDIR/dhcpd; $GMAKE install");
 	    ExecQuietFatal("$DHCPD_MAKECONF -i");
-	};
-	
-	Phase "rc.conf", "Adding jail network alias to xn0", sub {
-	    DoneIfEdited($RCCONF);
-	    AppendToFileFatal($RCCONF,
-	      "ifconfig_xn0_alias0=\"inet 172.17.254.254 netmask 255.240.0.0\"");
 	};
 	PhaseSucceed("Rack Setup Done");
     };
