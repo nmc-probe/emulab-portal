@@ -165,6 +165,13 @@ sub IsControl($)
     return $self->role() eq TBDB_IFACEROLE_CONTROL();
 }
 
+sub IsManagement($)
+{
+    my ($self) = @_;
+
+    return $self->role() eq TBDB_IFACEROLE_MANAGEMENT();
+}
+
 #
 # Lookup by card,port
 #
@@ -516,6 +523,51 @@ sub LookupByIface($$$)
 	if (!$query_result->numrows);
 
     my ($card, $port) = $query_result->fetchrow_array();
+
+    return Interface->Lookup($nodeid, $card, $port);
+}
+
+#
+# Lookup by mac
+#
+sub LookupByMAC($$)
+{
+    my ($class, $mac) = @_;
+
+    my $query_result =
+	DBQueryWarn("select node_id,card,port from interfaces ".
+		    "where mac='$mac'");
+
+    return undef
+	if (!$query_result);
+    return undef
+	if (!$query_result->numrows);
+    
+    my ($nodeid, $card, $port) = $query_result->fetchrow_array();
+
+    return Interface->Lookup($nodeid, $card, $port);
+}
+
+#
+# Lookup by IP, but only on control or management interfaces.
+# Makes no sense for experimental.
+#
+sub LookupByIP($$)
+{
+    my ($class, $ip) = @_;
+
+    my $query_result =
+	DBQueryWarn("select node_id,card,port from interfaces ".
+		    "where ip='$ip' and ".
+		    "      (role='" . TBDB_IFACEROLE_CONTROL()  . "' or ".
+		    "       role='" . TBDB_IFACEROLE_MANAGEMENT()  . "')");
+
+    return undef
+	if (!$query_result);
+    return undef
+	if (!$query_result->numrows);
+    
+    my ($nodeid, $card, $port) = $query_result->fetchrow_array();
 
     return Interface->Lookup($nodeid, $card, $port);
 }

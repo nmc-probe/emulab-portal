@@ -1,0 +1,427 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use English;
+use Getopt::Std;
+use Socket;
+use IO::Handle;     # thousands of lines just for autoflush :-(
+use POSIX ":sys_wait_h";
+
+#
+# Setup management interfaces for nodes, given a data file we get
+# from HP.
+#
+sub usage()
+{
+    print STDERR "Usage: initnodes.pl [-d] [-n] <datafile>\n";
+    exit(-1);
+}
+my $optlist	= "dn";
+my $debug	= 1;
+my $impotent    = 0;
+my %ilomap      = ();
+my %ctrlmap     = ();
+my $tempfile    = "/tmp/$$.xml";
+
+#
+# Configure variables
+#
+my $TB	      = "@prefix@";
+my $TBOPS     = "@TBOPSEMAIL@";
+my $LEASES    = "/var/db/dhcpd.leases";
+my $ILOPSWD   = "$TB/etc/ilo.pswd";
+my $SRCDIR    = "@srcdir@";
+my $CURL      = "/usr/local/bin/curl";
+my $ADDMNG    = "$TB/sbin/management_iface";
+my $DSAKEY    = "/root/.ssh/id_dsa";
+my $SUDO      = "/usr/local/bin/sudo";
+my $WAP       = "$TB/sbin/withadminprivs";
+
+# Protos
+sub Fatal($);
+sub ChangeBootOrder($);
+sub SendXML($$);
+
+# un-taint path
+$ENV{'PATH'} = '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/site/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use emdb;
+use EmulabConstants;
+use emutil;
+use User;
+use Node;
+use Interface;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Parse command arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"n"})) {
+    $impotent = 1;
+}
+if (@ARGV != 1) {
+    usage();
+}
+my $datafile = $ARGV[0];
+Fatal("$datafile does not exist")
+    if (! -e $datafile);
+Fatal("$ILOPSWD does not exist")
+    if (! -e $ILOPSWD);
+
+#
+# Must be root if actually doing this.
+#
+if ($UID && !$impotent) {
+    Fatal("This script must be run as root! Maybe use sudo?")
+}
+
+# This is the iLo password for the elabman user we create.
+my $elabmanpswd = `cat $ILOPSWD`;
+chomp($elabmanpswd);
+
+# The XML goo.
+my $setupgoo = `cat $SRCDIR/setupilo.xml`;
+my $resetgoo = `cat $SRCDIR/resetilo.xml`;
+
+# The pubkey.
+my $pubkey = `cat ${DSAKEY}.pub`;
+if ($?) {
+    Fatal("Cannot read ${DSAKEY}.pub");
+}
+chomp($pubkey);
+
+# Need to kill off the comment.
+if ($pubkey =~ /^(ssh-dss\s+[^\ ]*)/) {
+    $pubkey = $1;
+}
+
+#
+# Read in the datafile.
+#
+open(DF, $datafile)
+    or Fatal("Could not open $datafile: $!");
+while (<DF>) {
+    next
+	if ($_ =~ /^#/ || $_ =~ /^$/);
+    chomp($_);
+
+    my ($ilomac,$passwd,$ctrlmac,$ip) = split(",", $_);
+    
+    
+    $macmap{$ilomac}  = {"ilomac"  => lc($ilomac),
+			 "passwd"  => $passwd,
+			 "ctrlmac" => lc($ctrlmac),
+			 "iloIP"   => $ip,
+			 "tempIP"  => undef,
+			 "ctrlIP"  => undef};
+}
+close(DF);
+
+#
+# Read the dhcp.leases files.
+#
+my $IP;
+my $mac;
+my $state = "free";
+
+open(DF, $LEASES)
+    or Fatal("Could not open $LEASES: $!");
+while (<DF>) {
+    next
+	if ($_ =~ /^#/);
+
+    # Looking for the start of a lease.
+    if ($_ =~ /^lease\s*([\d\.]*)/) {
+	$IP = $1;
+    }
+    elsif ($_ =~ /^\s*binding state (\w*)/) {
+	$state = $1;
+    }
+    elsif ($_ =~ /hardware ethernet ([\w:]*)/) {
+	$mac = $1;
+        # Convert mac to DB representation.
+	if ($mac =~ /(\w\w):(\w\w):(\w\w):(\w\w):(\w\w):(\w\w)/) {
+	    $mac = "$1$2$3$4$5$6";
+	}
+	$mac = lc($mac);
+    }
+    elsif ($_ =~ /^\}$/) {
+	if ($state eq "active" && exists($macmap{$mac})) {
+	    print "$IP, $state, $mac\n"
+		if ($debug);
+	    if ($macmap{$mac}->{"ilomac"} eq $mac) {
+		$macmap{$mac}->{"tempIP"} = $IP;
+	    }
+	    elsif ($macmap{$mac}->{"ctrlmac"} eq $mac) {
+		$macmap{$mac}->{"ctrlIP"} = $IP;
+	    }
+	    else {
+		Fatal("Inconsistent record for $mac");
+	    }
+	}
+    }
+}
+close(DF);
+
+#
+# See what iLo interfaces we found. Search the DB for the
+# corresponding nodes, using the control mac. We only process
+# nodes that have been incorporated into the testbed.
+#
+foreach my $map (values(%macmap)) {
+    next
+	if (!defined($map->{'tempIP'}));
+
+    my $ilomac   = $map->{'ilomac'};
+    my $iloIP    = $map->{'iloIP'};
+    my $tempIP   = $map->{'tempIP'};
+    my $ctrlmac  = $map->{'ctrlmac'};
+    my $ilopswd  = $map->{'passwd'};
+
+    my $control_interface = Interface->LookupByMAC($ctrlmac);
+    if (!defined($control_interface)) {
+	print "No matching node for ilo mac: $ilomac/$ctrlmac\n";
+	next;
+    }
+    my $node_id = $control_interface->node_id();
+    my $node    = Node->Lookup($node_id);
+    Fatal("Cannot lookup node: $node_id")
+	if (!defined($node));
+
+    print "ilo mac $ilomac ($tempIP) corresponds to $node\n";
+
+    #
+    # Make sure the desired IP is not in use. 
+    #
+    my $ilo_interface = Interface->LookupByIP($iloIP);
+    if (defined($ilo_interface)) {
+	Fatal("Interface with $iloIP alraedt exists: $ilo_interface");
+    }
+
+    #
+    # Before we create the interface, make sure we can install our
+    # login/password/key info on the ilo.
+    #
+    # Replace the appropriate parts of the XML goo.
+    #
+    my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd, $pubkey);
+    if (SendXML($tempIP, $xmlgoo)) {
+	Fatal("Failed to send xmlgoo to $tempIP");
+    }
+
+    #
+    # The boot order cannot be changed via ribcl. What a pain.
+    #
+    if (ChangeBootOrder($tempIP)) {
+	Fatal("Failed to change the boot order on $ilomac ($iloIP)")
+    }
+
+    #
+    # Add the management interface
+    #
+    my $mcmd =
+	"$ADDMNG -t ilo3 -a key -s - $node_id $ilomac $iloIP elabman $DSAKEY";
+    print "$mcmd\n";
+    if (!$impotent) {
+	my $output = emutil::ExecQuiet("$SUDO -u elabman $WAP $mcmd");
+	if ($?) {
+	    print $output;
+	    Fatal("Could not add management iface");
+	}
+    }
+
+    #
+    # This resets the ilo so that it will DHCP again and get its new IP.
+    #
+    $xmlgoo = sprintf($resetgoo, $ilopswd);
+    if (SendXML($tempIP, $xmlgoo)) {
+	Fatal("Failed to send xmlgoo to $tempIP");
+    }
+}
+
+#
+# SSH over to change the boot order,
+# The "expect" like stuff copied from power_ilo ...
+#
+sub ChangeBootOrder($)
+{
+    my ($ip) = @_;
+
+    my @args = ("ssh", "-tt", "-i", ${DSAKEY}, "elabman\@${ip}");
+    print "@args\n";
+
+    return 0
+	if ($impotent);
+    
+    if (! socketpair(CHILD, PARENT, AF_UNIX, SOCK_STREAM, PF_UNSPEC)) {
+	Fatal("socketpair failed: $!");
+    }
+    CHILD->autoflush(1);
+    PARENT->autoflush(1);
+
+    my $childpid = fork();
+    if (! $childpid) {
+	close(CHILD);
+
+	#
+	# Dup our descriptors to the parent, and exec the program.
+	# The parent then talks to it read/write.
+	#
+	open(STDIN,  "<&PARENT") || die "Can't redirect stdin";
+	open(STDOUT, ">&PARENT") || die "Can't redirect stdout";
+	open(STDERR, ">&PARENT") || die "Can't redirect stderr";
+
+	exec(@args);
+	die("ssh exec failed\n");
+    }
+    close(PARENT);
+
+    my @expect_seq = (['hpiLO-> ',"cd system1/bootconfig1"],
+		      ['hpiLO-> ','show bootsource5'],
+		      ['hpiLO-> ','set bootsource5 bootorder=1'],
+		      ['hpiLO-> ','exit']);
+    
+
+    #
+    # Talk to ssh over the pty: wait for expected output and send responses
+    #
+    my @lines = ();
+    foreach $es (@expect_seq) {
+	my ($rval,$sval) = @$es;
+
+	my $found = 0;
+	my $line = '';
+	while (1) {
+	    my $char;
+	    if (read(CHILD,$char,1) != 1) {
+		warn "Error in read in iLO pseudo expect loop!\n";
+		print "Had read the following lines:\n";
+		foreach my $ln (@lines) {
+		    print "  $ln\n";
+		}
+		last;
+	    }
+	    if ($char eq "\r" || $char eq "\n") {
+		push @lines,$line;
+		if ($debug) {
+		    if ($debug > 2) {
+			print "read '$line' while looking for '$rval'\n";
+		    }
+		    elsif ($line ne '') {
+			print "$line\n";
+		    }
+		}
+		
+		$line = '';
+	    }
+	    else {
+		$line .= $char;
+	    }
+
+	    if ($line =~ /$rval$/) {
+		print CHILD "$sval\r";
+		print "sent '$sval'\n";
+		$found = 1;
+		last;
+	    }
+	}
+
+	if (!$found) {
+	    # some sort of error; try to kill off ssh
+	    kill(15,$childpid);
+	    return -16;
+	}
+    }
+    close(CHILD);
+
+    # make sure the local ssh dies:
+    my $i = 5;
+    my $dead = 0;
+    while (--$i) {
+	my $ret = waitpid($childpid,WNOHANG);
+	if ($ret == -1 || $ret == $childpid) {
+	    $dead = 1;
+	    last;
+	}
+	sleep(1);
+    }
+    kill(KILL,$childpid) if (!$dead);
+    
+    return 0;
+}
+
+#
+# Send some XML to the ribcl
+#
+sub SendXML($$)
+{
+    my ($ip, $xmlgoo) = @_;
+    
+    print $xmlgoo
+	if ($debug);
+
+    # Stick it into a file for curl.
+    open(XML, ">$tempfile")
+	or Fatal("Could not create $tempfile");
+    print XML $xmlgoo;
+    close(XML);
+
+    #
+    # Ship this off with curl. 
+    #
+    my $cmd = "$CURL -k --data-binary \@${tempfile} https://$ip/ribcl";
+    print "$cmd\n";
+    if (!$impotent) {
+	my $output = emutil::ExecQuiet($cmd);
+	if ($?) {
+	    print $output;
+	    Fatal("ribcl failed");
+	}
+	my @lines = split('\n', $output);
+	while (@lines) {
+	    my $line = shift(@lines);
+	    if ($line =~ /^\s*STATUS="(\w*)"/) {
+		my $status = hex($1);
+		if ($status != 0) {
+		    my $line = shift(@lines);
+		    $line =~ s/\s*MESSAGE=//;
+		    print "$line\n";
+		    Fatal("ribcl failed");
+		}
+	    }
+	}
+    }
+    unlink($tempfile)
+	if (!$debug);
+
+    return 0;
+}
+
+exit(0);
+
+sub Fatal($)
+{
+    my ($msg) = @_;
+
+    die("*** $0:\n".
+	"    $msg\n");
+}

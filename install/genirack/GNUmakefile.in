@@ -1,0 +1,24 @@
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+SRCDIR		= @srcdir@
+TESTBED_SRCDIR	= @top_srcdir@
+OBJDIR		= ../..
+SUBDIR		= install/genirack
+
+include $(OBJDIR)/Makeconf
+
+TARGETS = initnodes.pl
+
+#
+# Force dependencies on the scripts so that they will be rerun through
+# configure if the .in file is changed.
+# 
+all: $(TARGETS)
+
+include $(TESTBED_SRCDIR)/GNUmakerules
+
+clean: 
+	rm -f $(TARGETS)
