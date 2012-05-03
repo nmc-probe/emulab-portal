@@ -158,3 +158,22 @@ Need the following info:
 	vgcreate xen-vg /dev/sda4
     	vgchange -a y xen-vg
 
+* Create a small filesystem to hold the boss/ops tarballs. These are
+  pretty big but will be deleted after we copy the filesystems into
+  their own lvms.
+
+	mkdir /scratch
+	/sbin/lvcreate -n scratch -L 20G xen-vg
+	mke2fs -j /dev/xen-vg/scratch
+	mount /dev/xen-vg/scratch /scratch
+	chmod 777 /scratch
+
+* scp boss.tar.gz and ops.tar.gz to to /scratch on the control node,
+  and then unpack them. There will be two directories, ops and boss.
+
+* 
+
+  
+
+
+	
