@@ -22,8 +22,8 @@ my $debug       = 1;
 my $infomode    = 0;
 my $VMPATH      = "/var/xen/configs";
 my $VGNAME	= "xen-vg";
-my $IMAGEUNZIP  = "/usr/testbed/bin/imageunzip";
-my $IMAGEDUMP   = "/usr/testbed/bin/imagedump";
+my $IMAGEUNZIP  = "imageunzip";
+my $IMAGEDUMP   = "imagedump";
 
 #
 # Turn off line buffering on output
@@ -57,6 +57,11 @@ my $vnodeid = $ARGV[0];
 my $path    = $ARGV[1];
 my $XMINFO  = "$path/xm.conf";
 
+# Must supply an absolute path.
+if (! ($path =~ /^\//)) {
+    Fatal("Must supply an absolute path");
+}
+
 if (! -e $IMAGEUNZIP) {
     $IMAGEUNZIP  = "/usr/local/bin/imageunzip";
     $IMAGEDUMP   = "/usr/local/bin/imagedump";
@@ -89,6 +94,33 @@ while (<XM>) {
     }
 }
 close(XM);
+
+#
+# Localize the path to the kernel.
+#
+$xminfo{"kernel"} = $path . "/" . $xminfo{"kernel"};
+
+#
+# Fix up the network interfaces.
+#
+my $ifacelist = eval $xminfo{'vif'};
+my @newifaces = ();
+foreach my $vif (@$ifacelist) {
+    my ($mac, $bridge) = split(',', $vif);
+    my (undef, $iface) = split('=', $bridge);
+
+    $iface =~ s/eth/xenbr/;
+    push(@newifaces, "$mac, bridge=$iface");
+}
+# XXX Ick!
+if ($vnodeid eq "boss") {
+    for (my $i = 1; $i < 4; $i++) {
+	my $iface = "xenbr$i";
+	my $mac   = "00:00:99:98:97:0$i";
+	push(@newifaces, "mac=$mac, bridge=$iface");
+    }
+}
+$xminfo{'vif'} = "[" . join(",", map {"'$_'" } @newifaces) . "]";
 
 #
 # Parse the disk info.
@@ -189,7 +221,7 @@ foreach my $physinfo (keys(%diskinfo)) {
 #
 delete($xminfo{"disksizes"});
 $xminfo{"name"}   = $vnodeid;
-$xminfo{"memory"} = "512";
+$xminfo{"memory"} = "2048";
 $xminfo{"disk"}   = "[" . join(",", map {"'$_'" } values(%diskinfo)) . "]";
 
 if ($infomode) {
