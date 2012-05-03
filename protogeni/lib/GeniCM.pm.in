@@ -3391,6 +3391,7 @@ sub SliverWorkAux($$$$$$$)
 	    my $outref;
 	    my $sliverName = "sliver_urn";
 	    my $macName = "MAC";
+	    my $macAddress = $interface->mac();
 	    my $ipAddress;
 	    if (defined($vinterface)) {
 		$ipAddress = $vinterface->IP();
@@ -3426,11 +3427,14 @@ sub SliverWorkAux($$$$$$$)
 				 $sliver->component_urn());
 		GeniXML::SetText("component_id", $ifaceref,
 				 $sliver->component_urn());
+		if (defined($vinterface)) {
+		    $macAddress = $vinterface->mac();
+		}
 	    }
 	    if (defined($outref)) {
 		GeniXML::SetText($sliverName, $outref,
 				 $sliver->sliver_urn());
-		GeniXML::SetText($macName, $outref, $interface->mac())
+		GeniXML::SetText($macName, $outref, $macAddress)
 		    if (defined($interface));
 	    }
 	    
