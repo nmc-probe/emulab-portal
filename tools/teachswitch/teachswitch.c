@@ -32,7 +32,7 @@
 #define ETHERTYPE_LOOPBACK      0x9000
 #endif
 
-const int MAX_INTERFACES = 8;
+const int MAX_INTERFACES = 16;
 const int SLEEP_TIME = 30;
 #if defined(__FreeBSD__)
 const int MAX_BPFNUM = 32;
