@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2006 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -22,7 +22,7 @@ TWIKIFILES		= UserPermNotes.txt GroupPermNotes.txt LocalSite.cfg
 # These scripts installed setuid, with sudo. 
 SETUID_BIN_SCRIPTS   = 
 SETUID_SBIN_SCRIPTS  = addwikiuser delwikiuser addwikiproj setwikigroups 
-SETUID_LIBX_SCRIPTS  = wikixlogin
+SETUID_SUEXEC_SCRIPTS  = wikixlogin
 
 #
 # Force dependencies on the scripts so that they will be rerun through

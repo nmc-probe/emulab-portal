@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2006 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -26,7 +26,7 @@ SETUID_BIN_SCRIPTS   =
 SETUID_SBIN_SCRIPTS  = addmmuser delmmuser addmmlist delmmlist \
 			setmmlistmembers setmmpasswd mmlistmembership \
 			mmmodifymember addprojadminlist closeprojadminlist
-SETUID_LIBX_SCRIPTS  = mmxlogin
+SETUID_SUEXEC_SCRIPTS  = mmxlogin
 
 #
 # Force dependencies on the scripts so that they will be rerun through

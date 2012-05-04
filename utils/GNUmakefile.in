@@ -43,7 +43,7 @@ CTRLSBIN_SCRIPTS= opsdb_control.proxy daemon_wrapper
 SETUID_BIN_SCRIPTS   = 
 SETUID_SBIN_SCRIPTS  = grabwebcams checkquota spewconlog opsdb_control suchown \
                        anonsendmail readblob
-SETUID_LIBX_SCRIPTS  = xlogin
+SETUID_SUEXEC_SCRIPTS  = xlogin
 
 #
 # Force dependencies on the scripts so that they will be rerun through

@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2009 University of Utah and the Flux Group.
+# Copyright (c) 2009-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -15,7 +15,7 @@ CGI_SCRIPTS = fetch-vis
 LIBEXEC_SCRIPTS = write-vis-auth
 CTRL_LIBEXEC_SCRIPTS = write-vis-auth.proxy
 
-SETUID_LIBX_SCRIPTS = write-vis-auth
+SETUID_SUEXEC_SCRIPTS = write-vis-auth
 
 #
 # Force dependencies on the scripts so that they will be rerun through
