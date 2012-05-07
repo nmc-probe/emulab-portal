@@ -6684,7 +6684,7 @@ sub nodejailosid($$)
     else {
 	if (!defined($osinfo->nextosid())) {
 	    tbwarn("nodejailosid: no nextosid defined for $osinfo\n");
-	    return undef;
+	    return $osinfo->osid();
 	}
 	$nextosinfo = $osinfo->ResolveNextOSID($self->experiment());
 	if (!defined($nextosinfo)) {
