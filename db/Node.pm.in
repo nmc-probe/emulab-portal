@@ -2473,9 +2473,13 @@ sub SetNodeHistory($$$$)
 	    print STDERR
 		"*** SetNodeHistory: No control interface for $self\n";
 	}
-	$cnet_ip = $interface->IP();
-	if (!defined($cnet_ip) || $cnet_ip eq "") {
-	    print STDERR "*** SetNodeHistory: No control IP for $interface\n";
+	else {
+	    $cnet_ip = $interface->IP();
+	    if (!defined($cnet_ip) || $cnet_ip eq "") {
+		print STDERR
+		    "*** SetNodeHistory: No control IP for $interface\n";
+		$cnet_ip = undef;
+	    }
 	}
 	$phys_nodeid = $self->phys_nodeid();
     }
