@@ -550,7 +550,7 @@ sub doboot()
 	$emulabconfig{OPS_PKG}      = "emulab-ops-5.0";
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-5.0";
 	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-9.0-packages.tar.gz";
-	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-2.0";
+	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-3.0";
     }
     if (exists($emulabconfig{"PACKAGE_TARBALL"})) {
 	$emulabconfig{FS_PKG_DIR}   = "$TBDIR/packages";
