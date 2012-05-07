@@ -180,7 +180,7 @@ sub DestroyAggregate($$$)
 {
     my ($class, $aggregate, $purge) = @_;
 
-    return GeniAggregate->DeleteAggregate($aggregate)
+    return GeniUsage->DeleteAggregate($aggregate)
 	if ($purge);
 
     my $aggregate_idx = $aggregate->idx();
