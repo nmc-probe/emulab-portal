@@ -87,7 +87,7 @@ if (@ARGV) {
 
 # More stuff we need below.
 my $domain;
-my ($pid,$eid,undef) = check_nickname();
+my ($pid,$eid,$vid) = check_nickname();
 my $file    = TMCREATOR();
 my $creator = `cat $file`;
 chomp($creator);
@@ -827,6 +827,14 @@ sub SetupFsNode()
     }
 
     #
+    # This is a fixup, cause prepare removes the vmname, which is needed
+    # during the reboot to tell outer boss we are alive (rc.inelab).
+    #
+    if ($XENVM) {
+	mysystem("echo '$vid' > $BOOTDIR/vmname");
+    }
+
+    #
     # Remove the outer testbed startup script.
     #
     mysystem("rm -f /usr/local/etc/rc.d/testbed.sh");
@@ -1267,6 +1275,14 @@ sub SetupOpsNode($)
     #
     if (! -r "/var/run/ld-elf.so.hints") {
 	system("/etc/rc.d/ldconfig start");
+    }
+
+    #
+    # This is a fixup, cause prepare removes the vmname, which is needed
+    # during the reboot to tell outer boss we are alive (rc.inelab).
+    #
+    if ($XENVM) {
+	mysystem("echo '$vid' > $BOOTDIR/vmname");
     }
 
     #
@@ -1941,6 +1957,14 @@ sub SetupBossNode($)
     }
 
     #
+    # This is a fixup, cause prepare removes the vmname, which is needed
+    # during the reboot to tell outer boss we are alive (rc.inelab).
+    #
+    if ($XENVM) {
+	mysystem("echo '$vid' > $BOOTDIR/vmname");
+    }
+
+    #
     # Remove the outer testbed startup script.
     #
     mysystem("rm -f /usr/local/etc/rc.d/testbed.sh");
@@ -2574,6 +2598,14 @@ sub SetupOpsJail()
     #
     if (! -r "/var/run/ld-elf.so.hints") {
 	system("/etc/rc.d/ldconfig start");
+    }
+
+    #
+    # This is a fixup, cause prepare removes the vmname, which is needed
+    # during the reboot to tell outer boss we are alive (rc.inelab).
+    #
+    if ($XENVM) {
+	mysystem("echo '$vid' > $BOOTDIR/vmname");
     }
 
     #
