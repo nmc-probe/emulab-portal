@@ -59,6 +59,9 @@ if (isset($IP)) {
 	unset($node);
     }
 }
+else {
+    $IP = null;
+}
 $node_id  = (isset($node) ? $node->node_id() : "");
 $node_opt = (isset($node) ? "&node_id=$node_id" : "");
 
