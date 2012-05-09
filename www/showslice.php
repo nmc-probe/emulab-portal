@@ -143,7 +143,7 @@ if ($clientslivers && count($clientslivers)) {
 					 $clientsliver->manifest());
 	    $row["manifest"] =
 		"<a href='#' title='' ".
-		"onclick='PopUpWindow(\"manifest$manifestidx\");'>".
+		"onclick='PopUpWindowFromDiv(\"manifest$manifestidx\");'>".
 		"Manifest</a>";
 	    $manifestidx++;
 	}
