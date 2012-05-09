@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Perl code to access an XMLRPC server using http. Derived from the
@@ -29,6 +29,17 @@ my $timeout = 500;
 # The package version number
 #
 my $PACKAGE_VERSION = 0.1;
+
+# Version of FreeBSD.
+my $FBSD_MAJOR = 4;
+my $FBSD_MINOR = 10;
+if (`uname -r` =~ /^(\d+)\.(\d+)/) {
+    $FBSD_MAJOR = $1;
+    $FBSD_MINOR = $2;
+}
+else {
+    die("Could not determine what version of FreeBSD you are running!\n");
+}
 
 #
 # This is the "structure" returned by the RPC server. It gets converted into
@@ -136,7 +147,6 @@ sub CallMethod($$$@)
     my ($httpURL, $context, $method, @args) = @_;
     require RPC::XML;
     require RPC::XML::Parser;
-    require LWP::UserAgent;
     require HTTP::Request::Common;
     import HTTP::Request::Common;
     require HTTP::Headers;
@@ -152,12 +162,20 @@ sub CallMethod($$$@)
 				 "Must provide an rpc context");
     }
 
-    if (0) {
+    if ($FBSD_MAJOR >= 9) {
+	require LWP::UserAgent;
+	require IO::Socket::SSL;
+	require Net::HTTPS;
+	$Net::HTTPS::SSL_SOCKET_CLASS = "IO::Socket::SSL";
+
+	# Turn off silly check many levels down.
+	$ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
+	
 	#
 	# This does not work. Not sure why, but need to figure it out
 	# cause it does cert chains while Crypt::SSL (below) does not. 
 	#
-	$IO::Socket::SSL::DEBUG = 4;
+	#$IO::Socket::SSL::DEBUG = 4;
 	$Net::SSLeay::slowly = 1;
 	
 	$IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_key_file'} =
@@ -176,6 +194,11 @@ sub CallMethod($$$@)
 	}
     }
     else {
+	require Net::SSL;
+	require Net::HTTPS;
+	$Net::HTTPS::SSL_SOCKET_CLASS = "Net::SSL";
+	require LWP::UserAgent;
+	
 	#
 	# This is for the Crypt::SSL library, many levels down. It
 	# appears to be the only way to specify this. Even worse, when
@@ -197,7 +220,7 @@ sub CallMethod($$$@)
 	print STDERR "xml request: $httpURL:" . $request->as_string();
 	print STDERR "\n";
     }
-
+    
     #
     # Send an http post.
     #
@@ -208,6 +231,7 @@ sub CallMethod($$$@)
     my $hreq = HTTP::Request->new(POST => $httpURL);
     $hreq->content_type('text/xml');
     $hreq->content($reqstr);
+    $hreq->protocol('HTTP/1.0')	if ($FBSD_MAJOR >= 9);
     my $hresp = $ua->request($hreq);
 
     # Do this or the next call gets messed up.
