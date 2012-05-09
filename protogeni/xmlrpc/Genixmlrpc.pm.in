@@ -30,17 +30,6 @@ my $timeout = 500;
 #
 my $PACKAGE_VERSION = 0.1;
 
-# Version of FreeBSD.
-my $FBSD_MAJOR = 4;
-my $FBSD_MINOR = 10;
-if (`uname -r` =~ /^(\d+)\.(\d+)/) {
-    $FBSD_MAJOR = $1;
-    $FBSD_MINOR = $2;
-}
-else {
-    die("Could not determine what version of FreeBSD you are running!\n");
-}
-
 #
 # This is the "structure" returned by the RPC server. It gets converted into
 # a perl hash by the unmarshaller, and we return that directly to the caller
@@ -162,6 +151,18 @@ sub CallMethod($$$@)
 				 "Must provide an rpc context");
     }
 
+    my $FBSD_MAJOR = 4;
+    my $FBSD_MINOR = 10;
+    if (`/usr/bin/uname -r` =~ /^(\d+)\.(\d+)/) {
+	$FBSD_MAJOR = $1;
+	$FBSD_MINOR = $2;
+    }
+    else {
+	print STDERR
+	    "Could not determine what version of FreeBSD you are running!\n";
+	return undef;
+    }
+    
     if ($FBSD_MAJOR >= 9) {
 	require LWP::UserAgent;
 	require IO::Socket::SSL;
