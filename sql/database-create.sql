@@ -2378,7 +2378,8 @@ CREATE TABLE `node_history` (
   PRIMARY KEY  (`history_id`),
   KEY `node_id` (`node_id`,`history_id`),
   INDEX `exptidx` (`exptidx`),
-  INDEX `stamp` (`stamp`)
+  INDEX `stamp` (`stamp`),
+  INDEX `cnet_ip` (`cnet_ip`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

@@ -16,6 +16,10 @@ sub DoUpdate($$$)
 	DBQueryFatal("alter table node_history add " .
 		     "  INDEX stamp (stamp)");
     }
+    if (!DBKeyExists("node_history", "cnet_ip")) {
+	DBQueryFatal("alter table node_history add " .
+		     "  INDEX cnet_ip (cnet_ip)");
+    }
     return 0;
 }
 
