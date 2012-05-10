@@ -1,0 +1,26 @@
+#
+# Add key to node_history.
+#
+use strict;
+use libdb;
+
+sub DoUpdate($$$)
+{
+    my ($dbhandle, $dbname, $version) = @_;
+
+    if (!DBKeyExists("node_history", "exptidx")) {
+	DBQueryFatal("alter table node_history add " .
+		     "  INDEX exptidx (exptidx)");
+    }
+    if (!DBKeyExists("node_history", "stamp")) {
+	DBQueryFatal("alter table node_history add " .
+		     "  INDEX stamp (stamp)");
+    }
+    return 0;
+}
+
+1;
+
+# Local Variables:
+# mode:perl
+# End:

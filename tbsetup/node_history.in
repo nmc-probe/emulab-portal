@@ -173,13 +173,15 @@ elsif (defined($ip)) {
 
 # XXX maybe it would be better to sort them here in perl, outside the DB?
 my $orderby = " ORDER BY stamp ASC";
+# Bogus, but reading the entire table is nuts! Millions of rows. 
+my $limitby = ($showall && $numrecs ? "limit " . $numrecs * 100 : "");
 
 my $query_result =
     DBQueryFatal("SELECT node_id,stamp,op,uid,pid,eid, ".
 		 "    experiment_stats.exptidx,cnet_ip,phys_nodeid ".
 		 "FROM node_history,experiment_stats ".
 		 "WHERE node_history.exptidx=experiment_stats.exptidx ".
-		 "$querymod $orderby");
+		 "$querymod $orderby $limitby");
 
 my %nodeinfo;	# [ expt, starttime, uid ]
 my @records;
