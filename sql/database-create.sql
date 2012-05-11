@@ -2377,9 +2377,9 @@ CREATE TABLE `node_history` (
   `phys_nodeid` varchar(32) default NULL,
   PRIMARY KEY  (`history_id`),
   KEY `node_id` (`node_id`,`history_id`),
-  INDEX `exptidx` (`exptidx`),
-  INDEX `stamp` (`stamp`),
-  INDEX `cnet_IP` (`cnet_IP`)
+  KEY `exptidx` (`exptidx`),
+  KEY `stamp` (`stamp`),
+  KEY `cnet_IP` (`cnet_IP`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

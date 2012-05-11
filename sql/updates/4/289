@@ -10,15 +10,15 @@ sub DoUpdate($$$)
 
     if (!DBKeyExists("node_history", "exptidx")) {
 	DBQueryFatal("alter table node_history add " .
-		     "  INDEX exptidx (exptidx)");
+		     "  KEY exptidx (exptidx)");
     }
     if (!DBKeyExists("node_history", "stamp")) {
 	DBQueryFatal("alter table node_history add " .
-		     "  INDEX stamp (stamp)");
+		     "  KEY stamp (stamp)");
     }
     if (!DBKeyExists("node_history", "cnet_IP")) {
 	DBQueryFatal("alter table node_history add " .
-		     "  INDEX cnet_IP (cnet_IP)");
+		     "  KEY cnet_IP (cnet_IP)");
     }
     return 0;
 }
