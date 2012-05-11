@@ -18,7 +18,7 @@ sub DoUpdate($$$)
     }
     if (!DBKeyExists("node_history", "cnet_ip")) {
 	DBQueryFatal("alter table node_history add " .
-		     "  INDEX cnet_ip (cnet_ip)");
+		     "  INDEX cnet_IP (cnet_IP)");
     }
     return 0;
 }
