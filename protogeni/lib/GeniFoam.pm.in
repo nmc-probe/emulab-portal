@@ -1,0 +1,137 @@
+#!/usr/bin/perl -wT
+#
+# GENIPUBLIC-COPYRIGHT
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+package GeniFoam;
+
+#
+# Talk to FOAM about Foamy things.
+#
+use strict;
+use Exporter;
+use vars qw(@ISA @EXPORT);
+
+@ISA    = "Exporter";
+@EXPORT = qw ( );
+
+use emutil;
+use libxmlrpc;
+use GeniAggregate;
+use Date::Parse;
+use POSIX qw(strftime);
+use Data::Dumper;
+
+#
+# Nick says the FOAM xmlrpc interface is:
+#
+# addSliverData(slice_urn, sliver_urn, user_urn, expire_date, port_list)
+# renewSliverData(sliver_urn, expire_date)
+# deleteSliverData(sliver_urn);
+#
+my $FOAMURL = "http://10.4.1.69:69/something";
+
+#
+# AddSliverData
+#
+sub AddSliverData($$@)
+{
+    my ($slice, $user, @portlist) = @_;
+    my $aggregate = GeniAggregate->SliceAggregate($slice);
+    return -1
+	if (!defined($aggregate));
+	
+    my $blob = {
+	"slice_urn"  => $slice->urn(),
+	"user_urn"   => $user->urn(),
+	"sliver_urn" => $aggregate->urn(),
+	"exp_date"   => POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
+					gmtime(str2time($slice->expires())));
+    };
+    my $response = libxmlrpc::CallMethodHTTP($FOAMURL,
+					     addSliverData, $blob);
+
+    if (!defined($response)) {
+	print STDERR "GeniFoam::addSliverData() failed\n";
+	print STDERR Dumper($blob);
+	return -1;
+    }
+    if ($response->{'code'}) {
+	print STDERR "GeniFoam::addSliverData() failed: ".
+	    $response->{'code'} . "\n";
+	print STDERR $response->{'output'} . "\n"
+	    if (defined($response->{'output'}));
+	print STDERR Dumper($blob);
+	return -1;
+    }
+    return 0;
+}
+
+#
+# RenewSliverData
+#
+sub RenewSliverData($)
+{
+    my ($slice) = @_;
+    my $aggregate = GeniAggregate->SliceAggregate($slice);
+    return -1
+	if (!defined($aggregate));
+	
+    my $blob = {
+	"sliver_urn" => $aggregate->urn(),
+	"exp_date"   => POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
+					gmtime(str2time($slice->expires())));
+    };
+    my $response = libxmlrpc::CallMethodHTTP($FOAMURL,
+					     renewSliverData, $blob);
+
+    if (!defined($response)) {
+	print STDERR "GeniFoam::addSliverData() failed\n";
+	print STDERR Dumper($blob);
+	return -1;
+    }
+    if ($response->{'code'}) {
+	print STDERR "GeniFoam::addSliverData() failed: ".
+	    $response->{'code'} . "\n";
+	print STDERR $response->{'output'} . "\n"
+	    if (defined($response->{'output'}));
+	print STDERR Dumper($blob);
+	return -1;
+    }
+
+    return 0;
+}
+
+#
+# DeleteSliverData
+#
+sub DeleteSliverData($)
+{
+    my ($slice) = @_;
+    my $aggregate = GeniAggregate->SliceAggregate($slice);
+    return -1
+	if (!defined($aggregate));
+	
+    my $blob = {
+	"sliver_urn" => $aggregate->urn(),
+    };
+    my $response = libxmlrpc::CallMethodHTTP($FOAMURL,
+					     deleteSliverData, $blob);
+
+    if (!defined($response)) {
+	print STDERR "GeniFoam::addSliverData() failed\n";
+	print STDERR Dumper($blob);
+	return -1;
+    }
+    if ($response->{'code'}) {
+	print STDERR "GeniFoam::addSliverData() failed: ".
+	    $response->{'code'} . "\n";
+	print STDERR $response->{'output'} . "\n"
+	    if (defined($response->{'output'}));
+	print STDERR Dumper($blob);
+	return -1;
+    }
+
+    return 0;
+}
