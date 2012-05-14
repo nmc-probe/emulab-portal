@@ -19,6 +19,11 @@ sub Install($$$)
     return 0
 	if ($isupdate);
 
+    # Another good one for the rack.
+    if ($PROTOGENI_GENIRACK) {
+	push(@STDIMAGES, "UBUNTU11-64-STD");
+    }
+
     Phase "IDs", "Setting up Images and OSs", sub {
 	if ($PROTOGENI_GENIRACK) {
 	    require NodeType;
