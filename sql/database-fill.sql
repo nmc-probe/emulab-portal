@@ -1052,7 +1052,7 @@ REPLACE INTO table_regex VALUES ('images','mbr_version','text','redirect','defau
 REPLACE INTO table_regex VALUES ('images','max_concurrent','text','redirect','default:int',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','reboot_waittime','text','redirect','default:int',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','format','text','regex','^[-\\w]+$',1,8,NULL);
-
+REPLACE INTO table_regex VALUES ('images','hash','text','regex','^[\\w]+$',16,64,NULL);
 REPLACE INTO table_regex VALUES ('node_types','new_type','text','redirect','default:tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('node_types','node_type','text','regex','^[-\\w]+$',1,30,NULL);
 REPLACE INTO table_regex VALUES ('node_types','class','text','regex','^[\\w]+$',1,30,NULL);
