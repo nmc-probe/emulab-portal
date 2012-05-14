@@ -23,6 +23,11 @@ replace into node_types set
 replace into node_type_attributes set
       type='hp6600',attrkey='forwarding_protocols',
       attrvalue='ethernet',attrtype='string';
+replace into node_types set
+      class='switch', isswitch=1, type='hp5406';
+replace into node_type_attributes set
+      type='hp5406',attrkey='forwarding_protocols',
+      attrvalue='ethernet',attrtype='string';
 replace into nodes set
       node_id='procurve2',phys_nodeid='procurve2',type='hp6600',role='testswitch';
 REPLACE INTO `switch_stack_types`
