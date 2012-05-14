@@ -78,6 +78,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.shared.tasks.http.HttpTask;
 			import com.flack.shared.utils.DateUtil;
 			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.ViewUtil;
 			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
@@ -535,9 +536,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				if(SliceWorking)
 					return;
 				
-				var importWindow:ImportSliceWindow = new ImportSliceWindow();
-				importWindow.slice = slice;
-				importWindow.showWindow();
+				var examplesArea:ExampleSlicesArea = new ExampleSlicesArea();
+				examplesArea.slice = _slice;
+				ViewUtil.viewContentInWindow(examplesArea);
 			}
 			
 			public function importFromClipboard(event:* = null):void

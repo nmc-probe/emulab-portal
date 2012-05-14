@@ -178,7 +178,7 @@ package com.flack.geni.resources.virtual
 									newExclusive:Boolean = true,
 									newSliverType:String = "")
 		{
-			super(newSlice, newName);
+			super(newSlice, owner == null ? newName : owner.makeValidClientIdFor(newName));
 			
 			manager = owner;
 			sliverType = new SliverType(newSliverType);

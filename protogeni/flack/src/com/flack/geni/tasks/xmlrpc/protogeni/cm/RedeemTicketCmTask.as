@@ -130,7 +130,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				addMessage(
 					"Problem redeeming",
 					"There was a problem redeeming the ticket. The ticket will now be released.",
-					LogMessage.LEVEL_INFO,
+					LogMessage.LEVEL_FAIL,
 					LogMessage.IMPORTANCE_HIGH
 				);
 				Alert.show("Problem redeeming ticket at " + sliver.manager.hrn);
