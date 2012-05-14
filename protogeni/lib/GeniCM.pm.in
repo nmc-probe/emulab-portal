@@ -860,6 +860,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $tarfiles      = GeniXML::GetTarball($ref);
 	my $pctype;
 	my $osname;
+	my $parent_osname;
 	my $node;
 	my $isbridge    = 0;
 	my $isfirewall  = 0;
@@ -961,6 +962,9 @@ sub GetTicketAuxAux($$$$$$$$$)
 			$osname = "FBSD-JAIL";
 		    }
 		    elsif ($virtualization_subtype eq "emulab-openvz") {
+			# Allow caller to set the image to use. 
+			$parent_osname = $osname
+			    if (defined($osname));
 			$osname = "OPENVZ-STD";
 		    }
 		    elsif ($virtualization_subtype eq "emulab-spp") {
@@ -1162,7 +1166,10 @@ sub GetTicketAuxAux($$$$$$$$$)
 				      defined($node) ? $node->node_id() : ""),
 			    
 			};
-
+	
+	if (defined($parent_osname)) {
+	    $nodeblob->{'parent_osname'} = "$parent_osname";
+	}
 	if ($isbridge) {
 	    $nodeblob->{'role'} = "bridge";
 	}
