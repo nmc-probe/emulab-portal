@@ -55,7 +55,7 @@ if (isset($IP)) {
     # is a virtual node. We are going to pass IP through to the
     # backend in either case.
     #
-    if ($node && $node->isremotenode()) {
+    if ($node && $node->IsRemote()) {
 	unset($node);
     }
 }
@@ -109,18 +109,40 @@ if ($count != 0) {
 if ($datetime == "") {
     $datetime = "mm/dd/yy HH:MM";
 }
+echo "<br>";
+echo "<table class=stealth>\n";
 # Only display search form for a specific node.
 if ($node_id != "") {
-    echo "<br>";
-    echo "<form action=shownodehistory.php3?$opts method=post>
-      <b>Show Datetime:</b> 
-      <input type=text
+    echo "<tr><form action=shownodehistory.php3?$opts method=get>
+      <td class=stealth><b>Show Datetime:</b> 
+      <input type=text style=\"float:right\"
              name=datetime
              size=20
-             value=\"$datetime\">
-      <b><input type=submit name=search value=Search></b>\n";
-    echo "</form><br><br>\n";
+             value=\"$datetime\"></td>
+      <td class=stealth>
+        <b><input type=submit name=search1 value=Search></b></td>\n";
+    echo "</form></tr>\n";
 }
+echo "<tr><form action=shownodehistory.php3 method=get>
+      <td class=stealth><b>Search for Node:</b> 
+      <input type=text align=right
+             name=node_id
+             size=20
+             value=\"$node_id\"></td>
+      <td class=stealth>
+       <b><input type=submit name=search2 value=Search></b></td>\n";
+    echo "</form></tr>\n";
+
+echo "<tr><form action=shownodehistory.php3 method=get>
+      <td class=stealth><b>Search for IP:</b> 
+      <input type=text style=\"float:right\"
+             name=IP
+             size=20
+             value=\"$IP\"></td>
+      <td class=stealth>
+         <b><input type=submit name=search3 value=Search></b></td>\n";
+    echo "</form></tr>\n";
+echo "</table><br>\n";
 
 if ($node_id != "" && $datetime != "" && $datetime != "mm/dd/yy HH:MM") {
     if (strtotime($datetime)) {

@@ -238,6 +238,20 @@ class Node
 	return 0;
     }
 
+    function IsRemote() {
+	$type = $this->type();
+
+	$query_result =
+	    DBQueryFatal("select isremotenode from node_types ".
+			 "where type='$type'");
+	
+	if (mysql_num_rows($query_result) == 0) {
+	    return 0;
+	}
+	$row = mysql_fetch_array($query_result);
+	return $row["isremotenode"];
+    }
+
     function NodeStatus() {
 	$node_id = $this->node_id();
 
@@ -1334,13 +1348,13 @@ function ShowNodeHistory($node = null,
 	$opt .= "r";
     }
     if ($count) {
-	    $opt .= " -n $count";
+	$opt .= " -n $count";
     }
     if ($date) {
-	$opt = " -d " . escapeshellarg($date);
+	$opt .= " -d " . escapeshellarg($date);
     }
     if ($IP) {
-	$opt = " -i " . escapeshellarg($IP);
+	$opt .= " -i " . escapeshellarg($IP);
     }
     if ($fp = popen("$TBSUEXEC_PATH nobody nobody ".
 		    "  webnode_history $opt $node_id", "r")) {
@@ -1355,9 +1369,10 @@ function ShowNodeHistory($node = null,
                   $str History for All Nodes.
                   </b></center><br>\n";
 	} else {
+	    $node_url = CreateURL("shownode", URLARG_NODEID, $node_id);
 	    echo "<br>
                   <center><b>
-                  $str History for Node $node_id.
+                  $str History for Node <a href='$node_url'>$node_id</a>.
                   </b></center><br>\n";
 	}
 
