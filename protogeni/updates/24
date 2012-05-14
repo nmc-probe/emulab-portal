@@ -73,7 +73,7 @@ sub DoUpdate($$$)
 	DBQueryFatal("ALTER TABLE `manifest_history` " .
 		     "add index `aggregate_urn` (`aggregate_urn`(255))");
     }
-    if (! DBKeyExists("manifest_history", "uuid")) {
+    if (! DBKeyExists("manifest_history", "created")) {
 	DBQueryFatal("ALTER TABLE `manifest_history` " .
 		     "add KEY `created` (`created`)");
     }
