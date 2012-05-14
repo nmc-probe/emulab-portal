@@ -33,6 +33,9 @@ INSERT IGNORE INTO emulab_locks (name,value) VALUES ('pool_daemon', 0);
 INSERT IGNORE INTO `interface_capabilities` VALUES ('generic','protocols','ethernet');
 INSERT IGNORE INTO `interface_capabilities` VALUES ('generic','ethernet_defspeed','100000');
 INSERT IGNORE INTO `interface_types` VALUES ('generic',100000,1,'Generic','Generic',1,'RJ45');
+INSERT IGNORE INTO `interface_types` VALUES ('generic_1G',1000000,1,'Generic GB','Generic GB',1,'RJ45');
+INSERT IGNORE INTO `interface_capabilities` VALUES ('generic_1G','protocols','ethernet');
+INSERT IGNORE INTO `interface_capabilities` VALUES ('generic_1G','ethernet_defspeed','1000000');
 
 -- For the external link support.
 INSERT INTO `node_types` VALUES ('bbgeni','bbgeni',NULL,NULL,0,0,0,0,0,0,0,0,0,0,0,0);
