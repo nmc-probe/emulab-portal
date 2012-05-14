@@ -30,6 +30,7 @@ use emdb;
 use User;
 use NodeType;
 use OSinfo;
+use Image;
 
 my $EMULABDEVEL  = "git://git-public.flux.utah.edu/emulab-devel.git";
 my $EMULABSTABLE = "git://git-public.flux.utah.edu/emulab-stable.git";
@@ -40,6 +41,7 @@ my $ILOPASSWORD  = "$PREFIX/etc/ilo.pswd";
 my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-8.2-ports.tar.gz";
 my $ZZZ		 = "/usr/local/etc/rc.d/zzz-inelab.sh";
 my $DEFAULTOSID  = "FEDORA15-STD";
+my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU11-64-STD");
 my $PGOSSITEVAR  = "protogeni/default_osname";
 
 my %INTERFACES = (
@@ -309,6 +311,25 @@ sub Install($$$)
 	    ExecQuietFatal("cd $TOP_OBJDIR/dhcpd; $GMAKE install");
 	    ExecQuietFatal("$DHCPD_MAKECONF -i");
 	};
+
+	#
+	# This adds the nightly download of new images from Utah.
+	#
+	Phase "crontab", "Editing $CRONTAB", sub {
+	    DoneIfEdited($CRONTAB);
+	    AppendToFileFatal($CRONTAB,
+		      "0  \t6\t*\t*\t*\troot\t$PREFIX/sbin/getimages");
+	};
+
+	foreach my $osid (@EXPORTEDOSIDS) {
+	    Phase "$osid", "Enabling protogeni export for $osid", sub {
+		my $osinfo = OSinfo->LookupByName($osid);
+		PhaseFail("No such osid")
+		    if (!defined($osinfo));
+		$osinfo->Update({"protogeni_export" => 1}) == 0
+		    or PhaseFail("DB query failed");
+	    };
+	}
 	PhaseSucceed("Rack Setup Done");
     };
     return 0;
