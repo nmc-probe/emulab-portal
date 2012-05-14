@@ -1,6 +1,6 @@
 <imageinfo>
 <image name="FBSD82-STD">
- <attribute name="modtime">2012-02-29 00:00:00Z</attribute>
+ <attribute name="hash">145542142acea58eab2cec93903c7e30f585ee99</attribute>
  <attribute name="imageurl">http://www.emulab.net/downloads/images-STD/FBSD82-STD.ndz</attribute>
  <attribute name="metaurl">http://www.emulab.net/downloads/images-STD/FBSD82-STD.xml</attribute>
 </image>

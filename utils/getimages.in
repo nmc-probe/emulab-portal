@@ -19,13 +19,13 @@ use File::Temp qw(tempfile);
 #
 sub usage()
 {
-    print STDERR "Usage: getimages\n";
+    print STDERR "Usage: getimages [-d] [-n]\n";
     print STDERR "  -h     This message\n";
     print STDERR "  -n     Impotent mode; just check and report.\n";
     exit(-1);
 }
 my $optlist  = "hndt:";
-my $debug    = 0;
+my $debug    = 1;
 my $impotent = 0;
 my $testfile;
 
@@ -60,6 +60,9 @@ $| = 1;
 # Untaint the path
 # 
 $ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
+
+# Record output in case of error.
+LogStart(0, undef, LIBAUDIT_LOGTBOPS());
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -126,31 +129,28 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
 
     my $metaurl  = $attributes->{'metaurl'};
     my $imageurl = $attributes->{'imageurl'};
-    my $modtime  = timegm(strptime($attributes->{'modtime'}));
+    my $newhash  = $attributes->{'hash'};
 
     #
-    # If we have an entry in the DB, we use the created/updated stamps
+    # If we have an entry in the DB, we use the hash value to 
     # to determine if we need to download a new version.
+    #
+    # XXX What if the local site has its own more recent version?
     #
     # Lookup will sanity check the imageid string.
     #
     my $image = Image->Lookup(TBOPSPID(), $imageid);
     if (defined($image)) {
-	my $lastmod;
+	print "Local descriptor found: $image\n"
+	    if ($debug);
 
-	print "Local descriptor found: $image\n";
-	if (defined($image->updated())) {
-	    $lastmod = timelocal(strptime($image->updated()));
-	}
-	else {
-	    $lastmod = timelocal(strptime($image->created()));
-	}
-	if ($lastmod >= $modtime) {
-	    print "Image has not changed, skipping ...\n";
+	if (defined($image->hash()) && $newhash eq $image->hash()) {
+	    print "Image has not changed, skipping ...\n"
+		if ($debug);
 	    next;
 	}
     }
-    print "Image has changed, downloading ...\n";
+    print "$imageid has changed or does not exist, downloading ...\n";
 
     my ($fh, $metafilename) = tempfile(UNLINK => !$debug);
     fatal("Could not create temporary file")
@@ -161,7 +161,7 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     # Grab the metadata file
     #
     print "Fetching $metaurl\n";
-    system("$FETCH  -o $filename $metaurl") == 0
+    system("$FETCH  -o $metafilename $metaurl") == 0
 	or fatal("Could not fetch $metaurl");
 
     #
@@ -177,13 +177,48 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     }
 
     my $imagefilename = "$TB/images/${imageid}.ndz";
+    my $tmpfilename   = "${imagefilename}.new";
+    unlink($tmpfilename)
+	if (-e $tmpfilename);
     print "Fetching $imageurl\n";
-    system("$FETCH  -o ${imagefilename}.$$ $imageurl") == 0
+    system("$FETCH  -o $tmpfilename $imageurl") == 0
 	or fatal("Could not fetch $imageurl");
+
+    #
+    # Do an integrity check.
+    #
+    print "Doing an integrity check ...\n";
+    my $filehash = `/sbin/sha1 -q $tmpfilename`;
+    if ($?) {
+	fatal("Could not generate sha1 of $tmpfilename");
+    }
+    chomp($filehash);
+    if ($filehash ne $newhash) {
+	fatal("Integrity check failure. $newhash ne $filehash");
+    }
+
+    if ($impotent) {
+	print "Impotent mode is on; not installing the new image.\n";
+	next;
+    }
+
+    #
+    # So move it into place.
+    #
+    print "Moving new image into place\n";
     rename("${imagefilename}", "${imagefilename}.old")
 	if (-e "${imagefilename}");
-    rename("${imagefilename}.$$", "${imagefilename}") or
-	fatal("Could not rename ${imagefilename}.$$: $!");
+    rename("$tmpfilename", "${imagefilename}") or
+	fatal("Could not rename $tmpfilename: $!");
+
+    #
+    # Now update the descriptor to reflect new hash.
+    #
+    $image->SetHash($newhash) == 0
+	or fatal("Could not update hash for $image");
+
+    # Good measure.
+    $image->MarkUpdateTime();
 }
 
 exit(0);
