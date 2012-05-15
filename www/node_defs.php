@@ -417,7 +417,8 @@ class Node
 			 "last_ext_act) as last_act, ".
 			 "  t.isvirtnode,t.isremotenode,t.isplabdslice, ".
 			 "  r.erole as rsrvrole, pi.IP as phys_IP, loc.*, ".
-			 "  util.*,n.uuid as node_uuid ".
+			 "  util.*,n.uuid as node_uuid, ".
+			 "  mi.IP as mngmnt_IP ".
 			 " from nodes as n ".
 			 "left join reserved as r on n.node_id=r.node_id ".
 			 "left join node_activity as na on ".
@@ -429,6 +430,9 @@ class Node
 			 "left join interfaces as pi on ".
 			 "     pi.node_id=n.phys_nodeid and ".
 			 "     pi.role='" . TBDB_IFACEROLE_CONTROL . "' ".
+			 "left join interfaces as mi on ".
+			 "     mi.node_id=n.node_id and ".
+			 "     mi.role='" . TBDB_IFACEROLE_MANAGEMENT . "' ".
 			 "left join location_info as loc on ".
 			 "     loc.node_id=n.node_id ".
 			 "left join node_utilization as util on ".
@@ -477,6 +481,7 @@ class Node
 	$last_report        = $row["last_report"];
 	$rsrvrole           = $row["rsrvrole"];
 	$phys_IP	    = $row["phys_IP"];
+	$mngmnt_IP	    = $row["mngmnt_IP"];
 	$battery_voltage    = $row["battery_voltage"];
 	$battery_percentage = $row["battery_percentage"];
 	$battery_timestamp  = $row["battery_timestamp"];
@@ -835,6 +840,12 @@ class Node
                       <td>Control Net IP:</td>
                       <td class=left>$IP</td>
                   </tr>\n";
+		if ($mngmnt_IP) {
+		    echo "<tr>
+                          <td>Management IP:</td>
+                          <td class=left>$mngmnt_IP</td>
+                       </tr>\n";
+		}
 	    }
 	    elseif ($phys_IP) {
 		echo "<tr>
@@ -842,7 +853,6 @@ class Node
                       <td class=left>$phys_IP</td>
                   </tr>\n";
 	    }
-
 	    if ($rsrvrole) {
 		echo "<tr>
                       <td>Role:</td>
