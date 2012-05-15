@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -101,6 +101,7 @@ my $friskiller  = "$TB/sbin/frisbeehelper";
 my $osselect    = "$TB/bin/os_select";
 my $checkquota  = "$TB/sbin/checkquota";
 my $imagehash	= "$TB/bin/imagehash";
+my $SHA1	= "/sbin/sha1";
 my $def_devtype	= "ad";
 my $def_devnum	= 0;
 my $devtype;
@@ -612,6 +613,36 @@ if (! -x $imagehash ||
 } else {
     print("Swapout signature file created\n");
 }
+
+#
+# Hash the file itself since we really want an integrity check
+# on the image file.
+#
+my $hashfile = "${filename}.sha1";
+my $filehash = `$SHA1 $filename`;
+if ($?) {
+    fatal("Could not generate sha1 hash of $filename");
+}
+if ($filehash =~ /^SHA1.*= (\w*)$/) {
+    if ($isglobal && $usepath) {
+	print "*** WARNING: Not updating SHA1 in DB record since the ".
+	    "image was written to /proj!\n";
+	print "    See $hashfile instead\n";
+    }
+    else {
+	$image->SetHash($1) == 0
+	    or fatal("Failed to set the hash for $image");
+    }
+}
+else {
+    fatal("Could not parse the sha1 hash: '$filehash'")
+}
+unlink($hashfile)
+    if (-e $hashfile);
+open(HASH, ">$hashfile") or
+    fatal("Could not open $hashfile for writing: $!");
+print HASH $filehash;
+close($hashfile);
 
 print "Image creation succeeded.\n";
 print "Image written to $filename.\n";
