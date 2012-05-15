@@ -162,6 +162,7 @@ my %xmlfields =
      "global",		=> ["global",		$SLOT_ADMINONLY,   0],
      "mbr_version",	=> ["mbr_version",	$SLOT_OPTIONAL],
      "reboot_waittime",	=> ["reboot_waittime",	$SLOT_ADMINONLY],
+     "hash",		=> ["hash",		$SLOT_ADMINONLY],
 );
 
 #
