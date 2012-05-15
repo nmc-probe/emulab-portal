@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include_once("osinfo_defs.php");	# For SpitOSIDLink() below.
@@ -307,6 +307,7 @@ class Image
     function isglobal()		{ return $this->field("global"); }
     function updated()		{ return $this->field("updated"); }
     function mbr_version()	{ return $this->field("mbr_version"); }
+    function hash()		{ return $this->field("hash"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -470,8 +471,10 @@ class Image
 	$globalid	= $this->isglobal();
 	$creator	= $this->creator();
 	$created	= $this->created();
+	$updated	= $this->updated();
 	$uuid           = $this->uuid();
 	$mbr_version    = $this->mbr_version();
+	$hash           = $this->hash();
 
 	if (!$description)
 	    $description = "&nbsp;";
@@ -511,6 +514,13 @@ class Image
                 <td>Created: </td>
                 <td class=left>$created</td>
  	      </tr>\n";
+
+	if ($updated) {
+	    echo "<tr>
+                    <td>Updated: </td>
+                    <td class=left>$updated</td>
+     	          </tr>\n";
+	}
 
 	echo "<tr>
                 <td>Description: </td>
@@ -623,6 +633,13 @@ class Image
                 <td>MBR Version: </td>
                 <td class=left>$mbr_version</td>
               </tr>\n";
+
+	if ($hash) {
+	    echo "<tr>
+                    <td>SHA1 Hash: </td>
+                    <td class=left>$hash</td>
+                  </tr>\n";
+	}
 
 	echo "<tr>
                 <td>UUID: </td>
