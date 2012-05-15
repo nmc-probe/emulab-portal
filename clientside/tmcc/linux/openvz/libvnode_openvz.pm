@@ -322,6 +322,20 @@ sub vz_rootPreConfig {
     # packets on the veths?
     mysystem("sysctl -w net.core.netdev_max_backlog=2048");
 
+    #
+    # Ryan figured this one out. It was causing 75% packet loss on
+    # gre tunnels. 
+    #
+    # According to Ryan: 'loose' mode just ensures that
+    # the sender's IP is reachable by at least one interface, whereas
+    # 'strict' mode requires that it be reachable via the interface
+    # the packet was received on. This is why the ARP request from
+    # the host was being dropped; the sending IP was only reachable
+    # via veth999, not the internal greX interface where the request
+    # was received.
+    #
+    mysystem("sysctl -w net.ipv4.conf.default.rp_filter=0");
+
     # make sure the initscript is going...
     if (system("$VZRC status 2&>1 > /dev/null")) {
 	mysystem("$VZRC start");
