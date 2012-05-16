@@ -15,7 +15,7 @@ use File::Temp qw(tempfile);
 
 #
 # Checkin at the master (Utah) to see if we should download and install
-# any new images
+# any new images.
 #
 sub usage()
 {
@@ -217,7 +217,10 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     $image->SetHash($newhash) == 0
 	or fatal("Could not update hash for $image");
 
-    # Good measure.
+    #
+    # Mark this too. Not sure how to handle locally updated images
+    # yet; this script is going to overwrite them. 
+    #
     $image->MarkUpdateTime();
 }
 
