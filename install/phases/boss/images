@@ -7,6 +7,7 @@ use installvars;
 
 my $UTAHURL       = "http://www.emulab.net/downloads";
 my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-v3.xml";
+my $GENDEV        = "$TOP_SRCDIR/install/descriptors-gendev.xml";
 my @STDIMAGES     = ("FBSD82-STD", "FEDORA15-STD");
 my @MBRS          = ("emulab-mbr.dd", "emulab-mbr2.dd");
 my $STDIMAGESURL  = "$UTAHURL/images-STD";
@@ -54,6 +55,11 @@ sub Install($$$)
 	    ExecQuietFatal("cd $TOP_OBJDIR/install; ".
 			   "   $SUDO -u $PROTOUSER $WAP ".
 			   "   perl load-descriptors -a $DESCRIPTORS");
+	};
+	Phase "gendev", "Loading additional OS IDS", sub {
+	    ExecQuietFatal("cd $TOP_OBJDIR/install; ".
+			   "   $SUDO -u $PROTOUSER $WAP ".
+			   "   perl load-descriptors $GENDEV");
 	};
 	foreach my $imagename (@STDIMAGES) {
 	    my $localfile = "$PREFIX/images/${imagename}.ndz";
