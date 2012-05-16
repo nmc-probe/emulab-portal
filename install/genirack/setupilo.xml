@@ -21,14 +21,6 @@
 -----END SSH KEY-----
     </IMPORT_SSH_KEY>
   </RIB_INFO>
-  <RIB_INFO MODE="write">
-    <!-- This allows Utah Emulab to ssh in without a password      -->
-    <IMPORT_SSH_KEY>
------BEGIN SSH KEY-----
-ssh-dss AAAAB3NzaC1kc3MAAACBALrHBPWOanqnIevWTrh1vdU+vrR4+Gc/rwld3InKxgU7XlJGc+hs6AV373Xqfga09guMl+Q9wY8XlH3mHNsYRXSX7/wVZFFM59UEHHT7i9Ny34Ua2z+oqr0dxkuj9YkHWpr1/2+uP6R4148V4UYdYqTKbvHb/pUgYc0m+RqwmotdAAAAFQDjsb8pOXOsBO/O3ENMPxIgZXveUwAAAIBeD/O8SxMga+mPw93yGJuuMQig/pZf8sbZpneuYMCclZpSrL2apUqOdqLs8RtOfRFopMawf3Cpr1Qvqkz9FHJbDQKAg+l9SCiQgbd8tv7khQgR42UdUGKqbS/KvXX2jt2E0Febc3I7lXPf9hL9Nn502S/Q2AzU06MMlRjcvN6QTAAAAIBla9o4rgwNXlJgI6ywi877zecgxt227+28Wpkp6Yiiy+dUtv3rRgxLd1VixEChxhLY0nQe6vBaCOKQ1CTY3iTA0FHaWpm4BtEBlU2JrgF5+10GV0M350wJDzQrCc6Ishz7fTNMBMXHUSzp7EZisH0lrzHe2gdECcdn9cdqsye3QA== Administrator
------END SSH KEY-----
-    </IMPORT_SSH_KEY>
-  </RIB_INFO>
   <SERVER_INFO MODE="write">
     <!-- Enable automatic power on with a minimum delay.           -->
     <!-- Note: iLO firmware supports values "Yes" and "No" only.   -->
@@ -39,6 +31,14 @@ ssh-dss AAAAB3NzaC1kc3MAAACBALrHBPWOanqnIevWTrh1vdU+vrR4+Gc/rwld3InKxgU7XlJGc+hs
     <MOD_GLOBAL_SETTINGS>
       <SESSION_TIMEOUT value="120"/>
     </MOD_GLOBAL_SETTINGS>
+  </RIB_INFO>
+  <RIB_INFO MODE="write">
+    <!-- This allows Utah Emulab to ssh in without a password      -->
+    <IMPORT_SSH_KEY>
+-----BEGIN SSH KEY-----
+ssh-dss AAAAB3NzaC1kc3MAAACBALrHBPWOanqnIevWTrh1vdU+vrR4+Gc/rwld3InKxgU7XlJGc+hs6AV373Xqfga09guMl+Q9wY8XlH3mHNsYRXSX7/wVZFFM59UEHHT7i9Ny34Ua2z+oqr0dxkuj9YkHWpr1/2+uP6R4148V4UYdYqTKbvHb/pUgYc0m+RqwmotdAAAAFQDjsb8pOXOsBO/O3ENMPxIgZXveUwAAAIBeD/O8SxMga+mPw93yGJuuMQig/pZf8sbZpneuYMCclZpSrL2apUqOdqLs8RtOfRFopMawf3Cpr1Qvqkz9FHJbDQKAg+l9SCiQgbd8tv7khQgR42UdUGKqbS/KvXX2jt2E0Febc3I7lXPf9hL9Nn502S/Q2AzU06MMlRjcvN6QTAAAAIBla9o4rgwNXlJgI6ywi877zecgxt227+28Wpkp6Yiiy+dUtv3rRgxLd1VixEChxhLY0nQe6vBaCOKQ1CTY3iTA0FHaWpm4BtEBlU2JrgF5+10GV0M350wJDzQrCc6Ishz7fTNMBMXHUSzp7EZisH0lrzHe2gdECcdn9cdqsye3QA== Administrator
+-----END SSH KEY-----
+    </IMPORT_SSH_KEY>
   </RIB_INFO>
  </LOGIN>
 </RIBCL>
