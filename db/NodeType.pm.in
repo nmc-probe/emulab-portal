@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2010 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package NodeType;
@@ -341,6 +341,9 @@ sub trivlink_maxspeed($;$) {
 }
 sub isdedicatedremote($;$) {
     return GetAttribute($_[0], "dedicated_widearea", $_[1]);
+}
+sub isfakenode($;$) {
+    return GetAttribute($_[0], "fakenode", $_[1]);
 }
 sub control_interface($;$) { return control_iface($_[0], $_[1]); }
 

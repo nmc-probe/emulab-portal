@@ -1,0 +1,220 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use strict;
+use English;
+use Getopt::Std;
+use Date::Parse;
+use Time::Local;
+use Data::Dumper;
+use File::Temp qw(tempfile);
+
+#
+# Add a generic device to the DB. 
+#
+sub usage()
+{
+    print STDERR "Usage: addgenericiface -b <speed> [-s <switchinfo>] ".
+	"<node_id> <iface_id>\n";
+    print STDERR "Usage: addgenericiface -r <node_id> <iface_id>\n";
+    print STDERR "Options:\n";
+    print STDERR " -d       - Turn on debugging\n";
+    print STDERR " -n       - Dry run mode\n";
+    print STDERR " -t       - Do not call snmpit to set trunk mode\n";
+    print STDERR " -r       - Delete interface\n";
+    print STDERR " -b speed - Interface speed; 100Mb or 1Gb \n";
+    print STDERR " -s info  - switchname,switchcard,switchport\n";
+    print STDERR " iface_id - eth0, eth1, etc (must end in an integer)\n";
+    exit(-1);
+}
+my $optlist   = "b:dns:rt";
+my $debug     = 0;
+my $impotent  = 0;
+my $removing  = 0;
+my $notrunk   = 0;
+my $speed;
+my $switchinfo;
+
+# Protos
+sub fatal($);
+
+#
+# Configure variables
+#
+my $TB          = "@prefix@";
+my $SNMPIT      = "$TB/bin/snmpit_test";
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use emdb;
+use EmulabConstants;
+use emutil;
+use User;
+use Node;
+use NodeType;
+use OSinfo;
+use Interface;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
+
+#
+# Parse command arguments. 
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{'h'})) {
+    usage();
+}
+if (defined($options{'d'})) {
+    $debug = 1;
+}
+if (defined($options{'n'})) {
+    $impotent = 1;
+}
+if (defined($options{'r'})) {
+    $removing = 1;
+}
+if (defined($options{'t'})) {
+    $notrunk = 1;
+}
+if (defined($options{'b'})) {
+    $speed = $options{'b'};
+    usage()
+	if ($speed ne "1Gb" && $speed ne "100Mb");
+}
+if (defined($options{'s'})) {
+    $switchinfo = $options{"s"};
+}
+usage()
+    if (@ARGV != 2);
+
+my $node_id  = $ARGV[0];
+my $iface_id = $ARGV[1];
+
+#
+# Verify user, must be admin.
+#
+my $this_user = User->ThisUser();
+if (! defined($this_user)) {
+    fatal("You ($UID) do not exist!");
+}
+if (!$this_user->IsAdmin()) {
+    fatal("You are not a testbed administrator!");
+}
+my $node = Node->Lookup($node_id);
+if (!defined($node)) {
+    fatal("Node does not exist in the DB")
+}
+my $interface = Interface->LookupByIface($node, $iface_id);
+if ($removing) {
+    fatal("Node does not have an interface named $iface_id")
+	if (!defined($interface));
+}
+else {
+    fatal("Node already has an interface named $iface_id")
+	if (defined($interface));
+}
+if ($removing) {
+    if ($node->erole() eq "sharedhost" && !$notrunk) {
+	print "Turning off trunk mode for $node_id:$iface_id\n";
+	system("$SNMPIT -T $node_id:$iface_id") == 0
+	    or fatal("Could not put port into trunking mode");
+    }
+
+    $interface->DeleteWire() == 0
+	or fatal("Could not delete wire for $interface");
+
+    # Flag indicates it is okay to delete real interface.
+    $interface->Delete(1) == 0
+	or fatal("Could not delete $interface");
+
+    exit(0);
+}
+
+# Verify switch info
+my $nodecard;
+my $switchid;
+my $switchcard;
+my $switchport;
+
+#
+# Derive a card number form the iface number. 
+#
+if ($iface_id =~ /^[^\d]*(\d*)$/) {
+    $nodecard = $1;
+}
+else {
+    fatal("iface_id is not in the proper format");
+}
+if (Interface->Lookup($node, $nodecard)) {
+    fatal("Node already has an interface with card=$nodecard");
+}
+if ($switchinfo =~ /^([-\w]+),(\d+),(\d+)$/) {
+    $switchid   = $1;
+    $switchcard = $2;
+    $switchport = $3;
+}
+else {
+    fatal("Invalid switch info");
+}
+my $switch = Node->Lookup($switchid);
+if (!defined($switch)) {
+    fatal("Switch $switchid does not exist");
+}
+if (Interface->Lookup($node, $switchcard, $switchport)) {
+    fatal("Switch $switchid already has an interface with ".
+	  "card=$switchcard,port=$switchport");
+}
+#
+# Add the interface.
+#
+my $ifaceargs = {
+    "card"        => $nodecard,
+    "iface"       => $iface_id,
+    "role"        => TBDB_IFACEROLE_EXPERIMENT(),
+    "type"        => ($speed eq "100Mb" ? "generic" : "generic_1G"),
+    "max_speed"   => ($speed eq "100Mb" ? "100000"  : "1000000"),
+    "switch_id"   => $switchid,
+    "switch_port" => $switchport,
+    "switch_card" => $switchcard,
+    "trunk"       => ($node->erole() eq "sharedhost" ? 1 : 0),
+    "mac"         => "000000000000",
+};
+print "Creating interface with arguments:\n";
+print Dumper($ifaceargs);
+if (!$impotent) {
+    Interface->Create($node, $ifaceargs)
+	or fatal("Could not create interface entry");
+
+    if ($node->erole() eq "sharedhost" && !$notrunk) {
+	print "Setting $node_id:$iface_id to trunking mode\n";
+	system("$SNMPIT -T $node_id:$iface_id") == 0
+	    or fatal("Could not put port into trunking mode");
+    }
+}
+exit(0);
+
+sub fatal($)
+{
+    my ($mesg) = $_[0];
+
+    die("*** $0:\n".
+	"    $mesg\n");
+}
+
+

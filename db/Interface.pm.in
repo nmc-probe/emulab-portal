@@ -175,12 +175,16 @@ sub IsManagement($)
 #
 # Lookup by card,port
 #
-sub Lookup($$$$)
+sub Lookup($$$;$)
 {
     my ($class, $nodeid, $card, $port) = @_;
 
     $nodeid = $nodeid->node_id()
 	if (ref($nodeid));
+
+    # XXX: the node side always uses port 1.
+    $port = 1
+	if (!defined($port));
 
     # Look in cache first
     return $all_interfaces{"$nodeid:$card:$port"}
@@ -322,9 +326,15 @@ sub Create($$$)
     my $length     = $argref->{'length'};
     my $iface      = $argref->{'iface'};
     my $logical    = $argref->{'logical'};
+    my $trunk      = $argref->{'trunk'};
 
-    if ($ifrole eq TBDB_IFACEROLE_MANAGEMENT()) {
-	$wire_type = "Management";
+    if (!defined($wire_type)) {
+	if ($ifrole eq TBDB_IFACEROLE_MANAGEMENT()) {
+	    $wire_type = "Management";
+	}
+	if ($ifrole eq TBDB_IFACEROLE_EXPERIMENT()) {
+	    $wire_type = "Node";
+	}
     }
     $iface = "eth$card"    
 	if (!defined($iface));
@@ -340,6 +350,8 @@ sub Create($$$)
 	if (!defined($max_speed));
     $logical = 0
 	if (!defined($logical));
+    $trunk = 0
+	if (!defined($trunk));
     if (!defined($uuid)) {
 	$uuid = NewUUID();
 	if (!defined($uuid)) {
@@ -355,7 +367,7 @@ sub Create($$$)
 	print STDERR Dumper($argref);
 	return undef;
     }
-    
+
     #
     # Lock the tables to prevent concurrent creation
     #
@@ -382,6 +394,7 @@ sub Create($$$)
 		"  card=$card, port=$port, role='$ifrole', ".
 		"  mac='$MAC', IP='$IP', " .
 		(defined($mask) ? "mask='$mask', " : "") .
+		($trunk ? "trunk='1', " : "") .
 		"  interface_type='$iftype', iface='$iface', " .
 		"  current_speed='$max_speed', duplex='$duplex', ".
 		"  uuid='$uuid'")) {
@@ -391,6 +404,7 @@ sub Create($$$)
 
     if (!DBQueryWarn("insert into interface_state set ".
 		     "  node_id='$node_id', " .
+		     ($trunk ? "remaining_bandwidth='$max_speed', " : "") .
 		     "  card=$card, port=$port, iface='$iface'")) {
 	DBQueryWarn("delete from interfaces ".
 		    "where node_id='$node_id' and card='$card' ".

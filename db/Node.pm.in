@@ -407,7 +407,7 @@ sub Create($$$$)
 	    $osid   = "NULL";
 	    $opmode = "ALWAYSUP";
 	}
-	elsif ($isremote) {
+	elsif ($isremote || $typeinfo->isfakenode()) {
 	    $osid   = "NULL";
 	    $opmode = "";
 
@@ -449,7 +449,12 @@ sub Create($$$$)
 	$osid   = "NULL";
 	$opmode = "";
     }
-    $state  = $STATE_INITIAL;
+    if (exists($argref->{'eventstate'})) {
+	$state = $argref->{'eventstate'};
+    }
+    else {
+	$state  = $STATE_INITIAL;
+    }
 
     #
     # Lock the tables to prevent concurrent creation

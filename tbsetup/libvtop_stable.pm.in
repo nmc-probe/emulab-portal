@@ -1594,11 +1594,15 @@ sub LoadVirtLans($)
 	# Temporary, for generating rspecs.
 	push(@{ $vlanmember->virt_node()->_virtifaces() }, $vlanmember);
 
-	# Terrible.
+	#
+	# Currently a virtual fakenode implies that the physical node is
+	# shared, and that different experiments can allocate portions of 
+	# interfaces. 
+	#
 	$vlanmember->_reservebw(0);
 	$vlanmember->_needtrunk(0);
-	if ($vlanmember->virt_node()->type() eq "sppvm" ||
-	    $vlanmember->virt_node()->type() eq "bbgenivm") {
+	if ($vlanmember->virt_node()->_typeinfo()->isfakenode() &&
+	    $vlanmember->virt_node()->_typeinfo()->isvirtnode()) {
 	    $vlanmember->_reservebw($bandwidth);
 	    $vlanmember->_needtrunk(1);
 	    $vlanmember->_nobwshaping(1);
