@@ -21,7 +21,7 @@ sub usage()
     exit(-1);
 }
 my $optlist	= "dni";
-my $debug	= 1;
+my $debug	= 0;
 my $impotent    = 0;
 my $ipmode      = 0;
 my %ilomap      = ();
@@ -99,8 +99,9 @@ my $elabmanpswd = `cat $ILOPSWD`;
 chomp($elabmanpswd);
 
 # The XML goo.
-my $setupgoo = `cat $SRCDIR/setupilo.xml`;
-my $resetgoo = `cat $SRCDIR/resetilo.xml`;
+my $setupgoo  = `cat $SRCDIR/setupilo.xml`;
+my $resetgoo  = `cat $SRCDIR/resetilo.xml`;
+my $chpswdgoo = `cat $SRCDIR/chpswd.xml`;
 
 # The pubkey.
 my $pubkey = `cat ${DSAKEY}.pub`;
@@ -262,9 +263,23 @@ foreach my $map (values(%macmap)) {
     }
 
     #
-    # This resets the ilo so that it will DHCP again and get its new IP.
+    # This changes the Administrator password. We do this cause it is
+    # an 8 digit number, and the login is well known. So eventually it
+    # can be guessed. 
     #
-    $xmlgoo = sprintf($resetgoo, $ilopswd);
+    # We set it the same as the elabman password for now, but that
+    # might change.
+    #
+    $xmlgoo = sprintf($chpswdgoo, $ilopswd, $elabmanpswd);
+    if (SendXML($ip, $xmlgoo)) {
+	Fatal("Failed to send chpswd xml to $ip");
+    }
+    
+    #
+    # This resets the ilo so that it will DHCP again and get its new IP.
+    # Note different password.
+    #
+    $xmlgoo = sprintf($resetgoo, $elabmanpswd);
     if (SendXML($tempIP, $xmlgoo)) {
 	Fatal("Failed to send xmlgoo to $tempIP");
     }
@@ -449,10 +464,12 @@ sub SetupControlNode($$)
     
     my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd, $pubkey);
     if (SendXML($ip, $xmlgoo)) {
-	Fatal("Failed to send xmlgoo to $ip");
+	Fatal("Failed to send setup xml to $ip");
+    }
+    $xmlgoo = sprintf($chpswdgoo, $ilopswd, $elabmanpswd);
+    if (SendXML($ip, $xmlgoo)) {
+	Fatal("Failed to send chpswd xml to $ip");
     }
     return 0;
 }
-
-
 
