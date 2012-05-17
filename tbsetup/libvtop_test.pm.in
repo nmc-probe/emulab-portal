@@ -6309,7 +6309,7 @@ sub InterpLinksAux($)
 		# so that tmcd can find the vlan tag. Do this here
 		# since we have what we need in hand. 
 		#
-		$vinterface->Update({"vlanid" => $portvlan->lanid()});
+		$virtiface->Update({"vlanid" => $portvlan->lanid()});
 	    }
 	    else {
 		$protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
