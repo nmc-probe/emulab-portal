@@ -6291,9 +6291,22 @@ sub InterpLinksAux($)
 		if (!defined($protolan));
 	    $protolan->SetType("portlan");
 	    $protolan->SetRole("port/lan");
-	    $protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
 	    $protolan->SetAttribute("link/lan", $lan);
 	    $protolan->SetAttribute("target_lanid", $portvlan->lanid());
+
+	    if ($member0->usevirtiface()) {
+		$protolan->AddMember($nodeA, $portA);
+		
+		my $virtiface = $self->NewVirtIface($virtlan, $member0,
+						    $nodeA, $portA);
+		return -1
+		    if (!defined($virtiface));
+
+		$portA = $virtiface->viface();
+	    }
+	    else {
+		$protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
+	    }
 	    $portmap{$virtA} = $portA;
 	}
 	elsif ($plink =~ m|^linkdelaydst/([^/]+)/(.+)$| ||
