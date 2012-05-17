@@ -6303,6 +6303,13 @@ sub InterpLinksAux($)
 		    if (!defined($virtiface));
 
 		$portA = $virtiface->viface();
+
+		#
+		# The vinterface needs to link to the underlying lan
+		# so that tmcd can find the vlan tag. Do this here
+		# since we have what we need in hand. 
+		#
+		$vinterface->Update({"vlanid" => $portvlan->lanid()});
 	    }
 	    else {
 		$protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
