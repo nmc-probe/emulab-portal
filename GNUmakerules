@@ -79,7 +79,7 @@ $(addprefix $(INSTALL_LIBEXECDIR)/, $(SETUID_SUEXEC_SCRIPTS)): $(INSTALL_LIBEXEC
 $(INSTALL_SUIDDIR)/%: %
 	echo "Installing (real script) $<"
 	-mkdir -p $(INSTALL_SUIDDIR)
-	$(INSTALL_PROGRAM) $< $@	
+	$(SUDO) $(INSTALL_PROGRAM) $< $@	
 
 CFLAGS += $(LOCALCFLAGS)
 
