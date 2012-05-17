@@ -4462,11 +4462,11 @@ COMMAND_PROTOTYPE(doloadinfo)
 	MYSQL_ROW	row, row2;
 	char		buf[MYBUFSIZE];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
-	char		*disktype, *useacpi, *useasf, *noclflush;
+	char		*disktype, *useacpi, *useasf, *noclflush, *vgaonly;
 	char		address[MYBUFSIZE];
 	char            server_address[MYBUFSIZE];
 	char		mbrvers[51];
-	char            *loadpart, *OS, *prepare;
+	char            *loadpart, *OS, *prepare, *attrclause;
 	int		disknum, nrows, zfill;
 
 	/*
@@ -4650,20 +4650,40 @@ COMMAND_PROTOTYPE(doloadinfo)
 		useacpi = "unknown";
 		useasf = "unknown";
 		noclflush = "unknown";
+		vgaonly = (char *) NULL;
 
-		res2 = mydb_query("select a.attrkey,a.attrvalue,na.attrvalue "
-				  "from nodes as n "
-				  "left join node_type_attributes as a on "
-				  "     n.type=a.type "
-				  "left join node_attributes as na on "
-				  "     a.attrkey=na.attrkey and "
-				  "     na.node_id=n.node_id "
-				  "where (a.attrkey='bootdisk_unit' or "
-				  "       a.attrkey='disktype' or "
-				  "       a.attrkey='use_acpi' or "
-				  "       a.attrkey='use_asf' or "
-				  "       a.attrkey='no_clflush') and "
-				  "      n.node_id='%s'", 3, reqp->nodeid);
+		/*
+		 * This query is intended to select certain attributes from
+		 * node_type_attributes table, but allow them to be overridden
+		 * by entries in the node_attributes table for the node
+		 * making the request. Use a "union" of two selects, where
+		 * results from the second select on node_attributes will
+		 * overwrite anything returned for the same key in the first
+		 * select on node_type_attributes.
+		 *
+		 * The original select required that the key be in the
+		 * node_type_attributes table, else it would fail to find
+		 * it in the node_attributes table. This was the easiest
+		 * way to fix it. 
+		 */
+		attrclause =
+			"(attrkey='bootdisk_unit' or "
+			" attrkey='disktype' or "
+			" attrkey='use_acpi' or "
+			" attrkey='use_asf' or "
+			" attrkey='vgaonly' or "
+			" attrkey='no_clflush')";
+
+		res2 = mydb_query("(select attrkey,attrvalue from nodes as n "
+				  " left join node_type_attributes as a on "
+				  "      n.type=a.type "
+				  " where %s and n.node_id='%s') "
+				  "union "
+				  "(select attrkey,attrvalue "
+				  "   from node_attributes "
+				  " where %s and node_id='%s') ",
+				  2, attrclause, reqp->nodeid,
+				  attrclause, reqp->nodeid);
 
 		if (!res2) {
 			error("doloadinfo: %s: DB Error getting disktype!\n",
@@ -4679,10 +4699,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 
 				row2 = mysql_fetch_row(res2);
 
-				/* node_attribute overrides node_type_attribute */
-				if (row2[2] && row2[2][0])
-					attrstr = row2[2];
-				else if (row2[1] && row2[1][0])
+				if (row2[1] && row2[1][0])
 					attrstr = row2[1];
 				else
 					attrstr = NULL;
@@ -4703,16 +4720,28 @@ COMMAND_PROTOTYPE(doloadinfo)
 					else if (strcmp(row2[0], "no_clflush") == 0) {
 						noclflush = attrstr;
 					}
+					else if (strcmp(row2[0], "vgaonly") == 0) {
+						vgaonly = attrstr;
+					}
 				}
 				nrows2--;
 			}
 		}
 
-		mysql_free_result(res2);
-
 		bufp += OUTPUT(bufp, ebufp - bufp,
 			       " DISK=%s%d ZFILL=%d ACPI=%s MBRVERS=%s ASF=%s PREPARE=%s NOCLFLUSH=%s",
 			       disktype, disknum, zfill, useacpi, mbrvers, useasf, prepare, noclflush);
+		if (vgaonly) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " VGAONLY=%s", vgaonly);
+		}
+		/*
+		 * Do this here, so that we are not using strings above,
+		 * that have been released to the malloc pool.
+		 */
+		if (res2) {
+			mysql_free_result(res2);
+		}
 
 		/*
 		 * Vnodes (and post v32 local nodes) get additional image
