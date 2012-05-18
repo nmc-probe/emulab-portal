@@ -1700,9 +1700,11 @@ sub ReleaseSharedBandwidth($)
 		    "where vnode_id='$node_id' and ".
 		    "      iface is not null and ".
 		    "      bandwidth>0");	    
-    return -1
-	if (!$query_result);
-    return 0
+    if (!$query_result) {
+	DBQueryWarn("unlock tables");
+	return -1;
+    }
+    goto done
 	if (!$query_result->numrows);
 
     #
@@ -1723,6 +1725,7 @@ sub ReleaseSharedBandwidth($)
 	    return -1;
 	}
     }
+  done:
     DBQueryWarn("unlock tables");
     return 0;
 }
