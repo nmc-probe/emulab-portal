@@ -37,6 +37,11 @@ INSERT IGNORE INTO `interface_types` VALUES ('generic_1G',1000000,1,'Generic GB'
 INSERT IGNORE INTO `interface_capabilities` VALUES ('generic_1G','protocols','ethernet');
 INSERT IGNORE INTO `interface_capabilities` VALUES ('generic_1G','ethernet_defspeed','1000000');
 
+-- We use these types for the ilo/drac management interfaces.
+INSERT INTO `interface_types` VALUES ('ilo2',0,1,'HP','HP iLO 2',1,'RJ45');
+INSERT INTO `interface_types` VALUES ('ilo3',0,1,'HP','HP iLO 3',1,'RJ45');
+INSERT INTO `interface_types` VALUES ('drac',0,1,'Dell','Dell Drac',1,'RJ45');
+
 -- For the external link support.
 INSERT INTO `node_types` VALUES ('bbgeni','bbgeni',NULL,NULL,0,0,0,0,0,0,0,0,0,0,0,0);
 INSERT INTO `node_types` VALUES ('bbgenivm','bbgenivm',NULL,NULL,1,0,0,1,0,0,0,0,0,0,0,0);
