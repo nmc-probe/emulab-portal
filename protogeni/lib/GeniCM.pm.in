@@ -3398,7 +3398,9 @@ sub SliverWorkAux($$$$$$$)
 	    my $outref;
 	    my $sliverName = "sliver_urn";
 	    my $macName = "MAC";
-	    my $macAddress = $interface->mac();
+	    my $macAddress = undef;
+	    $macAddress = $interface->mac()
+		if (defined($interface));
 	    my $ipAddress;
 	    if (defined($vinterface)) {
 		$ipAddress = $vinterface->IP();
