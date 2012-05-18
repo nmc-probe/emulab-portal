@@ -733,7 +733,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     }
     # Turn off fixnode; we will control this on the commandline.
     $virtexperiment->allowfixnode(0);
-    $virtexperiment->multiplex_factor(10);
+    $virtexperiment->multiplex_factor(1);
 
     if ($MAINSITE) {
 	$virtexperiment->NewTableRow("virt_vtypes",
