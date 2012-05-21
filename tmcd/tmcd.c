@@ -6827,20 +6827,35 @@ COMMAND_PROTOTYPE(dojailconfig)
 	mysql_free_result(res);
 
 	/*
-	 * See if a per-node-type vnode disk size is specified
+	 * See if a per-node-type vnode disk size is specified, which
+	 * can be overridden by a per-node disk size. 
 	 */
-	res = mydb_query("select na.attrvalue from nodes as n "
-			 "left join node_type_attributes as na on "
-			 "  n.type=na.type "
-			 "where n.node_id='%s' and "
-			 "na.attrkey='virtnode_disksize'", 1, reqp->pnodeid);
+	res = mydb_query("select nta.attrvalue,na.attrvalue from nodes as n "
+			 "left join node_type_attributes as nta on "
+			 "     nta.type=n.type and "
+			 "     nta.attrkey='virtnode_disksize' "
+			 "left join node_attributes as na on "
+			 "     na.node_id=n.node_id and "
+			 "     na.attrkey='virtnode_disksize' "
+			 "where n.node_id='%s'",
+			 2, reqp->pnodeid);
+	
 	if (res) {
 		if ((int)mysql_num_rows(res) != 0) {
+			char *attrvalue = NULL;
+			
 			row = mysql_fetch_row(res);
-			if (row[0]) {
+
+			if (row[0] && row[0][0])
+				attrvalue = row[0];
+			else if (row[1] && row[1][0]) {
+				attrvalue = row[1];
+			}
+			
+			if (attrvalue) {
 				bufp = buf;
 				bufp += OUTPUT(bufp, ebufp - bufp,
-					       "VDSIZE=%d\n", atoi(row[0]));
+					       "VDSIZE=%s\n", attrvalue);
 			}
 			client_writeback(sock, buf, strlen(buf), tcp);
 		}
