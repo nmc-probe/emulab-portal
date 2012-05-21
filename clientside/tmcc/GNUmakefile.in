@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 SRCDIR		= @srcdir@
@@ -71,6 +71,9 @@ MDSUBDIR  = linux
 endif
 ifeq ($(MDSUBDIR),redhat9)
 MDSUBDIR  = linux9
+endif
+ifeq ($(MDSUBDIR),ubuntu12)
+MDSUBDIR  = ubuntu11
 endif
 ifeq ($(findstring fedora,$(MDSUBDIR)),fedora)
 ifeq ($(MDREL),15)
