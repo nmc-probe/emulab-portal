@@ -818,10 +818,10 @@ sub vz_vnodeCreate {
 	return -1;
     }
     if ($DOLVM) {
-	my $MIN_ROOT_LVM_VOL_SIZE = 1024;
+	my $MIN_ROOT_LVM_VOL_SIZE = 2 * 2048;
 	my $MAX_ROOT_LVM_VOL_SIZE = 8 * 1024;
 	my $MIN_SNAPSHOT_VOL_SIZE = 512;
-	my $MAX_SNAPSHOT_VOL_SIZE = $MAX_ROOT_LVM_VOL_SIZE;
+	my $MAX_SNAPSHOT_VOL_SIZE = 8 * 1024;
 
 	# XXX size our snapshots to assume 50 VMs on the node.
 	my $MAX_NUM_VMS = 50;
@@ -849,7 +849,7 @@ sub vz_vnodeCreate {
 	close(VFD);
 
 	if (defined($vgSize)) {
-	    $vgSize /= 50;
+	    $vgSize /= $MAX_NUM_VMS;
 
 	    if ($vgSize < $MIN_ROOT_LVM_VOL_SIZE) {
 		$rootSize = int($MIN_ROOT_LVM_VOL_SIZE);
@@ -863,6 +863,22 @@ sub vz_vnodeCreate {
 	    elsif ($vgSize < $MAX_SNAPSHOT_VOL_SIZE) {
 		$snapSize = int($vgSize);
 	    }
+	}
+
+	#
+	# Lastly, allow the server to override the snapshot size,
+	# although we enforce the minimum, and do not allow it to be
+	# greater then the underlying size since that would break things.
+	#
+	if (exists($vnconfig->{'config'}->{'VDSIZE'})) {
+	    #
+	    # Value in MB.
+	    #
+	    my $vdsize = $vnconfig->{'config'}->{'VDSIZE'};
+
+	    $snapSize = $vdsize
+		if ($vdsize > $MIN_SNAPSHOT_VOL_SIZE &&
+		    $vdsize <= $rootSize);
 	}
 
 	print STDERR "Using LVM with root size $rootSize MB, snapshot size $snapSize MB.\n";
