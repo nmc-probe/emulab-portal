@@ -57,6 +57,11 @@ bin-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/findcnet $(BINDIR)/findcnet
 
 etc-install:	dir-install common-sysetc-install
+	$(INSTALL) -m 644 $(SRCDIR)/group $(ETCDIR)/group
+	$(INSTALL) -m 644 $(SRCDIR)/passwd $(ETCDIR)/passwd
+	$(INSTALL) -m 600 $(SRCDIR)/shadow $(ETCDIR)/shadow
+	$(INSTALL) -m 600 $(SRCDIR)/gshadow $(ETCDIR)/gshadow
+	$(INSTALL) -m 644 $(SRCDIR)/hosts $(ETCDIR)/hosts
 
 common-sysetc-install:	dir-install
 	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) RRCDIR=$(RRCDIR) sysetc-install)

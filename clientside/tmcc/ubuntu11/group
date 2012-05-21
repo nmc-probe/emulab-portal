@@ -49,3 +49,8 @@ admin:x:109:
 tuser:x:1000:
 ntp:x:110:
 ssl-cert:x:111:
+postfix:x:112:
+postdrop:x:113:
+messagebus:x:114:
+utempter:x:116:
+_cvsadmin:x:115:
