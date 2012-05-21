@@ -432,6 +432,39 @@ if ($showlinks) {
 	    $portmap{$member}->{"SWITCHCARD"} = $row{"card2"};
 	    $portmap{$member}->{"SWITCHPORT"} = $row{"port2"};
 	}
+
+	#
+	# Now find vinterfaces
+	#
+	$link_result =
+	    DBQueryFatal("select v.vname,v.vnode,v.vport, ".
+			 "       i.IP,i.mac,i.iface from virt_lans as v ".
+			 "left join reserved as r on r.vname=v.vnode and ".
+			 "     r.pid=v.pid and r.eid=v.eid ".
+			 "left join vinterfaces as i on r.node_id=i.vnode_id ".
+			 "     and i.IP=v.ip ".
+			 "where v.pid='$pid' and v.eid='$eid' ".
+			 "order by v.vname,v.member");
+
+	while (my %row = $link_result->fetchhash()) {
+	    my $ip          = $row{"ip"};
+	    my $mac         = $row{"mac"};
+	    my $lan         = $row{"vname"};
+	    my $vnode       = $row{"vnode"};
+	    my $vport       = $row{"vport"};
+	    my $iface       = $row{"iface"};
+	    my $member      = "$vnode:$vport";
+
+	    # Do not bother if no info.
+	    next
+		if (!defined($iface));
+	    
+	    if ($mac =~ /^(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})$/) {
+		$mac = "$1:$2:$3:$4:$5:$6";
+	    }
+	    $portmap{$member}->{"NODEMAC"}    = $mac;
+	    $portmap{$member}->{"IFACE"}      = $iface;
+	}
     }
 
     if ($vlan_result->numrows) {
@@ -452,9 +485,13 @@ if ($showlinks) {
 	    my $rbackfill   = $row{"rbackfill"};
 	    my $rlossrate   = $row{"rlossrate"};
 	    my $protocol    = $row{"protocol"};
+	    my $encap_style = $row{"encap_style"};
 	    my $fixed_iface = $row{"fixed_iface"};
 	    $protocol .= " ($fixed_iface)"
 		if (defined($fixed_iface) && $fixed_iface ne "");
+	    $protocol .= " ($encap_style)"
+		if (defined($encap_style) &&
+		    $encap_style ne "" && $encap_style ne "default");
 	    push @data, [$vname, $member, $ipmap{$member}, 
 		        $delay, $bandwidth, $backfill, $lossrate];
 	    push @data, ["", $protocol, $mask, $rdelay, $rbandwidth, $rbackfill, $rlossrate];
