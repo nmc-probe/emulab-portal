@@ -97,7 +97,8 @@ my $MKEXTRAFS = "/usr/local/etc/emulab/mkextrafs.pl";
 
 my $CTRLIPFILE = "/var/emulab/boot/myip";
 my $IMQDB      = "/var/emulab/db/imqdb";
-my $MAXIMQ     = 64;
+# The kernel will auto create up to 1024 IMQs
+my $MAXIMQ     = 1024;
 
 my $CONTROL_IFNUM  = 999;
 my $CONTROL_IFDEV  = "eth${CONTROL_IFNUM}";
@@ -392,13 +393,10 @@ sub vz_rootPreConfig {
     # XXX all this network config stuff should be done in PreConfigNetwork,
     # but we can't rmmod the IMQ module to change the config, so no point.
     #
-
-    # Ug, pre-create a bunch of imq devices, since adding new ones
-    # does not work right yet.
     mysystem("$MODPROBE imq");
     mysystem("$MODPROBE ipt_IMQ");
 
-    # Create a DB to manage them.
+    # Create a DB to manage them. 
     my %MDB;
     if (!dbmopen(%MDB, $IMQDB, 0660)) {
 	print STDERR "*** Could not create $IMQDB\n";
