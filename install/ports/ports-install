@@ -7,7 +7,7 @@
 PORTSDIR=${PORTSDIR:-/usr/ports}
 PORTSUBDIR=misc
 SRCDIR=`dirname $0`
-PORTS="emulab-boss emulab-fs emulab-ops emulab-tftp-hpa net-snmp4 p5-GD-old p5-DBD-mysql50-old ulsshxmlrpcpp emulab-iperf emulab-php4 emulab-php5 emulab-py-m2crypto emulab-mailman emulab-pubsub emulab-clrhouse emulab-protogeni p5-IO-EventMux p5-IO-EventMux-Socket-MsgHdr p5-Privileges-Drop p5-RPC-Async p5-SNMP"
+PORTS="emulab-boss emulab-fs emulab-ops emulab-tftp-hpa net-snmp4 p5-GD-old p5-DBD-mysql50-old ulsshxmlrpcpp emulab-iperf emulab-php4 emulab-php5 emulab-py-m2crypto emulab-mailman emulab-pubsub emulab-clrhouse emulab-protogeni p5-IO-EventMux p5-IO-EventMux-Socket-MsgHdr p5-Privileges-Drop p5-RPC-Async p5-SNMP libtelnet"
 
 EPORTS="elvind libelvin emulab-pubsub-elvincompat"
 EPATCH=ports-elvin.patch
