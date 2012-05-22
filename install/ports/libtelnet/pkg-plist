@@ -1,0 +1,5 @@
+lib/libtelnet.a
+lib/libtelnet.la
+lib/libtelnet.so
+lib/libtelnet.so.2
+libdata/pkgconfig/libtelnet.pc
