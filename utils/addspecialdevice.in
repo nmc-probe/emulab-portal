@@ -151,6 +151,7 @@ exit(0);
 sub CreateType($$)
 {
     my ($type, $isvirt) = @_;
+    my $osid = ($isvirt ? $osinfo_vm->osid() : $osinfo->osid());
 
     #
     # Defaults work for almost everything. 
@@ -171,6 +172,8 @@ sub CreateType($$)
     if ($debug || $impotent) {
 	print "Adding false attributes rebootable/imageable\n";
 	print "Adding true attribute fakenode\n";
+	print "Setting default osid: " .
+	    ($isvirt ? $osinfo_vm->osname() : $osinfo->osname()) . "\n";
     }
     if (!$impotent) {
 	DBQueryFatal("replace into node_type_attributes values ".
@@ -179,6 +182,8 @@ sub CreateType($$)
 		     " ('$type','imageable','0','boolean')");
 	DBQueryFatal("replace into node_type_attributes values ".
 		     " ('$type','fakenode','1','boolean')");
+	DBQueryFatal("replace into node_type_attributes values ".
+		     " ('$type','default_osid','$osid','integer')");
     }
     return 0;
 }
