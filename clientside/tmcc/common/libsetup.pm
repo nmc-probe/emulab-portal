@@ -47,6 +47,7 @@ use Exporter;
 
 # Must come after package declaration!
 use English;
+use Errno;
 
 my $debug = 0;
 
@@ -303,6 +304,7 @@ sub LOCALROOTFS() {
 	if (JAILED());
     return "$VARDIR/vms/local"
 	if (GENVNODE());
+    return "/local";
 }
 
 #
@@ -2923,20 +2925,29 @@ sub genvnodesetup($;$$)
 	my $eiddir = LOCALROOTFS() . "/$pid/$eid";
 	my $viddir = LOCALROOTFS() . "/$pid/$vid";
 
+	#
+	# Watch for EEXIST cause of concurrency on shared node hosts.
+	#
 	if (! -e $piddir) {
-	    mkdir($piddir, 0777) or
+	    if (! mkdir($piddir, 0777)) {
 		die("*** $0:\n".
-		    "    mkdir filed - $piddir: $!\n");
+		    "    mkdir filed - $piddir: $!\n")
+		    if ($! != Errno::EEXIST());
+	    }
 	}
 	if (! -e $eiddir) {
-	    mkdir($eiddir, 0777) or
+	    if (! mkdir($eiddir, 0777)) {
 		die("*** $0:\n".
-		    "    mkdir filed - $eiddir: $!\n");
+		    "    mkdir filed - $eiddir: $!\n")
+		    if ($! != Errno::EEXIST());
+	    }
 	}
 	if (! -e $viddir) {
-	    mkdir($viddir, 0775) or
+	    if (!mkdir($viddir, 0775)) {
 		die("*** $0:\n".
-		    "    mkdir filed - $viddir: $!\n");
+		    "    mkdir filed - $viddir: $!\n")
+		    if ($! != Errno::EEXIST());
+	    }
 	}
 	chmod(0777, $piddir);
 	chmod(0777, $eiddir);
