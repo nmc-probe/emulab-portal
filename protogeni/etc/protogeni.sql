@@ -89,7 +89,7 @@ CREATE TABLE `geni_slivers` (
   `status` varchar(16) NOT NULL default 'created',
   `state` varchar(16) NOT NULL default 'stopped',
   `errorlog` text,
-  `rspec_string` text,
+  `rspec_string` mediumtext,
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `uuid` (`uuid`),
   INDEX `slice_uuid` (`slice_uuid`)
@@ -133,7 +133,7 @@ CREATE TABLE `geni_tickets` (
   `valid_until` datetime default NULL,
   `component_uuid` varchar(40) NOT NULL default '',
   `seqno` int(10) unsigned NOT NULL default '0',
-  `ticket_string` text,
+  `ticket_string` mediumtext,
   PRIMARY KEY  (`idx`), 
   INDEX `owner_uuid` (`owner_uuid`),
   INDEX `slice_uuid` (`slice_uuid`),
@@ -193,7 +193,7 @@ CREATE TABLE `geni_manifests` (
   `idx` int(10) unsigned NOT NULL auto_increment,
   `slice_uuid` varchar(40) NOT NULL default '',
   `created` datetime default NULL,
-  `manifest` text,
+  `manifest` mediumtext,
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `slice_uuid` (`slice_uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -231,7 +231,7 @@ DROP TABLE IF EXISTS `geni_rspecs`;
 CREATE TABLE `geni_rspecs` (
   `idx` int(10) unsigned NOT NULL auto_increment,
   `created` datetime default NULL,
-  `rspec` text,
+  `rspec` mediumtext,
   PRIMARY KEY  (`idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -268,7 +268,7 @@ CREATE TABLE `sliver_history` (
   `component_uuid` varchar(40) default NULL,
   `component_hrn` varchar(256) default NULL,
   `aggregate_uuid` varchar(40) default NULL,
-  `rspec_string` text,
+  `rspec_string` mediumtext,
   PRIMARY KEY  (`idx`),
   KEY `uuid` (`uuid`),
   INDEX `slice_uuid` (`slice_uuid`)
@@ -306,8 +306,8 @@ CREATE TABLE `manifest_history` (
   `aggregate_urn` tinytext,
   `created` datetime default NULL,
   `reported` datetime default NULL,
-  `rspec` text,
-  `manifest` text,
+  `rspec` mediumtext,
+  `manifest` mediumtext,
   PRIMARY KEY  (`idx`),
   INDEX `aggregate_urn` (`aggregate_urn`(255)),
   KEY `created` (`created`)
@@ -329,7 +329,7 @@ CREATE TABLE `ticket_history` (
   `released` datetime default NULL,
   `component_uuid` varchar(40) NOT NULL default '',
   `component_hrn` varchar(256) default NULL,
-  `rspec_string` text,
+  `rspec_string` mediumtext,
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `uuid` (`uuid`),
   INDEX `slice_uuid` (`slice_uuid`),
@@ -347,7 +347,7 @@ CREATE TABLE `client_slivers` (
   `created` datetime default NULL,
   `expires` datetime default NULL,
   `locked` datetime default NULL,
-  `manifest` text,
+  `manifest` mediumtext,
   PRIMARY KEY  (`idx`),
   INDEX `slice_uuid` (`slice_idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
