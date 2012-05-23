@@ -184,6 +184,7 @@ sysetc-install:	dir-install ifcfgs
 	$(INSTALL) -m 644 ifcfg-eth[0-9]* $(SYSETCDIR)/sysconfig/network-scripts
 	$(INSTALL) -m 755 $(SRCDIR)/ntpd.sh $(RCDIR)/init.d/ntpd
 	$(INSTALL) -m 755 $(SRCDIR)/testbed $(RCDIR)/init.d/testbed
+	-ln -sf $(RRCDIR)/init.d/ntpd $(DEFRUNLVLDIR)/S58ntpd
 	-ln -sf $(RRCDIR)/init.d/testbed $(DEFRUNLVLDIR)/S96testbed
 	-ln -sf $(RRCDIR)/init.d/testbed $(RCDIR)/rc1.d/K12testbed
 	-ln -sf $(RRCDIR)/init.d/testbed $(RCDIR)/rc6.d/K12testbed
