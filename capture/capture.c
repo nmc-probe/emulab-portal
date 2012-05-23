@@ -20,6 +20,10 @@
 
 #define SAFEMODE
 	
+#ifndef USESOCKETS
+#undef WITH_TELNET
+#endif
+
 #include <sys/param.h>
 
 #include <unistd.h>
@@ -151,6 +155,16 @@ int		   needshake;
 gid_t		   tipgid;
 uid_t		   tipuid;
 char		  *uploadCommand;
+
+int	Devproto;
+#define PROTO_RAW	1
+#define PROTO_TELNET	2
+
+#ifdef WITH_TELNET
+static inline void proto_telnet_send_to_client(char *buf, int cc);
+static inline void proto_telnet_send_to_device(char *buf, int cc);
+static void proto_telnet_init(void);
+#endif
 
 #ifdef  WITHSSL
 
@@ -332,7 +346,7 @@ main(int argc, char **argv)
 #ifdef  WITHSSL
 		case 'c':
 		        certfile = optarg;
-		        break;
+			break;
 #endif  /* WITHSSL */
 		case 'b':
 			Bossnode = optarg;
@@ -514,7 +528,7 @@ main(int argc, char **argv)
 
 	/* Find assigned port value and print it out. */
 	i = sizeof(name);
-	if (getsockname(sockfd, (struct sockaddr *)&name, &i))
+	if (getsockname(sockfd, (struct sockaddr *)&name, (unsigned int *)&i))
 		die("getsockname(): %s", geterr(errno));
 	portnum = ntohs(name.sin_port);
 
@@ -699,18 +713,162 @@ out(void)
 #else
 static fd_set	sfds;
 static int	fdcount;
+#ifdef LOG_DROPS
+static int drop_topty_chars = 0;
+static int drop_todev_chars = 0;
+#endif
+
+void
+send_to_client(const char *buf, int cc)
+{
+	int i, lcc, lerrno;
+
+#ifdef	USESOCKETS
+	if (!tipactive)
+		return;
+#endif
+
+	for (lcc = 0; lcc < cc; lcc += i) {
+#ifdef  WITHSSL
+		if (relay_snd) {
+			i = SSL_write(sslRelay, &buf[lcc], cc-lcc);
+		}
+		else if (sslCon != NULL) {
+			i = SSL_write(sslCon, &buf[lcc], cc-lcc);
+			if (i < 0) { i = 0; } /* XXX Hack */
+		} else
+#endif /* WITHSSL */ 
+		{
+			i = write(ptyfd, &buf[lcc], cc-lcc);
+		}
+		lerrno = errno;
+		if (debug > 1)
+			fprintf(stderr, "%s: client write returns %d\n",
+				Machine, i);
+		if (i < 0) {
+			/*
+			 * Either tip is blocked (^S) or
+			 * not running (the latter should
+			 * return EIO but doesn't due to a
+			 * pty bug).  Note that we have
+			 * dropped some chars.
+			 */
+			if (lerrno == EIO || lerrno == EAGAIN) {
+#ifdef LOG_DROPS
+				drop_topty_chars += (cc-lcc);
+#endif
+				return;
+			}
+			die("%s: write: %s", Ptyname, geterr(lerrno));
+		}
+		if (i == 0) {
+#ifdef	USESOCKETS
+			tipactive = 0;
+			return;
+#else
+			die("%s: write: zero-length", Ptyname);
+#endif
+		}
+	}
+}
+
+void
+send_to_device(const char *buf, int cc)
+{
+	int i, lcc, lerrno;
+ 
+	for (lcc = 0; lcc < cc; lcc += i) {
+		if (relay_rcv) {
+#ifdef USESOCKETS
+#ifdef  WITHSSL
+			if (sslRelay != NULL) {
+				i = SSL_write(sslRelay, &buf[lcc], cc - lcc);
+			} else
+#endif
+			{
+				i = cc - lcc;
+			}
+#endif
+		}
+		else {
+			i = write(devfd, &buf[lcc], cc-lcc);
+		}
+		lerrno = errno;
+		if (debug > 1)
+			fprintf(stderr, "%s: device write returns %d\n",
+				Machine, i);
+		if (i < 0) {
+			/*
+			 * Device backed up (or FUBARed)
+			 * Note that we dropped some chars.
+			 */
+			if (lerrno == EAGAIN) {
+#ifdef LOG_DROPS
+				drop_todev_chars += (cc-lcc);
+#endif
+				return;
+			}
+			die("%s: write: %s", Devname, geterr(lerrno));
+		}
+		if (i == 0)
+			die("%s: write: zero-length", Devname);
+	}
+}
+
+void
+send_to_logfile(const char *buf, int cc)
+{
+	int i;
+
+	if (stampinterval >= 0) {
+		static time_t laststamp;
+		struct timeval tv;
+		char stampbuf[64], *cts;
+		time_t now, delta;
+
+		gettimeofday(&tv, 0);
+		now = tv.tv_sec;
+		delta = now - laststamp;
+		if (stampinterval == 0 ||
+		    delta > stampinterval) {
+			cts = ctime(&now);
+			cts[24] = 0;
+			if (stamplast && laststamp)
+				snprintf(stampbuf, sizeof stampbuf,
+					 "\nSTAMP{%u@%s}\n",
+					 (unsigned)delta, cts);
+			else
+				snprintf(stampbuf, sizeof stampbuf,
+					 "\nSTAMP{%s}\n",
+					 cts);
+			write(logfd, stampbuf, strlen(stampbuf));
+		}
+		laststamp = now;
+	}
+	if (logfd >= 0) {
+		i = write(logfd, buf, cc);
+		if (i < 0)
+			die("%s: write: %s", Logname, geterr(errno));
+		if (i != cc)
+			die("%s: write: incomplete", Logname);
+	}
+	if (runfile) {
+		i = write(runfd, buf, cc);
+		if (i < 0)
+			die("%s: write: %s", Runname, geterr(errno));
+		if (i != cc)
+			die("%s: write: incomplete", Runname);
+	}
+}
+
 void
 capture(void)
 {
 	fd_set fds;
-	int i, cc, lcc;
+	int i, cc;
 	sigset_t omask;
 	char buf[BUFSIZE];
 	struct timeval timeout;
-#ifdef LOG_DROPS
-	int drop_topty_chars = 0;
-	int drop_todev_chars = 0;
-#endif
 
 	/*
 	 * XXX for now we make both directions non-blocking.  This is a
@@ -814,20 +972,25 @@ capture(void)
 		}
 #endif	/* USESOCKETS */
 		if ((devfd >= 0) && FD_ISSET(devfd, &fds)) {
+			if (debug > 1)
+				fprintf(stderr, "%s: device has data\n",
+					Machine);
 			errno = 0;
 #ifdef  WITHSSL
 			if (relay_rcv) {
-			  cc = SSL_read(sslRelay, buf, sizeof(buf));
-			  if (cc <= 0) {
-			    FD_CLR(devfd, &sfds);
-			    devfd = -1;
-			    bzero(&relayclient, sizeof(relayclient));
-			    continue;
-			  }
-			}
-			else
+				cc = SSL_read(sslRelay, buf, sizeof(buf));
+				if (cc <= 0) {
+					FD_CLR(devfd, &sfds);
+					devfd = -1;
+					bzero(&relayclient, sizeof(relayclient));
+					continue;
+				}
+			} else
 #endif
-			  cc = read(devfd, buf, sizeof(buf));
+			cc = read(devfd, buf, sizeof(buf));
+			if (debug > 1)
+				fprintf(stderr, "%s: device read returns %d\n",
+					Machine, cc);
 			if (cc <= 0) {
 #ifdef  USESOCKETS
 				if (remotemode) {
@@ -848,100 +1011,39 @@ capture(void)
 				if (cc == 0)
 					die("%s: read: EOF", Devname);
 			}
-			errno = 0;
 
+			errno = 0;
 			sigprocmask(SIG_BLOCK, &actionsigmask, &omask);
 #ifdef	USESOCKETS
-			if (!tipactive)
-				goto dropped;
+#ifdef WITH_TELNET
+			if (Devproto == PROTO_TELNET)
+				proto_telnet_send_to_client(buf, cc);
+			else
 #endif
-			for (lcc = 0; lcc < cc; lcc += i) {
-#ifdef  WITHSSL
-				if (relay_snd) {
-					i = SSL_write(sslRelay, &buf[lcc], cc-lcc);
-				}
-			        else if (sslCon != NULL) {
-				        i = SSL_write(sslCon, &buf[lcc], cc-lcc);
-					if (i < 0) { i = 0; } /* XXX Hack */
-			        } else
-#endif /* WITHSSL */ 
-			        {
-				        i = write(ptyfd, &buf[lcc], cc-lcc);
-				}
-				if (i < 0) {
-					/*
-					 * Either tip is blocked (^S) or
-					 * not running (the latter should
-					 * return EIO but doesn't due to a
-					 * pty bug).  Note that we have
-					 * dropped some chars.
-					 */
-					if (errno == EIO || errno == EAGAIN) {
-#ifdef LOG_DROPS
-						drop_topty_chars += (cc-lcc);
-#endif
-						goto dropped;
+			{
+				if (tipactive) {
+					send_to_client(buf, cc);
+
+					/* got EOF from client */
+					if (!tipactive) {
+						send_to_logfile(buf, cc);
+						sigprocmask(SIG_SETMASK,
+							    &omask, NULL);
+						goto disconnected;
 					}
-					die("%s: write: %s",
-					    Ptyname, geterr(errno));
 				}
-				if (i == 0) {
-#ifdef	USESOCKETS
-					sigprocmask(SIG_SETMASK, &omask, NULL);
-					goto disconnected;
+				send_to_logfile(buf, cc);
+			}
 #else
-					die("%s: write: zero-length", Ptyname);
+			send_to_client(buf, cc);
+			send_to_logfile(buf, cc);
 #endif
-				}
-			}
-dropped:
-			if (stampinterval >= 0) {
-				static time_t laststamp;
-				struct timeval tv;
-				char stampbuf[64], *cts;
-				time_t now, delta;
-
-				gettimeofday(&tv, 0);
-				now = tv.tv_sec;
-				delta = now - laststamp;
-				if (stampinterval == 0 ||
-				    delta > stampinterval) {
-					cts = ctime(&now);
-					cts[24] = 0;
-					if (stamplast && laststamp)
-						snprintf(stampbuf,
-							 sizeof stampbuf,
-							 "\nSTAMP{%u@%s}\n",
-							 (unsigned)delta, cts);
-					else
-						snprintf(stampbuf,
-							 sizeof stampbuf,
-							 "\nSTAMP{%s}\n",
-							 cts);
-					write(logfd, stampbuf,
-					      strlen(stampbuf));
-				}
-				laststamp = now;
-			}
-			if (logfd >= 0) {
-				i = write(logfd, buf, cc);
-				if (i < 0)
-					die("%s: write: %s", Logname, geterr(errno));
-				if (i != cc)
-					die("%s: write: incomplete", Logname);
-			}
-			if (runfile) {
-				i = write(runfd, buf, cc);
-				if (i < 0)
-					die("%s: write: %s",
-					    Runname, geterr(errno));
-				if (i != cc)
-					die("%s: write: incomplete", Runname);
-			}
 			sigprocmask(SIG_SETMASK, &omask, NULL);
-
 		}
 		if ((ptyfd >= 0) && FD_ISSET(ptyfd, &fds)) {
+			if (debug > 1)
+				fprintf(stderr, "%s: client has data\n",
+					Machine);
 			int lerrno;
 
 			sigprocmask(SIG_BLOCK, &actionsigmask, &omask);
@@ -965,10 +1067,11 @@ dropped:
 				}
 			} else
 #endif /* WITHSSL */ 
-			{
-			        cc = read(ptyfd, buf, sizeof(buf));
-			}
+			cc = read(ptyfd, buf, sizeof(buf));
 			lerrno = errno;
+			if (debug > 1)
+				fprintf(stderr, "%s: client read returns %d\n",
+					Machine, cc);
 			sigprocmask(SIG_SETMASK, &omask, NULL);
 			if (cc < 0) {
 				/* XXX commonly observed */
@@ -1019,45 +1122,15 @@ dropped:
 				continue;
 #endif
 			}
-			errno = 0;
 
+			errno = 0;
 			sigprocmask(SIG_BLOCK, &actionsigmask, &omask);
-			for (lcc = 0; lcc < cc; lcc += i) {
-				if (relay_rcv) {
-#ifdef USESOCKETS
-#ifdef  WITHSSL
-					if (sslRelay != NULL) {
-						i = SSL_write(sslRelay,
-							      &buf[lcc],
-							      cc - lcc);
-					} else
+#ifdef WITH_TELNET
+			if (Devproto == PROTO_TELNET)
+				proto_telnet_send_to_device(buf, cc);
+			else
 #endif
-					{
-						i = cc - lcc;
-					}
-#endif
-				}
-				else {
-					i = write(devfd, &buf[lcc], cc-lcc);
-				}
-				if (i < 0) {
-					/*
-					 * Device backed up (or FUBARed)
-					 * Note that we dropped some chars.
-					 */
-					if (errno == EAGAIN) {
-#ifdef LOG_DROPS
-						drop_todev_chars += (cc-lcc);
-#endif
-						goto dropped2;
-					}
-					die("%s: write: %s",
-					    Devname, geterr(errno));
-				}
-				if (i == 0)
-					die("%s: write: zero-length", Devname);
-			}
-dropped2:
+			send_to_device(buf, cc);
 			sigprocmask(SIG_SETMASK, &omask, NULL);
 		}
 	}
@@ -1238,10 +1311,10 @@ dolog(int level, char *format, ...)
 	vsnprintf(msgbuf, BUFSIZE, format, ap);
 	va_end(ap);
 	if (debug) {
-		fprintf(stderr, "%s - %s\n", Machine, msgbuf);
+		fprintf(stderr, "%s: %s\n", Machine, msgbuf);
 		fflush(stderr);
 	}
-	syslog(level, "%s - %s\n", Machine, msgbuf);
+	syslog(level, "%s: %s\n", Machine, msgbuf);
 }
 
 void
@@ -1438,19 +1511,31 @@ netmode()
 {
 	struct sockaddr_in	sin;
 	struct hostent		*he;
-	char			*bp;
+	char			*portstr, *protostr;
 	int			port;
-	char			hostport[BUFSIZ];
+	char			hoststr[BUFSIZ];
 	
-	strcpy(hostport, Devname);
-	if ((bp = strchr(hostport, ':')) == NULL)
-		die("%s: bad format, expecting 'host:port'", hostport);
-	*bp++ = '\0';
-	if (sscanf(bp, "%d", &port) != 1)
-		die("%s: bad port number", bp);
-	he = gethostbyname(hostport);
+	strcpy(hoststr, Devname);
+	if ((portstr = strchr(hoststr, ':')) == NULL)
+		die("%s: bad format, expecting 'host:port'", hoststr);
+	*portstr++ = '\0';
+	if ((protostr = strchr(portstr, ',')) != NULL) {
+		*protostr++ = '\0';
+		if (strcmp(protostr, "raw") == 0)
+			Devproto = PROTO_RAW;
+#ifdef WITH_TELNET
+		else if (strcmp(protostr, "telnet") == 0)
+			Devproto = PROTO_TELNET;
+#endif
+		else
+			die("%s: bad protocol '%s'", Devname, protostr);
+	} else
+		Devproto = PROTO_RAW;
+	if (sscanf(portstr, "%d", &port) != 1)
+		die("%s: bad port number '%s'", Devname, portstr);
+	he = gethostbyname(hoststr);
 	if (he == 0) {
-		warning("gethostbyname(%s): %s", hostport, hstrerror(h_errno));
+		warning("gethostbyname(%s): %s", hoststr, hstrerror(h_errno));
 		return -1;
 	}
 	bzero(&sin, sizeof(sin));
@@ -1472,6 +1557,11 @@ netmode()
 		close(devfd);
 		return -1;
 	}
+#ifdef WITH_TELNET
+	if (Devproto == PROTO_TELNET)
+		proto_telnet_init();
+#endif
+
 	return 0;
 }
 #endif
@@ -1570,7 +1660,8 @@ int
 clientconnect(void)
 {
 	struct sockaddr_in sin;
-	int		cc, length = sizeof(sin);
+	int		cc;
+	unsigned int	length = sizeof(sin);
 	int		newfd;
 	secretkey_t     key;
 	capret_t	capret;
@@ -2164,4 +2255,94 @@ handshake(void)
 	signal(SIGALRM, SIG_DFL);
 	return err;
 }
+#endif
+
+#ifdef WITH_TELNET
+#include <libtelnet.h>
+
+/* XXX from telnet-client, no clue if this is the right set, will find out */
+static const telnet_telopt_t telopts[] = {
+        { TELNET_TELOPT_ECHO,           TELNET_WONT, TELNET_DONT },
+        { TELNET_TELOPT_TTYPE,          TELNET_WONT, TELNET_DONT },
+        { TELNET_TELOPT_COMPRESS2,      TELNET_WONT, TELNET_DONT },
+        { TELNET_TELOPT_MSSP,           TELNET_WONT, TELNET_DONT },
+        { -1, 0, 0 }
+};
+static telnet_t *telnet;
+
+static void
+proto_telnet_callback(telnet_t *telnet, telnet_event_t *ev, void *data)
+{
+	if (debug > 1)
+		fprintf(stderr, "%s: telnet: got event %d\n",
+			Machine, ev->type);
+	switch (ev->type) {
+	/* got data from remote server, send to user and logfile */
+	case TELNET_EV_DATA:
+		if (tipactive) {
+			if (debug > 1)
+				fprintf(stderr, "%s: telnet: "
+					"sending %d bytes to client\n",
+					Machine, ev->data.size);
+			send_to_client(ev->data.buffer, ev->data.size);
+		}
+		send_to_logfile(ev->data.buffer, ev->data.size);
+		break;
+	/* got data from user, send to remote server */
+	case TELNET_EV_SEND:
+		if (debug > 1)
+			fprintf(stderr, "%s: telnet: "
+				"sending %d bytes to server\n",
+				Machine, ev->data.size);
+		send_to_device(ev->data.buffer, ev->data.size);
+		break;
+
+	case TELNET_EV_WILL:
+	case TELNET_EV_WONT:
+	case TELNET_EV_DO:
+	case TELNET_EV_DONT:
+	case TELNET_EV_TTYPE:
+	case TELNET_EV_SUBNEGOTIATION:
+		if (debug > 1)
+			fprintf(stderr, "%s: telnet: "
+				"ignoring telnet event %d\n",
+				Machine, ev->type);
+		break;
+
+	/* error */
+	case TELNET_EV_ERROR:
+		die("%s: telnet: %s", Machine, ev->error.msg);
+		break;
+
+	default:
+		die("%s: telnet: got unknown telnet event %d",
+		    Machine, ev->type);
+		break;
+	}
+}
+
+static inline void
+proto_telnet_send_to_client(char *buf, int cc)
+{
+	telnet_recv(telnet, buf, cc);
+}
+
+static inline void
+proto_telnet_send_to_device(char *buf, int cc)
+{
+	telnet_send(telnet, buf, cc);
+}
+
+static void
+proto_telnet_init(void)
+{
+	telnet = telnet_init(telopts, proto_telnet_callback, 0, NULL);
+	if (telnet == NULL)
+		die("no memory for telnet struct");
+	if (debug)
+		fprintf(stderr,
+			"%s: connected to telnet-based server at %s\n",
+			Machine, Devname);
+}
+
 #endif

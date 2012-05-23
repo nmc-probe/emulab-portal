@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2008 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -190,6 +190,7 @@ main(int argc, char **argv)
 {
 	char strbuf[MAXPATHLEN];
 	int op, i;
+	unsigned int length;
 	extern int optind;
 	extern char *optarg;
 	struct sockaddr_in name;
@@ -257,8 +258,8 @@ main(int argc, char **argv)
 		die("bind(): binding stream socket: %s", geterr(errno));
 
 	/* Find assigned port value and print it out. */
-	i = sizeof(name);
-	if (getsockname(sockfd, (struct sockaddr *)&name, &i))
+	length = sizeof(name);
+	if (getsockname(sockfd, (struct sockaddr *)&name, &length))
 		die("getsockname(): %s", geterr(errno));
 	portnum = ntohs(name.sin_port);
 
@@ -335,7 +336,8 @@ clientconnect(void)
 {
 	struct sockaddr_in	client;
 	struct timeval		timeout;
-	int			i, cc, lines, count, length = sizeof(client);
+	int			i, cc, lines, count;
+	unsigned int		length = sizeof(client);
 	int			clientfd = -1, logfd = -1, pid;
 	logger_t		logreq;
 	capret_t		capret = CAPOK;

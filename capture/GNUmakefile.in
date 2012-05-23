@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -12,6 +12,10 @@ SUBDIR		= capture
 SYSTEM	       := $(shell uname -s)
 
 include $(OBJDIR)/Makeconf
+
+# For console server boxes that speak telnet.
+# Requires libtelnet, see install/ports/libtelnet for a FreeBSD port
+WITH_TELNET	= 0
 
 all:		boss-all tipserv-all
 boss-all:	capserver
@@ -38,6 +42,10 @@ LIBS     += -lkrb5support
 endif
 endif
 LIBS	 += -ldl -lz
+endif
+ifeq ($(WITH_TELNET),1)
+CFLAGS	+= -DWITH_TELNET -I/usr/local/include
+LIBS	+= -L/usr/local/lib -ltelnet
 endif
 
 capture: capture.c capdecls.h
