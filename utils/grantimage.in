@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2011 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -13,7 +13,7 @@ use Getopt::Std;
 #
 sub usage()
 {
-    print STDERR "Usage: grantimage [-r] [-w] ";
+    print STDERR "Usage: grantimage [-r] [-w] [-x] ";
     print STDERR "[-g <gid> | -u <uid> | -a] <imageid>\n";
     print STDERR "       grantimage -l <imageid>\n";
     print STDERR "	-h   This message\n";
@@ -23,15 +23,17 @@ sub usage()
     print STDERR "	-u   Grant access to a specific user\n";
     print STDERR "	-g   Grant access to a specific group (project)\n";
     print STDERR "	-a   Grant global read-only access\n";
+    print STDERR "	-x   Also grant access to protogeni users\n";
     exit(-1);
 }
-my $optlist  = "hg:dnru:wla";
+my $optlist  = "hg:dnru:wlax";
 my $impotent = 0;
 my $debug    = 0;
 my $revoke   = 0;
 my $writable = 0;
 my $listonly = 0;
 my $global   = 0;
+my $protogeni= 0;
 my $gid;
 my $uid;
 my $target;
@@ -105,6 +107,9 @@ if (defined($options{d})) {
 if (defined($options{w})) {
     $writable = 1;
 }
+if (defined($options{x})) {
+    $protogeni = 1;
+}
 if (defined($options{g})) {
     $gid = $options{g};
 }
@@ -176,6 +181,11 @@ elsif ($global) {
 	if (defined($osinfo)) {
 	    $osinfo->Update({"shared" => $val}) == 0
 		or fatal("Could not update shared flag");
+
+	    if ($protogeni) {
+		$osinfo->Update({"protogeni_export" => '1'}) == 0
+		    or fatal("Could not update protogeni flag");
+	    }
 	}
 	else {
 	    fatal("Could not lookup OSinfo for $image");
@@ -189,6 +199,17 @@ elsif ($revoke) {
 else {
     $image->GrantAccess($target, $writable) == 0
 	or fatal("Could not grant permission for $target");
+
+    if ($image->ezid() && $protogeni) {
+	my $osinfo = OSinfo->Lookup($image->imageid());
+	if (defined($osinfo)) {
+	    $osinfo->Update({"protogeni_export" => '1'}) == 0
+		or fatal("Could not update protogeni flag");
+	}
+	else {
+	    fatal("Could not lookup OSinfo for $image");
+	}
+    }
 }
 exit(0);
 
