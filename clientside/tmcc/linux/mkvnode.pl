@@ -573,6 +573,9 @@ sub callback($)
 	    }
 	}
     }
+    # Localize the timezone.
+    system("cp -fp /etc/localtime $path/etc");
+    
     return 0;
 }
 
