@@ -455,7 +455,7 @@ foreach my $power_id (keys %outlets) {
 	foreach my $nodeid (@nodes) {
 	    my $node = $nodes{$nodeid};
 	    print "$nodeid now ",($op eq "cycle" ? "rebooting" : $op),"\n";
-	    if ($sendevent) {
+	    if (defined($node) && $sendevent) {
 		my $oldstate = $node->eventstate();
 		my $newstate;
 
