@@ -83,7 +83,7 @@ cnet_start()
 	network_interfaces=`ifconfig -l | sed -e 's/lo0//'`
 	for _if in $network_interfaces; do
 	case $_if in
-	lo*|gif*|faith*|tun*|plip*)
+	lo*|gif*|faith*|tun*|plip*|usbus*)
 		;;
 	ath*)
 		;;
