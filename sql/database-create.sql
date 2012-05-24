@@ -2380,7 +2380,9 @@ CREATE TABLE `node_history` (
   KEY `node_id` (`node_id`,`history_id`),
   KEY `exptidx` (`exptidx`),
   KEY `stamp` (`stamp`),
-  KEY `cnet_IP` (`cnet_IP`)
+  KEY `cnet_IP` (`cnet_IP`),
+  KEY `nodestamp` (`node_id`,`stamp`);
+  KEY `ipstamp` (`cnet_IP`,`stamp`);
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
