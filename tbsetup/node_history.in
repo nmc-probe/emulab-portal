@@ -8,7 +8,6 @@ use English;
 use Getopt::Std;
 use Date::Parse;
 use Time::Local;
-use Math::BigInt;
 
 #
 # Drill down the node history data in the DB
@@ -46,15 +45,18 @@ sub usage {
     "             use negative value for last num records\n".
     "  -r       reverse order (most recent first)\n".
     "  -s       show a summary of node's past usage\n".
+    "  -d date  Start at YYYY-MM-DD HH:MM:SS\n".
+    "  -c       used with -d, show current status of all nodes\n".
     "  -v       verbose output\n".
     "  -w       print warnings about anomolous records\n");
     exit(1);
 }
 
-my $optlist = "ARS:aln:rswvd:i:";
+my $optlist = "ARS:aln:rswvd:i:c";
 my $warnme = 0;
 my $verbose = 0;
 my $showall = 0;
+my $showcurrent = 0;
 my $showalloconly = 0;
 my $list = 0;
 my $summary = 0;
@@ -66,18 +68,12 @@ my $ip;
 #
 # Sort stuff.  sortby value should correspond to record field format:
 #
-# sortby 0: node
-# sortby 1: pideid
-# sortby 2: uid
-# sortby 3: date
-# sortby 4: elapsed
-#
 my %sortmap = (
-    "node" => 0,
-    "pideid" => 1,
-    "uid" => 2,
-    "date" => 3,
-    "elapsed" => 4
+    "node"    => 0,
+    "pideid"  => 6,
+    "uid"     => 3,
+    "date"    => 1,
+    "elapsed" => 2
 );
 my $sortbydate = $sortmap{date};
 my $sortby = $sortbydate;
@@ -115,7 +111,7 @@ if (defined($options{"R"})) {
     $raw = 1;
 }
 if (defined($options{"S"})) {
-    if (!defined($sortmap{$options{"S"}})) {
+    if (!exists($sortmap{$options{"S"}})) {
 	print STDERR "invalid sort field '$options{S}'\n";
 	usage();
     }
@@ -140,6 +136,11 @@ if (defined($options{"d"})) {
     $datetime = timelocal(strptime($options{"d"}));
     $summary  = 0;
 }
+if (defined($options{"c"})) {
+    $showcurrent = 1;
+    usage()
+	if (!defined($datetime));
+}
 if (defined($options{"i"})) {
     $ip = $options{"i"};
     $summary  = 0;
@@ -150,7 +151,7 @@ if (defined($options{"w"})) {
 if (defined($options{"v"})) {
     $verbose = 1;
 }
-if (!$showall && @ARGV == 0) {
+if (!$showall && @ARGV == 0 && !defined($ip)) {
     usage();
 }
 my @nodes = @ARGV;
@@ -159,13 +160,90 @@ if (!$list && !$summary) {
     $list = 1;
 }
 
+my %nodeinfo;	# [ expt, starttime, uid ]
+my @rawrecords;
+my %startinfo;
+
 #
 # Common case: a single node.
 # Just fetch data for it, otherwise fetch data for all.
 # 
+#
+# If we have a datetime, then we want to start with records greater
+# then the stamp, but we will not know the state at that point, since
+# it will be the most recent record *before* the requested stamp, that
+# says what the node is doing at the time. So, this query does some
+# amazing magic to find those records without an explosion of terms
+# that takes forever. Kudos to Gary for figuring out this query. 
+#
+if ($datetime) {
+    my $querymod = "";
+    if (@nodes) {
+	$querymod = " AND (" .
+	            join(" or ", map {"h1.node_id='$_'"} @nodes) . ")";
+    }
+    elsif (defined($ip)) {
+	$querymod = " AND h1.cnet_ip='$ip'";
+    }
+
+    my $query_result =
+	DBQueryFatal("SELECT h1.node_id,h1.op,h1.stamp,h1.uid,h1.exptidx,".
+		     "       s.pid,s.eid ".
+		     "    FROM node_history as h1 ".
+		     "JOIN (SELECT h3.node_id,MAX(h3.stamp) as stamp ".
+		     "         FROM node_history as h3 ".
+		     "      WHERE stamp < $datetime GROUP BY h3.node_id ".
+		     "     ) AS h2 ON h1.node_id=h2.node_id AND ".
+		     "                h1.stamp = h2.stamp ".
+		     "left join nodes as n on n.node_id=h1.node_id ".
+		     "left join node_types as t on t.type=n.type ".
+		     "left join experiment_stats as s on s.exptidx=h1.exptidx ".
+		     "where t.isplabdslice=0 and t.isplabphysnode=0 and ".
+		     "      (n.role='testnode' or n.role='virtnode') ".
+		     "$querymod order by h1.node_id");
+    
+    while (my %row = $query_result->fetchhash()) {
+	my $pid = $row{pid};
+	my $eid = $row{eid};
+	my $pideid = "$pid/$eid";
+	my $exptidx = $row{"exptidx"};
+	my $node = $row{node_id};
+	my $stamp = $row{stamp};
+	my $uid = $row{uid};
+	my $op = $row{op};
+	my $cstamp = ctime($stamp);
+	my $diff = $datetime - $stamp;
+	chomp($cstamp);
+
+	if ($op eq "alloc" || $op eq "move" || $op eq "create") {
+	    if ($showcurrent) {
+		next
+		    if ($pid eq TBOPSPID());
+
+		if ($verbose) {
+		    print "$node '$stamp' $diff $uid $pid $eid\n";
+		}
+		else {
+		    print "$node REC $stamp $diff $uid $pid $eid\n";
+		}
+	    }
+	    else {
+		$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
+	    }
+	}
+	elsif ($op eq "free" || $op eq "destroy") {
+	    if (!$showcurrent) {
+		$nodeinfo{$node} = [ "", undef, $stamp, $uid ];
+	    }
+	}
+    }
+}
+exit(0)
+    if ($showcurrent);
+
 my $querymod = "";
-if (@nodes == 1) {
-    $querymod = " AND node_id='$nodes[0]'";
+if (@nodes) {
+    $querymod = " AND (" . join(" or ", map {"node_id='$_'"} @nodes) . ")";
 }
 elsif (defined($ip)) {
     $querymod = " AND cnet_ip='$ip'";
@@ -181,10 +259,9 @@ my $query_result =
 		 "    experiment_stats.exptidx,cnet_ip,phys_nodeid ".
 		 "FROM node_history,experiment_stats ".
 		 "WHERE node_history.exptidx=experiment_stats.exptidx ".
-		 "$querymod $orderby $limitby");
-
-my %nodeinfo;	# [ expt, starttime, uid ]
-my @records;
+		 $querymod .
+		 ($datetime ? " and stamp>='$datetime' " : "").
+		 "$orderby $limitby");
 
 while (my %row = $query_result->fetchhash()) {
     my $pideid = "$row{pid}/$row{eid}";
@@ -254,44 +331,32 @@ while (my %row = $query_result->fetchhash()) {
 	}
 	$nodeinfo{$node} = [ "", undef, $stamp, $uid ];
     }
-
+    #print "R: $node, $opideid, $oidx, $ouid, $ostamp, $elapsed\n";
+    
     # save off the record
-    push(@records, [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed ]);
+    push(@rawrecords, [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed ]);
 }
 
-# Include the current state of nodes in a final record
-my $stamp = time();
-for $node (keys(%nodeinfo)) {
-    my ($opideid, $oidx, $ostamp, $ouid) = @{$nodeinfo{$node}};
-    my $elapsed = $stamp - $ostamp;
-    push(@records, [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed ]);
-}
-
-# Prune the list based on date range (someday)
-
-# Sort the list as desired
-if ($sortby ne "date") {
-    @records = sort byfield @records;
-}
-if ($revorder) {
-    @records = reverse(@records);
-}
-
-# Prune to the proper number of entries (first/last $numrecs entries)
-if ($numrecs && $numrecs < $#records) {
-    if ($numrecs > 0) {
-	@records = @records[0 .. $numrecs-1];
-    } else {
-	@records = @records[$numrecs .. -1 ];
+if (!$datetime) {
+    # Include the current state of nodes in a final record
+    my $stamp = time();
+    for $node (keys(%nodeinfo)) {
+	my ($opideid, $oidx, $ostamp, $ouid) = @{$nodeinfo{$node}};
+	my $elapsed = $stamp - $ostamp;
+	push(@rawrecords, [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed ]);
     }
 }
 
 #
-# Loop over the remaining records, computing summary stats
-# and printing (if desired).
+# Loop over the raw records, computing summary stats and creating
+# a another set of records to print (if desired).
 #
-for my $rec (@records) {
+my @records = ();
+
+for my $rec (@rawrecords) {
     my ($node, $pideid, $exptidx, $uid, $stamp, $elapsed) = @{$rec};
+
+    #print "RR: $node, $elapsed\n";
 
     if (!defined($nodestats{$node})) {
 	$nodestats{$node} = [ 0, 0, 0, 0 ];
@@ -312,64 +377,50 @@ for my $rec (@records) {
     $nodestats{$node} = [ $ftime, $atime, $rtime, $dtime ];
 
     if ($list) {
-	if ($verbose) {
-	    my $start = ctime($stamp);
-	    chomp($start);
-	    my $end = ctime($stamp + $elapsed);
-	    chomp($end);
-
-	    if ($datetime) {
-		my $d = Math::BigInt->new($datetime);
-		my $s = Math::BigInt->new($stamp);
-		my $e = Math::BigInt->new($elapsed);
-		$e->badd($s);
-		my $c1  = $s->bcmp($d);
-		my $c2  = $e->bcmp($d);
-
-		next
-		    if ($c1 < 0 && $c2 <= 0);
-
-		if ($c1 <= 0 && $c2 > 0) {
-		    print "$node: $pideid($exptidx) from $start til $end ".
-			"($elapsed sec)\n"
-			if ($isalloced);
-		    last;
-		}
-	    }
-	    print "$node: $pideid($exptidx) from $start til $end ($elapsed sec)\n"
-		if (!$showalloconly || $isalloced);
+	my ($pid, $eid);
+	if ($pideid eq "") {
+	    $pid = $eid = "<FREE>";
+	    $exptidx = 0;
 	} else {
-	    my ($pid, $eid);
-	    if ($pideid eq "") {
-		$pid = $eid = "<FREE>";
-		$exptidx = 0;
-	    } else {
-		($pid, $eid) = split("/", $pideid);
-	    }
-	    if ($datetime) {
-		my $d = Math::BigInt->new($datetime);
-		my $s = Math::BigInt->new($stamp);
-		my $e = Math::BigInt->new($elapsed);
-		$e->badd($s);
-		my $c1  = $s->bcmp($d);
-		my $c2  = $e->bcmp($d);
-
-		next
-		    if ($c1 < 0 && $c2 <= 0);
-
-		if ($c1 <= 0 && $c2 > 0) {
-		    print "$node REC $stamp $elapsed $uid $pid $eid $exptidx\n";
-		    last;
-		}
-	    }
-	    print "$node REC $stamp $elapsed $uid $pid $eid $exptidx\n"
-		if (!$showalloconly || $isalloced);
+	    ($pid, $eid) = split("/", $pideid);
 	}
+	push(@records,
+	     [$node, $stamp, $elapsed, $uid, $pid, $eid, $exptidx, "$pid/$eid"])
+	    if (!$showalloconly || $isalloced);
     }
 }
 
-print scalar(@records) . " records\n"
-    if (0 && $list && $verbose);
+# Sort the list as desired
+if ($sortby ne $sortbydate) {
+    @records = sort byfield @records;
+}
+if ($revorder) {
+    @records = reverse(@records);
+}
+
+# Prune to the proper number of entries (first/last $numrecs entries)
+if ($numrecs && $numrecs < $#records) {
+    if ($numrecs > 0) {
+	@records = @records[0 .. $numrecs-1];
+    } else {
+	@records = @records[$numrecs .. -1 ];
+    }
+}
+
+if (@records) {
+    foreach my $record (@records) {
+	my ($node, $stamp, $elapsed, $uid, $pid, $eid) = @$record;
+
+	if ($verbose) {
+	    $stamp = ctime($stamp);
+	    chomp($stamp);
+	    print "$node '$stamp' $elapsed $uid $pid $eid\n";
+	}
+	else {
+	    print "$node REC $stamp $elapsed $uid $pid $eid\n";
+	}
+    }
+}
 
 #
 # Print out summary information

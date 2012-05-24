@@ -252,6 +252,20 @@ class Node
 	return $row["isremotenode"];
     }
 
+    function IsVirtNode() {
+	$type = $this->type();
+
+	$query_result =
+	    DBQueryFatal("select isvirtnode from node_types ".
+			 "where type='$type'");
+	
+	if (mysql_num_rows($query_result) == 0) {
+	    return 0;
+	}
+	$row = mysql_fetch_array($query_result);
+	return $row["isremotenode"];
+    }
+
     function NodeStatus() {
 	$node_id = $this->node_id();
 
@@ -1331,7 +1345,7 @@ class Node
 #
 # Show history.
 #
-function ShowNodeHistory($node = null,
+function ShowNodeHistory($node_id = null,
 			 $showall = 0, $count = 20, $reverse = 1,
 			 $date = null, $IP = null) {
     global $TBSUEXEC_PATH;
@@ -1341,33 +1355,43 @@ function ShowNodeHistory($node = null,
     $rtime = 0;
     $dtime = 0;
     $nodestr = "";
-	
+    $arg = "";
     $opt = "-ls";
     if (!$showall) {
 	$opt .= "a";
     }
-    if ($node) {
-	$node_id = $node->node_id();
+    if ($date) {
+	$opt .= " -d " . escapeshellarg($date);
+    }
+    if ($node_id || $IP) {
+	if ($IP) {
+	    $opt .= " -i " . escapeshellarg($IP);
+	    $nodestr = "<th>Node</th>";
+	}
+	else {
+	    $arg = escapeshellarg($node_id);
+	}
     }
     else {
 	$node_id = "";
-	$opt .= "A";
+	$opt .= " -A";
 	$nodestr = "<th>Node</th>";
+	#
+	# When supplying a date, we want a summary of all nodes at that
+	# point in time, not a listing. 
+	#
+	if ($date) {
+	    $opt .= " -c";
+	}
     }
     if ($reverse) {
-	$opt .= "r";
+	$opt .= " -r";
     }
     if ($count) {
 	$opt .= " -n $count";
     }
-    if ($date) {
-	$opt .= " -d " . escapeshellarg($date);
-    }
-    if ($IP) {
-	$opt .= " -i " . escapeshellarg($IP);
-    }
     if ($fp = popen("$TBSUEXEC_PATH nobody nobody ".
-		    "  webnode_history $opt $node_id", "r")) {
+		    "  webnode_history $opt $arg", "r")) {
 	if (!$showall) {
 	    $str = "Allocation";
 	} else {
@@ -1457,8 +1481,10 @@ function ShowNodeHistory($node = null,
 		}
 		
 		if ($node_id == "") {
+		    $nodeurl = CreateURL("shownodehistory",
+					 URLARG_NODEID, $nodeid);
 		    echo "<tr>
-                          <td>$nodeid</td>
+                          <td><a href='$nodeurl'>$nodeid</a></td>
                           <td>$pid</td>
                           <td>$eid</td>";
 		    if ($PROTOGENI) {
