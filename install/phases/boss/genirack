@@ -1,4 +1,7 @@
 #
+# TODO:
+# Build from /usr/testbed/src/emulab-stable.
+#
 # Additional stuff for setting up the geni racks. 
 #
 # Switch tasks:
@@ -56,7 +59,8 @@ my %HOSTNAMES = (
     "procurve1"       => "10.1.1.253",
     "procurve2"       => "10.2.1.253",
     "procurve1-alt"   => "10.3.1.253",
-    "foamvm"	      => "10.4.1.5",
+    "foam"	      => "10.4.1.2",
+    "flowvisor"	      => "10.4.1.3",
 );
 
 sub Install($$$)
