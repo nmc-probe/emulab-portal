@@ -126,6 +126,13 @@ if ($MAINSITE) {
 }
 
 #
+# Sanity check.
+#
+if ($EUID != 0) {
+    XMLError(503, "Server configuration error; please try again later");
+}
+
+#
 # Make sure the client presented a valid certificate that apache says
 # is okay.
 #
