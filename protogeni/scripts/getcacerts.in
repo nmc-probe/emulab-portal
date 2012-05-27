@@ -284,6 +284,9 @@ close(REVOKED);
 system("/bin/mv /tmp/genicrl.serials.$$ $TB/etc/genicrl.serials") == 0
     or fatal("Could not mv /tmp/genicrl.serials.$$ $TB/etc/genicrl.serials");
 
+unlink("/tmp/genicrl.single.$$")
+    if (-e "/tmp/genicrl.single.$$");
+
 # Abort the log since apache likes to spit out stuff.
 # No errors at this point, nothing to report.
 AuditAbort();
