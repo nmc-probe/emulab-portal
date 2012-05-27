@@ -767,7 +767,7 @@ function SetNodeType($node_type, $args, &$errors) {
 
     # Unlink this here, so that the file is left behind in case of error.
     # We can then create the nodetype by hand from the xmlfile, if desired.
-    #unlink($xmlname);
+    unlink($xmlname);
     return true;
 }
 
