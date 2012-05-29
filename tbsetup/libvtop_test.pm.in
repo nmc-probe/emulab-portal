@@ -6798,7 +6798,6 @@ sub NewVirtIface($$$$;$)
     my $vvnode;
     my $isvdev;
     my $type;
-    my $mac;
 
     #
     # Special actions for virtnodes (as opposed to just emulated links).
@@ -6835,13 +6834,12 @@ sub NewVirtIface($$$$;$)
     }
 
     #
-    # Make up a MAC address.  For now, just derive it from the assigned
-    # IP address.
+    # Random/Unique mac address.
     #
-    if ($ip =~ /^\d+\.\d+\.\d+\.\d+$/) {
-	$mac = sprintf "0000%.2x%.2x%.2x%.2x", split(/\./, $ip);
-    } else {
-	$mac = "000000000000";
+    my $mac = GenFakeMac();
+    if (!defined($mac)) {
+	tberror("Could not generate fake mac!\n");
+	return undef;
     }
 
     #
@@ -6866,7 +6864,7 @@ sub NewVirtIface($$$$;$)
     if (!defined($virtiface)) {
 	return undef;
     }
-    $self->printdb("$virtiface: $member, isvdev:$isvdev, isveth:$isveth\n");
+    $self->printdb("$virtiface: $member, isvdev:$isvdev, isveth:$isveth, $mac\n");
     my $newid = $virtiface->unit();
 
     # Record this vinterface mapping.
@@ -8997,6 +8995,31 @@ sub AddToSwitchPath($$)
 		   (grep {$_ eq "$s2:$s1"} @cur)));
     }
     return join(" ", @cur);
+}
+
+#
+# Generate a hopefully unique mac address that is suitable for use
+# on a shared node where uniqueness matters.
+#
+sub GenFakeMac()
+{
+    my $mac;
+    
+    #
+    # Random number for lower 4 octets.
+    # 
+    my $ran=`/bin/dd if=/dev/urandom count=32 bs=1 2>/dev/null | /sbin/md5`;
+    return undef
+	if ($?);
+    
+    if ($ran =~ /^\w\w\w(\w\w\w\w\w\w\w\w)/)  {
+	$mac = $1;
+    }
+
+    #
+    # Set the "locally administered" bit, good practice.
+    #
+    return "0200" . $mac;
 }
 
 1;
