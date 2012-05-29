@@ -276,6 +276,11 @@ if ($shownodes) {
 
 	my $lastrole = "";
 	while (my ($role,$key,$value) = $attributes_result->fetchrow_array()) {
+	    # Do not print anything that looks like a password.
+	    if ($key =~ /password/i ||
+		$key =~ /community/i) {
+		$value = "**********"
+	    }
 	    if ($role ne $lastrole) {
 		printf "%-15s %-20s %s\n", $role, $key, $value;
 		$lastrole = $role;
