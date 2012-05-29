@@ -368,6 +368,7 @@ sub assemble_zonefile($) {
     my $mapfileback = "$mapfile.backup";
     my $mapfilehead = "$mapfile.head";
     my $mapfiletail = "$mapfile.tail";
+    my $mapfilefrag = "$mapfile.local";
 
     #
     # Concat the head and tail files to create the new map.
@@ -410,11 +411,23 @@ sub assemble_zonefile($) {
     close(MAPHEAD);
     close(MAP);
 
+    # Give local admin a place to add static stuff to the head.
+    if (-e $mapfilefrag) {
+	system("echo '' >> $mapfile");
+	system("echo ';' >> $mapfile");
+	system("echo '; This is a local fragment; $mapfilefrag' >> $mapfile");
+	system("echo ';' >> $mapfile");
+	system("cat $mapfilefrag >> $mapfile") == 0 or
+	    fatal("Failed to concat $mapfilefrag to $mapfile\n");
+	system("echo '; End of local fragment; $mapfilefrag' >> $mapfile");
+	system("echo '' >> $mapfile");
+    }
+
     #
     # Now the tail of the map.
     # 
     system("cat $mapfiletail >> $mapfile") == 0 or
-    fatal("Failed to concat $mapfiletail to $mapfile\n");
+	fatal("Failed to concat $mapfiletail to $mapfile\n");
 }
 
 my $laddrs;
