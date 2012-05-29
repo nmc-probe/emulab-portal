@@ -1144,47 +1144,31 @@ sub runbootscript($$$$;@)
     return $failed;
 }
 
+#
+# The server gives us random/unique macs. Well, as unique as can
+# be expected, but that should be fine (this mostly matters on
+# shared nodes where duplicate macs would be bad). 
+#
+# One wrinkle; when there is a root context device and a container
+# context device, we need to distinguish them, so set a bit on the
+# root context side (since we want the container mac to be what the
+# user has been told elsewhere). Do that with 0x80 in the upper octet.
+#
+# XXX The server has also set the local admin flag (0x02), which is
+# required for linux macvlans, but we set it anyway. This might cause
+# confusion if the server neglects to do this.
+#
 sub build_fake_macs {
-    my ($id,$vmac) = @_;
+    my ($mac) = @_;
+    my ($vethmac,$ethmac);
 
-    # accept vnodeids in addition to regular integers
-    if ($id =~ /.+\-(\d+)$/) {
-	$id = $1;
+    if ($mac =~ /^(\w\w)(\w*)$/) {
+	$ethmac  = sprintf("%02x%s", 0x82 | hex($1), $2);
+	$vethmac = sprintf("%02x%s", 0x02 | hex($1), $2);
+	return ($vethmac, $ethmac);
     }
-
-    my $basemac;
-    if ($vmac =~ /^(0000)(.*)$/) {
-        $basemac = "$2";
-    }
-    else {
-        return undef;
-    }
-
-    #
-    # We have to set the locally administered bit (0x02) in the first
-    # octet, and we can't set the unicast/multicast bit (0x01).  So
-    # we have the first two octets to play with, minus those two bits,
-    # leaving us with 14 total bits.  But then, for veths, we need a
-    # a MAC for the root context, and for the container.  So there goes
-    # another bit.
-    #
-    # So, what we're going to do is, if the vmid fits in 13 bits,
-    # take the 5 MSB and shift them into bits 3-7 of the first octet,
-    # and take the 8 LSB and make them the second octet.  Then, we
-    # always set bit 2, and the container MAC gets bit 8 set.
-    #
-    if ($id > (0x1f << 8 | 0xff)) {
-        return undef;
-    }
-
-    return (sprintf("%02x%02x$basemac",
-                    (($id & (0x1f << 8)) >> 6) | 0x02,
-                    $id & 0xff),
-            sprintf("%02x%02x$basemac",
-                    (($id & (0x1f << 8)) >> 6) | 0x02 | 0x80,
-                    $id & 0xff));
+    return undef;
 }
-
 
 #
 # Parse the router config and return a hash. This leaves the ugly pattern
@@ -1313,14 +1297,14 @@ sub getifconfig($;$)
 	    if (JAILED() || GENVNODE()) {
 		if (! ($iface = findiface($vmac))) {
 		    if (defined($vnodeid) && $vnodeid =~ /.+\-(\d+)$/) {
-			my ($voutmac,$vinmac) = build_fake_macs($vnodeid,
-								$vmac);
-			if (defined($vinmac) && ! ($iface = findiface($vinmac))) {
-			    warn("*** WARNING: Could not map $vinmac to a veth (even with vnodeid hack)!\n");
+			my ($vinmac,undef) = build_fake_macs($vmac);
+			if (!defined($vinmac)) {
+			    warn("*** WARNING: Could not map $vmac to a veth ".
+				 "(build_fake_macs failed)!\n");
 			    next;
 			}
-			elsif (!defined($voutmac)) {
-			    warn("*** WARNING: Could not map $vmac to a veth (build_fake_macs failed)!\n");
+			elsif (! ($iface = findiface($vinmac))) {
+			    warn("*** WARNING: Could not map $vinmac to a veth!\n");
 			    next;
 			}
 		    }
