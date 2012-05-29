@@ -45,6 +45,7 @@ my $OS_SELECT     = "$TB/bin/os_select";
 my $DELAYCAPACITY = @DELAYCAPACITY@;	# Can be overridden by user.
 my $DELAYTHRESH   = @DELAYTHRESH@;
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
+my $PGENIRACK     = @PROTOGENI_GENIRACK@;
 my $OURDOMAIN     = "@OURDOMAIN@";
 my $mycmurn       = GeniHRN::Generate("@OURDOMAIN@", "authority", "cm");
 
@@ -9019,7 +9020,7 @@ sub GenFakeMac()
     #
     # Set the "locally administered" bit, good practice.
     #
-    return "0200" . $mac;
+    return ($PGENIRACK ? "0200" : "0000") . $mac;
 }
 
 1;
