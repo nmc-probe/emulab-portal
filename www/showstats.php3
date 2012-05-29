@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -49,7 +49,8 @@ if (!isset($startwith)) {
 echo "<b>Show: <a class='static' href='showexpstats.php3'>
                   Experiment Stats</a>";
 if ($isadmin) {
-    echo "<a class='static' href='showsumstats.php3'>, Summary Stats</a>\n";
+    echo "<a class='static' href='showsumstats.php3'>, Summary Stats</a>";
+    echo "<a class='static' href='shownodehistory.php3'>, Node History</a>\n";
 }
 echo "</b><br>\n";
 
