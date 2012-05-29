@@ -342,8 +342,8 @@ function deselectAll(form) {
 -->
 </script>
 
-<table>
-	<tr>
+<table id="node_list_table">
+    <thead class="sort"><tr>
 	    <th></th>
 	    <th>ID</th>
 	    <th>Node ID</th>
@@ -357,7 +357,7 @@ function deselectAll(form) {
 	    <th>Created</th>
 	    <th>Warnings</th>
 	    <th>Location</th>
-	</tr>
+	</tr></thead>
 
 <?
 
@@ -450,6 +450,11 @@ while ($row = mysql_fetch_array($nodes_result)) {
 </tr>
 
 </table>
+
+<script type='text/javascript' language='javascript'>
+sorttable.makeSortable(getObjbyName('node_list_table'));
+</script>
+
 
 <h3>Actions</h3>
 
