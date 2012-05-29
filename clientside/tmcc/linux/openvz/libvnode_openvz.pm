@@ -1650,14 +1650,24 @@ sub vz_vnodePreConfigExpNetwork {
 	}
 
 	#
-	# The ethX naming sucks, but hopefully it ensures unique, *easily 
-	# reconfigurable* (i.e., without a local map file) naming for veths.
+	# The server gives us random/unique macs. Well, as unique as can
+	# be expected, but that should be fine (this mostly matters on
+	# shared nodes where duplicate macs would be bad). 
 	#
-	my $eth = "eth" . $ifc->{VTAG};
-	my ($vethmac,$ethmac) =
-	    libsetup::build_fake_macs(libsetup::libsetup_getvnodeid(),
-				      $ifc->{VMAC});
-
+	# One wrinkle; in the second case below, where there is a root context
+	# device and a container context device, we need to distinguish
+	# them, so set a bit on the root context side (since we want the
+	# container mac to be what the user has been told elsewhere).
+	#
+	# XXX The server has also set the local admin flag (0x02), which
+	# is required, but we set it anyway.
+	#
+	my $eth     = "eth" . $ifc->{VTAG};
+	my ($vethmac,$ethmac) = build_fake_macs($ifc->{VMAC});
+	if (!defined($vethmac)) {
+	    print STDERR "Could not construct veth/eth macs\n";
+	    return -1;
+	}
 	($ethmac,$vethmac) = (macAddSep($ethmac),macAddSep($vethmac));
 	print "DEBUG ethmac=$ethmac, vethmac=$vethmac\n";
 
@@ -1669,7 +1679,7 @@ sub vz_vnodePreConfigExpNetwork {
 	    my $vname = "mv$vmid.$ifc->{ID}";
 	    if (! -d "/sys/class/net/$vname") {
 		mysystem("$IP link add link $physdev name $vname ".
-			 "  address $ethmac type macvlan mode bridge ");
+			 "  address $vethmac type macvlan mode bridge ");
 		$private->{'iplinks'}->{$vname} = $physdev;
 	    }
 	    #
