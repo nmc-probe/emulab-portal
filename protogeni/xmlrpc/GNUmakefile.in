@@ -1,6 +1,6 @@
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -14,7 +14,7 @@ include $(OBJDIR)/Makeconf
 # These scripts installed setuid, with sudo. 
 SETUID_BIN_SCRIPTS   = 
 SETUID_SBIN_SCRIPTS  = 
-SETUID_LIBX_SCRIPTS  =
+SETUID_SUEXEC_SCRIPTS  = protogeni-wrapper.pl
 
 #
 # Force dependencies on the scripts so that they will be rerun through
@@ -38,9 +38,9 @@ install-libs: $(INSTALL_LIBDIR)/Genixmlrpc.pm \
          $(INSTALL_DIR)/opsdir/lib/Genixmlrpc.pm \
          $(INSTALL_DIR)/opsdir/lib/GeniResponse.pm
 
-install-scripts: $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
-	$(SUDO) chown root $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
-	$(SUDO) chmod u+s  $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
+install-scripts: $(INSTALL_LIBEXECDIR)/protogeni-wrapper.pl
+	-rm -f $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
+	ln  $< $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
 
 install: all install-libs install-scripts
 
