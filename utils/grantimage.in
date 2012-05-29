@@ -195,6 +195,17 @@ elsif ($global) {
 elsif ($revoke) {
     $image->RevokeAccess($target) == 0
 	or fatal("Could not revoke permission for $target");
+
+    if ($image->ezid() && $protogeni) {
+	my $osinfo = OSinfo->Lookup($image->imageid());
+	if (defined($osinfo)) {
+	    $osinfo->Update({"protogeni_export" => '0'}) == 0
+		or fatal("Could not update protogeni flag");
+	}
+	else {
+	    fatal("Could not lookup OSinfo for $image");
+	}
+    }
 }
 else {
     $image->GrantAccess($target, $writable) == 0
