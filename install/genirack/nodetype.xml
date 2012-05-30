@@ -31,7 +31,7 @@
 <attribute name="attr_string_processor">  <value>QuadCore</value></attribute>
 <attribute name="attr_boolean_rebootable">  <value>1</value></attribute>
 <attribute name="attr_integer_simnode_capacity">  <value>0</value></attribute>
-<attribute name="attr_integer_trivlink_maxspeed">  <value>400000</value></attribute>
+<attribute name="attr_integer_trivlink_maxspeed">  <value>1000000</value></attribute>
 <attribute name="attr_integer_virtnode_capacity">  <value>100</value></attribute>
 <attribute name="attr_integer_virtnode_disksize">  <value>4096</value></attribute>
 <attribute name="attr_string_default_imageid">  <value>emulab-ops:FBSD82-STD,emulab-ops:FEDORA15-STD</value></attribute>
