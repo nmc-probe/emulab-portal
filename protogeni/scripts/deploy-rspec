@@ -24,8 +24,9 @@ for path in $1/ext/emulab/1/; do
     done
 done
 
-for path in $1/ext/delay/1/; do
-    for schema in request; do 
+for path in $1/ext/delay/1/ $1/ext/opstate/1 $1/ext/shared-vlan/1 $1/ext/user/1; do
+    for schema in request ad; do 
+	echo RUNNING $path on $schema
 	if [ -e ${path}/${schema}.rnc ]; then
 	    sudo scp ${path}/${schema}.xsd ${path}/${schema}.rnc ops.emulab.net:/usr/local/www.geni/data/trac/resources/rspec/${path}/
 	fi
