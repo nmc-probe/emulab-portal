@@ -226,12 +226,14 @@ RUN_DEPENDS+= cvsup:${PORTSDIR}/net/cvsup-without-gui \
 
 .if ${OSMAJOR} >= 9
 RUN_DEPENDS+= \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/LWP/Protocol/https.pm:${PORTSDIR}/www/p5-LWP-Protocol-https
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/LWP/Protocol/https.pm:${PORTSDIR}/www/p5-LWP-Protocol-https \
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Class/ISA.pm:${PORTSDIR}/devel/p5-Class-ISA
 .endif
 
 # make sure these get installed
 RUN_DEPENDS+=	\
-	${X11BASE}/libdata/xorg/libraries:${PORTSDIR}/x11/xorg-libraries
+	${X11BASE}/libdata/xorg/libraries:${PORTSDIR}/x11/xorg-libraries \
+        ${LOCALBASE}/bin/xauth:${PORTSDIR}/x11/xauth
 
 USE_PERL5=	yes
 USE_PYTHON=	yes
