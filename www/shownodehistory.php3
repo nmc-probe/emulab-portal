@@ -51,7 +51,8 @@ if (isset($datetime) && $datetime != "") {
     $dateopt = "&datetime=" . urlencode($datetime);
 }
 else {
-    $dateopt = "";
+    $dateopt  = "";
+    $datetime = null;
 }
 if (isset($IP)) {
     if (! preg_match('/^[0-9\.]+$/', $IP)) {    
@@ -74,14 +75,18 @@ else {
 if (isset($node_id)) {
     $node_opt = "&node_id=$node_id";
     $form_opt = "<input type=hidden name=node_id value=$node_id>";
+    $IP      = null;
 }
 else if (isset($IP)) {
     $node_opt = "&IP=$IP";
     $form_opt = "<input type=hidden name=IP value=$IP>";
+    $node_id = null;
 }
 else {
     $node_opt = "";
     $form_opt = "";
+    $IP      = null;
+    $node_id = null;
 }
 
 $opts="count=$count&reverse=$reverse$node_opt$dateopt";

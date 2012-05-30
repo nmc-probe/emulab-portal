@@ -224,7 +224,7 @@ if ($datetime) {
 		    print "$node '$stamp' $diff $uid $pid $eid\n";
 		}
 		else {
-		    print "$node REC $stamp $diff $uid $pid $eid\n";
+		    print "$node REC $stamp $diff $uid $pid $eid $exptidx\n";
 		}
 	    }
 	    else {
@@ -409,7 +409,7 @@ if ($numrecs && $numrecs < $#records) {
 
 if (@records) {
     foreach my $record (@records) {
-	my ($node, $stamp, $elapsed, $uid, $pid, $eid) = @$record;
+	my ($node, $stamp, $elapsed, $uid, $pid, $eid, $exptidx) = @$record;
 
 	if ($verbose) {
 	    $stamp = ctime($stamp);
@@ -417,7 +417,7 @@ if (@records) {
 	    print "$node '$stamp' $elapsed $uid $pid $eid\n";
 	}
 	else {
-	    print "$node REC $stamp $elapsed $uid $pid $eid\n";
+	    print "$node REC $stamp $elapsed $uid $pid $eid $exptidx\n";
 	}
     }
 }
