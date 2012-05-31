@@ -39,6 +39,7 @@ install-libs: $(INSTALL_LIBDIR)/Genixmlrpc.pm \
          $(INSTALL_DIR)/opsdir/lib/GeniResponse.pm
 
 install-scripts: $(INSTALL_LIBEXECDIR)/protogeni-wrapper.pl
+	-mkdir -p $(INSTALL_DIR)/protogeni/xmlrpc
 	-rm -f $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
 	ln  $< $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
 
