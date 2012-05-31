@@ -774,6 +774,22 @@ dolinux() {
 	    *)
 	        ;;
 	    esac
+	    
+	    # Added by Hussam to disable the serial line defination
+	    grep -E '^serial.*--speed' $gconf >/dev/null 2>&1
+	    case $? in
+	    0)
+		echo "  disabling serial line config in grub"
+	        sed -i .preemulab -e "s;^serial;#serial;" $gconf || {
+		    echo "Failed to update serial line in $gconf"
+		    umount $rootdev
+		    return 1
+		}
+		;;
+	    *)
+	        ;;
+	    esac
+
 	    grep -E "console=ttyS" $gconf >/dev/null 2>&1
 	    case $? in
 	    0)
