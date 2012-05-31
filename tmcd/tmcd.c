@@ -8070,7 +8070,7 @@ COMMAND_PROTOTYPE(doemulabconfig)
 {
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
-	char		buf[MYBUFSIZE];
+	char		buf[2*MYBUFSIZE];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
 	char		myrole[32], rolebuf[256];
 	int		nrows;
