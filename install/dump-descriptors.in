@@ -42,7 +42,7 @@ my %imagenames    = (
 	    'FBSD410-IPFW2', 'UBUNTU10-STD-FW'],
     # No longer using combined images.
     # The UBUNTU10 image is for FW-IPTABLES link. 
-    "3" => ['FBSD82-STD', 'FEDORA10-STD', 'UBUNTU10-STD-FW'],
+    "3" => ['FBSD82-STD', 'FEDORA15-STD', 'UBUNTU10-STD-FW'],
 );
 
 my %osnames	  = (
