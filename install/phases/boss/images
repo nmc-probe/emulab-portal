@@ -41,7 +41,7 @@ sub Install($$$)
 	    Phase "nodetype", "Creating Protogeni nodetype", sub {
 		my $nodetype = NodeType->Lookup($NODETYPE);
 		PhaseSkip("already created")
-		    if (defined($NODETYPE));
+		    if (defined($nodetype));
 		ExecQuietFatal("$SUDO -u $PROTOUSER ".
 			       "         $WAP $CREATETYPE $NODETYPEXML");
 	    };
@@ -68,6 +68,20 @@ sub Install($$$)
 	    Phase "$imagename", "Fetching $imagename. Patience!", sub {
 		DoneIfExists($localfile);
 		FetchFileFatal($url, $localfile);
+	    };
+	    
+	    $localfile = "$PREFIX/images/${imagename}.xml";
+	    $url       = "$STDIMAGESURL/${imagename}.xml";
+	    
+	    Phase "${imagename}_xml", "Fetching $imagename metadata", sub {
+		DoneIfExists($localfile);
+		FetchFileFatal($url, $localfile);
+	    };
+
+	    Phase "${imagename}_load", "Loading the image descriptor.", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR/install; ".
+			       "   $SUDO -u $PROTOUSER $WAP ".
+			       "   perl load-descriptors -a $localfile");
 	    };
 	}
 	foreach my $mbr (@MBRS) {
