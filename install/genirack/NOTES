@@ -133,7 +133,7 @@ Need the following info:
   2610(config)> management-vlan 10
   2610(config)> ip default-gateway 10.1.1.254
   2610(config)> vlan 1 ip igmp
-  2610(config)> vlan 1 ip igmp querier
+  2610(config)> vlan 11 ip igmp querier
   2610(config)> no web-management
   2610(config)> password all (type in same password for manager/operator)
   2610(config)> no snmp-server community public
