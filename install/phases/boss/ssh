@@ -44,16 +44,22 @@ sub Install($$$)
 			      "   StrictHostKeyChecking no",
 			      "   Protocol 2,1");
 	};
-	# GPO wants this turned off.
+	# GPO wants password authentication turned off. 
 	if ($PROTOGENI_GENIRACK) {
 	    Phase "sshdconfig", "Turning off password authentication", sub {
 		DoneIfEdited($SSHD_CONFIG);
 		
 		ExecQuietFatal("sed -i.orig ".
 			       "  -e 's/PasswordAuth/#PasswordAuth/' ".
-			       "$SSHD_CONFIG");
+			       "  -e 's/PermitRootLogin/#PermitRootLogin/' ".
+			       "  -e 's/ChallengeResponseAuthentication/".
+			       "#ChallengeResponseAuthentication/' ".
+		       "$SSHD_CONFIG");
 
-		AppendToFileFatal($SSHD_CONFIG, "PasswordAuthentication no");
+		AppendToFileFatal($SSHD_CONFIG,
+				  "PasswordAuthentication no",
+				  "ChallengeResponseAuthentication no",
+				  "PermitRootLogin without-password");
 
 		# HUP the server so the changes take effect
 		if (-r "/var/run/sshd.pid") {

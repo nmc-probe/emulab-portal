@@ -30,8 +30,14 @@ sub Install($$$)
 	    if ($PROTOGENI_GENIRACK) {
 		ExecQuietFatal("sed -i.orig ".
 			       "  -e 's/PasswordAuth/#PasswordAuth/' ".
+			       "  -e 's/PermitRootLogin/#PermitRootLogin/' ".
+			       "  -e 's/ChallengeResponseAuthentication/".
+			       "#ChallengeResponseAuthentication/' ".
 			       "$SSHD_CONFIG");
-		push(@strings, "PasswordAuthentication no");
+		push(@strings,
+		     "PasswordAuthentication no",
+		     "ChallengeResponseAuthentication no",
+		     "PermitRootLogin without-password");
 	    }
 	    AppendToFileFatal($SSHD_CONFIG, @strings);
 
