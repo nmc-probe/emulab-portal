@@ -180,11 +180,6 @@ my $XENVM = 0;
 my $NTPSERVER = "boss";
 
 #
-# The default password to use.
-#
-my $DEFAULT_PASSWORD = "ElabInElab";
-
-#
 # Defaults for configuration attributes (options).
 # These can be overridden if values are passed in via the emulabconfig command.
 #
@@ -197,7 +192,6 @@ my %emulabconfig = (
     "MFSTARBALL"  => "tftpboot-elabinelab.tar.gz",
     "MFSVERSION"  => "62",
     "MFSCONSOLE"  => "sio",
-    "PASSWORD"    => $DEFAULT_PASSWORD,
 
     #
     # Elabinelab configuration options:
@@ -452,6 +446,33 @@ sub doboot()
     $emulabconfig{"ROLE"} = "opsjail"
 	if ($opsjail);
 
+    #
+    # Look for a private variable cache.
+    #
+    if ($emulabconfig{"ROLE"} eq "boss" &&
+	exists($emulabconfig{"PRIVATE_VARIABLES"}) &&
+	$emulabconfig{"PRIVATE_VARIABLES"} ne "") {
+	my $filename = $emulabconfig{"PRIVATE_VARIABLES"};
+	
+	if (! -e $filename) {
+	    SetupFatal("$filename does not exist");
+	}
+	open(CN, $filename)
+	    or SetupFatal("Could not open $filename: $!");
+	while (<CN>) {
+	    if ($_ =~ /^([-\w]*)\s*=\s*(.*)$/) {
+		my $key = $1;
+		my $val = $2;
+		if ($val =~ /^'(.+)'$/ ||
+		    $val =~ /^"(.+)"$/) {
+		    $val = $1;
+		}
+		$emulabconfig{$key} = "$val";
+	    }
+	}
+	close(CN);
+    }
+	
     # Override NTPSERVER when singlenet; okay to use inner ops.
     $NTPSERVER = "ops"
 	if ($emulabconfig{"CONFIG_SINGLECNET"});
@@ -578,19 +599,28 @@ sub doboot()
     }
 
     #
-    # If we get a password setting, change root/toor.
+    # We no longer use a static password. Generate a random password and
+    # stash it in /usr/testbed/etc.
     #
-    if ($emulabconfig{"PASSWORD"} ne $DEFAULT_PASSWORD) {
-	#
-	# Convert to an encrypted hash.
-	#
-	my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
-	my $salt = $salt_chars[rand(@salt_chars)] .
-	           $salt_chars[rand(@salt_chars)];
-	my $passhash = crypt($emulabconfig{"PASSWORD"}, "\$1\$${salt}");
-	mysystem("echo '$passhash' | /usr/sbin/pw usermod toor -H 0");
-	mysystem("echo '$passhash' | /usr/sbin/pw usermod root -H 0");
+    if (! exists($emulabconfig{"PASSWORD"}) ||
+	$emulabconfig{"PASSWORD"} eq "") {
+	my $rand= `/bin/dd if=/dev/urandom count=128 bs=1 2>/dev/null | /sbin/md5`;
+	if ($?) {
+	    SetupFatal("Could not generate a root password");
+	}
+	chomp($rand);
+	$emulabconfig{"PASSWORD"} = substr($rand, 0, 10);
     }
+
+    #
+    # Convert to an encrypted hash.
+    #
+    my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
+    my $salt = $salt_chars[rand(@salt_chars)] .
+	$salt_chars[rand(@salt_chars)];
+    my $passhash = crypt($emulabconfig{"PASSWORD"}, "\$1\$${salt}");
+    mysystem("echo '$passhash' | /usr/sbin/pw usermod toor -H 0");
+    mysystem("echo '$passhash' | /usr/sbin/pw usermod root -H 0");
 
     if (!$opsjail) {
 	#
@@ -2812,7 +2842,10 @@ sub CreateDefsFile($)
     my $cookiesuffix       = $eid;
     my $router_ip          = ($emulabconfig{"CONFIG_SINGLECNET"} ?
 			      $outer_routerip : $bossnode_ip);
-
+    my $named_forwarders   = (defined($emulabconfig{"NAMED_FORWARDERS"}) ?
+			      $emulabconfig{"NAMED_FORWARDERS"} :
+			      $outer_bossip);
+    
     #
     # The control network netmask differs if using a single control network. 
     #
@@ -2973,7 +3006,7 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^NAMED_FORWARDERS$/ && do {
-		    print OUTDEFS "NAMED_FORWARDERS=\"${outer_bossip}\"\n";
+		    print OUTDEFS "NAMED_FORWARDERS=\"${named_forwarders}\"\n";
 		    last SWITCH;
 		};
 		/^DHCPD_DYNRANGE$/ && do {
