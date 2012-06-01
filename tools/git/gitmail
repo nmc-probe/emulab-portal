@@ -1231,8 +1231,6 @@ sub get_merge_base($$)
 #
 sub get_summary($) {
     my ($rev) = @_;
-    # I would imagine there's a less hacky way to get the summary of one
-    # commit? 'git show' insists on printing the diff, though
     my $oneliner;
     if ($summary_style eq "hashes") {
         $oneliner = `$GIT show -s --oneline $rev`;
