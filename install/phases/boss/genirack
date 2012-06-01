@@ -41,7 +41,8 @@ my $NODETYPEXML  = "$TOP_SRCDIR/install/genirack/nodetype.xml";
 my $SWITCHSQL    = "$TOP_SRCDIR/install/genirack/tbdb.sql";
 my $CONFIGVARS   = "$PREFIX/configvars.txt";
 my $ILOPASSWORD  = "$PREFIX/etc/ilo.pswd";
-my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-8.2-ports.tar.gz";
+my $HPPASSWORD   = "$PREFIX/etc/switch.pswd";
+my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-9.0-ports.tar.gz";
 my $ZZZ		 = "/usr/local/etc/rc.d/zzz-inelab.sh";
 my $DEFAULTOSID  = "FEDORA15-STD";
 my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU11-64-STD");
@@ -59,8 +60,8 @@ my %HOSTNAMES = (
     "procurve1"       => "10.1.1.253",
     "procurve2"       => "10.2.1.253",
     "procurve1-alt"   => "10.3.1.253",
-    "foam"	      => "10.4.1.2",
-    "flowvisor"	      => "10.4.1.3",
+    "foam-priv"	      => "10.4.1.2",
+    "flowvisor-priv"  => "10.4.1.3",
 );
 
 sub Install($$$)
@@ -136,6 +137,17 @@ sub Install($$$)
 	}
 
 	#
+	# This is the password for the switches.
+	#
+	if (exists($configvars{'GENIRACK_SWITCH_PASSWORD'}) &&
+	    $configvars{'GENIRACK_SWITCH_PASSWORD'} ne "" &&
+	    ! -e $HPPASSWORD) {
+	    CreateFileFatal($HPPASSWORD,
+			    $configvars{'GENIRACK_SWITCH_PASSWORD'});
+	    ExecQuietFatal("$CHMOD 400 $HPPASSWORD");
+	}
+
+	#
 	# A reasonable default image.
 	#
 	Phase "sitevar", "Setting sitevar $PGOSSITEVAR", sub {
@@ -199,6 +211,8 @@ sub Install($$$)
 	# Build and install software without ELABINELAB defined.
 	#
 	Phase "Software", "Rebuilding and Reinstalling Software", sub {
+	    DoneIfExists("$PREFIX/marker");
+	    
 	    Phase "cleaning", "Cleaning (please be patient)", sub {
 		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE clean");
 	    };
@@ -220,6 +234,7 @@ sub Install($$$)
 	    Phase "rc.testbed", "Installing testbed RC scripts", sub {
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d install");
 	    };
+	    CreateFile("$PREFIX/marker", "genirack install marker");
 	};
 
 	#
@@ -334,6 +349,45 @@ sub Install($$$)
 		    or PhaseFail("DB query failed");
 	    };
 	}
+
+	#
+	# Create a local named forward fragment file with some extra stuff.
+	#
+	my $reversedots;
+	my @forward_strings = ();
+	my @reverse_strings = ();
+	my %local_dns = ("GENIRACK_FOAMIP"    => "foam",
+			 "GENIRACK_FLOWIP"    => "flowvisor",
+			 "GENIRACK_CONTROLIP" => "control",
+			 "GENIRACK_ILOIP"     => "control-ilo");
+
+	foreach my $name (keys(%local_dns)) {
+	    next
+		if (!exists($configvars{$name}));
+
+	    my $hostname = $local_dns{$name};
+	    my $ip = $configvars{$name};
+	    my ($a,$b,$c,$num) = split(/\./, $ip);
+	    $reversedots = "${c}.${b}.${a}";
+	    
+	    push(@forward_strings, "$hostname\tIN\tA\t$ip");
+	    push(@reverse_strings, "$num\tIN\tPTR\t${hostname}.${OURDOMAIN}.");
+	}
+	my $FORWARDFRAGMENT1 = "$NAMED_DIR/${OURDOMAIN}.internal.db.local";
+	my $FORWARDFRAGMENT2 = "$NAMED_DIR/${OURDOMAIN}.db.local";
+	my $REVERSEFRAGMENT  = "$NAMED_DIR/reverse/${reversedots}.db.local";
+	Phase "forward1", "Creating $FORWARDFRAGMENT1", sub {
+	    DoneIfExists($FORWARDFRAGMENT1);
+	    CreateFileFatal($FORWARDFRAGMENT1, @forward_strings);
+	};
+	Phase "forward2", "Creating $FORWARDFRAGMENT2", sub {
+	    DoneIfExists($FORWARDFRAGMENT2);
+	    CreateFileFatal($FORWARDFRAGMENT2, @forward_strings);
+	};
+	Phase "reverse", "Creating $REVERSEFRAGMENT", sub {
+	    DoneIfExists($REVERSEFRAGMENT);
+	    CreateFileFatal($REVERSEFRAGMENT, @reverse_strings);
+	};
 	PhaseSucceed("Rack Setup Done");
     };
     return 0;
