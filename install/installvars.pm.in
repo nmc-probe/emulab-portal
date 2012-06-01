@@ -212,6 +212,7 @@ $ALIASES_FILE           = "/etc/mail/aliases";
 $VARRUN			= "/var/run";
 $RCDIR			= "/usr/local/etc/rc.d";
 $NAMED_DIR		= "/etc/namedb";
+$RESOLVECONF		= "/etc/resolv.conf";
 $FSTAB			= "/etc/fstab";
 $RCCONF			= "/etc/rc.conf";
 $HOSTS			= "/etc/hosts";
