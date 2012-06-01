@@ -20,7 +20,7 @@
 <attribute name="attr_string_delay_osid">  <value>emulab-ops,FBSD82-STD</value></attribute>
 <attribute name="attr_integer_delay_capacity">  <value>1</value></attribute>
 <attribute name="attr_string_diskloadmfs_osid">  <value>emulab-ops,FRISBEE-MFS</value></attribute>
-<attribute name="attr_string_jail_osid">  <value>emulab-ops,FEDORA15-STD</value></attribute></value></attribute>
+<attribute name="attr_string_jail_osid">  <value>emulab-ops,FEDORA15-STD</value></attribute>
 <attribute name="attr_float_disksize">  <value>476.908</value></attribute>
 <attribute name="attr_string_disktype">  <value>da</value></attribute>
 <attribute name="attr_integer_frequency">  <value>2666</value></attribute>
