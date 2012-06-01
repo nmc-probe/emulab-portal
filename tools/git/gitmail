@@ -1233,19 +1233,18 @@ sub get_summary($) {
     my ($rev) = @_;
     # I would imagine there's a less hacky way to get the summary of one
     # commit? 'git show' insists on printing the diff, though
-    my $revs = "'$rev~'..'$rev'";
     my $oneliner;
     if ($summary_style eq "hashes") {
-        $oneliner = `$GIT log --oneline $revs`;
+        $oneliner = `$GIT show -s --oneline $rev`;
     } elsif ($summary_style eq "bare") {
-        $oneliner = `$GIT log --format='format:%s' $revs`;
+        $oneliner = `$GIT show -s --format='format:%s' $rev`;
     } elsif ($summary_style eq "list") {
-        $oneliner = `$GIT log --format='format: - %s' $revs`;
+        $oneliner = `$GIT show -s --format='format: - %s' $rev`;
     } elsif ($summary_style eq "name") {
-        $oneliner = `$GIT log --format='format:%cN: %s' $revs`;
+        $oneliner = `$GIT show -s --format='format:%cN: %s' $rev`;
     } else {
         warn "gitmail: Bad summary style '$summary_style'\n";
-        $oneliner = `$GIT log --oneline $revs`;
+        $oneliner = `$GIT log --oneline $rev`;
     }
     chomp $oneliner;
     return substr($oneliner,0,72);
