@@ -67,9 +67,11 @@ $dbresult = DBQueryFatal("select v.node_id, v.iface, v.bandwidth ".
 			 "left join reserved as r on v.node_id=r.node_id ".
 			 "where r.erole='sharedhost'");
 while (my ($node, $iface, $bw) = $dbresult->fetchrow_array) {
-    my $key = "$node:$iface";
-    if (exists($iface_bw{$key})) {
-	$iface_bw{$key} -= $bw;
+    if (defined($iface)) {
+	my $key = "$node:$iface";
+	if (exists($iface_bw{$key})) {
+	    $iface_bw{$key} -= $bw;
+	}
     }
 }
 
