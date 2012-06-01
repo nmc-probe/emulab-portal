@@ -92,6 +92,22 @@ sub Install($$$)
 	    UpdateFileFatal($RCCONF, \@patterns, @strings);
 	};
 
+	#
+	# Add named forwarders to resolv.conf to avoid failures
+	# during boot. 
+	#
+	if (defined($configvars{"NAMED_FORWARDERS"})) {
+	    my $forwarders = $configvars{"NAMED_FORWARDERS"};
+	    my @forwarders = split(/\s+/, $forwarders);
+	    if (@forwarders) {
+		@forwarders = map {"nameserver $_"} @forwarders;
+		
+		Phase "resolve", "Adding named forwarders to resolv.conf", sub {
+		    DoneIfEdited($RESOLVECONF);
+		    AppendToFileFatal($RESOLVECONF, @forwarders);
+		};
+	    }
+	}
 	PhaseSucceed("Rack Setup Done");
     };
     return 0;
