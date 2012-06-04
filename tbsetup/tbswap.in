@@ -974,11 +974,11 @@ sub doSwapin($) {
 	# that did not boot.
 	#
 	my $exitcode;
-	my $cmd = "$wrapper";
-	if (EmulabFeatures->FeatureEnabled("NewMapper",
+	my $cmd = "$mapper";
+	if (EmulabFeatures->FeatureEnabled("OldMapper",
 					   $this_user, $group, $experiment) ||
 	    $this_user->stud() || $experiment->virtnode_count()) {
-	    $cmd = "$mapper";
+	    $cmd = "$wrapper";
 	}
 	$cmd .= " -f"
 	    if ($type == RETRY);
