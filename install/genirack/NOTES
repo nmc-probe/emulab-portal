@@ -92,7 +92,7 @@ Need the following info:
   have multiple DHCP servers running since that would confuse boss.
   Login to the control node as root.
 
-	/usr/sbin/dhcpd -4 -cf /etc/dhcp/dhcpd.conf xenbr2 xenbr3
+	/usr/sbin/dhcpd -4 -cf /etc/dhcp/dhcpd.conf xenbr1 xenbr2
 
   Now power on the experimental switch, and power cycle the control
   switch so that it will restart its dhcp cycle. You will lose
