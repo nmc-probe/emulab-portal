@@ -11,16 +11,11 @@
 <attribute name="isgeninode">  <value>0</value></attribute>
 <attribute name="isfednode">  <value>0</value></attribute>
 <attribute name="isswitch">  <value>0</value></attribute>
-<attribute name="attr_string_adminmfs_osid">  <value>emulab-ops,FREEBSD-MFS</value></attribute>
 <attribute name="attr_integer_bios_waittime">  <value>120</value></attribute>
 <attribute name="attr_integer_bootdisk_unit">  <value>0</value></attribute>
 <attribute name="attr_string_control_interface">  <value>eth0</value></attribute>
 <attribute name="attr_integer_control_network">  <value>0</value></attribute>
-<attribute name="attr_string_default_osid">  <value>emulab-ops,FEDORA15-STD</value></attribute>
-<attribute name="attr_string_delay_osid">  <value>emulab-ops,FBSD82-STD</value></attribute>
 <attribute name="attr_integer_delay_capacity">  <value>1</value></attribute>
-<attribute name="attr_string_diskloadmfs_osid">  <value>emulab-ops,FRISBEE-MFS</value></attribute>
-<attribute name="attr_string_jail_osid">  <value>emulab-ops,FEDORA15-STD</value></attribute>
 <attribute name="attr_float_disksize">  <value>476.908</value></attribute>
 <attribute name="attr_string_disktype">  <value>da</value></attribute>
 <attribute name="attr_integer_frequency">  <value>2666</value></attribute>
@@ -34,7 +29,6 @@
 <attribute name="attr_integer_trivlink_maxspeed">  <value>1000000</value></attribute>
 <attribute name="attr_integer_virtnode_capacity">  <value>100</value></attribute>
 <attribute name="attr_integer_virtnode_disksize">  <value>4096</value></attribute>
-<attribute name="attr_string_default_imageid">  <value>emulab-ops:FBSD82-STD,emulab-ops:FEDORA15-STD</value></attribute>
 <attribute name="attr_boolean_has_management_iface">  <value>1</value></attribute>
 <attribute name="attr_string_management_iface_type">  <value>ilo</value></attribute>
 <attribute name="attr_boolean_add_management_iface">  <value>1</value></attribute>

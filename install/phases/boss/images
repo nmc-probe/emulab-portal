@@ -103,6 +103,22 @@ sub Install($$$)
 	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
 			   "'$DEFAULTIMAGESITEVAR' '$idlist'");
 	};
+
+	if ($PROTOGENI_GENIRACK) {
+	    #
+	    # Load up second half of the nodetype, which defines the osids
+	    # and images it needs, which has to be done after the above.
+	    #
+	    my $NODETYPE     = "dl360";
+	    my $CREATETYPE   = "$PREFIX/bin/editnodetype";
+	    my $NODETYPEXML  = "$TOP_SRCDIR/install/genirack/nodetypeB.xml";
+	    
+	    Phase "nodetype", "Creating Protogeni nodetype", sub {
+		ExecQuietFatal("$SUDO -u $PROTOUSER ".
+			       "         $WAP $CREATETYPE $NODETYPEXML");
+	    };
+	}
+	
 	PhaseSucceed("done")
     };
     return 0;
