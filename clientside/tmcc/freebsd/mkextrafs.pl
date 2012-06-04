@@ -28,16 +28,18 @@ sub usage()
     print("                   even if partition is in use\n");
     print("       -2         hack: break DOS partition into two unequal (70/30)\n");
     print("                   BSD partitions and mount the first\n");
+    print("       -m         do everything but do not mount filesystem\n");
     print("Usage: mkextrafs.pl -l [-f]\n");
     print("       -l  list available partitions\n");
     print("       -f  also list inactive partitions that have non-zero type\n");
     exit(-1);
 }
-my $optlist    = "2fls:r:cn";
+my $optlist    = "2fls:r:cnm";
 my $diskopt;
 my $checkit    = 0;
 my $forceit    = 0;
 my $noinit     = 0;
+my $nomount    = 0;
 my $showonly   = 0;
 my $twoparts   = 0;
 my $debug      = 0;
@@ -97,6 +99,9 @@ if (defined($options{"r"})) {
 }
 if (defined($options{"n"})) {
     $noinit = $options{"n"};
+}
+if (defined($options{"m"})) {
+    $nomount = $options{"m"};
 }
 if (defined($options{"l"})) {
     $showonly = 1;
@@ -372,8 +377,10 @@ mysystem("cd /dev; ./MAKEDEV ${slicedev}c")
 mysystem("newfs -U -i 25000 $fsdevice");
 mysystem("echo \"$fsdevice $mountpoint ufs rw 0 2\" >> /etc/fstab");
 
-mysystem("mount $mountpoint");
-mysystem("mkdir $mountpoint/local");
+if (!$nomount) {
+    mysystem("mount $mountpoint");
+    mysystem("mkdir $mountpoint/local");
+}
 exit(0);
 
 sub mysystem($)
