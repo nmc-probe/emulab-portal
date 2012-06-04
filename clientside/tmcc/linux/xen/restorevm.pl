@@ -17,7 +17,7 @@ sub usage()
 	  "  -i   Info mode only\n";
     exit(-1);
 }
-my $optlist     = "di";
+my $optlist     = "dix";
 my $debug       = 1;
 my $infomode    = 0;
 my $VMPATH      = "/var/xen/configs";
@@ -113,8 +113,8 @@ foreach my $vif (@$ifacelist) {
     push(@newifaces, "$mac, bridge=$iface");
 }
 # XXX Ick!
-if ($vnodeid eq "boss") {
-    for (my $i = 1; $i < 4; $i++) {
+if ($vnodeid eq "boss" && !defined($options{"x"})) {
+    for (my $i = 1; $i <= 4; $i++) {
 	my $iface = "xenbr$i";
 	my $mac   = "00:00:99:98:97:0$i";
 	push(@newifaces, "mac=$mac, bridge=$iface");

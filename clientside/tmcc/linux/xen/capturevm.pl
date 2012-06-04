@@ -18,13 +18,14 @@ sub usage()
 	  "  -i   Info mode only\n";
     exit(-1);
 }
-my $optlist     = "di";
+my $optlist     = "dix:";
 my $debug       = 1;
 my $infomode    = 0;
 my $VMPATH      = "/var/emulab/vms/vminfo";
-my $EXTRAFS	= "/extrafs";
+my $EXTRAFS	= "/scratch";
 my $VGNAME	= "xen-vg";
 my $role;
+my $XMINFO;
 
 #
 # Turn off line buffering on output
@@ -57,7 +58,13 @@ usage()
 
 my $vnodeid = $ARGV[0];
 $role       = $ARGV[1] if (@ARGV == 2);
-my $XMINFO  = "$VMPATH/$vnodeid/xm.conf";
+
+if (defined($options{"x"})) {
+    $XMINFO = $options{"x"};
+}
+else {
+    $XMINFO = "$VMPATH/$vnodeid/xm.conf";
+}
 
 CreateExtraFS();
 system("mkdir $EXTRAFS/$role")
@@ -172,14 +179,24 @@ foreach my $device (keys(%diskinfo)) {
     # have a real MBR in them. 
     #
     my $opts = "";
-    if (! ($device =~ /disk/)) {
-	$opts = "-b -f";
+    if (defined($options{"x"})) {
+	if ($device =~ /sda/) {
+	    $opts = "-b";
+	}
+    }
+    else {
+	if (! ($device =~ /disk/)) {
+	    $opts = "-b -f";
+	}
     }
     if ($infomode) {
 	system("imagezip -i $opts $device");
     }
     else {
 	system("imagezip -o $opts $device $EXTRAFS/$filename");
+    }
+    if ($?) {
+	Fatal("imagezip failed");
     }
 }
 
