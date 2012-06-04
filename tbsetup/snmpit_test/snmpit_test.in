@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-LGPL
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -516,26 +516,6 @@ if ($pid && $eid) {
     if (defined($this_user) && !$opt{f} && 
 	!$experiment->AccessCheck($this_user, TB_EXPT_MODIFY)) {
 	die "You do not have permission to modify experiment $pid/$eid\n";
-    }
-}
-#
-# See if we use the alternate version of snmpit from Rob.
-#
-if ($MAINSITE && $TB eq "/usr/testbed" && !$opt{Z}) {
-    my $group = (defined($experiment) ? $experiment->GetGroup() : undef);
-    $EmulabFeatures::verbose = 0;
-    my $newsnmpit =
-        (EmulabFeatures->FeatureEnabled("RobSnmpit",
-					$this_user, $group, $experiment));
-    if ($newsnmpit) {
-	# Rob, change this path:
-	my $newpath = "$TB/bin/snmpit";
-	print STDERR "Invoking alternate snmpit from $newpath\n";
-	
-        unshift(@SAVEARGV, "-Z");
-	exec $newpath, @SAVEARGV;
-	die("*** $0:\n".
-	    "    Could not exec $newpath: $!");
     }
 }
 

@@ -1,0 +1,60 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-LGPL
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+# This now a frontend to run the proper version.
+#
+use English;
+use Getopt::Long;
+use strict;
+
+#
+# Configure variables
+#
+my $TB = '@prefix@';
+
+# This is all we need for a front end.
+use lib '@prefix@/lib';
+use User;
+use libtestbed;
+use EmulabFeatures;
+
+#
+# See if we use the alternate version of snmpit. Only user and
+# global checks are done. 
+#
+my $this_user;
+
+if ($UID) {
+    $this_user = User->ThisUser();
+    if (! defined($this_user)) {
+	die("*** $0:\n".
+	    "    You ($UID) do not exist!\n");
+    }
+}
+
+# Lets not bother (or worry) people.
+$EmulabFeatures::verbose = 0;
+
+if (EmulabFeatures->FeatureEnabled("AncientSnmpit",
+				   $this_user, undef, undef)) {
+    my $newpath = "$TB/bin/snmpit_ancient";
+    print STDERR "Invoking alternate snmpit from $newpath\n";
+    exec $newpath, @ARGV;
+    die("*** $0:\n".
+	"    Could not exec $newpath: $!");
+}
+
+if (EmulabFeatures->FeatureEnabled("OldSnmpit", $this_user, undef, undef)) {
+    my $newpath = "$TB/bin/snmpit_old";
+    print STDERR "Invoking alternate snmpit from $newpath\n";
+    exec $newpath, @ARGV;
+    die("*** $0:\n".
+	"    Could not exec $newpath: $!");
+}
+my $newpath = "$TB/bin/snmpit_test";
+exec $newpath, @ARGV;
+die("*** $0:\n".
+    "    Could not exec $newpath: $!");
