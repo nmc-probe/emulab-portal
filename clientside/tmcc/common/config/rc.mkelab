@@ -1150,6 +1150,7 @@ sub SetupOpsNode($)
 {
     my ($isfs) = @_;
     my $shareslice;
+    my $sharefsdev;
     my $FSDIR = "";
 
     my $fromscratch =
@@ -1168,31 +1169,59 @@ sub SetupOpsNode($)
 	SetupTBDir($TBDIR);
     }
     if ($isfs) {
+	#
+	# Look for a specified /share, otherwise do the -2 trick to
+	# split $FSDIR
+	#
+	$sharefsdev = FindExtraFSConfig("/share");
+	if ($sharefsdev) {
+	    #
+	    # Use the nomount option, since we might already have /share
+	    # NFS mounted. See below.
+	    #
+	    mysystem("$BINDIR/mkextrafs.pl -m -s 0 -r $sharefsdev -f /share");
+	    $shareslice = "/dev/${sharefsdev}s1e";
+	}
 	$FSDIR = $FSMOUNTDIR;
 	RecreateDir("$FSDIR", 1);
 	my $fsdev = FindExtraFSConfig($FSDIR);
 	if ($fsdev) {
-	    mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f -2 $FSDIR");
-	    $shareslice = "/dev/$fsdev" . "s1f";
+	    my $opt = (!defined($sharefsdev) ? "-2" : "");
+	    
+	    mysystem("$BINDIR/mkextrafs.pl -s 0 -r $fsdev -f $opt $FSDIR");
+	    $shareslice = "/dev/$fsdev" . "s1f"
+		if (!defined($sharefsdev));
 	}
 	else {
-	    mysystem("$BINDIR/mkextrafs.pl -f -2 $FSDIR");
+	    my $opt = (!defined($sharefsdev) ? "-2" : "");
 
-	    #
-	    # XXX mkextrafs does not create the second filesystem, it only
-	    # creates the BSD partition.  So we need to determine the
-	    # name of the disk device in use, and create a filesystem
-	    # on that 'f' partition.
-	    #
-	    my $disk = `mount | grep '0s4e on $FSDIR'`;
-	    if ($disk =~ /(\/dev\/\S+)s4e on/) {
-		$shareslice = "$1" . "s4f";
-	    } else {
-		SetupFatal("Could not parse mount info to find extra partition");
+	    mysystem("$BINDIR/mkextrafs.pl -f $FSDIR");
+
+	    if (!defined($sharefsdev)) {
+		#
+		# XXX mkextrafs does not create the second filesystem, it only
+		# creates the BSD partition.  So we need to determine the
+		# name of the disk device in use, and create a filesystem
+		# on that 'f' partition.
+		#
+		my $disk = `mount | grep '0s4e on $FSDIR'`;
+		if ($disk =~ /(\/dev\/\S+)s4e on/) {
+		    $shareslice = "$1" . "s4f";
+		} else {
+		    SetupFatal("Could not parse mount info to find ".
+			       "extra partition");
+		}
 	    }
 	}
-	# don't mount it yet, just remember
-	mysystem("newfs $shareslice");
+	#
+	# If we used -2 above, then need to add the fstab entry and
+	# run newfs cause mkextrafs does not do that. But do not mount
+	# yet since we probably have a /share nfs mounted. See below.
+	#
+	if (!defined($sharefsdev)) {
+	    mysystem("newfs $shareslice");
+	    mysystem("echo '$shareslice $FSDIR/share ufs rw 0 2' >>/etc/fstab");
+	}
     }
 
     #
@@ -1425,11 +1454,16 @@ sub SetupOpsNode($)
 	mysystem("ln -s $FSDIR/groups /groups");
 
 	#
-	# Setup /share.  The partition and filesystem were created above.
+	# Mount /share. The partition and filesystem were created above.
 	#
-	mysystem("mount $shareslice $FSDIR/share");
-	mysystem("echo \"$shareslice $FSDIR/share ufs rw 0 2\" >> /etc/fstab");
-	mysystem("ln -s $FSDIR/share /share");
+	if (defined($sharefsdev)) {
+	    mysystem("mkdir /share");
+	    mysystem("mount /share");
+	}
+	else {
+	    mysystem("mount $FSDIR/share");
+	    mysystem("ln -s $FSDIR/share /share");
+	}
     }
 
     #
