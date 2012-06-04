@@ -976,8 +976,7 @@ sub doSwapin($) {
 	my $exitcode;
 	my $cmd = "$mapper";
 	if (EmulabFeatures->FeatureEnabled("OldMapper",
-					   $this_user, $group, $experiment) ||
-	    $this_user->stud() || $experiment->virtnode_count()) {
+					   $this_user, $group, $experiment)) {
 	    $cmd = "$wrapper";
 	}
 	$cmd .= " -f"
