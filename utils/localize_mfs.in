@@ -304,7 +304,14 @@ sub LocalizeLinux($)
     my $initfs   = "initramfs";
 
     if ($extension eq "lzma") {
-	$compression = "lzma";
+	if (-x "/usr/bin/lzma") {
+	    $compression = "lzma";
+	} elsif (-x "/usr/local/bin/lzma") {
+	    $compression = "/usr/local/bin/lzma";
+	} else {
+	    fatal("Cannot find lzma command; ".
+		  "you may need to install the archivers/xz port");
+	}
     }
     elsif ($extension eq "bz2") {
 	$compression = "bzip2";
@@ -322,7 +329,7 @@ sub LocalizeLinux($)
     
     # Extract
     if (defined($compression)) {
-	ExecQuiet("$compression -dc | cpio -idu < ../${initfs}.${extension}")
+	ExecQuiet("$compression -dc < ../${initfs}.${extension} | cpio -idu")
 	    == 0 or fatal("Could not extract ${initfs}.${extension}");
     }
     else {
@@ -333,41 +340,46 @@ sub LocalizeLinux($)
     #
     # Okay, now we can localize
     #
-    if (! -e "$mpoint/root/.ssh" &&
-	ExecQuiet("$MKDIR -m 700 $mpoint/root/.ssh")) {
+    if (! -e "root/.ssh" &&
+	ExecQuiet("$MKDIR -m 700 root/.ssh")) {
 	goto bad;
     }
     if ($ELABINELAB &&
 	# Combine with outer boss root user ssh keys.
-	ExecQuiet("$CAT $AUTHKEYS > $mpoint/root/.ssh/authorized_keys")) {
+	ExecQuiet("$CAT $AUTHKEYS > root/.ssh/authorized_keys")) {
 	goto bad;
     }
     # And add the current boss root user ssh keys.
-    if (ExecQuiet("$CAT /root/.ssh/*.pub >> $mpoint/root/.ssh/authorized_keys") ||
-	ExecQuiet("$CHMOD 600 $mpoint/root/.ssh/authorized_keys")) {
+    if (ExecQuiet("$CAT /root/.ssh/*.pub >> root/.ssh/authorized_keys") ||
+	ExecQuiet("$CHMOD 600 root/.ssh/authorized_keys")) {
 	goto bad;
     }
     # Boss certificate. Need emulab.pem for TPM. 
-    ExecQuiet("$CP -p $ETCDIR/emulab.pem $ETCDIR/client.pem $mpoint/etc/emulab")
+    ExecQuiet("$CP -p $ETCDIR/emulab.pem $ETCDIR/client.pem etc/emulab")
 	== 0 or goto bad;
     # All MFSs and images get the same ssh host keys.
-    ExecQuiet("$CP -p $IMAGEKEYS_DIR/* $mpoint/etc/ssh")
+    ExecQuiet("$CP -p $IMAGEKEYS_DIR/* etc/ssh")
 	== 0 or goto bad;
     # Copy boss timezone into the MFS.
-    ExecQuiet("$CP -p $ZONEINFO/$OURTIMEZONE $mpoint/etc/localtime")
+    ExecQuiet("$CP -p $ZONEINFO/$OURTIMEZONE etc/localtime")
 	== 0 or goto bad;
 
     # And the root/toor passwords.
+    my $pfile = "etc/shadow";
+    if (! -e "$pfile") {
+	$pfile = "etc/passwd";
+    }
+
     ExecQuiet("$SED -i .orig -e 's,^root:\([^:]*\),root:$passhash,' ".
 	      "              -e 's,^toor:\([^:]*\),toor:$passhash,' ".
-	      "     $mpoint/etc/shadow")
+	      "     $pfile")
 	== 0 or goto bad;
 
     #
     # Mark as "localized". This tells slicefix that it should copy all
     # the above stuff into the image.
     #
-    ExecQuiet("$CP /dev/null $mpoint/.localized")
+    ExecQuiet("$CP /dev/null .localized")
 	== 0 or goto bad;
 
     #
@@ -390,6 +402,9 @@ sub LocalizeLinux($)
 	ExecQuiet("$MV -f ../${initfs}.new ../${initfs}")
 	    == 0 or fatal("Could not rename new ${initfs}");
     }
+
+    chdir("..") or
+	    fatal("Could not chdir out of $mpoint directory");
     system("$RM -rf $mpoint")
 	if (!$debug);
     
