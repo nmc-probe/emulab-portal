@@ -1414,9 +1414,9 @@ sub doSwapin($) {
     TBDebugTimeStamp("launching os_setup");
     if (!($os_setup_pid = fork())) {
 	my $oscmd = "os_setup";
-	if (EmulabFeatures->FeatureEnabled("NewOsSetup",
+	if (EmulabFeatures->FeatureEnabled("OldOsSetup",
 					   $this_user, $group, $experiment)) {
-	    $oscmd = "os_setup_new";
+	    $oscmd = "os_setup_old";
 	}
 	exec("$oscmd $pid $eid") or return 1;
     } elsif ($os_setup_pid == -1) {
