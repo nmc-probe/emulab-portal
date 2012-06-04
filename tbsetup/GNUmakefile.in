@@ -17,15 +17,16 @@ SYSTEM         := $(shell uname -s)
 
 include $(OBJDIR)/Makeconf
 
-SUBDIRS		= checkpass ns2ir nseparse checkup template_cvsroot snmpit_test
+SUBDIRS		= checkpass ns2ir nseparse checkup template_cvsroot \
+		  snmpit_test snmpit_old
 ifeq ($(NSVERIFY),1)
 SUBDIRS		+= nsverify
 endif
 
-BIN_STUFF	= power snmpit snmpit_new tbend tbprerun tbreport \
+BIN_STUFF	= power tbend tbprerun tbreport \
 		  os_load endexp batchexp swapexp \
 		  node_reboot nscheck node_update savelogs node_control \
-		  portstats checkports eventsys_control os_select tbrestart \
+		  checkports eventsys_control os_select tbrestart \
 		  tbswap nseswap tarfiles_setup node_history tbrsync \
 		  pxe_select \
 		  archive_control template_create \
@@ -83,11 +84,9 @@ LIBEXEC_STUFF	= wanlinksolve wanlinkinfo os_setup mkexpdir console_setup \
 		  spewrpmtar webfrisbeekiller gentopofile \
                   $(WEB_BIN_SCRIPTS) $(WEB_SBIN_SCRIPTS)
 
-LIB_STUFF       = libtbsetup.pm exitonwarn.pm libtestbed.pm snmpit_intel.pm \
-                  snmpit_cisco.pm snmpit_lib.pm snmpit_apc.pm power_rpc27.pm \
-		  snmpit_cisco_stack.pm snmpit_intel_stack.pm power_sgmote.pm \
-		  snmpit_foundry.pm snmpit_stack.pm snmpit_remote.pm \
-		  snmpit_nortel.pm snmpit_hp.pm snmpit_apcon.pm\
+LIB_STUFF       = libtbsetup.pm exitonwarn.pm libtestbed.pm \
+                  power_rpc27.pm \
+		  power_sgmote.pm \
 		  libaudit.pm libreboot.pm libosload.pm libtestbed.py \
 		  libadminmfs.pm libtblog.pm libtblog_simple.pm libArchive.pm \
 		  power_mail.pm power_whol.pm Template.pm power_rmcp.pm \
@@ -155,6 +154,9 @@ ns2ir:
 snmpit_test:
 	@$(MAKE) -C snmpit_test all
 
+snmpit_old:
+	@$(MAKE) -C snmpit_old all
+
 nsverify:
 	@$(MAKE) -C nsverify all
 
@@ -210,6 +212,7 @@ ifeq ($(IPASSIGN),Yes)
 endif
 	@$(MAKE) -C checkup install
 	@$(MAKE) -C snmpit_test install
+	@$(MAKE) -C snmpit_old install
 
 script-install:	$(addprefix $(INSTALL_BINDIR)/, $(BIN_STUFF)) \
 	 $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
@@ -320,6 +323,7 @@ subdir-clean:
 	@$(MAKE) -C ipassign clean
 	@$(MAKE) -C checkup clean
 	@$(MAKE) -C snmpit_test clean
+	@$(MAKE) -C snmpit_old clean
 
 distclean:	subdir-distclean
 
@@ -332,6 +336,7 @@ subdir-distclean:
 	@$(MAKE) -C ipassign distclean
 	@$(MAKE) -C checkup distclean
 	@$(MAKE) -C snmpit_test distclean
+	@$(MAKE) -C snmpit_old distclean
 #
 # XXX Create non .tcl files.
 #
