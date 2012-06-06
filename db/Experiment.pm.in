@@ -4598,6 +4598,51 @@ sub HasGeniNodes($)
 }
 
 #
+# Does the experiment use any shared nodes.
+#
+sub HasSharedNodes($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference.
+    return -1
+	if (!ref($self));
+
+    my $idx = $self->idx();
+
+    my $query_result =
+	DBQueryFatal("select n.node_id from reserved as r ".
+		     "left join nodes as n on n.node_id=r.node_id ".
+		     "left join node_types as t on t.type=n.type ".
+		     "where r.exptidx=$idx and t.isvirtnode=1 and ".
+		     "      r.sharing_mode is not null");
+    return -1
+	if (!$query_result);
+    return $query_result->num_rows;
+}
+
+sub HasVirtNodes($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference.
+    return -1
+	if (!ref($self));
+
+    my $idx = $self->idx();
+
+    my $query_result =
+	DBQueryFatal("select n.node_id from reserved as r ".
+		     "left join nodes as n on n.node_id=r.node_id ".
+		     "left join node_types as t on t.type=n.type ".
+		     "where r.exptidx=$idx and t.isvirtnode=1");
+
+    return -1
+	if (!$query_result);
+    return $query_result->num_rows;
+}
+
+#
 # Set/Unset the lockdown bit.
 #
 sub LockDown($$)
