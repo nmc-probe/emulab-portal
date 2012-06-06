@@ -455,13 +455,6 @@ foreach $attr_name (@attr_names) {
     next
 	if $del;
 
-    # An attr to be set must pre-exist, unless it's the one new attr.
-    # (And of course, the attrs of a new_type are *all* new attrs.)
-    UserError("NodeType Attr: $attr_name is not set in nodetype $node_type!")
-	if (!$new_type && 
-	    !exists($prev_attrs->{$attr_name}) && 
-	    $attr_name ne $new_attr_name);
-
     $attr_type = $attr_types{$attr_name};
     $attr_value = $attr_values{$attr_name};
 
@@ -585,7 +578,8 @@ if ($new_type) {
 else {
     DBQueryFatal("update node_types set ".
 		 join(",", @nodetype_data) . " ".
-		 "where type='$node_type'");
+		 "where type='$node_type'")
+	if (@nodetype_data);
 
     foreach $attr_name (@attr_names) {
 	$key   = escapeshellarg($attr_name);
