@@ -8,7 +8,7 @@ use OSinfo;
 use NodeType;
 
 my $EID       = "subbossnodes";
-my $DESC      = "Holding experiment for internal vlans";
+my $DESC      = "Holding experiment for subboss nodes";
 my $SUDO      = "/usr/local/bin/sudo";
 my $BATCHEXP  = "$TBROOT/bin/batchexp";
 
