@@ -15,7 +15,8 @@ use File::Temp qw(tempfile);
 
 #
 # Checkin at the master (Utah) to see if we should download and install
-# any new images.
+# any new images. This is very ProtoGeni specific and should probably
+# not be used in other contexts unless you know what you are doing.
 #
 sub usage()
 {
@@ -38,6 +39,9 @@ sub fatal($);
 my $TB		 = "@prefix@";
 my $METAURL      = "http://www.emulab.net/genirack-imageinfo.xml";
 my $FETCH	 = "/usr/bin/fetch";
+my $SUDO         = "/usr/local/bin/sudo";
+my $PROTOUSER    = "elabman";
+my $WAP          = "$TB/sbin/withadminprivs";
 my $metadata	 = "/tmp/imageinfo-$$.xml";
 my $NEWIMAGE_EZ  = "$TB/bin/newimageid_ez";
 
@@ -50,6 +54,7 @@ use Image;
 use OSinfo;
 use libaudit;
 use EmulabConstants;
+use libEmulab;
 
 #
 # Turn off line buffering on output
@@ -61,8 +66,13 @@ $| = 1;
 # 
 $ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
 
-# Record output in case of error.
-LogStart(0, undef, LIBAUDIT_LOGTBOPS());
+#
+# When the testbed is shutdown, skip. 
+#
+if (libEmulab::IsShutDown()) {
+    print "Testbed is shutdown; exiting ...\n";
+    exit(0);
+}
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -92,6 +102,9 @@ if ($UID && !$impotent) {
     die("*** $0:\n".
 	"    Must run this as root!\n");
 }
+
+# Record output in case of error.
+LogStart(0, undef, LIBAUDIT_LOGTBOPS());
 
 #
 # Fetch the metadata, which tells what to do.
@@ -129,13 +142,16 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
 
     my $metaurl  = $attributes->{'metaurl'};
     my $imageurl = $attributes->{'imageurl'};
-    my $newhash  = $attributes->{'hash'};
+    my $hashurl  = $attributes->{'hashurl'};
+    my $newtime  = timegm(strptime($attributes->{'modtime'}));
 
     #
-    # If we have an entry in the DB, we use the hash value to 
-    # to determine if we need to download a new version.
+    # If we have an entry in the DB, we use the modtime as a serial
+    # number to determine if we need to go the next step and compare
+    # hashes.
     #
     # XXX What if the local site has its own more recent version?
+    #     Need to deal with this at some point.
     #
     # Lookup will sanity check the imageid string.
     #
@@ -144,22 +160,62 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
 	print "Local descriptor found: $image\n"
 	    if ($debug);
 
-	if (defined($image->hash()) && $newhash eq $image->hash()) {
-	    print "Image has not changed, skipping ...\n"
-		if ($debug);
-	    next;
-	}
-    }
-    print "$imageid has changed or does not exist, downloading ...\n";
+	if (defined($image->updated())) {
+	    my $updated = timelocal(strptime($image->updated()));
 
-    my ($fh, $metafilename) = tempfile(UNLINK => !$debug);
+	    if ($updated == $newtime) {
+		print "Image has not changed, skipping ...\n"
+		    if ($debug);
+		next;
+	    }
+	}
+	print "$imageid timestamp has changed. Checking hash.\n";
+    }
+    else {
+	print "$imageid does not exist.\n";
+    }
+
+    #
+    # Grab the hash file from the server.
+    #
+    my ($fh, $hashfilename) = tempfile(UNLINK => !$debug);
     fatal("Could not create temporary file")
 	if (!defined($fh));
     close($fh);
 
+    print "Fetching $hashurl\n";
+    system("$FETCH  -o $hashfilename $hashurl") == 0
+	or fatal("Could not fetch $hashurl");
+
+    my $hash = `cat $hashfilename`;
+    if ($hash =~ /^SHA1.*= (\w*)$/) {
+	$hash = $1;
+    }
+    else {
+	fatal("Could not parse the sha1 hash: '$hash'")
+    }
+
+    #
+    # If we have the image defined and the hash matches, then done.
+    #
+    if (defined($image)) {
+	if (defined($image->hash()) && $image->hash() eq $hash) {
+	    print "Image hash has not changed, skipping ...\n"
+		if ($debug);
+	    # Update the timestamp to avoid repeat.
+	    $image->MarkUpdateTime($newtime);
+	    next;
+	}
+    }
+
     #
     # Grab the metadata file
     #
+    my ($fh2, $metafilename) = tempfile(UNLINK => !$debug);
+    fatal("Could not create temporary file")
+	if (!defined($fh2));
+    close($fh2);
+
     print "Fetching $metaurl\n";
     system("$FETCH  -o $metafilename $metaurl") == 0
 	or fatal("Could not fetch $metaurl");
@@ -168,7 +224,8 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     # Load up the descriptor if we do not have it.
     #
     if (!defined($image)) {
-	system("$NEWIMAGE_EZ -a $metafilename") == 0
+	# Do this as admin cause of admin only options in the descriptor.
+	system("$SUDO -u $PROTOUSER $WAP $NEWIMAGE_EZ -a $metafilename") == 0
 	    or fatal("Could not create descriptor for $imageid");
     }
     $image = Image->Lookup(TBOPSPID(), $imageid);
@@ -193,12 +250,13 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
 	fatal("Could not generate sha1 of $tmpfilename");
     }
     chomp($filehash);
-    if ($filehash ne $newhash) {
-	fatal("Integrity check failure. $newhash ne $filehash");
+    if ($filehash ne $hash) {
+	fatal("Integrity check failure. $hash ne $filehash");
     }
 
     if ($impotent) {
 	print "Impotent mode is on; not installing the new image.\n";
+	print "Hash:$hash, time:$newtime\n";
 	next;
     }
 
@@ -214,14 +272,13 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     #
     # Now update the descriptor to reflect new hash.
     #
-    $image->SetHash($newhash) == 0
+    $image->SetHash($hash) == 0
 	or fatal("Could not update hash for $image");
 
     #
-    # Mark this too. Not sure how to handle locally updated images
-    # yet; this script is going to overwrite them. 
+    # Mark this too, so that we do not repeat the first test above.
     #
-    $image->MarkUpdateTime();
+    $image->MarkUpdateTime($newtime);
 }
 
 exit(0);
