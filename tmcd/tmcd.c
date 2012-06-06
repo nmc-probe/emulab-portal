@@ -2082,7 +2082,7 @@ COMMAND_PROTOTYPE(doifconfig)
 	 */
 	res = mydb_query("select v.unit,v.IP,v.mac,i.mac,v.mask,v.rtabid, "
 			 "       v.type,vll.vname,v.virtlanidx,vlans.tag, "
-			 "       l.lanid "
+			 "       l.lanid,rvt.tag "
 			 "  from vinterfaces as v "
 			 "left join interfaces as i on "
 			 "  i.node_id=v.node_id and i.iface=v.iface "
@@ -2092,13 +2092,15 @@ COMMAND_PROTOTYPE(doifconfig)
 			 "  l.exptidx=vll.exptidx and l.vname=vll.vname "
 			 "left join vlans on "
 			 "  vlans.id=v.vlanid "
+			 "left join reserved_vlantags as rvt on "
+			 "  rvt.lanid=v.vlanid "
 			 "left join lan_attributes as la2 on "
 			 "  la2.lanid=v.vlanid and la2.attrkey='stack' "
 			 "where v.exptidx='%d' and v.node_id='%s' and "
 			 "      (la2.attrvalue='Experimental' or "
 			 "       la2.attrvalue is null) "
 			 "      and %s",
-			 11, reqp->exptidx, reqp->pnodeid, buf);
+			 12, reqp->exptidx, reqp->pnodeid, buf);
 	if (!res) {
 		error("%s: IFCONFIG: DB Error getting veth interfaces!\n",
 		      reqp->nodeid);
@@ -2192,7 +2194,8 @@ COMMAND_PROTOTYPE(doifconfig)
 			else if (strcmp(ifacetype, "loop") == 0)
 				tag = row[10];
 			else if (strcmp(ifacetype, "vlan") == 0)
-				tag = row[9] ? row[9] : "0";
+				tag = row[9] ? row[9] :
+					row[11] ? row[11] : "0";
 
 			/* sanity check the tag */
 			if (!isdigit(tag[0])) {

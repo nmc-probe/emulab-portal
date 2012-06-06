@@ -1404,6 +1404,19 @@ sub doSwapin($) {
 		    "    savedisk=1 where pid='$pid' and eid='$eid'");
     }
 
+    #
+    # If the experiment is using virt nodes, reserve the tags
+    # now so that the VMs can boot without having to worry about
+    # the tags not being assigned yet. We can do this for all swap
+    # modes since it is harmless; snmpit does the correct thing. 
+    #
+    if ($experiment->HasVirtNodes()) {
+	system("$SNMPIT --redirect-err -A $pid $eid");
+	if ($?) {
+	    tberror("Failed to reserve VLAN tags.");
+	    return 1;
+	}
+    }
 
     #
     # Since it'll take a while for the nodes to reboot, we'll start now, and
