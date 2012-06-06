@@ -73,7 +73,11 @@ sub Install($$$)
 	    push(@strings,
 		 "syslogd_flags=\"-a " .
 		 $configvars{"GENIRACK_NETWORK"} . "/24\"");
-
+	    # Jail network.
+	    push(@strings,
+		 "ifconfig_xn0_alias0=\"inet 172.17.253.254 ".
+		 "netmask 255.240.0.0\"");
+	    
 	    #
 	    # Okay, we want to comment out a bunch of stuff.
 	    #
