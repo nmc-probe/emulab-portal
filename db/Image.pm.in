@@ -722,9 +722,9 @@ sub UnLockTables($)
 #
 # Mark the update time in the record,
 #
-sub MarkUpdateTime($)
+sub MarkUpdateTime($;$)
 {
-    my ($self) = @_;
+    my ($self, $stamp) = @_;
 
     # Must be a real reference. 
     return -1
@@ -732,8 +732,15 @@ sub MarkUpdateTime($)
 
     my $imageid = $self->imageid();
 
+    if (defined($stamp)) {
+	$stamp="FROM_UNIXTIME($stamp)";
+    }
+    else {
+	$stamp="now()";
+    }
+
     return -1
-	if (! DBQueryWarn("update images set updated=now() " .
+	if (! DBQueryWarn("update images set updated=$stamp " .
 			  "where imageid='$imageid'"));
 
     return 0;
