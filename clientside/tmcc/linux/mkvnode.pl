@@ -881,6 +881,9 @@ sub MyFatal($)
     $leaveme = $LEAVEME_REBOOT
 	if ($rebooting && !$running);
 
+    TBDebugTimeStampsOn()
+	if ($debug);
+    
     CleanupVM();
     die("*** $0:\n".
 	"    $msg\n");
