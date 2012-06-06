@@ -1,7 +1,7 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -746,7 +746,8 @@ if ($query_result->numrows) {
     # node_id if vnode_id==NULL and a vnode with vnode_id if vnode_id!=NULL.
     #
     $query_result =
-	DBQueryFatal("select v.member,v.vname,i.mac,vi.mac,vi.type,l.iface,v.nobwshaping".
+	DBQueryFatal("select v.member,v.vname,i.mac,vi.mac,vi.type,l.iface,".
+		     "       v.nobwshaping,lans.type,v.encap_style ".
 		     " from reserved as r join virt_lans as v".
 		     " left join interfaces as i".
 		     "  on v.ip=i.IP and r.node_id=i.node_id".
@@ -758,11 +759,15 @@ if ($query_result->numrows) {
 		     "    (vi.vnode_id is NULL and r.node_id=vi.node_id".
 		     "      or".
 		     "    vi.vnode_id is not NULL and r.node_id=vi.vnode_id)".
+		     "left join lans on ".
+		     "          lans.exptidx=v.exptidx and ".
+		     "          lans.vname=v.vname ".
 		     " where".
 		     "  r.pid=v.pid and r.eid=v.eid and r.vname=v.vnode and".
 		     "  r.pid='$pid' and r.eid='$eid'");
     if ($query_result->numrows) {
-	while (my ($memb,$vlan,$imac,$vmac,$vtype,$iface,$noshape) =
+	while (my ($memb,$vlan,$imac,$vmac,$vtype,$iface,$noshape,
+		   $lantype,$encap_style) =
 	       $query_result->fetchrow_array) {
 	    $vlan = getRoot($vlan);
 	    if (exists($virt_lans{$vlan}->{"MEMBERS"}->{$memb})) {
@@ -774,7 +779,13 @@ if ($query_result->numrows) {
 		    } else {
 			$member->{"encap"} = "none";
 		    }
-		} else {
+		}
+		elsif (defined($lantype) && $lantype eq "tunnel") {
+		    $member->{"encap"} = $encap_style;
+		    # XXX Be nice to have this.
+		    $member->{"mac"} = undef;
+		}
+		else {
 		    $member->{"mac"} = $imac;
 		    $member->{"encap"} = "none";
 		}
@@ -819,8 +830,14 @@ if ($havepmap) {
 
 	    my $mac0 = $member0->{"mac"};
 	    if (!defined($mac0)) {
-		print $LTPOUT "E No link info found for $vlan/$memb0\n";
-		next;
+		if (0) {
+		    print $LTPOUT "E No link info found for $vlan/$memb0\n";
+		    next;
+		}
+		else {
+		    # Lets not confuse the ptop parser. 
+		    $mac0 = "000000000000";
+		}
 	    }
 	    my $encap0 = $member0->{"encap"};
 	    my $dstyle0 = $member0->{"dstyle"};
