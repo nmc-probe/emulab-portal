@@ -1747,6 +1747,7 @@ CREATE TABLE `images` (
   `auth_key` varchar(512) default NULL,
   `decryption_key` varchar(256) default NULL,
   `hash` varchar(64) default NULL,
+  `locked` datetime default NULL,
   PRIMARY KEY  (`imageid`),
   UNIQUE KEY `pid` (`pid`,`imagename`),
   KEY `gid` (`gid`),

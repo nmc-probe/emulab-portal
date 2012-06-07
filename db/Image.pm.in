@@ -136,6 +136,7 @@ sub mbr_version($)      { return field($_[0], "mbr_version"); }
 sub access_key($)       { return field($_[0], "access_key"); }
 sub uuid($)             { return field($_[0], "uuid"); }
 sub hash($)             { return field($_[0], "hash"); }
+sub locked($)           { return field($_[0], "locked"); }
 
 #
 # Get a list of all running frisbee images.
@@ -768,19 +769,68 @@ sub SetHash($$)
 }
 
 #
-# Get the type list.
+# Lock and Unlock
 #
-sub TypeList($)
+sub Lock($)
 {
     my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+    return -1
+	if (!DBQueryWarn("lock tables images write"));
+
+    my $imageid = $self->imageid();
+
+    my $query_result =
+	DBQueryWarn("update images set locked=now() " .
+		    "where imageid='$imageid' and locked is null");
+
+    if (! $query_result ||
+	$query_result->numrows == 0) {
+	DBQueryWarn("unlock tables");
+	return -1;
+    }
+    DBQueryWarn("unlock tables");
+    $self->{'IMAGE'}->{'locked'} = time();
+    return 0;
+}
+
+sub Unlock($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid   = $self->imageid();
+
+    return -1
+	if (! DBQueryWarn("update images set locked=null " .
+			  "where imageid='$imageid'"));
+    
+    $self->{'IMAGE'}->{'locked'} = 0;
+    return 0;
+}
+
+#
+# Get the type list.
+#
+sub TypeList($;$)
+{
+    my ($self, $osinfo) = @_;
     require NodeType;
 
     my @result  = ();
     my $imageid = $self->imageid();
+    my $clause  = (defined($osinfo) ?
+		   "and osid='" . $osinfo->osid() . "'" : "");
 
     my $query_result =
 	DBQueryWarn("select distinct type from osidtoimageid ".
-		    "where imageid='$imageid'");
+		    "where imageid='$imageid' $clause");
     return undef
 	if (!defined($query_result));
 

@@ -50,7 +50,7 @@ sub usage()
 	  "<node>      - nodeid to create the image from\n");
     exit(-1);
 }
-my $optlist  = "p:wsNd";
+my $optlist  = "p:wsNdf";
 my $waitmode = 0;
 my $usessh = 0;
 my $usenfs = 0;
@@ -108,10 +108,12 @@ my $devtype;
 my $devnum;
 my $mereuser    = 0;
 my $debug       = 0;
+my $foreground  = 0;
 my $imagepid    = TB_OPSPID;
 my $logfile;
 my $oldlogfile;
 my $needcleanup = 0;
+my $needunlock  = 0;
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -140,6 +142,9 @@ if (defined($options{"N"})) {
 if (defined($options{"d"})) {
     $debug = 1;
     $waitmode = 0;
+}
+if (defined($options{"f"})) {
+    $foreground = 1;
 }
 if (@ARGV != 2) {
     usage();
@@ -339,27 +344,32 @@ if (! TBValidUserDir($filename, 0)) {
 }
 
 #
+# Before we do anything destructive, we lock the descriptor.
+#
+if ($image->Lock()) {
+    die("*** $0:\n".
+	"    Image is locked, try again later!\n");
+}
+$needunlock = 1;
+
+#
 # Be sure to kill off running frisbee. If a node is trying to load that
 # image, well tough. 
 #
 system("$friskiller -k $imageid");
 if ($?) {
-    die("*** $0:\n".
-	"    Could not kill running frisbee for $imageid!\n");
+    fatal("Could not kill running frisbee for $imageid!");
 }
 
 if (-e $filename) {
     unlink($filename) or
-	die("*** $0:\n".
-	    "    Could not delete $filename: $!\n");
+	fatal("Could not delete $filename: $!");
 }
 
 open(FILE, "> $filename") or
-    die("*** $0:\n".
-	"    Could not create $filename: $!\n");
+    fatal("Could not create $filename: $!");
 close(FILE) or
-    die("*** $0:\n".
-	"    Could not truncate $filename: $!\n");
+    fatal("Could not truncate $filename: $!");
 
 #
 # Get the disktype for this node
@@ -378,8 +388,7 @@ my $device = "/dev/${devtype}${devnum}";
 # revision of the testbed image it was based off.
 #
 $image->MarkUpdateTime() == 0 or
-    die("*** $0:\n".
-	"    Could not mark the update time in $image\n");
+    fatal("Could not mark the update time in $image");
     
 #
 # Okay, we want to build up a command line that will run the script on
@@ -410,7 +419,7 @@ if ($usefup || $usessh) {
 #
 # Go to the background since this is going to take a while.
 # 
-if (!$debug) {
+if (! ($debug || $foreground)) {
     $logfile = Logfile->Create($experiment->gid_idx());
     fatal("Could not create a logfile")
 	if (!defined($logfile));
@@ -456,10 +465,11 @@ if (!$debug) {
 }
 
 #
-# When in waitmode, must put ourselves in another process group so that
-# an interrupt to the parent will not have any effect on the backend.
+# New process group since we get called from the web interface,
+# and so the child does not get zapped if the user types ^C
+# in waitmode. 
 #
-if ($waitmode) {
+if (! ($debug || $foreground)) {
     POSIX::setsid();
 }
 
@@ -674,6 +684,7 @@ if (defined($logfile)) {
 	if (defined($oldlogfile));
     $logfile->Delete(1);
 }
+$image->Unlock();
 exit 0;
 
 sub cleanup ()
@@ -737,6 +748,8 @@ sub fatal($)
 	# This was mailed so no longer needed.
 	unlink("$logfile->filename()");
     }
+    $image->Unlock()
+	if ($needunlock);
     exit(-1);
 }
 
@@ -901,3 +914,4 @@ sub run_with_ssh($$)
 
     return $stat;
 }
+
