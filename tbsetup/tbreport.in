@@ -1,4 +1,4 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 
 #
 # EMULAB-COPYRIGHT
@@ -452,7 +452,7 @@ if ($showlinks) {
 			 "order by v.vname,v.member");
 
 	while (my %row = $link_result->fetchhash()) {
-	    my $ip          = $row{"ip"};
+	    my $ip          = $row{"IP"};
 	    my $mac         = $row{"mac"};
 	    my $lan         = $row{"vname"};
 	    my $vnode       = $row{"vnode"};
@@ -462,8 +462,8 @@ if ($showlinks) {
 
 	    # Do not bother if no info.
 	    next
-		if (!defined($iface));
-	    
+		if (!defined($ip));
+
 	    if ($mac =~ /^(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})$/) {
 		$mac = "$1:$2:$3:$4:$5:$6";
 	    }
