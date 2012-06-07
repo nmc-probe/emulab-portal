@@ -124,7 +124,7 @@ if (defined($options{"i"})) {
     }
     $project = Project->Lookup($imagepid);
     if (!defined($project)) {
-	die("*** $:\n".
+	die("*** $0:\n".
 	    "    No such project $imagepid!\n");
     }
     # This is untainted.
@@ -133,7 +133,7 @@ if (defined($options{"i"})) {
     # Look up image in project.
     $image = Image->Lookup($imagepid, $options{"i"});
     if (!defined($image)) {
-	die("*** $:\n".
+	die("*** $0:\n".
 	    "    No such image!\n");
     }
     # This is untainted.
@@ -142,7 +142,7 @@ if (defined($options{"i"})) {
 elsif (defined($options{"m"})) {
     $image = Image->Lookup($options{"m"});
     if (!defined($image)) {
-	die("*** $:\n".
+	die("*** $0:\n".
 	    "    No such image!\n");
     }
     # This is untainted.
@@ -158,7 +158,7 @@ if (defined($options{"e"})) {
 
     $experiment = Experiment->Lookup($options{"e"});
     if (!defined($experiment)) {
-	die("*** $:\n".
+	die("*** $0:\n".
 	    "    No such experiment!\n");
     }
     @nodes = $experiment->NodeList();
