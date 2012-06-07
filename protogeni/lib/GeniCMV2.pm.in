@@ -68,6 +68,8 @@ my $TARFILES_SETUP = "$TB/bin/tarfiles_setup";
 my $MAPPER         = "$TB/bin/mapper";
 my $VTOPGEN        = "$TB/bin/vtopgen";
 my $SNMPIT         = "$TB/bin/snmpit";
+my $CLONEIMAGE     = "$TB/sbin/clone_image";
+my $CREATEIMAGE    = "$TB/bin/create_image";
 my $XMLLINT	   = "/usr/local/bin/xmllint";
 my $PRERENDER      = "$TB/libexec/vis/prerender";
 my $EMULAB_PEMFILE = "@prefix@/etc/genicm.pem";
@@ -2227,6 +2229,138 @@ sub InjectEvent($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+}
+
+#
+# Emulab specific function to create an image from a node.
+#
+sub CreateImage($)
+{
+    my ($argref) = @_;
+    my $slice_urn    = $argref->{'slice_urn'};
+    my $credentials  = $argref->{'credentials'};
+    my $imagename    = $argref->{'imagename'};
+    my $sliver_urn   = $argref->{'sliver_urn'};
+    my $wholedisk    = 0;
+
+    require Image;
+    
+    if (! (defined($credentials) && defined($imagename) &&
+	   defined($slice_urn) && defined($sliver_urn))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if (! ($imagename =~ /^[-\w]*$/)) {
+	return GeniResponse->MalformedArgsResponse("Improper name argument");
+    }
+    $wholedisk = 1
+	if (exists($argref->{'wholedisk'}) && $argref->{'wholedisk'});
+    
+    my $credential = CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my ($slice, $aggregate) = Credential2SliceAggregate($credential);
+    return $slice
+	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    if (! (defined($slice) && defined($aggregate))) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Slice does not exist");
+    }
+    if ($slice_urn ne $slice->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+				    "Credential does not match the URN");
+    }
+    my $sliver = GeniSliver->Lookup($sliver_urn);
+    if (!defined($sliver)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Sliver does not exist");
+    }
+    if ($sliver->slice_uuid() ne $slice->uuid()) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Sliver is not in slice");
+    }
+    my $status;
+    if ($sliver->ComputeStatus(\$status)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Could not compute status for sliver");
+    }
+    if ($status ne "ready") {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "sliver is not ready");
+    }
+    my $node_id = $sliver->resource_id();
+    my $node = Node->Lookup($node_id);
+    if (!defined($node)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "No node for sliver urn");
+    }
+    my $experiment = $slice->GetExperiment();
+    if (!defined($experiment)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "No local experiment for slice");
+    }
+    my $pid = $experiment->pid();
+    if (! $experiment->SameExperiment($node->Reservation())) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Node is not in the proper experiment");
+    }
+    #
+    # Lock the slice; we do not the user to mess with things.
+    #
+    if ($slice->Lock() != 0) {
+	return GeniResponse->BusyResponse();
+    }
+    my $opt = ($wholedisk ? "-e" : "");
+
+    my $output =
+	GeniUtil::ExecQuiet("$CLONEIMAGE $opt -s -d $imagename $node_id");
+    # Not a typical op, so always print debugging info;
+    print STDERR $output;
+    if ($?) {
+	$slice->UnLock();
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
+    }
+    
+    #
+    # Make sure we can get the image descriptor.
+    #
+    my $image = Image->Lookup($experiment->pid(), $imagename);
+    if (!defined($image)) {
+	$slice->UnLock();
+	print STDERR "Cannot lookup descriptor for $imagename\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+
+    #
+    # We used the -s (nosnapshot) option above, to get the descriptor
+    # built, so now run create_image so that we can capture its output.
+    # At some point this might change to let clone do the snapshot,
+    # but when that happens, the email is sent to geniuser.
+    #
+    my $mypid = fork();
+    if ($mypid) {
+	# Let the child get going.
+	sleep(1);
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS, undef, $output);
+    }
+    # This switches the file that we are writing to. 
+    libaudit::AuditFork();
+
+    #
+    # Do the snapshot.
+    #
+    my $output =
+	GeniUtil::ExecQuiet("$CREATEIMAGE -f -p $pid $imagename $node_id");
+    # Not a typical op, so always print debugging info;
+    print STDERR $output;
+    if ($?) {
+	print STDERR "Failed to take the snapshot of $node_id\n";
+	$slice->UnLock();
+	return -1;
+    }
+    $slice->UnLock();
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

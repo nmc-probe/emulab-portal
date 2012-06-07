@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -76,6 +76,7 @@ elsif ($GENI_VERSION eq "2.0") {
 	"ListHistory"       => \&GeniCMV2::ListHistory,
 	"ReserveVlanTags"   => \&GeniCMV2::ReserveVlanTags,
 	"InjectEvent"       => \&GeniCMV2::InjectEvent,
+	"CreateImage"       => \&GeniCMV2::CreateImage,
     };
 }
 
