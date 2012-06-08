@@ -162,7 +162,8 @@ if (defined($image)) {
 	exit(0);
     }
     if ($nosnapshot) {
-	print "Not taking a snapshot, as directed\n";
+	print "Not taking a snapshot, as directed\n"
+	    if ($debug);
 	exit(0);
     }
 
@@ -272,7 +273,8 @@ if ($debug) {
     print "Created $image\n";
 }
 if ($nosnapshot) {
-    print "Not taking a snapshot, as directed\n";
+    print "Not taking a snapshot, as directed\n"
+	if ($debug);
     exit(0);
 }
 $output = emutil::ExecQuiet("$CREATEIMAGE -p $pid $imagename $node_id");
