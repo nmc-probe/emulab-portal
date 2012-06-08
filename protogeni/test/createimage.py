@@ -66,5 +66,8 @@ rval,response = do_method("cm", "CreateImage", params, version="2.0")
 if rval:
     Fatal("Could not create image")
     pass
-output = response["value"]
+imageurn = response["value"]
+output = response["output"]
+print str(imageurn)
 print str(output)
+

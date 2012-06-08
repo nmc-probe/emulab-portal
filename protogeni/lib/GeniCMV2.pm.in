@@ -2314,7 +2314,7 @@ sub CreateImage($)
     my $opt = ($wholedisk ? "-e" : "");
 
     my $output =
-	GeniUtil::ExecQuiet("$CLONEIMAGE $opt -s -d $imagename $node_id");
+	GeniUtil::ExecQuiet("$CLONEIMAGE $opt -s $imagename $node_id");
     # Not a typical op, so always print debugging info;
     print STDERR $output;
     if ($?) {
@@ -2331,6 +2331,11 @@ sub CreateImage($)
 	print STDERR "Cannot lookup descriptor for $imagename\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
+    #
+    # Form an image URN so the user knows how to request the new image.
+    #
+    my $image_urn = GeniHRN::Generate($OURDOMAIN, "image",
+				      $pid . "//" . $imagename);
 
     #
     # We used the -s (nosnapshot) option above, to get the descriptor
@@ -2342,7 +2347,7 @@ sub CreateImage($)
     if ($mypid) {
 	# Let the child get going.
 	sleep(1);
-	return GeniResponse->Create(GENIRESPONSE_SUCCESS, undef, $output);
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $image_urn, $output);
     }
     # This switches the file that we are writing to. 
     libaudit::AuditFork();
