@@ -1195,7 +1195,7 @@ sub SetupOpsNode($)
 	else {
 	    my $opt = (!defined($sharefsdev) ? "-2" : "");
 
-	    mysystem("$BINDIR/mkextrafs.pl -f $FSDIR");
+	    mysystem("$BINDIR/mkextrafs.pl -f $opt $FSDIR");
 
 	    if (!defined($sharefsdev)) {
 		#
