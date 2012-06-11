@@ -25,7 +25,7 @@
 # use the converters provided in this class.
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2011 University of Utah and the Flux Group.
+# Copyright (c) 2011, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package Port;
@@ -40,6 +40,7 @@ use vars qw(@ISA @EXPORT);
 use libdb;
 use English;
 use Data::Dumper;
+use overload ('""' => 'Stringify');
 
 # Cache of port instances
 # node:iface OR node:card.port => Port Instance
@@ -960,4 +961,15 @@ sub toStrings($@)
 	}
 	return join(" ", @pts);
 }
+
+#
+# Stringify for output.
+#
+sub Stringify($)
+{
+    my ($self) = @_;
+    
+    return $self->toString();
+}
+
 return 1;
