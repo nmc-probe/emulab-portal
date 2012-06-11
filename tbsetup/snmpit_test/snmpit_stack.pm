@@ -2,7 +2,7 @@
 
 #
 # EMULAB-LGPL
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # Copyright (c) 2004-2009 Regents, University of California.
 # All rights reserved.
 #
@@ -177,10 +177,7 @@ sub FlipDebug($$)
     foreach my $devicename (keys %{$self->{DEVICES}}) {
 	my $device = $self->{DEVICES}{$devicename};
 	$device->{'DEBUG'} = $debug;
-    }
-    foreach my $device (values(%devices)) {
-	$device->{'DEBUG'} = $debug;
-#	print Dumper($device);
+	$device->FlipDebug($debug);
     }
     return 0;
 }
@@ -1835,9 +1832,19 @@ sub setPortVlan(@) {
     return $result;
 }
 
+sub FlipDebug(@)
+{
+    my ($debug) = @_;
+    
+    $owndev->{'DEBUG'} = $debug;
+    $owndev->{OBJ}->{'DEBUG'} = $debug;
+    return 0;
+}
+
 my %special_funcs = (
     device_setup => \&device_setup, 
-    setPortVlan => \&setPortVlan
+    setPortVlan => \&setPortVlan,
+    FlipDebug => \&FlipDebug
 );
 
 sub rpc_call_wrapper(@) {
