@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -605,11 +605,13 @@ usage()
 if (defined($pid) && ! defined($options{"Z"})) {
     my $group = Group->Lookup($pid, $pid);
     if (defined($group)) {
+	$EmulabFeatures::verbose = 0;
 	my $newptopgen = EmulabFeatures->FeatureEnabled("NewPtopgen", undef,
 							$group, undef);
 	if ($newptopgen) {
 	    my $newpath = "$TBROOT/libexec/ptopgen_new";
-	    print STDERR "Invoking new ptopgen from $newpath\n";
+	    print STDERR "Invoking new ptopgen from $newpath\n"
+		if (!$genimode);
 	    exec $newpath, @SAVEARGV;
 	    die("*** $0:\n".
 		"    Could not exec $newpath: $!");
