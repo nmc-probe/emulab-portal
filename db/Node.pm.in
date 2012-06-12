@@ -2527,14 +2527,13 @@ sub SetNodeHistory($$$$)
 #
 sub SetSchedReload($$;$)
 {
-    my ($self, $image, $type) = @_;
+    my ($self, $imageid, $type) = @_;
 
     # Must be a real reference. 
     return -1
 	if (! ref($self));
 
     my $node_id = $self->node_id();
-    my $imageid = $image->imageid();
 
     $type = TB_DEFAULT_RELOADTYPE
 	if (!defined($type));

@@ -66,9 +66,7 @@ my @nodes       = ();
 my $type	= TB_DEFAULT_RELOADTYPE;
 my $project;
 my $experiment;
-my $image;
 my $imageid;
-my $imagepid    = TB_OPSPID;
 my %imagenodes  = ();
 
 # un-taint path
@@ -119,6 +117,7 @@ if (defined($options{"i"}) && defined($options{"m"})) {
 # Find the image (if not the default).
 #
 if (defined($options{"i"})) {
+    my $imagepid    = TB_OPSPID;
     if (defined($options{"p"})) {
 	$imagepid = $options{"p"};
     }
@@ -131,7 +130,7 @@ if (defined($options{"i"})) {
     $imagepid = $project->pid();
 
     # Look up image in project.
-    $image = Image->Lookup($imagepid, $options{"i"});
+    my $image = Image->Lookup($imagepid, $options{"i"});
     if (!defined($image)) {
 	die("*** $0:\n".
 	    "    No such image!\n");
@@ -140,7 +139,7 @@ if (defined($options{"i"})) {
     $imageid = $image->imageid();
 }
 elsif (defined($options{"m"})) {
-    $image = Image->Lookup($options{"m"});
+    my $image = Image->Lookup($options{"m"});
     if (!defined($image)) {
 	die("*** $0:\n".
 	    "    No such image!\n");
@@ -265,14 +264,14 @@ my @load_list=();
 foreach my $node (@nodes) {
     my $pc = $node->node_id();
     my $allocated  = 0;
-    my $this_image = $image;
+    my $this_imageid = $imageid;
 
     #
     # Get default imageid for this node if none specified on comand line.
     #
-    if (!defined($this_image)) {
-	$this_image = Image->Lookup($node->default_imageid());
-	if (!defined($this_image)) {
+    if (!defined($this_imageid)) {
+	$this_imageid = $node->default_imageid();
+	if (!defined($this_imageid)) {
 	    print STDERR
 		"*** Node $pc does not have a default imageid. Skipping!\n";
 	    next;
@@ -314,7 +313,7 @@ foreach my $node (@nodes) {
     }
 
     # Put it in the reloads table so TMCD knows to free it.
-    if ($node->SetSchedReload($this_image, $type) != 0) {
+    if ($node->SetSchedReload($this_imageid, $type) != 0) {
 	die("*** $0:\n".
 	    "    Could not set scheduled reload for $pc!"); 
     }
@@ -329,11 +328,11 @@ foreach my $node (@nodes) {
     # in PERL, hence this funny looking code!
     #
     if ($allocated) {
-	if (! defined($imagenodes{$this_image->imageid()})) {
-	    $imagenodes{$this_image->imageid()} = [ $pc ];
+	if (! defined($imagenodes{$this_imageid})) {
+	    $imagenodes{$this_imageid} = [ $pc ];
 	}
 	else {
-	    push(@{ $imagenodes{$this_image->imageid()} }, $pc);
+	    push(@{ $imagenodes{$this_imageid} }, $pc);
 	}
     }
 }
