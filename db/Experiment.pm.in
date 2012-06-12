@@ -5302,6 +5302,30 @@ sub ClearPortLans($)
 }
 
 #
+# Return a list of just the lans that are using a shared vlan.
+#
+sub PortLanList($$)
+{
+    my ($self, $pref) = @_;
+    my @result = ();
+    require Lan;
+
+    my @lans;
+    if (Lan->ExperimentLans($self, \@lans) != 0) {
+	tberror("Could not get list of all lans for $self\n");
+	return -1;
+    }
+    foreach my $lan (@lans) {
+	next
+	    if ($lan->type() ne "portlan");
+
+	push(@result, $lan);
+    }
+    @$pref = @result;
+    return 0;
+}
+
+#
 # Is this experiment sharing any vlans.
 #
 sub SharingVlans($)
