@@ -172,6 +172,15 @@ DBQueryFatal("insert into shared_vlans set open='$open', ".
 	     "  pid='$pid', eid='$eid', exptidx='$idx', ".
 	     "  token='$token', lanid='$lanid', vname='$lanname', ".
 	     "  created=now(), creator='$uid', creator_idx='$uid_idx'");
+
+#
+# Since that worked, clear the switch path. Whatever the mapper
+# computed will be wrong as soon as we start adding ports. By
+# clearing the path, we are telling snmpit to compute a new path
+# as ports are added or removed from the vlan.
+#
+$vlan->ClrSwitchPath();
+
 exit(0);
 
 sub fatal($)
