@@ -1066,7 +1066,12 @@ sub opPortVlan($$$@) {
     my %BumpedVlans = ();
 
     foreach my $port (@ports) {
-	$self->debug("Putting port ".Port->toStrings(($port))." in VLAN $vlan_number\n");
+	if ($remove) {
+	    $self->debug("Removing port $port from VLAN $vlan_number\n");
+	}
+	else {
+	    $self->debug("Putting port $port in VLAN $vlan_number\n");
+	}
 	#
 	# Check to see if it's a trunk ....
 	#

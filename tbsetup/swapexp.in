@@ -1435,8 +1435,10 @@ sub cleanup()
 
     if ($inout eq "modify") {
 	#
-	# Clear backup state since not needed anymore; experiment is toast.
+	# Clear backup state since not needed anymore; experiment is toast,
+	# but lets save a copy for post mortem.
 	#
+	$experiment->SaveBackupState();
 	$experiment->ClearBackupState();
 
 	#

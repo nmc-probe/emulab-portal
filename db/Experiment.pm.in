@@ -3195,6 +3195,27 @@ sub ClearBackupState($)
 
     return 0;
 }
+sub SaveBackupState($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $pid = $self->pid();
+    my $eid = $self->eid();
+    my $workdir   = $self->WorkDir();
+    my $pstateDir = $workdir . "/pstate";
+    my $vstateDir = $workdir . "/vstate";
+
+    system("/bin/cp -Rfp $pstateDir ${pstateDir}-prev")
+	if (-e $pstateDir);
+    system("/bin/cp -Rfp $vstateDir ${vstateDir}-prev")
+	if (-e $vstateDir);
+
+    return 0;
+}
 sub RemovePhysicalState($;$)
 {
     my ($self, $purge) = @_;
@@ -3372,6 +3393,11 @@ sub BackupPhysicalState($;$$)
     DBQueryWarn("select * from vinterfaces where exptidx='$idx' ".
 		"order by node_id,unit ".
 		"into outfile '$pstateDir/vinterfaces' ")
+	or $errors++;
+
+    # Just for debugging.
+    DBQueryWarn("SELECT * FROM vlans WHERE pid='$pid' AND eid='$eid' ".
+		"INTO OUTFILE '$pstateDir/vlans' ")
 	or $errors++;
     
     return $errors;
