@@ -269,7 +269,7 @@ my @load_list=();
 foreach my $node (@nodes) {
     my $pc = $node->node_id();
     my $allocated  = 0;
-    my $this_imageid = join ',', @imageids;
+    my $this_imageid = @imageids ? join ',', @imageids : undef;
 
     #
     # Get default imageid for this node if none specified on comand line.
