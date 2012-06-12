@@ -35,9 +35,9 @@ my $FOAMURL = "http://10.4.1.69:69/something";
 #
 # AddSliverData
 #
-sub AddSliverData($$@)
+sub AddSliverData($$$)
 {
-    my ($slice, $user, @portlist) = @_;
+    my ($slice, $user, $portlist) = @_;
     my $aggregate = GeniAggregate->SliceAggregate($slice);
     return -1
 	if (!defined($aggregate));
@@ -46,6 +46,7 @@ sub AddSliverData($$@)
 	"slice_urn"  => $slice->urn(),
 	"user_urn"   => $user->urn(),
 	"sliver_urn" => $aggregate->urn(),
+	"portlist"   => $portlist,
 	"exp_date"   => POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
 					gmtime(str2time($slice->expires())));
     };
@@ -132,6 +133,169 @@ sub DeleteSliverData($)
 	print STDERR Dumper($blob);
 	return -1;
     }
+
+    return 0;
+}
+
+#
+# These are the functions called from the aggregate code to
+# do the actual work.
+#
+sub FoamFindOpenFlowLans($$)
+{
+    my ($aggregate, $pref) = @_;
+    
+    my $experiment = Experiment->Lookup($aggregate->slice_uuid());
+    if (!defined($experiment)) {
+	print STDERR "FoamAddSliverData: No experiment for $aggregate\n";
+	return -1;
+    }
+
+    #
+    # These are all of the lans with a port in another vlan.
+    #
+    my @portlans = ();
+    if ($experiment->PortLanList(\@portlans)) {
+	print STDERR "FoamAddSliverData: Failed to get port lan list\n";
+	return -1;
+    }
+    #
+    # Go through the list of portlans and find the openflow ones.
+    #
+    my @openflow_lans = ();
+    
+    foreach my $lan (@lans) {
+	my $target_lanid;
+	if ($lan->GetAttribute("target_lanid", \$target_lanid)) {
+	    print STDERR
+		"FoamAddSliverData: Failed to lookup target lanid for $lan\n";
+	    return -1;
+	}
+	my $portvlan = Lan->Lookup($target_lanid);
+	if (!defined($portvlan)) {
+	    print STDERR
+		"FoamAddSliverData: Failed to lookup portvlan $target_lanid\n";
+	    return -1;
+	}
+	# XXX Ick.
+	if ($portvlan->vname() ~= /^openflow/) {
+	    push(@openflow_lans, [$lan, $portvlan->GetTag());
+	}
+    }
+    @$pref = @openflow_lans;
+    return 0;
+}
+
+sub FoamAddSliverData($)
+{
+    my ($aggregate) = @_;
+
+    my $slice = $aggregate->GetSlice();
+    if (!defined($slice)) {
+	print STDERR "FoamAddSliverData: No slice for $aggregate\n";
+	return -1;
+    }
+    my $user = $aggregate->GetCreator();    
+    if (!defined($user)) {
+	print STDERR "FoamAddSliverData: No creator for $aggregate\n";
+	return -1;
+    }
+    my @openflow_lans;
+    if (FoamFindOpenFlowLans(\@openflow_lans)) {
+	return -1;
+    }
+    return 0
+	if (!@openflow_lans);
+
+    #
+    # Notify FOAM. The portlist is in the form [[vlan, port], ...]
+    # where vlan is typical always the same cause we have just a single
+    # static vlan. Port is in A1-A24 format, which is easy to generate
+    # from the module.port we store in the wires table.
+    #
+    my @portlist = ();
+    
+    foreach my $lan (@openflow_lans) {
+	my $target_lanid;
+	if ($lan->GetAttribute("target_lanid", \$target_lanid)) {
+	    print STDERR 
+		"FoamAddSliverData: Failed to lookup target lanid for $lan\n";
+	    return -1;
+	}
+	my @members;
+	if ($lan->MemberList(\@members) != 0) {
+	    print STDERR 
+		"FoamAddSliverData: Could not get member list for $lan\n";
+	    return -1;
+	}
+	foreach my $member (@members) {
+	    my $interface = $member->GetInterface();
+	    if (!defined($interface)) {
+		print STDERR "FoamAddSliverData: ".
+		    "Could not get interface for $member in $lan\n";
+		return -1;
+	    }
+	    if (!$interface->wiredup()) {
+		print STDERR "FoamAddSliverData: ".
+		    "No wire info for $interface ($member) in $lan\n";
+		return -1;
+	    }
+	    my $card = $interface->card2();
+	    my $port = $interface->port2();
+	    my $foamy = char($card + 64) . $port;
+	    push(@portlist, [$target_lanid, $foamy]);
+	}
+	#
+	# Make the call.
+	#
+	if (FoamAddSliverData($slice, $user, \@portlist)) {
+	    print STDERR "FoamAddSliverData: FOAMy is unhappy\n";
+	    return -1;
+	}
+    }
+    return 0;
+}
+
+sub FoamRenewSliverData($)
+{
+    my ($aggregate) = @_;
+
+    my $slice = $aggregate->GetSlice();
+    if (!defined($slice)) {
+	print STDERR "FoamRenewSliverData: No slice for $aggregate\n";
+	return -1;
+    }
+    my @openflow_lans;
+    if (FoamFindOpenFlowLans(\@openflow_lans)) {
+	return -1;
+    }
+    return 0
+	if (!@openflow_lans);
+
+    return -1
+	if (RenewSliverData($slice));
+
+    return 0;
+}
+
+sub FoamDeleteSliverData($)
+{
+    my ($aggregate) = @_;
+
+    my $slice = $aggregate->GetSlice();
+    if (!defined($slice)) {
+	print STDERR "FoamDeleteSliverData: No slice for $aggregate\n";
+	return -1;
+    }
+    my @openflow_lans;
+    if (FoamFindOpenFlowLans(\@openflow_lans)) {
+	return -1;
+    }
+    return 0
+	if (!@openflow_lans);
+
+    return -1
+	if (DeleteSliverData($slice));
 
     return 0;
 }

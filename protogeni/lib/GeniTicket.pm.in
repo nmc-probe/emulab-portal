@@ -11,7 +11,7 @@ package GeniTicket;
 #
 use strict;
 use Exporter;
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT $CreateFromSignedError);
 
 @ISA    = "Exporter";
 @EXPORT = qw (TICKET_PURGED TICKET_EXPIRED TICKET_REDEEMED
@@ -251,9 +251,17 @@ sub Flush($)
 #
 # Create a ticket object from a signed ticket string.
 #
+# We keep the error in a global variable for the caller if wanted.
+# Certainly not ideal but I do not want to complicate things by
+# using eval/die to mimic try/finally. We are not thread safe and
+# never will be, so lets not get crazy.
+#
+$CreateFromSignedError = undef;
+
 sub CreateFromSignedTicket($$;$)
 {
     my ($class, $ticket_string, $nosig) = @_;
+    my $msg = undef;
 
     #
     # This flag is used to avoid verifying the signature since I do not
@@ -265,14 +273,16 @@ sub CreateFromSignedTicket($$;$)
 
     if (! $nosig) {
 	my ($fh, $filename) = tempfile(UNLINK => 0);
-	return undef
-	    if (!defined($fh));
+	if (!defined($fh)) {
+	    $msg = "Error creating temporary file";
+	    goto bad;
+	}
 	print $fh $ticket_string;
 	close($fh);
-	system("$VERIFYCRED $filename");
+	my $output = GeniUtil::ExecQuiet("$VERIFYCRED $filename");
 	if ($?) {
-	    print STDERR "Ticket in $filename did not verify\n";
-	    return undef;
+	    $msg = $output;
+	    goto bad;
 	}
 	unlink($filename);
     }
@@ -284,106 +294,106 @@ sub CreateFromSignedTicket($$;$)
 	$doc = $parser->parse_string($ticket_string);
     };
     if ($@) {
-	print STDERR "Failed to parse ticket string: $@\n";
-	return undef;
+	$msg = "Failed to parse ticket string: $@";
+	goto bad;
     }
 
     # Dig out the rspec.
     my $rspec = GeniXML::FindFirst("//*[local-name()='rspec']",
 				   $doc->documentElement());
     if (!defined($rspec)) {
-	print STDERR "Ticket is missing rspec node\n";
-	return undef;
+	$msg = "Ticket is missing rspec node";
+	goto bad;
     }
     
     # Dig out the ticket uuid.
     my ($uuid_node) = $doc->getElementsByTagName("uuid");
     if (!defined($uuid_node)) {
-	print STDERR "Ticket is missing uuid node\n";
-	return undef;
+	$msg = "Ticket is missing uuid node";
+	goto bad;
     }
     my $ticket_uuid = $uuid_node->to_literal();
 
     if (! ($ticket_uuid =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/)) {
-	print STDERR "Invalid uuid in ticket\n";
-	return undef;
+	$msg = "Invalid uuid in ticket";
+	goto bad;
     }
 
     # Dig out the target certificate.
     my ($cert_node) = $doc->getElementsByTagName("target_gid");
     if (!defined($cert_node)) {
-	print STDERR "Ticket is missing target gid node\n";
-	return undef;
+	$msg = "Ticket is missing target gid node";
+	goto bad;
     }
     my $target_certificate =
 	GeniCertificate->LoadFromString($cert_node->to_literal());
     if (!defined($target_certificate)) {
-	print STDERR "Could not get target certificate from string\n";
-	return undef;
+	$msg = "Could not get target certificate from string";
+	goto bad;
     }
 
     if (!($target_certificate->uuid() =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/)) {
-	print STDERR "Invalid target_uuid in credential\n";
-	return undef;
+	$msg = "Invalid target_uuid in credential";
+	goto bad;
     }
     if (!($target_certificate->hrn() =~ /^[-\w\.]+$/)) {
 	my $hrn = $target_certificate->hrn();
-	print STDERR "Invalid hrn $hrn in target of ticket\n";
-	return undef;
+	$msg = "Invalid hrn $hrn in target of ticket";
+	goto bad;
     }
 
     # Dig out the owner certificate.
     ($cert_node) = $doc->getElementsByTagName("owner_gid");
     if (!defined($cert_node)) {
-	print STDERR "Ticket is missing owner gid node\n";
-	return undef;
+	$msg = "Ticket is missing owner gid node";
+	goto bad;
     }
     my $owner_certificate =
 	GeniCertificate->LoadFromString($cert_node->to_literal());
     if (!defined($target_certificate)) {
-	print STDERR "Could not get owner certificate from string\n";
-	return undef;
+	$msg = "Could not get owner certificate from string";
+	goto bad;
     }
     if (!($owner_certificate->uuid() =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/)) {
-	print STDERR "Invalid target_uuid in credential\n";
-	return undef;
+	$msg = "Invalid target_uuid in credential";
+	goto bad;
     }
     if (!($owner_certificate->hrn() =~ /^[-\w\.]+$/)) {
 	my $hrn = $owner_certificate->hrn();
-	print STDERR "Invalid hrn $hrn in owner of ticket\n";
-	return undef;
+	$msg = "Invalid hrn $hrn in owner of ticket";
+	goto bad;
     }
 
     # Sequence number
     my ($seqno_node) = $doc->getElementsByTagName("serial");
     if (!defined($seqno_node)) {
-	print STDERR "Ticket is missing seqno node\n";
-	return undef;
+	$msg = "Ticket is missing seqno node";
+	goto bad;
     }
     my $seqno = $seqno_node->to_literal();
 
     if (! ($seqno =~ /^\w+$/)) {
-	print STDERR "Invalid sequence number in ticket\n";
-	return undef;
+	$msg = "Invalid sequence number in ticket";
+	goto bad;
     }
 
     # Expiration
     my ($expires_node) = $doc->getElementsByTagName("expires");
     if (!defined($expires_node)) {
-	print STDERR "Ticket is missing expires node\n";
-	return undef;
+	$msg = "Ticket is missing expires node";
+	goto bad;
     }
     my $expires = $expires_node->to_literal();
 
     if (! ($expires =~ /^[-\w:.\/]+/)) {
-	print STDERR "Invalid expires date in ticket\n";
-	return undef;
+	$msg = "Invalid expires date in ticket";
+	goto bad;
     }
     # Convert to a localtime.
     my $when = timegm(strptime($expires));
     if (!defined($when)) {
-	print STDERR "Could not parse expires: '$expires'\n";
-	return undef;
+	$msg = "Could not parse expires: '$expires'";
+	goto bad;
     }
     
     my $self = {};
@@ -426,15 +436,22 @@ sub CreateFromSignedTicket($$;$)
 	    my $slice_uuid = $row->{'slice_uuid'};
 	    my $slice = GeniSlice->Lookup($slice_uuid);
 	    if (!defined($slice)) {
-		print STDERR
-		    "Could not locate slice for ticket from $slice_uuid\n";
-		return undef;
+		$msg = "Could not locate slice for ticket from $slice_uuid";
+		goto bad;
 	    }
 	    $self->{'slice'} = $slice;
 	}
     }
     bless($self, $class);
     return $self;
+
+  bad:
+    if (!defined($msg)) {
+	$msg = "Internal error creating ticket object";
+    }
+    print STDERR "$msg\n";
+    $CreateFromSignedError = $msg;
+    return undef;
 }
 
 #

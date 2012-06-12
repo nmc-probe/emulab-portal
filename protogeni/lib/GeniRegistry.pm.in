@@ -130,7 +130,7 @@ sub GetCredential($;$$)
     }
     $credential = GeniCredential->CreateFromSigned($response->value(), 1);
     if (!defined($credential)) {
-	print STDERR "Could not parse credential from $authority\n";
+	print STDERR $GeniCredential::CreateFromSignedError . "\n";
 	return undef;
     }
     $credential->Store();
@@ -573,7 +573,7 @@ sub GetCredential($;$$)
     $clearinghousecred =
 	GeniCredential->CreateFromSigned($response->value(), 1);
     if (!defined($clearinghousecred)) {
-	print STDERR "Could not parse credential from clearinghouse\n";
+	print STDERR $GeniCredential::CreateFromSignedError . "\n";
 	return undef;
     }
     if ($clearinghousecred->Store()) {

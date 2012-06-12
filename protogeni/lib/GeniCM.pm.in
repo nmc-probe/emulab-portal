@@ -5293,6 +5293,14 @@ sub CleanupDeadSlice($;$)
     if (defined($experiment)) {
 	my $pid = $experiment->pid();
 	my $eid = $experiment->eid();
+
+	#
+	# Clear ports from shared vlans.
+	#
+	if ($experiment->ClearPortLans()) {
+	    print STDERR "Could not clear portvlans\n";
+	    return -1;
+	}
 	
 	system("$SNMPIT -C -r $pid $eid");
 	if ($?) {
@@ -5867,8 +5875,9 @@ sub CheckCredential($)
     my $credential = GeniCredential->CreateFromSigned($_[0]);
     if (!defined($credential)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not create credential object");
+				    $GeniCredential::CreateFromSignedError);
     }
+
     #
     # Well formed credentials must now have URNs.
     #
@@ -5894,7 +5903,7 @@ sub CheckTicket($)
     my $ticket = GeniTicket->CreateFromSignedTicket($_[0]);
     if (!defined($ticket)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not create ticket object");
+				    $GeniTicket::CreateFromSignedError);
     }
     #
     # Well formed tickets must now have URNs.

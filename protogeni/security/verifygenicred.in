@@ -9,6 +9,8 @@ use English;
 use Getopt::Std;
 use XML::LibXML;
 use Data::Dumper;
+use Date::Parse;
+use Time::Local;
 
 #
 # Verify a GENI credential.
@@ -214,6 +216,15 @@ while (defined($temp)) {
 foreach my $credential ( keys( %credentials ) ) {
     my $node = $credentials{$credential}->{"node"};
 
+    my $expiry = lookup( $node, "expires" )->textContent;
+    my $dateregexp = '^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ?$';
+
+    fatal( "invalid delegation (malformed expiry)" )
+	if $expiry !~ $dateregexp;
+
+    fatal("invalid delegation (credential is expired)")
+	if (time() >= str2time($expiry));
+
     if( $node != $root_cred ) {
 	my $parent = $credentials{$credential}->{"parent_cred"};
 
@@ -253,15 +264,16 @@ foreach my $credential ( keys( %credentials ) ) {
 	    }		
 	}
 
-	my $expiry = lookup( $node, "expires" )->textContent;
 	my $parent_expiry = lookup( $parent, "expires" )->textContent;
-	my $dateregexp = '^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ?$';
 
 	fatal( "invalid delegation (malformed expiry)" )
-	    if $expiry !~ $dateregexp or $parent_expiry !~ $dateregexp;
+	    if $parent_expiry !~ $dateregexp;
 
 	fatal( "invalid delegation (expiry violation)" )
 	    if $expiry gt $parent_expiry;
+
+	fatal("invalid delegation (parent credential is expired)")
+	    if (time() >= str2time($parent_expiry));
     }
 }
 

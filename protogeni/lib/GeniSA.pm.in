@@ -1208,8 +1208,9 @@ sub CheckCredential($;$)
     my $credential = GeniCredential->CreateFromSigned($credstring);
     if (!defined($credential)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not create credential object");
+				    $GeniCredential::CreateFromSignedError);
     }
+    
     #
     # Well formed credentials must now have URNs.
     #

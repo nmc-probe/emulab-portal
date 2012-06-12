@@ -1331,7 +1331,7 @@ sub UpdateTicket($)
     my $ticket = GeniTicket->CreateFromSignedTicket($ticketstr);
     if (!defined($ticket)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not create GeniTicket object");
+				    $GeniTicket::CreateFromSignedError);
     }
     #
     # Make sure the ticket was issued to the caller.
@@ -1466,7 +1466,7 @@ sub RedeemTicket($)
     my $ticket = GeniTicket->CreateFromSignedTicket($ticketstr);
     if (!defined($ticket)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not create GeniTicket object");
+				    $GeniTicket::CreateFromSignedError);
     }
     #
     # Make sure the ticket was issued to the caller.
@@ -1589,7 +1589,7 @@ sub ReleaseTicket($)
     my $ticket = GeniTicket->CreateFromSignedTicket($ticketstr);
     if (!defined($ticket)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not create GeniTicket object");
+				    $GeniTicket::CreateFromSignedError);
     }
     #
     # If the ticket is not stored, it is not a ticket that needs
@@ -2006,7 +2006,7 @@ sub CheckCredentials($)
     my $credential  = GeniCredential->CreateFromSigned($credentials[0]);
     if (!defined($credential)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not create credential object");
+				    $GeniCredential::CreateFromSignedError);
     }
     #
     # Well formed credentials must now have URNs.
@@ -2033,7 +2033,7 @@ sub CheckCredential($)
     my $credential = GeniCredential->CreateFromSigned($_[0]);
     if (!defined($credential)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not create credential object");
+				    $GeniCredential::CreateFromSignedError);
     }
     #
     # Well formed credentials must now have URNs.

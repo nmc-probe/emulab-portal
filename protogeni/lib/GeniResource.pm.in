@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package GeniResource;
@@ -762,7 +762,8 @@ sub GetTicket($$$$)
     }
     my $newticket = GeniTicket->CreateFromSignedTicket($response->value());
     if (!defined($newticket)) {
-	print STDERR "*** Cannot create new ticket object from:\n";
+	print STDERR "*** Cannot create new ticket object:\n";
+	print STDERR "*** " . $GeniTicket::CreateFromSignedError . "\n";
 	print STDERR $response->value() . "\n";
 	return -1;
     }
@@ -983,6 +984,7 @@ sub RedeemTicket($$)
 	if (!defined($sliver_credential)) {
 	    print STDERR
 		"** Could not create new credential from $credstring\n";
+	    print STDERR "*** " . $GeniCredential::CreateFromSignedError . "\n";
 	    return -1;
 	}
 	if ($sliver_credential->Store()) {
@@ -1188,6 +1190,7 @@ sub CreateSliver($$$$)
 	if (!defined($sliver_credential)) {
 	    print STDERR
 		"** Could not create new credential from $credstring\n";
+	    print STDERR "*** " . $GeniCredential::CreateFromSignedError . "\n";
 	    return -1;
 	}
 	if ($sliver_credential->Store()) {
