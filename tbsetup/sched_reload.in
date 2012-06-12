@@ -21,8 +21,9 @@ sub usage()
 		 "       sched_reload <options> -e pid,eid\n".
 		 "       sched_reload <options> -t type [type ...]\n".
 		 "       sched_reload <options> -c class\n".
-	"Use -i to specify an image name. Use node default otherwise.\n".
-	"Use -m to specify an image ID (internal name, TB admins only!).\n".
+	"Use -i to specify a comma seperated list of image IDs.\n".
+	"       Use the node default otherwise.\n".
+	"Use -m to specify the internal name(s) if an image ID.\n".
 	"Use -f to force reload. Fail if node cannot be reserved.\n".
 	"Use -n to pend reload for the reload daemon.\n".
         "Use -e to schedule a reload for all nodes in an experiment.\n".
@@ -66,7 +67,7 @@ my @nodes       = ();
 my $type	= TB_DEFAULT_RELOADTYPE;
 my $project;
 my $experiment;
-my $imageid;
+my @imageids;
 my %imagenodes  = ();
 
 # un-taint path
@@ -129,23 +130,27 @@ if (defined($options{"i"})) {
     # This is untainted.
     $imagepid = $project->pid();
 
-    # Look up image in project.
-    my $image = Image->Lookup($imagepid, $options{"i"});
-    if (!defined($image)) {
-	die("*** $0:\n".
-	    "    No such image!\n");
+    for my $id (split /,/, $options{"i"}) {
+	# Look up image in project.
+	my $image = Image->Lookup($imagepid, $id);
+	if (!defined($image)) {
+	    die("*** $0:\n".
+		"    No such image: $imagepid/$id\n");
+	}
+	# This is untainted.
+	push @imageids, $image->imageid();
     }
-    # This is untainted.
-    $imageid = $image->imageid();
 }
 elsif (defined($options{"m"})) {
-    my $image = Image->Lookup($options{"m"});
-    if (!defined($image)) {
-	die("*** $0:\n".
-	    "    No such image!\n");
+    for my $id (split /,/, $options{"m"}) {
+	my $image = Image->Lookup($id);
+	if (!defined($image)) {
+	    die("*** $0:\n".
+		"    No such image: $id\n");
+	}
+	# This is untainted.
+	push @imageids, $image->imageid();
     }
-    # This is untainted.
-    $imageid = $image->imageid();
 }
 
 #
@@ -264,7 +269,7 @@ my @load_list=();
 foreach my $node (@nodes) {
     my $pc = $node->node_id();
     my $allocated  = 0;
-    my $this_imageid = $imageid;
+    my $this_imageid = join ',', @imageids;
 
     #
     # Get default imageid for this node if none specified on comand line.
