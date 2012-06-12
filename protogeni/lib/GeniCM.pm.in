@@ -3444,7 +3444,7 @@ sub SliverWorkAux($$$$$$$)
 		GeniXML::SetText($sliverName, $outref,
 				 $sliver->sliver_urn());
 		GeniXML::SetText($macName, $outref, $macAddress)
-		    if (defined($interface));
+		    if (defined($macAddress));
 	    }
 	    
 	    if (!$inaggregate &&
