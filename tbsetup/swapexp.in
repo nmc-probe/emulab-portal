@@ -1542,15 +1542,28 @@ sub cleanup()
 			  (($logname), (defined($modnsfile) ? ($modnsfile) : ())))
 	    unless $noemail;
     }
-	
+
+    #
+    # Save off state in failed directory for post-mortem. This is
+    # going to result in the directory expanding since I do not
+    # want to remove the old failure stuff. Need to come back to
+    # this later.
+    #
+    if (1) {
+	# Maybe use a feature?
+	system("/bin/cp -Rfp $workdir ${workdir}-failed");
+    }
+    else {
+	system("/bin/rm -rf  ${workdir}-failed");
+	system("/bin/mv -f   $workdir ${workdir}-failed");
+    }
+    
     if ($modifyHosed) {
 	#
 	# Copy off the workdir to the user directory, Then back up both of
 	# them for post-mortem debugging.
 	#
 	system("/bin/cp -Rfp $workdir/ $userdir/tbdata");
-	system("/bin/rm -rf  ${workdir}-failed");
-	system("/bin/mv -f   $workdir ${workdir}-failed");
 	system("/bin/rm -rf  ${userdir}-failed");
 	system("/bin/mv -f   $userdir ${userdir}-failed");
 	$experiment->Delete();
