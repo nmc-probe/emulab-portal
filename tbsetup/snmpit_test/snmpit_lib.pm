@@ -1211,6 +1211,13 @@ sub mapVlansToSwitches(@)
 	my %map     = mapPortsToDevices(@ports);
 
 	#
+	# Initial set of switches.
+	#
+	foreach my $switch (keys(%map)) {
+	    $switches{$switch} = 1;
+	}
+
+	#
 	# We want to use the DB path if it exists.
 	#
 	my @trunks = getTrunksForVlan($vlan_id, keys(%map));
