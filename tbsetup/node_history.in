@@ -52,7 +52,7 @@ sub usage {
     exit(1);
 }
 
-my $optlist = "ARS:aln:rswvd:i:c";
+my $optlist = "ARS:aln:rswvd:i:ct:x:";
 my $warnme = 0;
 my $verbose = 0;
 my $showall = 0;
@@ -63,6 +63,8 @@ my $summary = 0;
 my $raw = 0;
 my $numrecs = 0;
 my $datetime;
+my $datelimit;
+my $startrecord;
 my $ip;
 
 #
@@ -126,6 +128,9 @@ if (defined($options{"l"})) {
 if (defined($options{"n"})) {
     $numrecs = $options{"n"};
 }
+if (defined($options{"x"})) {
+    $startrecord = $options{"x"};
+}
 if (defined($options{"r"})) {
     $revorder = 1;
 }
@@ -135,6 +140,16 @@ if (defined($options{"s"})) {
 if (defined($options{"d"})) {
     $datetime = timelocal(strptime($options{"d"}));
     $summary  = 0;
+}
+if (defined($options{"t"})) {
+    if (!defined($datetime)) {
+	$datetime  = time() - $options{"t"};
+	$datelimit = time();
+    }
+    else {
+	$datelimit = $datetime;
+	$datetime  = $datetime - $options{"t"};
+    }
 }
 if (defined($options{"c"})) {
     $showcurrent = 1;
@@ -178,6 +193,7 @@ my %startinfo;
 #
 if ($datetime) {
     my $querymod = "";
+    
     if (@nodes) {
 	$querymod = " AND (" .
 	            join(" or ", map {"h1.node_id='$_'"} @nodes) . ")";
@@ -188,11 +204,12 @@ if ($datetime) {
 
     my $query_result =
 	DBQueryFatal("SELECT h1.node_id,h1.op,h1.stamp,h1.uid,h1.exptidx,".
-		     "       s.pid,s.eid ".
+		     "       s.pid,s.eid,history_id ".
 		     "    FROM node_history as h1 ".
 		     "JOIN (SELECT h3.node_id,MAX(h3.stamp) as stamp ".
 		     "         FROM node_history as h3 ".
-		     "      WHERE stamp < $datetime GROUP BY h3.node_id ".
+		     "      WHERE stamp < $datetime ".
+		     "      GROUP BY h3.node_id ".
 		     "     ) AS h2 ON h1.node_id=h2.node_id AND ".
 		     "                h1.stamp = h2.stamp ".
 		     "left join nodes as n on n.node_id=h1.node_id ".
@@ -211,6 +228,7 @@ if ($datetime) {
 	my $stamp = $row{stamp};
 	my $uid = $row{uid};
 	my $op = $row{op};
+	my $history_id = $row{"history_id"};
 	my $cstamp = ctime($stamp);
 	my $diff = $datetime - $stamp;
 	chomp($cstamp);
@@ -224,16 +242,18 @@ if ($datetime) {
 		    print "$node '$stamp' $diff $uid $pid $eid\n";
 		}
 		else {
-		    print "$node REC $stamp $diff $uid $pid $eid $exptidx\n";
+		    print "$node REC $stamp $diff $uid $pid $eid ".
+			"$exptidx $history_id\n";
 		}
 	    }
 	    else {
-		$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
+		$nodeinfo{$node} =
+		    [ $pideid, $exptidx, $stamp, $uid. $history_id ];
 	    }
 	}
 	elsif ($op eq "free" || $op eq "destroy") {
 	    if (!$showcurrent) {
-		$nodeinfo{$node} = [ "", undef, $stamp, $uid ];
+		$nodeinfo{$node} = [ "", undef, $stamp, $uid, $history_id ];
 	    }
 	}
     }
@@ -242,25 +262,33 @@ exit(0)
     if ($showcurrent);
 
 my $querymod = "";
+if ($startrecord) {
+    $querymod = " AND history_id>='$startrecord'";
+}
 if (@nodes) {
-    $querymod = " AND (" . join(" or ", map {"node_id='$_'"} @nodes) . ")";
+    $querymod .= " AND (" . join(" or ", map {"node_id='$_'"} @nodes) . ")";
 }
 elsif (defined($ip)) {
-    $querymod = " AND cnet_ip='$ip'";
+    $querymod .= " AND cnet_ip='$ip'";
 }
 
 # XXX maybe it would be better to sort them here in perl, outside the DB?
-my $orderby = " ORDER BY stamp ASC";
+#     Note that the combo field order by is strictly to convince mysql
+#     to use an index for sort instead of filesort. I have no idea why
+#     it does this, but it cuts the query from 70 seconds to under 1 second.
+#
+my $orderby = " ORDER BY history_id,stamp ASC";
 # Bogus, but reading the entire table is nuts! Millions of rows. 
-my $limitby = ($showall && $numrecs ? "limit " . $numrecs * 100 : "");
+my $limitby = ($showall && $numrecs ? "limit " . $numrecs * 10 : "");
 
 my $query_result =
     DBQueryFatal("SELECT node_id,stamp,op,uid,pid,eid, ".
-		 "    experiment_stats.exptidx,cnet_ip,phys_nodeid ".
+		 "  experiment_stats.exptidx,cnet_ip,phys_nodeid,history_id ".
 		 "FROM node_history,experiment_stats ".
 		 "WHERE node_history.exptidx=experiment_stats.exptidx ".
-		 $querymod .
-		 ($datetime ? " and stamp>='$datetime' " : "").
+		 "$querymod " .
+		 ($datetime  ? " and stamp>='$datetime'  " : "").
+		 ($datelimit ? " and stamp<='$datelimit' " : "").
 		 "$orderby $limitby");
 
 while (my %row = $query_result->fetchhash()) {
@@ -269,16 +297,17 @@ while (my %row = $query_result->fetchhash()) {
     my $node = $row{node_id};
     my $stamp = $row{stamp};
     my $uid = $row{uid};
+    my $history_id = $row{"history_id"};
 
     #
     # XXX if this is the first record for a node, consider it as free
     # from the epoch til now.
     #
     if (!defined($nodeinfo{$node})) {
-	$nodeinfo{$node} = [ "", undef, $epoch, "root" ];
+	$nodeinfo{$node} = [ "", undef, $epoch, "root", $history_id ];
     }
 
-    my ($opideid, $oidx, $ostamp, $ouid) = @{$nodeinfo{$node}};
+    my ($opideid, $oidx, $ostamp, $ouid, $ohistory_id) = @{$nodeinfo{$node}};
     my $elapsed = $stamp - $ostamp;
 
     #
@@ -291,7 +320,7 @@ while (my %row = $query_result->fetchhash()) {
 		if ($warnme);
 	    # XXX possibly missing state in the DB, treat as move
 	}
-	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
+	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid, $history_id ];
     }
 
     #
@@ -302,18 +331,19 @@ while (my %row = $query_result->fetchhash()) {
 	    print STDERR "$node: mismatched alloc,free records: $opideid,$pideid\n"
 		if ($warnme);
 	}
-	$nodeinfo{$node} = [ "", undef, $stamp, $uid ];
+	$nodeinfo{$node} = [ "", undef, $stamp, $uid, $history_id ];
     }
     elsif ($row{op} eq "move") {
 	if (!$raw) {
 	    # Moves from reloadpending to reloading are combined as reloading
 	    if ($opideid eq "emulab-ops/reloadpending" &&
 		$pideid eq "emulab-ops/reloading") {
-		$nodeinfo{$node} = [ $pideid, $exptidx, $ostamp, $ouid ];
+		$nodeinfo{$node} = [ $pideid, $exptidx, $ostamp, $ouid,
+				     $history_id ];
 		next;
 	    }
 	}
-	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
+	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid, $history_id ];
     }
     elsif ($row{op} eq "create") {
 	if ($opideid ne "") {
@@ -321,7 +351,7 @@ while (my %row = $query_result->fetchhash()) {
 		if ($warnme);
 	    # XXX possibly missing state in the DB.
 	}
-	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid ];
+	$nodeinfo{$node} = [ $pideid, $exptidx, $stamp, $uid, $history_id ];
     }
     elsif ($row{op} eq "destroy") {
 	if ($opideid ne $pideid) {
@@ -329,21 +359,23 @@ while (my %row = $query_result->fetchhash()) {
 		"$opideid,$pideid\n"
 		if ($warnme);
 	}
-	$nodeinfo{$node} = [ "", undef, $stamp, $uid ];
+	$nodeinfo{$node} = [ "", undef, $stamp, $uid, $history_id ];
     }
     #print "R: $node, $opideid, $oidx, $ouid, $ostamp, $elapsed\n";
     
     # save off the record
-    push(@rawrecords, [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed ]);
+    push(@rawrecords,
+	 [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed, $ohistory_id ]);
 }
 
 if (!$datetime) {
     # Include the current state of nodes in a final record
     my $stamp = time();
     for $node (keys(%nodeinfo)) {
-	my ($opideid, $oidx, $ostamp, $ouid) = @{$nodeinfo{$node}};
+	my ($opideid, $oidx, $ostamp, $ouid, $ohistory_id)= @{$nodeinfo{$node}};
 	my $elapsed = $stamp - $ostamp;
-	push(@rawrecords, [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed ]);
+	push(@rawrecords,
+	     [ $node, $opideid, $oidx, $ouid, $ostamp, $elapsed, $ohistory_id]);
     }
 }
 
@@ -354,7 +386,7 @@ if (!$datetime) {
 my @records = ();
 
 for my $rec (@rawrecords) {
-    my ($node, $pideid, $exptidx, $uid, $stamp, $elapsed) = @{$rec};
+    my ($node, $pideid, $exptidx, $uid, $stamp, $elapsed, $history_id)= @{$rec};
 
     #print "RR: $node, $elapsed\n";
 
@@ -385,7 +417,9 @@ for my $rec (@rawrecords) {
 	    ($pid, $eid) = split("/", $pideid);
 	}
 	push(@records,
-	     [$node, $stamp, $elapsed, $uid, $pid, $eid, $exptidx, "$pid/$eid"])
+	     [$node, $stamp, $elapsed, $uid, $pid, $eid, $exptidx,
+	      # For sort
+	      "$pid/$eid", $history_id])
 	    if (!$showalloconly || $isalloced);
     }
 }
@@ -409,7 +443,8 @@ if ($numrecs && $numrecs < $#records) {
 
 if (@records) {
     foreach my $record (@records) {
-	my ($node, $stamp, $elapsed, $uid, $pid, $eid, $exptidx) = @$record;
+	my ($node, $stamp, $elapsed, $uid, $pid, $eid,
+	    $exptidx, undef, $history_id) = @$record;
 
 	if ($verbose) {
 	    $stamp = ctime($stamp);
@@ -417,7 +452,8 @@ if (@records) {
 	    print "$node '$stamp' $elapsed $uid $pid $eid\n";
 	}
 	else {
-	    print "$node REC $stamp $elapsed $uid $pid $eid $exptidx\n";
+	    print "$node REC $stamp $elapsed $uid $pid $eid ".
+		"$exptidx $history_id\n";
 	}
     }
 }

@@ -1345,9 +1345,9 @@ class Node
 #
 # Show history.
 #
-function ShowNodeHistory($node_id = null,
-			 $showall = 0, $count = 20, $reverse = 1,
-			 $date = null, $IP = null) {
+function ShowNodeHistory($node_id = null, $record = null,
+			 $count = 200, $showall = 0,
+			 $date = null, $IP = null, $node_opt = "") {
     global $TBSUEXEC_PATH;
     global $PROTOGENI;
     $atime = 0;
@@ -1356,12 +1356,16 @@ function ShowNodeHistory($node_id = null,
     $dtime = 0;
     $nodestr = "";
     $arg = "";
-    $opt = "-ls";
+    $opt = "-ls -n " . escapeshellarg($count);
     if (!$showall) {
-	$opt .= "a";
+	$opt .= " -a";
     }
     if ($date) {
+	$date = date("Y-m-d H:i:s", strtotime($date));
 	$opt .= " -d " . escapeshellarg($date);
+    }
+    elseif ($record) {
+	$opt .= " -x " . escapeshellarg($record);
     }
     if ($node_id || $IP) {
 	if ($IP) {
@@ -1373,8 +1377,8 @@ function ShowNodeHistory($node_id = null,
 	}
     }
     else {
-	$node_id = "";
 	$opt .= " -A";
+	$node_id = "";
 	$nodestr = "<th>Node</th>";
 	#
 	# When supplying a date, we want a summary of all nodes at that
@@ -1384,12 +1388,6 @@ function ShowNodeHistory($node_id = null,
 	    $opt .= " -c";
 	}
     }
-    if ($reverse) {
-	$opt .= " -r";
-    }
-    if ($count) {
-	$opt .= " -n $count";
-    }
     if ($fp = popen("$TBSUEXEC_PATH nobody nobody ".
 		    "  webnode_history $opt $arg", "r")) {
 	if (!$showall) {
@@ -1398,31 +1396,21 @@ function ShowNodeHistory($node_id = null,
 	    $str = "";
 	}
 	if ($node_id == "") {
-	    echo "<br>
-                  <center><b>
+	    echo "<center><b>
                   $str History for All Nodes.
-                  </b></center><br>\n";
+                  </b></center>\n";
 	} else {
 	    $node_url = CreateURL("shownode", URLARG_NODEID, $node_id);
-	    echo "<br>
-                  <center><b>
+	    echo "<center><b>
                   $str History for Node <a href='$node_url'>$node_id</a>.
-                  </b></center><br>\n";
+                  </b></center>\n";
 	}
 
-	echo "<table border=1 cellpadding=2 cellspacing=2 align='center'>\n";
+	# Keep track of history record bounds, for paging through.
+	$max_history_id = 0;
 
-	echo "<tr>
-	       $nodestr
-               <th>Pid</th>
-               <th>Eid</th>";
-	if ($PROTOGENI) {
-	    echo "<th>Slice</th>";
-	}
-        echo " <th>Allocated By</th>
-               <th>Allocation Date</th>
-	       <th>Duration</th>
-              </tr>\n";
+	# Build up table contents
+	ob_start();
 
 	$line = fgets($fp);
 	while (!feof($fp)) {
@@ -1431,7 +1419,7 @@ function ShowNodeHistory($node_id = null,
 	    # nodeid REC tstamp duration uid pid eid
 	    # nodeid SUM alloctime freetime reloadtime downtime
 	    #
-	    $results = preg_split("/[\s]+/", $line, 8, PREG_SPLIT_NO_EMPTY);
+	    $results = preg_split("/[\s]+/", $line, 9, PREG_SPLIT_NO_EMPTY);
 	    $nodeid = $results[0];
 	    $type = $results[1];
 	    if ($type == "SUM") {
@@ -1460,7 +1448,12 @@ function ShowNodeHistory($node_id = null,
 		$durstr = sprintf("%s%ds", $durstr, $duration);
 		$uid = $results[4];
 		$pid = $results[5];
+		$thisid = intval($results[8]);
+		if ($thisid >= $max_history_id) {
+		    $max_history_id = $thisid;
+		}
 		$slice = "--";
+		$expurl = null;
 		if ($pid == "FREE") {
 		    $pid = "--";
 		    $eid = "--";
@@ -1468,6 +1461,7 @@ function ShowNodeHistory($node_id = null,
 		} else {
 		    $eid = $results[6];
 		    if ($results[7]) {
+			$experiment = Experiment::Lookup($results[7]);
 			$experiment_stats = ExperimentStats::Lookup($results[7]);
 			if ($experiment_stats &&
 			    $experiment_stats->slice_uuid()) {
@@ -1477,6 +1471,15 @@ function ShowNodeHistory($node_id = null,
 			    $slice = "<a href='$url'>" .
 				"<img src=\"greenball.gif\" border=0></a>";
 			}
+			if ($experiment) {
+			    $expurl = CreateURL("showexp",
+						URLARG_EID, $experiment->idx());
+			}
+			else {
+			    $expurl = CreateURL("showexpstats",
+						"record",
+						$experiment_stats->exptidx());
+			}
 		    }
 		}
 		
@@ -1485,8 +1488,13 @@ function ShowNodeHistory($node_id = null,
 					 URLARG_NODEID, $nodeid);
 		    echo "<tr>
                           <td><a href='$nodeurl'>$nodeid</a></td>
-                          <td>$pid</td>
-                          <td>$eid</td>";
+                          <td>$pid</td>";
+		    if ($expurl) {
+			echo "<td><a href='$expurl'>$eid</a></td>";
+		    }
+		    else {
+			echo "<td>$eid</td>";
+		    }
 		    if ($PROTOGENI) {
 			echo "<td>$slice</td>";
 		    }
@@ -1496,8 +1504,13 @@ function ShowNodeHistory($node_id = null,
                           </tr>\n";
 		} else {
 		    echo "<tr>
-                          <td>$pid</td>
-                          <td>$eid</td>";
+                          <td>$pid</td>";
+		    if ($expurl) {
+			echo "<td><a href='$expurl'>$eid</a></td>";
+		    }
+		    else {
+			echo "<td>$eid</td>";
+		    }
 		    if ($PROTOGENI) {
 			echo "<td>$slice</td>";
 		    }
@@ -1510,8 +1523,29 @@ function ShowNodeHistory($node_id = null,
 	    $line = fgets($fp, 1024);
 	}
 	pclose($fp);
+	$table_html = ob_get_contents();
+	ob_end_clean();
+	
+	echo "<center><a href='shownodehistory.php3?record=$max_history_id".
+	    "&count=$count&$node_opt'>Next $count records</a></center>\n";
+	echo "<table border=1 cellpadding=2 cellspacing=2 align='center'>\n";
+	echo "<tr>
+	       $nodestr
+               <th>Pid</th>
+               <th>Eid</th>";
+	if ($PROTOGENI) {
+	    echo "<th>Slice</th>";
+	}
+        echo " <th>Allocated By</th>
+               <th>Allocation Date</th>
+	       <th>Duration</th>
+              </tr>\n";
+
+	echo $table_html;
 
 	echo "</table>\n";
+	echo "<center><a href='shownodehistory.php3?record=$max_history_id".
+	    "&count=$count&$node_opt'>Next $count records</a></center>\n";
 
 	$ttime = $atime + $ftime + $rtime + $dtime;
 	if ($ttime) {
