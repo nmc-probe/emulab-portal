@@ -18,12 +18,16 @@ $isadmin   = ISADMIN();
 #
 $optargs = OptionalPageArguments("target_user", PAGEARG_USER,
 				 "submit",      PAGEARG_STRING,
+				 "which",       PAGEARG_STRING,
 				 "finished",    PAGEARG_BOOLEAN,
 				 "formfields",  PAGEARG_ARRAY);
 
 # Default to current user if not provided.
 if (!isset($target_user)) {
      $target_user = $this_user;
+}
+if (!isset($which)) {
+    $which = null;
 }
 
 # Need these below
@@ -88,16 +92,12 @@ function SPITFORM($target_user, $formfields, $errors)
     $target_webid  = $target_user->webid();
 
     echo "<blockquote>
-          By downloading an encrypted SSL certificate, you are able to use
+          By creating an encrypted SSL certificate, you are able to use
           Emulab's XMLRPC server from your desktop or home machine. This
           certificate must be pass phrase protected, and allows you to issue
           any of the RPC requests documented in the <a href=xmlrpcapi.php3>
-          Emulab XMLRPC Reference</a>.</blockquote><br>\n";
+          Emulab XMLRPC Reference</a>.</blockquote>\n";
     
-    echo "<center>
-          Create an SSL Certificate[<b>1</b>]
-          </center><br>\n";
-
     if ($errors) {
 	echo "<table class=nogrid
                      align=center border=0 cellpadding=6 cellspacing=0>
@@ -120,17 +120,27 @@ function SPITFORM($target_user, $formfields, $errors)
 	echo "</table><br>\n";
     }
 
+    echo "<table align=center class=stealth>\n";
+    echo "<tr>\n";
+    echo "<td class=stealth>\n";
+    
+    echo "<center>
+          Create an SSL Certificate[<b>1</b>]
+          </center>\n";
+
     echo "<table align=center border=1> 
           <form enctype=multipart/form-data
                 action=gensslcert.php3 method=post>\n";
     echo "<input type=hidden name=\"formfields[user]\" ".
 	         "value=$target_webid>\n";
+    echo "<input type=hidden name=which value=create>\n";
 
     echo "<tr>
               <td>PassPhrase[<b>2</b>]:</td>
               <td class=left>
                   <input type=password
                          name=\"formfields[passphrase1]\"
+                         value=\"" . $formfields["passphrase1"] . "\"
                          size=24></td>
           </tr>\n";
 
@@ -139,6 +149,7 @@ function SPITFORM($target_user, $formfields, $errors)
               <td class=left>
                   <input type=password
                          name=\"formfields[passphrase2]\"
+                         value=\"" . $formfields["passphrase1"] . "\"
                          size=24></td>
           </tr>\n";
 
@@ -181,10 +192,65 @@ function SPITFORM($target_user, $formfields, $errors)
     echo "</form>
           </table>\n";
 
+    echo "</td>\n";
+    echo "<td class=stealth>\n";
+    echo " OR ";
+    echo "</td>\n";
+    echo "<td valign=top class=stealth>\n";
+
+    echo "<center>
+          Change Passphrase
+          </center>\n";
+    
+    echo "<table align=center border=1> 
+          <form enctype=multipart/form-data
+                action=gensslcert.php3 method=post>\n";
+    echo "<input type=hidden name=\"formfields[user]\" ".
+	         "value=$target_webid>\n";
+    echo "<input type=hidden name=which value=change>\n";
+
+    echo "<tr>
+              <td>New PassPhrase[<b>2</b>]:</td>
+              <td class=left>
+                  <input type=password
+                         name=\"formfields[passphrase1]\"
+                         value=\"" . $formfields["passphrase1"] . "\"
+                         size=24></td>
+          </tr>\n";
+    echo "<tr>
+              <td>Confirm PassPhrase:</td>
+              <td class=left>
+                  <input type=password
+                         name=\"formfields[passphrase2]\"
+                         value=\"" . $formfields["passphrase2"] . "\"
+                         size=24></td>
+          </tr>\n";
+    echo "<tr>
+              <td>Old PassPhrase:</td>
+              <td class=left>
+                  <input type=password
+                         name=\"formfields[oldpassphrase]\"
+                         value=\"" . $formfields["oldpassphrase"] . "\"
+                         size=24></td>
+          </tr>\n";
+    echo "<tr>
+              <td colspan=2 align=center>
+                 <b><input type=submit name=submit value='Change Passphrase'>
+                 </b>
+              </td>
+          </tr>\n";
+
+    echo "</form>
+          </table>\n";
+
+    echo "</td>\n";
+    echo "</tr>\n";
+    echo "</table>\n";
+
     echo "<blockquote><blockquote><blockquote>
           <ol>
             <li> This is an <b>encrypted key</b> and should <b>not</b> replace
-                 your <tt>emulab.pem</tt> in your <tt>.ssl</tt> directory.
+                 <tt>emulab.pem</tt> in your <tt>.ssl</tt> directory.
             <li> You must supply a passphrase to use when encrypting the
                  private key for your SSL certificate. You will be prompted
                  for this passphrase whenever you attempt to use it. Pick
@@ -204,7 +270,10 @@ function SPITFORM($target_user, $formfields, $errors)
 #
 if (! isset($_POST['submit'])) {
     $defaults = array();
-    $defaults["reusekey"] = "Yep";
+    $defaults["reusekey"]        = "Yep";
+    $defaults["passphrase1"]     = "";
+    $defaults["passphrase2"]     = "";
+    $defaults["oldpassphrase"]   = "";
     
     SPITFORM($target_user, $defaults, 0);
     PAGEFOOTER();
@@ -213,13 +282,20 @@ if (! isset($_POST['submit'])) {
 
 # Must get formfields.
 if (!isset($formfields)) {
-    PAGEARGERROR("Invalid form arguments; no formfields arrary.");
+    PAGEARGERROR("Invalid form arguments; no formfields array.");
 }
 
 #
 # Otherwise, must validate and redisplay if errors
 #
 $errors = array();
+
+#
+# Need to get the which variable to tell us which form.
+#
+if (! ($which && ($which == "create" || $which == "change"))) {
+    PAGEARGERROR("Invalid form arguments; which form?");
+}
 
 #
 # Need this for checkpass.
@@ -254,13 +330,35 @@ elseif (! CHECKPASSWORD($target_uid,
 #
 # Must verify passwd to create an SSL key.
 #
-if (! $isadmin) {
+if ($which == "create" && !$isadmin) {
     if (!isset($formfields["password"]) ||
 	strcmp($formfields["password"], "") == 0) {
 	$errors["Password"] = "Must supply a verification password";
     }
     elseif (VERIFYPASSWD($target_uid, $formfields["password"]) != 0) {
 	$errors["Password"] = "Incorrect password";
+    }
+}
+
+if ($which == "change") {
+    $query_result =&
+	$target_user->TableLookUp("user_sslcerts",
+				  "cert,privkey,idx",
+				  "encrypted=1 and revoked is null");
+
+    if (!mysql_num_rows($query_result)) {
+	$errors["Change Passphrase"] =
+	    "You have not created an encrypted certificate yet";
+    }
+
+    if (!isset($formfields["oldpassphrase"]) ||
+	strcmp($formfields["oldpassphrase"], "") == 0) {
+	$errors["Old Passphrase"] = "Must supply current passphrase";
+    }
+    # Ascii only.
+    elseif (! TBvalid_userdata($formfields["oldpassphrase"])) {
+	$errors["Old Passphrase"] = "Invalid characters in old passphrase";
+	return 0;
     }
 }
 
@@ -271,18 +369,25 @@ if (count($errors)) {
     return;
 }
 
-$reusekey = "";
-if (isset($formfields["reusekey"]) &&
-    strcmp($formfields["reusekey"], "Yep") == 0) {
-    $reusekey = "-r";
+$opt = "";
+if ($which == "create") {
+    if (isset($formfields["reusekey"]) &&
+	strcmp($formfields["reusekey"], "Yep") == 0) {
+	$opt = "-r";
+    }
+}
+else {
+    $opt = "-c " . escapeshellarg($formfields["oldpassphrase"]);
 }
 
 #
 # Insert key, update authkeys files and nodes if appropriate.
 #
-STARTBUSY("Generating Certificate");
+STARTBUSY(($which == "create" ?
+	   "Generating Certificate" : "Changing Passphrase"));
+
 $retval = SUEXEC($target_uid, "nobody",
-		 "webmkusercert $reusekey -p " .
+		 "webmkusercert $opt -p " .
 		 escapeshellarg($formfields["passphrase1"]) . " $target_uid",
 		 SUEXEC_ACTION_IGNORE);
 HIDEBUSY();
