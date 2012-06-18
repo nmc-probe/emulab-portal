@@ -17,7 +17,7 @@ SUBDIRS		=
 
 BIN_STUFF	= snmpit_old snmpit_ancient 
 LIB_STUFF       = snmpit_intel.pm \
-                  snmpit_cisco.pm snmpit_lib.pm snmpit_apc.pm \
+                  snmpit_cisco.pm snmpit_lib.pm \
 		  snmpit_cisco_stack.pm snmpit_intel_stack.pm \
 		  snmpit_foundry.pm snmpit_stack.pm snmpit_remote.pm \
 		  snmpit_nortel.pm snmpit_hp.pm snmpit_apcon.pm

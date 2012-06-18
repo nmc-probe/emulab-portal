@@ -35,7 +35,7 @@ use power_mail;
 use power_whol;
 use power_ilo;
 use power_icebox;
-use snmpit_apc;
+use power_apc;
 use libtestbed;
 use User;
 use Node;
