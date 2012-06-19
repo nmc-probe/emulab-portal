@@ -158,6 +158,7 @@ loadone() {
     PREPARE=""
     VGAONLY=""
     IMAGEID=""
+    KEEPALIVE=""
 
     for parm in $_LOADINFO; do
         case $parm in
@@ -173,7 +174,8 @@ loadone() {
 	ASF=*|\
 	PREPARE=*|\
 	VGAONLY=*|\
-        IMAGEID=*)
+        IMAGEID=*|\
+	KEEPALIVE=*)
 	    # XXX need to parse better, eval is dangerous!
 	    eval $parm
 	    ;;
@@ -197,6 +199,26 @@ loadone() {
     VGAONLY=${VGAONLY:-'unknown'}
     MBRVERS=${MBRVERS:-'1'}
     PREPARE=${PREPARE:-'0'}
+
+    #
+    # XXX If KEEPALIVE is not explicitly set, attempt to intuit a value.
+    #
+    # It appears that FreeBSD 8.x's IGMP v3 implementation doesn't
+    # properly sent V2 reports when it is connected to a V2-only querier
+    # (switch). It insists on sending V3 reports event when the default
+    # version is set to 2. So if detect that we have the newer IGMP
+    # implementation, we will use the V2 keep alive mechanism in the
+    # frisbee client.
+    #
+    if [ -z "$KEEPALIVE" ]; then
+	igmpversion=`sysctl -n net.inet.igmp.default_version 2>/dev/null`
+	if [ "$igmpversion"x != "x" ]; then
+	    echo "WARNING: possible IGMP issues; using frisbee keep alive timer"
+	    KEEPALIVE=30
+	else
+	    KEEPALIVE=0
+	fi
+    fi
 
     #
     # One of ADDR or IMAGEID must be set.
@@ -328,6 +350,12 @@ loadone() {
 	ZFILL=""
     fi
 
+    if [ "$KEEPALIVE" != "0" ]; then
+	KA="-K $KEEPALIVE"
+    else
+	KA=""
+    fi
+
     #
     # Make sure the write-cache is enabled on SCSI disks.  It makes a
     # huge difference.  We don't worry about data corruption in the
@@ -406,8 +434,8 @@ loadone() {
 	echo "Running /usr/local/bin/imageunzip -o -O -W 32 $ZFILL $imagefile /dev/${DISK}s${PART}"
 	/usr/local/bin/imageunzip -o -O -W 32 $ZFILL $imagefile /dev/${DISK}s${PART}
     else
-	echo "Running $BINDIR/frisbee -S $SERVER $MEMARGS $ZFILL $SLICE $IMAGEID /dev/$DISK at `date`"
-	$BINDIR/frisbee -S $SERVER $MEMARGS $ZFILL $SLICE $IMAGEID /dev/$DISK
+	echo "Running $BINDIR/frisbee -S $SERVER $MEMARGS $KA $ZFILL $SLICE $IMAGEID /dev/$DISK at `date`"
+	$BINDIR/frisbee -S $SERVER $MEMARGS $KA $ZFILL $SLICE $IMAGEID /dev/$DISK
     fi
     fstat=$?
 

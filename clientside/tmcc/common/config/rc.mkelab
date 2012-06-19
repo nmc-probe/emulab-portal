@@ -161,9 +161,10 @@ my $SINGLE_CONTROLNET = 0;
 # Support a shared filesystem between fs server and nodes
 my $SHAREDFS   = 1;
 
-# Start up mrouted so frisbee works (if there is no other mcast router)
+# Start up the frisbee master server to act as an IGMP querier
+# so that frisbee works (if there is no other querier running).
 # -1 means let the system decide.
-my $NEEDMROUTED= -1;
+my $NEEDQUERIER = -1;
 
 # Is ops a VM (Jail) on boss.
 my $OPSVM = 0;
@@ -209,7 +210,7 @@ my %emulabconfig = (
     #	CONFIG_USERDB	support integrated MySQL DB (part of COLLAB)
     #   CONFIG_WIKI	support integrated wiki (part of COLLAB)
     #	CONFIG_SHAREDFS	support shared filesystem	    
-    #	CONFIG_MROUTED	install/configure multicast router
+    #	CONFIG_QUERIER	configure mfrisbeed to act as IGMP querier
     #
     "CONFIG_NOSETUP"    => $NOSETUP,
     "CONFIG_SCRATCHFS"  => $SCRATCHFS,
@@ -224,7 +225,7 @@ my %emulabconfig = (
     "CONFIG_USERDB"     => !$NOCOLLAB,
     "CONFIG_WIKI"       => !$NOCOLLAB,
     "CONFIG_SHAREDFS"	=> $SHAREDFS,
-    "CONFIG_MROUTED"	=> $NEEDMROUTED,
+    "CONFIG_QUERIER"	=> $NEEDQUERIER,
     "CONFIG_OPSVM"	=> $OPSVM,
     "CONFIG_NODBINIT"   => 0,
     "CONFIG_GENIRACK"   => 0,
@@ -445,6 +446,15 @@ sub doboot()
     # Override the role when inside an ops jail. 
     $emulabconfig{"ROLE"} = "opsjail"
 	if ($opsjail);
+
+    #
+    # XXX backward compat for short-lived NEEDMROUTED option.
+    # mfrisbeed now serves the role that mrouted did briefly.
+    #
+    if (defined($emulabconfig{"CONFIG_MROUTED"}) &&
+	$emulabconfig{"CONFIG_QUERIER"} == -1) {
+	$emulabconfig{"CONFIG_QUERIER"} = $emulabconfig{"CONFIG_MROUTED"};
+    }
 
     #
     # Look for a private variable cache.
@@ -2164,15 +2174,15 @@ sub SetupBossNode($)
     }
 
     #
-    # Determine if we need to run a multicast router.
-    # We will if: 1) using a private control net and 2) kernel support mroute
+    # Determine if we need to run an IGMP querier.
+    # Right now this is only necessary if we are using a private control
+    # network.
     #
-    if ($emulabconfig{"CONFIG_MROUTED"} == -1) {
-	if (!$emulabconfig{"CONFIG_SINGLECNET"} &&
-	    !system("sysctl -N net.inet.ip.mrtstat 2>&1")) {
-	    $emulabconfig{"CONFIG_MROUTED"} = 1;
+    if ($emulabconfig{"CONFIG_QUERIER"} == -1) {
+	if (!$emulabconfig{"CONFIG_SINGLECNET"} {
+	    $emulabconfig{"CONFIG_QUERIER"} = 1;
 	} else {
-	    $emulabconfig{"CONFIG_MROUTED"} = 0;
+	    $emulabconfig{"CONFIG_QUERIER"} = 0;
 	}
     }
 
@@ -2389,23 +2399,6 @@ sub SetupBossNode($)
     my $pswd = $emulabconfig{"PASSWORD"};
     mysystem("cd $TBDIR/obj/testbed/install; ".
 	     "   perl emulab-install $pkg -l -b -w $pswd boss");
-
-    #
-    # Need to tweak mrouted.conf as appropriate for an inner-elab
-    # (ignore the real control net, otherwise we will get ALL mcast traffic
-    # in the testbed delivered to our doorstep!)
-    #
-    if ($emulabconfig{"CONFIG_MROUTED"}) {
-	# make sure old "standard" mrouted doesn't interfere with port
-	if (-r "/usr/local/etc/rc.d/mrouted" && -r "/etc/rc.d/mrouted") {
-	    unlink("/etc/rc.d/mrouted");
-	}
-	if (-x "/usr/local/sbin/mrouted" && -x "/usr/sbin/mrouted") {
-	    unlink("/usr/sbin/mrouted");
-	}
-
-	mysystem("echo 'phyint $outer_controlif force_leaf noflood deny 0/0 bidir' >> /usr/local/etc/mrouted.conf");
-    }
 
     #
     # Copy the creators ssl certificate into place. This allows the
@@ -3155,11 +3148,11 @@ sub CreateDefsFile($)
 		    }
 		    last SWITCH;
 		};
-		/^NEEDMROUTED$/ && do {
-		    if ($emulabconfig{"CONFIG_MROUTED"} == 1) {
-			print OUTDEFS "NEEDMROUTED=1\n";
+		/^NEEDMCQUERIER$/ && do {
+		    if ($emulabconfig{"CONFIG_QUERIER"} == 1) {
+			print OUTDEFS "NEEDMCQUERIER=1\n";
 		    } else {
-			print OUTDEFS "NEEDMROUTED=0\n";
+			print OUTDEFS "NEEDMCQUERIER=0\n";
 		    }
 		    last SWITCH;
 		};

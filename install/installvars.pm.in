@@ -162,7 +162,8 @@ $WIKISUPPORT		= @WIKISUPPORT@;
 $NOSHAREDFS		= @NOSHAREDFS@;
 # Are we a VM on boss?
 $OPSVM_ENABLE		= @OPSVM_ENABLE@;
-$NEEDMROUTED		= @NEEDMROUTED@;
+# mrouted no longer needed; replaced by IGMP querier in mfrisbeed
+$NEEDMROUTED		= 0;
 $ARCHSUPPORT		= @ARCHIVESUPPORT@;
 
 #
