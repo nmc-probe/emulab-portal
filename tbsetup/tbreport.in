@@ -56,6 +56,7 @@ my $showevents = 0;
 my $showroutes = 0;
 my $showfwinfo = 0;
 my %v2pmap;
+my %p2vmap;
 my %p2type;
 my %p2osid;
 my %vv2pmap;
@@ -185,6 +186,7 @@ if ($state eq EXPTSTATE_ACTIVE) {
 	    ISREMOTE    => $r,
 	    PLAB	=> $d,
 	};
+	$p2vmap{$p} = $v;
 	if ($r) {
 	    $hasremote = 1;
 	}
@@ -364,10 +366,9 @@ if ($showmap && $state eq EXPTSTATE_ACTIVE) {
 	foreach $v (sort keys(%v2pmap)) {
 	    my $p = $v2pmap{$v}->{PNODE};
 	    my $s = $v2pmap{$v}->{SSHDPORT};
-	    my $m = $v2pmap{$v}->{VVP};
-	    my $q = "$v.$eid.$pid.$DOMAIN";
-	    if (($v2pmap{$v}->{JAILED} || $v2pmap{$v}->{PLAB}) &&
-		$v2pmap{$v}->{ISREMOTE}) {
+	    my $m = $p2vmap{$v2pmap{$v}->{VVP}};
+	    my $q = "$m.$eid.$pid.$DOMAIN";
+	    if ($v2pmap{$v}->{JAILED}) {
 		printf "%-15s %-10s %-20s", $v, $s, "ssh -p $s $q";
 		print  "\n";
 	    }
