@@ -165,7 +165,7 @@ function TBcheck_dbslot($token, $table, $column, $flag = 0)
         case "int":
         case "float":
 	    if ($token < $min)
-		$DBFieldErrstr = "$token too small - $min minimum value";
+		$DBFieldErrstr = "too small - $min minimum value";
 	    else 
 		$DBFieldErrstr = "too large - $max maximum value";
 	    break;
