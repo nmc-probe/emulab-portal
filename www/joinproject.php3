@@ -807,7 +807,7 @@ if (!$forwikionly) {
 #
 if ($ISOLATEADMINS && !$returning && count($project->GetAdmins())) {
     $errors["Joining Project"] =
-	"You cannot join project '$pid' due to security restrictions!"
+	"You cannot join this project due to security restrictions!"
 	. "  If you were told to join this project specifically, email"
 	. " either the project leader OR $TBMAILADDR_OPS.";
     TBERROR("New user '".$formfields["joining_uid"]."' attempted to join project ".
