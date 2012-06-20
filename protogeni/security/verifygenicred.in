@@ -223,7 +223,7 @@ foreach my $credential ( keys( %credentials ) ) {
 	if $expiry !~ $dateregexp;
 
     fatal("invalid delegation (credential is expired)")
-	if (time() >= str2time($expiry));
+	if (time() > timegm(strptime($expiry)));
 
     if( $node != $root_cred ) {
 	my $parent = $credentials{$credential}->{"parent_cred"};
@@ -273,7 +273,7 @@ foreach my $credential ( keys( %credentials ) ) {
 	    if $expiry gt $parent_expiry;
 
 	fatal("invalid delegation (parent credential is expired)")
-	    if (time() >= str2time($parent_expiry));
+	    if (time() > timegm(strptime($parent_expiry))); 
     }
 }
 
