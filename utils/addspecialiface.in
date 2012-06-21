@@ -203,7 +203,7 @@ if (!$impotent) {
 
     if ($node->erole() eq "sharedhost" && !$notrunk) {
 	print "Setting $node_id:$iface_id to trunking mode\n";
-	system("$SNMPIT -T $node_id:$iface_id") == 0
+	system("$SNMPIT -E $node_id:$iface_id") == 0
 	    or fatal("Could not put port into trunking mode");
     }
 }
