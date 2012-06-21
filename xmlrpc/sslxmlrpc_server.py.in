@@ -145,7 +145,8 @@ class MyServer(SSL.ForkingSSLServer, SimpleXMLRPCDispatcher):
         self.emulabserver  = None;
         self.glist         = [];
         self.plist         = {};
-
+        self.flipped       = 0;
+        
 	ctx = SSL.Context('sslv23')
 	ctx.load_cert(server_cert, server_cert)
 	ctx.load_verify_info(ca_cert)
@@ -350,6 +351,11 @@ class MyServer(SSL.ForkingSSLServer, SimpleXMLRPCDispatcher):
     # Flip to the user that is in the certificate.
     #
     def fliptouser(self, params):
+        if self.flipped:
+            return;
+
+        self.flipped = 1;
+        
         #
         # BSD 16 group limit stupidity. This is barely a solution.
         #
@@ -387,7 +393,7 @@ class MyServer(SSL.ForkingSSLServer, SimpleXMLRPCDispatcher):
             os.environ["LOGNAME"] = self.uid;
             pass
         except:
-            traceback.print_exc()
+            self.logit(traceback.format_exc())
             os._exit(1)
             pass
         pass
