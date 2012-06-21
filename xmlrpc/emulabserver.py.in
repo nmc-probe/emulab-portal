@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004-2011 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 import sys
@@ -303,20 +303,13 @@ def ExperimentIndex(pid, eid):
 # For example experiment.swapexp(...).
 #
 class EmulabServer:
-    def __init__(self, readonly=0, clientip=None, debug=0):
+    def __init__(self, uid, uid_idx, readonly=0, clientip=None, debug=0):
         self.readonly  = readonly;
         self.clientip  = clientip;
         self.debug     = debug;
         self.instances = {};
-	self.unix_uid  = os.getuid()
-        self.uid       = pwd.getpwuid(os.getuid())[0]
-
-        res = DBQueryFatal("select uid_idx from users "
-                           "where unix_uid=%s and uid=%s",
-                           (self.unix_uid, self.uid))
-        if len(res) == 0:
-            return
-        self.uid_idx = res[0][0]
+        self.uid_idx   = uid_idx;
+        self.uid       = uid;
 
         self.instances["experiment"] = experiment(self);
         self.instances["template"]   = template(self);
