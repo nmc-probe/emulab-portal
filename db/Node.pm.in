@@ -449,8 +449,8 @@ sub Create($$$$)
 	$osid   = "NULL";
 	$opmode = "";
     }
-    if (exists($argref->{'eventstate'})) {
-	$state = $argref->{'eventstate'};
+    if (exists($argref->{'initial_eventstate'})) {
+	$state = $argref->{'initial_eventstate'};
     }
     else {
 	$state  = $STATE_INITIAL;
