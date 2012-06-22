@@ -2,8 +2,14 @@
 #
 # Utah Network Testbed local startup
 #
+
+# PROVIDE: testbed
+# REQUIRE: mysql pubsubd mfrisbeed
+# BEFORE: apache22
+# KEYWORD: shutdown
+
 case "$1" in
-	start)
+	start|faststart)
 		#
 		# See if the testbed is "shutdown"; The variable has three values.
 	        #  0  - Testbed is enabled.

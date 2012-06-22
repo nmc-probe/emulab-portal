@@ -1243,8 +1243,9 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/tmcc/ubuntu11/GNUmakefile \
  clientside/tmcc/freebsd5/GNUmakefile clientside/tmcc/freebsd5/supfile \
  clientside/tmcc/freebsd6/GNUmakefile clientside/tmcc/freebsd6/supfile \
- clientside/tmcc/freebsd6/netif-emulab clientside/tmcc/freebsd7/GNUmakefile \
- clientside/tmcc/freebsd7/supfile clientside/tmcc/freebsd7/netif-emulab \
+ clientside/tmcc/freebsd6/netif-emulab \
+ clientside/tmcc/freebsd7/GNUmakefile clientside/tmcc/freebsd7/netif-emulab \
+ clientside/tmcc/freebsd10/GNUmakefile clientside/tmcc/freebsd10/netif-emulab \
  clientside/tmcc/cygwinxp/GNUmakefile clientside/tmcc/dp/GNUmakefile \
  clientside/tmcc/openbsd/GNUmakefile clientside/tmcc/ron/GNUmakefile \
  clientside/tmcc/plab/GNUmakefile \

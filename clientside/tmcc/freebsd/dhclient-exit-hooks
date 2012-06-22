@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 . /etc/emulab/paths.sh
@@ -79,6 +79,23 @@ curhname=`hostname`
 if [ $reason = BOUND -a -z "$curhname" -a -n "$new_host_name" ]; then
     echo "`date`: hostname is $new_host_name" >>$LOGDIR/dhclient-exit.log 2>&1
     hostname $new_host_name
+fi
+
+#
+# XXX hmm...in FreeBSD 10, the first interface we probe will cause the
+# default route to get set to that interface. This will cause any subsequent
+# attempt to set the default route to fail and we may wind up without a
+# valid default route at this point. So we double check here to make sure
+# the default route is correct.
+#
+if [ -n "$new_routers" ]; then
+    gw=`route -n get -inet default | grep gateway`
+    gw=${gw##*: }
+    if [ "$gw" != "$new_routers" ]; then
+	echo "reset default route from \"$gw\" to \"$new_routers\""
+	route delete default >/dev/null 2>&1
+	route add default $new_routers >/dev/null 2>&1
+    fi
 fi
 
 #

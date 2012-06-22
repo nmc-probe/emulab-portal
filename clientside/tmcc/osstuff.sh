@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2007 University of Utah and the Flux Group.
+# Copyright (c) 2007-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -27,7 +27,7 @@ dist=
 case $os in
 FreeBSD)
     dist="FreeBSD"
-    rel=`uname -v | sed -e 's/FreeBSD \([0-9]\.[0-9][0-9]*\).*/\1/'`
+    rel=`uname -v | sed -e 's/FreeBSD \([0-9][0-9]*\.[0-9][0-9]*\).*/\1/'`
     ;;
 Linux)
     if [ -r /etc/lsb-release ]; then

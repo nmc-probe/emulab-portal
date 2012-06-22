@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 SRCDIR		= @srcdir@
@@ -23,7 +23,9 @@ FBSDMAJ := $(basename $(FBSDREL))
 ifneq ($(FBSDMAJ),7)
 ifneq ($(FBSDMAJ),8)
 ifneq ($(FBSDMAJ),9)
+ifneq ($(FBSDMAJ),10)
 WITH_LTHREADS = 1
+endif
 endif
 endif
 endif
