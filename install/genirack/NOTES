@@ -161,12 +161,10 @@ Need the following info:
   5400(config)> no vlan 1 ip address
   5400(config)> vlan 10
   5400(vlan-10)> name control-hardware
-  5400(vlan-10)> untagged 48	  XXXX Make sure about port number!
+  5400(vlan-10)> untagged A48	  XXXX Make sure about port number!
   5400(vlan-10)> ip address 10.2.1.253/24
   5400(vlan-10)> exit
-  5400(config)> oobm disable
   5400(config)> management-vlan 10
-  5400(config)> snmp-server listen data
   5400(config)> ip default-gateway 10.2.1.254
   5400(config)> no web-management
   5400(config)> password all (type in same password for manager/operator)
@@ -174,7 +172,7 @@ Need the following info:
   5400(config)> snmp-server community XXXXX manager unrestricted
   5400(config)> write memory
   5400(config)> reload
-
+  
   USE THE SAME PASSWORD and COMMUNITY XXXXX
   USE THE SAME PASSWORD and COMMUNITY XXXXX
   USE THE SAME PASSWORD and COMMUNITY XXXXX
