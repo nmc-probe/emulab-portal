@@ -219,10 +219,10 @@ foreach my $credential ( keys( %credentials ) ) {
     my $expiry = lookup( $node, "expires" )->textContent;
     my $dateregexp = '^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ?$';
 
-    fatal( "invalid delegation (malformed expiry)" )
+    fatal( "invalid credential (malformed expiry)" )
 	if $expiry !~ $dateregexp;
 
-    fatal("invalid delegation (credential is expired)")
+    fatal("invalid credential (expired at $expiry)")
 	if (time() > timegm(strptime($expiry)));
 
     if( $node != $root_cred ) {
@@ -270,7 +270,7 @@ foreach my $credential ( keys( %credentials ) ) {
 	    if $parent_expiry !~ $dateregexp;
 
 	fatal( "invalid delegation (expiry violation)" )
-	    if $expiry gt $parent_expiry;
+	    if timegm(strptime($expiry)) gt timegm(strptime($parent_expiry));
 
 	fatal("invalid delegation (parent credential is expired)")
 	    if (time() > timegm(strptime($parent_expiry))); 

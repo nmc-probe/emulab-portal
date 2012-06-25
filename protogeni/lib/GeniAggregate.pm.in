@@ -659,6 +659,9 @@ sub NewCredential($$)
 	print STDERR "Could not create credential for $self, $owner\n";
 	return undef;
     }
+    # Bump expiration to avoid race with aggregate about to expire.
+    $credential->SetExpiration(str2time($self->expires()) + (24 * 3600));
+	
     if (defined($self->nickname())) {
 	$credential->AddExtension("nickname", $self->nickname());
     }

@@ -102,6 +102,7 @@ bin-install:	dir-install
 etc-install:	dir-install sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/group $(ETCDIR)/group
 	$(INSTALL) -m 600 $(SRCDIR)/master.passwd $(ETCDIR)/master.passwd
+	$(INSTALL) -m 444 $(SRCDIR)/hosts $(ETCDIR)/hosts
 
 sysetc-install:	dir-install netif-emulab
 	$(INSTALL) -m 444 $(SRCDIR)/rc.conf $(SYSETCDIR)/rc.conf

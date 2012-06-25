@@ -29,7 +29,7 @@ replace into node_type_attributes set
       type='hp5406',attrkey='forwarding_protocols',
       attrvalue='ethernet',attrtype='string';
 replace into nodes set
-      node_id='procurve2',phys_nodeid='procurve2',type='hp6600',role='testswitch';
+      node_id='procurve2',phys_nodeid='procurve2',type='hp5406',role='testswitch';
 REPLACE INTO `switch_stack_types`
   VALUES ('Experiment','generic',0,0,NULL,257,999,'procurve2');
 

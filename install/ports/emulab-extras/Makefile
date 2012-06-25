@@ -1,17 +1,16 @@
-# ports collection makefile for: emulab-pubsub
+# ports collection makefile for: emulab-extras
 
 PORTNAME=	emulab-extras
 PORTVERSION=	1.0
 CATEGORIES=	misc
-MASTER_SITES=	http://www.emulab.net/distributions/
-DISTFILES=      ${PORTNAME}-${PORTVERSION}.tar.gz
-WRKSRC=         ${WRKDIR}/${PORTNAME}-${PORTVERSION}
-
-MAINTAINER=	testbed-ops@flux.utah.edu
+MASTER_SITES=	#none
+DISTFILES=      #none
+EXTRACT_ONLY=	#none
 COMMENT=	"Extra convenience packages for Emulab"
 
-USE_GMAKE=	yes
-INSTALLS_SHLIB=	yes
+MAINTAINER=	testbed-ops@flux.utah.edu
+
+NO_BUILD=	yes
 
 #
 # This prevents any ports from trying to run interactively - some, like the
@@ -21,7 +20,11 @@ INSTALLS_SHLIB=	yes
 
 RUN_DEPENDS+=	\
         ${LOCALBASE}/bin/jove:${PORTSDIR}/editors/jove \
+        ${LOCALBASE}/bin/emacs:${PORTSDIR}/editors/emacs \
+        ${LOCALBASE}/bin/vim:${PORTSDIR}/editors/vim \
         ${LOCALBASE}/sbin/lsof:${PORTSDIR}/sysutils/lsof \
         ${LOCALBASE}/bin/ttcp:${PORTSDIR}/benchmarks/ttcp
+
+do-install:	# empty
 
 .include <bsd.port.mk>

@@ -263,22 +263,16 @@ loadone() {
     HOSTMEM=`expr $HOSTMEM / 1048576`
     if [ $HOSTMEM -ge `expr $RESIDMEM + 2` ]; then
 	HOSTMEM=`expr $HOSTMEM - $RESIDMEM`
-	BYTES=`expr $HOSTMEM \* 1024`
+	KBYTES=`expr $HOSTMEM \* 1024`
 	DATASEGSZ=`ulimit -d`
-	if [ $BYTES -gt $DATASEGSZ ]; then
-	    BYTES=$DATASEGSZ
-	    HOSTMEM=`expr $BYTES / 1024`
+	if [ $KBYTES -gt $DATASEGSZ ]; then
+	    KBYTES=$DATASEGSZ
+	    HOSTMEM=`expr $KBYTES / 1024`
 	    echo "WARNING: kernel limits buffering to $HOSTMEM MB"
 	fi
-	ulimit -v $BYTES
+	ulimit -v $KBYTES
 
-	## For GaTech we use more memory for disks since the disks are so slow
-	#NETMEM=`expr $HOSTMEM \* 1 / 3`
-	#DISKMEM=`expr $HOSTMEM \* 2 / 3`
-	#MEMARGS="-C $NETMEM -W $DISKMEM"
-
-	# For Utah, we let the client split up the memory
-	# (50/50, but no more chunk buffers than there are chunks in the image)
+	# Let the client split up the memory
 	MEMARGS="-M $HOSTMEM"
     fi
 

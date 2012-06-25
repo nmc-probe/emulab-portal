@@ -63,8 +63,9 @@ clean:
 	if [ -r Makefile ]; then $(MAKE) -f Makefile clean; fi
 	rm -f config.h config.log stamp-h1
 
-reallyclean:
-	rm -rf config.status iperf-2.0.2 $(TARBALL)
+reallyclean: clean
+	rm -rf config.status Makefile compat doc include src \
+	    iperf-2.0.2 $(TARBALL)
 
 Makefile: config.status
 

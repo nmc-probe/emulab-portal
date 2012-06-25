@@ -20,7 +20,8 @@ sub usage()
     print STDERR "  -m      dump just the MFS descriptors.\n";
     print STDERR "  -v 1    first generation STD images (FBSD410, RHL90)\n";
     print STDERR "  -v 2    second generation STD images (FBSD62, FC6)\n";
-    print STDERR "  -v 3    second generation STD images (FBSD73, FEDORA10)\n";
+    print STDERR "  -v 3    third generation STD images (FBSD82, FEDORA15)\n";
+    print STDERR "  -v 4    fourth generation STD images (FBSD83, FEDORA15)\n";
     print STDERR "Default version is 2.\n";
     exit(-1);
 }
@@ -43,6 +44,7 @@ my %imagenames    = (
     # No longer using combined images.
     # The UBUNTU10 image is for FW-IPTABLES link. 
     "3" => ['FBSD82-STD', 'FEDORA15-STD', 'UBUNTU10-STD-FW'],
+    "4" => ['FBSD83-STD', 'FBSD83-64-STD', 'FEDORA15-STD', 'FEDORA15-64-STD', 'UBUNTU10-STD-FW'],
 );
 
 my %osnames	  = (
@@ -53,6 +55,11 @@ my %osnames	  = (
 	    'OPSNODE-BSD', 'FW-IPFW', 'FW-IPFW2', 'FW-IPTABLES',
 	    'RHL-STD', 'FBSD-STD', 'FBSD-JAIL', 'POWER-CONTROLLER'],
     "3" => ['FREEBSD-MFS', 'FRISBEE-MFS', 'NEWNODE-MFS', 'FW-IPTABLES',
+	    'OPSNODE-BSD', 'RHL-STD', 'FBSD-STD', 'POWER-CONTROLLER'],
+    "4" => ['FREEBSD-MFS', 'FRISBEE-MFS', 'NEWNODE-MFS',
+	    'FREEBSD-64-MFS', 'FRISBEE-64-MFS', 'NEWNODE-64-MFS',
+	    'ADMIN-LINUX', 'FRISBEE-LINUX','NEWNODE-LINUX',
+	    'FW-IPTABLES',
 	    'OPSNODE-BSD', 'RHL-STD', 'FBSD-STD', 'POWER-CONTROLLER'],
 );
 
@@ -74,6 +81,10 @@ my %mappings       = (
     "3" => {
 	"RHL-STD"  => "FEDORA10-STD",
 	"FBSD-STD" => "FBSD82-STD",
+    },
+    "4" => {
+	"RHL-STD"  => "FEDORA15-STD",
+	"FBSD-STD" => "FBSD83-STD",
     }
 );
 

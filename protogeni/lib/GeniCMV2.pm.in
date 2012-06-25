@@ -1730,7 +1730,7 @@ sub ReserveVlanTags($)
 	# needs to see if the slice was first created on this path.
 	#
 	my $authority =
-	    GeniCMV2::CreateAuthorityFromRegistry($slice_certificate);
+	    GeniCM::CreateAuthorityFromRegistry($slice_certificate);
 	if (GeniResponse::IsResponse($authority)) {
 	    print STDERR "Could not create authority from registry\n";
 	    $response = $authority;

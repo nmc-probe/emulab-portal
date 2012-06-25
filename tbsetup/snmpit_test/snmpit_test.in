@@ -2555,7 +2555,9 @@ sub doReserveVlanTags($$@) {
 	my $tag = $stack->newVlanNumber($vlanid, $vlanid);
 	if ($tag) {
 	    push(@assigned, [$vlan,$tag]);
-	    next;
+	    # Keep going in blockmode to get all tags.
+	    next
+		if (!$opt{'blockmode'});
 	}
 	elsif (!$opt{'blockmode'}) {
 	    #

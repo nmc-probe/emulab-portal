@@ -2130,9 +2130,10 @@ sub GetTicketAuxAux($$$$$$$$$)
     #
     foreach my $linkname (keys(%external_linkmap)) {
 	my $linkref   = $external_linkmap{$linkname};
+	my $network   = $stitching_paths{$linkname}->{'network'};
 	my $slice_urn = $slice->urn();
 	my $retries   = 10;
-	my $chainmode = 0;
+	my $chainmode = ($network->node_type() eq "interconnect-vm" ? 1 : 0);
 	my $madevlan  = 0;
 
 	#
