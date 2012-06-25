@@ -79,6 +79,8 @@ sub Install($$$)
 	Phase "openvz", "Updating the OPENVZ-STD osid", sub {
 	    $osinfo->SetNextOS($nextosinfo) == 0
 		or PhaseFail("Could not set the nextosid for OPENVZ-STD");
+	    $osinfo->SetParentOS($nextosinfo) == 0
+		or PhaseFail("Could not set the parent osid for OPENVZ-STD");
 	};
 	
 	PhaseSucceed("done")
