@@ -104,9 +104,14 @@ endif
 
 ifeq ($(SYSTEM),Cygwin)
 # Cygwin on  Windows XP (a.k.a. NT 5.1) - resembles the Linux case.
-ifeq ($(MDSUBDIR),CYGWIN_NT-5.1)
+ifeq ($(MDREL),5.1)
 MDSUBDIR  = cygwinxp
 TMSLIBS   += -lminires
+else
+# Cygwin on  Windows 7 (a.k.a. NT 6.1) - resembles the Linux case.
+ifeq ($(MDREL),6.1)
+MDSUBDIR  = cygwinseven
+endif
 endif
 endif
 
