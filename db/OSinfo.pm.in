@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2007-2011 University of Utah and the Flux Group.
+# Copyright (c) 2007-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 package OSinfo;
@@ -590,6 +590,13 @@ sub SetNextOS($$)
     my ($self, $nextosinfo) = @_;
 
     return $self->Update({"nextosid" => $nextosinfo->osid()});
+}
+
+sub SetParentOS($$)
+{
+    my ($self, $parent) = @_;
+
+    return $self->Update({"def_parentosid" => $parent->osid()});
 }
 
 #
