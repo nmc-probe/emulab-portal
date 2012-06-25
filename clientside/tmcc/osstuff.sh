@@ -57,11 +57,11 @@ Linux)
         rel=1.0  # XXX probably wrong
     fi
     ;;
-CYGWIN_NT-5.1)	# aka Windows XP
+CYGWIN_NT-*)	# aka Windows XP/7
     tag=$os	# XXX compat for tmcd makefile
     os="Cygwin"
     dist="NT"
-    rel="5.1"
+    rel=`echo $tag | sed -e 's/^CYGWIN_NT-\(.*\)/\1/'`
     ;;
 *)
     dist="Unknown"

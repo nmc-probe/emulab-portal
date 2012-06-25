@@ -52,7 +52,7 @@
 #define TPM_CERTFILE		"tpm.cert"
 #define TPM_KEYFILE		"tpm.key"
 
-#ifdef linux
+#if defined(linux) || defined(__CYGWIN__)
 #define EAUTH	EPERM
 #endif
 

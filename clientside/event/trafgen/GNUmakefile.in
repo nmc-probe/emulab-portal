@@ -62,8 +62,8 @@ YCFLAGS	 += -I. -I$(TGSRCDIR) -DUSEEVENTS -DFREEBSD
 LIBS	 += -ll -lcompat
 endif
 
-ifeq ($(SYSTEM),CYGWIN_NT-5.1)
-# Cygwin on  Windows XP (a.k.a. NT 5.1) - resembles the Linux case.
+ifeq ($(findstring CYGWIN_NT,$(SYSTEM)),CYGWIN_NT)
+# Cygwin on  Windows XP/7 - resembles the Linux case.
 CFLAGS	 += -DCYGWIN -DLINUX
 YCFLAGS	 += -I. -I$(TGSRCDIR) -DUSEEVENTS -DCYGWIN -DLINUX
 
