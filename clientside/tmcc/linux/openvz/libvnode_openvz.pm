@@ -705,7 +705,7 @@ sub vz_vnodeCreate {
     my $reload_args_ref = $vnconfig->{'reloadinfo'};
 
     my $vmid;
-    if ($vnode_id =~ /^\w+\d+\-(\d+)$/) {
+    if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
 	$vmid = $1;
     }
     else {
