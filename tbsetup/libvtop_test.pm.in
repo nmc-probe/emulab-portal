@@ -2650,8 +2650,7 @@ sub GenVirtLans($)
 		$self->createLink($vname, $plink, [$mycmurn],
 				  {'virtual_node_id' => $vname,
 				   'virtual_interface_id' => "$member" },
-				  {'virtual_node_id' => $lanname,
-				   'virtual_interface_id' => "$member" },
+				  {'virtual_node_id' => $lanname },
 				  $top_bw, $protocol);
 		next;
 	    }
@@ -2721,8 +2720,7 @@ sub GenVirtLans($)
 			      [$virtnode->_cmurn()],
 			      {'virtual_node_id' => $vnodevname,
 			       'virtual_interface_id' =>"$member" },
-			      {'virtual_node_id' => $lannode,
-			       'virtual_interface_id' =>"$member" },
+			      {'virtual_node_id' => $lannode },
 			      '*', $protocol, $others);
 	}
 	elsif (@members == 2 && !$vlan->_bridged()) {
@@ -3215,10 +3213,9 @@ sub GenVirtLans($)
 			}
 		    
 			$self->createLink($vname, $plink, [],
-					{'virtual_node_id' => $vnodevname,
-					 'virtual_interface_id' =>"$member" },
-					{'virtual_node_id' => "$lannode",
-					 'virtual_interface_id' =>"$member" },
+					  {'virtual_node_id' => $vnodevname,
+					   'virtual_interface_id' =>"$member" },
+					  {'virtual_node_id' => "$lannode" },
 					  $top_bw == 0 ? "*" : 
 					  max($top_bw,$top_rbw),
 					  $protocol, $others);
@@ -3328,8 +3325,7 @@ sub GenVirtLans($)
 				      [$virtnode->_cmurn()],
 				      {'virtual_node_id' => $vnodevname,
 				       'virtual_interface_id' =>"$member" },
-				      {'virtual_node_id' => $lannode,
-				       'virtual_interface_id' =>"$member" },
+				      {'virtual_node_id' => $lannode },
 				      ($top_bw == 0 ? "*" : $top_bw), 
 				      $protocol, $others);
 		}
@@ -3415,13 +3411,17 @@ sub PrintTop($;$)
 	if (exists($link->{'trivial_ok'})) {
 	    $output .= 'trivial_ok' . ' ';
 	}
-	my $ifaceid1 = $link->{'interface_ref'}->[0]->{'virtual_interface_id'};
-	my $ifaceid2 = $link->{'interface_ref'}->[1]->{'virtual_interface_id'};
-	if (exists($fixedifaces{$ifaceid1})) {
-	    $output .= 'fixsrciface:' . $fixedifaces{$ifaceid1} . ' ';
+	if (exists($link->{'interface_ref'}->[0]->{'virtual_interface_id'})) {
+	    my $if1 = $link->{'interface_ref'}->[0]->{'virtual_interface_id'};
+	    if (exists($fixedifaces{$if1})) {
+		$output .= 'fixsrciface:' . $fixedifaces{$if1} . ' ';
+	    }
 	}
-	if (exists($fixedifaces{$ifaceid2})) {
-	    $output .= 'fixdstiface:' . $fixedifaces{$ifaceid2} . ' ';
+	if (exists($link->{'interface_ref'}->[1]->{'virtual_interface_id'})) {
+	    my $if2 = $link->{'interface_ref'}->[1]->{'virtual_interface_id'};
+	    if (exists($fixedifaces{$if2})) {
+		$output .= 'fixdstiface:' . $fixedifaces{$if2} . ' ';
+	    }
 	}
 	$output .= "\n";
     }
