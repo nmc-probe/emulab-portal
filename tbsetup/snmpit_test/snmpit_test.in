@@ -2325,7 +2325,12 @@ sub syncVlansFromTables($$) {
 	# vlan is going to get new ports below, and waiting till then.
 	#
 	$stack->setVlanOnSwitchTrunks($vlanid, 1);
-	VLan->RecordVlanInsertion($vlanid, $stack->{STACKID});
+
+	#
+	# Must record a modification so that the loop below that adds new 
+	# ports does not get confused.
+	#
+	VLan->RecordVLanModification($vlanid, undef, @staleports, @staletrunks);
     }
 
     #
