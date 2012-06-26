@@ -2330,7 +2330,8 @@ sub syncVlansFromTables($$) {
 	# Must record a modification so that the loop below that adds new 
 	# ports does not get confused.
 	#
-	VLan->RecordVLanModification($vlanid, undef, @staleports, @staletrunks);
+	my @tmp = Port->toIfaceStrings(@staleports, @staletrunks);
+	VLan->RecordVLanModification($vlanid, undef, \@tmp);
     }
 
     #
