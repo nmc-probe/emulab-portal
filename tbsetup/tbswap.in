@@ -904,6 +904,12 @@ sub doSwapout($) {
     #
     if ( $type >= CLEANUP ) {
 	print STDERR "Resetting DB.\n";
+	if (0 && $type == CLEANUP) {
+	    $experiment->ClearBackupState();
+	    $experiment->BackupPhysicalState();
+	    $experiment->SaveBackupState();
+	    $experiment->ClearBackupState();
+	}
 	# Add purge flag.
 	$experiment->RemovePhysicalState(1);
 	# Special. 
