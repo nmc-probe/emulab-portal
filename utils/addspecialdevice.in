@@ -21,11 +21,11 @@ sub usage()
     print STDERR "Options:\n";
     print STDERR " -d       - Turn on debugging\n";
     print STDERR " -n       - Dry run mode\n";
-    print STDERR " -s       - Node is to be shared by multiple experiments\n";
+    print STDERR " -s count - Node is to be shared, provide capacity\n";
     print STDERR " -t type  - Type name (eg: bbg, spp, goober, whatever)\n";
     exit(-1);
 }
-my $optlist   = "t:dns";
+my $optlist   = "t:dns:";
 my $debug     = 0;
 my $impotent  = 0;
 my $type;
@@ -86,7 +86,7 @@ if (defined($options{'t'})) {
     $type = $options{'t'};
 }
 if (defined($options{'s'})) {
-    $isshared = 1;
+    $isshared = $options{'s'};
 }
 usage()
     if (@ARGV != 1 || !(defined($type)));
@@ -164,6 +164,11 @@ sub CreateType($$)
 	DBQueryFatal("replace into node_types set ".
 		     "  class='$type', type='$type', ".
 		     "  isvirtnode='$isvirt', isdynamic='$isvirt'");
+
+	if ($isshared && $isvirt) {
+	    DBQueryFatal("insert into node_auxtypes values ".
+			 "('$node_id', '$type', '$isshared')");
+	}
     }
 
     #
@@ -184,6 +189,12 @@ sub CreateType($$)
 		     " ('$type','fakenode','1','boolean')");
 	DBQueryFatal("replace into node_type_attributes values ".
 		     " ('$type','default_osid','$osid','integer')");
+
+	if ($isshared && !$isvirt) {
+	    DBQueryFatal("replace into node_type_attributes values ".
+			 " ('$type','virtnode_capacity', ".
+			 "  '$isshared','integer')");
+	}
     }
     return 0;
 }
@@ -194,9 +205,9 @@ sub CreateType($$)
 sub CreateNode()
 {
     my $blob = {
-	"type"            => $type,
-	"role"            => "testnode",
-	"initial_state"   =>TBDB_NODESTATE_ISUP(),
+	"type"               => $type,
+	"role"               => "testnode",
+	"initial_eventstate" => TBDB_NODESTATE_ISUP(),
     };
     my $node;
     

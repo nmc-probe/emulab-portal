@@ -2179,7 +2179,7 @@ sub SetupBossNode($)
     # network.
     #
     if ($emulabconfig{"CONFIG_QUERIER"} == -1) {
-	if (!$emulabconfig{"CONFIG_SINGLECNET"} {
+	if (!$emulabconfig{"CONFIG_SINGLECNET"}) {
 	    $emulabconfig{"CONFIG_QUERIER"} = 1;
 	} else {
 	    $emulabconfig{"CONFIG_QUERIER"} = 0;

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -181,6 +181,7 @@ my %xmlfields =
      "zip"		=> ["usr_zip",		$SLOT_OPTIONAL],
      "country"		=> ["usr_country",	$SLOT_OPTIONAL],
      "phone"		=> ["usr_phone",	$SLOT_OPTIONAL],
+     "notes"		=> ["notes",		$SLOT_OPTIONAL],
     );
 
 #

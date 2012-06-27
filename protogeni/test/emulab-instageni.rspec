@@ -17,10 +17,8 @@ http://www.protogeni.net/resources/rspec/2/request.xsd"
   </node>
   <node client_id="right"
 	component_manager_id="urn:publicid:IDN+utah.geniracks.net+authority+cm"
-        exclusive="true">
-    <sliver_type name="raw-pc">
-      <disk_image
-	  name="urn:publicid:IDN+utah.geniracks.net+image+emulab-ops//FEDORA15-STD" />
+        exclusive="false">
+    <sliver_type name="emulab-openvz">
     </sliver_type>
     <interface client_id="right:if0">
       <ip address="192.168.44.2" netmask="255.255.255.0" type="ipv4"/>

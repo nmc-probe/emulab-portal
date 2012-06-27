@@ -1278,6 +1278,12 @@ sub mapPortsToSwitches(@)
     my %trunks   = getTrunks();
     my %map      = mapPortsToDevices(@ports);
     my %devices  = ();
+
+    #
+    # Watch for one device, no trunks to worry about.
+    #
+    return (keys(%map))
+	if (scalar(keys(%map)) == 1);
     
     foreach my $device (keys %map) {
 	$devices{$device} = 1;

@@ -1410,19 +1410,25 @@ $vlan_id,$ddep, $pideid,           $vname,   $members
         }
 	else {
             # If only printing orphaned VLANs, skip ones for which we know the
-            # pid and ied
+            # pid and eid
             if ($opt{O}) {
                 next;
             }
             my $vlanexp = $vlan->GetExperiment();
-            if ($UID &&
-		!$vlanexp->AccessCheck($this_user, TB_EXPT_READINFO)) {
-                &debug("$this_user failed access check to $experiment\n");
-                next;
-            }
-   	    # Setup $pideid for a more compact display
-            $pideid = $vlan->pid() . "/" . $vlan->eid();
-            $vname  = $vlan->vname();
+	    if (!defined($vlanexp)) {
+		$pideid = "UNKNOWN";
+		$vname  = "UNKNOWN";
+	    }
+            else {
+                if ($UID && 
+		    !$vlanexp->AccessCheck($this_user, TB_EXPT_READINFO)) {
+                    &debug("$this_user failed access check to $experiment\n");
+                    next;
+                 }
+   	         # Setup $pideid for a more compact display
+                 $pideid = $vlan->pid() . "/" . $vlan->eid();
+                 $vname  = $vlan->vname();
+	    }
 	}
 
 	#
@@ -2319,7 +2325,13 @@ sub syncVlansFromTables($$) {
 	# vlan is going to get new ports below, and waiting till then.
 	#
 	$stack->setVlanOnSwitchTrunks($vlanid, 1);
-	VLan->RecordVlanInsertion($vlanid, $stack->{STACKID});
+
+	#
+	# Must record a modification so that the loop below that adds new 
+	# ports does not get confused.
+	#
+	my @tmp = Port->toIfaceStrings(@staleports, @staletrunks);
+	VLan->RecordVLanModification($vlanid, undef, \@tmp);
     }
 
     #
