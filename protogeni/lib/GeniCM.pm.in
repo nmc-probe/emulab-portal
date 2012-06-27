@@ -735,12 +735,23 @@ sub GetTicketAuxAux($$$$$$$$$)
     $virtexperiment->allowfixnode(0);
     $virtexperiment->multiplex_factor(10);
 
-    if ($MAINSITE) {
-	$virtexperiment->NewTableRow("virt_vtypes",
-				     {"name"     => "pcfast",
-				      "members"  => "pc3000 d710",
-				      "weight"   => 0.5});
+    #
+    # Add global vtypes.
+    #
+    my $vtypes_result =
+	emdb::DBQueryWarn("select * from global_vtypes");
+    if (!$vtypes_result) {
+	$response = GeniResponse->Create(GENIRESPONSE_ERROR);
+	goto bad;
     }
+    while (my $row = $vtypes_result->fetchrow_hashref()) {
+	$virtexperiment->NewTableRow("virt_vtypes",
+				     {"name"     => $row->{'vtype'},
+				      "members"  => $row->{'types'},
+				      "weight"   => $row->{'weight'}
+				     });
+    }
+
     # Need to move this someplace else; the parser adds a bunch.
     $virtexperiment->NewTableRow("virt_agents",
 				 {"vnode"      => "*",
