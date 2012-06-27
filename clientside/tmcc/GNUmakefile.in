@@ -26,6 +26,10 @@ CFLAGS	+= -O -g -Wall -DUDP \
 		-I${TESTBED_LIBSRCDIR}/libtb \
 		-I${TESTBED_LIBSRCDIR}/tmcd \
 		-L/usr/local/lib
+ifeq ($(SYSTEM),Cygwin)
+CFLAGS	+=	-L/usr/lib/w32api
+endif
+
 TMLIBS	 = ${TESTBED_LIBOBJDIR}/tmcd/libtmcc.a
 TMLIBS  += ${TESTBED_LIBOBJDIR}/libtb/libtb.a
 LDFLAGS += $(LDSTATIC)
@@ -103,10 +107,10 @@ endif
 endif
 
 ifeq ($(SYSTEM),Cygwin)
+TMLIBS  += -liphlpapi
 # Cygwin on  Windows XP (a.k.a. NT 5.1) - resembles the Linux case.
 ifeq ($(MDREL),5.1)
 MDSUBDIR  = cygwinxp
-TMSLIBS   += -lminires
 else
 # Cygwin on  Windows 7 (a.k.a. NT 6.1) - resembles the Linux case.
 ifeq ($(MDREL),6.1)
@@ -123,7 +127,7 @@ tmcc-shared: tmcc.c tmcd.h $(TPMLIB)
 	$(CC) $(CFLAGS) $(SSLFLAGS) -g -o tmcc $< $(LFLAGS) $(TMLIBS)
 
 tmcc-nossl-debug: tmcc.c tmcd.h
-	$(CC) $(CFLAGS) $(LDSTATIC) -g -o $@ $< $(LFLAGS) $(TMSLIBS)
+	$(CC) $(CFLAGS) $(LDSTATIC) -g -o $@ $< $(LFLAGS) $(TMLIBS)
 
 findif-debug: findif.o
 	$(CC) $(CFLAGS) -g -o $@ findif.o $(LFLAGS) $(LDSTATIC)

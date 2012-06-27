@@ -4,21 +4,9 @@
  * All rights reserved.
  */
 
-#ifdef _WIN32
-/*Windows version should be linked to: WS2_32*/
-/*g++ -Wall -o tmcc tmcc.c -D_WIN32 -lWS2_32*/
-#include <winsock2.h>
-#include <unistd.h>
-#include <getopt.h>
-typedef int socklen_t;
-#define ECONNREFUSED WSAECONNREFUSED
-#endif
-
 #include <sys/types.h>
-#ifndef _WIN32
-#  include <sys/socket.h>
-#  include <netinet/in.h>
-#endif
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <sys/un.h>
 #include <sys/fcntl.h>
 #include <stdio.h>
@@ -27,6 +15,10 @@ typedef int socklen_t;
 #include <unistd.h>
 #include <signal.h>
 #ifdef __CYGWIN__
+#  include <w32api/windef.h>
+#  include <w32api/winbase.h>
+#  include <w32api/iphlpapi.h>
+  /* XXX: May no longer be required. */
   typedef _sig_func_ptr sig_t;
 #endif /* __CYGWIN__ */
 #include <stdarg.h>
@@ -38,21 +30,21 @@ typedef int socklen_t;
 #include <time.h>
 #include <assert.h>
 #include <sys/types.h>
-#ifndef _WIN32
-#  include <netinet/in.h>
-#  include <arpa/inet.h>
-#  include <netdb.h>
-#endif
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include "tmcd.h"
 #include "ssl.h"
 #ifndef STANDALONE
 #  include "config.h"
 #endif
-#ifndef _WIN32
-#  undef  BOSSNODE
-#  if !defined(BOSSNODE)
-#    include <resolv.h>
-#  endif
+/* 
+ * XXX: This seems strange.  Unless something modifies this file, the
+ * next "if" statment will always be true.
+ */
+#undef  BOSSNODE
+#if !defined(BOSSNODE)
+#  include <resolv.h>
 #endif
 #include <setjmp.h>
 #ifdef linux
@@ -168,9 +160,6 @@ main(int argc, char **argv)
 	struct in_addr		proxyaddr;
 	int			proxyport = 0;
 	char			*datafile = NULL;
-#ifdef _WIN32
-        WSADATA wsaData;
-#endif
 
 	while ((ch = getopt(argc, argv, "v:s:p:un:t:k:x:X:l:do:if:T")) != -1)
 		switch(ch) {
@@ -271,20 +260,9 @@ main(int argc, char **argv)
 		exit(1);
 	}
 #endif
-
-#ifndef _WIN32
 	if( (! unixpath) && (0==access("/etc/emulab/emulab-privkey", R_OK)) ) {
 		keyfile = strdup("/etc/emulab/emulab-privkey");
 	}
-#endif
-
-#ifdef _WIN32
-        /*Windows requires us to start up the version of the network API that we want*/
-	if(WSAStartup( MAKEWORD( 2, 2 ), &wsaData )) {
-	        fprintf(stderr,"WSAStartup failed\n");
-		exit(1);
-	}
-#endif
 #ifdef WITHSSL
 	/*
 	 * Brutal hack for inner elab; see rc.inelab.
@@ -466,7 +444,7 @@ getbossnode(char **bossnode, int *portp)
 		*bossnode = strdup(buf);
 		return 0;
 	}
-
+	
 	/*
 	 * Search for the file.
 	 */
@@ -496,8 +474,69 @@ getbossnode(char **bossnode, int *portp)
 			fclose(fp);
 		}
 	}
-	
-#  if ! defined(_WIN32)
+#ifdef __CYGWIN__
+/*
+ * Cygwin discourages the use of resolv.conf and provides no mechanism to 
+ * automatically generate it.  We instead use of the "IP Helper" 
+ * Windows API functions to get the IP address of the DNS server. This host
+ * is assumed to also be the boss node.
+ *
+ * A good chunk of the code here was lifted from examples in the API reference.
+ */
+	{
+		FIXED_INFO *pFixedInfo;
+		struct in_addr dnsAddr;
+		struct hostent *he;
+		char *pIPAddrStr;
+		unsigned long ulOutBufLen;
+		int dwRetVal;
+
+		/* Typical Windows trick for right-sizing the output buffer. */
+		pFixedInfo = (FIXED_INFO *) malloc(sizeof (FIXED_INFO));
+		ulOutBufLen = sizeof (FIXED_INFO);
+		if (GetNetworkParams(pFixedInfo, &ulOutBufLen) == 
+		    ERROR_BUFFER_OVERFLOW) {
+			free(pFixedInfo);
+			pFixedInfo = (FIXED_INFO *) malloc(ulOutBufLen);
+		}
+
+		/* Actually perform the call to get network configuration. */
+		if ((dwRetVal = GetNetworkParams(pFixedInfo, &ulOutBufLen)) != 
+		    NO_ERROR) {
+			fprintf(stderr, 
+				"GetNetworkParams failed with error %08x\n", 
+				dwRetVal);
+			if (pFixedInfo) {
+				free(pFixedInfo);
+			}
+		} else {
+			/* 
+			 * The IP address of the DNS server is presented as a 
+			 * decimal dot notation string. Convert it and do a 
+			 * reverse lookup to get the hostname.
+			 */
+			pIPAddrStr = pFixedInfo->DnsServerList.IpAddress.String;
+			if (pIPAddrStr && inet_aton(pIPAddrStr, &dnsAddr)) {
+				he = gethostbyaddr((char *)&dnsAddr,
+						   sizeof(struct in_addr), 
+						   AF_INET);
+				if (he && he->h_name) {
+					*bossnode = strdup(he->h_name);
+				}
+			}
+
+			if (pFixedInfo) {
+				free(pFixedInfo);
+				pFixedInfo = NULL;
+			}
+		}
+
+		if (!bossnode) {
+			*bossnode = strdup("UNKNOWN");
+		}
+		return 0;
+	}
+#else
 	{
 		/*
 		 * Nameserver goo 
@@ -512,10 +551,10 @@ getbossnode(char **bossnode, int *portp)
 			*bossnode = strdup("UNKNOWN");
 		return 0;
 	}
-#  endif
+#endif /* __CYGWIN__ */
 	*bossnode = strdup("UNKNOWN");
 	return 0;
-#endif
+#endif /* BOSSNODE */
 }
 
 /*
@@ -704,10 +743,6 @@ doudp(char *data, int outfd, struct in_addr serverip, int portnum)
 static int
 dounix(char *data, int outfd, char *unixpath)
 {
-#if defined(_WIN32)
-	fprintf(stderr, "unix domain socket mode not supported on this platform!\n");
-	return -1;
-#else
 	int			n, sock, cc, length;
 	struct sockaddr_un	sunaddr;
 	char			*bp, buf[MYBUFSIZE];
@@ -781,7 +816,6 @@ dounix(char *data, int outfd, char *unixpath)
  bad:
 	close(sock);
 	return -1;
-#endif
 }
 
 /*
@@ -797,10 +831,6 @@ dounix(char *data, int outfd, char *unixpath)
 static void
 beudproxy(char *localpath, struct in_addr serverip, char *partial)
 {
-#if defined(_WIN32)
-	fprintf(stderr, "proxy mode not supported on this platform!\n");
-	exit(-1);
-#else
 	int			sock;
 	socklen_t		length;
 	struct sockaddr_un	sunaddr;
@@ -834,16 +864,11 @@ beudproxy(char *localpath, struct in_addr serverip, char *partial)
 	}
 
 	beproxy(sock, -1, serverip, partial);
-#endif
 }
 
 static void
 beidproxy(struct in_addr ip, int port, struct in_addr serverip, char *partial)
 {
-#if defined(_WIN32)
-	fprintf(stderr, "proxy mode not supported on this platform!\n");
-	exit(-1);
-#else
 	int			tcpsock, udpsock;
 	socklen_t		length;
 	struct sockaddr_in	name;
@@ -888,12 +913,10 @@ beidproxy(struct in_addr ip, int port, struct in_addr serverip, char *partial)
 		exit(-1);
 	}
 	beproxy(tcpsock, udpsock, serverip, partial);
-#endif
 }
 
 static int proxymode = 0;
 
-#if !defined(_WIN32)
 static void
 beproxy(int tcpsock, int udpsock, struct in_addr serverip, char *partial)
 {
@@ -1073,7 +1096,6 @@ beproxy(int tcpsock, int udpsock, struct in_addr serverip, char *partial)
 		if (newsock >= 0)
 			close(newsock);
 	}
-#endif
 }
 
 /*
