@@ -115,6 +115,9 @@ bool dynamic_pclasses = false;
 // Whether or not to allow assign to temporarily over-subscribe pnodes
 bool allow_overload = false;
 
+// Whether or not to allow assign to temporarily over-subscribe pnodes
+bool randomize_order = false;
+
 // Forces assign to do greedy link assignment, by chosing the first link in its
 // list, which is usually the lowest-cost
 bool greedy_link_assignment = false;
@@ -467,6 +470,7 @@ void print_help() {
 #endif
   cout << "  -F          - Apply additional checking to fixed nodes" << endl;
   cout << "  -D          - Dump configuration options" << endl;
+  cout << "  -R          - Randomize order of nodes in pclasses" << endl;
   cout << "  cparams     - You probably don't want to touch these!" << endl;
   cout << "                If you must, see config.h in the source for a list"
        << endl;
@@ -870,9 +874,9 @@ int main(int argc,char **argv) {
 	char* ptopFileFormat;
 	char* vtopFileFormat;
 	char* delims = "/";
-	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:W:FDf:";
+	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:W:FDf:R";
 #else
-	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:FD";
+	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:FDR";
 #endif	
 	
   while ((ch = getopt(argc,argv,flags)) != -1) {
@@ -1016,6 +1020,9 @@ int main(int argc,char **argv) {
 		
 		break;
 #endif
+	case 'R':
+	  randomize_order = true;
+	  break;
 		
 	default:
       print_help();
@@ -1118,7 +1125,7 @@ int main(int argc,char **argv) {
   timestart = used_time();
   
   cout << "Generating physical equivalence classes:";
-  generate_pclasses(PG,disable_pclasses,dynamic_pclasses);
+  generate_pclasses(PG,disable_pclasses,dynamic_pclasses,randomize_order);
   cout << pclasses.size() << endl;
 
 #ifdef PCLASS_DEBUG

@@ -123,7 +123,7 @@ typedef hash_map<fstring,tt_entry> pclass_types;
 // each physical node should get its own pclass (effectively disabling
 // pclasses)
 int generate_pclasses(tb_pgraph &PG, bool pclass_for_each_pnode,
-	bool dynamic_pclasses);
+	bool dynamic_pclasses, bool randomize_order);
 
 /* The following two routines sets and remove mappings in pclass
    datastructures */
