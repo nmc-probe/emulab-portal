@@ -2,6 +2,15 @@ configure
 autoconf/config.guess
 autoconf/config.sub
 autoconf/install.sh
+clientside/configure
+clientside/autoconf/config.guess
+clientside/autoconf/config.sub
+clientside/autoconf/install.sh
+clientside/os/imagezip/fat
+clientside/os/imagezip/ntfs/liblocale
+clientside/lib/event/event_wrap*
+clientside/tmcc/cygwinxp/site-lisp 
+clientside/tmcc/plab
 os/shd 
 www/cvsweb 
 robots/vmcd/camera_data/output_camera*
