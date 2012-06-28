@@ -4,8 +4,8 @@
 use strict;
 use libinstall;
 use emdb;
-use OSinfo;
-use NodeType;
+use Experiment;
+use EmulabConstants;
 
 my $EID       = "openflow-vlans";
 my $DESC      = "Holding experiment for static openflow vlans";
@@ -32,6 +32,11 @@ sub InstallUpdate($$)
 			   "  -L 'System Experiment' ".
 			   "  -E '$DESC - DO NOT DELETE' ".
 			   "  -p $pid -e $EID");
+
+	    my $experiment = Experiment->Lookup($pid, $eid);
+	    if ($experiment) {
+		$experiment->SetState(EXPTSTATE_ACTIVE());
+	    }
 	    PhaseSucceed();
 	};
     }
