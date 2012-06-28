@@ -33,7 +33,7 @@ sub InstallUpdate($$)
 			   "  -E '$DESC - DO NOT DELETE' ".
 			   "  -p $pid -e $EID");
 
-	    my $experiment = Experiment->Lookup($pid, $eid);
+	    my $experiment = Experiment->Lookup($PID, $EID);
 	    if ($experiment) {
 		$experiment->SetState(EXPTSTATE_ACTIVE());
 	    }
