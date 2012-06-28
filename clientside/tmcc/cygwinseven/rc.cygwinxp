@@ -140,6 +140,8 @@ else
             print mac > "'$xim'"; print ifc > "'$xin'"; print descr > "'$xid'" }' $icc
 
     # XXX: Doesn't gracefully handle case where there are no exp net connections.
+    nxifc=`wc -l < $xim`
+    logit "number of experimental net interfaces = $nxifc"
     if (( $nxifc >= $nifc )); then
         logit "$host - Can't find control net interface.  Bad ip address '$ipaddr'?"
     else
