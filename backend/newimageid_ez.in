@@ -163,6 +163,8 @@ my %xmlfields =
      "mbr_version",	=> ["mbr_version",	$SLOT_OPTIONAL],
      "reboot_waittime",	=> ["reboot_waittime",	$SLOT_ADMINONLY],
      "hash",		=> ["hash",		$SLOT_ADMINONLY],
+     "nextosid",	=> ["nextosid",		$SLOT_ADMINONLY],
+     "def_parentosid",	=> ["def_parentosid",	$SLOT_ADMINONLY],
 );
 
 #
@@ -279,13 +281,33 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
 	    if (! $this_user->IsAdmin());
     }
 	
-    # Now check that the value is legal.
-    if (! TBcheck_dbslot($value, "images",
-			 $dbslot, TBDB_CHECKDBSLOT_ERROR)) {
-	$errors{$key} = TBFieldErrorString();
-	next;
+    #
+    # Special case nextosid so it can be in pid,osname format. 
+    #
+    if (($dbslot eq "nextosid" || $dbslot eq "def_parentosid") &&
+	$value =~ /^.+,.+$/) {
+	my ($pid,$osname) = ($value =~ /^(.*),(.*)$/);
+	
+	# Now check that the value is legal.
+	if (! TBcheck_dbslot($pid, "projects",
+			     "pid", TBDB_CHECKDBSLOT_ERROR)) {
+	    $errors{$key} = TBFieldErrorString();
+	    next;
+	}
+	if (! TBcheck_dbslot($osname, "os_info",
+			     "osname", TBDB_CHECKDBSLOT_ERROR)) {
+	    $errors{$key} = TBFieldErrorString();
+	    next;
+	}
     }
-
+    else {
+	# Now check that the value is legal.
+	if (! TBcheck_dbslot($value, "images",
+			     $dbslot, TBDB_CHECKDBSLOT_ERROR)) {
+	    $errors{$key} = TBFieldErrorString();
+	    next;
+	}
+    }
     $newimageid_args{$key} = $value;
 }
 UserError()
@@ -408,6 +430,27 @@ if ($global && $shared) {
     UserError("Global: Image declared both shared and global");
 }
 
+# Nextosid check. Must exist. admin check done above.
+if (exists($newimageid_args{"nextosid"})) {
+    my $nextos = OSinfo->Lookup($newimageid_args{"nextosid"});
+
+    if (!defined($nextos)) {
+	UserError("Nextosid: Does not exist");
+    }
+    # Might be in pid,osname format.
+    $newimageid_args{"nextosid"} = $nextos->osid();
+}
+# Ditto def_parentosid
+if (exists($newimageid_args{"def_parentosid"})) {
+    my $nextos = OSinfo->Lookup($newimageid_args{"def_parentosid"});
+
+    if (!defined($nextos)) {
+	UserError("def_parentosid: Does not exist");
+    }
+    # Might be in pid,osname format.
+    $newimageid_args{"def_parentosid"} = $nextos->osid();
+}
+
 #
 # The path must not contain illegal chars and it must be more than
 # the original /proj/$pid we gave the user. We allow admins to specify
@@ -500,12 +543,15 @@ foreach $key (@mtype_keys) {
 
     my $type = $key;
     $type =~ s/^mtype_//;
-    my $match = grep(/^${type}$/, keys(%mtypes_array));
-    if ($match == 0) {
-	$errors{$key} = "Illegal node type."
+    
+    # Treat pcvm special for now.
+    if ($type eq "pcvm" ||
+	grep(/^${type}$/, keys(%mtypes_array))) {
+	$node_types_selected++
+	    if ($value eq "1");
     }
-    elsif ($value eq "1") {
-	$node_types_selected++;
+    else {
+	$errors{$key} = "Illegal node type."
     }
 }
 #
