@@ -848,6 +848,30 @@ sub Start($$$)
 		}
 		# See below.
 		$vnode = $node;
+
+		#
+		# We now allow the user to specify the OS for vnodes.
+		#
+		my $osinfo = OSinfo->Lookup($vnode->def_boot_osid());
+		if (!defined($osinfo)) {
+		    $msg .= "Could not get osinfo for $vnode";
+		    goto bad;
+		}
+		print STDERR "$vnode wants to boot $osinfo.\n";
+
+		#
+		# If there is an image defined for this os on pcvm,
+		# we need to setup a reload.
+		#
+		my $image = $osinfo->MapToImage("pcvm");
+		if (defined($image)) {
+		    print STDERR "Setting $vnode to load $image\n";
+		    
+		    if (!exists($reloads{$image->imageid()})) {
+			$reloads{$image->imageid()} = [ ];
+		    } 
+		    push(@{ $reloads{$image->imageid()} }, $vnode);
+		}
 		
 		#
 		# Now it gets messy. Do not want to mess with the physnode
