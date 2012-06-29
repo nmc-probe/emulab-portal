@@ -1208,6 +1208,11 @@ foreach $node (@nodenames) {
 	push(@features, "pcshared:1.0");
 
 	#
+	# Add a first-free feature which spreads VMs amongs shared nodes.
+	#
+	push(@features, "&*spreadshared:0.6");
+
+	#
 	# The pool daemon may override the share weight.
 	#
 	if (defined($sharing_mode{$node}->{"weight"})) {

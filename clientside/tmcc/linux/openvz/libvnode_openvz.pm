@@ -67,8 +67,9 @@ $| = 1;
 
 my $defaultImage = "emulab-default";
 
-my $DOLVM = 1;
-my $DOLVMDEBUG = 0;
+my $DOLVM        = 1;
+my $DOSNAP       = 0;
+my $DOLVMDEBUG   = 0;
 my $LVMDEBUGOPTS = "-vvv -dddddd";
 
 my $DOVZDEBUG = 0;
@@ -705,7 +706,7 @@ sub vz_vnodeCreate {
     my $reload_args_ref = $vnconfig->{'reloadinfo'};
 
     my $vmid;
-    if ($vnode_id =~ /^\w+\d+\-(\d+)$/) {
+    if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
 	$vmid = $1;
     }
     else {
@@ -886,47 +887,68 @@ sub vz_vnodeCreate {
 	    TBScriptUnlock();
 	}
 	else {
-	    #
-	    # If there is already a logical device for this image, then
-	    # need to GC or rename it (might be in use). Note that a
-	    # reload of the partition will cause the lock files to get
-	    # deleted, which results in some needless work (recreating
-	    # the lvm even if it did not change), but I do not see a
-	    # way to stamp the lvm itself so that we can determine its
-	    # creation date. Besides, it is an atypical case.
-	    #
-	    if (system("lvdisplay /dev/openvz/$image >& /dev/null") == 0) {
-		if (GClvm("$image")) {
-		    fatal("Could not GC or rename $image");
+	    if ($DOSNAP) {
+		#
+		# If there is already a logical device for this image, then
+		# need to GC or rename it (might be in use). Note that a
+		# reload of the partition will cause the lock files to get
+		# deleted, which results in some needless work (recreating
+		# the lvm even if it did not change), but I do not see a
+		# way to stamp the lvm itself so that we can determine its
+		# creation date. Besides, it is an atypical case.
+		#
+		if (system("lvdisplay /dev/openvz/$image >& /dev/null") == 0) {
+		    if (GClvm("$image")) {
+			fatal("Could not GC or rename $image");
+		    }
 		}
+		print "Creating LVM core logical device for image $image\n";
+
+		# ok, create the lvm logical volume for this image.
+		mysystem("lvcreate $LVMDEBUGOPTS ".
+			 "  -L${rootSize}M -n $image openvz");
+		mysystem("mkfs -t ext3 /dev/openvz/$image");
+		mysystem("mkdir -p /tmp/mnt/$image");
+		mysystem("mount /dev/openvz/$image /tmp/mnt/$image");
+		mysystem("mkdir -p /tmp/mnt/$image/root ".
+			 "         /tmp/mnt/$image/private");
+		mysystem("tar -xzf $imagepath -C /tmp/mnt/$image/private");
+		mysystem("umount /tmp/mnt/$image");
 	    }
-	    print "Creating LVM core logical device for image $image\n";
-
-	    # ok, create the lvm logical volume for this image.
-	    mysystem("lvcreate $LVMDEBUGOPTS -L${rootSize}M -n $image openvz");
-	    mysystem("mkfs -t ext3 /dev/openvz/$image");
-	    mysystem("mkdir -p /tmp/mnt/$image");
-	    mysystem("mount /dev/openvz/$image /tmp/mnt/$image");
-	    mysystem("mkdir -p /tmp/mnt/$image/root /tmp/mnt/$image/private");
-	    mysystem("tar -xzf $imagepath -C /tmp/mnt/$image/private");
-	    mysystem("umount /tmp/mnt/$image");
-
 	    # ok, we're done
 	    mysystem("mkdir -p /var/emulab/run");
 	    mysystem("touch $imagelockpath");
 	    TBScriptUnlock();
 	}
 
-	#
-	# Now take a snapshot of this image's logical device
-	#
-	# As above, a partition reload will make it appear that the
-	# container does not exist, when in fact the lvm really does
-	# and we want to reuse it, not create another one. 
-	#
-	if (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
-	    mysystem("lvcreate $LVMDEBUGOPTS ".
-		     "  -s -L${snapSize}M -n $vnode_id /dev/openvz/$image");
+	if ($DOSNAP) {
+	    #
+	    # Now take a snapshot of this image's logical device
+	    #
+	    # As above, a partition reload will make it appear that the
+	    # container does not exist, when in fact the lvm really does
+	    # and we want to reuse it, not create another one. 
+	    #
+	    if (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
+		mysystem("lvcreate $LVMDEBUGOPTS ".
+			 "  -s -L${snapSize}M -n $vnode_id /dev/openvz/$image");
+	    }
+	}
+	else {
+	    #
+	    # No snapshot, create a new disk for each container. 
+	    # 
+	    if (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
+		mysystem("lvcreate $LVMDEBUGOPTS ".
+			 "  -L${rootSize}M -n $vnode_id openvz");
+		mysystem("mkfs -t ext3 /dev/openvz/$vnode_id");
+		mysystem("mkdir -p /mnt/$vnode_id")
+		    if (! -e "/mnt/$vnode_id");
+		mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+		mysystem("mkdir -p /mnt/$vnode_id/root /mnt/$vnode_id/private");
+		mysystem("tar -xzf $imagepath -C /mnt/$vnode_id/private");
+		mysystem("umount /mnt/$vnode_id");
+	    }
 	}
 	mysystem("mkdir -p /mnt/$vnode_id")
 	    if (! -e "/mnt/$vnode_id");

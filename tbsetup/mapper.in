@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -609,7 +609,7 @@ sub RunAssign($$)
 	    if ($userspec == 0);
     }
     $args .= "$ptopfile $vtopfile";
-    $args = "-P $args"
+    $args = "-R -P $args"
 	if (!$vtop->sharednodecount());
     $args = "-uod -c .75 $args"
 	if ($vtop->virtnodecount() || $vtop->simnodecount());

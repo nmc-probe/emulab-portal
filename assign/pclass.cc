@@ -213,7 +213,7 @@ int pclass_equiv(tb_pgraph &pg, tb_pnode *a,tb_pnode *b)
    physical type to list of classes that can satisfy that type) are
    set by this routine. */
 int generate_pclasses(tb_pgraph &pg, bool pclass_for_each_pnode,
-    bool dynamic_pclasses) {
+    bool dynamic_pclasses, bool randomize_order) {
   typedef hash_map<tb_pclass*,tb_pnode*,hashptr<tb_pclass*> > pclass_pnode_map;
   typedef hash_map<fstring,pclass_list*> name_pclass_list_map;
 
@@ -222,8 +222,25 @@ int generate_pclasses(tb_pgraph &pg, bool pclass_for_each_pnode,
 
   pvertex_iterator vit,vendit;
   tie(vit,vendit) = vertices(pg);
+
+  /*
+   * Create a vector that we'll use for iterating through the nodes - it's
+   * a seperate structure so that we can randomize the order if desired.
+   * Argh, can't use STL copy since pg is not an STL structure
+   */
+  typedef vector<pvertex> pvertex_vector;
+  pvertex_vector pvertexes;
   for (;vit != vendit;++vit) {
-    cur = *vit;
+      pvertexes.push_back(*vit);
+  }
+
+  if (randomize_order) {
+      random_shuffle(pvertexes.begin(), pvertexes.end());
+  }
+
+  pvertex_vector::iterator pvit;
+  for (pvit = pvertexes.begin();pvit != pvertexes.end();++pvit) {
+    cur = *pvit;
     bool found_class = 0;
     tb_pnode *curP = get(pvertex_pmap,cur);
     tb_pclass *curclass;

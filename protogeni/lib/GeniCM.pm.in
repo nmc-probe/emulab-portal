@@ -870,7 +870,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $exclusive     = GeniXML::GetExclusive($ref);
 	my $tarfiles      = GeniXML::GetTarball($ref);
 	my $pctype;
-	my $osname;
+	my ($osname, $osinfo);
 	my $parent_osname;
 	my $node;
 	my $isbridge    = 0;
@@ -938,7 +938,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 					 "Malformed image URN: $dname");
 		    goto bad;
 		}
-		my $osinfo = OSinfo->Lookup($ospid, $os);
+		$osinfo = OSinfo->Lookup($ospid, $os);
 		if (!defined($osinfo)) {
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -973,10 +973,17 @@ sub GetTicketAuxAux($$$$$$$$$)
 			$osname = "FBSD-JAIL";
 		    }
 		    elsif ($virtualization_subtype eq "emulab-openvz") {
-			# Allow caller to set the image to use. 
-			$parent_osname = $osname
-			    if (defined($osname));
-			$osname = "OPENVZ-STD";
+			# Allow caller to set the image to use, but also
+			# trick to set the parent. 
+			if (defined($osinfo)) {
+			    if (! $osinfo->IsSubOS()) {
+				$parent_osname = $osname;
+				$osname = "OPENVZ-STD";
+			    }
+			}
+			else {
+			    $osname = "OPENVZ-STD";
+			}
 		    }
 		    elsif ($virtualization_subtype eq "emulab-spp") {
 			$osname = "SPPVM-FAKE";
@@ -1154,9 +1161,9 @@ sub GetTicketAuxAux($$$$$$$$$)
 	#
 	if (defined($node) && !defined($osname)) {
 	    if (defined($node->default_osid())) {
-		my $osinfo = OSinfo->Lookup($node->default_osid());
-		$osname = $osinfo->osname()
-		    if (defined($osinfo));
+		my $default_osinfo = OSinfo->Lookup($node->default_osid());
+		$osname = $default_osinfo->osname()
+		    if (defined($default_osinfo));
 	    }
 	}
 	# The slot does not like to be NULL.
@@ -4448,10 +4455,17 @@ sub ListUsage($)
     }
 
     # The caller (owner) has to match the clearinghouse.
-    if ($credential->owner_urn() ne $certificate->urn()) {
+    if (! ($credential->owner_urn() eq $certificate->urn() ||
+	   $credential->target_urn() eq $certificate->urn())) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Only the clearinghouse can do this!");
     }
+ 
+    $credential->HasPrivilege("listusage") or
+	$credential->HasPrivilege("readhistory") or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+    
     my @slices;
     if (GeniSlice->ListAll(\@slices) != 0) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -4469,6 +4483,9 @@ sub ListUsage($)
 	    print STDERR "Could not slice slivers for $slice\n";
 	    return GeniResponse->Create(GENIRESPONSE_ERROR);
 	}
+	my $expires = POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
+				      gmtime(str2time($slice->expires())));
+	
 	foreach my $sliver (@slivers) {
 	    next
 		if ($sliver->resource_type() ne "Node");
@@ -4495,6 +4512,7 @@ sub ListUsage($)
 	my $blob = {"slice_gid"  => $slice->cert(),
 		    "slice_hrn"  => $slice->hrn(),
 		    "slice_urn"  => $slice->urn(),
+		    "expires"    => $expires,
 		    "slivers"    => \@components };
 
 	push(@result, $blob);
