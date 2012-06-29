@@ -72,8 +72,15 @@ sub Install($$$)
 	PhaseFail("Could not look up $OPENVZIMAGE osid")
 	    if (!defined($nextosinfo));
 
+	my $diskload_osinfo = OSinfo->LookupByName("FRISBEE-MFS-PCVM");
+	PhaseFail("Could not look up FRISBEE-MFS-PCVM osid")
+	    if (!defined($diskload_osinfo));
+
 	Phase "pcvm", "Updating the PCVM node type", sub {
 	    $pcvm->SetAttribute("default_osid", $osinfo->osid()) == 0
+		or PhaseFail("Could not update the pcvm node type");
+	    $pcvm->SetAttribute("diskloadmfs_osid",
+				$diskload_osinfo->osid()) == 0
 		or PhaseFail("Could not update the pcvm node type");
 	};
 	Phase "openvz", "Updating the OPENVZ-STD osid", sub {

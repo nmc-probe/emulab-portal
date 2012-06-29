@@ -69,6 +69,7 @@ my %OPMODES	 = ("NORMALv2"	 => 1,
 		    "NORMALv1"	 => 0,
 		    "PXEFBSD"    => 0,
 		    "RELOAD"     => 0,
+		    "RELOAD-PCVM"=> 0,
 		    "OPSNODEBSD" => 0,
 		    "PCVM" 	 => 0,
 		    "MINIMAL"	 => 1,
@@ -654,6 +655,31 @@ sub RunsOnParent($$)
     }
 
     return 1;
+}
+
+#
+# Set an entry in the submap that says it runs on a parent.
+#
+sub SetRunsOnParent($$)
+{
+    my ($self,$parent) = @_;
+
+    my ($osid,$osname) = ($self->osid(),$self->osname());
+    my $def_parentosid = $self->def_parentosid();
+
+    my ($posid,$posname) = ($parent->osid(),$parent->osname());
+
+    return 0
+	if (!$self->IsSubOS());
+
+    return 1
+	if ($posid == $def_parentosid);
+
+    DBQueryWarn("replace into os_submap set ".
+		"  osid=$osid and parent_osid=$posid")
+	or return -1;
+
+    return 0;
 }
 
 #
