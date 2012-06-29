@@ -1320,6 +1320,19 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    goto bad;
 	}
 
+	# If the user wants a routable control IP, add this into the database.
+	my @routable_control_ip =
+	    GeniXML::FindNodesNS("n:routable_control_ip",
+				 $ref,
+				 $GeniXML::EMULAB_NS)->get_nodelist();
+
+	if (scalar(@routable_control_ip) > 0) {
+	    $virtexperiment->NewTableRow("virt_node_attributes",
+					 {"vname"   => $node_nickname,
+					  "attrkey" => "routable_control_ip",
+					  "attrvalue" => "true"});
+	}
+
 	$virtexperiment->NewTableRow("virt_node_desires",
 				     {"vname"    => $node_nickname,
 				      "desire"   => "pcshared",
