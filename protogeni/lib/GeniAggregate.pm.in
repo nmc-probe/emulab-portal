@@ -844,7 +844,6 @@ sub Start($$$)
 		    else {
 			$vnodes{$node->node_id} = $node;
 		    }
-		    next;
 		}
 		# See below.
 		$vnode = $node;
@@ -872,6 +871,10 @@ sub Start($$$)
 		    } 
 		    push(@{ $reloads{$image->imageid()} }, $vnode);
 		}
+
+		# No more to do.
+		next
+		    if ($node->sharing_mode());
 		
 		#
 		# Now it gets messy. Do not want to mess with the physnode
