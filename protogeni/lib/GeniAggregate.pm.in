@@ -1047,7 +1047,7 @@ sub Start($$$)
 	my $userdir       = $experiment->UserDir();
 	my $manifest_file = "$userdir/tbdata/geni_manifest";
 	my $manifest      = $self->GetManifest(1);
-	if (open(MAN, ">$manifest_file")) {
+	if ($manifest && open(MAN, ">$manifest_file")) {
 	    print MAN $manifest;
 	    close(MAN);
 	}
