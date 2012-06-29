@@ -2,7 +2,7 @@
 
 # Constants
 $TMCCBIN    = "C:\Cygwin\usr\local\etc\emulab\tmcc.bin"
-$TMCCARGS   = "-s","boss.emulab.net","-t","30"
+$TMCCARGS   = "-t","30"
 $CYGBINPATH = "C:\Cygwin\bin"
 $LOGFILE    = "C:\Temp\setnodename.log"
 $CNPATH     = "HKLM:\System\CurrentControlSet\Control\ComputerName\ComputerName"

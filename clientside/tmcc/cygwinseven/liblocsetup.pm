@@ -83,8 +83,8 @@ $HOSTSFILE	= "$NTE/hosts";
 # These are not exported
 #
 my $ADDUSERS	= "$BINDIR/addusers.exe";
-my $DEVCON	= "$BINDIR/devcon.exe";
-my $IFCONFIGBIN = "$NETSH interface ip set address";
+my $DEVCON	= "$NTS/devcon.exe";
+my $IFCONFIGBIN = "$NETSH interface ipv4 set address";
 my $IFCONFIG	= "$IFCONFIGBIN name=\"%s\" source=static addr=%s mask=%s";
 my $IFC_1000MBS = "1000baseTx";
 my $IFC_100MBS  = "100baseTx";
@@ -328,34 +328,37 @@ sub os_ifconfig_line($$$$$$$;$$%)
 	#
 	# Configure.
 	$uplines   .= sprintf($IFCONFIG, $iface, $inet, $mask) . qq{\n    };
+
+# XXX: Going to assume for now that jumping through these hoops isn't necessary
+#      under Win7.
 	#
 	# Check that the configuration took!
-	my $showip =  qq[$NETSH interface ip show address name="$iface"];
-	my $ipconf =  qq[$IPCONFIG /all | tr -d '\\r'];
-	my $ipawk  =  qq[/^Ethernet adapter/] .
-	    qq[{ ifc = gensub("Ethernet adapter (.*):", "\\\\\\\\1", 1); next }] .
-		qq[/IP Address/ && ifc == "$iface"{print \$NF}];
-	my $addr1  =  qq[addr1=\`$showip | awk '/IP Address:/{print \$NF}'\`];
-	my $addr2  =  qq[addr2=\`$ipconf | awk '$ipawk'\`];
-	my $iptest = '[[ "$addr1" != '.$inet.' || "$addr2" != '.$inet.' ]]';
-	$uplines   .= qq{$addr1\n    $addr2\n    };
-	$uplines   .= qq{if $iptest; then\n    };
+#	my $showip =  qq[$NETSH interface ipv4 show address name="$iface"];
+#	my $ipconf =  qq[$IPCONFIG /all | tr -d '\\r'];
+#	my $ipawk  =  qq[/^Ethernet adapter/] .
+#	    qq[{ ifc = gensub("Ethernet adapter (.*):", "\\\\\\\\1", 1); next }] .
+#		qq[/IPv4 Address/ && ifc == "$iface"{print \$NF}]; # XXX: fix
+#	my $addr1  =  qq[addr1=\`$showip | awk '/IP Address:/{print \$NF}'\`];
+#	my $addr2  =  qq[addr2=\`$ipconf | awk '$ipawk'\`];
+#	my $iptest = '[[ "$addr1" != '.$inet.' || "$addr2" != '.$inet.' ]]';
+#	$uplines   .= qq{$addr1\n    $addr2\n    };
+#	$uplines   .= qq{if $iptest; then\n    };
 	#
 	# Re-do it if not.
-	$uplines   .= qq{  echo "    Config failed on $iface, retrying."\n    };
-	$uplines   .=   "  $DEVCON disable '$dev_map{$iface}'\n    ";
-	$uplines   .= qq{  sleep 5\n    };
-	$uplines   .=   "  $DEVCON enable '$dev_map{$iface}'\n    ";
-	$uplines   .= qq{  sleep 5\n    };
-	$uplines   .= sprintf("  " . $IFCONFIG, $iface, $inet, $mask) . qq{\n    };
+#	$uplines   .= qq{  echo "    Config failed on $iface, retrying."\n    };
+#	$uplines   .=   "  $DEVCON disable '$dev_map{$iface}'\n    ";
+#	$uplines   .= qq{  sleep 5\n    };
+#	$uplines   .=   "  $DEVCON enable '$dev_map{$iface}'\n    ";
+#	$uplines   .= qq{  sleep 5\n    };
+#	$uplines   .= sprintf("  " . $IFCONFIG, $iface, $inet, $mask) . qq{\n    };
 	#
 	# Re-check.
-	$uplines   .= qq{  $addr1\n    $addr2\n    };
-	$uplines   .= qq{  if $iptest; then\n    };
-	$uplines   .= qq{    echo "    Reconfig still failed on $iface."\n    };
-	$uplines   .= qq{  else echo "    Reconfig succeeded on $iface."\n    };
-	$uplines   .= qq{  fi\n    };
-	$uplines   .= qq{fi};
+#	$uplines   .= qq{  $addr1\n    $addr2\n    };
+#	$uplines   .= qq{  if $iptest; then\n    };
+#	$uplines   .= qq{    echo "    Reconfig still failed on $iface."\n    };
+#	$uplines   .= qq{  else echo "    Reconfig succeeded on $iface."\n    };
+#	$uplines   .= qq{  fi\n    };
+#	$uplines   .= qq{fi};
 
 	# Shutdown.
 	$downlines .= qq{echo "Disabling $iface from $inet"\n    };
