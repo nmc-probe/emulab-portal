@@ -190,7 +190,7 @@ SWITCH:
 	    $switchtype = "intel"; last;};
 	(/^nortel/) && do { $snmpversion = "1"; $useindexing = 0;
 	    $switchtype = "nortel"; last;};
-	(/^hp/) && do { $snmpversion = "1"; $useindexing = 0;
+	(/^hp/) && do { $snmpversion = "2c"; $useindexing = 0;
 	    $switchtype = "hp"; last;};
 	(/^foundry/) && do { $snmpversion = "1"; $useindexing = 0;
 	    $switchtype = "foundry"; last;};
