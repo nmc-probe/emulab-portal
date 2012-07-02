@@ -21,6 +21,15 @@ function logit () {
 logit "----------------------------------------------------------------"
 logit "Entering rc.cygwin"
 
+# Enable WINDOWS() in libsetup.pm .
+# XXX: Hopefully this isn't happening too late.
+iscygwin=/etc/emulab/iscygwin
+chmod -f g+w /etc/emulab
+chmod -f g+w $iscygwin
+uname -r > $iscygwin
+chmod g+w $iscygwin
+chmod -f g-w /etc/emulab
+
 # Stop the sshd service during setup, because it sometimes loops, eating 100% of the
 # CPU.  It will be restarted after rc.bootsetup by EmulabStartup.  Make sure below.
 # XXX: Assume this isn't needed.

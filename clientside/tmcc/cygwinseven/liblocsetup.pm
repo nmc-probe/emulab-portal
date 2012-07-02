@@ -82,7 +82,7 @@ $HOSTSFILE	= "$NTE/hosts";
 #
 # These are not exported
 #
-my $ADDUSERS	= "$BINDIR/addusers.exe";
+my $ADDUSERS	= "$NTS/addusers.exe";
 my $DEVCON	= "$NTS/devcon.exe";
 my $IFCONFIGBIN = "$NETSH interface ipv4 set address";
 my $IFCONFIG	= "$IFCONFIGBIN name=\"%s\" source=static addr=%s mask=%s";
@@ -91,6 +91,7 @@ my $IFC_100MBS  = "100baseTx";
 my $IFC_10MBS   = "10baseT";
 my $IFC_FDUPLEX = "FD";
 my $IFC_HDUPLEX = "HD";
+my $FSTABFILE   = "/etc/fstab";
 my @LOCKFILES   = ("/etc/group.lock", "/etc/gshadow.lock");
 my $MKDIR	= "/bin/mkdir";
 my $RMDIR	= "/bin/rmdir";
@@ -142,7 +143,7 @@ sub os_account_cleanup($)
 	    mysystem("$NET user $name /delete >& /dev/null");
 
 	    # There will only be an NT homedir if the user has logged in sometime.
-	    my $das = "C:/'Documents and Settings'";
+	    my $das = "C:/Users";
 	    if ( -d "$das/$name" ) {
 		print "Removing directory: $das/$name\n";
 		system("$CHMOD -Rf 777 $das/$name >& /dev/null");
@@ -768,12 +769,27 @@ sub os_islocaldir($)
     return 1;
 }
 
+my %mounts = ();
 sub os_samba_mount($$$)
 {
     my ($local, $host, $verbose) = @_;
 
-    # Unmount each one first, ignore errors.
-    system("$UMOUNT $local");
+    # Build mounts hash from /etc/mount, if we haven't already
+    if (!%mounts) {
+	if (!open(FSTAB, "<$FSTABFILE")) { 
+	    warning("os_samba_mount: Can't open $FSTABFILE");
+	} else {
+	    while (my $inline = <FSTAB>) {
+		chomp $inline;
+		next if $inline =~ /^\s*#/;
+		next if $inline =~ /^\s*$/;
+		my ($mpoint,$mtarget,undef,undef,undef,undef) = 
+		    split(/\s+/,$inline);
+		$mounts{$mpoint} = $mtarget;
+	    }
+	    close(FSTAB);
+	}
+    }
 
     # Make the CygWin mount from the Samba path to the local mount point directory.
     my $sambapath = $local;
@@ -791,16 +807,17 @@ sub os_samba_mount($$$)
     elsif (! -d $local) {
 	warning("os_samba_mount: Mount point $local is not a directory.\n");
     }
-    print "Mounting '$local' from '$sambapath'.\n"
-	if ($verbose);
 
-    # If we don't turn on the -E/--no-executable flag, CygWin mount warns us:
-    #     mount: defaulting to '--no-executable' flag for speed since native path
-    #            references a remote share.  Use '-f' option to override.
-    # Even with -E, exe's and scripts still work properly, so put it in.
-    $cmd = "$MOUNT -f -E $sambapath $local";
-    if (system($cmd) != 0) {
-	warning("os_samba_mount: Failed, $cmd.\n");
+    if (!exists($mounts{$sambapath})) {
+	print "Adding '$sambapath' -> '$local' to $FSTABFILE .\n"
+	    if ($verbose);
+
+	if (!open(FSTAB, ">>$FSTABFILE")) {
+	    warning("os_samba_mount: Can't open $FSTABFILE for append.");
+	} else {
+	    print FSTAB "$sambapath $local smbfs binary,user 0 0\n";
+	    close(FSTAB);
+	}
     }
 }
 
