@@ -270,6 +270,7 @@ openvz-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/libvnode.pm $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/libvnode_openvz.pm $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/vznetinit-elab.sh $(BINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/xenbridge-setup $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/vnodectl $(BINDIR)/
 	echo "openvz" > $(ETCDIR)/genvmtype
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/vzmount-elab.sh $(BINDIR)/
