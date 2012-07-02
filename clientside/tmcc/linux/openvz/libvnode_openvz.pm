@@ -95,6 +95,7 @@ my $IP = "/sbin/ip";
 
 my $VZRC   = "/etc/init.d/vz";
 my $MKEXTRAFS = "/usr/local/etc/emulab/mkextrafs.pl";
+my $BRIDGESETUP = "/usr/local/etc/emulab/xenbridge-setup";
 
 my $CTRLIPFILE = "/var/emulab/boot/myip";
 my $IMQDB      = "/var/emulab/db/imqdb";
@@ -396,6 +397,12 @@ sub vz_rootPreConfig {
     #
     mysystem("$MODPROBE imq");
     mysystem("$MODPROBE ipt_IMQ");
+
+    #
+    # Need to create a control network bridge to accomodate routable
+    # control network addresses.
+    #
+    mysystem("$BRIDGESETUP -b vzbr0");
 
     # Create a DB to manage them. 
     my %MDB;
@@ -1373,6 +1380,9 @@ sub vz_vnodePreConfigControlNetwork {
 		$ipa[2] & $maska[2],$ipa[3] & $maska[3]);
     my $net = join('.',@neta);
 
+    # Now allow routable control network.
+    my $isroutable = isRoutable($ip);
+
     print STDERR "jail network: $net/$mask\n";
 
     #
@@ -1389,8 +1399,8 @@ sub vz_vnodePreConfigControlNetwork {
     # net, probably we're good. Otherwise, setup NAT so that vnodes
     # can get to the outside world.
     # 
-    if (system('iptables -t nat -L POSTROUTING' . 
-	       ' | grep -q -e \'^SNAT.* ' . $net . '\'')) {
+    if (!$isroutable && system('iptables -t nat -L POSTROUTING' . 
+			       ' | grep -q -e \'^SNAT.* ' . $net . '\'')) {
 	if (system("$MODPROBE ip_nat") ||
             # 
             # If the source is from the vnode, headed to the local control 
@@ -1424,7 +1434,7 @@ sub vz_vnodePreConfigControlNetwork {
     # Route the jail network over the control network so that we do
     # not go through the router. 
     #
-    if (system("$NETSTAT -r | grep -q $net")) {
+    if (!$isroutable && system("$NETSTAT -r | grep -q $net")) {
 	mysystem2("$ROUTE add -net $net netmask $mask dev $ciface");
 	if ($?) {
 	    TBScriptUnlock();
@@ -1448,7 +1458,13 @@ sub vz_vnodePreConfigControlNetwork {
     my $cnet_veth = "veth${vmid}.${CONTROL_IFNUM}";
     my $cnet_mac = macAddSep($mac);
     my $ext_vethmac = $cnet_mac;
-    if ($ext_vethmac =~ /^(00:00)(.*)$/) {
+    if ($isroutable) {
+	# Must do this so that the bridge does not take on the
+	# address. I do not know why it does this, but according
+	# to the xen equivalent code, this is what ya do. 
+	$ext_vethmac = "fe:ff:ff:ff:ff:ff";
+    }
+    elsif ($ext_vethmac =~ /^(00:00)(.*)$/) {
 	$ext_vethmac = "00:01$2";
     }
 
@@ -1459,6 +1475,14 @@ sub vz_vnodePreConfigControlNetwork {
     #
     my %lines = ( 'ELABCTRLIP' => '"' . $ip . '"',
 		  'ELABCTRLDEV' => '"' . $cnet_veth . '"' );
+
+    #
+    # When the ip is routable, we need to use a bridge. Must tell
+    # vznetinit script to do this differently. 
+    #
+    if ($isroutable) {
+	$lines{"ELABCTRLBR"} = '"vzbr0"';
+    }
     editContainerConfigFile($vmid,\%lines);
 
     # note that we don't assign a mac to the CT0 part of the veth pair -- 
@@ -1542,7 +1566,16 @@ sub vz_vnodePreConfigControlNetwork {
     # for now, since our iproute version is old.
     #
     print FD "$ctrlnet/$ctrlmaskbits dev ${CONTROL_IFDEV}\n";
-    print FD "0.0.0.0/0 via $ctrlip\n";
+    if ($isroutable) {
+	print FD "$JAILCTRLNET/$JAILCTRLNETMASK via $gw\n";
+	# Switch to real router.
+	$gw = `cat /var/emulab/boot/routerip`;
+	chomp($gw);
+	print FD "0.0.0.0/0 via $gw\n";
+    }
+    else {
+	print FD "0.0.0.0/0 via $ctrlip\n";
+    }
     close(FD);
 
     #
