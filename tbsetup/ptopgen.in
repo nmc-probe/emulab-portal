@@ -32,6 +32,7 @@ $V_3 = "3";
 $emulabns = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 # XXX: This needs to be changed
 $emulaburl = "http://www.protogeni.net/resources/rspec/ext/emulab/1/ptop_extension.xsd";
+$sharedns = "http://www.protogeni.net/resources/rspec/ext/shared-vlan/1";
 $stitchns = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
 $stitchurl = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/stitch-schema.xsd";
 
@@ -1210,7 +1211,7 @@ foreach $node (@nodenames) {
 	#
 	# Add a first-free feature which spreads VMs amongs shared nodes.
 	#
-	push(@features, "&*spreadshared:0.6");
+	push(@features, "*&spreadshared:0.6");
 
 	#
 	# The pool daemon may override the share weight.
@@ -2115,6 +2116,15 @@ sub print_header {
 		   $times[5] + 1900, $times[4] + 1, $times[3],
 		   $times[2], $times[1], $times[0]);
 	    print ">\n";
+	    my $result = DBQueryFatal("select token from shared_vlans ".
+				      "where open=1");
+	    if ($result->rows > 0) {
+		print "<rspec_shared_vlan xmlns=\"" . $sharedns . "\">\n";
+		while (($token) = $result->fetchrow_array) {
+		    print "  <available name=\"" . $token . "\"/>\n";
+		}
+		print "</rspec_shared_vlan>\n";
+	    }
 	}
     }
 }

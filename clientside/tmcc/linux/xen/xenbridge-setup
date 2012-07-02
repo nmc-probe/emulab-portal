@@ -20,9 +20,9 @@ use liblocsetup;
 # Default bridgename
 my $XENBR = "xenbr0";
 # Locations of some binaries we use, really should be in liblocsetup.pm
-my $BRCTL = "/sbin/brctl";
-my $IPBIN = "/bin/ip";
-my $IFCONFIGBIN = "/sbin/ifconfig";
+my $BRCTL = "brctl";
+my $IPBIN = "ip";
+my $IFCONFIGBIN = "ifconfig";
 
 sub usage()
 {

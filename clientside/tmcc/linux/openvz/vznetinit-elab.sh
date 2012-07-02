@@ -42,6 +42,9 @@ fi
 #
 if [ $ELABCTRLDEV = $DEV ]; then
     echo "Emulab configuring network for CT$VEID: control net ($ELABCTRLDEV)"
+    if [ "x$ELABCTRLBR" != "x" ]; then
+	$BRCTL addif $ELABCTRLBR $ELABCTRLDEV
+    fi
     $IFCONFIG $ELABCTRLDEV 2&>1 > /dev/null
     while [ $? -ne 0 ]; do
 	echo "Waiting for $ELABCTRLDEV to appear"
@@ -49,10 +52,13 @@ if [ $ELABCTRLDEV = $DEV ]; then
 	$IFCONFIG $ELABCTRLDEV 2&>1 > /dev/null
     done
     $IFCONFIG $ELABCTRLDEV 0 up
-    $ROUTE add -host $ELABCTRLIP dev $ELABCTRLDEV
     echo 1 > /proc/sys/net/ipv4/conf/$ELABCTRLDEV/forwarding
-    echo 1 > /proc/sys/net/ipv4/conf/$ELABCTRLDEV/proxy_arp
-
+    if [ "x$ELABCTRLBR" = "x" ]; then
+	echo 1 > /proc/sys/net/ipv4/conf/$ELABCTRLDEV/proxy_arp
+	$ROUTE add -host $ELABCTRLIP dev $ELABCTRLDEV
+    else
+        $ROUTE add -host $ELABCTRLIP dev $ELABCTRLBR
+    fi
     # no point continuing.
     exit 0
 fi

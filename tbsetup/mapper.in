@@ -609,7 +609,7 @@ sub RunAssign($$)
 	    if ($userspec == 0);
     }
     $args .= "$ptopfile $vtopfile";
-    $args = "-R -P $args"
+    $args = "-P $args"
 	if (!$vtop->sharednodecount());
     $args = "-uod -c .75 $args"
 	if ($vtop->virtnodecount() || $vtop->simnodecount());
@@ -617,7 +617,7 @@ sub RunAssign($$)
     	if ($precheck);
     $args = "-s 123456 $args"
 	if ($regression);
-    $args .= " PN=1.0"
+    $args = "-R $args PN=1.0"
 	if ($vtop->sharednodecount());
     
     # The prepass speeds up assign on big topos with virtual nodes.
