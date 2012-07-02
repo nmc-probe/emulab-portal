@@ -3239,8 +3239,8 @@ sub GetJailIP($;$)
 	    $pnet++;
 	    $pnode2 -= $nodenumlimit;
 	}
+	return ("${IPBASE1}.${pnet}.${pnode2}.${num}", $JAILIPMASK);
     }
-    return ("${IPBASE1}.${pnet}.${pnode2}.${num}", $JAILIPMASK);
 }
 
 #
