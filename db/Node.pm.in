@@ -2174,26 +2174,25 @@ sub CreateVnodes($$$)
 	my ( $jailip, $jailmask );
 
 	if ($isjailed) {
-	    #
-	    # Construct the vnode IP.  The general form is:
-	    #	<IPBASE1>.<IPBASE2>.<pnode>.<vnode>
-	    # but if <pnode> is greater than 254 we have to increment
-	    # IPBASE2.
-	    #
-	    # XXX at Utah our second big cluster of nodes starts at
-	    # nodenum=201 and I would like our vnode IPs to align
-	    # at that boundary, so 254 becomes 200.
-	    #
-	    my $vname = $options->{'vlist'}->[ $n - 1 ];
+	    if( defined( $options->{'vlist'} ) &&
+		defined( $options->{'vlist'}->[ $n - 1 ] ) ) {
+		my $vname = $options->{'vlist'}->[ $n - 1 ];
 
-	    $query_result =
-		DBQueryWarn( "SELECT attrvalue FROM virt_node_attributes " .
-			     "WHERE pid='$pid' AND eid='$eid' AND " .
-			     "vname='$vname' AND " .
-			     "attrkey='routable_control_ip'" );
+		$query_result =
+		    DBQueryWarn( "SELECT attrvalue FROM virt_node_attributes " .
+				 "WHERE pid='$pid' AND eid='$eid' AND " .
+				 "vname='$vname' AND " .
+				 "attrkey='routable_control_ip'" );
+	    } else {
+		$query_result = undef;
+	    }
 
 	    if( $query_result && $query_result->numrows &&
 		( $query_result->fetchrow_array() )[ 0 ] eq "true" ) {
+		#
+		# Grab a public IP address from the free pool, if there
+		# is one.
+		#
 		$query_result =
 		    DBQueryWarn( "SELECT IP, mask FROM virt_node_public_addr ".
 				 "WHERE node_id IS NULL" );
@@ -2209,6 +2208,16 @@ sub CreateVnodes($$$)
 			      "node_id='$vnodeid', card='0', port='1' " .
 			      "WHERE IP='$jailip'" );
 	    } else {
+		#
+		# Construct a vnode private IP.  The general form is:
+		#	<IPBASE1>.<IPBASE2>.<pnode>.<vnode>
+		# but if <pnode> is greater than 254 we have to increment
+		# IPBASE2.
+		#
+		# XXX at Utah our second big cluster of nodes starts at
+		# nodenum=201 and I would like our vnode IPs to align
+		# at that boundary, so 254 becomes 200.
+		#
 		my $nodenumlimit = $ISUTAH ? 200 : 254;
 		my $pnet = $IPBASE2;
 		my $pnode2 = int($ipbase);
