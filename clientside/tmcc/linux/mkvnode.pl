@@ -604,9 +604,10 @@ if (safeLibOp('vnodeConfigDevices', 1, 1)) {
 }
 
 #
-# Route to inner sshd
+# Route to inner ssh, but not if the IP is routable, no need to.
 #
-if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "") {
+if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "" &&
+    !isRoutable(VNCONFIG('CTRLIP'))) {
     my $sshdport = VNCONFIG('SSHDPORT');
     my $ctrlip   = VNCONFIG('CTRLIP');
 
