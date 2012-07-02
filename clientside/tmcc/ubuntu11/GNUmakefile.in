@@ -45,7 +45,7 @@ install client-install:	common-install etc-install \
 simple-install:	common-install script-install bin-install
 
 dir-install:
-	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/dhcp3
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/dhcp
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/network
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/rsyslog.d
 
