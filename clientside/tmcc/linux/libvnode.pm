@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Implements the libvnode API for OpenVZ support in Emulab.
@@ -17,11 +17,12 @@ use Exporter;
 	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
               findVirtControlNet findDNS downloadImage setState
-              getKernelVersion
+              getKernelVersion isRoutable
             );
 
 use Data::Dumper;
 use libtmcc;
+use Socket;
 
 sub VNODE_STATUS_RUNNING() { return "running"; }
 sub VNODE_STATUS_STOPPED() { return "stopped"; }
@@ -517,6 +518,34 @@ sub getKernelVersion()
     }
 
     return undef;
+}
+
+#
+# Is an IP routable?
+#
+sub isRoutable($)
+{
+    my ($IP)  = @_;
+    my ($a,$b,$c,$d) = ($IP =~ /^(\d*)\.(\d*)\.(\d*)\.(\d*)/);
+
+    #
+    # These are unroutable:
+    # 10.0.0.0        -   10.255.255.255  (10/8 prefix)
+    # 172.16.0.0      -   172.31.255.255  (172.16/12 prefix)
+    # 192.168.0.0     -   192.168.255.255 (192.168/16 prefix)
+    #
+
+    # Easy tests.
+    return 0
+	if (($a eq "10") ||
+	    ($a eq "192" && $b eq "168"));
+
+    # Lastly
+    return 0
+	if (inet_ntoa((inet_aton($IP) & inet_aton("255.240.0.0"))) eq
+	    "172.16.0.0");
+
+    return 1;
 }
 
 #
