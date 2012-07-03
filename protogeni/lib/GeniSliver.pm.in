@@ -750,22 +750,32 @@ sub AnnotateManifest($)
 
     my $sshdport      = 22;
     my $hostname      = GeniUtil::FindHostname($node->node_id());
-    my $phostname     = $hostname;
+    my $sshdhost      = $hostname;
     my $vhostname     = GeniUtil::FindVHostname($experiment, $node);
     my $component_urn = GeniHRN::Generate("@OURDOMAIN@", "node",
-					  $node->phys_nodeid())
-;
+					  $node->phys_nodeid());
     
     if ($node->isvirtnode()) {
-	$sshdport  = $node->sshdport();
-	$phostname = GeniUtil::FindHostname($node->phys_nodeid());
+	my $vname = $node->vname();
+	my $public_control;
+	$experiment->GetVirtNodeAttribute( $vname, "routable_control_ip",
+					   \$public_control );
+	if( defined( $public_control ) && $public_control eq "true" ) {
+	    # we've assigned a public address to this one
+	    $sshdhost = $hostname;
+	} else {
+	    # this node has no public control address of its own -- give the
+	    # sshd port on the physical host's address
+	    $sshdport = $node->sshdport();
+	    $sshdhost = GeniUtil::FindHostname($node->phys_nodeid());
+	}
     }
 
     #
     # Add this stuff to the rspec (which becomes the manifest).
     #
     if (GeniXML::IsVersion0($rspec)) {
-	GeniXML::SetText("hostname", $rspec, $hostname);
+	GeniXML::SetText("hostname", $rspec, $sshdhost);
 	GeniXML::SetText("sshdport", $rspec, $sshdport)
 	    if (defined($sshdport));
 	GeniXML::SetText("sliver_uuid", $rspec, $self->uuid());
@@ -791,7 +801,7 @@ sub AnnotateManifest($)
 	    $login = GeniXML::AddElement("login", $services);
 	}
 	GeniXML::SetText("authentication", $login, "ssh-keys");
-	GeniXML::SetText("hostname", $login, $phostname);
+	GeniXML::SetText("hostname", $login, $sshdhost);
 	GeniXML::SetText("port", $login, $sshdport);
 	GeniXML::SetText("username", $login, $user->uid());
     }
