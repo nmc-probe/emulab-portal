@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -14,7 +14,7 @@ use Getopt::Std;
 # 
 sub usage()
 {
-    print "Usage: register_resources [-f] [-r]\n";
+    print "Usage: register_resources [-f] [-r] [node_id node_id ...]\n";
     exit(1);
 }
 my $optlist = "fr";

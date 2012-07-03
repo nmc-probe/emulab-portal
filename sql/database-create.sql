@@ -4482,6 +4482,20 @@ CREATE TABLE `virt_node_motelog` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `virt_node_public_addr`
+--
+
+DROP TABLE IF EXISTS `virt_node_public_addr`;
+CREATE TABLE `virt_node_public_addr` (
+  `IP` varchar(15) NOT NULL default '',
+  `mask` varchar(15) default NULL,
+  `node_id` varchar(32) default NULL,
+  `card` tinyint(3) unsigned default '0',
+  `port` tinyint(3) unsigned default '0',
+  PRIMARY KEY  (`IP`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `virt_node_startloc`
 --
 
