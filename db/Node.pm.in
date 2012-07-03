@@ -2152,7 +2152,7 @@ sub CreateVnodes($$$)
 		if (!$query_result);
 
 	    if (!$query_result->numrows) {
-		push(@tocreate, $n);
+		push(@tocreate, [$n, $options->{'vlist'}->[$i]]);
 		$i++;
 	    }
 	    $n++;
@@ -2168,25 +2168,19 @@ sub CreateVnodes($$$)
     #
     # Create a bunch.
     #
-    foreach my $n (@tocreate) {
+    foreach my $ref (@tocreate) {
+	my ($n, $vname) = @{ $ref };
 	my $vpriority = 10000000 + ($ipbase * 1000) + $n;
 	my $vnodeid   = $nodeprefix . "vm" . $nodenum . "-" . $n;
 	my ( $jailip, $jailmask );
 
 	if ($isjailed) {
-	    if( defined( $options->{'vlist'} ) &&
-		defined( $options->{'vlist'}->[ $n - 1 ] ) ) {
-		my $vname = $options->{'vlist'}->[ $n - 1 ];
-
-		$query_result =
-		    DBQueryWarn( "SELECT attrvalue FROM virt_node_attributes " .
-				 "WHERE pid='$pid' AND eid='$eid' AND " .
-				 "vname='$vname' AND " .
-				 "attrkey='routable_control_ip'" );
-	    } else {
-		$query_result = undef;
-	    }
-
+	    $query_result =
+		DBQueryWarn( "SELECT attrvalue FROM virt_node_attributes " .
+			     "WHERE pid='$pid' AND eid='$eid' AND " .
+			     "vname='$vname' AND " .
+			     "attrkey='routable_control_ip'" );
+	    
 	    if( $query_result && $query_result->numrows &&
 		( $query_result->fetchrow_array() )[ 0 ] eq "true" ) {
 		#
