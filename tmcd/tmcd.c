@@ -1975,6 +1975,59 @@ COMMAND_PROTOTYPE(doifconfig)
 	mysql_free_result(res);
 
 	/*
+	 * XXX temporary hack to set up a shared LAN on a set of machines.
+	 * This LAN is not represented in the usual way in the DB, it just
+	 * exists as node_attributes that spell out everything. This is NOT
+	 * intended as a general mechanism, only as a way to start using 10Gb
+	 * on our new nodes before we have snmpit support for the 10Gb switch.
+	 */
+	res = mydb_query("select attrkey,attrvalue from node_attributes "
+			 " where attrkey like 'shared_lan_%%' and "
+			 " node_id='%s'", 2, reqp->nodeid);
+	if (res) {
+		char _ip[16], _mask[16], _mac[18], _speed[8];
+		char *bufp = buf;
+		int got = 0;
+
+		nrows = (int)mysql_num_rows(res);
+		while (nrows > 0) {
+			nrows--;
+			row = mysql_fetch_row(res);
+			if (!row || !row[0] || !row || !row[1])
+				continue;
+			if (strcmp(row[0], "shared_lan_ip") == 0) {
+				strncpy(_ip, row[1], sizeof(_ip)-1);
+				_ip[sizeof(_ip)-1] = '\0';
+				got++;
+			} else if (strcmp(row[0], "shared_lan_mask") == 0) {
+				strncpy(_mask, row[1], sizeof(_mask)-1);
+				_mask[sizeof(_mask)-1] = '\0';
+				got++;
+			} else if (strcmp(row[0], "shared_lan_mac") == 0) {
+				strncpy(_mac, row[1], sizeof(_mac)-1);
+				_mac[sizeof(_mac)-1] = '\0';
+				got++;
+			} else if (strcmp(row[0], "shared_lan_speed") == 0) {
+				strncpy(_speed, row[1], sizeof(_speed)-1);
+				_speed[sizeof(_speed)-1] = '\0';
+				got++;
+			}
+		}
+		if (got == 4) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       "INTERFACE IFACETYPE=ixgbe "
+				       "INET=%s MASK=%s MAC=%s "
+				       "SPEED=%sMbps DUPLEX=full "
+				       "IFACE= RTABID=0 LAN=shared_lan_0\n",
+				       _ip, _mask, _mac, _speed);
+			client_writeback(sock, buf, strlen(buf), tcp);
+			if (verbose)
+				info("%s: IFCONFIG: %s", reqp->nodeid, buf);
+		}
+		mysql_free_result(res);
+	}
+
+	/*
 	 * Interface settings.
 	 */
 	if (vers >= 16) {
