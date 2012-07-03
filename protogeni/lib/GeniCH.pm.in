@@ -1049,12 +1049,13 @@ sub PostHistoryRecord($)
 	    $record->{$slot} = $date;
 	}
 	
-	# Leave dates as GMT
-	if (! ($date =~ /^[-\w:.\/]+/)) {
+	# Leave dates as GMT but confirm it is parsable as a date.
+	my $parsed_date = str2time($date);
+	if (!defined($parsed_date)) {
 	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					"Improper date format: $slot");
+					"Could not parse $slot: $date");
 	}
-	push(@insert_data, "$slot=" . DBQuoteSpecial($date));
+	push(@insert_data, "$slot=FROM_UNIXTIME($parsed_date)");
     }
     # Only toplevel aggregates
     if (! (defined($record->{'type'}) && $record->{'type'} eq "Aggregate")) {
