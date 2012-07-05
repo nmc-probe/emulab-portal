@@ -209,6 +209,7 @@ sub os_account_cleanup($)
 sub os_accounts_sync()
 {
     unlink @LOCKFILES;
+    unlink "/etc/passwd.new";
 
     # Generate the CygWin password and group files from the registry users.
     # Note that the group membership is not reported into the CygWin files.
@@ -217,8 +218,7 @@ sub os_accounts_sync()
     my $cmd = "$MKPASSWD -l | $AWK -F: '";
     $cmd   .=   'BEGIN{ OFS=":"; ';
     # Keep Windows admin account homedirs under /home so we know what to clean.
-    $cmd   .=   '  admin["root"]= admin["Administrator"]= admin["Guest"]= 1; ';
-    $cmd   .=   '  admin["HelpAssistant"]= admin["SUPPORT_388945a0"]= 1; }';
+    $cmd   .=   '  admin["root"]= admin["Administrator"]= admin["Guest"]= 1; }';
     # Make root's UID zero.
     $cmd   .=   '{ if ($1=="root") $3="0"; ';
     # Put genuine user homedirs under /users, instead of /home.
@@ -230,8 +230,11 @@ sub os_accounts_sync()
     $cmd   .= " > /etc/passwd.new";
     ##print "$cmd\n";
     if (system("$cmd") != 0) {
-	warning("Could not generate /etc/password.new file: $!\n");
-	return -1;
+	warning("Nonzero exit status while generating /etc/password.new file: $?\n");
+    }
+    if (! -e "/etc/passwd.new") {
+	warning("passwd.new file not found! /etc/passwd will be wrong.");
+	exit -1;
     }
 
     # Work around "/etc/passwd: Device or resource busy".
@@ -254,8 +257,7 @@ sub os_accounts_sync()
     $cmd .= "' > /etc/group";
     ##print "$cmd\n";
     if (system("$cmd") != 0) {
-	warning("Could not generate /etc/group file: $!\n");
-	return -1;
+	warning("Nonzero exit status while generating /etc/group file: $?\n");
     }
     
     return 0;
