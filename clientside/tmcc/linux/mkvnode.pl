@@ -636,7 +636,8 @@ if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "" &&
 #
 my $childpid = fork();
 if ($childpid) {
-    local $SIG{ALRM} = sub { kill("TERM", $childpid); };
+    my $timedout = 0;
+    local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
     alarm 30;
     waitpid($childpid, 0);
     alarm 0;
@@ -644,12 +645,16 @@ if ($childpid) {
     #
     # If failure then cleanup.
     #
-    if ($?) {
-	MyFatal("$vnodeid container startup exited with $?");
+    if ($? || $timedout) {
+	MyFatal("$vnodeid container startup failed or timed out");
     }
 }
 else {
     $SIG{TERM} = 'DEFAULT';
+    $SIG{INT}  = 'DEFAULT';
+    $SIG{USR1} = 'DEFAULT';
+    $SIG{USR2} = 'DEFAULT';
+    $SIG{HUP}  = 'DEFAULT';
 
     if (safeLibOp('vnodeBoot', 1, 1)) {
 	print STDERR "*** ERROR: vnodeBoot failed\n";
@@ -803,6 +808,27 @@ sub CleanupVM()
 	# Update new state.
 	delete($vnstate->{'sshd_iprule'});
 	StoreState();
+    }
+
+    #
+    # The tmcc proxy causes teardown problems, no idea why.
+    # It used to be kill off from the unmount script, but lets
+    # do it here.
+    #
+    my $PROXYPID = "/var/run/tmccproxy.${vnodeid}.pid";
+    if (-e $PROXYPID) {
+	my $ppid = `cat $PROXYPID`;
+	chomp($ppid);
+	# untaint
+	if ($ppid =~ /^([-\@\w.]+)$/) {
+	    $ppid = $1;
+	}
+	if (kill('TERM', $ppid) == 0) {
+	    print"*** ERROR: Could not kill(TERM) proxy process $ppid: $!\n";
+	}
+	else {
+	    unlink($PROXYPID);
+	}
     }
 
     # if not halted, try that first
