@@ -484,6 +484,7 @@ sub os_groupdel($)
     my($group) = @_;
 
     # Unimplemented.
+    warning("os_groupdel unimplemented in Windows 7.");
     return -1;
 }
 
@@ -495,6 +496,7 @@ sub os_userdel($)
     my($login) = @_;
 
     # Unimplemented.
+    warning("os_userdel unimplemented in Windows 7.");
     return -1;
 }
 
@@ -504,14 +506,8 @@ sub os_userdel($)
 sub os_modpasswd($$)
 {
     my($login, $pswd) = @_;
-
-    my $cmd = "echo -e '$pswd\\n$pswd' | passwd $login >& /dev/null";
-    ##print "    $cmd\n";
-    if (system($cmd) != 0) {
-	warning("os_modpasswd error ($cmd)\n");
-	return -1;
-    }
-    return 0;
+    warning("os_modpasswd unimplemented in Windows 7.");
+    return -1;
 }
 
 #
@@ -645,6 +641,7 @@ sub os_accounts_end()
 #
 sub os_homedirdel($$)
 {
+    warning("os_homedirdel unimplemented in Windows 7.");
     return 0;
 }
 
