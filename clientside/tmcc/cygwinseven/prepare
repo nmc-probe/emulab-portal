@@ -208,7 +208,7 @@ if (! $noredef) {
     my $bootlog = "/var/log/bootsetup.log";
     system("cygrunsrv -R EmulabStartup");
     system("cygrunsrv -I EmulabStartup -u root -w '$rootpwd'" .
-	   " --dep DHCP --dep pubsub --dep W32Time" .
+	   " --dep DHCP --dep iphlpsvc --dep pubsub --dep W32Time" .
 	   " -p /cygdrive/c/cygwin/bin/bash" .
 	   " -a \"--norc --noprofile -c " .
 	   "      '( $bootsetup; $progrun ) >& $bootlog'\"");
