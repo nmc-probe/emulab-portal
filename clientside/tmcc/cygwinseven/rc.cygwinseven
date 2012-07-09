@@ -30,6 +30,15 @@ uname -r > $iscygwin
 chmod g+w $iscygwin
 chmod -f g-w /etc/emulab
 
+#
+# If we are running under mini-setup (sysprep), bail.
+#
+setupstate=`regtool get /HKLM/Software/Microsoft/Windows/CurrentVersion/Setup/State/ImageState`
+if [ $setupstate != "IMAGE_STATE_COMPLETE" ]; then
+    logit "Windows mini-setup is running - exiting!"
+    exit 1;
+fi
+
 # Stop the sshd service during setup, because it sometimes loops, eating 100% of the
 # CPU.  It will be restarted after rc.bootsetup by EmulabStartup.  Make sure below.
 # XXX: Assume this isn't needed.

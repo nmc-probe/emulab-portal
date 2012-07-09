@@ -28,9 +28,8 @@ if (!$? -or $NodeID -eq "UNKNOWN" -or !$NodeID) {
    exit(1)
 }
 
-# Change the node's name to nodeid from Emulab Central, if required
-if ($NodeID -ne $CurName) {
-   log("Computer name change required: $CurName -> $NodeID")
+# Change the node's name to nodeid from Emulab Central
+log("Setting node name to: $NodeID (was $CurName)")
 # XXX: Doesn't work under mini-setup
 #   if (!$NameObj.rename($NodeID)) {
 #      log("Name change failed: " + $Error)
@@ -39,17 +38,10 @@ if ($NodeID -ne $CurName) {
 #      log("Node rename succeeded - reboot required")
 #   }
 
-   # Change the name via the registry
-   New-ItemProperty -Path $CNPATH -Name ComputerName -PropertyType String`
-                    -Value $nodeid.ToUpper() -Force
-   New-ItemProperty -Path $HNPATH -Name "NV Hostname" -PropertyType String`
-                    -Value $nodeid -Force
-
-} else {
-  log("Current node name is correct - no changes made")
-}
-
-
+# Change the name via the registry
+New-ItemProperty -Path $CNPATH -Name ComputerName -PropertyType String`
+                 -Value $nodeid.ToUpper() -Force
+New-ItemProperty -Path $HNPATH -Name "NV Hostname" -PropertyType String`
+                 -Value $nodeid -Force
 
 exit(0)
-
