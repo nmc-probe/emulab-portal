@@ -10,6 +10,10 @@ sub Install($$$)
     my ($server, $isupdate, $impotent) = @_;
 
     my @LOCAL_HOSTS         = ($OURDOMAIN,$BOSSNODE,$USERNODE,$FSNODE);
+
+    if ($PROTOGENI_GENIRACK) {
+	push(@LOCAL_HOSTS, "foam.${OURDOMAIN");
+    }
     
     # covert to list names and remove duplicates
     my @MAILING_LIST_NAMES = ();
