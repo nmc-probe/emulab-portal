@@ -1359,11 +1359,22 @@ sub ReadHistoryRecords($)
 	$blob{'creator_urn'}  = $row->{'creator_urn'};
 	$blob{'creator_uuid'} = $row->{'creator_uuid'};
 	$blob{'created'}      = $row->{'created'};
-	$blob{'destroyed'}    = $row->{'destroyed'};
-	$blob{'manifest'}     = $row->{'manifest'};
-
+	if (defined($row->{'destroyed'})) {
+	    $blob{'destroyed'}= $row->{'destroyed'};
+	}
+	else {
+	    $blob{'destroyed'}= '';
+	}
+	if (defined($row->{'manifest'})) {
+	    $blob{'manifest'} = $row->{'manifest'};
+	}
+	else {
+	    $blob{'manifest'} = "";
+	}
 	push(@results, \%blob);
     }
+    # Slow down the GMOC queries. 
+    sleep(10);
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@results);
 }
 

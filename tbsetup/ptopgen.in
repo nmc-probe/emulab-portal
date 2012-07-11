@@ -1958,8 +1958,7 @@ my @wireless_protos = ("80211", "80211a", "80211b", "80211g", "flex900",
 
 my @fake_switch_types = map("*$_:*", @wireless_protos);
 if (! defined($component_name)) {
-  print_node($fake_air_switch, \@fake_switch_types, [], [], undef,
-	     [], undef, undef, undef, undef);
+  $air_printed = 0;
 
   foreach my $interface (keys(%interfacetypes)) {
       my ($node,$card,$port) = split(":", $interface);
@@ -2001,6 +2000,11 @@ if (! defined($component_name)) {
 	  if ($ifacebw > $max_bw) {
 	      $max_bw = $ifacebw;
 	  }
+      }
+      if (! $air_printed) {
+	  print_node($fake_air_switch, \@fake_switch_types, [], [], undef,
+		     [], undef, undef, undef, undef);
+	  $air_printed = 1;
       }
       print_simple_link($node, $iface,
 			$fake_air_switch, $fake_air_iface,

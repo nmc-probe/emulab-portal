@@ -321,7 +321,7 @@ $nodes_result =
 		 "    DATE_FORMAT(created,'%M %e %H:%i:%s') as created, ".
 		 "    n.temporary_IP, n.dmesg, n.identifier, n.building " .
 		 "  from new_nodes as n " .
-		 "order BY n.new_node_id");
+		 "order BY node_id");
 ?>
 
 <h3><a href="newnodes_list.php3">Refresh this page</a></h3>

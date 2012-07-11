@@ -4514,8 +4514,18 @@ sub ListUsage($)
 		$node->{"component_urn"} = $component->urn();
 	    }
 	    else {
-		print STDERR "No component in DB for resource ".
-		    $sliver->resource_uuid() . "\n";
+		#
+		# Do not warn about missing VMs. 
+		#
+		my $pnode = Node->Lookup($sliver->resource_id());
+		if (!defined($pnode)) {
+		    print STDERR "No node in DB for resource ".
+			$sliver->resource_uuid() . "\n";
+		}
+		elsif (! $pnode->isvirtnode()) {
+		    print STDERR "No component in DB for resource ".
+			$sliver->resource_uuid() . ": $pnode\n";
+		}
 	    }
 	    push(@components, $node);
 	}
