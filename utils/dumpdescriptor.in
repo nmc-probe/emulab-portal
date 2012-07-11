@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2010-2011 University of Utah and the Flux Group.
+# Copyright (c) 2010-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -158,6 +158,22 @@ sub DumpImage($)
 		    last;
 		}
 	    }
+	}
+	if (defined($osinfo->nextosid()) && $osinfo->nextosid()) {
+	    my $nextosinfo = OSinfo->Lookup($osinfo->nextosid());
+	    if (!defined($nextosinfo)) {
+		fatal("Could not look up nextosid for $osinfo");
+	    }
+	    $xmlfields{"nextosid"} =
+		$nextosinfo->pid() . "," . $nextosinfo->osname();
+	}
+	if (defined($osinfo->def_parentosid()) && $osinfo->def_parentosid()) {
+	    my $nextosinfo = OSinfo->Lookup($osinfo->def_parentosid());
+	    if (!defined($nextosinfo)) {
+		fatal("Could not look up def_parentosid for $osinfo");
+	    }
+	    $xmlfields{"def_parentosid"} =
+		$nextosinfo->pid() . "," . $nextosinfo->osname();
 	}
     }
     if ($dotypes) {
