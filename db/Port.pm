@@ -380,6 +380,7 @@ sub LookupByStringForced($$)
 	$rowref->{'interface_type'} = "";
 	$rowref->{'mask'} = "";
 	$rowref->{'uuid'} = "";
+	$rowref->{'trunk'} = 0;
 	$inst->{"INTERFACES_ROW"} = $rowref;
     }
     else {
@@ -545,6 +546,7 @@ sub LookupByTriple($$;$$)
 	$rowref->{'interface_type'} = "";
 	$rowref->{'mask'} = "";
 	$rowref->{'uuid'} = "";
+	$rowref->{'trunk'} = 0;
     } else {
 	$rowref = $query_result->fetchrow_hashref();
     }
@@ -621,6 +623,7 @@ sub role($)    { return field($_[0], 'role'); }
 sub interface_type($)    { return field($_[0], 'interface_type'); }
 sub mask($)    { return field($_[0], 'mask'); }
 sub uuid($)    { return field($_[0], 'uuid'); }
+sub trunk($)   { return field($_[0], 'trunk'); }
 
 sub wire_end($) { return $_[0]->{'WIRE_END'}; }
 sub is_switch_side($) { return $_[0]->wire_end() eq "switch"; }
