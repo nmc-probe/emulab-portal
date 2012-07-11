@@ -152,6 +152,7 @@ int main(int argc, char **argv) {
           tmppkt = pkt;
           pkt = opkt;
           opkt = tmppkt;
+	  bzero(pkt, sizeof(*pkt));
         }
 
         if (mopts.once) {
@@ -320,6 +321,21 @@ int init_slothd(void) {
 #ifdef __linux__
   /* Open socket for SIOCGHWADDR ioctl (to get mac addresses) */
   parms->ifd = socket(PF_INET, SOCK_DGRAM, 0);
+#endif
+
+#ifdef __CYGWIN__
+  {
+    /* 
+     * Grab number of cpu cores.
+     */
+    SYSTEM_INFO sysinfo;
+
+    GetSystemInfo(&sysinfo);
+    parms->numcpu = sysinfo.dwNumberOfProcessors;
+
+    if (parms->numcpu < 1)    /* Catch a bogus answer. */
+      parms->numcpu = 1;
+  }
 #endif
 
   /* prepare UDP connection to server */
@@ -598,29 +614,10 @@ void get_load(SLOTHD_PACKET *pkt) {
  * averaged by system logging so it's no good for us.  As long as we set our
  * threshold of CPU busyness below 1.0, this will work fine.
  */
-char *ldavg_prog[] = {"tail", "-1", "/var/run/ldavg.csv", NULL};
-int get_ldavg(char *, void *);
-int ncpu = -1;
-
 void get_load(SLOTHD_PACKET *pkt) {
+  static char *ldavg_prog[] = {"tail", "-1", "/var/run/ldavg.csv", NULL};
+
   pkt->loadavg[0] = pkt->loadavg[1] = pkt->loadavg[2] = -1.0;
-
-  if ( ncpu < 0 ) {
-    /* Hyper-threading on the pc3000's convinces NT that it has 2 processors,
-     * so it considers a busy process to be 50% utilization.  One busy process
-     * should be 100% load average for us.  Use "cpu count" in /proc/cpuinfo
-     * to get a multiplier.
-     */
-    FILE *cpuinfo = fopen("/proc/cpuinfo", "r");
-    char line[80];
-
-    while (ncpu < 0 && fgets(line, 80, cpuinfo) 
-	   && ! feof(cpuinfo) && ! ferror(cpuinfo))
-      sscanf(line, "cpu count : %d", &ncpu);
-
-    if (ncpu < 1)    /* One-cpu machines have a cpu count of zero. */
-      ncpu = 1;
-  }
 
   if (procpipe(ldavg_prog, &get_ldavg, (void*)pkt))
     lwarn("get_ldavg exec failed.");
@@ -637,7 +634,8 @@ int get_ldavg(char *buf, void *data) {
   }
 
   /* NT reports load as a percent, e.g. 44.5; we want a fraction, e.g. 0.445 */
-  pkt->loadavg[0] = pkt->loadavg[1] = pkt->loadavg[2] = load * ncpu / 100.0;
+  pkt->loadavg[0] = pkt->loadavg[1] = pkt->loadavg[2] = 
+    load * parms->numcpu / 100.0;
   if (opts->debug)
     printf("load averages: %f, %f, %f\n", 
            pkt->loadavg[0], pkt->loadavg[1], pkt->loadavg[2]);
@@ -798,9 +796,11 @@ int get_counters(char *buf, void *data) {
 #else /* __CYGWIN__ */
 
 void get_packet_counts(SLOTHD_PACKET *pkt) {
+  static char *wanprefix = "10:2d:20";
   static DWORD dwSize;
   DWORD ret;
-  int i;
+  char curaddr[MACADDRLEN];
+  int i, j;
 
   /* Call GetIfTable(), an MS IP Helper Function, to get packet counters. */
   PMIB_IFTABLE iftable;
@@ -821,27 +821,51 @@ void get_packet_counts(SLOTHD_PACKET *pkt) {
   for (i = 0; i < min(iftable->dwNumEntries, MAXNUMIFACES); i++) {
     ifrow = &(iftable->table[i]);
 
-    if (ifrow->dwType != MIB_IF_TYPE_LOOPBACK && /* Exclude loopback. */
-        ifrow->dwOperStatus == MIB_IF_OPER_STATUS_OPERATIONAL) {
+    if (ifrow->dwType == IF_TYPE_ETHERNET_CSMACD && /* Only Ethernet. */
+        ifrow->dwOperStatus == IF_OPER_STATUS_OPERATIONAL) {
 
       /* Format the MAC address.  We don't have ether_ntoa(). */
-      snprintf(pkt->ifaces[pkt->ifcnt].addr, MACADDRLEN, 
+      snprintf(curaddr, MACADDRLEN, 
                "%02x:%02x:%02x:%02x:%02x:%02x", 
                ifrow->bPhysAddr[0], ifrow->bPhysAddr[1], ifrow->bPhysAddr[2],
                ifrow->bPhysAddr[3], ifrow->bPhysAddr[4], ifrow->bPhysAddr[5]);
-      if (opts->debug)
-        printf("macaddr: %s\n", pkt->ifaces[pkt->ifcnt].addr);
 
-      /* Grumble.  ifrow->wszName is empty.  
+      /* Skip over WAN interfaces - not sure why the type check above
+         allows these through. */
+      if (strncmp(curaddr, wanprefix, sizeof(wanprefix))
+	  == 0)
+	continue;
+
+      /* Have we already seen this MAC address?  Skip if so. */
+      for (j = 0; j < pkt->ifcnt; j++) {
+	if (strncmp(pkt->ifaces[j].addr, curaddr, MACADDRLEN) == 0)
+	  break;
+      }
+      if (j < pkt->ifcnt)
+	continue;
+
+      if (opts->debug)
+        printf("macaddr: %s\n", curaddr);
+
+      /* Grumble.  ifrow->wszName is empty.  <- Not in Win7.
        * Recognize the control interface by its MAC address.
        */
-      if (strncmp(pkt->ifaces[pkt->ifcnt].addr, parms->cifaddr, MACADDRLEN)==0)
+      if (strncmp(curaddr, parms->cifaddr, MACADDRLEN)==0)
         strncpy(pkt->ifaces[pkt->ifcnt].ifname, parms->cifname, MAXIFNAMELEN);
       else
         /* If it isn't the control interface, just show the MAC address. */
-        strncpy(pkt->ifaces[pkt->ifcnt].ifname, parms->cifaddr, MAXIFNAMELEN);
-      if (opts->debug)
-        printf("ifname: %s\n", pkt->ifaces[pkt->ifcnt].ifname);
+        strncpy(pkt->ifaces[pkt->ifcnt].ifname, curaddr, MAXIFNAMELEN);
+      /* Make certain the interface name is null terminated. */
+      pkt->ifaces[pkt->ifcnt].ifname[MAXIFNAMELEN-1] = '\0';
+
+      /* Now it's time to save off the MAC address of the current entry. */
+      strncpy(pkt->ifaces[pkt->ifcnt].addr, curaddr, MACADDRLEN);
+      pkt->ifaces[pkt->ifcnt].addr[MACADDRLEN-1] = '\0';
+
+      if (opts->debug) {
+	printf("ifacename: %ls\n", ifrow->wszName);
+	printf("Description: %*s\n", (int)ifrow->dwDescrLen, ifrow->bDescr);
+      }
 
       /* Packet counters, including unicast, broadcast, and multicast. */
       pkt->ifaces[pkt->ifcnt].ipkts = 
