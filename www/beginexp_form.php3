@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -92,64 +92,6 @@ function INITFORM($formfields, $projlist)
 }
 
 #
-# Check form and return XML to the main page. 
-# 
-function CHECKFORM(&$formfields, $projlist)
-{
-    $errors = array();
-    
-    #
-    # Must convert uploaded file for the XML page. We pass it along inline.
-    # Check size though. 
-    #
-    $formfields['exp_nsfile'] = "";
-    
-    if (isset($_FILES['exp_nsfile']) && $_FILES['exp_nsfile']['size'] != 0) {
-	if ($_FILES['exp_nsfile']['size'] > (1024 * 500)) {
-	    $errors["Local NS File"] = "Too big!";
-	}
-	elseif ($_FILES['exp_nsfile']['name'] == "") {
-	    $errors["Local NS File"] =
-		"Local filename does not appear to be valid";
-	}
-	elseif ($_FILES['exp_nsfile']['tmp_name'] == "") {
-	    $errors["Local NS File"] =
-		"Temp filename does not appear to be valid";
-	}
-	elseif (!preg_match("/^([-\@\w\.\/]+)$/",
-			    $_FILES['exp_nsfile']['tmp_name'])) {
-	    $errors["Local NS File"] = "Temp path includes illegal characters";
-	}
-        #
-        # For the benefit of the form. Remember to pass back actual filename, not
-        # the php temporary file name. Note that there appears to be some kind
-        # of breakage, at least in opera; filename has no path.
-        #
-        $formfields['exp_nsfile'] = $_FILES['exp_nsfile']['name'];
-
-	if (count($errors)) {
-	    SPITFORM($formfields, $errors);
-	    PAGEFOOTER();
-	    exit(1);
-	}
-
-	# Read the entire file into a string.
-	$file_contents = file_get_contents($_FILES['exp_nsfile']['tmp_name']);
-	if (!$file_contents || $file_contents == "") {
-	    $errors["Local NS File"] = "Error reading file on server";
-	    SPITFORM($formfields, $errors);
-	    PAGEFOOTER();
-	    exit(1);
-	}
-	$formfields["exp_nsfile_contents"] = urlencode($file_contents);
-    }
-    $args    = array();
-    $args[0] = $formfields;
-    $xmlcode = xmlrpc_encode_request("dummy", $args);
-    return $xmlcode;
-}
-
-#
 # Spit the form out using the array of data.
 #
 function SPITFORM($formfields, $errors)
@@ -198,6 +140,8 @@ function SPITFORM($formfields, $errors)
               </tr>\n";
 
 	while (list ($name, $message) = each ($errors)) {
+            # XSS prevention.
+	    $message = CleanString($message);
 	    echo "<tr>
                      <td align=right>
                        <font color=red>$name:&nbsp;</font></td>
@@ -251,10 +195,14 @@ function SPITFORM($formfields, $errors)
         }
        }
     }
+    # XSS prevention.
+    while (list ($key, $val) = each ($formfields)) {
+	$formfields[$key] = CleanString($val);
+    }
 
     echo "<form name=form1 enctype=multipart/form-data
                 onsubmit=\"return false;\"
-                action=beginexp_html.php3 method=post>\n";
+                action=beginexp.php method=post>\n";
     # Something funky going on ...
     echo "<input type=hidden name=beginexp value=Submit>\n";
     echo "<table align=center border=1>\n";

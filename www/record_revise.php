@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -68,6 +68,8 @@ function SPITFORM($formfields, $errors)
               </tr>\n";
 
 	while (list ($name, $message) = each ($errors)) {
+            # XSS prevention.
+	    $message = CleanString($message);
 	    echo "<tr>
                      <td align=right>
                        <font color=red>$name:&nbsp;</font></td>
@@ -77,6 +79,10 @@ function SPITFORM($formfields, $errors)
 	}
 	echo "</table><br>\n";
     }
+    # XSS prevention.
+    while (list ($key, $val) = each ($formfields)) {
+	$formfields[$key] = CleanString($val);
+    }
 
     $url = CreateURL("record_revise", $instance, "runidx", $runidx);
 
@@ -84,7 +90,8 @@ function SPITFORM($formfields, $errors)
           <form action='$url' method=post>\n";
 
     if (isset($referrer)) {
-	echo "<input type=hidden name=referrer value=$referrer>\n";
+	$url = urlencode($referrer);
+	echo "<input type=hidden name=referrer value='$url'>\n";
     }
     
     echo "<tr>

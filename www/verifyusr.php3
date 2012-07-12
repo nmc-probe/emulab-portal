@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2003, 2005, 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -47,6 +47,7 @@ if (! strcmp($status, TBDB_USERSTATUS_ACTIVE) ||
 # The user is logged in, so all we need to do is confirm the key.
 #
 if ($key != $this_user->verify_key()) {
+    $key = CleanString($key);
     USERERROR("The given key \"$key\" is incorrect. ".
 	      "Please enter the correct key.", 1);
 }

@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004, 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -85,6 +85,8 @@ function SPITFORM($errors, $node_id, $isnewid, $building, $floor,
               </tr>\n";
 
 	while (list ($name, $message) = each ($errors)) {
+            # XSS prevention.
+	    $message = CleanString($message);
 	    echo "<tr>
                      <td align=right>
                        <font color=red>$name:&nbsp;</font></td>

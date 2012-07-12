@@ -516,6 +516,8 @@ class Node
 	    $tarballs = "&nbsp;";
 	if (!$startupcmd)
 	    $startupcmd = "&nbsp;";
+	else
+	    $startupcmd = CleanString($startupcmd);
 
 	if ($node_id != $phys_nodeid) {
 	    if (! ($phys_this = Node::Lookup($phys_nodeid))) {

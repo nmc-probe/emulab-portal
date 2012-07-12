@@ -733,8 +733,8 @@ REPLACE INTO table_regex VALUES ('eventlist','vnode','text','redirect','virt_age
 REPLACE INTO table_regex VALUES ('eventlist','vname','text','regex','^[-\\w\\(\\)]+$',1,64,NULL);
 REPLACE INTO table_regex VALUES ('eventlist','objecttype','int','redirect','default:tinyint',0,0,NULL);
 REPLACE INTO table_regex VALUES ('eventlist','eventtype','int','redirect','default:tinyint',0,0,NULL);
-REPLACE INTO table_regex VALUES ('eventlist','arguments','text','redirect','default:text',0,1024,NULL);
-REPLACE INTO table_regex VALUES ('eventlist','atstring','text','redirect','default:text',0,1024,NULL);
+REPLACE INTO table_regex VALUES ('eventlist','arguments','text','redirect','default:html_text',0,1024,NULL);
+REPLACE INTO table_regex VALUES ('eventlist','atstring','text','redirect','default:html_text',0,1024,NULL);
 REPLACE INTO table_regex VALUES ('eventlist','triggertype','int','redirect','default:tinyint',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('experiments','eid','text','regex','^[a-zA-Z0-9][-a-zA-Z0-9]+$',2,19,'Must ensure not too long for the database. PID is 12, and the max is 32, so the user is not allowed to specify an EID more than 19, since other parts of the system may concatenate them together with a hyphen');
@@ -764,7 +764,7 @@ REPLACE INTO table_regex VALUES ('nodes','node_id','text','regex','^[-\\w]+$',1,
 REPLACE INTO table_regex VALUES ('nseconfigs','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('nseconfigs','eid','text','redirect','experiments:eid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('nseconfigs','vname','text','redirect','virt_nodes:vname',0,0,NULL);
-REPLACE INTO table_regex VALUES ('nseconfigs','nseconfig','text','regex','^[\\040-\\176\\012\\011\\015]*$',0,16777215,NULL);
+REPLACE INTO table_regex VALUES ('nseconfigs','nseconfig','text','redirect','default:fulltext',0,16777215,NULL);
 
 REPLACE INTO table_regex VALUES ('projects','newuser_xml','text','regex','^[-_\\w\\.\\/:+]*$',1,256,NULL);
 REPLACE INTO table_regex VALUES ('projects','newpid','text','regex','^[a-zA-Z][-a-zA-Z0-9]+$',2,48,NULL);
@@ -793,7 +793,7 @@ REPLACE INTO table_regex VALUES ('users','usr_email','text','regex','^([-\\w\\+\
 REPLACE INTO table_regex VALUES ('users','usr_shell','text','regex','^(csh|sh|bash|tcsh|zsh)$',0,0,NULL);
 REPLACE INTO table_regex VALUES ('users','usr_title','text','redirect','default:tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('users','usr_affil','text','redirect','default:tinytext',0,0,NULL);
-REPLACE INTO `table_regex` VALUES ('users','usr_affil_abbrev','text','regex','^[\\040-\\176]*$',0,16,NULL);
+REPLACE INTO table_regex VALUES ('users','usr_affil_abbrev','text','regex','default:tinytext',0,16,NULL);
 REPLACE INTO table_regex VALUES ('users','usr_addr','text','redirect','default:tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('users','usr_addr2','text','redirect','default:tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('users','usr_state','text','redirect','default:tinytext',0,0,NULL);
@@ -889,7 +889,7 @@ REPLACE INTO table_regex VALUES ('virt_nodes','ips','text','regex','^(\\d{1,2}:\
 REPLACE INTO table_regex VALUES ('virt_nodes','cmd_line','text','redirect','default:tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_nodes','rpms','text','regex','^([-\\w\\.\\/\\+:~]+;{0,1})*$',0,4096,NULL);
 REPLACE INTO table_regex VALUES ('virt_nodes','deltas','text','regex','^([-\\w\\.\\/\\+]+:{0,1})*$',0,1024,NULL);
-REPLACE INTO table_regex VALUES ('virt_nodes','startupcmd','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_nodes','startupcmd','text','redirect','default:html_tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_nodes','tarfiles','text','regex','^([-\\w\\.\\/\\+]+\\s+[-\\w\\.\\/\\+:~]+;{0,1})*$',0,1024,NULL);
 REPLACE INTO table_regex VALUES ('virt_nodes','vname','text','regex','^[-\\w]+$',1,32,NULL);
 REPLACE INTO table_regex VALUES ('virt_nodes','type','text','regex','^[-\\w]*$',0,30,NULL);
@@ -903,7 +903,7 @@ REPLACE INTO table_regex VALUES ('virt_programs','pid','text','redirect','projec
 REPLACE INTO table_regex VALUES ('virt_programs','eid','text','redirect','experiments:eid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_programs','vnode','text','redirect','virt_nodes:vname',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_programs','vname','text','regex','^[-\\w\\(\\)]+$',1,32,NULL);
-REPLACE INTO table_regex VALUES ('virt_programs','command','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_programs','command','text','redirect','default:html_tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_routes','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_routes','eid','text','redirect','experiments:eid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_routes','vname','text','redirect','virt_nodes:vname',0,0,NULL);
@@ -931,15 +931,7 @@ REPLACE INTO table_regex VALUES ('virt_vtypes','eid','text','redirect','experime
 REPLACE INTO table_regex VALUES ('virt_vtypes','name','text','regex','^[-\\w]+$',1,32,NULL);
 REPLACE INTO table_regex VALUES ('virt_vtypes','weight','float','redirect','default:float',0,1,NULL);
 REPLACE INTO table_regex VALUES ('virt_vtypes','members','text','regex','^( ?[-\\w]+ ?)+$',0,1024,NULL);
-REPLACE INTO table_regex VALUES ('default','tinytext','text','regex','^[\\040-\\176]*$',0,256,NULL);
-REPLACE INTO table_regex VALUES ('default','text','text','regex','^[\\040-\\176]*$',0,65535,NULL);
-REPLACE INTO table_regex VALUES ('projects','why','text','regex','^[\\040-\\176\\012\\015\\011]*$',0,4096,NULL);
-REPLACE INTO table_regex VALUES ('default','tinyint','int','regex','^[\\d]+$',-128,127,'Default regex for tiny int fields. Allow any standard ascii integer, but no binary data');
-REPLACE INTO table_regex VALUES ('default','boolean','int','regex','^(0|1)$',0,1,'Default regex for tiny int fields that are int booleans. Allow any 0 or 1');
-REPLACE INTO table_regex VALUES ('default','tinyuint','int','regex','^[\\d]+$',0,255,'Default regex for tiny int fields. Allow any standard ascii integer, but no binary data');
-REPLACE INTO table_regex VALUES ('default','int','int','regex','^[\\d]+$',-2147483648,2147483647,'Default regex for int fields. Allow any standard ascii integer, but no binary data');
-REPLACE INTO table_regex VALUES ('default','float','float','regex','^[+-]?\\ *(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?$',-2147483648,2147483647,'Default regex for float fields. Allow any digits and the decimal point');
-REPLACE INTO table_regex VALUES ('default','default','text','regex','^[\\040-\\176]*$',0,256,'Default regex if one is not defined for a table/slot. Allow any standard ascii character, but no binary data');
+REPLACE INTO table_regex VALUES ('projects','why','text','redirect','default:fulltext',0,4096,NULL);
 REPLACE INTO table_regex VALUES ('projects','num_members','int','redirect','default:int',0,256,NULL);
 REPLACE INTO table_regex VALUES ('projects','num_pcs','int','redirect','default:int',0,2048,NULL);
 REPLACE INTO table_regex VALUES ('projects','num_pcplab','int','redirect','default:int',0,2048,NULL);
@@ -954,7 +946,7 @@ REPLACE INTO table_regex VALUES ('experiments','ipassign_args','text','regex','^
 REPLACE INTO table_regex VALUES ('experiments','expt_name','text','redirect','default:fulltext',1,255,NULL);
 REPLACE INTO table_regex VALUES ('experiments','dpdb','int','redirect','default:tinyint',0,1,NULL);
 
-REPLACE INTO table_regex VALUES ('experiments','description','text','regex','^[\\040-\\176\\012\\015\\011]*$',1,256,NULL);
+REPLACE INTO table_regex VALUES ('experiments','description','text','redirect','default:fulltext',1,256,NULL);
 REPLACE INTO table_regex VALUES ('experiments','idle_ignore','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('experiments','swappable','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('experiments','noswap_reason','text','redirect','default:tinytext',1,255,NULL);
@@ -1025,7 +1017,7 @@ REPLACE INTO table_regex VALUES ('images','imagename','text','regex','^[a-zA-Z0-
 REPLACE INTO table_regex VALUES ('images','imageid','text','redirect','default:int',0,100000000,NULL);
 REPLACE INTO table_regex VALUES ('images','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','gid','text','redirect','groups:gid',0,0,NULL);
-REPLACE INTO table_regex VALUES ('images','description','text','regex','^[\\040-\\176\\012\\015\\011]*$',1,256,NULL);
+REPLACE INTO table_regex VALUES ('images','description','text','redirect','default:fulltext',1,256,NULL);
 REPLACE INTO table_regex VALUES ('images','loadpart','text','redirect','default:tinyint',0,4,NULL);
 REPLACE INTO table_regex VALUES ('images','loadlength','text','redirect','default:tinyint',1,4,NULL);
 REPLACE INTO table_regex VALUES ('images','part1_osid','text','redirect','os_info:osid',0,0,NULL);
@@ -1113,15 +1105,14 @@ REPLACE INTO table_regex VALUES ('mailman_lists','listname','text','redirect','m
 
 REPLACE INTO table_regex VALUES ('mailman_listnames','listname','text','regex','^[-\\w\\.\\+]+$',3,64,NULL);
 
-REPLACE INTO table_regex VALUES ('default','fulltext','text','regex','^[\\040-\\176\\012\\015\\011]*$',0,20000,NULL);
 REPLACE INTO table_regex VALUES ('node_attributes','attrkey','text','regex','^[-\\w]+$',1,32,NULL);
 REPLACE INTO table_regex VALUES ('node_attributes','attrvalue','text','regex','^[-\\w\\.+,\\s]+$',0,255,NULL);
 REPLACE INTO table_regex VALUES ('archive_tags','description','text','redirect','projects:why',1,2048,NULL);
 REPLACE INTO table_regex VALUES ('archive_tags','tag','text','regex','^[a-zA-Z][-\\w\\.\\+]+$',2,64,NULL);
-REPLACE INTO table_regex VALUES ('experiment_templates','description','text','regex','^[\\040-\\176\\012\\015\\011]*$',1,4096,NULL);
+REPLACE INTO table_regex VALUES ('experiment_templates','description','text','redirect','default:fulltext',1,4096,NULL);
 REPLACE INTO table_regex VALUES ('experiment_templates','guid','text','regex','^[\\w]+$',1,32,NULL);
-REPLACE INTO table_regex VALUES ('experiment_template_metadata','name','text','regex','^[\\040-\\176]*$',1,64,NULL);
-REPLACE INTO table_regex VALUES ('experiment_template_metadata','value','text','regex','^[\\040-\\176\\012\\015\\011]*$',0,4096,NULL);
+REPLACE INTO table_regex VALUES ('experiment_template_metadata','name','text','redirect','default:tinytext',1,64,NULL);
+REPLACE INTO table_regex VALUES ('experiment_template_metadata','value','text','redirect','default:fulltext',0,4096,NULL);
 REPLACE INTO table_regex VALUES ('experiment_template_metadata','metadata_type','text','regex','^[\\w]*$',1,64,NULL);
 REPLACE INTO table_regex VALUES ('virt_parameters','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_parameters','eid','text','redirect','experiments:eid',0,0,NULL);
@@ -1131,10 +1122,10 @@ REPLACE INTO table_regex VALUES ('virt_parameters','description','text','redirec
 REPLACE INTO table_regex VALUES ('experiment_template_instance_bindings','name','text','regex','^\\w[-\\w]+$',1,64,NULL);
 REPLACE INTO table_regex VALUES ('experiment_template_instance_bindings','value','text','redirect','default:tinytext',0,256,NULL);
 REPLACE INTO table_regex VALUES ('experiment_runs','runid','text','redirect','experiments:eid',0,0,NULL);
-REPLACE INTO table_regex VALUES ('experiment_runs','description','text','regex','^[\\040-\\176\\012\\015\\011]*$',1,256,NULL);
+REPLACE INTO table_regex VALUES ('experiment_runs','description','text','redirect','default:tinytext',1,256,NULL);
 REPLACE INTO table_regex VALUES ('experiment_run_bindings','name','text','regex','^\\w[-\\w]+$',1,64,NULL);
 REPLACE INTO table_regex VALUES ('experiment_run_bindings','value','text','redirect','default:tinytext',0,256,NULL);
-REPLACE INTO table_regex VALUES ('experiment_template_instances','description','text','regex','^[\\040-\\176\\012\\015\\011]*$',1,256,NULL);
+REPLACE INTO table_regex VALUES ('experiment_template_instances','description','text','redirect','default:tinytext',1,256,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_motelog','vname','text','redirect','virt_nodes:vname',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_motelog','logfileid','text','regex','^[-\\w\\.+]+$',2,45,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_motelog','pid','text','redirect','projects:pid',0,0,NULL);
@@ -1161,8 +1152,8 @@ REPLACE INTO table_regex VALUES ('os_info','reboot_waittime','int','redirect','d
 REPLACE INTO table_regex VALUES ('sitevariables','name','text','regex','^[\\w\\/]+$',1,255,NULL);
 REPLACE INTO table_regex VALUES ('sitevariables','value','text','redirect','default:text',0,0,NULL);
 REPLACE INTO table_regex VALUES ('sitevariables','reset','text','redirect','default:boolean',0,0,NULL);
-REPLACE INTO table_regex VALUES ('sitevariables','defaultvalue','text','redirect','default:text',0,0,NULL);
-REPLACE INTO table_regex VALUES ('sitevariables','description','text','redirect','default:text',0,0,NULL);
+REPLACE INTO table_regex VALUES ('sitevariables','defaultvalue','text','redirect','default:html_text',0,0,NULL);
+REPLACE INTO table_regex VALUES ('sitevariables','description','text','redirect','default:html_text',0,0,NULL);
 REPLACE INTO table_regex VALUES ('experiment_template_searches','name','text','regex','^[-\\w]*$',2,64,NULL);
 
 REPLACE INTO table_regex VALUES ('user_pubkeys','verify','text','redirect','default:boolean',0,0,NULL);
@@ -1219,6 +1210,22 @@ REPLACE INTO table_regex VALUES ('virt_client_service_hooks','service_idx','int'
 REPLACE INTO table_regex VALUES ('virt_client_service_hooks','vnode','text','redirect','virt_nodes:vname',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_client_service_hooks','whence','text','regex','^(first|every)$',0,0,NULL);
 
+REPLACE INTO table_regex VALUES ('default','fulltext','text','regex','^[\\040-\\073\\075\\077-\\176\\012\\015\\011]*$',0,20000,NULL);
+REPLACE INTO table_regex VALUES ('default','html_fulltext','text','regex','^[\\040-\\176\\012\\015\\011]*$',0,20000,NULL);
+
+REPLACE INTO table_regex VALUES ('default','tinytext','text','regex','^[\\040-\\073\\075\\077-\\176]*$',0,256,NULL);
+REPLACE INTO table_regex VALUES ('default','html_tinytext','text','regex','^[\\040-\\176]*$',0,256,NULL);
+
+REPLACE INTO table_regex VALUES ('default','text','text','regex','^[\\040-\\073\\075\\077-\\176]*$',0,65535,NULL);
+REPLACE INTO table_regex VALUES ('default','html_text','text','regex','^[\\040-\\176]*$',0,65535,NULL);
+
+REPLACE INTO table_regex VALUES ('default','default','text','regex','^[\\040-\\073\\075\\077-\\176]*$',0,256,'Default regex if one is not defined for a table/slot. Allow any standard ascii character, but no binary data');
+
+REPLACE INTO table_regex VALUES ('default','tinyint','int','regex','^[\\d]+$',-128,127,'Default regex for tiny int fields. Allow any standard ascii integer, but no binary data');
+REPLACE INTO table_regex VALUES ('default','boolean','int','regex','^(0|1)$',0,1,'Default regex for tiny int fields that are int booleans. Allow any 0 or 1');
+REPLACE INTO table_regex VALUES ('default','tinyuint','int','regex','^[\\d]+$',0,255,'Default regex for tiny int fields. Allow any standard ascii integer, but no binary data');
+REPLACE INTO table_regex VALUES ('default','int','int','regex','^[\\d]+$',-2147483648,2147483647,'Default regex for int fields. Allow any standard ascii integer, but no binary data');
+REPLACE INTO table_regex VALUES ('default','float','float','regex','^[+-]?\\ *(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?$',-2147483648,2147483647,'Default regex for float fields. Allow any digits and the decimal point');
 
 REPLACE INTO table_regex VALUES ('default','tinytext_utf8','text','regex','^(?:[\\x20-\\x7E]|[\\xC2-\\xDF][\\x80-\\xBF]|\\xE0[\\xA0-\\xBF][\\x80-\\xBF]|[\\xE1-\\xEC\\xEE\\xEF][\\x80-\\xBF]{2}|\\xED[\\x80-\\x9F][\\x80-\\xBF])*$',0,256,'adopted from http://www.w3.org/International/questions/qa-forms-utf-8.en.php');
 REPLACE INTO table_regex VALUES ('default','text_utf8','text','regex','^(?:[\\x20-\\x7E]|[\\xC2-\\xDF][\\x80-\\xBF]|\\xE0[\\xA0-\\xBF][\\x80-\\xBF]|[\\xE1-\\xEC\\xEE\\xEF][\\x80-\\xBF]{2}|\\xED[\\x80-\\x9F][\\x80-\\xBF])*$',0,65535,'adopted from http://www.w3.org/International/questions/qa-forms-utf-8.en.php');

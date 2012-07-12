@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -56,8 +56,10 @@ if (!isset($confirmed)) {
 
     $url = CreateURL("template_analyze", $instance);
 
-    if (!isset($referrer))
+    if (!isset($referrer)) {
+	$referrer = urlencode($referrer);
 	$referrer = $_SERVER['HTTP_REFERER'];
+    }
 
     echo "<form action='$url' method=post>\n";
     echo "<br>\n";

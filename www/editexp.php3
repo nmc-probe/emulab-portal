@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -66,6 +66,8 @@ function SPITFORM($experiment, $formfields, $errors)
               </tr>\n";
 
 	while (list ($name, $message) = each ($errors)) {
+            # XSS prevention.
+	    $message = CleanString($message);
 	    echo "<tr>
                      <td align=right>
                        <font color=red>$name:&nbsp;</font></td>
@@ -74,6 +76,10 @@ function SPITFORM($experiment, $formfields, $errors)
                   </tr>\n";
 	}
 	echo "</table><br>\n";
+    }
+    # XSS prevention.
+    while (list ($key, $val) = each ($formfields)) {
+	$formfields[$key] = CleanString($val);
     }
 
     $url = CreateURL("editexp", $experiment);
@@ -85,8 +91,7 @@ function SPITFORM($experiment, $formfields, $errors)
              <td class=left>
                  <input type=text
                         name=\"formfields[description]\"
-                        value='" . htmlspecialchars($formfields['description'],
-						    ENT_QUOTES) . "'
+                        value='" . $formfields['description'] . "'
 	                size=30>
              </td>
           </tr>\n";
@@ -146,8 +151,7 @@ function SPITFORM($experiment, $formfields, $errors)
    	              <td>If not, why not (administrators option)?<br>
                           <textarea rows=2 cols=50
                                     name='formfields[noswap_reason]'>" .
-	                    htmlspecialchars($formfields["noswap_reason"],
-					     ENT_QUOTES) .
+	                               $formfields["noswap_reason"] .
 	                 "</textarea>
                       </td>
 	              </tr><tr>\n";
@@ -178,8 +182,7 @@ function SPITFORM($experiment, $formfields, $errors)
    	          <td>If not, why not?<br>
                       <textarea rows=2 cols=50
                                 name='formfields[noidleswap_reason]'>" .
-	                    htmlspecialchars($formfields["noidleswap_reason"],
-					     ENT_QUOTES) .
+	                            $formfields["noidleswap_reason"] .
 	             "</textarea>
                   </td>
 	          </tr><tr>

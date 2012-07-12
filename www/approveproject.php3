@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -132,7 +132,7 @@ if ($approval == "postpone") {
 	echo "<input type=hidden name=pcplab_okay value=$pcplab_okay>\n";
 	echo "<input type=hidden name=ron_okay value=$ron_okay>\n";
 	echo "<input type=hidden name=message value='".
-	    htmlspecialchars($message, ENT_QUOTES) . "'>\n";
+	    CleanString($message) . "'>\n";
     
 	echo "<b><input type=submit name=back value=Back></b>\n";
 	echo "</form>\n";

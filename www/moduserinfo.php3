@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -65,6 +65,8 @@ function SPITFORM($formfields, $errors)
               </tr>\n";
 
 	while (list ($name, $message) = each ($errors)) {
+            # XSS prevention.
+	    $message = CleanString($message);
 	    echo "<tr>
                      <td align=right>
                        <font color=red>$name:&nbsp;</font></td>
@@ -73,6 +75,10 @@ function SPITFORM($formfields, $errors)
                   </tr>\n";
 	}
 	echo "</table><br>\n";
+    }
+    # XSS prevention.
+    while (list ($key, $val) = each ($formfields)) {
+	$formfields[$key] = CleanString($val);
     }
 
     # For indicating that fields are optional or not.
@@ -356,7 +362,6 @@ function SPITFORM($formfields, $errors)
 	
 	echo "<li> You can also
                  <a href='$pubkey_url'>edit your ssh public keys</a>.
-		 sfs public keys</a>.
             <li> The City, State, ZIP/Postal Code, and Country fields 
                  were added later, so
                  some early users will be forced to adjust their addresses
