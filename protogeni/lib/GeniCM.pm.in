@@ -1486,6 +1486,8 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $ifacenum   = 1;
 	my $vindex     = 0;
 	my $trivial_ok = 1;
+	# Avoid multiple insertions for this setting.
+	my $sharedvlansetting = 0;
 
 	if (!defined($lanname)) {
 	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -1839,7 +1841,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    
 	    # Watch for shared lans; we have to add the lan entries for them.
 	    my $shared_vlan = GeniXML::GetSharedLanName($linkref);
-	    if (defined($shared_vlan)) {
+	    if (defined($shared_vlan) && !$sharedvlansetting) {
 		# This is the magic for libvtop.
 		$virtexperiment->NewTableRow("virt_lan_settings",
 					     {"vname"   => $lanname,
@@ -1850,6 +1852,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 		$bandwidth = 0;
 		$latency   = 0.0;
 		$lossrate  = 0.0;
+		$sharedvlansetting = 1;
 	    }
 	    
 	  stitch:	    
