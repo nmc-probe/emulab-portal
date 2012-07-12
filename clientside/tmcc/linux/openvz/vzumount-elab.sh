@@ -46,7 +46,10 @@ else
     exit 44
 fi
 
-kill `cat /var/run/tmccproxy.$vnodeid.pid`
-rm -f /var/run/tmccproxy.$vnodeid.pid
+PROXYPID="/var/run/tmccproxy.$vnodeid.pid"
+if [ -e $PROXYPID ]; then
+    kill `cat $PROXYPID`
+    rm -f $PROXYPID
+fi
 
 exit $RETVAL

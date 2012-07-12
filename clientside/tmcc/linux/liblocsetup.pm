@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -93,6 +93,8 @@ my $GROUPDEL	= "/usr/sbin/groupdel";
 my $IFCONFIGBIN = "/sbin/ifconfig";
 my $IFCONFIG    = "$IFCONFIGBIN %s inet %s netmask %s";
 my $VLANCONFIG  = "/sbin/vconfig";
+# XXX 10000 is probably not right, but we don't use mii-tool here
+my $IFC_10000MBS = "10000baseTx";
 my $IFC_1000MBS  = "1000baseTx";
 my $IFC_100MBS  = "100baseTx";
 my $IFC_10MBS   = "10baseT";
@@ -630,7 +632,10 @@ sub os_ifconfig_line($$$$$$$$;$$$)
 		warn("*** Bad speed units $2 in ifconfig, default to 100Mbps\n");
 		$speed = 100;
 	    }
-	    if ($speed == 1000) {
+	    if ($speed == 10000) {
+		$media = $IFC_10000MBS;
+	    }
+	    elsif ($speed == 1000) {
 		$media = $IFC_1000MBS;
 	    }
 	    elsif ($speed == 100) {
@@ -662,10 +667,11 @@ sub os_ifconfig_line($$$$$$$$;$$$)
 	}
 
         #
-        # Linux is apparently changing from mii-tool to ethtool but some drivers
-        # don't support the new interface (3c59x), some don't support the old
-        # interface (e1000), and some (eepro100) support the new interface just
-        # enough that they can report success but not actually do anything. Sweet!
+        # Linux is apparently changing from mii-tool to ethtool but some
+	# drivers don't support the new interface (3c59x), some don't support
+	# the old interface (e1000), and some (eepro100) support the new
+	# interface just enough that they can report success but not actually
+	# do anything. Sweet!
         #
 	my $ethtool;
 	if (-e "/sbin/ethtool") {
@@ -688,7 +694,7 @@ sub os_ifconfig_line($$$$$$$$;$$$)
 		}
 		$uplines .=
 		    "  $ethtool -s $iface autoneg off speed $speed duplex $duplex\n    " .
-		    "  sleep 2 # needed due to likely bug in e100 driver on pc850s\n";
+		    "  sleep 2 # needed due to likely bug in e100 driver on pc850s\n    ";
 	    }
 	    $uplines .= 
 		"else\n    " .

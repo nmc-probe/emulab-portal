@@ -660,7 +660,7 @@ sub NewCredential($$)
 	return undef;
     }
     # Bump expiration to avoid race with aggregate about to expire.
-    $credential->SetExpiration(str2time($self->expires()) + (24 * 3600));
+    $credential->SetExpiration(time() + (24 * 3600));
 	
     if (defined($self->nickname())) {
 	$credential->AddExtension("nickname", $self->nickname());
@@ -1047,7 +1047,7 @@ sub Start($$$)
 	my $userdir       = $experiment->UserDir();
 	my $manifest_file = "$userdir/tbdata/geni_manifest";
 	my $manifest      = $self->GetManifest(1);
-	if (open(MAN, ">$manifest_file")) {
+	if ($manifest && open(MAN, ">$manifest_file")) {
 	    print MAN $manifest;
 	    close(MAN);
 	}

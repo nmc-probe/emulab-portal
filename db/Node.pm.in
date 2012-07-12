@@ -2099,7 +2099,8 @@ sub CreateVnodes($$$)
     # those. Must do this with tables locked, of course.
     #
     DBQueryFatal("lock tables nodes write, reserved write, ".
-		 "node_status write, node_hostkeys write");
+		 "node_status write, node_hostkeys write, ".
+		 "virt_node_public_addr write, virt_node_attributes read");
 
     #
     # Reload the reservation status now that tables are locked and confirm
@@ -2151,7 +2152,7 @@ sub CreateVnodes($$$)
 		if (!$query_result);
 
 	    if (!$query_result->numrows) {
-		push(@tocreate, $n);
+		push(@tocreate, [$n, $options->{'vlist'}->[$i]]);
 		$i++;
 	    }
 	    $n++;
@@ -2167,30 +2168,60 @@ sub CreateVnodes($$$)
     #
     # Create a bunch.
     #
-    foreach my $n (@tocreate) {
+    foreach my $ref (@tocreate) {
+	my ($n, $vname) = @{ $ref };
 	my $vpriority = 10000000 + ($ipbase * 1000) + $n;
 	my $vnodeid   = $nodeprefix . "vm" . $nodenum . "-" . $n;
-	my $jailip;
+	my ( $jailip, $jailmask );
 
 	if ($isjailed) {
-	    #
-	    # Construct the vnode IP.  The general form is:
-	    #	<IPBASE1>.<IPBASE2>.<pnode>.<vnode>
-	    # but if <pnode> is greater than 254 we have to increment
-	    # IPBASE2.
-	    #
-	    # XXX at Utah our second big cluster of nodes starts at
-	    # nodenum=201 and I would like our vnode IPs to align
-	    # at that boundary, so 254 becomes 200.
-	    #
-	    my $nodenumlimit = $ISUTAH ? 200 : 254;
-	    my $pnet = $IPBASE2;
-	    my $pnode2 = int($ipbase);
-	    while ($pnode2 > $nodenumlimit) {
-		$pnet++;
-		$pnode2 -= $nodenumlimit;
+	    $query_result =
+		DBQueryWarn( "SELECT attrvalue FROM virt_node_attributes " .
+			     "WHERE pid='$pid' AND eid='$eid' AND " .
+			     "vname='$vname' AND " .
+			     "attrkey='routable_control_ip'" );
+	    
+	    if( $query_result && $query_result->numrows &&
+		( $query_result->fetchrow_array() )[ 0 ] eq "true" ) {
+		#
+		# Grab a public IP address from the free pool, if there
+		# is one.
+		#
+		$query_result =
+		    DBQueryWarn( "SELECT IP, mask FROM virt_node_public_addr ".
+				 "WHERE node_id IS NULL" );
+
+		if (!$query_result || !$query_result->numrows ) {
+		    print STDERR "*** CreateVnodes: no free public address\n";
+		    goto bad;
+		}
+
+		( $jailip, $jailmask ) = $query_result->fetchrow_array();
+
+		DBQueryFatal( "UPDATE virt_node_public_addr SET " .
+			      "node_id='$vnodeid', card='0', port='1' " .
+			      "WHERE IP='$jailip'" );
+	    } else {
+		#
+		# Construct a vnode private IP.  The general form is:
+		#	<IPBASE1>.<IPBASE2>.<pnode>.<vnode>
+		# but if <pnode> is greater than 254 we have to increment
+		# IPBASE2.
+		#
+		# XXX at Utah our second big cluster of nodes starts at
+		# nodenum=201 and I would like our vnode IPs to align
+		# at that boundary, so 254 becomes 200.
+		#
+		my $nodenumlimit = $ISUTAH ? 200 : 254;
+		my $pnet = $IPBASE2;
+		my $pnode2 = int($ipbase);
+		while ($pnode2 > $nodenumlimit) {
+		    $pnet++;
+		    $pnode2 -= $nodenumlimit;
+		}
+		$jailip = "${IPBASE1}.${pnet}.${pnode2}.${n}";
+		$jailmask = $JAILIPMASK;
 	    }
-	    $jailip = "${IPBASE1}.${pnet}.${pnode2}.${n}";
 	}
 
 	# Need to keep the UUIDs consistent across regression mode.
@@ -2318,7 +2349,7 @@ sub CreateVnodes($$$)
 		"role"      => TBDB_IFACEROLE_CONTROL(),
 		"MAC"       => "000000000000",
 		"IP"        => $jailip,
-		"mask"      => $JAILIPMASK,
+		"mask"      => $jailmask,
 		"type"      => "generic",
 		"logical"   => 1,
 	    };
@@ -2402,9 +2433,13 @@ sub DeleteVnodes(@)
     
     foreach my $vnodeid (@vnodes) {
 	my $interface = Interface->LookupControl($vnodeid);
-	$interface->Delete()
-	    if (defined($interface));
-	
+	if( defined( $interface ) ) {
+	    my $addr = $interface->IP();
+	    DBQueryWarn( "UPDATE virt_node_public_addr SET node_id=NULL, " .
+			 "card='0', port='0' WHERE IP='$addr'" );
+	    $interface->Delete();
+	}
+
 	DBQueryWarn("delete from node_bootlogs where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_hostkeys where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_status where node_id='$vnodeid'");
@@ -3190,15 +3225,25 @@ sub GetJailIP($;$)
 	print STDERR "*** GetJailIP: Bad ipbase '$ipbase' for $interface\n";
 	return undef;
     }
-    
-    my $nodenumlimit = $ISUTAH ? 200 : 254;
-    my $pnet = $IPBASE2;
-    my $pnode2 = int($ipbase);
-    while ($pnode2 > $nodenumlimit) {
-	$pnet++;
-	$pnode2 -= $nodenumlimit;
+
+    my $node_id = $self->node_id();
+    my $query_result =
+	DBQueryWarn( "SELECT IP, mask FROM virt_node_public_addr WHERE " .
+		     "node_id='$node_id' AND card='0' AND port='1'" );
+
+    if( $query_result && $query_result->numrows ) {
+	# we've assigned a public address to this one
+	return $query_result->fetchrow_array();
+    } else {
+	my $nodenumlimit = $ISUTAH ? 200 : 254;
+	my $pnet = $IPBASE2;
+	my $pnode2 = int($ipbase);
+	while ($pnode2 > $nodenumlimit) {
+	    $pnet++;
+	    $pnode2 -= $nodenumlimit;
+	}
+	return ("${IPBASE1}.${pnet}.${pnode2}.${num}", $JAILIPMASK);
     }
-    return ("${IPBASE1}.${pnet}.${pnode2}.${num}", $JAILIPMASK);
 }
 
 #

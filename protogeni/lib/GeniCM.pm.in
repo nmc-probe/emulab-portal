@@ -1320,6 +1320,19 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    goto bad;
 	}
 
+	# If the user wants a routable control IP, add this into the database.
+	my @routable_control_ip =
+	    GeniXML::FindNodesNS("n:routable_control_ip",
+				 $ref,
+				 $GeniXML::EMULAB_NS)->get_nodelist();
+
+	if (scalar(@routable_control_ip) > 0) {
+	    $virtexperiment->NewTableRow("virt_node_attributes",
+					 {"vname"   => $node_nickname,
+					  "attrkey" => "routable_control_ip",
+					  "attrvalue" => "true"});
+	}
+
 	$virtexperiment->NewTableRow("virt_node_desires",
 				     {"vname"    => $node_nickname,
 				      "desire"   => "pcshared",
@@ -4501,8 +4514,18 @@ sub ListUsage($)
 		$node->{"component_urn"} = $component->urn();
 	    }
 	    else {
-		print STDERR "No component in DB for resource ".
-		    $sliver->resource_uuid() . "\n";
+		#
+		# Do not warn about missing VMs. 
+		#
+		my $pnode = Node->Lookup($sliver->resource_id());
+		if (!defined($pnode)) {
+		    print STDERR "No node in DB for resource ".
+			$sliver->resource_uuid() . "\n";
+		}
+		elsif (! $pnode->isvirtnode()) {
+		    print STDERR "No component in DB for resource ".
+			$sliver->resource_uuid() . ": $pnode\n";
+		}
 	    }
 	    push(@components, $node);
 	}
