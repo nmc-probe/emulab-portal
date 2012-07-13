@@ -296,6 +296,10 @@ foreach my $dbfile (@DBFILES) {
     }
 }
 
+print "Clearing Cygwin fstab";
+system("cp /dev/null /etc/fstab")
+    or warn("Could not clear fstab");
+
 # Stop anything holding a logfile open which we will want to remove below.
 print "Stopping the watchdog ...\n";
 system("$BINDIR/watchdog stop");
@@ -305,6 +309,9 @@ system("$BINDIR/rc/rc.progagent shutdown");
 
 print "Stopping emulab-syncd ...\n";
 system("$BINDIR/rc/rc.syncserver shutdown");
+
+print "Stopping linktest agent...\n";
+system("$BINDIR/rc/rc.linktest stop");
 
 print "Stopping slothd ...\n";
 system("$BINDIR/rc/rc.slothd stop");
@@ -317,6 +324,18 @@ system("killall evproxy");
 $pidfile = "/var/run/evproxy.pid";
 unlink($pidfile) or
     warn("Could not unlink $pidfile");
+
+print "Stopping performance counter";
+system("logman stop ldavg");
+my $perflog = "/var/run/ldavg.csv";
+unlink($perflog)
+    or warn("Could not unlink $perflog");
+
+print "Stopping idlemon";
+system("killall idlemon");
+my $idlemon_activity_file = "/var/run/rdp_input";
+unlink($idlemon_activity_file)
+    or warn("Could not unlink $idlemon_activity_file");
 
 # Logfiles.
 print "Cleaning logfiles ...\n";
@@ -383,9 +402,9 @@ print "Cleaning out /local/logs ...\n";
 system("chown -R root /local/logs");
 system("rm -rf /local/logs/* /local/logs/.??*");
 
-print "Cleaning out Windows logs ...\n";
-system("chown root C:/windows/iis6.log");
-system("rm -f C:/windows/iis6.log");
+#print "Cleaning out Windows logs ...\n";
+#system("chown root C:/windows/iis6.log");
+#system("rm -f C:/windows/iis6.log");
 
 print "Clearing out C:/TEMP ...\n";
 system("chown -R root C:/TEMP");
