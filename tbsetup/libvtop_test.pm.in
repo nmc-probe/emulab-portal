@@ -47,6 +47,7 @@ my $DELAYTHRESH   = @DELAYTHRESH@;
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $PGENIRACK     = @PROTOGENI_GENIRACK@;
 my $OURDOMAIN     = "@OURDOMAIN@";
+my $MAINSITE      = @TBMAINSITE@;
 my $mycmurn       = GeniHRN::Generate("@OURDOMAIN@", "authority", "cm");
 
 # Flags.
@@ -1632,6 +1633,56 @@ sub LoadVirtLans($)
     }
 
     #
+    # Sanity check the shared lan requests.
+    #
+    foreach my $virtlan (values(%{ $self->vlans() })) {
+	next
+	    if (!defined($virtlan->_portvlan()));
+
+	my $porttoken = $virtlan->_portvlan();
+
+	#
+	# Map the token.
+	#
+	my $rowref = Lan->LookupSharedVLanByToken($porttoken);
+	if (!defined($rowref)) {
+	    tberror("No shared vlan exists for $porttoken!\n");
+	    return -1;
+	}
+	my $portvlan = VLan->Lookup($rowref->{'lanid'});
+	if (!defined($portvlan)) {
+	    tberror("Target vlan for $porttoken does not exist!\n");
+	    return -1;
+	}
+	# Very primitive access check.
+	if (! ($rowref->{'open'} || $self->user()->IsAdmin())) {
+	    tberror("Target vlan for $porttoken is not open!\n");
+	    return -1;
+	}
+
+	#
+	# Oh this is bogus; Utah's Ciscos run firmware that dates back to
+	# the age of the dinosaurs, and so we cannot do vlans greater
+	# then 1000 on them. This means that we have to put a feature
+	# on those nodes that are attached to switches that *are* able
+	# to (the procurves).
+	#
+	if ($MAINSITE) {
+	    my $tag = $portvlan->GetTag();
+	    if (defined($tag) && $tag > 1000) {
+		#
+		# Add a desire to all of the nodes.
+		#
+		foreach my $member ($virtlan->memberlist()) {
+		    $member->virt_node()->_desires()->{"highvlan"} = "1.0";
+		}
+	    }
+	}
+	# Convert to actual object for later
+	$virtlan->_portvlan($portvlan);
+    }
+
+    #
     # Load up the virt_bridges.
     #
     foreach my $virt_bridge ($self->virt_bridges()->Rows()) {
@@ -2684,30 +2735,8 @@ sub GenVirtLans($)
 	    # Special case that we use to connect a port to a vlan
 	    # in another experiment. There is no delay or other stuff.
 	    #
-	    my $porttoken = $vlan->_portvlan();
-	    my $lannode   = "portlan/$vname";
+	    my $lannode  = "portlan/$vname";
 	    
-	    #
-	    # Map the token.
-	    #
-	    my $rowref = Lan->LookupSharedVLanByToken($porttoken);
-	    if (!defined($rowref)) {
-		tberror("No shared vlan exists for $porttoken!\n");
-		return -1;
-	    }
-	    my $portvlan = Lan->Lookup($rowref->{'lanid'});
-	    if (!defined($portvlan)) {
-		tberror("Target vlan for $porttoken does not exist!\n");
-		return -1;
-	    }
-	    # Very primitive access check.
-	    if (! ($rowref->{'open'} || $self->user()->IsAdmin())) {
-		tberror("Target vlan for $porttoken is not open!\n");
-		return -1;
-	    }
-	    # Convert to actual object for later
-	    $vlan->_portvlan($portvlan);
-
 	    # Lan node for assign.
 	    $self->createNode($lannode, $mycmurn, "lan", '1', '',
 			      { 'virtualization_type' => 'raw' });
