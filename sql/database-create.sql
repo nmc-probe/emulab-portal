@@ -2376,6 +2376,7 @@ CREATE TABLE `node_history` (
   `exptidx` int(10) unsigned default NULL,
   `stamp` int(10) unsigned default NULL,
   `cnet_IP` varchar(15) default NULL,
+  `cnet_mac` varchar(12) default NULL,
   `phys_nodeid` varchar(32) default NULL,
   PRIMARY KEY  (`history_id`),
   KEY `node_id` (`node_id`,`history_id`),
@@ -2384,7 +2385,9 @@ CREATE TABLE `node_history` (
   KEY `cnet_IP` (`cnet_IP`),
   KEY `nodestamp` (`node_id`,`stamp`),
   KEY `ipstamp` (`cnet_IP`,`stamp`),
-  KEY `hid_stamp` (`history_id`,`stamp`)
+  KEY `hid_stamp` (`history_id`,`stamp`),
+  KEY `cnet_mac` (`cnet_mac`),
+  KEY `macstamp` (`cnet_mac`,`stamp`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

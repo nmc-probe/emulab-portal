@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # GENIPUBLIC-COPYRIGHT
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -15,7 +15,8 @@ use Data::Dumper;
 # 
 sub usage()
 {
-    print STDERR "Usage: reservevlans <slice_urn> <linkname> <rspec>\n";
+    print STDERR
+	"Usage: reservevlans <slice_urn> <linkname> <hopurn> <rspec>\n";
     exit(1);
 }
 my $optlist = "";
@@ -40,6 +41,7 @@ sub fatal($);
 sub busy();
 sub ReserveLocalTags(@);
 sub ReserveRemoteTags($$@);
+sub GetHopLinkID($);
 
 #
 # Turn off line buffering on output
@@ -71,11 +73,12 @@ if (! getopts($optlist, \%options)) {
     usage();
 }
 usage()
-    if (@ARGV != 3);
+    if (@ARGV != 4);
 
 my $slice_urn = $ARGV[0];
 my $linkname  = $ARGV[1];
-my $rspecfile = $ARGV[2];
+my $hopurn    = $ARGV[2];
+my $rspecfile = $ARGV[3];
 
 #
 # Load the CM cert to act as caller context.
@@ -138,28 +141,11 @@ if (!defined($other_manager)) {
     fatal("Who is the other manager?");
 }
 
-#
-# Go through the component hops and find the one that refers to us.
-# This is our external network point.
-#
-my $hopref;
-foreach my $ref (GeniXML::FindNodes("n:component_hop",
-				    $linkref)->get_nodelist()) {
-    my $component_urn = GeniXML::GetNodeId($ref);
-    my ($domain,undef,undef) = GeniHRN::Parse($component_urn);
-    if (defined($domain) and $domain eq $me->domain()) {
-	$hopref = $ref;
-	last;
-    }
-}
-if (!defined($hopref)) {
-    fatal("Could not find hop in link");
-}
-my $hop_urn = GeniXML::GetNodeId($hopref);
-my (undef,undef,$network_id) = GeniHRN::Parse($hop_urn);
+my (undef,undef,$network_stuff) = GeniHRN::Parse($hopurn);
+my (undef,undef,$network_id) = split('//', $network_stuff);
 my $network = ExternalNetwork->Lookup($network_id);
 if (!defined($network)) {
-    fatal("$hop_urn is not an external network");
+    fatal("$hopurn is not an external network");
 }
 # The bounds of the vlan tags we can use for this network point.
 my $mintag  = $network->min_vlan();
@@ -180,15 +166,6 @@ my $vlan = VLan->Lookup($experiment, $linkname);
 if (defined($vlan)) {
     fatal("There is already a lan object for $linkname; $vlan");
 }
-#
-# The point of this is to create the VLan object, just long enough to
-# get a lanid and a tag assigned.
-#
-$vlan = VLan->Create($experiment, $linkname);
-if (!defined($vlan)) {
-    fatal("Could not create vlan for $linkname");
-}
-my $lanid = $vlan->lanid();
 
 #
 # Setup a signal handler to clean things up.
@@ -201,7 +178,32 @@ $SIG{HUP}  = \&handler;
 $SIG{TERM} = \&handler;
 $SIG{INT}  = \&handler;
 
+# The other side returns suitable tags.
 my @othertags = ();
+
+#
+# Special case; if the lan has a tag reserved already, we must
+# try with that one tag and if the other side says no, we are done.
+#
+if (my $t = VLan::GetReservedVlanTag($experiment, $linkname)) {
+    my $tag = ReserveRemoteTags($other_manager, \@othertags, $t);
+    if ($tag) {
+	print STDERR "Agreed on tag $tag.\n";
+	exit(0);
+    }
+    # Tell caller we failed to reserve tags.
+    exit(-1)
+}
+
+#
+# The point of this is to create the VLan object, just long enough to
+# get a lanid and a tag assigned.
+#
+$vlan = VLan->Create($experiment, $linkname);
+if (!defined($vlan)) {
+    fatal("Could not create vlan for $linkname");
+}
+my $lanid = $vlan->lanid();
 
 while (my @tags = ReserveLocalTags(@othertags)) {
     my $tag = ReserveRemoteTags($other_manager, \@othertags, @tags);
@@ -381,4 +383,16 @@ sub busy()
     }
     # Exit value important; positive integer indicate BUSY to caller.
     exit(1);
+}
+
+sub GetHopLinkID($)
+{
+    my ($ref)  = @_;
+    my $result = "";
+			
+    my $link = FindFirst("n:link", $ref);
+    if (defined($link)) {
+	$result = GetText("id", $link);
+    }
+    return $result;
 }

@@ -263,7 +263,7 @@ SELFLOADER_DATA="__DATA__"
 
 #
 # Virtual node network configuration (if you don't want virtual nodes,
-# just leave this as is)
+# just leave this as is).
 #
 # Needs at least a /16 network.  For a /16 the layout of an IP is:
 #	X.Y.<pnode>.<vnode>
@@ -273,6 +273,8 @@ SELFLOADER_DATA="__DATA__"
 # that you had better have larger than a /16 network.  If you are using
 # the default 172.16/12, then you can have up to 16 * 254 physical hosts.
 # If you want more than 254 vnodes per pnode, you are screwed.
+#
+# ********* DO NOT CHANGE THESE UNLESS YOU ASK UTAH FIRST! *********
 #
 VIRTNODE_NETWORK=172.16.0.0
 VIRTNODE_NETMASK=255.240.0.0
