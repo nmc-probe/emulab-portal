@@ -27,7 +27,7 @@ use Lan;
 use OSinfo;
 use Port;
 use English;
-use emutil qw(SpanningTree);
+use emutil qw(SpanningTree GenFakeMac);
 use Data::Dumper;
 use Carp;
 use POSIX;
@@ -9040,31 +9040,6 @@ sub AddToSwitchPath($$)
 		   (grep {$_ eq "$s2:$s1"} @cur)));
     }
     return join(" ", @cur);
-}
-
-#
-# Generate a hopefully unique mac address that is suitable for use
-# on a shared node where uniqueness matters.
-#
-sub GenFakeMac()
-{
-    my $mac;
-    
-    #
-    # Random number for lower 4 octets.
-    # 
-    my $ran=`/bin/dd if=/dev/urandom count=32 bs=1 2>/dev/null | /sbin/md5`;
-    return undef
-	if ($?);
-    
-    if ($ran =~ /^\w\w\w(\w\w\w\w\w\w\w\w)/)  {
-	$mac = $1;
-    }
-
-    #
-    # Set the "locally administered" bit, good practice.
-    #
-    return ($PGENIRACK ? "0200" : "0000") . $mac;
 }
 
 1;

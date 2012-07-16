@@ -117,8 +117,10 @@ my $debug = 0;
 my $JAILCTRLNET = "172.16.0.0";
 my $JAILCTRLNETMASK = "255.240.0.0";
 
-my $USE_NETEM = 0;
+my $USE_NETEM   = 0;
 my $USE_MACVLAN = 0;
+# Use control network bridging for all containers. 
+my $USE_CTRLBR  = 1;
 
 #
 # If we are using a modern kernel, use netem instead of our own plr/delay
@@ -956,7 +958,8 @@ sub vz_vnodeCreate {
 		mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
 		mysystem("mkdir -p /mnt/$vnode_id/root /mnt/$vnode_id/private");
 		TBDebugTimeStampWithDate("untaring to /mnt/$vnode_id");
-		if (0) {
+		if (! -e "/mnt/$image/private") {
+		    # Backwards compat.
 		    mysystem("tar -xzf $imagepath -C /mnt/$vnode_id/private");
 		}
 		else {
@@ -1466,16 +1469,17 @@ sub vz_vnodePreConfigControlNetwork {
 
     # add the control net iface
     my $cnet_veth = "veth${vmid}.${CONTROL_IFNUM}";
-    my $cnet_mac = macAddSep($mac);
-    my $ext_vethmac = $cnet_mac;
-    if ($isroutable) {
+    my ($cnet_mac,$ext_vethmac) = build_fake_macs($mac);
+    if (!defined($cnet_mac)) {
+	print STDERR "Could not construct veth/eth macs\n";
+	return -1;
+    }
+    ($cnet_mac,$ext_vethmac) = (macAddSep($cnet_mac),macAddSep($ext_vethmac));
+    if ($USE_CTRLBR || $isroutable) {
 	# Must do this so that the bridge does not take on the
 	# address. I do not know why it does this, but according
 	# to the xen equivalent code, this is what ya do. 
 	$ext_vethmac = "fe:ff:ff:ff:ff:ff";
-    }
-    elsif ($ext_vethmac =~ /^(00:00)(.*)$/) {
-	$ext_vethmac = "00:01$2";
     }
 
     #
@@ -1490,7 +1494,7 @@ sub vz_vnodePreConfigControlNetwork {
     # When the ip is routable, we need to use a bridge. Must tell
     # vznetinit script to do this differently. 
     #
-    if ($isroutable) {
+    if ($USE_CTRLBR || $isroutable) {
 	$lines{"ELABCTRLBR"} = '"vzbr0"';
     }
     editContainerConfigFile($vmid,\%lines);

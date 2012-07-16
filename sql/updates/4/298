@@ -1,5 +1,6 @@
 #
 # Add more slots to node_history to allow recording dynamic virtual nodes.
+# Add vlantag history table.
 #
 use strict;
 use libdb;

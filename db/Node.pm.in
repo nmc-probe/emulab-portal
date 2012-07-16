@@ -28,6 +28,7 @@ $JAILIPMASK  = "@JAILIPMASK@";
 
 use libdb;
 use libtestbed;
+use emutil;
 use event;
 use English;
 use Socket;
@@ -2347,7 +2348,7 @@ sub CreateVnodes($$$)
 		"port"      => 1,
 		"iface"     => "eth0",
 		"role"      => TBDB_IFACEROLE_CONTROL(),
-		"MAC"       => "000000000000",
+		"MAC"       => GenFakeMac(),
 		"IP"        => $jailip,
 		"mask"      => $jailmask,
 		"type"      => "generic",
@@ -2460,6 +2461,7 @@ sub SetNodeHistory($$$$)
     my $exptidx = $experiment->idx();
     my $nodeid  = $self->node_id();
     my $cnet_ip;
+    my $cnet_mac;
     my $phys_nodeid;
     my $now     = time();
     my $uid;
@@ -2530,11 +2532,14 @@ sub SetNodeHistory($$$$)
 		"*** SetNodeHistory: No control interface for $self\n";
 	}
 	else {
-	    $cnet_ip = $interface->IP();
+	    $cnet_ip  = $interface->IP();
+	    $cnet_mac = $interface->mac()
+		if (defined($interface->mac()));
+	    
 	    if (!defined($cnet_ip) || $cnet_ip eq "") {
 		print STDERR
 		    "*** SetNodeHistory: No control IP for $interface\n";
-		$cnet_ip = undef;
+		$cnet_ip  = undef;
 	    }
 	}
 	$phys_nodeid = $self->phys_nodeid();
@@ -2551,7 +2556,8 @@ sub SetNodeHistory($$$$)
     return DBQueryWarn("insert into node_history set ".
 	       "  history_id=0, node_id='$nodeid', op='$op', ".
 	       "  uid='$uid', uid_idx='$uid_idx', ".
-	       (defined($cnet_ip) ? "cnet_IP='$cnet_ip'," : "").
+	       (defined($cnet_ip)  ? "cnet_IP='$cnet_ip'," : "").
+	       (defined($cnet_mac) ? "cnet_mac='$cnet_mac'," : "").
 	       (defined($phys_nodeid) ? "phys_nodeid='$phys_nodeid'," : "").
 	       "  stamp=$now, exptidx=$exptidx");
 }

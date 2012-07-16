@@ -27,6 +27,7 @@ $optargs = OptionalPageArguments("showall",   PAGEARG_BOOLEAN,
 				 "count",     PAGEARG_INTEGER,
 				 "when",      PAGEARG_STRING,
 				 "IP",        PAGEARG_STRING,
+				 "mac",       PAGEARG_STRING,
 				 # To allow for pcvm search, since they are
                                  # transient and will not map to a node.
 				 "node_id",   PAGEARG_STRING);
@@ -96,21 +97,48 @@ if (isset($IP)) {
 else {
     $IP = null;
 }
+if (isset($mac)) {
+    if (! preg_match('/^[\w\:]+$/', $mac)) {    
+	USERERROR("Does not look like a valid mac address.", 1);
+    }
+    $node = Node::LookupByMac($mac);
+
+    #
+    # Switch to a node_id if its a physical node. Otherwise, 
+    # continue with the mac.
+    #
+    if ($node && !$node->IsVirtNode()) {
+	$node_id = $node->node_id();
+	$mac = null;
+    }
+}
+else {
+    $mac = null;
+}
 if (isset($node_id)) {
     $node_opt = "node_id=$node_id";
     $form_opt = "<input type=hidden name=node_id value=$node_id>";
     $IP      = null;
+    $mac     = null;
 }
 else if (isset($IP)) {
     $node_opt = "IP=$IP";
     $form_opt = "<input type=hidden name=IP value=$IP>";
     $node_id = null;
+    $mac     = null;
+}
+else if (isset($mac)) {
+    $node_opt = "mac=$mac";
+    $form_opt = "<input type=hidden name=mac value=$mac>";
+    $node_id = null;
+    $IP      = null;
 }
 else {
     $node_opt = "";
     $form_opt = "";
     $IP      = null;
     $node_id = null;
+    $mac     = null;
 }
 
 $opts="$node_opt$dateopt";
@@ -189,9 +217,21 @@ echo "<tr><form action=shownodehistory.php3 method=get>
       <td class=stealth>
          <b><input type=submit name=search3 value=Search></b></td>\n";
     echo "</form></tr>\n";
+echo "<tr><form action=shownodehistory.php3 method=get>
+      <td class=stealth><b>Search for mac:</b> 
+      <input type=text style=\"float:right\"
+             name=mac
+             size=12
+             value=\"$mac\"></td>
+      <input type=hidden name=showall value=$showall>
+      <input type=hidden name=when    value=$when>
+      <td class=stealth>
+         <b><input type=submit name=search3 value=Search></b></td>\n";
+    echo "</form></tr>\n";
 echo "</table><br>\n";
 
-ShowNodeHistory($node_id, $record, $count, $showall, $datetime, $IP, $node_opt);
+ShowNodeHistory($node_id, $record, $count, $showall, $datetime,
+		$IP, $mac, $node_opt);
 
 #
 # Standard Testbed Footer

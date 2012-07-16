@@ -65,7 +65,23 @@ class Node
 	
 	$query_result =
 	    DBQueryFatal("select i.node_id from interfaces as i ".
-			 "where i.IP='$ip' and ".
+			 "where i.IP='$safe_ip' and ".
+			 "      i.role='" . TBDB_IFACEROLE_CONTROL . "'");
+
+	if (mysql_num_rows($query_result) == 0) {
+	    return null;
+	}
+	$row = mysql_fetch_array($query_result);
+	return Node::Lookup($row["node_id"]);
+    }
+
+    # Lookup by Mac
+    function LookupByMac($mac) {
+	$safe_mac = addslashes($mac);
+	
+	$query_result =
+	    DBQueryFatal("select i.node_id from interfaces as i ".
+			 "where i.mac='$safe_mac' and ".
 			 "      i.role='" . TBDB_IFACEROLE_CONTROL . "'");
 
 	if (mysql_num_rows($query_result) == 0) {
@@ -1349,7 +1365,8 @@ class Node
 #
 function ShowNodeHistory($node_id = null, $record = null,
 			 $count = 200, $showall = 0,
-			 $date = null, $IP = null, $node_opt = "") {
+			 $date = null, $IP = null, $mac = null,
+			 $node_opt = "") {
     global $TBSUEXEC_PATH;
     global $PROTOGENI;
     $atime = 0;
@@ -1369,9 +1386,13 @@ function ShowNodeHistory($node_id = null, $record = null,
     elseif ($record) {
 	$opt .= " -x " . escapeshellarg($record);
     }
-    if ($node_id || $IP) {
+    if ($node_id || $IP || $mac) {
 	if ($IP) {
 	    $opt .= " -i " . escapeshellarg($IP);
+	    $nodestr = "<th>Node</th>";
+	}
+	if ($mac) {
+	    $opt .= " -m " . escapeshellarg($mac);
 	    $nodestr = "<th>Node</th>";
 	}
 	else {

@@ -15,7 +15,7 @@ use vars qw(@ISA @EXPORT);
 @EXPORT = qw(TBDB_CHECKDBSLOT_NOFLAGS TBDB_CHECKDBSLOT_WARN
 	     TBDB_CHECKDBSLOT_ERROR TBcheck_dbslot TBFieldErrorString
 	     TBGetUniqueIndex ParRun VersionInfo UpdateVersionInfo
-	     SpanningTree BackTraceOnWarning PassWordHash);
+	     SpanningTree GenFakeMac BackTraceOnWarning PassWordHash);
 
 use emdb;
 use English;
@@ -628,6 +628,31 @@ sub PassWordHash($)
     my $passhash = crypt($password, "\$1\$${salt}");
 
     return $passhash;
+}
+
+#
+# Generate a hopefully unique mac address that is suitable for use
+# on a shared node where uniqueness matters.
+#
+sub GenFakeMac()
+{
+    my $mac;
+    
+    #
+    # Random number for lower 4 octets.
+    # 
+    my $ran=`/bin/dd if=/dev/urandom count=32 bs=1 2>/dev/null | /sbin/md5`;
+    return undef
+	if ($?);
+    
+    if ($ran =~ /^\w\w\w(\w\w\w\w\w\w\w\w\w\w)/)  {
+	$mac = $1;
+    }
+
+    #
+    # Set the "locally administered" bit, good practice.
+    #
+    return "02" . $mac;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
