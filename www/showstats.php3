@@ -254,7 +254,7 @@ while ($row = mysql_fetch_assoc($query_result)) {
 	if ($archive_idx && $archive_tag &&
 	    ($action == "swapout" || $action == "swapmod")) {
 	    echo "  <td align=center>
-                       <a href=beginexp_html.php3?copyid=$eidx:$archive_tag>
+                       <a href=beginexp.php?copyid=$eidx:$archive_tag>
                        <img border=0 alt=Run src=greenball.gif></a></td>";
 	}
 	else {

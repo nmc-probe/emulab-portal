@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -47,37 +47,42 @@ PAGEHEADER("Node Control Form");
 #
 # Check each parameter. Also note that when setting/clearing values,
 # send the argument to the backend script *only when changed*
-#
+<#
 $command_string = "";
 
 if ($def_boot_osid != $node->def_boot_osid()) {
-    $command_string .= "default_boot_osid='$def_boot_osid' ";
+    $command_string .=
+	"default_boot_osid=" . escapeshellarg($def_boot_osid) . " ";
 }
 if ($def_boot_cmd_line != $node->def_boot_cmd_line()) {
-    $command_string .= "default_boot_cmdline='$def_boot_cmd_line' ";
+    $command_string .=
+	"default_boot_cmdline=" . escapeshellarg($def_boot_cmd_line) . " ";
 }
 if ($startupcmd != $node->startupcmd()) {
     $command_string .= "startup_command=" . escapeshellarg($startupcmd) . " ";
 }
 if ($tarballs != $node->tarballs()) {
-    $command_string .= "tarfiles='$tarballs' ";
+    $command_string .= "tarfiles=" . escapeshellarg($tarballs) . " ";
 }
 if ($rpms != $node->rpms()) {
-    $command_string .= "rpms='$rpms' ";
+    $command_string .= "rpms=" . escapeshellarg($rpms) . " ";
 }
 
 if ($isadmin) {
     if (isset($next_boot_osid) &&
 	$next_boot_osid != $node->next_boot_osid()) {
-	$command_string .= "next_boot_osid='$next_boot_osid' ";
+	$command_string .=
+	    "next_boot_osid=" . escapeshellarg($next_boot_osid) . " ";
     }
     if (isset($next_boot_cmd_line) &&
 	$next_boot_cmd_line != $node->next_boot_cmd_line()) {
-	$command_string .= "next_boot_cmdline='$next_boot_cmd_line' ";
+	$command_string .=
+	    "next_boot_cmdline=" . escapeshellarg($next_boot_cmd_line) . " ";
     }
     if (isset($temp_boot_osid) &&
 	$temp_boot_osid != $node->temp_boot_osid()) {
-	$command_string .= "temp_boot_osid='$temp_boot_osid' ";
+	$command_string .=
+	    "temp_boot_osid=" . escapeshellarg($temp_boot_osid) . " ";
     }
 }
 

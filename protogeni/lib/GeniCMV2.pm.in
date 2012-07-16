@@ -1820,31 +1820,98 @@ sub ReserveVlanTags($)
     }
 
     #
-    # Go through the component hops and find the one that refers to us.
-    # This is our external network point.
+    # Need to dig inside the stitching section to find the path.
     #
-    my $hopref;
-    foreach my $ref (GeniXML::FindNodes("n:component_hop",
-					$linkref)->get_nodelist()) {
-	my $component_urn = GeniXML::GetNodeId($ref);
-	my ($domain,undef,undef) = GeniHRN::Parse($component_urn);
-	if (defined($domain) and $domain eq $me->domain()) {
-	    $hopref = $ref;
-	    last;
+    my $stitching_path;
+    
+    foreach my $ref (GeniXML::FindNodesNS("n:stitching",
+					  $rspec,
+					  $GeniXML::STITCH_NS)->get_nodelist()){
+	foreach my $path (GeniXML::FindNodes("n:path",
+					     $ref)->get_nodelist()) {
+	    my $path_id = GeniXML::GetText("id", $path);
+
+	    if ($path_id eq $linkname) {
+		$stitching_path = $path;
+		last;
+	    }
 	}
     }
-    if (!defined($hopref)) {
+    if (!defined($stitching_path)) {
 	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					 "Could not find hop in link");
+					 "Could not find path in rspec");
 	goto done;
     }
-    my $hop_urn = GeniXML::GetNodeId($hopref);
-    my (undef,undef,$network_id) = GeniHRN::Parse($hop_urn);
+	    
+    #
+    # Look at the hop list to find the edge point.
+    #
+    my @hoplist = GeniXML::FindNodes("n:hop", $stitching_path)->get_nodelist();
+    if (! @hoplist) {
+	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "No hops in the stitching path");
+	goto done;
+    }
+    if (!GeniHRN::IsValid(GeniCM::GetHopLinkID($hoplist[0]))) {
+	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "Invalid URN in first hop in path");
+	goto done;
+    }
+    my ($hopauth) = GeniHRN::Parse(GeniCM::GetHopLinkID($hoplist[0]));
+    if ($hopauth ne $OURDOMAIN) {
+	# Reverse the list to make life easier.
+	@hoplist = reverse(@hoplist);
+    }
+    
+    #
+    # Go through the hop list to find the edge point. This will
+    # be the first hop that is in a different domain.
+    #
+    my $hopref;
+    my $lasthop;
+    foreach my $hop (@hoplist) {
+	my $hopurn = GeniCM::GetHopLinkID($hop);
+	next
+	    if (! GeniHRN::IsValid($hopurn));
+			
+	my ($auth,undef,undef) = GeniHRN::Parse($hopurn);
+	next
+	    if (!defined($auth));
+
+	if ($auth ne $OURDOMAIN) {
+	    $hopref = $lasthop;
+	    last;
+	}
+	$lasthop = $hop;
+    }
+    if (!defined($hopref)) {
+	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					 "Could not find the edge hop");
+	goto done;
+    }
+    my $hopurn = GeniCM::GetHopLinkID($hopref);
+    my (undef,undef,$network_stuff) = GeniHRN::Parse($hopurn);
+    my (undef,undef,$network_id) = split('//', $network_stuff);
 
     my $network = ExternalNetwork->Lookup($network_id);
     if (!defined($network)) {
 	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				 "$hop_urn is not an external network");
+				 "$hopurn is not an external network");
+	goto done;
+    }
+
+    #
+    # Special case; if the lan has a tag reserved already, the tag we
+    # got must be an exact match. This can happen if the ticket is
+    # being updated before redeem, at the other side.
+    #
+    if (my $t = VLan::GetReservedVlanTag($slice_experiment, $linkname)) {
+	if ((grep {$_ == $t} @{ $taglist })) {
+	    $actualtag = $t;
+	    goto gottag;
+	}
+	$response = GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+					 "Already have a tag reserved");
 	goto done;
     }
     
@@ -1972,6 +2039,7 @@ sub ReserveVlanTags($)
 	goto done;
     }
   gottag:
+    print STDERR "Agreed on tag $actualtag\n";
     GeniXML::SetText("vlantag", $linkref, $actualtag);
     $response = GeniResponse->Create(GENIRESPONSE_SUCCESS, 
 				     GeniXML::Serialize($rspec));

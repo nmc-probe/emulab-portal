@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use Getopt::Std;
@@ -328,7 +328,8 @@ sub bootvnode($$$)
     }
     $opt .= ($jailed ? " -jVt" : " -i");
     
-    print "$act vnode $vnode with options '$opt' ...\n";
+    print "$act vnode $vnode with options '$opt' at " .
+	libsetup::TBTimeStamp() . "\n";
     system("vnodesetup $opt $vnode");
     return($?);
 }

@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -518,34 +518,12 @@ if (! $instance) {
 
 if (!$geniflags) {
     WRITESUBMENUBUTTON("Duplicate Experiment",
-		       "beginexp_html.php3?copyid=$expindex");
+		       "beginexp.php?copyid=$expindex");
 }
 
 if ($EXPOSEARCHIVE && !$instance && !$geniflags) {
     WRITESUBMENUBUTTON("Experiment File Archive",
 		       "archive_view.php3?experiment=$expindex");
-}
-
-if (isset($types['garcia']) ||
-    isset($types['static-mica2']) ||
-    isset($types['robot'])) {
-    SUBMENUSECTION("Robot/Mote Options");
-    WRITESUBMENUBUTTON("Robot/Mote Map",
-		       "robotmap.php3".
-		       ($expstate == $TB_EXPTSTATE_ACTIVE ?
-			"?pid=$exp_pid&eid=$exp_eid" : ""));
-    if ($expstate == $TB_EXPTSTATE_SWAPPED) {
-	if (isset($types['static-mica2']) && $types['static-mica2']) {
-	    WRITESUBMENUBUTTON("Selector Applet",
-			       "robotrack/selector.php3?".
-			       "pid=$exp_pid&eid=$exp_eid");
-	}
-    }
-    elseif ($expstate == $TB_EXPTSTATE_ACTIVE ||
-	    $expstate == $TB_EXPTSTATE_ACTIVATING) {
-	WRITESUBMENUBUTTON("Tracker Applet",
-			   CreateURL("robotrack/robotrack", $experiment));
-    }
 }
 
 # Blinky lights - but only if they have nodes of the correct type in their

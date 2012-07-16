@@ -6831,12 +6831,13 @@ COMMAND_PROTOTYPE(dojailconfig)
 	 * created before we switched to creating real interface entries
 	 * for jailed nodes.
 	 */
-	res = mydb_query("select n.sshdport,n.jailip,n.jailipmask,i.IP,i.mask "
+	res = mydb_query("select n.sshdport,n.jailip,n.jailipmask,"
+			 "       i.IP,i.mask,i.mac "
 			 "  from nodes as n "
 			 "left join interfaces as i on "
 			 "   i.node_id=n.node_id and i.role='ctrl' "
 			 "where n.node_id='%s'",
-			 5, reqp->nodeid);
+			 6, reqp->nodeid);
 
 	if (!res) {
 		error("JAILCONFIG: %s: DB Error getting config!\n",
@@ -6862,6 +6863,10 @@ COMMAND_PROTOTYPE(dojailconfig)
 	if (jailip[0]) {
 		bufp += OUTPUT(bufp, ebufp - bufp,
 			       "JAILIP=\"%s,%s\"\n", jailip, jailipmask);
+	}
+	if (row[5] && strcmp(row[5], "000000000000")) {
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       "CTRLMAC=\"%s\"\n", row[5]);
 	}
 	bufp += OUTPUT(bufp, ebufp - bufp,
 		       "PORTRANGE=\"%d,%d\"\n"

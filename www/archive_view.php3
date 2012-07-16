@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -117,6 +117,7 @@ echo "<center>\n";
 echo "<form action='template_export.php' $style method=get>\n";
 echo "<b><input type=hidden name=$urlarg value='$urlval'></b>";
 if (isset($tag)) {
+    $tag = CleanString($tag);
     echo "<b><input type=hidden name=tag value='$tag'></b>";
 }
 echo "<b><input type=submit name=submit value='Export'></b>";

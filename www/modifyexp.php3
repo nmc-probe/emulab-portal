@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -24,8 +24,7 @@ $optargs = OptionalPageArguments("go",              PAGEARG_STRING,
 				 "reboot",          PAGEARG_BOOLEAN,
 				 "eventrestart",    PAGEARG_BOOLEAN,
 				 "nsdata",          PAGEARG_ANYTHING,
-				 "exp_localnsfile", PAGEARG_STRING,
-				 "formfields",      PAGEARG_ARRAY);
+				 "exp_localnsfile", PAGEARG_STRING);
 
 #
 # Standard Testbed Header

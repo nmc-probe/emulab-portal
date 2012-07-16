@@ -1833,7 +1833,7 @@ sub doVlansFromTables($$@) {
 #    $stack->FlipDebug(1);   
 
     my @trunkedPorts = getExperimentTrunks($experiment->pid(),
-					   $experiment->eid());
+					   $experiment->eid(), @vlanids);
     my %trunkedPorts = map { $_->toString() => $_ } @trunkedPorts;
 
     #
@@ -2084,7 +2084,7 @@ sub doReset($@) {
     }
 
     my $errors = 0;
-    my @trunkedPorts = getExperimentTrunks($pid,$eid);
+    my @trunkedPorts = getExperimentTrunks($pid, $eid, @vlans);
     foreach my $port (@trunkedPorts) {
 	$errors += doTrunkDisable($stacks,$port);
     }
@@ -2193,11 +2193,6 @@ sub syncVlansFromTables($$) {
     $debug = 1;
     $stack->FlipDebug(1);
 
-    my @needTrunking = getExperimentTrunks($pid,$eid);
-    my %needTrunking = map { $_->toString() => $_ } @needTrunking;
-
-    debug("Trunk Ports: ".Port->toStrings(@needTrunking)."\n");
-
     #
     # Get list of vlans that should exist.
     #
@@ -2208,6 +2203,13 @@ sub syncVlansFromTables($$) {
 	$expvlans{$vlan->id()} = $vlan;
     }
     debug("Experiment vlans: " . join(" ", keys(%expvlans)) . "\n");;
+
+    #
+    # List of trunks for the above set of vlans.
+    #
+    my @needTrunking = getExperimentTrunks($pid, $eid, @tmp);
+    my %needTrunking = map { $_->toString() => $_ } @needTrunking;
+    debug("Trunk Ports: ".Port->toStrings(@needTrunking)."\n");
 
     #
     # Get list of vlans that we think are on the switch (vlans table).
@@ -2228,7 +2230,7 @@ sub syncVlansFromTables($$) {
     #
     # Get a list of interfaces that are currently trunked.
     #
-    my @currentTrunks = getExperimentCurrentTrunks($pid,$eid);
+    my @currentTrunks = getExperimentCurrentTrunks($pid, $eid, @tmp);
     my %currentTrunks = map { $_->toString() => $_ } @currentTrunks;
 
     #

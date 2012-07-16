@@ -176,7 +176,7 @@ my $userdir = $experiment->UserDir();
 my $infodir = $experiment->InfoDir();
 
 # Sanity check.
-if (! (-e $workdir && -e $userdir)) {
+if (! -e $workdir) {
     die("*** $0:\n".
 	"    $pid/$eid is missing a critical directory!\n");
 }

@@ -3541,6 +3541,31 @@ sub ClearReservedVlanTags($)
 }
 
 #
+# This is slightly different then above. Rather then releasing all
+# reserved tags, we release only the tags that are "dangling"; these
+# are tags in the reserved_vlantags table, but without a corresonding
+# entry in the lans table. Used from the Protogeni code, when
+# releasing a ticket (which reserved some tags that will not be used).
+#
+sub ClearUnusedReservedVlanTags($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $idx = $self->idx();
+
+    return -1
+	if (! DBQueryWarn("delete r from reserved_vlantags as r ".
+			  "left join lans as l on l.lanid=r.lanid ".
+			  "where l.lanid is null and r.exptidx='$idx'"));
+
+    return 0;
+}
+
+#
 # Does experiment have any program agents.
 #
 sub HaveProgramAgents($)

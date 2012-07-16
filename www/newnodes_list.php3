@@ -1,7 +1,7 @@
 <?PHP
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2010 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 require("defs.php3");
@@ -73,6 +73,9 @@ if (isset($addnumber) && $addnumber == "") {
 if (count($selected_nodes)) {
     $equal_clauses = array();
     foreach ($selected_nodes as $node) {
+	if (!is_int($node)) {
+	    USERERROR("Invalid node id", 1);
+	}
 	$equal_clauses[] = "new_node_id=$node";
 	$equal_clauses_qualified[] = "n.new_node_id=$node";
     }
@@ -278,6 +281,7 @@ if (isset($swap)) {
 # Change node types
 #
 if (isset($newtype)) {
+    $newtype = addslashes($newtype);
     DBQueryFatal("UPDATE new_nodes SET type='$newtype' WHERE $whereclause");
 }
 
@@ -304,7 +308,7 @@ if (isset($newprefix) || isset($addnumber)) {
 	    if (isset($newprefix)) {
 	        $prefix = $newprefix;
 	    }
-	    $newname = $prefix . $number;
+	    $newname = addslashes($prefix . $number);
 	    DBQueryFatal("UPDATE new_nodes SET node_id='$newname' " .
 		"WHERE new_node_id='$id'");
 	} else {

@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2007 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -33,6 +33,7 @@ PAGEHEADER("Resend Project Approval Message");
 function SPITFORM($project, $message, $errors)
 {
     global $this_user;
+    $message = CleanString($message);
     
     if ($errors) {
 	echo "<table class=nogrid
@@ -46,6 +47,8 @@ function SPITFORM($project, $message, $errors)
               </tr>\n";
 
 	while (list ($name, $message) = each ($errors)) {
+            # XSS prevention.
+	    $message = CleanString($message);
 	    echo "<tr>
                      <td align=right>
                        <font color=red>$name:&nbsp;</font></td>

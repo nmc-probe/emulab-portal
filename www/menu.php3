@@ -238,7 +238,7 @@ function WRITEPLABTOPBAR() {
 		      $TBBASE, CreateURL("showuser", $login_user));
 
     WRITETOPBARBUTTON("Advanced Experiment",
-        $TBBASE, "beginexp_html.php3");
+        $TBBASE, "beginexp.php");
 
     if ($login_status & CHECKLOGIN_TRUSTED && $login_user->ApprovalList(0)) {
 	WRITESIDEBARBUTTON_NEW("Approve Users",
@@ -594,17 +594,11 @@ function WRITESIDEBAR() {
                 # user is allowed to do this.
                 #
  		NavMenuButton("Begin an Experiment",
-			      "$TBBASE/beginexp_html.php3");
+			      "$TBBASE/beginexp.php");
 
 		if ($EXPOSETEMPLATES) {
 		    NavMenuButton("Create a Template",
 				  "$TBBASE/template_create.php");
-		}
-
-		if ($PLABSUPPORT) {
-                    # Put _NEW back when Plab is working again.
-		    NavMenuButton("Create a PlanetLab Slice",
-				  "$TBBASE/plab_ez.php3");
 		}
 
 		NavMenuButton("Experiment List", "$TBBASE/showexp_list.php3");
@@ -734,9 +728,6 @@ function WRITESIDEBAR() {
 	NavMenuButton("Show Shared Node Pool",
 		      "$TBBASE/showpool.php");
 
-	NavMenuButton("Edit Knowledge Base",
-		      "$TBBASE/kb-manage.php3");
-		    
 	$query_result = DBQUeryFatal("select new_node_id from new_nodes");
 	if (mysql_num_rows($query_result) > 0) {
 	    NavMenuButtonNew("Add Testbed Nodes",
@@ -746,8 +737,6 @@ function WRITESIDEBAR() {
 	    NavMenuButtonNew("Add Testbed Nodes",
 			     "$TBBASE/newnodes_list.php3");
 	}
-	NavMenuButtonNew("Approve Widearea User",
-			 "$TBBASE/approvewauser_form.php3");
 	if ($PROTOGENI) {
 	    NavMenuButton("ProtoGeni Slices",
 			  "$TBBASE/genislices.php");

@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -47,6 +47,9 @@ $rpms               = $node->rpms();
 $tarballs           = $node->tarballs();
 $startupcmd         = $node->startupcmd();
 $vname              = null;
+if ($startupcmd) {
+    $startupcmd = htmlspecialchars($startupcmd, ENT_QUOTES);
+}
 
 # Need the reservation info.
 if (($resrow = $node->ReservedTableEntry())) {

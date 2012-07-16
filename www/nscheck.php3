@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2007, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -131,7 +131,8 @@ STARTBUSY("Starting NS syntax check from " .
 	  ($speclocal ? "local file" :
 	   ($specupload ? "uploaded file" :
 	    ($specform ? "form" : "???"))));
-$retval = SUEXEC($uid, "nobody", "webnscheck $nsfile", SUEXEC_ACTION_IGNORE);
+$retval = SUEXEC($uid, "nobody", "webnscheck " . escapeshellarg($nsfile),
+		 SUEXEC_ACTION_IGNORE);
 
 if ($tmpfile) {
     unlink($nsfile);

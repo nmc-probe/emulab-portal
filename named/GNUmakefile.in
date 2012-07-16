@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2006 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -60,7 +60,8 @@ $(REVFILES):	reverse.head named_makerev
 
 # This is not a safe install target after initial install!
 install:
-	echo "Are you sure you want to reinstall the namedb files!"
+	@echo "Are you sure you want to reinstall the namedb files!"
+	@echo "Use the install-real target if you are sure"
 
 install-real:	resolv.conf \
 		$(NAMEDB_DIR)/named.conf \
@@ -69,6 +70,9 @@ install-real:	resolv.conf \
 		$(NAMEDB_DIR)/$(OURDOMAIN).internal.db.head \
 		$(addprefix $(NAMEDB_DIR)/reverse/, $(wildcard *.db.head))
 	$(INSTALL_DATA) resolv.conf $(ETCDIR)/resolv.conf
+
+install-reverse: \
+		$(addprefix $(NAMEDB_DIR)/reverse/, $(wildcard *.db.head))
 
 clean: 
 	rm -f $(NAMED_FILES)

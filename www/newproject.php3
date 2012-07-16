@@ -114,6 +114,8 @@ function SPITFORM($formfields, $returning, $errors)
               </tr>\n";
 
 	while (list ($name, $message) = each ($errors)) {
+            # XSS prevention.
+	    $message = CleanString($message);
 	    echo "<tr>
                      <td align=right>
                        <font color=red>$name:&nbsp;</font></td>
@@ -122,6 +124,10 @@ function SPITFORM($formfields, $returning, $errors)
                   </tr>\n";
 	}
 	echo "</table><br>\n";
+    }
+    # XSS prevention.
+    while (list ($key, $val) = each ($formfields)) {
+	$formfields[$key] = CleanString($val);
     }
     echo "<SCRIPT LANGUAGE=JavaScript>
               function SetWikiName(theform) 

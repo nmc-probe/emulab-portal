@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Stuff to support checking field data before we insert it into the DB.
@@ -334,6 +334,14 @@ function TBvalid_archive_tag($token) {
 }
 function TBvalid_archive_message($token) {
     return TBcheck_dbslot($token, "archive_tags", "description",
+			  TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR);
+}
+function TBvalid_IP($token) {
+    return TBcheck_dbslot($token, "virt_lans", "ip",
+			  TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR);
+}
+function TBvalid_node_type($token) {
+    return TBcheck_dbslot($token, "virt_nodes", "type",
 			  TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR);
 }
 ?>

@@ -1473,6 +1473,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     #
     my $linknum = 1;
     my %linkexistsmap = ();
+    my %vlan_reservations = ();
     
     foreach my $linkref (GeniXML::FindNodes("n:link",
 					    $rspec)->get_nodelist()) {
@@ -1482,10 +1483,11 @@ sub GetTicketAuxAux($$$$$$$$$)
 					    "n:interface_ref",
 					    $linkref)->get_nodelist();
 	my %managers   = ();
-	my %hops       = ();
 	my $ifacenum   = 1;
 	my $vindex     = 0;
 	my $trivial_ok = 1;
+	# Avoid multiple insertions for this setting.
+	my $sharedvlansetting = 0;
 
 	if (!defined($lanname)) {
 	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -1519,14 +1521,26 @@ sub GetTicketAuxAux($$$$$$$$$)
 	}
 
 	#
-	# Look for hops list; optional.
+	# Look for a vlan tag reservation request.
 	#
-	if (GeniXML::FindNodes("n:component_hop", $linkref)) {
-	    %hops = map { GeniXML::GetNodeId($_) => $_ } 
-	                  GeniXML::FindNodes("n:component_hop",
-					     $linkref)->get_nodelist();
+	if (my $vlan_tag = GeniXML::GetText("vlantag", $linkref)) {
+	    if (! ($vlan_tag =~ /^\d*/)) {
+		$response = 
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "Bad vlan tag for $lanname");
+		goto bad;
+	    }
+	    my $result =
+		ReserveLocalVlanTag($slice_experiment, $lanname, $vlan_tag);
+	    if (GeniResponse::IsResponse($result)) {
+		$response = $result;
+		goto bad;
+	    }
+	    # Record newly reserved tags for rollback.
+	    if (ref($result)) {
+		$vlan_reservations{$lanname} = $result;
+	    }
 	}
-	
 
 	#
 	# Ick. Before we create the virt_lan_lans entry, we have to check
@@ -1720,6 +1734,25 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    # Stash for later. We need to allocate a vlan tag, and
 		    # this stores the min/max vlan numbers we have to use.
 		    $stitching_paths{$lanname}->{'network'} = $network;
+		    $stitching_paths{$lanname}->{'edgeurn'} = $edgeurn;
+
+		    #
+		    # Look for a vlan tag reservation request. We only
+		    # support a single tag, not a range.
+		    #
+		    my $vlan_tag = GetSuggestedVlanFromHop($edgehop);
+		    if ($vlan_tag) {
+			my $result = ReserveLocalVlanTag($slice_experiment,
+							 $lanname, $vlan_tag);
+			if (GeniResponse::IsResponse($result)) {
+			    $response = $result;
+			    goto bad;
+			}
+			# Record newly reserved tags for rollback.
+			if (ref($result)) {
+			    $vlan_reservations{$lanname} = $result;
+			}
+		    }
 		    
 		    #
 		    # Stick in a reference to the fake node.
@@ -1754,6 +1787,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    $iface_vport = $external_vportmap{$node_nickname};
 		    $external_vportmap{$node_nickname} += 1;
 		    $external_linkmap{$lanname} = $linkref;
+
 		    goto stitch;
 		}
 		else {
@@ -1839,17 +1873,18 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    
 	    # Watch for shared lans; we have to add the lan entries for them.
 	    my $shared_vlan = GeniXML::GetSharedLanName($linkref);
-	    if (defined($shared_vlan)) {
+	    if (defined($shared_vlan) && !$sharedvlansetting) {
 		# This is the magic for libvtop.
 		$virtexperiment->NewTableRow("virt_lan_settings",
 					     {"vname"   => $lanname,
-					      "capkey"  => "portvlan",
+					      "capkey"  => "sharedvlan",
 					      "capval"  => $shared_vlan});
 
 		# Clear all this.
 		$bandwidth = 0;
 		$latency   = 0.0;
 		$lossrate  = 0.0;
+		$sharedvlansetting = 1;
 	    }
 	    
 	  stitch:	    
@@ -2240,6 +2275,10 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    
 	    GeniXML::SetText("vlantag", $linkref, $tag);
 
+	    #
+	    # Change all of the stitching hops to our edge point, since
+	    # that is how our network is setup.
+	    #
 	    my @hoplist = @{ $stitching_paths{$linkname}->{'hoplist'} };
 	    foreach my $hop (@hoplist) {
 		my $hopurn = GetHopLinkID($hop);
@@ -2247,24 +2286,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 		next
 		    if (!defined($auth) || $auth ne $OURDOMAIN);
 
-		#
-		# Need to change a couple of fields buried down inside. Ick.
-		#
-		my $tmp = FindFirst("n:link", $hop);
-		$tmp = (FindFirst("n:switchingCapabilityDescriptor", $tmp) ||
-			FindFirst("n:switchingCapabilityDescriptors", $tmp))
-		    if (defined($tmp));
-		$tmp = FindFirst("n:switchingCapabilitySpecificInfo", $tmp)
-		    if (defined($tmp));
-		if (defined($tmp) &&
-		    FindFirst("n:switchingCapabilitySpecificInfo_L2sc", $tmp)) {
-		    $tmp = FindFirst("n:switchingCapabilitySpecificInfo_L2sc",
-				     $tmp)
-		}
-		if (defined($tmp)) {
-		    SetText("vlanRangeAvailability", $tmp, "$tag");
-		    SetText("suggestedVLANRange", $tmp, "$tag");
-		}
+		SetVlanTagInHop($hop, $tag);
 	    }
 	    next;	    
 	}
@@ -2273,14 +2295,20 @@ sub GetTicketAuxAux($$$$$$$$$)
 	# Chainmode
 	#
 	while ($retries) {
+	    my $edgeurn = $stitching_paths{$linkname}->{'edgeurn'};
+	    
 	    #
 	    # Already have a reserved tag? This could happen if the other CM
 	    # acted first and talked to this CM before we saw the ticket
-	    # request. Or this is an update and we already have tags reserved.
+	    # request. Or this is an update and we already have tags
+	    # reserved.
+	    #
+	    # If we just reserved the tag above, we still need to talk
+	    # to the other side.
 	    #
 	    my $tag = VLan::GetReservedVlanTag($slice_experiment, $linkname);
 	    last
-		if (defined($tag));
+		if (defined($tag) && !exists($vlan_reservations{$linkname}));
 
 	    my ($fh, $filename) = tempfile(UNLINK => 0);
 	    if (!defined($fh)) {
@@ -2290,7 +2318,8 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    }
 	    print $fh GeniXML::Serialize($rspec);
 	    close($fh);
-	    system("$RESERVEVLANS '$slice_urn' '$linkname' $filename");
+	    system("$RESERVEVLANS ".
+		   "'$slice_urn' '$linkname' '$edgeurn' $filename");
 	    if ($CHILD_ERROR) {
 		unlink($filename);
 
@@ -2334,6 +2363,20 @@ sub GetTicketAuxAux($$$$$$$$$)
 		$tag = VLan::GetReservedVlanTag($slice_experiment, $linkname);
 		if (defined($tag)) {
 		    GeniXML::SetText("vlantag", $linkref, $tag);
+
+		    #
+		    # Change all of the stitching hops to our edge point, since
+		    # that is how our network is setup.
+		    #
+		    my @hoplist = @{ $stitching_paths{$linkname}->{'hoplist'} };
+		    foreach my $hop (@hoplist) {
+			my $hopurn = GetHopLinkID($hop);
+			my ($auth,undef,undef) = GeniHRN::Parse($hopurn);
+			next
+			    if (!defined($auth) || $auth ne $OURDOMAIN);
+
+			SetVlanTagInHop($hop, $tag);
+		    }
 		    last;
 		}
 		# This should not happen. 
@@ -2346,8 +2389,12 @@ sub GetTicketAuxAux($$$$$$$$$)
 	  again:
 	    $retries--;
 	}
+	if (!$retries) {
+	    $response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				 "Could not reserve vlan tag for $linkname");
+	    goto bad;
+	}
     }
-    
     print GeniXML::Serialize($rspec);
 
     #
@@ -2430,6 +2477,16 @@ sub GetTicketAuxAux($$$$$$$$$)
 	#
 	$slice_experiment->RemoveVirtualState()
 	    if (defined($slice_experiment));
+    }
+    #
+    # Clear any new vlan tag reservations we made during this call.
+    #
+    foreach my $linkname (%vlan_reservations) {
+	my ($lanid, $vlan_tag) = @{ $vlan_reservations{$linkname} };
+
+	# If this is a new ticket, there is no lan object yet,
+	# so need to call this as a function instead of a method.
+	VLan::ClearReservedVlanTag($lanid, $vlan_tag);
     }
     if ($v2 && $level == 0) {
 	CleanupDeadSlice($slice, 1)
@@ -3436,7 +3493,8 @@ sub SliverWorkAux($$$$$$$)
 	    my $ipAddress;
 	    if (defined($vinterface)) {
 		$ipAddress = $vinterface->IP();
-	    } else {
+	    }
+	    elsif (defined($interface)) {
 		$ipAddress = $interface->IP();
 	    }
 	    # Manifest goes back to the user.
@@ -6116,6 +6174,128 @@ sub GetHopLinkID($)
 	$result = GetText("id", $link);
     }
     return $result;
+}
+
+sub GetHopCapabilitySection($)
+{
+    my ($hopref) = @_;
+    
+    #
+    # Dig out the section we need from the hop.
+    #
+    my $tmp = FindFirst("n:link", $hopref);
+    $tmp = (FindFirst("n:switchingCapabilityDescriptor", $tmp) ||
+	    FindFirst("n:switchingCapabilityDescriptors", $tmp))
+	if (defined($tmp));
+    $tmp = FindFirst("n:switchingCapabilitySpecificInfo", $tmp)
+	if (defined($tmp));
+    if (defined($tmp) &&
+	FindFirst("n:switchingCapabilitySpecificInfo_L2sc", $tmp)) {
+	$tmp = FindFirst("n:switchingCapabilitySpecificInfo_L2sc", $tmp)
+    }
+    return $tmp;
+}
+
+sub GetSuggestedVlanFromHop($)
+{
+    my ($hopref) = @_;
+    my $capref   = GetHopCapabilitySection($hopref);
+    return undef
+	if (!defined($capref));
+
+    my $tag = GeniXML::GetText("suggestedVLANRange", $capref);
+    return $tag;
+}
+
+sub SetVlanTagInHop($$)
+{
+    my ($hopref, $tag) = @_;
+
+    my $capref = GetHopCapabilitySection($hopref);
+    return undef
+	if (!defined($capref));
+
+    GeniXML::SetText("vlanRangeAvailability", $capref, "$tag");
+    GeniXML::SetText("suggestedVLANRange", $capref, "$tag");
+    return 0;
+}
+
+sub ReserveLocalVlanTag($$$)
+{
+    my ($experiment, $lanname, $tag) = @_;
+    my $createdvlan = 0;
+    
+    my $vlan = VLan->Lookup($experiment, $lanname);
+    #
+    # Do we already have the link and tag?
+    #
+    if (defined($vlan)) {
+	if ($vlan->HasVlanTagReserved($tag)) {
+	    # Indicates tag already reserved. 
+	    return 0;
+	}
+	#
+	# Not allowed to change the tag, sorry.
+	#
+	if ($vlan->GetReservedVlanTag()) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Already have a tag for $lanname");
+	}
+    }
+    else {
+	#
+	# If this is an update to a ticket, there is no lan
+	# object, it is still uninstantiated. 
+	#
+	my $curtag = VLan::GetReservedVlanTag($experiment, $lanname);
+	if (defined($curtag)) {
+	    if ($curtag == $tag) {
+		# Indicates tag already reserved. 
+		return 0;
+	    }
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"Already have a tag for $lanname");
+	}
+    }
+	    
+    #
+    # Lets see if the tag is available.
+    #
+    if (!VLan->VlanTagAvailable($tag)) {
+	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				    "vlan tag for $lanname not available");
+    }
+
+    #
+    # Reserve the tag. In order to do this, we have to create
+    # a lan entry long enough for snmpit to actually create the
+    # reservation. Then we kill it off until the ticket is actually
+    # redeemed.
+    #
+    if (!defined($vlan)) {
+	$vlan = VLan->Create($experiment, $lanname);
+	if (!defined($vlan)) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Internal Error creating vlan object");
+	}
+	$createdvlan = 1;
+    }
+    my $lanid = $vlan->lanid();
+    my $pid   = $experiment->pid();
+    my $eid   = $experiment->eid();
+
+    print STDERR "Trying to reserve vlan tag $tag for $lanname\n";
+    system("$SNMPIT -A $pid $eid $lanid,$tag");
+    if ($?) {
+	$vlan->Destroy()
+	    if ($createdvlan);
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Error reserving vlan tag for $lanname");
+    }
+    $vlan->Destroy()
+	if ($createdvlan);
+    print STDERR "Reserved tag $tag for $lanname\n";
+    return [$lanid, $tag];
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

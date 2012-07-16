@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -112,7 +112,7 @@ function SPITFORM($error)
 	$url = CreateURL("template_export", $template);
     }
     if (isset($tag)) {
-	$url .= "&tag=$tag";
+	$url .= "&tag=" . urlencode($tag);
     }
     
     echo "<form action='$url' method=post>\n";
@@ -127,6 +127,7 @@ function SPITFORM($error)
     echo "<b><input type=submit name=confirmed value=Confirm></b>\n";
     echo "<b><input type=submit name=canceled value=Cancel></b>\n";
     if (isset($referrer)) {
+	$referrer = urlencode($referrer);
 	echo "<input type=hidden name=referrer value=$referrer>\n";
     }
     echo "</form>\n";

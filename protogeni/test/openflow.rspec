@@ -12,9 +12,17 @@
       <ip address="10.1.1.5" netmask="255.255.255.0" type="ipv4"/>
      </interface>
    </node>
+   <node client_id="node2"
+         exclusive="true">
+     <sliver_type name="raw-pc" />
+     <interface client_id="node2:if">
+      <ip address="10.1.1.6" netmask="255.255.255.0" type="ipv4"/>
+     </interface>
+   </node>
    <link client_id="link0">
-     <vlan:link_shared_vlan name="openflow" />
+     <vlan:link_shared_vlan name="openflow-mesoscale" />
      <interface_ref client_id="node1:if" />
+     <interface_ref client_id="node2:if" />
    </link>   
 </rspec>
 
