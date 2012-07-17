@@ -56,10 +56,15 @@ function SPITFORM($email, $phone, $failed, $simple, $view)
 {
     global	$TBBASE;
     global	$WIKIDOCURL;
+
+    # XSS prevention
+    $phone  = CleanString($phone);
+    $email  = CleanString($email);
     
     PAGEHEADER("Forgot Your Password?", $view);
 
     if ($failed) {
+	$failed = CleanString($failed);
 	echo "<center>
               <font size=+1 color=red>
               $failed

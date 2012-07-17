@@ -61,6 +61,9 @@ sub fatal($);
 sub UserError(;$);
 sub escapeshellarg($);
 
+# Set this is we need to instert an os_submap entry.
+my $parentos;
+
 #
 # Parse command arguments. Once we return from getopts, all that should be
 # left are the required arguments.
@@ -442,13 +445,13 @@ if (exists($newimageid_args{"nextosid"})) {
 }
 # Ditto def_parentosid
 if (exists($newimageid_args{"def_parentosid"})) {
-    my $nextos = OSinfo->Lookup($newimageid_args{"def_parentosid"});
+    $parentos = OSinfo->Lookup($newimageid_args{"def_parentosid"});
 
-    if (!defined($nextos)) {
+    if (!defined($parentos)) {
 	UserError("def_parentosid: Does not exist");
     }
     # Might be in pid,osname format.
-    $newimageid_args{"def_parentosid"} = $nextos->osid();
+    $newimageid_args{"def_parentosid"} = $parentos->osid();
 }
 
 #
@@ -692,6 +695,13 @@ fatal("Could not create new Image!")
     if (!defined($new_image));
 
 my $imageid = $new_image->imageid();
+
+#
+# Insert a submap entry.
+#
+if (defined($parentos)) {
+    $new_osinfo->SetRunsOnParent($parentos);
+}
 
 # The web interface requires this line to be printed.
 print "IMAGE $imagename/$imageid has been created\n";

@@ -796,6 +796,14 @@ sub Release($$)
     my @nodes   = ();
     my @vhosts  = ();
 
+    #
+    # Release unused reserved vlantags.
+    #
+    $experiment->ClearUnusedReservedVlanTags();
+
+    #
+    # Release nodes.
+    #
     foreach my $ref (GeniXML::FindNodes("n:node",
 					$self->rspec())->get_nodelist()) {
 	# Skip lan nodes; they are fake.

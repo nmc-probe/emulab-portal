@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2007 University of Utah and the Flux Group.
+# Copyright (c) 2007-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -11,6 +11,7 @@ $optargs = OptionalPageArguments("confirmed",   PAGEARG_BOOLEAN,
 				 "referrer",    PAGEARG_STRING);
 $this_user = CheckLogin($check_status);
 $referrer  = (isset($referrer) ? $referrer : $_SERVER['HTTP_REFERER']);
+$referrer  = urlencode($referrer);
 
 #
 # Standard Testbed Header

@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2005-2010 University of Utah and the Flux Group.
+# Copyright (c) 2005-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -37,6 +37,7 @@ if (isset($confirmed)) {
     $body_str .= "Updated power time for:<br><br>";
     foreach ($nodes as $ni) {
 	if (!TBvalid_node_id($ni)) {
+	    $ni = CleanString($ni);
 	    USERERROR("Invalid node ID: $ni", 1);
 	}
 	if (! ($node = Node::Lookup($ni))) {
@@ -63,6 +64,7 @@ else {
     $body_str .= "<tr><th>Update?</th><th>Node ID</th><th>Last Power</th></tr>";
     foreach (preg_split("/,/", $node_id) as $ni) {
 	if (!TBvalid_node_id($ni)) {
+	    $ni = CleanString($ni);
 	    USERERROR("Invalid node ID: $ni", 1);
 	}
 	if (! ($node = Node::Lookup($ni))) {

@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -69,9 +69,6 @@ if (!$wikionly && ($isadmin || $target_user->SameUser($this_user))) {
     WRITESUBMENUBUTTON("Edit SSH Keys",
 		       CreateURL("showpubkeys", $target_user));
     
-    WRITESUBMENUBUTTON("Edit SFS Keys",
-		       CreateURL("showsfskeys", $target_user));
-
     WRITESUBMENUBUTTON("Generate SSL Cert",
 		       CreateURL("gensslcert", $target_user));
 

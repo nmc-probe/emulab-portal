@@ -33,19 +33,6 @@ http://www.protogeni.net/resources/rspec/2/request.xsd"
     <interface_ref client_id="right:if0" />
     <property source_id="left:if0" dest_id="right:if0" capacity="100000"/>
     <property source_id="right:if0" dest_id="left:if0" capacity="100000"/>
-    <component_hop
-	component_urn="urn:publicid:IDN+emulab.net+link+instageni">
-      <interface_ref
-	component_node_urn="urn:publicid:IDN+emulab.net+node+instageni"
-	component_interface_id="eth0"/>
-    </component_hop>
-    <component_hop
-	component_urn="urn:publicid:IDN+utah.geniracks.net+link+emulab">
-      <interface_ref
-	component_node_urn="urn:publicid:IDN+utah.geniracks.net+node+emulab"
-	component_interface_id="eth0"/>
-    </component_hop>
-    
   </link>
 
 <stitching xmlns="http://hpn.east.isi.edu/rspec/ext/stitch/0.1/"

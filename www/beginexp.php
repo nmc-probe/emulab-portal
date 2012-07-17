@@ -1,85 +1,91 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2007, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
 
 #
-# No PAGEHEADER since we spit back plain XML output.
+# No PAGEHEADER since we spit out a Location header later. See below.
 #
-$reqargs = RequiredPageArguments("xmlcode", PAGEARG_ANYTHING);
-
-$errors    = array();
-
-$session_interactive  = 0;
-$session_errorhandler = 'handle_error';
+$errors = array();
 
 #
-# Capture script errors and report back to user.
+# Helper function to send back errors.
 #
-function handle_error($message, $death)
+function EXPERROR()
 {
-    XMLSTATUS("weberror", $message);
-    if ($death)
-	exit(1);
+    global $formfields, $errors;
+
+    SPITFORM($formfields, $errors);
+    PAGEFOOTER();
+    die("");
 }
 
 #
-# Form Errors. 
+# Only known and logged in users can begin experiments.
 #
-function XMLERROR()
-{
-    XMLSTATUS("xmlerror", "Invalid form arugments");
+$this_user = CheckLoginOrDie();
+$uid       = $this_user->uid();
+$isadmin   = ISADMIN();
+
+# Does not return if this a request.
+include("showlogfile_sup.php3");
+
+#
+# Verify page arguments.
+#
+$optargs = OptionalPageArguments("view_style", PAGEARG_STRING,
+				 "beginexp", PAGEARG_STRING,
+				 "formfields", PAGEARG_ARRAY,
+				 "nsref", PAGEARG_INTEGER,
+				 "guid", PAGEARG_INTEGER,
+				 "copyid", PAGEARG_INTEGER);
+
+#
+# Handle pre-defined view styles
+#
+unset($view);
+if (isset($view_style) && $view_style == "plab") {
+    $view['hide_proj'] = $view['hide_group'] = $view['hide_swap'] =
+	$view['hide_preload'] = $view['hide_batch'] = $view['hide_linktest'] =
+        $view['quiet'] = $view['plab_ns_message'] = $view['plab_descr'] = 1;
 }
-
-#
-# Helper function to send back errors. This needs some work!
-#
-function XMLSTATUS($status, $message)
-{
-    global $errors;
-
-    $results = array();
-    $results["status"]  = $status;
-    $results["message"] = $message;
-    $results["errors"]  = $errors;
-    $xmlcode = xmlrpc_encode_request("dummy", $results);
-
-    echo "$xmlcode\n";
-    exit(1);
-}
-
-#
-# Only known and logged in users can begin experiments. 
-#
-$status    = CHECKLOGIN_NOTLOGGEDIN;
-$this_user = CheckLogin($status);
-if (!$this_user ||
-    (($status & CHECKLOGIN_LOGGEDIN) != CHECKLOGIN_LOGGEDIN)) {
-    TBERROR("Not logged in", 1);
-}
-$uid = $this_user->uid();
+include("beginexp_form.php3");
 
 # Need this below;
 $idleswaptimeout = TBGetSiteVar("idle/threshold");
 $autoswap_max    = TBGetSiteVar("general/autoswap_max");
 
-# Convert the xml into PHP datatypes; an array of arguments. We ignore the
-# the method for now. 
-$foo = xmlrpc_decode_request($xmlcode, $meth);
-if (!isset($foo)) {
-    TBERROR("Could not decode XML request!\n\n" .
-	    urldecode($xmlcode) . "\n", 1);
+#
+# See what projects the uid can create experiments in. Must be at least one.
+#
+$projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
+
+if (! count($projlist)) {
+    USERERROR("You do not appear to be a member of any Projects in which ".
+	      "you have permission to create new experiments.", 1);
 }
 
-# First argument is the formfields array. 
-$formfields = $foo[0];
+#
+# On first load, display virgin form and exit.
+#
+if (!isset($beginexp)) {
+    # Allow initial formfields data.
+    if (isset($formfields))
+	$defaults = $formfields;
+    else
+	$defaults = array();
+    INITFORM($defaults, $projlist);
+    PAGEFOOTER();
+    return;
+}
+elseif (! isset($formfields)) {
+    PAGEHEADER("Begin a Testbed Experiment");
+    PAGEARGERROR();
+}
 
-#
-# Validate the arguments.
-#
 # Some local variables.
 $nsfilelocale    = "";
 $thensfile       = 0;
@@ -96,8 +102,6 @@ if (!isset($formfields["exp_pid"]) || $formfields["exp_pid"] == "") {
 }
 elseif (!TBvalid_pid($formfields["exp_pid"])) {
     $errors["Project"] = TBFieldErrorString();
-    # Immediate error since we use this below.
-    XMLERROR();
 }
 elseif (! ($project = Project::Lookup($formfields["exp_pid"]))) {
     $errors["Project"] = "No such project";
@@ -120,6 +124,9 @@ else {
     else {
 	$group = $project->DefaultGroup();
     }
+}
+if (count($errors)) {
+    EXPERROR();
 }
 
 #
@@ -180,6 +187,30 @@ elseif (isset($formfields["exp_localnsfile"]) &&
 		"Must reside in one of: $TBVALIDDIRS";
     }
     $nsfilelocale = "local";
+}
+elseif (isset($_FILES['exp_nsfile']) && $_FILES['exp_nsfile']['size'] != 0) {
+    if ($_FILES['exp_nsfile']['size'] > (1024 * 500)) {
+	$errors["Local NS File"] = "Too big!";
+    }
+    elseif ($_FILES['exp_nsfile']['name'] == "") {
+	$errors["Local NS File"] =
+	    "Local filename does not appear to be valid";
+    }
+    elseif ($_FILES['exp_nsfile']['tmp_name'] == "") {
+	$errors["Local NS File"] =
+	    "Temp filename does not appear to be valid";
+    }
+    elseif (!preg_match("/^([-\@\w\.\/]+)$/",
+			$_FILES['exp_nsfile']['tmp_name'])) {
+	$errors["Local NS File"] = "Temp path includes illegal characters";
+    }
+    #
+    # For the benefit of the form. Remember to pass back actual filename, not
+    # the php temporary file name. Note that there appears to be some kind
+    # of breakage, at least in opera; filename has no path.
+    #
+    $formfields['exp_nsfile'] = $_FILES['exp_nsfile']['name'];
+    $nsfilelocale = "upload";
 }
 elseif (isset($formfields["exp_nsfile_contents"]) &&
 	$formfields["exp_nsfile_contents"] != "") {
@@ -295,7 +326,7 @@ if (isset($formfields["exp_linktest"]) && $formfields["exp_linktest"] != "") {
 # If any errors, stop now. pid/eid/gid must be okay before continuing.
 #
 if (count($errors)) {
-    XMLERROR();
+    EXPERROR();
 }
 
 $exp_desc    = escapeshellarg($formfields["exp_description"]);
@@ -311,9 +342,8 @@ $extragroups = "";
 #
 if (! $group->AccessCheck($this_user, $TB_PROJECT_CREATEEXPT)) {
     $errors["Project/Group"] = "Not enough permission to create experiment";
-    XMLERROR();
+    EXPERROR();
 }
-
 
 #
 # Figure out the NS file to give to the script. Eventually we will allow
@@ -338,7 +368,7 @@ if ($nsfilelocale == "copyid") {
 	if (! $okay) {
 	    $errors["Project/Group"] =
 		"Not enough permission to copy experiment $copypid/$copyeid";
-	    XMLERROR();
+	    EXPERROR();
 	}
 	if ($copypid != $exp_pid)
 	    $extragroups = ",$copypid";
@@ -367,35 +397,20 @@ elseif ($nsfilelocale == "nsref") {
     }
     if (! file_exists($thensfile)) {
 	$errors["NS File"] = "Temp file no longer exists on server";
-	XMLERROR();
+	EXPERROR();
     }
     $deletensfile = 1;
 }
-elseif ($nsfilelocale == "inline") {
-    #
-    # The NS file is encoded in the URL. Must create a temp file
-    # to hold it, and pass through to the backend.
-    #
-    # Generate a hopefully unique filename that is hard to guess.
-    # See backend scripts.
-    # 
-    list($usec, $sec) = explode(' ', microtime());
-    srand((float) $sec + ((float) $usec * 100000));
-    $foo = rand();
-    
-    $thensfile    = "/tmp/$uid-$foo.nsfile";
-    $deletensfile = 1;
-
-    if (! ($fp = fopen($thensfile, "w"))) {
-	TBERROR("Could not create temporary file $nsfile", 1);
-    }
-    fwrite($fp, urldecode($formfields["exp_nsfile_contents"]));
-    fclose($fp);
+elseif ($nsfilelocale == "upload") {
+    $thensfile = $_FILES['exp_nsfile']['tmp_name'];
     chmod($thensfile, 0666);
 }
 else {
     $nonsfile = 1;
 }
+
+# Okay, we can spit back a header now that there is no worry of redirect.
+PAGEHEADER("Begin a Testbed Experiment");
 
 #
 # Convert other arguments to script parameters.
@@ -457,11 +472,14 @@ $unix_ggid = $group->unix_gid();
 #
 set_time_limit(0);
 
+STARTBUSY("Starting Experiment");
+
 $retval = SUEXEC($uid, "$unix_pgid,$unix_ggid" . $extragroups ,
 		 "webbatchexp $batcharg -E $exp_desc $exp_swappable ".
 		 "$linktestarg -p $exp_pid -g $exp_gid -e $exp_id ".
 		 ($nonsfile ? "" : "$thensfile"),
 		 SUEXEC_ACTION_IGNORE);
+HIDEBUSY();
 
 if ($deletensfile) {
     unlink($thensfile);
@@ -477,11 +495,14 @@ if ($retval < 0) {
 
 # User error. Tell user and exit.
 if ($retval) {
-    XMLSTATUS("weberror", $suexec_output);
-    exit(1);
+    echo "<br>";
+    echo "<blockquote><pre>$suexec_output<pre></blockquote>";
+
+    PAGEFOOTER();
+    exit();
 }
 
-# Send back a useful message. This needs more thought.
+# Display a useful message.
 $message = "";
 if ($nonsfile) {
     $message =
@@ -511,5 +532,24 @@ else {
           If you do not receive email notification within a reasonable amount
           of time, please contact $TBMAILADDR.";
 }
-XMLSTATUS("success", $message);
+
+# Map to the actual experiment and show the log.
+if (($experiment = Experiment::LookupByPidEid($formfields["exp_pid"],
+					      $formfields["exp_id"]))) {
+    echo $experiment->PageHeader();
+    echo "<br>\n";
+    echo "<b>Starting experiment configuration!</b> " . $message;
+    echo "<br><br>\n";
+    STARTLOG($experiment);
+}
+else {
+    echo "<br>\n";
+    echo "<b>Starting experiment configuration!</b> " . $message;
+    echo "<br>\n";
+}
+						
+#
+# Standard Testbed Footer
+#
+PAGEFOOTER();
 ?>

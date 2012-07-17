@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004, 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -226,6 +226,10 @@ function SPITDATA($table, $title, $formfields)
 # interested in
 #
 function SPITFORM($formfields) {
+    # XSS prevention.
+    while (list ($key, $val) = each ($formfields)) {
+	$formfields[$key] = CleanString($val);
+    }
 
     echo "<form action='widearea_nodeinfo.php3' method='get'>
 	  <table align='center'>

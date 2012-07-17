@@ -133,6 +133,8 @@ function SPITFORM($formfields, $errors)
               </tr>\n";
 
 	while (list ($name, $message) = each ($errors)) {
+            # XSS prevention.
+	    $message = CleanString($message);
 	    echo "<tr>
                      <td align=right>
                        <font color=red>$name:&nbsp;</font></td>
@@ -141,6 +143,10 @@ function SPITFORM($formfields, $errors)
                   </tr>\n";
 	}
 	echo "</table><br>\n";
+    }
+    # XSS prevention.
+    while (list ($key, $val) = each ($formfields)) {
+	$formfields[$key] = CleanString($val);
     }
     $url = CreateURL("showpubkeys", $target_user);
 

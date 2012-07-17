@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 require("defs.php3");
@@ -29,7 +29,7 @@ function SPITSEARCHFORM($query)
     echo "<table align=center border=1>
           <form action=search.php3 method=get>\n";
 
-    $query = htmlspecialchars($query);
+    $query = CleanString($query);
 
     #
     # Just the query please.
@@ -59,7 +59,7 @@ if (!isset($query) || $query == "") {
 }
 
 if ($TBMAINSITE || $REMOTEWIKIDOCS) {
-    $query = htmlspecialchars($query);
+    $query = urlencode($query);
     header("Location: search_cse.php?query=$query");
     return;
 }
@@ -116,6 +116,7 @@ if ($fp = popen("$TBSUEXEC_PATH nobody nobody websearch $safe_query", "r")) {
     $fp = 0;
 }
 else {
+    $query = CleanString($query);
     TBERROR("Query failed: $query", 0);
 }
 

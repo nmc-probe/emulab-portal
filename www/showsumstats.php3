@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2008, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -37,6 +37,9 @@ PAGEHEADER("Testbed Summary Stats");
 # Page args,
 if (! isset($showby)) {
     $showby = "users";
+}
+elseif (! ($showby == "users" || $showby == "projects")) {
+    PAGEARGERROR("Invalid showby argument");
 }
 if (! isset($range)) {
     $range = "epoch";

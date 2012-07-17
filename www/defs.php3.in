@@ -600,6 +600,14 @@ function RedirectHTTPS() {
 }
 
 #
+# Clean out going string to be html safe.
+#
+function CleanString($string)
+{
+    return htmlspecialchars($string, ENT_QUOTES);
+}
+
+#
 # Beware empty spaces (cookies)!
 # 
 require("tbauth.php3");

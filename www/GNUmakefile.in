@@ -22,7 +22,7 @@ HTMLINSTALL     = $(INSTALL_SBINDIR)/htmlinstall
 
 include $(OBJDIR)/Makeconf
 
-SUBDIRS = garcia-telemetry tutorial
+SUBDIRS = tutorial
 
 #
 # Force dependencies to make sure configure regenerates if the .in file
@@ -68,10 +68,6 @@ AUTOICONS += $(wildcard $(SRCDIR)/autostatus-icons/*.png)
 FLOORMAPFILES  = $(wildcard $(SRCDIR)/floormap/*.jpg)
 FLOORMAPFILES += $(wildcard $(SRCDIR)/floormap/*.gif)
 
-ROBOTRACKFILES  = $(wildcard $(SRCDIR)/robotrack/*.php3)
-ROBOTRACKFILES += $(wildcard $(SRCDIR)/robotrack/*.jpg)
-ROBOTRACKFILES += $(wildcard $(SRCDIR)/robotrack/*.jar)
-
 WIRELESSSTATSFILES = $(wildcard $(SRCDIR)/wireless-stats/*.php3)
 WIRELESSSTATSFILES += $(wildcard $(SRCDIR)/wireless-stats/*.jar)
 
@@ -115,9 +111,6 @@ ifeq ($(PGENISUPPORT),1)
     PGENIFILES += $(wildcard $(SRCDIR)/protogeni/*.php)
     PGENIFILES += $(wildcard $(SRCDIR)/protogeni/*.xml)
 endif
-
-WEBDBFILES = $(wildcard $(SRCDIR)/webdb/*.php3)
-WEBDBFILES += $(wildcard $(SRCDIR)/webdb/*.php)
 
 HYFILES  = $(wildcard $(SRCDIR)/hyperviewer/*.php3)
 HYFILES += $(wildcard $(SRCDIR)/hyperviewer/*.html)
@@ -180,7 +173,6 @@ ALLPIXES  = $(notdir $(PIXFILES))
 ALLDOCS   = $(notdir $(DOCFILES))
 ALLTUTS   = $(notdir $(TUTFILES))
 ALLICONS  = $(notdir $(AUTOICONS))
-ALLWEBDB  = $(notdir $(WEBDBFILES))
 ALLPGENI  = $(notdir $(PGENIFILES))
 ALLDOWNLOADS = $(notdir $(DOWNLOADFILES))
 ALLCVSWEB = $(notdir $(CVSWEBFILES))
@@ -191,7 +183,6 @@ ALLHY     = $(notdir $(HYFILES))
 ALLTT     = $(notdir $(TTFILES))
 ALLUM     = $(notdir $(UMFILES))
 ALLJS     = $(notdir $(JSFILES))
-ALLROBO   = $(notdir $(ROBOTRACKFILES))
 ALLWISTATS = $(notdir $(WIRELESSSTATSFILES))
 ALLBLOB   = $(notdir $(BLOBFILES))
 
@@ -201,7 +192,6 @@ INSTALLFILES = $(addprefix $(INSTALL_SBINDIR)/, htmlinstall) \
 	$(addprefix $(INSTALL_WWWDIR)/pix/, $(ALLPIXES)) \
 	$(addprefix $(INSTALL_WWWDIR)/tutorial/, $(ALLTUTS)) \
 	$(addprefix $(INSTALL_WWWDIR)/doc/, $(ALLDOCS)) \
-	$(addprefix $(INSTALL_WWWDIR)/webdb/, $(ALLWEBDB)) \
 	$(addprefix $(INSTALL_WWWDIR)/protogeni/, $(ALLPGENI)) \
 	$(addprefix $(INSTALL_WWWDIR)/downloads/, $(ALLDOWNLOADS)) \
 	$(addprefix $(INSTALL_WWWDIR)/buildui/, $(ALLBUI)) \
@@ -210,7 +200,6 @@ INSTALLFILES = $(addprefix $(INSTALL_SBINDIR)/, htmlinstall) \
 	$(addprefix $(INSTALL_WWWDIR)/timetree/, $(ALLTT)) \
 	$(addprefix $(INSTALL_WWWDIR)/usermap/, $(ALLUM)) \
 	$(addprefix $(INSTALL_WWWDIR)/js/, $(ALLJS)) \
-	$(addprefix $(INSTALL_WWWDIR)/robotrack/, $(ALLROBO)) \
 	$(addprefix $(INSTALL_WWWDIR)/wireless-stats/, $(ALLWISTATS)) \
 	$(addprefix $(INSTALL_WWWDIR)/autostatus-icons/, $(ALLICONS)) \
 	$(addprefix $(INSTALL_WWWDIR)/blob/, $(ALLBLOB)) \

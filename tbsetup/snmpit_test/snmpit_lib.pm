@@ -315,13 +315,16 @@ sub getVlanPorts (@) {
     }
     my @ports = ();
 
-    foreach my $vlanid (@vlans) {	
-        
-    	my $vlan = VLan->Lookup($vlanid);
-    	if (!defined($vlan)) {
+    foreach my $vlanid (@vlans) {
+	my $vlan = $vlanid;
+	
+	if (!ref($vlan)) {
+	    $vlan = VLan->Lookup($vlanid);
+	    if (!defined($vlan)) {
         	die("*** $0:\n".
 		    "    No vlanid $vlanid in the DB!\n");
-    	}
+	    }
+	}
     	my @members;
     	if ($vlan->MemberList(\@members) != 0) {
         	die("*** $0:\n".
@@ -351,19 +354,22 @@ sub getVlanPorts (@) {
 # Returns an an array of trunked ports (in node:card form) used by an
 # experiment
 #
-sub getExperimentTrunks($$) {
-    my ($pid, $eid) = @_;
-    my @ports;
+sub getExperimentTrunks($$@) {
+    my ($pid, $eid, @vlans) = @_;
+    my @ports = ();
 
-    my $query_result =
-	DBQueryFatal("select distinct r.node_id,i.iface from reserved as r " .
-		     "left join interfaces as i on i.node_id=r.node_id " .
-		     "where r.pid='$pid' and r.eid='$eid' and " .
-		     "      i.trunk!=0");
-
-    while (my ($node, $iface) = $query_result->fetchrow()) {
-	$node = Port->LookupByIface($node, $iface);
-	push @ports, $node;
+    #
+    # We want to restrict the set of ports to just those in the
+    # provided vlans, lest we get into a problem with a missing
+    # device from the stack. This became necessary after adding
+    # shared vlans, since those ports technically belong to the
+    # current experiment, but are setup in the context of a
+    # different experiment. Needs more thought though.
+    #
+    my @vlanports = getVlanPorts(@vlans);
+    foreach my $port (@vlanports) {
+	push(@ports, $port)
+	    if ($port->trunk());
     }
     return @ports;
 }
@@ -373,9 +379,23 @@ sub getExperimentTrunks($$) {
 # experiment. These are the ports that are actually in trunk mode,
 # rather then the ports we want to be in trunk mode (above function).
 #
-sub getExperimentCurrentTrunks($$) {
-    my ($pid, $eid) = @_;
-    my @ports;
+sub getExperimentCurrentTrunks($$@) {
+    my ($pid, $eid, @vlans) = @_;
+    my @ports = ();
+
+    #
+    # We want to restrict the set of ports to just those in the
+    # provided vlans, lest we get into a problem with a missing
+    # device from the stack. This became necessary after adding
+    # shared vlans, since those ports technically belong to the
+    # current experiment, but are setup in the context of a
+    # different experiment. Needs more thought though.
+    #
+    my @vlanports = getVlanPorts(@vlans);
+    my %vlanports = ();
+    foreach my $port (@vlanports) {
+	$vlanports{$port->toIfaceString()} = $port;
+    }
 
     my $query_result =
 	DBQueryFatal("select distinct r.node_id,i.iface from reserved as r " .
@@ -384,8 +404,9 @@ sub getExperimentCurrentTrunks($$) {
 		     "      i.tagged!=0");
 
     while (my ($node, $iface) = $query_result->fetchrow()) {
-	$node = Port->LookupByIface($node, $iface);
-	push @ports, $node;
+	if (exists($vlanports{"$node:$iface"})) {
+	    push(@ports, $vlanports{"$node:$iface"});
+	}
     }
     return @ports;
 }

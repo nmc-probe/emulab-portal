@@ -47,6 +47,7 @@ my $DELAYTHRESH   = @DELAYTHRESH@;
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $PGENIRACK     = @PROTOGENI_GENIRACK@;
 my $OURDOMAIN     = "@OURDOMAIN@";
+my $MAINSITE      = @TBMAINSITE@;
 my $mycmurn       = GeniHRN::Generate("@OURDOMAIN@", "authority", "cm");
 
 # Flags.
@@ -1364,19 +1365,24 @@ sub LoadVirtNodes($)
 
 	next
 	    if (! ($vnode->_isvirtnode() && $vnode->_fixedvm()));
-	
+
 	my $fixnode = $self->vnodes()->{$vnode->_fixedvm()};
+
 	#
 	# If the node is fixed to a physical node, skip. This is a
 	# plain old fixnode operation, not our new support for fixing
 	# a VM to a real node in the topology.
 	#
-	if (!defined($fixnode)) {
+	# It is silly to fix a node to yourself, so what this probably
+	# means is that the user really wants to fix to a physical node
+	# of the same name. 
+	#
+	if (!defined($fixnode) || $vnode->_fixedvm() eq $vname) {
 	    # Lets make sure its a real node.
 	    my $fixvname = $vnode->_fixedvm();
 	    
 	    if (!defined(Node->Lookup($fixvname))) {
-		tberror("Cannot fix $vnode to $fixvname; No such node\n");
+		tberror("Cannot fix $vnode to $fixvname; No such phys node\n");
 		return -1;
 	    }
 	    $vnode->_fixedvm(undef);
@@ -1570,6 +1576,25 @@ sub LoadVirtLans($)
 	$vlanmember->_bridged(0);
 
 	#
+	# Look for a sharedvlan setting, which is the name of the
+	# shared vlan that this lan wants its ports put into.
+	#
+	$virtlan->_portvlan(undef);
+	
+	foreach my $lan_setting ($self->virt_lan_settings()->Rows()) {
+	    next
+		if ($vlanname ne $lan_setting->vname());
+
+	    my $capkey = $lan_setting->capkey();
+	    my $capval = $lan_setting->capval();
+
+	    if ($capkey eq "sharedvlan" || $capkey eq "portvlan") {
+		$virtlan->_portvlan($capval);
+		last;
+	    }
+	}
+	
+	#
 	# XXX - Whenever a delay node is inserted, port speeds are set to
 	#       the next fastest interface type we have, even if they requested
 	#       exactly some speed that can be done without a delay node such
@@ -1605,6 +1630,56 @@ sub LoadVirtLans($)
 	    $vlanmember->_nobwshaping(1);
 	    $self->printdb("  Forcing $vlanmember to reserve shared bandwidth\n");
 	}
+    }
+
+    #
+    # Sanity check the shared lan requests.
+    #
+    foreach my $virtlan (values(%{ $self->vlans() })) {
+	next
+	    if (!defined($virtlan->_portvlan()));
+
+	my $porttoken = $virtlan->_portvlan();
+
+	#
+	# Map the token.
+	#
+	my $rowref = Lan->LookupSharedVLanByToken($porttoken);
+	if (!defined($rowref)) {
+	    tberror("No shared vlan exists for $porttoken!\n");
+	    return -1;
+	}
+	my $portvlan = VLan->Lookup($rowref->{'lanid'});
+	if (!defined($portvlan)) {
+	    tberror("Target vlan for $porttoken does not exist!\n");
+	    return -1;
+	}
+	# Very primitive access check.
+	if (! ($rowref->{'open'} || $self->user()->IsAdmin())) {
+	    tberror("Target vlan for $porttoken is not open!\n");
+	    return -1;
+	}
+
+	#
+	# Oh this is bogus; Utah's Ciscos run firmware that dates back to
+	# the age of the dinosaurs, and so we cannot do vlans greater
+	# then 1000 on them. This means that we have to put a feature
+	# on those nodes that are attached to switches that *are* able
+	# to (the procurves).
+	#
+	if ($MAINSITE) {
+	    my $tag = $portvlan->GetTag();
+	    if (defined($tag) && $tag > 1000) {
+		#
+		# Add a desire to all of the nodes.
+		#
+		foreach my $member ($virtlan->memberlist()) {
+		    $member->virt_node()->_desires()->{"highvlan"} = "1.0";
+		}
+	    }
+	}
+	# Convert to actual object for later
+	$virtlan->_portvlan($portvlan);
     }
 
     #
@@ -2655,57 +2730,13 @@ sub GenVirtLans($)
 		next;
 	    }
 	}
-	elsif (@members == 1) {
+	elsif (defined($vlan->_portvlan())) {
 	    #
 	    # Special case that we use to connect a port to a vlan
 	    # in another experiment. There is no delay or other stuff.
 	    #
-	    my $member     = $members[0];
-	    my $lannode    = "portlan/$vname";
-	    my $virtnode   = $member->virt_node();
-	    my $vnodevname = $virtnode->vname();
-	    my $porttoken;
-
-	    #
-	    # Need to map the name of the lan we want to join, to
-	    # a real vlan object. 
-	    #
-	    foreach my $lan_setting ($self->virt_lan_settings()->Rows()) {
-		next
-		    if ($vname ne $lan_setting->vname());
-
-		my $capkey = $lan_setting->capkey();
-		my $capval = $lan_setting->capval();
-
-		if ($capkey eq "portvlan") {
-		    $porttoken = $capval;
-		    last;
-		}
-	    }
-	    if (!defined($porttoken)) {
-		tberror("No target vlan for $vname!\n");
-		return -1;
-	    }
-	    #
-	    # Map the token.
-	    #
-	    my $rowref = Lan->LookupSharedVLanByToken($porttoken);
-	    if (!defined($rowref)) {
-		tberror("No shared vlan exists for $porttoken!\n");
-		return -1;
-	    }
-	    my $portvlan = Lan->Lookup($rowref->{'lanid'});
-	    if (!defined($portvlan)) {
-		tberror("Target vlan for $porttoken does not exist!\n");
-		return -1;
-	    }
-	    # Very primitive access check.
-	    if (! ($rowref->{'open'} || $self->user()->IsAdmin())) {
-		tberror("Target vlan for $porttoken is not open!\n");
-		return -1;
-	    }
-	    $vlan->_portvlan($portvlan);
-
+	    my $lannode  = "portlan/$vname";
+	    
 	    # Lan node for assign.
 	    $self->createNode($lannode, $mycmurn, "lan", '1', '',
 			      { 'virtualization_type' => 'raw' });
@@ -2713,15 +2744,19 @@ sub GenVirtLans($)
 	    # So we ignore it when it comes back from assign.
 	    $self->lannodes()->{$lannode} = 1;
 
-	    my $others = {};
-	    my $plink  = "portlan/$vname/$member";
+	    foreach my $member (@members) {
+		my $virtnode   = $member->virt_node();
+		my $vnodevname = $virtnode->vname();
+		my $others     = {};
+		my $plink      = "portlan/$vname/$member";
 
-	    $self->createLink($vname, $plink,
-			      [$virtnode->_cmurn()],
-			      {'virtual_node_id' => $vnodevname,
-			       'virtual_interface_id' =>"$member" },
-			      {'virtual_node_id' => $lannode },
-			      '*', $protocol, $others);
+		$self->createLink($vname, $plink,
+				  [$virtnode->_cmurn()],
+				  {'virtual_node_id' => $vnodevname,
+				   'virtual_interface_id' =>"$member" },
+				  {'virtual_node_id' => $lannode },
+				  '*', $protocol, $others);
+	    }
 	}
 	elsif (@members == 2 && !$vlan->_bridged()) {
 	    #

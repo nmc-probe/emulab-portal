@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007, 2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use Getopt::Std;
@@ -42,6 +42,8 @@ my $PUBLIC_NETWORK     = "@PUBLIC_NETWORK@";
 my $PUBLIC_ROUTER      = "@PUBLIC_ROUTER@";
 my $PUBLIC_NETMASK     = "@PUBLIC_NETMASK@";
 my $NAMED_FORWARDERS   = "@NAMED_FORWARDERS@";
+my $VIRTNODE_NETWORK   = "@VIRTNODE_NETWORK@";
+my $VIRTNODE_NETMASK   = "@VIRTNODE_NETMASK@";
 
 # Testbed libraries.
 use lib "@prefix@/lib";
@@ -57,14 +59,28 @@ my ($ia, $ib, $ic, $id) =
     ($TESTBED_NETWORK =~ /(\d+)\.(\d+)\.(\d+)\.(\d+)/);
 my ($ea, $eb, $ec, $ed) =
     ($EXTERNAL_TESTBED_NETWORK =~ /(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+my ($ja, $jb, $jc, $jd) =
+    ($VIRTNODE_NETWORK =~ /(\d+)\.(\d+)\.(\d+)\.(\d+)/);
 
 my ($ima, $imb, $imc, $imd) =
     ($TESTBED_NETMASK =~ /(\d+)\.(\d+)\.(\d+)\.(\d+)/);
-
 my ($ema, $emb, $emc, $emd) =
     ($EXTERNAL_TESTBED_NETMASK =~ /(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+my ($jma, $jmb, $jmc, $kmd) =
+    ($VIRTNODE_NETMASK =~ /(\d+)\.(\d+)\.(\d+)\.(\d+)/);
 
 $infile = shift @ARGV || exit &usage;
+
+#
+# Generate maps for the jail network. 
+#
+for (my $i = $jb; $i <= $jb + (255 - $jmb); $i++) {
+    my $internal_revfile = "${ja}.${i}.db.head";
+
+    print "Generating internal reverse lookup file ...\n";
+    system("cp -f reverse.head $internal_revfile") == 0 or
+	die("Unable to copy $infile to $internal_revfile\n");
+}
 
 #
 # Generate a set of maps for all indicies in the 3rd octet.

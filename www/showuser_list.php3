@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -50,22 +50,25 @@ echo "<b>Show: <a href='showuser_list.php3?showtype=loggedin'>loggedin</a>,
                <a href='showuser_list.php3?showtype=all'>all</a>.</b>\n";
 
 #
-# Spit out a search form!
+# Spit out a search form.
 #
+$clean_showtype  = CleanString($showtype);
+$clean_searchfor = CleanString($searchfor);
 echo "<form action=showuser_list.php3 method=post>
       <input type=text
              name=searchfor
-             value=\"$searchfor\"
+             value=\"$clean_searchfor\"
              size=20
    	     maxlength=50>
-      <input type=hidden name=showtype value=\"$showtype\">
+      <input type=hidden name=showtype value=\"$clean_showtype\">
       <b><input type=submit name=search value=Search></b>\n";
 echo "<br><br>\n";
 
 if (isset($searchfor) && strcmp($searchfor, "")) {
     $clause  = "";
-    $where   = "where (u.usr_name like '%${searchfor}%' or ".
-	"u.usr_email like '%${searchfor}%' or u.uid like '%${searchfor}%') ";
+    $search  = addslashes("%${searchfor}%");
+    $where   = "where (u.usr_name like '$search' or ".
+	"u.usr_email like '$search' or u.uid like '$search') ";
     $showtag = "matching";
 }
 elseif (! strcmp($showtype, "all")) {

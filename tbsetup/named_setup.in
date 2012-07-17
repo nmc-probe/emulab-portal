@@ -23,6 +23,7 @@ use strict;
 sub assemble_zonefile($);
 sub make_forward_zonefile($$$);
 sub isroutable($);
+sub IsJailIP($);
 sub process_nodes($);
 
 #
@@ -33,9 +34,11 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $USERS	= "@USERNODE@";
 my $DISABLED    = "@DISABLE_NAMED_SETUP@";
 my $OURDOMAIN   = "@OURDOMAIN@";
+my $VIRTNODE_NETWORK   = "@VIRTNODE_NETWORK@";
+my $VIRTNODE_NETMASK   = "@VIRTNODE_NETMASK@";
 
 my $mapdir			= "/etc/namedb";
-my $mapfile			= "$mapdir/${OURDOMAIN}.db";
+my $mapfile			= "${mapdir}/${OURDOMAIN}.db";
 my $mapfiletail			= "$mapfile.tail";
 my $mapfile_internal		= "$mapdir/${OURDOMAIN}.internal.db";
 my $mapfile_internal_head	= "$mapfile_internal.head";
@@ -237,7 +240,8 @@ if (-e $mapfile_internal_head) {
 #
 opendir(DIR,$reversedir) or fatal("Unable to open directory $reversedir\n");
 while (my $dirent = readdir(DIR)) {
-    if ($dirent !~ /((\d+\.\d+\.\d+).*\.db)\.head/) {
+    if (! (($dirent =~ /((\d+\.\d+\.\d+).*\.db)\.head/) ||
+           ($dirent =~ /((\d+\.\d+).*\.db)\.head/))) {
 	next;
     }
     my $subnet = $2;
@@ -245,11 +249,24 @@ while (my $dirent = readdir(DIR)) {
 
     my $filename = "$reversedir/$basename.tail";
     open MAP, ">$filename" || fatal("Couldn't open $filename: $!\n");
-    if ($reverse{$subnet}) {
-	foreach my $aref (sort {$$a[0] <=> $$b[0]} @{$reverse{$subnet}}) {
-	    my ($host, $name) = @$aref;
-	    printf MAP "$host\tIN\tPTR\t$name.$OURDOMAIN.\n";
-	}
+    if (exists($reverse{$subnet})) {
+        if ($subnet =~ /^(\d+)\.(\d+)$/) {
+            my $classb = $reverse{$subnet};
+            foreach my $classc (keys(%{$reverse{$subnet}})) {
+                print MAP "\$ORIGIN ${classc}.${2}.${1}.in-addr.arpa.\n";
+                foreach my $aref (@{$reverse{$subnet}->{$classc}}) {
+	            my ($host, $name) = @$aref;
+	            printf MAP "$host\tIN\tPTR\t$name.$OURDOMAIN.\n";
+                }
+                print MAP "\n";
+            }
+        }
+        else {
+	    foreach my $aref (sort {$$a[0] <=> $$b[0]} @{$reverse{$subnet}}) {
+	        my ($host, $name) = @$aref;
+	        printf MAP "$host\tIN\tPTR\t$name.$OURDOMAIN.\n";
+	    }
+        }
     }
     close MAP;
 
@@ -337,12 +354,29 @@ sub process_nodes($) {
 	#
 	# Put it into a map so we can generate the reverse zone file later
 	#
-	$IP =~ /(\d+\.\d+\.\d+)\.(\d+)/;
-	if ($1 && $2) {
+	# We use a Class C for the jail network, which complicates the
+	# reverse zone generation.
+	#
+	if (IsJailIP($IP)) {
+	    $IP =~ /(\d+\.\d+)\.(\d+)\.(\d+)/;
+	    my $classb = $1;
+	    my $subnet = $2;
+	    my $host   = $3;
+
+	    if (!exists($reverse{"$classb"})) {
+		$reverse{"$classb"} = {};
+	    }
+	    if (!exists($reverse{"$classb"}->{$subnet})) {
+		$reverse{"$classb"}->{$subnet} = [];
+	    }
+	    push(@{$reverse{"$classb"}->{$subnet}}, [$host, $node_id]);
+	}
+	elsif ($IP =~ /(\d+\.\d+\.\d+)\.(\d+)/) {
 	    my $subnet = $1;
 	    my $host = $2;
 	    push @{$reverse{$subnet}}, [$host, $node_id];
-	} else {
+	}
+	else {
 	    warn "Poorly formed IP address $IP\n";
 	}
     }
@@ -548,3 +582,18 @@ sub isroutable($)
 
     return 1;
 }
+
+#
+# IsJailIP()
+#
+sub IsJailIP($)
+{
+    my ($IP)  = @_;
+
+    return 1
+	if (inet_ntoa((inet_aton($IP) & inet_aton($VIRTNODE_NETMASK))) eq
+	    $VIRTNODE_NETWORK);
+
+    return 0;
+}
+

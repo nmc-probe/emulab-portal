@@ -1,7 +1,7 @@
 <?PHP
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003, 2004, 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 require("defs.php3");
@@ -33,10 +33,26 @@ $optargs = OptionalPageArguments("node_id",    PAGEARG_STRING,
 #
 PAGEHEADER("New Testbed Node");
 
+if (!TBvalid_node_id($id)) {
+    PAGEARGERROR("Invalid id");
+}
+
 #
 # If we had any update information passed to us, do the update now
 #
 if (isset($node_id)) {
+    if (!TBvalid_node_id($node_id)) {
+	PAGEARGERROR("Invalid node id");
+    }
+    if (!TBvalid_node_type($type)) {
+	PAGEARGERROR("Invalid node type");
+    }
+    if (!TBvalid_IP($IP)) {
+	PAGEARGERROR("Invalid node IP");
+    }
+    if (!TBvalid_userdata($identifier)) {
+	PAGEARGERROR("Invalid node identifier");
+    }
     DBQueryFatal("UPDATE new_nodes SET node_id='$node_id', type='$type', " .
     	"IP='$IP', identifier='$identifier' WHERE new_node_id='$id'");
 }
@@ -47,13 +63,13 @@ if (isset($node_id)) {
 foreach ($HTTP_GET_VARS as $key => $value) {
     if (preg_match("/iface(\d+)_mac/",$key,$matches)) {
     	$card        = $matches[1];
-    	$mac         = $HTTP_GET_VARS["iface${card}_mac"];
-    	$type        = $HTTP_GET_VARS["iface${card}_type"];
-    	$switch_id   = $HTTP_GET_VARS["iface${card}_switch_id"];
-    	$switch_card = $HTTP_GET_VARS["iface${card}_switch_card"];
-    	$switch_port = $HTTP_GET_VARS["iface${card}_switch_port"];
-    	$cable       = $HTTP_GET_VARS["iface${card}_cable"];
-    	$len         = $HTTP_GET_VARS["iface${card}_len"];
+    	$mac         = addslashes($HTTP_GET_VARS["iface${card}_mac"]);
+    	$type        = addslashes($HTTP_GET_VARS["iface${card}_type"]);
+    	$switch_id   = addslashes($HTTP_GET_VARS["iface${card}_switch_id"]);
+    	$switch_card = addslashes($HTTP_GET_VARS["iface${card}_switch_card"]);
+    	$switch_port = addslashes($HTTP_GET_VARS["iface${card}_switch_port"]);
+    	$cable       = addslashes($HTTP_GET_VARS["iface${card}_cable"]);
+    	$len         = addslashes($HTTP_GET_VARS["iface${card}_len"]);
     	DBQueryFatal("UPDATE new_interfaces SET mac='$mac', " .
 	    "interface_type='$type', switch_id='$switch_id', " .
 	    "switch_card='$switch_card', switch_port='$switch_port', " .

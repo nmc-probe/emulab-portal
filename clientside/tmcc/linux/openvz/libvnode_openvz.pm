@@ -887,14 +887,15 @@ sub vz_vnodeCreate {
 		    $vdsize <= $rootSize);
 	}
 
-	print STDERR "Using LVM with root size $rootSize MB, snapshot size $snapSize MB.\n";
+	print STDERR "Using LVM with root size $rootSize MB, ".
+	    "snapshot size $snapSize MB.\n";
 
 	# we must have the lock, so if we need to return right away, unlock
 	if (-e $imagelockpath) {
 	    TBScriptUnlock();
 	}
 	else {
-	    if ($DOSNAP) {
+	    if (1) {
 		#
 		# If there is already a logical device for this image, then
 		# need to GC or rename it (might be in use). Note that a
@@ -915,12 +916,13 @@ sub vz_vnodeCreate {
 		mysystem("lvcreate $LVMDEBUGOPTS ".
 			 "  -L${rootSize}M -n $image openvz");
 		mysystem("mkfs -t ext3 /dev/openvz/$image");
-		mysystem("mkdir -p /tmp/mnt/$image");
-		mysystem("mount /dev/openvz/$image /tmp/mnt/$image");
-		mysystem("mkdir -p /tmp/mnt/$image/root ".
-			 "         /tmp/mnt/$image/private");
-		mysystem("tar -xzf $imagepath -C /tmp/mnt/$image/private");
-		mysystem("umount /tmp/mnt/$image");
+		mysystem("mkdir -p /mnt/$image");
+		mysystem("mount /dev/openvz/$image /mnt/$image");
+		mysystem("mkdir -p /mnt/$image/root ".
+			 "         /mnt/$image/private");
+		mysystem("tar -xzf $imagepath -C /mnt/$image/private");
+		mysystem("umount /mnt/$image")
+		    if ($DOSNAP);
 	    }
 	    # ok, we're done
 	    mysystem("mkdir -p /var/emulab/run");
@@ -953,8 +955,16 @@ sub vz_vnodeCreate {
 		    if (! -e "/mnt/$vnode_id");
 		mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
 		mysystem("mkdir -p /mnt/$vnode_id/root /mnt/$vnode_id/private");
-		mysystem("tar -xzf $imagepath -C /mnt/$vnode_id/private");
-		mysystem("umount /mnt/$vnode_id");
+		TBDebugTimeStampWithDate("untaring to /mnt/$vnode_id");
+		if (0) {
+		    mysystem("tar -xzf $imagepath -C /mnt/$vnode_id/private");
+		}
+		else {
+		    mysystem("cd /mnt/$image/private; ".
+			     "tar -b 64 -cf - . | ".
+			     "tar -b 64 -xf - -C /mnt/$vnode_id/private");
+		}
+		TBDebugTimeStampWithDate("untar done");
 	    }
 	}
 	mysystem("mkdir -p /mnt/$vnode_id")
@@ -1343,7 +1353,7 @@ sub vz_vnodePreConfig {
     #
     my $status = vmstatus($vmid);
     my $didmount = 0;
-    if ($status ne 'running' && $status ne 'mounted') {
+    if (!$DOLVM && ($status ne 'running' && $status ne 'mounted')) {
 	vz_vnodeMount($vnode_id, $vmid, $vnconfig, $private);
 	$didmount = 1;
     }
@@ -1358,7 +1368,7 @@ sub vz_vnodePreConfig {
     }
     my $ret = &$callback("$privroot");
     TBScriptUnlock();
-    if ($didmount) {
+    if (!$DOLVM && $didmount) {
 	vz_vnodeUnmount($vnode_id, $vmid, $vnconfig, $private);
     }
     return $ret;
@@ -1495,10 +1505,7 @@ sub vz_vnodePreConfigControlNetwork {
     #
     my $status = vmstatus($vmid);
     my $didmount = 0;
-    if ($status ne 'running' && $status ne 'mounted') {
-	if ($DOLVM) {
-	    system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
-	}
+    if (!$DOLVM && ($status ne 'running' && $status ne 'mounted')) {
 	vz_vnodeMount($vnode_id, $vmid, $vnconfig, $private);
 	$didmount = 1;
     }
@@ -1651,7 +1658,7 @@ sub vz_vnodePreConfigControlNetwork {
     #
     mysystem("cp -R /var/emulab/boot/tmcc.$vnode_id $mybootdir/");
 
-    if ($didmount) {
+    if (!$DOLVM && $didmount) {
 	vz_vnodeUnmount($vnode_id, $vmid, $vnconfig, $private);
     }
 
@@ -2218,6 +2225,9 @@ sub GClvm($)
     my $oldest   = 0;
     my $inuse    = 0;
     my $found    = 0;
+
+    mysystem("umount /mnt/$image")
+	if (-e "/mnt/$image/private");
 
     if (! open(LVS, "lvs --noheadings -o lv_name,origin openvz |")) {
 	print STDERR "Could not start lvs\n";

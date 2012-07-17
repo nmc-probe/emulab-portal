@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2003, 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -154,17 +154,17 @@ while (list ($uid_idx, $grouplist) = each ($approvelist)) {
 	$date_applied = "--";
     }
 
-    $name	= $user->name();
-    $email	= $user->email();
-    $title	= $user->title();
-    $affil	= $user->affil();
-    $addr	= $user->addr();
-    $addr2	= $user->addr2();
-    $city	= $user->city();
-    $state	= $user->state();
-    $zip	= $user->zip();
-    $country	= $user->country();
-    $phone	= $user->phone();
+    $name	= CleanString($user->name());
+    $email	= CleanString($user->email());
+    $title	= CleanString($user->title());
+    $affil	= CleanString($user->affil());
+    $addr	= CleanString($user->addr());
+    $addr2	= CleanString($user->addr2());
+    $city	= CleanString($user->city());
+    $state	= CleanString($user->state());
+    $zip	= CleanString($user->zip());
+    $country	= CleanString($user->country());
+    $phone	= CleanString($user->phone());
 
      echo "<tr>
               <td rowspan=2>$newuid</td>

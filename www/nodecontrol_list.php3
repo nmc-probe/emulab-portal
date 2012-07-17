@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -64,13 +64,6 @@ if ($isadmin) {
 echo ".</b><br>\n";
 
 echo "<b>Map views: <a href='floormap.php3'>wireless</a>";
-if ($TBMAINSITE) {
-    echo ", <a href='floormap.php3?feature=usrp'>
-              GNU USRP</a>,
-            <a href='floormap.php3?feature=usrp2'>
-              USRP2</a> (software defined radio),
-            <a href='robotmap.php3'>robot</a>";
-}
 echo ".</b><br>\n";
 
 if (!isset($showtype)) {

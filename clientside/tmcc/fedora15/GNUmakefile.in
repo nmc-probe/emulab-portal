@@ -80,6 +80,7 @@ etc-install:	dir-install sysetc-remove sysetc-install
 	$(INSTALL) -m 600 $(SRCDIR)/gshadow $(ETCDIR)/gshadow
 	$(INSTALL) -m 755 $(SRCDIR)/rc.local $(RCDIR)/rc.local
 	$(INSTALL) -m 755 $(SRCDIR)/testbed $(RCDIR)/init.d/testbed
+	$(INSTALL) -m 644 $(SRCDIR)/logrotate-syslog $(ETCDIR)/logrotate.d/syslog
 	@echo "fedora-specific etc-install done"
 
 sysetc-install:	ifcfgs dir-install

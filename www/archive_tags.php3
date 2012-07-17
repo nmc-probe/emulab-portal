@@ -142,7 +142,7 @@ while ($row = mysql_fetch_assoc($query_result)) {
 
     echo "<tr>";
     echo "  <td align=center>
-                <a href=beginexp_html.php3?copyid=$exptidx:$archive_tag>
+                <a href=beginexp.php?copyid=$exptidx:$archive_tag>
                     <img border=0 alt=Run src=greenball.gif></a></td>";
     echo "  <td>".
 	     "<a href='$archive_view'>$archive_tag</a>".

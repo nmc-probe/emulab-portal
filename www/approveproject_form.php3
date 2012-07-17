@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -228,7 +228,7 @@ echo "<tr>
          <td align=center class=left>
              <textarea name=message rows=15 cols=70>";
 if (isset($message)) {
-    echo ereg_replace("\r", "", $message);
+    echo ereg_replace("\r", "", CleanString($message));
 }
 echo "</textarea>
          </td>

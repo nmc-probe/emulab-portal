@@ -1,6 +1,6 @@
 [Unit]
 Description=Network Time Service
-After=syslog.target ntpdate.service
+After=syslog.target network.target
 
 [Service]
 EnvironmentFile=/etc/sysconfig/ntpd

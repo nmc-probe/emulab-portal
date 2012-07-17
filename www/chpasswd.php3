@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2007, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -81,6 +81,8 @@ function SPITFORM($target_user, $key, $failed, $simple, $view)
     PAGEHEADER("Reset Your Password", $view);
 
     if ($failed) {
+	# XSS prevention
+	$failed = CleanString($failed);
 	echo "<center>
               <font size=+1 color=red>
               $failed. Please try again.
@@ -96,7 +98,7 @@ function SPITFORM($target_user, $key, $failed, $simple, $view)
     }
 
     $chpass_url = CreateURL("chpasswd", $target_user,
-			    "key", $key, "simple", $simple);
+			    "key", urlencode($key), "simple", $simple);
 	
     echo "<table align=center border=1>
           <form action='${TBBASE}/$chpass_url' method=post>\n";
