@@ -76,6 +76,7 @@ use constant LIMIT_BW_MED =>  10000000;
 use constant LIMIT_BW_LO  =>   1000000;
 use constant LIMIT_BW_MIN =>     64000;
 use constant LIMIT_BW_LOSS => 0.20;
+use constant LIMIT_BW_HI_Windows => 40000000;
 
 # Make sure that we dont get bogged down in being too accurate! 
 # Make sure the error is a certain significance before we start reporting it.
@@ -334,6 +335,7 @@ my $PATH_SCHEDFILE = "$VARDIR/logs/linktest.sched";
 my $PATH_SYNCSERVER = "$VARDIR/boot/syncserver";
 my $PATH_TOPOFILE = "$VARDIR/boot/ltmap";
 my $PATH_PTOPOFILE = "$VARDIR/boot/ltpmap";
+my $PATH_WINPING = "/cygdrive/c/windows/system32/ping.exe";
 
 my $schedfile = $PATH_SCHEDFILE;
 if ($printsched) {
@@ -1200,7 +1202,11 @@ sub ping_node {
     } elsif($platform =~ /CYGWIN/) {
 	# Neither Windows nor Cygwin ping has either send rate or timeout.
 	# Windows ping doesn't have -q, but it does have TTL, so use it.
-	$cmd = "/cygdrive/c/WINDOWS/system32/ping.exe -n $send_count $ttlarg $host";
+	$cmd = "$PATH_WINPING -n $send_count $ttlarg $host";
+	# Prime the proverbial pump since the first ping on Windows can be
+	# wildly off.
+	&debug("Running priming ping on Windows...");
+	&my_system(split(/\s+/,"$PATH_WINPING -n 2 $ttlarg $host"));
     }
 
     # note backticks passes SIGINT to child procs
@@ -1567,7 +1573,8 @@ sub latency_test {
 sub valid_bw {
     my $edge = shift @_;
     if($edge->bw >= LIMIT_BW_MIN
-       && $edge->bw <= LIMIT_BW_HI
+       && $edge->bw <= (($platform =~ /CYGWIN/) ? 
+			LIMIT_BW_HI_Windows : LIMIT_BW_HI)
        && $edge->loss <= LIMIT_BW_LOSS
        ) {
 	return TRUE;
@@ -1587,6 +1594,9 @@ sub bw_test {
     my $bw_error_low = (($platform =~ /CYGWIN/) ? 
 			INSIGNIFICANT_BW_ERROR_LO_Windows : 
 			INSIGNIFICANT_BW_ERROR_LO);
+    my $bw_limit_hi  = (($platform =~ /CYGWIN/) ?
+			LIMIT_BW_HI_Windows :
+			LIMIT_BW_HI);
 
     #
     # all nodes will execute the same reductions on the edge list
@@ -1628,7 +1638,7 @@ sub bw_test {
 			      &print_link($edge) . "\n");
 			&info("*** Bandwidth is out of range ".
 			      "(" . LIMIT_BW_LO . " <= BW <= " .
-			      LIMIT_BW_HI .") ". "or loss is too high (> " .
+			      $bw_limit_hi .") ". "or loss is too high (> " .
 			      LIMIT_BW_LOSS . ").\n");
 		    }
 		}
@@ -1655,7 +1665,7 @@ sub bw_test {
 			      &print_link($redge) . "\n");
 			&info("*** Bandwidth is out of range ".
 			      "(" . LIMIT_BW_LO . " <= BW <= " .
-			      LIMIT_BW_HI .") ". "or loss is too high (> " .
+			      $bw_limit_hi .") ". "or loss is too high (> " .
 			      LIMIT_BW_LOSS . ").\n");
 		    }
 		}
