@@ -6879,18 +6879,9 @@ sub NewVirtIface($$$$;$)
     }
 
     #
-    # Random/Unique mac address.
-    #
-    my $mac = GenFakeMac();
-    if (!defined($mac)) {
-	tberror("Could not generate fake mac!\n");
-	return undef;
-    }
-
-    #
     # Create new virtiface in the DB.
     #
-    my %argref = ("mac"    => $mac,
+    my %argref = ("mac"    => "genfake",
 		  "IP"     => $ip,
 		  "mask"   => $mask,
 		  "type"   => $type,
@@ -6909,7 +6900,7 @@ sub NewVirtIface($$$$;$)
     if (!defined($virtiface)) {
 	return undef;
     }
-    $self->printdb("$virtiface: $member, isvdev:$isvdev, isveth:$isveth, $mac\n");
+    $self->printdb("$virtiface: $member, isvdev:$isvdev, isveth:$isveth\n");
     my $newid = $virtiface->unit();
 
     # Record this vinterface mapping.
