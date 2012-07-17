@@ -2753,7 +2753,8 @@ sub ReserveVlanTag($$;$$)
     $force      = 0 if (!defined($force));
 
     DBQueryWarn("lock tables lan_attributes write, lans write, ".
-		"            reserved_vlantags write, vlans read")
+		"            reserved_vlantags write, vlans read, ".
+		"            vlantag_history write")
 	or return undef;
 
     #
@@ -2787,6 +2788,12 @@ sub ReserveVlanTag($$;$$)
 			 "  lanid='$lanid', tag='$tag', vname='$vname', ".
 			 "  pid='$pid', eid='$eid', exptidx='$exptidx', ".
 			 "  reserve_time=now()"));
+    #
+    # Insert a history record.
+    #
+    DBQueryWarn("insert into vlantag_history set history_id=NULL, ".
+		"  lanid='$lanid', tag='$tag', lanname='$vname', ".
+		"  exptidx='$exptidx', allocated=UNIX_TIMESTAMP(now())");
   isfree:
     DBQueryWarn("unlock tables");
     return $tag;
@@ -2804,6 +2811,16 @@ sub ClearReservedVlanTag($;$)
     my ($arg, $tag) = @_;
     my $lanid  = (ref($arg) ? $arg->lanid() : $arg);
     my $clause = (defined($tag) ? "and tag='$tag'" : "");
+
+    #
+    # Update history record(s), but if not told the tag, have to
+    # modify records for all of them. The only time there would be
+    # more then one tag in the table, is when doing a block allocate
+    # for Protogeni stitching.
+    #
+    DBQueryWarn("update vlantag_history set released=UNIX_TIMESTAMP(now()) ".
+		"where lanid='$lanid' $clause")
+	or return -1;
 
     DBQueryWarn("delete from reserved_vlantags where lanid='$lanid' $clause")
 	or return -1;

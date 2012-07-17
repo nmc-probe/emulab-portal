@@ -2348,7 +2348,7 @@ sub CreateVnodes($$$)
 		"port"      => 1,
 		"iface"     => "eth0",
 		"role"      => TBDB_IFACEROLE_CONTROL(),
-		"MAC"       => GenFakeMac(),
+		"MAC"       => "genfake",
 		"IP"        => $jailip,
 		"mask"      => $jailmask,
 		"type"      => "generic",
