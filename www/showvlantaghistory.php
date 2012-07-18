@@ -117,7 +117,7 @@ else {
     echo "<a href='showvlantaghistory.php?$opts&when=current'>".
 	"Current</a>, ";
 }
-if ($when == "Epoch") {
+if ($when == "epoch") {
     echo "Epoch";
 }
 else {
@@ -219,12 +219,18 @@ if (mysql_num_rows($query_result)) {
 	$pid     = $row{"pid"};
 	$eid     = $row{"eid"};
 	$alloc   = $row{"allocated"};
-	$free    = $row{"released"};
-	$id      = $row{"history_id"};
+	$id      = 0;
 	$slice   = "--";
 
-	if (!$free)
+	if (isset($row{"released"})) {
+	    $free = $row{"released"};
+	}
+	else {
 	    $free = "&nbsp";
+	}
+	if (isset($row{"history_id"})) {
+	    $id = $row{"history_id"};
+	}
 
 	$experiment = Experiment::Lookup($exptidx);
 	$experiment_stats = ExperimentStats::Lookup($exptidx);
