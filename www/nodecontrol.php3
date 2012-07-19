@@ -47,7 +47,7 @@ PAGEHEADER("Node Control Form");
 #
 # Check each parameter. Also note that when setting/clearing values,
 # send the argument to the backend script *only when changed*
-<#
+#
 $command_string = "";
 
 if ($def_boot_osid != $node->def_boot_osid()) {
