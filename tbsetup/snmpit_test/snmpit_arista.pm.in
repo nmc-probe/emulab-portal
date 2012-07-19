@@ -23,8 +23,11 @@ use libtestbed;
 use Lan;
 use Port;
 use Data::Dumper;
+use RPC::XML;
+use RPC::XML::Client;
 
-# OIDs:
+# Configure variables:
+my $RPCPORT  = "@ARISTA_SWITCH_XMLRPCPORT@";
 
 #
 # Port status and control.
@@ -46,9 +49,13 @@ my $VLAN_ID_PREFIX = "EV_";
 #
 # 1. Port used by SNMP OID: (slot*1000)+port
 # 2. Port class instance.
+# 3. Port used by SysDB on Arista switch, "EthernetX/Y", X: module/layer/level/slot, Y: port
+#
+# NOTE: switch side port module # starts from 1, not 0
 #
 my $PORT_FORMAT_IFINDEX   = 1;
 my $PORT_FORMAT_PORT      = 2;
+my $PORT_FORMAT_SYSDB     = 3;
 
 #
 # Creates a new object. 
@@ -120,13 +127,21 @@ sub new($$$;$) {
 
     # Placeholder for SNMP session object
     $self->{SESS} = 0;
+
+    # Placeholder for XML-RPC client
+    $self->{CLT} = 0;
     
     # Make it a class object
     bless($self, $class);
 
     # Create SNMP session
-    if (!$self->initSession()) {
+    if (!$self->initSNMPSession()) {
 	return undef;
+    }
+
+    # Create XML-RPC session client
+    if (!$self->initRPCSession()) {
+	return undef; 
     }
 
     #
@@ -146,7 +161,7 @@ sub new($$$;$) {
 # Sometime after an SNMP op failure, following SNMP ops will also fail
 # , we simply create a new one to overcome such annoying problem.
 #
-sub initSession($) {
+sub initSNMPSession($) {
     my $self = shift;
 
     $self->{SESS} = new SNMP::Session(DestHost => $self->{NAME},Version => "2c",
@@ -164,9 +179,48 @@ sub initSession($) {
     return 1;
 }
 
+#
+# Initialize XML-RPC client object
+#
+sub initRPCSession($) {
+    my $self = shift;
+
+    $self->{CLT} = RPC::XML::Client->new("http://".$self->{NAME}."$RPCPORT");
+    if (!$self->{CLT}) {
+	warn "WARNING: Unable to connect to XML RPC server at $self->{NAME}\n";
+	return 0;
+    }
+
+    return 1;
+}
+
+sub sysdb2Ifindex($$) {
+    my ($self, $sbport) = @_;
+
+    if ($sbport =~ /^Ethernet(\d+)\/(\d+)$/) {
+	return $1*1000 + $2;
+    }
+
+    return undef;
+}
+
+sub sysdb2PortInstance($$) {
+    my ($self, $sbport) = @_;
+
+    if ($sbport =~ /^Ethernet(\d+)\/(\d+)$/) {
+	return Port->LookupByStringForced(
+	    Port->Tokens2TripleString(
+		$self->{NAME},
+		$1,
+		$2));
+    }
+
+    return undef;
+}
+
 
 #
-# Converting port formats, see port format explainations above.
+# Converting port formats.
 #
 sub convertPortFormat($$@) {
     my $self = shift;
@@ -192,6 +246,8 @@ sub convertPortFormat($$@) {
     my $input = undef;
     if (Port->isPort($sample)) {
 	$input = $PORT_FORMAT_PORT;
+    } elsif ($sample =~ /^Ethernet/) {
+	$input = $PORT_FORMAT_SYSDB;
     } else {
 	$input = $PORT_FORMAT_IFINDEX;
     }
@@ -205,10 +261,36 @@ sub convertPortFormat($$@) {
 
     if ($input == $PORT_FORMAT_PORT) {
 	my @swports = map $_->getEndByNode($self->{NAME}), @ports;
-	# TODO
+
+	if ($output == $PORT_FORMAT_IFINDEX) {
+	    my @ifports = map {$_->card()*1000 +  $_->port()}, @swports;
+	    return @ifports;
+	} else {
+	    my @sysdbports = map "Ethernet".$_->card()."/".$_->port(), @swports;
+	    return @sysdbports
+	}
     } elsif ($input == $PORT_FORMAT_IFINDEX) {
-	# TODO
-    } 
+	if ($output == $PORT_FORMAT_PORT) {
+	    my @swports = map Port->LookupByStringForced(
+		Port->Tokens2TripleString(
+		    $self->{NAME},
+		    int($_/1000),
+		    $_ %1000)), @ports;
+	    return @swports;
+	} else {
+	    my @sysdbports = map "Ethernet".int($_ /1000)."/".int($_ %1000), @ports;
+	    return @sysdbports;
+	}
+	
+    } else { # input is $PORT_FORMAT_SYSDB
+	if ($output == $PORT_FORMAT_IFINDEX) {
+	    my @ifports = map $self->sysdb2Ifindex($_), @ports;
+	    return @ifports;
+	} else {
+	    my @swports = map $self->sysdb2PortInstance($_), @ports;
+	    return @swports
+	}	
+    }
 
     #
     # Some combination we don't know how to handle
@@ -369,9 +451,13 @@ sub vlanNumberExists($$) {
 
     $self->debug($id."\n");
 
-    # TODO
-    if (1)
-	return 1;
+    my $resp = $self->{CLT}->send_request('vlanTagExist', $vlan_number);
+    if (ref($resp)) {
+	if ($resp->value) {
+	    return 1;
+	}
+    } else {
+	warn "WARNING: $id XML-RPC failed, error: ".$resp->string."\n";
     }
 
     $self->debug($id." VLAN #$vlan_number not exists.\n");
@@ -394,7 +480,14 @@ sub findVlans($@) {
     my $id = $self->{NAME} . "::findVlans";
     $self->debug("$id\n");
 
-    # TODO
+    my $resp = $self->{CLT}->send_request('getVlanName2TagMappings', \@vlan_ids);
+    if (ref($resp)) {
+	my %mps = %{$resp->value};
+	$self->debug("$id RPC results: ".Dumper(\%mps);
+	return %mps;
+    } else {
+	warn "WARNING: $id XML-RPC failed, error: ".$resp->string."\n";
+    }
     
     return ();
 }
@@ -415,7 +508,12 @@ sub findVlan($$;$) {
     my $id = $self->{NAME} . ":findVlan";
 
     $self->debug("$id ( $vlan_id )\n",2);
-    # TODO
+
+    my %mps = $self->findVlans($vlan_id);
+    if (exists($mps{$vlan_id})) {
+	return $mps{$vlan_id};
+    }
+    
     return undef;
 }
 
@@ -462,20 +560,21 @@ sub createVlan($$$) {
     $self->debug("createVlan: name $vlan_id number $vlan_number \n");
 
     $self->lock();
-
-    # TODO real creation
-    my $retval = undef;
-
+    my $resp = $self->{CLT}->send_request('createVlan', $vlan_id, $vlan_number);
     $self->unlock();
     
-    if (!defined($rtval))
-	# In case of some following ops, renew the session
-	$self->initSession();
-	return 0;
-    }
     print "  Creating VLAN $vlan_id as VLAN #$vlan_number on " .
 	"$self->{NAME} ...\n";
 
+    if (ref($resp)) {
+	if ($resp->value ne "1") {
+	    wanr "  WARNING: $id Creating VLAN $vlan_id as VLAN #$vlan_number on ".
+		"$self->{NAME} failed, error: ".$resp->value."\n";
+	}
+    } else {
+	warn "WARNING: $id XML-RPC failed, error: ".$resp->string."\n";
+    }
+    
     return $vlan_number;
 }
 
@@ -508,7 +607,7 @@ sub setPortVlan($$@) {
     
     if ($errors) {
 	# In case of some following ops, renew the session
-	$self->initSession();
+	$self->initSNMPSession();
     }
 
     return $errors;
