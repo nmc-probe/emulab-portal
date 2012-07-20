@@ -15,7 +15,11 @@ require 'ctime.pl';
 $| = 1;
 
 # Drag in path stuff so we can find emulab stuff.
-BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+BEGIN { 
+    require "/etc/emulab/paths.pm"; 
+    import emulabpaths; 
+    $ENV{'PATH'} .= ":/cygdrive/c/Windows/System32:/cygdrive/c/Windows";
+}
 
 #
 # Load the OS independent support library. It will load the OS dependent
@@ -215,6 +219,7 @@ if (! $noredef) {
 #          "      '( $firstboot; $bootsetup; $sshrun; $progrun ) >& $bootlog'\"");
 
     system("cygrunsrv -VQ EmulabStartup");
+    system("sc config EmulabStartup start= delayed-auto");
 }
 
 if ($sysprep) {

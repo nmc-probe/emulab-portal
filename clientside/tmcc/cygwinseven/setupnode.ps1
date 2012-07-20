@@ -1,10 +1,16 @@
 # -*- powershell -*-
 
 # Constants
-$TMCCBIN    = "C:\Cygwin\usr\local\etc\emulab\tmcc.bin"
-$TMCCARGS   = "-t","30"
+$BINDIR	    = "C:\Cygwin\usr\local\etc\emulab"
 $CYGBINPATH = "C:\Cygwin\bin"
-$LOGFILE    = "C:\Temp\setnodename.log"
+$TMCCBIN    = "tmcc.bin"
+$TMCCARGS   = "-t","30"
+$LOGMANBIN  = "logman"
+$LDCNTRNAME = "ldavg"
+$LDLOG      = "C:\Cygwin\var\run\ldavg.csv"
+$LDMETRIC   = "\Processor(_Total)\% Processor Time"
+$LDINTERVAL = 5
+$LOGFILE    = "C:\Windows\Temp\setupnode.log"
 $CNPATH     = "HKLM:\System\CurrentControlSet\Control\ComputerName\ComputerName"
 $HNPATH     = "HKLM:\System\CurrentControlSet\Services\Tcpip\Parameters"
 
@@ -14,8 +20,8 @@ Function log($msg) {
    ($time + ": " + $msg) | Out-File -append $LOGFILE
 }
 
-# Update the path to include Cygwin's /bin directory (including Cygwin1.dll)
-$env:path += ";$CYGBINPATH"
+# Update the path
+$env:path += ";$BINDIR;$CYGBINPATH"
 
 # XXX: This doesn't work under mini-setup
 #$NameObj = Get-WmiObject Win32_ComputerSystem
@@ -43,5 +49,9 @@ New-ItemProperty -Path $CNPATH -Name ComputerName -PropertyType String`
                  -Value $nodeid.ToUpper() -Force
 New-ItemProperty -Path $HNPATH -Name "NV Hostname" -PropertyType String`
                  -Value $nodeid -Force
+
+# Create the load average performance counter
+& $LOGMANBIN create counter $LDCNTRNAME -f csv -o $LDLOG --v -c $LDMETRIC`
+  -si $LDINTERVAL -ow -max 1 -cnf 0
 
 exit(0)

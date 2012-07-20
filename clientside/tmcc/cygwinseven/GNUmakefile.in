@@ -39,6 +39,11 @@ RCDIR		= $(SYSETCDIR)/rc.d
 INSTALL		= /usr/bin/install -c 
 COMMON		= $(SRCDIR)/../common
 
+SYSTEM32 	= /cygdrive/c/Windows/System32
+WBEM 		= $(SYSTEM32)/Wbem
+SYSPREP 	= $(SYSTEM32)/sysprep
+SPSCRIPTS	= $(SYSPREP)/scripts
+
 install client-install:	baselinux-install common-install etc-install \
 			sup-install script-install ##bin-install
 	@echo "Remember to install the PEM files if necessary"
@@ -57,8 +62,6 @@ common-install:	dir-install
 
 sup-install:	dir-install
 
-SYSTEM32 = /cygdrive/c/Windows/System32
-WBEM = $(SYSTEM32)/Wbem
 bin-install:	dir-install
 	# These are found in the /share/windows directory.
 	$(INSTALL) -m 755 $(SRCDIR)/WSName.exe $(BINDIR)/WSName.exe
@@ -94,12 +97,15 @@ script-install:	dir-install $(SCRIPTS)
 	ln -f -s /bin/reboot   /sbin/reboot
 	# Everybody is in the Administrators group already, so sudo is irrelevant.
 	$(INSTALL) -m 755 $(SRCDIR)/sudo.dummy /bin/sudo
-	$(INSTALL) -m 755 $(SRCDIR)/rc.firstboot $(BINDIR)/rc/rc.firstboot
+	#$(INSTALL) -m 755 $(SRCDIR)/rc.firstboot $(BINDIR)/rc/rc.firstboot
 	$(INSTALL) -m 755 $(SRCDIR)/rc.cygwinseven $(BINDIR)/rc/rc.cygwin
 	#$(INSTALL) -m 755 $(SRCDIR)/clean_logonui $(BINDIR)/clean_logonui
 	$(INSTALL) -m 755 $(SRCDIR)/rc.reboot $(BINDIR)/rc/rc.reboot
 	$(INSTALL) -m 755 $(SRCDIR)/rc.lmhosts $(BINDIR)/rc/rc.lmhosts
 	$(INSTALL) -m 755 $(SRCDIR)/netbt $(BINDIR)/netbt
+	$(INSTALL) -m 755 $(SRCDIR)/unattend-x86.xml $(SYSPREP)/unattend.xml
+	$(INSTALL) -c -m 755 -o Administrators -d $(SPSCRIPTS)
+	$(INSTALL) -m 755 $(SRCDIR)/setupnode.ps1 $(SPSCRIPTS)/setupnode.ps1
 
 sfs-install:
 
