@@ -52,7 +52,7 @@ sub usage {
     exit(1);
 }
 
-my $optlist = "ARS:aln:rswvd:i:ct:x:";
+my $optlist = "ARS:aln:rswvd:i:ct:x:m:";
 my $warnme = 0;
 my $verbose = 0;
 my $showall = 0;
@@ -66,6 +66,7 @@ my $datetime;
 my $datelimit;
 my $startrecord;
 my $ip;
+my $mac;
 
 #
 # Sort stuff.  sortby value should correspond to record field format:
@@ -160,13 +161,18 @@ if (defined($options{"i"})) {
     $ip = $options{"i"};
     $summary  = 0;
 }
+if (defined($options{"m"})) {
+    $mac = $options{"m"};
+    $mac =~ s/://g;
+    $summary  = 0;
+}
 if (defined($options{"w"})) {
     $warnme = 1;
 }
 if (defined($options{"v"})) {
     $verbose = 1;
 }
-if (!$showall && @ARGV == 0 && !defined($ip)) {
+if (!$showall && @ARGV == 0 && !(defined($ip) || defined($mac))) {
     usage();
 }
 my @nodes = @ARGV;
@@ -200,6 +206,9 @@ if ($datetime) {
     }
     elsif (defined($ip)) {
 	$querymod = " AND h1.cnet_ip='$ip'";
+    }
+    elsif (defined($mac)) {
+	$querymod = " AND h1.cnet_mac='$mac'";
     }
 
     my $query_result =
@@ -270,6 +279,9 @@ if (@nodes) {
 }
 elsif (defined($ip)) {
     $querymod .= " AND cnet_ip='$ip'";
+}
+elsif (defined($mac)) {
+    $querymod .= " AND cnet_mac='$mac'";
 }
 
 # XXX maybe it would be better to sort them here in perl, outside the DB?

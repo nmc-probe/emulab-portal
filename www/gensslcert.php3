@@ -231,6 +231,10 @@ function SPITFORM($target_user, $formfields, $errors)
                          value=\"" . $formfields["passphrase2"] . "\"
                          size=24></td>
           </tr>\n";
+    
+    if (!isset($formfields["oldpassphrase"])) {
+	$formfields["oldpassphrase"] = "";
+    }
     echo "<tr>
               <td>Old PassPhrase:</td>
               <td class=left>

@@ -50,7 +50,8 @@ echo "<b>Show: <a class='static' href='showexpstats.php3'>
                   Experiment Stats</a>";
 if ($isadmin) {
     echo "<a class='static' href='showsumstats.php3'>, Summary Stats</a>";
-    echo "<a class='static' href='shownodehistory.php3'>, Node History</a>\n";
+    echo ", <a class='static' href='shownodehistory.php3'>Node History</a>";
+    echo ", <a class='static' href='showvlantaghistory.php'>VLan History</a>\n";
 }
 echo "</b><br>\n";
 

@@ -4749,6 +4749,24 @@ CREATE TABLE `vis_nodes` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `vlantag_history`
+--
+
+DROP TABLE IF EXISTS `vlantag_history`;
+CREATE TABLE `vlantag_history` (
+  `history_id` int(10) unsigned NOT NULL auto_increment,
+  `tag` smallint(5) NOT NULL default '0',
+  `lanid` int(11) NOT NULL default '0',
+  `lanname` varchar(64) NOT NULL default '',
+  `exptidx` int(10) unsigned default NULL,
+  `allocated` int(10) unsigned default NULL,
+  `released` int(10) unsigned default NULL,
+  PRIMARY KEY  (`history_id`),
+  KEY `tag` (`tag`,`history_id`),
+  KEY `exptidx` (`exptidx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `vlans`
 --
 

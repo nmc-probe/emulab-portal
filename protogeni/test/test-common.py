@@ -344,7 +344,7 @@ def resolve_slice( name, selfcredential ):
         params["hrn"]       = name
         pass
     
-    count = 2
+    count = 20
     while True:
         rval,response = do_method("sa", "Resolve", params)
         if rval:
@@ -381,7 +381,7 @@ def get_slice_credential( slice, selfcredential ):
         params["uuid"]      = slice["uuid"]
         pass
 
-    count = 2
+    count = 20
     while True:
         rval,response = do_method("sa", "GetCredential", params)
         if rval:

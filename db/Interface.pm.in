@@ -15,6 +15,7 @@ use vars qw(@ISA @EXPORT);
 
 use libdb;
 use libtestbed;
+use emutil qw(GenFakeMac);
 use English;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
@@ -373,6 +374,8 @@ sub Create($$$)
     #
     DBQueryWarn("lock tables interfaces write, ".
 		"            interface_state write, ".
+		"            vinterfaces read, ".
+		"            node_history read, ".
 		"            wires write")
 	or return undef;
 
@@ -387,6 +390,32 @@ sub Create($$$)
     if ($query_result->numrows) {
 	DBQueryWarn("unlock tables");
 	return Interface->Lookup($node_id, $card, $port);
+    }
+
+    #
+    # Generate a fake mac if requested. 
+    #
+    if ($MAC eq "genfake") {
+	while (1) {
+	    $MAC = GenFakeMac();
+
+	    # Check to make sure unique. If not, try again.
+	    $query_result =
+		DBQueryWarn("(select mac from interfaces ".
+			    " where mac='$MAC') ".
+			    "union ".
+			    "(select mac from vinterfaces ".
+			    " where mac='$MAC') ".
+			    "union ".
+			    "(select cnet_mac as mac from node_history ".
+			    " where cnet_mac='$MAC')");
+	    if (!$query_result) {
+		DBQueryWarn("unlock tables");
+		return undef;
+	    }
+	    last
+		if (!$query_result->numrows);
+	}
     }
     
     if (!DBQueryWarn("insert into interfaces set ".
@@ -759,6 +788,7 @@ sub TypeCapability($$$)
 package Interface::VInterface;
 use libdb;
 use libtestbed;
+use emutil qw(GenFakeMac);
 use English;
 use overload ('""' => 'Stringify');
 
@@ -846,14 +876,48 @@ sub Create($$$)
     delete($argref->{'unit'})
 	if (exists($argref->{'unit'}));
 
+    DBQueryWarn("lock tables interfaces read, ".
+		"            vinterfaces write, ".
+		"            node_history read")
+	or return undef;
+
+    #
+    # Generate a fake mac if requested. 
+    #
+    if (exists($argref->{'mac'}) && $argref->{'mac'} eq "genfake") {
+	while (1) {
+	    my $mac = GenFakeMac();
+
+	    # Check to make sure unique. If not, try again.
+	    my $query_result =
+		DBQueryWarn("(select mac from interfaces ".
+			    " where mac='$mac') ".
+			    "union ".
+			    "(select mac from vinterfaces ".
+			    " where mac='$mac') ".
+			    "union ".
+			    "(select cnet_mac as mac from node_history ".
+			    " where cnet_mac='$mac')");
+	    if (!$query_result) {
+		DBQueryWarn("unlock tables");
+		return undef;
+	    }
+	    if (!$query_result->numrows) {
+		$argref->{'mac'} = $mac;
+		last;
+	    }
+	}
+    }
+
     my $query = "insert into vinterfaces set ".
 	join(",", map("$_='" . $argref->{$_} . "'", keys(%{$argref})));
 
     my $query_result = DBQueryWarn($query);
+    DBQueryWarn("unlock tables");
     return undef
 	if (!defined($query_result));
 
-    my $unit  = $query_result->insertid;
+    my $unit= $query_result->insertid;
     return Interface::VInterface->Lookup($nodeid, $unit);
 }
 

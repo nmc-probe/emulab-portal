@@ -86,6 +86,15 @@ elseif (! isset($formfields)) {
     PAGEARGERROR();
 }
 
+#
+# For the benefit of the form. Remember to pass back actual filename, not
+# the php temporary file name. Note that there appears to be some kind
+# of breakage, at least in opera; filename has no path.
+#
+if (isset($_FILES['exp_nsfile'])) {
+    $formfields['exp_nsfile'] = $_FILES['exp_nsfile']['name'];
+}
+
 # Some local variables.
 $nsfilelocale    = "";
 $thensfile       = 0;
@@ -204,12 +213,6 @@ elseif (isset($_FILES['exp_nsfile']) && $_FILES['exp_nsfile']['size'] != 0) {
 			$_FILES['exp_nsfile']['tmp_name'])) {
 	$errors["Local NS File"] = "Temp path includes illegal characters";
     }
-    #
-    # For the benefit of the form. Remember to pass back actual filename, not
-    # the php temporary file name. Note that there appears to be some kind
-    # of breakage, at least in opera; filename has no path.
-    #
-    $formfields['exp_nsfile'] = $_FILES['exp_nsfile']['name'];
     $nsfilelocale = "upload";
 }
 elseif (isset($formfields["exp_nsfile_contents"]) &&

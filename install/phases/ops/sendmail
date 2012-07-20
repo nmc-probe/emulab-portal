@@ -12,7 +12,7 @@ sub Install($$$)
     my @LOCAL_HOSTS         = ($OURDOMAIN,$BOSSNODE,$USERNODE,$FSNODE);
 
     if ($PROTOGENI_GENIRACK) {
-	push(@LOCAL_HOSTS, "foam.${OURDOMAIN");
+	push(@LOCAL_HOSTS, "foam.${OURDOMAIN}");
     }
     
     # covert to list names and remove duplicates

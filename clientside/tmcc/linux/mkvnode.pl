@@ -541,7 +541,8 @@ if (StoreState()) {
     MyFatal("Could not store container state to disk");
 }
 
-my $cnet_mac = ipToMac(VNCONFIG('CTRLIP'));
+my $cnet_mac = (defined(VNCONFIG('CTRLMAC')) ?
+		VNCONFIG('CTRLMAC') : ipToMac(VNCONFIG('CTRLIP')));
 my $ext_ctrlip = `cat $CTRLIPFILE`;
 chomp($ext_ctrlip);
 if ($ext_ctrlip !~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
