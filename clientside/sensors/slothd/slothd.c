@@ -796,10 +796,14 @@ int get_counters(char *buf, void *data) {
 #else /* __CYGWIN__ */
 
 void get_packet_counts(SLOTHD_PACKET *pkt) {
-  static char *wanprefix = "10:2d:20";
+  static char *filters[] = {"WAN Miniport",
+			    "WFP LightWeight Filter",
+			    "QoS Packet Scheduler",
+			    NULL};
   static DWORD dwSize;
   DWORD ret;
   char curaddr[MACADDRLEN];
+  char *descr;
   int i, j;
 
   /* Call GetIfTable(), an MS IP Helper Function, to get packet counters. */
@@ -818,7 +822,7 @@ void get_packet_counts(SLOTHD_PACKET *pkt) {
 
   /* Scan through the interface table. */
   pkt->ifcnt = 0;
-  for (i = 0; i < min(iftable->dwNumEntries, MAXNUMIFACES); i++) {
+  for (i = 0; i < iftable->dwNumEntries && pkt->ifcnt < MAXNUMIFACES; i++) {
     ifrow = &(iftable->table[i]);
 
     if (ifrow->dwType == IF_TYPE_ETHERNET_CSMACD && /* Only Ethernet. */
@@ -830,19 +834,21 @@ void get_packet_counts(SLOTHD_PACKET *pkt) {
                ifrow->bPhysAddr[0], ifrow->bPhysAddr[1], ifrow->bPhysAddr[2],
                ifrow->bPhysAddr[3], ifrow->bPhysAddr[4], ifrow->bPhysAddr[5]);
 
-      /* Skip over WAN interfaces - not sure why the type check above
-         allows these through. */
-      if (strncmp(curaddr, wanprefix, sizeof(wanprefix))
-	  == 0)
-	continue;
-
-      /* Have we already seen this MAC address?  Skip if so. */
-      for (j = 0; j < pkt->ifcnt; j++) {
-	if (strncmp(pkt->ifaces[j].addr, curaddr, MACADDRLEN) == 0)
-	  break;
+      /* Skip over bogus interfaces (WAN, filters, etc.).  What a mess... */
+      descr = strndup((char*)ifrow->bDescr, ifrow->dwDescrLen);
+      if (!descr) {
+	lerror("Memory allocation failed!");
+	exit(1);
       }
-      if (j < pkt->ifcnt)
+      for(j = 0; filters[j] != NULL; j++) {
+	if (strstr(descr, filters[j]) != NULL) {
+	  break;
+	}
+      }
+      free(descr);
+      if (filters[j]) {
 	continue;
+      }
 
       if (opts->debug)
         printf("macaddr: %s\n", curaddr);
