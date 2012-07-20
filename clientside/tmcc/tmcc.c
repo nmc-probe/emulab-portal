@@ -522,7 +522,13 @@ getbossnode(char **bossnode, int *portp)
 						   AF_INET);
 				if (he && he->h_name) {
 					*bossnode = strdup(he->h_name);
+				} else {
+				  herror("gethostbyaddr failed");
 				}
+			} else {
+			  fprintf(stderr,
+				  "No value returned for DNS server or can't" 
+				  " convert to network byte representation.\n");
 			}
 
 			if (pFixedInfo) {
