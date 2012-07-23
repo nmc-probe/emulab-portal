@@ -503,6 +503,17 @@ sub nodereboot($$)
 	# could see nodes still in ISUP.
 	sleep(2);
 
+	#
+	# States that signify that the reboot stage is done.
+	# For normal reboots this means either that the node came
+	# or correctly (ISUP) or not (TBFAILED). However, for a reloading
+	# node there is no ISUP, it either got into the reloading process
+	# (RELOAD/RELOADING) or it didn't (no explicit report).
+	#
+	my @waitstates = (TBDB_NODESTATE_TBFAILED,
+			  TBDB_NODESTATE_ISUP,
+			  TBDB_NODEOPMODE_RELOAD."/".TBDB_NODESTATE_RELOADING);
+
 	foreach my $node (sort(@nodes)) {
 	    my $actual_state;
 	    
@@ -512,11 +523,14 @@ sub nodereboot($$)
 	    next
 		if ($result->{node});
 	    
-	    if (!TBNodeStateWait($node, $waitstart, $waittime, \$actual_state,
-				 (TBDB_NODESTATE_TBFAILED,
-				  TBDB_NODESTATE_ISUP))) {
-		if ($actual_state eq TBDB_NODESTATE_ISUP) {
-		    print STDOUT "reboot ($node): alive and well.\n";
+	    if (!TBNodeStateWait($node, $waitstart, $waittime,
+				 \$actual_state, @waitstates)) {
+		if ($actual_state ne TBDB_NODESTATE_TBFAILED) {
+		    if ($actual_state eq TBDB_NODESTATE_ISUP) {
+			print STDOUT "reboot ($node): alive and well.\n";
+		    } else {
+			print STDOUT "reboot ($node): alive and reloading.\n";
+		    }
 		    Node::SetBootStatus($node, NODEBOOTSTATUS_OKAY);
 		    next;
 		}
