@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -36,10 +36,6 @@ my  $optlist = "dt:";
 my $TB       = "@prefix@";
 my $DBNAME   = "@TBDBNAME@";
 my $TBOPS    = "@TBOPSEMAIL@";
-
-# XXX
-my $BUILDING = "MEB-ROBOTS";
-my $FLOOR = 4;
 
 # Set this to turn off tblog in libraries.
 $ENV{'TBLOG_OFF'} = "yep";
@@ -82,10 +78,6 @@ my %retried     = ();
 my %warned	= ();
 my %failed	= ();
 my @retry_list  = ();
-
-# XXX: Garcia hack vars
-my $gimageid = "GARCIA-STARGATE";
-my $gimagepath = "/usr/testbed/images/garcia";
 
 #
 # Turn off line buffering on output (dots ...).
@@ -369,12 +361,6 @@ while (1) {
 	$type = $hrow{'type'};
 	$imageable = NodeType->LookupSync($type)->imageable();
 
-	# XXX Garcia Hack
-	if (!$imageable && $type eq "garcia") {
-	    $imageable = 1;
-	}
-	# XXX End Garcia Hack
-
 	#
 	# If any non-imageable nodes made it this far, just free them now
 	#
@@ -425,12 +411,6 @@ while (1) {
 		#
 		$imageid = "";
 	    }
-
-            # XXX Garcia Hack
-            if ($nodeobj->type() eq "garcia") {
-                $imageid = $gimageid;
-            }
-            # XXX End Garcia Hack
 
 	    #
 	    # We need to divide up nodes not only by the image they are
@@ -483,40 +463,6 @@ while (1) {
 	    my $os_load_flags = "";
 
 	    ($imageid, $mustzero) = split("/", $idid);
-
-            # XXX Garcia Hack - gross..
-            # We special-case garcia loading for now until the subnode->node
-            # dependancies are worked out inside os_load.
-            if ($imageid eq $gimageid) {
-                print "Synching garcia nodes: '$nodelist' at ".`date`;
-                # path to directory tree "image" hardcoded for now since
-                # users have no choice over OS selection when reloading
-                # isn't performed during swapin.
-                if (system("$tbrsync upload $gimagepath $nodelist") == 0) {
-                    if (system("$reboot $nodelist") == 0) {
-                        # rsync and reboot succeeded, so free 'em up.
-                        foreach my $gnode (@{$imagenodes{$idid}}) {
-                            freefromreloading($gnode);
-                        }
-                        print "garcia reload done at ".`date`;
-                        next;
-                    }
-                    else {
-                        notify("Failed to reboot garcias after rsync: ". 
-                               "$nodelist.\n");
-                    }
-                }
-                else {
-                    notify("Failed to rsync garcia nodes: $nodelist.\n");
-                }
-
-                # Either rsync or reboot failed on the robots if we get here.
-		foreach my $node (@{$imagenodes{$imageid}}) {
-		    $failed{$node} = $time;
-		}
-                next;
-            }
-            # XXX End Garcia Hack
 
 	    #
 	    # We only add the -m flag to os_load if we found a specific image
@@ -589,8 +535,6 @@ while (1) {
     #
     print "Not waiting for frisbee reload of $nodes.\n";
     next;
-
-
 }
 
 
