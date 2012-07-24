@@ -403,6 +403,21 @@ clean:		clean-subdirs
 distclean:	distclean-subdirs
 	rm -f Makeconf GNUmakefile config.h config.status config.cache config.log
 	rm -f $(DISTCLEAN_FILES)
+
+#
+# Be careful, do not run these unless you are updating your installation
+# with a new IP subnet or domain name. 
+#
+boss-updateip-clean:	clean
+	@$(MAKE) -C rc.d clean
+	@$(MAKE) -C apache clean
+	@$(MAKE) -C named clean
+	@$(MAKE) -C dhcpd clean
+
+ops-updateip-clean:	clean
+	@$(MAKE) -C rc.d clean
+	@$(MAKE) -C apache clean
+
 #
 # Here's a different approch to recover from just configure problems.  It cleans
 # all files from an obj tree that have a corresponding .in file in the src tree.
