@@ -211,8 +211,10 @@ sub Lookup($$$;$)
 		    "where node_id='$nodeid' and ".
 		    "      card='$card' and port='$port'");
 
-    return undef
-	if (!$query_result);
+    if (!$query_result) {
+	print STDERR "*** Missing interface_state for $nodeid:$card:$port\n";
+	return undef;
+    }
     # If a management interface, the lack of an interface_state
     # record is not a big deal, so let it slide.
     return undef
