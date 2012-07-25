@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2006 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -26,10 +26,10 @@ sub sync_tftpboot($)
 }
 
 my $query_result =
-	DBQueryWarn("select n.node_id from nodes as n left join reserved as r on " .
+	DBQueryWarn("select distinct n.node_id from nodes as n left join reserved as r on " .
 		    "n.node_id = r.node_id left join subbosses as s on " .
 		    "n.node_id = s.subboss_id where r.erole = 'subboss' and " .
-	            "s.service = 'tftp' and n.eventstate = 'ISUP'");
+	            "s.service = 'tftp' and s.disabled = 0 and n.eventstate = 'ISUP'");
 if (! $query_result) {
     fatal("Could not subboss data from DB!");
 }

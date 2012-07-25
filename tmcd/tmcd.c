@@ -4595,7 +4595,8 @@ COMMAND_PROTOTYPE(doloadinfo)
 				  " from interfaces as i, subbosses as s "
 				  " where i.node_id=s.subboss_id and "
 				  " i.role='ctrl' and "
-				  " s.node_id='%s' and s.service='frisbee'",
+				  " s.node_id='%s' and s.service='frisbee'"
+				  " and s.disabled=0",
 				  1, reqp->isvnode ? reqp->pnodeid : reqp->nodeid);
 		if (!res2) {
 			error("doloadinfo: %s: DB Error getting subboss info!\n",
@@ -8082,7 +8083,7 @@ COMMAND_PROTOTYPE(dofwinfo)
 		res = mydb_query("select node_id,IP,mac from interfaces "
 				 "where role='ctrl' and (node_id in "
 				 "('boss','ops','fs') or node_id in "
-				 "(select distinct subboss_id from subbosses))",
+				 "(select distinct subboss_id from subbosses where disabled=0))",
 				 3);
 		if (!res) {
 			error("FWINFO: %s: DB Error getting server info!\n",
@@ -9516,7 +9517,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 			 "left join interfaces as i on n.node_id = i.node_id "
 			 "left join reserved as r on n.node_id = r.node_id "
 			 "where s.subboss_id = '%s' and "
-	                 "s.service='dhcp' and i.role='ctrl' "
+	                 "s.service='dhcp' and s.disabled=0 and i.role='ctrl' "
 			 "order by n.priority", 12, reqp->nodeid);
 
 	if (!res) {
@@ -9615,7 +9616,8 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 
 
 		res2 = mydb_query("select s.subboss_id,s.service,i.IP from subbosses as s, "
-		                  "interfaces as i where s.node_id = '%s' and s.service != 'dhcp' "
+		                  "interfaces as i where s.node_id = '%s' and "
+				  "s.service != 'dhcp' and s.disabled=0 "
 		                  "and s.subboss_id = i.node_id and i.role = 'ctrl'", 3,
 		                  row[0]);
 		if (!res) {
