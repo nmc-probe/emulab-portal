@@ -47,7 +47,6 @@ my $MAXRETRIES  = 1;
 # This is set based on testbed-wide factors (like multicast being dog slow!)
 my $TBLOADWAIT  = (10 * 60);
 
-my $OUTERBOSS	    = "@OUTERBOSS_NODENAME@";
 my $osselect	    = "$TB/bin/os_select";
 my $TBUISP	    = "$TB/bin/tbuisp";
 my $IMAGEINFO	    = "$TB/sbin/imageinfo";

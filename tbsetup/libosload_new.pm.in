@@ -38,11 +38,10 @@ my $TESTMODE    = @TESTMODE@;
 my $TBOPS       = "@TBOPSEMAIL@";
 my $ELABINELAB  = @ELABINELAB@;
 my $PROJROOT    = "@PROJROOT_DIR@";
-my $OUTERBOSS	= "@OUTERBOSS_NODENAME@";
 
 # Paths to binaries
 my $TBUISP	    = "$TB/bin/tbuisp";
-my $FRISBEE         = "$TB/sbin/frisbee";
+my $IMAGEINFO	    = "$TB/sbin/imageinfo";
 
 # XXX windows load
 my $MAKECONF	    = "$TB/sbin/dhcpd_makeconf";
