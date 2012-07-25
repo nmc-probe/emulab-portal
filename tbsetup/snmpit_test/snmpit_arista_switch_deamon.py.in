@@ -18,6 +18,7 @@ import SimpleXMLRPCServer
 RPC_PORT = @ARISTA_SWITCH_XMLRPCPORT@
 BIND_ADDR = "@ARISTA_SWITCH_BIND_ADDRESS@"
 
+# Global SysDB client and configuration root
 sysdbroot = None
 sysdbclient = None
 
@@ -95,9 +96,18 @@ def _createVlan(vlan_id, vlan_num):
 def _removeVlan(vlan_num):
     pass
 
-def _setPortsVlan(vlan_num, ports):
+#
+# Assign ports to a VLAN, and enable them.
+#
+# Return #errors.
+# 
+def _setPortVlan(vlan_num, ports):
     pass
 
+#
+# Return #errors.
+# If ports is empty, remove all ports from the VLAN.
+#
 def _removePortsFromVlan(vlan_num, ports):
     pass
 
@@ -134,13 +144,26 @@ def _vlanTagExist(tag):
 def _getVlanName2TagMappings(vnames):
     pass
 
+#
+# Return 1 if has ports, 0 otherwise.
+#
+def _vlanHasPorts(vlan_num):
+    pass
+
+#
+# List all experiment VLANs.
+#
+# Return list of list object: [vid, vnum, list of ports].
+#
+def _listVlans():
+    pass
 
 #
 # Exported methods list
 #
 funcs = [(_createVlan, "createVlan"),
          (_removeVlan, "removeVlan"),
-         (_setPortsVlan, "setPortsVlan"),
+         (_setPortVlan, "setPortVlan"),
          (_removePortsFromVlan, "removePortsFromVlan"),
          (_vlanExist, "vlanExist"),
          (_setVlanPortTag, "setVlanPortTags"),
@@ -148,7 +171,8 @@ funcs = [(_createVlan, "createVlan"),
          (_getPortVlan, "getPortVlan"),
          (_getAllVlans, "getAllVlans"),
          (_vlanTagExist, "vlanTagExist"),
-         (_getVlanName2TagMappings, "getVlanName2TagMappings")
+         (_getVlanName2TagMappings, "getVlanName2TagMappings"),
+         (_vlanHasPorts, "vlanHasPorts")         
          ]
 
 s = initRPCServer(BIND_ADDR, RPC_PORT, funcs)

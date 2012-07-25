@@ -194,6 +194,27 @@ sub initRPCSession($) {
     return 1;
 }
 
+#
+# XML RPC Call helper.
+#
+# usage: callRPC($self, $id, @args)
+#        return remote method return value on success.
+#        return undef and print error on failure.
+#
+sub callRPC {
+    my ($self, $id, @args) = @_;
+
+    my $resp = $self->{CLT}->send_request(@args);
+    if (ref($resp)) {
+	return $resp->value;
+    } else {
+	warn "WARNING: $id XML-RPC failed, error: ".$resp->string."\n";
+    }
+
+    return undef;
+}
+
+
 sub sysdb2Ifindex($$) {
     my ($self, $sbport) = @_;
 
@@ -451,15 +472,11 @@ sub vlanNumberExists($$) {
 
     $self->debug($id."\n");
 
-    my $resp = $self->{CLT}->send_request('vlanTagExist', $vlan_number);
-    if (ref($resp)) {
-	if ($resp->value) {
-	    return 1;
-	}
-    } else {
-	warn "WARNING: $id XML-RPC failed, error: ".$resp->string."\n";
+    my $resp = $self->callRPC($id, 'vlanTagExist', $vlan_number);
+    if ($resp) {
+	return 1;
     }
-
+    
     $self->debug($id." VLAN #$vlan_number not exists.\n");
 
     return 0;
@@ -480,14 +497,12 @@ sub findVlans($@) {
     my $id = $self->{NAME} . "::findVlans";
     $self->debug("$id\n");
 
-    my $resp = $self->{CLT}->send_request('getVlanName2TagMappings', \@vlan_ids);
-    if (ref($resp)) {
-	my %mps = %{$resp->value};
+    my $resp = $self->callRPC($id, 'getVlanName2TagMappings', \@vlan_ids);
+    if ($resp) {
+	my %mps = %{$resp};
 	$self->debug("$id RPC results: ".Dumper(\%mps);
 	return %mps;
-    } else {
-	warn "WARNING: $id XML-RPC failed, error: ".$resp->string."\n";
-    }
+    } 
     
     return ();
 }
@@ -560,19 +575,15 @@ sub createVlan($$$) {
     $self->debug("createVlan: name $vlan_id number $vlan_number \n");
 
     $self->lock();
-    my $resp = $self->{CLT}->send_request('createVlan', $vlan_id, $vlan_number);
+    my $resp = $self->callRPC($id, 'createVlan', $vlan_id, $vlan_number);
     $self->unlock();
     
     print "  Creating VLAN $vlan_id as VLAN #$vlan_number on " .
 	"$self->{NAME} ...\n";
 
-    if (ref($resp)) {
-	if ($resp->value ne "1") {
-	    wanr "  WARNING: $id Creating VLAN $vlan_id as VLAN #$vlan_number on ".
-		"$self->{NAME} failed, error: ".$resp->value."\n";
-	}
-    } else {
-	warn "WARNING: $id XML-RPC failed, error: ".$resp->string."\n";
+    if ($resp ne "1") {
+	warn "  WARNING: $id Creating VLAN $vlan_id as VLAN #$vlan_number on ".
+	    "$self->{NAME} failed.".(defined($resp)?" error: $resp":"")."\n";
     }
     
     return $vlan_number;
@@ -581,8 +592,6 @@ sub createVlan($$$) {
 #
 # Put the given ports in the given VLAN. The VLAN is given as an 802.1Q 
 # tag number.
-#
-# For Extreme switch: ports are added as untagged.
 #
 # usage: setPortVlan($self, $vlan_number, @ports)
 #	 returns 0 on sucess.
@@ -597,17 +606,21 @@ sub setPortVlan($$@) {
     my $id = $self->{NAME} . "::setPortVlan($vlan_number)";
     $self->debug($id."\n");
 
-    # TODO find VLAN
-    
+    if (! $self->callRPC('vlanTagExist', $id, $vlan_number)) {
+	warn "VLAN $vlan_number does not exist on $self->{NAME}\n";
+	return 1;
+    }
+
     return 0 unless(@ports);
 
-    my @ifports = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
+    my @swports = $self->convertPortFormat($PORT_FORMAT_SYSDB, @ports);
 
-    # TODO put ports into VLAN and enable them (maybe using portControl())
+    my $resp = $self->callRPC($id, 'setPortVlan', $vlan_number, \@swports);
     
-    if ($errors) {
-	# In case of some following ops, renew the session
-	$self->initSNMPSession();
+    if (defined($resp)) {
+	$errors = $resp;
+    } else {
+	$errors = scalar(@ports);
     }
 
     return $errors;
@@ -629,14 +642,25 @@ sub delPortVlan($$@) {
     my $errors = 0;
 
     my $id = $self->{NAME}."::delPortVlan($vlan_number)";
-    $self->debug($id);
+    $self->debug($id."\n");
 
-    # TODO get VLAN
+    if (! $self->callRPC($id, 'vlanTagExist', $vlan_number)) {
+	warn "VLAN $vlan_number does not exist on $self->{NAME}\n";
+	return 1;
+    }
     
     return 0 unless(@ports);
 
-    # TODO delete ports
+    my @swports = $self->convertPortFormat($PORT_FORMAT_SYSDB, @ports);
+
+    my $resp = $self->callRPC($id, 'removePortsFromVlan', $vlan_number, \@swports);
     
+    if (defined($resp)) {
+	$errors = $resp;
+    } else {
+	$errors = scalar(@ports);
+    }
+
     return $errors;
 }
 
@@ -657,7 +681,18 @@ sub removePortsFromVlan($@) {
     $self->debug($id."\n");
     
     foreach my $vlan_number (@vlan_numbers) {
-	 # TODO remove ports from VLAN
+	 if (! $self->callRPC($id, 'vlanTagExist', $vlan_number)) {
+	     warn "  VLAN $vlan_number does not exist on $self->{NAME}\n";
+	     $errors++;
+	 }
+    
+	 my $resp = $self->callRPC($id, 'removePortsFromVlan', $vlan_number, []);
+    
+	 if (defined($resp)) {
+	     $errors += $resp;
+	 } else {
+	     $errors++;
+	 }
     }
 
     return $errors;
@@ -677,7 +712,7 @@ sub removeSomePortsFromVlan($$@) {
     my ($self, $vlan_number, @ports) = @_;
     my $id = $self->{NAME} . "::removeSomePortsFromVlan";
 
-    $self->debug($id);
+    $self->debug($id."\n");
     return $self->delPortVlan($vlan_number, @ports);
 }
 
@@ -693,11 +728,16 @@ sub removeVlan($@) {
     my $self = shift;
     my @vlan_numbers = @_;
     my $errors = 0;
-    my $name = $self->{NAME};
     my $id = $self->{NAME} . "::removeVlan";
     
     foreach my $vlan_number (@vlan_numbers) {
-	# TODO remove VLAN
+	$self->removePortsFromVlan($vlan_number);
+	my $resp = $self->callRPC($id, 'removeVlan',$vlan_number);
+	if (!defined($resp) || $resp) {
+	    warn "$id remove VLAN #$vlan_number failed on $self->{NAME}."
+		.(defined($resp)?" Error: $resp":"")."\n";
+	    $errors++;
+	}
     }
    
     return ($errors == 0) ? 1 : 0;
@@ -719,8 +759,11 @@ sub UpdateField($$$@) {
 #
 sub vlanHasPorts($$) {
     my ($self, $vlan_number) = @_;
+    my $id = $self->{NAME}."::vlanHasPorts($vlan_numer)";
 
-    # TODO
+    if ($self->callRPC($id, 'vlanHasPorts', $vlan_number)) {
+	return 1;
+    }
     
     return 0;
 }    
@@ -738,7 +781,13 @@ sub listVlans($) {
 
     $self->debug($id,1);
 
-    # TODO implement this
+    my $resp = $self->callRPC($id, 'listVlans');
+    if ($resp) {
+	my @vlans = @$resp;
+	foreach my $vlan (@vlans) {
+	    my @ports = $self->convertPortFormat($PORT_FORMAT_PORT, @{$vlan->[2]});
+	    push @list, [$vlan->[0], $vlan->[1], \@ports];		
+    }
     
     return @list;
 }
