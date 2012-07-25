@@ -4849,12 +4849,42 @@ COMMAND_PROTOTYPE(doloadinfo)
 					return 1;
 				}
 				else if (stat(row[10], &sb)) {
-					error("doloadinfo: %s: Could not stat path %s"
-					      " associated with imageid %s: %s\n",
-					      reqp->nodeid, row[10], row[5],
-					      strerror(errno));
-					mysql_free_result(res);
-					return 1;
+					char _buf[512];
+					FILE *cfd;
+
+					/*
+					 * The image may not be directly
+					 * accessible since tmcd runs as
+					 * "nobody". If so, use the imageinfo
+					 * helper to get the info via the
+					 * frisbee master server.
+					 */
+					snprintf(_buf, sizeof _buf,
+						 "%s/sbin/imageinfo -qm -N %s "
+						 "%s/%s",
+						 TBROOT, reqp->isvnode ?
+						 reqp->pnodeid : reqp->nodeid,
+						 row[8], row[7]);
+					if ((cfd = popen(_buf, "r")) == NULL) {
+					badimage:
+						error("doloadinfo: %s: "
+						      "Could not determine "
+						      "mtime for %s/%s\n",
+						      reqp->nodeid,
+						      row[8], row[7]);
+						mysql_free_result(res);
+						return 1;
+					}
+					_buf[0] = 0;
+					fgets(_buf, sizeof _buf, cfd);
+					pclose(cfd);
+					sb.st_mtime = 0;
+					if (_buf[0] != 0 && _buf[0] != '\n') {
+						sscanf(_buf, "%u",
+						       &sb.st_mtime);
+					}
+					if (sb.st_mtime == 0)
+						goto badimage;
 				}
 				bufp += OUTPUT(bufp, ebufp - bufp,
 					       " IMAGEMTIME=%u\n",

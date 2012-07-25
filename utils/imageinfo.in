@@ -1,0 +1,157 @@
+#!/usr/bin/perl -w
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use English;
+use strict;
+use Getopt::Std;
+use File::stat;
+
+#
+# Get basic info for an image.
+#
+# This is intended for use by non-admin process on boss which might have
+# Emulab-permitted download access but not physical access to the image
+# (i.e., it is a shared image). Uses the frisbee mserver to get the info.
+#
+
+sub usage()
+{
+    print("Usage: imageinfo [-N nodeid] [-s] [-m] <imageid>\n" .
+	  "Options:\n".
+	  "   -d        Turn on debug mode\n".
+	  "   -N nodeid Use the frisbee master server to get info on behalf of nodeid\n".
+	  "   -q        Don't print message on error, just exit non-zero\n".
+	  "   -s        Just print the size of the image in bytes\n".
+	  "   -m        Just print the modtime of the image in seconds since epoch\n");
+    exit(-1);
+}
+my $optlist   = "dsmN:q";
+my $debug     = 0;
+my $quiet     = 0;
+my $showall   = 1;
+my $showsize  = 0;
+my $showmtime  = 0;
+my $nodeid;
+
+#
+# Configure variables
+#
+my $TB		= "@prefix@";
+my $frisbee	= "$TB/sbin/frisbee";
+
+# Protos
+sub fatal($);
+
+#
+# Untaint the path
+#
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/usr/bin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Load the Testbed support stuff.
+#
+use lib "@prefix@/lib";
+use Node;
+use Image;
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"q"})) {
+    $quiet = 1;
+}
+if (defined($options{"s"})) {
+    $showsize = 1;
+    $showall = $showmtime = 0;
+}
+if (defined($options{"m"})) {
+    $showmtime = 1;
+    $showall = $showsize = 0;
+}
+if (defined($options{"N"})) {
+    my $node = Node->Lookup($options{"N"});
+    if (!defined($node)) {
+	fatal("No such node exists");
+    }
+    $nodeid = $node->node_id();
+}
+usage() 
+    if (@ARGV != 1);
+
+my $image   = Image->Lookup($ARGV[0]);
+if (!defined($image)) {
+    fatal("No such image exists");
+}
+my $imagename = $image->imagename();
+my $imagepid = $image->pid();
+my $imagepath = $image->path();
+    
+if (!defined($nodeid) && ! -R $imagepath) {
+    fatal("$imagepid/$imagename: image file is not readable, must use -N\n");
+}
+
+my ($isize, $imtime);
+if (!defined($nodeid)) {
+    print STDERR "Doing stat on $imagepath\n"
+	if ($debug);
+    $isize = stat($imagepath)->size;
+    $imtime = stat($imagepath)->mtime;
+} else {
+    print STDERR "Using frisbee on $imagepid/$imagename\n"
+	if ($debug);
+    my $attr = `$frisbee -S localhost -Q $imagepid/$imagename -P $nodeid`;
+    if ($attr =~ /error=0/) {
+	if ($attr =~ /size=(\d+)/) {
+	    $isize = $1;
+	}
+	if ($attr =~ /sigtype=0x1/ && $attr =~ /sig=(0x[0-9a-f]+)/) {
+	    $imtime = hex($1);
+	}
+    } else {
+	fatal("$imagepid/$imagename: access not allowed or image does not exist");
+    }
+}
+
+if ($showall) {
+    if (defined($isize)) {
+	printf "size=%lu\n", $isize;
+    }
+    if (defined($imtime)) {
+	printf "mtime=%lu\n", $imtime;
+    }
+} elsif ($showsize && defined($isize)) {
+    printf "%lu\n", $isize;
+} elsif ($showmtime && defined($imtime)) {
+    printf "%lu\n", $imtime;
+}
+
+exit(0);
+
+sub fatal($)
+{
+    my ($mesg) = $_[0];
+
+    exit(-1)
+	if ($quiet);
+
+    die("*** $0:\n".
+	"    $mesg\n");
+}
+

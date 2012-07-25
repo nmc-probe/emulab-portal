@@ -50,9 +50,9 @@ my $TBLOADWAIT  = (10 * 60);
 my $OUTERBOSS	    = "@OUTERBOSS_NODENAME@";
 my $osselect	    = "$TB/bin/os_select";
 my $TBUISP	    = "$TB/bin/tbuisp";
+my $IMAGEINFO	    = "$TB/sbin/imageinfo";
 
 # Locals
-my $FRISBEE         = "$TB/sbin/frisbee";
 my %imageinfo       = ();	# Per imageid DB info.
 my $debug           = 0;
 my %children        = ();	# Child pids in when asyncmode=1
@@ -798,15 +798,12 @@ sub GetImageInfo($;$)
 	#
 	# For either case, making a proxy query request via frisbee will
 	# tell us whether the image is accessible and, if so, its size.
+	# "imageinfo" makes that call for us.
 	#
 	my $frisimageid = $rowref->{'pid'} . "/" . $rowref->{'imagename'};
-	my $attr = `$FRISBEE -S localhost -Q $frisimageid -P $node`;
-	if ($attr =~ /error=0/) {
-	    if ($attr =~ /size=(\d+)/) {
-		$imagesize = $1;
-	    } else {
-		$imagesize = 1 * 1024 * 1024 * 1024;
-	    }
+	my $sizestr = `$IMAGEINFO -qs -N $node $frisimageid`;
+	if ($sizestr =~ /^(\d+)$/) {
+	    $imagesize = $1;
 	} else {
 	    tberror "$image: access not allowed or image does not exist.";
 	    $imageinfo{$imageid} = 'BADIMAGE';
