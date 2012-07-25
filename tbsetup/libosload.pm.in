@@ -761,7 +761,7 @@ sub osload ($$) {
 # (for the indicated node).  This info is cached for use by all other
 # nodes that require the image.  Returns 1 on success, 0 on failure.
 #
-sub GetImageInfo($;$)
+sub GetImageInfo($$)
 {
     my ($image, $node) = @_;
     my $imagesize = 0;

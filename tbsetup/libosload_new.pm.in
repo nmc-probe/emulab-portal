@@ -519,7 +519,7 @@ sub osload($$$) {
 	# Load up the imageinfo before we fork to minimize queries and maximize
 	# mem sharing.
 	#
-	#$self->GetImageInfo($image);
+	#$self->GetImageInfo($image,...);
     }
 
     #
@@ -924,9 +924,9 @@ sub AddNode($$$$)
 # This info is cached for use by all other 
 # nodes that require the image.  Returns 1 on success, 0 on failure.
 #
-sub GetImageInfo($$$)
+sub GetImageInfo($$$$)
 {
-    my ($self, $image, $rowrefptr) = @_;
+    my ($self, $image, $node, $rowrefptr) = @_;
     my $imagesize = 0;
 
     my $imageid = $image->imageid();
@@ -1746,7 +1746,7 @@ sub _CheckImages($$)
 	# 
 	my $rowref = $self->imageinfo($imageid);
 	if (!defined($rowref)) {
-	    my $retval = $self->GetImageInfo($image,\$rowref);
+	    my $retval = $self->GetImageInfo($image,$node_id,\$rowref);
 	    # save it off!
 	    $self->imageinfo($imageid,$rowref);
 	    if ($retval) {
