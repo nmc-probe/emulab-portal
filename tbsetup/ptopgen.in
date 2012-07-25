@@ -269,8 +269,6 @@ if ($genimode ne $NO_GENI) {
     $fake_air_iface = "air";
 }
 
-print_header();
-
 my %nodetointerface;
 my %interfaceroles = ();
 my %interfacetypes = ();
@@ -297,14 +295,16 @@ while (($node,$card,$port,$iface,$type,$role,$ip) = $result->fetchrow_array) {
 }
 
 my %external_nodes;
+my %external_managers;
 my %external_ifaces;
+my %external_links;
 my %contact_nodes;
 my %contact_ifaces;
-my %contact_links;
 
 $result = DBQueryFatal("select w.node_id1, w.card1, w.port1, i1.iface, ".
 		       "w.node_id2, w.card2, w.port2, i2.iface, ".
-		       "e.node_id, e.min_vlan, e.max_vlan ".
+		       "w.external_interface, w.external_wire, ".
+		       "e.node_id, e.min_vlan, e.max_vlan, e.external_manager ".
 		       "from wires as w ".
 		       "left join external_networks as e ".
 		       "on w.node_id1=e.node_id or w.node_id2=e.node_id ".
@@ -312,7 +312,8 @@ $result = DBQueryFatal("select w.node_id1, w.card1, w.port1, i1.iface, ".
 		       "left join interfaces as i2 on w.node_id2=i2.node_id and w.card2=i2.card and w.port2=i2.port ".
 		       "where e.node_id is not null");
 while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
-	   $external, $minLan, $maxLan) = $result->fetchrow_array) {
+	   $external_iface_urn, $external_link_urn, $external, $minLan,
+	   $maxLan, $external_manager_urn) = $result->fetchrow_array) {
     if ($external eq $cnode) {
 	my $temp;
 	$temp = $cnode; $cnode = $enode; $enode = $temp;
@@ -327,10 +328,14 @@ while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
 	$ciface = "$ccard.$cport";
     }
     $external_nodes{$enode} = "$minLan-$maxLan";
-    $external_ifaces{"$cnode:$enode"} = $eiface;
+    $external_managers{"$cnode:$enode"} = $external_manager_urn;
+    $external_ifaces{"$cnode:$enode"} = $external_iface_urn;
+    $external_links{"$cnode:$enode"} = $external_link_urn;
     $contact_nodes{$cnode} = $enode;
     $contact_ifaces{"$cnode:$enode"} = $ciface;
 }
+
+print_header();
 
 my %nodetouuid;
 my %nodetoavailable;
@@ -1795,6 +1800,14 @@ sub print_header {
 		   $times[5] + 1900, $times[4] + 1, $times[3],
 		   $times[2], $times[1], $times[0]);
 	    print ">\n";
+	    for my $iface (keys(%external_ifaces)) {
+		if (defined($external_managers{$iface})) {
+		    print "<external_ref ".
+			"component_id=\"".$external_ifaces{$iface}."\"\n  ".
+			"component_manager_id=\"" . $external_managers{$iface}.
+			"\" />\n";
+		}
+	    }
 	    my $result = DBQueryFatal("select token from shared_vlans ".
 				      "where open=1");
 	    if ($result->rows > 0) {
@@ -1841,8 +1854,7 @@ sub print_footer {
 		    my $external = $contact_nodes{$node};
 		    my $vlans = $external_nodes{$external};
 		    print_stitch_node($node, $contact_ifaces{"$node:$external"},
-				      $contact_links{"$node:$external"},
-				      $external_ifaces{"$node:$external"},
+				      $external_links{"$node:$external"},
 				      1000000, $vlans, 0);
 		}
 		print "</aggregate>\n";
@@ -1906,6 +1918,12 @@ sub print_node
 		" - " . join(" ", @$flags);
 	print "$text\n";
     } elsif ($genimode ne $NO_GENI) {
+	if (exists($external_nodes{$name})) {
+	    # Do not print out this node in XML mode because it is a
+	    # 'fake' node and we are actually printing out real remote
+	    # interfaces instead.
+	    return;
+	}
 	add_stitch_interfaces($name, $interfaces);
 
 	# rspec format
@@ -1984,7 +2002,7 @@ sub print_node
 sub add_stitch_interfaces
 {
     my ($name, $interfaces) = @_;
-    add_stitch_point($name, $interfaces, \%external_nodes, \%external_ifaces);
+#    add_stitch_point($name, $interfaces, \%external_nodes, \%external_ifaces);
     add_stitch_point($name, $interfaces, \%contact_nodes, \%contact_ifaces);
 }
 
@@ -2304,15 +2322,25 @@ sub print_named_link_xml
     my @proto = @{ shift(@_) };
     my $is_interconnect = shift(@_);
     my $proto_count = scalar(@proto);
+    my $source_urn = GeniHRN::GenerateInterface($OURDOMAIN, $source,
+						$source_if);
+    my $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
+					      $dest_if);
     if ($genimode ne $NO_GENI) {
+	my $external_manager_urn;
+	my $urn = GeniHRN::Generate($OURDOMAIN, "link", $name);
 	if (exists($external_ifaces{"$source:$dest"})) {
-	    $source_if = $contact_ifaces{"$source:$dest"};
-	    $dest_if = $external_ifaces{"$source:$dest"};
-	    $contact_links{"$source:$dest"} = $name;
+	    $source_urn = GeniHRN::GenerateInterface($OURDOMAIN, $source,
+					     $contact_ifaces{"$source:$dest"});
+	    $dest_urn = $external_ifaces{"$source:$dest"};
+	    $urn = $external_links{"$source:$dest"};
+	    $external_manager_urn = $external_managers{"$source:$dest"};
 	} elsif (exists($external_ifaces{"$dest:$source"})) {
-	    $source_if = $external_ifaces{"$dest:$source"};
-	    $dest_if = $contact_ifaces{"$dest:$source"};
-	    $contact_links{"$dest:$source"} = $name;
+	    $source_urn = $external_ifaces{"$dest:$source"};
+	    $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
+					     $contact_ifaces{"$dest:$source"});
+	    $urn = $external_links{"$dest:$source"};
+	    $external_manager_urn = $external_managers{"$dest:$source"};
 	}
 	print "<link ";
 	my $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
@@ -2320,7 +2348,6 @@ sub print_named_link_xml
 	    print "component_manager_uuid=\"$cmurn\" ";
 	}
 	print "component_name=\"$name\" ";
-	my $urn = GeniHRN::Generate($OURDOMAIN, "link", $name);
 	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
 	    print "component_uuid=\"$urn\" ";
 	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
@@ -2329,9 +2356,12 @@ sub print_named_link_xml
 	print ">\n";
 	if ($genimode eq $V_2 || $genimode eq $V_3) {
 	    print "<component_manager name=\"$cmurn\" />\n";
+	    if (defined($external_manager_urn)) {
+		print "<component_manager name=\"$external_manager_urn\" />\n";
+	    }
 	}
-	print_interface($source, $source_if);
-	print_interface($dest, $dest_if);
+	print_interface($source, $source_urn);
+	print_interface($dest, $dest_urn);
     } else {
 	print "<link name=\"$name\">\n";
 	print "  <source_interface><interface>\n";
@@ -2347,9 +2377,9 @@ sub print_named_link_xml
 	print "  <latency>$delay</latency>\n";
 	print "  <packet_loss>$loss</packet_loss>\n";
     } elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	print_property($source, $source_if, $dest, $dest_if,
+	print_property($source_urn, $dest_urn,
 		       $bw, $delay, $loss);
-	print_property($dest, $dest_if, $source, $source_if,
+	print_property($dest_urn, $source_urn,
 		       $bw, $delay, $loss);
     }
     my $i = 0;
@@ -2368,12 +2398,9 @@ sub print_named_link_xml
 
 sub print_interface
 {
-    my $node = shift(@_);
-    my $interface = shift(@_);
+    my ($node, $interfaceUrn) = @_;
     print "  <interface_ref ";
     my $nodeUrn = GeniHRN::Generate($OURDOMAIN, "node", $node);
-    my $interfaceUrn = GeniHRN::GenerateInterface($OURDOMAIN, $node,
-						  $interface);
     if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
 	print "component_node_uuid=\"$nodeUrn\" ";
 	print "component_interface_id=\"" . $interfaceUrn . "\"";
@@ -2385,10 +2412,7 @@ sub print_interface
 
 sub print_property
 {
-    my ($source, $source_if, $dest, $dest_if, $bw, $delay, $loss) = @_;
-    my $source_urn = GeniHRN::GenerateInterface($OURDOMAIN, $source,
-						$source_if);
-    my $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest, $dest_if);
+    my ($source_urn, $dest_urn, $bw, $delay, $loss) = @_;
     print "<property source_id=\"$source_urn\" dest_id=\"$dest_urn\" ";
     print " capacity=\"$bw\" latency=\"$delay\" packet_loss=\"$loss\" />\n";
 }
@@ -2436,11 +2460,9 @@ sub print_type_relation
 
 sub print_stitch_node
 {
-    my ($node, $iface, $link, $remote_iface, $capacity, $vlans,
-	$vlan_will_translate) = @_;
+    my ($node, $iface, $link, $capacity, $vlans, $vlan_will_translate) = @_;
     my $node_urn = GeniHRN::Generate($OURDOMAIN, "node", $node);
     my $iface_urn = GeniHRN::GenerateInterface($OURDOMAIN, $node, $iface);
-    my $link_urn = GeniHRN::Generate($OURDOMAIN, "link", $link);
     # Capacity is in kilobits/sec but needs to be converted to bits/sec
     my $bits = $capacity * 1000;
     my $vlan_translate = "false";
@@ -2455,8 +2477,8 @@ sub print_stitch_node
     print "    <minimumReservableCapacity>1000000".
 	"</minimumReservableCapacity>\n";
     print "    <granularity>1000000</granularity>\n";
-    print "    <link id=\"$link_urn\">\n";
-    print "      <remoteLinkId>$remote_iface</remoteLinkId>\n";
+    print "    <link id=\"$link\">\n";
+    print "      <remoteLinkId>$link</remoteLinkId>\n";
     print "      <trafficEngineeringMetric>10</trafficEngineeringMetric>\n";
     print "      <capacity>$bits</capacity>\n";
     print "      <maximumReservableCapacity>$bits".
