@@ -7,7 +7,7 @@
 #
 
 #
-# Deamon server running on Arista switch side for snmpit_arista.
+# Daemon server running on Arista switch side for snmpit_arista.
 #
 
 import PyClient

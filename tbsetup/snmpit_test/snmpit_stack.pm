@@ -1594,6 +1594,12 @@ sub snap($) {
 		$device = new snmpit_apcon($devicename,$self->{DEBUG});
 		last;
 	        }; # /apcon.*/
+	    (/arista/)
+		    && do {
+			require snmpit_arista;
+			$device = new snmpit_arista($devicename, $self->{DEBUG});
+			last;
+		}; # /arista.*/
 	    print "Device $devicename is not of a known type\n";
 	}
 	if (!$device) {
