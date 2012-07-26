@@ -187,7 +187,7 @@ sub initSNMPSession($) {
 sub initRPCSession($) {
     my $self = shift;
 
-    $self->{CLT} = RPC::XML::Client->new("http://".$self->{NAME}."$RPCPORT");
+    $self->{CLT} = RPC::XML::Client->new("http://".$self->{NAME}.":$RPCPORT");
     if (!$self->{CLT}) {
 	warn "WARNING: Unable to connect to XML RPC server at $self->{NAME}\n";
 	return 0;
