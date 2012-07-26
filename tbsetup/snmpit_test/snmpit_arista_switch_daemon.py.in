@@ -9,6 +9,12 @@
 #
 # Daemon server running on Arista switch side for snmpit_arista.
 #
+# TODO: Wrap XML-RPC method results to be a dict:
+#       { 'result' : result_value,
+#         'success': int 0 or 1,
+#         'error'  : error string on failure, or empty on success
+#       }
+#
 
 import PyClient
 import SimpleXMLRPCServer
@@ -30,10 +36,6 @@ def debug(msg, level = 1):
     if level <= debug_level:
         print("[DEBUG %d]: %s"%(level, msg))
 
-#
-# The Arista Python library uses exceptions to handle errors,
-# so it doesn't work if we just depend on return values.
-#
 
 def initSession():
     pc = PyClient.PyClient("ar", "Sysdb")
@@ -46,12 +48,7 @@ def getBridgingConfig(sysdb):
 
 def vlanExists(sysdb, vlan_num):
     bc = getBridgingConfig(sysdb)
-    rt = bc.vlanConfig.get(vlan_num)
-    if rt:
-        return True
-    else:
-        return False
-
+    return bc.vlanConfig.has_key(vlan_num)
     
 def tagPort(sysdb, tags, native_vlan, port):
     bc = getBridgingConfig(sysdb)
@@ -75,36 +72,40 @@ def initRPCServer(bind_addr, port, funcs):
 # Return "1" if succeed, error string otherwise
 # 
 def _createVlan(vlan_id, vlan_num):
+    retval = None
     try:
         bc = getBridgingConfig(sysdbroot)
         nv = bc.vlanConfig.newMember(int(vlan_num))
         nv.configuredName = VLAN_ID_PREFIX + str(vlan_id)
-        return 1
+        retval = 1
     except:
         print("_createVlan(",
               str(vlan_id), ",",
               str(vlan_num), ") error: ",
               str(sys.exc_info()))
-        return str(sys.exc_info())
+        retval = str(sys.exc_info())
 
+    return retval
 
 #
 # Return 1 on success, error string on failure.
 #
 def _removeVlan(vlan_num):
+    retval = None
     try:
         bc = getBridgingConfig(sysdbroot)
         if vlanExists(sysdbroot, int(vlan_num)):
             del bc.vlanConfig[int(vlan_num)]
-            return 1
+            retval =1
         else:
-            return "VLAN #%d not exists."%(int(vlan_num),)
+            retval = "VLAN #%d not exists."%(int(vlan_num),)
     except:
         print("_removeVlan(",
               str(vlan_num), ") error: ",
               str(sys.exc_info()))
-        return str(sys.exc_info())
+        retval = str(sys.exc_info())
 
+    return retval
 
 #
 # Assign ports to a VLAN, and enable them.
@@ -112,9 +113,9 @@ def _removeVlan(vlan_num):
 # Return #errors.
 # 
 def _setPortVlan(vlan_num, ports):
+    errors = 0
     try:
         bc = getBridgingConfig(sysdbroot)
-        errors = 0
         
         if not vlanExists(sysdbroot, vlan_num):
             debug("setPortVlan: VLAN #%d not exists."%(int(vlan_num),))
@@ -131,13 +132,14 @@ def _setPortVlan(vlan_num, ports):
                 pbc.switchportMode = 'access'
                 pbc.enabled = True
                 pbc.accessVlan = int(vlan_num)
-        return errors
+
     except:
         print("_setPortVlan(",
               str(vlan_num), ",",
               str(ports), ") error: ",
               str(sys.exc_info()))
-        return 1
+
+    return errors
 
 
 #
@@ -145,9 +147,9 @@ def _setPortVlan(vlan_num, ports):
 # If ports is empty, remove all ports from the VLAN.
 #
 def _removePortsFromVlan(vlan_num, ports):
+    errors = 0
     try:
         bc = getBridgingConfig(sysdbroot)
-        errors = 0
         
         if vlanExists(sysdbroot, int(vlan_num)):
             if len(ports) == 0:
@@ -164,15 +166,15 @@ def _removePortsFromVlan(vlan_num, ports):
                     if pbc.accessVlan == int(vlan_num):
                         pbc.accessVlan = DEFAULT_VLAN_NUM
 
-        return errors
     except:
         print("_removePortsFromVlan(",
               str(vlan_num), ",",
               str(ports), ") error: ",
               str(sys.exc_info()))
-        return 1
+        errors = 1
 
-
+    return errors
+    
 #
 # Return 1 if exists, 0 otherwise
 #
@@ -276,50 +278,123 @@ def _enablePortTrunking(port, native_vlan_num, tag_native):
         print("_enablePortTrunking(", str(port), ",", str(native_vlan_num),
               ",", str(tag_native), ") error: ", str(sys.exc_info()))
         return 0
-    else:
-        return 1
+
+    return 1
 
 
 #
 # Disable port's trunk mode
 #
+# Return 1 on success, 0 on failure.
+#
 def _disablePortTrunking(port):
+    retval = 0
     try:
-        pass
+        pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
+        if pc.switchportMode != 'access':
+            native_vlan = pc.trunkNativeVlan
+            pc.trunkAllowedVlans = ''
+            pc.switchportMode = 'access'
+
+            #
+            # !!! This is a little bit aggressive.
+            #
+            if pc.accessVlan == 1 && native_vlan != 0:
+                pc.accessVlan = native_vlan
+                
+            pc.enabled = True
     except:
-        return 0
-    else:
-        return 1
+        print("_disablePortTrunking(", str(port), ") error: ",
+              str(sys.exc_info()))
+        retval = 0
     
+    return retval
+
+#
+# Helpers for VLAN ranges parsing and setting
+#
+
+# Set bits' value in bitmap according to ranges.
+def setBitmapByRanges(bmp, ranges, val = 1):
+    for t in ranges:
+        l, u = t
+        for i in range(l, u+1):
+            bmp[i] = val
+    return bmp
+
+# Convert a string range to int tuple:
+# '200' => (200, 200), '100-200' => (100, 200)
+def stringRange2IntTuple(sr):
+    bs = sr.split('-')
+    return (int(bs[0]), int(bs[-1]))
+
+# Convert a VLAN ranges string to bitmap.
+def string2Bitmap(s):
+    tks = filter(lambda x: x!="", s.split(","))
+    ranges = map(stringRange2IntTuple, tks)
+    bmp = [0]*4096
+    return setBitmapByRanges(bmp, ranges)
+
+# Convert bitmap to its string ranges representation.
+def bitmap2String(bmp):
+    s = ''
+    l = 0
+    u = 0
+    in_range = 0
+    nbmp = bmp
+    nbmp.append(0)
+    for i in range(1, len(bmp)):
+        if nbmp[i]==1:
+            if in_range==0:
+                in_range = 1
+                l = i
+        else:
+            if in_range==1:
+                in_range = 0
+                u = i-1
+                sr = str(l)
+                if l != u:
+                    sr += "-%d"%(u,)
+                if s != '':
+                    s += ","
+                s += sr
+    
+    return s
+
 #
 # Set allowed VLANs on trunked port.
 #
-# usage: 
+# Return 1 on success, 1 on failure.
+#
+# NOTE: Arista switch CLI supports more sophisticated VLAN range, here
+#       we only need deal the range value in existing trunkAllowedVlans.
+#       This works because vnums are passed from snmpit, and are all
+#       single numbers.
 #
 def _setAllowedVlansOnTrunkedPort(port, allow, vnums):
+    retval = 0
     try:
         pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
 
         if pc.switchportMode == 'access':
-            native_vlan = pc.accessVlan
             pc.switchportMode = 'trunk'
-            if native_vlan != 1:
-                pc.trunkNativeVlan = native_vlan
-                pc.trunkAllowedVlans = str(native_vlan)
-            else:
-                pc.trunkNativeVlan = 0
-                pc.trunkAllowedVlans = ''
-        else:
-            pass
-        
-        # TODO: fix VLAN range
+            pc.trunkAllowedVlans = ''
+
+        bmp = string2Bitmap(pc.trunkAllowedVlans)
+        vlan_ranges = map(lambda x: (int(x), int(x)), vnums)
         if int(allow) == 1:
-            if pc.trunkAllowedVlans != "":
-                pc.trunkAllowedVlans += "," + ",".join(map(str, vnums))
-            else:
-                pc.trunkAllowedVlans = ",".join(map(str, vnums))
+            bmp = setBitmapByRanges(bmp, vlan_ranges)
         else:
-            pc.trunkAllowedVlans = exceptVlans(pc.trunkAllowedVlans, map(int, vnums))
+            bmp = setBitmapByRanges(bmp, vlan_ranges, 0)
+        pc.trunkAllowedVlans = bitmap2String(bmp)
+        retval = 1
+    except:
+        print("_setAllowedVlansOnTrunkedPort(", str(port),
+              ",", str(allow), ",", str(vnums), ") error: ",
+              str(sys.exc_info()))
+        retval = 0
+        
+    return retval
 
 #
 # Exported methods list
