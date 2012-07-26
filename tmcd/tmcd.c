@@ -4595,7 +4595,8 @@ COMMAND_PROTOTYPE(doloadinfo)
 				  " from interfaces as i, subbosses as s "
 				  " where i.node_id=s.subboss_id and "
 				  " i.role='ctrl' and "
-				  " s.node_id='%s' and s.service='frisbee'",
+				  " s.node_id='%s' and s.service='frisbee'"
+				  " and s.disabled=0",
 				  1, reqp->isvnode ? reqp->pnodeid : reqp->nodeid);
 		if (!res2) {
 			error("doloadinfo: %s: DB Error getting subboss info!\n",
@@ -4848,12 +4849,42 @@ COMMAND_PROTOTYPE(doloadinfo)
 					return 1;
 				}
 				else if (stat(row[10], &sb)) {
-					error("doloadinfo: %s: Could not stat path %s"
-					      " associated with imageid %s: %s\n",
-					      reqp->nodeid, row[10], row[5],
-					      strerror(errno));
-					mysql_free_result(res);
-					return 1;
+					char _buf[512];
+					FILE *cfd;
+
+					/*
+					 * The image may not be directly
+					 * accessible since tmcd runs as
+					 * "nobody". If so, use the imageinfo
+					 * helper to get the info via the
+					 * frisbee master server.
+					 */
+					snprintf(_buf, sizeof _buf,
+						 "%s/sbin/imageinfo -qm -N %s "
+						 "%s/%s",
+						 TBROOT, reqp->isvnode ?
+						 reqp->pnodeid : reqp->nodeid,
+						 row[8], row[7]);
+					if ((cfd = popen(_buf, "r")) == NULL) {
+					badimage:
+						error("doloadinfo: %s: "
+						      "Could not determine "
+						      "mtime for %s/%s\n",
+						      reqp->nodeid,
+						      row[8], row[7]);
+						mysql_free_result(res);
+						return 1;
+					}
+					_buf[0] = 0;
+					fgets(_buf, sizeof _buf, cfd);
+					pclose(cfd);
+					sb.st_mtime = 0;
+					if (_buf[0] != 0 && _buf[0] != '\n') {
+						sscanf(_buf, "%u",
+						       &sb.st_mtime);
+					}
+					if (sb.st_mtime == 0)
+						goto badimage;
 				}
 				bufp += OUTPUT(bufp, ebufp - bufp,
 					       " IMAGEMTIME=%u\n",
@@ -8082,7 +8113,7 @@ COMMAND_PROTOTYPE(dofwinfo)
 		res = mydb_query("select node_id,IP,mac from interfaces "
 				 "where role='ctrl' and (node_id in "
 				 "('boss','ops','fs') or node_id in "
-				 "(select distinct subboss_id from subbosses))",
+				 "(select distinct subboss_id from subbosses where disabled=0))",
 				 3);
 		if (!res) {
 			error("FWINFO: %s: DB Error getting server info!\n",
@@ -9516,7 +9547,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 			 "left join interfaces as i on n.node_id = i.node_id "
 			 "left join reserved as r on n.node_id = r.node_id "
 			 "where s.subboss_id = '%s' and "
-	                 "s.service='dhcp' and i.role='ctrl' "
+	                 "s.service='dhcp' and s.disabled=0 and i.role='ctrl' "
 			 "order by n.priority", 12, reqp->nodeid);
 
 	if (!res) {
@@ -9615,7 +9646,8 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 
 
 		res2 = mydb_query("select s.subboss_id,s.service,i.IP from subbosses as s, "
-		                  "interfaces as i where s.node_id = '%s' and s.service != 'dhcp' "
+		                  "interfaces as i where s.node_id = '%s' and "
+				  "s.service != 'dhcp' and s.disabled=0 "
 		                  "and s.subboss_id = i.node_id and i.role = 'ctrl'", 3,
 		                  row[0]);
 		if (!res) {

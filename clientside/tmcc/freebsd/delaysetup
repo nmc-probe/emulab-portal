@@ -125,7 +125,7 @@ elsif ($FBSD_VERSION == 5) {
     $KERNELJAIL  = "/boot/kernel.linkdelay/kernel";
     $KERNELLDELAY= "/boot/kernel.linkdelay/kernel";
 }
-elsif ($FBSD_VERSION < 8) {
+elsif ($FBSD_VERSION < 8 && ($FBSD_VERSION != 7 || -d "/boot/kernel.poll")) {
     # for 6.x and 7.x, we use the same kernel for all.
     # XXX ok not quite yet til we characterize the effect of polling.
     $KERNELDELAY = "/boot/kernel.poll/kernel";

@@ -1624,7 +1624,7 @@ sub Volunteers($)
         # as a function of the number of vnodes on the parent pnode.
         #
 	my $osinfo      = $node->_bootosinfo();
-	my $reboot_time = $osinfo->reboot_waittime();
+	my $reboot_time = $osinfo->reboot_waittime() || 15;
 
 	#
 	# The wait times are totally bogus! Need a better way to do this.

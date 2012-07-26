@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Osload library. Basically the backend to the osload script, but also used
@@ -38,11 +38,10 @@ my $TESTMODE    = @TESTMODE@;
 my $TBOPS       = "@TBOPSEMAIL@";
 my $ELABINELAB  = @ELABINELAB@;
 my $PROJROOT    = "@PROJROOT_DIR@";
-my $OUTERBOSS	= "@OUTERBOSS_NODENAME@";
 
 # Paths to binaries
 my $TBUISP	    = "$TB/bin/tbuisp";
-my $FRISBEE         = "$TB/sbin/frisbee";
+my $IMAGEINFO	    = "$TB/sbin/imageinfo";
 
 # XXX windows load
 my $MAKECONF	    = "$TB/sbin/dhcpd_makeconf";
@@ -520,7 +519,7 @@ sub osload($$$) {
 	# Load up the imageinfo before we fork to minimize queries and maximize
 	# mem sharing.
 	#
-	#$self->GetImageInfo($image);
+	#$self->GetImageInfo($image,...);
     }
 
     #
@@ -925,9 +924,9 @@ sub AddNode($$$$)
 # This info is cached for use by all other 
 # nodes that require the image.  Returns 1 on success, 0 on failure.
 #
-sub GetImageInfo($$$)
+sub GetImageInfo($$$$)
 {
-    my ($self, $image, $rowrefptr) = @_;
+    my ($self, $image, $node, $rowrefptr) = @_;
     my $imagesize = 0;
 
     my $imageid = $image->imageid();
@@ -953,30 +952,22 @@ sub GetImageInfo($$$)
 
     if (! -R $imagepath) {
 	#
-	# If the image doesn't exist and we are in an inner elab,
-	# make sure real boss has it and see how big it is.
+	# There are two reasons why a legit image might not be readable.
+	# One is that we are in an elabinelab and the image has just not
+	# been downloaded yet. The other is that we are attempting to
+	# access a shared (via the grantimage mechanism) image which the
+	# caller cannot directly access.
 	#
-	# Note that we don't actually pre-fetch the image here,
-	# that will be done automatically when the image is first requested.
+	# For either case, making a proxy query request via frisbee will
+	# tell us whether the image is accessible and, if so, its size.
+	# "imageinfo" makes that call for us.
 	#
-	if ($ELABINELAB) {
-	    my $frisimageid = $rowref->{'pid'} . "/" . $rowref->{'imagename'};
-
-	    my $attr = `$FRISBEE -S $OUTERBOSS -Q $frisimageid`;
-	    if ($attr =~ /error=0/) {
-		if ($attr =~ /size=(\d+)/) {
-		    $imagesize = $1;
-		} else {
-		    $imagesize = 1 * 1024 * 1024 * 1024;
-		}
-	    } else {
-		tberror "Query to $OUTERBOSS for info on $image failed!";
-		$$rowrefptr = 'BADIMAGE';
-		return -1;
-	    }
-	}
-	else {
-	    tberror "$imagepath does not exist or cannot be read!";
+	my $frisimageid = $rowref->{'pid'} . "/" . $rowref->{'imagename'};
+	my $sizestr = `$IMAGEINFO -qs -N $node $frisimageid`;
+	if ($sizestr =~ /^(\d+)$/) {
+	    $imagesize = $1;
+	} else {
+	    tberror "$image: access not allowed or image does not exist.";
 	    $$rowrefptr = 'BADIMAGE';
 	    return -1;
 	}
@@ -984,17 +975,6 @@ sub GetImageInfo($$$)
     else {
 	(undef,undef,undef,undef,undef,undef,undef,$imagesize,
 	 undef,undef,undef,undef,undef) = stat($imagepath);
-
-	#
-	# A zero-length image cannot be right and will result in much confusion
-	# if allowed to pass: the image load will succeed, but the disk will be
-	# unchanged, making it appear that os_load loaded the default image.
-	#
-	if ($imagesize == 0) {
-	    tberror "$imagepath is empty!";
-	    $$rowrefptr = 'BADIMAGE';
-	    return -1;
-	}
     }
 
     # cache as long as we just looked!
@@ -1766,7 +1746,7 @@ sub _CheckImages($$)
 	# 
 	my $rowref = $self->imageinfo($imageid);
 	if (!defined($rowref)) {
-	    my $retval = $self->GetImageInfo($image,\$rowref);
+	    my $retval = $self->GetImageInfo($image,$node_id,\$rowref);
 	    # save it off!
 	    $self->imageinfo($imageid,$rowref);
 	    if ($retval) {

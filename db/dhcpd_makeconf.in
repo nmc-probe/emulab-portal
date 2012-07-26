@@ -185,7 +185,7 @@ while (my %row = $query_result->fetchhash()) {
 $query_result =
     DBQueryWarn("select s.node_id, s.service, s.subboss_id, i.IP ".
 		"from subbosses as s left join interfaces as i on ".
-		"s.subboss_id=i.node_id where i.role='$CRTLTAG'");
+		"s.subboss_id=i.node_id where i.role='$CRTLTAG' and s.disabled=0");
 if (! $query_result) {
     fatal("Could not dhcpd data from DB!");
 }

@@ -1370,6 +1370,7 @@ CREATE TABLE `external_networks` (
   `node_type` varchar(30) NOT NULL default '',
   `min_vlan` int(11) NOT NULL default '256',
   `max_vlan` int(11) NOT NULL default '1000',
+  `external_manager` tinytext,
   PRIMARY KEY  (`network_id`),
   UNIQUE KEY `node_id` (`node_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -3647,6 +3648,7 @@ CREATE TABLE `subbosses` (
   `node_id` varchar(32) NOT NULL default '',
   `service` varchar(20) NOT NULL default '',
   `subboss_id` varchar(20) NOT NULL default '',
+  `disabled` tinyint(1) NOT NULL default '0',
   PRIMARY KEY  (`node_id`,`service`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -5012,6 +5014,7 @@ CREATE TABLE `wires` (
   `logical` tinyint(1) unsigned NOT NULL default '0',
   `trunkid` mediumint(4) unsigned NOT NULL default '0',
   `external_interface` tinytext,
+  `external_wire` tinytext,
   PRIMARY KEY  (`node_id1`,`card1`,`port1`),
   KEY `node_id2` (`node_id2`,`card2`),
   KEY `dest` (`node_id2`,`card2`,`port2`),

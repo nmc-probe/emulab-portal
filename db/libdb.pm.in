@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # This library mostly contains old stuff that should phased out in
@@ -1936,7 +1936,8 @@ sub TBNodeConsoleTail ($$) {
 
 #
 # Wait for a node to hit a certain state. Provide a start time and a max
-# wait time.
+# wait time. A "state" can actually be "<op-mode>/<state>" in which case
+# it will match against both node.op_mode and node.eventstate.
 #
 # NB: This function is not as general purpose as it might seem; there are
 #     not many "terminal" states that you can wait for (like isup).
@@ -1952,21 +1953,33 @@ sub TBNodeStateWait ($$$$@) {
     #
     my $waittime  = 0;
     my $minutes   = 0;
+    my $needopmode = grep(/\//, @waitstates);
 
     #
     # Wait for the node to finish booting, as recorded in database
     #
     while (1) {
-	my $state;
-	if (!TBGetNodeEventState($pc, \$state)) {
-	    print "*** Error getting event state for $pc.\n";
+	my ($state, $opmode);
+	if (($needopmode && !TBGetNodeOpMode($pc, \$opmode)) ||
+	    !TBGetNodeEventState($pc, \$state)) {
+	    print "*** Error getting event op-mode/state for $pc.\n";
 	    return 1;
 	}
 
-	if (grep {$_ eq $state} @waitstates) {
-	    $$actual = $state
-		if (defined($actual));
-	    return 0;
+	foreach my $wstate (@waitstates) {
+	    if ($needopmode && $wstate =~ /^(.*)\/(.*)$/) {
+		if (($1 eq TBDB_NODEOPMODE_ANY || $1 eq $opmode) &&
+		    $2 eq $state) {
+		    # note that we return opmode/state
+		    $$actual = "$opmode/$state"
+			if (defined($actual));
+		    return 0;
+		}
+	    } elsif ($state eq $wstate) {
+		$$actual = $state
+		    if (defined($actual));
+		return 0;
+	    }
 	}
 
 	$waittime = time - $waitstart;

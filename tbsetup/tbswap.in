@@ -45,6 +45,7 @@ my $piper          = "$TBROOT/sbin/locpiper";
 my $mapper         = "$TBROOT/bin/mapper";
 my $wrapper        = "$TBROOT/libexec/assign_wrapper";
 my $SNMPIT	   = "$TBROOT/bin/snmpit";
+my $portstats	   = "$TBROOT/bin/portstats";
 my $NFSTRACESUPPORT= @NFSTRACESUPPORT@;
 my $PGENISUPPORT   = @PROTOGENI_SUPPORT@;
 
@@ -1492,10 +1493,10 @@ sub doSwapin($) {
     # Don't clear port counters on MODIFY.
     # (XXX should clear new nodes' port counters.)
 
-    if ($type >= RETRY) {
+    if ($type >= RETRY && -x $portstats) {
 	print "Clearing port counters.\n";
 	TBDebugTimeStamp("portstats started");
-	if (system("portstats $stackarg -z -a -q $pid $eid")) {
+	if (system("$portstats $stackarg -z -a -q $pid $eid")) {
 	    tbwarn "Failed to clear port counters.";
 	    #
 	    # This is a non-fatal error.

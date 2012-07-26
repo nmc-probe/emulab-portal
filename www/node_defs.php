@@ -1029,7 +1029,7 @@ class Node
 
 	    $query_result =
 	        DBQueryFatal("select service,subboss_id from subbosses ".
-			     "where node_id ='$node_id'");
+			     "where node_id ='$node_id' and disabled=0");
 
 	    while ($row = mysql_fetch_array($query_result)) {
 	        $service = $row["service"];
