@@ -6,15 +6,37 @@
 #
 # rc.cygwinxp - CygWin-specific startup.  Run by rc.bootsetup on CygWin.
 
-PATH=/usr/local/etc/emulab:/bin:$SYSTEMROOT/system32:$PATH
-export PATH
+source "/etc/emulab/paths.sh"
+NTS=`cygpath $SYSTEMROOT`/system32
+PATH=$PATH:$NTS
+
+# Constants
+LOGFILE=/var/log/EmulabStartup.log
+IMSTATE=/HKLM/Software/Microsoft/Windows/CurrentVersion/Setup/State/ImageState
+SDPIDFILE=/var/run/slothd.pid
+SVCS=/HKLM/SYSTEM/CurrentControlSet/Services
+TP=$SVCS/Tcpip/Parameters
+GMC=$BOOTDIR/getmac-cache
+ICC=$BOOTDIR/ipconfig-cache
+ICD=$BOOTDIR/ipconfig-descrs
+DFC=$BOOTDIR/devcon-find-cache
+CIF=$BOOTDIR/controlif
+CMAC=$BOOTDIR/controlmac
+XID=$BOOTDIR/xif_descrs
+XIM=$BOOTDIR/xif_macs
+XIN=$BOOTDIR/xif_names
+XII=$BOOTDIR/xif_ids
+XIMAP=$BOOTDIR/xif_map
+MIDX=$BOOTDIR/mac-ifindex-map
+MIM=$BOOTDIR/mac-id-map
+MNM=$BOOTDIR/mac-name-map
+UMAC=$BOOTDIR/used_macs
 
 # Enable logging.
-logfile=/var/log/EmulabStartup.log
-chmod -f g+w $logfile
+chmod -f g+w $LOGFILE
 function logit () {
     msg="`date`: $1"
-    echo "$msg" >> $logfile
+    echo "$msg" >> $LOGFILE
     echo "$msg"
 }
 
@@ -22,7 +44,6 @@ logit "----------------------------------------------------------------"
 logit "Entering rc.cygwin"
 
 # Enable WINDOWS() in libsetup.pm .
-# XXX: Hopefully this isn't happening too late.
 iscygwin=/etc/emulab/iscygwin
 chmod -f g+w /etc/emulab
 chmod -f g+w $iscygwin
@@ -30,22 +51,20 @@ uname -r > $iscygwin
 chmod g+w $iscygwin
 chmod -f g-w /etc/emulab
 
-#
-# If we are running under mini-setup (sysprep), bail.
-#
-#setupstate=`regtool get /HKLM/Software/Microsoft/Windows/CurrentVersion/Setup/State/ImageState`
-#if [ $setupstate != "IMAGE_STATE_COMPLETE" ]; then
-#    logit "Windows mini-setup is running - exiting!"
-#    exit 1;
-#fi
-
-# Stop the sshd service during setup, because it sometimes loops, eating 100% of the
-# CPU.  It will be restarted after rc.bootsetup by EmulabStartup.  Make sure below.
-# XXX: Assume this isn't needed.
-#cygrunsrv -E sshd
+# If we are running under mini-setup (sysprep), sleep until we aren't.
+setupstate=`regtool get $IMSTATE`
+logit "Checking mini-setup state and waiting for completetion."
+while [ $setupstate != "IMAGE_STATE_COMPLETE" ]; do
+    sleep 10
+    setupstate=`regtool get $IMSTATE`
+done
 
 # Make sure there isn't a dangling slothd lock file.
-rm -f /var/run/slothd.pid
+rm -f $SDPIDFILE
+
+# re-enable all network interfaces so that we can harvest their info.  This
+# can't be done for certain attributes when an interface is disabled.
+devcon enable =net '*PCI*'
 
 # Get the desired node name from tmcc, and make sure we have a connection.
 # There is a swap-in race condition where tmcc nodeid at first returns nothing.
@@ -56,7 +75,7 @@ while [ -z $nodeid ]; do
     if [ -z $nodeid ]; then
         logit "Null nodeid returned from tmcc.  Trying again."
         sleep 5
-    elif [ "$nodeid" == UNKNOWN ]; then
+    elif [ "$nodeid" == "UNKNOWN" ]; then
         logit "UNKNOWN nodeid returned from tmcc.  Trying again."
         nodeid=
         sleep 5
@@ -64,23 +83,12 @@ while [ -z $nodeid ]; do
 done
 logit "nodeid = $nodeid"
 
-# Sometimes the network stack gets out of sync: 'ipconfig /all' reports different
-# status on the interfaces than 'netsh interface show interface'.  This might help.
-#netsh interface reset all
-
 # Set the primary domain, so the Windows resolver won't be confused when there are
 # multiple interfaces.
 # XXX: Is this really needed under Win7?
 domain=`tmcc bossinfo | sed -n 's/[^.]*\.\([^ ]*\) .*/\1/p'`
-svcs=/HKLM/SYSTEM/CurrentControlSet/Services
-tp=$svcs/Tcpip/Parameters
-regtool set -s $tp/Domain $domain
+regtool set -s $TP/Domain $domain
 logit "domain = $domain"
-
-# XXX: If this dir isn't cleared out prior to this script running each time,
-#      then this script needs some fixing up for edge conditions (e.g. no
-#      experimental net interfaces defined).
-bd=/var/emulab/boot
 
 # Cache getmac output while all interfaces are still enabled, otherwise we get lines
 # with nothing but 'Disabled Disconnected'.  Used by rc.ifconfig .
@@ -90,113 +98,77 @@ bd=/var/emulab/boot
 # Description), dash-separated MAC address, and the \Device\Tcpip_{GUID} Transport Name.
 #
 # Squash out the ^M's and blank line in the getmac output.
-gmc=$bd/getmac-cache
-getmac /nh /v /fo csv | tr -d '\r' | sed '/^$/d' > $gmc
-nifc=`wc -l < $gmc`
+getmac /nh /v /fo csv | tr -d '\r' | sed '/^$/d' > $GMC
+nifc=`wc -l < $GMC`
 logit "number of interfaces in getmac = $nifc"
 
 # 'devcon find' returns device_instance_ID: Device Description pairs.
 # Squash out the ^M's and the space following the colon, and the summary line.
-dfc=$bd/devcon-find-cache
 devcon find =net '*PCI*' | tr -d '\r' | \
-    sed -e 's/ *: */:/' -e '/matching device/d' | sort -t : -k 1 > $dfc
+    sed -e 's/ *: */:/' -e '/matching device/d' | sort -t : -k 1 > $DFC
 
 # Grab and stash ipconfig output for parsing later.
-icc=$bd/ipconfig-cache icd=$bd/ipconfig-descrs
-ipconfig /all | tr -d '\r' > $icc
-sed -n '/Description/s/.*: //p' $icc | sort > $icd
-nipc=`grep Ethernet $icc | wc -l`
+ipconfig /all | tr -d '\r' > $ICC
+sed -n '/Description/s/.*: //p' $ICC | sort > $ICD
+nipc=`grep Ethernet $ICC | wc -l`
 logit "number of Ethernet interfaces in ipconfig = $nipc"
 
-# XXX: Let's hope this cruft is no longer needed under Win7!  Assume it isn't.
-#
-# In spite of enabling all interfaces with devcon in rc.firstboot, sometimes an
-# experimental net interface is omitted from ipconfig, but visible in devcon and
-# getmac.  Specifically disabling it and re-enabling it fixes the problem.  (Yuck.)
-#if [[ $nipc < $nifc ]]; then
-#    # Ignore the ones that are in ipconfig already.
-#    logit "Fixing interface(s):"
-#    logit "`join -v 2 -t : -2 2 -o 2.2 $icd $dfc`"
-#    # 'devcon' takes PCI_device_instance_ID args with leading @ signs.
-#    ids=`join -v 2 -t : -2 2 -o 2.1 $icd $dfc | sed 's/^/@/'`
-#    devcon disable $ids
-#    sleep 5
-#    devcon enable $ids
-#    sleep 5
-#
-#    # Should be fixed.
-#    ipconfig /all | tr -d '\r' > $icc
-#    sed -n '/Description/s/.*: //p' $icc | sort > $icd
-#    nipc=`wc -l < $icd`
-#    logit "number of interfaces in ipconfig now = $nipc"
-#    if [[ $nipc < $nifc ]]; then
-#        logit '*** There are still one or more interfaces missing! ***'
-#    fi
-#fi
+# Get interface indexes from the 'route' command
+route print | tr -s "." | tr -d " " | \
+    awk -F. '/^Interface/,/^====/{if ($1 ~ /[[:digit:]]+/ && $2 ~ /^[0-9a-f]{12}$/) {print $2 ":" $1}}' | sort > $MIDX
 
 # Remember the control net interface MAC address and Local Area Connection name for
 # slothd.  It's the one whose IP address is returned by looking up the nodeid (pc%d).
-cif=$bd/controlif cmac=$bd/controlmac
 ipaddr=`nslookup $nodeid.$domain | awk '/Address:/{print $2}' | tail -1` # XXX
 logit "ipaddr = $ipaddr"
 if [ -z "$ipaddr" ]; then
     logit "$host- No ip address found for '$nodeid.$domain'."
 else
     # Remember the non-control net interface device descriptions, etc. as well.
-    xid=$bd/xif_descrs xim=$bd/xif_macs xin=$bd/xif_names xii=$bd/xif_ids
-
     awk '/^Ethernet adapter/{ ifc = gensub("Ethernet adapter (.*):", "\\1", 1); next }\
          /Description/{ gsub("^[^:]*: ", ""); descr = $0; next }\
          /Physical Address/{ gsub("-", ":"); mac = tolower($NF); next }\
-         /IPv4 Address/ && $NF~"'$ipaddr'"{ ctl=1; print mac, ifc > "'$cif'";\
-            gsub(":", "", mac); print mac > "'$cmac'"; next }\
+         /IPv4 Address/ && $NF~"'$ipaddr'"{ ctl=1; print mac, ifc > "'$CIF'";\
+            gsub(":", "", mac); print mac > "'$CMAC'"; next }\
          # Blank lines separate the device sections in ifconfig output.\
          /^$/ && ifc != "" && descr != ""\
             { if (!ctl) do_xif(); descr = ifc = ctl = ""; next }\
          END{ if (ifc && !ctl) do_xif() }\
          function do_xif() {\
-            print mac > "'$xim'"; print ifc > "'$xin'"; print descr > "'$xid'" }' $icc
+            print mac > "'$XIM'"; print ifc > "'$XIN'"; print descr > "'$XID'" }' $ICC
 
     # XXX: Doesn't gracefully handle case where there are no exp net connections.
-    nxifc=`wc -l < $xim`
+    nxifc=`wc -l < $XIM`
     logit "number of experimental net interfaces = $nxifc"
     if (( $nxifc >= $nifc )); then
         logit "$host - Can't find control net interface.  Bad ip address '$ipaddr'?"
     else
         # Map from device names to PCI instance id's for liblocsetup.pm:os_ifconfig_line().
         # Make the device id order the same as ipconfig for pasting files together.
-        awk -F : < $dfc \
-            'BEGIN{ while ((getline descr < "'$xid'") > 0) descrs[++n] = descr }\
+        awk -F : < $DFC \
+            'BEGIN{ while ((getline descr < "'$XID'") > 0) descrs[++n] = descr }\
              { ids[$2] = $1 }\
-             END { for (i=1; i<=n; i++) print "@"ids[descrs[i]] > "'$xii'" }'
+             END { for (i=1; i<=n; i++) print "@"ids[descrs[i]] > "'$XII'" }'
         # devcon takes PCI_device_instance_ID args with leading @ signs.
-        ximap=$bd/xif_map
-        paste -d: $xin $xii > $ximap
+        paste -d: $XIN $XII > $XIMAP
 
         # Disable NICs that won't be used.  Addresses, etc for experimental net
         # interfaces will be configured by rc.ifc later (generated by rc.ifconfig .)
-        mim=$bd/mac-id-map mnm=$bd/mac-name-map umac=$bd/used_macs
         # mac-id-map is MAC:PCI_device_instance_ID.
-        tr -d : < $xim | paste -d: - $xii | sort > $mim
+        tr -d : < $XIM | paste -d: - $XII | sort > $MIM
         # mac-name-map is MAC:Local Area Connection #
-        tr -d : < $xim | paste -d: - $xin | sort > $mnm
+        tr -d : < $XIM | paste -d: - $XIN | sort > $MNM
         # Make a list of NIC macs that will be used.
-        tmcc ifconfig | sed -e 's/.*MAC=//' -e 's/ .*//' | cat $cmac - | sort > $umac
+        tmcc ifconfig | sed -e 's/.*MAC=//' -e 's/ .*//' | cat $CMAC - | sort > $UMAC
         # The others.
-        unused=`join -v 2 -t : -o 2.1 $umac $mim`
+        unused=`join -v 2 -t : -o 2.1 $UMAC $MIM`
         if [ ! -z "$unused" ]; then
             logit "Disabling unused interface(s):"
-            logit "`join -v 2 -t : -o 2.1 $umac $mnm`"
-            devcon disable `join -v 2 -t : -o 2.2 $umac $mim`
+            logit "`join -v 2 -t : -o 2.1 $UMAC $MNM`"
+            devcon disable `join -v 2 -t : -o 2.2 $UMAC $MIM`
         fi
     fi
 fi
-
-# Make double-sure that the sshd service is stopped during setup, because it
-# sometimes loops, eating 100% of the CPU.  It will be restarted after rc.bootsetup
-# by EmulabStartup.
-# XXX: Assume not needed.
-#cygrunsrv -E sshd
 
 #
 # Start the CPU performance counter slothd will use to look at CPU load

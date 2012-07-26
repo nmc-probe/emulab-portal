@@ -84,6 +84,8 @@ sysetc-install:	dir-install ###ifcfgs
 	# Boot log files have to be writable by root under rc.cygwin .
 	$(INSTALL) -c -m 775 -o root -d /var/log
 	$(INSTALL) -c -m 775 -o root -d /var/db
+	ln -f -s $(SYSTEM32)/getmac.exe /bin/getmac.exe
+	ln -f -s $(SYSTEM32)/devcon.exe /bin/devcon.exe
 
 script-install:	dir-install $(SCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/liblocsetup.pm $(BINDIR)/liblocsetup.pm

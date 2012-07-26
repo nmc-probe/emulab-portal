@@ -331,6 +331,7 @@ sub os_ifconfig_line($$$$$$$;$$%)
 	#
 	# Configure.
 	$uplines   .= sprintf($IFCONFIG, $iface, $inet, $mask) . qq{\n    };
+	$uplines   .= qq{sleep 5\n    }
 
 # XXX: Going to assume for now that jumping through these hoops isn't necessary
 #      under Win7.
@@ -702,12 +703,13 @@ sub os_routing_add_manual($$$$$;$)
     # Re-doing the command later succeeds.
     # Wrap the route command in a loop to make sure it gets done.
     # Don't loop forever.
-    $cmd = "n=1; while ! ( $ROUTE print | grep -Fq $destip ); do \n
-                echo $cmd;\n
-                $cmd\n
-                let n++; if [[ \$n > 5 ]]; then break; fi
-                sleep 5\n
-            done";
+    #$cmd = "n=1; while ! ( $ROUTE print | grep -Fq $destip ); do \n
+    #            echo $cmd;\n
+    #            $cmd\n
+    #            let n++; if [[ \$n > 5 ]]; then break; fi
+    #            sleep 5\n
+    #        done";
+    $cmd = "echo $cmd; $cmd";
 
     return $cmd;
 }
