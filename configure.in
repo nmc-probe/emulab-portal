@@ -274,6 +274,11 @@ AC_SUBST(TBERRORSEMAIL)
 AC_SUBST(TBERRORSEMAIL_NOSLASH)
 
 #
+# For snmpit support of Arista switch.
+#
+AC_SUBST(ARISTA_SWITCH_XMLRPCPORT)
+
+#
 # Defaults for for above variables.
 #
 TBERRORLOGDBNAME="errorlog"
