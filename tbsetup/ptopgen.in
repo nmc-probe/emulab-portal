@@ -1844,18 +1844,29 @@ sub print_footer {
 		    "<stitchingmode>chainANDTree</stitchingmode>\n".
 		    "<scheduledservices>false</scheduledservices>\n".
 		    "<negotiatedservices>false</negotiatedservices>\n".
-		    "<lifetime id=\"urn:publicid:IDN+emulab.net+authority+cm\">\n".
-		    "    <start type=\"time\">2011-06-01T20:57:53Z</start>\n".
-		    "    <end type=\"time\">2011-06-01T20:57:53Z</end>\n".
+		    "<lifetime id=\"life\">\n".
+		    "    <start type=\"time\">";
+		printf("%04d-%02d-%02dT%02d:%02d:%02dZ",
+		       $times[5] + 1900, $times[4] + 1, $times[3],
+		       $times[2], $times[1], $times[0]);
+		print "</start>\n".
+		    "    <end type=\"time\">";
+		printf("%04d-%02d-%02dT%02d:%02d:%02dZ",
+		       $times[5] + 1900, $times[4] + 1, $times[3],
+		       $times[2], $times[1], $times[0]);
+		print "</end>\n".
 		    "</lifetime>\n";
 
 
 		foreach my $node (keys(%contact_nodes)) {
 		    my $external = $contact_nodes{$node};
 		    my $vlans = $external_nodes{$external};
-		    print_stitch_node($node, $contact_ifaces{"$node:$external"},
-				      $external_links{"$node:$external"},
-				      1000000, $vlans, 0);
+		    if (defined($external_links{"$node:$external"})) {
+			print_stitch_node($node,
+					  $contact_ifaces{"$node:$external"},
+					  $external_ifaces{"$node:$external"},
+					  1000000, $vlans, 0);
+		    }
 		}
 		print "</aggregate>\n";
 		print "</stitching>\n";
@@ -2327,6 +2338,7 @@ sub print_named_link_xml
     my $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
 					      $dest_if);
     if ($genimode ne $NO_GENI) {
+	$name =~ s/:/\/\//g;
 	my $external_manager_urn;
 	my $urn = GeniHRN::Generate($OURDOMAIN, "link", $name);
 	if (exists($external_ifaces{"$source:$dest"})) {
@@ -2342,6 +2354,7 @@ sub print_named_link_xml
 	    $urn = $external_links{"$dest:$source"};
 	    $external_manager_urn = $external_managers{"$dest:$source"};
 	}
+	(undef, undef, $name) = GeniHRN::Parse($urn);
 	print "<link ";
 	my $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
 	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
@@ -2460,8 +2473,11 @@ sub print_type_relation
 
 sub print_stitch_node
 {
-    my ($node, $iface, $link, $capacity, $vlans, $vlan_will_translate) = @_;
+    my ($node, $iface, $remote_iface_urn, $capacity,
+	$vlans, $vlan_will_translate) = @_;
     my $node_urn = GeniHRN::Generate($OURDOMAIN, "node", $node);
+    my $port_urn = GeniHRN::Generate($OURDOMAIN, "stitchport",
+				     $node . "//" . $iface);
     my $iface_urn = GeniHRN::GenerateInterface($OURDOMAIN, $node, $iface);
     # Capacity is in kilobits/sec but needs to be converted to bits/sec
     my $bits = $capacity * 1000;
@@ -2470,15 +2486,15 @@ sub print_stitch_node
 	$vlan_translate = "true";
     }
     print "<node id=\"$node_urn\">\n";
-    print "  <port id=\"$iface_urn\">\n";
+    print "  <port id=\"$port_urn\">\n";
     print "    <capacity>$bits</capacity>\n";
     print "    <maximumReservableCapacity>$bits".
 	"</maximumReservableCapacity>\n";
     print "    <minimumReservableCapacity>1000000".
 	"</minimumReservableCapacity>\n";
     print "    <granularity>1000000</granularity>\n";
-    print "    <link id=\"$link\">\n";
-    print "      <remoteLinkId>$link</remoteLinkId>\n";
+    print "    <link id=\"$iface_urn\">\n";
+    print "      <remoteLinkId>$remote_iface_urn</remoteLinkId>\n";
     print "      <trafficEngineeringMetric>10</trafficEngineeringMetric>\n";
     print "      <capacity>$bits</capacity>\n";
     print "      <maximumReservableCapacity>$bits".
