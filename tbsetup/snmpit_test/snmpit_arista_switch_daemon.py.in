@@ -109,7 +109,7 @@ def _setPortVlan(vlan_num, ports):
             pbc = bc.switchIntfConfig.newMember(p)
         except:
             debug("setPortVlan: Errors when getting port %s, %s"
-                  %(str(p), str(sys.exc_info()[0])))
+                  %(str(p), str(sys.exc_info()[1])))
             errors += 1
         else:
             pbc.switchportMode = 'access'
@@ -134,7 +134,7 @@ def _removePortsFromVlan(vlan_num, ports):
                 pbc = bc.switchIntfConfig.newMember(p)
             except:
                 debug("removePortsFromVlan: Errors when getting port %s, %s"
-                      %(str(p), str(sys_exc_info()[0])))
+                      %(str(p), str(sys_exc_info()[1])))
                 errors += 1
             else:
                 if pbc.accessVlan == int(vlan_num):
@@ -147,11 +147,14 @@ def _removePortsFromVlan(vlan_num, ports):
 # Return 1 if exists, 0 otherwise
 #
 def _vlanTagExist(tag):
-    bc = getBridgingConfig(sysdbroot)
-    if bc.vlanConfig.has_key(int(tag)):
-        return 1
-    else:
-        return 0
+    try:
+        bc = getBridgingConfig(sysdbroot)
+        if bc.vlanConfig.has_key(int(tag)):
+            return 1
+    except:
+        print("_vlanTagExist(", str(tag), ") error: ", str(sys.exc_info()))
+    
+    return 0
 
 
 #
@@ -160,13 +163,17 @@ def _vlanTagExist(tag):
 #
 def _getVlanName2TagMappings(vnames):
     mps = dict()
-    vc = getBridgingConfig(sysdbroot).vlanConfig
-
-    for vlan in vc.keys():
-        vid = vc[vlan].configuredName
-        if vid.startswith(VLAN_ID_PREFIX):
-            if len(vnames) == 0 or vid[len(VLAN_ID_PREFIX):] in vnames:
-                mps[vid[len(VLAN_ID_PREFIX):]] = vc[vlan].vlanId
+    try:
+        vc = getBridgingConfig(sysdbroot).vlanConfig
+        
+        for vlan in vc.keys():
+            vid = vc[vlan].configuredName
+            if vid.startswith(VLAN_ID_PREFIX):
+                if len(vnames) == 0 or vid[len(VLAN_ID_PREFIX):] in vnames:
+                    mps[vid[len(VLAN_ID_PREFIX):]] = vc[vlan].vlanId
+    except:
+        print("_getVlanName2TagMappings(",
+              str(vnames), ") error: ", str(sys.exc_info()))        
 
     return mps
 
@@ -174,16 +181,19 @@ def _getVlanName2TagMappings(vnames):
 # Return 1 if has ports, 0 otherwise.
 #
 def _vlanHasPorts(vlan_num):
-    vs = sysdbroot['bridging']['vlan']['status'].vlanStatus
+    try:
+        vs = sysdbroot['bridging']['vlan']['status'].vlanStatus
 
-    #
-    # If there is sub-dir under vlanStatus, then this VLAN has at least on port.
-    # Otherwise this VLAN is empty.
-    #
-    if vs.has_key(int(vlan_num)):
-        return 1
-    else:
-        return 0
+        #
+        # If there is sub-dir under vlanStatus, then this VLAN has at least on port.
+        # Otherwise this VLAN is empty.
+        #
+        if vs.has_key(int(vlan_num)):
+            return 1
+    except:
+        print("_vlanHasPorts(", str(vlan_num), ") error: ", str(sys.exc_info()))
+
+    return 0
 
 #
 # List all experiment VLANs.
@@ -192,23 +202,82 @@ def _vlanHasPorts(vlan_num):
 #
 def _listVlans():
     vlans = []
-    vs = sysdbroot['bridging']['vlan']['status'].vlanStatus
-    vc = getBridgingConfig(sysdbroot).vlanConfig
+    try:
+        vs = sysdbroot['bridging']['vlan']['status'].vlanStatus
+        vc = getBridgingConfig(sysdbroot).vlanConfig
 
-    vnums = []
-    for vnum in vc.keys():
-        if vc[vnum].configuredName.startswith(VLAN_ID_PREFIX):
-            vnums.append(vnum)
-
-    for vn in vnums:
-        ports = []
-        if vs.has_key(vn):
-            ports = vs[vn].vlanPortStatus.keys()
-
-        vid = vc[vn].configuredName[len(VLAN_ID_PREFIX):]
-        vlans.append([vid, vn, ports])
-        
+        vnums = []
+        for vnum in vc.keys():
+            if vc[vnum].configuredName.startswith(VLAN_ID_PREFIX):
+                vnums.append(vnum)
+                
+                for vn in vnums:
+                    ports = []
+                    if vs.has_key(vn):
+                        ports = vs[vn].vlanPortStatus.keys()
+                        
+                    vid = vc[vn].configuredName[len(VLAN_ID_PREFIX):]
+                    vlans.append([vid, vn, ports])
+    except:        
+        print("_listVlans() error: ", str(sys.exc_info()))
+                        
     return vlans
+
+#
+# Enable port's trunk mode.
+#
+# Note: First clear all existing allowed VLANs, then
+#       set port mode, and set nativeVlan or allowedVlans.
+#
+# TODO: Is there any other thing as third?
+#
+def _enablePortTrunking(port, native_vlan_num, tag_native):
+    try:
+        pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
+        
+        pc.switchportMode = 'trunk'
+        if int(tag_native) == 1:
+            pc.trunkNativeVlan = 0
+        else:
+            pc.trunkNativeVlan = int(native_vlan_num)
+            pc.trunkAllowedVlans = str(native_vlan_num)
+        pc.enabled = True
+    except:
+        print("_enablePortTrunking(", str(port), ",", str(native_vlan_num),
+              ",", str(tag_native), ") error: ", str(sys.exc_info()))
+        return 0
+    else:
+        return 1
+
+#
+# Set allowed VLANs on trunked port.
+#
+# usage: 
+#
+def _setAllowedVlansOnTrunkedPort(port, allow, vnums):
+    try:
+        pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
+
+        if pc.switchportMode == 'access':
+            native_vlan = pc.accessVlan
+            pc.switchportMode = 'trunk'
+            if native_vlan != 1:
+                pc.trunkNativeVlan = native_vlan
+                pc.trunkAllowedVlans = str(native_vlan)
+            else:
+                pc.trunkNativeVlan = 0
+                pc.trunkAllowedVlans = ''
+        else:
+            pass
+        
+        # TODO: fix VLAN range
+        if int(allow) == 1:
+            if pc.trunkAllowedVlans != "":
+                pc.trunkAllowedVlans += "," + ",".join(map(str, vnums))
+            else:
+                pc.trunkAllowedVlans = ",".join(map(str, vnums))
+        else:
+            pc.trunkAllowedVlans = exceptVlans(pc.trunkAllowedVlans, map(int, vnums))
 
 #
 # Exported methods list
@@ -220,7 +289,8 @@ funcs = [(_createVlan, "createVlan"),
          (_vlanTagExist, "vlanTagExist"),
          (_getVlanName2TagMappings, "getVlanName2TagMappings"),
          (_vlanHasPorts, "vlanHasPorts"),
-         (_listVlans, "listVlans")
+         (_listVlans, "listVlans"),
+         (_enablePortTrunking, "enablePortTrunking")
          ]
 
 s = initRPCServer(BIND_ADDR, RPC_PORT, funcs)

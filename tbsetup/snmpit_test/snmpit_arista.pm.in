@@ -970,17 +970,19 @@ sub getChannelIfIndex($@) {
 #	 vlan_numbers: An array of 802.1Q VLAN numbers to operate on
 #        Returns 1 on success, 0 otherwise
 #
-# NOTE:NOT-SUPPORTED
-#
 sub setVlansOnTrunk($$$$) {
     my ($self, $modport, $value, @vlan_numbers) = @_;
-    my ($RetVal);
-    my $errors = 0;
     my $id = $self->{NAME} . "::setVlansOnTrunk";
 
-    warn $id." not supported.\n";
-    
-    return !$errors;
+    # NOTE: so-called $modport must be a Port instance!
+    my $swport = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
+    my $resp = $self->callRPC($id, 'setAllowedVlansOnTrunkedPort', $swport,
+			      ($value?1:0), \@vlan_numbers);
+    if ($resp) {
+	return 1;
+    } else {
+	return 0;
+    }
 }
 
 #
@@ -994,23 +996,19 @@ sub setVlansOnTrunk($$$$) {
 #        is the current PVID for this port.
 #        Returns 1 on success, 0 otherwise
 #
-# NOTE:NOT-SUPPORTED
-#
 sub enablePortTrunking2($$$$) {
     my ($self,$port,$native_vlan,$equaltrunking) = @_;
-    my ($ifIndex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX,$port);
     my $id = $self->{NAME} .
 		"::enablePortTrunking($port,$native_vlan,$equaltrunking)";
-    my ($defLists, $rv);
 
-    warn $id." not supported.\n";
-    
-    if ((!$equaltrunking) && (!defined($native_vlan) || ($native_vlan <= 1))) {
-	warn "$id: inappropriate or missing PVID for trunk\n";
+    my $swport = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
+    my $resp = $self->callRPC($id, 'enablePortTrunking',
+			      $swport, $native_vlan, ($equaltrunking?1:0));
+    if ($resp) {
+	return 1;
+    } else {
 	return 0;
     }
-       
-    return  !$rv;
 }
 
 #
