@@ -34,7 +34,7 @@ debug_level = 1;
 
 def debug(msg, level = 1):
     if level <= debug_level:
-        print("[DEBUG %d]: %s"%(level, msg))
+        print "[DEBUG %d]: %s"%(level, msg)
 
 
 def initSession():
@@ -49,17 +49,18 @@ def getBridgingConfig(sysdb):
 def vlanExists(sysdb, vlan_num):
     bc = getBridgingConfig(sysdb)
     return bc.vlanConfig.has_key(vlan_num)
-    
-def tagPort(sysdb, tags, native_vlan, port):
-    bc = getBridgingConfig(sysdb)
-    pbc = bc.switchIntfConfig.newMember(port)
-    pbc.switchportMode = 'trunk'
-    pbc.enabled = True
-    pbc.trunkAllowedVlans = tags
-    pbc.trunkNativeVlan = int(native_vlan)
-   
+
+def setPortStatus(sysdb, port, up=1):
+    ic = sysdb['interface']['status']['all'].newMember(port)
+    if up == 1:
+        ic.linkStatus = 'linkUp'
+        ic.operStatus = 'intfOperUp'
+    else:
+        ic.linkStatus = 'linkDown'
+        ic.operStatus = 'intfOperDown'
+        
 def initRPCServer(bind_addr, port, funcs):
-    s = SimpleXMLRPCServer.SimplerXMLRPCServer((bind_addr, port))
+    s = SimpleXMLRPCServer.SimpleXMLRPCServer((bind_addr, port))
     for f in funcs:
         s.register_function(f[0], f[1])
     return s
@@ -73,18 +74,20 @@ def initRPCServer(bind_addr, port, funcs):
 # 
 def _createVlan(vlan_id, vlan_num):
     retval = None
+    sign = "_createVlan("+str(vlan_id)+","+str(vlan_num)+")"
+    debug(sign)
+
     try:
         bc = getBridgingConfig(sysdbroot)
         nv = bc.vlanConfig.newMember(int(vlan_num))
         nv.configuredName = VLAN_ID_PREFIX + str(vlan_id)
         retval = 1
     except:
-        print("_createVlan(",
-              str(vlan_id), ",",
-              str(vlan_num), ") error: ",
+        print(sign +" error: ",
               str(sys.exc_info()))
         retval = str(sys.exc_info())
 
+    debug(sign + " returns " + str(retval))
     return retval
 
 #
@@ -92,6 +95,8 @@ def _createVlan(vlan_id, vlan_num):
 #
 def _removeVlan(vlan_num):
     retval = None
+    sign = "_removeVlan("+str(vlan_num)+")"
+    debug(sign)
     try:
         bc = getBridgingConfig(sysdbroot)
         if vlanExists(sysdbroot, int(vlan_num)):
@@ -100,11 +105,11 @@ def _removeVlan(vlan_num):
         else:
             retval = "VLAN #%d not exists."%(int(vlan_num),)
     except:
-        print("_removeVlan(",
-              str(vlan_num), ") error: ",
+        print(sign + " error: ",
               str(sys.exc_info()))
         retval = str(sys.exc_info())
 
+    debug(sign + " returns " + str(retval))
     return retval
 
 #
@@ -114,6 +119,8 @@ def _removeVlan(vlan_num):
 # 
 def _setPortVlan(vlan_num, ports):
     errors = 0
+    sign = "_setPortVlan("+str(vlan_num)+","+str(ports)+")"
+    debug(sign)
     try:
         bc = getBridgingConfig(sysdbroot)
         
@@ -132,13 +139,13 @@ def _setPortVlan(vlan_num, ports):
                 pbc.switchportMode = 'access'
                 pbc.enabled = True
                 pbc.accessVlan = int(vlan_num)
+                setPortStatus(sysdbroot, p, 1)
 
     except:
-        print("_setPortVlan(",
-              str(vlan_num), ",",
-              str(ports), ") error: ",
+        print(sign + " error: ",
               str(sys.exc_info()))
 
+    debug(sign + " returns " + str(errors))
     return errors
 
 
@@ -148,6 +155,8 @@ def _setPortVlan(vlan_num, ports):
 #
 def _removePortsFromVlan(vlan_num, ports):
     errors = 0
+    sign = "_removePortsFromVlan("+str(vlan_num)+","+str(ports)+")"
+    debug(sign)
     try:
         bc = getBridgingConfig(sysdbroot)
         
@@ -167,26 +176,29 @@ def _removePortsFromVlan(vlan_num, ports):
                         pbc.accessVlan = DEFAULT_VLAN_NUM
 
     except:
-        print("_removePortsFromVlan(",
-              str(vlan_num), ",",
-              str(ports), ") error: ",
+        print(sign + " error: ",
               str(sys.exc_info()))
         errors = 1
 
+    debug(sign + " errors " + str(errors))
     return errors
     
 #
 # Return 1 if exists, 0 otherwise
 #
 def _vlanTagExist(tag):
+    retval = 0
+    sign = "_vlanTagExist("+str(tag)+")"
+    debug(sign)
     try:
         bc = getBridgingConfig(sysdbroot)
         if bc.vlanConfig.has_key(int(tag)):
-            return 1
+            retval = 1
     except:
-        print("_vlanTagExist(", str(tag), ") error: ", str(sys.exc_info()))
-    
-    return 0
+        print(sign + " error: ", str(sys.exc_info()))
+
+    debug(sign + " returns " + str(retval))
+    return retval
 
 
 #
@@ -195,24 +207,30 @@ def _vlanTagExist(tag):
 #
 def _getVlanName2TagMappings(vnames):
     mps = dict()
+    sign = "_getVlanName2TagMappings("+str(vnames)+")"
+    debug(sign)
     try:
+        vnames = map(str, vnames)
         vc = getBridgingConfig(sysdbroot).vlanConfig
         
         for vlan in vc.keys():
             vid = vc[vlan].configuredName
             if vid.startswith(VLAN_ID_PREFIX):
                 if len(vnames) == 0 or vid[len(VLAN_ID_PREFIX):] in vnames:
-                    mps[vid[len(VLAN_ID_PREFIX):]] = vc[vlan].vlanId
+                    mps[vid[len(VLAN_ID_PREFIX):]] = vlan
     except:
-        print("_getVlanName2TagMappings(",
-              str(vnames), ") error: ", str(sys.exc_info()))        
+        print(sign + " error: ", str(sys.exc_info()))        
 
+    debug(sign + " returns " + str(mps))
     return mps
 
 #
 # Return 1 if has ports, 0 otherwise.
 #
 def _vlanHasPorts(vlan_num):
+    retval = 0
+    sign = "_vlanHasPorts("+str(vlan_num)+")"
+    debug(sign)
     try:
         vs = sysdbroot['bridging']['vlan']['status'].vlanStatus
 
@@ -221,11 +239,12 @@ def _vlanHasPorts(vlan_num):
         # Otherwise this VLAN is empty.
         #
         if vs.has_key(int(vlan_num)):
-            return 1
+            retval = 1
     except:
-        print("_vlanHasPorts(", str(vlan_num), ") error: ", str(sys.exc_info()))
+        print(sign + " error: ", str(sys.exc_info()))
 
-    return 0
+    debug(sign + " returns " + str(retval))
+    return retval
 
 #
 # List all experiment VLANs.
@@ -234,6 +253,8 @@ def _vlanHasPorts(vlan_num):
 #
 def _listVlans():
     vlans = []
+    sign = "_listVlans()"
+    debug(sign)
     try:
         vs = sysdbroot['bridging']['vlan']['status'].vlanStatus
         vc = getBridgingConfig(sysdbroot).vlanConfig
@@ -251,8 +272,9 @@ def _listVlans():
                     vid = vc[vn].configuredName[len(VLAN_ID_PREFIX):]
                     vlans.append([vid, vn, ports])
     except:        
-        print("_listVlans() error: ", str(sys.exc_info()))
-                        
+        print(sign + " error: ", str(sys.exc_info()))
+
+    debug(sign + " returns " + str(vlans))
     return vlans
 
 #
@@ -264,6 +286,9 @@ def _listVlans():
 # TODO: Is there any other thing as third?
 #
 def _enablePortTrunking(port, native_vlan_num, tag_native):
+    retval = 0
+    sign = "_enablePortTrunking("+str(port)+","+str(native_vlan_num)+","+str(tag_native)+")"
+    debug(dign)
     try:
         pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
         
@@ -274,12 +299,14 @@ def _enablePortTrunking(port, native_vlan_num, tag_native):
             pc.trunkNativeVlan = int(native_vlan_num)
             pc.trunkAllowedVlans = str(native_vlan_num)
         pc.enabled = True
+        setPortStatus(sysdbroot, str(port), 1)
+        retval = 1
     except:
-        print("_enablePortTrunking(", str(port), ",", str(native_vlan_num),
-              ",", str(tag_native), ") error: ", str(sys.exc_info()))
-        return 0
+        print(sign + " error: ", str(sys.exc_info()))
+        retval = 0
 
-    return 1
+    debug(sign + " returns " + str(retval))
+    return retval
 
 
 #
@@ -289,6 +316,8 @@ def _enablePortTrunking(port, native_vlan_num, tag_native):
 #
 def _disablePortTrunking(port):
     retval = 0
+    sign = "_disablePortTrunking("+str(port)+")"
+    debug(sign)
     try:
         pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
         if pc.switchportMode != 'access':
@@ -299,15 +328,18 @@ def _disablePortTrunking(port):
             #
             # !!! This is a little bit aggressive.
             #
-            if pc.accessVlan == 1 && native_vlan != 0:
+            if pc.accessVlan == 1 and native_vlan != 0:
                 pc.accessVlan = native_vlan
                 
             pc.enabled = True
+            setPortStatus(sysdbroot, str(port), 1)
+        retval = 1
     except:
-        print("_disablePortTrunking(", str(port), ") error: ",
+        print(sign + " error: ",
               str(sys.exc_info()))
         retval = 0
-    
+
+    debug(sign + " returns " + str(retval))
     return retval
 
 #
@@ -373,6 +405,8 @@ def bitmap2String(bmp):
 #
 def _setAllowedVlansOnTrunkedPort(port, allow, vnums):
     retval = 0
+    sign = "_setAllowedVlansOnTrunkedPort("+str(port)+","+str(allow)+","+str(vnums)+")"
+    debug(sign)
     try:
         pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
 
@@ -389,11 +423,11 @@ def _setAllowedVlansOnTrunkedPort(port, allow, vnums):
         pc.trunkAllowedVlans = bitmap2String(bmp)
         retval = 1
     except:
-        print("_setAllowedVlansOnTrunkedPort(", str(port),
-              ",", str(allow), ",", str(vnums), ") error: ",
+        print(sign + " error: ",
               str(sys.exc_info()))
         retval = 0
-        
+
+    debug(sign + " returns " + str(retval))
     return retval
 
 #

@@ -289,7 +289,7 @@ sub convertPortFormat($$@) {
 	my @swports = map $_->getEndByNode($self->{NAME}), @ports;
 
 	if ($output == $PORT_FORMAT_IFINDEX) {
-	    my @ifports = map {$_->card()*1000 +  $_->port()}, @swports;
+	    my @ifports = map int(int($_->card())*1000 +int($_->port())), @swports;
 	    return @ifports;
 	} else {
 	    my @sysdbports = map "Ethernet".$_->card()."/".$_->port(), @swports;
@@ -738,7 +738,7 @@ sub removeVlan($@) {
     foreach my $vlan_number (@vlan_numbers) {
 	$self->removePortsFromVlan($vlan_number);
 	my $resp = $self->callRPC($id, 'removeVlan',$vlan_number);
-	if (!defined($resp) || $resp) {
+	if (!defined($resp) || $resp ne "1") {
 	    warn "$id remove VLAN #$vlan_number failed on $self->{NAME}."
 		.(defined($resp)?" Error: $resp":"")."\n";
 	    $errors++;
