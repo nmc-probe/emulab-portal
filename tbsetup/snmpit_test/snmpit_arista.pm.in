@@ -29,6 +29,11 @@ use RPC::XML::Client;
 # Configure variables:
 my $RPCPORT  = "@ARISTA_SWITCH_XMLRPCPORT@";
 
+
+my $STATUS_UP = 1;
+my $STATUS_DOWN = 2;
+my $SNMP_NO_INSTANCE = "NOSUCHINSTNCE";
+
 #
 # Port status and control.
 #
@@ -40,8 +45,6 @@ my %cmdOIDs =
     );
 my $PORT_OPER_STATUS      = "ifOperStatus";
 my $PORT_SPEED            = "ifHighSpeed";
-
-my $STATUS_UP = 1;
 
 # All VLAN descriptions, which are used to store VLAN ID in DB,
 my $VLAN_ID_PREFIX = "EV_";
@@ -502,7 +505,7 @@ sub findVlans($@) {
     my $resp = $self->callRPC($id, 'getVlanName2TagMappings', \@vlan_ids);
     if ($resp) {
 	my %mps = %{$resp};
-	$self->debug("$id RPC results: ".Dumper(\%mps);
+	$self->debug("$id RPC results: ".Dumper(\%mps));
 	return %mps;
     } 
     
@@ -761,7 +764,7 @@ sub UpdateField($$$@) {
 #
 sub vlanHasPorts($$) {
     my ($self, $vlan_number) = @_;
-    my $id = $self->{NAME}."::vlanHasPorts($vlan_numer)";
+    my $id = $self->{NAME}."::vlanHasPorts($vlan_number)";
 
     if ($self->callRPC($id, 'vlanHasPorts', $vlan_number)) {
 	return 1;
@@ -789,6 +792,7 @@ sub listVlans($) {
 	foreach my $vlan (@vlans) {
 	    my @ports = $self->convertPortFormat($PORT_FORMAT_PORT, @{$vlan->[2]});
 	    push @list, [$vlan->[0], $vlan->[1], \@ports];		
+	}
     }
     
     return @list;
@@ -978,7 +982,7 @@ sub setVlansOnTrunk($$$$) {
     my $id = $self->{NAME} . "::setVlansOnTrunk";
 
     # NOTE: so-called $modport must be a Port instance!
-    my $swport = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
+    my $swport = $self->convertPortFormat($PORT_FORMAT_SYSDB, $modport);
     my $resp = $self->callRPC($id, 'setAllowedVlansOnTrunkedPort', $swport,
 			      ($value?1:0), \@vlan_numbers);
     if ($resp) {
