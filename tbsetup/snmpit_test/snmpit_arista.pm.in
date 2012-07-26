@@ -39,7 +39,9 @@ my %cmdOIDs =
      "disable" => [$PORT_ADMIN_STATUS, $STATUS_DOWN, "INTEGER"],
     );
 my $PORT_OPER_STATUS      = "ifOperStatus";
-my $PORT_SPEED            = "ifHighSpeed";    
+my $PORT_SPEED            = "ifHighSpeed";
+
+my $STATUS_UP = 1;
 
 # All VLAN descriptions, which are used to store VLAN ID in DB,
 my $VLAN_ID_PREFIX = "EV_";
@@ -817,10 +819,9 @@ sub listPorts($) {
 	($varname,$ifIndex,$status) = @{$ifTable};
 
 	# Make sure this port is wired up and connecting to a node.
-	# TODO implement the following two converters for ports
 	if (defined(Port->GetOtherEndByTriple($self->{NAME},
-					       $self->ifIndex2CardIndex($ifIndex),
-					       $self->ifIndex2PortIndex($ifIndex)))) {
+					      int($ifIndex /1000),
+					      int($ifIndex % 1000)))) {
 	    $self->debug("$varname $ifIndex $status\n");
 	    if ($varname =~ /$PORT_ADMIN_STATUS/) { 
 		$Able{$ifIndex} =
@@ -845,8 +846,8 @@ sub listPorts($) {
 
     foreach $ifIndex (keys %Able) {
 	my $port = Port->GetOtherEndByTriple($self->{NAME},
-					     $self->ifIndex2CardIndex($ifIndex),
-					     $self->ifIndex2PortIndex($ifIndex));
+					     int($ifIndex /1000),
+					     int($ifIndex % 1000));
 	if (!defined($port)) {
 	    $self->debug("$id : $ifIndex not connected, skipping\n");
 	    next;			 
@@ -892,10 +893,9 @@ sub getStats() {
 	    my ($name,$ifindex,$value) = @{shift @$array};
 
 	    # Make sure this port is wired up and connecting to a node.
-	    # TODO implement those following two converters for ports
 	    if (defined(Port->GetOtherEndByTriple($self->{NAME},
-						  $self->ifIndex2CardIndex($ifindex),
-						  $self->ifIndex2PortIndex($ifindex)))) {
+						  int($ifindex / 1000),
+						  int($ifindex % 1000)))) {
 		my ($po) = $self->convertPortFormat($PORT_FORMAT_PORT, $ifindex);
 		if (!$po) { next; } # Skip if we don't know about it
 		my $port = $po->getOtherEndPort()->toTripleString();
@@ -1039,6 +1039,10 @@ sub disablePortTrunking($$) {
 #        oids: A list of OIDs to reteive values for
 #
 # On sucess, returns a two-dimensional list indexed by port,oid
+#
+# Note: Since we mostly use XML-RPC to communicate with Arista switch,
+#       this function is just borrowed from snmpit_hp without any big
+#       change. Let's hope it can work...
 #
 sub getFields($$$) {
     my $self = shift;

@@ -11,16 +11,24 @@
 #
 
 import PyClient
-import Tac
-import EntityManager
 import SimpleXMLRPCServer
+import sys
 
 RPC_PORT = @ARISTA_SWITCH_XMLRPCPORT@
 BIND_ADDR = "@ARISTA_SWITCH_BIND_ADDRESS@"
 
+VLAN_ID_PREFIX = "EV_"
+DEFAULT_VLAN_NUM = 1
+
 # Global SysDB client and configuration root
 sysdbroot = None
 sysdbclient = None
+
+debug_level = 1;
+
+def debug(msg, level = 1):
+    if level <= debug_level:
+        print("[DEBUG %d]: %s"%(level, msg))
 
 #
 # The Arista Python library uses exceptions to handle errors,
@@ -35,12 +43,8 @@ def initSession():
 def getBridgingConfig(sysdb):
     return sysdb['bridging']['input']['config']['cli']
 
-def createVlan(sysdb, vlan_num, vlan_id):
-    bc = getBridgingConfig(sysdb)
-    nv = bc.vlanConfig.newMember(vlan_num)
-    nv.name = vlan_id
 
-def vlanExist(sysdb, vlan_num):
+def vlanExists(sysdb, vlan_num):
     bc = getBridgingConfig(sysdb)
     rt = bc.vlanConfig.get(vlan_num)
     if rt:
@@ -48,26 +52,7 @@ def vlanExist(sysdb, vlan_num):
     else:
         return False
 
-def removeVlan(sysdb, vlan_num):
-    bc = getBridgingConfig(sysdb)
-    if vlanExists(sysdb, vlan_num):
-        del bc.vlanConfig[vlan_num]
-    return True
     
-def putPortInVlan(sysdb, vlan_num, port):
-    bc = getBridgingConfig(sysdb)
-    pbc = bc.switchIntfConfig.newMember(port)
-    pbc.switchportMode = 'access'
-    pbc.enabled = True
-    pbc.accessVlan = int(vlan_num)
-    return True
-
-def delPortFromVlan(sysdb, vlan_num, port):
-    bc = getBridgingConfig(sysdb)
-    pbc = bc.switchIntrConfig[port]
-    pbc.accessVlan = 0
-    return True
-
 def tagPort(sysdb, tags, native_vlan, port):
     bc = getBridgingConfig(sysdb)
     pbc = bc.switchIntfConfig.newMember(port)
@@ -90,11 +75,21 @@ def initRPCServer(bind_addr, port, funcs):
 # Return "1" if succeed, error string otherwise
 # 
 def _createVlan(vlan_id, vlan_num):
-    createVlan(sysdbroot, vlan_id, vlan_num)
+    bc = getBridgingConfig(sysdbroot)
+    nv = bc.vlanConfig.newMember(int(vlan_num))
+    nv.configuredName = VLAN_ID_PREFIX + str(vlan_id)
     return "1"
 
+#
+# Return 1 on success, error string on failure.
+#
 def _removeVlan(vlan_num):
-    pass
+    bc = getBridgingConfig(sysdbroot)
+    if vlanExists(sysdbroot, int(vlan_num)):
+        del bc.vlanConfig[int(vlan_num)]
+        return 1
+    else:
+        return "VLAN #%d not exists."%(int(vlan_num),)
 
 #
 # Assign ports to a VLAN, and enable them.
@@ -102,36 +97,58 @@ def _removeVlan(vlan_num):
 # Return #errors.
 # 
 def _setPortVlan(vlan_num, ports):
-    pass
+    bc = getBridgingConfig(sysdbroot)
+    errors = 0
+
+    if not vlanExists(sysdbroot, vlan_num):
+        debug("setPortVlan: VLAN #%d not exists."%(int(vlan_num),))
+        return 0
+    
+    for p in ports:
+        try:
+            pbc = bc.switchIntfConfig.newMember(p)
+        except:
+            debug("setPortVlan: Errors when getting port %s, %s"
+                  %(str(p), str(sys.exc_info()[0])))
+            errors += 1
+        else:
+            pbc.switchportMode = 'access'
+            pbc.enabled = True
+            pbc.accessVlan = int(vlan_num)
+    return errors
 
 #
 # Return #errors.
 # If ports is empty, remove all ports from the VLAN.
 #
 def _removePortsFromVlan(vlan_num, ports):
-    pass
+    bc = getBridgingConfig(sysdbroot)
+    errors = 0
+    
+    if vlanExists(sysdbroot, int(vlan_num)):
+        if len(ports) == 0:
+            ports = bc.switchIntfConfig.keys()
 
-def _vlanExist(vlan_num):
-    pass
+        for p in ports:
+            try:
+                pbc = bc.switchIntfConfig.newMember(p)
+            except:
+                debug("removePortsFromVlan: Errors when getting port %s, %s"
+                      %(str(p), str(sys_exc_info()[0])))
+                errors += 1
+            else:
+                if pbc.accessVlan == int(vlan_num):
+                    pbc.accessVlan = DEFAULT_VLAN_NUM
 
-def _setVlanPortTags(vlan_num, tags, ports):
-    pass
+    return errors
 
-def _getVlanPorts(vlan_num):
-    pass
-
-def _getPortVlan(port):
-    pass
-
-def _getAllVlans():
-    pass
 
 #
 # Return 1 if exists, 0 otherwise
 #
 def _vlanTagExist(tag):
     bc = getBridgingConfig(sysdbroot)
-    if bc.vlanConfig.has_key(tag):
+    if bc.vlanConfig.has_key(int(tag)):
         return 1
     else:
         return 0
@@ -142,13 +159,31 @@ def _vlanTagExist(tag):
 # return mappings for all experiment VLANs
 #
 def _getVlanName2TagMappings(vnames):
-    pass
+    mps = dict()
+    vc = getBridgingConfig(sysdbroot).vlanConfig
+
+    for vlan in vc.keys():
+        vid = vc[vlan].configuredName
+        if vid.startswith(VLAN_ID_PREFIX):
+            if len(vnames) == 0 or vid[len(VLAN_ID_PREFIX):] in vnames:
+                mps[vid[len(VLAN_ID_PREFIX):]] = vc[vlan].vlanId
+
+    return mps
 
 #
 # Return 1 if has ports, 0 otherwise.
 #
 def _vlanHasPorts(vlan_num):
-    pass
+    vs = sysdbroot['bridging']['vlan']['status'].vlanStatus
+
+    #
+    # If there is sub-dir under vlanStatus, then this VLAN has at least on port.
+    # Otherwise this VLAN is empty.
+    #
+    if vs.has_key(int(vlan_num)):
+        return 1
+    else:
+        return 0
 
 #
 # List all experiment VLANs.
@@ -156,7 +191,24 @@ def _vlanHasPorts(vlan_num):
 # Return list of list object: [vid, vnum, list of ports].
 #
 def _listVlans():
-    pass
+    vlans = []
+    vs = sysdbroot['bridging']['vlan']['status'].vlanStatus
+    vc = getBridgingConfig(sysdbroot).vlanConfig
+
+    vnums = []
+    for vnum in vc.keys():
+        if vc[vnum].configuredName.startswith(VLAN_ID_PREFIX):
+            vnums.append(vnum)
+
+    for vn in vnums:
+        ports = []
+        if vs.has_key(vn):
+            ports = vs[vn].vlanPortStatus.keys()
+
+        vid = vc[vn].configuredName[len(VLAN_ID_PREFIX):]
+        vlans.append([vid, vn, ports])
+        
+    return vlans
 
 #
 # Exported methods list
@@ -165,14 +217,10 @@ funcs = [(_createVlan, "createVlan"),
          (_removeVlan, "removeVlan"),
          (_setPortVlan, "setPortVlan"),
          (_removePortsFromVlan, "removePortsFromVlan"),
-         (_vlanExist, "vlanExist"),
-         (_setVlanPortTag, "setVlanPortTags"),
-         (_getVlanPorts, "getVlanPorts"),
-         (_getPortVlan, "getPortVlan"),
-         (_getAllVlans, "getAllVlans"),
          (_vlanTagExist, "vlanTagExist"),
          (_getVlanName2TagMappings, "getVlanName2TagMappings"),
-         (_vlanHasPorts, "vlanHasPorts")         
+         (_vlanHasPorts, "vlanHasPorts"),
+         (_listVlans, "listVlans")
          ]
 
 s = initRPCServer(BIND_ADDR, RPC_PORT, funcs)
