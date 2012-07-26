@@ -1156,6 +1156,28 @@ sub loss_test {
 # Latency Test Functions
 ##############################################################################
 
+# Explicit calculation of ping statistics (average and stddev)
+# @param[0] := reference to array of samples.
+# @return   := (average, stddev)
+sub ping_stats {
+    my $measurements = shift;
+    my @rv = undef;
+
+    if (defined($measurements) and @$measurements) {
+	my $avg = 0;
+	map { $avg += $_ } @$measurements;
+	$avg /= scalar(@$measurements);
+	
+	my $std = 0;
+	map { $std += ($avg - $_) ** 2 } @$measurements;
+	$std = ($std / scalar(@$measurements)) ** 0.5;
+	
+	@rv = ($avg, $std);
+    }
+
+    return @rv;
+}
+
 # returns whether the link latency is in a valid test range.
 sub valid_latency {
     return TRUE;
@@ -1202,35 +1224,50 @@ sub ping_node {
     } elsif($platform =~ /CYGWIN/) {
 	# Neither Windows nor Cygwin ping has either send rate or timeout.
 	# Windows ping doesn't have -q, but it does have TTL, so use it.
+	# The first ping is always wildly off under Windows due to arp
+	# and possibly other startup costs, so we grab an
+	# additional sample in anticipation of throwing out the first.
+	$send_count++;
 	$cmd = "$PATH_WINPING -n $send_count $ttlarg $host";
-	# Prime the proverbial pump since the first ping on Windows can be
-	# wildly off.
-	&debug("Running priming ping on Windows...");
-	&my_system(split(/\s+/,"$PATH_WINPING -n 2 $ttlarg $host"));
     }
 
     # note backticks passes SIGINT to child procs
     my @args = split(/\s+/,$cmd);
     my @results = &my_tick(@args);
+    my @wintimes = (); # For Windows.
     my $reslt_cnt = @results;
     my $result = $results[$reslt_cnt-2];
     if($platform eq BSD && $result =~ /(\d+) packets received/) {
 	$count = $1;
     } elsif($platform eq LINUX && $result =~ /(\d+) received/) {
 	$count = $1;
-    } elsif($platform =~ /CYGWIN/ && 
-	    $results[$reslt_cnt-3] =~ /Received = (\d+)/) {
-	$count = $1;
+    } elsif($platform =~ /CYGWIN/) {
+	# The first ping under windows is often way off so we gather up
+	# the time measurements ourseleves and throw out the first sample.
+	# These measurements will be used below to calculate the mean
+	# and stddev of the latency.
+	foreach my $rline (@results) {
+	    if ($rline =~ /Reply from (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}): bytes=(\d+) time(=|<)(\d+)ms TTL=(\d+)/) {
+		my $op = $3;
+		# Windows ping doesn't measure below 1 ms.
+		my $time = $op eq "<" ? 0 : $4;
+		push @wintimes, $time;
+	    }
+	}
+	# throw out the first sample.
+	shift @wintimes;
+	$count = scalar(@wintimes);
     }
 
     if($count) {
-	$result = $results[$reslt_cnt-1];
-	if($result=~ /\d+\.\d+\/(\d+\.\d+)\/\d+\.\d+\/(\d+\.\d+)/) {
-	    $avg_latency = $1;
-	    $stddev = $2;
-	} elsif($result=~ /Average = (\d+)ms/) {
-	    $avg_latency = $1;
-	    $stddev = 0.03;	# Stddev is not reported on Windows.
+	if ($platform =~ /CYGWIN/) {
+	    ($avg_latency, $stddev) = &ping_stats(\@wintimes);
+	} else {
+	    $result = $results[$reslt_cnt-1];
+	    if($result=~ /\d+\.\d+\/(\d+\.\d+)\/\d+\.\d+\/(\d+\.\d+)/) {
+		$avg_latency = $1;
+		$stddev = $2;
+	    }
 	}
     }
     return ($count, $avg_latency, $stddev);

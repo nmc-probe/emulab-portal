@@ -331,7 +331,7 @@ sub os_ifconfig_line($$$$$$$;$$%)
 	#
 	# Configure.
 	$uplines   .= sprintf($IFCONFIG, $iface, $inet, $mask) . qq{\n    };
-	$uplines   .= qq{sleep 5\n    }
+	$uplines   .= qq{$ROUTE print\n    };
 
 # XXX: Going to assume for now that jumping through these hoops isn't necessary
 #      under Win7.
