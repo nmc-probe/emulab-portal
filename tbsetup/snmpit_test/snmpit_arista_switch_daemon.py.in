@@ -75,21 +75,36 @@ def initRPCServer(bind_addr, port, funcs):
 # Return "1" if succeed, error string otherwise
 # 
 def _createVlan(vlan_id, vlan_num):
-    bc = getBridgingConfig(sysdbroot)
-    nv = bc.vlanConfig.newMember(int(vlan_num))
-    nv.configuredName = VLAN_ID_PREFIX + str(vlan_id)
-    return "1"
+    try:
+        bc = getBridgingConfig(sysdbroot)
+        nv = bc.vlanConfig.newMember(int(vlan_num))
+        nv.configuredName = VLAN_ID_PREFIX + str(vlan_id)
+        return 1
+    except:
+        print("_createVlan(",
+              str(vlan_id), ",",
+              str(vlan_num), ") error: ",
+              str(sys.exc_info()))
+        return str(sys.exc_info())
+
 
 #
 # Return 1 on success, error string on failure.
 #
 def _removeVlan(vlan_num):
-    bc = getBridgingConfig(sysdbroot)
-    if vlanExists(sysdbroot, int(vlan_num)):
-        del bc.vlanConfig[int(vlan_num)]
-        return 1
-    else:
-        return "VLAN #%d not exists."%(int(vlan_num),)
+    try:
+        bc = getBridgingConfig(sysdbroot)
+        if vlanExists(sysdbroot, int(vlan_num)):
+            del bc.vlanConfig[int(vlan_num)]
+            return 1
+        else:
+            return "VLAN #%d not exists."%(int(vlan_num),)
+    except:
+        print("_removeVlan(",
+              str(vlan_num), ") error: ",
+              str(sys.exc_info()))
+        return str(sys.exc_info())
+
 
 #
 # Assign ports to a VLAN, and enable them.
@@ -97,50 +112,65 @@ def _removeVlan(vlan_num):
 # Return #errors.
 # 
 def _setPortVlan(vlan_num, ports):
-    bc = getBridgingConfig(sysdbroot)
-    errors = 0
-
-    if not vlanExists(sysdbroot, vlan_num):
-        debug("setPortVlan: VLAN #%d not exists."%(int(vlan_num),))
-        return 0
+    try:
+        bc = getBridgingConfig(sysdbroot)
+        errors = 0
+        
+        if not vlanExists(sysdbroot, vlan_num):
+            debug("setPortVlan: VLAN #%d not exists."%(int(vlan_num),))
+            return 0
     
-    for p in ports:
-        try:
-            pbc = bc.switchIntfConfig.newMember(p)
-        except:
-            debug("setPortVlan: Errors when getting port %s, %s"
-                  %(str(p), str(sys.exc_info()[1])))
-            errors += 1
-        else:
-            pbc.switchportMode = 'access'
-            pbc.enabled = True
-            pbc.accessVlan = int(vlan_num)
-    return errors
+        for p in ports:
+            try:
+                pbc = bc.switchIntfConfig.newMember(p)
+            except:
+                debug("setPortVlan: Errors when getting port %s, %s"
+                      %(str(p), str(sys.exc_info())))
+                errors += 1
+            else:
+                pbc.switchportMode = 'access'
+                pbc.enabled = True
+                pbc.accessVlan = int(vlan_num)
+        return errors
+    except:
+        print("_setPortVlan(",
+              str(vlan_num), ",",
+              str(ports), ") error: ",
+              str(sys.exc_info()))
+        return 1
+
 
 #
 # Return #errors.
 # If ports is empty, remove all ports from the VLAN.
 #
 def _removePortsFromVlan(vlan_num, ports):
-    bc = getBridgingConfig(sysdbroot)
-    errors = 0
-    
-    if vlanExists(sysdbroot, int(vlan_num)):
-        if len(ports) == 0:
-            ports = bc.switchIntfConfig.keys()
+    try:
+        bc = getBridgingConfig(sysdbroot)
+        errors = 0
+        
+        if vlanExists(sysdbroot, int(vlan_num)):
+            if len(ports) == 0:
+                ports = bc.switchIntfConfig.keys()
+                
+            for p in ports:
+                try:
+                    pbc = bc.switchIntfConfig.newMember(p)
+                except:
+                    debug("removePortsFromVlan: Errors when getting port %s, %s"
+                          %(str(p), str(sys_exc_info())))
+                    errors += 1
+                else:
+                    if pbc.accessVlan == int(vlan_num):
+                        pbc.accessVlan = DEFAULT_VLAN_NUM
 
-        for p in ports:
-            try:
-                pbc = bc.switchIntfConfig.newMember(p)
-            except:
-                debug("removePortsFromVlan: Errors when getting port %s, %s"
-                      %(str(p), str(sys_exc_info()[1])))
-                errors += 1
-            else:
-                if pbc.accessVlan == int(vlan_num):
-                    pbc.accessVlan = DEFAULT_VLAN_NUM
-
-    return errors
+        return errors
+    except:
+        print("_removePortsFromVlan(",
+              str(vlan_num), ",",
+              str(ports), ") error: ",
+              str(sys.exc_info()))
+        return 1
 
 
 #
@@ -249,6 +279,18 @@ def _enablePortTrunking(port, native_vlan_num, tag_native):
     else:
         return 1
 
+
+#
+# Disable port's trunk mode
+#
+def _disablePortTrunking(port):
+    try:
+        pass
+    except:
+        return 0
+    else:
+        return 1
+    
 #
 # Set allowed VLANs on trunked port.
 #
@@ -290,7 +332,9 @@ funcs = [(_createVlan, "createVlan"),
          (_getVlanName2TagMappings, "getVlanName2TagMappings"),
          (_vlanHasPorts, "vlanHasPorts"),
          (_listVlans, "listVlans"),
-         (_enablePortTrunking, "enablePortTrunking")
+         (_enablePortTrunking, "enablePortTrunking"),
+         (_disablePortTrunking, "disablePortTrunking"),
+         (_setAllowedVlansOnTrunkedPort, "setAllowedVlansOnTrunkedPort")
          ]
 
 s = initRPCServer(BIND_ADDR, RPC_PORT, funcs)

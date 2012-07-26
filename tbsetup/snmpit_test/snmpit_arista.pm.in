@@ -920,12 +920,15 @@ sub getStats() {
 #
 # usage: resetVlanIfOnTrunk(self, modport, vlan)
 #
-# NOTE:NOT-SUPPORTED
-#
 sub resetVlanIfOnTrunk($$$) {
     my ($self, $modport, $vlan) = @_;
 
-    warn $self->{NAME}."::resetVlanIfOnTrunk: unsupported.\n";
+    #
+    # MAYBE-TODO: check like snmpit_hp?
+    #
+
+    $self->setVlansOnTrunk($modport, 0, $vlan);
+    $self->setVlansOnTrunk($modport, 1, $vlan);
 
     return 0;
 }
@@ -949,7 +952,7 @@ sub resetVlanIfOnTrunk($$$) {
 # maintenance functions of vlans and so you should check for each port
 # any way, and 2.) the check is cheap and can be done in convertPortFormat.
 #
-# NOTE:NOT-SUPPORTED
+# NOTE: NOT-SUPPORTED We mostly use XML-RPC rather than SNMP.
 #
 sub getChannelIfIndex($@) {
     my $self = shift;
@@ -1017,15 +1020,18 @@ sub enablePortTrunking2($$$$) {
 # usage: disablePortTrunking(self, modport)
 #        Returns 1 on success, 0 otherwise
 #
-# NOTE:NOT-SUPPORTED
-#
 sub disablePortTrunking($$) {
     my ($self, $port) = @_;
     my $id = $self->{NAME} . "::disablePortTrunking($port)";
 
-    warn $id." not supported.\n";
-
-    return 1;
+    my $swport = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
+    my $resp = $self->callRPC($id, 'disablePortTrunking',
+			      $swport);
+    if ($resp) {
+	return 1;
+    } else {
+	return 0;
+    }
 }
 
 
