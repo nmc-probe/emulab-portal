@@ -30,7 +30,10 @@ DEFAULT_VLAN_NUM = 1
 sysdbroot = None
 sysdbclient = None
 
-debug_level = 1;
+# Just on command line argument.
+debug_level = 0;
+if len(sys.argv) > 1:
+    debug_level = int(sys.argv[1])
 
 def debug(msg, level = 1):
     if level <= debug_level:
@@ -51,7 +54,10 @@ def vlanExists(sysdb, vlan_num):
     return bc.vlanConfig.has_key(vlan_num)
 
 def setPortStatus(sysdb, port, up=1):
-    ic = sysdb['interface']['status']['all'].newMember(port)
+    ic = sysdb['interface']['status']['all'].get(port)
+    if ic is None:
+        debug("setPortStatus("+str(port)+","+str(up)+") error: can not get port.")
+        return
     if up == 1:
         ic.linkStatus = 'linkUp'
         ic.operStatus = 'intfOperUp'
@@ -83,8 +89,7 @@ def _createVlan(vlan_id, vlan_num):
         nv.configuredName = VLAN_ID_PREFIX + str(vlan_id)
         retval = 1
     except:
-        print(sign +" error: ",
-              str(sys.exc_info()))
+        print sign +" error: "+str(sys.exc_info())
         retval = str(sys.exc_info())
 
     debug(sign + " returns " + str(retval))
@@ -105,8 +110,7 @@ def _removeVlan(vlan_num):
         else:
             retval = "VLAN #%d not exists."%(int(vlan_num),)
     except:
-        print(sign + " error: ",
-              str(sys.exc_info()))
+        print sign + " error: "+str(sys.exc_info())
         retval = str(sys.exc_info())
 
     debug(sign + " returns " + str(retval))
@@ -142,8 +146,7 @@ def _setPortVlan(vlan_num, ports):
                 setPortStatus(sysdbroot, p, 1)
 
     except:
-        print(sign + " error: ",
-              str(sys.exc_info()))
+        print sign + " error: "+str(sys.exc_info())
 
     debug(sign + " returns " + str(errors))
     return errors
@@ -176,8 +179,7 @@ def _removePortsFromVlan(vlan_num, ports):
                         pbc.accessVlan = DEFAULT_VLAN_NUM
 
     except:
-        print(sign + " error: ",
-              str(sys.exc_info()))
+        print sign + " error: "+str(sys.exc_info())
         errors = 1
 
     debug(sign + " errors " + str(errors))
@@ -195,7 +197,7 @@ def _vlanTagExist(tag):
         if bc.vlanConfig.has_key(int(tag)):
             retval = 1
     except:
-        print(sign + " error: ", str(sys.exc_info()))
+        print sign + " error: "+ str(sys.exc_info())
 
     debug(sign + " returns " + str(retval))
     return retval
@@ -219,7 +221,7 @@ def _getVlanName2TagMappings(vnames):
                 if len(vnames) == 0 or vid[len(VLAN_ID_PREFIX):] in vnames:
                     mps[vid[len(VLAN_ID_PREFIX):]] = vlan
     except:
-        print(sign + " error: ", str(sys.exc_info()))        
+        print sign + " error: "+ str(sys.exc_info())        
 
     debug(sign + " returns " + str(mps))
     return mps
@@ -241,7 +243,7 @@ def _vlanHasPorts(vlan_num):
         if vs.has_key(int(vlan_num)):
             retval = 1
     except:
-        print(sign + " error: ", str(sys.exc_info()))
+        print sign + " error: "+ str(sys.exc_info())
 
     debug(sign + " returns " + str(retval))
     return retval
@@ -272,7 +274,7 @@ def _listVlans():
                     vid = vc[vn].configuredName[len(VLAN_ID_PREFIX):]
                     vlans.append([vid, vn, ports])
     except:        
-        print(sign + " error: ", str(sys.exc_info()))
+        print sign + " error: "+ str(sys.exc_info())
 
     debug(sign + " returns " + str(vlans))
     return vlans
@@ -302,7 +304,7 @@ def _enablePortTrunking(port, native_vlan_num, tag_native):
         setPortStatus(sysdbroot, str(port), 1)
         retval = 1
     except:
-        print(sign + " error: ", str(sys.exc_info()))
+        print sign + " error: "+str(sys.exc_info())
         retval = 0
 
     debug(sign + " returns " + str(retval))
@@ -335,8 +337,7 @@ def _disablePortTrunking(port):
             setPortStatus(sysdbroot, str(port), 1)
         retval = 1
     except:
-        print(sign + " error: ",
-              str(sys.exc_info()))
+        print sign + " error: "+str(sys.exc_info())
         retval = 0
 
     debug(sign + " returns " + str(retval))
@@ -423,8 +424,7 @@ def _setAllowedVlansOnTrunkedPort(port, allow, vnums):
         pc.trunkAllowedVlans = bitmap2String(bmp)
         retval = 1
     except:
-        print(sign + " error: ",
-              str(sys.exc_info()))
+        print sign + " error: "+ str(sys.exc_info())
         retval = 0
 
     debug(sign + " returns " + str(retval))
