@@ -266,13 +266,13 @@ def _listVlans():
             if vc[vnum].configuredName.startswith(VLAN_ID_PREFIX):
                 vnums.append(vnum)
                 
-                for vn in vnums:
-                    ports = []
-                    if vs.has_key(vn):
-                        ports = vs[vn].vlanPortStatus.keys()
+        for vn in vnums:
+            ports = []
+            if vs.has_key(vn):
+                ports = vs[vn].vlanPortStatus.keys()
                         
-                    vid = vc[vn].configuredName[len(VLAN_ID_PREFIX):]
-                    vlans.append([vid, vn, ports])
+            vid = vc[vn].configuredName[len(VLAN_ID_PREFIX):]
+            vlans.append([vid, vn, ports])
     except:        
         print sign + " error: "+ str(sys.exc_info())
 
