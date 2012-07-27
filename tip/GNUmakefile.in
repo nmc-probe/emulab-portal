@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 SRCDIR		= @srcdir@
@@ -63,7 +63,7 @@ tippty.o: tiptunnel.c $(TESTBED_SRCDIR)/capture/capdecls.h
 	$(CC) -DTIPPTY -o $@ -c $<
 
 tippty: tippty.o
-	$(CC) $(PTYLIBS) -o $@ $<
+	$(CC) -o $@ $< $(PTYLIBS)
 
 $(OBJS): tipconf.h tip.h
 
