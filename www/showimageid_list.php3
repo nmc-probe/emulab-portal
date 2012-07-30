@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -108,9 +108,9 @@ if (mysql_num_rows($query_result)) {
 
     echo "<thead class='sort'>
            <tr>
-              <th>Image</th>
-              <th>PID</th>
-              <th>Description</th>
+              <th class='sorttable_alpha'>Image</th>
+              <th class='sorttable_alpha'>PID</th>
+              <th class='sorttable_alpha'>Description</th>
            </tr>
           </thead>\n";
 
