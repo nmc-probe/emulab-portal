@@ -1670,7 +1670,6 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    # be the first hop that is in a different domain.
 		    #
 		    my $edgehop;
-		    my $lasthop;
 		    foreach my $hop (@hoplist) {
 			my $hopurn = GetHopLinkID($hop);
 			next
@@ -1681,10 +1680,9 @@ sub GetTicketAuxAux($$$$$$$$$)
 			    if (!defined($auth));
 
 			if ($auth ne $OURDOMAIN) {
-			    $edgehop = $lasthop;
+			    $edgehop = $hop;
 			    last;
 			}
-			$lasthop = $hop;
 		    }
 		    if (!defined($edgehop)) {
 			$response =
