@@ -1699,10 +1699,11 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    my $edgeurn = GetHopLinkID($edgehop);
 		    my $edgewire = Interface::Wire->Lookup($edgeurn);
 		    if (!defined($edgewire)) {
-			GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					     "$lanname: unknown ".
-					     "external_interface for ".
-					     $edgeurn);
+			$response = 
+			    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+						 "$lanname: unknown ".
+						 "external_interface for ".
+						 $edgeurn);
 			goto bad;
 		    }
 
