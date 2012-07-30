@@ -164,10 +164,23 @@ sub os_account_cleanup($)
 		if ( -d "/users/$name" );
 	}
 	close(PWDHANDLE);
-
-	# Make the CygWin /etc/passwd and /etc/group files match Windows.
-	os_accounts_sync();
     }
+
+    # Remove groups added by Emulab clientside. 1000 < GID < 2000.
+    if(open(GRHANDLE, "/etc/group")) {
+	while (my $gline = <GRHANDLE>) {
+	    my ($gname, $sid, $gid) = split(/:/,$gline);
+	    next if !defined($gname) || !defined($gid);
+	    if ($gid > 1000 && $gid < 2000) {
+		print "Removing group: $gname\n";
+		system("$NET localgroup $gname /delete");
+	    }
+	}
+	close(GRHANDLE);
+    }
+
+    # Make the CygWin /etc/passwd and /etc/group files match Windows.
+    os_accounts_sync();
 
     # Clean out the user /sshkeys directories, leaving /sshkeys/root alone.
     if (opendir(DIRHANDLE, "/sshkeys")) {
@@ -331,40 +344,26 @@ sub os_ifconfig_line($$$$$$$;$$%)
 	#
 	# Configure.
 	$uplines   .= sprintf($IFCONFIG, $iface, $inet, $mask) . qq{\n    };
-	$uplines   .= qq{$ROUTE print\n    };
+	$uplines   .= 
+qq%
+    waittime=20
+    rtcmd="/cygdrive/c/windows/system32/route print $inet"
+    echo -n "Waiting for routing table to update for interface $inet "
+    n=1
+    while ! { \$rtcmd | grep -q $inet; }
+    do
+      echo -n "."
+      sleep 1
+      let n++
+      if [ \$n -ge \$waittime ]
+      then
+        echo; echo "Route never updated during allotted time!"
+        exit 1
+      fi
+    done
+    echo ""
+%;
 
-# XXX: Going to assume for now that jumping through these hoops isn't necessary
-#      under Win7.
-	#
-	# Check that the configuration took!
-#	my $showip =  qq[$NETSH interface ipv4 show address name="$iface"];
-#	my $ipconf =  qq[$IPCONFIG /all | tr -d '\\r'];
-#	my $ipawk  =  qq[/^Ethernet adapter/] .
-#	    qq[{ ifc = gensub("Ethernet adapter (.*):", "\\\\\\\\1", 1); next }] .
-#		qq[/IPv4 Address/ && ifc == "$iface"{print \$NF}]; # XXX: fix
-#	my $addr1  =  qq[addr1=\`$showip | awk '/IP Address:/{print \$NF}'\`];
-#	my $addr2  =  qq[addr2=\`$ipconf | awk '$ipawk'\`];
-#	my $iptest = '[[ "$addr1" != '.$inet.' || "$addr2" != '.$inet.' ]]';
-#	$uplines   .= qq{$addr1\n    $addr2\n    };
-#	$uplines   .= qq{if $iptest; then\n    };
-	#
-	# Re-do it if not.
-#	$uplines   .= qq{  echo "    Config failed on $iface, retrying."\n    };
-#	$uplines   .=   "  $DEVCON disable '$dev_map{$iface}'\n    ";
-#	$uplines   .= qq{  sleep 5\n    };
-#	$uplines   .=   "  $DEVCON enable '$dev_map{$iface}'\n    ";
-#	$uplines   .= qq{  sleep 5\n    };
-#	$uplines   .= sprintf("  " . $IFCONFIG, $iface, $inet, $mask) . qq{\n    };
-	#
-	# Re-check.
-#	$uplines   .= qq{  $addr1\n    $addr2\n    };
-#	$uplines   .= qq{  if $iptest; then\n    };
-#	$uplines   .= qq{    echo "    Reconfig still failed on $iface."\n    };
-#	$uplines   .= qq{  else echo "    Reconfig succeeded on $iface."\n    };
-#	$uplines   .= qq{  fi\n    };
-#	$uplines   .= qq{fi};
-
-	# Shutdown.
 	$downlines .= qq{echo "Disabling $iface from $inet"\n    };
 	$downlines .=   "$DEVCON disable '$dev_map{$iface}'\n";
     }

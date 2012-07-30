@@ -108,6 +108,7 @@ script-install:	dir-install $(SCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/unattend-x86.xml $(SYSPREP)/unattend.xml
 	$(INSTALL) -c -m 755 -o Administrators -d $(SPSCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/setupnode.ps1 $(SPSCRIPTS)/setupnode.ps1
+	$(INSTALL) -m 755 $(SRCDIR)/reboot.sh /bin/reboot
 
 sfs-install:
 
