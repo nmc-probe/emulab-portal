@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 #
@@ -222,7 +222,6 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 	echo "  </tr></thead>\n";
 
 	$stalemark = "<b>?</b>";
-	$count = 0;
 	$sharednodes = 0;
 
 	while ($row = mysql_fetch_array($query_result)) {
@@ -262,11 +261,6 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 
 	    if (!$vname)
 		$vname = "--";
-
-	    if ($count & 1) {
-		echo "<tr></tr>\n";
-	    }
-	    $count++;
 
 	    echo "<tr>
                     <td><a href='shownode.php3?node_id=$node_id'>$node_id</a>";

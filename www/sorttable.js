@@ -40,6 +40,10 @@ sorttable = {
   },
   
   makeSortable: function(table) {
+    // XXX hack for explicit calls to makeSortable in Emulab:
+    // make sure DATE_RE is defined, else guessType will do strange things.
+    sorttable.init();
+
     if (table.getElementsByTagName('thead').length == 0) {
       // table doesn't have a tHead. Since it should have, create one and
       // put the first table row in it.
@@ -79,7 +83,7 @@ sorttable = {
     for (var i=0; i<headrow.length; i++) {
       // manually override the type with a sorttable_type attribute
       if (!headrow[i].className.match(/\bsorttable_nosort\b/)) { // skip this col
-        mtch = headrow[i].className.match(/\bsorttable_([a-z0-9]+)\b/);
+        mtch = headrow[i].className.match(/\bsorttable_([a-z0-9_]+)\b/);
         if (mtch) { override = mtch[1]; }
 	      if (mtch && typeof sorttable["sort_"+override] == 'function') {
 	        headrow[i].sorttable_sortfunction = sorttable["sort_"+override];
@@ -148,9 +152,9 @@ sorttable = {
 	          row_array[row_array.length] = [sorttable.getInnerText(rows[j].cells[col]), rows[j]];
 	        }
 	        /* If you want a stable sort, uncomment the following line */
-	        //sorttable.shaker_sort(row_array, this.sorttable_sortfunction);
+	        sorttable.shaker_sort(row_array, this.sorttable_sortfunction);
 	        /* and comment out this one */
-	        row_array.sort(this.sorttable_sortfunction);
+	        // row_array.sort(this.sorttable_sortfunction);
 	        
 	        tb = this.sorttable_tbody;
 	        for (var j=0; j<row_array.length; j++) {
@@ -265,9 +269,14 @@ sorttable = {
     if (isNaN(bb)) bb = 0;
     return aa-bb;
   },
-  sort_alpha: function(a,b) {
+  sort_alpha_cs: function(a,b) {
     if (a[0]==b[0]) return 0;
     if (a[0]<b[0]) return -1;
+    return 1;
+  },
+  sort_alpha: function(a,b) {
+    if (a[0].toLowerCase()==b[0].toLowerCase()) return 0;
+    if (a[0].toLowerCase()<b[0].toLowerCase()) return -1;
     return 1;
   },
   sort_ddmm: function(a,b) {

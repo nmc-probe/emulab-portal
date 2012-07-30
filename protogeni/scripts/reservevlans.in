@@ -16,7 +16,7 @@ use Data::Dumper;
 sub usage()
 {
     print STDERR
-	"Usage: reservevlans <slice_urn> <linkname> <hopurn> <rspec>\n";
+	"Usage: reservevlans <slice_urn> <linkname> <networkid> <rspec>\n";
     exit(1);
 }
 my $optlist = "";
@@ -77,7 +77,7 @@ usage()
 
 my $slice_urn = $ARGV[0];
 my $linkname  = $ARGV[1];
-my $hopurn    = $ARGV[2];
+my $networkid    = $ARGV[2];
 my $rspecfile = $ARGV[3];
 
 #
@@ -141,11 +141,9 @@ if (!defined($other_manager)) {
     fatal("Who is the other manager?");
 }
 
-my (undef,undef,$network_stuff) = GeniHRN::Parse($hopurn);
-my (undef,undef,$network_id) = split('//', $network_stuff);
-my $network = ExternalNetwork->Lookup($network_id);
+my $network = ExternalNetwork->Lookup($networid);
 if (!defined($network)) {
-    fatal("$hopurn is not an external network");
+    fatal("$networkid is not an external network");
 }
 # The bounds of the vlan tags we can use for this network point.
 my $mintag  = $network->min_vlan();

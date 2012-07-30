@@ -1518,7 +1518,7 @@ function ShowExperimentList_internal($templates_only,
 	        ($templates_only ?
 		 "Template Instances" : "Experiments") . "</h3>
               </center>
-              <table align=center border=1 class=class id=$id>\n";
+              <table align=center border=1 class=$class id=$id>\n";
 
 	if ($nopid) {
 	    $pidrow="";
@@ -1528,11 +1528,11 @@ function ShowExperimentList_internal($templates_only,
 	
 	echo "<thead class='sort'>";
 	echo "<tr>$pidrow
-              <th>EID</th>
+              <th class='sorttable_alpha'>EID</th>
               <th>State</th>
               <th align=center>Nodes [1]</th>
               <th align=center>Hours Idle [2]</th>
-              <th>Description</th>
+              <th class='sorttable_alpha'>Description</th>
           </tr></thead>\n";
 
 	$idlemark = "<b>*</b>";
@@ -1567,7 +1567,9 @@ function ShowExperimentList_internal($templates_only,
 	    }
 
 	    $idlestr = $idlehours;
+	    $skey = 0;
 	    if ($idlehours > 0) {
+		$skey = $idlehours;
 		if ($stale) { $idlestr .= $stalemark; }
 		if ($ignore) { $idlestr = "($idlestr)"; $parens=1; }
 	    } elseif ($idlehours == -1) { $idlestr = "&nbsp;"; }
@@ -1576,7 +1578,7 @@ function ShowExperimentList_internal($templates_only,
                  <td><a href='showexp.php3?pid=$pid&eid=$eid'>$eid</a></td>
 		 <td>$state</td>
                  <td align=center>$nodes</td>
-                 <td align=center>$idlestr</td>
+                 <td align=center sorttable_customkey='$skey'>$idlestr</td>
                  <td>$name</td>
              </tr>\n";
 	}

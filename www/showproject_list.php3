@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -187,8 +187,8 @@ function GENPLIST ($query_result)
           <thead class='sort'>
           <tr>\n";
 
-    echo "<th>PID</th>\n";
-    echo "<th>(Approved?) Description</th>\n";
+    echo "<th class='sorttable_alpha'>PID</th>\n";
+    echo "<th class='sorttable_alpha'>(Approved?) Description</th>\n";
     if ($showtype != "ProtoGENI") {
 	echo "<th>Leader</th>\n";
 	echo "<th>Affil</th>\n";
@@ -249,10 +249,10 @@ function GENPLIST ($query_result)
 
 	if ($isadmin && $showtype != "ProtoGENI") {
 	    if ($public) {
-		echo "<td align=center><img alt='Y' src='greenball.gif'></td>";
+		echo "<td align=center sorttable_customkey='1'><img alt='Y' src='greenball.gif'></td>";
 	    }
 	    else {
-		echo "<td align=center><img alt='N' src='redball.gif'></td>\n";
+		echo "<td align=center sorttable_customkey='2'><img alt='N' src='redball.gif'></td>\n";
 	    }
 	}
 	echo "</tr>\n";
