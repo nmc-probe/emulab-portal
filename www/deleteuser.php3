@@ -253,7 +253,7 @@ if (isset($target_project)) {
     $projlist = $target_user->ProjectMembershipList();
     
     if (! count($projlist)) {
-	echo "<b>User 'target_uid' is no longer a member of any projects.\n";
+	echo "<b>User '$target_uid' is no longer a member of any projects.\n";
 
 	$url = CreateURL("deleteuser", $target_user);
 	    
