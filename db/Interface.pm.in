@@ -1062,25 +1062,33 @@ sub Lookup($$)
 {
     my ($class, $interface) = @_;
 
-    if (!ref($interface)) {
-	# Allow "nodeid:card:port" argument.
-	if ($interface =~ /^([-\w]*):(\w+):(\w+)$/) {
-	    $interface = Interface->Lookup($1, $2, $3);
-	    return undef
-		if (!defined($interface));
+    my $query_result;
+    if (!ref($interface) && $interface =~ /^urn:publicid:IDN+/) {
+	# Allow lookup by remote interface URN
+	$query_result =
+	    DBQueryWarn("select * from wires ".
+			"where external_interface='$interface'");
+    } else {
+	if (!ref($interface)) {
+	    # Allow "nodeid:card:port" argument.
+	    if ($interface =~ /^([-\w]*):(\w+):(\w+)$/) {
+		$interface = Interface->Lookup($1, $2, $3);
+		return undef
+		    if (!defined($interface));
+	    }
+	    else {
+		return undef;
+	    }
 	}
-	else {
-	    return undef;
-	}
+	my $node_id1 = $interface->node_id();
+	my $card1    = $interface->card();
+	my $port1    = $interface->port();
+	$query_result =
+	    DBQueryWarn("select * from wires ".
+			"where node_id1='$node_id1' and ".
+			"      card1='$card1' and port1='$port1'");
     }
-    my $node_id1 = $interface->node_id();
-    my $card1    = $interface->card();
-    my $port1    = $interface->port();
 
-    my $query_result =
-	DBQueryWarn("select * from wires ".
-		    "where node_id1='$node_id1' and ".
-		    "      card1='$card1' and port1='$port1'");
     return undef
 	if (!$query_result || !$query_result->numrows);
 
