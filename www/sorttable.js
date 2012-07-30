@@ -40,6 +40,10 @@ sorttable = {
   },
   
   makeSortable: function(table) {
+    // XXX hack for explicit calls to makeSortable in Emulab:
+    // make sure DATE_RE is defined, else guessType will do strange things.
+    sorttable.init();
+
     if (table.getElementsByTagName('thead').length == 0) {
       // table doesn't have a tHead. Since it should have, create one and
       // put the first table row in it.
