@@ -366,8 +366,8 @@ if ($showmap && $state eq EXPTSTATE_ACTIVE) {
 	foreach $v (sort keys(%v2pmap)) {
 	    my $p = $v2pmap{$v}->{PNODE};
 	    my $s = $v2pmap{$v}->{SSHDPORT};
-	    my $m = $p2vmap{$v2pmap{$v}->{VVP}};
-	    my $q = "$m.$eid.$pid.$DOMAIN";
+	    my $m = $v2pmap{$v}->{VVP};
+	    my $q = "$m.$DOMAIN";
 	    if ($v2pmap{$v}->{JAILED}) {
 		printf "%-15s %-10s %-20s", $v, $s, "ssh -p $s $q";
 		print  "\n";
