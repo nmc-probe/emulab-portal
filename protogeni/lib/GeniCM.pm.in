@@ -6235,7 +6235,7 @@ sub findStitchPoint
 				     "$lanname: No hops in the stitching ".
 				     "path"));
     }
-    if (!GeniHRN::IsValid(GeniCM::GetHopLinkID($hopurn))) {
+    if (!GeniHRN::IsValid($hopurn)) {
 	return (undef, undef, undef,
 		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				     "$lanname: Invalid URN in first hop ".
