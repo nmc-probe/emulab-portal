@@ -806,7 +806,12 @@ sub getTestSwitches () {
 	DBQueryFatal("SELECT node_id FROM nodes WHERE role='testswitch'");
     my @switches = (); 
     while (my @row = $result->fetchrow()) {
-	push @switches, $row[0];
+	my $node = Node->Lookup($row[0]);
+	my $disabled;
+	$node->NodeAttribute("snmpit_disable", \$disabled);
+	if (! defined($disabled) || !$disabled) {
+	    push @switches, $row[0];
+	}
     }
 
     return @switches;
