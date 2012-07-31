@@ -1649,112 +1649,16 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    # as us.
 		    #
 		    my @hoplist = @{ $stitching_paths{$lanname}->{'hoplist'} };
-		    my $hopurn  = GetHopLinkID($hoplist[0]);
-		    my ($hopauth,undef,undef) = GeniHRN::Parse($hopurn);
-		    if ($hopauth ne $OURDOMAIN) {
-			# Reverse the list to make life easier.
-			@hoplist = reverse(@hoplist);
-			$stitching_paths{$lanname}->{'hoplist'} = \@hoplist;
-		    }
-		    # Make sure the other end is really us. 
-		    $hopurn  = GetHopLinkID($hoplist[0]);
-		    ($hopauth,undef,undef) = GeniHRN::Parse($hopurn);
-		    if ($hopauth ne $OURDOMAIN) {
-			$response =
-			    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-						 "$lanname: no local path hop");
-			goto bad;
-		    }
-		    #
-		    # Go through the hop list to find the edge point. This will
-		    # be the first hop that is in a different domain.
-		    #
-		    my $edgehop;
-		    foreach my $hop (@hoplist) {
-			my $hopurn = GetHopLinkID($hop);
-			next
-			    if (! GeniHRN::IsValid($hopurn));
-			
-			my ($auth,undef,undef) = GeniHRN::Parse($hopurn);
-			next
-			    if (!defined($auth));
-
-			if ($auth ne $OURDOMAIN) {
-			    $edgehop = $hop;
-			    last;
-			}
-		    }
-		    if (!defined($edgehop)) {
-			$response =
-			    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-						 "$lanname: no edge hop");
-			goto bad;
-		    }
-		    #
-		    # Look inside the hop urn; it tells the local iface/node
-		    # which corresponds to our "fake" nodes.
-		    #
-		    my $edgeurn = GetHopLinkID($edgehop);
-		    my $edgewire = Interface::Wire->Lookup($edgeurn);
-		    if (!defined($edgewire)) {
-			$response = 
-			    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-						 "$lanname: unknown ".
-						 "external_interface for ".
-						 $edgeurn);
-			goto bad;
-		    }
-
-		    #
-		    # Look in the external networks table to get the hop
-		    # details. 
-		    #
-		    my $edgenodeid = $edgewire->node_id1();
-		    my $edgecard = $edgewire->card1();
-		    my $edgeport = $edgewire->port1();
-		    my $network = ExternalNetwork->Lookup($edgenodeid);
-
-		    # The external network may be attached to node_id2
-		    if (! defined($network)) {
-			$edgenodeid = $edgewire->node_id2();
-			$edgecard = $edgewire->card2();
-			$edgeport = $edgewire->port2();
-			$network = ExternalNetwork->Lookup($edgenodeid);
-		    }
-		    if (!defined($network)) {
-			$response =
-			    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					      "$lanname: unknown network for ".
-					      $edgewire->node_id1() . " and ".
-					      $edgewire->node_id2());
-			goto bad;
-		    }
-
-		    #
-		    # The edge node and the interface on that node must exist.
-		    #
-		    my $edgenode = Node->Lookup($edgenodeid);
-		    if (!defined($edgenode)) {
-			$response =
-			    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-						 "$lanname: unknown node ".
-						 "$edgenodeid");
-			goto bad;
-		    }
-		    my $edgeiface = Interface->Lookup($edgenodeid, $edgecard,
-						      $edgeport);
-		    if (!defined($edgeiface)) {
-			$response =
-			    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					"$lanname: unknown iface for ".
-					"$edgenodeid:$edgecard.$edgeport");
+		    my ($edgeiface, $network, $edgehop, $edgeresponse)
+			= findStitchPoint($lanname, @hoplist);
+		    if (defined($edgeresponse)) {
+			$response = $edgeresponse;
 			goto bad;
 		    }
 
 		    # Stash for later. We need to allocate a vlan tag, and
 		    # this stores the min/max vlan numbers we have to use.
 		    $stitching_paths{$lanname}->{'network'} = $network;
-		    $stitching_paths{$lanname}->{'edgeurn'} = $edgeurn;
 
 		    #
 		    # Look for a vlan tag reservation request. We only
@@ -1784,7 +1688,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 				     "osname"  => '',
 				     "ips"     => '', # deprecated
 				     "cmd_line"=> '', # bogus
-				     "fixed"   => $edgenode->node_id()});
+				     "fixed"   => $network->node_id()});
 		    if (!defined($virtnode)) {
 			print STDERR "Error creating edge node\n";
 			$response = GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -6317,6 +6221,116 @@ sub ReserveLocalVlanTag($$$)
 	if ($createdvlan);
     print STDERR "Reserved tag $tag for $lanname\n";
     return [$lanid, $tag];
+}
+
+
+sub findStitchPoint
+{
+    my $lanname = shift(@_);
+    my @hoplist = @_;
+    my $hopurn  = GetHopLinkID($hoplist[0]);
+    if (! @hoplist) {
+	return (undef, undef, undef,
+		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				     "$lanname: No hops in the stitching ".
+				     "path"));
+    }
+    if (!GeniHRN::IsValid(GeniCM::GetHopLinkID($hopurn))) {
+	return (undef, undef, undef,
+		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				     "$lanname: Invalid URN in first hop ".
+				     "in path"));
+    }
+    my ($hopauth,undef,undef) = GeniHRN::Parse($hopurn);
+    if ($hopauth ne $OURDOMAIN) {
+	# Reverse the list to make life easier.
+	@hoplist = reverse(@hoplist);
+#	$stitching_paths{$lanname}->{'hoplist'} = \@hoplist;
+    }
+    # Make sure the other end is really us. 
+    $hopurn  = GetHopLinkID($hoplist[0]);
+    ($hopauth,undef,undef) = GeniHRN::Parse($hopurn);
+    if ($hopauth ne $OURDOMAIN) {
+	return (undef, undef, undef,
+		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				     "$lanname: no local path hop"));
+    }
+    #
+    # Go through the hop list to find the edge point. This will
+    # be the first hop that is in a different domain.
+    #
+    my $edgehop;
+    my $lasthop;
+    foreach my $hop (@hoplist) {
+	my $hopurn = GetHopLinkID($hop);
+	next
+	    if (! GeniHRN::IsValid($hopurn));
+	
+	my ($auth,undef,undef) = GeniHRN::Parse($hopurn);
+	next
+	    if (!defined($auth));
+	
+	if ($auth ne $OURDOMAIN) {
+	    $edgehop = $hop;
+	    last;
+	}
+	$lasthop = $hop;
+    }
+    if (!defined($edgehop)) {
+	return (undef, undef, undef,
+		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				     "$lanname: no edge hop"));
+    }
+    #
+    # Look inside the hop urn; it tells the local iface/node
+    # which corresponds to our "fake" nodes.
+    #
+    my $edgeurn = GetHopLinkID($edgehop);
+    my $edgewire = Interface::Wire->Lookup($edgeurn);
+    if (!defined($edgewire)) {
+	return (undef, undef, undef,
+		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				     "$lanname: unknown ".
+				     "external_interface for ".
+				     $edgeurn));
+    }
+    
+    #
+    # Look in the external networks table to get the hop
+    # details. 
+    #
+    my $edgenodeid = $edgewire->node_id1();
+    my $edgecard = $edgewire->card1();
+    my $edgeport = $edgewire->port1();
+    my $network = ExternalNetwork->Lookup($edgenodeid);
+    
+    # The external network may be attached to node_id2
+    if (! defined($network)) {
+	$edgenodeid = $edgewire->node_id2();
+	$edgecard = $edgewire->card2();
+	$edgeport = $edgewire->port2();
+	$network = ExternalNetwork->Lookup($edgenodeid);
+    }
+    if (!defined($network)) {
+	return (undef, undef, undef,
+		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				     "$lanname: unknown network for ".
+				     $edgewire->node_id1() . " and ".
+				     $edgewire->node_id2()));
+    }
+    
+    #
+    # The edge interface must exist.
+    #
+    my $edgeiface = Interface->Lookup($edgenodeid, $edgecard,
+				      $edgeport);
+    if (!defined($edgeiface)) {
+	return (undef, undef, undef,
+		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				     "$lanname: unknown iface for ".
+				     "$edgenodeid:$edgecard.$edgeport"));
+    }
+    return ($edgeiface, $network, $lasthop, undef);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
