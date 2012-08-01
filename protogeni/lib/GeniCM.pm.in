@@ -1804,6 +1804,9 @@ sub GetTicketAuxAux($$$$$$$$$)
 					      "capkey"  => "sharedvlan",
 					      "capval"  => $shared_vlan});
 
+		# Must use vlan encap.
+		$virtexperiment->encap_style("vlan");
+
 		# Clear all this.
 		$bandwidth = 0;
 		$latency   = 0.0;
