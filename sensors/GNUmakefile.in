@@ -12,18 +12,26 @@ ISMAINSITE	= @TBMAINSITE@
 
 include $(OBJDIR)/Makeconf
 
-SUBDIRS	= powermon
-
-SYSTEM            := $(shell uname -s)
-
+SYSTEM        := $(shell uname -s)
 ifeq ($(SYSTEM),FreeBSD)
 FBSDVERSION   := $(shell uname -v | sed -e 's/FreeBSD \([0-9]\).*/FreeBSD\1/')
+FBSDARCH      := $(shell uname -m)
+endif
 
+SUBDIRS	= powermon
+
+# XXX a couple of FreeBSD-only utilities
+ifeq ($(SYSTEM),FreeBSD)
+
+# XXX only at Utah...
 ifeq ($(ISMAINSITE),1)
-# XXX nfstrace broke on FBSD 8 and above right now (uses linuxthreads)
+# XXX ...and FreeBSD 7 and below...
 ifneq ($(FBSDVERSION),FreeBSD8)
 ifneq ($(FBSDVERSION),FreeBSD9)
+# XXX ...and only if 32-bit (til we work out linuxthread dependency)!
+ifeq ($(FREEBSDARCH),i386)
 SUBDIRS += nfstrace
+endif
 endif
 endif
 endif

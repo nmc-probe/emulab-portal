@@ -31,6 +31,13 @@ if (`uname -r` =~ /^(\d+)\.(\d+)/) {
 else {
     die("Could not determine what version of FreeBSD you are running!\n");
 }
+$FBSD_ARCH = "i386";
+if (`uname -m` =~ /^(\S+)$/) {
+    $FBSD_ARCH = $1;
+}
+else {
+    die("Could not determine what architecutre FreeBSD is running on!\n");
+}
 
 #
 # The meta-ports (name and version) that drag in all the dependancies for

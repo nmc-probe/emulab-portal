@@ -11,11 +11,13 @@ SUBDIR		= event/new_sched
 
 include $(OBJDIR)/Makeconf
 
+ARCH	       := $(shell uname -m)
+
 all: event-sched_rrpc
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
-CFLAGS   += -g -pthread -DBINDIR='"$(INSTALL_BINDIR)"'
+CFLAGS   += -g -D_THREAD_SAFE -pthread -DBINDIR='"$(INSTALL_BINDIR)"'
 CFLAGS   += -DSBINDIR='"$(INSTALL_SBINDIR)"'
 #CFLAGS  += -DDEBUG
 CFLAGS	 += -O -Wall
@@ -27,7 +29,7 @@ LDFLAGS  += -pthread
 LDFLAGS  += -L${TESTBED_LIBOBJDIR}/event -L${TESTBED_LIBOBJDIR}/libtb
 LDFLAGS  += $(LDSTATIC)
 DBLIBS    = -L/usr/local/lib/mysql -lmysqlclient -lz
-LIBS     += -levent_r -ltb -lz
+LIBS     += -lpthread -levent_r -ltb -lz
 
 XMLRPCINC = `xmlrpc-c-config c++2 client --cflags`
 CXXFLAGS += -pthread -O $(XMLRPCINC) -I$(OBJDIR)
@@ -62,7 +64,7 @@ OBJS = \
 	timeline-agent.o \
 	version.o
 
-event-sched_rrpc: $(OBJS) event-sched.h ${TESTBED_LIBOBJDIR}/event/libevent.a
+event-sched_rrpc: $(OBJS) event-sched.h $(TESTBED_LIBOBJDIR)/event/libevent.a
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(XMLRPCLIBS) $(LIBS)
 
 DEPS = \
@@ -90,6 +92,9 @@ rrpc.o:			rpc.cc $(DEPS)
 install: event-sched_rrpc
 	-mkdir -p $(INSTALL_DIR)/opsdir/sbin
 	$(INSTALL_PROGRAM) $< $(INSTALL_DIR)/opsdir/sbin/new-event-sched
+ifeq ($(ARCH),amd64)
+	ln -sf new-event-sched $(INSTALL_DIR)/opsdir/sbin/event-sched
+endif
 	-mkdir -p $(INSTALL_DIR)/opsdir/man/man8
 	$(INSTALL) -m 0644 $(SRCDIR)/event-sched.8 \
 		$(INSTALL_DIR)/opsdir/man/man8/event-sched.8
@@ -99,6 +104,9 @@ install: event-sched_rrpc
 
 control-install: event-sched_rrpc
 	$(INSTALL_PROGRAM) $< $(INSTALL_SBINDIR)/new-event-sched
+ifeq ($(ARCH),amd64)
+	ln -sf new-event-sched $(INSTALL_SBINDIR)/event-sched
+endif
 
 # not a client thing
 client:

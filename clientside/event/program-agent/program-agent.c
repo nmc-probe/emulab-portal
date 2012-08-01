@@ -1026,7 +1026,8 @@ callback(event_handle_t handle, event_notification_t notification, void *data)
 	char		args[BUFSIZ];
 	struct proginfo *pinfo;
 	struct timeval	now;
-	unsigned long	token = ~0;
+	unsigned long	token;
+	int32_t		itoken = ~0;
 
 	assert(handle != NULL);
 	assert(notification != NULL);
@@ -1061,7 +1062,8 @@ callback(event_handle_t handle, event_notification_t notification, void *data)
 	}
 
 	event_notification_get_int32(handle, notification,
-				     "TOKEN", (int32_t *)&token);
+				     "TOKEN", &itoken);
+	token = itoken;
 
 	/* ... dispatch the event. */
 	if (strcmp(event, TBDB_EVENTTYPE_START) == 0 ||
@@ -1242,7 +1244,8 @@ reload_callback(event_handle_t handle,
 {
 	char		event[TBDB_FLEN_EVEVENTTYPE];
 	char		objname[TBDB_FLEN_EVOBJTYPE];
-	unsigned long	token = ~0;
+	unsigned long	token;
+	int32_t		itoken = ~0;
 
 	assert(handle != NULL);
 	assert(notification != NULL);
@@ -1259,7 +1262,8 @@ reload_callback(event_handle_t handle,
 		return;
 	}
 	event_notification_get_int32(handle, notification,
-				     "TOKEN", (int32_t *)&token);
+				     "TOKEN", &itoken);
+	token = itoken;
 
 	if (strcmp(event, TBDB_EVENTTYPE_RELOAD) == 0) {
 		info("startrun_callback: Got a reload event.\n");

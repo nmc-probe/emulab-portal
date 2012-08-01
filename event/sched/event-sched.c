@@ -81,7 +81,7 @@ static struct lnList timelines;
 static struct lnList sequences;
 static struct lnList groups;
 
-unsigned long next_token;
+int32_t next_token;
 
 simulator_agent_t primary_simulator_agent;
 
@@ -731,7 +731,7 @@ enqueue(event_handle_t handle, event_notification_t notification, void *data)
 	char			eventtype[TBDB_FLEN_EVEVENTTYPE];
 	struct agent	       *agentp;
 	timeline_agent_t	ta = NULL;
-	int			token;
+	int32_t			sec, usec, token;
 	
 	if (! event_notification_get_timeline(handle, notification,
 						   timeline,
@@ -740,11 +740,16 @@ enqueue(event_handle_t handle, event_notification_t notification, void *data)
 		/* Not fatal since we have to deal with legacy systems. */
 	}
 
-	/* Get the event's firing time: */
+	/*
+	 * Get the event's firing time.
+	 * Note that the timeval fields are not necessarily 32-bits,
+	 * so we cannot just pass in addresses to tv_sec and tv_usec;
+	 * assign to tmps instead.
+	 */
 	if (! event_notification_get_int32(handle, notification, "time_usec",
-					   (int *) &event.time.tv_usec) ||
+					   (int *) &usec) ||
 	    ! event_notification_get_int32(handle, notification, "time_sec",
-					   (int *) &event.time.tv_sec)) {
+					   (int *) &sec)) {
 		error("could not get time from notification %p\n",
 		      notification);
 	}
@@ -776,6 +781,8 @@ enqueue(event_handle_t handle, event_notification_t notification, void *data)
 		event.agent.s = agentp;
 		event.length = 1;
 		event.flags = SEF_SINGLE_HANDLER;
+		event.time.tv_sec = sec;
+		event.time.tv_usec = usec;
 		
 		/*
 		 * Clone the event notification, since we want the
@@ -827,7 +834,7 @@ enqueue(event_handle_t handle, event_notification_t notification, void *data)
 
 			make_timestamp(time_buf_1, &event.time);
 			make_timestamp(time_buf_2, &now);
-			
+
 			info("Sched: "
 			     "note:%p at:%s now:%s agent:%s %s\n",
 			     event.notification,
@@ -856,7 +863,7 @@ enqueue(event_handle_t handle, event_notification_t notification, void *data)
 		if (! event_notification_get_int32(handle,
 						   event.notification,
 						   "TOKEN",
-						   (int32_t *)&token)) {
+						   &token)) {
 			event_notification_put_int32(handle,
 						     event.notification,
 						     "TOKEN",

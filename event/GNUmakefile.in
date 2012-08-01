@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -13,13 +13,19 @@ ISMAINSITE      = @TBMAINSITE@
 include $(OBJDIR)/Makeconf
 
 SYSTEM	       := $(shell uname -s)
+ARCH	       := $(shell uname -m)
 
-SUBDIRS		= proxy example
+SUBDIRS		= proxy
 ifeq ($(SYSTEM),FreeBSD)
-SUBDIRS	       += sched stated
+ifeq ($(ARCH),amd64)
+SUBDIRS	       += new_sched
+else
+SUBDIRS	       += sched
 ifeq ($(ISMAINSITE),1)
 SUBDIRS        += new_sched
 endif
+endif
+SUBDIRS	       += stated
 endif
 
 all:	etc-subdir all-subdirs
@@ -29,23 +35,12 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 etc-subdir:
 	@$(MAKE) -C etc all
 
-install: 
-	@$(MAKE) -C sched install
-ifeq ($(ISMAINSITE),1)
-	@$(MAKE) -C new_sched install
-endif
-	@$(MAKE) -C stated install
-	@$(MAKE) -C proxy install
+install: install-subdirs
 
 client:		client-subdirs
 client-install: client client-install-subdirs
 
-control-install: 
-	@$(MAKE) -C sched control-install
-ifeq ($(ISMAINSITE),1)
-	@$(MAKE) -C new_sched control-install
-endif
-	@$(MAKE) -C proxy control-install
+control-install: control-install-subdirs
 
 post-install: 
 

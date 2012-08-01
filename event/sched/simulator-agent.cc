@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2004, 2005, 2006, 2007 University of Utah and the Flux Group.
+ * Copyright (c) 2004-2011 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -541,7 +541,8 @@ static void *simulator_agent_looper(void *arg)
 			      se.notification);
 		}
 		else {
-			int rc = 0, token = ~0;
+			int rc = 0;
+			int32_t token = ~0;
 			
 			event_notification_get_arguments(handle,
 							 se.notification,
@@ -550,7 +551,7 @@ static void *simulator_agent_looper(void *arg)
 			event_notification_get_int32(handle,
 						     se.notification,
 						     "TOKEN",
-						     (int32_t *)&token);
+						     &token);
 			argsbuf[sizeof(argsbuf) - 1] = '\0';
 
 			/* Strictly for the event viewer */

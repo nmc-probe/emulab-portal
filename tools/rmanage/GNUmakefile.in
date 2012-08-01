@@ -47,14 +47,14 @@ all: $(SBIN_STUFF) $(LIB_STUFF)
 include $(TESTBED_SRCDIR)/GNUmakerules
 
 # swig ourselves
-rmcp.so: rmcp.o rmcp_wrap.o
+rmcp.so: rmcp.So rmcp_wrap.o
 	ld -shared $^ -lssl -o rmcp.so
 
 swig-wrappers: rmcp.h rmcp.i
 	swig -perl5 -module rmcp -o $(SRCDIR)/rmcp_wrap.c $(SWIG_INCS) $(SRCDIR)/rmcp.i
 
 rmcp_wrap.o: $(SRCDIR)/rmcp_wrap.c
-	$(CC) -fpic -c $(CFLAGS) $(SWIG_GCC_INCS) $(LDFLAGS) $(SRCDIR)/rmcp_wrap.c
+	$(CC) -fpic -DPIC -c $(CFLAGS) $(SWIG_GCC_INCS) $(LDFLAGS) $(SRCDIR)/rmcp_wrap.c
 
 rmanage: GNUmakefile rmanage.o rmcp.o \
 		${TESTBED_LIBOBJDIR}/libtb/tbdb.o \
@@ -77,6 +77,8 @@ rmanage.o: rmanage.c rmcp.c
 
 rmcp.o: rmcp.c rmcp.h
 	$(CC) -c -o rmcp.o $(CFLAGS) $<
+rmcp.So: rmcp.c rmcp.h
+	$(CC) -c -o rmcp.So -fpic -DPIC $(CFLAGS) $<
 
 install: all script-install
 
@@ -86,4 +88,4 @@ script-install: $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
 	$(addprefix $(INSTALL_LIBDIR)/, $(LIB_STUFF))
 
 clean:
-	rm -f *.o core rmanage rmanage.debug *.so
+	rm -f *.o core rmanage rmanage.debug *.so *.So

@@ -175,7 +175,7 @@ ifeq ($(STANDALONE_CLEARINGHOUSE),0)
 	-chmod 777 $(INSTALL_TOPDIR)/exparchive/Archive
 	-mkdir -p $(INSTALL_TOPDIR)/images
 	-chmod 775 $(INSTALL_TOPDIR)/images
-	-ln -s /usr/testbed/bin/nse $(INSTALL_TOPDIR)/bin
+	-ln -sf /usr/testbed/bin/nse $(INSTALL_TOPDIR)/bin
 endif
 
 just-builddirs:

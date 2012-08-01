@@ -8,7 +8,7 @@
 
 #include <errno.h>
 #include <stdlib.h>
-#include <linuxthreads/pthread.h>
+#include <pthread.h>
 #include <pcap-int.h>
 
 #include "listNode.h"

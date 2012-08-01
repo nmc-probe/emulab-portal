@@ -41,10 +41,16 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 #
 .MAKEFLAGS+=	-DBATCH
 
+#
+# We do this here because we do this for emulab-boss.
+#
+.MAKEFLAGS+=	WITHOUT_LATEX=yes
+
 # We need the BUILD_DEPENDS above to wind up in the dependency list
 RUN_DEPENDS:= ${BUILD_DEPENDS}
 
-RUN_DEPENDS= gmake:${PORTSDIR}/devel/gmake \
+RUN_DEPENDS+=	\
+	gmake:${PORTSDIR}/devel/gmake \
 	sudo:${PORTSDIR}/security/sudo \
 	rsync:${PORTSDIR}/net/rsync \
 

@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2002, 2004 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2011 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -203,7 +203,7 @@ sched_event_dequeue(sched_event_t *event, int wait)
 					      &event_queue_mutex, &fireme))
 		!= 0) {
 		    if (err != ETIMEDOUT) {
-			    error("pthread_cond_timedwait failed: %d", err);
+			    error("pthread_cond_timedwait failed: %d\n", err);
 			    return -1;
 		    }
 		    

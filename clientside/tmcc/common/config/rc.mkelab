@@ -271,6 +271,15 @@ else {
     die("Could not determine what version of FreeBSD you are running!\n");
 }
 
+# Architecture
+my $FBSD_ARCH = "i386";
+if (`uname -m` =~ /^(\S+)$/) {
+    $FBSD_ARCH = $1;
+}
+else {
+    die("Could not determine what architecutre FreeBSD is running on!\n");
+}
+
 #
 # Find out our domain name, so that we can qualify the localhost entry
 #
@@ -551,8 +560,8 @@ sub doboot()
     }
     elsif ($FBSD_VERSION == 7.3) {
 	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/7.3/packages";
-	$emulabconfig{FS_PKG_DIR} .= ".elvincompat"
-	    if ($emulabconfig{"CONFIG_ELVIN"});
+	$emulabconfig{FS_PKG_DIR} .= "-64"
+	    if ($FBSD_ARCH eq "amd64");
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{FS_PKG}       = "emulab-fs-3.1";
@@ -561,8 +570,6 @@ sub doboot()
     }
     elsif ($FBSD_VERSION >= 8.2 && $FBSD_VERSION < 9.0) {
 	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/8.2/packages";
-	$emulabconfig{FS_PKG_DIR} .= ".elvincompat"
-	    if ($emulabconfig{"CONFIG_ELVIN"});
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{FS_PKG}       = "emulab-fs-4.0";
@@ -573,8 +580,6 @@ sub doboot()
     }
     elsif ($FBSD_VERSION >= 9.0) {
 	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/9.0/packages";
-	$emulabconfig{FS_PKG_DIR} .= ".elvincompat"
-	    if ($emulabconfig{"CONFIG_ELVIN"});
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{FS_PKG}       = "emulab-fs-5.0";
@@ -693,7 +698,7 @@ sub doboot()
 	;
     }
     else {
-	fatal("Do not recognize role '". $emulabconfig{"ROLE"} ."'!\n");
+	fatal("Do not recognize role '". $emulabconfig{"ROLE"}. "'!\n");
     }
     print "Done!\n";
     return 0;
@@ -1415,6 +1420,7 @@ sub SetupOpsNode($)
 	if ($FBSD_VERSION == 7.3) {
 	    system("pkg_delete -f -x python25 -x py25");
 	    system("pkg_delete -f -x sudo -x png -x tiff");
+	    system("pkg_delete -f -x git -x rpm -x p5-libwww");
 	}
 
 	print "Installing the ops metaport.\n";
@@ -2081,6 +2087,7 @@ sub SetupBossNode($)
 	if ($FBSD_VERSION == 7.3) {
 	    system("pkg_delete -f -x python25 -x py25");
 	    system("pkg_delete -f -x sudo -x png -x tiff");
+	    system("pkg_delete -f -x git -x rpm -x p5-libwww");
 	}
 
 	if (-e "$pdir/emacs-23") {
@@ -2704,6 +2711,7 @@ sub SetupOpsJail()
 	if ($FBSD_VERSION == 7.3) {
 	    system("pkg_delete -f -x python25 -x py25");
 	    system("pkg_delete -f -x sudo -x png -x tiff");
+	    system("pkg_delete -f -x git -x rpm -x p5-libwww");
 	}
 
 	print "Installing the ops metaport.\n";
@@ -3421,7 +3429,7 @@ sub RecreateDir($$)
 	    mysystem("sed -i '.orig' -E '\\;\[\[:space:\]\]$TBDIR\[\[:space:\]\];d' /etc/fstab");
 	}
 	# remove it if it is empty
-	rmdir("$dir >/dev/null 2>&1");
+	rmdir($dir);
     }
 
     #
@@ -3439,4 +3447,3 @@ sub RecreateDir($$)
 	mysystem("mkdir -p $dir");
     }
 }
-

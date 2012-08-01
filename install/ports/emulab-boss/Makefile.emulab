@@ -6,6 +6,7 @@
 
 OSMAJOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/\..*//'
 OSMINOR!= /usr/bin/uname -r | /usr/bin/sed -e 's/[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/'
+OSARCH != /usr/bin/uname -m
 
 .if ${OSMAJOR} > 8
 EMULAB_PORTVERSION=	5.0

@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2005 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2011 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -79,7 +79,7 @@ extern char	pideid[BUFSIZ];
 extern char	*pid, *eid;
 
 extern int debug;
-extern unsigned long next_token;
+extern int32_t next_token;
 
 /*
  * Function prototypes:

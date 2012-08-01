@@ -670,6 +670,8 @@ LanLink instproc fill_ips {} {
 	    if {[$node ip $port] == {}} {
 		set ip {}
 		set max [expr ~ $netmaskint]
+		# XXX 64-bit hack
+		set max [expr $max & 0xFFFFFFFF]
 		for {set i $ip_counter} {$i < $max} {incr i} {
 		    set nextip [inet_hltoa [expr $subnetint | $i]]
 		    
@@ -885,6 +887,8 @@ LanLink instproc check-ip-mask {ip mask} {
     set ipint [inet_atohl $ip]
     set maskint [inet_atohl $mask]
     set maskinverse [expr (~ $maskint)]
+    # XXX 64-bit hack
+    set maskinverse [expr $maskinverse & 0xFFFFFFFF]
     set remainder [expr ($ipint & $maskinverse)]
     if {$remainder == 0 || $remainder == $maskinverse} {
 	perror "\[check-ip-mask] IP address $ip with netmask $mask has either all '0's (reserved) or all '1's (broadcast) in the host portion of the address."

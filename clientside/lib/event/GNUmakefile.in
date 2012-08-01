@@ -20,6 +20,14 @@ PUBSUBMTFLAGS  += -DELVIN_COMPAT
 endif
 
 SYSTEM	       := $(shell uname -s)
+ARCH	       := $(shell uname -m)
+
+# We should be able to use va_copy everywhere, but be conservative
+SWIGCFLAGS	=
+ifeq ($(ARCH),amd64)
+SWIGCFLAGS     += -DHAVE_VA_COPY
+endif
+
 LIBS		= libevent.a
 SWIGLIBS        =
 # Re-entrant, multi-threaded version on FreeBSD and Linux, not on Windows.
@@ -84,8 +92,12 @@ event_r.o:	event.c
 
 event.o:	event.c
 	$(CC) $(SCFLAGS) -c -o event.o $<
+event.So:	event.c
+	$(CC) -fpic -DPIC $(SCFLAGS) -c -o event.So $<
 util.o:		util.c
 	$(CC) $(SCFLAGS) -c -o util.o $<
+util.So:	util.c
+	$(CC) -fpic -DPIC $(SCFLAGS) -c -o util.So $<
 
 #
 # These three targets are for the perl binding to the event system
@@ -102,7 +114,9 @@ swig-wrappers:	event.i	event.c event.pm.tail
 	cat $(SRCDIR)/event.pm.tail >> $(SRCDIR)/event.pm
 
 event_wrap.o:	$(SRCDIR)/event_wrap.c
-	$(CC) -c $(CFLAGS_NOWARN) $(PCORE) $<
+	$(CC) -c $(SWIGCFLAGS) $(CFLAGS_NOWARN) $(PCORE) $<
+event_wrap.So:	$(SRCDIR)/event_wrap.c
+	$(CC) -fpic -DPIC -c $(SWIGCFLAGS) $(CFLAGS_NOWARN) $(PCORE) -o event_wrap.So $<
 
 #
 # Note: The python version of the wrappers do not seem to be afflicted by the
@@ -117,12 +131,14 @@ swig-pywrappers: event.i event.h event.c tbevent.py.tail
 # $(SRCDIR)/event_wrap_py.c: swig-pywrappers
 
 event_wrap_py.o: $(SRCDIR)/event_wrap_py.c event.h
-	$(CC) -c $(CFLAGS_NOWARN) $(PYCORE) $<
+	$(CC) -c $(SWIGCFLAGS) $(CFLAGS_NOWARN) $(PYCORE) $<
+event_wrap_py.So: $(SRCDIR)/event_wrap_py.c event.h
+	$(CC) -fpic -DPIC -c $(SWIGCFLAGS) $(CFLAGS_NOWARN) $(PYCORE) -o event_wrap_py.So $<
 
-event.so:	event.o event_wrap.o util.o
+event.so:	event.So event_wrap.So util.So
 	ld -shared $^ $(PUBSUBLIB) -lcrypto -o event.so
 
-_tbevent.so:	event.o event_wrap_py.o util.o
+_tbevent.so:	event.So event_wrap_py.So util.So
 	ld -shared $^ $(PUBSUBLIB) -lcrypto -o $@
 
 LIB_STUFF       = event.pm event.so tbevent.py _tbevent.so
@@ -155,7 +171,7 @@ client-pllibinstall: event.so
 	$(INSTALL_PROGRAM) event.so $(DESTDIR)$(CLIENT_BINDIR)/event.so
 
 clean:
-	/bin/rm -f *.o libevent.a libevent_r.a *.so *.py
+	/bin/rm -f *.o libevent.a libevent_r.a *.So *.so *.py
 
 distclean:
 	/bin/rm -f event.pm event_wrap.c event_wrap_py.c tbevent.py
