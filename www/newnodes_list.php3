@@ -73,7 +73,7 @@ if (isset($addnumber) && $addnumber == "") {
 if (count($selected_nodes)) {
     $equal_clauses = array();
     foreach ($selected_nodes as $node) {
-	if (!is_int($node)) {
+	if (!is_numeric($node)) {
 	    USERERROR("Invalid node id", 1);
 	}
 	$equal_clauses[] = "new_node_id=$node";
