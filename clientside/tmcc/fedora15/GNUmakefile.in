@@ -56,6 +56,7 @@ openvz-install:	baselinux-common-install common-install \
 dir-install:
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/init.d
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/dhcp
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/logrotate.d
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system
 
