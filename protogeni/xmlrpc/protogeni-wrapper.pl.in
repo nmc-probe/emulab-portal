@@ -479,9 +479,9 @@ else {
     }
 }
 
-#if ($debug) {
-#    print STDERR "Debugging is on.\n";
-#}
+if ($debug) {
+    print STDERR "Debugging is on.\n";
+}
 
 #
 # Terminate the log capture so that we can print the response to STDOUT
