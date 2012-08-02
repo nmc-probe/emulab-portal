@@ -166,11 +166,12 @@ sub email($)
 sub Create($$;$)
 {
     my ($class, $argref, $error) = @_;
-    my $urn   = (exists($argref->{'urn'})   ? $argref->{'urn'}   : undef);
-    my $hrn   = (exists($argref->{'hrn'})   ? $argref->{'hrn'}   : undef);
-    my $email = (exists($argref->{'email'}) ? $argref->{'email'} : undef);
-    my $uuid  = (exists($argref->{'uuid'})  ? $argref->{'uuid'}  : undef);
-    my $url   = (exists($argref->{'url'})   ? $argref->{'url'}   : undef);
+    my $urn      = (exists($argref->{'urn'})     ? $argref->{'urn'}     :undef);
+    my $hrn      = (exists($argref->{'hrn'})     ? $argref->{'hrn'}     :undef);
+    my $email    = (exists($argref->{'email'})   ? $argref->{'email'}   :undef);
+    my $uuid     = (exists($argref->{'uuid'})    ? $argref->{'uuid'}    :undef);
+    my $url      = (exists($argref->{'url'})     ? $argref->{'url'}     :undef);
+    my $showuuid = (exists($argref->{'showuuid'})? $argref->{'showuuid'}:undef);
 
     # Let mkcert generate a new one.
     $uuid = ""
@@ -179,9 +180,9 @@ sub Create($$;$)
 
     my ($authority, $type, $name) = GeniHRN::Parse($urn);
     my $caflag = $type eq "authority" ? "" : "-n";
-
+    my $showuuidflag = $showuuid ? " -U " : "";
     if (! open(CERT, "$MKCERT $caflag -i \"$urn\" $url -e \"$email\" $hrn " .
-	       "$uuid |")) {
+	       "$showuuidflag$uuid |")) {
 	print STDERR "Could not start $MKCERT\n";
 	return undef;
     }

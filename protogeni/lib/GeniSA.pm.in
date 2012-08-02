@@ -523,6 +523,7 @@ sub Register($)
 	my $certificate =
 	    GeniCertificate->Create({'urn'  => $urn,
 				     'hrn'  => $hrn,
+				     'showuuid' => 1,
 				     'email'=> $this_user->email()}, \$error);
 	if (!defined($certificate)) {
 	    if (defined($error)) {

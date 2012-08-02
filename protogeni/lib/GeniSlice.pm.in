@@ -542,6 +542,7 @@ sub CreateFromLocal($$$)
     #
     $certificate = GeniCertificate->Create({'urn'  => $urn,
 					    'hrn'  => $hrn,
+					    'showuuid' => 1,
 					    'email'=> $geniuser->email()});
     if (!defined($certificate)) {
 	print STDERR "GeniSlice::CreateFromLocal: ".
