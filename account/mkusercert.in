@@ -345,8 +345,10 @@ sub CreateNewCert() {
     print TEMP "CN\t\t= $user_uuid\n";
     print TEMP "emailAddress\t= $user_uid" . "\@" . "$OURDOMAIN\n";
 
-    print TEMP "\n[ req_altname ]\nURI=urn:publicid:IDN+$OURDOMAIN" .
-	"+user+$user_uid\nemail=$user_uid" . "\@" . "$OURDOMAIN\n\n";
+    print TEMP "\n[ req_altname ]\nURI.1=urn:publicid:IDN+$OURDOMAIN" .
+	"+user+$user_uid\n" .
+	"email=$user_uid" . "\@" . "$OURDOMAIN\n" .
+	"URI.2=urn:uuid:$user_uuid\n\n";
 
     close(TEMP)
 	or fatal("Could not close usercert.cnf: $!");
