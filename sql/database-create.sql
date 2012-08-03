@@ -1854,6 +1854,7 @@ CREATE TABLE `interfaces` (
   `vnode_id` varchar(32) default NULL,
   `whol` tinyint(4) NOT NULL default '0',
   `trunk` tinyint(1) NOT NULL default '0',
+  `trunk_mode` enum('equal','dual') NOT NULL default 'equal',
   `uuid` varchar(40) NOT NULL default '',
   `logical` tinyint(1) unsigned NOT NULL default '0',
   PRIMARY KEY  (`node_id`,`card`,`port`),
