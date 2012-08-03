@@ -2073,7 +2073,9 @@ COMMAND_PROTOTYPE(doifconfig)
 	/*
 	 * First, return config info for physical interfaces underlying
 	 * the virtual interfaces or delay interfaces. These are marked
-	 * with a current_speed!=0 but no IP address.
+	 * with a current_speed!=0 but no IP address. Note that we never
+	 * want to return control network interfaces here, even though
+	 * there might be vinterfaces on top of a control interface. 
 	 */
 	if (vers >= 18 && !reqp->isvnode) {
 		char *aliasstr;
@@ -2082,6 +2084,8 @@ COMMAND_PROTOTYPE(doifconfig)
 				 "       i.current_speed,i.duplex "
 				 "  from interfaces as i "
 				 "where i.current_speed!='0' and "
+				 "      i.current_speed!='' and "
+				 "      i.role!='ctrl' and "
 				 "      (i.IP='' or i.IP is null) and "
 				 "      i.role='expt' and i.node_id='%s'",
 				 4, reqp->pnodeid);
