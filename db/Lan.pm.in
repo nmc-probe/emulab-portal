@@ -1281,14 +1281,10 @@ my %members   = ();
 sub Lookup($$$)
 {
     my ($class, $lan, $memberid) = @_;
-
-    return undef
-	if (!ref($lan));
+    my $lanid = (ref($lan) ? $lan->lanid() : $lan);
 
     return undef
 	if (! ($memberid =~ /^\d*$/));
-    
-    my $lanid = $lan->lanid();
 
     # Look in cache first
     return $members{"${lanid}:${memberid}"}
@@ -1532,7 +1528,7 @@ sub GetInterface($)
 
     require Interface;
 
-    return -1
+    return undef
 	if ($self->GetNodeIface(\$node, \$iface));
 
     return Interface->LookupByIface($node, $iface);

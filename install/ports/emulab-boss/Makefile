@@ -69,6 +69,11 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 .MAKEFLAGS+=	-DBATCH
 
 #
+# Specifically for rpm4 so it won't drag in tetex just to format the doc!
+#
+.MAKEFLAGS+=	WITHOUT_LATEX=yes
+
+#
 # XXX not really build dependencies, but these Emulab-specific ports need
 # to get installed before any attempt to install the standard versions.
 #
@@ -89,17 +94,22 @@ BUILD_DEPENDS=	\
 LIB_DEPENDS= gd.4:${PORTSDIR}/graphics/gd \
 	mhash.2:${PORTSDIR}/security/mhash \
 	mysqlclient.15:${PORTSDIR}/databases/mysql50-client \
-	snmp.4:${PORTSDIR}/misc/net-snmp4 \
-	ulsshxmlrpcpp.0:${PORTSDIR}/misc/ulsshxmlrpcpp
+	snmp.4:${PORTSDIR}/misc/net-snmp4
 
-.if ${OSMAJOR} < 8
-LIB_DEPENDS+= lthread.[236]:${PORTSDIR}/devel/linuxthreads
-.endif
 .if ${OSMAJOR} >= 6
 LIB_DEPENDS+= xerces-c.27:${PORTSDIR}/textproc/xerces-c2
 .endif
 .if ${OSMAJOR} >= 7
 LIB_DEPENDS+= xmlrpc:${PORTSDIR}/net/xmlrpc-c
+.endif
+
+# no linuxthreads on amd64
+# old libtool in ulsshxmlrpcpp causes shlibs to be whacked
+.if ${OSARCH} == "i386"
+.if ${OSMAJOR} < 8
+LIB_DEPENDS+= lthread.[236]:${PORTSDIR}/devel/linuxthreads
+.endif
+LIB_DEPENDS+= ulsshxmlrpcpp.0:${PORTSDIR}/misc/ulsshxmlrpcpp
 .endif
 
 #

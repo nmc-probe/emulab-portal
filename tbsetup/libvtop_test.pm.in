@@ -2386,7 +2386,8 @@ sub GenVirtLans($)
 	    }
 	    # Figure out how many nodes support a feature
 	    $nodesdo{"alias"}++
-		if ($osdoesmlink{$osid});
+		# All OSs support this. 
+		if (1);
 	    $nodesdo{"veth"}++
 		if ($osdoesveth{$osid});
 	    $nodesdo{"veth-ne"}++
@@ -2506,7 +2507,7 @@ sub GenVirtLans($)
 	#
 	# No longer support veth or alias encap; catch it now. 
 	#
-	if (! ($globalencap =~ /^(default|veth-ne|vlan)$/)) {
+	if (! ($globalencap =~ /^(default|veth-ne|vlan|alias)$/)) {
 	    tberror("unknown global encapsulation style '$globalencap'\n");
 	    $errors++;
 	    next;
@@ -2709,6 +2710,7 @@ sub GenVirtLans($)
 	    # treatment applies as well.
 	    #
 	    my $lanname = "fakelan/$vname";
+
 	    $self->createNode($lanname, $mycmurn, $protocol, '1', undef, undef);
 	    
 	    # So we ignore it when it comes back from assign.
@@ -2716,6 +2718,13 @@ sub GenVirtLans($)
 	    
 	    # XXX If not ethernet, assume wireless. Need more info someplace.
 	    $self->exptstats()->{'wirelesslans'} += 1;
+
+	    my $others = {};
+	    if ($emulated) {
+		$others->{'emulated'}   = 1;
+		# assign seems to require this, but it seems wrong.
+		$others->{'trivial_ok'} = 1;
+	    }
 	    
 	    foreach my $member (@members) {
 		my $plink = "fakelan/$vname/$member";
@@ -2726,7 +2735,7 @@ sub GenVirtLans($)
 				  {'virtual_node_id' => $vname,
 				   'virtual_interface_id' => "$member" },
 				  {'virtual_node_id' => $lanname },
-				  $top_bw, $protocol);
+				  $top_bw, $protocol, $others);
 		next;
 	    }
 	}
@@ -6301,8 +6310,7 @@ sub InterpLinksAux($)
 	}
 	elsif ($linktag eq "fakelan") {
 	    #
-	    # No trivial links, emulated links, delays, vlans. We do
-	    # however need to come up with an ssid?
+	    # No trivial links, delays, or vlans.
 	    #
 	    $self->printdb("FakeLan - $virtA - $nodeA:$portA\n");
 	    
@@ -6312,8 +6320,20 @@ sub InterpLinksAux($)
 		if (!defined($protolan));
 	    $protolan->SetType("fakelan");
 	    $protolan->SetRole("link/lan");
-	    $protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
 	
+	    if ($member0->usevirtiface()) {
+		$protolan->AddMember($nodeA, $portA);
+		
+		my $virtiface = $self->NewVirtIface($virtlan, $member0,
+						    $nodeA, $portA);
+		return -1
+		    if (!defined($virtiface));
+
+		$portA = $virtiface->viface();
+	    }
+	    else {
+		$protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
+	    }
 	    $portmap{$virtA} = $portA;
 
 	    #
@@ -6325,7 +6345,7 @@ sub InterpLinksAux($)
 	    my $portvlan = $virtlan->_portvlan();
 	    
 	    #
-	    # No trivial links, emulated links, delays, vlans. 
+	    # No trivial links, delays, vlans. 
 	    # This is a port in an existing lan in another experiment.
 	    #
 	    $self->printdb("PortLan - $virtA - $nodeA:$portA\n");

@@ -58,7 +58,7 @@ http://www.protogeni.net/resources/rspec/2/request.xsd"
   </hop>
 
   <hop id="2" type="strict">
-    <link id="urn:publicid:IDN+emulab.net+interface+procurve1:eth0:interconnect-instageni">
+    <link id="urn:publicid:IDN+emulab.net+interface+procurveA:3.19">
       <trafficEngineeringMetric>10</trafficEngineeringMetric>
       <capacity>10000000000</capacity>
       <switchingCapabilityDescriptor>
@@ -68,7 +68,7 @@ http://www.protogeni.net/resources/rspec/2/request.xsd"
           <switchingCapabilitySpecificInfo_L2sc>
             <interfaceMTU>9000</interfaceMTU>
             <vlanRangeAvailability>2-4094</vlanRangeAvailability>
-            <suggestedVLANRange>null</suggestedVLANRange>
+<!--            <suggestedVLANRange>null</suggestedVLANRange> -->
             <vlanTranslation>false</vlanTranslation>
           </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>
@@ -78,7 +78,7 @@ http://www.protogeni.net/resources/rspec/2/request.xsd"
   </hop>
 
   <hop id="3" type="strict">
-    <link id="urn:publicid:IDN+utah.geniracks.net+interface+procurve2:eth0:interconnect-emulab">
+    <link id="urn:publicid:IDN+utah.geniracks.net+interface+procurve2:1.19">
       <trafficEngineeringMetric>10</trafficEngineeringMetric>
       <capacity>10000000000</capacity>
       <switchingCapabilityDescriptor>
@@ -88,7 +88,7 @@ http://www.protogeni.net/resources/rspec/2/request.xsd"
           <switchingCapabilitySpecificInfo_L2sc>
             <interfaceMTU>9000</interfaceMTU>
             <vlanRangeAvailability>2-4094</vlanRangeAvailability>
-            <suggestedVLANRange>null</suggestedVLANRange>
+<!--            <suggestedVLANRange>null</suggestedVLANRange> -->
             <vlanTranslation>false</vlanTranslation>
           </switchingCapabilitySpecificInfo_L2sc>
         </switchingCapabilitySpecificInfo>

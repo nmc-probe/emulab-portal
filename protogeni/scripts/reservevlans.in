@@ -141,7 +141,7 @@ if (!defined($other_manager)) {
     fatal("Who is the other manager?");
 }
 
-my $network = ExternalNetwork->Lookup($networid);
+my $network = ExternalNetwork->Lookup($networkid);
 if (!defined($network)) {
     fatal("$networkid is not an external network");
 }

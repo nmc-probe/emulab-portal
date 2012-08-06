@@ -1538,6 +1538,26 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 
 
 SWIGINTERNINLINE SV *
+SWIG_FromCharPtrAndSize(const char* carray, size_t size)
+{
+  SV *obj = sv_newmortal();
+  if (carray) {
+    sv_setpvn(obj, carray, size);
+  } else {
+    sv_setsv(obj, &PL_sv_undef);
+  }
+  return obj;
+}
+
+
+SWIGINTERNINLINE SV * 
+SWIG_FromCharPtr(const char *cptr)
+{ 
+  return SWIG_FromCharPtrAndSize(cptr, (cptr ? strlen(cptr) : 0));
+}
+
+
+SWIGINTERNINLINE SV *
 SWIG_From_long  SWIG_PERL_DECL_ARGS_1(long value)
 {    
   SV *obj = sv_newmortal();
@@ -1735,26 +1755,6 @@ SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
 
 
 
-
-
-SWIGINTERNINLINE SV *
-SWIG_FromCharPtrAndSize(const char* carray, size_t size)
-{
-  SV *obj = sv_newmortal();
-  if (carray) {
-    sv_setpvn(obj, carray, size);
-  } else {
-    sv_setsv(obj, &PL_sv_undef);
-  }
-  return obj;
-}
-
-
-SWIGINTERNINLINE SV * 
-SWIG_FromCharPtr(const char *cptr)
-{ 
-  return SWIG_FromCharPtrAndSize(cptr, (cptr ? strlen(cptr) : 0));
-}
 
 
 SWIGINTERN int
@@ -5666,7 +5666,12 @@ XS(_wrap_event_notification_create_v) {
       if (!argp4) {
         SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "event_notification_create_v" "', argument " "4"" of type '" "va_list""'");
       } else {
-        arg4 = *((va_list *)(argp4));
+#ifdef HAVE_VA_COPY
+	/* XXX hand-tweaked by mike to use va_copy rather than assignment */
+	va_copy(arg4, *((va_list *)(argp4)));
+#else
+	arg4 = *((va_list *)(argp4));
+#endif
       }
     }
     result = (event_notification_t)event_notification_create_v(arg1,arg2,arg3,arg4);
@@ -5759,7 +5764,12 @@ XS(_wrap_event_do_v) {
       if (!argp3) {
         SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "event_do_v" "', argument " "3"" of type '" "va_list""'");
       } else {
-        arg3 = *((va_list *)(argp3));
+#ifdef HAVE_VA_COPY
+	/* XXX hand-tweaked by mike to use va_copy rather than assignment */
+	va_copy(arg3, *((va_list *)(argp3)));
+#else
+	arg3 = *((va_list *)(argp3));
+#endif
       }
     }
     result = (int)event_do_v(arg1,arg2,arg3);
@@ -7487,6 +7497,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   }
   
+  /*@SWIG:/usr/local/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "EVENT_LIBRARY_VERSION", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_FromCharPtr("1.0"));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/local/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "MAXHOSTNAMELEN", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(64)));

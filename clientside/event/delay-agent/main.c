@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2004, 2006 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2011 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -429,7 +429,8 @@ reset_callback(event_handle_t handle,
 	char		buf[BUFSIZ];
 	char		objname[TBDB_FLEN_EVOBJNAME];
 	char		*prog = "delaysetup";
-	unsigned long	token = ~0;
+	unsigned long	token;
+	int32_t		itoken = ~0;
 	int		errcode = 0;
 
 	info("Got a RESET event!\n");
@@ -441,7 +442,8 @@ reset_callback(event_handle_t handle,
 	errcode = system(buf);
 
 	event_notification_get_int32(handle, notification,
-				     "TOKEN", (int32_t *)&token);
+				     "TOKEN", &itoken);
+	token = itoken;
 	event_notification_get_objname(handle, notification,
 				       objname, sizeof(objname));
 

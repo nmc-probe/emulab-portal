@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2009-2010 University of Utah and the Flux Group.
+# Copyright (c) 2009-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -13,14 +13,15 @@ use Getopt::Std;
 #
 sub usage()
 {
-    print STDERR "Usage: dbupdate [-v] [-s] [-f] <dbname> [<version>]\n";
+    print STDERR "Usage: dbupdate [-v] [-c] [-s] [-f] <dbname> [<version>]\n";
     exit(-1);
 }
-my $optlist = "dsfvp:q";
+my $optlist = "dsfvp:qc";
 my $debug   = 0;
 my $force   = 0;
 my $single  = 0;
 my $verify  = 0;
+my $check   = 0;
 my $quiet   = 0;
 my $path;
 my $dbname;
@@ -85,6 +86,9 @@ if (defined($options{"q"})) {
 }
 if (defined($options{"v"})) {
     $verify = 1;
+}
+if (defined($options{"c"})) {
+    $check = 1;
 }
 if (defined($options{"p"})) {
     $path = $options{"p"};
@@ -207,7 +211,8 @@ foreach my $file (@files) {
 	next;
     }
 
-    print "Processing update $fullpath\n";
+    print "" .
+	($check ? "Syntax checking" : "Processing") . " update $fullpath\n";
 
     # Undefine this to make sure we get a new version each file.
     undef &DoUpdate;
@@ -218,6 +223,9 @@ foreach my $file (@files) {
 	Fatal("  could not parse $file: $@") if $@;
 	Fatal("  could not do $file: $!")    if $!;
     }
+    next
+	if ($check);
+    
     # Then we run it.
     if (DoUpdate($dbnumber, $dbname, $revision) != 0) {
 	Fatal("  returned non-zero; aborting.\n");

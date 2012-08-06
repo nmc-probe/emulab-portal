@@ -16,6 +16,7 @@ use vars qw(@ISA @EXPORT $AUTOLOAD);
 use libdb;
 use EmulabConstants;
 use libtestbed;
+use Socket;
 use Node;
 use emutil;
 use Logfile;
@@ -3117,6 +3118,7 @@ sub BackupVirtualState($)
 
     my $pid = $self->pid();
     my $eid = $self->eid();
+    my $idx = $self->idx();
     my $vstateDir = $self->WorkDir() . "/vstate";
     my $errors = 0;
 
@@ -3130,7 +3132,7 @@ sub BackupVirtualState($)
 
     foreach my $table (@virtualTables) {
 	DBQueryWarn("SELECT * FROM $table ".
-		    "WHERE pid='$pid' AND eid='$eid' ".
+		    "WHERE exptidx='$idx' ".
 		    "INTO OUTFILE '$vstateDir/$table' ")
 	    or $errors++;
     }
@@ -3145,12 +3147,13 @@ sub RemoveVirtualState($)
     return -1
 	if (! ref($self));
 
+    my $idx = $self->idx();
     my $pid = $self->pid();
     my $eid = $self->eid();
     my $errors = 0;
 
     foreach my $table (@virtualTables) {
-	DBQueryWarn("DELETE FROM $table WHERE pid='$pid' AND eid='$eid'")
+	DBQueryWarn("DELETE FROM $table WHERE exptidx='$idx'")
 	    or $errors++;
     }
     return $errors;
@@ -5365,6 +5368,260 @@ sub SharingVlans($)
 	if (!$query_result);
 
     return $query_result->numrows;
+}
+
+#
+# Do IP allocation for switch network fabrics that require it.
+#
+sub SetupNetworkFabrics($)
+{
+    my ($self)   = @_;
+    my $idx      = $self->idx();
+
+    #
+    # Find any lans with the fabric setting. Order them for consistent
+    # assignment. 
+    #
+    my $query_result =
+	DBQueryWarn("select vname,capval from virt_lan_settings ".
+		    "where exptidx='$idx' and ".
+		    "      (capkey='network_fabric' or ".
+		    "       capkey='switch_fabric') ".
+		    "order by vname");
+
+    return -1
+	if (!defined($query_result));
+
+    if (!$query_result->numrows) {
+	#
+	# Be sure to delete stale assignments.
+	#
+	DBQueryWarn("delete from global_ipalloc where exptidx='$idx'")
+	    or return -1;
+	return 0;
+    }
+
+    #
+    # Get the current assignment so we can delete stale ones.
+    #
+    my %old_ips = ();
+    my %new_ips = ();
+	
+    my $ip_result =
+	DBQueryWarn("select ip,lanidx,member from global_ipalloc ".
+		    "where exptidx='$idx'");
+	
+    return -1
+	if (!$ip_result);
+
+    while (my ($ip,$lanidx,$member) = $ip_result->fetchrow_array()) {
+	$old_ips{"$lanidx:$member"} = $ip;
+    }
+
+    # Now get this after we are sure we need it.
+    my $virtexp = $self->GetVirtExperiment();
+
+    while (my ($lanname,$fabric) = $query_result->fetchrow_array()) {
+	my $safe_fabric = DBQuoteSpecial($fabric);
+	
+	my $fabric_result =
+	    DBQueryWarn("select * from network_fabrics ".
+			"where name=$safe_fabric");
+	return -1
+	    if (!$fabric_result);
+	
+	if (! $fabric_result->numrows) {
+	    print STDERR "*** No such fabric $fabric for $lanname\n";
+	    return -1;
+	}
+	my $rowref = $fabric_result->fetchrow_hashref();
+	# See if user is responsible.
+	next
+	    if (! $rowref->{'ipalloc'});
+
+	my $fabidx  = $rowref->{'idx'};
+	my $onenet  = $rowref->{'ipalloc_onenet'};
+	my $subnet  = $rowref->{'ipalloc_subnet'};
+	my $netmask = $rowref->{'ipalloc_netmask'};
+	my $submask = $rowref->{'ipalloc_submask'};
+
+	if (!$onenet) {
+	    # Add this later.
+	    print STDERR "*** Fabric $fabric is not onenet ipalloc!\n";
+	    return -1;
+	}
+
+	DBQueryWarn("lock tables global_ipalloc write, ".
+		    "            global_ipalloc as u1 write, ".
+		    "            global_ipalloc as u2 write")
+	    or return -1;
+
+	#
+	# This is so simplistic I could just call it moronic.
+	#
+	my $max = unpack("N", ~inet_aton($netmask)) - 1;
+
+	#
+	# Members for this lan.
+	#
+	my @members = ();
+
+	foreach my $member ($virtexp->Table("virt_lans")->Rows()) {
+	    next
+		if ($member->vname() ne $lanname);
+	    push(@members, $member);
+	}
+
+	#
+	# Order the rows so that we get consistent allocation.
+	#
+	@members = sort {$a->vindex() <=> $b->vindex()} @members;
+
+	# Need these below.
+	my $virtlan = $virtexp->Table("virt_lan_lans")->Find($lanname);
+	my $lanidx  = $virtlan->idx();
+
+	# Process members.
+	foreach my $member (@members) {
+	    my $ip      = $member->ip();
+	    my $midx    = $member->vindex();
+
+	    #
+	    # If the virtual topology specifies an ip in the subnet then
+	    # try to use that one. This is not likely to happen, but
+	    # look for it anyway. 
+	    #
+	    if (defined($ip) &&
+		inet_ntoa(inet_aton($netmask) & inet_aton($ip)) eq $subnet) {
+
+		my $ip_result =
+		    DBQueryWarn("select lanidx,exptidx from global_ipalloc ".
+				"where ip='$ip' and fabric_idx='$fabidx'");
+
+		if (!$ip_result) {
+		    DBQueryWarn("unlock tables");
+		    return -1;
+		}
+		
+		if (! $ip_result->numrows) {
+		    # Safe to insert it;
+		    goto insertip;
+		}
+
+		my ($lidx,$eidx) = $ip_result->fetchrow_array();
+
+		# Checks if this IP is used someplace else in the
+		# experiment. Do what the user wants since he owns it
+		# already. 
+		goto reuseip
+		    if ($lidx == $lanidx && $eidx == $idx);
+
+		# Some other experiment already has it.
+		print STDERR "*** IP $ip for $member already in use. ";
+		print STDERR "Allocating a new one for you.\n";
+	    }
+	    #
+	    # Try to use existing IP, as for swapmod. Note that the
+	    # virtual topo has been reloaded and previous assignment
+	    # lost. So we have to go the global_ipalloc table to figure
+	    # this out. 
+	    #
+	    if (exists($old_ips{"$lanidx:$midx"})) {
+		$ip = $old_ips{"$lanidx:$midx"};
+		if (!exists($new_ips{$ip})) {
+		    goto reuseip;
+		}
+	    }
+	    
+	    #
+	    # Try to find an unused ip.
+	    #
+	    my $ip_result =
+		DBQueryWarn("select max(ipint) from global_ipalloc ".
+			    "where fabric_idx='$fabidx'");
+	    if (!$ip_result) {
+		DBQueryWarn("unlock tables");
+		return -1;
+	    }
+
+	    my ($curmax) = $ip_result->fetchrow_array();
+	    if (!defined($curmax)) {
+		$ip = inet_ntoa(inet_aton($subnet) | pack("N", 1));
+	    }
+	    elsif ($curmax < $max - 1) {
+		$ip = inet_ntoa(inet_aton($subnet) | pack("N", $curmax + 1));
+	    }
+	    else {
+		#
+		# It is a pain to use mysql to find a free slot
+		# in a big range of numbers. This is about the worst
+		# way I could think of to do it. 
+		#
+		$ip_result =
+		    DBQueryWarn("select u1.ipint,u2.ipint ".
+				"  from global_ipalloc as u1 ".
+				"left outer join global_ipalloc as u2 on ".
+				"     u1.ipint-1=u2.ipint and ".
+				"     u2.fabric_idx='$fabidx' ".
+				"where u2.ipint is NULL and ".
+				"      u1.ipint<$max and u1.ipint>1 and ".
+				"      u1.fabric_idx='$fabidx'");
+
+		if (!$ip_result) {
+		    DBQueryWarn("unlock tables");
+		    return -1;
+		}
+		if (!$ip_result->numrows) {
+		    print STDERR "No free ip addresses for $member!";
+		    DBQueryWarn("unlock tables");
+		    return -1
+		}
+		my ($tmp) = $ip_result->fetchrow_array();
+		$ip = inet_ntoa(inet_aton($subnet) | pack("N", $tmp - 1));
+	    }
+	  insertip:
+	    # Need to do the row insertion and then move on.
+	    my $ipint = unpack("N", (~inet_aton($netmask)) & inet_aton($ip));
+	    if (!DBQueryWarn("insert into global_ipalloc set ".
+			     "  fabric_idx='$fabidx', ipint=$ipint, ".
+			     "  member='$midx', ".
+			     "  exptidx=$idx, lanidx='$lanidx', ip='$ip'")) {
+		DBQueryWarn("unlock tables");
+		return -1;
+	    }
+	  reuseip:
+	    $member->ip($ip);
+	    $new_ips{$ip} = $ip;
+	}
+	DBQueryWarn("unlock tables");
+    }
+    #
+    # Need to delete stale ones.
+    #
+    foreach my $ip (values(%old_ips)) {
+	next
+	    if (exists($new_ips{$ip}));
+
+	DBQueryWarn("delete from global_ipalloc ".
+		    "where ip='$ip' and exptidx='$idx'");
+    }
+    $virtexp->Store();
+    return 0;
+}
+
+#
+# This has to be done at swapout, but not during a swapmod since
+# that would mess up the existing assignments.
+#
+sub ClearGlobalIPAllocation($)
+{
+    my ($self) = @_;
+    my $idx = $self->idx();
+
+    DBQueryWarn("delete from global_ipalloc where exptidx=$idx")
+	or return -1;
+
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

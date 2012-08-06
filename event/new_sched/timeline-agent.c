@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2004, 2005, 2007 University of Utah and the Flux Group.
+ * Copyright (c) 2004-2011 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -225,7 +225,7 @@ int sequence_agent_handle_complete(event_handle_t handle,
 	while (sa->ta_local_agent.la_link.ln_Succ != NULL) {
 		struct sched_event *seq_se = NULL;
 		struct agent *ag = NULL;
-		int token = -1;
+		int32_t token = -1;
 
 		if (sa->ta_current_event >= 0) {
 			seq_se = &sa->ta_events[sa->ta_current_event];
@@ -325,7 +325,8 @@ static int timeline_agent_immediate(local_agent_t la, sched_event_t *se)
 	else if (strcmp(evtype, TBDB_EVENTTYPE_START) == 0 ||
 		 strcmp(evtype, TBDB_EVENTTYPE_RUN) == 0) {
 		struct timeval now, then;
-		int token, lpc;
+		int lpc;
+		int32_t token;
 
 		if (strncmp(la->la_agent->name, "__", 2) != 0) {
 			RPC_grab();
@@ -336,7 +337,7 @@ static int timeline_agent_immediate(local_agent_t la, sched_event_t *se)
 		event_notification_get_int32(la->la_handle,
 					     se->notification,
 					     "TOKEN",
-					     (int32_t *)&token);
+					     &token);
 		gettimeofday(&now, NULL);
 		then = now;
 		for (lpc = 0; lpc < ta->ta_count; lpc++) {

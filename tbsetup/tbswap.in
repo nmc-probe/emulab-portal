@@ -916,6 +916,7 @@ sub doSwapout($) {
 	# Special. 
 	$experiment->ClearPortRegistration();
 	$experiment->ClearPortRange();
+	$experiment->ClearGlobalIPAllocation();
     }
 
     tblog_set_cleanup(0);
@@ -937,6 +938,12 @@ sub doSwapin($) {
     my $type = shift; 
     # Just the physnodes ...
     my @deleted_pnodes = ();
+
+    # Special IP assignment. Must do before mapper runs and moves
+    # IPs from virt_lans to interfaces table.
+    if ($experiment->SetupNetworkFabrics()) {
+	return 1;
+    }
 
     #
     # assign_wrapper does all the virtual to physical mapping 

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w -T
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -9,6 +9,7 @@ use strict;
 use Class::Struct;
 use POSIX qw(uname);
 use POSIX qw(strftime);
+use POSIX ":sys_wait_h";
 use IO::Handle;
 use English;
 use Socket;
@@ -489,11 +490,19 @@ if (!exists($hostmap{$hostname})) {
 &do_unlink(RUDE_CFG);
 
 #
-# Start up listeners; they run over the lifetime of Linktest to
-# reduce the number of barrier synchronizations and startup
-# delays. Always give the collectors a second to start up.
+# Determine if we can run at high priority.
 #
-my $listeners = 0;
+my $high_priority = 1;
+if ($platform eq LINUX && $hostmap{$hostname}->isvnode) {
+    # XXX Linux vnodes (openvz) cannot change their priority
+    $high_priority = 0;
+}
+
+#
+# Start up listeners; they run over the lifetime of Linktest to
+# reduce the number of barrier synchronizations and startup delays.
+# Note that start_listener will give the listener a second to get started.
+#
 if (&dotest(TEST_BW)) {
     if ($printsched) {
 	&schedlog("start iperf listener");
@@ -501,24 +510,25 @@ if (&dotest(TEST_BW)) {
 	$listener_iperf = &start_listener(PATH_NICE, "-n", "-10",
 					  $PATH_IPERF,"-s","-f","b","-u",
 					  "-w","200000","-l",IPERF_PKTSIZE);
-	$listeners++;
     }
 }
 if (&dotest(TEST_LOSS)) {
     if ($printsched) {
 	&schedlog("start crude listener");
-    } elsif ($platform eq LINUX && $hostmap{$hostname}->isvnode) {
-	# XXX Linux vnodes (openvz) cannot change their priority
-	$listener_crude = &start_listener($PATH_CRUDE,"-l",CRUDE_DAT);
-	$listeners++;
     } else {
-	$listener_crude = &start_listener($PATH_CRUDE,"-l",CRUDE_DAT,
-					  "-P",CRUDE_PRI);
-	$listeners++;
+	#
+	# Try it once with high-priority (unless we know it will fail).
+	# If it fails, try again at normal prio.
+	#
+	if ($high_priority) {
+	    $listener_crude = &start_listener($PATH_CRUDE,"-l",CRUDE_DAT,
+					      "-P",CRUDE_PRI);
+	}
+	if (!$listener_crude) {
+	    $listener_crude = &start_listener($PATH_CRUDE,"-l",CRUDE_DAT);
+	    $high_priority = 0;
+	}
     }
-}
-if ($listeners) {
-    sleep(1);
 }
 
 #
@@ -564,6 +574,22 @@ if ($warn_unshaped_links && &dotest(TEST_BW)) {
     &sim_event(EVENT_LOG, $msg);
     &post_event(EVENT_REPORT, $msg);
     &debug("\n$msg\n\n");
+}
+if (!$printsched) {
+    if (!$listener_iperf && &dotest(TEST_BW)) {
+	my $msg = "*** WARNING: iperf listener failed;".
+	          " expect some bandwidth tests to fail.";
+	&sim_event(EVENT_LOG, $msg);
+	&post_event(EVENT_REPORT, $msg);
+	&debug("\n$msg\n\n");
+    }
+    if (!$listener_crude && &dotest(TEST_LATENCY)) {
+	my $msg = "*** WARNING: crude listener failed;".
+	          " expect some loss-rate tests to fail.";
+	&sim_event(EVENT_LOG, $msg);
+	&post_event(EVENT_REPORT, $msg);
+	&debug("\n$msg\n\n");
+    }
 }
 
 if (defined($rtproto) && $rtproto eq RTPROTO_SESSION) {
@@ -1018,12 +1044,14 @@ sub loss_test {
 				  &get_loss_sample_size($edge) .
 				  ", time=" .
 				  LOSS_TEST_DURATION . "s, psize=20)");
-		    } elsif ($platform eq LINUX &&
-			     $hostmap{$hostname}->isvnode) {
-			&my_system($PATH_RUDE,"-s", RUDE_CFG, $rude_arg);
 		    } else {
-			&my_system($PATH_RUDE,"-s", RUDE_CFG, "-P", RUDE_PRI,
-				   $rude_arg);
+			if ($high_priority) {
+			    &my_system($PATH_RUDE,"-s", RUDE_CFG,
+				       "-P", RUDE_PRI, $rude_arg);
+			} else {
+			    &my_system($PATH_RUDE,"-s", RUDE_CFG,
+				       $rude_arg);
+			}
 			$analyze{$stream_id} = $other_edge;
 		    }
 		} else {
@@ -1099,6 +1127,9 @@ sub loss_test {
 	my $received = $recv_cnt{$key};
 
 	if ($reportonly) {
+	    if (!defined($received)) {
+		$received = 0;
+	    }
 	    &info("    Loss result on $hostname for " .
 		  &print_edge($edge) .
 		  ": sent/recv = $sent/$received\n");
@@ -2935,6 +2966,12 @@ sub start_listener {
     &check_filename($_[0]);
 
     if (my $pid = fork()) {
+	# XXX see if it fails out of the box
+	sleep(1);
+	if (waitpid($pid, &WNOHANG) == $pid) {
+	    &debug("$_[0] failed with status $?\n");
+	    return 0;
+	}
 	$kill_list{$pid} = $pid;
 	return $pid;
     }
@@ -2951,7 +2988,7 @@ sub kill_listener {
     my $pid = $_[0];
 
     return
-	if (! exists($kill_list{$pid}));
+	if (!$pid || !exists($kill_list{$pid}));
 
     kill 9, $pid;
     waitpid($pid, 0);

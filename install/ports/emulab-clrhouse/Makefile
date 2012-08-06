@@ -36,7 +36,7 @@ MAINTAINER=	stoller@cs.utah.edu
 #
 .MAKEFLAGS+=	ENABLE_SUIDPERL=yes
 .if ${PORTVERSION} == "1.2"
-.MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
+.MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
 .endif
 
 #
@@ -49,7 +49,7 @@ MAINTAINER=	stoller@cs.utah.edu
 #
 # Have not taken the plunge to PHP5
 #
-.MAKEFLAGS+=	PHP_VER=4
+.MAKEFLAGS+=	PHP_VER=5
 
 #
 # Various ports need to agree on what version of apache. Make sure this

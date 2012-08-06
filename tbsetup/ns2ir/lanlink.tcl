@@ -670,6 +670,8 @@ LanLink instproc fill_ips {} {
 	    if {[$node ip $port] == {}} {
 		set ip {}
 		set max [expr ~ $netmaskint]
+		# XXX 64-bit hack
+		set max [expr $max & 0xFFFFFFFF]
 		for {set i $ip_counter} {$i < $max} {incr i} {
 		    set nextip [inet_hltoa [expr $subnetint | $i]]
 		    
@@ -885,6 +887,8 @@ LanLink instproc check-ip-mask {ip mask} {
     set ipint [inet_atohl $ip]
     set maskint [inet_atohl $mask]
     set maskinverse [expr (~ $maskint)]
+    # XXX 64-bit hack
+    set maskinverse [expr $maskinverse & 0xFFFFFFFF]
     set remainder [expr ($ipint & $maskinverse)]
     if {$remainder == 0 || $remainder == $maskinverse} {
 	perror "\[check-ip-mask] IP address $ip with netmask $mask has either all '0's (reserved) or all '1's (broadcast) in the host portion of the address."
@@ -927,9 +931,21 @@ Link instproc updatedb {DB} {
     $self instvar ofenabled
     $self instvar ofcontroller
     $self instvar bridge_links
+    $self instvar settings
+    $self instvar member_settings
     set vindex 0
 
     $sim spitxml_data "virt_lan_lans" [list "vname" "failureaction"] [list $self $failureaction]
+
+    #
+    # Upload lan settings.
+    #
+    foreach setting [array names settings] {
+	set fields [list "vname" "capkey" "capval"]
+	set values [list $self $setting $settings($setting)]
+	
+	$sim spitxml_data "virt_lan_settings" $fields $values
+    }
 
     foreach nodeport $nodelist {
 	set node [lindex $nodeport 0]
@@ -1091,6 +1107,20 @@ Link instproc updatedb {DB} {
 	set vindex [expr $vindex + 1]
 
 	$sim spitxml_data "virt_lans" $fields $values
+
+	foreach setting_key [array names member_settings] {
+	    set foo      [split $setting_key ","]
+	    set thisnode [lindex $foo 0]
+	    set capkey   [lindex $foo 1]
+
+	    if {$thisnode == $node} {
+		set fields [list "vname" "member" "capkey" "capval"]
+		set values [list $self $nodeportraw $capkey \
+		                 $member_settings($setting_key)]
+	
+		$sim spitxml_data "virt_lan_member_settings" $fields $values
+	    }
+	}
     }
 }
 
@@ -1141,7 +1171,7 @@ Lan instproc updatedb {DB} {
     $sim spitxml_data "virt_lan_lans" [list "vname" "failureaction"] [list $self $failureaction]
 
     #
-    # Upload lan settings and them per-member settings
+    # Upload lan settings.
     #
     foreach setting [array names settings] {
 	set fields [list "vname" "capkey" "capval"]

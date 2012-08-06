@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2010 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -17,17 +17,21 @@ use Getopt::Std;
 #
 sub usage()
 {
-    print STDERR "Usage: grantnodetype [-h] [-r] -p <pid> <type>\n";
+    print STDERR "Usage: grantnodetype [-h] [-r] [-m] -p <pid> <type> [count]\n";
     print STDERR "	-h   This message\n";
     print STDERR "	-r   Revoke access instead of grant\n";
+    print STDERR "	-m   Force insert of missing minus policy\n";
+    print STDERR "   count   Overdide default count of 999999\n";
     exit(-1);
 }
-my $optlist  = "hp:dnr";
+my $optlist  = "hp:dnrm";
 my $impotent = 0;
 my $debug    = 0;
 my $revoke   = 0;
+my $addminus = 0;
 my %newtypes = ();
 my $pid;
+my $count    = 999999;
 
 #
 # Please do not run as root. Hard to track what has happened.
@@ -76,6 +80,9 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{h})) {
     usage();
 }
+if (defined($options{m})) {
+    $addminus = 1;
+}
 if (defined($options{n})) {
     $impotent = 1;
 }
@@ -88,10 +95,11 @@ if (defined($options{d})) {
 if (defined($options{p})) {
     $pid = $options{p};
 }
-if (scalar(@ARGV) != 1 || !defined($pid)) {
+if (scalar(@ARGV) < || 1 scalar(@ARGV) > 2 || !defined($pid)) {
     usage();
 }
 my $type = $ARGV[0];
+$count   = $ARGV[1] if (@ARGV == 2);
 
 #
 # Untaint the arguments.
@@ -186,15 +194,24 @@ foreach my $newtype (keys(%newtypes)) {
 	if (!$query_result);
 
     if (!$query_result->num_rows) {
-	die("*** $0:\n".
-	    "    There is no '-' policy for node type $newtype! Stopping.\n");
+	if ($addminus) {
+	    DBQueryFatal("replace into group_policies ".
+			 "(pid_idx,gid_idx,pid,gid,policy,auxdata,count) ".
+			 "values (0, 0, '-', '-','type','$newtype', 0)")
+		if (!$impotent);
+	}
+	else {
+	    die("*** $0:\n".
+		"    There is no '-' policy for node type $newtype!\n".
+		"    Use the -m option if you want to add the minux policy.\n");
+	}
     }
 
     #
     # Add generic rules that say the project is allowed to use "infinite"
     # number of nodes of each type. 
     #
-    my $count = ($revoke ? 0 : 999999);
+    my $count = ($revoke ? 0 : $count);
     
     DBQueryFatal("replace into group_policies ".
 		 "(pid_idx, gid_idx, pid, gid, policy, auxdata, count) ".

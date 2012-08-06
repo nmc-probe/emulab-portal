@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -18,7 +18,7 @@ $isadmin   = ISADMIN();
 #
 # Standard Testbed Header
 #
-PAGEHEADER("Image List");
+PAGEHEADER("Node Type List");
 
 #
 # Get the list.

@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2003-2007 University of Utah and the Flux Group.
+ * Copyright (c) 2003-2011 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -119,6 +119,7 @@ callback(event_handle_t handle, event_notification_t notification, void *data)
 	char		objecttype[TBDB_FLEN_EVOBJTYPE];
 	char		objectname[TBDB_FLEN_EVOBJNAME];
 	struct timeval  now, then, diff;
+	int32_t		sec, usec;
 			
 	gettimeofday(&now, NULL);
 
@@ -128,10 +129,10 @@ callback(event_handle_t handle, event_notification_t notification, void *data)
 				notification, objecttype, sizeof(objecttype));
 	event_notification_get_objname(handle,
 				notification, objectname, sizeof(objectname));
-	event_notification_get_int32(handle, notification, "time_usec",
-				     (int *) &then.tv_usec);
-	event_notification_get_int32(handle, notification, "time_sec",
-				     (int *) &then.tv_sec);
+	event_notification_get_int32(handle, notification, "time_usec", &usec);
+	event_notification_get_int32(handle, notification, "time_sec", &sec);
+	then.tv_sec = sec;
+	then.tv_usec = usec;
 	timersub(&now, &then, &diff);
 
 	info("%s %s %s %d %d %d %d %d %d\n", eventtype, objecttype,

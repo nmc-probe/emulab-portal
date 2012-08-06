@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <limits.h>

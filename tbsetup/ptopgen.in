@@ -611,23 +611,28 @@ while (my ($osid) = $result->fetchrow()) {
 if (defined($switchtouse) && ! defined($component_name)) {
     # Should probably get the last four args out of the database, but I don't
     # think we ever actually use this case...
-    print_switch($switchtouse,undef,undef,undef,undef);
+    print_switch($switchtouse,undef,undef,undef,undef,undef);
     $switches{$switchtouse} = 1;
 }
 elsif (! defined($component_name)) {
     $result =
-	DBQueryFatal("select n.node_id,n.uuid,country,latitude,longitude ".
+	DBQueryFatal("select n.node_id,n.uuid,country,latitude,longitude, ".
+		     "       na.attrvalue ".
                      "   from nodes as n ".
 		     "left join widearea_nodeinfo as wn ".
                      "     on n.node_id=wn.node_id " .
 		     "left join node_types as nt on ".
 		     "     nt.type=n.type ".
+		     "left join node_type_attributes as na on ".
+		     "     na.type=n.type and ".
+		     "     na.attrkey='forwarding_protocols' ".
 		     "where role='testswitch' or role='widearea_switch' or ".
 		     "      (role='testnodefoo' and nt.isswitch=1)");
 
-    while (($switch, $uuid, $country, $latitude, $longitude) =
+    while (($switch, $uuid, $country, $latitude, $longitude, $protocols) =
             $result->fetchrow_array) {
-	print_switch($switch, $uuid, $country, $latitude, $longitude);
+	print_switch($switch, $uuid,
+		     $country, $latitude, $longitude, $protocols);
 	$switches{$switch} = 1;
     }
 }
@@ -1884,6 +1889,7 @@ sub print_switch
     my $country = shift(@_);
     my $latitude = shift(@_);
     my $longitude = shift(@_);
+    my $protocols = shift(@_);
     my $interfaces = [];
     if ($do_xml && $genimode ne $NO_GENI)
     {
@@ -1896,6 +1902,20 @@ sub print_switch
     if (!(defined($MAINSITE) && $MAINSITE && $name eq "procurve1")) {
 	push(@$types, "*lan:*");
     }
+
+    #
+    # If there is are non-standard forwarding_protocol, add them.
+    #
+    if ($protocols) {
+	my @forwarding_protocols = split(",", $protocols);
+	foreach my $protocol (@forwarding_protocols) {
+	    next
+		if ($protocol eq "ethernet");
+
+	    push(@$types, "*${protocol}:*");
+	}
+    }
+    
     # This is for mixing real nodes with pnodes in a lan. The goal is to
     # prevent assign from putting the lan node on a pc; always prefer a
     # real switch. See corresponding change in libvtop. 

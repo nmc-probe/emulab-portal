@@ -1847,56 +1847,10 @@ sub ReserveVlanTags($)
     # Look at the hop list to find the edge point.
     #
     my @hoplist = GeniXML::FindNodes("n:hop", $stitching_path)->get_nodelist();
-    if (! @hoplist) {
-	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					 "No hops in the stitching path");
-	goto done;
-    }
-    if (!GeniHRN::IsValid(GeniCM::GetHopLinkID($hoplist[0]))) {
-	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					 "Invalid URN in first hop in path");
-	goto done;
-    }
-    my ($hopauth) = GeniHRN::Parse(GeniCM::GetHopLinkID($hoplist[0]));
-    if ($hopauth ne $OURDOMAIN) {
-	# Reverse the list to make life easier.
-	@hoplist = reverse(@hoplist);
-    }
-    
-    #
-    # Go through the hop list to find the edge point. This will
-    # be the first hop that is in a different domain.
-    #
-    my $hopref;
-    my $lasthop;
-    foreach my $hop (@hoplist) {
-	my $hopurn = GeniCM::GetHopLinkID($hop);
-	next
-	    if (! GeniHRN::IsValid($hopurn));
-			
-	my ($auth,undef,undef) = GeniHRN::Parse($hopurn);
-	next
-	    if (!defined($auth));
-
-	if ($auth ne $OURDOMAIN) {
-	    $hopref = $lasthop;
-	    last;
-	}
-	$lasthop = $hop;
-    }
-    if (!defined($hopref)) {
-	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					 "Could not find the edge hop");
-	goto done;
-    }
-    my $hopurn = GeniCM::GetHopLinkID($hopref);
-    my (undef,undef,$network_stuff) = GeniHRN::Parse($hopurn);
-    my (undef,undef,$network_id) = split('//', $network_stuff);
-
-    my $network = ExternalNetwork->Lookup($network_id);
-    if (!defined($network)) {
-	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				 "$hopurn is not an external network");
+    my (undef, $network, undef, $edgeresponse)
+	= GeniCM::findStitchPoint($linkname, @hoplist);
+    if (defined($edgeresponse)) {
+	$response = $edgeresponse;
 	goto done;
     }
 

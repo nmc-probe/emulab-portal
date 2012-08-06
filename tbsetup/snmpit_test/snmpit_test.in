@@ -2232,6 +2232,7 @@ sub syncVlansFromTables($$) {
     #
     my @currentTrunks = getExperimentCurrentTrunks($pid, $eid, @tmp);
     my %currentTrunks = map { $_->toString() => $_ } @currentTrunks;
+    debug("Existing Trunk Ports: ".Port->toStrings(@currentTrunks)."\n");
 
     #
     # Okay, kill off stale vlans.

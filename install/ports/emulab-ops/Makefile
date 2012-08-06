@@ -73,6 +73,11 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 .MAKEFLAGS+=	-DBATCH
 
 #
+# We do this here because we do this for emulab-boss.
+#
+.MAKEFLAGS+=	WITHOUT_LATEX=yes
+
+#
 # XXX not really build dependencies, but these Emulab-specific ports need
 # to get installed before any attempt to install the standard versions.
 #
@@ -90,11 +95,17 @@ BUILD_DEPENDS=	\
 	${LOCALBASE}/libexec/apache/libphp${PHP_VER}.so:${PORTSDIR}/misc/emulab-php${PHP_VER}
 .endif
 
-LIB_DEPENDS= ulsshxmlrpcpp.0:${PORTSDIR}/misc/ulsshxmlrpcpp
+LIB_DEPENDS=
 
+# no linuxthreads on amd64
+# old libtool in ulsshxmlrpcpp causes shlibs to be whacked
+.if ${OSARCH} == "i386"
 .if ${OSMAJOR} < 8
 LIB_DEPENDS+= lthread.[236]:${PORTSDIR}/devel/linuxthreads
 .endif
+LIB_DEPENDS+= ulsshxmlrpcpp.0:${PORTSDIR}/misc/ulsshxmlrpcpp
+.endif
+
 .if ${OSMAJOR} >= 6
 LIB_DEPENDS+= mhash.2:${PORTSDIR}/security/mhash \
 	mysqlclient.15:${PORTSDIR}/databases/mysql50-client

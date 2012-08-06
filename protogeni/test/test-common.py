@@ -279,7 +279,7 @@ def do_method(module, method, params, URI=None, quiet=False, version=None,
                 continue
             elif response.status != 200:
                 if not quiet:
-                    print >> sys.stderr, response.status + " " + response.reason
+                    print >> sys.stderr, str(response.status) + " " + response.reason
                 return (-1,None)
             response = xmlrpclib.loads( response.read() )[ 0 ][ 0 ]
             break

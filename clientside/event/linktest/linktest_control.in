@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -58,6 +58,7 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
+use libtblog_simple;
 use User;
 use Experiment;
 
@@ -131,7 +132,7 @@ if (@ARGV != 2) {
 # Slowly convert to using Experiment module.
 my $experiment = Experiment->Lookup($ARGV[0], $ARGV[1]);
 if (!defined($experiment)) {
-    tbdie("Could not lookup experiment object!")
+    tbdie("Could not lookup experiment object for $ARGV[0]/$ARGV[1]!")
 }
 my $pid = $experiment->pid();
 my $eid = $experiment->eid();

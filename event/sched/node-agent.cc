@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2004, 2005 University of Utah and the Flux Group.
+ * Copyright (c) 2004-2011 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -373,7 +373,8 @@ static void *node_agent_looper(void *arg)
 		}
 		else {
 			struct agent **agent_array, *agent_singleton[1];
-			int rc, lpc, token = ~0;
+			int rc, lpc;
+			int32_t token = ~0;
 			
 			event_notification_get_arguments(handle,
 							 en,
@@ -382,7 +383,7 @@ static void *node_agent_looper(void *arg)
 			event_notification_get_int32(handle,
 						     en,
 						     "TOKEN",
-						     (int32_t *)&token);
+						     &token);
 			argsbuf[sizeof(argsbuf) - 1] = '\0';
 
 			if (se.length == 0) {

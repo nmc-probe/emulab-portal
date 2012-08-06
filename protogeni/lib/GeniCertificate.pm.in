@@ -166,11 +166,12 @@ sub email($)
 sub Create($$;$)
 {
     my ($class, $argref, $error) = @_;
-    my $urn   = (exists($argref->{'urn'})   ? $argref->{'urn'}   : undef);
-    my $hrn   = (exists($argref->{'hrn'})   ? $argref->{'hrn'}   : undef);
-    my $email = (exists($argref->{'email'}) ? $argref->{'email'} : undef);
-    my $uuid  = (exists($argref->{'uuid'})  ? $argref->{'uuid'}  : undef);
-    my $url   = (exists($argref->{'url'})   ? $argref->{'url'}   : undef);
+    my $urn      = (exists($argref->{'urn'})     ? $argref->{'urn'}     :undef);
+    my $hrn      = (exists($argref->{'hrn'})     ? $argref->{'hrn'}     :undef);
+    my $email    = (exists($argref->{'email'})   ? $argref->{'email'}   :undef);
+    my $uuid     = (exists($argref->{'uuid'})    ? $argref->{'uuid'}    :undef);
+    my $url      = (exists($argref->{'url'})     ? $argref->{'url'}     :undef);
+    my $showuuid = (exists($argref->{'showuuid'})? $argref->{'showuuid'}:undef);
 
     # Let mkcert generate a new one.
     $uuid = ""
@@ -179,9 +180,9 @@ sub Create($$;$)
 
     my ($authority, $type, $name) = GeniHRN::Parse($urn);
     my $caflag = $type eq "authority" ? "" : "-n";
-
+    my $showuuidflag = $showuuid ? " -U " : "";
     if (! open(CERT, "$MKCERT $caflag -i \"$urn\" $url -e \"$email\" $hrn " .
-	       "$uuid |")) {
+	       "$showuuidflag$uuid |")) {
 	print STDERR "Could not start $MKCERT\n";
 	return undef;
     }
@@ -438,12 +439,13 @@ sub LoadFromArray($@)
     chomp($DN);
 
     #
-    # The text output is next. Look for the URL in the extensions. Stop
-    # when we get to the certificate line.
+    # The text output is next. Look for the URN, URL and UUID in the
+    # extensions. Stop when we get to the certificate line.
     #
     my ($alturi,$accessuri);
     my $altname = 0;
     my $accessinfo = 0;
+    my $uuid = undef;
     while (@certlines) {
 	my $line = shift(@certlines);
 	last
@@ -454,8 +456,12 @@ sub LoadFromArray($@)
 	} elsif( $line =~ /^\s+Authority Information Access:\s*$/ ) {
 	    $accessinfo = 1;
 	} elsif( $altname ) {
-	    m'^\s*URI:(urn:publicid:[-!#$%()*+,./0-9:;=?@A-Z_a-z~]+)\s*$' and $alturi = $1
-		foreach split( /, /, $line );
+	    foreach ( split( /, /, $line ) ) {
+		m'^\s*URI:(urn:publicid:[-!#$%()*+,./0-9:;=?@A-Z_a-z~]+)\s*$'
+		    and $alturi = $1;
+		m'^\s*URI:urn:uuid:([-\w]+)\s*$'
+		    and $uuid = $1;
+	    }
 	    $altname = 0;
 	} elsif( $accessinfo ) {
 	    m'^\s*[0-9.]+ - URI:([-!#$%()*+,./0-9:;=?@A-Z_a-z~]+)\s*$' 
@@ -484,21 +490,27 @@ sub LoadFromArray($@)
     pop(@certlines);
     my $cert = join("", @certlines);
 
-    # Dig out the uuid.
+    # Unfortunately, for historical reasons, there are a whole bunch
+    # of places the UUID might be stored (and we continue to store UUIDs
+    # in multiple places ourselves, to maintain backward compatibility).
+    # The GPO want UUIDs in a subjectAltName extension (which would have
+    # been found above), so we use that one if it exists.  If it doesn't,
+    # we'll have to dig...
     #
     # The uuid that PLC puts in the certificate is not associated with the
     # underlying object, so it is not useful to us. We end up generating
     # one below.
     #
-    my $uuid;
-    if ($DN =~ /\/CN=([-\w]*)/) {
-	$uuid = $1;
+    if( !defined( $uuid ) ) {
+	if ($DN =~ /\/CN=([-\w]*)/) {
+	    $uuid = $1;
+	}
+	else {
+	    print STDERR "Could not find uuid in 'DN'\n";
+	    return undef;
+	}
     }
-    else {
-	print STDERR "Could not find uuid in 'DN'\n";
-	return undef;
-    }
-    
+
     # GENI AM: CN might not be a UUID, so check it.
     # If it is not a UUID, make one up.
     if ($uuid !~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {

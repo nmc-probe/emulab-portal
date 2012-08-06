@@ -14,6 +14,7 @@ use Socket;
 # Configure variables
 #
 my $TB			= "@prefix@";
+my $control_netmask     = "@CONTROL_NETMASK@";
 
 #
 # Turn off line buffering on output
@@ -37,42 +38,53 @@ use libtestbed;
 # Handle command-line options.
 #
 sub usage() {
-    print STDERR "Usage: $0 aaa.bbb.ccc.ddd/ee [mmm.nnn.ooo.ppp]\n" .
-	"    where aaa.bbb.ccc.ddd is the prefix of the addresses to add,\n" .
-	"          ee is the bit-length of the prefix,\n" .
-	"          and mmm.nnn.ooo.ppp is the optional netmask to apply\n" .
-	"              (default is derived from prefix length).\n";
+    print STDERR "Usage: $0 [-d] aaa.bbb.ccc.ddd eee.fff.ggg.hhh [mmm.nnn.ooo.ppp]\n" .
+	"    where aaa.bbb.ccc.ddd is the first addresses to add,\n" .
+	"          eee.fff.ggg.hhh is the last address to add,\n" .
+	"          mmm.nnn.ooo.ppp is the optional netmask to apply\n" .
+	"              (default is control network netmask).\n" .
+	"    if -d is specified, the addresses in range are deleted.\n";
     exit( 1 );
 }
 
-usage() unless @ARGV == 1 || @ARGV == 2;
+my $delete;
 
-my $pattern = $ARGV[ 0 ];
-my ( $mask, $base, $masklen );
-
-if( $pattern =~ /^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\/([0-9]+)$/ ) {
-    $base = $1;
-    $masklen = $2;
-} else {
-    usage();
+if( $ARGV[ 0 ] eq "-d" ) {
+    $delete = 1;
+    shift;
 }
 
-if( @ARGV == 1 ) {
-    my $derived_mask = 0xFFFFFFFF - ( 0xFFFFFFFF >> $masklen );
-    my $mask_addr = pack( "N", $derived_mask );
-    $mask = inet_ntoa( $mask_addr );
+usage() unless @ARGV == 2 || @ARGV == 3;
+
+my $first = unpack( "N", inet_aton( $ARGV[ 0 ] ) );
+my $last = unpack( "N", inet_aton( $ARGV[ 1 ] ) );
+my $netmask;
+
+if( @ARGV == 2 ) {
+    $netmask = $control_netmask;
 } else {
-    $mask = $ARGV[ 1 ];
+    $netmask = $ARGV[ 2 ];
+    $netmask =~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ or usage();
 }
 
-my $first = unpack( "N", inet_aton( $base ) );
-my $last = $first | ( 0xFFFFFFFF >> ( $masklen ) );
 my $i;
 
 for( $i = $first; $i <= $last; $i++ ) {
     my $addr = inet_ntoa( pack( "N", $i ) );
-    DBQueryWarn( "INSERT INTO virt_node_public_addr SET " .
-		 "IP='$addr', mask='$mask'" );
+    my $result;
+
+    if( $delete ) {
+	$result = DBQueryWarn( "DELETE FROM virt_node_public_addr WHERE " .
+			       "IP='$addr' AND node_id IS NULL" );
+    } else {
+	$result = DBQueryWarn( "INSERT INTO virt_node_public_addr SET " .
+			       "IP='$addr', mask='$netmask'" );
+    }
+
+    if( !defined( $result ) or $result->affectedrows < 1 ) {
+	print STDERR "warning: unable to " . ( $delete ? "delete" : "add" ) .
+	    " address $addr\n";
+    }
 }
 
 exit( 0 );

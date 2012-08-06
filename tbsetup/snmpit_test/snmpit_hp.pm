@@ -2,7 +2,7 @@
 
 #
 # EMULAB-LGPL
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # Copyright (c) 2004-2010 Regents, University of California.
 # All rights reserved.
 #
@@ -1498,8 +1498,10 @@ sub setVlansOnTrunk($$$$) {
     my ($RetVal);
     my $errors = 0;
     my $id = $self->{NAME} . "::setVlansOnTrunk";
+    my $vlancount = 0;
 
     my @dualPorts = $self->portSetToList($self->get1($forbidOID,1));
+    my ($ifIndex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX,$modport);
 
     #
     # Some error checking
@@ -1513,7 +1515,28 @@ sub setVlansOnTrunk($$$$) {
 	return 0;
     }
 
-    my ($ifIndex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX,$modport);
+    #
+    # If doing a remove, we need to know if this is the last vlan
+    # on the port. If so, have to add it to the default vlan before
+    # it can be removed. 
+    #
+    if (!$value) {
+	#
+	# Walk the tree for the VLAN members. We do not really care
+	# what the vlans are, just the total number of vlans.
+	#
+	my ($rows) = $self->{SESS}->bulkwalk(0,32,"dot1qVlanStaticEgressPorts");
+	foreach my $rowref (@$rows) {
+	    my (undef,undef,$stuff) = @$rowref;
+	    my @portlist = $self->portSetToList($stuff);
+	    
+	    foreach my $idx (@portlist) {
+		if ($idx == $ifIndex) {
+		    $vlancount++;
+		}
+	    }
+	}
+    }
 
     #
     # Make sure ostensible trunk is either trunk or dual mode
@@ -1532,9 +1555,10 @@ sub setVlansOnTrunk($$$$) {
     #
     my $pvid;
     if ($tagOnly ne "admitOnlyVlanTagged") {
+	# 
 	$pvid = $self->get1("dot1qPvid", $ifIndex);
     }
-    $self->debug("$id: pvid=", $self->get1("dot1qPvid", $ifIndex),
+    $self->debug("$id: pvid=" . $self->get1("dot1qPvid", $ifIndex) .
 		 ", value=$value, ifIndex=$ifIndex\n");
 
     foreach my $vlan_number (@vlan_numbers) {
@@ -1544,12 +1568,22 @@ sub setVlansOnTrunk($$$$) {
 	    warn "$id: not tagging VLAN $vlan_number on port $modport ($ifIndex)\n";
 	    $untag = 1;
 	}
-	$RetVal = $self->updateOneVlan(0, $untag, $value, $vlan_number, $modport);
+
+	#
+	# Not allowed to remove the last vlan, so add the default
+	# vlan to the port before removing. 
+	#
+	if (!$value && $vlancount == 1) {
+	    $self->updateOneVlan(0,0,1,1,$modport);
+	}
+	$RetVal = $self->updateOneVlan(0,$untag,$value,$vlan_number,$modport);
 	if ($RetVal) {
 	    $errors++;
 	    warn "$id:couldn't " .  (($value == 1) ? "add" : "remove") .
-		    " port $modport on vlan $vlan_number\n" ;
+		" port $modport on vlan $vlan_number\n" ;
 	}
+	$vlancount--
+	    if (!$value);
     }
     return !$errors;
 }

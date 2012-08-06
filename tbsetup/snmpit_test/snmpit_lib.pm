@@ -391,21 +391,20 @@ sub getExperimentCurrentTrunks($$@) {
     # current experiment, but are setup in the context of a
     # different experiment. Needs more thought though.
     #
-    my @vlanports = getVlanPorts(@vlans);
-    my %vlanports = ();
-    foreach my $port (@vlanports) {
-	$vlanports{$port->toIfaceString()} = $port;
-    }
+    foreach my $vlanid (@vlans) {
+	my @vlanports = getExperimentVlanPorts($vlanid);
 
-    my $query_result =
-	DBQueryFatal("select distinct r.node_id,i.iface from reserved as r " .
-		     "left join interface_state as i on i.node_id=r.node_id " .
-		     "where r.pid='$pid' and r.eid='$eid' and " .
-		     "      i.tagged!=0");
+	foreach my $port (@vlanports) {
+	    my $node_id = $port->node_id();
+	    my $iface   = $port->iface();
+	
+	    my $query_result =
+		DBQueryFatal("select tagged from interface_state ".
+			     "where node_id='$node_id' and iface='$iface' and ".
+			     "      tagged!=0");
 
-    while (my ($node, $iface) = $query_result->fetchrow()) {
-	if (exists($vlanports{"$node:$iface"})) {
-	    push(@ports, $vlanports{"$node:$iface"});
+	    push(@ports, $port)
+		if ($query_result->numrows);
 	}
     }
     return @ports;
@@ -806,7 +805,12 @@ sub getTestSwitches () {
 	DBQueryFatal("SELECT node_id FROM nodes WHERE role='testswitch'");
     my @switches = (); 
     while (my @row = $result->fetchrow()) {
-	push @switches, $row[0];
+	my $node = Node->Lookup($row[0]);
+	my $disabled;
+	$node->NodeAttribute("snmpit_disable", \$disabled);
+	if (! defined($disabled) || !$disabled) {
+	    push @switches, $row[0];
+	}
     }
 
     return @switches;

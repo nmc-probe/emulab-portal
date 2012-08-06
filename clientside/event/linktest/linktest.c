@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2011 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -35,7 +35,7 @@ static pid_t          linktest_pid;
 static char           *pideid;
 static char           *swapper;
 static event_handle_t handle;
-static unsigned long  token = ~0;
+static int32_t	      token = ~0;
 static char	      *nodelocal_dir;
 
 static void	      callback(event_handle_t handle,
@@ -254,7 +254,7 @@ callback(event_handle_t handle, event_notification_t notification, void *data)
 	}
 
 	event_notification_get_int32(handle, notification,
-				     "TOKEN", (int32_t *)&token);
+				     "TOKEN", &token);
 
 	event_notification_get_arguments(handle,
 					 notification, args, sizeof(args));
@@ -362,7 +362,7 @@ exec_linktest(char *args, int buflen) {
 	i=1;
 	snprintf(swapperarg, sizeof(swapperarg), "SWAPPER=%s", swapper);
 	argv[i++] = swapperarg;
-	snprintf(tokenarg, sizeof(tokenarg), "TOKEN=%lu", token);
+	snprintf(tokenarg, sizeof(tokenarg), "TOKEN=%u", token);
 	argv[i++] = tokenarg;
 	if (nodelocal_dir) {
 		snprintf(logdirarg, sizeof(logdirarg),

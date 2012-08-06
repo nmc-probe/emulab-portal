@@ -6,7 +6,7 @@
 #
 use strict;
 use English;
-use Getopt::Long;
+use Getopt::Long qw(:config no_ignore_case);
 use POSIX qw(strftime);
 
 #
@@ -24,7 +24,7 @@ sub usage()
 {
     print("Usage: mksyscert [-d] [-o file] [-p password] [-e email] ".
 	  "[-u url] [-i urn] [-k keyfile] [-a authority] <orgunit> " .
-	  "[-n] [uuid]\n");
+	  "[-n] [-U] [uuid]\n");
     exit(-1);
 }
 my $debug    = 0;
@@ -37,6 +37,7 @@ my $urn;
 my $oldkeyfile;
 my $authority;
 my $notca    = 0;
+my $include_uuid = 0;
 my %optlist = ( "debug" => \$debug,
 		"password=s" => \$password,
 		"output=s" => \$outfile,
@@ -46,6 +47,7 @@ my %optlist = ( "debug" => \$debug,
 		"identifier=s" => \$urn,
 		"keyfile=s" => \$oldkeyfile,
 		"authority=s" => \$authority,
+		"UUID" => \$include_uuid,
 		"notca" => \$notca );
 
 #
@@ -247,7 +249,10 @@ print TEMP "emailAddress\t= $email\n";
 if (defined($urn)) {
     print TEMP "\n";
     print TEMP "[ req_altname ]\n";
-    print TEMP "URI=$urn\n";
+    print TEMP "URI.1=$urn\n";
+    if( $include_uuid ) {
+	print TEMP "URI.2=urn:uuid:$uuid\n";
+    }
     print TEMP "\n";
 }
 

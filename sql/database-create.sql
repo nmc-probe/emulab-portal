@@ -1475,6 +1475,23 @@ CREATE TABLE `fs_resources` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `global_ipalloc`
+--
+
+DROP TABLE IF EXISTS `global_ipalloc`;
+CREATE TABLE `global_ipalloc` (
+  `exptidx` int(11) NOT NULL default '0',
+  `lanidx` int(11) NOT NULL default '0',
+  `member` int(11) NOT NULL default '0',
+  `fabric_idx` int(11) NOT NULL default '0',
+  `ipint` int(11) unsigned NOT NULL default '0',
+  `ip` varchar(15) default NULL,
+  PRIMARY KEY  (`exptidx`,`lanidx`,`ipint`),
+  UNIQUE KEY `fabip` (`fabric_idx`,`ipint`),
+  KEY `ipint` (`ipint`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `global_policies`
 --
 
@@ -1837,6 +1854,7 @@ CREATE TABLE `interfaces` (
   `vnode_id` varchar(32) default NULL,
   `whol` tinyint(4) NOT NULL default '0',
   `trunk` tinyint(1) NOT NULL default '0',
+  `trunk_mode` enum('equal','dual') NOT NULL default 'equal',
   `uuid` varchar(40) NOT NULL default '',
   `logical` tinyint(1) unsigned NOT NULL default '0',
   PRIMARY KEY  (`node_id`,`card`,`port`),
@@ -2165,6 +2183,23 @@ CREATE TABLE `motelogfiles` (
   `specfilepath` tinytext,
   `mote_type` varchar(30) default NULL,
   PRIMARY KEY  (`logfileid`,`pid`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `network_fabrics`
+--
+
+DROP TABLE IF EXISTS `network_fabrics`;
+CREATE TABLE `network_fabrics` (
+  `idx` int(11) NOT NULL auto_increment,
+  `name` varchar(64) NOT NULL default '',
+  `created` datetime default NULL,
+  `ipalloc` tinyint(1) NOT NULL default '0',
+  `ipalloc_onenet` tinyint(1) NOT NULL default '0',
+  `ipalloc_subnet` varchar(15) NOT NULL default '',
+  `ipalloc_netmask` varchar(15) NOT NULL default '',
+  `ipalloc_submask` varchar(15) default NULL,
+  PRIMARY KEY (`idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

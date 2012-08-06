@@ -1526,6 +1526,9 @@ proc tb-set-vlink-emulation {style} {
 	"vlan" {
 	    set style "vlan"
 	}
+	"alias" {
+	    set style "alias"
+	}
 	default {
 	    perror "\[tb-set-encapsulate] one of: 'veth-ne', 'vlan'"
 	    return
@@ -1596,6 +1599,18 @@ proc tb-set-link-protocol {lanlink protocol} {
 	return
     }
     $lanlink set protocol $protocol
+}
+
+#
+# Set the fabric. We change the protocol as well.
+#
+proc tb-set-switch-fabric {lanlink fabric} {
+    if {[$lanlink info class] != "Link" && [$lanlink info class] != "Lan"} {
+	perror "\[tb-set-lan-protocol] $lanlink is not a link or lan."
+	return
+    }
+    $lanlink set protocol $fabric
+    $lanlink set_setting "switch_fabric" $fabric
 }
 
 #
