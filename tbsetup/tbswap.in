@@ -988,7 +988,7 @@ sub doSwapin($) {
 	# that did not boot.
 	#
 	my $exitcode;
-	my $cmd = "$mapper";
+	my $cmd = "$mapper ";
 	if (EmulabFeatures->FeatureEnabled("OldMapper",
 					   $this_user, $group, $experiment)) {
 	    $cmd = "$wrapper";
@@ -1424,7 +1424,7 @@ sub doSwapin($) {
     # the tags not being assigned yet. We can do this for all swap
     # modes since it is harmless; snmpit does the correct thing. 
     #
-    if ($experiment->HasVirtNodes()) {
+    if ($experiment->HasVirtInterfaces()) {
 	system("$SNMPIT --redirect-err -A $pid $eid");
 	if ($?) {
 	    tberror("Failed to reserve VLAN tags.");
