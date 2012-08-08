@@ -30,6 +30,8 @@ sub VERSION()	{ return 1.0; }
 
 # Must come after package declaration!
 use English;
+use Win32;
+use Win32API::Net qw(:User);
 
 # Load up the paths. Its conditionalized to be compatabile with older images.
 # Note this file has probably already been loaded by the caller.
@@ -102,6 +104,7 @@ my $DEFSHELL	= "/bin/tcsh";
 my $winusersfile = "$BOOTDIR/winusers";
 my $usershellsfile = "$BOOTDIR/usershells";
 my $XIMAP	= "$BOOTDIR/xif_map";
+my $ULEVEL      = 1;
 
 #
 # system() with error checking.
@@ -344,10 +347,13 @@ sub os_ifconfig_line($$$$$$$;$$%)
 	#
 	# Configure.
 	$uplines   .= sprintf($IFCONFIG, $iface, $inet, $mask) . qq{\n    };
+	#
+	# Hack to wait for the Windows routing table to update after the
+	# interface comes up.
 	$uplines   .= 
 qq%
     waittime=20
-    rtcmd="/cygdrive/c/windows/system32/route print $inet"
+    rtcmd="$ROUTE print $inet"
     echo -n "Waiting for routing table to update for interface $inet "
     n=1
     while ! { \$rtcmd | grep -q $inet; }
@@ -506,8 +512,30 @@ sub os_userdel($)
 sub os_modpasswd($$)
 {
     my($login, $pswd) = @_;
-    warning("os_modpasswd unimplemented in Windows 7.");
-    return -1;
+    my %uh = ();
+    my $error = 0;
+
+    if ($login eq "root") {
+	warning("Request to change root passwd ignored.");
+	return -1;
+    }
+
+    if (!UserGetInfo("", $login, $ULEVEL, \%uh)) {
+	my $err = Win32::GetLastError();
+	warning("UserGetInfo failed: $err\n");
+	return -1;
+    }
+
+    if ($pswd) {
+	$uh{password} = $pswd;
+	if (!UserSetInfo("", $login, $ULEVEL, \%uh, \$error)) {
+	    my $err = Win32::GetLastError();
+	    warning("UserSetInfo failed: $err, $error\n");
+	    return -1;
+	}
+    }
+
+    return 1;
 }
 
 #
@@ -519,7 +547,7 @@ sub os_usermod($$$$$$)
     my($login, $gid, $glist, $pswd, $root, $shell) = @_;
 
     if ($root) {
-	$glist .= ",0";
+	$glist .= $glist ? ",0" : "0";
     }
     if ($glist ne "") {
 	##print "glist '$glist'\n";
@@ -531,6 +559,7 @@ sub os_usermod($$$$$$)
 	    else {
 		$gname = $groupsByGid{$grp};
 	    }
+	    next if !defined($gname);
 	    ##print "login $login, grp $grp, gname '$gname'\n";
 	    my $cmd = "$NET localgroup $gname | tr -d '\\r' | grep -q '^$login\$'";
 	    ##print "    $cmd\n";
@@ -545,11 +574,7 @@ sub os_usermod($$$$$$)
 	}
     }
 
-    $cmd = "echo -e '$pswd\\n$pswd' | passwd $login >& /dev/null";
-    ##print "    $cmd\n";
-    if (system($cmd) != 0) {
-	warning("os_usermod error ($cmd)\n");
-    }
+    os_modpasswd($login,$pswd);
 }
 
 #
@@ -736,24 +761,22 @@ sub os_routing_del_manual($$$$$;$)
 sub MapShell($)
 {
    my ($shell) = @_;
+   my $fullpath = "";
 
    if ($shell eq "") {
        return $DEFSHELL;
    }
 
-   my $fullpath = `grep '/${shell}\$' $SHELLS`;
-
-   if ($?) {
-       return $DEFSHELL;
+   if (-x "/bin/$shell") {
+       $fullpath = "/bin/$shell";
    }
-
-   # Sanity Check
-   if ($fullpath =~ /^([-\w\/]*)$/) {
-       $fullpath = $1;
+   elsif (-x "/usr/bin/$shell") {
+       $fullpath = "/usr/bin/$shell";
    }
    else {
        $fullpath = $DEFSHELL;
    }
+
    return $fullpath;
 }
 
@@ -761,6 +784,10 @@ sub MapShell($)
 sub os_islocaldir($)
 {
     my ($dir) = @_;
+
+    if (!$dir) {
+	return 0;
+    }
 
     # XXX
     if ($dir =~ /^\/(proj|groups|users|share)/) {
@@ -803,9 +830,6 @@ sub os_samba_mount($$$)
 	if (! os_mkdir($local, "0755")) {  # Will make whole path if necessary.
 	    warning("os_samba_mount: Could not make mount point $local.\n");
 	}
-    }
-    elsif (! -d $local) {
-	warning("os_samba_mount: Mount point $local is not a directory.\n");
     }
 
     if (!exists($mounts{$sambapath})) {
