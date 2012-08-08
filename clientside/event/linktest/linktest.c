@@ -1,6 +1,6 @@
 /*
  * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * All rights reserved.
  */
 
@@ -355,10 +355,10 @@ exec_linktest(char *args, int buflen) {
 	int	   i,res;
 
 	/*
-	 * Set up arguments for execv call by parsing contents
-	 * of the event string.
+	 * Set up arguments for execv call. First add fixed arguments,
+	 * then parse the contents of the event string. Thus event
+	 * arguments can override the fixed args.
 	 */
-	word = strtok(args," \t");
 	i=1;
 	snprintf(swapperarg, sizeof(swapperarg), "SWAPPER=%s", swapper);
 	argv[i++] = swapperarg;
@@ -369,6 +369,8 @@ exec_linktest(char *args, int buflen) {
 			 "SHAREDDIR=0 LOGDIR=%s", nodelocal_dir);
 		argv[i++] = logdirarg;
 	}
+
+	word = strtok(args," \t");
 	do {
 		argv[i++] = word;
 	} while ((word = strtok(NULL," \t")) && (i<MAX_ARGS));

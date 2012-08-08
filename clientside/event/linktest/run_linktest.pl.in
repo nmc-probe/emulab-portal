@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -267,6 +267,17 @@ $args .= " REPORTONLY=1"
     if ($reportonly);
 
 #
+# All nodes in the experiment need to agree on local logging or not
+# so we force it from here. We don't want clients using heuristics to
+# decide this.
+#
+if ($nodelogdir) {
+    $args .= " SHAREDDIR=0 LOGDIR=$nodelogdir";
+} else {
+    $args .= " SHAREDDIR=1";
+}
+
+#
 # Remain compatible with older linktests.  This will turn off the ARP
 # test and force an otherwise pointless barrier synch.
 #
@@ -417,7 +428,7 @@ sub getdata($) {
     my @dir_contents;
     opendir(DIR, "$tmpdir") ||
 	die("*** $0:\n".
-	    "    Cannot open $tmpdir\n");
+	    "    Cannot open tmp results dir $tmpdir\n");
     my @nodes = grep(/^[-\w]+$/, readdir(DIR));
     closedir(DIR);
     foreach my $node (@nodes) {
@@ -425,9 +436,13 @@ sub getdata($) {
 	    $node = $1;
 	}
 	my $nodedir = "$tmpdir/$node/$datadir";
-	opendir(DIR, $nodedir) ||
-	    die("*** $0:\n".
-		"    Cannot open $nodedir\n");
+	if (!opendir(DIR, $nodedir)) {
+	    # do not even complain about delay nodes
+	    if ($node !~ /^tbs?delay/) {
+		print "*** Cannot find results for $node, ignoring...\n";
+	    }
+	    next;
+	}
 	my @files = grep(/\.fatal$|\.error$/, readdir(DIR));
 	closedir(DIR);
 	foreach my $file (@files) {
@@ -457,7 +472,7 @@ sub analyze($) {
     my @dir_contents;
     opendir(DIR, $linktest_path) ||
 	die("*** $0:\n".
-	    "    Cannot open $linktest_path\n");
+	    "    Cannot open results dir $linktest_path\n");
     @dir_contents = grep(/\.fatal$|\.error$/, readdir(DIR));
     closedir(DIR);
 
