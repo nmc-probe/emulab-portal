@@ -3277,7 +3277,8 @@ sub RemovePhysicalState($;$)
 
 	# Interfaces table is special. Also cleaned in nfree.
 	DBQueryWarn("update interfaces set IP='',IPaliases=NULL,mask=NULL,".
-		    "       rtabid='0',vnode_id=NULL,current_speed='0' " .
+		    "       rtabid='0',vnode_id=NULL,current_speed='0', " .
+		    "       trunk='0',trunk_mode='equal' ".
 		    "where ($clause) and ".
 		    "       role='" . TBDB_IFACEROLE_EXPERIMENT() . "' ")
 	    or $errors++;
@@ -4690,6 +4691,25 @@ sub HasVirtNodes($)
 		     "left join nodes as n on n.node_id=r.node_id ".
 		     "left join node_types as t on t.type=n.type ".
 		     "where r.exptidx=$idx and t.isvirtnode=1");
+
+    return -1
+	if (!$query_result);
+    return $query_result->num_rows;
+}
+
+sub HasVirtInterfaces($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference.
+    return -1
+	if (!ref($self));
+
+    my $idx = $self->idx();
+
+    my $query_result =
+	DBQueryWarn("select node_id from vinterfaces ".
+		     "where exptidx=$idx");
 
     return -1
 	if (!$query_result);
