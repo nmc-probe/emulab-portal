@@ -46,7 +46,7 @@ my %cmdOIDs =
 my $PORT_OPER_STATUS      = "ifOperStatus";
 my $PORT_SPEED            = "ifHighSpeed";
 
-# All VLAN descriptions, which are used to store VLAN ID in DB,
+# See the explaination of VLAN ID prefix in snmpit_arista_switch_daemon.
 my $VLAN_ID_PREFIX = "EV_";
 
 
@@ -56,7 +56,8 @@ my $VLAN_ID_PREFIX = "EV_";
 # 2. Port class instance.
 # 3. Port used by SysDB on Arista switch, "EthernetX/Y", X: module/layer/level/slot, Y: port
 #
-# NOTE: switch side port module # starts from 1, not 0
+# NOTE: 1. switch side port module # starts from 1, not 0
+#       2. the wires table in DB must also take care of the format rules above.
 #
 my $PORT_FORMAT_IFINDEX   = 1;
 my $PORT_FORMAT_PORT      = 2;

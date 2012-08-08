@@ -9,12 +9,6 @@
 #
 # Daemon server running on Arista switch side for snmpit_arista.
 #
-# TODO: Wrap XML-RPC method results to be a dict:
-#       { 'result' : result_value,
-#         'success': int 0 or 1,
-#         'error'  : error string on failure, or empty on success
-#       }
-#
 
 import PyClient
 import SimpleXMLRPCServer
@@ -23,6 +17,19 @@ import sys
 RPC_PORT = @ARISTA_SWITCH_XMLRPCPORT@
 BIND_ADDR = ""  # This is ANY
 
+#
+# The following constants are Arista-specific:
+# - ports may be already in a VLAN, which is the 'default'
+#   one. This doesn't matter when we add a port to an experiment
+#   VLAN. The 'default' VLAN has #1.
+# - we name all experiment VLANs with the 'EV_' prefix concatenated
+#   with the VLAN ID used by snmpit. This is useful to avoid
+#   mistakenly list any non-experiment VLANs on Arista switch.
+#   Different from other experiment switch, Arista is also used for
+#   SAN and other testing issues(I don't quite know, but have seen
+#   some testing VLANs), so giving experiment VLAN a unique prefix
+#   helps a lot for VLAN listing.
+#
 VLAN_ID_PREFIX = "EV_"
 DEFAULT_VLAN_NUM = 1
 
@@ -53,6 +60,13 @@ def vlanExists(sysdb, vlan_num):
     bc = getBridgingConfig(sysdb)
     return bc.vlanConfig.has_key(vlan_num)
 
+#
+# Not every port is active, or up. Inactive ports won't be listed
+# under the IntfConfig folder and other interface folders, though
+# they can still be assigned to a VLAN. So everytime we want to
+# use a port, simply activate it no matter what its current status
+# is.
+#
 def setPortStatus(sysdb, port, up=1):
     ic = sysdb['interface']['status']['all'].get(port)
     if ic is None:
@@ -73,6 +87,16 @@ def initRPCServer(bind_addr, port, funcs):
 
 #
 # XML-RPC method functions
+#
+# Some design notes:
+# Arista's Python API uses exception for error reporting, to avoid hanging up
+# the daemon, we have to catch every exception in the 'exported' functions
+# in RPC server. So all XML-RPC method functions use the similar template:
+# define some non-dangrous vars first, then wrap all logic code with try-except
+# block. Not all exception messages are reported back to the caller, which
+# is the snmpit_arista backend, it depends on the return type of each function.
+# A good future improvement may be unifying the return value of each RPC
+# method function to include error messages.
 #
 
 #
@@ -284,8 +308,6 @@ def _listVlans():
 #
 # Note: First clear all existing allowed VLANs, then
 #       set port mode, and set nativeVlan or allowedVlans.
-#
-# TODO: Is there any other thing as third?
 #
 def _enablePortTrunking(port, native_vlan_num, tag_native):
     retval = 0
