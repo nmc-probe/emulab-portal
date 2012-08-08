@@ -358,18 +358,60 @@ sub getExperimentTrunks($$@) {
     my ($pid, $eid, @vlans) = @_;
     my @ports = ();
 
+    # For debugging only.
+    @vlans = getExperimentVlans($pid, $eid)
+	if (!@vlans);
+
+    my $experiment = Experiment->Lookup($pid, $eid);
+    return undef
+	if (!defined($experiment));
+
     #
     # We want to restrict the set of ports to just those in the
     # provided vlans, lest we get into a problem with a missing
     # device from the stack. This became necessary after adding
     # shared vlans, since those ports technically belong to the
     # current experiment, but are setup in the context of a
-    # different experiment. Needs more thought though.
+    # different experiment.
     #
-    my @vlanports = getVlanPorts(@vlans);
-    foreach my $port (@vlanports) {
-	push(@ports, $port)
-	    if ($port->trunk());
+    # However, there is a problem. Without the check against the
+    # reserved table, we will also get the physical ports on a shared
+    # node, which are in use by the VMs on the node, but actually
+    # belong to the holding experiment, and thus should not be considered,
+    # lest we change the tagging and mess up all the VMs using that
+    # port. In other words, sometimes we want to consider ports on
+    # nodes that belong to another experiment (shared vlan) and sometimes
+    # we do not (shared nodes). Sadly, the nodes that get added to a
+    # shared lan are sometimes shared nodes! Confused yet?
+    #
+    foreach my $vlanid (@vlans) {
+	foreach my $port (getVlanPorts($vlanid)) {
+	    next
+		if (!$port->trunk());
+
+	    #
+	    # Look at the node. If the node is reserved to another
+	    # experiment, then consider it only if the lan is marked
+	    # as a shared lan.
+	    #
+	    my $node = Node->Lookup($port->node_id());
+	    if (!defined($node)) {
+		print STDERR "*** No such node for $port\n";
+		next;
+	    }
+	    my $reservation = $node->Reservation();
+	    next
+		if (!defined($reservation));
+
+	    if (! $experiment->SameExperiment($reservation)) {
+		my $query_result =
+		    DBQueryFatal("select lanid from shared_vlans ".
+				 "where lanid='$vlanid'");
+		next
+		    if (!$query_result->numrows);
+	    }
+	    push(@ports, $port);
+	}
     }
     return @ports;
 }
@@ -383,13 +425,31 @@ sub getExperimentCurrentTrunks($$@) {
     my ($pid, $eid, @vlans) = @_;
     my @ports = ();
 
+    # For debugging only.
+    @vlans = getExperimentVlans($pid, $eid)
+	if (!@vlans);
+
+    my $experiment = Experiment->Lookup($pid, $eid);
+    return undef
+	if (!defined($experiment));
+
     #
     # We want to restrict the set of ports to just those in the
     # provided vlans, lest we get into a problem with a missing
     # device from the stack. This became necessary after adding
     # shared vlans, since those ports technically belong to the
     # current experiment, but are setup in the context of a
-    # different experiment. Needs more thought though.
+    # different experiment.
+    #
+    # However, there is a problem. Without the check against the
+    # reserved table, we will also get the physical ports on a shared
+    # node, which are in use by the VMs on the node, but actually
+    # belong to the holding experiment, and thus should not be considered,
+    # lest we change the tagging and mess up all the VMs using that
+    # port. In other words, sometimes we want to consider ports on
+    # nodes that belong to another experiment (shared vlan) and sometimes
+    # we do not (shared nodes). Sadly, the nodes that get added to a
+    # shared lan are sometimes shared nodes! Confused yet?
     #
     foreach my $vlanid (@vlans) {
 	my @vlanports = getExperimentVlanPorts($vlanid);
@@ -403,8 +463,31 @@ sub getExperimentCurrentTrunks($$@) {
 			     "where node_id='$node_id' and iface='$iface' and ".
 			     "      tagged!=0");
 
-	    push(@ports, $port)
-		if ($query_result->numrows);
+	    next
+		if (! $query_result->numrows);
+
+	    #
+	    # Look at the node. If the node is reserved to another
+	    # experiment, then consider it only if the lan is marked
+	    # as a shared lan.
+	    #
+	    my $node = Node->Lookup($node_id);
+	    if (!defined($node)) {
+		print STDERR "*** No such node for $port\n";
+		next;
+	    }
+	    my $reservation = $node->Reservation();
+	    next
+		if (!defined($reservation));
+
+	    if (! $experiment->SameExperiment($reservation)) {
+		my $query_result =
+		    DBQueryFatal("select lanid from shared_vlans ".
+				 "where lanid='$vlanid'");
+		next
+		    if (!$query_result->numrows);
+	    }
+	    push(@ports, $port);
 	}
     }
     return @ports;
