@@ -30,7 +30,7 @@ use Exporter;
                 filterPlannedVlans
 		snmpitSet snmpitSetWarn snmpitSetFatal 
                 snmpitBulkwalk snmpitBulkwalkWarn snmpitBulkwalkFatal
-	        setPortEnabled setPortTagged
+	        setPortEnabled setPortTagged IsPortTagged
 		printVars tbsort getExperimentCurrentTrunks
 	        getExperimentVlanPorts
                 uniq isSwitchPort getPathVlanIfaces
@@ -360,7 +360,7 @@ sub getVlanPorts (@) {
 #
 sub getExperimentTrunks($$@) {
     my ($pid, $eid, @vlans) = @_;
-    my @ports = ();
+    my %ports = ();
 
     # For debugging only.
     @vlans = getExperimentVlans($pid, $eid)
@@ -418,10 +418,10 @@ sub getExperimentTrunks($$@) {
 		next
 		    if (!$query_result->numrows);
 	    }
-	    push(@ports, $port);
+	    $ports{$port->toString()} = $port;
 	}
     }
-    return @ports;
+    return %ports;
 }
 
 #
@@ -431,7 +431,7 @@ sub getExperimentTrunks($$@) {
 #
 sub getExperimentCurrentTrunks($$@) {
     my ($pid, $eid, @vlans) = @_;
-    my @ports = ();
+    my %ports = ();
 
     # For debugging only.
     @vlans = getExperimentVlans($pid, $eid)
@@ -499,10 +499,10 @@ sub getExperimentCurrentTrunks($$@) {
 		next
 		    if (!$query_result->numrows);
 	    }
-	    push(@ports, $port);
+	    $ports{$port->toString()} = $port;
 	}
     }
-    return @ports;
+    return %ports;
 }
 
 #
@@ -712,6 +712,19 @@ sub setPortTagged($$) {
 
     DBQueryFatal("update interface_state set tagged=$tagged ".
 		 "where node_id='$node' and card='$card'");
+}
+
+# Ditto for trunked.
+sub IsPortTagged($) { 
+    my ($port) = @_;
+
+    my ($node, $card) = ($port->node_id(), $port->card());
+
+    my $query_result =
+	DBQueryFatal("select tagged from interface_state ".
+		     "where node_id='$node' and card='$card' and tagged!=0");
+    
+    return $query_result->numrows();
 }
 
 #                                                                                    

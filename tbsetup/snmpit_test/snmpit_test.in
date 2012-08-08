@@ -1832,9 +1832,8 @@ sub doVlansFromTables($$@) {
 #    $debug = 1;
 #    $stack->FlipDebug(1);   
 
-    my @trunkedPorts = getExperimentTrunks($experiment->pid(),
+    my %trunkedPorts = getExperimentTrunks($experiment->pid(),
 					   $experiment->eid(), @vlanids);
-    my %trunkedPorts = map { $_->toString() => $_ } @trunkedPorts;
 
     #
     # Look for a lan that requires dual mode trunking. The ports in that
@@ -1843,6 +1842,8 @@ sub doVlansFromTables($$@) {
     # not a general solution to this, but I have not found a solution I am
     # really happy with. 
     #
+    my %dualTrunkPorts = ();
+    
     foreach my $id (@vlanids) {
 	my $vlan = VLan->Lookup($id);
 	if (!defined($vlan)) {
@@ -1850,25 +1851,64 @@ sub doVlansFromTables($$@) {
 	}
 	$vlans{"$id"} = $vlan;
     }
+    
     foreach my $vlan (values(%vlans)) {
 	my $vlanid = $vlan->id();
 	my $trunk_mode;
 	$vlan->GetAttribute("trunk_mode", \$trunk_mode);
+	my $trunk_vlanid;
+	$vlan->GetAttribute("trunk_vlan", \$trunk_vlanid);
 
 	# This is set in libvtop.
 	if (defined($trunk_mode) && $trunk_mode eq "dual") {
 	    my @ports = getVlanPorts($vlanid);
-	    
-	    # Create this vlan now.
-	    if (CreateOneVlan($experiment,$stack, $vlanid, @ports))  {
-		die("Could not create dual trunked $vlan\n");
-	    }
-	    # Trunk these ports, removing from list.
-	    foreach my $port (@ports) {
-		if (doTrunkEnable($stacks,$port,0,$vlanid)) {
-		    die("Could not put ".$port->toString()." ($vlan) into dual trunk mode\n");
+
+	    #
+	    # If a specific vlan listed, it must already exist.
+	    #
+	    if (defined($trunk_vlanid)) {
+		my $trunk_vlan = VLan->Lookup($trunk_vlanid);
+		if (!defined($trunk_vlan)) {
+		    die("Trunk vlanid $trunk_vlanid does not exist\n");
 		}
-		delete($trunkedPorts{$port->toString()});
+		if (!$trunk_vlan->CreatedOnSwitches()) {
+		    die("Trunk vlanid $trunk_vlan is not instantiated\n");
+		}
+		if ($trunk_vlan->IsInternal() &&
+		    !$stack->vlanExists($trunk_vlanid)) {
+		    $trunk_vlanid = $trunk_vlan->vname();
+		}
+		    
+		#
+		# For each port that has not yet been put into trunk
+		# mode, do that using the trunk_vlanid as the native.
+		#
+		foreach my $port (@ports) {
+		    if (!IsPortTagged($port) &&
+			doTrunkEnable($stacks,$port,0,$trunk_vlanid)) {
+			die("Could not put $port ($trunk_vlan) into ".
+			    "dual trunk mode\n");
+		    }
+		    delete($trunkedPorts{$port->toString()});
+		}
+		# Now we can create the actual vlan.
+		if (CreateOneVlan($experiment,$stack, $vlanid, @ports))  {
+		    die("Could not create dual trunked $vlan\n");
+		}
+	    }
+	    else {
+		# Create this vlan now.
+		if (CreateOneVlan($experiment,$stack, $vlanid, @ports))  {
+		    die("Could not create dual trunked $vlan\n");
+		}
+		# Trunk these ports, removing from list.
+		foreach my $port (@ports) {
+		    if (doTrunkEnable($stacks,$port,0,$vlanid)) {
+			die("Could not port $port ($vlan) into ".
+			    "dual trunk mode\n");
+		    }
+		    delete($trunkedPorts{$port->toString()});
+		}
 	    }
 	    
 	    #
@@ -1904,9 +1944,11 @@ sub doVlansFromTables($$@) {
 	    delete($vlans{"$vlanid"});
 	}
     }
+    #
     # Do the rest of the trunked ports in equalmode.
-    foreach my $port (keys(%trunkedPorts)) {
-	$errors += doTrunkEnable($stacks,$trunkedPorts{$port},1);
+    #
+    foreach my $port (values(%trunkedPorts)) {
+	$errors += doTrunkEnable($stacks,$port,1);
     }
 
     #
@@ -2084,10 +2126,37 @@ sub doReset($@) {
     }
 
     my $errors = 0;
-    my @trunkedPorts = getExperimentTrunks($pid, $eid, @vlans);
-    foreach my $port (@trunkedPorts) {
-	$errors += doTrunkDisable($stacks,$port);
+    my %trunkedPorts = getExperimentTrunks($pid, $eid, @vlans);
+    my @controlports = ();
+    foreach my $port (values(%trunkedPorts)) {
+	#
+	# If operating on the control interface, the trunk disable
+	# will remove the port from the control vlan. Move it back.
+	#
+	if (doTrunkDisable($stacks,$port) == 0) {
+	    push(@controlports, $port)
+		if ($port->role() eq TBDB_IFACEROLE_CONTROL());
+	}
+	else {
+	    $errors++;
+	}
     }
+    return -1
+	if ($errors);
+    
+    if (@controlports) {
+	if (@$stacks[0]->{'STACKID'} ne "Control") {
+	    print STDERR "Need the Control stack move ports back.\n";
+	    return -1;
+	}
+	debug("Moving ports back into control vlan: @controlports\n");
+	
+	if (@$stacks[0]->setPortVlan("Control", @controlports)) {
+	    print STDERR "Failed to move some ports back: @controlports\n";
+	    return -1;
+	}
+    }
+    
     # In case of error, do not clear the DB state.
     my %notdeleted = ();
 
@@ -2207,9 +2276,8 @@ sub syncVlansFromTables($$) {
     #
     # List of trunks for the above set of vlans.
     #
-    my @needTrunking = getExperimentTrunks($pid, $eid, @tmp);
-    my %needTrunking = map { $_->toString() => $_ } @needTrunking;
-    debug("Trunk Ports: ".Port->toStrings(@needTrunking)."\n");
+    my %needTrunking = getExperimentTrunks($pid, $eid, @tmp);
+    debug("Trunk Ports: ".Port->toStrings(keys(%needTrunking))."\n");
 
     #
     # Get list of vlans that we think are on the switch (vlans table).
@@ -2230,9 +2298,8 @@ sub syncVlansFromTables($$) {
     #
     # Get a list of interfaces that are currently trunked.
     #
-    my @currentTrunks = getExperimentCurrentTrunks($pid, $eid, @tmp);
-    my %currentTrunks = map { $_->toString() => $_ } @currentTrunks;
-    debug("Existing Trunk Ports: ".Port->toStrings(@currentTrunks)."\n");
+    my %currentTrunks = getExperimentCurrentTrunks($pid, $eid, @tmp);
+    debug("Existing Trunk Ports: ".Port->toStrings(keys(%currentTrunks))."\n");
 
     #
     # Okay, kill off stale vlans.
@@ -2307,7 +2374,7 @@ sub syncVlansFromTables($$) {
 	$stack->setVlanOnSwitchTrunks($vlanid, 0);
 	
 	if (@staleports) {
-	    debug("Removing stale ports from vlan $vlanid: ".Port->toStrings(@staleports)."\n");
+	    debug("Removing stale ports from vlan $vlanid: @staleports\n");
 
 	    if (!$impotent) {
 		$stack->removeSomePortsFromVlan($vlanid, @staleports)
@@ -2340,27 +2407,53 @@ sub syncVlansFromTables($$) {
     #
     # Now untrunk the ports that are no longer trunked.
     #
-    foreach my $port (keys(%currentTrunks)) { # $port is string here
-	if (!exists($needTrunking{$port})) {
+    my @controlports = ();
+    
+    foreach my $port (values(%currentTrunks)) {
+	if (!exists($needTrunking{"$port"})) {
 	    debug("Disabling trunking on $port\n");
 	    
 	    next
 		if ($impotent);
-	
-	    doTrunkDisable($stacks, $currentTrunks{$port}) == 0
-		or goto bad;
 
-	    delete($currentTrunks{$port});
+	    #
+	    # If operating on the control interface, the trunk disable
+	    # will remove the port from the control vlan. Move it back.
+	    #
+	    if (doTrunkDisable($stacks, $port) == 0) {
+		push(@controlports, $port)
+		    if ($port->role() eq TBDB_IFACEROLE_CONTROL());
+		delete($currentTrunks{"$port"});
+	    }
+	    else {
+		goto bad;
+	    }
+	}	
+    }
+    if (@controlports) {
+	if (@$stacks[0]->{'STACKID'} ne "Control") {
+	    print STDERR "Need the Control stack move ports back.\n";
+	    goto bad;
+	}
+	debug("Moving ports back into control vlan: @controlports\n");
+
+	if (@$stacks[0]->setPortVlan("Control", @controlports)) {
+	    print STDERR "Failed to move some ports back: @controlports\n";
+	    goto bad;
 	}
     }
 
     #
-    # Look for special vlans that need dual trunking.
+    # Look for special vlans that need dual trunking. The vlan becomes
+    # the "native" vlan, but it must be created before enabling trunking
+    # on the port. 
     #
     foreach my $vlanid (keys(%expvlans)) {
 	my $vlan = $expvlans{$vlanid};
 	my $trunk_mode;
 	$vlan->GetAttribute("trunk_mode", \$trunk_mode);
+	my $trunk_vlanid;
+	$vlan->GetAttribute("trunk_vlan", \$trunk_vlanid);
 
 	# This is set in libvtop.
 	if (defined($trunk_mode) && $trunk_mode eq "dual") {
@@ -2382,48 +2475,97 @@ sub syncVlansFromTables($$) {
 		@ports = @newports;
 	    }
 	    
-	    # Create this vlan now. 
-	    debug("Creating dual mode trunking vlan $vlanid: ".Port->toStrings(@ports)."\n")
-		if (@ports);
-		
-	    if (!$impotent && @ports &&
-		CreateOneVlan($experiment, $stack, $vlanid, @ports))  {
-		print STDERR "Could not create dual trunked $vlan\n";
-		goto bad;
-	    }
-	    # So it is not created below.
-	    $curvlans{$vlanid} = 1;
-	    
-	    # Trunk ports.
-	    foreach my $port (@saveports) {
-		if (!exists($currentTrunks{$port->toString()})) {
-		    debug("Enabling dual mode trunking on ".$port->toString().":$vlanid\n");
-		    
-		    if (!$impotent &&
-			doTrunkEnable($stacks,$port,0,$vlanid)) {
-			print STDERR
-			    "Could not put ".$port->toString()."($vlanid) into ".
-			    "dual trunk mode\n";
-			goto bad;
-		    }
+	    #
+	    # If a specific vlan listed, it must already exist.
+	    #
+	    if (defined($trunk_vlanid)) {
+		my $trunk_vlan = VLan->Lookup($trunk_vlanid);
+		if (!defined($trunk_vlan)) {
+		    die("Trunk vlanid $trunk_vlanid does not exist\n");
 		}
-		# Mark is as being trunked.
-		$currentTrunks{$port->toString()} = $port;
+		if (!$trunk_vlan->CreatedOnSwitches()) {
+		    die("Trunk vlanid $trunk_vlan is not instantiated\n");
+		}
+		if ($trunk_vlan->IsInternal() &&
+		    !$stack->vlanExists($trunk_vlanid)) {
+		    $trunk_vlanid = $trunk_vlan->vname();
+		}
+		    
+		#
+		# For each port that has not yet been put into trunk
+		# mode, do that using the trunk_vlanid as the native.
+		#
+		foreach my $port (@ports) {
+		    if (!IsPortTagged($port)) {
+			debug("Enabling dual mode trunking on ".
+			      "$port:$trunk_vlanid\n");
+
+			if (!$impotent &&
+			    doTrunkEnable($stacks,$port,0,$trunk_vlanid)) {
+			    print STDERR "Could not put $port ($trunk_vlanid) ".
+				"into dual trunk mode\n";
+			    goto bad;
+			}
+		    }
+		    # Mark is as being trunked.
+		    $currentTrunks{"$port"} = $port;
+		}
+		# Now we can create the actual vlan.
+		debug("Creating dual mode trunking vlan $vlanid: @ports\n")
+		    if (@ports);
+		
+		if (!$impotent && @ports &&
+		    CreateOneVlan($experiment, $stack, $vlanid, @ports)) {
+		    print STDERR "Could not create dual trunked $vlan\n";
+		    goto bad;
+		}
+		# So it is not created below.
+		$curvlans{$vlanid} = 1;
+	    }
+	    else {
+		# Create this vlan now. 
+		debug("Creating dual mode trunking vlan $vlanid: @ports\n")
+		    if (@ports);
+
+		if (!$impotent && @ports &&
+		    CreateOneVlan($experiment, $stack, $vlanid, @ports))  {
+		    print STDERR "Could not create dual trunked $vlan\n";
+		    goto bad;
+		}
+		# So it is not created below.
+		$curvlans{$vlanid} = 1;
+	    
+		# Trunk ports.
+		foreach my $port (@saveports) {
+		    if (!exists($currentTrunks{$port->toString()})) {
+			debug("Enabling dual mode trunking on $port:$vlanid\n");
+		    
+			if (!$impotent &&
+			    doTrunkEnable($stacks,$port,0,$vlanid)) {
+			    print STDERR
+				"Could not put $port ($vlanid) into ".
+				"dual trunk mode\n";
+			    goto bad;
+			}
+		    }
+		    # Mark is as being trunked.
+		    $currentTrunks{"$port"} = $port;
+		}
 	    }
 	}
     }
 
     #
-    # And add trunking on any port that needs it.
+    # Do the rest of the trunked ports in equal mode.
     #
-    foreach my $port (keys(%needTrunking)) {
+    foreach my $port (values(%needTrunking)) {
 	if (!exists($currentTrunks{$port})) {
 	    debug("Enabling trunking on $port\n");
 	    
 	    next
 		if ($impotent);
 	
-	    doTrunkEnable($stacks, $needTrunking{$port}, 1) == 0
+	    doTrunkEnable($stacks, $port, 1) == 0
 		or goto bad;
 
 	    # Mark is as being trunked.
@@ -3522,7 +3664,8 @@ sub doTrunkEnable($$$@) {
     # Simple, just call the right function on the stack
     #
     my $stack = $$stacks[0];
-    print "Enabling trunking (tagging) on ".$port->toString()." ...\n"
+    print "Enabling " . ($equaltrunking ? "equal" : "dual") .
+	" trunking (tagging) on $port" . (@vlans ? " @vlans" : "") . "\n"
 	if (!$quiet);
     if (!$stack->enableTrunking2($port,$equaltrunking,@vlans)) {
 	$errors++;

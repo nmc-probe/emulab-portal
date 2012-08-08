@@ -1950,6 +1950,13 @@ sub Instantiate($)
 	    return -1;
 	}
     }
+    # These are always class=Experiment.
+    if (exists($self->{"ATTRS"}->{'class'})) {
+	if ($lan->SetAttribute("class", "Experimental")) {
+	    $lan->Destroy();
+	    return -1;
+	}
+    }
 
     # Members ...
     foreach my $key (sort(keys(%{ $self->{"MEMBERS"} }))) {
@@ -2372,6 +2379,28 @@ sub link($)	{ return $_[0]->GetLan()->link(); }
 sub GetLan($)   { return $_[0]->{'LAN'}; }
 sub GetExperiment($) { return $_[0]->GetLan()->GetExperiment(); }
 sub vlanid($)   { return $_[0]->lanid(); }
+
+#
+# Lookup a vlan in the internal holding experiment.
+#
+#
+# Lookup an internal vlan (in the vlan-holding experiment).
+#
+sub LookupInternal($$)
+{
+    my ($class, $vname) = @_;
+
+    require Experiment;
+    my $experiment = Experiment->Lookup(VLAN_PID(), VLAN_EID());
+    return undef
+	if (!defined($experiment));
+
+    my $lan = Lan->Lookup($experiment, $vname);
+    return undef
+	if (!defined($lan));
+
+    return VLan->Lookup($lan->lanid());
+}
 
 #
 # Create a new VLan object and return it. No members yet ... which means
@@ -3436,15 +3465,24 @@ sub StaleVlanList($$$)
     my $exptidx = $experiment->idx();
     my @result  = ();
 
-    # XXX: Hack - want to catch all non-Control VLANs
+    #
+    # We want to find all experiment lans, but we now support experiment
+    # vlans on the control stack (using vlan encap). So the stack no longer
+    # tells, we need to look at the "class" of the lan.
+    #
     my $query_result =
-	DBQueryWarn("select id from vlans ".
-		    "where exptidx=$exptidx and stack!='Control'");
+	DBQueryWarn("select v.id,a.attrvalue from vlans as v ".
+		    "left join lan_attributes as a on a.lanid=v.id and ".
+		    "          a.attrkey='class' ".
+		    "where v.exptidx=$exptidx");
     return -1
 	if (!$query_result);
 
-    while (my ($id) = $query_result->fetchrow_array()) {
-	push(@result, $id);
+    while (my ($id,$class) = $query_result->fetchrow_array()) {
+	# No class means Experimental; we were not setting this properly
+	# for a long time.
+	push(@result, $id)
+	    if (!defined($class) || $class eq "Experimental");
     }
     @$pref = @result;
     return 0;

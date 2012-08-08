@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2010 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -17,13 +17,15 @@ sub usage ()
     print STDERR " -n     - Skip the diffs\n";
     print STDERR " -p     - Turn on assign prepass\n";
     print STDERR " -m <N> - Set the multiplex factor for the prepass\n";
+    print STDERR " -t     - Only compare vtop files\n";
     exit(1);
 }
-my $optlist    = "vpm:ns:";
+my $optlist    = "vpm:ns:t";
 my $verbose    = 0;
 my $prepass    = 0;
 my $nodiff     = 0;
 my $startwith  = 0;
+my $toponly    = 0;
 my $mfactor;
 my $optarg     = "";
 
@@ -33,7 +35,9 @@ my $optarg     = "";
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $MAPPER      = "$TB/bin/mapper";
+my $COREMAPPER  = "/usr/testbed/devel/regression/bin/mapper";
 my $WRAPPER     = "$TB/libexec/assign_wrapper";
+my $DBNAME	= "@TBDBNAME@";
 
 #
 # Load the Testbed support stuff. 
@@ -72,6 +76,9 @@ if (defined($options{"v"})) {
 if (defined($options{"n"})) {
     $nodiff++;
 }
+if (defined($options{"t"})) {
+    $toponly++;
+}
 if (defined($options{"p"})) {
     $prepass = 1;
     $optarg  = "$optarg -x";
@@ -82,6 +89,10 @@ if (defined($options{"m"})) {
 }
 if (defined($options{"s"})) {
     $startwith = $options{"s"};
+}
+
+if ($DBNAME eq "tbdb" && !$toponly) {
+    fatal("Cannot use regression mode on main DB");
 }
 
 my $this_user = User->ThisUser();
@@ -100,16 +111,13 @@ my @builtintests = (
 		     ["emulab-ops",   "virt-mesh"],
 		     ["SkyNet",       "100nodebig"],
 		     ["puproj",       "CRAQ-LAN"],
-		     ["DDoS-Defense", "streamPuzzles2"],
 		     ["ShadowCfg",    "pplive-ct-zj"],
 		     ["tbres",        "lt-meshtest"],
 		     ["tbres",        "vnode-pairs"],
 		     ["testbed",      "bigolesnake"],
 		     ["testbed",      "firewall"],
 		     ["testbed",      "fourswitch"],
-		     ["testbed",      "planetlab2"], 
 		     ["tbres",        "mess"],
-		     ["tbres",        "pelab-bt-fake"],
 		     # Template 11361/46
 		     ["tbres",        "T11361-46"], 
 		     # Template 11953/3
@@ -147,6 +155,8 @@ sub DoRegression($)
 
     my $pid = $experiment->pid();
     my $eid = $experiment->eid();
+    my $args = "";
+    my $cmd;
 
     print "Doing a regression test on $pid,$eid\n";
     
@@ -162,19 +172,30 @@ sub DoRegression($)
 	or fatal("Could not clean directories");
 
     my $now = time();
-    print "  Running the wrapper ... \n";
+    print "  Running the old mapper ... \n";
+    if ($toponly) {
+	$args = "-n -t -d";
+	$cmd  = $COREMAPPER;
+    }
+    else { 
+	#$args = "-r -k -d -v";
+	$args = "-r -d -v";
+	$cmd  = $MAPPER;
+    }
     system("cd Wrapper/$pid/$eid; ".
-	   "$WRAPPER -r -k $optarg $pid $eid > wrapper.log 2>&1");
+	   "$cmd $args $optarg $pid $eid > wrapper.log 2>&1");
     if ($?) {
-	fatal("Wrapper failed");
+	fatal("Old mapper failed");
     }
     my $howlong = time() - $now;
     print "    Done in $howlong seconds\n";
     
     $now = time();
     print "  Running the mapper ... \n";
+    #$args = ($toponly ? "-n -t -d" : "-r -z -d -v");
+    $args = ($toponly ? "-n -t -d" : "-r -d -v ");
     system("cd Mapper/$pid/$eid; ".
-	   "$MAPPER -r -z $optarg $pid $eid > mapper.log 2>&1");
+	   "$COREMAPPER $args $optarg $pid $eid > mapper.log 2>&1");
     if ($?) {
 	fatal("Mapper failed");
     }
@@ -183,10 +204,19 @@ sub DoRegression($)
 
     if (! $nodiff) {
 	print "  Diffing the results ...\n";
-	system("diff -r -q Mapper/$pid/$eid/$pid-$eid.pstate ".
-	       "           Wrapper/$pid/$eid/$pid-$eid.pstate") == 0
-	       or fatal("Results differed!");
+	if ($toponly) {
+	    system("diff -r -q -b Mapper/$pid/$eid/$pid-$eid.vtop ".
+		   "              Wrapper/$pid/$eid/$pid-$eid.vtop") == 0
+		   or fatal("Results differed!");
+	}
+	else {
+	    system("diff -r -q Mapper/$pid/$eid/$pid-$eid.pstate ".
+		   "           Wrapper/$pid/$eid/$pid-$eid.pstate") == 0
+		   or fatal("Results differed!");
+	}
     }
+    return 0
+	if (1 || $toponly);
 
     print " Running in reverse mode ...\n";
 
@@ -196,7 +226,7 @@ sub DoRegression($)
     $now = time();
     print "  Running the mapper ... \n";
     system("cd Mapper/$pid/$eid; ".
-	   "$MAPPER -r -k $optarg $pid $eid > mapper.log 2>&1");
+	   "$COREMAPPER -r -k $optarg $pid $eid > mapper.log 2>&1");
     if ($?) {
 	fatal("Mapper failed");
     }
@@ -204,9 +234,9 @@ sub DoRegression($)
     print "    Done in $howlong seconds\n";
     
     $now = time();
-    print "  Running the wrapper ... \n";
+    print "  Running the old mapper ... \n";
     system("cd Wrapper/$pid/$eid; ".
-	   "$WRAPPER -r -z $optarg $pid $eid > wrapper.log 2>&1");
+	   "$MAPPER -r -z $optarg $pid $eid > wrapper.log 2>&1");
     if ($?) {
 	fatal("Wrapper failed");
     }

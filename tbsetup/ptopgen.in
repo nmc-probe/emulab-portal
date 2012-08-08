@@ -67,7 +67,7 @@ sub usage()
         exit(-1);
 }
 
-my $optlist = "s:e:m:vp:rSan:c:uxg:h1:l:zZ";
+my $optlist = "s:e:m:vp:rSan:c:uxg:h1:l:zZC";
 my $mfactor;
 my $virtstuff = 0;
 my $widearea  = 0;
@@ -81,6 +81,7 @@ my $genimode  = $NO_GENI;
 my $useshared = 0;
 my $component_name = undef;
 my $randomize = 0;
+my $usecontrol= 0;
 
 my $OURDOMAIN = "@OURDOMAIN@";
 my $MAINSITE  = @TBMAINSITE@;
@@ -199,6 +200,9 @@ if (defined($options{"u"})) {
 }
 if (defined($options{"c"})) {
     $delaycap_override = $options{"c"};
+}
+if (defined($options{"C"})) {
+    $usecontrol = 1;
 }
 if (defined($options{"n"})) {
     if ($options{"n"} =~ /(\d*),(\d*)/) {
@@ -639,8 +643,11 @@ elsif (! defined($component_name)) {
 		     "left join node_type_attributes as na on ".
 		     "     na.type=n.type and ".
 		     "     na.attrkey='forwarding_protocols' ".
-		     "where role='testswitch' or role='widearea_switch' or ".
-		     "      (role='testnodefoo' and nt.isswitch=1)");
+		     "where ".
+		     ($usecontrol ?
+		      "role='ctrlswitch' and nt.isswitch=1" :
+		      "role='testswitch' or role='widearea_switch' or ".
+		      "      (role='testnodefoo' and nt.isswitch=1)"));
 
     while (($switch, $uuid, $country, $latitude, $longitude, $protocols) =
             $result->fetchrow_array) {
@@ -1451,7 +1458,9 @@ if (defined($experiment)) {
 
 $result = DBQueryFatal("SELECT node_id1,card1,port1,node_id2,card2,port2" .
 		       " from wires where logical=0 and ".
-		       "   (type=\"Node\" or type=\"Trunk\")");
+		       "   (type='Trunk' or ".
+		       ($usecontrol ? "type='Control'" : "type='Node'") . ")");
+
 while (($node1,$card1,$port1,$node2,$card2,$port2) = 
        $result->fetchrow_array) {
     if ((defined($nodes{$node1}) || defined($switches{$node1})) && 

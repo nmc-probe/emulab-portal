@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -74,7 +74,7 @@ sub processArgs()
     # Parse command arguments. Once we return from getopts, all that should be
     # left are the required arguments.
     #
-    my $optlist = "p:e:vrSs:ham:udc:xg:l:1:";
+    my $optlist = "p:e:vrSs:ham:udc:xg:l:1:C";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	usage();

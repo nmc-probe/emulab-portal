@@ -54,7 +54,7 @@ sub usage ()
     print STDERR " -A   - Tell ptopgen all nodes are free; only with -n\n";
     exit($WRAPPER_FAILED);
 }
-my $optlist    = "dvunfprqczxm:ko:altzZA";
+my $optlist    = "dvunfprqczxm:ko:altzZAC";
 my $verbose    = 0;
 my $debug      = 0;
 my $fixmode    = 0;
@@ -77,6 +77,7 @@ my $warnings   = 0;
 my $maxrun     = 3;  # Maximum number of times we run assign.
 my $gotlock    = 0;
 my $userspec   = 0;
+my $usecontrol = 0;
 my $use_old_ptopgen  = 0;
 my $vtop;
 
@@ -84,6 +85,7 @@ my $vtop;
 # Configure variables
 #
 my $TB		= "@prefix@";
+my $MAINSITE    = @TBMAINSITE@;
 my $DBNAME	= "@TBDBNAME@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $ASSIGN      = "$TB/libexec/assign";
@@ -201,6 +203,9 @@ if (defined($options{"q"})) {
 if (defined($options{"c"})) {
     $clear = 1;
 }
+if (defined($options{"C"})) {
+    $usecontrol = 1;
+}
 if (defined($options{"l"})) {
     if ($XERCES) {
 	$userspec = 1;
@@ -247,6 +252,19 @@ my $newassign =
     EmulabFeatures->FeatureEnabled("NewAssign",
 				   $this_user,
 				   $experiment->GetGroup(), $experiment);
+if (!$usecontrol) {
+    $usecontrol =
+	EmulabFeatures->FeatureEnabled("ControlNetVlans",
+				       $this_user,
+				       $experiment->GetGroup(), $experiment);
+    if ($usecontrol) {
+	chat("Telling ptopgen to use control network vlans\n");
+    }
+}
+if ($usecontrol && $MAINSITE) {
+    $debug   = 1;
+    $verbose = 1;
+}
 
 libvtop::Init($this_user, $experiment->GetGroup(), $experiment);
     
@@ -566,6 +584,8 @@ sub RunAssign($$)
 	if ($updating && $experiment->elabinelab());
     $ptopargs   .= "-m $mfactor "
 	if (defined($mfactor));
+    $ptopargs   .= "-C "
+	if ($usecontrol);
     $ptopargs   .= "-v "
 	if ($vtop->virtnodecount());
     $ptopargs   .= "-r "

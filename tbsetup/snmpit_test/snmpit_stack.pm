@@ -1040,13 +1040,14 @@ sub enableTrunking2($$$@) {
 	return 0;
     }
     #
-    # If !equaltrunking, the first VLAN given becomes the PVID for the trunk
+    # If !equaltrunking, the first VLAN given becomes the PVID for the trunk.
     #
     my ($native_vlan_id, $vlan_number);
     if ($equaltrunking) {
 	$native_vlan_id = "default";
 	$vlan_number = 1;
-    } else {
+    }
+    else {
 	$native_vlan_id = shift @vlan_ids;
 	if (!$native_vlan_id) {
 	    warn "ERROR: No VLAN passed to enableTrunking()!\n";
@@ -1068,7 +1069,7 @@ sub enableTrunking2($$$@) {
     #
     # Simply make the appropriate call on the device
     #
-    print "Enable trunking: Port is ".$port->toString().", native VLAN is $native_vlan_id\n"
+    print "Enable trunking: Port is $port native VLAN is $native_vlan_id\n"
 	if ($self->{DEBUG});
     my $rv = $device->enablePortTrunking2($port, $vlan_number, $equaltrunking);
 
