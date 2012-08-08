@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2005, 2008, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -85,9 +85,6 @@ print("Starting linktest daemon\n");
 
 my $server = getlocalevserver();
 my $args = "-s $server -l $logfile -i $pidfile -k $keyfile -u $swapper";
-if (FSRVTYPE() eq "LOCAL") {
-    $args .= " -N $LOGDIR";
-}
 
 system("linktest -e $pid/$eid $args");
 exit($? >> 0);
