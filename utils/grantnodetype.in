@@ -95,7 +95,7 @@ if (defined($options{d})) {
 if (defined($options{p})) {
     $pid = $options{p};
 }
-if (scalar(@ARGV) < || 1 scalar(@ARGV) > 2 || !defined($pid)) {
+if (scalar(@ARGV) < 1 || scalar(@ARGV) > 2 || !defined($pid)) {
     usage();
 }
 my $type = $ARGV[0];
