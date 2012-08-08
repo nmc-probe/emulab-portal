@@ -493,8 +493,9 @@ if (!exists($hostmap{$hostname})) {
 # Determine if we can run at high priority.
 #
 my $high_priority = 1;
-if ($platform eq LINUX && $hostmap{$hostname}->isvnode) {
+if (($platform eq LINUX && $hostmap{$hostname}->isvnode) || $platform =~ /CYGWIN/ ) {
     # XXX Linux vnodes (openvz) cannot change their priority
+    # ... Windows can't either...
     $high_priority = 0;
 }
 
