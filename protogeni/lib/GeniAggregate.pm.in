@@ -979,7 +979,7 @@ sub Start($$$)
 		#
 		if (! $node->IsUp() ||
 		    # This catches the pg nodes which are in ISUP while free.
-		    ($sliver->status() eq "created" && !defined($vnode))) {
+		    ($sliver->state() eq "new" && !defined($vnode))) {
 		    # We should be using allocstatus. 
 		    if ($sliver->state() eq "stopped" && !defined($vnode)) {
 			$poweron{$node->node_id} = $node;

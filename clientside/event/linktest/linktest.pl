@@ -583,7 +583,7 @@ if (!$printsched) {
 	&post_event(EVENT_REPORT, $msg);
 	&debug("\n$msg\n\n");
     }
-    if (!$listener_crude && &dotest(TEST_LATENCY)) {
+    if (!$listener_crude && &dotest(TEST_LOSS)) {
 	my $msg = "*** WARNING: crude listener failed;".
 	          " expect some loss-rate tests to fail.";
 	&sim_event(EVENT_LOG, $msg);
