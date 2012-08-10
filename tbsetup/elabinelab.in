@@ -714,7 +714,11 @@ sub DumpDBGoo()
 	    or die("*** $0:\n".
 		   "    Could not dump table $table\n");
 
-	if ($table eq "node_type_attributes") {
+	#
+	# Reduce the delay capacity by one if we are using one of
+	# the experimental interfaces as an inner control network.
+	#
+	if ($table eq "node_type_attributes" && !$elabinelab_singlenet) {
 	    my $attributes_result =
 		DBQueryFatal("select type,attrvalue from temp_${table} ".
 			     "where attrkey='delay_capacity'");
