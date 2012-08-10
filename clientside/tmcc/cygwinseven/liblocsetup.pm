@@ -107,6 +107,21 @@ my $XIMAP	= "$BOOTDIR/xif_map";
 my $ULEVEL      = 1;
 
 #
+# Vendor-specific goo for setting up speed and duplex under Windows
+#
+
+#Broadcom
+my $BCCLI      = "/usr/local/bin/BACScli.exe";
+my $BC_1000MBS = "Auto";
+my $BC_100MBS  = "100 Mb ";
+my $BC_10MBS   = "10 Mb ";
+my $BC_FDUPLEX = "Full";
+my $BC_HDUPLEX = "Half";
+
+#Intel
+
+
+#
 # system() with error checking.
 #
 sub mysystem($)
@@ -285,7 +300,7 @@ sub os_accounts_sync()
 my %dev_map = ();
 sub get_dev_map()
 {
-    if (! $dev_map) {
+    if (! %dev_map) {
 	if (! open(DEVMAP, $XIMAP)) {
 	    warning("Cannot open $XIMAP $!\n");
 	}
@@ -301,12 +316,51 @@ sub get_dev_map()
 }
 
 #
+# Vendor specific function to configure Broadcom NetXtreme II NIC speed/duplex.
+#
+sub broadcom_config($$$)
+{
+    my ($speed, $duplex, $mac) = @_;
+    my $bclines = "";
+    my ($bcspeed, $bcduplex);
+
+  BCNICSPEED: 
+    for ($speed) {
+	/1000Mbps/ && do {
+	    $bcspeed = $BC_1000MBS;
+	    $bcduplex = "";
+	    last BCNICSPEED;
+	};
+	/100Mbps/  && do {
+	    $bcspeed = $BC_100MBS;
+	    $bcduplex = $duplex eq "full" ? $BC_FDUPLEX : $BC_HDUPLEX;
+	    last BCNICSPEED;
+	};
+	/10Mbps/   && do {
+	    $bcspeed = $BC_10MBS;
+	    $bcduplex = $duplex eq "full" ? $BC_FDUPLEX : $BC_HDUPLEX;
+	    last BCNICSPEED;
+	};
+
+	# Default
+	warning("NIC speed unknown or not set.  Defaulting to 1Gbps/Full");
+	$bcspeed  = $BC_1000MBS;
+	$bcduplex = $BC_FDUPLEX;
+    }
+
+    $bclines .= qq{$BCCLI -t NDIS -f MAC -i $mac "cfg Advanced \\\"Speed & Duplex\\\"=\\\"${bcspeed}${bcduplex}\\\""\n    };
+
+    return $bclines;
+}
+
+
+#
 # Generate and return an ifconfig line that is approriate for putting
 # into a shell script (invoked at bootup).
 #
-sub os_ifconfig_line($$$$$$$;$$%)
+sub os_ifconfig_line($$$$$$$$;$$%)
 {
-    my ($iface, $inet, $mask, $speed, $duplex, $aliases, $iface_type,
+    my ($iface, $inet, $mask, $speed, $duplex, $aliases, $iface_type, $lan,
 	$settings, $rtabid, $cookie) = @_;
     my ($uplines, $downlines);
 
@@ -347,6 +401,18 @@ sub os_ifconfig_line($$$$$$$;$$%)
 	#
 	# Configure.
 	$uplines   .= sprintf($IFCONFIG, $iface, $inet, $mask) . qq{\n    };
+	#
+	# Ugh... Deal with lack of common interface to set speed and duplex 
+	# on Windows NICs.
+      NICTYPE:
+	for ($iface_type) {
+	    /^bce$/ && do {
+		$uplines .= &broadcom_config($speed,$duplex,$settings->{'mac'});
+		last NICTYPE;
+	    };
+	    # default
+	    warning("Unknown NIC type: $_ - Speed and duplex not set!");
+	}
 	#
 	# Hack to wait for the Windows routing table to update after the
 	# interface comes up.
