@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2007, 2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 chdir("..");
@@ -49,7 +49,7 @@ PAGEHEADER("NetBuild");
   <param name='auth'
 	 value="<?php echo $HTTP_COOKIE_VARS[$TBAUTHCOOKIE]?>">
   <param name='expcreateurl'
-         value="<?php echo $TBBASE?>/beginexp_html.php3">
+         value="<?php echo $TBBASE?>/beginexp.php">
 <?php
     if (isset($action) && $action == "modify") {
 	echo "<param name='action' value='modify'>";
