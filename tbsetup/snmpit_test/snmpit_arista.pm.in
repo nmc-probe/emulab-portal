@@ -580,13 +580,13 @@ sub createVlan($$$) {
     
     $self->debug("createVlan: name $vlan_id number $vlan_number \n");
 
+    print "  Creating VLAN $vlan_id as VLAN #$vlan_number on " .
+	"$self->{NAME} ...\n";
+
     $self->lock();
     my $resp = $self->callRPC($id, 'createVlan', $vlan_id, $vlan_number);
     $self->unlock();
     
-    print "  Creating VLAN $vlan_id as VLAN #$vlan_number on " .
-	"$self->{NAME} ...\n";
-
     if (!defined($resp) || $resp ne "1") {
 	warn "  WARNING: $id Creating VLAN $vlan_id as VLAN #$vlan_number on ".
 	    "$self->{NAME} failed.".(defined($resp)?" error: $resp":"")."\n";
@@ -755,7 +755,7 @@ sub removeVlan($@) {
 # we only support enable and disable, both can be done inside portControl().
 #
 sub UpdateField($$$@) {
-    warn "snmpit_arista does not support UpdateField().\n";
+    warn "ERROR: snmpit_arista does not support UpdateField().\n";
     return 0;
 }
 
@@ -963,7 +963,7 @@ sub getChannelIfIndex($@) {
     my $self = shift;
     my @ports = @_;
 
-    warn $self->{NAME}."::getChannelIfIndex: not supported.\n";
+    warn "ERROR: " . $self->{NAME} . "::getChannelIfIndex: not supported.\n";
 
     return undef;
 }
@@ -1101,7 +1101,7 @@ sub getFields($$$) {
 # Enable Openflow
 #
 sub enableOpenflow($$) {
-    warn "ERROR: Arista switch doesn't support Openflow now";
+    warn "ERROR: Openflow not supported on Arista switches\n";
     return 0;
 }
 
@@ -1109,7 +1109,7 @@ sub enableOpenflow($$) {
 # Disable Openflow
 #
 sub disableOpenflow($$) {
-    warn "ERROR: Arista switch doesn't support Openflow now";
+    warn "ERROR: Openflow not supported on Arista switches\n";
     return 0;
 }
 
@@ -1117,7 +1117,7 @@ sub disableOpenflow($$) {
 # Set controller
 #
 sub setOpenflowController($$$) {
-    warn "ERROR: Arista switch doesn't support Openflow now";
+    warn "ERROR: Openflow not supported on Arista switches\n";
     return 0;
 }
 
@@ -1125,7 +1125,7 @@ sub setOpenflowController($$$) {
 # Set listener
 #
 sub setOpenflowListener($$$) {
-    warn "ERROR: Arista switch doesn't support Openflow now";
+    warn "ERROR: Openflow not supported on Arista switches\n";
     return 0;
 }
 
@@ -1135,7 +1135,7 @@ sub setOpenflowListener($$$) {
 sub getUsedOpenflowListenerPorts($) {
     my %ports = ();
 
-    warn "ERROR: Arista switch doesn't support Openflow now";
+    warn "ERROR: Openflow not supported on Arista switches\n";
     return %ports;
 }
 
