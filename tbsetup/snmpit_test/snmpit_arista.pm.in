@@ -542,18 +542,6 @@ sub findVlan($$;$) {
 # Create a VLAN on this switch, with the given identifier (which comes from
 # the database) and given 802.1Q tag number.
 #
-# Some concerns: We force the switch to use the provided vlan_number instead
-#                of using its own sequence generator. This seems unnecessary
-#                because every one who calls device functions with vlan_number
-#                argument all query the vlan_number according to vlan_id first.
-#                A potential problem may be that the stack object can't figure
-#                out the new vlan_number correctly so that it may conflict
-#                with an existing vlan's vlan_number. But in the following
-#                code, this has been checked using findVlan(), however, what
-#                if it is a totally different vlan rather than a
-#                to-be-recreated one? Hope newVlanNumber() in stack module
-#                can work correctly to prevent such thing.
-#
 # usage: createVlan($self, $vlan_id, $vlan_number)
 #        returns the new VLAN number on success
 #        returns 0 on failure
@@ -571,10 +559,9 @@ sub createVlan($$$) {
     my $check_number = $self->findVlan($vlan_id,1);
     if (defined($check_number)) {
 	if ($check_number != $vlan_number) {
-	    warn "$id: recreating vlan id $vlan_id which has ".
-		    "existing vlan number $check_number with the new number ".
-		     "$vlan_number\n";
-		return 0;
+	    warn "  ERROR: $id: Not creating $vlan_id because it already ".
+	         "exists with name $check_number\n";
+            return 0;
 	}
     }
     
@@ -711,8 +698,6 @@ sub removePortsFromVlan($@) {
 # usage: removeSomePortsFromVlan(self,vlan,@ports)
 #	 returns 0 on sucess.
 #	 returns the number of failed ports on failure.
-#
-# WARNNING: what's the difference between this and delPortVlan?
 #
 sub removeSomePortsFromVlan($$@) {
     my ($self, $vlan_number, @ports) = @_;
