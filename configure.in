@@ -360,6 +360,7 @@ LINUX_FSNODE=0
 DHCPD_EXTRAIFS=""
 VPUBADDR_BASE="none"
 VPUBADDR_BITLEN="none"
+ARISTA_SWITCH_XMLRPCPORT=80
 
 #
 # XXX You really don't want to change these!
