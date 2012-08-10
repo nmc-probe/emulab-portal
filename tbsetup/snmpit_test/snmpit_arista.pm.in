@@ -435,6 +435,22 @@ sub isExpVlanName($$) {
 #	 returns number of failed ports on failure.
 #	 returns -1 if the operation is unsupported
 #
+# Special note for Arista: Our Arista switch just support 10Gb full-duplex port,
+#                          so we can't set duplex mode or other speeds. Even
+#                          'auto' can't work because those ports just support
+#                          one mode. But since 'auto' may be used as a free-form,
+#                          we pretend to support it. We also pretend to support
+#                          'full' and '10000mbit' though we won't do anything.
+#
+# Even more special on Arista: The Python API can actually set interface speed
+#                              and duplex attributes, to up to 100Gbps...
+#                              But CLI won't allow you set this since the
+#                              physical interface doesnot support those modes
+#                              at all! It is API's fault. Don't trust it and
+#                              believe we can actually set any port modes.
+#                              This note serves as a reminder for future maintainers,
+#                              unless a new kind of Arista switch is used.
+#
 sub portControl ($$@) {
     my $self = shift;
     my $cmd = shift;
@@ -446,6 +462,14 @@ sub portControl ($$@) {
 
     my @ifports = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
 
+    # Our Arista switch doesn't support setting speed at all, so we just
+    # pretend we do to make sure the only supported speed mode can be set.
+    my %fakeCmds = (
+	'auto'      => 1,
+	'10000mbit' => 1,
+	'full'      => 1,
+	);
+
     if (defined $cmdOIDs{$cmd}) {
 	my $oid = $cmdOIDs{$cmd};
 	foreach my $ifport (@ifports) {
@@ -456,9 +480,9 @@ sub portControl ($$@) {
 		$errors++;
 	    }
 	}
-    } else {
+    } elsif (! defined $fakeCmds{$cmd}) {	
 	#
-	# Command not supported
+	# Command not supported, not even a fake command.
 	#
 	$self->debug("Unsupported port control command '$cmd' ignored.\n");
     }

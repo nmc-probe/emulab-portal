@@ -13,6 +13,7 @@
 import PyClient
 import SimpleXMLRPCServer
 import sys
+import argparse
 
 RPC_PORT = @ARISTA_SWITCH_XMLRPCPORT@
 BIND_ADDR = ""  # This is ANY
@@ -37,10 +38,11 @@ DEFAULT_VLAN_NUM = 1
 sysdbroot = None
 sysdbclient = None
 
-# Just on command line argument.
-debug_level = 0;
-if len(sys.argv) > 1:
-    debug_level = int(sys.argv[1])
+# Just one command line argument.
+ap = argparse.ArgumentParser(description='Snmpit agent on Arista switch')
+ap.add_argument('-v', '--verbose', type=int, default=0, help='log verbose level')
+args = ap.parse_args()
+debug_level = args.verbose
 
 def debug(msg, level = 1):
     if level <= debug_level:
@@ -377,7 +379,7 @@ def setBitmapByRanges(bmp, ranges, val = 1):
             bmp[i] = val
     return bmp
 
-# Convert a string range to int tuple:
+# Convert a string range to int tuple, e.g.:
 # '200' => (200, 200), '100-200' => (100, 200)
 def stringRange2IntTuple(sr):
     bs = sr.split('-')
@@ -422,7 +424,7 @@ def bitmap2String(bmp):
 # Return 1 on success, 1 on failure.
 #
 # NOTE: Arista switch CLI supports more sophisticated VLAN range, here
-#       we only need deal the range value in existing trunkAllowedVlans.
+#       we only need deal with the range value in existing trunkAllowedVlans.
 #       This works because vnums are passed from snmpit, and are all
 #       single numbers.
 #
