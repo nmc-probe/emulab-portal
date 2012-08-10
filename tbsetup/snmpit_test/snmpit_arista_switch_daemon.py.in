@@ -70,7 +70,7 @@ def vlanExists(sysdb, vlan_num):
 def setPortStatus(sysdb, port, up=1):
     ic = sysdb['interface']['status']['all'].get(port)
     if ic is None:
-        debug("setPortStatus("+str(port)+","+str(up)+") error: can not get port.")
+        debug("setPortStatus("+str(port)+","+str(up)+") error: cannot get port.")
         return
     if up == 1:
         ic.linkStatus = 'linkUp'
@@ -132,7 +132,7 @@ def _removeVlan(vlan_num):
             del bc.vlanConfig[int(vlan_num)]
             retval =1
         else:
-            retval = "VLAN #%d not exists."%(int(vlan_num),)
+            retval = "VLAN #%d does not exist."%(int(vlan_num),)
     except:
         print sign + " error: "+str(sys.exc_info())
         retval = str(sys.exc_info())
@@ -153,14 +153,14 @@ def _setPortVlan(vlan_num, ports):
         bc = getBridgingConfig(sysdbroot)
         
         if not vlanExists(sysdbroot, vlan_num):
-            debug("setPortVlan: VLAN #%d not exists."%(int(vlan_num),))
+            debug("setPortVlan: VLAN #%d does not exist."%(int(vlan_num),))
             return 0
     
         for p in ports:
             try:
                 pbc = bc.switchIntfConfig.newMember(p)
             except:
-                debug("setPortVlan: Errors when getting port %s, %s"
+                debug("setPortVlan: Error when getting port %s - %s"
                       %(str(p), str(sys.exc_info())))
                 errors += 1
             else:
@@ -195,7 +195,7 @@ def _removePortsFromVlan(vlan_num, ports):
                 try:
                     pbc = bc.switchIntfConfig.newMember(p)
                 except:
-                    debug("removePortsFromVlan: Errors when getting port %s, %s"
+                    debug("removePortsFromVlan: Error when getting port %s - %s"
                           %(str(p), str(sys_exc_info())))
                     errors += 1
                 else:
