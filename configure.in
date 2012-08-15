@@ -274,6 +274,11 @@ AC_SUBST(TBERRORSEMAIL)
 AC_SUBST(TBERRORSEMAIL_NOSLASH)
 
 #
+# For snmpit support of Arista switch.
+#
+AC_SUBST(ARISTA_SWITCH_XMLRPCPORT)
+
+#
 # Defaults for for above variables.
 #
 TBERRORLOGDBNAME="errorlog"
@@ -355,6 +360,7 @@ LINUX_FSNODE=0
 DHCPD_EXTRAIFS=""
 VPUBADDR_BASE="none"
 VPUBADDR_BITLEN="none"
+ARISTA_SWITCH_XMLRPCPORT=80
 
 #
 # XXX You really don't want to change these!

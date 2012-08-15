@@ -12,3 +12,4 @@ TBSTATEDEMAIL=wbsun@cs.utah.edu
 TBTESTSUITEEMAIL=wbsun@cs.utah.edu
 WWW=www.emulab.net/dev/wbsun
 THISHOMEBASE=Wbsun.Emulab.Net
+ARISTA_SWITCH_XMLRPCPORT=80

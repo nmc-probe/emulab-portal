@@ -130,6 +130,7 @@ if (! -d $mountpoint) {
 #
 if (defined($diskopt)) {
     $disk = $diskopt;
+    $disk =~ s/^\/dev\///;
 }
 else {
     my $rootdev = `df | egrep '/\$'`;

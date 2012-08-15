@@ -385,6 +385,10 @@ sub getExperimentTrunks($$@) {
     # shared lan are sometimes shared nodes! Confused yet?
     #
     foreach my $vlanid (@vlans) {
+	# Allow vlan list to be vlan objects.
+	$vlanid = $vlanid->id()
+	    if (ref($vlanid));
+	
 	foreach my $port (getVlanPorts($vlanid)) {
 	    next
 		if (!$port->trunk());
@@ -452,6 +456,10 @@ sub getExperimentCurrentTrunks($$@) {
     # shared lan are sometimes shared nodes! Confused yet?
     #
     foreach my $vlanid (@vlans) {
+	# Allow vlan list to be vlan objects.
+	$vlanid = $vlanid->id()
+	    if (ref($vlanid));
+
 	my @vlanports = getExperimentVlanPorts($vlanid);
 
 	foreach my $port (@vlanports) {
