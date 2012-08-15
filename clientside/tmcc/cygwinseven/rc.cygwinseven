@@ -6,6 +6,8 @@
 #
 # rc.cygwinxp - CygWin-specific startup.  Run by rc.bootsetup on CygWin.
 
+# XXX: This whole thing needs to be slashed and burned an re-written in perl.
+
 source "/etc/emulab/paths.sh"
 NTS=`cygpath $SYSTEMROOT`/system32
 PATH=$PATH:$NTS
@@ -161,12 +163,15 @@ else
         # Make a list of NIC macs that will be used.
         tmcc ifconfig | sed -e 's/.*MAC=//' -e 's/ .*//' | cat $CMAC - | sort > $UMAC
         # The others.
-        unused=`join -v 2 -t : -o 2.1 $UMAC $MIM`
-        if [ ! -z "$unused" ]; then
-            logit "Disabling unused interface(s):"
-            logit "`join -v 2 -t : -o 2.1 $UMAC $MNM`"
-            devcon disable `join -v 2 -t : -o 2.2 $UMAC $MIM`
-        fi
+        #unused=`join -v 2 -t : -o 2.1 $UMAC $MIM`
+        #if [ ! -z "$unused" ]; then
+            #logit "Disabling unused interface(s):"
+            #logit "`join -v 2 -t : -o 2.1 $UMAC $MNM`"
+            #devcon disable `join -v 2 -t : -o 2.2 $UMAC $MIM`
+        #fi
+	logit "Disabling experimental network interface(s):"
+        logit "`join -v 2 -t : -o 2.1 $CMAC $MNM`"
+        devcon disable `join -v 2 -t : -o 2.2 $CMAC $MIM`
     fi
 fi
 

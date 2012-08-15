@@ -1642,8 +1642,7 @@ sub latency_test {
 sub valid_bw {
     my $edge = shift @_;
     if($edge->bw >= LIMIT_BW_MIN
-       && $edge->bw <= (($platform =~ /CYGWIN/) ? 
-			LIMIT_BW_HI_Windows : LIMIT_BW_HI)
+       && $edge->bw <= LIMIT_BW_HI
        && $edge->loss <= LIMIT_BW_LOSS
        ) {
 	return TRUE;
@@ -1663,9 +1662,8 @@ sub bw_test {
     my $bw_error_low = (($platform =~ /CYGWIN/) ? 
 			INSIGNIFICANT_BW_ERROR_LO_Windows : 
 			INSIGNIFICANT_BW_ERROR_LO);
-    my $bw_limit_hi  = (($platform =~ /CYGWIN/) ?
-			LIMIT_BW_HI_Windows :
-			LIMIT_BW_HI);
+    my $bw_limit_hi  = LIMIT_BW_HI;
+
 
     #
     # all nodes will execute the same reductions on the edge list

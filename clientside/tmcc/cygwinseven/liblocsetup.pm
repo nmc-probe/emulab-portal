@@ -32,6 +32,7 @@ sub VERSION()	{ return 1.0; }
 use English;
 use Win32;
 use Win32API::Net qw(:User);
+use Win32::Registry;
 
 # Load up the paths. Its conditionalized to be compatabile with older images.
 # Note this file has probably already been loaded by the caller.
@@ -107,18 +108,13 @@ my $XIMAP	= "$BOOTDIR/xif_map";
 my $ULEVEL      = 1;
 
 #
-# Vendor-specific goo for setting up speed and duplex under Windows
+# Goo for setting up speed and duplex under Windows
 #
-
-#Broadcom
-my $BCCLI      = "/usr/local/bin/BACScli.exe";
-my $BC_1000MBS = "Auto";
-my $BC_100MBS  = "100 Mb ";
-my $BC_10MBS   = "10 Mb ";
-my $BC_FDUPLEX = "Full";
-my $BC_HDUPLEX = "Half";
-
-#Intel
+my $BASE_ADAPTER_KEY = 'SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002BE10318}';
+my $VAL_ADAPTER_DEVID = "DeviceInstanceID";
+my $VAL_SPEEDDPLX = "*SpeedDuplex";
+my $SPDPLX_AUTO    = "0";
+my $SPDPLX_100FULL = "4";
 
 
 #
@@ -316,41 +312,89 @@ sub get_dev_map()
 }
 
 #
-# Vendor specific function to configure Broadcom NetXtreme II NIC speed/duplex.
+# Utility function to set speed and duplex via the registry.
+# Note that making this effective requires either a machine restart,
+# or reloading the NIC driver.
 #
-sub broadcom_config($$$)
-{
-    my ($speed, $duplex, $mac) = @_;
-    my $bclines = "";
-    my ($bcspeed, $bcduplex);
+# XXX: Should be using Win32::TieRegistry, but that module seems to be
+#      broken at present.
+sub set_nic_spdplx($$$) {
+    my ($speed, $duplex, $tgt_devid) = @_;
 
-  BCNICSPEED: 
-    for ($speed) {
-	/1000Mbps/ && do {
-	    $bcspeed = $BC_1000MBS;
-	    $bcduplex = "";
-	    last BCNICSPEED;
-	};
-	/100Mbps/  && do {
-	    $bcspeed = $BC_100MBS;
-	    $bcduplex = $duplex eq "full" ? $BC_FDUPLEX : $BC_HDUPLEX;
-	    last BCNICSPEED;
-	};
-	/10Mbps/   && do {
-	    $bcspeed = $BC_10MBS;
-	    $bcduplex = $duplex eq "full" ? $BC_FDUPLEX : $BC_HDUPLEX;
-	    last BCNICSPEED;
-	};
+    # Get rid of leading '@' dingleberry if it's there.
+    $tgt_devid =~ s/^@//;
 
-	# Default
-	warning("NIC speed unknown or not set.  Defaulting to 1Gbps/Full");
-	$bcspeed  = $BC_1000MBS;
-	$bcduplex = $BC_FDUPLEX;
+    # Only change the speed/duplex if the speed is 100Mbps since
+    # 'Auto' on a gig port or above just works and we emulate
+    # 10Mbps with a delay node nowadays.
+    # XXX: ignores duplex, which should always be Full anyway.
+    my $set_spdplx;
+    if ($speed eq "100Mbps") {
+	$set_spdplx = $SPDPLX_100FULL;
+    } else {
+	$set_spdplx = $SPDPLX_AUTO;
     }
 
-    $bclines .= qq{$BCCLI -t NDIS -f MAC -i $mac "cfg Advanced \\\"Speed & Duplex\\\"=\\\"${bcspeed}${bcduplex}\\\""\n    };
+    my $adapters;
+    if (!$::HKEY_LOCAL_MACHINE->Open($BASE_ADAPTER_KEY, $adapters)) {
+	warning("Couldn't open base adapter key in registry: $^E");
+	return -1;
+    }
 
-    return $bclines;
+    # Get the list of adapters, stashed in a key named after yet another 
+    # goofy index...
+    my @subkeys = ();
+    if (!$adapters->GetKeys(\@subkeys)) {
+	warning("Can't get subkeys: $^E");
+	return -1;
+    }
+
+    # Iterate over the list of adapters (subkeys) looking for the one that
+    # matches the Windows device ID that was passed in to us.
+    my $found = 0;
+    my $retval = -1;
+    foreach my $key (@subkeys) {
+	my $adapter; 
+	$adapters->Open($key, $adapter);
+	next if !$adapter;
+	my %values = ();
+	$adapter->GetValues(\%values);
+	next if !%values;
+	#print "Adapter: $key\n";
+	if (exists($values{$VAL_ADAPTER_DEVID}) && 
+	    exists($values{$VAL_SPEEDDPLX})) {
+	    my $devidref  = $values{$VAL_ADAPTER_DEVID};
+	    my $spdplxref = $values{$VAL_SPEEDDPLX};
+	    my (undef, undef, $devid)  = @$devidref;
+	    my (undef, undef, $spdplx) = @$spdplxref;
+	    #print "\t$VAL_ADAPTER_DEVID: $devid\n";
+	    #print "\t$VAL_SPEEDDPLX: $spdplx\n";
+	    
+	    if ($devid eq $tgt_devid) {
+		$found = 1;
+		if ($spdplx ne $set_spdplx) {
+		    #print "Setting speed / duplex for adapter $key to $speed/$duplex\n";
+		    if (!$adapter->SetValueEx($VAL_SPEEDDPLX, undef, 
+					      REG_SZ, $set_spdplx)) {
+			warning("Can't set speed/duplex in registry: $^E");
+			$retval = -1;
+		    } else {
+			$retval = 0;
+		    }
+		}
+	    }
+	}
+	$adapter->Close();
+	last if $found;
+    }
+    $adapters->Close();
+    if (!$found) {
+	warning("Could not find interface in registry: $tgt_devid\n".
+		"\tSpeed/duplex not set!");
+	$retval = -1;
+	
+    }
+    return $retval;
 }
 
 
@@ -364,55 +408,28 @@ sub os_ifconfig_line($$$$$$$$;$$%)
 	$settings, $rtabid, $cookie) = @_;
     my ($uplines, $downlines);
 
-    # Handle interfaces missing from ipconfig.
     get_dev_map();
-    if ( ! defined( $dev_map{$iface} ) ) {
-	# Try rc.cygwin again to disable/re-enable the interface object.
-	system("$BINDIR/rc/rc.cygwin");
-
-	# Reboot if it still fails, in hope that the interface comes back.
-	# 
-	# We dare not proceed, because using netsh to try to set the IP
-	# address on one of the missing addresses will blow away the IP on
-	# *another* interface, sometimes the control net interface.  Then
-	# we would really be in the soup...
-	get_dev_map();
-	if ( ! defined( $dev_map{$iface} ) ) {
-	    system("$BINDIR/rc/rc.reboot");
-	    # Sometimes rc.reboot gets fork: Resource temporarily unavailable.
-	    print "rc.reboot returned, trying tsshutddn.";
-	    system("tsshutdn 1 /REBOOT /DELAY:1");
-	    print "tsshutdn failed, sleep forever.";
-	    sleep;
-	}
+    if (!exists($dev_map{$iface})) {
+	warning("Can't get Windows interface name for $iface");
+	return ("exit 1", "exit 1");
     }
+    # Set the speed and duplex via the registry - needs to happen before
+    # the interface is brought online so that the driver will pick up the
+    # changed value.
+    # XXX: Should we bail if this fails?
+    set_nic_spdplx($speed, $duplex, $dev_map{$iface});
 
     if ($inet ne "") {
 	# Startup.
-	$uplines   .= qq{\n    #================================\n    };
+	$uplines   .= qq{\n    #========================================\n    };
 	$uplines   .= qq{echo "Enabling $iface on $inet"\n    };
 	#
-	# Re-enable device if necessary (getmac Transport is "Media disconnected".)
-	my $test   =  qq[getmac /v /fo csv | awk -F, '/^"$iface"/{print \$4}'];
-	$uplines   .= qq{if [ \`$test\` = '"Media disconnected"' ]; then\n    };
-	$uplines   .=   "  $DEVCON enable '$dev_map{$iface}'\n    ";
-	$uplines   .= qq{  sleep 5\n    };
-	$uplines   .= qq{fi\n    };
+	# Enable the interface.
+	$uplines   .= qq{$DEVCON enable '$dev_map{$iface}'\n    };
+	$uplines   .= qq{sleep 5\n    };
 	#
 	# Configure.
 	$uplines   .= sprintf($IFCONFIG, $iface, $inet, $mask) . qq{\n    };
-	#
-	# Ugh... Deal with lack of common interface to set speed and duplex 
-	# on Windows NICs.
-      NICTYPE:
-	for ($iface_type) {
-	    /^bce$/ && do {
-		$uplines .= &broadcom_config($speed,$duplex,$settings->{'mac'});
-		last NICTYPE;
-	    };
-	    # default
-	    warning("Unknown NIC type: $_ - Speed and duplex not set!");
-	}
 	#
 	# Hack to wait for the Windows routing table to update after the
 	# interface comes up.
