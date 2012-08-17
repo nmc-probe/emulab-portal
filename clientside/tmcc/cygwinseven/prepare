@@ -5,7 +5,7 @@
 # All rights reserved.
 #
 use English;
-require 'ctime.pl';
+#require 'ctime.pl';
 
 #
 # Prepare the node for cutting a new image.  Should be run just prior.
@@ -56,9 +56,6 @@ if (defined($options{'n'})) {
 }
 if (defined($options{'s'})) {
     $sysprep = 1;
-    # XXX: This needs to be addressed.
-    die("*** $0:\n".
-	"Sysprep option not yet supported in Windows 7.");
 }
 
 # Only root.
@@ -111,52 +108,6 @@ my $sysprep_src = "/cygdrive/z/windows/sysprep";
 my $sysprep_dst = "/cygdrive/c/sysprep";
 my $sysprep_cmd = "$sysprep_dst/sysprep.exe";
 
-#
-# Must be logged in on the serial console to run Sysprep.  Check for it.
-#
-if ($sysprep) {
-    #
-    # Just "tty" doesn't work in Cygwin; it doesn't show the real device.
-    # Use "last" to find the current root logins on ttyS0 and match "tty".
-    #
-    my $tty = `tty`; chomp $tty; 
-    open LAST, "last root|";
-    while (my $last = <LAST>) {
-	if ($last =~ m/^root +(tty[0-9]) +ttyS0 .*still logged in/) {
-	    #
-	    # Now we know where root is logged in.  See if we're the one.
-	    #
-	    if ( $tty ne "/dev/$1" ) {
-		print "*** Sysprep shuts down the network.\n";
-		print "*** prepare -s must be run on the serial console\n";
-		print "*** not on an ssh connection tty ($tty).\n";
-		exit 1;
-	    }
-	}
-	elsif ($last =~ m/^gone - no logout/) {
-	    #
-	    # RDP sessions re-use tty devs, but "last" doesn't see logins.
-	    # If they ever fix it, this case won't work right and we could
-	    # be confused by a root login under RDP.  Meanwhile, it works.
-	    #
-	    print "*** Sysprep shuts down the network.\n";
-	    print "*** prepare -s must be run on the serial console,\n";
-	    print "*** not in an RDP session tty ($tty).\n";
-	    exit 1;
-	}
-    }
-    close LAST;
-
-    #
-    # Make sure we can get the deploy tools, including sysprep itself.
-    #
-    print "Authenticating for read-only access to /share/windows.\n";
-    do_cmd "$netcmd use Z: /DELETE >& /dev/null";
-    do_cmd "$netcmd use Z: '\\\\fs\\share' PublicOnly /persistent:no";
-    die "*** Cannot access sysprep tools from $sysprep_src"
-	if (! -e $sysprep_src);
-}
-
 if (! $noredef) {
     #
     # Need the current root password to re-define the Emulab services to match.
@@ -185,10 +136,10 @@ if (! $noredef) {
     #
     # Set the root password to make sure it matches.  We also set this to be
     # the Administrator password, to match the sysprep.inf file entry below.
-    print "\nSetting root password to $rootpwd.\n";
-    system("echo '$rootpwd\n$rootpwd\n' | passwd root");
-#    print "\nSetting Administrator password to $rootpwd.\n";
-#    system("echo '$rootpwd\n$rootpwd\n' | passwd Administrator");
+    #print "\nSetting root password to $rootpwd.\n";
+    #system("echo '$rootpwd\n$rootpwd\n' | passwd root");
+    #print "\nSetting Administrator password to $rootpwd.\n";
+    #system("echo '$rootpwd\n$rootpwd\n' | passwd Administrator");
 
     #
     # Windows stores the password as part of the definition of services that
@@ -222,59 +173,6 @@ if (! $noredef) {
     system("sc config EmulabStartup start= delayed-auto");
 }
 
-if ($sysprep) {
-    print "\nSetting up for Sysprep/Mini-Setup.\n";
-    #
-    # Get the right flavor of tools for the SP level.
-    #
-    my $cv = "/HKLM/SOFTWARE/Microsoft/Windows NT/CurrentVersion";
-    my $sp = `regtool get "$cv/CSDVersion"`;
-    chomp $sp;
-    my $deploy_src;
-    if ($sp eq "Service Pack 2") {
-	$deploy_src = "$sysprep_src/xpsp2_support_tools_deploy";
-    }
-    elsif ($sp eq "Service Pack 1") {
-	$deploy_src = "$sysprep_src/xpsp1_support_tools_deploy";
-    }
-    else {
-	# No CSDVersion regkey setting on SP0.
-	$deploy_src = "$sysprep_src/xp_support_tools_deploy";
-    }
-    print "$sp sysprep from $deploy_src\n";
-
-    print "Copying deploy tools to $sysprep_dst\n";
-    do_cmd "rm -rf $sysprep_dst";  # Removed by Mini-Setup, make sure.
-    do_cmd "cp -rp $deploy_src $sysprep_dst";
-    die "*** Didn't get sysprep!\n"
-	if (! -x $sysprep_cmd);
-
-    my $spi = "sysprep.inf";
-    my $spi_src = "$sysprep_src/$spi";
-    my $spi_dst = "$sysprep_dst/$spi";
-    print "Copying $spi to $spi_dst\n";
-    if ($noredef) {
-	# Assume the Administrator password is blank or NULL or set separately.
-	# (See deploy.chm for description of [GuiUnattended]AdminPassword.)
-	do_cmd "cp -p $spi_src $spi_dst";
-    }
-    else {
-	# Substitute the root password into [GuiUnattended]AdminPassword.
-	my $ap="AdminPassword";
-	my $admpwd = $rootpwd;
-	$admpwd =~ s/\|/\\|/g;	# Quote separator chars in the password.
-	do_cmd "sed '/$ap=.*/s||$ap=\"$admpwd\"|' $spi_src > $spi_dst";
-    }	
-
-    my $clt = "Cmdlines.txt";
-    my $clt_src = "$sysprep_src/$clt";
-    my $clt_dir = $sysprep_dst . q{/'$oem$'};
-    my $clt_dst = "$clt_dir/$clt";
-    print "Copying $clt to $clt_dst\n";    
-    do_cmd "mkdir $clt_dir";
-    do_cmd "cp -p $clt_src $clt_dst";
-}
-
 # Capture the node name before cleaning out the config files.
 my $vname = "";
 if (open(NICK, TMNICKNAME)) {
@@ -302,8 +200,7 @@ foreach my $dbfile (@DBFILES) {
 }
 
 print "Clearing Cygwin fstab";
-system("cp /dev/null /etc/fstab")
-    or warn("Could not clear fstab");
+system("cp /dev/null /etc/fstab");
 
 # Stop anything holding a logfile open which we will want to remove below.
 print "Stopping the watchdog ...\n";
@@ -336,7 +233,7 @@ my $perflog = "/var/run/ldavg.csv";
 unlink($perflog)
     or warn("Could not unlink $perflog");
 
-print "Stopping idlemon";
+print "Stopping idlemon\n";
 system("killall idlemon");
 my $idlemon_activity_file = "/var/run/rdp_input";
 unlink($idlemon_activity_file)
@@ -474,48 +371,41 @@ print "\nRe-enabling all network interfaces.\n";
 system("devcon enable =net '*PCI*'");
 
 #
-# Windows wires the boot disk driver into the NT loader, and wires
-# the hardware network device instances into the network settings.
-# Run Sysprep to make hardware-independent images with a sysprep.inf
-# file controlling an unattended Mini-Setup to install drivers.
-#
-# New drivers must be in subdirs of C:/drivers . Their .inf files must have
-# been introduced into the drivers database using the install-inf script.
+# Run sysprep.
 #
 if ($sysprep) {
-    print "\nExecuting sysprep.  Takes a couple of minutes.\n";
+    my $sp_path = "/cygdrive/c/Windows/System32/sysprep";
 
-    #
-    # Cache a static mapping of node names and MAC addresses of their
-    # interfaces.  We will run "rc.firstboot -mini" from cmdlines.txt under
-    # Mini-Setup after Sysprep.  Since the network is set up then but not
-    # running yet, we won't be able to contact tmcc to find out the host name.
-    # But we can use the static mapping and save a reboot cycle.
-    #
-    do_cmd "tmcc intfcmap > /var/emulab/boot/intfcmap";
+    # Redefine root password in unattend.xml if necessary
+    if ($rootpwd) {
+	print "Modifying root password in unattend.xml\n";
+	open(UNANEW, ">$sp_path/unattend-new.xml")
+	    or die "Can't open new unattend file. Sysprep aborted.";
+	open(UNAORIG, "<$sp_path/unattend-src.xml")
+	    or die "can't open existing unattend.xml.  Sysprep aborted.";
+	while (my $uline = <UNAORIG>) {
+	    if ($uline =~ /<Password>/) {
+		my $dummy = <UNAORIG>, <UNAORIG>; # zap next two lines.
+		$uline .= " "x28 . "<Value>$rootpwd</Value>\r\n" .
+		    " "x28 . "<PlainText>true</PlainText>\r\n";
+	    }
+	    print UNANEW $uline;
+	}
+	close(UNANEW);
+	close(UNAORIG);
+	rename("$sp_path/unattend-new.xml", "$sp_path/unattend.xml") or
+	    die "Can't move new unattend.xml file into place.  sysprep aborted."
+    } else {
+	print "Not modifying root password in unattend.xml - assuming it's the same or modified outside of this script...\n";
+    }
 
-    #
-    # It sucks to have state in three overlapping places.  Try to keep the
-    # OemPnPDriversPath entry in sysprep.inf in sync with the DevicePath
-    # registry key, as well as the value from the Drivers DB, which Mini-setup
-    # seems to over-ride it with.
-    #
-    # The Drivers DB DevicePath value was set from the DevicePath registry key when a
-    # driver .inf file was last introduced using right-click/Install from Windows
-    # Explorer.  You must do that on a graphics console, via RDP on a server with no
-    # hardware graphics console, hence MUST HAVE DONE IT BEFORE THIS because sysprep
-    # tears down the network!
-    #
-    my $drvkey = "/HKLM/SOFTWARE/Microsoft/Windows/CurrentVersion/DevicePath";
-    my $device_path = 'C:\WINDOWS\inf;C:\drivers\disk;C:\drivers\nic';
-    print "DevicePath was "; system("regtool get $drvkey");
-    system("regtool set -s $drvkey '$device_path'");
-    print "DevicePath now set to "; system("regtool get $drvkey");
-
-    do_cmd "$sysprep_cmd -nosidgen -noreboot -reseal -mini -quiet";
-
-    print "DevicePath = "; system("regtool get $drvkey");
+    # Clean out sysprep work/log areas
+    system("rm -rf /cygdrive/c/Windows/Panther/*");
+    system("rm -rf $sp_path/Panther/*");
+    chdir $sp_path;
+    print "\nExecuting sysprep.  The system will shutdown shortly.  Wait a bit before trying to capture an image (ping the host - wait a minute after it stops).\n";
+    system("./sysprep.exe /quiet /oobe /generalize /shutdown /unattend:unattend.xml");
+} else {
+    print "\nDone!  Now capture the Windows disk image for:\n";
+    system("head -1 /etc/motd");
 }
-
-print "\nDone!  Now capture the Windows disk image for:\n";
-system("head -1 /etc/motd");

@@ -39,10 +39,11 @@ RCDIR		= $(SYSETCDIR)/rc.d
 INSTALL		= /usr/bin/install -c 
 COMMON		= $(SRCDIR)/../common
 
-SYSTEM32 	= /cygdrive/c/Windows/System32
+WINDOWS         = /cygdrive/c/Windows
+SYSTEM32 	= $(WINDOWS)/System32
 WBEM 		= $(SYSTEM32)/Wbem
 SYSPREP 	= $(SYSTEM32)/sysprep
-SPSCRIPTS	= $(SYSPREP)/scripts
+SPSCRIPTS	= $(WINDOWS)/Setup/Scripts
 
 install client-install:	baselinux-install common-install etc-install \
 			sup-install script-install ##bin-install
@@ -105,9 +106,10 @@ script-install:	dir-install $(SCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/rc.reboot $(BINDIR)/rc/rc.reboot
 	$(INSTALL) -m 755 $(SRCDIR)/rc.lmhosts $(BINDIR)/rc/rc.lmhosts
 	$(INSTALL) -m 755 $(SRCDIR)/netbt $(BINDIR)/netbt
-	$(INSTALL) -m 755 $(SRCDIR)/unattend-x86.xml $(SYSPREP)/unattend.xml
+	$(INSTALL) -m 755 $(SRCDIR)/unattend-x86.xml $(SYSPREP)/unattend-src.xml
 	$(INSTALL) -c -m 755 -o Administrators -d $(SPSCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/setupnode.ps1 $(SPSCRIPTS)/setupnode.ps1
+	$(INSTALL) -m 755 $(SRCDIR)/SetupComplete.cmd $(SPSCRIPTS)/SetupComplete.cmd
 	$(INSTALL) -m 755 $(SRCDIR)/reboot.sh /bin/reboot
 
 sfs-install:

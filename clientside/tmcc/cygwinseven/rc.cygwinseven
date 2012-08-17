@@ -178,7 +178,9 @@ fi
 #
 # Start the CPU performance counter slothd will use to look at CPU load
 #
-logman start ldavg
+# XXX: Background it because sometimes it just sits there forever even
+# though the counter collection has been started ...
+logman start ldavg &
 
 # Start up the service which will deliver a SHUTDOWN state event on reboot.
 cygrunsrv -S EmulabShutdown
