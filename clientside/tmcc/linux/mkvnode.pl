@@ -520,7 +520,7 @@ if (! -e "$VNDIR/vnode.info") {
     #
     $vmtype = GENVNODETYPE();
 
-    ($ret,$err) = safeLibOp('vnodeCreate',0,0);
+    ($ret,$err) = safeLibOp('vnodeCreate',0,0, \%vnconfig);
     if ($err) {
 	MyFatal("vnodeCreate failed");
     }
