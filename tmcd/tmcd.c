@@ -5195,7 +5195,7 @@ COMMAND_PROTOTYPE(dosecurestate)
 {
 	char 		newstate[128];	/* More then we will ever need */
         char            quote[1024];
-        char            pcomp[256];
+        char            pcomp[1024];
         unsigned char   quote_bin[256];
         unsigned char   pcomp_bin[128];
 	ssize_t		pcomplen, quotelen;
@@ -5234,10 +5234,11 @@ COMMAND_PROTOTYPE(dosecurestate)
 	 * Have to covert the hex representations of quote and pcomp into
 	 * simple binary.
 	 */
-        if ((strlen(quote) % 2) != 0) {
-            error("SECURESTATE: %s: Malformed quote: odd length\n");
-            return 1;
-        }
+	if ((strlen(quote) % 2) != 0) {
+		error("SECURESTATE: %s: Malformed quote: odd length\n",
+		    reqp->nodeid);
+		return 1;
+	}
         quotelen = strlen(quote)/2;
         printf("quotelen is %d\n",quotelen);
         for (i = 0; i < quotelen; i++) {
@@ -5249,10 +5250,11 @@ COMMAND_PROTOTYPE(dosecurestate)
 		quote_bin[i] = hextochar(&quote[i * 2]);
         }
 
-        if ((strlen(pcomp) % 2) != 0) {
-            error("SECURESTATE: %s: Malformed pcomp: odd length\n");
-            return 1;
-        }
+	if ((strlen(pcomp) % 2) != 0) {
+		error("SECURESTATE: %s: Malformed pcomp: odd length\n",
+		    reqp->nodeid);
+		return 1;
+	}
         pcomplen = strlen(pcomp)/2;
         for (i = 0; i < pcomplen; i++) {
 		if (!ishex(pcomp[i * 2]) || !ishex(pcomp[i * 2 + 1])) {
