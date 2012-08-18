@@ -73,14 +73,14 @@
                 <RunSynchronousCommand wcm:action="add">
                     <Description>Rename the Computer to the Emulab NodeID</Description>
                     <Order>1</Order>
-                    <Path>powershell C:\Windows\Setup\Scripts\setnodename.ps1 &gt; c:\temp\psout.txt 2&gt;&amp;1</Path>
+                    <Path>powershell C:\Windows\Setup\Scripts\setupnode.ps1 &gt; c:\Windows\temp\psout.txt 2&gt;&amp;1</Path>
                 </RunSynchronousCommand>
             </RunSynchronous>
         </component>
     </settings>
     <settings pass="generalize">
         <component name="Microsoft-Windows-Security-SPP" processorArchitecture="x86" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-            <SkipRearm>1</SkipRearm>
+            <SkipRearm>0</SkipRearm>
         </component>
         <component name="Microsoft-Windows-BrowserService" processorArchitecture="x86" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
             <MaintainServerList>No</MaintainServerList>
