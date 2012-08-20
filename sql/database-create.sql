@@ -3765,6 +3765,20 @@ CREATE TABLE `table_regex` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `tcp_proxy`
+--
+
+DROP TABLE IF EXISTS tcp_proxy;
+CREATE TABLE tcp_proxy (
+  node_id varchar(32) NOT NULL,
+  node_ip varchar(15) NOT NULL,
+  node_port int(5) NOT NULL,
+  proxy_port int(5) NOT NULL,
+  PRIMARY KEY  (node_id,node_ip,node_port),
+  UNIQUE KEY proxy_port (proxy_port)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `template_stamps`
 --
 
