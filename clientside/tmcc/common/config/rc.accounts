@@ -424,7 +424,7 @@ sub doboot()
 	    #
 	    # Anytime the home dir is on a local FS ...
 	    # 
-	    if ($doit && $doupdate) {
+	    if ($doit && $doupdate && !WINDOWS()) {
 		#
 		# Must ask for the current home dir since we rely on pw.conf.
 		#

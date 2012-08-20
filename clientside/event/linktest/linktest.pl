@@ -77,6 +77,7 @@ use constant LIMIT_BW_MED =>  10000000;
 use constant LIMIT_BW_LO  =>   1000000;
 use constant LIMIT_BW_MIN =>     64000;
 use constant LIMIT_BW_LOSS => 0.20;
+use constant LIMIT_BW_HI_Windows => 40000000;
 
 # Make sure that we dont get bogged down in being too accurate! 
 # Make sure the error is a certain significance before we start reporting it.
@@ -335,6 +336,7 @@ my $PATH_SCHEDFILE = "$VARDIR/logs/linktest.sched";
 my $PATH_SYNCSERVER = "$VARDIR/boot/syncserver";
 my $PATH_TOPOFILE = "$VARDIR/boot/ltmap";
 my $PATH_PTOPOFILE = "$VARDIR/boot/ltpmap";
+my $PATH_WINPING = "/cygdrive/c/windows/system32/ping.exe";
 
 my $schedfile = $PATH_SCHEDFILE;
 if ($printsched) {
@@ -491,8 +493,9 @@ if (!exists($hostmap{$hostname})) {
 # Determine if we can run at high priority.
 #
 my $high_priority = 1;
-if ($platform eq LINUX && $hostmap{$hostname}->isvnode) {
+if (($platform eq LINUX && $hostmap{$hostname}->isvnode) || $platform =~ /CYGWIN/ ) {
     # XXX Linux vnodes (openvz) cannot change their priority
+    # ... Windows can't either...
     $high_priority = 0;
 }
 
@@ -1185,6 +1188,28 @@ sub loss_test {
 # Latency Test Functions
 ##############################################################################
 
+# Explicit calculation of ping statistics (average and stddev)
+# @param[0] := reference to array of samples.
+# @return   := (average, stddev)
+sub ping_stats {
+    my $measurements = shift;
+    my @rv = undef;
+
+    if (defined($measurements) and @$measurements) {
+	my $avg = 0;
+	map { $avg += $_ } @$measurements;
+	$avg /= scalar(@$measurements);
+	
+	my $std = 0;
+	map { $std += ($avg - $_) ** 2 } @$measurements;
+	$std = ($std / scalar(@$measurements)) ** 0.5;
+	
+	@rv = ($avg, $std);
+    }
+
+    return @rv;
+}
+
 # returns whether the link latency is in a valid test range.
 sub valid_latency {
     return TRUE;
@@ -1231,31 +1256,50 @@ sub ping_node {
     } elsif($platform =~ /CYGWIN/) {
 	# Neither Windows nor Cygwin ping has either send rate or timeout.
 	# Windows ping doesn't have -q, but it does have TTL, so use it.
-	$cmd = "/cygdrive/c/WINDOWS/system32/ping.exe -n $send_count $ttlarg $host";
+	# The first ping is always wildly off under Windows due to arp
+	# and possibly other startup costs, so we grab an
+	# additional sample in anticipation of throwing out the first.
+	$send_count++;
+	$cmd = "$PATH_WINPING -n $send_count $ttlarg $host";
     }
 
     # note backticks passes SIGINT to child procs
     my @args = split(/\s+/,$cmd);
     my @results = &my_tick(@args);
+    my @wintimes = (); # For Windows.
     my $reslt_cnt = @results;
     my $result = $results[$reslt_cnt-2];
     if($platform eq BSD && $result =~ /(\d+) packets received/) {
 	$count = $1;
     } elsif($platform eq LINUX && $result =~ /(\d+) received/) {
 	$count = $1;
-    } elsif($platform =~ /CYGWIN/ && 
-	    $results[$reslt_cnt-3] =~ /Received = (\d+)/) {
-	$count = $1;
+    } elsif($platform =~ /CYGWIN/) {
+	# The first ping under windows is often way off so we gather up
+	# the time measurements ourseleves and throw out the first sample.
+	# These measurements will be used below to calculate the mean
+	# and stddev of the latency.
+	foreach my $rline (@results) {
+	    if ($rline =~ /Reply from (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}): bytes=(\d+) time(=|<)(\d+)ms TTL=(\d+)/) {
+		my $op = $3;
+		# Windows ping doesn't measure below 1 ms.
+		my $time = $op eq "<" ? 0 : $4;
+		push @wintimes, $time;
+	    }
+	}
+	# throw out the first sample.
+	shift @wintimes;
+	$count = scalar(@wintimes);
     }
 
     if($count) {
-	$result = $results[$reslt_cnt-1];
-	if($result=~ /\d+\.\d+\/(\d+\.\d+)\/\d+\.\d+\/(\d+\.\d+)/) {
-	    $avg_latency = $1;
-	    $stddev = $2;
-	} elsif($result=~ /Average = (\d+)ms/) {
-	    $avg_latency = $1;
-	    $stddev = 0.03;	# Stddev is not reported on Windows.
+	if ($platform =~ /CYGWIN/) {
+	    ($avg_latency, $stddev) = &ping_stats(\@wintimes);
+	} else {
+	    $result = $results[$reslt_cnt-1];
+	    if($result=~ /\d+\.\d+\/(\d+\.\d+)\/\d+\.\d+\/(\d+\.\d+)/) {
+		$avg_latency = $1;
+		$stddev = $2;
+	    }
 	}
     }
     return ($count, $avg_latency, $stddev);
@@ -1618,6 +1662,8 @@ sub bw_test {
     my $bw_error_low = (($platform =~ /CYGWIN/) ? 
 			INSIGNIFICANT_BW_ERROR_LO_Windows : 
 			INSIGNIFICANT_BW_ERROR_LO);
+    my $bw_limit_hi  = LIMIT_BW_HI;
+
 
     #
     # all nodes will execute the same reductions on the edge list
@@ -1659,7 +1705,7 @@ sub bw_test {
 			      &print_link($edge) . "\n");
 			&info("*** Bandwidth is out of range ".
 			      "(" . LIMIT_BW_LO . " <= BW <= " .
-			      LIMIT_BW_HI .") ". "or loss is too high (> " .
+			      $bw_limit_hi .") ". "or loss is too high (> " .
 			      LIMIT_BW_LOSS . ").\n");
 		    }
 		}
@@ -1686,7 +1732,7 @@ sub bw_test {
 			      &print_link($redge) . "\n");
 			&info("*** Bandwidth is out of range ".
 			      "(" . LIMIT_BW_LO . " <= BW <= " .
-			      LIMIT_BW_HI .") ". "or loss is too high (> " .
+			      $bw_limit_hi .") ". "or loss is too high (> " .
 			      LIMIT_BW_LOSS . ").\n");
 		    }
 		}

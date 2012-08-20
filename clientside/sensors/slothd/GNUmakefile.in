@@ -27,8 +27,8 @@ SDLIBS+= -ltb -lmysqlclient
 LIBS= $(MLIBS)
 CP= cp -pf
 
-ifeq ($(SYSTEM),CYGWIN_NT-5.1)
-# Cygwin on  Windows XP (a.k.a. NT 5.1).
+ifeq ($(findstring CYGWIN_NT,$(SYSTEM)),CYGWIN_NT)
+# Cygwin on  Windows XP/7
 MLIBS += -liphlpapi
 
 WINCLIENT = idlemon
@@ -70,7 +70,7 @@ boss-install: $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_SCRIPTS) sdcollectd) webfe
 client-install: client
 	$(INSTALL_PROGRAM) slothd$(EXE) $(DESTDIR)$(CLIENT_BINDIR)/slothd$(EXE)
 
-ifeq ($(SYSTEM),CYGWIN_NT-5.1)
+ifeq ($(findstring CYGWIN_NT,$(SYSTEM)),CYGWIN_NT)
 	# If there are any RDP logins active, idlemon will be busy.  Try moving it.
 	-mv $(IDLEMONEXE) $(IDLEMONEXE).prev
 	$(INSTALL_PROGRAM) idlemon$(EXE) $(IDLEMONEXE)

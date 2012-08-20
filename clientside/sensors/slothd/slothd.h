@@ -83,6 +83,7 @@ typedef struct {
   char *cifname;
 #ifdef __CYGWIN__
   char *cifaddr;
+  u_int numcpu;
 #endif /* __CYGWIN__ */
   u_char dolast;
   time_t lastrpt;
@@ -133,5 +134,9 @@ int grab_cifname(char*,void*);
 int clear_ttys(void);
 int add_tty(char*);
 int enum_ttys(void);
+
+#ifdef __CYGWIN__
+int get_ldavg(char*, void*);
+#endif
 
 #endif /* #ifndef _SLOTHD_H */
