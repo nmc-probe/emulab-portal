@@ -5197,7 +5197,7 @@ COMMAND_PROTOTYPE(dosecurestate)
         char            quote[1024];
         char            pcomp[1024];
         unsigned char   quote_bin[256];
-        unsigned char   pcomp_bin[128];
+        unsigned char   pcomp_bin[512];
 	ssize_t		pcomplen, quotelen;
         int             quote_passed;
         char            result[16];
@@ -5256,6 +5256,13 @@ COMMAND_PROTOTYPE(dosecurestate)
 		return 1;
 	}
         pcomplen = strlen(pcomp)/2;
+
+	if (pcomplen > sizeof(pcomp_bin)) {
+		error("SECURESTATE: %s: pcomp is too big (%zd)\n",
+		    reqp->nodeid, pcomplen);
+		return 1;
+	}
+
         for (i = 0; i < pcomplen; i++) {
 		if (!ishex(pcomp[i * 2]) || !ishex(pcomp[i * 2 + 1])) {
 			error("Error parsing pcomp\n");
