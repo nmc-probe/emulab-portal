@@ -5222,7 +5222,7 @@ COMMAND_PROTOTYPE(dosecurestate)
 	 * Dig out state that the node is reporting and the quote
 	 */
 	if (rdata == NULL ||
-	    sscanf(rdata, "%127s %1023s %255s", newstate, quote, pcomp) != 3 ||
+	    sscanf(rdata, "%127s %1023s %1023s", newstate, quote, pcomp) != 3 ||
 	    strlen(newstate) + 1 == sizeof(newstate) ||
 	    strlen(quote) + 1 == sizeof(quote) ||
 	    strlen(pcomp) + 1 == sizeof(pcomp)) {
