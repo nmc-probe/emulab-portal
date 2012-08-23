@@ -1794,6 +1794,28 @@ sub SetBootOS($$)
 	}
     }
 
+    #
+    # Change the node's default command line as necessary.
+    # XXX we only do this for delay nodes.
+    #
+    if ($nodeobject->erole() eq "delaynode") {
+	my ($ocmdline,$ncmdline);
+	$ocmdline = $nodeobject->def_boot_cmd_line();
+	$ocmdline = ""
+	    if (!defined($ocmdline));
+	$osinfo->OSBootCmd("delay", \$ncmdline);
+	$ncmdline = ""
+	    if (!defined($ncmdline));
+	if ($ocmdline ne $ncmdline) {
+	    print "$self SetBootOS($node_id): changing default command line to '$ncmdline'\n";
+	    if (!DBQueryWarn("update nodes set ".
+			     "def_boot_cmd_line='$ncmdline' ".
+			     "where node_id='$node_id'")) {
+		tbwarn "$self SetBootOS($node_id): could not update command line";
+	    }
+	}
+    }
+
     return 0;
 }
 

@@ -473,11 +473,37 @@ sub osload ($$) {
 	}
 
 	#
+	# Change the node's default command line as necessary.
+	# XXX we only do this for delay nodes.
+	#
+	if ($defosid && $nodeobject->erole() eq "delaynode") {
+	    my $osinfo = OSinfo->Lookup($defosid);
+	    if ($osinfo) {
+		my ($ocmdline,$ncmdline);
+		$ocmdline = $nodeobject->def_boot_cmd_line();
+		$ocmdline = ""
+		    if (!defined($ocmdline));
+		$osinfo->OSBootCmd("delay", \$ncmdline);
+		$ncmdline = ""
+		    if (!defined($ncmdline));
+		if ($ocmdline ne $ncmdline) {
+		    print "osload ($node): Changing cmdline: ".
+			  "'$ocmdline' -> '$ncmdline'\n";
+		    if (!DBQueryWarn("update nodes set ".
+				     "def_boot_cmd_line='$ncmdline' ".
+				     "where node_id='$node'")) {
+			tbwarn "$node: Could not update command line";
+		    }
+		}
+	    }
+	}
+
+	#
 	# Setup swapinfo now after partitions have initialized but before
 	# we setup the one-shot frisbee load.
 	#
 	if ($swapinfo) {
-	    print "osload: Updating image signature.\n";
+	    print "osload ($node): Updating image signature.\n";
 	    osload_setupswapinfo(undef, undef, $node);
 	}
 
