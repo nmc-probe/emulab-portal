@@ -761,10 +761,9 @@ sub osload($$$) {
 	return
 	    if (!defined($eventnodes));
 
-	print "$self: eventhandler: $node_id, $event\n"
-	    if ($self->debug());
-
 	if (exists($eventnodes->{$node_id})) {
+	    print "$self: eventhandler: $node_id, $event\n"
+		if ($self->debug());
 	    $eventnodes->{$node_id} = time();
 	}
     };

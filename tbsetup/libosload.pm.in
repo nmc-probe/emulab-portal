@@ -658,10 +658,9 @@ sub osload ($$) {
 	return
 	    if (!defined($eventnodes));
 
-	print "osload: eventhandler: $node_id, $event\n"
-	    if ($debug);
-
 	if (exists($eventnodes->{$node_id})) {
+	    print "osload: eventhandler: $node_id, $event\n"
+		if ($debug);
 	    $eventnodes->{$node_id} = time();
 	}
     };
