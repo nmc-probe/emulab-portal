@@ -11,7 +11,7 @@ use Fcntl ':flock';
 
 my $RSYNC = 'rsync';
 
-my $RSYNC_OPTS = "-c -W -u -av --delete --force";
+my $RSYNC_OPTS = "-W -u -av --delete --force";
 
 my @excludes=qw#cisco-config/ cisco-config. hp-config/ OLD/ tmp/ /proj/#;
 my @includes=qw#INCLUDE_ME#;
@@ -24,13 +24,17 @@ my @includes=qw#INCLUDE_ME#;
 #
 sub usage {
     print "Usage: $0 [-h]\n";
+    print "-c	Use checksums rather than time stamps in rsync\n";
     print "-h	Show this message\n";
+    print "-n	All talk, no action\n";
     exit(1);
 }
-my $optlist = "h";
+my $optlist = "chn";
 my $install = 0;
 my $vnames  = 0;
 my $restart = 0;
+my $impotent = 0;
+my $cksum = 0;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/sbin:/usr/local/bin';
@@ -51,12 +55,24 @@ use libtestbed;
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"c"})) {
+    $cksum = 1;
+}
 if (defined($options{"h"})) {
     usage();
+}
+if (defined($options{"n"})) {
+    $impotent = 1;
 }
 
 my $cmdline = $RSYNC . ' ' . $RSYNC_OPTS;
 
+if ($cksum) {
+	$cmdline .= " -c";
+}
+if ($impotent) {
+	$cmdline .= " -n -i";
+}
 
 for (@excludes) {
 	$cmdline .= " --exclude=$_";
@@ -78,7 +94,7 @@ if (! $query_result) {
 }
 while (my %row = $query_result->fetchhash()) {
     my $subboss_id = $row{"subboss_id"};
-    print $cmdline . " $subboss_id:/tftpboot/\n");
+    print $cmdline . " $subboss_id:/tftpboot/\n";
     system($cmdline . " $subboss_id:/tftpboot/");
 }
 exit(0);
