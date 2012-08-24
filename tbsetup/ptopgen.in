@@ -2144,7 +2144,7 @@ sub print_node_types
 	    }
 	    print "  />\n";
 	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	    if ($name eq "pc") {
+	    if ($name eq "pc" || $name eq "pcRemote") {
 		print "  <sliver_type name=\"raw-pc\">\n";
 		if (defined($mainType)) {
 		    print_osids($mainType);
