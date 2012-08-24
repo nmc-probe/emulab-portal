@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -47,6 +47,9 @@ use libdb;
 use libtestbed;
 use Experiment;
 use User;
+
+# Optional alternate version of libraries.
+use lib '@prefix@/lib/snmpit_test';
 use snmpit_lib;
 
 # The set of OIDs we care about
