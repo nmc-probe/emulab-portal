@@ -1973,6 +1973,7 @@ CREATE TABLE `lans` (
   `type` varchar(32) NOT NULL default '',
   `link` int(11) default NULL,
   `ready` tinyint(1) default '0',
+  `locked` datetime default NULL,
   PRIMARY KEY  (`lanid`),
   KEY `pideid` (`pid`,`eid`),
   KEY `exptidx` (`exptidx`)
