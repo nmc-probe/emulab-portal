@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2010 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -26,15 +26,17 @@
 use lib '@prefix@/lib';
 use libdb;
 use libxmlrpc;
+use SNMP;
+use Getopt::Long;
+use strict;
+
+# Optional alternate version of libraries.
+use lib '@prefix@/lib/snmpit_test';
 use snmpit_lib;
 use snmpit_cisco;
 use snmpit_foundry;
 use snmpit_nortel;
 use snmpit_hp;
-use SNMP;
-use Getopt::Long;
-
-use strict;
 
 my $MASTER_COMMUNITY = "@SNMP_RW_COMMUNITY@";
 my $ELABINELAB = @ELABINELAB@;
