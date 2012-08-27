@@ -328,7 +328,7 @@ sub TB_OSID_DESTROY()		{ 3; }
 sub TB_OSID_MIN()		{ TB_OSID_READINFO(); }
 sub TB_OSID_MAX()		{ TB_OSID_DESTROY(); }
 sub TB_OSID_OSIDLEN()		{ 35; }
-sub TB_OSID_OSNAMELEN()		{ 20; }
+sub TB_OSID_OSNAMELEN()		{ 30; }
 sub TB_OSID_VERSLEN()		{ 12; }
 
 # Magic OSID constants
