@@ -30,7 +30,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	 * @author mstrum
 	 * 
 	 */
-	public final class RenewSliverTask extends AmXmlrpcTask
+	public final class RenewTask extends AmXmlrpcTask
 	{
 		public var sliver:Sliver;
 		public var newExpires:Date;
@@ -41,16 +41,17 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * @param newExpirationDate Desired expiration date
 		 * 
 		 */
-		public function RenewSliverTask(renewSliver:Sliver,
-										newExpirationDate:Date)
+		public function RenewTask(renewSliver:Sliver,
+								  newExpirationDate:Date)
 		{
 			super(
 				renewSliver.manager.api.url,
-				AmXmlrpcTask.METHOD_RENEWSLIVER,
+				renewSliver.manager.api.version < 3
+					? AmXmlrpcTask.METHOD_RENEWSLIVER : AmXmlrpcTask.METHOD_RENEW,
 				renewSliver.manager.api.version,
-				"Renew sliver @ " + renewSliver.manager.hrn,
-				"Renewing sliver on " + renewSliver.manager.hrn + " on slice named " + renewSliver.slice.hrn,
-				"Renew Sliver"
+				"Renew @ " + renewSliver.manager.hrn,
+				"Renewing on " + renewSliver.manager.hrn + " on slice named " + renewSliver.slice.hrn,
+				"Renew"
 			);
 			relatedTo.push(renewSliver);
 			relatedTo.push(renewSliver.slice);

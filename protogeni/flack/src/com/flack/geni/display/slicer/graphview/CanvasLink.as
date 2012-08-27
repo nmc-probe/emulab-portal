@@ -104,6 +104,7 @@ package com.flack.geni.display.slicer.graphview
 		public function establishFromExisting(vl:VirtualLink):void
 		{
 			removeButtonsFromCanvas();
+			buttons = new Vector.<CanvasLinkBranch>();
 			link = vl;
 			
 			button.canvasLink = this;
@@ -121,7 +122,6 @@ package com.flack.geni.display.slicer.graphview
 			
 			if(link.interfaceRefs.length > 2)
 			{
-				buttons = new Vector.<CanvasLinkBranch>();
 				var canvasNodes:CanvasNodeCollection = canvas.allNodes.getForVirtualNodes(link.interfaceRefs.Interfaces.Nodes);
 				for each(var node:CanvasNode in canvasNodes.collection)
 				{
@@ -152,7 +152,10 @@ package com.flack.geni.display.slicer.graphview
 		private function removeButtonsFromCanvas():void
 		{
 			for each(var g:CanvasLinkBranch in buttons)
-				canvas.removeElement(g);
+			{
+				if(canvas.contains(g))
+					canvas.removeElement(g);
+			}
 		}
 		
 		public function removeFromCanvas():void

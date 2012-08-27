@@ -30,8 +30,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.display.areas.SliceArea;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.tasks.xmlrpc.am.DeleteSliverTask;
-			import com.flack.geni.tasks.xmlrpc.am.SliverStatusTask;
+			import com.flack.geni.tasks.xmlrpc.am.DeleteTask;
+			import com.flack.geni.tasks.xmlrpc.am.StatusTask;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.DeleteSliverCmTask;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.RestartSliverCmTask;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.SliverStatusCmTask;
@@ -250,7 +250,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 				var task:Task = null;
 				if(sliver.manager.api.type == ApiDetails.API_GENIAM)
-					task = new SliverStatusTask(sliver, false);
+					task = new StatusTask(sliver, false);
 				else
 					task = new SliverStatusCmTask(sliver, false);
 				task.forceRunNow = true;
@@ -305,7 +305,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				var task:Task = null;
 				if(sliver.manager.api.type == ApiDetails.API_GENIAM)
-					task = new DeleteSliverTask(sliver);
+					task = new DeleteTask(sliver);
 				else
 					task = new DeleteSliverCmTask(sliver);
 				task.forceRunNow = true;

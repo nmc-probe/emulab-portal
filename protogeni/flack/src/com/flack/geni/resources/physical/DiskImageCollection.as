@@ -33,7 +33,7 @@ package com.flack.geni.resources.physical
 		{
 			for each(var existingImage:DiskImage in collection)
 			{
-				if(existingImage.ShortId == image.ShortId)
+				if(existingImage.id.full == image.id.full)
 					return;
 			}
 			collection.push(image);

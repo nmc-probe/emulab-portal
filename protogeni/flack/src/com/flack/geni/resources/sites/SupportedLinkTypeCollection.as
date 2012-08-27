@@ -68,7 +68,8 @@ package com.flack.geni.resources.sites
 			var supportedTypes:SupportedLinkTypeCollection = Clone;
 			for each(var node:VirtualNode in nodes.collection)
 			{
-				if(node.manager.supportedSliverTypes.getByName(node.sliverType.name).limitToLinkType.length > 0)
+				var supportedSliverType:SupportedSliverType = node.manager.supportedSliverTypes.getByName(node.sliverType.name);
+				if(supportedSliverType != null && supportedSliverType.limitToLinkType.length > 0)
 				{
 					var supportedType:SupportedLinkType = supportedTypes.getByName(node.manager.supportedSliverTypes.getByName(node.sliverType.name).limitToLinkType);
 					supportedTypes = new SupportedLinkTypeCollection();

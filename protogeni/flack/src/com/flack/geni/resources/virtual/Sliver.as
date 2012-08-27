@@ -45,6 +45,10 @@ package com.flack.geni.resources.virtual
 		public static const STATUS_NA:String = "N/A";
 		public static const STATUS_STOPPED:String = "stopped";
 		
+		public static const ALLOCATION_UNALLOCATED:String = "geni_unallocated";
+		public static const ALLOCATION_ALLOCATED:String = "geni_allocated";
+		public static const ALLOCATION_PROVISIONED:String = "geni_provisioned";
+		
 		[Bindable]
 		public var slice:Slice;
 		[Bindable]
@@ -76,6 +80,9 @@ package com.flack.geni.resources.virtual
 		
 		public var state:String = "";
 		public var status:String = "";
+		public var allocationStatus:String = "";
+		public var operationalStatus:String = "";
+		public var error:String = "";
 		public function get StatusFinalized():Boolean
 		{
 			return status == STATUS_READY

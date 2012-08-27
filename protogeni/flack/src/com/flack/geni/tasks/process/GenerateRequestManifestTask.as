@@ -26,6 +26,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.ComponentHop;
 	import com.flack.geni.resources.virtual.ExecuteService;
 	import com.flack.geni.resources.virtual.GeniManagerReference;
 	import com.flack.geni.resources.virtual.InstallService;
@@ -335,6 +336,14 @@ package com.flack.geni.tasks.process
 				nodeXml.@MC = "1";
 				if(node.mcInfo.type.length > 0)
 					nodeXml.@mc_type = node.mcInfo.type;
+			}
+			
+			// Emulab stuff
+			if(node.emulabRoutableControlIp)
+			{
+				var routableControlIp:XML = <routable_control_ip />;
+				routableControlIp.setNamespace(RspecUtil.emulabNamespace);
+				nodeXml.appendChild(routableControlIp);
 			}
 			
 			if (node.Bound && !(removeNonexplicitBinding && node.flackInfo.unbound))
@@ -679,34 +688,7 @@ package com.flack.geni.tasks.process
 					linkXml.appendChild(gretunnel_type);
 					break;
 				case LinkType.ION:
-					for each(manager in link.interfaceRefs.Interfaces.Managers.collection)
-					{
-						var componentHopIonXml:XML = <component_hop />;
-						componentHopIonXml.@component_urn = IdnUrn.makeFrom(manager.id.authority, "link", "ion").full;
-						interfaceRefXml = <interface_ref />;
-						interfaceRefXml.@component_node_urn = IdnUrn.makeFrom(manager.id.authority, "node", "ion").full;
-						interfaceRefXml.@component_interface_id = "eth0";
-						componentHopIonXml.appendChild(interfaceRefXml);
-						linkXml.appendChild(componentHopIonXml);
-					}
-					break;
 				case LinkType.GPENI:
-					for each(manager in link.interfaceRefs.Interfaces.Managers.collection)
-					{
-						var componentHopGpeniXml:XML = <component_hop />;
-						componentHopGpeniXml.@component_urn = IdnUrn.makeFrom(
-							manager.id.authority,
-							"link",
-							"gpeni").full;
-						interfaceRefXml = <interface_ref />;
-						interfaceRefXml.@component_node_urn = IdnUrn.makeFrom(
-							manager.id.authority,
-							"node",
-							"gpeni").full;
-						interfaceRefXml.@component_interface_id = "eth0";
-						componentHopGpeniXml.appendChild(interfaceRefXml);
-						linkXml.appendChild(componentHopGpeniXml);
-					}
 					break;
 				case LinkType.LAN_V1:
 				case LinkType.LAN_V2:
@@ -753,6 +735,20 @@ package com.flack.geni.tasks.process
 					
 					break;
 				default:
+			}
+			
+			if(link.componentHops != null)
+			{
+				for each(var componentHop:ComponentHop in link.componentHops)
+				{
+					var componentHopXml:XML = <component_hop />;
+					componentHopXml.@component_urn = componentHop.id.full;
+					var componentHopInterfaceRefXml:XML = <interface_ref />;
+					componentHopInterfaceRefXml.@component_node_urn = componentHop.nodeUrn.full;
+					componentHopInterfaceRefXml.@component_interface_id = componentHop.interfaceId;
+					componentHopXml.appendChild(componentHopInterfaceRefXml);
+					linkXml.appendChild(componentHopXml);
+				}
 			}
 			
 			// Meh, add into older rspec versions too...

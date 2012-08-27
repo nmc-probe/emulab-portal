@@ -33,6 +33,10 @@ package com.flack.geni.resources.sites
 	 */
 	public class GeniManager extends FlackManager
 	{
+		public static const ALLOCATE_SINGLE:String = "geni_single";
+		public static const ALLOCATE_DISJOINT:String = "geni_disjoint";
+		public static const ALLOCATE_MANY:String = "geni_many";
+				
 		// Advertised Resources
 		[Bindable]
 		public var nodes:PhysicalNodeCollection;
@@ -56,6 +60,12 @@ package com.flack.geni.resources.sites
 		}
 		
 		public var locations:PhysicalLocationCollection;
+		
+		public var sharedVlans:Vector.<String> = null;
+		
+		public var singleAllocation:Boolean = false;
+		public var allocate:String = ALLOCATE_SINGLE;
+		public var bestEffort:Boolean = false;
 		
 		/**
 		 * 

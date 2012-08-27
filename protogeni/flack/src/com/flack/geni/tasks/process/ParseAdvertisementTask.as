@@ -130,7 +130,8 @@ package com.flack.geni.tasks.process
 			try
 			{
 				xmlDocument = new XML(manager.advertisement.document);
-			} catch(e:Error)
+			}
+			catch(e:Error)
 			{
 				addMessage("Bad XML", "Problem creating XML from advertisement", LogMessage.LEVEL_WARNING);
 				manager.Status = FlackManager.STATUS_VALID;
@@ -278,16 +279,22 @@ package com.flack.geni.tasks.process
 					Event.ENTER_FRAME, parseNext
 				);
 				
-				// Process plugin stuff
-				/*
-				var namespaces:Array = xmlDocument.namespaceDeclarations();
-				for each(var namespace:Namespace in namespaces)
+				// Get shared VLANs
+				var vlanNamepace:Namespace = RspecUtil.sharedVlanNamespace;
+				var sharedVlans:XMLList = xmlDocument.vlanNamepace::rspec_shared_vlan;
+				if(sharedVlans != null && sharedVlans.length() == 1)
 				{
-					var processor:RspecProcessInterface = SliverTypes.getRspecProcessInterface(namespace.uri);
-					if(processor != null)
-						processor.applyFrom(manager, xmlDocument);
+					manager.sharedVlans = new Vector.<String>();
+					var available:XMLList = sharedVlans.vlanNamepace::available;
+					for each(var sharedVlan:XML in available)
+					{
+						manager.sharedVlans.push(sharedVlan.@name);
+					}
 				}
-				*/
+				else
+				{
+					manager.sharedVlans = null;
+				}
 				
 				if (myState == DONE)
 				{

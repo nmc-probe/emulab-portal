@@ -291,5 +291,28 @@ package com.flack.geni.resources.sites
 			}
 			return supportedTypes;
 		}
+		
+		public function get SharedVlans():Vector.<String>
+		{
+			var sharedVlans:Vector.<String> = new Vector.<String>();
+			if(collection.length > 0)
+			{
+				for each(var initialSharedVlan:String in collection[0].sharedVlans)
+					sharedVlans.push(initialSharedVlan);
+			}
+			for each(var manager:GeniManager in collection)
+			{
+				for(var i:int = 0; i < sharedVlans.length; i++)
+				{
+					var sharedVlan:String = sharedVlans[i];
+					if(manager.sharedVlans.indexOf(sharedVlan) == -1)
+					{
+						sharedVlans.splice(i, 1);
+						i--;
+					}
+				}
+			}
+			return sharedVlans;
+		}
 	}
 }

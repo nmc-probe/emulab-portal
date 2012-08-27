@@ -22,8 +22,6 @@ package com.flack.geni.tasks.http
 	import com.flack.shared.tasks.http.HttpTask;
 	import com.flack.shared.tasks.http.JsHttpTask;
 	
-	import flash.system.Security;
-	
 	/**
 	 * Downloads a public list of ProtoGENI slice authorities
 	 * 
@@ -35,7 +33,7 @@ package com.flack.geni.tasks.http
 		public function PublicListAuthoritiesTask()
 		{
 			super(
-				"https://www.emulab.net/protogeni/pub/salist.txt", //authorities
+				"https://www.emulab.net/protogeni/authorities/salist.txt",
 				"Download authority list",
 				"Gets list of slice authorities"
 			);
@@ -61,7 +59,7 @@ package com.flack.geni.tasks.http
 				if(GeniMain.geniUniverse.authorities.getByUrl(sliceAuthority.url) == null)
 					GeniMain.geniUniverse.authorities.add(sliceAuthority);
 				addMessage(
-					"Added authority",
+					"Added authority: " +sliceAuthority.name,
 					sliceAuthority.toString()
 				);
 			}

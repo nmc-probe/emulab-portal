@@ -129,6 +129,27 @@ package com.flack.geni.resources.physical
 		}
 		
 		/**
+		 * Returns group of slicable or non-slicable nodes.
+		 * 
+		 * @param slicable True if the returned nodes should have sliver types
+		 * @return List of slicable or non-slicable nodes
+		 * 
+		 */
+		public function getBySlicable(slicable:Boolean):PhysicalNodeCollection
+		{
+			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
+			for each (var n:PhysicalNode in collection)
+			{
+				if((slicable && n.sliverTypes.length > 1) ||
+					(!slicable && n.sliverTypes.length == 0))
+				{
+					group.add(n);
+				}
+			}
+			return group;
+		}
+		
+		/**
 		 * 
 		 * @param available Should the nodes be available?
 		 * @return Nodes with the same availability given
@@ -319,6 +340,16 @@ package com.flack.geni.resources.physical
 		public function get Exclusive():PhysicalNodeCollection
 		{
 			return getByExclusivity(true);
+		}
+		
+		/**
+		 * 
+		 * @return All slicable nodes
+		 * 
+		 */
+		public function get Slicable():PhysicalNodeCollection
+		{
+			return getBySlicable(true);
 		}
 		
 		/**

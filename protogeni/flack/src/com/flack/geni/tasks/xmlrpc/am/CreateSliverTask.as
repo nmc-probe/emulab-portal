@@ -29,6 +29,8 @@ package com.flack.geni.tasks.xmlrpc.am
 	/**
 	 * Allocates resources for the sliver using the given RSPEC, usually generated for the entire slice.
 	 * 
+	 * Deprecated in AMv3
+	 * 
 	 * @author mstrum
 	 * 
 	 */

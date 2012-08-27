@@ -80,7 +80,7 @@ package com.flack.geni.resources.virtual
 				sliverType.name = EmulabOpenVzSliverType.TYPE_EMULABOPENVZ;
 				sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ).diskImages;
 			}
-			else
+			else if(newPhysicalNode.sliverTypes.length > 0)
 			{
 				sliverType.name = newPhysicalNode.sliverTypes.collection[0].name;
 				sliverType.diskImages = newPhysicalNode.sliverTypes.collection[0].diskImages;
@@ -144,6 +144,7 @@ package com.flack.geni.resources.virtual
 			}
 			return false;
 		}
+		public var emulabRoutableControlIp:Boolean = false;
 		
 		public var host:Host = new Host();
 		

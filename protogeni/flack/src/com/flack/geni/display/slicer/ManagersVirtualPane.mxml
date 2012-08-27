@@ -201,6 +201,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			{
 				var nodeList:PhysicalNodeList = new PhysicalNodeList();
 				nodeList.availableOnlyCheckBox.selected = true;
+				nodeList.slicableCheckBox.selected = true;
 				nodeList.load(nodes);
 				nodeList.percentWidth = 100;
 				nodeList.percentHeight = 100;

@@ -30,7 +30,14 @@ package com.flack.geni.resources.sites
 		
 		public function add(authority:GeniAuthority):void
 		{
-			collection.push(authority);
+			var addIdx:int = 0;
+			while(addIdx < collection.length)
+			{
+				if(authority.name < collection[addIdx].name)
+					break;
+				addIdx++;
+			}
+			collection.splice(addIdx, 0, authority);
 		}
 		
 		public function remove(authority:GeniAuthority):void

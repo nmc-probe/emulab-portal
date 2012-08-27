@@ -36,6 +36,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.StringUtil;
 	
 	/**
@@ -91,7 +92,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 						var newId:IdnUrn = new IdnUrn(obj.urn);
 						
 						// ProtoGENI Component Manager
-						if(newId.name == ProtogeniXmlrpcTask.MODULE_CM)
+						if(url.toLowerCase().lastIndexOf("/cm") == url.length - 3)
 						{
 							var protogeniManager:ProtogeniComponentManager = new ProtogeniComponentManager(newId.full);
 							protogeniManager.hrn = obj.hrn;

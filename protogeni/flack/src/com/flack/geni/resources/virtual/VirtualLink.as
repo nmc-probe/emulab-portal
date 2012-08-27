@@ -22,6 +22,7 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.sites.SupportedLinkType;
 	import com.flack.geni.resources.sites.SupportedLinkTypeCollection;
 	import com.flack.geni.resources.virtual.extensions.LinkFlackInfo;
+	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.utils.StringUtil;
 
 	/**
@@ -44,6 +45,8 @@ package com.flack.geni.resources.virtual
 		public var sharedVlanName:String = "";
 		
 		public var properties:PropertyCollection = new PropertyCollection();
+		
+		public var componentHops:Vector.<ComponentHop> = null;
 		
 		// Flack extension
 		public var flackInfo:LinkFlackInfo = new LinkFlackInfo();
@@ -278,29 +281,44 @@ package com.flack.geni.resources.virtual
 			{
 				case LinkType.LAN_V1:
 				case LinkType.LAN_V2:
+					componentHops = null;
 					type.name = LinkType.LAN_V2;
-					/*
-					for each(var addedInterface:VirtualInterface in interfaceRefs.Interfaces.collection)
-					{
-						if(addedInterface.Owner.Vm)
-						{
-							makeCapacity = 100000;
-							break;
-						}
-					}
-					*/
 					break;
 				case LinkType.ION:
 					type.name = LinkType.ION;
+					componentHops = new Vector.<ComponentHop>();
+					for each(var ionManager:GeniManager in interfaceRefs.Interfaces.Managers.collection)
+					{
+						componentHops.push(
+							new ComponentHop(
+								IdnUrn.makeFrom(ionManager.id.authority, "link", "ion").full,
+								IdnUrn.makeFrom(ionManager.id.authority, "node", "ion").full,
+								"eth0"
+							)
+						);
+					}
 					break;
 				case LinkType.GPENI:
 					type.name = LinkType.GPENI;
+					componentHops = new Vector.<ComponentHop>();
+					for each(var gpeniManager:GeniManager in interfaceRefs.Interfaces.Managers.collection)
+					{
+						componentHops.push(
+							new ComponentHop(
+								IdnUrn.makeFrom(gpeniManager.id.authority, "link", "gpeni").full,
+								IdnUrn.makeFrom(gpeniManager.id.authority, "node", "gpeni").full,
+								"eth0"
+							)
+						);
+					}
 					break;
 				case LinkType.GRETUNNEL_V1:
 				case LinkType.GRETUNNEL_V2:
+					componentHops = null;
 					type.name = LinkType.GRETUNNEL_V2;
 					break;
 				default:
+					componentHops = null;
 					type.name = selectedType.name;
 			}
 			
@@ -525,6 +543,7 @@ package com.flack.geni.resources.virtual
 				newClone.clientId = newSlice.getUniqueId(newClone, StringUtil.makeSureEndsWith(clientId,"-"));
 			newClone.type = type;
 			newClone.flackInfo.unboundVlantag = flackInfo.unboundVlantag;
+			newClone.sharedVlanName = sharedVlanName;
 			return newClone;
 		}
 		

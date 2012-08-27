@@ -16,7 +16,7 @@ package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.tasks.xmlrpc.am.RenewSliverTask;
+	import com.flack.geni.tasks.xmlrpc.am.RenewTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RenewSliverCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.RenewSliceSaTask;
 	import com.flack.shared.logging.LogMessage;
@@ -87,7 +87,7 @@ package com.flack.geni.tasks.groups.slice
 				if(sliver.expires == null || sliver.expires.time < expires.time)
 				{
 					if(sliver.manager.api.type == ApiDetails.API_GENIAM)
-						add(new RenewSliverTask(sliver, expires));
+						add(new RenewTask(sliver, expires));
 					else
 						add(new RenewSliverCmTask(sliver, expires));
 				}

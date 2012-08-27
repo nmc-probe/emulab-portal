@@ -112,8 +112,8 @@
 			</s:DropDownList>
 		</s:HGroup>
 		<s:HGroup width="100%" verticalAlign="middle">
-			<s:RadioButton id="useRawMcsRadiobutton" label="Raw MCs" selected="true" />
-			<s:RadioButton id="useVirtualMcsRadiobutton" label="Virtual MCs" />
+			<s:RadioButton id="useVirtualMcsRadiobutton" label="Virtual MCs" selected="true" />
+			<s:RadioButton id="useRawMcsRadiobutton" label="Raw MCs" />
 		</s:HGroup>
 		
 	</s:VGroup>

@@ -24,8 +24,6 @@ package com.flack.geni.tasks.http
 	import com.flack.shared.tasks.http.JsHttpTask;
 	import com.flack.shared.utils.NetUtil;
 	
-	import flash.system.Security;
-	
 	/**
 	 * Downloads a list of cached advertisements
 	 * 

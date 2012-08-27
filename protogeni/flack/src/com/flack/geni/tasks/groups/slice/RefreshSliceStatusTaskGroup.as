@@ -16,7 +16,7 @@ package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.tasks.xmlrpc.am.SliverStatusTask;
+	import com.flack.geni.tasks.xmlrpc.am.StatusTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.SliverStatusCmTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.sites.ApiDetails;
@@ -59,7 +59,7 @@ package com.flack.geni.tasks.groups.slice
 				for each(var addedSliver:Sliver in slice.slivers.collection)
 				{
 					if(addedSliver.manager.api.type == ApiDetails.API_GENIAM)
-						add(new SliverStatusTask(addedSliver, continueUntilDone));
+						add(new StatusTask(addedSliver, continueUntilDone));
 					else
 						add(new SliverStatusCmTask(addedSliver, continueUntilDone));
 				}

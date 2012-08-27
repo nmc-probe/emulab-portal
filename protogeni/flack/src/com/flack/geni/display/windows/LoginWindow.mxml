@@ -33,6 +33,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	
 	<fx:Script>
 		<![CDATA[
+			import avmplus.FLASH10_FLAGS;
+			
 			import com.flack.geni.GeniMain;
 			import com.flack.geni.display.DisplayUtil;
 			import com.flack.geni.resources.docs.GeniCredential;
@@ -264,6 +266,22 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			
 			public function tryOpenCredential(event:MouseEvent):void
 			{
+				Alert.show("If you are trying to load a key/certificate, cancel and click the open button at the top of the login window. " +
+					"Continue to load a user/slice credential for use after authenticating with your key/certificate?",
+					"Confirm",
+					Alert.YES|Alert.CANCEL,
+					this,
+					function afterSelected(e:CloseEvent):void
+					{
+						if(e.detail == Alert.YES)
+						{
+							openCredential(event);
+						}
+					});
+			}
+			
+			public function openCredential(event:MouseEvent):void
+			{
 				var openCredentialTask:FileTask = new FileTask();
 				openCredentialTask.addEventListener(TaskEvent.FINISHED, afterOpenCredential);
 				openCredentialTask.startOperation(event);
@@ -275,24 +293,25 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				{
 					try
 					{
+						var credentialString:String = event.task.data;
 						useCredential = new GeniCredential(event.task.data);
 						if(useCredential.Xml == null)
 						{
-							dontUseCredential("Not valid XML");
+							dontUseCredential("Not valid XML. Make sure you are selecting a valid credential file, not a key/certificate file.");
 							return;
 						}
 						
 						SharedMain.user.id = useCredential.OwnerId;
 						if(SharedMain.user.id == null)
 						{
-							dontUseCredential("No user URN found");
+							dontUseCredential("No user URN found. Make sure you are selecting a valid credential file, not a key/certificate file.");
 							return;
 						}
 						
 						var expires:Date = useCredential.Expires;
 						if(expires == null)
 						{
-							dontUseCredential("Could not find expire time");
+							dontUseCredential("Could not find expire time. Make sure you are selecting a valid credential file, not a key/certificate file.");
 							return;
 						}
 						else if(expires < new Date())
@@ -468,13 +487,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	</s:HGroup>
 	
 	<s:HGroup verticalAlign="middle" paddingLeft="4" paddingRight="4">
+		<s:Label text="Load GENI credential from" />
 		<s:RadioButton id="getCredentialRadiobutton"
 					   groupName="credentialGroup"
-					   label="Get user credential"
+					   label="Slice Authority"
 					   selected="true" />
 		<s:RadioButton id="useCredentialRadiobutton"
 					   groupName="credentialGroup"
-					   label="Use credential from file" />
+					   label="File" />
 		<components:ImageButton icon="{ImageUtil.openIcon}"
 								id="openCredentialButton"
 								click="tryOpenCredential(event);" />

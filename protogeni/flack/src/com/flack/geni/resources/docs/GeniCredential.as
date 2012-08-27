@@ -95,8 +95,16 @@ package com.flack.geni.resources.docs
 		{
 			try
 			{
-				// XXX everything should end with Z but some don't.  This will break non-UTC times if they have offsets.
-				return DateUtil.parseRFC3339(StringUtil.makeSureEndsWith(_xml.credential.expires, "Z"));
+				// Fix UTC times which don't have a Z
+				var expiresStr:String = _xml.credential.expires;
+				var timeStr:String = expiresStr.substring(expiresStr.indexOf("T")+1, expiresStr.length);
+				if (timeStr.indexOf("Z") == -1
+					&& timeStr.indexOf("+") == -1
+					&& timeStr.indexOf("-") == -1)
+				{
+					expiresStr = StringUtil.makeSureEndsWith(expiresStr, "Z");
+				}
+				return DateUtil.parseRFC3339(expiresStr);
 			}
 			catch(e:Error)
 			{

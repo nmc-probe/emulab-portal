@@ -27,7 +27,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	 * @author mstrum
 	 * 
 	 */
-	public final class DeleteSliverTask extends AmXmlrpcTask
+	public final class DeleteTask extends AmXmlrpcTask
 	{
 		public var sliver:Sliver;
 		/**
@@ -35,15 +35,16 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * @param deleteSliver Sliver for which to deallocate resources in
 		 * 
 		 */
-		public function DeleteSliverTask(deleteSliver:Sliver)
+		public function DeleteTask(deleteSliver:Sliver)
 		{
 			super(
 				deleteSliver.manager.api.url,
-				AmXmlrpcTask.METHOD_DELETESLIVER,
+				deleteSliver.manager.api.version < 3
+					? AmXmlrpcTask.METHOD_DELETESLIVER : AmXmlrpcTask.METHOD_DELETE,
 				deleteSliver.manager.api.version,
-				"Delete sliver @ " + deleteSliver.manager.hrn,
-				"Deleting sliver on aggregate manager " + deleteSliver.manager.hrn + " for slice named " + deleteSliver.slice.Name,
-				"Delete Sliver"
+				"Delete @ " + deleteSliver.manager.hrn,
+				"Deleting on aggregate manager " + deleteSliver.manager.hrn + " for slice named " + deleteSliver.slice.Name,
+				"Delete"
 			);
 			relatedTo.push(deleteSliver);
 			relatedTo.push(deleteSliver.slice);

@@ -54,6 +54,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			[Bindable]
 			public var types:ArrayList = new ArrayList();
 			
+			[Bindable]
+			private var sharedVlansArray:ArrayList = new ArrayList();
+			
 			public function init():void
 			{
 				if(link != null)
@@ -108,6 +111,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						vlantagLabel.visible = link.vlantag.length > 0;
 						if(vlantagLabel.visible)
 							vlantagLabel.text = link.vlantag;
+						
+						sharedVlansArray = new ArrayList();
+						var sharedVlans:Vector.<String> = link.interfaceRefs.Interfaces.Managers.SharedVlans;
+						for each(var sharedVlan:String in sharedVlans)
+						{
+							sharedVlansArray.addItem(sharedVlan);
+						}
+						sharedVlanCombobox.textInput.text = link.sharedVlanName;
 						
 						types.removeAll();
 						var supportedTypes:SupportedLinkTypeCollection = link.interfaceRefs.Interfaces.Managers.CommonLinkTypes;
@@ -242,6 +253,8 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				
 				link.clientId = clientIdInput.text;
 				
+				link.sharedVlanName = sharedVlanCombobox.textInput.text;
+				
 				if(typeList.selectedItem.name == "Unspecified")
 					typeList.selectedItem.name = "";
 				if(link.type.name != typeList.selectedItem)
@@ -343,6 +356,9 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 		<s:Label text="VLAN Tag"
 				 fontWeight="bold" visible="{vlantagLabel.visible}" includeInLayout="{vlantagLabel.visible}"/>
 		<s:Label id="vlantagLabel" visible="false" includeInLayout="{vlantagLabel.visible}" />
+		<s:Label text="Shared VLAN"
+				 fontWeight="bold" />
+		<s:ComboBox id="sharedVlanCombobox" width="150" change="okButton.enabled = true" dataProvider="{sharedVlansArray}" />
 	</s:HGroup>
 	
 	<s:ButtonBar dataProvider="{sectionViewstack}"

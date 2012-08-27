@@ -104,6 +104,17 @@ package com.flack.geni.resources.sites
 			return null;
 		}
 		
+		// Always returns a valid supported sliver type object. If the sliver
+		// is not defined, the returned supported sliver type will have the
+		// default settings.
+		public function getByNameOrDefault(name:String):SupportedSliverType
+		{
+			var supportedSliverType:SupportedSliverType = getByName(name);
+			if(supportedSliverType != null)
+				return supportedSliverType;
+			return new SupportedSliverType(name);
+		}
+		
 		public function getOrCreateByName(name:String):SupportedSliverType
 		{
 			var supportedType:SupportedSliverType = getByName(name);

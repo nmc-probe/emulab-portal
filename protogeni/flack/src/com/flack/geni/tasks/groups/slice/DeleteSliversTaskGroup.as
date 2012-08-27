@@ -16,7 +16,7 @@ package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.SliverCollection;
-	import com.flack.geni.tasks.xmlrpc.am.DeleteSliverTask;
+	import com.flack.geni.tasks.xmlrpc.am.DeleteTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.DeleteSliverCmTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.sites.ApiDetails;
@@ -64,7 +64,7 @@ package com.flack.geni.tasks.groups.slice
 				if(!ignoreUncreated || deleteSliver.Created)
 				{
 					if(deleteSliver.manager.api.type == ApiDetails.API_GENIAM)
-						add(new DeleteSliverTask(deleteSliver));
+						add(new DeleteTask(deleteSliver));
 					else
 						add(new DeleteSliverCmTask(deleteSliver));
 				}
@@ -100,8 +100,8 @@ package com.flack.geni.tasks.groups.slice
 				
 			waitingForUser = true;
 			var name:String;
-			if(task is DeleteSliverTask)
-				name = (task as DeleteSliverTask).sliver.manager.hrn;
+			if(task is DeleteTask)
+				name = (task as DeleteTask).sliver.manager.hrn;
 			else
 				name = (task as DeleteSliverCmTask).sliver.manager.hrn;
 			Alert.show(

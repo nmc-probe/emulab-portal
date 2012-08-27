@@ -35,7 +35,7 @@ package com.flack.geni.resources
 			if(spaces != null)
 			{
 				for each(var existingSpace:ExtensionSpace in spaces.collection)
-				newExtensions.spaces.add(existingSpace.Clone);
+					newExtensions.spaces.add(existingSpace.Clone);
 			}
 			return newExtensions;
 		}
@@ -58,7 +58,7 @@ package com.flack.geni.resources
 					extensions.spaces.add(space);
 				}
 				
-				space.children.push(searchChild);
+				space.children.push(searchChild.copy());
 			}
 			return extensions;
 		}
@@ -107,7 +107,7 @@ package com.flack.geni.resources
 						spaces.add(space);
 					}
 					
-					space.children.push(searchChild);
+					space.children.push(searchChild.copy());
 				}
 			}
 		}

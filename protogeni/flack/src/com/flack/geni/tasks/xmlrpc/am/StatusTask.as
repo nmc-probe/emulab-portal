@@ -21,6 +21,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.DateUtil;
 	import com.flack.shared.utils.MathUtil;
 	import com.flack.shared.utils.StringUtil;
 	
@@ -30,7 +31,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	 * @author mstrum
 	 * 
 	 */
-	public final class SliverStatusTask extends AmXmlrpcTask
+	public final class StatusTask extends AmXmlrpcTask
 	{
 		public var sliver:Sliver;
 		/**
@@ -43,16 +44,17 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * @param shouldContinueUntilDone Continue running until status is finalized?
 		 * 
 		 */
-		public function SliverStatusTask(newSliver:Sliver,
-										 shouldContinueUntilDone:Boolean = true)
+		public function StatusTask(newSliver:Sliver,
+								   shouldContinueUntilDone:Boolean = true)
 		{
 			super(
 				newSliver.manager.api.url,
-				AmXmlrpcTask.METHOD_SLIVERSTATUS,
+				newSliver.manager.api.version < 3
+					? AmXmlrpcTask.METHOD_SLIVERSTATUS : AmXmlrpcTask.METHOD_STATUS,
 				newSliver.manager.api.version,
-				"Get sliver status @ " + newSliver.manager.hrn,
+				"Get Status @ " + newSliver.manager.hrn,
 				"Getting the sliver status for aggregate manager " + newSliver.manager.hrn + " on slice named " + newSliver.slice.Name,
-				"Get Sliver Status"
+				"Get Status"
 			);
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
@@ -91,18 +93,13 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				sliver.status = data.geni_status;
-				sliver.id = new IdnUrn(data.geni_urn);
-				sliver.sliverIdToStatus[sliver.id.full] = sliver.status;
-				for each(var componentObject:Object in data.geni_resources)
+				if(apiVersion < 3)
+					parseValueIntoSliverV12(data, sliver);
+				else
 				{
-					var sliverComponent:VirtualComponent = sliver.slice.getBySliverId(componentObject.geni_urn);
-					if(sliverComponent != null)
+					for each(var val:* in data)
 					{
-						sliverComponent.status = componentObject.geni_status;
-						sliver.sliverIdToStatus[sliverComponent.id.full] = sliverComponent.status;
-						
-						sliverComponent.error = componentObject.geni_error;
+						parseValueIntoSliverV3(val, sliver);
 					}
 				}
 				
@@ -158,6 +155,40 @@ package com.flack.geni.tasks.xmlrpc.am
 					)
 				);
 			}
+		}
+		
+		private function parseValueIntoSliverV12(value:*, intoSliver:Sliver):void
+		{
+			sliver.status = data.geni_status;
+			sliver.id = new IdnUrn(data.geni_urn);
+			sliver.sliverIdToStatus[sliver.id.full] = sliver.status;
+			for each(var componentObject:Object in data.geni_resources)
+			{
+				var sliverComponent:VirtualComponent = sliver.slice.getBySliverId(componentObject.geni_urn);
+				if(sliverComponent != null)
+				{
+					if(componentObject.geni_status == null)
+						sliverComponent.status = sliver.status;
+					else
+						sliverComponent.status = componentObject.geni_status;
+					sliver.sliverIdToStatus[sliverComponent.id.full] = sliverComponent.status;
+					
+					sliverComponent.error = componentObject.geni_error;
+				}
+			}
+		}
+		
+		private function parseValueIntoSliverV3(value:*, intoSliver:Sliver):void
+		{
+			sliver.id = new IdnUrn(data.geni_sliver_urn);
+			sliver.expires = DateUtil.parseRFC3339(data.geni_expires);
+			sliver.allocationStatus = data.geni_allocation_status;
+			if(data.geni_error != null)
+				sliver.error = data.geni_error;
+			/*
+			<others AM or method specific>
+			<Provision returns geni_operational_status>
+			*/
 		}
 	}
 }

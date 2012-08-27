@@ -186,7 +186,13 @@ package com.flack.geni.tasks.xmlrpc.am
 						)
 					);
 				}
-						
+				
+				if(data.geni_single_allocation != null)
+					manager.singleAllocation = data.geni_single_allocation;
+				if(data.geni_allocate != null)
+					manager.singleAllocation = data.geni_allocate;
+				if(data.geni_best_effort != null)
+					manager.bestEffort = data.geni_best_effort;
 			}
 			catch(e:Error)
 			{

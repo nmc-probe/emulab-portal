@@ -92,6 +92,7 @@ package com.flack.geni.tasks.xmlrpc.am
 						LogMessage.IMPORTANCE_HIGH
 					);
 					super.afterComplete(true);
+					return;
 				}
 				else if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
 				{

@@ -644,6 +644,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				}
 			}
 			
+			// Preview the RSPEC that would be sent if the changes were submitted.
 			public function previewRspec(event:* = null):void
 			{
 				var previewArea:DocumentsArea = new DocumentsArea();
@@ -665,8 +666,16 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				openNext(previewArea);
 			}
 			
+			// Not really for viewing manifests, but viewing the request as it was originally sent. For example,
+			// a node that was bound but originally unbound will be output as unbound.
 			public function viewOriginalRspec(event:* = null):void
 			{
+				if(!_slice.slivers.AllocatedAnyResources)
+				{
+					previewRspec();
+					Alert.show("The slice hasn't been submitted yet, showing you the preview RSPEC.");
+					return;
+				}
 				var previewArea:DocumentsArea = new DocumentsArea();
 				previewArea.title = "Original Request RSPEC for " + slice.Name;
 				_slice.ensureSliversExist();

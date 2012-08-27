@@ -30,12 +30,19 @@ package com.flack.geni.tasks.xmlrpc.am
 	public class AmXmlrpcTask extends XmlrpcTask
 	{
 		// Methods
-		public static const METHOD_CREATESLIVER:String = "CreateSliver";
-		public static const METHOD_DELETESLIVER:String = "DeleteSliver";
-		public static const METHOD_RENEWSLIVER:String = "RenewSliver";
+		public static const METHOD_ALLOCATE:String = "Allocate";
+		public static const METHOD_CREATESLIVER:String = "CreateSliver"; // Deprecated (v3)
+		public static const METHOD_DELETESLIVER:String = "DeleteSliver"; // Deprecated (v3)
+		public static const METHOD_DELETE:String = "Delete";
+		public static const METHOD_DESCRIBE:String = "Describe";
 		public static const METHOD_GETVERSION:String = "GetVersion";
+		public static const METHOD_PERFORMOPERATIONALACTION:String = "PerformOperationalAction";
+		public static const METHOD_PROVISION:String = "Provision";
+		public static const METHOD_RENEWSLIVER:String = "RenewSliver"; // Deprecated (v3)
+		public static const METHOD_RENEW:String = "Renew";
 		public static const METHOD_LISTRESOURCES:String = "ListResources";
-		public static const METHOD_SLIVERSTATUS:String = "SliverStatus";
+		public static const METHOD_SLIVERSTATUS:String = "SliverStatus"; // Deprecated (v3)
+		public static const METHOD_STATUS:String = "Sliver";
 		
 		// GENI response codes
 		public static const GENICODE_SUCCESS:int = 0;
@@ -78,7 +85,7 @@ package com.flack.geni.tasks.xmlrpc.am
 				case GENICODE_EXPIRED:return "Expired";
 				case GENICODE_INPROGRESS:return "In progress";
 				case GENICODE_INPROGRESS:return "Already Exists";
-				default:return "Other error";
+				default:return "Other error ("+value+")";
 			}
 		}
 		
@@ -111,13 +118,13 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * 
 		 */
 		public function AmXmlrpcTask(taskUrl:String,
-											taskMethod:String,
-											taskApiVersion:Number,
-											taskName:String = "GENI XML-RPC Task",
-											taskDescription:String = "Communicates with a GENI XML-RPC service",
-											taskShortName:String = "",
-											taskParent:TaskGroup = null,
-											taskRetryWhenPossible:Boolean = true)
+									 taskMethod:String,
+									 taskApiVersion:Number,
+									 taskName:String = "GENI XML-RPC Task",
+									 taskDescription:String = "Communicates with a GENI XML-RPC service",
+									 taskShortName:String = "",
+									 taskParent:TaskGroup = null,
+									 taskRetryWhenPossible:Boolean = true)
 		{
 			super(
 				taskUrl,
@@ -157,6 +164,7 @@ package com.flack.geni.tasks.xmlrpc.am
 					);
 					break;
 				case 2:
+				case 3:
 				default:
 					genicode = int(response.code.geni_code);
 					// code.am_type

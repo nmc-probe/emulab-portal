@@ -170,5 +170,17 @@ package com.flack.geni.tasks.groups
 			else
 				super.add(task);
 		}
+		
+		override public function erroredTask(task:Task):void
+		{
+			if(task is ListComponentsChTask)
+			{
+				cancelRemainingTasks();
+				add(new GetPublicResourcesTaskGroup());
+				start();
+			}
+			else
+				super.erroredTask(task);
+		}
 	}
 }

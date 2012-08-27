@@ -41,7 +41,7 @@ package com.flack.geni.resources
 								  newIsDefault:Boolean = false)
 		{
 			super(newId);
-			if(id.full.length > 0)
+			if(id.full.length > 0 && IdnUrn.isIdnUrn(newId))
 				id = IdnUrn.makeFrom(id.authority, id.type, id.name.replace(":", "//"));
 			os = newOs;
 			version = newVersion;
@@ -60,6 +60,8 @@ package com.flack.geni.resources
 		{
 			if(id == null)
 				return "";
+			if(!IdnUrn.isIdnUrn(id.full))
+				return id.full;
 			return id.name;
 		}
 		

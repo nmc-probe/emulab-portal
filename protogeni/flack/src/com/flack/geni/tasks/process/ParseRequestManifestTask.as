@@ -27,6 +27,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.physical.HardwareType;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.ComponentHop;
 	import com.flack.geni.resources.virtual.ExecuteService;
 	import com.flack.geni.resources.virtual.GeniManagerReference;
 	import com.flack.geni.resources.virtual.Host;
@@ -655,6 +656,13 @@ package com.flack.geni.tasks.process
 									if(virtualNode.flackInfo.unbound && !parseManifest)
 										virtualNode.physicalId.full = "";
 								}
+							} else if(nodeChildXml.namespace() == RspecUtil.emulabNamespace)
+							{
+								if(nodeChildXml.localName() == "routable_control_ip")
+								{
+									// TODO: Need to remove this so it isn't saved into extensions
+									virtualNode.emulabRoutableControlIp = true;
+								}
 							}
 						}
 					}
@@ -889,12 +897,17 @@ package com.flack.geni.tasks.process
 									newProperty.extensions.buildFromOriginal(linkChildXml, [defaultNamespace.uri]);
 									break;
 								case "component_hop":
-									// XXX implement correctly...
-									var testString:String = linkChildXml.toXMLString();
-									if(testString.indexOf("gpeni") != -1)
-										virtualLink.type.name = LinkType.GPENI;
-									else if(testString.indexOf("ion") != -1)
+									if(virtualLink.componentHops == null)
+										virtualLink.componentHops = new Vector.<ComponentHop>();
+									var componentHop:ComponentHop = new ComponentHop(
+										linkChildXml.@component_urn,
+										linkChildXml.interface_ref.@component_node_urn,
+										linkChildXml.interface_ref.@component_interface_id);
+									virtualLink.componentHops.push(componentHop);
+									if(componentHop.id.name == "ion")
 										virtualLink.type.name = LinkType.ION;
+									else if(componentHop.id.name == "gpeni")
+										virtualLink.type.name = LinkType.GPENI;
 									break;
 								case "link_type":
 									if(linkChildXml.@name.length() == 1)

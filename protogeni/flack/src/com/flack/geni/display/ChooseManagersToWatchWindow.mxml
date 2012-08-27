@@ -4,7 +4,7 @@
 							 xmlns:mx="library://ns.adobe.com/flex/mx"
 							 xmlns:components="com.flack.shared.display.components.*"
 							 skinClass="com.flack.shared.display.skins.TitleWindowSkinNoCloseButton"
-							 width="300"
+							 width="440"
 							 height="300"
 							 title="List resources from..."
 							 initialize="init()"
