@@ -22,8 +22,12 @@ $REG_TYPES = @("String", "Dword")
 
 # Log to $LOGFILE
 Function log($msg) {
-   $time = Get-Date -format g
-   ($time + ": " + $msg) | Out-File -encoding "ASCII" -append $LOGFILE
+	$time = Get-Date -format g
+	($time + ": " + $msg) | Out-File -encoding "ASCII" -append $LOGFILE
+}
+
+Function lograw($msg) {
+	$msg | Out-File -encoding "ASCII" -append $LOGFILE
 }
 
 function isNumeric ($x) {
@@ -75,23 +79,61 @@ Function addreg_func($cmdarr) {
 Function reboot_func($cmdarr) {
 	log("reboot called with: $cmdarr")
 	if ($cmdarr) {
-		$wtime, $force = $cmdarr
-		if (!(isNumeric($wtime)) -or `
-		    (0 -gt $wtime) -or `
-		    ($MAXREBOOTWAIT -lt $wtime))
-		{
-			log("ERROR: Invalid reboot wait time: $wtime")
-			return $FAIL
-		} 
+		$force = $cmdarr
 	}
 
-	# XXX: reboot!
+	# Reboot ...
+	if ($force) {
+		"force reboot..." | Out-Host
+		#Retart-Computer -Force
+	} else {
+		"reboot..." | Out-Host
+		#Restart-Computer
+	}
 
+	return $SUCCESS
+}
+
+Function sleep_func($cmdarr) {
+	log("sleep called with: $cmdarr")
+	if ($cmdarr.count -lt 1) {
+		log("ERROR: Must supply a time to sleep!")
+		return $FAIL
+	}
+
+	$wtime = $cmdarr[0]
+	if (!(isNumeric($wtime)) -or `
+	    (0 -gt $wtime) -or `
+	    ($MAXREBOOTWAIT -lt $wtime))
+	{
+		log("ERROR: Invalid sleep time: $wtime")
+		return $FAIL
+	}
+
+	# Sleep...
+	Start-Sleep -s $wtime
+	
 	return $SUCCESS
 }
 
 Function runcmd_func($cmdarr) {
 	log("runcmd called with: $cmdarr")
+	if ($cmdarr.count -lt 1) {
+		log("No command given to run.")
+		return $FAIL
+	}
+	$cmd, $expret = $cmdarr
+
+	# XXX:  Do some sanity checks on command... Implement timeout?
+	$cmdout = Invoke-Expression $cmd
+	log("Command output:")
+	lograw($cmdout)
+	# $null is a special varibale in PS - always null!
+	if ($expret -ne $null -and $LASTEXITCODE -ne $expret) {
+		log("Command returned unexpected code.")
+		return $FAIL
+	}
+
 	return $SUCCESS
 }
 
@@ -105,7 +147,7 @@ if ($actionfile -and !(Test-Path -pathtype leaf $actionfile)) {
 
 # Parse and run through the actions in the input sequence
 foreach ($cmdline in (Get-Content -Path $actionfile)) {
-	if (!$cmdline) {
+	if (!$cmdline -or ($cmdline.startswith("#"))) {
 		continue
 	}
 	$cmd, $argtoks = $cmdline.split()
@@ -127,6 +169,9 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"reboot" {
 			$result = reboot_func($cmdarr)
+		}
+		"sleep" {
+			$result = sleep_func($cmdarr)
 		}
 		default {
 			log("WARNING: Skipping unknown action: $cmd")
