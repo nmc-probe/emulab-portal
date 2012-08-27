@@ -15,7 +15,7 @@ The Initial Developer of the Original Code is Iwo Banas.
 Portions created by the Initial Developer are Copyright (C) 2009
 the Initial Developer. All Rights Reserved.
 
-Contributor(s):
+See: http://www.iwobanas.com/2009/09/creating-collapsible-panel-in-flex-4/
 */
 package com.flack.shared.display.components
 {

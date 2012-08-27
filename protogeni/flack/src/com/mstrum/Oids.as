@@ -14,7 +14,7 @@
 
 package com.mstrum
 {
-	// http://www.alvestrand.no/objectid/2.5.4.html
+	// Example for looking up an OID: http://www.alvestrand.no/objectid/2.5.4.html
 	public class Oids
 	{
 		// See: https://nmparsers.svn.codeplex.com/svn/Verified_Build_Branch/NPL/common/asnber.npl

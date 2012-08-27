@@ -1,0 +1,75 @@
+Unless otherwise stated, all files are GENIPUBLIC-COPYRIGHT
+
+=====================
+Third party binaries:
+
+ESRI
+ * libs/agslib*
+ * See: http://resources.arcgis.com/en/communities/flex-api/
+Google Maps
+ * libs/map_flex_*
+ * See: http://code.google.com/apis/maps/documentation/flash/
+MapQuest
+ * libs/MQFlashMapsAPI*
+ * See: http://developer.mapquest.com/web/products/featured/as3-flex-flash
+
+===================
+Third party images:
+
+Creative Commons Attribution 3.0 License
+----------------------------------------
+FatCow free icons
+ * images/*
+ * See: http://www.fatcow.com/free-icons/index.bml
+
+===================
+Third-party source:
+
+Apache License, Version 2.0
+---------------------------
+Google TooltipOverlay example
+ * src/com/flack/geni/display/mapping/mapproviders/googlemapsprovider/GoogleTooltipOverlay.as
+ * Obtained as part of the Google Maps API for Flash examples
+ 
+Mozilla Public License, Version 1.1
+-----------------------------------
+Collapsible panel
+ * src/com/flack/shared/display/components/CollapsiblePanel.as
+ * See: http://www.iwobanas.com/2009/09/creating-collapsible-panel-in-flex-4/
+
+GNU Library or Lesser General Public License (LGPL)
+---------------------------------------------------
+* XML-RPC by Matt Shaw and Daniel Mclaren
+ - src/com/mattism/http/xmlrpc/*
+ - See: http://sourceforge.net/projects/xmlrpcflash/
+
+Attribution
+-----------
+* Location clusterer by Kelvin Luck
+ - src/com/flack/geni/display/mapping/LocationClusterer.as
+ - See: http://www.kelvinluck.com/2009/08/google-maps-for-flash-marker-clustering/
+* Resizable window by Kevin Lin
+ - src/com/flack/shared/display/components/ResizableTitleWindow.as
+ - See: http://www.kelvinluck.com/2009/08/google-maps-for-flash-marker-clustering/
+* Spinner by Jeremy Mitchell
+ - src/com/flack/shared/display/components/Spinner.as
+ - See: Jeremy Mitchell
+
+BSD License or the GNU General Public License (GPL) Version 2
+-------------------------------------------------------------
+Forge TLS JavaScript library
+ - js/forge/*
+ - See: https://github.com/digitalbazaar/forge
+ - License available in LICENSE_FORGE in this same directory
+
+Adobe Systems Incorporated
+--------------------------
+  - src/com/flack/shared/utils/DateUtil.as
+   * See: http://code.google.com/p/as3corelib/source/browse/trunk/src/com/adobe/utils/DateUtil.as
+  - src/com/flack/shared/display/skins/*
+  
+Henri Torgemane
+---------------
+ - src/com/hurlant/*
+ * See: http://code.google.com/p/as3crypto/
+ - License available in LICENSE_AS3CRYPTO in this same directory

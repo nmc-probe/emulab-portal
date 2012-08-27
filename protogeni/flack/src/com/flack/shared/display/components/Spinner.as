@@ -1,7 +1,7 @@
 /**
- * Visual spinner component
- * 
- * @see http://blog.flexdevelopers.com/2011/03/using-flex-4-skins-states-to-disable.html
+ * Attribution
+ * Author: Jeremy Mitchell
+ * See: http://blog.flexdevelopers.com/2011/03/using-flex-4-skins-states-to-disable.html
  * 
  */
 

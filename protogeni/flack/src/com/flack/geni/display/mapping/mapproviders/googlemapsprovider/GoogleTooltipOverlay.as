@@ -1,11 +1,8 @@
-/* ORIGINAL LICENSE
-
-* Licensed under the Apache License, Version 2.0 (the "License"):
-*    http://www.apache.org/licenses/LICENSE-2.0
-
-Code provided in the official examples for Google Maps API for Flash
-
-*/
+/* Based on code with original license:
+ * Licensed under the Apache License, Version 2.0 (the "License"):
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ * Code provided in the official examples for Google Maps API for Flash.
+ */
 
 package com.flack.geni.display.mapping.mapproviders.googlemapsprovider
 {

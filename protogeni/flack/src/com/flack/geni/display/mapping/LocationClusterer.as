@@ -5,6 +5,8 @@
  * Clustering With Google Maps" adapted for use in a dynamic
  * flash map.</p>
  * 
+ * Original: https://github.com/vitch/GoogleMapsFlashCluster
+ * 
  * @author Kelvin Luck
  * @see http://www.appelsiini.net/2008/11/introduction-to-marker-clustering-with-google-maps
  */

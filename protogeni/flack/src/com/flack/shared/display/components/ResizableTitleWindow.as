@@ -1,4 +1,9 @@
-// Found at: http://flexponential.com/2010/01/10/resizable-titlewindow-in-flex-4/
+/**
+ * Attribution
+ * Author: Kevin Lin
+ * See: http://flexponential.com/2010/01/10/resizable-titlewindow-in-flex-4/
+ */
+
 package com.flack.shared.display.components
 {
 	import com.flack.shared.display.skins.ResizableTitleWindowSkin;
