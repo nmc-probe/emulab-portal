@@ -7,8 +7,9 @@
 package Image;
 
 use strict;
+use Carp;
 use Exporter;
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT $AUTOLOAD);
 
 @ISA    = "Exporter";
 @EXPORT = qw ( );
@@ -106,37 +107,49 @@ sub Lookup($$;$)
     
     return $self;
 }
-# accessors
-sub field($$) { return ((! ref($_[0])) ? -1 : $_[0]->{'IMAGE'}->{$_[1]}); }
-sub imagename($)        { return field($_[0], "imagename"); }
-sub imageid($)          { return field($_[0], "imageid"); }
-sub old_imageid($)      { return field($_[0], "old_imageid"); }
-sub pid($)	        { return field($_[0], "pid"); }
-sub gid($)	        { return field($_[0], "gid"); }
-sub pid_idx($)          { return field($_[0], "pid_idx"); }
-sub gid_idx($)          { return field($_[0], "gid_idx"); }
-sub creator($)          { return field($_[0], "creator"); }
-sub creator_idx($)      { return field($_[0], "creator_idx"); }
-sub created($)          { return field($_[0], "created"); }
-sub description($)      { return field($_[0], "description"); }
-sub loadpart($)         { return field($_[0], "loadpart"); }
-sub loadlength($)       { return field($_[0], "loadlength"); }
-sub part1_osid($)       { return field($_[0], "part1_osid"); }
-sub part2_osid($)       { return field($_[0], "part2_osid"); }
-sub part3_osid($)       { return field($_[0], "part3_osid"); }
-sub part4_osid($)       { return field($_[0], "part4_osid"); }
-sub default_osid($)     { return field($_[0], "default_osid"); }
-sub path($)             { return field($_[0], "path"); }
-sub magic($)            { return field($_[0], "magic"); }
-sub ezid($)             { return field($_[0], "ezid"); }
-sub shared($)           { return field($_[0], "shared"); }
-sub global($)           { return field($_[0], "global"); }
-sub updated($)          { return field($_[0], "updated"); }
-sub mbr_version($)      { return field($_[0], "mbr_version"); }
-sub access_key($)       { return field($_[0], "access_key"); }
-sub uuid($)             { return field($_[0], "uuid"); }
-sub hash($)             { return field($_[0], "hash"); }
-sub locked($)           { return field($_[0], "locked"); }
+
+AUTOLOAD {
+    my $self  = $_[0];
+    my $type  = ref($self) or croak "$self is not an object";
+    my $name  = $AUTOLOAD;
+    $name =~ s/.*://;   # strip fully-qualified portion
+
+    # A DB row proxy method call.
+    if (exists($self->{'IMAGE'}->{$name})) {
+	return $self->{'IMAGE'}->{$name};
+    }
+    carp("No such slot '$name' field in class $type");
+    return undef;
+}
+
+# Break circular reference someplace to avoid exit errors.
+sub DESTROY {
+    my $self = shift;
+
+    $self->{'IMAGE'} = undef;
+}
+
+#
+# Lookup by URL.
+#
+sub LookupByURL($$)
+{
+    my ($class, $url) = @_;
+
+    return undef
+	if (! ($url =~ /^http/));
+
+    my $safe_url = DBQuoteSpecial($url);
+    
+    my $query_result =
+	DBQueryWarn("select imageid from images where metadata_url=$safe_url");
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    my ($imageid) = $query_result->fetchrow_array();
+
+    return Image->Lookup($imageid);
+}
 
 #
 # Get a list of all running frisbee images.
@@ -215,7 +228,8 @@ sub Create($$$$$$$$)
 	push(@arg_slots, $key);
     }
     # Pass-through optional slots, otherwise the DB default is used.
-    foreach my $key ("path", "shared", "global", "ezid", "mbr_version") {
+    foreach my $key ("path", "shared", "global", "ezid", "mbr_version",
+		     "metadata_url", "imagefile_url") {
 	if (exists($argref->{$key})) {
 	    push(@arg_slots, $key);
 	}
@@ -242,6 +256,21 @@ sub Create($$$$$$$$)
 	DBQueryWarn("unlock tables");
 	$$usrerr_ref = "Error: IMAGE $imagename in project $pid already exists!";
 	return undef;
+    }
+    # The metadata_url also has to be unique.
+    if (exists($argref->{'metadata_url'})) {
+	my $metadata_url = $argref->{'metadata_url'};
+	my $safe_url = DBQuoteSpecial($metadata_url);
+	
+	my $query_result =
+	    DBQueryWarn("select imagename from images ".
+			"where metadata_url=$safe_url");
+
+	if ($query_result->numrows) {
+	    DBQueryWarn("unlock tables");
+	    $$usrerr_ref = "Error: IMAGE $metadata_url already exists!";
+	    return undef;
+	}
     }
 
     # We allow providing an image descriptor index, so newimageid_ez can use
@@ -314,7 +343,8 @@ sub Create($$$$$$$$)
 
 	my @osid_array = ();
 	for (my $i = 1; $i <= 4; $i++) {
-	    my $foo = $image->field("part${i}_osid");
+	    my $func = "part${i}_osid";
+	    my $foo  = $image->$func();
 	    if (defined($foo)) {
 		push(@osid_array, $foo);
 	    }
@@ -435,7 +465,8 @@ sub EditImageid($$$$)
 
 	my @osid_array;
 	for (my $i = 1; $i <= 4; $i++) {
-	    my $foo = $image->field("part${i}_osid");
+	    my $func = "part${i}_osid";
+	    my $foo  = $image->$func();
 	    if (defined($foo)) {
 		push(@osid_array, $foo);
 	    }
