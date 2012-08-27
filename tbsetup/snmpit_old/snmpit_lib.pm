@@ -76,6 +76,9 @@ my %vlanmembers=();
 my %vlanids=();
 # vlanids maps pid:eid <==> id
 
+my %DeviceOptions=();
+# Maps devicename -> hash of options to avoid db call after forking;
+
 my $snmpitErrorString;
 
 # Protos
@@ -87,6 +90,7 @@ sub getTrunkPath($$$$);
 sub init($) {
     $debug = shift || $debug;
     &ReadTranslationTable;
+    &ReadDeviceOptions;
     return 0;
 }
 
@@ -985,6 +989,9 @@ sub getDeviceOptions($) {
     my $switch = shift;
     my %options;
 
+    if (my $cached_options = $DeviceOptions{$switch}) {
+	return $cached_options;
+    }
     my $result = DBQueryFatal("SELECT supports_private, " .
 	"single_domain, s.snmp_community as device_community, ".
         "t.min_vlan, t.max_vlan, " .
@@ -1010,7 +1017,23 @@ sub getDeviceOptions($) {
     $options{'min_vlan'} = $device_min || $min_vlan || 2;
     $options{'max_vlan'} = $device_max || $max_vlan || 1000;
 
-    $options{'type'} = getDeviceType($switch);
+    my $type = $options{'type'} = getDeviceType($switch);
+
+    my $q = "(select \"default\" source, attrkey, attrvalue from ".
+	    "node_type_attributes where type='$type' ".
+	    "and attrkey like 'snmpit%') union ".
+	    "(select \"override\" source, attrkey, attrvalue from ".
+	    "node_attributes where node_id='$switch' ".
+	    "and attrkey like 'snmpit%') order by source";
+	   
+    $result = DBQuery($q);
+    if ($result && $result->numrows()) {
+	while (my ($source, $key, $value) = $result->fetchrow()) {
+		$key =~ s/^snmpit_//;
+		$options{$key} = $value;
+	}
+    }
+    $DeviceOptions{$switch} = \%options;
 
     if ($debug) {
 	print "Options for $switch:\n";
@@ -1020,6 +1043,13 @@ sub getDeviceOptions($) {
     }
 
     return \%options;
+}
+
+sub ReadDeviceOptions() {
+    my $result = DBQuery("select distinct node_id from switch_stacks");
+    print STDERR "No switch found in any stack\n"
+	unless ($result && $result->numrows());
+    while (my ($switch) = $result->fetchrow()) { getDeviceOptions($switch); }
 }
 
 #

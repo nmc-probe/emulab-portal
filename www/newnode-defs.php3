@@ -36,22 +36,20 @@ function find_switch_macs(&$mac_list) {
 	$class = $exploded[4];
 	if (!preg_match("/^([\w-]+)\/(\d+)\.(\d+)$/",$switchport,$matches)) {
 	    echo "<h3>Bad line from switchmac: $line</h3>\n";
-	}
-	$switch = $matches[1];
-	$card = $matches[2];
-	$port = $matches[3];
-	if (isset($mac_list[$MAC]) &&
-	    (is_null($mac_list[$MAC]["class"]) ||
-	     !isset($mac_list[$MAC]["class"]) ||
-	     ($mac_list[$MAC]["class"] == $class))) {
-	    $mac_list[$MAC]["switch"] = $switch;
-	    $mac_list[$MAC]["switch_card"] = $card;
-	    $mac_list[$MAC]["switch_port"] = $port;
-	    if ($ELABINELAB) {
-		# We let switchmac tell us.
-		$mac_list[$MAC]["class"] = $class;
-		# Need this to reorder the interfaces.
-		$mac_list[$MAC]["iface"] = $iface;
+	} else {
+	    $switch = $matches[1];
+	    $card = $matches[2];
+	    $port = $matches[3];
+	    if (isset($mac_list[$MAC]) ) {
+		$mac_list[$MAC]["switch"] = $switch;
+		$mac_list[$MAC]["switch_card"] = $card;
+		$mac_list[$MAC]["switch_port"] = $port;
+		if ($ELABINELAB) {
+		    # We let switchmac tell us.
+		    $mac_list[$MAC]["class"] = $class;
+		    # Need this to reorder the interfaces.
+		    $mac_list[$MAC]["iface"] = $iface;
+		}
 	    }
 	}
 	$line = fgets($macs);

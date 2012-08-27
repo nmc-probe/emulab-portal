@@ -1683,7 +1683,9 @@ sub readifIndex($) {
     }
     foreach $j (keys %{$self->{TRUNKS}}) {
 	$ifindex = $j + $t_off;
-	$port = "1." . $ifindex;
+	if (my $lref = $self->{TRUNKS}{$j}) {
+	    $port = $self->{IFINDEX}{@$lref[0]}; #actually modport
+	} else {  $port = "1." . $ifindex; } # the else should never happen
 	$self->{IFINDEX}{$ifindex} = $port;
 	$self->{IFINDEX}{$port} = $ifindex;
 	$self->{TRUNKINDEX}{$ifindex} = 0; # simplifies convertPortIndex
