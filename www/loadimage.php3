@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -86,17 +86,22 @@ $unix_pid = $project->unix_gid();
 
 if (! isset($confirmed)) {
     $url = CreateURL("loadimage", $image);
+    $newurl = CreateURL("newimageid_ez", $node);
     
     echo "<center><form action='$url' method='post'>\n".
          "<h2><b>Warning!</b></h2>".
-	 "<h3>Doing a snapshot of node '$node_id' into image '$image_name' ".
-	 "will overwrite any previous snapshot for that image. ".
-	 "Are you sure you want to continue?</h3>".
+	 "<b>Doing a snapshot of node '$node_id' into image '$image_name' ".
+	 "will overwrite any previous snapshot for that image.<br><br> ".
+	 "Are you sure you want to continue?</b><br>".
          "<input type='hidden' name='node_id'   value='$node_id'></input>".
          "<input type='submit' name='confirmed' value='Confirm'></input>".
          "&nbsp;".
          "<input type='submit' name='canceled' value='Cancel'></input>\n".    
-         "</form></center>";
+         "</form>".
+         "<br>".
+	 "If you do not want to overwrite this image, then ".
+	 "<a href='$newurl'>Create a new image</a>".
+	 "</center>";
 
     PAGEFOOTER();
     return;

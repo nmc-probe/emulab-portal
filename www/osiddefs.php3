@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 # Stuff for OSIDs. All this stuff should come from the DB instead!
@@ -37,10 +37,12 @@ $osid_opmodes["NORMALv1"]	= 0;
 $osid_opmodes["MINIMAL"]	= 1;
 $osid_opmodes["NORMAL"]		= 1;
 $osid_opmodes["ALWAYSUP"]	= 1;
+$osid_opmodes["PCVM"]		= 1;
 
 define("TBDB_DEFAULT_OSID_OPMODE",	"NORMALv2");
 define("TBDB_MINIMAL_OPMODE",		"MINIMAL");
 define("TBDB_ALWAYSUP_OPMODE",		"ALWAYSUP");
+define("TBDB_PCVM_OPMODE",		"PCVM");
 
 # Default OSID boot wait timeouts. User is not allowed to edit this.
 $osid_reboot_waitlist			= array();

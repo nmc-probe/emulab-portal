@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -197,6 +197,7 @@ class OSinfo
     function max_concurrent()	{ return $this->field("max_concurrent"); }
     function mfs()		{ return $this->field("mfs"); }
     function reboot_waittime()  { return $this->field("reboot_waittime"); }
+    function def_parentosid()   { return $this->field("def_parentosid"); }
 
     #
     # Access Check, determines if $user can access $this record.
@@ -330,6 +331,7 @@ class OSinfo
 	$created        = $this->created();
 	$mustclean      = $this->mustclean();
 	$nextosid       = $this->nextosid();
+	$def_parentosid = $this->def_parentosid();
 	$max_concurrent = $this->max_concurrent();
 	$reboot_waittime= $this->reboot_waittime();
 	$uuid           = $this->uuid();
@@ -456,6 +458,14 @@ class OSinfo
                             <a href='showosinfo.php3?osid=$nextosid'>
                                             $nextosid</a></td>
                       </tr>\n";
+	}
+	if ($def_parentosid) {
+	    echo "<tr>
+                      <td>Parent Osid: </td>
+                      <td class=left>
+                          <a href='showosinfo.php3?osid=$def_parentosid'>
+                                           $def_parentosid</a></td>
+                  </tr>\n";
 	}
 	if ($ezid) {
 		echo "<tr>

@@ -1,11 +1,12 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
 include_once("node_defs.php");
+include_once("imageid_defs.php");
 
 #
 # Only known and logged in users can do this.
@@ -109,8 +110,22 @@ if ($isadmin ||
 }
 
 if ($node->AccessCheck($this_user, $TB_NODEACCESS_LOADIMAGE)) {
-    WRITESUBMENUBUTTON("Create a Disk Image",
-		       "newimageid_ez.php3?formfields[node_id]=$node_id");
+    $baseimage = Image::Lookup($node->def_boot_osid());
+
+    if ($baseimage &&
+	$baseimage->AccessCheck($this_user, $TB_IMAGEID_DESTROY)) {
+	WRITESUBMENUBUTTON("Create a Disk Image",
+			   "loadimage.php3?node_id=$node_id" .
+			   "&imageid=" . $baseimage->imageid());
+    }
+    else {
+	#
+	# This can happen for virtual nodes which are running the
+	# defaut osid. User must create a new descriptor.
+	#
+	WRITESUBMENUBUTTON("Create a Disk Image",
+			   "newimageid_ez.php3?node_id=$node_id");
+    }
 }
 
 if (($isadmin ||

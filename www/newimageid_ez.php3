@@ -33,16 +33,55 @@ $optargs = OptionalPageArguments("submit",       PAGEARG_STRING,
 				 "nodeclass",    PAGEARG_STRING,
 				 "canceled",     PAGEARG_BOOLEAN,
 				 "confirmed",    PAGEARG_BOOLEAN,
+				 "node",	 PAGEARG_NODE,
+				 "baseimage",    PAGEARG_IMAGE,
+				 "baseosinfo",   PAGEARG_OSINFO,
 				 "formfields",   PAGEARG_ARRAY);
+
+#
+# If starting from a specific node we can derive the type and possibly
+# the baseimage from it. 
+#
+if (isset($node)) {
+    $nodetype   = $node->type();
+    
+    #
+    # If we can find the running osid, then we can setup the page instead
+    # of having the user figure it out. Note that only makes sense for
+    # EZ images.
+    #
+    $baseimage = Image::Lookup($node->def_boot_osid());
+    #
+    # Try for at least an osinfo if no image.
+    #
+    if (! $baseimage) {
+	$baseosinfo = OSinfo::Lookup($node->def_boot_osid());
+    }
+}
 
 #
 # Options for using this page with different types of nodes.
 # nodetype controls the view and trumps nodeclass.
 # nodeclass determines what node types are visible from the DB.
 #
-if (isset($nodetype) && $nodetype == "mote") {
+if (isset($nodetype) && $nodetype == "pcvm") {
+    $title = "PCVM Form";
+    $nodeclass = "pcvm";
+    # Default to imagezip ndz files
+    $filename_extension = "ndz";
+    $view = array('hide_partition' => 1,
+		  'hide_upload' => 1,
+		  'hide_mbr' => 1,
+		  'hide_concurrent' => 1,
+		  'hide_footnotes' => 1,
+		  'hide_wholedisk' => 1);
+}
+elseif (isset($nodetype) && $nodetype == "mote") {
     $view = array('hide_partition' => 1, 'hide_os' => 1, 'hide_version' => 1,
-		  'hide_snapshot' => 1, 'hide_features' => 1,
+		  'hide_snapshot' => 1,
+		  'hide_concurrent' => 1,
+		  'hide_wholedisk' => 1,
+		  'hide_features' => 1,
 		  'hide_opmode' => 1, 'hide_footnotes' => 1);
     $nodeclass = "mote";
     $title = "Mote Form";
@@ -77,6 +116,12 @@ if (isset($nodetype) && $nodetype == "mote") {
     # Default to imagezip ndz files
     $filename_extension = "ndz";
 }
+#
+# If we are lucky enough to get a baseimage, do not show footnotes.
+#
+if (isset($baseimage)) {
+    $view['hide_footnotes'] = 1;
+}
 
 #
 # Standard Testbed Header
@@ -105,7 +150,13 @@ $types_querystring = "select distinct n.type from nodes as n ".
     "      a.attrvalue!='0' and n.role='testnode'";
 
 if ($nodeclass) {
-    $types_querystring .= " and nt.class='$nodeclass' ";
+    if ($nodeclass == "pcvm") {
+	$types_querystring = "select distinct type from node_types ".
+	    "where type='pcvm'";
+    }
+    else {
+	$types_querystring .= " and nt.class='$nodeclass' ";
+    }
 }
 
 $types_result = DBQueryFatal($types_querystring);
@@ -117,7 +168,7 @@ function SPITFORM($formfields, $errors)
 {
     global $projlist, $isadmin, $types_result, $osid_oslist, $osid_opmodes,
 	$osid_featurelist, $nodetype, $filename_extension, $help_message;
-    global $nodeclass;
+    global $nodeclass, $node;
     global $TBDB_OSID_OSNAMELEN, $TBDB_NODEIDLEN;
     global $TBDB_OSID_VERSLEN, $TBBASE, $TBPROJ_DIR, $TBGROUP_DIR;
     global $view;
@@ -238,9 +289,14 @@ function SPITFORM($formfields, $errors)
     #
     if (isset($nodetype)) {
 	echo "<input type=hidden name=nodetype value='$nodetype'>";
+
     }
     elseif (isset($nodeclass)) {
 	echo "<input type=hidden name=nodeclass value='$nodeclass'>";
+    }
+    if (isset($node)) {
+	$id = $node->node_id();
+	echo "<input type=hidden name=node_id value='$id'>";
     }
 
     #
@@ -524,7 +580,7 @@ function SPITFORM($formfields, $errors)
     #
     # Whole Disk Image
     #
-    if (isset($view["hide_snapshot"])) {
+    if (isset($view["hide_wholedisk"])) {
 	spithidden($formfields, 'wholedisk');
     } else {
 	echo "<tr>
@@ -546,7 +602,7 @@ function SPITFORM($formfields, $errors)
     #
     # Maxiumum concurrent loads
     #
-    if (isset($view["hide_snapshot"])) {
+    if (isset($view["hide_concurrent"])) {
 	spithidden($formfields, 'max_concurrent');
     } else {
 	echo "<tr>
@@ -561,7 +617,7 @@ function SPITFORM($formfields, $errors)
 
     }
 
-    if ($isadmin) {
+    if ($isadmin && !isset($view["hide_mbr"])) {
 	echo "<tr>
 	          <td>MBR Version:<br>
 		  <td class=left>
@@ -653,6 +709,21 @@ function SPITFORM($formfields, $errors)
    	      </td>
 	  </tr>\n";
 
+    if (isset($formfields["def_parentosid"]) &&
+	$formfields["def_parentosid"] != "") {
+	$osinfo = OSInfo::Lookup($formfields["def_parentosid"]);
+	$osname = $osinfo->osname();
+	$url    = CreateURL("showosinfo", $osinfo);
+
+	echo "<tr>
+	          <td>Parent OS:</td> 
+		  <input type=hidden
+		         name=\"formfields[def_parentosid]\"
+			 value=\"" . $formfields["def_parentosid"] . "\">
+  	          <td class=left><a href='$url'>$osname</a></td>
+	  </tr>\n";
+    }
+
     echo "<tr>
               <td align=center colspan=2>
                   <b><input type=submit name=submit value=Submit></b>
@@ -662,7 +733,12 @@ function SPITFORM($formfields, $errors)
     echo "</form>
           </table>\n";
 
-    if (!isset($view["hide_footnotes"])) {
+    if (isset($view["hide_footnotes"])) {
+	echo "<center><blockquote>
+	      <b>In general, you should leave the default settings alone!</b>
+              </blockquote></center>\n";
+    }
+    else {
 	echo "<blockquote>
 	      <ol type=1 start=1>
 		 <li> If you don't know what partition you have customized,
@@ -773,36 +849,113 @@ if (!isset($submit)) {
     $defaults["gid"]		 = "";
     $defaults["imagename"]	 = "";
     $defaults["description"]	 = "";
-    $defaults["OS"]	 	 = "";
-    $defaults["version"]	 = "";
     $defaults["path"]		 = "$TBPROJ_DIR/";
-    $defaults["node_id"]	 = "";
-    $defaults["wholedisk"]	 = "No";
+    $defaults["node_id"]	 = (isset($node) ? $node->node_id() : "");
     $defaults["max_concurrent"]	 = "";
     $defaults["shared"]		 = "No";
     $defaults["global"]		 = "No";
+    $defaults["OS"]	 	 = "";
+    $defaults["version"]	 = "";
+    $defaults["wholedisk"]	 = "No";
     $defaults["reboot_waittime"] = "";
     $defaults["mbr_version"]     = "";
 
-    if (isset($nodetype) && $nodetype == "mote") {
+    #
+    # Use the base image to seed the form.
+    #
+    if (isset($baseimage)) {
+	$baseosinfo = OSinfo::Lookup($baseimage->imageid());
+	if (! $baseosinfo) {
+	    TBERROR("Could not lookup osinfo object for image " .
+		    $baseimage->imageid(), 1);
+	}
+	$defaults["loadpart"]    = $baseimage->loadpart();
+	if ($baseimage->loadpart() == 0 && $baseimage->loadlength() == 4) {
+	    $defaults["loadpart"]    = "1";
+	    $defaults["wholedisk"]   = "Yep";
+	}
+	$defaults["mbr_version"]     = $baseimage->mbr_version();
+	#
+	# Same types as the parent.
+	#
+	foreach ($baseimage->Types() as $type) {
+	    $defaults["mtype_${type}"] = "Yep";
+	}
+    }
+    elseif (isset($nodetype) && $nodetype == "pcvm") {
+	$defaults["loadpart"]    = "1";
+	$defaults["wholedisk"]   = "Yep";
+        # mtype_all is a "fake" variable which makes all
+	# mtypes checked in the virgin form.
+	$defaults["mtype_all"] = "Yep";
+    }
+    elseif (isset($nodetype) && $nodetype == "mote") {
 	# Defaults for mote-type nodes
 	$defaults["loadpart"]    = "1";
+    } else {
+	# Defaults for PC-type nodes
+	$defaults["loadpart"] = "X";
+	# mtype_all is a "fake" variable which makes all
+	# mtypes checked in the virgin form.
+	$defaults["mtype_all"] = "Yep";
+    }
+    
+    if (isset($baseosinfo)) {
+	#
+	# Same features as the parent.
+	#
+	if ($baseosinfo->osfeatures()) {
+	    foreach (preg_split("/,/", $baseosinfo->osfeatures()) as $feature) {
+		$defaults["os_feature_${feature}"] = "checked";
+	    }
+	}
+	$defaults["reboot_waittime"] = $baseosinfo->reboot_waittime();
+	$defaults["OS"]	 	     = $baseosinfo->OS();
+	$defaults["version"]	     = $baseosinfo->version();
+	$defaults["op_mode"]         = $baseosinfo->op_mode();
+	$defaults["description"]     = "Copy of " . $baseosinfo->osname();
+
+	$def_parentosinfo = OSinfo::Lookup($baseosinfo->def_parentosid());
+	if (! $def_parentosinfo) {
+	    TBERROR("Could not lookup osinfo object for parent " .
+		    $baseosinfo->def_parentosid(), 1);
+	}
+	$defaults["def_parentosid"]   = $def_parentosinfo->osid();
+    }
+    elseif (isset($nodetype) && $nodetype == "pcvm") {
+	$defaults["op_mode"]     = TBDB_PCVM_OPMODE;
+	$defaults["reboot_waittime"]     = "240";
+	$defaults["os_feature_ping"]	 = "checked";
+	$defaults["os_feature_ssh"]	 = "checked";
+	$defaults["os_feature_isup"]	 = "checked";
+	$defaults["os_feature_linktest"] = "checked";
+        #
+	# XXX At the moment we have only one parent that can run openvz
+        # container images, so rather then give the user a choice, just
+        # hardwire it. Needs more thought, cause we also have the os_submap
+        # table and not sure how to deal with that either.
+	#
+	$def_parentosinfo =
+	    OSinfo::LookupByName("emulab-ops". "FEDORA15-OPENVZ-STD");
+	if (! $def_parentosinfo) {
+	    TBERROR("Could not lookup osinfo object for ".
+		    "FEDORA15-OPENVZ-STD" , 1);
+	}
+	$defaults["def_parentosid"]   = $def_parentosinfo->osid();
+    }
+    elseif (isset($nodetype) && $nodetype == "mote") {
+	# Defaults for mote-type nodes
 	$defaults["op_mode"]     = TBDB_ALWAYSUP_OPMODE;
 	$defaults["OS"]          = "TinyOS";
 	$defaults["version"]     = "1.1.0";
     } else {
 	# Defaults for PC-type nodes
-	$defaults["loadpart"] = "X";
 	$defaults["op_mode"]  = TBDB_DEFAULT_OSID_OPMODE;
 	$defaults["os_feature_ping"]	 = "checked";
 	$defaults["os_feature_ssh"]	 = "checked";
 	$defaults["os_feature_ipod"]	 = "checked";
 	$defaults["os_feature_isup"]	 = "checked";
 	$defaults["os_feature_linktest"] = "checked";
-
-	# mtype_all is a "fake" variable which makes all
-	# mtypes checked in the virgin form.
-	$defaults["mtype_all"] = "Yep";
     }
 
     #
@@ -828,6 +981,16 @@ if (!isset($submit)) {
 		$defaults["path"]     = "$TBGROUP_DIR/$project/$group/images/";
 	}
 	reset($projlist);
+    }
+    elseif (isset($node)) {
+	#
+	# Use the current pid/eid of the experiment the node is in.
+	#
+	$experiment = $node->Reservation();
+	if ($experiment) {
+	    $defaults["pid"] = $experiment->pid();
+	    $defaults["gid"] = $experiment->gid();
+	}
     }
 
     #
@@ -923,6 +1086,13 @@ if ($group &&
 # Build up argument array to pass along.
 #
 $args = array();
+
+# Ignore the form for this ...
+if (isset($formfields["def_parentosid"]) &&
+    $formfields["def_parentosid"] != "") {
+    $osinfo = OSinfo::Lookup($formfields["def_parentosid"]);
+    $args["def_parentosid"] = $osinfo->pid() . "," . $osinfo->osname();
+}
 
 if (isset($formfields["pid"]) && $formfields["pid"] != "") {
     $args["pid"] = $pid = $formfields["pid"];
@@ -1134,6 +1304,10 @@ if (!isset($confirmed) && 0 != strcmp($confirmationWarning,"")) {
     }
     elseif (isset($nodeclass)) {
 	echo "<input type=hidden name=nodeclass value='$nodeclass'>";
+    }
+    if (isset($node)) {
+	$id = $node->node_id();
+	echo "<input type=hidden name=node_id value='$id'>";
     }
     echo "<input type=hidden name='submit' value='Submit'>\n";
     echo "<input type=submit name=confirmed value=Confirm>&nbsp;";
