@@ -17,7 +17,13 @@ if [ -x /bin/systemd ]; then
     systemctl start tbprepare.service
 fi
 
-# Reboot!
-/sbin/reboot
-
+reboot=1
+if [ $# -eq 1 ]; then
+    if [ "$1" = "-noreboot" ]; then
+	reboot=0
+    fi
+fi
+if [ $reboot -eq 1 ]; then
+	/sbin/reboot
+fi
 exit 0
