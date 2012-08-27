@@ -1285,6 +1285,15 @@ sub LoadVirtNodes($)
 	    }
 	    $vnode->_parent_osinfo($osinfo);
 	}
+	elsif ($isvirt && defined($vnode->_osinfo()->def_parentosid())) {
+	    my $osinfo = OSinfo->Lookup($vnode->_osinfo()->def_parentosid());
+	    if (!defined($osinfo)) {
+		tberror("Invalid def_parentosid in " .
+			$vnode->_osinfo() . "\n");
+		return -1;
+	    }
+	    $vnode->_parent_osinfo($osinfo);
+	}
 
 	#
 	# Add in desires.
