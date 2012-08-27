@@ -452,7 +452,8 @@ if ($dojail) {
 	    cleanup();
 	    exit(0);
 	}
-	$cleanupstate = "TBFAILED";
+	$cleanupstate = "TBFAILED"
+	    if ($jstat);
 	fatal("Jail exited unexpectedly with status $jstat!");
     }
     else {
