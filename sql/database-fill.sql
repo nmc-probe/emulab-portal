@@ -1033,6 +1033,8 @@ REPLACE INTO table_regex VALUES ('images','mtype','text','redirect','default:boo
 REPLACE INTO table_regex VALUES ('images','node_id','text','redirect','nodes:node_id',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','load_address','text','redirect','default:text',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','frisbee_pid','text','redirect','default:int',0,0,NULL);
+REPLACE INTO table_regex VALUES ('images','metadata_url','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('images','imagefile_url','text','redirect','default:tinytext',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('images','nodetype','text','redirect','node_types:node_type',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','OS','text','redirect','os_info:OS',0,0,NULL);
@@ -1135,7 +1137,7 @@ REPLACE INTO table_regex VALUES ('virt_nodes','loadlist','text','regex','^[-\\w\
 REPLACE INTO table_regex VALUES ('os_info','osid','text','regex','^[-\\w\\.+]+$',2,35,NULL);
 REPLACE INTO table_regex VALUES ('os_info','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('os_info','pid_idx','text','redirect','projects:pid_idx',0,0,NULL);
-REPLACE INTO table_regex VALUES ('os_info','osname','text','regex','^[-\\w\\.+]+$',2,20,NULL);
+REPLACE INTO table_regex VALUES ('os_info','osname','text','regex','^[-\\w\\.+]+$',2,30,NULL);
 REPLACE INTO table_regex VALUES ('os_info','description','text','redirect','default:fulltext',1,256,NULL);
 REPLACE INTO table_regex VALUES ('os_info','OS','text','regex','^[-\\w]*$',1,32,NULL);
 REPLACE INTO table_regex VALUES ('os_info','version','text','regex','^[-\\w\\.]*$',1,12,NULL);
@@ -1147,6 +1149,7 @@ REPLACE INTO table_regex VALUES ('os_info','mustclean','int','redirect','default
 REPLACE INTO table_regex VALUES ('os_info','osfeatures','text','regex','^[-\\w,]*$',1,128,NULL);
 REPLACE INTO table_regex VALUES ('os_info','op_mode','text','regex','^[-\\w]*$',1,20,NULL);
 REPLACE INTO table_regex VALUES ('os_info','nextosid','text','redirect','os_info:osid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('os_info','def_parentosid','text','redirect','os_info:osid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('os_info','reboot_waittime','int','redirect','default:int',0,2000,NULL);
 
 REPLACE INTO table_regex VALUES ('sitevariables','name','text','regex','^[\\w\\/]+$',1,255,NULL);
