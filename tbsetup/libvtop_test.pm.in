@@ -1115,6 +1115,13 @@ sub LoadVirtNodes($)
 	$vnode->_fixedvm(undef);
 	$vnode->_isbridge(($vnode->role() eq "bridge" ? 1 : 0));
 
+	#
+	# Explicit type request desire to match feature.
+	#
+	my $explict_type_request;
+	$nodetype->GetAttribute("explicit_request", \$explict_type_request);
+	$vnode->_explicit_type_request($explict_type_request);
+
 	# For a list of interfaces on this node, as for rspec generation
 	$vnode->_virtifaces([]);
 
@@ -2043,6 +2050,9 @@ sub GenVirtNodes($)
 	}
 	elsif ($vnode->_isbridge()) {
 	    $type = ($type eq "pc" ? "delay" : "delay-" . $type);
+	}
+	if ($vnode->_explicit_type_request()) {
+	    $desires->{"$type" . "-explicit"} = ['', 1.0];
 	}
 	
 	$self->createNode($vname, $vnode->_cmurn(),
