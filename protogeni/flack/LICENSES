@@ -3,15 +3,18 @@ Unless otherwise stated, all files are GENIPUBLIC-COPYRIGHT
 =====================
 Third party binaries:
 
-ESRI
+ESRI (currently enabled)
  * libs/agslib*
  * See: http://resources.arcgis.com/en/communities/flex-api/
-Google Maps
+ * Terms of use: http://www.esri.com/legal/licensing/software-license.html
+Google Maps (disabled)
  * libs/map_flex_*
  * See: http://code.google.com/apis/maps/documentation/flash/
-MapQuest
+ * Terms of service: https://developers.google.com/maps/terms
+MapQuest (disabled)
  * libs/MQFlashMapsAPI*
  * See: http://developer.mapquest.com/web/products/featured/as3-flex-flash
+ * Terms of use: http://developer.mapquest.com/web/info/terms-of-use
 
 ===================
 Third party images:
@@ -26,18 +29,21 @@ FatCow free icons
 Third-party source:
 
 Apache License, Version 2.0
----------------------------
-Google TooltipOverlay example
+http://www.apache.org/licenses/LICENSE-2.0.html
+-----------------------------------------------
+Google TooltipOverlay example (not used anymore, but source included)
  * src/com/flack/geni/display/mapping/mapproviders/googlemapsprovider/GoogleTooltipOverlay.as
  * Obtained as part of the Google Maps API for Flash examples
  
 Mozilla Public License, Version 1.1
+http://www.mozilla.org/MPL/1.1/
 -----------------------------------
-Collapsible panel
+Collapsible panel (not used in GENI version, and Emulab version not deployed yet)
  * src/com/flack/shared/display/components/CollapsiblePanel.as
  * See: http://www.iwobanas.com/2009/09/creating-collapsible-panel-in-flex-4/
 
 GNU Library or Lesser General Public License (LGPL)
+http://www.gnu.org/licenses/lgpl.html
 ---------------------------------------------------
 * XML-RPC by Matt Shaw and Daniel Mclaren
  - src/com/mattism/http/xmlrpc/*
@@ -50,26 +56,26 @@ Attribution
  - See: http://www.kelvinluck.com/2009/08/google-maps-for-flash-marker-clustering/
 * Resizable window by Kevin Lin
  - src/com/flack/shared/display/components/ResizableTitleWindow.as
- - See: http://www.kelvinluck.com/2009/08/google-maps-for-flash-marker-clustering/
+ - See: http://flexponential.com/2010/01/10/resizable-titlewindow-in-flex-4/
 * Spinner by Jeremy Mitchell
  - src/com/flack/shared/display/components/Spinner.as
- - See: Jeremy Mitchell
+ - See: http://blog.flexdevelopers.com/2011/03/using-flex-4-skins-states-to-disable.html
 
-BSD License or the GNU General Public License (GPL) Version 2
--------------------------------------------------------------
+New BSD License or the GNU General Public License (GPL) Version 2
+-----------------------------------------------------------------
 Forge TLS JavaScript library
  - js/forge/*
  - See: https://github.com/digitalbazaar/forge
  - License available in LICENSE_FORGE in this same directory
 
+BSD License
+-----------
+ - src/com/hurlant/*
+ * See: http://code.google.com/p/as3crypto/
+ - License available in LICENSE_AS3CRYPTO in this same directory
+ 
 Adobe Systems Incorporated
 --------------------------
   - src/com/flack/shared/utils/DateUtil.as
    * See: http://code.google.com/p/as3corelib/source/browse/trunk/src/com/adobe/utils/DateUtil.as
   - src/com/flack/shared/display/skins/*
-  
-Henri Torgemane
----------------
- - src/com/hurlant/*
- * See: http://code.google.com/p/as3crypto/
- - License available in LICENSE_AS3CRYPTO in this same directory

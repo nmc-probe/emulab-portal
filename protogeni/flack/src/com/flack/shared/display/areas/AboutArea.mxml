@@ -171,7 +171,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				</s:VGroup>
 			</s:Scroller>
 		</s:NavigatorContent>
-		<s:NavigatorContent label="Special Thanks"
+		<s:NavigatorContent label="Acknowledgements"
 							width="100%"
 							height="100%">
 			<s:Scroller width="100%"
@@ -179,27 +179,47 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				<s:VGroup width="100%"
 						  horizontalAlign="center"
 						  verticalAlign="middle"
-						  gap="2"
+						  gap="0"
 						  paddingBottom="2"
 						  paddingLeft="2"
 						  paddingRight="2"
 						  paddingTop="2">
-					<mx:LinkButton label="Forge (JavaScript TLS)"
+					<mx:LinkButton label="Forge JavaScript TLS"
 								   toolTip="Copyright (c) 2009-2010 Digital Bazaar, Inc. All rights reserved."
 								   height="24">
 						<mx:click>navigateToURL(new URLRequest("https://github.com/digitalbazaar/forge"), "_blank");</mx:click>
 					</mx:LinkButton>
-					<mx:LinkButton label="Fatcow (CCA3 Icons)"
+					<mx:LinkButton label="Icons by Fatcow"
+								   toolTip="Creative Commons Attribution 3.0 License"
 								   height="24">
 						<mx:click>navigateToURL(new URLRequest("http://www.fatcow.com/free-icons/index.bml"), "_blank");</mx:click>
 					</mx:LinkButton>
-					<mx:LinkButton label="Mattism (LGPL XML-RPC)"
+					<mx:LinkButton label="XML-RPC (Matt Shaw &amp; Daniel Mclaren)"
+								   toolTip="GNU Library or Lesser General Public License (LGPL)"
 								   height="24">
 						<mx:click>navigateToURL(new URLRequest("http://sf.net/projects/xmlrpcflash"), "_blank");</mx:click>
 					</mx:LinkButton>
-					<mx:LinkButton label="Icons Land"
+					<mx:LinkButton label="as3crypto (Henri Torgemane)"
+								   toolTip="BSD License. Copyright (c) 2007 Henri Torgemane"
 								   height="24">
-						<mx:click>navigateToURL(new URLRequest("http://www.icons-land.com/"), "_blank");</mx:click>
+						<mx:click>navigateToURL(new URLRequest("http://code.google.com/p/as3crypto/"), "_blank");</mx:click>
+					</mx:LinkButton>
+					<mx:LinkButton label="Location clusterer (Kelvin Luck)"
+								   height="24">
+						<mx:click>navigateToURL(new URLRequest("http://www.kelvinluck.com/2009/08/google-maps-for-flash-marker-clustering/"), "_blank");</mx:click>
+					</mx:LinkButton>
+					<mx:LinkButton label="Spinner (Jeremy Mitchell)"
+								   height="24">
+						<mx:click>navigateToURL(new URLRequest("http://blog.flexdevelopers.com/2011/03/using-flex-4-skins-states-to-disable.html"), "_blank");</mx:click>
+					</mx:LinkButton>
+					<mx:LinkButton label="Resizable window (Kevin Lin)"
+								   height="24">
+						<mx:click>navigateToURL(new URLRequest("http://flexponential.com/2010/01/10/resizable-titlewindow-in-flex-4/"), "_blank");</mx:click>
+					</mx:LinkButton>
+					<mx:LinkButton label="Adobe Systems Incorporated"
+								   toolTip="DateUtil and skin bases copyright 2008 Adobe Systems Incorporated."
+								   height="24">
+						<mx:click>navigateToURL(new URLRequest("http://www.adobe.com/"), "_blank");</mx:click>
 					</mx:LinkButton>
 				</s:VGroup>
 			</s:Scroller>
