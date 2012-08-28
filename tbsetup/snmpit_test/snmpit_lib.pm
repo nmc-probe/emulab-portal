@@ -102,7 +102,7 @@ sub getTrunkPath($$$$);
 #
 sub init($) {
     $debug = shift || $debug;    
-    &readDeviceOptions;
+    &ReadDeviceOptions;
     return 0;
 }
 
