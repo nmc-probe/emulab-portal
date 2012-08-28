@@ -108,7 +108,7 @@ my $devtype;
 my $devnum;
 my $device;
 my $mereuser    = 0;
-my $debug       = 0;
+my $debug       = 1;
 my $foreground  = 0;
 my $imagepid    = TB_OPSPID;
 my $logfile;
@@ -144,10 +144,10 @@ if (defined($options{"N"})) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
-    $waitmode = 0;
 }
 if (defined($options{"f"})) {
     $foreground = 1;
+    $waitmode = 0;
 }
 if (@ARGV != 2) {
     usage();
@@ -453,7 +453,7 @@ if ($usefup || $usessh) {
 #
 # Go to the background since this is going to take a while.
 # 
-if (! ($debug || $foreground)) {
+if (! $foreground) {
     $logfile = Logfile->Create($experiment->gid_idx());
     fatal("Could not create a logfile")
 	if (!defined($logfile));
@@ -503,7 +503,7 @@ if (! ($debug || $foreground)) {
 # and so the child does not get zapped if the user types ^C
 # in waitmode. 
 #
-if (! ($debug || $foreground)) {
+if (! $foreground) {
     POSIX::setsid();
 }
 
