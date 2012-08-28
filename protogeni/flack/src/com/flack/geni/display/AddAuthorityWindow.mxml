@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+						  xmlns:s="library://ns.adobe.com/flex/spark" 
+						  xmlns:mx="library://ns.adobe.com/flex/mx"
+						  xmlns:components="com.flack.shared.display.components.*"
+						  title="Add Authority">
+	<components:layout>
+		<s:VerticalLayout paddingBottom="4" paddingTop="4" paddingLeft="4" paddingRight="4" />
+	</components:layout>
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.utils.ImageUtil;
+			
+			public function addAndClose():void
+			{
+				var newAuthority:ProtogeniSliceAuthority =
+					new ProtogeniSliceAuthority(
+						idTextinput.text,
+						urlTextinput.text,
+						workingCertGetCheckbox.selected
+					);
+				
+				if(certTextarea.text.length > 0)
+					SharedMain.Bundle += "\n" + certTextarea.text;
+				
+				GeniMain.geniUniverse.authorities.add(newAuthority);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_AUTHORITIES,
+					null,
+					FlackEvent.ACTION_POPULATED
+				);
+				closeWindow();
+			}
+			
+			public function tryOpenCert(event:MouseEvent):void
+			{
+				var openFile:FileTask = new FileTask();
+				openFile.addEventListener(TaskEvent.FINISHED, afterOpenCert);
+				openFile.startOperation(event);
+			}
+			
+			private function afterOpenCert(event:TaskEvent):void
+			{
+				if(event.task.Status == Task.STATUS_SUCCESS)
+					certTextarea.text = event.task.data;
+			}
+			
+		]]>
+	</fx:Script>
+	<s:HGroup width="100%">
+		<s:Label text="URN"
+				 fontWeight="bold" />
+		<s:Label text="(eg. urn:publicid:IDN+uml.emulab.net+authority+sa)" />
+	</s:HGroup>
+	<s:TextInput id="idTextinput"
+				 prompt="Enter the URN..."
+				 width="100%" />
+	
+	<s:HGroup width="100%">
+		<s:Label text="URL"
+				 fontWeight="bold" />
+		<s:Label text="(eg. https://boss.uml.emulab.net/protogeni/xmlrpc/sa)" />
+	</s:HGroup>
+	<s:TextInput id="urlTextinput"
+				 prompt="Enter the URL..."
+				 width="100%" />
+	
+	<s:CheckBox id="workingCertGetCheckbox"
+				label="Supports downloading certs?"
+				selected="true" />
+	
+	<s:HGroup width="100%" verticalAlign="middle">
+		<s:Label text="Server Certificate"
+				 fontWeight="bold" />
+		<s:Button icon="{ImageUtil.openIcon}"
+				  label="Open from file"
+				  click="tryOpenCert(event)" />
+	</s:HGroup>
+	<s:TextArea width="100%" height="100%" id="certTextarea" />
+	
+	<components:controlBarContent>
+		<s:Button id="okButton"
+				  icon="{ImageUtil.availableIcon}"
+				  label="OK"
+				  click="addAndClose()" />
+		<s:Button label="Cancel"
+				  icon="{ImageUtil.cancelIcon}"
+				  click="closeWindow()" />
+	</components:controlBarContent>
+</components:DefaultWindow>

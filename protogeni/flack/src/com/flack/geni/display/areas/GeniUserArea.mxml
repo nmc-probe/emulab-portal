@@ -1,0 +1,425 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:components="com.flack.shared.display.components.*"
+		  xmlns:display="com.flack.geni.display.*"
+		  xmlns:areas="com.flack.geni.display.areas.*"
+		  creationComplete="init()"
+		  gap="0" xmlns:areas1="com.flack.shared.display.areas.*">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.geni.display.DisplayUtil;
+			import com.flack.geni.resources.physical.PhysicalNode;
+			import com.flack.geni.resources.sites.GeniAuthority;
+			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.tasks.groups.GetUserTaskGroup;
+			import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetUserKeysSaTask;
+			import com.flack.shared.FlackEvent;
+			import com.flack.shared.SharedCache;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
+			import com.flack.shared.display.components.ImageButton;
+			import com.flack.shared.tasks.Task;
+			import com.flack.shared.tasks.TaskEvent;
+			import com.flack.shared.tasks.file.FileTask;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.NetUtil;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			
+			import spark.components.Button;
+			import spark.components.TextArea;
+			import spark.primitives.Rect;
+			
+			[Bindable]
+			public var node:PhysicalNode = null;
+			
+			[Bindable]
+			private var nodeTypes:ArrayCollection = null;
+			
+			[Bindable]
+			private var subauthorities:ArrayCollection = null;
+			
+			public function init():void
+			{
+				updateInfo();
+			}
+			
+			override public function initEvents():void
+			{
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_USER, updateInfo);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICE, updateInfo);
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICES, updateInfo);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_FINISHED, updateUserTasking);
+				SharedMain.tasker.addEventListener(TaskEvent.CHILD_STARTED, updateUserTasking);
+			}
+			
+			override public function removeEvents():void
+			{
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_USER, updateInfo);
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_SLICE, updateInfo);
+				SharedMain.sharedDispatcher.removeEventListener(FlackEvent.CHANGED_SLICES, updateInfo);
+				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_FINISHED, updateUserTasking);
+				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_STARTED, updateUserTasking);
+			}
+			
+			public function updateUserTasking(e:TaskEvent = null):void
+			{
+				var working:Boolean = SharedMain.tasker.tasks.AllNotFinished.getRelatedTo(GeniMain.geniUniverse.user).length > 0
+				if(!working && spinner.visible)
+				{
+					spinner.visible = false;
+					spinner.stopSpin();
+				}
+				else if(working && !spinner.visible)
+				{
+					spinner.visible = true;
+					spinner.startSpin();
+				}
+			}
+			
+			public function openAuthorityWebsite():void
+			{
+				if(GeniMain.geniUniverse.user.authority != null)
+					NetUtil.openWebsite(NetUtil.tryGetBaseUrl(GeniMain.geniUniverse.user.authority.url));
+				else
+					Alert.show("No authority selected");
+			}
+			
+			public function updateInfo(junk:FlackEvent = null):void
+			{
+				title = GeniMain.geniUniverse.user.id.name;
+				if(title.length == 0)
+					title = "User";
+				
+				subauthorities = new ArrayCollection();
+				for each(var subauthority:GeniAuthority in GeniMain.geniUniverse.user.subAuthorities.collection)
+					subauthorities.addItem(subauthority);
+				
+				updateKeys();
+				
+				updateSlices();
+				
+				updateUserTasking();
+			}
+			
+			public function updateKeys():void
+			{
+				if(keysVgroup != null)
+				{
+					keysVgroup.removeAllElements();
+					for each(var k:String in GeniMain.geniUniverse.user.keys)
+						addKey(k);
+				}
+			}
+			
+			public function updateSlices():void
+			{
+				if(slices != null)
+				{
+					slices.removeAllElements();
+					for each(var s:Slice in GeniMain.geniUniverse.user.slices)
+						slices.addElement(DisplayUtil.getSliceButton(s));
+				}
+			}
+			
+			// Save
+			
+			public function save():void
+			{
+				if(this.keysVgroup != null)
+				{
+					GeniMain.geniUniverse.user.keys = new Vector.<String>();
+					for(var i:int = 0; i < this.keysVgroup.numElements; i++)
+					{
+						var newKey:String = ((this.keysVgroup.getElementAt(0) as HGroup).getElementAt(0) as TextArea).text;
+						if(GeniMain.geniUniverse.user.keys.indexOf(newKey) == -1)
+							GeniMain.geniUniverse.user.keys.push(newKey);
+					}
+				}
+			}
+			
+			// Keys
+			
+			public function addKey(newText:String):void
+			{
+				var newKeyHgroup:HGroup = new HGroup();
+				newKeyHgroup.percentWidth = 100;
+				var newKeyTextarea:TextArea = new TextArea();
+				newKeyTextarea.percentWidth = 100;
+				newKeyTextarea.editable = false;
+				newKeyTextarea.setStyle("verticalScrollPolicy", "off");
+				newKeyTextarea.text = newText;
+				newKeyTextarea.addEventListener(
+					FlexEvent.UPDATE_COMPLETE,
+					function beforeShow(event:FlexEvent):void
+					{
+						newKeyTextarea.height = newKeyTextarea.scroller.viewport.contentHeight + 2
+					}
+				); // TODO add remove handler
+				var newDeleteButton:ImageButton = new ImageButton();
+				newDeleteButton.setStyle("icon", ImageUtil.deleteIcon);
+				newDeleteButton.addEventListener(
+					MouseEvent.CLICK,
+					function removeMe(event:MouseEvent):void {
+						event.currentTarget.parent.parent.parent.removeElement(event.currentTarget.parent.parent as DisplayObject);
+					}
+				); // TODO add remove handler
+				newKeyHgroup.addElement(newKeyTextarea);
+				newKeyHgroup.addElement(newDeleteButton);
+				keysVgroup.addElement(newKeyHgroup);
+			}
+			
+			public function addKeyFromFile(event:MouseEvent):void
+			{
+				var openPublicKeyTask:FileTask = new FileTask();
+				openPublicKeyTask.addEventListener(TaskEvent.FINISHED, afterOpenKey);
+				openPublicKeyTask.startOperation(event);
+			}
+			
+			private function afterOpenKey(event:TaskEvent):void
+			{
+				if(event.task.Status == Task.STATUS_SUCCESS)
+					addKey(event.task.data);
+			}
+			
+			private function get CombinedKeys():String
+			{
+				var keyFile:String = "";
+				for(var i:int = 0; i < keysVgroup.numElements; i++)
+				{
+					var keyHgroup:HGroup = keysVgroup.getElementAt(i) as HGroup;
+					keyFile += (keyHgroup.getElementAt(0) as TextArea).text + "\n";
+				}
+				return keyFile;
+			}
+			
+			private function saveKeysToFile(event:MouseEvent):void
+			{
+				var savePublicKeyTask:FileTask = new FileTask(CombinedKeys);
+				savePublicKeyTask.startOperation(event);
+			}
+			
+			private function reloadKeys():void
+			{
+				if(SharedMain.tasker.tasks.AllNotFinished.getOfClass(GetUserKeysSaTask).length > 0)
+				{
+					Alert.show("Task to load keys is already running or pending");
+					return;
+				}
+				
+				var getKeysTask:GetUserKeysSaTask = new GetUserKeysSaTask(GeniMain.geniUniverse.user);
+				getKeysTask.forceRunNow = true;
+				SharedMain.tasker.add(getKeysTask);
+			}
+			
+			public function viewLogs():void
+			{
+				var logArea:LogMessagesRelatedToArea = new LogMessagesRelatedToArea();
+				logArea.RelatedTo = [GeniMain.geniUniverse.user];
+				logArea.title = "Logs for " + GeniMain.geniUniverse.user.id.name;
+				logArea.backgroundColor = backgroundColor;
+				logArea.titleColor = titleColor;
+				openNext(logArea);
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:Group width="100%">
+		<s:Rect width="100%" height="100%">
+			<s:fill><s:SolidColor color="{backgroundColor}" /></s:fill>
+		</s:Rect>
+		
+		<s:HGroup width="100%"
+				  verticalAlign="middle"
+				  paddingLeft="2"
+				  paddingRight="2"
+				  paddingTop="2"
+				  paddingBottom="2"
+				  gap="2">
+			<s:Label text="{title}"
+					 color="{titleColor}"
+					 id="nameLabel"
+					 toolTip="{node.id.full}"
+					 fontSize="17"
+					 fontWeight="bold"
+					 width="100%" />
+			<components:Spinner id="spinner"
+								width="21"
+								height="21"
+								x="{(width / 2) - (spinner.width / 2)}"
+								y="{(height / 2) - (spinner.height / 2)}"
+								visible="false" includeInLayout="{spinner.visible}" />
+			<s:Button id="deleteCacheButton"
+					  icon="{ImageUtil.deleteIcon}"
+					  label="Remove"
+					  toolTip="Remove all user data from cache"
+					  click="SharedCache.clearUser(); Alert.show('User removed from cache', 'Deleted')" />
+			<s:Button icon="{ImageUtil.refreshIcon}"
+					  label="Reload all"
+					  click="SharedMain.tasker.add(new GetUserTaskGroup(GeniMain.geniUniverse.user))" />
+			<s:Button id="consoleButton"
+					  icon="{ImageUtil.consoleIcon}"
+					  label="Logs"
+					  toolTip="View log messages in the console"
+					  click="viewLogs()" />
+			<components:ImageButton id="dockIcon"
+									icon="{ImageUtil.windowIcon}"
+									toolTip="Pop out to a window or in to the main window"
+									click="host.Docked ? popOut() : dock()" />
+			<components:ImageButton id="closeIcon"
+									icon="{ImageUtil.crossIcon}"
+									toolTip="Close"
+									click="close()" />
+		</s:HGroup>
+		
+	</s:Group>
+	
+	<s:ButtonBar dataProvider="{userViewstack}"
+				 requireSelection="true"
+				 skinClass="com.flack.shared.display.skins.ButtonBarSkin"
+				 width="100%" />
+	<mx:ViewStack id="userViewstack"
+				  width="100%"
+				  height="100%"
+				  paddingTop="4">
+		<s:NavigatorContent id="basicView"
+							width="100%"
+							height="100%"
+							label="Basic"
+							toolTip="Basic"
+							icon="{ImageUtil.userIcon}">
+			<s:VGroup width="100%"
+					  height="100%"
+					  gap="2"
+					  paddingLeft="2"
+					  paddingRight="2">
+				<s:HGroup gap="2">
+					<s:VGroup gap="2">
+						<s:Label text="Authority"
+								 fontWeight="bold" />
+						<s:Button label="{GeniMain.geniUniverse.user.authority.id.authority}"
+								  icon="{ImageUtil.authorityIcon}"
+								  click="openAuthorityWebsite()" />
+					</s:VGroup>
+					<s:VGroup gap="2">
+						<s:Label text="Sub-Authorities"
+								 fontWeight="bold" />
+						<s:List id="subauthoritiesList"
+								dataProvider="{subauthorities}" labelField="name" />
+					</s:VGroup>
+				</s:HGroup>
+				<components:DefaultLine percentWidth="100"
+										lineThickness="2" />
+				<s:Label text="Slices"
+						 fontWeight="bold"
+						 fontSize="14" />
+				<display:CreateSliceControl />
+				<s:Scroller width="100%" height="100%">
+					<s:VGroup width="100%"
+							  height="100%"
+							  gap="2"
+							  id="slices" />
+				</s:Scroller>
+			</s:VGroup>
+		</s:NavigatorContent>
+		<s:NavigatorContent id="credentialView"
+							width="100%"
+							height="100%"
+							label="Credential"
+							toolTip="User or slice credential being used"
+							icon="{ImageUtil.credentialIcon}">
+			<components:AdvancedTextArea text="{GeniMain.geniUniverse.user.credential.Raw}"
+										 paddingLeft="2"
+										 paddingBottom="2"
+										 paddingRight="2" />
+		</s:NavigatorContent>
+		<s:NavigatorContent id="sslCertView"
+							width="100%"
+							height="100%"
+							label="SSL Cert"
+							toolTip="Certificate and private key used for secure communication"
+							icon="{ImageUtil.sslIcon}">
+			<components:AdvancedTextArea text="{GeniMain.geniUniverse.user.sslCert}"
+										 paddingLeft="2"
+										 paddingBottom="2"
+										 paddingRight="2" />
+		</s:NavigatorContent>
+		<s:NavigatorContent id="keysView"
+							width="100%"
+							height="100%"
+							label="SSH Keys"
+							toolTip="Set of public keys added to resources for secure login"
+							icon="{ImageUtil.keyIcon}">
+			<s:HGroup height="100%"
+					  width="100%"
+					  gap="2"
+					  paddingLeft="2"
+					  creationComplete="updateKeys()">
+				<s:VGroup width="50%" height="100%">
+					<s:Label text="Private Key" fontSize="17" fontWeight="bold" />
+					<s:Label text="If generated by the most current version of Emulab, load on your computer into a SSH agent to log into nodes"
+							 width="100%"
+							 maxDisplayedLines="2" />
+					<components:AdvancedTextArea text="{GeniMain.geniUniverse.user.PrivateKey}" />
+				</s:VGroup>
+				<s:VGroup width="50%" height="100%">
+					<s:Label text="Public Key(s)" fontSize="17" fontWeight="bold" />
+					<s:Label text="Uploaded to allocated nodes to allow login with corresponding private keys" />
+					<s:HGroup gap="2">
+						<s:Button icon="{ImageUtil.refreshIcon}"
+								  enabled="{GeniMain.geniUniverse.user.authority != null}"
+								  label="Reload"
+								  toolTip="Reloads the keys from the user's authority"
+								  click="reloadKeys();" />
+						<s:Button icon="{ImageUtil.openIcon}"
+								  label="Add"
+								  toolTip="Add a public key saved to file"
+								  click="addKeyFromFile(event);" />
+						<s:Button icon="{ImageUtil.saveIcon}"
+								  label="Save all"
+								  toolTip="Save all of the keys to one file"
+								  click="saveKeysToFile(event);" />
+						<s:Button icon="{ImageUtil.copyIcon}"
+								  label="Copy all"
+								  toolTip="Copy all of the keys to the clipboard"
+								  click="System.setClipboard(CombinedKeys);" />
+						<components:ImageButton icon="{ImageUtil.helpIcon}"
+												toolTip="View directions on adding SSH keys"
+												click="NetUtil.openWebsite(GeniMain.sshKeysSteps)" />
+					</s:HGroup>
+					<s:Scroller width="100%" height="100%">
+						<s:VGroup width="100%"
+								  id="keysVgroup"
+								  paddingRight="2"
+								  gap="2" />
+					</s:Scroller>
+				</s:VGroup>
+			</s:HGroup>
+		</s:NavigatorContent>
+	</mx:ViewStack>
+	
+</areas1:AreaContent>

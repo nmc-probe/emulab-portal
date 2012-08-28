@@ -109,9 +109,9 @@ package com.hurlant.crypto.tls {
 		public var key:uint;
 		
 		public function CipherSuites(cipher:uint, hash:uint, key:uint) {
-			this.cipher = cipher;
-			this.hash = hash;
-			this.key = key;
+			cipher = cipher;
+			hash = hash;
+			key = key;
 		}
 	}
 }

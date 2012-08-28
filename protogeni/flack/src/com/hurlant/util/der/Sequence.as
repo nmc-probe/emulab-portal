@@ -17,7 +17,7 @@ package com.hurlant.util.der
 		
 		public function Sequence(type:uint = 0x30, length:uint = 0x00) {
 			this.type = type;
-			this.len = length;
+			len = length;
 		}
 		
 		public function getLength():uint
