@@ -892,6 +892,11 @@ foreach $node (@nodenames) {
 	push(@types, "$class:1");
     }
 
+    my $explicit =
+	$typemap{$type}->{'TYPEINFO'}->GetAttribute("explicit_request");
+    if (defined($explicit)) {
+	push(@features, "$type-explicit:1");
+    }
     if (defined($delay_capacity) && $delay_capacity > 0) {
 	# Comes from the NS file;
 	$delay_capacity = $delaycap_override
