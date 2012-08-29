@@ -38,10 +38,7 @@ if ($UID) {
 # Lets not bother (or worry) people.
 $EmulabFeatures::verbose = 0;
 
-if (EmulabFeatures->FeatureEnabled("AncientSnmpit",
-				   $this_user, undef, undef) ||
-    EmulabFeatures->FeatureEnabled("OldSnmpit",
-				   $this_user, undef, undef)) {
+if (EmulabFeatures->FeatureEnabled("OldSnmpit", $this_user, undef, undef)) {
     my $newpath = "$TB/lib/snmpit_old/portstats";
     print STDERR "Invoking alternate portstats from $newpath\n";
     exec $newpath, @ARGV;
