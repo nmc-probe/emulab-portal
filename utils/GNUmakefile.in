@@ -42,7 +42,7 @@ LIBEXEC_SCRIPTS	= spewleds webcopy spewsource webcvsweb xlogin webviewvc \
 CTRLSBIN_SCRIPTS= opsdb_control.proxy daemon_wrapper
 
 # These scripts installed setuid, with sudo. 
-SETUID_BIN_SCRIPTS   = 
+SETUID_BIN_SCRIPTS   = create_image
 SETUID_SBIN_SCRIPTS  = grabwebcams checkquota spewconlog opsdb_control suchown \
                        anonsendmail readblob
 SETUID_SUEXEC_SCRIPTS  = xlogin
