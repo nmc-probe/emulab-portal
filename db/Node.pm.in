@@ -3450,22 +3450,29 @@ sub RunningOsImage($)
     my ($self)  = @_;
     my $nodeid  = $self->node_id();
     my $osid    = $self->def_boot_osid();
+    my $imageid;
     
     my $osinfo = OSinfo->Lookup($osid);
     return ()
 	if (!defined($osinfo));
 
-    my $query_result =
-	DBQueryWarn("select imageid from partitions as p ".
-		    "where p.node_id='$nodeid' and p.osid='$osid'");
-    return ()
-	if (!$query_result || !$query_result->numrows);
+    #
+    # No partition entries for virtnodes, they are plain EZ images.
+    #
+    if ($self->isvirtnode()) {
+	$imageid = $osid;
+    }
+    else {
+	my $query_result =
+	    DBQueryWarn("select imageid from partitions as p ".
+			"where p.node_id='$nodeid' and p.osid='$osid'");
+	return ()
+	    if (!$query_result || !$query_result->numrows);
 
-    my ($imageid) = $query_result->fetchrow_array();
+	my ($imageid) = $query_result->fetchrow_array();
+    }
+    # This might not exist for a virtnode; caller has to deal with it.
     my $image = Image->Lookup($imageid);
-    return ()
-	if (!defined($image));
-
     return ($osinfo, $image);
 }
 
