@@ -774,27 +774,26 @@ sub DumpDBGoo()
 	    if (defined($opsnode));
 
 	if ($table eq "nodes") {
-	    DBQueryFatal("update temp_${table} set ".
+	    DBQueryFatal("update temp_nodes set ".
 			 " type='ops', ".
 			 " phys_nodeid=node_id, ".
 			 " role='ctrlnode', ".
 			 " op_mode='OPSNODEBSD' ".
 			 "where node_id in ('fs','ops')");
 
-	    # Also add the nodes that correspond to the "trunk" wires.
-	    DBQueryFatal("insert into temp_${table} ".
-			 "select distinct n.* from wires as w ".
-			 "left join nodes as n on w.node_id1=n.node_id or ".
-			 "     w.node_id2=n.node_id ".
-			 "where w.type='Trunk'");
+	    # Also add the nodes that correspond to infrastructure switches
+	    DBQueryFatal("insert into temp_nodes ".
+			 "select distinct n.* from switch_stacks as s ".
+			 "left join nodes as n on s.node_id=n.node_id ".
+			 "where stack_id not like 'ExpStack%'");
 
 	    # Clear any node reservations on the inside
-	    DBQueryFatal("update temp_${table} set ".
+	    DBQueryFatal("update temp_nodes set ".
 			 " reserved_pid=null where reserved_pid is not null");
 
 	    # Put the inner nodes into "limbo" so they DTRT when restarted
 	    if ($restartnodes) {
-		DBQueryFatal("update temp_${table} set".
+		DBQueryFatal("update temp_nodes set".
 			     "  op_mode='PXEKERNEL',next_op_mode='',".
 			     "  eventstate='". TBDB_NODESTATE_PXELIMBO . "',".
 			     "  temp_boot_osid=NULL,next_boot_osid=NULL,".
