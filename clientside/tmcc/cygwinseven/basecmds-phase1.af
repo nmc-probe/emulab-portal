@@ -2,17 +2,18 @@
 addreg HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\System ;; EnableLUA ;; Dword ;; 0
 
 # Disable Automatic Activation and Activation Notification
-addreg HKLM\Software\Micrsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\Activation ;; Manual ;; Dword ;; 1
-addreg HKLM\Software\Micrsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\Activation ;; NotificationDisabled ;; Dword ;; 1
+addreg HKLM\Software\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\Activation ;; Manual ;; Dword ;; 1
+addreg HKLM\Software\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\Activation ;; NotificationDisabled ;; Dword ;; 1
 
 # Disable Windows Firewall
 runcmd netsh advfirewall set AllProfiles state off ;; 0
 
 # Disable Windows Defender
-runcmd sc config WinDefend= disabled ;; 0
+runcmd C:\Windows\System32\sc config WinDefend start= disabled ;; 0
 
 # Disable Action Center
-runcmd sc config wscsvc start= disabled ;; 0
+addreg HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer ;; HideSCAHealth ;; Dword ;; 1
+runcmd C:\Windows\System32\sc config wscsvc start= disabled ;; 0
 
 # Disable IPv6
 addreg HKLM\System\CurrentControlSet\Services\tcpip6\Parameters ;; DisabledComponents ;; Dword ;; 0xffffffff
@@ -20,19 +21,22 @@ addreg HKLM\System\CurrentControlSet\Services\tcpip6\Parameters ;; DisabledCompo
 # Disable TCP Chimney offload
 runcmd netsh int tcp set global chimney=disabled ;; 0
 
+# Enable global IP Forwarding
+addreg HKLM\system\currentcontrolset\services\tcpip\parameters ;; IPEnableRouter ;; Dword ;; 1
+
 # Disable LLTDIO Mapper
-runcmd sc config lltdio start= disabled ;; 0
+runcmd C:\Windows\System32\sc config lltdio start= disabled ;; 0
 
 # Disable SSDP and UPnP services
-runcmd sc config SSDPSRV start= disabled ;; 0
-runcmd sc config upnphost start= disabled ;; 0
+runcmd C:\Windows\System32\sc config SSDPSRV start= disabled ;; 0
+runcmd C:\Windows\System32\sc config upnphost start= disabled ;; 0
 
 # Disable Windows Error Reporting
 addreg HKLM\Software\Microsoft\Windows\Windows Error Reporting ;; Disabled ;; Dword ;; 1
 
 # Disable automatic updating
 addreg HKLM\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update ;; AUOptions ;; Dword ;; 1
-runcmd sc config wuauserv start= disabled ;; 0
+runcmd C:\Windows\System32\sc config wuauserv start= disabled ;; 0
 
 # Disable hibernate
 runcmd powercfg /H off ;; 0
@@ -40,12 +44,10 @@ runcmd powercfg /H off ;; 0
 # Enable Remote Desktop Protocol connections
 addreg HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server ;; fDenyTSConnections ;; Dword ;; 0
 
-# Enable global IP Forwarding
-addreg HKLM\system\currentcontrolset\services\tcpip\parameters ;; IPEnableRouter ;; Dword ;; 1
-
 # Setup the clock
 # Change the manual peer list if necessary / desired.
 addreg HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation ;; RealTimeIsUniversal ;; Dword ;; 1
-runcmd w32tm /register
+runcmd C:\Windows\System32\sc config w32time start= auto ;; 0
 runcmd tzutil /s "Mountain Standard Time" ;; 0
-runcmd w32tm /config /manualpeerlist:ntp1 /syncfromflags:manual /update
+runcmd net start w32time ;; 0
+runcmd w32tm /config /manualpeerlist:ntp1 /syncfromflags:manual /update ;; 0

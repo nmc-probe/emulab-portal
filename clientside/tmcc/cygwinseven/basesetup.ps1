@@ -67,7 +67,7 @@ Function addreg_func($cmdarr) {
 			return $FAIL
 		}
 	}
-	if (!(New-ItemProperty -Path "Registry::$path" -Name $vname`
+	if (!(New-ItemProperty -Path "Registry::$path" -Name $vname `
 	      -PropertyType $type -Value $value -Force)) {
 		    log("ERROR: Could not set registry value: ")
 		    return $FAIL
