@@ -116,6 +116,7 @@ my $oldlogfile;
 my $needcleanup = 0;
 my $needunlock  = 0;
 my $isvirtnode  = 0;
+my $onsharednode= 0;
 my $didbackup   = 0;
 
 #
@@ -155,6 +156,13 @@ if (@ARGV != 2) {
 
 my $imagename  = $ARGV[0];
 my $node_id    = $ARGV[1];
+
+#
+# There is no reason to run as root unless we are taking a snapshot
+# of a VM on a shared node. In that case we will flip back when
+# we do the ssh over.
+#
+$EUID = $UID;
 
 #
 # Untaint the arguments.
@@ -224,7 +232,9 @@ if (!defined($node)) {
     die("*** $0:\n".
 	"    Invalid node name $node_id!\n");
 }
-$isvirtnode = $node->isvirtnode();
+$isvirtnode   = $node->isvirtnode();
+$onsharednode = $node->sharing_mode()
+    if ($isvirtnode);
 
 if ($UID && ! $this_user->IsAdmin()) {
     $mereuser = 1;
@@ -912,7 +922,8 @@ sub run_with_ssh($$)
     if (defined($output)) {
 	$cmd .= " > $output";
     }
-    print STDERR "About to: '$cmd' as uid $UID\n" if ($debug);
+    print STDERR "About to: '$cmd' as uid ".
+	($onsharednode ? 0 : $UID) . "\n" if ($debug);
 
     my $mypid = fork();
     if ($mypid < 0) {
@@ -922,6 +933,13 @@ sub run_with_ssh($$)
     #
     # Child. Just do it.
     #
+    # If this is a virtnode on a shared node, we want to flip
+    # back to root so that we run the ssh as root. 
+    #
+    if ($onsharednode) {
+	$EUID = $UID = 0;
+    }
+
     if ($mypid == 0) {
 	my $stat = 0;
 	if (system($cmd)) {
