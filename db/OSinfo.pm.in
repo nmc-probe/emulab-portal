@@ -7,8 +7,9 @@
 package OSinfo;
 
 use strict;
+use Carp;
 use Exporter;
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT $AUTOLOAD);
 
 @ISA    = "Exporter";
 @EXPORT = qw ( );
@@ -155,34 +156,27 @@ sub LookupRow($$)
     
     return $self;
 }
-# accessors
-sub field($$) { return ((! ref($_[0])) ? -1 : $_[0]->{'OSINFO'}->{$_[1]}); }
-sub osname($)           { return field($_[0], "osname"); }
-sub osid($)             { return field($_[0], "osid"); }
-sub pid($)	        { return field($_[0], "pid"); }
-sub gid($)	        { return field($_[0], "gid"); }
-sub pid_idx($)          { return field($_[0], "pid_idx"); }
-sub gid_idx($)          { return field($_[0], "gid_idx"); }
-sub creator($)          { return field($_[0], "creator"); }
-sub creator_idx($)      { return field($_[0], "creator_idx"); }
-sub created($)          { return field($_[0], "created"); }
-sub description($)      { return field($_[0], "description"); }
-sub OS($)		{ return field($_[0], "OS"); }
-sub version($)		{ return field($_[0], "version"); }
-sub path($)             { return field($_[0], "path"); }
-sub magic($)            { return field($_[0], "magic"); }
-sub machinetype($)      { return field($_[0], "machinetype"); }
-sub osfeatures($)       { return field($_[0], "osfeatures"); }
-sub ezid($)		{ return field($_[0], "ezid"); }
-sub shared($)		{ return field($_[0], "shared"); }
-sub mustclean($)	{ return field($_[0], "mustclean"); }
-sub op_mode($)		{ return field($_[0], "op_mode"); }
-sub nextosid($)		{ return field($_[0], "nextosid"); }
-sub max_concurrent($)   { return field($_[0], "max_concurrent"); }
-sub mfs($)              { return field($_[0], "mfs"); }
-sub reboot_waittime($)  { return field($_[0], "reboot_waittime"); }
-sub def_parentosid($)   { return field($_[0], "def_parentosid"); }
-sub protogeni_export($) { return field($_[0], "protogeni_export"); }
+
+AUTOLOAD {
+    my $self  = $_[0];
+    my $type  = ref($self) or croak "$self is not an object";
+    my $name  = $AUTOLOAD;
+    $name =~ s/.*://;   # strip fully-qualified portion
+
+    # A DB row proxy method call.
+    if (exists($self->{'OSINFO'}->{$name})) {
+	return $self->{'OSINFO'}->{$name};
+    }
+    carp("No such slot '$name' field in class $type");
+    return undef;
+}
+
+# Break circular reference someplace to avoid exit errors.
+sub DESTROY {
+    my $self = shift;
+
+    $self->{'OSINFO'} = undef;
+}
 
 #
 # Create a new os_info. This installs the new record in the DB,
