@@ -137,6 +137,24 @@ Function runcmd_func($cmdarr) {
 	return $SUCCESS
 }
 
+Function getfile_func($cmdarr) {
+	log("getfile called with: $cmdarr")
+	if ($cmdarr.count -lt 2) {
+		log("URL and local file must be provided.")
+		return $FAIL
+	}
+
+	$url, $fileName = $cmdarr
+	if (Test-Path -Path $filename) {
+		log("WARNING: Overwriting existing file: $filename")
+	}
+	
+	$storageDir = $pwd
+	$webclient = New-Object System.Net.WebClient
+	$file = "$storageDir\$fileName"
+	$webclient.DownloadFile($url,$file)
+}
+
 # Main starts here
 if ($actionfile -and !(Test-Path -pathtype leaf $actionfile)) {
 	log("Specified action sequence file does not exist: $actionfile")
