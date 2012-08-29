@@ -137,7 +137,7 @@ sub LookupByURL($$)
     my ($class, $url) = @_;
 
     return undef
-	if (! ($url =~ /^http/));
+	if (! ($url =~ /^(ftp|http|https):/));
 
     my $safe_url = DBQuoteSpecial($url);
     
