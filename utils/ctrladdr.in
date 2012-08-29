@@ -1,0 +1,173 @@
+#!/usr/bin/perl -w
+
+#
+# EMULAB-COPYRIGHT
+# Copyright (c) 2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+
+use English;
+use Getopt::Std;
+use strict;
+use Socket;
+
+#
+# Configure variables
+#
+my $TB			= "@prefix@";
+my $control_network     = "@CONTROL_NETWORK@";
+my $control_netmask     = "@CONTROL_NETMASK@";
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/sbin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use libdb;
+use libtestbed;
+
+#
+# Handle command-line options.
+#
+sub usage() {
+    print STDERR "Usage: $0 [-t aaa.bbb.ccc.ddd] [-n num] [-a] [-r]\n" .
+        "    -t aaa.bbb.ccc.ddd : exit 0 if address available, 1 if used\n" .
+	"    -n num : show num addresses (0 = unlimited, defaults to 1)\n" .
+	"    -a : show allocated addresses too (defaults to free only)\n" .
+	"    -r : compress ranges of consecutive free addresses\n";
+    exit( 1 );
+}
+
+my $test = undef;
+my $num = 1;
+my $all = undef;
+my $range = undef;
+my %options = ();
+
+if( !getopts( "t:n:ar", \%options ) ) {
+    usage();
+}
+if( $options{ 't' } ) {
+    $test = $options{ 't' };
+}
+if( exists( $options{ 'n' } ) ) {
+    $num = $options{ 'n' };
+}
+if( $options{ 'a' } ) {
+    $all = 1;
+}
+if( $options{ 'r' } ) {
+    $range = 1;
+}
+
+usage() unless @ARGV == 0;
+
+my %used = ();
+
+sub show($) {
+
+    my ($addr) = @_;
+
+    if( $used{ $addr } ) {
+	print $addr . " is assigned to " . $used{ $addr } . "\n";
+    } else {
+	print $addr . "\n";
+    }
+}
+
+my $range_start = undef;
+
+sub range_done($) {
+    
+    my ($i) = @_;
+
+    if( $range_start ) {
+	if( $range_start == $i - 1 ) {
+	    print inet_ntoa( pack( "N", $range_start ) ) . "\n";
+	} else {
+	    print inet_ntoa( pack( "N", $range_start ) ) . "-" .
+		inet_ntoa( pack( "N", $i - 1 ) ) . " (" . 
+		( $i - 1 - $range_start ) . " addresses)\n";
+	}
+
+	$range_start = undef;
+    }
+}
+
+my $result = DBQueryWarn( "SELECT IP, node_id FROM interfaces WHERE " .
+			  "role='ctrl';" );
+if( !$result ) {
+    print STDERR "Could not retrieve addresses from interfaces table\n";
+    exit( 1 );
+}
+
+while( my( $IP, $node_id ) = $result->fetchrow_array() ) {
+    $used{ $IP } = $node_id;
+}
+
+$result = DBQueryWarn( "SELECT IP FROM virt_node_public_addr;" );
+
+if( !$result ) {
+    print STDERR "Could not retrieve addresses from " .
+	"virt_node_public_addr table\n";
+    exit( 1 );
+}
+
+while( my( $IP ) = $result->fetchrow_array() ) {
+    $used{ $IP } = "dynamic virtual nodes";
+}
+
+# XXX Find any other addresses which are allocated, and add them to %used
+
+my $net = unpack( "N", inet_aton( $control_network ) );
+my $mask = unpack( "N", inet_aton( $control_netmask ) );
+
+$used{ inet_ntoa( pack( "N", $net ) ) } = "the network";
+$used{ inet_ntoa( pack( "N", $net | ~$mask ) ) } = "broadcast";
+
+if( $test ) {
+    my $t = unpack( "N", inet_aton( $test ) );
+
+    if( ( $t & $mask ) != $net ) {
+	print STDERR "warning: address $test is not on control network\n";
+    }
+
+    show( $test );
+
+    exit( exists( $used{ $test } ) ? 1 : 0 );
+} else {
+    my $free = 0;
+
+    my $i;
+
+    for( $i = $net; ( ( $i & $mask ) == $net ) &&
+	 ( !$num || $free < $num ); $i++ ) {
+	my $addr = inet_ntoa( pack( "N", $i ) );
+	if( $range ) {
+	    if( $used{ $addr } ) {
+		range_done( $i );
+	    } elsif( !defined( $range_start ) ) {
+		$range_start = $i;
+	    }
+
+	    show( $addr ) if( $all && $used{ $addr } );
+	} else {
+	    show( $addr ) if( $all || !$used{ $addr } );
+	}
+	$free++ if( !$used{ $addr } );
+    }
+
+    range_done( $i );
+}
+
+exit( 0 );
