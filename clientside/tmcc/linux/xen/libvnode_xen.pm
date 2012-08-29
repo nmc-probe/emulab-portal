@@ -442,7 +442,7 @@ sub vnodeCreate($$$$)
 	#
 	libvnode::setState("RELOADING");
 
-	if (createImageDisk($imagename, $raref)) {
+	if (createImageDisk($imagename, $vnode_id, $raref)) {
 	    fatal("xen_vnodeCreate: ".
 		  "cannot create logical volume for $imagename");
 	}
@@ -1093,9 +1093,9 @@ sub createAuxDisk($$)
 #
 # Create a logical volume for the image if it doesn't already exist.
 #
-sub createImageDisk($$)
+sub createImageDisk($$$)
 {
-    my ($image,$raref) = @_;
+    my ($image,$vnode_id,$raref) = @_;
     my $tstamp = $raref->{'IMAGEMTIME'};
     my $lvname = $image;
 
@@ -1141,7 +1141,7 @@ sub createImageDisk($$)
 
     # Now we just download the file, then let create do its normal thing
     my $imagepath = lvmVolumePath($lvname);
-    if (libvnode::downloadImage($imagepath, 1, $raref)) {
+    if (libvnode::downloadImage($imagepath, 1, $vnode_id, $raref)) {
 	print STDERR "libvnode_xen: could not download image $image\n";
 	TBScriptUnlock();
 	return -1;

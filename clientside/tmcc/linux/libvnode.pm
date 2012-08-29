@@ -22,6 +22,7 @@ use Exporter;
 
 use Data::Dumper;
 use libtmcc;
+use libsetup;
 use Socket;
 
 sub VNODE_STATUS_RUNNING() { return "running"; }
@@ -381,8 +382,8 @@ sub findBridgeIfaces($) {
 # mechanism.  Caller provides an imagepath for frisbee, and a hash of args that
 # comes directly from loadinfo.
 #
-sub downloadImage($$$) {
-    my ($imagepath,$todisk,$reload_args_ref) = @_;
+sub downloadImage($$$$) {
+    my ($imagepath,$todisk,$nodeid,$reload_args_ref) = @_;
 
     return -1 
 	if (!defined($imagepath) || !defined($reload_args_ref));
@@ -394,6 +395,7 @@ sub downloadImage($$$) {
     if (!defined($addr) || $addr eq "") {
 	# frisbee master server world
 	my ($server, $imageid);
+	my $proxyopt = "";
 
 	if ($reload_args_ref->{"SERVER"} =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
 	    $server = $1;
@@ -401,8 +403,12 @@ sub downloadImage($$$) {
 	if ($reload_args_ref->{"IMAGEID"} =~ /^([-\d\w]+),([-\d\w]+),([-\d\w]+)$/) {
 	    $imageid = "$1/$3";
 	}
+	if (SHAREDHOST) {
+	    $proxyopt = "-P $nodeid";
+	}
 	if ($server && $imageid) {
-	    mysystem("$FRISBEE -S $server -B 30 -F $imageid $imagepath");
+	    mysystem("$FRISBEE $proxyopt ".
+		     "         -S $server -B 30 -F $imageid $imagepath");
 	}
 	else {
 	    print STDERR "Could not parse frisbee loadinfo\n";
