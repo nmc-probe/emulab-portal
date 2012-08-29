@@ -8000,6 +8000,10 @@ sub UploadVlans($)
 		$speed     = $virtiface->_speed();
 		$trunk     = $virtiface->_trunk();
 
+		# Skip loopback interfaces.
+		next
+		    if (!defined($iface));
+
 		$interface = Interface->LookupByIface($pnodename, $iface);
 		if (!defined($interface)) {
 		    tberror("No such interface $pnodename:$iface\n");
