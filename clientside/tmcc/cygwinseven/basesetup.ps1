@@ -4,12 +4,12 @@
 
 # First, grab script arguments - I really hate that this must come first
 # in a powershell script (before any other executable lines).
-param([string]$actionfile)
+param([string]$actionfile, [switch]$debug)
 
 #
 # Constants
 #
-$MAXREBOOTWAIT = 1800
+$MAXSLEEP = 1800
 $LOGFILE="C:\temp\basesetup.log"
 $FAIL = "fail"
 $SUCCESS = "success"
@@ -26,11 +26,17 @@ Function log($msg) {
 	($time + ": " + $msg) | Out-File -encoding "ASCII" -append $LOGFILE
 }
 
+Function debug($msg) {
+	if ($debug) {
+		log("DEBUG: $msg")
+	}
+}
+
 Function lograw($msg) {
 	$msg | Out-File -encoding "ASCII" -append $LOGFILE
 }
 
-function isNumeric ($x) {
+Function isNumeric ($x) {
     $x2 = 0
     $isNum = [System.Int32]::TryParse($x, [ref]$x2)
     return $isNum
@@ -40,10 +46,18 @@ function isNumeric ($x) {
 # Action execution functions
 #
 
+Function log_func($cmdarr) {
+	foreach ($logline in $cmdarr) {
+		log($logline)
+	}
+
+	return $SUCCESS
+}
+
 # Create or set an existing registry value.  Create entire key path as required.
 # XXX: Update to return powershell errors
 Function addreg_func($cmdarr) {
-	log("addreg called with: $cmdarr")
+	debug("addreg called with: $cmdarr")
 
 	# set / check args
 	if (!$cmdarr -or $cmdarr.count -ne 4) {
@@ -51,25 +65,26 @@ Function addreg_func($cmdarr) {
 		return $FAIL
 	}
 	$path, $vname, $type, $value = $cmdarr
+	$regpath = "Registry::$path"
 	if ($REG_TYPES -notcontains $type) {
 		log("ERROR: Unknown registry value type specified: $type")
 		return $FAIL
 	}
-	if (!(Test-Path -IsValid -Path "Registry::$path")) {
-		log("Invalid registry key specified: $path")
+	if (!(Test-Path -IsValid -Path $regpath)) {
+		log("Invalid registry key specified: '$path'")
 		return $FAIL
 	}
 	
 	# Set the value, creating the full key path if necessary
-	if (!(Test-Path -Path "Registry::$path")) {
-		if (!(New-Item -Path "Registry::$path" -Force)) {
-			log("Couldn't create registry key path: $path")
+	if (!(Test-Path -Path $regpath)) {
+		if (!(New-Item -Path $regpath -Force)) {
+			log("Couldn't create registry key path: '$path'")
 			return $FAIL
 		}
 	}
-	if (!(New-ItemProperty -Path "Registry::$path" -Name $vname `
+	if (!(New-ItemProperty -Path $regpath -Name $vname `
 	      -PropertyType $type -Value $value -Force)) {
-		    log("ERROR: Could not set registry value: ")
+		    log("ERROR: Could not set registry value: '$vname' to '$value'")
 		    return $FAIL
 	    }
 
@@ -77,7 +92,8 @@ Function addreg_func($cmdarr) {
 }
 
 Function reboot_func($cmdarr) {
-	log("reboot called with: $cmdarr")
+	debug("reboot called with: $cmdarr")
+
 	if ($cmdarr) {
 		$force = $cmdarr
 	}
@@ -95,7 +111,8 @@ Function reboot_func($cmdarr) {
 }
 
 Function sleep_func($cmdarr) {
-	log("sleep called with: $cmdarr")
+	debug("sleep called with: $cmdarr")
+
 	if ($cmdarr.count -lt 1) {
 		log("ERROR: Must supply a time to sleep!")
 		return $FAIL
@@ -104,7 +121,7 @@ Function sleep_func($cmdarr) {
 	$wtime = $cmdarr[0]
 	if (!(isNumeric($wtime)) -or `
 	    (0 -gt $wtime) -or `
-	    ($MAXREBOOTWAIT -lt $wtime))
+	    ($MAXSLEEP -lt $wtime))
 	{
 		log("ERROR: Invalid sleep time: $wtime")
 		return $FAIL
@@ -117,7 +134,8 @@ Function sleep_func($cmdarr) {
 }
 
 Function runcmd_func($cmdarr) {
-	log("runcmd called with: $cmdarr")
+	debug("runcmd called with: $cmdarr")
+
 	if ($cmdarr.count -lt 1) {
 		log("No command given to run.")
 		return $FAIL
@@ -126,8 +144,10 @@ Function runcmd_func($cmdarr) {
 
 	# XXX:  Do some sanity checks on command... Implement timeout?
 	$cmdout = Invoke-Expression $cmd
-	log("Command output:")
-	lograw($cmdout)
+	if ($debug) {
+		debug("Command output:")
+		lograw($cmdout)
+	}
 	# $null is a special varibale in PS - always null!
 	if ($expret -ne $null -and $LASTEXITCODE -ne $expret) {
 		log("Command returned unexpected code.")
@@ -138,21 +158,29 @@ Function runcmd_func($cmdarr) {
 }
 
 Function getfile_func($cmdarr) {
-	log("getfile called with: $cmdarr")
+	debug("getfile called with: $cmdarr")
+	$retcode = $FAIL
+
 	if ($cmdarr.count -lt 2) {
 		log("URL and local file must be provided.")
 		return $FAIL
 	}
 
-	$url, $fileName = $cmdarr
+	$url, $filename = $cmdarr
 	if (Test-Path -Path $filename) {
 		log("WARNING: Overwriting existing file: $filename")
 	}
-	
-	$storageDir = $pwd
-	$webclient = New-Object System.Net.WebClient
-	$file = "$storageDir\$fileName"
-	$webclient.DownloadFile($url,$file)
+	# XXX: Timeout?
+	try {
+		$webclient = New-Object System.Net.WebClient
+		$webclient.DownloadFile($url,$filename)
+		$retcode = $SUCCESS
+	} catch {
+		log("Error Trying to download file: $filename: $_")
+		$retcode = $FAIL
+	}
+
+	return $retcode
 }
 
 # Main starts here
@@ -175,10 +203,11 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		$cmdarr = [regex]::split($cmdargs, '\s*;;\s*')
 	}
 	$result = $FAIL
-	# XXX: tried to implement a function dispatch table, but couldn't
-	#      get powershell to play ball.  So we have a switch statment.
-	#      May try again with OOP at some point.
+	# XXX: Maybe refactor all of this with OOP at some point.
 	switch($cmd) {
+		"log" {
+			$result = log_func($cmdarr)
+		}
 		"addreg" {
 			$result = addreg_func($cmdarr)
 		}
@@ -190,6 +219,9 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"sleep" {
 			$result = sleep_func($cmdarr)
+		}
+		"getfile" {
+			$result = getfile_func($cmdarr)
 		}
 		default {
 			log("WARNING: Skipping unknown action: $cmd")
