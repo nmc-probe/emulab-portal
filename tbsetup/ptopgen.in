@@ -1075,6 +1075,13 @@ foreach $node (@nodenames) {
 	if (defined($features{$node})) {
 	    push @features, @{$features{$node}};
 	}
+    } else {
+	for my $feature (@{$typemap{$type}->{'FEATURES'}}) {
+	    # TODO: Un-hardcode this. Ugh.
+	    if ($feature =~ /highvlan/) {
+		push(@features, $feature);
+	    }
+	}
     }
 
     #
