@@ -451,20 +451,25 @@ class OSinfo
 		        <td class=left>
 			    Mapped via DB table: osid_map</td></tr>\n";
 	    }
-	    else
+	    else {
+		$nextosinfo = OSinfo::Lookup($nextosid);
+	        $nextosname = $nextosinfo->osname();
 		echo "<tr>
                         <td>Next Osid: </td>
                         <td class=left>
                             <a href='showosinfo.php3?osid=$nextosid'>
-                                            $nextosid</a></td>
+                                            $nextosname</a></td>
                       </tr>\n";
+	    }
 	}
 	if ($def_parentosid) {
+	    $nextosinfo = OSinfo::Lookup($def_parentosid);
+	    $nextosname = $nextosinfo->osname();
 	    echo "<tr>
                       <td>Parent Osid: </td>
                       <td class=left>
                           <a href='showosinfo.php3?osid=$def_parentosid'>
-                                           $def_parentosid</a></td>
+                                           $nextosname</a></td>
                   </tr>\n";
 	}
 	if ($ezid) {

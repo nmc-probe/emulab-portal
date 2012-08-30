@@ -79,6 +79,20 @@ class Image
 	return Image::Lookup($row["imageid"]);
     }
 
+    function LookupByUUID($uuid) {
+	$safe_uuid = addslashes($uuid);
+
+	$query_result =
+	    DBQueryFatal("select imageid from images ".
+			 "where uuid='$safe_uuid'");
+
+	if (mysql_num_rows($query_result) == 0) {
+	    return null;
+	}
+	$row = mysql_fetch_array($query_result);
+	return Image::Lookup($row["imageid"]);
+    }
+    
     #
     # Refresh an instance by reloading from the DB.
     #
@@ -308,6 +322,8 @@ class Image
     function updated()		{ return $this->field("updated"); }
     function mbr_version()	{ return $this->field("mbr_version"); }
     function hash()		{ return $this->field("hash"); }
+    function metadata_url()	{ return $this->field("metadata_url"); }
+    function imagefile_url()	{ return $this->field("imagefile_url"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -454,6 +470,8 @@ class Image
     }
 
     function Show($showperms = 0) {
+	global $TBBASE;
+	
 	$imageid	= $this->imageid();
 	$imagename	= $this->imagename();
 	$pid		= $this->pid();
@@ -475,6 +493,16 @@ class Image
 	$uuid           = $this->uuid();
 	$mbr_version    = $this->mbr_version();
 	$hash           = $this->hash();
+
+	#
+	# An imported image has a metadata_url, and at the moment I
+	# do want to worry about exporting an imported image.
+	#
+	$imagefile_url  = $this->imagefile_url();
+	$metadata_url   = $this->metadata_url();
+	if (! $metadata_url) {
+	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$uuid";
+	}
 
 	if (!$description)
 	    $description = "&nbsp;";
@@ -645,6 +673,18 @@ class Image
                 <td>UUID: </td>
                 <td class=left>$uuid</td>
               </tr>\n";
+
+	echo "<tr>
+                <td>Metadata URL: </td>
+                <td class=left><a href='$metadata_url'>https:// ...</a></td>
+              </tr>\n";
+
+	if ($imagefile_url) {
+	    echo "<tr>
+                   <td>Image File URL: </td>
+                   <td class=left><a href='$imagefile_url'>https:// ...</a></td>
+                  </tr>\n";
+	}
 
 	#
 	# Show who all can access this image outside the project.

@@ -33,7 +33,7 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  addvpubaddr imageinfo ctrladdr
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
-                  webwanodecheckin webspewimage
+                  webwanodecheckin webspewimage webdumpdescriptor
 WEB_BIN_SCRIPTS = webcreate_image websetdest weblinkmon_ctl webspewevents \
 		  webdelay_config
 LIBEXEC_SCRIPTS	= spewleds webcopy spewsource webcvsweb xlogin webviewvc \
