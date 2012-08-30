@@ -40,6 +40,7 @@ my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
 my $nosnapshot  = 0;
+my $isvirtnode  = 0;
 
 #
 # Configure variables
@@ -117,6 +118,8 @@ my $node = Node->Lookup($node_id);
 if (!defined($node)) {
     fatal("No such node");
 }
+$isvirtnode = $node->isvirtnode();
+
 if (!$node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE())) {
     fatal("Not enough permission");
 }
@@ -181,10 +184,11 @@ if (defined($image)) {
 # on the node and being cloned.
 #
 my ($base_osinfo, $base_image) = $node->RunningOsImage();
-if (! (defined($base_osinfo) && defined($base_image))) {
+if (! (defined($base_osinfo))) {
     fatal("Could not determine osid/imageid for $node_id");
 }
-print "$node_id is running $base_osinfo,$base_image\n"
+print "$node_id is running $base_osinfo" .
+    (defined($base_image) ? ",$base_image" : "") . "\n"
     if ($debug);
 
 #
@@ -199,29 +203,47 @@ my %xmlfields =
     ("imagename"	=> $imagename,
      "pid"		=> $project->pid(),
      "gid"		=> $experiment->gid(),
-     "description"	=> $base_image->description(),
-     "loadpart"		=> $base_image->loadpart(),
+     "description"	=> $base_osinfo->description(),
      "OS"		=> $base_osinfo->OS(),
      "version"		=> $base_osinfo->version(),
      "path"		=> "$PROJROOT/$pid/images/${imagename}.ndz",
-     "node_id"		=> $node_id,
      "osfeatures",	=> $base_osinfo->osfeatures(),
      "op_mode",		=> $base_osinfo->op_mode(),
      "wholedisk",	=> $wholedisk,
-     "mbr_version",	=> $base_image->mbr_version(),
 );
+if (defined($base_image)) {
+    $xmlfields{"mbr_version"}     = $base_image->mbr_version();
+    $xmlfields{"reboot_waittime"} = $base_image->reboot_waittime();
+    $xmlfields{"loadpart"}        = $base_image->loadpart();
+}
+elsif ($isvirtnode) {
+    $xmlfields{"reboot_waittime"} = 240;
+    $xmlfields{"loadpart"}        = 1;
+    $xmlfields{"mtype_pcvm"}      = 1;
+    $xmlfields{"wholedisk"}       = 1;
+}
+else {
+    fatal("No base image for $node_id");
+}
+# This needs more thought.
+if ($isvirtnode) {
+    $xmlfields{"def_parentosid"} =
+	$base_osinfo->pid() . "," . $base_osinfo->osname();
+}
 
 #
 # Grab the existing type list and generate new mtype_* variables.
 #
-my @typelist = $base_image->TypeList($base_osinfo);
-if (! @typelist) {
-    fatal("$base_image does not run on any types");
-}
-foreach my $type (@typelist) {
-    my $type_id = $type->type();
+if (defined($base_image)) {
+    my @typelist = $base_image->TypeList($base_osinfo);
+    if (! @typelist) {
+	fatal("$base_image does not run on any types");
+    }
+    foreach my $type (@typelist) {
+	my $type_id = $type->type();
     
-    $xmlfields{"mtype_${type_id}"} = 1;
+	$xmlfields{"mtype_${type_id}"} = 1;
+    }
 }
 
 #
@@ -242,7 +264,7 @@ foreach my $key (keys(%xmlfields)) {
 print $fh "</image>\n";
 close($fh);
 
-my $output = emutil::ExecQuiet("$NEWIMAGEEZ -v -a $filename");
+my $output = emutil::ExecQuiet("$NEWIMAGEEZ -v $filename");
 if ($?) {
     print STDERR $output;
     fatal("Failed to verify image descriptor from $filename");
@@ -252,7 +274,7 @@ if ($impotent) {
     system("cat $filename");
     exit(0);
 }
-$output = emutil::ExecQuiet("$NEWIMAGEEZ -a $filename");
+$output = emutil::ExecQuiet("$NEWIMAGEEZ $filename");
 if ($?) {
     print STDERR $output;
     my $foo = `cat $filename`;
