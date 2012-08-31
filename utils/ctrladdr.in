@@ -39,6 +39,7 @@ my $control_network     = "@CONTROL_NETWORK@";
 my $control_netmask     = "@CONTROL_NETMASK@";
 my $DIG                 = "@DIG@";
 my $ourdomain           = "@OURDOMAIN@";
+my $DHCPD_TEMPLATE      = "/usr/local/etc/dhcpd.conf.template";
 
 #
 # Turn off line buffering on output
@@ -133,6 +134,46 @@ sub range_done($) {
 #
 # Populate the set of known addresses.
 #
+if( open( DHCP, $DHCPD_TEMPLATE ) ) {
+    # This parser is hopelessly fragile, but hopefully it will be good enough.
+    my $host;
+    my $name;
+    my $address;
+    while( <DHCP> ) {
+	if( /^\s*host\s+(\S+)\s*\{/ ) {
+	    $host = $1;
+	} elsif( /^\s*option\s+host-name\s+"(.+)"/ ) {
+	    $name = $1;
+	} elsif( /^\s*fixed-address\s*([0-9.]+)/ ) {
+	    $address = $1;
+	} elsif( /^[^#]*\}/ ) {
+	    if( defined( $host ) && defined( $address ) ) {
+		my $addr_num = unpack( "N", inet_aton( $address ) );
+
+		if( ( $addr_num & $mask ) == $net ) {
+		    $used{ $address } = defined( $name ) ? $name : "DHCP";
+		}
+	    }
+
+	    $host = $name = $address = undef;
+	} elsif( /^\s*range\s*([0-9.]+)\s+([0-9.]+)/ ) {
+	    my $first = unpack( "N", inet_aton( $1 ) );
+	    my $last = unpack( "N", inet_aton( $2 ) );
+	    my $i;
+
+	    for( $i = $first; $i <= $last; $i++ ) {
+		if( ( $i & $mask ) == $net ) {
+		    $used{ inet_ntoa( pack( "N", $i ) ) } = "dynamic DHCP";
+		}
+	    }
+	}
+    }
+    close( DHCP );
+} else {
+    print STDERR "warning: could not open DHCP template, " .
+	"ignoring DHCP hosts\n";
+}
+
 if( open( DNS, "$DIG -t axfr $ourdomain |" ) ) {
     while( <DNS> ) {
 	if( /^([-a-zA-Z0-9.]+)\.\s+[0-9]+\s+IN\s+A\s+([0-9.]+)/ ) {
