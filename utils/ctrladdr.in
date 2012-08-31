@@ -6,6 +6,26 @@
 # All rights reserved.
 #
 
+#
+# Show (un)allocated addresses on the control net.
+#
+# By default, the output is supposed to be easy to parse and simply
+# displays the first available address.  More than one available address
+# can be requested with the "-n" option (e.g. "-n 10" will show the
+# first ten unallocated addresses).  "-n 0" will show every free
+# address on the subnet.
+# 
+# The "-a" option (meant more for human consumption) also describes
+# allocated addresses.  For instance, "ctrladdr -a -n 0" will show
+# every address on the control net, and what it's used for (if
+# anything).  "-r" will compress ranges of consecutive free addresses
+# onto a single line.
+# 
+# To test whether a particular address is in use, invoke it as (e.g.)
+# "ctrladdr -t 155.98.36.1".  This will give an exit code of 0 if the
+# address is available, and 1 if used.  Any other options are ignored
+# if "-t" is specified.
+
 use English;
 use Getopt::Std;
 use strict;
@@ -17,6 +37,8 @@ use Socket;
 my $TB			= "@prefix@";
 my $control_network     = "@CONTROL_NETWORK@";
 my $control_netmask     = "@CONTROL_NETMASK@";
+my $DIG                 = "@DIG@";
+my $ourdomain           = "@OURDOMAIN@";
 
 #
 # Turn off line buffering on output
@@ -72,6 +94,10 @@ if( $options{ 'r' } ) {
 
 usage() unless @ARGV == 0;
 
+
+my $net = unpack( "N", inet_aton( $control_network ) );
+my $mask = unpack( "N", inet_aton( $control_netmask ) );
+
 my %used = ();
 
 sub show($) {
@@ -97,11 +123,32 @@ sub range_done($) {
 	} else {
 	    print inet_ntoa( pack( "N", $range_start ) ) . "-" .
 		inet_ntoa( pack( "N", $i - 1 ) ) . " (" . 
-		( $i - 1 - $range_start ) . " addresses)\n";
+		( $i - $range_start ) . " addresses)\n";
 	}
 
 	$range_start = undef;
     }
+}
+
+#
+# Populate the set of known addresses.
+#
+if( open( DNS, "$DIG -t axfr $ourdomain |" ) ) {
+    while( <DNS> ) {
+	if( /^([-a-zA-Z0-9.]+)\.\s+[0-9]+\s+IN\s+A\s+([0-9.]+)/ ) {
+	    my $dns_name = $1;
+	    my $dns_addr = $2;
+	    my $dns_addr_num = unpack( "N", inet_aton( $2 ) );
+
+	    if( ( $dns_addr_num & $mask ) == $net ) {
+		$used{ $dns_addr } = $dns_name;
+	    }
+	}
+    }
+    close( DNS );
+} else {
+    print STDERR "Could not read zone transfer\n";
+    exit( 1 );
 }
 
 my $result = DBQueryWarn( "SELECT IP, node_id FROM interfaces WHERE " .
@@ -129,12 +176,12 @@ while( my( $IP ) = $result->fetchrow_array() ) {
 
 # XXX Find any other addresses which are allocated, and add them to %used
 
-my $net = unpack( "N", inet_aton( $control_network ) );
-my $mask = unpack( "N", inet_aton( $control_netmask ) );
-
 $used{ inet_ntoa( pack( "N", $net ) ) } = "the network";
 $used{ inet_ntoa( pack( "N", $net | ~$mask ) ) } = "broadcast";
 
+#
+# The list is complete... ready to compute the output.
+#
 if( $test ) {
     my $t = unpack( "N", inet_aton( $test ) );
 
