@@ -37,6 +37,7 @@ use Socket;
 my $TB			= "@prefix@";
 my $control_network     = "@CONTROL_NETWORK@";
 my $control_netmask     = "@CONTROL_NETMASK@";
+my $dhcpd_dynrange      = "@DHCPD_DYNRANGE@";
 my $DIG                 = "@DIG@";
 my $ourdomain           = "@OURDOMAIN@";
 my $DHCPD_TEMPLATE      = "/usr/local/etc/dhcpd.conf.template";
@@ -134,6 +135,21 @@ sub range_done($) {
 #
 # Populate the set of known addresses.
 #
+
+# configure-time DHCP addresses.
+if( $dhcpd_dynrange =~ /([0-9.]+) ([0-9.]+)/ ) {
+    my $first = unpack( "N", inet_aton( $1 ) );
+    my $last = unpack( "N", inet_aton( $2 ) );
+    my $i;
+
+    for( $i = $first; $i <= $last; $i++ ) {
+	if( ( $i & $mask ) == $net ) {
+	    $used{ inet_ntoa( pack( "N", $i ) ) } = "dynamic DHCP";
+	}
+    }
+}
+
+# DHCP config file.
 if( open( DHCP, $DHCPD_TEMPLATE ) ) {
     # This parser is hopelessly fragile, but hopefully it will be good enough.
     my $host;
@@ -174,6 +190,7 @@ if( open( DHCP, $DHCPD_TEMPLATE ) ) {
 	"ignoring DHCP hosts\n";
 }
 
+# DNS records retrieved from name server.
 if( open( DNS, "$DIG -t axfr $ourdomain |" ) ) {
     while( <DNS> ) {
 	if( /^([-a-zA-Z0-9.]+)\.\s+[0-9]+\s+IN\s+A\s+([0-9.]+)/ ) {
@@ -192,6 +209,7 @@ if( open( DNS, "$DIG -t axfr $ourdomain |" ) ) {
     exit( 1 );
 }
 
+# Anything marked with a control role in the interfaces table.
 my $result = DBQueryWarn( "SELECT IP, node_id FROM interfaces WHERE " .
 			  "role='ctrl';" );
 if( !$result ) {
@@ -203,6 +221,7 @@ while( my( $IP, $node_id ) = $result->fetchrow_array() ) {
     $used{ $IP } = $node_id;
 }
 
+# Anything with a record in the virt_node_public_addr table.
 $result = DBQueryWarn( "SELECT IP FROM virt_node_public_addr;" );
 
 if( !$result ) {
@@ -215,8 +234,7 @@ while( my( $IP ) = $result->fetchrow_array() ) {
     $used{ $IP } = "dynamic virtual nodes";
 }
 
-# XXX Find any other addresses which are allocated, and add them to %used
-
+# Network and broadcast addresses (assume all-zeroes and all-ones).
 $used{ inet_ntoa( pack( "N", $net ) ) } = "the network";
 $used{ inet_ntoa( pack( "N", $net | ~$mask ) ) } = "broadcast";
 
