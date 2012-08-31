@@ -191,7 +191,7 @@ PUBLIC_NETMASK=255.255.255.0
 # to use for new nodes being added to the testbed.
 # You need at least one.
 #
-DHCPD_DYNRANGE="10.1.36.200 10.1.36.249"
+DHCPD_DYNRANGE="10.1.36.200 10.1.36.219"
 
 #
 # Fill in the nameservers for your campus network here - the nameserver on boss
