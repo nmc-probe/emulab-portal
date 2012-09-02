@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -110,6 +110,7 @@ DBQueryFatal("DELETE FROM images WHERE imageid='$imageid'");
 DBQueryFatal("DELETE FROM osidtoimageid where imageid='$imageid'");
 if ($image->ezid()) {
     DBQueryFatal("DELETE FROM os_info WHERE osid='$imageid'");
+    DBQueryFatal("DELETE FROM os_submap WHERE osid='$imageid'");
 }
 DBQueryFatal("unlock tables");
 
