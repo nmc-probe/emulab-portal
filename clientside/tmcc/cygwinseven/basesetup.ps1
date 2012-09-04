@@ -4,17 +4,21 @@
 
 # First, grab script arguments - I really hate that this must come first
 # in a powershell script (before any other executable lines).
-param([string]$actionfile, [switch]$debug)
+param([string]$actionfile, [switch]$debug, [string]$logfile)
 
 #
 # Constants
 #
 $MAXSLEEP = 1800
-$LOGFILE="C:\temp\basesetup.log"
+$DEFLOGFILE="C:\temp\basesetup.log"
 $FAIL = "fail"
 $SUCCESS = "success"
 $REG_TYPES = @("String", "Dword")
 
+#
+# Global Variables
+#
+$outlog = $DEFLOGFILE
 
 #
 # Utility functions
@@ -23,7 +27,7 @@ $REG_TYPES = @("String", "Dword")
 # Log to $LOGFILE
 Function log($msg) {
 	$time = Get-Date -format g
-	($time + ": " + $msg) | Out-File -encoding "ASCII" -append $LOGFILE
+	($time + ": " + $msg) | Out-File -encoding "ASCII" -append $outlog
 }
 
 Function debug($msg) {
@@ -33,7 +37,7 @@ Function debug($msg) {
 }
 
 Function lograw($msg) {
-	$msg | Out-File -encoding "ASCII" -append $LOGFILE
+	$msg | Out-File -encoding "ASCII" -append $outlog
 }
 
 Function isNumeric ($x) {
@@ -184,6 +188,15 @@ Function getfile_func($cmdarr) {
 }
 
 # Main starts here
+if ($logfile) {
+	if (Test-Path -IsValid -Path $logfile) {
+		$outlog = $logfile
+	} else {
+		Write-Host "ERROR: Can't use logfile specified: $logfile"
+		exit 1
+	}
+}
+
 if ($actionfile -and !(Test-Path -pathtype leaf $actionfile)) {
 	log("Specified action sequence file does not exist: $actionfile")
 	exit 1;
