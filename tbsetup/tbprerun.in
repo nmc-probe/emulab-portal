@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use strict;
@@ -41,6 +41,7 @@ my $batchexp = "$TBROOT/bin/batchexp";
 my $template = "$TBROOT/lib/ns2ir/elabinelab.ns";
 my $endexp   = "$TBROOT/bin/endexp";
 my $dbcontrol= "$TBROOT/sbin/opsdb_control";
+my $IMAGESETUP= "$TBROOT/sbin/image_setup";
 
 # Untaint the path
 $ENV{'PATH'} = "/usr/bin:/bin:$TBROOT/libexec:$TBROOT/libexec/ns2ir" . 
@@ -345,6 +346,14 @@ if (!$experiment->elabinelab()) {
     } else {
 	print "NSVERIFY not configured, skipping ...\n";
     }
+}
+
+#
+# Load up external image references.
+#
+system("$IMAGESETUP $pid,$eid");
+if ($?) {
+    fatal("Could not setup external image references");
 }
 
 #
