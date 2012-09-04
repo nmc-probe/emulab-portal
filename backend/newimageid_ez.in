@@ -597,7 +597,7 @@ UserError("Node Types: Must select at least one node type")
 # old OSes from being checked as runnable on newer HW where they do not
 # stand a chance.
 #
-if (!$isadmin && defined($node_id)) {
+if (!$isadmin && defined($node) && !$node->isvirtnode()) {
     my $query_result =
 	DBQueryFatal("select oi.type from osidtoimageid as oi ".
 		     "left join partitions as p on oi.osid=p.osid ".
