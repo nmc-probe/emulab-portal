@@ -25,6 +25,7 @@ use Node;
 use NodeType;
 use Lan;
 use OSinfo;
+use Image;
 use Port;
 use English;
 use emutil qw(SpanningTree GenFakeMac);
@@ -1232,23 +1233,30 @@ sub LoadVirtNodes($)
 	# use the default for the type of phys node that assign picks.
 	#
 	if (defined($osname) && $osname ne "") {
-	    my $ospid = $pid;
+	    my $osinfo;
 	    
-	    if ($osname =~ /^(.*)\/(.*)$/) {
-		$ospid  = $1;
-		$osname = $2;
-	    }
-	    my $osinfo = OSinfo->Lookup("$ospid,$osname");
-	    if (!defined($osinfo)) {
-		$osinfo = OSinfo->LookupByName($osname);
-
-		if (!defined($osinfo)) {
-		    tberror({cause => 'user', type => 'primary',
-			     severity => SEV_ERROR,
-			     error => ['invalid_os', undef, $osname, $ospid]},
-			    "Invalid OS $osname in project $ospid!");
-		    return -1;
+	    if ($osname =~ /^(ftp|http|https):/) {
+		my $image = Image->LookupByURL($osname);
+		if (!defined($image)) {
+		    tberror("Invalid os url $osname!\n");
 		}
+		$osinfo = OSinfo->Lookup($image->imageid());
+	    }
+	    elsif ($osname =~ /^(.*)\/(.*)$/) {
+		$osinfo = OSinfo->Lookup($osname);
+	    }
+	    else {
+		$osinfo = OSinfo->Lookup($pid, $osname);
+		if (!defined($osinfo)) {
+		    $osinfo = OSinfo->LookupByName($osname);
+		}
+	    }
+	    if (!defined($osinfo)) {
+		tberror({cause => 'user', type => 'primary',
+			 severity => SEV_ERROR,
+			 error => ['invalid_os', undef, $osname, $pid]},
+			"Invalid OS $osname!");
+		return -1;
 	    }
 	    $vnode->_osinfo($osinfo);
 	}
@@ -7875,82 +7883,6 @@ sub UploadVlans($)
 		}
 		$interface->Update($args) == 0
 		    or return -1;
-	    }
-	}
-	#
-	# Deal with port vlans.
-	#
-	foreach my $lan (@lans) {
-	    next
-		if ($lan->type() ne "portlan");
-
-	    my $lanname;
-	    $lan->GetAttribute("link/lan", \$lanname);
-	    my $virtlan = $self->vlans()->{$lanname};
-	    
-	    if (!defined($virtlan)) {
-		tberror("$lanname does not exist for portvlan\n");
-		return -1;
-	    }
-	    my $portvlan = $virtlan->_portvlan();
-
-	    #
-	    # The idea here is to remove any members for this lan
-	    # from the target lan, and then add the new ones. This
-	    # violates update, in that an error after this will not
-	    # restore the missing ports. Need to fix that.
-	    #
-	    my @members;
-	    if ($portvlan->MemberList(\@members) != 0) {
-		tberror("Could not get member list for $portvlan\n");
-		return -1;
-	    }
-	    foreach my $member (@members) {
-		my $member_exptidx;
-		my $member_lanname;
-		$member->GetAttribute("portlan_exptidx", \$member_exptidx);
-		$member->GetAttribute("portlan_lanname", \$member_lanname);
-
-		# Not a port in an external lan; a native port.
-		next
-		    if (!defined($member_exptidx) && !defined($member_lanname));
-
-		if (! (defined($member_exptidx) && defined($member_lanname))) {
-		    tberror("Could not get idx/lanname from $member\n");
-		    return -1;
-		}
-		next
-		    if (! ($member_exptidx == $exptidx &&
-			   $member_lanname eq $lanname));
-
-		# Delete the member.
-		$self->printdb("Deleting $member from $portvlan\n");
-		if ($portvlan->DelMember($member)) {
-		    tberror("Could not delete $member from $portvlan\n");
-		    return -1;
-		}
-	    }
-	    #
-	    # Now add new members.
-	    #
-	    if ($lan->MemberList(\@members) != 0) {
-		tberror("Could not get member list for $lan\n");
-		return -1;
-	    }
-	    foreach my $member (@members) {
-		my $nodeid;
-		my $iface;
-
-		$member->GetNodeIface(\$nodeid, \$iface);
-		my $newmember = $portvlan->AddMember($nodeid, $iface);
-		if (!defined($newmember)) {
-		    tberror("Could not add $member to $portvlan\n");
-		    return -1;
-		}
-		$self->printdb("Added $newmember to $portvlan\n");
-		# Mark where the member came from.
-		$newmember->SetAttribute("portlan_exptidx", $exptidx);
-		$newmember->SetAttribute("portlan_lanname", $lanname);
 	    }
 	}
     }
