@@ -202,7 +202,7 @@ Function mkdir_func($cmdarr) {
 		} else {
 			log("WARNING: Path already exists: $dir")
 		}
-	} elseif (!Test-Path -IsValid -Path $dir) {
+	} elseif (!(Test-Path -IsValid -Path $dir)) {
 		log("ERROR: Invalid path specified: $dir")
 		return $FAIL
 	} else {
