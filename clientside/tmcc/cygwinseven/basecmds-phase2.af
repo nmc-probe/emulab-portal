@@ -1,0 +1,3 @@
+log Downloading cygwin
+runcmd mkdir C:\Software\Cygwin ;; 0
+getfile http://cygwin.com/setup.exe C:\Software\Cygwin
