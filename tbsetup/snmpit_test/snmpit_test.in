@@ -44,7 +44,7 @@ sub doListPorts($);
 sub doPortStatus($@);
 sub doGetStats($);
 sub doVlansFromTables($$@);
-sub syncVlansFromTables($$);
+sub syncVlansFromTables($$@);
 sub doSyncVlansWithDB($);
 sub doReset($@);
 sub doMakeVlan($$@);
@@ -860,14 +860,14 @@ COMMAND: foreach my $command (@commands) {
 	(/synctables/) && do {
             # We operate on all stacks on which we think VLANs do, or should,
             # exist.
-	    my @newvlans = getExperimentVlans($pid,$eid,@optvlanids);
+	    @vlans = getExperimentVlans($pid,$eid,@optvlanids);
 	    my @oldvlans;
 	    VLan->StaleVlanList($experiment,\@oldvlans);
 
 	    #
 	    # No old or new vlans, then skip all of this. 
 	    #
-	    if (! (@newvlans || @oldvlans)) {
+	    if (! (@vlans || @oldvlans)) {
                 print "snmpit: $pid/$eid has no old or new VLANs ... ".
 		    "skipping\n";
                 next COMMAND;
@@ -877,7 +877,7 @@ COMMAND: foreach my $command (@commands) {
 		die("-X and -i cannot be used together\n");
             }
 	    else {
-                @devicenames = uniq(mapVlansToSwitches(@newvlans),
+                @devicenames = uniq(mapVlansToSwitches(@vlans),
 				    mapStaleVlansToSwitches(@oldvlans));
                 debug("Sync: list from database: " . join(",",@devicenames) .
 		      "\n");
@@ -1169,7 +1169,7 @@ COMMAND: foreach my $command (@commands) {
 	    last;
 	}; # /reservetags/ && do
 	/synctables/ && do {
-	    $exitval += syncVlansFromTables($experiment,\@stacks);
+	    $exitval += syncVlansFromTables($experiment,\@stacks,@vlans);
 	    last;
 	}; # /tables/ && do
 	/reset/ && do {
@@ -2244,9 +2244,10 @@ sub doReset($@) {
 # Sync vlans from the DB for a single experiment. This is a swapmod helper
 # to avoid churning the switches.
 #
-sub syncVlansFromTables($$) {
+sub syncVlansFromTables($$@) {
     my $experiment = shift;
     my $stacks     = shift;
+    my @vlanids    = @_;
     my %expvlans   = ();
     my %curvlans   = ();
     my %stale      = ();
@@ -2269,14 +2270,16 @@ sub syncVlansFromTables($$) {
     VLan->ExperimentVLans($experiment, \@tmp) == 0 or
 	die("Could not get current vlans for $experiment\n");
     foreach my $vlan (@tmp) {
-	$expvlans{$vlan->id()} = $vlan;
+	# Narrow to provided vlanids.
+	$expvlans{$vlan->id()} = $vlan
+	    if (!@vlanids || grep {$_ == $vlan->id()} @vlanids);
     }
     debug("Experiment vlans: " . join(" ", keys(%expvlans)) . "\n");;
 
     #
     # List of trunks for the above set of vlans.
     #
-    my %needTrunking = getExperimentTrunks($pid, $eid, @tmp);
+    my %needTrunking = getExperimentTrunks($pid, $eid, values(%expvlans));
     debug("Trunk Ports: ".Port->toStrings(keys(%needTrunking))."\n");
 
     #
@@ -2286,19 +2289,23 @@ sub syncVlansFromTables($$) {
     VLan->StaleVlanList($experiment, \@tmp) == 0 or
 	die("Could not get stale vlans for $experiment\n");
     foreach my $vlanid (@tmp) {
-	$curvlans{$vlanid} = 1;
+	# Narrow to provided vlanids.
+	next
+	    if (@vlanids && ! grep {$_ == $vlanid} @vlanids);
 	
+	$curvlans{$vlanid} = 1;
+
 	# Not in the new set; must delete.
 	$stale{$vlanid} = 1
 	    if (!exists($expvlans{$vlanid}));
     }
-    debug("Existing vlans: @tmp\n");
+    debug("Existing vlans: " . join(" ", keys(%curvlans)) . "\n");
     debug("Stale vlans: " . join(" ", keys(%stale)) . "\n");
 
     #
     # Get a list of interfaces that are currently trunked.
     #
-    my %currentTrunks = getExperimentCurrentTrunks($pid, $eid, @tmp);
+    my %currentTrunks = getExperimentCurrentTrunks($pid, $eid, keys(%curvlans));
     debug("Existing Trunk Ports: ".Port->toStrings(keys(%currentTrunks))."\n");
 
     #
