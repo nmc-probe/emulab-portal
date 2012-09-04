@@ -1766,6 +1766,7 @@ CREATE TABLE `images` (
   `decryption_key` varchar(256) default NULL,
   `hash` varchar(64) default NULL,
   `locked` datetime default NULL,
+  `locker_pid` int(11) default '0',
   `metadata_url` tinytext,
   `imagefile_url` tinytext,
   PRIMARY KEY  (`imageid`),
