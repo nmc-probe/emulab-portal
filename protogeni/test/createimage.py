@@ -37,6 +37,7 @@ if len(REQARGS) != 2:
 
 imagename  = REQARGS[0]
 sliver_urn = REQARGS[1]
+global     = 1
 
 #
 # Get a credential for myself, that allows me to do things at the SA.
@@ -62,6 +63,7 @@ params["credentials"] = (slicecredential,)
 params["slice_urn"]   = myslice["urn"]
 params["sliver_urn"]  = sliver_urn
 params["imagename"]   = imagename
+params["global"]      = global
 rval,response = do_method("cm", "CreateImage", params, version="2.0")
 if rval:
     Fatal("Could not create image")
