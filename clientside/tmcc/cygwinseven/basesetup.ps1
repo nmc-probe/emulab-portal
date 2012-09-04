@@ -10,7 +10,7 @@ param([string]$actionfile, [switch]$debug, [string]$logfile)
 # Constants
 #
 $MAXSLEEP = 1800
-$DEFLOGFILE="C:\temp\basesetup.log"
+$DEFLOGFILE="C:\Windows\Temp\basesetup.log"
 $FAIL = "fail"
 $SUCCESS = "success"
 $REG_TYPES = @("String", "Dword")
@@ -187,6 +187,36 @@ Function getfile_func($cmdarr) {
 	return $retcode
 }
 
+Function mkdir_func($cmdarr) {
+	debug("mkdir called with: $cmdarr")
+	if ($cmdarr.count -ne 1) {
+		log("Must specify directory to create and nothing else!")
+		return $FAIL
+	}
+
+	$dir = $cmdarr[0]
+	if (Test-Path -Path $dir) {
+		if (Test-Path -PathType Container -Path $dir) {
+			log("ERROR: Path already exists, but is not a directory!")
+			return $FAIL
+		} else {
+			log("WARNING: Path already exists: $dir")
+		}
+	} elseif (!Test-Path -IsValid -Path $dir) {
+		log("ERROR: Invalid path specified: $dir")
+		return $FAIL
+	} else {
+		try {
+			New-Item -ItemType Directory -Path $dir
+		} catch {
+			log("Error creating new directory: $dir: $_")
+			return $FAIL
+		}
+	}
+
+	return $SUCCESS
+}
+
 # Main starts here
 if ($logfile) {
 	if (Test-Path -IsValid -Path $logfile) {
@@ -235,6 +265,9 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"getfile" {
 			$result = getfile_func($cmdarr)
+		}
+		"mkdir" {
+			$result = mkdir_func($cmdarr)
 		}
 		default {
 			log("WARNING: Skipping unknown action: $cmd")
