@@ -815,7 +815,7 @@ sub Lock($)
     my $imageid = $self->imageid();
 
     my $query_result =
-	DBQueryWarn("update images set locked=now() " .
+	DBQueryWarn("update images set locked=now(),locker_pid=$PID " .
 		    "where imageid='$imageid' and locked is null");
 
     if (! $query_result ||
@@ -825,6 +825,7 @@ sub Lock($)
     }
     DBQueryWarn("unlock tables");
     $self->{'IMAGE'}->{'locked'} = time();
+    $self->{'IMAGE'}->{'locker_pid'} = $PID;
     return 0;
 }
 
@@ -839,11 +840,46 @@ sub Unlock($)
     my $imageid   = $self->imageid();
 
     return -1
-	if (! DBQueryWarn("update images set locked=null " .
+	if (! DBQueryWarn("update images set locked=null,locker_pid=0 " .
 			  "where imageid='$imageid'"));
     
     $self->{'IMAGE'}->{'locked'} = 0;
+    $self->{'IMAGE'}->{'locker_pid'} = 0;
     return 0;
+}
+
+sub GotLock($)
+{
+    my ($self) = @_;
+
+    return 1
+	if ($self->{'IMAGE'}->{'locked'} &&
+	    $self->{'IMAGE'}->{'locker_pid'} == $PID);
+    
+    return 0;
+}
+
+#
+# Wait to get lock.
+#
+sub WaitLock($$)
+{
+    my ($self, $seconds) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    while ($seconds > 0) {
+	return 0
+	    if ($self->Lock() == 0);
+
+	# Sleep and try again.
+	sleep(5);
+	$seconds -= 5;
+    }
+    # One last try.
+    return $self->Lock();
 }
 
 #
