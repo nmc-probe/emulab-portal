@@ -92,6 +92,7 @@ my $XMLLINT	   = "/usr/local/bin/xmllint";
 my $ADDAUTHORITY   = "$TB/sbin/protogeni/addauthority";
 my $EMULAB_PEMFILE = "@prefix@/etc/genicm.pem";
 my $TARINSTALL     = "/usr/local/bin/install-tarfile";
+my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
 my $USELOCALPROJ   = 0;
@@ -501,6 +502,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     my $restorevirt = 0;	# Flag to restore virtual state
     my $restorephys = 0;	# Flag to restore physical state
     require OSinfo;
+    require Image;
     require VirtExperiment;
 
     #
@@ -922,8 +924,23 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $diskref = GeniXML::GetDiskImage($ref);
 	if (defined($diskref)) {
 	    my $dname = GeniXML::GetText("name", $diskref);
+	    my $url   = GeniXML::GetText("url", $diskref);
 
-	    if (defined($dname)) {
+	    if (defined($url)) {
+		if (! TBcheck_dbslot($url, "virt_nodes", "osname",
+				 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)){
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					     "Invalid disk image url: $url");
+		    goto bad;
+		}
+		#
+		# Pass it right through; we load them later.
+		# There is no osinfo, but see below. 
+		#
+		$osname = $url;
+	    }
+	    elsif (defined($dname)) {
 		if (! GeniHRN::IsValid($dname)) {
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -981,7 +998,8 @@ sub GetTicketAuxAux($$$$$$$$$)
 				$osname = "OPENVZ-STD";
 			    }
 			}
-			else {
+			elsif (!defined($osname)) {
+			    # Allow for url above.
 			    $osname = "OPENVZ-STD";
 			}
 		    }
@@ -1873,6 +1891,19 @@ sub GetTicketAuxAux($$$$$$$$$)
 	goto bad;
     }
 
+    #
+    # This creates the descriptors but does not download the images.
+    # Must be done before the mapper runs.
+    #
+    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP $pid,$eid");
+    if ($?) {
+	my $message = "Could not setup images:\n$output";
+	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef, $message);
+	print STDERR $message;
+	goto bad;
+    }
+    print STDERR $output;
+
     # Do a render cause its nice to have on the show experiment page.
     system("$PRERENDER -r $pid $eid");
     system("$PRERENDER -t $pid $eid");
@@ -1894,7 +1925,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     }
     $slice_experiment->CleanLogFiles();
     
-    my $output =
+    $output =
 	GeniUtil::ExecQuiet("$MAPPER -a -d -v -u -z -o $tmpfile $pid $eid");
     if ($?) {
 	my $logstuff = "";
@@ -2939,6 +2970,18 @@ sub SliverWorkAux($$$$$$$)
     $experiment->CleanLogFiles();
 
     #
+    # Download the images. Do this before we assign nodes, to avoid
+    # pointless cleanup. 
+    #
+    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP -g $pid,$eid");
+    if ($?) {
+	$message = "Could not setup images:\n$output";
+	print STDERR $message;
+	goto bad;
+    }
+    print STDERR $output;
+
+    #
     # The mapper is going to update the resource record, so we have to
     # call PreSwap() first, since it generates a new record. 
     #
@@ -2953,7 +2996,7 @@ sub SliverWorkAux($$$$$$$)
     $didpreswap = 1;
     
     # Add -u for update mode, but not -f (fixnode). 
-    my $output = GeniUtil::ExecQuiet("$MAPPER -d -v -z -u $pid $eid");
+    $output = GeniUtil::ExecQuiet("$MAPPER -d -v -z -u $pid $eid");
     if ($?) {
 	my $logstuff = "";
 	$message = "Could not map to resources";
