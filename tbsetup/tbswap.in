@@ -45,6 +45,7 @@ my $piper          = "$TBROOT/sbin/locpiper";
 my $mapper         = "$TBROOT/bin/mapper";
 my $wrapper        = "$TBROOT/libexec/assign_wrapper";
 my $SNMPIT	   = "$TBROOT/bin/snmpit";
+my $IMAGESETUP     = "$TBROOT/sbin/image_setup";
 my $portstats	   = "$TBROOT/bin/portstats";
 my $NFSTRACESUPPORT= @NFSTRACESUPPORT@;
 my $PGENISUPPORT   = @PROTOGENI_SUPPORT@;
@@ -945,6 +946,12 @@ sub doSwapin($) {
 	return 1;
     }
 
+    # Do this before we assign any nodes. We want to download the images.
+    system("$IMAGESETUP -g $pid,$eid");
+    if ($?) {
+	return 1;
+    }
+
     #
     # assign_wrapper does all the virtual to physical mapping 
     # and updating the DB state.
@@ -1475,6 +1482,12 @@ sub doSwapin($) {
     # as needed,
     #
     if (!$experiment->skipvlans()) {
+	if ($experiment->SetupPortLans()) {
+	    tberror({type => 'summary', severity => SEV_SECONDARY,
+		     error => ['vlan_setup_failed']},
+		    "Failed to setup port lans");
+	    return 1;
+	}
 	if ($experiment->SyncPortLans()) {
 	    tberror({type => 'summary', severity => SEV_SECONDARY,
 		     error => ['vlan_setup_failed']},
