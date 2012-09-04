@@ -196,7 +196,7 @@ Function mkdir_func($cmdarr) {
 
 	$dir = $cmdarr[0]
 	if (Test-Path -Path $dir) {
-		if (Test-Path -PathType Container -Path $dir) {
+		if (Test-Path -PathType Leaf -Path $dir) {
 			log("ERROR: Path already exists, but is not a directory!")
 			return $FAIL
 		} else {
