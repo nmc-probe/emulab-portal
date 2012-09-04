@@ -2,7 +2,7 @@
 
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
@@ -63,6 +63,11 @@ DBQueryFatal("delete from frisbee_blobs");
 # thats not a valid process id. 
 # 
 DBQueryFatal("update experiments set event_sched_pid=0");
+
+#
+# Clear image locks.
+#
+DBQueryFatal("update images set locked=NULL,locker_pid=0");
 
 #
 # Clear old logins. 
