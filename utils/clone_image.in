@@ -31,16 +31,18 @@ sub usage()
 	  "Options:\n".
 	  "       -d     Turn on debug mode\n".
 	  "       -e     Create a whole disk image\n".
+	  "       -g 0,1 Override base image global setting\n".
 	  "       -s     Create descriptor but do not snapshot\n".
 	  "       -n     Impotent mode\n");
     exit(-1);
 }
-my $optlist     = "dens";
+my $optlist     = "densg:";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
 my $nosnapshot  = 0;
 my $isvirtnode  = 0;
+my $global;
 
 #
 # Configure variables
@@ -95,6 +97,9 @@ if (defined($options{"n"})) {
 }
 if (defined($options{"s"})) {
     $nosnapshot = 1;
+}
+if (defined($options{"g"})) {
+    $global = $options{"g"};
 }
 usage()
     if (@ARGV != 2);
@@ -209,12 +214,16 @@ my %xmlfields =
      "path"		=> "$PROJROOT/$pid/images/${imagename}.ndz",
      "osfeatures",	=> $base_osinfo->osfeatures(),
      "op_mode",		=> $base_osinfo->op_mode(),
-     "wholedisk",	=> $wholedisk,
+     "global"           => (defined($global) ?
+			    ($global ? 1 : 0) : $base_osinfo->shared()),
+     "wholedisk",	=> ($isvirtnode ? 1 : $wholedisk),
+     "reboot_waittime"  => $base_osinfo->reboot_waittime(),
 );
 if (defined($base_image)) {
     $xmlfields{"mbr_version"}     = $base_image->mbr_version();
-    $xmlfields{"reboot_waittime"} = $base_image->reboot_waittime();
-    $xmlfields{"loadpart"}        = $base_image->loadpart();
+    $xmlfields{"loadpart"}        = ($isvirtnode ? 1 : $base_image->loadpart());
+    $xmlfields{"global"}          = (defined($global) ?
+				     ($global ? 1 : 0) : $base_image->global());
 }
 elsif ($isvirtnode) {
     $xmlfields{"reboot_waittime"} = 240;
@@ -227,8 +236,12 @@ else {
 }
 # This needs more thought.
 if ($isvirtnode) {
+    my $parentosinfo = OSinfo->Lookup($base_osinfo->def_parentosid());
+    if (!defined($parentosinfo)) {
+	fatal("Could not lookup object for parent osid of $base_osinfo");
+    }
     $xmlfields{"def_parentosid"} =
-	$base_osinfo->pid() . "," . $base_osinfo->osname();
+	$parentosinfo->pid() . "," . $parentosinfo->osname();
 }
 
 #
@@ -264,7 +277,11 @@ foreach my $key (keys(%xmlfields)) {
 print $fh "</image>\n";
 close($fh);
 
-my $output = emutil::ExecQuiet("$NEWIMAGEEZ -v $filename");
+if ($debug) {
+    system("/bin/cat $filename");
+}
+
+my $output = emutil::ExecQuiet("$NEWIMAGEEZ -s -v $filename");
 if ($?) {
     print STDERR $output;
     fatal("Failed to verify image descriptor from $filename");
@@ -274,7 +291,7 @@ if ($impotent) {
     system("cat $filename");
     exit(0);
 }
-$output = emutil::ExecQuiet("$NEWIMAGEEZ $filename");
+$output = emutil::ExecQuiet("$NEWIMAGEEZ -s $filename");
 if ($?) {
     print STDERR $output;
     my $foo = `cat $filename`;
