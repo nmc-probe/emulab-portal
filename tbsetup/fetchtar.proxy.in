@@ -1,13 +1,14 @@
 #!/usr/bin/perl -wT
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2003-2011 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use English;
 use Getopt::Std;
 use BSD::Resource;
 use POSIX qw(:signal_h);
+use strict;
     
 #
 # Fetch tarballs and RPMs on behalf of a user.
@@ -15,13 +16,15 @@ use POSIX qw(:signal_h);
 #
 sub usage()
 {
-    print "Usage: $0 [-q] -u user URL localfile\n";
+    print "Usage: $0 [-q] [-h] -u user [-g g1,g2,...] URL localfile\n";
  
     exit(-1);
 }
-my $optlist = "qu:";
+my $optlist = "qu:g:h";
 my $quiet   = 0;
+my $hashit  = 0;
 my $user;
+my $grouplist;
 
 #
 # Configure variables
@@ -37,6 +40,7 @@ my $ISFS = ("@USERNODE_IP@" eq "@FSNODE_IP@") ? 1 : 0;
 my $WGET = "/usr/local/bin/wget";
 my $REALPATH = "/bin/realpath";
 my $CHMOD = "/bin/chmod";
+my $SHA1 = "/sbin/sha1";
 
 #
 # Turn off line buffering on output
@@ -73,6 +77,12 @@ if (defined($options{"q"})) {
 if (defined($options{"u"})) {
     $user = $options{"u"};
 }
+if (defined($options{"h"})) {
+    $hashit = 1;
+}
+if (defined($options{"g"})) {
+    $grouplist = $options{"g"};
+}
 if (@ARGV != 2 || !defined($user)) {
     usage();
 }
@@ -89,17 +99,9 @@ if (!($user =~ /^([\w-]+)$/)) {
     $user = $1;
 }
 
-(undef,undef,$unix_uid) = getpwnam($user) or
+my (undef,undef,$unix_uid) = getpwnam($user) or
     die("*** $0:\n".
 	"    No such user $user\n");
-
-if (!($URL =~
-	/^((http|https|ftp):\/\/[\w.\-\/\@:~]+(\.tar|\.tar\.Z|\.tar\.gz|\.tgz|\.bz2|\.rpm))$/)) {
-    die("*** $0:\n".
-	"    Illegal URL given: $URL\n");
-} else {
-    $URL = $1;
-}
 
 if (!($localfile =~ /^([\w\.\_\-+\/]+)$/)) {
     die("*** $0:\n".
@@ -123,13 +125,21 @@ if (!($localfile =~ /^([\w\.\_\-+\/]+)$/)) {
 # cause thats the correct thing to do. Too bad perl does not have a
 # getgrouplist function like the C library.
 #
-my $glist = `id -G $user`;
-if ($glist =~ /^([\d ]*)$/) {
-    $glist = $1;
+my $glist;
+
+if (defined($grouplist)) {
+    $glist = join(" ", split(",", $grouplist));
 }
 else {
-    die("*** $0:\n".
-	"    Unexpected results from 'id -G $user': $glist\n");
+    $glist = `id -G $user`;
+
+    if ($glist =~ /^([\d ]*)$/) {
+	$glist = $1;
+    }
+    else {
+	die("*** $0:\n".
+	    "    Unexpected results from 'id -G $user': $glist\n");
+    }
 }
 
 # Need to split off the first group and create a proper list for $GUID.
@@ -163,9 +173,14 @@ if (! $pid) {
     
     # Give parent a chance to react.
     sleep(1);
-
-    exec("nice -15 $WGET -q -O $localfile $URL");
-    die("Could not exec wget!\n");
+    
+    open(GET, "| nice -15 $WGET --no-check-certificate -q -O $localfile -i -")
+	or die("Cannot start $WGET\n");
+    print GET "$URL\n";
+    if (!close(GET)) {
+	exit(1);
+    }
+    exit(0);
 }
 
 #
@@ -195,7 +210,14 @@ if (($exit_status & 0xff) == SIGKILL) {
     #
     system("$CHMOD g+w $localfile") == 0
 	or die ("*** ERROR - Unable to change permissions on $localfile!");
-}
 
+    if ($hashit) {
+	my $hashfile = $localfile . ".sha1";
+	system("$SHA1 $localfile > $hashfile");
+    }
+    if ($?) {
+	die("Could not generate sha1 hash of $localfile\n");
+    }
+}
 exit($exit_status >> 8);
 
