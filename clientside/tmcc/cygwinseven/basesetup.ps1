@@ -14,6 +14,8 @@ $DEFLOGFILE="C:\Windows\Temp\basesetup.log"
 $FAIL = "fail"
 $SUCCESS = "success"
 $REG_TYPES = @("String", "Dword")
+$BASH = "C:\Cygwin\bin\bash"
+$BASHCMD = $BASH + " -l -c "
 
 #
 # Global Variables
@@ -161,6 +163,23 @@ Function runcmd_func($cmdarr) {
 	return $SUCCESS
 }
 
+Function runcyg_func($cmdarr) {
+	debug("runcyg called with: $cmdarr")
+
+	if ($cmdarr.count -lt 1) {
+		log("No command given to run.")
+		return $FAIL
+	}
+
+	if (!(Test-Path $BASH)) {
+		log("Bash not present - Is Cygwin installed?")
+		return $FAIL
+	}
+
+	$cmdarr[0] = $BASHCMD + $cmdarr[0]
+	return runcmd_func($cmdarr)	
+}
+
 Function getfile_func($cmdarr) {
 	debug("getfile called with: $cmdarr")
 	$retcode = $FAIL
@@ -243,6 +262,7 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 	$cmdarr = @()
 	if ($argtoks) {
 		$cmdargs = [string]::join(" ", $argtoks)
+		$cmdargs = [regex]::replace($cmdargs,',','`,')
 		$cmdarr = [regex]::split($cmdargs, '\s*;;\s*')
 	}
 	$result = $FAIL
@@ -256,6 +276,9 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"runcmd" {
 			$result = runcmd_func($cmdarr)
+		}
+		"runcyg" {
+			$result = runcyg_func($cmdarr)
 		}
 		"reboot" {
 			$result = reboot_func($cmdarr)
