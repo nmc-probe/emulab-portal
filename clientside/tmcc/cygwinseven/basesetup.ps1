@@ -154,7 +154,7 @@ Function runcmd_func($cmdarr) {
 	}
 	# $null is a special varibale in PS - always null!
 	if ($expret -ne $null -and $LASTEXITCODE -ne $expret) {
-		log("Command returned unexpected code.")
+		log("Command returned unexpected code: $LASTEXITCODE")
 		return $FAIL
 	}
 
@@ -174,7 +174,7 @@ Function getfile_func($cmdarr) {
 	if (Test-Path -Path $filename) {
 		log("WARNING: Overwriting existing file: $filename")
 	}
-	# XXX: Timeout?
+	
 	try {
 		$webclient = New-Object System.Net.WebClient
 		$webclient.DownloadFile($url,$filename)
