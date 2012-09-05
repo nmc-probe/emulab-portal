@@ -1,7 +1,7 @@
 <?php
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 include("defs.php3");
@@ -56,7 +56,7 @@ if ($wiki == "geni" || $wiki == "protogeni") {
     }
     $priv       = 1;
     $wiki       = "protogeni";
-    $TRACURL    = "https://www.protogeni.net/trac/$wiki";
+    $TRACURL    = "https://users.emulab.net/trac/$wiki";
     $COOKIENAME = "trac_auth_protogeni";
 }
 elseif ($wiki != "emulab") {
