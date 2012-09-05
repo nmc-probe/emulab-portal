@@ -27,17 +27,21 @@ ACCEPTSLICENAME=1
 
 debug    = 0
 impotent = 1
+doglobal = 1
 
 execfile( "test-common.py" )
 
-if len(REQARGS) != 2:
+if len(REQARGS) < 2 or len(REQARGS) > 3:
     Usage()
     sys.exit(1)
     pass
 
 imagename  = REQARGS[0]
 sliver_urn = REQARGS[1]
-global     = 1
+
+if len(REQARGS) == 3:
+    doglobal = REQARGS[2]
+    pass
 
 #
 # Get a credential for myself, that allows me to do things at the SA.
@@ -63,7 +67,7 @@ params["credentials"] = (slicecredential,)
 params["slice_urn"]   = myslice["urn"]
 params["sliver_urn"]  = sliver_urn
 params["imagename"]   = imagename
-params["global"]      = global
+params["global"]      = doglobal
 rval,response = do_method("cm", "CreateImage", params, version="2.0")
 if rval:
     Fatal("Could not create image")
