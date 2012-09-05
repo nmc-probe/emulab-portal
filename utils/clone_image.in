@@ -217,8 +217,10 @@ my %xmlfields =
      "global"           => (defined($global) ?
 			    ($global ? 1 : 0) : $base_osinfo->shared()),
      "wholedisk",	=> ($isvirtnode ? 1 : $wholedisk),
-     "reboot_waittime"  => $base_osinfo->reboot_waittime(),
 );
+$xmlfields{"reboot_waittime"} = $base_osinfo->reboot_waittime()
+    if (defined($base_osinfo->reboot_waittime()));
+    
 if (defined($base_image)) {
     $xmlfields{"mbr_version"}     = $base_image->mbr_version();
     $xmlfields{"loadpart"}        = ($isvirtnode ? 1 : $base_image->loadpart());
