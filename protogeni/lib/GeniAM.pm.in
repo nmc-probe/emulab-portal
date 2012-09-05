@@ -674,6 +674,9 @@ sub CreateImage()
         'imagename' => $imagename,
         'credentials' => $credentials
     };
+    $args->{'global'} = $options->{'global'}
+        if (defined($options) && exists($options->{'global'}));
+	
     my $response = GeniCMV2::CreateImage($args);
     if (GeniResponse::IsError($response)) {
         return $response;
