@@ -3469,7 +3469,7 @@ sub RunningOsImage($)
 	return ()
 	    if (!$query_result || !$query_result->numrows);
 
-	my ($imageid) = $query_result->fetchrow_array();
+	($imageid) = $query_result->fetchrow_array();
     }
     # This might not exist for a virtnode; caller has to deal with it.
     my $image = Image->Lookup($imageid);
