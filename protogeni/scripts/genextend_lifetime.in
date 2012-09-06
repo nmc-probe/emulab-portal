@@ -1,0 +1,113 @@
+#!/usr/bin/perl -w
+#
+# GENIPUBLIC-COPYRIGHT
+# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# All rights reserved.
+#
+use strict;
+use lib '@prefix@/lib';
+
+use GeniCredential;
+use GeniCertificate;
+use GeniAuthority;
+use GeniHRN;
+use GeniUser;
+use GeniUtil;
+use Getopt::Std;
+
+#
+# Create the credential - return it as a string
+#
+sub CreateCredential {
+    my ($credfile, $target_cm_urn, $howlong) = @_;
+
+    #
+    # Slurp in the file with the owner's credential
+    #
+    open(FILE, $credfile) or die "Unable to open $credfile\n";
+    my $owner_cred = "";
+    while (<FILE>) { $owner_cred .= $_; }
+    close FILE;
+
+    #
+    # Lookup the authority that this credential is supposed to be valid at
+    #
+    if (!GeniHRN::IsValid($target_cm_urn)) {
+        die "Invalid target URN '$target_cm_urn'\n";
+    }
+    my $authority = GeniAuthority->Lookup($target_cm_urn);
+    if (!defined($authority)) {
+        die "Could not find local authority object for $target_cm_urn\n";
+    }
+
+    #
+    # Create the basic credential object
+    #
+    my $signer = $GeniCredential::LOCALCM_FLAG;
+    my $owner_cred_obj = GeniCredential->CreateFromSigned($owner_cred);
+    my $credential = Create($authority,$owner_cred_obj);
+    if (!defined($credential)) {
+        die "Internal error creating credential\n";
+    }
+
+    #
+    # Add this specific policy exception
+    #
+    my $policy_excep = XML::LibXML::Element->new( "max_sliver_lifetime" );
+    $policy_excep->setNamespace($GeniUtil::EXTENSIONS_NS, $GeniUtil::EXTENSIONS_PREFIX);
+    $policy_excep->appendText("$howlong");
+
+    $credential->AddExtension($policy_excep);
+
+    #
+    # Sign the resulting credential
+    #
+    if ($credential->Sign($signer) != 0) {
+        $credential->Delete();
+        die "Could not sign credential for $authority, $owner_cred\n";
+    }   
+
+    return $credential->asString();
+
+}
+
+
+#
+# XXX: This code was ripped out of GeniCredential.pm and modified a bit
+# What we probably should do instead is to provide an appropriate constructor
+# in that file
+#
+sub Create($$$) {
+    my ($target, $ownercred) = @_;
+
+    return undef
+	if (! (ref($target) && ref($ownercred)));
+
+    my $self = {};
+    $self->{'valid_until'}   = $target->expires();
+    $self->{'target_uuid'}   = $target->uuid();
+    $self->{'target_cert'}   = $target->GetCertificate();
+    $self->{'owner_cert'}    = $ownercred->owner_cert();
+    $self->{'owner_uuid'}    = $ownercred->owner_uuid();
+    $self->{'string'}        = undef;
+    $self->{'capabilities'}  = undef;
+    $self->{'extensions'}    = undef;
+    $self->{'uuid'}          = GeniUtil::NewUUID();
+    $self->{'idx'}	     = undef;	# Only set when stored to DB.
+    bless($self, "GeniCredential");
+
+    return $self;
+}
+
+my $num_days = 30;
+
+my %opts;
+
+if (!getopts('hd:',\%opts) || $opts{h} || @ARGV != 2) {
+    warn "Usage: ./genextend_lifetime [-d <int>] <user-cred-file> <cm-urn>\n";
+    warn " -d <int> : How many days to allow slivers to live for (default $num_days)\n";
+    exit(1);
+} else {
+    my $val =  CreateCredential(@ARGV,$num_days); 
+    print $val;
+}

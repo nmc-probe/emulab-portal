@@ -20,7 +20,8 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  register_sliver sa_daemon genadmincredential \
 		  getchcredential genallow_extcred advt-merge.py \
 		  reservevlans delgeniuser delegatecredential \
-		  updatecert fixcerts initcerts cacontrol webcacontrol
+		  updatecert fixcerts initcerts cacontrol webcacontrol \
+		  genextend_lifetime
 
 ifeq ($(ISCLEARINGHOUSE),1)
 PSBIN_STUFF     += ch_daemon gencabundle
