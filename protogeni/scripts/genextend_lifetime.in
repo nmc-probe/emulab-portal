@@ -7,6 +7,8 @@
 use strict;
 use lib '@prefix@/lib';
 
+my $OURDOMAIN = '@OURDOMAIN@';
+
 use GeniCredential;
 use GeniCertificate;
 use GeniAuthority;
@@ -19,15 +21,7 @@ use Getopt::Std;
 # Create the credential - return it as a string
 #
 sub CreateCredential {
-    my ($credfile, $target_cm_urn, $howlong) = @_;
-
-    #
-    # Slurp in the file with the owner's credential
-    #
-    open(FILE, $credfile) or die "Unable to open $credfile\n";
-    my $owner_cred = "";
-    while (<FILE>) { $owner_cred .= $_; }
-    close FILE;
+    my ($usercert, $target_cm_urn, $howlong) = @_;
 
     #
     # Lookup the authority that this credential is supposed to be valid at
@@ -44,8 +38,7 @@ sub CreateCredential {
     # Create the basic credential object
     #
     my $signer = $GeniCredential::LOCALCM_FLAG;
-    my $owner_cred_obj = GeniCredential->CreateFromSigned($owner_cred);
-    my $credential = Create($authority,$owner_cred_obj);
+    my $credential = Create($authority,$usercert);
     if (!defined($credential)) {
         die "Internal error creating credential\n";
     }
@@ -64,7 +57,7 @@ sub CreateCredential {
     #
     if ($credential->Sign($signer) != 0) {
         $credential->Delete();
-        die "Could not sign credential for $authority, $owner_cred\n";
+        die "Could not sign credential\n";
     }   
 
     return $credential->asString();
@@ -78,17 +71,18 @@ sub CreateCredential {
 # in that file
 #
 sub Create($$$) {
-    my ($target, $ownercred) = @_;
+    my ($target, $usercert) = @_;
 
     return undef
-	if (! (ref($target) && ref($ownercred)));
+	if (! (ref($target) && ref($usercert)));
 
     my $self = {};
+    # XXX: Fix the expiration
     $self->{'valid_until'}   = $target->expires();
     $self->{'target_uuid'}   = $target->uuid();
     $self->{'target_cert'}   = $target->GetCertificate();
-    $self->{'owner_cert'}    = $ownercred->owner_cert();
-    $self->{'owner_uuid'}    = $ownercred->owner_uuid();
+    $self->{'owner_cert'}    = $usercert;
+    $self->{'owner_uuid'}    = $usercert->uuid();
     $self->{'string'}        = undef;
     $self->{'capabilities'}  = undef;
     $self->{'extensions'}    = undef;
@@ -101,13 +95,60 @@ sub Create($$$) {
 
 my $num_days = 30;
 
-my %opts;
-
-if (!getopts('hd:',\%opts) || $opts{h} || @ARGV != 2) {
-    warn "Usage: ./genextend_lifetime [-d <int>] <user-cred-file> <cm-urn>\n";
-    warn " -d <int> : How many days to allow slivers to live for (default $num_days)\n";
+sub usage {
+    warn "Usage: ./genextend_lifetime [-d days] <-u user | -c cert>\n";
+    warn " -d days: How many days to allow slivers to live for (default $num_days)\n";
+    warn " -u user: Local user to make the credential for\n";
+    warn " -c cert: File containing user's certificate\n";
     exit(1);
-} else {
-    my $val =  CreateCredential(@ARGV,$num_days); 
-    print $val;
 }
+
+my %opt;
+if (!getopts('hd:u:c:',\%opt) ||
+    $opt{h} || !(exists($opt{u}) xor exists($opt{c}))) {
+    usage();
+} 
+
+my $cert;
+if ($opt{u}) {
+    #
+    # If the username doesn't look like a URN, assume it is a local user
+    #
+    my $target_urn;
+    if ($opt{u} =~ /^urn:/) {
+        $target_urn = $opt{u};
+    } else {
+        $target_urn = GeniHRN::Generate( $OURDOMAIN, "user", "$opt{u}" );
+    }
+
+    print "Looking up '$target_urn'\n";
+
+    my $user = GeniUser->Lookup($target_urn,1);
+    if (!defined($user)) { die "Unable to lookup user $opt{u}\n"; }
+
+    $cert = $user->GetCertificate();
+
+} else {
+    #
+    # Slurp in the file with the owner's credential
+    #
+    open(FILE, $opt{c}) or die "Unable to open $opt{c}\n";
+    my $owner_cert = "";
+    while (<FILE>) { $owner_cert .= $_; }
+    close FILE;
+
+    die "Not yet implemented!\n";
+
+}
+
+#
+# We can only create credentials that apply to ourself
+#
+my $target_cm_string = GeniHRN::Generate( $OURDOMAIN, "authority", "cm" );
+
+print "'$target_cm_string'\n";
+
+my $val =  CreateCredential($cert,$target_cm_string,$num_days); 
+
+print $val;
+
