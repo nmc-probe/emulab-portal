@@ -120,10 +120,10 @@ package com.flack.geni.resources.sites
 					supportsInstallService = false;
 					supportsExecuteService = false;
 					break;
-				case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
 				case SliverTypes.XEN_VM:
 				case SliverTypes.QEMUPC:
 					supportsDiskImage = false;
+				case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
 				default:
 			}
 		}

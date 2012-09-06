@@ -97,10 +97,15 @@ VirtualNode for use on the slice canvas
 				}
 				else
 					hostnameLabel.visible = hostnameLabel.includeInLayout = false;
-				if(node.sliverType.selectedImage != null && node.sliverType.selectedImage.id.full.length > 0)
+				if(node.sliverType.selectedImage != null)
 				{
-					osidLabel.text = node.sliverType.selectedImage.Osid;
-					osidLabel.visible = osidLabel.includeInLayout = true;
+					if(node.sliverType.selectedImage.id.full.length > 0)
+						osidLabel.text = node.sliverType.selectedImage.Osid;
+					else if(node.sliverType.selectedImage.url.length > 0)
+						osidLabel.text = StringUtil.shortenString(node.sliverType.selectedImage.url, 20);
+					else
+						osidLabel.text = "";
+					osidLabel.visible = osidLabel.includeInLayout = osidLabel.text.length > 0;
 				}
 				else
 					osidLabel.visible = osidLabel.includeInLayout = false;

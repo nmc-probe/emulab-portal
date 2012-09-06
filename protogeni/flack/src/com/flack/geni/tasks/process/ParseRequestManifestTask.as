@@ -547,6 +547,8 @@ package com.flack.geni.tasks.process
 								case "disk_image":
 									var diskImageV1Name:String = String(nodeChildXml.@name);
 									var diskImageV1:DiskImage = new DiskImage(diskImageV1Name);//sliver.manager.diskImages.getByLongId(diskImageV1Name);
+									if(nodeChildXml.@url.length() == 1)
+										diskImageV1.url = nodeChildXml.@url;
 									diskImageV1.extensions.buildFromOriginal(nodeChildXml, [defaultNamespace.uri]);
 									virtualNode.sliverType.selectedImage = diskImageV1;
 									break;
@@ -572,6 +574,8 @@ package com.flack.geni.tasks.process
 											{
 												var diskImageV2Name:String = String(sliverTypeChild.@name);
 												var diskImageV2:DiskImage = new DiskImage(diskImageV2Name);//sliver.manager.diskImages.getByLongId(diskImageV2Name);
+												if(sliverTypeChild.@url.length() == 1)
+													diskImageV2.url = sliverTypeChild.@url;
 												diskImageV2.extensions.buildFromOriginal(sliverTypeChild, [defaultNamespace.uri]);
 												virtualNode.sliverType.selectedImage = diskImageV2;
 											}

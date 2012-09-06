@@ -38,7 +38,8 @@ package com.flack.geni.resources
 								  newOs:String = "",
 								  newVersion:String = "",
 								  newDescription:String = "",
-								  newIsDefault:Boolean = false)
+								  newIsDefault:Boolean = false,
+								  newUrl:String = "")
 		{
 			super(newId);
 			if(id.full.length > 0 && IdnUrn.isIdnUrn(newId))
@@ -47,11 +48,13 @@ package com.flack.geni.resources
 			version = newVersion;
 			description = newDescription;
 			isDefault = newIsDefault;
+			url = newUrl;
 		}
 		
 		public var os:String;
 		public var version:String;
 		public var description:String;
+		public var url:String;
 		public var isDefault:Boolean;
 		
 		public var extensions:Extensions = new Extensions();
