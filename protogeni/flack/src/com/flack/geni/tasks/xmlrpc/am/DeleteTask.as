@@ -74,7 +74,7 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				if(data == true)
+				if(data == true || data == 1)
 				{
 					sliver.manifest = null;
 					sliver.removeFromSlice();
@@ -94,13 +94,13 @@ package com.flack.geni.tasks.xmlrpc.am
 					);
 					SharedMain.sharedDispatcher.dispatchChanged(
 						FlackEvent.CHANGED_SLICE,
-						sliver,
+						sliver.slice,
 						FlackEvent.ACTION_REMOVING
 					);
 					
 					super.afterComplete(addCompletedMessage);
 				}
-				else if(data == false)
+				else if(data == false || data == 0)
 				{
 					afterError(
 						new TaskError(

@@ -16,7 +16,7 @@ package com.flack.geni.plugins.planetlab
 {
 	public class M1TinySliverType extends OpenStackSliverType
 	{
-		static public const TYPE_M1TINY:String = "m1.tinly";
+		static public const TYPE_M1TINY:String = "m1.tiny";
 		
 		public function M1TinySliverType()
 		{

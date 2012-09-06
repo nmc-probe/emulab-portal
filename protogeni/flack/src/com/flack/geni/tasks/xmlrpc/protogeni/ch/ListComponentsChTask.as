@@ -157,8 +157,11 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							planetLabManager.url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
 							planetLabManager.registryUrl = planetLabManager.url.replace("12346", "12345");
 							
-							planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
-							planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
+							if(planetLabManager.hrn != "genicloud.hplabs.sa")
+							{
+								planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+								planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
+							}
 							
 							planetLabManager.supportedSliverTypes.getOrCreateByName(PlanetlabSliverType.TYPE_PLANETLAB_V2);
 							
