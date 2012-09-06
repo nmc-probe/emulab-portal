@@ -1,7 +1,7 @@
-log Downloading Cygwin
+log Downloading Cygwin.
 mkdir C:\Software\Cygwin
 getfile http://cygwin.com/setup.exe ;; C:\Software\Cygwin\setup.exe
 
-log Running Cygwin installer
-runcmd C:\Software\Cygwin\setup.exe -l C:\Software\Cygwin -s http://mirrors.xmi\ssion.com/cygwin -R C:\Cygwin -q -P bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,i\netutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,t\csh,util-linux,w32api,bc,cvs,ed,file,gdb,git,nc,patch,rcs,rpm,rsync,rxvt,sqlite\3,subversion,vim,wget,unzip,zip
-waitproc setup.exe ;; 1800
+log Running Cygwin installer.
+runcmd C:\Software\Cygwin\setup.exe ;; -l C:\Software\Cygwin -s http://mirrors.xmission.com/cygwin -R C:\Cygwin -q -P bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,file,gdb,git,nc,patch,rcs,rpm,rsync,rxvt,sqlite3,subversion,vim,wget,unzip,zip
+log Cygwin Setup Complete.

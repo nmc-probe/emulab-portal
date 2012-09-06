@@ -16,6 +16,7 @@ $SUCCESS = "success"
 $REG_TYPES = @("String", "Dword")
 $BASH = "C:\Cygwin\bin\bash"
 $BASHCMD = $BASH + " -l -c "
+$CMDTMP = "C:\Windows\Temp\_tmpout-basesetup"
 
 #
 # Global Variables
@@ -40,6 +41,10 @@ Function debug($msg) {
 
 Function lograw($msg) {
 	$msg | Out-File -encoding "ASCII" -append $outlog
+}
+
+Function logfilecontents($fname) {
+	Get-Content $fname | Out-File -encoding "ASCII" -append $outlog
 }
 
 Function isNumeric ($x) {
@@ -146,14 +151,24 @@ Function runcmd_func($cmdarr) {
 		log("No command given to run.")
 		return $FAIL
 	}
-	$cmd, $expret = $cmdarr
 
-	# XXX:  Do some sanity checks on command... Implement timeout?
-	$cmdout = Invoke-Expression $cmd
+	$cmd, $cmdargs, $expret = $cmdarr
+
+	if (!(Test-Path $cmd)) {
+		log("ERROR: Command does not exist: $cmd")
+		return $FAIL
+	}
+	
+	# XXX: Implement timeout?
+	Start-Process -FilePath $cmd -ArgumentList $cmdargs -RedirectStandardOutput $CMDTMP -RedirectStandardError $CMDTMP -Wait
+	
 	if ($debug) {
 		debug("Command output:")
-		lograw($cmdout)
+		logfilecontents($CMDTMP)
 	}
+	
+	Remove-Item -Path $CMDTMP
+
 	# $null is a special varibale in PS - always null!
 	if ($expret -ne $null -and $LASTEXITCODE -ne $expret) {
 		log("Command returned unexpected code: $LASTEXITCODE")
@@ -295,7 +310,7 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 	$cmdarr = @()
 	if ($argtoks) {
 		$cmdargs = [string]::join(" ", $argtoks)
-		$cmdargs = [regex]::replace($cmdargs,',','`,')
+		#$cmdargs = [regex]::replace($cmdargs,',','`,')
 		$cmdarr = [regex]::split($cmdargs, '\s*;;\s*')
 	}
 	$result = $FAIL
