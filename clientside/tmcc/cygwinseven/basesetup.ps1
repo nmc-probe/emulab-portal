@@ -236,6 +236,39 @@ Function mkdir_func($cmdarr) {
 	return $SUCCESS
 }
 
+Function waitproc_func($cmdarr) {
+	debug("waitproc called with: $cmdarr")
+
+	if ($cmdarr.count -lt 2) {
+		log("Must specify process name and timeout.")
+		return $FAIL
+	}
+
+	$procname, $timeout, $excode = $cmdarr
+
+	$proc = $null
+	try {
+		$proc = get-process -name $procname
+	} catch {
+		log("WARNING: Process not found: $procname")
+	} 
+
+	if ($proc) {
+		if (!($proc.WaitForExit(1000 * $timeout))) {
+			log("ERROR: timeout waiting for process: $procname")
+			return $FAIL
+		}
+
+		if ($excode -and $proc.ExitCode -ne $excode) {
+			log("ERROR: process exited with unexpected code: $proc.ExCode")
+			return $FAIL
+		}
+	}
+	
+	return $SUCCESS
+
+}
+
 # Main starts here
 if ($logfile) {
 	if (Test-Path -IsValid -Path $logfile) {
@@ -291,6 +324,9 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"mkdir" {
 			$result = mkdir_func($cmdarr)
+		}
+		"waitproc" {
+			$result = waitproc_func($cmdarr)
 		}
 		default {
 			log("WARNING: Skipping unknown action: $cmd")
