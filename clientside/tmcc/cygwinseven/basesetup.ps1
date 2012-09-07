@@ -205,10 +205,10 @@ Function runcyg_func($cmdarr) {
 		return $FAIL
 	}
 
-	# Push the bash args, command, and command args into place as 
+	# Push the bash args, command + args into place as 
 	# the new argument string and insert bash as the command to run.  
 	# Pass this to runcmd_func.
-	$cmdarr[1] = [string]::join(" ", @($BASHARGS, $cmdarr[0..1]))
+	$cmdarr[1] = [string]::join(" ", @($BASHARGS, $cmdarr[0]))
 	$cmdarr[0] = $BASH
 	return runcmd_func($cmdarr)
 }
