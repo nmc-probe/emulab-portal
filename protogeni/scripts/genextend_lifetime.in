@@ -21,7 +21,7 @@ use Getopt::Std;
 # Create the credential - return it as a string
 #
 sub CreateCredential {
-    my ($usercert, $target_cm_urn, $howlong) = @_;
+    my ($usercert, $target_cm_urn, $howlong, $expires) = @_;
 
     #
     # Lookup the authority that this credential is supposed to be valid at
@@ -38,7 +38,7 @@ sub CreateCredential {
     # Create the basic credential object
     #
     my $signer = $GeniCredential::LOCALCM_FLAG;
-    my $credential = Create($authority,$usercert);
+    my $credential = Create($authority,$usercert,$expires);
     if (!defined($credential)) {
         die "Internal error creating credential\n";
     }
@@ -71,14 +71,12 @@ sub CreateCredential {
 # in that file
 #
 sub Create($$$) {
-    my ($target, $usercert) = @_;
+    my ($target, $usercert, $expires) = @_;
 
     return undef
 	if (! (ref($target) && ref($usercert)));
 
     my $self = {};
-    # XXX: Fix the expiration
-    $self->{'valid_until'}   = $target->expires();
     $self->{'target_uuid'}   = $target->uuid();
     $self->{'target_cert'}   = $target->GetCertificate();
     $self->{'owner_cert'}    = $usercert;
@@ -90,21 +88,25 @@ sub Create($$$) {
     $self->{'idx'}	     = undef;	# Only set when stored to DB.
     bless($self, "GeniCredential");
 
+    $self->SetExpiration(time() + ($expires * 60 * 60 * 24));
+
     return $self;
 }
 
 my $num_days = 30;
+my $expire_days;
 
 sub usage {
-    warn "Usage: ./genextend_lifetime [-d days] <-u user | -c cert>\n";
+    warn "Usage: ./genextend_lifetime [-d days] [-e days] <-u user | -c cert>\n";
     warn " -d days: How many days to allow slivers to live for (default $num_days)\n";
+    warn " -e days: How many days in the future this credential expires (defaults to same value as -d)\n";
     warn " -u user: Local user to make the credential for\n";
     warn " -c cert: File containing user's certificate\n";
     exit(1);
 }
 
 my %opt;
-if (!getopts('hd:u:c:',\%opt) ||
+if (!getopts('hd:u:c:e:',\%opt) ||
     $opt{h} || !(exists($opt{u}) xor exists($opt{c}))) {
     usage();
 } 
@@ -141,6 +143,16 @@ if ($opt{u}) {
 
 }
 
+if ($opt{d}) {
+    $num_days = $opt{d};
+}
+
+if ($opt{e}) {
+    $expire_days = $opt{e};
+} else {
+    $expire_days = $num_days;
+}
+
 #
 # We can only create credentials that apply to ourself
 #
@@ -148,7 +160,7 @@ my $target_cm_string = GeniHRN::Generate( $OURDOMAIN, "authority", "cm" );
 
 print "'$target_cm_string'\n";
 
-my $val =  CreateCredential($cert,$target_cm_string,$num_days); 
+my $val =  CreateCredential($cert,$target_cm_string,$num_days,$expire_days); 
 
 print $val;
 
