@@ -504,7 +504,7 @@ sub freebsd_get_disksize {
 	#
 	# Take the first of ad or da, whichever we find first
 	#
-	if (/^((ad|da|ar|aacd|amrd|mfid)\d): (\d+)MB/) {
+	if (/^((ad|da|ar|aacd|amrd|mfid|mfisyspd)\d): (\d+)MB/) {
 	    $diskdev = $1;
 	    $disksize = $3;
 	    last;

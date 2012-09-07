@@ -33,7 +33,7 @@ case $disk in
 		old_dtype="sd"
 		;;
 	# PERC
-	mfi[0-9]|mfisyspd[0-9])
+	mfid[0-9]|mfisyspd[0-9])
 		dunit=`echo $disk | sed -e 's/.*\([0-9]\)$/\1/'`
 		dtype="sd"
 		old_dtype="sd"

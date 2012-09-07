@@ -625,10 +625,10 @@ dolinux() {
 		dtype="sd"
 		lrootdev="8${dunit}${part}"
 		;;
-	# perc
-	mfid[0-15])
+	# PERC
+	mfid[0-9]|mfisyspd[0-9])
 		dtype="sd"
-		dunit=`echo $disk | sed -e 's/mfid\([0-9][0-9]*\)/\1/'`
+		dunit=`echo $disk | sed -e 's/.*\([0-9]\)$/\1/'`
 		lrootdev="8${dunit}${part}"
 		;;
 	# Adaptec
