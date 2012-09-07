@@ -4,7 +4,7 @@
 
 # First, grab script arguments - I really hate that this must come first
 # in a powershell script (before any other executable lines).
-param([string]$actionfile, [switch]$debug, [string]$logfile)
+param([string]$actionfile, [switch]$debug, [string]$logfile, [switch]$quiet)
 
 #
 # Constants
@@ -14,8 +14,8 @@ $DEFLOGFILE="C:\Windows\Temp\basesetup.log"
 $FAIL = "fail"
 $SUCCESS = "success"
 $REG_TYPES = @("String", "Dword")
-$BASH = "C:\Cygwin\bin\bash"
-$BASHARGS = "-l -c "
+$BASH = "C:\Cygwin\bin\bash.exe"
+$BASHARGS = "-l -c"
 $CMDTMP = "C:\Windows\Temp\_tmpout-basesetup"
 
 #
@@ -30,7 +30,11 @@ $outlog = $DEFLOGFILE
 # Log to $LOGFILE
 Function log($msg) {
 	$time = Get-Date -format g
-	($time + ": " + $msg) | Out-File -encoding "ASCII" -append $outlog
+	$outmsg = $time + ": " + $msg
+	$outmsg | Out-File -encoding "ASCII" -append $outlog
+	if (!$quiet) {
+		$outmsg | Out-Host
+	}
 }
 
 Function debug($msg) {
