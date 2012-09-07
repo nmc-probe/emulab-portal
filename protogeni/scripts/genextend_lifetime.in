@@ -123,8 +123,6 @@ if ($opt{u}) {
         $target_urn = GeniHRN::Generate( $OURDOMAIN, "user", "$opt{u}" );
     }
 
-    print "Looking up '$target_urn'\n";
-
     my $user = GeniUser->Lookup($target_urn,1);
     if (!defined($user)) { die "Unable to lookup user $opt{u}\n"; }
 
@@ -139,7 +137,10 @@ if ($opt{u}) {
     while (<FILE>) { $owner_cert .= $_; }
     close FILE;
 
-    die "Not yet implemented!\n";
+    $cert = GeniCertificate->LoadFromString($owner_cert);
+    if (!$cert) {
+        die "Unable to read certificate from $opt{c}\n";
+    }
 
 }
 
@@ -157,8 +158,6 @@ if ($opt{e}) {
 # We can only create credentials that apply to ourself
 #
 my $target_cm_string = GeniHRN::Generate( $OURDOMAIN, "authority", "cm" );
-
-print "'$target_cm_string'\n";
 
 my $val =  CreateCredential($cert,$target_cm_string,$num_days,$expire_days); 
 
