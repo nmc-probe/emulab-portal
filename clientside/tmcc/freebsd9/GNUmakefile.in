@@ -93,6 +93,14 @@ basefbsd-subboss-install: dir-install
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
 	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
 
+tweak-syslog:
+	@if [ -f $(SYSETCDIR)/newsyslog.conf ]; then \
+	    if `grep -q 'Added by Emulab' $(SYSETCDIR)/newsyslog.conf`; then \
+		sed -i .preemulab -e '/Added by Emulab/,$$d' $(SYSETCDIR)/newsyslog.conf; \
+	    fi; \
+	    cat $(SRCDIR)/newsyslog.conf.tail >> $(SYSETCDIR)/newsyslog.conf; \
+	fi
+
 # Do not even pretend to do cvsup anymore
 sup-install:	dir-install
 	rm -f $(ETCDIR)/supfile
@@ -104,7 +112,7 @@ etc-install:	dir-install sysetc-install
 	$(INSTALL) -m 600 $(SRCDIR)/master.passwd $(ETCDIR)/master.passwd
 	$(INSTALL) -m 444 $(SRCDIR)/hosts $(ETCDIR)/hosts
 
-sysetc-install:	dir-install netif-emulab
+sysetc-install:	dir-install netif-emulab tweak-syslog
 	$(INSTALL) -m 444 $(SRCDIR)/rc.conf $(SYSETCDIR)/rc.conf
 	$(INSTALL) -m 444 $(SRCDIR)/sysctl.conf $(SYSETCDIR)/sysctl.conf
 	$(INSTALL) -m 555 ./netif-emulab $(SYSETCDIR)/rc.d/netif-emulab

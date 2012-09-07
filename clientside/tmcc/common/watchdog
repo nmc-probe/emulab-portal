@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 use Getopt::Std;
@@ -35,7 +35,7 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 #
 use libsetup;
 use libtmcc;
-use libtestbed qw(TBBackGround);
+use libtestbed qw(TBBackGround ReOpenLog);
 
 # XXX should be in libsetup
 my $svcslice    = "utah_elab_svc";
@@ -224,6 +224,14 @@ sub handler () {
 }
 $SIG{TERM} = \&handler;
 $SIG{INT}  = \&handler;
+
+#
+# And another to catch HUPs from newsyslog
+#
+sub huphandler() {
+    ReOpenLog($logname);
+}
+$SIG{HUP} = \&huphandler;
 
 #
 # If jailed, get our jailname.
@@ -483,7 +491,8 @@ sub setintervals($)
 	    $oiv{$key} = $iv{$key};
 	}
 
-	print $tmccresults[0] . "\n";
+	print $tmccresults[0] . "\n"
+	    if ($debug);
 
 	my @tokens = split(/\s+/, $tmccresults[0]);
 	foreach my $token (@tokens) {
@@ -498,7 +507,8 @@ sub setintervals($)
 		logmsg("setintervals: unknown '$token'\n");
 		next;
 	    }
-	    print "$key => $val\n";
+	    print "$key => $val\n"
+		if ($debug);
 
 	    SWITCH: for ($key) {
 		/^INTERVAL$/ && do {
