@@ -367,15 +367,11 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 	}
 	if ($result -eq $FAIL) {
-		$errmsg = "ERROR: Action failed: $cmdline"
-		$errmsg | Out-Host
-		log($errmsg)
+		log("ERROR: Action failed: $cmdline")
 		log("Exiting!")
 		exit 1
 	}
 }
 
-$exmsg = "Action sequence finished successfully." 
-log($exmsg)
-$exmsg | Out-Host
+log("Action sequence finished successfully." )
 exit 0

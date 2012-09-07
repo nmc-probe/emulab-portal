@@ -3,8 +3,8 @@ mkdir C:\Software\Cygwin
 getfile http://cygwin.com/setup.exe ;; C:\Software\Cygwin\setup.exe
 
 log Running Cygwin installer.
-runcmd C:\Software\Cygwin\setup.exe ;; -l C:\Software\Cygwin -s http://mirrors.xmission.com/cygwin -R C:\Cygwin -q -P bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,file,gdb,git,nc,patch,rcs,rpm,rsync,rxvt,sqlite3,subversion,vim,wget,unzip,zip ;; 0
+runcmd C:\Software\Cygwin\setup.exe ;; -l C:\Software\Cygwin -s http://mirrors.xmission.com/cygwin -R C:\Cygwin -q -P bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,file,gdb,git,nc,patch,rcs,rpm,rsync,rxvt,sqlite3,subversion,vim,wget,unzip,zip
 log Cygwin Setup Complete.
 
 log Setting up syslogd
-runcyg config-syslogd ;; -y ;; 0
+runcyg syslogd-config ;; -y ;; 0
