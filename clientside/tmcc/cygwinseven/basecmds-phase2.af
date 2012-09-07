@@ -11,16 +11,16 @@ runcyg syslogd-config -y ;; 0
 
 log Setting up sshd
 mkdir C:\Cygwin\etc\sshkeys
-runcyg ssh-host-config -y -u cyg_sshd -w cYgw1n$$h -c "" --privileged ;; 0
+runcyg ssh-host-config -y -u cyg_sshd -w cYgw1n$$h -c '' --privileged ;; 0
 runcyg sed -e 's|^AuthorizedKeysFile.*$|AuthorizedKeysFile /sshkeys/%u/authorized_keys|' /etc/sshd_config > /etc/sshd_config.new ;; 0
 runcyg mv -f /etc/sshd_config.new /etc/sshd_config ;; 0
 mkdir C:\Cygwin\etc\ssh
 runcyg ln -s /etc/ssh?* /etc/ssh ;; 0
 
 log Setting up agetty
-runcmd bcdedit.exe /ems off ;; 0
+runcmd bcdedit.exe ;; /ems off ;; 0
 runcyg init-config -y ;; 0
-runcyg sed -e 's/^.*agetty.*$/S0:2345:respawn:/usr/sbin/agetty -L ttyS0 115200 vt100/' /etc/inittab > /etc/inittab.new ;; 0
+runcyg sed -e 's|^.*agetty.*$|S0:2345:respawn:/usr/sbin/agetty -L ttyS0 115200 vt100|' /etc/inittab > /etc/inittab.new ;; 0
 runcyg mv -f /etc/inittab.new /etc/inittab ;; 0
 
 log Configuring wget
