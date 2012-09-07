@@ -99,7 +99,8 @@ STARTBUSY("Removing imageid");
 $retval = SUEXEC($uid, $unix_pgid,
 		 "webfrisbeekiller $imageid", SUEXEC_ACTION_DIE);
 
-DBQueryFatal("lock tables images write, os_info write, osidtoimageid write");
+DBQueryFatal("lock tables images write, os_info write, ".
+	     "osidtoimageid write, os_submap write");
 
 #
 # If this is an EZ imageid, then delete the corresponding OSID too.
