@@ -7606,6 +7606,7 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/tmcc/freebsd6/GNUmakefile clientside/tmcc/freebsd6/supfile \
  clientside/tmcc/freebsd6/netif-emulab \
  clientside/tmcc/freebsd7/GNUmakefile clientside/tmcc/freebsd7/netif-emulab \
+ clientside/tmcc/freebsd9/GNUmakefile clientside/tmcc/freebsd9/netif-emulab \
  clientside/tmcc/freebsd10/GNUmakefile clientside/tmcc/freebsd10/netif-emulab \
  clientside/tmcc/cygwinxp/GNUmakefile clientside/tmcc/dp/GNUmakefile \
  clientside/tmcc/openbsd/GNUmakefile clientside/tmcc/ron/GNUmakefile \
