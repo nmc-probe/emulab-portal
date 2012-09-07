@@ -181,7 +181,7 @@ Function runcmd_func($cmdarr) {
 
 	# $null is a special varibale in PS - always null!
 	if ($expret -ne $null -and $proc.ExitCode -ne $expret) {
-		log("Command returned unexpected code: $proc.ExitCode")
+		log("Command returned unexpected code: " + $proc.ExitCode)
 		return $FAIL
 	}
 
