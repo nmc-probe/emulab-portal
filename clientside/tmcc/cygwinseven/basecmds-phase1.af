@@ -11,43 +11,43 @@ addreg HKLM\Software\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatf
 addreg HKLM\Software\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\Activation ;; NotificationDisabled ;; Dword ;; 1
 
 log Disabling Windows Firewall
-runcmd netsh advfirewall set AllProfiles state off ;; 0
+runcmd netsh.exe ;; advfirewall set AllProfiles state off ;; 0
 
-log Disabling Windows Defender
-runcmd C:\Windows\System32\sc config WinDefend start= disabled ;; 0
+log Disabling Windows Defender 
+runcmd sc.exe ;; config WinDefend start= disabled ;; 0
 
 log Disabling Action Center
 addreg HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer ;; HideSCAHealth ;; Dword ;; 1
-runcmd C:\Windows\System32\sc config wscsvc start= disabled ;; 0
+runcmd sc.exe ;; config wscsvc start= disabled ;; 0
 
 log Disabling IPv6
 addreg HKLM\System\CurrentControlSet\Services\tcpip6\Parameters ;; DisabledComponents ;; Dword ;; 0xffffffff
 
 log Disabling TCP Chimney offload
-runcmd netsh int tcp set global chimney=disabled ;; 0
+runcmd netsh.exe ;; int tcp set global chimney=disabled ;; 0
 
 log Enable global IP Forwarding
 addreg HKLM\system\currentcontrolset\services\tcpip\parameters ;; IPEnableRouter ;; Dword ;; 1
 
 log Disabling LLTDIO Mapper
-runcmd C:\Windows\System32\sc config lltdio start= disabled ;; 0
+runcmd sc.exe ;; config lltdio start= disabled ;; 0
 
 log Disabling SSDP and UPnP services
-runcmd C:\Windows\System32\sc config SSDPSRV start= disabled ;; 0
-runcmd C:\Windows\System32\sc config upnphost start= disabled ;; 0
+runcmd sc.exe ;; config SSDPSRV start= disabled ;; 0
+runcmd sc.exe ;; config upnphost start= disabled ;; 0
 
 log Disabling Windows Error Reporting
 addreg HKLM\Software\Microsoft\Windows\Windows Error Reporting ;; Disabled ;; Dword ;; 1
 
 log Disabling automatic updating
 addreg HKLM\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update ;; AUOptions ;; Dword ;; 1
-runcmd C:\Windows\System32\sc config wuauserv start= disabled ;; 0
+runcmd sc.exe ;; config wuauserv start= disabled ;; 0
 
 log Disabling hibernate
-runcmd powercfg /H off ;; 0
+runcmd powercfg.exe ;; /H off ;; 0
 
 log Disabling scheduled defragmentation
-runcmd schtasks /change /TN "\Microsoft\Windows\Defrag\ScheduledDefrag" /disable ;; 0
+runcmd schtasks.exe ;; /change /TN "\Microsoft\Windows\Defrag\ScheduledDefrag" /disable ;; 0
 
 log Enabling Remote Desktop Protocol connections
 addreg HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server ;; fDenyTSConnections ;; Dword ;; 0
@@ -55,6 +55,6 @@ addreg HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server ;; fDenyTSConnectio
 # Change the manual peer list if necessary / desired.
 log Setting up the clock
 addreg HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation ;; RealTimeIsUniversal ;; Dword ;; 1
-runcmd C:\Windows\System32\sc config w32time start= auto ;; 0
-runcmd tzutil /s "Mountain Standard Time" ;; 0
-runcmd w32tm /config /manualpeerlist:ntp1 /syncfromflags:manual /update ;; 0
+runcmd sc.exe ;; config w32time start= auto ;; 0
+runcmd tzutil.exe ;; /s "Mountain Standard Time" ;; 0
+runcmd w32tm.exe ;; /config /manualpeerlist:ntp1 /syncfromflags:manual /update ;; 0

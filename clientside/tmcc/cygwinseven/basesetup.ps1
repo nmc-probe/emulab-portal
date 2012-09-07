@@ -48,9 +48,9 @@ Function logfilecontents($fname) {
 }
 
 Function isNumeric ($x) {
-    $x2 = 0
-    $isNum = [System.Int32]::TryParse($x, [ref]$x2)
-    return $isNum
+	$x2 = 0
+	$isNum = [System.Int32]::TryParse($x, [ref]$x2)
+	return $isNum
 }
 
 #
@@ -153,14 +153,24 @@ Function runcmd_func($cmdarr) {
 	}
 
 	$cmd, $cmdargs, $expret = $cmdarr
-
-	if (!(Test-Path $cmd)) {
-		log("ERROR: Command does not exist: $cmd")
-		return $FAIL
-	}
 	
 	# XXX: Implement timeout?
-	Start-Process -FilePath $cmd -ArgumentList $cmdargs -RedirectStandardOutput $CMDTMP -RedirectStandardError $CMDTMP -Wait
+	$procargs = @{
+		FilePath = $cmd
+		ArgumentList = $cmdargs
+		RedirectStandardOutput = $CMDTMP
+		NoNewWindow = $true
+		PassThru = $true
+		Wait = $true
+	}
+	$proc = $null
+	try {
+		$proc = Start-Process @procargs
+	} catch {
+		log("ERROR: failed to execute command: $cmd: $_")
+		Remove-Item -Path $CMDTMP
+		return $FAIL
+	}
 	
 	if ($debug) {
 		debug("Command output:")
@@ -170,8 +180,8 @@ Function runcmd_func($cmdarr) {
 	Remove-Item -Path $CMDTMP
 
 	# $null is a special varibale in PS - always null!
-	if ($expret -ne $null -and $LASTEXITCODE -ne $expret) {
-		log("Command returned unexpected code: $LASTEXITCODE")
+	if ($expret -ne $null -and $proc.ExitCode -ne $expret) {
+		log("Command returned unexpected code: $proc.ExitCode")
 		return $FAIL
 	}
 
