@@ -15,7 +15,7 @@ $FAIL = "fail"
 $SUCCESS = "success"
 $REG_TYPES = @("String", "Dword")
 $BASH = "C:\Cygwin\bin\bash"
-$BASHCMD = $BASH + " -l -c "
+$BASHARGS = "-l -c "
 $CMDTMP = "C:\Windows\Temp\_tmpout-basesetup"
 
 #
@@ -201,8 +201,12 @@ Function runcyg_func($cmdarr) {
 		return $FAIL
 	}
 
-	$cmdarr[0] = $BASHCMD + $cmdarr[0]
-	return runcmd_func($cmdarr)	
+	# Push the bash args, command, and command args into place as 
+	# the new argument string and insert bash as the command to run.  
+	# Pass this to runcmd_func.
+	$cmdarr[1] = [string]::join(" ", @($BASHARGS, $cmdarr[0..1]))
+	$cmdarr[0] = $BASH
+	return runcmd_func($cmdarr)
 }
 
 Function getfile_func($cmdarr) {
@@ -359,8 +363,15 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 	}
 	if ($result -eq $FAIL) {
-		log("ERROR: Action failed: $cmdline")
+		$errmsg = "ERROR: Action failed: $cmdline"
+		$errmsg | Out-Host
+		log($errmsg)
 		log("Exiting!")
 		exit 1
 	}
 }
+
+$exmsg = "Action sequence finished successfully." 
+log($exmsg)
+$exmsg | Out-Host
+exit 0

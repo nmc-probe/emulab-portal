@@ -55,6 +55,8 @@ addreg HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server ;; fDenyTSConnectio
 # Change the manual peer list if necessary / desired.
 log Setting up the clock
 addreg HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation ;; RealTimeIsUniversal ;; Dword ;; 1
+runcmd w32tm.exe ;; /register
 runcmd sc.exe ;; config w32time start= auto ;; 0
 runcmd tzutil.exe ;; /s "Mountain Standard Time" ;; 0
+runcmd net.exe ;; start w32time ;; 0
 runcmd w32tm.exe ;; /config /manualpeerlist:ntp1 /syncfromflags:manual /update ;; 0
