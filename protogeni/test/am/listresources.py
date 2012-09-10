@@ -42,7 +42,7 @@ options[compress_key] = True
 params = [[mycredential], options]
 
 try:
-    response = do_method("am", "ListResources", params,
+    response = do_method("am/2.0", "ListResources", params,
                          response_handler=geni_am_response_handler)
     if compress_key in options and options[compress_key]:
         # decode and decompress the result

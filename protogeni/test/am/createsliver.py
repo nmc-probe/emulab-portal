@@ -109,7 +109,7 @@ print "Creating the Sliver ..."
 params = [SLICEURN, [myslice], rspec, mykeys]
 
 try:
-    response = do_method("am", "CreateSliver", params,
+    response = do_method("am/2.0", "CreateSliver", params,
                          response_handler=geni_am_response_handler)
     print "Created the sliver"
     print str(response)

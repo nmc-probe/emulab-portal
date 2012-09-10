@@ -50,7 +50,7 @@ print "Got the slice credential, asking for a sliver credential ..."
 params = [SLICEURN, [slicecred]]
 
 try:
-    response = do_method("am", "SliverStatus", params,
+    response = do_method("am/2.0", "SliverStatus", params,
                          response_handler=geni_am_response_handler)
     #
     # Pretty print the result

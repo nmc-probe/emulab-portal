@@ -39,7 +39,7 @@ if len( args ) > 1:
 elif len( args ) == 1:
     authority = args[ 0 ]
 else:
-    authority = "am/2.0"
+    authority = "am/3.0"
 
 try:
     response = do_method(authority, "GetVersion", [],

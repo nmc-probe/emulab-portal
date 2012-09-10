@@ -81,7 +81,7 @@ print "Got the slice credential, renewing the sliver";
 
 params = [SLICEURN, [slicecred], valid_until]
 try:
-    response = do_method("am", "RenewSliver", params,
+    response = do_method("am/2.0", "RenewSliver", params,
                          response_handler=geni_am_response_handler)
     if response:
         print "Sliver has been renewed until " + valid_until
