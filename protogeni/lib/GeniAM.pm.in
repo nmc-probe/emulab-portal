@@ -171,7 +171,7 @@ sub GetVersion()
     }
 
     my $blob = {
-	"geni_api"   => $API_VERSION,
+	"geni_api"   => $coder->string($API_VERSION),
 	"urn"        => $me->urn(),
 	"hrn"        => $me->hrn(),
 	"url"        => $url,
@@ -184,7 +184,8 @@ sub GetVersion()
 	$ad_name => [$ad_0_1, $ad_0_2, $ad_2, $ad_3],
 	"geni_api_versions" => {
 	    "1" => "$url/1.0",
-	    "2" => "$url/2.0"
+	    "2" => "$url/2.0",
+	    "3" => "$url/3.0"
 	}
     };
     $blob->{"peers"} = $peers
@@ -192,9 +193,15 @@ sub GetVersion()
     $blob->{"default_ad_rspec"} = $default_ad
 	if ($API_VERSION == 1);
 
-    if ($API_VERSION > 2) {
+    if ($API_VERSION >= 3) {
 	$blob->{"geni_single_allocation"} = $coder->string("1");
 	$blob->{"geni_allocate"} = "geni_single";
+	$blob->{"geni_credential_types"} = [
+	    {"geni_type" => "geni_sfa",
+	     "geni_version" => $coder->string("2")},
+	    {"geni_type" => "geni_sfa",
+	     "geni_version" => $coder->string("3")}
+	    ];
     }
     my $response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
     if ($API_VERSION > 1) {
