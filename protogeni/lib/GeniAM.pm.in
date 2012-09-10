@@ -43,6 +43,12 @@ sub SetGeniVersion($)
     my ($new_version) = @_;
     if ($new_version eq "1.0") {
 	$API_VERSION = 1;
+    } elsif ($new_version eq "2.0") {
+	$API_VERSION = 2;
+    } elsif ($new_version eq "3.0") {
+	$API_VERSION = 3;
+    } else {
+	$API_VERSION = 4;
     }
 }
 

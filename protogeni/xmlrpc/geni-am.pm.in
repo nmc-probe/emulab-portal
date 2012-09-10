@@ -24,7 +24,7 @@ use GeniAM;
 use GeniResponse;
 
 if (!defined($GENI_VERSION)) {
-    $GENI_VERSION = "1.0";
+    $GENI_VERSION = "3.0";
 }
 
 GeniAM::SetGeniVersion($GENI_VERSION);
