@@ -207,8 +207,8 @@ sub GetVersion()
 # GeniCMV2::DiscoverResources.
 sub ListResources()
 {
-    my ($credentials, $options) = @_;
-    if (! defined($credentials) || ! defined($options)
+    my ($credential_args, $options) = @_;
+    if (! defined($credential_args) || ! defined($options)
 	|| ($API_VERSION > 1 && ! defined($options->{'geni_rspec_version'}))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
@@ -220,6 +220,11 @@ sub ListResources()
 	$version    = $options->{'rspec_version'} || undef;
     } else {
 	$version    = $options->{'geni_rspec_version'};
+    }
+
+    my $credentials = $credential_args;
+    if ($API_VERSION >= 3) {
+	$credentials = FilterCredentials($credential_args);
     }
 
     my $xml = undef;

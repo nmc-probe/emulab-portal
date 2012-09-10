@@ -43,11 +43,14 @@ options = {}
 options[available_key] = True
 options[compress_key] = True
 options['geni_rspec_version'] = version
-params = [[mycredential], options]
-
+cred = {}
+cred["geni_type"] = "geni_sfa"
+cred["geni_version"] = "2"
+cred["geni_value"] = mycredential
+params = [[cred], options]
 
 try:
-    response = do_method("am/2.0", "ListResources", params,
+    response = do_method("am/3.0", "ListResources", params,
                          response_handler=geni_am_response_handler)
     if response['code']['geni_code'] == 0:
       if compress_key in options and options[compress_key]:
@@ -62,3 +65,4 @@ try:
       print response
 except xmlrpclib.Fault, e:
     Fatal("Could not get a list of resources: %s" % (str(e)))
+
