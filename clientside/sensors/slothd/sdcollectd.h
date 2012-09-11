@@ -36,6 +36,17 @@
 #define MACADDRLEN 12
 #define RUNASUSER "nobody"
 
+#define MAXKEYSIZE 10
+#define MAXVALUESIZE 40
+
+#define LONG_FORMAT "%20lu"
+#define DBL_FORMAT "%20lf"
+#define HEX_FORMAT "%8lx"
+#define MADDR_FORMAT "%17[0-9a-fA-F:-]"
+/* CPP wackiness */
+#define KVSCAN_FORMAT(x,y) KVSCAN_FORMAT_INDIRECT(x,y)
+#define KVSCAN_FORMAT_INDIRECT(x,y) "%" #x "[^=]=%" #y "s"
+
 #define NUMACTTYPES 4
 #define ACTSTRARRAY {"last_tty_act", "last_cpu_act", "last_net_act", "last_ext_act"}
 
@@ -57,8 +68,8 @@ typedef struct {
   u_int  version;
   struct {
     char mac[MACADDRLEN+1];
-    long ipkts;
-    long opkts;
+    unsigned long ipkts;
+    unsigned long opkts;
   }      ifaces[MAXNUMIFACES];
   char   id[NODENAMESIZE];      /* Host identifier - probably local part of hostname */
   char   buf[BUFSIZE];    /* String containing monitor output values */
