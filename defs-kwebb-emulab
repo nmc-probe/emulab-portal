@@ -6,9 +6,13 @@
 TBOPSEMAIL=kwebb@flux.utah.edu
 TBLOGSEMAIL=kwebb@flux.utah.edu
 TBWWWEMAIL=kwebb@flux.utah.edu
+TBAPPROVALEMAIL=kwebb@flux.utah.edu
+TBLOGSEMAIL=kwebb@flux.utah.edu
 TBAUDITEMAIL=kwebb@flux.utah.edu
 TBSTATEDEMAIL=kwebb@flux.utah.edu
 TBTESTSUITEEMAIL=kwebb@flux.utah.edu
 WWW=www.emulab.net/dev/kwebb
-FS_WITH_QUOTAS="/q /groups /users"
+THISHOMEBASE=Kwebb.Emulab.Net
+
 ELVIN_COMPAT=0
+PROTOGENI_SUPPORT=0
