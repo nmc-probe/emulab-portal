@@ -310,6 +310,7 @@ COMMAND_PROTOTYPE(doquoteprep);
 COMMAND_PROTOTYPE(doimagekey);
 COMMAND_PROTOTYPE(donodeattributes);
 COMMAND_PROTOTYPE(dodisks);
+COMMAND_PROTOTYPE(doarpinfo);
 
 /*
  * The fullconfig slot determines what routines get called when pushing
@@ -420,6 +421,7 @@ struct command {
 	{ "imagekey",     FULLCONFIG_NONE, F_REQTPM, doimagekey},
 	{ "nodeattributes", FULLCONFIG_ALL, 0, donodeattributes},
 	{ "disks",	  FULLCONFIG_ALL, 0, dodisks},
+	{ "arpinfo",	  FULLCONFIG_NONE, 0, doarpinfo},
 	
 };
 static int numcommands = sizeof(command_array)/sizeof(struct command);
@@ -9524,6 +9526,155 @@ COMMAND_PROTOTYPE(doportregister)
 }
 
 /*
+ * Return MAC/IP (ARP) information for a node's "peers" on the control net.
+ * We always return info for the control net gateway (if there is one).
+ *
+ * Right now we just support calls by subbosses to return the info for
+ * the set of nodes they control and Emulab servers.
+ *
+ * Note that this should be an SSL-only call.
+ */
+COMMAND_PROTOTYPE(doarpinfo)
+{
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	int		nrows;
+	char		buf[MYBUFSIZE], erole[32];
+	struct in_addr	cnet, cmask;
+
+	if (!isssl) {
+		error("doarpinfo: %s: non-SSL request ignored\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	res = mydb_query("select erole from reserved where node_id='%s'",
+			 1, reqp->nodeid);
+	if (!res) {
+		error("doarpinfo: %s: DB Error checking for reserved.erole\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	if (mysql_num_rows(res) == 0 || (row = mysql_fetch_row(res)) == NULL ||
+	    row[0] == NULL) {
+		error("doarpinfo: %s: Could not deterimine erole\n",
+		      reqp->nodeid);
+		mysql_free_result(res);
+		return 1;
+	}
+
+	strncpy(erole, row[0], sizeof(erole));
+	mysql_free_result(res);
+
+	/*
+	 * Anyone on the node control net can get the GW and/or server info.
+	 */
+	res = mydb_query("select value from sitevariables "
+			 "where name='node/gw_mac'", 1);
+	if (res && mysql_num_rows(res) > 0) {
+		row = mysql_fetch_row(res);
+		if (row && row[0]) {
+			char macbuf[18];
+
+			/* XXX ugh, nuke any ':'s */
+			strncpy(macbuf, row[0], sizeof(macbuf));
+			if (index(row[0], ':')) {
+				int x1, x2, x3, x4, x5, x6;
+				if (sscanf(row[0], "%2x:%2x:%2x:%2x:%2x:%2x",
+					   &x1, &x2, &x3, &x4, &x5, &x6) == 6)
+					snprintf(macbuf, sizeof(macbuf),
+						 "%02x%02x%02x%02x%02x%02x",
+						 x1, x2, x3, x4, x5, x6);
+			}
+			OUTPUT(buf, sizeof(buf),
+			       "SERVER=gw CNETIP=%s CNETMAC=%s\n",
+			       CONTROL_ROUTER_IP, macbuf);
+			client_writeback(sock, buf, strlen(buf), tcp);
+		}
+	}
+	if (res)
+		mysql_free_result(res);
+
+	/*
+	 * We only report additional info to callers on the node control net,
+	 * and about servers/nodes on the node control net. For others, the
+	 * gateway info suffices.
+	 */
+	inet_aton(CONTROL_NETWORK, &cnet);
+	inet_aton(CONTROL_NETMASK, &cmask);
+	cnet.s_addr &= cmask.s_addr;
+
+	if ((reqp->client.s_addr & cmask.s_addr) != cnet.s_addr)
+		return 0;
+
+	res = mydb_query("select node_id,IP,mac from interfaces "
+			 "where role='ctrl' and "
+			 "(node_id in ('boss','ops','fs') or "
+			 " node_id in "
+			 " (select distinct subboss_id from subbosses "
+			 "  where disabled=0))", 3);
+	if (!res) {
+		error("doarpinfo: %s: DB Error getting server info\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	for (nrows = (int)mysql_num_rows(res); nrows > 0; nrows--) {
+		struct in_addr naddr;
+
+		row = mysql_fetch_row(res);
+		inet_aton(row[1], &naddr);
+
+		/* Do not report ourselves */
+		if (reqp->client.s_addr == naddr.s_addr)
+			continue;
+
+		/* and only for servers on the node control net */
+		naddr.s_addr &= cmask.s_addr;
+		if (naddr.s_addr != cnet.s_addr)
+			continue;
+
+		OUTPUT(buf, sizeof(buf),
+		       "SERVER=%s CNETIP=%s CNETMAC=%s\n",
+		       row[0], row[1], row[2]);
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+	mysql_free_result(res);
+
+	/*
+	 * Subbosses get info for all nodes they provide a service for. 
+	 */
+	if (strcmp(erole, "subboss") == 0) {
+		res = mydb_query("select distinct i.node_id,i.IP,i.mac from "
+				 "interfaces as i,subbosses as s where "
+				 "s.node_id=i.node_id and "
+				 "s.subboss_id='%s' and i.role='ctrl'",
+				 3, reqp->nodeid);
+		if (!res) {
+			error("doarpinfo: %s: DB Error getting"
+			      "control interface info\n", reqp->nodeid);
+			return 1;
+		}
+		for (nrows = (int)mysql_num_rows(res); nrows > 0; nrows--) {
+			row = mysql_fetch_row(res);
+			if (!row[0] || !row[0][0] ||
+			    !row[1] || !row[1][0] ||
+			    !row[2] || !row[2][0])
+				continue;
+			OUTPUT(buf, sizeof(buf),
+			       "HOST=%s CNETIP=%s CNETMAC=%s\n",
+			       row[0], row[1], row[2]);
+			client_writeback(sock, buf, strlen(buf), tcp);
+		}
+
+		mysql_free_result(res);
+	}
+
+	return 0;
+}
+
+/*
  * Return dhcpd configuration as a set of key-value pairs, one node
  * per line.
  */
@@ -9535,12 +9686,13 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 	char buf[MYBUFSIZE];
 	char *b;
 
-	res = mydb_query("select erole from reserved where node_id = '%s' and erole = 'subboss'", 1,
-	                 reqp->nodeid);
+	res = mydb_query("select erole from reserved "
+			 "where node_id='%s' and erole='subboss'",
+			 1, reqp->nodeid);
 
 	if (!res) {
 		error("dodhcpconf: %s: "
-		      "DB Error checking for %s in subbosses table\n",
+		      "DB Error checking for reserved.erole\n",
 		      reqp->nodeid);
 		return 1;
 	}
@@ -9552,20 +9704,18 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 	}
 	mysql_free_result(res);
 
-	res = mydb_query("select n.node_id,n.pxe_boot_path,i.IP,i.mac,n.type,r.eid,r.pid,"
-			 "r.inner_elab_role,r.inner_elab_boot,r.plab_role,r.plab_boot,"
-			 "n.next_pxe_boot_path "
+	res = mydb_query("select n.node_id,n.pxe_boot_path,i.IP,i.mac,n.type,"
+			 "r.eid,r.pid,r.inner_elab_role,r.inner_elab_boot,"
+			 "r.plab_role,r.plab_boot,n.next_pxe_boot_path "
 			 "from nodes as n "
-			 "left join subbosses as s on n.node_id = s.node_id "
-			 "left join interfaces as i on n.node_id = i.node_id "
-			 "left join reserved as r on n.node_id = r.node_id "
-			 "where s.subboss_id = '%s' and "
+			 "left join subbosses as s on n.node_id=s.node_id "
+			 "left join interfaces as i on n.node_id=i.node_id "
+			 "left join reserved as r on n.node_id=r.node_id "
+			 "where s.subboss_id='%s' and "
 	                 "s.service='dhcp' and s.disabled=0 and i.role='ctrl' "
 			 "order by n.priority", 12, reqp->nodeid);
-
 	if (!res) {
-		error("dodhcpconf: %s: "
-		      "DB Error getting dhcpd configuration for %s\n",
+		error("dodhcpconf: %s: DB Error getting dhcpd configuration\n",
 		      reqp->nodeid);
 		return 1;
 	}
@@ -9588,8 +9738,8 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 		remain = sizeof(buf);
 
 		row = mysql_fetch_row(res);
-		rc = snprintf(b, remain, "HOSTNAME=%s MAC=%s IP=%s", row[0], row[3], row[2]);
-
+		rc = snprintf(b, remain, "HOSTNAME=%s MAC=%s IP=%s",
+			      row[0], row[3], row[2]);
 		if (rc < 0) {
 			error("dodhcpdconf: error creating output\n");
 			mysql_free_result(res);
@@ -9611,13 +9761,14 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 		}
 
 		if (inner_elab_boot) {
-			res2 = mydb_query("select elabinelab_singlenet from experiments where "
-					  "eid = '%s' and pid = '%s'", 1, row[5], row[6]);
-
+			res2 = mydb_query("select elabinelab_singlenet "
+					  "from experiments where "
+					  "eid='%s' and pid='%s'",
+					  1, row[5], row[6]);
 			if (!res2) {
-				error("dodhcpconf: %s: "
-				      "DB Error getting experiment info for %s:%s\n",
-				      row[6], row[5]);
+				error("dodhcpconf: %s: DB Error getting "
+				      "experiment info for %s/%s\n",
+				      reqp->nodeid, row[6], row[5]);
 				mysql_free_result(res);
 				return 1;
 			}
@@ -9631,42 +9782,44 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 		}
 		if ((inner_elab_boot && row[7] && !strcmp(row[7], "node")) ||
 		    (plab_boot && row[9] && !strcmp(row[9], "node"))) {
-			res2 = mydb_query("select i.IP from reserved as r, interfaces as i "
-					  "where r.node_id = i.node_id and "
-					  "r.eid = '%s' and r.pid = '%s' and "
-					  "(r.inner_elab_role = 'boss' or "
-					  "r.inner_elab_role = 'boss+router' or "
-					  "r.inner_elab_role = 'boss+fs+router' or "
-					  "r.plab_role='plc') and i.role='ctrl'", 1,
-					  row[5], row[6]);
-
+			res2 = mydb_query("select i.IP from "
+					  "reserved as r, interfaces as i "
+					  "where r.node_id=i.node_id and "
+					  "r.eid='%s' and r.pid='%s' and "
+					  "(r.inner_elab_role='boss' or "
+					  "r.inner_elab_role='boss+router' or "
+					  "r.inner_elab_role='boss+fs+router' or "
+					  "r.plab_role='plc') and i.role='ctrl'",
+					  1, row[5], row[6]);
 			if (!res2) {
-				error("dodhcpconf: %s: "
-				      "DB Error getting experiment info for %s:%s\n",
-				      row[6], row[5]);
+				error("dodhcpconf: %s: DB Error getting "
+				      "interface info for %s/%s\n",
+				      reqp->nodeid, row[6], row[5]);
 				mysql_free_result(res);
 				return 1;
 			}
 
 			if (mysql_num_rows(res2)) {
 				MYSQL_ROW row2 = mysql_fetch_row(res2);
-				strlcpy(tftp_server, row2[0], sizeof(tftp_server));
-				/* XXX should this server do bootinfo as well? */
-				strlcpy(bootinfo_server, row2[0], sizeof(bootinfo_server));
+				strlcpy(tftp_server, row2[0],
+					sizeof(tftp_server));
+				/* XXX should server do bootinfo as well? */
+				strlcpy(bootinfo_server, row2[0],
+					sizeof(bootinfo_server));
 			}
 			mysql_free_result(res2);
 		}
 
-
-		res2 = mydb_query("select s.subboss_id,s.service,i.IP from subbosses as s, "
-		                  "interfaces as i where s.node_id = '%s' and "
-				  "s.service != 'dhcp' and s.disabled=0 "
-		                  "and s.subboss_id = i.node_id and i.role = 'ctrl'", 3,
-		                  row[0]);
+		res2 = mydb_query("select s.subboss_id,s.service,i.IP "
+				  "from subbosses as s, interfaces as i "
+				  "where s.node_id='%s' and "
+				  "s.service!='dhcp' and s.disabled=0 "
+		                  "and s.subboss_id=i.node_id and i.role='ctrl'",
+				  3, row[0]);
 		if (!res) {
 			error("dodhcpconf: %s: "
 			      "DB Error getting subbosses for %s\n",
-			      row[0]);
+			      reqp->nodeid, row[0]);
 			mysql_free_result(res);
 			return 1;
 		}
@@ -9678,11 +9831,13 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 			row2 = mysql_fetch_row(res2);
 			if (strcmp(row2[1], "tftp") == 0) {
 				if (tftp_server[0] == '\0') {
-					strlcpy(tftp_server, row2[2], sizeof(tftp_server));
+					strlcpy(tftp_server, row2[2],
+						sizeof(tftp_server));
 				}
 			} else if (strcmp(row2[1], "bootinfo") == 0) {
 				if (bootinfo_server[0] == '\0') {
-					strlcpy(bootinfo_server, row2[2], sizeof(bootinfo_server));
+					strlcpy(bootinfo_server, row2[2],
+						sizeof(bootinfo_server));
 				}
 			}
 
@@ -9698,7 +9853,9 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 		mysql_free_result(res2);
 
 		if (inner_elab_boot) {
-			rc = snprintf(b, remain, " INNER_ELAB_BOOT=1 INNER_ELAB_ROLE=%s", row[7]);
+			rc = snprintf(b, remain,
+				      " INNER_ELAB_BOOT=1 INNER_ELAB_ROLE=%s",
+				      row[7]);
 			b += rc;
 			remain -= rc;
 			if (elabinelab_singlenet) {
@@ -9750,30 +9907,34 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 			MYSQL_ROW row2;
 
 			/* See if there is a default value for the node */
-			res2 = mydb_query("select attrvalue from node_attributes where "
-			                  "attrkey = 'pxe_boot_path' and node_id = '%s'", 1, row[0]);
+			res2 = mydb_query("select attrvalue from "
+					  "node_attributes where "
+			                  "attrkey='pxe_boot_path' and "
+					  "node_id='%s'", 1, row[0]);
 			if (res2 && (int)mysql_num_rows(res2) == 0) {
 				/* or for the node type */
 				mysql_free_result(res2);
-				res2 = mydb_query("select attrvalue from node_type_attributes where "
-						  "attrkey = 'pxe_boot_path' and type = '%s'", 1, row[4]);
+				res2 = mydb_query("select attrvalue from "
+						  "node_type_attributes where "
+						  "attrkey='pxe_boot_path' and "
+						  "type = '%s'", 1, row[4]);
 			}
-
 			if (!res2) {
-				error("dodhcpconf: %s: "
-				      "DB Error getting pxe_boot_path from attributes for %s\n",
-				      row[0]);
+				error("dodhcpconf: %s: DB Error getting "
+				      "pxe_boot_path from attributes for %s\n",
+				      reqp->nodeid, row[0]);
 				mysql_free_result(res);
 				return 1;
 			}
-
 
 			if ((int)mysql_num_rows(res2)) {
 				row2 = mysql_fetch_row(res2);
 				rc = 0;
 
 				if (row2[0] != NULL) {
-					rc = snprintf(b, remain, " FILENAME=\"%s\"", row2[0]);
+					rc = snprintf(b, remain,
+						      " FILENAME=\"%s\"",
+						      row2[0]);
 				}
 
 				if (rc < 0) {

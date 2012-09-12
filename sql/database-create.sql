@@ -3688,7 +3688,8 @@ CREATE TABLE `subbosses` (
   `service` varchar(20) NOT NULL default '',
   `subboss_id` varchar(20) NOT NULL default '',
   `disabled` tinyint(1) NOT NULL default '0',
-  PRIMARY KEY  (`node_id`,`service`)
+  PRIMARY KEY  (`node_id`,`service`),
+  KEY `active` (`disabled`,`subboss_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
