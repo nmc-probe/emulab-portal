@@ -123,15 +123,18 @@ if ($passhash eq "") {
 # Figure out what kind of thing to localize.
 #
 if (-e "boot" && -e "boot/mfsroot") {
+    print "Localizing FreeBSD MFS $path/boot/mfsroot ...\n";
     LocalizeBSD();
     exit(0);
 }
 foreach my $extension ("lzma", "bz2", "gz") {
     if (-e "initramfs.${extension}") {
+	print "Localizing Linux MFS $path/initramfs.$extension ...\n";
 	LocalizeLinux($extension);
 	exit(0);
     }
     if (-e "initramfs") {
+	print "Localizing Linux MFS $path/initramfs ...\n";
 	LocalizeLinux("");
 	exit(0);
     }
@@ -329,7 +332,7 @@ sub LocalizeLinux($)
     
     # Extract
     if (defined($compression)) {
-	ExecQuiet("$compression -dc < ../${initfs}.${extension} | cpio -idu")
+	ExecQuiet("$compression -dc < ../${initfs}.${extension} | cpio -idum")
 	    == 0 or fatal("Could not extract ${initfs}.${extension}");
     }
     else {
@@ -456,4 +459,3 @@ sub fatal($)
 	         "    $mesg\n";
     exit(-1);
 }
-
