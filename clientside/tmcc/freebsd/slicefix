@@ -13,6 +13,16 @@ else
 	ETCDIR=/etc/emulab
 fi
 
+# XXX should fix paths.sh but I am afraid of the consequences
+if [ -d "/etc/emulab" -a "$ETCDIR" = "/etc/testbed" ]; then
+	ETCDIR=/etc/emulab
+	for f in isvgaonly isflash bossnode emulab.pem client.pem; do
+		if [ -e "/etc/testbed/$f" -a ! -e "/etc/emulab/$f" ]; then
+			mv /etc/testbed/$f /etc/emulab/$f
+		fi
+	done
+fi    
+
 disk="ad0"
 
 case $# in
@@ -162,6 +172,7 @@ dofreebsd() {
 	echo "fixing FreeBSD root partition ${disk}s${part}a"
 	fsck -p $rootdev || {
 		# 8.x fsck fails to determine the FS type, try again with ufs
+		echo "retrying fsck with '-t ufs'"
 		fsck -t ufs -p $rootdev || {
 		    echo "Fsck of $rootdev failed"
 		    return 1
@@ -306,11 +317,14 @@ dofreebsd() {
 	    fi
 	fi
 
+	#
+	# Localize the image. We only do this if the MFS we are running in
+	# has the necessary files.
+	#
 	if islocalized; then
 	    # Check the certs.
 	    if [ -e $ETCDIR/emulab.pem ]; then
 		cmp -s $ETCDIR/emulab.pem /mnt/etc/emulab/emulab.pem
-
 		if [ $? -ne 0 ]; then
 		    changecerts=1
 		    fixit=1
@@ -318,14 +332,13 @@ dofreebsd() {
 	    fi
 	    if [ -e $ETCDIR/client.pem ]; then
 		cmp -s $ETCDIR/client.pem /mnt/etc/emulab/client.pem
-
 		if [ $? -ne 0 ]; then
 		    changecerts=1
 		    fixit=1
 		fi
 	    fi
 
-	    # Check the root keys
+	    # Check the root keys.
 	    if [ -e /root/.ssh/authorized_keys2 ]; then
 		cmp -s /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys
 		if [ $? -ne 0 ]; then
@@ -335,21 +348,21 @@ dofreebsd() {
 	    fi
 	
 	    # Check the host keys.
-	    if [ -e /etc/ssh/ssh_host_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_key ]; then
 		cmp -s /etc/ssh/ssh_host_key /mnt/etc/ssh/ssh_host_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
 		    fixit=1
 		fi
 	    fi
-	    if [ -e /etc/ssh/ssh_host_rsa_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_rsa_key ]; then
 		cmp -s /etc/ssh/ssh_host_rsa_key /mnt/etc/ssh/ssh_host_rsa_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
 		    fixit=1
 		fi
 	    fi
-	    if [ -e /etc/ssh/ssh_host_dsa_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_dsa_key ]; then
 		cmp -s /etc/ssh/ssh_host_dsa_key /mnt/etc/ssh/ssh_host_dsa_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
@@ -513,7 +526,7 @@ EOF1
 		    return 1
 		}
 	    fi
-	    cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem /mnt/etc/emulab || {
+	    cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem /mnt/etc/emulab/ || {
 	        echo "Failed to create $ETCDIR/emulab.pem or $ETCDIR/client.pem"
 		umount $rootdev
 		return 1
@@ -522,7 +535,7 @@ EOF1
 
 	# Copy in new root keys
 	if [ $changerootkeys -eq 1 ]; then
-	    echo "  updating /root/.ssh/authorized_keys2"
+	    echo "  updating /root/.ssh/authorized_keys"
 
 	    if [ ! -d /mnt/root/.ssh ]; then
 		mkdir -m 700 /mnt/root/.ssh || {
@@ -531,7 +544,13 @@ EOF1
 		    return 1
 		}
 	    fi
-	    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh || {
+	    # copy to both authorized_keys and _keys2
+	    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys || {
+	        echo "Failed to create /root/.ssh/authorized_keys"
+		umount $rootdev
+		return 1
+	    }
+	    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/ || {
 	        echo "Failed to create /root/.ssh/authorized_keys2"
 		umount $rootdev
 		return 1
@@ -549,7 +568,7 @@ EOF1
 		    return 1
 		}
 	    fi
-	    cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh || {
+	    cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh/ || {
 	        echo "Failed to create /etc/ssh/hostkeys"
 		umount $rootdev
 		return 1
@@ -810,8 +829,12 @@ dolinux() {
 	    dd if=/dev/urandom of=/mnt/var/lib/random-seed bs=512 count=1 >/dev/null 2>&1
 	fi
 
-	# Check the certs.
+	#
+	# Localize the image. We only do this if the MFS we are running in
+	# has the necessary files.
+	#
 	if islocalized; then
+	    # Check the certs.
 	    if [ ! -d /mnt/etc/emulab ]; then
 		mkdir -m 755 /mnt/etc/emulab || {
 	            echo "Failed to mkdir /mnt/etc/emulab"
@@ -821,10 +844,9 @@ dolinux() {
 	    fi
 	    if [ -e $ETCDIR/emulab.pem ]; then
 		cmp -s $ETCDIR/emulab.pem /mnt/etc/emulab/emulab.pem
-
 		if [ $? -ne 0 ]; then
 		    echo "  updating /mnt/etc/emulab/emulab.pem"
-		    cp -p $ETCDIR/emulab.pem /mnt/etc/emulab || {
+		    cp -p $ETCDIR/emulab.pem /mnt/etc/emulab/ || {
 			echo "Failed to create $ETCDIR/emulab.pem"
 			umount $rootdev
 			return 1
@@ -833,10 +855,9 @@ dolinux() {
 	    fi
 	    if [ -e $ETCDIR/client.pem ]; then
 		cmp -s $ETCDIR/client.pem /mnt/etc/emulab/client.pem
-
 		if [ $? -ne 0 ]; then
 		    echo "  updating /mnt/etc/emulab/client.pem"
-		    cp -p $ETCDIR/client.pem /mnt/etc/emulab || {
+		    cp -p $ETCDIR/client.pem /mnt/etc/emulab/ || {
 			echo "Failed to create $ETCDIR/client.pem"
 			umount $rootdev
 			return 1
@@ -844,11 +865,11 @@ dolinux() {
 		fi
 	    fi
 
-	    # Check the root keys
+	    # Check the root keys.
 	    if [ -e /root/.ssh/authorized_keys2 ]; then
 		cmp -s /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys
 		if [ $? -ne 0 ]; then
-		    echo "  updating /root/.ssh/authorized_keys2"
+		    echo "  updating /root/.ssh/authorized_keys"
 		    
 		    if [ ! -d /mnt/root/.ssh ]; then
 			mkdir -m 700 /mnt/root/.ssh || {
@@ -857,7 +878,13 @@ dolinux() {
 			    return 1
 			}
 		    fi
-		    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh || {
+		    # copy to both authorized_keys and _keys2
+		    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys || {
+			echo "Failed to create /root/.ssh/authorized_keys"
+			umount $rootdev
+			return 1
+		    }
+		    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/ || {
 			echo "Failed to create /root/.ssh/authorized_keys2"
 			umount $rootdev
 			return 1
@@ -865,21 +892,21 @@ dolinux() {
 		fi
 	    fi
 
-	    changehostkeys=0
   	    # Check the host keys.
-	    if [ -e /etc/ssh/ssh_host_key -a -d /mnt/etc/ssh ]; then
+	    changehostkeys=0
+	    if [ -e /etc/ssh/ssh_host_key ]; then
 		cmp -s /etc/ssh/ssh_host_key /mnt/etc/ssh/ssh_host_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
 		fi
 	    fi
-	    if [ -e /etc/ssh/ssh_host_rsa_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_rsa_key ]; then
 		cmp -s /etc/ssh/ssh_host_rsa_key /mnt/etc/ssh/ssh_host_rsa_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
 		fi
 	    fi
-	    if [ -e /etc/ssh/ssh_host_dsa_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_dsa_key ]; then
 		cmp -s /etc/ssh/ssh_host_dsa_key /mnt/etc/ssh/ssh_host_dsa_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
@@ -895,7 +922,7 @@ dolinux() {
 			return 1
 		    }
 		fi
-		cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh || {
+		cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh/ || {
 	            echo "Failed to create /etc/ssh/hostkeys"
 		    umount $rootdev
 		    return 1
