@@ -13,7 +13,8 @@ my $MKSWAP = '/sbin/mkswap';
 my $UUIDGEN = 'uuidgen';
 my $LOSETUP = 'losetup';
 my $TUNE2FS = 'tune2fs';
-my $LOCALIZED = '/.localized';
+my $LOCALIZED1 = '/.localized';
+my $LOCALIZED2 = '/root/.localized';
 
 use constant GZHDR1 => 0x1f8b0800;
 use constant GZHDR2 => 0x1f8b0808;
@@ -802,7 +803,7 @@ sub localize
 {
     my ($imageroot) = @_;
 
-    if (! -e "$LOCALIZED") {
+    if (! -e "$LOCALIZED1" && ! -e "$LOCALIZED2") {
 	return;
     }
 

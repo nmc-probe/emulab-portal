@@ -297,7 +297,7 @@ sub LocalizeBSD()
 }
 
 #
-# Localize a Lnux MFS
+# Localize a Linux MFS
 #
 sub LocalizeLinux($)
 {
@@ -382,7 +382,13 @@ sub LocalizeLinux($)
     # Mark as "localized". This tells slicefix that it should copy all
     # the above stuff into the image.
     #
+    # XXX argh, it appears that the cpio unpacking of the MFS at boot
+    # time doesn't get /.localized and I don't want to figure out why.
+    # So we stash the file in /root/.localized as well.
+    #
     ExecQuiet("$CP /dev/null .localized")
+	== 0 or goto bad;
+    ExecQuiet("$CP /dev/null root/.localized")
 	== 0 or goto bad;
 
     #

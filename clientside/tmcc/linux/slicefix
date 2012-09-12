@@ -130,10 +130,11 @@ fi
 
 # Indicates the MFS has been properly localized and we can copy stuff
 # into the image.
-LOCALIZED="/.localized"
+LOCALIZED1="/.localized"
+LOCALIZED2="/root/.localized"
 
 islocalized() {
-    if [ -e $LOCALIZED ]; then
+    if [ -e $LOCALIZED1 -o -e $LOCALIZED2 ]; then
 	return 0;
     fi
     return 1;
