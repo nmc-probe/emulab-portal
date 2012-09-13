@@ -5381,6 +5381,7 @@ sub SetupPortLans($)
 	    $newmember->SetAttribute("portlan_exptidx", $self->idx());
 	    $newmember->SetAttribute("portlan_lanname", $lan->vname());
 	}
+	$portvlan->Unlock();
     }
     return 0;
 }
