@@ -1,6 +1,6 @@
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 SRCDIR		= @srcdir@
@@ -36,6 +36,8 @@ mfs:		client
 mfs-install:	client-install
 frisbee-mfs:
 frisbee-mfs-install:
+newnode-mfs:
+newnode-mfs-install:
 
 # How to recursively descend into subdirectories to make general
 # targets such as `all'.

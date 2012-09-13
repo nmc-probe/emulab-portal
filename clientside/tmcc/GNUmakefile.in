@@ -156,6 +156,11 @@ frisbee-mfs: client
 frisbee-mfs-install: frisbee-mfs
 	@$(MAKE) -C $(MDSUBDIR) frisbee-mfs-install
 
+newnode-mfs: client
+
+newnode-mfs-install: newnode-mfs
+	@$(MAKE) -C $(MDSUBDIR) newnode-mfs-install
+
 #
 # XXX argh!  assumes FreeBSD inner boss
 #

@@ -37,6 +37,8 @@ mfs:		mfs-subdirs
 mfs-install:	client-mkdirs mfs-install-subdirs
 frisbee-mfs:	frisbee-mfs-subdirs
 frisbee-mfs-install:	client-mkdirs frisbee-mfs-install-subdirs
+newnode-mfs:	newnode-mfs-subdirs
+newnode-mfs-install:	client-mkdirs newnode-mfs-install-subdirs
 
 TARBALLDESTDIR = /var/tmp/emulab-client
 client-tarball:

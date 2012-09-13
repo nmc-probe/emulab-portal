@@ -51,6 +51,8 @@ mfs:
 mfs-install:
 frisbee-mfs:
 frisbee-mfs-install:
+newnode-mfs:
+newnode-mfs-install:
 
 # How to recursively descend into subdirectories to make general
 # targets such as `all'.

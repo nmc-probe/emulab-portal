@@ -298,6 +298,18 @@ frisbee-mfs-nostatic-install: destdircheck frisbee-mfs-nostatic
 	@$(MAKE) -C os frisbee-mfs-install
 	@$(MAKE) -C clientside frisbee-mfs-install
 
+newnode-mfs: mfsoscheck
+	@$(MAKE) -C clientside newnode-mfs
+
+newnode-mfs-nostatic: mfsoscheck
+	@NOSTATIC=1 $(MAKE) -C clientside newnode-mfs
+
+newnode-mfs-install: destdircheck newnode-mfs client-mkdirs
+	@$(MAKE) -C clientside newnode-mfs-install
+
+newnode-mfs-nostatic-install: destdircheck newnode-mfs-nostatic client-mkdirs
+	@$(MAKE) -C clientside newnode-mfs-install
+
 cdboot: mfsoscheck client
 	@echo "CD/Dongle files built"
 

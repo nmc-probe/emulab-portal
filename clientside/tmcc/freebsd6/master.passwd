@@ -1,7 +1,7 @@
 # $FreeBSD: src/etc/master.passwd,v 1.40 2005/06/06 20:19:56 brooks Exp $
 #
-root:kEi.I6fTKyJDg:0:0::0:0:Charlie &:/root:/bin/csh
-toor:kEi.I6fTKyJDg:0:0::0:0:Chaplin &:/root:/bin/csh
+root:$1$0DKicYf8$PsfF3uhmTrtuaJKH/rxtQ/:0:0::0:0:Charlie &:/root:/bin/csh
+toor:*:0:0::0:0:Chaplin &:/root:/bin/csh
 daemon:*:1:1::0:0:Owner of many system processes:/root:/usr/sbin/nologin
 operator:*:2:5::0:0:System &:/:/usr/sbin/nologin
 bin:*:3:7::0:0:Binaries Commands and Source:/:/usr/sbin/nologin
