@@ -1101,6 +1101,10 @@ sub Start($$$)
 	    $msg .= "Failed to setup vlans";
 	    goto bad;
 	}
+	if ($experiment->SetupPortLans()) {
+	    $msg .= "Failed to setup shared vlan ports";
+	    goto bad;
+	}
 	if ($experiment->SyncPortLans()) {
 	    $msg .= "Failed to add ports to shared vlans";
 	    goto bad;
