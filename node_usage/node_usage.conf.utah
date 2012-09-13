@@ -27,7 +27,8 @@ $NODE_USAGE_DB = 'node_usage';
   ["pc3000s", [qw(pc3000)]],
 #  ["d710s", [qw(d710)], 1282575600] # latter start data: 
 #                                    #   when nodes were announced
-  ["d710s", [qw(d710)], 1269466000]
+  ["d710s", [qw(d710)], 1269466000],
+  ["d820s", [qw(d820)], 1346155200]
 );
 
 #
