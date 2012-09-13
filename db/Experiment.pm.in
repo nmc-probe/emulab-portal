@@ -5377,7 +5377,6 @@ sub SetupPortLans($)
 		$portvlan->Unlock();
 		return -1;
 	    }
-	    $self->printdb("Added $newmember to $portvlan\n");
 	    # Mark where the member came from.
 	    $newmember->SetAttribute("portlan_exptidx", $self->idx());
 	    $newmember->SetAttribute("portlan_lanname", $lan->vname());
