@@ -105,6 +105,7 @@ endif
 
 ifeq ($(SYSTEM),Cygwin)
 TMLIBS  += -liphlpapi
+TMSLIBS   = $(TMLIBS)
 # Cygwin on  Windows XP (a.k.a. NT 5.1) - resembles the Linux case.
 ifeq ($(MDREL),5.1)
 MDSUBDIR  = cygwinxp
@@ -124,7 +125,7 @@ tmcc-shared: tmcc.c tmcd.h $(TPMLIB)
 	$(CC) $(CFLAGS) $(SSLFLAGS) -g -o tmcc $< $(LFLAGS) $(TMLIBS)
 
 tmcc-nossl-debug: tmcc.c tmcd.h
-	$(CC) $(CFLAGS) $(LDSTATIC) -g -o $@ $< $(LFLAGS) $(TMLIBS)
+	$(CC) $(CFLAGS) $(LDSTATIC) -g -o $@ $< $(LFLAGS) $(TMSLIBS)
 
 findif-debug: findif.o
 	$(CC) $(CFLAGS) -g -o $@ findif.o $(LFLAGS) $(LDSTATIC)
