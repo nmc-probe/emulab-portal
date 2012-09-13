@@ -23,7 +23,7 @@ use Exporter;
 	 gettraceconfig genhostsfile getmotelogconfig calcroutes fakejailsetup
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
          getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
-	 forcecopy getnodeuuid
+	 forcecopy getnodeuuid getarpinfo
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs
 
@@ -3163,6 +3163,45 @@ sub getlocalevserver()
     }
 
     return $evserver;
+}
+
+sub getarpinfo($)
+{
+    my ($rptr) = @_;
+    my %arpinfo = ();
+    my @tmccresults = ();
+    # don't cache
+    my %opthash = ( 'nocache' => 1 );
+
+    if (tmcc(TMCCCMD_ARPINFO, undef, \@tmccresults, %opthash) < 0) {
+	warn("*** WARNING: Could not get arpinfo from server!\n");
+	return -1;
+    }
+
+    #
+    # Example:
+    #  SERVER=gw CNETIP=155.98.36.1 CNETMAC=00d0bcf414f8
+    #  SERVER=subboss CNETIP=155.98.38.162 CNETMAC=001f29329224
+    #  HOST=pc271 CNETIP=155.98.39.71 CNETMAC=001143e43be6
+    #
+    my $pat = q((HOST|SERVER)=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-f]{12}));
+
+    foreach my $line (@tmccresults) {
+	if ($line =~ /$pat/) {
+	    my $type = $1;
+	    my $name = $2;
+	    my $ip = $3;
+	    my $mac = $4;
+
+	    $arpinfo{$name}{'type'} = $type;
+	    $arpinfo{$name}{'ip'} = $ip;
+	    $arpinfo{$name}{'mac'} = $mac;
+	} else {
+	    warn("*** WARNING: Bad arpinfo info line ignored: '$line'\n");
+	}
+    }
+    %$rptr = %arpinfo;
+    return 0;
 }
 
 #

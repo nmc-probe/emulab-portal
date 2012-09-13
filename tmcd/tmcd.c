@@ -9649,8 +9649,8 @@ COMMAND_PROTOTYPE(doarpinfo)
 		res = mydb_query("select distinct i.node_id,i.IP,i.mac from "
 				 "interfaces as i,subbosses as s where "
 				 "s.node_id=i.node_id and "
-				 "s.subboss_id='%s' and i.role='ctrl'",
-				 3, reqp->nodeid);
+				 "s.subboss_id='%s' and s.disabled=0 and "
+				 "i.role='ctrl'", 3, reqp->nodeid);
 		if (!res) {
 			error("doarpinfo: %s: DB Error getting"
 			      "control interface info\n", reqp->nodeid);

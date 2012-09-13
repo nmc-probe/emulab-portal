@@ -36,6 +36,7 @@ use Exporter;
 	     TMCCCMD_LTMAP TMCCCMD_LTPMAP TMCCCMD_TOPOMAP TMCCCMD_LOADINFO
 	     TMCCCMD_TPMBLOB TMCCCMD_TPMPUB TMCCCMD_DHCPDCONF TMCCCMD_MANIFEST
 	     TMCCCMD_NODEUUID TMCCCMD_NODEATTRIBUTES TMCCCMD_DISKS
+	     TMCCCMD_ARPINFO
 	     );
 
 # Must come after package declaration!
@@ -199,6 +200,7 @@ my %commandset =
       "nodeuuid"	=> {TAG => "nodeuuid"},
       "nodeattributes"	=> {TAG => "nodeattributes"},
       "disks"		=> {TAG => "disks"},
+      "arpinfo"		=> {TAG => "arpinfo"},
     );
 
 #
@@ -261,17 +263,18 @@ sub TMCCCMD_MOTELOG()   { $commandset{"motelog"}->{TAG}; }
 sub TMCCCMD_PORTREGISTER(){ $commandset{"portregister"}->{TAG}; }
 sub TMCCCMD_BOOTWHAT()  { $commandset{"bootwhat"}->{TAG}; }
 sub TMCCCMD_ROOTPSWD()  { $commandset{"rootpswd"}->{TAG}; }
-sub TMCCCMD_TOPOMAP(){ $commandset{"topomap"}->{TAG}; }
-sub TMCCCMD_LTMAP()  { $commandset{"ltmap"}->{TAG}; }
-sub TMCCCMD_LTPMAP()  { $commandset{"ltpmap"}->{TAG}; }
-sub TMCCCMD_TPMBLOB()  { $commandset{"tpmblob"}->{TAG}; }
-sub TMCCCMD_TPMPUB()  { $commandset{"tpmpubkey"}->{TAG}; }
+sub TMCCCMD_TOPOMAP()   { $commandset{"topomap"}->{TAG}; }
+sub TMCCCMD_LTMAP()     { $commandset{"ltmap"}->{TAG}; }
+sub TMCCCMD_LTPMAP()    { $commandset{"ltpmap"}->{TAG}; }
+sub TMCCCMD_TPMBLOB()   { $commandset{"tpmblob"}->{TAG}; }
+sub TMCCCMD_TPMPUB()    { $commandset{"tpmpubkey"}->{TAG}; }
 sub TMCCCMD_LOADINFO()  { $commandset{"loadinfo"}->{TAG}; }
-sub TMCCCMD_DHCPDCONF()  { $commandset{"dhcpdconf"}->{TAG}; }
+sub TMCCCMD_DHCPDCONF() { $commandset{"dhcpdconf"}->{TAG}; }
 sub TMCCCMD_MANIFEST()  { $commandset{"manifest"}->{TAG}; }
-sub TMCCCMD_NODEUUID()    { $commandset{"nodeuuid"}->{TAG}; }
-sub TMCCCMD_NODEATTRIBUTES()   { $commandset{"nodeattributes"}->{TAG}; }
-sub TMCCCMD_DISKS()   { $commandset{"disks"}->{TAG}; }
+sub TMCCCMD_NODEUUID()  { $commandset{"nodeuuid"}->{TAG}; }
+sub TMCCCMD_NODEATTRIBUTES() { $commandset{"nodeattributes"}->{TAG}; }
+sub TMCCCMD_DISKS()     { $commandset{"disks"}->{TAG}; }
+sub TMCCCMD_ARPINFO()   { $commandset{"arpinfo"}->{TAG}; }
 
 #
 # Caller uses this routine to set configuration of this library
