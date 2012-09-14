@@ -31,7 +31,7 @@ package com.flack.geni.tasks.process
 {
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.RspecUtil;
-	import com.flack.geni.display.ChooseManagerWindow;
+	import com.flack.geni.display.windows.ChooseManagerWindow;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;

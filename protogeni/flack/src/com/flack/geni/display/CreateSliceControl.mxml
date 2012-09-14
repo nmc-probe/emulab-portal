@@ -75,7 +75,7 @@ IN THE WORK.
 			{
 				if(GeniMain.geniUniverse != null)
 				{
-					enabled = GeniMain.geniUniverse.user.HasCredential;
+					enabled = GeniMain.geniUniverse.user.HasCredential && GeniMain.geniUniverse.user.authority != null;
 				}
 				else
 					enabled = false;

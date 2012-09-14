@@ -221,6 +221,27 @@ IN THE WORK.
 				return _slice;
 			}
 			
+			private var _timer:Timer;
+			public function onTimer(event:TimerEvent):void
+			{
+				updateSliversExpires();
+			}
+			public function initTimer():void
+			{
+				_timer = new Timer(1000);
+				_timer.addEventListener(TimerEvent.TIMER, onTimer);
+				_timer.start();
+			}
+			public function destroyTimer():void
+			{
+				if(_timer != null)
+				{
+					_timer.reset();
+					_timer.removeEventListener(TimerEvent.TIMER, onTimer);
+					_timer = null;
+				}
+			}
+			
 			public function loadComponentsAreaFor(s:Slice):void
 			{
 				var currentArea:IComponentsArea = ComponentsArea;
@@ -278,16 +299,15 @@ IN THE WORK.
 				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_SLICE, sliceChanged);
 			}
 			
+			override public function initEvents():void
+			{
+				initTimer();
+			}
 			
-			
-			/*
 			override public function removeEvents():void
 			{
-				SharedMain.geniDispatcher.removeEventListener(GeniEvent.CHANGED_SLICE, sliceChanged);
-				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_FINISHED, updateSliceChanging);
-				SharedMain.tasker.removeEventListener(TaskEvent.CHILD_STARTED, updateSliceChanging);
+				destroyTimer();
 			}
-			*/
 			
 			public function sliceChanged(e:FlackEvent):void
 			{
@@ -391,7 +411,6 @@ IN THE WORK.
 						undoButton.toolTip += " ("+_slice.history.stateName+")";
 				}
 				
-				
 				redoButton.toolTip = "Redo";
 				if(redoButton.enabled)
 					redoButton.toolTip += " ("+_slice.history.states[_slice.history.backIndex+1].note+")";
@@ -399,14 +418,22 @@ IN THE WORK.
 			
 			public function updateSliversInfo():void
 			{
+				// Make sure the slivers info area has been drawn.
 				if(expiresLabel != null)
 				{
-					
 					startSliceButton.enabled  = _slice.slivers.AllocatedAnyResources;
-					
 					refreshStatusButton.enabled = slice.slivers.AllocatedAnyResources;
 					
-					if(slice.expires != null)
+					updateSliversExpires()
+				}
+			}
+			
+			public function updateSliversExpires():void
+			{
+				// Make sure the slivers info area has been drawn.
+				if(expiresLabel != null)
+				{
+					if(_slice != null && slice.expires != null)
 					{
 						var hoursRemaining:uint = (_slice.EarliestExpires.time - (new Date()).time)/3600000;
 						if(hoursRemaining < 1)

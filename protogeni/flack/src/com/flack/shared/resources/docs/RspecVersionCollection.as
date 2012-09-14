@@ -75,8 +75,16 @@ package com.flack.shared.resources.docs
 			var results:RspecVersionCollection = new RspecVersionCollection();
 			for each(var rspecVersion:RspecVersion in collection)
 			{
-				if(rspecVersion.type == RspecVersion.TYPE_GENI || rspecVersion.type == RspecVersion.TYPE_PROTOGENI)
-					results.add(rspecVersion);
+				switch(rspecVersion.type)
+				{
+					case RspecVersion.TYPE_PROTOGENI:
+						if(rspecVersion.version <= 2)
+							results.add(rspecVersion);
+						break;
+					case RspecVersion.TYPE_GENI:
+						if(rspecVersion.version <= 3)
+							results.add(rspecVersion);
+				}
 			}
 			return results;
 		}

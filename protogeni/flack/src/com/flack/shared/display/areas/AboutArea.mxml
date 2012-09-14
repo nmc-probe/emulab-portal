@@ -274,6 +274,8 @@ IN THE WORK.
 					  horizontalAlign="center"
 					  verticalAlign="middle" clipAndEnableScrolling="true"
 					  gap="2">
+				<s:Button label="Throw error"
+						  click="throw new Error('This was a test.')" />
 				<s:Button label="Test Slice Success Modes"
 						  click="runTest(new TestSliceSuccessModesTaskGroup())" />
 				<s:Button label="Test Slice Failure Modes"

@@ -42,6 +42,7 @@ package com.flack.shared.resources.sites
 		public static const API_PROTOGENI:int = 1;
 		public static const API_SFA:int = 2;
 		public static const API_EMULAB:int = 3;
+		public static const API_NOTSET:int = 4;
 		
 		// ProtoGENI levels
 		public static const LEVEL_MINIMAL:int = 0;
@@ -60,7 +61,7 @@ package com.flack.shared.resources.sites
 		 * @param newLevel Level
 		 * 
 		 */
-		public function ApiDetails(newType:int = -1,
+		public function ApiDetails(newType:int = API_NOTSET,
 								   newVersion:Number = NaN,
 								   newUrl:String = "",
 								   newLevel:int = 0)
@@ -91,6 +92,9 @@ package com.flack.shared.resources.sites
 					break;
 				case ApiDetails.API_EMULAB:
 					result = "Emulab";
+					break;
+				case ApiDetails.API_NOTSET:
+					result = "Not set";
 					break;
 				default:
 					result = "Unknown";

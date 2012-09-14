@@ -47,7 +47,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	 * @author mstrum
 	 * 
 	 */
-	public class ListManagerResourcesTask extends AmXmlrpcTask
+	public class ListResourcesTask extends AmXmlrpcTask
 	{
 		public var manager:GeniManager;
 		
@@ -56,7 +56,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * @param newManager Manager to list resources for
 		 * 
 		 */
-		public function ListManagerResourcesTask(newManager:GeniManager)
+		public function ListResourcesTask(newManager:GeniManager)
 		{
 			super(
 				newManager.api.url,
@@ -72,7 +72,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function createFields():void
 		{
-			addOrderedField([GeniMain.geniUniverse.user.credential.Raw]);
+			addOrderedField([AmXmlrpcTask.credentialToObject(GeniMain.geniUniverse.user.credential, apiVersion)]);
 			
 			var options:Object = 
 				{

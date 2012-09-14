@@ -35,7 +35,7 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.SliverCollection;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
-	import com.flack.geni.tasks.xmlrpc.am.ListSliverResourcesTask;
+	import com.flack.geni.tasks.xmlrpc.am.DescribeTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.GetSliverCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetSliceCredentialSaTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.ResolveSliceSaTask;
@@ -170,7 +170,7 @@ package com.flack.geni.tasks.groups.slice
 					{
 						var newGeniSliver:Sliver = new Sliver(slice, manager);
 						if(manager.api.type == ApiDetails.API_GENIAM)
-							add(new ListSliverResourcesTask(newGeniSliver));
+							add(new DescribeTask(newGeniSliver));
 						else
 							add(new GetSliverCmTask(newGeniSliver));
 					}

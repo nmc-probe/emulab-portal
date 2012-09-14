@@ -36,6 +36,7 @@ package com.flack.geni.resources.sites
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.physical.PhysicalNodeCollection;
 	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
 
 	/**
@@ -328,6 +329,14 @@ package com.flack.geni.resources.sites
 				}
 			}
 			return sharedVlans;
+		}
+		
+		public function forceApiType(type:int = ApiDetails.API_GENIAM):void
+		{
+			for each(var manager:GeniManager in collection)
+			{
+				manager.setApi(new ApiDetails(type));
+			}
 		}
 	}
 }

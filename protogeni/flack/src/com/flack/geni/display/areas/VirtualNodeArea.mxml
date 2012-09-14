@@ -766,7 +766,7 @@ IN THE WORK.
 			
 			public function userChoseImageName(newName:String):void
 			{
-				var createImageTask:CreateImageCmTask = new CreateImageCmTask(node, newName);
+				var createImageTask:CreateImageCmTask = new CreateImageCmTask(node, newName, diskImageGlobalCheckbox.selected);
 				createImageTask.forceRunNow = true;
 				SharedMain.tasker.add(createImageTask);
 			}
@@ -960,6 +960,12 @@ IN THE WORK.
 								  includeInLayout="{createImageButton.visible}"
 								  label="Create image"
 								  click="createImageButton_clickHandler(event)" />
+						<s:CheckBox id="diskImageGlobalCheckbox"
+									label="Global"
+									toolTip="Allow other users to use this image?"
+									selected="true"
+									visible="{createImageButton.visible}"
+									includeInLayout="{diskImageGlobalCheckbox.visible}" />
 					</s:HGroup>
 					<s:HGroup width="100%"
 							  gap="2">

@@ -639,8 +639,8 @@ IN THE WORK.
 							previewLink = null;
 						}
 					}
-					// see if near node, preview link
-					else
+					// see if near node and editable, preview link
+					else if(editable)
 					{
 						for(var i:Number = 2; i < 60; i+=2)
 						{

@@ -39,7 +39,7 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.GeniMain;
-			import com.flack.geni.display.ChooseManagerWindow;
+			import com.flack.geni.display.windows.ChooseManagerWindow;
 			import com.flack.geni.plugins.emulab.FirewallSliverType;
 			import com.flack.geni.plugins.emulab.RawPcSliverType;
 			import com.flack.geni.resources.SliverTypes;

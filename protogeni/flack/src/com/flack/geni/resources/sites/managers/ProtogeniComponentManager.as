@@ -57,5 +57,16 @@ package com.flack.geni.resources.sites.managers
 		{
 			return value.replace(".", "");
 		}
+		
+		override public function setApi(details:ApiDetails):void
+		{
+			api = details;
+			if(api.url.length == 0)
+			{
+				api.url = url;
+				if(api.type == ApiDetails.API_GENIAM)
+					api.url += "/am";
+			}
+		}
 	}
 }

@@ -49,6 +49,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	{
 		public var sliver:Sliver;
 		public var newExpires:Date;
+		//V3: geni_best_effort
 		
 		/**
 		 * 
@@ -77,8 +78,11 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function createFields():void
 		{
-			addOrderedField(sliver.slice.id.full);
-			addOrderedField([sliver.slice.credential.Raw]);
+			if(apiVersion < 3)
+				addOrderedField(sliver.slice.id.full);
+			else
+				addOrderedField([sliver.slice.id.full]);
+			addOrderedField([AmXmlrpcTask.credentialToObject(sliver.slice.credential, apiVersion)]);
 			addOrderedField(DateUtil.toRFC3339(newExpires));
 			if(apiVersion > 1)
 				addOrderedField({});

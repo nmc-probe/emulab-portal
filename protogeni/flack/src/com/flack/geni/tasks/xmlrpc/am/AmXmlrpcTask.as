@@ -29,7 +29,9 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
+	import com.flack.geni.resources.docs.GeniCredential;
 	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.tasks.TaskGroup;
 	import com.flack.shared.tasks.xmlrpc.XmlrpcTask;
@@ -231,6 +233,22 @@ package com.flack.geni.tasks.xmlrpc.am
 					TaskError.FAULT
 				)
 			);
+		}
+		
+		public static function credentialToObject(credential:GeniCredential, apiVersion:Number):Object
+		{
+			if(apiVersion < 3)
+				return credential.Raw;
+			else
+			{
+				var credentialObject:Object =
+					{
+						geni_type: credential.version.type,
+						geni_version: credential.version.version.toString(),
+						geni_value: credential.Raw
+					};
+				return credentialObject;
+			}
 		}
 	}
 }

@@ -34,6 +34,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.TaskError;
@@ -113,8 +114,11 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
 				success = true;
-				sliver.credential = new GeniCredential(data[0], GeniCredential.TYPE_SLIVER, sliver.manager);
-				sliver.id = sliver.credential.TargetId;
+				sliver.credential = new GeniCredential(
+					data[0],
+					GeniCredential.TYPE_SLIVER,
+					sliver.manager);
+				sliver.id = sliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
 				sliver.expires = sliver.credential.Expires;
 				sliver.manifest = new Rspec(data[1], null, null, null, Rspec.TYPE_MANIFEST);
 				

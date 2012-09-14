@@ -89,7 +89,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		override protected function createFields():void
 		{
 			addOrderedField(sliver.slice.id.full);
-			addOrderedField([sliver.slice.credential.Raw]);
+			addOrderedField([AmXmlrpcTask.credentialToObject(sliver.slice.credential, apiVersion)]);
 			if(apiVersion > 1)
 				addOrderedField({});
 		}

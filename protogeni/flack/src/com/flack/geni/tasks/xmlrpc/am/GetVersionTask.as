@@ -105,11 +105,10 @@ package com.flack.geni.tasks.xmlrpc.am
 							highestSuppportedVersion = supportedApi;
 						manager.apis.push(supportedApi);
 					}
-					if(highestSuppportedVersion.version > manager.api.version)
+					var oldApi:ApiDetails = manager.api;
+					manager.setApi(highestSuppportedVersion);
+					if(oldApi.version < manager.api.version)
 					{
-						// Set API to higher value and run GetVersion there
-						manager.api = highestSuppportedVersion;
-						
 						parent.add(new GetVersionTask(manager));
 						
 						super.afterComplete(addCompletedMessage);
@@ -141,6 +140,7 @@ package com.flack.geni.tasks.xmlrpc.am
 								String(requestRspecVersion.type).toLowerCase(),
 								Number(requestRspecVersion.version)
 							);
+						//V3: schema, namespace, extensions
 						manager.inputRspecVersions.add(requestVersion);
 					}
 				}
@@ -165,9 +165,17 @@ package com.flack.geni.tasks.xmlrpc.am
 								String(adRspecVersion.type).toLowerCase(),
 								Number(adRspecVersion.version)
 							);
+						//V3: schema, namespace, extensions
 						manager.outputRspecVersions.add(adVersion);
 					}
 				}
+				
+				//V3: geni_credential_types, geni_single_allocation, geni_allocate
+				if(data.geni_single_allocation != null)
+					manager.singleAllocation = data.geni_single_allocation;
+				if(data.geni_allocate != null)
+					manager.singleAllocation = data.geni_allocate;
+				//V3: geni_best_effort?
 				
 				// Make sure aggregate uses compatible rspec
 				if(manager.inputRspecVersions.UsableRspecVersions.length > 0 && manager.outputRspecVersions.UsableRspecVersions.length > 0)
@@ -187,7 +195,7 @@ package com.flack.geni.tasks.xmlrpc.am
 						manager
 					);
 					
-					parent.add(new ListManagerResourcesTask(manager));
+					parent.add(new ListResourcesTask(manager));
 					
 					super.afterComplete(addCompletedMessage);
 				}
@@ -201,13 +209,6 @@ package com.flack.geni.tasks.xmlrpc.am
 						)
 					);
 				}
-				
-				if(data.geni_single_allocation != null)
-					manager.singleAllocation = data.geni_single_allocation;
-				if(data.geni_allocate != null)
-					manager.singleAllocation = data.geni_allocate;
-				if(data.geni_best_effort != null)
-					manager.bestEffort = data.geni_best_effort;
 			}
 			catch(e:Error)
 			{

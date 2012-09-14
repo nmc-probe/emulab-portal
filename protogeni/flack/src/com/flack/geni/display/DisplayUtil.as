@@ -61,6 +61,7 @@ package com.flack.geni.display
 	import com.flack.shared.utils.ColorUtil;
 	import com.flack.shared.utils.ImageUtil;
 	import com.flack.shared.utils.ViewUtil;
+	import com.flack.geni.display.windows.AddAuthorityWindow;
 
 	public class DisplayUtil
 	{

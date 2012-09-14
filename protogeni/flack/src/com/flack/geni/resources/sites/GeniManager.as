@@ -78,9 +78,9 @@ package com.flack.geni.resources.sites
 		
 		public var sharedVlans:Vector.<String> = null;
 		
+		// Added for V3
 		public var singleAllocation:Boolean = false;
 		public var allocate:String = ALLOCATE_SINGLE;
-		public var bestEffort:Boolean = false;
 		
 		/**
 		 * 
@@ -126,6 +126,20 @@ package com.flack.geni.resources.sites
 			//supportedSliverTypes = new SupportedSliverTypeCollection();
 			//supportedLinkTypes = new SupportedLinkTypeCollection();
 			locations = new PhysicalLocationCollection();
+		}
+		
+		/**
+		 * Sets the API type to use. This can be overriden to, for example,
+		 * set the URL based on the api type.
+		 * 
+		 * @param type Details for the API to use.
+		 * 
+		 */
+		public function setApi(details:ApiDetails):void
+		{
+			api = details;
+			if(details.url.length == 0)
+				api.url = url;
 		}
 		
 		/**

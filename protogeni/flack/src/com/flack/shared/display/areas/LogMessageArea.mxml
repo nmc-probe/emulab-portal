@@ -42,10 +42,12 @@ IN THE WORK.
 		<![CDATA[
 			import com.flack.shared.logging.LogMessage;
 			import com.flack.shared.resources.sites.FlackManager;
+			import com.flack.shared.tasks.Tasker;
 			import com.flack.shared.tasks.file.FileTask;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
+			import com.flack.shared.utils.ViewUtil;
 			
 			[Bindable]
 			private var message:LogMessage;
@@ -85,6 +87,11 @@ IN THE WORK.
 				task.startOperation(e);
 			}
 			
+			private function viewTasksAndLogs():void
+			{
+				openNext(new TaskerArea());
+			}
+			
 		]]>
 	</fx:Script>
 	
@@ -119,6 +126,10 @@ IN THE WORK.
 									label="Save"
 									toolTip="Save to file"
 									click="saveFile(event)" />
+			<s:Button icon="{ImageUtil.consoleIcon}"
+					  label="Tasks and Logs"
+					  toolTip="View all tasks and logs"
+					  click="viewTasksAndLogs()" />
 			<s:Button id="dockIcon"
 									icon="{ImageUtil.windowIcon}"
 									toolTip="Pop out to a window or in to the main window"

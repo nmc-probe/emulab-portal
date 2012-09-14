@@ -35,6 +35,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.DateUtil;
 	
@@ -85,7 +86,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 						GeniCredential.TYPE_SLIVER,
 						sliver.manager
 					);
-				sliver.id = sliver.credential.TargetId;
+				sliver.id = sliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
 				sliver.expires = sliver.credential.Expires;
 				
 				addMessage(

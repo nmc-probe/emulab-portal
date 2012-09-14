@@ -46,6 +46,7 @@ package com.flack.geni.resources.docs
 		public static const TYPE_USER:int = 0;
 		public static const TYPE_SLICE:int = 1;
 		public static const TYPE_SLIVER:int = 2;
+		public static const TYPE_UNKNOWN:int = 4;
 		
 		private var _xml:XML = null;
 		private var _raw:String = "";
@@ -81,7 +82,7 @@ package com.flack.geni.resources.docs
 			return _xml;
 		}
 		
-		public function get OwnerId():IdnUrn
+		private function get OwnerId():IdnUrn
 		{
 			try
 			{
@@ -94,7 +95,7 @@ package com.flack.geni.resources.docs
 			return null;
 		}
 		
-		public function get TargetId():IdnUrn
+		private function get TargetId():IdnUrn
 		{
 			try
 			{
@@ -103,6 +104,17 @@ package com.flack.geni.resources.docs
 			catch(e:Error)
 			{
 			}
+			return null;
+		}
+		
+		public function getIdWithType(specifiedType:String):IdnUrn
+		{
+			var ownerId:IdnUrn = OwnerId;
+			if(ownerId != null && ownerId.type == specifiedType)
+				return ownerId;
+			var targetId:IdnUrn = TargetId;
+			if(targetId != null && targetId.type == specifiedType)
+				return targetId;
 			return null;
 		}
 		
@@ -131,6 +143,29 @@ package com.flack.geni.resources.docs
 		 * What type of object is this a credential for?
 		 */
 		public var type:int;
+		
+		public var version:GeniCredentialVersion;
+		
+		/**
+		 * 
+		 * @return Detected type if understandable by Flack.
+		 * 
+		 */
+		public function get GuessedType():int
+		{
+			var ownerId:IdnUrn = OwnerId;
+			var targetId:IdnUrn = TargetId;
+			if(targetId != null) {
+				if(targetId.type == IdnUrn.TYPE_SLIVER || ownerId.type == IdnUrn.TYPE_SLIVER)
+					return TYPE_SLIVER;
+				if(targetId.type == IdnUrn.TYPE_SLICE || ownerId.type == IdnUrn.TYPE_SLICE)
+					return TYPE_SLICE;
+				if(targetId.type == IdnUrn.TYPE_USER || ownerId.type == IdnUrn.TYPE_USER)
+					return TYPE_USER;
+			}
+			return TYPE_UNKNOWN;
+		}
+		
 		/**
 		 * What gave us this credential?
 		 */
@@ -144,12 +179,20 @@ package com.flack.geni.resources.docs
 		 * 
 		 */
 		public function GeniCredential(stringRepresentation:String = "",
-									   newType:int = TYPE_USER,
-									   newSource:IdentifiableObject = null)
+									   newType:int = TYPE_UNKNOWN,
+									   newSource:IdentifiableObject = null,
+									   newVersion:GeniCredentialVersion = null)
 		{
 			Raw = stringRepresentation;
-			type = newType;
 			source = newSource;
+			version = newVersion;
+			if(version == null)
+				version = GeniCredentialVersion.Default;
+			
+			// Set the type if we understand this credential.
+			type = newType;
+			if(stringRepresentation.length > 0 && type == TYPE_UNKNOWN)
+				type = GuessedType;
 		}
 	}
 }

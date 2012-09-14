@@ -161,7 +161,6 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 								protogeniManager.supportedSliverTypes.getOrCreateByName(EmulabBbgSliverType.TYPE_EMULAB_BBG);
 							}
 							
-							
 							newManager = protogeniManager;
 						}
 						else if(newId.name == ProtogeniXmlrpcTask.MODULE_SA)
@@ -250,6 +249,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 						);
 					}
 				}
+				
+				if(GeniCache.getForceAmApi())
+					GeniMain.geniUniverse.managers.forceApiType(ApiDetails.API_GENIAM);
 				
 				SharedMain.sharedDispatcher.dispatchChanged(
 					FlackEvent.CHANGED_MANAGERS,

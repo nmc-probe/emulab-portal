@@ -173,6 +173,26 @@ package com.flack.geni
 			}
 		}
 		
+		public static function getForceAmApi():Boolean
+		{
+			var forceAmApi:Boolean = false;
+			
+			if(SharedCache._sharedObject != null && SharedCache._sharedObject.data.forceAmApi != null)
+			{
+				forceAmApi = SharedCache._sharedObject.data.forceAmApi;
+			}
+			
+			return forceAmApi;
+		}
+		
+		public static function setForceAmApi(value:Boolean):void
+		{
+			if(SharedCache._sharedObject != null)
+			{
+				SharedCache._sharedObject.data.forceAmApi = value;
+			}
+		}
+		
 		// Manual managers
 		public static function wasManagerManuallyAdded(manager:GeniManager):Boolean
 		{

@@ -64,7 +64,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param newExpirationDate Desired expiration date
 		 * 
 		 */
-		public function CreateImageCmTask(newSourceNode:VirtualNode, newImageName:String, newGlobal:Boolean = true)
+		public function CreateImageCmTask(newSourceNode:VirtualNode,
+										  newImageName:String,
+										  newGlobal:Boolean = true)
 		{
 			super(
 				newSourceNode.manager.url,

@@ -35,6 +35,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
+	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.CompressUtil;
 	import com.flack.shared.utils.StringUtil;
@@ -45,7 +46,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	 * @author mstrum
 	 * 
 	 */
-	public final class ListSliverResourcesTask extends AmXmlrpcTask
+	public final class DescribeTask extends AmXmlrpcTask
 	{
 		public var sliver:Sliver;
 		
@@ -54,11 +55,12 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * @param newSliver Sliver for which to list resources allocated to the sliver's slice
 		 * 
 		 */
-		public function ListSliverResourcesTask(newSliver:Sliver)
+		public function DescribeTask(newSliver:Sliver)
 		{
 			super(
 				newSliver.manager.api.url,
-				AmXmlrpcTask.METHOD_LISTRESOURCES,
+				newSliver.manager.api.version < 3
+				? AmXmlrpcTask.METHOD_LISTRESOURCES : AmXmlrpcTask.METHOD_DESCRIBE,
 				newSliver.manager.api.version,
 				"List sliver resources @ " + newSliver.manager.hrn,
 				"Listing sliver resources for aggregate manager " + newSliver.manager.hrn,
@@ -72,18 +74,34 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function createFields():void
 		{
-			addOrderedField([sliver.slice.credential.Raw]);
+			if(apiVersion >= 3)
+				addOrderedField([sliver.slice.id.full]);
+			addOrderedField([AmXmlrpcTask.credentialToObject(sliver.slice.credential, apiVersion)]);
 			
-			var options:Object = 
-				{
-					geni_available: false,
-					geni_compressed: true,
-					geni_slice_urn: sliver.slice.id.full
-				};
+			var options:Object = { geni_compressed: true };
+			if(apiVersion < 3)
+			{
+				options.geni_available = false;
+				options.geni_slice_urn = sliver.slice.id.full;
+			}
+			
+			var manifestRspecVersion:RspecVersion = sliver.slice.useInputRspecInfo;
+			if(sliver.manager.inputRspecVersions.get(manifestRspecVersion.type, manifestRspecVersion.version) == null)
+				manifestRspecVersion = sliver.manager.inputRspecVersions.UsableRspecVersions.MaxVersion;
+			if(manifestRspecVersion == null)
+			{
+				afterError(
+					new TaskError(
+						"There doesn't appear to be a usable RSPEC " + sliver.manager + " supports which is understood.",
+						TaskError.CODE_PROBLEM
+					)
+				);
+				return;
+			}
 			var rspecVersion:Object = 
 				{
-					type: sliver.slice.useInputRspecInfo.type,
-					version: sliver.slice.useInputRspecInfo.version.toString()
+					type: manifestRspecVersion.type,
+					version: manifestRspecVersion.version.toString()
 				};
 			if(apiVersion < 2)
 				options.rspec_version = rspecVersion;
@@ -118,7 +136,8 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				var uncompressedRspec:String = CompressUtil.uncompress(data);
+				var compressedRspec:String = apiVersion < 3 ? data : data.geni_rspec;
+				var uncompressedRspec:String = CompressUtil.uncompress(compressedRspec);
 				
 				addMessage(
 					"Manifest received",
@@ -126,6 +145,8 @@ package com.flack.geni.tasks.xmlrpc.am
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
+				
+				//V3: geni_slivers
 				
 				sliver.manifest = new Rspec(uncompressedRspec,null,null,null, Rspec.TYPE_MANIFEST);
 				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));

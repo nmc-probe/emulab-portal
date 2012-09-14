@@ -36,6 +36,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.sa
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.IdnUrn;
 	
 	/**
 	 * Gets the user's credential.
@@ -76,7 +77,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.sa
 				if(user.authority == authority)
 				{
 					user.credential = userCredential;
-					user.id = user.credential.OwnerId;
+					user.id = user.credential.getIdWithType(IdnUrn.TYPE_USER);
 				}
 				authority.userCredential = userCredential;
 				

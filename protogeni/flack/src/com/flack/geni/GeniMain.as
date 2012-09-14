@@ -60,7 +60,8 @@ package com.flack.geni
 	{
 		public static const becomeUserUrl:String = "http://www.protogeni.net/trac/protogeni/wiki/FlackManual#BecomingaUser";
 		public static const manualUrl:String = "http://www.protogeni.net/trac/protogeni/wiki/FlackManual";
-		public static const tutorialUrl:String = "https://www.protogeni.net/trac/protogeni/wiki/FlackTutorial";
+		public static const tutorialUrl:String = "http://www.protogeni.net/trac/protogeni/wiki/FlackTutorial";
+		public static const tutorialLoginUrl:String = "http://www.protogeni.net/trac/protogeni/wiki/FlackManual#LoggingIn";
 		public static const sshKeysSteps:String = "http://www.protogeni.net/trac/protogeni/wiki/Tutorial#UploadingSSHKeys";
 		
 		// Portal

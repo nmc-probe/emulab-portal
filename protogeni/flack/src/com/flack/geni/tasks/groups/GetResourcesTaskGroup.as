@@ -31,7 +31,7 @@ package com.flack.geni.tasks.groups
 {
 	import com.flack.geni.GeniCache;
 	import com.flack.geni.GeniMain;
-	import com.flack.geni.display.ChooseManagersToWatchWindow;
+	import com.flack.geni.display.windows.ChooseManagersToWatchWindow;
 	import com.flack.geni.resources.sites.GeniAuthority;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
@@ -83,7 +83,9 @@ package com.flack.geni.tasks.groups
 		
 		override protected function runStart():void
 		{
-			if(GeniMain.geniUniverse.user.authority.type != GeniAuthority.TYPE_EMULAB && GeniMain.geniUniverse.user.credential == null)
+			if((GeniMain.geniUniverse.user.authority == null ||
+				GeniMain.geniUniverse.user.authority.type != GeniAuthority.TYPE_EMULAB) &&
+				GeniMain.geniUniverse.user.credential == null)
 			{
 				afterError(
 					new TaskError(

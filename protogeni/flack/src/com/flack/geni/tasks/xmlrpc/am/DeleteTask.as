@@ -69,10 +69,14 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function createFields():void
 		{
-			addOrderedField(sliver.slice.id.full);
-			addOrderedField([sliver.slice.credential.Raw]);
+			if(apiVersion > 2)
+				addOrderedField([sliver.slice.id.full]);
+			else
+				addOrderedField(sliver.slice.id.full);
+			addOrderedField([AmXmlrpcTask.credentialToObject(sliver.slice.credential, apiVersion)]);
 			if(apiVersion > 1)
 				addOrderedField({});
+			//V3: geni_allocation_state
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
@@ -94,6 +98,8 @@ package com.flack.geni.tasks.xmlrpc.am
 					sliver.manifest = null;
 					sliver.removeFromSlice();
 					//sliver.UnsubmittedChanges = false;
+					
+					//V3: Parse return struct
 					
 					addMessage(
 						"Removed",
