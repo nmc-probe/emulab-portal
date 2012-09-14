@@ -44,8 +44,8 @@ package com.hurlant.crypto.prng
 				S[i] = S[j];
 				S[j] = t;
 			}
-			this.i=0;
-			this.j=0;
+			i=0;
+			j=0;
 		}
 		public function next():uint {
 			var t:int;
@@ -79,8 +79,8 @@ package com.hurlant.crypto.prng
 				S.length=0;
 				S = null;
 			}
-			this.i = 0;
-			this.j = 0;
+			i = 0;
+			j = 0;
 			Memory.gc();
 		}
 		public function toString():String {

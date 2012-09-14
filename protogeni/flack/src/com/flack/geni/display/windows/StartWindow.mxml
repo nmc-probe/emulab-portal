@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<components:PopupTitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+							 xmlns:s="library://ns.adobe.com/flex/spark" 
+							 xmlns:mx="library://ns.adobe.com/flex/mx"
+							 xmlns:components="com.flack.shared.display.components.*"
+							 skinClass="com.flack.shared.display.skins.TitleWindowSkinNoCloseButton"
+							 title="{SharedMain.version}">
+	<components:layout>
+		<s:VerticalLayout horizontalAlign="center" paddingBottom="10" />
+	</components:layout>
+	<fx:Script>
+		<![CDATA[
+			import com.flack.geni.GeniMain;
+			import com.flack.shared.SharedMain;
+			import com.flack.shared.utils.ImageUtil;
+			import com.flack.shared.utils.NetUtil;
+		]]>
+	</fx:Script>
+	
+	<s:BitmapImage source="{ImageUtil.logoIcon}" />
+	<s:Button label="Log in"
+			  id="loginButton"
+			  width="50%" height="28" chromeColor="0x27C427"
+			  icon="{ImageUtil.authenticationIcon}"
+			  toolTip="Log in to view and be able to allocate resources"
+			  click="GeniMain.geniUniverse.loadAuthenticated(); closeWindow();" />
+	<s:Button label="Tutorial" id="tutorialButton"
+			  width="50%" height="28"
+			  icon="{ImageUtil.helpIcon}"
+			  toolTip="View a quick tutorial on how to use Flack"
+			  click="NetUtil.openWebsite(GeniMain.tutorialUrl);" />
+	<s:Label text="Not a user?" />
+	<s:Button label="View resources"
+			  width="50%" height="28"
+			  toolTip="View resources available in GENI, but allocation of resources is not available"
+			  click="GeniMain.geniUniverse.loadPublic(); closeWindow();" />
+	<s:Button label="Become a user"
+			  width="50%" height="28"
+			  icon="{ImageUtil.userIcon}"
+			  toolTip="Follow a few simple steps to be able to allocate resources"
+			  click="NetUtil.openWebsite(GeniMain.becomeUserUrl)" />
+	
+</components:PopupTitleWindow>

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  dragDrop="dragEnterHandler(event)"
+		  dragEnter="dragEnterHandler(event)"
+		  gap="2">
+	<fx:Script>
+		<![CDATA[
+			import com.flack.emulab.resources.physical.PhysicalNode;
+			import com.flack.emulab.resources.physical.PhysicalNodeCollection;
+			import com.flack.shared.FlackEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.core.UIComponent;
+			import mx.events.DragEvent;
+			import mx.managers.DragManager;
+			
+			import spark.collections.Sort;
+			import spark.collections.SortField;
+			import spark.events.TextOperationEvent;
+			
+			public var nodes:PhysicalNodeCollection;
+			
+			[Bindable]
+			public var viewCollection:PhysicalNodeCollection;
+			[Bindable]
+			public var viewNodes:ArrayCollection;
+			
+			[Bindable]
+			private var hardwareTypes:ArrayCollection;
+			[Bindable]
+			private var auxTypes:ArrayCollection;
+			
+			static public const SELECTED:String = "selected";
+			static public const FILTERED:String = "filtered";
+			//static public const CLICKED:String = "clicked";
+			
+			public function load(group:PhysicalNodeCollection):void
+			{
+				nodes = group;
+				viewCollection = group;
+				
+				viewNodes = new ArrayCollection();
+				for each(var node:PhysicalNode in group.collection)
+					viewNodes.addItem(node);
+				
+				var nameSort:Sort = new Sort();
+				var dataSortField:SortField = new SortField("name");
+				nameSort.fields = [dataSortField];
+				
+				viewNodes.sort = nameSort;
+				viewNodes.refresh();
+				
+				// Types
+				hardwareTypes = new ArrayCollection();
+				var hTypes:Vector.<String> = group.Types
+				for each(var nodeType:String in hTypes)
+					hardwareTypes.addItem(nodeType);
+				auxTypes = new ArrayCollection();
+				var aTypes:Vector.<String> = group.AuxTypes
+				for each(var auxType:String in aTypes)
+					auxTypes.addItem(auxType);
+				
+				limitByTypeGroup.visible =
+					limitByTypeGroup.includeInLayout = hardwareTypes.length > 1;
+				limitByAuxTypeGroup.visible =
+					limitByAuxTypeGroup.includeInLayout = auxTypes.length > 1;
+				
+				filter();
+			}
+			
+			private function filter():void
+			{
+				var filteredNodes:PhysicalNodeCollection;
+				
+				if(this.availableOnlyCheckBox.selected)
+					filteredNodes = nodes.Available;
+				else
+					filteredNodes = nodes.Clone;
+				
+				if(typeCheckbox.selected)
+					filteredNodes = filteredNodes.getByType(typesList.selectedItem);
+				if(auxtypeCheckbox.selected)
+					filteredNodes = filteredNodes.getByAuxType(auxtypesList.selectedItem);
+				
+				if(searchField.text.length > 0)
+					filteredNodes = filteredNodes.searchByName(searchField.text);
+				
+				viewCollection = filteredNodes;
+				dispatchEvent(new FlackEvent(FILTERED));
+				
+				viewNodes.removeAll();
+				for each(var node:PhysicalNode in filteredNodes.collection)
+					viewNodes.addItem(node);
+				viewNodes.refresh();
+			}
+			
+			/*protected function selectedItem(event:IndexChangeEvent = null):void
+			{
+				dispatchEvent(new GeniEvent(SELECTED, list.selectedItem, GeniEvent.ACTION_SELECTED));
+			}*/
+			
+			/*protected function clickedItem(event:MouseEvent):void
+			{
+				dispatchEvent(new GeniEvent(CLICKED, list.selectedItem, GeniEvent.ACTION_SELECTED));
+			}*/
+			
+			protected function dragEnterHandler(event:DragEvent):void
+			{
+				if (event.dragSource.hasFormat("physicalNodeCollection"))
+				{
+					DragManager.acceptDragDrop(event.target as UIComponent);
+				}
+			}
+			
+			protected function dragDropHandler(event:DragEvent):void
+			{
+				if(event.dragSource.hasFormat("physicalNodeCollection"))
+					load(event.dragSource.dataForFormat('physicalNodeCollection') as PhysicalNodeCollection);
+			}
+			
+			protected function searchField_changeHandler(event:TextOperationEvent):void
+			{
+				filter();
+			}
+			
+			private var lastSelected:int = -1;
+			protected function list_mouseUpHandler(event:MouseEvent):void
+			{
+				if(lastSelected != list.selectedIndex)
+				{
+					lastSelected = list.selectedIndex;
+					dispatchEvent(new FlackEvent(SELECTED, list.selectedItem, FlackEvent.ACTION_SELECTED));
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:VGroup width="100%" paddingLeft="2" paddingRight="2" gap="2">
+		
+		<s:TextInput id="searchField"
+					 prompt="Find by name..."
+					 toolTip="Type part of the name of a node to limit results"
+					 width="100%"
+					 change="searchField_changeHandler(event)" />
+		
+		<s:CheckBox id="availableOnlyCheckBox"
+					label="Available only"
+					toolTip="Limit results to available nodes only"
+					selected="false"
+					change="filter()" />
+		
+		<s:HGroup verticalAlign="middle"
+				  id="limitByTypeGroup"
+				  width="100%"
+				  gap="2"
+				  toolTip="Select a type to limit results to">
+			<s:CheckBox id="typeCheckbox"
+						change="filter();" />
+			<s:DropDownList id="typesList"
+							width="100%"
+							dataProvider="{hardwareTypes}"
+							requireSelection="true"
+							change="typeCheckbox.selected = true; filter();" />
+		</s:HGroup>
+		
+		<s:HGroup verticalAlign="middle"
+				  id="limitByAuxTypeGroup"
+				  width="100%"
+				  gap="2"
+				  toolTip="Select an auxtype to limit results to">
+			<s:CheckBox id="auxtypeCheckbox"
+						change="filter();" />
+			<s:DropDownList id="auxtypesList"
+							width="100%"
+							dataProvider="{auxTypes}"
+							requireSelection="true"
+							change="auxtypeCheckbox.selected = true; filter();" />
+		</s:HGroup>
+	</s:VGroup>
+	
+	<s:List width="100%"
+			height="100%"
+			id="list"
+			horizontalScrollPolicy="auto"
+			dataProvider="{viewNodes}"
+			itemRenderer="com.flack.emulab.display.PhysicalNodeItemRenderer"
+			dragEnabled="true"
+			mouseUp="list_mouseUpHandler(event)" />
+	
+</s:VGroup>

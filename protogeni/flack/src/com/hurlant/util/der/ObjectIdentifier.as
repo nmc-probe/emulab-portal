@@ -19,7 +19,7 @@ package com.hurlant.util.der
 		
 		public function ObjectIdentifier(type:uint, length:uint, b:*) {
 			this.type = type;
-			this.len = length;
+			len = length;
 			if (b is ByteArray) {
 				parse(b as ByteArray);
 			} else if (b is String) {

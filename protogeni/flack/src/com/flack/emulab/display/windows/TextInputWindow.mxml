@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+GENIPUBLIC-COPYRIGHT
+Copyright (c) 2008-2012 University of Utah and the Flux Group.
+All rights reserved.
+
+Permission to use, copy, modify and distribute this software is hereby
+granted provided that (1) source code retains these copyright, permission,
+and disclaimer notices, and (2) redistributions including binaries
+reproduce the notices in supporting documentation.
+
+THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+-->
+
+<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+						  xmlns:s="library://ns.adobe.com/flex/spark" 
+						  xmlns:mx="library://ns.adobe.com/flex/mx"
+						  xmlns:components="com.flack.shared.display.components.*"
+						  xmlns:view="com.flack.geni.view.*"
+						  height="102" width="400"
+						  creationComplete="this.valueTextinput.setFocus();">
+	<components:layout>
+		<s:VerticalLayout paddingTop="4" paddingLeft="4" paddingRight="4" paddingBottom="4" />
+	</components:layout>
+	<fx:Script>
+		<![CDATA[
+			import com.flack.shared.utils.ImageUtil;
+			
+			import mx.controls.Alert;
+			
+			[Bindable]
+			private var initialText:String;
+			public function get Text():String
+			{
+				return valueTextinput.text;
+			}
+			public function set Text(val:String):void
+			{
+				initialText = val;
+			}
+			
+			public var onSuccess:Function;
+			public var onCancel:Function;
+			
+			public function success():void
+			{
+				if(this.Text.length == 0)
+				{
+					Alert.show("You must enter a value");
+					return;
+				}
+				onSuccess(Text);
+				this.closeWindow();
+			}
+			
+			public function cancel():void {
+				if(onCancel != null)
+					onCancel();
+				this.closeWindow();
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:TextInput id="valueTextinput"
+				 width="100%"
+				 text="{initialText}"
+				 enter="success()" />
+	
+	<components:controlBarContent>
+		<s:Button id="okButton"
+				  label="OK"
+				  click="success();"
+				  height="24" icon="{ImageUtil.availableIcon}" />
+		<s:Button label="Cancel"
+				  click="cancel();"
+				  height="24" icon="{ImageUtil.crossIcon}" />
+	</components:controlBarContent>
+</components:DefaultWindow>
