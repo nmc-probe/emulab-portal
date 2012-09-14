@@ -5934,8 +5934,10 @@ sub InterpLinksAux($)
 			$protolink->SetAttribute("link/lan", $lan);
 			$protolink->SetAttribute("switchpath", "$pathA")
 			    if (defined($pathA));
-			$virtifaceA->_vlanname($lan);
-			$virtifaceB->_vlanname($lan);
+			$virtifaceA->_vlanname($lan)
+			    if (defined($virtifaceA));
+			$virtifaceB->_vlanname($lan)
+			    if (defined($virtifaceB));
 		    }
 		    $protolink->SetType($vlan_type);
 		    $protolink->SetRole($vlan_role);
