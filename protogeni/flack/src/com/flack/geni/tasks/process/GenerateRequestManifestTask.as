@@ -405,11 +405,15 @@ package com.flack.geni.tasks.process
 			
 			if(version.version < 2)
 			{
-				if(node.sliverType.selectedImage != null && node.sliverType.selectedImage.id.full.length > 0
+				if(node.sliverType.selectedImage != null
+					&& (node.sliverType.selectedImage.id.full.length > 0 || node.sliverType.selectedImage.url.length > 0)
 					&& version.version > 0.1)
 				{
 					var diskImageXml:XML = node.sliverType.selectedImage.extensions.createAndApply("disk_image");
-					diskImageXml.@name = node.sliverType.selectedImage.id.full;
+					if(node.sliverType.selectedImage.id.full.length > 0)
+						diskImageXml.@name = node.sliverType.selectedImage.id.full;
+					if(node.sliverType.selectedImage.url.length > 0)
+						diskImageXml.@url = node.sliverType.selectedImage.url;
 					nodeXml.appendChild(diskImageXml);
 				}
 			}
@@ -420,10 +424,14 @@ package com.flack.geni.tasks.process
 				if(node.sliverType.sliverTypeSpecific != null)
 					node.sliverType.sliverTypeSpecific.applyToSliverTypeXml(node, sliverType);
 				
-				if(node.sliverType.selectedImage != null && node.sliverType.selectedImage.id.full.length > 0)
+				if(node.sliverType.selectedImage != null
+					&& (node.sliverType.selectedImage.id.full.length > 0 || node.sliverType.selectedImage.url.length > 0))
 				{
 					var sliverDiskImageXml:XML = node.sliverType.selectedImage.extensions.createAndApply("disk_image");
-					sliverDiskImageXml.@name = node.sliverType.selectedImage.id.full;
+					if(node.sliverType.selectedImage.id.full.length > 0)
+						sliverDiskImageXml.@name = node.sliverType.selectedImage.id.full;
+					if(node.sliverType.selectedImage.url.length > 0)
+						sliverDiskImageXml.@url = node.sliverType.selectedImage.url;
 					sliverType.appendChild(sliverDiskImageXml);
 				}
 				nodeXml.appendChild(sliverType);

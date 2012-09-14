@@ -404,9 +404,9 @@ package com.flack.shared.tasks
 								   newMessage:String,
 								   level:int = 0,
 								   importance:int = 1,
-								   setMessage:Boolean = true):void
+								   setMessage:Boolean = true):LogMessage
 		{
-			SharedMain.logger.add(
+			var newLogMessage:LogMessage =
 				new LogMessage(
 					relatedTo,
 					Name,
@@ -416,13 +416,14 @@ package com.flack.shared.tasks
 					level,
 					importance,
 					this
-				)
-			);
+				);
+			SharedMain.logger.add(newLogMessage);
 			if(setMessage)
 				Message = newTitle;
 			if(level == LogMessage.LEVEL_WARNING)
 				hasWarnings = true;
 			dispatchLogged();
+			return newLogMessage;
 		}
 		
 		/**

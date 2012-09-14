@@ -53,7 +53,7 @@ package com.flack.geni.tasks.xmlrpc.am
 					? AmXmlrpcTask.METHOD_SLIVERSTATUS : AmXmlrpcTask.METHOD_STATUS,
 				newSliver.manager.api.version,
 				"Get Status @ " + newSliver.manager.hrn,
-				"Getting the sliver status for aggregate manager " + newSliver.manager.hrn + " on slice named " + newSliver.slice.Name,
+				"Getting the status for aggregate manager " + newSliver.manager.hrn + " on slice named " + newSliver.slice.Name,
 				"Get Status"
 			);
 			relatedTo.push(newSliver);
@@ -164,17 +164,28 @@ package com.flack.geni.tasks.xmlrpc.am
 			sliver.sliverIdToStatus[sliver.id.full] = sliver.status;
 			for each(var componentObject:Object in data.geni_resources)
 			{
-				var sliverComponent:VirtualComponent = sliver.slice.getBySliverId(componentObject.geni_urn);
-				if(sliverComponent != null)
+				var sliverComponentId:String = componentObject.geni_urn;
+				var sliverComponent:VirtualComponent = sliver.slice.getBySliverId(sliverComponentId);
+				if(sliverComponent == null)
 				{
-					if(componentObject.geni_status == null)
-						sliverComponent.status = sliver.status;
-					else
-						sliverComponent.status = componentObject.geni_status;
-					sliver.sliverIdToStatus[sliverComponent.id.full] = sliverComponent.status;
-					
-					sliverComponent.error = componentObject.geni_error;
+					addMessage(
+						"Node not found",
+						"Node with sliver id " + sliverComponentId + " wasn't found in the sliver! " +
+						"This may indicate that the manager failed to include the sliver id in the manifest.",
+						LogMessage.LEVEL_FAIL,
+						LogMessage.IMPORTANCE_HIGH,
+						true
+					);
+					continue;
 				}
+				
+				if(componentObject.geni_status == null)
+					sliverComponent.status = sliver.status;
+				else
+					sliverComponent.status = componentObject.geni_status;
+				sliver.sliverIdToStatus[sliverComponent.id.full] = sliverComponent.status;
+				
+				sliverComponent.error = componentObject.geni_error;
 			}
 		}
 		

@@ -21,13 +21,13 @@ package com.flack.geni.resources.sites
 	import com.flack.geni.plugins.emulab.FirewallSliverType;
 	import com.flack.geni.plugins.emulab.Netfpga2SliverType;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
-	import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
-	import com.flack.geni.plugins.planetlab.M1TinySliverType;
-	import com.flack.geni.plugins.planetlab.M1SmallSliverType;
-	import com.flack.geni.plugins.planetlab.M1MediumSliverType;
 	import com.flack.geni.plugins.planetlab.M1LargeSliverType;
-	import com.flack.geni.plugins.planetlab.M1XLargeSliverType;
+	import com.flack.geni.plugins.planetlab.M1MediumSliverType;
+	import com.flack.geni.plugins.planetlab.M1SmallSliverType;
+	import com.flack.geni.plugins.planetlab.M1TinySliverType;
 	import com.flack.geni.plugins.planetlab.M1WorkerSliverType;
+	import com.flack.geni.plugins.planetlab.M1XLargeSliverType;
+	import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
 	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.SliverType;
 	import com.flack.geni.resources.SliverTypes;
@@ -39,6 +39,7 @@ package com.flack.geni.resources.sites
 		public var type:SliverType;
 		public var supportsExclusive:Boolean = true;
 		public var supportsShared:Boolean = true;
+		public var defaultExclusiveSetting:Boolean = true;
 		public var supportsBound:Boolean = true;
 		public var supportsUnbound:Boolean = true;
 		public var supportsInterfaces:Boolean = true;
@@ -62,6 +63,7 @@ package com.flack.geni.resources.sites
 				case M1XLargeSliverType.TYPE_M1XLARGE:
 				case M1WorkerSliverType.TYPE_M1WORKER:
 					supportsExclusive = false;
+					defaultExclusiveSetting = false;
 					interfacesUnadvertised = true;
 					supportsInstallService = false;
 					supportsExecuteService = false;
@@ -70,6 +72,7 @@ package com.flack.geni.resources.sites
 				case PlanetlabSliverType.TYPE_PLANETLAB_V2:
 				case JuniperRouterSliverType.TYPE_JUNIPER_LROUTER:
 					supportsExclusive = false;
+					defaultExclusiveSetting = false;
 					supportsUnbound = false;
 					interfacesUnadvertised = true;
 					supportsDiskImage = false;
@@ -117,10 +120,10 @@ package com.flack.geni.resources.sites
 					supportsInstallService = false;
 					supportsExecuteService = false;
 					break;
-				case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
 				case SliverTypes.XEN_VM:
 				case SliverTypes.QEMUPC:
 					supportsDiskImage = false;
+				case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
 				default:
 			}
 		}

@@ -227,7 +227,15 @@ package com.flack.geni.tasks.process
 					
 					// Things without client-ids aren't in the sliver at all...
 					if(clientIdString.length == 0)
+					{
+						addMessage(
+							"Skipping node with missing client id",
+							"Node with the following manifest is missing a client id:\n" +
+							nodeXml.toXMLString(),
+							LogMessage.LEVEL_WARNING
+						);
 						continue;
+					}
 					
 					// Managers must be specified...
 					if(managerIdString.length == 0)
@@ -245,7 +253,8 @@ package com.flack.geni.tasks.process
 					{
 						afterError(
 							new TaskError(
-								"Manager with ID '"+managerIdString+"' was not found for node named " + clientIdString,
+								"Manager with ID '"+managerIdString+"' was not found for node named " + clientIdString + 
+								". You may need to refresh the manager if there is a refresh button next to its name on the left.",
 								TaskError.CODE_PROBLEM
 							)
 						);
@@ -253,13 +262,27 @@ package com.flack.geni.tasks.process
 					}
 					// Don't add outside nodes, they might not exist
 					if(virtualNodeManager != sliver.manager)
+					{
+						addMessage(
+							"Skipping node from other manager",
+							"Skipping " + clientIdString + " which will be parsed in the manifest from manager " + virtualNodeManager
+						);
 						continue;
+					}
 					
 					if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST && parseManifest)
 					{
 						// nodes from their manager's manifests without sliver_ids aren't in the sliver...
 						if(sliverIdString.length == 0)
+						{
+							addMessage(
+								"Skipping node with missing sliver id",
+								"Node with client id '" + clientIdString + "' doesn't have a sliver id! " +
+								"This may indicate that the manager failed to include the information or the node wasn't allocated.",
+								LogMessage.LEVEL_WARNING
+							);
 							continue;
+						}
 						
 						// component_id should always exist in the node's manager's manifest...
 						if(componentIdString.length == 0)
@@ -443,6 +466,11 @@ package com.flack.geni.tasks.process
 							// Interface not really used
 							if(virtualInterface != null)
 								virtualNode.interfaces.remove(virtualInterface);
+							addMessage(
+								"Skipping interface " + virtualInterfaceClientId + " with missing sliver id",
+								"Interface " + virtualInterfaceClientId + " doesn't have a sliver id and will be discarded.",
+								LogMessage.LEVEL_WARNING
+							);
 							continue;
 						}
 						
@@ -519,6 +547,8 @@ package com.flack.geni.tasks.process
 								case "disk_image":
 									var diskImageV1Name:String = String(nodeChildXml.@name);
 									var diskImageV1:DiskImage = new DiskImage(diskImageV1Name);//sliver.manager.diskImages.getByLongId(diskImageV1Name);
+									if(nodeChildXml.@url.length() == 1)
+										diskImageV1.url = nodeChildXml.@url;
 									diskImageV1.extensions.buildFromOriginal(nodeChildXml, [defaultNamespace.uri]);
 									virtualNode.sliverType.selectedImage = diskImageV1;
 									break;
@@ -544,6 +574,8 @@ package com.flack.geni.tasks.process
 											{
 												var diskImageV2Name:String = String(sliverTypeChild.@name);
 												var diskImageV2:DiskImage = new DiskImage(diskImageV2Name);//sliver.manager.diskImages.getByLongId(diskImageV2Name);
+												if(sliverTypeChild.@url.length() == 1)
+													diskImageV2.url = sliverTypeChild.@url;
 												diskImageV2.extensions.buildFromOriginal(sliverTypeChild, [defaultNamespace.uri]);
 												virtualNode.sliverType.selectedImage = diskImageV2;
 											}

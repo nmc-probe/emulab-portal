@@ -576,7 +576,6 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				getUrlWindow.title = "Please enter the full URL for the RSPEC";
 				getUrlWindow.Text = "http://";
 				getUrlWindow.showWindow(true);
-				getUrlWindow.onCancel = null;
 				getUrlWindow.onSuccess = tryImportFromWeb;
 			}
 			
@@ -996,6 +995,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						 verticalAlign="middle"
 						 fontSize="16"
 						 fontWeight="bold"
+						 maxDisplayedLines="1"
 						 paddingLeft="4" paddingTop="4" />
 				<components:Spinner id="spinner"
 									width="21"
@@ -1036,6 +1036,11 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						<s:HGroup width="100%"
 								  verticalAlign="middle"
 								  gap="2">
+							<s:Button id="gotoAddResourcesButton"
+									  toolTip="Open the pane to add resources to the canvas."
+									  label="Add Resources"
+									  click="dashboardViewstack.selectedChild = resourcesView" />
+							<s:Spacer width="100%" />
 							<s:Button id="refreshStatusButton"
 									  toolTip="Refresh the status on all slivers"
 									  label="Get Status"

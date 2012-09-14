@@ -140,7 +140,7 @@ package com.flack.geni.resources.physical
 			var group:PhysicalNodeCollection = new PhysicalNodeCollection();
 			for each (var n:PhysicalNode in collection)
 			{
-				if((slicable && n.sliverTypes.length > 1) ||
+				if((slicable && n.sliverTypes.length > 0) ||
 					(!slicable && n.sliverTypes.length == 0))
 				{
 					group.add(n);

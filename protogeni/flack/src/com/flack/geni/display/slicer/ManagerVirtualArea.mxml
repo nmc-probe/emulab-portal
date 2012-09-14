@@ -185,7 +185,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 						addExtraButton.setStyle("chromeColor", ColorUtil.colorsDark[manager.colorIdx]);
 						addExtraButton.setStyle("color", ColorUtil.colorsLight[manager.colorIdx]);
 						addExtraButton.alpha = 0.8;
-						addExtraButton.data = new VirtualNode(null, manager, supportedType.type.name, true, supportedType.type.name);
+						addExtraButton.data = new VirtualNode(
+							null,
+							manager,
+							supportedType.type.name,
+							supportedType.defaultExclusiveSetting,
+							supportedType.type.name);
 						addExtraButton.addEventListener(MouseEvent.CLICK, addVirtualNode);
 						extraGroup.addElement(addExtraButton);
 					}

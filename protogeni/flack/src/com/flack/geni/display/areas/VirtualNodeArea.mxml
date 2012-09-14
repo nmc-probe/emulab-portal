@@ -29,6 +29,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 	<fx:Declarations>
 		<s:RadioButtonGroup id="boundGroup"
 							valueCommit="boundGroup_valueCommitHandler(event)"/>
+		<s:RadioButtonGroup id="diskSourceGroup" change="okButton.enabled = true" />
 	</fx:Declarations>
 	<fx:Script>
 		<![CDATA[
@@ -50,6 +51,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.SupportedSliverType;
 			import com.flack.geni.resources.sites.SupportedSliverTypeCollection;
+			import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
 			import com.flack.geni.resources.virtual.ExecuteService;
 			import com.flack.geni.resources.virtual.InstallService;
 			import com.flack.geni.resources.virtual.VirtualComponent;
@@ -59,11 +61,14 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import com.flack.geni.resources.virtual.VirtualLinkCollection;
 			import com.flack.geni.resources.virtual.VirtualNode;
 			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateImageCmTask;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.DocumentArea;
 			import com.flack.shared.display.components.DataButton;
+			import com.flack.shared.display.components.TextInputWindow;
 			import com.flack.shared.resources.sites.FlackManager;
+			import com.flack.shared.tasks.Tasker;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
@@ -75,6 +80,7 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 			import spark.collections.Sort;
 			import spark.collections.SortField;
 			import spark.components.Button;
+			import spark.events.TextOperationEvent;
 			import spark.primitives.Rect;
 			
 			[Bindable]
@@ -199,9 +205,25 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					exclusiveCheckbox.selected = node.exclusive;
 					
 					if(node.sliverType.selectedImage != null)
-						diskImageText.text = node.sliverType.selectedImage.id.full;
+					{
+						if(node.sliverType.selectedImage.url.length > 0)
+						{
+							diskImageUrlCheckbox.selected = true;
+							diskImageText.text = node.sliverType.selectedImage.url;
+						}
+						else
+						{
+							diskImageNameCheckbox.selected = true;
+							diskImageText.text = node.sliverType.selectedImage.id.full;
+						}
+					}
 					else
+					{
 						diskImageText.text = "";
+					}
+					
+					if(node.manager.type == FlackManager.TYPE_PROTOGENI && node.Created)
+						createImageButton.visible = true;
 					
 					installVgroup.removeAllElements();
 					if(node.services.installServices != null && node.services.installServices.length > 0)
@@ -638,7 +660,12 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 					node.sliverType.name = SelectedSliverType.name;
 					
 					if(diskImageText.visible && diskImageText.text.length > 0)
-						node.sliverType.selectedImage = new DiskImage(diskImageText.text);
+					{
+						if(diskImageUrlCheckbox.selected)
+							node.sliverType.selectedImage = new DiskImage("", "", "", "", false, diskImageText.text);
+						else
+							node.sliverType.selectedImage = new DiskImage(diskImageText.text);
+					}
 					var serviceIdx:int;
 					if(selectedType.supportsInstallService)
 					{
@@ -712,6 +739,31 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 				var linkContent:VirtualLinkArea = new VirtualLinkArea();
 				linkContent.load((e.target as DataButton).data);
 				openNext(linkContent);
+			}
+			
+			protected function createImageButton_clickHandler(event:MouseEvent):void
+			{
+				var promptForImageNameWindow:TextInputWindow = new TextInputWindow();
+				promptForImageNameWindow.onSuccess = userChoseImageName;
+				promptForImageNameWindow.title = "Please enter a name for the disk image.";
+				promptForImageNameWindow.showWindow();
+				promptForImageNameWindow.valueTextinput.restrict = "a-zA-Z0-9";
+			}
+			
+			public function userChoseImageName(newName:String):void
+			{
+				var createImageTask:CreateImageCmTask = new CreateImageCmTask(node, newName);
+				createImageTask.forceRunNow = true;
+				SharedMain.tasker.add(createImageTask);
+			}
+			
+			protected function diskImageText_changeHandler(event:Event):void
+			{
+				if(!okButton.enabled)
+				{
+					okButton.enabled = node.sliverType.selectedImage == null
+										|| diskImageText.text != node.sliverType.selectedImage.id.full;
+				}
 			}
 			
 		]]>
@@ -887,11 +939,31 @@ FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 										prompt="Select image to override default"
 										dataProvider="{diskImages}"
 										labelField="description"
-										change="diskImageText.text = diskImageSelect.selectedItem.id.full" />
+										change="diskImageText.text = diskImageSelect.selectedItem.id.full; diskImageNameCheckbox.selected = true;" />
+						<s:Rect />
+						<s:Button id="createImageButton"
+								  visible="false"
+								  includeInLayout="{createImageButton.visible}"
+								  label="Create image"
+								  click="createImageButton_clickHandler(event)" />
 					</s:HGroup>
-					<s:TextInput id="diskImageText" width="100%"
-								 prompt="Select image above, paste URN, or manually type OSID"
-								 valueCommit="if(!okButton.enabled) okButton.enabled = node.sliverType.selectedImage == null || diskImageText.text != node.sliverType.selectedImage.id.full" />
+					<s:HGroup width="100%"
+							  gap="2">
+						<s:RadioButton id="diskImageNameCheckbox"
+									   group="{diskSourceGroup}"
+									   selected="true"
+									   label="Name"
+									   toolTip="Name for images available on this manager." />
+						<s:RadioButton id="diskImageUrlCheckbox"
+									   group="{diskSourceGroup}"
+									   label="URL"
+									   toolTip="URL for images from a different manager." />
+						<s:TextInput id="diskImageText"
+									 width="100%"
+									 prompt="Select image above, paste URN, or manually type OSID"
+									 change="diskImageText_changeHandler(event)"
+									 valueCommit="diskImageText_changeHandler(event)" />
+					</s:HGroup>
 				</s:VGroup>
 				<s:HGroup width="100%"
 						  height="100%"

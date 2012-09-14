@@ -472,7 +472,8 @@ package com.flack.geni.tasks.process
 												String(sliverTypeChildXml.@os),
 												String(sliverTypeChildXml.@version),
 												String(sliverTypeChildXml.@description),
-												String(sliverTypeChildXml.@default) == "true");
+												String(sliverTypeChildXml.@default) == "true",
+												String(sliverTypeChildXml.@url));
 											managerSliverType.diskImages.add(newSliverDiskImage);
 										}
 										if(newSliverType.diskImages.getByLongId(newSliverDiskImage.id.full) == null)
@@ -582,7 +583,8 @@ package com.flack.geni.tasks.process
 										String(nodeChildXml.@os),
 										String(nodeChildXml.@version),
 										String(nodeChildXml.@description),
-										String(nodeChildXml.@default) == "true");
+										String(nodeChildXml.@default) == "true",
+										String(nodeChildXml.@url));
 									managerAddToSliverType.diskImages.add(newDiskImage);
 								}
 								if(addToSliverType.diskImages.getByLongId(newDiskImage.id.full) == null)

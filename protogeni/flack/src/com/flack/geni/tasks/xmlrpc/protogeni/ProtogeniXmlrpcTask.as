@@ -38,6 +38,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni
 		
 		// Methods
 		public static const METHOD_CREATESLIVER:String = "CreateSliver";
+		public static const METHOD_CREATEIMAGE:String = "CreateImage";
 		public static const METHOD_DELETESLICE:String = "DeleteSlice";
 		public static const METHOD_DISCOVERRESOURCES:String = "DiscoverResources";
 		public static const METHOD_GETCREDENTIAL:String = "GetCredential";
