@@ -368,7 +368,9 @@ sub doboot()
     #
     # FreeBSD version specific adjustments for defaults.
     #
-    if ($FBSD_VERSION >= 7.2) {
+    if ($FBSD_VERSION >= 8.2) {
+	$emulabconfig{"MFSVERSION"} = "82";
+    } elsif ($FBSD_VERSION >= 7.2) {
 	$emulabconfig{"MFSVERSION"} = "72";
     } else {
 	$emulabconfig{"MFSVERSION"} = "62";
