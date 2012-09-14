@@ -3335,7 +3335,7 @@ sub CheckPreReserve($$)
     # not look in the object ($self) since it might be stale.
     #
     my $query_result =
-	DBQueryWarn("select reserved_pid,count from nodes ".
+	DBQueryWarn("select reserved_pid,count,active from nodes ".
 		    "left join node_reservations on ".
 		    "     node_reservations.pid=nodes.reserved_pid ".
 		    "where nodes.node_id='$node_id'");
@@ -3348,10 +3348,10 @@ sub CheckPreReserve($$)
     # if the reervation request is still active. If not, we can clear it,
     # which will allow it to be set again below, if needed.
     #
-    my ($pid,$count) = $query_result->fetchrow_array();
+    my ($pid,$count,$active) = $query_result->fetchrow_array();
     if (defined($pid)) {
 	goto done
-	    if (defined($count));
+	    if (defined($count) && $active);
 	
 	DBQueryWarn("update nodes set reserved_pid=null ".
 		    "where node_id='$node_id'");
@@ -3360,10 +3360,11 @@ sub CheckPreReserve($$)
 	    print "Clearing pre reserve for $node_id\n";
 	}
     }
-    
+
+    # Find only active unfilled reservations.
     $query_result =
 	DBQueryWarn("select pid,count from node_reservations ".
-		    "where count>0 and ".
+		    "where active=1 and count>0 and ".
 		    "       (types is null or ".
 		    "        FIND_IN_SET('$type', types)) ".
 		    "order by priority desc, created asc ".
@@ -3386,7 +3387,7 @@ sub CheckPreReserve($$)
 	    if ($count == 1) {
 		SENDMAIL($TBOPS, "Pre Reservation for $pid has completed",
 			 "The pre reservation request for project $pid, ".
-			 "has been fullfilled\n");
+			 "has been fullfilled\n", $TBOPS);
 	    }
 	}
     }

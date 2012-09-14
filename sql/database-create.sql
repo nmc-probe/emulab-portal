@@ -2476,6 +2476,9 @@ CREATE TABLE `node_reservations` (
   `creator` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `created` datetime default NULL,
+  `start` datetime default NULL,
+  `end` datetime default NULL,
+  `active` tinyint(1) NOT NULL default '0',
   PRIMARY KEY (`pid_idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
