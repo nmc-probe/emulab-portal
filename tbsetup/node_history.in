@@ -67,6 +67,7 @@ my $datelimit;
 my $startrecord;
 my $ip;
 my $mac;
+my @nodes = ();
 
 #
 # Sort stuff.  sortby value should correspond to record field format:
@@ -175,7 +176,8 @@ if (defined($options{"v"})) {
 if (!$showall && @ARGV == 0 && !(defined($ip) || defined($mac))) {
     usage();
 }
-my @nodes = @ARGV;
+@nodes = @ARGV
+    if (! (defined($ip) || defined($mac)));
 
 if (!$list && !$summary) {
     $list = 1;
