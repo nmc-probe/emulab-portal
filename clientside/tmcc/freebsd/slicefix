@@ -693,26 +693,36 @@ dolinux() {
 	    }
 	fi
 
-	# change the swap devices in fstab
+	# change the devices in fstab
 	sed -i .preemulab -e "s;^/dev/[hs]d.\([0-7]\);/dev/${ldisk}\1;" /mnt/etc/fstab || {
-		echo "Failed to update /etc/fstab"
-		umount $rootdev
-		return 1
+	    echo "Failed to update /etc/fstab"
+	    umount $rootdev
+	    return 1
 	}
 
+	# XXX look for newer UUID= for rootdev
+	sed -E -i '' -e "s;^UUID=[^ ]+ +/ ;/dev/${ldisk}${part} / ;" /mnt/etc/fstab || {
+	    echo "Failed to update /etc/fstab"
+	    umount $rootdev
+	    return 1
+	}
+	
 	#
 	# If there's a GRUB config file, update all root=X kernel params.
 	#
-	fgconf=/boot/grub/grub.conf
-	gconf=/mnt$fgconf
-        if [ ! -r $gconf ]; then
-	    echo "Could not find $fgconf; trying /boot/grub/menu.lst"
-	    fgconf=/boot/grub/menu.lst
-	    gconf=/mnt$fgconf
-	fi
+	fgconf=""
+	for f in grub.conf grub.cfg menu.lst; do
+	    if [ -z "$fgconf" -a -r /mnt/boot/grub/$f ]; then
+		fgconf=/boot/grub/$f
+		gconf=/mnt$fgconf
+	    fi
+	done
 	if [ -r $gconf ]; then
 	    echo "  updating $fgconf"
-	    sed -i .preemulab -e "s;\([br]oot=/dev\)/[hs]d.[0-7];\1/${ldisk}${part};" $gconf || {
+	    sed -i .preemulab \
+	      -e "s;\([br]oot=/dev\)/[hs]d.[0-7];\1/${ldisk}${part};" \
+	      -e "s;\([br]oot=\)UUID=[^ ]* ;\1/dev/${ldisk}${part} ;" \
+		$gconf || {
 		echo "Failed to update $fgconf"
 	    }
 
