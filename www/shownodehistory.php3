@@ -83,16 +83,6 @@ if (isset($IP)) {
     if (! preg_match('/^[0-9\.]+$/', $IP)) {    
 	USERERROR("Does not look like a valid IP address.", 1);
     }
-    $node = Node::LookupByIP($IP);
-
-    #
-    # Switch to a node_id if its a physical node. Otherwise, 
-    # continue with the IP.
-    #
-    if ($node && !$node->IsVirtNode()) {
-	$node_id = $node->node_id();
-	$IP = null;
-    }
 }
 else {
     $IP = null;
