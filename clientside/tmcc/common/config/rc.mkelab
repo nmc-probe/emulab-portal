@@ -1746,6 +1746,7 @@ sub SetupOpsNode($)
     print RC "domain $domain\n";
     print RC "search $domain\n";
     print RC "nameserver $bossnode_ip\n";
+    print RC "nameserver $outer_bossip\n";
     close(RC);
 
   skipsetup:
