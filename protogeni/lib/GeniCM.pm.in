@@ -5772,7 +5772,7 @@ sub GeniExperiment($;$)
     }
 
     # Note the -h option; allows experiment with no NS file.
-    system("$CREATEEXPT -N -q -i -k -w ".
+    system("$CREATEEXPT -N -q -i -k -w -n ".
 	   "-S 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
 	   "-E '$urn' ".
 	   "-L 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
