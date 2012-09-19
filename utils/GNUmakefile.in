@@ -48,7 +48,7 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  management_iface sharevlan check-shared-bw \
 		  addspecialdevice addspecialiface imagehash clone_image \
 		  addvpubaddr imageinfo ctrladdr image_import \
-		  prereserve_check
+		  prereserve_check tcppd
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
                   webwanodecheckin webspewimage webdumpdescriptor

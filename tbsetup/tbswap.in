@@ -64,6 +64,7 @@ my $wrapper        = "$TBROOT/libexec/assign_wrapper";
 my $SNMPIT	   = "$TBROOT/bin/snmpit";
 my $IMAGESETUP     = "$TBROOT/sbin/image_setup";
 my $portstats	   = "$TBROOT/bin/portstats";
+my $TCPP           = "$TBROOT/sbin/tcpp";
 my $NFSTRACESUPPORT= @NFSTRACESUPPORT@;
 my $PGENISUPPORT   = @PROTOGENI_SUPPORT@;
 
@@ -541,6 +542,16 @@ sub doSwapout($) {
 			 error => ['elabinelab_tear_down_failed']},
 			"Failed to teardown elabinelab!");
 		$swapout_errors = 1;
+	    }
+	}
+
+	#
+	# Tear down TCP proxies.
+	#
+	if( $type != MODIFY ) {
+	    print "Closing TCP proxy ports...\n";
+	    if( system( "$TCPP -d $pid $eid" ) != 0 ) {
+		tbwarn( "TCP proxy setup failed!" );
 	    }
 	}
 
@@ -1677,6 +1688,17 @@ sub doSwapin($) {
 	    if (system("linktest_control $optarg $pid $eid") != 0) {
 		tbwarn "Linktest run returned non-zero status!";
 	    }
+	}
+    }
+
+    #
+    # Establish TCP proxies where necessary.
+    #
+    if( !$elabinelab && ($type == REAL || $type == MODIFY ) ) {
+	print "Establishing proxy TCP ports...\n";
+	if( system( "$TCPP -a $pid $eid" ) != 0 ) {
+	    # Not a fatal error... things can come up with incomplete proxying.
+	    tbwarn( "TCP proxy setup failed!" );
 	}
     }
 

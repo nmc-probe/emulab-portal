@@ -107,6 +107,7 @@ AC_PATH_PROG(DIG,dig)
 AC_PATH_PROG(ELVIN_CONFIG,elvin-config)
 AC_PATH_PROG(JAVAC,javac)
 AC_PATH_PROG(JAR,jar)
+AC_PATH_PROG(NC,nc)
 AC_PATH_PROG(SUDO,sudo)
 AC_PATH_PROG(UUIDGEN,uuidgen)
 
@@ -1105,6 +1106,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	tbsetup/libArchive.pm tbsetup/archive_control \
 	tbsetup/tarfiles_setup \
 	tbsetup/fetchtar.proxy tbsetup/webfrisbeekiller \
+	tbsetup/tcpp \
 	tbsetup/plab/GNUmakefile tbsetup/plab/libplab.py \
         tbsetup/plab/mod_dslice.py tbsetup/plab/mod_PLC.py \
         tbsetup/plab/mod_PLCNM.py \
@@ -1137,7 +1139,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	utils/spewconlog utils/xlogin \
 	utils/opsdb_control utils/opsdb_control.proxy \
 	utils/remove_old_www utils/epmodeset \
-	utils/mkblob utils/rmblob utils/ctrladdr \
+	utils/mkblob utils/rmblob utils/ctrladdr utils/tcppd \
 	www/GNUmakefile www/defs.php3 www/dbdefs.php3 www/xmlrpc.php3 \
 	www/xmlrpcpipe.php3 \
 	www/swish.conf www/websearch \
