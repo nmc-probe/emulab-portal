@@ -4868,8 +4868,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 					snprintf(_buf, sizeof _buf,
 						 "%s/sbin/imageinfo -qm -N %s "
 						 "%s/%s",
-						 TBROOT, reqp->isvnode ?
-						 reqp->pnodeid : reqp->nodeid,
+						 TBROOT, reqp->nodeid,
 						 row[8], row[7]);
 					if ((cfd = popen(_buf, "r")) == NULL) {
 					badimage:
