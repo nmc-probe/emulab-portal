@@ -320,7 +320,7 @@ sub GetAdvertisement($$$$)
     $version = "2"
 	if ($version eq "PG 2");
 
-    my $invocation = "$PTOPGEN -x -g $version -r -p GeniSlices";
+    my $invocation = "$PTOPGEN -x -g $version -r";
     if (defined($experiment)) {
 	my $eid = $experiment->eid();
 	$invocation .= " -e $eid";
