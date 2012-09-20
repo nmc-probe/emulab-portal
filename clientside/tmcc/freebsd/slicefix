@@ -897,18 +897,20 @@ dolinux() {
 	#
 	# Blacklist the hp ilo stuff.
 	#
-	modules="hpilo hpwdt"
-	for mod in ${modules}; do
-	    grep $mod /mnt/etc/modprobe.d/blacklist.conf >/dev/null 2>&1
-	    case $? in
-	    0)
-		;;
-	    *)
-		echo "  blacklisting $mod"
-                echo "blacklist $mod" >> /mnt/etc/modprobe.d/blacklist.conf
-	        ;;
-	    esac
-        done
+	if [ -d "/mnt/etc/modprobe.d" ]; then
+	    modules="hpilo hpwdt"
+	    for mod in ${modules}; do
+		grep $mod /mnt/etc/modprobe.d/blacklist.conf >/dev/null 2>&1
+		case $? in
+		0)
+		    ;;
+		*)
+		    echo "  blacklisting $mod"
+                    echo "blacklist $mod" >> /mnt/etc/modprobe.d/blacklist.conf
+	            ;;
+		esac
+            done
+	fi
 
 	if [ -f /mnt/var/lib/random-seed -a -c /dev/urandom ]; then
 	    echo "  updating /var/lib/random-seed"
