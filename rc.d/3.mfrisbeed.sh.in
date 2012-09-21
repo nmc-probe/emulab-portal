@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # PROVIDE: mfrisbeed
-# REQUIRE: mysql
+# REQUIRE: DAEMON ntpd mysql
 # BEFORE: testbed
 # KEYWORD: shutdown
 
