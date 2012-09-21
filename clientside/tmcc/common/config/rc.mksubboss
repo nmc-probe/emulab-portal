@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w
 #
 # EMULAB-COPYRIGHT
-# Copyright (c) 2004-2011 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # All rights reserved.
 #
 
@@ -32,13 +32,15 @@ my $TBDIR = "/usr/testbed";
 
 my ($bossname, $outer_bossip) = tmccbossinfo();
 
+my @LOGS = ("dhcpd", "tftpd", "frisbeed", "mfrisbeed");
+
 sub fix_syslog_conf()
 {
 	my @buffer;
 	open SYSLOG_CONF, "+</etc/syslog.conf" or
 		Fatal("Couldn't open syslog.conf for writing");
 	while (<SYSLOG_CONF>) {
-		next if (/dhcp/i || /tftp/i);
+		next if (/dhcpd/i || /tftpd/i || /frisbeed/i);
 		push @buffer, $_;
 	}
 	
@@ -46,15 +48,39 @@ sub fix_syslog_conf()
 	
 	print SYSLOG_CONF $_ for @buffer;
 	
-	print SYSLOG_CONF "!dhcpd\n";
-	print SYSLOG_CONF "*.*\t\t\t\t\t\t/usr/testbed/log/dhcpd.log\n";
-	print SYSLOG_CONF "!tftpd\n";
-	print SYSLOG_CONF "*.*\t\t\t\t\t\t/usr/testbed/log/tftpd.log\n";
-	print SYSLOG_CONF "!frisbeed\n";
-	print SYSLOG_CONF "*.*\t\t\t\t\t\t/usr/testbed/log/frisbeed.log\n";
-	print SYSLOG_CONF "!mfrisbeed\n";
-	print SYSLOG_CONF "*.*\t\t\t\t\t\t/usr/testbed/log/mfrisbeed.log\n";
+	foreach my $f (@LOGS) {
+	    print SYSLOG_CONF "!$f\n";
+	    print SYSLOG_CONF "*.*\t\t\t\t\t\t/usr/testbed/log/$f.log\n";
+	}
 	
+	close SYSLOG_CONF;
+
+	foreach my $f (@LOGS) {
+	    my $path = "/usr/testbed/log/$f.log";
+	    mysystem("cp /dev/null $path")
+		if (! -e "$path");
+	}
+}
+
+sub fix_newsyslog_conf()
+{
+	my @buffer;
+	open SYSLOG_CONF, "+</etc/newsyslog.conf" or
+		Fatal("Couldn't open newsyslog.conf for writing");
+	while (<SYSLOG_CONF>) {
+		next if (/dhcpd/i || /tftpd/i || /frisbeed/i);
+		push @buffer, $_;
+	}
+	
+	seek SYSLOG_CONF, 0, 0;
+	
+	print SYSLOG_CONF $_ for @buffer;
+	
+	foreach my $f (@LOGS) {
+	    my $path = "/usr/testbed/log/$f.log";
+	    print SYSLOG_CONF "$path\t\t640  35\t   *\t\@T00  Z\n";
+	}
+
 	close SYSLOG_CONF;
 }
 
@@ -76,26 +102,37 @@ sub doboot()
     RecreateDir($EXTRAFS,1);
     mysystem("$BINDIR/mkextrafs.pl -f $EXTRAFS");
     mysystem("mkdir -p $TFTPBOOT_DIR $IMAGES_DIR $LOG_DIR $stuffdir");
+    if (-d "/tftpboot") {
+	mysystem("mv /tftpboot /tftpboot.old.$$");
+    }
     mysystem("ln -sf $TFTPBOOT_DIR /tftpboot");
+    if (-d "$TBDIR/image_cache") {
+	mysystem("mv $TBDIR/image_cache $TBDIR/image_cache.old.$$");
+    }
     mysystem("ln -sf $IMAGES_DIR $TBDIR/image_cache");
+    if (-d "$TBDIR/log") {
+	mysystem("mv $TBDIR/log $TBDIR/log.old.$$");
+    }
     mysystem("ln -sf $LOG_DIR $TBDIR/log");
 
-    print "Copying over tftpboot tar file from web server and unpacking\n";
+    my $url = "http://$bossname/downloads/$MFSTARBALL";
+    print "Fetching tftpboot tarball $url\n ";
+    mysystem("fetch -q -o $stuffdir/tftpboot.tar.gz $url");
 
-    #mysystem("wget -q -O $stuffdir/tftpboot.tar.gz ".
-    #		 "http://$bossname/downloads/$MFSTARBALL");
-
-    mysystem("fetch -q -o $stuffdir/tftpboot.tar.gz ".
-		 "http://$bossname/downloads/$MFSTARBALL");
-
+    print "Unpacking tftpboot tarball into /tftpboot\n ";
     mysystem("tar xzf $stuffdir/tftpboot.tar.gz -C /tftpboot");
-    # FIXME clean up stuffdir?
 
     print "Restarting tftpd\n ";
     mysystem("/usr/local/etc/rc.d/tftpd-hpa.sh start");
     
     print "Configuring syslogd\n ";
     fix_syslog_conf();
+    fix_newsyslog_conf();
+
+    if (-r "/var/run/syslog.pid") {
+	print "HUPing syslogd\n ";
+	mysystem("kill -HUP `cat /var/run/syslog.pid`");
+    }
 
 skipsetup:
 
