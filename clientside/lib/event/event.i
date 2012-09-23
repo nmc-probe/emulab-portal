@@ -98,11 +98,13 @@ struct timeval {
 		callback_data_t new_data;
 
 		new_data = allocate_callback_data();
-		new_data->callback_notification =
-			event_notification_clone(handle,notification);
-		new_data->next = NULL;
+		if (new_data) {
+			new_data->callback_notification =
+				event_notification_clone(handle,notification);
+			new_data->next = NULL;
 
-		enqueue_callback_data(new_data);
+			enqueue_callback_data(new_data);
+		}
 	}
 
 	/*
