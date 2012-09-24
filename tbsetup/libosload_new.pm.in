@@ -714,6 +714,8 @@ sub osload($$$) {
     }
     @nodes = @temp;
 
+    TBDebugTimeStamp("osload: database setup done");
+
     # Exit if not doing an actual reload.
     if ($TESTMODE) {
 	print "$self: Stopping in Testmode!\n";
@@ -781,7 +783,7 @@ sub osload($$$) {
 	$eventnodes->{'GOTONE'} = 1;
 	if (exists($eventnodes->{$node_id})) {
 	    my $et = time();
-	    if ($self->debug() || $eventnodes->{$node_id} == 0) {
+	    if ($self->debug()) {
 		print "$self: eventhandler: $node_id => $event @ $et\n"
 	    }
 	    $eventnodes->{$node_id} = $et;
@@ -1083,6 +1085,7 @@ sub WaitTillReloadDone($$$$$@)
     my $waittime  = 0;
     my $minutes   = 0;
 
+    my $MAXEVENTS = 250;
     my $ecount = 1;
     while ($count > 0) {
 	# Wait first to make sure reboot is done, and so that we don't
@@ -1090,12 +1093,12 @@ sub WaitTillReloadDone($$$$$@)
 	if ($ecount > 0) {
 	    sleep(5)
 	}
-	my $ecount = 100;
+	my $ecount = $MAXEVENTS;
 	do {
 	    $eventnodes->{'GOTONE'} = 0;
 	    event_poll($evhandle);
 	} while ($eventnodes->{'GOTONE'} && --$ecount > 0);
-	$self->dprint(2, "got ", 100-$ecount, " events\n");
+	$self->dprint(2, "got ", $MAXEVENTS-$ecount, " events\n");
 	foreach my $node (@nodes) {
 	    if (! $done{$node}) {
 		my $nodeobject = $self->node($node);
@@ -1185,6 +1188,19 @@ sub WaitTillReloadDone($$$$$@)
 		    $eventstate eq TBDB_NODESTATE_TBFAILED() ||
 		    $eventstate eq TBDB_NODESTATE_PXEFAILED() ||
 		    $isstuck) {
+
+		    #
+		    # If we are in reloading, then we obviously missed
+		    # a state transition in our handler. Probably just
+		    # need to increase $MAXEVENTS above.
+		    #
+		    if ($eventstate eq TBDB_NODESTATE_RELOADING()) {
+			tbnotice("$self: missed state transition to RELOADING".
+				 " for $node; faking it.");
+			$eventnodes->{$node} = time();
+			goto okay;
+		    }
+
 		    my $t = (int ($waittime / 60));
 		    tbnotice "$self: $node appears wedged; ".
 			"it has been $t minutes since it was rebooted.";
@@ -1204,6 +1220,7 @@ sub WaitTillReloadDone($$$$$@)
 		    push(@failed, $node);
 		    next;
 		}
+	       okay:
 		if (int($waittime / 60) > $minutes) {
 		    $minutes = int($waittime / 60);
 		    print STDERR "$self ($node): still waiting; ".
