@@ -658,10 +658,13 @@ sub osload ($$) {
 	return
 	    if (!defined($eventnodes));
 
+	$eventnodes->{'GOTONE'} = 1;
 	if (exists($eventnodes->{$node_id})) {
-	    print "osload: eventhandler: $node_id, $event\n"
-		if ($debug);
-	    $eventnodes->{$node_id} = time();
+	    my $et = time();
+	    if ($debug || $eventnodes->{$node_id} == 0) {
+		print "osload: eventhandler: $node_id => $event @ $et\n"
+	    }
+	    $eventnodes->{$node_id} = $et;
 	}
     };
     my $evhandle = SetupEventHandler($handler);
@@ -687,6 +690,7 @@ sub osload ($$) {
 	    foreach my $node (@$reboot_nodes) {
 		$eventnodes->{$node} = 0;
 	    }
+	    TBDebugTimeStamp("osload: event handler enabled");
 	    
 	    my %reboot_args     = ();
 	    my %reboot_failures = ();
@@ -897,14 +901,24 @@ sub WaitTillReloadDone($$$$$@)
 
     # Start a counter going, relative to the time we rebooted the first
     # node.
+    TBDebugTimeStamp("osload: starting reload-done wait");
     my $waittime  = 0;
     my $minutes   = 0;
 
+    my $ecount = 1;
     while ($count > 0) {
 	# Wait first to make sure reboot is done, and so that we don't
 	# wait one more time after everyone is up.
-	sleep(5);
-	event_poll($evhandle);
+	if ($ecount > 0) {
+	    sleep(5)
+	}
+	my $ecount = 100;
+	do {
+	    $eventnodes->{'GOTONE'} = 0;
+	    event_poll($evhandle);
+	} while ($eventnodes->{'GOTONE'} && --$ecount > 0);
+	print STDERR "got ", 100-$ecount, " events\n"
+	    if ($debug);
 	foreach my $node (@nodes) {
 	    if (! $done{$node}) {
 		my $nodeobject = Node->Lookup($node);
@@ -981,26 +995,26 @@ sub WaitTillReloadDone($$$$$@)
 		# reloading.
 		$waittime = time - $startwait;
 		
+		# If the node doesn't made a transition within 5 minutes
+		# of booting, we declare it stuck.
+		my $isstuck = ($minutes > 5 &&
+			       exists($eventnodes->{$node}) &&
+			       $eventnodes->{$node} == 0);
 		if ($waittime > $maxwait ||
-		    (defined($eventstate) &&
-		     ($eventstate eq TBDB_NODESTATE_TBFAILED() ||
-		      $eventstate eq TBDB_NODESTATE_PXEFAILED())) ||
-		    ($minutes > 5 &&
-		     exists($eventnodes->{$node}) &&
-		     $eventnodes->{$node} == 0)) {
+		    $eventstate eq TBDB_NODESTATE_TBFAILED() ||
+		    $eventstate eq TBDB_NODESTATE_PXEFAILED() ||
+		    $isstuck) {
 		    my $t = (int ($waittime / 60));
 		    tbnotice "$node appears wedged; ".
 			"it has been $t minutes since it was rebooted.";
 
-		    if (defined($eventstate) &&
-			($eventstate eq TBDB_NODESTATE_TBFAILED() ||
-			 $eventstate eq TBDB_NODESTATE_PXEFAILED())) {
+		    if ($eventstate eq TBDB_NODESTATE_TBFAILED() ||
+			$eventstate eq TBDB_NODESTATE_PXEFAILED()) {
 			tbnotice("  $node looks stuck in $eventstate.");
 		    }
-		    elsif ($minutes > 5 &&
-			   exists($eventnodes->{$node}) &&
-			   $eventnodes->{$node} == 0) {
-			tbnotice("  $node failed to enter reloading state.");
+		    elsif ($isstuck) {
+			tbnotice("  $node failed to enter reloading state; ".
+			    "currently in $eventstate.");
 		    }
 		    TBNodeConsoleTail($node, *STDERR);
 
