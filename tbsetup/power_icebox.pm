@@ -71,11 +71,11 @@ sub _icebox_exec ($$) {
     # Log in to the icebox
     $ssh->waitfor(-match => '/password: ?$/i',
                   -errmode => "return")
-        or die "failed to connect to host: ", $ssh->lastline;
+        or die "$host: failed to connect: ", $ssh->lastline;
     $ssh->print($password);
     $ssh->waitfor(-match => $ssh->prompt,
                   -errmode => "return")
-        or die "login failed: ", $ssh->lastline;
+        or die "$host: login failed: ", $ssh->lastline;
 
     # Send the command to the icebox and get any output
     my @output = $ssh->cmd($cmd);
