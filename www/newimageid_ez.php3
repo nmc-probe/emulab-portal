@@ -932,12 +932,14 @@ if (!isset($submit)) {
 	$defaults["op_mode"]         = $baseosinfo->op_mode();
 	$defaults["description"]     = "Copy of " . $baseosinfo->osname();
 
-	$def_parentosinfo = OSinfo::Lookup($baseosinfo->def_parentosid());
-	if (! $def_parentosinfo) {
-	    TBERROR("Could not lookup osinfo object for parent " .
-		    $baseosinfo->def_parentosid(), 1);
+	if ($baseosinfo->def_parentosid()) {
+	    $def_parentosinfo = OSinfo::Lookup($baseosinfo->def_parentosid());
+	    if (! $def_parentosinfo) {
+		TBERROR("Could not lookup osinfo object for parent " .
+			$baseosinfo->def_parentosid(), 1);
+	    }
+	    $defaults["def_parentosid"]   = $def_parentosinfo->osid();
 	}
-	$defaults["def_parentosid"]   = $def_parentosinfo->osid();
     }
     elseif (isset($nodetype) && $nodetype == "pcvm") {
 	$defaults["op_mode"]     = TBDB_PCVM_OPMODE;
