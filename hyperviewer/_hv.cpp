@@ -721,18 +721,26 @@ static swig_type_info *swig_types[9];
 #define SWIG_name    "_hv"
 
 //
-// EMULAB-COPYRIGHT
 // Copyright (c) 2004 University of Utah and the Flux Group.
-// All rights reserved.
-//
-// Permission to use, copy, modify and distribute this software is hereby
-// granted provided that (1) source code retains these copyright, permission,
-// and disclaimer notices, and (2) redistributions including binaries
-// reproduce the notices in supporting documentation.
-//
-// THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
-// CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
-// FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+// 
+// {{{EMULAB-LICENSE
+// 
+// This file is part of the Emulab network testbed software.
+// 
+// This file is free software: you can redistribute it and/or modify it
+// under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or (at
+// your option) any later version.
+// 
+// This file is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+// License for more details.
+// 
+// You should have received a copy of the GNU Affero General Public License
+// along with this file.  If not, see <http://www.gnu.org/licenses/>.
+// 
+// }}}
 //
 
 #include <string>
