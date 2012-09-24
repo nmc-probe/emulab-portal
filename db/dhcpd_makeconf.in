@@ -307,6 +307,10 @@ while (<IF>) {
 			$hostname =
 			    "${spaces}\toption host-name \"$node_id\";\n";
 	                $booting = "${spaces}\tignore booting;\n";
+		        if (defined $tftp_subbosses{$node_id}) {
+			    $next_server = "${spaces}\tnext-server " .
+			        $tftp_subbosses{$node_id} . ";\n";
+		        }
 		    }
 		    else {
 			$hostname =
