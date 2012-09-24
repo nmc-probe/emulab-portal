@@ -2053,6 +2053,9 @@ sub PollEvents($$)
 		    debug("remembering possible split line: '$line'\n");
 		    $lastline = $line;
 		}
+		elsif ($line eq "\n") {
+		    debug("skipping empty line from event reader\n");
+		}
 		else {
 		    fatal("unrecognizable line '$line' from event reader");
 		}
