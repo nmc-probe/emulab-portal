@@ -4191,31 +4191,6 @@ _ACEOF
 OUTERBOSS_NODENAME=""
 WINSUPPORT=0
 
-# Check whether --enable-windows was given.
-if test "${enable_windows+set}" = set; then
-  enableval=$enable_windows;
-fi
-
-
-if test "$enable_windows" = "no"; then
-	WINSUPPORT=0;
-elif test "$enable_windows" = "yes"; then
-	WINSUPPORT=1;
-fi
-
-if test $WINSUPPORT -eq 0; then
-	winfiles="";
-else
-	winfiles="os/imagezip/ntfs/GNUmakefile \
-		  os/imagezip/ntfs/liblocale/GNUmakefile \
-		  os/imagezip/ntfs/libntfs/GNUmakefile \
-		  os/imagezip/fat/GNUmakefile"
-        cat >>confdefs.h <<_ACEOF
-#define WINSUPPORT 1
-_ACEOF
-
-fi
-
 #
 # Allow tbdefs file that is supplied to full emulab build
 #
@@ -4247,6 +4222,31 @@ $as_echo "$as_me: error: Definitions file $TBDEFS was not found." >&2;}
 
 fi
 
+
+# Check whether --enable-windows was given.
+if test "${enable_windows+set}" = set; then
+  enableval=$enable_windows;
+fi
+
+
+if test "$enable_windows" = "no"; then
+	WINSUPPORT=0;
+elif test "$enable_windows" = "yes"; then
+	WINSUPPORT=1;
+fi
+
+if test $WINSUPPORT -eq 0; then
+	winfiles="";
+else
+	winfiles="os/imagezip/ntfs/GNUmakefile \
+		  os/imagezip/ntfs/liblocale/GNUmakefile \
+		  os/imagezip/ntfs/libntfs/GNUmakefile \
+		  os/imagezip/fat/GNUmakefile"
+        cat >>confdefs.h <<_ACEOF
+#define WINSUPPORT 1
+_ACEOF
+
+fi
 
 #
 # Allow command line option, since might not have a defs file.
@@ -4916,7 +4916,6 @@ outfiles="Makeconf GNUmakefile \
 	  tmcc/freebsd/supfile tmcc/freebsd/sethostname \
 	  tmcc/linux/GNUmakefile tmcc/linux/supfile \
 	  tmcc/linux/sethostname.dhclient \
-	  tmcc/linux/xen/emulab-cnet \
 	  tmcc/linux9/GNUmakefile tmcc/linux9/supfile \
 	  tmcc/fedora/GNUmakefile tmcc/fedora/supfile \
 	  tmcc/fedora15/GNUmakefile \
