@@ -27,18 +27,21 @@ use English;
 use Errno;
 use Data::Dumper;
 
+# Drag in path stuff so we can find emulab stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+
 sub usage()
 {
-    print "Usage: restorevm.pl [-d] vnodeid path\n" . 
+    print "Usage: restorevm.pl [-d] [-t targetdir] vnodeid path\n" . 
 	  "  -d   Debug mode.\n".
+	  "  -t   Write new xm.conf and copy kernel to targetdir\n".
 	  "  -i   Info mode only\n";
     exit(-1);
 }
-my $optlist     = "dix";
+my $optlist     = "dixt:";
 my $debug       = 1;
 my $infomode    = 0;
-my $VMPATH      = "/var/xen/configs";
-my $VGNAME	= "xen-vg";
+my $targetdir;
 my $IMAGEUNZIP  = "imageunzip";
 my $IMAGEDUMP   = "imagedump";
 
@@ -46,6 +49,12 @@ my $IMAGEDUMP   = "imagedump";
 # Turn off line buffering on output
 #
 $| = 1;
+
+use libvnode_xen;
+use libvnode;
+
+# From the library
+my $VGNAME	= $libvnode_xen::VGNAME;
 
 # Locals
 my %xminfo = ();
@@ -63,6 +72,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"t"})) {
+    $targetdir = $options{"t"};
 }
 if (defined($options{"i"})) {
     $infomode = 1;
@@ -113,9 +125,18 @@ while (<XM>) {
 close(XM);
 
 #
-# Localize the path to the kernel.
+# Localize the path to the kernel. Copy out if there is a target dir.
 #
-$xminfo{"kernel"} = $path . "/" . $xminfo{"kernel"};
+if (defined($targetdir)) {
+    if (!$infomode) {
+	system("/bin/cp -pf $path/" . $xminfo{"kernel"} .
+	       "            $targetdir/" . $xminfo{"kernel"});
+    }
+    $xminfo{"kernel"} = $targetdir . "/" . $xminfo{"kernel"};
+}
+else {
+    $xminfo{"kernel"} = $path . "/" . $xminfo{"kernel"};
+}
 
 #
 # Fix up the network interfaces.
@@ -156,6 +177,8 @@ foreach my $disk (@$disklist) {
 	Fatal("Cannot parse disk: $disk");
     }
 }
+my %newdiskinfo = ();
+my $newlvms     = {};
 
 #
 # And the size info.
@@ -186,8 +209,9 @@ foreach my $physinfo (keys(%diskinfo)) {
 
     #
     # Form a new lvmname and create the LVM using the size.
+    # Swap has to be treated special for now. 
     #
-    my $lvmname = "${vnodeid}.${dev}";
+    my $lvmname = ($spec =~ /swap/ ? "${vnodeid}.swap" : "${vnodeid}.${dev}");
     my $device  = "/dev/$VGNAME/$lvmname";
 
     if (! -e $device) {
@@ -198,7 +222,9 @@ foreach my $physinfo (keys(%diskinfo)) {
     }
     # Rewrite the diskinfo path for new xm.conf
     delete($diskinfo{$physinfo});
-    $diskinfo{$device} = "phy:$device,$dev,w";
+    $newdiskinfo{$device} = "phy:$device,$dev,w";
+    # For cleanup on error.
+    $newlvms->{$lvmname} = $lvmname;
 
     #
     # For swap, just need to mark it as a linux swap partition.
@@ -230,6 +256,9 @@ foreach my $physinfo (keys(%diskinfo)) {
     }
     else {
 	system("$IMAGEUNZIP -o $opts $filename $device");
+	if ($?) {
+	    Fatal("Failed to unzip $filename to $device!");
+	}
     }
 }
 
@@ -239,7 +268,7 @@ foreach my $physinfo (keys(%diskinfo)) {
 delete($xminfo{"disksizes"});
 $xminfo{"name"}   = $vnodeid;
 $xminfo{"memory"} = "2048";
-$xminfo{"disk"}   = "[" . join(",", map {"'$_'" } values(%diskinfo)) . "]";
+$xminfo{"disk"}   = "[" . join(",", map {"'$_'" } values(%newdiskinfo)) . "]";
 
 if ($infomode) {
     print Dumper(\%xminfo);
@@ -249,11 +278,17 @@ else {
     # Before we write it out, need to munge the vif spec since there is
     # no need for the script. Use just the default.
     #
-    $XMINFO = "/var/tmp/${vnodeid}.conf";
-    print "Writing new xen config to $XMINFO\n";
+    my $xmconf;
+    if (defined($targetdir)) {
+	$xmconf = "$targetdir/xm.conf";
+    }
+    else {
+	$xmconf = "/var/tmp/${vnodeid}.conf";
+    }
+    print "Writing new xen config to $xmconf\n";
     
-    open(XM, ">$XMINFO")
-	or fatal("Could not open $XMINFO: $!");
+    open(XM, ">$xmconf")
+	or fatal("Could not open $xmconf: $!");
     foreach my $key (keys(%xminfo)) {
 	my $val = $xminfo{$key};
 	if ($val =~ /^\[/) {
@@ -272,6 +307,14 @@ sub Fatal($)
 {
     my ($msg) = @_;
 
+    #
+    # Destroy any new lvms we created.
+    #
+    if (defined($newlvms)) {
+	foreach my $lvname (keys(%{ $newlvms })) {
+	    system("lvremove -f $VGNAME/$lvname");
+	}
+    }
     die("*** $0:\n".
 	"    $msg\n");
 }

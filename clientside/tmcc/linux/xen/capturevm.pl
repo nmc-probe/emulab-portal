@@ -30,12 +30,13 @@ use File::Basename;
 
 sub usage()
 {
-    print "Usage: capturevm.pl [-d] vnodeid [role]\n" . 
+    print "Usage: capturevm.pl [-d] [-r role] vnodeid\n" . 
 	  "  -d   Debug mode.\n".
+	  "  -r   role (like boss or ops) to use instead of vnodeid.\n".
 	  "  -i   Info mode only\n";
     exit(-1);
 }
-my $optlist     = "dix:";
+my $optlist     = "dix:r:";
 my $debug       = 1;
 my $infomode    = 0;
 my $VMPATH      = "/var/emulab/vms/vminfo";
@@ -70,11 +71,14 @@ if (defined($options{"d"})) {
 if (defined($options{"i"})) {
     $infomode = 1;
 }
+if (defined($options{"r"})) {
+    $role = 1;
+}
 usage()
-    if (@ARGV < 1 || @ARGV > 2);
+    if (@ARGV != 1);
 
 my $vnodeid = $ARGV[0];
-$role       = $ARGV[1] if (@ARGV == 2);
+$role       = $vnodeid if (!defined($role));
 
 if (defined($options{"x"})) {
     $XMINFO = $options{"x"};
@@ -85,7 +89,7 @@ else {
 
 CreateExtraFS();
 system("mkdir $EXTRAFS/$role")
-    if (defined($role) && ! -e "$EXTRAFS/$role");
+    if (! -e "$EXTRAFS/$role");
 
 #
 # We need this file to figure out the disk info.
@@ -123,9 +127,7 @@ $xminfo{"disksizes"} = "";
 if (! -e $xminfo{"kernel"}) {
     Fatal($xminfo{"kernel"} . " does not exist");
 }
-my $kernel = $EXTRAFS;
-$kernel   .= "/$role" if (defined($role));
-$kernel   .= "/" . basename($xminfo{"kernel"});
+my $kernel = "$EXTRAFS/$role/" . basename($xminfo{"kernel"});
 system("cp " . $xminfo{"kernel"} . " $kernel") == 0
     or Fatal("Could not copy kernel to $kernel");
 $xminfo{"kernel"} = basename($xminfo{"kernel"});
@@ -160,9 +162,7 @@ foreach my $device (keys(%diskinfo)) {
     else {
 	fatal("Could not parse $spec");
     }
-    $filename = $dev;
-    $filename = "$role/$filename"
-	if (defined($role));
+    $filename = "$role/$dev";
 
     #
     # Figure out the size of the LVM.
@@ -203,7 +203,7 @@ foreach my $device (keys(%diskinfo)) {
     }
     else {
 	if (! ($device =~ /disk/)) {
-	    $opts = "-b -f";
+	    $opts = "-b";
 	}
     }
     if ($infomode) {
@@ -230,7 +230,7 @@ else {
     #
     $xminfo{"vif"} =~ s/,\s*script=[^\']*//g;
 
-    $XMINFO = (defined($role) ? "$EXTRAFS/$role/xm.conf" : "$EXTRAFS/xm.conf");
+    $XMINFO = "$EXTRAFS/$role/xm.conf";
     open(XM, ">$XMINFO")
 	or fatal("Could not open $XMINFO: $!");
     foreach my $key (keys(%xminfo)) {

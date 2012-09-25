@@ -207,6 +207,16 @@ if ($BOSSIP !~ /^\d+\.\d+\.\d+\.\d+$/) {
 }
 
 #
+# This holds the container state set up by the library. There is state
+# added here, and state added in the library ("private"). We locally
+# redefine this below, so cannot be a lexical.
+#
+# NOTE: There should be NO state in here that needs to survive reboot.
+#       We just remove them all when rebooting. See above.
+#
+$vnstate = { "private" => {} };
+
+#
 # Quickie way to show the state.
 #
 if ($showstate) {
@@ -216,11 +226,26 @@ if ($showstate) {
     if (! -e "$VNDIR/vnode.state") {
 	fatal("no vnode.state file for $vnodeid");
     }
+    my $str = `cat $VNDIR/vnode.info`;
+    ($vmid, $vmtype, undef) = ($str =~ /^(\d*) (\w*) ([-\w]*)$/);
+    
     my $tmp = eval { Storable::retrieve("$VNDIR/vnode.state"); };
     if ($@) {
 	fatal("$@");
     }
     print Dumper($tmp);
+
+    # So the lib op works.
+    $vnstate = $tmp;
+
+    ($ret,$err) = safeLibOp('vnodeState', 1, 0);
+    if ($err) {
+	fatal("Failed to get status for existing container: $err");
+    }
+    if ($ret eq VNODE_STATUS_UNKNOWN()) {
+	print "Cannot determine status container $vmid.\n";
+    }
+    print "Domain is $ret\n";
     exit(0);
 }
 
@@ -266,16 +291,6 @@ if ($cleanup) {
     }
     exit(TearDownStaleVM());
 }
-
-#
-# This holds the container state set up by the library. There is state
-# added here, and state added in the library ("private"). We locally
-# redefine this below, so cannot be a lexical.
-#
-# NOTE: There should be NO state in here that needs to survive reboot.
-#       We just remove them all when rebooting. See above.
-#
-$vnstate = { "private" => {} };
 
 #
 # Now we can start doing something useful.
@@ -439,6 +454,19 @@ if (-e "$VNDIR/vnode.info") {
 	$teardown = 1;
     }
     else {
+	# We (might) need this to discover the state. 
+	local $vnstate = { "private" => {} };
+	
+	if (-e "$VNDIR/vnode.state") {
+	    my $tmp = eval { Storable::retrieve("$VNDIR/vnode.state"); };
+	    if ($@) {
+		print STDERR "$@";
+		$teardown = 1;
+	    }
+	    else {
+		$vnstate->{'private'} = $tmp->{'private'};
+	    }
+	}
 	($ret,$err) = safeLibOp('vnodeState', 1, 0);
 	if ($err) {
 	    fatal("Failed to get status for existing container: $err");
@@ -457,40 +485,6 @@ if (-e "$VNDIR/vnode.info") {
     }
     else {
 	$rebooting = 1;
-    }
-}
-
-#
-# Another wrinkle; tagged vlans might not be setup yet when we get
-# here, and we have to know those tags before we can proceed. We
-# need to spin, but with signals enabled since we do not want to
-# wait forever. Okay to get a signal and die at this point. 
-#
-if (0 && @{ $vnconfig{'ifconfig'} }) {
-  again:
-    foreach my $ifc (@{ $vnconfig{'ifconfig'} }) {
-	my $lan = $ifc->{LAN};
-	
-	next
-	    if ($ifc->{ITYPE} ne "vlan");
-
-	# got the tag.
-	next
-	    if ($ifc->{VTAG});
-
-	# no tag, wait and ask again.
-	print STDERR
-	    "$lan does not have a tag yet. Waiting, then asking again ...\n";
-
-	sleep(5);
-
-	my @tmp = ();
-	fatal("getifconfig($vnodeid): $!")
-	    if (getifconfig(\@tmp));
-	$vnconfig{"ifconfig"} = [ @tmp ];
-
-	# Just look through everything again; simple. 
-	goto again;
     }
 }
 
