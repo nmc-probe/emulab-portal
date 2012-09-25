@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2011 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -365,9 +365,21 @@ sub doboot()
     #
     # Start the event proxy.
     #
-    if (SHAREDHOST() || (!(REMOTE() && !REMOTEDED()) && !GENVNODE())) {  
-	my $evproxy =
-	    (SHAREDHOST() ? "$BINDIR/evproxy_shared" : "$BINDIR/evproxy");
+    # For SHAREDHOSTs we now use clusterd (no pubsubd or evproxy).
+    #
+    if (SHAREDHOST()) {
+	#
+	# Kill off pubsubd and start clusterd. 
+	#
+	system("killall pubsubd");
+	print("Starting pubsub cluster daemon\n");
+	system("/usr/local/libexec/clusterd -s event-server");
+	if ($?) {
+	    fatal("Error running clusterd");
+	}
+    }
+    elsif (!(REMOTE() && !REMOTEDED()) && !GENVNODE()) {  
+	my $evproxy = "$BINDIR/evproxy";
 
 	if (-x $evproxy) {
 	    my $eventserver = "event-server";
@@ -375,15 +387,7 @@ sub doboot()
 		$eventserver = TB_EVENTSERVER();
 	    }
 	    print("Starting event proxy daemon\n");
-	    if (SHAREDHOST()) {
-		my $file    = TMNODEID();
-		my $pnodeid = `cat $file`;
-		chomp($pnodeid);
-		system("$evproxy -s $eventserver -n $pnodeid");
-	    }
-	    else {
-		system("$evproxy -s $eventserver -e $pid/$eid");
-	    }
+	    system("$evproxy -s $eventserver -e $pid/$eid");
 	    if ($?) {
 		fatal("Error running $evproxy");
 	    }
