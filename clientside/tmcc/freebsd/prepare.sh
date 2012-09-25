@@ -9,6 +9,11 @@ HOME=/
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 export HOME PATH
 
+dohalt=0
+if [ -e "$BOOTDIR/vmname" ]; then
+    dohalt=1
+fi
+
 if ! mount -u -o rw /; then
 	echo 'Mounting root filesystem rw failed, prepare aborting'
         exit 1
@@ -32,4 +37,13 @@ $BINDIR/logboot /prepare.log
 rm -f /prepare.log
 echo "Rebooting for real ..."
 sync
-/sbin/reboot
+
+#
+# XEN vms will just restart, so halt to really stop it. 
+#
+if [ $dohalt -eq 1 ]; then
+    /sbin/halt
+else
+    /sbin/reboot
+fi
+
