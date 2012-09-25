@@ -3173,6 +3173,9 @@ sub getlocalevserver()
 	if ($vnodeid =~ /^pcvm(\d+)-\d+$/) {
 	    $evserver = "pc$1";
 	}
+	else {
+	    print STDERR "*** Could not determine event server!\n";
+	}
     }
     if (-e "$BOOTDIR/localevserver") {
 	$evserver = `cat $BOOTDIR/localevserver`;
