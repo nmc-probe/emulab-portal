@@ -122,11 +122,13 @@ sub run_with_ssh($$);
 
 my $nodereboot	= "$TB/bin/node_reboot";
 my $createimage = "/usr/local/bin/create-image";
+my $reboot_prep = "@CLIENT_BINDIR@/reboot_prepare";
 my $friskiller  = "$TB/sbin/frisbeehelper";
 my $osselect    = "$TB/bin/os_select";
 my $checkquota  = "$TB/sbin/checkquota";
 my $imagehash	= "$TB/bin/imagehash";
 my $SHA1	= "/sbin/sha1";
+my $SCP		= "/usr/bin/scp";
 my $def_devtype	= "ad";
 my $def_devnum	= 0;
 my $devtype;
@@ -565,7 +567,27 @@ my $result;
 #
 if ($isvirtnode) {
     #
-    # ...execute command and wait!
+    # XEN creates a problem; the physical host cannot actually
+    # execute a command inside the guest, but we need to run
+    # reboot_prepare and reboot it. FreeBSD creates an additional
+    # problem in that shutdown has to run to invoke prepare; reboot
+    # does not run it, and a shutdown from outside the VM has the
+    # sae effect; prepare does not run. What a pain. 
+    #
+    my $SAVEUID	= $UID;
+    $EUID = $UID = 0;
+
+    my $cmd = "$TB/bin/sshtb -n -o ConnectTimeout=10 ".
+	"-host $node_id $reboot_prep";
+    print STDERR "About to: '$cmd'\n" if ($debug);
+    system($cmd);
+    fatal("'$cmd' failed")
+	if ($?);
+
+    $EUID = $UID = $SAVEUID;
+
+    #
+    # Now execute command and wait.
     #
     if ($NONFS) {
 	$result = run_with_ssh($command, $filename);
@@ -667,6 +689,13 @@ if ($usefup && $result eq "255") {
 
 done:
 
+# Grab boot log now. Node will reboot and possibly erase it. We should
+# probably come up with a better way to handle this.
+my $bootlog;
+if ($node->GetBootLog(\$bootlog)) {
+    $bootlog = undef;
+}
+
 if (! cleanup()) {
     fatal("Problem encountered while cleaning up!\n");
 }
@@ -743,8 +772,7 @@ print "Image written to $filename.\n";
 #      "Final size: " . (stat($filename))[7] . " bytes.\n";
 
 # Append bootlog (which has prepare output)
-my $bootlog;
-if ($node->GetBootLog(\$bootlog) == 0) {
+if (defined($bootlog)) {
     print "\n\n";
     print "------------------ Prepare Output ----------------\n";
     print "$bootlog\n";
