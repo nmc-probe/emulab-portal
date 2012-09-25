@@ -34,7 +34,7 @@ use Exporter;
 	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
               findVirtControlNet findDNS downloadImage setState
-              getKernelVersion isRoutable
+              getKernelVersion isRoutable findDomain createExtraFS
             );
 
 use Data::Dumper;
@@ -420,12 +420,14 @@ sub downloadImage($$$$) {
 	if ($reload_args_ref->{"IMAGEID"} =~ /^([-\d\w]+),([-\d\w]+),([-\d\w]+)$/) {
 	    $imageid = "$1/$3";
 	}
-	if (SHAREDHOST) {
+	if (SHAREDHOST()) {
 	    $proxyopt = "-P $nodeid";
 	}
 	if ($server && $imageid) {
-	    mysystem("$FRISBEE $proxyopt ".
+	    mysystem2("$FRISBEE $proxyopt ".
 		     "         -S $server -B 30 -F $imageid $imagepath");
+	    return -1
+		if ($?);
 	}
 	else {
 	    print STDERR "Could not parse frisbee loadinfo\n";
@@ -436,7 +438,9 @@ sub downloadImage($$$$) {
 	my $mcastaddr = $1;
 	my $mcastport = $2;
 
-	mysystem("$FRISBEE -m $mcastaddr -p $mcastport $imagepath");
+	mysystem2("$FRISBEE -m $mcastaddr -p $mcastport $imagepath");
+	return -1
+	    if ($?);
     }
     elsif ($addr =~ /^http/) {
 	if ($todisk) {
@@ -569,6 +573,49 @@ sub isRoutable($)
 	    "172.16.0.0");
 
     return 1;
+}
+
+#
+# Get our domain
+#
+sub findDomain()
+{
+    import emulabpaths;
+
+    return undef
+	if (! -e "$BOOTDIR/mydomain");
+    
+    my $domain = `cat $BOOTDIR/mydomain`;
+    chomp($domain);
+    return $domain;
+}
+
+#
+# Create an extra FS using an LVM.
+#
+sub createExtraFS($$$)
+{
+    my ($path, $vgname, $size) = @_;
+    
+    return
+	if (-e $path);
+
+    system("mkdir $path") == 0
+	or return -1;
+    
+    system("/usr/sbin/lvcreate -n extrafs -L $size $vgname") == 0
+	or return -1;
+
+    system("mke2fs -j /dev/$vgname/extrafs") == 0
+	or return -1;
+
+    system("mount /dev/$vgname/extrafs $path") == 0
+	or return -1;
+
+    system("echo '/dev/$vgname/extrafs $path ext3 defaults 0 0' >> /etc/fstab")
+	== 0 or return -1;
+
+    return 0;
 }
 
 #
