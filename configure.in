@@ -1262,7 +1262,6 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/tmcc/freebsd/supfile clientside/tmcc/freebsd/sethostname \
  clientside/tmcc/linux/GNUmakefile clientside/tmcc/linux/supfile \
  clientside/tmcc/linux/sethostname.dhclient \
- clientside/tmcc/linux/xen/emulab-cnet \
  clientside/tmcc/linux9/GNUmakefile clientside/tmcc/linux9/supfile \
  clientside/tmcc/fedora/GNUmakefile clientside/tmcc/fedora/supfile \
  clientside/tmcc/fedora15/GNUmakefile \
