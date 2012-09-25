@@ -37,6 +37,7 @@ sub usage {
 #
 # Configure variables
 #
+my $ELABINELAB		     = "@ELABINELAB@";
 my $OURDOMAIN                = "@OURDOMAIN@";
 my $TESTBED_NETWORK          = "@TESTBED_NETWORK@";
 my $TESTBED_NETMASK          = "@TESTBED_NETMASK@";
@@ -97,6 +98,32 @@ for (my $i = $jb; $i <= $jb + (255 - $jmb); $i++) {
     print "Generating internal reverse lookup file ...\n";
     system("cp -f reverse.head $internal_revfile") == 0 or
 	die("Unable to copy $infile to $internal_revfile\n");
+
+    #
+    # This is for the case that boss/ops/fs are actually *in* the jail
+    # network space, as would happen in an elabinelab that is using a
+    # private IP space for the servers (XEN mode).
+    #
+    if ($ELABINELAB) {
+	open(REV, ">>$internal_revfile")
+	    or die("Unable to open $internal_revfile for appending!\n");
+	print REV "\n";
+	
+	if ($BOSSNODE_IP =~ /$ja\.$i\.(\d+)\.(\d+)/) {
+	    print REV "\$ORIGIN ${1}.${i}.${ja}.in-addr.arpa.\n";
+	    print REV "${2}\tIN\tPTR\tboss.${OURDOMAIN}.\n";
+	}
+	if ($USERNODE_IP =~ /$ja\.$i\.(\d+)\.(\d+)/) {
+	    print REV "\$ORIGIN ${1}.${i}.${ja}.in-addr.arpa.\n";
+	    print REV "${2}\tIN\tPTR\tops.${OURDOMAIN}.\n";
+	}
+	if ($FSNODE_IP ne $USERNODE_IP && $FSNODE_IP ne $BOSSNODE_IP &&
+	    $FSNODE_IP =~  /$ja\.$i\.(\d+)\.(\d+)/) {
+	    print REV "\$ORIGIN ${1}.${i}.${ja}.in-addr.arpa.\n";
+	    print REV "${2}\tIN\tPTR\tops.${OURDOMAIN}.\n";
+	}
+	close(REV);
+    }
 }
 
 #
