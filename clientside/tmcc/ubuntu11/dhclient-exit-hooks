@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2009, 2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -62,6 +62,7 @@ echo $new_host_name > $BOOTDIR/realname
 echo $new_routers > $BOOTDIR/routerip
 echo $new_ip_address > $BOOTDIR/myip
 echo $new_subnet_mask > $BOOTDIR/mynetmask
+echo $new_domain_name > $BOOTDIR/mydomain
 if [ -n "$interface" ]; then
     echo $interface > $BOOTDIR/controlif
 fi
