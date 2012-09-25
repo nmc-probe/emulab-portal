@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2009 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -79,7 +79,7 @@ bootinfo_init(void)
 
 int
 bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info, 
-	 void *opaque, int no_event_send)
+	 void *opaque, int no_event_send, int *event_sent)
 {
 #ifdef	EVENTSYS
 	int		needevent = 0;
@@ -117,6 +117,10 @@ bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info,
 	default:
 		info("%s: invalid packet %d\n",
 		     inet_ntoa(ipaddr), boot_info->opcode);
+#ifdef	EVENTSYS
+		if (event_sent)
+			*event_sent = 0;
+#endif
 		return -1;
 	}
 	if (err)
@@ -153,6 +157,11 @@ bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info,
 		}
 #endif
 	}
+
+#ifdef	EVENTSYS
+	if (event_sent)
+		*event_sent = needevent;
+#endif
 	return 0;
 }
 
@@ -187,13 +196,14 @@ static int
 bicache_needevent(struct in_addr ipaddr)
 {
 	DBT	key, item;
-	time_t  tt = time(NULL);
+	time_t  tt;
 	int	rval = 1, r;
 
 	/* So we can include bootinfo into tmcd; always send the event. */
 	if (!dbp)
 		return 1;
 
+	tt = time(NULL);
 	key.data = (void *) &ipaddr;
 	key.size = sizeof(ipaddr);
 

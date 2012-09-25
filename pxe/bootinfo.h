@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2004, 2007 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -28,7 +28,7 @@ int		close_bootinfo_db(void);
 int		bootinfo_init(void);
 int		bootinfo(struct in_addr ipaddr, char *node_id,
 			 struct boot_info *info, void *opaque,
-			 int no_event_send);
+			 int no_event_send, int *event_sent);
 int		query_bootinfo_db(struct in_addr ipaddr, char *node_id, 
 				  int version, struct boot_what *info, 
 				  char *key);

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 , 2012University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -121,6 +121,12 @@ $(INSTALL_BINDIR)/tmcd/%: %
 	@echo "Installing $<"
 	-mkdir -p $(INSTALL_BINDIR)/tmcd
 	$(INSTALL_PROGRAM) $< $@
+
+# XXX using ${OBJDIR}/pxe/% didn't seem to work
+${OBJDIR}/pxe/bootinfo.o:
+	cd ${OBJDIR}/pxe && gmake bootinfo.o
+${OBJDIR}/pxe/bootinfo_mysql.o:
+	cd ${OBJDIR}/pxe && gmake bootinfo_mysql.o
 
 #
 # Here so that the event system libraries, and libraries they depend upon,

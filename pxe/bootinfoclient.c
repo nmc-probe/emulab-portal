@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2004 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -156,7 +156,7 @@ main(int argc, char **argv)
 
 	while (1) {
 		struct sockaddr_in	client;
-		int			length;
+		socklen_t		length;
 		
 		cc = sendto(sock, &boot_info, sizeof(boot_info), 0,
 			    (struct sockaddr *)&target, sizeof(target));

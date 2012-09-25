@@ -10001,7 +10001,8 @@ COMMAND_PROTOTYPE(dobootwhat)
 	}
 
 	if (bootinfo(reqp->client, (reqp->isvnode) ? reqp->nodeid : NULL,
-		     &boot_info, (void *) reqp, (reqp->isvnode) ? 1 : 0)) {
+		     &boot_info, (void *) reqp,
+		     (reqp->isvnode) ? 1 : 0, NULL)) {
 		OUTPUT(buf, sizeof(buf), "STATUS=failed\n");
 	}
 	else {
