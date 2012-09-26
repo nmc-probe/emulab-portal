@@ -923,7 +923,15 @@ sub WaitTillReloadDone($$$$$@)
     my $waittime  = 0;
     my $minutes   = 0;
 
-    my $MAXEVENTS = 250;
+    #
+    # Should-be-parameters:
+    #
+    # REBOOTWAIT: time in minutes to make a transition after reboot
+    # MAXEVENTS: max events to grab in any event_poll loop
+    #
+    my $REBOOTWAIT = 5;
+    my $MAXEVENTS = 500;
+
     my $ecount = 1;
     while ($count > 0) {
 	# Wait first to make sure reboot is done, and so that we don't
@@ -936,8 +944,10 @@ sub WaitTillReloadDone($$$$$@)
 	    $eventnodes->{'GOTONE'} = 0;
 	    event_poll($evhandle);
 	} while ($eventnodes->{'GOTONE'} && --$ecount > 0);
-	print STDERR "got ", $MAXEVENTS-$ecount, " events\n"
-	    if ($debug);
+	if ($ecount < $MAXEVENTS) {
+	    print STDERR "got ", $MAXEVENTS-$ecount, " events\n"
+		if ($debug);
+	}
 	foreach my $node (@nodes) {
 	    if (! $done{$node}) {
 		my $nodeobject = Node->Lookup($node);
@@ -1014,11 +1024,12 @@ sub WaitTillReloadDone($$$$$@)
 		# reloading.
 		$waittime = time - $startwait;
 		
-		# If the node doesn't made a transition within 5 minutes
-		# of booting, we declare it stuck.
-		my $isstuck = ($minutes > 5 &&
+		# If the node doesn't made a transition within $REBOOTWAIT
+		# minutes of booting, we declare it stuck.
+		my $isstuck = ($minutes > $REBOOTWAIT &&
 			       exists($eventnodes->{$node}) &&
 			       $eventnodes->{$node} == 0);
+
 		if ($waittime > $maxwait ||
 		    $eventstate eq TBDB_NODESTATE_TBFAILED() ||
 		    $eventstate eq TBDB_NODESTATE_PXEFAILED() ||
@@ -1029,7 +1040,8 @@ sub WaitTillReloadDone($$$$$@)
 		    # a state transition in our handler. Probably just
 		    # need to increase $MAXEVENTS above.
 		    #
-		    if ($eventstate eq TBDB_NODESTATE_RELOADING()) {
+		    if ($isstuck &&
+			$eventstate eq TBDB_NODESTATE_RELOADING()) {
 			tbnotice("missed state transition to RELOADING".
 				 " for $node; faking it.");
 			$eventnodes->{$node} = time();
@@ -1042,11 +1054,15 @@ sub WaitTillReloadDone($$$$$@)
 
 		    if ($eventstate eq TBDB_NODESTATE_TBFAILED() ||
 			$eventstate eq TBDB_NODESTATE_PXEFAILED()) {
-			tbnotice("  $node looks stuck in $eventstate.");
+			tbnotice("  $node is stuck in $eventstate.");
+		    }
+		    elsif ($eventstate eq TBDB_NODESTATE_RELOADING()) {
+			tbnotice("  $node did not finish reloading.");
 		    }
 		    elsif ($isstuck) {
-			tbnotice("  $node failed to enter reloading state; ".
-			    "currently in $eventstate.");
+			tbnotice("  $node failed to make a state ".
+				 "transition after $REBOOTWAIT minutes; ".
+				 "stuck in $eventstate.");
 		    }
 		    TBNodeConsoleTail($node, *STDERR);
 
