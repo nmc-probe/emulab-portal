@@ -66,6 +66,14 @@ my $ctrl = new IO::Socket::INET( LocalAddr => '127.0.0.1',
 				 Blocking => 0 )
     or die "socket: $!\n";
 
+# Write our PID to a known location (to assist those who would kill us).
+# Don't bother attempting to use the PID file as a lock -- the socket
+# we just listened on makes a better mutex than a file would.
+sysopen( PIDFILE, "/var/run/tcppd.pid", O_WRONLY | O_CREAT) ||
+    fatal("Couldn't create '$pidfile': $? $!\n");
+print PIDFILE "$$";
+close PIDFILE;
+
 my $readlist = IO::Select->new( $ctrl )
     or die "select: $!\n";
 
