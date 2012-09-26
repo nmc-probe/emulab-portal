@@ -2668,6 +2668,21 @@ sub ClearCurrentReload($)
     return 0;
 }
 
+sub ClearPartitions($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id = $self->node_id();
+
+    DBQueryWarn("delete from partitions where node_id='$node_id'");
+
+    return 0;
+}
+
 sub ClearReservation($)
 {
     my ($self) = @_;

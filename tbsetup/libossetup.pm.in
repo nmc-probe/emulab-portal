@@ -1262,6 +1262,15 @@ sub WaitDone($@)
     $self->SUPER::WaitDone(@nodelist);
 
     #
+    # See if we allow failed osloads to continue on failureaction==nonfatal.
+    # Since this is at its finest per-experiment, we check outside the loop.
+    #
+    my $osloadfailok = EmulabFeatures->FeatureEnabled("OsloadFailNonfatal",
+						      $parent->user(),
+						      $parent->group(),
+						      $experiment);
+
+    #
     # Then per node processing.
     #
     foreach my $node (@nodelist) {
@@ -1320,18 +1329,62 @@ sub WaitDone($@)
 	}
 
 	#
-	# Reload failures are terminal.
+	# Handle non-fatal failures (if we have not been canceled or aborted).
 	#
-	if ($node->_canfail() && $setupstatus != $libossetup::RELOAD_FAILED &&
-	    !($experiment->canceled() || $parent->noretry()
-	      || $parent->aborted())) {
+	if ($node->_canfail() &&
+	    !$experiment->canceled() && !$parent->aborted()) {
+	    #
+	    # Non-fatal reload failures require special handling.
+	    # (Note: no check for noretry() since it will always be set.)
+	    #
+	    # XXX it is not clear what the right strategy is here since
+	    # the node might not boot, might boot into the wrong OS, or
+	    # it might just sit there trying to boot over and over again.
+	    # We could just power the machine off and tell the user.
+	    # We could boot the node into the admin MFS and tell the user.
+	    # We could park the node at PXEWAIT whenever it boots.
+	    # Or we could just let it go and tell the user.
+	    #
+	    # Right now we park it in PXEWAIT on reboot. If the node is
+	    # hung, the user will surely notice. If the node does reboot
+	    # it will stop in PXEWAIT and the user will surely notice.
+	    #
+	    if ($setupstatus == $libossetup::RELOAD_FAILED) {
+		if ($osloadfailok) {
+		    # clear all boot osids causing node to go into PXEWAIT
+		    if ($node->OSSelect(undef, undef, 0)) {
+			tbnotice("could not force into PXEWAIT; failing\n");
+			goto bad;
+		    }
+		    # clear the reload info
+		    $node->ClearCurrentReload();
+		    # and partitions
+		    $node->ClearPartitions();
 
-	    $parent->add_failed_node_inform_user($node_id);
-	    $parent->add_failed_node_nonfatal($node_id);
-	    tbnotice("Continuing with experiment setup anyway ...\n");
-	    next;
+		    # XXX this will force node to reboot
+		    $node->SetEventState(TBDB_NODESTATE_TBFAILED());
+
+		    $parent->add_failed_node_inform_user($node_id);
+		    $parent->add_failed_node_nonfatal($node_id);
+		    tbwarn("$node_id will stop in PXEWAIT state on reboot\n");
+		    tbnotice("Continuing with experiment setup anyway ...\n");
+
+		    # XXX otherwise, os_setup will still fail
+		    $parent->noretry(0);
+		    # XXX so subsequent swapmods don't free the node
+		    $node->SetAllocState(TBDB_ALLOCSTATE_RES_READY());
+		    next;
+		}
+	    }
+	    elsif (!$parent->noretry()) {
+		$parent->add_failed_node_inform_user($node_id);
+		$parent->add_failed_node_nonfatal($node_id);
+		tbnotice("Continuing with experiment setup anyway ...\n");
+		next;
+	    }
 	}
 
+      bad:
 	#
 	# If the user has picked a standard image and it fails to boot,
 	# something is wrong, so reserve it to checkup experiment. If the
