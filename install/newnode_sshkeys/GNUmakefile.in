@@ -25,7 +25,7 @@
 SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
 OBJDIR		= ../..
-SUBDIR		= install/newnode_sskeys
+SUBDIR		= install/newnode_sshkeys
 TBADMINGROUP    = @TBADMINGROUP@
 
 KEY_FILES	= identity.newnode identity.newnode.pub
