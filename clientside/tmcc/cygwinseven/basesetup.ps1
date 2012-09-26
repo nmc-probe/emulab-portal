@@ -59,21 +59,13 @@ Function isNumeric ($x) {
 	return $isNum
 }
 
-Function replace_uservars([ref]$cmdarr) {
-	for ($i=0; $i < $cmdarr.count; $i++) {
-		if ($cmdarr[$i] -match "^%($VAR_RE)%$") {
-			$vartok = $matches[1]
-			if ($uservars.ContainsKey($vartok)) {
-				$cmdarr[$i] = `
-				    $uservars.Get_Item($vartok)
-			} else {
-				log("ERROR: Undefined variable referenced: $vartok")
-				log("Exiting!")
-				exit 1
-				
-			}
-		}
+Function replace_uservars($cmdstr) {
+	$uservars.getenumerator() | % {
+		$key = $_.key
+		$value = $_.value
+		$cmdstr = [regex]::Replace($cmdstr, "%$key%", $value)
 	}
+	return $cmdstr
 }
 
 #
@@ -389,9 +381,8 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 	$cmdarr = @()
 	if ($argtoks) {
 		$cmdargs = [string]::join(" ", $argtoks)
-		#$cmdargs = [regex]::replace($cmdargs,',','`,')
+		$cmdargs = replace_uservars($cmdargs)
 		$cmdarr = [regex]::split($cmdargs, '\s*;;\s*')
-		replace_uservars([ref]$cmdarr)
 	}
 	$result = $FAIL
 	# XXX: Maybe refactor all of this with OOP at some point.
@@ -422,6 +413,12 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"waitproc" {
 			$result = waitproc_func($cmdarr)
+		}
+		"defvar" {
+			$result = defvar_func($cmdarr)
+		}
+		"readvar" {
+			$result = readvar_func($cmdarr)
 		}
 		default {
 			log("WARNING: Skipping unknown action: $cmd")

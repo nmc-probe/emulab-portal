@@ -1,9 +1,26 @@
+# Where to put the Cygwin source bits.
+defvar swdir ;; C:\Software\Cygwin
+# Where to fetch the Cygwin sources
+defvar cyg_mirror ;; http://mirror.emulab.net/cygwin
+# The name of the Cygwin setup executable.
+defvar setup_exec ;; setup.exe
+# Remote path to the Cygwin setup executable.
+defvar setup_remote ;; %cyg_mirror%/%setup_exec%
+# Local path for the Cygwin setup executable.
+defvar setup_loc ;; %swdir%\%setup_exec%
+
+# The list of Cygwin packages to install.
+defvar cyg_pkgs ;; boost-devel,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,emacs,file,gdb,git,nano,nc,patch,rcs,rpm,rsync,rxvt,subversion,vim,wget,unzip,zip
+
+# Get cygwin user password
+readvar sshpass
+
 log Downloading Cygwin setup executable.
-mkdir C:\Software\Cygwin
-getfile http://mirror.emulab.net/cygwin/setup.exe ;; C:\Software\Cygwin\setup.exe
+mkdir %swdir%
+getfile %setup_remote% ;; %setup_loc%
 
 log Running Cygwin installer.
-runcmd C:\Software\Cygwin\setup.exe ;; -l C:\Software\Cygwin -s http://mirror.emulab.net/cygwin -O -R C:\Cygwin -q -P boost,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,emacs,file,gdb,git,nano,nc,patch,rcs,rpm,rsync,rxvt,subversion,vim,wget,unzip,zip
+runcmd %swdir%\setup.exe ;; -l %swdir% -s %cyg_mirror% -O -R C:\Cygwin -q -P %cyg_pkgs%
 log Cygwin Setup Complete.
 
 log Setting up syslogd
@@ -11,7 +28,7 @@ runcyg syslogd-config -y ;; 0
 
 log Setting up sshd
 mkdir C:\Cygwin\etc\sshkeys
-runcyg ssh-host-config -y -u cyg_sshd -w cYgw1n$$h -c '' --privileged ;; 0
+runcyg ssh-host-config -y -u cyg_sshd -w %sshpass% -c '' --privileged ;; 0
 runcyg sed -e 's|^AuthorizedKeysFile.*$|AuthorizedKeysFile /sshkeys/%u/authorized_keys|' /etc/sshd_config > /etc/sshd_config.new ;; 0
 runcyg mv -f /etc/sshd_config.new /etc/sshd_config ;; 0
 mkdir C:\Cygwin\etc\ssh

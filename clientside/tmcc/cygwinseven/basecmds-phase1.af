@@ -53,6 +53,7 @@ log Enabling Remote Desktop Protocol connections
 addreg HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server ;; fDenyTSConnections ;; Dword ;; 0
 
 # Change the manual peer list if necessary / desired.
+# XXX: Ugh...  Something still doesn't work here.
 log Setting up the clock
 addreg HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation ;; RealTimeIsUniversal ;; Dword ;; 1
 runcmd w32tm.exe ;; /register
