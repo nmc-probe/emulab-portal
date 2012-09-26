@@ -17,11 +17,13 @@ $REG_TYPES = @("String", "Dword")
 $BASH = "C:\Cygwin\bin\bash.exe"
 $BASHARGS = "-l -c"
 $CMDTMP = "C:\Windows\Temp\_tmpout-basesetup"
+$VAR_RE = '[a-zA-Z]\w{1,30}'
 
 #
 # Global Variables
 #
 $outlog = $DEFLOGFILE
+$uservars = @{}
 
 #
 # Utility functions
@@ -57,6 +59,23 @@ Function isNumeric ($x) {
 	return $isNum
 }
 
+Function replace_uservars([ref]$cmdarr) {
+	for ($i=0; $i < $cmdarr.count; $i++) {
+		if ($cmdarr[$i] -match "^%($VAR_RE)%$") {
+			$vartok = $matches[1]
+			if ($uservars.ContainsKey($vartok)) {
+				$cmdarr[$i] = `
+				    $uservars.Get_Item($vartok)
+			} else {
+				log("ERROR: Undefined variable referenced: $vartok")
+				log("Exiting!")
+				exit 1
+				
+			}
+		}
+	}
+}
+
 #
 # Action execution functions
 #
@@ -67,6 +86,48 @@ Function log_func($cmdarr) {
 	}
 
 	return $SUCCESS
+}
+
+Function defvar_func($cmdarr) {
+	debug("defvar called with: $cmdarr")
+
+	if (!$cmdarr -or $cmdarr.count -ne 2) {
+		log("Must supply variable and value to defvar.")
+		return $FAIL
+	}
+	$myvar, $myval = $cmdarr
+	# check variable name for sanity
+	if ($myvar -notmatch "^$VAR_RE$") {
+		log("Invalid variable token: $myvar")
+		return $FAIL
+	}
+
+	$uservars.Add($myvar, $myval)
+	return $SUCCESS
+}
+
+Function readvar_func($cmdarr) {
+	debug("readvar called with: $cmdarr")
+
+	if (!$cmdarr -or $cmdarr.count -ne 2) {
+		log("Must supply variable name and prompt string to readvar.")
+		return $FAIL
+	}
+	$myvar, $myprompt = $cmdarr
+	# check variable name for sanity
+	if ($myvar -notmatch "^$VAR_RE$") {
+		log("Invalid variable token: $myvar")
+		return $FAIL
+	}
+
+	$myval = Read-Host $myprompt
+	if (!$myval) {
+		log("No input provided for value.")
+		return $FAIL
+	}
+
+	$uservars.Add($myvar, $myval)
+	return $SUCCESS	
 }
 
 # Create or set an existing registry value.  Create entire key path as required.
@@ -330,6 +391,7 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		$cmdargs = [string]::join(" ", $argtoks)
 		#$cmdargs = [regex]::replace($cmdargs,',','`,')
 		$cmdarr = [regex]::split($cmdargs, '\s*;;\s*')
+		replace_uservars([ref]$cmdarr)
 	}
 	$result = $FAIL
 	# XXX: Maybe refactor all of this with OOP at some point.
