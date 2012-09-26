@@ -35,6 +35,7 @@ use POSIX;
 my $TB			= "@prefix@";
 my $NC                  = "@NC@";
 my $PORT                = 4127;
+my $pidfile             = "/var/run/tcppd.pid";
 
 #
 # Turn off line buffering on output
@@ -69,7 +70,8 @@ my $ctrl = new IO::Socket::INET( LocalAddr => '127.0.0.1',
 # Write our PID to a known location (to assist those who would kill us).
 # Don't bother attempting to use the PID file as a lock -- the socket
 # we just listened on makes a better mutex than a file would.
-sysopen( PIDFILE, "/var/run/tcppd.pid", O_WRONLY | O_CREAT) ||
+
+sysopen( PIDFILE, $pidfile, O_WRONLY | O_CREAT) ||
     fatal("Couldn't create '$pidfile': $? $!\n");
 print PIDFILE "$$";
 close PIDFILE;
