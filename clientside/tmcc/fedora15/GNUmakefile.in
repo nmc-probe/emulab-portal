@@ -105,8 +105,8 @@ sysetc-install:	ifcfgs dir-install
 	# See ntpd.service below.
 	rm -f $(RCDIR)/init.d/ntpd
 	rm -f $(DEFRUNLVLDIR)/S58ntpd
-	ln -sf $(SYSETCDIR)/dhclient-enter-hooks $(SYSETCDIR)/dhcp/
-	ln -sf $(SYSETCDIR)/dhclient-exit-hooks $(SYSETCDIR)/dhcp/
+	ln -sf /etc/dhclient-enter-hooks $(SYSETCDIR)/dhcp/
+	ln -sf /etc/dhclient-exit-hooks $(SYSETCDIR)/dhcp/
 	$(INSTALL) -m 644 $(SRCDIR)/ntp.conf $(SYSETCDIR)/ntp.conf
 	$(INSTALL) -m 644 $(SRCDIR)/ifcfg-eth99 $(SYSETCDIR)/sysconfig/network-scripts
 	$(INSTALL) -m 644 ifcfg-eth[0-9]* $(SYSETCDIR)/sysconfig/network-scripts

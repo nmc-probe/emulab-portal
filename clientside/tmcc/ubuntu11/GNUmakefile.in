@@ -91,7 +91,7 @@ sysetc-fixup:
 			$(SYSETCDIR)/dhcp/dhclient-exit-hooks
 	$(INSTALL) -m 755 $(SRCDIR)/dhclient-enter-hooks \
 			$(SYSETCDIR)/dhcp/dhclient-enter-hooks
-	rm -f $(RRCDIR)/rc.local $(SYSETCDIR)/rc.local
+	rm -f $(SYSETCDIR)/rc.local
 	$(INSTALL) -m 644 $(SRCDIR)/rc-sysinit.conf $(SYSETCDIR)/init
 	$(INSTALL) -m 644 $(SRCDIR)/rsyslog-emulab.conf $(SYSETCDIR)/rsyslog.d/60-emulab.conf
 	$(INSTALL) -m 755 $(SRCDIR)/rc.local $(SYSETCDIR)/rc.local
@@ -103,10 +103,10 @@ script-install:	dir-install $(SCRIPTS)
 genirack-install:
 	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) genirack-install)
 	$(INSTALL) -m 755 $(SRCDIR)/genirack.sh $(RCDIR)/init.d/genirack.sh
-	-ln -sf $(RCDIR)/init.d/genirack.sh $(DEFRUNLVLDIR)/S10genirack.sh
-	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc2.d/S10genirack.sh
-	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc4.d/S10genirack.sh
-	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc5.d/S10genirack.sh
+	-ln -sf $(RRCDIR)/init.d/genirack.sh $(DEFRUNLVLDIR)/S10genirack.sh
+	-ln -sf $(RRCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc2.d/S10genirack.sh
+	-ln -sf $(RRCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc4.d/S10genirack.sh
+	-ln -sf $(RRCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc5.d/S10genirack.sh
 	$(INSTALL) -m 644 $(SRCDIR)/interfaces-genirack $(SYSETCDIR)/network/interfaces
 	$(INSTALL) -m 644 $(SRCDIR)/isc-dhcp-server $(SYSETCDIR)/default/
 	$(INSTALL) -m 644 $(SRCDIR)/dhcpd.conf $(SYSETCDIR)/dhcp/
