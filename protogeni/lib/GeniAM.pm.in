@@ -31,6 +31,10 @@ use Date::Parse;
 use Data::Dumper;
 use Frontier::RPC2;
 use POSIX qw(strftime);
+use File::Temp qw(tempfile);
+
+my $TB             = "@prefix@";
+my $RSPECLINT      = "$TB/sbin/protogeni/rspeclint";
 
 # Disable UUID checks in GeniCredential.
 $GeniCredential::CHECK_UUID = 0;
@@ -195,7 +199,7 @@ sub GetVersion()
 
     if ($API_VERSION >= 3) {
 	$blob->{"geni_single_allocation"} = $coder->string("1");
-	$blob->{"geni_allocate"} = "geni_single";
+	$blob->{"geni_allocate"} = "geni_disjoint";
 	$blob->{"geni_credential_types"} = [
 	    {"geni_type" => "geni_sfa",
 	     "geni_version" => $coder->string("2")},
@@ -733,13 +737,12 @@ sub Describe
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
 				"Slice credential not provided")
 	if (! defined($slice));
+    return $slice
+	if (GeniResponse::IsResponse($slice));
     my $ticket = GeniTicket->SliceTicket($slice);
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
 				"No slivers here")
 	if (! defined($ticket) && ! defined($aggregate));
-
-    return $slice
-	if (GeniResponse::IsResponse($slice));
 
     if (scalar(@urns) != 1 || $urns[0] ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
@@ -751,14 +754,22 @@ sub Describe
     $manifest = $ticket->rspec()
 	if (defined($ticket));
     my @geni_slivers = ();
+    my $sliver_blob;
+
+    # Add any slivers that are provisioned (exist in the aggregate)
     if (defined($aggregate)) {
+	my $expires = GeniXML::GetText("expires", $manifest);
+	if (! defined($expires)) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Manifest is missing expires tag");
+	}
 	my @slivers = ();
 	if ($aggregate->SliverList(\@slivers) != 0) {
 	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 					"Could not get slivers list");
 	}
 	foreach my $sliver (@slivers) {
-	    my $sliver_blob = {
+	    $sliver_blob = {
 		'geni_sliver_urn' => $sliver->sliver_urn(),
 		'geni_expires' => $aggregate->expires(),
 		'geni_allocation_status' => "geni_provisioned",
@@ -768,6 +779,40 @@ sub Describe
 	    push(@geni_slivers, $sliver_blob);
 	}
     }
+    # Add any slivers which are allocated (exist in the ticket)
+    if (defined($ticket)) {
+	# Get expiration date from ticket
+	my $parser = XML::LibXML->new;
+	my $doc;
+	eval {
+	    $doc = $parser->parse_string($ticket->asString());
+	};
+	if ($@) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Failed to parse ticket string: $@");
+	}
+	my ($expires_node) = $doc->getElementsByTagName("expires");
+	if (!defined($expires_node)) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Ticket is missing expires node");
+	}
+	my $expires = $expires_node->to_literal();
+
+	# Get list of slivers from the rspec
+	my $rspec = $ticket->rspec();
+	my $sliverids = RspecToSlivers(GeniXML::Serialize($rspec));
+	foreach my $sliverid (@{ $sliverids }) {
+	    $sliver_blob = {
+		'geni_sliver_urn' => $sliverid,
+		'geni_expires' => $expires,
+		'geni_allocation_status' => "geni_allocated",
+		'geni_operational_status' => "geni_pending_allocation",
+		'geni_error' => ''
+	    };
+	    push(@geni_slivers, $sliver_blob);
+	}
+    }
+
     my $blob = {
 	'geni_rspec' => GeniXML::Serialize($manifest),
 	'geni_urn' => $slice->urn(),
@@ -784,19 +829,59 @@ sub Allocate
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
     my $credentials = FilterCredentials($credential_args);
+    my $cred = GeniCMV2::CheckCredentials($credentials);
+    return $cred
+	if (GeniResponse::IsResponse($cred));
 
-    my $args = {
-	'slice_urn' => $slice_urn,
-	'rspec' => $rspec,
-	'credentials' => $credentials
-    };
+    # Check rspec using rspeclint
+    my ($fh, $filename) = tempfile(UNLINK => 0);
+    if (!defined($fh)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Could not check rspec");
+    }
+    print $fh $rspec;
+    close($fh);
+    my $rspecerrors = `$RSPECLINT $filename 2>&1`;
+    if ($?) {
+	unlink($filename);
+	return GeniResponse->Create(GENIRESPONSE_ERROR,
+				        $rspecerrors,
+				    "Given rspec does not validate");
+    }
+    if ($rspecerrors ne "") {
+	print STDERR "--- BEGIN RSPECLINT ERRORS ---\n";
+	print STDERR $rspecerrors;
+	print STDERR "--- END RSPECLINT ERRORS ---\n\n";
+    }
+    unlink($filename);
 
-    my $response = GeniCMV2::GetTicket($args);
+    my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
+    my $ticket;
+    if (defined($slice)) {
+	return $slice
+	    if (GeniResponse::IsResponse($slice));
+	$ticket = GeniTicket->SliceTicket($slice);
+    }
+
+    my $response;
+    if (defined($ticket)) {
+	$response = AllocateTicket($slice_urn, $rspec, $credentials,
+				   GeniXML::Serialize($ticket->rspec()),
+				   $ticket->asString());
+    } elsif (defined($aggregate)) {
+	$response = AllocateAggregate($slice_urn, $rspec, $credentials,
+				 $aggregate->GetManifest(),
+				 $aggregate->urn());
+    } else {
+	$response = AllocateEmpty($slice_urn, $rspec, $credentials);
+    }
+
     if (! GeniResponse::IsError($response)) {
 	my $description = Describe([$slice_urn], $credential_args, []);
 	if (! GeniResponse::IsError($description)) {
+	    my $rspec = $description->{'value'}->{'geni_rspec'};
 	    my $blob = {
-		'geni_rspec' => $description->{'value'}->{'geni_rspec'},
+		'geni_rspec' => $rspec,
 		'geni_slivers' => []
 	    };
 	    for my $sliver (@{ $description->{'value'}->{'geni_slivers'} }) {
@@ -814,6 +899,52 @@ sub Allocate
 	}
     }
     return $response;
+}
+
+# Allocate when there is a ticket or ticket+sliver
+sub AllocateTicket
+{
+    my ($slice_urn, $rspec, $credentials, $currentRspec, $ticketStr) = @_;
+    my $combined = CombineDisjoint($currentRspec, $rspec);
+    if (GeniResponse::IsResponse($combined)) {
+	return $combined;
+    }
+    my $args = {
+	'slice_urn' => $slice_urn,
+	'ticket' => $ticketStr,
+	'rspec' => $combined,
+	'credentials' => $credentials
+    };
+    return GeniCMV2::UpdateTicket($args);
+}
+
+# Allocate when there is a sliver but no ticket
+sub AllocateAggregate
+{
+    my ($slice_urn, $rspec, $credentials, $currentRspec, $sliver_urn) = @_;
+    my $combined = CombineDisjoint( $currentRspec, $rspec);
+    if (GeniResponse::IsResponse($combined)) {
+	return $combined;
+    }
+    my $args = {
+	'sliver_urn' => $sliver_urn,
+	'rspec' => $combined,
+	'credentials' => $credentials
+    };
+    return GeniCMV2::UpdateSliver($args);
+}
+
+# Allocate when there are no slices or slivers
+sub AllocateEmpty
+{
+    my ($slice_urn, $rspec, $credentials) = @_;
+    my $args = {
+	'slice_urn' => $slice_urn,
+	'rspec' => $rspec,
+	'credentials' => $credentials
+    };
+
+    return GeniCMV2::GetTicket($args);
 }
 
 sub Renew
@@ -960,9 +1091,9 @@ sub PerformOperationalAction
 
     if ($action eq 'geni_start') {
 	return GeniCMV2::StartSliver($args);
-    } elsif ($action eq 'restart') {
+    } elsif ($action eq 'geni_restart') {
 	return GeniCMV2::RestartSliver($args);
-    } elsif ($action eq 'stop') {
+    } elsif ($action eq 'geni_stop') {
 	return GeniCMV2::StopSliver($args);
     } else {
 	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
@@ -977,6 +1108,23 @@ sub Delete
     my @urns = @{ $urn_args };
     return GeniResponse->MalformedArgsResposne("Empty URN List")
 	if (scalar(@urns) < 1);
+
+    # Must create return structure before deletion because this data
+    # won't exist afterwards.
+    my $description = Describe($urn_args, $credential_args, []);
+    return $description
+	if (GeniResponse::IsError($description));
+    my $slivers = [];
+    foreach my $sliver (@{ $description->{'value'}->{'geni_slivers'} }) {
+	my $blob = {
+	    'geni_sliver_urn' => $sliver->{'geni_sliver_urn'},
+	    'geni_allocation_status' => 'geni_unallocated',
+	    'geni_expires' => $sliver->{'geni_expires'},
+	    'geni_error' => ''
+	};
+	push(@{ $slivers }, $blob);
+    }
+
     my $credentials = FilterCredentials($credential_args);
     my $args = {
 	'slice_urn' => $urns[0],
@@ -984,7 +1132,7 @@ sub Delete
     };
     my $response = GeniCMV2::DeleteSlice($args);
     if (! GeniResponse::IsError($response)) {
-	$response = GeniResponse->Create(GENIRESPONSE_SUCCESS, []);
+	$response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $slivers);
     }
     return $response;
 }
@@ -1030,6 +1178,117 @@ sub GetOpState
 	$result = 'geni_notready';
     }
     print STDERR $sliver->status() . ", " . $sliver->state() . ", " . $result . "\n";
+    return $result;
+}
+
+# Rspec is expected to be in string form.
+# Returns a list of sliver URNs found in the rspec.
+sub RspecToSlivers
+{
+    my $result = [];
+    my ($rspecStr) = @_;
+    my $rspec = GeniXML::Parse($rspecStr);
+    if (defined($rspec)) {
+	foreach my $noderef (GeniXML::FindNodes("n:node",
+						$rspec)->get_nodelist()) {
+	    my $sliver_id = GeniXML::GetSliverId($noderef);
+	    if (defined($sliver_id)) {
+		push(@{ $result }, $sliver_id);
+	    }
+	}
+    }
+    return $result;
+}
+
+# Rspec is an XML tree.
+# Returns a table of client_ids
+sub RspecToClientIds
+{
+    my $result = {};
+    my ($rspec) = @_;
+    if (defined($rspec)) {
+	my @nodes = GeniXML::FindNodes("n:node",
+				       $rspec)->get_nodelist();
+	my @links = GeniXML::FindNodes("n:link",
+				       $rspec)->get_nodelist();
+	my @ifaces = GeniXML::FindNodes("n:node/n:interface",
+					$rspec)->get_nodelist();
+	push(@nodes, @links, @ifaces);
+	foreach my $noderef (@nodes) {
+	    my $id = GeniXML::GetVirtualId($noderef);
+	    if (defined($id)) {
+		$result->{$id} = 1;
+	    }
+	}
+    }
+    return $result;    
+}
+
+# currentStr and newStr are both rspec strings
+# Returns a combined rspec string or a GeniResponse error
+sub CombineDisjoint
+{
+    my ($currentStr, $newStr) = @_;
+    my $current = GeniXML::Parse($currentStr);
+    my $new = GeniXML::Parse($newStr);
+    if (! defined($current) || ! defined($new)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Could not parse rspecs on allocate");
+    }
+    my $currentIds = RspecToClientIds($current);
+    my $newIds = RspecToClientIds($new);
+    my $found = 0;
+    foreach my $id (keys(%{ $newIds })) {
+	if (exists($currentIds->{$id})) {
+	    $found = 1;
+	    last;
+	}
+    }
+    if ($found) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "New rspec is not disjoint from sliver");
+    }
+
+    foreach my $child ($new->childNodes()) {
+	$current->appendChild($child);
+    }
+
+    return GeniXML::Serialize($current);
+}
+
+# Returns true if the list of slivers has a slice urn
+sub HasSliceUrn
+{
+    my ($slice, $slivers) = @_;
+    my $result = 0;
+    foreach my $item (@{ $slivers }) {
+	if ($slice->urn() eq $item) {
+	    $result = 1;
+	    last;
+	}
+    }
+    return $result;
+}
+
+# Returns true if left and right are the same set of slivers.
+sub SameSlivers
+{
+    my ($left, $right) = @_;
+    my $result = 1;
+    my %leftTable = ();
+    foreach my $item (@{ $left }) {
+	$leftTable{$item} = 1;
+    }
+    if (scalar(keys(%leftTable)) != scalar(@{ $right })) {
+	$result = 0;
+    } else {
+	foreach my $item (@{ $right }) {
+	    if (! exists($leftTable{$item})) {
+		$result = 0;
+		last;
+	    }
+	}
+    }
     return $result;
 }
 

@@ -176,9 +176,18 @@ sub Create($$$$$$$$)
 	$hrn, $nickname, $rspec) = @_;
     my @insert_data = ();
 
-    # Every sliver gets a new unique index.
-    my $idx = TBGetUniqueIndex('next_sliver', 1);
-    my $urn = GeniHRN::Generate("@OURDOMAIN@", "sliver", $idx);
+    my $urn;
+    # Get sliver id from the ticket if available.
+    if (defined($rspec)) {
+	$urn = GeniXML::GetSliverId($rspec);
+    }
+    # Otherwise, generate a fresh one.
+    if (! defined($urn)) {
+	# Every sliver gets a new unique index.
+	my $sliver_idx = TBGetUniqueIndex('next_sliver', 1);
+	$urn = GeniHRN::Generate("@OURDOMAIN@", "sliver", $sliver_idx);
+    }
+    my (undef, undef, $idx) = GeniHRN::Parse($urn);
 
     # Sanity check.
     my $certificate = GeniCertificate->Lookup($urn);

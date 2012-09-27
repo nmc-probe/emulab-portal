@@ -59,6 +59,7 @@ try:
                          response_handler=geni_am_response_handler)
     if response:
         print "Sliver %s has been deleted." % (SLICENAME)
+	print str(response)
     else:
         msg = "Something went wrong. Sliver %s has not been deleted."
         print msg % (SLICENAME)

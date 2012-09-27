@@ -80,7 +80,7 @@ if rval:
     Fatal("Could not get ticket")
     pass
 ticket = response["value"]
-#print str(ticket)
+print str(ticket)
 sys.exit(0)
 
 #
@@ -88,17 +88,17 @@ sys.exit(0)
 # Proper to dig out the rspec from the ticket and use that, modified if
 # desired. 
 #
-print "Got the ticket, doing a update on it. "
-params = {}
-params["slice_urn"]   = myslice["urn"]
-params["ticket"]      = ticket
-params["credentials"] = (slicecredential,)
-params["rspec"]       = rspec
-params["impotent"]    = 0
-rval,response = do_method("cm", "UpdateTicket", params, version="2.0")
-if rval:
-    Fatal("Could not update ticket")
-    pass
-ticket = response["value"]
-print "Updated the ticket."
-print str(ticket)
+#print "Got the ticket, doing a update on it. "
+#params = {}
+#params["slice_urn"]   = myslice["urn"]
+#params["ticket"]      = ticket
+#params["credentials"] = (slicecredential,)
+#params["rspec"]       = rspec
+#params["impotent"]    = 0
+#rval,response = do_method("cm", "UpdateTicket", params, version="2.0")
+#if rval:
+#    Fatal("Could not update ticket")
+#    pass
+#ticket = response["value"]
+#print "Updated the ticket."
+#print str(ticket)

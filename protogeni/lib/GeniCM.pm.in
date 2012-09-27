@@ -2031,6 +2031,10 @@ sub GetTicketAuxAux($$$$$$$$$)
 	# the virt_nodes entry since exclusive is just a desire. 
 	#
 	my $exclusive = (defined($node->sharing_mode()) ? "0" : "1");
+
+	# Set sliver urns in ticket
+	my $sliver_idx = TBGetUniqueIndex('next_sliver', 1);
+	my $sliver_urn = GeniHRN::Generate( "@OURDOMAIN@", "sliver", $sliver_idx );
 	
 	if (GeniXML::IsVersion0($rspec)) {
 	    GeniXML::SetText("component_urn", $rspec,
@@ -2039,6 +2043,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    GeniXML::SetText("component_uuid", $rspec, $component_id);
 	    GeniXML::SetText("component_manager_urn", $rspec, $ENV{'MYURN'});
 	    GeniXML::SetText("component_manager_uuid", $rspec, $ENV{'MYUUID'});
+	    GeniXML::SetText("sliver_urn", $rspec, $sliver_urn);
 	} else {
 	    GeniXML::SetText("component_id", $rspec,
 			     GeniHRN::Generate( $OURDOMAIN, "node",
@@ -2051,6 +2056,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 						$GeniXML::EMULAB_NS);
 	    }
 	    GeniXML::SetText("name", $vnoderef, $node->node_id());
+	    GeniXML::SetText("sliver_id", $rspec, $sliver_urn);
 	}
 	GeniXML::SetExclusive($rspec, $exclusive);
 
