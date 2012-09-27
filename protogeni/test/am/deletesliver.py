@@ -64,7 +64,7 @@ print "Got the slice credential, deleting the sliver..."
 params = [myslice["urn"], [slicecred]]
 
 try:
-    response = do_method("am", "DeleteSliver", params,
+    response = do_method("am/2.0", "DeleteSliver", params,
                          response_handler=geni_am_response_handler)
     if response:
         print "Sliver %s has been deleted." % (SLICENAME)

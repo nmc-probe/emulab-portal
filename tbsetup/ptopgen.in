@@ -108,6 +108,52 @@ if ($PGENISUPPORT) {
     $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
 }
 
+$opstate = <<'OPSTATE';
+<rspec_opstate xmlns="http://www.geni.net/resources/rspec/ext/opstate/1"
+  aggregate_manager_id="CMURN"
+  start="geni_notready">
+  <sliver_type name="raw-pc" />
+  <sliver_type name="emulab-openvz" />
+
+  <state name="geni_notready">
+    <action name="geni_start" next="geni_configuring">
+      <description>Boot the node</description>
+    </action>
+    <description>Raw PCs and VMs begin powered down or inactive. They
+    must be explicitly booted before use.</description>
+  </state>
+  <state name="geni_configuring">
+    <wait type="geni_success" next="geni_ready" />
+    <wait type="geni_failure" next="geni_failed" />
+    <description>Booting takes a significant amount of time, so it
+    happens asynchronously while the node is in this
+    state.</description>
+  </state>
+  <state name="geni_ready">
+    <action name="geni_restart" next="geni_configuring">
+      <description>Reboot the node</description>
+    </action>
+    <action name="geni_stop" next="geni_stopping">
+      <description>Power down or stop the node.</description>
+    </action>
+    <description>The node is up and ready to use.</description>
+  </state>
+  <state name="geni_stopping">
+    <wait type="geni_success" next="geni_notready" />
+    <wait type="geni_failure" next="geni_failed" />
+    <description>The node is being stopped or rebooted.</description>
+  </state>
+  <state name="geni_failed">
+    <description>The node has failed and requires administrator
+    intervention before it can be used. Please contact
+    the administrator for assistance.</description>
+  </state>
+</rspec_opstate>
+OPSTATE
+
+$opstate =~ s/CMURN/$cmurn/g;
+
+
 my $default_long = undef;
 TBGetSiteVar('general/default_longitude', \$default_long);
 my $default_lat = undef;
@@ -1875,6 +1921,7 @@ sub print_header {
 		}
 		print "</rspec_shared_vlan>\n";
 	    }
+	    print $opstate . "\n";
 	}
     }
 }
@@ -1895,7 +1942,6 @@ sub print_footer {
 		       $times[5] + 1900, $times[4] + 1, $times[3],
 		       $times[2], $times[1], $times[0]);
 		print ">\n";
-		my $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
 		my $cmurl = "@PROTOGENI_URL@";
 		print "<aggregate id=\"$cmurn\" url=\"$cmurl/am\">\n";
 		print  "<aggregatetype>protogeni</aggregatetype>\n".

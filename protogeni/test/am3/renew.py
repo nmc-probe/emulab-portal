@@ -1,31 +1,17 @@
 #! /usr/bin/env python
 #
+# GENIPUBLIC-COPYRIGHT
 # Copyright (c) 2008-2010 University of Utah and the Flux Group.
+# All rights reserved.
 # 
-# {{{GENIPUBLIC-LICENSE
-# 
-# GENI Public License
-# 
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and/or hardware specification (the "Work") to
-# deal in the Work without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense,
-# and/or sell copies of the Work, and to permit persons to whom the Work
-# is furnished to do so, subject to the following conditions:
-# 
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Work.
-# 
-# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
-# IN THE WORK.
-# 
-# }}}
+# Permission to use, copy, modify and distribute this software is hereby
+# granted provided that (1) source code retains these copyright, permission,
+# and disclaimer notices, and (2) redistributions including binaries
+# reproduce the notices in supporting documentation.
+#
+# THE UNIVERSITY OF UTAH ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+# CONDITION.  THE UNIVERSITY OF UTAH DISCLAIMS ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 #
 
 #
@@ -92,10 +78,15 @@ print "Renewed the slice, asking for slice credential again";
 #
 slicecred = get_slice_credential( myslice, mycredential )
 print "Got the slice credential, renewing the sliver";
+options = {}
+cred = {}
+cred["geni_type"] = "geni_sfa"
+cred["geni_version"] = "2"
+cred["geni_value"] = slicecred
 
-params = [SLICEURN, [slicecred], valid_until]
+params = [[SLICEURN], [cred], valid_until]
 try:
-    response = do_method("am/2.0", "RenewSliver", params,
+    response = do_method("am/3.0", "Renew", params,
                          response_handler=geni_am_response_handler)
     if response:
         print "Sliver has been renewed until " + valid_until

@@ -50,22 +50,29 @@ mycredential = get_self_credential()
 #
 # Ask manager for its list.
 #
+version = {}
+version['type'] = 'GENI'
+version['version'] = '3'
 options = {}
 options[available_key] = True
 options[compress_key] = True
+options['geni_rspec_version'] = version
 params = [[mycredential], options]
 
+
 try:
-    response = do_method("am", "ListResources", params,
+    response = do_method("am/2.0", "ListResources", params,
                          response_handler=geni_am_response_handler)
-    if compress_key in options and options[compress_key]:
+    if response['code']['geni_code'] == 0:
+      if compress_key in options and options[compress_key]:
         # decode and decompress the result
         #
         # response is a string whose content is a base64 encoded
         # representation of a zlib compressed rspec
-        print zlib.decompress(response.decode('base64'))
+        print zlib.decompress(response['value'].decode('base64'))
+      else:
+        print response['value']
     else:
-        print response
+      print response
 except xmlrpclib.Fault, e:
     Fatal("Could not get a list of resources: %s" % (str(e)))
-
