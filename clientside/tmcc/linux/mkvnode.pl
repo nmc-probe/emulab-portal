@@ -383,6 +383,8 @@ if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
 sub handler ($) {
     my ($signame) = @_;
 
+    print STDERR "mkvnode ($PID) caught a SIG${signame}!\n";
+
     # No more interruptions during teardown.
     $SIG{INT}  = 'IGNORE';
     $SIG{USR1} = 'IGNORE';
@@ -419,7 +421,8 @@ sub handler ($) {
     mysystem("touch $RUNNING_FILE")
 	if ($leaveme && -e "$RUNNING_FILE");
 
-    MyFatal("mkvnode ($PID) caught a SIG${signame}! container $str");
+    print STDERR "Container is being $str\n";
+    MyFatal("Container has been $str by $signame");
 }
 
 #
@@ -578,16 +581,16 @@ sub callback($)
 	if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "") {
 	    my $sshdport = VNCONFIG('SSHDPORT');
 
-	    system("echo '# EmulabJail' >> $path/etc/ssh/sshd_config");
-	    system("echo 'Port $sshdport' >> $path/etc/ssh/sshd_config");
+	    mysystem2("echo '# EmulabJail' >> $path/etc/ssh/sshd_config");
+	    mysystem2("echo 'Port $sshdport' >> $path/etc/ssh/sshd_config");
 	    if (VNCONFIG('CTRLIP') ne $ext_ctrlip) {
-		system("echo 'Port 22' >> $path/etc/ssh/sshd_config");
+		mysystem2("echo 'Port 22' >> $path/etc/ssh/sshd_config");
 	    }
 	}
     }
     # Localize the timezone.
-    system("cp -fp /etc/localtime $path/etc");
-    
+    mysystem2("cp -fp /etc/localtime $path/etc");
+
     return 0;
 }
 
