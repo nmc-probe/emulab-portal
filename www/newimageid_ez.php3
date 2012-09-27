@@ -42,6 +42,9 @@ $uid       = $this_user->uid();
 $dbid      = $this_user->dbid();
 $isadmin   = ISADMIN();
 
+# This will not return if its a sajax request.
+include("showlogfile_sup.php3");
+
 #
 # Verify page arguments.
 #
@@ -634,7 +637,10 @@ function SPITFORM($formfields, $errors)
 
     }
 
-    if ($isadmin && !isset($view["hide_mbr"])) {
+    if (isset($view["hide_mbr"])) {
+	spithidden($formfields, 'mbr_version');
+    }
+    else {
 	echo "<tr>
 	          <td>MBR Version:<br>
 		  <td class=left>
@@ -905,6 +911,9 @@ if (!isset($submit)) {
         # mtype_all is a "fake" variable which makes all
 	# mtypes checked in the virgin form.
 	$defaults["mtype_all"] = "Yep";
+
+	# Bogus. This tells the client that the ndz file is a package.
+	$defaults["mbr_version"] = "2";
     }
     elseif (isset($nodetype) && $nodetype == "mote") {
 	# Defaults for mote-type nodes
@@ -1388,6 +1397,7 @@ if (isset($node)) {
     $unix_gid  = $group->unix_gid();
     $unix_pid  = $project->unix_gid();
     $safe_name = escapeshellarg($imagename);
+    $experiment = $node->Reservation();
 
     echo "<br>
 	  Taking a snapshot of node '$node_id' for image ...
@@ -1403,6 +1413,10 @@ if (isset($node)) {
           <b>PLEASE DO NOT</b> delete the imageid or the experiment
           $node_id is in. In fact, it is best if you do not mess with 
           the node at all!<br>\n";
+
+    flush();
+
+    STARTLOG($experiment);
 }
 
 #
