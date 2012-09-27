@@ -174,7 +174,7 @@ if ($?) {
     $error = 1;
     goto cleanup;
 }
-if (! -e "$EXTRAFS/$vnodeid" || ! -e "$EXTRAFS/$vnodeid/kernel") {
+if (! -e "$EXTRAFS/$vnodeid" || ! -e "$EXTRAFS/$vnodeid/xm.conf") {
     print STDERR "$EXTRAFS/$vnodeid appears to be missing or incomplete\n";
     $error = 1;
     goto cleanup;
