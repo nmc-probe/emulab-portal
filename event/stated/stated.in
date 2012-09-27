@@ -869,6 +869,13 @@ sub stateTransition($$) {
 		    next;
 		}
 
+		# XXX defensive programming, this happened once
+		if (!defined($bootopmode)) {
+		    info("$node: TBBootWhat did not return op_mode ".
+			 "(osid=$bootosid)!? Remaining in $mode");
+		    next;
+		}
+
 		info("$node: BootWhat says $bootosid (mode $bootopmode).\n");
 		DBQueryFatal("update nodes set osid='$bootosid' ".
 			     "where node_id='$node'");
