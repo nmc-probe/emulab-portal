@@ -34,7 +34,7 @@ sub usage()
 {
     print "Usage: restorevm.pl [-d] [-t targetdir] vnodeid path\n" . 
 	  "  -d   Debug mode.\n".
-	  "  -t   Write new xm.conf and copy kernel to targetdir\n".
+	  "  -t   Write new xm.conf and copy kernel/ramdisk to targetdir\n".
 	  "  -i   Info mode only\n";
     exit(-1);
 }
@@ -51,7 +51,6 @@ my $IMAGEDUMP   = "imagedump";
 $| = 1;
 
 use libvnode_xen;
-use libvnode;
 
 # From the library
 my $VGNAME	= $libvnode_xen::VGNAME;
@@ -125,17 +124,28 @@ while (<XM>) {
 close(XM);
 
 #
-# Localize the path to the kernel. Copy out if there is a target dir.
+# Localize the path to the kernel (ramdisk). Copy out if there is a target dir.
 #
 if (defined($targetdir)) {
     if (!$infomode) {
 	system("/bin/cp -pf $path/" . $xminfo{"kernel"} .
 	       "            $targetdir/" . $xminfo{"kernel"});
+
+	if (exists($xminfo{"ramdisk"})) {
+	    system("/bin/cp -pf $path/" . $xminfo{"ramdisk"} .
+		   "            $targetdir/" . $xminfo{"ramdisk"});
+	}
     }
     $xminfo{"kernel"} = $targetdir . "/" . $xminfo{"kernel"};
+    if (exists($xminfo{"ramdisk"})) {
+	$xminfo{"ramdisk"} = $targetdir . "/" . $xminfo{"ramdisk"};
+    }
 }
 else {
     $xminfo{"kernel"} = $path . "/" . $xminfo{"kernel"};
+    if (exists($xminfo{"ramdisk"})) {
+	$xminfo{"ramdisk"} = $path . "/" . $xminfo{"ramdisk"};
+    }
 }
 
 #
@@ -194,7 +204,7 @@ foreach my $physinfo (keys(%diskinfo)) {
     my $spec = $diskinfo{$physinfo};
     my $dev;
     my $filename;
-    if ($spec =~ /,(sd\w+),/) {
+    if ($spec =~ /,(sd\w+),/ || $spec =~ /,(xvd\w+),/) {
 	$dev = $1;
     }
     else {
