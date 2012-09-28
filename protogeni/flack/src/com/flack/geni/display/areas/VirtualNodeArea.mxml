@@ -497,25 +497,31 @@ IN THE WORK.
 			private function addInstallService(installService:InstallService = null):void
 			{
 				var newInstallComponent:InstallServiceComponent = new InstallServiceComponent();
+				newInstallComponent.onChange = onChange;
 				if(installService != null)
 				{
 					newInstallComponent.url = installService.url;
 					newInstallComponent.path = installService.installPath;
 				}
 				installVgroup.addElement(newInstallComponent);
-				if(!okButton.enabled)
-					okButton.enabled = true;
+				onChange();
 			}
 			
 			private function addExecuteService(executeService:ExecuteService = null):void
 			{
 				var newExecuteComponent:ExecuteServiceComponent = new ExecuteServiceComponent();
+				newExecuteComponent.onChange = onChange;
 				if(executeService != null)
 				{
 					newExecuteComponent.cmd = executeService.command;
 					newExecuteComponent.shell = executeService.shell;
 				}
 				executeVgroup.addElement(newExecuteComponent);
+				onChange();
+			}
+			
+			private function onChange():void
+			{
 				if(!okButton.enabled)
 					okButton.enabled = true;
 			}

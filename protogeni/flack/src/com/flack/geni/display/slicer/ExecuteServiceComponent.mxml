@@ -45,6 +45,8 @@ IN THE WORK.
 			
 			import spark.components.Group;
 			
+			public var onChange:Function;
+			
 			[Bindable]
 			public var cmd:String = "";
 			[Bindable]
@@ -64,12 +66,14 @@ IN THE WORK.
 	<s:TextInput id="executeCommandText"
 				 width="90%"
 				 text="@{cmd}"
-				 prompt="Command" />
+				 prompt="Command"
+				 change="if(onChange != null) onChange();" />
 	<s:Label text="using" />
 	<s:TextInput id="executeShellText"
 				 width="10%"
 				 text="@{shell}"
-				 prompt="Shell? (sh, bash, etc.)" />
+				 prompt="Shell? (sh, bash, etc.)"
+				 change="if(onChange != null) onChange();" />
 	<components:ImageButton icon="{ImageUtil.deleteIcon}"
-							click="(parent as Group).removeElement(this)" />
+							click="if(onChange != null) onChange(); (parent as Group).removeElement(this)" />
 </s:HGroup>

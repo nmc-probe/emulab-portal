@@ -317,18 +317,27 @@ package com.flack.geni.resources.virtual
 				newClone.hardwareType.name = hardwareType.name;
 				newClone.hardwareType.slots = hardwareType.slots;
 			}
-			for each(var executeService:ExecuteService in services.executeServices)
+			if(services.executeServices != null)
 			{
-				var newExecute:ExecuteService = new ExecuteService(executeService.command, executeService.shell);
-				newExecute.extensions = executeService.extensions.Clone;
-				newClone.services.executeServices.push(newExecute);
+				newClone.services.executeServices = new Vector.<ExecuteService>();
+				for each(var executeService:ExecuteService in services.executeServices)
+				{
+					var newExecute:ExecuteService = new ExecuteService(executeService.command, executeService.shell);
+					newExecute.extensions = executeService.extensions.Clone;
+					newClone.services.executeServices.push(newExecute);
+				}
 			}
-			for each(var installService:InstallService in services.installServices)
+			if(services.installServices != null)
 			{
-				var newInstall:InstallService = new InstallService(installService.url, installService.installPath, installService.fileType);
-				newInstall.extensions = installService.extensions.Clone;
-				newClone.services.installServices.push(newInstall);
+				newClone.services.installServices = new Vector.<InstallService>();
+				for each(var installService:InstallService in services.installServices)
+				{
+					var newInstall:InstallService = new InstallService(installService.url, installService.installPath, installService.fileType);
+					newInstall.extensions = installService.extensions.Clone;
+					newClone.services.installServices.push(newInstall);
+				}
 			}
+			
 			newClone.extensions = extensions.Clone;
 			// Remove the emulab extensions, it's just manifest stuff
 			if(newClone.extensions.spaces != null)

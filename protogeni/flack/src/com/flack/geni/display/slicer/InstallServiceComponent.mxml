@@ -45,6 +45,8 @@ IN THE WORK.
 			
 			import spark.components.Group;
 			
+			public var onChange:Function;
+			
 			[Bindable]
 			public var url:String = "";
 			[Bindable]
@@ -64,12 +66,14 @@ IN THE WORK.
 	<s:TextInput id="installUrlText"
 				 width="50%"
 				 text="@{url}"
-				 prompt="Archive URL" />
+				 prompt="Archive URL"
+				 change="if(onChange != null) onChange();" />
 	<s:Label text="in" />
 	<s:TextInput id="installPathText"
 				 width="50%"
 				 text="@{path}"
-				 prompt="Install path" />
+				 prompt="Install path"
+				 change="if(onChange != null) onChange();" />
 	<components:ImageButton icon="{ImageUtil.deleteIcon}"
-							click="(parent as Group).removeElement(this)" />
+							click="if(onChange != null) onChange(); (parent as Group).removeElement(this)" />
 </s:HGroup>
