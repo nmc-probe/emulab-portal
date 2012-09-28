@@ -189,7 +189,7 @@ sub restartDHCP();
 sub formatDHCP($$$);
 sub fixupMac($);
 sub createControlNetworkScript($$$);
-sub createExpNetworkScript($$$$);
+sub createExpNetworkScript($$$$$);
 sub createExpBridges($$);
 sub destroyExpBridges($$);
 sub domainStatus($);
@@ -639,6 +639,10 @@ sub vnodeCreate($$$$)
     # Create aux disks.
     #
     if (exists($attributes->{'XEN_EXTRADISKS'})) {
+	my $vdiskprefix = "sd";
+	if ($xeninfo{xen_major} >= 4 && $os eq "Linux") {
+	    $vdiskprefix = 'xvd';
+	}
 	my @list = split(",", $attributes->{'XEN_EXTRADISKS'});
 	foreach my $disk (@list) {
 	    my ($name,$size) = split(":", $disk);
@@ -648,7 +652,8 @@ sub vnodeCreate($$$$)
 		fatal("libvnode_xen: could not create aux disk: $name");
 	    }
 	    my $vndisk = lvmVolumePath($auxlvname);
-	    my $vdisk  = "sd" . chr($auxchar++);
+	    
+	    my $vdisk  = $vdiskprefix . chr($auxchar++);
 	    my $stanza = "phy:$vndisk,$vdisk,w";
 
 	    $private->{'disks'}->{$auxlvname} = $auxlvname;
@@ -855,7 +860,8 @@ sub vnodePreConfigExpNetwork($$$$)
         my $physical_mac = "";
 	my $physical_dev;
         my $tag = 0;
-	my $ifname = $interface->{'ITYPE'} . $interface->{'ID'};
+	my $ifname = "veth.${vmid}." . $interface->{'ID'};
+	
 	#
 	# In the era of shared nodes, we cannot name the bridges
 	# using experiment local names (e.g., the link name).
@@ -914,8 +920,9 @@ sub vnodePreConfigExpNetwork($$$$)
 	foreach my $ldinfo (@$ldconfigs) {
 	    if ($ldinfo->{'IFACE'} eq $mac) {
 		$script = "$VMDIR/$vnode_id/enet-$mac";
-		my $log = "/var/emulab/logs/enet-$vnode_id.log";
-		createExpNetworkScript($vmid, $ldinfo, $script, $log);
+		my $sh  = "${script}.sh";
+		my $log = "${script}.log";
+		createExpNetworkScript($vmid, $ldinfo, $script, $sh, $log);
 	    }
 	}
 
@@ -1341,6 +1348,9 @@ sub disk_hacks($)
 
     rmtree(["$path/var/emulab/boot/tmcc"]);
 
+    # Run prepare inside to clean up.
+    system("/usr/sbin/chroot $path /usr/local/etc/emulab/prepare -N");
+
     # don't try to recursively boot vnodes!
     unlink("$path/usr/local/etc/emulab/bootvnodes");
 
@@ -1350,6 +1360,10 @@ sub disk_hacks($)
     # don't start dhcpd in the VM
     unlink("$path/etc/dhcpd.conf");
     unlink("$path/etc/dhcp/dhcpd.conf");
+
+    # No xen daemons
+    unlink("$path/etc/init.d/xend");
+    unlink("$path/etc/init.d/xendomains");
 
     # Remove mtab just in case
     unlink("$path/etc/mtab");
@@ -1719,30 +1733,45 @@ sub createControlNetworkScript($$$)
     open(FILE, ">$file") or die $!;
     print FILE "#!/bin/sh\n";
     print FILE "/etc/xen/scripts/emulab-cnet.pl $vmid $host_ip $name $ip \$* ".
-	"> ${file}.debug 2>&1 > ${file}.debug\n";
+	">${file}.debug 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0555, $file);
 }
 
-sub createExpNetworkScript($$$$)
+sub createExpNetworkScript($$$$$)
 {
-    my ($vmid,$info,$file,$lfile) = @_;
+    my ($vmid,$info,$wrapper,$file,$lfile) = @_;
     my $TC = "/sbin/tc";
 
-    open(FILE, ">$file") or die $!;
+    if (! open(FILE, ">$wrapper")) {
+	print STDERR "Error creating $wrapper: $!\n";
+	return -1;
+    }
+    print FILE "#!/bin/sh\n";
+    print FILE "echo \"\$*\" >$lfile\n";
+    print FILE "echo \"\$vif\" >>$lfile\n";
+    print FILE "echo \"\$XENBUS_PATH\" >>$lfile\n";
+    print FILE "sh $file \$* >>$lfile 2>&1\n";
+    print FILE "exit \$?\n";
+    close(FILE);
+    chmod(0554, $wrapper);
+    
+    if (! open(FILE, ">$file")) {
+	print STDERR "Error creating $file: $!\n";
+	return -1;
+    }
     print FILE "#!/bin/sh\n";
     print FILE "OP=\$1\n";
-    print FILE "sh /etc/xen/scripts/vif-bridge \$*\n";
+    print FILE "/etc/xen/scripts/vif-bridge \$*\n";
     print FILE "STAT=\$?\n";
     print FILE "if [ \$STAT -ne 0 -o \"\$OP\" != \"online\" ]; then\n";
     print FILE "    exit \$STAT\n";
     print FILE "fi\n";
     print FILE "# XXX redo what vif-bridge does to get named interface\n";
-    print FILE "vifname=`xenstore read \$XENBUS_PATH/vifname`\n";
-    print FILE "\${vifname:=\$vif}\n";
+    print FILE "vifname=`xenstore-read \$XENBUS_PATH/vifname`\n";
     print FILE "echo \"Configuring shaping for \$vifname (MAC ",
-                     $info->{'IFACE'}, ")\" >>$lfile\n";
+                     $info->{'IFACE'}, ")\"\n";
 
     my $iface     = $info->{'IFACE'};
     my $type      = $info->{'TYPE'};
@@ -1803,32 +1832,46 @@ sub createExpNetworkScript($$$$)
     my $cmd;
     if ($queue ne "") {
 	$cmd = "/sbin/ifconfig $iface txqueuelen $queue";
-	print FILE "echo \"$cmd\" >>$lfile\n";
-	print FILE "$cmd >>$lfile 2>&1\n";
+	print FILE "echo \"$cmd\"\n";
+	print FILE "$cmd\n\n";
     }
-    $cmd = "$TC qdisc add dev $iface handle $pipeno root plr $plr";
-    print FILE "echo \"$cmd\" >>$lfile\n";
-    print FILE "$cmd >>$lfile 2>&1\n";
+    my @cmds = ();
 
-    $cmd = "$TC qdisc add dev $iface handle $pipe10 ".
-	   "parent ${pipeno}:1 delay usecs $delay";
-    print FILE "echo \"$cmd\" >>$lfile\n";
-    print FILE "$cmd >>$lfile 2>&1\n";
-
-    $cmd = "$TC qdisc add dev $iface handle $pipe20 ".
-	   "parent ${pipe10}:1 htb default 1";
-    print FILE "echo \"$cmd\" >>$lfile\n";
-    print FILE "$cmd >>$lfile 2>&1\n";
-
-    if ($bandw != 0) {
-	$cmd = "$TC class add dev $iface classid $pipe20:1 ".
-	       "parent $pipe20 htb rate ${bandw} ceil ${bandw}";
-	print FILE "echo \"$cmd\" >>$lfile\n";
-	print FILE "$cmd >>$lfile 2>&1\n";
+    if ($xeninfo{xen_major} >= 4) {
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipe20 root htb default 1");
+	if ($bandw != 0) {
+	    push(@cmds,
+		 "$TC class add dev $iface classid $pipe20:1 ".
+		 "parent $pipe20 htb rate ${bandw} ceil ${bandw}");
+	}
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipe10 parent $pipe20:1 ".
+	     "netem drop $plr delay ${delay}us\n");
+    }
+    else {
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipeno root plr $plr");
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipe10 ".
+	     "parent ${pipeno}:1 delay usecs $delay");
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipe20 ".
+	     "parent ${pipe10}:1 htb default 1");
+	if ($bandw != 0) {
+	    push(@cmds,
+		 "$TC class add dev $iface classid $pipe20:1 ".
+		 "parent $pipe20 htb rate ${bandw} ceil ${bandw}");
+	}
+    }
+    foreach my $cmd (@cmds) {
+	print FILE "echo \"$cmd\"\n";
+	print FILE "$cmd\n\n";
     }
 
     close(FILE);
     chmod(0554, $file);
+    return 0;
 }
 
 sub createExpBridges($$)
