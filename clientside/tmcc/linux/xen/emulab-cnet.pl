@@ -118,10 +118,16 @@ sub Online()
 	      "--physdev-out $outer_controlif -j DROP");
     return -1
 	if ($?);
-   
-    mysystem2("$IPTABLES -A FORWARD -m physdev --physdev-in $vif -j ACCEPT");
-    return -1
-	if ($?);
+
+    #
+    # We ask vif-bridge to turn on antispoofing; this rule would negate that.
+    #
+    if (0) {
+	mysystem2("$IPTABLES -A FORWARD -m physdev ".
+		  "--physdev-in $vif -j ACCEPT");
+	return -1
+	    if ($?);
+    }
     
     # Start a tmcc proxy (handles both TCP and UDP)
     my $tmccpid = fork();
@@ -162,10 +168,15 @@ sub Online()
     #
     # GROSS! source-nat all traffic destined the fs node, to come from the
     # vnode host, so that NFS mounts work. We do this for non-shared nodes.
-    # Shared nodes do the mounts normally from inside the guest. Maybe this
-    # distinction is pointless, but it lowers the number of exported mounts
-    # on the file server.
-    #
+    # Shared nodes do the mounts normally from inside the guest. The reason
+    # for this distinction is that on a shared host, we ask vif-bridge to
+    # turn on antispoofing so that the guest cannot use an IP address other
+    # then what we assign. On a non-shared node, the user can log into the
+    # physical host and pick any IP they want, but as long as the NFS server
+    # is exporting only to the physical IP, they won't be able to mount
+    # any directories outside their project. The NFS server *does* export
+    # filesystems to the guest IPs if the guest is on a shared host.
+    # 
     if (!SHAREDHOST()) {
 	mysystem2("$IPTABLES -t nat -A POSTROUTING -j SNAT ".
 	       "  --to-source $host_ip -s $vnode_ip --destination $fs_ip ".
@@ -183,7 +194,12 @@ sub Offline()
 	      "--pkt-type broadcast " .
 	      "-m physdev --physdev-in $vif --physdev-is-bridged ".
 	      "--physdev-out $outer_controlif -j DROP");
-    mysystem2("$IPTABLES -D FORWARD -m physdev --physdev-in $vif -j ACCEPT");
+
+    # See above. 
+    if (0) {
+	mysystem2("$IPTABLES -D FORWARD -m physdev ".
+		  "--physdev-in $vif -j ACCEPT");
+    }
 
     # tmcc
     # Reroute tmcd calls to the proxy on the physical host

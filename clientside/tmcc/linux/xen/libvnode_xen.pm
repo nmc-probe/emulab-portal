@@ -112,6 +112,7 @@ my $MODPROBE = "/sbin/modprobe";
 my $DHCPCONF_FILE = "/etc/dhcpd.conf";
 my $NEW_DHCPCONF_FILE = "/etc/dhcp/dhcpd.conf";
 my $RESTOREVM	= "$BINDIR/restorevm.pl";
+my $IPTABLES	= "/sbin/iptables";
 
 my $debug  = 0;
 
@@ -279,6 +280,16 @@ sub rootPreConfig()
 	system("route del default >/dev/null 2>&1");
 	mysystem("route add default gw $cnet_gw");
     }
+
+    #
+    # We use xen's antispoofing when constructing the guest control net
+    # interfaces. This is most useful on a shared host, but no harm
+    # in doing it all the time. 
+    #
+    mysystem("$IPTABLES -P FORWARD DROP");
+    mysystem("$IPTABLES -F FORWARD");
+    mysystem("$IPTABLES -A FORWARD ".
+	     "-m physdev --physdev-in $cnet_iface -j ACCEPT");
 
     #
     # Ensure that LVM is loaded in the kernel and ready.
@@ -534,6 +545,7 @@ sub vnodeCreate($$$$)
 	    fatal("xen_vnodeCreate: Could not restore disk info from $conf");
 	}
 	$private->{'disks'} = $disks;
+	TBScriptUnlock();
 	goto done;
     }
 
@@ -808,6 +820,7 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     $vninfo->{'cnet'}->{'mac'} = $fmac;
     $vninfo->{'cnet'}->{'bridge'} = $cbridge;
     $vninfo->{'cnet'}->{'script'} = $cscript;
+    $vninfo->{'cnet'}->{'ip'} = $ip;
 
     # Create a network config script for the interface
     my $stuff = {'name' => $vnode_id,
@@ -850,6 +863,8 @@ sub vnodePreConfigExpNetwork($$$$)
     # Build up a config file line for all interfaces, starting with cnet
     my $vifstr = "vif = ['" .
 	"mac=" . $vninfo->{'cnet'}->{'mac'} . ", " .
+	# This tells vif-bridge to use antispoofing iptable rules.
+	"ip=" . $vninfo->{'cnet'}->{'ip'} . ", " .
         "bridge=" . $vninfo->{'cnet'}->{'bridge'} . ", " .
         "script=" . $vninfo->{'cnet'}->{'script'} . "'";
 
@@ -1847,7 +1862,7 @@ sub createExpNetworkScript($$$$$)
 	}
 	push(@cmds,
 	     "$TC qdisc add dev $iface handle $pipe10 parent $pipe20:1 ".
-	     "netem drop $plr delay ${delay}us\n");
+	     "netem drop $plr delay ${delay}us");
     }
     else {
 	push(@cmds,
