@@ -43,9 +43,7 @@ $EMULAB_PEMFILE    = "$ETCDIR/genicm.pem";
 
 # Testbed libraries.
 use lib '@prefix@/lib';
-use emutil;
 use GeniAM;
-use GeniHRN;
 use GeniResponse;
 
 if (!defined($GENI_VERSION)) {
@@ -131,7 +129,6 @@ sub ConvertResponseV2($)
 	# the geni_code to ERROR
 	$geni_code = GeniResponse::GENIRESPONSE_ERROR();
     }
-    my $errorLog = "";
     my $blob = {
 	"value" => GeniResponse::value($geni_response),
 	"output" => GeniResponse::output($geni_response),
@@ -141,11 +138,9 @@ sub ConvertResponseV2($)
 	    "am_type" => "protogeni"
 	}
     };
-    if (GeniResponse::IsError($geni_response)) {
-	my $log = TBGetUniqueIndex('next_geni_log', 1);
-	my $errorLog = GeniHRN::Generate("@OURDOMAIN@", "log", $log);
-	print STDERR "ERROR_LOG=" . $errorLog . "\n";
-	$blob->{'code'}->{'protogeni_error_log'} = $errorLog;
+    if (exists($geni_response->{'protogeni_error_log'})) {
+	$blob->{'code'}->{'protogeni_error_log'} =
+	    $geni_response->{'protogeni_error_log'};
     }
 
     if (defined($version)) {

@@ -82,6 +82,7 @@ use vars qw($EMULAB_PEMFILE $GENI_METHODS $GENI_VERSION
 
 # Testbed libraries.
 use lib '@prefix@/lib';
+use emutil;
 use Genixmlrpc;
 use GeniResponse;
 use GeniHRN;
@@ -436,6 +437,11 @@ else {
     $message .= "End:     " . TBTimeStamp() . "\n";
     $message .= "Elapsed: " . sprintf("%f", $elapsed) . "\n";
 
+    my $logNumber = TBGetUniqueIndex('next_geni_log', 1);
+    my $logurn = GeniHRN::Generate("@OURDOMAIN@", "log", $logNumber);
+    $message .=
+	"Log URN: " . $logurn . "\n";
+
     if (!ref($result)) {
 	$message .= "Return:    $result\n";
     }
@@ -489,6 +495,8 @@ else {
 		print STDERR "Mail Errors is on.\n";
 	    }
 	}
+
+	$result->{'protogeni_error_log'} = $logurn;
 
 	#
 	# Added this for geni-am ...
