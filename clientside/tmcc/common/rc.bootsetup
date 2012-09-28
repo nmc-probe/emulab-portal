@@ -321,7 +321,8 @@ sub doboot()
 	runbootscript(\%manifest,$RCDIR,'rc.healthd','boot','start');
     }
     
-    if (-x "$RCDIR/rc.slothd" && !(REMOTE() || GENVNODE())) {
+    if (-x "$RCDIR/rc.slothd" &&
+	!(REMOTE() || (GENVNODE() && !INXENVM()))) {
 	print("Starting slothd usage detector\n");
 	runbootscript(\%manifest,$RCDIR,'rc.slothd','boot','start');
     }
