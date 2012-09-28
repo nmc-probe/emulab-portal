@@ -346,6 +346,8 @@ my $pgrp = getpgrp(0);
 sub handler ($) {
     my ($signame) = @_;
     
+    print STDERR "vnodesetup ($PID) caught a SIG${signame}!\n";
+
     $SIG{USR1} = 'IGNORE';
     $SIG{USR2} = 'IGNORE';
 
@@ -368,7 +370,8 @@ sub handler ($) {
 	$leavejail = 1;
     }
 
-    fatal("Caught a SIG${signame}! Killing the vnode ...");
+    print STDERR "Killing the vnode ...\n";
+    fatal("Death by $signame");
 }
 # We get this when the physical node is rebooting or when asked to "halt" the
 # container. In either case, transient state is removed, disk is retained.
@@ -696,17 +699,40 @@ sub cleanup()
     # First force the jail to exit. 
     #
     if (defined($jailpid)) {
+	my $sigtosend;
+
 	if ($leavejail) {
 	    # Leave disk intact, kill all other transient state.
 	    # Halting or physical node rebooting.
-	    kill('USR1', $jailpid);
+	    $sigtosend = 'USR1';
 	}
 	else {
 	    # All trace removed.
-	    kill('HUP', $jailpid);
+	    $sigtosend = 'HUP';
 	}
-	waitpid($jailpid, 0);
-	undef($jailpid);
+	kill($sigtosend, $jailpid);
+	sleep(5);
+	my $kidpid = waitpid($jailpid, &WNOHANG);
+	if ($kidpid == $jailpid) {
+	    undef($jailpid);
+	}
+	
+	#
+	# The jail process sometimes refuses to die. Keep trying.
+	# We send the signal again cause I have seen cases where it
+	# is ignored, for no reason that I can find. We need to
+	# eventually stop, but not sure how to deal with this.
+	#
+	while (defined($jailpid)) {
+	    sleep(15);
+	    my $kidpid = waitpid($jailpid, &WNOHANG);
+	    if ($kidpid == $jailpid) {
+		undef($jailpid);
+		last;
+	    }
+	    print STDERR "$jailpid would not die; signalling again.\n";
+	    kill($sigtosend, $jailpid);
+	}
 
 	#
 	# Kill off everything else (unnecessary in a vserver)
