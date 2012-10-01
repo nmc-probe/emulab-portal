@@ -18,6 +18,9 @@ $BASH = "C:\Cygwin\bin\bash.exe"
 $BASHARGS = "-l -c"
 $CMDTMP = "C:\Windows\Temp\_tmpout-basesetup"
 $VAR_RE = '[a-zA-Z]\w{1,30}'
+$REGENVPATHKEY = "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+$REGENVPATHVAL = "Path"
+$REGENVPATHTYPE = "String"
 
 #
 # Global Variables
@@ -156,6 +159,38 @@ Function addreg_func($cmdarr) {
 		    return $FAIL
 	    }
 
+	return $SUCCESS
+}
+
+Function modpathenv_func($cmdarr) {
+	debug("appendpath called with: $cmdarr")
+
+	if ($cmdarr.count -ne 2) {
+		log("Must supply a string to append and operation.")
+		return $FAIL
+	}
+
+	$path,$op = $cmdarr
+
+	if (!(Test-Path -IsValid -Path $path)) {
+		log("Invalid path given: $path")
+		return $FAIL
+	}
+
+	$envobj = Get-ItemProperty -Path $REGENVPATHKEY -Name $REGENVPATHVAL
+	$envstr = $envobj.$REGENVPATHVAL
+	if ($op -eq "append") {
+		$envstr += ";${path}"
+	} elseif ($op -eq "prepend") {
+		$envstr = "${path};${envstr}"
+	} else {
+		log("ERROR: Bad operation provided: $op")
+		return $FAIL
+	}
+
+	New-ItemProperty -Path $REGENVPATHKEY -Name $REGENVPATHVAL `
+	    -PropertyType $REGENVPATHTYPE -Value $envstr -Force
+	
 	return $SUCCESS
 }
 
@@ -355,6 +390,52 @@ Function waitproc_func($cmdarr) {
 
 }
 
+Function edfile_func($cmdarr) {
+	debug("edfile called with $cmdarr")
+
+	if ($cmdarr.count -ne 3) {
+		log("Must specify file to edit, a match pattern, and a replacement pattern.")
+		return $FAIL
+	}
+	$efile, $mpat, $rpat = $cmdarr
+
+	if (!(Test-Path -Path $efile)) {
+		log("ERROR: $efile does not exist or can't be accessed.")
+		return $FAIL
+	}
+
+	$dname = Split-Path -Parent $efile
+	$fname = Split-Path -Leaf $efile
+	$tmpfile = "${dname}\__${fname}.tmp"
+
+	Get-Content -Path $efile | % {
+		$_ -replace $mpat, $rpat
+	} | Set-Content -Force -Encoding "ASCII" -Path $tmpfile
+
+	Move-Item -Force -Path $tmpfile -Destination $efile
+	return $SUCCESS
+}
+
+Function appendfile_func($cmdarr) {
+	debug("appendfile called with $cmdarr")
+
+	if ($cmdarr.count -ne 2) {
+		log("Must specify file to edit, and a line to append to it.")
+		return $FAIL
+	}
+	$efile, $nline = $cmdarr
+
+	if (!(Test-Path -Path $efile)) {
+		log("ERROR: $efile does not exist or can't be accessed.")
+		return $FAIL
+	}
+
+	if ($nline) {
+		Add-Content -Force -Encoding "ASCII" -Path $efile -Value $nline
+	}
+	return $SUCCESS
+}
+
 # Main starts here
 if ($logfile) {
 	if (Test-Path -IsValid -Path $logfile) {
@@ -419,6 +500,15 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"readvar" {
 			$result = readvar_func($cmdarr)
+		}
+		"edfile" {
+			$result = edfile_func($cmdarr)
+		}
+		"appendfile" {
+			$result = appendfile_func($cmdarr)
+		}
+		"modpathenv" {
+			$result = modpathenv_func($cmdarr)
 		}
 		default {
 			log("WARNING: Skipping unknown action: $cmd")

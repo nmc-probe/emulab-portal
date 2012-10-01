@@ -21,6 +21,7 @@ getfile %setup_remote% ;; %setup_loc%
 
 log Running Cygwin installer.
 runcmd %swdir%\setup.exe ;; -l %swdir% -s %cyg_mirror% -O -R C:\Cygwin -q -P %cyg_pkgs%
+modenvpath %cyg%\bin ;; append
 log Cygwin Setup Complete.
 
 log Setting up syslogd
