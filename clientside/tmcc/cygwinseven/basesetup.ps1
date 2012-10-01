@@ -18,9 +18,10 @@ $BASH = "C:\Cygwin\bin\bash.exe"
 $BASHARGS = "-l -c"
 $CMDTMP = "C:\Windows\Temp\_tmpout-basesetup"
 $VAR_RE = '[a-zA-Z]\w{1,30}'
-$REGENVPATHKEY = "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+$REGENVPATHKEY = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 $REGENVPATHVAL = "Path"
-$REGENVPATHTYPE = "String"
+$REGENVPATHTYPE = "ExpandString"
+$MAXPASSLEN = 32
 
 #
 # Global Variables
@@ -322,6 +323,7 @@ Function getfile_func($cmdarr) {
 	} catch {
 		log("Error Trying to download file: $filename: $_")
 		$retcode = $FAIL
+		continue
 	}
 
 	return $retcode
@@ -436,6 +438,48 @@ Function appendfile_func($cmdarr) {
 	return $SUCCESS
 }
 
+Function adduser_func($cmdarr) {
+	debug("adduser called with $cmdarr")
+
+	if ($cmdarr.count -lt 2) {
+		log("Must pass in username and password.")
+		return $FAIL
+	}
+	$user, $pass, $admin = $cmdarr
+
+	if ($user -notmatch "^\w{4,30}$") {
+		log("ERROR: Bad username: $user")
+		return $FAIL
+	}
+	if ($pass.length -gt $MAXPASSLEN) {
+		log("ERROR: Password is too long")
+		return $FAIL
+	}
+
+	# This stuff is just weird.
+	try {
+		$objUser = [ADSI]"WinNT://$env:computername/$user,user"
+		$objUser.refreshcache() # throws exception if no user.
+		log("WARNING: User already exists on local machine: $user")
+		return $SUCCESS
+	} 
+	catch {
+		continue
+	}
+
+	$objOU = [ADSI]"WinNT://$env:computername"
+	$objUser = $objOU.Create("User", $user)
+	$objUser.setpassword($pass)
+	$objUser.SetInfo()
+
+	if ($admin) {
+		$objGrp = [ADSI]"WinNT://$env:computername/Administrators,group"
+		$objGrp.add($objUser.Path)
+	}
+
+	return $SUCCESS
+}
+
 # Main starts here
 if ($logfile) {
 	if (Test-Path -IsValid -Path $logfile) {
@@ -509,6 +553,9 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"modpathenv" {
 			$result = modpathenv_func($cmdarr)
+		}
+		"adduser" {
+			$result = adduser_func($cmdarr)
 		}
 		default {
 			log("WARNING: Skipping unknown action: $cmd")

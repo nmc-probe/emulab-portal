@@ -3,6 +3,12 @@
 # Phase 1.
 #
 
+# hostname of ntp server
+defvar ntpserver ;; ntp1
+
+# grab root password
+readvar rootpass ;; Type password for root user
+
 log Disabling User Access Controls
 addreg HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\System ;; EnableLUA ;; Dword ;; 0
 
@@ -60,4 +66,7 @@ runcmd w32tm.exe ;; /register
 runcmd sc.exe ;; config w32time start= auto ;; 0
 runcmd tzutil.exe ;; /s "Mountain Standard Time" ;; 0
 #runcmd net.exe ;; start w32time ;; 0
-runcmd w32tm.exe ;; /config /manualpeerlist:ntp1 /syncfromflags:manual /update ;; 0
+runcmd w32tm.exe ;; /config /manualpeerlist:%ntpserver% /syncfromflags:manual /update ;; 0
+
+log Creating local root user
+adduser root ;; %rootpass% ;; makeadmin
