@@ -42,15 +42,17 @@ sub usage()
 	  "   -N nodeid Use the frisbee master server to get info on behalf of nodeid\n".
 	  "   -q        Don't print message on error, just exit non-zero\n".
 	  "   -s        Just print the size of the image in bytes\n".
-	  "   -m        Just print the modtime of the image in seconds since epoch\n");
+	  "   -m        Just print the modtime of the image in seconds since epoch\n".
+	  "   -r	Print the range of sectors covered by the image\n");
     exit(-1);
 }
-my $optlist   = "dsmN:q";
+my $optlist   = "dsmN:qr";
 my $debug     = 0;
 my $quiet     = 0;
 my $showall   = 1;
 my $showsize  = 0;
 my $showmtime  = 0;
+my $showrange = 0;
 my $nodeid;
 
 #
@@ -58,6 +60,7 @@ my $nodeid;
 #
 my $TB		= "@prefix@";
 my $frisbee	= "$TB/sbin/frisbee";
+my $imagedump	= "$TB/bin/imagedump";
 
 # Protos
 sub fatal($);
@@ -96,11 +99,15 @@ if (defined($options{"q"})) {
 }
 if (defined($options{"s"})) {
     $showsize = 1;
-    $showall = $showmtime = 0;
+    $showall = $showmtime = $showrange = 0;
 }
 if (defined($options{"m"})) {
     $showmtime = 1;
-    $showall = $showsize = 0;
+    $showall = $showsize = $showrange = 0;
+}
+if (defined($options{"r"})) {
+    $showrange = 1;
+    $showall = $showsize = $showmtime = 0;
 }
 if (defined($options{"N"})) {
     my $node = Node->Lookup($options{"N"});
@@ -120,11 +127,41 @@ my $imagename = $image->imagename();
 my $imagepid = $image->pid();
 my $imagepath = $image->path();
     
-if (!defined($nodeid) && ! -R $imagepath) {
-    fatal("$imagepid/$imagename: image file is not readable, must use -N\n");
+if (! -R $imagepath) {
+    if (!defined($nodeid)) {
+	fatal("$imagepid/$imagename: image file is not readable, ".
+	      "must use -N\n");
+    }
+    if ($showrange) {
+	fatal("$imagepid/$imagename: image file is not readable, ".
+	      "cannot determine sector range\n");
+    }
 }
 
-my ($isize, $imtime);
+my ($isize, $imtime, $secmin, $secmax);
+
+#
+# Use imagedump to get the sector range. It prints:
+# ...
+#   covered sector range: [0-12305790]
+# ...
+#
+if ($showrange) {
+    if (-x $imagedump) {
+	foreach my $line (`$imagedump $imagepath 2>&1`) {
+	    if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
+		$secmin = $1;
+		$secmax = $2;
+		last;
+	    }
+	}
+    }
+    if (!defined($secmin)) {
+	fatal("$imagepid/$imagename: could not determine sector range ".
+	      "from imagefile $imagepath\n");
+    }
+}
+
 if (!defined($nodeid)) {
     print STDERR "Doing stat on $imagepath\n"
 	if ($debug);
@@ -157,6 +194,10 @@ if ($showall) {
     printf "%lu\n", $isize;
 } elsif ($showmtime && defined($imtime)) {
     printf "%lu\n", $imtime;
+} elsif ($showrange && defined($secmin)) {
+    printf "minsect=%lu\n", $secmin;
+    printf "maxsect=%lu\n", $secmax;
+    printf "secsize=512\n";
 }
 
 exit(0);
@@ -171,4 +212,3 @@ sub fatal($)
     die("*** $0:\n".
 	"    $mesg\n");
 }
-
