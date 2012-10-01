@@ -215,6 +215,14 @@ if (!defined($experiment)) {
     tbdie("Could not lookup experiment object!")
 }
 
+# Do not reboot *or* reconfig the shared node experiment.
+if (($swapop eq "modify" || $swapop eq "update") &&
+    $pid eq TBOPSPID() &&
+    ($eid eq "shared-nodes" || $eid eq "shared-node")) {
+    $updateReboot   = 0;
+    $updateReconfig = 0;
+}
+
 #
 # Print starting message.
 #
