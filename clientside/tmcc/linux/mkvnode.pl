@@ -653,7 +653,7 @@ my $childpid = fork();
 if ($childpid) {
     my $timedout = 0;
     local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
-    alarm 90;
+    alarm 180;
     waitpid($childpid, 0);
     alarm 0;
 
