@@ -129,7 +129,7 @@ Function readvar_func($cmdarr) {
 	if ($secure) {
 		$myval = decode_secstring(Read-Host -assecurestring $myprompt)
 		$verf  = decode_secstring(Read-Host -assecurestring "$myprompt (verify)")
-		if ($myvar -ne $verf) {
+		if ($myval -ne $verf) {
 			log("ERROR: strings do not match.")
 			return $FAIL
 		}

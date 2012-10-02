@@ -23,7 +23,7 @@ defvar gitdir ;; emulab-devel
 defvar cyg_pkgs ;; boost-devel,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,emacs,file,gdb,git,nano,nc,patch,rcs,rpm,rsync,rxvt,subversion,vim,wget,unzip,zip
 
 # Get cygwin user password
-readvar sshpass ;; Please supply a password for the Cygwin SSH user
+readvar sshpass ;; Please supply a password for the Cygwin SSH user ;; secure
 
 log Downloading Cygwin setup executable.
 mkdir %cygsrc%

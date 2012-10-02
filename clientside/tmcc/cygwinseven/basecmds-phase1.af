@@ -7,7 +7,7 @@
 defvar ntpserver ;; ntp1
 
 # grab root password
-readvar rootpass ;; Type password for root user
+readvar rootpass ;; Type password for root user ;; secure
 
 log Disabling User Access Controls
 addreg HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\System ;; EnableLUA ;; Dword ;; 0
