@@ -260,7 +260,7 @@ foreach my $physinfo (keys(%diskinfo)) {
     # The root FS is a single partition image, while the aux disks
     # have a real MBR in them. 
     #
-    my $opts = "-W 256";
+    my $opts = "-W 64";
     if ($infomode) {
 	system("$IMAGEDUMP $filename");
     }
