@@ -550,8 +550,9 @@ sub vnodeCreate($$$$)
     }
 
     #
-    # XXX need a better way to determine this!
+    # XXX need a better way to determine this stuff.
     #
+    my $vdiskprefix = "sd";	# yes, this is right for FBSD too
     my $os;
     if ($imagename =~ /FBSD/) {
 	$os = "FreeBSD";
@@ -567,8 +568,17 @@ sub vnodeCreate($$$$)
 		  "no FreeBSD kernel for '$imagename' on $vnode_id");
 	}
 	undef $image{'ramdisk'};
-    } else {
+    }
+    else {
 	$os = "Linux";
+
+	if ($imagename =~ /F8-STD/) {
+	    $image{'kernel'}  = "/boot/fedora8/vmlinuz-xenU";
+	    $image{'ramdisk'} = "/boot/fedora8/initrd-xenU";
+	}
+	elsif ($xeninfo{xen_major} >= 4) {
+	    $vdiskprefix = 'xvd';
+	}
     }
     $private->{'os'} = $os;
 
@@ -580,10 +590,7 @@ sub vnodeCreate($$$$)
     #
     # The root disk.
     #
-    my $rootvdisk = "sda";	# yes, this is right for FBSD too
-    if ($xeninfo{xen_major} >= 4 && $os eq "Linux") {
-	$rootvdisk = 'xvda';
-    }
+    my $rootvdisk  = $vdiskprefix . "a";
     my $rootvndisk = lvmVolumePath($vnode_id);
     my $rootstanza = "phy:$rootvndisk,$rootvdisk,w";
     push(@alldisks, "'$rootstanza'");
@@ -633,7 +640,7 @@ sub vnodeCreate($$$$)
 	    fatal("libvnode_xen: could not create swap disk");
 	}
 	my $vndisk = lvmVolumePath($auxlvname);
-	my $vdisk  = "sd" . chr($auxchar++);
+	my $vdisk  = $vdiskprefix . chr($auxchar++);
 	my $stanza = "phy:$vndisk,$vdisk,w";
 
 	$private->{'disks'}->{$auxlvname} = $auxlvname;
@@ -651,10 +658,6 @@ sub vnodeCreate($$$$)
     # Create aux disks.
     #
     if (exists($attributes->{'XEN_EXTRADISKS'})) {
-	my $vdiskprefix = "sd";
-	if ($xeninfo{xen_major} >= 4 && $os eq "Linux") {
-	    $vdiskprefix = 'xvd';
-	}
 	my @list = split(",", $attributes->{'XEN_EXTRADISKS'});
 	foreach my $disk (@list) {
 	    my ($name,$size) = split(":", $disk);
