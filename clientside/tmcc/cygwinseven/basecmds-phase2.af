@@ -1,15 +1,23 @@
+# Stash area for installers, source, etc.
+defvar swdir ;; C:\Software
 # Where to put the Cygwin source bits.
-defvar swdir ;; C:\Software\Cygwin
+defvar cygsrc ;; %swdir%\Cygwin
 # Cygwin installation path
-defvar cyg ;; C:\Cygwin
+defvar cygdest ;; C:\Cygwin
 # Where to fetch the Cygwin sources
 defvar cyg_mirror ;; http://mirror.emulab.net/cygwin
 # The name of the Cygwin setup executable.
 defvar setup_exec ;; setup.exe
-# Remote path to the Cygwin setup executable.
-defvar setup_remote ;; %cyg_mirror%/%setup_exec%
-# Local path for the Cygwin setup executable.
-defvar setup_loc ;; %swdir%\%setup_exec%
+
+# Emulab source
+defvar elab_dld ;; http://www.emulab.net/downloads
+defvar pubsub_tarball ;; pubsub-0.95.tar.gz
+defvar pubsubsrc ;; pubsub-0.95
+defvar fluxgit ;; http://git-public.flux.utah.edu/git
+defvar elabdevrepo ;; emulab-devel.git
+defvar elabsrc ;; %swdir%\Emulab
+defvar gitdir ;; emulab-devel
+
 
 # The list of Cygwin packages to install.
 defvar cyg_pkgs ;; boost-devel,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,emacs,file,gdb,git,nano,nc,patch,rcs,rpm,rsync,rxvt,subversion,vim,wget,unzip,zip
@@ -18,23 +26,23 @@ defvar cyg_pkgs ;; boost-devel,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetuti
 readvar sshpass ;; Please supply a password for the Cygwin SSH user
 
 log Downloading Cygwin setup executable.
-mkdir %swdir%
-getfile %setup_remote% ;; %setup_loc%
+mkdir %cygsrc%
+getfile %cyg_mirror%/%setup_exec% ;; %cygsrc%\%setup_exec%
 
 log Running Cygwin installer.
-runcmd %swdir%\setup.exe ;; -l %swdir% -s %cyg_mirror% -O -R %cyg% -q -P %cyg_pkgs%
-modpathenv %cyg%\bin ;; append
+runcmd %cygsrc%\%setup_exec% ;; -l %cygsrc% -s %cyg_mirror% -O -R %cygdest% -q -P %cyg_pkgs%
+modpathenv %cygdest%\bin ;; append
 log Cygwin Setup Complete.
 
 log Setting up syslogd
 runcyg syslogd-config -y ;; 0
 
 log Setting up sshd
-mkdir %cyg%\etc\sshkeys
+mkdir %cygdest%\etc\sshkeys
 runcyg ssh-host-config -y -u cyg_sshd -w %sshpass% -c '' --privileged ;; 0
 runcyg sed -e 's|^AuthorizedKeysFile.*$|AuthorizedKeysFile /sshkeys/%u/authorized_keys|' /etc/sshd_config > /etc/sshd_config.new ;; 0
 runcyg mv -f /etc/sshd_config.new /etc/sshd_config ;; 0
-mkdir %cyg%\etc\ssh
+mkdir %cygdest%\etc\ssh
 runcyg ln -f -s /etc/ssh?* /etc/ssh ;; 0
 
 log Setting up agetty
@@ -48,3 +56,15 @@ runcyg grep -q 'check-certificate' /etc/wgetrc || echo 'check-certificate = off'
 
 log Creating dummy sudo command
 runcyg echo -e '#!/bin/sh\n$*\n' > /bin/sudo && chmod a+rx /bin/sudo ;; 0
+
+log Adding security rights to root account
+runcyg editrights -u root -a SeCreateTokenPrivilege -a SeAssignPrimaryTokenPrivilege  -a SeIncreaseQuotaPrivilege -a SeServiceLogonRight -l ;; 0
+
+log Downloading Emulab source
+mkdir %elabsrc%
+getfile %elab_dld%/%pubsub_tarball% ;; %elabsrc%\%pubsub_tarball%
+runcyg git clone -q %fluxgit%/%elabdevrepo% '%elabsrc%\%gitdir%' ;; 0
+
+log Unpacking pubsub source and building
+runcyg cd '%elabsrc%' && tar -zxf %pubsub_tarball% ;; 0
+runcyg cd '%elabsrc%\%pubsubsrc%' && touch .noelvin && make && make install ;; 0
