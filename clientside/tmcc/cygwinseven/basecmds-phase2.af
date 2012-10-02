@@ -45,3 +45,6 @@ runcyg mv -f /etc/inittab.new /etc/inittab ;; 0
 
 log Configuring wget
 runcyg grep -q 'check-certificate' /etc/wgetrc || echo 'check-certificate = off' >> /etc/wgetrc ;; 0
+
+log Creating dummy sudo command
+runcyg echo -e '#!/bin/sh\n$*\n' > /bin/sudo && chmod a+rx /bin/sudo ;; 0

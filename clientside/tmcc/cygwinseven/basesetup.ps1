@@ -22,6 +22,7 @@ $REGENVPATHKEY = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environ
 $REGENVPATHVAL = "Path"
 $REGENVPATHTYPE = "ExpandString"
 $MAXPASSLEN = 32
+$USERRE = '^\w{4,30}$'
 
 #
 # Global Variables
@@ -105,18 +106,27 @@ Function defvar_func($cmdarr) {
 Function readvar_func($cmdarr) {
 	debug("readvar called with: $cmdarr")
 
-	if (!$cmdarr -or $cmdarr.count -ne 2) {
+	if (!$cmdarr -or $cmdarr.count -lt 2) {
 		log("Must supply variable name and prompt string to readvar.")
 		return $FAIL
 	}
-	$myvar, $myprompt = $cmdarr
+	$myvar, $myprompt, $secure = $cmdarr
 	# check variable name for sanity
 	if ($myvar -notmatch "^$VAR_RE$") {
 		log("Invalid variable token: $myvar")
 		return $FAIL
 	}
 
-	$myval = Read-Host $myprompt
+	if ($secure) {
+		$myval = Read-Host -assecurestring $myprompt
+		$verf  = Read-Host -assecurestring $myprompt + " (verify)"
+		if ($myval -ne $verf) {
+			log("ERROR: strings do not match.")
+			return $FAIL
+		}
+	} else {
+		$myval = Read-Host $myprompt
+	}
 	if (!$myval) {
 		log("No input provided for value.")
 		return $FAIL
@@ -447,7 +457,7 @@ Function adduser_func($cmdarr) {
 	}
 	$user, $pass, $admin = $cmdarr
 
-	if ($user -notmatch "^\w{4,30}$") {
+	if ($user -notmatch $USERRE) {
 		log("ERROR: Bad username: $user")
 		return $FAIL
 	}
@@ -456,7 +466,7 @@ Function adduser_func($cmdarr) {
 		return $FAIL
 	}
 
-	# This stuff is just weird.
+	# This ADSI stuff is just weird.
 	try {
 		$objUser = [ADSI]"WinNT://$env:computername/$user,user"
 		$objUser.refreshcache() # throws exception if no user.
@@ -476,6 +486,36 @@ Function adduser_func($cmdarr) {
 		$objGrp = [ADSI]"WinNT://$env:computername/Administrators,group"
 		$objGrp.add($objUser.Path)
 	}
+
+	return $SUCCESS
+}
+
+Function removeuser_func($cmdarr) {
+	debug("removeuser called with $cmdarr")
+
+	if ($cmdarr.count -ne 1) {
+		log("Must pass in username to remove.")
+		return $FAIL
+	}
+	$user = $cmdarr[0]
+
+	if ($user -notmatch $USERRE) {
+		log("ERROR: Bad username: $user")
+		return $FAIL
+	}
+
+	try {
+		$objUser = [ADSI]"WinNT://$env:computername/$user,user"
+		$objUser.refreshcache() # throws exception if no user.
+	}
+	catch {
+		log("WARNING: User does not exist on local machine: $user")
+		return $SUCCESS
+	}
+
+	$objOU = [ADSI]"WinNT://$env:computername"
+	$objUser = [ADSI]"WinNT://$env:computername/$user,user"
+	$objUser = $objOU.Delete("User", $objUser.name.value)
 
 	return $SUCCESS
 }
@@ -556,6 +596,9 @@ foreach ($cmdline in (Get-Content -Path $actionfile)) {
 		}
 		"adduser" {
 			$result = adduser_func($cmdarr)
+		}
+		"removeuser" {
+			$result = removeuser_func($cmdarr)
 		}
 		default {
 			log("WARNING: Skipping unknown action: $cmd")
