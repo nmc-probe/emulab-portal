@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -64,6 +64,16 @@ echo $new_domain_name > $BOOTDIR/mydomain
 if [ -n "$interface" ]; then
     echo $interface > $BOOTDIR/controlif
 fi
+
+#
+# For Xen-based vnodes we record the vnode name where the scripts expect it.
+# XXX this works because only Xen-based vnodes DHCP.
+#
+case "$new_host_name" in
+    pcvm*)
+	echo $new_host_name > $BOOTDIR/vmname
+	;;
+esac   
 
 #
 # If this is a newnode boot, boss (inner or outer) will have returned with
