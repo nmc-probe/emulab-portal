@@ -73,6 +73,15 @@ Function replace_uservars($cmdstr) {
 	return $cmdstr
 }
 
+# black magic
+Function decode_secstring($secstr) {
+	$marshall = [System.Runtime.InteropServices.Marshal]
+	$Ptr = $marshall::SecureStringToCoTaskMemUnicode($secstr)
+	$result = $marshall::PtrToStringUni($Ptr)
+	$marshall::ZeroFreeCoTaskMemUnicode($Ptr)
+	return $result 
+}
+
 #
 # Action execution functions
 #
@@ -118,17 +127,18 @@ Function readvar_func($cmdarr) {
 	}
 
 	if ($secure) {
-		$myval = Read-Host -assecurestring $myprompt
-		$verf  = Read-Host -assecurestring $myprompt + " (verify)"
-		if ($myval -ne $verf) {
+		$myval = decode_secstring(Read-Host -assecurestring $myprompt)
+		$verf  = decode_secstring(Read-Host -assecurestring "$myprompt (verify)")
+		if ($myvar -ne $verf) {
 			log("ERROR: strings do not match.")
 			return $FAIL
 		}
 	} else {
 		$myval = Read-Host $myprompt
 	}
+
 	if (!$myval) {
-		log("No input provided for value.")
+		log("ERROR: No input provided for value.")
 		return $FAIL
 	}
 
@@ -472,10 +482,7 @@ Function adduser_func($cmdarr) {
 		$objUser.refreshcache() # throws exception if no user.
 		log("WARNING: User already exists on local machine: $user")
 		return $SUCCESS
-	} 
-	catch {
-		continue
-	}
+	} catch {}
 
 	$objOU = [ADSI]"WinNT://$env:computername"
 	$objUser = $objOU.Create("User", $user)
