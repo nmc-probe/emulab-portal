@@ -405,7 +405,8 @@ class Node
 	$query_result =
 	    DBQueryWarn("select (unix_timestamp(now()) - unix_timestamp( ".
 			"        $clause)) as idle_time from node_activity ".
-			"where node_id='$node_id'");
+			"where node_id='$node_id' and ".
+			"      UNIX_TIMESTAMP(last_report)!=0");
 
 	if (mysql_num_rows($query_result) == 0) {
 	    return -1;
