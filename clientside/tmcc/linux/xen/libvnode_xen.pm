@@ -1395,6 +1395,9 @@ sub disk_hacks($)
     # remove swap partitions from fstab
     system("sed -i.bak -e '/swap/d' $path/etc/fstab");
 
+    # remove scratch partitions from fstab
+    system("sed -i.bak -e '/scratch/d' $path/etc/fstab");
+
     # fixup fstab: change UUID=blah to LABEL=/
     system("sed -i.bak -e 's/UUID=[0-9a-f-]*/LABEL=\\//' $path/etc/fstab");
 
