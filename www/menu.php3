@@ -626,8 +626,10 @@ function WRITESIDEBAR() {
 		NavMenuButton("List ImageIDs",
 			      "$TBBASE/showimageid_list.php3");
 
-		NavMenuButton("List OSIDs",
-			      "$TBBASE/showosid_list.php3");
+		if (ISADMIN()) {
+		    NavMenuButton("List OSIDs",
+				  "$TBBASE/showosid_list.php3");
+		}
 
 		if ($login_status & CHECKLOGIN_TRUSTED &&
 		    $login_user->ApprovalList(0)) {
