@@ -5942,8 +5942,10 @@ sub InterpLinksAux($)
 		    if (defined($protovlan)) {
 			$vlan_type = "emulated";
 			$vlan_role = "link/lan";
-			$virtifaceA->_vlanname($protovlan->vname());
-			$virtifaceB->_vlanname($protovlan->vname());
+			$virtifaceA->_vlanname($protovlan->vname())
+			    if (defined($virtifaceA));
+			$virtifaceB->_vlanname($protovlan->vname())
+			    if (defined($virtifaceB));
 		    }
 		    else {
 			$vlan_type = "vlan";
