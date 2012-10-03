@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -42,7 +42,7 @@ $isadmin   = ISADMIN();
 # List of valid toggles
 $toggles = array("adminon", "webfreeze", "cvsweb", "lockdown", "stud",
 		 "cvsrepo_public", "workbench", "hiderun", "widearearoot",
-		 "skipvlans");
+		 "imageglobal", "skipvlans");
 
 # list of valid values for each toggle
 $values  = array("adminon"        => array(0,1),
@@ -54,6 +54,7 @@ $values  = array("adminon"        => array(0,1),
 		 "cvsrepo_public" => array(0,1),
 		 "workbench"      => array(0,1),
 		 "widearearoot"   => array(0,1),
+		 "imageglobal"    => array(0,1),
 		 "hiderun"        => array(0,1));
 
 # list of valid extra variables for the each toggle, and mandatory flag.
@@ -66,6 +67,7 @@ $optargs = array("adminon"        => array(),
 		 "cvsrepo_public" => array("pid" => 1),
 		 "workbench"      => array("pid" => 1),
 		 "widearearoot"   => array("user" => 1),
+		 "imageglobal"    => array("imageid" => 1),
 		 "hiderun"        => array("instance" => 1, "runidx" => 1));
 
 # Mandatory page arguments.
@@ -182,6 +184,23 @@ elseif ($type == "skipvlans") {
     }
     $zapurl = CreateURL("showexp", $experiment);
     $experiment->SetSkipVlans($value);
+}
+elseif ($type == "imageglobal") {
+    include("imageid_defs.php");
+    
+    # Must validate since we allow non-admins to do this.
+    if (! TBvalid_imageid($imageid)) {
+	PAGEARGERROR("Invalid characters in $imageid");
+    }
+    if (! ($image = Image::Lookup($imageid))) {
+	PAGEARGERROR("Image $image is not a valid image!");
+    }
+    if (!$isadmin &&
+	!$image->AccessCheck($this_user, $TB_IMAGEID_MODIFYINFO)) {
+	USERERROR("You do not have permission to toggle $type!", 1);
+    }
+    $zapurl = CreateURL("showimageid", $image);
+    $image->SetGlobal($value);
 }
 elseif ($type == "cvsrepo_public") {
     # Must validate the pid since we allow non-admins to do this.
