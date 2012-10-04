@@ -1026,6 +1026,20 @@ sub GetTicketAuxAux($$$$$$$$$)
 			    $osname = "OPENVZ-STD";
 			}
 		    }
+		    elsif ($virtualization_subtype eq "emulab-xen") {
+			# Allow caller to set the image to use, but also
+			# trick to set the parent. 
+			if (defined($osinfo)) {
+			    if (! $osinfo->IsSubOS()) {
+				$parent_osname = $osname;
+				$osname = "XEN-STD";
+			    }
+			}
+			elsif (!defined($osname)) {
+			    # Allow for url above.
+			    $osname = "XEN-STD";
+			}
+		    }
 		    elsif ($virtualization_subtype eq "emulab-spp") {
 			$osname = "SPPVM-FAKE";
 			$pctype = "sppvm";
