@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2009-2010 University of Utah and the Flux Group.
+# Copyright (c) 2009-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -22,6 +22,8 @@
 # }}}
 #
 include("defs.php3");
+include("showstuff.php3");
+include("table_defs.php");
 
 #
 # Only known and logged in users can look at experiments.
@@ -51,6 +53,7 @@ if (!$experiment) {
 $pid = $experiment->pid();
 $eid = $experiment->eid();
 $counts = array();
+$nodes  = array();
 
 #
 # Get the counts per node.
@@ -67,6 +70,20 @@ while ($row = mysql_fetch_array($query_result)) {
     $count    = $row["vcount"];
     
     $counts[$node_id] = $count;
+}
+
+#
+# Get the distinct set of nodes using the shared nodes.
+#
+$query_result =
+    DBQueryFatal("select r.node_id from reserved as r ".
+		 "left join nodes as n on n.node_id=r.node_id ".
+		 "where n.node_id!=n.phys_nodeid and ".
+		 "      r.sharing_mode is not null ");
+while ($row = mysql_fetch_array($query_result)) {
+    $node_id  = $row["node_id"];
+    
+    $nodes[$node_id] = $node_id;
 }
 
 $query_result =
@@ -140,6 +157,46 @@ echo "</table>\n";
 
 # Sort initialized later when page fully loaded.
 AddSortedTable('pooltable');
+
+#
+#
+#
+if ($isadmin) {
+    $table = array('#id'       => "Containers",
+		   '#title'    => "Containers",
+		   '#sortable' => 1,
+		   '#headings' => array("node_id"      => "node_id",
+					"PID"          => "PID",
+					"EID"          => "EID",
+					"Status"       => "Status",
+					));
+
+    $rows = array();
+    
+    foreach ($nodes as $node_id) {
+	$node = Node::Lookup($node_id);
+	if (! $node)
+	    continue;
+
+	$status     = $node->RealNodeStatus();
+	$experiment = $node->Reservation();
+	$pid       = $experiment->pid();
+	$eid       = $experiment->eid();
+	$creator   = $experiment->creator();
+	$nodeurl   = CreateURL("shownode", $node);
+	$nodehref  = "<a href='$nodeurl'>$node_id</a>";
+	$expurl    = CreateURL("showexp", $experiment);
+	$exphref   = "<a href='$expurl'>$eid</a>";
+
+	$rows[$node_id] = array("node_id"   => $nodehref,
+				"PID"       => $pid,
+				"EID"       => $exphref,
+				"Status"    => $status,
+                               );
+    }
+    list ($html, $button) = TableRender($table, $rows);
+    echo $html;
+}
     
 #
 # Standard Testbed Footer

@@ -303,7 +303,21 @@ class Node
 	$node_id = $this->node_id();
 
 	$query_result =
-	    DBQueryFatal("select status from nodes where node_id='$nodeid'");
+	    DBQueryFatal("select status from nodes where node_id='$node_id'");
+
+	if (mysql_num_rows($query_result) == 0) {
+	    return "";
+	}
+	$row = mysql_fetch_array($query_result);
+	return $row["status"];
+    }
+
+    function RealNodeStatus() {
+	$node_id = $this->node_id();
+
+	$query_result =
+	    DBQueryFatal("select status from node_status ".
+			 "where node_id='$node_id'");
 
 	if (mysql_num_rows($query_result) == 0) {
 	    return "";
