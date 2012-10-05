@@ -365,7 +365,7 @@ if ($query_result->numrows) {
 #
 # Enter the table info, but mark as not active until later.
 #
-my $typearg  = (defined($typelist)  ? ",type='$typelist'" : "");
+my $typearg  = (defined($typelist)  ? ",types='$typelist'" : "");
 my $startarg = "";
 my $endarg   = "";
 
