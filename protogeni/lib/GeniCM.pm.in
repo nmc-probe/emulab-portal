@@ -2484,7 +2484,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     #
     # Clear any new vlan tag reservations we made during this call.
     #
-    foreach my $linkname (%vlan_reservations) {
+    foreach my $linkname (keys(%vlan_reservations)) {
 	my ($lanid, $vlan_tag) = @{ $vlan_reservations{$linkname} };
 
 	# If this is a new ticket, there is no lan object yet,
