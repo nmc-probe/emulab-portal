@@ -1,0 +1,95 @@
+#
+# Introduce blockstore storage objects.
+#
+use strict;
+use libdb;
+
+sub DoUpdate($$$)
+{
+    my ($dbhandle, $dbname, $version) = @_;
+
+    if (!DBTableExists("blockstores")) {
+	DBQueryFatal("CREATE TABLE `blockstores` ( ".
+		     " `bsidx` int(10) unsigned NOT NULL,".
+		     " `node_id` varchar(32) NOT NULL default '',".
+		     " `bs_id` varchar(32) NOT NULL default '',".
+		     " `type` varchar(30) NOT NULL default '',".
+		     " `role` enum('infra','unused') NOT NULL default 'unused',".
+		     " `total_size` int(10) unsigned NOT NULL default '0',".
+		     " `inception` datetime default NULL,".
+		     " PRIMARY KEY (`bsidx`),".
+		     " UNIQUE KEY nidbid (`node_id`,`bs_id`)".
+		     ") ENGINE=MyISAM DEFAULT CHARSET=latin1");
+    }
+
+    if (!DBTableExists("blockstore_type_attributes")) {
+	DBQueryFatal("CREATE TABLE `blockstore_type_attributes` (".
+		     " `type` varchar(30) NOT NULL default '',".
+		     " `attrkey` varchar(32) NOT NULL default '',".
+		     " `attrvalue` tinytext NOT NULL,".
+		     " `attrtype` enum('integer','float','boolean','string') default 'string',".
+		     " PRIMARY KEY  (`type`,`attrkey`)".
+		     ") ENGINE=MyISAM DEFAULT CHARSET=latin1");
+    }
+
+    if (!DBTableExists("blockstore_state")) {
+	DBQueryFatal("CREATE TABLE `blockstore_state` (".
+		     " `bsidx` int(10) unsigned NOT NULL,".
+		     " `node_id` varchar(32) NOT NULL default '',".
+		     " `bs_id` varchar(32) NOT NULL default '',".
+		     " `remaining_capacity` int(10) unsigned NOT NULL default '0',".
+		     " `ready` tinyint(4) unsigned,".
+		     " PRIMARY KEY (`bsidx`),".
+		     " UNIQUE KEY nidbid (`node_id`,`bs_id`)".
+		     ") ENGINE=MyISAM DEFAULT CHARSET=latin1");
+    }
+
+    if (!DBTableExists("virt_blockstores")) {
+	DBQueryFatal("CREATE TABLE `virt_blockstores` (".
+		     " `pid` varchar(48) NOT NULL default '',".
+		     " `eid` varchar(32) NOT NULL default '',".
+		     " `exptidx` int(11) NOT NULL default '0',".
+		     " `vname` varchar(32) NOT NULL default '',".
+		     " `type` varchar(30) default NULL,".
+		     " `role` enum ('remote','local'),".
+		     " `size` int(10) unsigned NOT NULL default '0',".
+		     " PRIMARY KEY (`exptidx`,`vname`)".
+		     ") ENGINE=MyISAM DEFAULT CHARSET=latin1");
+    }
+
+    if (!DBTableExists("virt_blockstore_attributes")) {
+	DBQueryFatal("CREATE TABLE `virt_blockstore_attributes` (".
+		     " `pid` varchar(48) NOT NULL default '',".
+		     " `eid` varchar(32) NOT NULL default '',".
+		     " `exptidx` int(11) NOT NULL default '0',".
+		     " `vname` varchar(32) NOT NULL default '',".
+		     " `attrkey` varchar(32) NOT NULL default '',".
+		     " `attrvalue` tinytext NOT NULL,".
+		     " `attrtype` enum('integer','float','boolean','string') default 'string',".
+		     " PRIMARY KEY (`exptidx,`vname`,`attrkey`)".
+		     ") ENGINE=MyISAM DEFAULT CHARSET=latin1");
+    }
+
+    if (!DBTableExists("reserved_blockstores")) {
+	DBQueryFatal("CREATE TABLE `reserved_blockstores` (".
+		     " `bsidx` int(10) unsigned NOT NULL,".
+		     " `node_id` varchar(32) NOT NULL default '',".
+		     " `bs_id` varchar(32) NOT NULL default '',".
+		     " `vname` varchar(32) NOT NULL default '',".
+		     " `pid` varchar(48) NOT NULL default '',".
+		     " `eid` varchar(32) NOT NULL default '',".
+		     " `exptidx` int(11) NOT NULL default '0',".
+		     " `rsrv_time` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,".
+		     " PRIMARY KEY (`exptidx`,`bsidx`,`vname`),".
+		     " UNIQUE KEY `vname` (`exptidx`,`vname`),".
+		     " KEY `nidbid` (`node_id`,`bs_id`)".
+		     ") ENGINE=MyISAM DEFAULT CHARSET=latin1");
+    }
+    
+    return 0;
+}
+1;
+
+# Local Variables:
+# mode:perl
+# End:
