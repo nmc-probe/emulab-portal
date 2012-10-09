@@ -144,7 +144,7 @@ CREATE TABLE `blockstore_state` (
   `node_id` varchar(32) NOT NULL default '',
   `bs_id` varchar(32) NOT NULL default '',
   `remaining_capacity` int(10) unsigned NOT NULL default '0',
-  `ready` tinyint(4) unsigned,
+  `ready` tinyint(4) unsigned NOT NULL default '0',
   PRIMARY KEY (`bsidx`),
   UNIQUE KEY nidbid (`node_id`,`bs_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -4361,7 +4361,7 @@ CREATE TABLE `virt_blockstores` (
   `exptidx` int(11) NOT NULL default '0',
   `vname` varchar(32) NOT NULL default '',
   `type` varchar(30) default NULL,
-  `role` enum ('remote','local'),
+  `role` enum('remote','local','unknown') NOT NULL default 'unknown',
   `size` int(10) unsigned NOT NULL default '0',
   PRIMARY KEY (`exptidx`,`vname`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
