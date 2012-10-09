@@ -4347,7 +4347,7 @@ CREATE TABLE `virt_blockstore_attributes` (
   `attrkey` varchar(32) NOT NULL default '',
   `attrvalue` tinytext NOT NULL,
   `attrtype` enum('integer','float','boolean','string') default 'string',
-  PRIMARY KEY (`exptidx,`vname`,`attrkey`)
+  PRIMARY KEY (`exptidx`,`vname`,`attrkey`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
