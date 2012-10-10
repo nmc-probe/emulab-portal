@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -48,6 +48,7 @@ my $TBBASE      = "@TBBASE@";
 my $MKCERT      = "$TB/sbin/mkusercert";
 my $SUDO	= "/usr/local/bin/sudo";
 my $PROTOUSER   = "elabman";
+my $MAINSITE    = @TBMAINSITE@;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -63,6 +64,7 @@ use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
 use Project;
+use User;
 
 #
 # Only real root can call this.
@@ -477,6 +479,83 @@ while (my $row = $query_result->fetchrow_hashref()) {
 	DBQueryWarn("update user_sslcerts set warned=now() ".
 		    "where uid_idx='$uid_idx' and idx='$serial'");
 
+    }
+}
+
+#
+# Looks for unapproved projects and unverified users. Do not do this in Utah,
+# it would drive us nuts.
+#
+if (!$MAINSITE) {
+    $query_result =
+	DBQueryWarn("select pid_idx from projects where approved=0");
+
+    fatal("Error accessing the database.")
+	if (! $query_result);
+
+    my @badlist = ();
+
+    while (my ($pid_idx) = $query_result->fetchrow()) {
+	my $project = Project->Lookup($pid_idx);
+	fatal("Could not look up project $pid_idx in DB")
+	    if (!defined($project));
+
+	#
+	# This gets special email.
+	#
+	if ($debug) {
+	    print "Unapproved project: $project\n";
+	}
+	else  {
+	    push(@badlist, $project);
+	}
+    }
+    if (@badlist && !$debug) {
+	my $msg = "The following projects are not approved yet:\n\n";
+	foreach my $project (@badlist) {
+	    my $idx   = $project->pid_idx();
+	    my $url   = "$TBBASE/approveproject_form.php3?pid=$idx";
+
+	    $msg .= "$project: $url\n";
+	}
+	SENDMAIL($TBOPS, "Testbed Unapproved Projects", $msg, $TBOPS)
+	    if (!$impotent);
+    }
+
+    $query_result =
+	DBQueryWarn("select uid_idx from users ".
+		    "where status='" . $User::USERSTATUS_NEWUSER . "'");
+
+    fatal("Error accessing the database.")
+	if (! $query_result);
+
+    @badlist = ();
+
+    while (my ($uid_idx) = $query_result->fetchrow()) {
+	my $user = User->Lookup($uid_idx);
+	fatal("Could not look up user $uid_idx in DB")
+	    if (!defined($user));
+
+	#
+	# This gets special email.
+	#
+	if ($debug) {
+	    print "Unverified user: $user\n";
+	}
+	else  {
+	    push(@badlist, $user);
+	}
+    }
+    if (@badlist && !$debug) {
+	my $msg = "The following users are not verified yet:\n\n";
+	foreach my $user (@badlist) {
+	    my $idx   = $user->uid_idx();
+	    my $url   = "$TBBASE/showuser.php3?user=$idx";
+
+	    $msg .= "$user: $url\n";
+	}
+	SENDMAIL($TBOPS, "Testbed Unverified Users", $msg, $TBOPS)
+	    if (!$impotent);
     }
 }
 
