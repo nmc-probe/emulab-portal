@@ -36,6 +36,29 @@ if [ ! -d "$ELAB_BOOTDIR" ]; then
 	fi
 fi
 
+#
+# XXX hack for PRObE and nfe interfaces.
+# The nfe driver apparently has issues and can fail to get an address.
+# Gary Sandine found that taking the interface down and back up again can
+# unstick things (if you are persistent enough).
+#
+cnet_nfe_hack()
+{
+	for i in 5 10 15 20 20 20 30 30 30; do
+		echo "`date`: nfe_hack: taking interfaces down and up ..."
+		for _if in $*; do
+			ifconfig $_if down
+			sleep 2
+			ifconfig $_if up
+		done
+		sleep $i
+		if [ -e $ELAB_BOOTDIR/controlif ]; then
+			echo "`date`: nfe_hack: worked!"
+			break;
+		fi
+	done
+}
+
 # this is a separate function so we can redirect all the output below
 cnet_dhcp()
 {
@@ -47,9 +70,10 @@ cnet_dhcp()
 	# installed.
 	#
 	if [ -x /usr/local/sbin/dhclient ]; then
-	    echo "Using dhclient port..."
+	    echo "`date`: Using dhclient port..."
 	    dhclient_program="/usr/local/sbin/dhclient"
 	    ${dhclient_program} ${dhclient_flags} $*
+	    echo "`date`: $dhclient_program returned $?"
 	else
 	    echo "Using default dhclient..."
 
@@ -68,6 +92,8 @@ cnet_dhcp()
 
 cnet_start()
 {
+	_nfe=""
+
 	rm -f $ELAB_BOOTDIR/controlif
 
 	#
@@ -85,7 +111,14 @@ cnet_start()
 	case $_if in
 	lo*|gif*|faith*|tun*|plip*|usbus*)
 		;;
+	# XXX skip Intel 10Gb for now; they require huge numbers of mbufs
+	ix[0-9])
+		;;
 	ath*)
+		;;
+	nfe*)
+		_nfe="$_nfe $_if"
+		_ifs="$_ifs $_if"
 		;;
 	*)
 		_ifs="$_ifs $_if"
@@ -144,9 +177,26 @@ cnet_start()
 		echo "Emulab looking for control net among: $_ifs ..."
 		cnet_dhcp $_ifs >$ELAB_LOGDIR/netif-emulab.log 2>&1
 		if [ -e $ELAB_BOOTDIR/controlif ]; then
-			echo "Emulab control net is `cat $ELAB_BOOTDIR/controlif`"
+		    _cif=`cat $ELAB_BOOTDIR/controlif`
+		    echo "Emulab control net is $_cif"
 		else
+		    #
+		    # XXX hack for nfe device on PRObE nodes. The PRObE
+		    # nfe interfaces can get hung, but a down/up seems to
+		    # get things moving again. The reset is done in
+		    # dhclient-enter-hooks, we just wait for it to take
+		    # effect here.
+		    #
+		    if [ -n "$_nfe" ]; then
+			echo "Engaging control net nfe hack on: $_nfe ..."
+			cnet_nfe_hack $_nfe >>$ELAB_LOGDIR/netif-emulab.log 2>&1
+		    fi
+		    if [ -e $ELAB_BOOTDIR/controlif ]; then
+			_cif=`cat $ELAB_BOOTDIR/controlif`
+			echo "Emulab control net is $_cif"
+		    else
 			echo "*** No Emulab control net found!"
+		    fi
 		fi
 	else
 		#
