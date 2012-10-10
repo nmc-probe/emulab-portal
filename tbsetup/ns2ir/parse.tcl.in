@@ -627,6 +627,37 @@ proc parse_delay {dspec} {
     return [expr int($val)]
 }
 
+# convert_to_bytes
+# This takes a data size specifier in the form of <amt><unit> where
+# <unit> is any of [B, KB, KiB, MB, MiB, GB, GiB, TB, TiB].  If no
+# unit is given then bytes (B) is assumed.  It returns the size
+# in bytes.  Data sizes in bits (lowercase b) are not handled (yet).
+proc convert_to_bytes {size} {
+    # Default to bytes
+    if {[scan $size "%f%s" sz unit] == 1} {
+	set unit B
+    }
+
+    # We could do better below with a regexp match. But it is better to keep it simple.
+    switch -- $unit {
+	B   {set val $sz}
+	KB  {set val [expr int($sz * 10**3)]}
+	KiB {set val [expr int($sz * 2**10)]}
+	MB  {set val [expr int($sz * 10**6)]}
+	MiB {set val [expr int($sz * 2**20)]}
+	GB  {set val [expr int($sz * 10**9)]}
+	GiB {set val [expr int($sz * 2**30)]}
+	TB  {set val [expr int($sz * 10**12)]}
+	TiB {set val [expr int($sz * 2**40)]}
+	default {
+	    perror "Unknown size unit $unit."
+	    set val 0
+	}
+    }
+
+    return $val
+}
+
 # We now have all our infrastructure in place.  We are ready to load
 # the NS file.
 

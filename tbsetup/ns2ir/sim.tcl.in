@@ -87,9 +87,13 @@ Simulator instproc init {args} {
     $self instvar prog_list;
     array set prog_list {}
     
-    # Disk list.
+    # Disk list (shaped/emulated disk).
     $self instvar disk_list;
     array set disk_list {} 
+
+    # Blockstore list - blockstore storage object.
+    $self instvar blockstore_list;
+    array set blockstore_list {}
 
     # Custom list.
 	$self instvar custom_list;
@@ -428,6 +432,29 @@ Simulator instproc event-group {{list {}}} {
     return $curgrp
 }
 
+# blockstore
+# This method adds a new block storage object to the topology and returns 
+# its id.
+Simulator instproc blockstore {args} {
+    var_import ::GLOBALS::last_class
+    $self instvar id_counter
+    $self instvar blockstore_list
+
+    if {($args != {})} {
+	punsup "Arguments for node: $args"
+    }
+
+    set curblock tbblk-n[incr id_counter]
+    Blockstore $curblock $self
+
+    set blockstore_list($curblock) {}
+    set last_class $curblock
+
+    $self instvar new_blockstore_config;
+
+    return $curblock
+}
+
 # run
 # This method causes the fill_ips method to be invoked on all 
 # lanlinks and then, if not running in impotent mode, calls the
@@ -440,6 +467,7 @@ Simulator instproc run {} {
     $self instvar event_list
     $self instvar prog_list
     $self instvar disk_list 
+    $self instvar block_list
 	$self instvar custom_list
     $self instvar eventgroup_list
     $self instvar firewall_list
@@ -658,6 +686,9 @@ Simulator instproc run {} {
     foreach disk [array names disk_list] {
         $disk updatedb "sql"
     } 
+    foreach blockstore [array names blockstore_list] {
+        $blockstore updatedb "sql"
+    }
     foreach custom [array names custom_list] {
         $custom updatedb "sql"
     }
@@ -1062,6 +1093,12 @@ Simulator instproc rename_disk {old new} {
     $self instvar disk_list
     unset disk_list($old)
     set disk_list($new) {}
+}
+
+Simulator instproc rename_blockstore {old new} {
+    $self instvar blockstore_list
+    unset blockstore_list($old)
+    set blockstore_list($new) {}
 }
 
 Simulator instproc rename_custom {old new} {

@@ -94,6 +94,9 @@ namespace eval TBCOMPAT {
     variable isvirt
     variable issubnode
 
+    # Storage object tracking (types, resources, etc.)
+    variable sotypes
+
     # NSE hack: sim type is not in DB. Just adding it now
     set hwtypes(sim) 1
     set isremote(sim) 0
