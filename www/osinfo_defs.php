@@ -514,6 +514,27 @@ class OSinfo
                 <td class=left>$uuid</td>
               </tr>\n";
 
+	if ($def_parentosid) {
+	    $parent_result =
+		DBQueryFatal("select m.parent_osid,o.osname,o.pid ".
+			     "   from os_submap as m ".
+			     "left join os_info as o on o.osid=m.parent_osid ".
+			     "where m.osid='$osid'");
+	    
+	    if (mysql_num_rows($parent_result)) {
+		while ($prow = mysql_fetch_array($parent_result)) {
+		    $posid   = $prow["parent_osid"];
+		    $posname = $prow["osname"];
+
+		    echo "<tr>";
+		    echo "  <td>Parent $posid:</td>";
+		    echo "  <td class=left>";
+		    echo "   <a href='showosinfo.php3?osid=$posid'>";
+		    echo "$posname</a></td>\n";
+		    echo "</tr>\n";
+		}
+	    }
+	}
 	echo "</table>\n";
     }
 
