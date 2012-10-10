@@ -1213,6 +1213,18 @@ REPLACE INTO table_regex VALUES ('virt_client_service_hooks','service_idx','int'
 REPLACE INTO table_regex VALUES ('virt_client_service_hooks','vnode','text','redirect','virt_nodes:vname',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_client_service_hooks','whence','text','regex','^(first|every)$',0,0,NULL);
 
+REPLACE INTO table_regex VALUES ('virt_blockstores','pid','text','redirect','projects:pid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstores','eid','text','redirect','experiments:eid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstores','vname','text','regex','^[-\\w]+$',1,32,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstores','type','text','regex','^[-\\w]*$',0,30,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstores','role','text','regex','^(remote|local|unknown)$',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstores','size','int','redirect','default:int',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','pid','text','redirect','projects:pid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','eid','text','redirect','experiments:eid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','vname','text','redirect','virt_blockstores:vname',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','attrkey','text','regex','^[-\\w]+$',1,64,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','attrvalue','text','regex','^[-\\w\\.\\+,\\s\\/:]+$',0,255,NULL);
+
 REPLACE INTO table_regex VALUES ('default','fulltext','text','regex','^[\\040-\\073\\075\\077-\\176\\012\\015\\011]*$',0,20000,NULL);
 REPLACE INTO table_regex VALUES ('default','html_fulltext','text','regex','^[\\040-\\176\\012\\015\\011]*$',0,20000,NULL);
 
