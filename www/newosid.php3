@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2008, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -23,7 +23,7 @@
 #
 include("defs.php3");
 include_once("osinfo_defs.php");
-include("osiddefs.php3");
+include_once("osiddefs.php3");
 include("form_defs.php");
 
 #

@@ -74,6 +74,7 @@ use Compress::Zlib;
 use File::Temp qw(tempfile);
 use MIME::Base64;
 use Digest::SHA1 qw(sha1_hex);
+use Scalar::Util qw(looks_like_number);
 
 # Configure variables
 my $TB		   = "@prefix@";
@@ -2483,7 +2484,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     #
     # Clear any new vlan tag reservations we made during this call.
     #
-    foreach my $linkname (%vlan_reservations) {
+    foreach my $linkname (keys(%vlan_reservations)) {
 	my ($lanid, $vlan_tag) = @{ $vlan_reservations{$linkname} };
 
 	# If this is a new ticket, there is no lan object yet,
@@ -6218,6 +6219,8 @@ sub GetSuggestedVlanFromHop($)
 	if (!defined($capref));
 
     my $tag = GeniXML::GetText("suggestedVLANRange", $capref);
+    $tag = undef
+	if (defined($tag) && ! looks_like_number($tag));
     return $tag;
 }
 

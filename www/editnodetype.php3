@@ -24,7 +24,7 @@
 include("defs.php3");
 include_once("imageid_defs.php");
 include_once("osinfo_defs.php");
-include("osiddefs.php3");
+include_once("osiddefs.php3");
 
 #
 # No PAGEHEADER since we spit out a Location header later. See below.
