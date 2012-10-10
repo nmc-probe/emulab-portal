@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2008 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -114,8 +114,7 @@ void handle_pipes (char *objname, char *eventtype,
   else error("unknown link event type\n");
 
   if(debug){
-    system ("echo ======================================== >> /tmp/ipfw.log"); 
-    system("(date;echo PARAMS ; ipfw pipe show all) >> /tmp/ipfw.log");
+    system("ipfw pipe show");
   }
 }
 
@@ -137,7 +136,7 @@ void handle_link_up(char * linkname, int l_index)
   /* no need to do anything if link is already up*/
   if(link_map[l_index].stat == LINK_UP)
     return;
-   
+
   link_map[l_index].stat = LINK_UP;
   set_link_params(l_index, 0, -1);
 }
@@ -222,6 +221,7 @@ void handle_link_modify(char * linkname, int l_index,
     get_new_link_params(l_index, handle, notification, &p_which);
 }
 
+#ifdef USESOCKET
 /* link field changed in 6.1 */
 #if __FreeBSD_version >= 601000
 #define DN_PIPE_NEXT(p)	((p)->next.sle_next)
@@ -581,6 +581,188 @@ void set_link_params(int l_index, int blackhole, int p_which)
 	  }
     }
 }
+#else
+int get_link_params(int l_index)
+{
+	int p_index = 0;
+	int pipeno;
+	char _buf[BUFSIZ], *cp;
+	FILE *cfd;
+	
+	for (p_index = 0; p_index < link_map[l_index].numpipes; p_index++) {
+		pipeno = link_map[l_index].pipes[p_index];
+		structpipe_params *p_params =
+			&(link_map[l_index].params[p_index]);
+
+		sprintf(_buf, "%s pipe %d show", IPFW, pipeno);
+
+		if ((cfd = popen(_buf, "r")) == NULL) {
+			error("Could not start ipfw for pipe %d\n", pipeno);
+			return -1;
+		}
+		/*
+		 * The first line is bw/delay. It looks like:
+		 *     60120: 100.000 bit/s     0 ms burst 0
+		 * or
+		 *     60120: unlimited     0 ms burst 0
+		 */
+		if (fgets(_buf, sizeof _buf, cfd) == NULL) {
+			error("No first line from ipfw for pipe %d\n", pipeno);
+			return -1;
+		}
+		int tpipeno, delay;
+		float bw = 0.0;
+		char bwspec[16], delayunits[10];
+		bzero(bwspec, sizeof(bwspec));
+
+		if (sscanf(_buf, "%d: unlimited %d %10s",
+			   &tpipeno, &delay, delayunits) != 3 &&
+		    sscanf(_buf, "%d: %f %16s %d %10s",
+			   &tpipeno, &bw, bwspec, &delay, delayunits) != 5) {
+			error("Could not parse '%s'\n", _buf);
+			return -1;
+		}
+		if (tpipeno != pipeno) {
+			error("Bad pipeno: %d!=%d\n", pipeno, tpipeno);
+		}
+		/*
+		 * The second line has slot/plr info
+		 */
+		if (fgets(_buf, sizeof _buf, cfd) == NULL) {
+			error("No second line from ipfw for pipe %d\n", pipeno);
+			return -1;
+		}
+		int qsize;
+		float plr;
+		char qspec[16];
+		
+		if (sscanf(_buf, "q%d %d %16s %f",
+			   &tpipeno, &qsize, qspec, &plr) != 4) {
+			error("Could not parse '%s'\n", _buf);
+			return -1;
+		}
+		if (strncmp(qspec, "KB", 2) && strncmp(qspec, "sl", 2)) {
+			error("Could not parse slot type '%s'\n", qspec);
+			return -1;
+		}
+		/* plr is optional, and there are no spaces after Q spec. */
+		if (strstr(qspec, "plr") == NULL) {
+			plr = 0.0;
+		}
+		/*
+		 * Next line might be optional RED/GRED stuff.
+		 */
+		if (fgets(_buf, sizeof _buf, cfd) == NULL) {
+			error("No third line from ipfw for pipe %d\n", pipeno);
+			return -1;
+		}
+		if ((cp = strstr(_buf, "RED"))) {
+			double w_q;
+			int max_th;
+			int min_th;
+			double max_p;
+			char *ccp = strchr(cp, ' ');
+			*ccp = '\0';
+			ccp++;
+
+			if (sscanf(ccp, "w_q %lf min_th %d max_th %d max_p %lf",
+				   &w_q, &min_th, &max_th, &max_p) != 4) {
+				error("Could not parse RED '%s'\n", ccp);
+				return -1;
+			}
+			if (strstr(_buf, "GRED")) {
+				p_params->flags_p |= PIPE_Q_IS_GRED;
+			}
+			else {
+				p_params->flags_p |= PIPE_Q_IS_RED;
+			}
+			p_params->red_gred_params.w_q    = w_q;
+			p_params->red_gred_params.max_p  = max_p;
+			p_params->red_gred_params.min_th = min_th;
+			p_params->red_gred_params.max_th = max_th;
+		}
+		else {
+			p_params->flags_p &= ~(PIPE_Q_IS_RED|PIPE_Q_IS_GRED);
+		}
+
+		pclose(cfd);
+		p_params->delay = delay;
+#if !defined(USESOCKET) && (__FreeBSD_version >= 800000 && __FreeBSD_version < 803000)
+		/*
+		 * Whacky hack for a bug in ipfw that results in the
+		 * delay not being converted back into milliseconds.
+		 */
+		if (delay) {
+			p_params->delay = p_params->delay * 1000 / kern_hz;
+		}
+#endif
+		p_params->bw = bw;
+		strcpy(p_params->bwspec, bwspec);
+		p_params->plr = plr;
+		p_params->q_size = qsize;
+		if (strncmp(qspec, "KB", 2) == 0) {
+			p_params->flags_p |= PIPE_QSIZE_IN_BYTES;
+		}
+		else {
+			p_params->flags_p &= ~PIPE_QSIZE_IN_BYTES;
+		}
+	}
+	return 1;
+}
+void set_link_params(int l_index, int blackhole, int p_which)
+{
+	int p_index;
+
+	for (p_index = 0; p_index < link_map[l_index].numpipes; p_index++) {
+		structpipe_params *p_params;
+		int pipeno;
+		char cmd[BUFSIZ];
+		
+		/*
+		 * Want to do all the pipes, or just the one pipe that was
+		 * specified.
+		 */
+		if (! (p_which == -1 || p_which == p_index))
+			continue;
+			
+		/* get the params stored in the link table*/
+		p_params = &(link_map[l_index].params[p_index]);
+		pipeno   = link_map[l_index].pipes[p_index];
+
+		if (debug)
+			info("entered the loop, pindex=%d, pipe=%d\n",
+			     p_index, pipeno);
+
+		sprintf(cmd, "%s pipe %d config delay %dms bw %f%s plr %lf "
+			"queue %d%s ",
+			IPFW, pipeno, p_params->delay,
+			p_params->bw, p_params->bwspec,
+			(blackhole ? 1.0 : p_params->plr),
+			(p_params->flags_p &
+			 PIPE_QSIZE_IN_BYTES ?
+			 p_params->q_size / 1000 : p_params->q_size),
+			(p_params->flags_p &
+			 PIPE_QSIZE_IN_BYTES ? "KBytes" : ""));
+			 
+		if (p_params->flags_p & (PIPE_Q_IS_GRED|PIPE_Q_IS_RED)) {
+			/* set GRED params */
+			sprintf(cmd + strlen(cmd), " %s %lf/%d/%d/%lf ",
+				(p_params->flags_p & PIPE_Q_IS_GRED ?
+				 "gred" : "red"),
+				p_params->red_gred_params.w_q,
+				p_params->red_gred_params.min_th,
+				p_params->red_gred_params.max_th,
+				p_params->red_gred_params.max_p);
+		}
+		if (debug)
+			info("%s\n", cmd);
+
+		if (system(cmd)) {
+			error("ipfw failed: '%s'\n", cmd);
+		}
+	}
+}
+#endif
 
 /********* get_new_link_params ***************************
   For a modify event, this function gets the parameters
@@ -634,8 +816,13 @@ int get_new_link_params(int l_index, event_handle_t handle,
 	if (! gotpipe) {
 	  link_map[l_index].params[1].bw = link_map[l_index].params[0].bw;
 	}
+#ifndef USESOCKET
+	strcpy(link_map[l_index].params[p_num].bwspec, "Kbits/s");
+	if (! gotpipe) {
+		strcpy(link_map[l_index].params[1].bwspec, "Kbits/s");
+	}
+#endif
       }
-
       else if (strcmp(argtype,"DELAY")== 0){
 	 info("Delay = %d\n", atoi(argvalue));
 	 link_map[l_index].params[p_num].delay = atoi(argvalue);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2003 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -76,6 +76,15 @@
 #include "tbdefs.h"
 #include "log.h"
 
+/*
+ * After 8.0, everything changed!
+ */
+#if __FreeBSD_version < 800000
+#define USESOCKET 1
+#else
+#define IPFW "ipfw"
+extern int kern_hz;
+#endif
 
 #if 0
 #include "tbdb.h"
@@ -127,7 +136,12 @@ typedef enum {
 /* Pipe parameter structures*/
 typedef struct {
   int delay;  /* pipe delay*/
+#ifdef USESOCKET
   int bw;  /* pipe bw*/
+#else
+  float bw;
+  char bwspec[16];
+#endif
   int backfill; /*pramod-CHANGES, -add backfill to the pipe*/
   double plr; /* queue loss rate*/
   int q_size; /* queuq size in slots/bytes*/
@@ -135,7 +149,7 @@ typedef struct {
   struct ipfw_flow_id id ; /* flow mask of the pipe*/
   int buckets;  /* number of buckets*/
   int n_qs; /* number of dynamic queues */
-  u_short flags_p; 
+  u_short flags_p;
 }structpipe_params, *structpipe_params_t;
 
 /* This structure maps the linkname (eg. link0 ) to the physical
@@ -158,7 +172,6 @@ structpipe_params params[2]; /* params for the two pipes*/
 enumlinkstat      stat;      /* link status : UP/DOWN*/
 }structlink_map, * structlink_map_t;
 
-
 /*************************USER DEFINED TYPES********************************/
 
 
@@ -177,8 +190,10 @@ void handle_link_modify(char * linkname, int l_index,
 			event_handle_t handle,
 			event_notification_t notification);
 int  get_link_params(int l_index);
+#ifdef USESOCKET
 void get_flowset_params(struct dn_flow_set*, int, int);
 void get_queue_params(struct dn_flow_set*,int, int);
+#endif
 void set_link_params(int l_index, int blackhole, int);
 int  get_new_link_params(int l_index, event_handle_t handle,
 			 event_notification_t notification,
