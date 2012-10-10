@@ -22,7 +22,7 @@ sub Install($$$)
 
     # Another good one for the rack.
     if ($PROTOGENI_GENIRACK) {
-	push(@STDIMAGES, "UBUNTU11-64-STD");
+	push(@STDIMAGES, "UBUNTU12-64-STD");
     }
 
     Phase "IDs", "Setting up Images and OSs", sub {
