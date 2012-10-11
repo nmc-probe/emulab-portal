@@ -96,6 +96,8 @@ namespace eval TBCOMPAT {
 
     # Storage object tracking (types, resources, etc.)
     variable sotypes
+    variable soclasses
+    variable soprotocols
 
     # NSE hack: sim type is not in DB. Just adding it now
     set hwtypes(sim) 1

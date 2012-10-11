@@ -394,6 +394,7 @@ source ${GLOBALS::libdir}/sequence.tcl
 source ${GLOBALS::libdir}/console.tcl
 source ${GLOBALS::libdir}/topography.tcl
 source ${GLOBALS::libdir}/disk.tcl
+source ${GLOBALS::libdir}/blockstore.tcl
 source ${GLOBALS::libdir}/custom.tcl
 
 ##################################################
@@ -638,7 +639,6 @@ proc convert_to_bytes {size} {
 	set unit B
     }
 
-    # We could do better below with a regexp match. But it is better to keep it simple.
     switch -- $unit {
 	B   {set val $sz}
 	KB  {set val [expr int($sz * 10**3)]}

@@ -39,11 +39,12 @@ Blockstore instproc init {s} {
     $self set node {}
     $self set type {}
     $self set size 0
-    $self set sclass {}
-    $self set proto {}
     $self set type {}
     $self set role "unknown"
-    #$self set parameters {}
+
+    # storage attributes (class, protocol, etc.)
+    $self instvar attributes
+    array set attributes {}
 
     set ::GLOBALS::last_class $self
 }
@@ -55,38 +56,40 @@ Blockstore instproc rename {old new} {
 }
 
 Blockstore instproc set-class {newclass} {
-    set bsclasses [list "SAN" "local"]
+    var_import ::TBCOMPAT::soclasses
+    $self instvar attributes
 
-    if {[lsearch -exact $bsclasses $newclass] == -1} {
-	perror "\[set-class] Class must be one of: [join $bsclasses {, }]"
+    if {![info exists soclasses($newclass)]} {
+	perror "\[set-class] Invalid storage class: $newclass"
 	return
     }
 
-    $self set sclass $newclass
+    $self set attributes(class) $newclass
     return
 }
 
 Blockstore instproc set-protocol {newproto} {
-    set protocols [list "iSCSI" "FCoE" "SCSI" "SATA"]
+    var_import ::TBCOMPAT::soprotocols
+    $self instvar attributes
 
-    if {[lsearch -exact $protocols $newproto] == -1} {
-	perror "\[set-protocol] Protocol must be one of: [join $protocols {, }]"
+    if {![info exists soprotocols($newproto)]} {
+	perror "\[set-protocol] Invalid storage protocol: $newproto"
 	return
     }
 
-    $self set proto $newproto
+    $self set attributes(protocol) $newproto
     return
 }
 
 Blockstore instproc set-type {newtype} {
     var_import ::TBCOMPAT::sotypes
 
-    if {[lsearch $sotypes $newtype] == -1} {
-	perror "\[set-type] Invalid Storage Object type: $newtype"
+    if {![info exists sotypes($newtype)]} {
+	perror "\[set-type] Invalid storage object type: $newtype"
 	return
     }
 
-    $self set type $newtype
+    $self set type $type
     return
 }
 
@@ -98,7 +101,7 @@ Blockstore instproc set-size {newsize} {
 
     # Do some boundary checks.
     if { $convsize < $mindisksize } {
-	perror "\[set-size] $convsize is smaller than allowed minimum (1 MiB)"
+	perror "\[set-size] $newsize is smaller than allowed minimum (1 MiB)"
 	return
     }
     if { $convsize % $mindisksize } {
@@ -118,33 +121,27 @@ Blockstore instproc set-size {newsize} {
 Blockstore instproc updatedb {DB} {
     var_import ::GLOBALS::pid
     var_import ::GLOBALS::eid
-    var_import ::TBCOMPAT::sotypes
     $self instvar sim
     $self instvar node
     $self instvar type
     $self instvar size
     $self instvar role
-    #$self instvar parameters
+    $self instvar attributes
 
-    if { $role == "unknown" } {
-	puts stderr "*** WARNING: Disk role not set and unable to infer it."
-    }
+    # XXX: role needs more thought...
+    #if { $role == "unknown" } {
+    #    puts stderr "*** WARNING: blockstore role not set and unable to infer it."
+    #}
 
+    # Emit top-level storage object stuff.
     set vb_fields [list "vname" "type" "role" "size"]
     set vb_values [list $self $type $role $size]
+    $sim spitxml_data "virt_blockstores" $vb_fields $vb_values
 
-    #if { $parameters != "" } {
-	#lappend fields "parameters"
-	#lappend values $parameters
-    #}
-    #if { $command != "" } {
-	#lappend fields "command"
-	#lappend values $command
-    #}
-
-    # Update the DB
-    spitxml_data "virt_blockstores" $vb_fields $vb_values
-
-    #$sim spitxml_data "virt_agents" [list "vnode" "vname" "objecttype" ] [list $node $self $objtypes(DISK) ]
+    # Emit attributes.
+    foreach key [lsort [array names attributes]] {
+	set val $attributes($key)
+	$sim spitxml_data "virt_blockstore_attributes" [list "vname" "attrkey" "attrvalue"] [list $self $key $val]
+    }
 }
 
