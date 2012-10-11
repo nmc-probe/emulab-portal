@@ -4880,7 +4880,7 @@ done
 
 # END Python detection.
 
-outfiles="Makeconf GNUmakefile \
+outfiles="Makeconf GNUmakefile setversion \
 	  lib/GNUmakefile \
           lib/libtb/GNUmakefile \
           lib/tmcd/GNUmakefile \

@@ -7600,7 +7600,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 # this turned out to be a major headache. Instead, just duplicate the file
 # lists here and in clientside.
 #
-outfiles="$outfiles clientside/GNUmakefile \
+outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/lib/GNUmakefile clientside/lib/libtb/GNUmakefile \
  clientside/lib/tmcd/GNUmakefile \
  clientside/GNUmakefile clientside/event/GNUmakefile \
