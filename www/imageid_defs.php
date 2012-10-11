@@ -234,6 +234,25 @@ class Image
     }
 
     #
+    # Flip global bit. If making it global, turn off shared.
+    # Also, if an EZ image, flip the bit on the os_info entry too.
+    #
+    function SetGlobal($mode) {
+	$id       = $this->imageid();
+	$mode     = ($mode ? 1 : 0);
+	$extra    = ($mode ? ",shared=0" : "");
+
+	DBQueryFatal("update images set global='$mode' $extra ".
+		     "where imageid='$id'");
+
+	if ($this->ezid()) {
+	    DBQueryFatal("update os_info set shared='$mode' ".
+			 "where osid='$id'");
+	}
+	return 0;
+    }
+
+    #
     # Class function to edit an image descriptor.
     #
     function EditImageid($image, $args, &$errors) {
@@ -385,13 +404,12 @@ class Image
 	$gid_idx= $user->uid_idx();
 
         #
-        # Global ImageIDs can be read by anyone but written by Admins only.
+        # Global ImageIDs can be read by anyone but written with permission.
         # 
 	if ($global) {
 	    if ($access_type == $TB_IMAGEID_READINFO) {
 		return 1;
 	    }
-	    return 0;
 	}
 
         #
@@ -661,11 +679,10 @@ class Image
                 <td>Global?: </td>
                 <td class=left>\n";
 
-	if ($globalid)
-	    echo "Yes";
-	else
-	    echo "No";
-    
+	$globalflip = ($globalid ? 0 : 1);
+	$globalval  = ($globalid ? "Yes" : "No");
+	echo "$globalval (<a href=toggle.php?imageid=$imageid".
+	    "&type=imageglobal&value=$globalflip>Toggle</a>)";
 	echo "  </td>
               </tr>\n";
 

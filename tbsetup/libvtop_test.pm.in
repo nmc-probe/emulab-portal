@@ -51,7 +51,6 @@ use Carp;
 use POSIX;
 use XML::LibXML;
 use XML::Simple;
-use GeniHRN;
 
 # Configure variables
 my $TB		  = "@prefix@";
@@ -66,7 +65,12 @@ my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $PGENIRACK     = @PROTOGENI_GENIRACK@;
 my $OURDOMAIN     = "@OURDOMAIN@";
 my $MAINSITE      = @TBMAINSITE@;
-my $mycmurn       = GeniHRN::Generate("@OURDOMAIN@", "authority", "cm");
+my $mycmurn       = "";
+
+if ($PGENISUPPORT) {
+  require GeniHRN;
+  $mycmurn = GeniHRN::Generate("@OURDOMAIN@", "authority", "cm");  
+}
 
 # Flags.
 $VTOP_FLAGS_VERBOSE	= 0x01;
@@ -5942,8 +5946,10 @@ sub InterpLinksAux($)
 		    if (defined($protovlan)) {
 			$vlan_type = "emulated";
 			$vlan_role = "link/lan";
-			$virtifaceA->_vlanname($protovlan->vname());
-			$virtifaceB->_vlanname($protovlan->vname());
+			$virtifaceA->_vlanname($protovlan->vname())
+			    if (defined($virtifaceA));
+			$virtifaceB->_vlanname($protovlan->vname())
+			    if (defined($virtifaceB));
 		    }
 		    else {
 			$vlan_type = "vlan";

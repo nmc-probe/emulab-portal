@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -29,13 +29,7 @@
  */
 
 /*********************************INCLUDES********************************/
-#define REAL_WORLD 1
-
-#if REAL_WORLD
-  #include "main.h"
-#else
-  #include "main-d.h"
-#endif
+#include "main.h"
 /*********************************INCLUDES********************************/
 
 /************************GLOBALS*****************************************/
@@ -80,6 +74,11 @@ void reset_callback(event_handle_t handle,
 		    event_notification_t notification, void *data);
 char *myvnode;
 
+/* Whacky ipfw bug work around */
+#ifndef USESOCKET
+int kern_hz;
+#endif
+
 int main(int argc, char **argv)
 {
   char c;
@@ -92,10 +91,7 @@ int main(int argc, char **argv)
   FILE *mp = NULL;
   //char *log = NULL;
   char buf[BUFSIZ];
-
-#if REAL_WORLD
   char ipbuf[BUFSIZ];
-#endif
   
   opterr = 0;
 
@@ -233,13 +229,32 @@ int main(int argc, char **argv)
     
   /* create a raw socket to configure Dummynet through setsockopt*/
   
-#if REAL_WORLD
+#ifdef USESOCKET
   s_dummy = socket( AF_INET, SOCK_RAW, IPPROTO_RAW );
   if ( s_dummy < 0 ){
     error("cant create raw socket\n");
     return 1;
   }
+#endif
+#if !defined(USESOCKET) && (__FreeBSD_version >= 800000 && __FreeBSD_version < 803000)
+  /*
+   * Whacky hack for a bug in ipfw that results in the delay not being
+   * converted back into milliseconds. 
+   */
+  {
+	  size_t len = sizeof(int); 
 
+	  if (sysctlbyname("kern.hz", &kern_hz, &len, NULL, 0) == -1) {
+		  error("cannot get kern.hz from kernel");
+		  return 1;
+	  }
+	  if (kern_hz == 0) {
+		  error("kern.hz must greater than zero");
+		  return 1;
+	  }
+	  info("kern.hz is %d\n", kern_hz);
+  }
+#endif
 /* this gets the current pipe params from dummynet and populates
      the link map table
    */
@@ -250,7 +265,6 @@ int main(int argc, char **argv)
 
   /* dump the link_map to log*/
   dump_link_map();
-  
   
  /*
   * Get our IP address. Thats how we name ourselves to the
@@ -273,7 +287,7 @@ int main(int argc, char **argv)
        strcpy(ipbuf, inet_ntoa(myip));
        ipaddr = ipbuf;
    }
-#endif
+
   /*
    * Write out a pidfile.
    */
@@ -413,7 +427,7 @@ void dump_link_map(){
       info("vnode     = %s\n", link_map[i].vnodes[j]);
 
       info("delay = %d, bw = %d plr = %f\n",  link_map[i].params[j].delay,
-	   link_map[i].params[j].bw, link_map[i].params[j].plr);
+	   (int)link_map[i].params[j].bw, link_map[i].params[j].plr);
       info("q_size = %d buckets = %d n_qs = %d flags_p = %d\n",
 	   link_map[i].params[j].q_size, link_map[i].params[j].buckets,
 	   link_map[i].params[j].n_qs, link_map[i].params[j].flags_p);

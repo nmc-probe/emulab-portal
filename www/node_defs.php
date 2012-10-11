@@ -303,7 +303,21 @@ class Node
 	$node_id = $this->node_id();
 
 	$query_result =
-	    DBQueryFatal("select status from nodes where node_id='$nodeid'");
+	    DBQueryFatal("select status from nodes where node_id='$node_id'");
+
+	if (mysql_num_rows($query_result) == 0) {
+	    return "";
+	}
+	$row = mysql_fetch_array($query_result);
+	return $row["status"];
+    }
+
+    function RealNodeStatus() {
+	$node_id = $this->node_id();
+
+	$query_result =
+	    DBQueryFatal("select status from node_status ".
+			 "where node_id='$node_id'");
 
 	if (mysql_num_rows($query_result) == 0) {
 	    return "";
@@ -405,7 +419,8 @@ class Node
 	$query_result =
 	    DBQueryWarn("select (unix_timestamp(now()) - unix_timestamp( ".
 			"        $clause)) as idle_time from node_activity ".
-			"where node_id='$node_id'");
+			"where node_id='$node_id' and ".
+			"      UNIX_TIMESTAMP(last_report)!=0");
 
 	if (mysql_num_rows($query_result) == 0) {
 	    return -1;

@@ -218,12 +218,12 @@ function SPITFORM($formfields, $errors)
 		     "</td>\n";
 		echo "  <td> " .
 		     "<input type=text
-			     name=\"formfields[DC::minthresh::$vlan::allnodes]\"
+			     name=\"formfields[DC::thresh::$vlan::allnodes]\"
 			     size=6/>".
 		      "</td>\n";
 		echo "  <td> " .
 		     "<input type=text
-			     name=\"formfields[DC::thresh::$vlan::allnodes]\"
+			     name=\"formfields[DC::maxthresh::$vlan::allnodes]\"
 			     size=6/>" .
 		     "</td>\n";
 		echo "  <td> " .
@@ -273,12 +273,12 @@ function SPITFORM($formfields, $errors)
 		 "</td>\n";
 	    echo "  <td> " . $row["q0_minthresh"] . 
 		"<br><input type=text
-			    name=\"formfields[DC::minthresh::$vlan::$vnode0]\"
+			    name=\"formfields[DC::thresh::$vlan::$vnode0]\"
 			    size=6/>".
 		"</td>\n";
 	    echo "  <td> " . $row["q0_maxthresh"] . 
 		 "<br><input type=text
-			     name=\"formfields[DC::thresh::$vlan::$vnode0]\"
+			     name=\"formfields[DC::maxthresh::$vlan::$vnode0]\"
 			     size=6/>" .
 		 "</td>\n";
 	    echo "  <td> " . $row["q0_linterm"] . 
@@ -334,12 +334,12 @@ function SPITFORM($formfields, $errors)
 		     "</td>\n";
 		echo "  <td> " . $row["q1_minthresh"] . 
 		     "<br><input type=text
-				 name=\"formfields[DC::minthresh::$vlan::$vnode1]\"
+				 name=\"formfields[DC::thresh::$vlan::$vnode1]\"
 				 size=6/>".
 		     "</td>\n";
 		echo "  <td> " . $row["q1_maxthresh"] . 
 		     "<br><input type=text
-				 name=\"formfields[DC::thresh::$vlan::$vnode1]\"
+				 name=\"formfields[DC::maxthresh::$vlan::$vnode1]\"
 				 size=6/>" .
 		     "</td>\n";
 		echo "  <td> " . $row["q1_linterm"] . 
@@ -410,12 +410,12 @@ function SPITFORM($formfields, $errors)
 		     "</td>\n";
 		echo "  <td> " .
 		     "<input type=text
-			     name=\"formfields[DC::minthresh::$vlan::allnodes]\"
+			     name=\"formfields[DC::thresh::$vlan::allnodes]\"
 			     size=6/>".
 		     "</td>\n";
 		echo "  <td> " .
 		     "<input type=text
-			     name=\"formfields[DC::thresh::$vlan::allnodes]\"
+			     name=\"formfields[DC::maxthresh::$vlan::allnodes]\"
 			     size=6/>" .
 		     "</td>\n";
 		echo "  <td> " .
@@ -464,12 +464,12 @@ function SPITFORM($formfields, $errors)
 		 "</td>\n";
 	    echo "  <td> " . $row["q_minthresh"] . 
 		 "<br><input type=text
-			     name=\"formfields[DC::minthresh::$vlan::$vnode]\"
+			     name=\"formfields[DC::thresh::$vlan::$vnode]\"
 			     size=6/>" .
 		 "</td>\n";
 	    echo "  <td> " . $row["q_maxthresh"] . 
 		 "<br><input type=text
-			     name=\"formfields[DC::thresh::$vlan::$vnode]\"
+			     name=\"formfields[DC::maxthresh::$vlan::$vnode]\"
 			     size=6/>" .
 		 "</td>\n";
 	    echo "  <td> " . $row["q_linterm"] . 

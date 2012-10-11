@@ -98,9 +98,9 @@ WRITESUBMENUBUTTON("Create an Image Descriptor",
 if ($isadmin) {
     WRITESUBMENUBUTTON("Create an OS Descriptor",
 		       "newosid.php3");
+    WRITESUBMENUBUTTON("OS Descriptor list",
+		       "showosid_list.php3");
 }
-WRITESUBMENUBUTTON("OS Descriptor list",
-		   "showosid_list.php3");
 SUBMENUEND();
 
 echo "Listed below are the Images that you can load on your nodes with the

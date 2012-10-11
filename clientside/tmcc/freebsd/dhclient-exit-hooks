@@ -115,20 +115,22 @@ if [ -n "$new_routers" ]; then
     fi
 fi
 
-#
-# We have observed problems where changing the speed/duplex of a link
-# leaves DNS a little wonky.  So we whack on it til it responds so that
-# the sethostname script won't fail.
-#
-if [ "$new_network_number" = "10.200.1.0" ]; then
-    for i in 0 1 2; do
-        if `$BINDIR/tmcc bossinfo >/dev/null 2>&1`; then
-	    break
-	fi
-        echo "`date`: ${interface}: waiting for DNS.." >>$LOGDIR/dhclient-exit.log 2>&1
-        sleep $i
-    done
-fi
+##
+## This is now handled in sethostname.
+##
+## We have observed problems where changing the speed/duplex of a link
+## leaves DNS a little wonky.  So we whack on it til it responds so that
+## the sethostname script won't fail.
+##
+#if [ "$new_network_number" = "10.200.1.0" ]; then
+#    for i in 0 1 2; do
+#        if `$BINDIR/tmcc bossinfo >/dev/null 2>&1`; then
+#	    break
+#	fi
+#        echo "`date`: ${interface}: waiting for DNS.." >>$LOGDIR/dhclient-exit.log 2>&1
+#        sleep $i
+#    done
+#fi
 
 #
 # See if the Testbed configuration software wants to change the hostname.

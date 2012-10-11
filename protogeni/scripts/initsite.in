@@ -361,7 +361,7 @@ Phase "sslcnf", "Updating ssl syscert.cnf", sub {
 Phase "apache", "Updating apache config", sub {
     DoneIfIdentical("@top_builddir@/apache/httpd.conf", "$HTTPD_CONF");
     BackUpFileFatal("$HTTPD_CONF");
-    ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/apache install");
+    ExecQuietFatal("$GMAKE -C @top_builddir@/apache install");
 };
 Phase "rcconf", "Updating $RCCONF", sub {
     DoneIfEdited($RCCONF);

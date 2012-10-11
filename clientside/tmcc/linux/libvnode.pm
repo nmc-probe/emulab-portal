@@ -424,7 +424,7 @@ sub downloadImage($$$$) {
 	    $proxyopt = "-P $nodeid";
 	}
 	if ($server && $imageid) {
-	    mysystem2("$FRISBEE $proxyopt ".
+	    mysystem2("$FRISBEE -M 64 $proxyopt ".
 		     "         -S $server -B 30 -F $imageid $imagepath");
 	    return -1
 		if ($?);
@@ -438,13 +438,14 @@ sub downloadImage($$$$) {
 	my $mcastaddr = $1;
 	my $mcastport = $2;
 
-	mysystem2("$FRISBEE -m $mcastaddr -p $mcastport $imagepath");
+	mysystem2("$FRISBEE -M 64 -m $mcastaddr -p $mcastport $imagepath");
 	return -1
 	    if ($?);
     }
     elsif ($addr =~ /^http/) {
 	if ($todisk) {
-	    mysystem("wget -nv -N -P -O - '$addr' | $IMAGEUNZIP - $imagepath");
+	    mysystem("wget -nv -N -P -O - '$addr' | ".
+		     "$IMAGEUNZIP -W 32 - $imagepath");
 	} else {
 	    mysystem("wget -nv -N -P -O $imagepath '$addr'");
 	}
@@ -603,7 +604,7 @@ sub createExtraFS($$$)
     system("mkdir $path") == 0
 	or return -1;
     
-    system("/usr/sbin/lvcreate -n extrafs -L $size $vgname") == 0
+    system("lvcreate -n extrafs -L $size $vgname") == 0
 	or return -1;
 
     system("mke2fs -j /dev/$vgname/extrafs") == 0

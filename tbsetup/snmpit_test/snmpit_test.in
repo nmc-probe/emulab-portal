@@ -3158,7 +3158,13 @@ sub doMakeVlan($$@) {
 	    my $vlan = VLan->FindVlanByPort(undef, $port);
 	    
 	    if (defined($source_vlan) && !$vlan->SameVlan($source_vlan)) {
-		die("Ports must be in a single vlan\n");
+		if (IsPortTagged($port)) {
+		    print "$port is tagged and already in $source_vlan. ".
+			"But doing it anyway!\n";
+		}
+		else {
+		    die("Ports must be in a single vlan\n");
+		}
 	    }
 	    $source_vlan = $vlan;
 	}
@@ -3312,8 +3318,12 @@ sub doMakeVlan($$@) {
 	    $source_vlan->ClrSwitchPath();
 	}
 
-	# Yank the ports out of the old vlan now.
+	# Yank the ports out of the old vlan now, unless it is tagged,
+	# cause we assume the user knows what they want.
 	foreach my $port (@ports) {
+	    next
+		if (IsPortTagged($port));
+	    
 	    if ($source_vlan->DelPort($port)) {
 		print STDERR "Could not yank $port from $source_vlan\n";
 		goto bad;

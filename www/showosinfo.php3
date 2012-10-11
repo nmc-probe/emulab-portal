@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -52,18 +52,29 @@ PAGEHEADER("OSID $osname");
 
 SUBPAGESTART();
 SUBMENUSTART("OSID Options");
-WRITESUBMENUBUTTON("Delete this OS Descriptor",
-		   CreateURL("deleteosid", $osinfo));
-if ($isadmin) {
-     WRITESUBMENUBUTTON("Create a new OS Descriptor",
-			"newosid.php3");
+#
+# Delete from the image descriptor when its an EZ image.
+#
+if ($osinfo->ezid()) {
+    $fooid = rawurlencode($osinfo->osid());
+    WRITESUBMENUBUTTON("Delete this OS Descriptor",
+		       "deleteimageid.php3?imageid=$fooid");
+}
+else {
+    WRITESUBMENUBUTTON("Delete this OS Descriptor",
+		       CreateURL("deleteosid", $osinfo));
 }
 WRITESUBMENUBUTTON("Create a new Image Descriptor",
 		   "newimageid_ez.php3");
-WRITESUBMENUBUTTON("OS Descriptor list",
-		   "showosid_list.php3");
 WRITESUBMENUBUTTON("Image Descriptor list",
 		   "showimageid_list.php3");
+if ($isadmin) {
+    WRITESUBMENUBUTTON("OS Descriptor list",
+		       "showosid_list.php3");
+    WRITESUBMENUBUTTON("Create a new OS Descriptor",
+		       "newosid.php3");
+}
+
 SUBMENUEND();
 echo "<br><br>\n";
 
