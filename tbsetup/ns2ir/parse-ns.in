@@ -870,7 +870,7 @@ sub GenDefsFile($)
 	    }
 	}
     }
-    print TCL "\n\n";
+    print TCL "\n";
 
     print TCL "# Storage Objects\n";
     my @sotypes = BlockstoreType->AllTypes();
@@ -885,10 +885,9 @@ sub GenDefsFile($)
 	print TCL "set soprotocols($proto) 1\n"
 	    if defined($proto);
     }
-    print TCL "\n\n";
+    print TCL "\n";
 
-
-    print TCL "}\n";
+    print TCL "}\n\n";
     close(TCL);
 }
 

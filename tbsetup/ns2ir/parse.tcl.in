@@ -641,14 +641,14 @@ proc convert_to_bytes {size} {
 
     switch -- $unit {
 	B   {set val $sz}
-	KB  {set val [expr int($sz * 10**3)]}
-	KiB {set val [expr int($sz * 2**10)]}
-	MB  {set val [expr int($sz * 10**6)]}
-	MiB {set val [expr int($sz * 2**20)]}
-	GB  {set val [expr int($sz * 10**9)]}
-	GiB {set val [expr int($sz * 2**30)]}
-	TB  {set val [expr int($sz * 10**12)]}
-	TiB {set val [expr int($sz * 2**40)]}
+	KB  {set val [expr int($sz * pow(10,3))]}
+	KiB {set val [expr int($sz * pow(2,10))]}
+	MB  {set val [expr int($sz * pow(10,6))]}
+	MiB {set val [expr int($sz * pow(2,20))]}
+	GB  {set val [expr int($sz * pow(10,9))]}
+	GiB {set val [expr int($sz * pow(2,30))]}
+	TB  {set val [expr int($sz * pow(10,12))]}
+	TiB {set val [expr int($sz * pow(2,40))]}
 	default {
 	    perror "Unknown size unit $unit."
 	    set val 0

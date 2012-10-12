@@ -104,14 +104,14 @@ sub AllTypes($)
     my $query_result =
 	DBQueryWarn("select distinct type from blockstore_type_attributes");
     
-    return undef
+    return ()
 	if (!$query_result || !$query_result->numrows);
 
     while (my ($type) = $query_result->fetchrow_array()) {
 	my $typeinfo = Lookup($class, $type);
 
 	# Something went wrong?
-	return undef
+	return ()
 	    if (!defined($typeinfo));
 	
 	push(@alltypes, $typeinfo);

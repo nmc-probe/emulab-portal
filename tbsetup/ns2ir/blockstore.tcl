@@ -94,7 +94,7 @@ Blockstore instproc set-type {newtype} {
 }
 
 Blockstore instproc set-size {newsize} {
-    set mindisksize [expr 2 ** 20]; # 1 MiB
+    set mindisksize [expr pow(2,20)]; # 1 MiB
 
     # Convert various input size strings to bytes.
     set convsize [convert_to_bytes $newsize]
