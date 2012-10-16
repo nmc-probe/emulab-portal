@@ -34,7 +34,7 @@ use File::Temp qw(tempfile);
 #
 sub usage()
 {
-    print STDERR "Usage: addgenericdev -t <type> [-s] <node_id>\n";
+    print STDERR "Usage: addspecialdevice -t <type> [-s count] <node_id>\n";
     print STDERR "Options:\n";
     print STDERR " -d       - Turn on debugging\n";
     print STDERR " -n       - Dry run mode\n";

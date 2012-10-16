@@ -34,7 +34,7 @@ use File::Temp qw(tempfile);
 #
 sub usage()
 {
-    print STDERR "Usage: addgenericiface -b <speed> [-s <switchinfo>] ".
+    print STDERR "Usage: addspecialiface -b <speed> [-s <switchinfo>] ".
 	"<node_id> <iface_id>\n";
     print STDERR "Usage: addgenericiface -r <node_id> <iface_id>\n";
     print STDERR "Options:\n";
