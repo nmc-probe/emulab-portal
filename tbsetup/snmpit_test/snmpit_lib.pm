@@ -1606,7 +1606,8 @@ sub getTrunkHash() {
     foreach my $switch1 (keys %trunks) {
         foreach my $switch2 (keys %{$trunks{$switch1}}) {
             foreach my $port (@{$trunks{$switch1}{$switch2}}) {
-                my $portstr = "$switch1/$port";
+                # XXX backward compat
+                my $portstr = "$switch1/".$port->card().".".$port->port();
                 $trunkhash{$portstr} = 1;
             }
         }
