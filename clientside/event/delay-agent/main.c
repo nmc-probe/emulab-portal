@@ -426,8 +426,14 @@ void dump_link_map(){
       info("pipe num  = %d\n", link_map[i].pipes[j]);
       info("vnode     = %s\n", link_map[i].vnodes[j]);
 
-      info("delay = %d, bw = %d plr = %f\n",  link_map[i].params[j].delay,
-	   (int)link_map[i].params[j].bw, link_map[i].params[j].plr);
+      info("delay = %d, ", link_map[i].params[j].delay);
+#ifdef USESOCKET
+      info("bw = %d, ", link_map[i].params[j].bw);
+#else
+      info("bw = %.3f %s, ", link_map[i].params[j].bw,
+	   link_map[i].params[j].bwspec);
+#endif
+      info("plr = %d\n", link_map[i].params[j].plr);
       info("q_size = %d buckets = %d n_qs = %d flags_p = %d\n",
 	   link_map[i].params[j].q_size, link_map[i].params[j].buckets,
 	   link_map[i].params[j].n_qs, link_map[i].params[j].flags_p);
