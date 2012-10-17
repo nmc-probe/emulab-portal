@@ -11,7 +11,7 @@ sub InstallUpdate($$)
     #
     # Need to run this after the protogeni SQL update and install
     #
-    if ($PGENISUPPORT && $phase eq "post") {
+    if ($PGENISUPPORT && $phase eq "post" && !IMPOTENT_MODE()) {
 	require GeniDB;
 	my $genidbnum = GeniDB::DBConnect(GeniDB::GENICM_DBNAME());
 	return 0
