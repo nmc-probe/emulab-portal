@@ -1818,7 +1818,8 @@ CREATE TABLE `images` (
   UNIQUE KEY `pid` (`pid`,`imagename`),
   KEY `gid` (`gid`),
   KEY `old_imageid` (`old_imageid`),
-  KEY `uuid` (`uuid`)
+  KEY `uuid` (`uuid`),
+  FULLTEXT KEY `imagesearch` (`imagename`,`description`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

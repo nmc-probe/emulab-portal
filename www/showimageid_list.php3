@@ -35,37 +35,53 @@ $isadmin   = ISADMIN();
 # Admin users can see all ImageIDs, while normal users can only see
 # ones in their projects or ones that are globally available.
 #
-$optargs = OptionalPageArguments("creator",  PAGEARG_USER);
+$optargs = OptionalPageArguments("searchfor", PAGEARG_STRING,
+				 "searchby",  PAGEARG_STRING);
 $extraclause = "";
 
 #
 # Standard Testbed Header
 #
-PAGEHEADER("Image List");
+PAGEHEADER("Image Search");
 
-#
-# Allow for creator restriction
-#
-if (isset($creator)) {
-    $creator_idx = $creator->uid_idx();
-    
-    if ($isadmin) {
-	$extraclause = "where i.creator_idx='$creator_idx' ";
+if (isset($searchfor) && isset($searchby)) {
+    if (! preg_match('/^[-\w\:,\.\+]+$/', $searchfor)) {    
+	USERERROR("Illegal characters in search clause", 1);
     }
-    elseif ($creator->SameUser($this_user)) {
-	$extraclause = "and i.creator_idx='$creator_idx' ";
+    if ($searchby == "nodetype") {
+	$tokens = array();
+	
+	foreach (preg_split("/,/", $searchfor) as $type) {
+	    $tokens[] = "type='$type'";
+	}
+	$extraclause = join(" or ", $tokens);
+	$extraclause = "and ($extraclause)";
+    }
+    elseif ($searchby == "features") {
+	$tokens = array();
+	
+	foreach (preg_split("/,/", $searchfor) as $feature) {
+	    $tokens[] = "find_in_set('$feature',osfeatures)";
+	}
+	$extraclause = join(" or ", $tokens);
+	$extraclause = "and ($extraclause)";
+    }
+    elseif ($searchby == "namedesc") {
+	$safe_searchfor = addslashes($searchfor);
+	$extraclause = "and (match (i.imagename,i.description) ".
+	    "against('$safe_searchfor'))";
     }
 }
 
+$query =
+    "select distinct i.* from images as i ".
+    "left join os_info as o on i.imageid=o.osid ".
+    "left join osidtoimageid as map on map.osid=i.imageid ";
+
 #
-# Get the list.
+# Tack on the permission clause for mere users. 
 #
-if ($isadmin) {
-    $query_result = DBQueryFatal("SELECT * FROM images as i ".
-				 "$extraclause ".
-				 "order by i.imagename");
-}
-else {
+if (!$isadmin) {
     #
     # User is allowed to view the list of all global images, and all images
     # in his project. Include images in the subgroups too, since its okay
@@ -76,25 +92,34 @@ else {
     #
     $uid_idx = $this_user->uid_idx();
     
-    $query_result =
-	DBQueryFatal("select distinct i.* from images as i ".
-		     "left join image_permissions as p1 on ".
-		     "     p1.imageid=i.imageid and p1.permission_type='group' ".
-		     "left join image_permissions as p2 on ".
-		     "     p2.imageid=i.imageid and p2.permission_type='user' ".
-		     "left join group_membership as g on ".
-		     "     g.pid_idx=i.pid_idx or ".
-		     "     g.gid_idx=p1.permission_idx ".
-		     "where (g.uid_idx='$uid_idx' or i.global or".
-		     "       p2.permission_idx='$uid_idx') ".
-		     "$extraclause ".
-		     "order by i.imagename");
+    $query .=
+	"left join image_permissions as p1 on ".
+	"     p1.imageid=i.imageid and p1.permission_type='group' ".
+	"left join image_permissions as p2 on ".
+	"     p2.imageid=i.imageid and p2.permission_type='user' and ".
+	"     p2.permission_idx='$uid_idx' ".
+	"left join group_membership as g on ".
+	"     g.uid_idx='$uid_idx' and  ".
+	"     (g.pid_idx=i.pid_idx or ".
+	"      g.gid_idx=p1.permission_idx) ".
+	"where (i.global or p2.imageid is not null or g.uid_idx is not null) ";
 }
+else {
+    $query .= "where 1 ";
+}
+
+$query .=
+    "and i.ezid = 1 $extraclause ".
+    "order by i.imagename";
+
+$query_result = DBQueryFatal($query);
 
 SUBPAGESTART();
 SUBMENUSTART("More Options");
 WRITESUBMENUBUTTON("Create an Image Descriptor",
 		   "newimageid_ez.php3");
+WRITESUBMENUBUTTON("More info on Images",
+		   "$WIKIDOCURL/Tutorial#CustomOS");
 if ($isadmin) {
     WRITESUBMENUBUTTON("Create an OS Descriptor",
 		       "newosid.php3");
@@ -102,24 +127,50 @@ if ($isadmin) {
 		       "showosid_list.php3");
 }
 SUBMENUEND();
-
-echo "Listed below are the Images that you can load on your nodes with the
-      <a href='$WIKIDOCURL/nscommands#OS'>
-      <tt>tb-set-node-os</tt></a> directive. If the OS you have selected for
-      a node is not loaded on that node when the experiment is swapped in,
-      the Testbed system will automatically reload that node's disk with the
-      appropriate image. You might notice that it takes a few minutes longer
-      to start your experiment when selecting an OS that is not
-      already resident. Please be patient.
-      <br>
-      More information on how to create your own Images is in the
-      <a href='$WIKIDOCURL/Tutorial#CustomOS'>Custom OS</a> section of
-      the <a href='$WIKIDOCURL/Tutorial'>Emulab Tutorial.</a>
-      <br>\n";
-
+echo "<table class=stealth>\n";
+echo "<tr><form action=showimageid_list.php3 method=get>
+      <td class=stealth><b>Find images that run on:&nbsp</b> 
+      <input type=text style=\"float:right\"
+             name=searchfor
+             size=40
+             value=\"" . ($searchby == "nodetype" ? $searchfor : "") . "\"</td>
+      <input type=hidden name=searchby value='nodetype'>
+      <td class=stealth>
+        <b><input type=submit name=search1 value=Search></b></td>
+      <td class=stealth>
+         Comma separated list of types</td>\n";
+echo "</form></tr>\n";
+echo "<tr><form action=showimageid_list.php3 method=get>
+      <td class=stealth><b>Find images with with features:&nbsp</b> 
+      <input type=text 
+             name=searchfor
+             size=40
+             value=\"" . ($searchby == "features" ? $searchfor : "") . "\"</td>
+      <input type=hidden name=searchby value='features'>
+      <td class=stealth>
+        <b><input type=submit name=search2 value=Search></b></td>
+      <td class=stealth>
+         Comma separated list of features</td>\n";
+echo "</form></tr>\n";
+echo "<tr><form action=showimageid_list.php3 method=get>
+      <td class=stealth><b>Search name and description:&nbsp</b> 
+      <input type=text style=\"float:right\"
+             name=searchfor
+             size=40
+             value=\"" . ($searchby == "namedesc" ? $searchfor : "") . "\"</td>
+      <input type=hidden name=searchby value='namedesc'>
+      <td class=stealth>
+        <b><input type=submit name=search3 value=Search></b></td>
+      <td class=stealth>
+         Plain text, case insensitive search</td>\n";
+echo "</form></tr>\n";
+echo "</table>\n";
 SUBPAGEEND();
 
 if (mysql_num_rows($query_result)) {
+    $numrows = mysql_num_rows($query_result);
+    
+    echo "<center>There are $numrows matching images.</center>\n";
     echo "<table border=2 cellpadding=0 cellspacing=2 id='showimagelist'
            align='center'>\n";
 
