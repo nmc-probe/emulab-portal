@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -232,8 +232,21 @@ sub read_schema($) {
 		die "Found a CHECK line, which we don't handle yet\n";
 	    } elsif (/^\s*UNIQUE (INDEX)?\s+(\w+)?\s+\((.+[^,])\),?$/i) {
 		die "Found a UNIQUE (INDEX) line, which we don't handle yet\n";
-	    } elsif (/^\s*FULLTEXT (INDEX)?\s+(\w+)?\s+\((.+[^,])\),?$/i) {
-		die "Found a FULLTEXT (INDEX) line, which we don't handle yet\n";
+	    } elsif (/^\s*FULLTEXT (KEY|INDEX)?\s+`?(\w+)?`?\s+\((.+[^,])\),?$/i) {
+		
+		# A key/index (synonmyms)
+		my ($name, $key) = ($1, $2);
+		# Strip whitespace
+		$key =~ s/\s+//g;
+		# Strip backquotes
+		$key =~ s/\`//g;
+  		debug("Putting key $key in table $table_name\n");
+
+  	 	if ($name) {
+		    $tables{$table_name}{KEYS}{$name} = $key;
+		} else { 
+		    die "Found a key without a name: $key\n";
+		}
 
 	    } elsif (/^\s*PRIMARY KEY\s*\((.+)\),?$/i) {
 
