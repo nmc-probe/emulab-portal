@@ -36,13 +36,13 @@ sub usage()
 {
     print STDERR "Usage: addspecialiface -b <speed> [-s <switchinfo>] ".
 	"<node_id> <iface_id>\n";
-    print STDERR "Usage: addgenericiface -r <node_id> <iface_id>\n";
+    print STDERR "Usage: addspecialiface -r <node_id> <iface_id>\n";
     print STDERR "Options:\n";
     print STDERR " -d       - Turn on debugging\n";
     print STDERR " -n       - Dry run mode\n";
     print STDERR " -t       - Do not call snmpit to set trunk mode\n";
     print STDERR " -r       - Delete interface\n";
-    print STDERR " -b speed - Interface speed; 100Mb or 1Gb \n";
+    print STDERR " -b speed - Interface speed; 100Mb, 1Gb or 10Gb \n";
     print STDERR " -s info  - switchname,switchcard,switchport\n";
     print STDERR " iface_id - eth0, eth1, etc (must end in an integer)\n";
     exit(-1);
@@ -112,7 +112,7 @@ if (defined($options{'t'})) {
 if (defined($options{'b'})) {
     $speed = $options{'b'};
     usage()
-	if ($speed ne "1Gb" && $speed ne "100Mb");
+	if ($speed ne "1Gb" && $speed ne "100Mb" && $speed ne "10Gb");
 }
 if (defined($options{'s'})) {
     $switchinfo = $options{"s"};
@@ -200,12 +200,24 @@ if (Interface->Lookup($node, $switchcard, $switchport)) {
 #
 # Add the interface.
 #
+my $type;
+my $max_speed;
+if( $speed eq "100Mb" ) {
+    $type = "generic";
+    $max_speed = "100000";
+} elsif( $speed eq "10Gb" ) {
+    $type = "generic_10G";
+    $max_speed = "10000000";
+} else { # default is 1G for backward compatibility
+    $type = "generic_1G";
+    $max_speed = "1000000";
+}
 my $ifaceargs = {
     "card"        => $nodecard,
     "iface"       => $iface_id,
     "role"        => TBDB_IFACEROLE_EXPERIMENT(),
-    "type"        => ($speed eq "100Mb" ? "generic" : "generic_1G"),
-    "max_speed"   => ($speed eq "100Mb" ? "100000"  : "1000000"),
+    "type"        => $type,
+    "max_speed"   => $max_speed,
     "switch_id"   => $switchid,
     "switch_port" => $switchport,
     "switch_card" => $switchcard,
