@@ -72,6 +72,10 @@ if (isset($searchfor) && isset($searchby)) {
 	    "against('$safe_searchfor'))";
     }
 }
+else {
+    # For test in forms below.
+    $searchby = "";
+}
 
 $query =
     "select distinct i.* from images as i ".
