@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2010 University of Utah and the Flux Group.
+# Copyright (c) 2008-2010, 2012 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -105,12 +105,6 @@ usage()
     if (@ARGV != 1 ||
 	($dosa + $doch + $docm) == 0 || ($dosa + $doch + $docm) > 1);
 my $uuid = $ARGV[0];
-
-# Map invoking user to object.
-my $this_user = User->ThisUser();
-if (! defined($this_user)) {
-    fatal("You ($UID) do not exist!");
-}
 
 # Connect to the proper DB.
 DBConnect(($doch ? GENICH_DBNAME() :
