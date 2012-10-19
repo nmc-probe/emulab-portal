@@ -597,7 +597,8 @@ parse_mfs_path(char *str, boot_what_t *info)
 static void
 parse_features(char *str, boot_what_t *info)
 {
-	if (strstr(str, "ontrustedboot")) {
+	/* Note that features might be a null string; no features */
+	if (str && strstr(str, "ontrustedboot")) {
 		info->flags |= BIBOOTWHAT_FLAGS_SECURE;
 	}
 }
