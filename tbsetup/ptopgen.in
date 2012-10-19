@@ -2390,6 +2390,10 @@ sub print_node_interfaces
     my $i = 0;
     for (; $i < scalar(@interfaces); ++$i) {
 	my $name = $interfaces[$i];
+	if (defined($MAINSITE) && $MAINSITE && $nodeName eq "instageni-nc7"
+	    && $name ne "eth5") {
+	    next;
+	}
 	my $urn = GeniHRN::GenerateInterface($OURDOMAIN, $nodeName, $name);
 	print "  <interface component_id=\"$urn\" ";
 	if (exists($interfaceroles{"$nodeName:$name"})) {
