@@ -2430,6 +2430,11 @@ sub print_named_link_ptop
     my @proto = @{ shift(@_) };
     my $is_interconnect = shift(@_);
 
+    if (defined($MAINSITE) && $MAINSITE &&
+	(($source eq "instageni-nc7" && $source_if ne "eth5") ||
+	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
+	return;
+    }
     my $source_full = "$source:$source/$source_if";
     # Not sure about (null) stuff ... 
     my $dest_full = "$dest:" .
@@ -2460,6 +2465,11 @@ sub print_named_link_xml
 						$source_if);
     my $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
 					      $dest_if);
+    if (defined($MAINSITE) && $MAINSITE &&
+	(($source eq "instageni-nc7" && $source_if ne "eth5") ||
+	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
+	return;
+    }
     if ($genimode ne $NO_GENI) {
 	$name =~ s/:/\/\//g;
 	my $external_manager_urn;
