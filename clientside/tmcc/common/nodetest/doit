@@ -1,0 +1,72 @@
+#/bin/bash
+
+#list="555 475 471 459 458 457 455 454 451 450 416 412 410 454 477 452 515"
+#list="pc410 pc412 pc416 pc421 pc427 pc537 pc538 pc539 pc440 pc450 pc451 pc452 pc454 pc455 pc456 pc457 pc458 pc459 pc477 pc515 pc560 pc471 pc475 pc555 pc558 pc559"
+
+C20andHotter="pc410 pc412 pc416 pc421 pc427 pc450 pc456 pc457 pc458 pc459 pc471"
+C19="pc451 pc452 pc454 pc455 pc477 pc555 pc559"
+C18andBlo="pc537 pc538 pc539 pc440 pc515 pc560 pc475 pc558" 
+
+FWupdated="pc416 pc455 pc477 pc537"
+Updateandslow="pc477"
+
+#nfree emulab-ops SlowDisks $C20andHotter
+#exit
+
+#list="pc475 pc477"
+#list="pc515 pc452 pc477 pc451 pc454 pc455 pc475 pc555 pc440 pc560 pc559 pc558 pc539 pc538 pc537 pc419 pc535 pc536 pc418"
+
+#list="pc540 pc418 pc419 pc537 pc538 pc539 pc558 pc559 pc560 pc440 pc476  pc458 pc456 pc542 pc519 pc541 pc460 pc557 pc442 pc502 pc481 pc437 pc536 pc501 pc520 pc458 pc466 pc456"
+
+#list some higher time nodes - a mix of sorts
+#list="pc517 pc416 pc480 pc521 pc439 pc461 pc421 pc459 pc482 pc478 pc457 pc457 pc436"
+#list="pc401 pc516 pc417"
+#list="pc434"
+list="pc500 pc496 pc495 pc498 pc497"
+list="pc500"
+
+#check for ssh access
+for i in $list
+do
+echo -n "${i} : "
+#ssh -q $i uptime
+ssh $i uptime
+echo ""
+done
+
+for i in $list
+do
+    dset=""
+    dtime=`date +%d%b%y_%R`
+    echo "$i   $i   $i   $i   $i   $i   $i   "
+    results=./results/$i
+    mkdir -p $results
+
+    #remove old log
+#    ssh -q $i rm -f disktest.log/$i.log
+    ssh $i rm -f disktest.log/$i.log
+    #send current script
+#   scp -q disktest disktest.pl $i:/root/disktest
+    rsync -a disktest disktest.pl $i:/root
+#    ssh -q $i chmod 755 /root/disktest /root/disktest.pl
+    ssh $i chmod 755 /root/disktest /root/disktest.pl
+    #run it
+#    ssh -q $i /root/disktest
+    ssh $i /root/disktest
+
+#    scp -q $i:/root/disktest.log/$i.log $results/$i.txt_$dtime
+     scp $i:/root/disktest.log/$i.log $results/$i.txt_$dtime
+
+# #    ssh -q $i /usr/bin/dellsysteminfo --silent --nologs --nosoftware --nostorage --nohardware
+# #    ssh -q $i /usr/bin/dellsysteminfo 
+#     ssh $i /usr/bin/dellsysteminfo 
+#     dset=$(ssh -q $i ls DSET_Report\*.zip)
+#     if [ -n $dset ] ; then
+# #	scp -q $i:$dset $results/${dset}_$dtime
+# 	scp $i:$dset $results/${dset}_$dtime
+# #	ssh -q $i rm -f $dset
+# 	ssh $i rm -f $dset
+#     fi
+
+    echo "--------------------------------------------------- "
+done
