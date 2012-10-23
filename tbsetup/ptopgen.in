@@ -800,7 +800,7 @@ if (defined($component_name)) {
 $result =
     DBQueryFatal("select a.node_id,a.type,a.phys_nodeid,t.class,t.issubnode," .
 		 "a.def_boot_osid,(b.pid is not null and b.eid is not null), ".
-		 "  np.reserved_pid is not null,np.eventstate, ".
+		 "  np.reserved_pid,np.eventstate, ".
 		 "  np.battery_percentage,np.uuid,b.sharing_mode, ".
 		 "  ru.load_1min, ru.load_5min, ru.status_timestamp, ".
 		 "  a.def_boot_osid, nat2.attrvalue, wn.country, " .
@@ -867,7 +867,9 @@ while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 	$sharing_mode{$node} = 0;
     }
 
-    $is_prereserved{$node} = $prereserved;
+    if (defined($prereserved) && !(defined($pid) && $prereserved eq $pid)) {
+	$is_prereserved{$node} = $prereserved;
+    }
 
     $curr_state{$node} = $eventstate;
     $curr_batt{$node} = $battery_perc;
@@ -1203,7 +1205,7 @@ foreach $node (@nodenames) {
 	push(@features,"already_reserved:0");
     }
 
-    if ($is_prereserved{$node}) {
+    if (exists($is_prereserved{$node})) {
 	push(@features,"prereserved:0.9");
     }
 
