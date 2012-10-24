@@ -3133,7 +3133,6 @@ sub doMakeVlan($$@) {
     my $vlanexists = 0;
     my $target_vlan;
     my $source_vlan;
-    my ($old_target_swpath, $old_source_swpath);
 
     if (@$stacks > 1) {
 	die "VLAN creation across multiple stacks is not yet supported\n" .
@@ -3282,10 +3281,10 @@ sub doMakeVlan($$@) {
 
     #
     # Remove the current set of switch trunks since we have to generate
-    # a new set anyway. Do this for experiment vlans only though.
+    # a new set anyway. 
     #
     if (!$opt{'whol-magic'}) {
-	if (! $target_vlan->IsManual()) {
+	if ($target_vlan->KeepInSync()) {
 	    print STDERR "Disabling switch trunks on $target_vlan\n";
 	    if (!$stack->setVlanOnSwitchTrunks($target_vlan->lanid(), 0)) {
 		print STDERR
@@ -3294,7 +3293,6 @@ sub doMakeVlan($$@) {
 	    }
 	}
 	# This causes fallback to snmpit switch path generation.
-	$old_target_swpath = $target_vlan->GetSwitchPath();
 	$target_vlan->ClrSwitchPath();
     }
 
@@ -3314,7 +3312,6 @@ sub doMakeVlan($$@) {
 	    }
 
 	    # This causes fallback to snmpit switch path generation.
-	    $old_source_swpath = $source_vlan->GetSwitchPath();
 	    $source_vlan->ClrSwitchPath();
 	}
 
@@ -3386,12 +3383,24 @@ sub doMakeVlan($$@) {
 		$errors++;
 	    }
 	    # This stores the newly computed switch trunk path in the lans
-	    # table entry. 
-	    setSwitchTrunkPath($source_vlan);
+	    # table entry. But we do not want to do this for shared vlans
+	    # since we need to compute the path each time we sync it (-X).
+	    setSwitchTrunkPath($source_vlan)
+		if (! $source_vlan->IsShared());
 	    VLan->RecordVlanInsertion($source_vlan, $stack->{STACKID});
 	}
 	if (defined($target_vlan) && $target_vlan->KeepInSync()) {
-	    setSwitchTrunkPath($target_vlan);
+	    # Have to do this cause we cleared it above
+	    if (!$opt{'whol-magic'} &&
+		!$stack->setVlanOnSwitchTrunks($target_vlan->lanid(), 1)) {
+		print STDERR "Could not enable switch trunks on $target_vlan\n";
+		$errors++;
+	    }
+	    # This stores the newly computed switch trunk path in the lans
+	    # table entry. But we do not want to do this for shared vlans
+	    # since we need to compute the path each time we sync it (-X).
+	    setSwitchTrunkPath($target_vlan)
+		if (! $target_vlan->IsShared());
 	    VLan->RecordVlanInsertion($target_vlan, $stack->{STACKID});
 	}
     }
