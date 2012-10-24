@@ -7395,7 +7395,7 @@ fi
 
 outfiles="$outfiles Makeconf GNUmakefile \
 	assign/GNUmakefile \
-        named/GNUmakefile firewall/GNUmakefile \
+        named/GNUmakefile firewall/GNUmakefile fwrules/GNUmakefile \
 	ssl/GNUmakefile ssl/mksig ssl/usercert.cnf ssl/mkserial \
 	capture/GNUmakefile \
 	db/GNUmakefile \
