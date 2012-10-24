@@ -94,22 +94,16 @@ Blockstore instproc set-type {newtype} {
 }
 
 Blockstore instproc set-size {newsize} {
-    set mindisksize [expr pow(2,20)]; # 1 MiB
+    set mindisksize 1; # 1 MiB
 
-    # Convert various input size strings to bytes.
-    set convsize [convert_to_bytes $newsize]
+    # Convert various input size strings to mebibytes.
+    set convsize [convert_to_mebi $newsize]
 
     # Do some boundary checks.
     if { $convsize < $mindisksize } {
 	perror "\[set-size] $newsize is smaller than allowed minimum (1 MiB)"
 	return
     }
-    if { $convsize % $mindisksize } {
-	puts stderr "*** WARNING: \[set-size] blockstore size will be rounded down to the nearest MiB"
-    }
-
-    # Convert to MiB
-    set convsize [expr $convsize >> 20]
 
     $self set size $convsize
     return

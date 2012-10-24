@@ -628,27 +628,27 @@ proc parse_delay {dspec} {
     return [expr int($val)]
 }
 
-# convert_to_bytes
+# convert_to_mebi
 # This takes a data size specifier in the form of <amt><unit> where
 # <unit> is any of [B, KB, KiB, MB, MiB, GB, GiB, TB, TiB].  If no
 # unit is given then bytes (B) is assumed.  It returns the size
-# in bytes.  Data sizes in bits (lowercase b) are not handled (yet).
-proc convert_to_bytes {size} {
+# in Mebibytes.  Data sizes in bits (lowercase b) are not handled (yet).
+proc convert_to_mebi {size} {
     # Default to bytes
     if {[scan $size "%f%s" sz unit] == 1} {
 	set unit B
     }
 
     switch -- $unit {
-	B   {set val $sz}
-	KB  {set val [expr int($sz * pow(10,3))]}
-	KiB {set val [expr int($sz * pow(2,10))]}
-	MB  {set val [expr int($sz * pow(10,6))]}
-	MiB {set val [expr int($sz * pow(2,20))]}
-	GB  {set val [expr int($sz * pow(10,9))]}
-	GiB {set val [expr int($sz * pow(2,30))]}
-	TB  {set val [expr int($sz * pow(10,12))]}
-	TiB {set val [expr int($sz * pow(2,40))]}
+	B   {set val [expr int($sz / pow(2,20))}
+	KB  {set val [expr int($sz * pow(10,3) / pow(2,20))]}
+	KiB {set val [expr int($sz / pow(2,10))]}
+	MB  {set val [expr int($sz * pow(10,6) / pow(2,20))]}
+	MiB {set val [expr int($sz)]}
+	GB  {set val [expr int($sz * pow(10,9) / pow(2,20))]}
+	GiB {set val [expr int($sz * pow(2,10))]}
+	TB  {set val [expr int($sz * pow(10,12) / pow(2,20))]}
+	TiB {set val [expr int($sz * pow(2,20))]}
 	default {
 	    perror "Unknown size unit $unit."
 	    set val 0
