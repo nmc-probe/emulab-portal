@@ -1776,12 +1776,17 @@ sub vz_vnodePreConfigExpNetwork {
 	    # Add the macvlan device atop the dummy devices created earlier,
 	    # or atop the physical or vlan device.
 	    #
+	    # BUG here. interface might be left behind from a previous
+	    # failure. Broke during the tutorial.
+	    #
 	    my $vname = "mv$vmid.$ifc->{ID}";
-	    if (! -d "/sys/class/net/$vname") {
-		mysystem("$IP link add link $physdev name $vname ".
-			 "  address $vethmac type macvlan mode bridge ");
-		$private->{'iplinks'}->{$vname} = $physdev;
+	    if (-e "/sys/class/net/$vname") {
+	        mysystem2("$IP link del dev $vname");
 	    }
+	    mysystem("$IP link add link $physdev name $vname ".
+		     "  address $vethmac type macvlan mode bridge ");
+	    $private->{'iplinks'}->{$vname} = $physdev;
+	    
 	    #
 	    # When the bridge is a dummy, record that we added an interface
 	    # to it, so that we can garbage collect the dummy devices later.
