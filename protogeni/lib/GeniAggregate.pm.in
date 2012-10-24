@@ -1804,6 +1804,12 @@ sub Create($$$$$$)
 	print STDERR "Could not form a gre key for $linkname\n";
 	goto bad;
     }
+
+    # Make sure there are IPs.
+    if (! (defined($ip1) && defined($ip2))) {
+	print STDERR "Must specify IPs on tunnel $linkname\n";
+	goto bad;
+    }
     
     # The tunnel number is how we generate the unit number.
     if ($tunnel->GetAttribute("tunnel_number", \$tunnel_number) != 0) {
