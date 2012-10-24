@@ -467,7 +467,7 @@ Simulator instproc run {} {
     $self instvar event_list
     $self instvar prog_list
     $self instvar disk_list 
-    $self instvar block_list
+    $self instvar blockstore_list
 	$self instvar custom_list
     $self instvar eventgroup_list
     $self instvar firewall_list
