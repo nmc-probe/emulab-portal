@@ -158,7 +158,7 @@ if ($status eq "running") {
     if ($?) {
 	die("Could not halt container $ctid");
     }
-    for (my $i = 5; $i >= 0; $i--) {
+    for (my $i = 10; $i >= 0; $i--) {
 	my $stuff = `$sudo $VZLIST -n $vnodeid -H -o status`;
 	if ($?) {
 	    die("Could not get container status for $vnodeid\n");
@@ -172,6 +172,7 @@ if ($status eq "running") {
 	    chomp($stuff);
 	    die("Could not parse container status: '$stuff'\n");
 	}
+	sleep(5);
     }
     if ($status ne "stopped") {
 	die("Container $ctid would not stop!\n");
