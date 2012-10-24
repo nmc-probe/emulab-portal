@@ -163,6 +163,13 @@ my %virtual_tables =
      "virt_client_service_opts" => { rows => undef,
 				     tag   => "virt_client_service_opts",
 				     row   => "virt_client_service_opt"},
+     "virt_blockstores"		=> { rows  => undef,
+				     tag   => "blockstores",
+				     row   => "blockstore"},
+     "virt_blockstore_attributes" => { rows  => undef,
+				       tag   => "virt_blockstore_attributes",
+				       row   => "virt_blockstore_attribute"},
+
      # This is a fake table. See below. If we add more, lets generalize.
      "external_sourcefiles"	=> { rows  => undef, 
 				     tag   => "nsfiles",
