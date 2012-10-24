@@ -1909,7 +1909,8 @@ CREATE TABLE `interfaces` (
   PRIMARY KEY  (`node_id`,`card`,`port`),
   KEY `mac` (`mac`),
   KEY `IP` (`IP`),
-  KEY `uuid` (`uuid`)
+  KEY `uuid` (`uuid`),
+  KEY `role` (`role`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
