@@ -35,11 +35,17 @@ my $TAR         = "/bin/tar";
 #
 sub usage()
 {
-    print STDOUT "Usage: mkimagecache [-c count] <imagename>\n";
+    print STDERR "Usage: mkimagecache [-c | -t count] [-s size] <imagename>\n";
+    print STDERR "options:\n";
+    print STDERR "  -c count  - Create count\n";
+    print STDERR "  -t count  - Create as many as needed to reach count\n";
+    print STDERR "  -s size   - Size of lvm in GB, if no base lvm to look at\n";
     exit(-1);
 }
-my $optlist = "c:";
+my $optlist = "c:s:t:";
 my $count   = 1;
+my $total   = 0;
+my $size    = 0;
 
 #
 # Turn off line buffering on output
@@ -65,16 +71,17 @@ if (@ARGV != 1) {
 if (defined($options{"c"})) {
     $count = $options{"c"};
 }
+if (defined($options{"t"})) {
+    $count = $total = $options{"t"};
+}
+if (defined($options{"s"})) {
+    $size = $options{"s"};
+}
 my $imagename     = $ARGV[0];
 # See libvnode_openvz ...
 my $imagelockpath = "/var/emulab/db/openvz.image.$imagename.ready";
 my $imagelockname = "vzimage.$imagename";
 my $imagepath     = "/vz/template/cache/${imagename}.tar.gz";
-
-# Only LVM is supported right now. 
-if (! -e "/dev/openvz/$imagename") {
-    die("LVM does not exist!\n");
-}
 
 if ((my $locked = TBScriptLock($imagelockname,
 			       TBSCRIPTLOCK_GLOBALWAIT(), 1800))
@@ -85,11 +92,22 @@ if ((my $locked = TBScriptLock($imagelockname,
 #
 # Need the base size for copy.
 #
-my $lvsize = `lvs /dev/openvz/$imagename --noheadings -o lv_size`;
-if ($?) {
-    die("Could not get lv size of /dev/openvz/imagename\n");
+my $lvsize;
+
+if ($size) {
+    $lvsize = "$size" . "G";
 }
-chomp($lvsize);
+elsif (-e "/dev/openvz/$imagename") {
+    $lvsize = `lvs /dev/openvz/$imagename --noheadings -o lv_size`;
+    if ($?) {
+	die("Could not get lv size of /dev/openvz/imagename\n");
+    }
+    chomp($lvsize);
+}
+else {
+    print STDERR "No base lvm exists; please use the -s option!\n";
+    usage();
+}
 
 #
 # Look for existing cache files and skip those.
@@ -97,8 +115,10 @@ chomp($lvsize);
 my @files = glob("/dev/openvz/_C_${imagename}_*");
 my $idx   = 0;
 
-while ($count) {
+while ($count > 0) {
     if (grep {$_ eq "/dev/openvz/_C_${imagename}_${idx}"} @files) {
+	$count--
+	    if ($total);
 	$idx++;
 	next;
     }
