@@ -394,7 +394,7 @@ sub CreateNewCert() {
     #
     my $DN = `$OPENSSL x509 -subject -noout -in usercert_cert.pem`;
     chomp($DN);
-    if ($DN =~ /^subject=\s*(\/[-\/\=\w\@\.\s]+)$/) {
+    if ($DN =~ /^subject=\s*(\/[-\/\=\w\@\.,\s]+)$/) {
 	$DN = $1;
     }
     else {
