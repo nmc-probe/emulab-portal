@@ -1,7 +1,7 @@
 
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -107,6 +107,26 @@ Blockstore instproc set-size {newsize} {
 
     $self set size $convsize
     return
+}
+
+
+# Create a node object to represent the host that contains this blockstore,
+# or return it if it already exists.
+Blockstore instproc get_node {} {
+    $self instvar sim
+    $self instvar node
+
+    if {$node != {}} {
+	return $node
+    }
+
+    # Allocate parent host and bind to it.
+    set node [$sim node]
+    $node set subnodehost 1
+    $node set subnodechild $self
+
+    # Return parent node object.
+    return $node
 }
 
 # updatedb DB

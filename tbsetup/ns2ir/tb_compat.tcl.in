@@ -613,7 +613,7 @@ proc tb-set-hardware {node type args} {
 	set isv $isvirt($type)
     }
     set issub 0
-    if {[info exists isvirt($type)]} {
+    if {[info exists issubnode($type)]} {
 	set issub $issubnode($type)
     }
     $node set_hwtype $type $remote $isv $issub

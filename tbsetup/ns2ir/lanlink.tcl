@@ -238,6 +238,9 @@ LanLink instproc init {s nodes bw d type} {
     $self set layer {}
     $self set implemented_by {}
 
+    # Is this a SAN?
+    $self set sanlan 0
+
     # A simulated lanlink unless we find otherwise
     $self set simulated 1
     # Figure out if this is a lanlink that has at least
@@ -300,6 +303,13 @@ LanLink instproc init {s nodes bw d type} {
     $self set ofenabled 0
 
     foreach node $nodes {
+	# If the node is actually a blockstore object, then we need
+	# to grab the parent host object and substitute it in here.
+	if {[$node info class] == "Blockstore"} {
+	    set bs $node
+	    set node [$bs get_node]
+	    $self set sanlan 1
+	}
 	set nodepair [list $node [$node add_lanlink $self]]
 	set bandwidth($nodepair) $bw
 	set rbandwidth($nodepair) $bw
@@ -1178,6 +1188,7 @@ Lan instproc updatedb {DB} {
     $self instvar ofenabled
     $self instvar ofcontroller
     $self instvar bridge_links
+    $self instvar sanlan
     set vindex 0
 
     if {$modelnet_cores > 0 || $modelnet_edges > 0} {
@@ -1195,6 +1206,13 @@ Lan instproc updatedb {DB} {
 	set values [list $self $setting $settings($setting)]
 	
 	$sim spitxml_data "virt_lan_settings" $fields $values
+    }
+
+    #
+    # If this is a SAN, then nullify shaping
+    #
+    if {$sanlan == 1} {
+	set nobwshaping 1
     }
 
     foreach nodeport $nodelist {

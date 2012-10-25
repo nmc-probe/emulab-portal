@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
