@@ -562,16 +562,11 @@ proc parse_bw {bspec {islink 1}} {
     # Special cases 
     #
     # "*" means let assign pick the bandwidth. Make it zero.
-    #
     # "~" means "best effort" bandwidth - not conservatively allocated.
-    # Used when links may be multiplexed onto hosts, where the hosts
-    # should not attempt to guarantee bandwidth.  Make this case -1.
     #
-    if {"$bspec" == "*"} {
+    if {"$bspec" == "*" || "$bspec" == "~"} {
 	return 0
-    } elseif {"$bspec" == "~"} {
-	return -1
-    }
+    } 
 
     # Default to bytes
     if {[scan $bspec "%f%s" bw unit] == 1} {

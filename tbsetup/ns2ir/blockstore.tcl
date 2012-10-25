@@ -121,12 +121,13 @@ Blockstore instproc get_node {} {
     }
 
     # Allocate parent host and bind to it.
-    set node [$sim node]
-    $node set subnodehost 1
-    $node set subnodechild $self
+    set hname "sanhost-${self}"
+    uplevel "#0" "set $hname [$sim node]"
+    $hname set subnodehost 1
+    $hname set subnodechild $self
 
     # Return parent node object.
-    return $node
+    return $hname
 }
 
 # updatedb DB
