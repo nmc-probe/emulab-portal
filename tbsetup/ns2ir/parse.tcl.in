@@ -562,13 +562,14 @@ proc parse_bw {bspec {islink 1}} {
     # Special cases 
     #
     # "*" means let assign pick the bandwidth. Make it zero.
-    if {"$bspec" == "*"} {
-	return 0
-    }
+    #
     # "~" means "best effort" bandwidth - not conservatively allocated.
     # Used when links may be multiplexed onto hosts, where the hosts
     # should not attempt to guarantee bandwidth.  Make this case -1.
-    elseif {"$bspec" == "~"} {
+    #
+    if {"$bspec" == "*"} {
+	return 0
+    } elseif {"$bspec" == "~"} {
 	return -1
     }
 

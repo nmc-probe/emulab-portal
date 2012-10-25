@@ -572,8 +572,7 @@ Simulator instproc run {} {
 	    if {[$child info class Node]} {
 		set childtype [$child set type]
 		$node add-desire "hosts-$childtype" 1.0
-	    }
-	    elseif {[$child info class Blockstore]} {
+	    } elseif {[$child info class Blockstore]} {
 		$node add-desire "sanhost" 1.0
 	    }
 	}
