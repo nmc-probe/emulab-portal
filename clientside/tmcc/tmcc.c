@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -1086,7 +1086,7 @@ beproxy(int tcpsock, int udpsock, struct in_addr serverip, char *partial)
 
 		if (debug) {
 			fprintf(stderr, "%sREQ: %s\n",
-				udpsock < 0 ? "" : (useudp ? "UDP " : "TCP "),
+				(udpsock >= 0 || useudp ? "UDP " : "TCP "),
 				command);
 			fflush(stderr);
 		}
