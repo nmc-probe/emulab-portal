@@ -1279,6 +1279,23 @@ sub LookupSharedVLanByToken($$)
 }
 
 #
+# Is this lan shared?
+#
+sub IsShared($)
+{
+    my ($self) = @_;
+    my $lanid  = $self->lanid();
+    
+    my $query_result =
+	DBQueryWarn("select * from shared_vlans ".
+		    "where lanid='$lanid'");
+    return undef
+	if (!$query_result);
+
+    return $query_result->numrows();
+}
+
+#
 # Try to lock this lan. Optional timeout in seconds. 
 #
 sub Lock($;$)
@@ -3600,6 +3617,16 @@ sub Unlock($)
     my ($self) = @_;
 
     return $self->GetLan()->Unlock();
+}
+
+#
+# Is this vlan shared?
+#
+sub IsShared($)
+{
+    my ($self) = @_;
+
+    return $self->GetLan()->IsShared();
 }
 
 ############################################################################

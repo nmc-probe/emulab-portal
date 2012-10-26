@@ -156,6 +156,7 @@ if (@test_switches > 0) {
 # Get trunk ports so that we can skip MACs learned on them
 #
 my %trunks = getTrunkHash();
+DEBUG "found trunk ports: ", join(' ', keys(%trunks)), "\n";
 
 if (@control_switches > 0) {
     if ($control_switches[0] eq "none") {

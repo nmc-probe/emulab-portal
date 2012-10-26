@@ -14,6 +14,9 @@ sub InstallUpdate($$)
 {
     my ($version, $phase) = @_;
 
+    return 0
+	if (IMPOTENT_MODE());
+
     if ($phase eq "pre") {
 	Phase "hostkeys", "Grabbing existing keys and root password", sub {
 	    my $failed = 0;

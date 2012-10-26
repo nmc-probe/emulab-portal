@@ -939,6 +939,20 @@ sub os_etchosts_line($$$)
 #
 sub os_groupadd($$)
 {
+    my $tries = 3;
+    my $result;
+    while ($tries > 0) {
+	$result = os_groupadd_real(@_);
+	if ($result) {
+	    sleep(5);
+	    --$tries;
+	}
+    }
+    return $result;
+}
+
+sub os_groupadd_real($$)
+{
     my($group, $gid) = @_;
 
     return system("$GROUPADD -g $gid $group");
@@ -1006,6 +1020,20 @@ sub os_modpasswd($$)
 # Add a user.
 #
 sub os_useradd($$$$$$$$$)
+{
+    my $tries = 3;
+    my $result;
+    while ($tries > 0) {
+	$result = os_useradd_real(@_);
+	if ($result) {
+	    sleep(5);
+	    --$tries;
+	}
+    }
+    return $result;
+}
+
+sub os_useradd_real($$$$$$$$$)
 {
     my($login, $uid, $gid, $pswd, $glist, $homedir, $gcos, $root, $shell) = @_;
     my $args = "";

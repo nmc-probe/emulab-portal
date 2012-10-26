@@ -1733,37 +1733,40 @@ sub GetTicketAuxAux($$$$$$$$$)
 			    $vlan_reservations{$lanname} = $result;
 			}
 		    }
+
+		    #
+		    # We do this so we can keep track of vport numbers,
+		    # since we can have multiple links to the same
+		    # external mode.
+		    #
+		    if (!exists($external_vportmap{$node_nickname})) {
+			$external_vportmap{$node_nickname} = 0;
 		    
-		    #
-		    # Stick in a reference to the fake node.
-		    #
-		    my $virtnode =
-			$virtexperiment->NewTableRow("virt_nodes",
+			#
+			# Stick in a reference to the fake node.
+			#
+			my $virtnode =
+			    $virtexperiment->NewTableRow("virt_nodes",
 				    {"vname"   => $node_nickname,
 				     "type"    => $network->node_type(),
 				     "osname"  => '',
 				     "ips"     => '', # deprecated
 				     "cmd_line"=> '', # bogus
 				     "fixed"   => $network->node_id()});
-		    if (!defined($virtnode)) {
-			print STDERR "Error creating edge node\n";
-			$response = GeniResponse->Create(GENIRESPONSE_ERROR);
-			goto bad;
-		    }
-		    # These nodes are technically shared. 
-		    $virtexperiment->NewTableRow("virt_node_desires",
+			if (!defined($virtnode)) {
+			    print STDERR "Error creating edge node\n";
+			    $response =
+				GeniResponse->Create(GENIRESPONSE_ERROR);
+			    goto bad;
+			}
+			# These nodes are technically shared. 
+			$virtexperiment->NewTableRow("virt_node_desires",
 						 {"vname"    => $node_nickname,
 						  "desire"   => "pcshared",
 						  "weight"   => 0.95});
-		    $virtexperiment->encap_style("vlan");
-		    $iface_name  = $edgeiface->iface();
-
-		    #
-		    # We do this so we can keep track of vport numbers.
-		    #
-		    if (!exists($external_vportmap{$node_nickname})) {
-			$external_vportmap{$node_nickname} = 0;
+			$virtexperiment->encap_style("vlan");
 		    }
+		    $iface_name  = $edgeiface->iface();
 		    $iface_vport = $external_vportmap{$node_nickname};
 		    $external_vportmap{$node_nickname} += 1;
 		    $external_linkmap{$lanname} = $linkref;

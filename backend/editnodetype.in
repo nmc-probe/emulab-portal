@@ -590,7 +590,7 @@ if ($new_type) {
     # And a group policy that prevents new type from being used.
     DBQueryFatal("replace into group_policies ".
 		 "(pid_idx, gid_idx, pid, gid, policy, auxdata, count) ".
-		 "values (0, 0, '-', '-', 'type', '$type', 0)");
+		 "values (0, 0, '-', '-', 'type', '$node_type', 0)");
 }
 else {
     DBQueryFatal("update node_types set ".

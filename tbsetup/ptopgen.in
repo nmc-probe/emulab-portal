@@ -800,7 +800,7 @@ if (defined($component_name)) {
 $result =
     DBQueryFatal("select a.node_id,a.type,a.phys_nodeid,t.class,t.issubnode," .
 		 "a.def_boot_osid,(b.pid is not null and b.eid is not null), ".
-		 "  np.reserved_pid is not null,np.eventstate, ".
+		 "  np.reserved_pid,np.eventstate, ".
 		 "  np.battery_percentage,np.uuid,b.sharing_mode, ".
 		 "  ru.load_1min, ru.load_5min, ru.status_timestamp, ".
 		 "  a.def_boot_osid, nat2.attrvalue, wn.country, " .
@@ -867,7 +867,9 @@ while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 	$sharing_mode{$node} = 0;
     }
 
-    $is_prereserved{$node} = $prereserved;
+    if (defined($prereserved) && !(defined($pid) && $prereserved eq $pid)) {
+	$is_prereserved{$node} = $prereserved;
+    }
 
     $curr_state{$node} = $eventstate;
     $curr_batt{$node} = $battery_perc;
@@ -1203,7 +1205,7 @@ foreach $node (@nodenames) {
 	push(@features,"already_reserved:0");
     }
 
-    if ($is_prereserved{$node}) {
+    if (exists($is_prereserved{$node})) {
 	push(@features,"prereserved:0.9");
     }
 
@@ -2390,6 +2392,10 @@ sub print_node_interfaces
     my $i = 0;
     for (; $i < scalar(@interfaces); ++$i) {
 	my $name = $interfaces[$i];
+	if (defined($MAINSITE) && $MAINSITE && $nodeName eq "instageni-nc7"
+	    && $name ne "eth5") {
+	    next;
+	}
 	my $urn = GeniHRN::GenerateInterface($OURDOMAIN, $nodeName, $name);
 	print "  <interface component_id=\"$urn\" ";
 	if (exists($interfaceroles{"$nodeName:$name"})) {
@@ -2426,6 +2432,11 @@ sub print_named_link_ptop
     my @proto = @{ shift(@_) };
     my $is_interconnect = shift(@_);
 
+    if (defined($MAINSITE) && $MAINSITE &&
+	(($source eq "instageni-nc7" && $source_if ne "eth5") ||
+	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
+	return;
+    }
     my $source_full = "$source:$source/$source_if";
     # Not sure about (null) stuff ... 
     my $dest_full = "$dest:" .
@@ -2456,6 +2467,11 @@ sub print_named_link_xml
 						$source_if);
     my $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
 					      $dest_if);
+    if (defined($MAINSITE) && $MAINSITE &&
+	(($source eq "instageni-nc7" && $source_if ne "eth5") ||
+	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
+	return;
+    }
     if ($genimode ne $NO_GENI) {
 	$name =~ s/:/\/\//g;
 	my $external_manager_urn;

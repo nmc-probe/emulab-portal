@@ -733,10 +733,10 @@ void set_link_params(int l_index, int blackhole, int p_which)
 			info("entered the loop, pindex=%d, pipe=%d\n",
 			     p_index, pipeno);
 
-		sprintf(cmd, "%s pipe %d config delay %dms bw %f%s plr %lf "
+		sprintf(cmd, "%s pipe %d config delay %dms bw %d%s plr %lf "
 			"queue %d%s ",
 			IPFW, pipeno, p_params->delay,
-			p_params->bw, p_params->bwspec,
+			(int) p_params->bw, p_params->bwspec,
 			(blackhole ? 1.0 : p_params->plr),
 			(p_params->flags_p &
 			 PIPE_QSIZE_IN_BYTES ?
@@ -811,8 +811,13 @@ int get_new_link_params(int l_index, event_handle_t handle,
     } else
 #endif
     if(strcmp(argtype,"BANDWIDTH")== 0){
-	info("Bandwidth = %d\n", atoi(argvalue) * 1000);
-	link_map[l_index].params[p_num].bw = atoi(argvalue) * 1000;
+	int newbw = atoi(argvalue);
+#ifdef USESOCKET
+	/* Convert to bits/s */
+	newbw = newbw * 1000;
+#endif	    
+	info("Bandwidth = %d\n", newbw);
+	link_map[l_index].params[p_num].bw = newbw;
 	if (! gotpipe) {
 	  link_map[l_index].params[1].bw = link_map[l_index].params[0].bw;
 	}

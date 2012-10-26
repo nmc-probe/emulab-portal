@@ -918,7 +918,7 @@ sub hackwaitandexit($)
     my $cpid  = shift();
     my $now   = time();
     my $goofy;
-    my $count = 45;
+    my $count = 30;
 
     # The first case is for our own (non-plab) vservers.
     if (-e "/vservers") {

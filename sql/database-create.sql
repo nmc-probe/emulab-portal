@@ -1818,7 +1818,8 @@ CREATE TABLE `images` (
   UNIQUE KEY `pid` (`pid`,`imagename`),
   KEY `gid` (`gid`),
   KEY `old_imageid` (`old_imageid`),
-  KEY `uuid` (`uuid`)
+  KEY `uuid` (`uuid`),
+  FULLTEXT KEY `imagesearch` (`imagename`,`description`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -1908,7 +1909,8 @@ CREATE TABLE `interfaces` (
   PRIMARY KEY  (`node_id`,`card`,`port`),
   KEY `mac` (`mac`),
   KEY `IP` (`IP`),
-  KEY `uuid` (`uuid`)
+  KEY `uuid` (`uuid`),
+  KEY `role` (`role`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

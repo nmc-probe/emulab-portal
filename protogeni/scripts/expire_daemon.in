@@ -65,6 +65,7 @@ my $LOGFILE       = "$TB/log/expire_daemon.log";
 my $IDLETIMES	  = "$TB/sbin/idletimes";
 my $EMULAB_PEMFILE = "$TB/etc/genicm.pem";
 my $REGISTER      = "$TB/sbin/protogeni/register_sliver";
+my $CLEANUPSLICE  = "$TB/sbin/cleanupslice";
 my $SLEEP_INTERVAL= 60;
 
 # un-taint path
@@ -412,7 +413,9 @@ sub ExpireSlices()
 	    }
 	}
       cleanup:
-	if (GeniCM::CleanupDeadSlice($slice) != 0) {
+	my $slice_uuid  = $slice->uuid();
+	system("$CLEANUPSLICE -f -m $slice_uuid");
+	if ($?) {
 	    print STDERR "Could not release $slice\n";
 	    SENDMAIL($TBOPS, "Could not release slice $slice",
 		     "Could not release slice $slice");
