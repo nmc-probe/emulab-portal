@@ -49,7 +49,10 @@ else
     exit 44
 fi
 
-/usr/local/etc/emulab/tmcc -d -x $MYROOT/var/emulab/tmcc.sock \
+#
+# Note timeout; we do not want the proxy to ever get stuck. 
+#
+/usr/local/etc/emulab/tmcc -d -t 10 -x $MYROOT/var/emulab/tmcc.sock \
     -n $vnodeid -o /var/emulab/logs/tmccproxy.$vnodeid.log >& /dev/null &
 echo $! > /var/run/tmccproxy.$vnodeid.pid
 
