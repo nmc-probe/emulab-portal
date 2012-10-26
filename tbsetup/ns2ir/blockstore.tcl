@@ -32,6 +32,10 @@
 
 Class Blockstore -superclass NSObject
 
+namespace eval GLOBALS {
+    set new_classes(Blockstore) {}
+}
+
 Blockstore instproc init {s} {
     global ::GLOBALS::last_class
 

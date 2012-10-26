@@ -226,6 +226,14 @@ Disk instproc init {args} {
 Disk instproc unknown {m args} {
 }
 
+Class Blockstore
+
+Blockstore instproc init {args} {
+}
+
+Blockstore instproc unknown {m args} {
+}
+
 Class Firewall
 
 Firewall instproc init {sim args} {
