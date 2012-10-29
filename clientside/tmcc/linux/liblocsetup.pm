@@ -940,8 +940,8 @@ sub os_etchosts_line($$$)
 sub os_groupadd($$)
 {
     my $tries = 3;
-    my $result;
-    while ($tries > 0) {
+    my $result = 1;
+    while ($result && $tries > 0) {
 	$result = os_groupadd_real(@_);
 	if ($result) {
 	    sleep(5);
@@ -1022,8 +1022,8 @@ sub os_modpasswd($$)
 sub os_useradd($$$$$$$$$)
 {
     my $tries = 3;
-    my $result;
-    while ($tries > 0) {
+    my $result = 1;
+    while ($result && $tries > 0) {
 	$result = os_useradd_real(@_);
 	if ($result) {
 	    sleep(5);
