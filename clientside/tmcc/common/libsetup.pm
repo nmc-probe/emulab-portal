@@ -3185,6 +3185,10 @@ sub getlocalevserver()
     return $evserver;
 }
 
+#
+# Return a hash of arpinfo provided by boss.
+# Note that the hash key is the IP address and not the name.
+#
 sub getarpinfo($)
 {
     my ($rptr) = @_;
@@ -3213,9 +3217,26 @@ sub getarpinfo($)
 	    my $ip = $3;
 	    my $mac = $4;
 
-	    $arpinfo{$name}{'type'} = $type;
-	    $arpinfo{$name}{'ip'} = $ip;
-	    $arpinfo{$name}{'mac'} = $mac;
+	    # canonicalize the MAC
+	    $mac = lc($mac);
+	    if ($mac =~ /^(..)(..)(..)(..)(..)(..)$/) {
+		$mac = "$1:$2:$3:$4:$5:$6";
+	    }
+
+	    if (exists($arpinfo{$ip})) {
+		# subbosses may appear twice since they are testnodes
+		if ($arpinfo{$ip}{'mac'} ne $mac ||
+		    $arpinfo{$ip}{'name'} ne $name) {
+		    warn("*** WARNING: Conflicting arpinfo info for $ip: '$line'\n");
+		} else {
+		    $arpinfo{$ip}{'type'} = $type
+			if ($type eq "SERVER");
+		}
+	    } else {
+		$arpinfo{$ip}{'type'} = $type;
+		$arpinfo{$ip}{'name'} = $name;
+		$arpinfo{$ip}{'mac'} = $mac;
+	    }
 	} else {
 	    warn("*** WARNING: Bad arpinfo info line ignored: '$line'\n");
 	}
