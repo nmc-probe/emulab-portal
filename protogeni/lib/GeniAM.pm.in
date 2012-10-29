@@ -775,8 +775,11 @@ sub Describe
 				    "Must pass only slice URN");
     }
 
-    my $manifest = $aggregate->GetManifest()
-	if (defined($aggregate));
+    my $manifest;
+    if (defined($aggregate)) {
+	$aggregate->ComputeState();
+	$manifest = $aggregate->GetManifest()
+    }
     $manifest = $ticket->rspec()
 	if (defined($ticket));
     my @geni_slivers = ();
