@@ -1194,7 +1194,7 @@ sub GetOpState
 	$result = 'unknown';
     } elsif ($sliver->status() eq 'ready') {
 	$result = 'geni_ready';
-    } elsif ($sliver->status() eq 'notready'
+    } elsif ($sliver->status() eq 'changing'
 	     && $sliver->state() eq 'started') {
 	$result = 'geni_configuring';
     } elsif ($sliver->status() eq 'notready') {
