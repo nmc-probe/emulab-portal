@@ -160,17 +160,6 @@ if [ -z "$disk" ]; then
     exit 1
 fi
 
-#list="/dev/sdb /dev/sdc"
-#for i in $list
-#do
-#scid=`gettype $i $os`
-#echo $i:model `getmodel $i $scid $os`
-#echo $i:serial `getserial $i $scid $os`
-#echo $i:fw `getfw $i $scid $os`
-#echo $i:temp `gettemp $i $scid $os`
-#echo "------------------------------------------------"
-#done
-
 mkdir -p ./disktest.log
 
 {
