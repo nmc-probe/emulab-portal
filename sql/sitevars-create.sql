@@ -76,6 +76,7 @@ INSERT INTO sitevariables VALUES ('general/open_showexplist',NULL,'','Allow memb
 INSERT INTO sitevariables VALUES ('general/linux_endnodeshaping',NULL,'1','Use this sitevar to disable endnodeshaping on linux globally on your testbed',0);
 INSERT INTO sitevariables VALUES ('swap/swapout_command','/usr/local/bin/create-swapimage -s','','Command to run in admin MFS on each node of an experiment at swapout time. Runs as swapout user.',0);
 INSERT INTO sitevariables VALUES ('swap/swapout_command_timeout','360','120','Time (in seconds) to allow for command completion',0);
+INSERT INTO `sitevariables` VALUES ('general/arplockdown','','none','Lock down ARP entries on servers (none == let servers dynamically ARP, static == insert static ARP entries for important nodes, staticonly == allow only static entries)',0);
 INSERT INTO sitevariables VALUES ('node/gw_mac','','','MAC address of the control net router (NULL if none)',0);
 INSERT INTO sitevariables VALUES ('node/gw_ip','','','IP address of the control net router (NULL if none)',0);
 INSERT INTO sitevariables VALUES ('node/boss_mac','','','MAC address of the boss node (NULL if behind GW)',0);
