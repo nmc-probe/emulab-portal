@@ -46,7 +46,7 @@ client:		client-subdirs
 client-install: client client-mkdirs client-install-subdirs client-setversion
 control-install: control-install-subdirs
 subboss:	subboss-subdirs
-subboss-install: client subboss-install-subdirs
+subboss-install: client client-mkdirs subboss-install-subdirs
 post-install:	post-install-subdirs
 clean:		clean-subdirs
 distclean:	distclean-subdirs

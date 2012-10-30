@@ -38,8 +38,8 @@ install: install-subdirs
 boss-install: install-subdirs
 control-install: control-install-subdirs
 client-install: client-install-subdirs
-subboss:
-subboss-install:
+subboss: client
+subboss-install: client-install
 clean:		clean-subdirs
 distclean:	distclean-subdirs
 mfs:

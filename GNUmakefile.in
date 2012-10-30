@@ -226,20 +226,24 @@ ifneq ($(SYSTEM),CYGWIN_NT-5.1)
 	@$(MAKE) -C tip client-install
 endif
 
-subboss: client
+subboss: 
+	@$(MAKE) -C clientside subboss
 	@$(MAKE) -C os subboss
+ifneq ($(SYSTEM),CYGWIN_NT-5.1)
+	@$(MAKE) -C capture client
+	@$(MAKE) -C tip client
+endif
 	@$(MAKE) -C utils subboss
 
 subboss-install: subboss
-	@$(MAKE) -C clientside client-install
+	@$(MAKE) -C clientside subboss-install
+	@$(MAKE) -C os subboss-install
 ifneq ($(SYSTEM),CYGWIN_NT-5.1)
 	@$(MAKE) -C capture client-install
 	@$(MAKE) -C tip client-install
 endif
 	@$(MAKE) -C utils subboss-install
-	@$(MAKE) -C os subboss-install
 	@$(MAKE) -C db subboss-install
-	@$(MAKE) -C clientside/tmcc subboss-install
 	@$(MAKE) -C rc.d subboss-install
 	@$(MAKE) -C dhcpd subboss-install
 	# Hack: this should probably be done by a subboss-install

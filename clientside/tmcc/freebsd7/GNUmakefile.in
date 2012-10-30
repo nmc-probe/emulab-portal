@@ -67,7 +67,7 @@ destdircheck:
 install client-install:	bincheck basefbsd-install etc-install \
 			sup-install script-install bin-install
 
-subboss-install:	bincheck basefbsd-subboss-install etc-install \
+subboss-install:	bincheck basefbsd-subboss-install subboss-etc-install \
 			sup-install script-install bin-install
 
 simple-install:	script-install bin-install
@@ -119,6 +119,9 @@ bin-install:	dir-install
 etc-install:	dir-install sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/group $(ETCDIR)/group
 	$(INSTALL) -m 600 $(SRCDIR)/master.passwd $(ETCDIR)/master.passwd
+
+subboss-etc-install:	dir-install netif-emulab
+	$(INSTALL) -m 555 ./netif-emulab $(SYSETCDIR)/rc.d/netif-emulab
 
 sysetc-install:	dir-install netif-emulab
 	$(INSTALL) -m 444 $(SRCDIR)/rc.conf $(SYSETCDIR)/rc.conf

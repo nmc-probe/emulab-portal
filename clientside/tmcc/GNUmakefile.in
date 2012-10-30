@@ -32,6 +32,9 @@ all:	fullclient client
 fullclient: tmcc
 client: tmcc-nossl findif dostype
 
+# for subboss we use the full SSL tmcc
+subboss: tmcc findif dostype
+
 # For VPATH.
 MOSTLY_SRCDIRS = ${TESTBED_LIBSRCDIR}/libtb \
 		 ${TESTBED_LIBSRCDIR}/tmcd
@@ -158,7 +161,7 @@ boss-install:	$(INSTALL_SBINDIR)/findif \
 control-install: tmcc
 	@$(MAKE) -C freebsd control-install
 
-subboss-install: client
+subboss-install: subboss
 	@$(MAKE) -C $(MDSUBDIR) subboss-install
 
 client-install: client

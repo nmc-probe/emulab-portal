@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -111,13 +111,9 @@ subboss-common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/watchdog $(BINDIR)/watchdog
 	$(INSTALL) -m 755 $(SRCDIR)/ntpstart $(BINDIR)/ntpstart
 	$(INSTALL) -m 755 $(SRCDIR)/runstartup $(BINDIR)/runstartup
-	$(INSTALL) -m 755 $(SRCDIR)/runcvsup.sh $(BINDIR)/runcvsup.sh
 	$(INSTALL) -m 755 $(SRCDIR)/update $(BINDIR)/update
 	$(INSTALL) -m 755 $(SRCDIR)/ifsetup $(BINDIR)/ifsetup
 	$(INSTALL) -m 755 $(SRCDIR)/ifdynconfig $(BINDIR)/ifdynconfig
-	$(INSTALL) -m 755 $(SRCDIR)/vnodesetup $(BINDIR)/vnodesetup
-	$(INSTALL) -m 755 $(SRCDIR)/bootsubnodes $(BINDIR)/bootsubnodes
-	$(INSTALL) -m 755 $(SRCDIR)/bootvnodes $(BINDIR)/bootvnodes
 	$(INSTALL) -m 755 $(SRCDIR)/startcmddone $(BINDIR)/startcmddone
 	$(INSTALL) -m 755 $(SRCDIR)/getblob $(BINDIR)/getblob
 	(cd config; $(MAKE) DESTDIR=$(DESTDIR) subboss-script-install)

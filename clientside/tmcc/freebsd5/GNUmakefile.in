@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -64,7 +64,7 @@ destdircheck:
 	    false; \
 	fi
 
-subboss-install:	basefbsd-subboss-install etc-install \
+subboss-install:	basefbsd-subboss-install \
 			sup-install script-install bin-install
 
 install client-install:	basefbsd-install etc-install \
