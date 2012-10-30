@@ -2321,8 +2321,8 @@ sub getfwconfig($$;$)
     my $fwpat  = q(TYPE=([-\w]+) STYLE=(\w+) IN_IF=(\w*) OUT_IF=(\w*) IN_VLAN=(\d+) OUT_VLAN=(\d+));
     my $rpat   = q(RULENO=(\d*) RULE="(.*)");
     my $vpat   = q(VAR=(EMULAB_\w+) VALUE="(.*)");
-    my $hpat   = q(HOST=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-f]{12}));
-    my $spat   = q(SERVER=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-f]{12}));
+    my $hpat   = q(HOST=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-fA-F]{12}));
+    my $spat   = q(SERVER=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-fA-F]{12}));
     my $lpat   = q(LOG=([\w,]+));
 
     $fwinfo->{"TYPE"} = "none";
@@ -3215,7 +3215,7 @@ sub getarpinfo($)
     #  SERVER=subboss CNETIP=155.98.38.162 CNETMAC=001f29329224
     #  HOST=pc271 CNETIP=155.98.39.71 CNETMAC=001143e43be6
     #
-    my $pat = q((HOST|SERVER)=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-f]{12}));
+    my $pat = q((HOST|SERVER)=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-fA-F]{12}));
 
     foreach my $line (@tmccresults) {
 	if ($line =~ /ARPTYPE=([-\w]+)/) {
