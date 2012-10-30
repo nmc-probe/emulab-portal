@@ -56,9 +56,9 @@ sub fix_syslog_conf()
 	my @buffer;
 	open SYSLOG_CONF, "+</etc/syslog.conf" or
 		Fatal("Couldn't open syslog.conf for writing");
-	while (<SYSLOG_CONF>) {
-		next if (/dhcpd/i || /tftpd/i || /frisbeed/i);
-		push @buffer, $_;
+	while (my $line = <SYSLOG_CONF>) {
+		next if grep($line =~ /$_/i, @LOGS);
+		push @buffer, $line;
 	}
 	
 	seek SYSLOG_CONF, 0, 0;
@@ -84,9 +84,9 @@ sub fix_newsyslog_conf()
 	my @buffer;
 	open SYSLOG_CONF, "+</etc/newsyslog.conf" or
 		Fatal("Couldn't open newsyslog.conf for writing");
-	while (<SYSLOG_CONF>) {
-		next if (/dhcpd/i || /tftpd/i || /frisbeed/i);
-		push @buffer, $_;
+	while (my $line = <SYSLOG_CONF>) {
+		next if grep($line =~ /$_/i, @LOGS);
+		push @buffer, $line;
 	}
 	
 	seek SYSLOG_CONF, 0, 0;
@@ -110,7 +110,9 @@ sub doboot()
     my $stuffdir = "$EXTRAFS/tmp";
     my $MFSTARBALL = "tftpboot-subboss.tar.gz";
 
-    goto skipsetup if (!SUBBOSS());
+    if (!SUBBOSS() || -e "$ETCDIR/issubboss") {
+	return;
+    }
 
     print "Stopping tftpd (if running)\n ";
     # This needs to be system(), not mysystem since we don't
@@ -151,9 +153,8 @@ sub doboot()
 	mysystem("kill -HUP `cat /var/run/syslog.pid`");
     }
 
-skipsetup:
-
-    mysystem("rm -f $BINDIR/rc/rc.mksubboss");
+    # XXX magic flag that says we have been initialized
+    mysystem("cp /dev/null $ETCDIR/issubboss");
 }
 
 
