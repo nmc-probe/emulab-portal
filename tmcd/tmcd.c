@@ -142,6 +142,7 @@ static int	byteswritten = 0;
 static char	pidfile[MAXPATHLEN];
 static char     dbname[DBNAME_SIZE];
 static struct in_addr myipaddr;
+static struct in_addr cnet, cmask, jnet, jmask;
 static char	fshostid[HOSTID_SIZE];
 static int	nodeidtoexp(char *nodeid, char *pid, char *eid, char *gid);
 static void	tcpserver(int sock, int portnum);
@@ -620,6 +621,19 @@ main(int argc, char **argv)
 		    exit(1);
 	    }
 	}
+
+	/*
+	 * Get control net info into a usable form.
+	 */
+	if (!inet_aton(CONTROL_NETWORK, &cnet) ||
+	    !inet_aton(CONTROL_NETMASK, &cmask) ||
+	    !inet_aton(JAILIPBASE, &jnet) ||
+	    !inet_aton(JAILIPMASK, &jmask)) {
+		error("Could not convert control net addrs/masks");
+		exit(1);
+	}
+	cnet.s_addr &= cmask.s_addr;
+	jnet.s_addr &= jmask.s_addr;
 
 	signal(SIGTERM, cleanup);
 	signal(SIGINT, cleanup);
@@ -9542,6 +9556,16 @@ COMMAND_PROTOTYPE(doportregister)
 }
 
 /*
+ * Ugh. At Utah, boss and ops are in the DB in the "normal way"
+ * (they have nodes and interfaces table entries). But by default,
+ * other testbeds won't. The quick fix was to put the necessary into
+ * into sitevars instead (gw info was already there).
+ *
+ * When we normalize boss/ops/fs, we can undef this.
+ */
+#define GET_SERVERS_FROM_SITEVARS
+
+/*
  * Return MAC/IP (ARP) information for a node's "peers" on the control net.
  * We always return info for the control net gateway (if there is one).
  *
@@ -9555,13 +9579,65 @@ COMMAND_PROTOTYPE(doarpinfo)
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
 	int		nrows;
-	char		buf[MYBUFSIZE], erole[32];
-	struct in_addr	cnet, cmask;
+	char		buf[MYBUFSIZE], erole[32], arptype[32];
+#ifdef GET_SERVERS_FROM_SITEVARS
+	struct serv {
+		char name[8];
+		char ip[16];
+		char mac[18];
+		int hits;
+	} servs[4];
+	int i;
+#endif
 
 	if (!isssl) {
 		error("doarpinfo: %s: non-SSL request ignored\n",
 		      reqp->nodeid);
 		return 1;
+	}
+
+	/*
+	 * We only report info to callers on the node control net,
+	 * since the included IP and MAC values are only for that net.
+	 */
+	if ((reqp->client.s_addr & cmask.s_addr) != cnet.s_addr)
+		return 0;
+
+	/*
+	 * See if we are even doing ARP lockdown of any sort.
+	 * If not, return "none" to the user.
+	 */
+	res = mydb_query("select value,defaultvalue from sitevariables "
+			 "where name='general/arplockdown'", 2);
+	if (!res || (int)mysql_num_rows(res) == 0) {
+		error("ARPINFO: general/arplockdown sitevar "
+		      "not set, assuming 'none'\n");
+		if (res)
+			mysql_free_result(res);
+		goto noinfo;
+	}
+	row = mysql_fetch_row(res);
+	if (!row[0] || !row[0][0]) {
+		if (!row[1] || !row[1][0]) {
+			mysql_free_result(res);
+			goto noinfo;
+		}
+		strncpy(arptype, row[1], sizeof(arptype));
+	} else
+		strncpy(arptype, row[0], sizeof(arptype));
+	mysql_free_result(res);
+	if (strcmp(arptype, "none") != 0 &&
+	    strcmp(arptype, "static") != 0 &&
+	    strcmp(arptype, "staticonly") != 0) {
+		error("ARPINFO: general/arplockdown sitevar "
+		      "has invalid value '%s', using 'none' instead\n");
+		goto noinfo;
+	}
+	if (strcmp(arptype, "none") == 0) {
+	noinfo:
+		OUTPUT(buf, sizeof(buf), "ARPTYPE=none\n");
+		client_writeback(sock, buf, strlen(buf), tcp);
+		return 0;
 	}
 
 	res = mydb_query("select erole from reserved where node_id='%s'",
@@ -9584,11 +9660,158 @@ COMMAND_PROTOTYPE(doarpinfo)
 	mysql_free_result(res);
 
 	/*
-	 * Anyone on the node control net can get the GW and/or server info.
+	 * Get the GW and primary server (boss, ops, fs) info.
 	 */
+#ifdef GET_SERVERS_FROM_SITEVARS
+	memset(servs, 0, sizeof(servs));
+	res = mydb_query("select name,value from sitevariables where "
+			 " name like 'node/%%_ip'", 2);
+	if (!res) {
+		error("doarpinfo: %s: DB Error getting server info\n",
+		      reqp->nodeid);
+		return 1;
+	}
+	for (nrows = (int)mysql_num_rows(res); nrows > 0; nrows--) {
+		row = mysql_fetch_row(res);
+		if (row && row[1] && row[1][0]) {
+			struct in_addr naddr;
+			inet_aton(row[1], &naddr);
+
+#if 0 /* we do need to report ourselves */
+			/* Do not report ourselves */
+			if (reqp->client.s_addr == naddr.s_addr)
+				continue;
+#endif
+
+			/* and only for servers on the node control net */
+			naddr.s_addr &= cmask.s_addr;
+			if (naddr.s_addr != cnet.s_addr)
+				continue;
+
+			/* record the server name/IP */
+			if (strncmp(row[0], "node/gw", 7) == 0) {
+				strncpy(servs[0].name, "gw",
+					sizeof(servs[0].name));
+				strncpy(servs[0].ip, row[1],
+					sizeof(servs[0].ip));
+				servs[0].hits++;
+				continue;
+			}
+			if (strncmp(row[0], "node/boss", 9) == 0) {
+				strncpy(servs[1].name, "boss",
+					sizeof(servs[1].name));
+				strncpy(servs[1].ip, row[1],
+					sizeof(servs[1].ip));
+				servs[1].hits++;
+				continue;
+			}
+			if (strncmp(row[0], "node/ops", 8) == 0) {
+				strncpy(servs[2].name, "ops",
+					sizeof(servs[2].name));
+				strncpy(servs[2].ip, row[1],
+					sizeof(servs[2].ip));
+				servs[2].hits++;
+				continue;
+			}
+			if (strncmp(row[0], "node/fs", 7) == 0) {
+				strncpy(servs[3].name, "fs",
+					sizeof(servs[3].name));
+				strncpy(servs[3].ip, row[1],
+					sizeof(servs[3].ip));
+				servs[3].hits++;
+				continue;
+			}
+		}
+	}
+	mysql_free_result(res);
+
+	/* now the mac info */
+	res = mydb_query("select name,value from sitevariables where "
+			 " name like 'node/%%_mac'", 2);
+	if (!res) {
+		error("doarpinfo: %s: DB Error getting server info\n",
+		      reqp->nodeid);
+		return 1;
+	}
+	for (nrows = (int)mysql_num_rows(res); nrows > 0; nrows--) {
+		row = mysql_fetch_row(res);
+		if (row && row[1] && row[1][0]) {
+			char macbuf[18];
+
+			/* XXX ugh, nuke any ':'s */
+			strncpy(macbuf, row[1], sizeof(macbuf));
+			if (index(row[1], ':')) {
+				int x1, x2, x3, x4, x5, x6;
+				if (sscanf(row[1], "%2x:%2x:%2x:%2x:%2x:%2x",
+					   &x1, &x2, &x3, &x4, &x5, &x6) == 6)
+					snprintf(macbuf, sizeof(macbuf),
+						 "%02x%02x%02x%02x%02x%02x",
+						 x1, x2, x3, x4, x5, x6);
+			}
+
+			/* record the server mac */
+			if (strncmp(row[0], "node/gw", 7) == 0) {
+				strncpy(servs[0].mac, macbuf,
+					sizeof(servs[0].mac));
+				servs[0].hits++;
+				continue;
+			}
+			if (strncmp(row[0], "node/boss", 9) == 0) {
+				strncpy(servs[1].mac, macbuf,
+					sizeof(servs[1].mac));
+				servs[1].hits++;
+				continue;
+			}
+			if (strncmp(row[0], "node/ops", 8) == 0) {
+				strncpy(servs[2].mac, macbuf,
+					sizeof(servs[2].mac));
+				servs[2].hits++;
+				continue;
+			}
+			if (strncmp(row[0], "node/fs", 7) == 0) {
+				strncpy(servs[3].mac, macbuf,
+					sizeof(servs[3].mac));
+				servs[3].hits++;
+				continue;
+			}
+		}
+	}
+	mysql_free_result(res);
+
+	/* put out the type before anything else */
+	OUTPUT(buf, sizeof(buf), "ARPTYPE=%s\n", arptype);
+	client_writeback(sock, buf, strlen(buf), tcp);
+
+	/* finally, put them out */
+	for (i = 0; i < 4; i++) {
+		/* gotta have both IP and MAC info */
+		if (servs[i].hits != 2)
+			continue;
+
+		/* XXX if ops/fs are the same, don't output fs */
+		if (i == 3 && servs[2].hits == 2 &&
+		    strcmp(servs[2].ip, servs[3].ip) == 0)
+			continue;
+
+		OUTPUT(buf, sizeof(buf),
+		       "SERVER=%s CNETIP=%s CNETMAC=%s\n",
+		       servs[i].name, servs[i].ip, servs[i].mac);
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+#else
 	res = mydb_query("select value from sitevariables "
 			 "where name='node/gw_mac'", 1);
-	if (res && mysql_num_rows(res) > 0) {
+	if (!res) {
+		error("doarpinfo: %s: DB Error getting server info\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	/* put out the type before anything else */
+	OUTPUT(buf, sizeof(buf), "ARPTYPE=%s\n", arptype);
+	client_writeback(sock, buf, strlen(buf), tcp);
+
+	if (mysql_num_rows(res) > 0) {
 		row = mysql_fetch_row(res);
 		if (row && row[0]) {
 			char macbuf[18];
@@ -9609,24 +9832,18 @@ COMMAND_PROTOTYPE(doarpinfo)
 			client_writeback(sock, buf, strlen(buf), tcp);
 		}
 	}
-	if (res)
-		mysql_free_result(res);
+	mysql_free_result(res);
+#endif
 
 	/*
-	 * We only report additional info to callers on the node control net,
-	 * and about servers/nodes on the node control net. For others, the
-	 * gateway info suffices.
+	 * Check for other servers that are normal testbed nodes
+	 * (i.e., have nodes and interfaces table entries).
 	 */
-	inet_aton(CONTROL_NETWORK, &cnet);
-	inet_aton(CONTROL_NETMASK, &cmask);
-	cnet.s_addr &= cmask.s_addr;
-
-	if ((reqp->client.s_addr & cmask.s_addr) != cnet.s_addr)
-		return 0;
-
 	res = mydb_query("select node_id,IP,mac from interfaces "
-			 "where role='ctrl' and "
-			 "(node_id in ('boss','ops','fs') or "
+			 "where role='ctrl' and ("
+#ifndef GET_SERVERS_FROM_SITEVARS
+			 "node_id in ('boss','ops','fs') or "
+#endif
 			 " node_id in "
 			 " (select distinct subboss_id from subbosses "
 			 "  where disabled=0))", 3);
@@ -9642,9 +9859,11 @@ COMMAND_PROTOTYPE(doarpinfo)
 		row = mysql_fetch_row(res);
 		inet_aton(row[1], &naddr);
 
+#if 0 /* we do need to report ourselves */
 		/* Do not report ourselves */
 		if (reqp->client.s_addr == naddr.s_addr)
 			continue;
+#endif
 
 		/* and only for servers on the node control net */
 		naddr.s_addr &= cmask.s_addr;
@@ -9678,6 +9897,55 @@ COMMAND_PROTOTYPE(doarpinfo)
 			    !row[1] || !row[1][0] ||
 			    !row[2] || !row[2][0])
 				continue;
+			OUTPUT(buf, sizeof(buf),
+			       "HOST=%s CNETIP=%s CNETMAC=%s\n",
+			       row[0], row[1], row[2]);
+			client_writeback(sock, buf, strlen(buf), tcp);
+		}
+
+		mysql_free_result(res);
+	}
+
+	/*
+	 * Ops/fs nodes: in addition to other servers on the on the control
+	 * net, we also provide info for all testnodes and virtnodes on
+	 * either the node control net or the "jail" net.
+	 *
+	 * XXX right now we identify them by its name in the DB.
+	 * Maybe not the best thing...
+	 */
+	else if (strcmp(reqp->nodeid, "ops") == 0 ||
+		 strcmp(reqp->nodeid, "fs") == 0) {
+		struct in_addr nnet;
+
+		res = mydb_query("select i.node_id,i.IP,i.mac,n.role "
+				 "from interfaces as i,nodes as n "
+				 "where n.node_id=i.node_id and i.role='ctrl' "
+				 " and n.role in ('testnode','virtnode') "
+				 " and i.mac not like '000000%%' ", 4);
+		if (!res) {
+			error("doarpinfo: %s: DB Error getting"
+			      "control interface info\n", reqp->nodeid);
+			return 1;
+		}
+
+		for (nrows = (int)mysql_num_rows(res); nrows > 0; nrows--) {
+			row = mysql_fetch_row(res);
+			if (!row[0] || !row[0][0] ||
+			    !row[1] || !row[1][0] ||
+			    !row[2] || !row[2][0] ||
+			    !row[3] || !row[3][0])
+				continue;
+			/*
+			 * Make sure node is on the node control net
+			 * or is a virtnode in the "jail" net.
+			 */
+			if (!inet_aton(row[1], &nnet) ||
+			    !((nnet.s_addr & cmask.s_addr) == cnet.s_addr ||
+			      (strcmp(row[3], "virtnode") == 0 &&
+			       (nnet.s_addr & jmask.s_addr) == jnet.s_addr)))
+				continue;
+			
 			OUTPUT(buf, sizeof(buf),
 			       "HOST=%s CNETIP=%s CNETMAC=%s\n",
 			       row[0], row[1], row[2]);
