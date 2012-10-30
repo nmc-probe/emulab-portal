@@ -13,10 +13,9 @@ defvar setup_exec ;; setup.exe
 defvar elab_dld ;; http://www.emulab.net/downloads
 defvar pubsub_tarball ;; pubsub-0.95.tar.gz
 defvar pubsubsrc ;; pubsub-0.95
-defvar fluxgit ;; http://git-public.flux.utah.edu/git
-defvar elabdevrepo ;; emulab-devel.git
-defvar elabsrc ;; %swdir%\Emulab
-defvar gitdir ;; emulab-devel
+defvar elabgit ;; http://git-public.flux.utah.edu/git/emulab-devel.git
+defvar elabsw ;; %swdir%\Emulab
+defvar gitdest ;; emulab-devel
 
 # The list of Cygwin packages to install.
 defvar cyg_pkgs ;; boost-devel,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,emacs,file,gdb,git,nano,nc,patch,rcs,rpm,rsync,rxvt,subversion,vim,wget,unzip,zip
@@ -59,11 +58,13 @@ runcyg echo -e '#!/bin/sh\n$*\n' > /bin/sudo && chmod a+rx /bin/sudo ;; 0
 log Adding security rights to root account
 runcyg editrights -u root -a SeCreateTokenPrivilege -a SeAssignPrimaryTokenPrivilege  -a SeIncreaseQuotaPrivilege -a SeServiceLogonRight -l ;; 0
 
-log Downloading Emulab source
+log Downloading pubsub source
 mkdir %elabsrc%
 getfile %elab_dld%/%pubsub_tarball% ;; %elabsrc%\%pubsub_tarball%
-runcyg git clone -q %fluxgit%/%elabdevrepo% '%elabsrc%\%gitdir%' ;; 0
 
 log Unpacking pubsub source and building
-runcyg cd '%elabsrc%' && tar -zxf %pubsub_tarball% ;; 0
-runcyg cd '%elabsrc%\%pubsubsrc%' && touch .noelvin && make && make install ;; 0
+runcyg cd '%elabsw%' && tar -zxf %pubsub_tarball% ;; 0
+runcyg cd '%elabsw%\%pubsubsrc%' && touch .noelvin && make && make install ;; 0
+
+log Cloning Emulab source (git)
+runcyg git clone -q %elabgit% '%elabsw%\%gitdest%' ;; 0

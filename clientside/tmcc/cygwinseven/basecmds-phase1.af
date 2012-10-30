@@ -58,6 +58,9 @@ runcmd schtasks.exe ;; /change /TN "\Microsoft\Windows\Defrag\ScheduledDefrag" /
 log Enabling Remote Desktop Protocol connections
 addreg HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server ;; fDenyTSConnections ;; Dword ;; 0
 
+log Creating local root user
+adduser root ;; %rootpass% ;; makeadmin
+
 # XXX: Ugh...  Something still doesn't work here.
 log Setting up the clock
 addreg HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation ;; RealTimeIsUniversal ;; Dword ;; 1
@@ -66,6 +69,3 @@ runcmd sc.exe ;; config w32time start= auto ;; 0
 runcmd tzutil.exe ;; /s "Mountain Standard Time" ;; 0
 #runcmd net.exe ;; start w32time ;; 0
 runcmd w32tm.exe ;; /config /manualpeerlist:%ntpserver% /syncfromflags:manual /update ;; 0
-
-log Creating local root user
-adduser root ;; %rootpass% ;; makeadmin
