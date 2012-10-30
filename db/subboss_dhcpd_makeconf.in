@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,6 +46,8 @@ my $restart = 0;
 # Configure variables
 #
 my $TBOPS       = "@TBOPSEMAIL@";
+my $CBINDIR	= "@CLIENT_BINDIR@";
+my $LOGDIR	= "@prefix@/log";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/sbin:/usr/local/bin';
@@ -126,6 +128,22 @@ if ($restart) {
 		fatal("Could not kill(TERM) process $dpid (dhcpd): $!");
 	}
 }
+
+#
+# If we are also locking down ARP entries for the nodes we service,
+# reconfig that info here in case there has been a change in which
+# nodes we manage.
+#
+# XXX yes, this has nothing to do with DHCP other than it is a handy
+# hook point since we know any change to the mapping of nodes to subbosses
+# will result in a call to this routine.
+#
+if (-x "$CBINDIR/fixarpinfo") {
+    if (system("$CBINDIR/fixarpinfo -u >>$LOGDIR/fixarpinfo.log 2>&1")) {
+	fatal("Could not reconfigure static ARP setup");
+    }
+}
+
 TBScriptUnlock();
 exit(0);
 

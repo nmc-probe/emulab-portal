@@ -3185,6 +3185,11 @@ sub getlocalevserver()
     return $evserver;
 }
 
+#
+# Return a hash of arpinfo provided by boss in $rptr.
+# Note that the hash key is the IP address and not the name.
+# Function returns the type of the arp configuration or undef on error.
+#
 sub getarpinfo($)
 {
     my ($rptr) = @_;
@@ -3195,11 +3200,17 @@ sub getarpinfo($)
 
     if (tmcc(TMCCCMD_ARPINFO, undef, \@tmccresults, %opthash) < 0) {
 	warn("*** WARNING: Could not get arpinfo from server!\n");
-	return -1;
+	return undef;
     }
 
     #
-    # Example:
+    # First line should be the type:
+    #  ARPTYPE=(none|static|staticonly)
+    #
+    my $atype = "none";
+
+    #
+    # The remaining lines are entries for hosts and servers, e.g.:
     #  SERVER=gw CNETIP=155.98.36.1 CNETMAC=00d0bcf414f8
     #  SERVER=subboss CNETIP=155.98.38.162 CNETMAC=001f29329224
     #  HOST=pc271 CNETIP=155.98.39.71 CNETMAC=001143e43be6
@@ -3207,21 +3218,54 @@ sub getarpinfo($)
     my $pat = q((HOST|SERVER)=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-f]{12}));
 
     foreach my $line (@tmccresults) {
+	if ($line =~ /ARPTYPE=([-\w]+)/) {
+	    $atype = $1;
+	    if ($atype eq "static" || $atype eq "staticonly") {
+		next;
+	    }
+	    if ($atype ne "none") {
+		warn("*** WARNING: arpinfo: invalid type '$atype', assuming 'none'!\n");
+		$atype = "none";
+	    }
+	    last;
+	}
 	if ($line =~ /$pat/) {
-	    my $type = $1;
+	    my $ntype = $1;
 	    my $name = $2;
 	    my $ip = $3;
 	    my $mac = $4;
 
-	    $arpinfo{$name}{'type'} = $type;
-	    $arpinfo{$name}{'ip'} = $ip;
-	    $arpinfo{$name}{'mac'} = $mac;
+	    # canonicalize the MAC
+	    $mac = lc($mac);
+	    if ($mac =~ /^(..)(..)(..)(..)(..)(..)$/) {
+		$mac = "$1:$2:$3:$4:$5:$6";
+	    }
+
+	    if (exists($arpinfo{$ip})) {
+		# XXX subbosses may appear twice since they are testnodes
+		# XXX boss may appear as both boss and gw in elabinelab
+		if ($arpinfo{$ip}{'mac'} ne $mac) {
+		    warn("*** WARNING: Conflicting arpinfo for $ip: '$line'\n");
+		} else {
+		    $arpinfo{$ip}{'type'} = $ntype
+			if ($ntype eq "SERVER");
+		}
+	    } else {
+		$arpinfo{$ip}{'type'} = $ntype;
+		$arpinfo{$ip}{'name'} = $name;
+		$arpinfo{$ip}{'mac'} = $mac;
+	    }
 	} else {
 	    warn("*** WARNING: Bad arpinfo info line ignored: '$line'\n");
 	}
     }
-    %$rptr = %arpinfo;
-    return 0;
+
+    if ($atype eq "none") {
+	%$rptr = ();
+    } else {
+	%$rptr = %arpinfo;
+    }
+    return $atype;
 }
 
 #

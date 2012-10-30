@@ -100,6 +100,7 @@ common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/bootvnodes $(BINDIR)/bootvnodes
 	$(INSTALL) -m 755 $(SRCDIR)/startcmddone $(BINDIR)/startcmddone
 	$(INSTALL) -m 755 $(SRCDIR)/getblob $(BINDIR)/getblob
+	$(INSTALL) -m 755 $(SRCDIR)/fixarpinfo $(BINDIR)/fixarpinfo
 	(cd config; $(MAKE) DESTDIR=$(DESTDIR) script-install)
 
 subboss-common-script-install:	dir-install
@@ -116,6 +117,7 @@ subboss-common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/ifdynconfig $(BINDIR)/ifdynconfig
 	$(INSTALL) -m 755 $(SRCDIR)/startcmddone $(BINDIR)/startcmddone
 	$(INSTALL) -m 755 $(SRCDIR)/getblob $(BINDIR)/getblob
+	$(INSTALL) -m 755 $(SRCDIR)/fixarpinfo $(BINDIR)/fixarpinfo
 	(cd config; $(MAKE) DESTDIR=$(DESTDIR) subboss-script-install)
 
 symlinks:	dir-install
@@ -164,6 +166,7 @@ control-script-install:	dir-install bossnode
 	$(INSTALL) -m 755 $(SRCDIR)/ctrlnode.sh $(SYSRCDIR)/ctrlnode.sh
 	$(INSTALL) -m 755 $(SRCDIR)/rc.ctrlnode $(RCDIR)/rc.ctrlnode
 	$(INSTALL) -m 755 $(SRCDIR)/config/librc.pm $(BINDIR)/librc.pm
+	$(INSTALL) -m 755 $(SRCDIR)/fixarpinfo $(BINDIR)/fixarpinfo
 	$(INSTALL) bossnode $(ETCDIR)/bossnode
 
 PGENIFILES = rc.ifconfig rc.topomap rc.progagent rc.pgeni \

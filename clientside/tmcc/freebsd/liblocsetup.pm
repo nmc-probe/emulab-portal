@@ -39,6 +39,8 @@ use Exporter;
 	 os_groupdel os_getnfsmounts os_islocaldir os_mountextrafs
 	 os_fwconfig_line os_fwrouteconfig_line os_config_gre os_nfsmount
 	 os_find_freedisk os_get_ctrlnet_ip
+	 os_getarpinfo os_createarpentry os_removearpentry
+	 os_getstaticarp os_setstaticarp
        );
 
 sub VERSION()	{ return 1.0; }
@@ -86,6 +88,7 @@ $RPMCMD		= "/usr/local/bin/rpm";
 $HOSTSFILE	= "/etc/hosts";
 $WGET		= "/usr/local/bin/wget";
 $CHMOD		= "/bin/chmod";
+$ARP		= "/usr/sbin/arp";
 
 #
 # These are not exported
@@ -977,6 +980,13 @@ sub os_get_ctrlnet_ip
 	my $iface;
 	my $address;
 
+	# just use recorded IP if available
+	if (-e "$BOOTDIR/myip") {
+	    $myip = `cat $BOOTDIR/myip`;
+	    chomp($myip);
+	    return $myip;
+	}
+
 	if (!open CONTROLIF, "$BOOTDIR/controlif") {
 		return undef;
 	}
@@ -1269,4 +1279,116 @@ sub os_find_freedisk($$)
 
     return %diskinfo;
 }
+
+#
+# Read the current arp info and create a hash for it.
+#
+sub os_getarpinfo($$)
+{
+    my ($diface,$airef) = @_;
+    my %arpinfo = ();
+
+    if (!open(ARP, "$ARP -a|")) {
+	print "os_getarpinfo: Cannot run arp command\n";
+	return 1;
+    }
+
+    while (<ARP>) {
+	if (/^(\S+) \(([\d\.]+)\) at (..:..:..:..:..:..) on (\S+) (.*)/) {
+	    my $name = $1;
+	    my $ip = $2;
+	    my $mac = $3;
+	    my $iface = $4;
+	    my $stuff = $5;
+
+	    # this is not the interface you are looking for...
+	    if ($diface ne $iface) {
+		next;
+	    }
+
+	    if (exists($arpinfo{$ip})) {
+		if ($arpinfo{$ip}{'mac'} ne $mac) {
+		    print "os_getarpinfo: Conflicting arpinfo for $ip:\n";
+		    print "    '$_'!?\n";
+		    return 1;
+		}
+	    }
+	    $arpinfo{$ip}{'name'} = $name;
+	    $arpinfo{$ip}{'mac'} = $mac;
+	    $arpinfo{$ip}{'iface'} = $iface;
+	    if ($stuff =~ /permanent/) {
+		$arpinfo{$ip}{'static'} = 1;
+	    } else {
+		$arpinfo{$ip}{'static'} = 0;
+	    }
+	}
+    }
+    close(ARP);
+
+    %$airef = %arpinfo;
+    return 0;
+}
+
+#
+# Create a static ARP entry given info in the supplied hash.
+# Returns zero on success, non-zero otherwise.
+#
+sub os_createarpentry($$$)
+{
+    my ($iface, $ip, $mac) = @_;
+
+    return system("$ARP -s $ip $mac >/dev/null 2>&1");
+}
+
+sub os_removearpentry($;$)
+{
+    my ($iface, $ip) = @_;
+
+    if (!defined($ip)) {
+	return system("$ARP -i $iface -da >/dev/null 2>&1");
+    }
+    return system("$ARP -d $ip >/dev/null 2>&1");
+}
+
+#
+# Returns whether static ARP is enabled or not in the passed param.
+# Return zero on success, an error otherwise.
+#
+sub os_getstaticarp($$)
+{
+    my ($iface,$isenabled) = @_;
+
+    my $info = `$IFCONFIGBIN $iface 2>/dev/null`;
+    return $?
+	if ($?);
+
+    if ($info =~ /STATICARP/) {
+	$$isenabled = 1;
+    } else {
+	$$isenabled = 0;
+    }
+
+    return 0;
+}
+
+#
+# Turn on/off static ARP on the indicated interface.
+# Return zero on success, an error otherwise.
+#
+sub os_setstaticarp($$)
+{
+    my ($iface,$enable) = @_;
+    my $curenabled = 0;
+
+    os_getstaticarp($iface, \$curenabled);
+    if ($enable && !$curenabled) {
+	return system("$IFCONFIGBIN $iface staticarp >/dev/null 2>&1");
+    }
+    if (!$enable && $curenabled) {
+	return system("$IFCONFIGBIN $iface -staticarp >/dev/null 2>&1");
+    }
+
+    return 0;
+}
+
 1;
