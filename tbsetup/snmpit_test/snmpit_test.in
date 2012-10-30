@@ -3284,7 +3284,7 @@ sub doMakeVlan($$@) {
     # a new set anyway. 
     #
     if (!$opt{'whol-magic'}) {
-	if ($target_vlan->KeepInSync()) {
+	if ($vlanexists && $target_vlan->KeepInSync()) {
 	    print STDERR "Disabling switch trunks on $target_vlan\n";
 	    if (!$stack->setVlanOnSwitchTrunks($target_vlan->lanid(), 0)) {
 		print STDERR
