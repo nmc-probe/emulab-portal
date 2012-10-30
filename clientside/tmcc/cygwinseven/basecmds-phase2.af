@@ -18,7 +18,6 @@ defvar elabdevrepo ;; emulab-devel.git
 defvar elabsrc ;; %swdir%\Emulab
 defvar gitdir ;; emulab-devel
 
-
 # The list of Cygwin packages to install.
 defvar cyg_pkgs ;; boost-devel,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,emacs,file,gdb,git,nano,nc,patch,rcs,rpm,rsync,rxvt,subversion,vim,wget,unzip,zip
 

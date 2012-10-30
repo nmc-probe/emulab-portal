@@ -183,6 +183,8 @@ Function addreg_func($cmdarr) {
 	return $SUCCESS
 }
 
+# XXX: Expands variables in path value.  Need to figure out how to get it to 
+#      not do this.
 Function modpathenv_func($cmdarr) {
 	debug("appendpath called with: $cmdarr")
 
@@ -301,6 +303,7 @@ Function runcmd_func($cmdarr) {
 	return $SUCCESS
 }
 
+# XXX: still doesn't seem to process Cygwin exit codes properly.
 Function runcyg_func($cmdarr) {
 	debug("runcyg called with: $cmdarr")
 
@@ -412,6 +415,8 @@ Function waitproc_func($cmdarr) {
 
 }
 
+# XXX: Doesn't support Unix-style line endings or output encodings other than
+#      ASCII.
 Function edfile_func($cmdarr) {
 	debug("edfile called with $cmdarr")
 
@@ -438,6 +443,8 @@ Function edfile_func($cmdarr) {
 	return $SUCCESS
 }
 
+# XXX: Doesn't support Unix-style line endings or output encodings other than
+#      ASCII.
 Function appendfile_func($cmdarr) {
 	debug("appendfile called with $cmdarr")
 
