@@ -24,9 +24,26 @@
 # or merely parse tokens from string and vice-verse must
 # use the converters provided in this class.
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2011, 2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 package Port;
 
@@ -381,6 +398,7 @@ sub LookupByStringForced($$)
 	$rowref->{'mask'} = "";
 	$rowref->{'uuid'} = "";
 	$rowref->{'trunk'} = 0;
+	$rowref->{'trunk_mode'} = "equal";
 	$inst->{"INTERFACES_ROW"} = $rowref;
     }
     else {
@@ -547,6 +565,7 @@ sub LookupByTriple($$;$$)
 	$rowref->{'mask'} = "";
 	$rowref->{'uuid'} = "";
 	$rowref->{'trunk'} = 0;
+	$rowref->{'trunk_mode'} = "equal";
     } else {
 	$rowref = $query_result->fetchrow_hashref();
     }
@@ -624,6 +643,7 @@ sub interface_type($)    { return field($_[0], 'interface_type'); }
 sub mask($)    { return field($_[0], 'mask'); }
 sub uuid($)    { return field($_[0], 'uuid'); }
 sub trunk($)   { return field($_[0], 'trunk'); }
+sub trunk_mode($) { return field($_[0], 'trunk_mode'); }
 
 sub wire_end($) { return $_[0]->{'WIRE_END'}; }
 sub is_switch_side($) { return $_[0]->wire_end() eq "switch"; }

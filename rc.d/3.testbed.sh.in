@@ -117,6 +117,11 @@ case "$1" in
 			@prefix@/sbin/portal_daemon
 		fi
 
+		if [ -x @prefix@/sbin/tcppd ]; then
+		        echo -n " tcppd"
+			@prefix@/sbin/tcppd &
+		fi
+
 		#
 		# Could trigger experiment creation, so make sure everything
 		# else is setup first; i.e., run this last!
@@ -189,6 +194,9 @@ case "$1" in
 		fi
 		if [ -r /var/run/portal_daemon.pid ]; then
 			kill `cat /var/run/portal_daemon.pid`
+		fi
+		if [ -r /var/run/tcppd.pid ]; then
+			kill `cat /var/run/tcppd.pid`
 		fi
 
 		;;

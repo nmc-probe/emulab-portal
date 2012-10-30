@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use English;
 use Getopt::Std;
@@ -90,6 +107,14 @@ $| = 1;
 $ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
+#
+# We don't want to run this script unless its the real version.
+#
+if ($EUID != 0) {
+    die("*** $0:\n".
+	"    Must be setuid! Maybe its a development version?\n");
+}
+
 sub cleanup();
 sub fatal($);
 sub check_progress($$);
@@ -97,23 +122,29 @@ sub run_with_ssh($$);
 
 my $nodereboot	= "$TB/bin/node_reboot";
 my $createimage = "/usr/local/bin/create-image";
+my $reboot_prep = "@CLIENT_BINDIR@/reboot_prepare";
 my $friskiller  = "$TB/sbin/frisbeehelper";
 my $osselect    = "$TB/bin/os_select";
 my $checkquota  = "$TB/sbin/checkquota";
 my $imagehash	= "$TB/bin/imagehash";
 my $SHA1	= "/sbin/sha1";
+my $SCP		= "/usr/bin/scp";
 my $def_devtype	= "ad";
 my $def_devnum	= 0;
 my $devtype;
 my $devnum;
+my $device;
 my $mereuser    = 0;
-my $debug       = 0;
+my $debug       = 1;
 my $foreground  = 0;
 my $imagepid    = TB_OPSPID;
 my $logfile;
 my $oldlogfile;
 my $needcleanup = 0;
 my $needunlock  = 0;
+my $isvirtnode  = 0;
+my $onsharednode= 0;
+my $didbackup   = 0;
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -141,10 +172,10 @@ if (defined($options{"N"})) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
-    $waitmode = 0;
 }
 if (defined($options{"f"})) {
     $foreground = 1;
+    $waitmode = 0;
 }
 if (@ARGV != 2) {
     usage();
@@ -152,6 +183,13 @@ if (@ARGV != 2) {
 
 my $imagename  = $ARGV[0];
 my $node_id    = $ARGV[1];
+
+#
+# There is no reason to run as root unless we are taking a snapshot
+# of a VM on a shared node. In that case we will flip back when
+# we do the ssh over.
+#
+$EUID = $UID;
 
 #
 # Untaint the arguments.
@@ -221,6 +259,10 @@ if (!defined($node)) {
     die("*** $0:\n".
 	"    Invalid node name $node_id!\n");
 }
+$isvirtnode   = $node->isvirtnode();
+$onsharednode = $node->sharing_mode()
+    if ($isvirtnode);
+
 if ($UID && ! $this_user->IsAdmin()) {
     $mereuser = 1;
 
@@ -362,26 +404,47 @@ if ($?) {
 }
 
 if (-e $filename) {
-    unlink($filename) or
-	fatal("Could not delete $filename: $!");
+    #
+    # Back it up in case of failure. Note that the frisbee upload server
+    # does this, so we do it only for the ssh/nfs case.
+    #
+    if (!$usefup) {
+	system("/bin/mv -f $filename ${filename}.bak");
+	if ($?) {
+	    fatal("Could not back up $filename");
+	}
+	$didbackup = 1;
+    }
 }
 
-open(FILE, "> $filename") or
-    fatal("Could not create $filename: $!");
+#
+# We want to truncate the file (we backed it up above), which also
+# confirms the user can really create a new file.
+#
+# XXX The problem is that frisbee upload server does this too, which
+# is why we have a lot of zero length backup files. So, in uploader
+# mode, make sure the user can create the tmp file that the uploader
+# uses.
+#
+$tmp = $filename . ($usefup ? ".tmp" : "");
+open(FILE, "> $tmp") or
+    fatal("Could not create $tmp: $!");
 close(FILE) or
-    fatal("Could not truncate $filename: $!");
+    fatal("Could not truncate $tmp: $!");
 
-#
-# Get the disktype for this node
-#
-$node->disktype(\$devtype);
-$node->bootdisk_unit(\$devnum);
+if (!$isvirtnode) {
+    #
+    # Get the disktype for this node
+    #
+    $node->disktype(\$devtype);
+    $node->bootdisk_unit(\$devnum);
 
-$devtype = $def_devtype
-    if (!defined($devtype));
-$devnum = $def_devnum
-    if (!defined($devnum));
-my $device = "/dev/${devtype}${devnum}";
+    $devtype = $def_devtype
+	if (!defined($devtype));
+    $devnum = $def_devnum
+	if (!defined($devnum));
+    $device = "/dev/${devtype}${devnum}";
+}
 
 #
 # Record when this image was updated, so that we can figure out which
@@ -396,8 +459,8 @@ $image->MarkUpdateTime() == 0 or
 # slice (or perhaps the entire disk) is going to be zipped up. We do not
 # allow arbitrary combos of course. 
 #
-my $startslice = $image->loadpart();
-my $loadlength = $image->loadlength();
+my $startslice;
+my $loadlength;
 my $command    = "$createimage ";
 
 if ($usefup) {
@@ -405,10 +468,18 @@ if ($usefup) {
     $command .= " -S $BOSSIP -F $id";
 }
 
-if ($startslice || $loadlength == 1) {
-    $command .= " -s $startslice";
+if ($isvirtnode) {
+    $command .= " $node_id";
 }
-$command .= " $device";
+else {
+    $startslice = $image->loadpart();
+    $loadlength = $image->loadlength();
+
+    if ($startslice || $loadlength == 1) {
+	$command .= " -s $startslice";
+    }
+    $command .= " $device";
+}
 
 if ($usefup || $usessh) {
     $command .= " -";
@@ -419,7 +490,7 @@ if ($usefup || $usessh) {
 #
 # Go to the background since this is going to take a while.
 # 
-if (! ($debug || $foreground)) {
+if (! $foreground) {
     $logfile = Logfile->Create($experiment->gid_idx());
     fatal("Could not create a logfile")
 	if (!defined($logfile));
@@ -469,7 +540,7 @@ if (! ($debug || $foreground)) {
 # and so the child does not get zapped if the user types ^C
 # in waitmode. 
 #
-if (! ($debug || $foreground)) {
+if (! $foreground) {
     POSIX::setsid();
 }
 
@@ -490,6 +561,41 @@ my $idleticks    = 0;
 my $maxidleticks = int($idlewait / $checkwait);
 my $lastsize     = 0;
 my $result;
+
+#
+# We can skip a lot of the stuff below for virtnodes.
+#
+if ($isvirtnode) {
+    #
+    # XEN creates a problem; the physical host cannot actually
+    # execute a command inside the guest, but we need to run
+    # reboot_prepare and reboot it. FreeBSD creates an additional
+    # problem in that shutdown has to run to invoke prepare; reboot
+    # does not run it, and a shutdown from outside the VM has the
+    # sae effect; prepare does not run. What a pain. 
+    #
+    my $SAVEUID	= $UID;
+    $EUID = $UID = 0;
+
+    my $cmd = "$TB/bin/sshtb -n -o ConnectTimeout=10 ".
+	"-host $node_id $reboot_prep";
+    print STDERR "About to: '$cmd'\n" if ($debug);
+    system($cmd);
+    fatal("'$cmd' failed")
+	if ($?);
+
+    $EUID = $UID = $SAVEUID;
+
+    #
+    # Now execute command and wait.
+    #
+    if ($NONFS) {
+	$result = run_with_ssh($command, $filename);
+    } else {
+	$result = run_with_ssh($command, undef);
+    }
+    goto done;
+}
 
 #
 # Reboot into admin mode and run the command.
@@ -583,6 +689,13 @@ if ($usefup && $result eq "255") {
 
 done:
 
+# Grab boot log now. Node will reboot and possibly erase it. We should
+# probably come up with a better way to handle this.
+my $bootlog;
+if ($node->GetBootLog(\$bootlog)) {
+    $bootlog = undef;
+}
+
 if (! cleanup()) {
     fatal("Problem encountered while cleaning up!\n");
 }
@@ -659,8 +772,7 @@ print "Image written to $filename.\n";
 #      "Final size: " . (stat($filename))[7] . " bytes.\n";
 
 # Append bootlog (which has prepare output)
-my $bootlog;
-if ($node->GetBootLog(\$bootlog) == 0) {
+if (defined($bootlog)) {
     print "\n\n";
     print "------------------ Prepare Output ----------------\n";
     print "$bootlog\n";
@@ -690,6 +802,13 @@ exit 0;
 sub cleanup ()
 {
     $needcleanup = 0;
+
+    if ($isvirtnode) {
+	#
+	# Nothing to do; the clientside script rebooted the container.
+	#
+	return 1;
+    }
 
     #
     # Turn admin mode back off and reboot back to the old OS
@@ -750,6 +869,10 @@ sub fatal($)
     }
     $image->Unlock()
 	if ($needunlock);
+    # Restore old image file. 
+    if ($didbackup) {
+	system("/bin/mv -f ${filename}.bak $filename");
+    }
     exit(-1);
 }
 
@@ -845,12 +968,15 @@ sub run_with_ssh($$)
 {
     my ($cmd,$output) = @_;
     my $stat = undef;
+    $node_id = $node->phys_nodeid()
+	if ($isvirtnode);
 
     $cmd = "$TB/bin/sshtb -n -host $node_id $cmd";
     if (defined($output)) {
 	$cmd .= " > $output";
     }
-    print STDERR "About to: '$cmd' as uid $UID\n" if ($debug);
+    print STDERR "About to: '$cmd' as uid ".
+	($onsharednode ? 0 : $UID) . "\n" if ($debug);
 
     my $mypid = fork();
     if ($mypid < 0) {
@@ -860,6 +986,13 @@ sub run_with_ssh($$)
     #
     # Child. Just do it.
     #
+    # If this is a virtnode on a shared node, we want to flip
+    # back to root so that we run the ssh as root. 
+    #
+    if ($onsharednode) {
+	$EUID = $UID = 0;
+    }
+
     if ($mypid == 0) {
 	my $stat = 0;
 	if (system($cmd)) {

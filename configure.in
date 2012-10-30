@@ -1,7 +1,24 @@
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 AC_PREREQ(2.62)
 
@@ -86,9 +103,11 @@ AC_CHECK_TOOL(STRIP,strip)
 
 AC_EXEEXT
 
+AC_PATH_PROG(DIG,dig)
 AC_PATH_PROG(ELVIN_CONFIG,elvin-config)
 AC_PATH_PROG(JAVAC,javac)
 AC_PATH_PROG(JAR,jar)
+AC_PATH_PROG(NC,nc)
 AC_PATH_PROG(SUDO,sudo)
 AC_PATH_PROG(UUIDGEN,uuidgen)
 
@@ -1003,7 +1022,7 @@ AC_SUBST(MERGE_BUILD_SANDBOX)
 
 outfiles="$outfiles Makeconf GNUmakefile \
 	assign/GNUmakefile \
-        named/GNUmakefile firewall/GNUmakefile \
+        named/GNUmakefile firewall/GNUmakefile fwrules/GNUmakefile \
 	ssl/GNUmakefile ssl/mksig ssl/usercert.cnf ssl/mkserial \
 	capture/GNUmakefile \
 	db/GNUmakefile \
@@ -1087,6 +1106,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	tbsetup/libArchive.pm tbsetup/archive_control \
 	tbsetup/tarfiles_setup \
 	tbsetup/fetchtar.proxy tbsetup/webfrisbeekiller \
+	tbsetup/tcpp \
 	tbsetup/plab/GNUmakefile tbsetup/plab/libplab.py \
         tbsetup/plab/mod_dslice.py tbsetup/plab/mod_PLC.py \
         tbsetup/plab/mod_PLCNM.py \
@@ -1119,7 +1139,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	utils/spewconlog utils/xlogin \
 	utils/opsdb_control utils/opsdb_control.proxy \
 	utils/remove_old_www utils/epmodeset \
-	utils/mkblob utils/rmblob \
+	utils/mkblob utils/rmblob utils/ctrladdr utils/tcppd \
 	www/GNUmakefile www/defs.php3 www/dbdefs.php3 www/xmlrpc.php3 \
 	www/xmlrpcpipe.php3 \
 	www/swish.conf www/websearch \
@@ -1208,7 +1228,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 # this turned out to be a major headache. Instead, just duplicate the file
 # lists here and in clientside.
 #
-outfiles="$outfiles clientside/GNUmakefile \
+outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/lib/GNUmakefile clientside/lib/libtb/GNUmakefile \
  clientside/lib/tmcd/GNUmakefile \
  clientside/GNUmakefile clientside/event/GNUmakefile \
@@ -1244,7 +1264,6 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/tmcc/freebsd/supfile clientside/tmcc/freebsd/sethostname \
  clientside/tmcc/linux/GNUmakefile clientside/tmcc/linux/supfile \
  clientside/tmcc/linux/sethostname.dhclient \
- clientside/tmcc/linux/xen/emulab-cnet \
  clientside/tmcc/linux9/GNUmakefile clientside/tmcc/linux9/supfile \
  clientside/tmcc/fedora/GNUmakefile clientside/tmcc/fedora/supfile \
  clientside/tmcc/fedora15/GNUmakefile \
@@ -1255,6 +1274,7 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/tmcc/freebsd6/GNUmakefile clientside/tmcc/freebsd6/supfile \
  clientside/tmcc/freebsd6/netif-emulab \
  clientside/tmcc/freebsd7/GNUmakefile clientside/tmcc/freebsd7/netif-emulab \
+ clientside/tmcc/freebsd9/GNUmakefile clientside/tmcc/freebsd9/netif-emulab \
  clientside/tmcc/freebsd10/GNUmakefile clientside/tmcc/freebsd10/netif-emulab \
  clientside/tmcc/cygwinxp/GNUmakefile clientside/tmcc/dp/GNUmakefile \
  clientside/tmcc/openbsd/GNUmakefile clientside/tmcc/ron/GNUmakefile \

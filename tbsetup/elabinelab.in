@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2004-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 # TODO: ntpinfo table.
 #       Current source directory? From where?
@@ -774,27 +791,26 @@ sub DumpDBGoo()
 	    if (defined($opsnode));
 
 	if ($table eq "nodes") {
-	    DBQueryFatal("update temp_${table} set ".
+	    DBQueryFatal("update temp_nodes set ".
 			 " type='ops', ".
 			 " phys_nodeid=node_id, ".
 			 " role='ctrlnode', ".
 			 " op_mode='OPSNODEBSD' ".
 			 "where node_id in ('fs','ops')");
 
-	    # Also add the nodes that correspond to the "trunk" wires.
-	    DBQueryFatal("insert into temp_${table} ".
-			 "select distinct n.* from wires as w ".
-			 "left join nodes as n on w.node_id1=n.node_id or ".
-			 "     w.node_id2=n.node_id ".
-			 "where w.type='Trunk'");
+	    # Also add the nodes that correspond to infrastructure switches
+	    DBQueryFatal("insert into temp_nodes ".
+			 "select distinct n.* from switch_stacks as s ".
+			 "left join nodes as n on s.node_id=n.node_id ".
+			 "where stack_id not like 'ExpStack%'");
 
 	    # Clear any node reservations on the inside
-	    DBQueryFatal("update temp_${table} set ".
+	    DBQueryFatal("update temp_nodes set ".
 			 " reserved_pid=null where reserved_pid is not null");
 
 	    # Put the inner nodes into "limbo" so they DTRT when restarted
 	    if ($restartnodes) {
-		DBQueryFatal("update temp_${table} set".
+		DBQueryFatal("update temp_nodes set".
 			     "  op_mode='PXEKERNEL',next_op_mode='',".
 			     "  eventstate='". TBDB_NODESTATE_PXELIMBO . "',".
 			     "  temp_boot_osid=NULL,next_boot_osid=NULL,".

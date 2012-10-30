@@ -58,15 +58,15 @@ package com.hurlant.crypto.prng
 			var s:ByteArray = new ByteArray;
 			s.writeUTFBytes(label);
 			s.writeBytes(seed);
-			this.seed = s;
+			seed = s;
 			this.s1 = s1;
 			this.s2 = s2;
 			
 			hmac_md5 = new HMAC(new MD5);
 			hmac_sha1 = new HMAC(new SHA1);
 			
-			this.a1 = hmac_md5.compute(s1, this.seed);
-			this.a2 = hmac_sha1.compute(s2, this.seed);
+			a1 = hmac_md5.compute(s1, seed);
+			a2 = hmac_sha1.compute(s2, seed);
 			
 			p1 = new ByteArray;
 			p2 = new ByteArray;
@@ -74,9 +74,9 @@ package com.hurlant.crypto.prng
 			d1 = new ByteArray;
 			d2 = new ByteArray;
 			d1.position = MD5.HASH_SIZE;
-			d1.writeBytes(this.seed);
+			d1.writeBytes(seed);
 			d2.position = SHA1.HASH_SIZE;
-			d2.writeBytes(this.seed);
+			d2.writeBytes(seed);
 		}
 		// XXX HORRIBLY SLOW. REWRITE.
 		public function nextBytes(buffer:IDataOutput, length:int):void {

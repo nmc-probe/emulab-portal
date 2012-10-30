@@ -1,28 +1,47 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use English;
 use strict;
 use Getopt::Std;
 use XML::Simple;
 use Data::Dumper;
+use URI::Escape;
 
 #
 # Back-end script to create new Image descriptors (EZ Form.)
 #
 sub usage()
 {
-    print("Usage: newimageid [-v] [-a] <xmlfile>\n");
+    print("Usage: newimageid [-v] [-a] [-s] <xmlfile>\n");
     exit(-1);
 }
-my $optlist = "dvfa";
+my $optlist = "dvfas";
 my $debug   = 0;
 my $force   = 0;
 my $verify  = 0;	# Check data and return status only.
-my $allpc   = 0;        # insert mappings for all pc types. 
+my $allpc   = 0;        # insert mappings for all pc types.
+my $skipadmin = 0;      # Skip SLOT_ADMINONLY checks.
 
 #
 # Configure variables
@@ -80,6 +99,9 @@ if (defined($options{"f"})) {
 }
 if (defined($options{"v"})) {
     $verify = 1;
+}
+if (defined($options{"s"})) {
+    $skipadmin = 1;
 }
 if (defined($options{"a"})) {
     $allpc = 1;
@@ -162,12 +184,14 @@ my %xmlfields =
      "wholedisk",	=> ["wholedisk",	$SLOT_OPTIONAL,    0],
      "max_concurrent",	=> ["max_concurrent",	$SLOT_OPTIONAL,    0],
      "shared",		=> ["shared",		$SLOT_OPTIONAL,    0],
-     "global",		=> ["global",		$SLOT_ADMINONLY,   0],
+     "global",		=> ["global",		$SLOT_OPTIONAL,    0],
      "mbr_version",	=> ["mbr_version",	$SLOT_OPTIONAL],
-     "reboot_waittime",	=> ["reboot_waittime",	$SLOT_ADMINONLY],
+     "metadata_url",	=> ["metadata_url",	$SLOT_ADMINONLY],
+     "imagefile_url",	=> ["imagefile_url",	$SLOT_ADMINONLY],
+     "reboot_waittime",	=> ["reboot_waittime",	$SLOT_OPTIONAL],
      "hash",		=> ["hash",		$SLOT_ADMINONLY],
      "nextosid",	=> ["nextosid",		$SLOT_ADMINONLY],
-     "def_parentosid",	=> ["def_parentosid",	$SLOT_ADMINONLY],
+     "def_parentosid",	=> ["def_parentosid",	$SLOT_OPTIONAL],
 );
 
 #
@@ -278,7 +302,7 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
 	    $value = $default;
 	}
     }
-    if ($required & $SLOT_ADMINONLY) {
+    if ($required & $SLOT_ADMINONLY && !$skipadmin) {
 	# Admin implies optional, but thats probably not correct approach.
 	$errors{$key} = "Administrators only"
 	    if (! $this_user->IsAdmin());
@@ -379,10 +403,8 @@ my $isadmin = $this_user->IsAdmin();
 my $imagename = $newimageid_args{"imagename"};
 my $OS = $newimageid_args{"OS"};
 
-# In this form, we make the images:imagename and the os_info:osname the same!
-# Currently, TB_OSID_OSNAMELEN is shorter than TB_IMAGEID_IMAGENAMELEN
-# and that causes problems since we use the same id for both tables. For
-# now, test for the shorter of the two.
+# In this form, we make the images:imagename and the os_info:osname the
+# same.
 if ( length($imagename) > TB_OSID_OSNAMELEN()) {
     UserError("Descriptor Name: Too long! ".
     "Must be less than or equal to " . TB_OSID_OSNAMELEN());
@@ -415,7 +437,7 @@ if ($group &&
 # Only admin types can set the global bit for an image. Ignore silently.
 #
 my $global = 0;
-if ($isadmin &&
+if (($isadmin || $skipadmin) &&
     exists($newimageid_args{"global"}) &&
     $newimageid_args{"global"} eq "1") {
     $global = 1;
@@ -431,6 +453,15 @@ if (exists($newimageid_args{"shared"}) &&
 # Does not make sense to do this. 
 if ($global && $shared) {
     UserError("Global: Image declared both shared and global");
+}
+
+if (exists($newimageid_args{"metadata_url"})) {
+    $newimageid_args{"metadata_url"} =
+	uri_unescape($newimageid_args{"metadata_url"})
+}
+if (exists($newimageid_args{"imagefile_url"})) {
+    $newimageid_args{"imagefile_url"} =
+	uri_unescape($newimageid_args{"imagefile_url"})
 }
 
 # Nextosid check. Must exist. admin check done above.
@@ -583,7 +614,7 @@ UserError("Node Types: Must select at least one node type")
 # old OSes from being checked as runnable on newer HW where they do not
 # stand a chance.
 #
-if (!$isadmin && defined($node_id)) {
+if (!$isadmin && defined($node) && !$node->isvirtnode()) {
     my $query_result =
 	DBQueryFatal("select oi.type from osidtoimageid as oi ".
 		     "left join partitions as p on oi.osid=p.osid ".

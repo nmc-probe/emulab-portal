@@ -1,8 +1,25 @@
 <?php
 #
-# EMULAB-COPYRIGHT
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
-# All rights reserved.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 include("defs.php3");
 include_once("osinfo_defs.php");
@@ -35,18 +52,29 @@ PAGEHEADER("OSID $osname");
 
 SUBPAGESTART();
 SUBMENUSTART("OSID Options");
-WRITESUBMENUBUTTON("Delete this OS Descriptor",
-		   CreateURL("deleteosid", $osinfo));
-if ($isadmin) {
-     WRITESUBMENUBUTTON("Create a new OS Descriptor",
-			"newosid.php3");
+#
+# Delete from the image descriptor when its an EZ image.
+#
+if ($osinfo->ezid()) {
+    $fooid = rawurlencode($osinfo->osid());
+    WRITESUBMENUBUTTON("Delete this OS Descriptor",
+		       "deleteimageid.php3?imageid=$fooid");
+}
+else {
+    WRITESUBMENUBUTTON("Delete this OS Descriptor",
+		       CreateURL("deleteosid", $osinfo));
 }
 WRITESUBMENUBUTTON("Create a new Image Descriptor",
 		   "newimageid_ez.php3");
-WRITESUBMENUBUTTON("OS Descriptor list",
-		   "showosid_list.php3");
 WRITESUBMENUBUTTON("Image Descriptor list",
 		   "showimageid_list.php3");
+if ($isadmin) {
+    WRITESUBMENUBUTTON("OS Descriptor list",
+		       "showosid_list.php3");
+    WRITESUBMENUBUTTON("Create a new OS Descriptor",
+		       "newosid.php3");
+}
+
 SUBMENUEND();
 echo "<br><br>\n";
 

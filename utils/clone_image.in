@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use English;
 use strict;
@@ -31,15 +48,18 @@ sub usage()
 	  "Options:\n".
 	  "       -d     Turn on debug mode\n".
 	  "       -e     Create a whole disk image\n".
+	  "       -g 0,1 Override base image global setting\n".
 	  "       -s     Create descriptor but do not snapshot\n".
 	  "       -n     Impotent mode\n");
     exit(-1);
 }
-my $optlist     = "dens";
+my $optlist     = "densg:";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
 my $nosnapshot  = 0;
+my $isvirtnode  = 0;
+my $global;
 
 #
 # Configure variables
@@ -95,6 +115,9 @@ if (defined($options{"n"})) {
 if (defined($options{"s"})) {
     $nosnapshot = 1;
 }
+if (defined($options{"g"})) {
+    $global = $options{"g"};
+}
 usage()
     if (@ARGV != 2);
 
@@ -117,6 +140,8 @@ my $node = Node->Lookup($node_id);
 if (!defined($node)) {
     fatal("No such node");
 }
+$isvirtnode = $node->isvirtnode();
+
 if (!$node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE())) {
     fatal("Not enough permission");
 }
@@ -181,10 +206,11 @@ if (defined($image)) {
 # on the node and being cloned.
 #
 my ($base_osinfo, $base_image) = $node->RunningOsImage();
-if (! (defined($base_osinfo) && defined($base_image))) {
+if (! (defined($base_osinfo))) {
     fatal("Could not determine osid/imageid for $node_id");
 }
-print "$node_id is running $base_osinfo,$base_image\n"
+print "$node_id is running $base_osinfo" .
+    (defined($base_image) ? ",$base_image" : "") . "\n"
     if ($debug);
 
 #
@@ -199,29 +225,60 @@ my %xmlfields =
     ("imagename"	=> $imagename,
      "pid"		=> $project->pid(),
      "gid"		=> $experiment->gid(),
-     "description"	=> $base_image->description(),
-     "loadpart"		=> $base_image->loadpart(),
+     "description"	=> $base_osinfo->description(),
      "OS"		=> $base_osinfo->OS(),
      "version"		=> $base_osinfo->version(),
      "path"		=> "$PROJROOT/$pid/images/${imagename}.ndz",
-     "node_id"		=> $node_id,
      "osfeatures",	=> $base_osinfo->osfeatures(),
      "op_mode",		=> $base_osinfo->op_mode(),
-     "wholedisk",	=> $wholedisk,
-     "mbr_version",	=> $base_image->mbr_version(),
+     "global"           => (defined($global) ?
+			    ($global ? 1 : 0) : $base_osinfo->shared()),
+     "wholedisk",	=> ($isvirtnode ? 1 : $wholedisk),
 );
+$xmlfields{"reboot_waittime"} = $base_osinfo->reboot_waittime()
+    if (defined($base_osinfo->reboot_waittime()));
+    
+if (defined($base_image)) {
+    $xmlfields{"mbr_version"}     = $base_image->mbr_version();
+    $xmlfields{"loadpart"}        = ($isvirtnode ? 1 : $base_image->loadpart());
+    $xmlfields{"global"}          = (defined($global) ?
+				     ($global ? 1 : 0) : $base_image->global());
+}
+elsif ($isvirtnode) {
+    $xmlfields{"reboot_waittime"} = 240;
+    $xmlfields{"loadpart"}        = 1;
+    $xmlfields{"mtype_pcvm"}      = 1;
+    $xmlfields{"wholedisk"}       = 1;
+}
+else {
+    fatal("No base image for $node_id");
+}
+# This needs more thought.
+if ($isvirtnode) {
+    my $parentosinfo = OSinfo->Lookup($base_osinfo->def_parentosid());
+    if (!defined($parentosinfo)) {
+	fatal("Could not lookup object for parent osid of $base_osinfo");
+    }
+    $xmlfields{"def_parentosid"} =
+	$parentosinfo->pid() . "," . $parentosinfo->osname();
+
+    # And this is just plain bogus. 
+    $xmlfields{"mbr_version"} = 2;
+}
 
 #
 # Grab the existing type list and generate new mtype_* variables.
 #
-my @typelist = $base_image->TypeList($base_osinfo);
-if (! @typelist) {
-    fatal("$base_image does not run on any types");
-}
-foreach my $type (@typelist) {
-    my $type_id = $type->type();
+if (defined($base_image)) {
+    my @typelist = $base_image->TypeList($base_osinfo);
+    if (! @typelist) {
+	fatal("$base_image does not run on any types");
+    }
+    foreach my $type (@typelist) {
+	my $type_id = $type->type();
     
-    $xmlfields{"mtype_${type_id}"} = 1;
+	$xmlfields{"mtype_${type_id}"} = 1;
+    }
 }
 
 #
@@ -242,7 +299,11 @@ foreach my $key (keys(%xmlfields)) {
 print $fh "</image>\n";
 close($fh);
 
-my $output = emutil::ExecQuiet("$NEWIMAGEEZ -v -a $filename");
+if ($debug) {
+    system("/bin/cat $filename");
+}
+
+my $output = emutil::ExecQuiet("$NEWIMAGEEZ -s -v $filename");
 if ($?) {
     print STDERR $output;
     fatal("Failed to verify image descriptor from $filename");
@@ -252,7 +313,7 @@ if ($impotent) {
     system("cat $filename");
     exit(0);
 }
-$output = emutil::ExecQuiet("$NEWIMAGEEZ -a $filename");
+$output = emutil::ExecQuiet("$NEWIMAGEEZ -s $filename");
 if ($?) {
     print STDERR $output;
     my $foo = `cat $filename`;

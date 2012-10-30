@@ -76,7 +76,15 @@ INSERT INTO sitevariables VALUES ('general/open_showexplist',NULL,'','Allow memb
 INSERT INTO sitevariables VALUES ('general/linux_endnodeshaping',NULL,'1','Use this sitevar to disable endnodeshaping on linux globally on your testbed',0);
 INSERT INTO sitevariables VALUES ('swap/swapout_command','/usr/local/bin/create-swapimage -s','','Command to run in admin MFS on each node of an experiment at swapout time. Runs as swapout user.',0);
 INSERT INTO sitevariables VALUES ('swap/swapout_command_timeout','360','120','Time (in seconds) to allow for command completion',0);
-INSERT INTO sitevariables VALUES ('node/gw_mac','00:b0:8e:84:69:34','','MAC address of the control net router',0);
+INSERT INTO `sitevariables` VALUES ('general/arplockdown','','none','Lock down ARP entries on servers (none == let servers dynamically ARP, static == insert static ARP entries for important nodes, staticonly == allow only static entries)',0);
+INSERT INTO sitevariables VALUES ('node/gw_mac','','','MAC address of the control net router (NULL if none)',0);
+INSERT INTO sitevariables VALUES ('node/gw_ip','','','IP address of the control net router (NULL if none)',0);
+INSERT INTO sitevariables VALUES ('node/boss_mac','','','MAC address of the boss node (NULL if behind GW)',0);
+INSERT INTO sitevariables VALUES ('node/boss_ip','','','IP address of the boss node',0);
+INSERT INTO sitevariables VALUES ('node/ops_mac','','','MAC address of the ops node (NULL if behind GW)',0);
+INSERT INTO sitevariables VALUES ('node/ops_ip','','','IP address of the ops node',0);
+INSERT INTO sitevariables VALUES ('node/fs_mac','','','MAC address of the fs node (NULL if behind GW, same as ops if same node)',0);
+INSERT INTO sitevariables VALUES ('node/fs_ip','','','IP address of the fs node (same as ops if same node)',0);
 INSERT INTO sitevariables VALUES ('general/default_imagename','FBSD410+RHL90-STD','','Name of the default image for new nodes, assumed to be in the emulab-ops project.',0);
 INSERT INTO sitevariables VALUES ('general/joinproject/admincheck','1','0','When set, a project may not have a mix of admin and non-admin users',0);
 INSERT INTO sitevariables VALUES ('protogeni/allow_externalusers','1','1','When set, external users may allocate slivers on your testbed.',0);

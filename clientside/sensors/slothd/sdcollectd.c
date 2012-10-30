@@ -1,7 +1,24 @@
 /*
- * EMULAB-COPYRIGHT
  * Copyright (c) 2000-2010 University of Utah and the Flux Group.
- * All rights reserved.
+ * 
+ * {{{EMULAB-LICENSE
+ * 
+ * This file is part of the Emulab network testbed software.
+ * 
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version.
+ * 
+ * This file is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * }}}
  */
 
 #include "sdcollectd.h"
@@ -99,7 +116,11 @@ int main(int argc, char **argv) {
   bzero(&servaddr, sizeof(struct sockaddr_in));
   servaddr.sin_family = AF_INET;
   servaddr.sin_addr.s_addr = INADDR_ANY;
-  servaddr.sin_port = htons(SDCOLLECTD_PORT);
+  if (opts->port) {
+    servaddr.sin_port = htons(opts->port);
+  } else {
+    servaddr.sin_port = htons(SDCOLLECTD_PORT);
+  }
 
   /* Create and bind udp socket for collecting slothd client-side idle data */
   if ((sd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -188,7 +209,8 @@ int main(int argc, char **argv) {
 }
 
 int CollectData(int sd, IDLE_DATA *iddata) {
-  int numbytes, slen;
+  int numbytes;
+  socklen_t slen;
   time_t curtime;
   /* struct hostent *hent; */
   struct sockaddr_in cliaddr;
@@ -210,6 +232,8 @@ int CollectData(int sd, IDLE_DATA *iddata) {
     }
   }
 
+  /* Null terminate the received buffer for safety. */
+  iddata->buf[sizeof(iddata->buf)-1] = '\0';
   return 1;
 }
 
@@ -262,7 +286,8 @@ char *tbmac(char *maddr, char **endptr) {
       mylast = ++myptr;
     }
     else if (myptr - maddr == MACADDRLEN) {
-      strcpy(tbaddr, maddr);
+      strncpy(tbaddr, maddr, MACADDRLEN);
+      tbaddr[MACADDRLEN] = '\0';
       ++myptr;
       break;
     }
@@ -283,13 +308,16 @@ char *tbmac(char *maddr, char **endptr) {
 
 
 int ParseRecord(IDLE_DATA *iddata) {
-
-  int tmpvers;
-  char *itemptr, *ptr, *tmpstr;
+  char *itemptr, *tmpstr;
+  int sres = 0;
+  char key[MAXKEYSIZE+1], value[MAXVALUESIZE+1];
+  unsigned long val1, val2;
+  double dval1, dval2, dval3;
+  char maddr[18];
 
   iddata->ifcnt = 0;
   
-  /* Parse out fields */
+  /* First parsing pass: separate out the key/value pairs. */
   itemptr = strtok(iddata->buf, " \t");
   if (itemptr == NULL) {
     error("No valid data; rejecting.");
@@ -297,45 +325,96 @@ int ParseRecord(IDLE_DATA *iddata) {
   }
 
   do {
-
-    if (strstr(itemptr, "vers")) {
-      if ((tmpvers = strtoul(itemptr+5, NULL, 10)) > SDPROTOVERS) {
-        error("Unsupported protocol version; rejecting.");
-        return 0;
+    /* Second pass: split off the key and value */
+    sres = sscanf(itemptr, KVSCAN_FORMAT(MAXKEYSIZE, MAXVALUESIZE), 
+		  key, value);
+    if (sres == 2) {
+      /* Third pass: parse value according to key type. */
+      if (!strcmp(key,"vers")) {
+	sres = sscanf(value, LONG_FORMAT, &val1);
+	if (sres == 1) {
+	  if (val1 > SDPROTOVERS) {
+	    error("Unsupported protocol version; report rejected.");
+	    return 0;
+	  } else {
+	    iddata->version = val1;
+	  }
+	}
+	else {
+	  error("Packet from node %s rejected: Bad data in version field: %s", 
+		iddata->id, value);
+	  return 0;
+	}
       }
-      iddata->version = tmpvers;
-    }
-
-    else if (strstr(itemptr, "mis")) {
-      iddata->mis = atol(itemptr+4);
-    }
-
-    else if (strstr(itemptr, "lave")) {
-      iddata->l1m = strtod(itemptr+5, &ptr);
-      iddata->l5m = strtod(ptr+1, &ptr);
-      iddata->l15m = strtod(ptr+1, NULL);
-    }
-
-    else if (strstr(itemptr, "iface")) {
-      if (!(tmpstr = tbmac(itemptr+6, &ptr))) {
-        error("Malformed interface record for node %s encountered: %s",
-              iddata->id,
-              itemptr);
-        continue;
+      else if (!strcmp(key,"mis")) {
+	sres = sscanf(value, LONG_FORMAT, &val1);
+	if (sres == 1) {
+	  iddata->mis = val1;
+	}
+	else {
+	  error("Packet from node %s rejected: Bad data in mis field: %s", 
+		iddata->id, value);
+	  return 0;
+	}
       }
-      strcpy(iddata->ifaces[iddata->ifcnt].mac, tmpstr);
-      iddata->ifaces[iddata->ifcnt].ipkts = strtoul(ptr+1, &ptr, 10);
-      iddata->ifaces[iddata->ifcnt].opkts = strtoul(ptr+1, NULL, 10);
-      iddata->ifcnt++;
-    }
-
-    else if (strstr(itemptr, "abits")) {
-      iddata->actbits = strtoul(itemptr+6, NULL, 16);
-    }
-
+      else if (!strcmp(key,"abits")) {
+	sres = sscanf(value, HEX_FORMAT, &val1);
+	if (sres == 1) {
+	  iddata->actbits = val1;
+	}
+	else {
+	  error("Packet from node %s rejected: Bad data in abits field: %s", 
+		iddata->id, value);
+	  return 0;
+	}
+      }
+      else if (!strcmp(key,"lave")) {
+	sres = sscanf(value, DBL_FORMAT "," DBL_FORMAT "," DBL_FORMAT , 
+		      &dval1, &dval2, &dval3);
+	if (sres == 3) {
+	  iddata->l1m  = dval1;
+	  iddata->l5m  = dval2;
+	  iddata->l15m = dval3;
+	} else {
+	  error("Packet from node %s rejected: Bad data in lave field: %s", 
+		iddata->id, value);
+	  return 0;
+	}
+      }
+      else if (!strcmp(key,"iface")) {
+	sres = sscanf(value, MADDR_FORMAT "," LONG_FORMAT "," LONG_FORMAT , 
+		      maddr, &val1, &val2);
+	if (sres == 3) {
+	  tmpstr = tbmac(maddr, NULL);
+	  if (tmpstr) {
+	    strncpy(iddata->ifaces[iddata->ifcnt].mac, tmpstr, MACADDRLEN);
+	    iddata->ifaces[iddata->ifcnt].mac[MACADDRLEN] = '\0';
+	    iddata->ifaces[iddata->ifcnt].ipkts = val1;
+	    iddata->ifaces[iddata->ifcnt].opkts = val2;
+	    iddata->ifcnt++;
+	  } else {
+	    error("Malformed interface record for node %s encountered: %s",
+		  iddata->id,
+		  maddr);
+	    continue;
+	  }
+	}
+	else {
+	  error("Packet from node %s rejected: Bad data in iface field: %s", 
+		iddata->id, value);
+	  return 0;
+	}
+      }
+      else {
+	error("Packet rejected from node %s: Unknown key: %s", iddata->id, key);
+	return 0;
+      }
+    } 
     else {
-      info("Unrecognized string in packet: %s", itemptr);
+      error("Malformed packet received from node %s; rejecting.", iddata->id);
+      return 0;
     }
+
   } while ((itemptr = strtok(NULL, " \t")) && iddata->ifcnt < MAXNUMIFACES);
 
   return 1;
@@ -350,7 +429,7 @@ void PutDBRecord(IDLE_DATA *iddata) {
   char tmpstr[(NUMACTTYPES+1)*sizeof(curstamp)];
   char *actstr[] = ACTSTRARRAY;
 
-  sprintf(curstamp, "FROM_UNIXTIME(%lu)", now);
+  sprintf(curstamp, "FROM_UNIXTIME(%lu)", (long unsigned int)now);
 
   printf("now: %s\n", ctime(&now));
 
@@ -376,7 +455,7 @@ void PutDBRecord(IDLE_DATA *iddata) {
     }
     printf("\n\n");
   }
-  
+
   if (opts->popold) {
     if (!mydb_update("INSERT INTO node_idlestats VALUES ('%s', FROM_UNIXTIME(%lu), FROM_UNIXTIME(%lu), %f, %f, %f)", 
                      iddata->id, 

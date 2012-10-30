@@ -1,8 +1,25 @@
 <?php
 #
-# EMULAB-COPYRIGHT
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
-# All rights reserved.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 class OSinfo
@@ -197,6 +214,7 @@ class OSinfo
     function max_concurrent()	{ return $this->field("max_concurrent"); }
     function mfs()		{ return $this->field("mfs"); }
     function reboot_waittime()  { return $this->field("reboot_waittime"); }
+    function def_parentosid()   { return $this->field("def_parentosid"); }
 
     #
     # Access Check, determines if $user can access $this record.
@@ -330,6 +348,7 @@ class OSinfo
 	$created        = $this->created();
 	$mustclean      = $this->mustclean();
 	$nextosid       = $this->nextosid();
+	$def_parentosid = $this->def_parentosid();
 	$max_concurrent = $this->max_concurrent();
 	$reboot_waittime= $this->reboot_waittime();
 	$uuid           = $this->uuid();
@@ -449,13 +468,26 @@ class OSinfo
 		        <td class=left>
 			    Mapped via DB table: osid_map</td></tr>\n";
 	    }
-	    else
+	    else {
+		$nextosinfo = OSinfo::Lookup($nextosid);
+	        $nextosname = $nextosinfo->osname();
 		echo "<tr>
                         <td>Next Osid: </td>
                         <td class=left>
                             <a href='showosinfo.php3?osid=$nextosid'>
-                                            $nextosid</a></td>
+                                            $nextosname</a></td>
                       </tr>\n";
+	    }
+	}
+	if ($def_parentosid) {
+	    $nextosinfo = OSinfo::Lookup($def_parentosid);
+	    $nextosname = $nextosinfo->osname();
+	    echo "<tr>
+                      <td>Parent Osid: </td>
+                      <td class=left>
+                          <a href='showosinfo.php3?osid=$def_parentosid'>
+                                           $nextosname</a></td>
+                  </tr>\n";
 	}
 	if ($ezid) {
 		echo "<tr>
@@ -482,6 +514,27 @@ class OSinfo
                 <td class=left>$uuid</td>
               </tr>\n";
 
+	if ($def_parentosid) {
+	    $parent_result =
+		DBQueryFatal("select m.parent_osid,o.osname,o.pid ".
+			     "   from os_submap as m ".
+			     "left join os_info as o on o.osid=m.parent_osid ".
+			     "where m.osid='$osid'");
+	    
+	    if (mysql_num_rows($parent_result)) {
+		while ($prow = mysql_fetch_array($parent_result)) {
+		    $posid   = $prow["parent_osid"];
+		    $posname = $prow["osname"];
+
+		    echo "<tr>";
+		    echo "  <td>Parent $posid:</td>";
+		    echo "  <td class=left>";
+		    echo "   <a href='showosinfo.php3?osid=$posid'>";
+		    echo "$posname</a></td>\n";
+		    echo "</tr>\n";
+		}
+	    }
+	}
 	echo "</table>\n";
     }
 

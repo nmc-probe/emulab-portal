@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
-# All rights reserved.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use strict;
 use English;
@@ -41,6 +58,7 @@ my $batchexp = "$TBROOT/bin/batchexp";
 my $template = "$TBROOT/lib/ns2ir/elabinelab.ns";
 my $endexp   = "$TBROOT/bin/endexp";
 my $dbcontrol= "$TBROOT/sbin/opsdb_control";
+my $IMAGESETUP= "$TBROOT/sbin/image_setup";
 
 # Untaint the path
 $ENV{'PATH'} = "/usr/bin:/bin:$TBROOT/libexec:$TBROOT/libexec/ns2ir" . 
@@ -345,6 +363,14 @@ if (!$experiment->elabinelab()) {
     } else {
 	print "NSVERIFY not configured, skipping ...\n";
     }
+}
+
+#
+# Load up external image references.
+#
+system("$IMAGESETUP $pid,$eid");
+if ($?) {
+    fatal("Could not setup external image references");
 }
 
 #

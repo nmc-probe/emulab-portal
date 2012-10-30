@@ -1,7 +1,24 @@
 /*
- * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2009 University of Utah and the Flux Group.
- * All rights reserved.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * 
+ * {{{EMULAB-LICENSE
+ * 
+ * This file is part of the Emulab network testbed software.
+ * 
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version.
+ * 
+ * This file is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * }}}
  */
 
 #include <stdio.h>
@@ -250,7 +267,7 @@ read_bsdpartition(int infd, struct disklabel *dlabel, int part)
 		struct cg cg;
 		char pad[MAXBSIZE];
 	} cg;
-	u_int32_t	size, offset;
+	u_int32_t	size, offset, fssect;
 	int32_t		sbfree;
 
 	offset = dlabel->d_partitions[part].p_offset;
@@ -280,6 +297,18 @@ read_bsdpartition(int infd, struct disklabel *dlabel, int part)
 	}
 	assert(fs.fs_cgsize <= MAXBSIZE);
 	assert((fs.fs_cgsize % secsize) == 0);
+
+	/*
+	 * See if the filesystem is smaller than the containing partition.
+	 * If so, and we are skipping such space, inform the user.
+	 */
+	fssect = bytestosec(fs.fs_fsize * (off_t)fs.fs_size);
+	if (excludenonfs && fssect < size) {
+		warnx("BSD Partition '%c': filesystem smaller than partition, "
+		      "excluding [%u-%u]",
+		      BSDPARTNAME(part), offset+fssect, offset+size-1);
+		addskip(offset + fssect, size - fssect);
+	}
 
 	freecount = 0;
 	for (i = 0; i < fs.fs_ncg; i++) {

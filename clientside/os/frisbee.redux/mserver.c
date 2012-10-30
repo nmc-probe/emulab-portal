@@ -1,7 +1,24 @@
 /*
- * EMULAB-COPYRIGHT
  * Copyright (c) 2010-2012 University of Utah and the Flux Group.
- * All rights reserved.
+ * 
+ * {{{EMULAB-LICENSE
+ * 
+ * This file is part of the Emulab network testbed software.
+ * 
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version.
+ * 
+ * This file is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * }}}
  */
 
 /*
@@ -70,6 +87,7 @@ static int	canredirect = 0;
 static int	usechildauth = 0;
 static int	mirrormode = 0;
 static char     *configstyle = "null";
+static char	*configopts = "";
 static struct in_addr ifaceip;
 static int	igmpqueryinterval = 0;
 
@@ -110,7 +128,7 @@ main(int argc, char **argv)
 		log("  acting as IGMP querier on %s with %d second interval",
 		    inet_ntoa(ifaceip), igmpqueryinterval);
 #endif
-	config_init(configstyle, 1);
+	config_init(configstyle, 1, configopts);
 
 	/* Just dump the config to stdout in human readable form and exit. */
 	if (dumpconfig) {
@@ -1313,6 +1331,7 @@ usage(void)
 	fprintf(stderr, "mfrisbeed [-ADRd] [-X method] [-I imagedir] [-S parentIP] [-P parentport] [-p port]\n");
 	fprintf(stderr, "Basic:\n");
 	fprintf(stderr, "  -C <style>  configuration style: emulab, file, or null\n");
+	fprintf(stderr, "  -O <str>    configuration options, style-specific\n");
 	fprintf(stderr, "  -I <dir>    default directory where images are stored\n");
 	fprintf(stderr, "  -x <methods> transfer methods to allow from clients: ucast, mcast, bcast or any\n");
 	fprintf(stderr, "  -X <method> transfer method to request from parent\n");
@@ -1334,7 +1353,7 @@ get_options(int argc, char **argv)
 {
 	int ch;
 
-	while ((ch = getopt(argc, argv, "AC:DI:MRX:x:S:P:p:i:dhQ:")) != -1)
+	while ((ch = getopt(argc, argv, "AC:O:DI:MRX:x:S:P:p:i:dhQ:")) != -1)
 		switch(ch) {
 		case 'A':
 			usechildauth = 1;
@@ -1350,6 +1369,9 @@ get_options(int argc, char **argv)
 					"'emulab', 'file', 'null'\n");
 				exit(1);
 			}
+			break;
+		case 'O':
+			configopts = optarg;
 			break;
 		case 'x':
 		case 'X':

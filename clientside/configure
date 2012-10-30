@@ -4191,31 +4191,6 @@ _ACEOF
 OUTERBOSS_NODENAME=""
 WINSUPPORT=0
 
-# Check whether --enable-windows was given.
-if test "${enable_windows+set}" = set; then
-  enableval=$enable_windows;
-fi
-
-
-if test "$enable_windows" = "no"; then
-	WINSUPPORT=0;
-elif test "$enable_windows" = "yes"; then
-	WINSUPPORT=1;
-fi
-
-if test $WINSUPPORT -eq 0; then
-	winfiles="";
-else
-	winfiles="os/imagezip/ntfs/GNUmakefile \
-		  os/imagezip/ntfs/liblocale/GNUmakefile \
-		  os/imagezip/ntfs/libntfs/GNUmakefile \
-		  os/imagezip/fat/GNUmakefile"
-        cat >>confdefs.h <<_ACEOF
-#define WINSUPPORT 1
-_ACEOF
-
-fi
-
 #
 # Allow tbdefs file that is supplied to full emulab build
 #
@@ -4247,6 +4222,31 @@ $as_echo "$as_me: error: Definitions file $TBDEFS was not found." >&2;}
 
 fi
 
+
+# Check whether --enable-windows was given.
+if test "${enable_windows+set}" = set; then
+  enableval=$enable_windows;
+fi
+
+
+if test "$enable_windows" = "no"; then
+	WINSUPPORT=0;
+elif test "$enable_windows" = "yes"; then
+	WINSUPPORT=1;
+fi
+
+if test $WINSUPPORT -eq 0; then
+	winfiles="";
+else
+	winfiles="os/imagezip/ntfs/GNUmakefile \
+		  os/imagezip/ntfs/liblocale/GNUmakefile \
+		  os/imagezip/ntfs/libntfs/GNUmakefile \
+		  os/imagezip/fat/GNUmakefile"
+        cat >>confdefs.h <<_ACEOF
+#define WINSUPPORT 1
+_ACEOF
+
+fi
 
 #
 # Allow command line option, since might not have a defs file.
@@ -4880,7 +4880,7 @@ done
 
 # END Python detection.
 
-outfiles="Makeconf GNUmakefile \
+outfiles="Makeconf GNUmakefile setversion \
 	  lib/GNUmakefile \
           lib/libtb/GNUmakefile \
           lib/tmcd/GNUmakefile \
@@ -4916,7 +4916,6 @@ outfiles="Makeconf GNUmakefile \
 	  tmcc/freebsd/supfile tmcc/freebsd/sethostname \
 	  tmcc/linux/GNUmakefile tmcc/linux/supfile \
 	  tmcc/linux/sethostname.dhclient \
-	  tmcc/linux/xen/emulab-cnet \
 	  tmcc/linux9/GNUmakefile tmcc/linux9/supfile \
 	  tmcc/fedora/GNUmakefile tmcc/fedora/supfile \
 	  tmcc/fedora15/GNUmakefile \
@@ -4927,10 +4926,11 @@ outfiles="Makeconf GNUmakefile \
 	  tmcc/freebsd6/GNUmakefile tmcc/freebsd6/supfile \
 	  tmcc/freebsd6/netif-emulab \
 	  tmcc/freebsd7/GNUmakefile tmcc/freebsd7/netif-emulab \
+	  tmcc/freebsd9/GNUmakefile tmcc/freebsd9/netif-emulab \
 	  tmcc/freebsd10/GNUmakefile tmcc/freebsd10/netif-emulab \
 	  tmcc/cygwinxp/GNUmakefile tmcc/dp/GNUmakefile \
 	  tmcc/openbsd/GNUmakefile tmcc/ron/GNUmakefile \
-	  tmcc/plab/GNUmakefile \
+	  tmcc/plab/GNUmakefile tmcc/cygwinseven/GNUmakefile \
 	  os/GNUmakefile os/syncd/GNUmakefile \
 	  os/dijkstra/GNUmakefile os/genhostsfile/GNUmakefile \
 	  os/frisbee.redux/GNUmakefile \

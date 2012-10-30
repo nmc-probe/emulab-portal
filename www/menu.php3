@@ -1,8 +1,25 @@
 <?php
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 $login_user       = null;
@@ -438,7 +455,7 @@ function WRITESIDEBAR() {
 
     if ($rootEmulab) {
 	# Leave New here about 2 weeks
-        NavMenuButtonNew("Papers and Talks (Jul 18)", "$TBDOCBASE/pubs.php3");
+        NavMenuButton("Papers and Talks (Jul 18)", "$TBDOCBASE/pubs.php3");
 	NavMenuButton("Emulab Software (Sep 1)", "$TBDOCBASE/software.php3");
 
 	NavMenuButton("List People",
@@ -609,8 +626,10 @@ function WRITESIDEBAR() {
 		NavMenuButton("List ImageIDs",
 			      "$TBBASE/showimageid_list.php3");
 
-		NavMenuButton("List OSIDs",
-			      "$TBBASE/showosid_list.php3");
+		if (ISADMIN()) {
+		    NavMenuButton("List OSIDs",
+				  "$TBBASE/showosid_list.php3");
+		}
 
 		if ($login_status & CHECKLOGIN_TRUSTED &&
 		    $login_user->ApprovalList(0)) {

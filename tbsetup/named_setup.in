@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use English;
 use Socket;
@@ -102,7 +119,7 @@ if ((my $locked = TBScriptLock("named", 1)) != TBSCRIPTLOCK_OKAY()) {
 #
 my $db_result =
     DBQueryFatal("select n.node_id, n.role, null, i.IP, i.role, ".
-                 "    r.inner_elab_role ".
+                 "    r.inner_elab_role, i.IPaliases ".
 		 "  from nodes as n join interfaces as i ".
 		 "left join reserved as r on r.node_id=n.node_id ".
 		 "where (n.node_id=i.node_id and ".
@@ -123,7 +140,7 @@ process_nodes($db_result);
 #
 $db_result =
     DBQueryFatal("select n.node_id, n.role, n.jailip, i.IP, i.role, ".
-                 "    r.inner_elab_role ".
+                 "    r.inner_elab_role, null ".
                  "  from nodes as n ".
                  "left join interfaces as i on i.node_id=n.phys_nodeid ".
                  "left join interfaces as i2 on i2.node_id=n.node_id ".
@@ -138,7 +155,7 @@ process_nodes($db_result);
 # For IXPs we also need their gateway addresses as well
 #
 $db_result =
-    DBQueryFatal("select n.node_id, n.role, n.jailip, i.IP, i.role, null ".
+    DBQueryFatal("select n.node_id, n.role, n.jailip, i.IP, i.role, null,null ".
 		 "  from nodes as n ".
 		 "left join interfaces as i ".
 		 "on n.phys_nodeid=i.node_id and n.node_id!=i.node_id ". 
@@ -311,6 +328,7 @@ sub process_nodes($) {
 	my $IP      = $row[3];
 	my $irole   = $row[4];
 	my $inner_elab_role = $row[5];
+	my $IPaliases = $row[6];
 
 	#
 	# For most nodes, we get the IP address from the interfaces table;
@@ -324,7 +342,7 @@ sub process_nodes($) {
 	    next;
 	}
 
-	#
+        #
 	# Special treatment for gateway interfaces - we give act as if they
 	# are a separate node
 	#
@@ -349,6 +367,26 @@ sub process_nodes($) {
 	    $routable{$node_id} = $node_rec;
 	} else {
 	    $unroutable{$node_id} = $node_rec;
+	}
+
+	#
+	# Special treatment for virtnodes with private IP addresses;
+	# If there is an IPaliases defined, add a entry for that too,
+	# but only to the other map. In other words, if the IP is
+	# unroutable and the ipalias is routable, then we can have
+	# two entries, one of which is routable.
+	#
+	if (defined($IPaliases) && $IPaliases ne "") {
+	    my @ipaliases = split(',', $IPaliases);
+	    my $ipalias   = $ipaliases[0];
+
+	    if (!isroutable($IP) && isroutable($ipalias)) {
+		$routable{$node_id} = {
+		    IP   => $ipalias,
+		    role => $nrole,
+		    inner_elab_role => $inner_elab_role
+		};
+	    }
 	}
 
 	#

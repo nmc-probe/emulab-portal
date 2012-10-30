@@ -1,9 +1,26 @@
 #!/usr/bin/perl -wT
 
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2011 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 use English;
@@ -108,7 +125,8 @@ my %xmlfields =
      "delay"		=> ["delay",		$SLOT_OPTIONAL],
      "limit"		=> ["q_limit",		$SLOT_OPTIONAL],
      "queue-in-bytes"	=> ["q_bytes",		$SLOT_OPTIONAL],
-     "thresh"		=> ["q_maxthresh",	$SLOT_OPTIONAL],
+     "thresh"		=> ["q_minthresh",	$SLOT_OPTIONAL],
+     "maxthresh"	=> ["q_maxthresh",	$SLOT_OPTIONAL],
      "minthresh"	=> ["q_minthresh",	$SLOT_OPTIONAL],
      "linterm"		=> ["q_linterm",	$SLOT_OPTIONAL],
      "q_weight"		=> ["q_weight",		$SLOT_OPTIONAL]);

@@ -1,0 +1,100 @@
+#
+# Install xen support.
+#
+use strict;
+use libinstall;
+use installvars;
+use NodeType;
+use OSinfo;
+use Image;
+use EmulabConstants;
+
+my $UTAHURL       = "http://www.emulab.net/downloads";
+my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-xen.xml";
+my $XENIMAGE      = "XEN41-64-STD";
+my $STDIMAGESURL  = "$UTAHURL/images-STD";
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    Phase "xen", "Adding XEN Support", sub {
+	#
+	# Load up the initial descriptors. 
+	# Load up the images from boss.
+	#
+	Phase "descriptors", "Loading the Image and OS IDS", sub {
+	    ExecQuietFatal("cd $TOP_OBJDIR/install; ".
+			   "   $SUDO -u $PROTOUSER $WAP ".
+			   "   perl load-descriptors -a $DESCRIPTORS");
+	};
+	foreach my $imagename ($XENIMAGE) {
+	    my $localfile = "$PREFIX/images/${imagename}.ndz";
+	    my $url       = "$STDIMAGESURL/${imagename}.ndz";
+	    
+	    Phase "$imagename", "Fetching $imagename. Patience!", sub {
+		DoneIfExists($localfile);
+		FetchFileFatal($url, $localfile);
+	    };
+	    $localfile = "$PREFIX/images/${imagename}.xml";
+	    $url       = "$STDIMAGESURL/${imagename}.xml";
+	    
+	    Phase "${imagename}_xml", "Fetching $imagename metadata.", sub {
+		DoneIfExists($localfile);
+		FetchFileFatal($url, $localfile);
+	    };
+	    Phase "${imagename}_load", "Loading the image descriptor.", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR/install; ".
+			       "   $SUDO -u $PROTOUSER $WAP ".
+			       "   perl load-descriptors -a $localfile");
+	    };
+	}
+
+	#
+	# Now that XEN-STD is loaded, need to find the nodetype for
+	# PCVM and link them via the default_osid. We could avoid this by
+	# creating an xml file for the pcvm nodetype and loading it that
+	# way instead of as sql in database-fill-supplement.
+	#
+	my $pcvm = NodeType->Lookup("pcvm");
+	PhaseFail("Could not look up PCVM node type")
+	    if (!defined($pcvm));
+
+	my $osinfo = OSinfo->LookupByName("XEN-STD");
+	PhaseFail("Could not look up XEN-STD osid")
+	    if (!defined($osinfo));
+
+	my $nextosinfo = OSinfo->LookupByName($XENIMAGE);
+	PhaseFail("Could not look up $XENIMAGE osid")
+	    if (!defined($nextosinfo));
+
+	my $diskload_osinfo = OSinfo->LookupByName("FRISBEE-MFS-PCVM");
+	PhaseFail("Could not look up FRISBEE-MFS-PCVM osid")
+	    if (!defined($diskload_osinfo));
+
+	Phase "pcvm", "Updating the PCVM node type", sub {
+	    $pcvm->SetAttribute("diskloadmfs_osid",
+				$diskload_osinfo->osid()) == 0
+		or PhaseFail("Could not update the pcvm node type");
+	};
+	Phase "xenosid", "Updating the XEN-STD osid", sub {
+	    $osinfo->SetNextOS($nextosinfo) == 0
+		or PhaseFail("Could not set the nextosid for XEN-STD");
+	    $osinfo->SetParentOS($nextosinfo) == 0
+		or PhaseFail("Could not set the parent osid for XEN-STD");
+	    $osinfo->SetRunsOnParent($nextosinfo) == 0
+		or PhaseFail("Could not add os_submap entry for XEN-STD");
+	};
+	
+	PhaseSucceed("done")
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:

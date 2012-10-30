@@ -1,9 +1,17 @@
 #!/bin/sh
 
 # PROVIDE: mfrisbeed
-# REQUIRE: mysql
+# REQUIRE: DAEMON ntpd
 # BEFORE: testbed
 # KEYWORD: shutdown
+
+#
+# Base multicast address.
+# By default for the null config we use, it is "239.192.1".
+# Subbosses on the same network should use different values; e.g., 239.193.1.
+#
+#MCBASEADDR=""
+MCBASEADDR="239.192.1"
 
 #
 # Start up the frisbee master server on a subboss.
@@ -58,6 +66,9 @@ esac
 echo -n " mfrisbeed"
 rm -f /var/run/frisbeed-*.pid
 args="-C null -S @BOSSNODE_IP@ -I /z/image_cache -A -M -R"
+if [ -n "$MCBASEADDR" ]; then
+    args="$args -O mcaddr=$MCBASEADDR"
+fi
 if [ -x @prefix@/sbin/daemon_wrapper ]; then
     @prefix@/sbin/daemon_wrapper -i 30 -l @prefix@/log/mfrisbeed_wrapper.log \
 	@prefix@/sbin/mfrisbeed -d $args

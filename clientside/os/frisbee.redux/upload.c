@@ -1,7 +1,24 @@
 /*
- * EMULAB-COPYRIGHT
- * Copyright (c) 2010-2011 University of Utah and the Flux Group.
- * All rights reserved.
+ * Copyright (c) 2010-2012 University of Utah and the Flux Group.
+ * 
+ * {{{EMULAB-LICENSE
+ * 
+ * This file is part of the Emulab network testbed software.
+ * 
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version.
+ * 
+ * This file is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * }}}
  */
 
 /*
@@ -39,6 +56,7 @@ static int bufsize = (64 * 1024);;
 static int timeout = -1;
 static int usessl = 0;
 static int verify = 1;
+static in_addr_t proxyip = 0;
 
 /* Globals */
 int debug = 0;
@@ -96,7 +114,7 @@ main(int argc, char **argv)
 	}
 
 	if (imageid) {
-		if (!put_request(imageid, ntohl(msip.s_addr), msport, 0,
+		if (!put_request(imageid, ntohl(msip.s_addr), msport, proxyip,
 				 filesize, mtime, timeout, askonly, timo,
 				 &reply))
 			fatal("Could not get upload info for '%s'", imageid);
@@ -158,7 +176,7 @@ main(int argc, char **argv)
 		while (1) {
 			sleep(1);
 			if (!put_request(imageid, ntohl(msip.s_addr), msport,
-					 0, 0, 0, 0, 1, timo, &reply)) {
+					 proxyip, 0, 0, 0, 1, timo, &reply)) {
 				warning("%s: status request failed",
 					imageid);
 				goto vdone;
@@ -220,7 +238,7 @@ static void
 parse_args(int argc, char **argv)
 {
 	int ch;
-	while ((ch = getopt(argc, argv, "S:p:F:Q:sb:T:N")) != -1) {
+	while ((ch = getopt(argc, argv, "S:p:F:Q:sb:T:NP:")) != -1) {
 		switch (ch) {
 		case 'S':
 			mshost = optarg;
@@ -257,6 +275,19 @@ parse_args(int argc, char **argv)
 		case 'N':
 			verify = 0;
 			break;
+		case 'P':
+		{
+			struct in_addr in;
+
+			if (!GetIP(optarg, &in)) {
+				fprintf(stderr,
+					"Invalid node name '%s' for -P\n",
+					optarg);
+				exit(1);
+			}
+			proxyip = ntohl(in.s_addr);
+			break;
+		}
 		default:
 			break;
 		}

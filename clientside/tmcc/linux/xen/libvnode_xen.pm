@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2008-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 # Implements the libvnode API for Xen support in Emulab.
 #
@@ -32,6 +49,7 @@ use Exporter;
               vnodePreConfigExpNetwork vnodeConfigResources
               vnodeConfigDevices vnodePostConfig vnodeExec vnodeTearDown
 	    );
+use vars qw($VGNAME);
 
 %ops = ( 'init' => \&init,
          'setDebug' => \&setDebug,
@@ -67,7 +85,7 @@ use File::Path;
 use File::Copy;
 
 # Pull in libvnode
-require "/etc/emulab/paths.pm"; import emulabpaths;
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 use libvnode;
 use libtestbed;
 
@@ -93,6 +111,8 @@ my $VLANCONFIG = "/sbin/vconfig";
 my $MODPROBE = "/sbin/modprobe";
 my $DHCPCONF_FILE = "/etc/dhcpd.conf";
 my $NEW_DHCPCONF_FILE = "/etc/dhcp/dhcpd.conf";
+my $RESTOREVM	= "$BINDIR/restorevm.pl";
+my $IPTABLES	= "/sbin/iptables";
 
 my $debug  = 0;
 
@@ -118,18 +138,21 @@ my %defaultImage = (
 my $VMDIR = "/var/emulab/vms/vminfo";
 my $XENDIR = "/var/xen";
 
-# Xen LVM volume group name
-my $VGNAME = "xen-vg";
+# Extra space for restore.
+my $EXTRAFS = "/scratch";
+
+# Xen LVM volume group name. Accessible outside this file.
+$VGNAME = "xen-vg";
 
 ##
 ## Indefensible, arbitrary constant section
 ##
 
 # Maximum vnodes per physical host, used to size memory and disks
-my $MAX_VNODES = 8;
+my $MAX_VNODES = 32;
 
 # Minimum GB of disk per vnode
-my $MIN_GB_DISK = 8;
+my $MIN_GB_DISK = 6;
 
 # Minimum MB of memory per vnode
 my $MIN_MB_VNMEM = 64;
@@ -142,13 +165,6 @@ my $XEN_MIN_VGSIZE = ($MAX_VNODES * $MIN_GB_DISK);
 
 # XXX fixed-for-now LV size for all logical disks
 my $XEN_LDSIZE = $MIN_GB_DISK;
-
-#
-# Information about a virtual node accumulated over the various vnode* calls.
-# Gets output in a persistent form right before we boot and we know that
-# everything succeeded.
-#
-my %vninfo = ();
 
 #
 # Information about the running Xen hypervisor
@@ -174,7 +190,7 @@ sub restartDHCP();
 sub formatDHCP($$$);
 sub fixupMac($);
 sub createControlNetworkScript($$$);
-sub createExpNetworkScript($$$$);
+sub createExpNetworkScript($$$$$);
 sub createExpBridges($$);
 sub destroyExpBridges($$);
 sub domainStatus($);
@@ -182,6 +198,7 @@ sub domainExists($);
 sub addConfig($$$);
 sub createXenConfig($$);
 sub readXenConfig($);
+sub lookupXenConfig($$);
 sub getXenInfo();
 
 sub getXenInfo()
@@ -221,7 +238,7 @@ sub setDebug($)
 # Called on each vnode, but should only be executed once per boot.
 # We use a file in /var/run (cleared on reboots) to ensure this.
 #
-sub rootPreConfig($)
+sub rootPreConfig()
 {
     #
     # Haven't been called yet, grab the lock and double check that someone
@@ -262,6 +279,30 @@ sub rootPreConfig($)
 	#
 	system("route del default >/dev/null 2>&1");
 	mysystem("route add default gw $cnet_gw");
+    }
+
+    #
+    # We use xen's antispoofing when constructing the guest control net
+    # interfaces. This is most useful on a shared host, but no harm
+    # in doing it all the time. 
+    #
+    mysystem("$IPTABLES -P FORWARD DROP");
+    mysystem("$IPTABLES -F FORWARD");
+    mysystem("$IPTABLES -A FORWARD ".
+	     "-m physdev --physdev-in $cnet_iface -j ACCEPT");
+
+    #
+    # Ensure that LVM is loaded in the kernel and ready.
+    #
+    print "Enabling LVM...\n"
+	if ($debug);
+
+    # We assume our kernels support this.
+    mysystem2("$MODPROBE dm-snapshot");
+    if ($?) {
+	print STDERR "ERROR: could not load snaphot module!\n";
+	TBScriptUnlock();
+	return -1;
     }
 
     #
@@ -335,6 +376,11 @@ sub rootPreConfig($)
         if ($debug);
     createDHCP();
 
+    print "Creating scratch FS ...\n";
+    if (createExtraFS($EXTRAFS, $VGNAME, "50G")) {
+	TBScriptUnlock();
+	return -1;
+    }
     mysystem("touch /var/run/xen.ready");
     TBScriptUnlock();
     return 0;
@@ -381,6 +427,7 @@ sub vnodeCreate($$$$)
     my $attributes = $vnconfig->{'attributes'};
     my $imagename = $vnconfig->{'image'};
     my $raref = $vnconfig->{'reloadinfo'};
+    my $vninfo = $private;
     my %image = %defaultImage;
     my $lvname;
     my $inreload = 0;
@@ -391,6 +438,17 @@ sub vnodeCreate($$$$)
     }
     else {
 	fatal("xen_vnodeCreate: bad vnode_id $vnode_id!");
+    }
+    $vninfo->{'vmid'} = $vmid;
+
+    #
+    # We need to lock while messing with the image.
+    #
+    my $imagelockname = "xenimage." .
+	(defined($imagename) ? $imagename : $defaultImage{'name'});
+    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_GLOBALWAIT(), 1800)
+	!= TBSCRIPTLOCK_OKAY()) {
+	fatal("Could not get $imagelockname lock after a long time!");
     }
 
     #
@@ -405,14 +463,14 @@ sub vnodeCreate($$$$)
 	# filesystem and clone (snapshot) that.
 	#
 	$imagename = $defaultImage{'name'};
-	print STDERR "xen_vnodeCreate: no image specified, using default ('$imagename')\n";
+	print STDERR "xen_vnodeCreate: ".
+	    "no image specified, using default ('$imagename')\n";
 
 	my $vname = $imagename . ".0";
 	$lvname = $vname;
 	if (!findLVMLogicalVolume($vname)) {
 	    createRootDisk($vname);
 	}
-	$raref = { "IMAGEMTIME" => 0 };
     }
     elsif (!defined($raref)) {
 	#
@@ -421,6 +479,7 @@ sub vnodeCreate($$$$)
 	#
 	$lvname = $imagename;
 	if (!findLVMLogicalVolume($lvname)) {
+	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
 		  "cannot find logical volume for $lvname, and no reload info");
 	}
@@ -442,41 +501,58 @@ sub vnodeCreate($$$$)
 	#
 	libvnode::setState("RELOADING");
 
-	if (createImageDisk($imagename, $raref)) {
+	if (createImageDisk($imagename, $vnode_id, $raref)) {
+	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
 		  "cannot create logical volume for $imagename");
 	}
     }
 
     #
-    # Since we may have (re)loaded a new image for this vnode, check
-    # and make sure the vnode snapshot disk is associated with the
-    # correct image.  Otherwise destroy the current vnode LVM so it
-    # will get correctly associated below.
+    # See if the image is really a package.
     #
-    if (findLVMLogicalVolume($vnode_id)) {
-	my $olvname = findLVMOrigin($vnode_id);
-	if ($olvname ne $lvname) {
-	    if (system("lvremove -f $VGNAME/$vnode_id")) {
-		fatal("xen_vnodeCreate: could not destroy old disk for $vnode_id");
-	    }
+    if (-e "$DBDIR/${imagename}.package") {
+	my $imagepath = lvmVolumePath($imagename);
+	mysystem("mount $imagepath /mnt/$imagename")
+	    if (! -e "/mnt/$imagename/.mounted");
+
+	mysystem2("$RESTOREVM -t $VMDIR/$vnode_id $vnode_id /mnt/$imagename");
+	if ($?) {
+	    mysystem2("umount /mnt/$imagename");
+	    TBScriptUnlock();
+	    fatal("xen_vnodeCreate: ".
+		  "cannot restore logical volumes from $imagename");
 	}
+	mysystem2("umount /mnt/$imagename");
+	
+	#
+	# All of the lvms are created and a new xm.conf created.
+	# Read that xm.conf in so we can figure out what lvms we
+	# need to delete later (recreate the disks array). 
+	#
+	my $conf = configFile($vnode_id);
+	my $aref = readXenConfig($conf);
+	if (!$aref) {
+	    TBScriptUnlock();
+	    fatal("xen_vnodeCreate: ".
+		  "Cannot read restored config file from $conf");
+	}
+	$vninfo->{'cffile'} = $aref;
+	
+	my $disks = parseXenDiskInfo($vnode_id, $aref);
+	if (!defined($disks)) {
+	    TBScriptUnlock();
+	    fatal("xen_vnodeCreate: Could not restore disk info from $conf");
+	}
+	$private->{'disks'} = $disks;
+	TBScriptUnlock();
+	goto done;
     }
 
     #
-    # Create the snapshot LVM.
+    # XXX need a better way to determine this stuff.
     #
-    if (!findLVMLogicalVolume($vnode_id)) {
-	my $basedisk = lvmVolumePath($lvname);
-	if (system("lvcreate -s -L ${XEN_LDSIZE}G -n $vnode_id $basedisk")) {
-	    print STDERR "libvnode_xen: could not create disk for $vnode_id\n";
-	    return -1;
-	}
-    }
-
-    #
-    # XXX need a better way to determine this!
-    #
+    my $vdiskprefix = "sd";	# yes, this is right for FBSD too
     my $os;
     if ($imagename =~ /FBSD/) {
 	$os = "FreeBSD";
@@ -488,15 +564,72 @@ sub vnodeCreate($$$$)
 	    $image{'kernel'} = "/boot/freebsd/kernel";
 	}
 	if (! -e "$image{'kernel'}") {
-	    print STDERR "libvnode_xen: no FreeBSD kernel for '$imagename' on $vnode_id\n";
-	    return -1;
+	    fatal("libvnode_xen: ".
+		  "no FreeBSD kernel for '$imagename' on $vnode_id");
 	}
 	undef $image{'ramdisk'};
-    } else {
+    }
+    else {
 	$os = "Linux";
+
+	if ($imagename =~ /F8-STD/) {
+	    $image{'kernel'}  = "/boot/fedora8/vmlinuz-xenU";
+	    $image{'ramdisk'} = "/boot/fedora8/initrd-xenU";
+	}
+	elsif ($xeninfo{xen_major} >= 4) {
+	    $vdiskprefix = 'xvd';
+	}
+    }
+    $private->{'os'} = $os;
+
+    # All of the disk stanzas for the config file.
+    my @alldisks = ();
+    # Cache the config file, but will read it later.
+    $private->{'disks'} = {};
+
+    #
+    # The root disk.
+    #
+    my $rootvdisk  = $vdiskprefix . "a";
+    my $rootvndisk = lvmVolumePath($vnode_id);
+    my $rootstanza = "phy:$rootvndisk,$rootvdisk,w";
+    push(@alldisks, "'$rootstanza'");
+
+    #
+    # Since we may have (re)loaded a new image for this vnode, check
+    # and make sure the vnode snapshot disk is associated with the
+    # correct image.  Otherwise destroy the current vnode LVM so it
+    # will get correctly associated below.
+    #
+    if (findLVMLogicalVolume($vnode_id)) {
+	my $olvname = findLVMOrigin($vnode_id);
+	if ($olvname ne $lvname) {
+	    if (system("lvremove -f $VGNAME/$vnode_id")) {
+		TBScriptUnlock();
+		fatal("xen_vnodeCreate: ".
+		      "could not destroy old disk for $vnode_id");
+	    }
+	}
     }
 
-    my $auxdisks = "";
+    #
+    # Create the snapshot LVM.
+    #
+    if (!findLVMLogicalVolume($vnode_id)) {
+	my $basedisk = lvmVolumePath($lvname);
+	if (system("lvcreate -s -L ${XEN_LDSIZE}G -n $vnode_id $basedisk")) {
+	    TBScriptUnlock();
+	    fatal("libvnode_xen: could not create disk for $vnode_id");
+	}
+    }
+    # Mark the lvm as created, for cleanup on error.
+    $private->{'disks'}->{$vnode_id} = $vnode_id;
+
+    #
+    # The rest of this can proceed in parallel with other VMs.
+    #
+    TBScriptUnlock();
+
     my $auxchar  = ord('b');
     #
     # Create a swap disk.
@@ -504,22 +637,20 @@ sub vnodeCreate($$$$)
     if ($os eq "FreeBSD") {
 	my $auxlvname = "${vnode_id}.swap";
 	if (createAuxDisk($auxlvname, "2G")) {
-	    print STDERR "libvnode_xen: could not create swap disk\n";
-	    return -1;
+	    fatal("libvnode_xen: could not create swap disk");
 	}
 	my $vndisk = lvmVolumePath($auxlvname);
-	my $vdisk  = "sd" . chr($auxchar++);
+	my $vdisk  = $vdiskprefix . chr($auxchar++);
 	my $stanza = "phy:$vndisk,$vdisk,w";
 
-	$private->{'auxdisks'}->{$auxlvname} = $stanza;
-	$auxdisks = "$auxdisks , '$stanza'";
+	$private->{'disks'}->{$auxlvname} = $auxlvname;
+	push(@alldisks, "'$stanza'");
 
 	#
 	# Mark it as a linux swap partition. 
 	#
 	if (system("echo ',,S' | sfdisk $vndisk -N0")) {
-	    print STDERR "libvnode_xen: could not partition swap disk\n";
-	    return -1;
+	    fatal("libvnode_xen: could not partition swap disk");
 	}
     }
 
@@ -533,18 +664,18 @@ sub vnodeCreate($$$$)
 
 	    my $auxlvname = "${vnode_id}.${name}";
 	    if (createAuxDisk($auxlvname, $size)) {
-		print STDERR "libvnode_xen: could not create aux disk: $name\n";
-		return -1;
+		fatal("libvnode_xen: could not create aux disk: $name");
 	    }
 	    my $vndisk = lvmVolumePath($auxlvname);
-	    my $vdisk  = "sd" . chr($auxchar++);
+	    
+	    my $vdisk  = $vdiskprefix . chr($auxchar++);
 	    my $stanza = "phy:$vndisk,$vdisk,w";
 
-	    $private->{'auxdisks'}->{$auxlvname} = $stanza;
-	    $auxdisks = "$auxdisks , '$stanza'";
+	    $private->{'disks'}->{$auxlvname} = $auxlvname;
+	    push(@alldisks, "'$stanza'");
 	}
-	print "Auxdisks: $auxdisks\n" if ($debug);
     }
+    print "All disks: @alldisks\n" if ($debug);
 
     #
     # Create the config file and fill in the disk/filesystem related info.
@@ -555,38 +686,27 @@ sub vnodeCreate($$$$)
     # BSD stuff inspired by:
     # http://wiki.freebsd.org/AdrianChadd/XenHackery
     #
-    $vninfo{$vmid}{'cffile'} = [];
+    $vninfo->{'cffile'} = [];
 
-    my $vndisk = lvmVolumePath($vnode_id);
     my $kernel = $image{'kernel'};
     my $ramdisk = $image{'ramdisk'};
-    my $vdisk = "sda";	# yes, this is right for FBSD too
-    if ($xeninfo{xen_major} >= 4) {
-	    $vdisk = 'xvda';
-    }
 
-    addConfig($vmid, "# Xen configuration script for $os vnode $vnode_id", 2);
-    addConfig($vmid, "name = '$vnode_id'", 2);
-    addConfig($vmid, "kernel = '$kernel'", 2);
-    addConfig($vmid, "ramdisk = '$ramdisk'", 2)
+    addConfig($vninfo, "# Xen configuration script for $os vnode $vnode_id", 2);
+    addConfig($vninfo, "name = '$vnode_id'", 2);
+    addConfig($vninfo, "kernel = '$kernel'", 2);
+    addConfig($vninfo, "ramdisk = '$ramdisk'", 2)
 	if (defined($ramdisk));
-    addConfig($vmid, "disk = ['phy:$vndisk,$vdisk,w' $auxdisks ]", 2);
-
-    # No longer true after applying patch to 8.2
-    # XXX memory of over 768MB causes panic as of 8.2
-    #if ($os eq "FreeBSD" && memoryPerVnode() > 768) {
-    #	addConfig($vmid, "memory = 768", 1);
-    #}
+    addConfig($vninfo, "disk = [" . join(",", @alldisks) . "]", 2);
 
     if ($os eq "FreeBSD") {
-	addConfig($vmid, "extra = 'boot_verbose=1'", 2);
-	addConfig($vmid, "extra += ',vfs.root.mountfrom=ufs:/dev/da0a'", 2);
-	addConfig($vmid, "extra += ',kern.bootfile=/boot/kernel/kernel'", 2);
+	addConfig($vninfo, "extra = 'boot_verbose=1" .
+		  ",vfs.root.mountfrom=ufs:/dev/da0a".
+		  ",kern.bootfile=/boot/kernel/kernel'", 2);
     } else {
-	addConfig($vmid, "root = '/dev/$vdisk ro'", 2);
-	addConfig($vmid, "extra = 'console=hvc0 xencons=tty'", 2);
+	addConfig($vninfo, "root = '/dev/$rootvdisk ro'", 2);
+	addConfig($vninfo, "extra = 'console=hvc0 xencons=tty'", 2);
     }
-
+  done:
     #
     # Finish off the state transitions as necessary.
     #
@@ -603,28 +723,41 @@ sub vnodeCreate($$$$)
 # The logical disk has been created.
 # Here we just mount it and invoke the callback.
 #
-# XXX not that the callback only works when we can mount the VM OS's
+# XXX note that the callback only works when we can mount the VM OS's
 # filesystems!  Since all we do right now is Linux, this is easy.
 #
 sub vnodePreConfig($$$$$){
     my ($vnode_id, $vmid, $vnconfig, $private, $callback) = @_;
+    my $vninfo = $private;
 
     #
     # XXX vnodeCreate is not called when a vnode was halted or is rebooting.
-    # In that case, we read in any existing config file.
+    # In that case, we read in any existing config file and restore the
+    # disk info. 
     #
-    if (!exists($vninfo{$vmid}) || !exists($vninfo{$vmid}{'cffile'})) {
+    if (!exists($vninfo->{'cffile'})) {
 	my $aref = readXenConfig(configFile($vnode_id));
 	if (!$aref) {
-	    die("libvnode_xen: vnodePreConfig: no Xen config for $vnode_id!?");
+	    fatal("vnodePreConfig: no Xen config for $vnode_id!");
 	}
-	$vninfo{$vmid}{'cffile'} = $aref;
+	$vninfo->{'cffile'} = $aref;
+
+	#
+	# And, we need to recover the disk info from the config file.
+	#
+	my $disks = parseXenDiskInfo($vnode_id, $aref);
+	if (!defined($disks)) {
+	    fatal("vnodePreConfig: Could not restore disk info from config");
+	}
+	$private->{'disks'} = $disks;
     }
+    return 0
+	if (!exists($vninfo->{'os'}));
 
     #
     # XXX can only do the rest for Linux vnodes
     #
-    if ($vninfo{$vmid}{'cffile'}->[0] !~ /Linux/) {
+    if ($vninfo->{'os'} !~ /Linux/) {
 	print "libvnode_xen: vnodePreConfig: short-circuit non-Linux vnode\n";
 	return 0;
     }
@@ -674,8 +807,9 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private,
 	$ip,$mask,$mac,$gw, $vname,$longdomain,$shortdomain,$bossip) = @_;
+    my $vninfo = $private;
 
-    if (!exists($vninfo{$vmid}) || !exists($vninfo{$vmid}{'cffile'})) {
+    if (!exists($vninfo->{'cffile'})) {
 	die("libvnode_xen: vnodePreConfig: no state for $vnode_id!?");
     }
 
@@ -685,9 +819,11 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     my $cscript = "$VMDIR/$vnode_id/cnet-$mac";
 
     # Save info for the control net interface for config file.
-    $vninfo{$vmid}{'cnet'}{'mac'} = $fmac;
-    $vninfo{$vmid}{'cnet'}{'bridge'} = $cbridge;
-    $vninfo{$vmid}{'cnet'}{'script'} = $cscript;
+    $vninfo->{'cnet'} = {};
+    $vninfo->{'cnet'}->{'mac'} = $fmac;
+    $vninfo->{'cnet'}->{'bridge'} = $cbridge;
+    $vninfo->{'cnet'}->{'script'} = $cscript;
+    $vninfo->{'cnet'}->{'ip'} = $ip;
 
     # Create a network config script for the interface
     my $stuff = {'name' => $vnode_id,
@@ -698,9 +834,10 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     createControlNetworkScript($vmid, $stuff, $cscript);
 
     # Create a DHCP entry
-    $vninfo{$vmid}{'dhcp'}{'name'} = $vnode_id;
-    $vninfo{$vmid}{'dhcp'}{'ip'} = $ip;
-    $vninfo{$vmid}{'dhcp'}{'mac'} = $fmac;
+    $vninfo->{'dhcp'} = {};
+    $vninfo->{'dhcp'}->{'name'} = $vnode_id;
+    $vninfo->{'dhcp'}->{'ip'} = $ip;
+    $vninfo->{'dhcp'}->{'mac'} = $fmac;
 
     # a route to reach the vnode
     system("$ROUTE add $ip dev $cbridge");
@@ -718,6 +855,7 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 sub vnodePreConfigExpNetwork($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+    my $vninfo = $private;
     my $ifconfigs  = $vnconfig->{'ifconfig'};
     my $ldconfigs  = $vnconfig->{'ldconfig'};
     my $tunconfigs = $vnconfig->{'tunconfig'};
@@ -727,31 +865,21 @@ sub vnodePreConfigExpNetwork($$$$)
 
     # Build up a config file line for all interfaces, starting with cnet
     my $vifstr = "vif = ['" .
-	"mac=" . $vninfo{$vmid}{'cnet'}{'mac'} . ", " .
-        "bridge=" . $vninfo{$vmid}{'cnet'}{'bridge'} . ", " .
-        "script=" . $vninfo{$vmid}{'cnet'}{'script'} . "'";
+	"mac=" . $vninfo->{'cnet'}->{'mac'} . ", " .
+	# This tells vif-bridge to use antispoofing iptable rules.
+	"ip=" . $vninfo->{'cnet'}->{'ip'} . ", " .
+        "bridge=" . $vninfo->{'cnet'}->{'bridge'} . ", " .
+        "script=" . $vninfo->{'cnet'}->{'script'} . "'";
 
     foreach my $interface (@$ifconfigs){
         print "interface " . Dumper($interface) . "\n"
 	    if ($debug > 1);
         my $mac = "";
         my $physical_mac = "";
+	my $physical_dev;
         my $tag = 0;
-        my $brname = $interface->{'LAN'};
-	my $ifname = $interface->{'ITYPE'} . $interface->{'ID'};
-        if ($interface->{'ITYPE'} eq "veth"){
-            $mac = $interface->{'MAC'};
-            if ($interface->{'PMAC'} ne "none"){
-                $physical_mac = $interface->{'PMAC'};
-            }
-        } elsif ($interface->{'ITYPE'} eq "vlan"){
-            $mac = $interface->{'MAC'};
-            $tag = $interface->{'VTAG'};
-            $physical_mac = $interface->{'PMAC'};
-        } else {
-            $mac = $interface->{'MAC'};
-        }
-
+	my $ifname = "veth.${vmid}." . $interface->{'ID'};
+	
 	#
 	# In the era of shared nodes, we cannot name the bridges
 	# using experiment local names (e.g., the link name).
@@ -759,11 +887,48 @@ sub vnodePreConfigExpNetwork($$$$)
 	# they are associated with or the "tag" if there is no physical
 	# interface.
 	#
-	if ($interface->{'PMAC'} ne "none") {
-	    $brname = "pbr" . findIface($interface->{'PMAC'});
-	} elsif ($interface->{'VTAG'} ne "0") {
-	    $brname = "lbr" . $interface->{'VTAG'};
+        my $brname;
+
+	if ($interface->{'ITYPE'} eq "loop") {
+	    #
+	    # No physical device. Its a loopback (trivial) link/lan
+	    # All we need is a common bridge to put the veth ifaces into.
+	    #
+	    $brname = "br" . $interface->{'VTAG'};
+            $mac = $interface->{'MAC'};
 	}
+	elsif ($interface->{'ITYPE'} eq "veth"){
+	    #
+	    # We will never see a veth on a shared node, thus they
+	    # have already been created during the physnode config.
+	    #
+            $mac = $interface->{'MAC'};
+            if ($interface->{'PMAC'} ne "none"){
+                $physical_mac = $interface->{'PMAC'};
+		$brname = "br" . findIface($interface->{'PMAC'});
+            }
+	    else {
+		$brname = "br" . $interface->{'VTAG'};
+	    }
+        }
+	elsif ($interface->{'ITYPE'} eq "vlan"){
+	    my $iface = $interface->{'IFACE'};
+	    my $vtag  = $interface->{'VTAG'};
+	    #
+	    # On a shared node, these interfaces might not exist. This will
+	    # happen when the bridges are created, for lack of a better
+	    # place. 
+	    #
+            $mac = $interface->{'MAC'};
+            $tag = $interface->{'VTAG'};
+            $physical_mac = $interface->{'PMAC'};
+	    $physical_dev = "${iface}.${vtag}";
+	    $brname = "br" . $physical_dev;
+	}
+	else {
+            $mac = $interface->{'MAC'};
+	    $brname = "pbr" . findIface($interface->{'MAC'});
+        }
 
 	#
 	# If there is shaping info associated with the interface
@@ -773,8 +938,9 @@ sub vnodePreConfigExpNetwork($$$$)
 	foreach my $ldinfo (@$ldconfigs) {
 	    if ($ldinfo->{'IFACE'} eq $mac) {
 		$script = "$VMDIR/$vnode_id/enet-$mac";
-		my $log = "/var/emulab/logs/enet-$vnode_id.log";
-		createExpNetworkScript($vmid, $ldinfo, $script, $log);
+		my $sh  = "${script}.sh";
+		my $log = "${script}.log";
+		createExpNetworkScript($vmid, $ldinfo, $script, $sh, $log);
 	    }
 	}
 
@@ -792,7 +958,9 @@ sub vnodePreConfigExpNetwork($$$$)
                     'brname' => $brname,
 		    'script' => $script,
                     'physical_mac' => $physical_mac,
-                    'tag' => $tag
+                    'physical_dev' => $physical_dev,
+                    'tag' => $tag,
+		    'itype' => $interface->{'ITYPE'},
                     };
         push @links, $link;
     }
@@ -800,9 +968,9 @@ sub vnodePreConfigExpNetwork($$$$)
     # push out config file line for all interfaces
     # XXX note that we overwrite since a modify might add/sub IFs
     $vifstr .= "]";
-    addConfig($vmid, $vifstr, 1);
+    addConfig($vninfo, $vifstr, 1);
 
-    $vninfo{$vmid}{'links'} = \@links;
+    $vninfo->{'links'} = \@links;
     return 0;
 }
 
@@ -820,7 +988,7 @@ sub vnodeConfigResources($$$$){
 	    "could only get {$memory}MB.".
 	    "Adjust libvnode_xen::MAX_VNODES");
     }
-    addConfig($vmid, "memory = $memory", 0);
+    addConfig($private, "memory = $memory", 1);
 
     return 0;
 }
@@ -842,8 +1010,9 @@ sub vnodeState($$$$)
     if (domainExists($vnode_id)) {
 	$out = VNODE_STATUS_RUNNING();
     }
-    # otherwise, if the logical disk exists, consider it stopped
-    elsif (findLVMLogicalVolume($vnode_id)) {
+    # otherwise, if the logical (root) disk exists, consider it stopped
+    elsif (exists($private->{'disks'}->{$vnode_id}) &&
+	   findLVMLogicalVolume($private->{'disks'}->{$vnode_id})) {
 	$out = VNODE_STATUS_STOPPED();
     }
     return ($err, $out);
@@ -852,9 +1021,9 @@ sub vnodeState($$$$)
 sub vnodeBoot($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+    my $vninfo = $private;
 
-    if (!exists($vninfo{$vmid}) ||
-	!exists($vninfo{$vmid}{'cffile'})) {
+    if (!exists($vninfo->{'cffile'})) {
 	die("libvnode_xen: vnodeBoot $vnode_id: no essential state!?");
     }
 
@@ -863,8 +1032,8 @@ sub vnodeBoot($$$$)
     # Xen config file...
     #
     my $config = configFile($vnode_id);
-    if ($vninfo{$vmid}{'cfchanged'}) {
-	if (createXenConfig($config, $vmid)) {
+    if ($vninfo->{'cfchanged'}) {
+	if (createXenConfig($config, $vninfo->{'cffile'})) {
 	    die("libvnode_xen: vnodeBoot $vnode_id: could not create $config");
 	}
     } elsif (! -e $config) {
@@ -872,15 +1041,15 @@ sub vnodeBoot($$$$)
     }
 
     # DHCP entry...
-    if (exists($vninfo{$vmid}{'dhcp'})) {
-	my $name = $vninfo{$vmid}{'dhcp'}{'name'};
-	my $ip = $vninfo{$vmid}{'dhcp'}{'ip'};
-	my $mac = $vninfo{$vmid}{'dhcp'}{'mac'};
+    if (exists($vninfo->{'dhcp'})) {
+	my $name = $vninfo->{'dhcp'}->{'name'};
+	my $ip = $vninfo->{'dhcp'}->{'ip'};
+	my $mac = $vninfo->{'dhcp'}->{'mac'};
 	addDHCP($name, $ip, $mac, 1);
     }
 
     # physical bridge devices...
-    if (createExpBridges($vnode_id, $vninfo{$vmid}{'links'})) {
+    if (createExpBridges($vnode_id, $vninfo->{'links'})) {
 	die("libvnode_xen: vnodeBoot $vnode_id: could not create bridges");
     }
 
@@ -918,6 +1087,8 @@ sub vnodeTearDown($$$$)
 sub vnodeDestroy($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+    my $vninfo = $private;
+    
     if ($vnode_id =~ m/(.*)/){
         $vnode_id = $1;
     }
@@ -931,29 +1102,29 @@ sub vnodeDestroy($$$$)
     return -1
 	if (vnodeTearDown($vnode_id, $vmid, $vnconfig, $private));
 
+    # DHCP entry...
+    if (exists($vninfo->{'dhcp'})) {
+	my $mac = $vninfo->{'dhcp'}->{'mac'};
+	subDHCP($mac, 1);
+    }
+
     #
     # We do these whether or not the domain existed
     #
     # Note to Mike from Leigh; this should maybe move to TearDown above?
     #
-    destroyExpBridges($vnode_id, $vninfo{$vmid}{'links'});
-    if (findLVMLogicalVolume($vnode_id)) {
-	if (system("lvremove -f $VGNAME/$vnode_id")) {
-	    print STDERR
-		"libvnode_xen: could not destroy disk for $vnode_id\n";
-	}
-    }
-    # Destroy the aux disks.
-    if (exists($private->{'auxdisks'})) {
-	foreach my $lvname (keys(%{ $private->{'auxdisks'} })) {
-	    if (findLVMLogicalVolume($lvname)) {
-		if (system("lvremove -f $VGNAME/$lvname")) {
-		    print STDERR
-			"libvnode_xen: could not destroy disk for $vnode_id\n";
-		}
-		else {
-		    delete($private->{'auxdisks'}->{$lvname});
-		}
+    destroyExpBridges($vnode_id, $vninfo->{'links'});
+
+    # Destroy the all the disks.
+    foreach my $key (keys(%{ $private->{'disks'} })) {
+	my $lvname = $private->{'disks'}->{$key};
+	
+	if (findLVMLogicalVolume($lvname)) {
+	    if (system("lvremove -f $VGNAME/$lvname")) {
+		print STDERR "libvnode_xen: could not destroy disk $lvname!\n";
+	    }
+	    else {
+		delete($private->{'disks'}->{$key});
 	    }
 	}
     }
@@ -1049,66 +1220,40 @@ sub createRootDisk($)
     my $size = $XEN_LDSIZE;
 
     #
-    # We only want to do this once.  Note that we wait up to 20 minutes since
-    # it can take a long time to copy the filesystem.  If we really cared, we
-    # could further trim what is copied; e.g., no share/doc.
+    # We only want to do this once.
     #
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1200) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the xennetwork lock after a long time!\n";
-	return -1;
-    }
-
     system("lvcreate -n $lv -L ${size}G $VGNAME");
     system("echo y | mkfs -t ext3 $full_path");
     mysystem("e2label $full_path /");
     copyRoot(findRoot(), $full_path);
-
-    TBScriptUnlock();
 }
 
 #
-# Create an extra, empty disk volume. The guest will have to partition it.
+# Create an extra, empty disk volume. 
 #
 sub createAuxDisk($$)
 {
     my ($lv,$size) = @_;
     my $full_path = lvmVolumePath($lv);
 
-    #
-    # We only want to do this once.
-    #
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1200) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the xennetwork lock after a long time!\n";
-	return -1;
-    }
     system("lvcreate -n $lv -L ${size} $VGNAME");
     if ($?) {
-	TBScriptUnlock();
 	return -1;
     }
-    TBScriptUnlock();
     return 0;
 }
 
 #
 # Create a logical volume for the image if it doesn't already exist.
 #
-sub createImageDisk($$)
+sub createImageDisk($$$)
 {
-    my ($image,$raref) = @_;
+    my ($image,$vnode_id,$raref) = @_;
     my $tstamp = $raref->{'IMAGEMTIME'};
     my $lvname = $image;
+    my $unpack = 0;
 
-    #
-    # We might be creating multiple vnodes with the same image, so grab
-    # the global lock for this image before doing anything.
-    #
-    my $imagelock = "xenimage.$lvname";
-    my $locked = TBScriptLock($imagelock, TBSCRIPTLOCK_GLOBALWAIT(), 1800);
-    if ($locked != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get $imagelock lock after a long time!\n";
-	return -1;
-    }
+    # We are locked by the caller.
 
     #
     # Do we have the right image file already? No need to download it
@@ -1126,6 +1271,12 @@ sub createImageDisk($$)
 	    return 0;
 	}
 	print "mtime for $imagepath differ: local $mtime, server $tstamp\n";
+
+	# For the package case.
+	if (-e "/mnt/$lvname/.mounted" && mysystem2("umount /mnt/$lvname")) {
+	    print STDERR "Could not umount /mnt/$lvname\n";
+	    return -1;
+	}
 	if (GClvm($lvname)) {
 	    print STDERR "Could not GC or rename $lvname\n";
 	    return -1;
@@ -1135,27 +1286,66 @@ sub createImageDisk($$)
     my $size = $XEN_LDSIZE;
     if (system("lvcreate -n $lvname -L ${size}G $VGNAME")) {
 	print STDERR "libvnode_xen: could not create disk for $image\n";
-	TBScriptUnlock();
 	return -1;
+    }
+    my $imagepath = lvmVolumePath($lvname);
+
+    #
+    # If the version info indicates a packaged container, then we
+    # create a filesystem inside the lvm and download the package to
+    # it. We tell the download function to untar it, since otherwise
+    # we have to make a copy.
+    #
+    # XXX Using MBRVERS for now, need something else.
+    #
+    if (exists($raref->{'MBRVERS'}) && $raref->{'MBRVERS'} > 1) {
+	goto bad
+	    if (! -e "/mnt/$lvname" && mysystem2("mkdir -p /mnt/$lvname"));
+	goto bad
+	    if (-e "/mnt/$lvname/.mounted" && mysystem2("umount /mnt/$lvname"));
+	mysystem2("mkfs -t ext3 $imagepath");
+	goto bad
+	    if ($?);
+	mysystem2("mount $imagepath /mnt/$lvname");
+	goto bad
+	    if ($?);
+	mysystem2("touch /mnt/$lvname/.mounted");
+	goto bad
+	    if ($?);
+	$unpack = 1;
+	$imagepath = "$EXTRAFS/${lvname}.tar.gz";
     }
 
     # Now we just download the file, then let create do its normal thing
-    my $imagepath = lvmVolumePath($lvname);
-    if (libvnode::downloadImage($imagepath, 1, $raref)) {
+    if (libvnode::downloadImage($imagepath, 1, $vnode_id, $raref)) {
 	print STDERR "libvnode_xen: could not download image $image\n";
-	TBScriptUnlock();
 	return -1;
     }
+    if ($unpack) {
+	# Now unpack the tar file, then remove it.
+	mysystem2("tar zxf $imagepath -C /mnt/$lvname");
+	goto bad
+	    if ($?);
+	unlink($imagepath);
+	# Create this file to mark it as a package.
+	mysystem2("touch $DBDIR/${lvname}.package");
+	goto bad
+	    if ($?);
+    }
+    else {
+	unlink("$DBDIR/${lvname}.package");
+    }
     # reload has finished, file is written... so let's set its mtime
-    utime(time(), $tstamp, $imagepath);
+    utime(time(), $tstamp, lvmVolumePath($lvname));
 
     #
     # XXX note that we don't declare RELOADDONE here since we haven't
     # actually created the vnode shadow disk yet.  That is the caller's
     # responsibility.
     #
-    TBScriptUnlock();
     return 0;
+  bad:
+    return -1;
 }
 
 sub replace_hack($)
@@ -1176,6 +1366,9 @@ sub disk_hacks($)
 
     rmtree(["$path/var/emulab/boot/tmcc"]);
 
+    # Run prepare inside to clean up.
+    system("/usr/sbin/chroot $path /usr/local/etc/emulab/prepare -N");
+
     # don't try to recursively boot vnodes!
     unlink("$path/usr/local/etc/emulab/bootvnodes");
 
@@ -1185,6 +1378,10 @@ sub disk_hacks($)
     # don't start dhcpd in the VM
     unlink("$path/etc/dhcpd.conf");
     unlink("$path/etc/dhcp/dhcpd.conf");
+
+    # No xen daemons
+    unlink("$path/etc/init.d/xend");
+    unlink("$path/etc/init.d/xendomains");
 
     # Remove mtab just in case
     unlink("$path/etc/mtab");
@@ -1197,6 +1394,9 @@ sub disk_hacks($)
 
     # remove swap partitions from fstab
     system("sed -i.bak -e '/swap/d' $path/etc/fstab");
+
+    # remove scratch partitions from fstab
+    system("sed -i.bak -e '/scratch/d' $path/etc/fstab");
 
     # fixup fstab: change UUID=blah to LABEL=/
     system("sed -i.bak -e 's/UUID=[0-9a-f-]*/LABEL=\\//' $path/etc/fstab");
@@ -1299,6 +1499,7 @@ sub createDHCP()
 	$cnet_mask,undef,$cnet_net,undef,$cnet_gw) = findControlNet();
 
     my $vnode_dns = findDNS($vnode_gw);
+    my $domain    = findDomain();
     my $file;
 
     if (-d "/etc/dhcp") {
@@ -1319,7 +1520,7 @@ max-lease-time     704800;
 shared-network xen {
 subnet $vnode_net netmask $vnode_mask {
     option domain-name-servers $vnode_dns;
-    option domain-name "emulab.net";
+    option domain-name "$domain";
     option routers $vnode_gw;
 
     # INSERT VNODES AFTER
@@ -1329,7 +1530,7 @@ subnet $vnode_net netmask $vnode_mask {
 
 subnet $cnet_net netmask $cnet_mask {
     option domain-name-servers $vnode_dns;
-    option domain-name "emulab.net";
+    option domain-name "$domain";
     option routers $cnet_gw;
 
     # INSERT VNODES AFTER
@@ -1384,12 +1585,26 @@ sub modDHCP($$$$$)
 	TBScriptUnlock();
 	return -1;
     }
-    $host = lc($host);
+    my $changed = 0;
     $mac = lc($mac);
+    if ($dorm) {
+	while (my $line = <OLD>) {
+	    if ($line =~ /ethernet ([\da-f:]+); fixed-address/i) {
+		my $omac = lc($1);
+		if ($mac eq $omac) {
+		    # skip this entry.
+		    $changed = 1;
+		    next;
+		}
+	    }
+	    print NEW $line;
+	}
+	goto done;
+    }
+    $host = lc($host);
     my $insubnet = 0;
     my $inrange = 0;
     my $found = 0;
-    my $changed = 0;
     while (my $line = <OLD>) {
 	if ($found) {
 	    ;
@@ -1433,6 +1648,7 @@ sub modDHCP($$$$$)
 	}
 	print NEW $line;
     }
+  done:
     close(OLD);
     close(NEW);
 
@@ -1537,30 +1753,46 @@ sub createControlNetworkScript($$$)
 
     open(FILE, ">$file") or die $!;
     print FILE "#!/bin/sh\n";
-    print FILE "sh /etc/xen/scripts/emulab-cnet $vmid $host_ip $name $ip \$*\n";
+    print FILE "/etc/xen/scripts/emulab-cnet.pl $vmid $host_ip $name $ip \$* ".
+	">${file}.debug 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0555, $file);
 }
 
-sub createExpNetworkScript($$$$)
+sub createExpNetworkScript($$$$$)
 {
-    my ($vmid,$info,$file,$lfile) = @_;
+    my ($vmid,$info,$wrapper,$file,$lfile) = @_;
     my $TC = "/sbin/tc";
 
-    open(FILE, ">$file") or die $!;
+    if (! open(FILE, ">$wrapper")) {
+	print STDERR "Error creating $wrapper: $!\n";
+	return -1;
+    }
+    print FILE "#!/bin/sh\n";
+    print FILE "echo \"\$*\" >$lfile\n";
+    print FILE "echo \"\$vif\" >>$lfile\n";
+    print FILE "echo \"\$XENBUS_PATH\" >>$lfile\n";
+    print FILE "sh $file \$* >>$lfile 2>&1\n";
+    print FILE "exit \$?\n";
+    close(FILE);
+    chmod(0554, $wrapper);
+    
+    if (! open(FILE, ">$file")) {
+	print STDERR "Error creating $file: $!\n";
+	return -1;
+    }
     print FILE "#!/bin/sh\n";
     print FILE "OP=\$1\n";
-    print FILE "sh /etc/xen/scripts/vif-bridge \$*\n";
+    print FILE "/etc/xen/scripts/vif-bridge \$*\n";
     print FILE "STAT=\$?\n";
     print FILE "if [ \$STAT -ne 0 -o \"\$OP\" != \"online\" ]; then\n";
     print FILE "    exit \$STAT\n";
     print FILE "fi\n";
     print FILE "# XXX redo what vif-bridge does to get named interface\n";
-    print FILE "vifname=`xenstore read \$XENBUS_PATH/vifname`\n";
-    print FILE "\${vifname:=\$vif}\n";
+    print FILE "vifname=`xenstore-read \$XENBUS_PATH/vifname`\n";
     print FILE "echo \"Configuring shaping for \$vifname (MAC ",
-                     $info->{'IFACE'}, ")\" >>$lfile\n";
+                     $info->{'IFACE'}, ")\"\n";
 
     my $iface     = $info->{'IFACE'};
     my $type      = $info->{'TYPE'};
@@ -1621,32 +1853,46 @@ sub createExpNetworkScript($$$$)
     my $cmd;
     if ($queue ne "") {
 	$cmd = "/sbin/ifconfig $iface txqueuelen $queue";
-	print FILE "echo \"$cmd\" >>$lfile\n";
-	print FILE "$cmd >>$lfile 2>&1\n";
+	print FILE "echo \"$cmd\"\n";
+	print FILE "$cmd\n\n";
     }
-    $cmd = "$TC qdisc add dev $iface handle $pipeno root plr $plr";
-    print FILE "echo \"$cmd\" >>$lfile\n";
-    print FILE "$cmd >>$lfile 2>&1\n";
+    my @cmds = ();
 
-    $cmd = "$TC qdisc add dev $iface handle $pipe10 ".
-	   "parent ${pipeno}:1 delay usecs $delay";
-    print FILE "echo \"$cmd\" >>$lfile\n";
-    print FILE "$cmd >>$lfile 2>&1\n";
-
-    $cmd = "$TC qdisc add dev $iface handle $pipe20 ".
-	   "parent ${pipe10}:1 htb default 1";
-    print FILE "echo \"$cmd\" >>$lfile\n";
-    print FILE "$cmd >>$lfile 2>&1\n";
-
-    if ($bandw != 0) {
-	$cmd = "$TC class add dev $iface classid $pipe20:1 ".
-	       "parent $pipe20 htb rate ${bandw} ceil ${bandw}";
-	print FILE "echo \"$cmd\" >>$lfile\n";
-	print FILE "$cmd >>$lfile 2>&1\n";
+    if ($xeninfo{xen_major} >= 4) {
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipe20 root htb default 1");
+	if ($bandw != 0) {
+	    push(@cmds,
+		 "$TC class add dev $iface classid $pipe20:1 ".
+		 "parent $pipe20 htb rate ${bandw} ceil ${bandw}");
+	}
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipe10 parent $pipe20:1 ".
+	     "netem drop $plr delay ${delay}us");
+    }
+    else {
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipeno root plr $plr");
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipe10 ".
+	     "parent ${pipeno}:1 delay usecs $delay");
+	push(@cmds,
+	     "$TC qdisc add dev $iface handle $pipe20 ".
+	     "parent ${pipe10}:1 htb default 1");
+	if ($bandw != 0) {
+	    push(@cmds,
+		 "$TC class add dev $iface classid $pipe20:1 ".
+		 "parent $pipe20 htb rate ${bandw} ceil ${bandw}");
+	}
+    }
+    foreach my $cmd (@cmds) {
+	print FILE "echo \"$cmd\"\n";
+	print FILE "$cmd\n\n";
     }
 
     close(FILE);
     chmod(0554, $file);
+    return 0;
 }
 
 sub createExpBridges($$)
@@ -1689,20 +1935,39 @@ sub createExpBridges($$)
 	my $vdev = findIface($mac);
 	if ($vdev) {
 	    print STDERR "createExpBridges: $vdev ($mac) should not exist!\n";
-	    return 1;
+	    goto bad;
 	}
 	my $pdev;
 	my $pbridge;
 	if ($pmac ne "") {
-	    $pdev = findIface($pmac);
+	    #
+	    # Look for vlan devices that need to be created.
+	    #
+	    if ($link->{'itype'} eq "vlan") {
+		$pdev = $link->{'physical_dev'};
+		my $iface = findIface($pmac);
+
+		if (! -d "/sys/class/net/$pdev") {
+		    mysystem2("$VLANCONFIG set_name_type DEV_PLUS_VID_NO_PAD");
+		    mysystem2("$VLANCONFIG add $iface $tag");
+		    goto bad
+			if ($?);
+		    mysystem2("$VLANCONFIG set_name_type VLAN_PLUS_VID_NO_PAD");
+		    mysystem2("$IFCONFIG $pdev up");
+		    makeIfaceMaps();
+		}
+	    }
+	    else {
+		$pdev = findIface($pmac);
+	    }
 	    if (!$pdev) {
 		print STDERR "createExpBridges: $pdev ($pmac) should exist!\n";
-		return 2;
+		goto bad;
 	    }
 	    $pbridge = findBridge($pdev);
 	    if ($pbridge && $pbridge ne $brname) {
 		print STDERR "createExpBridges: $pdev ($pmac) in wrong bridge $pbridge!\n";
-		return 3;
+		goto bad;
 	    }
 	}
 
@@ -1710,11 +1975,11 @@ sub createExpBridges($$)
 	if (!existsBridge($brname)) {
 	    if (system("$BRCTL addbr $brname")) {
 		print STDERR "createExpBridges: could not create $brname\n";
-		return 4;
+		goto bad;
 	    }
 	    if (system("$IFCONFIG $brname up")) {
 		print STDERR "createExpBridges: could not ifconfig $brname\n";
-		return 5;
+		goto bad;
 	    }
 	}
 
@@ -1722,13 +1987,16 @@ sub createExpBridges($$)
 	if ($pdev && !$pbridge) {
 	    if (system("$BRCTL addif $brname $pdev")) {
 		print STDERR "createExpBridges: could not add $pdev to $brname\n";
-		return 6;
+		goto bad;
 	    }
 	}
     }
-
+    
     TBScriptUnlock();
     return 0;
+  bad:
+    TBScriptUnlock();
+    return -1;
 }
 
 sub destroyExpBridges($$)
@@ -1852,12 +2120,13 @@ sub domainGone($$)
 #
 sub addConfig($$$)
 {
-    my ($vmid,$str,$overwrite) = @_;
+    my ($vninfo,$str,$overwrite) = @_;
+    my $vmid = $vninfo->{'vmid'};
 
-    if (!exists($vninfo{$vmid}) || !exists($vninfo{$vmid}{'cffile'})) {
+    if (!exists($vninfo->{'cffile'})) {
 	die("libvnode_xen: addConfig: no state for vnode $vmid!?");
     }
-    my $aref = $vninfo{$vmid}{'cffile'};
+    my $aref = $vninfo->{'cffile'};
 
     #
     # If appending (overwrite==2) or new line is a comment, tack it on.
@@ -1894,7 +2163,7 @@ sub addConfig($$$)
 	    if ($ckey eq $key) {
 		if ($overwrite && $cval ne $val) {
 		    $aref->[$i] = $str;
-		    $vninfo{$vmid}{'cfchanged'} = 1;
+		    $vninfo->{'cfchanged'} = 1;
 		}
 		return;
 	    }
@@ -1905,7 +2174,7 @@ sub addConfig($$$)
     # Not found, add it to the end
     #
     push(@$aref, $str);
-    $vninfo{$vmid}{'cfchanged'} = 1;
+    $vninfo->{'cfchanged'} = 1;
 }
 
 sub readXenConfig($)
@@ -1927,19 +2196,79 @@ sub readXenConfig($)
 
 sub createXenConfig($$)
 {
-    my ($config,$vmid) = @_;
+    my ($config,$lines) = @_;
 
     mkpath([dirname($config)]);
     if (!open(CF, ">$config")) {
 	print STDERR "libvnode_xen: could not create $config\n";
 	return -1;
     }
-    foreach (@{$vninfo{$vmid}{'cffile'}}) {
+    foreach (@$lines) {
 	print CF "$_\n";
     }
 
     close(CF);
     return 0;
+}
+
+sub lookupXenConfig($$)
+{
+    my ($aref, $key) = @_;
+
+    #
+    # Look for key=value.
+    #
+    for (my $i = 0; $i < scalar(@$aref); $i++) {
+	if ($aref->[$i] =~ /^\s*#/) {
+	    next;
+	}
+	if ($aref->[$i] =~ /^\s*([^=\s]+)\s*=\s*(.*)$/) {
+	    my $ckey = $1;
+	    my $cval = $2;
+	    if ($ckey eq $key) {
+		return $cval;
+	    }
+	}
+    }
+    return undef;
+}
+
+sub parseXenDiskInfo($$)
+{
+    my ($vnode_id, $aref) = @_;
+    my $disks = {};
+
+    #
+    # Find the disk info and process the stanzas.
+    #
+    my $stanzas = lookupXenConfig($aref, "disk");
+    if (!defined($stanzas)) {
+	# No way to clean up from this. Gack.
+	print STDERR "xen_vnodeCreate: Cannot find disk stanza in config\n";
+	return undef
+    }
+    my $disklist = eval $stanzas;
+    foreach my $disk (@$disklist) {
+	if ($disk =~ /^phy:([^,]*),([^,]*)/) {
+	    my $device = $1;
+	    my $vndisk = $2;
+	    # Need to pull out the lvm name from the device path.
+	    my $lvname = basename($device);
+		
+	    # The root disk is marked by sda or xvda.
+	    if ($2 eq "sda" || $2 eq "xvda") {
+		$disks->{$vnode_id} = $lvname;
+	    }
+	    else {
+		$disks->{$lvname} = $lvname;
+	    }
+	}
+	else {
+	    print STDERR "Cannot parse disk: $disk\n";
+	    return undef;
+	}
+    }
+    return $disks;
 }
 
 #
@@ -2080,4 +2409,5 @@ sub GClvm($)
     return 0;
 }
 
-1
+1;
+

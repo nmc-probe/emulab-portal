@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 use Getopt::Std;
@@ -329,6 +346,8 @@ my $pgrp = getpgrp(0);
 sub handler ($) {
     my ($signame) = @_;
     
+    print STDERR "vnodesetup ($PID) caught a SIG${signame}!\n";
+
     $SIG{USR1} = 'IGNORE';
     $SIG{USR2} = 'IGNORE';
 
@@ -351,7 +370,8 @@ sub handler ($) {
 	$leavejail = 1;
     }
 
-    fatal("Caught a SIG${signame}! Killing the vnode ...");
+    print STDERR "Killing the vnode ...\n";
+    fatal("Death by $signame");
 }
 # We get this when the physical node is rebooting or when asked to "halt" the
 # container. In either case, transient state is removed, disk is retained.
@@ -452,7 +472,8 @@ if ($dojail) {
 	    cleanup();
 	    exit(0);
 	}
-	$cleanupstate = "TBFAILED";
+	$cleanupstate = "TBFAILED"
+	    if ($jstat);
 	fatal("Jail exited unexpectedly with status $jstat!");
     }
     else {
@@ -678,17 +699,40 @@ sub cleanup()
     # First force the jail to exit. 
     #
     if (defined($jailpid)) {
+	my $sigtosend;
+
 	if ($leavejail) {
 	    # Leave disk intact, kill all other transient state.
 	    # Halting or physical node rebooting.
-	    kill('USR1', $jailpid);
+	    $sigtosend = 'USR1';
 	}
 	else {
 	    # All trace removed.
-	    kill('HUP', $jailpid);
+	    $sigtosend = 'HUP';
 	}
-	waitpid($jailpid, 0);
-	undef($jailpid);
+	kill($sigtosend, $jailpid);
+	sleep(5);
+	my $kidpid = waitpid($jailpid, &WNOHANG);
+	if ($kidpid == $jailpid) {
+	    undef($jailpid);
+	}
+	
+	#
+	# The jail process sometimes refuses to die. Keep trying.
+	# We send the signal again cause I have seen cases where it
+	# is ignored, for no reason that I can find. We need to
+	# eventually stop, but not sure how to deal with this.
+	#
+	while (defined($jailpid)) {
+	    sleep(15);
+	    my $kidpid = waitpid($jailpid, &WNOHANG);
+	    if ($kidpid == $jailpid) {
+		undef($jailpid);
+		last;
+	    }
+	    print STDERR "$jailpid would not die; signalling again.\n";
+	    kill($sigtosend, $jailpid);
+	}
 
 	#
 	# Kill off everything else (unnecessary in a vserver)
@@ -874,7 +918,7 @@ sub hackwaitandexit($)
     my $cpid  = shift();
     my $now   = time();
     my $goofy;
-    my $count = 45;
+    my $count = 30;
 
     # The first case is for our own (non-plab) vservers.
     if (-e "/vservers") {

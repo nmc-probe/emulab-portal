@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2008-2011 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use strict;
 use English;
@@ -123,7 +140,7 @@ my $query_result;
 
 if ($doall == 2) {
     $query_result =
-	DBQueryWarn("select r.pid,r.eid,node_id1,eventstate,card1,node_id2".
+	DBQueryWarn("select r.pid,r.eid,node_id1,eventstate,card1,port1,node_id2".
 		    " from wires as w,nodes as n".
 		    " left join reserved as r on n.node_id=r.node_id".
 		    " where w.node_id1=n.node_id".
@@ -133,7 +150,7 @@ if ($doall == 2) {
 		    " order by node_id2,card2,port2");
 } else {
     $query_result =
-	DBQueryWarn("select r.pid,r.eid,node_id1,eventstate,card1,node_id2".
+	DBQueryWarn("select r.pid,r.eid,node_id1,eventstate,card1,port1,node_id2".
 		    " from wires as w,nodes as n,reserved as r".
 		    " where w.node_id1=n.node_id and w.node_id1=r.node_id".
 		    "  and (node_id2 like 'cisco%' or node_id2 like 'procurve%')".
@@ -149,12 +166,22 @@ while (my %row = $query_result->fetchhash()) {
     my $switch = $row{'node_id2'};
     my $pc = $row{'node_id1'};
     my $pceth = $row{'card1'};
+    my $pcport = $row{'port1'};
     my $exp;
     if (defined($row{'pid'})) {
 	$exp = $row{'pid'} . "/" . $row{'eid'};
     } else {
 	$exp = "<NONE>";
     }
+
+    #
+    # XXX ugh, portstats only takes node:card and not node:card.port,
+    # so if the port is anything other than 1 (e.g., an allocable switch)
+    # we cannot look it up.
+    #
+    next
+	if ($pcport != 1);
+
     my $cnet = "$pc:$pceth";
 
     push(@{$switches{$switch}}, $cnet);
@@ -276,6 +303,15 @@ sub gather($$)
 		print STDERR "*** $node: invalid portstats!?\n"; 
 		next;
 	    }
+
+	    #
+	    # XXX portstats returns nodes in the format: pcXXX:N.N,
+	    # even though it won't accept that format on the command line!
+	    #
+	    if ($node =~ /^(.*:\d+)\.\d$/) {
+		$node = $1;
+	    }
+
 	    if (!exists($pcref->{$node})) {
 		print STDERR "*** $node: no stats returned!?\n"; 
 		next;

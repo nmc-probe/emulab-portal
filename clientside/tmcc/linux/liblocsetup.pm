@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 #
@@ -23,6 +40,8 @@ use Exporter;
 	 os_fwconfig_line os_fwrouteconfig_line os_config_gre
 	 os_get_disks os_get_disk_size os_get_partition_info os_nfsmount
 	 os_get_ctrlnet_ip
+	 os_getarpinfo os_createarpentry os_removearpentry
+	 os_getstaticarp os_setstaticarp
        );
 
 sub VERSION()	{ return 1.0; }
@@ -78,6 +97,7 @@ $RPMCMD		= "/bin/rpm";
 $HOSTSFILE	= "/etc/hosts";
 $WGET		= "/usr/bin/wget";
 $CHMOD		= "/bin/chmod";
+$ARP		= "/sbin/arp";
 
 #
 # These are not exported
@@ -922,6 +942,20 @@ sub os_etchosts_line($$$)
 #
 sub os_groupadd($$)
 {
+    my $tries = 3;
+    my $result = 1;
+    while ($result && $tries > 0) {
+	$result = os_groupadd_real(@_);
+	if ($result) {
+	    sleep(5);
+	    --$tries;
+	}
+    }
+    return $result;
+}
+
+sub os_groupadd_real($$)
+{
     my($group, $gid) = @_;
 
     return system("$GROUPADD -g $gid $group");
@@ -989,6 +1023,20 @@ sub os_modpasswd($$)
 # Add a user.
 #
 sub os_useradd($$$$$$$$$)
+{
+    my $tries = 3;
+    my $result = 1;
+    while ($result && $tries > 0) {
+	$result = os_useradd_real(@_);
+	if ($result) {
+	    sleep(5);
+	    --$tries;
+	}
+    }
+    return $result;
+}
+
+sub os_useradd_real($$$$$$$$$)
 {
     my($login, $uid, $gid, $pswd, $glist, $homedir, $gcos, $root, $shell) = @_;
     my $args = "";
@@ -2104,7 +2152,7 @@ sub os_config_gre($$$$$$$)
     return 0;
 }
 
-sub os_get_disks
+sub os_get_disks()
 {
 	my @blockdevs;
 
@@ -2113,10 +2161,17 @@ sub os_get_disks
 	return @blockdevs;
 }
 
-sub os_get_ctrlnet_ip
+sub os_get_ctrlnet_ip()
 {
 	my $iface;
 	my $address;
+
+	# just use recorded IP if available
+	if (-e "$BOOTDIR/myip") {
+	    $myip = `cat $BOOTDIR/myip`;
+	    chomp($myip);
+	    return $myip;
+	}
 
 	if (!open CONTROLIF, "$BOOTDIR/controlif") {
 		return undef;
@@ -2240,6 +2295,128 @@ sub os_mountextrafs($)
 	print STDERR "mkextrafs failed, see $log\n";
     }
     return $mntpt;
+}
+
+#
+# Read the current arp info and create a hash for it.
+#
+sub os_getarpinfo($$)
+{
+    my ($diface,$airef) = @_;
+    my %arpinfo = ();
+
+    if (!open(ARP, "$ARP -a|")) {
+	print "os_getarpinfo: Cannot run arp command\n";
+	return 1;
+    }
+
+    while (<ARP>) {
+	if (/^(\S+) \(([\d\.]+)\) at (..:..:..:..:..:..) (.*) on (\S+) /) {
+	    my $name = $1;
+	    my $ip = $2;
+	    my $mac = lc($3);
+	    my $stuff = $4;
+	    my $iface = $5;
+
+	    # this is not the interface you are looking for...
+	    if ($diface ne $iface) {
+		next;
+	    }
+
+	    if (exists($arpinfo{$ip})) {
+		if ($arpinfo{$ip}{'mac'} ne $mac) {
+		    print "os_getarpinfo: Conflicting arpinfo info for $ip:\n";
+		    print "    '$_'!?\n";
+		    return 1;
+		}
+	    }
+	    $arpinfo{$ip}{'name'} = $name;
+	    $arpinfo{$ip}{'mac'} = $mac;
+	    $arpinfo{$ip}{'iface'} = $iface;
+	    if ($stuff =~ /PERM/) {
+		$arpinfo{$ip}{'static'} = 1;
+	    } else {
+		$arpinfo{$ip}{'static'} = 0;
+	    }
+	}
+    }
+    close(ARP);
+
+    %$airef = %arpinfo;
+    return 0;
+}
+
+#
+# Create a static ARP entry given info in the supplied hash.
+# Returns zero on success, non-zero otherwise.
+#
+sub os_createarpentry($$$)
+{
+    my ($iface, $ip, $mac) = @_;
+
+    return system("$ARP -i $iface -s $ip $mac >/dev/null 2>&1");
+}
+
+sub os_removearpentry($;$)
+{
+    my ($iface, $ip) = @_;
+
+    #
+    # XXX ugh, Linux arp doesn't support clearing all entries.
+    # Do it the hard way!
+    #
+    if (!defined($ip)) {
+	my %info = os_getarpinfo($iface);
+	my $err = 0;
+	foreach my $_ip (keys %arpinfo) {
+	    if (system("$ARP -i $iface -d $_ip >/dev/null 2>&1")) {
+		$err++;
+	    }
+	}
+	return $err;
+    }
+    return system("$ARP -i $iface -d $ip >/dev/null 2>&1");
+}
+
+#
+# Returns whether static ARP is enabled or not in the passed param.
+# Return zero on success, an error otherwise.
+#
+sub os_getstaticarp($$)
+{
+    my ($iface,$isenabled) = @_;
+
+    my $info = `$IFCONFIGBIN $iface 2>/dev/null`;
+    return $?
+	if ($?);
+
+    if ($info =~ /NOARP/) {
+	$$isenabled = 1;
+    } else {
+	$$isenabled = 0;
+    }
+
+    return 0;
+}
+
+#
+# Turn on/off static ARP on the indicated interface.
+# Return zero on success, an error otherwise.
+#
+sub os_setstaticarp($$)
+{
+    my ($iface,$enable) = @_;
+    my $curenabled = 0;
+
+    os_getstaticarp($iface, \$curenabled);
+    if ($enable && !$curenabled) {
+	return system("$IFCONFIGBIN $iface -arp >/dev/null 2>&1");
+    }
+    if (!$enable && $curenabled) {
+	return system("$IFCONFIGBIN $iface arp >/dev/null 2>&1");
+    }
+
+    return 0;
 }
 
 1;

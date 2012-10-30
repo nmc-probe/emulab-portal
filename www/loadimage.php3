@@ -1,8 +1,25 @@
 <?php
 #
-# EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
-# All rights reserved.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 include("defs.php3");
 include_once("imageid_defs.php");
@@ -86,17 +103,22 @@ $unix_pid = $project->unix_gid();
 
 if (! isset($confirmed)) {
     $url = CreateURL("loadimage", $image);
+    $newurl = CreateURL("newimageid_ez", $node);
     
     echo "<center><form action='$url' method='post'>\n".
          "<h2><b>Warning!</b></h2>".
-	 "<h3>Doing a snapshot of node '$node_id' into image '$image_name' ".
-	 "will overwrite any previous snapshot for that image. ".
-	 "Are you sure you want to continue?</h3>".
+	 "<b>Doing a snapshot of node '$node_id' into image '$image_name' ".
+	 "will overwrite any previous snapshot for that image.<br><br> ".
+	 "Are you sure you want to continue?</b><br>".
          "<input type='hidden' name='node_id'   value='$node_id'></input>".
          "<input type='submit' name='confirmed' value='Confirm'></input>".
          "&nbsp;".
          "<input type='submit' name='canceled' value='Cancel'></input>\n".    
-         "</form></center>";
+         "</form>".
+         "<br>".
+	 "If you do not want to overwrite this image, then ".
+	 "<a href='$newurl'>Create a new image</a>".
+	 "</center>";
 
     PAGEFOOTER();
     return;

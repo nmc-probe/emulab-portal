@@ -1,8 +1,25 @@
 <?PHP
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2003, 2005, 2006, 2007 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 #
@@ -36,22 +53,20 @@ function find_switch_macs(&$mac_list) {
 	$class = $exploded[4];
 	if (!preg_match("/^([\w-]+)\/(\d+)\.(\d+)$/",$switchport,$matches)) {
 	    echo "<h3>Bad line from switchmac: $line</h3>\n";
-	}
-	$switch = $matches[1];
-	$card = $matches[2];
-	$port = $matches[3];
-	if (isset($mac_list[$MAC]) &&
-	    (is_null($mac_list[$MAC]["class"]) ||
-	     !isset($mac_list[$MAC]["class"]) ||
-	     ($mac_list[$MAC]["class"] == $class))) {
-	    $mac_list[$MAC]["switch"] = $switch;
-	    $mac_list[$MAC]["switch_card"] = $card;
-	    $mac_list[$MAC]["switch_port"] = $port;
-	    if ($ELABINELAB) {
-		# We let switchmac tell us.
-		$mac_list[$MAC]["class"] = $class;
-		# Need this to reorder the interfaces.
-		$mac_list[$MAC]["iface"] = $iface;
+	} else {
+	    $switch = $matches[1];
+	    $card = $matches[2];
+	    $port = $matches[3];
+	    if (isset($mac_list[$MAC]) ) {
+		$mac_list[$MAC]["switch"] = $switch;
+		$mac_list[$MAC]["switch_card"] = $card;
+		$mac_list[$MAC]["switch_port"] = $port;
+		if ($ELABINELAB) {
+		    # We let switchmac tell us.
+		    $mac_list[$MAC]["class"] = $class;
+		    # Need this to reorder the interfaces.
+		    $mac_list[$MAC]["iface"] = $iface;
+		}
 	    }
 	}
 	$line = fgets($macs);

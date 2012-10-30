@@ -1,7 +1,24 @@
 /*
- * EMULAB-COPYRIGHT
- * Copyright (c) 2010-2011 University of Utah and the Flux Group.
- * All rights reserved.
+ * Copyright (c) 2010-2012 University of Utah and the Flux Group.
+ * 
+ * {{{EMULAB-LICENSE
+ * 
+ * This file is part of the Emulab network testbed software.
+ * 
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version.
+ * 
+ * This file is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * }}}
  */
 
 /*
@@ -50,15 +67,15 @@ config_signal(int sig)
 }
 
 int
-config_init(char *style, int readit)
+config_init(char *style, int readit, char *opts)
 {
 	int rv;
 
 	if (strcmp(style, "emulab") == 0) {
 #ifdef USE_EMULAB_CONFIG
-		extern struct config *emulab_init();
+		extern struct config *emulab_init(char *);
 		if (myconfig == NULL) {
-			if ((myconfig = emulab_init()) != NULL)
+			if ((myconfig = emulab_init(opts)) != NULL)
 				log("Using Emulab configuration");
 		} else
 			log("Emulab config init failed");
@@ -68,9 +85,9 @@ config_init(char *style, int readit)
 	}
 	if (strcmp(style, "null") == 0) {
 #ifdef USE_NULL_CONFIG
-		extern struct config *null_init();
+		extern struct config *null_init(char *);
 		if (myconfig == NULL) {
-			if ((myconfig = null_init()) != NULL)
+			if ((myconfig = null_init(opts)) != NULL)
 				log("Using null configuration");
 		} else
 			log("Null config init failed");

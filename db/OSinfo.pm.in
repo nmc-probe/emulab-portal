@@ -1,14 +1,32 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2007-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 package OSinfo;
 
 use strict;
+use Carp;
 use Exporter;
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT $AUTOLOAD);
 
 @ISA    = "Exporter";
 @EXPORT = qw ( );
@@ -155,34 +173,27 @@ sub LookupRow($$)
     
     return $self;
 }
-# accessors
-sub field($$) { return ((! ref($_[0])) ? -1 : $_[0]->{'OSINFO'}->{$_[1]}); }
-sub osname($)           { return field($_[0], "osname"); }
-sub osid($)             { return field($_[0], "osid"); }
-sub pid($)	        { return field($_[0], "pid"); }
-sub gid($)	        { return field($_[0], "gid"); }
-sub pid_idx($)          { return field($_[0], "pid_idx"); }
-sub gid_idx($)          { return field($_[0], "gid_idx"); }
-sub creator($)          { return field($_[0], "creator"); }
-sub creator_idx($)      { return field($_[0], "creator_idx"); }
-sub created($)          { return field($_[0], "created"); }
-sub description($)      { return field($_[0], "description"); }
-sub OS($)		{ return field($_[0], "OS"); }
-sub version($)		{ return field($_[0], "version"); }
-sub path($)             { return field($_[0], "path"); }
-sub magic($)            { return field($_[0], "magic"); }
-sub machinetype($)      { return field($_[0], "machinetype"); }
-sub osfeatures($)       { return field($_[0], "osfeatures"); }
-sub ezid($)		{ return field($_[0], "ezid"); }
-sub shared($)		{ return field($_[0], "shared"); }
-sub mustclean($)	{ return field($_[0], "mustclean"); }
-sub op_mode($)		{ return field($_[0], "op_mode"); }
-sub nextosid($)		{ return field($_[0], "nextosid"); }
-sub max_concurrent($)   { return field($_[0], "max_concurrent"); }
-sub mfs($)              { return field($_[0], "mfs"); }
-sub reboot_waittime($)  { return field($_[0], "reboot_waittime"); }
-sub def_parentosid($)   { return field($_[0], "def_parentosid"); }
-sub protogeni_export($) { return field($_[0], "protogeni_export"); }
+
+AUTOLOAD {
+    my $self  = $_[0];
+    my $type  = ref($self) or croak "$self is not an object";
+    my $name  = $AUTOLOAD;
+    $name =~ s/.*://;   # strip fully-qualified portion
+
+    # A DB row proxy method call.
+    if (exists($self->{'OSINFO'}->{$name})) {
+	return $self->{'OSINFO'}->{$name};
+    }
+    carp("No such slot '$name' field in class $type");
+    return undef;
+}
+
+# Break circular reference someplace to avoid exit errors.
+sub DESTROY {
+    my $self = shift;
+
+    $self->{'OSINFO'} = undef;
+}
 
 #
 # Create a new os_info. This installs the new record in the DB,
@@ -635,12 +646,10 @@ sub RunsOnParent($$)
 {
     my ($self,$parent) = @_;
 
-    my ($osid,$osname) = ($self->osid(),$self->osname());
-    my $def_parentosid = $self->def_parentosid();
-
+    my ($osid,$osname)   = ($self->osid(),$self->osname());
+    my $def_parentosid   = $self->def_parentosid();
     my ($posid,$posname) = ($parent->osid(),$parent->osname());
 
-    
     return 0
 	if (!$self->IsSubOS());
 
@@ -664,19 +673,14 @@ sub SetRunsOnParent($$)
 {
     my ($self,$parent) = @_;
 
-    my ($osid,$osname) = ($self->osid(),$self->osname());
-    my $def_parentosid = $self->def_parentosid();
-
-    my ($posid,$posname) = ($parent->osid(),$parent->osname());
+    my $osid  = $self->osid();
+    my $posid = $parent->osid();
 
     return 0
 	if (!$self->IsSubOS());
 
-    return 1
-	if ($posid == $def_parentosid);
-
     DBQueryWarn("replace into os_submap set ".
-		"  osid=$osid and parent_osid=$posid")
+		"  osid=$osid,parent_osid=$posid")
 	or return -1;
 
     return 0;

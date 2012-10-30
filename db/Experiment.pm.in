@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2005-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 package Experiment;
 
@@ -3277,7 +3294,8 @@ sub RemovePhysicalState($;$)
 
 	# Interfaces table is special. Also cleaned in nfree.
 	DBQueryWarn("update interfaces set IP='',IPaliases=NULL,mask=NULL,".
-		    "       rtabid='0',vnode_id=NULL,current_speed='0' " .
+		    "       rtabid='0',vnode_id=NULL,current_speed='0', " .
+		    "       trunk='0',trunk_mode='equal' ".
 		    "where ($clause) and ".
 		    "       role='" . TBDB_IFACEROLE_EXPERIMENT() . "' ")
 	    or $errors++;
@@ -4696,6 +4714,25 @@ sub HasVirtNodes($)
     return $query_result->num_rows;
 }
 
+sub HasVirtInterfaces($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference.
+    return -1
+	if (!ref($self));
+
+    my $idx = $self->idx();
+
+    my $query_result =
+	DBQueryWarn("select node_id from vinterfaces ".
+		     "where exptidx=$idx");
+
+    return -1
+	if (!$query_result);
+    return $query_result->num_rows;
+}
+
 #
 # Set/Unset the lockdown bit.
 #
@@ -5224,27 +5261,144 @@ sub SyncPortLans($)
 	}
 
 	#
-	# Call snmpit once for each experiment that owns one of the
-	# target vlans.
+	# Call snmpit once for each lan.
 	#
-	my $experiment = $portvlan->GetExperiment();
-	return -1
-	    if (!defined($experiment));
-	
-	$portlans{$experiment->idx()} = $experiment;
+	$portlans{$portvlan->lanid()} = $portvlan;
     }
     #
     # Now do it.
     #
     foreach my $idx (keys(%portlans)) {
-	my $experiment = $portlans{$idx};
+	my $portvlan    = $portlans{$idx};
+	my $experiment  = $portvlan->GetExperiment();
+	return -1
+	    if (!defined($experiment));
+	
 	my $pid = $experiment->pid();
 	my $eid = $experiment->eid();
 
-	print "Syncing target vlans in $experiment\n";
-	mysystem("$TB/bin/snmpit_test -f --redirect-err -X $pid $eid");
-	return -1
-	    if ($?);
+	#
+	# The lan is obviously shared, so we have to lock it.
+	# It should not spend much time locked though, so the
+	# timeout should not be too long; indicates an error if
+	# it is.
+	#
+	if ($portvlan->Lock(180) != 0) {
+	    tberror("Could not lock $portvlan for a long time!\n");
+	    return -1;
+	}
+
+	print "Syncing target vlan $idx in $experiment\n";
+	mysystem("$TB/bin/snmpit_test -f --redirect-err -X $pid $eid $idx");
+	if ($?) {
+	    $portvlan->Unlock();
+	    return -1;
+	}
+	$portvlan->Unlock();
+    }
+    return 0;
+}
+
+#
+# When swapping in an experiment, need to copy the ports to the
+# shared lans. 
+#
+sub SetupPortLans($)
+{
+    my ($self) = @_;
+    require Lan;
+
+    my @lans;
+    if (Lan->ExperimentLans($self, \@lans) != 0) {
+	tberror("Could not get list of all lans for $self\n");
+	return -1;
+    }
+    foreach my $lan (@lans) {
+	next
+	    if ($lan->type() ne "portlan");
+
+	my $target_lanid;
+	$lan->GetAttribute("target_lanid", \$target_lanid) == 0
+	    or return -1;
+
+	my $portvlan = Lan->Lookup($target_lanid);
+	if (!defined($portvlan)) {
+	    tberror("Could not lookup portvlan $target_lanid\n");
+	    return -1;
+	}
+
+	#
+	# The lan is obviously shared, so we have to lock it.
+	# It should not spend much time locked though, so the
+	# timeout should not be too long; indicates an error if
+	# it is.
+	#
+	if ($portvlan->Lock(180) != 0) {
+	    tberror("Could not lock $portvlan for a long time!\n");
+	    return -1;
+	}
+
+	#
+	# The idea here is to remove any members for this lan
+	# from the target lan, and then add the new ones. This
+	# violates update, in that an error after this will not
+	# restore the missing ports. Need to fix that.
+	#
+	my @members;
+	if ($portvlan->MemberList(\@members) != 0) {
+	    tberror("Could not get member list for $portvlan\n");
+	    $portvlan->Unlock();
+	    return -1;
+	}
+	foreach my $member (@members) {
+	    my $member_exptidx;
+	    my $member_lanname;
+	    $member->GetAttribute("portlan_exptidx", \$member_exptidx);
+	    $member->GetAttribute("portlan_lanname", \$member_lanname);
+
+	    # Not a port in an external lan; a native port.
+	    next
+		if (!defined($member_exptidx) && !defined($member_lanname));
+
+	    if (! (defined($member_exptidx) && defined($member_lanname))) {
+		tberror("Could not get idx/lanname from $member\n");
+		$portvlan->Unlock();
+		return -1;
+	    }
+	    next
+		if (! ($member_exptidx == $self->idx() &&
+		       $member_lanname eq $lan->vname()));
+
+	    if ($portvlan->DelMember($member)) {
+		tberror("Could not delete $member from $portvlan\n");
+		$portvlan->Unlock();
+		return -1;
+	    }
+	}
+	#
+	# Now add new members.
+	#
+	if ($lan->MemberList(\@members) != 0) {
+	    tberror("Could not get member list for $lan\n");
+	    $portvlan->Unlock();
+	    return -1;
+	}
+	foreach my $member (@members) {
+	    my $nodeid;
+	    my $iface;
+
+	    $member->GetNodeIface(\$nodeid, \$iface);
+	    my $newmember = $portvlan->AddMember($nodeid, $iface);
+	    if (!defined($newmember)) {
+		tberror("Could not add $member to $portvlan\n");
+		$portvlan->Unlock();
+		return -1;
+	    }
+	    # Mark where the member came from.
+	    $newmember->SetAttribute("portlan_exptidx", $self->idx());
+	    $newmember->SetAttribute("portlan_lanname", $lan->vname());
+	}
+	$portvlan->Unlock();
     }
     return 0;
 }
@@ -5279,12 +5433,24 @@ sub ClearPortLans($)
 	}
 
 	#
+	# The lan is obviously shared, so we have to lock it.
+	# It should not spend much time locked though, so the
+	# timeout should not be too long; indicates an error if
+	# it is.
+	#
+	if ($portvlan->Lock(180) != 0) {
+	    tberror("Could not lock $portvlan for a long time!\n");
+	    return -1;
+	}
+
+	#
 	# The idea here is to remove any members for this lan
 	# from the target lan. Then sync the target. 
 	#
 	my @members;
 	if ($portvlan->MemberList(\@members) != 0) {
 	    tberror("Could not get member list for $portvlan\n");
+	    $portvlan->Unlock();
 	    return -1;
 	}
 	foreach my $member (@members) {
@@ -5299,6 +5465,7 @@ sub ClearPortLans($)
 
 	    if (! (defined($member_exptidx) || defined($member_lanname))) {
 		tberror("Could not get idx/lanname from $member\n");
+		$portvlan->Unlock();
 		return -1;
 	    }
 	    next
@@ -5308,23 +5475,29 @@ sub ClearPortLans($)
 	    # Delete the member.
 	    if ($portvlan->DelMember($member)) {
 		tberror("Could not delete $member from $portvlan\n");
+		$portvlan->Unlock();
 		return -1;
 	    }
 	}
 	#
-	# Call snmpit once for each experiment that owns one of the
-	# target vlans.
+	# Call snmpit on the lan.
 	#
 	my $experiment = $portvlan->GetExperiment();
-	return -1
-	    if (!defined($experiment));
+	if (!defined($experiment)) {
+	    $portvlan->Unlock();
+	    return -1;
+	}
 	my $pid = $experiment->pid();
 	my $eid = $experiment->eid();
+	my $lanid = $portvlan->lanid();
 	
-	print "Syncing target vlans in $experiment\n";
-	mysystem("$TB/bin/snmpit_test -f --redirect-err -X $pid $eid");
-	return -1
-	    if ($?);
+	print "Syncing target vlan $lanid in $experiment\n";
+	mysystem("$TB/bin/snmpit_test -f --redirect-err -X $pid $eid $lanid");
+	if ($?) {
+	    $portvlan->Unlock();
+	    return -1;
+	}
+	$portvlan->Unlock();
     }
     return 0;
 }

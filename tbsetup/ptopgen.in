@@ -1,9 +1,26 @@
 #!/usr/bin/perl -w
 
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 use English;
@@ -67,7 +84,7 @@ sub usage()
         exit(-1);
 }
 
-my $optlist = "s:e:m:vp:rSan:c:uxg:h1:l:zZ";
+my $optlist = "s:e:m:vp:rSan:c:uxg:h1:l:zZC";
 my $mfactor;
 my $virtstuff = 0;
 my $widearea  = 0;
@@ -81,6 +98,7 @@ my $genimode  = $NO_GENI;
 my $useshared = 0;
 my $component_name = undef;
 my $randomize = 0;
+my $usecontrol= 0;
 
 my $OURDOMAIN = "@OURDOMAIN@";
 my $MAINSITE  = @TBMAINSITE@;
@@ -89,6 +107,52 @@ my $cmurn = "";
 if ($PGENISUPPORT) {
     $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
 }
+
+$opstate = <<'OPSTATE';
+<rspec_opstate xmlns="http://www.geni.net/resources/rspec/ext/opstate/1"
+  aggregate_manager_id="CMURN"
+  start="geni_notready">
+  <sliver_type name="raw-pc" />
+  <sliver_type name="emulab-openvz" />
+
+  <state name="geni_notready">
+    <action name="geni_start" next="geni_configuring">
+      <description>Boot the node</description>
+    </action>
+    <description>Raw PCs and VMs begin powered down or inactive. They
+    must be explicitly booted before use.</description>
+  </state>
+  <state name="geni_configuring">
+    <wait type="geni_success" next="geni_ready" />
+    <wait type="geni_failure" next="geni_failed" />
+    <description>Booting takes a significant amount of time, so it
+    happens asynchronously while the node is in this
+    state.</description>
+  </state>
+  <state name="geni_ready">
+    <action name="geni_restart" next="geni_configuring">
+      <description>Reboot the node</description>
+    </action>
+    <action name="geni_stop" next="geni_stopping">
+      <description>Power down or stop the node.</description>
+    </action>
+    <description>The node is up and ready to use.</description>
+  </state>
+  <state name="geni_stopping">
+    <wait type="geni_success" next="geni_notready" />
+    <wait type="geni_failure" next="geni_failed" />
+    <description>The node is being stopped or rebooted.</description>
+  </state>
+  <state name="geni_failed">
+    <description>The node has failed and requires administrator
+    intervention before it can be used. Please contact
+    the administrator for assistance.</description>
+  </state>
+</rspec_opstate>
+OPSTATE
+
+$opstate =~ s/CMURN/$cmurn/g;
+
 
 my $default_long = undef;
 TBGetSiteVar('general/default_longitude', \$default_long);
@@ -199,6 +263,9 @@ if (defined($options{"u"})) {
 }
 if (defined($options{"c"})) {
     $delaycap_override = $options{"c"};
+}
+if (defined($options{"C"})) {
+    $usecontrol = 1;
 }
 if (defined($options{"n"})) {
     if ($options{"n"} =~ /(\d*),(\d*)/) {
@@ -639,8 +706,11 @@ elsif (! defined($component_name)) {
 		     "left join node_type_attributes as na on ".
 		     "     na.type=n.type and ".
 		     "     na.attrkey='forwarding_protocols' ".
-		     "where role='testswitch' or role='widearea_switch' or ".
-		     "      (role='testnodefoo' and nt.isswitch=1)");
+		     "where ".
+		     ($usecontrol ?
+		      "role='ctrlswitch' and nt.isswitch=1" :
+		      "role='testswitch' or role='widearea_switch' or ".
+		      "      (role='testnodefoo' and nt.isswitch=1)"));
 
     while (($switch, $uuid, $country, $latitude, $longitude, $protocols) =
             $result->fetchrow_array) {
@@ -730,7 +800,7 @@ if (defined($component_name)) {
 $result =
     DBQueryFatal("select a.node_id,a.type,a.phys_nodeid,t.class,t.issubnode," .
 		 "a.def_boot_osid,(b.pid is not null and b.eid is not null), ".
-		 "  np.reserved_pid is not null,np.eventstate, ".
+		 "  np.reserved_pid,np.eventstate, ".
 		 "  np.battery_percentage,np.uuid,b.sharing_mode, ".
 		 "  ru.load_1min, ru.load_5min, ru.status_timestamp, ".
 		 "  a.def_boot_osid, nat2.attrvalue, wn.country, " .
@@ -797,7 +867,9 @@ while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 	$sharing_mode{$node} = 0;
     }
 
-    $is_prereserved{$node} = $prereserved;
+    if (defined($prereserved) && !(defined($pid) && $prereserved eq $pid)) {
+	$is_prereserved{$node} = $prereserved;
+    }
 
     $curr_state{$node} = $eventstate;
     $curr_batt{$node} = $battery_perc;
@@ -885,6 +957,11 @@ foreach $node (@nodenames) {
 	push(@types, "$class:1");
     }
 
+    my $explicit =
+	$typemap{$type}->{'TYPEINFO'}->GetAttribute("explicit_request");
+    if (defined($explicit)) {
+	push(@features, "$type-explicit:1");
+    }
     if (defined($delay_capacity) && $delay_capacity > 0) {
 	# Comes from the NS file;
 	$delay_capacity = $delaycap_override
@@ -1063,6 +1140,13 @@ foreach $node (@nodenames) {
 	if (defined($features{$node})) {
 	    push @features, @{$features{$node}};
 	}
+    } else {
+	for my $feature (@{$typemap{$type}->{'FEATURES'}}) {
+	    # TODO: Un-hardcode this. Ugh.
+	    if ($feature =~ /highvlan/) {
+		push(@features, $feature);
+	    }
+	}
     }
 
     #
@@ -1121,7 +1205,7 @@ foreach $node (@nodenames) {
 	push(@features,"already_reserved:0");
     }
 
-    if ($is_prereserved{$node}) {
+    if (exists($is_prereserved{$node})) {
 	push(@features,"prereserved:0.9");
     }
 
@@ -1451,7 +1535,9 @@ if (defined($experiment)) {
 
 $result = DBQueryFatal("SELECT node_id1,card1,port1,node_id2,card2,port2" .
 		       " from wires where logical=0 and ".
-		       "   (type=\"Node\" or type=\"Trunk\")");
+		       "   (type='Trunk' or ".
+		       ($usecontrol ? "type='Control'" : "type='Node'") . ")");
+
 while (($node1,$card1,$port1,$node2,$card2,$port2) = 
        $result->fetchrow_array) {
     if ((defined($nodes{$node1}) || defined($switches{$node1})) && 
@@ -1837,6 +1923,7 @@ sub print_header {
 		}
 		print "</rspec_shared_vlan>\n";
 	    }
+	    print $opstate . "\n";
 	}
     }
 }
@@ -1857,7 +1944,6 @@ sub print_footer {
 		       $times[5] + 1900, $times[4] + 1, $times[3],
 		       $times[2], $times[1], $times[0]);
 		print ">\n";
-		my $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
 		my $cmurl = "@PROTOGENI_URL@";
 		print "<aggregate id=\"$cmurn\" url=\"$cmurl/am\">\n";
 		print  "<aggregatetype>protogeni</aggregatetype>\n".
@@ -2144,7 +2230,7 @@ sub print_node_types
 	    }
 	    print "  />\n";
 	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	    if ($name eq "pc") {
+	    if ($name eq "pc" || $name eq "pcRemote") {
 		print "  <sliver_type name=\"raw-pc\">\n";
 		if (defined($mainType)) {
 		    print_osids($mainType);
@@ -2306,6 +2392,10 @@ sub print_node_interfaces
     my $i = 0;
     for (; $i < scalar(@interfaces); ++$i) {
 	my $name = $interfaces[$i];
+	if (defined($MAINSITE) && $MAINSITE && $nodeName eq "instageni-nc7"
+	    && $name ne "eth5") {
+	    next;
+	}
 	my $urn = GeniHRN::GenerateInterface($OURDOMAIN, $nodeName, $name);
 	print "  <interface component_id=\"$urn\" ";
 	if (exists($interfaceroles{"$nodeName:$name"})) {
@@ -2342,6 +2432,11 @@ sub print_named_link_ptop
     my @proto = @{ shift(@_) };
     my $is_interconnect = shift(@_);
 
+    if (defined($MAINSITE) && $MAINSITE &&
+	(($source eq "instageni-nc7" && $source_if ne "eth5") ||
+	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
+	return;
+    }
     my $source_full = "$source:$source/$source_if";
     # Not sure about (null) stuff ... 
     my $dest_full = "$dest:" .
@@ -2372,6 +2467,11 @@ sub print_named_link_xml
 						$source_if);
     my $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
 					      $dest_if);
+    if (defined($MAINSITE) && $MAINSITE &&
+	(($source eq "instageni-nc7" && $source_if ne "eth5") ||
+	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
+	return;
+    }
     if ($genimode ne $NO_GENI) {
 	$name =~ s/:/\/\//g;
 	my $external_manager_urn;

@@ -1,8 +1,25 @@
 #!/bin/sh
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 if [ -r /etc/emulab/paths.sh ]; then
@@ -12,6 +29,16 @@ else
 	BOOTDIR=/var/emulab/boot
 	ETCDIR=/etc/emulab
 fi
+
+# XXX should fix paths.sh but I am afraid of the consequences
+if [ -d "/etc/emulab" -a "$ETCDIR" = "/etc/testbed" ]; then
+	ETCDIR=/etc/emulab
+	for f in isvgaonly isflash bossnode emulab.pem client.pem; do
+		if [ -e "/etc/testbed/$f" -a ! -e "/etc/emulab/$f" ]; then
+			mv /etc/testbed/$f /etc/emulab/$f
+		fi
+	done
+fi    
 
 disk="ad0"
 
@@ -162,6 +189,7 @@ dofreebsd() {
 	echo "fixing FreeBSD root partition ${disk}s${part}a"
 	fsck -p $rootdev || {
 		# 8.x fsck fails to determine the FS type, try again with ufs
+		echo "retrying fsck with '-t ufs'"
 		fsck -t ufs -p $rootdev || {
 		    echo "Fsck of $rootdev failed"
 		    return 1
@@ -306,11 +334,14 @@ dofreebsd() {
 	    fi
 	fi
 
+	#
+	# Localize the image. We only do this if the MFS we are running in
+	# has the necessary files.
+	#
 	if islocalized; then
 	    # Check the certs.
 	    if [ -e $ETCDIR/emulab.pem ]; then
 		cmp -s $ETCDIR/emulab.pem /mnt/etc/emulab/emulab.pem
-
 		if [ $? -ne 0 ]; then
 		    changecerts=1
 		    fixit=1
@@ -318,14 +349,13 @@ dofreebsd() {
 	    fi
 	    if [ -e $ETCDIR/client.pem ]; then
 		cmp -s $ETCDIR/client.pem /mnt/etc/emulab/client.pem
-
 		if [ $? -ne 0 ]; then
 		    changecerts=1
 		    fixit=1
 		fi
 	    fi
 
-	    # Check the root keys
+	    # Check the root keys.
 	    if [ -e /root/.ssh/authorized_keys2 ]; then
 		cmp -s /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys
 		if [ $? -ne 0 ]; then
@@ -335,21 +365,21 @@ dofreebsd() {
 	    fi
 	
 	    # Check the host keys.
-	    if [ -e /etc/ssh/ssh_host_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_key ]; then
 		cmp -s /etc/ssh/ssh_host_key /mnt/etc/ssh/ssh_host_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
 		    fixit=1
 		fi
 	    fi
-	    if [ -e /etc/ssh/ssh_host_rsa_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_rsa_key ]; then
 		cmp -s /etc/ssh/ssh_host_rsa_key /mnt/etc/ssh/ssh_host_rsa_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
 		    fixit=1
 		fi
 	    fi
-	    if [ -e /etc/ssh/ssh_host_dsa_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_dsa_key ]; then
 		cmp -s /etc/ssh/ssh_host_dsa_key /mnt/etc/ssh/ssh_host_dsa_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
@@ -513,7 +543,7 @@ EOF1
 		    return 1
 		}
 	    fi
-	    cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem /mnt/etc/emulab || {
+	    cp -p $ETCDIR/emulab.pem $ETCDIR/client.pem /mnt/etc/emulab/ || {
 	        echo "Failed to create $ETCDIR/emulab.pem or $ETCDIR/client.pem"
 		umount $rootdev
 		return 1
@@ -522,7 +552,7 @@ EOF1
 
 	# Copy in new root keys
 	if [ $changerootkeys -eq 1 ]; then
-	    echo "  updating /root/.ssh/authorized_keys2"
+	    echo "  updating /root/.ssh/authorized_keys"
 
 	    if [ ! -d /mnt/root/.ssh ]; then
 		mkdir -m 700 /mnt/root/.ssh || {
@@ -531,7 +561,13 @@ EOF1
 		    return 1
 		}
 	    fi
-	    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh || {
+	    # copy to both authorized_keys and _keys2
+	    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys || {
+	        echo "Failed to create /root/.ssh/authorized_keys"
+		umount $rootdev
+		return 1
+	    }
+	    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/ || {
 	        echo "Failed to create /root/.ssh/authorized_keys2"
 		umount $rootdev
 		return 1
@@ -549,7 +585,7 @@ EOF1
 		    return 1
 		}
 	    fi
-	    cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh || {
+	    cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh/ || {
 	        echo "Failed to create /etc/ssh/hostkeys"
 		umount $rootdev
 		return 1
@@ -625,10 +661,10 @@ dolinux() {
 		dtype="sd"
 		lrootdev="8${dunit}${part}"
 		;;
-	# perc
-	mfid[0-15])
+	# PERC
+	mfid[0-9]|mfisyspd[0-9])
 		dtype="sd"
-		dunit=`echo $disk | sed -e 's/mfid\([0-9][0-9]*\)/\1/'`
+		dunit=`echo $disk | sed -e 's/.*\([0-9]\)$/\1/'`
 		lrootdev="8${dunit}${part}"
 		;;
 	# Adaptec
@@ -650,10 +686,30 @@ dolinux() {
 	esac
 	dunit=`echo $dunit | sed -e 'y/01234567/abcdefgh/'`;
 	ldisk=$dtype$dunit
+	rootdev=/dev/${disk}s${part}
+
+	#
+	# See if there is a valid filesystem UUID to use in fstab and grub.
+	#
+	RUUID=""
+	if [ -x /usr/local/sbin/dumpe2fs ]; then
+	    RUUID=`dumpe2fs $rootdev 2>/dev/null | grep UUID: | sed -e 's/.*UUID:  *\([^ ]*\).*/\1/'`
+	    #
+	    # To be pedantic, we should do the following (generate a new
+	    # UUID, but this seems to be causing strange problems with the
+	    # UUID not always being updated. It will also cause the root FS
+	    # to be fsck'ed everytime (see needfsck below).
+	    #
+	    if false && [ -n "$RUUID" -a -x /usr/local/sbin/tune2fs ]; then
+		# generate/install a new random UUID with tune2fs
+		echo "  setting new root FS UUID"
+		tune2fs -U random $rootdev 2>/dev/null
+		RUUID=`dumpe2fs $rootdev 2>/dev/null | grep UUID: | sed -e 's/.*UUID:  *\([^ ]*\).*/\1/'`
+	    fi
+	fi
 
 	# attempt to mount filesystem   
-	rootdev=/dev/${disk}s${part}
-	echo "fixing Linux root partition ${disk}s${part}"
+	echo "  fixing Linux root partition ${disk}s${part}"
 	mount -t ext2fs $rootdev /mnt || {
 	    # might need a journal recovery, try fsck
 	    echo "EXT2FS mount failed, trying recovery..."
@@ -674,28 +730,73 @@ dolinux() {
 	    }
 	fi
 
-	# change the swap devices in fstab
+	# change the devices in fstab
+	echo "  updating /etc/fstab"
 	sed -i .preemulab -e "s;^/dev/[hs]d.\([0-7]\);/dev/${ldisk}\1;" /mnt/etc/fstab || {
-		echo "Failed to update /etc/fstab"
-		umount $rootdev
-		return 1
+	    echo "Failed to update /etc/fstab"
+	    umount $rootdev
+	    return 1
 	}
 
 	#
+	# If filesystem has a UUID, make sure that is used in fstab.
+	#
+	# Note that we will only use the UUID if it is already being used
+	# in the image we just downloaded. This is just because I don't want
+	# to chance breaking some really old image.
+	#
+	if [ -n "$RUUID" ]; then
+	    sed -E -i '' -e "s;^UUID=[^ ]+ +/ ;UUID=$RUUID / ;" /mnt/etc/fstab || {
+		echo "Failed to update /etc/fstab"
+		umount $rootdev
+		return 1
+	    }
+	fi
+	
+	#
 	# If there's a GRUB config file, update all root=X kernel params.
 	#
-	fgconf=/boot/grub/grub.conf
-	gconf=/mnt$fgconf
-        if [ ! -r $gconf ]; then
-	    echo "Could not find $fgconf; trying /boot/grub/menu.lst"
-	    fgconf=/boot/grub/menu.lst
-	    gconf=/mnt$fgconf
-	fi
-	if [ -r $gconf ]; then
+	needfsck=0
+	fgconf=""
+	for f in grub.conf grub.cfg menu.lst; do
+	    if [ -z "$fgconf" -a -r /mnt/boot/grub/$f ]; then
+		fgconf=/boot/grub/$f
+		gconf=/mnt$fgconf
+	    fi
+	done
+	if [ -n "$fgconf" -a -r "$gconf" ]; then
 	    echo "  updating $fgconf"
-	    sed -i .preemulab -e "s;\([br]oot=/dev\)/[hs]d.[0-7];\1/${ldisk}${part};" $gconf || {
+
+	    #
+	    # We go out of our way to avoid changing grub.conf if we don't
+	    # have to, since it might require us to fsck the filesystem
+	    # afterward (see "XXX woeful hack" below).
+	    #
+	    tgconf="$gconf.tmp"
+	    rm -f $tgconf
+	    cp $gconf $tgconf || {
+		echo "Cannot copy $fgconf, will change in place"
+		cp -p $gconf $gconf.preemulab
+		# XXX only do this if it appears that selinux is installed
+		if [ -e /mnt/etc/selinux/config ]; then
+		    needfsck=1
+		fi
+		tgconf=gconf
+	    }
+
+	    sed -i '' -e "s;\([br]oot=/dev\)/[hs]d.[0-7];\1/${ldisk}${part};" $tgconf || {
 		echo "Failed to update $fgconf"
 	    }
+
+	    #
+	    # Again, replace UUID if we have one and grub conf uses it already.
+	    #
+	    if [ -n "$RUUID" ]; then
+		sed -i '' -e "s;\([br]oot=\)UUID=[^ ]* ;\1UUID=$RUUID ;" $tgconf || {
+		    echo "Failed to update UUIDs in $fgconf"
+		}
+		
+	    fi
 
 	    #
 	    # Tweak grub's notion of root.
@@ -711,9 +812,80 @@ dolinux() {
 	    if [ $FLASHBOOT -eq 1 ]; then
 	        gdisk=`expr $gdisk + 1`
 	    fi
-	    sed -i '' -e "s;root (hd[0-9],[0-9]);root (hd${gdisk},${gpart});" $gconf || {
+
+	    # grub1
+	    sed -i '' -e "s;root (hd[0-9],[0-9]);root (hd${gdisk},${gpart});" $tgconf || {
 		echo "Failed to update root in $fgconf"
 	    }
+
+	    # grub2 (note 'part' and not 'gpart'; no -1 in grub2)
+	    sed -i '' -e "s;set root='(hd[0-9],[^)]*)';set root='(hd${gdisk},${part})';" $tgconf || {
+		echo "Failed to update root in $fgconf"
+	    }
+
+	    #
+	    # Console. If there is no serial console, need to modify the
+	    # grub config to use the vga only. 
+	    #
+	    if [ $VGAONLY = "yes" ]; then
+		grep -E '^terminal.*serial' $tgconf >/dev/null 2>&1
+		case $? in
+		0)
+		    echo "  changing grub terminal to console"
+		    sed -i '' -e "s;^terminal;#terminal;" $tgconf || {
+			echo "Failed to update terminal line in $fgconf"
+		    }
+		    echo "terminal --timeout=5 console" >> $tgconf
+		    ;;
+		*)
+		    ;;
+		esac
+		
+		# Added by Hussam to disable the serial line defination
+		grep -E '^serial.*--speed' $tgconf >/dev/null 2>&1
+		case $? in
+		0)
+		    echo "  disabling serial line config in grub"
+	            sed -i '' -e "s;^serial;#serial;" $tgconf || {
+			echo "Failed to update serial line in $fgconf"
+		    }
+		    ;;
+		*)
+	            ;;
+		esac
+
+		grep -E "console=ttyS" $tgconf >/dev/null 2>&1
+		case $? in
+		0)
+		    echo "  changing grub kernel command to console"
+		    sed -i '' -e 's;ttyS[^ ]*;tty0;' $tgconf || {
+			echo "Failed to update console in $fgconf"
+		    }
+	            ;;
+		*)
+	            ;;
+		esac
+	    fi
+
+	    #
+	    # If we had to change something, then move the new version into
+	    # place and mark that we did so.
+	    #
+	    if [ "$tgconf" != "$gconf" ]; then
+		cmp -s $tgconf $gconf 2>/dev/null
+		if [ $? -ne 0 ]; then
+		    cp -p $gconf $gconf.preemulab
+		    mv $tgconf $gconf || {
+			echo "Failed to update $fgconf"
+			mv $gconf.preemulab $gconf
+		    }
+		    # XXX only do this if it appears that selinux is installed
+		    if [ -e /mnt/etc/selinux/config ]; then
+			needfsck=1
+		    fi
+		fi
+		rm -f $tgconf
+	    fi
 	fi
 
 	#
@@ -742,67 +914,19 @@ dolinux() {
 	#
 	# Blacklist the hp ilo stuff.
 	#
-	modules="hpilo hpwdt"
-	for mod in ${modules}; do
-	    grep $mod /mnt/etc/modprobe.d/blacklist.conf >/dev/null 2>&1
-	    case $? in
-	    0)
-		;;
-	    *)
-		echo "  blacklisting $mod"
-                echo "blacklist $mod" >> /mnt/etc/modprobe.d/blacklist.conf
-	        ;;
-	    esac
-        done
-
-	#
-	# Console. If there is no serial console, need to modify the
-	# grub config to use the vga only. 
-	#
-	if [ $VGAONLY = "yes" ]; then
-	    grep -E '^terminal.*serial' $gconf >/dev/null 2>&1
-	    case $? in
-	    0)
-		echo "  changing grub terminal to console"
-	        sed -i .preemulab -e "s;^terminal;#terminal;" $gconf || {
-		    echo "Failed to update terminal line in $gconf"
-		    umount $rootdev
-		    return 1
-		}
-		echo "terminal --timeout=5 console" >> $gconf
-		;;
-	    *)
-	        ;;
-	    esac
-	    
-	    # Added by Hussam to disable the serial line defination
-	    grep -E '^serial.*--speed' $gconf >/dev/null 2>&1
-	    case $? in
-	    0)
-		echo "  disabling serial line config in grub"
-	        sed -i .preemulab -e "s;^serial;#serial;" $gconf || {
-		    echo "Failed to update serial line in $gconf"
-		    umount $rootdev
-		    return 1
-		}
-		;;
-	    *)
-	        ;;
-	    esac
-
-	    grep -E "console=ttyS" $gconf >/dev/null 2>&1
-	    case $? in
-	    0)
-		echo "  changing grub kernel command to console"
-		sed -i .preemulab -e 's;ttyS[^ ]*;tty0;' $gconf || {
-		    echo "Failed to update console in $gconf"
-		    umount $rootdev
-		    return 1
-		}
-	        ;;
-	    *)
-	        ;;
-	    esac
+	if [ -d "/mnt/etc/modprobe.d" ]; then
+	    modules="hpilo hpwdt"
+	    for mod in ${modules}; do
+		grep $mod /mnt/etc/modprobe.d/blacklist.conf >/dev/null 2>&1
+		case $? in
+		0)
+		    ;;
+		*)
+		    echo "  blacklisting $mod"
+                    echo "blacklist $mod" >> /mnt/etc/modprobe.d/blacklist.conf
+	            ;;
+		esac
+            done
 	fi
 
 	if [ -f /mnt/var/lib/random-seed -a -c /dev/urandom ]; then
@@ -810,8 +934,12 @@ dolinux() {
 	    dd if=/dev/urandom of=/mnt/var/lib/random-seed bs=512 count=1 >/dev/null 2>&1
 	fi
 
-	# Check the certs.
+	#
+	# Localize the image. We only do this if the MFS we are running in
+	# has the necessary files.
+	#
 	if islocalized; then
+	    # Check the certs.
 	    if [ ! -d /mnt/etc/emulab ]; then
 		mkdir -m 755 /mnt/etc/emulab || {
 	            echo "Failed to mkdir /mnt/etc/emulab"
@@ -821,10 +949,9 @@ dolinux() {
 	    fi
 	    if [ -e $ETCDIR/emulab.pem ]; then
 		cmp -s $ETCDIR/emulab.pem /mnt/etc/emulab/emulab.pem
-
 		if [ $? -ne 0 ]; then
 		    echo "  updating /mnt/etc/emulab/emulab.pem"
-		    cp -p $ETCDIR/emulab.pem /mnt/etc/emulab || {
+		    cp -p $ETCDIR/emulab.pem /mnt/etc/emulab/ || {
 			echo "Failed to create $ETCDIR/emulab.pem"
 			umount $rootdev
 			return 1
@@ -833,10 +960,9 @@ dolinux() {
 	    fi
 	    if [ -e $ETCDIR/client.pem ]; then
 		cmp -s $ETCDIR/client.pem /mnt/etc/emulab/client.pem
-
 		if [ $? -ne 0 ]; then
 		    echo "  updating /mnt/etc/emulab/client.pem"
-		    cp -p $ETCDIR/client.pem /mnt/etc/emulab || {
+		    cp -p $ETCDIR/client.pem /mnt/etc/emulab/ || {
 			echo "Failed to create $ETCDIR/client.pem"
 			umount $rootdev
 			return 1
@@ -844,11 +970,11 @@ dolinux() {
 		fi
 	    fi
 
-	    # Check the root keys
+	    # Check the root keys.
 	    if [ -e /root/.ssh/authorized_keys2 ]; then
 		cmp -s /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys
 		if [ $? -ne 0 ]; then
-		    echo "  updating /root/.ssh/authorized_keys2"
+		    echo "  updating /root/.ssh/authorized_keys"
 		    
 		    if [ ! -d /mnt/root/.ssh ]; then
 			mkdir -m 700 /mnt/root/.ssh || {
@@ -857,7 +983,13 @@ dolinux() {
 			    return 1
 			}
 		    fi
-		    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh || {
+		    # copy to both authorized_keys and _keys2
+		    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys || {
+			echo "Failed to create /root/.ssh/authorized_keys"
+			umount $rootdev
+			return 1
+		    }
+		    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/ || {
 			echo "Failed to create /root/.ssh/authorized_keys2"
 			umount $rootdev
 			return 1
@@ -865,21 +997,21 @@ dolinux() {
 		fi
 	    fi
 
-	    changehostkeys=0
   	    # Check the host keys.
-	    if [ -e /etc/ssh/ssh_host_key -a -d /mnt/etc/ssh ]; then
+	    changehostkeys=0
+	    if [ -e /etc/ssh/ssh_host_key ]; then
 		cmp -s /etc/ssh/ssh_host_key /mnt/etc/ssh/ssh_host_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
 		fi
 	    fi
-	    if [ -e /etc/ssh/ssh_host_rsa_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_rsa_key ]; then
 		cmp -s /etc/ssh/ssh_host_rsa_key /mnt/etc/ssh/ssh_host_rsa_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
 		fi
 	    fi
-	    if [ -e /etc/ssh/ssh_host_dsa_key -a -d /mnt/etc/ssh ]; then
+	    if [ -e /etc/ssh/ssh_host_dsa_key ]; then
 		cmp -s /etc/ssh/ssh_host_dsa_key /mnt/etc/ssh/ssh_host_dsa_key
 		if [ $? -ne 0 ]; then
 		    changehostkeys=1
@@ -895,7 +1027,7 @@ dolinux() {
 			return 1
 		    }
 		fi
-		cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh || {
+		cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh/ || {
 	            echo "Failed to create /etc/ssh/hostkeys"
 		    umount $rootdev
 		    return 1
@@ -919,12 +1051,29 @@ dolinux() {
 
 	# run any postconfig scripts:
 	if [ -x $BINDIR/osconfig ]; then
-	    echo "Checking for dynamic client-side updates to slice...";
+	    echo "  checking for dynamic client-side updates to slice";
 	    $BINDIR/osconfig -m /mnt -M '-t ext2fs' -f ext2fs \
 		-D $rootdev -s Linux postload
 	fi
 
 	umount $rootdev
+
+	#
+	# XXX woeful hack. On an SELinux-enabled filesystem, grub.conf
+	# might have an SELinux context and the BSD extfs implmentation
+	# doesn't know how to deal with extended attributes and leaves
+	# the FS in an inconsistent state. So if we changed grub.conf,
+	# we must fsck the filesystem to clean up.
+	#
+	if [ $needfsck -ne 0 ]; then
+	    echo -n "  ensuring FS is consistent..."
+	    e2fsck -yf $rootdev >/dev/null 2>&1
+	    if [ $? -ne 0 ]; then
+		echo "FIXED"
+	    else
+		echo "OK"
+	    fi
+	fi
 
 	if [ "x${linux}" != x ]; then
 	    echo -n "  "

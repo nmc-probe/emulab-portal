@@ -1,7 +1,24 @@
 /*
- * EMULAB-COPYRIGHT
- * Copyright (c) 2000-2009 University of Utah and the Flux Group.
- * All rights reserved.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * 
+ * {{{EMULAB-LICENSE
+ * 
+ * This file is part of the Emulab network testbed software.
+ * 
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version.
+ * 
+ * This file is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * }}}
  */
 
 #include <sys/types.h>
@@ -62,7 +79,7 @@ bootinfo_init(void)
 
 int
 bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info, 
-	 void *opaque, int no_event_send)
+	 void *opaque, int no_event_send, int *event_sent)
 {
 #ifdef	EVENTSYS
 	int		needevent = 0;
@@ -100,6 +117,10 @@ bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info,
 	default:
 		info("%s: invalid packet %d\n",
 		     inet_ntoa(ipaddr), boot_info->opcode);
+#ifdef	EVENTSYS
+		if (event_sent)
+			*event_sent = 0;
+#endif
 		return -1;
 	}
 	if (err)
@@ -136,6 +157,11 @@ bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info,
 		}
 #endif
 	}
+
+#ifdef	EVENTSYS
+	if (event_sent)
+		*event_sent = needevent;
+#endif
 	return 0;
 }
 
@@ -170,13 +196,14 @@ static int
 bicache_needevent(struct in_addr ipaddr)
 {
 	DBT	key, item;
-	time_t  tt = time(NULL);
+	time_t  tt;
 	int	rval = 1, r;
 
 	/* So we can include bootinfo into tmcd; always send the event. */
 	if (!dbp)
 		return 1;
 
+	tt = time(NULL);
 	key.data = (void *) &ipaddr;
 	key.size = sizeof(ipaddr);
 

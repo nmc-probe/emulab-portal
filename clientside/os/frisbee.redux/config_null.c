@@ -1,7 +1,24 @@
 /*
- * EMULAB-COPYRIGHT
  * Copyright (c) 2010-2012 University of Utah and the Flux Group.
- * All rights reserved.
+ * 
+ * {{{EMULAB-LICENSE
+ * 
+ * This file is part of the Emulab network testbed software.
+ * 
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version.
+ * 
+ * This file is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * }}}
  */
 
 /*
@@ -448,12 +465,15 @@ null_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 	int exists;
 	char *path = NULL;
 
+/* XXX don't worry about this right now; breaks virthosts under subboss */
+#if 0
 	/*
 	 * If the requester is not the same as the host, then it is a proxy
 	 * request.  We don't do proxying.
 	 */
 	if (req->s_addr != host->s_addr)
 		return 1;
+#endif
 
 	/*
 	 * If an imageid is specified, convert it into a plausible path.
@@ -674,7 +694,7 @@ struct config null_config = {
 };
 
 struct config *
-null_init(void)
+null_init(char *opts)
 {
 	char pathbuf[PATH_MAX], *path;
 	static int called;
@@ -683,6 +703,20 @@ null_init(void)
 	if (called)
 		return &null_config;
 	called++;
+
+	/*
+	 * XXX the only option we recognize right now is
+	 * mcaddr=A.B.C.D
+	 */
+	if (opts && opts[0]) {
+		char *cp = index(opts, '=');
+		if (cp) {
+			*cp = 0;
+			if (strcmp(opts, "mcaddr") == 0)
+				DEFAULT_MCADDR = cp + 1;
+			*cp = '=';
+		}
+	}
 
 	if (imagedir == NULL)
 		imagedir = DEFAULT_IMAGEDIR;

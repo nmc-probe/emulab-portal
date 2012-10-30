@@ -1,8 +1,31 @@
 #!/usr/bin/perl -w
 #
-# GENIPUBLIC-COPYRIGHT
 # Copyright (c) 2008-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
 #
 use strict;
 use English;
@@ -24,7 +47,7 @@ use GeniAM;
 use GeniResponse;
 
 if (!defined($GENI_VERSION)) {
-    $GENI_VERSION = "1.0";
+    $GENI_VERSION = "2.0";
 }
 
 GeniAM::SetGeniVersion($GENI_VERSION);
@@ -37,8 +60,21 @@ if ($GENI_VERSION eq "1.0" || $GENI_VERSION eq "2.0") {
         "DeleteSliver"  => \&GeniAM::DeleteSliver,
         "SliverStatus"  => \&GeniAM::SliverStatus,
         "RenewSliver"   => \&GeniAM::RenewSliver,
-        "Shutdown"      => \&GeniAM::Shutdown,
+        "Shutdown"      => \&GeniAM::ShutdownV2,
         "CreateImage"   => \&GeniAM::CreateImage,
+    };
+} elsif ($GENI_VERSION eq "3.0") {
+    $GENI_METHODS = {
+        "GetVersion"    => \&GeniAM::GetVersion,
+        "ListResources" => \&GeniAM::ListResources,
+	"Describe"      => \&GeniAM::Describe,
+	"Allocate"      => \&GeniAM::Allocate,
+	"Renew"         => \&GeniAM::Renew,
+	"Provision"     => \&GeniAM::Provision,
+	"Status"        => \&GeniAM::Status,
+	"PerformOperationalAction" => \&GeniAM::PerformOperationalAction,
+	"Delete"        => \&GeniAM::Delete,
+	"Shutdown"      => \&GeniAM::Shutdown,
     };
 }
 
@@ -93,7 +129,6 @@ sub ConvertResponseV2($)
 	# the geni_code to ERROR
 	$geni_code = GeniResponse::GENIRESPONSE_ERROR();
     }
-
     my $blob = {
 	"value" => GeniResponse::value($geni_response),
 	"output" => GeniResponse::output($geni_response),
@@ -103,6 +138,10 @@ sub ConvertResponseV2($)
 	    "am_type" => "protogeni"
 	}
     };
+    if (exists($geni_response->{'protogeni_error_log'})) {
+	$blob->{'code'}->{'protogeni_error_log'} =
+	    $geni_response->{'protogeni_error_log'};
+    }
 
     if (defined($version)) {
 	$blob->{"geni_api"} = $version;

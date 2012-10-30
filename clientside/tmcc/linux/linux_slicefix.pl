@@ -13,6 +13,8 @@ my $MKSWAP = '/sbin/mkswap';
 my $UUIDGEN = 'uuidgen';
 my $LOSETUP = 'losetup';
 my $TUNE2FS = 'tune2fs';
+my $LOCALIZED1 = '/.localized';
+my $LOCALIZED2 = '/root/.localized';
 
 use constant GZHDR1 => 0x1f8b0800;
 use constant GZHDR2 => 0x1f8b0808;
@@ -793,6 +795,124 @@ sub update_random_seed
 	close SEED;
 }
 
+#
+# Localize the image. We only do this if the MFS we are running in
+# has the necessary files.
+#
+sub localize
+{
+    my ($imageroot) = @_;
+
+    if (! -e "$LOCALIZED1" && ! -e "$LOCALIZED2") {
+	return;
+    }
+
+    # Check the certs.
+    if (! -d "$imageroot/etc/emulab") {
+	if (!mkdir("$imageroot/etc/emulab", 0755)) {
+	    print STDERR "Failed to mkdir $imageroot/etc/emulab\n";
+	    return;
+	}
+    }
+    if (-e "$ETCDIR/emulab.pem") {
+	system("cmp -s $ETCDIR/emulab.pem $imageroot/etc/emulab/emulab.pem >/dev/null 2>&1");
+	if ($?) {
+	    print "Updating $imageroot/etc/emulab/emulab.pem\n";
+	    system("cp -p $ETCDIR/emulab.pem $imageroot/etc/emulab/");
+	    if ($?) {
+		print STDERR "Failed to create $ETCDIR/emulab.pem\n";
+		return;
+	    }
+	}
+    }
+    if (-e "$ETCDIR/client.pem") {
+	system("cmp -s $ETCDIR/client.pem $imageroot/etc/emulab/client.pem >/dev/null 2>&1");
+	if ($?) {
+	    print "Updating $imageroot/etc/emulab/client.pem\n";
+	    system("cp -p $ETCDIR/client.pem $imageroot/etc/emulab/");
+	    if ($?) {
+		print STDERR "Failed to create $ETCDIR/client.pem\n";
+		return;
+	    }
+	}
+    }
+
+    # Check the root keys
+    if (-e "/root/.ssh/authorized_keys2") {
+	system("cmp -s /root/.ssh/authorized_keys2 $imageroot/root/.ssh/authorized_keys >/dev/null 2>&1");
+	if ($?) {
+	    print "Updating /root/.ssh/authorized_keys\n";
+	    if (! -d "$imageroot/root/.ssh") {
+		if (!mkdir("$imageroot/root/.ssh", 0700)) {
+		    print STDERR "Failed to mkdir /root/.ssh\n";
+		    return;
+		}
+	    }
+	    # copy to both authorized_keys and _keys2
+	    system("cp -p /root/.ssh/authorized_keys2 $imageroot/root/.ssh/authorized_keys");
+	    if ($?) {
+		print STDERR "Failed to create /root/.ssh/authorized_keys\n";
+		return;
+	    }
+	    system("cp -p /root/.ssh/authorized_keys2 $imageroot/root/.ssh/");
+	    if ($?) {
+		print STDERR "Failed to create /root/.ssh/authorized_keys2\n";
+		return;
+	    }
+	}
+    }
+
+    # Check the host keys.
+    my $changehostkeys = 0;
+    if (-e "/etc/ssh/ssh_host_key") {
+	system("cmp -s /etc/ssh/ssh_host_key $imageroot/etc/ssh/ssh_host_key >/dev/null 2>&1");
+	if ($?) {
+	    $changehostkeys = 1;
+	}
+    }
+    if (-e "/etc/ssh/ssh_host_rsa_key") {
+	system("cmp -s /etc/ssh/ssh_host_rsa_key $imageroot/etc/ssh/ssh_host_rsa_key >/dev/null 2>&1");
+	if ($?) {
+	    $changehostkeys = 1;
+	}
+    }
+    if (-e "/etc/ssh/ssh_host_dsa_key") {
+	system("cmp -s /etc/ssh/ssh_host_dsa_key $imageroot/etc/ssh/ssh_host_dsa_key >/dev/null 2>&1");
+	if ($?) {
+	    $changehostkeys = 1;
+	}
+    }
+    if ($changehostkeys) {
+	print "Updating /etc/ssh/hostkeys\n";
+
+	if (! -d "$imageroot/etc/ssh") {
+	    if (!mkdir("$imageroot/etc/ssh", 0755)) {
+		print STDERR "Failed to mkdir $imageroot/etc/ssh\n";
+		return;
+	    }
+	}
+	system("cp -p /etc/ssh/ssh_host_* $imageroot/etc/ssh/");
+	if ($?) {
+	    print STDERR "Failed to create /etc/ssh/hostkeys\n";
+	    return;
+	}
+    }
+
+    # Check the time zone.
+    if (-e "/etc/localtime") {
+	system("cmp -s /etc/localtime $imageroot/etc/localtime >/dev/null 2>&1");
+	if ($?) {
+	    print "Updating /etc/localtime\n";
+
+	    system("cp -p /etc/localtime $imageroot/etc/localtime");
+	    if ($?) {
+		print STDERR "Failed to create /etc/localtime\n";
+		return;
+	    }
+	}
+    }
+}
+
 sub hardwire_boss_node
 {
 	my ($imageroot) = @_;
@@ -972,6 +1092,7 @@ sub main
 		$kernel_has_ide ? $old_root : undef );
 
 	update_random_seed($imageroot);
+	localize($imageroot);
 	hardwire_boss_node($imageroot);
 
 	# Run any postconfig scripts

@@ -1,8 +1,25 @@
 <?php
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2006-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 #
@@ -654,7 +671,7 @@ class User
     }
 
     function Show($html = FALSE) {
-	global $WIKISUPPORT;
+	global $WIKISUPPORT, $GENIRACK;
 
 	$user = $this;
 
@@ -822,10 +839,22 @@ class User
                   </tr>\n";
 	}
 
-	if ($admin) {
+	if ($admin || ISADMIN()) {
+	    $admintag = ($admin ? "Yes" : "No");
+
 	    echo "<tr>
                       <td>Administrator:</td>
-                      <td>Yes</td>
+                      <td>$admintag";
+	    
+	    if ($GENIRACK) {
+		$adminflip = ($admin ? 0 : 1);
+		$toggle_url = CreateURL("toggle", $user, "type", "adminflag",
+					"value", $adminflip);
+
+		echo " (<a href='$toggle_url'>Toggle</a>)";
+	    }
+
+	    echo "</td>
                   </tr>\n";
 	}
     
@@ -1061,6 +1090,17 @@ class User
 		     "   stud='$onoff' ".
 		     "where uid_idx='$idx'");
 	$this->user["stud"] = $onoff;
+	return 0;
+    }
+    function SetAdminFlag($onoff) {
+	$idx   = $this->uid_idx();
+
+	$onoff = ($onoff ? 1 : 0);
+			    
+	DBQueryFatal("update users set ".
+		     "   admin='$onoff' ".
+		     "where uid_idx='$idx'");
+	$this->user["admin"] = $onoff;
 	return 0;
     }
     function SetWideAreaRoot($onoff) {

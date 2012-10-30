@@ -1,8 +1,31 @@
 #!/usr/bin/perl -wT
 #
-# GENIPUBLIC-COPYRIGHT
 # Copyright (c) 2008-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
 #
 package GeniCMV2;
 
@@ -51,6 +74,7 @@ my $BOSSNODE       = "@BOSSNODE@";
 my $OURDOMAIN      = "@OURDOMAIN@";
 my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
 my $ELABINELAB     = "@ELABINELAB@";
+my $TBBASE         = "@TBBASE@";
 my $CREATEEXPT     = "$TB/bin/batchexp";
 my $ENDEXPT        = "$TB/bin/endexp";
 my $NALLOC	   = "$TB/bin/nalloc";
@@ -2281,6 +2305,10 @@ sub CreateImage($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+    
     my ($slice, $aggregate) = Credential2SliceAggregate($credential);
     return $slice
 	if (defined($slice) && GeniResponse::IsResponse($slice));
@@ -2333,8 +2361,16 @@ sub CreateImage($)
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
     }
-    my $opt = ($wholedisk ? "-e" : "");
+    my $opt  = "";
+    $opt .= " -e" if ($wholedisk);
 
+    #
+    # Let user override global setting.
+    #
+    if (exists($argref->{'global'})) {
+	$opt .= " -g " . ($argref->{'global'} ? "1" : "0");
+    }
+    
     my $output =
 	GeniUtil::ExecQuiet("$CLONEIMAGE $opt -s $imagename $node_id");
     # Not a typical op, so always print debugging info;
@@ -2358,6 +2394,7 @@ sub CreateImage($)
     #
     my $image_urn = GeniHRN::Generate($OURDOMAIN, "image",
 				      $pid . "//" . $imagename);
+    my $image_url = "$TBBASE/image_metadata.php?uuid=" . $image->uuid();
 
     #
     # We used the -s (nosnapshot) option above, to get the descriptor
@@ -2369,7 +2406,8 @@ sub CreateImage($)
     if ($mypid) {
 	# Let the child get going.
 	sleep(1);
-	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $image_urn, $output);
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
+				    [$image_urn, $image_url]);
     }
     # This switches the file that we are writing to. 
     libaudit::AuditFork();
@@ -2384,7 +2422,17 @@ sub CreateImage($)
     if ($?) {
 	print STDERR "Failed to take the snapshot of $node_id\n";
 	$slice->UnLock();
+	if ($user->email()) {
+	    libtestbed::SENDMAIL($user->email(),
+				 "Failed to clone image",
+				 "$output\n");
+	}
 	return -1;
+    }
+    if ($user->email()) {
+	    libtestbed::SENDMAIL($user->email(),
+				 "Finished cloning image",
+				 "$output\n");
     }
     $slice->UnLock();
     return 0;

@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2009-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use strict;
 use Getopt::Std;
@@ -13,14 +30,16 @@ use File::Basename;
 
 sub usage()
 {
-    print "Usage: capturevm.pl [-d] vnodeid [role]\n" . 
+    print "Usage: capturevm.pl [-d] [-r role] vnodeid\n" . 
 	  "  -d   Debug mode.\n".
+	  "  -r   role (like boss or ops) to use instead of vnodeid.\n".
 	  "  -i   Info mode only\n";
     exit(-1);
 }
-my $optlist     = "dix:";
+my $optlist     = "dix:r:";
 my $debug       = 1;
 my $infomode    = 0;
+my $islinux     = 0;
 my $VMPATH      = "/var/emulab/vms/vminfo";
 my $EXTRAFS	= "/scratch";
 my $VGNAME	= "xen-vg";
@@ -53,11 +72,14 @@ if (defined($options{"d"})) {
 if (defined($options{"i"})) {
     $infomode = 1;
 }
+if (defined($options{"r"})) {
+    $role = 1;
+}
 usage()
-    if (@ARGV < 1 || @ARGV > 2);
+    if (@ARGV != 1);
 
 my $vnodeid = $ARGV[0];
-$role       = $ARGV[1] if (@ARGV == 2);
+$role       = $vnodeid if (!defined($role));
 
 if (defined($options{"x"})) {
     $XMINFO = $options{"x"};
@@ -68,7 +90,7 @@ else {
 
 CreateExtraFS();
 system("mkdir $EXTRAFS/$role")
-    if (defined($role) && ! -e "$EXTRAFS/$role");
+    if (! -e "$EXTRAFS/$role");
 
 #
 # We need this file to figure out the disk info.
@@ -101,17 +123,30 @@ close(XM);
 $xminfo{"disksizes"} = "";
 
 #
-# Copy the kernel into the directory and change xminfo.
+# Copy the kernel (and ramdisk) into the directory and change xminfo.
 #
 if (! -e $xminfo{"kernel"}) {
     Fatal($xminfo{"kernel"} . " does not exist");
 }
-my $kernel = $EXTRAFS;
-$kernel   .= "/$role" if (defined($role));
-$kernel   .= "/" . basename($xminfo{"kernel"});
+my $kernel = "$EXTRAFS/$role/" . basename($xminfo{"kernel"});
 system("cp " . $xminfo{"kernel"} . " $kernel") == 0
     or Fatal("Could not copy kernel to $kernel");
 $xminfo{"kernel"} = basename($xminfo{"kernel"});
+
+if (exists($xminfo{"ramdisk"})) {
+    if (! -e $xminfo{"ramdisk"}) {
+	Fatal($xminfo{"ramdisk"} . " does not exist");
+    }
+    my $ramdisk = "$EXTRAFS/$role/" . basename($xminfo{"ramdisk"});
+    system("cp " . $xminfo{"ramdisk"} . " $ramdisk") == 0
+	or Fatal("Could not copy ramdisk to $ramdisk");
+    $xminfo{"ramdisk"} = basename($xminfo{"ramdisk"});
+
+    #
+    # Yuck. Need a better way to determine this.
+    #
+    $islinux = 1;
+}
 
 #
 # Parse the disk info.
@@ -137,21 +172,19 @@ foreach my $device (keys(%diskinfo)) {
     my $spec = $diskinfo{$device}->{"spec"};
     my $dev;
     my $filename;
-    if ($spec =~ /,(sd\w+),/) {
+    if ($spec =~ /,(sd\w+),/ || $spec =~ /,(xvd\w+),/) {
 	$dev = $1;
     }
     else {
-	fatal("Could not parse $spec");
+	Fatal("Could not parse $spec");
     }
-    $filename = $dev;
-    $filename = "$role/$filename"
-	if (defined($role));
+    $filename = "$role/$dev";
 
     #
     # Figure out the size of the LVM.
     #
     my $lv_size = `lvs -o lv_size --noheadings --units g $device`;
-    fatal("Could not get lvsize for $device")
+    Fatal("Could not get lvsize for $device")
 	if ($?);
     chomp($lv_size);
     $lv_size =~ s/^\s+//;
@@ -180,13 +213,13 @@ foreach my $device (keys(%diskinfo)) {
     #
     my $opts = "";
     if (defined($options{"x"})) {
-	if ($device =~ /sda/) {
-	    $opts = "-b";
+	if ($device =~ /sda/ || $device =~ /xvda/) {
+	    $opts = ($islinux ? "-l" : "-b");
 	}
     }
     else {
 	if (! ($device =~ /disk/)) {
-	    $opts = "-b -f";
+	    $opts = ($islinux ? "-l" : "-b");
 	}
     }
     if ($infomode) {
@@ -213,9 +246,9 @@ else {
     #
     $xminfo{"vif"} =~ s/,\s*script=[^\']*//g;
 
-    $XMINFO = (defined($role) ? "$EXTRAFS/$role/xm.conf" : "$EXTRAFS/xm.conf");
+    $XMINFO = "$EXTRAFS/$role/xm.conf";
     open(XM, ">$XMINFO")
-	or fatal("Could not open $XMINFO: $!");
+	or Fatal("Could not open $XMINFO: $!");
     foreach my $key (keys(%xminfo)) {
 	my $val = $xminfo{$key};
 	if ($val =~ /^\[/) {
@@ -239,16 +272,16 @@ sub CreateExtraFS()
 	if (-e $EXTRAFS);
 
     system("mkdir $EXTRAFS") == 0
-	or fatal("mkdir($EXTRAFS) failed");
+	or Fatal("mkdir($EXTRAFS) failed");
     
-    system("/usr/sbin/lvcreate -n extrafs -L 100G $VGNAME") == 0
-	or fatal("lvcreate failed");
+    system("/sbin/lvcreate -n extrafs -L 100G $VGNAME") == 0
+	or Fatal("lvcreate failed");
 
     system("mke2fs -j /dev/$VGNAME/extrafs") == 0
-	or fatal("mke2fs failed");
+	or Fatal("mke2fs failed");
 
     system("mount /dev/$VGNAME/extrafs $EXTRAFS") == 0
-	or fatal("mount failed");
+	or Fatal("mount failed");
 }
 
 sub Fatal($)

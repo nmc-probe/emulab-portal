@@ -15,7 +15,7 @@ package com.hurlant.crypto.symmetric
 		private var blockSize:uint;
 		
 		public function PKCS5(blockSize:uint=0) {
-			this.blockSize = blockSize;
+			blockSize = blockSize;
 		}
 		
 		public function pad(a:ByteArray):void {

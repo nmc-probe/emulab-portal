@@ -1,7 +1,24 @@
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 # For installation.
 #
@@ -19,8 +36,8 @@ include $(OBJDIR)/Makeconf
 
 RC_SCRIPTS	= 2.mysql-server.sh 3.mfrisbeed.sh 3.testbed.sh \
 		  2.dhcpd.sh 1.mysql-client.sh
-SUBBOSS_SCRIPTS	= 2.dhcpd.sh 3.mfrisbeed-subboss.sh
-OPS_SCRIPTS     = 3.and.sh 1.mysql-client.sh 1.mysql-server.sh
+SUBBOSS_SCRIPTS	= 2.dhcpd.sh 3.mfrisbeed-subboss.sh arplock.sh
+OPS_SCRIPTS     = 3.and.sh 1.mysql-client.sh 1.mysql-server.sh arplock.sh
 ifeq ($(ELVINCOMPAT),1)
 OPS_SCRIPTS    += 2.elvind.sh 3.elvin_gateway.sh
 endif
@@ -51,6 +68,7 @@ endif
 all: $(RC_SCRIPTS) $(OPS_SCRIPTS) $(SUBBOSS_SCRIPTS) capture.sh 3.v0_gateway.sh
 
 control-build:	$(OPS_SCRIPTS) 
+subboss-build:	$(SUBBOSS_SCRIPTS) 
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
@@ -77,7 +95,7 @@ install: $(addprefix $(INSTALL_RCDIR)/, $(RC_SCRIPTS))
 
 control-install:	$(addprefix $(INSTALL_RCDIR)/, $(OPS_SCRIPTS))
 
-subboss-install:	$(addprefix $(INSTALL_RCDIR)/, $(SUBBOSS_SCRIPTS))
+subboss-install:	subboss-build $(addprefix $(INSTALL_RCDIR)/, $(SUBBOSS_SCRIPTS))
 
 clrhouse-install:	$(INSTALL_RCDIR)/2.mysql-server.sh \
 			$(INSTALL_RCDIR)/1.mysql-client.sh

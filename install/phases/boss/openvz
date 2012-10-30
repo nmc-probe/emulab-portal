@@ -88,6 +88,8 @@ sub Install($$$)
 		or PhaseFail("Could not set the nextosid for OPENVZ-STD");
 	    $osinfo->SetParentOS($nextosinfo) == 0
 		or PhaseFail("Could not set the parent osid for OPENVZ-STD");
+	    $osinfo->SetRunsOnParent($nextosinfo) == 0
+		or PhaseFail("Could not add os_submap entry for OPENVZ-STD");
 	};
 	
 	PhaseSucceed("done")

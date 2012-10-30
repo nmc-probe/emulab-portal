@@ -1,7 +1,24 @@
 #
-# EMULAB-COPYRIGHT
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
-# All rights reserved.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 #
@@ -50,8 +67,9 @@ destdircheck:
 	    false; \
 	fi
 
-subboss-install:	subboss-common-install etc-install init-install \
-			sup-install script-install bin-install jail-install 
+subboss-install:	subboss-common-install subboss-etc-install init-install \
+			sup-install script-install subboss-bin-install jail-install 
+	-rm -f $(BINDIR)/sethostname
 	@echo "Remember to install the PEM files if necessary"
 
 install client-install:	common-install etc-install init-install \
@@ -177,6 +195,11 @@ bin-install:	dir-install
 	$(INSTALL) -m 755 -s ../findif $(BINDIR)/findif
 	$(INSTALL) -m 755 -s ../dostype $(BINDIR)/dostype
 
+subboss-bin-install:	dir-install
+	$(INSTALL) -m 755 -s ../tmcc $(BINDIR)/tmcc.bin
+	$(INSTALL) -m 755 -s ../findif $(BINDIR)/findif
+	$(INSTALL) -m 755 -s ../dostype $(BINDIR)/dostype
+
 etc-install:	dir-install sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/group $(ETCDIR)/group
 	$(INSTALL) -m 600 $(SRCDIR)/master.passwd $(ETCDIR)/master.passwd
@@ -193,6 +216,14 @@ sysetc-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/periodic.conf $(SYSETCDIR)/periodic.conf
 	$(INSTALL) -m 755 $(SRCDIR)/testbed.sh $(RCDIR)/testbed.sh
 	$(INSTALL) -m 755 $(SRCDIR)/rc.early $(SYSETCDIR)/rc.early
+
+subboss-etc-install:	dir-install
+	$(INSTALL) -m 755 $(SRCDIR)/prepare.sh $(SYSETCDIR)/emulab/prepare.sh
+	$(INSTALL) -m 755 $(SRCDIR)/dhclient-exit-hooks \
+			$(SYSETCDIR)/dhclient-exit-hooks
+	$(INSTALL) -m 755 $(SRCDIR)/dhclient-enter-hooks \
+			$(SYSETCDIR)/dhclient-enter-hooks
+	$(INSTALL) -m 755 $(SRCDIR)/testbed.sh $(RCDIR)/testbed.sh
 
 script-install:	dir-install $(SCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/prepare $(BINDIR)/prepare

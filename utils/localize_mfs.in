@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2010-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use English;
 use strict;
@@ -123,15 +140,18 @@ if ($passhash eq "") {
 # Figure out what kind of thing to localize.
 #
 if (-e "boot" && -e "boot/mfsroot") {
+    print "Localizing FreeBSD MFS $path/boot/mfsroot ...\n";
     LocalizeBSD();
     exit(0);
 }
 foreach my $extension ("lzma", "bz2", "gz") {
     if (-e "initramfs.${extension}") {
+	print "Localizing Linux MFS $path/initramfs.$extension ...\n";
 	LocalizeLinux($extension);
 	exit(0);
     }
     if (-e "initramfs") {
+	print "Localizing Linux MFS $path/initramfs ...\n";
 	LocalizeLinux("");
 	exit(0);
     }
@@ -294,7 +314,7 @@ sub LocalizeBSD()
 }
 
 #
-# Localize a Lnux MFS
+# Localize a Linux MFS
 #
 sub LocalizeLinux($)
 {
@@ -329,7 +349,7 @@ sub LocalizeLinux($)
     
     # Extract
     if (defined($compression)) {
-	ExecQuiet("$compression -dc < ../${initfs}.${extension} | cpio -idu")
+	ExecQuiet("$compression -dc < ../${initfs}.${extension} | cpio -idum")
 	    == 0 or fatal("Could not extract ${initfs}.${extension}");
     }
     else {
@@ -379,7 +399,13 @@ sub LocalizeLinux($)
     # Mark as "localized". This tells slicefix that it should copy all
     # the above stuff into the image.
     #
+    # XXX argh, it appears that the cpio unpacking of the MFS at boot
+    # time doesn't get /.localized and I don't want to figure out why.
+    # So we stash the file in /root/.localized as well.
+    #
     ExecQuiet("$CP /dev/null .localized")
+	== 0 or goto bad;
+    ExecQuiet("$CP /dev/null root/.localized")
 	== 0 or goto bad;
 
     #
@@ -456,4 +482,3 @@ sub fatal($)
 	         "    $mesg\n";
     exit(-1);
 }
-

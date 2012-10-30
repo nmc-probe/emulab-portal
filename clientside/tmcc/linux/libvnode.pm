@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2008-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 # Implements the libvnode API for OpenVZ support in Emulab.
 #
@@ -17,11 +34,12 @@ use Exporter;
 	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
               findVirtControlNet findDNS downloadImage setState
-              getKernelVersion isRoutable
+              getKernelVersion isRoutable findDomain createExtraFS
             );
 
 use Data::Dumper;
 use libtmcc;
+use libsetup;
 use Socket;
 
 sub VNODE_STATUS_RUNNING() { return "running"; }
@@ -381,8 +399,8 @@ sub findBridgeIfaces($) {
 # mechanism.  Caller provides an imagepath for frisbee, and a hash of args that
 # comes directly from loadinfo.
 #
-sub downloadImage($$$) {
-    my ($imagepath,$todisk,$reload_args_ref) = @_;
+sub downloadImage($$$$) {
+    my ($imagepath,$todisk,$nodeid,$reload_args_ref) = @_;
 
     return -1 
 	if (!defined($imagepath) || !defined($reload_args_ref));
@@ -394,6 +412,7 @@ sub downloadImage($$$) {
     if (!defined($addr) || $addr eq "") {
 	# frisbee master server world
 	my ($server, $imageid);
+	my $proxyopt = "";
 
 	if ($reload_args_ref->{"SERVER"} =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
 	    $server = $1;
@@ -401,8 +420,14 @@ sub downloadImage($$$) {
 	if ($reload_args_ref->{"IMAGEID"} =~ /^([-\d\w]+),([-\d\w]+),([-\d\w]+)$/) {
 	    $imageid = "$1/$3";
 	}
+	if (SHAREDHOST()) {
+	    $proxyopt = "-P $nodeid";
+	}
 	if ($server && $imageid) {
-	    mysystem("$FRISBEE -S $server -B 30 -F $imageid $imagepath");
+	    mysystem2("$FRISBEE -M 64 $proxyopt ".
+		     "         -S $server -B 30 -F $imageid $imagepath");
+	    return -1
+		if ($?);
 	}
 	else {
 	    print STDERR "Could not parse frisbee loadinfo\n";
@@ -413,11 +438,14 @@ sub downloadImage($$$) {
 	my $mcastaddr = $1;
 	my $mcastport = $2;
 
-	mysystem("$FRISBEE -m $mcastaddr -p $mcastport $imagepath");
+	mysystem2("$FRISBEE -M 64 -m $mcastaddr -p $mcastport $imagepath");
+	return -1
+	    if ($?);
     }
     elsif ($addr =~ /^http/) {
 	if ($todisk) {
-	    mysystem("wget -nv -N -P -O - '$addr' | $IMAGEUNZIP - $imagepath");
+	    mysystem("wget -nv -N -P -O - '$addr' | ".
+		     "$IMAGEUNZIP -W 32 - $imagepath");
 	} else {
 	    mysystem("wget -nv -N -P -O $imagepath '$addr'");
 	}
@@ -546,6 +574,49 @@ sub isRoutable($)
 	    "172.16.0.0");
 
     return 1;
+}
+
+#
+# Get our domain
+#
+sub findDomain()
+{
+    import emulabpaths;
+
+    return undef
+	if (! -e "$BOOTDIR/mydomain");
+    
+    my $domain = `cat $BOOTDIR/mydomain`;
+    chomp($domain);
+    return $domain;
+}
+
+#
+# Create an extra FS using an LVM.
+#
+sub createExtraFS($$$)
+{
+    my ($path, $vgname, $size) = @_;
+    
+    return
+	if (-e $path);
+
+    system("mkdir $path") == 0
+	or return -1;
+    
+    system("lvcreate -n extrafs -L $size $vgname") == 0
+	or return -1;
+
+    system("mke2fs -j /dev/$vgname/extrafs") == 0
+	or return -1;
+
+    system("mount /dev/$vgname/extrafs $path") == 0
+	or return -1;
+
+    system("echo '/dev/$vgname/extrafs $path ext3 defaults 0 0' >> /etc/fstab")
+	== 0 or return -1;
+
+    return 0;
 }
 
 #

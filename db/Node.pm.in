@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2005-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 package Node;
 use strict;
@@ -2100,7 +2117,7 @@ sub CreateVnodes($$$)
     # those. Must do this with tables locked, of course.
     #
     DBQueryFatal("lock tables nodes write, reserved write, ".
-		 "node_status write, node_hostkeys write, ".
+		 "node_status write, node_hostkeys write, node_activity write,".
 		 "virt_node_public_addr write, virt_node_attributes read");
 
     #
@@ -2333,6 +2350,18 @@ sub CreateVnodes($$$)
 	    goto bad;
 	}
 
+	$statement =
+	         "insert into node_activity set ".
+		 "       node_id='$vnodeid'";
+
+	print STDERR "$statement\n"
+	    if ($debug);
+
+	if (!$impotent && !DBQueryWarn($statement)) {
+	    print STDERR "*** CreateVnodes: Could not create activity entry\n";
+	    goto bad;
+	}
+
 	Node->MakeFake($vnodeid, \%nodesets, \%rsrvsets)
 	    if ($impotent);
 
@@ -2412,6 +2441,9 @@ sub CreateVnodes($$$)
 	    DBQueryWarn("delete from nodes where node_id='$vnodeid'");
 	    DBQueryWarn("delete from node_hostkeys where node_id='$vnodeid'");
 	    DBQueryWarn("delete from node_status where node_id='$vnodeid'");
+	    DBQueryWarn("delete from node_activity where node_id='$vnodeid'");
+	    DBQueryWarn("delete from node_idlestats where node_id='$vnodeid'");
+	    DBQueryWarn("delete from iface_counters where node_id='$vnodeid'");
 	}
     }
     DBQueryFatal("unlock tables");
@@ -2449,7 +2481,10 @@ sub DeleteVnodes(@)
 	# reimaged now!
 	DBQueryWarn("delete from current_reloads where node_id='$vnodeid'");
 	DBQueryWarn("delete from partitions where node_id='$vnodeid'");
-    }
+	# Slothd updates/creates these records.
+	DBQueryWarn("delete from node_activity where node_id='$vnodeid'");
+	DBQueryWarn("delete from node_idlestats where node_id='$vnodeid'");
+	DBQueryWarn("delete from iface_counters where node_id='$vnodeid'");    }
 
     return 0;
 }
@@ -2629,6 +2664,21 @@ sub ClearCurrentReload($)
     my $node_id = $self->node_id();
 
     DBQueryWarn("delete from current_reloads where node_id='$node_id'");
+
+    return 0;
+}
+
+sub ClearPartitions($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id = $self->node_id();
+
+    DBQueryWarn("delete from partitions where node_id='$node_id'");
 
     return 0;
 }
@@ -3317,7 +3367,7 @@ sub CheckPreReserve($$)
     # not look in the object ($self) since it might be stale.
     #
     my $query_result =
-	DBQueryWarn("select reserved_pid,count from nodes ".
+	DBQueryWarn("select reserved_pid,count,active from nodes ".
 		    "left join node_reservations on ".
 		    "     node_reservations.pid=nodes.reserved_pid ".
 		    "where nodes.node_id='$node_id'");
@@ -3330,10 +3380,10 @@ sub CheckPreReserve($$)
     # if the reervation request is still active. If not, we can clear it,
     # which will allow it to be set again below, if needed.
     #
-    my ($pid,$count) = $query_result->fetchrow_array();
+    my ($pid,$count,$active) = $query_result->fetchrow_array();
     if (defined($pid)) {
 	goto done
-	    if (defined($count));
+	    if (defined($count) && $active);
 	
 	DBQueryWarn("update nodes set reserved_pid=null ".
 		    "where node_id='$node_id'");
@@ -3342,10 +3392,11 @@ sub CheckPreReserve($$)
 	    print "Clearing pre reserve for $node_id\n";
 	}
     }
-    
+
+    # Find only active unfilled reservations.
     $query_result =
 	DBQueryWarn("select pid,count from node_reservations ".
-		    "where count>0 and ".
+		    "where active=1 and count>0 and ".
 		    "       (types is null or ".
 		    "        FIND_IN_SET('$type', types)) ".
 		    "order by priority desc, created asc ".
@@ -3368,7 +3419,7 @@ sub CheckPreReserve($$)
 	    if ($count == 1) {
 		SENDMAIL($TBOPS, "Pre Reservation for $pid has completed",
 			 "The pre reservation request for project $pid, ".
-			 "has been fullfilled\n");
+			 "has been fullfilled\n", $TBOPS);
 	    }
 	}
     }
@@ -3450,22 +3501,29 @@ sub RunningOsImage($)
     my ($self)  = @_;
     my $nodeid  = $self->node_id();
     my $osid    = $self->def_boot_osid();
+    my $imageid;
     
     my $osinfo = OSinfo->Lookup($osid);
     return ()
 	if (!defined($osinfo));
 
-    my $query_result =
-	DBQueryWarn("select imageid from partitions as p ".
-		    "where p.node_id='$nodeid' and p.osid='$osid'");
-    return ()
-	if (!$query_result || !$query_result->numrows);
+    #
+    # No partition entries for virtnodes, they are plain EZ images.
+    #
+    if ($self->isvirtnode()) {
+	$imageid = $osid;
+    }
+    else {
+	my $query_result =
+	    DBQueryWarn("select imageid from partitions as p ".
+			"where p.node_id='$nodeid' and p.osid='$osid'");
+	return ()
+	    if (!$query_result || !$query_result->numrows);
 
-    my ($imageid) = $query_result->fetchrow_array();
+	($imageid) = $query_result->fetchrow_array();
+    }
+    # This might not exist for a virtnode; caller has to deal with it.
     my $image = Image->Lookup($imageid);
-    return ()
-	if (!defined($image));
-
     return ($osinfo, $image);
 }
 

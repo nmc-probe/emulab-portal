@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
-# Copyright (c) 2010 University of Utah and the Flux Group.
-# All rights reserved.
+# Copyright (c) 2010-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 package libptop_new;
 
@@ -48,6 +65,7 @@ my $genimode = 0;
 my $delaycap_override = undef;
 my $multiplex_override = undef;
 my $debug = 0;
+my $usecontrol = 0;
 
 my $default_longitude = undef;
 my $default_latitude = undef;
@@ -145,6 +163,9 @@ sub ProcessArgs($)
     if (defined($options{"c"})) {
 	$delaycap_override = $options{"c"};
     }
+    if (defined($options{"C"})) {
+	$usecontrol = 1;
+    }
     if (defined($options{"g"})) {
 	$genimode = 1;
 	$print_shared = 1;
@@ -170,7 +191,7 @@ sub LookupNodes()
     }
 
     # Bulk lookup on nodes table
-    $dbresult = DBQueryFatal("select * from nodes where role='testnode' or role='testswitch' or role='widearea_switch' or role='testnodefoo'");
+    $dbresult = DBQueryFatal("select * from nodes where role='testnode' or role='testswitch' or role='widearea_switch' or role='testnodefoo' or role='ctrlswitch'");
     while ($row = $dbresult->fetchrow_hashref()) {
 	my $node = libptop::pnode->Create($row);
 	if (defined($node)) {
@@ -635,7 +656,8 @@ sub LookupLinks()
 		    $link->dest());
 	    }
 	    $link->addTrunk($sourcebw, $destbw);
-	} elsif ($type eq 'Node') {
+	} elsif ((!$usecontrol && $type eq 'Node') ||
+		 ($usecontrol && $type eq 'Control')) {
 	    # Add a switch/node or node/node link.
 	    my $node1 = $nodeList{$node_id1};
 	    my $node2 = $nodeList{$node_id2};
@@ -1004,8 +1026,13 @@ sub calculateSwitch($)
 {
     my ($self) = @_;
     my $role = $self->node()->role();
-    return ($role eq 'testswitch' || $role eq 'widearea_switch'
-	    || ($role eq 'testnodefoo' && $self->node()->isswitch()));
+    if ($usecontrol) {
+	return ($role eq 'ctrlswitch' && $self->node()->isswitch());
+    }
+    else {
+	return ($role eq 'testswitch' || $role eq 'widearea_switch'
+		|| ($role eq 'testnodefoo' && $self->node()->isswitch()));
+    }
 }
 
 sub islocal($)
@@ -2121,7 +2148,12 @@ sub processSwitchNode($$$$)
     $self->add_type($basetype."-".$switchRef->name());
     $self->add_type($basetype."-".$self->bw());
     my $ifaceType = $iface_type{"$node:$nodeif"};
-    $self->add_type($basetype."-".$ifaceType);
+    if (defined($ifaceType)) {
+	$self->add_type($basetype."-".$ifaceType);
+    }
+    else {
+	print STDERR "No interface type for $node:$nodeif\n";
+    }
 }
 
 sub processNodeNode($)

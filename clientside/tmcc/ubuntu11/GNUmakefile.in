@@ -1,7 +1,24 @@
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 #
@@ -46,6 +63,7 @@ simple-install:	common-install script-install bin-install
 
 dir-install:
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/dhcp
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/init
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/network
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/rsyslog.d
 
@@ -74,8 +92,8 @@ sysetc-fixup:
 			$(SYSETCDIR)/dhcp/dhclient-exit-hooks
 	$(INSTALL) -m 755 $(SRCDIR)/dhclient-enter-hooks \
 			$(SYSETCDIR)/dhcp/dhclient-enter-hooks
-	rm -f $(RRCDIR)/rc.local $(SYSETCDIR)/rc.local
-	$(INSTALL) -m 644 $(SRCDIR)/rc-sysinit.conf $(SYSETCDIR)/init
+	rm -f $(SYSETCDIR)/rc.local
+	$(INSTALL) -m 644 $(SRCDIR)/rc-sysinit.conf $(SYSETCDIR)/init/rc-sysinit.conf
 	$(INSTALL) -m 644 $(SRCDIR)/rsyslog-emulab.conf $(SYSETCDIR)/rsyslog.d/60-emulab.conf
 	$(INSTALL) -m 755 $(SRCDIR)/rc.local $(SYSETCDIR)/rc.local
 	$(INSTALL) -m 644 $(SRCDIR)/interfaces $(SYSETCDIR)/network/interfaces
@@ -86,10 +104,10 @@ script-install:	dir-install $(SCRIPTS)
 genirack-install:
 	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) genirack-install)
 	$(INSTALL) -m 755 $(SRCDIR)/genirack.sh $(RCDIR)/init.d/genirack.sh
-	-ln -sf $(RCDIR)/init.d/genirack.sh $(DEFRUNLVLDIR)/S10genirack.sh
-	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc2.d/S10genirack.sh
-	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc4.d/S10genirack.sh
-	-ln -sf $(RCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc5.d/S10genirack.sh
+	-ln -sf $(RRCDIR)/init.d/genirack.sh $(DEFRUNLVLDIR)/S10genirack.sh
+	-ln -sf $(RRCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc2.d/S10genirack.sh
+	-ln -sf $(RRCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc4.d/S10genirack.sh
+	-ln -sf $(RRCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc5.d/S10genirack.sh
 	$(INSTALL) -m 644 $(SRCDIR)/interfaces-genirack $(SYSETCDIR)/network/interfaces
 	$(INSTALL) -m 644 $(SRCDIR)/isc-dhcp-server $(SYSETCDIR)/default/
 	$(INSTALL) -m 644 $(SRCDIR)/dhcpd.conf $(SYSETCDIR)/dhcp/

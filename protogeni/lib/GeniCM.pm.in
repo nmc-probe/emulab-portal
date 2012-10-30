@@ -1,8 +1,31 @@
 #!/usr/bin/perl -wT
 #
-# GENIPUBLIC-COPYRIGHT
 # Copyright (c) 2008-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
 #
 package GeniCM;
 
@@ -51,6 +74,7 @@ use Compress::Zlib;
 use File::Temp qw(tempfile);
 use MIME::Base64;
 use Digest::SHA1 qw(sha1_hex);
+use Scalar::Util qw(looks_like_number);
 
 # Configure variables
 my $TB		   = "@prefix@";
@@ -92,6 +116,7 @@ my $XMLLINT	   = "/usr/local/bin/xmllint";
 my $ADDAUTHORITY   = "$TB/sbin/protogeni/addauthority";
 my $EMULAB_PEMFILE = "@prefix@/etc/genicm.pem";
 my $TARINSTALL     = "/usr/local/bin/install-tarfile";
+my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
 my $USELOCALPROJ   = 0;
@@ -319,7 +344,7 @@ sub GetAdvertisement($$$$)
     $version = "2"
 	if ($version eq "PG 2");
 
-    my $invocation = "$PTOPGEN -x -g $version -r -p GeniSlices";
+    my $invocation = "$PTOPGEN -x -g $version -r";
     if (defined($experiment)) {
 	my $eid = $experiment->eid();
 	$invocation .= " -e $eid";
@@ -501,6 +526,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     my $restorevirt = 0;	# Flag to restore virtual state
     my $restorephys = 0;	# Flag to restore physical state
     require OSinfo;
+    require Image;
     require VirtExperiment;
 
     #
@@ -922,8 +948,23 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $diskref = GeniXML::GetDiskImage($ref);
 	if (defined($diskref)) {
 	    my $dname = GeniXML::GetText("name", $diskref);
+	    my $url   = GeniXML::GetText("url", $diskref);
 
-	    if (defined($dname)) {
+	    if (defined($url)) {
+		if (! TBcheck_dbslot($url, "virt_nodes", "osname",
+				 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)){
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					     "Invalid disk image url: $url");
+		    goto bad;
+		}
+		#
+		# Pass it right through; we load them later.
+		# There is no osinfo, but see below. 
+		#
+		$osname = $url;
+	    }
+	    elsif (defined($dname)) {
 		if (! GeniHRN::IsValid($dname)) {
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -981,8 +1022,23 @@ sub GetTicketAuxAux($$$$$$$$$)
 				$osname = "OPENVZ-STD";
 			    }
 			}
-			else {
+			elsif (!defined($osname)) {
+			    # Allow for url above.
 			    $osname = "OPENVZ-STD";
+			}
+		    }
+		    elsif ($virtualization_subtype eq "emulab-xen") {
+			# Allow caller to set the image to use, but also
+			# trick to set the parent. 
+			if (defined($osinfo)) {
+			    if (! $osinfo->IsSubOS()) {
+				$parent_osname = $osname;
+				$osname = "XEN-STD";
+			    }
+			}
+			elsif (!defined($osname)) {
+			    # Allow for url above.
+			    $osname = "XEN-STD";
 			}
 		    }
 		    elsif ($virtualization_subtype eq "emulab-spp") {
@@ -1677,37 +1733,40 @@ sub GetTicketAuxAux($$$$$$$$$)
 			    $vlan_reservations{$lanname} = $result;
 			}
 		    }
+
+		    #
+		    # We do this so we can keep track of vport numbers,
+		    # since we can have multiple links to the same
+		    # external mode.
+		    #
+		    if (!exists($external_vportmap{$node_nickname})) {
+			$external_vportmap{$node_nickname} = 0;
 		    
-		    #
-		    # Stick in a reference to the fake node.
-		    #
-		    my $virtnode =
-			$virtexperiment->NewTableRow("virt_nodes",
+			#
+			# Stick in a reference to the fake node.
+			#
+			my $virtnode =
+			    $virtexperiment->NewTableRow("virt_nodes",
 				    {"vname"   => $node_nickname,
 				     "type"    => $network->node_type(),
 				     "osname"  => '',
 				     "ips"     => '', # deprecated
 				     "cmd_line"=> '', # bogus
 				     "fixed"   => $network->node_id()});
-		    if (!defined($virtnode)) {
-			print STDERR "Error creating edge node\n";
-			$response = GeniResponse->Create(GENIRESPONSE_ERROR);
-			goto bad;
-		    }
-		    # These nodes are technically shared. 
-		    $virtexperiment->NewTableRow("virt_node_desires",
+			if (!defined($virtnode)) {
+			    print STDERR "Error creating edge node\n";
+			    $response =
+				GeniResponse->Create(GENIRESPONSE_ERROR);
+			    goto bad;
+			}
+			# These nodes are technically shared. 
+			$virtexperiment->NewTableRow("virt_node_desires",
 						 {"vname"    => $node_nickname,
 						  "desire"   => "pcshared",
 						  "weight"   => 0.95});
-		    $virtexperiment->encap_style("vlan");
-		    $iface_name  = $edgeiface->iface();
-
-		    #
-		    # We do this so we can keep track of vport numbers.
-		    #
-		    if (!exists($external_vportmap{$node_nickname})) {
-			$external_vportmap{$node_nickname} = 0;
+			$virtexperiment->encap_style("vlan");
 		    }
+		    $iface_name  = $edgeiface->iface();
 		    $iface_vport = $external_vportmap{$node_nickname};
 		    $external_vportmap{$node_nickname} += 1;
 		    $external_linkmap{$lanname} = $linkref;
@@ -1873,6 +1932,19 @@ sub GetTicketAuxAux($$$$$$$$$)
 	goto bad;
     }
 
+    #
+    # This creates the descriptors but does not download the images.
+    # Must be done before the mapper runs.
+    #
+    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP $pid,$eid");
+    if ($?) {
+	my $message = "Could not setup images:\n$output";
+	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef, $message);
+	print STDERR $message;
+	goto bad;
+    }
+    print STDERR $output;
+
     # Do a render cause its nice to have on the show experiment page.
     system("$PRERENDER -r $pid $eid");
     system("$PRERENDER -t $pid $eid");
@@ -1894,7 +1966,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     }
     $slice_experiment->CleanLogFiles();
     
-    my $output =
+    $output =
 	GeniUtil::ExecQuiet("$MAPPER -a -d -v -u -z -o $tmpfile $pid $eid");
     if ($?) {
 	my $logstuff = "";
@@ -2031,6 +2103,10 @@ sub GetTicketAuxAux($$$$$$$$$)
 	# the virt_nodes entry since exclusive is just a desire. 
 	#
 	my $exclusive = (defined($node->sharing_mode()) ? "0" : "1");
+
+	# Set sliver urns in ticket
+	my $sliver_idx = TBGetUniqueIndex('next_sliver', 1);
+	my $sliver_urn = GeniHRN::Generate( "@OURDOMAIN@", "sliver", $sliver_idx );
 	
 	if (GeniXML::IsVersion0($rspec)) {
 	    GeniXML::SetText("component_urn", $rspec,
@@ -2039,6 +2115,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    GeniXML::SetText("component_uuid", $rspec, $component_id);
 	    GeniXML::SetText("component_manager_urn", $rspec, $ENV{'MYURN'});
 	    GeniXML::SetText("component_manager_uuid", $rspec, $ENV{'MYUUID'});
+	    GeniXML::SetText("sliver_urn", $rspec, $sliver_urn);
 	} else {
 	    GeniXML::SetText("component_id", $rspec,
 			     GeniHRN::Generate( $OURDOMAIN, "node",
@@ -2051,6 +2128,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 						$GeniXML::EMULAB_NS);
 	    }
 	    GeniXML::SetText("name", $vnoderef, $node->node_id());
+	    GeniXML::SetText("sliver_id", $rspec, $sliver_urn);
 	}
 	GeniXML::SetExclusive($rspec, $exclusive);
 
@@ -2409,7 +2487,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     #
     # Clear any new vlan tag reservations we made during this call.
     #
-    foreach my $linkname (%vlan_reservations) {
+    foreach my $linkname (keys(%vlan_reservations)) {
 	my ($lanid, $vlan_tag) = @{ $vlan_reservations{$linkname} };
 
 	# If this is a new ticket, there is no lan object yet,
@@ -2939,6 +3017,18 @@ sub SliverWorkAux($$$$$$$)
     $experiment->CleanLogFiles();
 
     #
+    # Download the images. Do this before we assign nodes, to avoid
+    # pointless cleanup. 
+    #
+    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP -g $pid,$eid");
+    if ($?) {
+	$message = "Could not setup images:\n$output";
+	print STDERR $message;
+	goto bad;
+    }
+    print STDERR $output;
+
+    #
     # The mapper is going to update the resource record, so we have to
     # call PreSwap() first, since it generates a new record. 
     #
@@ -2953,7 +3043,7 @@ sub SliverWorkAux($$$$$$$)
     $didpreswap = 1;
     
     # Add -u for update mode, but not -f (fixnode). 
-    my $output = GeniUtil::ExecQuiet("$MAPPER -d -v -z -u $pid $eid");
+    $output = GeniUtil::ExecQuiet("$MAPPER -d -v -z -u $pid $eid");
     if ($?) {
 	my $logstuff = "";
 	$message = "Could not map to resources";
@@ -5729,7 +5819,7 @@ sub GeniExperiment($;$)
     }
 
     # Note the -h option; allows experiment with no NS file.
-    system("$CREATEEXPT -N -q -i -k -w ".
+    system("$CREATEEXPT -N -q -i -k -w -n ".
 	   "-S 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
 	   "-E '$urn' ".
 	   "-L 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
@@ -6132,6 +6222,8 @@ sub GetSuggestedVlanFromHop($)
 	if (!defined($capref));
 
     my $tag = GeniXML::GetText("suggestedVLANRange", $capref);
+    $tag = undef
+	if (defined($tag) && ! looks_like_number($tag));
     return $tag;
 }
 

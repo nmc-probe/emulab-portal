@@ -1,9 +1,26 @@
 #!/usr/bin/perl -w
 
 #
-# EMULAB-COPYRIGHT
-# Copyright (c) 2003-2010 University of Utah and the Flux Group.
-# All rights reserved.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 #
@@ -26,15 +43,17 @@
 use lib '@prefix@/lib';
 use libdb;
 use libxmlrpc;
+use SNMP;
+use Getopt::Long;
+use strict;
+
+# Optional alternate version of libraries.
+use lib '@prefix@/lib/snmpit_test';
 use snmpit_lib;
 use snmpit_cisco;
 use snmpit_foundry;
 use snmpit_nortel;
 use snmpit_hp;
-use SNMP;
-use Getopt::Long;
-
-use strict;
 
 my $MASTER_COMMUNITY = "@SNMP_RW_COMMUNITY@";
 my $ELABINELAB = @ELABINELAB@;
@@ -137,6 +156,7 @@ if (@test_switches > 0) {
 # Get trunk ports so that we can skip MACs learned on them
 #
 my %trunks = getTrunkHash();
+DEBUG "found trunk ports: ", join(' ', keys(%trunks)), "\n";
 
 if (@control_switches > 0) {
     if ($control_switches[0] eq "none") {
@@ -190,7 +210,7 @@ SWITCH:
 	    $switchtype = "intel"; last;};
 	(/^nortel/) && do { $snmpversion = "1"; $useindexing = 0;
 	    $switchtype = "nortel"; last;};
-	(/^hp/) && do { $snmpversion = "1"; $useindexing = 0;
+	(/^hp/) && do { $snmpversion = "2c"; $useindexing = 0;
 	    $switchtype = "hp"; last;};
 	(/^foundry/) && do { $snmpversion = "1"; $useindexing = 0;
 	    $switchtype = "foundry"; last;};

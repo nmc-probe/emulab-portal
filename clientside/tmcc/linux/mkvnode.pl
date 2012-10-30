@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2009-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use strict;
 use Getopt::Std;
@@ -190,6 +207,16 @@ if ($BOSSIP !~ /^\d+\.\d+\.\d+\.\d+$/) {
 }
 
 #
+# This holds the container state set up by the library. There is state
+# added here, and state added in the library ("private"). We locally
+# redefine this below, so cannot be a lexical.
+#
+# NOTE: There should be NO state in here that needs to survive reboot.
+#       We just remove them all when rebooting. See above.
+#
+$vnstate = { "private" => {} };
+
+#
 # Quickie way to show the state.
 #
 if ($showstate) {
@@ -199,11 +226,26 @@ if ($showstate) {
     if (! -e "$VNDIR/vnode.state") {
 	fatal("no vnode.state file for $vnodeid");
     }
+    my $str = `cat $VNDIR/vnode.info`;
+    ($vmid, $vmtype, undef) = ($str =~ /^(\d*) (\w*) ([-\w]*)$/);
+    
     my $tmp = eval { Storable::retrieve("$VNDIR/vnode.state"); };
     if ($@) {
 	fatal("$@");
     }
     print Dumper($tmp);
+
+    # So the lib op works.
+    $vnstate = $tmp;
+
+    ($ret,$err) = safeLibOp('vnodeState', 1, 0);
+    if ($err) {
+	fatal("Failed to get status for existing container: $err");
+    }
+    if ($ret eq VNODE_STATUS_UNKNOWN()) {
+	print "Cannot determine status container $vmid.\n";
+    }
+    print "Domain is $ret\n";
     exit(0);
 }
 
@@ -249,16 +291,6 @@ if ($cleanup) {
     }
     exit(TearDownStaleVM());
 }
-
-#
-# This holds the container state set up by the library. There is state
-# added here, and state added in the library ("private"). We locally
-# redefine this below, so cannot be a lexical.
-#
-# NOTE: There should be NO state in here that needs to survive reboot.
-#       We just remove them all when rebooting. See above.
-#
-$vnstate = { "private" => {} };
 
 #
 # Now we can start doing something useful.
@@ -351,6 +383,8 @@ if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
 sub handler ($) {
     my ($signame) = @_;
 
+    print STDERR "mkvnode ($PID) caught a SIG${signame}!\n";
+
     # No more interruptions during teardown.
     $SIG{INT}  = 'IGNORE';
     $SIG{USR1} = 'IGNORE';
@@ -387,7 +421,8 @@ sub handler ($) {
     mysystem("touch $RUNNING_FILE")
 	if ($leaveme && -e "$RUNNING_FILE");
 
-    MyFatal("mkvnode ($PID) caught a SIG${signame}! container $str");
+    print STDERR "Container is being $str\n";
+    MyFatal("Container has been $str by $signame");
 }
 
 #
@@ -422,6 +457,19 @@ if (-e "$VNDIR/vnode.info") {
 	$teardown = 1;
     }
     else {
+	# We (might) need this to discover the state. 
+	local $vnstate = { "private" => {} };
+	
+	if (-e "$VNDIR/vnode.state") {
+	    my $tmp = eval { Storable::retrieve("$VNDIR/vnode.state"); };
+	    if ($@) {
+		print STDERR "$@";
+		$teardown = 1;
+	    }
+	    else {
+		$vnstate->{'private'} = $tmp->{'private'};
+	    }
+	}
 	($ret,$err) = safeLibOp('vnodeState', 1, 0);
 	if ($err) {
 	    fatal("Failed to get status for existing container: $err");
@@ -440,40 +488,6 @@ if (-e "$VNDIR/vnode.info") {
     }
     else {
 	$rebooting = 1;
-    }
-}
-
-#
-# Another wrinkle; tagged vlans might not be setup yet when we get
-# here, and we have to know those tags before we can proceed. We
-# need to spin, but with signals enabled since we do not want to
-# wait forever. Okay to get a signal and die at this point. 
-#
-if (0 && @{ $vnconfig{'ifconfig'} }) {
-  again:
-    foreach my $ifc (@{ $vnconfig{'ifconfig'} }) {
-	my $lan = $ifc->{LAN};
-	
-	next
-	    if ($ifc->{ITYPE} ne "vlan");
-
-	# got the tag.
-	next
-	    if ($ifc->{VTAG});
-
-	# no tag, wait and ask again.
-	print STDERR
-	    "$lan does not have a tag yet. Waiting, then asking again ...\n";
-
-	sleep(5);
-
-	my @tmp = ();
-	fatal("getifconfig($vnodeid): $!")
-	    if (getifconfig(\@tmp));
-	$vnconfig{"ifconfig"} = [ @tmp ];
-
-	# Just look through everything again; simple. 
-	goto again;
     }
 }
 
@@ -520,7 +534,7 @@ if (! -e "$VNDIR/vnode.info") {
     #
     $vmtype = GENVNODETYPE();
 
-    ($ret,$err) = safeLibOp('vnodeCreate',0,0, \%vnconfig);
+    ($ret,$err) = safeLibOp('vnodeCreate',0,0);
     if ($err) {
 	MyFatal("vnodeCreate failed");
     }
@@ -567,16 +581,16 @@ sub callback($)
 	if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "") {
 	    my $sshdport = VNCONFIG('SSHDPORT');
 
-	    system("echo '# EmulabJail' >> $path/etc/ssh/sshd_config");
-	    system("echo 'Port $sshdport' >> $path/etc/ssh/sshd_config");
+	    mysystem2("echo '# EmulabJail' >> $path/etc/ssh/sshd_config");
+	    mysystem2("echo 'Port $sshdport' >> $path/etc/ssh/sshd_config");
 	    if (VNCONFIG('CTRLIP') ne $ext_ctrlip) {
-		system("echo 'Port 22' >> $path/etc/ssh/sshd_config");
+		mysystem2("echo 'Port 22' >> $path/etc/ssh/sshd_config");
 	    }
 	}
     }
     # Localize the timezone.
-    system("cp -fp /etc/localtime $path/etc");
-    
+    mysystem2("cp -fp /etc/localtime $path/etc");
+
     return 0;
 }
 
@@ -639,7 +653,7 @@ my $childpid = fork();
 if ($childpid) {
     my $timedout = 0;
     local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
-    alarm 30;
+    alarm 180;
     waitpid($childpid, 0);
     alarm 0;
 

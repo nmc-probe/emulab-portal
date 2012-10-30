@@ -1,9 +1,26 @@
 #!/usr/bin/perl -w
 
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 # TODO: Signal handlers for protecting db files.
 
@@ -23,7 +40,7 @@ use Exporter;
 	 gettraceconfig genhostsfile getmotelogconfig calcroutes fakejailsetup
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
          getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
-	 forcecopy getnodeuuid
+	 forcecopy getnodeuuid getarpinfo
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs
 
@@ -2304,8 +2321,8 @@ sub getfwconfig($$;$)
     my $fwpat  = q(TYPE=([-\w]+) STYLE=(\w+) IN_IF=(\w*) OUT_IF=(\w*) IN_VLAN=(\d+) OUT_VLAN=(\d+));
     my $rpat   = q(RULENO=(\d*) RULE="(.*)");
     my $vpat   = q(VAR=(EMULAB_\w+) VALUE="(.*)");
-    my $hpat   = q(HOST=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-f]{12}));
-    my $spat   = q(SERVER=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-f]{12}));
+    my $hpat   = q(HOST=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-fA-F]{12}));
+    my $spat   = q(SERVER=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-fA-F]{12}));
     my $lpat   = q(LOG=([\w,]+));
 
     $fwinfo->{"TYPE"} = "none";
@@ -3156,6 +3173,9 @@ sub getlocalevserver()
 	if ($vnodeid =~ /^pcvm(\d+)-\d+$/) {
 	    $evserver = "pc$1";
 	}
+	else {
+	    print STDERR "*** Could not determine event server!\n";
+	}
     }
     if (-e "$BOOTDIR/localevserver") {
 	$evserver = `cat $BOOTDIR/localevserver`;
@@ -3163,6 +3183,89 @@ sub getlocalevserver()
     }
 
     return $evserver;
+}
+
+#
+# Return a hash of arpinfo provided by boss in $rptr.
+# Note that the hash key is the IP address and not the name.
+# Function returns the type of the arp configuration or undef on error.
+#
+sub getarpinfo($)
+{
+    my ($rptr) = @_;
+    my %arpinfo = ();
+    my @tmccresults = ();
+    # don't cache
+    my %opthash = ( 'nocache' => 1 );
+
+    if (tmcc(TMCCCMD_ARPINFO, undef, \@tmccresults, %opthash) < 0) {
+	warn("*** WARNING: Could not get arpinfo from server!\n");
+	return undef;
+    }
+
+    #
+    # First line should be the type:
+    #  ARPTYPE=(none|static|staticonly)
+    #
+    my $atype = "none";
+
+    #
+    # The remaining lines are entries for hosts and servers, e.g.:
+    #  SERVER=gw CNETIP=155.98.36.1 CNETMAC=00d0bcf414f8
+    #  SERVER=subboss CNETIP=155.98.38.162 CNETMAC=001f29329224
+    #  HOST=pc271 CNETIP=155.98.39.71 CNETMAC=001143e43be6
+    #
+    my $pat = q((HOST|SERVER)=([-\w]+) CNETIP=([\d\.]*) CNETMAC=([\da-fA-F]{12}));
+
+    foreach my $line (@tmccresults) {
+	if ($line =~ /ARPTYPE=([-\w]+)/) {
+	    $atype = $1;
+	    if ($atype eq "static" || $atype eq "staticonly") {
+		next;
+	    }
+	    if ($atype ne "none") {
+		warn("*** WARNING: arpinfo: invalid type '$atype', assuming 'none'!\n");
+		$atype = "none";
+	    }
+	    last;
+	}
+	if ($line =~ /$pat/) {
+	    my $ntype = $1;
+	    my $name = $2;
+	    my $ip = $3;
+	    my $mac = $4;
+
+	    # canonicalize the MAC
+	    $mac = lc($mac);
+	    if ($mac =~ /^(..)(..)(..)(..)(..)(..)$/) {
+		$mac = "$1:$2:$3:$4:$5:$6";
+	    }
+
+	    if (exists($arpinfo{$ip})) {
+		# XXX subbosses may appear twice since they are testnodes
+		# XXX boss may appear as both boss and gw in elabinelab
+		if ($arpinfo{$ip}{'mac'} ne $mac) {
+		    warn("*** WARNING: Conflicting arpinfo for $ip: '$line'\n");
+		} else {
+		    $arpinfo{$ip}{'type'} = $ntype
+			if ($ntype eq "SERVER");
+		}
+	    } else {
+		$arpinfo{$ip}{'type'} = $ntype;
+		$arpinfo{$ip}{'name'} = $name;
+		$arpinfo{$ip}{'mac'} = $mac;
+	    }
+	} else {
+	    warn("*** WARNING: Bad arpinfo info line ignored: '$line'\n");
+	}
+    }
+
+    if ($atype eq "none") {
+	%$rptr = ();
+    } else {
+	%$rptr = %arpinfo;
+    }
+    return $atype;
 }
 
 #

@@ -1,7 +1,24 @@
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
@@ -26,10 +43,10 @@ endif
 include $(TESTBED_SRCDIR)/GNUmakerules
 
 client:		client-subdirs
-client-install: client client-mkdirs client-install-subdirs
+client-install: client client-mkdirs client-install-subdirs client-setversion
 control-install: control-install-subdirs
 subboss:	subboss-subdirs
-subboss-install: client subboss-install-subdirs
+subboss-install: client client-mkdirs subboss-install-subdirs
 post-install:	post-install-subdirs
 clean:		clean-subdirs
 distclean:	distclean-subdirs
@@ -37,6 +54,8 @@ mfs:		mfs-subdirs
 mfs-install:	client-mkdirs mfs-install-subdirs
 frisbee-mfs:	frisbee-mfs-subdirs
 frisbee-mfs-install:	client-mkdirs frisbee-mfs-install-subdirs
+newnode-mfs:	newnode-mfs-subdirs
+newnode-mfs-install:	client-mkdirs newnode-mfs-install-subdirs
 
 TARBALLDESTDIR = /var/tmp/emulab-client
 client-tarball:
@@ -57,6 +76,13 @@ client-tarball:
 client-mkdirs:
 	-mkdir -p $(DESTDIR)$(CLIENT_BINDIR)
 	-mkdir -p $(DESTDIR)$(CLIENT_MANDIR)
+
+#
+# Attempt to find a git commit hash and stash in /etc/emulab.
+#
+client-setversion: setversion
+	@echo "Setting Version info"
+	@perl setversion
 
 # How to recursively descend into subdirectories to make general
 # targets such as `all'.

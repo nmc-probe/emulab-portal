@@ -1,15 +1,33 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
-# All rights reserved.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 package libEmulab;
 use strict;
 use Exporter;
 use vars qw(@ISA @EXPORT);
 @ISA    = qw(Exporter);
-@EXPORT = qw(SiteVarExists GetSiteVar SetSiteVar NoLogins IsShutDown);
+@EXPORT = qw(SiteVarExists CreateSiteVar GetSiteVar SetSiteVar
+	     GetSiteVarDesc SetSiteVarDesc NoLogins IsShutDown);
 
 use emdb;
 
@@ -33,6 +51,48 @@ sub SiteVarExists($)
 	if (!$query_result);
     
     return $query_result->numrows;
+}
+
+#
+# Create a new site variable.
+#
+# usage: CreateSiteVar($name, $desc, $defvalue, $value, $nsinclude)
+#        All but $name and $desc are optional.
+#        Returns 1 on success, 0 if sitevar exists or on failure.
+#
+sub CreateSiteVar($$;$$$)
+{
+    my ($name,$desc,$defval,$val,$nsinc) = @_;
+
+    return 0
+	if (SiteVarExists($name));
+    return 0
+	if (!defined($desc));
+
+    $name = DBQuoteSpecial($name);
+    $desc = DBQuoteSpecial($desc);
+    if (defined($defval)) {
+	$defval = DBQuoteSpecial($defval);
+    } else {
+	$defval = "NULL";
+    }
+    if (defined($val)) {
+	$val = DBQuoteSpecial($val);
+    } else {
+	$val = "NULL";
+    }
+    if (defined($nsinc)) {
+	$nsinc = ($nsinc != 0);
+    } else {
+	$nsinc = 0;
+    }
+
+    my $query_result =
+	DBQueryWarn("insert into sitevariables ".
+		    "(name,value,defaultvalue,description,ns_include) ".
+		    "values ($name,$val,$defval,$desc,$nsinc)");
+
+    return $query_result ? 1 : 0;
 }
 
 #
@@ -110,6 +170,48 @@ sub SetSiteVar($$)
 
     my $query_result =
 	DBQueryWarn("update sitevariables set value=$value where name=$name");
+
+    return 0
+	if (!$query_result);
+    return 1;
+}
+
+# usage: GetSiteVarDesc($name)
+#        Returns description if variable is defined; dies otherwise.
+#
+sub GetSiteVarDesc($)
+{
+    my ($name) = @_;
+    my $value;
+
+    $name = DBQuoteSpecial( $name );
+    
+    my $query_string =
+	"select description from sitevariables where name=$name";
+
+    my $query_result = DBQueryFatal($query_string);
+    if ($query_result->numrows > 0) {
+	my ($desc) = $query_result->fetchrow_array();
+	return $desc;
+    }
+    die("*** $0:\n".
+	"    Attempted to fetch description of unknown site variable $name\n");
+}
+
+#
+# Set a sitevar description. Assumed to be a real sitevar.
+#
+# usage: SetSiteVarDesc($name, $desc)
+#
+sub SetSiteVarDesc($$)
+{
+    my ($name, $desc) = @_;
+
+    $name  = DBQuoteSpecial($name);
+    $desc = DBQuoteSpecial($desc);
+
+    my $query_result =
+	DBQueryWarn("update sitevariables set description=$desc where name=$name");
 
     return 0
 	if (!$query_result);

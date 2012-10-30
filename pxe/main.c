@@ -1,7 +1,24 @@
 /*
- * EMULAB-COPYRIGHT
  * Copyright (c) 2000-2012 University of Utah and the Flux Group.
- * All rights reserved.
+ * 
+ * {{{EMULAB-LICENSE
+ * 
+ * This file is part of the Emulab network testbed software.
+ * 
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version.
+ * 
+ * This file is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * }}}
  */
 
 #include <sys/types.h>
@@ -30,7 +47,7 @@
  */
 #define MINEVENTTIME	10
 
-static void	log_bootwhat(struct in_addr ipaddr, boot_what_t *bootinfo);
+static void	log_bootwhat(struct in_addr, boot_what_t *, int);
 static void	onhup(int sig);
 static char	*progname;
 static char     pidfile[MAXPATHLEN];
@@ -142,6 +159,8 @@ main(int argc, char **argv)
 
 	signal(SIGHUP, onhup);
 	while (1) {
+		int esent = 0;
+
 		if ((mlen = recvfrom(sock, &boot_info, sizeof(boot_info),
 				     0, (struct sockaddr *)&client, &length))
 		    < 0) {
@@ -149,12 +168,12 @@ main(int argc, char **argv)
 			exit(1);
 		}
 		err = bootinfo(client.sin_addr, (char *) NULL,
-			       &boot_info, (void *) NULL, 0);
+			       &boot_info, (void *) NULL, 0, &esent);
 		if (err < 0)
 			continue;
 		if (boot_info.status == BISTAT_SUCCESS)
 			log_bootwhat(client.sin_addr,
-				     (boot_what_t *) &boot_info.data);
+				     (boot_what_t *) &boot_info.data, esent);
 
 		boot_info.opcode = BIOPCODE_BOOTWHAT_REPLY;
 		
@@ -185,45 +204,50 @@ onhup(int sig)
 }
 
 static void
-log_bootwhat(struct in_addr ipaddr, boot_what_t *bootinfo)
+log_bootwhat(struct in_addr ipaddr, boot_what_t *bootinfo, int esent)
 {
-	char ipstr[32];
+	char infostr[48];
 
-	strncpy(ipstr, inet_ntoa(ipaddr), sizeof ipstr);
+	snprintf(infostr, sizeof(infostr), "%s: REPLY(%d): ",
+		 inet_ntoa(ipaddr), esent);
 	switch (bootinfo->type) {
 	case BIBOOTWHAT_TYPE_PART:
-		info("%s: REPLY: boot from partition %d\n",
-		     ipstr, bootinfo->what.partition);
+		info("%sboot from partition %d\n",
+		     infostr,
+		     bootinfo->what.partition);
 		break;
 	case BIBOOTWHAT_TYPE_DISKPART:
-		info("%s: REPLY: boot from disk/partition 0x%x/%d\n",
-		     ipstr, bootinfo->what.dp.disk,
+		info("%sboot from disk/partition 0x%x/%d\n",
+		     infostr,
+		     bootinfo->what.dp.disk,
 		     bootinfo->what.dp.partition);
 		break;
 	case BIBOOTWHAT_TYPE_SYSID:
-		info("%s: REPLY: boot from partition with sysid %d\n",
-		     ipstr, bootinfo->what.sysid);
+		info("%sboot from partition with sysid %d\n",
+		     infostr,
+		     bootinfo->what.sysid);
 		break;
 	case BIBOOTWHAT_TYPE_MB:
-		info("%s: REPLY: boot multiboot image %s:%s\n",
-		       ipstr, inet_ntoa(bootinfo->what.mb.tftp_ip),
-		       bootinfo->what.mb.filename);
+		info("%sboot multiboot image %s:%s\n",
+		     infostr,
+		     inet_ntoa(bootinfo->what.mb.tftp_ip),
+		     bootinfo->what.mb.filename);
 		break;
 	case BIBOOTWHAT_TYPE_WAIT:
-		info("%s: REPLY: wait mode\n", ipstr);
+		info("%swait mode\n", infostr);
 		break;
 	case BIBOOTWHAT_TYPE_MFS:
-		info("%s: REPLY: boot from mfs %s\n", ipstr, bootinfo->what.mfs);
+		info("%sboot from mfs %s\n", infostr, bootinfo->what.mfs);
 		break;
 	case BIBOOTWHAT_TYPE_REBOOT:
-		info("%s: REPLY: reboot (alternate PXE boot)\n", ipstr);
+		info("%sreboot (alternate PXE boot)\n", infostr);
 		break;
 	default:
-		info("%s: REPLY: UNKNOWN (type=%d)\n", ipstr, bootinfo->type);
+		info("%sUNKNOWN (type=%d)\n", infostr, bootinfo->type);
 		break;
 	}
 	if (bootinfo->cmdline[0]) {
-		info("%s: REPLY: command line: %s\n", ipstr, bootinfo->cmdline);
+		info("%scommand line: %s\n", infostr, bootinfo->cmdline);
 	}
 }
 

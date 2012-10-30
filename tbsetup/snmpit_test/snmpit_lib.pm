@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-LGPL
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LGPL
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2.1 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Lesser General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 #
@@ -30,7 +47,7 @@ use Exporter;
                 filterPlannedVlans
 		snmpitSet snmpitSetWarn snmpitSetFatal 
                 snmpitBulkwalk snmpitBulkwalkWarn snmpitBulkwalkFatal
-	        setPortEnabled setPortTagged
+	        setPortEnabled setPortTagged IsPortTagged
 		printVars tbsort getExperimentCurrentTrunks
 	        getExperimentVlanPorts
                 uniq isSwitchPort getPathVlanIfaces
@@ -89,6 +106,9 @@ my %vlanmembers=();
 my %vlanids=();
 # vlanids maps pid:eid <==> id
 
+my %DeviceOptions=();
+# Maps devicename -> hash of options to avoid db call after forking;
+
 my $snmpitErrorString;
 
 # Protos
@@ -99,6 +119,7 @@ sub getTrunkPath($$$$);
 #
 sub init($) {
     $debug = shift || $debug;    
+    &ReadDeviceOptions;
     return 0;
 }
 
@@ -356,7 +377,7 @@ sub getVlanPorts (@) {
 #
 sub getExperimentTrunks($$@) {
     my ($pid, $eid, @vlans) = @_;
-    my @ports = ();
+    my %ports = ();
 
     # For debugging only.
     @vlans = getExperimentVlans($pid, $eid)
@@ -414,10 +435,10 @@ sub getExperimentTrunks($$@) {
 		next
 		    if (!$query_result->numrows);
 	    }
-	    push(@ports, $port);
+	    $ports{$port->toString()} = $port;
 	}
     }
-    return @ports;
+    return %ports;
 }
 
 #
@@ -427,7 +448,7 @@ sub getExperimentTrunks($$@) {
 #
 sub getExperimentCurrentTrunks($$@) {
     my ($pid, $eid, @vlans) = @_;
-    my @ports = ();
+    my %ports = ();
 
     # For debugging only.
     @vlans = getExperimentVlans($pid, $eid)
@@ -495,10 +516,10 @@ sub getExperimentCurrentTrunks($$@) {
 		next
 		    if (!$query_result->numrows);
 	    }
-	    push(@ports, $port);
+	    $ports{$port->toString()} = $port;
 	}
     }
-    return @ports;
+    return %ports;
 }
 
 #
@@ -708,6 +729,19 @@ sub setPortTagged($$) {
 
     DBQueryFatal("update interface_state set tagged=$tagged ".
 		 "where node_id='$node' and card='$card'");
+}
+
+# Ditto for trunked.
+sub IsPortTagged($) { 
+    my ($port) = @_;
+
+    my ($node, $card) = ($port->node_id(), $port->card());
+
+    my $query_result =
+	DBQueryFatal("select tagged from interface_state ".
+		     "where node_id='$node' and card='$card' and tagged!=0");
+    
+    return $query_result->numrows();
 }
 
 #                                                                                    
@@ -1058,6 +1092,9 @@ sub getDeviceOptions($) {
     my $switch = shift;
     my %options;
 
+    if (my $cached_options = $DeviceOptions{$switch}) {
+	return $cached_options;
+    }
     my $result = DBQueryFatal("SELECT supports_private, " .
 	"single_domain, s.snmp_community as device_community, ".
         "t.min_vlan, t.max_vlan, " .
@@ -1083,7 +1120,23 @@ sub getDeviceOptions($) {
     $options{'min_vlan'} = $device_min || $min_vlan || 2;
     $options{'max_vlan'} = $device_max || $max_vlan || 1000;
 
-    $options{'type'} = getDeviceType($switch);
+    my $type = $options{'type'} = getDeviceType($switch);
+
+    my $q = "(select \"default\" source, attrkey, attrvalue from ".
+	    "node_type_attributes where type='$type' ".
+	    "and attrkey like 'snmpit%') union ".
+	    "(select \"override\" source, attrkey, attrvalue from ".
+	    "node_attributes where node_id='$switch' ".
+	    "and attrkey like 'snmpit%') order by source";
+	   
+    $result = DBQuery($q);
+    if ($result && $result->numrows()) {
+	while (my ($source, $key, $value) = $result->fetchrow()) {
+		$key =~ s/^snmpit_//;
+		$options{$key} = $value;
+	}
+    }
+    $DeviceOptions{$switch} = \%options;
 
     if ($debug) {
 	print "Options for $switch:\n";
@@ -1093,6 +1146,13 @@ sub getDeviceOptions($) {
     }
 
     return \%options;
+}
+
+sub ReadDeviceOptions() {
+    my $result = DBQuery("select distinct node_id from switch_stacks");
+    print STDERR "No switch found in any stack\n"
+	unless ($result && $result->numrows());
+    while (my ($switch) = $result->fetchrow()) { getDeviceOptions($switch); }
 }
 
 #
@@ -1546,7 +1606,8 @@ sub getTrunkHash() {
     foreach my $switch1 (keys %trunks) {
         foreach my $switch2 (keys %{$trunks{$switch1}}) {
             foreach my $port (@{$trunks{$switch1}{$switch2}}) {
-                my $portstr = "$switch1/$port";
+                # XXX backward compat
+                my $portstr = "$switch1/".$port->card().".".$port->port();
                 $trunkhash{$portstr} = 1;
             }
         }

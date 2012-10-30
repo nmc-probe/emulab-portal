@@ -698,9 +698,11 @@ CXX
 AR
 RANLIB
 STRIP
+DIG
 ELVIN_CONFIG
 JAVAC
 JAR
+NC
 SUDO
 UUIDGEN
 SSH
@@ -4442,6 +4444,46 @@ fi
 
 
 
+# Extract the first word of "dig", so it can be a program name with args.
+set dummy dig; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_path_DIG+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  case $DIG in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_DIG="$DIG" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_DIG="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+DIG=$ac_cv_path_DIG
+if test -n "$DIG"; then
+  { $as_echo "$as_me:$LINENO: result: $DIG" >&5
+$as_echo "$DIG" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
 # Extract the first word of "elvin-config", so it can be a program name with args.
 set dummy elvin-config; ac_word=$2
 { $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
@@ -4556,6 +4598,46 @@ JAR=$ac_cv_path_JAR
 if test -n "$JAR"; then
   { $as_echo "$as_me:$LINENO: result: $JAR" >&5
 $as_echo "$JAR" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+# Extract the first word of "nc", so it can be a program name with args.
+set dummy nc; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_path_NC+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  case $NC in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_NC="$NC" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_NC="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+NC=$ac_cv_path_NC
+if test -n "$NC"; then
+  { $as_echo "$as_me:$LINENO: result: $NC" >&5
+$as_echo "$NC" >&6; }
 else
   { $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
@@ -7313,7 +7395,7 @@ fi
 
 outfiles="$outfiles Makeconf GNUmakefile \
 	assign/GNUmakefile \
-        named/GNUmakefile firewall/GNUmakefile \
+        named/GNUmakefile firewall/GNUmakefile fwrules/GNUmakefile \
 	ssl/GNUmakefile ssl/mksig ssl/usercert.cnf ssl/mkserial \
 	capture/GNUmakefile \
 	db/GNUmakefile \
@@ -7429,7 +7511,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	utils/spewconlog utils/xlogin \
 	utils/opsdb_control utils/opsdb_control.proxy \
 	utils/remove_old_www utils/epmodeset \
-	utils/mkblob utils/rmblob \
+	utils/mkblob utils/rmblob utils/ctrladdr utils/tcppd \
 	www/GNUmakefile www/defs.php3 www/dbdefs.php3 www/xmlrpc.php3 \
 	www/xmlrpcpipe.php3 \
 	www/swish.conf www/websearch \
@@ -7518,7 +7600,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 # this turned out to be a major headache. Instead, just duplicate the file
 # lists here and in clientside.
 #
-outfiles="$outfiles clientside/GNUmakefile \
+outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/lib/GNUmakefile clientside/lib/libtb/GNUmakefile \
  clientside/lib/tmcd/GNUmakefile \
  clientside/GNUmakefile clientside/event/GNUmakefile \
@@ -7554,7 +7636,6 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/tmcc/freebsd/supfile clientside/tmcc/freebsd/sethostname \
  clientside/tmcc/linux/GNUmakefile clientside/tmcc/linux/supfile \
  clientside/tmcc/linux/sethostname.dhclient \
- clientside/tmcc/linux/xen/emulab-cnet \
  clientside/tmcc/linux9/GNUmakefile clientside/tmcc/linux9/supfile \
  clientside/tmcc/fedora/GNUmakefile clientside/tmcc/fedora/supfile \
  clientside/tmcc/fedora15/GNUmakefile \
@@ -7565,10 +7646,11 @@ outfiles="$outfiles clientside/GNUmakefile \
  clientside/tmcc/freebsd6/GNUmakefile clientside/tmcc/freebsd6/supfile \
  clientside/tmcc/freebsd6/netif-emulab \
  clientside/tmcc/freebsd7/GNUmakefile clientside/tmcc/freebsd7/netif-emulab \
+ clientside/tmcc/freebsd9/GNUmakefile clientside/tmcc/freebsd9/netif-emulab \
  clientside/tmcc/freebsd10/GNUmakefile clientside/tmcc/freebsd10/netif-emulab \
  clientside/tmcc/cygwinxp/GNUmakefile clientside/tmcc/dp/GNUmakefile \
  clientside/tmcc/openbsd/GNUmakefile clientside/tmcc/ron/GNUmakefile \
- clientside/tmcc/plab/GNUmakefile \
+ clientside/tmcc/plab/GNUmakefile clientside/tmcc/cygwinseven/GNUmakefile \
  clientside/os/dijkstra/GNUmakefile clientside/os/genhostsfile/GNUmakefile \
  clientside/os/growdisk/GNUmakefile \
  clientside/os/zapdisk/GNUmakefile \

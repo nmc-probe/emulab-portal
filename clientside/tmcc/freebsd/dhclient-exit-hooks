@@ -1,8 +1,25 @@
 #!/bin/sh
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 . /etc/emulab/paths.sh
 
@@ -98,20 +115,22 @@ if [ -n "$new_routers" ]; then
     fi
 fi
 
-#
-# We have observed problems where changing the speed/duplex of a link
-# leaves DNS a little wonky.  So we whack on it til it responds so that
-# the sethostname script won't fail.
-#
-if [ "$new_network_number" = "10.200.1.0" ]; then
-    for i in 0 1 2; do
-        if `$BINDIR/tmcc bossinfo >/dev/null 2>&1`; then
-	    break
-	fi
-        echo "`date`: ${interface}: waiting for DNS.." >>$LOGDIR/dhclient-exit.log 2>&1
-        sleep $i
-    done
-fi
+##
+## This is now handled in sethostname.
+##
+## We have observed problems where changing the speed/duplex of a link
+## leaves DNS a little wonky.  So we whack on it til it responds so that
+## the sethostname script won't fail.
+##
+#if [ "$new_network_number" = "10.200.1.0" ]; then
+#    for i in 0 1 2; do
+#        if `$BINDIR/tmcc bossinfo >/dev/null 2>&1`; then
+#	    break
+#	fi
+#        echo "`date`: ${interface}: waiting for DNS.." >>$LOGDIR/dhclient-exit.log 2>&1
+#        sleep $i
+#    done
+#fi
 
 #
 # See if the Testbed configuration software wants to change the hostname.

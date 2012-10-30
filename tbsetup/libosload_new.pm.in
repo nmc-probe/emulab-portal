@@ -1,8 +1,25 @@
 #!/usr/bin/perl -wT
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 # Osload library. Basically the backend to the osload script, but also used
 # where we need finer control of loading of nodes.
@@ -697,6 +714,8 @@ sub osload($$$) {
     }
     @nodes = @temp;
 
+    TBDebugTimeStamp("osload: database setup done");
+
     # Exit if not doing an actual reload.
     if ($TESTMODE) {
 	print "$self: Stopping in Testmode!\n";
@@ -761,11 +780,13 @@ sub osload($$$) {
 	return
 	    if (!defined($eventnodes));
 
-	print "$self: eventhandler: $node_id, $event\n"
-	    if ($self->debug());
-
+	$eventnodes->{'GOTONE'} = 1;
 	if (exists($eventnodes->{$node_id})) {
-	    $eventnodes->{$node_id} = time();
+	    my $et = time();
+	    if ($self->debug()) {
+		print "$self: eventhandler: $node_id => $event @ $et\n"
+	    }
+	    $eventnodes->{$node_id} = $et;
 	}
     };
     my $evhandle = $self->SetupEventHandler($handler);
@@ -791,6 +812,7 @@ sub osload($$$) {
 	    foreach my $node (@$reboot_nodes) {
 		$eventnodes->{$node} = 0;
 	    }
+	    $self->dprintts("event handler enabled");
 	    
 	    my %reboot_args     = ();
 	    my %reboot_failures = ();
@@ -1059,14 +1081,34 @@ sub WaitTillReloadDone($$$$$@)
 
     # Start a counter going, relative to the time we rebooted the first
     # node.
+    $self->dprintts("starting reload-done wait");
     my $waittime  = 0;
     my $minutes   = 0;
 
+    #
+    # Should-be-parameters:
+    #
+    # REBOOTWAIT: time in minutes to make a transition after reboot
+    # MAXEVENTS: max events to grab in any event_poll loop
+    #
+    my $REBOOTWAIT = 5;
+    my $MAXEVENTS = 500;
+
+    my $ecount = 1;
     while ($count > 0) {
 	# Wait first to make sure reboot is done, and so that we don't
 	# wait one more time after everyone is up.
-	sleep(5);
-	event_poll($evhandle);
+	if ($ecount > 0) {
+	    sleep(5)
+	}
+	my $ecount = $MAXEVENTS;
+	do {
+	    $eventnodes->{'GOTONE'} = 0;
+	    event_poll($evhandle);
+	} while ($eventnodes->{'GOTONE'} && --$ecount > 0);
+	if ($ecount < $MAXEVENTS) {
+	    $self->dprint(2, "got ", $MAXEVENTS-$ecount, " events\n");
+	}
 	foreach my $node (@nodes) {
 	    if (! $done{$node}) {
 		my $nodeobject = $self->node($node);
@@ -1147,26 +1189,45 @@ sub WaitTillReloadDone($$$$$@)
 		# reloading.
 		$waittime = time - $startwait;
 		
+		# If the node doesn't made a transition within $REBOOTWAIT
+		# minutes of booting, we declare it stuck.
+		my $isstuck = ($minutes > $REBOOTWAIT &&
+			       exists($eventnodes->{$node}) &&
+			       $eventnodes->{$node} == 0);
+
 		if ($waittime > $maxwait ||
-		    (defined($eventstate) &&
-		     ($eventstate eq TBDB_NODESTATE_TBFAILED() ||
-		      $eventstate eq TBDB_NODESTATE_PXEFAILED())) ||
-		    ($minutes > 5 &&
-		     exists($eventnodes->{$node}) &&
-		     $eventnodes->{$node} == 0)) {
+		    $eventstate eq TBDB_NODESTATE_TBFAILED() ||
+		    $eventstate eq TBDB_NODESTATE_PXEFAILED() ||
+		    $isstuck) {
+
+		    #
+		    # If we are in reloading, then we obviously missed
+		    # a state transition in our handler. Probably just
+		    # need to increase $MAXEVENTS above.
+		    #
+		    if ($isstuck &&
+			$eventstate eq TBDB_NODESTATE_RELOADING()) {
+			tbnotice("$self: missed state transition to RELOADING".
+				 " for $node; faking it.");
+			$eventnodes->{$node} = time();
+			goto okay;
+		    }
+
 		    my $t = (int ($waittime / 60));
 		    tbnotice "$self: $node appears wedged; ".
 			"it has been $t minutes since it was rebooted.";
 
-		    if (defined($eventstate) &&
-			($eventstate eq TBDB_NODESTATE_TBFAILED() ||
-			 $eventstate eq TBDB_NODESTATE_PXEFAILED())) {
-			tbnotice("$self: $node looks stuck in $eventstate.");
+		    if ($eventstate eq TBDB_NODESTATE_TBFAILED() ||
+			$eventstate eq TBDB_NODESTATE_PXEFAILED()) {
+			tbnotice("$self: $node is stuck in $eventstate.");
 		    }
-		    elsif ($minutes > 5 &&
-			   exists($eventnodes->{$node}) &&
-			   $eventnodes->{$node} == 0) {
-			tbnotice("$self: $node failed to enter reloading state.");
+		    elsif ($eventstate eq TBDB_NODESTATE_RELOADING()) {
+			tbnotice("$self: $node did not finish reloading.");
+		    }
+		    elsif ($isstuck) {
+			tbnotice("$self: $node failed to make a state ".
+				 "transition after $REBOOTWAIT minutes; ".
+				 "stuck in $eventstate.");
 		    }
 		    TBNodeConsoleTail($node, *STDERR);
 
@@ -1175,6 +1236,7 @@ sub WaitTillReloadDone($$$$$@)
 		    push(@failed, $node);
 		    next;
 		}
+	      okay:
 		if (int($waittime / 60) > $minutes) {
 		    $minutes = int($waittime / 60);
 		    print STDERR "$self ($node): still waiting; ".
@@ -1791,6 +1853,28 @@ sub SetBootOS($$)
 	if ($nodeobject->OSSelect($osinfo,"def_boot_osid",$self->debug())) {
 	    tberror "$self SetBootOS($node_id): os_select $defosid failed!";
 	    return -1;
+	}
+    }
+
+    #
+    # Change the node's default command line as necessary.
+    # XXX we only do this for delay nodes.
+    #
+    if ($nodeobject->erole() eq "delaynode") {
+	my ($ocmdline,$ncmdline);
+	$ocmdline = $nodeobject->def_boot_cmd_line();
+	$ocmdline = ""
+	    if (!defined($ocmdline));
+	$osinfo->OSBootCmd("delay", \$ncmdline);
+	$ncmdline = ""
+	    if (!defined($ncmdline));
+	if ($ocmdline ne $ncmdline) {
+	    print "$self SetBootOS($node_id): changing default command line to '$ncmdline'\n";
+	    if (!DBQueryWarn("update nodes set ".
+			     "def_boot_cmd_line='$ncmdline' ".
+			     "where node_id='$node_id'")) {
+		tbwarn "$self SetBootOS($node_id): could not update command line";
+	    }
 	}
     }
 

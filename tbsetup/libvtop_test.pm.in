@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2005-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 package libvtop_test;
 
@@ -25,6 +42,7 @@ use Node;
 use NodeType;
 use Lan;
 use OSinfo;
+use Image;
 use Port;
 use English;
 use emutil qw(SpanningTree GenFakeMac);
@@ -33,7 +51,6 @@ use Carp;
 use POSIX;
 use XML::LibXML;
 use XML::Simple;
-use GeniHRN;
 
 # Configure variables
 my $TB		  = "@prefix@";
@@ -48,7 +65,12 @@ my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $PGENIRACK     = @PROTOGENI_GENIRACK@;
 my $OURDOMAIN     = "@OURDOMAIN@";
 my $MAINSITE      = @TBMAINSITE@;
-my $mycmurn       = GeniHRN::Generate("@OURDOMAIN@", "authority", "cm");
+my $mycmurn       = "";
+
+if ($PGENISUPPORT) {
+  require GeniHRN;
+  $mycmurn = GeniHRN::Generate("@OURDOMAIN@", "authority", "cm");  
+}
 
 # Flags.
 $VTOP_FLAGS_VERBOSE	= 0x01;
@@ -764,17 +786,14 @@ sub LoadPhysInfo($)
     #
     my %node_type_linkbw = ();
     
-    # XXX: PlanetLab hack - PlanetLab 'control' interfaces are also
-    # 'experimental' interfaces! We probably need a way to express
-    # this in the interfaces table or interface_types
-    #
     $query_result =
 	DBQueryWarn("select distinct i.interface_type,n.type ".
 		    "  from interfaces as i ".
 		    "left join nodes as n on n.node_id=i.node_id ".
-		    "where i.role='" . TBDB_IFACEROLE_EXPERIMENT . "' ".
-		    "      or (n.type='pcplabphys' and i.role='" .
-		                 TBDB_IFACEROLE_CONTROL . "')");
+		    "where n.type is not null and ".
+		    "      (i.role='" . TBDB_IFACEROLE_EXPERIMENT . "' or ".
+		    "       i.role='" . TBDB_IFACEROLE_CONTROL . "')");
+
     return -1
 	if (!$query_result);
 
@@ -1118,6 +1137,13 @@ sub LoadVirtNodes($)
 	$vnode->_fixedvm(undef);
 	$vnode->_isbridge(($vnode->role() eq "bridge" ? 1 : 0));
 
+	#
+	# Explicit type request desire to match feature.
+	#
+	my $explict_type_request;
+	$nodetype->GetAttribute("explicit_request", \$explict_type_request);
+	$vnode->_explicit_type_request($explict_type_request);
+
 	# For a list of interfaces on this node, as for rspec generation
 	$vnode->_virtifaces([]);
 
@@ -1228,23 +1254,30 @@ sub LoadVirtNodes($)
 	# use the default for the type of phys node that assign picks.
 	#
 	if (defined($osname) && $osname ne "") {
-	    my $ospid = $pid;
+	    my $osinfo;
 	    
-	    if ($osname =~ /^(.*)\/(.*)$/) {
-		$ospid  = $1;
-		$osname = $2;
-	    }
-	    my $osinfo = OSinfo->Lookup("$ospid,$osname");
-	    if (!defined($osinfo)) {
-		$osinfo = OSinfo->LookupByName($osname);
-
-		if (!defined($osinfo)) {
-		    tberror({cause => 'user', type => 'primary',
-			     severity => SEV_ERROR,
-			     error => ['invalid_os', undef, $osname, $ospid]},
-			    "Invalid OS $osname in project $ospid!");
-		    return -1;
+	    if ($osname =~ /^(ftp|http|https):/) {
+		my $image = Image->LookupByURL($osname);
+		if (!defined($image)) {
+		    tberror("Invalid os url $osname!\n");
 		}
+		$osinfo = OSinfo->Lookup($image->imageid());
+	    }
+	    elsif ($osname =~ /^(.*)\/(.*)$/) {
+		$osinfo = OSinfo->Lookup($osname);
+	    }
+	    else {
+		$osinfo = OSinfo->Lookup($pid, $osname);
+		if (!defined($osinfo)) {
+		    $osinfo = OSinfo->LookupByName($osname);
+		}
+	    }
+	    if (!defined($osinfo)) {
+		tberror({cause => 'user', type => 'primary',
+			 severity => SEV_ERROR,
+			 error => ['invalid_os', undef, $osname, $pid]},
+			"Invalid OS $osname!");
+		return -1;
 	    }
 	    $vnode->_osinfo($osinfo);
 	}
@@ -1282,6 +1315,15 @@ sub LoadVirtNodes($)
 			    "Invalid parent OS $parent_osname in project $ospid!");
 		    return -1;
 		}
+	    }
+	    $vnode->_parent_osinfo($osinfo);
+	}
+	elsif ($isvirt && defined($vnode->_osinfo()->def_parentosid())) {
+	    my $osinfo = OSinfo->Lookup($vnode->_osinfo()->def_parentosid());
+	    if (!defined($osinfo)) {
+		tberror("Invalid def_parentosid in " .
+			$vnode->_osinfo() . "\n");
+		return -1;
 	    }
 	    $vnode->_parent_osinfo($osinfo);
 	}
@@ -2037,6 +2079,9 @@ sub GenVirtNodes($)
 	}
 	elsif ($vnode->_isbridge()) {
 	    $type = ($type eq "pc" ? "delay" : "delay-" . $type);
+	}
+	if ($vnode->_explicit_type_request()) {
+	    $desires->{"$type" . "-explicit"} = ['', 1.0];
 	}
 	
 	$self->createNode($vname, $vnode->_cmurn(),
@@ -5437,55 +5482,6 @@ sub InterpLinks($)
 	}
     }
 
-    #
-    # Check the portbw to make sure they are all set; if the user is
-    # letting assign pick the interfaces (zero bandwidth), then portbw
-    # is still zero, and it needs to be set to the default speed for
-    # that interface.
-    #
-    foreach my $virtlan (values(%{ $self->vlans() })) {
-	foreach my $member ($virtlan->memberlist()) {
-	    # Will this happen?
-	    next
-		if (!exists($self->solution_portmap()->{$member}));
-
-	    # XXX NSE checks I do not understand.
-	    next
-		if (! (exists($self->portbw()->{$member}) &&
-		       exists($self->solution_v2p()->{$member->vnode()})));
-
-	    # Skip anything that is implemented by a path; speed set elsewhere.
-	    next
-		if (defined($virtlan->_implemented_by()));
-
-	    # Skip anything that was turned into a vinterface; the
-	    # port speed will get set elsewhere.
-	    next
-		if (exists($self->solution_vifacemap()->{$member}));
-
-	    my $iface     = $self->solution_portmap()->{$member};
-	    my $pnodename = $self->solution_v2p()->{$member->vnode()};
-	    my $speed     = $self->portbw()->{$member};
-
-	    # Already set.
-	    next
-		if ($speed);
-
-	    my $interface = Interface->LookupByIface($pnodename, $iface);
-	    if (!defined($interface)) {
-		tberror("Could not lookup interface $pnodename:$iface\n");
-		return -1;
-	    }
-	    $speed =
-		$self->interfacespeedmbps($interface->type(), "ethernet");
-
-	    # portbw() is in bps.
-	    $self->portbw()->{$member} = $speed * 1000;
-
-	    $self->printdb("Setting portbw: $pnodename:$iface $speed\n");
-	}
-    }
-
     # Write the vlans to the DB.
     $self->UploadVlans() == 0
 	or return -1;
@@ -5950,6 +5946,10 @@ sub InterpLinksAux($)
 		    if (defined($protovlan)) {
 			$vlan_type = "emulated";
 			$vlan_role = "link/lan";
+			$virtifaceA->_vlanname($protovlan->vname())
+			    if (defined($virtifaceA));
+			$virtifaceB->_vlanname($protovlan->vname())
+			    if (defined($virtifaceB));
 		    }
 		    else {
 			$vlan_type = "vlan";
@@ -5957,6 +5957,10 @@ sub InterpLinksAux($)
 			$protolink->SetAttribute("link/lan", $lan);
 			$protolink->SetAttribute("switchpath", "$pathA")
 			    if (defined($pathA));
+			$virtifaceA->_vlanname($lan)
+			    if (defined($virtifaceA));
+			$virtifaceB->_vlanname($lan)
+			    if (defined($virtifaceB));
 		    }
 		    $protolink->SetType($vlan_type);
 		    $protolink->SetRole($vlan_role);
@@ -6133,6 +6137,7 @@ sub InterpLinksAux($)
 			    if (!defined($virtiface));
 
 			$portA = $virtiface->viface();
+			$virtiface->_vlanname($protovlan->vname());
 		    }
 		    #
 		    # We need to reserve the shared bandwidth. 
@@ -6926,6 +6931,9 @@ sub NewVirtIface($$$$;$)
     # Record this vinterface mapping.
     $self->solution_vifacemap()->{$member} = $virtiface;
     $member->_virtiface($virtiface);
+    $virtiface->_member($member);
+    $virtiface->_trunk(undef);
+    $virtiface->_speed(undef);
     
     #
     # For veth and vlan interfaces, we need to set the characteristics
@@ -6937,17 +6945,15 @@ sub NewVirtIface($$$$;$)
     #
     if (defined($pport) && $isvdev &&
 	(!$pnode->_sharedhost() || $member->_needtrunk())) {
-	my $speed = $self->interfacespeedmbps(physinterfacetype($pnode,$pport),
-					      "ethernet");
-	my $trunk = ($type eq "vlan" ? 1 : 0);
 
-	$self->printdb("  Setting port speed/trunk for $pnodename: ".
-		       "$pport:$speed/$trunk\n");
-	
-	DBQueryWarn("update interfaces set " .
-		     "   current_speed='$speed',trunk=$trunk " .
-		     "where node_id='$pnodename' and iface='$pport'")
-	    or return -1 if (!($self->impotent() || $self->alloconly()));
+	# If vlan encap, turn on trunking.
+	$virtiface->_trunk(($type eq "vlan") ? 1 : 0);
+
+	# Also set the speed, although if this is a control interface,
+	# it will utlimately be ignore.
+	$virtiface->_speed(
+	    $self->interfacespeedmbps(physinterfacetype($pnode,$pport),
+				      "ethernet"));
     }
 
     #
@@ -7896,86 +7902,12 @@ sub UploadVlans($)
 		my $args = {};
 		$args->{'current_speed'} = $current_speed
 		    if (defined($current_speed));
-		$args->{'trunk'} = 1
-		    if (defined($trunk_mode));
+		if (defined($trunk_mode)) {
+		    $args->{'trunk'} = 1;
+		    $args->{'trunk_mode'} = $trunk_mode;
+		}
 		$interface->Update($args) == 0
 		    or return -1;
-	    }
-	}
-	#
-	# Deal with port vlans.
-	#
-	foreach my $lan (@lans) {
-	    next
-		if ($lan->type() ne "portlan");
-
-	    my $lanname;
-	    $lan->GetAttribute("link/lan", \$lanname);
-	    my $virtlan = $self->vlans()->{$lanname};
-	    
-	    if (!defined($virtlan)) {
-		tberror("$lanname does not exist for portvlan\n");
-		return -1;
-	    }
-	    my $portvlan = $virtlan->_portvlan();
-
-	    #
-	    # The idea here is to remove any members for this lan
-	    # from the target lan, and then add the new ones. This
-	    # violates update, in that an error after this will not
-	    # restore the missing ports. Need to fix that.
-	    #
-	    my @members;
-	    if ($portvlan->MemberList(\@members) != 0) {
-		tberror("Could not get member list for $portvlan\n");
-		return -1;
-	    }
-	    foreach my $member (@members) {
-		my $member_exptidx;
-		my $member_lanname;
-		$member->GetAttribute("portlan_exptidx", \$member_exptidx);
-		$member->GetAttribute("portlan_lanname", \$member_lanname);
-
-		# Not a port in an external lan; a native port.
-		next
-		    if (!defined($member_exptidx) && !defined($member_lanname));
-
-		if (! (defined($member_exptidx) && defined($member_lanname))) {
-		    tberror("Could not get idx/lanname from $member\n");
-		    return -1;
-		}
-		next
-		    if (! ($member_exptidx == $exptidx &&
-			   $member_lanname eq $lanname));
-
-		# Delete the member.
-		$self->printdb("Deleting $member from $portvlan\n");
-		if ($portvlan->DelMember($member)) {
-		    tberror("Could not delete $member from $portvlan\n");
-		    return -1;
-		}
-	    }
-	    #
-	    # Now add new members.
-	    #
-	    if ($lan->MemberList(\@members) != 0) {
-		tberror("Could not get member list for $lan\n");
-		return -1;
-	    }
-	    foreach my $member (@members) {
-		my $nodeid;
-		my $iface;
-
-		$member->GetNodeIface(\$nodeid, \$iface);
-		my $newmember = $portvlan->AddMember($nodeid, $iface);
-		if (!defined($newmember)) {
-		    tberror("Could not add $member to $portvlan\n");
-		    return -1;
-		}
-		$self->printdb("Added $newmember to $portvlan\n");
-		# Mark where the member came from.
-		$newmember->SetAttribute("portlan_exptidx", $exptidx);
-		$newmember->SetAttribute("portlan_lanname", $lanname);
 	    }
 	}
     }
@@ -8005,23 +7937,121 @@ sub UploadVlans($)
 	    next
 		if (defined($virtlan->_implemented_by()));
 
-	    # Skip anything that was turned into a vinterface; the
-	    # port speed will get set elsewhere.
-	    next
-		if (exists($self->solution_vifacemap()->{$member}));
+	    my $iface;
+	    my $pnodename;
+	    my $interface;
+	    my $speed;
+	    my $trunk;
+	    my $trunk_vlan;
+	    my $args = {};
 
-	    my $iface     = $self->solution_portmap()->{$member};
-	    my $pnodename = $self->solution_v2p()->{$member->vnode()};
-	    my $speed     = $self->portbw()->{$member};
-	    
-	    # XXX - the following converts from bps to Mbps
-	    $speed = $speed / 1000;
+	    if (exists($self->solution_vifacemap()->{$member})) {
+		#
+		# Need to set the underlying physical interface, but
+		# that info is not in portbw cause the member is not a
+		# physical interface. 
+		#
+		my $virtiface = $self->solution_vifacemap()->{$member};
+		$iface     = $virtiface->iface();
+		$pnodename = $virtiface->node_id();
+		$speed     = $virtiface->_speed();
+		$trunk     = $virtiface->_trunk();
 
-	    $self->printdb("Interface speed: $pnodename:$iface $speed\n");
-	    
-	    DBQueryWarn("update interfaces set current_speed='$speed' ".
-			"where node_id='$pnodename' and iface='$iface'")
-		or return -1 if (!($self->impotent() || $self->alloconly()));
+		# Skip loopback interfaces.
+		next
+		    if (!defined($iface));
+
+		$interface = Interface->LookupByIface($pnodename, $iface);
+		if (!defined($interface)) {
+		    tberror("No such interface $pnodename:$iface\n");
+		    return -1;
+		}
+
+		#
+		# Another wrinkle; if this was a trunked vlan on the control
+		# network, we have to mark the vlan as dual mode and say
+		# what the native vlan is. This is how snmpit knows what to
+		# do.
+		#
+		if ($trunk && $interface->role() eq TBDB_IFACEROLE_CONTROL()) {
+		    $trunk_vlan = VLan->LookupInternal("Control");
+		    if (!defined($trunk_vlan)) {
+			tberror("Could not lookup control vlan\n");
+			return -1;
+		    }
+		    if (!$self->impotent()) {
+			my $vlan = VLan->Lookup($self->experiment(),
+						$virtiface->_vlanname());
+			if (!defined($vlan)) {
+			    tberror("Could not lookup vlan for $virtiface\n");
+			    return -1;
+			}
+			$vlan->SetAttribute("trunk_mode", "dual");
+			$vlan->SetAttribute("trunk_vlan", $trunk_vlan->lanid());
+		    }
+		}
+		#
+		# Do not mess with control interface speeds. 
+		#
+		if ($interface->role() eq TBDB_IFACEROLE_CONTROL()) {
+		    $speed = 0;
+		}
+	    }
+	    else {
+		$iface     = $self->solution_portmap()->{$member};
+		$pnodename = $self->solution_v2p()->{$member->vnode()};
+		$speed     = $self->portbw()->{$member};
+		$trunk     = 0;
+
+		$interface = Interface->LookupByIface($pnodename, $iface);
+		if (!defined($interface)) {
+		    tberror("No such interface $pnodename:$iface\n");
+		    return -1;
+		}
+
+		#
+		# This happens when the user asks assign to give it the
+		# default speed ("*" bw in the NS file). Need to assign it
+		# from the interface info.
+		#
+		if (! $speed) {
+		    my $interface = Interface->LookupByIface($pnodename,
+							     $iface);
+		    if (!defined($interface)) {
+			tberror("No such interface $pnodename:$iface\n");
+			return -1;
+		    }
+		    $speed = $self->interfacespeedmbps($interface->type(),
+						       "ethernet");
+		}
+		else {
+		    # XXX - the following converts from bps to Mbps
+		    # since portbw() is in bps.
+		    $speed = $speed / 1000;
+		}
+	    }
+	    my $dbgline = "Interface: $pnodename:$iface";
+
+	    if ($speed) {
+		$dbgline .= " speed:$speed";
+		$args->{'current_speed'} = $speed;
+	    }
+	    if ($trunk) {
+		$dbgline .= " trunk:$trunk";
+		$args->{'trunk'} = 1;
+		if (defined($trunk_vlan)) {
+		    $args->{'trunk_mode'} = "dual";
+		    $dbgline .= ":dual(" . $trunk_vlan->lanid() . ")";
+		}
+	    }
+	    $dbgline .= "\n";
+
+	    if (keys(%{$args})) {
+		$self->printdb($dbgline);
+		$interface->Update($args) == 0
+		    or return -1 if (!($self->impotent() ||
+				       $self->alloconly()));
+	    }
 	}
     }
 

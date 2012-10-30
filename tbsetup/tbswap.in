@@ -1,9 +1,26 @@
 #!/usr/bin/perl -w
 
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use English;
 
@@ -45,7 +62,9 @@ my $piper          = "$TBROOT/sbin/locpiper";
 my $mapper         = "$TBROOT/bin/mapper";
 my $wrapper        = "$TBROOT/libexec/assign_wrapper";
 my $SNMPIT	   = "$TBROOT/bin/snmpit";
+my $IMAGESETUP     = "$TBROOT/sbin/image_setup";
 my $portstats	   = "$TBROOT/bin/portstats";
+my $TCPP           = "$TBROOT/sbin/tcpp";
 my $NFSTRACESUPPORT= @NFSTRACESUPPORT@;
 my $PGENISUPPORT   = @PROTOGENI_SUPPORT@;
 
@@ -194,6 +213,14 @@ my $user_email = $this_user->email();
 my $experiment = Experiment->Lookup($pid, $eid);
 if (!defined($experiment)) {
     tbdie("Could not lookup experiment object!")
+}
+
+# Do not reboot *or* reconfig the shared node experiment.
+if (($swapop eq "modify" || $swapop eq "update") &&
+    $pid eq TBOPSPID() &&
+    ($eid eq "shared-nodes" || $eid eq "shared-node")) {
+    $updateReboot   = 0;
+    $updateReconfig = 0;
 }
 
 #
@@ -523,6 +550,16 @@ sub doSwapout($) {
 			 error => ['elabinelab_tear_down_failed']},
 			"Failed to teardown elabinelab!");
 		$swapout_errors = 1;
+	    }
+	}
+
+	#
+	# Tear down TCP proxies.
+	#
+	if( $type != MODIFY ) {
+	    print "Closing TCP proxy ports...\n";
+	    if( system( "$TCPP -d $pid $eid" ) != 0 ) {
+		tbwarn( "TCP proxy setup failed!" );
 	    }
 	}
 
@@ -945,6 +982,12 @@ sub doSwapin($) {
 	return 1;
     }
 
+    # Do this before we assign any nodes. We want to download the images.
+    system("$IMAGESETUP -g $pid,$eid");
+    if ($?) {
+	return 1;
+    }
+
     #
     # assign_wrapper does all the virtual to physical mapping 
     # and updating the DB state.
@@ -988,7 +1031,7 @@ sub doSwapin($) {
 	# that did not boot.
 	#
 	my $exitcode;
-	my $cmd = "$mapper";
+	my $cmd = "$mapper ";
 	if (EmulabFeatures->FeatureEnabled("OldMapper",
 					   $this_user, $group, $experiment)) {
 	    $cmd = "$wrapper";
@@ -1424,7 +1467,7 @@ sub doSwapin($) {
     # the tags not being assigned yet. We can do this for all swap
     # modes since it is harmless; snmpit does the correct thing. 
     #
-    if ($experiment->HasVirtNodes()) {
+    if ($experiment->HasVirtInterfaces()) {
 	system("$SNMPIT --redirect-err -A $pid $eid");
 	if ($?) {
 	    tberror("Failed to reserve VLAN tags.");
@@ -1475,6 +1518,12 @@ sub doSwapin($) {
     # as needed,
     #
     if (!$experiment->skipvlans()) {
+	if ($experiment->SetupPortLans()) {
+	    tberror({type => 'summary', severity => SEV_SECONDARY,
+		     error => ['vlan_setup_failed']},
+		    "Failed to setup port lans");
+	    return 1;
+	}
 	if ($experiment->SyncPortLans()) {
 	    tberror({type => 'summary', severity => SEV_SECONDARY,
 		     error => ['vlan_setup_failed']},
@@ -1647,6 +1696,17 @@ sub doSwapin($) {
 	    if (system("linktest_control $optarg $pid $eid") != 0) {
 		tbwarn "Linktest run returned non-zero status!";
 	    }
+	}
+    }
+
+    #
+    # Establish TCP proxies where necessary.
+    #
+    if( !$elabinelab && ($type == REAL || $type == MODIFY ) ) {
+	print "Establishing proxy TCP ports...\n";
+	if( system( "$TCPP -a $pid $eid" ) != 0 ) {
+	    # Not a fatal error... things can come up with incomplete proxying.
+	    tbwarn( "TCP proxy setup failed!" );
 	}
     }
 

@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2010-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 use English;
 use strict;
@@ -15,12 +32,14 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print("Usage: dumpimage [-d] [-i <imageid> [-t]] | [-o <osid>] \n");
+    print("Usage: dumpdescriptor ".
+	  "[-d] [-e] [-i <imageid> [-t]] | [-o <osid>]\n");
     exit(-1);
 }
-my $optlist = "di:o:t";
+my $optlist = "di:o:te";
 my $debug   = 0;
 my $dotypes = 0;
+my $export  = 0;
 
 #
 # Configure variables
@@ -30,6 +49,7 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $TBAUDIT	= "@TBAUDITEMAIL@";
 my $TBGROUP_DIR	= "@GROUPSROOT_DIR@";
 my $TBPROJ_DIR	= "@PROJROOT_DIR@";
+my $TBBASE	= "@TBBASE@";
 
 #
 # Untaint the path
@@ -72,6 +92,9 @@ if (defined($options{"d"})) {
 if (defined($options{"t"})) {
     $dotypes = 1;
 }
+if (defined($options{"e"})) {
+    $export = 1;
+}
 if (@ARGV) {
     usage();
 }
@@ -104,15 +127,37 @@ sub DumpImage($)
     my %xmlfields = ();
 
     $xmlfields{"imagename"}    = $image->imagename();
-    $xmlfields{"pid"}          = $image->pid();
-    $xmlfields{"gid"}          = $image->gid();
+    if (!$export) {
+	$xmlfields{"pid"}      = $image->pid();
+	$xmlfields{"gid"}      = $image->gid();
+    }
     $xmlfields{"description"}  = $image->description();
     $xmlfields{"loadpart"}     = $image->loadpart();
     $xmlfields{"global"}       = $image->global();
     $xmlfields{"shared"}       = $image->shared();
     $xmlfields{"path"}         = $image->path()
     	if (defined($image->path()) && $image->path() ne "");
+    $xmlfields{"hash"}         = $image->hash()
+    	if ($export && defined($image->hash()) && $image->hash() ne "");
     $xmlfields{"mbr_version"}  = $image->mbr_version();
+
+    if ($export) {
+	my $imageid    = $image->imageid();
+	my $access_key = $image->access_key();
+	if (!defined($access_key) || $access_key eq "") {
+	    $access_key = TBGenSecretKey();
+	    if ($image->Update({'access_key' => $access_key})) {
+		fatal("Could not initialize access key");
+	    }
+	}
+	#
+	# Generate a url that allows the image to be downloaded.
+	#
+	my $url = "$TBBASE/spewimage.php".
+	    "?imageid=$imageid&access_key=$access_key";
+	
+	$xmlfields{"imagefile_url"} = $url;
+    }
 
     sub MapOS($) {
 	my ($osid) = @_;
@@ -152,7 +197,8 @@ sub DumpImage($)
 	    $xmlfields{"wholedisk"} = 1;
 	    # find the partition which has an osid defined
 	    for (my $i = 1; $i <= 4; $i++) {
-		my $foo = $image->field("part${i}_osid");
+		my $func = "part${i}_osid";
+		my $foo  = $image->$func();
 		if (defined($foo)) {
 		    $xmlfields{"loadpart"} = $i;
 		    last;

@@ -1,7 +1,24 @@
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2000-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 
 #
@@ -33,6 +50,7 @@ ETCDIR		?= $(DESTDIR)$(CLIENT_ETCDIR)
 BINDIR		?= $(DESTDIR)$(CLIENT_BINDIR)
 VARDIR		?= $(DESTDIR)$(CLIENT_VARDIR)
 VSDIR		?= $(BINDIR)/vserver
+LBINDIR		?= $(DESTDIR)/usr/local/bin
 RCDIR		?= $(SYSETCDIR)/rc.d
 INSTALL		?= /usr/bin/install -c 
 COMMON		?= $(SRCDIR)/../common
@@ -264,7 +282,7 @@ vserver-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/vserver/vserver-init.sh $(VSDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/vserver/vserver-rc.sh $(VSDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/mkvserver.pl $(BINDIR)/mkvserver.pl
-	-ln -sf $(BINDIR)/mkvserver.pl $(BINDIR)/mkjail.pl
+	-ln -sf $(CLIENT_BINDIR)/mkvserver.pl $(BINDIR)/mkjail.pl
 
 openvz-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/libvnode.pm $(BINDIR)/
@@ -272,6 +290,8 @@ openvz-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/vznetinit-elab.sh $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/xenbridge-setup $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/vnodectl $(BINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/openvz/create-image $(LBINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/openvz/mkimagecache $(BINDIR)/
 	echo "openvz" > $(ETCDIR)/genvmtype
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/vzmount-elab.sh $(BINDIR)/
 	# No destdir in this symlink!
@@ -290,7 +310,8 @@ xen-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/restorevm.pl $(BINDIR)/restorevm.pl
 	$(INSTALL) -m 755 $(SRCDIR)/xen/capturevm.pl $(BINDIR)/capturevm.pl
 	$(INSTALL) -m 755 $(SRCDIR)/xen/xend-config.sxp $(SYSETCDIR)/xen/
-	$(INSTALL) -m 755 xen/emulab-cnet $(SYSETCDIR)/xen/scripts/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-cnet.pl $(SYSETCDIR)/xen/scripts/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/create-image $(LBINDIR)/
 
 genirack-install:
 	$(INSTALL) -m 755 $(SRCDIR)/xen/restorevm.pl $(BINDIR)/restorevm.pl

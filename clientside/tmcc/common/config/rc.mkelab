@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2004-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 # XXX I hardwire IPs into generated /etc/rc.conf and /etc/rc.resolv.
 #
@@ -368,7 +385,9 @@ sub doboot()
     #
     # FreeBSD version specific adjustments for defaults.
     #
-    if ($FBSD_VERSION >= 7.2) {
+    if ($FBSD_VERSION >= 8.2) {
+	$emulabconfig{"MFSVERSION"} = "82";
+    } elsif ($FBSD_VERSION >= 7.2) {
 	$emulabconfig{"MFSVERSION"} = "72";
     } else {
 	$emulabconfig{"MFSVERSION"} = "62";
@@ -1744,6 +1763,7 @@ sub SetupOpsNode($)
     print RC "domain $domain\n";
     print RC "search $domain\n";
     print RC "nameserver $bossnode_ip\n";
+    print RC "nameserver $outer_bossip\n";
     close(RC);
 
   skipsetup:

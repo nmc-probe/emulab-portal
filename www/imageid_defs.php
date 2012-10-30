@@ -1,8 +1,25 @@
 <?php
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2006-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 include_once("osinfo_defs.php");	# For SpitOSIDLink() below.
 
@@ -79,6 +96,20 @@ class Image
 	return Image::Lookup($row["imageid"]);
     }
 
+    function LookupByUUID($uuid) {
+	$safe_uuid = addslashes($uuid);
+
+	$query_result =
+	    DBQueryFatal("select imageid from images ".
+			 "where uuid='$safe_uuid'");
+
+	if (mysql_num_rows($query_result) == 0) {
+	    return null;
+	}
+	$row = mysql_fetch_array($query_result);
+	return Image::Lookup($row["imageid"]);
+    }
+    
     #
     # Refresh an instance by reloading from the DB.
     #
@@ -203,6 +234,25 @@ class Image
     }
 
     #
+    # Flip global bit. If making it global, turn off shared.
+    # Also, if an EZ image, flip the bit on the os_info entry too.
+    #
+    function SetGlobal($mode) {
+	$id       = $this->imageid();
+	$mode     = ($mode ? 1 : 0);
+	$extra    = ($mode ? ",shared=0" : "");
+
+	DBQueryFatal("update images set global='$mode' $extra ".
+		     "where imageid='$id'");
+
+	if ($this->ezid()) {
+	    DBQueryFatal("update os_info set shared='$mode' ".
+			 "where osid='$id'");
+	}
+	return 0;
+    }
+
+    #
     # Class function to edit an image descriptor.
     #
     function EditImageid($image, $args, &$errors) {
@@ -308,6 +358,8 @@ class Image
     function updated()		{ return $this->field("updated"); }
     function mbr_version()	{ return $this->field("mbr_version"); }
     function hash()		{ return $this->field("hash"); }
+    function metadata_url()	{ return $this->field("metadata_url"); }
+    function imagefile_url()	{ return $this->field("imagefile_url"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -352,13 +404,12 @@ class Image
 	$gid_idx= $user->uid_idx();
 
         #
-        # Global ImageIDs can be read by anyone but written by Admins only.
+        # Global ImageIDs can be read by anyone but written with permission.
         # 
 	if ($global) {
 	    if ($access_type == $TB_IMAGEID_READINFO) {
 		return 1;
 	    }
-	    return 0;
 	}
 
         #
@@ -454,6 +505,8 @@ class Image
     }
 
     function Show($showperms = 0) {
+	global $TBBASE;
+	
 	$imageid	= $this->imageid();
 	$imagename	= $this->imagename();
 	$pid		= $this->pid();
@@ -475,6 +528,16 @@ class Image
 	$uuid           = $this->uuid();
 	$mbr_version    = $this->mbr_version();
 	$hash           = $this->hash();
+
+	#
+	# An imported image has a metadata_url, and at the moment I
+	# do want to worry about exporting an imported image.
+	#
+	$imagefile_url  = $this->imagefile_url();
+	$metadata_url   = $this->metadata_url();
+	if (! $metadata_url) {
+	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$uuid";
+	}
 
 	if (!$description)
 	    $description = "&nbsp;";
@@ -616,11 +679,10 @@ class Image
                 <td>Global?: </td>
                 <td class=left>\n";
 
-	if ($globalid)
-	    echo "Yes";
-	else
-	    echo "No";
-    
+	$globalflip = ($globalid ? 0 : 1);
+	$globalval  = ($globalid ? "Yes" : "No");
+	echo "$globalval (<a href=toggle.php?imageid=$imageid".
+	    "&type=imageglobal&value=$globalflip>Toggle</a>)";
 	echo "  </td>
               </tr>\n";
 
@@ -645,6 +707,18 @@ class Image
                 <td>UUID: </td>
                 <td class=left>$uuid</td>
               </tr>\n";
+
+	echo "<tr>
+                <td>Metadata URL: </td>
+                <td class=left><a href='$metadata_url'>https:// ...</a></td>
+              </tr>\n";
+
+	if ($imagefile_url) {
+	    echo "<tr>
+                   <td>Image File URL: </td>
+                   <td class=left><a href='$imagefile_url'>https:// ...</a></td>
+                  </tr>\n";
+	}
 
 	#
 	# Show who all can access this image outside the project.

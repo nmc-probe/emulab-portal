@@ -1,8 +1,25 @@
 #!/usr/bin/perl -w
 #
-# EMULAB-COPYRIGHT
 # Copyright (c) 2008-2012 University of Utah and the Flux Group.
-# All rights reserved.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
 #
 # Implements the libvnode API for OpenVZ support in Emulab.
 #
@@ -794,7 +811,8 @@ sub vz_vnodeCreate {
 
 	if (!$incache) {
 	    # Now we just download the file, then let create do its normal thing
-	    my $dret = libvnode::downloadImage($imagepath,0,$reload_args_ref);
+	    my $dret = libvnode::downloadImage($imagepath,
+					       0,$vnode_id,$reload_args_ref);
 
 	    # reload has finished, file is written... so let's set its mtime
 	    utime(time(),$reload_args{"IMAGEMTIME"},$imagepath);
@@ -892,47 +910,49 @@ sub vz_vnodeCreate {
 	print STDERR "Using LVM with root size $rootSize MB, ".
 	    "snapshot size $snapSize MB.\n";
 
-	# we must have the lock, so if we need to return right away, unlock
-	if (-e $imagelockpath) {
-	    TBScriptUnlock();
-	}
-	else {
-	    if (1) {
-		#
-		# If there is already a logical device for this image, then
-		# need to GC or rename it (might be in use). Note that a
-		# reload of the partition will cause the lock files to get
-		# deleted, which results in some needless work (recreating
-		# the lvm even if it did not change), but I do not see a
-		# way to stamp the lvm itself so that we can determine its
-		# creation date. Besides, it is an atypical case.
-		#
-		if (system("lvdisplay /dev/openvz/$image >& /dev/null") == 0) {
-		    if (GClvm("$image")) {
-			fatal("Could not GC or rename $image");
-		    }
+	#
+	# Got the lock; if the imagelock file does not exists, we have
+	# to create the base lvm for it. Otherwise, hold the lock until
+	# we check the existing lvm cache.
+	#
+	if (! -e $imagelockpath) {
+	    #
+	    # If there is already a logical device for this image, then
+	    # need to GC or rename it (might be in use). Note that a
+	    # reload of the partition will cause the lock files to get
+	    # deleted, which results in some needless work (recreating
+	    # the lvm even if it did not change), but I do not see a
+	    # way to stamp the lvm itself so that we can determine its
+	    # creation date. Besides, it is an atypical case.
+	    #
+	    if (system("lvdisplay /dev/openvz/$image >& /dev/null") == 0) {
+		if (GClvm("$image")) {
+		    fatal("Could not GC or rename $image");
 		}
-		print "Creating LVM core logical device for image $image\n";
-
-		# ok, create the lvm logical volume for this image.
-		mysystem("lvcreate $LVMDEBUGOPTS ".
-			 "  -L${rootSize}M -n $image openvz");
-		mysystem("mkfs -t ext3 /dev/openvz/$image");
-		mysystem("mkdir -p /mnt/$image");
-		mysystem("mount /dev/openvz/$image /mnt/$image");
-		mysystem("mkdir -p /mnt/$image/root ".
-			 "         /mnt/$image/private");
-		mysystem("tar -xzf $imagepath -C /mnt/$image/private");
-		mysystem("umount /mnt/$image")
-		    if ($DOSNAP);
 	    }
+	    print "Creating LVM core logical device for image $image\n";
+
+	    # ok, create the lvm logical volume for this image.
+	    mysystem("lvcreate $LVMDEBUGOPTS ".
+		     "  -L${rootSize}M -n $image openvz");
+	    mysystem("mkfs -t ext3 /dev/openvz/$image");
+	    mysystem("mkdir -p /mnt/$image");
+	    mysystem("mount /dev/openvz/$image /mnt/$image");
+	    mysystem("mkdir -p /mnt/$image/root ".
+		     "         /mnt/$image/private");
+	    mysystem("tar -xzf $imagepath -C /mnt/$image/private");
+	    mysystem("umount /mnt/$image")
+		if ($DOSNAP);
+
 	    # ok, we're done
 	    mysystem("mkdir -p /var/emulab/run");
 	    mysystem("touch $imagelockpath");
-	    TBScriptUnlock();
 	}
 
 	if ($DOSNAP) {
+	    # Snapshots can happen in parallel.
+	    TBScriptUnlock();
+	    
 	    #
 	    # Now take a snapshot of this image's logical device
 	    #
@@ -945,11 +965,25 @@ sub vz_vnodeCreate {
 			 "  -s -L${snapSize}M -n $vnode_id /dev/openvz/$image");
 	    }
 	}
-	else {
+	elsif (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
 	    #
-	    # No snapshot, create a new disk for each container. 
-	    # 
-	    if (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
+	    # Need to create a new disk for the container. But lets see
+	    # if we have a disk cached. We still have the imagelock at
+	    # this point.
+	    #
+	    if (my (@files) = glob("/dev/openvz/_C_${image}_*")) {
+		#
+		# Grab the first file and rename it. It becomes ours.
+		# Then drop the lock.
+		#
+		my $file = $files[0];
+		mysystem("lvrename $file /dev/openvz/$vnode_id");
+		TBScriptUnlock();
+	    }
+	    else {
+		# This can happen in parallel with other VMs.
+		TBScriptUnlock();
+	    	    
 		mysystem("lvcreate $LVMDEBUGOPTS ".
 			 "  -L${rootSize}M -n $vnode_id openvz");
 		mysystem("mkfs -t ext3 /dev/openvz/$vnode_id");
@@ -1742,12 +1776,17 @@ sub vz_vnodePreConfigExpNetwork {
 	    # Add the macvlan device atop the dummy devices created earlier,
 	    # or atop the physical or vlan device.
 	    #
+	    # BUG here. interface might be left behind from a previous
+	    # failure. Broke during the tutorial.
+	    #
 	    my $vname = "mv$vmid.$ifc->{ID}";
-	    if (! -d "/sys/class/net/$vname") {
-		mysystem("$IP link add link $physdev name $vname ".
-			 "  address $vethmac type macvlan mode bridge ");
-		$private->{'iplinks'}->{$vname} = $physdev;
+	    if (-e "/sys/class/net/$vname") {
+	        mysystem2("$IP link del dev $vname");
 	    }
+	    mysystem("$IP link add link $physdev name $vname ".
+		     "  address $vethmac type macvlan mode bridge ");
+	    $private->{'iplinks'}->{$vname} = $physdev;
+	    
 	    #
 	    # When the bridge is a dummy, record that we added an interface
 	    # to it, so that we can garbage collect the dummy devices later.
