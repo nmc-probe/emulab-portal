@@ -64,6 +64,14 @@ sub Install($$$)
 		    $line =~ s/^/#/;
 		}
 
+		#
+		# XXX get rid of any old pubsubd line(s)
+		# (should only happen on elabinelab nodes)
+		#
+		if ($line =~ /pubsubd/) {
+		    $line =~ s/^/#/;
+		}
+
 		print SC $line;
 
 		#

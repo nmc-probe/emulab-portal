@@ -46,6 +46,13 @@ sub Install($$$)
 		elsif ($line =~ /^[^#].*$mpat/) {
 		    $line =~ s/($mpat)/\;$LOGFACIL.none$1/;
 		}
+		#
+		# XXX get rid of any old pubsubd line(s)
+		# (should only happen on elabinelab nodes)
+		#
+		if ($line =~ /pubsubd/) {
+		    $line =~ s/^/#/;
+		}
 		print SC $line;
 	    }
 	    close(SC);
