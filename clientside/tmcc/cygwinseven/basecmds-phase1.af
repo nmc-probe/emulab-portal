@@ -5,6 +5,8 @@
 
 # hostname of ntp server
 defvar ntpserver ;; ntp1
+# Where the devcon utility should go.
+defvar devconpath ;; C:\Windows\System32
 
 # grab root password
 readvar rootpass ;; Type password for root user ;; secure
@@ -25,6 +27,9 @@ runcmd sc.exe ;; config WinDefend start= disabled ;; 0
 log Disabling Action Center
 addreg HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer ;; HideSCAHealth ;; Dword ;; 1
 runcmd sc.exe ;; config wscsvc start= disabled ;; 0
+
+log Disabling Volume Control Icon
+addreg HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer ;; HideSCAVolume ;; Dword ;; 1
 
 log Disabling IPv6
 addreg HKLM\System\CurrentControlSet\Services\tcpip6\Parameters ;; DisabledComponents ;; Dword ;; 0xffffffff
@@ -69,3 +74,5 @@ runcmd sc.exe ;; config w32time start= auto ;; 0
 runcmd tzutil.exe ;; /s "Mountain Standard Time" ;; 0
 #runcmd net.exe ;; start w32time ;; 0
 runcmd w32tm.exe ;; /config /manualpeerlist:%ntpserver% /syncfromflags:manual /update ;; 0
+
+log Finished!  Please be sure to put Microsoft's devcon utility into %devconpath%
