@@ -255,7 +255,7 @@ elsif ($server eq "boss") {
 	     );
 }
 elsif ($server eq "fs") {
-    @files = ('sperl', 'dirs',
+    @files = ('sperl', 'usersgroups', 'dirs',
 	      'fs/ports', 'fs/portfix', 'ops/rcconf',
 	      'etchosts', 'resolvetest', 'exports', 'quotas', 'sudoers',
 	      'samba', 'ops/ssh');
