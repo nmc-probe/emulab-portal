@@ -69,6 +69,12 @@ sub Install($$$)
 		push @exports_lines,
 		join(" ",@{$filesystems{$key}}) .
 		    "\t$BOSSNODE -maproot=root";
+		# if not the ops node, must export to that node as well
+		if (!ISOPSNODE($server)) {
+		    push @exports_lines,
+		    join(" ",@{$filesystems{$key}}) .
+			"\t$USERNODE -maproot=root";
+		}
 	    }
 
 	    if (ISFS($server)) {
@@ -80,6 +86,11 @@ sub Install($$$)
 		chomp($realdir);
 		push(@exports_lines,
 		     "$realdir\t$BOSSNODE -maproot=root");
+		# if not the ops node, must export to that node as well
+		if (!ISOPSNODE($server)) {
+		    push(@exports_lines,
+			 "$realdir\t$USERNODE -maproot=root");
+		}
 		if (!$NOSHAREDFS) {
 		    my ($a,$b,$c,$d) =
 			($CONTROL_NETWORK =~ /^(\d*)\.(\d*)\.(\d*)\.(\d*)/);

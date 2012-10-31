@@ -257,13 +257,13 @@ elsif ($server eq "boss") {
 elsif ($server eq "fs") {
     @files = ('sperl', 'usersgroups', 'dirs',
 	      'fs/ports', 'fs/portfix', 'ops/rcconf',
-	      'etchosts', 'resolvetest', 'exports', 'quotas', 'sudoers',
-	      'samba', 'ops/ssh');
+	      'etchosts', 'resolvetest', 'ops/syslog', 'exports', 'quotas',
+	      'sudoers', 'samba', 'ops/ssh');
 }
 elsif ($server eq "ops") {
     @files = ('sperl', 'usersgroups', 'dirs', 'etchosts', 'resolvetest',
 	      'ops/ports', 'ops/portfix', 'ops/patches', 'ops/rcconf',
-	      'ops/sendmail', 'exports', 'nfsmounts', 'ops/syslog',
+	      'ops/sendmail', 'ops/syslog', 'exports', 'nfsmounts',
 	      'ops/crontab', 'sudoers', 'samba', 'ops/ssh', 'capture',
 	      'ops/rcfiles', 'apache', 'ops/database', 'ops/mailman',
 	      'ops/cvsd', 'ops/flyspray', 'ops/twiki');
