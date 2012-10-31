@@ -73,6 +73,7 @@ my $consetup	    = "$TB/libexec/console_setup";
 my $osselect        = "$TB/bin/os_select";
 my $nodereboot      = "$TB/bin/node_reboot";
 my $makeconf        = "$TB/sbin/dhcpd_makeconf";
+my $snmpit          = "$TB/bin/snmpit";
 my $reloadpid	    = "emulab-ops";
 my $pendingeid      = "reloadpending";
 my $rppendingeid    = "repositionpending";
@@ -211,6 +212,8 @@ else {
 # we should clean up the mess first. 
 #
 if (! $moveToOldReserved) {
+    my @untag = ();
+
     foreach my $node (@nodes) {
 	my @interfaces;
 
@@ -226,11 +229,12 @@ if (! $moveToOldReserved) {
 	    die("*** $0:\n".
 		"    Could not get get interfaces for $node\n");
 	}
+	
 	foreach my $interface (@interfaces) {
 	    if ($interface->tagged()) {
-		print STDERR "$interface is still tagged!\n";
-
-		$error++;
+		print STDERR
+		    "$interface is still tagged! But we will fix that.\n";
+		push(@untag, $interface);
 	    }
 	    if (!$interface->enabled()) {
 		print STDERR "$interface is not enabled!\n";
@@ -241,6 +245,17 @@ if (! $moveToOldReserved) {
     if ($error) {
 	die("*** $0:\n".
 	    "    Please cleanup the previous errors.\n");
+    }
+    # Else if no errors, untag the interfaces left in tagged mode.
+    if (@untag) {
+	my @ports = map($_->node_id() . ":" . $_->iface(), @untag);
+
+	print "*** Turning off tagging for: @ports\n";
+	system("$snmpit -U @ports");
+	if ($?) {
+	    die("*** $0:\n".
+		"    Some ports would not untag!\n");
+	}
     }
 }
 
