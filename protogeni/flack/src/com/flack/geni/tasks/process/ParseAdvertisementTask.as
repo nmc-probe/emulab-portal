@@ -539,7 +539,6 @@ package com.flack.geni.tasks.process
 									manager.supportedSliverTypes.getOrCreateByName(hardwareTypeSliverType.name);
 								}
 							}
-							
 						}
 					}
 					

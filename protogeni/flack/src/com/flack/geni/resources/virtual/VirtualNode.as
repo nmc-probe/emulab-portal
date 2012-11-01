@@ -231,8 +231,6 @@ package com.flack.geni.resources.virtual
 			return null;
 		}
 		
-		
-		
 		// XXX situations when this can't happen and return failed?
 		public function switchTo(newManager:GeniManager):void
 		{

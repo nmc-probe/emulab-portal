@@ -67,7 +67,9 @@ package com.flack.geni.plugins.instools.instasks
 			for each(var sliver:Sliver in details.slice.slivers.collection)
 			{
 				if(details.MC_present[sliver.manager.id.full])
+				{
 					add(new SaveManifestTask(sliver, details, generate.resultRspec));
+				}
 				else
 				{
 					addMessage(

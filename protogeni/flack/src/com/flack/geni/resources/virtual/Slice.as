@@ -454,10 +454,16 @@ package com.flack.geni.resources.virtual
 			return true;
 		}
 		
-		public function clearStatus():void
+		public function clearStatus(sliversOnly:Boolean = false):void
 		{
 			for each(var sliver:Sliver in slivers.collection)
-				sliver.clearStatus();
+				sliver.clearStatus(sliversOnly);
+		}
+		
+		public function setSliverStatus(sliverStatus:String):void
+		{
+			for each(var sliver:Sliver in slivers.collection)
+				sliver.status = sliverStatus;
 		}
 		
 		/**

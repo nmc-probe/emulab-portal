@@ -519,7 +519,7 @@ package com.flack.geni.tasks.process
 							
 							for each(var ipXml:XML in interfaceXml.defaultNamespace::ip)
 							{
-								virtualInterface.ip.unset = false;
+								virtualInterface.ip.bound = true;
 								virtualInterface.ip.address = String(ipXml.@address);
 								virtualInterface.ip.type = String(ipXml.@type);
 								if(ipXml.@mask.length() == 1)
@@ -534,11 +534,15 @@ package com.flack.geni.tasks.process
 						var flackNamespace:Namespace = RspecUtil.flackNamespace;
 						for each(var interfaceFlackXml:XML in interfaceXml.flackNamespace::interface_info)
 						{
-							if(interfaceFlackXml.@addressUnset.length() == 1)
+							if(interfaceFlackXml.@addressBound.length() == 1)
 							{
-								var addressUnset:Boolean = String(interfaceFlackXml.@addressUnset).toLowerCase() == "true" || String(interfaceFlackXml.@addressUnset) == "1";
-								if(addressUnset && !parseManifest)
+								var addressBound:Boolean = String(interfaceFlackXml.@addressBound).toLowerCase() == "true" || String(interfaceFlackXml.@addressBound) == "1";
+								if(!addressBound && !parseManifest)
 									virtualInterface.ip = new Ip();
+							}
+							if(interfaceFlackXml.@bound.length() == 1)
+							{
+								virtualInterface.bound = String(interfaceFlackXml.@bound).toLowerCase() == "true" || String(interfaceFlackXml.@addressUnset) == "1";
 							}
 						}
 						
@@ -548,6 +552,15 @@ package com.flack.geni.tasks.process
 						interfacesById[virtualInterface.clientId] = virtualInterface;
 						if(virtualInterface.id.full.length > 0)
 							interfacesById[virtualInterface.id.full] = virtualInterface;
+					}
+					
+					// Bind interfaces that need it.
+					for each(var interfaceToTest:VirtualInterface in virtualNode.interfaces.collection)
+					{
+						if(interfaceToTest.physicalId.full.length == 0 && virtualNode.Bound)
+						{
+							interfaceToTest.physicalId.full = virtualNode.allocateExperimentalInterface().physicalId.full;
+						}
 					}
 					
 					// go through the other children

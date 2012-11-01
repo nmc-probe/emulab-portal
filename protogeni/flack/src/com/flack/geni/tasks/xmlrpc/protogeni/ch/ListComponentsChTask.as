@@ -196,6 +196,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 						
 						GeniMain.geniUniverse.managers.add(newManager);
 						
+						relatedTo.push(newManager);
+						
 						addMessage(
 							"Added manager",
 							newManager.toString(),

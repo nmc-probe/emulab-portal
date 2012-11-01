@@ -72,6 +72,7 @@ package com.flack.geni.resources.virtual
 				clientId = _owner.slice.getUniqueId(this, _owner.clientId + ":if");
 		}
 		
+		public var bound:Boolean = false;
 		public var physicalId:IdnUrn = new IdnUrn();
 		public function get Physical():PhysicalInterface
 		{

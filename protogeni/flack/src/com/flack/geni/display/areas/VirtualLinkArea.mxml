@@ -37,7 +37,7 @@ IN THE WORK.
 		  xmlns:areas="com.flack.geni.display.areas.*"
 		  xmlns:components="com.flack.shared.display.components.*"
 		  creationComplete="init()"
-		  title="{link.clientId}" xmlns:areas1="com.flack.shared.display.areas.*">
+		  title="{link.clientId}" xmlns:areas1="com.flack.shared.display.areas.*" xmlns:display="com.flack.geni.display.*">
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.resources.Property;
@@ -181,7 +181,7 @@ IN THE WORK.
 									owner: iface._owner,
 									clientId: iface.clientId,
 									macAddress: iface.macAddress,
-									physicalName: iface.physicalId.name,
+									binding: {physicalId: iface.physicalId.full, bound: iface.bound},
 									ipaddress: iface.ip.address,
 									ipnetmask: iface.ip.netmask,
 									iptype: iface.ip.type
@@ -250,7 +250,10 @@ IN THE WORK.
 				{
 					var iface:VirtualInterface = ifaceObj.source;
 					iface.clientId = ifaceObj.clientId;
+					iface.ip.bound = iface.ip.address != ifaceObj.ipaddress;
 					iface.ip.address = ifaceObj.ipaddress;
+					iface.bound = ifaceObj.binding.bound;
+					iface.physicalId.full = ifaceObj.binding.physicalId;
 					iface.ip.netmask = ifaceObj.ipnetmask;
 					iface.ip.type = ifaceObj.iptype;
 				}
@@ -416,23 +419,18 @@ IN THE WORK.
 								</fx:Component>
 							</s:itemRenderer>
 						</s:GridColumn>
-						<s:GridColumn dataField="physicalName"
-									  headerText="Physical"
-									  editable="false">
+						<s:GridColumn dataField="binding"
+									  headerText="Physical">
 							<s:itemRenderer>
 								<fx:Component>
-									<s:DefaultGridItemRenderer />
+									<display:VirtualBoundInterfaceGridRenderer />
 								</fx:Component>
 							</s:itemRenderer>
-						</s:GridColumn>
-						<s:GridColumn dataField="macAddress"
-									  headerText="MAC"
-									  editable="false">
-							<s:itemRenderer>
+							<s:itemEditor>
 								<fx:Component>
-									<s:DefaultGridItemRenderer />
+									<display:VirtualBoundInterfaceEditor />
 								</fx:Component>
-							</s:itemRenderer>
+							</s:itemEditor>
 						</s:GridColumn>
 						<s:GridColumn dataField="ipaddress"
 									  headerText="IP">

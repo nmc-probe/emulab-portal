@@ -35,6 +35,8 @@ package com.flack.geni.plugins.instools.instasks
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.StartSliverCmTask;
+	import com.flack.shared.FlackEvent;
+	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.MathUtil;
@@ -81,6 +83,7 @@ package com.flack.geni.plugins.instools.instasks
 					case "INSTRUMENTIZE_COMPLETE":		//instrumentize is finished, experiment is ready, etc.
 						details.portal_url[sliver.manager.id.full] = String(data.portal_url);
 						sliver.status = Sliver.STATUS_READY;
+						broadcastStatus();
 						var msg:String = details.creating ? "Instrumentizing complete!" : "INSTOOLS running!";
 						addMessage(
 							msg,
@@ -162,6 +165,7 @@ package com.flack.geni.plugins.instools.instasks
 						break;
 					default:
 						sliver.status = Sliver.STATUS_FAILED;
+						broadcastStatus();
 						addMessage(
 							status + "!",
 							status + "!"
@@ -178,7 +182,11 @@ package com.flack.geni.plugins.instools.instasks
 				}
 				
 				// At this point, still changing and polling...
+				var wasChanging:Boolean = sliver.status != Sliver.STATUS_CHANGING;
 				sliver.status = Sliver.STATUS_CHANGING;
+				if(!wasChanging)
+					broadcastStatus();
+				broadcastStatus();
 				delay = MathUtil.randomNumberBetween(20, 60);
 				runCleanup();
 				start();
@@ -196,6 +204,20 @@ package com.flack.geni.plugins.instools.instasks
 		override protected function runCancel():void
 		{
 			failed();
+		}
+		
+		private function broadcastStatus():void
+		{
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLIVER,
+				sliver,
+				FlackEvent.ACTION_STATUS
+			);
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLICE,
+				sliver.slice,
+				FlackEvent.ACTION_STATUS
+			);
 		}
 		
 		public function failed():void

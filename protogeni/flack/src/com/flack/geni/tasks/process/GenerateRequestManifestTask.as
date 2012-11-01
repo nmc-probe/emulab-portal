@@ -537,14 +537,11 @@ package com.flack.geni.tasks.process
 				else
 				{
 					interfaceXml.@client_id = current.clientId;
-					if(includeManifest)
-					{
-						if(current.id != null && current.id.full.length > 0)
-							interfaceXml.@sliver_id = current.id.full;
-						if(current.physicalId != null && current.physicalId.full.length > 0)
-							interfaceXml.@component_id = current.physicalId.full;
-					}
-					if(current.ip != null && current.ip.address.length > 0 && !(removeNonexplicitBinding && current.ip.unset))
+					if(includeManifest && current.id != null && current.id.full.length > 0)
+						interfaceXml.@sliver_id = current.id.full;
+					if(current.physicalId != null && current.physicalId.full.length > 0 && (includeManifest || current.bound))
+						interfaceXml.@component_id = current.physicalId.full;
+					if(current.ip != null && current.ip.address.length > 0 && !(removeNonexplicitBinding && !current.ip.bound))
 					{
 						var ipXml:XML = current.ip.extensions.createAndApply("ip");
 						ipXml.@address = current.ip.address;
@@ -556,7 +553,8 @@ package com.flack.geni.tasks.process
 				
 				var interfaceFlackXml:XML = <interface_info />;
 				interfaceFlackXml.setNamespace(RspecUtil.flackNamespace);
-				interfaceFlackXml.@addressUnset = current.ip == null || current.ip.unset;
+				interfaceFlackXml.@addressBound = current.ip != null && current.ip.bound && !removeNonexplicitBinding;
+				interfaceFlackXml.@bound = current.bound;
 				interfaceXml.appendChild(interfaceFlackXml);
 				
 				nodeXml.appendChild(interfaceXml);

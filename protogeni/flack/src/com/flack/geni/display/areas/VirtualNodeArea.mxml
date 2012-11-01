@@ -86,6 +86,7 @@ IN THE WORK.
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
+			import com.hurlant.math.bi_internal;
 			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
@@ -202,6 +203,8 @@ IN THE WORK.
 						loginGroup.visible = true;
 						usernameText.text = node.services.loginServices[0].username;
 						hostnameText.text = node.services.loginServices[0].FullHostname;
+						visitButton.toolTip = "Click to launch http://" + node.services.loginServices[0].hostname;
+						sshButton.toolTip = "Click to launch ssh://" + node.services.loginServices[0].FullLogin;
 					}
 					
 					managerList.selectedItem = node.manager;
@@ -259,7 +262,7 @@ IN THE WORK.
 								source: iface,
 								clientId: iface.clientId,
 								macAddress: iface.macAddress,
-								physicalName: iface.physicalId.name,
+								binding: {physicalId: iface.physicalId.full, bound: iface.bound},
 								ipaddress: iface.ip.address,
 								ipnetmask: iface.ip.netmask,
 								iptype: iface.ip.type
@@ -474,7 +477,7 @@ IN THE WORK.
 			
 			protected function hardwareList_valueCommitHandler(event:FlexEvent):void
 			{
-				hardwareTypeCheckbox.selected = hardwareList.selectedItem != null
+				hardwareTypeCheckbox.selected = hardwareList.selectedItem != null;
 				if(!okButton.enabled)
 					okButton.enabled = node.hardwareType.name != hardwareList.selectedItem;
 			}
@@ -663,11 +666,15 @@ IN THE WORK.
 					else
 						node.hardwareType.name = hardwareList.selectedItem.name;
 					node.physicalId.full = "";
+					node.flackInfo.unbound = true;
 				}
 				else
 				{
 					node.hardwareType.name = "";
-					node.physicalId.full = this.SelectedBoundNode.id.full;
+					var boundId:String = SelectedBoundNode.id.full;
+					if(node.physicalId.full != boundId)
+						node.flackInfo.unbound = false;
+					node.physicalId.full = boundId;
 				}
 				
 				node.exclusive = exclusiveCheckbox.selected;
@@ -727,7 +734,10 @@ IN THE WORK.
 				{
 					var iface:VirtualInterface = ifaceObj.source;
 					iface.clientId = ifaceObj.clientId;
+					iface.ip.bound = iface.ip.address != ifaceObj.ipaddress;
 					iface.ip.address = ifaceObj.ipaddress;
+					iface.bound = ifaceObj.binding.bound;
+					iface.physicalId.full = ifaceObj.binding.physicalId;
 					iface.ip.netmask = ifaceObj.ipnetmask;
 					iface.ip.type = ifaceObj.iptype;
 				}
@@ -849,8 +859,8 @@ IN THE WORK.
 		<mx:Label id="usernameText" selectable="true" />
 		<s:Label text="Hostname" fontWeight="bold" />
 		<mx:Label id="hostnameText" selectable="true" />
-		<s:Button label="Visit" click="visitHost()" />
-		<s:Button label="SSH" click="openSsh()" />
+		<s:Button id="visitButton" label="Visit" click="visitHost()" />
+		<s:Button id="sshButton" label="SSH" click="openSsh()" />
 	</s:HGroup>
 	
 	<s:ButtonBar dataProvider="{sectionViewstack}"
@@ -922,6 +932,7 @@ IN THE WORK.
 											dataProvider="{physicalNodes}"
 											width="100%" 
 											valueCommit="boundDropDownList_valueCommitHandler(event)"
+											change="if(!okButton.enabled) okButton.enabled = true;"
 											labelField="name" />
 							<components:ImageButton id="viewPhysicalNode"
 													icon="{ImageUtil.infoIcon}"
@@ -1081,14 +1092,18 @@ IN THE WORK.
 									</fx:Component>
 								</s:itemRenderer>
 							</s:GridColumn>
-							<s:GridColumn dataField="physicalName"
-										  headerText="Physical"
-										  editable="false">
+							<s:GridColumn dataField="binding"
+										  headerText="Physical">
 								<s:itemRenderer>
 									<fx:Component>
-										<s:DefaultGridItemRenderer />
+										<display:VirtualBoundInterfaceGridRenderer />
 									</fx:Component>
 								</s:itemRenderer>
+								<s:itemEditor>
+									<fx:Component>
+										<display:VirtualBoundInterfaceEditor />
+									</fx:Component>
+								</s:itemEditor>
 							</s:GridColumn>
 							<s:GridColumn dataField="macAddress"
 										  headerText="MAC"

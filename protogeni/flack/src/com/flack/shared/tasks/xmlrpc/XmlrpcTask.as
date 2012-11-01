@@ -37,6 +37,7 @@ package com.flack.shared.tasks.xmlrpc
 	import com.flack.shared.utils.NetUtil;
 	import com.flack.shared.utils.StringUtil;
 	import com.mattism.http.xmlrpc.ConnectionImpl;
+	import com.mattism.http.xmlrpc.JSLoader;
 	import com.mattism.http.xmlrpc.MethodFault;
 	
 	import flash.display.Sprite;
@@ -45,6 +46,7 @@ package com.flack.shared.tasks.xmlrpc
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
 	import flash.events.TimerEvent;
+	import flash.net.URLLoader;
 	import flash.utils.Timer;
 	
 	import mx.controls.Alert;
@@ -176,7 +178,7 @@ package com.flack.shared.tasks.xmlrpc
 			{
 				clearFields();
 				createFields();
-				server = new ConnectionImpl(url);
+				server = new ConnectionImpl(url, JSLoader);
 				server.addEventListener(Event.COMPLETE, callSuccess);
 				server.addEventListener(ErrorEvent.ERROR, callErrorFailure);
 				server.addEventListener(IOErrorEvent.IO_ERROR, callErrorFailure);

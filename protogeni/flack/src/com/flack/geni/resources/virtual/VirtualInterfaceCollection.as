@@ -71,6 +71,14 @@ package com.flack.geni.resources.virtual
 			return collection.length;
 		}
 		
+		public function get Clone():VirtualInterfaceCollection
+		{
+			var ifaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
+			for each(var iface:VirtualInterface in collection)
+				ifaces.add(iface);
+			return ifaces;
+		}
+		
 		/**
 		 * 
 		 * @param id Sliver ID
@@ -231,6 +239,7 @@ package com.flack.geni.resources.virtual
 					addedInterface.ip = new Ip(VirtualInterface.getNextTunnel());
 					addedInterface.ip.netmask = "255.255.255.0";
 					addedInterface.ip.type = "ipv4";
+					addedInterface.ip.bound = true;
 				}
 			}
 		}

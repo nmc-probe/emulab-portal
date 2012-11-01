@@ -92,7 +92,7 @@ package com.flack.geni
 				if(user.authority == null || user.authority.type != GeniAuthority.TYPE_EMULAB)
 					SharedMain.tasker.add(new InitializeUserTaskGroup(user, true));
 				
-				SharedMain.tasker.add(new GetResourcesTaskGroup(managers.length == 0));
+				SharedMain.tasker.add(new GetResourcesTaskGroup());
 				
 				if(GeniMain.useSlice != null)
 				{

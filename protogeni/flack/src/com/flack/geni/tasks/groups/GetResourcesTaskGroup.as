@@ -102,8 +102,6 @@ package com.flack.geni.tasks.groups
 					add(new ListComponentsChTask(GeniMain.geniUniverse.user));
 				else if(shouldGetResources)
 					tryGetResources();
-				else
-					afterComplete();
 			}
 			super.runStart();
 		}

@@ -105,10 +105,12 @@ package com.flack.geni.resources.virtual
 				|| status == STATUS_UNKNOWN
 				|| status == STATUS_STOPPED;
 		}
-		public function clearStatus():void
+		public function clearStatus(sliversOnly:Boolean = false):void
 		{
 			state = "";
 			status = "";
+			if(sliversOnly)
+				return;
 			var clearNodes:VirtualNodeCollection = slice.nodes.getByManager(manager);
 			for each(var node:VirtualNode in clearNodes.collection)
 				node.clearState();
