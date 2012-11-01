@@ -1233,7 +1233,7 @@ sub vz_vnodeDestroy {
 	    mysystem("lvremove $LVMDEBUGOPTS -f /dev/openvz/$vnode_id");
 	}
     }
-    mysystem("$VZCTL $VZDEBUGOPTS destroy $vnode_id");
+    mysystem("$VZCTL $VZDEBUGOPTS destroy $vmid");
     return -1
 	if ($?);
 
