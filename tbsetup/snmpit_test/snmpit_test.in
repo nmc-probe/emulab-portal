@@ -185,7 +185,7 @@ Port Control:
   -T <port> <names>      Enable trunking on the given <port>, and allow VLANs
                              with the given <names> across it
   -E <port> <names>      Like -T, but "Equal" mode; PVID is also tagged
-  -U <port>              Turn off trunking for the given <port>
+  -U <ports>             Turn off trunking for the given <ports>
   -b <ports>             Print out port status for a set of ports
   -B <statstring>        Pass in a stat string from -b to restore status
   -D <pid> <eid>         Disable all control net ports for an experiment

@@ -53,15 +53,15 @@ fi
 case "$1" in
 start|faststart)
 	echo "Setting up static ARP entries."
-	$BINDIR/fixarpinfo -s  >$LOGDIR/fixarpinfo.log 2>&1
+	$BINDIR/fixarpinfo -sv  >$LOGDIR/fixarpinfo.log 2>&1
 	;;
 restart)
 	echo "Updating static ARP entries."
-	$BINDIR/fixarpinfo -u  >$LOGDIR/fixarpinfo.log 2>&1
+	$BINDIR/fixarpinfo -uv  >$LOGDIR/fixarpinfo.log 2>&1
 	;;
 stop)
 	echo "Removing static ARP entries."
-	$BINDIR/fixarpinfo -c  >$LOGDIR/fixarpinfo.log 2>&1
+	$BINDIR/fixarpinfo -cv  >$LOGDIR/fixarpinfo.log 2>&1
 	;;
 *)
 	echo "Usage: `basename $0` {start|stop|restart}" >&2
