@@ -48,7 +48,7 @@ sub VERSION()	{ return 1.0; }
 # Must come after package declaration!
 use English;
 use Win32;
-use Win32API::Net qw(:User);
+use Win32API::Net qw(:User :LocalGroup);
 use Win32::Registry;
 
 # Load up the paths. Its conditionalized to be compatabile with older images.
@@ -119,10 +119,11 @@ my $GATED	= "/usr/sbin/gated";
 my $ROUTE	= "$NTS/route";
 my $SHELLS	= "/etc/shells";
 my $DEFSHELL	= "/bin/tcsh";
-my $winusersfile = "$BOOTDIR/winusers";
+#my $winusersfile = "$BOOTDIR/winusers";
 my $usershellsfile = "$BOOTDIR/usershells";
 my $XIMAP	= "$BOOTDIR/xif_map";
 my $ULEVEL      = 1;
+my $GLEVEL      = 0;
 
 #
 # Goo for setting up speed and duplex under Windows
@@ -517,32 +518,16 @@ sub os_etchosts_line($$$)
 }
 
 #
-# On Windows NT, accumulate an input file for the addusers command.
-# See "AddUsers Automates Creation of a Large Number of Users",
-# http://support.microsoft.com/default.aspx?scid=kb;en-us;199878
+# Setup some initial state and open some files while creating accounts under
+# Windows.
 # 
-# The file format is comma-delimited, as follows:
-# 
-# [Users]
-# User Name,Full name,Password,Description,HomeDrive,Homepath,Profile,Script
-# 
-# [Global] or [Local]
-# Group Name,Comment,UserName,...
-# 
-my @groupNames;
 my %groupsByGid;
 my %groupMembers;
 sub os_accounts_start()
 {
     # Remember group info to be put out at the end.
-    @groupNames = ();
     %groupsByGid = ();
     %groupMembers = ();
-
-    if (! open(WINUSERS, "> $winusersfile")) {
-	warning("os_accounts_start: Cannot create $winusersfile .\n");
-	return -1;
-    }
 
     # Don't wipe out previous user shell preferences, just add new ones.
     if (! open(USERSHELLS, ">> $usershellsfile")) {
@@ -550,34 +535,81 @@ sub os_accounts_start()
 	return -1;
     }
 
-    # Users come before groups in the addusers.exe account stream.
-    # Notice the <CR><LF>'s!  It's a Windows file.
-    print WINUSERS "[Users]\r\n";
-
     return 0;
 }
 
 #
-# Remember the mapping from an existing group GID to its name.
+# Windows helper function.
+# Create a mapping from gid to group name if both parameters are specified.
+# Return the group name in any case (i.e., performs a lookup if no group
+# name is specified).
 #
-sub os_groupgid($$)
+sub os_groupgid($;$)
 {
-    my($group, $gid) = @_;
+    my($gid, $gname) = @_;
 
-    $groupsByGid{$gid} = $group;    # Remember the name associated with the gid.
+    if (defined($gname)) {
+	# Remember the name associated with the gid.
+	$groupsByGid{$gid} = $gname;
+    }
 
-    return 0;
+    if (int($gid) == 0) {
+	$gname = "Administrators";
+    }
+
+    return $groupsByGid{$gid};
 }
 
 #
 # Add a new group
+#
+# Under Windows we also create a gid -> group name mapping for future
+# reference, and initialize an array for holding group members (users).
 # 
 sub os_groupadd($$)
 {
     my($group, $gid) = @_;
 
-    push(@groupNames, $group);      # Remember all of the group names.
-    os_groupgid($group, $gid);
+    os_groupgid($gid, $group);
+    $groupMembers{$group} = [];
+
+    my %gh = (
+	'name' => $group,
+	);
+    my $error
+    if (!LocalGroupAdd("",$GLEVEL,\%gh,\$error)) {
+	my $err = Win32::GetLastError();
+	warning("GroupAdd failed: $err, $error\n");
+	return -1;
+    }
+
+    return 0;
+}
+
+#
+# Add a member to the specified group.  We add the user to an array for now.
+# When os_accounts_end() is called, all users in all defined groups
+# will be pushed into the corresponding groups.
+#
+sub os_addtogroup($$)
+{
+    my($group,$login) = @_;
+    my $gname;
+
+    if ($group =~ /^\d+$/) {
+	$gname = os_groupgid($group);
+	if (!$gname) {
+	    warning("No group name found for gid: $group\n");
+	    return -1;
+	}
+    } else {
+	$gname = $group;
+    }
+
+    if (!exists($groupMembers{$gname})) {
+	$groupMembers{$gname} = [];
+    }
+    push @$groupMembers{$gname}, $login;
 
     return 0;
 }
@@ -609,6 +641,9 @@ sub os_userdel($)
 #
 # Modify user password.
 # 
+# Ignore root user passwd change request since this would screw up services
+# that run as root.
+#
 sub os_modpasswd($$)
 {
     my($login, $pswd) = @_;
@@ -650,27 +685,11 @@ sub os_usermod($$$$$$)
 	$glist .= $glist ? ",0" : "0";
     }
     if ($glist ne "") {
-	##print "glist '$glist'\n";
 	my $gname;
 	foreach my $grp (split(/,/, $glist)) {
-	    if ( $grp eq "0" ) {
-		$gname = "Administrators";
-	    }
-	    else {
-		$gname = $groupsByGid{$grp};
-	    }
+	    $gname = os_groupgid($grp);
 	    next if !defined($gname);
-	    ##print "login $login, grp $grp, gname '$gname'\n";
-	    my $cmd = "$NET localgroup $gname | tr -d '\\r' | grep -q '^$login\$'";
-	    ##print "    $cmd\n";
-	    if (system($cmd)) {
-		# Add members into groups using the "net localgroup /add" command.
-		$cmd = "$NET localgroup $gname $login /add";
-		##print "    $cmd\n";
-		if (system($cmd) != 0) {
-		    warning("os_usermod error ($cmd)\n");
-		}
-	    }
+	    os_addtogroup($gname,$login);
 	}
     }
 
@@ -684,23 +703,6 @@ sub os_useradd($$$$$$$$$)
 {
     my($login, $uid, $gid, $pswd, $glist, $homedir, $gcos, $root, $shell) = @_;
 
-    # Groups have to be created before we can add members.
-    my $gname = $groupsByGid{$gid};
-    warning("Missing group name for gid $gid.\n")
-	if (!$gname);
-    $groupMembers{$gname} .= "$login ";
-    $groupMembers{'Administrators'} .= "$login "
-	if ($root);
-    foreach my $gid (split(/,/, $glist)) {
-	$gname = $groupsByGid{$gid};
-	if ($gname) {
-	    $groupMembers{$gname} .= "$login ";
-	}
-	else {
-	    warning("Missing group name for gid $gid.\n");
-	}
-    }
-		     
     # Map the shell into a full path.
     $shell = MapShell($shell);
     # Change the ones that are different from the default from mkpasswd, /bin/bash.
@@ -712,50 +714,52 @@ sub os_useradd($$$$$$$$$)
     my $pwd = $pswd;
     $pwd =~ s/^(\$1\$)(.{8}).*/$2/;
     
-    print WINUSERS "$login,$gcos,$pwd,,,,,\r\n";
+    # User level '1' fields required for UserAdd()
+    my %uh = (
+	'name'        => $login,
+	'password'    => $pwd,
+	'passwordAge' => 0,
+	'priv'        => Win32API::Net::USER_PRIV_USER(),
+	'homeDir'     => "",
+	'comment'     => $gcos,
+	'flags'       => (Win32API::Net::UF_DONT_EXPIRE_PASSWD() |
+			  Win32API::Net::UF_NORMAL_ACCOUNT() |
+			  Win32API::Net::UF_SCRIPT()),
+	'scriptPath'  => "",
+	);
+    my $error;
+    if (!UserAdd("",$ULEVEL,\%uh, \$error)) {
+	my $err = Win32::GetLastError();
+	warning("UserSetInfo failed: $err, $error\n");
+	return -1;
+    }
+
+    # Add user to the appropriate groups.
+    os_addtogroup($gid, $login);
+    os_addtogroup("Administrators", $login)
+	if $root;
+    foreach my $gid (split(/,/, $glist)) {
+	os_addtogroup($gid, $login);
+    }
 
     return 0;
 }
 
 #
-# Finish the input for the addusers command.
+# Commit all pending account operations.
 #
 sub os_accounts_end()
 {
-    # Dump out the group *creation* lines.
-    print WINUSERS "[Local]\r\n";
-    foreach my $grp (@groupNames) {
-	# Ignore group membership here.  See "net localgroup" below.
-	print WINUSERS "$grp,Emulab $grp group,\r\n";
-    }
-    close WINUSERS;
     close USERSHELLS;
-       
-    # Create the whole batch of groups and accounts listed in the file.
-    # /p options: Users don't have to change passwords, and they never expire.
-    print "Creating the Windows users and groups.\n";
-    my $winfile = "C:/cygwin$winusersfile";
-    $winfile =~ s|/|\\|g;
-    my $cmd = "$ADDUSERS /c '$winfile' /p:le";
-    ##print "    $cmd\n";
-    if (system($cmd) != 0) {
-	warning("AddUsers error ($cmd)\n");
-	return -1;
-    }
 
-    # Add members into groups using the "net localgroup /add" command.
-    # (Addusers only creates groups, it can't add a user to an existing group.)
-    while (my($grp, $members) = each %groupMembers) {
-	foreach my $mbr (split(/ /,$members)) {
-	    print "  Adding $mbr to $grp.\n";
-	    my $cmd = "$NET localgroup $grp $mbr /add > /dev/null";
-	    ##print "    $cmd\n";
-	    if (system($cmd) != 0) {
-		warning("net localgroup error ($cmd)\n");
-	    }
+    while (my($gname, $gmref) = each %groupMembers) {
+	next if !@$gmref; # no members to add?
+	if (!LocalGroupAddMembers("", $gname, $gmref)) {
+	    my $err = Win32::GetLastError();
+	    warning("Error adding members to group $gname: $err\n");
 	}
     }
-
+       
     # Make the CygWin /etc/passwd and /etc/group files match Windows.
     # Note that the group membership is not reported into the CygWin files.
     return os_accounts_sync();
