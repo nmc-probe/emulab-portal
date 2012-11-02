@@ -16,7 +16,7 @@ defvar pubsub_tarball ;; %pubsubsrc%.tar.gz
 defvar elabsw ;; %swdir%\Emulab
 
 # The list of Cygwin packages to install.
-defvar cyg_pkgs ;; boost-devel,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,emacs,file,gdb,git,nano,nc,patch,rcs,rpm,rsync,rxvt,vim,wget,unzip,zip
+defvar cyg_pkgs ;; boost-devel,bison,byacc,cygrunsrv,flex,gawk,gcc4,g++4,inetutils,make,openssh,openssl-devel,perl,perl-libwin32,perl_vendor,psmisc,python,shutdown,swig,sysvinit,tcsh,util-linux,w32api,bc,cvs,ed,emacs,file,gdb,git,nano,nc,patch,rcs,rpm,rsync,rxvt,vim,wget,unzip,zip
 
 # Get cygwin user password
 readvar sshpass ;; Please supply a password for the Cygwin SSH user ;; secure

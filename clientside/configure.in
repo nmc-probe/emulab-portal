@@ -123,6 +123,14 @@ OUTERBOSS_NODENAME=""
 WINSUPPORT=0
 
 #
+# Variables for Windows Unattended setup files.
+#
+AC_SUBST(WINDOWS_ORGNAME)
+AC_SUBST(WINDOWS_OWNER)
+AC_SUBST(WINDOWS_TIMEZONE)
+AC_SUBST(WINDOWS_KEY_7PRO_X86)
+
+#
 # Allow tbdefs file that is supplied to full emulab build
 #
 AC_ARG_WITH(TBDEFS,
@@ -258,6 +266,7 @@ outfiles="Makeconf GNUmakefile setversion \
 	  tmcc/freebsd9/GNUmakefile tmcc/freebsd9/netif-emulab \
 	  tmcc/freebsd10/GNUmakefile tmcc/freebsd10/netif-emulab \
 	  tmcc/cygwinxp/GNUmakefile tmcc/dp/GNUmakefile \
+	  tmcc/cygwinseven/GNUmakefile tmcc/cygwinseven/unattend-x86.xml \
 	  tmcc/openbsd/GNUmakefile tmcc/ron/GNUmakefile \
 	  tmcc/plab/GNUmakefile tmcc/cygwinseven/GNUmakefile \
 	  os/GNUmakefile os/syncd/GNUmakefile \
