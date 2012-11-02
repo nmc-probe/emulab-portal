@@ -123,7 +123,7 @@ script-install:	dir-install $(SCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/rc.reboot $(BINDIR)/rc/rc.reboot
 	$(INSTALL) -m 755 $(SRCDIR)/rc.lmhosts $(BINDIR)/rc/rc.lmhosts
 	$(INSTALL) -m 755 $(SRCDIR)/netbt $(BINDIR)/netbt
-	$(INSTALL) -m 755 $(SRCDIR)/unattend-x86.xml $(SYSPREP)/unattend-src.xml
+	$(INSTALL) -m 755 unattend-x86.xml $(SYSPREP)/unattend-src.xml
 	$(INSTALL) -c -m 755 -o Administrators -d $(SPSCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/setupnode.ps1 $(SPSCRIPTS)/setupnode.ps1
 	$(INSTALL) -m 755 $(SRCDIR)/SetupComplete.cmd $(SPSCRIPTS)/SetupComplete.cmd
