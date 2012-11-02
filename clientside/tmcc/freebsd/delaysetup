@@ -477,7 +477,7 @@ sub DelaySetup
 		print DEL "    sysctl -w kern.polling.reg_frac=200\n";
 
 		# 80% of CPU can be used for polling activities
-		print DEL "    sysctl -w kern.polling.user_frac=80\n";
+		print DEL "    sysctl -w kern.polling.user_frac=20\n";
 	    }
 	} else {
 	    print DEL "    sysctl -w kern.polling.enable=1\n";
