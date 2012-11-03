@@ -576,7 +576,7 @@ sub os_groupadd($$)
     my %gh = (
 	'name' => $group,
 	);
-    my $error
+    my $error;
     if (!LocalGroupAdd("",$GLEVEL,\%gh,\$error)) {
 	my $err = Win32::GetLastError();
 	warning("GroupAdd failed: $err, $error\n");
@@ -609,7 +609,7 @@ sub os_addtogroup($$)
     if (!exists($groupMembers{$gname})) {
 	$groupMembers{$gname} = [];
     }
-    push @$groupMembers{$gname}, $login;
+    push(@{$groupMembers{$gname}}, $login);
 
     return 0;
 }
