@@ -22,7 +22,8 @@
 # }}}
 #
 use English;
-#require 'ctime.pl';
+use Win32;
+use Win32API::Net qw(:User);
 
 #
 # Prepare the node for cutting a new image.  Should be run just prior.
@@ -54,6 +55,29 @@ sub usage()
 	  "    -s : Make a hardware-independent image using Sysprep.\n");
     exit(1);
 }
+
+sub modpasswd($$)
+{
+    my($login, $pswd) = @_;
+
+    if (!UserGetInfo("", $login, $ULEVEL, \%uh)) {
+	my $err = Win32::GetLastError();
+	warning("UserGetInfo failed: $err\n");
+	return 0;
+    }
+
+    if ($pswd) {
+	$uh{password} = $pswd;
+	if (!UserSetInfo("", $login, $ULEVEL, \%uh, \$error)) {
+	    my $err = Win32::GetLastError();
+	    warning("UserSetInfo failed: $err, $error\n");
+	    return 0;
+	}
+    }
+
+    return 1;
+}
+
 my $optlist = "p:ns";
 my $rootpwd = "";
 my $rootpwd2 = "";
@@ -75,11 +99,11 @@ if (defined($options{'s'})) {
     $sysprep = 1;
 }
 
-# Only root.
-if ($EUID != 0) {
-    die("*** $0:\n".
-	"    Must be root to run this script!\n");
-}
+# Only root.  No need for this under windows.
+#if ($EUID != 0) {
+#    die("*** $0:\n".
+#	"    Must be root to run this script!\n");
+#}
 
 # Note: No /etc/dumpdates support on CygWin, and no /etc/fstab or /var/account either.
 my @DBFILES     = ();
@@ -150,13 +174,10 @@ if (! $noredef) {
 	print "\n";
     }
 
-    #
     # Set the root password to make sure it matches.  We also set this to be
     # the Administrator password, to match the sysprep.inf file entry below.
-    #print "\nSetting root password to $rootpwd.\n";
-    #system("echo '$rootpwd\n$rootpwd\n' | passwd root");
-    #print "\nSetting Administrator password to $rootpwd.\n";
-    #system("echo '$rootpwd\n$rootpwd\n' | passwd Administrator");
+    print "\nSetting root password.\n";
+    modpasswd("root", $rootpwd);
 
     #
     # Windows stores the password as part of the definition of services that
@@ -164,28 +185,32 @@ if (! $noredef) {
     # with the current password.  Otherwise, Windows will refuse to start them
     # up at reboot.
     #
-    print "\nRedefining EmulabShutdown.\n";
+    my $mybash = "/bin/bash";
+    print "\nRedefining Pubsub service.\n";
     # Have to remove a service before you can redefine it.
+    my $pubsub = "/usr/local/libexec/pubsubd";
+    my $pubsublog = "/var/log/pubsub.log";
+    system("cygrunsrv -R pubsub");
+    # pubsub runs as the 'SYSTEM' user.
+    system("cygrunsrv.exe -I pubsub -d 'CYGWIN pubsub' -t auto -y tcpip ".
+	   "-n -p $pubsub -a \"-d -l '$pubsublog'\"");
+    system("cygrunsrv -VQ pubsub");
+    my $tbshutdown = "/usr/local/etc/emulab/tbshutdown";
+    print "\nRedefining EmulabShutdown.\n";
     system("cygrunsrv -R EmulabShutdown");
     system("cygrunsrv -I EmulabShutdown -u root -w '$rootpwd'" .
-	   " -p /cygdrive/c/cygwin/bin/bash" .
-	   " --shutdown --type manual" .
-	   " -a \"--norc --noprofile -c '/usr/local/etc/emulab/tbshutdown'\"");
+	   " --shutdown --type manual -p $mybash " .
+	   " -a \"--norc --noprofile -c '$tbshutdown'\"");
     system("cygrunsrv -VQ EmulabShutdown");
     print "\nRedefining EmulabStartup.\n";
-    my $firstboot = "/usr/local/etc/emulab/rc/rc.firstboot";
     my $bootsetup = "/usr/local/etc/emulab/rc/rc.bootsetup";
-    my $sshrun = "cygrunsrv -S sshd";
     my $progrun = "cygrunsrv -S ProgAgent";
     my $bootlog = "/var/log/bootsetup.log";
     system("cygrunsrv -R EmulabStartup");
     system("cygrunsrv -I EmulabStartup -u root -w '$rootpwd'" .
 	   " --dep DHCP --dep iphlpsvc --dep pubsub --dep W32Time" .
-	   " -p /cygdrive/c/cygwin/bin/bash" .
-	   " -a \"--norc --noprofile -c " .
-	   "      '( $bootsetup; $progrun ) >& $bootlog'\"");
-#          "      '( $firstboot; $bootsetup; $sshrun; $progrun ) >& $bootlog'\"");
-
+	   " -p $mybash -a \"--norc --noprofile -c " .
+	   " '( $bootsetup; $progrun ) >& $bootlog'\"");
     system("cygrunsrv -VQ EmulabStartup");
     system("sc config EmulabStartup start= delayed-auto");
 }
