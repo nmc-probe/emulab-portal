@@ -451,6 +451,15 @@ $robotexp =
 # See below.
 my $sharingvlans = $experiment->SharingVlans();
 
+# Do not swapout the shared node experiment on a failed modify.
+# Do not reboot or reconfig either.
+if ($inout eq "modify" &&
+    $pid eq TBOPSPID() &&
+    ($eid eq "shared-nodes" || $eid eq "shared-node")) {
+    $noswapout  = 1;
+    $noreconfig = 1;
+}
+
 #
 # We have to protect against trying to end an experiment that is currently
 # in the process of being terminated. We use a "wrapper" state (actually
