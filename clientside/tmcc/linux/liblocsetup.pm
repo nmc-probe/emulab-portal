@@ -2366,14 +2366,17 @@ sub os_removearpentry($;$)
     # Do it the hard way!
     #
     if (!defined($ip)) {
-	my %info = os_getarpinfo($iface);
-	my $err = 0;
-	foreach my $_ip (keys %arpinfo) {
-	    if (system("$ARP -i $iface -d $_ip >/dev/null 2>&1")) {
-		$err++;
+	my %info = ();
+	if (!os_getarpinfo($iface, \%info)) {
+	    my $err = 0;
+	    foreach my $_ip (keys %info) {
+		if (system("$ARP -i $iface -d $_ip >/dev/null 2>&1")) {
+		    $err++;
+		}
 	    }
+	    return $err;
 	}
-	return $err;
+	return 0;
     }
     return system("$ARP -i $iface -d $ip >/dev/null 2>&1");
 }
