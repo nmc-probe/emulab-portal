@@ -285,6 +285,7 @@ vserver-install:	dir-install
 	-ln -sf $(CLIENT_BINDIR)/mkvserver.pl $(BINDIR)/mkjail.pl
 
 openvz-install:	dir-install
+	$(INSTALL) -m 755 $(SRCDIR)/../common/vnodesetup $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/libvnode.pm $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/libvnode_openvz.pm $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/openvz/vznetinit-elab.sh $(BINDIR)/
