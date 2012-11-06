@@ -3450,7 +3450,8 @@ sub RecordVLanModification($$$$)
 	foreach my $port (@$added) {
 	    my ($nodeid,$iface) = ($port =~ /(.+):(.+)/);
 
-	    $current{"$nodeid:$iface"} = "$nodeid:$iface";
+	    $current{"$nodeid:$iface"} = "$nodeid:$iface"
+		if (!exists($current{"$nodeid:$iface"}));
 	}
     }
     if ($removed) {
