@@ -175,7 +175,7 @@ function SPITFORM($formfields, $returning, $errors)
               }
           </SCRIPT>\n";
 
-    echo "<div align=left>
+    echo "<div align=center>
              <font color=red size=-2>Fields marked with * are required</font>
           </div>\n";
 
