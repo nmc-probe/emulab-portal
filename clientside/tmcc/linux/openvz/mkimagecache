@@ -36,16 +36,19 @@ my $TAR         = "/bin/tar";
 sub usage()
 {
     print STDERR "Usage: mkimagecache [-c | -t count] [-s size] <imagename>\n";
+    print STDERR "       mkimagecache -r <imagename>\n";
     print STDERR "options:\n";
     print STDERR "  -c count  - Create count\n";
     print STDERR "  -t count  - Create as many as needed to reach count\n";
     print STDERR "  -s size   - Size of lvm in GB, if no base lvm to look at\n";
+    print STDERR "  -r        - Remove all cached images\n";
     exit(-1);
 }
-my $optlist = "c:s:t:";
+my $optlist = "c:s:t:r";
 my $count   = 1;
 my $total   = 0;
 my $size    = 0;
+my $clear   = 0;
 
 #
 # Turn off line buffering on output
@@ -77,6 +80,9 @@ if (defined($options{"t"})) {
 if (defined($options{"s"})) {
     $size = $options{"s"};
 }
+if (defined($options{"r"})) {
+    $clear = 1;
+}
 my $imagename     = $ARGV[0];
 # See libvnode_openvz ...
 my $imagelockpath = "/var/emulab/db/openvz.image.$imagename.ready";
@@ -87,6 +93,27 @@ if ((my $locked = TBScriptLock($imagelockname,
 			       TBSCRIPTLOCK_GLOBALWAIT(), 1800))
     != TBSCRIPTLOCK_OKAY()) {
     die("Could not get the $imagelockname lock after a long time!\n");
+}
+
+#
+# Look for existing cache files.
+#
+my @files = glob("/dev/openvz/_C_${imagename}_*");
+my $idx   = 0;
+
+#
+# Delete all existing cache files.
+#
+if ($clear) {
+    foreach my $file (@files) {
+	system("lvremove -f $file");
+	if ($?) {
+	    TBScriptUnlock();
+	    exit(1);
+	}
+    }
+    TBScriptUnlock();
+    exit(0);
 }
 
 #
@@ -108,12 +135,6 @@ else {
     print STDERR "No base lvm exists; please use the -s option!\n";
     usage();
 }
-
-#
-# Look for existing cache files and skip those.
-#
-my @files = glob("/dev/openvz/_C_${imagename}_*");
-my $idx   = 0;
 
 while ($count > 0) {
     if (grep {$_ eq "/dev/openvz/_C_${imagename}_${idx}"} @files) {
