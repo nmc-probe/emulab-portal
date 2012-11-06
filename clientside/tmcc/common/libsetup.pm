@@ -59,7 +59,7 @@ use Exporter;
 	 TMROUTECONFIG TMLINKDELAY TMDELMAP TMTOPOMAP TMLTMAP TMLTPMAP
 	 TMGATEDCONFIG TMSYNCSERVER TMKEYHASH TMNODEID TMNODEUUID TMEVENTKEY
 	 TMCREATOR TMSWAPPER TMFWCONFIG TMGENVNODECONFIG
-	 INXENVM
+	 INXENVM INVZVM
        );
 
 # Must come after package declaration!
@@ -546,9 +546,10 @@ sub setFSRVTYPE($) {
 }
 
 #
-# XXX fernow hack so I can readily identify code that is special to Xen VMs
+# XXX fernow hack so I can readily identify code that is special to VMs
 #
 sub INXENVM()	{ return ($ingenvnode && GENVNODETYPE() eq "xen"); }
+sub INVZVM()	{ return ($ingenvnode && GENVNODETYPE() eq "openvz"); }
 
 #
 # Reset to a moderately clean state.
