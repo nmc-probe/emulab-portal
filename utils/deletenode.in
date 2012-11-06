@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2011 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,6 +29,7 @@
 #
 my $TB         = "@prefix@";
 my $ELABINELAB = @ELABINELAB@;
+my $MAINSITE   = @TBMAINSITE@;
 my $KILL       = "/bin/kill";
 
 use lib '@prefix@/lib';
@@ -53,11 +54,11 @@ if (!TBAdmin()) {
 # Handle command-line arguments
 #
 sub usage {
-    die "usage: deletenode [-b] [-f] [-q] [-n] [-S] <node>\n";
+    die "usage: deletenode [-b] [-f] [-q] [-n] [-s] [-S] <node>\n";
 }
 
 my %options = ();
-if (!getopts("bfqnS",\%options)) {
+if (!getopts("bfqnSs",\%options)) {
     usage();
 }
 
@@ -91,7 +92,7 @@ my $allocated = NodeidToExp($node,\$pid,\$eid);
 if ($allocated && (($pid ne NODEDEAD_PID) || ($eid ne NODEDEAD_EID))) {
     print "Node is not free or in the " .
 	NODEDEAD_PID . "/" . NODEDEAD_EID . "experiment!\n";
-    if (defined($options{"f"}) && $ELABINELAB) {
+    if (defined($options{"f"}) && ($ELABINELAB || $MAINSITE)) {
 	print "WARNING: Continuing anyway!\n";
     }
     else {
@@ -186,7 +187,7 @@ foreach $node (@subnodes) {
 #
 # Need to run a bunch of stuff to really kill off the node.
 #
-if (!defined($options{"n"})) {
+if (! (defined($options{"n"}) || defined($options{"s"}))) {
     print "Regenerating exports file and restarting daemon.\n"
 	if (! defined($options{"q"}));
     if (system("$TB/sbin/exports_setup")) {
