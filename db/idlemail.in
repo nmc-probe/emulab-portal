@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -63,10 +63,11 @@ exit (0)
 
 sub help {
     die("Usage:
-idlemail [-h] [-d] [-n] [[-f] <pid> <eid>]
+idlemail [-h] [-d] [-n] [-i] [[-f] <pid> <eid>]
  -h     Show this help message
  -d     Enable debugging/verbose output
  -n	No email sending. (for debugging only)
+ -i	Impotent mode. (for debugging only)
  -f	Force sending a message for <pid> <eid>
 
 If <pid> and <eid> are supplied, send a swap request for that experiment.
@@ -105,10 +106,11 @@ $h = 0; # help mode
 $d = 0; # debug mode
 $n = 0; # no-mail mode
 $f = 0; # force mode
+$i = 0; # impotent mode
 
 print "Got ARGV = ",join(" ",@ARGV),"\n" if $d;
 
-my $optlist = "hdnf";
+my $optlist = "hdnfi";
 my %opt = ();
 if (! getopts($optlist,\%opt)) { help(); }
 # Copy the options into global vars
@@ -210,7 +212,8 @@ EOT
 	if (!$found) {
 	    if ($d) { print "Not idle: $pid/$eid\n"; }
 	    DBQueryFatal("update experiments set swap_requests='' ".
-			 "where pid='$pid' and eid='$eid'");
+			 "where pid='$pid' and eid='$eid'")
+		if (! $i);
 	} else {
 	    if ($d) { print "Still idle: $pid/$eid\n"; }
 	}
@@ -238,23 +241,35 @@ EOT
     while (%r = $q->fetchhash()) {
 	$pid = $r{'pid'};
 	$eid = $r{'eid'};
-	system("$TB/sbin/idleswap -r -i $pid,$eid > /dev/null") &&
-	  warn("idlemail: Problem idleswapping $pid/$eid: $!\n");
+	if ($i) {
+	    print "Would idleswap $pid,$eid\n";
+	}
+	else {
+	    system("$TB/sbin/idleswap -r -i $pid,$eid > /dev/null") &&
+		warn("idlemail: Problem idleswapping $pid/$eid: $!\n");
+	}
     }
 
     $sql  = <<EOT;
-select pid,eid,autoswap_timeout,
-(unix_timestamp(now()) - unix_timestamp(expt_swapped))/60 as activemin
-from experiments where swappable>0 and state="active" and autoswap>0
-and paniced=0
-having activemin>=autoswap_timeout order by pid,eid
+select e.pid,e.eid,e.autoswap_timeout,
+(unix_timestamp(now()) - unix_timestamp(s.swapin_last))/60 as activemin
+from experiments as e
+left join experiment_stats as s on s.exptidx=e.idx
+where e.swappable>0 and e.state="active" and e.autoswap>0
+and e.paniced=0 
+having activemin>=e.autoswap_timeout order by e.pid,e.eid
 EOT
     $q = DBQueryFatal($sql);
     while (%r = $q->fetchhash()) {
 	$pid = $r{'pid'};
 	$eid = $r{'eid'};
-	system("$TB/sbin/idleswap -r -a $pid,$eid > /dev/null") &&
-	  warn("idlemail: Problem autoswapping $pid/$eid: $!\n");
+	if ($i) {
+	    print "Would autoswap $pid,$eid\n";
+	}
+	else {
+	    system("$TB/sbin/idleswap -r -a $pid,$eid > /dev/null") &&
+		warn("idlemail: Problem autoswapping $pid/$eid: $!\n");
+	}
     }
 
     # Now send warning messages to those who will get automatically
@@ -298,11 +313,13 @@ EOT
 
     if ($auto_warnmin>0) {
 	$sql  = <<EOT;
-select pid,eid,autoswap_timeout,
-(unix_timestamp(now()) - unix_timestamp(expt_swapped))/60 as activemin
-from experiments where swappable>0 and state="active" and autoswap>0
-having activemin+$auto_warnmin>=autoswap_timeout and
-activemin+$auto_warnmin<=autoswap_timeout+$window order by pid,eid
+select e.pid,e.eid,e.autoswap_timeout,
+(unix_timestamp(now()) - unix_timestamp(s.swapin_last))/60 as activemin
+from experiments as e
+left join experiment_stats as s on s.exptidx=e.idx
+where e.swappable>0 and e.state="active" and e.autoswap>0
+having activemin+$auto_warnmin>=e.autoswap_timeout and
+activemin+$auto_warnmin<=e.autoswap_timeout+$window order by e.pid,e.eid
 EOT
         $q = DBQueryFatal($sql);
 	while (%r = $q->fetchhash()) {
@@ -523,7 +540,7 @@ sub SendMessage {
     } else {
 	$subj="$c PC".($c!=1?"s":"")." idle $idlehrs hours: $pid/$eid";
     }
-    if ($n) {
+    if ($n || $i) {
 	# no mail mode: don't send mail or update db counters
 	print "----NO-MAIL-MODE----\n";
 	print "To: $expswapper_name <$expswapper_email>\n";
