@@ -559,7 +559,7 @@ function SPITFORM($formfields, $returning, $errors)
               </td>
           </tr>\n";
 
-    if ($TBMAINSITE) {
+    if (0) {
 	echo "<tr>
               <td colspan=2>Request Access to 
                   <a href=\"$WIKIDOCURL/widearea\"
