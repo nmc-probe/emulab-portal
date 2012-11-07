@@ -902,13 +902,13 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $isbridge    = 0;
 	my $isfirewall  = 0;
 	
-	if (exists($nodeexistsmap{$node_nickname})) {
+	if (exists($nodeexistsmap{lc($node_nickname)})) {
 	    $response =
 		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				     "Duplicate node $node_nickname");
 	    goto bad;
 	}
-	$nodeexistsmap{$node_nickname} = 1;
+	$nodeexistsmap{lc($node_nickname)} = 1;
 
 	# Always populate iface2node mapping, even if we let the node
 	# pass through.
@@ -1551,13 +1551,13 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    goto bad;
 	}
 
-	if (exists($linkexistsmap{$lanname})) {
+	if (exists($linkexistsmap{lc($lanname)})) {
 	    $response =
 		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				     "Duplicate link $lanname");
 	    goto bad;
 	}
-	$linkexistsmap{$lanname} = 1;
+	$linkexistsmap{lc($lanname)} = 1;
 
 	#
 	# Look for managers list; optional for now. If not specified then
