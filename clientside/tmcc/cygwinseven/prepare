@@ -59,6 +59,8 @@ sub usage()
 sub modpasswd($$)
 {
     my($login, $pswd) = @_;
+    my %uh = ();
+    my $error;
 
     if (!UserGetInfo("", $login, $ULEVEL, \%uh)) {
 	my $err = Win32::GetLastError();
@@ -419,6 +421,8 @@ if ($sysprep) {
     my $sp_path = "/cygdrive/c/Windows/System32/sysprep";
 
     # Redefine root password in unattend.xml if necessary
+    # Also switch reseal mode to 'OOBE' to ensure we don't stay
+    # in Audit mode.
     if ($rootpwd) {
 	print "Modifying root password in unattend.xml\n";
 	open(UNANEW, ">$sp_path/unattend-new.xml")
@@ -426,12 +430,24 @@ if ($sysprep) {
 	open(UNAORIG, "<$sp_path/unattend-src.xml")
 	    or die "can't open existing unattend.xml.  Sysprep aborted.";
 	while (my $uline = <UNAORIG>) {
-	    if ($uline =~ /<Password>/) {
-		my $dummy = <UNAORIG>, <UNAORIG>; # zap next two lines.
-		$uline .= " "x28 . "<Value>$rootpwd</Value>\r\n" .
-		    " "x28 . "<PlainText>true</PlainText>\r\n";
+	    my $outline = "";
+	    UNATT1: foreach($uline) {
+		/<Password>/ && do {
+		    my $dummy = <UNAORIG>, <UNAORIG>; # zap next two lines.
+		    $outline = $uline;
+		    $outline .= " "x28 . "<Value>$rootpwd</Value>\r\n" .
+			" "x28 . "<PlainText>true</PlainText>\r\n";
+		    last UNATT1;
+		};
+		/<Mode>/ && do {
+		    $outline = " "x16 . "<Mode>OOBE</Mode>\r\n";
+		    last UNATT1;
+		};
+
+		# Default
+		$outline = $uline;
 	    }
-	    print UNANEW $uline;
+	      print UNANEW $outline;
 	}
 	close(UNANEW);
 	close(UNAORIG);
