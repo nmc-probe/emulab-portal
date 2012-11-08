@@ -235,12 +235,18 @@ sub gendhcpdconf($$)
 				"PXE.emulab-bootinfo " . $bootinfo_server . ";\n";
 			    }
 
-			    if ($inner_elab_boot) {
-				if ($singlenet && $inner_elab_role eq 'node') {
-					$booting  = "${spaces}\tignore booting;\n";
+			    #
+			    # This only applies to inner nodes.
+			    # Inner boss/ops still need to PXE boot.
+			    # virtnode host needs to DHCP as a "normal" node.
+			    #
+			    if ($inner_elab_boot &&
+				$inner_elab_role eq 'node') {
+				if ($singlenet) {
+				    $booting  = "${spaces}\tignore booting;\n";
 				} else {
-					$dns = "${spaces}\toption ".
-					    "domain-name-servers 1.1.1.1;\n";
+				    $dns = "${spaces}\toption ".
+					"domain-name-servers 1.1.1.1;\n";
 				}
 			    }
 
