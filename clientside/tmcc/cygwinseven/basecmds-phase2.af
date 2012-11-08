@@ -56,6 +56,12 @@ runcyg echo -e '#!/bin/sh\n$*\n' > /bin/sudo && chmod a+rx /bin/sudo ;; 0
 log Adding security rights to root account
 runcyg editrights -u root -a SeCreateTokenPrivilege -a SeAssignPrimaryTokenPrivilege  -a SeIncreaseQuotaPrivilege -a SeServiceLogonRight -l ;; 0
 
+log Fixing up /etc/passwd and /etc/group
+runcyg mkpasswd | sed -e '{ s/^root:unused:[0-9]\+:\(.*\)$/root:unused:0:\1/; s%^\(cyg_sshd.*\):.*$%\1:/bin/false% }' > /etc/passwd.new && mv -f /etc/passwd.new /etc/passwd ;; 0
+runcyg mkgroup | sed -e '/^Administrators/ { p; s/Administrators/wheel/ }' > /etc/group.new && mv -f /etc/group.new /etc/group ;; 0
+# SSHD can be very picky about touching the user and group databases.
+runcyg cygrunsrv -E sshd && cygrunsrv -S sshd ;; 0
+
 log Downloading pubsub source
 mkdir %elabsw%
 getfile %elab_dld%/%pubsub_tarball% ;; %elabsw%\%pubsub_tarball%

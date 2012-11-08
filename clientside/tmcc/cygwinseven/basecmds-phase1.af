@@ -66,13 +66,13 @@ addreg HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server ;; fDenyTSConnectio
 log Creating local root user
 adduser root ;; %rootpass% ;; makeadmin
 
-# XXX: Ugh...  Something still doesn't work here.
+# XXX: Ugh...  What a mess!
 log Setting up the clock
 addreg HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation ;; RealTimeIsUniversal ;; Dword ;; 1
 runcmd w32tm.exe ;; /register
 runcmd sc.exe ;; config w32time start= auto ;; 0
-runcmd tzutil.exe ;; /s "Mountain Standard Time" ;; 0
-#runcmd net.exe ;; start w32time ;; 0
-runcmd w32tm.exe ;; /config /manualpeerlist:%ntpserver% /syncfromflags:manual /update ;; 0
+runcmd net.exe ;; start w32time
+runcmd w32tm.exe ;; /config /manualpeerlist:%ntpserver% /syncfromflags:manual /update
 
 log Finished!  Please be sure to put Microsoft's devcon utility into %devconpath%
+log Also, copy in ssh host keys from another of your Emulab nodes and replace the existing ones on this machine.
