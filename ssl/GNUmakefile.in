@@ -66,7 +66,7 @@ emulab.pem:	dirsmade mkserial emulab.cnf emulab.key
 
 server.pem:	dirsmade mkserial server.cnf ca.cnf server.key server.req
 	# Create the serial file.
-	./mkserial
+	perl ./mkserial
 	#
 	# Sign the server cert request, creating a server certificate.
 	#
@@ -84,7 +84,7 @@ server.pem:	dirsmade mkserial server.cnf ca.cnf server.key server.req
 # 
 apache.pem:	dirsmade mkserial apache.cnf ca.cnf apache.key apache.req
 	# Create the serial file.
-	./mkserial
+	perl ./mkserial
 	#
 	# Sign the apache cert request, creating an apache certificate.
 	#
@@ -97,7 +97,7 @@ apache.pem:	dirsmade mkserial apache.cnf ca.cnf apache.key apache.req
 # 
 apache-ops.pem:	dirsmade mkserial apache-ops.cnf ca.cnf apache-ops.key apache-ops.req
 	# Create the serial file.
-	./mkserial
+	perl ./mkserial
 	#
 	# Sign the apache cert request, creating an apache certificate.
 	#
@@ -107,7 +107,7 @@ apache-ops.pem:	dirsmade mkserial apache-ops.cnf ca.cnf apache-ops.key apache-op
 
 capture.pem:	dirsmade mkserial capture.cnf ca.cnf capture.key capture.req
 	# Create the serial file.
-	./mkserial
+	perl ./mkserial
 	#
 	# Sign the capture cert request, creating a capture certificate.
 	#
@@ -122,7 +122,7 @@ capture.pem:	dirsmade mkserial capture.cnf ca.cnf capture.key capture.req
 
 jabber.pem:	dirsmade mkserial jabber.cnf ca.cnf jabber.key jabber.req
 	# Create the serial file.
-	./mkserial
+	perl ./mkserial
 	#
 	# Sign the server cert request, creating a server certificate.
 	#
@@ -151,13 +151,13 @@ capture.sha1fingerprint:	capture.pem
 localnode.pem:	dirsmade mkserial localnode.cnf ca.cnf localnode.key localnode.req
 	cat localnode.key >> localnode.req
 	# Create the serial file.
-	./mkserial
+	perl ./mkserial
 	$(SRCDIR)/mkclient.sh localnode
 
 ctrlnode.pem:	dirsmade mkserial ctrlnode.cnf ca.cnf ctrlnode.key ctrlnode.req
 	cat ctrlnode.key >> ctrlnode.req
 	# Create the serial file.
-	./mkserial
+	perl ./mkserial
 	$(SRCDIR)/mkclient.sh ctrlnode
 
 keys:		emulab_privkey.pem emulab_pubkey.pem
