@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -349,13 +349,15 @@ foreach my $token (@userlist) {
     }
 
     #
-    # Add special admin group. Check to make sure that its not a dup
-    # since the above mechanism could cause a duplicate entry. No big
-    # deal to catch it.
+    # Add special admin group. Also add wheel and mysql cause once
+    # you become an admin and have a local shell, might as well just
+    # do this too. Watch for dups though, since the above mechanism
+    # could cause a duplicate entry. No big deal to catch it.
     #
-    if (TBAdmin($uid)) {
-	if (! grep(/^${ADMINGRP}$/, @extragrouplist)) {
-	    push(@extragrouplist, $ADMINGRP);
+    if ($user->admin()) {
+	foreach my $extragroup ($ADMINGRP, "wheel", "mysql") {
+	    push(@extragrouplist, $extragroup)
+		if (! grep(/^${extragroup}$/, @extragrouplist));
 	}
     }
 
