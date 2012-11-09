@@ -2218,7 +2218,8 @@ sub CreateVnodes($$$)
 
 		DBQueryFatal( "UPDATE virt_node_public_addr SET " .
 			      "node_id='$vnodeid', card='0', port='1' " .
-			      "WHERE IP='$jailip'" );
+			      "WHERE IP='$jailip'" )
+		    if (!$impotent);
 	    } else {
 		#
 		# Construct a vnode private IP.  The general form is:
