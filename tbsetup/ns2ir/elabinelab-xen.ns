@@ -166,19 +166,29 @@ if {[info exists ::TBCOMPAT::elabinelab_nodeos("ops")]} {
 #
 set bossip [tb-get-elabinelab-role-attribute "boss" "BOSS_JAILIP"]
 if { $bossip != {} } {
-   set bossipmask [tb-get-elabinelab-role-attribute "boss" "BOSS_JAILIPMASK"]
-   if { $bossipmask != {} } {
-      $myboss add-attribute "jailip" $bossip
-      $myboss add-attribute "jailipmask" $bossipmask
-   }
+    set bossipmask [tb-get-elabinelab-role-attribute "boss" "BOSS_JAILIPMASK"]
+    if { $bossipmask != {} } {
+	$myboss add-attribute "jailip" $bossip
+	$myboss add-attribute "jailipmask" $bossipmask
+    }
+} else {
+    set routable [tb-get-elabinelab-role-attribute "boss" "ROUTABLE_IP"]
+    if { $routable != {} } {
+	$myboss add-attribute "routable_control_ip" "true"
+    }
 }
 set opsip [tb-get-elabinelab-role-attribute "ops" "OPS_JAILIP"]
 if { $opsip != {} } {
-   set opsipmask [tb-get-elabinelab-role-attribute "ops" "OPS_JAILIPMASK"]
-   if { $opsipmask != {} } {
-      $myops add-attribute "jailip" $opsip
-      $myops add-attribute "jailipmask" $opsipmask
-   }
+    set opsipmask [tb-get-elabinelab-role-attribute "ops" "OPS_JAILIPMASK"]
+    if { $opsipmask != {} } {
+	$myops add-attribute "jailip" $opsip
+	$myops add-attribute "jailipmask" $opsipmask
+    }
+} else {
+    set routable [tb-get-elabinelab-role-attribute "ops" "ROUTABLE_IP"]
+    if { $routable != {} } {
+	$myops add-attribute "routable_control_ip" "true"
+    }
 }
 
 #
@@ -194,7 +204,7 @@ set opsdisks [tb-get-elabinelab-role-attribute "ops" "XEN_EXTRADISKS"]
 if { $opsdisks != {} } {
     $myops add-attribute XEN_EXTRADISKS $opsdisks
 } else {
-    $myops add-attribute XEN_EXTRADISKS "disk1:4G,disk2:10G"
+    $myops add-attribute XEN_EXTRADISKS "disk1:4G,disk2:10G,disk3:10G"
 }
 
 #
@@ -205,4 +215,4 @@ if { $opsdisks != {} } {
 # swap disk on da1. So we start at da2 ...
 #
 tb-set-elabinelab-role-attribute "boss" "EXTRADISKS" "da2:/usr/testbed,da3:/usr/testbed/data,da4:/usr/testbed/log"
-tb-set-elabinelab-role-attribute "ops"  "EXTRADISKS" "da2:/usr/testbed,da3:/q"
+tb-set-elabinelab-role-attribute "ops"  "EXTRADISKS" "da2:/usr/testbed,da3:/q,da4:/share"
