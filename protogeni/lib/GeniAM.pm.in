@@ -853,36 +853,40 @@ sub Describe
 sub Allocate
 {
     my ($slice_urn, $credential_args, $rspec, $options) = @_;
-    if (! defined($slice_urn) || ! defined($credential_args) ||
-	! defined($rspec) || ! defined($options)) {
+    Update($slice_urn, [], $credential_args, $rspec, $options);
+}
+
+sub Update
+{
+    my ($slice_urn, $urn_args, $credential_args, $rspec, $options) = @_;
+    if (! defined($slice_urn) || ! defined($urn_args) ||
+	! defined($credential_args) || ! defined($rspec) ||
+	! defined($options)) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
+    my @urns = @{ $urn_args };
     my $credentials = FilterCredentials($credential_args);
     my $cred = GeniCMV2::CheckCredentials($credentials);
     return $cred
 	if (GeniResponse::IsResponse($cred));
 
-    # Check rspec using rspeclint
-    my ($fh, $filename) = tempfile(UNLINK => 0);
-    if (!defined($fh)) {
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not check rspec");
+    # The URN list must be either empty or contain the slice URN.
+    if (scalar(@urns) > 1 ||
+	(scalar(@urns) == 1 && $urns[0] ne $slice->urn())) {
+	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				    "Must pass only slice URN");
     }
-    print $fh $rspec;
-    close($fh);
-    my $rspecerrors = `$RSPECLINT $filename 2>&1`;
-    if ($?) {
-	unlink($filename);
-	return GeniResponse->Create(GENIRESPONSE_ERROR,
-				        $rspecerrors,
-				    "Given rspec does not validate");
+
+    # If the URN list is empty, then we just create new slivers,
+    # combining the new rspec with the old.
+    my $isCreate = 0;
+    if (scalar(@urns) == 0) {
+	$isCreate = 1;
     }
-    if ($rspecerrors ne "") {
-	print STDERR "--- BEGIN RSPECLINT ERRORS ---\n";
-	print STDERR $rspecerrors;
-	print STDERR "--- END RSPECLINT ERRORS ---\n\n";
-    }
-    unlink($filename);
+
+    my $response = CheckRspec("REQUEST", $rspec);
+    return $response
+	if (defined($response));
 
     my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
     my $ticket;
@@ -892,15 +896,26 @@ sub Allocate
 	$ticket = GeniTicket->SliceTicket($slice);
     }
 
-    my $response;
+    my $combined = $rspec;
     if (defined($ticket)) {
-	$response = AllocateTicket($slice_urn, $rspec, $credentials,
-				   GeniXML::Serialize($ticket->rspec()),
+	if ($isCreate) {
+	    $combined = CombineDisjoint(GeniXML::Serialize($ticket->rspec()),
+					$rspec);
+	    $response = CheckRspec("COMBINED W/ TICKET", $combined);
+	    return $response
+		if (defined($response));
+	}
+	$response = AllocateTicket($slice_urn, $combined, $credentials,
 				   $ticket->asString());
     } elsif (defined($aggregate)) {
-	$response = AllocateAggregate($slice_urn, $rspec, $credentials,
-				 $aggregate->GetManifest(),
-				 $aggregate->urn());
+	if ($isCreate) {
+	    $combined = CombineDisjoint( $aggregate->GetManifest(), $rspec);
+	    $response = CheckRspec("COMBINED W/ AGGREGATE", $combined);
+	    return $response
+		if (defined($response));
+	}
+	$response = AllocateAggregate($slice_urn, $combined, $credentials,
+				      $aggregate->urn());
     } else {
 	$response = AllocateEmpty($slice_urn, $rspec, $credentials);
     }
@@ -933,8 +948,7 @@ sub Allocate
 # Allocate when there is a ticket or ticket+sliver
 sub AllocateTicket
 {
-    my ($slice_urn, $rspec, $credentials, $currentRspec, $ticketStr) = @_;
-    my $combined = CombineDisjoint($currentRspec, $rspec);
+    my ($slice_urn, $combined, $credentials, $ticketStr) = @_;
     if (GeniResponse::IsResponse($combined)) {
 	return $combined;
     }
@@ -950,8 +964,7 @@ sub AllocateTicket
 # Allocate when there is a sliver but no ticket
 sub AllocateAggregate
 {
-    my ($slice_urn, $rspec, $credentials, $currentRspec, $sliver_urn) = @_;
-    my $combined = CombineDisjoint( $currentRspec, $rspec);
+    my ($slice_urn, $combined, $credentials, $sliver_urn) = @_;
     if (GeniResponse::IsResponse($combined)) {
 	return $combined;
     }
@@ -1317,6 +1330,37 @@ sub SameSlivers
 		last;
 	    }
 	}
+    }
+    return $result;
+}
+
+# Check rspec using rspeclint
+# Returns undefined on success or a GeniResponse on error.
+sub CheckRspec
+{
+    my ($type, $rspec) = @_;
+    my $result;
+
+    my ($fh, $filename) = tempfile(UNLINK => 0);
+    if (!defined($fh)) {
+	$result = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				       "Could not check rspec");
+    } else {
+	print $fh $rspec;
+	close($fh);
+	my $rspecerrors = `$RSPECLINT $filename 2>&1`;
+	if ($?) {
+	    unlink($filename);
+	    $result = GeniResponse->Create(GENIRESPONSE_ERROR,
+					   $rspecerrors,
+					   $type . " rspec does not validate");
+	}
+	if ($rspecerrors ne "") {
+	    print STDERR "--- BEGIN RSPECLINT ERRORS $type ---\n";
+	    print STDERR $rspecerrors;
+	    print STDERR "--- END RSPECLINT ERRORS $type ---\n\n";
+	}
+	unlink($filename);
     }
     return $result;
 }
