@@ -93,7 +93,7 @@ ifeq ($(TBROOT),/usr/testbed)
 
 install: $(addprefix $(INSTALL_RCDIR)/, $(RC_SCRIPTS))
 
-control-install:	$(addprefix $(INSTALL_RCDIR)/, $(OPS_SCRIPTS))
+control-install:	control-build $(addprefix $(INSTALL_RCDIR)/, $(OPS_SCRIPTS))
 
 subboss-install:	subboss-build $(addprefix $(INSTALL_RCDIR)/, $(SUBBOSS_SCRIPTS))
 
