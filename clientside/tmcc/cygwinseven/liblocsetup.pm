@@ -260,12 +260,6 @@ sub os_accounts_sync()
     # Note that the group membership is not reported into the CygWin files.
     print "Resetting the CygWin passwd and group files.\n";
 
-    # First thing's first - sshd on Windows is often extrememly touchy
-    # about changes to user database state.  We'll stop it while we work, 
-    # then start it up again when we're done.
-    system("cygrunsrv -E sshd") &&
-	warning("SSHD not running...");
-
     my $cmd = "$MKPASSWD -l | $AWK -F: '";
     $cmd   .=   'BEGIN{ OFS=":"; ';
     # Keep Windows admin account homedirs under /home so we know what to clean.
@@ -311,10 +305,6 @@ sub os_accounts_sync()
 	warning("Nonzero exit status while generating /etc/group file: $?\n");
     }
 
-    # OK, start sshd back up
-    system("cygrunsrv -S sshd") &&
-	warning("SSHD could not be restarted!");
-    
     return 0;
 }
 

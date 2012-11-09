@@ -26,7 +26,7 @@ mkdir %cygsrc%
 getfile %cyg_mirror%/%setup_exec% ;; %cygsrc%\%setup_exec%
 
 log Running Cygwin installer.
-runcmd %cygsrc%\%setup_exec% ;; -l %cygsrc% -s %cyg_mirror% -O -R %cygdest% -q -P %cyg_pkgs%
+runcmd %cygsrc%\%setup_exec% ;; -X -l %cygsrc% -s %cyg_mirror% -O -R %cygdest% -q -P %cyg_pkgs%
 modpathenv %cygdest%\bin ;; append
 log Cygwin Setup Complete.
 
@@ -59,8 +59,6 @@ runcyg editrights -u root -a SeCreateTokenPrivilege -a SeAssignPrimaryTokenPrivi
 log Fixing up /etc/passwd and /etc/group
 runcyg mkpasswd | sed -e '{ s/^root:unused:[0-9]\+:\(.*\)$/root:unused:0:\1/; s%^\(cyg_sshd.*\):.*$%\1:/bin/false% }' > /etc/passwd.new && mv -f /etc/passwd.new /etc/passwd ;; 0
 runcyg mkgroup | sed -e '/^Administrators/ { p; s/Administrators/wheel/ }' > /etc/group.new && mv -f /etc/group.new /etc/group ;; 0
-# SSHD can be very picky about touching the user and group databases.
-runcyg cygrunsrv -E sshd && cygrunsrv -S sshd ;; 0
 
 log Downloading pubsub source
 mkdir %elabsw%

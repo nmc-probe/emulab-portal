@@ -47,6 +47,9 @@ log Disabling SSDP and UPnP services
 runcmd sc.exe ;; config SSDPSRV start= disabled ;; 0
 runcmd sc.exe ;; config upnphost start= disabled ;; 0
 
+log Disabling WMP network service
+runcmd sc.exe ;; config WMPNetworkSvc start= disabled ;; 0
+
 log Disabling Windows Error Reporting
 addreg HKLM\Software\Microsoft\Windows\Windows Error Reporting ;; Disabled ;; Dword ;; 1
 

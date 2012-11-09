@@ -69,12 +69,11 @@
  void	 channel_prepare_select(fd_set **, fd_set **, int *, u_int*, int);
 --- serverloop.c.orig	2011-05-20 03:02:50.000000000 -0600
 +++ serverloop.c	2012-07-12 17:03:09.583524300 -0600
-@@ -912,6 +912,10 @@
+@@ -912,6 +912,9 @@
  	buffer_append(&stdin_buffer, data, data_len);
  	memset(data, 0, data_len);
  	xfree(data);
 +#ifdef HAVE_CYGWIN
-+	logit("woot");
 +	input_occurred();
 +#endif
  }
