@@ -1,14 +1,19 @@
-Setting up the control node:
-
-Need the following info:
+Setting up an InstaGeni Rack. First, we need the following info:
 
 1. Hostname for the control node.
 2. IP and netmask for the control node.
 3. IP for the ilo interface on the control node (same netmask).
 4. IP for your DNS server.
 5. IP for your default router.
+6. Login (email), and ssh version 2 public key for a local administrator.
+   This should be a real person, not a pseudo user.
+7. The iLo passwords for all of the nodes. These are stamped on the
+   top of each of the nodes. Please note the rack slot number for each
+   password. Ideally, we would have the ethernet addresses for the ilo
+   and eth0 interfaces too, but I expect we will have to figure that
+   out on the fly using the dhcpd logs. 
 
-* Send Utah all of the above info so that we can "bake" an image
+* Send Utah all of the above info so that we can "bake" the images
   for you. Once you hear back from us, you may continue with these
   instructions.
 
@@ -28,7 +33,18 @@ Need the following info:
   IP/Mask/Router, then F10 to save and then esc to exit. iLo will
   reset.
 
-* At this point you can go back to your desk and work from there.
+* Is the RAID array setup? It wasn't on Utah's rack. Need to fill this
+  part in. 
+
+* At this point, Utah can do the rest of the rack setup without
+  further intervention from you. Well, unless something gets wedged
+  and Utah needs something to be physically power cycled. Or you can
+  go back to your desk and proceed to setup the rack using the
+  following instructions. Which do you prefer? I know you will make
+  the correct choice.
+
+* Now that you have decided, send email to Utah asking us to complete
+  the installation while you go back to working on other projects. 
 
 * Using your web browser, go to the iLo IP you set, and login using
   Administrator and the iLo password that is stamped on top of the
@@ -53,7 +69,7 @@ Need the following info:
   whatever number is to the left of the CD choice. 
 
 * The ISO will load and give you a boot prompt. Just hit return. You
-  will evntually get a shell prompt after a lot of noisy output.
+  will eventually get a shell prompt after a lot of noisy output.
 
 * Fire up the network:
 
@@ -66,15 +82,15 @@ Need the following info:
 * Transfer the control node image from Utah:
 
 	cd /tmp
-	wget http://155.98.32.70/downloads/genirack.ndz
+	wget http://155.98.32.70/downloads/genirack-1.ndz
 
   This is about a 1GB so it will take a while.
 
 * Write the image file to the disk using the Emulab decompression tool:
 
-	/usr/bin/imageunzip -o genirack.ndz /dev/cciss/c0d0
+	/usr/bin/imageunzip -o genirack-1.ndz /dev/cciss/c0d0
 
-  This will take a little while.
+  This will take a little while. Or a long while. 
 
 * Set the boot order so that the control node does not try to boot
   from the network, unless all else fails.
@@ -176,6 +192,13 @@ Need the following info:
   USE THE SAME PASSWORD and COMMUNITY XXXXX
   USE THE SAME PASSWORD and COMMUNITY XXXXX
   USE THE SAME PASSWORD and COMMUNITY XXXXX
+
+  Some 6600 specific stuff. The port number above is 48.
+
+  6600> config
+  6600(config)> oobm disable
+  6600(config)> snmp-server listen data
+  6600(config)> write memory
   
 * The 5400 will take longer to reset. Be sure you can telnet back to the
   both switches and login with the password you used above. Once you are
@@ -214,3 +237,13 @@ Need the following info:
   This creates a bunch of LVMs and rewrites the xm.conf in the
   boss/ops directories to reflect the new LVM paths, etc.
 
+* Fire up the VMs. Ops has to be first, followed by boss.
+
+	sudo xm create /scratch/ops/xm.conf
+	sleep 30
+	sudo xm create /scratch/boss/xm.conf
+
+* The rest of the setup has not been written down yet. We are waiting
+  for a second rack, to nail down the rest of the instructions.
+  
+* Anything to do with FOAM is in Nick's capable hands!
