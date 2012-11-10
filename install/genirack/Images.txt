@@ -1,0 +1,119 @@
+Notes on baking the images.
+
+Each rack gets a backed image of the control node, and two baked
+images for boss and ops. The control node image is discussed below,
+but first lets talk about the boss/ops XEN VMs.
+
+Briefly, the VMs are initially created as a XEN based ElabInElab
+experiment using an NS file tailored to the eventual environment via a
+bunch of attribute variables. For example, take a look at this one,
+which is the basis for the BBN rack:
+
+  https://www.emulab.net/showexp.php3?pid=testbed&eid=bbnrack#nsfile
+
+The initial config lines turn on/off some Emulab features, but most
+importantly causes the ProtoGeni subsystem to be configured in and the
+packages loaded. The CONFIG_GENIRACK takes it further, running the
+ProtoGeni initsite script, which will generate all of the PG
+certificates and upload them to the Emulab website. When running in
+Utah, the VMs will look just like they would if they were on the
+remote network, except that we temporarily change things so that they
+will actually boot on our network. Later just before we take the
+snapshots of the VMs, we clean that stuff out; when they next boot,
+they better be booting on the control node at the remote site!
+
+The rest of the config variables are set according to the particulars
+of the site, as told to us by the local site admin.
+
+After you "duplicate" this experiment for a new site, be sure to make
+a copy of the private variables file, change the path in the NS file,
+and change all the passwords in the file. I just generated random
+strings by piping some bytes from /dev/random into md5 and taking a
+substring.
+
+Swap the experiment in. 
+
+Once the VMs are ready, we have to take the snapshots. But first we
+have to clean them up as mentioned above. This process is actually a
+lot more involved then I alluded to, but its all automated. First ssh
+into the inner ops VM from outer boss:
+
+	ops> cd /usr/testbed/obj/install
+	ops> sudo perl emulab-install -i ops/genirack ops
+
+then log out and log into inner boss:
+
+	ops> cd /usr/testbed/obj/install
+	ops> sudo perl emulab-install -i boss/genirack boss
+
+Now we have to shutdown the VMs. Log into the physical host and then:
+
+	vhost-0> sudo /usr/local/etc/emulab/vnodesetup -jh pcvmXXX-1
+	vhost-0> sudo /usr/local/etc/emulab/vnodesetup -jh pcvmXXX-2
+	
+The -h option is very important; it says to keep the disks intact.
+If you forget that, you have to go back to the beginning and start
+over.
+
+Next step is to capture the entire state of the VMs, which includes an
+imagezip of each lvm, a copy of the kernel, and a slightly modified
+xm.conf file. The script that does this might not be installed, but
+you can find it in the testbed source directory in
+clientside/tmcc/linux/openvz.
+
+	vhost-0> sudo capturevm.pl -r boss pcvmXXX-1
+	vhost-0> sudo capturevm.pl -r ops pcvmXXX-2
+
+This will take a little while of course. When finished, cd into
+/scratch and you will find two directories named boss and ops.
+Create a tar file of them; no point in using compression. They are now
+ready to be copied over to the new control node and installed.
+
+----
+
+Control Node Image:
+
+The control node image is currently baked from the Utah control
+node. We have an extra disk on out control node that is a duplicate of
+the main disk. Well, it was at one time, but we don't change it very
+often and when I do, I try to remember to update the mirror as well.
+Anyway, there are just a few things that need to be changed on the
+control image for each site.
+
+Note, DO NOT CHANGE THESE ON THE ROOT DISK! The clone is mounted on
+/mnt and /mnt/usr ...
+
+* /mnt/etc/network/interfaces.local: IP address and mask, and the local
+  gateway address.
+
+* /mnt/etc/resolv.conf: the usual; domain and DNS server(s).
+
+* /mnt/etc/hostname; the hostname of course
+
+* Set the root password; we do not want it the same on each control
+  node, although note that ssh root login is not allowed. 
+
+	sudo chroot /mnt passwd root
+
+* Create the initial admin account for the whoever said they are the
+  local admin. This requires an ssh version 2 pub key. Copy that file
+  to /mnt/tmp, and then:
+
+	sudo chroot /mnt /usr/local/bin/mkadmin.pl stoller /tmp/key.pub
+
+
+Now we want to take an imagezip of the mirror disk. This will give us
+an ndz file that we can imageunzip onto the control node disk (this is
+discussed in great detail in the installation notes in this directory).
+
+	sudo umount /mnt/usr /mnt
+	sudo imagezip -o /dev/sdb /scratch/newrack.ndz
+
+Once the imagezip is done, you want to copy it over to Utah's www
+downloads directory so that it easily available to the new control
+node. Then remount the filesystems:
+
+	sudo mount /mnt
+	sudo mount /mnt/usr
+
+
