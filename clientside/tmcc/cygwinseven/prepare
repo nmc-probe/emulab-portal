@@ -56,35 +56,7 @@ sub usage()
     exit(1);
 }
 
-my $optlist = "p:s:n";
-my $rootpwd = "";
-my $rootpwd2 = "";
-my $noredef = 0;
-my $unattend = "";
-
-# Parse command line.
-use Getopt::Std;
-if (! getopts($optlist, \%options)) {
-    usage();
-}
-if (defined($options{'p'})) {
-    $rootpwd = $rootpwd2 = $options{'p'};
-}
-if (defined($options{'n'})) {
-    $noredef = 1;
-}
-if (defined($options{'s'})) {
-    $unattend = $options{'s'};
-    -f $unattend or die ("$unattend does not exist or is not a file.");
-}
-
-# Only root.  No need for this under windows.
-#if ($EUID != 0) {
-#    die("*** $0:\n".
-#	"    Must be root to run this script!\n");
-#}
-
-# Note: No /etc/dumpdates support on CygWin, and no /etc/fstab or /var/account either.
+# Constants
 my @DBFILES     = ();
 my @VARDIRS	= ("logs", "db", "jails", "boot", "lock", "lib/dhcp");
 my $LOGDIR      = "/var/log";
@@ -94,6 +66,45 @@ my $OBJS        = "/home/root/flux/obj-real";
 my $HISTORY     = "/home/root/.bash_history";
 my $MAILFILE    = "/var/spool/mail/root";
 my $NTPDRIFT    = "/etc/ntp/drift";
+my $SP_PATH     = "/cygdrive/c/Windows/System32/sysprep";
+my $SRC_UNATTEND = "$SP_PATH/unattend-src.xml";
+
+# Global variables
+my $optlist = "p:u:ns";
+my $rootpwd = "";
+my $rootpwd2 = "";
+my $unattend = "";
+my $noredef = 0;
+my $sysprep = 0;
+
+# Parse command line.
+use Getopt::Std;
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{'p'})) {
+    $rootpwd = $rootpwd2 = $options{'p'};
+}
+if (defined($options{'u'})) {
+    $unattend = $options{'u'};
+    -f $unattend or die ("$unattend does not exist or is not a file.");
+}
+if (defined($options{'n'})) {
+    $noredef = 1;
+}
+if (defined($options{'s'})) {
+    $sysprep = 1;
+}
+
+if ($sysprep && !$unattend) {
+    $unattend = $SRC_UNATTEND;
+}
+
+# Only root.  No need for this under windows.
+#if ($EUID != 0) {
+#    die("*** $0:\n".
+#	"    Must be root to run this script!\n");
+#}
 
 #
 # Dead wood in $BINDIR
@@ -327,17 +338,52 @@ system("devcon enable =net '*PCI*'");
 #
 # Run sysprep if requested.
 #
-if ($unattend) {
-    my $sp_path = "/cygdrive/c/Windows/System32/sysprep";
+if ($sysprep || $unattend) {
+    if ($unattend ne $SRC_UNATTEND) {
+	system("cp $unattend $SRC_UNATTEND");
+    }
+
+    # Redefine root password in unattend.xml if necessary
+    if ($rootpwd) {
+	print "Modifying root password in unattend.xml\n";
+	open(UNANEW, ">$SP_PATH/unattend.xml")
+	    or die "Can't open new unattend file for writing. Sysprep aborted.";
+	open(UNAORIG, "<$SRC_UNATTEND")
+	    or die "can't open input unattended setup file.  Sysprep aborted.";
+	while (my $uline = <UNAORIG>) {
+	    my $outline = "";
+	  UNATT1: foreach($uline) {
+	      /<Password>/ && do {
+		  my $dummy = <UNAORIG>, <UNAORIG>; # zap next two lines.
+		  $outline = $uline;
+		  $outline .= " "x28 . "<Value>$rootpwd</Value>\r\n" .
+		      " "x28 . "<PlainText>true</PlainText>\r\n";
+		  last UNATT1;
+	      };
+
+	      # Default
+	      $outline = $uline;
+	  }
+	    print UNANEW $outline;
+	}
+	close(UNANEW);
+	close(UNAORIG);
+    } 
+    else {
+	print "Not modifying root password in unattend.xml - assuming it's the same or modified outside of this script...\n";
+	system("cp $SRC_UNATTEND $SP_PATH/unattend.xml") &&
+	    die "Can't copy unattend file into place: $!"
+    }
 
     # Clean out sysprep work/log areas
     system("rm -rf /cygdrive/c/Windows/Panther/*");
-    system("rm -rf $sp_path/Panther/*");
-    system("cp -f $unattend $sp_path/unattend.xml");
-    chdir $sp_path;
+    system("rm -rf $SP_PATH/Panther/*");
+    chdir $SP_PATH;
     print "\nExecuting sysprep.  The system will shutdown shortly.  Wait a bit before trying to capture an image (ping the host - wait a minute after it stops).\n";
     system("./sysprep.exe /quiet /oobe /generalize /shutdown /unattend:unattend.xml");
 } else {
     print "\nDone!  Now capture the Windows disk image for:\n";
     system("head -1 /etc/motd");
 }
+
+exit 0;
