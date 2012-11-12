@@ -1905,6 +1905,12 @@ sub vz_vnodePreConfigExpNetwork {
 		    TBScriptUnlock();
 		    return -1;
 		}
+		# Must do this else routing lookup fails. 
+		mysystem2("echo 1 > /proc/sys/net/ipv4/conf/$gre/forwarding");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
 		$key2gre{$grekey} = $gre;
 		# Record gre creation.
 		$private->{'tunnels'}->{$gre} = $gre;
