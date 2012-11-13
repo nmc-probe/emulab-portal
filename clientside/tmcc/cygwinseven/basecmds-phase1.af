@@ -95,7 +95,8 @@ adduser root ;; %rootpass% ;; makeadmin
 log Setting up the clock
 addreg HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation ;; RealTimeIsUniversal ;; Dword ;; 1
 runcmd w32tm.exe ;; /register
-runcmd sc.exe ;; config w32time start= auto depend= tcpip ;; 0
+runcmd sc.exe ;; config w32time start= auto ;; 0
+runcmd sc.exe ;; triggerinfo w32time start/networkon stop/networkoff ;; 0
 runcmd net.exe ;; start w32time
 runcmd w32tm.exe ;; /config /manualpeerlist:%ntpserver% /syncfromflags:manual /update
 
