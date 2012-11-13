@@ -127,7 +127,6 @@ if (os_accounts_sync() != 0) {
     exit 1;
 }
 
-
 # Set the root password to make sure it matches.  We also set this to be
 # the Administrator password, to match the sysprep.inf file entry below.
 print "\nSetting root password.\n";
