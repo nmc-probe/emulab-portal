@@ -1219,6 +1219,7 @@ REPLACE INTO table_regex VALUES ('virt_blockstores','vname','text','regex','^[-\
 REPLACE INTO table_regex VALUES ('virt_blockstores','type','text','regex','^[-\\w]*$',0,30,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstores','role','text','regex','^(remote|local|unknown)$',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstores','size','int','redirect','default:int',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstores','fixed','text','redirect','default:tinytext',0,128,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','eid','text','redirect','experiments:eid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','vname','text','redirect','virt_blockstores:vname',0,0,NULL);

@@ -13,6 +13,10 @@ sub DoUpdate($$$)
 		     "  `fixed` text NOT NULL");
     }
 
+    DBQueryFatal("REPLACE INTO table_regex VALUES ".
+		 "('virt_blockstores','fixed','text','redirect',".
+		 "'default:tinytext',0,128,NULL)");
+    
     return 0;
 }
 1;
