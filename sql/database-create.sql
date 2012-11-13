@@ -4365,6 +4365,7 @@ CREATE TABLE `virt_blockstores` (
   `type` varchar(30) default NULL,
   `role` enum('remote','local','unknown') NOT NULL default 'unknown',
   `size` int(10) unsigned NOT NULL default '0',
+  `fixed` text NOT NULL,
   PRIMARY KEY (`exptidx`,`vname`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
