@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2005 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -22,7 +22,9 @@
 # }}}
 #
 use English;
-#require 'ctime.pl';
+use Win32;
+use Win32API::Net qw(:User);
+use Term::ReadKey;
 
 #
 # Prepare the node for cutting a new image.  Should be run just prior.
@@ -47,41 +49,43 @@ use librc;
 
 sub usage()
 {
-    print("Usage: " . scriptname() . " [-p Rootpwd] [-n] [-s] [-c] [-d]\n" .
-	  "    -p Rootpwd : Root password, for Emulab services redef.\n" .
+    print("Usage: " . scriptname() . " [-p <root_passwd>] [-n] [-s <unattend_file>]\n" .
+	  "    -p <root_password> : Root password, for Emulab services redef.\n" .
 	  "        If not present, and not -n, will be prompted-for.\n" .
 	  "    -n : Root password was not changed, don't redef services.\n" .
-	  "    -s : Make a hardware-independent image using Sysprep.\n");
+	  "    -s <unattend_file> : Make a hardware-independent image using Sysprep.\n");
     exit(1);
 }
-my $optlist = "p:ns";
-my $rootpwd = "";
-my $rootpwd2 = "";
-my $noredef = 0;
-my $sysprep = 0;
 
-# Parse command line.
-use Getopt::Std;
-if (! getopts($optlist, \%options)) {
-    usage();
-}
-if (defined($options{'p'})) {
-    $rootpwd = $rootpwd2 = $options{'p'};
-}
-if (defined($options{'n'})) {
-    $noredef = 1;
-}
-if (defined($options{'s'})) {
-    $sysprep = 1;
+sub get_passwd($) {
+    my ($user) = @_;
+    
+    my $passwd = "";
+    my $vpasswd = "";
+	
+    while ($passwd eq "") {
+	print "Enter a password for $user: ";
+	ReadMode 'noecho';
+	$passwd = ReadLine 0;
+	chomp $passwd;
+	ReadMode 'normal';
+	print "\n";
+    }
+    while ($vpasswd eq "" || $passwd ne $vpasswd) {
+	print "Didn't match, try again.\n"
+	    if $vpasswd ne "" && $passwd ne $vpasswd;
+	print "Re-enter password: ";
+	ReadMode 'noecho';
+	$vpasswd = ReadLine 0;
+	chomp $vpasswd;
+	ReadMode 'normal';
+	print "\n";
+    }
+
+    return $passwd;
 }
 
-# Only root.
-if ($EUID != 0) {
-    die("*** $0:\n".
-	"    Must be root to run this script!\n");
-}
-
-# Note: No /etc/dumpdates support on CygWin, and no /etc/fstab or /var/account either.
+# Constants
 my @DBFILES     = ();
 my @VARDIRS	= ("logs", "db", "jails", "boot", "lock", "lib/dhcp");
 my $LOGDIR      = "/var/log";
@@ -91,6 +95,46 @@ my $OBJS        = "/home/root/flux/obj-real";
 my $HISTORY     = "/home/root/.bash_history";
 my $MAILFILE    = "/var/spool/mail/root";
 my $NTPDRIFT    = "/etc/ntp/drift";
+my $SP_PATH     = "/cygdrive/c/Windows/System32/sysprep";
+my $SRC_UNATTEND = "$SP_PATH/unattend-src.xml";
+
+# Global variables
+my $optlist = "p:u:ns";
+my $rootpwd = "";
+my $unattend = "";
+my $noredef = 0;
+my $sysprep = 0;
+
+# Parse command line.
+use Getopt::Std;
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{'n'})) {
+    $noredef = 1;
+}
+if (defined($options{'p'})) {
+    $rootpwd = $options{'p'};
+} elsif (!$noredef) {
+    $rootpwd = get_passwd("root");
+}
+if (defined($options{'u'})) {
+    $unattend = $options{'u'};
+    -f $unattend or die ("$unattend does not exist or is not a file.");
+}
+if (defined($options{'s'})) {
+    $sysprep = 1;
+}
+
+if ($sysprep && !$unattend) {
+    $unattend = $SRC_UNATTEND;
+}
+
+# Only root.  No need for this under windows.
+#if ($EUID != 0) {
+#    die("*** $0:\n".
+#	"    Must be root to run this script!\n");
+#}
 
 #
 # Dead wood in $BINDIR
@@ -118,76 +162,9 @@ my $windir = "/cygdrive/c/WINDOWS";
 my $sysdir = "$windir/system32";
 my $netcmd = "$sysdir/net.exe";
 
-# Could use /share/windows/sysprep, but prepare may have been run once
-# already, and unmounted /share.  We mount Z: to authenticate, so use that.
-my $sysprep_src = "/cygdrive/z/windows/sysprep";
-
-my $sysprep_dst = "/cygdrive/c/sysprep";
-my $sysprep_cmd = "$sysprep_dst/sysprep.exe";
-
 if (! $noredef) {
-    #
-    # Need the current root password to re-define the Emulab services to match.
-    # (May already have one from a -p argument.  Prompt if not.)
-    #
-    use Term::ReadKey;
-    while ($rootpwd eq "") {
-	print "Enter the root password: ";
-	ReadMode 'noecho';
-	$rootpwd = ReadLine 0;
-	chomp $rootpwd;
-	ReadMode 'normal';
-	print "\n";
-    }
-    while ($rootpwd2 eq "" || $rootpwd ne $rootpwd2) {
-	print "Didn't match, try again.\n"
-	    if $rootpwd2 ne "" && $rootpwd ne $rootpwd2;
-	print "Re-enter the root password: ";
-	ReadMode 'noecho';
-	$rootpwd2 = ReadLine 0;
-	chomp $rootpwd2;
-	ReadMode 'normal';
-	print "\n";
-    }
-
-    #
-    # Set the root password to make sure it matches.  We also set this to be
-    # the Administrator password, to match the sysprep.inf file entry below.
-    #print "\nSetting root password to $rootpwd.\n";
-    #system("echo '$rootpwd\n$rootpwd\n' | passwd root");
-    #print "\nSetting Administrator password to $rootpwd.\n";
-    #system("echo '$rootpwd\n$rootpwd\n' | passwd Administrator");
-
-    #
-    # Windows stores the password as part of the definition of services that
-    # run as a real user, such as root, rather than as SYSTEM.  Redefine them
-    # with the current password.  Otherwise, Windows will refuse to start them
-    # up at reboot.
-    #
-    print "\nRedefining EmulabShutdown.\n";
-    # Have to remove a service before you can redefine it.
-    system("cygrunsrv -R EmulabShutdown");
-    system("cygrunsrv -I EmulabShutdown -u root -w '$rootpwd'" .
-	   " -p /cygdrive/c/cygwin/bin/bash" .
-	   " --shutdown --type manual" .
-	   " -a \"--norc --noprofile -c '/usr/local/etc/emulab/tbshutdown'\"");
-    system("cygrunsrv -VQ EmulabShutdown");
-    print "\nRedefining EmulabStartup.\n";
-    my $firstboot = "/usr/local/etc/emulab/rc/rc.firstboot";
-    my $bootsetup = "/usr/local/etc/emulab/rc/rc.bootsetup";
-    my $sshrun = "cygrunsrv -S sshd";
-    my $progrun = "cygrunsrv -S ProgAgent";
-    my $bootlog = "/var/log/bootsetup.log";
-    system("cygrunsrv -R EmulabStartup");
-    system("cygrunsrv -I EmulabStartup -u root -w '$rootpwd'" .
-	   " --dep DHCP --dep iphlpsvc --dep pubsub --dep W32Time" .
-	   " -p /cygdrive/c/cygwin/bin/bash" .
-	   " -a \"--norc --noprofile -c " .
-	   "      '( $bootsetup; $progrun ) >& $bootlog'\"");
-#          "      '( $firstboot; $bootsetup; $sshrun; $progrun ) >& $bootlog'\"");
-
-    system("cygrunsrv -VQ EmulabStartup");
-    system("sc config EmulabStartup start= delayed-auto");
+    my $cmd = "$BINDIR/hookservices -p $rootpwd";
+    system($cmd) && die "Hook services script failed!";
 }
 
 # Capture the node name before cleaning out the config files.
@@ -388,41 +365,54 @@ print "\nRe-enabling all network interfaces.\n";
 system("devcon enable =net '*PCI*'");
 
 #
-# Run sysprep.
+# Run sysprep if requested.
 #
-if ($sysprep) {
-    my $sp_path = "/cygdrive/c/Windows/System32/sysprep";
+if ($sysprep || $unattend) {
+    if ($unattend ne $SRC_UNATTEND) {
+	system("cp $unattend $SRC_UNATTEND");
+    }
 
     # Redefine root password in unattend.xml if necessary
     if ($rootpwd) {
 	print "Modifying root password in unattend.xml\n";
-	open(UNANEW, ">$sp_path/unattend-new.xml")
-	    or die "Can't open new unattend file. Sysprep aborted.";
-	open(UNAORIG, "<$sp_path/unattend-src.xml")
-	    or die "can't open existing unattend.xml.  Sysprep aborted.";
+	open(UNANEW, ">$SP_PATH/unattend.xml")
+	    or die "Can't open new unattend file for writing. Sysprep aborted.";
+	open(UNAORIG, "<$SRC_UNATTEND")
+	    or die "can't open input unattended setup file.  Sysprep aborted.";
 	while (my $uline = <UNAORIG>) {
-	    if ($uline =~ /<Password>/) {
-		my $dummy = <UNAORIG>, <UNAORIG>; # zap next two lines.
-		$uline .= " "x28 . "<Value>$rootpwd</Value>\r\n" .
-		    " "x28 . "<PlainText>true</PlainText>\r\n";
-	    }
-	    print UNANEW $uline;
+	    my $outline = "";
+	  UNATT1: foreach($uline) {
+	      /<Password>/ && do {
+		  my $dummy = <UNAORIG>, <UNAORIG>; # zap next two lines.
+		  $outline = $uline;
+		  $outline .= " "x28 . "<Value>$rootpwd</Value>\r\n" .
+		      " "x28 . "<PlainText>true</PlainText>\r\n";
+		  last UNATT1;
+	      };
+
+	      # Default
+	      $outline = $uline;
+	  }
+	    print UNANEW $outline;
 	}
 	close(UNANEW);
 	close(UNAORIG);
-	rename("$sp_path/unattend-new.xml", "$sp_path/unattend.xml") or
-	    die "Can't move new unattend.xml file into place.  sysprep aborted."
-    } else {
+    } 
+    else {
 	print "Not modifying root password in unattend.xml - assuming it's the same or modified outside of this script...\n";
+	system("cp $SRC_UNATTEND $SP_PATH/unattend.xml") &&
+	    die "Can't copy unattend file into place: $!"
     }
 
     # Clean out sysprep work/log areas
     system("rm -rf /cygdrive/c/Windows/Panther/*");
-    system("rm -rf $sp_path/Panther/*");
-    chdir $sp_path;
+    system("rm -rf $SP_PATH/Panther/*");
+    chdir $SP_PATH;
     print "\nExecuting sysprep.  The system will shutdown shortly.  Wait a bit before trying to capture an image (ping the host - wait a minute after it stops).\n";
     system("./sysprep.exe /quiet /oobe /generalize /shutdown /unattend:unattend.xml");
 } else {
     print "\nDone!  Now capture the Windows disk image for:\n";
     system("head -1 /etc/motd");
 }
+
+exit 0;

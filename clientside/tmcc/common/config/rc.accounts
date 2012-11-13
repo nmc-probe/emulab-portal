@@ -225,7 +225,7 @@ sub doboot()
 	if ($exists) {
 	    if (WINDOWS()) {
 		# Windows needs to know all of the groups by name.
-		os_groupgid($group, $gid);
+		os_groupgid($gid, $group);
 	    }
 	    else {
 		if ($gid != $curgid) {

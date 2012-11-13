@@ -723,6 +723,10 @@ LOG_TESTBED
 TBLOGFACIL
 OUTERBOSS_NODENAME
 WINSUPPORT
+WINDOWS_ORGNAME
+WINDOWS_OWNER
+WINDOWS_TIMEZONE
+WINDOWS_KEY_7PRO_X86
 PYTHON
 GREP
 EGREP
@@ -733,8 +737,8 @@ LTLIBOBJS'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
-enable_windows
 with_TBDEFS
+enable_windows
 enable_elvin_compat
 enable_TPM
 '
@@ -4192,6 +4196,14 @@ OUTERBOSS_NODENAME=""
 WINSUPPORT=0
 
 #
+# Variables for Windows Unattended setup files.
+#
+
+
+
+
+
+#
 # Allow tbdefs file that is supplied to full emulab build
 #
 
@@ -4929,6 +4941,7 @@ outfiles="Makeconf GNUmakefile setversion \
 	  tmcc/freebsd9/GNUmakefile tmcc/freebsd9/netif-emulab \
 	  tmcc/freebsd10/GNUmakefile tmcc/freebsd10/netif-emulab \
 	  tmcc/cygwinxp/GNUmakefile tmcc/dp/GNUmakefile \
+	  tmcc/cygwinseven/GNUmakefile tmcc/cygwinseven/unattend-x86.xml \
 	  tmcc/openbsd/GNUmakefile tmcc/ron/GNUmakefile \
 	  tmcc/plab/GNUmakefile tmcc/cygwinseven/GNUmakefile \
 	  os/GNUmakefile os/syncd/GNUmakefile \

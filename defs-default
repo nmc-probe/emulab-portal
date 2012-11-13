@@ -134,3 +134,14 @@ VPUBADDR_BITLEN=none
 # Google Maps API key, for user map
 #
 GMAP_API_KEY="ABQIAAAAj7GKhM12sdEoFeBl3ZgrMBTW463SEj49ttdeZTAiVv7LYlJDWhST4OC0fd2b1cXRdcdJ35E9koEQSg"
+
+#
+# Windows variables
+#
+WINDOWS_ORGNAME="Some Organization"
+WINDOWS_OWNER="Some Owner"
+WINDOWS_TIMEZONE="Mountain Standard Time"
+#
+# Windows License Keys
+#
+WINDOWS_KEY_7PRO_X86=""

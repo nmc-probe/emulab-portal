@@ -847,6 +847,10 @@ PORTAL_ISPRIMARY
 LINUX_FSNODE
 VPUBADDR_BASE
 VPUBADDR_BITLEN
+WINDOWS_ORGNAME
+WINDOWS_OWNER
+WINDOWS_TIMEZONE
+WINDOWS_KEY_7PRO_X86
 TBOPSEMAIL
 TBOPSEMAIL_NOSLASH
 TBROBOCOPSEMAIL
@@ -5071,6 +5075,10 @@ done
 
 
 
+
+
+
+
 #
 # Offer both versions of the email addresses that have the @ escaped
 # for perl (the default), and that don't
@@ -7479,6 +7487,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	tbsetup/libArchive.pm tbsetup/archive_control \
 	tbsetup/tarfiles_setup \
 	tbsetup/fetchtar.proxy tbsetup/webfrisbeekiller \
+	tbsetup/tcpp \
 	tbsetup/plab/GNUmakefile tbsetup/plab/libplab.py \
         tbsetup/plab/mod_dslice.py tbsetup/plab/mod_PLC.py \
         tbsetup/plab/mod_PLCNM.py \
@@ -7651,6 +7660,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/cygwinxp/GNUmakefile clientside/tmcc/dp/GNUmakefile \
  clientside/tmcc/openbsd/GNUmakefile clientside/tmcc/ron/GNUmakefile \
  clientside/tmcc/plab/GNUmakefile clientside/tmcc/cygwinseven/GNUmakefile \
+ clientside/tmcc/cygwinseven/unattend-x86.xml \
  clientside/os/dijkstra/GNUmakefile clientside/os/genhostsfile/GNUmakefile \
  clientside/os/growdisk/GNUmakefile \
  clientside/os/zapdisk/GNUmakefile \

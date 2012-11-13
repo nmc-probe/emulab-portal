@@ -262,6 +262,10 @@ AC_SUBST(PORTAL_ISPRIMARY)
 AC_SUBST(LINUX_FSNODE)
 AC_SUBST(VPUBADDR_BASE)
 AC_SUBST(VPUBADDR_BITLEN)
+AC_SUBST(WINDOWS_ORGNAME)
+AC_SUBST(WINDOWS_OWNER)
+AC_SUBST(WINDOWS_TIMEZONE)
+AC_SUBST(WINDOWS_KEY_7PRO_X86)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -1279,6 +1283,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/cygwinxp/GNUmakefile clientside/tmcc/dp/GNUmakefile \
  clientside/tmcc/openbsd/GNUmakefile clientside/tmcc/ron/GNUmakefile \
  clientside/tmcc/plab/GNUmakefile clientside/tmcc/cygwinseven/GNUmakefile \
+ clientside/tmcc/cygwinseven/unattend-x86.xml \
  clientside/os/dijkstra/GNUmakefile clientside/os/genhostsfile/GNUmakefile \
  clientside/os/growdisk/GNUmakefile \
  clientside/os/zapdisk/GNUmakefile \
