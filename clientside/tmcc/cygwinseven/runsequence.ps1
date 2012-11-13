@@ -32,7 +32,7 @@ param([string]$actionfile, [switch]$debug, [string]$logfile, [switch]$quiet)
 # Constants
 #
 $MAXSLEEP = 1800
-$DEFLOGFILE="C:\Windows\Temp\basesetup.log"
+$DEFLOGFILE="C:\Windows\Temp\runsequence.log"
 $FAIL = "fail"
 $SUCCESS = "success"
 $REG_TYPES = @("String", "Dword")
