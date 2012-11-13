@@ -35,6 +35,7 @@ SBINS		= genlastlog lastlog_daemon
 SETUID_BIN_SCRIPTS   = 
 SETUID_SBIN_SCRIPTS  =
 SETUID_LIBX_PROGS    = suexec runsuid
+SETUID_CTRL_LIBX_PROGS = runsuid
 
 #
 # Force dependencies on the scripts so that they will be rerun through
@@ -72,10 +73,12 @@ install: $(addprefix $(INSTALL_LIBEXECDIR)/, $(BINS)) \
 post-install:
 	@echo "post-install no longer required"
 
-#
-# Control node installation (okay, plastic)
-#
-control-install:
+control-install:	$(addprefix $(INSTALL_DIR)/opsdir/libexec/, $(SETUID_CTRL_LIBX_PROGS))
+
+$(INSTALL_DIR)/opsdir/libexec/runsuid: runsuid
+	echo "Installing (setuid) $<"
+	-mkdir -p $(INSTALL_DIR)/opsdir/libexec
+	$(SUDO) $(INSTALL) -o root -m 4755 $< $@
 
 clean:
 	rm -f *.o genlastlog suexec runsuid core
