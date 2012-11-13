@@ -110,17 +110,17 @@ use Getopt::Std;
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{'n'})) {
+    $noredef = 1;
+}
 if (defined($options{'p'})) {
     $rootpwd = $options{'p'};
-} else {
+} elsif (!$noredef) {
     $rootpwd = get_passwd("root");
 }
 if (defined($options{'u'})) {
     $unattend = $options{'u'};
     -f $unattend or die ("$unattend does not exist or is not a file.");
-}
-if (defined($options{'n'})) {
-    $noredef = 1;
 }
 if (defined($options{'s'})) {
     $sysprep = 1;
