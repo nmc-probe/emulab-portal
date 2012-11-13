@@ -851,6 +851,10 @@ WINDOWS_ORGNAME
 WINDOWS_OWNER
 WINDOWS_TIMEZONE
 WINDOWS_KEY_7PRO_X86
+FIREWALL_BOSS
+FIREWALL_OPS
+FIREWALL_BOSS_LOCALRULETMPL
+FIREWALL_OPS_LOCALRULETMPL
 TBOPSEMAIL
 TBOPSEMAIL_NOSLASH
 TBROBOCOPSEMAIL
@@ -5196,6 +5200,10 @@ DHCPD_EXTRAIFS=""
 VPUBADDR_BASE="none"
 VPUBADDR_BITLEN="none"
 ARISTA_SWITCH_XMLRPCPORT=80
+FIREWALL_BOSS=0
+FIREWALL_OPS=0
+FIREWALL_BOSS_LOCALRULETMPL=""
+FIREWALL_OPS_LOCALRULETMPL=""
 
 #
 # XXX You really don't want to change these!
@@ -7487,6 +7495,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	tbsetup/libArchive.pm tbsetup/archive_control \
 	tbsetup/tarfiles_setup \
 	tbsetup/fetchtar.proxy tbsetup/webfrisbeekiller \
+	tbsetup/tcpp \
 	tbsetup/plab/GNUmakefile tbsetup/plab/libplab.py \
         tbsetup/plab/mod_dslice.py tbsetup/plab/mod_PLC.py \
         tbsetup/plab/mod_PLCNM.py \
