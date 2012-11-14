@@ -48,6 +48,7 @@
 char *safepath[] = {
 	TBROOT "/bin",
 	TBROOT "/sbin",
+	TBROOT "/cgi-bin",
 	"/bin",
 	"/sbin",
 	"/usr/bin",
