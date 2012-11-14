@@ -128,19 +128,51 @@ sub doboot()
     #
     # Note: Windows also uses the -t option since root does not have access
     # to NFS mounted FSes.
-    # 
-    my $installoption = ((REMOTE() || SHADOW() || WINDOWS()) ? "-t" : "-c");
+    #
+    my $MAXCPSIZE = (256 * 1024 * 1024);
+    my $useweb = (REMOTE() || SHADOW() || WINDOWS()) ? 1 : 0;
 
     foreach my $tarball (@tarballs) {
-	if ($tarball =~ /DIR=(.+)\s+TARBALL=(.+)/) {
-	    my $tbline = sprintf($TARINSTALL, $installoption, $1, $2);
+	if ($tarball =~ /(?:SERVER=(\S+)\s+)?DIR=(.+)\s+TARBALL=(.+)/) {
+	    my $server = $1;
+	    my $idir = $2;
+	    my $tball = $3;
+
+	    my $installoption = $useweb ? "-t" : "-c";
+
+	    #
+	    # We also use -t if the file is large. This way we avoid
+	    # thrashing the NFS server's link for an extended period
+	    # (in particular, if we are using UDP-based NFS) and also
+	    # avoids the stupid server race mentioned above. But we only
+	    # do this if SERVER=user, since otherwise boss will have to
+	    # get the file across NFS from the server before sending it
+	    # to us via the web, which doesn't save any wear and tear
+	    # on the NFS server link.
+	    #
+	    # Why "user" instead of "fs"? Because in a configuration
+	    # where the fs node is seperate from the user node, we don't
+	    # currently install a web server on fs.
+	    # 
+	    if (!$useweb && $server && $server =~ /^users\./ &&
+		-s "$tball" > $MAXCPSIZE) {
+		print STDOUT "NOTICE: downloading large tarball via https\n";
+		$installoption = "-t";
+	    }
+	    if ($server && $installoption eq "-t") {
+		$installoption .= " -S $server";
+	    }
+	    my $tbline = sprintf($TARINSTALL, $installoption, $idir, $tball);
 		    
-	    print STDOUT "Installing Tarball $2 in dir $1\n";
+	    $server = "www" if (!$server);
+	    print STDOUT "$server:$tball: Installing tarball in $idir\n";
+	    my $stamp = time();
 	    if (system($tbline)) {
 		if ($? >> 8 == 255) {
 		    $errors++;
 		}
 	    }
+	    print STDOUT "$server:$tball: finished in ", time() - $stamp, " seconds\n";
 	}
 	else {
 	    warning("Bad Tarballs line: $tarball\n");

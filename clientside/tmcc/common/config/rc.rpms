@@ -111,7 +111,7 @@ sub doboot()
 {
     my @rpms   = ();
     my $errors = 0;
-    
+   
     print STDOUT "Checking Testbed RPM configuration ... \n";
 
     if (tmcc(TMCCCMD_RPM, undef, \@rpms) < 0) {
@@ -128,19 +128,50 @@ sub doboot()
     #
     # Note: Windows also uses the -t option since root does not have access
     # to NFS mounted FSes.
-    # 
-    my $installoption = ((REMOTE() || SHADOW() || WINDOWS()) ? "-t" : "-c");
+    #
+    my $MAXCPSIZE = (256 * 1024 * 1024);
+    my $useweb = (REMOTE() || SHADOW() || WINDOWS()) ? 1 : 0;
 
     foreach my $rpm (@rpms) {
-	if ($rpm =~ /RPM=(.+)/) {
-	    my $rpmline = sprintf($RPMINSTALL, $installoption, $1);
+	if ($rpm =~ /(?:SERVER=(\S+)\s+)?RPM=(.+)/) {
+	    my $server = $1;
+	    my $rpm = $2;
+
+	    my $installoption = $useweb ? "-t" : "-c";
+
+	    #
+	    # We also use -t if the file is large. This way we avoid
+	    # thrashing the NFS server's link for an extended period
+	    # (in particular, if we are using UDP-based NFS) and also
+	    # avoids the stupid server race mentioned above. But we only
+	    # do this if SERVER=user, since otherwise boss will have to
+	    # get the file across NFS from the server before sending it
+	    # to us via the web, which doesn't save any wear and tear
+	    # on the NFS server link.
+	    #
+	    # Why "user" instead of "fs"? Because in a configuration
+	    # where the fs node is seperate from the user node, we don't
+	    # currently install a web server on fs.
+	    # 
+	    if (!$useweb && $server && $server =~ /^users\./ &&
+		-s "$rpm" > $MAXCPSIZE) {
+		print STDOUT "NOTICE: downloading large RPM via https\n";
+		$installoption = "-t";
+	    }
+	    if ($server && $installoption eq "-t") {
+		$installoption .= " -S $server";
+	    }
+	    my $rpmline = sprintf($RPMINSTALL, $installoption, $rpm);
 		    
-	    print STDOUT "Installing RPM $1\n";
+	    $server = "www" if (!$server);
+	    print STDOUT "$server:$rpm: Installing RPM\n";
+	    my $stamp = time();
 	    if (system($rpmline)) {
 		if ($? >> 8 == 255) {
 		    $errors++;
 		}
 	    }
+	    print STDOUT "$server:$rpm: finished in ", time() - $stamp, " seconds\n";
 	}
 	else {
 	    warning("Bad RPM line: $rpm\n");

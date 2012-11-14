@@ -126,6 +126,16 @@ CHECKMASK(char *arg)
  */
 #define SDPARAMS        "reg=300 agg=5 load=1 expt=5 ctl=1000"
 
+/*
+ * Compiled in tarball/rpm param.
+ * Should come out of the DB.
+ */
+#ifdef SPEWFROMOPS
+#define TARRPM_SERVER	USERNODE
+#else
+#define TARRPM_SERVER	BOSSNODE
+#endif
+
 /* Defined in configure and passed in via the makefile */
 #define DBNAME_SIZE	64
 #define HOSTID_SIZE	(32+64)
@@ -3619,6 +3629,7 @@ COMMAND_PROTOTYPE(dorpms)
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE], *bp, *sp;
+	char		*srv = TARRPM_SERVER;
 
 	/*
 	 * Get RPM list for the node.
@@ -3650,7 +3661,12 @@ COMMAND_PROTOTYPE(dorpms)
 	do {
 		bp = strsep(&sp, ":");
 
-		OUTPUT(buf, sizeof(buf), "RPM=%s\n", bp);
+		if (vers < 36) {
+			OUTPUT(buf, sizeof(buf), "RPM=%s\n", bp);
+		} else {
+			OUTPUT(buf, sizeof(buf), "SERVER=%s RPM=%s\n",
+			       srv, bp);
+		}
 		client_writeback(sock, buf, strlen(buf), tcp);
 		if (verbose)
 			info("RPM: %s", buf);
@@ -3669,6 +3685,7 @@ COMMAND_PROTOTYPE(dotarballs)
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE], *bp, *sp, *tp;
+	char		*srv = TARRPM_SERVER;
 
 	/*
 	 * Get Tarball list for the node.
@@ -3704,7 +3721,13 @@ COMMAND_PROTOTYPE(dotarballs)
 			continue;
 		*tp++ = '\0';
 
-		OUTPUT(buf, sizeof(buf), "DIR=%s TARBALL=%s\n", bp, tp);
+		if (vers < 36) {
+			OUTPUT(buf, sizeof(buf),
+			       "DIR=%s TARBALL=%s\n", bp, tp);
+		} else {
+			OUTPUT(buf, sizeof(buf),
+			       "SERVER=%s DIR=%s TARBALL=%s\n", srv, bp, tp);
+		}
 		client_writeback(sock, buf, strlen(buf), tcp);
 		if (verbose)
 			info("TARBALLS: %s", buf);
@@ -10139,7 +10162,7 @@ COMMAND_PROTOTYPE(dodhcpdconf)
 		if (inner_elab_boot) {
 			rc = snprintf(b, remain,
 				      " INNER_ELAB_BOOT=1 INNER_ELAB_ROLE=%s",
-				      row[7]);
+				      row[7] ? row[7] : "");
 			b += rc;
 			remain -= rc;
 			if (elabinelab_singlenet) {

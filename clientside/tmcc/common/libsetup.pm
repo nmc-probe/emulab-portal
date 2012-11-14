@@ -40,7 +40,7 @@ use Exporter;
 	 gettraceconfig genhostsfile getmotelogconfig calcroutes fakejailsetup
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
          getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
-	 forcecopy getnodeuuid getarpinfo
+	 copyfilefromnfs getnodeuuid getarpinfo
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs
 
@@ -81,7 +81,7 @@ use librc;
 # IMPORTANT NOTE: if you change the version here, you must also change it
 # in clientside/lib/tmcd/tmcd.h!
 #
-sub TMCD_VERSION()	{ 35; };
+sub TMCD_VERSION()	{ 36; };
 libtmcc::configtmcc("version", TMCD_VERSION());
 
 # Control tmcc timeout.
@@ -2207,31 +2207,95 @@ sub getbootwhat($)
 }
 
 #
-# Do everything in our power to copy a file.
-# The main "specialness" about this function is that it tries to work
-# around the old FreeBSD NFS server race with changing the exports list--
-# we retry the copy several times before failing.
-# Returns one on success, zero on failure.
+# Copy a file from an NFS filesystem.
+# Supports retry on errors when the NFS filesystem is known to be "racy."
+# On error, it is up to the caller to remove the target.
+# Returns 1 on success, 0 otherwise.
 #
-sub forcecopy($$)
+sub copyfilefromnfs($$$)
 {
-    my ($ffile, $tfile) = @_;
+    my ($ffile, $tfile, $showerrs) = @_;
     my $tries = 1;
 
     #
-    # If the file server has NFS races, we try operations multiple
-    # times in case we hit the EPERM window.
+    # If the file server doesn't have the BSD mountd NFS export race
+    # we just use the system cp command.
     #
-    if (FSRVTYPE() eq "NFS-RACY") {
-	$tries = 5;
-    }
-
-    for (my $i = 0; $i < $tries; $i++) {
-	if (system("cp -fp $ffile $tfile >/dev/null 2>&1") == 0) {
+    if (FSRVTYPE() ne "NFS-RACY") {
+	my $redir = ">/dev/null 2>&1";
+	if ($showerrs) {
+	    $redir = "";
+	}
+	if (system("cp -fp $ffile $tfile $redir") == 0) {
 	    return 1;
 	}
+	return 0;
     }
-    return 0;
+
+    if (!open(IN, "< $ffile")) {
+	if ($showerrs) {
+	    print STDERR "$ffile: could not open for read: $!\n";
+	}
+	return 0;
+    }
+    binmode IN;
+
+    if (!open(OUT, "> $tfile")) {
+	if ($showerrs) {
+	    print STDERR "$tfile: could not open for write: $!\n";
+	}
+	return 0;
+    }
+    binmode OUT;
+
+    #
+    # Deal with NFS read failures
+    #
+    my $foffset = 0;
+    my $retries = 5;
+    my $rval = 1;
+
+    while (1) {
+	my $buf;
+
+	my $rlen = sysread(IN, $buf, 8192);
+	if (!defined($rlen)) {
+	    #
+	    # If we are copying the file via NFS, retry a few times
+	    # on error to avoid the changing-exports-file server problem.
+	    #
+	    if ($retries > 0 && sysseek(IN, $foffset, 0)) {
+		if ($showerrs) {
+		    print STDERR "*** WARNING retrying read of $ffile ".
+			"at offset $foffset\n";
+		}
+		$retries--;
+		sleep(1);
+		next;
+	    }
+	    if ($showerrs) {
+		print STDERR "$ffile: error reading file: $!\n";
+	    }
+	    $rval = 0;
+	    last;
+	}
+	if ($rlen == 0) {
+	    last;
+	}
+	if (!syswrite(OUT, $buf)) {
+	    if ($showerrs) {
+		print STDERR "$tfile: error writing file: $!\n";
+	    }
+	    $rval = 0;
+	    last;
+	}
+	$foffset += $rlen;
+	$retries = 5;
+    }
+    close(OUT);
+    close(IN);
+
+    return $rval;
 }
 
 my %fwvars = ();
