@@ -788,6 +788,14 @@ ServerSignature On
     ScriptAlias /cvsweb/ "/usr/testbed/www/cvsweb/"
     Alias /jabber/ "/usr/testbed/www/jabber/"
 
+    ScriptAlias /spewrpmtar  /usr/testbed/cgi-bin/spewrpmtar_cgi
+
+    <Directory "/usr/testbed/cgi-bin">
+        Options FollowSymlinks
+        AllowOverride None
+        Order allow,deny
+        Allow from all
+    </Directory>
 </IfModule>
 # End of aliases.
 

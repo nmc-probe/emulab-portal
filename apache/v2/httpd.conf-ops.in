@@ -713,6 +713,15 @@ RedirectMatch ^/mailman[/]*$ http://@USERNODE@/mailman/listinfo
 ScriptAlias /cvsweb/ "/usr/testbed/www/cvsweb/"
 Alias /jabber/ "/usr/testbed/www/jabber/"
 
+ScriptAlias /spewrpmtar  /usr/testbed/cgi-bin/spewrpmtar_cgi
+
+<Directory "/usr/testbed/cgi-bin">
+    Options FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+</Directory>
+
 #
 # Redirect allows you to tell clients about documents which used to exist in
 # your server's namespace, but do not anymore. This allows you to tell the
