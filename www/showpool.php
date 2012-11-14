@@ -78,8 +78,10 @@ while ($row = mysql_fetch_array($query_result)) {
 $query_result =
     DBQueryFatal("select r.node_id from reserved as r ".
 		 "left join nodes as n on n.node_id=r.node_id ".
+		 "left join reserved as r2 on r2.node_id=n.phys_nodeid ".
 		 "where n.node_id!=n.phys_nodeid and ".
-		 "      r.sharing_mode is not null ");
+		 "      r.sharing_mode is not null and " .
+		 "      r2.pid='$pid' and r2.eid='$eid'");
 while ($row = mysql_fetch_array($query_result)) {
     $node_id  = $row["node_id"];
     
