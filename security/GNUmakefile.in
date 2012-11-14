@@ -68,12 +68,14 @@ genlastlog:	genlastlog.c
 		-L/usr/local/lib/mysql -lmysqlclient
 
 install: $(addprefix $(INSTALL_LIBEXECDIR)/, $(BINS)) \
-	$(addprefix $(INSTALL_SBINDIR)/, $(SBINS))
+	$(addprefix $(INSTALL_SBINDIR)/, $(SBINS)) \
+	$(addprefix $(INSTALL_DIR)/opsdir/libexec/, $(SETUID_CTRL_LIBX_PROGS))
 
 post-install:
 	@echo "post-install no longer required"
 
-control-install:	$(addprefix $(INSTALL_DIR)/opsdir/libexec/, $(SETUID_CTRL_LIBX_PROGS))
+control-install: \
+	$(addprefix $(INSTALL_LIBEXECDIR)/, $(SETUID_CTRL_LIBX_PROGS))
 
 $(INSTALL_DIR)/opsdir/libexec/runsuid: runsuid
 	echo "Installing (setuid) $<"
