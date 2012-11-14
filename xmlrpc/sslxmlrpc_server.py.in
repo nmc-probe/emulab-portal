@@ -376,7 +376,7 @@ class MyServer(SSL.ForkingSSLServer, SimpleXMLRPCDispatcher):
         #
         # BSD 16 group limit stupidity. This is barely a solution.
         #
-        if len(self.glist) > 1:
+        if len(self.glist) > 15:
             argdict = params[1]
             project = None
 
