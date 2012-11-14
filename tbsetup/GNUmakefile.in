@@ -97,8 +97,8 @@ LIBEXEC_STUFF	= wanlinksolve wanlinkinfo os_setup mkexpdir console_setup \
 		  assign_wrapper assign_wrapper2 os_setup_old \
 		  assign_prepass ptopgen ptopgen_new \
 		  spewlogfile staticroutes routecalc wanassign \
-		  switchmac \
-		  spewrpmtar webfrisbeekiller gentopofile \
+		  switchmac spewrpmtar spewrpmtar_verify spewrpmtar_cgi \
+		  webfrisbeekiller gentopofile \
                   $(WEB_BIN_SCRIPTS) $(WEB_SBIN_SCRIPTS)
 
 LIB_STUFF       = libtbsetup.pm exitonwarn.pm libtestbed.pm \
@@ -121,7 +121,7 @@ SETUID_SBIN_SCRIPTS  = mkproj rmgroup mkgroup frisbeehelper \
 			rmuser idleswap named_setup exports_setup \
 			sfskey_update setgroups newnode_reboot vnode_setup \
 			elabinelab nfstrace rmproj
-SETUID_LIBX_SCRIPTS  = console_setup
+SETUID_LIBX_SCRIPTS  = console_setup spewrpmtar_verify
 SETUID_SUEXEC_SCRIPTS= spewlogfile
 
 ifeq ($(SYSTEM),FreeBSD)
@@ -237,6 +237,7 @@ script-install:	$(addprefix $(INSTALL_BINDIR)/, $(BIN_STUFF)) \
 	 $(addprefix $(INSTALL_LIBEXECDIR)/, $(LIBEXEC_STUFF)) \
 	 $(addprefix $(INSTALL_DIR)/opsdir/lib/, libtestbed.pm) \
 	 $(addprefix $(INSTALL_DIR)/opsdir/lib/, libtestbed.py) \
+	 $(addprefix $(INSTALL_DIR)/opsdir/cgi-bin/, spewrpmtar_cgi) \
 	 $(addprefix $(INSTALL_DIR)/opsdir/bin/, $(CTRLBIN_STUFF)) \
 	 $(addprefix $(INSTALL_DIR)/opsdir/sbin/, $(CTRLSBIN_STUFF))\
 	 $(addprefix $(INSTALL_DIR)/opsdir/sbin/, $(FSBIN_STUFF))
@@ -386,6 +387,15 @@ $(INSTALL_DIR)/opsdir/sbin/%: %
 	@echo "Installing $<"
 	-mkdir -p $(INSTALL_DIR)/opsdir/sbin
 	$(INSTALL) $< $@
+
+$(INSTALL_DIR)/opsdir/cgi-bin/spewrpmtar_cgi: spewrpmtar_cgi
+	echo "Installing (link to wrapper) $<"
+	mkdir -p $(INSTALL_DIR)/opsdir/cgi-bin
+	-rm -f $@
+	ln -s $(INSTALL_LIBEXECDIR)/runsuid $@
+	echo "Installing (real script) $<"
+	-mkdir -p $(INSTALL_DIR)/opsdir/suidbin
+	$(SUDO) $(INSTALL_PROGRAM) $< $(INSTALL_DIR)/opsdir/suidbin/$<
 
 compiled/%: %
 	@echo "Compiling $< to $@"

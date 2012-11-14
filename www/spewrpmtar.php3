@@ -58,6 +58,15 @@ $optargs = OptionalPageArguments("elabinelab_source", PAGEARG_STRING,
 				 "stamp",             PAGEARG_INTEGER,
 				 "md5",               PAGEARG_STRING,
 				 "cvstag",            PAGEARG_STRING);
+
+#
+# Move this to ops, except for elabinelab source code with cvstag.
+#
+if ($SPEWFROMOPS && (! (isset($elabinelab_source) && isset($cvstag)))) {
+    $query_string = $_SERVER['QUERY_STRING'];
+    header("Location: https://$USERNODE/spewrpmtar?". $query_string);
+    return;
+}
 $node_id = $node->node_id();
 
 #

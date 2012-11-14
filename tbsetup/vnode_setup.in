@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -271,13 +271,20 @@ foreach my $node (@nodes) {
 		next;
 	    }
 	    elsif ($allocstate eq TBDB_ALLOCSTATE_DOWN) {
-		if (!$plab) {
+		if ($plab) {
+		    # Plab nodes need to be cleaned up.
+		    print "$node failed to boot; changing to cleanup.\n";
+		    $mode = "cleanup";
+		}
+		elsif (!$nodeobj->IsUp()) {
+		    # Node can fail to boot, but can still wind up
+		    # booting later, say by hand.
+		    print "$node appears to be up; will $mode.\n";
+		}
+		else {
 		    print "$node failed to boot; skipping $mode.\n";
 		    next;
 		}
-		# Plab nodes need to be cleaned up.
-		print "$node failed to boot; changing to cleanup.\n";
-		$mode = "cleanup";
 	    }
 	}
 	elsif ($exptstate eq EXPTSTATE_ACTIVATING ||
@@ -323,13 +330,21 @@ foreach my $node (@nodes) {
 			next;
 		    }
 		    elsif ($allocstate eq TBDB_ALLOCSTATE_DOWN) {
-			if (!$plab) {
+			if ($plab) {
+			    # Plab nodes need to be cleaned up.
+			    print "$node failed to boot; ".
+				"changing to cleanup.\n";
+			    $mode = "cleanup";
+			}
+			elsif (!$nodeobj->IsUp()) {
+			    # Node can fail to boot, but can still wind up
+			    # booting later, say by hand.
+			    print "$node appears to be up; will $mode.\n";
+			}
+			else {
 			    print "$node failed to boot; skipping $mode.\n";
 			    next;
 			}
-			# Plab nodes need to be cleaned up.
-			print "$node failed to boot; changing to cleanup.\n";
-			$mode = "cleanup";
 		    }
 		    elsif ($allocstate eq TBDB_ALLOCSTATE_RES_INIT_CLEAN()) {
 			print "$node never booted; skipping $mode.\n";

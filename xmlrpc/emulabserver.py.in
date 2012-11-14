@@ -4259,6 +4259,43 @@ class node:
         
         return EmulabResponse(RESPONSE_SUCCESS,value=retval)
     
+    #
+    # Verify request to download a tar/rpm file.
+    #
+    def spewrpmtar_verify(self, version, argdict):
+        if version != self.VERSION:
+            return EmulabResponse(RESPONSE_BADVERSION,
+                                  output="Client version mismatch!")
+
+        try:
+            checknologins()
+            pass
+        except NoLoginsError, e:
+            return EmulabResponse(RESPONSE_REFUSED, output=str(e))
+
+        argerror = CheckRequiredArgs(argdict, ("file", "node", "key"))
+        if (argerror):
+            return argerror
+
+        if not re.match("^[-\w]*$", str(argdict["node"])):
+            return EmulabResponse(RESPONSE_BADARGS,
+                                  output="Improperly formed node value!")
+        if not re.match("^[-\w]*$", str(argdict["key"])):
+            return EmulabResponse(RESPONSE_BADARGS,
+                                  output="Improperly formed key value!")
+
+        argstr = ""
+        argstr += " " + escapeshellarg(argdict["key"]);
+        argstr += " " + escapeshellarg(argdict["node"]);
+        argstr += " " + escapeshellarg(argdict["file"]);
+
+        (exitval, output) = runcommand(TBDIR + "/libexec/spewrpmtar_verify " +
+                                       argstr)
+        if exitval:
+            return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
+        
+        return EmulabResponse(RESPONSE_SUCCESS, output=output)
+
     pass
 
 #

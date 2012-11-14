@@ -113,6 +113,7 @@ sub New($$$@)
 	# Init some per-node stuff.
 	$node->_rebooted(0);
 	$node->_vnodecount(0);
+	$node->_reloaded(0);
     }
 
     bless($self, $class);
@@ -247,6 +248,7 @@ sub SetupReload($$$$)
 	    $node->_loadimage($image);
 	}
 	$node->_setupoperation($RELOAD);
+	$node->_reloaded(1);
     }
     else {
 	die_noretry({type => 'primary', severity => SEV_ERROR,
@@ -879,6 +881,8 @@ sub WaitForNodes($@)
 		next;
 	    }
 	    if (int($waittime / 60) > $minutes) {
+		# Changing minutes is why we get this print for just
+		# a single node each time. 
 		$minutes = int($waittime / 60);
 		tbnotice("Still waiting for $node_id ($state) - ".
 			 "it's been $minutes minute(s).\n");
@@ -1700,6 +1704,11 @@ sub Volunteers($)
 	# The wait times are totally bogus! Need a better way to do this.
 	#
 	$node->_maxwait($reboot_time + (90 * $pnode->_vnodecount()));
+
+	# Add some time if the node is getting a reload. Also bogus.
+	$node->_maxwait($node->_maxwait() + 300)
+	    if ($node->_reloaded());
+	
 	$node->_seteupstatus($libossetup::SETUP_OKAY);
     }
     return @nodelist;
