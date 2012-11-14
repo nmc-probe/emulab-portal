@@ -129,6 +129,7 @@ Blockstore instproc get_node {} {
     uplevel "#0" "set $hname [$sim node]"
     $hname set subnodehost 1
     $hname set subnodechild $self
+    set node $hname
 
     # Return parent node object.
     return $hname
@@ -153,8 +154,8 @@ Blockstore instproc updatedb {DB} {
     #}
 
     # Emit top-level storage object stuff.
-    set vb_fields [list "vname" "type" "role" "size"]
-    set vb_values [list $self $type $role $size]
+    set vb_fields [list "vname" "type" "role" "size" "fixed"]
+    set vb_values [list $self $type $role $size $node]
     $sim spitxml_data "virt_blockstores" $vb_fields $vb_values
 
     # Emit attributes.

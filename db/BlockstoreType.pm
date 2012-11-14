@@ -274,7 +274,7 @@ sub SetAttribute($$$;$)
     my $safe_attrvalue = DBQuoteSpecial($attrvalue);
     my $type = $self->type();
 
-    DBQueryWarn("replace into node_type_attributes set ".
+    DBQueryWarn("replace into blockstore_type_attributes set ".
 		"  type='$type', attrkey='$attrkey', ".
 		"  attrtype='$attrtype', attrvalue=$safe_attrvalue")
 	or return -1;
