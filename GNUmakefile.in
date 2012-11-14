@@ -31,6 +31,7 @@ EVENTSYS	= @EVENTSYS@
 PELABSUPPORT	= @PELABSUPPORT@
 PGENISUPPORT    = @PROTOGENI_SUPPORT@
 ISMAINSITE	= @TBMAINSITE@
+SPEWFROMOPS	= @SPEWFROMOPS@
 SYSTEM	       := $(shell uname -s)
 
 include Makeconf
@@ -458,6 +459,17 @@ undo-configure:
 	find $SRCDIR -name '*.in' -a -not -name configure.in | \
 	    sed -e "s;$SRCDIR;$OBJDIR;" -e 's;[.]in$;;' | xargs rm -f
 
+ifeq ($(SPEWFROMOPS),1)
+elabinelab:
+	-mkdir -p /share/emulab
+	rm -f /share/emulab/emulab-src.tar.gz
+	tar czf /share/emulab/emulab-src.tar.gz -C $(SRCDIR) --exclude=.git .
+
+elabinelab-git:
+	-mkdir -p /share/emulab
+	rm -f /share/emulab/emulab-src.tar.gz
+	git archive --prefix=testbed/ | gzip -c >/share/emulab/emulab-src.tar.gz
+else
 elabinelab:
 	-mkdir -p $(INSTALL_TOPDIR)/src
 	rm -f $(INSTALL_TOPDIR)/src/emulab-src.tar.gz
@@ -467,6 +479,7 @@ elabinelab-git:
 	-mkdir -p $(INSTALL_TOPDIR)/src
 	rm -f $(INSTALL_TOPDIR)/src/emulab-src.tar.gz
 	git archive --prefix=testbed/ | gzip -c > $(INSTALL_TOPDIR)/src/emulab-src.tar.gz
+endif
 
 # How to recursively descend into subdirectories to make general
 # targets such as `all'.
