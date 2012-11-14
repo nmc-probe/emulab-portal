@@ -34,9 +34,10 @@ $isadmin   = ISADMIN();
 #
 # Verify page arguments.
 #
-$reqargs = RequiredPageArguments("image", PAGEARG_IMAGE);
-$optargs = OptionalPageArguments("canceled", PAGEARG_BOOLEAN,
-				 "confirmed", PAGEARG_BOOLEAN);
+$reqargs = RequiredPageArguments("image",     PAGEARG_IMAGE);
+$optargs = OptionalPageArguments("canceled",  PAGEARG_BOOLEAN,
+				 "confirmed", PAGEARG_BOOLEAN,
+				 "purgefile", PAGEARG_BOOLEAN);
 
 # Need these below
 $imageid = $image->imageid();
@@ -81,16 +82,20 @@ if (isset($canceled) && $canceled) {
 }
 
 if (!isset($confirmed)) {
-    echo "<center><h2><br>
+    echo "<center><h3><br>
           Are you <b>REALLY</b>
           sure you want to delete Image '$imagename' in project $pid?
-          </h2>\n";
+          </h3>\n";
 
     $url = CreateURL("deleteimageid", $image);
     
     echo "<form action='$url' method=post>";
     echo "<b><input type=submit name=confirmed value=Confirm></b>\n";
     echo "<b><input type=submit name=canceled value=Cancel></b>\n";
+    echo "<br><br>\n";
+    echo "<input type=checkbox checked name=purgefile value=yes><br>";
+    echo "Uncheck this box if you want your image file preserved.<br> ";
+    echo "Typically, you want to leave the box checked.";
     echo "</form>\n";
     echo "</center>\n";
 
@@ -106,48 +111,29 @@ if (!isset($confirmed)) {
     PAGEFOOTER();
     return;
 }
+if (isset($purgefile) && $purgefile) {
+    $purgeopt = "-p";
+}
+else {
+    $purgeopt = "";
+}
 
 #
-# Need to make sure that there is no frisbee process running before
-# we kill it.
+# Invoke the backend script.
 #
-STARTBUSY("Removing imageid");
+STARTBUSY("Deleting Image Descriptor ");
 
 $retval = SUEXEC($uid, $unix_pgid,
-		 "webfrisbeekiller $imageid", SUEXEC_ACTION_DIE);
-
-DBQueryFatal("lock tables images write, os_info write, ".
-	     "osidtoimageid write, os_submap write");
-
-#
-# If this is an EZ imageid, then delete the corresponding OSID too.
-#
-# Delete the record(s).
-#
-DBQueryFatal("DELETE FROM images WHERE imageid='$imageid'");
-DBQueryFatal("DELETE FROM osidtoimageid where imageid='$imageid'");
-if ($image->ezid()) {
-    DBQueryFatal("DELETE FROM os_info WHERE osid='$imageid'");
-    DBQueryFatal("DELETE FROM os_submap WHERE osid='$imageid'");
-}
-DBQueryFatal("unlock tables");
+		 "webdelete_image $purgeopt $imageid", SUEXEC_ACTION_DIE);
 
 STOPBUSY();
 
-echo "<br>
+echo "<center>
       <h3>
-      Image '$imageid' in project $pid has been deleted!\n";
-
-if ($image->path() && $image->path() != "") {
-    $path = $image->path();
-    echo "<br>
-          <br>
-          <font color=red>Please remember to delete $path!</font>\n";
-}
-echo "</h3>\n";
+      Image '$imagename' in project $pid has been deleted!\n
+      </h3>\n";
 
 echo "<br>
-      <center>
       <a href='showimageid_list.php3'>Back to Image Descriptor list</a>
       </center>
       <br><br>\n";

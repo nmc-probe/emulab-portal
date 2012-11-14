@@ -1,0 +1,166 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use English;
+use strict;
+use Getopt::Std;
+use Data::Dumper;
+
+#
+# Delete an image (descriptor) 
+#
+sub usage()
+{
+    print("Usage: delete_image [-p] <imagename>\n".
+	  "Options:\n".
+	  "       -p     Purge the disk image file\n");
+    exit(-1);
+}
+my $optlist     = "dp";
+my $debug       = 0;
+my $purge       = 0;
+
+#
+# Configure variables
+#
+my $TB           = "@prefix@";
+my $PROJROOT     = "@PROJROOT_DIR@";
+my $TBOPS        = "@TBOPSEMAIL@";
+my $friskiller   = "$TB/sbin/frisbeehelper";
+
+#
+# Untaint the path
+#
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/usr/bin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# We don't want to run this script unless its the real version.
+#
+if ($EUID != 0) {
+    die("*** $0:\n".
+	"    Must be setuid! Maybe its a development version?\n");
+}
+
+#
+# Load the Testbed support stuff.
+#
+use lib "@prefix@/lib";
+use EmulabConstants;
+use libtestbed;
+use User;
+use Image;
+
+# Protos
+sub fatal($);
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"p"})) {
+    $purge = 1;
+}
+usage()
+    if (@ARGV != 1);
+
+my $imageid = shift(@ARGV);
+
+#
+# Map invoking user to object. 
+#
+my $this_user = User->ThisUser();
+if (! defined($this_user)) {
+    fatal("You ($UID) do not exist!");
+}
+my $image = Image->Lookup($imageid);
+if (!defined($image)) {
+    fatal("Image does not exist in the DB!");
+}
+if (!$image->AccessCheck($this_user, TB_IMAGEID_DESTROY())) {
+    fatal("You do not have permission to delete this image!");
+}
+
+$imageid      = $image->imageid();
+my $imagename = $image->imagename();
+my $imagepid  = $image->pid();
+
+#
+# Need root to delete the image file later.
+#
+$EUID = $UID;
+
+#
+# Be sure to kill off running frisbee. If a node is trying to load that
+# image, well tough. 
+#
+system("$friskiller -k $imageid");
+if ($?) {
+    fatal("Could not kill running frisbee for $imageid!");
+}
+
+#
+# Since admins will often delete image descriptors for users, we are
+# setuid root. Flip for deleting the image file.
+#
+if ($purge) {
+    my $filename = $image->path();
+    $EUID = 0;
+    foreach my $file ($filename, "${filename}.sha1", "${filename}.bak") {
+	if (-e $file) {
+	    if (! unlink($file)) {
+		SENDMAIL($TBOPS,
+			 "delete_image: Could not remove image file",
+			 "Could not remove $file\n".
+			 "Someone will need to do this by hand.\n");
+	    }
+	}
+    }
+    $EUID = $UID;
+}
+if ($image->Delete() != 0) {
+    fatal("Could not delete image!");
+}
+$this_user->SendEmail("delete_image: Image has been deleted",
+      "Image $imagepid,$imagename ($imageid) has been deleted by $this_user\n");
+exit(0);
+
+sub fatal($)
+{
+    my ($mesg) = @_;
+
+    die("*** $0:\n".
+	"    $mesg\n");
+}

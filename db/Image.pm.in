@@ -559,6 +559,47 @@ sub Update($$)
 }
 
 #
+# Delete a descriptor. 
+#
+sub Delete($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid = $self->imageid();
+
+    DBQueryWarn("lock tables images write, os_info write, ".
+		"osidtoimageid write, os_submap write")
+	or return -1;
+
+    #
+    # If this is an EZ imageid, then delete the corresponding OSID too.
+    #
+    DBQueryWarn("delete from osidtoimageid where imageid='$imageid'")
+	or goto bad;
+    DBQueryWarn("delete from images where imageid='$imageid'")
+	or goto bad;
+    if ($self->ezid()) {
+	DBQueryWarn("delete from os_submap where osid='$imageid'")
+	    or goto bad;
+	DBQueryWarn("delete from os_info where osid='$imageid'")
+	    or goto bad;
+    }
+    DBQueryWarn("unlock tables")
+	or return -1;
+
+    delete($images{"$imageid"});
+    return 0;
+
+  bad:
+    DBQueryWarn("unlock tables");
+    return -1;
+}
+
+#
 # Load the project object for an image
 #
 sub GetProject($)
