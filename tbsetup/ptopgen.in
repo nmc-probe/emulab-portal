@@ -615,6 +615,8 @@ our %node_countries;
 our %node_latitudes;
 our %node_longitudes;
 
+our $openvzid;
+
 $result = DBQueryFatal($osidquery);
 processOs($result);
 
@@ -626,6 +628,9 @@ sub processOs
     my $result = shift(@_);
     while (my ($osid,$type,$osname,$ospid,$osos, $osversion,
 	       $osdescription,$geni,$osfeatures) = $result->fetchrow()) {
+	if ($osname eq "OPENVZ-STD") {
+	    $openvzid = $osid;
+	}
 	if ($typemap{$type}) {
 	    my $default = $typemap{$type}->{'OSID'};
 	    if ($geni eq 1 ||
@@ -673,9 +678,12 @@ while (my ($subosid,$osid) = $result->fetchrow()) {
 # We also have to resolve the 'generic' OSIDs, which use the nextosid field to
 # redirect to another OSID
 #
-$result = DBQueryFatal("select osid from os_info where " .
+$result = DBQueryFatal("select osid,nextosid from os_info where " .
     "nextosid is not null");
-while (my ($osid) = $result->fetchrow()) {
+while (my ($osid,$nextosid) = $result->fetchrow()) {
+    if (defined($openvzid) && $osid == $openvzid) {
+	$openvzid = $nextosid;
+    }
     #
     # Check to see if they were allowed to use the real OSID
     #
@@ -2081,7 +2089,7 @@ sub print_node
 	}
 	print ">\n";
 	if (defined($mainType) && $genimode eq $V_0_2) {
-	    print_osids($mainType);
+	    print_raw_osids($mainType);
 	}
 	print_node_types($mainType, @$types);
 	my $avail = "false";
@@ -2156,24 +2164,32 @@ sub add_stitch_point
     }
 }
 
+sub print_raw_osids
+{
+    my ($type) = @_;
+    print_osids($typemap{$type}->{'OSLIST'},
+		$typemap{$type}->{'OSID'});
+}
+
 # Print osids
 sub print_osids
 {
-    my ($type) = @_;
-    my @osids = @{ $typemap{$type}->{'OSLIST'} };
-    my $default = $typemap{$type}->{'OSID'};
-    foreach $os (@osids) {
-	my $urn = GeniHRN::Generate($OURDOMAIN, "image",
-				    $osid_pid{$os} . "//" . $osid_name{$os});
-	print "<disk_image ";
-	print "name=\"" . $urn . "\" ";
-	print "os=\"" . $osid_os{$os} . "\" ";
-	print "version=\"" . $osid_version{$os} . "\" ";
-	print "description=\"" . $osid_description{$os} . "\" ";
-	if ($os eq $default) {
-	    print "default=\"true\" ";
+    my ($osids_arg, $default) = @_;
+    my @osids = @{ $osids_arg };
+    foreach my $os (@osids) {
+	if (defined($osid_name{$os})) {
+	    my $urn = GeniHRN::Generate($OURDOMAIN, "image",
+				      $osid_pid{$os} . "//" . $osid_name{$os});
+	    print "<disk_image ";
+	    print "name=\"" . $urn . "\" ";
+	    print "os=\"" . $osid_os{$os} . "\" ";
+	    print "version=\"" . $osid_version{$os} . "\" ";
+	    print "description=\"" . $osid_description{$os} . "\" ";
+	    if (defined($default) && $os eq $default) {
+		print "default=\"true\" ";
+	    }
+	    print "/>\n";
 	}
-	print "/>\n";
     }
 }
 
@@ -2233,12 +2249,16 @@ sub print_node_types
 	    if ($name eq "pc" || $name eq "pcRemote") {
 		print "  <sliver_type name=\"raw-pc\">\n";
 		if (defined($mainType)) {
-		    print_osids($mainType);
+		    print_raw_osids($mainType);
 		}
 		print "  </sliver_type>\n";
 	    }
 	    if ($name eq "pcvm") {
-		print "  <sliver_type name=\"emulab-openvz\" />\n";
+		print "  <sliver_type name=\"emulab-openvz\">\n";
+		if (defined($openvzid)) {
+		    print_osids($osid_subosids{$openvzid}, undef);
+		}
+		print "  </sliver_type>\n";
 	    }
 	    print "  <hardware_type name=\"$name\">\n";
 	    if ($count eq "*") {
