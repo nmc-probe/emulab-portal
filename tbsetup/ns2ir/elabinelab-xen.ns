@@ -210,8 +210,8 @@ if { $opsdisks != {} } {
 #
 # We need at least this much memory.
 #
-$myboss add-attribute XEN_MEMSIZE 768
-$myops  add-attribute XEN_MEMSIZE 768
+$myboss add-attribute XEN_MEMSIZE 1000
+$myops  add-attribute XEN_MEMSIZE 1000
 
 #
 # Tell ElabinElab setup (rc.mkelab) as well.
