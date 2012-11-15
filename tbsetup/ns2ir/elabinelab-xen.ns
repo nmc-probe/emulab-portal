@@ -148,7 +148,7 @@ if {[info exists ::TBCOMPAT::elabinelab_nodeos("boss")]} {
         tb-set-node-os $myboss $elabinelab_nodeos("boss") XEN33-STD
     }
 } else {
-    tb-set-node-os $myboss XEN-GUEST-FBSD8-STD XEN3-UPDATE
+    tb-set-node-os $myboss XEN-GUEST-FBSD90-STD XEN41-64-STD
 }
 
 if {[info exists ::TBCOMPAT::elabinelab_nodeos("ops")]} {
@@ -156,7 +156,7 @@ if {[info exists ::TBCOMPAT::elabinelab_nodeos("ops")]} {
         tb-set-node-os $myops $elabinelab_nodeos("ops") XEN33-STD
     }
 } else {
-    tb-set-node-os $myops XEN-GUEST-FBSD8-STD XEN3-UPDATE
+    tb-set-node-os $myops XEN-GUEST-FBSD90-STD XEN41-64-STD
 }
 
 #
@@ -206,6 +206,12 @@ if { $opsdisks != {} } {
 } else {
     $myops add-attribute XEN_EXTRADISKS "disk1:4G,disk2:10G,disk3:10G"
 }
+
+#
+# We need at least this much memory.
+#
+$myboss add-attribute XEN_MEMSIZE 768
+$myops  add-attribute XEN_MEMSIZE 768
 
 #
 # Tell ElabinElab setup (rc.mkelab) as well.
