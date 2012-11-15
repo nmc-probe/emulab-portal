@@ -190,13 +190,13 @@ else {
 #
 if ($list) {
     my $query_result = 
-	DBQueryFatal("select * from node_reservations ".
-		     "order by priority desc, pid asc");
+	DBQueryFatal("select *,(count>0) as needed from node_reservations ".
+		     "order by needed desc, priority desc, created asc");
 
     if ($query_result->numrows) {
 	printf("%-18s %-4s  %-3s  %-10s %-18s %-3s %s\n",
 	       "Project", "Need", "Got", "Creator", "Created", "Pri", "Types");
-	print "-------------------------------------------------------------\n";
+	print "---------------------------------------------------------------------\n";
     }
     
     while (my $row = $query_result->fetchrow_hashref()) {
