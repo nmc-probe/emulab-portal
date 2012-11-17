@@ -1973,6 +1973,55 @@ sub UpdatePartitions($$)
 
     my $prepare = $self->nodeflag($nodeobject,'prepare');
 
+    #
+    # Most of the DB work related to images is determining what
+    # disk partitions should be clobbered and which should survive
+    # the loading of all the images. To make this more efficient,
+    # we loop through the images updating our parititions hash
+    # and then just do one DB partitions table access at the end.
+    #
+    my %partitions = ();
+    my $curmbrvers = 0;
+
+    #
+    # XXX assumes a DOS MBR, but this is ingrained in the DB schema
+    # as well (i.e., the images.part[1234]_osid fields).
+    #
+    my $MINPART = 1;
+    my $MAXPART = 4;
+
+    #
+    # If doing a prepare, all current partition info is going to
+    # be invalidated, so we start with an empty hash. Otherwise
+    # we read the current DB values to initialize it.
+    #
+    if (!$prepare) {
+	my $dbresult =
+	    DBQueryWarn("select p.*,i.mbr_version ".
+			" from partitions as p,images as i ".
+			" where p.imageid=i.imageid ".
+			"  and p.node_id='$node_id'");
+	if (!$dbresult) {
+	    tberror "$node_id: Could not read partition table!";
+	    return -1;
+	}
+	while (my $href = $dbresult->fetchrow_hashref()) {
+	    if (!$curmbrvers) {
+		$curmbrvers = $href->{'mbr_version'};
+	    } elsif ($href->{'mbr_version'} &&
+		     $href->{'mbr_version'} != $curmbrvers) {
+		tbwarn "$node_id: inconsistent MBR version info, ".
+		       "invalidating all partitions!";
+		%partitions = ();
+		last;
+	    }
+	    $partitions{$href->{'partition'}} = $href;
+	}
+    }
+
+    #
+    # For each image, update the necessary node state.
+    #
     foreach my $i (@imageidxs) {
 	my $imageid = $imageids[$i];
 	my $image = $images[$i];
@@ -1984,13 +2033,6 @@ sub UpdatePartitions($$)
 	my $imagepid   = $rowref->{'pid'};
 
 	#
-	# XXX assumes a DOS MBR, but this is ingrained in the DB schema
-	# as well (i.e., the images.part[1234]_osid fields).
-	#
-	my $MINPART = 1;
-	my $MAXPART = 4;
-
-	#
 	# Assign partition table entries for each partition in the image
 	# that has an OSID associated with it.
 	#
@@ -1999,91 +2041,83 @@ sub UpdatePartitions($$)
 	# for the subset of slices that are written to disk...
 	#
 	# ...UNLESS, the new image requires a different version of the MBR
-	# in which case we must invalidate all partitions except the ones
-	# we are loading since the partition boundaries may have changed...
+	# in which case we must invalidate all existing partitions since
+	# the partition boundaries may have changed...
 	#
 	# ...OR, the prepare flag has been specified, which will tell the
 	# client to invalidate all partition metadata on the disk so we
 	# might as well mark the partition as "empty".  In particular,
 	# this case is used by the reload_daemon when a node is between
-	# experiments.  In this case we need to invalidate all but the
-	# partition(s) we are loading to ensure that a user later on
-	# doesn't accidentally get some left over partition OS when they
-	# should have been loading a new instance.
+	# experiments.  In this case we need to invalidate all existing
+	# partition(s) to ensure that a user later on doesn't accidentally
+	# get some left over partition OS when they should have been
+	# loading a new instance. This case was handled earlier.
 	#
 	my $startpart = $loadpart == 0 ? $MINPART : $loadpart;
 	my $endpart   = $startpart + $loadlen;
 
-	for (my $i = $MINPART; $i <= $MAXPART; $i++) {
-	    my $partname = "part${i}_osid";
-	    my $dbresult;
-		
-	    #
-	    # Partition is outside the range affected by this image.
-	    # Normally, we just leave it alone, except for the special
-	    # cases above.
-	    #
-	    if ($i < $startpart || $i >= $endpart) {
-		my $whackit = 0;
+	#
+	# If image MBR is incompatible with what is on the disk right
+	# now, invalidate all the existing partitions ("...UNLESS" above).
+	#
+	if (defined($rowref->{'mbr_version'})) {
+	    if ($rowref->{'mbr_version'} && $curmbrvers &&
+		$rowref->{'mbr_version'} != $curmbrvers) {
+		%partitions = ();
+	    }
+	    $curmbrvers = $rowref->{'mbr_version'};
+	}
 
-		if ($prepare) {
-		    $whackit = 1;
-		} elsif (defined($rowref->{'mbr_version'})) {
-		    $dbresult =
-			DBQueryWarn("select mbr_version ".
-				    " from partitions as p,images as i ".
-				    " where p.imageid=i.imageid ".
-				    " and node_id='$node_id' and partition='$i'");
-		    if ($dbresult && $dbresult->numrows) {
-			my ($pmbr) = $dbresult->fetchrow_array();
-			if ($pmbr != $rowref->{'mbr_version'}) {
-			    # XXX: Is this right in the context of multiple images
-			    tbinfo("$node_id: Existing partition $i inconsistent".
-				   " with new image partitioning,".
-				   " invalidating existing partition");
-			    $whackit = 1;
-			}
-		    }
-		}
-		if ($whackit) {
-		    $dbresult =
-			DBQueryWarn("delete from partitions ".
-				    "where node_id='$node_id' and ".
-				    "partition='$i'");
-		    if (!$dbresult) {
-			tberror("$node_id: Could not update partition table");
-			return -1;
-		    }
-		}
-		next;
+	#
+	# Now we loop through the image partitions and set/clear
+	# the existing partition info as appropriate.
+	#
+	for (my $i = $startpart; $i < $endpart; $i++) {
+	    my $partname = "part${i}_osid";
+
+	    my $osid = $rowref->{$partname};
+	    if (defined($osid)) {
+		my %part = (
+		    'node_id' => $node_id,
+		    'partition' => $i,
+		    'osid' => $osid,
+		    'imageid' => $imageid,
+		    'imagepid' => $imagepid,
+		    'mbr_version' => $curmbrvers
+		    );
+		$partitions{$i} = \%part;
 	    }
-		
-	    #
-	    # This image has an OSID in the current partition,
-	    # replace the partition table info.
-	    #
-	    if (defined($rowref->{$partname})) {
-		my $osid = $rowref->{$partname};
-		
-		$dbresult =
-		    DBQueryWarn("replace into partitions ".
-				"(node_id,partition,osid,imageid,imagepid) ".
-				"values ".
-				"('$node_id','$i','$osid','$imageid','$imagepid')");
-	    }
-	    #
-	    # Otherwise, if there is no OS for a particular image partition,
-	    # clear any current partitions table info.
-	    #
 	    else {
-		$dbresult =
-		    DBQueryWarn("delete from partitions ".
-				"where node_id='$node_id' and partition='$i'");
+		delete $partitions{$i};
 	    }
-	    if (!$dbresult) {
-		tberror "$node_id: Could not update partition table";
-		return -1;
-	    }
+	}
+    }
+
+    #
+    # Now that we have processed all images, update the actual DB
+    # partitions table entries for this node.
+    #
+    for (my $i = $MINPART; $i <= $MAXPART; $i++) {
+	my $dbresult;
+
+	if (exists($partitions{$i})) {
+	    my $href = $partitions{$i};
+	    my $osid = $href->{'osid'};
+	    my $imid = $href->{'imageid'};
+	    my $impid = $href->{'imagepid'};
+	    $dbresult =
+		DBQueryWarn("replace into partitions ".
+			    "(node_id,partition,osid,imageid,imagepid) ".
+			    "values ".
+			    "('$node_id','$i','$osid','$imid','$impid')");
+	} else {
+	    $dbresult =
+		DBQueryWarn("delete from partitions ".
+			    "where node_id='$node_id' and partition='$i'");
+	}
+	if (!$dbresult) {
+	    tberror "$node_id: Could not update partitions table";
+	    return -1;
 	}
     }
 
