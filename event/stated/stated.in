@@ -1139,12 +1139,10 @@ sub handleCtrlEvent($$) {
 	    next;
 	};
 	/^$TBRESET$/ && do {
-	    #
-	    # Clear next_boot_path with os_select.
-	    #
-	    $cmd = "$osselect -d -c -1 $node";
-	    system($cmd) and
+	    # Clear next_boot_path.
+	    if ($nodeobj->OSSelect(undef, "next_boot_osid", 1) != 0) {
 		notify("$node/$event: Could not clear next_boot_path!\n");
+	    }
 
 	    info("Performed $TBRESET for $node\n");
 	    next;
