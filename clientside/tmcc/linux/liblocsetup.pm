@@ -1016,7 +1016,9 @@ sub os_modpasswd($$)
 	warn "*** WARNING: resetting password for $login.\n";
 	return -1;
     }
+    # don't try to reset 'toor' if it doesn't exist
     if ($login eq "root" &&
+	system("grep -q toor $TMPASSWD") == 0 &&
 	system("$USERMOD -p '$pswd' toor") != 0) {
 	warn "*** WARNING: resetting password for toor.\n";
 	return -1;
