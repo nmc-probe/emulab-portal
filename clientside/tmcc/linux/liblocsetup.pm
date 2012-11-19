@@ -84,7 +84,7 @@ $EGREP		= "/bin/egrep -q";
 # Note that we try multiple versions in os_nfsmount below; this is for legacy
 # code, or code where the mount is best done in the caller itself... or code
 # I didn't want to convert!
-$NFSMOUNT	= "/bin/mount -o udp";
+$NFSMOUNT	= "/bin/mount -o nolock,udp";
 $LOOPBACKMOUNT	= "/bin/mount -n -o bind ";
 $UMOUNT		= "/bin/umount";
 $TMPASSWD	= "$ETCDIR/passwd";
@@ -2261,7 +2261,7 @@ sub os_get_partition_info($$)
 sub os_nfsmount($$)
 {
     my ($remote,$local) = @_;
-    my $opts = "udp";
+    my $opts = "nolock,udp";
 
     # XXX doesn't work without this
     if (INXENVM()) {
