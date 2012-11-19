@@ -141,6 +141,7 @@ my %immediate = (
 #
 sub setintervals($);
 sub sendisalive($);
+sub readdrift();
 sub ntpdrift($);
 sub runcvsup($);
 sub sendrusage($);
@@ -277,13 +278,8 @@ if (JAILED() || GENVNODE() || PLAB()) {
 #
 # For sending back ntpdrift.
 #
-if (-e "/etc/ntp.drift") {
-    $driftfile = "/etc/ntp.drift";
-} elsif (-e "/etc/ntp/drift") {
-    $driftfile = "/etc/ntp/drift";
-} elsif (-e "/var/lib/ntp/drift") {
-    $driftfile = "/var/lib/ntp/drift";
-}
+$lastdrift = readdrift();
+logmsg("Initial NTP drift: $lastdrift\n");
 
 #
 # Location of dhcpd.conf
@@ -292,14 +288,6 @@ if (-e "/etc/dhcpd.conf") {
 	$dhcpdconf = "/etc/dhcpd.conf";
 } elsif (-e "/usr/local/etc/dhcpd.conf") {
 	$dhcpdconf = "/usr/local/etc/dhcpd.conf";
-}
-
-#
-# Initial drift value, we only update if it changes
-#
-if (defined($driftfile)) {
-    $lastdrift = `cat $driftfile`;
-    chomp($lastdrift);
 }
 
 #
@@ -667,6 +655,48 @@ sub setintervals($)
 	if ($iv{check});
 }
 
+#
+# Read the current value of the driftfile.
+# Returns bogus value "NONE" if no driftfile.
+#
+sub readdrift()
+{
+    #
+    # If we haven't yet, locate the driftfile.
+    # We do this on every drift report because the driftfile
+    # may not exist initially in the booted OS image.
+    #
+    if (!defined($driftfile)) {
+	if (-e "/etc/ntp.drift") {
+	    $driftfile = "/etc/ntp.drift";
+	} elsif (-e "/etc/ntp/drift") {
+	    $driftfile = "/etc/ntp/drift";
+	} elsif (-e "/var/lib/ntp/drift") {
+	    $driftfile = "/var/lib/ntp/drift";
+	} elsif (-e "/var/lib/ntp/ntp.drift") {
+	    $driftfile = "/var/lib/ntp/ntp.drift";
+	}
+	logmsg("NTP drift file is $driftfile\n")
+	    if (defined($driftfile));
+    }
+
+    #
+    # Read the current driftfile value.
+    #
+    if (defined($driftfile)) {
+	$drift = `cat $driftfile`;
+	chomp($drift);
+	if ($drift eq "") {
+	    $drift = 0.0;
+	}
+    } else {
+	logmsg("WARNING: no NTP drift file found; no drift update done.\n");
+	$drift = "NONE";
+    }
+
+    return $drift;
+}
+
 sub ntpdrift($)
 {
     my ($curtime) = @_;
@@ -681,7 +711,7 @@ sub ntpdrift($)
 
     logmsg("ntpdrift: reporting NTP drift\n", 1);
 
-    my $drift = `cat $driftfile`;
+    my $drift = readdrift();
     chomp($drift);
 
     if ($drift ne $lastdrift && $drift =~ /^([-\d\.]*)$/) {
