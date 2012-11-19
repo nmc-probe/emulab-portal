@@ -15,6 +15,7 @@ sub Install($$$)
 
     my @adds = (qq|rpcbind_enable="YES"|,
 		qq|rpc_lockd_enable="YES"|,
+		qq|rpc_lockd_flags="-p 4045"|,
 		qq|rpc_statd_enable="YES"|,
 		qq|mountd_enable="YES"|,
 		qq|nfs_server_enable="YES"|,
