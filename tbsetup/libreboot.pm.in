@@ -415,7 +415,7 @@ sub nodereboot($$)
 	# moment.
 	#
 	if (@sortednodes) {
-	    print "reboot: Pausing to give some nodes time to reboot\n"
+	    print STDERR "reboot: Pausing to give some nodes time to reboot\n"
 		if ($debug);
 	    sleep($BATCHSLEEP);
 	}
@@ -699,7 +699,8 @@ sub RebootNode {
     # Machine is pingable at least. Try to reboot it gracefully,
     # or power cycle anyway if that does not work.
     #
-    print STDERR "reboot ($pc): Trying ssh.\n" if $debug;
+    print STDERR "reboot ($pc): Trying ssh ",
+                 ($reconfig ? "reconfig" : "reboot"), ".\n" if $debug;
 
     #
     # Must change our real UID to root so that ssh will work. We save the old
@@ -725,12 +726,14 @@ sub RebootNode {
 	    # The ssh can return non-zero exit status, but still have worked.
 	    # FreeBSD for example.
 	    #
-	    print "reboot ($pc): reconfig returned $?.\n" if $debug;
+	    my $stat = $?;
+	    print STDERR "reboot ($pc): reconfig returned ", ($stat >> 8), ".\n"
+		if $debug;
 
 	    #
 	    # Any failure, revert to plain reboot below.
 	    #
-	    if (! $?) {
+	    if ($stat == 0) {
 		$UID = $oldUID;
 		exit(0);
 	    }
@@ -786,12 +789,7 @@ sub RebootNode {
 	alarm 20;;
 	waitpid($syspid, 0);
 	alarm 0;
-
-	#
-	# The ssh can return non-zero exit status, but still have worked.
-	# FreeBSD for example.
-	#
-	print STDERR "reboot ($pc): reboot returned $?.\n" if $debug;
+	my $stat = $? >> 8;
 
 	#
 	# We used to special case $?==256 here as meaning "ssh is not running"
@@ -803,15 +801,19 @@ sub RebootNode {
 	# of seconds.
 	#
 	if ($timedout) {
-	    print STDERR "*** reboot ($pc): wedged.\n" if $debug;
+	    print STDERR "*** reboot ($pc): wedged, sending ipod.\n" if $debug;
 	    info("$pc: ssh reboot failed (hung) ... sending ipod");
-	    print STDERR "*** reboot ($pc): Trying Ping-of-Death.\n" if $debug;
 
 	    system("$ipod $pc");
 	    $didipod = 1;
 	}
+	#
+	# The ssh can return non-zero exit status, but still have worked.
+	# FreeBSD for example.
+	#
 	else {
-	    info("$pc: ssh reboot ($?)");
+	    print STDERR "reboot ($pc): reboot returned $stat.\n" if $debug;
+	    info("$pc: ssh reboot ($stat)");
 	    $didipod = 0;
 	}
     }
@@ -849,7 +851,7 @@ sub RebootNode {
     # power cycle capability to fall back on.
     #
     if (! $didipod) {
-	info("$pc: reboot failed ... sending ipod");
+	info("$pc: ssh reboot failed ... sending ipod");
 	$UID = 0;
 	system("$ipod $pc");
 	$UID = $oldUID;
@@ -861,8 +863,7 @@ sub RebootNode {
     }
 
     info("$pc: ipod failed ... power cycle");
-    print STDERR "*** reboot ($pc): Still running; will power cycle.\n"
-	if $debug;
+    print STDERR "*** reboot ($pc): ipod failed, will power cycle.\n" if $debug;
     exit(2);
 }
 
@@ -973,25 +974,29 @@ sub PowerOn {
 sub WaitTillDead {
     my ($pc, $waittime) = @_;
 
-    print STDERR "reboot ($pc): Waiting to die off.\n" if $debug;
+    print STDERR "reboot ($pc): Waiting to die off.\n" if $debug > 1;
 
     #
     # Sigh, a long ping results in the script waiting until all the
     # packets are sent from all the pings, before it will exit. So,
     # loop doing a bunch of shorter pings.
     #
-    for (my $i = 0; $i < $waittime; $i++) {
+    # Note that each call to DoesPing takes about two seconds.
+    #
+    my $iters = int(($waittime + 1) / 2);
+    for (my $i = 0; $i < $iters; $i++) {
 	if (! DoesPing($pc, $i)) {
-	    print STDERR "reboot ($pc): Died off.\n" if $debug;
+	    print STDERR "reboot ($pc): Died off.\n" if $debug > 1;
 	    return 0;
 	}
     }
-    print STDERR "reboot ($pc): still alive.\n" if $debug;
+    print STDERR "reboot ($pc): still alive after $waittime seconds.\n" if $debug;
     return 1;
 }
 
 #
-# Returns 1 if host is responding to pings, 0 otherwise
+# Returns 1 if host is responding to pings, 0 otherwise.
+# Pings for roughly two seconds.
 # This routine is NOT allowed to do any DB queries!
 #
 sub DoesPing {
@@ -1010,7 +1015,7 @@ sub DoesPing {
     # but no packets are returned. Other non-zero error codes indicate
     # other problems.  Any non-zero return indicates "not pingable" to us.
     #
-    print STDERR "reboot ($pc): $ping $index returned $status\n" if $debug;
+    print STDERR "reboot ($pc): $ping $index returned $status\n" if $debug > 1;
     if ($status) {
 	return 0;
     }
