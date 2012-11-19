@@ -1006,7 +1006,7 @@ sub DoesPing {
 
     $saveuid = $UID;
     $UID = 0;
-    system("$ping -q -i 0.25 -c 8 -t 2 $pc >/dev/null 2>&1");
+    system("$ping -q -i 0.25 -c 9 -t 2 $pc >/dev/null 2>&1");
     $UID = $saveuid;
     $status = $? >> 8;
 
