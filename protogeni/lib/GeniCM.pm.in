@@ -2822,6 +2822,8 @@ sub SliverWorkAux($$$$$$$)
 	}
     }
 
+    my %phys2nickname = ();
+
     #
     # Make sure all nodes requested are allocated. 
     #
@@ -2831,6 +2833,15 @@ sub SliverWorkAux($$$$$$$)
 	my $vnode_id      = GeniXML::GetVnodeId($ref);
 	my $node_nickname = GeniXML::GetVirtualId($ref);
 	my $manager_id    = GeniXML::GetManagerId($ref);
+	my $virt_subtype  = GeniXML::GetVirtualizationSubtype($ref);
+
+	#
+	# Keep track of mapping between component_id and client_id to
+	# reject requests that change the client_id bound to a
+	# component_id.
+	if ($virt_subtype eq "raw" || $virt_subtype eq "raw-pc") {
+	    $phys2nickname{$resource_id} = $node_nickname;
+	}
 	
 	# Always populate iface2node mapping, even if we let the node
 	# pass through.
@@ -2927,6 +2938,14 @@ sub SliverWorkAux($$$$$$$)
 	    }
 	    if (@dlist) {
 		$message = "Must tear down dependent slivers first";
+		goto bad;
+	    }
+	    my $phys = $sliver->resource_urn();
+	    if (exists($phys2nickname{$phys})
+		&& $phys2nickname{$phys} ne $nickname) {
+		$message = "Cannot bind node " . $phys2nickname{$phys} .
+		    " to the same physical node which was bound to " .
+		    $nickname;
 		goto bad;
 	    }
 	    push(@freenodes, $sliver);
