@@ -124,6 +124,7 @@ proc tb-set-dpdb {onoff} {}
 proc tb-fix-interface {vnode lanlink iface} {}
 proc tb-set-node-usesharednode {node weight} {}
 proc tb-set-node-sharingmode {node sharemode} {}
+proc tb-set-node-routable-ip {node onoff} {}
 
 #add for OML
 proc tb-set-use-oml {args} {}

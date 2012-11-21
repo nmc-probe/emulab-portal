@@ -70,6 +70,7 @@ proc tb-set-lan-protocol {lanlink protocol} {}
 proc tb-set-lan-accesspoint {lanlink node} {}
 proc tb-set-lan-setting {lanlink capkey capval} {}
 proc tb-set-node-lan-setting {lanlink node capkey capval} {}
+proc tb-set-node-routable-ip {node onoff} {}
 
 Class Program
 

@@ -2281,6 +2281,24 @@ proc tb-set-link-layer {link mylayer} {
     $link set layer $mylayer
 }
 
+#
+# Force allocation of a routable IP address for a control interface.
+#
+proc tb-set-node-routable-ip {node onoff} {
+    if {[$node info class] != "Node"} {
+	perror "\[tb-set-node-routable-ip] $node is not a node."
+	return
+    }
+
+    if {$onoff == 0} {
+	$node add-attribute "routable_control_ip" "false"
+    } elseif {$onoff == 1} {
+	$node add-attribute "routable_control_ip" "true"
+    } else {
+	perror "\[tb-set-node-routable-ip] $onoff must be 0/1"
+    }
+}
+
 # The following codes are written, in order to use OML to send data to a server
 # in an Emulab experiment. It will define a node to run OML server and create
 # two files (MP.c and MP.h) for users. (mp represents measurement point in
