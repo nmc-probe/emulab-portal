@@ -6,7 +6,7 @@
      SUBDIR += zoneinfo
 +    SUBDIR += emulab-boss
 +    SUBDIR += emulab-clrhouse
-+    SUBDIR += emulab-dhcp30-client
++    SUBDIR += emulab-dhcp31-client
 +    SUBDIR += emulab-fs
 +    SUBDIR += emulab-iperf
 +    SUBDIR += emulab-mailman
