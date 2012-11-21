@@ -1507,14 +1507,19 @@ sub RedeemTicket($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "No slice here");
     }
+    my $open_ticket = GeniTicket->SliceTicket($slice);
+    if (! defined($open_ticket) || $open_ticket->idx() ne $ticket->idx()) {
+	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				    "This ticket is stale");
+    }
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
     }
     my $isupdate = defined($aggregate);
 
-    return GeniCM::SliverWorkAux($credential,
-				 $ticket, $keys, $isupdate, $impotent, 1, 1);
+    return GeniCM::SliverWorkAux($credential, $open_ticket, $keys,
+				 $isupdate, $impotent, 1, 1);
 }
 
 #
