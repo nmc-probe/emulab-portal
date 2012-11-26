@@ -155,7 +155,7 @@ namespace eval TBCOMPAT {
     set elabinelab_attributes {}
     variable EINEROLE  {^(all|boss|ops|fs|router|node)$}
     variable EINEKEY   {^([-\w\.]+)$}
-    variable EINEVALUE {^([-\w\.\+\,\s\/:]+)$}
+    variable EINEVALUE {^([-\w\.\+\,\s\/:\@]+)$}
     variable EINEORDER {^\d+$}
 
     # virt blobs stuff
