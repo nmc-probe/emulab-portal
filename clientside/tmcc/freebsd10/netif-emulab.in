@@ -44,7 +44,7 @@ fi
 #
 cnet_nfe_hack()
 {
-	for i in 5 10 15 20 20 20 30 30 30; do
+	for i in 5 10 15 20 20 20 30 30 30 60 60; do
 		echo "`date`: nfe_hack: taking interfaces down and up ..."
 		for _if in $*; do
 			ifconfig $_if down
@@ -109,7 +109,7 @@ cnet_start()
 	network_interfaces=`ifconfig -l | sed -e 's/lo0//'`
 	for _if in $network_interfaces; do
 	case $_if in
-	lo*|gif*|faith*|tun*|plip*|usbus*)
+	lo*|gif*|faith*|tun*|plip*|usbus*|ipfw*)
 		;;
 	# XXX skip Intel 10Gb for now; they require huge numbers of mbufs
 	ix[0-9])
