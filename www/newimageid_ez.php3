@@ -1370,11 +1370,11 @@ WRITESUBMENUBUTTON("Create a new Image Descriptor",
 if ($isadmin) {
     WRITESUBMENUBUTTON("Create a new OS Descriptor",
 	  	       "newosid.php3");
+    WRITESUBMENUBUTTON("OS Descriptor list",
+		       "showosid_list.php3");
 }
 WRITESUBMENUBUTTON("Image Descriptor list",
 		   "showimageid_list.php3");
-WRITESUBMENUBUTTON("OS Descriptor list",
-		   "showosid_list.php3");
 SUBMENUEND();
 
 #
