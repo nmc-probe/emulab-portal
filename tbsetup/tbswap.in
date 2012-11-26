@@ -1710,6 +1710,13 @@ sub doSwapin($) {
 	}
     }
 
+    # Check cancel flag before continuing. No retry, 
+    TBGetCancelFlag($pid, $eid, \$canceled);
+    if ($canceled) {
+	tbreport(SEV_IMMEDIATE, 'cancel_flag');
+	return 1
+    }
+
     #
     # ElabinElab setup. This might not be the right place for this!
     #
