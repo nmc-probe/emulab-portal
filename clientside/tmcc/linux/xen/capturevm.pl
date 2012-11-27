@@ -73,7 +73,7 @@ if (defined($options{"i"})) {
     $infomode = 1;
 }
 if (defined($options{"r"})) {
-    $role = 1;
+    $role = $options{"r"};
 }
 usage()
     if (@ARGV != 1);
