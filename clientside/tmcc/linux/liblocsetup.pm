@@ -74,6 +74,7 @@ sub LINUXJAILED()  { return libsetup::LINUXJAILED(); }
 sub GENVNODE()     { return libsetup::GENVNODE(); }
 sub GENVNODETYPE() { return libsetup::GENVNODETYPE(); }
 sub INXENVM()   { return libsetup::INXENVM(); }
+sub INVZVM()    { return libsetup::INVZVM(); }
 
 #
 # Various programs and things specific to Linux and that we want to export.
@@ -947,21 +948,27 @@ sub os_etchosts_line($$$)
 #
 sub os_groupadd($$)
 {
-    my $tries = 3;
-    my $result = 1;
-    while ($result && $tries > 0) {
-	$result = os_groupadd_real(@_);
-	if ($result) {
-	    sleep(5);
-	    --$tries;
+    if (INVZVM()) {
+	my $tries  = 10;
+	my $result = 1;
+	while ($tries-- > 0) {
+	    $result = os_groupadd_real(@_);
+	    last
+		if (!$result || !$tries);
+
+	    warn("$GROUPADD returned $result ... trying again in a bit\n");
+	    sleep(10);
 	}
+	return $result;
     }
-    return $result;
+    else {
+	return os_groupadd_real(@_);
+    }
 }
 
 sub os_groupadd_real($$)
 {
-    my($group, $gid) = @_;
+    my ($group, $gid) = @_;
 
     return system("$GROUPADD -g $gid $group");
 }
@@ -1031,16 +1038,22 @@ sub os_modpasswd($$)
 #
 sub os_useradd($$$$$$$$$)
 {
-    my $tries = 3;
-    my $result = 1;
-    while ($result && $tries > 0) {
-	$result = os_useradd_real(@_);
-	if ($result) {
-	    sleep(5);
-	    --$tries;
+    if (INVZVM()) {
+	my $tries  = 10;
+	my $result = 1;
+	while ($tries-- > 0) {
+	    $result = os_useradd_real(@_);
+	    last
+		if (!$result || !$tries);
+
+	    warn("$USERADD returned $result ... trying again in a bit\n");
+	    sleep(10);
 	}
+	return $result;
     }
-    return $result;
+    else {
+	return os_useradd_real(@_);
+    }
 }
 
 sub os_useradd_real($$$$$$$$$)
@@ -2134,9 +2147,12 @@ sub getCurrentIwconfig($;$) {
     return \%r;
 }
 
-sub os_config_gre($$$$$$$)
+sub os_config_gre($$$$$$$;$)
 {
-    my ($name, $unit, $inetip, $peerip, $mask, $srchost, $dsthost) = @_;
+    my ($name, $unit, $inetip, $peerip, $mask, $srchost, $dsthost, $tag) = @_;
+
+    require Socket;
+    import Socket;
 
     my $dev = "$name$unit";
 
@@ -2147,9 +2163,17 @@ sub os_config_gre($$$$$$$)
 	    warn("Could not start tunnel $dev!\n");
 	    return -1;
 	}
+	return 0;
     }
-    elsif (system("ip tunnel add $dev mode gre ".
-		  "remote $dsthost local $srchost") ||
+    # This gre key stuff is not ready yet. 
+    my $keyopt = "";
+    if (0 && defined($tag)) {
+	my $grekey = inet_ntoa(pack("N", $tag));
+	$keyopt = "key $grekey";
+    }
+    
+    if (system("ip tunnel add $dev mode gre ".
+		  "remote $dsthost local $srchost $keyopt") ||
 	   system("ip link set $dev up") ||
 	   system("ip addr add $inetip dev $dev") ||
 	   system("$IFCONFIGBIN $dev netmask $mask")) {
