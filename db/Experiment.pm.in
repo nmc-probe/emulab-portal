@@ -174,7 +174,9 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "virt_blobs",
 		   "virt_client_service_ctl",
 		   "virt_client_service_hooks",
-		   "virt_client_service_opts");
+		   "virt_client_service_opts",
+		   "virt_blockstores",
+		   "virt_blockstore_attributes");
 
 %physicalTables = ("delays"     => ["node_id", "vname", "vnode0", "vnode1"],
 		   "v2pmap"        => ["node_id", "vname"],

@@ -109,6 +109,7 @@ use NodeType;
 use Template;
 use Experiment;
 use User;
+use BlockstoreType;
 
 use constant false => 0;
 use constant true  => 1;
@@ -869,9 +870,24 @@ sub GenDefsFile($)
 	    }
 	}
     }
-    print TCL "\n\n";
+    print TCL "\n";
 
-    print TCL "}\n";
+    print TCL "# Storage Objects\n";
+    my @sotypes = BlockstoreType->AllTypes();
+    foreach my $sot (@sotypes) {
+	my $type  = $sot->type();
+	my $cl    = $sot->class();
+	my $proto = $sot->protocol();
+	print TCL "set sotypes($type) 1\n"
+	    if defined($type);
+	print TCL "set soclasses($cl) 1\n"
+	    if defined($cl);
+	print TCL "set soprotocols($proto) 1\n"
+	    if defined($proto);
+    }
+    print TCL "\n";
+
+    print TCL "}\n\n";
     close(TCL);
 }
 

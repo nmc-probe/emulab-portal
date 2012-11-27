@@ -98,6 +98,8 @@ my $debug	      = 0;
      "virt_client_service_hooks"=> [ "vnode", "service_idx", "env", "whence",
 				     "hook_vblob_id" ],
      "virt_client_service_opts" => [ "vnode", "opt_name", "opt_value" ],
+     "virt_blockstores"		=> [ "vname" ],
+     "virt_blockstore_attributes" => [ "vname", "attrkey" ],
 );
 
 # 
@@ -1256,6 +1258,16 @@ use vars qw(@ISA);
 use VirtExperiment;
 
 package VirtExperiment::VirtTableRow::virt_bridges;
+use vars qw(@ISA);
+@ISA = "VirtExperiment::VirtTableRow";
+use VirtExperiment;
+
+package VirtExperiment::VirtTableRow::virt_blockstores;
+use vars qw(@ISA);
+@ISA = "VirtExperiment::VirtTableRow";
+use VirtExperiment;
+
+package VirtExperiment::VirtTableRow::virt_blockstore_attributes;
 use vars qw(@ISA);
 @ISA = "VirtExperiment::VirtTableRow";
 use VirtExperiment;

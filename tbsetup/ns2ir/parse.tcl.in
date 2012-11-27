@@ -394,6 +394,7 @@ source ${GLOBALS::libdir}/sequence.tcl
 source ${GLOBALS::libdir}/console.tcl
 source ${GLOBALS::libdir}/topography.tcl
 source ${GLOBALS::libdir}/disk.tcl
+source ${GLOBALS::libdir}/blockstore.tcl
 source ${GLOBALS::libdir}/custom.tcl
 
 ##################################################
@@ -558,11 +559,14 @@ proc new {class args} {
 # in Kbps.
 proc parse_bw {bspec {islink 1}} {
     #
-    # Special case; "*" means let assign pick the bandwidth. Make it zero.
+    # Special cases 
     #
-    if {"$bspec" == "*"} {
+    # "*" means let assign pick the bandwidth. Make it zero.
+    # "~" means "best effort" bandwidth - not conservatively allocated.
+    #
+    if {"$bspec" == "*" || "$bspec" == "~"} {
 	return 0
-    }
+    } 
 
     # Default to bytes
     if {[scan $bspec "%f%s" bw unit] == 1} {
@@ -625,6 +629,36 @@ proc parse_delay {dspec} {
 	return 0
     }
     return [expr int($val)]
+}
+
+# convert_to_mebi
+# This takes a data size specifier in the form of <amt><unit> where
+# <unit> is any of [B, KB, KiB, MB, MiB, GB, GiB, TB, TiB].  If no
+# unit is given then bytes (B) is assumed.  It returns the size
+# in Mebibytes.  Data sizes in bits (lowercase b) are not handled (yet).
+proc convert_to_mebi {size} {
+    # Default to bytes
+    if {[scan $size "%f%s" sz unit] == 1} {
+	set unit B
+    }
+
+    switch -- $unit {
+	B   {set val [expr int($sz / pow(2,20))}
+	KB  {set val [expr int($sz * pow(10,3) / pow(2,20))]}
+	KiB {set val [expr int($sz / pow(2,10))]}
+	MB  {set val [expr int($sz * pow(10,6) / pow(2,20))]}
+	MiB {set val [expr int($sz)]}
+	GB  {set val [expr int($sz * pow(10,9) / pow(2,20))]}
+	GiB {set val [expr int($sz * pow(2,10))]}
+	TB  {set val [expr int($sz * pow(10,12) / pow(2,20))]}
+	TiB {set val [expr int($sz * pow(2,20))]}
+	default {
+	    perror "Unknown size unit $unit."
+	    set val 0
+	}
+    }
+
+    return $val
 }
 
 # We now have all our infrastructure in place.  We are ready to load

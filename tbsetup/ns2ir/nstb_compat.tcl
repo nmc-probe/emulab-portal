@@ -331,6 +331,10 @@ Simulator instproc make-path {linklist} {
 Simulator instproc make-portinvlan {node token} {
 }
 
+Simulator instproc blockstore {args} {
+    return [$self node]
+}
+
 Node instproc program-agent {args} {
 }
 

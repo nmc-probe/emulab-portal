@@ -94,6 +94,11 @@ namespace eval TBCOMPAT {
     variable isvirt
     variable issubnode
 
+    # Storage object tracking (types, resources, etc.)
+    variable sotypes
+    variable soclasses
+    variable soprotocols
+
     # NSE hack: sim type is not in DB. Just adding it now
     set hwtypes(sim) 1
     set isremote(sim) 0
@@ -608,7 +613,7 @@ proc tb-set-hardware {node type args} {
 	set isv $isvirt($type)
     }
     set issub 0
-    if {[info exists isvirt($type)]} {
+    if {[info exists issubnode($type)]} {
 	set issub $issubnode($type)
     }
     $node set_hwtype $type $remote $isv $issub
