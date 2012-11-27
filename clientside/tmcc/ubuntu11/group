@@ -54,3 +54,6 @@ postdrop:x:113:
 messagebus:x:114:
 utempter:x:116:
 _cvsadmin:x:115:
+vboxusers:x:118:
+kvm:x:117:
+dhcpd:x:119:
