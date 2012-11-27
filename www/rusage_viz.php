@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -73,9 +73,9 @@ $queries["project"] = "select r.pid as project,count(r.node_id) as pcs," .
     "  from reserved as r" . 
     " left join nodes as n on r.node_id=n.node_id" . 
     " left join node_types as nt on n.type=nt.type" . 
+    " left join experiments as e on (r.pid=e.pid and r.eid=e.eid)" . 
     " where nt.class='pc'" . 
-    "  and !(r.pid='emulab-ops' and (r.eid='wifi-holding' or r.eid='hwdown'" . 
-    "    or r.eid='oddball' or r.eid='reloading'))" .
+    "  and !(r.pid='emulab-ops' and e.noswap_reason='System Experiment')" .
     " group by r.pid order by pcs desc";
 
 $queries["experiment"] = "select concat_ws(' / ',r.pid,r.eid) as experiment," .
@@ -89,9 +89,7 @@ $queries["experiment"] = "select concat_ws(' / ',r.pid,r.eid) as experiment," .
     " left join node_activity as na on r.node_id=na.node_id" . 
     " left join experiments as e on (r.pid=e.pid and r.eid=e.eid)" . 
     " where nt.class='pc'" . 
-    "  and !(r.pid='emulab-ops' and (r.eid='wifi-holding' or r.eid='hwdown'" . 
-    "    or r.eid='oddball' or r.eid='opsnodes' or r.eid='plab-monitor'" . 
-    "    or r.eid='plab-testing' or r.eid='plabnodes' or r.eid='reloading'))" .
+    "  and !(r.pid='emulab-ops' and e.noswap_reason='System Experiment')" .
     " group by r.pid,r.eid order by pcs desc";
 
 $queries["user"] = "select u.uid as user,count(r.node_id) as pcs," . 
@@ -102,9 +100,7 @@ $queries["user"] = "select u.uid as user,count(r.node_id) as pcs," .
     " left join experiments as e on (r.pid=e.pid and r.eid=e.eid)" . 
     " left join users as u on e.swapper_idx=u.uid_idx" . 
     " where nt.class='pc'" . 
-    "  and !(r.pid='emulab-ops' and (r.eid='wifi-holding' or r.eid='hwdown'" . 
-    "    or r.eid='oddball' or r.eid='opsnodes' or r.eid='plab-monitor'" . 
-    "    or r.eid='plab-testing' or r.eid='plabnodes' or r.eid='reloading'))" .
+    "  and !(r.pid='emulab-ops' and e.noswap_reason='System Experiment')" .
     " group by (u.uid) order by pcs desc";
 
 $queries["nodetype"] = "select n.type as nodetype," . 
