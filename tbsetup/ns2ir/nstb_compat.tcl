@@ -226,14 +226,6 @@ Disk instproc init {args} {
 Disk instproc unknown {m args} {
 }
 
-Class Blockstore
-
-Blockstore instproc init {args} {
-}
-
-Blockstore instproc unknown {m args} {
-}
-
 Class Firewall
 
 Firewall instproc init {sim args} {
@@ -336,6 +328,10 @@ Simulator instproc make-path {linklist} {
 }
 
 Simulator instproc make-portinvlan {node token} {
+}
+
+Simulator instproc blockstore {args} {
+    return [$self node]
 }
 
 Node instproc program-agent {args} {
