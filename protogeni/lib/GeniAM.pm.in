@@ -870,6 +870,8 @@ sub Update
     return $cred
 	if (GeniResponse::IsResponse($cred));
 
+    my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
+
     # The URN list must be either empty or contain the slice URN.
     if (scalar(@urns) > 1 ||
 	(scalar(@urns) == 1 && $urns[0] ne $slice->urn())) {
@@ -888,7 +890,6 @@ sub Update
     return $response
 	if (defined($response));
 
-    my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
     my $ticket;
     if (defined($slice)) {
 	return $slice
@@ -1175,6 +1176,36 @@ sub Delete
     my $response = GeniCMV2::DeleteSlice($args);
     if (! GeniResponse::IsError($response)) {
 	$response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $slivers);
+    }
+    return $response;
+}
+
+sub Cancel
+{
+    my ($urn_args, $credential_args, $option_args) = @_;
+    my @urns = @{ $urn_args };
+    return GeniResponse->MalformedArgsResposne("Empty URN List")
+	if (scalar(@urns) < 1);
+
+    my $credentials = FilterCredentials($credential_args);
+    my $cred = GeniCMV2::CheckCredentials($credentials);
+    return $cred
+	if (GeniResponse::IsResponse($cred));
+
+    my ($slice, undef) = GeniCMV2::Credential2SliceAggregate($cred);
+    my $response;
+    my $ticket = GeniTicket->SliceTicket($slice);
+    if (defined($ticket)) {
+	my $credentials = FilterCredentials($credential_args);
+	my $args = {
+	    'slice_urn' => $urns[0],
+	    'ticket' => $ticket->ticket_string(),
+	    'credentials' => $credentials
+	};
+	$response = GeniCMV2::ReleaseTicket($args);
+    }
+    if (! GeniResponse::IsError($response)) {
+	$response = Describe($urn_args, $credential_args, []);
     }
     return $response;
 }

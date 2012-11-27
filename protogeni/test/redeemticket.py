@@ -50,6 +50,16 @@ execfile( "test-common.py" )
 mycredential = get_self_credential()
 print "Got my SA credential"
 
+ticket = "";
+if len(REQARGS) == 1:
+  try:
+    ticketfile = open(REQARGS[0])
+    ticket = ticketfile.read()
+    ticketfile.close()
+  except IOError, e:
+    print >> sys.stderr, args[0] + ": " + e.strerror
+    sys.exit(1)
+
 #
 # Lookup my ssh keys.
 #
@@ -84,37 +94,38 @@ else:
     print "Got the slice credential"
     pass
 
-#
-# Do a resolve to get the ticket urn.
-#
-print "Resolving the slice at the CM"
-params = {}
-params["credentials"] = (slicecred,)
-params["urn"]         = myslice["urn"]
-rval,response = do_method("cm", "Resolve", params, version="2.0")
-if rval:
+if ticket == "":
+  #
+  # Do a resolve to get the ticket urn.
+  #
+  print "Resolving the slice at the CM"
+  params = {}
+  params["credentials"] = (slicecred,)
+  params["urn"]         = myslice["urn"]
+  rval,response = do_method("cm", "Resolve", params, version="2.0")
+  if rval:
     Fatal("Could not resolve slice")
     pass
-mysliver = response["value"]
-print str(mysliver)
+  mysliver = response["value"]
+  print str(mysliver)
 
-if not "ticket_urn" in mysliver:
+  if not "ticket_urn" in mysliver:
     Fatal("No ticket exists for slice")
     pass
 
-#
-# Get the ticket with another call to resolve.
-#
-print "Asking for a copy of the ticket"
-params = {}
-params["credentials"] = (slicecred,)
-params["urn"]         = mysliver["ticket_urn"]
-rval,response = do_method("cm", "Resolve", params, version="2.0")
-if rval:
+  #
+  # Get the ticket with another call to resolve.
+  #
+  print "Asking for a copy of the ticket"
+  params = {}
+  params["credentials"] = (slicecred,)
+  params["urn"]         = mysliver["ticket_urn"]
+  rval,response = do_method("cm", "Resolve", params, version="2.0")
+  if rval:
     Fatal("Could not get the ticket")
     pass
-ticket = response["value"]
-print "Got the ticket"
+  ticket = response["value"]
+  print "Got the ticket"
 
 redeemcred = slicecred;
 #
@@ -126,8 +137,8 @@ params["slice_urn"]   = myslice["urn"]
 params["credentials"] = (slicecred,)
 rval,response = do_method("cm", "GetSliver", params, version="2.0")
 if not rval:
-  redeemcred = response["value"]
-  print "Got the sliver credential"
+   redeemcred = response["value"]
+   print "Got the sliver credential"
 
 #
 # And redeem the ticket.
