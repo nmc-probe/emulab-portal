@@ -1270,6 +1270,13 @@ if (defined($logname)) {
 }
 
 #
+# Save the final experiment state so that we get a running record of
+# the state on disk, for post-mortem debugging. This will get copied
+# to the expinfo directory in the next line. 
+#
+$experiment->SaveExperimentState();
+
+#
 # Try to copy off the files for testbed information gathering.
 #
 $experiment->SaveLogFiles();

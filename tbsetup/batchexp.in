@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -725,9 +725,15 @@ if (defined($logname)) {
 }
 
 #
+# Save the final experiment state so that we get a running record of
+# the state on disk, for post-mortem debugging. This will get copied
+# to the expinfo directory in the next line. 
+#
+$experiment->SaveExperimentState();
+
+#
 # Save a copy of the files for testbed information gathering (long term).
 #
-
 $experiment->SaveLogFiles();
 
 #

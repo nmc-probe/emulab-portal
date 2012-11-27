@@ -2841,6 +2841,8 @@ sub CleanLogFiles($)
     }
     mysystem("/bin/rm -f @delete") == 0
 	or return -1;
+    mysystem("/bin/rm -rf ${workdir}/vstate.* ${workdir}/pstate.*") == 0
+	or return -1;
 
     return 0;
 }
@@ -3127,9 +3129,9 @@ sub UpdateIdleSwapTime($$)
 #
 # Experiment tables.
 #
-sub BackupVirtualState($)
+sub BackupVirtualState($;$)
 {
-    my ($self) = @_;
+    my ($self, $directory) = @_;
 
     # Must be a real reference. 
     return -1
@@ -3138,7 +3140,8 @@ sub BackupVirtualState($)
     my $pid = $self->pid();
     my $eid = $self->eid();
     my $idx = $self->idx();
-    my $vstateDir = $self->WorkDir() . "/vstate";
+    my $vstateDir = (defined($directory) ?
+		     $directory : $self->WorkDir() . "/vstate");
     my $errors = 0;
 
     if (! -e $vstateDir) {
@@ -3236,6 +3239,84 @@ sub SaveBackupState($)
     system("/bin/cp -Rfp $vstateDir ${vstateDir}-prev")
 	if (-e $vstateDir);
 
+    return 0;
+}
+
+#
+# This data will be saved longterm in the expinfo directory. The problem
+# is that mysql dump files have no table metadata, so when the schema
+# changes, these files will no longer be loadable. Not that we want to
+# load them, but it would be nice if the format allowed for schema changes.
+# To do that will require a bunch more work. Some day ... 
+#
+sub SaveExperimentState($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $pid = $self->pid();
+    my $eid = $self->eid();
+    my $workdir   = $self->WorkDir();
+    my $vstateDir = `mktemp -d $workdir/vstate.XXXXXX`;
+
+    # Untaint to avoid stupid errors
+    if ($vstateDir =~ /^([-\w\.\/]+)$/) {
+	$vstateDir = $1;
+    }   
+    chmod(0777, $vstateDir)
+	or return -1;
+
+    $self->BackupVirtualState($vstateDir);
+
+    #
+    # Most of these tables are empty, so lets not burn up zillions
+    # of inodes for no reason.
+    #
+    foreach my $table (@virtualTables) {
+	my $file = "$vstateDir/$table";
+
+	unlink($file)
+	    if (-z $file);
+    }
+
+    #
+    # Do not backup physical state if the experiment is not active.
+    #
+    if ($self->state() eq EXPTSTATE_ACTIVE) {
+	my $pstateDir = `mktemp -d $workdir/pstate.XXXXXX`;
+	# Untaint to avoid stupid errors.
+	if ($pstateDir =~ /^([-\w\.\/]+)$/) {
+	    $pstateDir = $1;
+	}
+	chmod(0777, $pstateDir)
+	    or return -1;
+	
+	$self->BackupPhysicalState($pstateDir);
+
+	#
+	# Most of these tables are empty, so lets not burn up zillions
+	# of inodes for no reason.
+	#
+	opendir(DIR, $pstateDir) or
+	    return -1;
+	my @files  = readdir(DIR);
+	closedir(DIR);
+
+	foreach my $file (@files) {
+	    $file = "$pstateDir/$file";
+
+	    # Untaint to avoid stupid errors.
+	    if ($file =~ /^([-\w\.\/]+)$/) {
+		$file = $1;
+	    }
+	    unlink($file)
+		if (-z $file);
+	}
+    }
+    
     return 0;
 }
 sub RemovePhysicalState($;$)
