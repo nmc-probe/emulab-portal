@@ -41,7 +41,7 @@ my $debug       = 1;
 my $infomode    = 0;
 my $islinux     = 0;
 my $VMPATH      = "/var/emulab/vms/vminfo";
-my $EXTRAFS	= "/scratch";
+my $EXTRAFS	= "/capture";
 my $VGNAME	= "xen-vg";
 my $role;
 my $XMINFO;
