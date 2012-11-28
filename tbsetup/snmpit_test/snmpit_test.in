@@ -2306,9 +2306,15 @@ sub syncVlansFromTables($$@) {
     VLan->StaleVlanList($experiment, \@tmp) == 0 or
 	die("Could not get stale vlans for $experiment\n");
     foreach my $vlanid (@tmp) {
-	# Narrow to provided vlanids.
+	#
+	# Narrow to vlans that came in on the command line, not
+	# the ones sent to this function. When a specific vlan is
+	# provided on the command line, we consider only that one as
+	# potentially stale. If no vlans on the command line, then all
+	# vlans in the experiment are potentially stale. 
+	#
 	next
-	    if (@vlanids && ! grep {$_ == $vlanid} @vlanids);
+	    if (@optvlanids && ! grep {$_ == $vlanid} @optvlanids);
 	
 	$curvlans{$vlanid} = 1;
 

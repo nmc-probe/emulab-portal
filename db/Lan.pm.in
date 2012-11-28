@@ -2047,8 +2047,12 @@ sub Instantiate($)
 	    return -1;
 	}
     }
-    # These are always class=Experiment.
-    if (exists($self->{"ATTRS"}->{'class'})) {
+    #
+    # These are always class=Experimental if not specified. Note that
+    # we support experimental vlans on the control network via trunk
+    # links. Thus the stack and the class can actually be different.
+    #
+    if (! exists($self->{"ATTRS"}->{'class'})) {
 	if ($lan->SetAttribute("class", "Experimental")) {
 	    $lan->Destroy();
 	    return -1;
@@ -3361,7 +3365,6 @@ sub UnInstantiate($;$)
     my $vname  = $self->vname();
     my $lanid  = $self->lanid();
     my $opt    = ($quiet ? "-q" : "");
-    my $class  = $self->GetClass();
 
     #print "Removing VLAN $vname ($lanid) from $pid/$eid\n";
     system("$SNMPIT $opt -r $pid $eid $lanid");
@@ -3389,6 +3392,7 @@ sub RecordVlanInsertion($$$)
     my $exptidx   = $vlan->exptidx();
     my $lanid     = $vlan->lanid();
     my $vname     = $vlan->vname();
+    my $vclass    = $vlan->GetClass();
     my $tag       = $vlan->GetReservedVlanTag();
     return -1
 	if (!defined($tag));
@@ -3408,7 +3412,7 @@ sub RecordVlanInsertion($$$)
     DBQueryWarn("replace into vlans set ".
 		"  id='$lanid', pid='$pid', eid='$eid', exptidx='$exptidx', ".
 		"  virtual='$vname', members='$members', tag='$tag', ".
-		"  stack='$stack' $path")
+		"  stack='$stack', class='$vclass' $path")
 	or return -1;
 
     return 0;
@@ -3569,10 +3573,7 @@ sub StaleVlanList($$$)
     # tells, we need to look at the "class" of the lan.
     #
     my $query_result =
-	DBQueryWarn("select v.id,a.attrvalue from vlans as v ".
-		    "left join lan_attributes as a on a.lanid=v.id and ".
-		    "          a.attrkey='class' ".
-		    "where v.exptidx=$exptidx");
+	DBQueryWarn("select id,class from vlans where exptidx=$exptidx");
     return -1
 	if (!$query_result);
 
@@ -3580,7 +3581,7 @@ sub StaleVlanList($$$)
 	# No class means Experimental; we were not setting this properly
 	# for a long time.
 	push(@result, $id)
-	    if (!defined($class) || $class eq "Experimental");
+	    if (!defined($class) || $class eq "" || $class eq "Experimental");
     }
     @$pref = @result;
     return 0;
