@@ -369,6 +369,12 @@ if ($OUTER_BOSS eq '') {
     $OUTER_BOSS = "www.emulab.net";
 }
 
+# Firewall stuff
+$FIREWALL_BOSS		= @FIREWALL_BOSS@;
+$FIREWALL_OPS		= @FIREWALL_OPS@;
+$FIREWALL_BOSS_RULES    = "/etc/boss.ipfw";
+$FIREWALL_OPS_RULES     = "/etc/ops.ipfw";
+
 sub ISBOSSNODE($)	{ return ($_[0] eq $BOSS_SERVERNAME) ? 1 : 0; }
 sub ISOPSNODE($)	{ return ($_[0] eq $OPS_SERVERNAME) ? 1 : 0; }
 sub ISFSNODE($)		{ return ($_[0] eq $FS_SERVERNAME) ? 1 : 0; }

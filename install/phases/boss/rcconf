@@ -67,6 +67,13 @@ sub Install($$$)
 	    push(@strings, qq|mrouted_enable="YES"|);
 	}
 
+	# Turn on firewall.
+	if ($FIREWALL_BOSS) {
+	    push(@strings, qq|firewall_enable="YES"|);
+	    push(@strings, qq|firewall_type="/etc/boss.ipfw"|);
+
+	}
+
 	AppendToFileFatal($RCCONF, @strings);
     };
     return 0;

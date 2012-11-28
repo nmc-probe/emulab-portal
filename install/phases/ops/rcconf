@@ -37,6 +37,12 @@ sub Install($$$)
 		 qq|pubsubd_flags="-T 10"|);
     }
 
+    # Turn on firewall.
+    if ($FIREWALL_OPS) {
+	push(@adds, qq|firewall_enable="YES"|);
+	push(@adds, qq|firewall_type="/etc/ops.ipfw"|);
+    }
+
     Phase "rc.conf", "Adding testbed content to rc.conf", sub {
 	DoneIfEdited($RCCONF);
 	BackUpFileFatal($RCCONF);

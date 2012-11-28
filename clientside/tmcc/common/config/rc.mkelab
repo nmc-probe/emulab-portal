@@ -1704,12 +1704,25 @@ sub SetupOpsNode($)
     foreach my $list (@lists) {
 	if ($emulabconfig{"CONFIG_GENIRACK"}) {
 	    my $where = "genirack-ops\@flux.utah.edu";
+	    if (exists($emulabconfig{"GENIRACK_TBOPS"})) {
+		$where .= "\n" . $emulabconfig{"GENIRACK_TBOPS"};
+	    }
 	    
-	    if ($list eq "testbed-logs") {
-		$where = "genirack-logs\@flux.utah.edu";
+	    if ($list eq "testbed-logs" || $list eq "testbed-audit") {
+		if (exists($emulabconfig{"GENIRACK_TBLOGS"})) {
+		    $where = $emulabconfig{"GENIRACK_TBLOGS"};
+		}
+		else {
+		    $where = "genirack-logs\@flux.utah.edu";
+		}
 	    }
 	    elsif ($list eq "testbed-stated") {
-		$where = "genirack-stated\@flux.utah.edu";
+		if (exists($emulabconfig{"GENIRACK_TBSTATED"})) {
+		    $where = $emulabconfig{"GENIRACK_TBSTATED"};
+		}
+		else {
+		    $where = "genirack-stated\@flux.utah.edu";
+		}
 	    }
 	    mysystem("echo '$where' > /etc/mail/lists/$list");
 	}
@@ -2303,22 +2316,25 @@ sub SetupBossNode($)
     # Use natd so that internal control network can talk to outside world.
     # Maybe make an option?
     #
-    print RC "firewall_enable=\"YES\"\n";
-    print RC "firewall_type=\"open\"\n";
-    print RC "natd_interface=\"${outer_controlif}\"\n";
-    print RC "natd_enable=\"YES\"\n";
-    print RC "natd_flags=\"-use_sockets -unregistered_only -same_ports ".
-	"-dynamic -log_facility local6\"\n";
-    #
-    # XXX Woeful hackage!
-    # There seems to be a race with the ipfw and ipdivert code.
-    # By default, rc.firewall adds a "divert" rule before the ipdivert
-    # module is loaded, and the "ipfw add" command fails. However, if we
-    # put the ipdivert module in /boot/loader.conf so it gets loaded at
-    # boot time, everything is fine. So we do that!
-    #
-    if ($FBSD_VERSION > 8) {
-	mysystem("echo 'ipdivert_load=\"YES\"' >> /boot/loader.conf");
+    if (! $emulabconfig{"CONFIG_SINGLECNET"}) {
+	print RC "firewall_enable=\"YES\"\n";
+	print RC "firewall_type=\"open\"\n";
+	print RC "natd_interface=\"${outer_controlif}\"\n";
+	print RC "natd_enable=\"YES\"\n";
+	print RC "natd_flags=\"-use_sockets -unregistered_only -same_ports ".
+	    "-dynamic -log_facility local6\"\n";
+
+	#
+	# XXX Woeful hackage!
+	# There seems to be a race with the ipfw and ipdivert code.
+	# By default, rc.firewall adds a "divert" rule before the ipdivert
+	# module is loaded, and the "ipfw add" command fails. However, if we
+	# put the ipdivert module in /boot/loader.conf so it gets loaded at
+	# boot time, everything is fine. So we do that!
+	#
+	if ($FBSD_VERSION > 8) {
+	    mysystem("echo 'ipdivert_load=\"YES\"' >> /boot/loader.conf");
+	}
     }
 
     # We act as the router for the inner ops and inner nodes.
@@ -3260,6 +3276,20 @@ sub CreateDefsFile($)
 	print OUTDEFS "PROTOGENI_DOMAIN=\"$protogeni_domain\"\n";
 	print OUTDEFS "FANCYBANNER=1\n";
 	print OUTDEFS "ISOLATEADMINS=0\n";
+    }
+    if ($emulabconfig{"CONFIG_FIREWALL_BOSS"}) {
+	print OUTDEFS "FIREWALL_BOSS=1\n";
+	if ($emulabconfig{"CONFIG_FIREWALL_BOSS_LOCALRULETMPL"}) {
+	    printf OUTDEFS "FIREWALL_BOSS_LOCALRULETMPL=\"%s\"\n",
+   	           $emulabconfig{"CONFIG_FIREWALL_BOSS_LOCALRULETMPL"};
+	}
+    }
+    if ($emulabconfig{"CONFIG_FIREWALL_OPS"}) {
+	print OUTDEFS "FIREWALL_OPS=1\n";
+	if ($emulabconfig{"CONFIG_FIREWALL_OPS_LOCALRULETMPL"}) {
+	    printf OUTDEFS "FIREWALL_OPS_LOCALRULETMPL=\"%s\"\n",
+   	           $emulabconfig{"CONFIG_FIREWALL_OPS_LOCALRULETMPL"};
+	}
     }
     close(INDEFS);
     close(OUTDEFS);

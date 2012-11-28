@@ -30,14 +30,27 @@ ETCDIR          = /etc
 OURDOMAIN       = @OURDOMAIN@
 ISMAINSITE	= @TBMAINSITE@
 
+# Configure
+FIREWALL_BOSS   = @FIREWALL_BOSS@
+FIREWALL_OPS    = @FIREWALL_OPS@
+FIREWALL_BOSS_LOCALRULETMPL = @FIREWALL_BOSS_LOCALRULETMPL@
+FIREWALL_OPS_LOCALRULETMPL  = @FIREWALL_OPS_LOCALRULETMPL@
+
 BOSSTOKEN       = boss
 USERTOKEN       = ops
 
-FWRULES_FILES	= $(BOSSTOKEN).ipfw $(USERTOKEN).ipfw
-ifeq ($(ISMAINSITE),1)
-LOCAL_FWRULES   = $(BOSSTOKEN).local.ipfw $(USERTOKEN).local.ipfw
-else
-LOCAL_FWRULES   = 
+FWRULES_FILES	=
+ifneq ($(FIREWALL_BOSS_LOCALRULETMPL),"")
+FWRULES_FILES  += $(FIREWALL_BOSS_LOCALRULETMPL).ipfw
+endif
+ifeq ($(FIREWALL_BOSS),1)
+FWRULES_FILES  += $(BOSSTOKEN).ipfw
+endif
+ifneq ($(FIREWALL_OPS_LOCALRULETMPL),"")
+FWRULES_FILES  += $(FIREWALL_OPS_LOCALRULETMPL).ipfw
+endif
+ifeq ($(FIREWALL_OPS),1)
+FWRULES_FILES  += $(USERTOKEN).ipfw
 endif
 
 include $(OBJDIR)/Makeconf
@@ -46,7 +59,7 @@ include $(OBJDIR)/Makeconf
 # Force dependencies on the scripts so that they will be rerun through
 # configure if the .in file is changed.
 # 
-all: mkfwrules $(LOCAL_FWRULES) $(FWRULES_FILES)
+all: mkfwrules $(FWRULES_FILES)
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
@@ -56,14 +69,30 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 $(LOCAL_FWRULES) $(FWRULES_FILES): mkfwrules
 
 # This is not a safe install target after initial install!
+ifeq ($(FIREWALL_BOSS),1)
 install:
 	@echo "Are you sure you want to reinstall the fwrules files!"
 	@echo "Use the install-real target if you are sure"
 
-install-real:	
+install-real: $(ETCDIR)/boss.ipfw
+else
+install:
+	@echo "FIREWALL_BOSS is not set in your defs file!"
+endif
+
+ifeq ($(FIREWALL_OPS),1)
+control-install:
+	@echo "Are you sure you want to reinstall the fwrules files!"
+	@echo "Use the control-install-real target if you are sure"
+
+control-install-real: $(ETCDIR)/ops.ipfw
+else
+control-install:
+	@echo "FIREWALL_OPS is not set in your defs file!"
+endif
 
 clean: 
-	rm -f mkfwrules $(FWRULES_FILES) $(LOCAL_FWRULES)
+	rm -f mkfwrules $(FWRULES_FILES)
 
 $(ETCDIR)/%: %
 	@echo "Installing $<"

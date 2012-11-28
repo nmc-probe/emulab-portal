@@ -1,3 +1,14 @@
+# Setup lo0
+add pass all from any to any via lo0
+add deny all from any to 127.0.0.0/8
+add deny ip from 127.0.0.0/8 to any
+# We do not do ipv6
+add deny all from any to ::1
+add deny all from ::1 to any
+
+# Natd is optional
+%natdrules%
+
 # Match existing dynamic rules early
 add check-state
 

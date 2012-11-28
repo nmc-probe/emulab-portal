@@ -88,6 +88,7 @@ use File::Copy;
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 use libvnode;
 use libtestbed;
+use libsetup;
 
 #
 # Turn off line buffering on output
@@ -558,6 +559,9 @@ sub vnodeCreate($$$$)
 	$os = "FreeBSD";
 	if ($imagename =~ /FBSD9/) {
 	    $image{'kernel'} = "/boot/freebsd9/kernel";
+	    if (exists($attributes->{'XEN_IPFWKERNEL'})) {
+		$image{'kernel'} = $image{'kernel'} . ".ipfw";
+	    }
 	} elsif ($imagename =~ /FBSD8/) {
 	    $image{'kernel'} = "/boot/freebsd8/kernel";
 	} else {
@@ -976,20 +980,30 @@ sub vnodePreConfigExpNetwork($$$$)
 
 sub vnodeConfigResources($$$$){
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+    my $attributes = $vnconfig->{'attributes'};
+    my $memory;
 
     #
-    # Give the vnode some memory.
-    # XXX no way to specify this right now, so we give each vnode
-    # the same amount based on an arbitrary maximum vnode limit.
+    # Give the vnode some memory. We allow the user to specify this
+    # when not a shared host. 
     #
-    my $memory = memoryPerVnode();
-    if ($memory < 48){
-        die("48MB is the minimum amount of memory for a Xen VM; ".
-	    "could only get {$memory}MB.".
-	    "Adjust libvnode_xen::MAX_VNODES");
+    if (!SHAREDHOST() && exists($attributes->{'XEN_MEMSIZE'})) {
+	# Better be MB.
+	$memory = $attributes->{'XEN_MEMSIZE'};
+    }
+    else  {
+	#
+	# XXX no way to specify this right now, so we give each vnode
+	# the same amount based on an arbitrary maximum vnode limit.
+	#
+	$memory = memoryPerVnode();
+	if ($memory < 48){
+	    die("48MB is the minimum amount of memory for a Xen VM; ".
+		"could only get {$memory}MB.".
+		"Adjust libvnode_xen::MAX_VNODES");
+	}
     }
     addConfig($private, "memory = $memory", 1);
-
     return 0;
 }
 

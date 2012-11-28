@@ -71,6 +71,9 @@ my $PUBLIC_NETWORK           = "@PUBLIC_NETWORK@";
 my $PUBLIC_ROUTER            = "@PUBLIC_ROUTER@";
 my $PUBLIC_NETMASK           = "@PUBLIC_NETMASK@";
 my $NAMED_FORWARDERS         = "@NAMED_FORWARDERS@";
+my $GREP		     = "/usr/bin/grep";
+my $FIREWALL_BOSS_LOCALRULETMPL = "@FIREWALL_BOSS_LOCALRULETMPL@";
+my $FIREWALL_OPS_LOCALRULETMPL  = "@FIREWALL_OPS_LOCALRULETMPL@";
 
 # Simple is good. I stole this out of a google search.
 my @NETMASKS =
@@ -95,11 +98,16 @@ my %SUB = (
 
 #
 # Ug, for elabinelab, it is easier to just set the multicast rule
-# to any to avoid problems. 
+# to "any" to avoid problems. 
 #
 if ($ELABINELAB) {
     $SUB{"multicast"} = "any";
 }
+
+#
+# Natd is optional. 
+#
+my $NATDRULE = "add divert natd ip4 from any to any";
 
 # Testbed libraries.
 use lib "@prefix@/lib";
@@ -109,22 +117,57 @@ usage()
 
 my $infile = $ARGV[0];
 
+
+#
+# Look to see if natd is enabled in /etc/rc.conf and what the
+# natd interface is. Might be easier to just read in the shell
+# variables and process them. 
+#
+
+system("$GREP '^natd_enable' /etc/rc.conf | $GREP -q -i yes");
+if (!$?) {
+    my $natd_interface = `$GREP '^natd_interface' /etc/rc.conf`;
+    if (!$? && $natd_interface =~ /=\"(.*)\"$/) {
+	$NATDRULE = "$NATDRULE via $1";
+    }
+    else {
+	die("natd is enabled in /etc/rc.conf, but no natd_interface!\n");
+    }
+}
+else {
+    $NATDRULE = "";
+}
+
 open(IF,"<$infile") or
     die("Unable to open $infile for reading\n");
 
 while (<IF>) {
-    if (/^(.*)\%([-\w]*)\%(.*)$/) {
+    if (/^(.*)\%([-\w]*)\%\s*(.*)$/) {
 	if ($2 eq "localrules") {
-	    my $filename = $3;
-	    $filename =~ s/\s//g;
-	    $filename .= ".local.ipfw";
+	    my $which = $3;
+	    my $filename;
+
+	    if ($which eq "ops" && $FIREWALL_OPS_LOCALRULETMPL ne "") {
+		$filename .= "${FIREWALL_OPS_LOCALRULETMPL}.ipfw";
+	    }
+	    elsif ($which eq "boss" && $FIREWALL_BOSS_LOCALRULETMPL ne "") {
+		$filename .= "${FIREWALL_BOSS_LOCALRULETMPL}.ipfw";
+	    }
+	    next
+		if (! defined($filename));
 	    
 	    if (-e $filename) {
 		system("cat $filename");
 	    }
+	    else {
+		die("Local template file for $which does not exist\n");
+	    }
+	}
+	elsif ($2 eq "natdrules") {
+	    print "$NATDRULE\n";
 	}
 	elsif (exists($SUB{$2})) {
-	    print "$1" . $SUB{$2} . "$3\n";
+	    print "$1" . $SUB{$2} . " $3\n";
 	}
 	else {
 	    die("No substitution for '$2'\n");

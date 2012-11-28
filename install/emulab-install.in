@@ -243,7 +243,7 @@ elsif ($server eq "boss") {
 	      'boss/ssh', 'boss/hostkeys',
 	      'boss/rndc', 'boss/loaderconf', 'boss/sysctlconf',
 	      'boss/sslcerts', 'boss/mailman', 'boss/pubsub',
-	      'boss/software',
+	      'boss/software', 
               #
 	      # The next few items must be after the software install since 
 	      # they use testbed libraries and such.
@@ -251,7 +251,7 @@ elsif ($server eq "boss") {
 	      'boss/dhcpd', 'boss/named', 'boss/flyspray',
 	      'boss/firstuser', 'boss/checkupuser', 'boss/wikidocs',
 	      'boss/mfs', 'boss/images', 'boss/openvz', 'boss/experiments',
-	      'boss/protogeni'
+	      'boss/protogeni', 'boss/firewall'
 	     );
 }
 elsif ($server eq "fs") {
@@ -266,7 +266,8 @@ elsif ($server eq "ops") {
 	      'ops/sendmail', 'ops/syslog', 'exports', 'nfsmounts',
 	      'ops/crontab', 'sudoers', 'samba', 'ops/ssh', 'capture',
 	      'ops/rcfiles', 'apache', 'ops/database', 'ops/mailman',
-	      'ops/cvsd', 'ops/flyspray', 'ops/twiki');
+	      'ops/cvsd', 'ops/flyspray', 'ops/twiki', 'ops/firewall'
+	     );
 }
 
 #
