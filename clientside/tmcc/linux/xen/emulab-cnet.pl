@@ -54,6 +54,7 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 use libsetup;
 use libtmcc;
 use libvnode;
+use libtestbed;
 
 #
 # Configure.
@@ -231,12 +232,25 @@ sub Offline()
 }
 
 if (@ARGV) {
-    my $op = shift(@ARGV);
+    #
+    # Oh jeez, iptables is about the dumbest POS I've ever seen;
+    # it fails if you run two at the same time. So we have to
+    # serialize the calls. Rather then worry about each call, just
+    # take a big lock here. 
+    #
+    if (TBScriptLock("iptables", 0, 900) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get the iptables lock after a long time!\n";
+	exit(-1);
+    }
+    my $rval = 0;
+    my $op   = shift(@ARGV);
     if ($op eq "online") {
-	exit(Online());
+	$rval = Online();
     }
     elsif ($op eq "offline") {
-	exit(Offline());
+	$rval = Offline();
     }
+    TBScriptUnlock();
+    exit($rval);
 }
 exit(0);
