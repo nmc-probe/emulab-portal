@@ -1584,7 +1584,7 @@ sub cleanup()
     #
     if (1) {
 	# Maybe use a feature?
-	system("/bin/cp -Rfp $workdir ${workdir}-failed");
+	system("/bin/cp -Rfp $workdir/ ${workdir}-failed");
     }
     else {
 	system("/bin/rm -rf  ${workdir}-failed");
