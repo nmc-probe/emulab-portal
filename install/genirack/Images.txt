@@ -36,14 +36,14 @@ Swap the experiment in.
 Once the VMs are ready, we have to take the snapshots. But first we
 have to clean them up as mentioned above. This process is actually a
 lot more involved then I alluded to, but its all automated. First ssh
-into the inner ops VM from outer boss:
+(as root) into the inner ops VM from outer boss:
 
-	ops> cd /usr/testbed/obj/install
+	ops> cd /usr/testbed/obj/testbed/install
 	ops> sudo perl emulab-install -i ops/genirack ops
 
-then log out and log into inner boss:
+then log out and ssh (as root) into inner boss:
 
-	ops> cd /usr/testbed/obj/install
+	ops> cd /usr/testbed/obj/testbed/install
 	ops> sudo perl emulab-install -i boss/genirack boss
 
 Now we have to shutdown the VMs. Log into the physical host and then:
@@ -61,13 +61,16 @@ xm.conf file. The script that does this might not be installed, but
 you can find it in the testbed source directory in
 clientside/tmcc/linux/openvz.
 
-	vhost-0> sudo capturevm.pl -r boss pcvmXXX-1
-	vhost-0> sudo capturevm.pl -r ops pcvmXXX-2
+	vhost-0> sudo /usr/local/etc/emulab/capturevm.pl -r boss pcvmXXX-1
+	vhost-0> sudo /usr/local/etc/emulab/capturevm.pl -r ops pcvmXXX-2
 
 This will take a little while of course. When finished, cd into
-/scratch and you will find two directories named boss and ops.
-Create a tar file of them; no point in using compression. They are now
-ready to be copied over to the new control node and installed.
+/capture and you will find two directories named boss and ops.
+You want to create a tar file (no point in using compression).
+
+	vhost-0> sudo tar cf foo.tar boss ops
+
+Now copy the tar file over to the new control node. 
 
 ----
 
