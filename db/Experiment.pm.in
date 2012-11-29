@@ -2841,8 +2841,6 @@ sub CleanLogFiles($)
     }
     mysystem("/bin/rm -f @delete") == 0
 	or return -1;
-    mysystem("/bin/rm -rf ${workdir}/vstate* ${workdir}/pstate*") == 0
-	or return -1;
 
     return 0;
 }

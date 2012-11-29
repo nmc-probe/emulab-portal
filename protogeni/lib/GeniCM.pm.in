@@ -804,6 +804,9 @@ sub GetTicketAuxAux($$$$$$$$$)
     my %external_vportmap = ();
     my %stitching_paths   = ();
 
+    # Always do this to avoid buildup.
+    $slice_experiment->ClearBackupState();
+    
     #
     # If this is a ticket update, we want to seed the namemap with
     # existing nodes. This is cause the rspec might refer to wildcards
@@ -811,7 +814,6 @@ sub GetTicketAuxAux($$$$$$$$$)
     # what nodes are currently reserved in case we have to release some.
     #
     if ($isupdate) {
-	$slice_experiment->ClearBackupState();
 	if ($slice_experiment->BackupVirtualState()) {
 	    print STDERR "Could not backup virtual state!\n";
 	    $response = GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -3770,6 +3772,11 @@ sub SliverWorkAux($$$$$$$)
 	$ticket->Redeem()
 	    if (defined($ticket));
 	$slice->UnLock();
+
+	# Update this info now that we are done. 
+	$experiment->SaveExperimentState();
+	$experiment->SaveLogFiles();
+	
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
 				    [$sliver_credential->asString(),
 				     $manifest_string]);
@@ -3789,6 +3796,11 @@ sub SliverWorkAux($$$$$$$)
 	if (defined($ticket));
     $aggregate->SetRegistered(0);
     $slice->UnLock();
+
+    # Update this info now that we are done. 
+    $experiment->SaveExperimentState();
+    $experiment->SaveLogFiles();
+    
     if ($v2) {
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
 				    [$sliver_credential->asString(),

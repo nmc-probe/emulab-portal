@@ -1252,7 +1252,6 @@ elsif ($inout eq "modify") {
 	}
     }
 
-    $experiment->ClearBackupState();
     $experiment->Report($repfile, "-b");    
 }
 else { # $inout eq "restart" assumed.
@@ -1268,6 +1267,11 @@ else { # $inout eq "restart" assumed.
 if (defined($logname)) {
     system("cp -fp $logname $workdir/" . EXPTLOGNAME());
 }
+
+#
+# Remove stuff we no longer need. 
+#
+$experiment->ClearBackupState();
 
 #
 # Save the final experiment state so that we get a running record of
