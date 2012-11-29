@@ -84,7 +84,7 @@ sub usage()
         exit(-1);
 }
 
-my $optlist = "s:e:m:vp:rSan:c:uxg:h1:l:zZC";
+my $optlist = "s:e:m:vp:rSan:c:uxg:h1:l:zZCb";
 my $mfactor;
 my $virtstuff = 0;
 my $widearea  = 0;
@@ -96,6 +96,7 @@ my $prune     = 0;
 my $do_xml    = 0;
 my $genimode  = $NO_GENI;
 my $useshared = 0;
+my $useblockstore = 0;
 my $component_name = undef;
 my $randomize = 0;
 my $usecontrol= 0;
@@ -196,6 +197,7 @@ use Experiment;
 use Node;
 use NodeType;
 use Lan;
+use BlockstoreType;
 
 tblog_stop_capture('stdout');
 
@@ -242,6 +244,9 @@ if (defined($options{"m"})) {
 }
 if (defined($options{"h"})) {
     $useshared = 1;
+}
+if (defined($options{"b"})) {
+    $useblockstore = 1;
 }
 if (defined($options{"v"})) {
     $virtstuff = 1;
@@ -440,12 +445,16 @@ while (($node,$eventstate, $role, $uuid, $isremotenode,
 		    && $erole eq "sharedhost"
 		    && $useshared
 		    && $isup);
+    my $isblockstore = (defined($erole)
+			&& $erole eq "storagehost"
+			&& $useblockstore
+			&& $isup);
     my $isreserved = (defined($reserved_eid)
 		      || (defined($reserved_pid)
 			  && (! defined($pid) || $pid ne $reserved_pid)));
     my $isfree = (!$islocal
 		  || (! $isreserved && $isup)
-		  || $isshared);
+		  || $isshared || $isblockstore);
     $nodetoavailable{$node} = $isfree;
 }
 
@@ -774,6 +783,13 @@ if ($useshared) {
 	" np.eventstate='" . TBDB_NODESTATE_ISUP . "'))";
 }
 
+# In blockstore mode, allow allocated nodes who are storagehosts.
+if ($useshared) {
+    $free_condition = "($free_condition or ".
+	"(b.node_id is not null && b.erole='storagehost' && ".
+	" np.eventstate='" . TBDB_NODESTATE_ISUP . "'))";
+}
+
 # If the user wants all nodes, we consider everything to be free (this
 # overrides the other possible free conditions
 if ($allnodes) {
@@ -812,7 +828,7 @@ $result =
 		 "  np.battery_percentage,np.uuid,b.sharing_mode, ".
 		 "  ru.load_1min, ru.load_5min, ru.status_timestamp, ".
 		 "  a.def_boot_osid, nat2.attrvalue, wn.country, " .
-                 "  wn.latitude, wn.longitude, t.isremotenode ".
+                 "  wn.latitude, wn.longitude, t.isremotenode, b.erole ".
 		 "from nodes as a ".
 		 "left join reserved as b on a.node_id=b.node_id ".
 		 "left join reserved as m on a.phys_nodeid=m.node_id ".
@@ -837,6 +853,8 @@ $result =
 		 "   (a.role='testnode' and (t.isremotenode=0 or ".
 		 "                           dedicated_wa_types.attrvalue=1))");
 
+%storage_node = ();
+
 #
 # Scan the results, checking permissions and adding to the list
 # You get to use a node type if no pid was specified (that is, you get
@@ -846,7 +864,7 @@ $result =
 while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 	$prereserved,$eventstate,$battery_perc,$uuid,$sharing_mode,
 	$load_1min,$load_5min,$load_tstamp,$osid,$weight,$country,$latitude,
-        $longitude,$isremote) = $result->fetchrow_array) {
+        $longitude,$isremote,$erole) = $result->fetchrow_array) {
     my $current = $top->CreateNode($node);
     $current->SetSubnode($physnode, $issubnode);
     $current->SetRemote($isremote);
@@ -870,9 +888,12 @@ while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 				 "load_tstamp" => $load_tstamp,
 				 "osid"        => $osid,
 				 "weight"      => $weight};
-    }
-    else {
+    } else {
 	$sharing_mode{$node} = 0;
+    }
+
+    if (defined($erole) && $erole eq "storagehost") {
+	$storage_node{$node} = 1;
     }
 
     if (defined($prereserved) && !(defined($pid) && $prereserved eq $pid)) {
@@ -1041,6 +1062,13 @@ foreach $node (@nodenames) {
 		#push(@features, "shareweight:$weight");
 	    }
 	}
+    }
+
+    #
+    # Storage Nodes
+    #
+    if (exists($storage_node{$node})) {
+	push(@features, "pcstorage:1.0");
     }
 
     #
@@ -1259,6 +1287,45 @@ foreach $node (@nodenames) {
     print_node($node, \@types, \@parse_features, \@flags, $uuid,
 	       $nodetointerface{$node}, $country, $latitude, $longitude,
 	       $type);
+}
+
+#
+# Print out all blockstores
+#
+if ($useblockstore) {
+    $result = DBQueryFatal("select b.node_id, b.bs_id, b.type, ".
+			   "s.remaining_capacity ".
+			   "from blockstores as b ".
+			   "left join blockstore_state as s ".
+			   "on b.bsidx=s.bsidx");
+    while (my ($nodeId, $bsId, $typeName,
+	       $capacity) = $result->fetchrow_array) {
+	my $type = BlockstoreType->Lookup($typeName);
+	if (defined($type)) {
+	    my @features = ();
+	    my $class;
+	    $type->GetAttribute("class", \$class);
+	    if (defined($class)) {
+		push(@features, "bs-class-$class:0.5");
+	    }
+	    my $protocol;
+	    $type->GetAttribute("protocol", \$protocol);
+	    if (defined($protocol)) {
+		push(@features, "bs-protocol-$protocol:0.5");
+	    }
+	    my $divisible;
+	    $type->GetAttribute("divisible", \$divisible);
+	    my $slots = "1";
+	    if (defined($divisible) && $divisible) {
+		$slots = "*";
+	    }
+	    push(@features, "+bs-capacity:$capacity");
+	    print_node("$nodeId:$bsId", ["blockstore:$slots"], \@features,
+		       ["subnode_of:$nodeId"], "", $nodetointerface{$nodeId},
+		       $node_countries{$nodeId}, $node_latitudes{$nodeId},
+		       $node_longitudes{$nodeId}, "blockstore");
+	}
+    }
 }
 
 my @inet_protos = ("ipv4");
