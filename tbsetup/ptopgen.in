@@ -784,7 +784,7 @@ if ($useshared) {
 }
 
 # In blockstore mode, allow allocated nodes who are storagehosts.
-if ($useshared) {
+if ($useblockstore) {
     $free_condition = "($free_condition or ".
 	"(b.node_id is not null && b.erole='storagehost' && ".
 	" np.eventstate='" . TBDB_NODESTATE_ISUP . "'))";
