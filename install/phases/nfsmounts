@@ -60,6 +60,12 @@ sub Install($$$)
 	    my $nfsopt = "nosuid";
 	    $nfsopt .= ",nodev"
 		if ($FBSD_MAJOR < 7);
+	    #
+	    # Do late mounts on boss to avoid deadlocks with fs node
+	    # which might want services from boss before exporting FSes
+	    #
+	    $nfsopt .= ",late"
+		if (ISBOSSNODE($server));
 
 	    my @lines = ();
 	    foreach my $dir (@dirs) {
