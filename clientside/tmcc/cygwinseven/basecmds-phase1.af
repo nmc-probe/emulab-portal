@@ -80,10 +80,16 @@ addreg HKLM\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update 
 runcmd sc.exe ;; config wuauserv start= disabled ;; 0
 
 log Disabling hibernate
-runcmd powercfg.exe ;; /H off ;; 0
+runcmd powercfg.exe ;; -hibernate off ;; 0
+
+log Setting power scheme to "High Performance" (I.e., no power saving)
+runcmd powercfg.exe ;; -setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c ;; 0
 
 log Disabling scheduled defragmentation
 runcmd schtasks.exe ;; /change /TN "\Microsoft\Windows\Defrag\ScheduledDefrag" /disable ;; 0
+
+log Disabling System Restore
+addreg HKLM\Software\Policies\Microsoft\Windows NT\SystemRestore ;; DisableSR ;; Dword ;; 1
 
 log Enabling Remote Desktop Protocol connections
 addreg HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server ;; fDenyTSConnections ;; Dword ;; 0

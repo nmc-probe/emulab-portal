@@ -4892,6 +4892,15 @@ done
 
 # END Python detection.
 
+# Conditional files created for various versions of Windows
+# based on which variables are defined.
+
+# Win7 Pro x86
+if test -n ${WINDOWS_KEY_7PRO_X86}; then
+   cp -f $srcdir/tmcc/cygwinseven/unattend-x86.xml.in.tmpl $srcdir/tmcc/cygwinseven/unattend-7pro-x86.xml.in
+   winfiles="$winfiles tmcc/cygwinseven/unattend-7pro-x86.xml"
+fi
+
 outfiles="Makeconf GNUmakefile setversion \
 	  lib/GNUmakefile \
           lib/libtb/GNUmakefile \
@@ -4941,7 +4950,6 @@ outfiles="Makeconf GNUmakefile setversion \
 	  tmcc/freebsd9/GNUmakefile tmcc/freebsd9/netif-emulab \
 	  tmcc/freebsd10/GNUmakefile tmcc/freebsd10/netif-emulab \
 	  tmcc/cygwinxp/GNUmakefile tmcc/dp/GNUmakefile \
-	  tmcc/cygwinseven/GNUmakefile tmcc/cygwinseven/unattend-x86.xml \
 	  tmcc/openbsd/GNUmakefile tmcc/ron/GNUmakefile \
 	  tmcc/plab/GNUmakefile tmcc/cygwinseven/GNUmakefile \
 	  os/GNUmakefile os/syncd/GNUmakefile \
