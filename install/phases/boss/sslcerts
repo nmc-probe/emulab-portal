@@ -74,7 +74,28 @@ sub Install($$$)
 			   "     ${USERNODE}:${ETC_EMULAB_DIR}/${CLIENT_PEM}");
 	    ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
 			   "     'chmod 640 ${ETC_EMULAB_DIR}/${CLIENT_PEM}; ".
-			   "      chmod 640 ${ETC_EMULAB_DIR}/${EMULAB_PEM}'  ");
+			   "      chmod 640 ${ETC_EMULAB_DIR}/${EMULAB_PEM}; ".
+			   "      chown root:wheel ${ETC_EMULAB_DIR}/${CLIENT_PEM}; ".
+			   "      chown root:wheel ${ETC_EMULAB_DIR}/${EMULAB_PEM}' ");
+	};
+	Phase "sslfscopy", "Copying SSL certificates to fs", sub {
+	    if ($USERNODE eq $FSNODE) {
+		PhaseSkip("FS node is ops node");
+	    }
+	    if ($BOSSNODE eq $FSNODE) {
+		PhaseSkip("FS node is boss node");
+	    }
+	    ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${FSNODE} ".
+			   "     mkdir -p ${ETC_EMULAB_DIR} ");
+	    ExecQuietFatal("$SCP $PREFIX/etc/$EMULAB_PEM ".
+			   "     ${FSNODE}:${ETC_EMULAB_DIR}");
+	    ExecQuietFatal("$SCP $TOP_OBJDIR/ssl/$CTRLNODE_PEM".
+			   "     ${FSNODE}:${ETC_EMULAB_DIR}/${CLIENT_PEM}");
+	    ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${FSNODE} ".
+			   "     'chmod 640 ${ETC_EMULAB_DIR}/${CLIENT_PEM}; ".
+			   "      chmod 640 ${ETC_EMULAB_DIR}/${EMULAB_PEM}; ".
+			   "      chown root:wheel ${ETC_EMULAB_DIR}/${CLIENT_PEM}; ".
+			   "      chown root:wheel ${ETC_EMULAB_DIR}/${EMULAB_PEM}' ");
 	};
 	Phase "apache", "Setting up Apache on boss", sub {
 	    Phase "dirs", "Creating SSL directories ", sub {

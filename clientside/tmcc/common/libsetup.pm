@@ -47,8 +47,8 @@ use Exporter;
 	 TBDebugTimeStamp TBDebugTimeStampWithDate
 	 TBDebugTimeStampsOn TBDebugTimeStampsOff
 
-	 MFS REMOTE REMOTEDED CONTROL WINDOWS JAILED PLAB LOCALROOTFS IXP
-	 USESFS SHADOW FSRVTYPE PROJDIR EXPDIR
+	 MFS REMOTE REMOTEDED CONTROL FSNODE WINDOWS JAILED PLAB LOCALROOTFS
+	 IXP USESFS SHADOW FSRVTYPE PROJDIR EXPDIR
 
 	 SIMTRAFGEN SIMHOST ISDELAYNODEPATH JAILHOST DELAYHOST STARGATE
 	 ISFW FAKEJAILED LINUXJAILED GENVNODE GENVNODETYPE GENVNODEHOST
@@ -450,6 +450,11 @@ sub REMOTEDED()	{ if (-e "$ETCDIR/isremded") { return 1; } else { return 0; } }
 # Same for a control node.
 #
 sub CONTROL()	{ if (-e "$ETCDIR/isctrl") { return 1; } else { return 0; } }
+
+#
+# Same for an FS node.
+#
+sub FSNODE()	{ if (-e "$ETCDIR/isfs") { return 1; } else { return 0; } }
 
 #
 # Same for a Windows (CygWinXP) node.

@@ -58,6 +58,7 @@ install client-install:
 local-install:		path-install local-script-install symlinks
 remote-install:		path-install remote-script-install
 control-install:	path-install control-script-install
+fs-install:		path-install fs-script-install
 subboss-local-install:	path-install subboss-local-script-install symlinks
 
 other-install:
@@ -162,6 +163,18 @@ remote-script-install:	common-script-install
 control-script-install:	dir-install bossnode
 	$(INSTALL) -m 755 $(SRCDIR)/libsetup.pm $(BINDIR)/libsetup.pm
 	$(INSTALL) -m 755 $(SRCDIR)/libtmcc.pm $(BINDIR)/libtmcc.pm
+	$(INSTALL) -m 755 $(SRCDIR)/libtestbed.pm $(BINDIR)/libtestbed.pm
+	$(INSTALL) -m 755 $(SRCDIR)/tmcc.pl $(BINDIR)/tmcc
+	$(INSTALL) -m 755 $(SRCDIR)/ctrlnode.sh $(SYSRCDIR)/ctrlnode.sh
+	$(INSTALL) -m 755 $(SRCDIR)/rc.ctrlnode $(RCDIR)/rc.ctrlnode
+	$(INSTALL) -m 755 $(SRCDIR)/config/librc.pm $(BINDIR)/librc.pm
+	$(INSTALL) -m 755 $(SRCDIR)/fixarpinfo $(BINDIR)/fixarpinfo
+	$(INSTALL) bossnode $(ETCDIR)/bossnode
+
+fs-script-install:	dir-install bossnode
+	$(INSTALL) -m 755 $(SRCDIR)/libsetup.pm $(BINDIR)/libsetup.pm
+	$(INSTALL) -m 755 $(SRCDIR)/libtmcc.pm $(BINDIR)/libtmcc.pm
+	$(INSTALL) -m 755 $(SRCDIR)/libtestbed.pm $(BINDIR)/libtestbed.pm
 	$(INSTALL) -m 755 $(SRCDIR)/tmcc.pl $(BINDIR)/tmcc
 	$(INSTALL) -m 755 $(SRCDIR)/ctrlnode.sh $(SYSRCDIR)/ctrlnode.sh
 	$(INSTALL) -m 755 $(SRCDIR)/rc.ctrlnode $(RCDIR)/rc.ctrlnode

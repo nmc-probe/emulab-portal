@@ -151,8 +151,17 @@ cdboot-install:	destdircheck common-install etc-install \
 control-install:	dir-install
 	cp /dev/null $(ETCDIR)/isctrl
 	$(INSTALL) -m 755 ../tmcc $(BINDIR)/tmcc.bin
+	$(INSTALL) -m 755 -s ../findif $(BINDIR)/findif
 	$(INSTALL) -m 755 $(SRCDIR)/liblocsetup.pm $(BINDIR)/liblocsetup.pm
 	(cd ../common; $(MAKE) control-install)
+	@echo "Remember to install the PEM files if necessary"
+
+fs-install:	dir-install
+	cp /dev/null $(ETCDIR)/isfs
+	$(INSTALL) -m 755 ../tmcc $(BINDIR)/tmcc.bin
+	$(INSTALL) -m 755 -s ../findif $(BINDIR)/findif
+	$(INSTALL) -m 755 $(SRCDIR)/liblocsetup.pm $(BINDIR)/liblocsetup.pm
+	(cd ../common; $(MAKE) fs-install)
 	@echo "Remember to install the PEM files if necessary"
 
 lbs-install:	simple-install

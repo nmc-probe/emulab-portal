@@ -64,6 +64,7 @@ boss-install:   boss-install-subdirs
 client:		client-subdirs
 client-install: client client-install-subdirs
 control-install: control-install-subdirs
+fs-install:
 post-install:	post-install-subdirs
 clean:		clean-subdirs
 distclean:	distclean-subdirs

@@ -146,6 +146,7 @@ ops-install:
 	-chmod 770 $(INSTALL_TOPDIR)/log/mysql
 	-chown mysql $(INSTALL_TOPDIR)/log/mysql
 	-chgrp mysql $(INSTALL_TOPDIR)/log/mysql
+	@$(MAKE) -C rc.d control-install
 	@$(MAKE) -C tbsetup control-install
 	@$(MAKE) -C security control-install
 	@$(MAKE) -C tip control-install
@@ -162,7 +163,9 @@ ifeq ($(PELABSUPPORT),1)
 endif
 
 fs-install:
+	@$(MAKE) -C rc.d fs-install
 	@$(MAKE) -C tbsetup fs-install
+	@$(MAKE) -C clientside fs-install
 	@$(MAKE) -C sensors fs-install
 
 opsfs-install: ops-install fs-install

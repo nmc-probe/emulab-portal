@@ -37,6 +37,7 @@ client: client-subdirs
 install: install-subdirs
 boss-install: install-subdirs
 control-install: control-install-subdirs
+fs-install: fs-install-subdirs
 client-install: client-install-subdirs
 subboss: client
 subboss-install: client-install

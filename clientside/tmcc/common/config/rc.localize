@@ -57,7 +57,7 @@ use librc;
 # Not all clients support this.
 #
 exit(0)
-    if (PLAB() || JAILED() || CONTROL());
+    if (PLAB() || JAILED() || CONTROL() || FSNODE());
 
 # Protos.
 sub doboot();

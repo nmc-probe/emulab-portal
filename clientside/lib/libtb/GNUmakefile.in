@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -37,6 +37,7 @@ client-install: client
 # built during the ops-install target when installing a new emulab.
 # This is done on ops of course.
 control-install: client
+fs-install: client
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 

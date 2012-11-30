@@ -158,8 +158,11 @@ install:
 boss-install:	$(INSTALL_SBINDIR)/findif \
 		elabinelabfiles
 
-control-install: tmcc
+control-install: tmcc findif
 	@$(MAKE) -C freebsd control-install
+
+fs-install: tmcc findif
+	@$(MAKE) -C freebsd fs-install
 
 subboss-install: subboss
 	@$(MAKE) -C $(MDSUBDIR) subboss-install
