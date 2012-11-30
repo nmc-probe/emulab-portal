@@ -1,0 +1,86 @@
+#!/bin/sh
+
+# PROVIDE: arplock
+# REQUIRE: mountd
+# BEFORE: DAEMON
+# KEYWORD: shutdown
+
+#
+# Copyright (c) 2012 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+
+. /etc/emulab/paths.sh
+
+if [ ! -x $BINDIR/fixarpinfo ]; then
+    echo "*** fixarpinfo script missing, ARP lockdown not done"
+    exit 0
+fi
+
+#
+# XXX create some missing state if we are the fs or ops node
+#
+if [ ! -r $BOOTDIR/controlif -a -x $BINDIR/findif ]; then
+    iface=`$BINDIR/findif -i @FSNODE_IP@`
+    if [ -n "$iface" ]; then
+	echo $iface > $BOOTDIR/controlif
+	echo @FSNODE_IP@ > $BOOTDIR/myip
+    else
+	iface=`$BINDIR/findif -i @USERNODE_IP@`
+	if [ -n "$iface" ]; then
+	    echo $iface > $BOOTDIR/controlif
+	    echo @USERNODE_IP@ > $BOOTDIR/myip
+	fi
+    fi
+fi
+
+#
+# OPS/FS version of the ARP lockdown script. We would like to run this early,
+# but there is a race with boss. fixarpinfo uses tmcc to get the info.
+# But boss does not start tmcd until after it has mounted the filesystems
+# from ops and fs...deadlock!
+#
+# So we start this after we export filesystems. Yes, someone could spoof
+# boss before we make this call, but we will detect this in fixarpinfo
+# since it makes an SSL-enabled call to get arpinfo and that call will
+# fail and so will we.
+#
+case "$1" in
+start|faststart)
+	echo "Setting up static ARP entries."
+	$BINDIR/fixarpinfo -sv  >$LOGDIR/fixarpinfo.log 2>&1
+	;;
+restart)
+	echo "Updating static ARP entries."
+	$BINDIR/fixarpinfo -uv  >$LOGDIR/fixarpinfo.log 2>&1
+	;;
+stop)
+	echo "Removing static ARP entries."
+	$BINDIR/fixarpinfo -cv  >$LOGDIR/fixarpinfo.log 2>&1
+	;;
+*)
+	echo "Usage: `basename $0` {start|stop|restart}" >&2
+	false
+	;;
+esac
+
+exit $?
+
