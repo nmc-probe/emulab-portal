@@ -65,7 +65,9 @@ stop)
 	;;
 *)
 	echo "Usage: `basename $0` {start|stop|restart}" >&2
+	false
 	;;
 esac
 
-exit 0
+exit $?
+

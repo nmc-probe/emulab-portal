@@ -36,9 +36,12 @@ sub usage()
     print("Usage: update_sitevars [-d level] [-n] [host]\n");
     exit(-1);
 }
-my $optlist = "d:n";
+my $optlist = "d:nvqi";
 my $debug   = 0;
 my $doit    = 1;
+my $verify  = 0;
+my $quiet   = 0;
+my $verify_count = 0;
 my $hostip;
 
 #
@@ -96,8 +99,15 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"d"})) {
     $debug = $options{"d"};
 }
-if (defined($options{"n"})) {
+if (defined($options{"i"}) || defined($options{"n"})) {
     $doit = 0;
+}
+if (defined($options{"v"})) {
+    $verify = 1;
+    $doit = 0;
+}
+if (defined($options{"q"})) {
+    $quiet = 1;
 }
 if (@ARGV > 0) {
     my $addr = inet_aton($ARGV[0]);
@@ -122,6 +132,13 @@ usage()
 #
 update_arplockdown();
 
+if ($verify) {
+    if (!$quiet && $verify_count) {
+	print "*** Your site variables are out of date.\n";
+	print "    Run 'update_sitevars' to update them as indicated.\n";
+    }
+    exit($verify_count);
+}
 exit(0);
 
 sub update_arplockdown()
@@ -173,23 +190,31 @@ sub update_arplockdown()
 		    fatal("Could not create sitevar '$name'");
 		}
 	    } else {
-		print STDERR "Would create sitevar '$name' [$desc]\n";
+		$verify_count++;
+		if (!$quiet) {
+		    print STDERR "Would create sitevar '$name' [$desc]\n";
+		}
 	    }
 	}
 
 	#
 	# XXX make sure the description is up to date
 	#
-	elsif ($doit) {
+	else {
 	    my $desc = $vars{$name}{'desc'};
 	    my $odesc = GetSiteVarDesc($name);
 
 	    if ($desc ne $odesc) {
-		print "Updating description of $name from '$odesc' to '$desc'\n";
-		SetSiteVarDesc($name, $desc);
+		if ($doit) {
+		    print "Updating description of $name from '$odesc' to '$desc'\n";
+		    SetSiteVarDesc($name, $desc);
+		} else {
+		    $verify_count++;
+		    if (!$quiet) {
+			print "Would update description of $name\n";
+		    }
+		}
 	    }
-	} else {
-	    print "Might update description of $name\n";
 	}
     }
 
@@ -231,20 +256,25 @@ sub update_arplockdown()
 	    if ($doit) {
 		print "Changing $name from ";
 	    } else {
-		print "Would change $name from ";
+		$verify_count++;
+		if (!$quiet) {
+		    print "Would change $name from ";
+		}
 	    }
-	    if (defined($curval)) {
-		print "'$curval'";
-	    } else {
-		print "undefined";
+	    if ($doit || !$quiet) {
+		if (defined($curval)) {
+		    print "'$curval'";
+		} else {
+		    print "undefined";
+		}
+		print " to ";
+		if (defined($newval)) {
+		    print "'$newval'";
+		} else {
+		    print "undefined";
+		}
+		print "\n";
 	    }
-	    print " to ";
-	    if (defined($newval)) {
-		print "'$newval'";
-	    } else {
-		print "undefined";
-	    }
-	    print "\n";
 	    if ($doit && !SetSiteVar($name, $newval)) {
 		fatal("Could not set sitevar '$name'");
 	    }
@@ -331,16 +361,18 @@ sub GetMACs()
     # the current value.
     #
     else {
-	print STDERR "update_sitevars: WARNING: cannot determine GW mac, ";
 	$gw_mac = GetSiteVar("node/gw_mac");
-	if ($gw_mac) {
-	    print STDERR "keeping existing value '$gw_mac'\n";
-	} else {
-	    print STDERR "you need to manually fix this value\n";
+	if (!$quiet) {
+	    print STDERR "update_sitevars: WARNING: cannot determine GW mac, ";
+	    if ($gw_mac) {
+		print STDERR "keeping existing value '$gw_mac'\n";
+	    } else {
+		print STDERR "you need to manually fix this value\n";
+	    }
 	}
     }
 
-    if (!$doit || $debug) {
+    if ((!$doit && !($verify && $quiet)) || $debug) {
 	if ($gotgw) {
 	    print "Multiple-segment configuration:\n";
 	    print "  Private net: $PR_NET/$PR_MASK\n";
@@ -377,7 +409,9 @@ sub GetMACs()
 		print "  Fs on public net: $FS_IP\n";
 	    }
 	}
-	print "\n";
+	if ($doit) {
+	    print "\n";
+	}
     }
 
     return ($gw_mac, $boss_mac, $ops_mac, $fs_mac);
@@ -386,8 +420,12 @@ sub GetMACs()
 sub GetHostOS($)
 {
     my ($ip) = @_;
-    my $sshcmd = "ssh $sshopt $ip ";
     my $output = "";
+
+    my $sshcmd = "";
+    if ($ip ne $BOSS_IP) {
+	$sshcmd = "ssh $sshopt $ip ";
+    }
 
     if (ExecQuiet("$sshcmd uname", \$output)) {
 	fatal("Could not get uname info from $ip");
@@ -407,8 +445,12 @@ sub GetHostOS($)
 sub GetMACFromIfconfig($)
 {
     my ($ip) = @_;
-    my $sshcmd = "ssh $sshopt $ip ";
     my $output = "";
+
+    my $sshcmd = "";
+    if ($ip ne $BOSS_IP) {
+	$sshcmd = "ssh $sshopt $ip ";
+    }
 
     if (ExecQuiet("$sshcmd ifconfig", \$output)) {
 	fatal("Could not harvest ifconfig info from $ip");
@@ -454,8 +496,12 @@ sub GetMACFromIfconfig($)
 sub GetMACFromARP($$)
 {
     my ($host,$ip) = @_;
-    my $sshcmd = "ssh $sshopt $host ";
     my $output = "";
+
+    my $sshcmd = "sh -c";
+    if ($host ne $BOSS_IP) {
+	$sshcmd = "ssh $sshopt $host";
+    }
 
     if (ExecQuiet("$sshcmd 'ping -t 5 -c 1 $ip; arp -an'", \$output)) {
 	fatal("Could not harvest ifconfig info from $ip");

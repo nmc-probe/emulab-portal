@@ -250,6 +250,7 @@ elsif ($server eq "boss") {
 	      #
 	      'boss/dhcpd', 'boss/named', 'boss/flyspray',
 	      'boss/firstuser', 'boss/checkupuser', 'boss/wikidocs',
+	      'boss/updatesitevars',
 	      'boss/mfs', 'boss/images', 'boss/openvz', 'boss/experiments',
 	      'boss/protogeni', 'boss/firewall'
 	     );

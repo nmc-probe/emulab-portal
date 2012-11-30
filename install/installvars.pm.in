@@ -312,6 +312,7 @@ $BATCHEXP		= "$PREFIX/bin/batchexp";
 $ADDPUBKEY		= "$PREFIX/sbin/addpubkey";
 $TBACCT			= "$PREFIX/sbin/tbacct";
 $GENTOPOFILE		= "$PREFIX/libexec/gentopofile";
+$UPDATESITEVARS		= "$PREFIX/sbin/update_sitevars";
 
 $PROTOUSER_KEY		= "$main::TOP_SRCDIR/install/elabman_dsa.pub";
 $ROOT_PRIVKEY		= "/root/.ssh/id_rsa";
