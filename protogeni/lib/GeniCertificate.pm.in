@@ -525,7 +525,7 @@ sub LoadFromArray($@)
     # one below.
     #
     if( !defined( $uuid ) ) {
-	if ($DN =~ /\/CN=([-\w]*)/) {
+	if ($DN =~ /\/CN=([-\w\.]*)/) {
 	    $uuid = $1;
 	}
 	else {
