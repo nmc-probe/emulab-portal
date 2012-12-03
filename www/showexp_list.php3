@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -258,6 +258,8 @@ elseif (! strcmp($sortby, "pcs"))
     $order = "ncount DESC,e.pid,e.eid";
 elseif (! strcmp($sortby, "idle"))
     $order = "canbeidle desc,idle_ignore,idlesec DESC,ncount desc,e.pid,e.eid";
+elseif (! strcmp($sortby, "created"))
+    $order = "e.expt_created";
 else 
     $order = "e.pid,e.eid";
 
@@ -560,8 +562,15 @@ if ($thumb && !$idle) {
     echo "  <th >
                <a class='static' ".
                   "href='showexp_list.php3?showtype=$showtype&sortby=uid$ni'>
-                  Creator/<br>Swapper</a></th>
-            </tr>\n";
+                  Creator/<br>Swapper</a></th>\n";
+    
+    if ($protogeni) {
+	echo "<th>
+                <a class='static' ".
+                "href='showexp_list.php3?showtype=$showtype&sortby=created$ni'>
+                Created</a></th>\n";
+    }
+    echo "</tr>\n";
 
     while ($row = mysql_fetch_array($experiments_result)) {
 	$pid  = $row["pid"];
@@ -576,6 +585,7 @@ if ($thumb && !$idle) {
 	$swapreqs = $row["swap_requests"];
 	$nonlocal_id = $row["nonlocal_id"];
 	$nonlocal_user_id = $row["nonlocal_user_id"];
+	$created = $row["expt_created"];
 	$isidle = ($idlesec >= 3600*$idlehours);
 	$daysidle=0;
 	$idletime = ($idlesec > 300 ? round($idlesec/3600,1) : 0);
@@ -717,6 +727,8 @@ if ($thumb && !$idle) {
 	echo "<tr>
                 <td><A href='showproject.php3?pid=$pid'>";
 	if ($protogeni && $nonlocal_id) {
+            # Drop the URN cruft; waste of space.
+	    $nonlocal_id = substr($nonlocal_id, strlen("urn:publicid:IDN+"));
 	    echo $nonlocal_id;
 	}
 	else {
@@ -760,6 +772,7 @@ if ($thumb && !$idle) {
 	}
 	if ($protogeni) {
 	    echo "<td>$nonlocal_user_id</td>\n";
+	    echo "<td>$created</td>\n";
 	}
 	else {
 	    echo "<td><A href='$showuser_url'>$huid</A>$user_affil_text</td>\n";
