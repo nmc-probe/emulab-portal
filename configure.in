@@ -1298,7 +1298,6 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/cygwinxp/GNUmakefile clientside/tmcc/dp/GNUmakefile \
  clientside/tmcc/openbsd/GNUmakefile clientside/tmcc/ron/GNUmakefile \
  clientside/tmcc/plab/GNUmakefile clientside/tmcc/cygwinseven/GNUmakefile \
- clientside/tmcc/cygwinseven/unattend-x86.xml \
  clientside/os/dijkstra/GNUmakefile clientside/os/genhostsfile/GNUmakefile \
  clientside/os/growdisk/GNUmakefile \
  clientside/os/zapdisk/GNUmakefile \
