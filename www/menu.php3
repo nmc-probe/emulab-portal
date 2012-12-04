@@ -744,6 +744,11 @@ function WRITESIDEBAR() {
 	NavMenuButton("Edit Site Variables",
 		      "$TBBASE/editsitevars.php3");
 
+	if ($TBMAINSITE) {
+	    NavMenuButton("Emulab Site List",
+			  "$TBBASE/showsite_list.php");
+	}
+
 	NavMenuButton("Show Shared Node Pool",
 		      "$TBBASE/showpool.php");
 

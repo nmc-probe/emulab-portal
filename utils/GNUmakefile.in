@@ -49,11 +49,11 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  addspecialdevice addspecialiface imagehash clone_image \
 		  addvpubaddr imageinfo ctrladdr image_import \
 		  prereserve_check tcppd addexternalnetwork \
-		  update_sitevars delete_image
+		  update_sitevars delete_image sitecheckin sitecheckin_client
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
                   webwanodecheckin webspewimage webdumpdescriptor \
-		  webdelete_image
+		  webdelete_image websitecheckin
 WEB_BIN_SCRIPTS = webcreate_image websetdest weblinkmon_ctl webspewevents \
 		  webdelay_config
 LIBEXEC_SCRIPTS	= spewleds webcopy spewsource webcvsweb xlogin webviewvc \

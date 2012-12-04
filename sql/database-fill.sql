@@ -1226,6 +1226,18 @@ REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','vname','text','re
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','attrkey','text','regex','^[-\\w]+$',1,64,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','attrvalue','text','regex','^[-\\w\\.\\+,\\s\\/:]+$',0,255,NULL);
 
+REPLACE INTO table_regex VALUES ('emulab_sites','certificate','text','regex','^[\\012\\015\\040-\\176]*$',128,4096,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','url','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','urn','text','regex','^[-_\\w\\.\\/:+]*$',10,255,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','commonname','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','buildinfo','text','regex','^[-\\w\\/]*$',8,32,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','commithash','text','regex','^[\\w]*$',32,64,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','dbrev','float','redirect','default:float',0,0,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','install','float','redirect','default:float',0,0,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','os_version','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','perl_version','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('emulab_sites','tbops','text','redirect','users:usr_email',0,0,NULL);
+
 REPLACE INTO table_regex VALUES ('default','fulltext','text','regex','^[\\040-\\073\\075\\077-\\176\\012\\015\\011]*$',0,20000,NULL);
 REPLACE INTO table_regex VALUES ('default','html_fulltext','text','regex','^[\\040-\\176\\012\\015\\011]*$',0,20000,NULL);
 

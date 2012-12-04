@@ -703,6 +703,28 @@ CREATE TABLE `emulab_pubs_month_map` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `emulab_sites`
+--
+
+DROP TABLE IF EXISTS `emulab_sites`;
+CREATE TABLE `emulab_sites` (
+  `urn` varchar(128) NOT NULL default '',
+  `commonname` varchar(64) NOT NULL,
+  `url` tinytext,
+  `created` datetime NOT NULL,
+  `updated` datetime NOT NULL,
+  `buildinfo` datetime NOT NULL,
+  `commithash` varchar(64) NOT NULL,
+  `dbrev` tinytext NOT NULL,
+  `install` tinytext NOT NULL,
+  `os_version` tinytext NOT NULL,
+  `perl_version` tinytext NOT NULL,
+  `tbops` tinytext,
+  PRIMARY KEY  (`urn`),
+  UNIQUE KEY `commonname` (`commonname`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `errors`
 --
 
