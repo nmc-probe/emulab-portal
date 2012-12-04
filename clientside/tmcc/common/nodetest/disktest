@@ -82,6 +82,9 @@ gettemp(){
     case $2 in
 	WD)
 	    tmp=$($SMARTCTL --tolerance=verypermissive -A $1 | grep '^194' | cut -d' ' -f 41)
+	    if [[ ! $tmp ]] ; then
+		tmp=$($SMARTCTL --tolerance=verypermissive -A $1 | grep '^194' | cut -d' ' -f 37)
+	    fi
 	    echo -n ${tmp%\)}C
 	    ;;
 	SG)
@@ -105,12 +108,12 @@ if [ -e "/var/emulab/boot/realname" ]; then
     host=`cat /var/emulab/boot/realname`
 fi
 case "$host" in
-    boss*|ops*|bas*|*.flux.utah.edu|pc489*|pc599*|pc465*)
+    boss*|ops*|bas*|*.flux.utah.edu)
         echo "No way am I going to run this on $host!"
 	exit 1
 	;;
     # these are temporarily server machines
-    pc432*|pc436*|pc439*)
+    pc436*)
 	echo "$host: skipping temporary server machine"
 	exit 0
 	;;

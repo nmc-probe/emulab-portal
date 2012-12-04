@@ -11,8 +11,7 @@
 #nfree emulab-ops SlowDisks $C20andHotter
 #exit
 
-#list="pc500 pc496 pc495 pc498 pc497"
-list="pc479 pc472 pc452"
+list="dbox3"
 
 #check for ssh access
 for i in $list
@@ -22,6 +21,7 @@ echo -n "${i} : "
 ssh $i uptime
 echo ""
 done
+
 
 for i in $list
 do

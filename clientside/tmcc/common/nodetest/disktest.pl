@@ -3,8 +3,8 @@
 #
 use Getopt::Std;
 
-my $DISKSIZE =  240;	# in GB or 0 to just go to end
-my $INTERVAL =   10;	# in GB
+my $DISKSIZE =  0;	# in GB or 0 to just go to end
+my $INTERVAL =   100;	# in GB
 my $IOSIZE =    128;	# in MB
 my $BLOCKSIZE = 128;	# in KB
 
@@ -101,7 +101,7 @@ while ($DISKSIZE == 0 || $gboffset < $DISKSIZE) {
 	foreach my $line (@output) {
 	    chomp($line);
 
-	    # BSD: 1073741824 bytes transferred in 62.940028 secs (17059761 bytes/sec)
+    # BSD: 1073741824 bytes transferred in 62.940028 secs (17059761 bytes/sec)
 	    if ($line =~ /\((\d+)\s+bytes\/sec\)/) {
 		$mbps = $1 / (1000 * 1000);
 		print STDERR "Parsed line: '$line'\n"
