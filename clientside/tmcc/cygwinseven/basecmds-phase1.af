@@ -77,7 +77,7 @@ addreg HKLM\Software\Microsoft\Windows\Windows Error Reporting ;; Disabled ;; Dw
 
 log Disabling automatic updating
 addreg HKLM\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update ;; AUOptions ;; Dword ;; 1
-runcmd sc.exe ;; config wuauserv start= disabled ;; 0
+runcmd sc.exe ;; config wuauserv start= demand ;; 0
 
 log Disabling hibernate
 runcmd powercfg.exe ;; -hibernate off ;; 0
