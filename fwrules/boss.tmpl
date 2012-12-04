@@ -65,7 +65,7 @@ add pass udp from any to any bootps keep-state
 
 # Syslog. I thought all syslog went to ops?
 add pass udp from %alltestbed% to me syslog keep-state
-add pass udp from %jailnetwork%  to me syslog keep-state
+add pass udp from %jailnetwork% to me syslog keep-state
 
 # Allow NFS mounts to ops
 #
