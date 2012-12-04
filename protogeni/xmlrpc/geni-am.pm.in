@@ -76,7 +76,7 @@ if ($GENI_VERSION eq "1.0" || $GENI_VERSION eq "2.0") {
 	"Delete"        => \&GeniAM::Delete,
 	"Shutdown"      => \&GeniAM::Shutdown,
 	"Update"        => \&GeniAM::Update,
-        "Cancel"        => \&GeniAM::Cancel
+        "Cancel"        => \&GeniAM::Cancel,
         "CreateImage"   => \&GeniAM::CreateImage,
     };
 }
