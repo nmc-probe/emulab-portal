@@ -135,6 +135,10 @@ foreach my $current (@wires) {
     print IF_FILE "  <attribute name='mac'><value>$mac</value></attribute>\n";
     print IF_FILE "  <attribute name='type'><value>$type</value></attribute>\n";
     print IF_FILE "  <attribute name='role'><value>$role</value></attribute>\n";
+    if ($role eq "mngmnt" && exists($ilo_ips{$node_id})) {
+	my $IP = $ilo_ips{$node_id};
+	print IF_FILE "  <attribute name='IP'><value>$IP</value></attribute>\n";
+    }
     print IF_FILE "</newinterface>\n";
     close(IF_FILE);
 }
