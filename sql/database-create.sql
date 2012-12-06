@@ -2293,6 +2293,7 @@ CREATE TABLE `new_interfaces` (
   `cable` smallint(6) default NULL,
   `len` tinyint(4) default NULL,
   `role` tinytext,
+  `IP` varchar(15) default NULL,
   PRIMARY KEY  (`new_interface_id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
 
