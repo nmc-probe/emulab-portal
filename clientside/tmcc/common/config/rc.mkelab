@@ -578,16 +578,15 @@ sub doboot()
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-3.0";
     }
     elsif ($FBSD_VERSION == 7.3) {
-	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/7.3/packages";
-	$emulabconfig{FS_PKG_DIR} .= "-64"
-	    if ($FBSD_ARCH eq "amd64");
+	my $suf = ($FBSD_ARCH eq "amd64") ? "-64" : "";
+	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/7.3/packages${suf}";
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{FS_PKG}       = "emulab-fs-3.1";
 	$emulabconfig{OPS_PKG}      = "emulab-ops-3.1";
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-3.1";
     }
-    elsif ($FBSD_VERSION >= 8.2 && $FBSD_VERSION < 9.0) {
+    elsif ($FBSD_VERSION == 8.2) {
 	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/8.2/packages";
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
@@ -596,6 +595,17 @@ sub doboot()
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-4.0";
 	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-8.2-packages.tar.gz";
 	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-2.0";
+    }
+    elsif ($FBSD_VERSION >= 8.3 && $FBSD_VERSION < 9.0) {
+	my $suf = ($FBSD_ARCH eq "amd64") ? "-64" : "";
+	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/8.3/packages${suf}";
+	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{FS_PKG}       = "emulab-fs-5.0";
+	$emulabconfig{OPS_PKG}      = "emulab-ops-5.0";
+	$emulabconfig{BOSS_PKG}     = "emulab-boss-5.0";
+	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-8.3-packages${suf}.tar.gz";
+	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-3.0";
     }
     elsif ($FBSD_VERSION >= 9.0) {
 	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/9.0/packages";
@@ -614,6 +624,7 @@ sub doboot()
 
 	#
 	# Grab the package tarball now.
+	# XXX note that we do not download into $TBDIR, it gets moved later.
 	#
 	mysystem("fetch -q -o /usr/packages.tar.gz ".
 		 "'http://${bossname}/downloads/" .
@@ -1029,8 +1040,20 @@ sub SetupFsNode()
     print RC "nfs_server_enable=\"YES\"\n";
     print RC "nfs_server_flags=\"-u -t -n 8\"\n";
     print RC "nfs_client_enable=\"YES\"\n";
-    print RC "smbd_enable=\"YES\"\n"
-	if ($emulabconfig{"CONFIG_WINDOWS"});
+    if ($emulabconfig{"CONFIG_WINDOWS"}) {
+	#
+	# As of 10/2012, the startup for samba changed.
+	# XXX not directly related to the FreeBSD version, but it is
+	# the best we can do--the port version was not bumped when this
+	# change was made.
+	#
+	if ($FBSD_VERSION >= 8.3) {
+	    print RC "samba_enable=\"YES\"\n";
+	    print RC "nmbd_enable=\"NO\"\n";
+	} else {
+	    print RC "smbd_enable=\"YES\"\n";
+	}
+    }
     print RC "mountd_flags=\"-r -p 900\"\n";
 
     print RC "network_interfaces=\"$outer_controlif\"\n";
@@ -1430,8 +1453,8 @@ sub SetupOpsNode($)
 	    system("pkg_delete -f -x emacs");
 	}
     
-	# XXX 8.2 image is out of sync right now
-	if ($FBSD_VERSION == 8.2) {
+	# XXX 8.x images have rpm-3 installed
+	if ($FBSD_VERSION == 8.2 || $FBSD_VERSION == 8.3) {
 	    system("pkg_delete -f -x rpm-3");
 	}
     
@@ -1707,7 +1730,7 @@ sub SetupOpsNode($)
 	    if (exists($emulabconfig{"GENIRACK_TBOPS"})) {
 		$where .= "\n" . $emulabconfig{"GENIRACK_TBOPS"};
 	    }
-	    
+
 	    if ($list eq "testbed-logs" || $list eq "testbed-audit") {
 		if (exists($emulabconfig{"GENIRACK_TBLOGS"})) {
 		    $where = $emulabconfig{"GENIRACK_TBLOGS"};
@@ -2111,8 +2134,8 @@ sub SetupBossNode($)
 	system("pkg_delete -x net-snmp")
 	    if (-e "/usr/local/include/net-snmp");
 
-	# XXX 8.2 image is out of sync right now
-	if ($FBSD_VERSION == 8.2) {
+	# XXX 8.x images have rpm-3 installed
+	if ($FBSD_VERSION == 8.2 || $FBSD_VERSION == 8.3) {
 	    system("pkg_delete -f -x rpm-3");
 	}
     
@@ -2738,8 +2761,8 @@ sub SetupOpsJail()
 	system("pkg_delete -r -x mysql-client")
 	    if (-e "/usr/local/bin/mysql");
     
-	# XXX 8.2 image is out of sync right now
-	if ($FBSD_VERSION == 8.2) {
+	# XXX 8.x images have rpm-3 installed
+	if ($FBSD_VERSION == 8.2 || $FBSD_VERSION == 8.3) {
 	    system("pkg_delete -f -x rpm-3");
 	}
     

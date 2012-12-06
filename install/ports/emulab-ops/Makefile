@@ -95,6 +95,9 @@ BUILD_DEPENDS=	\
 	${LOCALBASE}/libexec/apache/libphp${PHP_VER}.so:${PORTSDIR}/misc/emulab-php${PHP_VER}
 .endif
 
+# XXX force our version of tcl early to prevent installing a newer version
+BUILD_DEPENDS+=	tclsh8.4:${PORTSDIR}/lang/tcl84
+
 LIB_DEPENDS=
 
 # no linuxthreads on amd64
@@ -188,14 +191,15 @@ RUN_DEPENDS+= \
 	${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb \
         curl:${PORTSDIR}/ftp/curl \
         snort:${PORTSDIR}/security/snort \
-	mysqlhotcopy:${PORTSDIR}/databases/mysql50-scripts
+	mysqlhotcopy:${PORTSDIR}/databases/mysql50-scripts \
+	${LOCALBASE}/bin/flex:${PORTSDIR}/textproc/flex
 .else
 RUN_DEPENDS+= smbd:${PORTSDIR}/net/samba3
 .endif
 
 # make sure these get installed
 RUN_DEPENDS+=	\
-	${X11BASE}/libdata/xorg/libraries:${PORTSDIR}/x11/xorg-libraries
+	${LOCALBASE}/libdata/xorg/libraries:${PORTSDIR}/x11/xorg-libraries
 
 NO_BUILD=	yes
 USE_PYTHON=	yes

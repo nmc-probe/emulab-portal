@@ -18,12 +18,47 @@ NO_BUILD=	yes
 #
 .MAKEFLAGS+=	-DBATCH
 
-RUN_DEPENDS+=	\
+#
+# Emacs configuration options. Controls the worst of the excesses.
+# I am reasonably confident that these options will not affect the
+# other ports listed.
+#
+.MAKEFLAGS+=	WITHOUT_DBUS=yes
+.MAKEFLAGS+=	WITHOUT_GCONF=yes
+.MAKEFLAGS+=	WITHOUT_GIF=yes
+.MAKEFLAGS+=	WITHOUT_GTK2=yes
+.MAKEFLAGS+=	WITH_JPEG=yes
+.MAKEFLAGS+=	WITHOUT_M17N=yes
+.MAKEFLAGS+=	WITHOUT_MOTIF=yes
+.MAKEFLAGS+=	WITHOUT_OTF=yes
+.MAKEFLAGS+=	WITHOUT_PNG=yes
+.MAKEFLAGS+=	WITHOUT_SOUND=yes
+.MAKEFLAGS+=	WITH_SOURCES=yes
+.MAKEFLAGS+=	WITHOUT_SVG=yes
+.MAKEFLAGS+=	WITHOUT_TIFF=yes
+.MAKEFLAGS+=	WITH_X11=yes
+.MAKEFLAGS+=	WITH_XAW=yes
+.MAKEFLAGS+=	WITHOUT_XAW3D=yes
+.MAKEFLAGS+=	WITH_SYNC_INPUT=yes
+.MAKEFLAGS+=	WITHOUT_SCROLLBARS=yes
+.MAKEFLAGS+=	WITHOUT_XFT=yes
+.MAKEFLAGS+=	WITHOUT_XIM=yes
+.MAKEFLAGS+=	WITHOUT_XPM=yes
+
+# XXX do vim-lite to avoid dragging in gtk
+RUN_DEPENDS=	\
         ${LOCALBASE}/bin/jove:${PORTSDIR}/editors/jove \
         ${LOCALBASE}/bin/emacs:${PORTSDIR}/editors/emacs \
-        ${LOCALBASE}/bin/vim:${PORTSDIR}/editors/vim \
+        ${LOCALBASE}/bin/vim:${PORTSDIR}/editors/vim-lite \
         ${LOCALBASE}/sbin/lsof:${PORTSDIR}/sysutils/lsof \
-        ${LOCALBASE}/bin/ttcp:${PORTSDIR}/benchmarks/ttcp
+        ${LOCALBASE}/bin/ttcp:${PORTSDIR}/benchmarks/ttcp \
+        ${LOCALBASE}/sbin/e2fsck:${PORTSDIR}/sysutils/e2fsprogs \
+        ${LOCALBASE}/sbin/portupgrade:${PORTSDIR}/ports-mgmt/portupgrade \
+        ${PYTHON_SITELIBDIR}/svn/client.py:${PORTSDIR}/devel/py-subversion \
+        ${LOCALBASE}/bin/xterm:${PORTSDIR}/x11/xterm \
+        ${LOCALBASE}/sbin/portaudit:${PORTSDIR}/ports-mgmt/portaudit
+
+USE_PYTHON=	yes
 
 do-install:	# empty
 

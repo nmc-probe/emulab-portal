@@ -91,6 +91,9 @@ BUILD_DEPENDS=	\
 	${LOCALBASE}/libexec/apache/libphp${PHP_VER}.so:${PORTSDIR}/misc/emulab-php${PHP_VER}
 .endif
 
+# XXX force our version of tcl early to prevent installing a newer version
+BUILD_DEPENDS+=	tclsh8.4:${PORTSDIR}/lang/tcl84
+
 LIB_DEPENDS= gd.4:${PORTSDIR}/graphics/gd \
 	mhash.2:${PORTSDIR}/security/mhash \
 	mysqlclient.15:${PORTSDIR}/databases/mysql50-client \
@@ -135,7 +138,6 @@ RUN_DEPENDS+=	\
         swish-e:${PORTSDIR}/www/swish-e \
 	${LOCALBASE}/libexec/mysqld:${PORTSDIR}/databases/mysql50-server \
 	anytopnm:${PORTSDIR}/graphics/netpbm \
-	tclsh8.4:${PORTSDIR}/lang/tcl84 \
 	otclsh:${PORTSDIR}/lang/otcl \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/SNMP.pm:${PORTSDIR}/${P5SNMP_PORT} \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/SNMP_Session.pm:${PORTSDIR}/net-mgmt/p5-SNMP_Session \
@@ -243,7 +245,7 @@ RUN_DEPENDS+= \
 
 # make sure these get installed
 RUN_DEPENDS+=	\
-	${X11BASE}/libdata/xorg/libraries:${PORTSDIR}/x11/xorg-libraries \
+	${LOCALBASE}/libdata/xorg/libraries:${PORTSDIR}/x11/xorg-libraries \
         ${LOCALBASE}/bin/xauth:${PORTSDIR}/x11/xauth
 
 USE_PERL5=	yes

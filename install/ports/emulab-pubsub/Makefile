@@ -1,7 +1,7 @@
 # ports collection makefile for: emulab-pubsub
 
 PORTNAME=	pubsub
-PORTVERSION=	0.95
+PORTVERSION=	0.98
 CATEGORIES=	misc
 MASTER_SITES=	http://www.emulab.net/distributions/
 DISTFILES=      ${PORTNAME}-${PORTVERSION}.tar.gz
@@ -10,7 +10,7 @@ WRKSRC=         ${WRKDIR}/${PORTNAME}-${PORTVERSION}
 MAINTAINER=	testbed-ops@flux.utah.edu
 COMMENT=	"Simple publish subscribe system for Emulab"
 
-MAKEFILE=	GNUmakefile
+USE_AUTOTOOLS=	autoconf
 USE_GMAKE=	yes
 INSTALLS_SHLIB=	yes
 
