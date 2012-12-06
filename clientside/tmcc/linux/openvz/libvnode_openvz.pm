@@ -1456,6 +1456,13 @@ sub vz_vnodePreConfigControlNetwork {
 	    system("$IPTABLES -t nat -A POSTROUTING" . 
 		   " -s $net/$mask" . 
 		   " -d $cnetwork/$cnetmask -j ACCEPT") ||
+	    #
+	    # Same as above, but specific rule for boss which might be on
+	    # a distinct segment, as it is in Utah. 
+	    #
+	    system("$IPTABLES -t nat -A POSTROUTING" . 
+		   " -s $net/$mask" . 
+		   " -d $bossip -j ACCEPT") ||
             # 
             # Then if the source is from one vnode to another vnode, also 
             # let that through without NAT'ing it. 
