@@ -116,7 +116,8 @@ INSERT INTO sitevariables VALUES ('general/autoswap_max',NULL,'120','Maximum num
 INSERT INTO sitevariables VALUES ('protogeni/show_sslcertbox','1','1','When set, users see option on join/start project pages to create SSL certificate.',0);
 INSERT INTO sitevariables VALUES ('protogeni/default_osname','','','The default os name used for ProtoGENI slivers when no os is specified on a node.',0);
 INSERT INTO sitevariables VALUES ('images/root_password',NULL,'','The encryption hash of the root password to use in the MFSs.',0);
-
+INSERT INTO sitevariables VALUES ('protogeni/idlecheck',NULL,'0','When set, do idle checks and send email about idle slices.',0);
+INSERT INTO sitevariables VALUES ('protogeni/idlecheck_terminate',NULL,'0','When set, do idle checks and terminate idle slices after email warning.',0);
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
