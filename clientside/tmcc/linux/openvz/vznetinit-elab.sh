@@ -59,6 +59,9 @@ if [ $ELABCTRLDEV = $DEV ]; then
     else
         $ROUTE add -host $ELABCTRLIP dev $ELABCTRLBR
     fi
+    # Hmm, weird race. Sometimes the container starts with its
+    # control network not working right. This seems to help. 
+    sleep 2
     # no point continuing.
     exit 0
 fi

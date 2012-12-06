@@ -52,10 +52,17 @@ fi
 #
 # Note timeout; we do not want the proxy to ever get stuck. 
 #
+rm -f /var/emulab/logs/tmccproxy.$vnodeid.log
+rm -f $MYROOT/var/emulab/tmcc.sock
+
 /usr/local/etc/emulab/tmcc -d -t 10 -x $MYROOT/var/emulab/tmcc.sock \
     -n $vnodeid -o /var/emulab/logs/tmccproxy.$vnodeid.log >& /dev/null &
 echo $! > /var/run/tmccproxy.$vnodeid.pid
 
 echo "/var/emulab/tmcc.sock" > $MYROOT/var/emulab/boot/proxypath
+
+# Hmm, give the proxy a chance to get running, lest the container
+# start running before it can actually talk to tmcc. 
+sleep 2
 
 exit $RETVAL
