@@ -1,3 +1,5 @@
+#!/usr/bin/perl
+
 use XML::LibXML;
 use XML::LibXML::XPathContext;
 use XML::LibXML::NodeList;
@@ -24,6 +26,7 @@ my @iplist = <IP>;
 my %control_ips = {};
 my %ilo_ips = {};
 foreach my $line (@iplist) {
+    chomp($line);
     my @fields = split(/ /, $line);
     my $node_id = $fields[0];
     my $control = $fields[1];
@@ -101,8 +104,16 @@ foreach my $current (values(%devices)) {
     }
     print NODE_FILE "  <attribute name='node_id'><value>$node_id</value></attribute>\n";
     print NODE_FILE "  <attribute name='type'><value>dl360</value></attribute>\n";
-    print NODE_FILE "  <attribute name='ip'><value>$ip</value></attribute>\n";
+    print NODE_FILE "  <attribute name='IP'><value>$ip</value></attribute>\n";
     print NODE_FILE "  <attribute name='identifier'><value>$node_id</value></attribute>\n";
+    print NODE_FILE "</newnode>\n";
+    close(NODE_FILE);
+
+    open(NODE_FILE, ">$outpath/node.$node_id.commit");
+    print NODE_FILE "<newnode>\n";
+    print NODE_FILE "  <attribute name='table'><value>node</value></attribute>\n";
+    print NODE_FILE "  <attribute name='command'><value>commit</value></attribute>\n";
+    print NODE_FILE "  <attribute name='id'><value>$id</value></attribute>\n";
     print NODE_FILE "</newnode>\n";
     close(NODE_FILE);
 }
