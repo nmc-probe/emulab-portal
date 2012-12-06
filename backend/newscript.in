@@ -188,7 +188,8 @@ my %ifacefields =
      "port"             => ["port",             $SLOT_OPTIONAL,    undef],
      "mac"              => ["mac",              $SLOT_OPTIONAL,    undef],
      "type"             => ["interface_type",   $SLOT_OPTIONAL,    undef],
-     "role"		=> ["role",		$SLOT_OPTIONAL,    undef]);
+     "role"		=> ["role",		$SLOT_OPTIONAL,    undef],
+     "IP"		=> ["IP",		$SLOT_OPTIONAL,    undef]);
 
 my %wirefields =
     # XML Field Name        DB slot name         Flags             Default
