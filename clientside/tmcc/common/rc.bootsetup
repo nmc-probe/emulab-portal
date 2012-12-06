@@ -23,6 +23,7 @@
 #
 use English;
 use Getopt::Std;
+use IO::Handle;
 
 #
 # This script is run directly from boot. It should NOT be run after
@@ -112,6 +113,8 @@ if (REMOTE() && $action eq "boot") {
     sleep(5);
 }
 
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 
 #
 # Grab our manifest so we can enable/disable/replace this script and 
@@ -126,9 +129,9 @@ getmanifest(\%manifest);
 if ($action eq "boot" || $action eq "reconfig") {
     open(LOG, "> $LOGFILE") or
 	BootFatal(-1, "Could not open $LOGFILE!");
-    my $ofh = select(LOG);
-    $| = 1;
-    select($ofh);
+
+    LOG->autoflush(1);
+    LOG->autoflush(1);
     
     #
     # This open implicitly forks a child, which goes on to execute the rest
@@ -136,8 +139,11 @@ if ($action eq "boot" || $action eq "reconfig") {
     # output of the child, writing it to the logfile and to the console.
     #
     my $pid = open(FOO, "-|");
-    BootFatal($? >> 8, "Boot Failure; popen failed!")
-	if (!defined($pid));
+    if (!defined($pid)) {
+	print LOG "Boot Failure; popen failed!\n";
+	close(LOG);
+	BootFatal($? >> 8, "Boot Failure; popen failed!")
+    }
     
     if ($pid) {
 	while (<FOO>) {
@@ -145,6 +151,9 @@ if ($action eq "boot" || $action eq "reconfig") {
 	    if ($action ne "reconfig") {
 		print "$_";
 	    }
+	}
+	if ($?) {
+	    print LOG "Boot Failure: $?\n";
 	}
 	close(LOG);
 	close(FOO);
@@ -158,10 +167,7 @@ if ($action eq "boot" || $action eq "reconfig") {
 	# Need this or ssh will hang, even though it was called with -n option.
 	open(STDIN, "</dev/null");
     }
-    if (REMOTE()) {
-	# Maybe just do this all the time. 
-	open(STDERR, ">&STDOUT");
-    }
+    open(STDERR, ">&STDOUT");
 }
 
 # Execute the action.
@@ -321,8 +327,7 @@ sub doboot()
 	runbootscript(\%manifest,$RCDIR,'rc.healthd','boot','start');
     }
     
-    if (-x "$RCDIR/rc.slothd" &&
-	!(REMOTE() || (GENVNODE() && !INXENVM()))) {
+    if (-x "$RCDIR/rc.slothd" && !REMOTE()) {
 	print("Starting slothd usage detector\n");
 	runbootscript(\%manifest,$RCDIR,'rc.slothd','boot','start');
     }
