@@ -191,6 +191,15 @@ if { $opsip != {} } {
     }
 }
 
+set bossfw [tb-get-elabinelab-role-attribute "boss" "CONFIG_FIREWALL_BOSS"]
+if { $bossfw != {} } {
+   $myboss add-attribute XEN_IPFWKERNEL yes
+}
+set opsfw [tb-get-elabinelab-role-attribute "ops" "CONFIG_FIREWALL_OPS"]
+if { $opsfw != {} } {
+   $myops add-attribute XEN_IPFWKERNEL yes
+}
+
 #
 # We need to tell the XEN host to add some disks to the guests. 
 #
