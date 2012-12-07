@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -101,7 +101,11 @@ LTLink instproc set_dst { dst } {
 # use some parsing procs provided by ns.
 LTLink instproc set_bw { bw } {
     $self instvar bw_
-    set bw_ [bw_parse $bw]
+    if {"$bw" == "*" || "$bw" == "~"} {
+	set bw_ 0
+    } else {
+	set bw_ [bw_parse $bw]
+    }
 }
 LTLink instproc set_delay { delay } {
     $self instvar delay_
