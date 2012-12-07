@@ -2853,7 +2853,7 @@ sub SetupOpsJail()
     $ENV{"PKG_PATH"} = "/packages";
     my $pkg = "-P $emulabconfig{OPS_PKG} -p /packages ";
     mysystem("cd $TBDIR/obj/testbed/install; ".
-	     "   perl ops-install $pkg -b -w ElabInElab ");
+	     "   perl emulab-install $pkg -b -w ElabInElab ops");
 
     #
     # And install the ops side.
