@@ -558,9 +558,12 @@ sub CommitWire
     while (my ($skip, $cable, $len, $type, $node_id1, $card1, $port1,
 	       $node_id2, $card2, $port2) = $result->fetchrow()) {
 	my $query = "INSERT wires SET ".
-	    "cable='$cable', len='$len', type='$type', node_id1='$node_id1', ".
+	    "len='$len', type='$type', node_id1='$node_id1', ".
 	    "card1='$card1', port1='$port1', node_id2='$node_id2', ".
 	    "card2='$card2', port2='$port2'";
+	if (defined($cable)) {
+	    $query .= ", cable='$cable'";
+	}
 	if ($fake) {
 	    print $query."\n";
 	} else {

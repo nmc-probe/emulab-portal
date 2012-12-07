@@ -5,12 +5,14 @@ use XML::LibXML::XPathContext;
 use XML::LibXML::NodeList;
 use Carp qw(cluck carp);
 
+use lib "@prefix@/lib";
+use User;
 
-# ip file should be newline-separated ip addresses that are assigned in
-# order to pc1, pc2, pc3, etc.
+my $TB = "@prefix@";
+my $NEWSCRIPT = "$TB/bin/newscript";
 
 if (scalar(@ARGV) != 4) {
-    fatal("Usage: rack-new.pl <out-path> <ip-file> <hp-xml> <wiring-file>\n");
+    fatal("Usage: mknewconfig <out-path> <ip-file> <hp-xml> <wiring-file>\n");
 }
 
 my $outpath = shift(@ARGV);
@@ -18,9 +20,25 @@ my $ipfile = shift(@ARGV);
 my $hpfile = shift(@ARGV);
 my $wiringfile = shift(@ARGV);
 
+
+#
+# Can only be invoked by Admin.
+#
+$this_user = User->ThisUser();
+
+if (! defined($this_user)) {
+    fatal("You ($UID) do not exist!");
+} elsif (!$this_user->IsAdmin()) { 
+    fatal("You must have admin privledges to create new nodes");
+}
+
+# Make sure outpath exists
 system("mkdir -p $outpath");
 
 # Load IP data
+#
+# Each line should be <node_id> <control_ip> <ilo_ip>
+# Node id should be one of (pc1, pc2, pc3, pc4, pc5).
 open(IP, "<$ipfile");
 my @iplist = <IP>;
 my %control_ips = {};
@@ -95,7 +113,8 @@ foreach my $current (values(%devices)) {
 	next;
     }
     my $ip = $control_ips{$node_id};
-    open(NODE_FILE, ">$outpath/node.$node_id");
+    my $file = "$outpath/node.$node_id";
+    open(NODE_FILE, ">$file");
     print NODE_FILE "<newnode>\n";
     print NODE_FILE "  <attribute name='table'><value>node</value></attribute>\n";
     print NODE_FILE "  <attribute name='command'><value>add</value></attribute>\n";
@@ -108,14 +127,8 @@ foreach my $current (values(%devices)) {
     print NODE_FILE "  <attribute name='identifier'><value>$node_id</value></attribute>\n";
     print NODE_FILE "</newnode>\n";
     close(NODE_FILE);
-
-    open(NODE_FILE, ">$outpath/node.$node_id.commit");
-    print NODE_FILE "<newnode>\n";
-    print NODE_FILE "  <attribute name='table'><value>node</value></attribute>\n";
-    print NODE_FILE "  <attribute name='command'><value>commit</value></attribute>\n";
-    print NODE_FILE "  <attribute name='id'><value>$id</value></attribute>\n";
-    print NODE_FILE "</newnode>\n";
-    close(NODE_FILE);
+    print STDERR "Adding node $node_id\n";
+    system("$NEWSCRIPT < $file");
 }
 
 # Print interfaces
@@ -136,7 +149,8 @@ foreach my $current (@wires) {
 	my @maclist = @{ $device->{'maclist'} };
 	$mac = $maclist[$card];
     }
-    open(IF_FILE, ">$outpath/iface.$node_id.$card.$port");
+    my $file = "$outpath/iface.$node_id.$card.$port";
+    open(IF_FILE, ">$file");
     print IF_FILE "<newinterface>\n";
     print IF_FILE "  <attribute name='table'><value>interface</value></attribute>\n";
     print IF_FILE "  <attribute name='command'><value>add</value></attribute>\n";
@@ -152,9 +166,29 @@ foreach my $current (@wires) {
     }
     print IF_FILE "</newinterface>\n";
     close(IF_FILE);
+    print STDERR "Adding interface $node_id.$card.$port\n";
+    system("$NEWSCRIPT < $file");
+}
+
+# Commit nodes
+foreach my $current (values(%devices)) {
+    my $node_id = $current->{'node_id'};
+    my $id = $current->{'id'};
+    my $file = "$outpath/node.$node_id.commit";
+    open(NODE_FILE, ">$file");
+    print NODE_FILE "<newnode>\n";
+    print NODE_FILE "  <attribute name='table'><value>node</value></attribute>\n";
+    print NODE_FILE "  <attribute name='command'><value>commit</value></attribute>\n";
+    print NODE_FILE "  <attribute name='id'><value>$id</value></attribute>\n";
+    print NODE_FILE "</newnode>\n";
+    close(NODE_FILE);
+    print STDERR "Committing node $node_id\n";
+    system("$NEWSCRIPT < $file");
+    sleep(3);
 }
 
 # Print wires
+my $wireid = 1;
 foreach my $current (@wires) {
     my $node_id = $current->{'node_id'};
     my $card = $current->{'card'};
@@ -169,10 +203,12 @@ foreach my $current (@wires) {
     } elsif ($role eq "mngmnt") {
 	$type = "Management";
     }
-    open(WIRE_FILE, ">$outpath/wire.$node_id.$card.$port");
+    my $file = "$outpath/wire.$node_id.$card.$port";
+    open(WIRE_FILE, ">$file");
     print WIRE_FILE "<newwire>\n";
     print WIRE_FILE "  <attribute name='table'><value>wire</value></attribute>\n";
     print WIRE_FILE "  <attribute name='command'><value>add</value></attribute>\n";
+    print WIRE_FILE "  <attribute name='id'><value>$wireid</value></attribute>\n";
     print WIRE_FILE "  <attribute name='len'><value>0</value></attribute>\n";
     print WIRE_FILE "  <attribute name='type'><value>$type</value></attribute>\n";
     print WIRE_FILE "  <attribute name='node_id1'><value>$node_id</value></attribute>\n";
@@ -183,6 +219,21 @@ foreach my $current (@wires) {
     print WIRE_FILE "  <attribute name='port2'><value>$switch_port</value></attribute>\n";
     print WIRE_FILE "</newwire>\n";
     close(WIRE_FILE);
+    print STDERR "Adding wire $node_id.$card.$port\n";
+    system("$NEWSCRIPT < $file");
+
+    $file = "$outpath/wire.$node_id.$card.$port.commit";
+    open(WIRE_FILE, ">$file");
+    print WIRE_FILE "<newwire>\n";
+    print WIRE_FILE "  <attribute name='table'><value>wire</value></attribute>\n";
+    print WIRE_FILE "  <attribute name='command'><value>commit</value></attribute>\n";
+    print WIRE_FILE "  <attribute name='id'><value>$wireid</value></attribute>\n";
+    print WIRE_FILE "</newwire>\n";
+    close(WIRE_FILE);
+    print STDERR "Committing wire $node_id.$card.$port\n";
+    system("$NEWSCRIPT < $file");
+
+    ++$wireid;
 }
 
 # Get the text contents of a child of a node with a particular
