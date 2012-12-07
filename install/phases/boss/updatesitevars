@@ -1,0 +1,29 @@
+#
+# The template
+#
+use strict;
+use libinstall;
+use installvars;
+
+sub Install($$$)
+{
+    my ($server, $isupdate, $impotent) = @_;
+
+    # Replace if this script does an update for ip/domain.
+    return 0
+	if ($isupdate);
+
+    #
+    # Initialize server IP/MAC sitevars (for ARP lockdown).
+    #
+    Phase "updatesitevars", "Initializing ARP sitevars", sub {
+	if (ExecQuiet("$SUDO $UPDATESITEVARS")) {
+	    PhaseSkip("update_sitevars failed, run by hand");
+	}
+    };
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:
