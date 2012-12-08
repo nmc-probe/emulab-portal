@@ -1,0 +1,5 @@
+Add this to /etc/defaults/grub
+
+GRUB_CMDLINE_XEN_DEFAULT="dom0_mem=512M"
+
+then run update-grub
