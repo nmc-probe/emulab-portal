@@ -61,7 +61,8 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	http://155.98.32.70/downloads/genirack.iso
 	
   which is Utah's web server. Check the box to boot from the CD on the
-  next reset, and then click the reset button.
+  next reset. The click on "Insert Media", and then after you get the
+  confirmation that it attached okay, click the reset button.
   
 * Wait for the node to boot. It should boot from the virtual CD drive
   since there is no other boot media, but if not you can hit F11 on
