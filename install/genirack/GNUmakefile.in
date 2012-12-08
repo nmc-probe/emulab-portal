@@ -27,7 +27,7 @@ SUBDIR		= install/genirack
 
 include $(OBJDIR)/Makeconf
 
-TARGETS = initnodes.pl initilo.pl
+TARGETS = initnodes.pl initilo.pl mknewconfig
 
 #
 # Force dependencies on the scripts so that they will be rerun through

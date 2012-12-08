@@ -76,7 +76,7 @@ use OSinfo;
 sub fatal($);
 sub UserError(;$);
 sub PrintResult($);
-sub ModifyRow($);
+sub ModifyRow($$);
 sub RemoveRow($);
 sub ResolveRow($);
 sub CommitNode($);
@@ -188,7 +188,8 @@ my %ifacefields =
      "port"             => ["port",             $SLOT_OPTIONAL,    undef],
      "mac"              => ["mac",              $SLOT_OPTIONAL,    undef],
      "type"             => ["interface_type",   $SLOT_OPTIONAL,    undef],
-     "role"		=> ["role",		$SLOT_OPTIONAL,    undef]);
+     "role"		=> ["role",		$SLOT_OPTIONAL,    undef],
+     "IP"		=> ["IP",		$SLOT_OPTIONAL,    undef]);
 
 my %wirefields =
     # XML Field Name        DB slot name         Flags             Default
@@ -384,9 +385,9 @@ exit(0)
 
 my $rowlist;
 if ($args{"command"} eq "add") {
-    ModifyRow(undef);
+    ModifyRow($id, 0);
 } elsif ($args{"command"} eq "update") {
-    ModifyRow($id);
+    ModifyRow($id, 1);
 } elsif ($args{"command"} eq "rollback") {
     RemoveRow($id);
 } elsif ($args{"command"} eq "commit") {
@@ -447,12 +448,12 @@ sub PrintResult($)
     }
 }
 
-sub ModifyRow($)
+sub ModifyRow($$)
 {
-    my ($id) = @_;
+    my ($id, $isupdate) = @_;
     my $query;
     my $none_changed = 1;
-    if (defined($id)) {
+    if ($isupdate) {
 	$query = "UPDATE";
     } else {
 	$query = "INSERT";
@@ -460,7 +461,8 @@ sub ModifyRow($)
     $query .= " $tabledb SET";
     foreach $key (keys(%args)) {
 	my $value = $args{$key};
-	if ($key ne "table" && $key ne "command" && $key ne $tableid
+	if ($key ne "table" && $key ne "command"
+	    && (! $isupdate || $key ne $tableid)
 	    && defined($value)) {
 	    if ($query ne "UPDATE $tabledb SET"
 		&& $query ne "INSERT $tabledb SET") {
@@ -470,7 +472,7 @@ sub ModifyRow($)
 	    $none_changed = 0;
 	}
     }
-    if (defined($id)) {
+    if ($isupdate) {
 	$query .= " WHERE $tableid='$id'";
     }
     if ($none_changed == 1) {
@@ -556,9 +558,12 @@ sub CommitWire
     while (my ($skip, $cable, $len, $type, $node_id1, $card1, $port1,
 	       $node_id2, $card2, $port2) = $result->fetchrow()) {
 	my $query = "INSERT wires SET ".
-	    "cable='$cable', len='$len', type='$type', node_id1='$node_id1', ".
+	    "len='$len', type='$type', node_id1='$node_id1', ".
 	    "card1='$card1', port1='$port1', node_id2='$node_id2', ".
 	    "card2='$card2', port2='$port2'";
+	if (defined($cable)) {
+	    $query .= ", cable='$cable'";
+	}
 	if ($fake) {
 	    print $query."\n";
 	} else {
