@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2003-2011 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -42,6 +42,7 @@ use strict;
 
 my $TB         = "@prefix@";
 my $ELABINELAB = @ELABINELAB@;
+my $GENIRACK   = @PROTOGENI_GENIRACK@;
 my $RPCSERVER  = "@OUTERBOSS_NODENAME@";
 my $RPCPORT    = "@OUTERBOSS_XMLRPCPORT@";
 my $RPCCERT    = "@OUTERBOSS_SSLCERTNAME@";
@@ -58,8 +59,8 @@ my $exports_setup = "$TB/sbin/exports_setup";
 
 my $dhcpd_rc = "/usr/local/etc/rc.d/2.dhcpd.sh";
 
-my $useScriptFeature = EmulabFeatures->FeatureEnabled("ScriptNewNodes", undef,
-						      undef, undef);
+my $useScriptFeature = $GENIRACK ||
+    EmulabFeatures->FeatureEnabled("ScriptNewNodes", undef, undef, undef);
 
 #
 # MFS to boot the nodes into initially
