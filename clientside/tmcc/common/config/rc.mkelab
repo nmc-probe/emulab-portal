@@ -1728,12 +1728,14 @@ sub SetupOpsNode($)
 	if ($emulabconfig{"CONFIG_GENIRACK"}) {
 	    my $where = "genirack-ops\@flux.utah.edu";
 	    if (exists($emulabconfig{"GENIRACK_TBOPS"})) {
-		$where .= "\n" . $emulabconfig{"GENIRACK_TBOPS"};
+		$where = join("\n", split(",",
+					  $emulabconfig{"GENIRACK_TBOPS"}));
 	    }
 
 	    if ($list eq "testbed-logs" || $list eq "testbed-audit") {
 		if (exists($emulabconfig{"GENIRACK_TBLOGS"})) {
-		    $where = $emulabconfig{"GENIRACK_TBLOGS"};
+		    $where = join("\n",
+				  split(",", $emulabconfig{"GENIRACK_TBLOGS"}));
 		}
 		else {
 		    $where = "genirack-logs\@flux.utah.edu";
@@ -1741,7 +1743,8 @@ sub SetupOpsNode($)
 	    }
 	    elsif ($list eq "testbed-stated") {
 		if (exists($emulabconfig{"GENIRACK_TBSTATED"})) {
-		    $where = $emulabconfig{"GENIRACK_TBSTATED"};
+		    $where = join("\n",
+			  split(",", $emulabconfig{"GENIRACK_TBSTATED"}));
 		}
 		else {
 		    $where = "genirack-stated\@flux.utah.edu";
@@ -2939,6 +2942,8 @@ sub CreateDefsFile($)
     my $named_forwarders   = (defined($emulabconfig{"NAMED_FORWARDERS"}) ?
 			      $emulabconfig{"NAMED_FORWARDERS"} :
 			      $outer_bossip);
+    my $named_alsonotify   = (defined($emulabconfig{"NAMED_ALSONOTIFY"}) ?
+			      $emulabconfig{"NAMED_ALSONOTIFY"} : "");
     
     #
     # The control network netmask differs if using a single control network. 
@@ -3101,6 +3106,10 @@ sub CreateDefsFile($)
 		};
 		/^NAMED_FORWARDERS$/ && do {
 		    print OUTDEFS "NAMED_FORWARDERS=\"${named_forwarders}\"\n";
+		    last SWITCH;
+		};
+		/^NAMED_ALSONOTIFY$/ && do {
+		    print OUTDEFS "NAMED_ALSONOTIFY=\"${named_alsonotify}\"\n";
 		    last SWITCH;
 		};
 		/^DHCPD_DYNRANGE$/ && do {
