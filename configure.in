@@ -1160,6 +1160,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	utils/opsdb_control utils/opsdb_control.proxy \
 	utils/remove_old_www utils/epmodeset \
 	utils/mkblob utils/rmblob utils/ctrladdr utils/tcppd \
+	utils/mktestbedtest \
 	www/GNUmakefile www/defs.php3 www/dbdefs.php3 www/xmlrpc.php3 \
 	www/xmlrpcpipe.php3 \
 	www/swish.conf www/websearch \
