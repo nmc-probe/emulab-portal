@@ -102,6 +102,10 @@ Setting up an InstaGeni Rack. First, we need the following info:
 * Type "reboot" at the shell prompt. With any luck, the node will boot
   first time.
 
+* Make sure all five of the experimental nodes are fully powered off;
+  the ilo has to be off, and the easiest thing to do is just unplug
+  them. 
+
 * At this point we need to configure the switches with static IP
   addresses. This is a bit tricky since the only way to do this is to
   have DHCP return a dynamic address so we can telnet to the switch
@@ -109,7 +113,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
   have multiple DHCP servers running since that would confuse boss.
   Login to the control node as root.
 
-	/usr/sbin/dhcpd -4 -cf /etc/dhcp/dhcpd.conf xenbr1 xenbr2
+	sudo /usr/sbin/dhcpd -4 -cf /etc/dhcp/dhcpd.conf xenbr1 xenbr3
 
   Now power on the experimental switch, and power cycle the control
   switch so that it will restart its dhcp cycle. You will lose
@@ -118,7 +122,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
   Once you get connectivity back, tail the end of the /var/log/syslog to
   see if the switches have made their DHCP requests.
 
-* At some point you will be able to telnet to 10.1.1.253 and 10.2.1.253.
+* At some point you will be able to telnet to 10.1.1.253 and 10.3.1.253.
   These are the IPs assigned by dhcp.
 
   First telnet to 10.1.1.253. This is the control switch (2610). You want
@@ -127,8 +131,8 @@ Setting up an InstaGeni Rack. First, we need the following info:
   2610> config
   2610(config)> vlan 11
   2610(vlan-11)> name control-alternate
-  2610(vlan-11)> untagged 22        XXXX Make sure about port number!
-  2610(vlan-11)> ip address 10.3.1.253/24
+  2610(vlan-11)> untagged 24        XXXX Make sure about port number!
+  2610(vlan-11)> ip address 10.2.1.253/24
   2610(vlan-11)> exit
   2610(config)> write memory
 
@@ -141,20 +145,20 @@ Setting up an InstaGeni Rack. First, we need the following info:
   switcherroo.
   
   2610> config
-  2610(config)> no vlan 1 ip address
   2610(config)> vlan 10
   2610(vlan-10)> name control-hardware
-  2610(vlan-10)> untagged 21	   XXXX Make sure about port number!
+  2610(vlan-10)> untagged 23	   XXXX Make sure about port number!
   2610(vlan-10)> ip address 10.1.1.253/24
   2610(vlan-10)> exit
+  2610(config)> no vlan 1 ip address
   2610(config)> management-vlan 10
   2610(config)> ip default-gateway 10.1.1.254
   2610(config)> vlan 1 ip igmp
   2610(config)> vlan 11 ip igmp querier
   2610(config)> no web-management
-  2610(config)> password all (type in same password for manager/operator)
   2610(config)> no snmp-server community public
   2610(config)> snmp-server community XXXXX manager unrestricted
+  2610(config)> password all (type in same password for manager/operator)
   2610(config)> write memory
   2610(config)> reload
 
@@ -170,23 +174,23 @@ Setting up an InstaGeni Rack. First, we need the following info:
   vlan, but in this case we can do it from the serial console, and
   so it is a lot easier. We use minicom:
 
-	sudo minicom -D /dev/ttyS0
+	sudo screen /dev/ttyS0 115200
 
   wait for it to sync up and then you will get the prompt.
 
   5400> config
-  5400(config)> no vlan 1 ip address
   5400(config)> vlan 10
   5400(vlan-10)> name control-hardware
-  5400(vlan-10)> untagged A48	  XXXX Make sure about port number!
-  5400(vlan-10)> ip address 10.2.1.253/24
+  5400(vlan-10)> untagged E20	  XXXX Make sure about port number!
+  5400(vlan-10)> ip address 10.3.1.253/24
   5400(vlan-10)> exit
+  5400(config)> no vlan 1 ip address
   5400(config)> management-vlan 10
-  5400(config)> ip default-gateway 10.2.1.254
+  5400(config)> ip default-gateway 10.3.1.254
   5400(config)> no web-management
-  5400(config)> password all (type in same password for manager/operator)
   5400(config)> no snmp-server community public
   5400(config)> snmp-server community XXXXX manager unrestricted
+  5400(config)> password all (type in same password for manager/operator)
   5400(config)> write memory
   5400(config)> reload
   
@@ -211,6 +215,17 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	ps auxwww | grep dhcpd
 
+* Create the 4th partition in the partition table:
+
+	fdisk /dev/sda
+
+  Use the "n" option, primary partition type, default start, +1000G, "w"
+  to write it out.
+
+  Then inform the kernel:
+
+	partprobe -s
+
 * Initialize the LVM partition. We use LVMs for the boss/ops filesystems.
 
 	pvcreate /dev/sda4
@@ -222,7 +237,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
   lvms.
 
 	mkdir /scratch
-	/sbin/lvcreate -n scratch -L 50G xen-vg
+	/sbin/lvcreate -n scratch -L 75G xen-vg
 	mke2fs -j /dev/xen-vg/scratch
 	mount /dev/xen-vg/scratch /scratch
 	chmod 777 /scratch
