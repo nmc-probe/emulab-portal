@@ -16,6 +16,7 @@
 options {
     directory "/etc/namedb";
     %forwarders%
+    %alsonotify%
 };
 
 view "internal" {
