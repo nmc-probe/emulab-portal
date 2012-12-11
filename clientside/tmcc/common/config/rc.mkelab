@@ -1725,36 +1725,7 @@ sub SetupOpsNode($)
     closedir(DIR);
 
     foreach my $list (@lists) {
-	if ($emulabconfig{"CONFIG_GENIRACK"}) {
-	    my $where = "genirack-ops\@flux.utah.edu";
-	    if (exists($emulabconfig{"GENIRACK_TBOPS"})) {
-		$where = join("\n", split(",",
-					  $emulabconfig{"GENIRACK_TBOPS"}));
-	    }
-
-	    if ($list eq "testbed-logs" || $list eq "testbed-audit") {
-		if (exists($emulabconfig{"GENIRACK_TBLOGS"})) {
-		    $where = join("\n",
-				  split(",", $emulabconfig{"GENIRACK_TBLOGS"}));
-		}
-		else {
-		    $where = "genirack-logs\@flux.utah.edu";
-		}
-	    }
-	    elsif ($list eq "testbed-stated") {
-		if (exists($emulabconfig{"GENIRACK_TBSTATED"})) {
-		    $where = join("\n",
-			  split(",", $emulabconfig{"GENIRACK_TBSTATED"}));
-		}
-		else {
-		    $where = "genirack-stated\@flux.utah.edu";
-		}
-	    }
-	    mysystem("echo '$where' > /etc/mail/lists/$list");
-	}
-	else {
-	    mysystem("echo ${creator}\@${outer_domain} > /etc/mail/lists/$list");
-	}
+	mysystem("echo ${creator}\@${outer_domain} > /etc/mail/lists/$list");
     }
 
     #

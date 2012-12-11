@@ -9,6 +9,7 @@ use libinstall;
 use installvars;
 
 my $CONFIGVARS   = "$PREFIX/configvars.txt";
+my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-9.0-ports.tar.gz";
 
 sub Install($$$)
 {
@@ -58,6 +59,82 @@ sub Install($$$)
 		if (! -e $RCLOCAL);
 
 	    DeleteFileFatal($RCLOCAL);
+	};
+
+	#
+	# Need to remove the ELABINELAB flag.
+	#
+	my $OLDDEFSFILE = "$main::TOP_SRCDIR/defs-elabinelab";
+	my $NEWDEFSFILE = "$main::TOP_SRCDIR/defs-genirack";
+	
+	Phase "elabinelab", "Removing ELABINELAB from defs file", sub {
+	    DoneIfExists($NEWDEFSFILE);
+	    ExecQuietFatal("cat $OLDDEFSFILE | ".
+			   "   sed -e 's/^ELABINELAB/#ELABINELAB/' ".
+			   "   > $NEWDEFSFILE");
+	};
+
+	#
+	# Build and install software without ELABINELAB defined.
+	#
+	Phase "Software", "Rebuilding and Reinstalling Software", sub {
+	    DoneIfExists("$PREFIX/marker");
+	    
+	    Phase "cleaning", "Cleaning (please be patient)", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE clean");
+	    };
+	    Phase "config", "Configuring (please be patient)", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR; ".
+			       "   $main::TOP_SRCDIR/configure ".
+			       "      --with-TBDEFS=$NEWDEFSFILE ".
+			       "      --disable-windows");
+	    };
+	    Phase "installing", "Installing (please be patient)", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE opsfs-install");
+	    };
+	    Phase "rc.testbed", "Installing testbed RC scripts", sub {
+		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d control-install");
+	    };
+	    CreateFile("$PREFIX/marker", "genirack install marker");
+	};
+
+	#
+	# Reset the mailing lists. We do this late so that the target
+	# admins do not see a bunch of email until we are really ready.
+	#
+	Phase "emaillists", "Changing target for email lists", sub {
+	    opendir(DIR, "/etc/mail/lists") or
+		PhaseFail("Cannot opendir /etc/mail/lists: $!");
+	    my @lists = grep { $_ ne "." && $_ ne ".." } readdir(DIR);
+	    closedir(DIR);
+
+	    my @default = "genirack-ops\@flux.utah.edu";
+	    if (exists($configvars{"GENIRACK_TBOPS"})) {
+		@default = split(",", $configvars{"GENIRACK_TBOPS"});
+	    }
+	    foreach my $list (@lists) {
+		my @where = @default;
+		my $fname = "/etc/mail/lists/$list";
+
+		DoneIfEdited($fname)
+		    if (-e $fname);
+		DeleteFileFatal($fname)
+		    if (-e $fname);
+		CreateFileFatal($fname, "# $list")
+		    if (! -e $fname);
+	
+		Phase "emaillist", "Changing target for $list", sub {
+		    if ($list eq "testbed-logs" || $list eq "testbed-audit") {
+			@where = split(",", $configvars{"GENIRACK_TBLOGS"})
+			    if (exists($configvars{"GENIRACK_TBLOGS"}));
+		    }
+		    elsif ($list eq "testbed-stated") {
+			@where = split(",", $configvars{"GENIRACK_TBSTATED"})
+			    if (exists($configvars{"GENIRACK_TBSTATED"}));
+		    }
+		    AppendToFileFatal($fname, @where);
+		};
+	    }
 	};
 
 	#
