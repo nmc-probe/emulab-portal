@@ -135,6 +135,19 @@ CREATE TABLE `blobs` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `blockstore_attributes`
+--
+
+DROP TABLE IF EXISTS `blockstore_attributes`;
+CREATE TABLE `blockstore_attributes` (
+  `bsidx` int(10) unsigned NOT NULL,
+  `attrkey` varchar(32) NOT NULL default '',
+  `attrvalue` tinytext NOT NULL,
+  `attrtype` enum('integer','float','boolean','string') default 'string',
+  PRIMARY KEY  (`bsidx`,`attrkey`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `blockstore_state`
 --
 
@@ -147,6 +160,18 @@ CREATE TABLE `blockstore_state` (
   `ready` tinyint(4) unsigned NOT NULL default '0',
   PRIMARY KEY (`bsidx`),
   UNIQUE KEY nidbid (`node_id`,`bs_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `blockstore_trees`
+--
+
+DROP TABLE IF EXISTS `blockstore_trees`;
+CREATE TABLE `blockstore_trees` (
+  `bsidx` int(10) unsigned NOT NULL,
+  `aggidx` int(10) unsigned NOT NULL default '0',
+  `hint` tinytext NOT NULL,
+  PRIMARY KEY (`bsidx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -172,7 +197,7 @@ CREATE TABLE `blockstores` (
   `node_id` varchar(32) NOT NULL default '',
   `bs_id` varchar(32) NOT NULL default '',
   `type` varchar(30) NOT NULL default '',
-  `role` enum('infra','unused') NOT NULL default 'unused',
+  `role` enum('element','compound') NOT NULL default 'element',
   `total_size` int(10) unsigned NOT NULL default '0',
   `inception` datetime default NULL,
   PRIMARY KEY (`bsidx`),
