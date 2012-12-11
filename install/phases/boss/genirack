@@ -40,7 +40,12 @@ my $EMULABSTABLE = "git://git-public.flux.utah.edu/emulab-stable.git";
 my $NODETYPEXML  = "$TOP_SRCDIR/install/genirack/nodetype.xml";
 my $SWITCHSQL    = "$TOP_SRCDIR/install/genirack/tbdb.sql";
 my $CONFIGVARS   = "$PREFIX/configvars.txt";
+my $RACKVARS     = "$PREFIX/etc/genirack/variables.txt";
+my $RACKIPS      = "$PREFIX/etc/genirack/ips.txt";
+my $RACKILO      = "$PREFIX/etc/genirack/ilo.xml";
+my $RACKWIRES    = "$TOP_SRCDIR/install/genirack/wiring.xml";
 my $ILOPASSWORD  = "$PREFIX/etc/ilo.pswd";
+my $ELABPASSWORD = "$PREFIX/etc/elabman.pswd";
 my $HPPASSWORD   = "$PREFIX/etc/switch.pswd";
 my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-9.0-ports.tar.gz";
 my $ZZZ		 = "/usr/local/etc/rc.d/zzz-inelab.sh";
@@ -58,8 +63,8 @@ my %INTERFACES = (
 
 my %HOSTNAMES = (
     "procurve1"       => "10.1.1.253",
-    "procurve2"       => "10.2.1.253",
-    "procurve1-alt"   => "10.3.1.253",
+    "procurve1-alt"   => "10.2.1.253",
+    "procurve2"       => "10.3.1.253",
     "foam-priv"	      => "10.4.1.2",
     "flowvisor-priv"  => "10.4.1.3",
 );
@@ -79,12 +84,31 @@ sub Install($$$)
 	PhaseSkip("Not a Rack")
 	    if (!$PROTOGENI_GENIRACK);
 
-	Phase "config", "Reading in config variables", sub {
+	Phase "config", "Reading in Emulab config variables", sub {
 	    PhaseFail("No config file")
 		if (! -e $CONFIGVARS);
 	    
 	    open(CN, $CONFIGVARS)
 		 or PhaseFail("Could not open $CONFIGVARS: $!");
+	    while (<CN>) {
+		if ($_ =~ /^([-\w]*)\s*=\s*(.*)$/) {
+		    my $key = $1;
+		    my $val = $2;
+		    if ($val =~ /^'(.*)'$/) {
+			$val = $1;
+		    }
+		    $configvars{$key} = "$val";
+		}
+	    }
+	    close(CN);
+	};
+
+	Phase "rackconfig", "Reading in GeniRack config variables", sub {
+	    PhaseFail("No config file")
+		if (! -e $RACKVARS);
+	    
+	    open(CN, $RACKVARS)
+		 or PhaseFail("Could not open $RACKVARS: $!");
 	    while (<CN>) {
 		if ($_ =~ /^([-\w]*)\s*=\s*(.*)$/) {
 		    my $key = $1;
@@ -148,6 +172,15 @@ sub Install($$$)
 	}
 
 	#
+	# This is the elabman password.
+	#
+	if (exists($configvars{'PASSWORD'}) && $configvars{'PASSWORD'} ne "" &&
+	    ! -e $ELABPASSWORD) {
+	    CreateFileFatal($ELABPASSWORD, $configvars{'PASSWORD'});
+	    ExecQuietFatal("$CHMOD 400 $ELABPASSWORD");
+	}
+
+	#
 	# A reasonable default image.
 	#
 	Phase "sitevar", "Setting sitevar $PGOSSITEVAR", sub {
@@ -159,6 +192,15 @@ sub Install($$$)
 			   "'$PGOSSITEVAR' '$DEFAULTOSID'");
 	};
 	
+	#
+	# Shutdown the testbed for the rest of this.
+	#
+	Phase "shutdown", "Shutting down the testbed", sub {
+	    PhaseSkip("not running")
+		if (!CheckDaemonRunning("stated"));
+	    ExecQuietFatal("$TESTBED_CONTROL shutdown");
+	};
+
 	#
 	# Create a clone of emulab-devel while we are close to the server.
 	#
@@ -185,15 +227,6 @@ sub Install($$$)
 	    ExecQuietFatal("cd $PREFIX; $TAR zxf $PREFIX/ports.tar.gz");
 	};
 	
-	#
-	# Shutdown the testbed for this.
-	#
-	Phase "shutdown", "Shutting down the testbed", sub {
-	    PhaseSkip("not running")
-		if (!CheckDaemonRunning("stated"));
-	    ExecQuietFatal("$TESTBED_CONTROL shutdown");
-	};
-
 	#
 	# Need to remove the ELABINELAB flag.
 	#
@@ -309,6 +342,46 @@ sub Install($$$)
 	#
 	Phase "sql", "Adding switch goo to the database", sub {
 	    ExecQuietFatal("$MYSQL $DBNAME < $SWITCHSQL");
+	};
+
+	#
+	# Add the nodes to the DB.
+	#
+	Phase "nodes", "Adding nodes to the DB", sub {
+	    my $query_result =
+		DBQueryWarn("select node_id from nodes where node_id='pc1'");
+	    PhaseFail("DB error")
+		if (!$query_result);
+	    PhaseSkip("already added")
+		if ($query_result->numrows);
+
+	    ExecQuietFatal("cd $TOP_OBJDIR/install/genirack; ".
+			   "  $SUDO -u $PROTOUSER $WAP ".
+			   "  perl mknewconfig output ".
+			   "                   $RACKIPS $RACKILO $RACKWIRES");
+	};
+
+	Phase "outlets", "Adding outlets to the DB", sub {
+	    my $query_result =
+		DBQueryWarn("select node_id from nodes where role='testnode'");
+	    PhaseFail("DB error")
+		if (!$query_result);
+
+	    while (my ($node_id) = $query_result->fetchrow_array()) {
+		Phase "$node_id", "Adding outlet for $node_id", sub {
+		    my $outlet_result =
+			DBQueryWarn("select * from outlets ".
+				    "where node_id='$node_id'");
+		
+		    PhaseFail("DB error")
+			if (!$outlet_result);
+		    PhaseSkip("already added")
+			if ($outlet_result->numrows);
+
+		    ExecQuietFatal("cd $TOP_OBJDIR/install/genirack; ".
+				   "  $SUDO perl initilo.pl -o $node_id");
+		};
+	    }
 	};
 
 	#
