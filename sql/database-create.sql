@@ -2348,7 +2348,7 @@ CREATE TABLE `new_wires` (
   `new_wire_id` int(11) NOT NULL auto_increment,
   `cable` smallint(3) unsigned default NULL,
   `len` tinyint(3) unsigned default NULL,
-  `type` enum('Node','Serial','Power','Dnard','Control','Trunk','OuterControl') default NULL,
+  `type` enum('Node','Serial','Power','Dnard','Control','Trunk','OuterControl','Unused','Management') default NULL,
   `node_id1` char(32) default NULL,
   `card1` tinyint(3) unsigned default NULL,
   `port1` tinyint(3) unsigned default NULL,

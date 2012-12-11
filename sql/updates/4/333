@@ -10,7 +10,7 @@ sub DoUpdate($$$)
 
     DBQueryFatal("INSERT INTO sitevariables VALUES ".
 		 " ('protogeni/idlecheck',NULL,'0', ".
-		 ". 'When set, do idle checks and send email about ".
+		 " 'When set, do idle checks and send email about ".
 		 "idle slices.',0)")
 	if (!TBSiteVarExists("protogeni/idlecheck"));
 
