@@ -62,6 +62,7 @@ sub Fatal($);
 sub ChangeBootOrder($);
 sub SendXML($$);
 sub SetupControlNode($$);
+sub DoOutlet($);
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/site/bin';
@@ -138,6 +139,12 @@ if ($control) {
 
     exit(SetupControlNode($ARGV[0], $ARGV[1]));
 }
+if ($dooutlet) {
+    usage()
+	if (@ARGV != 1);
+
+    exit(DoOutlet($ARGV[0]));
+}
 usage()
     if (@ARGV != 2);
 
@@ -154,20 +161,6 @@ if (defined($management_interface)) {
     Fatal("No management interface for $node");
 }
 my $iloIP = $management_interface->IP();
-
-if ($dooutlet) {
-    #
-    # Add the outlet and authinfo.
-    #
-    $node->AddOutlet($type, 0,
-		     {"key_type"  => "ilo3",
-		      "key_role"  => "ssh-key",
-		      "key_uid"   => "elabman",
-		      "key"       => $DSAKEY}) == 0
-	  or Fatal("Could not add outlet record");
-
-    exit(0);
-}
 
 #
 # Before we create the interface, make sure we can install our
@@ -393,6 +386,27 @@ sub SetupControlNode($$)
     if (SendXML($ip, $xmlgoo)) {
 	Fatal("Failed to send chpswd xml to $ip");
     }
+    return 0;
+}
+
+sub DoOutlet($)
+{
+    my ($node_id) = @_;
+    
+    my $node = Node->Lookup($node_id);
+    if (!defined($node)) {
+	Fatal("No such node");
+    }
+    #
+    # Add the outlet and authinfo.
+    #
+    $node->AddOutlet("ilo3", 0,
+		     {"key_type"  => "ilo3",
+		      "key_role"  => "ssh-key",
+		      "key_uid"   => "elabman",
+		      "key"       => $DSAKEY}) == 0
+	  or Fatal("Could not add outlet record");
+
     return 0;
 }
 
