@@ -60,6 +60,18 @@ sub Install($$$)
 	    DeleteFileFatal($RCLOCAL);
 	};
 
+	#
+	# Also grab the port source while close to the server.
+	#
+	Phase "portsrc", "Getting port source tarball", sub {
+	    DoneIfExists("$PREFIX/ports.tar.gz");
+	    FetchFileFatal($PORTSRC, "$PREFIX/ports.tar.gz");
+	};
+	Phase "ports", "Unpacking port source tarball", sub {
+	    DoneIfExists("$PREFIX/ports/Mk");
+	    ExecQuietFatal("cd $PREFIX; $TAR zxf $PREFIX/ports.tar.gz");
+	};
+	
 	Phase "rcconf", "Updating rcconf for actual boot", sub {
 	    my @strings = ();
 	    
