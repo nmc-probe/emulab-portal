@@ -7,7 +7,7 @@
     <card1>0</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>1</port2>
   </wire>
   <wire>
@@ -18,7 +18,7 @@
     <card1>1</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>1</port2>
   </wire>
   <wire>
@@ -29,7 +29,7 @@
     <card1>2</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>2</port2>
   </wire>
   <wire>
@@ -40,7 +40,7 @@
     <card1>3</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>3</port2>
   </wire>
   <wire>
@@ -51,7 +51,7 @@
     <card1>99</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>2</port2>
   </wire>
   <wire>
@@ -62,7 +62,7 @@
     <card1>0</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>3</port2>
   </wire>
   <wire>
@@ -73,7 +73,7 @@
     <card1>1</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>4</port2>
   </wire>
   <wire>
@@ -84,7 +84,7 @@
     <card1>2</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>5</port2>
   </wire>
   <wire>
@@ -95,7 +95,7 @@
     <card1>3</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>6</port2>
   </wire>
   <wire>
@@ -106,7 +106,7 @@
     <card1>99</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>4</port2>
   </wire>
   <wire>
@@ -117,7 +117,7 @@
     <card1>0</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>6</port2>
   </wire>
   <wire>
@@ -128,7 +128,7 @@
     <card1>1</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>7</port2>
   </wire>
   <wire>
@@ -139,7 +139,7 @@
     <card1>2</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>8</port2>
   </wire>
   <wire>
@@ -150,7 +150,7 @@
     <card1>3</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>9</port2>
   </wire>
   <wire>
@@ -161,7 +161,7 @@
     <card1>99</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>6</port2>
   </wire>
   <wire>
@@ -172,7 +172,7 @@
     <card1>0</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>7</port2>
   </wire>
   <wire>
@@ -183,7 +183,7 @@
     <card1>1</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>10</port2>
   </wire>
   <wire>
@@ -194,7 +194,7 @@
     <card1>2</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>11</port2>
   </wire>
   <wire>
@@ -205,7 +205,7 @@
     <card1>3</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>12</port2>
   </wire>
   <wire>
@@ -216,7 +216,7 @@
     <card1>99</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>8</port2>
   </wire>
   <wire>
@@ -227,7 +227,7 @@
     <card1>0</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>9</port2>
   </wire>
   <wire>
@@ -238,7 +238,7 @@
     <card1>1</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>13</port2>
   </wire>
   <wire>
@@ -249,7 +249,7 @@
     <card1>2</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>14</port2>
   </wire>
   <wire>
@@ -260,7 +260,7 @@
     <card1>3</card1>
     <port1>1</port1>
     <node_id2>procurve2</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>15</port2>
   </wire>
   <wire>
@@ -271,7 +271,7 @@
     <card1>99</card1>
     <port1>1</port1>
     <node_id2>procurve1</node_id2>
-    <card2>1</card2>
+    <card2>5</card2>
     <port2>10</port2>
   </wire>
 </wiring>
