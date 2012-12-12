@@ -65,15 +65,18 @@ inner ops!
 
 Now we convert the VMs for boot in the target environment, which means
 cleaning up some stuff and changing a bunch of things.  First ssh (as
-root) into the inner ops VM from outer boss:
+root) into the inner boss VM from outer boss:
+
+	boss> cd /usr/testbed/obj/testbed/install
+	boss> sudo perl emulab-install -c -i boss/genirack boss
+
+then log out and ssh (as root) into inner ops:
 
 	ops> cd /usr/testbed/obj/testbed/install
 	ops> sudo perl emulab-install -i ops/genirack ops
 
-then log out and ssh (as root) into inner boss:
-
-	ops> cd /usr/testbed/obj/testbed/install
-	ops> sudo perl emulab-install -i boss/genirack boss
+Grab /usr/testbed/etc/elabman.pswd and store it in our file. See
+Utah boss:~stoller/genirack/pswd.txt. 
 
 Now we have to shutdown the VMs. Log into the physical host and then:
 

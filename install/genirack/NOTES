@@ -150,11 +150,13 @@ Setting up an InstaGeni Rack. First, we need the following info:
   2610(vlan-10)> untagged 23	   XXXX Make sure about port number!
   2610(vlan-10)> ip address 10.1.1.253/24
   2610(vlan-10)> exit
-  2610(config)> no vlan 1 ip address
+  2610(config)> vlan 1
+  2610(vlan-1)> ip address 10.254.254.253/24  # IGMP querier requires this
+  2610(vlan-1)> exit
   2610(config)> management-vlan 10
   2610(config)> ip default-gateway 10.1.1.254
   2610(config)> vlan 1 ip igmp
-  2610(config)> vlan 11 ip igmp querier
+  2610(config)> vlan 1 ip igmp querier
   2610(config)> no web-management
   2610(config)> no snmp-server community public
   2610(config)> snmp-server community XXXXX manager unrestricted
@@ -247,19 +249,68 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 * Restore the VMs:
 
-	~elabman/clientside/tmcc/linux/xen/restorevm.pl -i boss /scratch/boss
-	~elabman/clientside/tmcc/linux/xen/restorevm.pl -i ops /scratch/ops
+        mkdir ~elabman/boss ~elabman/ops
+	~elabman/restorevm.pl -t ~elabman/boss -i boss /scratch/boss
+	~elabman/restorevm.pl -t ~elabman/ops  -i ops /scratch/ops
 
   This creates a bunch of LVMs and rewrites the xm.conf in the
   boss/ops directories to reflect the new LVM paths, etc.
 
 * Fire up the VMs. Ops has to be first, followed by boss.
 
-	sudo xm create /scratch/ops/xm.conf
+	sudo xm create ~elabman/ops/xm.conf
 	sleep 30
-	sudo xm create /scratch/boss/xm.conf
+	sudo xm create ~elabman/boss/xm.conf
 
-* The rest of the setup has not been written down yet. We are waiting
-  for a second rack, to nail down the rest of the instructions.
-  
-* Anything to do with FOAM is in Nick's capable hands!
+* It is possible that ops will hang on fixarp, because tmcd is not
+  running on boss yet. Log into boss and do:
+
+	sudo testbed-control boot
+
+  which should get ops running.
+
+* Now it is time to power on the experimental nodes. If all goes well,
+  they will boot up into FreeBSD MFS and be in the hwdown experiment.
+  Before we release them, we want to change some settings on the ilo.
+  The following command will change the Admin password, create an
+  elabman user, load its ssh key, change the boot order, etc, etc.
+  This part is not scripted yet, so need to look at this XML file.
+  /usr/testbed/etc/genirack/ilo.xml.
+
+  In this file, the mapping of pcX to slot is:
+
+	pc1 -> U05
+	pc2 -> U06
+	pc3 -> U07
+	pc4 -> U08
+	pc5 -> U09
+
+  So grab the ilo password for each one, and then:
+
+	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc1
+	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc2
+	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc3
+	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc4
+	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc5
+	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ip> <ilopswd>
+
+  The last line updates the control node ilo.
+
+* Free all the nodes up and lets hope they reload okay. Okay, lets
+  just do one to start with.
+
+	wap nfree emulab-ops hwdown pc1
+
+  If that works and pc1 does indeed go into the free pool, then do the
+  rest of the nodes:
+
+  	wap nfree emulab-ops hwdown pc2 pc3 pc4 pc5
+
+* Create some test experiments.
+
+---
+Problems:
+
+root/toor password on boss did not match what is in the file.
+root/toor password on ops is generated elabinelab swapin and needs to set.
+ntpd and ntpdate failures.
