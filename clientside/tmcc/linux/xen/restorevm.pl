@@ -154,7 +154,9 @@ else {
 my $ifacelist = eval $xminfo{'vif'};
 my @newifaces = ();
 foreach my $vif (@$ifacelist) {
-    my ($mac, $bridge) = split(',', $vif);
+    my ($mac, $ip, $bridge) = split(',', $vif);
+    $bridge = $ip
+	if (!defined($bridge));
     my (undef, $iface) = split('=', $bridge);
 
     $iface =~ s/eth/xenbr/;
