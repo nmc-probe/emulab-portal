@@ -108,6 +108,13 @@ sub set_random_rootfs_uuid
 	system("$TUNE2FS -U random $root");
 }
 
+sub disable_time_dependent_fsck
+{
+	my ($root) = @_;
+	
+	system("$TUNE2FS -i 0 $root >/dev/null 2>&1");
+}
+
 sub kernel_version_compare
 {
 	my ($v1, $v2) = @_;
@@ -960,6 +967,7 @@ sub main
 
 	my $old_uuid = get_uuid($root);
 	set_random_rootfs_uuid($root);
+	disable_time_dependent_fsck($root);
 	my $fstype = mount_image($root, $imageroot);
 	my $uuid = get_uuid($root);
 	my $label = get_label($root);

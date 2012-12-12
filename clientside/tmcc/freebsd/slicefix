@@ -708,7 +708,20 @@ dolinux() {
 	    fi
 	fi
 
-	# attempt to mount filesystem   
+	#
+	# Turn off time-dependent fsck.
+	#
+	if  [ -x /usr/local/sbin/tune2fs ]; then
+	    echo "  disabling time-dependent fsck"
+	    tune2fs -i 0 $rootdev >/dev/null 2>&1
+	    if [ $? -ne 0 ]; then
+	        echo "  WARNING: could not disable time-dependent fsck"
+	    fi
+	fi
+
+	#
+	# Attempt to mount filesystem   
+	#
 	echo "  fixing Linux root partition ${disk}s${part}"
 	mount -t ext2fs $rootdev /mnt || {
 	    # might need a journal recovery, try fsck
