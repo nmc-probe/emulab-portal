@@ -226,6 +226,11 @@ sub Install($$$)
 	    DoneIfExists("$PREFIX/ports/Mk");
 	    ExecQuietFatal("cd $PREFIX; $TAR zxf $PREFIX/ports.tar.gz");
 	};
+	Phase "portlink", "Linking to unpacked ports tree", sub {
+	    ExecQuietFatal("cd /usr; ln -sf testbed/ports .");
+	}
+
+	# Need to add a symlink. 
 	
 	#
 	# Need to remove the ELABINELAB flag.
@@ -233,10 +238,11 @@ sub Install($$$)
 	my $OLDDEFSFILE = "$main::TOP_SRCDIR/defs-elabinelab";
 	my $NEWDEFSFILE = "$main::TOP_SRCDIR/defs-genirack";
 	
-	Phase "elabinelab", "Removing ELABINELAB from defs file", sub {
+	Phase "elabinelab", "Removing ELABINELAB stuff from defs file", sub {
 	    DoneIfExists($NEWDEFSFILE);
-	    ExecQuietFatal("cat $OLDDEFSFILE | ".
-			   "   sed -e 's/^ELABINELAB/#ELABINELAB/' ".
+	    ExecQuietFatal("cat $OLDDEFSFILE | sed ".
+			   "   -e 's/^ELABINELAB/#ELABINELAB/' ".
+			   "   -e 's/^WWWHOST=boss/WWWHOST=www/' ".
 			   "   > $NEWDEFSFILE");
 	};
 
@@ -357,8 +363,8 @@ sub Install($$$)
 
 	    ExecQuietFatal("cd $TOP_OBJDIR/install/genirack; ".
 			   "  $SUDO -u $PROTOUSER $WAP ".
-			   "  perl mknewconfig output ".
-			   "                   $RACKIPS $RACKILO $RACKWIRES");
+			   "  perl mknewconfig ".
+			   "       /tmp/output $RACKIPS $RACKILO $RACKWIRES");
 	};
 
 	Phase "outlets", "Adding outlets to the DB", sub {
