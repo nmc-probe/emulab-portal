@@ -33,7 +33,7 @@ use POSIX ":sys_wait_h";
 #
 sub usage()
 {
-    print STDERR "Usage: initilo.pl [-d] [-n] <nodeid> <ilopswd>\n";
+    print STDERR "Usage: initilo.pl [-d] [-n] <ilopswd> <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -o <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -c <ip> <ilopswd>\n";
     exit(-1);
@@ -157,7 +157,7 @@ my $node_id = $node->node_id();
 
 # This has to be in the interfaces table already.
 my $management_interface = Interface->LookupManagement($node);
-if (defined($management_interface)) {
+if (!defined($management_interface)) {
     Fatal("No management interface for $node");
 }
 my $iloIP = $management_interface->IP();
