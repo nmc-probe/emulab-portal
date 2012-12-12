@@ -104,9 +104,9 @@ sub Install($$$)
 	    print SC "*.*\t\t\t\t\t\t${LOGDIR}/elvin_gateway.log\n";
 	    if ($PROTOGENI_GENIRACK) {
 		print SC "!foam\n";
-		print SC "*.*\t\t\t\t\t\t${LOGDIR}/foam.log\n";
+		print SC "*.*\t\t\t\t\t\t/var/log/foam.log\n";
 		print SC "!flowvisor\n";
-		print SC "*.*\t\t\t\t\t\t${LOGDIR}/flowvisor.log\n";
+		print SC "*.*\t\t\t\t\t\t/var/log/flowvisor.log\n";
 	    }
 	    print SC "# " . MAGIC_TESTBED_END() . "\n";
 	    close SC;
@@ -151,8 +151,8 @@ sub Install($$$)
 		"$LOGDIR/pubsubd.log\t\t\t640  5     1000 *     Z",
 		"$LOGDIR/elvin_gateway.log\t\t\t640  5     1000 *     Z",
 		"/var/log/tiplogs/capture.log\t\t644  7     *    168   Z",
-		"/var/log/tiplogs/foam.log\t\t640  7     *    168   Z",
-		"/var/log/tiplogs/flowvisor.log\t\t640  7    1000 *    Z",
+		"/var/log/foam.log\t\t640  7     *    168   Z",
+		"/var/log/flowvisor.log\t\t640  7    1000 *    Z",
 		);
 	};
     };
