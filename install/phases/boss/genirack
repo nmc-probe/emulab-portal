@@ -2,28 +2,9 @@
 # TODO:
 # Build from /usr/testbed/src/emulab-stable.
 #
-# Additional stuff for setting up the geni racks. 
-#
-# Switch tasks:
-#  2610> vlan 1 ip address 10.1.1.253/24
-#  2610> ip default-gateway 10.1.1.254
-#  5400> vlan 1 ip address 10.2.1.253/24
-#  5400> ip default-gateway 10.2.1.254
-#  2610> show ip igmp
-#  2610> vlan 1 ip igmp
-#  2610> vlan 1 ip igmp querier
-#  both> no web-management
-#  both> password all (type in password).
-#  both> no snmp-server community public
-#  both> snmp-server community XXXXX manager unrestricted
-#  both> write memory
-#
-# Control node image changes before it can booted.
-#  fix up the interfaces file.
-#  Add /etc/hostname.
-#  Add /etc/resolv.conf
-#  Set Root password.
-#
+# Automate the initilo calls from the xml file.
+# Create encrypted ssl cert for elabman, for testing.
+# 
 use strict;
 use libinstall;
 use installvars;
