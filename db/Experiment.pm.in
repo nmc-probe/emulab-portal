@@ -2842,6 +2842,13 @@ sub CleanLogFiles($)
     mysystem("/bin/rm -f @delete") == 0
 	or return -1;
 
+    #
+    # Whenever we clean the log files, we might as well clear the
+    # current log file, cause it no longer is there, but the web
+    # interface will not know that.
+    #
+    $self->ClearLogFile();
+
     return 0;
 }
 
