@@ -11,7 +11,24 @@ Setting up an InstaGeni Rack. First, we need the following info:
    top of each of the nodes. Please note the rack slot number for each
    password. Ideally, we would have the ethernet addresses for the ilo
    and eth0 interfaces too, but I expect we will have to figure that
-   out on the fly using the dhcpd logs. 
+   out on the fly using the dhcpd logs.
+8. External network information.
+     A. We need to know what port on the data switch will bring in the
+        openflow vlan (1750). If you have the all-copper module, we
+        suggest that you use port 24 for the upwire to the switch
+        providing that vlan. If you use a different port, be sure to
+        tell us!
+     B. We also need to know any other external connections such as
+        ION, NLR, etc. For each of these connections, we need to know
+        what port on the data plane switch it comes in on, what vlan
+        numbers are available, and the endpoint. For example, here is
+        the info for the BBN rack:
+           * VLAN IDs 3747-3749 to Internet2
+	     (ION endpoint bbn.newy.ion.internet2.edu)
+           * VLAN IDs 2644-2649 to NLR
+	     (FrameNet endpoint bost.layer2.nlr.net[Gi9/2])
+     C. If you are really ambitious, you can generate a wiki page like
+        this: http://groups.geni.net/geni/wiki/SiteBbn  :-)
 
 * Send Utah all of the above info so that we can "bake" the images
   for you. Once you hear back from us, you may continue with these
@@ -274,8 +291,8 @@ Setting up an InstaGeni Rack. First, we need the following info:
   Before we release them, we want to change some settings on the ilo.
   The following command will change the Admin password, create an
   elabman user, load its ssh key, change the boot order, etc, etc.
-  This part is not scripted yet, so need to look at this XML file.
-  /usr/testbed/etc/genirack/ilo.xml.
+  This part is not scripted yet, so need to look at the XML file
+  /usr/testbed/etc/genirack/ilo.xml to get the ilo passwords. 
 
   In this file, the mapping of pcX to slot is:
 
@@ -306,6 +323,44 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
   	wap nfree emulab-ops hwdown pc2 pc3 pc4 pc5
 
+* Enable this site in Utah:
+
+	sudo cacontrol -c boss.XXX.XXX.XXX
+
+* On the new boss, need to reload the bundles:
+
+	sudo /usr/testbed/sbin/protogeni/getcacerts
+
+* Arrange for the VMs to auto starts:
+
+	cd /etc/xen/auto/
+	sudo ln -s ~stoller/ops/xm.conf 1.ops.conf
+	sudo ln -s ~stoller/boss/xm.conf 2.boss.conf
+
+* Next we want to update the firmware on the data plane switch to the
+  one that supports openflow. First the firmware from Utah to the
+  local tftp directory on boss.
+
+	cd /tftpboot
+	sudo wget http://www.emulab.net/downloads/K_15_06_5008.swi
+
+* Log into procurve2 using the password in /usr/testbed/etc/switch.pswd
+  We then want to make a copy of the current config in case we have to
+  revert back.
+
+	5406> show config files
+	5406> copy config config1 config config-save
+       
+* Now load the openflow firmware into the primary flash. First make
+  sure the secondary has a copy of the primary. 
+
+	5406> show flash
+	5406> copy tftp flash 10.3.1.1 K_15_06_5008.swi
+
+* And if that works, reboot the switch.
+
+	5406> reload
+
 * Create some test experiments.
 
 ---
@@ -314,3 +369,10 @@ Problems:
 root/toor password on boss did not match what is in the file.
 root/toor password on ops is generated elabinelab swapin and needs to set.
 ntpd and ntpdate failures.
+
+SSH enable:
+
+ip ssh public-key manager "ssh-rsa AAA ..."
+# aaa authentication ssh enable public-key
+HP-E2620-24(config)# aaa authentication ssh login public-key 
+
