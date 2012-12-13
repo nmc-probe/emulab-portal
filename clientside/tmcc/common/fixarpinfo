@@ -39,15 +39,17 @@ sub usage()
     print STDERR "  -u    update existing static arp entries (default)\n";
     print STDERR "  -c    clear all arp entries and disable staticarp if set\n";
     print STDERR "  -n    do not change anything, just report what would be done\n";
+    print STDERR "  -t <sec> only wait up to <sec> seconds for info from boss\n";
     print STDERR "  -v    enable verbose mode\n";
     exit(1);
 }
-my $optlist = "sucnv";
+my $optlist = "sucnvt:";
 my $iface = "";
 my $myip = "";
 my $doit = 1;
 my $verbose = 0;
 my $action = "update";
+my $timo = 0;
 
 # Turn off line buffering on output
 $| = 1;
@@ -88,19 +90,30 @@ if (! getopts($optlist, \%options)) {
     usage();
 }
 if (defined($options{'n'})) {
-   $doit = 0;
+    $doit = 0;
 }
 if (defined($options{'v'})) {
     $verbose = 1;
 }
 if (defined($options{'s'})) {
-   $action = "set";
+    $action = "set";
 }
 if (defined($options{'c'})) {
-   $action = "clear";
+    $action = "clear";
 }
 if (defined($options{'u'})) {
    $action = "update";
+}
+if (defined($options{'t'})) {
+    if ($options{'t'} =~ /^(\d+)$/) {
+	$timo = $1;
+    } else {
+	$timo = -1;
+    }
+    if ($timo < 0 || $timo > 1000000) {
+	print STDERR "Bad -t timeout value\n";
+	usage();
+    }
 }
 
 # Only root can actual perform the operations.
@@ -163,7 +176,7 @@ sub doset()
     # to the issue.
     #
     my %arpinfo = ();
-    my $atype = getarpinfo(\%arpinfo);
+    my $atype = getarpinfo(\%arpinfo, $timo);
     if (!$atype) {
 	fatal("fixarpinfo: Could not get arpinfo from libsetup!\n");
     }
@@ -279,7 +292,7 @@ sub doupdate()
     # to the issue.
     #
     my %newinfo = ();
-    my $atype = getarpinfo(\%newinfo);
+    my $atype = getarpinfo(\%newinfo, $timo);
     if (!$atype) {
 	fatal("Could not get arpinfo from tmcc!\n");
     }

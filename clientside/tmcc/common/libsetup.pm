@@ -3260,13 +3260,16 @@ sub getlocalevserver()
 # Note that the hash key is the IP address and not the name.
 # Function returns the type of the arp configuration or undef on error.
 #
-sub getarpinfo($)
+sub getarpinfo($;$)
 {
-    my ($rptr) = @_;
+    my ($rptr,$timo) = @_;
     my %arpinfo = ();
     my @tmccresults = ();
     # don't cache
     my %opthash = ( 'nocache' => 1 );
+    if (defined($timo) && $timo > 0) {
+	$opthash{'timeout'} = $timo;
+    }
 
     if (tmcc(TMCCCMD_ARPINFO, undef, \@tmccresults, %opthash) < 0) {
 	warn("*** WARNING: Could not get arpinfo from server!\n");

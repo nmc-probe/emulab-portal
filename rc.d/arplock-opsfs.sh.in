@@ -30,6 +30,12 @@
 
 . /etc/emulab/paths.sh
 
+#
+# XXX allow a timeout on tmcc calls. Without timeout, ops/fs boot will hang
+# if Emulab services (i.e., tmcd) are not running on boss.
+# Set to zero for no timeout.
+timo=5
+
 if [ ! -x $BINDIR/fixarpinfo ]; then
     echo "*** fixarpinfo script missing, ARP lockdown not done"
     exit 0
@@ -66,21 +72,24 @@ fi
 case "$1" in
 start|faststart)
 	echo "Setting up static ARP entries."
-	$BINDIR/fixarpinfo -sv  >$LOGDIR/fixarpinfo.log 2>&1
+	$BINDIR/fixarpinfo -sv -t $timo >$LOGDIR/fixarpinfo.log 2>&1
 	;;
 restart)
 	echo "Updating static ARP entries."
-	$BINDIR/fixarpinfo -uv  >$LOGDIR/fixarpinfo.log 2>&1
+	$BINDIR/fixarpinfo -uv -t $timo >$LOGDIR/fixarpinfo.log 2>&1
 	;;
 stop)
 	echo "Removing static ARP entries."
-	$BINDIR/fixarpinfo -cv  >$LOGDIR/fixarpinfo.log 2>&1
+	$BINDIR/fixarpinfo -cv -t $timo >$LOGDIR/fixarpinfo.log 2>&1
 	;;
 *)
 	echo "Usage: `basename $0` {start|stop|restart}" >&2
 	false
 	;;
 esac
+stat=$?
 
-exit $?
-
+if [ $timo -gt 0 -a $stat -eq 255 ]; then
+    echo "WARNING: arpinfo call timed out; ARP not locked down!"
+fi
+exit $stat
