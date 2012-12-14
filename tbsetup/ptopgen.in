@@ -727,6 +727,7 @@ elsif (! defined($component_name)) {
 		     ($usecontrol ?
 		      "role='ctrlswitch' and nt.isswitch=1" :
 		      "role='testswitch' or role='widearea_switch' or ".
+		      "n.type='external-switch' or ".
 		      "      (role='testnodefoo' and nt.isswitch=1)"));
 
     while (($switch, $uuid, $country, $latitude, $longitude, $protocols) =
