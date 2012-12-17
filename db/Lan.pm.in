@@ -3401,7 +3401,15 @@ sub RecordVlanInsertion($$$)
     my @portlist;
     $vlan->PortList(\@portlist) == 0
 	or return -1;
-    my $members = join(" ", @portlist);
+
+    # Watch for duplicates
+    my %portlist = ();
+    foreach my $port (@portlist) {
+	$portlist{$port} = $port
+	    if (!exists($portlist{$port}));
+    }
+    
+    my $members = join(" ", keys(%portlist));
 
     #
     # Not all vlans have the path set. Only intraswitch vlans do. In
