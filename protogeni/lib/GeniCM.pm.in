@@ -1069,6 +1069,16 @@ sub GetTicketAuxAux($$$$$$$$$)
 			$virtexperiment->multiplex_factor(5);
 			$virtexperiment->encap_style("vlan");
 		    }
+		    elsif ($virtualization_subtype eq "emulab-connect") {
+			$osname = "GENERICDEV-VM";
+			$pctype = "interconnect-vm";
+			# Lets force to shared node.
+			GeniXML::SetExclusive($ref, 0);
+			$exclusive = 0;
+			# Kludge for libvtop.
+			$virtexperiment->multiplex_factor(5);
+			$virtexperiment->encap_style("vlan");
+		    }
 		    elsif ($virtualization_subtype eq "raw"
 			   || $virtualization_subtype eq "raw-pc") {
 			$pctype = undef;
