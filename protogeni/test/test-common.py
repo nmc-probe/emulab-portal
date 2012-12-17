@@ -84,12 +84,12 @@ if "Usage" not in dir():
                                             [default: query from SA]"""
 
 try:
-    opts, REQARGS = getopt.getopt( sys.argv[ 1: ], "a:c:df:hl:m:n:p:r:s:",
-                                   [ "admincredentials=", "credentials=",
-                                     "debug", "certificate=",
-                                     "help", "sa=", "cm=", "slicename=",
-                                     "passphrase=", "read-commands=",
-                                     "slicecredentials=", "delete" ] )
+    opts, REQARGS = getopt.gnu_getopt( sys.argv[ 1: ], "a:c:df:hl:m:n:p:r:s:",
+                                       [ "admincredentials=", "credentials=",
+                                         "debug", "certificate=",
+                                         "help", "sa=", "cm=", "slicename=",
+                                         "passphrase=", "read-commands=",
+                                         "slicecredentials=", "delete" ] )
 except getopt.GetoptError, err:
     print >> sys.stderr, str( err )
     Usage()
