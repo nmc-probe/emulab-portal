@@ -5,8 +5,16 @@
 .include "../emulab-boss/Makefile.emulab"
 
 #
-# These are for the php5-extensions port
+# These are for the php5-extensions port.
+# We need a specific set of extensions that is slightly different than
+# the default.
 #
+
+#
+# This prevents the option screen.
+#
+BATCH=yes
+
 WITH_XMLRPC=yes
 WITH_CURL=yes
 WITH_OPENSSL=yes
@@ -17,21 +25,9 @@ WITH_MHASH=yes
 WITH_MYSQL=yes
 WITH_XML=yes
 WITH_SOCKETS=yes
-# Additions for mediawiki
-#WITH_ICONV=yes
-#WITH_READLINE=yes
-#WITH_MBSTRING=yes
 
 WITHOUT_SQLITE=true
 WITHOUT_PDO_SQLITE=true
-
-#
-# This prevents the option screen.
-#
-BATCH=yes
-
-# XXX avoid recursive variable defn
-AP_PORT=${APACHE_PORT}
 
 .MAKEFLAGS+=	-DBATCH APACHE_PORT=www/apache22 WITH_APACHE=yes
 

@@ -24,8 +24,8 @@ PKGNAMEPREFIX=	isc-
 PKGNAMESUFFIX=	31-client
 DISTNAME=	${PORTNAME}-3.1-ESV
 
-MAINTAINER=	jpaetzel@FreeBSD.org
-COMMENT?=	The ISC Dynamic Host Configuration Protocol server
+MAINTAINER=	testbed-ops@flux.utah.edu
+COMMENT?=	The old ISC 3.1 DHCP client for Emulab
 
 PORTREVISION_SERVER=	0
 PORTREVISION_CLIENT=	0
@@ -54,8 +54,6 @@ MAN5+=		dhcp-eval.5 dhcp-options.5
 
 MSG_FILE=	${.CURDIR}/pkg-message
 DESCR=		${.CURDIR}/pkg-descr
-PKGINSTALL=	${.CURDIR}/pkg-install
-PKGDEINSTALL=	${PKGINSTALL}
 PKGMESSAGE=	${WRKDIR}/pkg-message
 PLIST=		${.CURDIR}/pkg-plist
 

@@ -142,10 +142,12 @@ RUN_DEPENDS+=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/SNMP.pm:${PORTSDIR}/${P5SNMP_PORT} \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/SNMP_Session.pm:${PORTSDIR}/net-mgmt/p5-SNMP_Session \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Net/IP.pm:${PORTSDIR}/net-mgmt/p5-Net-IP \
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Math/BigInt.pm:${PORTSDIR}/math/p5-Math-BigInt \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/BSD/Resource.pm:${PORTSDIR}/devel/p5-BSD-Resource \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Time/HiRes.pm:${PORTSDIR}/devel/p5-Time-HiRes \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/MD5.pm:${PORTSDIR}/security/p5-MD5 \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Digest/SHA1.pm:${PORTSDIR}/security/p5-Digest-SHA1 \
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Expect.pm:${PORTSDIR}/lang/p5-Expect \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/IO/Pty.pm:${PORTSDIR}/devel/p5-IO-Tty \
 	rpm:${PORTSDIR}/archivers/rpm4 \
 	xvcg:${PORTSDIR}/graphics/vcg \
