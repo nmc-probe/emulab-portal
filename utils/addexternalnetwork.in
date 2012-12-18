@@ -31,13 +31,13 @@ use File::Temp qw(tempfile);
 #
 sub usage()
 {
-    print STDERR "Usage: addexternalnetwork [-d] [-n] <network_id> <node_id> <external_manager> <minvlan>-<maxvlan>\n";
+    print STDERR "Usage: addexternalnetwork [-d] [-n] [-w external_wire_urn] [-i external_interface_urn] <network_id> <node_id> <external_manager> <minvlan>-<maxvlan>\n";
     print STDERR "Options:\n";
     print STDERR " -d       - Turn on debugging\n";
     print STDERR " -n       - Dry run mode\n";
     exit(-1);
 }
-my $optlist   = "hdn";
+my $optlist   = "hdnw:i:";
 my $debug     = 0;
 my $impotent  = 0;
 my $network;
@@ -46,6 +46,8 @@ my $external;
 my $vlans;
 my $minvlan;
 my $maxvlan;
+my $wire;
+my $iface;
 
 # Protos
 sub fatal($);
@@ -92,6 +94,12 @@ if (defined($options{'d'})) {
 }
 if (defined($options{'n'})) {
     $impotent = 1;
+}
+if (defined($options{'w'})) {
+    $wire = $options{'w'};
+}
+if (defined($options{'i'})) {
+    $iface = $options{'i'};
 }
 usage()
     if (scalar(@ARGV) != 4);
@@ -144,6 +152,14 @@ $maxvlan = DBQuoteSpecial($maxvlan);
 my $query = "REPLACE INTO external_networks SET node_id=$node_id, ".
     "node_type=$type, min_vlan=$minvlan, max_vlan=$maxvlan, ".
     "external_manager=$external, network_id=$network";
+if (defined($wire)) {
+    $wire = DBQuoteSpecial($wire);
+    $query = $query . ", external_wire=$wire";
+}
+if (defined($iface)) {
+    $iface = DBQuoteSpecial($iface);
+    $query = $query . ", external_interface=$iface";
+}
 
 if ($debug) {
     print STDERR $query . "\n";

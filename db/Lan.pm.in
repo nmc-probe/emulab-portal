@@ -3860,6 +3860,7 @@ use libdb;
 use libtestbed;
 use English;
 use Lan;
+use GeniHRN;
 use overload ('""' => 'Stringify');
 
 #
@@ -3869,13 +3870,21 @@ sub Lookup($$)
 {
     my ($class, $arg) = @_;
 
-    # Always sanity check before hitting the DB.
-    return undef
-	if (! ($arg =~ /^[-\w]*$/));
+    my $query_result;
+    if (GeniHRN::IsValid($arg)) {
+	# If it is a URN, lookup by external_interface
+	$query_result =
+	    DBQueryWarn("select * from external_networks ".
+			"where external_interface='$arg'");
+    } elsif ($arg =~ /^[-\w]*$/) {
+	# Otherwise it must be a node or network id
+	$query_result =
+	    DBQueryWarn("select * from external_networks ".
+			"where node_id='$arg' or network_id='$arg'");
+    } else {
+	return undef;
+    }
 
-    my $query_result =
-	DBQueryWarn("select * from external_networks ".
-		    "where node_id='$arg' or network_id='$arg'");
     return undef
 	if (!$query_result || !$query_result->numrows);
 

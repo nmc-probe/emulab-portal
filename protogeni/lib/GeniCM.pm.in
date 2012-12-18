@@ -6424,22 +6424,40 @@ sub findStitchPoint
     #
     my $edgeurn = GetHopLinkID($edgehop);
     my $edgewire = Interface::Wire->Lookup($edgeurn);
-    if (!defined($edgewire)) {
-	return (undef, undef, undef,
-		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				     "$lanname: unknown ".
-				     "external_interface for ".
-				     $edgeurn));
+    my $network;
+    my $edgenodeid;
+    my $edgecard;
+    my $edgeport;
+
+    #
+    # The external network may contain the edge URN directly.
+    #
+
+    $network = ExternalNetwork->Lookup($edgeurn);
+    if (defined($network)) {
+	$edgenodeid = $network->node_id();
+	my @networkIfs = ();
+	Interface->LookupAll($edgenodeid, \@networkIfs);
+	if (scalar(@networkIfs) == 1) {
+	    $edgecard = $networkIfs[0]->card();
+	    $edgeport = $networkIfs[0]->port();
+	} else {
+	    return (undef, undef, undef,
+		    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				      "Internal Error. Ambiguous stitchpoint ".
+				      "for external_interface " . $edgeurn));
+	}
     }
     
     #
-    # Look in the external networks table to get the hop
-    # details. 
+    # The external network may be attached to node_id1
     #
-    my $edgenodeid = $edgewire->node_id1();
-    my $edgecard = $edgewire->card1();
-    my $edgeport = $edgewire->port1();
-    my $network = ExternalNetwork->Lookup($edgenodeid);
+    if (! defined($network) && defined($edgewire)) {
+	$edgenodeid = $edgewire->node_id1();
+	$edgecard = $edgewire->card1();
+	$edgeport = $edgewire->port1();
+	$network = ExternalNetwork->Lookup($edgenodeid);
+    }
     
     # The external network may be attached to node_id2
     if (! defined($network)) {
@@ -6452,8 +6470,7 @@ sub findStitchPoint
 	return (undef, undef, undef,
 		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				     "$lanname: unknown network for ".
-				     $edgewire->node_id1() . " and ".
-				     $edgewire->node_id2()));
+				     "external_interface " . $edgeurn));
     }
     
     #
