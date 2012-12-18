@@ -5920,9 +5920,6 @@ sub FlipToUser($$)
 	    if (!defined($geniuser));
 	$geniuser = GeniUser::LocalUser->Create($geniuser);
 
-	print STDERR "FlipToUser: $geniuser, $group\n"
-	    if ($debug);
-	
 	return undef
 	    if ($geniuser->FlipTo($group->unix_gid()));
 	return $geniuser;
@@ -5940,8 +5937,6 @@ sub FlipToUser($$)
 	    if (!defined($user));
 
 	# No subgroups yet.
-	print STDERR "FlipToUser: $user, $project\n"
-	    if ($debug);
 	return undef
 	    if ($user->FlipTo($project->unix_gid()));
 
@@ -5959,9 +5954,6 @@ sub FlipToUser($$)
 	if (!$experiment->AccessCheck($user->emulab_user(),
 				      $Experiment::EXPT_ACCESS_MODIFY));
 
-    print STDERR "FlipToUser: $user, $project\n"
-	if ($debug);
-    
     return undef
 	if ($user->FlipTo($project->unix_gid()));
     return $user;
