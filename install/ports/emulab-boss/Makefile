@@ -141,6 +141,7 @@ RUN_DEPENDS+=	\
 	otclsh:${PORTSDIR}/lang/otcl \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/SNMP.pm:${PORTSDIR}/${P5SNMP_PORT} \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/SNMP_Session.pm:${PORTSDIR}/net-mgmt/p5-SNMP_Session \
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Net/Telnet.pm:${PORTSDIR}/net/p5-Net-Telnet \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Net/IP.pm:${PORTSDIR}/net-mgmt/p5-Net-IP \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Math/BigInt.pm:${PORTSDIR}/math/p5-Math-BigInt \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/BSD/Resource.pm:${PORTSDIR}/devel/p5-BSD-Resource \

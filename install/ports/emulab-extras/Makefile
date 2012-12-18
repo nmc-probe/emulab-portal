@@ -51,7 +51,7 @@ RUN_DEPENDS=	\
         ${LOCALBASE}/bin/emacs:${PORTSDIR}/editors/emacs \
         ${LOCALBASE}/bin/vim:${PORTSDIR}/editors/vim-lite \
         ${LOCALBASE}/sbin/lsof:${PORTSDIR}/sysutils/lsof \
-        ${LOCALBASE}/bin/nc:${PORTSDIR}/net/netcat \
+        ${LOCALBASE}/bin/netcat:${PORTSDIR}/net/netcat \
         ${LOCALBASE}/bin/ttcp:${PORTSDIR}/benchmarks/ttcp \
         ${LOCALBASE}/sbin/e2fsck:${PORTSDIR}/sysutils/e2fsprogs \
         ${LOCALBASE}/sbin/portupgrade:${PORTSDIR}/ports-mgmt/portupgrade \

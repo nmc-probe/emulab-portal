@@ -44,12 +44,14 @@ USE_PERL5_RUN=	yes
 #
 .MAKEFLAGS+=	WITHOUT_LATEX=yes
 
+LIB_DEPENDS=	\
+	telnet.2:${PORTSDIR}/misc/libtelnet
+
 # We need the BUILD_DEPENDS above to wind up in the dependency list
 RUN_DEPENDS:= ${BUILD_DEPENDS}
 
 RUN_DEPENDS+=	\
-	sudo:${PORTSDIR}/security/sudo \
-	telnet.2:${PORTSDIR}/misc/libtelnet
+	sudo:${PORTSDIR}/security/sudo
 
 NO_BUILD=	yes
 
