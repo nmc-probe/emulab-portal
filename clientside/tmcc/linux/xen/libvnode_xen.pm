@@ -140,7 +140,7 @@ my $VMDIR = "/var/emulab/vms/vminfo";
 my $XENDIR = "/var/xen";
 
 # Extra space for restore.
-my $EXTRAFS = "/scratch";
+my $EXTRAFS = "/capture";
 
 # Xen LVM volume group name. Accessible outside this file.
 $VGNAME = "xen-vg";
