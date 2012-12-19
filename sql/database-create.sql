@@ -1465,8 +1465,7 @@ CREATE TABLE `external_networks` (
   `external_manager` tinytext,
   `external_interface` tinytext,
   `external_wire` tinytext,
-  PRIMARY KEY  (`network_id`),
-  UNIQUE KEY `node_id` (`node_id`)
+  PRIMARY KEY  (`network_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
   
 --
