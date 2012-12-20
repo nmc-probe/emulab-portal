@@ -77,11 +77,11 @@ sub Install($$$)
 		}
 	    }
 
-	    if (ISFS($server)) {
-		#
-		# /share is special. We want to export to boss read-write,
-		# but to the control network read-only.
-		#
+	    #
+	    # /share is special. We want to export to boss read-write,
+	    # but to the control network read-only.
+	    #
+	    if ($SHAREDIR && ISFS($server)) {
 		my $realdir = `realpath $SHAREROOT`;
 		chomp($realdir);
 		push(@exports_lines,

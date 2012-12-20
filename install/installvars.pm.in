@@ -341,6 +341,7 @@ $IMAGEPASSWORDSITEVAR   = "images/root_password";
 $MAILMANDIR		= "/usr/local/mailman";
 $MAILMANCFG		= "$MAILMANDIR/Mailman/mm_cfg.py";
 
+$SHAREDIR		= "@FSDIR_SHARE@";
 $SCRATCHDIR		= "@FSDIR_SCRATCH@";
 
 $OUTERBOSS_XMLRPCPORT   = "@OUTERBOSS_XMLRPCPORT@";

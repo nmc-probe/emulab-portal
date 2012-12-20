@@ -17,9 +17,11 @@ sub Install($$$)
     if ($server eq $OPS_SERVERNAME || $server eq $FS_SERVERNAME) {
 	push(@TESTBED_DIRS, ([$USERROOT, "0755"],
 			     [$PROJROOT, "0755"],
-			     [$GROUPROOT, "0755"],
-			     [$SHAREROOT, "0775"]));
+			     [$GROUPROOT, "0755"]));
 
+	if ($SHAREDIR) {
+	    push(@TESTBED_DIRS, [$SHAREROOT, "0755"]);
+	}
 	if ($SCRATCHDIR) {
 	    push(@TESTBED_DIRS, [$SCRATCHROOT, "0755"]);
 	}
