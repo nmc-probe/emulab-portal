@@ -2335,7 +2335,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    }
 	    print $fh GeniXML::Serialize($rspec);
 	    close($fh);
-	    my $networkid = $network->node_id();
+	    my $networkid = $network->network_id();
 	    system("$RESERVEVLANS ".
 		   "'$slice_urn' '$linkname' '$networkid' $filename");
 	    if ($CHILD_ERROR) {
