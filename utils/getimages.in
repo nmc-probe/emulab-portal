@@ -255,8 +255,10 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     unlink($tmpfilename)
 	if (-e $tmpfilename);
     print "Fetching $imageurl\n";
-    system("$FETCH  -o $tmpfilename $imageurl") == 0
-	or fatal("Could not fetch $imageurl");
+    if (system("$FETCH  -o $tmpfilename $imageurl")) {
+	unlink($tmpfilename);
+	fatal("Could not fetch $imageurl");
+    }
 
     #
     # Do an integrity check.
