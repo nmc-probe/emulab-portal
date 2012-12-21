@@ -1,6 +1,22 @@
 #
 # This is an example definitions file for configure.
 #
+# This version has an entirely private address space; i.e., the servers
+# and nodes cannot be accessed directly from the Internet.
+# The control network looks like:
+#
+# Complete:            10.1.32/22
+# "public" segment:      10.1.33/24
+# "private" segment:     10.1.32/24
+# "node control segment: 10.1.34/23 (aka: 10.1.34/24, 10.1.35/24)
+#
+# This configuration requires a router/firewall between the segments
+# and providing access to the outside. The router interface addresses
+# for each segment are 10.1.{32,33,34}.1.
+#
+# Use the --with-TBDEFS=filename to specify your own file.
+# If you add a variable, be sure to go and update configure.in.
+#
 # ALL VARIABLES MUST BE DEFINED! DO NOT COMMENT OUT VARIABLES!
 #
 
@@ -122,6 +138,7 @@ SSLCERT_ORGNAME="Utah Network Testbed"
 
 #
 # Control network configuration stuff.
+#
 # Used primarily to generate initial named and dhcpd config files.
 # See doc/setup-network.txt for definitions of the private, public and
 # control segments.
@@ -155,25 +172,37 @@ EXTERNAL_FSNODE_IP=$EXTERNAL_USERNODE_IP
 # The overall control network range - this subnet should cover the
 # CONTROL, PRIVATE, and PUBLIC networks below.
 #
+# The name server on the boss node will only respond to queries from nodes
+# in this range and will only provide info about nodes in this range.
+#
 TESTBED_NETWORK=10.1.32.0
-TESTBED_NETMASK=255.255.255.0
+TESTBED_NETMASK=255.255.252.0
 
 #
 # As above, if you have internal and external networks, define the
 # external network here, and the internal network above.
+#
+# The name server on the boss node will respond to queries from any node
+# not in the testbed (i.e., not in TESTBED_NET{WORK,MASK}) and provide info
+# about only nodes in this range. Thus if you want to advertise all nodes
+# in your testbed to networks "upstream", define these the same as for
+# TESTBED_NET{WORK,MASK}. If however you only want to expose your boss (ops)
+# node, define it the same as PRIVATE_NET{WORK,MASK} (PUBLIC_NET{WORK,MASK}).
 # 
 EXTERNAL_TESTBED_NETWORK=$TESTBED_NETWORK
 EXTERNAL_TESTBED_NETMASK=$TESTBED_NETMASK
 
 #
 # The node control network segment.
+# The DHCP server on boss provides information about nodes in this range.
 #
-CONTROL_ROUTER_IP=10.1.36.1
-CONTROL_NETWORK=10.1.36.0
-CONTROL_NETMASK=255.255.255.0
+CONTROL_ROUTER_IP=10.1.34.1
+CONTROL_NETWORK=10.1.34.0
+CONTROL_NETMASK=255.255.254.0
 
 #
 # The private network segment.
+# Where boss lives.
 #
 PRIVATE_NETWORK=10.1.32.0
 PRIVATE_ROUTER=10.1.32.1
@@ -181,6 +210,7 @@ PRIVATE_NETMASK=255.255.255.0
 
 #
 # The public network segment.
+# Where ops (users) and fs live.
 #
 PUBLIC_NETWORK=10.1.33.0
 PUBLIC_ROUTER=10.1.33.1
@@ -191,7 +221,7 @@ PUBLIC_NETMASK=255.255.255.0
 # to use for new nodes being added to the testbed.
 # You need at least one.
 #
-DHCPD_DYNRANGE="10.1.36.200 10.1.36.219"
+DHCPD_DYNRANGE="10.1.34.200 10.1.34.219"
 
 #
 # Fill in the nameservers for your campus network here - the nameserver on boss
@@ -204,17 +234,27 @@ DHCPD_DYNRANGE="10.1.36.200 10.1.36.219"
 NAMED_FORWARDERS="1.1.1.1 1.1.2.1"
 
 #
-# Windows support. Turn this on if you think you might want to use windows
-# XP images on your experimental nodes. Note though, that Utah cannot
+# Windows support. Turn this on if you think you might want to use WindowsXP
+# or Windows7 images on your experimental nodes. Note though, that Utah cannot
 # provide those images to you (because of obvious licensing issues), so it
-# will be up to you to generate an XP image yourself and install the
-# Emulab client side that enables XP to work inside your testbed. Turning
+# will be up to you to generate an image yourself and install the Emulab
+# client side that enables Windows to work inside your testbed. Turning on
 # Windows support will install and enable Samba on your ops node, so there 
 # are firewall issues to be aware of (you want to block the appropriate ports
 # so that your ops samba server can be accessed from *only* your control
 # subnet!).
 #
 WINSUPPORT=0
+
+#
+# Additional Windows7-related variables. See:
+#     http://users.emulab.net/trac/emulab/wiki/WindowsImageCreation
+# for details.
+#
+WINDOWS_ORGNAME="Some Organization"
+WINDOWS_OWNER="Some Owner"
+WINDOWS_TIMEZONE="Mountain Standard Time"
+WINDOWS_KEY_7PRO_X86=""
 
 #
 # Enable an NS verification path using a clean version of NS.
@@ -232,11 +272,40 @@ NOSHAREDFS=0
 
 #
 # Set to one if you are using an NFS server that has an "exports race".
-# FreeBSDs before 8.x have this condition.  FreeBSD 8 and above (and
-# probably newer Linuxes) do not.  Since we currently only support FreeBSD
-# 7.x and below fileservers, leave this at one.
+# FreeBSDs before 10.x have this condition. There is currently one workaround
+# and one fix for this, both apply to the new NFS implementation and only
+# in 9.x and 10.x as far as I know:
+#
+#  * The -S (suspend) option to mountd, integrated into 10.x (and 9.x
+#    as of 11/2012), is a workaround that allows suspension of the NFS
+#    server while the exports are changed.
+#
+#  * The new nfse (http://nfse.sourceforge.net/) atomic exports framework
+#    for FreeBSD 10.
+#
+# Since we currently only support FreeBSD 8.x fileservers, we default this
+# to one. Set it to zero if you are using one of the above.
 #
 NFSRACY=1
+
+#
+# Set to one if using the new DBI Perl interface to mysql. This should be
+# set to one on all new installations involving FreeBSD 8.x and above.
+# The packages associated with the emulab-boss-4.0 and beyond meta port
+# install the necessary package for DBI support.
+#
+# Only set this to zero for old installations (emulab-boss-3.1 and before).
+#
+TBUSEDBI=1
+
+#
+# If set to one, this will serve tarballs, RPMs and blobs to be served
+# from the web server on ops (aka, "fs" or "users") rather than from boss.
+# This is more efficient since the tarballs/RPMs/blobs are stored on ops.
+# This can be set to one for all emulab-stable and emulab-devel releases
+# after 12/24/12.
+#
+SPEWFROMOPS=1
 
 #
 # Set the type of the console on nodes. This is used when customizing
@@ -254,9 +323,9 @@ NODECONSOLE="sio"
 # Set this if you are running:
 #	- Perl 5.8
 #	- Perl 5.10 with SelfLoader version 1.18 or greater
-#	- Pefl 5.12 or beyond
+#	- Perl 5.12 or beyond
 # As of Jan 2011, this should include all Emulab installs (we apply a patch
-# to Perl 5.10.1 to update the SelfLoader, see patches/SelfLoader.patch).
+# to Perl 5.10 and 5.12 to update the SelfLoader (patches/SelfLoader.patch).
 # This enables serious runtime performance improvements.
 #
 SELFLOADER_DATA="__DATA__"
@@ -282,11 +351,13 @@ VIRTNODE_NETMASK=255.240.0.0
 JAILIPBASE=$VIRTNODE_NETWORK
 JAILIPMASK=$VIRTNODE_NETMASK
 
+#
 # Dynamic public addresses for virtual nodes.  Leave as "none" if you don't
 # have public IP addresses to spare, otherwise define to an otherwise
 # unused block of addresses that will be given out to virtual nodes asking
 # for routable control net interfaces (instead of the VIRTNODE_NETWORK
 # block they'd otherwise get).
+#
 VPUBADDR_BASE=none
 VPUBADDR_BITLEN=none
 
@@ -325,6 +396,14 @@ FRISEBEEMCASTPORT=3564
 FRISEBEENUMPORTS=0
 
 #
+# Some switches do not support the stack MIB. This means snmpit cannot
+# set the port/duplex during swapin, so you are stuck at a particular
+# bandwidth, and have to change them from the console. Set to 1 if
+# your switch has no stack MIB.
+#
+NOSTACKMIB=0
+
+#
 # Only supported on the Mother Ship (emulab.net) right now.
 #
 WIKISUPPORT=0
@@ -333,8 +412,12 @@ MAILMANSUPPORT=0
 CVSSUPPORT=0
 CHATSUPPORT=0
 NFSTRACESUPPORT=0
-ARCHIVESUPPORT=0
 OPSDBSUPPORT=0
+
+#
+# Deprecated and should always be zero.
+#
+ARCHIVESUPPORT=0
 SFSSUPPORT=0
 PELABSUPPORT=0
 PLABSUPPORT=0
@@ -353,9 +436,3 @@ DISABLE_NSE=1
 # Sometimes the main page is down in a directory on WWWHOST
 # No trailing '/'!
 #WWW=www.example.emulab.net/emulab-www
-
-# Some switches do not support the stack MIB. This means snmpit cannot
-# set the port/duplex during swapin, so youare stuck at a particular
-# bandwidth, and have to change them from the console. Set to 1 if
-# your switch has no stack MIB.
-NOSTACKMIB=0
