@@ -20,6 +20,7 @@ INSERT IGNORE INTO os_boot_cmd VALUES ('FreeBSD','6.2','delay','/boot/kernel.pol
 INSERT IGNORE INTO os_boot_cmd VALUES ('FreeBSD','6.2','linkdelay','/boot/kernel/kernel HZ=1000');
 INSERT IGNORE INTO os_boot_cmd VALUES ('FreeBSD','7.3','delay','/boot/kernel.poll/kernel HZ=10000');
 INSERT IGNORE INTO os_boot_cmd VALUES ('FreeBSD','8.2','delay','/boot/kernel/kernel kern.hz=10000');
+INSERT IGNORE INTO os_boot_cmd VALUES ('FreeBSD','8.3','delay','/boot/kernel/kernel kern.hz=10000');
 INSERT IGNORE INTO os_boot_cmd VALUES ('Linux','9.0','linkdelay','linkdelay');
 
 INSERT IGNORE INTO emulab_indicies (name,idx) VALUES ('cur_log_seq', 1);

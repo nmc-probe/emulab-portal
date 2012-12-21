@@ -39,10 +39,10 @@ sub usage()
     print STDERR "  -v 2    second generation STD images (FBSD62, FC6)\n";
     print STDERR "  -v 3    third generation STD images (FBSD82, FEDORA15)\n";
     print STDERR "  -v 4    fourth generation STD images (FBSD83, FEDORA15)\n";
-    print STDERR "Default version is 2.\n";
+    print STDERR "Default version is 4.\n";
     exit(-1);
 }
-my $version = 2;
+my $version = 4;
 my $mfsonly = 0;
 my $images;
 
