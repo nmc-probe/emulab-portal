@@ -54,10 +54,6 @@ $sharedurl = "http://www.geni.net/resources/rspec/ext/shared-vlan/1/ad.xsd";
 $stitchns = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
 $stitchurl = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/stitch-schema.xsd";
 
-if ($PGENISUPPORT) {
-  require GeniHRN;
-}
-
 sub usage()
 {
     print("Usage: ptopgen [-v] [-s switch] [-p pid [-e eid]] [-m factor] " .
@@ -106,7 +102,8 @@ my $MAINSITE  = @TBMAINSITE@;
 my $cmuuid = TBGetSiteVar('protogeni/cm_uuid');
 my $cmurn = "";
 if ($PGENISUPPORT) {
-    $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
+    require GeniHRN;
+    $cmurn = &GeniHRN::Generate($OURDOMAIN, "authority", "cm");
 }
 
 $opstate = <<'OPSTATE';
