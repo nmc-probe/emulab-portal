@@ -1591,8 +1591,20 @@ sub SetupOpsNode($)
     print RC "nfs_server_enable=\"YES\"\n";
     print RC "nfs_server_flags=\"-u -t -n 8\"\n";
     print RC "nfs_client_enable=\"YES\"\n";
-    print RC "smbd_enable=\"YES\"\n"
-	if ($emulabconfig{"CONFIG_WINDOWS"});
+    if ($isfs && $emulabconfig{"CONFIG_WINDOWS"}) {
+	#
+	# As of 10/2012, the startup for samba changed.
+	# XXX not directly related to the FreeBSD version, but it is
+	# the best we can do--the port version was not bumped when this
+	# change was made.
+	#
+	if ($FBSD_VERSION >= 8.3) {
+	    print RC "samba_enable=\"YES\"\n";
+	    print RC "nmbd_enable=\"NO\"\n";
+	} else {
+	    print RC "smbd_enable=\"YES\"\n";
+	}
+    }
     print RC "mountd_flags=\"-r -p 900\"\n";
 
     print RC "syslogd_flags=\"-a $control_network\"\n";
