@@ -177,7 +177,7 @@
  <attribute name="mustclean"><value>1</value></attribute>
  <attribute name="op_mode"><value>PXEFBSD</value></attribute>
  <attribute name="osname"><value>NEWNODE-LINUX</value></attribute>
- <attribute name="path"><value>boss:/tftpboot/frisbee_linux/vmlinuz initrd=/tftpboot/frisbee_linux/initramfs.gz console=tty0 console=ttyS0,115200 elab_mode=newnode</value></attribute>
+ <attribute name="path"><value>/tftpboot/newnode_linux</value></attribute>
  <attribute name="pid"><value>emulab-ops</value></attribute>
  <attribute name="reboot_waittime"><value>120</value></attribute>
  <attribute name="shared"><value>0</value></attribute>
