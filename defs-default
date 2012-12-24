@@ -65,6 +65,12 @@ FRISEBEENUMPORTS=100
 NODE_USAGE_SUPPORT=1
 
 #
+# If enabled, will serve tarballs, RPMs and blobs from ops (fs)
+# rather than boss.
+#
+SPEWFROMOPS=1
+
+#
 # This next group will not work outside of Utah (yet).
 #
 PUBSUPPORT=1
