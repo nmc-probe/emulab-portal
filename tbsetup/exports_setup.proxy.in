@@ -61,7 +61,11 @@ if (defined($opts{'S'})) {
     $exportsback = "$etcdir/smb.conf.backup";
     $exportshead = "$etcdir/smb.conf.head";
     $exportstail = "$etcdir/smb.conf.tail";
-    $pidfile     = "/var/run/smbd.pid";
+    if (-d "/var/run/samba") {
+	$pidfile = "/var/run/samba/smbd.pid";
+    } else {
+	$pidfile = "/var/run/smbd.pid";
+    }
     $daemon      = "smbd";
 }
 else {
