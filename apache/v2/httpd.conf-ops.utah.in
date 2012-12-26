@@ -194,7 +194,8 @@ LoadModule cache_module libexec/apache22/mod_cache.so
 LoadModule suexec_module libexec/apache22/mod_suexec.so
 #LoadModule disk_cache_module libexec/apache22/mod_disk_cache.so
 #LoadModule file_cache_module libexec/apache22/mod_file_cache.so
-LoadModule mem_cache_module libexec/apache22/mod_mem_cache.so
+#LoadModule mem_cache_module libexec/apache22/mod_mem_cache.so
+LoadModule memcache_module libexec/apache22/mod_memcache.so
 LoadModule cgi_module libexec/apache22/mod_cgi.so
 
 #
@@ -748,6 +749,15 @@ RedirectMatch ^/mailman[/]*$ http://@USERNODE@/mailman/listinfo
 ScriptAlias /cvsweb/ "/usr/testbed/www/cvsweb/"
 Alias /jabber/ "/usr/testbed/www/jabber/"
 
+ScriptAlias /spewrpmtar  /usr/testbed/cgi-bin/spewrpmtar_cgi
+
+<Directory "/usr/testbed/cgi-bin">
+    Options FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+</Directory>
+
 #
 # Redirect allows you to tell clients about documents which used to exist in
 # your server's namespace, but do not anymore. This allows you to tell the
@@ -1202,7 +1212,7 @@ SSLCipherSuite ALL:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW
 # pass phrase.  Note that a kill -HUP will prompt again.  A new
 # certificate can be generated using the genkey(1) command.
 #SSLCertificateFile /etc/pki/tls/certs/localhost.crt
-SSLCertificateFile /etc/httpd/ssl.crt/@USERNODE@.crt
+SSLCertificateFile /usr/local/etc/apache22/ssl.crt/@USERNODE@.crt
 
 #   Server Private Key:
 #   If the key is not combined with the certificate, use this
@@ -1210,7 +1220,7 @@ SSLCertificateFile /etc/httpd/ssl.crt/@USERNODE@.crt
 #   you've both a RSA and a DSA private key you can configure
 #   both in parallel (to also allow the use of DSA ciphers, etc.)
 #SSLCertificateKeyFile /etc/pki/tls/private/localhost.key
-SSLCertificateKeyFile /etc/httpd/ssl.key/@USERNODE@.key
+SSLCertificateKeyFile /usr/local/etc/apache22/ssl.key/@USERNODE@.key
 
 #   Server Certificate Chain:
 #   Point SSLCertificateChainFile at a file containing the

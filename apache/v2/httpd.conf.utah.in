@@ -394,7 +394,7 @@ DocumentRoot "@prefix@/www/"
     AllowOverride All
 </Directory>
 
-<Directory @prefix/@www/dev>
+<Directory @prefix@/www/dev>
     # Allow .htaccess files in dev trees
     AllowOverride All
     Order deny,allow
@@ -1321,7 +1321,7 @@ SSLRequire ( %{SSL_CLIENT_S_DN_OU} ne "sslxmlrpc" )
 ScriptAlias /protogeni/xmlrpc @prefix@/protogeni/xmlrpc/protogeni-wrapper.pl
 
 ScriptAlias /protogeni/stoller/xmlrpc @prefix@/devel/stoller/protogeni/xmlrpc/protogeni-wrapper.pl
-ScriptAlias /protogeni/gtw/xmlrpc @prefix/devel/gtw/protogeni/xmlrpc/protogeni-wrapper.pl
+ScriptAlias /protogeni/gtw/xmlrpc @prefix@/devel/gtw/protogeni/xmlrpc/protogeni-wrapper.pl
 
 <Directory "@prefix@/www/protogeni">
 	SSLRequireSSL
@@ -1532,7 +1532,7 @@ SSLRequire ( %{SSL_CLIENT_S_DN_OU} ne "sslxmlrpc" )
 ScriptAlias /protogeni/xmlrpc @prefix@/protogeni/xmlrpc/protogeni-wrapper.pl
 
 ScriptAlias /protogeni/stoller/xmlrpc @prefix@/devel/stoller/protogeni/xmlrpc/protogeni-wrapper.pl
-ScriptAlias /protogeni/gtw/xmlrpc @prefix/devel/gtw/protogeni/xmlrpc/protogeni-wrapper.pl
+ScriptAlias /protogeni/gtw/xmlrpc @prefix@/devel/gtw/protogeni/xmlrpc/protogeni-wrapper.pl
 
 <Directory "@prefix@/www/protogeni">
 	SSLRequireSSL
