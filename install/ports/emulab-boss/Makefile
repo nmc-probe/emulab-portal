@@ -240,9 +240,13 @@ RUN_DEPENDS+= cvsup:${PORTSDIR}/net/cvsup-without-gui \
 	${LOCALBASE}/sbin/named:${PORTSDIR}/dns/bind9
 .endif
 
+.if ${OSMAJOR} >= 8
+RUN_DEPENDS+= \
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/LWP/Protocol/https.pm:${PORTSDIR}/www/p5-LWP-Protocol-https
+.endif
+
 .if ${OSMAJOR} >= 9
 RUN_DEPENDS+= \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/LWP/Protocol/https.pm:${PORTSDIR}/www/p5-LWP-Protocol-https \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Class/ISA.pm:${PORTSDIR}/devel/p5-Class-ISA
 .endif
 
