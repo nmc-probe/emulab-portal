@@ -221,6 +221,11 @@ RUN_DEPENDS+=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Privileges/Drop.pm:${PORTSDIR}/misc/p5-Privileges-Drop \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/IO/EventMux.pm:${PORTSDIR}/misc/p5-IO-EventMux \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/IO/EventMux/Socket/MsgHdr.pm:${PORTSDIR}/misc/p5-IO-EventMux-Socket-MsgHdr
+.if ${PORTVERSION} == "5.0"
+# perl 5.12 and beyond wants this
+RUN_DEPENDS+= \
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Class/ISA.pm:${PORTSDIR}/devel/p5-Class-ISA
+.endif
 .endif
 
 .if ${OSMAJOR} >= 6
@@ -243,11 +248,6 @@ RUN_DEPENDS+= cvsup:${PORTSDIR}/net/cvsup-without-gui \
 .if ${OSMAJOR} >= 8
 RUN_DEPENDS+= \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/LWP/Protocol/https.pm:${PORTSDIR}/www/p5-LWP-Protocol-https
-.endif
-
-.if ${OSMAJOR} >= 9
-RUN_DEPENDS+= \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Class/ISA.pm:${PORTSDIR}/devel/p5-Class-ISA
 .endif
 
 # make sure these get installed
