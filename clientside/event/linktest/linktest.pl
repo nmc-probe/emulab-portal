@@ -1091,8 +1091,9 @@ sub loss_test {
 				  &get_loss_sample_size($edge) .
 				  ", time=" .
 				  LOSS_TEST_DURATION . "s, psize=20)");
-		    } elsif ($platform eq LINUX &&
-			     $hostmap{$hostname}->isvnode) {
+		    } elsif (!$high_priority ||
+			     ($platform eq LINUX &&
+			      $hostmap{$hostname}->isvnode)) {
 			&my_system($PATH_RUDE,"-s", RUDE_CFG, $rude_arg);
 		    } else {
 			&my_system($PATH_RUDE,"-s", RUDE_CFG, "-P", RUDE_PRI,
