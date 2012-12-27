@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.sites.ApiDetails;
@@ -45,13 +45,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class ReleaseTicketCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		/**
 		 * 
 		 * @param newSliver Sliver to release ticket for
 		 * 
 		 */
-		public function ReleaseTicketCmTask(newSliver:Sliver)
+		public function ReleaseTicketCmTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.url,
@@ -70,7 +70,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		override protected function createFields():void
 		{
 			addNamedField("slice_urn", sliver.slice.id.full);
-			addNamedField("ticket", sliver.ticket);
+			addNamedField("ticket", sliver.ticket.document);
 			addNamedField("credentials", [sliver.slice.credential.Raw]);
 		}
 		
@@ -93,6 +93,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		{
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
+				// sliver.AllocationState;
 				addMessage(
 					"Released",
 					"Ticket was released",

@@ -51,7 +51,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.resources.virtual.LoginService;
 	import com.flack.geni.resources.virtual.Services;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.VirtualInterface;
 	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
 	import com.flack.geni.resources.virtual.VirtualInterfaceReference;
@@ -86,7 +86,7 @@ package com.flack.geni.tasks.process
 	 */
 	public final class ParseRequestManifestTask extends Task
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		public var rspec:Rspec;
 		public var markUnsubmitted:Boolean;
 		public var parseManifest:Boolean;
@@ -99,7 +99,7 @@ package com.flack.geni.tasks.process
 		 * @param shouldMarkUnsubmitted Mark all resources as unsubmitted, must be false to import manifest values
 		 * 
 		 */
-		public function ParseRequestManifestTask(newSliver:Sliver,
+		public function ParseRequestManifestTask(newSliver:AggregateSliver,
 												 newRspec:Rspec,
 												 shouldMarkUnsubmitted:Boolean = false,
 												 shouldParseManifest:Boolean = false)
@@ -114,7 +114,7 @@ package com.flack.geni.tasks.process
 				false,
 				[newSliver, newSliver.slice, newSliver.manager]
 			);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 			rspec = newRspec;
 			markUnsubmitted = shouldMarkUnsubmitted;
 			parseManifest = shouldParseManifest;
@@ -172,24 +172,16 @@ package com.flack.geni.tasks.process
 						);
 						return;
 				}
-				sliver.slice.useInputRspecInfo = new RspecVersion(rspec.info.type, rspec.info.version);
+				aggregateSliver.slice.useInputRspecInfo = new RspecVersion(rspec.info.type, rspec.info.version);
 				
-				if(parseManifest)
-				{
-					if(xmlDocument.@valid_until.length() == 1)
-						sliver.expires = DateUtil.parseRFC3339(String(xmlDocument.@valid_until));
-					if(xmlDocument.@expires.length() == 1)
-						sliver.expires = DateUtil.parseRFC3339(String(xmlDocument.@expires));
-				}
-				
-				sliver.markStaged();
+				aggregateSliver.markStaged();
 				
 				var nodesById:Dictionary = new Dictionary();
 				var interfacesById:Dictionary = new Dictionary();
 				
 				var localName:String;
 				
-				sliver.extensions.buildFromOriginal(
+				aggregateSliver.extensions.buildFromOriginal(
 					xmlDocument,
 					[
 						defaultNamespace.uri,
@@ -276,7 +268,7 @@ package com.flack.geni.tasks.process
 						return;
 					}
 					// Don't add outside nodes, they might not exist
-					if(virtualNodeManager != sliver.manager)
+					if(virtualNodeManager != aggregateSliver.manager)
 					{
 						addMessage(
 							"Skipping node from other manager",
@@ -285,7 +277,7 @@ package com.flack.geni.tasks.process
 						continue;
 					}
 					
-					if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST && parseManifest)
+					if(virtualNodeManager == aggregateSliver.manager && rspec.type == Rspec.TYPE_MANIFEST && parseManifest)
 					{
 						// nodes from their manager's manifests without sliver_ids aren't in the sliver...
 						if(sliverIdString.length == 0)
@@ -312,13 +304,13 @@ package com.flack.geni.tasks.process
 						}
 					}
 					
-					var virtualNode:VirtualNode = sliver.slice.getByClientId(clientIdString);
+					var virtualNode:VirtualNode = aggregateSliver.slice.getByClientId(clientIdString);
 					
 					// Node not in the slice, need to add
 					if(virtualNode == null)
 					{
-						virtualNode = new VirtualNode(sliver.slice, virtualNodeManager);
-						sliver.slice.nodes.add(virtualNode);
+						virtualNode = new VirtualNode(aggregateSliver.slice, virtualNodeManager);
+						aggregateSliver.slice.nodes.add(virtualNode);
 					}
 					else
 						virtualNode.manager = virtualNodeManager;
@@ -326,10 +318,10 @@ package com.flack.geni.tasks.process
 					// Have the full info for this node
 					if(markUnsubmitted)
 						virtualNode.unsubmittedChanges = true;
-					else if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST)
+					else if(virtualNodeManager == aggregateSliver.manager && rspec.type == Rspec.TYPE_MANIFEST)
 						virtualNode.unsubmittedChanges = false;
 					
-					if(virtualNodeManager == sliver.manager && rspec.type == Rspec.TYPE_MANIFEST && parseManifest)
+					if(virtualNodeManager == aggregateSliver.manager && rspec.type == Rspec.TYPE_MANIFEST && parseManifest)
 					{
 						virtualNode.id = new IdnUrn(sliverIdString);
 						virtualNode.manifest = nodeXml.toXMLString();
@@ -449,7 +441,7 @@ package com.flack.geni.tasks.process
 							{
 								// V1 didn't have sliver ids for interfaces...
 								virtualInterfaceSliverId = IdnUrn.makeFrom(
-									sliver.manager.id.authority,
+									aggregateSliver.manager.id.authority,
 									"interface",
 									virtualInterfaceClientId).full;
 							}
@@ -475,7 +467,7 @@ package com.flack.geni.tasks.process
 						var virtualInterface:VirtualInterface = virtualNode.interfaces.getByClientId(virtualInterfaceClientId);
 						
 						if(rspec.type == Rspec.TYPE_MANIFEST
-							&& virtualNode.manager == sliver.manager
+							&& virtualNode.manager == aggregateSliver.manager
 							&& virtualInterfaceSliverId.length == 0)
 						{
 							// Interface not really used
@@ -526,7 +518,7 @@ package com.flack.geni.tasks.process
 									virtualInterface.ip.netmask = String(ipXml.@mask);
 								else if(ipXml.@netmask.length() == 1)
 									virtualInterface.ip.netmask = String(ipXml.@netmask);
-								if(virtualNode.manager == sliver.manager)
+								if(virtualNode.manager == aggregateSliver.manager)
 									virtualInterface.ip.extensions.buildFromOriginal(ipXml, [defaultNamespace.uri]);
 							}
 						}
@@ -542,11 +534,11 @@ package com.flack.geni.tasks.process
 							}
 							if(interfaceFlackXml.@bound.length() == 1)
 							{
-								virtualInterface.bound = String(interfaceFlackXml.@bound).toLowerCase() == "true" || String(interfaceFlackXml.@addressUnset) == "1";
+								virtualInterface.bound = String(interfaceFlackXml.@bound).toLowerCase() == "true" || String(interfaceFlackXml.@bound) == "1";
 							}
 						}
 						
-						if(virtualNode.manager == sliver.manager)
+						if(virtualNode.manager == aggregateSliver.manager)
 							virtualInterface.extensions.buildFromOriginal(interfaceXml, [defaultNamespace.uri, RspecUtil.flackNamespace.uri]);
 						
 						interfacesById[virtualInterface.clientId] = virtualInterface;
@@ -612,7 +604,7 @@ package com.flack.geni.tasks.process
 									virtualNode.sliverType.sliverTypeSpecific = SliverTypes.getSliverTypeInterface(virtualNode.sliverType.name);
 									if(virtualNode.sliverType.sliverTypeSpecific != null)
 										virtualNode.sliverType.sliverTypeSpecific.applyFromSliverTypeXml(virtualNode, nodeChildXml);
-									if(virtualNode.manager == sliver.manager)
+									if(virtualNode.manager == aggregateSliver.manager)
 									{
 										var knownNamespaces:Array = [defaultNamespace.uri];
 										if(virtualNode.sliverType.sliverTypeSpecific != null)
@@ -625,7 +617,7 @@ package com.flack.geni.tasks.process
 									}
 									break;
 								case "services":
-									if(virtualNode.manager == sliver.manager)
+									if(virtualNode.manager == aggregateSliver.manager)
 									{
 										if(rspec.info.version >= 2)
 											virtualNode.services = new Services();
@@ -697,7 +689,7 @@ package com.flack.geni.tasks.process
 									if(parseManifest)
 									{
 										virtualNode.host = new Host(String(nodeChildXml.@name));
-										if(virtualNode.manager == sliver.manager)
+										if(virtualNode.manager == aggregateSliver.manager)
 											virtualNode.host.extensions.buildFromOriginal(nodeChildXml, [defaultNamespace.uri]);
 									}
 									break;
@@ -729,7 +721,7 @@ package com.flack.geni.tasks.process
 					
 					nodesById[virtualNode.clientId] = virtualNode;
 					
-					if(virtualNode.manager == sliver.manager)
+					if(virtualNode.manager == aggregateSliver.manager)
 					{
 						var ignoreUris:Array = [defaultNamespace.uri, RspecUtil.flackNamespace.uri];
 						if(!parseManifest)
@@ -743,11 +735,11 @@ package com.flack.geni.tasks.process
 					}
 				}
 				
-				for each(var checkVirtualNodeForParent:VirtualNode in sliver.slice.nodes.getByManager(sliver.manager).collection)
+				for each(var checkVirtualNodeForParent:VirtualNode in aggregateSliver.slice.nodes.getByManager(aggregateSliver.manager).collection)
 				{
 					if(checkVirtualNodeForParent.Physical != null && checkVirtualNodeForParent.Physical.subNodeOf != null)
 					{
-						var superNodes:VirtualNodeCollection = sliver.slice.nodes.getBoundTo(checkVirtualNodeForParent.Physical.subNodeOf);
+						var superNodes:VirtualNodeCollection = aggregateSliver.slice.nodes.getBoundTo(checkVirtualNodeForParent.Physical.subNodeOf);
 						if(superNodes.length > 0)
 						{
 							checkVirtualNodeForParent.superNode = superNodes.collection[0];
@@ -778,9 +770,9 @@ package com.flack.geni.tasks.process
 						virtualLinkClientIdString = String(linkXml.@client_id);
 					}
 					
-					var virtualLink:VirtualLink = sliver.slice.links.getByClientId(virtualLinkClientIdString);
+					var virtualLink:VirtualLink = aggregateSliver.slice.links.getLinkByClientId(virtualLinkClientIdString);
 					if(virtualLink == null)
-						virtualLink = new VirtualLink(sliver.slice);
+						virtualLink = new VirtualLink(aggregateSliver.slice);
 					if(virtualLinkSliverIdString.length > 0 && parseManifest)
 						virtualLink.id = new IdnUrn(virtualLinkSliverIdString);
 					virtualLink.clientId = virtualLinkClientIdString;
@@ -800,7 +792,7 @@ package com.flack.geni.tasks.process
 							var referencedNodeClientId:String = String(interfaceRefXml.@virtual_node_id);
 							if(referencedNodeClientId.length > 0)
 							{
-								var interfacedNode:VirtualNode = sliver.slice.nodes.getByClientId(referencedNodeClientId);
+								var interfacedNode:VirtualNode = aggregateSliver.slice.nodes.getNodeByClientId(referencedNodeClientId);
 								if(interfacedNode != null)
 								{
 									interfacedInterface = interfacedNode.interfaces.getByClientId(referencedInterfaceClientId);
@@ -812,12 +804,12 @@ package com.flack.geni.tasks.process
 								}
 							}
 							else
-								interfacedInterface = sliver.slice.nodes.getInterfaceByClientId(referencedInterfaceClientId);
+								interfacedInterface = aggregateSliver.slice.nodes.getInterfaceByClientId(referencedInterfaceClientId);
 						}
 						else
 						{
 							referencedInterfaceClientId = String(interfaceRefXml.@client_id);
-							interfacedInterface = sliver.slice.nodes.getInterfaceByClientId(referencedInterfaceClientId);
+							interfacedInterface = aggregateSliver.slice.nodes.getInterfaceByClientId(referencedInterfaceClientId);
 						}
 						
 						if(interfacedInterface == null)
@@ -838,7 +830,7 @@ package com.flack.geni.tasks.process
 							virtualLink.interfaceRefs.add(interfacedInterfaceReference);
 						}
 						
-						if(interfacedInterface.Owner.manager == sliver.manager)
+						if(interfacedInterface.Owner.manager == aggregateSliver.manager)
 							interfacedInterfaceReference.extensions.buildFromOriginal(interfaceRefXml, [defaultNamespace.uri]);
 						
 						if(rspec.info.version < 1)
@@ -891,8 +883,8 @@ package com.flack.geni.tasks.process
 						continue;
 					}
 					
-					if(!sliver.slice.links.contains(virtualLink))
-						sliver.slice.links.add(virtualLink);
+					if(!aggregateSliver.slice.links.contains(virtualLink))
+						aggregateSliver.slice.links.add(virtualLink);
 					
 					// Add the link to the interfaces
 					for each(var myInterface:VirtualInterface in virtualLink.interfaceRefs.Interfaces.collection)
@@ -939,8 +931,8 @@ package com.flack.geni.tasks.process
 									virtualLink.PacketLoss = Number(linkChildXml.toString());
 									break;
 								case "property":
-									var sourceInterface:VirtualInterface = sliver.slice.nodes.getInterfaceByClientId(linkChildXml.@source_id);
-									var destInterface:VirtualInterface = sliver.slice.nodes.getInterfaceByClientId(linkChildXml.@dest_id);
+									var sourceInterface:VirtualInterface = aggregateSliver.slice.nodes.getInterfaceByClientId(linkChildXml.@source_id);
+									var destInterface:VirtualInterface = aggregateSliver.slice.nodes.getInterfaceByClientId(linkChildXml.@dest_id);
 									var newProperty:Property = virtualLink.properties.getFor(sourceInterface, destInterface);
 									if(newProperty == null)
 									{
@@ -988,12 +980,12 @@ package com.flack.geni.tasks.process
 									virtualLink.type.extensions.buildFromOriginal(linkChildXml, [defaultNamespace.uri]);
 									break;
 								case "component_manager":
-									if(linkChildXml.@name == sliver.manager.id.full)
+									if(linkChildXml.@name == aggregateSliver.manager.id.full)
 									{
-										var managerReference:GeniManagerReference = virtualLink.managerRefs.getReferenceFor(sliver.manager);
+										var managerReference:GeniManagerReference = virtualLink.managerRefs.getReferenceFor(aggregateSliver.manager);
 										if(managerReference == null)
 										{
-											managerReference = new GeniManagerReference(sliver.manager);
+											managerReference = new GeniManagerReference(aggregateSliver.manager);
 											virtualLink.managerRefs.add(managerReference);
 										}
 										managerReference.extensions.buildFromOriginal(linkChildXml, [defaultNamespace.uri]);
@@ -1034,7 +1026,7 @@ package com.flack.geni.tasks.process
 						case LinkType.VLAN:
 							// If a BBG node from this sliver gets a vlantag, edit the vlan link outside of the manager
 							var linkManagers:GeniManagerCollection = virtualLink.interfaceRefs.Interfaces.Managers;
-							if(virtualLink.vlantag.length > 0 && linkManagers.length == 1 && linkManagers.collection[0] == sliver.manager)
+							if(virtualLink.vlantag.length > 0 && linkManagers.length == 1 && linkManagers.collection[0] == aggregateSliver.manager)
 							{
 								var bbgNodes:VirtualNodeCollection = virtualLink.interfaceRefs.Interfaces.Nodes.getBySliverType(EmulabBbgSliverType.TYPE_EMULAB_BBG);
 								for each(var bbgNode:VirtualNode in bbgNodes.collection)
@@ -1091,55 +1083,65 @@ package com.flack.geni.tasks.process
 						virtualLink.manifest = linkXml.toXMLString();
 				}
 				
+				if(parseManifest)
+				{
+					if(xmlDocument.@valid_until.length() == 1)
+						aggregateSliver.Expires = DateUtil.parseRFC3339(String(xmlDocument.@valid_until));
+					if(xmlDocument.@expires.length() == 1)
+						aggregateSliver.Expires = DateUtil.parseRFC3339(String(xmlDocument.@expires));
+				}
+				
 				// History extension
 				var sliceHistory:XMLList = xmlDocument.child(new QName(RspecUtil.historyNamespace, "slice_history"));
-				sliver.slice.history = new SliceHistory();
+				aggregateSliver.slice.history = new SliceHistory();
 				if(sliceHistory.length() == 1)
 				{
-					sliver.slice.history.backIndex = int((sliceHistory[0] as XML).@backIndex);
-					sliver.slice.history.stateName = String((sliceHistory[0] as XML).@note);
+					aggregateSliver.slice.history.backIndex = int((sliceHistory[0] as XML).@backIndex);
+					aggregateSliver.slice.history.stateName = String((sliceHistory[0] as XML).@note);
 					var statesXml:XMLList = (sliceHistory[0] as XML).children();
 					for each(var stateXml:XML in statesXml)
-						sliver.slice.history.states.push(new SliceHistoryItem(CompressUtil.uncompress(stateXml.toString()), String(stateXml.@note)));
+						aggregateSliver.slice.history.states.push(new SliceHistoryItem(CompressUtil.uncompress(stateXml.toString()), String(stateXml.@note)));
 				}
 				
 				// Flack extension
 				var sliceFlackInfoXml:XMLList = xmlDocument.child(new QName(RspecUtil.flackNamespace, "slice_info"));
-				sliver.slice.flackInfo = new SliceFlackInfo();
+				aggregateSliver.slice.flackInfo = new SliceFlackInfo();
 				if(sliceFlackInfoXml.length() == 1)
 				{
-					sliver.slice.flackInfo.view = String(sliceFlackInfoXml[0].@view);
+					aggregateSliver.slice.flackInfo.view = String(sliceFlackInfoXml[0].@view);
 				}
 				
 				// Make sure the sliver is saved in the slice if resources were found
-				if(sliver.slice.nodes.getByManager(sliver.manager).length > 0
-					&& !sliver.slice.slivers.contains(sliver))
+				if(aggregateSliver.slice.nodes.getByManager(aggregateSliver.manager).length > 0
+					&& !aggregateSliver.slice.aggregateSlivers.contains(aggregateSliver))
 				{
-					sliver.slice.slivers.add(sliver);
+					aggregateSliver.slice.aggregateSlivers.add(aggregateSliver);
 				}
 				
+				aggregateSliver.resetToSlivers();
+				
 				if(markUnsubmitted)
-					sliver.UnsubmittedChanges = true;
+					aggregateSliver.UnsubmittedChanges = true;
 				else if(rspec.type == Rspec.TYPE_MANIFEST)
-						sliver.UnsubmittedChanges = false;
+						aggregateSliver.UnsubmittedChanges = false;
 				
 				SharedMain.sharedDispatcher.dispatchChanged(
 					FlackEvent.CHANGED_SLIVER,
-					sliver,
+					aggregateSliver,
 					FlackEvent.ACTION_POPULATED
 				);
 				SharedMain.sharedDispatcher.dispatchChanged(
 					FlackEvent.CHANGED_SLICE,
-					sliver.slice,
+					aggregateSliver.slice,
 					FlackEvent.ACTION_POPULATING
 				);
 				
 				addMessage(
 					"Parsed",
-					sliver.manager.hrn +
+					aggregateSliver.manager.hrn +
 						"\n" + rspec.info.toString() +
-						"\nNodes from sliver: " + sliver.slice.nodes.getByManager(sliver.manager).length +
-						"\nLinks from sliver: " + sliver.slice.links.getConnectedToManager(sliver.manager).length,
+						"\nNodes from sliver: " + aggregateSliver.slice.nodes.getByManager(aggregateSliver.manager).length +
+						"\nLinks from sliver: " + aggregateSliver.slice.links.getConnectedToManager(aggregateSliver.manager).length,
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);

@@ -42,6 +42,7 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.display.areas.SliceArea;
+			import com.flack.geni.resources.virtual.AggregateSliver;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.shared.FlackEvent;
@@ -54,7 +55,7 @@ IN THE WORK.
 			
 			[Bindable]
 			public var slice:Slice;
-			
+
 			[Bindable]
 			public var showCheckbox:CheckBox;
 			
@@ -80,35 +81,44 @@ IN THE WORK.
 			
 			public function update():void
 			{
-				var status:String = slice.Status;
-				switch(status)
+				switch(slice.AllocationState)
 				{
-					case Sliver.STATUS_READY:
-					//case Sliver.EMULAB_ACTIVE:
-						sliceSelect.styleName = "validStyle";
+					case Sliver.ALLOCATION_PROVISIONED:
+						switch(slice.OperationalState)
+						{
+							case Sliver.OPERATIONAL_READY:
+								sliceSelect.styleName = "validStyle";
+								break;
+							case Sliver.OPERATIONAL_FAILED:
+								sliceSelect.styleName = "failedStyle";
+								break;
+							case Sliver.MIXED_CHANGING:
+							case Sliver.OPERATIONAL_STOPPING:
+							case Sliver.OPERATIONAL_READY_BUSY:
+							case Sliver.OPERATIONAL_CONFIGURING:
+								sliceSelect.styleName = "inprogressStyle";
+								break;
+							case Sliver.MIXED_FINISHED:
+							case Sliver.OPERATIONAL_NOTREADY:
+								sliceSelect.styleName = "pausedStyle";
+								break;
+							default:
+								sliceSelect.styleName = "unknownStyle";
+						}
 						break;
-					case Sliver.STATUS_FAILED:
-					//case Sliver.EMULAB_TERMINATED:
-						sliceSelect.styleName = "failedStyle";
-						break;
-					case Sliver.STATUS_STOPPED:
-					//case Sliver.EMULAB_SWAPPED:
-						sliceSelect.styleName = "pausedStyle";
-						break;
-					case Sliver.STATUS_CHANGING:
-					case Sliver.STATUS_NOTREADY:
-					case Sliver.STATUS_MIXED:
-					//case Sliver.EMULAB_ACTIVATING:
-					//case Sliver.EMULAB_SWAPPING:
-					//case Sliver.EMULAB_TESTING:
+					case Sliver.ALLOCATION_ALLOCATED:
+					case Sliver.ALLOCATION_UPDATING:
+					case Sliver.MIXED_ALLOCATED:
+					case Sliver.MIXED_PROVISIONED:
+					case Sliver.MIXED_UNALLOCATED:
+					case Sliver.MIXED_UPDATING:
 						sliceSelect.styleName = "inprogressStyle";
 						break;
-					case Sliver.STATUS_UNKNOWN:
 					default:
 						sliceSelect.styleName = "unknownStyle";
 				}
 				
-				this.toolTip = status;
+				toolTip = Sliver.describeState(slice.AllocationState, slice.OperationalState);
 			}
 			
 			public function viewSlice():void

@@ -34,7 +34,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.display.windows.ChooseManagerWindow;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.docs.RspecVersion;
@@ -93,7 +93,7 @@ package com.flack.geni.tasks.process
 		override protected function runStart():void
 		{
 			var msg:String;
-			if(slice.slivers.length > 0 && !overwrite)
+			if(slice.aggregateSlivers.length > 0 && !overwrite)
 			{
 				msg = "The slice has already been allocated.";
 				Alert.show(msg);
@@ -310,9 +310,9 @@ package com.flack.geni.tasks.process
 			// Import at each manager....
 			for each(var managerWithResources:GeniManager in managersWithResources)
 			{
-				var importSliver:Sliver = slice.slivers.getByManager(managerWithResources);
+				var importSliver:AggregateSliver = slice.aggregateSlivers.getByManager(managerWithResources);
 				if(importSliver == null)
-					importSliver = new Sliver(slice, managerWithResources);
+					importSliver = new AggregateSliver(slice, managerWithResources);
 				parent.add(new ParseRequestManifestTask(importSliver, importRspec, false));
 			}
 			

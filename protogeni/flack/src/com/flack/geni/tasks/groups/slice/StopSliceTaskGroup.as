@@ -29,8 +29,10 @@
 
 package com.flack.geni.tasks.groups.slice
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.tasks.xmlrpc.am.PerformOperationalActionTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.StopSliverCmTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.sites.ApiDetails;
@@ -69,7 +71,7 @@ package com.flack.geni.tasks.groups.slice
 			if(tasks.length == 0)
 			{
 				var runTasks:ParallelTaskGroup = new ParallelTaskGroup("Stop all", "Stops all the slivers");
-				for each(var sliver:Sliver in slice.slivers.collection)
+				for each(var sliver:AggregateSliver in slice.aggregateSlivers.collection)
 				{
 					if(sliver.manager.api.type == ApiDetails.API_PROTOGENI)
 					{
@@ -87,6 +89,18 @@ package com.flack.geni.tasks.groups.slice
 							Alert.show(msg, "Sliver not stopped");
 						}
 					}
+					else if(sliver.manager.api.type == ApiDetails.API_GENIAM && sliver.manager.api.version >= 3)
+					{
+						runTasks.add(new PerformOperationalActionTask(sliver, PerformOperationalActionTask.ACTION_STOP));
+					}
+					else
+					{
+						addMessage(
+							"Can't stop @ " + sliver.manager.hrn,
+							"The manager " + sliver.manager.hrn + " doesn't support the stop task",
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH);
+					}
 				}
 				add(runTasks);
 				add(new RefreshSliceStatusTaskGroup(slice));
@@ -97,7 +111,7 @@ package com.flack.geni.tasks.groups.slice
 		// Sanity check
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if(slice.Status != Sliver.STATUS_STOPPED)
+			if(slice.OperationalState != Sliver.OPERATIONAL_NOTREADY)
 			{
 				addMessage("Failed to stop", "All slivers don't report stopped");
 				afterError(

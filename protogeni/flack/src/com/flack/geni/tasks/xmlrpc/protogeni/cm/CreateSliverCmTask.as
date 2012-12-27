@@ -30,7 +30,7 @@
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
 	import com.flack.geni.resources.docs.GeniCredential;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
@@ -48,7 +48,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class CreateSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var request:Rspec;
 		
 		/**
@@ -57,7 +57,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param useRspec RSPEC used to allocate resources
 		 * 
 		 */
-		public function CreateSliverCmTask(newSliver:Sliver,
+		public function CreateSliverCmTask(newSliver:AggregateSliver,
 										   useRspec:Rspec = null)
 		{
 			super(
@@ -128,7 +128,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			{
 				sliver.credential = new GeniCredential(data[0], GeniCredential.TYPE_SLIVER, sliver.manager);
 				sliver.id = sliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
-				sliver.expires = sliver.credential.Expires;
+				sliver.Expires = sliver.credential.Expires;
 				sliver.manifest = new Rspec(data[1],null,null,null, Rspec.TYPE_MANIFEST);
 				
 				addMessage(
@@ -144,8 +144,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				addMessage(
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
+					"Expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);

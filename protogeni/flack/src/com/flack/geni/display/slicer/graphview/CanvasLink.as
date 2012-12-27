@@ -30,6 +30,7 @@
 package com.flack.geni.display.slicer.graphview
 {
 	import com.flack.geni.resources.virtual.LinkType;
+	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.VirtualComponent;
 	import com.flack.geni.resources.virtual.VirtualLink;
 	import com.flack.shared.utils.ColorUtil;
@@ -245,25 +246,37 @@ package com.flack.geni.display.slicer.graphview
 			var newLinkColor:uint = labelBackgroundColor;
 			if(link != null)
 			{
-				switch(link.status)
+				switch(link.allocationState)
 				{
-					case VirtualComponent.STATUS_READY:
-						newLinkColor = ColorUtil.validLight;
-						toolTip = link.state;
+					case Sliver.ALLOCATION_PROVISIONED:
+						switch(link.operationalState)
+						{
+							case Sliver.OPERATIONAL_READY:
+								newLinkColor = ColorUtil.validLight;
+								break;
+							case Sliver.OPERATIONAL_FAILED:
+								newLinkColor = ColorUtil.invalidLight;
+								toolTip = "Error: " + link.error;
+								break;
+							case Sliver.OPERATIONAL_STOPPING:
+							case Sliver.OPERATIONAL_READY_BUSY:
+							case Sliver.OPERATIONAL_CONFIGURING:
+								newLinkColor = ColorUtil.changingLight;
+								toolTip = "Status is changing...";
+								break;
+							case Sliver.OPERATIONAL_NOTREADY:
+								newLinkColor = ColorUtil.changingLight;
+								toolTip = "Link is not ready";
+								break;
+							default:
+								newLinkColor = labelBackgroundColor;
+						}
 						break;
-					case VirtualComponent.STATUS_FAILED:
-						newLinkColor = ColorUtil.invalidLight;
-						toolTip = "Error: " + link.error;
-						break;
-					case VirtualComponent.STATUS_CHANGING:
+					case Sliver.ALLOCATION_ALLOCATED:
+					case Sliver.ALLOCATION_UPDATING:
 						newLinkColor = ColorUtil.changingLight;
 						toolTip = "Status is changing...";
 						break;
-					case VirtualComponent.STATUS_NOTREADY:
-						newLinkColor = ColorUtil.changingLight;
-						toolTip = "Link is not ready";
-						break;
-					case VirtualComponent.STATUS_UNKNOWN:
 					default:
 						newLinkColor = labelBackgroundColor;
 				}

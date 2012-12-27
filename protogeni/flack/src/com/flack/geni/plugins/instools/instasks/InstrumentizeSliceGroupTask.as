@@ -31,10 +31,7 @@
 package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.tasks.groups.slice.RefreshSliceStatusTaskGroup;
-	import com.flack.shared.FlackEvent;
-	import com.flack.shared.SharedMain;
 	import com.flack.shared.tasks.SerialTaskGroup;
 	import com.flack.shared.tasks.Task;
 	
@@ -66,12 +63,14 @@ package com.flack.geni.plugins.instools.instasks
 			relatedTo.push(newDetails.slice);
 			details = newDetails;
 			
+			/*
 			details.slice.setSliverStatus(Sliver.STATUS_CHANGING);
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLICE,
 				details.slice,
 				FlackEvent.ACTION_STATUS
 			);
+			*/
 			
 			add(new InstoolsVersionsTaskGroup(details));
 		}
@@ -86,22 +85,22 @@ package com.flack.geni.plugins.instools.instasks
 				else
 					add(new PollInstoolsStatusTaskGroup(details));
 			}
-			// Added the nodes, go ahead and create
+				// Added the nodes, go ahead and create
 			else if(task is AddMCNodesTaskGroup)
 			{
 				add(new CreateMCNodesTaskGroup(details));
 			}
-			// Created the MC Nodes, make sure slice is ready
+				// Created the MC Nodes, make sure slice is ready
 			else if(task is CreateMCNodesTaskGroup)
 			{
 				add(new RefreshSliceStatusTaskGroup(details.slice));
 			}
-			// Send the manifests to the CMs.
+				// Send the manifests to the CMs.
 			else if(task is RefreshSliceStatusTaskGroup)
 			{
 				add(new SaveManifestTaskGroup(details));
 			}
-			// Slice is ready, instrumentize/check for status
+				// Slice is ready, instrumentize/check for status
 			else if(task is SaveManifestTaskGroup)
 			{
 				add(new PollInstoolsStatusTaskGroup(details));

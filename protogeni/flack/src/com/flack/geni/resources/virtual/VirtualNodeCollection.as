@@ -42,63 +42,11 @@ package com.flack.geni.resources.virtual
 	 * @author mstrum
 	 * 
 	 */
-	public final class VirtualNodeCollection
+	public final class VirtualNodeCollection extends VirtualComponentCollection
 	{
-		public var collection:Vector.<VirtualNode>;
-		public function VirtualNodeCollection()
+		public function VirtualNodeCollection(src:Array = null)
 		{
-			collection = new Vector.<VirtualNode>();
-		}
-		
-		public function add(n:VirtualNode):void
-		{
-			collection.push(n);
-		}
-		
-		public function remove(n:VirtualNode):void
-		{
-			var idx:int = collection.indexOf(n);
-			if(idx > -1)
-				collection.splice(idx, 1);
-		}
-		
-		public function contains(n:VirtualNode):Boolean
-		{
-			return collection.indexOf(n) > -1;
-		}
-		
-		public function get length():int
-		{
-			return collection.length;
-		}
-		
-		/**
-		 * 
-		 * @return Instance with the same collection
-		 * 
-		 */
-		public function get Clone():VirtualNodeCollection
-		{
-			var nodes:VirtualNodeCollection = new VirtualNodeCollection();
-			for each(var node:VirtualNode in collection)
-				nodes.add(node);
-			return nodes;
-		}
-		
-		/**
-		 * 
-		 * @return Nodes which have been allocated
-		 * 
-		 */
-		public function get Created():VirtualNodeCollection
-		{
-			var nodes:VirtualNodeCollection = new VirtualNodeCollection();
-			for each(var node:VirtualNode in collection)
-			{
-				if(node.Created)
-					nodes.add(node);
-			}
-			return nodes;
+			super(src);
 		}
 		
 		/**
@@ -115,22 +63,6 @@ package com.flack.geni.resources.virtual
 					nodes.add(node);
 			}
 			return nodes;
-		}
-		
-		/**
-		 * 
-		 * @return Slices for the nodes
-		 * 
-		 */
-		public function get Slices():SliceCollection
-		{
-			var slices:SliceCollection = new SliceCollection();
-			for each(var node:VirtualNode in collection)
-			{
-				if(!slices.contains(node.slice))
-					slices.add(node.slice);
-			}
-			return slices;
 		}
 		
 		public function get UniqueSliverTypeInterfaces():Vector.<SliverTypeInterface>
@@ -158,39 +90,6 @@ package com.flack.geni.resources.virtual
 		
 		/**
 		 * 
-		 * @return TRUE if changes have been made but not submitted
-		 * 
-		 */
-		public function get UnsubmittedChanges():Boolean
-		{
-			for each(var node:VirtualNode in collection)
-			{
-				if(node.unsubmittedChanges)
-					return true;
-			}
-			return false;
-		}
-		
-		/**
-		 * 
-		 * @param nodes Nodes to see if same
-		 * @return TRUE if this collection same as given
-		 * 
-		 */
-		public function sameAs(nodes:VirtualNodeCollection):Boolean
-		{
-			if(length != nodes.length)
-				return false;
-			for each(var node:VirtualNode in collection)
-			{
-				if(!nodes.contains(node))
-					return false;
-			}
-			return true;
-		}
-		
-		/**
-		 * 
 		 * @param node Node asking about
 		 * @param id New ID for given node
 		 * @return TRUE if ID will be unique
@@ -211,36 +110,19 @@ package com.flack.geni.resources.virtual
 			return true;
 		}
 		
-		/**
-		 * 
-		 * @param id Client ID
-		 * @return Node with the given client ID
-		 * 
-		 */
-		public function getByClientId(id:String):VirtualNode
+		public function searchNodesByClientId(value:String):VirtualNodeCollection
 		{
-			for each(var testNode:VirtualNode in collection)
-			{
-				if(testNode.clientId == id)
-					return testNode;
-			}
-			return null;
+			return new VirtualNodeCollection(super.searchByClientId(value).collection.source);
 		}
 		
-		/**
-		 * 
-		 * @param id Sliver ID
-		 * @return Node with the given sliver ID
-		 * 
-		 */
-		public function getBySliverId(id:String):VirtualNode
+		public function getNodesByAllocated(value:Boolean):VirtualNodeCollection
 		{
-			for each(var testNode:VirtualNode in collection)
-			{
-				if(testNode.id.full == id)
-					return testNode;
-			}
-			return null;
+			return new VirtualNodeCollection(super.getByAllocated(value).collection.source);
+		}
+		
+		public function getNodeByClientId(id:String):VirtualNode
+		{
+			return super.getByClientId(id) as VirtualNode;
 		}
 		
 		/**
@@ -255,24 +137,6 @@ package com.flack.geni.resources.virtual
 			for each(var testNode:VirtualNode in collection)
 			{
 				if(testNode.sliverType.name == type)
-					nodes.add(testNode);
-			}
-			
-			return nodes;
-		}
-		
-		/**
-		 * 
-		 * @param slice Slice we want nodes for
-		 * @return All nodes from the given slice
-		 * 
-		 */
-		public function getBySlice(slice:Slice):VirtualNodeCollection
-		{
-			var nodes:VirtualNodeCollection = new VirtualNodeCollection();
-			for each(var testNode:VirtualNode in collection)
-			{
-				if(testNode.slice == slice)
 					nodes.add(testNode);
 			}
 			
@@ -452,23 +316,6 @@ package com.flack.geni.resources.virtual
 			}
 			
 			return null;
-		}
-		
-		/**
-		 * 
-		 * @param clientId Partial client ID
-		 * @return Nodes with a client id matching part of the given string
-		 * 
-		 */
-		public function searchByClientId(clientId:String):VirtualNodeCollection
-		{
-			var nodes:VirtualNodeCollection = new VirtualNodeCollection();
-			for each (var v:VirtualNode in collection)
-			{
-				if(v.clientId.indexOf(clientId) != -1)
-					nodes.add(v);
-			}
-			return nodes;
 		}
 		
 		/**

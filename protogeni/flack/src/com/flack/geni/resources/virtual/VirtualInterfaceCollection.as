@@ -75,9 +75,10 @@ package com.flack.geni.resources.virtual
 		{
 			var ifaces:VirtualInterfaceCollection = new VirtualInterfaceCollection();
 			for each(var iface:VirtualInterface in collection)
-				ifaces.add(iface);
+			ifaces.add(iface);
 			return ifaces;
 		}
+
 		
 		/**
 		 * 

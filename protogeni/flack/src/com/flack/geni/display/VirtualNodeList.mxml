@@ -173,7 +173,7 @@ IN THE WORK.
 					filteredNodes = filteredNodes.getByPhysicalNodes(filteredNodes.PhysicalNodes.getByMinimumRamSize(int(ramList.selectedItem.value)));
 				
 				if(searchField.text.length > 0)
-					filteredNodes = nodes.searchByClientId(searchField.text);
+					filteredNodes = nodes.searchNodesByClientId(searchField.text);
 				
 				viewCollection = filteredNodes;
 				dispatchEvent(new FlackEvent(FILTERED));

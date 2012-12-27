@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -43,14 +43,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class DeleteSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		
 		/**
 		 * 
 		 * @param deleteSliver Sliver to deallocate resources for
 		 * 
 		 */
-		public function DeleteSliverCmTask(deleteSliver:Sliver)
+		public function DeleteSliverCmTask(deleteSliver:AggregateSliver)
 		{
 			super(
 				deleteSliver.manager.url,

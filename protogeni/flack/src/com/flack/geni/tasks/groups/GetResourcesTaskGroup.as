@@ -61,6 +61,7 @@ package com.flack.geni.tasks.groups
 		private var shouldListManagers:Boolean;
 		private var shouldGetResources:Boolean;
 		private var parseTasks:SerialTaskGroup;
+		private var limitToManagers:GeniManagerCollection;
 		
 		/**
 		 * 
@@ -69,7 +70,8 @@ package com.flack.geni.tasks.groups
 		 * 
 		 */
 		public function GetResourcesTaskGroup(listManagers:Boolean = true,
-											  newShouldGetResources:Boolean = true)
+											  newShouldGetResources:Boolean = true,
+											  newLimitToManagers:GeniManagerCollection = null)
 		{
 			super(
 				"Get resources",
@@ -79,6 +81,7 @@ package com.flack.geni.tasks.groups
 			forceSerial = true;
 			shouldListManagers = listManagers;
 			shouldGetResources = newShouldGetResources;
+			limitToManagers = newLimitToManagers;
 		}
 		
 		override protected function runStart():void
@@ -102,6 +105,8 @@ package com.flack.geni.tasks.groups
 					add(new ListComponentsChTask(GeniMain.geniUniverse.user));
 				else if(shouldGetResources)
 					tryGetResources();
+				else
+					afterComplete();
 			}
 			super.runStart();
 		}
@@ -131,6 +136,10 @@ package com.flack.geni.tasks.groups
 		{
 			if(GeniMain.geniUniverse.managers.length == 0)
 				afterComplete();
+			else if(limitToManagers != null)
+			{
+				getResources(limitToManagers);
+			}
 			else
 			{
 				if(GeniCache.shouldAskWhichManagersToWatch()

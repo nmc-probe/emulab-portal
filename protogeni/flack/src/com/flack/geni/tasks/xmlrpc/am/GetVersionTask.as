@@ -29,6 +29,8 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
+	import com.flack.geni.resources.docs.GeniCredentialVersion;
+	import com.flack.geni.resources.docs.GeniCredentialVersionCollection;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -91,6 +93,7 @@ package com.flack.geni.tasks.xmlrpc.am
 				manager.apis = new Vector.<ApiDetails>();
 				if(data.geni_api_versions != null)
 				{
+					//URL
 					var highestSuppportedVersion:ApiDetails = manager.api;
 					for(var supportedApiVersion:String in data.geni_api_versions)
 					{
@@ -101,7 +104,7 @@ package com.flack.geni.tasks.xmlrpc.am
 								Number(supportedApiVersion),
 								supportedApiUrl
 							);
-						if(supportedApi.version <= 2 && supportedApi.version > highestSuppportedVersion.version)
+						if(supportedApi.version <= 4 && supportedApi.version > highestSuppportedVersion.version)
 							highestSuppportedVersion = supportedApi;
 						manager.apis.push(supportedApi);
 					}
@@ -115,6 +118,22 @@ package com.flack.geni.tasks.xmlrpc.am
 						
 						return;
 					}
+				}
+
+				if(data.geni_am_type != null)
+				{
+					for(var amType:String in data.geni_am_type)
+					{
+						manager.types.push(amType);
+					}
+				}
+				if(data.geni_am_code_version != null)
+				{
+					manager.codeVersion = String(data.geni_am_code_version);
+				}
+				if(data.code_tag != null)
+				{
+					manager.codeVersion = String(data.code_tag);
 				}
 				
 				manager.inputRspecVersions = new RspecVersionCollection();
@@ -170,11 +189,22 @@ package com.flack.geni.tasks.xmlrpc.am
 					}
 				}
 				
-				//V3: geni_credential_types, geni_single_allocation, geni_allocate
+				if(data.geni_credential_types != null)
+				{
+					manager.credentialTypes = new GeniCredentialVersionCollection();
+					for each(var geniCredentialType:Object in data.geni_credential_types)
+					{
+						manager.credentialTypes.add(
+							new GeniCredentialVersion(
+								geniCredentialType.geni_type,
+								Number(geniCredentialType.geni_version)));
+					}
+				}
+
 				if(data.geni_single_allocation != null)
-					manager.singleAllocation = data.geni_single_allocation;
+					manager.singleAllocation = data.geni_single_allocation == "1" || data.geni_single_allocation == "true";
 				if(data.geni_allocate != null)
-					manager.singleAllocation = data.geni_allocate;
+					manager.allocate = data.geni_allocate;
 				//V3: geni_best_effort?
 				
 				// Make sure aggregate uses compatible rspec

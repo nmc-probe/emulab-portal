@@ -29,8 +29,9 @@
 
 package com.flack.geni.tasks.groups.slice
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virtual.AggregateSliverCollection;
 	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.SliverCollection;
 	import com.flack.geni.tasks.xmlrpc.am.DeleteTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.DeleteSliverCmTask;
 	import com.flack.shared.logging.LogMessage;
@@ -50,9 +51,9 @@ package com.flack.geni.tasks.groups.slice
 	 * @author mstrum
 	 * 
 	 */
-	public final class DeleteSliversTaskGroup extends ParallelTaskGroup
+	public final class DeleteAggregateSliversTaskGroup extends ParallelTaskGroup
 	{
-		public var slivers:SliverCollection;
+		public var slivers:AggregateSliverCollection;
 		public var askOnError:Boolean;
 		public var waitingForUser:Boolean = false;
 		public var ignoreUncreated:Boolean;
@@ -63,11 +64,11 @@ package com.flack.geni.tasks.groups.slice
 		 * @param shouldIgnoreUncreated Skip slivers which don't have manifests
 		 * 
 		 */
-		public function DeleteSliversTaskGroup(deleteSlivers:SliverCollection, askUserOnError:Boolean = true, shouldIgnoreUncreated:Boolean = true)
+		public function DeleteAggregateSliversTaskGroup(deleteSlivers:AggregateSliverCollection, askUserOnError:Boolean = true, shouldIgnoreUncreated:Boolean = true)
 		{
 			super(
-				"Delete"+(deleteSlivers == null ? "" : " "+deleteSlivers.length)+" sliver(s)",
-				"Deletes slivers not used anymore"
+				"Release"+(deleteSlivers == null ? "" : " "+deleteSlivers.length)+" aggregate sliver(s)",
+				"Release resources not used anymore"
 			);
 			slivers = deleteSlivers;
 			askOnError = askUserOnError;
@@ -75,8 +76,8 @@ package com.flack.geni.tasks.groups.slice
 			
 			for(var i:int = 0; i < slivers.length; i++)
 			{
-				var deleteSliver:Sliver = slivers.collection[i];
-				if(!ignoreUncreated || deleteSliver.Created)
+				var deleteSliver:AggregateSliver = slivers.collection[i];
+				if(!ignoreUncreated || Sliver.isAllocated(deleteSliver.AllocationState))
 				{
 					if(deleteSliver.manager.api.type == ApiDetails.API_GENIAM)
 						add(new DeleteTask(deleteSliver));
@@ -116,11 +117,11 @@ package com.flack.geni.tasks.groups.slice
 			waitingForUser = true;
 			var name:String;
 			if(task is DeleteTask)
-				name = (task as DeleteTask).sliver.manager.hrn;
+				name = (task as DeleteTask).aggregateSliver.manager.hrn;
 			else
 				name = (task as DeleteSliverCmTask).sliver.manager.hrn;
 			Alert.show(
-				"Problem deleting sliver on " + name + ". Continue with the remaining actions?",
+				"Problem releasing resources on " + name + ". Continue with the remaining actions?",
 				"Continue?",
 				Alert.YES|Alert.NO,
 				FlexGlobals.topLevelApplication as Sprite,

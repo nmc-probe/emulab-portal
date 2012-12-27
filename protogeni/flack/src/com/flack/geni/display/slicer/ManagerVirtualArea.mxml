@@ -44,8 +44,8 @@ IN THE WORK.
 			import com.flack.geni.plugins.emulab.RawPcSliverType;
 			import com.flack.geni.resources.SliverTypes;
 			import com.flack.geni.resources.sites.GeniManager;
-			import com.flack.geni.resources.sites.SupportedSliverType;
-			import com.flack.geni.resources.sites.SupportedSliverTypeCollection;
+			import com.flack.geni.resources.sites.managers.SupportedSliverType;
+			import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
 			import com.flack.geni.resources.virtual.VirtualNode;
 			import com.flack.shared.display.components.DataButton;
 			import com.flack.shared.display.components.ImageButton;

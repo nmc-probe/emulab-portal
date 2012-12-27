@@ -33,11 +33,13 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virtual.AggregateSliverCollection;
+	import com.flack.geni.resources.virtual.AggregateSliverCollectionCollection;
 	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.SliverCollection;
-	import com.flack.geni.resources.virtual.SliverCollectionCollection;
 	import com.flack.geni.resources.virtual.VirtualLink;
 	import com.flack.geni.resources.virtual.VirtualLinkCollection;
 	import com.flack.geni.resources.virtual.VirtualNode;
@@ -73,9 +75,9 @@ package com.flack.geni.tasks.groups.slice
 	{
 		public var slice:Slice;
 		
-		public var deleteSlivers:SliverCollection;
-		public var updateSlivers:SliverCollection;
-		public var newSlivers:SliverCollection;
+		public var deleteAggregateSlivers:AggregateSliverCollection;
+		public var updateAggregateSlivers:AggregateSliverCollection;
+		public var newAggregateSlivers:AggregateSliverCollection;
 		
 		private var comfirmWithUser:Boolean;
 		private var skipUnchangedSlivers:Boolean;
@@ -120,10 +122,10 @@ package com.flack.geni.tasks.groups.slice
 					return;
 				}
 				
-				// Can't try to submit a slice which is empty, delete it
+				// Can't try to submit a slice which is empty, delete it.
 				if(slice.nodes.length == 0
 					&& slice.links.length == 0
-					&& slice.slivers.Created.length == 0)
+					&& slice.aggregateSlivers.getByAllocated(true).length == 0)
 				{
 					afterError(
 						new TaskError(
@@ -146,32 +148,32 @@ package com.flack.geni.tasks.groups.slice
 				
 				// Build up slivers which need to be created/deleted/updated
 				var newManagers:GeniManagerCollection = slice.nodes.Managers;
-				deleteSlivers = new SliverCollection();
-				updateSlivers = new SliverCollection();
-				newSlivers = new SliverCollection();
-				for each(var existingSliver:Sliver in slice.slivers.collection)
+				deleteAggregateSlivers = new AggregateSliverCollection();
+				updateAggregateSlivers = new AggregateSliverCollection();
+				newAggregateSlivers = new AggregateSliverCollection();
+				for each(var existingSliver:AggregateSliver in slice.aggregateSlivers.collection)
 				{
-					if(existingSliver.Created)
+					if(Sliver.isAllocated(existingSliver.AllocationState))
 					{
 						if(newManagers.contains(existingSliver.manager))
 						{
 							if(existingSliver.UnsubmittedChanges || !skipUnchangedSlivers)
-								updateSlivers.add(existingSliver);
+								updateAggregateSlivers.add(existingSliver);
 						}
 						else
-							deleteSlivers.add(existingSliver);
+							deleteAggregateSlivers.add(existingSliver);
 						newManagers.remove(existingSliver.manager);
 					}
 					else
-						newSlivers.add(existingSliver);
+						newAggregateSlivers.add(existingSliver);
 				}
 				for each(var newManager:GeniManager in newManagers.collection)
 				{
-					if(slice.slivers.getByManager(newManager) == null)
+					if(slice.aggregateSlivers.getByManager(newManager) == null)
 					{
-						var newSliver:Sliver = new Sliver(slice, newManager);
-						slice.slivers.add(newSliver);
-						newSlivers.add(newSliver);
+						var newSliver:AggregateSliver = new AggregateSliver(slice, newManager);
+						slice.aggregateSlivers.add(newSliver);
+						newAggregateSlivers.add(newSliver);
 					}
 				}
 				
@@ -193,23 +195,23 @@ package com.flack.geni.tasks.groups.slice
 			{
 				var submitMsg:String = "Continue with the following actions?";
 				var i:int = 0;
-				if(newSlivers.length > 0)
+				if(newAggregateSlivers.length > 0)
 				{
-					submitMsg += "\nCreate " + newSlivers.length + " new sliver" + (newSlivers.length ? "s" : "");
-					for(i = 0; i < newSlivers.length; i++)
-						submitMsg += "\n\t@ " + newSlivers.collection[i].manager.hrn;
+					submitMsg += "\nCreate at " + newAggregateSlivers.length + " new aggregate" + (newAggregateSlivers.length ? "s" : "");
+					for(i = 0; i < newAggregateSlivers.length; i++)
+						submitMsg += "\n\t@ " + newAggregateSlivers.collection[i].manager.hrn;
 				}
-				if(updateSlivers.length > 0)
+				if(updateAggregateSlivers.length > 0)
 				{
-					submitMsg += "\nUpdate " + updateSlivers.length + " existing sliver" + (updateSlivers.length ? "s" : "");
-					for(i = 0; i < updateSlivers.length; i++)
-						submitMsg += "\n\t@ " + updateSlivers.collection[i].manager.hrn;
+					submitMsg += "\nUpdate " + updateAggregateSlivers.length + " existing aggregate" + (updateAggregateSlivers.length ? "s" : "");
+					for(i = 0; i < updateAggregateSlivers.length; i++)
+						submitMsg += "\n\t@ " + updateAggregateSlivers.collection[i].manager.hrn;
 				}
-				if(deleteSlivers.length > 0)
+				if(deleteAggregateSlivers.length > 0)
 				{
-					submitMsg += "\nDelete " + deleteSlivers.length + " existing sliver" + (deleteSlivers.length ? "s" : "");
-					for(i = 0; i < deleteSlivers.length; i++)
-						submitMsg += "\n\t@ " + deleteSlivers.collection[i].manager.hrn;
+					submitMsg += "\nDelete " + deleteAggregateSlivers.length + " at existing aggregate" + (deleteAggregateSlivers.length ? "s" : "");
+					for(i = 0; i < deleteAggregateSlivers.length; i++)
+						submitMsg += "\n\t@ " + deleteAggregateSlivers.collection[i].manager.hrn;
 				}
 				Alert.show(
 					submitMsg,
@@ -246,16 +248,20 @@ package com.flack.geni.tasks.groups.slice
 					slice
 				);
 			}
+			
+			// Make sure we have the latest keys.
 			if(GeniMain.geniUniverse.user.authority != null)
 				add(new GetUserKeysSaTask(GeniMain.geniUniverse.user, false));
-			if(deleteSlivers.length > 0)
-				add(new DeleteSliversTaskGroup(deleteSlivers));
+			
+			// First, delete any aggregate slivers.
+			if(deleteAggregateSlivers.length > 0)
+				add(new DeleteAggregateSliversTaskGroup(deleteAggregateSlivers));
 			
 			// Create graph w/o dependancies
-			var sliverGraph:SliverCollectionCollection = new SliverCollectionCollection();
-			for each(var updateSliver:Sliver in updateSlivers.collection)
+			var sliverGraph:AggregateSliverCollectionCollection = new AggregateSliverCollectionCollection();
+			for each(var updateSliver:AggregateSliver in updateAggregateSlivers.collection)
 				sliverGraph.getOrAdd(updateSliver);
-			for each(var createSliver:Sliver in newSlivers.collection)
+			for each(var createSliver:AggregateSliver in newAggregateSlivers.collection)
 				sliverGraph.getOrAdd(createSliver);
 			// Add dependancies
 			for each(var node:VirtualNode in slice.nodes.collection)
@@ -266,30 +272,30 @@ package com.flack.geni.tasks.groups.slice
 					connectedManagers.remove(node.manager);
 					for each(var connectedManager:GeniManager in connectedManagers.collection)
 					{
-						sliverGraph.add(slice.slivers.getByManager(connectedManager), slice.slivers.getByManager(node.manager));
+						sliverGraph.add(slice.aggregateSlivers.getByManager(connectedManager), slice.aggregateSlivers.getByManager(node.manager));
 					}
 				}
 			}
 			// Just update & create if no dependancies
 			if(sliverGraph.numDependencies == 0)
 			{
-				if(updateSlivers.length > 0)
-					add(new UpdateSliversTaskGroup(updateSlivers));
-				if(newSlivers.length > 0)
-					add(new CreateSliversTaskGroup(newSlivers));
+				if(updateAggregateSlivers.length > 0)
+					add(new UpdateAggregateSliversTaskGroup(updateAggregateSlivers));
+				if(newAggregateSlivers.length > 0)
+					add(new CreateAggregateSliversTaskGroup(newAggregateSlivers));
 			}
 			// Linearize to get create order
 			else
 			{
-				var orderedSlivers:SliverCollection = sliverGraph.getLinearized(slice);
-				for each(var orderedSliver:Sliver in orderedSlivers.collection)
+				var orderedSlivers:AggregateSliverCollection = sliverGraph.getLinearized(slice);
+				for each(var orderedSliver:AggregateSliver in orderedSlivers.collection)
 				{
-					var sliverCollection:SliverCollection = new SliverCollection();
+					var sliverCollection:AggregateSliverCollection = new AggregateSliverCollection();
 					sliverCollection.add(orderedSliver);
-					if(updateSlivers.contains(orderedSliver))
-						add(new UpdateSliversTaskGroup(sliverCollection));
+					if(updateAggregateSlivers.contains(orderedSliver))
+						add(new UpdateAggregateSliversTaskGroup(sliverCollection));
 					else
-						add(new CreateSliversTaskGroup(sliverCollection));
+						add(new CreateAggregateSliversTaskGroup(sliverCollection));
 				}
 			}
 			add(new RefreshSliceStatusTaskGroup(slice));
@@ -323,9 +329,9 @@ package com.flack.geni.tasks.groups.slice
 		{
 			if(!deletingAfterProblem)
 			{
-				if(task is DeleteSliversTaskGroup
-					|| task is UpdateSliversTaskGroup
-					|| task is CreateSliversTaskGroup)
+				if(task is DeleteAggregateSliversTaskGroup
+					|| task is UpdateAggregateSliversTaskGroup
+					|| task is CreateAggregateSliversTaskGroup)
 				{
 					prompting = true;
 					cancelRemainingTasks();
@@ -342,9 +348,9 @@ package com.flack.geni.tasks.groups.slice
 		{
 			if(!deletingAfterProblem)
 			{
-				if(task is DeleteSliversTaskGroup
-					|| task is UpdateSliversTaskGroup
-					|| task is CreateSliversTaskGroup)
+				if(task is DeleteAggregateSliversTaskGroup
+					|| task is UpdateAggregateSliversTaskGroup
+					|| task is CreateAggregateSliversTaskGroup)
 				{
 					prompting = true;
 					cancelRemainingTasks();
@@ -385,17 +391,17 @@ package com.flack.geni.tasks.groups.slice
 				deletingAfterProblem = true;
 				
 				// Run a delete at all managers
-				var deleteSlivers:SliverCollection = new SliverCollection();
+				var deleteSlivers:AggregateSliverCollection = new AggregateSliverCollection();
 				for each(var deleteSliverInManager:GeniManager in GeniMain.geniUniverse.managers.collection)
 				{
 					if(deleteSliverInManager.Status == FlackManager.STATUS_VALID)
 					{
-						var deleteSliver:Sliver = new Sliver(slice, deleteSliverInManager);
+						var deleteSliver:AggregateSliver = new AggregateSliver(slice, deleteSliverInManager);
 						deleteSliver.manifest = new Rspec();
 						deleteSlivers.add(deleteSliver);
 					}
 				}
-				add(new DeleteSliversTaskGroup(deleteSlivers, false));
+				add(new DeleteAggregateSliversTaskGroup(deleteSlivers, false));
 			}
 			else
 			{

@@ -42,6 +42,9 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.GeniCache;
+			import com.flack.geni.resources.docs.GeniCredential;
+			import com.flack.geni.resources.docs.GeniCredentialVersion;
+			import com.flack.geni.resources.docs.GeniCredentialVersionCollection;
 			import com.flack.geni.resources.physical.HardwareType;
 			import com.flack.geni.resources.physical.HardwareTypeCollection;
 			import com.flack.geni.resources.sites.GeniManager;
@@ -70,6 +73,8 @@ IN THE WORK.
 			private var nodeTypes:ArrayCollection;
 			[Bindable]
 			private var linkTypes:ArrayCollection;
+			[Bindable]
+			private var sharedVlans:ArrayCollection;
 			
 			public function init():void
 			{
@@ -136,7 +141,12 @@ IN THE WORK.
 					deleteCacheButton.visible = GeniCache.wasManagerManuallyAdded(manager);
 					
 					apiLabel.text = manager.api.toString();
-					typeLabel.text = FlackManager.typeToString(manager.type);
+					typeLabel.text = GeniManager.typeToHumanReadable(manager.type);
+					
+					codeVersionLabel.text = manager.codeVersion;
+					
+					allocateLabel.text = GeniManager.allocateToHumanReadableString(manager.allocate);
+					singleAllocationCheckbox.selected = manager.singleAllocation;
 					
 					nodesButton.enabled = manager.nodes.length > 0;
 					linksButton.enabled = manager.links.length > 0;
@@ -148,12 +158,45 @@ IN THE WORK.
 					
 					linkTypes = new ArrayCollection();
 					for each(var linkType:String in manager.links.Types)
+					{
 						linkTypes.addItem(linkType);
+					}
+						
+					sharedVlans = new ArrayCollection();
+					for each(var sharedVlan:String in manager.sharedVlans)
+					{
+						sharedVlans.addItem(sharedVlan);
+					}
 					
 					sliverTypesControl.load(manager.supportedSliverTypes.SliverTypes);
 					
 					var i:int;
 					var type:String;
+					
+					credentialsAcceptedHgroup.removeAllElements();
+					if(manager.credentialTypes.length == 0)
+					{
+						credentialsAcceptedHgroup.addElement(
+							ViewUtil.getLabel("None specified")
+						);
+					}
+					else
+					{
+						var credentialVersionsByType:Vector.<String> = manager.credentialTypes.Types;
+						for each(type in credentialVersionsByType)
+						{
+							var credentialType:String = GeniCredentialVersion.typeToShort(type) + "v(";
+							var credentialTypeVersions:GeniCredentialVersionCollection = manager.credentialTypes.getByType(type);
+							for(i = 0; i < credentialTypeVersions.length; i++)
+							{
+								credentialType += credentialTypeVersions.collection[i].version;
+								if(i < credentialTypeVersions.length-1)
+									credentialType += ", "
+							}
+							credentialType += ")";
+							credentialsAcceptedHgroup.addElement(ViewUtil.getLabel(credentialType));
+						}
+					}
 					
 					outputVersionsHgroup.removeAllElements();
 					if(manager.outputRspecVersions.length == 0)
@@ -343,12 +386,30 @@ IN THE WORK.
 			<s:Label id="apiLabel" />
 		</s:HGroup>
 		<s:HGroup gap="2">
+			<s:Label text="Code Version:"
+					 fontWeight="bold" />
+			<s:Label id="codeVersionLabel" />
+		</s:HGroup>
+		<s:HGroup gap="2">
 			<s:Label text="Advertises:"
 					 fontWeight="bold" />
 			<s:HGroup id="outputVersionsHgroup" />
 			<s:Label text="Accepts:"
 					 fontWeight="bold" />
 			<s:HGroup id="inputVersionsHgroup" />
+		</s:HGroup>
+		<s:HGroup gap="2">
+			<s:Label text="Credentials Accepted:"
+					 fontWeight="bold" />
+			<s:HGroup id="credentialsAcceptedHgroup" />
+		</s:HGroup>
+		<s:HGroup gap="2" verticalAlign="middle">
+			<s:Label text="Allocate:"
+					 fontWeight="bold" />
+			<s:Label id="allocateLabel" />
+			<s:CheckBox id="singleAllocationCheckbox"
+						enabled="false"
+						label="Single Allocation" />
 		</s:HGroup>
 		<components:DefaultLine percentWidth="100"
 								lineThickness="2" />
@@ -398,7 +459,12 @@ IN THE WORK.
 							 fontWeight="bold" />
 					<s:List id="linkTypesList"
 							dataProvider="{linkTypes}"
-							height="100%" />
+							height="66%" />
+					<s:Label text="Shared VLANs"
+							 fontWeight="bold" />
+					<s:List id="sharedVlansList"
+							dataProvider="{sharedVlans}"
+							height="33%" />
 				</s:VGroup>
 			</s:HGroup>
 			<display:SliverTypesControl id="sliverTypesControl" />

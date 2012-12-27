@@ -41,6 +41,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.ComponentHop;
 	import com.flack.geni.resources.virtual.ExecuteService;
 	import com.flack.geni.resources.virtual.GeniManagerReference;
@@ -48,7 +49,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.resources.virtual.LoginService;
 	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.SliverCollection;
 	import com.flack.geni.resources.virtual.VirtualInterface;
 	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
 	import com.flack.geni.resources.virtual.VirtualInterfaceReference;
@@ -75,7 +76,7 @@ package com.flack.geni.tasks.process
 	 */
 	public final class GenerateRequestManifestTask extends Task
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var slice:Slice;
 		public var useRspecVersion:RspecVersion;
 		public var includeOnlySliver:Boolean;
@@ -83,6 +84,7 @@ package com.flack.geni.tasks.process
 		public var includeManifest:Boolean;
 		public var applyOriginalSettings:Boolean;
 		public var resultRspec:Rspec;
+		public var limitToSlivers:SliverCollection;
 		
 		/**
 		 * 
@@ -96,7 +98,8 @@ package com.flack.geni.tasks.process
 													shouldIncludeManifestInfo:Boolean = false,
 													shouldIncludeOnlySliver:Boolean = false,
 													shouldApplyOriginalSettings:Boolean = false,
-													newUseRspecVersion:RspecVersion = null)
+													newUseRspecVersion:RspecVersion = null,
+													newLimitToSlivers:SliverCollection = null)
 		{
 			super(
 				"Generate request RSPEC",
@@ -108,7 +111,7 @@ package com.flack.geni.tasks.process
 				false);
 			if(newSource is Slice)
 				slice = newSource;
-			else if(newSource is Sliver)
+			else if(newSource is AggregateSliver)
 			{
 				sliver = newSource;
 				slice = sliver.slice;
@@ -121,6 +124,7 @@ package com.flack.geni.tasks.process
 			includeOnlySliver = shouldIncludeOnlySliver;
 			applyOriginalSettings = shouldApplyOriginalSettings;
 			useRspecVersion = newUseRspecVersion;
+			limitToSlivers = newLimitToSlivers;
 		}
 		
 		override protected function runStart():void
@@ -156,8 +160,8 @@ package com.flack.geni.tasks.process
 				xmlDocument = sliver.extensions.createAndApply("rspec");
 			else
 			{
-				if(slice != null && slice.slivers.length > 0)
-					xmlDocument = slice.slivers.collection[0].extensions.createAndApply("rspec");
+				if(slice != null && slice.aggregateSlivers.length > 0)
+					xmlDocument = slice.aggregateSlivers.collection[0].extensions.createAndApply("rspec");
 				else
 					xmlDocument = <rspec />;
 			}
@@ -294,6 +298,10 @@ package com.flack.geni.tasks.process
 										  removeNonexplicitBinding:Boolean,
 										  version:RspecVersion):XML
 		{
+			if(limitToSlivers != null && limitToSlivers.getById(node.id.full) == null)
+			{
+				return null;
+			}
 			if(sliver != null
 				&& node.sliverType.name == EmulabBbgSliverType.TYPE_EMULAB_BBG
 				&& node.manager != sliver.manager)
@@ -573,8 +581,15 @@ package com.flack.geni.tasks.process
 		
 		public function generateLinkRspec(link:VirtualLink, version:RspecVersion):XML
 		{
-			if(link.interfaceRefs.length == 0 && link.sharedVlanName.length == 0)
+			if(limitToSlivers != null && limitToSlivers.getById(link.id.full) == null)
+			{
 				return null;
+			}
+			
+			if(link.interfaceRefs.length == 0 && link.sharedVlanName.length == 0)
+			{
+				return null;
+			}
 			
 			var linkXml:XML = link.extensions.createAndApply("link");
 			

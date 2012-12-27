@@ -29,163 +29,131 @@
 
 package com.flack.geni.resources.virtual
 {
-	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.sites.GeniManagerCollection;
-	
+	import com.flack.shared.resources.IdentifiableObjectCollection;
+
 	/**
 	 * Collection of slivers
 	 * 
 	 * @author mstrum
 	 * 
 	 */
-	public final class SliverCollection
+	public class SliverCollection extends IdentifiableObjectCollection
 	{
-		public var collection:Vector.<Sliver>;
-		public function SliverCollection()
+		public function SliverCollection(src:Array = null)
 		{
-			collection = new Vector.<Sliver>();
+			super(src);
 		}
 		
-		public function add(s:Sliver):void
+		public function get AllocationState():String
 		{
-			collection.push(s);
-		}
-		
-		public function remove(s:Sliver):void
-		{
-			var idx:int = collection.indexOf(s);
-			if(idx > -1)
-				collection.splice(idx, 1);
-		}
-		
-		public function contains(s:Sliver):Boolean
-		{
-			return collection.indexOf(s) > -1;
-		}
-		
-		public function get length():int
-		{
-			return collection.length;
-		}
-		
-		/**
-		 * 
-		 * @return New instance with the same collection
-		 * 
-		 */
-		public function get Clone():SliverCollection
-		{
-			var clone:SliverCollection = new SliverCollection();
-			for each(var sliver:Sliver in collection)
-				clone.add(sliver);
-			return clone;
-		}
-		
-		/**
-		 * 
-		 * @return Slivers which have allocated resources
-		 * 
-		 */
-		public function get Created():SliverCollection
-		{
-			var created:SliverCollection = new SliverCollection();
+			var states:Vector.<String> = new Vector.<String>();
 			for each(var sliver:Sliver in collection)
 			{
-				if(sliver.Created)
-					created.add(sliver);
+				if(states.indexOf(sliver.allocationState) == -1)
+					states.push(sliver.allocationState);
 			}
-			return created;
+			return Sliver.combineAllocationStates(states);
+		}
+		
+		public function get OperationalState():String
+		{
+			var states:Vector.<String> = new Vector.<String>();
+			for each(var sliver:Sliver in collection)
+			{
+				if(states.indexOf(sliver.operationalState) == -1)
+					states.push(sliver.operationalState);
+			}
+			return Sliver.combineOperationalStates(states);
 		}
 		
 		/**
-		 * Removes slivers which aren't created and don't have resources
+		 * 
+		 * @param slice Slice we want components for
+		 * @return All components from the given slice
 		 * 
 		 */
-		public function cleanup():void
+		public function getBySlice(slice:Slice):VirtualComponentCollection
 		{
-			for(var i:int = 0; i < collection.length; i++)
+			var components:VirtualComponentCollection = new VirtualComponentCollection();
+			for each(var component:VirtualComponent in collection)
 			{
-				var sliver:Sliver = collection[i];
-				if(!sliver.Created && sliver.Nodes.length == 0)
+				if(component.slice == slice)
+					components.add(component);
+			}
+			return components;
+		}
+		
+		/**
+		 * 
+		 * @return Components which have been allocated
+		 * 
+		 */
+		public function getByAllocated(value:Boolean):SliverCollection
+		{
+			var slivers:SliverCollection = new SliverCollection();
+			for each(var sliver:Sliver in collection)
+			{
+				if(value == Sliver.isAllocated(sliver.allocationState))
 				{
-					remove(sliver);
-					i--;
+					slivers.add(sliver);
 				}
 			}
+			return slivers;
 		}
 		
 		/**
 		 * 
-		 * @param id Sliver ID
-		 * @return Sliver with the given sliver ID
+		 * @return Components which have been provisioned
 		 * 
 		 */
-		public function getBySliverId(id:String):Sliver
+		public function getByProvisioned(value:Boolean):SliverCollection
+		{
+			var slivers:SliverCollection = new SliverCollection();
+			for each(var sliver:Sliver in collection)
+			{
+				if(value == Sliver.isProvisioned(sliver.allocationState))
+				{
+					slivers.add(sliver);
+				}
+			}
+			return slivers;
+		}
+		
+		/**
+		 * 
+		 * @return Slices for the components
+		 * 
+		 */
+		public function get Slices():SliceCollection
+		{
+			var slices:SliceCollection = new SliceCollection();
+			for each(var sliver:Sliver in collection)
+			{
+				if(!slices.contains(sliver.slice))
+					slices.add(sliver.slice);
+			}
+			return slices;
+		}
+		
+		public function clearStates():void
 		{
 			for each(var sliver:Sliver in collection)
 			{
-				if(sliver.id.full == id)
-					return sliver;
+				sliver.clearState();
 			}
-			return null;
 		}
 		
-		/**
-		 * 
-		 * @param gm Manager
-		 * @return Sliver for the manager
-		 * 
-		 */
-		public function getByManager(gm:GeniManager):Sliver
+		public function markStaged():void
 		{
 			for each(var sliver:Sliver in collection)
 			{
-				if(sliver.manager == gm)
-					return sliver;
-			}
-			return null;
-		}
-		
-		/**
-		 * 
-		 * @param gmc Managers
-		 * @return Slivers for the given managers
-		 * 
-		 */
-		public function getByManagers(gmc:GeniManagerCollection):SliverCollection
-		{
-			var sc:SliverCollection = new SliverCollection();
-			for each(var sliver:Sliver in collection)
-			{
-				if(gmc.contains(sliver.manager))
-					sc.add(sliver);
-			}
-			return sc;
-		}
-		
-		/**
-		 * 
-		 * @param gm Manager
-		 * @param slice Slice
-		 * @return Sliver for the given manager in the slice and guarenteed to be added in the slice
-		 * 
-		 */
-		public function getOrCreateByManager(gm:GeniManager, slice:Slice):Sliver
-		{
-			var newSliver:Sliver = getByManager(gm);
-			if(newSliver != null)
-				return newSliver;
-			else
-			{
-				newSliver = new Sliver(slice, gm);
-				add(newSliver);
-				return newSliver;
+				sliver.markStaged();
 			}
 		}
 		
 		/**
 		 * 
-		 * @return Earliest expiration date from the slice and slivers
+		 * @return Earliest expiration date
 		 * 
 		 */
 		public function get EarliestExpiration():Date
@@ -193,25 +161,12 @@ package com.flack.geni.resources.virtual
 			var d:Date = null;
 			for each(var sliver:Sliver in collection)
 			{
-				if(d == null || (sliver.Created && sliver.expires < d))
+				if(sliver.expires != null && (d == null || sliver.expires < d))
+				{
 					d = sliver.expires;
+				}
 			}
 			return d;
-		}
-		
-		/**
-		 * 
-		 * @return TRUE if any sliver has allocated resources
-		 * 
-		 */
-		public function get AllocatedAnyResources():Boolean
-		{
-			for each(var sliver:Sliver in collection)
-			{
-				if(sliver.Created)
-					return true;
-			}
-			return false;
 		}
 	}
 }

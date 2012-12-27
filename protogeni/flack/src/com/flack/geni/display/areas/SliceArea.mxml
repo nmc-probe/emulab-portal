@@ -57,14 +57,16 @@ IN THE WORK.
 			import com.flack.geni.plugins.PluginArea;
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.GeniManagerCollection;
+			import com.flack.geni.resources.virtual.AggregateSliver;
+			import com.flack.geni.resources.virtual.AggregateSliverCollection;
 			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virtual.SliceCollection;
 			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.SliverCollection;
 			import com.flack.geni.resources.virtual.VirtualLink;
 			import com.flack.geni.resources.virtual.VirtualNode;
 			import com.flack.geni.resources.virtual.extensions.SliceFlackInfo;
-			import com.flack.geni.tasks.groups.slice.DeleteSliversTaskGroup;
-			import com.flack.geni.tasks.groups.slice.GetSliceTaskGroup;
+			import com.flack.geni.tasks.groups.slice.DeleteAggregateSliversTaskGroup;
+			import com.flack.geni.tasks.groups.slice.DescribeSlicesTaskGroup;
 			import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
 			import com.flack.geni.tasks.groups.slice.RefreshSliceStatusTaskGroup;
 			import com.flack.geni.tasks.groups.slice.RenewSliceTaskGroup;
@@ -208,7 +210,7 @@ IN THE WORK.
 				{
 					if(ComponentsArea == null || ComponentsArea.SliceEditing == null)
 						loadComponentsAreaFor(_slice);
-					if(_slice.slivers.AllocatedAnyResources)
+					if(Sliver.isAllocated(_slice.AllocationState))
 						dashboardViewstack.selectedChild = sliceView;
 					updateSliceHistory();
 					
@@ -288,7 +290,7 @@ IN THE WORK.
 				if(_slice != null)
 				{
 					loadComponentsAreaFor(_slice);
-					if(_slice.slivers.AllocatedAnyResources)
+					if(Sliver.isAllocated(_slice.AllocationState))
 						dashboardViewstack.selectedChild = sliceView;
 					updateSliceChanging();
 					updateSliceHistory();
@@ -350,7 +352,7 @@ IN THE WORK.
 				var workingSliceTasks:TaskCollection = SharedMain.tasker.tasks.AllNotFinished.getRelatedTo(_slice);
 				if(workingSliceTasks.length > 0 && dashboardViewstack.selectedChild != sliceView)
 				{
-					if(workingSliceTasks.getOfClass(GetSliceTaskGroup).length == 0 || _slice.slivers.AllocatedAnyResources)
+					if(workingSliceTasks.getOfClass(DescribeSlicesTaskGroup).length == 0 || Sliver.isAllocated(_slice.AllocationState))
 					{
 						dashboardViewstack.selectedChild = sliceView;
 						validateNow();
@@ -421,8 +423,8 @@ IN THE WORK.
 				// Make sure the slivers info area has been drawn.
 				if(expiresLabel != null)
 				{
-					startSliceButton.enabled  = _slice.slivers.AllocatedAnyResources;
-					refreshStatusButton.enabled = slice.slivers.AllocatedAnyResources;
+					startSliceButton.enabled  = Sliver.isAllocated(_slice.AllocationState);
+					refreshStatusButton.enabled = Sliver.isAllocated(_slice.AllocationState);
 					
 					updateSliversExpires()
 				}
@@ -435,14 +437,14 @@ IN THE WORK.
 				{
 					if(_slice != null && slice.expires != null)
 					{
-						var hoursRemaining:uint = (_slice.EarliestExpires.time - (new Date()).time)/3600000;
+						var hoursRemaining:uint = (_slice.EarliestExpiration.time - (new Date()).time)/3600000;
 						if(hoursRemaining < 1)
 							expiresLabel.styleName = "failedStyle";
 						else if(hoursRemaining < 3)
 							expiresLabel.styleName = "inprogressStyle";
 						else
 							expiresLabel.styleName = "validStyle";
-						expiresLabel.text = DateUtil.getTimeUntil(_slice.EarliestExpires, true);
+						expiresLabel.text = DateUtil.getTimeUntil(_slice.EarliestExpiration, true);
 						renewSliceButton.enabled = true;
 						renewLengthDropdownlist.enabled = true;
 					}
@@ -532,7 +534,9 @@ IN THE WORK.
 			public function tryRegetSlice():void
 			{
 				clearSlice();
-				SharedMain.tasker.add(new GetSliceTaskGroup(slice, false, true));
+				var sliceCollection:SliceCollection = new SliceCollection();
+				sliceCollection.add(slice);
+				SharedMain.tasker.add(new DescribeSlicesTaskGroup(sliceCollection, true));
 			}
 			
 			// Slice canvas options
@@ -558,7 +562,7 @@ IN THE WORK.
 			public function clearSlice():void
 			{
 				slice.removeComponents();
-				slice.slivers.cleanup();
+				slice.aggregateSlivers.cleanup();
 				slice.history.clear();
 				if(ComponentsArea != null)
 					ComponentsArea.clear();
@@ -694,7 +698,7 @@ IN THE WORK.
 				createSliceRspec.start();
 				previewArea.addDocument("Unified Request RSPEC", createSliceRspec.resultRspec.document);
 				
-				for each(var sliver:Sliver in _slice.slivers.collection)
+				for each(var sliver:AggregateSliver in _slice.aggregateSlivers.collection)
 				{
 					var createSliverNs:GenerateNsTask = new GenerateNsTask(sliver);
 					createSliverNs.start();
@@ -710,7 +714,7 @@ IN THE WORK.
 			// a node that was bound but originally unbound will be output as unbound.
 			public function viewOriginalRspec(event:* = null):void
 			{
-				if(!_slice.slivers.AllocatedAnyResources)
+				if(!Sliver.isAllocated(_slice.AllocationState))
 				{
 					previewRspec();
 					Alert.show("The slice hasn't been submitted yet, showing you the preview RSPEC.");
@@ -723,7 +727,7 @@ IN THE WORK.
 				createSliceRspec.start();
 				previewArea.addDocument("Unified Request RSPEC", createSliceRspec.resultRspec.document);
 				
-				for each(var sliver:Sliver in _slice.slivers.collection)
+				for each(var sliver:AggregateSliver in _slice.aggregateSlivers.collection)
 				{
 					var createSliverNs:GenerateNsTask = new GenerateNsTask(sliver);
 					createSliverNs.start();
@@ -747,7 +751,7 @@ IN THE WORK.
 			
 			public function viewManifests(event:* = null):void
 			{
-				if(!_slice.slivers.AllocatedAnyResources)
+				if(!Sliver.isAllocated(_slice.AllocationState))
 				{
 					Alert.show(
 						"There is no valid manifest for the slice yet",
@@ -759,8 +763,8 @@ IN THE WORK.
 				var manifestsArea:DocumentsArea = new DocumentsArea();
 				manifestsArea.title = "Last valid manifest RSPEC(s) for: " + slice.hrn;
 				
-				for each(var s:Sliver in slice.slivers.collection)
-					manifestsArea.addDocument(s.manager.hrn, s.Created ? s.manifest.document : "No manifest");
+				for each(var s:AggregateSliver in slice.aggregateSlivers.collection)
+					manifestsArea.addDocument(s.manager.hrn, Sliver.isAllocated(s.AllocationState) ? s.manifest.document : "No manifest");
 				
 				openNext(manifestsArea);
 			}
@@ -805,7 +809,7 @@ IN THE WORK.
 				if(SliceWorking)
 					return;
 				
-				var dateExpires:Date = slice.EarliestExpires;
+				var dateExpires:Date = slice.EarliestExpiration;
 				if(dateExpires != null)
 				{
 					var newDate:Date = new Date(dateExpires.time + Number(renewLengthDropdownlist.selectedItem.value)*60*60*1000);
@@ -826,7 +830,7 @@ IN THE WORK.
 			
 			public function deleteSlice(event:* = null):void
 			{
-				if(slice.slivers.AllocatedAnyResources)
+				if(Sliver.isAllocated(slice.AllocationState))
 				{
 					Alert.show(
 						"Do you really want to deallocate all resources in the slice?",
@@ -837,7 +841,7 @@ IN THE WORK.
 						{
 							if(e.detail == Alert.YES)
 							{
-								SharedMain.tasker.add(new DeleteSliversTaskGroup(slice.slivers, false));
+								SharedMain.tasker.add(new DeleteAggregateSliversTaskGroup(slice.aggregateSlivers, false));
 							}
 						}
 					);
@@ -876,13 +880,13 @@ IN THE WORK.
 			
 			public function doDeleteSliceEverywhere():void
 			{
-				var allManagerSlivers:SliverCollection = new SliverCollection();
+				var allManagerSlivers:AggregateSliverCollection = new AggregateSliverCollection();
 				for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
 				{
 					if(manager.Status == FlackManager.STATUS_VALID)
-						allManagerSlivers.add(new Sliver(_slice, manager));
+						allManagerSlivers.add(new AggregateSliver(_slice, manager));
 				}
-				SharedMain.tasker.add(new DeleteSliversTaskGroup(allManagerSlivers, false, false));
+				SharedMain.tasker.add(new DeleteAggregateSliversTaskGroup(allManagerSlivers, false, false));
 			}
 			
 			public function startSlice():void
@@ -931,7 +935,7 @@ IN THE WORK.
 			
 			public function refreshStatus():void
 			{
-				if(!slice.slivers.AllocatedAnyResources)
+				if(!Sliver.isAllocated(slice.AllocationState))
 				{
 					Alert.show(
 						"There are no resources allocated yet!",
@@ -1005,7 +1009,7 @@ IN THE WORK.
 			
 			public function viewLogin(event:* = null):void
 			{
-				if(!_slice.slivers.AllocatedAnyResources)
+				if(!Sliver.isAllocated(_slice.AllocationState))
 				{
 					Alert.show(
 						"No resources allocated yet!",
@@ -1088,7 +1092,7 @@ IN THE WORK.
 									  enabled="false"
 									  click="refreshStatus()" />
 						</s:HGroup>
-						<slicer:SliversPane id="sliversPane"
+						<slicer:AggregateSliversPane id="sliversPane"
 											slice="{_slice}"
 											host="{this}" />
 						<s:HGroup width="100%"

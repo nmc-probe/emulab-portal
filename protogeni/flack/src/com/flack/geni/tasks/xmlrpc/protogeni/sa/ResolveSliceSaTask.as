@@ -180,12 +180,22 @@ package com.flack.geni.tasks.xmlrpc.protogeni.sa
 					{
 						var manager:GeniManager = GeniMain.geniUniverse.managers.getById(reportedManagerId);
 						if(manager != null)
+						{
 							slice.reportedManagers.add(manager);
+						}
+						else
+						{
+							addMessage("Unknown aggregate in slice",
+								"Unknown manager was reported to have resources on " +
+								slice.Name + ": " + reportedManagerId,
+								LogMessage.LEVEL_WARNING,
+								LogMessage.IMPORTANCE_HIGH);
+						}
 					}
 					
 					addMessage(
 						"Resolved",
-						slice.Name + " was found with slivers on " + slice.reportedManagers.length + " known manager(s)",
+						slice.Name + " was reported to have resources on " + slice.reportedManagers.length + " known aggregate(s)",
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
 					);

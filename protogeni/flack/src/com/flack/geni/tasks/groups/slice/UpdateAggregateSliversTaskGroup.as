@@ -29,9 +29,15 @@
 
 package com.flack.geni.tasks.groups.slice
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virtual.AggregateSliverCollection;
 	import com.flack.geni.resources.virtual.SliverCollection;
+	import com.flack.geni.resources.virtual.VirtualComponentCollection;
+	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
+	import com.flack.geni.tasks.xmlrpc.am.AllocateTask;
+	import com.flack.geni.tasks.xmlrpc.am.CreateSliverTask;
+	import com.flack.geni.tasks.xmlrpc.am.DeleteTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RedeemTicketCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.StartSliverCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.UpdateSliverCmTask;
@@ -53,9 +59,9 @@ package com.flack.geni.tasks.groups.slice
 	 * @author mstrum
 	 * 
 	 */
-	public final class UpdateSliversTaskGroup extends SerialTaskGroup
+	public final class UpdateAggregateSliversTaskGroup extends SerialTaskGroup
 	{
-		public var slivers:SliverCollection;
+		public var slivers:AggregateSliverCollection;
 		public var rspec:Rspec;
 		/**
 		 * 
@@ -63,25 +69,77 @@ package com.flack.geni.tasks.groups.slice
 		 * @param requestRspec Request RSPEC to send to each manager
 		 * 
 		 */
-		public function UpdateSliversTaskGroup(updateSlivers:SliverCollection,
+		public function UpdateAggregateSliversTaskGroup(updateSlivers:AggregateSliverCollection,
 											   requestRspec:Rspec = null)
 		{
 			super(
-				"Update "+updateSlivers.length+" sliver(s)",
-				"Updates existing slivers with changes"
+				"Update "+updateSlivers.length+" aggregate(s)",
+				"Updates existing aggregates with changes"
 			);
 			slivers = updateSlivers;
 			rspec = requestRspec;
 			
-			for each(var updateSliver:Sliver in slivers.collection)
+			for each(var updateSliver:AggregateSliver in slivers.collection)
 			{
-				// Not part of the GENI AM API
-				if(updateSliver.manager.api.type == ApiDetails.API_PROTOGENI)
+				if(updateSliver.manager.api.type == ApiDetails.API_GENIAM)
+				{
+					// V3 only allowed creation and deletion of individual slivers.
+					if (updateSliver.manager.api.version > 3)
+					{
+						// Delete.
+						add(new DeleteTask(updateSliver,  updateSliver.DeletedSlivers));
+						
+						// Allocate.
+						var generateNewAllocateRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(
+							updateSliver,
+							true, false, false, false, null,
+							updateSliver.Components.getByAllocated(false));
+						generateNewAllocateRspec.start();
+						if(generateNewAllocateRspec.Status != Task.STATUS_SUCCESS)
+						{
+							afterError(generateNewAllocateRspec.error);
+							return;
+						}
+						add(new AllocateTask(updateSliver, generateNewAllocateRspec.resultRspec));
+						
+						// Update.
+						var updatedSlivers:SliverCollection = updateSliver.Components.getComponentsByUnsubmittedChanges(true).getByAllocated(true);
+						if(updatedSlivers.length > 0)
+						{
+							if (updateSliver.manager.api.version > 4)
+							{
+							}
+							else
+							{
+								addMessage(
+									"Update not supported",
+									"AM API v" + updateSliver.manager.api.version + " didn't support updating, existing slivers will remain unchanged.",
+									LogMessage.LEVEL_WARNING);
+							}
+						}
+						
+					}
+					else
+					{
+						addMessage(
+							"Update not supported",
+							"AM API v" + updateSliver.manager.api.version + " didn't support updating.",
+							LogMessage.LEVEL_WARNING);
+					}
+				}
+				else if(updateSliver.manager.api.type == ApiDetails.API_PROTOGENI)
 				{
 					if(updateSliver.manager.api.level == ApiDetails.LEVEL_FULL)
 					{
 						relatedTo.push(updateSliver);
 						add(new UpdateSliverCmTask(updateSliver, rspec));
+					}
+					else
+					{
+						addMessage(
+							"Update not supported",
+							"Minimal API doesn't support updating.",
+							LogMessage.LEVEL_WARNING);
 					}
 				}
 			}
@@ -92,13 +150,13 @@ package com.flack.geni.tasks.groups.slice
 		{
 			var msg:String = "";
 			if(task is UpdateSliverCmTask)
-				msg = " updating sliver on " + (task as UpdateSliverCmTask).sliver.manager.hrn;
+				msg = " updating aggregate on " + (task as UpdateSliverCmTask).sliver.manager.hrn;
 			else if(task is RedeemTicketCmTask)
 				msg = " redeeming ticket on " + (task as RedeemTicketCmTask).sliver.manager.hrn;
 			else if(task is ParseRequestManifestTask)
-				msg = " parsing the manifest on " + (task as ParseRequestManifestTask).sliver.manager.hrn;
+				msg = " parsing the manifest on " + (task as ParseRequestManifestTask).aggregateSliver.manager.hrn;
 			else if(task is StartSliverCmTask)
-				msg = " starting the sliver on " + (task as StartSliverCmTask).sliver.manager.hrn;
+				msg = " starting the aggregate on " + (task as StartSliverCmTask).sliver.manager.hrn;
 			Alert.show(
 				"Problem" + msg + ". Continue with the remaining actions?",
 				"Continue?",
@@ -123,7 +181,9 @@ package com.flack.geni.tasks.groups.slice
 			}
 			else
 			{
-				addMessage("User canceled remaining", "User decided to cancel remaining slice operations after an update failed");
+				addMessage(
+					"User canceled remaining",
+					"User decided to cancel remaining slice operations after an update failed");
 				cancel();
 			}
 		}

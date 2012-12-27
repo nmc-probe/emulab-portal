@@ -34,7 +34,7 @@ package com.flack.geni.plugins.instools.instasks
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.TaskError;
@@ -43,10 +43,10 @@ package com.flack.geni.plugins.instools.instasks
 	
 	public final class InstrumentizeTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var details:SliceInstoolsDetails;
 		
-		public function InstrumentizeTask(newSliver:Sliver, useDetails:SliceInstoolsDetails)
+		public function InstrumentizeTask(newSliver:AggregateSliver, useDetails:SliceInstoolsDetails)
 		{
 			super(
 				newSliver.manager.url,

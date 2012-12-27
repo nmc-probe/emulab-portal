@@ -82,6 +82,7 @@ IN THE WORK.
 			import com.flack.geni.display.areas.SliceArea;
 			import com.flack.geni.resources.physical.PhysicalNode;
 			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.virtual.AggregateSliver;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.geni.resources.virtual.VirtualComponent;
@@ -139,7 +140,7 @@ IN THE WORK.
 			
 			public function updateInterface():void
 			{
-				var sliceNodes:VirtualNodeCollection = slice.nodes.Clone;
+				var sliceNodes:VirtualNodeCollection = new VirtualNodeCollection(slice.nodes.collection.source);
 				var i:int;
 				// Remove old nodes and nodes already drawn
 				for(i = 0; i < nodesVgroup.numElements; i++)
@@ -166,7 +167,7 @@ IN THE WORK.
 					newListNode.Node = node;
 				}
 				
-				var sliceLinks:VirtualLinkCollection = slice.links.Clone;
+				var sliceLinks:VirtualLinkCollection = new VirtualLinkCollection(slice.links.collection.source);
 				// Remove old links and links already drawn
 				for(i = 0; i < linksVgroup.numElements; i++)
 				{
@@ -191,28 +192,36 @@ IN THE WORK.
 					linksVgroup.addElement(newListLink);
 					newListLink.Link = link;
 				}
-				
-				switch(slice.Status)
+
+				switch(slice.AllocationState)
 				{
-					case Sliver.STATUS_READY:
-					//case Sliver.EMULAB_ACTIVE:
-						styleName = "validCanvasStyle";
+					case Sliver.ALLOCATION_PROVISIONED:
+						switch(slice.OperationalState)
+						{
+							case Sliver.OPERATIONAL_READY:
+								styleName = "validCanvasStyle";
+								break;
+							case Sliver.OPERATIONAL_FAILED:
+								styleName = "failedCanvasStyle";
+								break;
+							case Sliver.MIXED_CHANGING:
+							case Sliver.OPERATIONAL_CONFIGURING:
+								styleName = "inprogressCanvasStyle";
+								break;
+							case Sliver.MIXED_FINISHED:
+							case Sliver.OPERATIONAL_NOTREADY:
+								styleName = "pausedCanvasStyle";
+								break;
+							default:
+								styleName = "normalCanvasStyle";
+						}
 						break;
-					case Sliver.STATUS_FAILED:
-					//case Sliver.EMULAB_TERMINATED:
-						styleName = "failedCanvasStyle";
-						break;
-					case Sliver.STATUS_STOPPED:
-					//case Sliver.EMULAB_SWAPPED:
-						styleName = "pausedCanvasStyle";
-						break;
-					case Sliver.STATUS_CHANGING:
-					case Sliver.STATUS_NOTREADY:
-					case Sliver.STATUS_UNKNOWN:
-					case Sliver.STATUS_MIXED:
-					//case Sliver.EMULAB_ACTIVATING:
-					//case Sliver.EMULAB_SWAPPING:
-					//case Sliver.EMULAB_TESTING:
+					case Sliver.ALLOCATION_ALLOCATED:
+					case Sliver.ALLOCATION_UPDATING:
+					case Sliver.MIXED_ALLOCATED:
+					case Sliver.MIXED_UNALLOCATED:
+					case Sliver.MIXED_PROVISIONED:
+					case Sliver.MIXED_UPDATING:
 						styleName = "inprogressCanvasStyle";
 						break;
 					default:

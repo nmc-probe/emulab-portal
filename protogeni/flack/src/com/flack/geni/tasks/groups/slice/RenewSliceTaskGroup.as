@@ -29,8 +29,8 @@
 
 package com.flack.geni.tasks.groups.slice
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.tasks.xmlrpc.am.RenewTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RenewSliverCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.RenewSliceSaTask;
@@ -75,8 +75,8 @@ package com.flack.geni.tasks.groups.slice
 				if(slice.expires != null && expires.time < slice.expires.time)
 				{
 					addMessage(
-						"Only slivers need renewing",
-						"Slice will expire after the new expires time, renewing slivers",
+						"Only aggregates need renewing",
+						"Slice will expire after the new expires time, renewing aggregates",
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
 					);
@@ -97,9 +97,10 @@ package com.flack.geni.tasks.groups.slice
 		
 		private function renewSlivers():void
 		{
-			for each(var sliver:Sliver in slice.slivers.collection)
+			for each(var sliver:AggregateSliver in slice.aggregateSlivers.collection)
 			{
-				if(sliver.expires == null || sliver.expires.time < expires.time)
+				var sliverExpiration:Date = sliver.EarliestExpiration;
+				if(sliverExpiration == null || sliverExpiration.time < expires.time)
 				{
 					if(sliver.manager.api.type == ApiDetails.API_GENIAM)
 						add(new RenewTask(sliver, expires));
@@ -109,8 +110,8 @@ package com.flack.geni.tasks.groups.slice
 				else
 				{
 					addMessage(
-						"Sliver on "+sliver.manager.hrn+" expires later",
-						"Sliver on "+sliver.manager.hrn+" expires later and doesn't need to be renewed",
+						"Aggregate on "+sliver.manager.hrn+" expires later",
+						"Aggregate on "+sliver.manager.hrn+" expires later and doesn't need to be renewed",
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
 					);
@@ -126,7 +127,7 @@ package com.flack.geni.tasks.groups.slice
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var earliestSliverExpiration:Date = slice.slivers.EarliestExpiration;
+			var earliestSliverExpiration:Date = slice.aggregateSlivers.EarliestExpiration;
 			if(earliestSliverExpiration == null)
 			{
 				addMessage(
@@ -141,8 +142,8 @@ package com.flack.geni.tasks.groups.slice
 				if(earliestSliverExpiration < slice.expires)
 				{
 					addMessage(
-						"Renewed. Slivers expire before slice in "+DateUtil.getTimeUntil(earliestSliverExpiration) +".",
-						"Slivers will start to expire in " + DateUtil.getTimeUntil(earliestSliverExpiration) + ". The slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
+						"Renewed. Aggregates expire before slice in "+DateUtil.getTimeUntil(earliestSliverExpiration) +".",
+						"Aggregates will start to expire in " + DateUtil.getTimeUntil(earliestSliverExpiration) + ". The slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
 					);
@@ -151,7 +152,7 @@ package com.flack.geni.tasks.groups.slice
 				{
 					addMessage(
 						"Renewed. All expire at the same time in "+DateUtil.getTimeUntil(slice.expires)+".",
-						"Slivers and slice will start to expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
+						"Aggregates and slice will start to expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
 					);

@@ -29,6 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.VirtualComponent;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
@@ -46,7 +47,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class SliverStatusCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var continueUntilDone:Boolean;
 		/**
 		 * 
@@ -54,7 +55,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param shouldContinueUntilDone Continue until status is finalized?
 		 * 
 		 */
-		public function SliverStatusCmTask(newSliver:Sliver,
+		public function SliverStatusCmTask(newSliver:AggregateSliver,
 										   shouldContinueUntilDone:Boolean = true)
 		{
 			super(
@@ -90,12 +91,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		{
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				sliver.state = data.state;
-				if(sliver.state == Sliver.STATE_STOPPED)
-					sliver.status = Sliver.STATUS_STOPPED;
-				else
-					sliver.status = data.status;
-				sliver.sliverIdToStatus[sliver.id.full] = sliver.status;
+				sliver.AllocationState = Sliver.ALLOCATION_PROVISIONED;
+				var sliverOperationalState:String = Sliver.ProtogeniStateStatusToOperationalState(data.state, data.status);
+				sliver.OperationalState = sliverOperationalState;
 				for(var sliverId:String in data.details)
 				{
 					var sliverDetails:Object = data.details[sliverId];
@@ -103,13 +101,10 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					var virtualComponent:VirtualComponent = sliver.slice.getBySliverId(sliverId);
 					if(virtualComponent != null)
 					{
-						virtualComponent.state = sliverDetails.state;
-						if(virtualComponent.state == Sliver.STATE_STOPPED)
-							virtualComponent.status = Sliver.STATUS_STOPPED;
-						else
-							virtualComponent.status = sliverDetails.status;
-						sliver.sliverIdToStatus[virtualComponent.id.full] = virtualComponent.status;
+						virtualComponent.allocationState = Sliver.ALLOCATION_PROVISIONED;
+						virtualComponent.operationalState = Sliver.ProtogeniStateStatusToOperationalState(sliverDetails.state, sliverDetails.status);
 						virtualComponent.error = sliverDetails.error;
+						sliver.idsToSlivers[sliverId] = virtualComponent.ClonedSliver;
 					}
 				}
 				
@@ -123,12 +118,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					sliver.slice,
 					FlackEvent.ACTION_STATUS
 				);
-				
-				if(sliver.StatusFinalized)
+
+				var stateDescription:String = Sliver.describeState(sliver.AllocationState, sliver.OperationalState);
+				if(!Sliver.isOperationalStateChanging(sliver.OperationalState))
 				{
 					addMessage(
-						StringUtil.firstToUpper(sliver.status),
-						"Status was received and is finished. Current status is " + sliver.status,
+						StringUtil.firstToUpper(stateDescription),
+						"Status was received and is finished. Current state is " + stateDescription,
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
 					);
@@ -138,8 +134,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				else
 				{
 					addMessage(
-						StringUtil.firstToUpper(sliver.status) + "...",
-						"Status was received but is still changing. Current status is " + sliver.status,
+						StringUtil.firstToUpper(stateDescription) + "...",
+						"Status was received but is still changing. Current state is " + stateDescription,
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
 					);

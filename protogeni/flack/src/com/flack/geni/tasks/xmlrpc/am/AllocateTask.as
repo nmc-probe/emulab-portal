@@ -30,7 +30,9 @@
 package com.flack.geni.tasks.xmlrpc.am
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.VirtualComponent;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.shared.FlackEvent;
@@ -39,7 +41,10 @@ package com.flack.geni.tasks.xmlrpc.am
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.DateUtil;
 	import com.flack.shared.utils.StringUtil;
+	
+	import flash.utils.Dictionary;
 	
 	/**
 	 * Allocates resources
@@ -51,8 +56,9 @@ package com.flack.geni.tasks.xmlrpc.am
 	 */
 	public final class AllocateTask extends AmXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		public var request:Rspec;
+		public var manifest:String;
 		
 		/**
 		 * 
@@ -60,7 +66,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * @param newRspec RSPEC to send
 		 * 
 		 */
-		public function AllocateTask(newSliver:Sliver,
+		public function AllocateTask(newSliver:AggregateSliver,
 									 newRspec:Rspec = null)
 		{
 			super(
@@ -75,12 +81,12 @@ package com.flack.geni.tasks.xmlrpc.am
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
 			
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 			request = newRspec;
 			
 			addMessage(
-				"Waiting to create...",
-				"A sliver will be created at " + sliver.manager.hrn,
+				"Waiting to allocate...",
+				"Resources will be allocated at " + aggregateSliver.manager.hrn,
 				LogMessage.LEVEL_INFO,
 				LogMessage.IMPORTANCE_HIGH
 			);
@@ -88,13 +94,13 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function runStart():void
 		{
-			sliver.markStaged();
-			sliver.manifest = null;
+			aggregateSliver.markStaged();
+			aggregateSliver.manifest = null;
 			
 			// Generate a rspec if needed
 			if(request == null)
 			{
-				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, false, false);
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(aggregateSliver, true, false, false);
 				generateNewRspec.start();
 				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
 				{
@@ -115,69 +121,58 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function createFields():void
 		{
-			addOrderedField(sliver.slice.id.full);
-			addOrderedField([AmXmlrpcTask.credentialToObject(sliver.slice.credential)]);
+			addOrderedField(aggregateSliver.slice.id.full);
+			addOrderedField([AmXmlrpcTask.credentialToObject(aggregateSliver.slice.credential, apiVersion)]);
 			addOrderedField(request.document);
-			var userKeys:Array = [];
-			for each(var key:String in sliver.slice.creator.keys)
-				userKeys.push(key);
-			addOrderedField(
-				[
-					{
-						urn:GeniMain.geniUniverse.user.id.full,
-						keys:userKeys
-					}
-				]
-			);
-			if(apiVersion > 1)
-				addOrderedField({});
+			addOrderedField({});
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			// Sanity check for AM API 2+
-			if(apiVersion > 1)
+			if(genicode == AmXmlrpcTask.GENICODE_SUCCESS)
 			{
-				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
-				{
-					faultOnSuccess();
-					return;
-				}
-			}
-			
-			try
-			{
-				sliver.manifest = new Rspec(data,null,null,null, Rspec.TYPE_MANIFEST);
+				manifest = data.geni_rspec;
+				aggregateSliver.manifest = new Rspec(manifest, null, null, null, Rspec.TYPE_MANIFEST);
 				
 				addMessage(
 					"Manifest received",
-					data,
+					manifest,
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
+				aggregateSliver.idsToSlivers = new Dictionary();
+				for each(var geniSliver:Object in data.geni_slivers)
+				{
+					var sliver:Sliver = new Sliver(
+						geniSliver.geni_sliver_urn,
+						aggregateSliver.slice,
+						geniSliver.geni_allocation_status);
+					sliver.expires = DateUtil.parseRFC3339(geniSliver.geni_expires);
+					aggregateSliver.idsToSlivers[sliver.id.full] = sliver;
+					
+					var component:VirtualComponent = aggregateSliver.Components.getComponentById(sliver.id.full);
+					if(component != null)
+						component.copyFrom(sliver);
+				}
+				
+				parent.add(new ParseRequestManifestTask(aggregateSliver, aggregateSliver.manifest, false, true));
+				parent.add(new ProvisionTask(aggregateSliver));
 				
 				super.afterComplete(addCompletedMessage);
 			}
-			catch(e:Error)
+			else
 			{
-				afterError(
-					new TaskError(
-						StringUtil.errorToString(e),
-						TaskError.CODE_UNEXPECTED,
-						e
-					)
-				);
+				faultOnSuccess();
 			}
 		}
 		
 		override protected function afterError(taskError:TaskError):void
 		{
-			sliver.status = Sliver.STATUS_FAILED;
+			//aggregateSliver.status = AggregateSliver.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 			
@@ -186,10 +181,10 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function runCancel():void
 		{
-			sliver.status = Sliver.STATUS_UNKNOWN;
+			//aggregateSliver.status = AggregateSliver.STATUS_UNKNOWN;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 		}

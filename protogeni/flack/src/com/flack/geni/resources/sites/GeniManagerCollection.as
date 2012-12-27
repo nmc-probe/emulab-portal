@@ -38,6 +38,10 @@ package com.flack.geni.resources.sites
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.geni.resources.sites.managers.SupportedLinkType;
+	import com.flack.geni.resources.sites.managers.SupportedLinkTypeCollection;
+	import com.flack.geni.resources.sites.managers.SupportedSliverType;
+	import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
 
 	/**
 	 * Collection of managers

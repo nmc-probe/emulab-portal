@@ -40,7 +40,7 @@ IN THE WORK.
 		<![CDATA[
 			import com.flack.geni.resources.SliverTypes;
 			import com.flack.geni.resources.virtual.LinkType;
-			import com.flack.geni.resources.virtual.Sliver;
+			import com.flack.geni.resources.virtual.AggregateSliver;
 			import com.flack.geni.resources.virtual.VirtualLink;
 			import com.flack.geni.resources.virtual.VirtualLinkCollection;
 			import com.flack.geni.resources.virtual.VirtualNode;

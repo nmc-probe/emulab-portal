@@ -33,7 +33,7 @@ package com.flack.geni.tasks.tests
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.instasks.InstrumentizeSliceGroupTask;
 	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;
@@ -64,10 +64,10 @@ package com.flack.geni.tasks.tests
 		override protected function startTest():void
 		{
 			var blankSlice:Slice = new Slice();
-			(new ParseRequestManifestTask(new Sliver(blankSlice, GeniMain.geniUniverse.managers.getByHrn("utahemulab.cm")) , new Rspec((new TestsliceRspecRight()).toString()), true)).start();
-			(new ParseRequestManifestTask(new Sliver(blankSlice, GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm")) , new Rspec((new TestsliceRspecLeft()).toString()), true)).start();
+			(new ParseRequestManifestTask(new AggregateSliver(blankSlice, GeniMain.geniUniverse.managers.getByHrn("utahemulab.cm")) , new Rspec((new TestsliceRspecRight()).toString()), true)).start();
+			(new ParseRequestManifestTask(new AggregateSliver(blankSlice, GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm")) , new Rspec((new TestsliceRspecLeft()).toString()), true)).start();
 			
-			var generate:GenerateRequestManifestTask = new GenerateRequestManifestTask(blankSlice.slivers.collection[0], true, false, false);
+			var generate:GenerateRequestManifestTask = new GenerateRequestManifestTask(blankSlice.aggregateSlivers.collection[0], true, false, false);
 			generate.start();
 			
 			var test:String = generate.resultRspec.document;

@@ -36,7 +36,7 @@ package com.flack.geni.plugins.openflow
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.docs.Rspec;
 	
@@ -94,7 +94,7 @@ package com.flack.geni.plugins.openflow
 			}
 		}
 		
-		public function applyTo(sliver:Sliver, xml:XML):void
+		public function applyTo(sliver:AggregateSliver, xml:XML):void
 		{
 		}
 		

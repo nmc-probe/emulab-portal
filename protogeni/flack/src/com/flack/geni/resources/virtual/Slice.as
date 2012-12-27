@@ -76,41 +76,54 @@ package com.flack.geni.resources.virtual
 		public var creator:GeniUser = null;
 		public var authority:GeniAuthority = null;
 		public var credential:GeniCredential = null;
+		// A slice is considered instantiated if a credential exists for it.
 		public function get Instantiated():Boolean
 		{
 			return credential != null && credential.Raw.length > 0;
 		}
 		
 		public var flackInfo:SliceFlackInfo = new SliceFlackInfo();
+		// This is only the managers listed by a slice authority, which may have managers missing.
+		// For example, ProtoGENI SAs don't list managers outside of the ProtoGENI federation.
 		public var reportedManagers:GeniManagerCollection = new GeniManagerCollection();
 		public var description:String = "";
 		
-		public var slivers:SliverCollection = new SliverCollection();
+		public var aggregateSlivers:AggregateSliverCollection = new AggregateSliverCollection();
 		public function get RelatedItems():Array
 		{
 			var results:Array = [this];
-			for each(var sliver:Sliver in slivers.collection)
+			for each(var sliver:AggregateSliver in aggregateSlivers.collection)
 				results.push(sliver);
 			return results;
 		}
 		
 		public var nodes:VirtualNodeCollection = new VirtualNodeCollection();
 		public var links:VirtualLinkCollection = new VirtualLinkCollection();
-		
-		public var expires:Date = null;
-		public function get EarliestExpires():Date
+		public function get Components():VirtualComponentCollection
 		{
-			if(expires != null)
-			{
-				if(slivers != null && slivers.length > 0)
-				{
-					var sliverExpires:Date = slivers.EarliestExpiration;
-					if(sliverExpires != null && sliverExpires < expires)
-						return sliverExpires;
-				}
+			var components:VirtualComponentCollection = new VirtualComponentCollection();
+			components.addAll(nodes.collection);
+			components.addAll(links.collection);
+			return components;
+		}
+		
+		// Note this is the slice container expiration.
+		public var expires:Date = null;
+		/**
+		 * 
+		 * @return Earliest expiration for anything in the slice.
+		 * 
+		 */
+		public function get EarliestExpiration():Date
+		{
+			var earliestComponentExpiration:Date = Components.EarliestExpiration;
+			if(earliestComponentExpiration == null)
 				return expires;
-			}
-			return null;
+			if(expires == null)
+				return null;
+			if(earliestComponentExpiration < expires)
+				return earliestComponentExpiration;
+			return expires;
 		}
 		public function get ExpiresString():String
 		{
@@ -118,17 +131,15 @@ package com.flack.geni.resources.virtual
 			var result:String = "";
 			if(expires != null)
 			{
-				var sliceExpiresDate:Date = expires;
-				if(slivers != null)
+				if(aggregateSlivers != null)
 				{
-					var sliversExpire:Date = slivers.EarliestExpiration;
-					if(sliversExpire != null && sliversExpire.time < sliceExpiresDate.time)
+					var earliestComponentExpiration:Date = Components.EarliestExpiration;
+					if(earliestComponentExpiration != null && earliestComponentExpiration.time < expires.time)
 					{
-						sliceExpiresDate = sliceExpiresDate;
 						result = "Sliver expires before slice in\n\t"
-							+ DateUtil.getTimeUntil(sliversExpire)
+							+ DateUtil.getTimeUntil(earliestComponentExpiration)
 							+ "\n\ton "
-							+ dateFormatter.format(sliversExpire)
+							+ dateFormatter.format(earliestComponentExpiration)
 							+ "\n\n";
 					}
 				}
@@ -146,14 +157,12 @@ package com.flack.geni.resources.virtual
 		
 		public function get UnsubmittedChanges():Boolean
 		{
-			for each(var sliver:Sliver in slivers.collection)
+			for each(var sliver:AggregateSliver in aggregateSlivers.collection)
 			{
 				if(sliver.UnsubmittedChanges)
 					return true;
 			}
-			if(nodes.UnsubmittedChanges)
-				return true;
-			if(links.UnsubmittedChanges)
+			if(Components.UnsubmittedChanges)
 				return true;
 			return false;
 		}
@@ -222,8 +231,8 @@ package com.flack.geni.resources.virtual
 			if(CanGoBack)
 			{
 				var saveRspec:GenerateRequestManifestTask = null;
-				if(slivers.length > 0)
-					saveRspec = new GenerateRequestManifestTask(slivers.collection[0], false, false, false, false, useInputRspecInfo);
+				if(aggregateSlivers.length > 0)
+					saveRspec = new GenerateRequestManifestTask(aggregateSlivers.collection[0], false, false, false, false, useInputRspecInfo);
 				else
 					saveRspec = new GenerateRequestManifestTask(this, false, false, false, false, useInputRspecInfo);
 				saveRspec.start();
@@ -254,8 +263,8 @@ package com.flack.geni.resources.virtual
 				else
 				{
 					removeComponents();
-					slivers.cleanup();
-					for each(var sliver:Sliver in this.slivers.collection)
+					aggregateSlivers.cleanup();
+					for each(var sliver:AggregateSliver in this.aggregateSlivers.collection)
 						sliver.UnsubmittedChanges = true;
 				}
 			}
@@ -277,8 +286,8 @@ package com.flack.geni.resources.virtual
 				
 				// Save the state to return in case user wants to undo
 				var saveRspec:GenerateRequestManifestTask = null;
-				if(slivers.length > 0)
-					saveRspec = new GenerateRequestManifestTask(slivers.collection[0], false, false, false, false, useInputRspecInfo);
+				if(aggregateSlivers.length > 0)
+					saveRspec = new GenerateRequestManifestTask(aggregateSlivers.collection[0], false, false, false, false, useInputRspecInfo);
 				else
 					saveRspec = new GenerateRequestManifestTask(this, false, false, false, false, useInputRspecInfo);
 				saveRspec.start();
@@ -313,39 +322,40 @@ package com.flack.geni.resources.virtual
 		
 		public function resetStatus():void
 		{
-			for each(var statusSliver:Sliver in slivers.collection)
-			{
-				if(statusSliver.sliverIdToStatus[statusSliver.id.full] != null)
-					statusSliver.status = statusSliver.sliverIdToStatus[statusSliver.id.full];
-			}
 			for each(var statusNode:VirtualNode in nodes.collection)
 			{
-				var nodeSliver:Sliver = slivers.getByManager(statusNode.manager);
-				if(nodeSliver != null && nodeSliver.sliverIdToStatus[statusNode.id.full] != null)
-					statusNode.status = nodeSliver.sliverIdToStatus[statusNode.id.full];
-				else
-					statusNode.status = "";
+				statusNode.clearState();
+				var nodeAggregateSliver:AggregateSliver = aggregateSlivers.getByManager(statusNode.manager);
+				if(nodeAggregateSliver != null)
+				{
+					var nodeSliver:Sliver = nodeAggregateSliver.idsToSlivers[statusNode.id.full];
+					if(nodeSliver != null)
+						statusNode.copyFrom(nodeSliver);
+				}
 			}
 			for each(var statusLink:VirtualLink in links.collection)
 			{
-				var linkSlivers:SliverCollection = slivers.getByManagers(statusLink.interfaceRefs.Interfaces.Managers);
-				if(linkSlivers.length > 0 && linkSlivers.collection[0].sliverIdToStatus[statusLink.id.full] != null)
-					statusLink.status = linkSlivers.collection[0].sliverIdToStatus[statusLink.id.full];
-				else
-					statusLink.status = "";
+				statusLink.clearState();
+				var linkSlivers:AggregateSliverCollection = aggregateSlivers.getByManagers(statusLink.interfaceRefs.Interfaces.Managers);
+				if(linkSlivers.length > 0)
+				{
+					var linkSliver:Sliver = linkSlivers.collection[0].idsToSlivers[statusLink.id.full];
+					if(nodeSliver != null)
+						statusLink.copyFrom(linkSliver);
+				}
 			}
 		}
 		
 		public function getBySliverId(sliverId:String):*
 		{
-			var obj:* = nodes.getBySliverId(sliverId);
+			var obj:* = nodes.getById(sliverId);
 			if(obj != null) return obj;
 			obj = nodes.getInterfaceBySliverId(sliverId);
 			if(obj != null) return obj;
-			obj = links.getBySliverId(sliverId);
+			obj = links.getById(sliverId);
 			if(obj != null) return obj;
 			if(id.full == sliverId) return this;
-			obj = slivers.getBySliverId(sliverId);
+			obj = aggregateSlivers.getBySliverId(sliverId);
 			if(obj != null) return obj;
 			return null;
 		}
@@ -388,82 +398,21 @@ package com.flack.geni.resources.virtual
 				return base + highest;
 		}
 		
-		public function get State():String
+		public function get AllocationState():String
 		{
-			if(!slivers.AllocatedAnyResources)
-				return "";
+			return aggregateSlivers.AllocationState;
+		}
+		public function get OperationalState():String
+		{
+			return aggregateSlivers.OperationalState;
+		}
+		
+		public function clearStatus():void
+		{
+			for each(var sliver:AggregateSliver in aggregateSlivers.collection)
+				sliver.clearStates();
 			
-			var state:String = "";
-			var usingManagers:GeniManagerCollection = nodes.Managers;
-			for each(var manager:GeniManager in usingManagers.collection)
-			{
-				var sliver:Sliver = slivers.getByManager(manager);
-				if(sliver == null || !sliver.Created)
-					return Sliver.STATE_MIXED;
-				else
-				{
-					if(state.length == 0) state = sliver.state;
-					if(sliver.state != state)
-						state = Sliver.STATE_MIXED;
-				}
-			}
-			return state;
-		}
-		
-		public function get Status():String
-		{
-			if(!slivers.AllocatedAnyResources || UnsubmittedChanges)
-				return "";
-			
-			var status:String = "";
-			var usingManagers:GeniManagerCollection = nodes.Managers;
-			for each(var manager:GeniManager in usingManagers.collection)
-			{
-				var sliver:Sliver = slivers.getByManager(manager);
-				if(sliver == null || !sliver.Created)
-					return Sliver.STATUS_MIXED;
-				else
-				{
-					if(status.length == 0)
-					{
-						if(sliver.status.length == 0)
-							return Sliver.STATE_MIXED;
-						status = sliver.status;
-					}
-					if(sliver.status != status)
-						status = Sliver.STATUS_MIXED;
-				}
-			}
-			return status;
-		}
-		
-		public function get StatusesFinalized():Boolean
-		{
-			var usingManagers:GeniManagerCollection = nodes.Managers;
-			for each(var manager:GeniManager in usingManagers.collection)
-			{
-				var sliver:Sliver = slivers.getByManager(manager);
-				if(sliver == null || !sliver.Created)
-					return false;
-				else
-				{
-					if(!sliver.StatusFinalized)
-						return false;
-				}
-			}
-			return true;
-		}
-		
-		public function clearStatus(sliversOnly:Boolean = false):void
-		{
-			for each(var sliver:Sliver in slivers.collection)
-				sliver.clearStatus(sliversOnly);
-		}
-		
-		public function setSliverStatus(sliverStatus:String):void
-		{
-			for each(var sliver:Sliver in slivers.collection)
-				sliver.status = sliverStatus;
+			Components.clearStates();
 		}
 		
 		/**
@@ -474,27 +423,16 @@ package com.flack.geni.resources.virtual
 		 */
 		public function markStaged():void
 		{
-			for each(var sliver:Sliver in slivers.collection)
+			for each(var sliver:AggregateSliver in aggregateSlivers.collection)
 				sliver.markStaged();
 				
-			for each(var virtualNode:VirtualNode in nodes.collection)
-			{
-				virtualNode.clearState();
-				virtualNode.id = new IdnUrn();
-				virtualNode.manifest = "";
-			}
-			for each(var virtualLink:VirtualLink in links.collection)
-			{
-				virtualLink.clearState();
-				virtualLink.id = new IdnUrn();
-				virtualLink.manifest = "";
-			}
+			Components.markStaged();
 		}
 		
 		public function ensureSliversExist():void
 		{
 			for each(var manager:GeniManager in this.nodes.Managers.collection)
-				slivers.getOrCreateByManager(manager, this);
+				aggregateSlivers.getOrCreateByManager(manager, this);
 		}
 		
 		/**
@@ -504,11 +442,8 @@ package com.flack.geni.resources.virtual
 		public function removeAll():void
 		{
 			history = new SliceHistory();
-			
-			slivers = new SliverCollection();
-			
+			aggregateSlivers = new AggregateSliverCollection();
 			reportedManagers = new GeniManagerCollection();
-			
 			removeComponents();
 		}
 		
@@ -518,10 +453,26 @@ package com.flack.geni.resources.virtual
 			links = new VirtualLinkCollection();
 		}
 		
+		public function removeComponentById(id:String):void
+		{
+			var foundObject:IdentifiableObject = nodes.getById(id);
+			if(foundObject != null)
+			{
+				nodes.remove(foundObject);
+				return;
+			}
+			
+			foundObject = links.getById(id);
+			if(foundObject != null)
+			{
+				links.remove(foundObject);
+			}
+		}
+		
 		override public function toString():String
 		{
 			var result:String = "[Slice ID="+id.full+"]\n";
-			for each(var sliver:Sliver in slivers.collection)
+			for each(var sliver:AggregateSliver in aggregateSlivers.collection)
 				result += "\t"+sliver.toString() + "\n";
 			for each(var node:VirtualNode in nodes.collection)
 				result += "\t"+node.toString() + "\n";

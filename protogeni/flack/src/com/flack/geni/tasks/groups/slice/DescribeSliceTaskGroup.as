@@ -31,14 +31,12 @@ package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virtual.AggregateSliverCollection;
 	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.SliverCollection;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.am.DescribeTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.GetSliverCmTask;
-	import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetSliceCredentialSaTask;
-	import com.flack.geni.tasks.xmlrpc.protogeni.sa.ResolveSliceSaTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -62,7 +60,7 @@ package com.flack.geni.tasks.groups.slice
 	 * @author mstrum
 	 * 
 	 */
-	public final class GetSliceTaskGroup extends ParallelTaskGroup
+	public final class DescribeSliceTaskGroup extends ParallelTaskGroup
 	{
 		public var slice:Slice;
 		public var resolveSlice:Boolean;
@@ -76,17 +74,15 @@ package com.flack.geni.tasks.groups.slice
 		 * @param shouldQueryAllManagers Query all managers? Needed if resources exist at non-ProtoGENI managers.
 		 * 
 		 */
-		public function GetSliceTaskGroup(taskSlice:Slice,
-										  shouldResolveSlice:Boolean = true,
-										  shouldQueryAllManagers:Boolean = false)
+		public function DescribeSliceTaskGroup(taskSlice:Slice,
+											   shouldQueryAllManagers:Boolean = false)
 		{
 			super(
-				"Get " + taskSlice.Name,
+				"Describe " + taskSlice.Name,
 				"Gets all infomation about slice with id: " + taskSlice.id.full
 			);
 			relatedTo.push(taskSlice);
 			slice = taskSlice;
-			resolveSlice = shouldResolveSlice;
 			queryAllManagers = shouldQueryAllManagers;
 		}
 		
@@ -94,10 +90,32 @@ package com.flack.geni.tasks.groups.slice
 		{
 			if(tasks.length == 0)
 			{
-				if(resolveSlice)
-					add(new ResolveSliceSaTask(slice));
-				else
-					getResources();
+				slice.aggregateSlivers = new AggregateSliverCollection();
+				for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
+				{
+					if(manager.type != GeniManager.TYPE_PROTOGENI ||
+						slice.creator.authority == null ||
+						slice.reportedManagers.contains(manager) ||
+						queryAllManagers)
+					{
+						if(manager.Status == FlackManager.STATUS_VALID)
+						{
+							var newGeniSliver:AggregateSliver = new AggregateSliver(slice, manager);
+							if(manager.api.type == ApiDetails.API_GENIAM)
+								add(new DescribeTask(newGeniSliver));
+							else
+								add(new GetSliverCmTask(newGeniSliver));
+						}
+						else
+						{
+							addMessage(
+								"Skipping " + manager.hrn,
+								"Skipping " + manager.hrn + " which doesn't have a valid advertisement loaded.  There could be a sliver at this manager.",
+								LogMessage.LEVEL_WARNING);
+						}
+						
+					}
+				}
 			}
 				
 			super.runStart();
@@ -105,16 +123,12 @@ package com.flack.geni.tasks.groups.slice
 		
 		override public function completedTask(task:Task):void
 		{
-			if(task is ResolveSliceSaTask)
-				add(new GetSliceCredentialSaTask(slice));
-			else if(task is GetSliceCredentialSaTask)
-				getResources();
-			else if(task is SerialTaskGroup)
+			if(task is SerialTaskGroup)
 			{
 				addMessage(
 					"Retrieved",
 					slice.Name + " has been retrieved. " +
-						slice.nodes.length + " nodes and " + slice.links.length + " links were found on "+slice.slivers.length+" managers.",
+						slice.nodes.length + " nodes and " + slice.links.length + " links were found on "+slice.aggregateSlivers.length+" managers.",
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
@@ -144,45 +158,6 @@ package com.flack.geni.tasks.groups.slice
 				add(parseTasks);
 			else
 				super.afterComplete(addCompletedMessage);
-				
-		}
-		
-		public function getResources():void
-		{
-			slice.slivers = new SliverCollection();
-			for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
-			{
-				/*if(manager.Status != GeniManager.STATUS_VALID)
-				{
-					addMessage(
-						manager.hrn + " doesn't have it's resources loaded, but has a sliver!",
-						"",
-						LogMessage.LEVEL_WARNING
-						);
-					continue;
-				}*/
-				if(
-					manager.type != FlackManager.TYPE_PROTOGENI ||
-					queryAllManagers ||
-					slice.reportedManagers.contains(manager))
-				{
-					if(manager.Status == FlackManager.STATUS_VALID)
-					{
-						var newGeniSliver:Sliver = new Sliver(slice, manager);
-						if(manager.api.type == ApiDetails.API_GENIAM)
-							add(new DescribeTask(newGeniSliver));
-						else
-							add(new GetSliverCmTask(newGeniSliver));
-					}
-					else
-					{
-						addMessage(
-							"Skipping " + manager.hrn,
-							"Skipping " + manager.hrn + " which doesn't have a valid advertisement loaded.  There could be a sliver at this manager.",
-							LogMessage.LEVEL_WARNING);
-					}
-				}
-			}
 		}
 		
 		override public function add(task:Task):void

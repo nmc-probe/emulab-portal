@@ -29,10 +29,13 @@
 
 package com.flack.geni.tasks.groups.slice
 {
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.SliverCollection;
+	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virtual.AggregateSliverCollection;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
+	import com.flack.geni.tasks.xmlrpc.am.AllocateTask;
 	import com.flack.geni.tasks.xmlrpc.am.CreateSliverTask;
+	import com.flack.geni.tasks.xmlrpc.am.PerformOperationalActionTask;
+	import com.flack.geni.tasks.xmlrpc.am.ProvisionTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateSliverCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.GetTicketCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RedeemTicketCmTask;
@@ -55,9 +58,9 @@ package com.flack.geni.tasks.groups.slice
 	 * @author mstrum
 	 * 
 	 */
-	public final class CreateSliversTaskGroup extends SerialTaskGroup
+	public final class CreateAggregateSliversTaskGroup extends SerialTaskGroup
 	{
-		public var slivers:SliverCollection;
+		public var slivers:AggregateSliverCollection;
 		public var rspec:Rspec;
 		/**
 		 * 
@@ -66,21 +69,26 @@ package com.flack.geni.tasks.groups.slice
 		 * @param askToContinueOnFailure Ask the user to continue on failures? ... Not used???
 		 * 
 		 */
-		public function CreateSliversTaskGroup(createSlivers:SliverCollection,
+		public function CreateAggregateSliversTaskGroup(createSlivers:AggregateSliverCollection,
 											   requestRspec:Rspec = null,
 											   askToContinueOnFailure:Boolean = true)
 		{
 			super(
-				"Create "+createSlivers.length+" sliver(s)",
-				"Allocates new slivers"
+				"Add "+createSlivers.length+" resource(s)",
+				"Add new resources"
 			);
 			slivers = createSlivers;
 			rspec = requestRspec;
 			
-			for each(var newSliver:Sliver in slivers.collection)
+			for each(var newSliver:AggregateSliver in slivers.collection)
 			{
 				if(newSliver.manager.api.type == ApiDetails.API_GENIAM)
-					add(new CreateSliverTask(newSliver, rspec));
+				{
+					if(newSliver.manager.api.version < 3)
+						add(new CreateSliverTask(newSliver, rspec));
+					else
+						add(new AllocateTask(newSliver, rspec));
+				}
 				else
 				{
 					if(newSliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
@@ -96,17 +104,23 @@ package com.flack.geni.tasks.groups.slice
 		{
 			var msg:String = "";
 			if(task is CreateSliverCmTask)
-				msg = " creating sliver on " + (task as CreateSliverCmTask).sliver.manager.hrn;
+				msg = " creating on " + (task as CreateSliverCmTask).sliver.manager.hrn;
 			else if(task is CreateSliverTask)
-				msg = " creating sliver on " + (task as CreateSliverTask).sliver.manager.hrn;
+				msg = " creating on " + (task as CreateSliverTask).sliver.manager.hrn;
 			else if(task is ParseRequestManifestTask)
-				msg = " parsing the manifest on " + (task as ParseRequestManifestTask).sliver.manager.hrn;
+				msg = " parsing the manifest on " + (task as ParseRequestManifestTask).aggregateSliver.manager.hrn;
 			else if(task is GetTicketCmTask)
-				msg = " updating sliver on " + (task as GetTicketCmTask).sliver.manager.hrn;
+				msg = " updating on " + (task as GetTicketCmTask).sliver.manager.hrn;
 			else if(task is RedeemTicketCmTask)
 				msg = " redeeming ticket on " + (task as RedeemTicketCmTask).sliver.manager.hrn;
 			else if(task is StartSliverCmTask)
-				msg = " starting the sliver on " + (task as StartSliverCmTask).sliver.manager.hrn;
+				msg = " starting on " + (task as StartSliverCmTask).sliver.manager.hrn;
+			else if(task is PerformOperationalActionTask)
+				msg = " starting on " + (task as PerformOperationalActionTask).aggregateSliver.manager.hrn;
+			if(task is AllocateTask)
+				msg = " allocating on " + (task as AllocateTask).aggregateSliver.manager.hrn;
+			if(task is ProvisionTask)
+				msg = " provisioning on " + (task as ProvisionTask).aggregateSliver.manager.hrn;
 			Alert.show(
 				"Problem" + msg + ". Continue with the remaining actions?",
 				"Continue?",

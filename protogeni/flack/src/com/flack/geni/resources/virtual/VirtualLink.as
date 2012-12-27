@@ -34,8 +34,8 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.sites.SupportedLinkType;
-	import com.flack.geni.resources.sites.SupportedLinkTypeCollection;
+	import com.flack.geni.resources.sites.managers.SupportedLinkType;
+	import com.flack.geni.resources.sites.managers.SupportedLinkTypeCollection;
 	import com.flack.geni.resources.virtual.extensions.LinkFlackInfo;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.utils.StringUtil;
@@ -484,9 +484,7 @@ package com.flack.geni.resources.virtual
 		{
 			for each(var gm:GeniManager in this.interfaceRefs.Interfaces.Managers.collection)
 			{
-				var sliver:Sliver = slice.slivers.getOrCreateByManager(gm, slice);
-				if(sliver.Created)
-					sliver.UnsubmittedChanges = true;
+				slice.aggregateSlivers.getOrCreateByManager(gm, slice).UnsubmittedChanges = true;
 			}
 			removeInterfaceReferences();
 			slice.links.remove(this);
@@ -566,7 +564,7 @@ package com.flack.geni.resources.virtual
 		{
 			var result:String =
 				"[VirtualLink\n\t\tClientID="+clientId
-				+",\n\t\t"+StringProperties
+				+",\n\t\t"+SliverProperties
 				+"]";
 			// XXX Services
 			result += "\n\t\t[InterfaceReferences]";

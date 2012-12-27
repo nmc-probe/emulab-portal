@@ -33,41 +33,41 @@ package com.flack.geni.resources.virtual
 	
 	import flash.utils.Dictionary;
 
-	public class SliverCollectionCollection
+	public class AggregateSliverCollectionCollection
 	{
 		public var collection:Dictionary;
-		public function SliverCollectionCollection()
+		public function AggregateSliverCollectionCollection()
 		{
 			collection = new Dictionary();
 		}
 		
-		public function getOrAdd(from:Sliver):SliverCollection
+		public function getOrAdd(from:AggregateSliver):AggregateSliverCollection
 		{
-			var sliverCollection:SliverCollection = collection[from.manager.id.full];
+			var sliverCollection:AggregateSliverCollection = collection[from.manager.id.full];
 			if(sliverCollection == null)
 			{
-				sliverCollection = new SliverCollection();
+				sliverCollection = new AggregateSliverCollection();
 				collection[from.manager.id.full] = sliverCollection;
 			}
 			return sliverCollection;
 		}
 		
-		public function add(from:Sliver, to:Sliver):void
+		public function add(from:AggregateSliver, to:AggregateSliver):void
 		{
-			var sliverCollection:SliverCollection = getOrAdd(from);
+			var sliverCollection:AggregateSliverCollection = getOrAdd(from);
 			if(!sliverCollection.contains(to))
 				sliverCollection.add(to);
 		}
 		
-		public function remove(from:Sliver, to:Sliver):void
+		public function remove(from:AggregateSliver, to:AggregateSliver):void
 		{
-			var sliverCollection:SliverCollection = getOrAdd(from);
+			var sliverCollection:AggregateSliverCollection = getOrAdd(from);
 			sliverCollection.remove(to);
 		}
 		
-		public function contains(from:Sliver, to:Sliver):Boolean
+		public function contains(from:AggregateSliver, to:AggregateSliver):Boolean
 		{
-			var sliverCollection:SliverCollection = getOrAdd(from);
+			var sliverCollection:AggregateSliverCollection = getOrAdd(from);
 			return sliverCollection.contains(to);
 		}
 		
@@ -81,21 +81,21 @@ package com.flack.geni.resources.virtual
 			return length;
 		}
 		
-		public function getLinearized(slice:Slice):SliverCollection
+		public function getLinearized(slice:Slice):AggregateSliverCollection
 		{
-			var searchSlivers:SliverCollection = new SliverCollection();
-			var orderedSlivers:SliverCollection = new SliverCollection();
+			var searchSlivers:AggregateSliverCollection = new AggregateSliverCollection();
+			var orderedSlivers:AggregateSliverCollection = new AggregateSliverCollection();
 			for(var managerId:String in collection)
-				searchSlivers.add(slice.slivers.getByManager(GeniMain.geniUniverse.managers.getById(managerId)));
+				searchSlivers.add(slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getById(managerId)));
 			while(searchSlivers.length > 0)
 				search(searchSlivers.collection[0], searchSlivers, orderedSlivers);
 			return orderedSlivers;
 		}
 		
-		private function search(sliver:Sliver, searchSlivers:SliverCollection, orderedSlivers:SliverCollection):void
+		private function search(sliver:AggregateSliver, searchSlivers:AggregateSliverCollection, orderedSlivers:AggregateSliverCollection):void
 		{
-			var connectedSlivers:SliverCollection = collection[sliver.manager.id.full];
-			for each(var connectedSliver:Sliver in connectedSlivers.collection)
+			var connectedSlivers:AggregateSliverCollection = collection[sliver.manager.id.full];
+			for each(var connectedSliver:AggregateSliver in connectedSlivers.collection)
 			{
 				if(searchSlivers.contains(connectedSliver))
 					search(connectedSliver, searchSlivers, orderedSlivers);

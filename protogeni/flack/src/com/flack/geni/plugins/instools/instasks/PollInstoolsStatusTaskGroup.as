@@ -31,7 +31,7 @@
 package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.tasks.ParallelTaskGroup;
@@ -60,7 +60,7 @@ package com.flack.geni.plugins.instools.instasks
 			relatedTo.push(useDetails.slice);
 			details = useDetails;
 			
-			for each(var sliver:Sliver in details.slice.slivers.collection)
+			for each(var sliver:AggregateSliver in details.slice.aggregateSlivers.collection)
 			{
 				if(details.MC_present[sliver.manager.id.full])
 					add(new PollInstoolsStatusTask(sliver, details));

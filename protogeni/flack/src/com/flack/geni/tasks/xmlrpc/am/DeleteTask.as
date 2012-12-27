@@ -29,11 +29,15 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.SliverCollection;
+	import com.flack.geni.resources.virtual.VirtualComponent;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.DateUtil;
 	import com.flack.shared.utils.StringUtil;
 	
 	/**
@@ -44,13 +48,14 @@ package com.flack.geni.tasks.xmlrpc.am
 	 */
 	public final class DeleteTask extends AmXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
+		public var deleteSlivers:SliverCollection = null;
 		/**
 		 * 
 		 * @param deleteSliver Sliver for which to deallocate resources in
 		 * 
 		 */
-		public function DeleteTask(deleteSliver:Sliver)
+		public function DeleteTask(deleteSliver:AggregateSliver, sliversToDelete:SliverCollection = null)
 		{
 			super(
 				deleteSliver.manager.api.url,
@@ -64,19 +69,32 @@ package com.flack.geni.tasks.xmlrpc.am
 			relatedTo.push(deleteSliver);
 			relatedTo.push(deleteSliver.slice);
 			relatedTo.push(deleteSliver.manager);
-			sliver = deleteSliver;
+			
+			aggregateSliver = deleteSliver;
+			deleteSlivers = sliversToDelete;
 		}
 		
 		override protected function createFields():void
 		{
 			if(apiVersion > 2)
-				addOrderedField([sliver.slice.id.full]);
+			{
+				var deleteArray:Array = [];
+				if(deleteSlivers == null)
+					deleteArray.push(aggregateSliver.slice.id.full);
+				else
+				{
+					for each(var deleteSliver:Sliver in deleteSlivers.collection)
+						deleteArray.push(deleteSliver.id.full);
+				}
+				addOrderedField(deleteArray);
+			}
 			else
-				addOrderedField(sliver.slice.id.full);
-			addOrderedField([AmXmlrpcTask.credentialToObject(sliver.slice.credential, apiVersion)]);
+				addOrderedField(aggregateSliver.slice.id.full);
+			addOrderedField([AmXmlrpcTask.credentialToObject(aggregateSliver.slice.credential, apiVersion)]);
 			if(apiVersion > 1)
 				addOrderedField({});
 			//V3: geni_allocation_state
+			//geni_best_effort
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
@@ -93,45 +111,79 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				if(data == true || data == 1)
+				// Before V3, only the entire aggregate sliver could be deleted.
+				if(apiVersion < 3)
 				{
-					sliver.manifest = null;
-					sliver.removeFromSlice();
-					//sliver.UnsubmittedChanges = false;
-					
-					//V3: Parse return struct
-					
-					addMessage(
-						"Removed",
-						"Slice successfully removed",
-						LogMessage.LEVEL_INFO,
-						LogMessage.IMPORTANCE_HIGH
-					);
-					
-					SharedMain.sharedDispatcher.dispatchChanged(
-						FlackEvent.CHANGED_SLIVER,
-						sliver,
-						FlackEvent.ACTION_REMOVED
-					);
-					SharedMain.sharedDispatcher.dispatchChanged(
-						FlackEvent.CHANGED_SLICE,
-						sliver.slice,
-						FlackEvent.ACTION_REMOVING
-					);
-					
-					super.afterComplete(addCompletedMessage);
-				}
-				else if(data == false || data == 0)
-				{
-					afterError(
-						new TaskError(
-							"Received false when trying to delete sliver on " + sliver.manager.hrn + ".",
-							TaskError.CODE_PROBLEM
-						)
-					);
+					if(data == true || data == 1)
+					{
+						aggregateSliver.manifest = null;
+						aggregateSliver.removeFromSlice();
+					}
+					else if(data == false || data == 0)
+					{
+						afterError(
+							new TaskError(
+								"Received false when trying to delete sliver on " + aggregateSliver.manager.hrn + ".",
+								TaskError.CODE_PROBLEM
+							)
+						);
+					}
+					else
+						throw new Error("Invalid data received");
 				}
 				else
-					throw new Error("Invalid data received");
+				{
+					// Deleted entire thing
+					if(deleteSlivers == null)
+					{
+						aggregateSliver.manifest = null;
+						aggregateSliver.removeFromSlice();
+					}
+					else
+					{
+						for each(var geniSliver:Object in data)
+						{
+							var sliver:Sliver = new Sliver(
+								geniSliver.geni_sliver_urn,
+								aggregateSliver.slice,
+								geniSliver.geni_allocation_status);
+							sliver.expires = DateUtil.parseRFC3339(geniSliver.geni_expires);
+							aggregateSliver.idsToSlivers[sliver.id.full] = sliver;
+							if(geniSliver.geni_error != null)
+								sliver.error = geniSliver.geni_error;
+							if(sliver.allocationState == Sliver.ALLOCATION_UNALLOCATED)
+							{
+								aggregateSliver.slice.removeComponentById(sliver.id.full);
+							}
+							else
+							{
+								var component:VirtualComponent = aggregateSliver.Components.getComponentById(sliver.id.full);
+								if(component != null)
+									component.copyFrom(sliver);
+							}
+						}
+					}
+				}
+				
+				addMessage(
+					"Removed",
+					"Sliver(s) successfully removed",
+					LogMessage.LEVEL_INFO,
+					LogMessage.IMPORTANCE_HIGH
+				);
+				
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLIVER,
+					aggregateSliver,
+					FlackEvent.ACTION_REMOVED
+				);
+				SharedMain.sharedDispatcher.dispatchChanged(
+					FlackEvent.CHANGED_SLICE,
+					aggregateSliver.slice,
+					FlackEvent.ACTION_REMOVING
+				);
+				
+				super.afterComplete(addCompletedMessage);
 			}
 			catch(e:Error)
 			{

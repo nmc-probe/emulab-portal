@@ -29,7 +29,9 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.VirtualComponent;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -47,7 +49,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	 */
 	public final class RenewTask extends AmXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		public var newExpires:Date;
 		//V3: geni_best_effort
 		
@@ -57,7 +59,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * @param newExpirationDate Desired expiration date
 		 * 
 		 */
-		public function RenewTask(renewSliver:Sliver,
+		public function RenewTask(renewSliver:AggregateSliver,
 								  newExpirationDate:Date)
 		{
 			super(
@@ -72,17 +74,17 @@ package com.flack.geni.tasks.xmlrpc.am
 			relatedTo.push(renewSliver);
 			relatedTo.push(renewSliver.slice);
 			relatedTo.push(renewSliver.manager);
-			sliver = renewSliver;
+			aggregateSliver = renewSliver;
 			newExpires = newExpirationDate;
 		}
 		
 		override protected function createFields():void
 		{
 			if(apiVersion < 3)
-				addOrderedField(sliver.slice.id.full);
+				addOrderedField(aggregateSliver.slice.id.full);
 			else
-				addOrderedField([sliver.slice.id.full]);
-			addOrderedField([AmXmlrpcTask.credentialToObject(sliver.slice.credential, apiVersion)]);
+				addOrderedField([aggregateSliver.slice.id.full]);
+			addOrderedField([AmXmlrpcTask.credentialToObject(aggregateSliver.slice.credential, apiVersion)]);
 			addOrderedField(DateUtil.toRFC3339(newExpires));
 			if(apiVersion > 1)
 				addOrderedField({});
@@ -102,46 +104,70 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				if(data == true)
+				if(apiVersion < 3)
 				{
-					sliver.expires = newExpires;
-					
-					SharedMain.sharedDispatcher.dispatchChanged(
-						FlackEvent.CHANGED_SLIVER,
-						sliver
-					);
-					SharedMain.sharedDispatcher.dispatchChanged(
-						FlackEvent.CHANGED_SLICE,
-						sliver.slice
-					);
-					
-					addMessage(
-						"Renewed",
-						"Renewed, sliver expires in " + DateUtil.getTimeUntil(sliver.expires),
-						LogMessage.LEVEL_INFO,
-						LogMessage.IMPORTANCE_HIGH
-					);
-					
-					super.afterComplete(addCompletedMessage);
-				}
-				else if(data == false)
-				{
-					Alert.show("Failed to renew sliver @ " + sliver.manager.hrn);
-					afterError(
-						new TaskError(
-							"Renew failed",
-							TaskError.CODE_PROBLEM
-						)
-					);
+					if(data == true)
+					{
+						aggregateSliver.Expires = newExpires;
+						
+						SharedMain.sharedDispatcher.dispatchChanged(
+							FlackEvent.CHANGED_SLIVER,
+							aggregateSliver
+						);
+						SharedMain.sharedDispatcher.dispatchChanged(
+							FlackEvent.CHANGED_SLICE,
+							aggregateSliver.slice
+						);
+						
+						addMessage(
+							"Renewed",
+							"Renewed, sliver expires in " + DateUtil.getTimeUntil(aggregateSliver.EarliestExpiration),
+							LogMessage.LEVEL_INFO,
+							LogMessage.IMPORTANCE_HIGH
+						);
+						
+						super.afterComplete(addCompletedMessage);
+					}
+					else if(data == false)
+					{
+						Alert.show("Failed to renew sliver @ " + aggregateSliver.manager.hrn);
+						afterError(
+							new TaskError(
+								"Renew failed",
+								TaskError.CODE_PROBLEM
+							)
+						);
+					}
+					else
+					{
+						afterError(
+							new TaskError(
+								"Renew failed. Received incorrect data",
+								TaskError.CODE_UNEXPECTED
+							)
+						);
+					}
 				}
 				else
 				{
-					afterError(
-						new TaskError(
-							"Renew failed. Received incorrect data",
-							TaskError.CODE_UNEXPECTED
-						)
-					);
+					for each(var geniSliver:Object in data)
+					{
+						var sliver:Sliver = new Sliver(
+							geniSliver.geni_sliver_urn,
+							sliver.slice,
+							geniSliver.geni_allocation_status,
+							geniSliver.geni_operational_status);
+						sliver.expires = DateUtil.parseRFC3339(geniSliver.geni_expires);
+						if(geniSliver.geni_error != null)
+							sliver.error = geniSliver.geni_error;
+						//V3: geni_resource_status
+						//V4: geni_next_allocation_status
+						aggregateSliver.idsToSlivers[sliver.id.full] = sliver;
+						
+						var component:VirtualComponent = aggregateSliver.Components.getComponentById(sliver.id.full);
+						if(component != null)
+							component.copyFrom(sliver);
+					}
 				}
 			}
 			catch(e:Error)

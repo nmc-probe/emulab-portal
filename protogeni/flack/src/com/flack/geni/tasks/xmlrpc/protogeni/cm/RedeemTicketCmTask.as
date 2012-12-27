@@ -30,6 +30,7 @@
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
 	import com.flack.geni.resources.docs.GeniCredential;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
@@ -50,7 +51,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class RedeemTicketCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		// hack, afterError should probably be called instead of setting this
 		public var success:Boolean = false;
 		
@@ -59,7 +60,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param newSliver Sliver to redeem ticket for
 		 * 
 		 */
-		public function RedeemTicketCmTask(newSliver:Sliver)
+		public function RedeemTicketCmTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.url,
@@ -101,7 +102,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				addNamedField("credentials", [sliver.credential.Raw]);
 			else
 				addNamedField("credentials", [sliver.slice.credential.Raw]);
-			addNamedField("ticket", sliver.ticket);
+			addNamedField("ticket", sliver.ticket.document);
 			var keys:Array = [];
 			for each(var key:String in sliver.slice.creator.keys) {
 				keys.push({type:"ssh", key:key});
@@ -119,8 +120,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					GeniCredential.TYPE_SLIVER,
 					sliver.manager);
 				sliver.id = sliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
-				sliver.expires = sliver.credential.Expires;
+				sliver.Expires = sliver.credential.Expires;
 				sliver.manifest = new Rspec(data[1], null, null, null, Rspec.TYPE_MANIFEST);
+				sliver.AllocationState = Sliver.ALLOCATION_PROVISIONED;
 				
 				addMessage(
 					"Credential received",
@@ -135,8 +137,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				addMessage(
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
+					"Expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);

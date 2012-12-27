@@ -29,6 +29,7 @@
 
 package com.flack.geni.tasks.groups.slice
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
@@ -66,14 +67,14 @@ package com.flack.geni.tasks.groups.slice
 			
 			slice.removeComponents();
 			slice.clearStatus();
-			for(var i:int = 0; i < slice.slivers.length; i++)
+			for(var i:int = 0; i < slice.aggregateSlivers.length; i++)
 			{
-				var sliver:Sliver = slice.slivers.collection[i];
-				if(sliver.Created)
+				var sliver:AggregateSliver = slice.aggregateSlivers.collection[i];
+				if(Sliver.isAllocated(sliver.AllocationState))
 					add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
 				else
 				{
-					slice.slivers.remove(sliver);
+					slice.aggregateSlivers.remove(sliver);
 					i--;
 				}
 			}

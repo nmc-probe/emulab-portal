@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
@@ -48,7 +48,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class UpdateSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var request:Rspec;
 		public var ticket:String;
 		
@@ -58,7 +58,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param useRspec New RSPEC to update sliver to
 		 * 
 		 */
-		public function UpdateSliverCmTask(newSliver:Sliver,
+		public function UpdateSliverCmTask(newSliver:AggregateSliver,
 										   useRspec:Rspec)
 		{
 			super(
@@ -103,7 +103,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				);
 				return;
 			}
-			sliver.clearStatus();
+			sliver.clearStates();
 			
 			// Generate a rspec if needed
 			if(request == null)
@@ -137,7 +137,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
 				ticket = String(data);
-				sliver.ticket = ticket;
+				sliver.ticket = new Rspec(ticket);
 				
 				addMessage(
 					"Ticket received",

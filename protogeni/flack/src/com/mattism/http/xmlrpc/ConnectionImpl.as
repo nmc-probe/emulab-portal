@@ -9,10 +9,10 @@
 
 package com.mattism.http.xmlrpc
 {
-  import com.flack.geni.GeniMain;
   import com.flack.shared.SharedMain;
   import com.flack.shared.logging.LogMessage;
   import com.flack.shared.logging.Logger;
+  import com.flack.geni.GeniMain;
   
   import flash.events.ErrorEvent;
   import flash.events.Event;
@@ -38,12 +38,12 @@ package com.mattism.http.xmlrpc
 	public var _request : URLRequest;
     private var _rpc_response : Object;
     private var _parser : Parser;
-    public var _response:Object;
+    public var _response:JSLoader;
 	private var _parsed_response : Object;
 
     private var _fault : MethodFault;
 
-    public function ConnectionImpl(url : String, loaderClass:Class)
+    public function ConnectionImpl(url : String)
     {
       //prepare method response handler
       //ignoreWhite = true;
@@ -55,7 +55,7 @@ package com.mattism.http.xmlrpc
       _parser = new ParserImpl();
 
       //init response
-	  _response = new loaderClass();
+	  _response = new JSLoader();
 			
       _response.addEventListener(Event.COMPLETE, _onLoad);
       _response.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityError);

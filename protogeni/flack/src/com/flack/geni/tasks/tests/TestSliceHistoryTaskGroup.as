@@ -35,7 +35,7 @@ package com.flack.geni.tasks.tests
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.VirtualNode;
 	import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
-	import com.flack.geni.tasks.groups.slice.DeleteSliversTaskGroup;
+	import com.flack.geni.tasks.groups.slice.DeleteAggregateSliversTaskGroup;
 	import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskEvent;
@@ -232,7 +232,7 @@ package com.flack.geni.tasks.tests
 				
 				addTest(
 					"Submit slice",
-					new DeleteSliversTaskGroup(slice.slivers, false)
+					new DeleteAggregateSliversTaskGroup(slice.aggregateSlivers, false)
 				);
 			}
 		}

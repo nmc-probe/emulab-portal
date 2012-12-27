@@ -29,26 +29,16 @@
 
 package com.flack.geni.resources.sites.managers
 {
-	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.shared.resources.sites.ApiDetails;
+	import com.flack.shared.resources.IdentifiableObject;
+	import com.flack.shared.resources.IdnUrn;
 	
-	/**
-	 * PlanetLab implementation of the GENI AM API
-	 * 
-	 * @author mstrum
-	 * 
-	 */
-	public class OpenflowAggregateManager extends GeniManager
+	public class ExternalRef extends IdentifiableObject
 	{
-		
-		/**
-		 * 
-		 * @param newId IDN-URN
-		 * 
-		 */
-		public function OpenflowAggregateManager(newId:String)
+		public var managerId:IdnUrn;
+		public function ExternalRef(newId:String="", newManagerId:String="")
 		{
-			super(TYPE_OPENFLOW, ApiDetails.API_GENIAM, newId);
+			super(newId);
+			managerId = new IdnUrn(newManagerId);
 		}
 	}
 }

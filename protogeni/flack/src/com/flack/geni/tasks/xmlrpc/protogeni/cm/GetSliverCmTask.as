@@ -30,7 +30,7 @@
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
 	import com.flack.geni.resources.docs.GeniCredential;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -47,14 +47,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class GetSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		
 		/**
 		 * 
 		 * @param newSliver Sliver to get
 		 * 
 		 */
-		public function GetSliverCmTask(newSliver:Sliver)
+		public function GetSliverCmTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.url,
@@ -87,7 +87,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 						sliver.manager
 					);
 				sliver.id = sliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
-				sliver.expires = sliver.credential.Expires;
+				sliver.Expires = sliver.credential.Expires;
 				
 				addMessage(
 					"Credential received",
@@ -96,8 +96,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				addMessage(
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
+					"Expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
@@ -124,7 +124,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function afterError(taskError:TaskError):void
 		{
-			sliver.status = Sliver.STATUS_FAILED;
+			//sliver.status = AggregateSliver.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
 				sliver,
@@ -136,7 +136,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function runCancel():void
 		{
-			sliver.status = Sliver.STATUS_UNKNOWN;
+			//sliver.status = AggregateSliver.STATUS_UNKNOWN;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
 				sliver,

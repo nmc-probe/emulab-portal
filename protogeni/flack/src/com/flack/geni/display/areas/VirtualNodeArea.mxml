@@ -31,15 +31,16 @@ IN THE WORK.
 
 -->
 
-<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<sharedareas:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
 		  xmlns:components="com.flack.shared.display.components.*"
 		  xmlns:display="com.flack.geni.display.*"
 		  xmlns:areas="com.flack.geni.display.areas.*"
+		  xmlns:sharedareas="com.flack.shared.display.areas.*"
 		  creationComplete="init()"
 		  paddingBottom="2"
-		  title="{node.clientId}" xmlns:areas1="com.flack.shared.display.areas.*">
+		  title="{node.clientId}" >
 	<fx:Declarations>
 		<s:RadioButtonGroup id="boundGroup"
 							valueCommit="boundGroup_valueCommitHandler(event)"/>
@@ -63,11 +64,12 @@ IN THE WORK.
 			import com.flack.geni.resources.physical.PhysicalNode;
 			import com.flack.geni.resources.physical.PhysicalNodeCollection;
 			import com.flack.geni.resources.sites.GeniManager;
-			import com.flack.geni.resources.sites.SupportedSliverType;
-			import com.flack.geni.resources.sites.SupportedSliverTypeCollection;
-			import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
+			import com.flack.geni.resources.sites.managers.SupportedSliverType;
+			import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
+			import com.flack.geni.resources.virtual.AggregateSliver;
 			import com.flack.geni.resources.virtual.ExecuteService;
 			import com.flack.geni.resources.virtual.InstallService;
+			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.geni.resources.virtual.VirtualComponent;
 			import com.flack.geni.resources.virtual.VirtualInterface;
 			import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
@@ -86,7 +88,6 @@ IN THE WORK.
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
-			import com.hurlant.math.bi_internal;
 			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
@@ -177,23 +178,33 @@ IN THE WORK.
 					titleColor = ColorUtil.colorsLight[node.manager.colorIdx];
 					errorButton.visible = node.error.length > 0;
 					manifestButton.visible = node.manifest.length>0;
-					if(node.status.length > 0)
+					if(node.allocationState != Sliver.ALLOCATION_UNALLOCATED)
 					{
 						statusImage.visible = true;
-						switch(node.status)
+						switch(node.allocationState)
 						{
-							case VirtualComponent.STATUS_READY:
-								this.statusImage.source = ImageUtil.flagGreenIcon;
+							case Sliver.ALLOCATION_PROVISIONED:
+								switch(node.operationalState)
+								{
+									case Sliver.OPERATIONAL_READY:
+										statusImage.source = ImageUtil.flagGreenIcon;
+										break;
+									case Sliver.OPERATIONAL_FAILED:
+										this.statusImage.source = ImageUtil.flagRedIcon;
+										break;
+									case Sliver.OPERATIONAL_CONFIGURING:
+									case Sliver.OPERATIONAL_NOTREADY:
+									case Sliver.OPERATIONAL_STOPPING:
+										statusImage.source = ImageUtil.flagYellowIcon;
+										break;
+									default:
+										statusImage.visible = false;
+								}
 								break;
-							case VirtualComponent.STATUS_FAILED:
-								this.statusImage.source = ImageUtil.flagRedIcon;
-								break;
-							case VirtualComponent.STATUS_NOTREADY:
-							case VirtualComponent.STATUS_CHANGING:
-							case VirtualComponent.STATUS_STOPPED:
+							case Sliver.ALLOCATION_ALLOCATED:
+							case Sliver.ALLOCATION_UPDATING:
 								statusImage.source = ImageUtil.flagYellowIcon;
 								break;
-							case VirtualComponent.STATUS_UNKNOWN:
 							default:
 								statusImage.visible = false;
 						}
@@ -239,7 +250,7 @@ IN THE WORK.
 						diskImageText.text = "";
 					}
 					
-					if(node.manager.type == FlackManager.TYPE_PROTOGENI && node.Created)
+					if(node.manager.type == GeniManager.TYPE_PROTOGENI && Sliver.isAllocated(node.allocationState))
 						createImageButton.visible = true;
 					
 					installVgroup.removeAllElements();
@@ -500,30 +511,32 @@ IN THE WORK.
 			private function addInstallService(installService:InstallService = null):void
 			{
 				var newInstallComponent:InstallServiceComponent = new InstallServiceComponent();
-				newInstallComponent.onChange = onChange;
 				if(installService != null)
 				{
 					newInstallComponent.url = installService.url;
 					newInstallComponent.path = installService.installPath;
 				}
+				newInstallComponent.onChange = markEdited;
 				installVgroup.addElement(newInstallComponent);
-				onChange();
+				if(!okButton.enabled)
+					okButton.enabled = true;
 			}
 			
 			private function addExecuteService(executeService:ExecuteService = null):void
 			{
 				var newExecuteComponent:ExecuteServiceComponent = new ExecuteServiceComponent();
-				newExecuteComponent.onChange = onChange;
 				if(executeService != null)
 				{
 					newExecuteComponent.cmd = executeService.command;
 					newExecuteComponent.shell = executeService.shell;
 				}
+				newExecuteComponent.onChange = markEdited;
 				executeVgroup.addElement(newExecuteComponent);
-				onChange();
+				if(!okButton.enabled)
+					okButton.enabled = true;
 			}
 			
-			private function onChange():void
+			public function markEdited():void
 			{
 				if(!okButton.enabled)
 					okButton.enabled = true;
@@ -820,7 +833,7 @@ IN THE WORK.
 						 change="if(!okButton.enabled) okButton.enabled = clientIdInput.text != node.clientId" />
 			<s:Image id="statusImage"
 					 visible="false" includeInLayout="{statusImage.visible}"
-					 toolTip="Status: {node.status}, State: {node.state}" />
+					 toolTip="Allocation: {node.allocationState}, Operational: {node.operationalState}" />
 			<components:ImageButton id="errorButton"
 									visible="false"
 									includeInLayout="{errorButton.visible}"
@@ -1207,4 +1220,4 @@ IN THE WORK.
 					  click="cancelAndClose();" />
 		</s:HGroup>
 	</s:Group>
-</areas1:AreaContent>
+</sharedareas:AreaContent>

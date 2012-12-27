@@ -149,6 +149,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni
 		 */
 		public var output:String;
 		
+		public var protogeniErrorLog:String = "";
+		
 		/**
 		 * Initializes a ProtoGENI XML-RPC call
 		 * 
@@ -195,6 +197,10 @@ package com.flack.geni.tasks.xmlrpc.protogeni
 			
 			code = response.code;
 			output = response.output;
+			if (response.protogeni_error_log != null)
+			{
+				protogeniErrorLog = String(response.protogeni_error_log);
+			}
 			
 			// Restart if busy
 			if(code == CODE_BUSY)

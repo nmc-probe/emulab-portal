@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
 	
@@ -41,14 +41,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class RestartSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		
 		/**
 		 * 
 		 * @param newSliver Sliver to restart resources for
 		 * 
 		 */
-		public function RestartSliverCmTask(newSliver:Sliver)
+		public function RestartSliverCmTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.url,

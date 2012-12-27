@@ -27,46 +27,20 @@
  * }}}
  */
 
-package com.flack.geni.resources.sites.managers
+package com.flack.geni.resources.sites.managers.opstates
 {
-	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.sites.SupportedLinkType;
-	import com.flack.geni.resources.virtual.LinkType;
-	import com.flack.shared.resources.sites.ApiDetails;
-	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.emulab.resources.NamedObject;
 
-	/**
-	 * Federated ProtoGENI manager
-	 * 
-	 * @author mstrum
-	 * 
-	 */
-	public class ProtogeniComponentManager extends GeniManager
+	public class Action extends NamedObject
 	{
-		/**
-		 * 
-		 * @param newId IDN-URN
-		 * 
-		 */
-		public function ProtogeniComponentManager(newId:String)
-		{
-			super(FlackManager.TYPE_PROTOGENI, ApiDetails.API_PROTOGENI, newId);
-		}
+		public var next:OpStateState;
+		public var description:String;
 		
-		override public function makeValidClientIdFor(value:String):String
+		public function Action(newName:String="", newNext:OpStateState=null, newDescription:String="")
 		{
-			return value.replace(".", "");
-		}
-		
-		override public function setApi(details:ApiDetails):void
-		{
-			api = details;
-			if(api.url.length == 0)
-			{
-				api.url = url;
-				if(api.type == ApiDetails.API_GENIAM)
-					api.url += "/am";
-			}
+			super(newName);
+			next = newNext;
+			description = newDescription;
 		}
 	}
 }

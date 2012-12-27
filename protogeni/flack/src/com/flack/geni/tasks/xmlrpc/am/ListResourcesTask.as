@@ -106,7 +106,11 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				var uncompressedRspec:String = CompressUtil.uncompress(data);
+				var uncompressedRspec:String = data;
+				if(uncompressedRspec.indexOf("<") == -1)
+				{
+					uncompressedRspec = CompressUtil.uncompress(uncompressedRspec);
+				}
 				
 				addMessage(
 					"Received advertisement",

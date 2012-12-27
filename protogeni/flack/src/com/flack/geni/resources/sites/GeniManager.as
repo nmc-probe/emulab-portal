@@ -30,15 +30,22 @@
 package com.flack.geni.resources.sites
 {
 	import com.flack.geni.resources.SliverTypeCollection;
+	import com.flack.geni.resources.docs.GeniCredentialVersionCollection;
 	import com.flack.geni.resources.physical.PhysicalLink;
 	import com.flack.geni.resources.physical.PhysicalLinkCollection;
 	import com.flack.geni.resources.physical.PhysicalLocationCollection;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.physical.PhysicalNodeCollection;
+	import com.flack.geni.resources.sites.managers.ExternalRefCollection;
+	import com.flack.geni.resources.sites.managers.SupportedLinkTypeCollection;
+	import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
+	import com.flack.geni.resources.sites.managers.opstates.OpStateCollection;
+	import com.flack.geni.resources.sites.managers.stitching.Stitching;
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.resources.docs.RspecVersionCollection;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
+	import com.flack.shared.utils.StringUtil;
 	
 	/**
 	 * Manager within the GENI world
@@ -51,12 +58,29 @@ package com.flack.geni.resources.sites
 		public static const ALLOCATE_SINGLE:String = "geni_single";
 		public static const ALLOCATE_DISJOINT:String = "geni_disjoint";
 		public static const ALLOCATE_MANY:String = "geni_many";
+		public static function allocateToHumanReadableString(allocate:String):String
+		{
+			switch(allocate)
+			{
+				case ALLOCATE_SINGLE:
+					return "Single";
+				case ALLOCATE_DISJOINT:
+					return "Disjoint";
+				case ALLOCATE_MANY:
+					return "Many";
+				default:
+					return allocate;
+			}
+		}
 				
 		// Advertised Resources
 		[Bindable]
 		public var nodes:PhysicalNodeCollection;
 		[Bindable]
 		public var links:PhysicalLinkCollection;
+		
+		// External connection information
+		public var externalRefs:ExternalRefCollection = new ExternalRefCollection();
 		
 		// Support Information
 		public var inputRspecVersions:RspecVersionCollection = new RspecVersionCollection();
@@ -74,13 +98,46 @@ package com.flack.geni.resources.sites
 			return supportedLinkTypes.length > 0;
 		}
 		
+		public var credentialTypes:GeniCredentialVersionCollection = new GeniCredentialVersionCollection();
+		
 		public var locations:PhysicalLocationCollection;
 		
 		public var sharedVlans:Vector.<String> = null;
 		
-		// Added for V3
+		public var opStates:OpStateCollection = new OpStateCollection();
+		
+		public var stitching:Stitching = null;
+		
 		public var singleAllocation:Boolean = false;
 		public var allocate:String = ALLOCATE_SINGLE;
+		
+		public var codeVersion:String = "";
+		public var type:String;
+		public var types:Vector.<String> = new Vector.<String>();
+		
+		public static const TYPE_ORCA:String = "orca";
+		public static const TYPE_FOAM:String = "foam";
+		public static const TYPE_PROTOGENI:String = "protogeni";
+		public static const TYPE_SFA:String = "sfa";
+		public static const TYPE_UNKNOWN:String = "";
+		public static function typeToHumanReadable(type:String):String
+		{
+			switch(type)
+			{
+				case TYPE_PROTOGENI:
+					return "ProtoGENI";
+				case TYPE_SFA:
+					return "SFA";
+				case TYPE_FOAM:
+					return "FOAM";
+				case TYPE_ORCA:
+					return "ORCA";
+				case TYPE_UNKNOWN:
+					return "Unknown";
+				default:
+					return StringUtil.firstToUpper(type);
+			}
+		}
 		
 		/**
 		 * 
@@ -90,17 +147,18 @@ package com.flack.geni.resources.sites
 		 * @param newHrn Human-readable name
 		 * 
 		 */
-		public function GeniManager(newType:int = TYPE_OTHER,
+		public function GeniManager(newType:String = TYPE_UNKNOWN,
 									newApi:int = ApiDetails.API_GENIAM,
 									newId:String = "",
 									newHrn:String = "")
 		{
 			super(
-				newType,
 				newApi,
 				newId,
 				newHrn
 			);
+			
+			type = newType;
 			
 			resetComponents();
 		}
@@ -123,8 +181,6 @@ package com.flack.geni.resources.sites
 		{
 			nodes = new PhysicalNodeCollection();
 			links = new PhysicalLinkCollection();
-			//supportedSliverTypes = new SupportedSliverTypeCollection();
-			//supportedLinkTypes = new SupportedLinkTypeCollection();
 			locations = new PhysicalLocationCollection();
 		}
 		
@@ -139,7 +195,11 @@ package com.flack.geni.resources.sites
 		{
 			api = details;
 			if(details.url.length == 0)
+			{
 				api.url = url;
+				if(api.type == ApiDetails.API_GENIAM && type == GeniManager.TYPE_PROTOGENI)
+					api.url += "/am";
+			}
 		}
 		
 		/**
@@ -156,12 +216,20 @@ package com.flack.geni.resources.sites
 			return nodes.getInterfaceById(findId);
 		}
 		
+		override public function makeValidClientIdFor(value:String):String
+		{
+			if(type == GeniManager.TYPE_PROTOGENI)
+			{
+				return value.replace(".", "");
+			}
+			return value;
+		}
+		
 		override public function toString():String
 		{
 			var result:String = "[GeniManager ID=" + id.full
 				+ ", Url=" + url
 				+ ", Hrn=" + hrn
-				+ ", Type=" + type
 				+ ", Api=" + api.type
 				+ ", Status=" + Status + "]\n";
 			if(nodes.length > 0)

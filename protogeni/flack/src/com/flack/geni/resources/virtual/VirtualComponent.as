@@ -39,50 +39,23 @@ package com.flack.geni.resources.virtual
 	 * @author mstrum
 	 * 
 	 */
-	public class VirtualComponent extends IdentifiableObject
+	public class VirtualComponent extends Sliver
 	{
-		public static const STATUS_CHANGING:String = "changing";
-		public static const STATUS_READY:String = "ready";
-		public static const STATUS_NOTREADY:String = "notready";
-		public static const STATUS_FAILED:String = "failed";
-		public static const STATUS_UNKNOWN:String = "unknown";
-		public static const STATUS_STOPPED:String = "stopped";
-		
 		[Bindable]
 		public var clientId:String;
 		
 		public var manifest:String = "";
-		public function get Created():Boolean
-		{
-			return manifest != null && manifest.length > 0;
-		}
+		
 		public var unsubmittedChanges:Boolean = true;
 		
-		[Bindable]
-		public var slice:Slice;
+		public var extensions:Extensions = new Extensions();
 		
-		[Bindable]
-		public var error:String = "";
-		[Bindable]
-		public var state:String = "N/A";
-		[Bindable]
-		public var status:String = "N/A";
-		public function clearState():void
+		override public function markStaged():void
 		{
-			error = "";
-			state = "";
-			status = "";
-		}
-		
-		public function markStaged():void
-		{
-			clearState();
+			super.markStaged();
 			manifest = "";
 			unsubmittedChanges = true;
-			id = new IdnUrn();
 		}
-		
-		public var extensions:Extensions = new Extensions();
 		
 		/**
 		 * 
@@ -95,19 +68,13 @@ package com.flack.geni.resources.virtual
 										 newClientId:String = "",
 										 newSliverId:String = "")
 		{
-			super(newSliverId);
-			slice = newSlice;
+			super(newSliverId, newSlice);
 			clientId = newClientId;
 		}
 		
 		override public function toString():String
 		{
-			return "[VirtualComponent "+StringProperties+"]";
-		}
-		
-		public function get StringProperties():String
-		{
-			return "SliverID="+id.full+",\n\t\tState="+state+",\n\t\tStatus="+status+",\n\t\tError="+error+",\n\t\tHasManifest="+Created;
+			return "[VirtualComponent "+SliverProperties+"]";
 		}
 	}
 }

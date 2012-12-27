@@ -38,78 +38,11 @@ package com.flack.geni.resources.virtual
 	 * @author mstrum
 	 * 
 	 */
-	public final class VirtualLinkCollection
+	public final class VirtualLinkCollection extends VirtualComponentCollection
 	{
-		public var collection:Vector.<VirtualLink>
-		public function VirtualLinkCollection()
+		public function VirtualLinkCollection(src:Array = null)
 		{
-			collection = new Vector.<VirtualLink>();
-		}
-		
-		public function add(l:VirtualLink):void
-		{
-			collection.push(l);
-		}
-		
-		public function remove(l:VirtualLink):void
-		{
-			var idx:int = collection.indexOf(l);
-			if(idx > -1)
-				collection.splice(idx, 1);
-		}
-		
-		public function contains(l:VirtualLink):Boolean
-		{
-			return collection.indexOf(l) > -1;
-		}
-		
-		public function get length():int
-		{
-			return collection.length;
-		}
-		
-		/**
-		 * 
-		 * @return New instance of the same collection
-		 * 
-		 */
-		public function get Clone():VirtualLinkCollection
-		{
-			var links:VirtualLinkCollection = new VirtualLinkCollection();
-			for each(var link:VirtualLink in collection)
-				links.add(link);
-			return links;
-		}
-		
-		/**
-		 * 
-		 * @return Slices for all the links
-		 * 
-		 */
-		public function get Slices():SliceCollection
-		{
-			var slices:SliceCollection = new SliceCollection();
-			for each(var link:VirtualLink in collection)
-			{
-				if(!slices.contains(link.slice))
-					slices.add(link.slice);
-			}
-			return slices;
-		}
-		
-		/**
-		 * 
-		 * @return TRUE of any links have unsubmitted changes
-		 * 
-		 */
-		public function get UnsubmittedChanges():Boolean
-		{
-			for each(var link:VirtualLink in collection)
-			{
-				if(link.unsubmittedChanges)
-					return true;
-			}
-			return false;
+			super(src);
 		}
 		
 		/**
@@ -132,54 +65,9 @@ package com.flack.geni.resources.virtual
 			return true;
 		}
 		
-		/**
-		 * 
-		 * @param id Client ID
-		 * @return Link with the given client ID
-		 * 
-		 */
-		public function getByClientId(id:String):VirtualLink
+		public function getLinkByClientId(id:String):VirtualLink
 		{
-			for each(var link:VirtualLink in collection)
-			{
-				if(link.clientId == id)
-					return link;
-			}
-			return null;
-		}
-		
-		/**
-		 * 
-		 * @param id Sliver ID
-		 * @return Link with the given sliver ID
-		 * 
-		 */
-		public function getBySliverId(id:String):VirtualLink
-		{
-			for each(var link:VirtualLink in collection)
-			{
-				if(link.id.full == id)
-					return link;
-			}
-			return null;
-		}
-		
-		/**
-		 * 
-		 * @param slice Slice
-		 * @return Links from the given slice
-		 * 
-		 */
-		public function getBySlice(slice:Slice):VirtualLinkCollection
-		{
-			var links:VirtualLinkCollection = new VirtualLinkCollection();
-			for each(var link:VirtualLink in collection)
-			{
-				if(link.slice == slice)
-					links.add(link);
-			}
-			
-			return links;
+			return super.getByClientId(id) as VirtualLink;
 		}
 		
 		/**

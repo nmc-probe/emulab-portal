@@ -27,7 +27,7 @@
  * }}}
  */
 
-package com.flack.geni.resources.sites
+package com.flack.geni.resources.sites.managers
 {
 	import com.flack.geni.resources.SliverTypeCollection;
 

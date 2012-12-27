@@ -41,9 +41,9 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.physical.PhysicalInterface;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.sites.SupportedLinkType;
-	import com.flack.geni.resources.sites.SupportedLinkTypeCollection;
-	import com.flack.geni.resources.sites.SupportedSliverType;
+	import com.flack.geni.resources.sites.managers.SupportedLinkType;
+	import com.flack.geni.resources.sites.managers.SupportedLinkTypeCollection;
+	import com.flack.geni.resources.sites.managers.SupportedSliverType;
 	import com.flack.geni.resources.virtual.extensions.MCInfo;
 	import com.flack.geni.resources.virtual.extensions.NodeFlackInfo;
 	import com.flack.shared.resources.IdnUrn;
@@ -230,7 +230,7 @@ package com.flack.geni.resources.virtual
 			}
 			return null;
 		}
-		
+
 		// XXX situations when this can't happen and return failed?
 		public function switchTo(newManager:GeniManager):void
 		{
@@ -241,8 +241,8 @@ package com.flack.geni.resources.virtual
 				manager = newManager;
 				return;
 			}
-			var newSliver:Sliver = slice.slivers.getOrCreateByManager(newManager, slice);
-			var oldSliver:Sliver = slice.slivers.getOrCreateByManager(manager, slice);
+			var newSliver:AggregateSliver = slice.aggregateSlivers.getOrCreateByManager(newManager, slice);
+			var oldSliver:AggregateSliver = slice.aggregateSlivers.getOrCreateByManager(manager, slice);
 			var oldManager:GeniManager = manager;
 			manager = newManager;
 			oldSliver.UnsubmittedChanges = true;
@@ -287,14 +287,13 @@ package com.flack.geni.resources.virtual
 				interfaces.remove(iface);
 			}
 			
-			var sliver:Sliver = slice.slivers.getOrCreateByManager(manager, slice);
-			if(sliver.Created)
-				sliver.UnsubmittedChanges = true;
+			var aggregateSliver:AggregateSliver = slice.aggregateSlivers.getOrCreateByManager(manager, slice);
+			aggregateSliver.UnsubmittedChanges = true;
 			
 			slice.nodes.remove(this);
 			
-			if(!sliver.Created && sliver.Nodes.length == 0)
-				sliver.removeFromSlice();
+			if(!Sliver.isAllocated(aggregateSliver.AllocationState) && aggregateSliver.Nodes.length == 0)
+				aggregateSliver.removeFromSlice();
 		}
 		
 		public function UnboundCloneFor(newSlice:Slice):VirtualNode
@@ -315,6 +314,7 @@ package com.flack.geni.resources.virtual
 				newClone.hardwareType.name = hardwareType.name;
 				newClone.hardwareType.slots = hardwareType.slots;
 			}
+			
 			if(services.executeServices != null)
 			{
 				newClone.services.executeServices = new Vector.<ExecuteService>();
@@ -325,6 +325,7 @@ package com.flack.geni.resources.virtual
 					newClone.services.executeServices.push(newExecute);
 				}
 			}
+			
 			if(services.installServices != null)
 			{
 				newClone.services.installServices = new Vector.<InstallService>();
@@ -335,7 +336,6 @@ package com.flack.geni.resources.virtual
 					newClone.services.installServices.push(newInstall);
 				}
 			}
-			
 			newClone.extensions = extensions.Clone;
 			// Remove the emulab extensions, it's just manifest stuff
 			if(newClone.extensions.spaces != null)
@@ -354,7 +354,7 @@ package com.flack.geni.resources.virtual
 		
 		override public function toString():String
 		{
-			var result:String = "[VirtualNode "+StringProperties
+			var result:String = "[VirtualNode "+SliverProperties
 				+",\n\t\tClientID="+clientId
 				+",\n\t\tComponentID="+(Bound ? physicalId.full : "")
 				+",\n\t\tExclusive="+exclusive

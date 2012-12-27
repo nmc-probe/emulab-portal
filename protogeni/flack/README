@@ -1,15 +1,13 @@
-Flack2
+Flack3
 
 Development
-===========
-FlashBuilder is not required, but recommended.  Below are directions for using either Adobe's commercial IDE FlashBuilder or the freely available FLEX SDK commandline tools.
+=========== 
+FlashBuilder is not required, but recommended.  Below are directions for using either Adobe's commercial IDE Flash Builder or the freely available FLEX SDK commandline tools.
 
 Flash Builder
 ------------
-Version: Any (reference is 4.5)
-Flex SDK: >= 4.6 (copy to the flash builder's SDK folder and add to the installed SDKs in the Flash Builder section of preferences)
-
-The version of Flash Builder doesn't really matter, just make sure it has the minimum required version of the Flex SDK installed.
+Version: Any (last used as of this documentation is 4.7)
+Flex SDK: >= 4.6 (copy to the flash builder's SDK folder and add to the installed SDKs in the Flash Builder section of preferences). Note that Adobe donated Flex to Apache, so you must get the most recent SDK from Apache Flex (currently 4.8.0 as of this documentation).  If you use Apache Flex and wish to use Flash Builder, it is recommended (required?) to use Flash Builder 4.7.
 
 You should be able to copy the flack directory into a FlashBuilder workspace and import it as a project.
 

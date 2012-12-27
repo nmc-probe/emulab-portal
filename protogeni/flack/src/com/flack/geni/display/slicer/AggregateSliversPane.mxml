@@ -42,8 +42,8 @@ IN THE WORK.
 		<![CDATA[
 			import com.flack.geni.display.areas.SliceArea;
 			import com.flack.geni.resources.virtual.Slice;
-			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.SliverCollection;
+			import com.flack.geni.resources.virtual.AggregateSliver;
+			import com.flack.geni.resources.virtual.AggregateSliverCollection;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			
@@ -66,26 +66,26 @@ IN THE WORK.
 			
 			public function load():void
 			{
-				var viewSlivers:SliverCollection = slice.slivers.Clone;
+				var viewSlivers:AggregateSliverCollection = slice.aggregateSlivers.Clone;
 				
 				// Keep sliver infos for slivers we are already viewing
 				for(var i:int = 0; i < sliversGroup.numElements; i++)
 				{
-					var sliverView:SliverInfoArea = sliversGroup.getElementAt(i) as SliverInfoArea;
-					if(!viewSlivers.contains(sliverView.sliver))
+					var sliverView:AggregateSliverInfoArea = sliversGroup.getElementAt(i) as AggregateSliverInfoArea;
+					if(!viewSlivers.contains(sliverView.aggregateSliver))
 					{
 						sliversGroup.removeElementAt(i);
 						i--;
 					}
 					else
-						viewSlivers.remove(sliverView.sliver);
+						viewSlivers.remove(sliverView.aggregateSliver);
 				}
 				
 				// Add sliver infos for new slivers
-				for each(var sliver:Sliver in viewSlivers.collection)
+				for each(var sliver:AggregateSliver in viewSlivers.collection)
 				{
-					var sliverArea:SliverInfoArea = new SliverInfoArea();
-					sliverArea.sliver = sliver;
+					var sliverArea:AggregateSliverInfoArea = new AggregateSliverInfoArea();
+					sliverArea.aggregateSliver = sliver;
 					sliverArea.host = host;
 					sliversGroup.addElement(sliverArea);
 				}

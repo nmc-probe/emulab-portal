@@ -79,6 +79,8 @@ VirtualNode for use on the slice canvas
 	</fx:Style>
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.resources.virtual.AggregateSliver;
+			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.geni.resources.virtual.VirtualComponent;
 			import com.flack.geni.resources.virtual.VirtualNode;
 			import com.flack.shared.utils.ColorUtil;
@@ -159,36 +161,49 @@ VirtualNode for use on the slice canvas
 					if(node.unsubmittedChanges)
 					{
 						nodeContainer.styleName = "normalNodeStyle";
-						toolTip = "Unsubmitted changes (State: " + node.state + " Status: " + node.status + ")";
+						toolTip = "Unsubmitted changes (Allocation: " +
+							Sliver.readableAllocationState(node.allocationState) +
+							" Operational: " + Sliver.readableOperationalState(node.operationalState) +")";
 					}
 					else
 					{
-						switch(node.status)
+						switch(node.allocationState)
 						{
-							case VirtualComponent.STATUS_READY:
-								nodeContainer.styleName = "validNodeStyle";
-								toolTip = node.state;
+							case Sliver.ALLOCATION_PROVISIONED:
+								switch(node.operationalState)
+								{
+									case Sliver.OPERATIONAL_READY:
+										nodeContainer.styleName = "validNodeStyle";
+										break;
+									case Sliver.OPERATIONAL_FAILED:
+										nodeContainer.styleName = "failedNodeStyle";
+										toolTip = "Error: " + node.error;
+										break;
+									case Sliver.OPERATIONAL_STOPPING:
+									case Sliver.OPERATIONAL_READY_BUSY:
+									case Sliver.OPERATIONAL_CONFIGURING:
+										nodeContainer.styleName = "inprogressNodeStyle";
+										toolTip = "Status is changing...";
+										break;
+									case Sliver.OPERATIONAL_NOTREADY:
+										nodeContainer.styleName = "pausedNodeStyle";
+										toolTip = "Stopped";
+										break;
+									default:
+										nodeContainer.styleName = "normalNodeStyle";
+										toolTip = "Allocation: " + Sliver.readableAllocationState(node.allocationState) +
+										          " Operational: " + Sliver.readableOperationalState(node.operationalState);
+								}
 								break;
-							case VirtualComponent.STATUS_FAILED:
-								nodeContainer.styleName = "failedNodeStyle";
-								toolTip = "Error: " + node.error;
-								break;
-							case VirtualComponent.STATUS_STOPPED:
-								nodeContainer.styleName = "pausedNodeStyle";
-								toolTip = "Stopped";
-								break;
-							case VirtualComponent.STATUS_CHANGING:
+							case Sliver.ALLOCATION_ALLOCATED:
+							case Sliver.ALLOCATION_UPDATING:
 								nodeContainer.styleName = "inprogressNodeStyle";
 								toolTip = "Status is changing...";
 								break;
-							case VirtualComponent.STATUS_NOTREADY:
-								nodeContainer.styleName = "inprogressNodeStyle";
-								toolTip = "Node is not ready";
-								break;
-							case VirtualComponent.STATUS_UNKNOWN:
 							default:
 								nodeContainer.styleName = "normalNodeStyle";
-								toolTip = "State: " + node.state + " Status: " + node.status;
+								toolTip = "Allocation: " + Sliver.readableAllocationState(node.allocationState) +
+								" Operational: " + Sliver.readableOperationalState(node.operationalState);
 						}
 					}
 				}

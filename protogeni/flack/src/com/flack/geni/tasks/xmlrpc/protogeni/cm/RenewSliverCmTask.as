@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -46,7 +46,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class RenewSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var newExpires:Date;
 		
 		/**
@@ -55,7 +55,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param newExpirationDate Desired expiration date
 		 * 
 		 */
-		public function RenewSliverCmTask(renewSliver:Sliver,
+		public function RenewSliverCmTask(renewSliver:AggregateSliver,
 										  newExpirationDate:Date)
 		{
 			super(
@@ -84,7 +84,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		{
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				sliver.expires = newExpires;
+				sliver.Expires = newExpires;
 				
 				SharedMain.sharedDispatcher.dispatchChanged(
 					FlackEvent.CHANGED_SLIVER,
@@ -97,7 +97,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				
 				addMessage(
 					"Renewed",
-					"Renewed, expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Renewed, expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);

@@ -209,8 +209,10 @@ IN THE WORK.
 				// Nowhere to go
 				if(backwardHistoryGroup.numElements == 0)
 				{
-					if(host == null && window != null)
+					if(window != null)
 						window.closeWindow();
+					else if(host != null)
+						host.closeContent();
 				}
 				else
 				{

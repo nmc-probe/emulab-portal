@@ -29,6 +29,7 @@
 
 package com.flack.geni.plugins
 {
+	import com.flack.geni.resources.SliverType;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.virtual.VirtualInterface;

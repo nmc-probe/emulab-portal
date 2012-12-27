@@ -42,9 +42,11 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.display.areas.SliceArea;
+			import com.flack.geni.resources.virtual.AggregateSliver;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.geni.tasks.xmlrpc.am.DeleteTask;
+			import com.flack.geni.tasks.xmlrpc.am.PerformOperationalActionTask;
 			import com.flack.geni.tasks.xmlrpc.am.StatusTask;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.DeleteSliverCmTask;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.RestartSliverCmTask;
@@ -73,7 +75,7 @@ IN THE WORK.
 			import spark.components.BorderContainer;
 			
 			[Bindable]
-			public var sliver:Sliver;
+			public var aggregateSliver:AggregateSliver;
 			
 			[Bindable]
 			public var host:SliceArea;
@@ -100,16 +102,16 @@ IN THE WORK.
 				setSpinner();
 				setStatus();
 				
-				backColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
-				frontColor = ColorUtil.colorsLight[sliver.manager.colorIdx];
+				backColor = ColorUtil.colorsDark[aggregateSliver.manager.colorIdx];
+				frontColor = ColorUtil.colorsLight[aggregateSliver.manager.colorIdx];
 				
-				var msgs:LogMessageCollection = SharedMain.logger.Logs.getRelatedTo([sliver]).Important;
+				var msgs:LogMessageCollection = SharedMain.logger.Logs.getRelatedTo([aggregateSliver]).Important;
 				if(msgs.length > 0)
 					setLog(msgs.collection[msgs.length-1]);
 				
-				if(sliver.manager.api.type == ApiDetails.API_PROTOGENI)
+				if(aggregateSliver.manager.api.type == ApiDetails.API_PROTOGENI)
 				{
-					switch(sliver.manager.api.level)
+					switch(aggregateSliver.manager.api.level)
 					{
 						case ApiDetails.LEVEL_FULL:
 							actionMenuData.push({label: "Start", icon: ImageUtil.playControlIcon, action: tryStart});
@@ -117,6 +119,12 @@ IN THE WORK.
 						case ApiDetails.LEVEL_MINIMAL:
 							actionMenuData.push({label: "Restart", icon: ImageUtil.repeatControlIcon, action: tryRestart});
 					}
+				}
+				else if(aggregateSliver.manager.api.type == ApiDetails.API_GENIAM && aggregateSliver.manager.api.version >= 3)
+				{
+					actionMenuData.push({label: "Start", icon: ImageUtil.playControlIcon, action: tryStart});
+					actionMenuData.push({label: "Stop", icon: ImageUtil.stopControlIcon, action: tryStop});
+					actionMenuData.push({label: "Restart", icon: ImageUtil.repeatControlIcon, action: tryRestart});
 				}
 				actionMenuButton.dataProvider = actionMenuData;
 			}
@@ -137,14 +145,14 @@ IN THE WORK.
 			public function sliceChanged(e:FlackEvent):void
 			{
 				var changedSlice:Slice = e.changedObject as Slice;
-				if(sliver.slice == changedSlice)
+				if(aggregateSliver.slice == changedSlice)
 					setStatus();
 			}
 			
 			public function setSpinner():void
 			{
 				var notFinished:TaskCollection = SharedMain.tasker.tasks.NotFinished.All.NotFinished;
-				var stillWorking:Boolean = notFinished.getRelatedTo(sliver).length > 0;
+				var stillWorking:Boolean = notFinished.getRelatedTo(aggregateSliver).length > 0;
 				if(!stillWorking && spinner.visible)
 				{
 					spinner.visible = false;
@@ -159,31 +167,41 @@ IN THE WORK.
 			
 			public function setStatus():void
 			{
-				if(sliver.Created)
+				if(Sliver.isAllocated(aggregateSliver.AllocationState))
 				{
-					switch(sliver.status)
+					switch(aggregateSliver.AllocationState)
 					{
-						case Sliver.STATUS_READY:
-						//case Sliver.EMULAB_ACTIVE:
-							actionMenuButton.styleName = "validStyle";
+						case Sliver.ALLOCATION_PROVISIONED:
+							switch(aggregateSliver.OperationalState)
+							{
+								case Sliver.OPERATIONAL_READY:
+									actionMenuButton.styleName = "validStyle";
+									break;
+								case Sliver.OPERATIONAL_FAILED:
+									actionMenuButton.styleName = "failedStyle";
+									break;
+								case Sliver.MIXED_CHANGING:
+								case Sliver.OPERATIONAL_STOPPING:
+								case Sliver.OPERATIONAL_READY_BUSY:
+								case Sliver.OPERATIONAL_CONFIGURING:
+									actionMenuButton.styleName = "inprogressStyle";
+									break;
+								case Sliver.MIXED_FINISHED:
+								case Sliver.OPERATIONAL_NOTREADY:
+									actionMenuButton.styleName = "pausedStyle";
+									break;
+								default:
+									actionMenuButton.styleName = "unknownStyle";
+							}
 							break;
-						case Sliver.STATUS_STOPPED:
-						//case Sliver.EMULAB_SWAPPED:
-							actionMenuButton.styleName = "pausedStyle";
-							break;
-						case Sliver.STATUS_FAILED:
-						//case Sliver.EMULAB_TERMINATED:
-							actionMenuButton.styleName = "failedStyle";
-							break;
-						case Sliver.STATUS_CHANGING:
-						case Sliver.STATUS_NOTREADY:
-						case Sliver.STATUS_MIXED:
-						//case Sliver.EMULAB_ACTIVATING:
-						//case Sliver.EMULAB_SWAPPING:
-						//case Sliver.EMULAB_TESTING:
+						case Sliver.ALLOCATION_ALLOCATED:
+						case Sliver.ALLOCATION_UPDATING:
+						case Sliver.MIXED_PROVISIONED:
+						case Sliver.MIXED_ALLOCATED:
+						case Sliver.MIXED_UNALLOCATED:
+						case Sliver.MIXED_UPDATING:
 							actionMenuButton.styleName = "inprogressStyle";
 							break;
-						case Sliver.STATUS_UNKNOWN:
 						default:
 							actionMenuButton.styleName = "unknownStyle";
 					}
@@ -197,7 +215,7 @@ IN THE WORK.
 				if(e.action == FlackEvent.ACTION_CREATED)
 				{
 					var msg:LogMessage = e.changedObject as LogMessage;
-					if(msg.relatedToAny([sliver]) && msg.importance == LogMessage.IMPORTANCE_HIGH)
+					if(msg.relatedToAny([aggregateSliver]) && msg.importance == LogMessage.IMPORTANCE_HIGH)
 						setLog(msg);
 				}
 			}
@@ -222,27 +240,27 @@ IN THE WORK.
 			
 			public function viewManifest():void
 			{
-				if(!sliver.Created)
+				if(!Sliver.isAllocated(aggregateSliver.AllocationState))
 				{
 					Alert.show("No resources have been allocated, so there is no manifest to view.", "Cannot view manifest");
 					return;
 				}
 				
 				var credentialArea:DocumentArea = new DocumentArea();
-				credentialArea.Document = sliver.manifest.document;
-				credentialArea.title =  "Manifest for sliver on " + sliver.manager.hrn;
-				credentialArea.backgroundColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
-				credentialArea.titleColor = ColorUtil.colorsLight[sliver.manager.colorIdx];
+				credentialArea.Document = aggregateSliver.manifest.document;
+				credentialArea.title =  "Manifest for sliver on " + aggregateSliver.manager.hrn;
+				credentialArea.backgroundColor = ColorUtil.colorsDark[aggregateSliver.manager.colorIdx];
+				credentialArea.titleColor = ColorUtil.colorsLight[aggregateSliver.manager.colorIdx];
 				host.openNext(credentialArea);
 			}
 			
 			public function viewLogs():void
 			{
 				var logArea:LogMessagesRelatedToArea = new LogMessagesRelatedToArea();
-				logArea.RelatedTo = [sliver];
-				logArea.title = "Logs for " + sliver.manager.hrn;
-				logArea.backgroundColor = ColorUtil.colorsDark[sliver.manager.colorIdx];
-				logArea.titleColor = ColorUtil.colorsLight[sliver.manager.colorIdx];
+				logArea.RelatedTo = [aggregateSliver];
+				logArea.title = "Logs for " + aggregateSliver.manager.hrn;
+				logArea.backgroundColor = ColorUtil.colorsDark[aggregateSliver.manager.colorIdx];
+				logArea.titleColor = ColorUtil.colorsLight[aggregateSliver.manager.colorIdx];
 				host.openNext(logArea);
 			}
 			
@@ -257,30 +275,30 @@ IN THE WORK.
 			
 			private function tryRefreshStatus():void
 			{
-				if(!sliver.Created)
+				if(!Sliver.isAllocated(aggregateSliver.AllocationState))
 				{
 					Alert.show("No resources to check status", "Cannot check status");
 					return;
 				}
 				var task:Task = null;
-				if(sliver.manager.api.type == ApiDetails.API_GENIAM)
-					task = new StatusTask(sliver, false);
+				if(aggregateSliver.manager.api.type == ApiDetails.API_GENIAM)
+					task = new StatusTask(aggregateSliver, false);
 				else
-					task = new SliverStatusCmTask(sliver, false);
+					task = new SliverStatusCmTask(aggregateSliver, false);
 				task.forceRunNow = true;
 				SharedMain.tasker.add(task);
 			}
 			
 			private function tryDelete():void
 			{
-				if(!sliver.Created)
+				if(!Sliver.isAllocated(aggregateSliver.AllocationState))
 				{
 					Alert.show("No resources to delete", "Cannot delete");
 					return;
 				}
 				
 				var unfinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
-				if(unfinished.getRelatedTo(sliver).length > 0)
+				if(unfinished.getRelatedTo(aggregateSliver).length > 0)
 				{
 					Alert.show(
 						"There are tasks running on the sliver, cancel them and delete?",
@@ -291,7 +309,7 @@ IN THE WORK.
 						{
 							if(e.detail == Alert.YES)
 							{
-								SharedMain.tasker.cancelUncompletedTasksRelatedTo(sliver);
+								SharedMain.tasker.cancelUncompletedTasksRelatedTo(aggregateSliver);
 								runDelete();
 							}
 						}
@@ -300,7 +318,7 @@ IN THE WORK.
 				else
 				{
 					Alert.show(
-						"Continue deleting the sliver on " + sliver.manager.hrn + " on slice " + sliver.slice.Name,
+						"Continue deleting the sliver on " + aggregateSliver.manager.hrn + " on slice " + aggregateSliver.slice.Name,
 						"Continue deleting?",
 						Alert.YES|Alert.NO,
 						FlexGlobals.topLevelApplication as Sprite,
@@ -318,32 +336,40 @@ IN THE WORK.
 			private function runDelete():void
 			{
 				var task:Task = null;
-				if(sliver.manager.api.type == ApiDetails.API_GENIAM)
-					task = new DeleteTask(sliver);
+				if(aggregateSliver.manager.api.type == ApiDetails.API_GENIAM)
+					task = new DeleteTask(aggregateSliver);
 				else
-					task = new DeleteSliverCmTask(sliver);
+					task = new DeleteSliverCmTask(aggregateSliver);
 				task.forceRunNow = true;
 				SharedMain.tasker.add(task);
 			}
 			
 			private function tryStart():void
 			{
-				if(!sliver.Created)
+				if(!Sliver.isAllocated(aggregateSliver.AllocationState))
 				{
 					Alert.show("No resources to start", "Cannot start");
 					return;
 				}
 				var unfinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
-				if(unfinished.getRelatedTo(sliver).length > 0)
+				if(unfinished.getRelatedTo(aggregateSliver).length > 0)
 				{
-					Alert.show("There are tasks running on the sliver, please wait for them to complete and try again.", "Sliver is running tasks");
+					Alert.show("There are tasks running on the aggregate, please wait for them to complete and try again.", "Aggregate is running tasks");
 					return;
 				}
 				var taskGroup:SerialTaskGroup = new SerialTaskGroup(
-					"Start sliver at " + sliver.manager.hrn + " on slice " + sliver.slice.Name
+					"Start aggregate at " + aggregateSliver.manager.hrn + " on slice " + aggregateSliver.slice.Name
 				);
-				taskGroup.add(new StartSliverCmTask(sliver));
-				taskGroup.add(new SliverStatusCmTask(sliver));
+				if(aggregateSliver.manager.api.type == ApiDetails.API_PROTOGENI)
+				{
+					taskGroup.add(new StartSliverCmTask(aggregateSliver));
+					taskGroup.add(new SliverStatusCmTask(aggregateSliver));
+				}
+				else
+				{
+					taskGroup.add(new PerformOperationalActionTask(aggregateSliver, PerformOperationalActionTask.ACTION_START));
+					taskGroup.add(new StatusTask(aggregateSliver));
+				}
 				taskGroup.tasks.collection[1].delay = 10;
 				taskGroup.forceRunNow = true;
 				SharedMain.tasker.add(taskGroup);
@@ -351,22 +377,30 @@ IN THE WORK.
 			
 			private function tryStop():void
 			{
-				if(!sliver.Created)
+				if(!Sliver.isAllocated(aggregateSliver.AllocationState))
 				{
 					Alert.show("No resources to stop", "Cannot stop");
 					return;
 				}
 				var unfinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
-				if(unfinished.getRelatedTo(sliver).length > 0)
+				if(unfinished.getRelatedTo(aggregateSliver).length > 0)
 				{
 					Alert.show("There are tasks running on the sliver, please wait for them to complete and try again.", "Sliver is running tasks");
 					return;
 				}
 				var taskGroup:SerialTaskGroup = new SerialTaskGroup(
-					"Stop sliver at " + sliver.manager.hrn + " on slice " + sliver.slice.Name
+					"Stop sliver at " + aggregateSliver.manager.hrn + " on slice " + aggregateSliver.slice.Name
 				);
-				taskGroup.add(new StopSliverCmTask(sliver));
-				taskGroup.add(new SliverStatusCmTask(sliver));
+				if(aggregateSliver.manager.api.type == ApiDetails.API_PROTOGENI)
+				{
+					taskGroup.add(new StopSliverCmTask(aggregateSliver));
+					taskGroup.add(new SliverStatusCmTask(aggregateSliver));
+				}
+				else
+				{
+					taskGroup.add(new PerformOperationalActionTask(aggregateSliver, PerformOperationalActionTask.ACTION_STOP));
+					taskGroup.add(new StatusTask(aggregateSliver));
+				}
 				taskGroup.tasks.collection[1].delay = 10;
 				taskGroup.forceRunNow = true;
 				SharedMain.tasker.add(taskGroup);
@@ -374,22 +408,30 @@ IN THE WORK.
 			
 			private function tryRestart():void
 			{
-				if(!sliver.Created)
+				if(!Sliver.isAllocated(aggregateSliver.AllocationState))
 				{
 					Alert.show("No resources to restart", "Cannot restart");
 					return;
 				}
 				var unfinished:TaskCollection = SharedMain.tasker.tasks.AllNotFinished;
-				if(unfinished.getRelatedTo(sliver).length > 0)
+				if(unfinished.getRelatedTo(aggregateSliver).length > 0)
 				{
 					Alert.show("There are tasks running on the sliver, please wait for them to complete and try again.", "Sliver is running tasks");
 					return;
 				}
 				var taskGroup:SerialTaskGroup = new SerialTaskGroup(
-					"Restart sliver at " + sliver.manager.hrn + " on slice " + sliver.slice.Name
+					"Restart sliver at " + aggregateSliver.manager.hrn + " on slice " + aggregateSliver.slice.Name
 				);
-				taskGroup.add(new RestartSliverCmTask(sliver));
-				taskGroup.add(new SliverStatusCmTask(sliver));
+				if(aggregateSliver.manager.api.type == ApiDetails.API_PROTOGENI)
+				{
+					taskGroup.add(new RestartSliverCmTask(aggregateSliver));
+					taskGroup.add(new SliverStatusCmTask(aggregateSliver));
+				}
+				else
+				{
+					taskGroup.add(new PerformOperationalActionTask(aggregateSliver, PerformOperationalActionTask.ACTION_RESTART));
+					taskGroup.add(new StatusTask(aggregateSliver));
+				}
 				taskGroup.tasks.collection[1].delay = 10;
 				taskGroup.forceRunNow = true;
 				SharedMain.tasker.add(taskGroup);
@@ -409,7 +451,7 @@ IN THE WORK.
 				  paddingLeft="2"
 				  paddingRight="2"
 				  paddingTop="2">
-			<s:Label text="{sliver.manager.hrn}"
+			<s:Label text="{aggregateSliver.manager.hrn}"
 					 width="100%"
 					 maxDisplayedLines="1"
 					 color="{frontColor}" />

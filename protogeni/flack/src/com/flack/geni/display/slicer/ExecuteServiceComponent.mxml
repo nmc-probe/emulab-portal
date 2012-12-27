@@ -75,5 +75,5 @@ IN THE WORK.
 				 prompt="Shell? (sh, bash, etc.)"
 				 change="if(onChange != null) onChange();" />
 	<components:ImageButton icon="{ImageUtil.deleteIcon}"
-							click="if(onChange != null) onChange(); (parent as Group).removeElement(this)" />
+							click="if(onChange != null) onChange(); (parent as Group).removeElement(this);" />
 </s:HGroup>

@@ -80,6 +80,7 @@ IN THE WORK.
 			import com.flack.geni.resources.SliverTypes;
 			import com.flack.geni.resources.physical.PhysicalNode;
 			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.virtual.AggregateSliver;
 			import com.flack.geni.resources.virtual.Slice;
 			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.geni.resources.virtual.VirtualComponent;
@@ -171,7 +172,7 @@ IN THE WORK.
 						if(slice.nodes.contains(existingNode.Node))
 							existingNode.Node = existingNode.Node;
 						else
-							existingNode.Node = slice.nodes.getByClientId(existingNode.Node.clientId);
+							existingNode.Node = slice.nodes.getNodeByClientId(existingNode.Node.clientId);
 					}
 				}
 				// Add new nodes
@@ -186,7 +187,7 @@ IN THE WORK.
 				for(i = 0; i < allLinks.length; i++)
 				{
 					var existingLink:CanvasLink = allLinks.collection[i];
-					var newlyCreatedLink:VirtualLink = slice.links.getByClientId(existingLink.link.clientId);
+					var newlyCreatedLink:VirtualLink = slice.links.getLinkByClientId(existingLink.link.clientId);
 					if(!slice.links.contains(existingLink.link) && newlyCreatedLink == null)
 					{
 						existingLink.removeFromCanvas();
@@ -216,28 +217,38 @@ IN THE WORK.
 				
 				if(slice.useInputRspecInfo.version > slice.nodes.Managers.MaximumRspecVersion)
 					slice.useInputRspecInfo.version = slice.nodes.Managers.MaximumRspecVersion;
-				
-				switch(slice.Status)
+
+				switch(slice.AllocationState)
 				{
-					case Sliver.STATUS_READY:
-					//case Sliver.EMULAB_ACTIVE:
-						styleName = "validCanvasStyle";
+					case Sliver.ALLOCATION_PROVISIONED:
+						switch(slice.OperationalState)
+						{
+							case Sliver.OPERATIONAL_READY:
+								styleName = "validCanvasStyle";
+								break;
+							case Sliver.OPERATIONAL_FAILED:
+								styleName = "failedCanvasStyle";
+								break;
+							case Sliver.MIXED_CHANGING:
+							case Sliver.OPERATIONAL_STOPPING:
+							case Sliver.OPERATIONAL_READY_BUSY:
+							case Sliver.OPERATIONAL_CONFIGURING:
+								styleName = "inprogressCanvasStyle";
+								break;
+							case Sliver.MIXED_FINISHED:
+							case Sliver.OPERATIONAL_NOTREADY:
+								styleName = "pausedCanvasStyle";
+								break;
+							default:
+								styleName = "normalCanvasStyle";
+						}
 						break;
-					case Sliver.STATUS_FAILED:
-					//case Sliver.EMULAB_TERMINATED:
-						styleName = "failedCanvasStyle";
-						break;
-					case Sliver.STATUS_STOPPED:
-					//case Sliver.EMULAB_SWAPPED:
-						styleName = "pausedCanvasStyle";
-						break;
-					case Sliver.STATUS_CHANGING:
-					case Sliver.STATUS_NOTREADY:
-					case Sliver.STATUS_UNKNOWN:
-					case Sliver.STATUS_MIXED:
-					//case Sliver.EMULAB_ACTIVATING:
-					//case Sliver.EMULAB_SWAPPING:
-					//case Sliver.EMULAB_TESTING:
+					case Sliver.ALLOCATION_ALLOCATED:
+					case Sliver.ALLOCATION_UPDATING:
+					case Sliver.MIXED_ALLOCATED:
+					case Sliver.MIXED_PROVISIONED:
+					case Sliver.MIXED_UNALLOCATED:
+					case Sliver.MIXED_UPDATING:
 						styleName = "inprogressCanvasStyle";
 						break;
 					default:
@@ -452,7 +463,7 @@ IN THE WORK.
 				
 				slice.history.stateName = "Added " + nvn.clientId;
 				slice.nodes.add(nvn);
-				var sliver:Sliver = slice.slivers.getOrCreateByManager(nvn.manager, slice);
+				var sliver:AggregateSliver = slice.aggregateSlivers.getOrCreateByManager(nvn.manager, slice);
 				//sliver.UnsubmittedChanges = true;
 				
 				addVirtualNodeToCanvas(nvn);

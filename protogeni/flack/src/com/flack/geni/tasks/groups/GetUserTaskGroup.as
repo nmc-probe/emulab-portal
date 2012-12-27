@@ -34,7 +34,8 @@ package com.flack.geni.tasks.groups
 	import com.flack.geni.resources.docs.GeniCredential;
 	import com.flack.geni.resources.sites.GeniAuthority;
 	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.tasks.groups.slice.GetSliceTaskGroup;
+	import com.flack.geni.tasks.groups.slice.DescribeSlicesTaskGroup;
+	import com.flack.geni.tasks.groups.slice.GetSlicesTaskGroup;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -123,24 +124,7 @@ package com.flack.geni.tasks.groups
 			if(user.slices.length == 0)
 				afterComplete();
 			else
-			{
-				var getSlices:ParallelTaskGroup =
-					new ParallelTaskGroup(
-						"Get slices",
-						"Gets the slices for the user"
-					);
-				for each(var slice:Slice in user.slices.collection)
-				{
-					getSlices.add(
-						new GetSliceTaskGroup(
-							slice,
-							user.authority != null && user.authority.type != GeniAuthority.TYPE_EMULAB,
-							user.authority == null
-						)
-					);
-				}
-				add(getSlices);
-			}
+				add(new GetSlicesTaskGroup(user.slices));
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void

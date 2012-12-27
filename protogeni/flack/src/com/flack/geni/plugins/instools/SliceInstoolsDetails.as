@@ -33,7 +33,7 @@ package com.flack.geni.plugins.instools
 	import com.adobe.crypto.SHA1;
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	
 	import flash.net.URLRequest;
 	import flash.net.URLVariables;
@@ -81,7 +81,7 @@ package com.flack.geni.plugins.instools
 		
 		public function hasAnyPortal():Boolean
 		{
-			for each(var sliver:Sliver in slice.slivers.collection)
+			for each(var sliver:AggregateSliver in slice.aggregateSlivers.collection)
 			{
 				if(portal_url[sliver.manager.id.full] != null
 					&& portal_url[sliver.manager.id.full].length > 0)

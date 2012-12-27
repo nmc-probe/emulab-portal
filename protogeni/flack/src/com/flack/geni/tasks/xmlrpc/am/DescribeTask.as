@@ -29,7 +29,9 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virtual.VirtualComponent;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -38,7 +40,10 @@ package com.flack.geni.tasks.xmlrpc.am
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.CompressUtil;
+	import com.flack.shared.utils.DateUtil;
 	import com.flack.shared.utils.StringUtil;
+	
+	import flash.utils.Dictionary;
 	
 	/**
 	 * Lists the sliver's resources at the manager.
@@ -48,51 +53,51 @@ package com.flack.geni.tasks.xmlrpc.am
 	 */
 	public final class DescribeTask extends AmXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		
 		/**
 		 * 
 		 * @param newSliver Sliver for which to list resources allocated to the sliver's slice
 		 * 
 		 */
-		public function DescribeTask(newSliver:Sliver)
+		public function DescribeTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.api.url,
 				newSliver.manager.api.version < 3
 				? AmXmlrpcTask.METHOD_LISTRESOURCES : AmXmlrpcTask.METHOD_DESCRIBE,
 				newSliver.manager.api.version,
-				"List sliver resources @ " + newSliver.manager.hrn,
-				"Listing sliver resources for aggregate manager " + newSliver.manager.hrn,
-				"List Sliver Resources"
+				"Describe @ " + newSliver.manager.hrn,
+				"Describing resources for aggregate manager " + newSliver.manager.hrn,
+				"Describe"
 			);
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 		}
 		
 		override protected function createFields():void
 		{
 			if(apiVersion >= 3)
-				addOrderedField([sliver.slice.id.full]);
-			addOrderedField([AmXmlrpcTask.credentialToObject(sliver.slice.credential, apiVersion)]);
+				addOrderedField([aggregateSliver.slice.id.full]);
+			addOrderedField([AmXmlrpcTask.credentialToObject(aggregateSliver.slice.credential, apiVersion)]);
 			
 			var options:Object = { geni_compressed: true };
 			if(apiVersion < 3)
 			{
 				options.geni_available = false;
-				options.geni_slice_urn = sliver.slice.id.full;
+				options.geni_slice_urn = aggregateSliver.slice.id.full;
 			}
 			
-			var manifestRspecVersion:RspecVersion = sliver.slice.useInputRspecInfo;
-			if(sliver.manager.inputRspecVersions.get(manifestRspecVersion.type, manifestRspecVersion.version) == null)
-				manifestRspecVersion = sliver.manager.inputRspecVersions.UsableRspecVersions.MaxVersion;
+			var manifestRspecVersion:RspecVersion = aggregateSliver.slice.useInputRspecInfo;
+			if(aggregateSliver.manager.inputRspecVersions.get(manifestRspecVersion.type, manifestRspecVersion.version) == null)
+				manifestRspecVersion = aggregateSliver.manager.inputRspecVersions.UsableRspecVersions.MaxVersion;
 			if(manifestRspecVersion == null)
 			{
 				afterError(
 					new TaskError(
-						"There doesn't appear to be a usable RSPEC " + sliver.manager + " supports which is understood.",
+						"There doesn't appear to be a usable RSPEC " + aggregateSliver.manager + " supports which is understood.",
 						TaskError.CODE_PROBLEM
 					)
 				);
@@ -109,6 +114,8 @@ package com.flack.geni.tasks.xmlrpc.am
 				options.geni_rspec_version = rspecVersion;
 			
 			addOrderedField(options);
+			
+			//V4: geni_cancelled
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
@@ -136,8 +143,11 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				var compressedRspec:String = apiVersion < 3 ? data : data.geni_rspec;
-				var uncompressedRspec:String = CompressUtil.uncompress(compressedRspec);
+				var uncompressedRspec:String = apiVersion < 3 ? data : data.geni_rspec;
+				if(uncompressedRspec.indexOf("<" ) == -1)
+				{
+					uncompressedRspec = CompressUtil.uncompress(uncompressedRspec);
+				}
 				
 				addMessage(
 					"Manifest received",
@@ -146,10 +156,30 @@ package com.flack.geni.tasks.xmlrpc.am
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				//V3: geni_slivers
+				if(apiVersion >= 3 && data.geni_slivers != null)
+				{
+					aggregateSliver.idsToSlivers = new Dictionary();
+					for each(var geniSliver:Object in data.geni_slivers)
+					{
+						var sliver:Sliver = new Sliver(
+							geniSliver.geni_sliver_urn,
+							aggregateSliver.slice,
+							geniSliver.geni_allocation_status,
+							geniSliver.geni_operational_status);
+						sliver.expires = DateUtil.parseRFC3339(geniSliver.geni_expires);
+						if(geniSliver.geni_error != null)
+							sliver.error = geniSliver.geni_error;
+						//V4: geni_next_allocation_status
+						aggregateSliver.idsToSlivers[sliver.id.full] = sliver;
+						
+						var component:VirtualComponent = aggregateSliver.Components.getComponentById(sliver.id.full);
+						if(component != null)
+							component.copyFrom(sliver);
+					}
+				}
 				
-				sliver.manifest = new Rspec(uncompressedRspec,null,null,null, Rspec.TYPE_MANIFEST);
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
+				aggregateSliver.manifest = new Rspec(uncompressedRspec,null,null,null, Rspec.TYPE_MANIFEST);
+				parent.add(new ParseRequestManifestTask(aggregateSliver, aggregateSliver.manifest, false, true));
 				
 				super.afterComplete(addCompletedMessage);
 				
@@ -168,10 +198,10 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function afterError(taskError:TaskError):void
 		{
-			sliver.status = Sliver.STATUS_FAILED;
+			//aggregateSliver.status = AggregateSliver.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 			
@@ -180,10 +210,10 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function runCancel():void
 		{
-			sliver.status = Sliver.STATUS_UNKNOWN;
+			//aggregateSliver.status = AggregateSliver.STATUS_UNKNOWN;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 		}

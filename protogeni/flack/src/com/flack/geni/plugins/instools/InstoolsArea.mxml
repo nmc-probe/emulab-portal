@@ -44,6 +44,7 @@ IN THE WORK.
 	</fx:Declarations>
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.resources.virtual.AggregateSliver;
 			import com.flack.geni.resources.virtual.Sliver;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
@@ -72,10 +73,11 @@ IN THE WORK.
 			public function update():void
 			{
 				// Allow instrumentize if slice is ready
-				var status:String = slice.Status;
+				//HACK
+				var status:String = slice.OperationalState;
 				switch(status)
 				{
-					case Sliver.STATUS_READY:
+					case Sliver.OPERATIONAL_READY:
 						instrumentizeButton.enabled = true;
 						break;
 					default:

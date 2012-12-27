@@ -29,6 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
+	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
@@ -50,7 +51,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class GetTicketCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var request:Rspec;
 		public var ticket:String;
 		
@@ -60,7 +61,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param useRspec New RSPEC to update sliver to
 		 * 
 		 */
-		public function GetTicketCmTask(newSliver:Sliver,
+		public function GetTicketCmTask(newSliver:AggregateSliver,
 										useRspec:Rspec = null)
 		{
 			super(
@@ -132,7 +133,11 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
 				ticket = String(data);
-				sliver.ticket = ticket;
+				sliver.ticket = new Rspec(ticket);
+				if (Sliver.isProvisioned(sliver.AllocationState))
+					sliver.AllocationState = Sliver.ALLOCATION_UPDATING;
+				else
+					sliver.AllocationState = Sliver.ALLOCATION_ALLOCATED;
 				
 				addMessage(
 					"Ticket received",

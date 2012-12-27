@@ -51,7 +51,7 @@ package com.flack.shared
 		/**
 		 * Flack version
 		 */
-		public static const version:String = "v14.47";
+		public static const version:String = "v15.0";
 		
 		public static const MODE_GENI:int = 0;
 		public static const MODE_EMULAB:int = 1;

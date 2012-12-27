@@ -47,7 +47,22 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.sites.SupportedSliverType;
+	import com.flack.geni.resources.sites.managers.ExternalRef;
+	import com.flack.geni.resources.sites.managers.ExternalRefCollection;
+	import com.flack.geni.resources.sites.managers.SupportedSliverType;
+	import com.flack.geni.resources.sites.managers.opstates.Action;
+	import com.flack.geni.resources.sites.managers.opstates.OpState;
+	import com.flack.geni.resources.sites.managers.opstates.OpStateCollection;
+	import com.flack.geni.resources.sites.managers.opstates.OpStateState;
+	import com.flack.geni.resources.sites.managers.opstates.Wait;
+	import com.flack.geni.resources.sites.managers.stitching.Stitching;
+	import com.flack.geni.resources.sites.managers.stitching.StitchingAggregate;
+	import com.flack.geni.resources.sites.managers.stitching.StitchingLink;
+	import com.flack.geni.resources.sites.managers.stitching.StitchingNode;
+	import com.flack.geni.resources.sites.managers.stitching.StitchingPort;
+	import com.flack.geni.resources.sites.managers.stitching.SwitchingCapabilityDescriptor;
+	import com.flack.geni.resources.sites.managers.stitching.SwitchingCapabilitySpecificInfoL2sc;
+	import com.flack.geni.resources.sites.managers.stitching.SwitchingCapabilitySpecificInfoLsc;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -268,6 +283,107 @@ package com.flack.geni.tasks.process
 			nodeNameDictionary = new Dictionary();
 			subnodeList = [];
 			
+			// Get shared VLANs
+			var vlanNamepace:Namespace = RspecUtil.sharedVlanNamespace;
+			var sharedVlans:XMLList = xmlDocument.vlanNamepace::rspec_shared_vlan;
+			if(sharedVlans != null && sharedVlans.length() == 1)
+			{
+				manager.sharedVlans = new Vector.<String>();
+				var available:XMLList = sharedVlans.vlanNamepace::available;
+				for each(var sharedVlan:XML in available)
+				{
+					manager.sharedVlans.push(sharedVlan.@name);
+				}
+			}
+			else
+			{
+				manager.sharedVlans = null;
+			}
+			
+			// External refs
+			manager.externalRefs = new ExternalRefCollection();
+			var externalRefs:XMLList = xmlDocument.defaultNamespace::external_ref;
+			if(externalRefs != null && externalRefs.length() > 0)
+			{
+				for each(var externalRefObj:XML in externalRefs)
+				{
+					manager.externalRefs.add(new ExternalRef(externalRefObj.@component_id, externalRefObj.@component_manager_id));
+				}
+			}
+			
+			// Operational states
+			var opstateNamespace:Namespace = RspecUtil.opstateNamespace;
+			var opStatesObj:XMLList = xmlDocument.opstateNamespace::rspec_opstate;
+			manager.opStates = new OpStateCollection();
+			if(opStatesObj != null && opStatesObj.length() > 0)
+			{
+				for each(var opStateObj:XML in opStatesObj)
+				{
+					var newOpState:OpState = new OpState();
+					
+					// Get the sliver types which use these states.
+					var sliverTypesObj:XMLList = opStateObj.opstateNamespace::sliver_type;
+					if(sliverTypesObj != null && sliverTypesObj.length() > 0)
+					{
+						for each (var sliverTypeObj:XML in sliverTypesObj) {
+							newOpState.sliverTypes.push(String(sliverTypeObj.@name));
+						}
+					}
+					
+					// Get the states
+					var statesObj:XMLList = opStateObj.opstateNamespace::state;
+					if(statesObj != null && statesObj.length() > 0)
+					{
+						for each (var stateObj:XML in statesObj) {
+							var stateName:String = String(stateObj.@name);
+							var newState:OpStateState = newOpState.states.getState(stateName);
+							if(newState == null) {
+								newState = new OpStateState(stateName);
+								newOpState.states.add(newState);
+							}
+							if(stateObj.description != null)
+								newState.description = String(stateObj.description);
+							
+							// Waits
+							var waitsObj:XMLList = stateObj.opstateNamespace::wait;
+							if(waitsObj != null && waitsObj.length() > 0)
+							{
+								for each (var waitObj:XML in waitsObj) {
+									var newWait:Wait = new Wait(String(waitObj.@type));
+									var newWaitNextStateName:String = String(waitObj.@next);
+									newWait.next = newOpState.states.getState(newWaitNextStateName);
+									if (newWait.next == null) {
+										newWait.next = new OpStateState(newWaitNextStateName);
+										newOpState.states.add(newWait.next);
+									}
+								}
+							}
+							
+							// Actions
+							var actionsObj:XMLList = opStateObj.opstateNamespace::action;
+							if(actionsObj != null && actionsObj.length() > 0)
+							{
+								for each (var actionObj:XML in actionsObj) {
+									var newAction:Action = new Action(String(actionObj.@name));
+									if(actionObj.description != null)
+										newAction.description = String(actionObj.description);
+									var newActionNextStateName:String = String(actionObj.@next);
+									newAction.next = newOpState.states.getState(newActionNextStateName);
+									if (newAction.next == null) {
+										newAction.next = new OpStateState(newActionNextStateName);
+										newOpState.states.add(newAction.next);
+									}
+								}
+							}
+						}
+					}
+					
+					newOpState.start = newOpState.states.getState(String(opStateObj.@start));
+					
+					manager.opStates.add(newOpState);
+				}
+			}
+			
 			FlexGlobals.topLevelApplication.stage.addEventListener(
 				Event.ENTER_FRAME, parseNext
 			);
@@ -294,21 +410,142 @@ package com.flack.geni.tasks.process
 					Event.ENTER_FRAME, parseNext
 				);
 				
-				// Get shared VLANs
-				var vlanNamepace:Namespace = RspecUtil.sharedVlanNamespace;
-				var sharedVlans:XMLList = xmlDocument.vlanNamepace::rspec_shared_vlan;
-				if(sharedVlans != null && sharedVlans.length() == 1)
+				// Stitching
+				var stitchingNamepace:Namespace = RspecUtil.stitchingNamespace;
+				var stitchingObj:XMLList = xmlDocument.stitchingNamepace::stitching;
+				if(stitchingObj != null && stitchingObj.length() == 1)
 				{
-					manager.sharedVlans = new Vector.<String>();
-					var available:XMLList = sharedVlans.vlanNamepace::available;
-					for each(var sharedVlan:XML in available)
+					manager.stitching = new Stitching();
+					var aggregates:XMLList = stitchingObj.stitchingNamepace::aggregate;
+					for each(var aggregateObj:XML in aggregates)
 					{
-						manager.sharedVlans.push(sharedVlan.@name);
+						var newAggregate:StitchingAggregate = new StitchingAggregate(String(aggregateObj.@id));
+						newAggregate.url = String(aggregateObj.@url);
+						if (aggregateObj.aggregatetype.length() == 1) {
+							newAggregate.aggregateType = String(aggregateObj.aggregatetype);
+						}
+						if (aggregateObj.stitchingmode.length() == 1) {
+							newAggregate.stitchingMode = String(aggregateObj.stitchingmode);
+						}
+						if (aggregateObj.scheduledservices.length() == 1) {
+							newAggregate.scheduledServices = aggregateObj.scheduledservices == "true" || aggregateObj.scheduledservices == "1";
+						}
+						if (aggregateObj.negotiatedservices.length() == 1) {
+							newAggregate.negotiatedServices = aggregateObj.negotiatedservices == "true" || aggregateObj.negotiatedservices == "1";
+						}
+						
+						// Add nodes
+						var stitchingNodes:XMLList = aggregateObj.stitchingNamepace::node;
+						for each(var stitchingNodeObj:XML in stitchingNodes)
+						{
+							var newStitchingNode:StitchingNode = new StitchingNode(String(stitchingNodeObj.@id));
+							
+							// Add ports
+							var stitchingPorts:XMLList = stitchingNodeObj.stitchingNamepace::port;
+							for each(var stitchingPortObj:XML in stitchingPorts)
+							{
+								var newStitchingPort:StitchingPort = new StitchingPort(String(stitchingPortObj.@id));
+								if (stitchingPortObj.capacity.length() == 1) {
+									newStitchingPort.capacity = Number(stitchingPortObj.capacity);
+								}
+								if (stitchingPortObj.maximumReservableCapacity.length() == 1) {
+									newStitchingPort.maximumReservableCapacity = Number(stitchingPortObj.maximumReservableCapacity);
+								}
+								if (stitchingPortObj.minimumReservableCapacity.length() == 1) {
+									newStitchingPort.minimumReservableCapacity = Number(stitchingPortObj.minimumReservableCapacity);
+								}
+								if (stitchingPortObj.granularity.length() == 1) {
+									newStitchingPort.granularity = Number(stitchingPortObj.granularity);
+								}
+								
+								// Add links
+								var stitchingLinks:XMLList = stitchingPortObj.stitchingNamepace::link;
+								for each(var stitchingLinkObj:XML in stitchingLinks)
+								{
+									var newStitchingLink:StitchingLink = new StitchingLink(String(stitchingLinkObj.@id));
+									if (stitchingLinkObj.remoteLinkId.length() == 1) {
+										newStitchingLink.remoteLinkId.full = String(stitchingLinkObj.remoteLinkId);
+									}
+									if (stitchingLinkObj.trafficEngineeringMetric.length() == 1) {
+										newStitchingLink.trafficEngineeringMetric = Number(stitchingLinkObj.trafficEngineeringMetric);
+									}
+									if (stitchingLinkObj.capacity.length() == 1) {
+										newStitchingLink.capacity = Number(stitchingLinkObj.capacity);
+									}
+									if (stitchingLinkObj.maximumReservableCapacity.length() == 1) {
+										newStitchingLink.maximumReservableCapacity = Number(stitchingLinkObj.maximumReservableCapacity);
+									}
+									if (stitchingLinkObj.minimumReservableCapacity.length() == 1) {
+										newStitchingLink.minimumReservableCapacity = Number(stitchingLinkObj.minimumReservableCapacity);
+									}
+									if (stitchingLinkObj.granularity.length() == 1) {
+										newStitchingLink.granularity = Number(stitchingLinkObj.granularity);
+									}
+									
+									var switchingCapabilityDescriptors:XMLList = stitchingLinkObj.stitchingNamepace::switchingCapabilityDescriptor;
+									for each(var switchingCapabilityDescriptorObj:XML in switchingCapabilityDescriptors)
+									{
+										var newSwitchingCapabilityDescriptor:SwitchingCapabilityDescriptor = new SwitchingCapabilityDescriptor();
+										if (switchingCapabilityDescriptorObj.switchingcapType.length() == 1) {
+											newSwitchingCapabilityDescriptor.switchingcapType = String(switchingCapabilityDescriptorObj.switchingcapType);
+										}
+										if (switchingCapabilityDescriptorObj.encodingType.length() == 1) {
+											newSwitchingCapabilityDescriptor.encodingType = String(switchingCapabilityDescriptorObj.encodingType);
+										}
+										
+										var switchingCapabilitySpecificInfos:XMLList = switchingCapabilityDescriptorObj.stitchingNamepace::switchingCapabilitySpecificInfo;
+										for each(var switchingCapabilitySpecificInfoObj:XML in switchingCapabilitySpecificInfos)
+										{
+											if (switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_L2sc.length() == 1) {
+												newSwitchingCapabilityDescriptor.l2scInfo = new SwitchingCapabilitySpecificInfoL2sc();
+												var l2scInfoObj:XML = switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_L2sc[0];
+												if (l2scInfoObj.interfaceMTU.length() == 1) {
+													newSwitchingCapabilityDescriptor.l2scInfo.interfaceMTU = Number(l2scInfoObj.interfaceMTU);
+												}
+												if (l2scInfoObj.vlanRangeAvailability.length() == 1) {
+													newSwitchingCapabilityDescriptor.l2scInfo.vlanRangeAvailability = String(l2scInfoObj.vlanRangeAvailability);
+												}
+												if (l2scInfoObj.suggestedVLANRange.length() == 1) {
+													newSwitchingCapabilityDescriptor.l2scInfo.suggestedVLANRange = String(l2scInfoObj.suggestedVLANRange);
+												}
+												if (l2scInfoObj.vlanTranslation.length() == 1) {
+													newSwitchingCapabilityDescriptor.l2scInfo.vlanTranslation = l2scInfoObj.vlanTranslation == "true" || l2scInfoObj.vlanTranslation == "1";
+												}
+											}
+											if (switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_Lsc.length() == 1) {
+												newSwitchingCapabilityDescriptor.lscInfo = new SwitchingCapabilitySpecificInfoLsc();
+												var lscInfoObj:XML = switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_Lsc[0];
+												if (lscInfoObj.wavelengthSpacing.length() == 1) {
+													newSwitchingCapabilityDescriptor.lscInfo.wavelengthSpacing = String(lscInfoObj.wavelengthSpacing);
+												}
+												if (lscInfoObj.wavelengthRangeAvailability.length() == 1) {
+													newSwitchingCapabilityDescriptor.lscInfo.wavelengthRangeAvailability = String(lscInfoObj.wavelengthRangeAvailability);
+												}
+												if (lscInfoObj.suggestedWavelengthRange.length() == 1) {
+													newSwitchingCapabilityDescriptor.lscInfo.suggestedWavelengthRange = String(lscInfoObj.suggestedWavelengthRange);
+												}
+												if (lscInfoObj.wavelengthTranslation.length() == 1) {
+													newSwitchingCapabilityDescriptor.lscInfo.wavelengthTranslation = String(lscInfoObj.wavelengthTranslation);
+												}
+											}
+										}
+										
+										newStitchingLink.switchingCapabilityDescriptors.add(newSwitchingCapabilityDescriptor);
+									}
+									
+									newStitchingPort.links.add(newStitchingLink);
+								}
+								
+								newStitchingNode.ports.add(newStitchingPort);
+							}
+							
+							newAggregate.nodes.add(newStitchingNode);
+						}
 					}
 				}
 				else
 				{
-					manager.sharedVlans = null;
+					manager.stitching = null;
 				}
 				
 				if (myState == DONE)
@@ -428,14 +665,14 @@ package com.flack.geni.tasks.process
 							switch(newNodeType.name)
 							{
 								case "pcvm":
-									if(node.manager.type != FlackManager.TYPE_PLANETLAB)
+									if(manager.type == GeniManager.TYPE_PROTOGENI)
 									{
 										node.sliverTypes.add(new SliverType(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ));
 										nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
 									}
 									break;
 								case "pc":
-									if(node.exclusive && node.manager.type != FlackManager.TYPE_PLANETLAB)
+									if(node.exclusive && manager.type == GeniManager.TYPE_PROTOGENI)
 									{
 										node.sliverTypes.add(new SliverType(RawPcSliverType.TYPE_RAWPC_V2));
 										nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
