@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2012 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -1528,7 +1528,7 @@ address_tuple_free(address_tuple_t tuple)
  * The traversal function callback. Add to the hmac for each attribute.
  */
 static int
-hmac_traverse(void *rock, char *name,
+hmac_traverse(void *rock, const char *name,
 	      pubsub_type_t type, pubsub_value_t value,
 	      pubsub_error_t *status)
 {
