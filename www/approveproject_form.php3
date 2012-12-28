@@ -245,7 +245,7 @@ echo "<tr>
          <td align=center class=left>
              <textarea name=message rows=15 cols=70>";
 if (isset($message)) {
-    echo ereg_replace("\r", "", CleanString($message));
+    echo str_replace("\r", "", CleanString($message));
 }
 echo "</textarea>
          </td>

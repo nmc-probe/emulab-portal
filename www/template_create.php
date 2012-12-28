@@ -233,7 +233,7 @@ function SPITFORM($formfields, $errors)
               <td colspan=2 align=center class=left>
                   <textarea name=\"formfields[description]\"
                     rows=10 cols=80>" .
-	            ereg_replace("\r", "", $formfields["description"]) .
+	            str_replace("\r", "", $formfields["description"]) .
 	           "</textarea>
               </td>
           </tr>\n";
