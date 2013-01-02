@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1411,6 +1411,7 @@ sub disk_hacks($)
 
     # remove scratch partitions from fstab
     system("sed -i.bak -e '/scratch/d' $path/etc/fstab");
+    system("sed -i.bak -e '${EXTRAFS}/d' $path/etc/fstab");
 
     # fixup fstab: change UUID=blah to LABEL=/
     system("sed -i.bak -e 's/UUID=[0-9a-f-]*/LABEL=\\//' $path/etc/fstab");
