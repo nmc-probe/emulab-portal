@@ -2,8 +2,7 @@
 # TODO:
 # Build from /usr/testbed/src/emulab-stable.
 #
-# Automate the initilo calls from the xml file.
-# Create encrypted ssl cert for elabman, for testing.
+# Bake in the routable ip space if possible
 # 
 use strict;
 use libinstall;
@@ -33,6 +32,10 @@ my $ZZZ		 = "/usr/local/etc/rc.d/zzz-inelab.sh";
 my $DEFAULTOSID  = "FEDORA15-STD";
 my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU12-64-STD");
 my $PGOSSITEVAR  = "protogeni/default_osname";
+my $CHPASS	 = "/usr/bin/chpass";
+my $SSHTB	 = "$TB/bin/sshtb";
+my $RACKNTPCONF  = "$TOP_SRCDIR/install/genirack/ntp.conf";
+my $ETCNTPCONF   = "/etc/ntp.conf";
 
 my %INTERFACES = (
     "xn1"   => "inet 10.1.1.1 netmask 255.255.255.0",
@@ -155,10 +158,55 @@ sub Install($$$)
 	#
 	# This is the elabman password.
 	#
-	if (exists($configvars{'PASSWORD'}) && $configvars{'PASSWORD'} ne "" &&
-	    ! -e $ELABPASSWORD) {
-	    CreateFileFatal($ELABPASSWORD, $configvars{'PASSWORD'});
-	    ExecQuietFatal("$CHMOD 400 $ELABPASSWORD");
+	if (exists($configvars{'PASSWORD'}) && $configvars{'PASSWORD'} ne "") {
+	    my $PASSWORD = $configvars{'PASSWORD'};
+	    my $passhash = PassWordHash($PASSWORD);
+	    
+	    Phase "elabman_pswd", "Storing the elabman password". sub {
+		PhaseSkip("exists")
+		    if (-e $ELABPASSWORD);
+		
+		CreateFileFatal($ELABPASSWORD, $PASSWORD);
+		ExecQuietFatal("$CHMOD 400 $ELABPASSWORD");
+	    };
+
+	    #
+	    # Make sure root/toor have the same password on boss/ops.
+	    #
+	    Phase "root_pswd", "Setting root password on boss". sub {
+		ExecQuietFatal("$CHPASS -p '$passhash' root");
+		ExecQuietFatal("$CHPASS -p '$passhash' toor");
+	    };
+
+	    # shell escape.
+	    $passhash =~ s/\$/\\\$/g;
+	    $passhash =~ s/\*/\\\*/g;
+
+	    Phase "root_pswdops", "Setting root password on ops". sub {
+		ExecQuietFatal("$SSHTB -host $USERNODE ".
+			       "  $CHPASS -p '$passhash' root");
+		ExecQuietFatal("$SSHTB -host $USERNODE ".
+			       "  $CHPASS -p '$passhash' toor");
+	    };
+	}
+
+	#
+	# This is the elabman SSL cert password.
+	#
+	my $SSLCERT_PSWDFILE = "/users/elabman/.ssl/password";
+	
+	if (exists($configvars{'ELABMAN_SSLCERT_PASSWORD'}) &&
+	    $configvars{'ELABMAN_SSLCERT_PASSWORD'} ne "") {
+	    if (! -e $SSLCERT_PSWDFILE) {
+		CreateFileFatal($SSLCERT_PSWDFILE,
+				$configvars{'ELABMAN_SSLCERT_PASSWORD'});
+		ExecQuietFatal("$CHMOD 400 $ELABMAN_SSLCERT_PASSWORD");
+	    }
+	    #
+	    # Create encrypted SSL cert for elabman, for testing PG later.
+	    #
+	    ExecQuietFatal("$PREFIX/sbin/mkusercert ".
+	         " -p " . $configvars{'ELABMAN_SSLCERT_PASSWORD'} . " elabman");
 	}
 
 	#
@@ -334,6 +382,8 @@ sub Install($$$)
 	#
 	# Add the nodes to the DB.
 	#
+	my $ILOIP = $configvars{"GENIRACK_ILOIP"};
+	
 	Phase "nodes", "Adding nodes to the DB", sub {
 	    my $query_result =
 		DBQueryWarn("select node_id from nodes where node_id='pc1'");
@@ -344,8 +394,12 @@ sub Install($$$)
 
 	    ExecQuietFatal("cd $TOP_OBJDIR/install/genirack; ".
 			   "  $SUDO -u $PROTOUSER $WAP ".
-			   "  perl mknewconfig ".
+			   "  perl mknewconfig -i $ILOIP ".
 			   "       /tmp/output $RACKIPS $RACKILO $RACKWIRES");
+
+	    PhaseFail("initilo.sh not generated")
+		if (! -e "/tmp/output/initilo.sh");
+	    ExecQuietFatal("/bin/cp -p /tmp/output/initilo.sh $PREFIX/etc");
 	};
 
 	Phase "outlets", "Adding outlets to the DB", sub {
@@ -414,6 +468,7 @@ sub Install($$$)
 	# Create a local named forward fragment file with some extra stuff.
 	#
 	my $reversedots;
+	my $forwarddots;
 	my @forward_strings = ();
 	my @reverse_strings = ();
 	my %local_dns = ("GENIRACK_FOAMIP"    => "foam",
@@ -428,6 +483,7 @@ sub Install($$$)
 	    my $hostname = $local_dns{$name};
 	    my $ip = $configvars{$name};
 	    my ($a,$b,$c,$num) = split(/\./, $ip);
+	    $forwarddots = "${a}.${b}.${c}";
 	    $reversedots = "${c}.${b}.${a}";
 	    
 	    push(@forward_strings, "$hostname\tIN\tA\t$ip");
@@ -435,7 +491,7 @@ sub Install($$$)
 	}
 	my $FORWARDFRAGMENT1 = "$NAMED_DIR/${OURDOMAIN}.internal.db.local";
 	my $FORWARDFRAGMENT2 = "$NAMED_DIR/${OURDOMAIN}.db.local";
-	my $REVERSEFRAGMENT  = "$NAMED_DIR/reverse/${reversedots}.db.local";
+	my $REVERSEFRAGMENT  = "$NAMED_DIR/reverse/${forwarddots}.db.local";
 	Phase "forward1", "Creating $FORWARDFRAGMENT1", sub {
 	    DoneIfExists($FORWARDFRAGMENT1);
 	    CreateFileFatal($FORWARDFRAGMENT1, @forward_strings);
@@ -448,6 +504,11 @@ sub Install($$$)
 	    DoneIfExists($REVERSEFRAGMENT);
 	    CreateFileFatal($REVERSEFRAGMENT, @reverse_strings);
 	};
+
+	Phase "ntpconf", "Installing better /etc/ntp.conf", sub {
+	    ExecQuietFatal("/bin/cp -fp $RACKNTPCONF $ETCNTPCONF");
+	};
+
 	PhaseSucceed("Rack Setup Done");
     };
     return 0;
