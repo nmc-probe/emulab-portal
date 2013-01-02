@@ -36,3 +36,8 @@ REPLACE INTO `switch_stack_types`
 replace into switch_stacks (node_id,stack_id,is_primary)
       values ('procurve2','Experiment',1),("procurve1",'Control',1);
 
+replace into node_types set
+      class='switch', isswitch=1, type='external-switch';
+replace into node_type_attributes set
+      type='external-switch',attrkey='forwarding_protocols',
+      attrvalue='ethernet',attrtype='string';
