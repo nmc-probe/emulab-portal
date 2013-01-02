@@ -679,7 +679,7 @@ sub setPortVlan($$@) {
     my $id = $self->{NAME} . "::setPortVlan($vlan_number)";
     $self->debug($id."\n");
 
-    if (! $self->callRPC('vlanTagExist', $id, $vlan_number)) {
+    if (! $self->callRPC($id, 'vlanTagExist', $vlan_number)) {
 	warn "VLAN $vlan_number does not exist on $self->{NAME}\n";
 	return 1;
     }
