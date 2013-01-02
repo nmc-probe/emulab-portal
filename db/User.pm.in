@@ -1391,6 +1391,32 @@ sub SendVerifiedEmail($)
 	DBQueryFatal("select gid_idx from group_membership ".
 		     "where uid_idx='$uid_idx' and trust='$none'");
 
+    if (!$query_result->numrows) {
+	my $url = "$TBWWW/showuser.php3?user=$uid_idx";
+	
+	#
+	# Verified but no groups; send email to testbed ops since
+	# it is unusual (probably cause of ISOLATEADMINS).
+	#
+	SENDMAIL($TBOPS,
+		 "User '$uid' has been verified",
+		 "User '$uid' has been verified, ".
+		 "but is not a member of any groups.\n\n".
+		 "To approve this account, an administrator must do this:\n".
+		 "\n".
+		 "    boss> wap tbacct -f add $uid\n".
+		 "\n".
+		 "If this situation arose from ISOLATEADMINS=1, then toggle\n".
+		 "the user's administrator capability on this page:\n".
+		 "\n".
+		 "    $url\n".
+		 "\n".
+		 "Then the user will be able to join projects that include ".
+		 "other administrators.\n",
+		 $TBOPS);
+	return 0;
+    }
+
     while (my ($gid_idx) = $query_result->fetchrow_array()) {
 	my $group = Group->Lookup($gid_idx);
 
