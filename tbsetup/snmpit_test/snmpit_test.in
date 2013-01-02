@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LGPL
 # 
@@ -2431,7 +2431,10 @@ sub syncVlansFromTables($$@) {
 	# ports does not get confused.
 	#
 	my @tmp = Port->toIfaceStrings(@staleports, @staletrunks);
-	VLan->RecordVLanModification($vlanid, undef, \@tmp);
+	if (VLan->RecordVLanModification($vlanid, undef, \@tmp)) {
+	    print STDERR "Could not record vlan modification: $vlanid - @tmp\n";
+	    goto bad;
+	}
     }
 
     #

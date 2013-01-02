@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2012 University of Utah and the Flux Group.
+# Copyright (c) 2007-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -3457,6 +3457,7 @@ sub RecordVLanModification($$$$)
     if (defined($current) && $current ne "") {
 	%current = map { $_ => $_ } split(/\s+/, $current);
     }
+    print "RecordVLanModification: $vlan - " . join(" ", keys(%current)) . "\n";
 
     if ($added) {
 	foreach my $port (@$added) {
@@ -3475,6 +3476,8 @@ sub RecordVLanModification($$$$)
 	}
     }
     my $members = join(" ", keys(%current));
+
+    print "RecordVLanModification (after): $vlan - $members\n";
 
     DBQueryWarn("update vlans set members='$members' ".
 		"where id='$lanid'")
