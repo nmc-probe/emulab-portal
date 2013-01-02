@@ -3466,7 +3466,7 @@ sub doDeleteVlan($@) {
     if ($ELABINELAB) {
 	foreach my $vlan (values(%vlans)) {
 	    if (RemoteDeleteVlan($vlan, $opt{C}) == 0) {
-		if ($vlan->Destroy() != 0) {
+		if (ref($vlan) && $vlan->Destroy() != 0) {
 		    print STDERR "*** Could not destroy $vlan\n";
 		}
 	    }

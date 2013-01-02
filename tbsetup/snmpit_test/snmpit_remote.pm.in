@@ -207,7 +207,7 @@ sub RemoteDoVlansFromTables($@)
 	    my $vlan = $vlans{$vlanid};
 
 	    #
-	    # This is should always succeed since we do whatever the
+	    # This should always succeed since we do whatever the
 	    # outer emulab says to do.
 	    #
 	    if (! ($vlan->HasVlanTagReserved($tag) ||
@@ -252,7 +252,8 @@ sub RemoteDeleteVlan($$)
     my $vlan      = shift();
     my $cleartags = shift();
 
-    return RemoteDoReset(undef, 0, $cleartags, ($vlan->id()));
+    return RemoteDoReset(undef, 0, $cleartags,
+			 (ref($vlan) ? $vlan->id() : $vlan));
 }
 
 #
@@ -278,7 +279,7 @@ sub RemoteDoReset($$$@)
 	if ($response->{"code"});
 
     foreach my $vlan (@vlans) {
-	clearReservedVlanTag($vlan)
+	VLan::ClearReservedVlanTag($vlan)
 	    if ($cleartags);
 	VLan->RecordVLanDeletion($vlan);
     }
