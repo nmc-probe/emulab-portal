@@ -472,7 +472,7 @@ elabinelab-scripts:
 	cp $(SRCDIR)/clientside/tmcc/common/config/rc.mkelab $(INSTALL_TOPDIR)/etc/
 
 ifeq ($(SPEWFROMOPS),1)
-elabinelab: elabinelab-scripts
+elabinelab-nogit: elabinelab-scripts
 	-mkdir -p /share/emulab
 	rm -f /share/emulab/emulab-src.tar.gz
 	tar czf /share/emulab/emulab-src.tar.gz -C $(SRCDIR) --exclude=.git .
@@ -482,7 +482,7 @@ elabinelab-git: elabinelab-scripts
 	rm -f /share/emulab/emulab-src.tar.gz
 	git archive --prefix=testbed/ | gzip -c >/share/emulab/emulab-src.tar.gz
 else
-elabinelab: elabinelab-scripts
+elabinelab-nogit: elabinelab-scripts
 	-mkdir -p $(INSTALL_TOPDIR)/src
 	rm -f $(INSTALL_TOPDIR)/src/emulab-src.tar.gz
 	tar czf $(INSTALL_TOPDIR)/src/emulab-src.tar.gz -C $(SRCDIR) --exclude=.git .
