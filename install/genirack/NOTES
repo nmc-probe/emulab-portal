@@ -1,18 +1,59 @@
 Setting up an InstaGeni Rack. First, we need the following info:
 
-1. Hostname for the control node.
-2. IP and netmask for the control node.
-3. IP for the ilo interface on the control node (same netmask).
-4. IP for your DNS server.
-5. IP for your default router.
-6. Login (email), and ssh version 2 public key for a local administrator.
-   This should be a real person, not a pseudo user.
-7. The iLo passwords for all of the nodes. These are stamped on the
-   top of each of the nodes. Please note the rack slot number for each
-   password. Ideally, we would have the ethernet addresses for the ilo
-   and eth0 interfaces too, but I expect we will have to figure that
-   out on the fly using the dhcpd logs.
-8. External network information.
+1. Domain for your rack. Something like instageni.foo.bar.edu
+
+1. IP subnet and netmask for your rack. This should be a static subnet;
+   Emulab acts as a DHCP server for the subnet (and the uplink should
+   not pass DHCP packets through).
+
+1. IP for the default router on the subnet.
+   Once you tell us the subnet and mask, we can assign IPs to the
+   infrastructure nodes (control node, ilo, boss, ops, foam, flowvisor,
+   etc). For example, on a /24 subnet (ideal!), boss will be XXX.YYY.ZZZ.4, 
+   which is important to know for the next step (configuring DNS delegation).
+   
+1. IP for your DNS forwarder(s). 
+   DNS for the rack subnet must be delegated to the local Emulab.
+   This includes the reverse lookup map. Assuming a /24 network, your
+   forward delegation will look like this. You also need the reverse map
+   delegated.
+
+	ns.instageni        IN      A       XXX.YYY.ZZZ.4
+	instageni           IN      NS      ns.instageni
+	instageni           IN      NS      ns.emulab.net.
+
+   As you can see, Utah will serve as a backup server for the rack.
+   
+   Note: If your subnet is partial, then the reverse name delegation is
+   classless; be sure to tell us how the reverse zone is delegated. For
+   example, the upper half of a /25 subnet will typically have the reverse
+   zone delegated to boss like this:
+
+	129/25 IN NS ns.instageni.foo.bar.edu.
+	129/25 IN NS ns.emulab.net. 
+	$GENERATE 129-255 $ IN CNAME $.129/XXX.XXX.XXX.XXX.in-addr.arpa.
+
+   which requires a corresponding setup on boss' DNS setup.
+   
+1. Login (email), and ssh version 2 public key for a local administrator.
+   This should be a real person, not a pseudo user. An administrator account
+   will be built on the control node, from which other admin accounts can
+   be added. See https://users.emulab.net/trac/protogeni/wiki/RackAdminAccounts
+   for more details on adding local admin accounts, and for instructions on
+   how to get an admin account inside the Emulab VMs. 
+
+1. What sections of your subnet should be reserved for "routable" ips for
+   VMs. VMs do not get routable IPs, so if you want to have access to them
+   from outside your subnet, you need to reserve a portion of your space in
+   the Emulab DB. For example, on a /24 network you could use 128-226. On a
+   /25 you could use 150-179 and 190-250 (or the equiv on the lower
+   half). We recommend these example ranges as they leave room for adding
+   more physical hosts later. 
+
+   NOTE: This can be changed as needed later, but is nice to setup early
+   for users.
+
+1. External network information.
      A. We need to know what port on the data switch will bring in the
         openflow vlan (1750). If you have the all-copper module, we
         suggest that you use port 24 for the upwire to the switch
@@ -29,7 +70,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	     (FrameNet endpoint bost.layer2.nlr.net[Gi9/2])
      C. If you are really ambitious, you can generate a wiki page like
         this: http://groups.geni.net/geni/wiki/SiteBbn  :-)
-
+	
 * Send Utah all of the above info so that we can "bake" the images
   for you. Once you hear back from us, you may continue with these
   instructions.
@@ -334,8 +375,8 @@ Setting up an InstaGeni Rack. First, we need the following info:
 * Arrange for the VMs to auto starts:
 
 	cd /etc/xen/auto/
-	sudo ln -s ~stoller/ops/xm.conf 1.ops.conf
-	sudo ln -s ~stoller/boss/xm.conf 2.boss.conf
+	sudo ln -s ~elabman/ops/xm.conf 1.ops.conf
+	sudo ln -s ~elabman/boss/xm.conf 2.boss.conf
 
 * Next we want to update the firmware on the data plane switch to the
   one that supports openflow. First the firmware from Utah to the
@@ -361,6 +402,11 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	5406> reload
 
+* Add the public IP space:
+
+	boss> wap addvpubaddr 192.1.242.150 192.1.242.179
+	boss> wap addvpubaddr 192.1.242.190 192.1.242.250
+
 * Create some test experiments.
 
 ---
@@ -370,7 +416,20 @@ root/toor password on boss did not match what is in the file.
 root/toor password on ops is generated elabinelab swapin and needs to set.
 ntpd and ntpdate failures.
 
-SSH enable:
+named setup does not handle reverse maps smaller then /24 cause of
+the delegation stuff. Needs to be defined as a partial map since that
+is what the upper subset delegates. But we do not handle this in
+the named config scripts. So I had to hand edit named.conf:
+
+    zone "129/25.242.1.192.in-addr.arpa" in {
+    	type master;
+    	file "reverse/192.1.242.db";
+    };
+
+routable ip space when baking the images.
+
+-----
+SSH enable on the switches does not work.
 
 ip ssh public-key manager "ssh-rsa AAA ..."
 # aaa authentication ssh enable public-key

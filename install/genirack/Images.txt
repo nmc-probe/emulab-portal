@@ -48,6 +48,12 @@ in both the internal and external views.
 		masters { XXX.XXX.XXX.XXX; };
 		file "slave/foo.net.db";
 	};
+	zone "129/25.242.1.192.in-addr.arpa" in {
+	    type slave;
+	    # IP of rack boss
+	    masters { XXX.XXX.XXX.XXX; };
+	    file "slave/reverse-foo.net.db";
+	};
 
 Utah Emulab is also the DNS server for the control node IPs. So in
 /etc/namedb/instageni.net.db we need two entries. For example
@@ -126,6 +132,8 @@ Note, DO NOT CHANGE THESE ON THE ROOT DISK! The clone is mounted on
 * /mnt/etc/hostname; the hostname of course
 
 * /mnt/etc/hosts: IP Hostname of course
+
+* /etc/timezone: correct timezone for the target!
 
 * Set the root password; we do not want it the same on each control
   node, although note that ssh root login is not allowed. Be sure
