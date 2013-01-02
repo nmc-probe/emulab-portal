@@ -153,11 +153,13 @@ if ($isshared) {
 #
 # Create the type if it does not exist.
 #
-if (!defined(NodeType->Lookup($type))) {
+my $nodetype = NodeType->Lookup($type);
+if (!defined($nodetype)) {
     CreateType($type, 0);
     if ($isshared) {
 	CreateType("${type}-vm", 1);
     }
+    $nodetype = NodeType->Lookup($type);    
 }
 CreateNode();
 exit(0);
@@ -182,8 +184,8 @@ sub CreateType($$)
 		     "  class='$type', type='$type', ".
 		     "  isvirtnode='$isvirt', isdynamic='$isvirt'");
 
-	if ($isshared && $isvirt) {
-	    DBQueryFatal("insert into node_auxtypes values ".
+	if (0 && $isshared && $isvirt) {
+	    DBQueryFatal("replace into node_auxtypes values ".
 			 "('$node_id', '$type', '$isshared')");
 	}
     }
@@ -223,7 +225,8 @@ sub CreateNode()
 {
     my $blob = {
 	"type"               => $type,
-	"role"               => "testnode",
+	"role"               => ($nodetype->isswitch() ?
+				 "testswitch" : "testnode"),
 	"initial_eventstate" => TBDB_NODESTATE_ISUP(),
     };
     my $node;
