@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LGPL
 # 
@@ -1426,6 +1426,13 @@ sub mapStaleVlansToSwitches(@)
 	#
 	my @ports   = getExperimentVlanPorts($vlan_id);
 	my %map     = mapPortsToDevices(@ports);
+
+	#
+	# Initial set of switches.
+	#
+	foreach my $switch (keys(%map)) {
+	    $switches{$switch} = 1;
+	}
 
 	#
 	# We want to use the DB path if it exists.
