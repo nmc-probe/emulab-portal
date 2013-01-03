@@ -369,11 +369,13 @@ my %external_ifaces;
 my %external_links;
 my %contact_nodes;
 my %contact_ifaces;
+my %stitch_points;
 
 $result = DBQueryFatal("select w.node_id1, w.card1, w.port1, i1.iface, ".
 		       "w.node_id2, w.card2, w.port2, i2.iface, ".
 		       "w.external_interface, w.external_wire, ".
-		       "e.node_id, e.min_vlan, e.max_vlan, e.external_manager ".
+		       "e.node_id, e.min_vlan, e.max_vlan, ".
+		       "e.external_manager, e.network_id, e.external_interface, e.external_wire ".
 		       "from wires as w ".
 		       "left join external_networks as e ".
 		       "on w.node_id1=e.node_id or w.node_id2=e.node_id ".
@@ -382,7 +384,9 @@ $result = DBQueryFatal("select w.node_id1, w.card1, w.port1, i1.iface, ".
 		       "where e.node_id is not null");
 while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
 	   $external_iface_urn, $external_link_urn, $external, $minLan,
-	   $maxLan, $external_manager_urn) = $result->fetchrow_array) {
+	   $maxLan, $external_manager_urn,
+	   $external_network_id, $external_network_iface_urn,
+       $external_network_link_urn) = $result->fetchrow_array) {
     if ($external eq $cnode) {
 	my $temp;
 	$temp = $cnode; $cnode = $enode; $enode = $temp;
@@ -390,18 +394,32 @@ while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
 	$temp = $cport; $cport = $eport; $eport = $temp;
 	$temp = $ciface; $ciface = $eiface; $eiface = $temp;
     }
+    $stitch_points{"$cnode:$enode"} = 1;
+    $enode = $external_network_id;
     if (! defined($eiface)) {
 	$eiface = "$ecard.$eport";
     }
     if (! defined($ciface)) {
 	$ciface = "$ccard.$cport";
     }
+    if (! defined($external_iface_urn)) {
+	$external_iface_urn = $external_network_iface_urn;
+    }
+    if (! defined($external_link_urn)) {
+	$external_link_urn = $external_network_link_urn;
+    }
     $external_nodes{$enode} = "$minLan-$maxLan";
     $external_managers{"$cnode:$enode"} = $external_manager_urn;
     $external_ifaces{"$cnode:$enode"} = $external_iface_urn;
     $external_links{"$cnode:$enode"} = $external_link_urn;
-    $contact_nodes{$cnode} = $enode;
-    $contact_ifaces{"$cnode:$enode"} = $ciface;
+    if (exists($contact_nodes{$cnode})) {
+	push(@{ $contact_nodes{$cnode} }, $enode);
+    } else {
+	$contact_nodes{$cnode} = [$enode];
+    }
+    $contact_ifaces{"$cnode:$enode"} = GeniHRN::GenerateInterface($OURDOMAIN,
+								  $cnode,
+								  $ciface);
 }
 
 print_header();
@@ -2038,13 +2056,14 @@ sub print_footer {
 
 
 		foreach my $node (keys(%contact_nodes)) {
-		    my $external = $contact_nodes{$node};
-		    my $vlans = $external_nodes{$external};
-		    if (defined($external_links{"$node:$external"})) {
+		    foreach my $external (@{ $contact_nodes{$node} }) {
+		      my $vlans = $external_nodes{$external};
+		      if (defined($external_links{"$node:$external"})) {
 			print_stitch_node($node,
 					  $contact_ifaces{"$node:$external"},
 					  $external_ifaces{"$node:$external"},
 					  1000000, $vlans, 0);
+		      }
 		    }
 		}
 		print "</aggregate>\n";
@@ -2218,10 +2237,11 @@ sub add_stitch_point
 	foreach my $key (keys(%$stitch_ifaces)) {
 	    if ($key =~ /([^:]+):([^:]+)/) {
 		if ($name eq $1 || $name eq $2) {
-		    my $foundCount = grep $_ eq $stitch_ifaces->{$key},
+		    my (undef, undef, $iface) = GeniHRN::ParseInterface($stitch_ifaces->{$key});
+		    my $foundCount = grep $_ eq $iface,
 		                          @$interfaces;
 		    if ($foundCount == 0) {
-			push(@$interfaces, $stitch_ifaces->{$key});
+			push(@$interfaces, $iface);
 		    }
 		}
 	    }
@@ -2535,7 +2555,121 @@ sub print_named_link_ptop
 	. "$dest_full $bw $delay $loss 1 " . join(" ", @proto) . "\n";
 }
 
-sub print_named_link_xml
+sub print_named_link_xml_geni
+{
+    my $name = shift(@_);
+    my $source = shift(@_);
+    my $source_if = shift(@_);
+    my $dest = shift(@_);
+    my $dest_if = shift(@_);
+    my $bw = shift(@_);
+    my $delay = shift(@_);
+    my $loss = shift(@_);
+    my @proto = @{ shift(@_) };
+    my $is_interconnect = shift(@_);
+    my $source_urn = GeniHRN::GenerateInterface($OURDOMAIN, $source,
+						$source_if);
+    my $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
+					      $dest_if);
+    if (defined($MAINSITE) && $MAINSITE &&
+	(($source eq "instageni-nc7" && $source_if ne "eth5") ||
+	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
+	return;
+    }
+	$name =~ s/:/\/\//g;
+	my $external_manager_urn;
+	my $urn = GeniHRN::Generate($OURDOMAIN, "link", $name);
+    my $contact;
+    my %source_ifaces;
+    my %dest_ifaces;
+	if (exists($stitch_points{"$source:$dest"})) {
+	    $contact = $source;
+	    %source_ifaces = %contact_ifaces;
+	    %dest_ifaces = %external_ifaces;
+	} elsif (exists($stitch_points{"$dest:$source"})) {
+	    $contact = $dest;
+	    %source_ifaces = %external_ifaces;
+	    %dest_ifaces = %contact_ifaces;
+	}
+    if (defined($contact)) {
+	foreach my $external (@{ $contact_nodes{$contact} }) {
+	    $source_urn = $source_ifaces{"$contact:$external"};
+	    $dest_urn = $dest_ifaces{"$contact:$external"};
+	    $urn = $external_links{"$contact:$external"};
+	    $external_manager_urn = $external_managers{"$contact:$external"};
+      print_single_link_xml_geni($source, $source_if, $dest, $dest_if,
+			         $bw, $delay, $loss, \@proto, $is_interconnect,
+			         $urn, $source_urn, $dest_urn,
+			         $external_manager_urn);
+	}
+    } else {
+      print_single_link_xml_geni($source, $source_if, $dest, $dest_if,
+			         $bw, $delay, $loss, \@proto, $is_interconnect,
+			         $urn, $source_urn, $dest_urn,
+			         $external_manager_urn);
+    }
+}
+
+sub print_single_link_xml_geni
+{
+    my $source = shift(@_);
+    my $source_if = shift(@_);
+    my $dest = shift(@_);
+    my $dest_if = shift(@_);
+    my $bw = shift(@_);
+    my $delay = shift(@_);
+    my $loss = shift(@_);
+    my @proto = @{ shift(@_) };
+    my $is_interconnect = shift(@_);
+    my $urn = shift(@_);
+    my $source_urn = shift(@_);
+    my $dest_urn = shift(@_);
+    my $external_manager_urn = shift(@_);
+
+    my $proto_count = scalar(@proto);
+	my (undef, undef, $name) = GeniHRN::Parse($urn);
+	print "<link ";
+	my $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
+	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
+	    print "component_manager_uuid=\"$cmurn\" ";
+	}
+	print "component_name=\"$name\" ";
+	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
+	    print "component_uuid=\"$urn\" ";
+	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
+	    print "component_id=\"$urn\" ";
+	}
+	print ">\n";
+	if ($genimode eq $V_2 || $genimode eq $V_3) {
+	    print "<component_manager name=\"$cmurn\" />\n";
+	    if (defined($external_manager_urn)) {
+		print "<component_manager name=\"$external_manager_urn\" />\n";
+	    }
+	}
+	print_interface($source, $source_urn);
+	print_interface($dest, $dest_urn);
+    if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
+	print "  <bandwidth>$bw</bandwidth>\n";
+	print "  <latency>$delay</latency>\n";
+	print "  <packet_loss>$loss</packet_loss>\n";
+    } elsif ($genimode eq $V_2 || $genimode eq $V_3) {
+	print_property($source_urn, $dest_urn,
+		       $bw, $delay, $loss);
+	print_property($dest_urn, $source_urn,
+		       $bw, $delay, $loss);
+    }
+    my $i = 0;
+    for (; $i < $proto_count; ++$i) {
+	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
+	    print "  <link_type type_name=\"" . $proto[$i] . "\" />\n";
+	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
+	    print "  <link_type name=\"" . $proto[$i] . "\" />\n";
+	}
+    }
+    print "</link>\n\n";
+}
+
+sub print_named_link_xml_plain
 {
     my $name = shift(@_);
     my $source = shift(@_);
@@ -2557,45 +2691,6 @@ sub print_named_link_xml
 	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
 	return;
     }
-    if ($genimode ne $NO_GENI) {
-	$name =~ s/:/\/\//g;
-	my $external_manager_urn;
-	my $urn = GeniHRN::Generate($OURDOMAIN, "link", $name);
-	if (exists($external_ifaces{"$source:$dest"})) {
-	    $source_urn = GeniHRN::GenerateInterface($OURDOMAIN, $source,
-					     $contact_ifaces{"$source:$dest"});
-	    $dest_urn = $external_ifaces{"$source:$dest"};
-	    $urn = $external_links{"$source:$dest"};
-	    $external_manager_urn = $external_managers{"$source:$dest"};
-	} elsif (exists($external_ifaces{"$dest:$source"})) {
-	    $source_urn = $external_ifaces{"$dest:$source"};
-	    $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
-					     $contact_ifaces{"$dest:$source"});
-	    $urn = $external_links{"$dest:$source"};
-	    $external_manager_urn = $external_managers{"$dest:$source"};
-	}
-	(undef, undef, $name) = GeniHRN::Parse($urn);
-	print "<link ";
-	my $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
-	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
-	    print "component_manager_uuid=\"$cmurn\" ";
-	}
-	print "component_name=\"$name\" ";
-	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
-	    print "component_uuid=\"$urn\" ";
-	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	    print "component_id=\"$urn\" ";
-	}
-	print ">\n";
-	if ($genimode eq $V_2 || $genimode eq $V_3) {
-	    print "<component_manager name=\"$cmurn\" />\n";
-	    if (defined($external_manager_urn)) {
-		print "<component_manager name=\"$external_manager_urn\" />\n";
-	    }
-	}
-	print_interface($source, $source_urn);
-	print_interface($dest, $dest_urn);
-    } else {
 	print "<link name=\"$name\">\n";
 	print "  <source_interface><interface>\n";
 	print_interface_contents($source, $source_if);
@@ -2603,28 +2698,13 @@ sub print_named_link_xml
 	print "  <destination_interface><interface>\n";
 	print_interface_contents($dest, $dest_if);
 	print "  </interface></destination_interface>\n";
-    }
-    if ($genimode eq $NO_GENI || $genimode eq $V_0_1 || $genimode eq $V_0_2)
-    {
 	print "  <bandwidth>$bw</bandwidth>\n";
 	print "  <latency>$delay</latency>\n";
 	print "  <packet_loss>$loss</packet_loss>\n";
-    } elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	print_property($source_urn, $dest_urn,
-		       $bw, $delay, $loss);
-	print_property($dest_urn, $source_urn,
-		       $bw, $delay, $loss);
-    }
     my $i = 0;
     for (; $i < $proto_count; ++$i) {
-	if ($genimode eq $NO_GENI) {
 	    print "  <link_type><type_name>" . $proto[$i]
 		. "</type_name></link_type>\n";
-	} elsif ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
-	    print "  <link_type type_name=\"" . $proto[$i] . "\" />\n";
-	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	    print "  <link_type name=\"" . $proto[$i] . "\" />\n";
-	}
     }
     print "</link>\n\n";
 }
@@ -2664,8 +2744,10 @@ sub print_named_link
 {
     if (!$do_xml) {
 	print_named_link_ptop(@_, 0);
+    } elsif ($do_xml && $genimode eq $NO_GENI) {
+	print_named_link_xml_plain(@_, 0);
     } elsif ($do_xml) {
-	print_named_link_xml(@_, 0);
+	print_named_link_xml_geni(@_, 0);
     }
 }
 
@@ -2673,8 +2755,10 @@ sub print_named_interconnect
 {
     if (!$do_xml) {
 	print_named_link_ptop(@_, 1);
+    } elsif ($do_xml && $genimode eq $NO_GENI) {
+	print_named_link_xml_plain(@_, 1);
     } elsif ($do_xml) {
-	print_named_link_xml(@_, 1);
+	print_named_link_xml_geni(@_, 1);
     }
 }
 
@@ -2693,12 +2777,12 @@ sub print_type_relation
 
 sub print_stitch_node
 {
-    my ($node, $iface, $remote_iface_urn, $capacity,
+    my ($node, $iface_urn, $remote_iface_urn, $capacity,
 	$vlans, $vlan_will_translate) = @_;
+    my (undef, undef, $iface) = GeniHRN::ParseInterface($iface_urn);
     my $node_urn = GeniHRN::Generate($OURDOMAIN, "node", $node);
     my $port_urn = GeniHRN::Generate($OURDOMAIN, "stitchport",
 				     $node . "//" . $iface);
-    my $iface_urn = GeniHRN::GenerateInterface($OURDOMAIN, $node, $iface);
     # Capacity is in kilobits/sec but needs to be converted to bits/sec
     my $bits = $capacity * 1000;
     my $vlan_translate = "false";

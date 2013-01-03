@@ -1463,8 +1463,9 @@ CREATE TABLE `external_networks` (
   `min_vlan` int(11) NOT NULL default '256',
   `max_vlan` int(11) NOT NULL default '1000',
   `external_manager` tinytext,
-  PRIMARY KEY  (`network_id`),
-  UNIQUE KEY `node_id` (`node_id`)
+  `external_interface` tinytext,
+  `external_wire` tinytext,
+  PRIMARY KEY  (`network_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
   
 --
