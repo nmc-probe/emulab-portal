@@ -199,6 +199,7 @@ CREATE TABLE `blockstores` (
   `type` varchar(30) NOT NULL default '',
   `role` enum('element','compound') NOT NULL default 'element',
   `total_size` int(10) unsigned NOT NULL default '0',
+  `exported` tinyint(1) NOT NULL default '0',
   `inception` datetime default NULL,
   PRIMARY KEY (`bsidx`),
   UNIQUE KEY nidbid (`node_id`,`bs_id`)
