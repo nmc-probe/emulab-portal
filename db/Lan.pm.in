@@ -3394,8 +3394,10 @@ sub RecordVlanInsertion($$$)
     my $vname     = $vlan->vname();
     my $vclass    = $vlan->GetClass();
     my $tag       = $vlan->GetReservedVlanTag();
-    return -1
-	if (!defined($tag));
+    if (!defined($tag)) {
+	print STDERR "No reserved vlan tag for $vlan!\n";
+	return -1;
+    }
     my $path      = $vlan->GetSwitchPath();
 
     my @portlist;
@@ -3457,22 +3459,21 @@ sub RecordVLanModification($$$$)
     if (defined($current) && $current ne "") {
 	%current = map { $_ => $_ } split(/\s+/, $current);
     }
+    print "RecordVLanModification: $vlan - @$removed\n";
     print "RecordVLanModification: $vlan - " . join(" ", keys(%current)) . "\n";
 
     if ($added) {
 	foreach my $port (@$added) {
-	    my ($nodeid,$iface) = ($port =~ /(.+):(.+)/);
-
-	    $current{"$nodeid:$iface"} = "$nodeid:$iface"
-		if (!exists($current{"$nodeid:$iface"}));
+	    $current{$port} = $port
+		if (!exists($current{$port}));
 	}
     }
     if ($removed) {
 	foreach my $port (@$removed) {
-	    my ($nodeid,$iface) = ($port =~ /(.+):(.+)/);
+	    print "  $port\n";
 	    
-	    delete($current{"$nodeid:$iface"})
-		if (exists($current{"$nodeid:$iface"}));
+	    delete($current{$port})
+		if (exists($current{$port}));
 	}
     }
     my $members = join(" ", keys(%current));
