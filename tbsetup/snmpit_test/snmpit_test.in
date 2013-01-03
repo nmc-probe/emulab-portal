@@ -1722,14 +1722,20 @@ sub doRestorePortStatus($@) {
 	    print "Could not yank $port from $source_vlan\n";
 	    $errors++;
 	}
-	VLan->RecordVlanInsertion($source_vlan->id(), $stack->{STACKID});
+	if (VLan->RecordVlanInsertion($source_vlan->id(), $stack->{STACKID})){
+	    print "Could not record vlan insertion for $source_vlan\n";
+	    $errors++;
+	}
     }
     if (defined($target_vlan) && $target_vlan->KeepInSync()) {
 	if ($target_vlan->AddPort($port)) {
 	    print "Could not add $port to $target_vlan\n";
 	    $errors++;
 	}
-	VLan->RecordVlanInsertion($target_vlan->id(), $stack->{STACKID});
+	if (VLan->RecordVlanInsertion($target_vlan->id(), $stack->{STACKID})){
+	    print "Could not record vlan insertion for $target_vlan\n";
+	    $errors++;
+	}
     }
 
     # Enable or disable the port
@@ -2068,7 +2074,10 @@ sub CreateOneVlan($$$@)
     # Record an insertion to make sure the DB reflects the current state
     # of the vlan. 
     #
-    VLan->RecordVlanInsertion($vlanid, $stack->{STACKID});
+    if (VLan->RecordVlanInsertion($vlanid, $stack->{STACKID})) {
+	print STDERR "Could not record vlan insertion for $vlanid\n";
+	$errors++;
+    }
 
     #
     # Set the speed and duplex of each interface depending on the
@@ -3122,7 +3131,10 @@ sub doSyncVlansWithDB($) {
 			$errors++;
 		    }
 		}
-		VLan->RecordVlanInsertion($vlan->id(), $stackid);
+		if (VLan->RecordVlanInsertion($vlan->id(), $stackid)) {
+		    print "Could not record vlan insertion for $vlan\n";
+		    $errors++;
+		}
 	    }
 	}
     }
@@ -3396,7 +3408,10 @@ sub doMakeVlan($$@) {
 	    # since we need to compute the path each time we sync it (-X).
 	    setSwitchTrunkPath($source_vlan)
 		if (! $source_vlan->IsShared());
-	    VLan->RecordVlanInsertion($source_vlan, $stack->{STACKID});
+	    if (VLan->RecordVlanInsertion($source_vlan, $stack->{STACKID})) {
+		print "Could not record vlan insertion for $source_vlan\n";
+		$errors++;
+	    }
 	}
 	if (defined($target_vlan) && $target_vlan->KeepInSync()) {
 	    # Have to do this cause we cleared it above
@@ -3410,7 +3425,10 @@ sub doMakeVlan($$@) {
 	    # since we need to compute the path each time we sync it (-X).
 	    setSwitchTrunkPath($target_vlan)
 		if (! $target_vlan->IsShared());
-	    VLan->RecordVlanInsertion($target_vlan, $stack->{STACKID});
+	    if (VLan->RecordVlanInsertion($target_vlan, $stack->{STACKID})) {
+		print "Could not record vlan insertion for $target_vlan\n";
+		$errors++;
+	    }
 	}
     }
     return $errors;
