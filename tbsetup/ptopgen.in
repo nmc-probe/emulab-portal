@@ -1313,7 +1313,8 @@ if ($useblockstore) {
 			   "s.remaining_capacity ".
 			   "from blockstores as b ".
 			   "left join blockstore_state as s ".
-			   "on b.bsidx=s.bsidx");
+			   "on b.bsidx=s.bsidx ".
+			   "where s.remaining_capacity is not null");
     while (my ($nodeId, $bsId, $typeName,
 	       $capacity) = $result->fetchrow_array) {
 	my $type = BlockstoreType->Lookup($typeName);
