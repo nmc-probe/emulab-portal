@@ -715,11 +715,16 @@ sub Shutdown()
 
 sub CreateImage()
 {
-    my ($slice_urn, $imagename, $sliver_urn, $credentials, $options) = @_;
-    if (! defined($slice_urn) || ! defined($credentials) ||
+    my ($slice_urn, $imagename, $sliver_urn, $credential_args, $options) = @_;
+    if (! defined($slice_urn) || ! defined($credential_args) ||
 	! defined($sliver_urn) || ! defined($imagename)
 	|| (! defined($options) && $API_VERSION > 1)) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+
+    my $credentials = $credential_args;
+    if ($API_VERSION >= 3) {
+	$credentials = FilterCredentials($credential_args);
     }
 
     my $args = {
