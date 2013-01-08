@@ -352,6 +352,10 @@ def do_method(module, method, params, URI=None, quiet=False, version=None,
             if not quiet: print >> sys.stderr, e
             return (-1, None)
         except xmlrpclib.Fault, e:
+            if e.faultCode == 503:
+                print >> sys.stderr, e.faultString + " Retrying\n";
+                time.sleep(5.0)
+                continue;
             if not quiet: print >> sys.stderr, e.faultString
             return (-1, None)
         except M2Crypto.SSL.Checker.WrongHost, e:
@@ -393,11 +397,21 @@ def get_self_credential():
         f.close()
         return c
     params = {}
-    rval,response = do_method("sa", "GetCredential", params)
+    rval,response = do_method_retry("sa", "GetCredential", params)
     if rval:
         Fatal("Could not get my credential")
         pass
     return response["value"]
+
+def do_method_retry(suffix, method, params):
+  count = 200;
+  rval, response = do_method(suffix, method, params)
+  while count > 0 and response and response["code"] == 14:
+      count = count - 1
+      print " Will try again in a few seconds\n"
+      time.sleep(5.0)
+      rval, response = do_method(suffix, method, params)
+  return (rval, response)
 
 def resolve_slice( name, selfcredential ):
     if slicecredentialfile:
@@ -413,21 +427,10 @@ def resolve_slice( name, selfcredential ):
         params["hrn"]       = name
         pass
     
-    count = 20
     while True:
-        rval,response = do_method("sa", "Resolve", params)
+        rval,response = do_method_retry("sa", "Resolve", params)
         if rval:
-            if rval == 14:
-                if count:
-                    print " Will try again in a few seconds"
-                    count = count - 1;
-                    time.sleep(5.0)
-                else:
-                    Fatal("Giving up, busy for too long");
-                    pass
-            else:
-                Fatal("Slice does not exist");
-                pass
+            Fatal("Slice does not exist");
             pass
         else:
             break
@@ -450,21 +453,10 @@ def get_slice_credential( slice, selfcredential ):
         params["uuid"]      = slice["uuid"]
         pass
 
-    count = 20
     while True:
-        rval,response = do_method("sa", "GetCredential", params)
+        rval,response = do_method_retry("sa", "GetCredential", params)
         if rval:
-            if rval == 14:
-                if count:
-                    print " Will try again in a few seconds"
-                    count = count - 1;
-                    time.sleep(5.0)
-                else:
-                    Fatal("Giving up, busy for too long");
-                    pass
-            else:
-                Fatal("Could not get Slice credential")
-                pass
+            Fatal("Could not get Slice credential")
             pass
         else:
             break

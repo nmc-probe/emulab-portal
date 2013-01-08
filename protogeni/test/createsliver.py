@@ -76,12 +76,9 @@ print "Got my SA credential"
 if dokeys:
     params = {}
     params["credential"] = mycredential
-    rval,response = do_method("sa", "GetKeys", params)
+    rval,response = do_method_retry("sa", "GetKeys", params)
     if rval:
         Fatal("Could not get my keys")
-        pass
-    mykeys = response["value"]
-    if debug: print str(mykeys)
     pass
 
 #
@@ -105,7 +102,7 @@ if dokeys:
     params["keys"]        = mykeys
     pass
 params["impotent"]    = impotent
-rval,response = do_method("cm", "CreateSliver", params, version="2.0")
+rval,response = do_method_retry("cm", "CreateSliver", params)
 if rval:
     Fatal("Could not create sliver")
     pass

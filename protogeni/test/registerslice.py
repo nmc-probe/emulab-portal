@@ -62,7 +62,7 @@ params = {}
 params["credential"] = mycredential
 params["type"]       = "Slice"
 params["hrn"]        = SLICENAME
-rval,response = do_method("sa", "Resolve", params)
+rval,response = do_method_retry("sa", "Resolve", params)
 if rval == 0:
     print "Slice already exists."
     sys.exit(0)
@@ -83,7 +83,7 @@ params["credential"] = mycredential
 params["type"]       = "Slice"
 params["hrn"]        = SLICENAME
 params["expiration"] = valid_until
-rval,response = do_method("sa", "Register", params)
+rval,response = do_method_retry("sa", "Register", params)
 if rval:
     Fatal("Could not get my slice")
     print str(rval)
@@ -101,7 +101,7 @@ if OtherUser:
     params["hrn"]       = OtherUser;
     params["credential"] = mycredential
     params["type"]       = "User"
-    rval,response = do_method("sa", "Resolve", params)
+    rval,response = do_method_retry("sa", "Resolve", params)
     if rval:
         Fatal("Could not resolve other user")
         pass
@@ -114,7 +114,7 @@ if OtherUser:
     params = {}
     params["urn"]        = user["urn"]
     params["credential"] = myslice
-    rval,response = do_method("sa", "BindToSlice", params)
+    rval,response = do_method_retry("sa", "BindToSlice", params)
     if rval:
         Fatal("Could not bind other user to slice")
         pass
