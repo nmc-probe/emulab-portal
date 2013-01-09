@@ -3646,6 +3646,7 @@ CREATE TABLE `reserved_blockstores` (
   `eid` varchar(32) NOT NULL default '',
   `exptidx` int(11) NOT NULL default '0',
   `size` int(10) unsigned NOT NULL default '0',
+  `vnode_id` varchar(32) NOT NULL default '',
   `rsrv_time` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
   PRIMARY KEY (`exptidx`,`bsidx`,`vname`),
   UNIQUE KEY `vname` (`exptidx`,`vname`),
