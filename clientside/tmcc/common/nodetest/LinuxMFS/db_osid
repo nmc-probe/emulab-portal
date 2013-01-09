@@ -1,0 +1,15 @@
+<osid>
+ <attribute name="OS"><value>Linux</value></attribute>
+ <attribute name="description"><value>Linux admin MFS</value></attribute>
+ <attribute name="features"><value>ping,ssh,ipod,isup</value></attribute>
+ <attribute name="magic"><value></value></attribute>
+ <attribute name="mfs"><value>1</value></attribute>
+ <attribute name="mustclean"><value>1</value></attribute>
+ <attribute name="op_mode"><value>PXEFBSD</value></attribute>
+ <attribute name="osname"><value>MachineCheck</value></attribute>
+ <attribute name="path"><value>/tftpboot/mcheck</value></attribute>
+ <attribute name="pid"><value>emulab-ops</value></attribute>
+ <attribute name="reboot_waittime"><value>120</value></attribute>
+ <attribute name="shared"><value>1</value></attribute>
+ <attribute name="version"><value>2.6.27.8</value></attribute>
+</osid>
