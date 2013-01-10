@@ -32,7 +32,7 @@ $optargs = OptionalPageArguments("submit",      PAGEARG_STRING,
 if (!isset($query) || $query == "Search Documentation") {
     $query = "";
 }
-header("Location: https://wiki.emulab.net/@@search?SearchableText=$query");
+header("Location: http://wiki.emulab.net/@@search?SearchableText=$query");
 
 ?>
 
