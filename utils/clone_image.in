@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -229,7 +229,6 @@ my %xmlfields =
      "OS"		=> $base_osinfo->OS(),
      "version"		=> $base_osinfo->version(),
      "path"		=> "$PROJROOT/$pid/images/${imagename}.ndz",
-     "osfeatures",	=> $base_osinfo->osfeatures(),
      "op_mode",		=> $base_osinfo->op_mode(),
      "global"           => (defined($global) ?
 			    ($global ? 1 : 0) : $base_osinfo->shared()),
@@ -237,6 +236,9 @@ my %xmlfields =
 );
 $xmlfields{"reboot_waittime"} = $base_osinfo->reboot_waittime()
     if (defined($base_osinfo->reboot_waittime()));
+$xmlfields{"osfeatures"} = $base_osinfo->osfeatures()
+    if (defined($base_osinfo->osfeatures()) &&
+	$base_osinfo->osfeatures() ne "");
     
 if (defined($base_image)) {
     $xmlfields{"mbr_version"}     = $base_image->mbr_version();
