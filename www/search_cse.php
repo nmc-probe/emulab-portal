@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,11 +29,10 @@ require("defs.php3");
 $optargs = OptionalPageArguments("submit",      PAGEARG_STRING,
 				 "query",       PAGEARG_STRING);
 
-if (!isset($query)) {
+if (!isset($query) || $query == "Search Documentation") {
     $query = "";
 }
-
-header("Location: http://www.google.com/cse?cx=007876920815929749329:hb-sxxwdr8y&ie=UTF-8&q=$query&sa=\"Search+Documentation\"");
+header("Location: https://wiki.emulab.net/@@search?SearchableText=$query");
 
 ?>
 
