@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -235,6 +235,7 @@ sub virtnodecount($)	{ return $_[0]->counter("virtcount"); }
 sub simnodecount($)	{ return $_[0]->counter("simcount"); }
 sub remotenodecount($)	{ return $_[0]->counter("remotecount"); }
 sub sharednodecount($)	{ return $_[0]->counter("sharedcount"); }
+sub bstorecount($)	{ return 0; }
 
 sub createLink($$$$$$$$$)
 {
