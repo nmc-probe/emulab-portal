@@ -46,7 +46,6 @@ $JAILIPMASK  = "@JAILIPMASK@";
 use libdb;
 use libtestbed;
 use emutil;
-use Blockstore;
 use event;
 use English;
 use Socket;
@@ -1757,6 +1756,8 @@ sub ReleaseSharedBandwidth($)
 sub ReleaseBlockStore($)
 {
     my ($self) = @_;
+
+    require Blockstore;
 
     # Must be a real reference. 
     return -1
