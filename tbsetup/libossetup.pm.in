@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -2007,6 +2007,43 @@ sub WaitDone($@)
     # I think this will work; just use the virtnode waitdone function.
     #
     return libossetup_virtnode::WaitDone($self, @nodelist);
+}
+
+#####################################################################
+#
+# Place holder for blockstore
+#
+package libossetup_blockstore;
+use base qw(libossetup_subnode);
+
+#
+# A constructor for an object to handle all nodes of this type.
+#
+sub New($$) {
+    my ($class, $parent) = @_;
+
+    my $self = $class->SUPER::New("blockstore", $parent);
+    bless($self, $class);
+    return $self;
+}
+
+sub AddNode($$)
+{
+    my ($self, $node) = @_;
+
+    print "Will skip blockstore $node ISUP wait.\n";
+
+    return $self->SUPER::AddNode($node);
+}
+
+#
+# We do not currently do anything with blockstores; no waiting for ISUP. 
+#
+sub Volunteers($)
+{
+    my ($self) = @_;
+
+    return ();
 }
 
 1;

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,6 +46,7 @@ $JAILIPMASK  = "@JAILIPMASK@";
 use libdb;
 use libtestbed;
 use emutil;
+use Blockstore;
 use event;
 use English;
 use Socket;
@@ -1749,6 +1750,29 @@ sub ReleaseSharedBandwidth($)
 }
 
 #
+# Relase the reserved blockstore, which requires updating the
+# remaining_capacity on the underyling store. At the present
+# time, one blockstore is mapped to one pcvm. 
+#
+sub ReleaseBlockStore($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id    = $self->node_id();
+    my $blockstore = Blockstore::Reservation->LookupByNodeid($node_id);
+    return 0
+	if (!defined($blockstore));
+    return -1
+	if (!ref($blockstore));
+
+    return $blockstore->Release();
+}
+
+#
 # Look up all interfaces for a node, return list of objects.
 #
 sub AllInterfaces($$)
@@ -2129,8 +2153,7 @@ sub CreateVnodes($$$)
     my $sharing_mode = $node->sharing_mode();
     
     if (! ($impotent || $isfednode)) {
-	my $reservation = $node->Reservation();
-	if (!defined($reservation)) {
+	if (!$node->IsReserved()) {
 	    print STDERR "*** CreateVnodes: no reservation for $node!\n";
 	    DBQueryFatal("unlock tables");
 	    return -1;
@@ -2142,7 +2165,11 @@ sub CreateVnodes($$$)
 	# is on and the pnode is in sharedmode. Locking in nfree and in
 	# the pool daemon prevents the race. 
 	#
-	if (!$experiment->SameExperiment($reservation)) {
+	# Cause of locking above, we need to make the comparison directly
+	# using the slot data in the node.
+	#
+	if (! ($experiment->pid() eq $node->pid() &&
+	       $experiment->eid() eq $node->eid())) {
 	    if (! ($sharedokay && $sharing_mode)) {
 		print STDERR "*** CreateVnodes: $node is not shared!\n";
 		DBQueryFatal("unlock tables");

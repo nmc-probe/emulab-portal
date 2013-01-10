@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -960,6 +960,7 @@ Link instproc updatedb {DB} {
     $self instvar bridge_links
     $self instvar settings
     $self instvar member_settings
+    $self instvar sanlan
     set vindex 0
 
     $sim spitxml_data "virt_lan_lans" [list "vname" "failureaction"] [list $self $failureaction]
@@ -972,6 +973,13 @@ Link instproc updatedb {DB} {
 	set values [list $self $setting $settings($setting)]
 	
 	$sim spitxml_data "virt_lan_settings" $fields $values
+    }
+
+    #
+    # If this is a SAN, then nullify shaping
+    #
+    if {$sanlan == 1} {
+	set nobwshaping 1
     }
 
     foreach nodeport $nodelist {

@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -225,11 +225,11 @@ Simulator instproc duplex-link {n1 n2 bw delay type args} {
 	punsup "Arguments for duplex-link: $args"
     }
     set error 0
-    if {! [$n1 info class Node]} {
+    if {! [$n1 info class Node] && ! [$n1 info class Blockstore] } {
 	perror "\[duplex-link] $n1 is not a node."
 	set error 1
     }
-    if {! [$n2 info class Node]} {
+    if {! [$n2 info class Node] && ! [$n2 info class Blockstore] } {
 	perror "\[duplex-link] $n2 is not a node."
 	set error 1
     }
@@ -572,8 +572,6 @@ Simulator instproc run {} {
 	    if {[$child info class Node]} {
 		set childtype [$child set type]
 		$node add-desire "hosts-$childtype" 1.0
-	    } elseif {[$child info class Blockstore]} {
-		$node add-desire "sanhost" 1.0
 	    }
 	}
     }
@@ -665,6 +663,11 @@ Simulator instproc run {} {
  	append nsecfg_script $nseconfig
 
 	$self spitxml_data "nseconfigs" [list "vname" "nseconfig" ] [list fullsim $nsecfg_script ]
+    }
+
+    # Make sure the blockstore parent nodes are created.
+    foreach blockstore [array names blockstore_list] {
+	set blockstore_node [$blockstore get_node]
     }
     
     # Update the DB

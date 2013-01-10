@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -37,11 +37,13 @@ use libdb;
 use libtblog_simple;
 use libtestbed;
 use Experiment;
+use EmulabConstants;
 use VirtExperiment;
 use Node;
 use NodeType;
 use Lan;
 use OSinfo;
+use Blockstore;
 use Image;
 use Port;
 use English;
@@ -107,6 +109,8 @@ sub Create($$$$)
     $self->{'DELAYNODES'} = {};
     $self->{'LANNODES'}   = {};
     $self->{'BRIDGES'}    = {};
+    $self->{'BLOCKSTORES'}= {};
+    $self->{'SANHOSTS'}   = {};
     $self->{'VLANS'}      = {};
     $self->{'VPATHS'}     = {};
     $self->{'MEMBEROF'}   = {};
@@ -154,6 +158,8 @@ sub flags($)            { return $_[0]->{'FLAGS'}; }
 sub vnodes($)           { return $_[0]->{'VNODES'}; }
 sub delaynodes($)       { return $_[0]->{'DELAYNODES'}; }
 sub bridges($)          { return $_[0]->{'BRIDGES'}; }
+sub blockstores($)      { return $_[0]->{'BLOCKSTORES'}; }
+sub sanhosts($)         { return $_[0]->{'SANHOSTS'}; }
 sub lannodes($)         { return $_[0]->{'LANNODES'}; }
 sub vlans($)            { return $_[0]->{'VLANS'}; }
 sub memberof($)         { return $_[0]->{'MEMBEROF'}; }
@@ -199,10 +205,14 @@ sub virt_trafgens($)	{ return $_[0]->virt_table("virt_trafgens"); }
 sub virt_lan_settings($){ return $_[0]->virt_table("virt_lan_settings"); }
 sub virt_lan_member_settings($)	{
     return $_[0]->virt_table("virt_lan_member_settings"); }
+sub virt_blockstores($) { return $_[0]->virt_table("virt_blockstores"); }
+sub virt_blockstore_attributes($) {
+    return $_[0]->virt_table("virt_blockstore_attributes"); }
 
 # Given a vname, is it a node in the topo (or something else like a delay).
 sub isatoponode($$)     { return exists($_[0]->vnodes()->{$_[1]}); }
 sub isadelaynode($$)    { return exists($_[0]->delaynodes()->{$_[1]}); }
+sub isasanhost($$)      { return exists($_[0]->sanhosts()->{$_[1]}); }
 
 # Debug output.
 sub verbose($)		{ return $_[0]->flags() & $VTOP_FLAGS_VERBOSE; }
@@ -239,6 +249,7 @@ sub virtnodecount($)	{ return $_[0]->counter("virtcount"); }
 sub simnodecount($)	{ return $_[0]->counter("simcount"); }
 sub remotenodecount($)	{ return $_[0]->counter("remotecount"); }
 sub sharednodecount($)	{ return $_[0]->counter("sharedcount"); }
+sub bstorecount($)	{ return $_[0]->counter("bstorecount"); }
 
 sub createLink($$$$$$$$$)
 {
@@ -1136,6 +1147,9 @@ sub LoadVirtNodes($)
 	$vnode->_sharedokay(0);
 	$vnode->_fixedvm(undef);
 	$vnode->_isbridge(($vnode->role() eq "bridge" ? 1 : 0));
+	$vnode->_blockstore(undef);
+	$vnode->_blockstore_attributes(undef);
+	$vnode->_sanhostname(undef);
 
 	#
 	# Explicit type request desire to match feature.
@@ -1450,7 +1464,47 @@ sub LoadVirtNodes($)
 
 	$self->printdb("Fixing VM $vname to $fixnode, $osinfo\n");
     }
-    
+
+    #
+    # Load up the blockstore stuff since we have to spit out the
+    # attributes as desires.
+    #
+    foreach my $virt_bs ($self->virt_blockstores()->Rows()) {
+	#
+	# The blockstore is fixed to a node in the topo.
+	#
+	my $fixnode = $self->vnodes()->{$virt_bs->fixed()};
+	if (!defined($fixnode)) {
+	    tberror("Blockstore $virt_bs is fixed to non-existent node\n");
+	    return -1;
+	}
+
+	#
+	# We need a place to hang the attributes, but they are split
+	# between the blockstore and the blockstore_attributes. Another
+	# wrinkle is that the blockstore is assigned to a node in the
+	# topo, and it is that node that we have to hang the desires off.
+	#
+	$self->blockstores()->{$virt_bs->vname()} = $fixnode;
+	$fixnode->_blockstore($virt_bs);
+	$fixnode->_sanhostname("sanhost-" . $virt_bs->vname());
+	$fixnode->_blockstore_attributes({});
+	# XXX Are these always in shared mode?
+	$fixnode->_sharedokay(1);
+	
+	$self->{'COUNTERS'}->{'bstorecount'}++;
+    }
+    foreach my $virt_bs_attr ($self->virt_blockstore_attributes()->Rows()) {
+	my $vname   = $virt_bs_attr->vname();
+	my $attrkey = $virt_bs_attr->attrkey();
+	my $attrval = $virt_bs_attr->attrvalue();
+
+	next
+	    if (! exists($self->blockstores()->{$vname}));
+
+	my $fixnode = $self->blockstores()->{$vname};
+	$fixnode->_blockstore_attributes()->{$attrkey} = $attrval;
+    }
     return 0;
 }
 
@@ -1949,6 +2003,36 @@ sub GenVirtNodes($)
 	if ($vnode->_issubnode()) {
 	    $others->{'subnode'} = $vnode->_parent();
 	}
+	if (defined($vnode->_blockstore())) {
+	    my $virt_bs  = $vnode->_blockstore();
+	    my $bs_vname = $virt_bs->vname();
+
+	    # This is an additive desire. 
+	    $desires->{"bs-capacity"} = ['+', $virt_bs->size()];
+
+	    # The rest come from the attributes.
+	    foreach my $attrkey (keys(%{ $vnode->_blockstore_attributes() })) {
+		my $attrval = $vnode->_blockstore_attributes()->{$attrkey};
+
+		$desires->{"bs-${attrkey}-${attrval}"} = ['', 1.0];
+	    }
+	    my $sanhost = $vnode->_sanhostname();
+	    
+	    #
+	    # Create a parent node for the sanhost. 
+	    #
+	    $self->createNode($sanhost, $mycmurn,
+			      "pc", '1', {"pcstorage" => ['', 1.0]}, undef);
+	    $self->sanhosts()->{$sanhost} = $sanhost;
+
+	    #
+	    # We must do this so that assign maps the blockhost and
+	    # sanhost as a unit. Otherwise, it might allocate a subnode
+	    # but pick some other physical node to be the parent. Note that
+	    # ptop file also has subnode decls in it. 
+	    #
+	    $others->{'subnode'} = $sanhost;
+	}
 	foreach my $desirename (keys(%{ $vnode->_desires() })) {
 	    my $weight = $vnode->_desires()->{$desirename};
 	    $desires->{$desirename} = ['', $weight];
@@ -1967,7 +2051,7 @@ sub GenVirtNodes($)
 	# the OS it is going to run. However, if the OS is one with a
 	# 'path' (like an OSKit kernel), we don't have an entry in
 	# osidtoimageid for it, and thus we leave it off of the desire list
-	if (defined($vnode->_osinfo())) {
+	if (defined($vnode->_osinfo()) && !defined($vnode->_blockstore())) {
 	    my $osinfo = $vnode->_osinfo();
 	    #
 	    # Support subOSes with a multi-OS desire.  Since the pnodes
@@ -2127,7 +2211,8 @@ sub GenFixNodes($)
 	}
 
 	# Normal nodes have a vnode but delay nodes do not.
-	if (!defined($vnode) && !$self->isadelaynode($vname)) {
+	if (!defined($vnode) && !$self->isadelaynode($vname) &&
+	    !$self->isasanhost($vname)) {
 	    tbinfo("GenFixNodes: No vnode for $vname\n");
 	}
 
@@ -2147,7 +2232,8 @@ sub GenFixNodes($)
 	    if (defined($vnode) && 
 		$vnode->_isvirtnode() && defined($vnode->_fixedvm()));
 
-	if ($self->isatoponode($vname) || $self->isadelaynode($vname)) {
+	if ($self->isatoponode($vname) || $self->isadelaynode($vname) ||
+	    $self->isasanhost($vname)) {
 	    $self->createFixedNode($vname, $fixed);
 	}
     }
@@ -3137,8 +3223,14 @@ sub GenVirtLans($)
 		    if (defined($virtnode0->_fixedvm())) {
 			$vname0 = $virtnode0->_fixedvm()->vname();
 		    }
+		    elsif (defined($virtnode0->_sanhostname())) {
+			$vname0 = $virtnode0->_sanhostname();
+		    }
 		    if (defined($virtnode1->_fixedvm())) {
 			$vname1 = $virtnode1->_fixedvm()->vname();
+		    }
+		    elsif (defined($virtnode1->_sanhostname())) {
+			$vname1 = $virtnode1->_sanhostname();
 		    }
 		    $self->createLink($vname, $plink,
 				      [$virtnode0->_cmurn(),
@@ -3629,6 +3721,7 @@ sub CreateVtop($)
     $self->{'COUNTERS'}->{'simcount'}    = 0;
     $self->{'COUNTERS'}->{'remotecount'} = 0;
     $self->{'COUNTERS'}->{'sharedcount'} = 0;
+    $self->{'COUNTERS'}->{'bstorecount'} = 0;
     $self->{'COUNTERS'}->{'physcount'}   = 0;
 
     #
@@ -3970,6 +4063,8 @@ sub solution_vethpatch($) { return $_[0]->{'SOLUTION'}->{'VETHPATCHES'}; }
 sub solution_portmap($)   { return $_[0]->{'SOLUTION'}->{'PORTMAP'}; }
 sub solution_vifacemap($) { return $_[0]->{'SOLUTION'}->{'VIFACEMAP'}; }
 sub solution_ifacemap($)  { return $_[0]->{'SOLUTION'}->{'IFACEMAP'}; }
+sub solution_blockstores($){ return $_[0]->{'SOLUTION'}->{'BLOCKSTORES'}; }
+sub solution_sanhosts($)  { return $_[0]->{'SOLUTION'}->{'SANHOSTS'}; }
 
 sub MapResources($)
 {
@@ -4014,6 +4109,8 @@ sub ClearSolution($)
     $self->{'SOLUTION'}->{'PORTMAP'}     = {};
     $self->{'SOLUTION'}->{'VIFACEMAP'}   = {};
     $self->{'SOLUTION'}->{'IFACEMAP'}    = {};
+    $self->{'SOLUTION'}->{'BLOCKSTORES'} = {};
+    $self->{'SOLUTION'}->{'SANHOSTS'}    = {};
 
     return 0;
 }
@@ -4047,6 +4144,25 @@ sub AddNodeToSolution($$$)
     }
     elsif ($PGENISUPPORT && GeniHRN::IsValid($physical)) {
 	(undef,undef,$physical) = GeniHRN::Parse($physical);
+    }
+
+    #
+    # Watch for blockstore nodes; the physical nodes in the
+    # ptop file are fictitious. For example, dbox1:raid1 is
+    # the blockstore raid1 on physical host dbox1. The virtnode
+    # is then mapped to dbox1, and the blockstore is the raid1
+    # entry in the physical blockstores table. 
+    #
+    if ($virtnode && defined($virtnode->_blockstore())) {
+	my ($bphys,$bstore) = split(":", $physical);
+	my $virt_bs  = $virtnode->_blockstore();
+	my $bs_name  = $virt_bs->vname();
+
+	# Record blockstore assignment for upload later.
+	$self->solution_blockstores()->{$bs_name} = $bstore;
+
+	# Actual mapping.
+	$physical = $bphys;
     }
 
     # All we do in this stage is store the results.
@@ -4452,6 +4568,16 @@ sub InterpNodes($)
 	# This might not exist, as for internal nodes.
 	my $virtnode = $self->vnodes()->{$virtual};
 
+	$self->printdb("$physical, $virtual" .
+		       (defined($pnode) ? ", $pnode" : "") .
+		       (defined($virtnode) ? ", $virtnode" : "") . "\n");
+
+	#
+	# Skip sanhosts; only there cause of the subnode relationship.
+	#
+	next
+	    if (!defined($virtnode) && exists($self->sanhosts()->{$virtual}));
+
 	#
 	# A node already allocated to this experiment, and still wanted.
 	# We also have to watch for shared nodes; we will not have the
@@ -4538,18 +4664,25 @@ sub InterpNodes($)
 
 	if (!defined($virtnode)) {
 	    #
-	    # Internally created node. At the moment, these should be
-	    # delay nodes.
+	    # Internally created node.
 	    #
-	    if (! exists($self->delaynodes()->{$virtual})) {
+	    if (! ($self->isadelaynode($virtual) ||
+		   $self->isasanhost($virtual))) {
 		tbwarn("Unknown node $virtual on $physical\n");
 		return -1;
 	    }
-	    if (!exists($self->solution_delaynodes()->{$physical})) {
-		$self->solution_delaynodes()->{$physical} = [];
+	    if ($self->isadelaynode($virtual)) {
+		if (!exists($self->solution_delaynodes()->{$physical})) {
+		    $self->solution_delaynodes()->{$physical} = [];
+		}
+		push(@{$self->solution_delaynodes()->{$physical}}, $virtual);
 	    }
-	    push(@{$self->solution_delaynodes()->{$physical}}, $virtual);
-	    
+	    elsif ($self->isasanhost($virtual)) {
+		if (!exists($self->solution_sanhosts()->{$physical})) {
+		    $self->solution_sanhosts()->{$physical} = [];
+		}
+		push(@{$self->solution_sanhosts()->{$physical}}, $virtual);
+	    }
 	}
 	elsif ($virtnode->_isvirtnode()) {
 	    #
@@ -4785,9 +4918,14 @@ sub AllocNodes($)
 	
 	$pnode->FlushReserved();
 	my $reservation = $pnode->Reservation();
-	if (!defined($reservation) ||
-	    (! $reservation->SameExperiment($self->experiment()) &&
-	     ! $pnode->erole() eq "sharedhost")) {
+
+	# We got the node we wanted. 
+	next
+	    if (defined($reservation) &&
+		$reservation->SameExperiment($self->experiment()));
+	
+	if (! ($pnode->erole() eq "sharedhost" ||
+	       $pnode->erole() eq "storagehost")) {
 	    tbinfo("$pnode is not in shared mode.\n");
 	    $rerun++;
 	}
@@ -5491,7 +5629,8 @@ sub InterpLinks($)
 	or return -1;
     $self->UpLoadInterfaceSettings() == 0
 	or return -1;
-
+    $self->UploadBlockstores() == 0
+	or return -1;
     return 0;
 }
 
@@ -6416,6 +6555,8 @@ sub InitializePhysNodes($)
 	$pnode->FlushReserved();
 	my $reservation = $pnode->Reservation();
 
+	print STDERR "$pnodename\n";
+
 	#
 	# We should never try to initialize a node that is not
 	# allocated to the experiment. 
@@ -6427,6 +6568,11 @@ sub InitializePhysNodes($)
 	     !$self->experiment()->SameExperiment($reservation))) {
 	    if (defined($pnode->sharing_mode())) {
 		$self->printdb("InitPnode: Skipping shared host $pnodename\n");
+		next;
+	    }
+	    elsif (defined($pnode->erole()) &&
+		   $pnode->erole() eq TBDB_RSRVROLE_STORAGEHOST()) {
+		tbinfo("InitPnode: Skipping $pnodename; storage host\n");
 		next;
 	    }
 	    elsif (! ($self->impotent() && 
@@ -6452,6 +6598,11 @@ sub InitializePhysNodes($)
 
 	if (exists($self->solution_delaynodes()->{$pnodename})) {
 	    $role = TBDB_RSRVROLE_DELAYNODE;
+	    # Need only one of the virtnodes to complete the initialization
+	    $vnodename = $vnodelist[0];
+	}
+	elsif (exists($self->solution_sanhosts()->{$pnodename})) {
+	    $role = TBDB_RSRVROLE_STORAGEHOST;
 	    # Need only one of the virtnodes to complete the initialization
 	    $vnodename = $vnodelist[0];
 	}
@@ -6544,11 +6695,17 @@ sub InitializePhysNode($$$)
     my $routertype;
 
     if ($role eq TBDB_RSRVROLE_DELAYNODE() ||
+	$role eq TBDB_RSRVROLE_STORAGEHOST() ||
 	($role eq TBDB_RSRVROLE_VIRTHOST() && $virtnode->_isvirtnode())) {
 	#
 	# One of our internally created nodes. 
 	#
-	if ($role eq TBDB_RSRVROLE_DELAYNODE()) {
+	if ($role eq TBDB_RSRVROLE_STORAGEHOST()) {
+	    #
+	    # A storage host.
+	    #
+	}
+	elsif ($role eq TBDB_RSRVROLE_DELAYNODE()) {
 	    #
 	    # A delay node.
 	    #
@@ -8501,6 +8658,47 @@ sub UpLoadInterfaceSettings($)
 		$self->printdb("interface_setting: ".
 			       "$pnodename $iface accesspoint $apmac\n");
 	    }
+	}
+    }
+    return 0;
+}
+
+sub UploadBlockstores($)
+{
+    my ($self) = @_;
+    my $experiment = $self->experiment();
+    my $exptidx = $experiment->idx();
+    my $pid = $experiment->pid();
+    my $eid = $experiment->eid();
+
+    #
+    # vname   = "blockstore-d1"
+    # bs_name = "d1"
+    # bstore  = "raid1"
+    # vvnode  = "dboxvm1-1"
+    # pnode   = "dbox1"
+    #
+    foreach my $bs_name (keys(%{ $self->blockstores() })) {
+	my $virtnode = $self->blockstores()->{$bs_name};
+	my $bstore   = $self->solution_blockstores()->{$bs_name};
+	my $vname    = $virtnode->vname();
+	my $vvnode   = $self->solution_v2v()->{$vname};
+	my $vpnode   = $virtnode->_pnode();
+	my $pnode    = $vpnode->phys_nodeid();
+	my $size     = $virtnode->_blockstore()->size();
+
+	$self->printdb("BlockStore: ".
+		       "$vname, $bstore, $size, $vvnode, $vpnode, $pnode\n");
+
+	my $blockstore = Blockstore->Lookup($pnode, $bstore);
+	if (!defined($blockstore)) {
+	    tberror("Could not lookup blockstore $pnode:$bstore\n");
+	    return -1;
+	}
+	if (!$self->impotent() &&
+	    $blockstore->Reserve($experiment, $vvnode, $bs_name, $size)) {
+	    tberror("Could not lookup reserve $pnode:$bstore $size\n");
+	    return -1;
 	}
     }
     return 0;

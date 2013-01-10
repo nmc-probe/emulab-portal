@@ -1,7 +1,7 @@
 
 # -*- tcl -*-
 #
-# Copyright (c) 2012 University of Utah and the Flux Group.
+# Copyright (c) 2012-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -125,11 +125,10 @@ Blockstore instproc get_node {} {
     }
 
     # Allocate parent host and bind to it.
-    set hname "sanhost-${self}"
+    set hname "blockhost-${self}"
     uplevel "#0" "set $hname [$sim node]"
-    $hname set subnodehost 1
-    $hname set subnodechild $self
     set node $hname
+    $node set_hwtype "blockstore" 0 1 0    
 
     # Return parent node object.
     return $hname
