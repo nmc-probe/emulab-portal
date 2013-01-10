@@ -27,6 +27,7 @@ crl		= $dir/crl.pem 		# The current CRL
 private_key	= $dir/cakey.pem        # The private key
 RANDFILE	= $dir/.rand		# private random number file
 x509_extensions	= usr_cert		# The extentions to add to the cert
+#copy_extensions = copy			# For subjectaltnames in apache-ops.pem
 
 # Extensions to add to a CRL. Note: Netscape communicator chokes on V2 CRLs
 # so this is commented out by default to leave a V1 CRL.
