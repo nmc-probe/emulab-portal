@@ -371,7 +371,7 @@ sub Release($)
     #
     if (!DBQueryWarn("update blockstore_state,reserved_blockstores set ".
 		"     remaining_capacity=remaining_capacity+size, ".
-		"     size=0-size ".
+		"     size=0 ".
 		"where blockstore_state.bsidx=reserved_blockstores.bsidx and ".
 		"      blockstore_state.bs_id=reserved_blockstores.bs_id and ".
 		"      reserved_blockstores.bsidx='$bsidx' and ".
