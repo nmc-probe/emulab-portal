@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,11 +38,11 @@ include $(OBJDIR)/Makeconf
 
 all:	emulab.pem server.pem localnode.pem ctrlnode.pem \
 	capture.pem capture.fingerprint capture.sha1fingerprint \
-	keys mksig jabber.pem updatecert
+	keys mksig updatecert
 
 remote-site:	emulab.pem capture.pem capture.fingerprint server.pem \
 	localnode.pem capture.sha1fingerprint apache.pem apache-ops.pem \
-	ctrlnode.pem jabber.pem updatecert
+	ctrlnode.pem updatecert
 
 clearinghouse:	emulab.pem apache.pem
 
@@ -120,21 +120,6 @@ capture.pem:	dirsmade mkserial capture.cnf ca.cnf capture.key capture.req
 	#
 	cat capture.key >> capture.pem
 
-jabber.pem:	dirsmade mkserial jabber.cnf ca.cnf jabber.key jabber.req
-	# Create the serial file.
-	perl ./mkserial
-	#
-	# Sign the server cert request, creating a server certificate.
-	#
-	openssl ca -batch -policy policy_sslxmlrpc -config ca.cnf \
-		-out jabber.pem -cert emulab.pem -keyfile emulab.key \
-		-infiles jabber.req
-	#
-	# Combine the key and the certificate into one file which is installed
-	# on boss and used by tmcd.
-	#
-	cat jabber.key >> jabber.pem
-
 #
 # Generate the fingerprint of the capture certificate
 # NOTE: I'd rather use SHA1 than SHA, but we've widely distributed the
@@ -192,7 +177,6 @@ recover-keys:
 	-cp $(APACHE_KEYFILE) apache.key
 	-openssl rsa -in $(INSTALL_DIR)/etc/server.pem -out server.key
 	-openssl rsa -in $(INSTALL_DIR)/etc/capture.pem -out capture.key
-	-openssl rsa -in $(INSTALL_DIR)/etc/jabber.pem -out jabber.key
 	-openssl rsa -in $(INSTALL_DIR)/etc/ctrlnode.pem -out ctrlnode.key
 	-openssl rsa -in $(INSTALL_DIR)/etc/client.pem -out localnode.key
 	-scp ${USERNODE}:${APACHE_KEYFILE_OPS} apache-ops.key
