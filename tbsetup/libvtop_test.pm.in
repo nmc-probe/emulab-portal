@@ -5527,7 +5527,8 @@ sub InterpLinks($)
 	    if ($pnode->isvirtnode());
 
 	if (defined($virtnode->sharing_mode()) &&
-	    $virtnode->sharing_mode() eq "shared_local") {
+	    ($virtnode->sharing_mode() eq "shared_local" ||
+	     $virtnode->sharing_mode() eq "storage_pool")) {
 	    push(@sharedpnodes, $pnode);
 	}
     }
