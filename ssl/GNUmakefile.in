@@ -56,13 +56,18 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 #
 pems:	emulab.pem server.pem client.pem
 
-emulab.pem:	dirsmade mkserial emulab.cnf emulab.key 
+emulab.pem:	dirsmade mkserial emulab.cnf emulab-geni.cnf emulab.key 
 	#
 	# Create the Certificate Authority.
 	# The certificate is installed on both boss and remote nodes.
 	#
+ifeq (@PROTOGENI_SUPPORT@,1)
+	openssl req -new -x509 -days 2000 -config emulab-geni.cnf \
+		    -text -key emulab.key -out emulab.pem
+else
 	openssl req -new -x509 -days 2000 -config emulab.cnf \
 		    -text -key emulab.key -out emulab.pem
+endif
 
 server.pem:	dirsmade mkserial server.cnf ca.cnf server.key server.req
 	# Create the serial file.
