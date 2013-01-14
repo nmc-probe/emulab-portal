@@ -1803,7 +1803,8 @@ CREATE TABLE `image_history` (
   KEY `node_id` (`node_id`,`history_id`),
   KEY `stamp` (`stamp`),
   KEY `rsrcidx` (`rsrcidx`),
-  KEY `node_history_id` (`node_history_id`)
+  KEY `node_history_id` (`node_history_id`),
+  KEY `imagestamp` (`imageid`,`stamp`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -1837,7 +1838,11 @@ CREATE TABLE `images` (
   `old_imageid` varchar(45) NOT NULL default '',
   `creator` varchar(8) default NULL,
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
+  `creator_urn` varchar(128) default NULL,
   `created` datetime default NULL,
+  `updater` varchar(8) default NULL,
+  `updater_idx` mediumint(8) unsigned NOT NULL default '0',
+  `updater_urn` varchar(128) default NULL,
   `description` tinytext NOT NULL,
   `loadpart` tinyint(4) NOT NULL default '0',
   `loadlength` tinyint(4) NOT NULL default '0',

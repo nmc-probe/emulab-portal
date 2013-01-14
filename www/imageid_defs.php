@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2012 University of Utah and the Flux Group.
+# Copyright (c) 2006-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -341,6 +341,7 @@ class Image
     function uuid()		{ return $this->field("uuid"); }
     function creator()		{ return $this->field("creator"); }
     function creator_idx()	{ return $this->field("creator_idx"); }
+    function creator_urn()	{ return $this->field("creator_urn"); }
     function created()		{ return $this->field("created"); }
     function description()	{ return $this->field("description"); }
     function loadpart()		{ return $this->field("loadpart"); }
@@ -356,6 +357,8 @@ class Image
     function shared()		{ return $this->field("shared"); }
     function isglobal()		{ return $this->field("global"); }
     function updated()		{ return $this->field("updated"); }
+    function updater()		{ return $this->field("updater"); }
+    function updater_urn()	{ return $this->field("updater_urn"); }
     function mbr_version()	{ return $this->field("mbr_version"); }
     function hash()		{ return $this->field("hash"); }
     function metadata_url()	{ return $this->field("metadata_url"); }
@@ -523,8 +526,11 @@ class Image
 	$shared		= $this->shared();
 	$globalid	= $this->isglobal();
 	$creator	= $this->creator();
+	$creator_urn	= $this->creator_urn();
 	$created	= $this->created();
 	$updated	= $this->updated();
+	$updater	= $this->updater();
+	$updater_urn	= $this->updater_urn();
 	$uuid           = $this->uuid();
 	$mbr_version    = $this->mbr_version();
 	$hash           = $this->hash();
@@ -557,6 +563,13 @@ class Image
               </tr>\n";
 
 	echo "<tr>
+                <td>Description: </td>
+                <td class=left>\n";
+	echo "$description";
+	echo "   </td>
+ 	      </tr>\n";
+
+	echo "<tr>
                 <td>Project: </td>
                 <td class=\"left\">
                   <a href='showproject.php3?pid=$pid'>$pid</a></td>
@@ -569,28 +582,56 @@ class Image
               </tr>\n";
     
 	echo "<tr>
-                <td>Creator: </td>
-                <td class=left>$creator</td>
-     	      </tr>\n";
-
-	echo "<tr>
                 <td>Created: </td>
                 <td class=left>$created</td>
  	      </tr>\n";
 
+	echo "<tr>
+                <td>Creator: </td>
+                <td class=left>$creator</td>
+     	      </tr>\n";
+
+	if ($creator_urn) {
+	    echo "<tr>
+                    <td>Creator URN: </td>
+                    <td class=left>$creator_urn</td>
+         	  </tr>\n";
+	}
+	    
 	if ($updated) {
 	    echo "<tr>
                     <td>Updated: </td>
                     <td class=left>$updated</td>
      	          </tr>\n";
+	    echo "<tr>
+                    <td>Updated By: </td>
+                    <td class=left>$updater</td>
+     	          </tr>\n";
+	    if ($updater_urn) {
+		echo "<tr>
+                        <td>Updater URN: </td>
+                        <td class=left>$updater_urn</td>
+         	          </tr>\n";
+	    }
 	}
 
-	echo "<tr>
-                <td>Description: </td>
-                <td class=left>\n";
-	echo "$description";
-	echo "   </td>
- 	      </tr>\n";
+	#
+	# Find the last time this image was used. 
+	#
+	$usage_result =
+	    DBQueryFatal("select FROM_UNIXTIME(stamp) as lastused ".
+			 "  from image_history ".
+			 "where action='os_setup' and imageid='$imageid' ".
+			 "order by stamp desc limit 1");
+	if (mysql_num_rows($usage_result)) {
+	    $urow = mysql_fetch_array($usage_result);
+	    $lastused = $urow['lastused'];
+
+	    echo "<tr>
+                    <td>Last Used: </td>
+                    <td class=\"left\">$lastused</td>
+                  </tr>\n";
+	}
 
 	echo "<tr>
                 <td>Load Partition: </td>

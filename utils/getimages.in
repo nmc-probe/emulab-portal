@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -67,6 +67,7 @@ my $NEWIMAGE_EZ  = "$TB/bin/newimageid_ez";
 #
 use lib "@prefix@/lib";
 use emdb;
+use User;
 use Image;
 use OSinfo;
 use libaudit;
@@ -122,6 +123,11 @@ if ($UID && !$impotent) {
 
 # Record output in case of error.
 LogStart(0, undef, LIBAUDIT_LOGTBOPS());
+
+#
+# We use elabman user below for marking the image update.
+#
+my $elabman = User->Lookup(PROTOUSER());
 
 #
 # Fetch the metadata, which tells what to do.
@@ -220,7 +226,7 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
 	    print "Image hash has not changed, skipping ...\n"
 		if ($debug);
 	    # Update the timestamp to avoid repeat.
-	    $image->MarkUpdateTime($newtime);
+	    $image->MarkUpdate($elabman, $newtime);
 	    next;
 	}
     }
@@ -297,7 +303,7 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     #
     # Mark this too, so that we do not repeat the first test above.
     #
-    $image->MarkUpdateTime($newtime);
+    $image->MarkUpdate($elabman, $newtime);
 }
 
 exit(0);
