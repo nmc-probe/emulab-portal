@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -821,6 +821,7 @@ sub Start($$$)
     my %vnodes   = ();
     my %poweron  = ();
     my %reloads  = ();
+    my %imageinfo = ();
     # See "bad" label below; want to know what sliver failed (if any).
     my $sliver;
 
@@ -893,6 +894,8 @@ sub Start($$$)
 			$reloads{$image->imageid()} = [ ];
 		    } 
 		    push(@{ $reloads{$image->imageid()} }, $vnode);
+		    $imageinfo{$vnode->node_id()} = [$osinfo->osid(),
+						     $image->imageid()];
 		}
 
 		# No more to do.
@@ -974,6 +977,12 @@ sub Start($$$)
 		    $reloads{$image->imageid()} = [ ];
 		} 
 		push(@{ $reloads{$image->imageid()} }, $node);
+
+		# As with os_setup, we do not count images unless
+		# they are actually reloaded. I have no idea why.
+		$imageinfo{$node->node_id()} = [$osinfo->osid(),
+						$image->imageid()];
+		
 		
 		# Reload means reboot or power on.
 		# But skip the firewall; that is done specially since
@@ -1030,6 +1039,9 @@ sub Start($$$)
 	    goto bad;
 	}
     }
+    # Record image stats
+    Image->RecordImageHistory($experiment, 'os_setup', undef, 0, \%imageinfo);
+    
     # See "bad" label below.
     $sliver = undef;
     
