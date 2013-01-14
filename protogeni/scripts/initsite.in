@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -90,6 +90,7 @@ my $MYSQLDUMP     = "/usr/local/bin/mysqldump";
 my $PKG_INFO      = "/usr/sbin/pkg_info";
 my $FETCH	  = "/usr/bin/fetch";
 my $OPENSSL       = "/usr/bin/openssl";
+my $FIXROOTCERT   = "$TB/sbin/fixrootcert";
 my $APACHE_START  = "@APACHE_START_COMMAND@";
 my $APACHE_CONF   = "@INSTALL_APACHE_CONFIG@/httpd.conf";
 my $APACHE_FLAGS  = ("@APACHE_VERSION@" == "22" ?
@@ -144,52 +145,10 @@ if ($PGENIDOMAIN =~ /^unknown/i) {
 #
 # Check for (and update) an old (pre-URN) root certificate.
 #
-system( "$OPENSSL x509 -text -noout < $TB/etc/emulab.pem | " .
-	"grep -q -i URI:urn:publicid:IDN" );
-if( $? == -1 ) {
-    die( "could not inspect root certificate $TB/etc/emulab.pem" );
-} elsif( $? & 0x7F ) {
-    die( "unexpected signal while inspecting root certificate" );
-} elsif( $? ) {
-    # grep returned non-zero exit code (indicating no matches): this is
-    # an old certificate, so regenerate it.
-    my $extfile = "/tmp/$$"; # not worth trying to be secure
-    open( EXTFILE, "> $extfile" ) or die "can't open $extfile";
-    print EXTFILE "subjectAltName=URI:urn:publicid:IDN+${OURDOMAIN}+authority+root\n";
-    print EXTFILE "issuerAltName=URI:urn:publicid:IDN+${OURDOMAIN}+authority+root\n";
-    close EXTFILE;
-
-    print "Adding URN to root certificate...\n";
-
-    my $originalfile = "$TB/etc/emulab.pem.orig";
-    -f $originalfile and
-	die( "refusing to overwrite $originalfile" );
-    rename( "$TB/etc/emulab.pem", "$originalfile" ) or
-	die( "could not rename root certificate" );
-
-    my $serial = TBGetUniqueIndex( "user_sslcerts" );
-    # Save the new certificate to a temporary file: OpenSSL will reuse the
-    # plain text from the old certificate instead of the current version,
-    # so we regenerate the whole thing once we've finished to avoid
-    # horrible confusion.
-    system( "$OPENSSL x509 -days 2000 -text -extfile $extfile " .
-	    "-set_serial $serial -signkey $TB/etc/emulab.key " .
-	    "< $originalfile > $TB/etc/emulab.tmp" );
-
-    # For some reason, OpenSSL can return non-zero even when the certificate
-    # generation succeeded.  Check the output file instead.
-    if( !( -s "$TB/etc/emulab.tmp" ) ) {
-	rename( "$originalfile", "$TB/etc/emulab.pem" );
-	die( "could not generate new root certificate" );	    
-    }
-
-    # Regenerate the certificate, so that the comments are up to date.
-    system( "$OPENSSL x509 -text < $TB/etc/emulab.tmp > $TB/etc/emulab.pem" );
-    unlink( "$TB/etc/emulab.tmp" );
-
-    print "Root certificate updated.  You will need to send the new\n";
-    print "certificate to the clearing house.\n";
-
+if (system($FIXROOTCERT)) {
+    fatal("Could not fix root certificate");
+}
+else {
     unlink( "$TB/etc/.protogeni_federated" );
 }
 
