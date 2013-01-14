@@ -453,7 +453,7 @@ if (!$isvirtnode) {
 # Makes no sense to do this when writing a global image to a different path.
 # We need a better way to make new images live.
 #
-$image->MarkUpdate(this_user) == 0 or
+$image->MarkUpdate($this_user) == 0 or
     fatal("Could not mark the update time in $image");
     
 #
