@@ -740,6 +740,31 @@ sub CreateImage()
     return $response;
 }
 
+sub DeleteImage()
+{
+    my ($image_urn, $credentials, $options) = @_;
+    if (! defined($image_urn) || ! defined($credentials) ||
+	(! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+
+    my $args = {
+        'image_urn' => $image_urn,
+        'credentials' => $credentials
+    };
+    $args->{'creator_urn'} = $options->{'creator_urn'}
+        if (defined($options) && exists($options->{'creator_urn'}));
+    
+    my $response = GeniCMV2::DeleteImage($args);
+    if (GeniResponse::IsError($response)) {
+        return $response;
+    }
+
+    # Return an XML-RPC boolean
+    my $coder = Frontier::RPC2->new();
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $coder->boolean(1));
+}
+
 ###############################################################################
 # AM API V3
 ###############################################################################

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -94,6 +94,7 @@ my $VTOPGEN        = "$TB/bin/vtopgen";
 my $SNMPIT         = "$TB/bin/snmpit";
 my $CLONEIMAGE     = "$TB/sbin/clone_image";
 my $CREATEIMAGE    = "$TB/bin/create_image";
+my $DELETEIMAGE    = "$TB/sbin/delete_image";
 my $XMLLINT	   = "/usr/local/bin/xmllint";
 my $PRERENDER      = "$TB/libexec/vis/prerender";
 my $EMULAB_PEMFILE = "@prefix@/etc/genicm.pem";
@@ -2375,7 +2376,6 @@ sub CreateImage($)
     if (exists($argref->{'global'})) {
 	$opt .= " -g " . ($argref->{'global'} ? "1" : "0");
     }
-    
     my $output =
 	GeniUtil::ExecQuiet("$CLONEIMAGE $opt -s $imagename $node_id");
     # Not a typical op, so always print debugging info;
@@ -2437,10 +2437,104 @@ sub CreateImage($)
     if ($user->email()) {
 	    libtestbed::SENDMAIL($user->email(),
 				 "Finished cloning image",
+				 "Image URN: $image_urn\n".
+				 "Image URL: $image_url\n".
+				 "\n".
+				 "-----------------------------------------\n".
 				 "$output\n");
     }
     $slice->UnLock();
     return 0;
+}
+
+#
+# Delete image created above.
+#
+sub DeleteImage($)
+{
+    my ($argref) = @_;
+    my $image_urn    = $argref->{'image_urn'};
+    my $credentials  = $argref->{'credentials'};
+    my $overide_urn  = (exists($argref->{'creator_urn'}) ?
+			$argref->{'creator_urn'} : undef);
+    my ($imagename,$imagepid);
+
+    require Image;
+    
+    if (! (defined($credentials) && defined($image_urn))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if (! GeniHRN::IsValid($image_urn)) {
+	return GeniResponse->MalformedArgsResponse("Invalid URN");
+    }
+    my $credential = CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
+    my $authority = GeniCM::CreateAuthorityFromCertificate($credential);
+    return $authority
+	if (GeniResponse::IsResponse($authority));
+
+    my ($auth,undef,$id) = GeniHRN::Parse($image_urn);
+    return GeniResponse->MalformedArgsResponse("Malformed URN")
+	if (!defined($id));
+    
+    if ($id =~ m{(.*)//(.*)}) {
+	$imagepid  = $1;
+	$imagename = $2;
+    }
+    else {
+	return GeniResponse->MalformedArgsResponse("Could not parse $id");
+    }
+
+    #
+    # Make sure we can get the image descriptor.
+    #
+    my $image = Image->Lookup($imagepid, $imagename);
+    if (!defined($image)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "No such image");
+    }
+    my $imageid     = $image->imageid();
+    my $creator_urn = $image->creator_urn();
+
+    #
+    # Need the project to compare the manager urn against the user SA.
+    #
+    my $project = $image->GetProject();
+    if (!defined($project)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "No project for image");
+    }
+
+    if (! ((defined($creator_urn) && $creator_urn eq $user->urn()) ||
+	   $project->nonlocal_id() eq $authority->urn())) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+		    "Not enough permission to delete image; wrong SA or user");
+    }
+    #
+    # If not the creator, then require override to prevent
+    # accidental removal of images not belonging to current user.
+    # Note that not all images have the creator_urn set (yet).
+    #
+    if (defined($creator_urn) && $creator_urn ne $user->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+		    "Not your image; please specify original creator urn")
+	    if (!defined($overide_urn) || $overide_urn ne $creator_urn);
+    }
+    my $output = GeniUtil::ExecQuiet("$DELETEIMAGE -p $imageid"); 
+    print STDERR $output;
+    if ($?) {
+	print STDERR $output;
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
+    }
+    # Print to get into the email log
+    print STDERR "Image $image deleted by $user\n";
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
