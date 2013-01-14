@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -62,7 +62,13 @@ admincredentialfile = None
 if "Usage" not in dir():
     def Usage():
         print "usage: " + sys.argv[ 0 ] + " [option...]"
-        print """Options:
+        print "Options:"
+        BaseOptions()
+        pass
+    pass
+
+def BaseOptions():
+    print """
     -a file, --admincredentials=file    read admin credentials from file
     -c file, --credentials=file         read self-credentials from file
                                             [default: query from SA]
@@ -74,14 +80,16 @@ if "Usage" not in dir():
                                             [default: local]
     -m uri, --cm=uri                    specify uri of component manager
                                             [default: local]"""
-        if "ACCEPTSLICENAME" in globals():
-            print """    -n name, --slicename=name           specify human-readable name of slice
+    if "ACCEPTSLICENAME" in globals():
+        print """    -n name, --slicename=name           specify human-readable name of slice
                                             [default: mytestslice]"""
-        print """    -p file, --passphrase=file          read passphrase from file
+        pass
+    print """    -p file, --passphrase=file          read passphrase from file
                                             [default: ~/.ssl/password]
     -r file, --read-commands=file       specify additional configuration file
     -s file, --slicecredentials=file    read slice credentials from file
                                             [default: query from SA]"""
+    pass
 
 try:
     opts, REQARGS = getopt.gnu_getopt( sys.argv[ 1: ], "a:c:df:hl:m:n:p:r:s:",

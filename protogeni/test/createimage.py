@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -41,24 +41,9 @@ ACCEPTSLICENAME=1
 
 def Usage():
     print "usage: " + sys.argv[ 0 ] + " [option...] imagename sliver-urn [global]"
-    print """Options:
-    -c file, --credentials=file         read self-credentials from file
-                                            [default: query from SA]
-    -d, --debug                         be verbose about XML methods invoked
-    -f file, --certificate=file         read SSL certificate from file
-                                            [default: ~/.ssl/encrypted.pem]
-    -h, --help                          show options and usage
-    -l uri, --sa=uri                    specify uri of slice authority
-                                            [default: local]
-    -m uri, --cm=uri                    specify uri of component manager
-                                            [default: local]
-    -n name, --slicename=name           specify human-readable name of slice
-                                            [default: mytestslice]
-    -p file, --passphrase=file          read passphrase from file
-                                            [default: ~/.ssl/password]
-    -r file, --read-commands=file       specify additional configuration file
-    -s file, --slicecredentials=file    read slice credentials from file
-                                            [default: query from SA]"""
+    print "Options:"
+    BaseOptions()
+    pass
 
 debug    = 0
 impotent = 1
