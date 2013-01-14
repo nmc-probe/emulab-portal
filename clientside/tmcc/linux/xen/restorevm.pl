@@ -202,6 +202,22 @@ foreach my $spec (split(',', $xminfo{'disksizes'})) {
 }
 print Dumper(\%disksize);
 
+# Increase swap space
+if(! -e "/capture/bigswap"){
+    if(system("dd if=/dev/zero of=/capture/bigswap bs=1M count=15360")){
+        warn("Could not dd bigswap");
+    }
+}
+if(system("chmod 600 /capture/bigswap")){
+    warn("Could not chmod bigswap");
+}
+if(system("mkswap /capture/bigswap")){
+    warn("Could not mkswap bigswap");
+}
+if(system("swapon /capture/bigswap")){
+    warn("Could not swapon bigswap");
+}
+
 foreach my $physinfo (keys(%diskinfo)) {
     my $spec = $diskinfo{$physinfo};
     my $dev;
