@@ -51,6 +51,7 @@
 #include "ssl.h"
 #include "log.h"
 #include "tbdefs.h"
+#include "bsdefs.h"
 #include "bootwhat.h"
 #include "bootinfo.h"
 
@@ -275,6 +276,7 @@ COMMAND_PROTOTYPE(dostartcmd);
 COMMAND_PROTOTYPE(dostartstat);
 COMMAND_PROTOTYPE(doready);
 COMMAND_PROTOTYPE(doreadycount);
+COMMAND_PROTOTYPE(dostorageconfig);
 COMMAND_PROTOTYPE(domounts);
 COMMAND_PROTOTYPE(dosfshostid);
 COMMAND_PROTOTYPE(doloadinfo);
@@ -388,6 +390,7 @@ struct command {
 	{ "startstat",	  FULLCONFIG_NONE, 0, dostartstat },
 	{ "readycount",   FULLCONFIG_NONE, F_ALLOCATED, doreadycount },
 	{ "ready",	  FULLCONFIG_NONE, F_ALLOCATED, doready },
+	{ "storageconfig", FULLCONFIG_ALL, F_ALLOCATED, dostorageconfig},
 	{ "mounts",	  FULLCONFIG_ALL,  F_ALLOCATED, domounts },
 	{ "sfshostid",	  FULLCONFIG_NONE, F_ALLOCATED, dosfshostid },
 	{ "loadinfo",	  FULLCONFIG_NONE, 0, doloadinfo},
@@ -3971,6 +3974,144 @@ COMMAND_PROTOTYPE(doreadycount)
 	if (verbose)
 		info("READYCOUNT: %s: %s", reqp->nodeid, buf);
 
+	return 0;
+}
+
+/*
+ * Return information on storage composition.  This ultimately looks like
+ * a series of commands that results in a layering of: remote disk
+ * mounts, local disk checks, aggregate creation (volume managment),
+ * slicing operations, and finally exports.
+ *
+ * XXX: initially we will just spit out minimal information:
+ *      1) slices and exports for storage host "vnodes"
+ *      2) remote disk mounts for client nodes
+ */
+COMMAND_PROTOTYPE(dostorageconfig)
+{
+        MYSQL_RES	*res, *res2;
+	MYSQL_ROW	row, row2;
+	char		buf[MYBUFSIZE];
+	char		*bufp, *ebufp = &buf[sizeof(buf)];
+	char            iqn[BS_IQN_MAXSIZE];
+	char            *vname, *bsid, *class, *protocol, *perms;
+	unsigned int    volsize, bsidx;
+	int		nrows, nattrs;
+	int             cmdidx = 1;
+
+	/* Request for a blockstore VM? If so, return blockstore slice info */
+	if (reqp->isvnode &&
+	    (strcmp(reqp->type, BS_VNODE_TYPE) == 0)) {
+		/* Do Stuff:
+		   0) A vlan interface setup is handled elsewhere (ifconfig).
+		   1) Grab reservation info, log error if it does not exist and
+		      return nothing.
+		   - What local blockstore to slice (bs_id)
+		   - Size (in mebibytes)
+		   - Permissions (node and/or lan)
+		   - Other attributes ... ?
+		   2) Construct volume name
+		   - "pid:eid:vname"
+		*/
+		res = mydb_query("select bsidx,bs_id,vname,size "
+				 "from reserved_blockstores "
+				 "where exptidx=%d and "
+				 "vnode_id='%s'",
+				 4, reqp->exptidx, reqp->vnodeid);
+
+		if (!res) {
+			error("STORAGECONFIG: %s: DB Error getting reserved "
+			      "info.\n",
+			      reqp->vnodeid);
+			return 1;
+		}
+
+		nrows = (int) mysql_num_rows(res);
+		if (nrows != 1) {
+			/* Should only be one reserved row per blockstore vm. */
+			error("STORAGECONFIG: %s: Wrong number of reserved "
+			      "entries for blockstore vm: %d.\n",
+			      reqp->vnodeid, nrows);
+			mysql_free_result(res);
+			return 0;
+		}
+
+		row = mysql_fetch_row(res);
+		bsidx = atoi(row[0]);
+		bsid = row[1];
+		vname = row[2];
+		volsize = atoi(row[3]);
+
+		res2 = mydb_query("select attrkey,attrvalue "
+				  "from virt_blockstore_attributes "
+				  "where exptidx=%d and vname='%s'", 
+				  2, reqp->exptidx, vname);
+
+		if (!res2) {
+			error("STORAGECONFIG: %s: DB Error getting vattrs.\n",
+			      reqp->vnodeid);
+			return 1;
+		}
+
+		/* Find out what type of blockstore we are dealing with and
+		   grab some additional attributes. */
+		nrows = nattrs = (int) mysql_num_rows(res2);
+		class = protocol = perms = "\0";
+		while (nrows--) {
+			char *key, *val;
+			row2 = mysql_fetch_row(res2);
+			key = row2[0];
+			val = row2[1];
+			if (strcmp(key,"class") == 0) {
+				class = val;
+			} else if (strcmp(key,"protocol") == 0) {
+				protocol = val;
+			} else if (strcmp(key,"permissions") == 0) {
+				perms = val;
+			}
+		}
+
+		/* iSCSI blockstore */
+		if ((strcmp(class, BS_CLASS_SAN) == 0) &&
+		    (strcmp(protocol, BS_PROTO_ISCSI) == 0)) {
+			/* Do we have explicit permissions to pass along? 
+			   If not, pass the default permissions. */
+			perms = strlen(perms) ? perms : BS_PERMS_ISCSI_DEF;
+
+			/* Construct IQN string. */
+			if (snprintf(iqn, sizeof(iqn), "%s:%s:%s:%s",
+				     BS_IQN_PREFIX, reqp->pid, 
+				     reqp->eid, vname) >= sizeof(iqn)) {
+				error("STORAGECONFIG: %s: Not enough room in "
+				      "IQN string buffer", reqp->vnodeid);
+				mysql_free_result(res);
+				mysql_free_result(res2);
+				return 1;
+			}
+			bufp = buf;
+			bufp += OUTPUT(bufp, ebufp-bufp, 
+				       "CMD=SLICE IDX=%d "
+				       "CLASS=%s PROTO=%s BSID=%s "
+				       "VOLNAME=%s VOLSIZE=%d\n",
+				       cmdidx++, class, protocol, bsid,
+				       iqn, volsize);
+			client_writeback(sock, buf, strlen(buf), tcp);
+
+			bufp = buf;
+			bufp += OUTPUT(bufp, ebufp-bufp,
+				       "CMD=EXPORT IDX=%d "
+				       "VOLNAME=%s PERMS=%s\n",
+				       cmdidx++, iqn, perms);
+			client_writeback(sock, buf, strlen(buf), tcp);
+		}
+
+		mysql_free_result(res);
+		mysql_free_result(res2);
+
+		return 0;
+	}
+
+	/* nothing to return... */
 	return 0;
 }
 
