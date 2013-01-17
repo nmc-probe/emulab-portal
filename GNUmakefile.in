@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -146,6 +146,8 @@ ops-install:
 	-chmod 770 $(INSTALL_TOPDIR)/log/mysql
 	-chown mysql $(INSTALL_TOPDIR)/log/mysql
 	-chgrp mysql $(INSTALL_TOPDIR)/log/mysql
+	-mkdir -p $(INSTALL_TOPDIR)/log/logfiles
+	-chmod 777 $(INSTALL_TOPDIR)/log/logfiles
 	@$(MAKE) -C rc.d control-install
 	@$(MAKE) -C tbsetup control-install
 	@$(MAKE) -C security control-install
