@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -424,7 +424,7 @@ sub TBMakeTempFile($)
     my($prefix) = @_;
     my $fname;
     
-    $fname = `mktemp /tmp/${prefix}.XXXXXX`;
+    $fname = `/usr/bin/mktemp /tmp/${prefix}.XXXXXX`;
 
     if ($fname =~ /^([-\@\w\.\/]+)$/) {
 	$fname = $1;
