@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -57,6 +57,8 @@ my $MAINSITE 	     = @TBMAINSITE@;
 my $TBOPS            = "@TBOPSEMAIL@";
 my $PORTAL_ENABLE    = @PORTAL_ENABLE@;
 my $PORTAL_ISPRIMARY = @PORTAL_ISPRIMARY@;
+my $TBBASE           = "@TBBASE@";
+my $GENIGROUP        = "GeniSlices";
 my $MODULE;
 my $GENIURN;
 
@@ -90,13 +92,16 @@ use GeniUtil;
 use libaudit;
 use libEmulab;
 use libtestbed;
+use Logfile;
 use User;
+use Group;
 
 # Need a command line option.
 my $debug      = 0;
 my $mailerrors = 1;
 # Flag for XMLERROR.
 my $logging    = 0;
+my $logforked  = 0;
 
 # Determined by version.
 my $responder;
@@ -322,15 +327,62 @@ if( $PROJECT ) {
 Genixmlrpc->SetContext(Genixmlrpc->Context($certificate));
 
 #
+# Create a Logfile to give to libaudit. We need our current group
+# for this. 
+#
+my $group   = Group->Lookup($GENIGROUP, $GENIGROUP);
+if (!defined($group)) {
+    die("*** $0:\n".
+	"    Could not resolve lookup group $GENIGROUP\n");
+}
+my $logfile = Logfile->Create($group);
+if (!defined($logfile)) {
+    die("*** $0:\n".
+	"    Could not create a new logfile\n");
+}
+# Anon users can view the log if they know the secret id. 
+$logfile->SetPublic(1);
+# For web interface spewing while operating.
+$logfile->Open();
+# Put the logfile into the environment for callee.
+$ENV{'LOGFILEID'}  = $logfile->logid();
+$ENV{'LOGFILEIDX'} = $logfile->logidx();
+# Metadata
+my $message  = "";
+my @metadata = ();
+
+#
+# This is an upcall to fork the log and so we know it. See below.
+#
+sub WrapperFork()
+{
+    my $mypid = fork();
+    if ($mypid) {
+	# Flag for below (parent only).
+	$logforked = 1;
+
+	# Tell caller we are the parent,
+	return $mypid;
+    }
+    # XXX Need to let the parent finish up first. Might need to
+    # get more fancy.
+    sleep(2);
+    
+    # This switches the file that we are writing to in the child.
+    libaudit::AuditFork();
+    return 0;
+}
+
+#
 # Use libaudit to capture any output from libraries and programs.
 # Send that to tbops so they can be fixed.
 #
 if ($MAINSITE) {
-    LogStart(0);
+    LogStart(0, $logfile->filename(), LIBAUDIT_NODELETE());
     AddAuditInfo("to", "protogeni-errors\@flux.utah.edu")
 }
 else {
-    LogStart(0, undef, LIBAUDIT_LOGTBOPS());
+    LogStart(0, $logfile->filename(), LIBAUDIT_LOGTBLOGS()|LIBAUDIT_NODELETE());
 }
 $logging = 1;
 
@@ -374,17 +426,12 @@ if (defined($call->{'value'})) {
 }
 
 my $result;
-my $message =
-    "URN:     $GENIURN\n";
-$message .=
-    "Target:  $target\n" if (defined($target));
-$message .=
-    "Module:  $MODULE\n".
-    "Method:  $method\n";
-$message .=
-    "Version: $GENI_VERSION\n" if (defined($GENI_VERSION));
-$message .=
-    "Start:   " . TBTimeStamp() . "\n";
+push(@metadata, ["URN", $GENIURN]);
+push(@metadata, ["Target", $target]) if (defined($target));
+push(@metadata, ["Module", $MODULE]);
+push(@metadata, ["Method", $method]);
+push(@metadata, ["Version", $GENI_VERSION]) if (defined($GENI_VERSION));
+push(@metadata, ["StartTime", TBTimeStamp()]);
 
 # Debug the CM and AM modules
 if ($MODULE eq "cm" || $MODULE eq $AM_MODULE) {
@@ -426,6 +473,11 @@ if ($@) {
     $response = $decoder->encode_fault(XMLRPC_SERVER_ERROR(),
 				       "Internal Error executing $method");
 
+    $logfile->SetMetadata(\@metadata, 0);
+    foreach my $foo (@metadata) {
+	my ($key,$val) = @{$foo};
+	$message .= sprintf("%-15s: %s\n", $key, $val);
+    }
     AddAuditInfo("message", $message .
 		 "Error executing RPC:\n" . $@ . "\n\n" . $request);
 }
@@ -434,24 +486,35 @@ else {
     GeniUtil::FlipToGeniUser();
 
     my $elapsed = tv_interval($starttime);
-    $message .= "End:     " . TBTimeStamp() . "\n";
-    $message .= "Elapsed: " . sprintf("%f", $elapsed) . "\n";
+    push(@metadata, ["EndTime", TBTimeStamp()]);
+    push(@metadata, ["Elapsed", sprintf("%.2f", $elapsed)]);
 
-    my $logNumber = TBGetUniqueIndex('next_geni_log', 1);
-    my $logurn = GeniHRN::Generate("@OURDOMAIN@", "log", $logNumber);
-    $message .=
-	"Log URN: " . $logurn . "\n";
+    my $logurn = GeniHRN::Generate("@OURDOMAIN@", "log",
+				   $logfile->logid());
+    my $logurl = "$TBBASE/spewlogfile.php3?logfile=" . $logfile->logid(); 
+    push(@metadata, ["LogURN", $logurn]);
+    push(@metadata, ["LogURL", $logurl]);
 
     if (!ref($result)) {
-	$message .= "Return:    $result\n";
+	push(@metadata, ["Return", $result]);
     }
     else {
 	if (GeniResponse::IsError($result)) {
-	    $message .= "Error:   " . $result->{'code'} . "\n";
+	    push(@metadata, ["Error", $result->{'code'}]);
 	}
 	else {
-	    $message .= "Code:    " . $result->{'code'} . "\n";
+	    push(@metadata, ["Code", $result->{'code'}])
 	}
+    }
+    # Purge old data; if we forked we want latest. 
+    $logfile->SetMetadata(\@metadata, 1);
+    
+    foreach my $foo (@metadata) {
+	my ($key,$val) = @{$foo};
+	$message .= sprintf("%-15s: %s\n", $key, $val);
+    }
+
+    if (ref($result)) {
 	$message .= "Output:  " . $result->{'output'} . "\n"
 	    if (defined($result->{'output'}) && $result->{'output'} ne "");
 
@@ -497,6 +560,7 @@ else {
 	}
 
 	$result->{'protogeni_error_log'} = $logurn;
+	$result->{'protogeni_error_url'} = $logurl;
 
 	#
 	# Added this for geni-am ...
@@ -519,6 +583,14 @@ if ($debug) {
 # for the web server.
 #
 LogEnd(0);
+#
+# Do not store/delete the log in the parent of a forked call.
+# It will happen when the child comes back here. 
+#
+if (!$logforked) {
+    # Use eval to avoid messing up the output stream if any errors.
+    eval { ($logfile->Empty() ? $logfile->Delete(1) : $logfile->Store()); };
+}
 
 print "Content-Type: text/xml \n\n" . $response
     if (defined($response));
@@ -531,7 +603,14 @@ END {
     my $exitcode = $?;
 
     if ($exitcode) {
-	LogEnd(0);
+	if ($logging) {
+	    LogEnd(0);
+	    if (!$logforked) {
+                # Use eval to avoid messing up the output stream if any errors.
+		eval { ($logfile->Empty() ?
+			$logfile->Delete(1) : $logfile->Store()); };
+	    }
+	}
 
 	my $decoder = Frontier::RPC2->new();
 	print "Content-Type: text/xml \n\n";
