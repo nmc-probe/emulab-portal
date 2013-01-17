@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -40,8 +40,9 @@ sub usage()
 	  "Spew a logfile to stdout, as for the web interface\n");
     exit(-1);
 }
-my $optlist = "we:t:i:";
+my $optlist = "wi:a";
 my $fromweb = 0;
+my $anon    = 0;
   
 #
 # Configure variables
@@ -49,6 +50,7 @@ my $fromweb = 0;
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $TBLOGS      = "@TBLOGSEMAIL@";
+my $GUNZIP	= "/usr/bin/gunzip";
 
 my $logname;
 my $isopen;
@@ -81,6 +83,9 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"w"})) {
     $fromweb = 1;
 }
+if (defined($options{"a"})) {
+    $anon = 1;
+}
 if (defined($options{"i"})) {
     $logfile = Logfile->Lookup($options{"i"});
     if (! $logfile) {
@@ -100,19 +105,26 @@ if ($UID == 0) {
 	"    Please do not run this as root! Its already setuid!\n");
 }
 
-#
-# Verify user and get his DB uid and other info for later.
-#
-my $this_user = User->ThisUser();
-if (! defined($this_user)) {
-    die("*** $0:\n".
-	"    You ($UID) do not exist!");
-}
 
 #
-# Verify that this person is allowed to do this. 
+# Allow for anonymous users to request a public file.
+# Verify user and get his DB uid and other info for later.
 #
-if (!$logfile->AccessCheck($this_user)) {
+if (!$anon) {
+    my $this_user = User->ThisUser();
+    if (! defined($this_user)) {
+	die("*** $0:\n".
+	    "    You ($UID) do not exist!");
+    }
+    #
+    # Verify that this person is allowed to do this. 
+    #
+    if (!$logfile->AccessCheck($this_user)) {
+	die("*** $0:\n".
+	    "    You do not have permission to view logfile!\n");
+    }
+}
+elsif (!$logfile->public()) {
     die("*** $0:\n".
 	"    You do not have permission to view logfile!\n");
 }
@@ -122,6 +134,28 @@ $isopen  = $logfile->isopen();
 use Fcntl;
 use IO::Handle;
 STDOUT->autoflush(1);
+
+#
+# if the file is closed do it the quick way. No locking, so this could
+# mess up sometimes.
+#
+if (!$isopen) {
+    if ($logfile->MetadataList()) {
+	foreach my $ref (@{ $logfile->MetadataList() }) {
+	    my ($key,$val) = @{$ref};
+	    printf("%-15s %s\n", "$key:", $val);
+	}
+	print "\n";
+	print "---------------------\n";
+    }
+    if ($logfile->compressed()) {
+	system("$GUNZIP -c $logname");
+    }
+    else {
+	system("/bin/cat $logname");
+    }
+    exit(0);
+}
 
 #
 # Open the file up while still root. We verified permission above, and the
@@ -148,6 +182,15 @@ if ($fromweb && $isopen && $size < 1024) {
 	print " ";
     }
     print "\n";
+}
+
+if ($logfile->MetadataList()) {
+    foreach my $ref (@{ $logfile->MetadataList() }) {
+	my ($key,$val) = @{$ref};
+	printf("%-15s %s\n", "$key:", $val);
+    }
+    print "\n";
+    print "---------------------\n";
 }
 
 #

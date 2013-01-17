@@ -2193,11 +2193,31 @@ CREATE TABLE `log` (
 DROP TABLE IF EXISTS `logfiles`;
 CREATE TABLE `logfiles` (
   `logid` varchar(40) NOT NULL default '',
+  `logidx` int(10) unsigned NOT NULL default '0',
   `filename` tinytext,
   `isopen` tinyint(4) NOT NULL default '0',
   `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `date_created` datetime default NULL,
-  PRIMARY KEY  (`logid`)
+  `public` tinyint(1) NOT NULL default '0',
+  `compressed` tinyint(1) NOT NULL default '0',
+  `stored` tinyint(1) NOT NULL default '0',
+  PRIMARY KEY  (`logid`),
+  KEY `logidx` (`logidx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `logfile_metadata`
+--
+
+DROP TABLE IF EXISTS `logfile_metadata`;
+CREATE TABLE `logfile_metadata` (
+  `logidx` int(10) unsigned NOT NULL default '0',
+  `idx` int(10) unsigned NOT NULL auto_increment,
+  `metakey` tinytext,
+  `metaval` tinytext,
+  PRIMARY KEY  (`logidx`,`idx`),
+  UNIQUE KEY `logidxkey` (`logidx`,`metakey`(128)),
+  KEY `headervalue` (`metakey`(64),`metaval`(128))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
