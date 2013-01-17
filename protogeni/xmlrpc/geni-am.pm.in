@@ -147,6 +147,10 @@ sub ConvertResponseV2($)
 	$blob->{'code'}->{'protogeni_error_log'} =
 	    $geni_response->{'protogeni_error_log'};
     }
+    if (exists($geni_response->{'protogeni_error_url'})) {
+	$blob->{'code'}->{'protogeni_error_url'} =
+	    $geni_response->{'protogeni_error_url'};
+    }
 
     if (defined($version)) {
 	$blob->{"geni_api"} = $version;
