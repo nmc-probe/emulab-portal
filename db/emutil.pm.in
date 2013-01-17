@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -524,11 +524,28 @@ sub ExecQuiet($)
     my ($command) = @_;
     my $output    = "";
     
-    open(PIPE,"$command 2>&1 |") or return -1;
-    while (<PIPE>) {
-	$output .= $_;
+    #
+    # This open implicitly forks a child, which goes on to execute the
+    # command. The parent is going to sit in this loop and capture the
+    # output of the child. We do this so that we have better control
+    # over the descriptors.
+    #
+    my $pid = open(PIPE, "-|");
+    if (!defined($pid)) {
+	print STDERR "ExecQuiet Failure; popen failed!\n";
+	return -1;
     }
-    close(PIPE);
+    
+    if ($pid) {
+	while (<PIPE>) {
+	    $output .= $_;
+	}
+	close(PIPE);
+    }
+    else {
+	open(STDERR, ">&STDOUT");
+	exec($command);
+    }
     return $output;
 }
 
