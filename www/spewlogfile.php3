@@ -39,8 +39,7 @@ if (! isset($logfile)) {
     PAGEARGERROR("Must provide either a logfile ID");
 }
 
-# Check permission in the backend. The user is logged in, so its safe enough
-# to pass it through.
+# Check permission in the backend.
 $logfileid = $logfile->logid();
 
 #

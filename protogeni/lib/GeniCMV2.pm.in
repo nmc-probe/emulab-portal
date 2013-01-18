@@ -64,6 +64,7 @@ use Time::Local;
 use Compress::Zlib;
 use File::Temp qw(tempfile);
 use MIME::Base64;
+use Errno;
 
 # Configure variables
 my $TB		   = "@prefix@";
@@ -118,8 +119,7 @@ sub GetVersion()
 	"output_rspec" => "2",
 	"ad_rspec" => \@ad_rspec_versions
     };
-
-    return GeniResponse->Create( GENIRESPONSE_SUCCESS, $blob);
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }
 
 #
@@ -388,7 +388,7 @@ sub CreateSliver($)
     require Experiment;
     require libtestbed;
     require libaudit;
-    
+
     # For now, I am not worrying about the slice_urn argument.
     if (! (defined($credentials) &&
 	   defined($slice_urn) && defined($rspecstr))) {
@@ -404,6 +404,8 @@ sub CreateSliver($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    
     #
     # In this implementation, the user must provide a slice credential,
     # so we ignore the slice_urn. For CreateSliver(), the slice must not
@@ -418,6 +420,8 @@ sub CreateSliver($)
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 					"Credential does not match the URN");
 	}
+	main::AddLogfileMetaData("slice_idx", $slice->idx());
+	
 	#
 	# Watch for a placeholder slice and update it.
 	#
@@ -456,6 +460,13 @@ sub CreateSliver($)
     return $rspec
 	if (GeniResponse::IsResponse($rspec));
 
+    my $slice = GeniSlice->Lookup($credential->target_urn());
+    if (!defined($slice)) {
+	print STDERR "CreateSliver: Could not find slice for $credential\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,"Internal Error");
+    }
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     # Make sure that the next phase sees all changes.
     Experiment->FlushAll();
     Node->FlushAll();
@@ -470,12 +481,13 @@ sub CreateSliver($)
 	# up by the daemon. This is mostly cause I am reaching into
 	# the V1 code, and its messy.
 	#
-	my $slice = GeniSlice->Lookup($credential->target_urn());
-	if ($slice->Lock() != 0) {
-	    print STDERR "CreateSliver: Could not lock $slice before delete\n";
-	    return $response;
-	}
+	$slice = GeniSlice->Lookup($credential->target_urn());
 	if (defined($slice)) {
+	    if ($slice->Lock() != 0) {
+		print STDERR
+		    "CreateSliver: Could not lock $slice before delete\n";
+		return $response;
+	    }
 	    GeniCM::CleanupDeadSlice($slice, 1);
 	}
 	return $response;
@@ -485,12 +497,6 @@ sub CreateSliver($)
     #
     # Leave the slice intact on error, so we can go look at it. 
     #
-    $slice = GeniSlice->Lookup($credential->target_urn());
-    if (!defined($slice)) {
-	print STDERR "CreateSliver: Could not find slice for $credential\n";
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Internal Error");
-    }
     if ($slice->Lock() != 0) {
 	print STDERR "CreateSliver: Could not lock $slice before start\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
@@ -545,6 +551,8 @@ sub DeleteSliver($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
+    main::AddLogfileMetaData("sliver_urn", $sliver_urn);
+
     #
     # In this implementation, the user must provide a slice or sliver
     # credential
@@ -557,6 +565,9 @@ sub DeleteSliver($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "Sliver does not exist");
     }
+    main::AddLogfileMetaData("slice_urn", $slice->urn());
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     if ($sliver_urn ne $aggregate->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
@@ -661,6 +672,9 @@ sub DeleteSlice($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No such slice here");
     }
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
@@ -784,6 +798,11 @@ sub SliverAction($$$$$)
     my ($slice, $aggregate) = Credential2SliceAggregate($credential);
     return $slice
 	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    if (defined($slice)) {
+	main::AddLogfileMetaData("slice_urn", $slice_urn);
+	main::AddLogfileMetaData("slice_idx", $slice->idx());
+    }
 
     if ( (!defined($slice)) && 
           ($credential->target_urn() =~ /\+authority\+cm$/)) {
@@ -999,6 +1018,9 @@ sub SliverStatus($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No slice or aggregate here");
     }
+    main::AddLogfileMetaData("slice_urn", $slice->urn());
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
@@ -1111,6 +1133,9 @@ sub Shutdown($)
     if (!defined($slice)) {
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
     }
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     #
     # Do not worry about locking when setting the shutdown time.
     # This can lead to race though, if a clear shutdown comes in first.
@@ -1174,6 +1199,9 @@ sub RenewSlice($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "No slice or aggregate here");
     }
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
@@ -1209,6 +1237,8 @@ sub GetTicket($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    
     #
     # This implementation requires a slice credential, and it must
     # match the slice_urn.
@@ -1218,6 +1248,8 @@ sub GetTicket($)
 	return $slice
 	    if (GeniResponse::IsResponse($slice));
 	
+	main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
 	if ($slice_urn ne $slice->urn()) {
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 					"Credential does not match the URN");
@@ -1277,8 +1309,18 @@ sub GetTicket($)
     else {
 	# Slice does not exist yet. 
     }
-    return GeniCM::GetTicketAux($credential,
-				$rspecstr, 0, $impotent, 1, 1, undef);
+    my $response =
+	GeniCM::GetTicketAux($credential, $rspecstr, 0, $impotent, 1, 1, undef);
+    return $response
+	    if (GeniResponse::IsResponse($response));
+
+    $slice = GeniSlice->Lookup($slice_urn);
+    if (!defined($slice)) {
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+    }
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
+    return $response;
 }    
 	
 #
@@ -1304,6 +1346,8 @@ sub UpdateTicket($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    
     defined($credential) &&
 	($credential->HasPrivilege( "pi" ) or
 	 $credential->HasPrivilege( "instantiate" ) or
@@ -1330,6 +1374,8 @@ sub UpdateTicket($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED(), undef,
 				    "Slice does not exist here");
     }
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+	
     if ($slice->IsExpired()) {
 	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
 				    "Slice has expired");
@@ -1404,6 +1450,8 @@ sub UpdateSliver($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
+    main::AddLogfileMetaData("sliver_urn", $sliver_urn);
+    
     defined($credential) &&
 	($credential->HasPrivilege( "pi" ) or
 	 $credential->HasPrivilege( "instantiate" ) or
@@ -1419,6 +1467,9 @@ sub UpdateSliver($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "No slice or aggregate here");
     }
+    main::AddLogfileMetaData("slice_urn", $slice->urn());
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     # Must be an aggregate (top level sliver).
     if (ref($aggregate) ne "GeniAggregate") {
 	return GeniResponse->MalformedArgsResponse("Must supply aggregate");
@@ -1499,6 +1550,9 @@ sub RedeemTicket($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "No slice here");
     }
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     my $open_ticket = GeniTicket->SliceTicket($slice);
     if (! defined($open_ticket) || $open_ticket->idx() ne $ticket->idx()) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -1603,6 +1657,9 @@ sub ReleaseTicket($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No slice here");
     }
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
@@ -1770,6 +1827,9 @@ sub ReserveVlanTags($)
 	    return GeniResponse->BusyResponse();
 	}
     }
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    
     #
     # Confirm that the certificate is the same.
     #
@@ -2253,6 +2313,9 @@ sub InjectEvent($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "Sliver does not exist");
     }
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
+
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
@@ -2309,6 +2372,9 @@ sub CreateImage($)
     my ($slice, $aggregate) = Credential2SliceAggregate($credential);
     return $slice
 	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    main::AddLogfileMetaData("slice_urn", $slice_urn);
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
 
     if (! (defined($slice) && defined($aggregate))) {
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
@@ -2456,6 +2522,8 @@ sub DeleteImage($)
     my $credential = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
+
+    main::AddLogfileMetaData("image_urn", $image_urn);
 
     my $user = GeniCM::CreateUserFromCertificate($credential);
     return $user

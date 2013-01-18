@@ -303,7 +303,8 @@ sub AuditAbort()
 	    # This should be okay; the process will keep writing to it,
 	    # but will be deleted once the process ends and its closed.
 	    #
-	    unlink($logfile);
+	    unlink($logfile)
+	    	if (!$savelog);
 	    undef($logfile);
 	}
 	delete @ENV{'TBAUDITLOG', 'TBAUDITON'};

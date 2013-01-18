@@ -146,9 +146,12 @@ if (!$isopen) {
 	    printf("%-15s %s\n", "$key:", $val);
 	}
 	print "\n";
-	print "---------------------\n";
+	print "----------------------------------\n";
     }
-    if ($logfile->compressed()) {
+    if (!defined($logname)) {
+	print STDOUT "Log file has no content; this is not an error.\n";
+    }
+    elsif ($logfile->compressed()) {
 	system("$GUNZIP -c $logname");
     }
     else {

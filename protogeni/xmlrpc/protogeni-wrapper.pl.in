@@ -55,10 +55,12 @@ BEGIN {
 # Configure variables
 my $MAINSITE 	     = @TBMAINSITE@;
 my $TBOPS            = "@TBOPSEMAIL@";
+my $TBLOGS           = "@TBLOGSEMAIL@";
 my $PORTAL_ENABLE    = @PORTAL_ENABLE@;
 my $PORTAL_ISPRIMARY = @PORTAL_ISPRIMARY@;
 my $TBBASE           = "@TBBASE@";
 my $GENIGROUP        = "GeniSlices";
+my $PGERRORS	     = "protogeni-errors\@flux.utah.edu";
 my $MODULE;
 my $GENIURN;
 
@@ -99,9 +101,13 @@ use Group;
 # Need a command line option.
 my $debug      = 0;
 my $mailerrors = 1;
+my $mailsendlog= 0;
+my $nostorelogs= 0;
 # Flag for XMLERROR.
 my $logging    = 0;
 my $logforked  = 0;
+my $iserror    = 0;
+my $rpcerror   = 0;
 
 # Determined by version.
 my $responder;
@@ -321,6 +327,28 @@ if( $PROJECT ) {
     $ENV{'MYURN'}  = $certificate->urn();
 }
 
+# Look at sitevars to determine debugging level.
+my $sitevarname = "protogeni/wrapper_" . lc($MODULE) . "_debug_level";
+if (SiteVarExists($sitevarname)) {
+    my $debug_level;
+    if (GetSiteVar($sitevarname, \$debug_level) == 0) {
+	$debug = $debug_level
+	    if (defined($debug_level));
+    }
+}
+elsif ($MODULE eq "emulab") {
+    # XXX Special case, obviously
+    $debug = 2;
+}
+# Override default setting above.
+if (SiteVarExists("protogeni/wrapper_debug_sendlog")) {
+    my $debug_sendlog;
+    if (GetSiteVar("protogeni/wrapper_debug_sendlog", \$debug_sendlog) == 0) {
+	$mailsendlog = $debug_sendlog
+	    if (defined($debug_sendlog));
+    }
+}
+
 #
 # Create and set our RPC context for any calls we end up making.
 #
@@ -356,6 +384,14 @@ my @metadata = ();
 #
 sub WrapperFork()
 {
+    # Need this in the child.
+    my $parent_lockname = "lock_$PID";
+
+    # Before the fork, lock the lock in the parent. It will be
+    # unlocked just before the parent exits, this informing the
+    # child.
+    emdb::DBQueryWarn("select GET_LOCK('$parent_lockname', 5)");
+    
     my $mypid = fork();
     if ($mypid) {
 	# Flag for below (parent only).
@@ -364,9 +400,10 @@ sub WrapperFork()
 	# Tell caller we are the parent,
 	return $mypid;
     }
-    # XXX Need to let the parent finish up first. Might need to
-    # get more fancy.
-    sleep(2);
+    # XXX Need to let the parent finish up first, but the parent is
+    # is in the "defunct" state, so cannot use kill(0) to figure out
+    # it is gone.
+    emdb::DBQueryWarn("select GET_LOCK('$parent_lockname', 15)");
     
     # This switches the file that we are writing to in the child.
     libaudit::AuditFork();
@@ -374,12 +411,30 @@ sub WrapperFork()
 }
 
 #
-# Use libaudit to capture any output from libraries and programs.
-# Send that to tbops so they can be fixed.
+# Upcall to set the slice urn in the logfile metadata. Difficult to
+# know so let the callee tell us.
+#
+sub AddLogfileMetaData($$)
+{
+    my ($key, $val) = @_;
+
+    # We want to watch for duplicates,
+    foreach my $foo (@metadata) {
+	my ($metakey,$metaval) = @{$foo};
+	return
+	    if ($key eq $metakey);
+    }
+    push(@metadata, [$key, $val]);
+}
+
+#
+# Use libaudit to capture any output from libraries and programs.  We
+# do not let it send the email though, we do that below, unless it
+# exits abnormally via the END block.
 #
 if ($MAINSITE) {
     LogStart(0, $logfile->filename(), LIBAUDIT_NODELETE());
-    AddAuditInfo("to", "protogeni-errors\@flux.utah.edu")
+    AddAuditInfo("to", $PGERRORS);
 }
 else {
     LogStart(0, $logfile->filename(), LIBAUDIT_LOGTBLOGS()|LIBAUDIT_NODELETE());
@@ -387,7 +442,7 @@ else {
 $logging = 1;
 
 # CC errors to Utah for now.
-AddAuditInfo("cc", "protogeni-errors\@flux.utah.edu");
+AddAuditInfo("cc", $PGERRORS);
 
 #
 # This is lifted from the Frontier code. I want the actual response
@@ -411,53 +466,37 @@ my $method = $call->{'method_name'};
 if (!defined($GENI_METHODS->{$method})) {
     XMLError(XMLRPC_APPLICATION_ERROR() + 3, "no such method $method\n");
 }
-# Strictly for debugging the CM.
-my $target;
-if (defined($call->{'value'})) {
-    my ($argref) = @{ $call->{'value'} };
-    if (ref($argref) eq "HASH") {
-	if (exists($argref->{'slice_urn'})) {
-	    $target = $argref->{'slice_urn'};
-	}
-	elsif (exists($argref->{'sliver_urn'})) {
-	    $target = $argref->{'sliver_urn'};
-	}
-    }
+# Debugging overrides, to avoid email blasting.
+# Too much output.
+if ($method eq "ListResources" ||
+    $method eq "GetVersion" ||
+    $method eq "GetKeys" ||
+    $method eq "RegisterSliver" ||
+    $method eq "UnRegisterSliver" ||
+    $method eq "GetCredential" ||
+    $method eq "Resolve" ||
+    $method eq "DiscoverResources") {
+    $debug = 0;
+    # Do no even bother with logs unless an error.
+    $nostorelogs = 1;
+}
+# Happens too often and not interesting unless an error.
+if ($method eq "Resolve") {
+    $debug = 0;
+}
+# We always want as much data as possible for these.
+if ($method eq "CreateSliver" ||
+    $method eq "RedeemTicket" ||
+    $method eq "GetTicket") {
+    $debug = 2;
 }
 
 my $result;
 push(@metadata, ["URN", $GENIURN]);
-push(@metadata, ["Target", $target]) if (defined($target));
 push(@metadata, ["Module", $MODULE]);
 push(@metadata, ["Method", $method]);
 push(@metadata, ["Version", $GENI_VERSION]) if (defined($GENI_VERSION));
 push(@metadata, ["StartTime", TBTimeStamp()]);
-
-# Debug the CM and AM modules
-if ($MODULE eq "cm" || $MODULE eq $AM_MODULE) {
-    $debug = 0;
-
-    # Too much output.
-    if ($method eq "ListResources" ||
-	$method eq "DiscoverResources") {
-	$debug = 0;
-    }
-    # Happens too often and not interesting
-    if ($method eq "Resolve" ||
-	$method eq "SliverStatus" ||
-	$method eq "GetVersion") {
-	$debug = 0;
-    }
-    # We always want as much data as possible for these.
-    if ($method eq "CreateSliver" ||
-	$method eq "RedeemTicket" ||
-	$method eq "GetTicket") {
-	$debug = 2;
-    }
-}
-elsif ($MODULE eq "emulab") {
-    $debug = 2;
-}
 
 my $starttime = [gettimeofday()];
 eval { $result = &{ $GENI_METHODS->{$method} }(@{ $call->{'value'} }) };
@@ -468,8 +507,8 @@ if ($@) {
     #
     # These errors should get mailed to tbops.
     #
+    $rpcerror = $iserror = 1;
     print STDERR "Error executing RPC method $method:\n" . $@ . "\n";
-    AddAuditInfo("to", $TBOPS);
     $response = $decoder->encode_fault(XMLRPC_SERVER_ERROR(),
 				       "Internal Error executing $method");
 
@@ -478,8 +517,6 @@ if ($@) {
 	my ($key,$val) = @{$foo};
 	$message .= sprintf("%-15s: %s\n", $key, $val);
     }
-    AddAuditInfo("message", $message .
-		 "Error executing RPC:\n" . $@ . "\n\n" . $request);
 }
 else {
     # In case the callee flipped.
@@ -506,6 +543,12 @@ else {
 	    push(@metadata, ["Code", $result->{'code'}])
 	}
     }
+    # Add first line of result output to metadata. Bigger stuff
+    # will land at the end of the file. 
+    if (ref($result) && defined($result->{'output'}) &&
+	$result->{'output'} ne "") {
+	push(@metadata, ["Output", ( split /\n/, $result->{'output'} )[0]]);
+    }
     # Purge old data; if we forked we want latest. 
     $logfile->SetMetadata(\@metadata, 1);
     
@@ -513,52 +556,56 @@ else {
 	my ($key,$val) = @{$foo};
 	$message .= sprintf("%-15s: %s\n", $key, $val);
     }
-
-    if (ref($result)) {
-	$message .= "Output:  " . $result->{'output'} . "\n"
-	    if (defined($result->{'output'}) && $result->{'output'} ne "");
-
-	if (GeniResponse::IsError($result) || $debug > 1) {
-	    $message .= "Result:\n"  . Dumper($result->{'value'}) . "\n\n";
-	}
-    }
-    if (GeniResponse::IsError($result) || $debug > 1) {
-	$message .= "Request:\n" . $request . "\n";
-    }
     AddAuditInfo("message", $message);
 
-    if (! ref($result)) {
+    # Do not send debugging mail for these two errors and do not save
+    # the logfiles.
+    if (GeniResponse::IsError($result)) {
+	if ($result->{'code'} == GENIRESPONSE_SEARCHFAILED() ||
+	    $result->{'code'} == GENIRESPONSE_BUSY) {
+	    $debug = 0;
+	}
+	else {
+	    $iserror = 1;
+	}
+    }
+    elsif (! ref($result) && $result) {
 	#
 	# This could happen if the child forks. 
 	#
-	if ($result) {
-	    print STDERR "Forked child returned an error\n";
-	}
+	$iserror = 1;
+	print STDERR "Forked child returned an error\n";
     }
-    else {
-	#
-	# If the response indicates error, and no output is defined in
-	# the response, then send back the contents of the audit file.
-	# Not sure this makes any sense at all yet, but the point is to
-	# get more info back to the user.
-	#
-	if (GeniResponse::IsError($result) &&
-	    (!defined($result->{'output'}) || $result->{'output'} eq "") &&
-	    exists($ENV{'TBAUDITLOG'}) && -s $ENV{'TBAUDITLOG'}) {
-	    $result->{'output'} = `cat $ENV{'TBAUDITLOG'}`;
+    
+    #
+    # We do not want this stuff as metadata; too much. Also it has to
+    # go into the logfile so it gets saved, since AddAuditInfo() just
+    # adds it to the email message, so it would be lost. Lets spit
+    # it out to the end of the log file.
+    #
+    # We only do this in the parent of a fork, hence the ref() test.
+    # Yep, the child side of the fork will append any new log info
+    # after these prints. But thats okay. 
+    #
+    if (ref($result) && ($iserror || $debug > 1)) {
+	printf STDERR "\n";
+	if (defined($result->{'output'}) && $result->{'output'} ne "") {
+	    print STDERR "-------------- Output -----------------\n";
+	    print STDERR $result->{'output'} . "\n";
 	}
-	# Do this after above so that silly comment is not sent to user.
-	if (GeniResponse::IsError($result)) {
-	    if ($result->{'code'} == GENIRESPONSE_SEARCHFAILED() ||
-		$result->{'code'} == GENIRESPONSE_BUSY) {
-		# Do not send debugging mail for these two errors.
-		$debug = 0;
-	    }
-	    elsif ($mailerrors) {
-		print STDERR "Mail Errors is on.\n";
-	    }
+	print STDERR "-------------- Request -----------------\n";
+	print STDERR Dumper($request) . "\n";
+	if (defined($result->{'value'})) {
+	    print STDERR "-------------- Result ------------------\n";
+	    print STDERR Dumper($result->{'value'}) . "\n";
 	}
-
+	print STDERR "----------------------------------------\n";
+    }
+    if ($debug) {
+	print STDERR "\nDebugging is on.\n";
+    }
+    # Last bit of detail. 
+    if (ref($result)) {
 	$result->{'protogeni_error_log'} = $logurn;
 	$result->{'protogeni_error_url'} = $logurl;
 
@@ -574,22 +621,34 @@ else {
     }
 }
 
-if ($debug) {
-    print STDERR "Debugging is on.\n";
-}
+#
+# Abort the log capture so that we can print the response to STDOUT
+# for the web server. But first deal with the email.
+#
+LogAbort();
 
 #
-# Terminate the log capture so that we can print the response to STDOUT
-# for the web server.
+# If nothing in the log and no error, then we just store the metadata
+# and skip the message.
 #
-LogEnd(0);
+if (-s $logfile->filename() || $iserror) {
+    my $to       = ($rpcerror ? $TBOPS : ($MAINSITE ? $PGERRORS : $TBLOGS));
+    my $cc       = ($MAINSITE ? undef : "CC: $PGERRORS");
+    SENDMAIL($to, "protogeni-wrapper.pl", $message,
+	     $TBOPS, $cc,
+	     ($mailsendlog || $rpcerror ? ($logfile->filename()) : undef));
+    $nostorelogs = 0;
+}
+
 #
 # Do not store/delete the log in the parent of a forked call.
 # It will happen when the child comes back here. 
 #
 if (!$logforked) {
     # Use eval to avoid messing up the output stream if any errors.
-    eval { ($logfile->Empty() ? $logfile->Delete(1) : $logfile->Store()); };
+    # If nostorelogs is set, we do not bother to store, just delete.
+    eval { ($nostorelogs && !$iserror ?
+	    $logfile->Delete(1) : $logfile->Store()); };
 }
 
 print "Content-Type: text/xml \n\n" . $response
@@ -607,8 +666,7 @@ END {
 	    LogEnd(0);
 	    if (!$logforked) {
                 # Use eval to avoid messing up the output stream if any errors.
-		eval { ($logfile->Empty() ?
-			$logfile->Delete(1) : $logfile->Store()); };
+		eval { $logfile->Store(); };
 	    }
 	}
 

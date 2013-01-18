@@ -309,26 +309,41 @@ sub Store($)
     $self->Close();
 
     #
-    # Use first two letters of the id for the subdir. 
+    # Well, what if we have metadata but the logfile is empty? The
+    # metadata is still interesting in some situations, but rather
+    # then compress a null file and take an inode, just set the
+    # filename to null. This currently happens from the protogeni API.
+    # If the size of the logfiles table gets out of control, we can
+    # revisit this, but I think we just need to age out old ones
+    # on a regular basis. 
     #
-    my $dir = lc(substr($logid, 0, 2));
-    $newname = "$newname/$dir/${logid}.gz";
+    if (-e $filename && -s $filename) {
+	#
+	# Use first two letters of the id for the subdir. 
+	#
+	my $dir = lc(substr($logid, 0, 2));
+	$newname = "$newname/$dir/${logid}.gz";
 
-    if (-e $newname) {
-	print STDERR "Logfile::Store ($logid) - $newname exists\n";
-	return -1;
+	if (-e $newname) {
+	    print STDERR "Logfile::Store ($logid) - $newname exists\n";
+	    return -1;
+	}
+	my $output = emutil::ExecQuiet("$GZIP -c $filename > $newname");
+	if ($?) {
+	    SENDMAIL($TBOPS, "Logfile Store Error",
+		     "Failed to store $filename to $newname\n\n".
+		     "-----------------\n".
+		     "$output\n", $TBOPS);
+	    return -1
+	}
+	$newname = "'" . $newname . "'";
     }
-    my $output = emutil::ExecQuiet("$GZIP -c $filename > $newname");
-    if ($?) {
-	SENDMAIL($TBOPS, "Logfile Store Error",
-		 "Failed to store $filename to $newname\n\n".
-		 "-----------------\n".
-		 "$output\n", $TBOPS);
-	return -1
+    else {
+	$newname = "NULL";
     }
     unlink($filename);
     DBQueryWarn("update logfiles set ".
-		"  stored=1,compressed=1,filename='$newname' ".
+		"  stored=1,compressed=1,filename=$newname ".
 		"where logid='$logid'")
 	or return -1;
 

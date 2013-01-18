@@ -263,6 +263,7 @@ sub ListResources()
 
     my $xml = undef;
     if ($slice_urn) {
+	main::AddLogfileMetaData("slice_urn", $slice_urn);
 
         # If $slice_urn is defined, this turns into a Resolve call.  We
         # need to resolve twice: once to get the sliver urn from the
@@ -895,6 +896,10 @@ sub Update
 	if (GeniResponse::IsResponse($cred));
 
     my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
+    if (defined($slice)) {
+	main::AddLogfileMetaData("slice_urn", $slice_urn);
+	main::AddLogfileMetaData("slice_idx", $slice->idx());
+    }
 
     # The URN list must be either empty or contain the slice URN.
     if (scalar(@urns) > 1 ||
@@ -977,6 +982,7 @@ sub AllocateTicket
     if (GeniResponse::IsResponse($combined)) {
 	return $combined;
     }
+
     my $args = {
 	'slice_urn' => $slice_urn,
 	'ticket' => $ticketStr,
