@@ -1309,18 +1309,8 @@ sub GetTicket($)
     else {
 	# Slice does not exist yet. 
     }
-    my $response =
-	GeniCM::GetTicketAux($credential, $rspecstr, 0, $impotent, 1, 1, undef);
-    return $response
-	    if (GeniResponse::IsResponse($response));
-
-    $slice = GeniSlice->Lookup($slice_urn);
-    if (!defined($slice)) {
-	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
-    }
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
-    
-    return $response;
+    return GeniCM::GetTicketAux($credential,
+				$rspecstr, 0, $impotent, 1, 1, undef);
 }    
 	
 #

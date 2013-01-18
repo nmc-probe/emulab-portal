@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -513,6 +513,7 @@ sub GetTicketAux($$$$$$$)
 	return $slice
 	    if (GeniResponse::IsResponse($slice));
     }
+    main::AddLogfileMetaData("slice_idx", $slice->idx());
     
     return GetTicketAuxAux($slice, $user, $rspecstr,
 			   $isupdate, $impotent, $v2, $level, $ticket,
