@@ -244,6 +244,8 @@ typedef struct {
 } tmcdreq_t;
 static int	iptonodeid(struct in_addr, tmcdreq_t *, char*);
 static int	checkdbredirect(tmcdreq_t *);
+static int      sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, 
+			      char *vname);
 
 #ifdef EVENTSYS
 int			myevent_send(address_tuple_t address);
@@ -3993,11 +3995,11 @@ COMMAND_PROTOTYPE(dostorageconfig)
 	MYSQL_ROW	row, row2;
 	char		buf[MYBUFSIZE];
 	char		*bufp, *ebufp = &buf[sizeof(buf)];
-	char            iqn[BS_IQN_MAXSIZE];
-	char            *vname, *bsid, *class, *protocol, *perms;
-	unsigned int    volsize, bsidx;
-	int		nrows, nattrs;
-	int             cmdidx = 1;
+	char            *mynodeid;
+	char            *vname, *bsid, *hostid;
+	int             serverside;
+	int             volsize, bsidx, cmdidx = 1;
+	int		nrows, nrows2, nattrs;
 
 	/* Request for a blockstore VM? If so, return blockstore slice info */
 	if (reqp->isvnode &&
@@ -4042,22 +4044,72 @@ COMMAND_PROTOTYPE(dostorageconfig)
 		vname = row[2];
 		volsize = atoi(row[3]);
 
-		res2 = mydb_query("select attrkey,attrvalue "
-				  "from virt_blockstore_attributes "
-				  "where exptidx=%d and vname='%s'", 
-				  2, reqp->exptidx, vname);
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=SLICE IDX=%d BSID=%s VOLNAME=%s VOLSIZE=%d\n",
+		       cmdidx++, bsid, vname, volsize);
+		client_writeback(sock, buf, strlen(buf), tcp);
 
-		if (!res2) {
-			error("STORAGECONFIG: %s: DB Error getting vattrs.\n",
-			      reqp->vnodeid);
-			return 1;
-		}
+		serverside = 1;
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=EXPORT IDX=%d VOLNAME=%s",
+		       cmdidx++, vname);
+		mysql_free_result(res);
 
-		/* Find out what type of blockstore we are dealing with and
-		   grab some additional attributes. */
-		nrows = nattrs = (int) mysql_num_rows(res2);
-		class = protocol = perms = "\0";
-		while (nrows--) {
+		return sendstoreconf(sock, tcp, reqp, buf, vname);
+	}
+
+	/* 
+	 * If we are here, then this is a regular node.  Send over its
+	 * list of storage-related commands so that it can build things
+         * up.
+	 *
+	 * - List of local storage elements to verify.
+	 * - List of remote storage elements to link up to.
+	 * - ... XXX: Other stuff later (e.g., aggregates).
+	 */
+	
+	/* Remember the nodeid we care about up front. */
+	mynodeid = reqp->isvnode ? reqp->vnodeid : reqp->nodeid;
+
+	/* return blockstores entries (XXX: for now, just the elements) */
+	res = mydb_query("select bsidx,bs_id,total_size "
+			  "from blockstores "
+			  "where node_id='%s' and role='element'", 
+			  3, mynodeid);
+
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting blockstores.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	/* Find out what type of blockstore we are dealing with and
+	   grab some additional attributes. */
+	nrows = (int) mysql_num_rows(res);
+	while (nrows--) {
+		char *class, *protocol, *serial;
+
+		row = mysql_fetch_row(res);
+		bsidx = atoi(row[0]);
+		bsid = row[1];
+		volsize = atoi(row[2]);
+
+		/* Nifty sql union query that lets a blockstore's specific 
+		   attributes override those inherited from its type. */
+		res2 = mydb_query("(select attrkey,attrvalue "
+				  " from blockstores as b "
+				  " left join blockstore_type_attributes as a on "
+				  "      b.type=a.type "
+				  " where b.bsidx=%d) "
+				  "union "
+				  "(select attrkey,attrvalue "
+				  "   from blockstore_attributes "
+				  " where bsidx=%d) ",
+				  2, bsidx, bsidx);
+
+		nrows2 = nattrs = (int) mysql_num_rows(res2);
+		class = protocol = serial = "\0";
+		while (nrows2--) {
 			char *key, *val;
 			row2 = mysql_fetch_row(res2);
 			key = row2[0];
@@ -4066,52 +4118,172 @@ COMMAND_PROTOTYPE(dostorageconfig)
 				class = val;
 			} else if (strcmp(key,"protocol") == 0) {
 				protocol = val;
-			} else if (strcmp(key,"permissions") == 0) {
-				perms = val;
+			} else if (strcmp(key, "serialnum") == 0) {
+				serial = val;
 			}
 		}
 
-		/* iSCSI blockstore */
-		if ((strcmp(class, BS_CLASS_SAN) == 0) &&
-		    (strcmp(protocol, BS_PROTO_ISCSI) == 0)) {
-			/* Do we have explicit permissions to pass along? 
-			   If not, pass the default permissions. */
-			perms = strlen(perms) ? perms : BS_PERMS_ISCSI_DEF;
-
-			/* Construct IQN string. */
-			if (snprintf(iqn, sizeof(iqn), "%s:%s:%s:%s",
-				     BS_IQN_PREFIX, reqp->pid, 
-				     reqp->eid, vname) >= sizeof(iqn)) {
-				error("STORAGECONFIG: %s: Not enough room in "
-				      "IQN string buffer", reqp->vnodeid);
-				mysql_free_result(res);
-				mysql_free_result(res2);
-				return 1;
-			}
-			bufp = buf;
-			bufp += OUTPUT(bufp, ebufp-bufp, 
-				       "CMD=SLICE IDX=%d "
-				       "CLASS=%s PROTO=%s BSID=%s "
-				       "VOLNAME=%s VOLSIZE=%d\n",
-				       cmdidx++, class, protocol, bsid,
-				       iqn, volsize);
-			client_writeback(sock, buf, strlen(buf), tcp);
-
-			bufp = buf;
-			bufp += OUTPUT(bufp, ebufp-bufp,
-				       "CMD=EXPORT IDX=%d "
-				       "VOLNAME=%s PERMS=%s\n",
-				       cmdidx++, iqn, perms);
-			client_writeback(sock, buf, strlen(buf), tcp);
+		if (!(class && *class && 
+		      protocol && *protocol && 
+		      serial && *serial)) {
+			error("STORAGECONFIG: %s: Missing attributes!", 
+			      mynodeid);
+			mysql_free_result(res);
+			mysql_free_result(res2);
+			return 0;
 		}
+		
+		/* Now that we have the current blockstore's info, spit it out
+		   for the client to consume. */
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=ELEMENT IDX=%d CLASS=%s PROTO=%s "
+		       "HOSTID=%s BSID=%s UUID=%s UUID_TYPE=serial "
+		       "SIZE=%d\n",
+		       cmdidx++, class, protocol, mynodeid, bsid,
+		       serial, volsize);
 
-		mysql_free_result(res);
+		client_writeback(sock, buf, strlen(buf), tcp);
 		mysql_free_result(res2);
+	}
+	mysql_free_result(res);
+	
+	/* 
+	 * Now to send the remote elements (a.k.a SAN disks). Figuring
+	 * out which ones we need to tell the client about is a little
+	 * bit tricky.  It requires iterating over the lans that the
+	 * node is a member of, looking for blockstores, and then
+	 * sending back any found.
+	 */
 
-		return 0;
+	/* First, get the lans that the node is a member of. */
+	res = mydb_query("select lanid "
+			 "from lans as l left join lan_members as lm "
+			 "on l.lanid = lm.lanid "
+			 "where l.pid='%s' and l.eid='%s' and lm.node_id='%s'", 
+			 1, reqp->pid, reqp->eid, mynodeid);
+
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting lan listing.\n",
+		      mynodeid);
+		return 1;
 	}
 
-	/* nothing to return... */
+	/* Now within the lans this node is a member of, find any blockstore
+	   pseudo-VMs. (Yes, this could probably be done with a subquery.
+	   Maybe later...) */
+	nrows = (int) mysql_num_rows(res);
+	bufp = buf;
+	while (nrows--) {
+		row = mysql_fetch_row(res);
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       nrows ? "%s," : "%s", 
+			       row[0]);
+	}
+	mysql_free_result(res);
+
+	res = mydb_query("rb.bsidx, rb.vnode_id, rb.vname, rb.size "
+			 "from reserved_blockstores as rb "
+			 " left join lan_members as lm "
+			 "  on rb.vnode_id = lm.node_id "
+			 "where lm.lanid in (%s)",
+			 4, buf);
+
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting connected "
+		      "blockstore info.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	/* For each blockstore, spit out info for the client. */
+	nrows = (int) mysql_num_rows(res);
+	while (nrows--) {
+		row = mysql_fetch_row(res);
+		bsidx = atoi(row[0]);
+		hostid = row[1];
+		vname = row[2];
+		volsize = atoi(row[3]);
+	       
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=ELEMENT IDX=%d HOSTID=%s VOLNAME=%s VOLSIZE=%d", 
+		       cmdidx++, hostid, vname, volsize);
+		sendstoreconf(sock, tcp, reqp, buf, vname);
+	}
+	
+	/* All done. */
+	return 0;
+}
+
+/* Helper function for "dostorageconfig" */
+static int 
+sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
+{
+        MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	char		buf[MYBUFSIZE];
+	char            iqn[BS_IQN_MAXSIZE];
+	char            *mynodeid;
+	char            *class, *protocol, *perms;
+	int		nrows, nattrs;
+
+	/* Remember the nodeid we care about up front. */
+	mynodeid = reqp->isvnode ? reqp->vnodeid : reqp->nodeid;
+
+	/* Get the virt attributes for the blockstore. */
+	res = mydb_query("select attrkey,attrvalue "
+			 "from virt_blockstore_attributes "
+			 "where exptidx=%d and vname='%s'", 
+			 2, reqp->exptidx, vname);
+
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting vattrs.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	/* Find out what type of blockstore we are dealing with and
+	   grab some additional attributes. */
+	nrows = nattrs = (int) mysql_num_rows(res);
+	class = protocol = perms = "\0";
+	while (nrows--) {
+		char *key, *val;
+		row = mysql_fetch_row(res);
+		key = row[0];
+		val = row[1];
+		if (strcmp(key,"class") == 0) {
+			class = val;
+		} else if (strcmp(key,"protocol") == 0) {
+			protocol = val;
+		} else if (strcmp(key,"permissions") == 0) {
+			perms = val;
+		}
+	}
+
+	/* iSCSI blockstore */
+	if ((strcmp(class, BS_CLASS_SAN) == 0) &&
+	    (strcmp(protocol, BS_PROTO_ISCSI) == 0)) {
+		/* Do we have explicit permissions to pass along? 
+		   If not, pass the default permissions. */
+		perms = strlen(perms) ? perms : BS_PERMS_ISCSI_DEF;
+
+		/* Construct IQN string. */
+		if (snprintf(iqn, sizeof(iqn), "%s:%s:%s:%s",
+			     BS_IQN_PREFIX, reqp->pid, 
+			     reqp->eid, vname) >= sizeof(iqn)) {
+			error("STORAGECONFIG: %s: Not enough room in "
+			      "IQN string buffer", mynodeid);
+			mysql_free_result(res);
+			return 1;
+		}
+
+		OUTPUT(buf, sizeof(buf),
+		       "%s CLASS=%s PROTO=%s UUID=%s UUID_TYPE=iqn PERMS=%s\n",
+		       bscmd, class, protocol, iqn, perms);
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+
+	mysql_free_result(res);
+
 	return 0;
 }
 
