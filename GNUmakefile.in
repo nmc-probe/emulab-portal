@@ -470,8 +470,8 @@ undo-configure:
 # They are copied over to the embryonic boss and ops during setup.
 #
 elabinelab-scripts:
-	cp $(SRCDIR)/clientside/tmcc/freebsd/mkextrafs.pl $(INSTALL_TOPDIR)/etc/
-	cp $(SRCDIR)/clientside/tmcc/common/config/rc.mkelab $(INSTALL_TOPDIR)/etc/
+	cp -f $(SRCDIR)/clientside/tmcc/freebsd/mkextrafs.pl $(INSTALL_TOPDIR)/etc/
+	cp -f $(SRCDIR)/clientside/tmcc/common/config/rc.mkelab $(INSTALL_TOPDIR)/etc/
 
 ifeq ($(SPEWFROMOPS),1)
 elabinelab-nogit: elabinelab-scripts
@@ -482,7 +482,9 @@ elabinelab-nogit: elabinelab-scripts
 elabinelab-git: elabinelab-scripts
 	-mkdir -p /share/emulab
 	rm -f /share/emulab/emulab-src.tar.gz
-	git archive --prefix=testbed/ | gzip -c >/share/emulab/emulab-src.tar.gz
+	(cd $(SRCDIR); \
+	 git archive --prefix=testbed/ HEAD | \
+            gzip -c >/share/emulab/emulab-src.tar.gz)
 else
 elabinelab-nogit: elabinelab-scripts
 	-mkdir -p $(INSTALL_TOPDIR)/src
@@ -492,7 +494,9 @@ elabinelab-nogit: elabinelab-scripts
 elabinelab-git: elabinelab-scripts
 	-mkdir -p $(INSTALL_TOPDIR)/src
 	rm -f $(INSTALL_TOPDIR)/src/emulab-src.tar.gz
-	git archive --prefix=testbed/ | gzip -c > $(INSTALL_TOPDIR)/src/emulab-src.tar.gz
+	(cd $(SRCDIR); \
+	 git archive --prefix=testbed/ HEAD | \
+            gzip -c > $(INSTALL_TOPDIR)/src/emulab-src.tar.gz)
 endif
 
 # How to recursively descend into subdirectories to make general
