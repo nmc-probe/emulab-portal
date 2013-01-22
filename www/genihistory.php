@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -99,30 +99,30 @@ if (1) {
 	if (!preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $slice_uuid)) {
 	    USERERROR("Invalid slice uuid", 1);
 	}
-	$clause = "and slice_uuid='$slice_uuid' ";
+	$clause = "and a.slice_uuid='$slice_uuid' ";
     }
     else {
 	if ($myindex) {
-	    $clause = "and idx<$myindex ";
+	    $clause = "and a.idx<$myindex ";
 	}
 	if (isset($search) && isset($searchfor)) {
 	    $safe_searchfor = addslashes($searchfor);
 
 	    if (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $searchfor)) {
-		$clause = "$clause and slice_uuid='$safe_searchfor' ";
+		$clause = "$clause and a.slice_uuid='$safe_searchfor' ";
 	    }
 	    elseif (preg_match("/^urn:publicid:IDN\+[-\w\.]+\+slice\+[-\w]*$/",
 			       $searchfor)) {
-		$clause = "$clause and slice_urn='$safe_searchfor' ";
+		$clause = "$clause and a.slice_urn='$safe_searchfor' ";
 	    }
 	    elseif (preg_match("/^urn:publicid:IDN\+[-\w\.]+\+user\+[-\w]*$/",
 			       $searchfor)) {
-		$clause = "$clause and creator_urn='$safe_searchfor' ";
+		$clause = "$clause and a.creator_urn='$safe_searchfor' ";
 	    }
 	    elseif (strtotime($searchfor)) {
 		$ts = strtotime($searchfor);
-		$clause = "$clause and ($ts >= UNIX_TIMESTAMP(created) && ".
-		    "(destroyed is null or $ts <= UNIX_TIMESTAMP(destroyed)))";
+		$clause = "$clause and ($ts >= UNIX_TIMESTAMP(a.created) && ".
+		 "(a.destroyed is null or $ts <= UNIX_TIMESTAMP(a.destroyed)))";
 	    }
 	    elseif ($searchfor == $searchbox) {
 		# Just a press of the ch box, so dump out the CH records.
@@ -133,9 +133,11 @@ if (1) {
 	}
     }
     $query_result =
-	DBQueryFatal("select * from aggregate_history ".
-		     "where `type`='Aggregate' $clause ".
-		     "order by idx desc limit 20",
+	DBQueryFatal("select a.*,s.idx as slice_idx ".
+		     "  from aggregate_history as a ".
+		     "left join geni_slices as s on s.uuid=a.slice_uuid ".
+		     "where a.type='Aggregate' $clause ".
+		     "order by a.idx desc limit 20",
 		     $dblink);
 
     $table = array('#id'	   => 'aggregate',
@@ -152,8 +154,10 @@ if (1) {
     if (mysql_num_rows($query_result)) {
 	while ($row = mysql_fetch_array($query_result)) {
 	    $idx         = $row["idx"];
+	    $slice_idx   = $row["slice_idx"];
 	    $uuid        = $row["uuid"];
 	    $slice_hrn   = $row["slice_hrn"];
+	    $slice_uuid  = $row["slice_uuid"];
 	    $creator_hrn = $row["creator_hrn"];
 	    $slice_urn   = $row["slice_urn"];
 	    $creator_urn = $row["creator_urn"];
@@ -169,9 +173,17 @@ if (1) {
 	    if (isset($creator_urn)) {
 		$creator_info = "$creator_urn";
 	    }
+	    if ($destroyed) {
+		$url = "<a href='showslicelogs.php?slice_uuid=$slice_uuid'>";
+	    }
+	    else {
+		$url =
+		    "<a href='showslice.php?slice_idx=$slice_idx&showtype=cm'>";
+	    }
+	    $url .= "$slice_info</a>";
 
 	    $tablerow = array("idx"       => $idx,
-			      "hrn"       => $slice_info,
+			      "hrn"       => $url,
 			      "creator"   => $creator_info,
 			      "created"   => $created,
 			      "destroyed" => $destroyed);
@@ -228,8 +240,6 @@ if (1) {
 	}
     }
 }
-
-
 
 #
 # Standard Testbed Footer
