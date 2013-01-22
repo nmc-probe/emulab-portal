@@ -411,7 +411,7 @@ sub WrapperFork()
 }
 
 #
-# Upcall to set the slice urn in the logfile metadata. Difficult to
+# Upcall to add metadata to the logfile. Difficult to
 # know so let the callee tell us.
 #
 sub AddLogfileMetaData($$)
@@ -425,6 +425,14 @@ sub AddLogfileMetaData($$)
 	    if ($key eq $metakey);
     }
     push(@metadata, [$key, $val]);
+}
+sub AddLogfileMetaDataFromSlice($)
+{
+    my ($slice) = @_;
+
+    AddLogfileMetaData("slice_idx",  $slice->idx());
+    AddLogfileMetaData("slice_urn",  $slice->urn());
+    AddLogfileMetaData("slice_uuid", $slice->uuid());
 }
 
 #

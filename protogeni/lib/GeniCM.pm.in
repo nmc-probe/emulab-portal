@@ -513,7 +513,7 @@ sub GetTicketAux($$$$$$$)
 	return $slice
 	    if (GeniResponse::IsResponse($slice));
     }
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     return GetTicketAuxAux($slice, $user, $rspecstr,
 			   $isupdate, $impotent, $v2, $level, $ticket,

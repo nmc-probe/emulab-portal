@@ -420,7 +420,7 @@ sub CreateSliver($)
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 					"Credential does not match the URN");
 	}
-	main::AddLogfileMetaData("slice_idx", $slice->idx());
+	main::AddLogfileMetaDataFromSlice($slice);
 	
 	#
 	# Watch for a placeholder slice and update it.
@@ -465,8 +465,8 @@ sub CreateSliver($)
 	print STDERR "CreateSliver: Could not find slice for $credential\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,"Internal Error");
     }
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
-    
+    main::AddLogfileMetaDataFromSlice($slice);
+        
     # Make sure that the next phase sees all changes.
     Experiment->FlushAll();
     Node->FlushAll();
@@ -565,8 +565,7 @@ sub DeleteSliver($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "Sliver does not exist");
     }
-    main::AddLogfileMetaData("slice_urn", $slice->urn());
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     if ($sliver_urn ne $aggregate->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
@@ -672,8 +671,7 @@ sub DeleteSlice($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No such slice here");
     }
-    main::AddLogfileMetaData("slice_urn", $slice_urn);
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
@@ -800,8 +798,7 @@ sub SliverAction($$$$$)
 	if (defined($slice) && GeniResponse::IsResponse($slice));
 
     if (defined($slice)) {
-	main::AddLogfileMetaData("slice_urn", $slice_urn);
-	main::AddLogfileMetaData("slice_idx", $slice->idx());
+	main::AddLogfileMetaDataFromSlice($slice);
     }
 
     if ( (!defined($slice)) && 
@@ -1018,8 +1015,7 @@ sub SliverStatus($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No slice or aggregate here");
     }
-    main::AddLogfileMetaData("slice_urn", $slice->urn());
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
@@ -1133,8 +1129,7 @@ sub Shutdown($)
     if (!defined($slice)) {
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
     }
-    main::AddLogfileMetaData("slice_urn", $slice_urn);
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     #
     # Do not worry about locking when setting the shutdown time.
@@ -1199,8 +1194,7 @@ sub RenewSlice($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "No slice or aggregate here");
     }
-    main::AddLogfileMetaData("slice_urn", $slice_urn);
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
@@ -1248,7 +1242,7 @@ sub GetTicket($)
 	return $slice
 	    if (GeniResponse::IsResponse($slice));
 	
-	main::AddLogfileMetaData("slice_idx", $slice->idx());
+	main::AddLogfileMetaDataFromSlice($slice);
     
 	if ($slice_urn ne $slice->urn()) {
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
@@ -1364,7 +1358,7 @@ sub UpdateTicket($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED(), undef,
 				    "Slice does not exist here");
     }
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
 	
     if ($slice->IsExpired()) {
 	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
@@ -1457,9 +1451,8 @@ sub UpdateSliver($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "No slice or aggregate here");
     }
-    main::AddLogfileMetaData("slice_urn", $slice->urn());
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
-    
+    main::AddLogfileMetaDataFromSlice($slice);
+
     # Must be an aggregate (top level sliver).
     if (ref($aggregate) ne "GeniAggregate") {
 	return GeniResponse->MalformedArgsResponse("Must supply aggregate");
@@ -1540,8 +1533,7 @@ sub RedeemTicket($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "No slice here");
     }
-    main::AddLogfileMetaData("slice_urn", $slice_urn);
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     my $open_ticket = GeniTicket->SliceTicket($slice);
     if (! defined($open_ticket) || $open_ticket->idx() ne $ticket->idx()) {
@@ -1647,8 +1639,7 @@ sub ReleaseTicket($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No slice here");
     }
-    main::AddLogfileMetaData("slice_urn", $slice_urn);
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
@@ -1817,8 +1808,7 @@ sub ReserveVlanTags($)
 	    return GeniResponse->BusyResponse();
 	}
     }
-    main::AddLogfileMetaData("slice_urn", $slice_urn);
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
     
     #
     # Confirm that the certificate is the same.
@@ -2303,8 +2293,7 @@ sub InjectEvent($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "Sliver does not exist");
     }
-    main::AddLogfileMetaData("slice_urn", $slice_urn);
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
 
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
@@ -2363,8 +2352,7 @@ sub CreateImage($)
     return $slice
 	if (defined($slice) && GeniResponse::IsResponse($slice));
 
-    main::AddLogfileMetaData("slice_urn", $slice_urn);
-    main::AddLogfileMetaData("slice_idx", $slice->idx());
+    main::AddLogfileMetaDataFromSlice($slice);
 
     if (! (defined($slice) && defined($aggregate))) {
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
