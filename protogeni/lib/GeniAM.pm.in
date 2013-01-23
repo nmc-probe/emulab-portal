@@ -766,6 +766,22 @@ sub DeleteImage()
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $coder->boolean(1));
 }
 
+sub ListImages()
+{
+    my ($user_urn, $credentials, $options) = @_;
+    if (! defined($user_urn) || ! defined($credentials) ||
+	(! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+
+    my $args = {
+        'user_urn' => $user_urn,
+        'credentials' => $credentials
+    };
+    my $response = GeniCMV2::ListImages($args);
+    return $response;
+}
+
 ###############################################################################
 # AM API V3
 ###############################################################################

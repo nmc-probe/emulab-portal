@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -1306,6 +1306,79 @@ sub List($)
 	return GeniResponse->Create(GENIRESPONSE_UNSUPPORTED);
     }
     
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@results);
+}
+
+#
+# Active slivers.
+#
+sub ListActiveSlivers($)
+{
+    my ($argref) = @_;
+    my $cred     = $argref->{'credential'};
+
+    if (! (defined($cred))) {
+	return GeniResponse->MalformedArgsResponse("credential");
+    }
+
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR "Could not find local authority object\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    my $credential = CheckCredential($cred, $authority);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+   
+    $credential->HasPrivilege("readhistory") or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+
+    my $query_result =
+	DBQueryWarn("select a.*,m.manifest from aggregate_history as a ".
+		    "left join manifest_history as m on ".
+		    "     m.aggregate_urn=a.urn ".
+		    "where a.destroyed is null");
+
+    return GeniResponse->Create(GENIRESPONSE_ERROR)
+	if (!$query_result);
+    
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				"Mo matching records")
+	if (! $query_result->numrows);
+
+    my @results = ();
+
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my %blob = ();
+
+	$row->{'slice_urn'} = $row->{'slice_hrn'}
+	    if (!defined($row->{'slice_urn'}));
+
+	$blob{'index'}        = $row->{'idx'};
+	$blob{'uuid'}         = $row->{'uuid'};
+	$blob{'urn'}          = $row->{'urn'};
+	$blob{'slice_urn'}    = $row->{'slice_urn'};
+	$blob{'slice_uuid'}   = $row->{'slice_uuid'};
+	$blob{'creator_urn'}  = $row->{'creator_urn'};
+	$blob{'creator_uuid'} = $row->{'creator_uuid'};
+	$blob{'created'}      = $row->{'created'};
+	if (defined($row->{'destroyed'})) {
+	    $blob{'destroyed'}= $row->{'destroyed'};
+	}
+	else {
+	    $blob{'destroyed'}= '';
+	}
+	if (defined($row->{'manifest'})) {
+	    $blob{'manifest'} = $row->{'manifest'};
+	}
+	else {
+	    $blob{'manifest'} = "";
+	}
+	push(@results, \%blob);
+    }
+    # Slow down the GMOC queries. 
+    sleep(10);
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@results);
 }
 

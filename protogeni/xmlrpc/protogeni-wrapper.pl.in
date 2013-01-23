@@ -478,6 +478,7 @@ if (!defined($GENI_METHODS->{$method})) {
 # Too much output.
 if ($method eq "ListResources" ||
     $method eq "GetVersion" ||
+    $method eq "ListUsage" ||
     $method eq "GetKeys" ||
     $method eq "RegisterSliver" ||
     $method eq "UnRegisterSliver" ||

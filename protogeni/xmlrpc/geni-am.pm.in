@@ -63,6 +63,7 @@ if ($GENI_VERSION eq "1.0" || $GENI_VERSION eq "2.0") {
         "Shutdown"      => \&GeniAM::ShutdownV2,
         "CreateImage"   => \&GeniAM::CreateImage,
         "DeleteImage"   => \&GeniAM::DeleteImage,
+        "ListImages"    => \&GeniAM::ListImages,
     };
 } elsif ($GENI_VERSION eq "3.0") {
     $GENI_METHODS = {
@@ -80,6 +81,7 @@ if ($GENI_VERSION eq "1.0" || $GENI_VERSION eq "2.0") {
         "Cancel"        => \&GeniAM::Cancel,
         "CreateImage"   => \&GeniAM::CreateImage,
         "DeleteImage"   => \&GeniAM::DeleteImage,
+        "ListImages"    => \&GeniAM::ListImages,
     };
 }
 

@@ -2569,5 +2569,71 @@ sub DeleteImage($)
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
 
+#
+# List images for a user. If no user supplied, when for the caller.
+# If user is supplied, then it must be the caller of from the same
+# SA. 
+#
+sub ListImages($)
+{
+    my ($argref) = @_;
+    my $user_urn     = $argref->{'user_urn'};
+    my $credentials  = $argref->{'credentials'};
+    require Image;
+    
+    if (! defined($credentials)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if (defined($user_urn) && !GeniHRN::IsValid($user_urn)) {
+	return GeniResponse->MalformedArgsResponse("Invalid User URN");
+    }
+    my $credential = CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
+    my $authority = GeniCM::CreateAuthorityFromCertificate($credential);
+    return $authority
+	if (GeniResponse::IsResponse($authority));
+
+    #
+    # This is a convenience for testing. If a local user and that
+    # user is an admin person, then do whatever it says. This is
+    # easier then trying to do this with credential privs.
+    #
+    my $isadmin = ($user->IsLocal() && $user->admin() ? 1 : 0);
+
+    if (defined($user_urn) && $user->urn() ne $user_urn) {
+	my ($userauth,undef,undef) = GeniHRN::Parse($user_urn);
+	my ($thisauth,undef,undef) = GeniHRN::Parse($authority->urn());
+
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "No permission to list images")
+	    if ($userauth ne $thisauth && !$isadmin);
+    }
+    else {
+	$user_urn = $user->urn();
+    }
+    my @images = Image->ListForURN($user_urn);
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, [])
+	if (!@images);
+
+    my @result = ();
+    foreach my $image (@images) {
+	my $image_urn = GeniHRN::Generate($OURDOMAIN, "image",
+				  $image->pid() . "//" . $image->imagename());
+	my $image_url = "$TBBASE/image_metadata.php?uuid=" . $image->uuid();
+	
+	push(@result, {"urn" => $image_urn,
+		       "url" => $image_url});
+    }
+    print STDERR "Image for $user_urn:\n";
+    print STDERR Dumper(\@result);
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@result);
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;

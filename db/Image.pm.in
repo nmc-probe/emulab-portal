@@ -46,6 +46,7 @@ my $CONTROL	  = "@USERNODE@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $TBAUDIT       = "@TBAUDITEMAIL@";
 my $TBBASE        = "@TBBASE@";
+my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $TBWWW         = "@TBWWW@";
 
 # Cache of instances to avoid regenerating them.
@@ -1162,6 +1163,36 @@ sub RecordImageHistory($$$$$$)
 	    or return -1;
     }
     return 0;
+}
+
+#
+# List of images created by a user urn.
+#
+sub ListForURN($$)
+{
+    my ($class, $urn) = @_;
+    my @result = ();
+
+    return undef
+	if (! $PGENISUPPORT);
+
+    require GeniHRN;
+    return undef
+	if (! GeniHRN::IsValid($urn));
+
+    my $query_result =
+	DBQueryWarn("select imageid from images ".
+		    "where creator_urn='$urn'");
+
+    while (my ($imageid) = $query_result->fetchrow_array()) {
+	my $image = Image->Lookup($imageid);
+	next
+	    if (!defined($image));
+
+	push(@result, $image);
+    }
+
+    return @result;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
