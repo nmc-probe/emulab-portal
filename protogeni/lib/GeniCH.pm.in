@@ -1356,19 +1356,13 @@ sub ListActiveSlivers($)
 	    if (!defined($row->{'slice_urn'}));
 
 	$blob{'index'}        = $row->{'idx'};
-	$blob{'uuid'}         = $row->{'uuid'};
-	$blob{'urn'}          = $row->{'urn'};
+	$blob{'sliver_uuid'}  = $row->{'uuid'};
+	$blob{'sliver_urn'}   = $row->{'urn'};
 	$blob{'slice_urn'}    = $row->{'slice_urn'};
 	$blob{'slice_uuid'}   = $row->{'slice_uuid'};
 	$blob{'creator_urn'}  = $row->{'creator_urn'};
 	$blob{'creator_uuid'} = $row->{'creator_uuid'};
 	$blob{'created'}      = $row->{'created'};
-	if (defined($row->{'destroyed'})) {
-	    $blob{'destroyed'}= $row->{'destroyed'};
-	}
-	else {
-	    $blob{'destroyed'}= '';
-	}
 	if (defined($row->{'manifest'})) {
 	    $blob{'manifest'} = $row->{'manifest'};
 	}
@@ -1378,7 +1372,7 @@ sub ListActiveSlivers($)
 	push(@results, \%blob);
     }
     # Slow down the GMOC queries. 
-    sleep(10);
+    sleep(1);
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@results);
 }
 
