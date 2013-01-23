@@ -15,10 +15,10 @@ sub Install($$$)
     my $fs_string;
 
     if ($USERNODE_IP eq $FSNODE_IP) {
-	$ops_string .= " fs";
+	$ops_string .= " ${FSNODE} fs";
     }
     elsif ($BOSSNODE_IP eq $FSNODE_IP) {
-	$boss_string .= " fs";
+	$boss_string .= " ${FSNODE} fs";
     }
     else {
 	$fs_string = "${FSNODE_IP}\t${FSNODE} fs";
