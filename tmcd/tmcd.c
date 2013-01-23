@@ -4156,11 +4156,10 @@ COMMAND_PROTOTYPE(dostorageconfig)
 	 */
 
 	/* First, get the lans that the node is a member of. */
-	res = mydb_query("select lanid "
-			 "from lans as l left join lan_members as lm "
-			 "on l.lanid = lm.lanid "
-			 "where l.pid='%s' and l.eid='%s' and lm.node_id='%s'", 
-			 1, reqp->pid, reqp->eid, mynodeid);
+	res = mydb_query("select vname "
+			 "from virt_lans as vl "
+			 "where pid='%s' and eid='%s' and vnode='%s'", 
+			 1, reqp->pid, reqp->eid, reqp->nickname);
 
 	if (!res) {
 		error("STORAGECONFIG: %s: DB Error getting lan listing.\n",
@@ -4172,21 +4171,29 @@ COMMAND_PROTOTYPE(dostorageconfig)
 	   pseudo-VMs. (Yes, this could probably be done with a subquery.
 	   Maybe later...) */
 	nrows = (int) mysql_num_rows(res);
+	if (nrows == 0) {
+	  /* No lans connected to this node, so nothing else to do. */
+	  mysql_free_result(res);
+	  return 0;
+	}
 	bufp = buf;
 	while (nrows--) {
 		row = mysql_fetch_row(res);
 		bufp += OUTPUT(bufp, ebufp-bufp,
-			       nrows ? "%s," : "%s", 
+			       nrows ? "'%s'," : "'%s'", 
 			       row[0]);
 	}
 	mysql_free_result(res);
 
-	res = mydb_query("rb.bsidx, rb.vnode_id, rb.vname, rb.size "
+	res = mydb_query("select rb.bsidx, r.vname, rb.vname, rb.size "
 			 "from reserved_blockstores as rb "
-			 " left join lan_members as lm "
-			 "  on rb.vnode_id = lm.node_id "
-			 "where lm.lanid in (%s)",
-			 4, buf);
+			 " left join reserved as r "
+			 "  on r.node_id = rb.vnode_id "
+			 " left join virt_lans as vl "
+			 "  on r.vname = vl.vnode "
+			 "where vl.vname in (%s) "
+			 " and vl.pid='%s' and vl.eid='%s'",
+			 4, buf, reqp->pid, reqp->eid);
 
 	if (!res) {
 		error("STORAGECONFIG: %s: DB Error getting connected "
@@ -4209,6 +4216,7 @@ COMMAND_PROTOTYPE(dostorageconfig)
 		       cmdidx++, hostid, vname, volsize);
 		sendstoreconf(sock, tcp, reqp, buf, vname);
 	}
+	mysql_free_result(res);
 	
 	/* All done. */
 	return 0;
