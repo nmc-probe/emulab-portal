@@ -58,6 +58,7 @@ my $oneshot   = 0;
 my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $TBLOGS        = "@TBLOGSEMAIL@";
+my $TBAUTOMAIL    = "@TBAUTOMAILEMAIL@";
 my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
 my $OURDOMAIN     = "@OURDOMAIN@";
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
@@ -818,6 +819,8 @@ sub CheckIdle()
 	print STDERR "Could not get idle parameters.\n";
 	return;
     }
+    # Threshold in hours, convert to minutes.
+    $threshold = $threshold * 60;
     
     my $query_result =
 	GeniDB::DBQueryWarn("select idx,UNIX_TIMESTAMP(created) ".
@@ -876,7 +879,7 @@ sub CheckIdle()
 			"  round((unix_timestamp(now()) - ".
 			"         unix_timestamp(max(greatest(last_tty_act, ".
 			"           last_net_act, last_cpu_act, ".
-			"           last_ext_act))))/3600,2) as idle_time, ".
+			"           last_ext_act))))/60,1) as idle_time, ".
 			"  max(greatest(last_tty_act, last_net_act, ".
 			"               last_cpu_act, ".
 			"               last_ext_act)) as lastact, ".
@@ -895,11 +898,14 @@ sub CheckIdle()
 	my $row = $idle_result->fetchrow_hashref();
 
 	my $idleswap   = $row->{'idleswap'};
+	# idleswap_timeout in minutes
 	my $timeout    = $row->{'idleswap_timeout'};
 	my $ignore     = $row->{'idle_ignore'};
 	my $swapreqs   = $row->{'swap_requests'};
+	# lastreq in hours
 	my $lastreq    = $row->{'lastreq'};
 	my $nodes      = $row->{'nodes'};
+	# idletime in in minutes
 	my $idletime   = $row->{'idle_time'};
 	my $lastact    = $row->{'lastact'};
         my $staleness  = $row->{'staleness'};
@@ -930,15 +936,18 @@ sub CheckIdle()
 	    $slice->UnLock();
 	    goto skip;
 	}
+	my $idletime_hours = sprintf("%.2f", $idletime / 60.0);
 	
 	# We do not know (from the query) that idletime>threshold.  So
 	# check that we're either forcing, or that it is idle, and
 	# then check the swap requests and time of last request, to
 	# make sure we can send a message.
-
 	if ($idletime > $timeout || $idletime > $threshold) {
 	    print STDERR "$slice is using $nodes nodes ".
-		"and has been idle for $idletime hours\n";
+		"and has been idle for $idletime_hours hours\n";
+	    if ($ignore) {
+		print STDERR "*** but idle ignore is set.\n";
+	    }
 	}
 	#
 	# We want to report as much idle data as possible, but
@@ -966,9 +975,10 @@ sub CheckIdle()
 		    SENDMAIL($emailaddr, "Sliver $sliver_urn is idle",
 			"Sliver $sliver_urn\n".
 			"from slice $urn,\n".
-			"has been idle for approximately $idletime hour(s).\n".
+			"has been idle for approximately ".
+			     "$idletime_hours hour(s).\n".
 		        "This sliver will be terminated if it stays idle.\n",
-		         undef);
+		         $TBOPS, "CC: $TBAUTOMAIL");
 
 		    emdb::DBQueryWarn("update experiments set ".
 				      "   swap_requests=swap_requests+1, ".
@@ -998,6 +1008,9 @@ sub CheckIdle()
 	}
 	else {
 	    # Reset warnings.
+	    print STDERR "Resetting swap_requests for $slice\n"
+		if ($debug);
+	   
 	    emdb::DBQueryWarn("update experiments set swap_requests=0 ".
 			      "where idx='$exptidx'")
 		if (!$impotent);
@@ -1032,7 +1045,7 @@ while (1) {
 
     # Site var normally controls idle checks, but it can be turned
     # via the command line as well.
-    if (GetSiteVar('protogeni/idlecheck', \$doidlechecks)) {
+    if (! GetSiteVar('protogeni/idlecheck', \$doidlechecks)) {
 	# Cannot get the value, default it to off.
 	$doidlechecks = 0;
     }
