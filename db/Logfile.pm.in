@@ -121,7 +121,10 @@ sub Refresh($)
 {
     my ($self) = @_;
 
-    return $self->Lookup($self->logid());
+    return 0
+	if ($self->Lookup($self->logid()));
+
+    return -1;
 }
 
 #
