@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -784,7 +784,13 @@ if (!$forwikionly) {
 	if ($returning) {
 	    $errors["Project Name"] = "Missing Field";
 	}
-	elseif (isset($nopidokay)) {
+	elseif (!isset($nopidokay)) {
+	    # 
+	    # Sigh, no one reads or follows simple instructions.
+	    #
+	    $errors["Project Name"] = "Missing Field";
+	}
+	elseif (isset($nopidokay) && $nopidokay != "1") {
 	    if ($nopidokay != "Confirm") {
 		$errors["Project Name"] = "Please tell us the Project";
 	    }
@@ -841,8 +847,10 @@ if ($nopidconfirm) {
     #
     reset($formfields);
     while (list($key, $value) = each($formfields)) {
-	echo "<input type=hidden name=\"formfields[$key]\" ".
-	    "value=\"$value\"></input>\n";
+	if ($key != "nopidokay") {
+	    echo "<input type=hidden name=\"formfields[$key]\" ".
+		"value=\"$value\"></input>\n";
+	}
     }
     echo "<input type=hidden name='submit' value='Submit'>\n";
     echo "<center><br>\n";
