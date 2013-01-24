@@ -5861,10 +5861,9 @@ sub GeniExperiment($;$)
     }
 
     # Note the -h option; allows experiment with no NS file.
-    system("$CREATEEXPT -N -q -i -k -w -n ".
+    system("$CREATEEXPT -N -q -i -k -w ".
 	   "-S 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
 	   "-E '$urn' ".
-	   "-L 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
 	   "-h '$uuid' -p $pid -g $gid -e $eid");
     my $saved_exitcode = $?;
 
