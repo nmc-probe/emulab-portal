@@ -1372,7 +1372,7 @@ sub ListActiveSlivers($)
 	push(@results, \%blob);
     }
     # Slow down the GMOC queries. 
-    sleep(1);
+    sleep(5);
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@results);
 }
 
