@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,6 +39,7 @@ use Exporter;
 	 os_groupdel os_getnfsmounts os_islocaldir os_mountextrafs
 	 os_fwconfig_line os_fwrouteconfig_line os_config_gre
 	 os_get_disks os_get_disk_size os_get_partition_info os_nfsmount
+	 os_check_storage os_create_storage os_remove_storage
 	 os_get_ctrlnet_ip
 	 os_getarpinfo os_createarpentry os_removearpentry
 	 os_getstaticarp os_setstaticarp
@@ -133,6 +134,7 @@ my $RMMOD       = '/sbin/rmmod';
 my $MODPROBE    = '/sbin/modprobe';
 my $IWPRIV      = '/usr/local/sbin/iwpriv';
 my $BRCTL       = "/usr/sbin/brctl";
+my $ISCSI	= "/sbin/iscsiadm";
 
 my $PASSDB   = "$VARDIR/db/passdb";
 my $GROUPDB  = "$VARDIR/db/groupdb";
@@ -2451,6 +2453,287 @@ sub os_setstaticarp($$)
     }
 
     return 0;
+}
+
+#
+#
+# To find the block stores exported from a target portal:
+#
+#   iscsiadm -m discovery -t sendtargets -p <storage-host>
+#
+# Display all data for a given node record:
+#
+#   iscsiadm -m node -T <iqn> -p <storage-host>
+#
+# Here are the commands to add a remote iSCSI target, set it to be
+# mounted at startup, and startup a session (login):
+# 
+#   iscsiadm -m node -T <iqn> -p <storage-host> -o new
+#   iscsiadm -m node -T <iqn> -p <storage-host> -o update \
+#              -n node.startup -v automatic
+#   iscsiadm -m node -T <iqn> -p <storage-host> -l
+# 
+# To show active sessions:
+# 
+#   iscsiadm -m session
+# 
+# To stop a specific session (logout) and kill its record:
+#
+#   iscsiadm -m node -T <iqn> -p <storage-host> -u
+#   iscsiadm -m node -T <iqn> -p <storage-host> -o delete
+#
+# To stop all iscsi sessions and kill all records:
+# 
+#   iscsiadm -m node -U all
+#   iscsiadm -m node -o delete
+# 
+# Once a blockstore is added, you have to use "fdisk -l" or possibly
+# crap out in /proc to discover what the name of the disk is.  I've been
+# looking for uniform way to query the set of disks on a machine, but
+# haven't quite figured this out yet.  The closest thing I've found is
+# "fdisk -l".  There are some libraries and such, but there are enough
+# of them that I'm not sure which one is best / most standard.
+# 
+
+sub iscsi_to_dev($)
+{
+    my ($session) = @_;
+
+    #
+    # XXX this is a total hack and maybe distro dependent?
+    #
+    my @lines = `ls -l /sys/block/sd? 2>&1`;
+    foreach (@lines) {
+	if (m#/sys/block/(sd.) -> ../devices/platform/host\d+/session(\d+)#) {
+	    if ($2 == $session) {
+		return $1;
+	    }
+	}
+    }
+
+    return undef;
+}
+
+sub serial_to_dev($)
+{
+    my ($sn) = @_;
+
+    #
+    # XXX this is a total hack and maybe distro dependent?
+    #
+    my @lines = `ls -l /dev/disk/by-id/ 2>&1`;
+    foreach (@lines) {
+	if (m#.*_([^_\s]+) -> ../../(sd.)$#) {
+	    if ($1 eq $sn) {
+		return $2;
+	    }
+	}
+    }
+
+    return undef;
+}
+
+#
+# os_check_storage(confighash)
+#
+#   Determines if the storage unit described by confighash exists and
+#   is properly configured. Returns zero if it doesn't exist, 1 if it
+#   exists and is correct, -1 otherwise.
+#
+#   Side-effect: Creates the hash member $href->{'LNAME'} with the /dev
+#   name of the storage unit.
+#
+sub os_check_storage($)
+{
+    my ($href) = @_;
+
+    #
+    # iSCSI:
+    #  make sure the IQN exists
+    #  make sure a session exists
+    #
+    if ($href->{'PROTO'} eq "iSCSI") {
+	my $hostip = $href->{'HOSTIP'};
+	my $uuid = $href->{'UUID'};
+	my $bsid = $href->{'VOLNAME'};
+
+	if (! -x "$ISCSI") {
+	    warn("*** $ISCSI does not exist, cannot continue\n");
+	    return -1;
+	}
+
+	#
+	# See if the block store exists on the indicated server.
+	# If not, something is very wrong, return -1.
+	#
+#	my @lines = `$ISCSI -m discovery -t sendtargets -p $hostip 2>&1`;
+	my @lines = mybacktick("$ISCSI -m discovery -t sendtargets -p $hostip 2>&1");
+	if ($? != 0) {
+	    warn("*** could not find exported iSCSI block stores\n");
+	    return -1;
+	}
+	if (!grep(/$uuid/, @lines)) {
+	    warn("*** could not find iSCSI block store '$uuid'\n");
+	    return -1;
+	}
+
+	#
+	# It exists, are we connected to it?
+	# If not, we have not done the one-time initialization, return 0.
+	#
+	my $session;
+	@lines = `$ISCSI -m session 2>&1`;
+	foreach (@lines) {
+	    if (/^tcp: \[(\d+)\].*$uuid$/) {
+		$session = $1;
+		last;
+	    }
+	}
+	if (!defined($session)) {
+	    return 0;
+	}
+
+	#
+	# We have a session, everything has been setup, return 1.
+	#
+	my $dev = iscsi_to_dev($session);
+	if (defined($dev)) {
+	    $href->{'LNAME'} = $dev;
+	    return 1;
+	}
+
+	#
+	# Otherwise, we are in some indeterminite state, return -1.
+	#
+	warn("*** $bsid: found iSCSI session but could not determine local device\n");
+	return -1;
+    }
+
+    #
+    # local disk:
+    #  make sure disk exists
+    #
+    if ($href->{'PROTO'} eq "local") {
+	my $bsid = $href->{'VOLNAME'};
+	my $sn = $href->{'UUID'};
+
+	my $dev = serial_to_dev($sn);
+	if (defined($dev)) {
+	    $href->{'LNAME'} = $dev;
+	    return 1;
+	}
+
+	# for physical disks, there is no way to "create" it so return error
+	warn("*** $bsid: could not find HD with serial '$sn'\n");
+	return -1;
+    }
+
+    warn("*** Only support iSCSI now\n");
+    return -1;
+}
+
+#
+# os_create_storage(confighash)
+#
+#   Create the storage unit described by confighash. Unit must not exist
+#   (os_check_storage should be called first to verify). Return one on
+#   success, zero otherwise.
+#
+sub os_create_storage($)
+{
+    my ($href) = @_;
+    #my $redir = "";
+    my $redir = ">/dev/null 2>&1";
+
+    if ($href->{'PROTO'} eq "iSCSI") {
+	my $hostip = $href->{'HOSTIP'};
+	my $uuid = $href->{'UUID'};
+	my $bsid = $href->{'VOLNAME'};
+
+	#
+	# Perform one time iSCSI operations
+	#
+	if (mysystem("$ISCSI -m node -T $uuid -p $hostip -o new $redir") ||
+	    mysystem("$ISCSI -m node -T $uuid -p $hostip -o update -n node.startup -v automatic $redir") ||
+	    mysystem("$ISCSI -m node -T $uuid -p $hostip -l $redir")) {
+	    warn("*** Could not perform first-time initialization of block store $bsid (uuid=$uuid)\n");
+	    return 0;
+	}
+
+	#
+	# Make sure we are connected
+	#
+	@lines = `$ISCSI -m session 2>&1`;
+	foreach (@lines) {
+	    if (/^tcp: \[(\d+)\].*$uuid$/) {
+		$session = $1;
+		last;
+	    }
+	}
+	if (!defined($session)) {
+	    warn("*** Could not locate session for block store $bsid (uuid=$uuid)\n");
+	    return 0;
+	}
+
+	#
+	# Map to a local device.
+	#
+	my $dev = iscsi_to_dev($session);
+	if (!defined($dev)) {
+	    return 0;
+	}
+
+	$href->{'LNAME'} = $dev;
+	return 1;
+    }
+
+    warn("*** Only support iSCSI now\n");
+    return 0;
+}
+
+sub os_remove_storage($)
+{
+    my ($href) = @_;
+    #my $redir = "";
+    my $redir = ">/dev/null 2>&1";
+
+    if ($href->{'PROTO'} eq "iSCSI") {
+	my $hostip = $href->{'HOSTIP'};
+	my $uuid = $href->{'UUID'};
+	my $bsid = $href->{'VOLNAME'};
+
+	#
+	# Tear it down
+	#
+	if (mysystem("$ISCSI -m node -T $uuid -p $hostip -u $redir") ||
+	    mysystem("$ISCSI -m node -T $uuid -p $hostip -o delete $redir")) {
+	    warn("*** Could not perform teardown of iSCSI block store $bsid (uuid=$uuid)\n");
+	    return 0;
+	}
+
+	return 1;
+    }
+
+    warn("*** Only support iSCSI now\n");
+    return 0;
+}
+
+sub mysystem($)
+{
+    my ($cmd) = @_;
+    if (0) {
+	print STDERR "CMD: $cmd\n";
+    }
+    return system($cmd);
+}
+
+sub mybacktick($)
+{
+    my ($cmd) = @_;
+    if (0) {
+	print STDERR "CMD: $cmd\n";
+    }
+    return `$cmd`;
 }
 
 1;

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,6 +39,7 @@ use Exporter;
 	 os_groupdel os_getnfsmounts os_islocaldir os_mountextrafs
 	 os_fwconfig_line os_fwrouteconfig_line os_config_gre os_nfsmount
 	 os_find_freedisk os_get_ctrlnet_ip
+	 os_check_storage os_create_storage os_remove_storage
 	 os_getarpinfo os_createarpentry os_removearpentry
 	 os_getstaticarp os_setstaticarp
        );
@@ -1388,6 +1389,47 @@ sub os_setstaticarp($$)
 	return system("$IFCONFIGBIN $iface -staticarp >/dev/null 2>&1");
     }
 
+    return 0;
+}
+
+#
+# os_check_storage(confighash)
+#
+#   Determines if the storage unit described by confighash exists and
+#   is properly configured. Returns zero if it doesn't exist, 1 if it
+#   exists and is correct, -1 otherwise.
+#
+#   Side-effect: Creates the hash member $href->{'LNAME'} with the /dev
+#   name of the storage unit.
+#
+sub os_check_storage($)
+{
+    my ($href) = @_;
+
+    warn("*** storageconfig not implemented on FreeBSD yet\n");
+    return -1;
+}
+
+#
+# os_create_storage(confighash)
+#
+#   Create the storage unit described by confighash. Unit must not exist
+#   (os_check_storage should be called first to verify). Return one on
+#   success, zero otherwise.
+#
+sub os_create_storage($)
+{
+    my ($href) = @_;
+
+    warn("*** storageconfig not implemented on FreeBSD yet\n");
+    return 0;
+}
+
+sub os_remove_storage($)
+{
+    my ($href) = @_;
+
+    warn("*** storageconfig not implemented on FreeBSD yet\n");
     return 0;
 }
 

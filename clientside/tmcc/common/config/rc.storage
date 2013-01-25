@@ -1,0 +1,351 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use English;
+use Getopt::Std;
+use Socket qw(inet_ntoa);
+
+sub usage()
+{
+    print "Usage: " .
+	scriptname() . " [-j vnodeid] boot|shutdown|reconfig|reset\n";
+    exit(1);
+}
+my $optlist = "j:";
+my $action  = "boot";
+
+# Turn off line buffering on output
+$| = 1;
+
+# Drag in path stuff so we can find emulab stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+
+# Only root.
+if (0 && $EUID != 0) {
+    die("*** $0:\n".
+	"    Must be root to run this script!\n");
+}
+
+# Script specific goo
+my $IQN_PREFIX = "iqn.2000-10.net.emulab";
+
+#
+# Load the OS independent support library. It will load the OS dependent
+# library and initialize itself. 
+# 
+use libsetup;
+use liblocsetup;
+use libtmcc;
+use librc;
+
+#
+# Not all clients support this.
+#
+exit(0)
+    if (MFS() || (REMOTE() && !(REMOTEDED() || JAILED() || PLAB())));
+
+# Protos.
+sub doboot();
+sub doshutdown();
+sub doreconfig();
+sub docleanup();
+
+# Parse command line.
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{'j'})) {
+    my $vnodeid = $options{'j'};
+    libsetup_setvnodeid($vnodeid);
+}
+# Allow default above.
+if (@ARGV) {
+    $action = $ARGV[0];
+}
+
+# Execute the action.
+SWITCH: for ($action) {
+    /^boot$/i && do {
+	doboot();
+	last SWITCH;
+    };
+    /^shutdown$/i && do {
+	doshutdown();
+	last SWITCH;
+    };
+    /^reconfig$/i && do {
+	doreconfig();
+	last SWITCH;
+    };
+    /^reset$/i && do {
+	docleanup();
+	last SWITCH;
+    };
+    fatal("Invalid action: $action\n");
+}
+exit(0);
+
+#
+# Boot Action.
+#
+sub doboot()
+{
+    my @lines = ();
+    my $bossip;
+
+    print STDOUT "Checking Testbed storage configuration ... \n";
+
+    # XXX testing with no tmcd support
+    if (0) {
+	my @foo = (
+	    "CMD=ELEMENT IDX=1 VOLNAME=d-1 CLASS=SAN PROTO=iSCSI HOSTID=blockhost-d-1 UUID=$IQN_PREFIX:testbed:smallsan:d-1 UUID_TYPE=iqn VOLSIZE=1000000000 PERMS=RW",
+	    "CMD=ELEMENT IDX=2 VOLNAME=d-2 CLASS=SAN PROTO=iSCSI HOSTID=blockhost-d-1 UUID=$IQN_PREFIX:testbed:smallsan:d-2 UUID_TYPE=iqn VOLSIZE=1000000000 PERMS=RW",
+	    "CMD=ELEMENT IDX=3 VOLNAME=foo CLASS=local PROTO=local HOSTID=localhost UUID=9SF16YDY UUID_TYPE=serial VOLSIZE=488281250"
+	    );
+	@lines = @foo;
+    }
+
+    if (!@lines) {
+	# XXX uncomment this for tmp testing with alternate tmcd
+	configtmcc("portnum", 7778);
+
+	if (tmcc(TMCCCMD_STORAGE, undef, \@lines) < 0) {
+	    fatal("Could not get storage config from server!");
+	}
+    }
+    return
+	if (!@lines);
+
+    my $storage = parse(@lines);
+    if (!$storage) {
+	fatal("Could not parse storage config!");
+    }
+
+    foreach my $cmd (@{$storage}) {
+	if (!process($cmd)) {
+	    fatal("Could not process storage command!");
+	}
+    }
+
+    exit(0);
+}
+
+#
+# Shutdown Action.
+#
+sub doshutdown()
+{
+    # Nothing to do.
+    return;
+}
+
+#
+# Node Reconfig Action (without rebooting).
+#
+sub doreconfig()
+{
+    # Same as booting
+    return doboot();
+}
+
+#
+# Node cleanup action (node is reset to clean state, as if just allocated).
+#
+sub docleanup()
+{
+}
+
+#
+# Parse the storageinfo tmcd command output. Break each line into a hash,
+# verifying the fields.
+#
+# Format:
+#
+# CMD=ELEMENT IDX=<index> HOSTID=<some-storage-host> \
+# CLASS=(SAN|local) PROTO=(iSCSI|local) \
+# UUID=<unique-id> UUID_TYPE=<id-type> \
+# VOLNAME=<id> VOLSIZE=<size-in-MiB> PERMS=<permissions>
+# 
+# Where:
+#  
+# if CLASS=="SAN" && PROTO=="iSCSI" :
+# IDX :=
+#   \d+ -- monotonically increasing number indicating order of operations
+# HOSTID :=
+#   <bs-vm-shortname> -- short name for blockstore pseudo-VM
+# UUID :=
+#   "iqn.2000-12.net.emulab:<pid>:<eid>:<bs-vname>" -- iSCSI qualified name
+#   constructed from static prefix, pid, eid, and blockstore vname (from ns file).
+# UUID_TYPE :=
+#   "iqn" -- literal string
+# VOLNAME :=
+#   string -- Emulab name for the element
+# VOLSIZE :=
+#   \d+ -- size in mebibytes. Informational; could be used for sanity checking.
+# PERMS :=
+#   (RO|RW) -- i.e., read-only or read-write.
+# 
+# if CLASS=="local" :
+# IDX :=
+#   \d+ -- monotonically increasing number indicating order of operations
+# HOSTID :=
+#   "localhost" -- literal string
+# UUID :=
+#   \w+ -- unique serial number of device
+# UUID_TYPE :=
+#   "serial" -- literal string
+# VOLNAME :=
+#   string -- Emulab name for the element
+# VOLSIZE :=
+#   \d+ -- size in mebibytes. Informational; could be used for sanity checking.
+# PERMS :=
+#   <notpresent> -- this field will not show up for local elements
+# 
+sub parse(@)
+{
+    my %fields = (
+	'CMD'	  => 'ELEMENT',
+	'IDX'	  => '\d+',
+	'CLASS'	  => '(SAN|local)',
+	'PROTO'	  => '(iSCSI|local)',
+	'HOSTID'  => '[-\w\.]+',
+	'UUID'	  => '[-\w\.:]+',
+	'UUID_TYPE'=> '(iqn|serial)',
+	'VOLNAME' => '[-\w]+',
+	'VOLSIZE' => '\d+',
+	'PERMS'	  => '(RO|RW)'
+    );
+    my @ops = ();
+
+    #
+    # Note that any error is fatal since these lines are interdependent.
+    #
+    foreach my $line (@_) {
+	chomp($line);
+
+	#
+	# Break the line into a hash of key/values
+	#
+	my @kvs = split(/\s+/, $line);
+	my %res = ();
+	foreach my $kv (@kvs) {
+	    my ($key,$val,$foo) = split(/=/, $kv);
+	    if (defined($foo)) {
+		warn("*** WARNING: malformed key-val pair in storageinfo: '$kv'\n");
+		return undef;
+	    }
+
+	    #
+	    # Validate the info.
+	    #
+	    if (!exists($fields{$key})) {
+		warn("*** WARNING: invalid keyword in storageinfo: '$key'\n");
+		return undef;
+	    }
+	    if ($val !~ /^$fields{$key}$/) {
+		warn("*** WARNING: invalid value for $key in storageinfo: '$val'\n");
+		return undef;
+	    }
+	    $res{$key} = $val;
+	}
+	push(@ops, \%res);
+    }
+
+    #
+    # Sort the results by order of operation
+    #
+    my @results = sort {$a->{'IDX'} <=> $b->{'IDX'}} @ops;
+
+    return \@results;
+}
+
+#
+# XXX Currently it isn't clear how much we can do here in a generic fashion.
+# This may wind up just being a call to the os-specific setup. But for now
+# we do further validation of params based on what we currently implement.
+#
+sub process($)
+{
+    my ($href) = @_;
+    my $class = $href->{'CLASS'};
+
+    if ($href->{'CMD'} ne "ELEMENT") {
+	fatal("*** Only handle storage elements right now");
+    }
+
+    # look up the host name and convert to IP
+    my $hostip = gethostbyname($href->{'HOSTID'});
+    if (!defined($hostip)) {
+	fatal("*** Cannot resolve hostname '" . $href->{'HOSTID'} . "'");
+    }
+    $href->{'HOSTIP'} = inet_ntoa($hostip);
+
+    if ($class eq "SAN") {
+	if ($href->{'PROTO'} ne "iSCSI") {
+	    fatal("*** SAN protocol '" .
+		  $href->{'PROTO'} . "' not implemented");
+	}
+	if ($href->{'UUID_TYPE'} ne "iqn" ||
+	    $href->{'UUID'} !~ /^$IQN_PREFIX/) {
+	    fatal("*** Invalid iSCSI target name '" . $href->{'UUID'} . "'");
+	}
+
+    }
+    elsif ($class eq "local") {
+	if ($href->{'HOSTID'} ne "localhost" ||
+	    $href->{'UUID_TYPE'} ne "serial") {
+	    fatal("*** Unexpected parameters for local storage");
+	}
+    } else {
+	fatal("*** Unknown storage class '$class'");
+    }
+
+    my $exists = os_check_storage($href);
+    if ($exists > 0) {
+	my $msg;
+
+	if ($href->{'PROTO'} eq "iSCSI") {
+	    $msg = "iSCSI node";
+	} elsif ($href->{'PROTO'} eq "local") {
+	    $msg = "local disk";
+	}
+	print "  " . $href->{'VOLNAME'} . ": $msg at /dev/" .
+	    $href->{'LNAME'} . "\n";
+	return 1;
+    }
+    if ($exists < 0) {
+	fatal("*** Storage device '" .
+	      $href->{'VOLNAME'} . "' incorrectly configured");
+    }
+    if (!os_create_storage($href)) {
+	fatal("*** Could not create storage device '" .
+	      $href->{'VOLNAME'} . "'");
+    }
+
+    if ($href->{'PROTO'} eq "iSCSI") {
+	print "  " . $href->{'VOLNAME'} . ": iSCSI node attached as /dev/" .
+	    $href->{'LNAME'} . "\n";
+    }
+
+    return 1;
+}
