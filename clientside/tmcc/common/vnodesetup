@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -96,6 +96,7 @@ sub cleanup();
 sub killvserver();
 sub fatal($);
 sub removeconfdir($);
+sub BootReport();
 
 #
 # Must be root.
@@ -472,8 +473,10 @@ if ($dojail) {
 	    cleanup();
 	    exit(0);
 	}
-	$cleanupstate = "TBFAILED"
-	    if ($jstat);
+	if ($jstat) {
+	    $cleanupstate = "TBFAILED";
+	    BootReport();
+	}
 	fatal("Jail exited unexpectedly with status $jstat!");
     }
     else {
@@ -953,3 +956,19 @@ sub hackwaitandexit($)
     }
     exit(1);
 }
+
+#
+# Send in boot log.
+#
+sub BootReport()
+{
+    #
+    # Send the console log to the server.
+    #
+    if (-e $logname && -s $logname &&
+	tmcc(TMCCCMD_BOOTLOG, "", undef,
+	     ("datafile" => $logname, "timeout" => 5)) < 0) {
+	print STDERR "Error sending logname to Emulab Control!\n";
+    }
+}
+
