@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -6101,7 +6101,7 @@ mydb_query(char *query, int ncols, ...)
 int
 mydb_update(char *query, ...)
 {
-	char		querybuf[8 * 1024];
+	char		querybuf[64 * 1024];
 	va_list		ap;
 	int		n;
 
