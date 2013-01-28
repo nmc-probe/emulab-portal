@@ -5108,6 +5108,7 @@ sub CreateSliceFromCertificate($$)
 	}
     }
     $slice->SetExpiration($expires);
+    $slice->SetPublicID();
     return $slice;
 }
 
