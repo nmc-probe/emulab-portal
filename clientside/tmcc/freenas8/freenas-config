@@ -79,6 +79,9 @@ class CommandSet(object):
         args = stateobj.args
         kwargs = stateobj.kwargs
 
+        if command == 'list' or command == 'plist':
+            return
+
         if not self.commands.has_key(command):
             raise CommandError("Unknown command '%s'" % command)
         cdict = self.commands[command]
@@ -170,7 +173,10 @@ class CommandSet(object):
         model_prefix = self.loadattr(command,'_model_prefix')
         modelname = self.loadattr(command,'_model')
         model = eval('%s.%s' % (model_prefix,modelname))
-        values = model.objects.values().filter(**filters)
+        if filters is not None:
+            values = model.objects.values().filter(**filters)
+        else:
+            values = model.objects.values()
         return values
 
     def _run(self,stateobj):
@@ -178,14 +184,143 @@ class CommandSet(object):
         args = stateobj.args
         kwargs = stateobj.kwargs
 
-        cdict = self.commands[command]
         self._check(stateobj)
-        fakeReq = self._assembleRequest(stateobj)
-        values = []
         model = self.loadattr(command,'_model')
         model_prefix = self.loadattr(command,'_model_prefix')
-        
         model_var_prefix = self.loadattr(command,'_model_var_prefix')
+
+        if self.commands.has_key(command):
+            cdict = self.commands[command]
+        elif command == 'plist' and self.commands.has_key('list'):
+            cdict = self.commands['list']
+        else:
+            cdict = {}
+        #
+        # Handle lists first; they don't need a fake request
+        #
+        if command == 'list' or command == 'plist':
+            if cdict.has_key('translateKeys'):
+                tk = cdict['translateKeys']
+            else:
+                tk = {}
+            pretty = False
+            if command == 'plist':
+                pretty = True
+                pass
+            
+            if self.loadattr(command,'_list_values') is not None:
+                values = self.loadattr(command,'_list_values')()
+            elif model is not None:
+                values = self._getInstances(stateobj,None)
+            else:
+                raise CommandError("no way to list instances -- bug?!")
+            
+            fields = []
+            fieldwidths = {}
+            newvalues = []
+            if values is not None and len(values) > 0:
+                fields = values[0].keys()
+                fields.sort()
+                for f in fields:
+                    if tk.has_key(f):
+                        nf = tk[f]
+                    else:
+                        nf = f
+                        pass
+                    if model_var_prefix is not None \
+                           and nf.startswith(model_var_prefix + "_"):
+                        fieldwidths[f] = len(nf[len(model_var_prefix + "_"):])
+                    else:
+                        fieldwidths[f] = len(nf)
+                        pass
+                    pass
+                pass
+            else:
+                return
+
+            #
+            # Calc fieldwidths
+            #
+            for v in values:
+                nv = {}
+                for (k,v2) in v.iteritems():
+                    nvi = "%s" % (str(v2),)
+                    nl = len(nvi)
+                    if not fieldwidths.has_key(k):
+                        fieldwidths[k] = nl
+                    elif nl > fieldwidths[k]:
+                        fieldwidths[k] = nl
+                        pass
+                    nv[k] = nvi
+                    pass
+                newvalues.append(nv)
+                pass
+
+            if pretty:
+                hw = 1
+                for fw in fieldwidths.values():
+                    hw += 1 + fw + 1 + 1
+                    pass
+                pass
+
+            # print header
+            if pretty:
+                print '-' * hw
+                sys.stdout.write("|")
+            if 'id' in fields:
+                if pretty:
+                    sys.stdout.write(" %*s |" % (fieldwidths['id'],'id',))
+                else:
+                    sys.stdout.write("id\t")
+            for f in fields:
+                if f == 'id':
+                    continue
+                fn = f
+                if tk.has_key(fn):
+                    fn = tk[fn]
+                    pass
+                if model_var_prefix is not None \
+                       and fn.startswith(model_var_prefix + "_"):
+                    fn = fn[len(model_var_prefix + "_"):]
+                    pass
+                if pretty:
+                    sys.stdout.write(" %*s |" % (fieldwidths[f],fn,))
+                else:
+                    sys.stdout.write("%s\t" % (fn,))
+                    pass
+                pass
+            print ""
+            if pretty:
+                print '-' * hw
+            
+            for v in newvalues:
+                if pretty:
+                    sys.stdout.write("|")
+                if 'id' in fields:
+                    if pretty:
+                        sys.stdout.write(" %*s |" % (fieldwidths['id'],
+                                                     str(v['id']),))
+                    else:
+                        sys.stdout.write("%s\t" % (str(v['id']),))
+                for f in fields:
+                    if f == 'id':
+                        continue
+                    if pretty:
+                        sys.stdout.write(" %*s |" % (fieldwidths[f],str(v[f]),))
+                    else:
+                        sys.stdout.write("%s\t" % (str(v[f]),))
+                    pass
+                print ""
+            if pretty:
+                print '-' * hw
+
+            return
+
+        #
+        # Do other commands
+        #
+        fakeReq = self._assembleRequest(stateobj)
+        values = []
         if model != None:
             filters = {}
             for (k,v) in fakeReq.POST.iteritems():
@@ -374,7 +509,8 @@ class CommandSet(object):
         self._run(stateobj)
 
     def loadattr(self,command,attr):
-        if self.commands[command].has_key(attr):
+        if self.commands.has_key(command) \
+               and self.commands[command].has_key(attr):
             return self.commands[command][attr]
         else:
             return getattr(self,attr,None)
@@ -588,6 +724,10 @@ class Pool(CommandSet):
                    '_model' : 'Volume',
                    'type' : 'custom',
                    'function' : 'freenasUI.storage.views.volume_detach' })
+        self.commands['list'] = \
+            dict({ 'translateKeys' : { 'vol_name' : 'volume_name',
+                                       'vol_fstype' : 'volume_fstype',
+                                       'vol_guid' : 'volume_guid' } })
         pass
 
     #
@@ -619,6 +759,8 @@ class Pool(CommandSet):
             return [ request ]
         pass
 
+    def _list_values(self):
+        return freenasUI.storage.models.Volume.objects.values()
     pass
 
 class Volume(CommandSet):
@@ -655,6 +797,20 @@ class Volume(CommandSet):
         else:
             return [ request, '%s/%s' % (request.POST.get('pool_name'),
                                          request.POST.get('vol_name')) ]
+
+    def _list_values(self):
+        retval = []
+        pl = freenasUI.storage.models.Volume.objects.values()
+        n = freenasUI.middleware.notifier.notifier()
+        for p in pl:
+            pn = p['vol_name']
+            vl = n.list_zfs_vols(pn)
+            for (vk,vv) in vl.iteritems():
+                retval.append({ 'vol_name' : vk,'vol_size' : vv['volsize'],
+                                'pool_name' : pn })
+                pass
+            pass
+        return retval
 
     pass
 
@@ -712,6 +868,25 @@ class Snapshot(CommandSet):
         elif command == 'clone':
             return [ request,request.POST.get('cs_snapshot') ]
         pass
+
+    def _list_values(self):
+        retval = []
+        pl = freenasUI.storage.models.Volume.objects.values()
+        n = freenasUI.middleware.notifier.notifier()
+        sd = n.zfs_snapshot_list()
+        for (vn,sl) in sd.iteritems():
+            for s in sl:
+                retval.append({ 'snap_name' : s['fullname'],
+                                'vol_name' : vn,
+                                'short_snap_name' : s['name'],
+                                'snap_parent' : s['parent'],
+                                'snap_mostrecent' : s['mostrecent'],
+                                'snap_used' : s['used'],
+                                'snap_refer' : s['refer'] })
+                pass
+            pass
+        return retval
+    
     pass
 
 class IscsiTargetAuthCredential(CommandSet):
@@ -1140,7 +1315,8 @@ if not commandSetClasses.has_key(commandSetName):
     usage()
     sys.exit(-2)
 csi = commandSetClasses[commandSetName]()
-if not csi.commands.has_key(commandName):
+if not csi.commands.has_key(commandName) \
+       and not commandName == 'list' and not commandName == 'plist':
     usage()
     sys.exit(-3)
 args = []
