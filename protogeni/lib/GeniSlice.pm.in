@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -296,6 +296,7 @@ sub field($$) { return ((! ref($_[0])) ? -1 : $_[0]->{'SLICE'}->{$_[1]}); }
 sub idx($)		{ return field($_[0], "idx"); }
 sub hrn($)		{ return field($_[0], "hrn"); }
 sub uuid($)		{ return field($_[0], "uuid"); }
+sub publicid($)		{ return field($_[0], "publicid"); }
 sub creator_uuid($)	{ return field($_[0], "creator_uuid"); }
 sub creator_urn($)	{ return field($_[0], "creator_urn"); }
 sub created($)		{ return field($_[0], "created"); }
@@ -307,6 +308,7 @@ sub exptidx($)		{ return field($_[0], "exptidx"); }
 sub needsfirewall($)	{ return field($_[0], "needsfirewall"); }
 sub registered($)	{ return field($_[0], "registered"); }
 sub isplaceholder($)	{ return field($_[0], "isplaceholder"); }
+sub monitor_pid($)	{ return field($_[0], "monitor_pid"); }
 sub cert($)		{ return $_[0]->{'CERT'}->cert(); }
 sub GetCertificate($)   { return $_[0]->{'CERT'}; }
 sub LOCKED($)           { return $_[0]->{'LOCKED'}; }
@@ -1069,6 +1071,65 @@ sub ListAll($$;$)
 	push(@result, $slice);
     }
     @$pref = @result;
+    return 0;
+}
+
+#
+# Set/Clear the monitor pid.
+#
+sub SetMonitorPid($$)
+{
+    my ($self, $pid) = @_;
+    my $uuid = $self->uuid();
+
+    my $query_result =
+	DBQueryWarn("update geni_slices set monitor_pid='$pid' " .
+		    "where uuid='$uuid'");
+    
+    return -1
+	if (!$query_result);
+
+    $self->{'SLICE'}->{'monitor_pid'} = $pid;
+    return 0;
+}
+
+sub ClearMonitorPid($)
+{
+    my ($self) = @_;
+    my $uuid = $self->uuid();
+
+    my $query_result =
+	DBQueryWarn("update geni_slices set monitor_pid='0' " .
+		    "where uuid='$uuid'");
+    
+    return -1
+	if (!$query_result);
+
+    $self->{'SLICE'}->{'monitor_pid'} = 0;
+    return 0;
+}
+
+#
+# Set the public ID.
+#
+sub SetPublicID($)
+{
+    my ($self) = @_;
+    require libtestbed;
+
+    my $uuid = $self->uuid();
+    my $publicid = libtestbed::TBGenSecretKey();
+    return -1
+	if (!defined($publicid) || $publicid eq "");
+    
+    my $query_result =
+	DBQueryWarn("update geni_slices set publicid='$publicid' " .
+		    "where uuid='$uuid'");
+    
+    return -1
+	if (!$query_result);
+
+    $self->{'SLICE'}->{'publicid'} = $publicid;
     return 0;
 }
 
