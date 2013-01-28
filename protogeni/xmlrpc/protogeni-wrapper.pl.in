@@ -408,6 +408,9 @@ sub WrapperFork()
 	# Tell caller we are the parent,
 	return $mypid;
     }
+    # Reset in the child so that we can WrapperFork() again.
+    $logforked = 0;
+    
     # XXX Need to let the parent finish up first, but the parent is
     # is in the "defunct" state, so cannot use kill(0) to figure out
     # it is gone.
