@@ -323,8 +323,10 @@ sub AuditFork()
 
     # Need to close these so that this side of the fork is disconnected.
     if (!$daemon && $PERL_VERSION >= 5.008) {
-	close($libaudit::SAVE_STDOUT);
-	close($libaudit::SAVE_STDERR);
+	close($libaudit::SAVE_STDOUT)
+	    if ($libaudit::SAVE_STDOUT);
+	close($libaudit::SAVE_STDERR)
+	    if ($libaudit::SAVE_STDERR);
 	$libaudit::SAVE_STDOUT = 0;
 	$libaudit::SAVE_STDERR = 0;
     }
@@ -345,6 +347,7 @@ sub AuditFork()
 	POSIX::dup2(fileno(LOG), 2);
 	STDOUT->fdopen(1, "a");
 	STDERR->fdopen(2, "a");
+	close(LOG);
     }
 
     #
