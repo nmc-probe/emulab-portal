@@ -50,6 +50,7 @@ CREATE TABLE `geni_slices` (
   `hrn` varchar(256) NOT NULL default '',
   `idx` mediumint(8) unsigned NOT NULL default '0',
   `uuid` varchar(40) NOT NULL default '',
+  `publicid` varchar(40) default NULL,
   `exptidx` int(11) default NULL,
   `created` datetime default NULL,
   `expires` datetime default NULL,
@@ -64,6 +65,7 @@ CREATE TABLE `geni_slices` (
   `needsfirewall` tinyint(1) NOT NULL default '0',
   `isplaceholder` tinyint(1) NOT NULL default '0',
   `isshutdown` tinyint(1) NOT NULL default '0',
+  `monitor_pid` int(11) default '0',
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `hrn` (`hrn`),
   UNIQUE KEY `uuid` (`uuid`)
