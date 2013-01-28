@@ -167,6 +167,30 @@ sub Create($$;$)
 }
 
 #
+# Create from a string.
+#
+sub CreateFromString($$$)
+{
+    my ($class, $group, $string) = @_;
+    my $logfile = Logfile->Create($group);
+    return undef
+	if (!defined($logfile));
+
+    my $filename = $logfile->filename();
+    if (open(LOG, ">$filename")) {
+	print LOG $string;
+	close(LOG);
+    }
+    else {
+	print STDERR "Logfile::CreateFromString: Cannot write to $filename\n";
+	$logfile->Delete(1);
+	return undef;
+    }
+
+    return $logfile;
+}
+
+#
 # Delete a logfile record. Optionally delete the logfile too.
 #
 sub Delete($;$)
