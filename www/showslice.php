@@ -87,6 +87,14 @@ $rows[] = array("expires"  => $slice->expires());
 if ($slice->locked()) {
     $rows[] = array("locked"  => $slice->locked());
 }
+if ($slice->monitor_pid()) {
+    $rows[] = array("Monitor PID"  => $slice->monitor_pid());
+}
+if ($slice->publicid()) {
+    $url = "$TBDOCBASE/showslicepub.php?publicid=" . $slice->publicid();
+    
+    $rows[] = array("Public URL" => "<a href='$url'>http:// ...</a>");
+}
 if (($manifest = $slice->GetManifest())) {
     $popups[] = GeneratePopupDiv("manifest$manifestidx", $manifest);
     $rows[] = array("manifest" =>
