@@ -416,10 +416,11 @@ sub Register($)
     }
     if (defined($urn)) {
 	my ($auth,$t,$id) = GeniHRN::Parse($urn);
+	my ($myauth, $myt, $myid) = GeniHRN::Parse( $ENV{'MYURN'} );
 
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				     "Authority mismatch")
-	    if ($auth ne $OURDOMAIN);
+	    unless( $auth eq $OURDOMAIN or $auth eq $myauth );
 
 	#
 	# The user can supply a URN, but only the type and id
