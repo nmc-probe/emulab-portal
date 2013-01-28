@@ -88,8 +88,12 @@ AUTOLOAD {
     my $name  = $AUTOLOAD;
     $name =~ s/.*://;   # strip fully-qualified portion
 
+    # canceled is a special case.
+    if ($name eq "canceled") {
+	return $self->Canceled();
+    }
     # A DB row proxy method call.
-    if (exists($self->{'EXPT'}->{$name})) {
+    elsif (exists($self->{'EXPT'}->{$name})) {
 	return $self->{'EXPT'}->{$name};
     }
     elsif (exists($self->{'STATS'}->{$name})) {
@@ -377,20 +381,10 @@ sub Stringify($)
 # the stats stats record, but was not being updated
 sub elabinelab($) { return $_[0]->elab_in_elab(); }
 
-1;
-@SELFLOADER_DATA@
-
-sub dbrow($$)     { return $_[0]->{'EXPT'}; }
-sub locked($)     { return $_[0]->expt_locked(); }
-sub description($){ return $_[0]->expt_name(); }
-sub creator($)    { return $_[0]->expt_head_uid(); }
-sub created($)	  { return $_[0]->expt_created(); }
-sub swapper($)	  { return $_[0]->expt_swap_uid(); }
-
 #
-# For canceled, goto to the DB.
+# For canceled, goto to the DB. See AUTOLOAD above.
 #
-sub canceled($)
+sub Canceled($)
 {
     my ($self) = @_;
     
@@ -407,6 +401,16 @@ sub canceled($)
     $self->{'EXPT'}->{'canceled'} = $canceled;
     return $canceled;
 }
+
+1;
+@SELFLOADER_DATA@
+
+sub dbrow($$)     { return $_[0]->{'EXPT'}; }
+sub locked($)     { return $_[0]->expt_locked(); }
+sub description($){ return $_[0]->expt_name(); }
+sub creator($)    { return $_[0]->expt_head_uid(); }
+sub created($)	  { return $_[0]->expt_created(); }
+sub swapper($)	  { return $_[0]->expt_swap_uid(); }
 
 #
 # Lookup an experiment given an experiment index.
