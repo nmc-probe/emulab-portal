@@ -460,7 +460,7 @@ sub CreateSliver($)
     return $rspec
 	if (GeniResponse::IsResponse($rspec));
 
-    my $slice = GeniSlice->Lookup($credential->target_urn());
+    $slice = GeniSlice->Lookup($credential->target_urn());
     if (!defined($slice)) {
 	print STDERR "CreateSliver: Could not find slice for $credential\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,"Internal Error");
