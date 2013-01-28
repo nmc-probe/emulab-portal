@@ -336,7 +336,15 @@ if (SiteVarExists($sitevarname)) {
 	    if (defined($debug_level));
     }
 }
-elsif ($MODULE eq "emulab") {
+elsif (lc($MODULE) eq "ch") {
+    # Do no even bother with logs unless an error or debugging.
+    $nostorelogs = $debug;
+}
+elsif (lc($MODULE) eq "sa") {
+    # Do no even bother with logs unless an error or debugging.
+    $nostorelogs = $debug;
+}
+elsif (lc($MODULE) eq "emulab") {
     # XXX Special case, obviously
     $debug = 2;
 }
@@ -488,10 +496,6 @@ if ($method eq "ListResources" ||
     $debug = 0;
     # Do no even bother with logs unless an error.
     $nostorelogs = 1;
-}
-# Happens too often and not interesting unless an error.
-if ($method eq "Resolve") {
-    $debug = 0;
 }
 # We always want as much data as possible for these.
 if ($method eq "CreateSliver" ||
