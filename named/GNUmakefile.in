@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,7 +41,7 @@ EXTERNAL_REVERSE_MAPNAME = \
 
 REVFILES                 = $(REVERSE_MAPNAME).db.head
 ifneq ($(REVERSE_MAPNAME), $(EXTERNAL_REVERSE_MAPNAME))
-    REVFILES            .= $(REVFILES) $(EXTERNAL_REVERSE_MAPNAME).db.head
+REVFILES                += $(EXTERNAL_REVERSE_MAPNAME).db.head
 endif
 
 BOSSTOKEN       = $(shell echo @BOSSNODE@ | sed -e 's/\..*//')
