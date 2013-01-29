@@ -305,6 +305,10 @@ sub Resolve($)
 	my $blob = { "urn"          => $urn,
 		     "manifest"     => $manifest,
 		 };
+	$blob->{'public_url'} =
+	    "$TBDOCBASE/showslicepub.php?publicid=" . $slice->publicid()
+	    if (defined($slice->publicid()));
+	
 	# For key bindings.
 	my $slice_experiment = $slice->GetExperiment();
 	if (!defined($slice_experiment)) {
