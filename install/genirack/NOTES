@@ -232,7 +232,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 * For the experimental switch, we need to do something like above,
   which is move the ip address from the default vlan to a private
   vlan, but in this case we can do it from the serial console, and
-  so it is a lot easier. We use minicom:
+  so it is a lot easier. We use screen:
 
 	sudo screen /dev/ttyS0 115200
 
