@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -270,9 +270,11 @@ if (defined($copyarg)) {
     ;
 }
 elsif (!defined($tempnsfile)) {
-    # If no NS file, then override swap/idle stuff. 
-    $swappable     = 0;
-    $idleswap      = 0;
+    if (! $genimode) {
+	# If no NS file, then override swap/idle stuff. 
+	$swappable     = 0;
+	$idleswap      = 0;
+    }
 }
 elsif (! -f $tempnsfile || ! -r $tempnsfile || -z $tempnsfile) {
     # Exit so that user sees the error, not us.
