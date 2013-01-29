@@ -529,6 +529,35 @@ sub StitchUnLock($)
 }
 
 #
+# LockTables simply locks the geni_slices table.
+#
+sub LockTables($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    DBQueryWarn("lock tables geni_slices write")
+	or return -1;
+	
+    return 0;
+}
+sub UnLockTables($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    DBQueryWarn("unlock tables")
+	or return -1;
+    return 0;
+}
+
+#
 # Class function to create new Geni slice from a local experiment.
 # We want to create the key pair so that we can sign credentials.
 #
@@ -1107,6 +1136,22 @@ sub ClearMonitorPid($)
 
     $self->{'SLICE'}->{'monitor_pid'} = 0;
     return 0;
+}
+
+sub GetMonitorPid($)
+{
+    my ($self) = @_;
+    my $uuid = $self->uuid();
+
+    my $query_result =
+	DBQueryWarn("select monitor_pid from geni_slices " .
+		    "where uuid='$uuid'");
+    return -1
+	if (!$query_result || !$query_result->numrows);
+    my ($pid) = $query_result->fetchrow_array();
+
+    $self->{'SLICE'}->{'monitor_pid'} = $pid;
+    return $pid;
 }
 
 #
