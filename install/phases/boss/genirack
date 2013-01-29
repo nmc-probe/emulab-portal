@@ -3,6 +3,7 @@
 # Build from /usr/testbed/src/emulab-stable.
 #
 # Bake in the routable ip space if possible
+# Add partial reverse zone stuff. See the NOTES file. 
 # 
 use strict;
 use libinstall;
