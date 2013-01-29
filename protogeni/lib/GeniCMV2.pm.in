@@ -1094,6 +1094,10 @@ sub SliverStatus($)
 	"error"   => $aggregate->ErrorLog(),
 	"details" => {},
     };
+    $blob->{'public_url'} =
+	"$TBBASE/showslicepub.php?publicid=" .	$slice->publicid()
+	if (defined($slice->publicid()));
+    
     foreach my $sliver (@slivers) {
 	if ($sliver->isa("GeniAggregate")) {
 	    next

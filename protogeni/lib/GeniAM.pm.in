@@ -602,6 +602,8 @@ sub SliverStatus()
 
     # include the pg status
     $status->{'pg_status'} = $pgstatus->{'status'};
+    $status->{'pg_public_url'} = $pgstatus->{'public_url'}
+        if (exists($pgstatus->{'public_url'}));
 
     # include the expiration, converting to UTC
     my $slice = GeniSlice->Lookup($slice_urn);
