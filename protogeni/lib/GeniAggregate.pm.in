@@ -70,6 +70,8 @@ my $TBAPPROVAL     = "@TBAPPROVALEMAIL@";
 my $TBAUDIT   	   = "@TBAUDITEMAIL@";
 my $BOSSNODE       = "@BOSSNODE@";
 my $OURDOMAIN      = "@OURDOMAIN@";
+my $MAINSITE       = @TBMAINSITE@;
+my $ELABINELAB     = @ELABINELAB@;
 my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
 my $SIGNCRED	   = "$TB/sbin/signgenicred";
 my $VERIFYCRED	   = "$TB/sbin/verifygenicred";
@@ -1306,8 +1308,9 @@ sub Start($$$)
 	$sliver->SetState("started")
 	    if (ref($sliver) eq "GeniSliver::Node");
     }
-
-    $self->WaitForNodes(@waitpnodes, @waitvnodes);
+    if ($MAINSITE || $ELABINELAB) {
+	$self->WaitForNodes(@waitpnodes, @waitvnodes);
+    }
     
     return 0;
 
