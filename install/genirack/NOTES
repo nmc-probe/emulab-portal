@@ -327,6 +327,17 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
   which should get ops running.
 
+* named setup does not handle reverse maps smaller then /24 cause of
+  the delegation stuff. Needs to be defined as a partial map since
+  that is what the upper subnet delegates. But we do not handle this
+  in the named config scripts. So I had to edit /etc/namedb/named.conf
+  and add this (edit IP of course) to both views:
+
+    zone "129/25.242.1.192.in-addr.arpa" in {
+    	type master;
+    	file "reverse/192.1.242.db";
+    };
+
 * Now it is time to power on the experimental nodes. If all goes well,
   they will boot up into FreeBSD MFS and be in the hwdown experiment.
   Before we release them, we want to change some settings on the ilo.
@@ -415,16 +426,6 @@ Problems:
 root/toor password on boss did not match what is in the file.
 root/toor password on ops is generated elabinelab swapin and needs to set.
 ntpd and ntpdate failures.
-
-named setup does not handle reverse maps smaller then /24 cause of
-the delegation stuff. Needs to be defined as a partial map since that
-is what the upper subset delegates. But we do not handle this in
-the named config scripts. So I had to hand edit named.conf:
-
-    zone "129/25.242.1.192.in-addr.arpa" in {
-    	type master;
-    	file "reverse/192.1.242.db";
-    };
 
 routable ip space when baking the images.
 
