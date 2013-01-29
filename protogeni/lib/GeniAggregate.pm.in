@@ -52,6 +52,9 @@ use GeniComponent;
 use GeniHRN;
 use GeniXML;
 use emutil;
+use EmulabConstants;
+use Logfile;
+use libtestbed;
 use Data::Dumper;
 use English;
 use overload ('""' => 'Stringify');
@@ -850,6 +853,10 @@ sub Start($$$)
 	    $msg .= "$node no longer belongs to $self";
 	    goto bad;
 	}
+	$node->_reloaded(0);
+	# Backpointer used in WaitForNodes().
+	$node->_sliver($sliver);
+	
 	if ($reservation->SameExperiment($experiment)) {
 	    my $vnode;
 	    
@@ -872,6 +879,7 @@ sub Start($$$)
 		}
 		# See below.
 		$vnode = $node;
+		$vnode->_parent(undef);
 
 		#
 		# We now allow the user to specify the OS for vnodes.
@@ -897,6 +905,7 @@ sub Start($$$)
 		    push(@{ $reloads{$image->imageid()} }, $vnode);
 		    $imageinfo{$vnode->node_id()} = [$osinfo->osid(),
 						     $image->imageid()];
+		    $vnode->_reloaded(1);
 		}
 
 		# No more to do.
@@ -913,15 +922,18 @@ sub Start($$$)
 		# But, have to make sure that the phys node gets setup.
 		#
 		my $physnodeid = $node->phys_nodeid();
-		next
-		    if (exists($poweron{$physnodeid}) ||
-			exists($reboots{$physnodeid}) ||
-			exists($reloads{$physnodeid}));
 		$node = Node->Lookup($physnodeid);
 		if (!defined($node)) {
 		    $msg .= "Could not lookup $physnodeid";
 		    goto bad;
 		}
+		$node->_reloaded(0);
+		# Signal that vnode depends on parent.
+		$vnode->_parent($node);
+		next
+		    if (exists($poweron{$physnodeid}) ||
+			exists($reboots{$physnodeid}) ||
+			exists($reloads{$physnodeid}));
 	    }
 	    #
 	    # If the node is not imageable, then there is not much to
@@ -978,6 +990,7 @@ sub Start($$$)
 		    $reloads{$image->imageid()} = [ ];
 		} 
 		push(@{ $reloads{$image->imageid()} }, $node);
+		$node->_reloaded(1);
 
 		# As with os_setup, we do not count images unless
 		# they are actually reloaded. I have no idea why.
@@ -1045,6 +1058,14 @@ sub Start($$$)
     
     # See "bad" label below.
     $sliver = undef;
+
+    my @waitvnodes = values(%vnodes);
+    my @waitpnodes = (values(%poweron), values(%reboots));
+
+    # Want to make sure we see fresh logs (and do not store the same log).
+    foreach my $node (@waitpnodes, @waitpnodes) {
+	$node->ClearBootLog();
+    }
     
     #
     # Cull out vnodes that are going to get rebooted cause the
@@ -1285,6 +1306,9 @@ sub Start($$$)
 	$sliver->SetState("started")
 	    if (ref($sliver) eq "GeniSliver::Node");
     }
+
+    $self->WaitForNodes(@waitpnodes, @waitvnodes);
+    
     return 0;
 
   bad:
@@ -1297,6 +1321,239 @@ sub Start($$$)
 	$sliver->SetStatus("failed");
     }
     return -1;
+}
+
+#
+# Wait for nodes
+#
+sub WaitForNodes($@)
+{
+    my ($self, @nodes) = @_;
+    my %nodes = ();
+    my @waitstates = (TBDB_NODESTATE_TBFAILED, TBDB_NODESTATE_ISUP);
+
+    return 0
+	if (!@nodes);
+    
+    my $slice = $self->GetSlice();
+    if (!defined($slice)) {
+	print STDERR "WaitForNodes: Could not map $self to its slice\n";
+	return -1;
+    }
+    
+    my $experiment = Experiment->Lookup($self->slice_uuid());
+    if (!defined($experiment)) {
+	print STDERR "Could not map $self to its experiment\n";
+	return -1;
+    }
+
+    my $group = $experiment->GetGroup();
+    if (!defined($group)) {
+	print STDERR "Could not map $self to its experiment group\n";
+	return -1;
+    }
+
+    my $creator = $self->GetCreator();
+    if (!defined($creator)) {
+	print STDERR "Could not map $self to its creator\n";
+	return -1;
+    }
+
+    #
+    # At this point we want to return and let the startsliver proceed
+    # in the background. 
+    #
+    my $mypid = main::WrapperFork();
+    if ($mypid) {
+	return 0;
+    }
+    $slice->SetMonitorPid($PID);
+
+    #
+    # This is essentially what libossetup (os_setup) does. I want to
+    # eventually use that code directly, but that will require some
+    # restructuring in that code.
+    #
+    my %childcounts = ();
+    
+    # Array from the list.
+    foreach my $node (@nodes) {
+	$nodes{$node->node_id()} = $node;
+	$node->_waitstart(time());
+	$node->_waitend(undef);
+	$node->Refresh();
+	#
+	# Count up number of virtnodes on each physnode.
+	#
+	if ($node->isvirtnode()) {
+	    if (!exists($childcounts{$node->phys_nodeid()})) {
+		$childcounts{$node->phys_nodeid()} = 0;
+	    }
+	    $childcounts{$node->phys_nodeid()} += 1;
+	}
+    }
+    # Set the waitmax time for each node. 
+    foreach my $node (@nodes) {
+	$node->_maxwait(500 + ($node->_reloaded() ? 300 : 0));
+	
+	#
+	# Bump waitime according to number of virtnodes on each physnode.
+	#
+	if ($node->isvirtnode()) {
+	    $node->_maxwait($node->_maxwait() +
+			    ($childcounts{$node->phys_nodeid()} * 60))
+	}
+    }
+
+    #
+    # Start a counter going, relative to the time we rebooted the first
+    # node.
+    #
+    my $waittime  = 0;
+    my $minutes   = 0;
+    my $canceled  = $experiment->canceled();
+
+    #
+    # Wait for the nodes to finish booting, as recorded in database.
+    #
+    while (keys(%nodes)) {
+	#
+	# Check for cancelation. We quit the monitor.
+	#
+	$canceled = $experiment->canceled();
+	if ($canceled) {
+	    print STDERR "WaitForNodes canceled; terminating early!\n";
+	    # Reset before return; do not want it left.
+	    $slice->LockTables();
+	    $experiment->SetCancelFlag(0);
+	    $slice->ClearMonitorPid();
+	    $slice->UnLockTables();
+	    return -1;
+	}
+	
+	#
+	# We want to do this in order the nodes were passed in, so do not
+	# use the array for the list.
+	#
+	foreach my $node (@nodes) {
+	    my $node_id = $node->node_id();
+
+	    # Already done?
+	    next
+		if (!exists($nodes{$node_id}));
+
+	    #
+	    # If this is a virtnode, check to see if the parent node
+	    # failed to boot. No point in going on. Also reset the
+	    # start time to the time that the parent came ready.
+	    # No parent if its a shared node, and the phys node will
+	    # already be ready anyway. 
+	    #
+	    if ($node->isvirtnode() && defined($node->_parent())) {
+		my $parent = $node->_parent();
+
+		# Skip if still waiting on the parent.
+		next
+		    if (!defined($parent->_waitend()));
+		
+		if ($parent->_sliver()->status() eq "failed") {
+		    $node->_sliver()->SetStatus("failed");
+		    $node->_waitend(time());
+		    delete($nodes{$node_id});
+		    next;
+		}
+		$node->_waitstart($parent->_waitend());
+	    }
+	    my $state;
+
+	    if ($node->GetEventState(\$state)) {
+		print STDERR "*** Error getting event state for $node_id.\n";
+		$node->_sliver()->SetStatus("failed");
+		$node->_waitend(time());
+		delete($nodes{$node_id});
+		next;
+	    }
+	    if (grep {$_ eq $state} @waitstates) {
+		print "$node_id has reported state $state\n";
+		$node->_sliver()->ComputeStatus();
+		$node->_waitend(time());
+		delete($nodes{$node_id});
+		next;
+	    }
+	    $waittime = time() - $node->_waitstart();
+	    if ($waittime > $node->_maxwait()) {
+		$minutes = int($waittime / 60);
+		print STDERR "*** Giving up on $node_id ($state) - ".
+		    "it's been $minutes minute(s).\n";
+		$node->_sliver()->SetStatus("failed");
+		$node->_waitend(time());
+		delete($nodes{$node_id});
+		next;
+	    }
+	    if (int($waittime / 60) > $minutes) {
+		# Changing minutes is why we get this print for just
+		# a single node each time. 
+		$minutes = int($waittime / 60);
+		print STDERR "Still waiting for $node_id ($state) - ".
+		    "it's been $minutes minute(s).\n";
+	    }
+	}
+	sleep(5);
+    }
+
+    #
+    # Go through nodes and see what failed. 
+    #
+    my @failed = ();
+    
+    foreach my $node (@nodes) {
+	my $node_id = $node->node_id();
+
+	push(@failed, $node)
+	    if ($node->_sliver()->status() eq "failed");	    
+
+	#
+	# Create a logfile from the boot log.
+	#
+	if (grep {$_ eq $node->eventstate()} @waitstates) {
+	    my $bootlog;
+	    if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
+		my $logfile = Logfile->CreateFromString($group, $bootlog);
+		if (defined($logfile)) {
+		    $logfile->SetMetadata([["bootlog"   , $node->node_id()],
+					   ["Method",     "reboot $node_id"],
+					   ["slice_idx" , $slice->idx()],
+					   ["slice_urn" , $slice->urn()],
+					   ["slice_uuid", $slice->uuid()]], 1);
+		}
+	    }
+	}
+    }
+    #
+    # Notify.
+    #
+    if (@failed) {
+	my $name   = $creator->name();
+	my $email  = $creator->email();
+	my $count  = scalar(@failed);
+	my $urn    = $slice->urn();
+
+	SENDMAIL("$name <$email>", "$count nodes failed to boot",
+		 "Nodes:\n".
+		 "  " . join(" ", @nodes) . "\n".
+		 "in $urn failed.\n\n",
+		 $TBOPS, "Cc: $TBOPS");
+    }
+    # Too late, but reset before return; do not want it left set.
+    $slice->LockTables();
+    if ($experiment->canceled()) {
+	$experiment->SetCancelFlag(0);
+    }
+    # Do this last. 
+    $slice->ClearMonitorPid();
+    $slice->UnLockTables();
+    
+    return 0;
 }
 
 #

@@ -81,6 +81,8 @@ my $TB		   = "@prefix@";
 my $TBOPS          = "@TBOPSEMAIL@";
 my $TBAPPROVAL     = "@TBAPPROVALEMAIL@";
 my $TBAUDIT   	   = "@TBAUDITEMAIL@";
+my $TBBASE         = "@TBBASE@";
+my $TBDOCBASE      = "@TBDOCBASE@";
 my $BOSSNODE       = "@BOSSNODE@";
 my $OURDOMAIN      = "@OURDOMAIN@";
 my $MAINSITE       = @TBMAINSITE@;
@@ -5458,6 +5460,19 @@ sub CleanupDeadSlice($;$)
 	return -1;
     }
 
+    #
+    # If a monitor process is running, then cancel it so that
+    # we do not leave it behind on a slice/experiment that is
+    # now gone.
+    #
+    if ($slice->monitor_pid()) {
+	my $response = KillMonitor($slice);
+	if (GeniResponse::IsResponse($response)) {
+	    print STDERR "CleanupDeadSlice: Could not kill monitor process\n";
+	    return -1;
+	}
+    }
+
     # print "Cleaning up dead slice $slice\n";
     my $slice_uuid = $slice->uuid();
     my $experiment = $slice->GetExperiment();
@@ -6478,6 +6493,69 @@ sub findStitchPoint
 				     "$edgenodeid:$edgecard.$edgeport"));
     }
     return ($edgeiface, $network, $lasthop, undef);
+}
+
+#
+# Kill the monitor process.
+#
+sub KillMonitor($)
+{
+    my ($slice) = @_;
+    my $pid = $slice->monitor_pid();
+
+    return 0
+	if (!$pid);
+	
+    print STDERR "Monitor in progress: process id $pid ...\n";
+
+    my $experiment = $slice->GetExperiment();
+    if (!defined($experiment)) {
+	print STDERR "No experiment for $slice\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "No slice experiment");
+    }
+    if ($experiment->canceled()) {
+	print STDERR "Cancel flag already set for $experiment\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Unable to stop monitor");
+    }
+    #
+    # Okay, before we commit to waiting for something that might
+    # not happen, or erroneously setting the cancel flag, lets lock
+    # the tables and check again, to avoid race in start/restart.
+    #
+    $slice->LockTables();
+    if ($slice->GetMonitorPid()) { 
+	$experiment->SetCancelFlag(1);
+	$slice->UnLockTables();
+
+	#
+	# Wait for the monitor to go away, but should not take long.
+	#
+	my $count = 6;
+	while ($count > 0) {
+	    sleep(5);
+	    # Go to the DB.
+	    my $monitor_pid = $slice->GetMonitorPid();
+	    last
+		if (! $monitor_pid);
+	    $count--;
+	}
+	if ($slice->GetMonitorPid()) {
+	    print STDERR "Monitor process $pid would not die!\n";
+	    SENDMAIL($TBOPS, "Monitor for slice would not die!",
+		     "Monitor would not die: $slice\n\n" .
+		     "$TBBASE/showslice.php?slice_idx=" . $slice->idx(),
+		     $TBOPS);
+	    print STDERR "Could not shutdown $slice!\n";
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Monitor would not die");
+	}
+    }
+    else {
+	$slice->UnLockTables();
+    }
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
