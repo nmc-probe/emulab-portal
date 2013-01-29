@@ -2680,6 +2680,7 @@ sub os_create_storage($)
 	#
 	my $dev = iscsi_to_dev($session);
 	if (!defined($dev)) {
+	    warn("*** $bsid: could not map iSCSI session to device\n");
 	    return 0;
 	}
 

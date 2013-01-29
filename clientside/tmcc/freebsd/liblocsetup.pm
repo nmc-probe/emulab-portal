@@ -115,6 +115,8 @@ my $GATED	= "/usr/local/sbin/gated";
 my $ROUTE	= "/sbin/route";
 my $SHELLS	= "/etc/shells";
 my $DEFSHELL	= "/bin/tcsh";
+my $ISCSI	= "/sbin/iscontrol";
+my $ISCSICNF	= "/etc/iscsi.conf";
 
 #
 # OS dependent part of account cleanup. On a remote node, this will
@@ -1393,6 +1395,114 @@ sub os_setstaticarp($$)
 }
 
 #
+# To find the block stores exported from a target portal:
+#
+#   iscontrol -d -t <storage-host>
+#
+# To use a remote iSCSI target, the info has to be in /etc/iscsi.conf:
+#
+#   <bsid> {
+#     initiatorname = <our hostname>
+#     targetname    = <iqn>
+#     targetaddress = <storage-host>
+#   }
+#
+# To login to a remote iSCSI target:
+# 
+#   iscontrol -c /etc/iscsi.conf -n <bsid>
+# 
+# The session ID for the resulting session can be determined from the
+# sysctl net.iscsi_initiator info:
+#
+#   net.iscsi_initiator.<session>.targetname: <iqn>
+#   net.iscsi_initiator.<session>.targeaddress: <storage-host-IP>
+#
+# To stop a session (logout) you must first determine its pid from
+# the net.iscsi_initiator info:
+#
+#   net.iscsi_initiator.<session>.pid: <pid>
+#
+# and then send it a HUP:
+#
+#   kill -HUP <pid>
+#
+# Once a blockstore is added, it will appear as a /dev/da? device.
+# I have not found a straight-forward way to map session to device.
+# What we do now is to use the session ID to match up info from
+# "camcontrol identify da<N> -v". camcontrol will return output like:
+#
+#   (pass3:iscsi0:0:0:0): ATAPI_IDENTIFY. ACB: ...
+#   ...
+#
+# where N in "iscsiN" will be the session.
+# 
+
+sub iscsi_to_dev($)
+{
+    my ($session) = @_;
+
+    #
+    # XXX this is a total hack
+    #
+    my @lines = `ls /dev/da* 2>&1`;
+    foreach (@lines) {
+	if (m#^/dev/(da\d+)$#) {
+	    my $dev = $1;
+	    my $out = `camcontrol identify $dev -v 2>&1`;
+	    if ($out =~ /^\(pass\d+:iscsi(\d+):/) {
+		if ($1 == $session) {
+		    return $dev;
+		}
+	    }
+	}
+    }
+
+    return undef;
+}
+
+sub serial_to_dev($)
+{
+    my ($sn) = @_;
+
+    return undef;
+}
+
+sub uuid_to_session($)
+{
+    my ($uuid) = @_;
+
+    my @lines = `sysctl net.iscsi_initiator 2>&1`;
+    foreach (@lines) {
+	if (/net\.iscsi_initiator\.(\d+)\.targetname: $uuid/) {
+	    return $1;
+	}
+    }
+
+    return undef;
+}
+
+sub uuid_to_daemonpid($)
+{
+    my ($uuid) = @_;
+    my $session;
+
+    my @lines = `sysctl net.iscsi_initiator 2>&1`;
+    foreach (@lines) {
+	if (/net\.iscsi_initiator\.(\d+)\.targetname: $uuid/) {
+	    $session = $1;
+	    next;
+	}
+	if (/net\.iscsi_initiator\.(\d+)\.pid: (\d+)/) {
+	    if (defined($session) && $1 == $session) {
+		return $2;
+	    }
+	}
+    }
+
+    return undef;
+}
+
+#
 # os_check_storage(confighash)
 #
 #   Determines if the storage unit described by confighash exists and
@@ -1405,8 +1515,120 @@ sub os_setstaticarp($$)
 sub os_check_storage($)
 {
     my ($href) = @_;
+    #my $redir = "";
+    my $redir = ">/dev/null 2>&1";
 
-    warn("*** storageconfig not implemented on FreeBSD yet\n");
+    #
+    # iSCSI:
+    #  make sure iscsi_initiator kernel module is loaded
+    #  make sure the IQN exists
+    #  make sure there is an entry in /etc/iscsi.conf.
+    #
+    if ($href->{'PROTO'} eq "iSCSI") {
+	my $hostip = $href->{'HOSTIP'};
+	my $uuid = $href->{'UUID'};
+	my $bsid = $href->{'VOLNAME'};
+	my @lines;
+	my $cmd;
+
+	if (! -x "$ISCSI") {
+	    warn("*** $ISCSI does not exist, cannot continue\n");
+	    return -1;
+	}
+
+	#
+	# XXX load initiator driver
+	#
+	if (mysystem("kldstat | grep -q iscsi_initiator") &&
+	    mysystem("kldload iscsi_initiator.ko $redir")) {
+	    warn("*** Could not load iscsi_initiator kernel module\n");
+	    return -1;
+	}
+
+	#
+	# See if the block store exists on the indicated server.
+	# If not, something is very wrong, return -1.
+	#
+	@lines = `$ISCSI -d -t $hostip 2>&1`;
+	if ($? != 0) {
+	    warn("*** could not find exported iSCSI block stores\n");
+	    return -1;
+	}
+	my $taddr = "";
+	for (my $i = 0; $i < scalar(@lines); $i++) {
+	    # found target, look at next
+	    if ($lines[$i] =~ /^TargetName=$uuid/ &&
+		$lines[$i+1] =~ /^TargetAddress=($hostip.*)/) {
+		$taddr = $1;
+		last;
+	    }
+	}
+	if (!$taddr) {
+	    warn("*** could not find iSCSI block store '$uuid'\n");
+	    return -1;
+	}
+
+	#
+	# See if it is in the config file.
+	# If not, we have not done the one-time initialization, return 0.
+	#
+	if (! -r "$ISCSICNF" || mysystem("grep -q '$uuid' $ISCSICNF")) {
+	    return 0;
+	}
+
+	#
+	# XXX hmm...FreeBSD does not have an /etc/rc.d script for starting
+	# up iscontrol instances. So we have to do it everytime right now.
+	#
+	# First, check and see if there is a session active for this
+	# blockstore. If not we must start one.
+	#
+	my $session = uuid_to_session($uuid);
+	if (!defined($session)) {
+	    if (mysystem("$ISCSI -c $ISCSICNF -n $bsid $redir")) {
+		warn("*** $bsid: could not create iSCSI session\n");
+		return -1;
+	    }
+	    sleep(1);
+	    $session = uuid_to_session($uuid);
+	}
+
+	#
+	# Figure out the device name from the session and report all is good.
+	#
+	my $dev = iscsi_to_dev($session);
+	if (defined($dev)) {
+	    $href->{'LNAME'} = $dev;
+	    return 1;
+	}
+
+	#
+	# Otherwise, we are in some indeterminite state, return -1.
+	#
+	warn("*** $bsid: found iSCSI session but could not determine local device\n");
+	return -1;
+    }
+
+    #
+    # local disk:
+    #  make sure disk exists
+    #
+    if ($href->{'PROTO'} eq "local") {
+	my $bsid = $href->{'VOLNAME'};
+	my $sn = $href->{'UUID'};
+
+	my $dev = serial_to_dev($sn);
+	if (defined($dev)) {
+	    $href->{'LNAME'} = $dev;
+	    return 1;
+	}
+
+	# for physical disks, there is no way to "create" it so return error
+	warn("*** $bsid: could not find HD with serial '$sn'\n");
+	return -1;
+    }
+
+    warn("*** $bsid: unsupported proto '" . $href->{'PROTO'} . "'\n");
     return -1;
 }
 
@@ -1420,17 +1642,113 @@ sub os_check_storage($)
 sub os_create_storage($)
 {
     my ($href) = @_;
+    #my $redir = "";
+    my $redir = ">/dev/null 2>&1";
 
-    warn("*** storageconfig not implemented on FreeBSD yet\n");
+    if ($href->{'PROTO'} eq "iSCSI") {
+	my $hostip = $href->{'HOSTIP'};
+	my $uuid = $href->{'UUID'};
+	my $bsid = $href->{'VOLNAME'};
+	my $cmd;
+
+	#
+	# Handle one-time setup of /etc/iscsi.conf.
+	#
+	if (! -r "$ISCSICNF" || mysystem("grep -q '$uuid' $ISCSICNF $redir")) {
+	    if (!open(FD, ">>$ISCSICNF")) {
+		warn("*** could not update $ISCSICNF\n");
+		return 0;
+	    }
+	    my $hname = `hostname`;
+	    chomp($hname);
+	    print FD <<EOF;
+$bsid {
+    initiatorname = $hname
+    targetname    = $uuid
+    targetaddress = $hostip
+}
+EOF
+	    close(FD);   
+	} else {
+	    warn("*** $bsid: trying to create but already exists!?\n");
+	    return 0;
+        }
+
+	#
+	# Everything has been setup, start the daemon.
+	#
+	if (mysystem("$ISCSI -c $ISCSICNF -n $bsid $redir")) {
+	    warn("*** $bsid: could not create iSCSI session\n");
+	    return 0;
+	}
+	sleep(1);
+
+	#
+	# Find the session ID and device name.
+	#
+	my $session = uuid_to_session($uuid);
+	if (!defined($session)) {
+	    warn("*** $bsid: could not find iSCSI session\n");
+	    return 0;
+	}
+	my $dev = iscsi_to_dev($session);
+	if (!defined($dev)) {
+	    warn("*** $bsid: could not map iSCSI session to device\n");
+	    return 0;
+	}
+
+	$href->{'LNAME'} = $dev;
+	return 1;
+    }
+
+    warn("*** Only support iSCSI now\n");
     return 0;
 }
 
 sub os_remove_storage($)
 {
     my ($href) = @_;
+    #my $redir = "";
+    my $redir = ">/dev/null 2>&1";
 
-    warn("*** storageconfig not implemented on FreeBSD yet\n");
+    if ($href->{'PROTO'} eq "iSCSI") {
+	my $uuid = $href->{'UUID'};
+	my $bsid = $href->{'VOLNAME'};
+
+	#
+	# Find the daemon instance and HUP it.
+	#
+	my $pid = uuid_to_daemonpid($uuid);
+	if (defined($daemon)) {
+	    if (mysystem("kill -HUP $pid $redir")) {
+		warn("*** $bsid: could not kill $ISCSI daemon\n");
+		return 0;
+	    }
+	}
+
+	return 1;
+    }
+
+    warn("*** Only support iSCSI now\n");
     return 0;
+}
+
+sub mysystem($)
+{
+    my ($cmd) = @_;
+    if (0) {
+	print STDERR "CMD: $cmd\n";
+    }
+    return system($cmd);
+}
+
+sub mybacktick($)
+{
+    my ($cmd) = @_;
+    if (0) {
+	print STDERR "CMD: $cmd\n";
+    }
+    return `$cmd`;
 }
 
 1;
