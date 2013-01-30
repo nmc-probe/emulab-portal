@@ -483,8 +483,10 @@ elabinelab-git: elabinelab-scripts
 	-mkdir -p /share/emulab
 	rm -f /share/emulab/emulab-src.tar.gz
 	(cd $(SRCDIR); \
-	 git archive --prefix=testbed/ HEAD | \
-            gzip -c >/share/emulab/emulab-src.tar.gz)
+	 git archive HEAD > /share/emulab/emulab-src.tar)
+	tar rf /share/emulab/emulab-src.tar -C $(SRCDIR) \
+	 --exclude=.git protogeni/rspec-geni
+	gzip /share/emulab/emulab-src.tar
 else
 elabinelab-nogit: elabinelab-scripts
 	-mkdir -p $(INSTALL_TOPDIR)/src
@@ -495,8 +497,10 @@ elabinelab-git: elabinelab-scripts
 	-mkdir -p $(INSTALL_TOPDIR)/src
 	rm -f $(INSTALL_TOPDIR)/src/emulab-src.tar.gz
 	(cd $(SRCDIR); \
-	 git archive --prefix=testbed/ HEAD | \
-            gzip -c > $(INSTALL_TOPDIR)/src/emulab-src.tar.gz)
+	 git archive HEAD > $(INSTALL_TOPDIR)/src/emulab-src.tar)
+	tar rf $(INSTALL_TOPDIR)/src/emulab-src.tar -C $(SRCDIR) \
+	 --exclude=.git protogeni/rspec-geni
+	gzip $(INSTALL_TOPDIR)/src/emulab-src.tar
 endif
 
 # How to recursively descend into subdirectories to make general
