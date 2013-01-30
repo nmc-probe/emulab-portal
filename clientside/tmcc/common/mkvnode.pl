@@ -21,6 +21,19 @@
 # 
 # }}}
 #
+
+#
+# This is the top-level vnode creation script, called via the vnodesetup
+# wrapper.  It is os independent, calling into routines defined
+# in liblocsetup or elsewhere for os-dependent functionality.  Libraries
+# contained in modules named like libvnode_<type>.pm are hooked in to
+# obtain setup operations that are specific to the vnode type.
+#
+# This script was specific to Linux host environments, but has been modified
+# to be used under FreeBSD for certain vnode-like containers.  Eventually
+# all vnode/jail/etc. setups under any host OS should flow through this.
+#
+
 use strict;
 use Getopt::Std;
 use English;
@@ -32,9 +45,6 @@ use Data::Dumper;
 use Storable;
 use vars qw($vnstate);
 
-#
-# The corollary to mkjail.pl in the freebsd directory ...
-#
 sub usage()
 {
     print "Usage: mkvnode [-d] vnodeid\n" . 
@@ -64,10 +74,11 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 # 
 use libsetup;
 use libtmcc;
+use libutil;
 use libtestbed;
-use liblocsetup;
     
-# Pull in libvnode
+# Pull in vnode stuff
+use libgenvnode;
 use libvnode;
 
 # Helpers
@@ -80,7 +91,6 @@ sub StoreState();
 # Locals
 my $CTRLIPFILE = "/var/emulab/boot/myip";
 my $VMPATH     = "/var/emulab/vms/vminfo";
-my $IPTABLES   = "/sbin/iptables";
 my $VNDIR;
 my $leaveme    = 0;
 my $running    = 0;
@@ -180,7 +190,7 @@ foreach my $type (@nodetypes) {
 
     # need to do this for each type encountered. 
     TBDebugTimeStampWithDate("starting $type rootPreConfig()");
-    $libops{GENVNODETYPE()}{'rootPreConfig'}->();
+    $libops{$type}{'rootPreConfig'}->();
     TBDebugTimeStampWithDate("finished $type rootPreConfig()");
 }
 if ($debug) {
@@ -222,9 +232,6 @@ $vnstate = { "private" => {} };
 if ($showstate) {
     if (! -e "$VNDIR/vnode.info") {
 	fatal("No vnode.info file for $vnodeid");
-    }
-    if (! -e "$VNDIR/vnode.state") {
-	fatal("no vnode.state file for $vnodeid");
     }
     my $str = `cat $VNDIR/vnode.info`;
     ($vmid, $vmtype, undef) = ($str =~ /^(\d*) (\w*) ([-\w]*)$/);
@@ -623,25 +630,15 @@ if (safeLibOp('vnodeConfigDevices', 1, 1)) {
 #
 if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "" &&
     !isRoutable(VNCONFIG('CTRLIP'))) {
-    my $sshdport = VNCONFIG('SSHDPORT');
-    my $ctrlip   = VNCONFIG('CTRLIP');
-
-    # Retry a few times cause of iptables locking stupidity.
-    for (my $i = 0; $i < 10; $i++) {
-	system("$IPTABLES -v -t nat -A PREROUTING -p tcp -d $ext_ctrlip ".
-	       "--dport $sshdport -j DNAT ".
-	       "--to-destination $ctrlip:$sshdport");
-	
-	if ($? == 0) {
-	    my $ref = {};
-	    $ref->{'port'}       = $sshdport;
-	    $ref->{'ctrlip'}     = $ctrlip;
-	    $ref->{'ext_ctrlip'} = $ext_ctrlip;
-	    $vnstate->{'sshd_iprule'} = $ref;
-	    last;
-	}
-	sleep(2);
-    }
+    my $ref = {};
+    $ref->{'ext_ip'}   = $ext_ctrlip;
+    $ref->{'ext_port'} = VNCONFIG('SSHDPORT');
+    $ref->{'int_ip'}   = VNCONFIG('CTRLIP');
+    $ref->{'int_port'} = VNCONFIG('SSHDPORT');
+    $ref->{'protocol'} = "tcp";
+    
+    $vnstate->{'sshd_iprule'} = $ref
+	if (libvnode::forwardPort($ref) == 0);
 }
 
 #
@@ -807,19 +804,7 @@ sub CleanupVM()
 
     if (exists($vnstate->{'sshd_iprule'})) {
 	my $ref = $vnstate->{'sshd_iprule'};
-	my $sshdport    = $ref->{'port'};
-	my $ctrlip      = $ref->{'ctrlip'};
-	my $ext_ctrlip  = $ref->{'ext_ctrlip'};
-
-	# Retry a few times cause of iptables locking stupidity.
-	for (my $i = 0; $i < 10; $i++) {
-	    system("$IPTABLES -v -t nat -D PREROUTING -p tcp -d $ext_ctrlip ".
-		   "--dport $sshdport -j DNAT ".
-		   "--to-destination $ctrlip:$sshdport");
-	    last
-		if ($? == 0);
-	    sleep(2);
-	}
+	libvnode::removePortForward($ref);
 	# Update new state.
 	delete($vnstate->{'sshd_iprule'});
 	StoreState();

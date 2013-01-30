@@ -86,6 +86,8 @@ use File::Copy;
 
 # Pull in libvnode
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+use libutil;
+use libgenvnode;
 use libvnode;
 use libtestbed;
 use libsetup;
@@ -492,7 +494,7 @@ sub vnodeCreate($$$$)
 	print STDERR "xen_vnodeCreate: loading image '$imagename'\n";
 
 	# Tell stated we are getting ready for a reload
-	libvnode::setState("RELOADSETUP");
+	libutil::setState("RELOADSETUP");
 
 	#
 	# Immediately drop into RELOADING before calling createImageDisk as
@@ -500,7 +502,7 @@ sub vnodeCreate($$$$)
 	# server and we want that download to take place in the longer timeout
 	# period afforded by the RELOADING state.
 	#
-	libvnode::setState("RELOADING");
+	libutil::setState("RELOADING");
 
 	if (createImageDisk($imagename, $vnode_id, $raref)) {
 	    TBScriptUnlock();
@@ -715,9 +717,9 @@ sub vnodeCreate($$$$)
     # Finish off the state transitions as necessary.
     #
     if ($inreload) {
-	libvnode::setState("RELOADDONE");
+	libutil::setState("RELOADDONE");
 	sleep(4);
-	libvnode::setState("SHUTDOWN");
+	libutil::setState("SHUTDOWN");
     }
 
     return $vmid;
@@ -1068,7 +1070,7 @@ sub vnodeBoot($$$$)
     }
 
     # notify stated that we are about to boot
-    libvnode::setState("BOOTING");
+    libutil::setState("BOOTING");
 
     # and finally, create the VM
     mysystem("xm create $config");

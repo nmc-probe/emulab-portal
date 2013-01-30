@@ -57,7 +57,7 @@ $| = 1;
 
 # Need this for predicates.
 use libsetup;
-use libvnode;
+use libutil;
 use libtestbed;
 
 #
