@@ -6545,7 +6545,8 @@ sub KillMonitor($)
 	    print STDERR "Monitor process $pid would not die!\n";
 	    SENDMAIL($TBOPS, "Monitor for slice would not die!",
 		     "Monitor would not die: $slice\n\n" .
-		     "$TBBASE/showslice.php?slice_idx=" . $slice->idx(),
+		     "$TBBASE/showslice.php?slice_idx=" . $slice->idx() .
+		     "&showtype=cm",
 		     $TBOPS);
 	    print STDERR "Could not shutdown $slice!\n";
 	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
