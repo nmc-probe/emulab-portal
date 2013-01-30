@@ -167,7 +167,7 @@ sub VGNAME()  { return $VGNAME; }
 ##
 
 # Maximum vnodes per physical host, used to size memory and disks
-my $MAX_VNODES = 32;
+my $MAX_VNODES = 16;
 
 # Minimum GB of disk per vnode
 my $MIN_GB_DISK = 6;
