@@ -39,6 +39,9 @@ $isadmin   = ISADMIN();
 $optargs = OptionalPageArguments("slice_idx",  PAGEARG_INTEGER,
 				 "slice_uuid", PAGEARG_STRING,
 				 "download",   PAGEARG_BOOLEAN);
+if (!isset($download)) {
+    $download = 0;
+}
 
 #
 # Standard Testbed Header
