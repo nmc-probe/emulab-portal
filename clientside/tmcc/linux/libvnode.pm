@@ -21,34 +21,22 @@
 # 
 # }}}
 #
-# Implements the libvnode API for OpenVZ support in Emulab.
+# General vnode setup routines and helpers (Linux)
 #
 package libvnode;
 use Exporter;
 @ISA    = "Exporter";
-@EXPORT = qw( VNODE_STATUS_RUNNING VNODE_STATUS_STOPPED VNODE_STATUS_BOOTING 
-              VNODE_STATUS_INIT VNODE_STATUS_STOPPING VNODE_STATUS_UNKNOWN
-	      VNODE_STATUS_MOUNTED
-              ipToMac macAddSep fatal mysystem mysystem2
-	      makeIfaceMaps makeBridgeMaps
+@EXPORT = qw( makeIfaceMaps makeBridgeMaps
 	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
-              findVirtControlNet findDNS downloadImage setState
-              getKernelVersion isRoutable findDomain createExtraFS
+              downloadImage getKernelVersion createExtraFS
+              forwardPort removePortForward
             );
 
 use Data::Dumper;
-use libtmcc;
+use libutil;
+use libgenvnode;
 use libsetup;
-use Socket;
-
-sub VNODE_STATUS_RUNNING() { return "running"; }
-sub VNODE_STATUS_STOPPED() { return "stopped"; }
-sub VNODE_STATUS_MOUNTED() { return "mounted"; }
-sub VNODE_STATUS_BOOTING() { return "booting"; }
-sub VNODE_STATUS_INIT()    { return "init"; }
-sub VNODE_STATUS_STOPPING(){ return "stopping"; }
-sub VNODE_STATUS_UNKNOWN() { return "unknown"; }
 
 #
 # Magic control network config parameters.
@@ -56,13 +44,11 @@ sub VNODE_STATUS_UNKNOWN() { return "unknown"; }
 my $PCNET_IP_FILE   = "/var/emulab/boot/myip";
 my $PCNET_MASK_FILE = "/var/emulab/boot/mynetmask";
 my $PCNET_GW_FILE   = "/var/emulab/boot/routerip";
-my $VCNET_NET	    = "172.16.0.0";
-my $VCNET_MASK      = "255.240.0.0";
-my $VCNET_GW	    = "172.16.0.1";
+
+# Other local constants
+my $IPTABLES   = "/sbin/iptables";
 
 my $debug = 0;
-
-sub mysystem($);
 
 sub setDebug($) {
     $debug = shift;
@@ -70,10 +56,66 @@ sub setDebug($) {
 	if ($debug);
 }
 
-sub setState($) {
-    my ($state) = @_;
+#
+# Setup (or teardown) a port forward according to input hash containing:
+# * ext_ip:   External IP address traffic is destined to
+# * ext_port: External port traffic is destined to
+# * int_ip:   Internal IP address traffic is redirected to
+# * int_port: Internal port traffic is redirected to
+#
+# 'protocol' - a string; either "tcp" or "udp"
+# 'remove'   - a boolean indicating whether or not to do a teardown.
+#
+# Side effect: uses iptables command to manipulate NAT.
+#
+sub forwardPort($;$) {
+    my ($ref, $remove) = @_;
+    
+    my $int_ip   = $ref->{'int_ip'};
+    my $ext_ip   = $ref->{'ext_ip'};
+    my $int_port = $ref->{'int_port'};
+    my $ext_port = $ref->{'ext_port'};
+    my $protocol = $ref->{'protocol'};
 
-    libtmcc::tmcc(TMCCCMD_STATE(),"$state");
+    if (!(defined($int_ip) && 
+	  defined($ext_ip) && 
+	  defined($int_port) &&
+	  defined($ext_port) && 
+	  defined($protocol))
+	) {
+	print STDERR "WARNING: forwardPort: parameters missing!";
+	return -1;
+    }
+
+    if ($protocol !~ /^(tcp|udp)$/) {
+	print STDERR "WARNING: forwardPort: Unknown protocol: $protocol\n";
+	return -1;
+    }
+    
+    # Are we removing or adding the rule?
+    my $op = (defined($remove) && $remove) ? "D" : "A";
+
+    # Retry a few times cause of iptables locking stupidity.
+    for (my $i = 0; $i < 10; $i++) {
+	system("$IPTABLES -v -t nat -$op PREROUTING -p $protocol -d $ext_ip ".
+	       "--dport $ext_port -j DNAT ".
+	       "--to-destination $int_ip:$int_port");
+	
+	if ($? == 0) {
+	    return 0;
+	}
+	sleep(2);
+    }
+
+    # Operation failed after multiple retries - return error
+    print STDERR "WARNING: forwardPort: Failed to manipulate NAT after ".
+	         "several attempts!\n";
+    return -1;
+}
+
+sub removePortForward($) {
+    my $ref = shift;
+    forwardPort($ref,1)
 }
 
 #
@@ -294,15 +336,6 @@ sub findControlNet()
 	    $if2mac{$ip2if{$ip}}, $gw);
 }
 
-#
-# Find virtual control net iface info.  Returns:
-# (net,mask,GW)
-#
-sub findVirtControlNet()
-{
-    return ($VCNET_NET, $VCNET_MASK, $VCNET_GW);
-}
-
 sub existsIface($) {
     my $iface = shift;
 
@@ -454,85 +487,6 @@ sub downloadImage($$$$) {
     return 0;
 }
 
-sub ipToMac($) {
-    my $ip = shift;
-
-    return sprintf("0000%02x%02x%02x%02x",$1,$2,$3,$4)
-	if ($ip =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-
-    return undef;
-}
-
-sub macAddSep($;$) {
-    my ($mac,$sep) = @_;
-    if (!defined($sep)) {
-	$sep = ":";
-    }
-
-    return "$1$sep$2$sep$3$sep$4$sep$5$sep$6"
-	if ($mac =~ /^([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})$/);
-
-    return undef;
-}
-
-#
-# XXX boss is the DNS server for everyone
-#
-sub findDNS($)
-{
-    my ($ip) = @_;
-
-    my ($bossname,$bossip) = libtmcc::tmccbossinfo();
-    if ($bossip =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
-	$bossip = $1;
-    } else {
-	die "Could not find boss IP address (tmccbossinfo failed?)";
-    }
-
-    return $bossip;
-}
-
-#
-# Print error and exit.
-#
-sub fatal($)
-{
-    my ($msg) = @_;
-
-    die("*** $0:\n".
-	"    $msg\n");
-}
-
-#
-# Run a command string, redirecting output to a logfile.
-#
-sub mysystem($)
-{
-    my ($command) = @_;
-
-    if (1) {
-	print STDERR "mysystem: '$command'\n";
-    }
-
-    system($command);
-    if ($?) {
-	fatal("Command failed: $? - $command");
-    }
-}
-sub mysystem2($)
-{
-    my ($command) = @_;
-
-    if (1) {
-	print STDERR "mysystem: '$command'\n";
-    }
-
-    system($command);
-    if ($?) {
-	print STDERR "Command failed: $? - '$command'\n";
-    }
-}
-
 #
 # Get kernel (major,minor,patchlevel) version tuple.
 #
@@ -546,49 +500,6 @@ sub getKernelVersion()
     }
 
     return undef;
-}
-
-#
-# Is an IP routable?
-#
-sub isRoutable($)
-{
-    my ($IP)  = @_;
-    my ($a,$b,$c,$d) = ($IP =~ /^(\d*)\.(\d*)\.(\d*)\.(\d*)/);
-
-    #
-    # These are unroutable:
-    # 10.0.0.0        -   10.255.255.255  (10/8 prefix)
-    # 172.16.0.0      -   172.31.255.255  (172.16/12 prefix)
-    # 192.168.0.0     -   192.168.255.255 (192.168/16 prefix)
-    #
-
-    # Easy tests.
-    return 0
-	if (($a eq "10") ||
-	    ($a eq "192" && $b eq "168"));
-
-    # Lastly
-    return 0
-	if (inet_ntoa((inet_aton($IP) & inet_aton("255.240.0.0"))) eq
-	    "172.16.0.0");
-
-    return 1;
-}
-
-#
-# Get our domain
-#
-sub findDomain()
-{
-    import emulabpaths;
-
-    return undef
-	if (! -e "$BOOTDIR/mydomain");
-    
-    my $domain = `cat $BOOTDIR/mydomain`;
-    chomp($domain);
-    return $domain;
 }
 
 #

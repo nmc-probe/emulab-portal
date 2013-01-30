@@ -87,6 +87,8 @@ common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/libsetup.pm $(BINDIR)/libsetup.pm
 	$(INSTALL) -m 755 $(SRCDIR)/libtmcc.pm $(BINDIR)/libtmcc.pm
 	$(INSTALL) -m 755 $(SRCDIR)/libtestbed.pm $(BINDIR)/libtestbed.pm
+	$(INSTALL) -m 755 $(SRCDIR)/libgenvnode.pm $(BINDIR)/libgenvnode.pm
+	$(INSTALL) -m 755 $(SRCDIR)/libutil.pm $(BINDIR)/libutil.pm
 	$(INSTALL) -m 755 $(SRCDIR)/tmcc.pl $(BINDIR)/tmcc
 	$(INSTALL) -m 755 $(SRCDIR)/logboot $(BINDIR)/logboot
 	$(INSTALL) -m 755 $(SRCDIR)/watchdog $(BINDIR)/watchdog
@@ -97,6 +99,7 @@ common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/ifsetup $(BINDIR)/ifsetup
 	$(INSTALL) -m 755 $(SRCDIR)/ifdynconfig $(BINDIR)/ifdynconfig
 	$(INSTALL) -m 755 $(SRCDIR)/vnodesetup $(BINDIR)/vnodesetup
+	$(INSTALL) -m 755 $(SRCDIR)/mkvnode.pl $(BINDIR)/mkvnode.pl
 	$(INSTALL) -m 755 $(SRCDIR)/bootsubnodes $(BINDIR)/bootsubnodes
 	$(INSTALL) -m 755 $(SRCDIR)/bootvnodes $(BINDIR)/bootvnodes
 	$(INSTALL) -m 755 $(SRCDIR)/startcmddone $(BINDIR)/startcmddone

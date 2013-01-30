@@ -53,7 +53,7 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 # 
 use libsetup;
 use libtmcc;
-use libvnode;
+use libutil;
 use libtestbed;
 
 #

@@ -68,7 +68,9 @@ use Socket;
 
 # Pull in libvnode
 require "/etc/emulab/paths.pm"; import emulabpaths;
+use libgenvnode;
 use libvnode;
+use libutil;
 use libtestbed;
 use libsetup;
 
@@ -752,7 +754,7 @@ sub vz_vnodeCreate {
 	%reload_args = %$reload_args_ref;
 
 	# Tell stated via tmcd
-	libvnode::setState("RELOADSETUP");
+	libutil::setState("RELOADSETUP");
 
 	#
 	# So, we are reloading this vnode (and maybe others).  Need to grab
@@ -807,7 +809,7 @@ sub vz_vnodeCreate {
 	}
 
 	# Tell stated via tmcd
-	libvnode::setState("RELOADING");
+	libutil::setState("RELOADING");
 
 	if (!$incache) {
 	    # Now we just download the file, then let create do its normal thing
@@ -1018,9 +1020,9 @@ sub vz_vnodeCreate {
 
     if (defined($reload_args_ref)) {
 	# Tell stated via tmcd
-	libvnode::setState("RELOADDONE");
+	libutil::setState("RELOADDONE");
 	sleep(4);
-	libvnode::setState("SHUTDOWN");
+	libutil::setState("SHUTDOWN");
     }
 
     # build the container
