@@ -76,7 +76,7 @@ if (($manifest = $slice->GetManifest())) {
     $manifestidx++;
 }
 
-$geniuser = GeniUser::Lookup($showtype, $slice->creator_uuid());
+$geniuser = GeniUser::Lookup("cm", $slice->creator_uuid());
 if ($geniuser) {
     $rows[] = array("Creator" => $geniuser->urn());
 }
