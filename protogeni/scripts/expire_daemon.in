@@ -962,7 +962,7 @@ sub CheckIdle()
 	    # annoy people by actually terminating slices. Just annoy
 	    # them with email, but only once a day.
 	    #
-	    if ($swapreqs == 0 || $lastreq > (24 * 3600)) {
+	    if ($swapreqs == 0 || $lastreq > 24) {
 		my $geniuser  = GeniUser->Lookup($slice->creator_uuid(), 1);
 		my $emailaddr = $geniuser->email();
 		my $sliver_urn= $aggregate->urn();
