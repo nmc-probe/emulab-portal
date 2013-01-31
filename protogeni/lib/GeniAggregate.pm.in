@@ -930,6 +930,8 @@ sub Start($$$)
 		    goto bad;
 		}
 		$node->_reloaded(0);
+		# There is no sliver. 
+		$node->_sliver(undef);
 		# Signal that vnode depends on parent.
 		$vnode->_parent($node);
 		next
@@ -1460,7 +1462,8 @@ sub WaitForNodes($@)
 		    if (!defined($parent->_waitend()));
 		
 		if ($parent->_sliver()->status() eq "failed") {
-		    $node->_sliver()->SetStatus("failed");
+		    $node->_sliver()->SetStatus("failed")
+			if (defined($node->_sliver()));
 		    $node->_waitend(time());
 		    delete($nodes{$node_id});
 		    next;
@@ -1471,14 +1474,16 @@ sub WaitForNodes($@)
 
 	    if ($node->GetEventState(\$state)) {
 		print STDERR "*** Error getting event state for $node_id.\n";
-		$node->_sliver()->SetStatus("failed");
+		$node->_sliver()->SetStatus("failed")
+		    if (defined($node->_sliver()));
 		$node->_waitend(time());
 		delete($nodes{$node_id});
 		next;
 	    }
 	    if (grep {$_ eq $state} @waitstates) {
 		print "$node_id has reported state $state\n";
-		$node->_sliver()->ComputeStatus();
+		$node->_sliver()->ComputeStatus()
+		    if (defined($node->_sliver()));
 		$node->_waitend(time());
 		delete($nodes{$node_id});
 		next;
@@ -1488,7 +1493,8 @@ sub WaitForNodes($@)
 		$minutes = int($waittime / 60);
 		print STDERR "*** Giving up on $node_id ($state) - ".
 		    "it's been $minutes minute(s).\n";
-		$node->_sliver()->SetStatus("failed");
+		$node->_sliver()->SetStatus("failed")
+		    if (defined($node->_sliver()));
 		$node->_waitend(time());
 		delete($nodes{$node_id});
 		next;
@@ -1513,7 +1519,8 @@ sub WaitForNodes($@)
 	my $node_id = $node->node_id();
 
 	push(@failed, $node)
-	    if ($node->_sliver()->status() eq "failed");	    
+	    if (defined($node->_sliver()) &&
+		$node->_sliver()->status() eq "failed");
 
 	#
 	# Create a logfile from the boot log.
