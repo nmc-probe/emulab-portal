@@ -910,9 +910,22 @@ sub Start($$$)
 		    $vnode->_reloaded(1);
 		}
 
+		my $physnodeid = $vnode->phys_nodeid();
+		$node = Node->Lookup($physnodeid);
+		if (!defined($node)) {
+		    $msg .= "Could not lookup $physnodeid";
+		    goto bad;
+		}
+		# Possibly reset below.
+		$node->_reloaded(0);
+		# There is no sliver. 
+		$node->_sliver(undef);
+		# Signal that vnode depends on parent.
+		$vnode->_parent($node);
+
 		# No more to do.
 		next
-		    if ($node->sharing_mode());
+		    if ($vnode->sharing_mode());
 		
 		#
 		# Now it gets messy. Do not want to mess with the physnode
@@ -923,17 +936,6 @@ sub Start($$$)
 		#
 		# But, have to make sure that the phys node gets setup.
 		#
-		my $physnodeid = $node->phys_nodeid();
-		$node = Node->Lookup($physnodeid);
-		if (!defined($node)) {
-		    $msg .= "Could not lookup $physnodeid";
-		    goto bad;
-		}
-		$node->_reloaded(0);
-		# There is no sliver. 
-		$node->_sliver(undef);
-		# Signal that vnode depends on parent.
-		$vnode->_parent($node);
 		next
 		    if (exists($poweron{$physnodeid}) ||
 			exists($reboots{$physnodeid}) ||
@@ -1401,12 +1403,21 @@ sub WaitForNodes($@)
     foreach my $node (@nodes) {
 	$node->_maxwait(500 + ($node->_reloaded() ? 300 : 0));
 	
-	#
-	# Bump waitime according to number of virtnodes on each physnode.
-	#
 	if ($node->isvirtnode()) {
+	    #
+	    # Bump waitime according to number of virtnodes on each physnode.
+	    #
 	    $node->_maxwait($node->_maxwait() +
-			    ($childcounts{$node->phys_nodeid()} * 60))
+			    ($childcounts{$node->phys_nodeid()} * 60));
+	    
+	    #
+	    # If the parent of a virtnode is not in the list, it
+	    # is not going to be rebooted; it is ready. Set the waitend
+	    # for the parent to now, for the loop below. 
+	    #
+	    if (!exists($nodes{$node->_parent()})) {
+		$node->_parent()->_waitend(time());
+	    }
 	}
     }
 
@@ -1451,8 +1462,6 @@ sub WaitForNodes($@)
 	    # If this is a virtnode, check to see if the parent node
 	    # failed to boot. No point in going on. Also reset the
 	    # start time to the time that the parent came ready.
-	    # No parent if its a shared node, and the phys node will
-	    # already be ready anyway. 
 	    #
 	    if ($node->isvirtnode() && defined($node->_parent())) {
 		my $parent = $node->_parent();
