@@ -117,6 +117,7 @@ my $SHELLS	= "/etc/shells";
 my $DEFSHELL	= "/bin/tcsh";
 my $ISCSI	= "/sbin/iscontrol";
 my $ISCSICNF	= "/etc/iscsi.conf";
+my $SMARTCTL	= "/usr/local/sbin/smartctl";
 
 #
 # OS dependent part of account cleanup. On a remote node, this will
@@ -1463,6 +1464,24 @@ sub iscsi_to_dev($)
 sub serial_to_dev($)
 {
     my ($sn) = @_;
+
+    #
+    # XXX this is a total hack
+    #
+    if (! -x "$SMARTCTL") {
+	return undef;
+    }
+
+    my @lines = `ls /dev/da* 2>&1`;
+    foreach (@lines) {
+	if (m#^/dev/(da\d+)$#) {
+	    my $dev = $1;
+	    my $out = `$SMARTCTL -i /dev/$dev 2>&1 | grep 'Serial Number'`;
+	    if ($out =~ /^Serial Number:\s+$sn/) {
+		return $dev;
+	    }
+	}
+    }
 
     return undef;
 }
