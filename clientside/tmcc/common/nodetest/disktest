@@ -1,7 +1,10 @@
 #!/bin/sh
 
+#where is my helping program
+#..........XXXX
+
 SMARTCTL="smartctl"
-DISKSPEEDTEST="perl ./disktest.pl"
+DISKSPEEDTEST="perl /etc/testbed/disktest.pl"
 #DISKSPEEDTEST="echo -n "
 
 gettype(){
@@ -194,7 +197,11 @@ mkdir -p ./disktest.log
 	echo ""
     done
 } >./disktest.log/$host.log 2>&1
-cat ./disktest.log/$host.log
+
+# copy into to readings home directory
+mkdir -p /users/dreading/disktest.log
+cp ./disktest.log/$host.log /users/dreading/disktest.log
+# cat ./disktest.log/$host.log
 
 exit 0
 

@@ -11,7 +11,7 @@
 #nfree emulab-ops SlowDisks $C20andHotter
 #exit
 
-list="dbox3"
+list="pc402"
 
 #check for ssh access
 for i in $list
