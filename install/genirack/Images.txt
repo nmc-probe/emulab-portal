@@ -1,4 +1,4 @@
-Notes on baking the images.
+Notes on baking the images. See boss:~stoller/genirack/racks ...
 
 Each rack gets a backed image of the control node, and two baked
 images for boss and ops. The control node image is discussed below,
@@ -79,17 +79,20 @@ Once the VMs are ready, copy the directory mentioned above over to the
 inner boss as /usr/testbed/etc/genirack. Do NOT put this stuff on the
 inner ops!
 
+	> sudo scp -rp ~stoller/geniracks/racks/XXX
+		pcvmXXX-1:/usr/testbed/etc/genirack
+
 Now we convert the VMs for boot in the target environment, which means
 cleaning up some stuff and changing a bunch of things.  First ssh (as
 root) into the inner boss VM from outer boss:
 
 	boss> cd /usr/testbed/obj/testbed/install
-	boss> sudo perl emulab-install -c -i boss/genirack boss
+	boss> sudo perl emulab-install -b -i boss/genirack boss
 
 then log out and ssh (as root) into inner ops:
 
 	ops> cd /usr/testbed/obj/testbed/install
-	ops> sudo perl emulab-install -i ops/genirack ops
+	ops> sudo perl emulab-install -b -i ops/genirack ops
 
 Grab /usr/testbed/etc/elabman.pswd and store it in our file. See
 Utah boss:~stoller/genirack/pswd.txt. 
@@ -102,6 +105,9 @@ Now we have to shutdown the VMs. Log into the physical host and then:
 The -h option is very important; it says to keep the disks intact.
 If you forget that, you have to go back to the beginning and start
 over.
+
+NOTE: pcvmXXX-2 might take a while to actually shutdown cause boss
+      is now gone. Do and "sudo xm list" to see when it really stops.
 
 Next step is to capture the entire state of the VMs, which includes an
 imagezip of each lvm, a copy of the kernel, and a slightly modified

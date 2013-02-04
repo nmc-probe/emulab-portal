@@ -113,6 +113,8 @@ Setting up an InstaGeni Rack. First, we need the following info:
   to trust it. Say yes of course, and wait for the console window to
   appear.
 
+  Alternate: Use ssh instead to Administrator@iloIP
+
 * Go to the Virtual Media tab, and then on the right hand side specify
   the url of the boot ISO image. This will be something like:
   
@@ -128,7 +130,9 @@ Setting up an InstaGeni Rack. First, we need the following info:
   whatever number is to the left of the CD choice. 
 
 * The ISO will load and give you a boot prompt. Just hit return. You
-  will eventually get a shell prompt after a lot of noisy output.
+  will eventually get a shell prompt after a lot of noisy output. This
+  can take several minutes since it is demand loading the "CD" from
+  Utah's web server. Be patient. 
 
 * Fire up the network:
 
@@ -158,7 +162,9 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	./setbootorder floppy cdrom usb hd pxe
 
 * Type "reboot" at the shell prompt. With any luck, the node will boot
-  first time.
+  first time and you can ssh into the control node as elabman. You
+  will need to add the key from /root/.ssh/elabman_dsa, and the pass
+  phrase is in boss:/usr/testbed/etc/elabman_dsa.pswd
 
 * Make sure all five of the experimental nodes are fully powered off;
   the ilo has to be off, and the easiest thing to do is just unplug
@@ -174,8 +180,11 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	sudo /usr/sbin/dhcpd -4 -cf /etc/dhcp/dhcpd.conf xenbr1 xenbr3
 
   Now power on the experimental switch, and power cycle the control
-  switch so that it will restart its dhcp cycle. You will lose
-  connectivity to the control node for a moment or two.
+  switch so that it will restart its dhcp cycle. You can also "reset"
+  the control switch if you have a paper clip; there is a little hole
+  labeled reset in back lower left of the control switch. 
+
+  You will lose connectivity to the control node for a few moments.
 
   Once you get connectivity back, tail the end of the /var/log/syslog to
   see if the switches have made their DHCP requests.
@@ -194,7 +203,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
   2610(vlan-11)> exit
   2610(config)> write memory
 
-  Now logout and telnet to 10.3.1.253. This is the alternate link
+  Now logout and telnet to 10.2.1.253. This is the alternate link
   to the procurve that allows us to configure without a serial link,
   and hopefully maintain a connection in case something goes wrong.
   More fundimentally, once we remove the ip address from the default
@@ -222,29 +231,33 @@ Setting up an InstaGeni Rack. First, we need the following info:
   2610(config)> write memory
   2610(config)> reload
 
-  REMEMBER YOUR PASSWORD and COMMUNITY XXXXX
-  REMEMBER YOUR PASSWORD and COMMUNITY XXXXX
-  REMEMBER YOUR PASSWORD and COMMUNITY XXXXX
+  UTAH: THE PASSWORD and COMMUNITY string come from variables.txt file
+  in the rack subdir. Use the same for both switches.
+
+  If you choose your own, REMEMBER it! 
 
   The switch will take moment to reset so you might lose your connection
   to the control node.
 
 * For the experimental switch, we need to do something like above,
   which is move the ip address from the default vlan to a private
-  vlan, but in this case we can do it from the serial console, and
-  so it is a lot easier. We use screen:
+  vlan. You have to do this on the console since with only one wire
+  to the switch, as soon as you mess with the IP config, you lose
+  your connection. So have the site admin attach the console line to
+  the 5406.
 
 	sudo screen /dev/ttyS0 115200
 
-  wait for it to sync up and then you will get the prompt.
+  wait for it to sync up and then you will get the prompt. To exit from
+  screen, "^A \"
 
   5400> config
+  5400(config)> no vlan 1 ip address
   5400(config)> vlan 10
   5400(vlan-10)> name control-hardware
   5400(vlan-10)> untagged E20	  XXXX Make sure about port number!
   5400(vlan-10)> ip address 10.3.1.253/24
   5400(vlan-10)> exit
-  5400(config)> no vlan 1 ip address
   5400(config)> management-vlan 10
   5400(config)> ip default-gateway 10.3.1.254
   5400(config)> no web-management
@@ -277,39 +290,39 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 * Create the 4th partition in the partition table:
 
-	fdisk /dev/sda
+	sudo fdisk /dev/sda
 
   Use the "n" option, primary partition type, default start, +1000G, "w"
   to write it out.
 
   Then inform the kernel:
 
-	partprobe -s
+	sudo partprobe -s
 
 * Initialize the LVM partition. We use LVMs for the boss/ops filesystems.
 
-	pvcreate /dev/sda4
-	vgcreate xen-vg /dev/sda4
-    	vgchange -a y xen-vg
+	sudo pvcreate /dev/sda4
+	sudo vgcreate xen-vg /dev/sda4
+    	sudo vgchange -a y xen-vg
 
 * Create a filesystem to hold the boss/ops tarballs. These are pretty
   big but will be deleted after we copy the filesystems into their own
   lvms.
 
-	mkdir /scratch
-	/sbin/lvcreate -n scratch -L 75G xen-vg
-	mke2fs -j /dev/xen-vg/scratch
-	mount /dev/xen-vg/scratch /scratch
-	chmod 777 /scratch
+	sudo mkdir /scratch
+	sudo /sbin/lvcreate -n scratch -L 75G xen-vg
+	sudo mke2fs -j /dev/xen-vg/scratch
+	sudo mount /dev/xen-vg/scratch /scratch
+	sudo chmod 777 /scratch
 
-* Copy boss.tar.gz and ops.tar.gz to /scratch on the control node, and
-  then unpack them. There will be two directories, ops and boss.
+* Copy the boss/ops tarfile to /scratch on the control node, and
+  then unpack it. There will be two directories, ops and boss.
 
 * Restore the VMs:
 
         mkdir ~elabman/boss ~elabman/ops
-	~elabman/restorevm.pl -t ~elabman/boss -i boss /scratch/boss
-	~elabman/restorevm.pl -t ~elabman/ops  -i ops /scratch/ops
+	sudo ~elabman/restorevm.pl -t ~elabman/boss boss /scratch/boss
+	sudo ~elabman/restorevm.pl -t ~elabman/ops  ops /scratch/ops
 
   This creates a bunch of LVMs and rewrites the xm.conf in the
   boss/ops directories to reflect the new LVM paths, etc.
@@ -338,32 +351,20 @@ Setting up an InstaGeni Rack. First, we need the following info:
     	file "reverse/192.1.242.db";
     };
 
+  Be sure to delete the existing reverse zone since it is incorrect.
+
 * Now it is time to power on the experimental nodes. If all goes well,
   they will boot up into FreeBSD MFS and be in the hwdown experiment.
   Before we release them, we want to change some settings on the ilo.
-  The following command will change the Admin password, create an
-  elabman user, load its ssh key, change the boot order, etc, etc.
-  This part is not scripted yet, so need to look at the XML file
-  /usr/testbed/etc/genirack/ilo.xml to get the ilo passwords. 
+  The following will change the Admin password, create an elabman
+  user, load its ssh key, change the boot order, etc, etc.
 
-  In this file, the mapping of pcX to slot is:
+	sudo sh /usr/testbed/etc/initilo.sh
 
-	pc1 -> U05
-	pc2 -> U06
-	pc3 -> U07
-	pc4 -> U08
-	pc5 -> U09
-
-  So grab the ilo password for each one, and then:
-
-	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc1
-	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc2
-	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc3
-	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc4
-	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ilopswd> pc5
-	perl /usr/testbed/obj/testbed/install/genirack/initilo.pl <ip> <ilopswd>
-
-  The last line updates the control node ilo.
+* NOTE: scripted ssh key upload broke in the new iLo. Need to upload the
+  elabman ssh key to each node's ilo using the web interface instead. The
+  above command happily changed all the passwords so they are now the same
+  so that makes it a little easier. 
 
 * Free all the nodes up and lets hope they reload okay. Okay, lets
   just do one to start with.
@@ -413,21 +414,44 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	5406> reload
 
-* Add the public IP space:
+* Add the public IP space, if appropriate. See the site survey response.
+  This needs to go into the image baking script.
 
 	boss> wap addvpubaddr 192.1.242.150 192.1.242.179
 	boss> wap addvpubaddr 192.1.242.190 192.1.242.250
 
 * Create some test experiments.
 
----
-Problems:
+* Most sites will have the openflow vlan plumbed through to port 24 on
+  the data switch. If this is indeed true, then we can go ahead and set
+  that up now, so Nick can get started on the FOAM stuff.
 
-root/toor password on boss did not match what is in the file.
-root/toor password on ops is generated elabinelab swapin and needs to set.
-ntpd and ntpdate failures.
+	boss> wap addspecialdevice -t interconnect -s 100 XXXX-XXXX
+        boss> wap addspecialiface -b 1Gb -s procurve2,1,24 XXXX-XXXX eth0
+
+  where XXXX-XXXX is a pithy name like interconnect-campus. Ask the
+  local site admin. If the rack is wired properly 1,24 is correct.
+  If the module is in another slot, then this might be different. 
+
+  Now create and share the openflow vlan:
+
+	boss> wap snmpit_test --vlan_tag=1750 -m mesoscale-openflow \
+		emulab-ops openflow-vlans XXXX-YYYY:eth0
+	boss> wap sharevlan -o emulab-ops,openflow-vlans \
+		mesoscale-openflow mesoscale-openflow
+
+* This needs to go into the image baking script:
+
+	boss> wap emulabfeature create LibVtopTest 'Test version of libvtop'
+	boss> wap emulabfeature enable LibVtopTest
+
+* Need to reset the mailing lists to the local admin.
+
+---
+TODO:
 
 routable ip space when baking the images.
+Enable necessary features.
 
 -----
 SSH enable on the switches does not work.
