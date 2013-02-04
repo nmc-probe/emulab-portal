@@ -1534,6 +1534,7 @@ sub uuid_to_daemonpid($)
 sub os_check_storage($)
 {
     my ($href) = @_;
+    my $CANDISCOVER = 0;
     #my $redir = "";
     my $redir = ">/dev/null 2>&1";
 
@@ -1568,23 +1569,28 @@ sub os_check_storage($)
 	# See if the block store exists on the indicated server.
 	# If not, something is very wrong, return -1.
 	#
-	@lines = `$ISCSI -d -t $hostip 2>&1`;
-	if ($? != 0) {
-	    warn("*** could not find exported iSCSI block stores\n");
-	    return -1;
-	}
-	my $taddr = "";
-	for (my $i = 0; $i < scalar(@lines); $i++) {
-	    # found target, look at next
-	    if ($lines[$i] =~ /^TargetName=$uuid/ &&
-		$lines[$i+1] =~ /^TargetAddress=($hostip.*)/) {
-		$taddr = $1;
-		last;
+	# Note that the server may not support discovery. If not, we don't
+	# do it since it is only a sanity check anyway.
+	#
+	if ($CANDISCOVER) {
+	    @lines = `$ISCSI -d -t $hostip 2>&1`;
+	    if ($? != 0) {
+		warn("*** could not find exported iSCSI block stores\n");
+		return -1;
 	    }
-	}
-	if (!$taddr) {
-	    warn("*** could not find iSCSI block store '$uuid'\n");
-	    return -1;
+	    my $taddr = "";
+	    for (my $i = 0; $i < scalar(@lines); $i++) {
+		# found target, look at next
+		if ($lines[$i] =~ /^TargetName=$uuid/ &&
+		    $lines[$i+1] =~ /^TargetAddress=($hostip.*)/) {
+		    $taddr = $1;
+		    last;
+		}
+	    }
+	    if (!$taddr) {
+		warn("*** could not find iSCSI block store '$uuid'\n");
+		return -1;
+	    }
 	}
 
 	#
@@ -1724,9 +1730,9 @@ EOF
     return 0;
 }
 
-sub os_remove_storage($)
+sub os_remove_storage($$)
 {
-    my ($href) = @_;
+    my ($href,$teardown) = @_;
     #my $redir = "";
     my $redir = ">/dev/null 2>&1";
 
@@ -1736,15 +1742,50 @@ sub os_remove_storage($)
 
 	#
 	# Find the daemon instance and HUP it.
+	# XXX continue even if we could not kill it.
 	#
 	my $pid = uuid_to_daemonpid($uuid);
-	if (defined($daemon)) {
+	if (defined($pid)) {
 	    if (mysystem("kill -HUP $pid $redir")) {
 		warn("*** $bsid: could not kill $ISCSI daemon\n");
-		return 0;
 	    }
 	}
 
+	#
+	# Remove /etc/iscsi.conf entry for block store
+	#
+	if ($teardown && !mysystem("grep -q '$uuid' $ISCSICNF $redir")) {
+	    if (open(OFD, "<$ISCSICNF") && open(NFD, ">$ISCSICNF.new")) {
+		# parser!? we don't need no stinkin parser...
+		my $inentry = 0;
+		while (<OFD>) {
+		    if (/^$bsid {/) {
+			$inentry = 1;
+			next;
+		    }
+		    if ($inentry && /^}/) {
+			$inentry = 0;
+			next;
+		    }
+		    if (!$inentry) {
+			print NFD $_;
+		    }
+		}
+		close(OFD);
+		close(NFD);
+		if (mysystem("mv -f $ISCSICNF.new $ISCSICNF")) {
+		    warn("*** $bsid: could not update $ISCSICNF\n");
+		    return 0;
+		}
+	    }
+	}
+	return 1;
+    }
+
+    #
+    # Nothing to do (yet) for a local disk
+    #
+    if ($href->{'PROTO'} eq "local") {
 	return 1;
     }
 

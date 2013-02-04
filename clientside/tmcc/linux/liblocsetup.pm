@@ -2546,6 +2546,7 @@ sub serial_to_dev($)
 sub os_check_storage($)
 {
     my ($href) = @_;
+    my $CANDISCOVER = 0;
 
     #
     # iSCSI:
@@ -2556,6 +2557,7 @@ sub os_check_storage($)
 	my $hostip = $href->{'HOSTIP'};
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
+	my @lines;
 
 	if (! -x "$ISCSI") {
 	    warn("*** $ISCSI does not exist, cannot continue\n");
@@ -2566,15 +2568,19 @@ sub os_check_storage($)
 	# See if the block store exists on the indicated server.
 	# If not, something is very wrong, return -1.
 	#
-#	my @lines = `$ISCSI -m discovery -t sendtargets -p $hostip 2>&1`;
-	my @lines = mybacktick("$ISCSI -m discovery -t sendtargets -p $hostip 2>&1");
-	if ($? != 0) {
-	    warn("*** could not find exported iSCSI block stores\n");
-	    return -1;
-	}
-	if (!grep(/$uuid/, @lines)) {
-	    warn("*** could not find iSCSI block store '$uuid'\n");
-	    return -1;
+	# Note that the server may not support discovery. If not, we don't
+	# do it since it is only a sanity check anyway.
+	#
+	if ($CANDISCOVER) {
+	    @lines = `$ISCSI -m discovery -t sendtargets -p $hostip 2>&1`;
+	    if ($? != 0) {
+		warn("*** could not find exported iSCSI block stores\n");
+		return -1;
+	    }
+	    if (!grep(/$uuid/, @lines)) {
+		warn("*** could not find iSCSI block store '$uuid'\n");
+		return -1;
+	    }
 	}
 
 	#
@@ -2692,9 +2698,9 @@ sub os_create_storage($)
     return 0;
 }
 
-sub os_remove_storage($)
+sub os_remove_storage($$)
 {
-    my ($href) = @_;
+    my ($href,$teardown) = @_;
     #my $redir = "";
     my $redir = ">/dev/null 2>&1";
 
@@ -2704,14 +2710,26 @@ sub os_remove_storage($)
 	my $bsid = $href->{'VOLNAME'};
 
 	#
-	# Tear it down
+	# Logout of the session.
+	# XXX continue even if we could not logout.
 	#
-	if (mysystem("$ISCSI -m node -T $uuid -p $hostip -u $redir") ||
+	if (mysystem("$ISCSI -m node -T $uuid -p $hostip -u $redir")) {
+	    warn("*** $bsid: Could not logout iSCSI sesssion (uuid=$uuid)\n");
+	}
+
+	if ($teardown &&
 	    mysystem("$ISCSI -m node -T $uuid -p $hostip -o delete $redir")) {
-	    warn("*** Could not perform teardown of iSCSI block store $bsid (uuid=$uuid)\n");
+	    warn("*** $bsid: could not perform teardown of iSCSI block store (uuid=$uuid)\n");
 	    return 0;
 	}
 
+	return 1;
+    }
+
+    #
+    # Nothing to do (yet) for a local disk
+    #
+    if ($href->{'PROTO'} eq "local") {
 	return 1;
     }
 
