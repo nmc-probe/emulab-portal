@@ -249,20 +249,21 @@ exit(0)
 #
 # Print script to initialize the ilo
 #
-open(SCRIPT, ">initilo.sh")
+open(SCRIPT, ">$outpath/initilo.sh")
     or die("Could not create initilo.sh\n");
 
 foreach my $current (values(%devices)) {
     my $id = $current->{'id'};
-    my $ilopswd = $current->{'lo_password'};
+    my $ilopswd = $current->{'ilopswd'};
     my $node_id = $current->{'node_id'};
     if (! exists($control_ips{$node_id})) {
 	print STDERR "No IP address for node: $node_id\n";
 	next;
     }
-    print SCRIPT "initilo.pl $ilopswd $node_id\n";
+    print SCRIPT "$TB/sbin/initilo.pl $ilopswd $node_id\n";
 }
-print SCRIPT "initilo.pl " . $controlnode->{"lo_password"} . " $controliloip\n";
+print SCRIPT "$TB/sbin/initilo.pl -c $controliloip " .
+    $controlnode->{"ilopswd"} . "\n";
 close(SCRIPT);
 exit(0);
 
