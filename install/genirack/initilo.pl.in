@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -168,7 +168,7 @@ my $iloIP = $management_interface->IP();
 #
 # Replace the appropriate parts of the XML goo.
 #
-my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd, $pubkey);
+my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd);
 if (SendXML($iloIP, $xmlgoo)) {
     Fatal("Failed to send xmlgoo to $iloIP");
 }
@@ -378,7 +378,7 @@ sub SetupControlNode($$)
 {
     my ($ip, $ilopswd) = @_;
     
-    my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd, $pubkey);
+    my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd);
     if (SendXML($ip, $xmlgoo)) {
 	Fatal("Failed to send setup xml to $ip");
     }
