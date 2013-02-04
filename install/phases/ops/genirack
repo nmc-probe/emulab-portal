@@ -155,8 +155,10 @@ sub Install($$$)
 	    ExecQuietFatal("cd $PREFIX; $TAR zxf $PREFIX/ports.tar.gz");
 	};
 	Phase "portlink", "Linking to unpacked ports tree", sub {
+	    ExecQuietFatal("/bin/rm -rf /usr/ports")
+		if (-e "/usr/ports" && -d "/usr/ports");
 	    ExecQuietFatal("cd /usr; ln -sf testbed/ports .");
-	}
+	};
 	
 	Phase "rcconf", "Updating rcconf for actual boot", sub {
 	    my @strings = ();

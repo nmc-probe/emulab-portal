@@ -24,7 +24,7 @@ my $CONFIGVARS   = "$PREFIX/configvars.txt";
 my $RACKVARS     = "$PREFIX/etc/genirack/variables.txt";
 my $RACKIPS      = "$PREFIX/etc/genirack/ips.txt";
 my $RACKILO      = "$PREFIX/etc/genirack/ilo.xml";
-my $RACKWIRES    = "$TOP_SRCDIR/install/genirack/wiring.xml";
+my $RACKWIRES    = "$TOP_SRCDIR/install/genirack/wiring-A.xml";
 my $ILOPASSWORD  = "$PREFIX/etc/ilo.pswd";
 my $ELABPASSWORD = "$PREFIX/etc/elabman.pswd";
 my $HPPASSWORD   = "$PREFIX/etc/switch.pswd";
@@ -34,7 +34,7 @@ my $DEFAULTOSID  = "FEDORA15-STD";
 my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU12-64-STD");
 my $PGOSSITEVAR  = "protogeni/default_osname";
 my $CHPASS	 = "/usr/bin/chpass";
-my $SSHTB	 = "$TB/bin/sshtb";
+my $SSHTB	 = "$PREFIX/bin/sshtb";
 my $RACKNTPCONF  = "$TOP_SRCDIR/install/genirack/ntp.conf";
 my $ETCNTPCONF   = "/etc/ntp.conf";
 
@@ -163,7 +163,7 @@ sub Install($$$)
 	    my $PASSWORD = $configvars{'PASSWORD'};
 	    my $passhash = PassWordHash($PASSWORD);
 	    
-	    Phase "elabman_pswd", "Storing the elabman password". sub {
+	    Phase "elabman_pswd", "Storing the elabman password", sub {
 		PhaseSkip("exists")
 		    if (-e $ELABPASSWORD);
 		
@@ -174,7 +174,7 @@ sub Install($$$)
 	    #
 	    # Make sure root/toor have the same password on boss/ops.
 	    #
-	    Phase "root_pswd", "Setting root password on boss". sub {
+	    Phase "root_pswd", "Setting root password on boss", sub {
 		ExecQuietFatal("$CHPASS -p '$passhash' root");
 		ExecQuietFatal("$CHPASS -p '$passhash' toor");
 	    };
@@ -183,7 +183,7 @@ sub Install($$$)
 	    $passhash =~ s/\$/\\\$/g;
 	    $passhash =~ s/\*/\\\*/g;
 
-	    Phase "root_pswdops", "Setting root password on ops". sub {
+	    Phase "root_pswdops", "Setting root password on ops", sub {
 		ExecQuietFatal("$SSHTB -host $USERNODE ".
 			       "  $CHPASS -p '$passhash' root");
 		ExecQuietFatal("$SSHTB -host $USERNODE ".
@@ -201,12 +201,13 @@ sub Install($$$)
 	    if (! -e $SSLCERT_PSWDFILE) {
 		CreateFileFatal($SSLCERT_PSWDFILE,
 				$configvars{'ELABMAN_SSLCERT_PASSWORD'});
-		ExecQuietFatal("$CHMOD 400 $ELABMAN_SSLCERT_PASSWORD");
+		ExecQuietFatal("$CHMOD 400 $SSLCERT_PSWDFILE");
+		ExecQuietFatal("$CHOWN elabman:emulab-ops $SSLCERT_PSWDFILE");
 	    }
 	    #
 	    # Create encrypted SSL cert for elabman, for testing PG later.
 	    #
-	    ExecQuietFatal("$PREFIX/sbin/mkusercert ".
+	    ExecQuietFatal("$SUDO -u $PROTOUSER $PREFIX/sbin/mkusercert ".
 	         " -p " . $configvars{'ELABMAN_SSLCERT_PASSWORD'} . " elabman");
 	}
 
@@ -257,8 +258,10 @@ sub Install($$$)
 	    ExecQuietFatal("cd $PREFIX; $TAR zxf $PREFIX/ports.tar.gz");
 	};
 	Phase "portlink", "Linking to unpacked ports tree", sub {
+	    ExecQuietFatal("/bin/rm -rf /usr/ports")
+		if (-e "/usr/ports" && -d "/usr/ports");
 	    ExecQuietFatal("cd /usr; ln -sf testbed/ports .");
-	}
+	};
 
 	# Need to add a symlink. 
 	
@@ -381,10 +384,17 @@ sub Install($$$)
 	};
 
 	#
+	# Extra install
+	# 
+	Phase "genirack", "Installing extra scripts", sub {
+	    ExecQuietFatal("cd $TOP_OBJDIR/install/genirack; $GMAKE install");
+	};
+
+	#
 	# Add the nodes to the DB.
 	#
 	my $ILOIP = $configvars{"GENIRACK_ILOIP"};
-	
+
 	Phase "nodes", "Adding nodes to the DB", sub {
 	    my $query_result =
 		DBQueryWarn("select node_id from nodes where node_id='pc1'");
