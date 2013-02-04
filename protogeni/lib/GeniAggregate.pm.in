@@ -1469,10 +1469,10 @@ sub WaitForNodes($@)
 		# Skip if still waiting on the parent.
 		next
 		    if (!defined($parent->_waitend()));
-		
-		if ($parent->_sliver()->status() eq "failed") {
-		    $node->_sliver()->SetStatus("failed")
-			if (defined($node->_sliver()));
+
+		if (defined($parent->_sliver()) &&
+		    $parent->_sliver()->status() eq "failed") {
+		    $node->_sliver()->SetStatus("failed");
 		    $node->_waitend(time());
 		    delete($nodes{$node_id});
 		    next;
