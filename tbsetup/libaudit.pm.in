@@ -321,7 +321,29 @@ sub AuditFork()
     return 0
 	if (!$auditing || !defined($logfile));
 
+    open(LOG, ">> $logfile") or
+	die("opening $logfile for $logfile: $!");
+	
+    close(STDOUT);
+    close(STDERR);
+    POSIX::dup2(fileno(LOG), 1);
+    POSIX::dup2(fileno(LOG), 2);
+    STDOUT->fdopen(1, "a");
+    STDERR->fdopen(2, "a");
+    close(LOG);
+
+    #
+    # Turn off line buffering on output
+    #
+    STDOUT->autoflush(1);
+    STDERR->autoflush(1);
+
+    #
     # Need to close these so that this side of the fork is disconnected.
+    # Do NOT close the saved STDOUT/STDERR descriptors until the new
+    # ones are open and dup'ed into fileno 1 and 2, and the LOG descriptor
+    # closed. This was causing SelfLoader to get confused abut something!
+    #
     if (!$daemon && $PERL_VERSION >= 5.008) {
 	close($libaudit::SAVE_STDOUT)
 	    if ($libaudit::SAVE_STDOUT);
@@ -330,31 +352,6 @@ sub AuditFork()
 	$libaudit::SAVE_STDOUT = 0;
 	$libaudit::SAVE_STDERR = 0;
     }
-    close(STDOUT);
-    close(STDERR);
-
-    if (0) {
-	open(STDOUT, ">> $logfile") or
-	    die("opening $logfile for STDOUT: $!");
-	open(STDERR, ">> $logfile") or
-	    die("opening $logfile for STDERR: $!");
-    }
-    else {
-	open(LOG, ">> $logfile") or
-	    die("opening $logfile for $logfile: $!");
-	
-	POSIX::dup2(fileno(LOG), 1);
-	POSIX::dup2(fileno(LOG), 2);
-	STDOUT->fdopen(1, "a");
-	STDERR->fdopen(2, "a");
-	close(LOG);
-    }
-
-    #
-    # Turn off line buffering on output
-    #
-    STDOUT->autoflush(1);
-    STDERR->autoflush(1);
 
     #
     # Create a new session to ensure we are clear of any process group.
