@@ -40,7 +40,7 @@ use Exporter;
 	 gettraceconfig genhostsfile getmotelogconfig calcroutes fakejailsetup
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
          getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
-	 copyfilefromnfs getnodeuuid getarpinfo
+	 copyfilefromnfs getnodeuuid getarpinfo getstorageconfig
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs
 
@@ -3339,6 +3339,124 @@ sub getarpinfo($;$)
 	%$rptr = %arpinfo;
     }
     return $atype;
+}
+
+#
+# Grab and parse the storageconfig tmcd command output. Break each
+# line into a hash, verifying the fields.  Return sorted (by index)
+# list of storage commands hashes.
+#
+# Format:
+#
+# CMD=ELEMENT IDX=<index> HOSTID=<some-storage-host> \
+# CLASS=(SAN|local) PROTO=(iSCSI|local) \
+# UUID=<unique-id> UUID_TYPE=<id-type> \
+# VOLNAME=<id> VOLSIZE=<size-in-MiB> PERMS=<permissions>
+# 
+# Where:
+#  
+# if CLASS=="SAN" && PROTO=="iSCSI" :
+# IDX :=
+#   \d+ -- monotonically increasing number indicating order of operations
+# HOSTID :=
+#   <bs-vm-shortname> -- short name for blockstore pseudo-VM
+# UUID :=
+#   "iqn.2000-12.net.emulab:<pid>:<eid>:<bs-vname>" -- iSCSI qualified name
+#   constructed from static prefix, pid, eid, and blockstore vname (from ns file).
+# UUID_TYPE :=
+#   "iqn" -- literal string
+# VOLNAME :=
+#   string -- Emulab name for the element
+# VOLSIZE :=
+#   \d+ -- size in mebibytes. Informational; could be used for sanity checking.
+# PERMS :=
+#   (RO|RW) -- i.e., read-only or read-write.
+# 
+# if CLASS=="local" :
+# IDX :=
+#   \d+ -- monotonically increasing number indicating order of operations
+# HOSTID :=
+#   "localhost" -- literal string
+# UUID :=
+#   \w+ -- unique serial number of device
+# UUID_TYPE :=
+#   "serial" -- literal string
+# VOLNAME :=
+#   string -- Emulab name for the element
+# VOLSIZE :=
+#   \d+ -- size in mebibytes. Informational; could be used for sanity checking.
+# PERMS :=
+#   <notpresent> -- this field will not show up for local elements
+# 
+sub getstorageconfig($;$) {
+    my ($rptr,$nocache) = @_;
+    my @tmccresults = ();
+    my %opthash = ();
+
+    if (defined($nocache) && $nocache) {
+	$opthash{'nocache'} = 1;
+    }
+
+    if (tmcc(TMCCCMD_STORAGE, undef, \@tmccresults, %opthash) < 0) {
+	warn("*** WARNING: Could not get storageconfig from server!\n");
+	return -1;
+    }
+
+    my %fields = (
+	'CMD'	  => 'ELEMENT',
+	'IDX'	  => '\d+',
+	'CLASS'	  => '(SAN|local)',
+	'PROTO'	  => '(iSCSI|local)',
+	'HOSTID'  => '[-\w\.]+',
+	'UUID'	  => '[-\w\.:]+',
+	'UUID_TYPE'=> '(iqn|serial)',
+	'VOLNAME' => '[-\w]+',
+	'VOLSIZE' => '\d+',
+	'PERMS'	  => '(RO|RW)'
+    );
+    my @ops = ();
+
+    #
+    # Note that any error is fatal since these lines are interdependent.
+    #
+    foreach my $line (@tmccresults) {
+	chomp($line);
+
+	#
+	# Break the line into a hash of key/values
+	#
+	my @kvs = split(/\s+/, $line);
+	my %res = ();
+	foreach my $kv (@kvs) {
+	    my ($key,$val,$foo) = split(/=/, $kv);
+	    if (defined($foo)) {
+		warn("*** WARNING: malformed key-val pair in storageinfo: '$kv'\n");
+		return -1;
+	    }
+
+	    #
+	    # Validate the info.
+	    #
+	    if (!exists($fields{$key})) {
+		warn("*** WARNING: invalid keyword in storageinfo: '$key'\n");
+		return -1;
+	    }
+	    if ($val !~ /^$fields{$key}$/) {
+		warn("*** WARNING: invalid value for $key in storageinfo: '$val'\n");
+		return -1;
+	    }
+	    $res{$key} = $val;
+	}
+	push(@ops, \%res);
+    }
+
+    #
+    # return operations in decreasing order of IDX.
+    #
+    my @sortedops = sort {$b->{'IDX'} <=> $a->{'IDX'}} @ops;
+
+    @$rptr = @sortedops;
+    return 0;
 }
 
 #
