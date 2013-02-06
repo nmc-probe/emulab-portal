@@ -1,0 +1,26 @@
+
+machines="pc219 pc286"
+linux="pc219"
+bsd="pc286"
+
+for i in $machines
+do
+	sudo rsync -a -P disktest* $i:/usr/local/etc/emulab
+	sudo ssh $i chown root /usr/local/etc/emulab/disktest*
+#	sudo ssh $i chgrp root /usr/local/etc/emulab/disktest*
+done
+
+for i in $linux
+do
+	sudo scp -p rc/rc.disktest_perl $i:/usr/local/etc/emulab/rc/rc.disktest
+	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.disktest
+	sudo ssh $i chgrp root /usr/local/etc/emulab/rc/rc.disktest
+done
+
+for i in $bsd
+do
+	sudo scp -p rc/rc.disktest_sh $i:/usr/local/etc/emulab/rc/rc.disktest
+	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.disktest
+	sudo ssh $i chgrp wheel /usr/local/etc/emulab/rc/rc.disktest
+done
+
