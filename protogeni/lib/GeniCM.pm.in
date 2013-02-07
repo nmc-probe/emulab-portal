@@ -5145,6 +5145,15 @@ sub CreateUserFromCertificate($)
 	    if ($certificate->SameCert($user));
 
 	#
+	# Oh, but if this is a local user, we already have the
+	# updated certificate in the DB (we get it from tbdb),
+	# so no point in changing and we do not want to store it!
+	#
+	if ($user->IsLocal()) {
+	    return $user;
+	}
+
+	#
 	# Replace the user certificate. I think this is okay, since we
 	# do not sign anything with the user key anyway. As long as we
 	# keep the uuid from changing, all should be okay.
