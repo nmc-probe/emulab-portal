@@ -406,7 +406,7 @@ sub runtmcc ($;$$%)
     if (!defined($args)) {
 	$args = "";
     }
-    my $string = "$TMCCBIN $options -- $cmd $args";
+    my $string = "$TMCCBIN $options $cmd $args";
     if ($debug) {
 	print STDERR "$string\n";
     }
