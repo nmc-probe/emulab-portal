@@ -3997,7 +3997,7 @@ COMMAND_PROTOTYPE(dostorageconfig)
 	char		*bufp, *ebufp = &buf[sizeof(buf)];
 	char            *mynodeid;
 	char            *vname, *bsid, *hostid;
-	int             serverside;
+	int             rv;
 	int             volsize, bsidx, cmdidx = 1;
 	int		nrows, nrows2, nattrs;
 
@@ -4049,13 +4049,13 @@ COMMAND_PROTOTYPE(dostorageconfig)
 		       cmdidx++, bsid, vname, volsize);
 		client_writeback(sock, buf, strlen(buf), tcp);
 
-		serverside = 1;
 		OUTPUT(buf, sizeof(buf), 
 		       "CMD=EXPORT IDX=%d VOLNAME=%s",
 		       cmdidx++, vname);
-		mysql_free_result(res);
+		rv = sendstoreconf(sock, tcp, reqp, buf, vname);
 
-		return sendstoreconf(sock, tcp, reqp, buf, vname);
+		mysql_free_result(res);
+		return rv;
 	}
 
 	/* 
