@@ -218,8 +218,8 @@ if (1) {
 	}
 
 	$query_result =
-	    DBQueryFatal("select count(*) from aggregate_history ".
-			 "where `type`='Aggregate' and idx<$myindex $clause ",
+	    DBQueryFatal("select count(*) from aggregate_history as a ".
+			 "where `type`='Aggregate' and a.idx<$myindex $clause ",
 			 $dblink);
 
 	$row = mysql_fetch_array($query_result);
