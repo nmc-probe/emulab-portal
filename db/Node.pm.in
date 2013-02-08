@@ -228,6 +228,19 @@ sub LookupRow($$)
     return $self;
 }
 
+#
+# Force a reload of the data.
+#
+sub LookupSync($$)
+{
+    my ($class, $nodeid) = @_;
+
+    # delete from cache
+    delete($nodes{$nodeid});
+
+    return Lookup($class, $nodeid);
+}
+
 # Break circular reference someplace to avoid exit errors.
 sub DESTROY {
     my $self = shift;
