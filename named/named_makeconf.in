@@ -154,7 +154,7 @@ while (<IF>) {
 		}
 		else {
 		    print $1 . "forwarders {\n";
-		    foreach my $forwarder (split(/[\s,]*/, $NAMED_FORWARDERS)) {
+		    foreach my $forwarder (split(/[\s+,]/, $NAMED_FORWARDERS)) {
 			print $1 . $1 . "$forwarder;\n";
 		    }
 		    print $1 . "};\n";
