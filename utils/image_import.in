@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2012 University of Utah and the Flux Group.
+# Copyright (c) 2010-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -287,7 +287,7 @@ sub CreateImage($$$$)
     # to pcvm since the image is for a VM. Well, we also use this
     # for subnodes, but I am not going to worry about that case.
     #
-    if (exists($xmlparse->{'attribute'}->{"imagename"})) {
+    if (exists($xmlparse->{'attribute'}->{"def_parentosid"})) {
 	$xmlparse->{'attribute'}->{"mtype_pcvm"} = {};
 	$xmlparse->{'attribute'}->{"mtype_pcvm"}->{'value'} = 1;
 	$alltypes = "";
