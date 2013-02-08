@@ -497,7 +497,8 @@ class CommandSet(object):
             else:
                 func = eval(modfunc[0])
 
-            args = self.assembleArgs(fakeReq,values,stateobj)
+            args = self.assembleArgs(fakeReq,values,stateobj.command,
+                                     stateobj.args,stateobj.kwargs)
             print 'DEBUG: calling custom %s on %s' % (str(func),str(args))
                                                           
             ret = func(*args)
@@ -756,9 +757,7 @@ class Pool(CommandSet):
     #
     # Called to build an arg list for the call to the custom function.
     #
-    def assembleArgs(self,request,values,stateobj):
-        command = stateobj.command
-
+    def assembleArgs(self,request,values,command,args,kwargs):
         if command == 'del':
             return [ request, values[0]['id'] ]
         else:
@@ -1001,7 +1000,7 @@ class IscsiTargetExtent(CommandSet):
     def _assembleRequest(self,stateobj):
         fakeReq = super(IscsiTargetExtent,
                         self)._assembleRequest(stateobj)
-        if command == 'add' or command == 'edit':
+        if stateobj.command == 'add' or stateobj.command == 'edit':
             key = "%s_dev" % (self._model_var_prefix,)
             value = fakeReq.POST[key]
             if value.find('/') > 0:
