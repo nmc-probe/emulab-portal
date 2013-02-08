@@ -3403,16 +3403,17 @@ sub getstorageconfig($;$) {
     }
 
     my %fields = (
-	'CMD'	  => 'ELEMENT',
+	'CMD'	  => '(ELEMENT|EXPORT|SLICE)',
 	'IDX'	  => '\d+',
+        'BSID'    => '[-\w]+',
 	'CLASS'	  => '(SAN|local)',
-	'PROTO'	  => '(iSCSI|local)',
 	'HOSTID'  => '[-\w\.]+',
+	'PERMS'	  => '(RO|RW)',
+	'PROTO'	  => '(iSCSI|local)',
 	'UUID'	  => '[-\w\.:]+',
 	'UUID_TYPE'=> '(iqn|serial)',
 	'VOLNAME' => '[-\w]+',
 	'VOLSIZE' => '\d+',
-	'PERMS'	  => '(RO|RW)'
     );
     my @ops = ();
 

@@ -28,7 +28,7 @@ package libutil;
 use Exporter;
 @ISA    = "Exporter";
 @EXPORT = qw( ipToMac macAddSep fatal mysystem mysystem2
-              findDNS setState isRoutable findDomain
+              findDNS setState isRoutable findDomain convertToMebi
             );
 
 use libtmcc;
@@ -120,6 +120,62 @@ sub findDomain()
     my $domain = `cat $BOOTDIR/mydomain`;
     chomp($domain);
     return $domain;
+}
+
+#
+# Convert most storage size specs to Mebibytes
+#
+sub convertToMebi($) {
+    my $insize = shift;
+    my $outsize;
+
+    if (!defined($insize) || !$insize) {
+        return -1;
+    }
+
+  CSIZE:
+    for ($insize) {
+        /^(\d+)B?$/ && do {
+            $outsize = $1 / 2**20;
+            last CSIZE;
+        };
+        /^(\d+(\.\d+)?)KB?$/ && do {
+            $outsize = $1 * 10**3 / 2**20;
+            last CSIZE;
+        };
+        /^(\d+(\.\d+)?)KiB?$/ && do {
+            $outsize = $1 / 2**10;
+            last CSIZE;
+        };
+        /^(\d+(\.\d+)?)MB?$/ && do {
+            $outsize = $1 * 10**6 / 2**20;
+            last CSIZE;
+        };
+        /^(\d+(\.\d+)?)MiB?$/ && do {
+            $outsize = $1;
+            last CSIZE;
+        };
+        /^(\d+(\.\d+)?)GB?$/ && do {
+            $outsize = $1 * 10**9 / 2**20;
+            last CSIZE;
+        };
+        /^(\d+(\.\d+)?)GiB?$/ && do {
+            $outsize = $1 * 2**10;
+            last CSIZE;
+        };
+        /^(\d+(\.\d+)?)TB?$/ && do {
+            $outsize = $1 * 10**12 / 2**20;
+            last CSIZE;
+        };
+        /^(\d+(\.\d+)?)TiB?$/ && do {
+            $outsize = $1 * 2**20;
+            last CSIZE;
+        };
+        # Default (bad size spec)
+        $outsize = -1;
+    }
+
+    return $outsize;
 }
 
 #

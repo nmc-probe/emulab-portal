@@ -29,8 +29,12 @@ use Exporter;
 @EXPORT = qw( VNODE_STATUS_RUNNING VNODE_STATUS_STOPPED VNODE_STATUS_BOOTING 
               VNODE_STATUS_INIT VNODE_STATUS_STOPPING VNODE_STATUS_UNKNOWN
 	      VNODE_STATUS_MOUNTED
+              VNODE_PATH
               findVirtControlNet
             );
+
+# Drag in path stuff
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
 sub VNODE_STATUS_RUNNING() { return "running"; }
 sub VNODE_STATUS_STOPPED() { return "stopped"; }
@@ -39,6 +43,10 @@ sub VNODE_STATUS_BOOTING() { return "booting"; }
 sub VNODE_STATUS_INIT()    { return "init"; }
 sub VNODE_STATUS_STOPPING(){ return "stopping"; }
 sub VNODE_STATUS_UNKNOWN() { return "unknown"; }
+
+# VM path stuff
+my $VMPATH     = "$VARDIR/vminfo";
+sub VNODE_PATH() { return $VMPATH; }
 
 #
 # Magic control network config parameters.
