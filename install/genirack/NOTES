@@ -77,11 +77,14 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
   Waiting, waiting, waiting ...
 
-* Power on the control switch (Procurve 2610 in the top slot).
+* Power on the control switch (Procurve 2620 in the top slot).
 
 * Attach a console to the control node and power on the node. You will
-  wait a while for the "HP ProLiant" screen. Wait until it says "press
-  any key for Option ROM messages" and then right after the screen
+  wait a while for the "HP ProLiant" screen. Watch CAREFULLY, looking
+  for the moment it says "press any key for Option ROM messages."
+  Press any key!
+
+  and then right after the screen
   switches, type F8 to get into the iLo configuration. Gotta be fast
   on this. If you miss it, power cycle. 
 
@@ -92,7 +95,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
   reset.
 
 * Is the RAID array setup? It wasn't on Utah's rack. Need to fill this
-  part in. 
+  part in.
 
 * At this point, Utah can do the rest of the rack setup without
   further intervention from you. Well, unless something gets wedged
@@ -104,16 +107,26 @@ Setting up an InstaGeni Rack. First, we need the following info:
 * Now that you have decided, send email to Utah asking us to complete
   the installation while you go back to working on other projects. 
 
+======================================================================
+
 * Using your web browser, go to the iLo IP you set, and login using
   Administrator and the iLo password that is stamped on top of the
-  control node, or in the data file you received.
+  control node, or in the data file you received. If using the
+  datafile, look for the section that says:
 
-* Click on the Remote Console tab, and then on remote console. Click
-  on the java launch button. Wait for the popup boxes that ask you
-  to trust it. Say yes of course, and wait for the console window to
-  appear.
+	<u_location>U34</u_location>
 
-  Alternate: Use ssh instead to Administrator@iloIP
+  cause the control node is slot 34. Grab the lo_passwd from that
+  section; that is you iLo password.
+
+* In a shell window, you want to ssh over to the iLo:
+
+	boss> ssh Administrator@iloIP
+
+  This can be slow, so be patient. Once you get logged in, enter
+  "textcons" at the command prompt. This will put you into a wacky
+  text representation of the graphic console. To exit from the
+  text console, use ESC-(
 
 * Go to the Virtual Media tab, and then on the right hand side specify
   the url of the boot ISO image. This will be something like:
@@ -127,12 +140,12 @@ Setting up an InstaGeni Rack. First, we need the following info:
 * Wait for the node to boot. It should boot from the virtual CD drive
   since there is no other boot media, but if not you can hit F11 on
   the next go around, which will give you a list of options. Type
-  whatever number is to the left of the CD choice. 
+  whatever number is to the left of the CD choice.  
 
-* The ISO will load and give you a boot prompt. Just hit return. You
-  will eventually get a shell prompt after a lot of noisy output. This
-  can take several minutes since it is demand loading the "CD" from
-  Utah's web server. Be patient. 
+* The ISO will load and give you a boot prompt. This takes a while.
+  You will eventually get a shell prompt after a lot of noisy
+  output. This can take several minutes since it is demand loading the
+  "CD" from Utah's web server. Be patient.
 
 * Fire up the network:
 
@@ -153,7 +166,8 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	/usr/bin/imageunzip -o genirack-1.ndz /dev/cciss/c0d0
 
-  This will take a little while. Or a long while. 
+  This will take a little while. Watch the dots. There is a pause at
+  the end while buffers are flushed to disk. Be patient. 
 
 * Set the boot order so that the control node does not try to boot
   from the network, unless all else fails.
@@ -163,55 +177,30 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 * Type "reboot" at the shell prompt. With any luck, the node will boot
   first time and you can ssh into the control node as elabman. You
-  will need to add the key from /root/.ssh/elabman_dsa, and the pass
-  phrase is in boss:/usr/testbed/etc/elabman_dsa.pswd
+  will need to add the key from /root/.ssh/elabman_dsa to your ssh agent,
+  and the pass phrase is in boss:/usr/testbed/etc/elabman_dsa.pswd
 
 * Make sure all five of the experimental nodes are fully powered off;
   the ilo has to be off, and the easiest thing to do is just unplug
-  them. 
+  them.
 
-* At this point we need to configure the switches with static IP
-  addresses. This is a bit tricky since the only way to do this is to
-  have DHCP return a dynamic address so we can telnet to the switch
-  long enough to change its address. Yes, this is a pain but we cannot
-  have multiple DHCP servers running since that would confuse boss.
-  Login to the control node as root.
+  Also make sure that the serial cable is connected to the 2620.
 
-	sudo /usr/sbin/dhcpd -4 -cf /etc/dhcp/dhcpd.conf xenbr1 xenbr3
+* Connect to the 2620 using this command:
 
-  Now power on the experimental switch, and power cycle the control
-  switch so that it will restart its dhcp cycle. You can also "reset"
-  the control switch if you have a paper clip; there is a little hole
-  labeled reset in back lower left of the control switch. 
+	sudo screen /dev/ttyS0 115200
 
-  You will lose connectivity to the control node for a few moments.
-
-  Once you get connectivity back, tail the end of the /var/log/syslog to
-  see if the switches have made their DHCP requests.
-
-* At some point you will be able to telnet to 10.1.1.253 and 10.3.1.253.
-  These are the IPs assigned by dhcp.
-
-  First telnet to 10.1.1.253. This is the control switch (2610). You want
-  to issue the following commands at the prompt.
-
-  2610> config
+  It might not do anything when you carriage return; it is trying to sync
+  up the speed (the switch does auto-sense). Wait 30 seconds, hit carriage
+  return a few times again. If still not working, exit from screen ("^A \")
+  and try again. Might take another iteration or two. When you have the
+  prompt: 
+  
   2610(config)> vlan 11
   2610(vlan-11)> name control-alternate
   2610(vlan-11)> untagged 24        XXXX Make sure about port number!
   2610(vlan-11)> ip address 10.2.1.253/24
   2610(vlan-11)> exit
-  2610(config)> write memory
-
-  Now logout and telnet to 10.2.1.253. This is the alternate link
-  to the procurve that allows us to configure without a serial link,
-  and hopefully maintain a connection in case something goes wrong.
-  More fundimentally, once we remove the ip address from the default
-  vlan, we would no longer be able to get back in on that IP until
-  we can recreate it on the private vlan. Basically, we are doing a
-  switcherroo.
-  
-  2610> config
   2610(config)> vlan 10
   2610(vlan-10)> name control-hardware
   2610(vlan-10)> untagged 23	   XXXX Make sure about port number!
@@ -234,28 +223,31 @@ Setting up an InstaGeni Rack. First, we need the following info:
   UTAH: THE PASSWORD and COMMUNITY string come from variables.txt file
   in the rack subdir. Use the same for both switches.
 
-  If you choose your own, REMEMBER it! 
-
   The switch will take moment to reset so you might lose your connection
   to the control node.
 
-* For the experimental switch, we need to do something like above,
-  which is move the ip address from the default vlan to a private
-  vlan. You have to do this on the console since with only one wire
-  to the switch, as soon as you mess with the IP config, you lose
-  your connection. So have the site admin attach the console line to
-  the 5406.
+  Ping 10.1.1.253 and 10.2.1.253 to make sure things worked okay.
+  Then telnet to 10.1.1.253 and make sure you can login using the
+  switch password.
+
+* Have the local site admin move the console cable to the 5406.
+  Wait, wait, wait. 
+
+* Connect to the 5406 using this command:
 
 	sudo screen /dev/ttyS0 115200
 
-  wait for it to sync up and then you will get the prompt. To exit from
-  screen, "^A \"
-
+  It might not do anything when you carriage return; it is trying to sync
+  up the speed (the switch does auto-sense). Wait 30 seconds, hit carriage
+  return a few times again. If still not working, exit from screen ("^A \")
+  and try again. Might take another iteration or two. When you have the
+  prompt: 
+  
   5400> config
   5400(config)> no vlan 1 ip address
   5400(config)> vlan 10
   5400(vlan-10)> name control-hardware
-  5400(vlan-10)> untagged E20	  XXXX Make sure about port number!
+  5400(vlan-10)> untagged A20	  XXXX Make sure about port number! E20?
   5400(vlan-10)> ip address 10.3.1.253/24
   5400(vlan-10)> exit
   5400(config)> management-vlan 10
@@ -267,32 +259,16 @@ Setting up an InstaGeni Rack. First, we need the following info:
   5400(config)> write memory
   5400(config)> reload
   
-  USE THE SAME PASSWORD and COMMUNITY XXXXX
-  USE THE SAME PASSWORD and COMMUNITY XXXXX
-  USE THE SAME PASSWORD and COMMUNITY XXXXX
+  USE THE SAME PASSWORD and COMMUNITY XXXXX as above (2620)
 
-  Some 6600 specific stuff. The port number above is 48.
-
-  6600> config
-  6600(config)> oobm disable
-  6600(config)> snmp-server listen data
-  6600(config)> write memory
+  Wait for the switch to reboot and confirm you can telnet to 10.3.1.253
+  and log in using the switch password. 
   
-* The 5400 will take longer to reset. Be sure you can telnet back to the
-  both switches and login with the password you used above. Once you are
-  sure that is the case, kill off dhcpd on the control node.
-
-	sudo killall dhcpd
-
-  Make sure it died by doing:
-
-	ps auxwww | grep dhcpd
-
 * Create the 4th partition in the partition table:
 
 	sudo fdisk /dev/sda
 
-  Use the "n" option, primary partition type, default start, +1000G, "w"
+  Use the "n" option, primary partition type, default start, +950G, "w"
   to write it out.
 
   Then inform the kernel:
@@ -334,7 +310,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	sudo xm create ~elabman/boss/xm.conf
 
 * It is possible that ops will hang on fixarp, because tmcd is not
-  running on boss yet. Log into boss and do:
+  running on boss yet. Log into boss (as elabman) and do:
 
 	sudo testbed-control boot
 
@@ -344,14 +320,15 @@ Setting up an InstaGeni Rack. First, we need the following info:
   the delegation stuff. Needs to be defined as a partial map since
   that is what the upper subnet delegates. But we do not handle this
   in the named config scripts. So I had to edit /etc/namedb/named.conf
-  and add this (edit IP of course) to both views:
+  and add this (edit IP of course) to both views. Be sure to delete the
+  existing reverse zone (both views) since it is incorrect.
 
     zone "129/25.242.1.192.in-addr.arpa" in {
     	type master;
     	file "reverse/192.1.242.db";
     };
 
-  Be sure to delete the existing reverse zone since it is incorrect.
+  Run named_setup. Tail /var/log/messages to look for errors. 
 
 * Now it is time to power on the experimental nodes. If all goes well,
   they will boot up into FreeBSD MFS and be in the hwdown experiment.
@@ -376,7 +353,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
   	wap nfree emulab-ops hwdown pc2 pc3 pc4 pc5
 
-* Enable this site in Utah:
+* Enable this site in Utah (run this on Utah Emulab boss).
 
 	sudo cacontrol -c boss.XXX.XXX.XXX
 
@@ -384,14 +361,14 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	sudo /usr/testbed/sbin/protogeni/getcacerts
 
-* Arrange for the VMs to auto starts:
+* Arrange for the VMs to auto starts (on the control node):
 
 	cd /etc/xen/auto/
 	sudo ln -s ~elabman/ops/xm.conf 1.ops.conf
 	sudo ln -s ~elabman/boss/xm.conf 2.boss.conf
 
 * Next we want to update the firmware on the data plane switch to the
-  one that supports openflow. First the firmware from Utah to the
+  one that supports openflow. First copy the firmware from Utah to the
   local tftp directory on boss.
 
 	cd /tftpboot
@@ -414,13 +391,15 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	5406> reload
 
+* Wait for the switch to reboot, now lets see if snmpit works:
+
+	boss> wap snmpit -l -l -O
+
 * Add the public IP space, if appropriate. See the site survey response.
   This needs to go into the image baking script.
 
 	boss> wap addvpubaddr 192.1.242.150 192.1.242.179
 	boss> wap addvpubaddr 192.1.242.190 192.1.242.250
-
-* Create some test experiments.
 
 * Most sites will have the openflow vlan plumbed through to port 24 on
   the data switch. If this is indeed true, then we can go ahead and set
@@ -444,6 +423,8 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	boss> wap emulabfeature create LibVtopTest 'Test version of libvtop'
 	boss> wap emulabfeature enable LibVtopTest
+
+* Create some test experiments. Test the ProtoGeni API. 
 
 * Need to reset the mailing lists to the local admin.
 

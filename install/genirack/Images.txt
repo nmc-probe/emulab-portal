@@ -2,12 +2,12 @@ Notes on baking the images. See boss:~stoller/genirack/racks ...
 
 Each rack gets a backed image of the control node, and two baked
 images for boss and ops. The control node image is discussed below,
-but first lets talk about the boss/ops XEN VMs.
+but first lets talk about the boss/ops XEN VMs. 
 
-Briefly, the VMs are initially created as a XEN based ElabInElab
-experiment using an NS file tailored to the eventual environment via a
-bunch of attribute variables. For example, take a look at this one,
-which is the basis for the BBN rack:
+Briefly, the VMs are initially created as a XEN based ElabInElab on
+Utah's Emulab, experiment using an NS file tailored to the eventual
+environment via a bunch of attribute variables. For example, take a
+look at this one, which is the basis for the BBN rack:
 
   https://www.emulab.net/showexp.php3?pid=testbed&eid=bbnrack#nsfile
 
@@ -23,7 +23,9 @@ snapshots of the VMs, we clean that stuff out; when they next boot,
 they better be booting on the control node at the remote site!
 
 The rest of the config variables are set according to the particulars
-of the site, as told to us by the local site admin.
+of the site, as told to us by the local site admin. EXCEPT for the
+email list addresses; we change those later so that the new site admin
+is not spammed.
 
 For each site, we need to create a directory with three files in it:
 
@@ -40,11 +42,14 @@ by running:
     boss> ~stoller/genirack/racks/genpswds.pl > variables.txt
 
 The ip.txt file is specific to the site of course, and the XML file
-comes from HP via email.
+comes from HP via email. Note that the ROUTEABLE_IPRANGE in the NS
+file has to exclude the all of the IPs used, including the ones
+in the ips.txt file. We also want to leave a few free for adding a few
+nodes later.
 
 Utah Emulab is going to function as a secondary for each rack's boss
 named. So we need to add a secondary record to our named config file,
-in both the internal and external views. Edit /etc/namedb/named.conf,
+in BOTH the internal and external views. Edit /etc/namedb/named.conf,
 but be sure to "co -l" the file (make sure there are no changes to
 the file first; people forget). Look for the BBN rack version as
 an example.
@@ -54,13 +59,19 @@ an example.
 		type slave;
 		# IP of rack boss
 		masters { XXX.XXX.XXX.XXX; };
+		# Change this too; domain name
 		file "slave/foo.net.db";
 	};
+	# Replace 242.1.192 with reverse dotted subnet
+	# Replace 129/25 with as needed for subnet.
+	#  Upper half of /25 is 129/25
+	#  Lower half of /25 is 0/25
 	zone "129/25.242.1.192.in-addr.arpa" in {
-	    type slave;
-	    # IP of rack boss
-	    masters { XXX.XXX.XXX.XXX; };
-	    file "slave/reverse-foo.net.db";
+		type slave;
+		# IP of rack boss
+		masters { XXX.XXX.XXX.XXX; };
+		# Change this too; domain name
+		file "slave/reverse-foo.net.db";
 	};
 
 Utah Emulab is also the DNS server for the control node IPs. So in
@@ -71,7 +82,8 @@ Utah Emulab is also the DNS server for the control node IPs. So in
 
 Be sure to change the serial number at the top of the file.
 
-Now run named_setup to get named restarted on boss.
+Now run named_setup to get named restarted on boss. Be sure to tail
+/var/log/messages to make sure no problems in the restart. 
 
 Swap the experiment in.
 
@@ -79,25 +91,31 @@ Once the VMs are ready, copy the directory mentioned above over to the
 inner boss as /usr/testbed/etc/genirack. Do NOT put this stuff on the
 inner ops!
 
-	> sudo scp -rp ~stoller/geniracks/racks/XXX
-		pcvmXXX-1:/usr/testbed/etc/genirack
+	boss> sudo scp -rp ~stoller/geniracks/racks/XXX
+	         	pcvmXXX-1:/usr/testbed/etc/genirack
 
 Now we convert the VMs for boot in the target environment, which means
 cleaning up some stuff and changing a bunch of things.  First ssh (as
-root) into the inner boss VM from outer boss:
+root) into the inner boss VM from outer boss: Oh, use the "script"
+command to save the errors.
 
 	boss> cd /usr/testbed/obj/testbed/install
+	boss> script
 	boss> sudo perl emulab-install -b -i boss/genirack boss
+	boss> exit
 
 then log out and ssh (as root) into inner ops:
 
 	ops> cd /usr/testbed/obj/testbed/install
+	ops> script
 	ops> sudo perl emulab-install -b -i ops/genirack ops
+	ops> exit
 
-Grab /usr/testbed/etc/elabman.pswd and store it in our file. See
-Utah boss:~stoller/genirack/pswd.txt. 
+Grab (inner) boss:/usr/testbed/etc/elabman.pswd and store it in our
+file. See Utah (outer) boss:~stoller/genirack/racks/pswd.txt. 
 
-Now we have to shutdown the VMs. Log into the physical host and then:
+Now we have to shutdown the VMs. Log out of the boss/ops vms, and log
+into the physical host and then:
 
 	vhost-0> sudo /usr/local/etc/emulab/vnodesetup -jh pcvmXXX-1
 	vhost-0> sudo /usr/local/etc/emulab/vnodesetup -jh pcvmXXX-2
@@ -111,20 +129,19 @@ NOTE: pcvmXXX-2 might take a while to actually shutdown cause boss
 
 Next step is to capture the entire state of the VMs, which includes an
 imagezip of each lvm, a copy of the kernel, and a slightly modified
-xm.conf file. The script that does this might not be installed, but
-you can find it in the testbed source directory in
-clientside/tmcc/linux/openvz.
+xm.conf file:
 
 	vhost-0> sudo /usr/local/etc/emulab/capturevm.pl -r boss pcvmXXX-1
 	vhost-0> sudo /usr/local/etc/emulab/capturevm.pl -r ops pcvmXXX-2
 
 This will take a little while of course. When finished, cd into
-/capture and you will find two directories named boss and ops.
-You want to create a tar file (no point in using compression).
+/capture and you will find two directories named boss and ops.  You
+want to create a tar file (no point in using compression).
 
 	vhost-0> sudo tar cf foo.tar boss ops
 
-Now copy the tar file over to the new control node. 
+You will copy the tarfile over to the new control node after you
+create the 4th partition on it (so there is enough space). 
 
 ----
 
@@ -137,24 +154,36 @@ often and when I do, I try to remember to update the mirror as well.
 Anyway, there are just a few things that need to be changed on the
 control image for each site.
 
+To log into the control node, load elabman's private key into your ssh
+agent: /root/.ssh/elabman_dsa ... the password is stored in
+boss:/usr/testbed/etc/elabman_dsa.pswd ... then ssh over to
+elabman@utah.control.geniracks.net
+
 Note, DO NOT CHANGE THESE ON THE ROOT DISK! The clone is mounted on
 /mnt and /mnt/usr ...
 
 * /mnt/etc/network/interfaces.local: IP address and mask, and the local
-  gateway address.
+  gateway (router) address.
 
-* /mnt/etc/resolv.conf: the usual; domain and DNS server(s).
+* /mnt/etc/resolv.conf: the usual; domain and DNS forwarders of the
+  new rack. Leave Utah's boss (155.98.32.70) as the last one.
 
-* /mnt/etc/hostname; the hostname of course
+* /mnt/etc/hostname; the hostname of course (which you added to the
+  instageni.net.db file above). 
 
-* /mnt/etc/hosts: IP Hostname of course
+* /mnt/etc/hosts: IP Hostname of course.
 
-* /etc/timezone: correct timezone for the target!
-* /etc/localtime: Copy proper file from /usr/share/zoneinfo
+* /mnt/etc/timezone: correct timezone for the target.
+* /mnt/etc/localtime: Copy proper file from /usr/share/zoneinfo
 
 * Set the root password; we do not want it the same on each control
-  node, although note that ssh root login is not allowed. Be sure
-  to write it down sompelace.
+  node, although note that ssh root login is not allowed. To generate
+  a random password:
+
+	boss> /bin/dd if=/dev/urandom count=128 bs=1 | /sbin/md5
+
+  Ten characters are enough! Be sure to write it down in
+  boss:~stoller/genirack/racks/pswd.txt, and then on the control node:
 
 	sudo chroot /mnt passwd root
 
