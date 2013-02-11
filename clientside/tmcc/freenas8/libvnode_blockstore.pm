@@ -86,14 +86,19 @@ use libsetup;
 my $GLOBAL_CONF_LOCK     = "blkconf";
 my $FREENAS_CLI          = "$BINDIR/freenas-config";
 my $CLI_VERB_IST_EXTENT  = "ist_extent";
+my $CLI_VERB_IST_AUTHI   = "ist_authinit";
+my $CLI_VERB_IST_TARGET  = "ist";
+my $CLI_VERB_IST_ASSOC   = "ist_assoc";
 my $CLI_VERB_VOLUME      = "volume";
 my $CLI_VERB_POOL        = "pool";
 my $ZPOOL_CMD            = "/sbin/zpool";
 my $ZFS_CMD              = "/sbin/zfs";
 my $ZPOOL_STATUS_UNKNOWN = "unknown";
 my $ZPOOL_STATUS_ONLINE  = "online";
-my $ZPOOL_LOW_WATERMARK  = 2 * 2**30; # 2GiB
+my $ZPOOL_LOW_WATERMARK  = 2 * 2**10; # 2GiB, expressed in MiB
 my $FREENAS_MNT_PREFIX   = "/mnt";
+my $ISCSI_GLOBAL_PORTAL  = 1;
+my $SER_PREFIX           = "d0d0";
 
 #
 # Global variables
@@ -109,9 +114,16 @@ sub parseSliceName($);
 sub parseSlicePath($);
 sub calcSliceSizes($);
 sub getPoolList();
-sub allocSlice($$);
 sub createVlanInterface($$$$);
 sub setVlanInterfaceIPAddress($$$$);
+sub allocSlice($$$);
+sub exportSlice($$$);
+
+# Dispatch table for storage configuration commands.
+my %storageconf_cmds = (
+    "SLICE"  => \&allocSlice,
+    "EXPORT" => \&exportSlice
+);
 
 #
 # Turn off line buffering on output
@@ -212,10 +224,8 @@ sub vnodeState($$$$)
     return ($err, $out);
 }
 
-
-#
-# Create the blockstore slice.  We don't export it yet.
-# 
+# Not much to do - just pull down the storage config and stash it for
+# later calls.
 sub vnodeCreate($$$$)
 {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
@@ -302,13 +312,38 @@ sub vnodePreConfigExpNetwork($$$$)
     return 0
 }
 
-# Tie the blockstore slice created earlier to the experiment's vlan
-# (i.e., setup the export).
+# Run through blockstore setup command sequence returned by
+# 'storageconfig' tmcd call.  Hold the lock - we don't want
+# concurrency with other blockstore pseudo-VMs!
 sub vnodeConfigResources($$$$){
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
-    my $attributes = $vnconfig->{'attributes'};
+    my $sconfigs = $vnconfig->{'storageconfig'};
+
+    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
+	warn("*** ERROR: blockstore_allocSlice: ".
+	     "Could not get the blkalloc lock after a long time!");
+	return -1;
+    }
     
-    # XXX: implement
+    foreach my $sconf (@$sconfigs) {
+	my $cmd = $sconf->{'CMD'};
+	if (exists($storageconf_cmds{$cmd})) {
+	    if ($storageconf_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
+		warn("*** ERROR: blockstore_vnodeConfigResources: ".
+		     "Failed to execute setup command: $cmd");
+		TBScriptUnlock();
+		return -1;
+	    }
+	} else {
+	    warn("*** ERROR: blockstore_vnodeCongfigResources: ".
+		 "Don't know how to execute: $cmd");
+	    TBScriptUnlock();
+	    return -1;
+	}
+    }
+
+    TBScriptUnlock();
+    return 0;
 }
 
 # Nothing to do (yet).
@@ -409,6 +444,10 @@ sub parseFreeNASListing($) {
 	die "Can't run FreeNAS CLI: $!";
 
     my $header = <CLI>;
+
+    return @retlist
+	if !defined($header) or !$header;
+
     chomp $header;
     my @fields = split(/\t/, $header);
 
@@ -553,6 +592,7 @@ sub getPoolList() {
     while (my $line = <ZFS>) {
 	chomp $line;
 	my ($pname, $pused, $pavail) = split(/\s+/, $line);
+	next if $pname =~ /\//;  # filter out zvols.
 	if (exists($poolh->{$pname})) {
 	    my $pool = $poolh->{$pname};
 	    $pused  = libutil::convertToMebi($pused);
@@ -569,8 +609,8 @@ sub getPoolList() {
 }
 
 # Allocate a slice based on information from Emulab Central
-sub allocSlice($$) {
-    my ($vnode_id, $storageconf) = @_;
+sub allocSlice($$$) {
+    my ($vnode_id, $sconf, $vnconfig) = @_;
 
     # 1) Grab slice lock
     # 2) Get pool info
@@ -582,11 +622,7 @@ sub allocSlice($$) {
     #    a) Enough free space?
     # 6) Return success/fail
 
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	warn("*** ERROR: blockstore_allocSlice: ".
-	     "Could not get the blkalloc lock after a long time!");
-	return -1;
-    }
+    my $priv = $vnconfig->{'private'};
 
     my $slices = getSliceList();
     my $pools  = getPoolList();
@@ -595,44 +631,163 @@ sub allocSlice($$) {
     if (exists($slices->{$vnode_id})) {
 	warn("*** ERROR: blockstore_allocSlice: ".
 	     "slice already exists: $vnode_id. Please clean up!");
-	TBScriptUnlock();
 	return -1;
     }
 
     # Does the requested pool exist?
-    my $bsid = $storageconf->{'bsid'};
+    my $bsid = $sconf->{'BSID'};
     my $destpool;
     if (exists($pools->{$bsid})) {
 	$destpool = $pools->{$bsid};
+	$priv->{"bsid"} = $bsid; # save for future calls.
     } else {
 	warn("*** ERROR: blockstore_allocSlice: ".
 	     "Requested blockstore not found: $bsid!");
-	TBScriptUnlock();
 	return -1;
     }
 
     # Is there enough space on the requested blockstore?  If not, there is
     # a discrepancy between reality and the Emulab database.
-    my $size = $storageconf->{'size'};
-    if ($size + $ZPOOL_LOW_WATERMARK > $destpool->{'remaining'}) {
+    my $size = $sconf->{'VOLSIZE'};
+    if ($size + $ZPOOL_LOW_WATERMARK > $destpool->{'avail'}) {
 	warn("*** ERROR: blockstore_allocSlice: ". 
 	     "Not enough space remaining on requested blockstore: $bsid");
-	TBScriptUnlock();
 	return -1;
     }
 
-    # Allocate!
-    mysystem2("$FREENAS_CLI $CLI_VERB_IST_EXTENT addfile ".
-	      "$vnode_id ${FREENAS_MNT_PREFIX}/${bsid} ${size}MB");
+    # Allocate slice in zpool
+    # XXX: check on size conversion.
+    mysystem2("$FREENAS_CLI $CLI_VERB_VOLUME add ".
+	      "$bsid $vnode_id ${size}MB off");
     if ($? != 0) {
 	warn("*** ERROR: blockstore_allocSlice: ".
 	     "Failed to create slice on $bsid: CLI exit code: $?");
-	TBScriptUnlock();
 	return -1;
     }
 
-    TBScriptUnlock();
     return 0;    
+}
+
+# Setup device export.
+# XXX: must do better parameter checking.
+# XXX: convert FREENAS_CLI calls
+sub exportSlice($$$) {
+    my ($vnode_id, $sconf, $vnconfig) = @_;
+
+    # Should only be one ifconfig entry - checked earlier.
+    my $ifcfg   = (@{$vnconfig->{'ifconfig'}})[0];
+    print Dumper($ifcfg);
+    my $nmask   = $ifcfg->{'IPMASK'};
+    my $cmask   = libutil::CIDRmask($nmask);
+    my $network = libutil::ipToNetwork($ifcfg->{'IPADDR'}, $nmask);
+
+    # Extract info stored earlier.
+    my $priv = $vnconfig->{'private'};
+    my $bsid = $priv->{'bsid'};
+    if (!defined($bsid)) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "blockstore ID not found - cannot proceed!");
+	return -1;
+    }
+
+    # throw out 'iqn' prefix.
+    my @iqnparts = (split(/:/,$sconf->{'UUID'}));
+    shift @iqnparts;
+    my $iqnsuffix = join(":", @iqnparts);
+
+    # Create iSCSI extent
+    mysystem2("$FREENAS_CLI $CLI_VERB_IST_EXTENT add ".
+	      "$iqnsuffix $bsid/$vnode_id");
+    if ($? != 0) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "Failed to create iSCSI extent: CLI exit code: $?");
+	return -1;
+    }
+
+    # Create iSCSI auth group
+    my $tag = getNextAuthITag();
+    if ($tag !~ /^\d+$/) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "bad tag returned from getNextAuthITag.");
+	return -1;
+    }
+    mysystem2("$FREENAS_CLI $CLI_VERB_IST_AUTHI add ".
+	      "$tag ALL $network/$cmask");
+    if ($? != 0) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "Failed to create iSCSI auth group: CLI exit code: $?");
+	return -1;
+    }
+
+    # Create iSCSI target
+    my $serial = genSerial();
+    mysystem2("$FREENAS_CLI $CLI_VERB_IST_TARGET add ".
+	      "$iqnsuffix $serial $ISCSI_GLOBAL_PORTAL $tag Auto -1");
+    if ($? != 0) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "Failed to create iSCSI target: CLI exit code: $?");
+	return -1;
+    }
+
+    # Bind iSCSI target to slice (extent)
+    mysystem2("$FREENAS_CLI $CLI_VERB_IST_ASSOC add ".
+	      "$iqnsuffix $iqnsuffix");
+    if ($? != 0) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "Failed to associate iSCSI target with extent: CLI exit code: $?");
+	return -1;
+    }
+
+    # All setup and exported!
+    return 0;
+}
+
+# Helper function.
+# Locate and return tag for given network, if it exists.
+sub findAuthITag($$) {
+    my ($subnet, $cidrmask) = @_;
+
+    return undef
+	if !defined($subnet) or !defined($cidrmask);
+
+    my @authentries = parseFreeNASListing($CLI_VERB_IST_AUTHI);
+
+    return undef
+	if !@authentries;
+
+    foreach my $authent (@authentries) {
+	if ($authent->{'auth_network'} eq "$subnet/$cidrmask") {
+	    return $authent->{'tag'};
+	}
+    }
+
+    return undef;
+}
+
+# Helper function.
+# Locate and return next unused tag ID for iSCSI initiator groups.
+sub getNextAuthITag() {
+    my @authentries = parseFreeNASListing($CLI_VERB_IST_AUTHI);
+
+    my $maxtag = 1;
+
+    return $maxtag
+	if !@authentries;
+
+    foreach my $authent (@authentries) {
+	my $curtag = $authent->{'tag'};
+	next if !defined($curtag) || $curtag !~ /^\d+$/;
+	$maxtag = $curtag > $maxtag ? $curtag : $maxtag;
+    }
+
+    return $maxtag+1;
+}
+
+# Helper function.
+# Generate a random serial number for an iSCSI target
+sub genSerial() {
+    my $rand_hex = join "", map { unpack "H*", chr(rand(256)) } 1..6;
+    return $SER_PREFIX . $rand_hex;
 }
 
 sub createVlanInterface($$$$) {

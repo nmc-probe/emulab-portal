@@ -29,10 +29,15 @@ use Exporter;
 @ISA    = "Exporter";
 @EXPORT = qw( ipToMac macAddSep fatal mysystem mysystem2
               findDNS setState isRoutable findDomain convertToMebi
+              ipToNetwork CIDRmask
             );
 
 use libtmcc;
 use Socket;
+
+
+# Constants
+my $IPREGEX = '^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$';
 
 sub setState($) {
     my ($state) = @_;
@@ -44,7 +49,7 @@ sub ipToMac($) {
     my $ip = shift;
 
     return sprintf("0000%02x%02x%02x%02x",$1,$2,$3,$4)
-	if ($ip =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+	if ($ip =~ /$IPREGEX/);
 
     return undef;
 }
@@ -67,7 +72,7 @@ sub macAddSep($;$) {
 sub isRoutable($)
 {
     my ($IP)  = @_;
-    my ($a,$b,$c,$d) = ($IP =~ /^(\d*)\.(\d*)\.(\d*)\.(\d*)/);
+    my ($a,$b,$c,$d) = ($IP =~ /$IPREGEX/);
 
     #
     # These are unroutable:
@@ -89,6 +94,29 @@ sub isRoutable($)
     return 1;
 }
 
+# Return network portion of IP address
+sub ipToNetwork($$) {
+    my ($ip, $mask) = @_;
+
+    return undef 
+	unless defined($ip) && defined($mask) 
+	&& $ip =~ /$IPREGEX/ && $mask =~ /$IPREGEX/;
+
+    return inet_ntoa(inet_aton($ip) & inet_aton($mask));
+}
+
+# Given a dot-decimal netmask, return the equivalent CIDR netmask
+sub CIDRmask($) {
+    my $mask = shift;
+
+    return undef
+	unless $mask =~ /$IPREGEX/;
+
+    my $cidrmask = unpack("%32b*", inet_aton($mask));
+
+    return $cidrmask;
+}
+
 #
 # XXX boss is the DNS server for everyone
 #
@@ -97,12 +125,9 @@ sub findDNS($)
     my ($ip) = @_;
 
     my ($bossname,$bossip) = libtmcc::tmccbossinfo();
-    if ($bossip =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
-	$bossip = $1;
-    } else {
-	return undef;
-	# die "Could not find boss IP address (tmccbossinfo failed?)";
-    }
+
+    return undef
+	unless $bossip =~ /$IPREGEX/;
 
     return $bossip;
 }
