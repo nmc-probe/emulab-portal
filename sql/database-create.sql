@@ -746,7 +746,6 @@ CREATE TABLE `emulab_sites` (
   `os_version` tinytext NOT NULL,
   `perl_version` tinytext NOT NULL,
   `tbops` tinytext,
-  PRIMARY KEY  (`urn`),
   UNIQUE KEY `commonname` (`commonname`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 

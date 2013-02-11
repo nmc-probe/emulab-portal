@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -217,18 +217,19 @@ delete($checkin_args{"certificate"});
 #
 # Now do special checks.
 #
-my $urn = $certificate->urn();
+my $urn = "";
 my $commonname = $certificate->CommonName();
 
-if (!defined($urn) ||
-    ! TBcheck_dbslot($urn, "emulab_sites", "urn",
+if (defined($certificate->urn()) &&
+    ! TBcheck_dbslot($certificate->urn(), "emulab_sites", "urn",
 		     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-    fatal("Illegal URN");
+    fatal("Illegal URN:" . $certificate->urn());
+    $urn = $certificate->urn();    
 }
 if (!defined($commonname) ||
     ! TBcheck_dbslot($commonname, "emulab_sites", "commonname",
 		     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-    fatal("Illegal CN");
+    fatal("Illegal CN: $commonname");
 }
 $checkin_args{"commonname"} = $commonname;
 
@@ -248,7 +249,8 @@ my $safe_cn  = DBQuoteSpecial($commonname);
 
 my $query_result =
     DBQueryFatal("select urn,commonname from emulab_sites ".
-		 "where urn=$safe_urn or commonname=$safe_cn");
+		 "where commonname=$safe_cn or ".
+		 "      (urn!='' and urn=$safe_urn)"); 
 if ($query_result->numrows > 1) {
     fatal("Inconsistent site data for $urn,$commonname");
 }
@@ -265,7 +267,7 @@ foreach my $key (keys(%checkin_args)) {
 my $query = "set " . join(",", @sets) . ", updated=now()";
 if ($exists) {
     $query = "update emulab_sites $query, buildinfo=FROM_UNIXTIME($buildinfo) ".
-	"where urn=$safe_urn";
+	"where commonname=$safe_cn";
 }
 else {
     $query = "insert into emulab_sites $query, ".
