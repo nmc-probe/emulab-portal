@@ -141,7 +141,8 @@ want to create a tar file (no point in using compression).
 	vhost-0> sudo tar cf foo.tar boss ops
 
 You will copy the tarfile over to the new control node after you
-create the 4th partition on it (so there is enough space). 
+create the 4th partition on it (so there is enough space). So just
+leave the tar file where it is for now. 
 
 ----
 
