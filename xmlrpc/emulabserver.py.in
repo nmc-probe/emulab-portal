@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2004-2012 University of Utah and the Flux Group.
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -3850,6 +3850,7 @@ class node:
             return argerror
 
         argstr = ""
+        doslow = 0
         for opt, val in argdict.items():
             if opt == "wait":
                 if xbool(val):
@@ -3859,6 +3860,11 @@ class node:
             elif opt == "power":
                 if xbool(val):
                     argstr += " -f "
+                    pass
+                pass
+            elif opt == "slow":
+                if xbool(val):
+                    doslow = 1
                     pass
                 pass
             elif opt == "reconfig":
@@ -3876,10 +3882,21 @@ class node:
             #pass
             pass
 
-        (exitval, output) = runcommand(TBDIR + "/bin/node_reboot " + argstr)
-        output += argstr
-        if exitval:
-            return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
+        if doslow:
+            (exitval, output) = runcommand(TBDIR + "/bin/power off " + argstr)
+            if exitval:
+                return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
+            time.sleep(10)
+            (exitval, output) = runcommand(TBDIR + "/bin/power on " + argstr)
+            if exitval:
+                return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
+            pass
+        else:
+            (exitval, output) = runcommand(TBDIR + "/bin/node_reboot " + argstr)
+            output += argstr
+            if exitval:
+                return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
+            pass
 
         # NB: the actual output makes the XML parsers choke and die.
         return EmulabResponse(RESPONSE_SUCCESS, output=output)
