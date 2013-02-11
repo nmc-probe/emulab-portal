@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -35,10 +35,10 @@ sub mysystem($);
 
 sub usage()
 {
-    print("Usage: mkextrafs.pl [-fq] [-s slice] [-lM] [-v <vglist>] [-m <lvlist>] [-z <lvsize>] <mountpoint>\n");
+    print("Usage: mkextrafs.pl [-fq] [-s slice] [-lM] [-v <vglist>] [-m <lvlist>] [-z <lvsize>] [-r disk] <mountpoint>\n");
     exit(-1);
 }
-my  $optlist = "fqls:v:Mm:z:";
+my  $optlist = "fqls:v:Mm:z:r:";
 
 #
 # Yep, hardwired for now.  Should be options or queried via TMCC.
@@ -46,6 +46,7 @@ my  $optlist = "fqls:v:Mm:z:";
 my $disk       = "hda";
 my $slice      = "4";
 my $partition  = "";
+my $diskopt;
 
 my $forceit    = 0;
 my $quiet      = 0;
@@ -81,6 +82,9 @@ if (defined($options{"f"})) {
 }
 if (defined($options{"q"})) {
     $quiet = 1;
+}
+if (defined($options{"r"})) {
+    $diskopt = $options{"r"};
 }
 if (defined($options{"s"})) {
     $slice = $options{"s"};
@@ -141,9 +145,15 @@ if (!$lvm || ($lvm && $lmonster)) {
 # XXX determine the disk based on the root fs.
 # Note: 'rootfs' grep is because Fedora 15 df shows two lines for "/" 
 #
-my $rootdev = `df | egrep '/\$' | grep -v rootfs`;
-if ($rootdev =~ /^\/dev\/([a-z]+)\d+\s+/) {
-    $disk = $1;
+if (defined($diskopt)) {
+    $disk = $diskopt;
+    $disk =~ s/^\/dev\///;
+}
+else {
+    my $rootdev = `df | egrep '/\$' | grep -v rootfs`;
+    if ($rootdev =~ /^\/dev\/([a-z]+)\d+\s+/) {
+	$disk = $1;
+    }
 }
 
 my $diskdev    = "/dev/${disk}";
@@ -187,6 +197,33 @@ if ($mounted =~ /^$fsdevice on (\S*)/) {
     } else {
 	die("*** $0:\n".
 	    "    $fsdevice is already mounted on $1\n");
+    }
+}
+
+#
+# Check for valid DOS partition table, since might be secondary disk.
+#
+if (system("sfdisk -q -V $diskdev")) {
+    system("parted -s $diskdev mklabel msdos");
+    if ($?) {
+	die("*** $0:\n".
+	    "    Could not write dos label to $diskdev!\n");
+    }
+    # Grab size (in blocks); DOS cannot handle our huge disks.
+    my $disksize = `sfdisk -s $diskdev`;
+    if ($?) {
+	die("*** $0:\n".
+	    "    Could not get size of $diskdev!\n");
+    }
+    chomp($disksize);
+    if ($disksize > (1024 * 1024 * 1024)) {
+	$disksize = (1024 * 1024 * 1024);
+	print "Disk really big! cutting back to $disksize blocks.\n";
+    }
+    system("echo '0,$disksize' | sfdisk $diskdev -N$slice -u B");
+    if ($?) {
+	die("*** $0:\n".
+	    "    Could not initialize primary partition on $diskdev!\n");
     }
 }
 
