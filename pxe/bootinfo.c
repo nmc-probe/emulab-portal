@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -49,6 +49,7 @@
 static int	bicache_init(void);
 #ifdef	EVENTSYS
 static int	bicache_needevent(struct in_addr ipaddr);
+static void	bicache_clearevent(struct in_addr ipaddr);
 #endif
 
 int
@@ -82,7 +83,7 @@ bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info,
 	 void *opaque, int no_event_send, int *event_sent)
 {
 #ifdef	EVENTSYS
-	int		needevent = 0;
+	int		needevent = 0, eventfailed = 0;
 #endif
 	int		err;
 	boot_what_t	*boot_whatp = (boot_what_t *) &boot_info->data;
@@ -93,9 +94,12 @@ bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info,
 			inet_ntoa(ipaddr), boot_info->data, boot_info->version);
 #ifdef	EVENTSYS
 		needevent = bicache_needevent(ipaddr);
-		if (!no_event_send && needevent)
-			bievent_send(ipaddr, opaque,
-				     TBDB_NODESTATE_PXEBOOTING);
+		if (!no_event_send && needevent &&
+		    bievent_send(ipaddr, opaque, TBDB_NODESTATE_PXEBOOTING)) {
+			/* send failed, clear the cache entry */
+			bicache_clearevent(ipaddr);
+			eventfailed = 1;
+		}
 #endif
 		err = query_bootinfo_db(ipaddr, node_id, boot_info->version, 
 					boot_whatp, boot_info->data);
@@ -106,9 +110,12 @@ bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info,
 		     inet_ntoa(ipaddr), boot_info->version);
 #ifdef	EVENTSYS
 		needevent = bicache_needevent(ipaddr);
-		if (!no_event_send && needevent)
-			bievent_send(ipaddr, opaque,
-				     TBDB_NODESTATE_PXEBOOTING);
+		if (!no_event_send && needevent &&
+		    bievent_send(ipaddr, opaque, TBDB_NODESTATE_PXEBOOTING)) {
+			/* send failed, clear the cache entry */
+			bicache_clearevent(ipaddr);
+			eventfailed = 1;
+		}
 #endif
 		err = query_bootinfo_db(ipaddr, node_id,
 					boot_info->version, boot_whatp, NULL);
@@ -129,6 +136,22 @@ bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info,
 		boot_info->status = BISTAT_SUCCESS;
 #ifdef	EVENTSYS
 		if (!no_event_send && needevent) {
+			/*
+			 * Retry a failed PXEBOOTING event.
+			 *
+			 * Chances are, a failure here will amplify down
+			 * the road as stated gets out of sync. So pause
+			 * here and try to stay on track.
+			 */
+			if (eventfailed) {
+				sleep(1);
+				info("%s: retry failed PXEBOOTING event\n",
+				     inet_ntoa(ipaddr));
+				bicache_needevent(ipaddr);
+				if (bievent_send(ipaddr, opaque,
+						 TBDB_NODESTATE_PXEBOOTING))
+					bicache_clearevent(ipaddr);
+			}
 			switch (boot_whatp->type) {
 			case BIBOOTWHAT_TYPE_PART:
 			case BIBOOTWHAT_TYPE_DISKPART:
@@ -239,5 +262,30 @@ bicache_needevent(struct in_addr ipaddr)
 		}
 	}
 	return rval;
+}
+
+/*
+ * Clear a timestamp in the cache.
+ * We call this if an event send fails.
+ */
+static void
+bicache_clearevent(struct in_addr ipaddr)
+{
+	DBT	key, item;
+	time_t  tt;
+
+	if (dbp) {
+		key.data = (void *) &ipaddr;
+		key.size = sizeof(ipaddr);
+
+		tt = 0;
+		item.data = (void *) &tt;
+		item.size = sizeof(tt);
+
+		if ((dbp->put)(dbp, &key, &item, 0) != 0) {
+			errorc("Could not insert DBM entry for %s\n",
+			       inet_ntoa(ipaddr));
+		}
+	}
 }
 #endif
