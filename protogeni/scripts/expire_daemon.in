@@ -100,7 +100,7 @@ if (! getopts($optlist, \%options)) {
     usage();
 }
 if (defined($options{"d"})) {
-    $debug = 1;
+    $debug++;
 }
 if (defined($options{"i"})) {
     $idlecheck = 1;
@@ -887,8 +887,10 @@ sub CheckIdle()
 			"   unix_timestamp(min(last_report))) as staleness ".
 			"from node_activity as na ".
 			"left join reserved as r on na.node_id=r.node_id ".
+		        "left join nodes as n on na.node_id=n.node_id ".
+		        "left join node_types as nt on nt.type=n.type ".
 			"left join experiments as e on r.exptidx=e.idx ".
-			"where r.exptidx=$exptidx ".
+			"where r.exptidx=$exptidx and nt.isvirtnode=0 ".
 			"group by pid,eid having nodes > 0 ");
 	if (!defined($idle_result)) {
 	    print STDERR "Could not get idle data for $experiment\n";
@@ -943,7 +945,7 @@ sub CheckIdle()
 	# then check the swap requests and time of last request, to
 	# make sure we can send a message.
 	if ($idletime > $timeout || $idletime > $threshold) {
-	    print STDERR "$slice is using $nodes nodes ".
+	    print STDERR "$slice is using $nodes physical nodes ".
 		"and has been idle for $idletime_hours hours\n";
 	    if ($ignore) {
 		print STDERR "*** but idle ignore is set.\n";
@@ -976,9 +978,10 @@ sub CheckIdle()
 			"Sliver $sliver_urn\n".
 			"from slice $urn,\n".
 			"has been idle for approximately ".
-			     "$idletime_hours hour(s).\n".
+			     "$idletime_hours hour(s), ".
+			"and is using $nodes physical nodes.\n".
 		        "This sliver will be terminated if it stays idle.\n",
-		         $TBOPS, "CC: $TBAUTOMAIL");
+		         $TBAUTOMAIL, "CC: $TBAUTOMAIL");
 
 		    emdb::DBQueryWarn("update experiments set ".
 				      "   swap_requests=swap_requests+1, ".
@@ -986,7 +989,7 @@ sub CheckIdle()
 				      "where idx='$exptidx'");
 		}
 	    }
-	    elsif ($idletime > $threshold && $idlecheck_terminate) {
+	    elsif ($idletime > (2 * $timeout) && $idlecheck_terminate) {
 		print STDERR "Expiring idle $slice $experiment.\n";
 
 		if (!$impotent) {
