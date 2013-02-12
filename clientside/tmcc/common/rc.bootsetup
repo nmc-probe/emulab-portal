@@ -117,13 +117,6 @@ STDOUT->autoflush(1);
 STDERR->autoflush(1);
 
 #
-# Grab our manifest so we can enable/disable/replace this script and 
-# run (or not) its hooks.
-#
-my %manifest;
-getmanifest(\%manifest);
-
-#
 # We want to save all of the output off, but also dup it to the console.
 #
 if ($action eq "boot" || $action eq "reconfig") {
@@ -169,6 +162,13 @@ if ($action eq "boot" || $action eq "reconfig") {
     }
     open(STDERR, ">&STDOUT");
 }
+
+#
+# Grab our manifest so we can enable/disable/replace scripts and 
+# run (or not) its hooks.
+#
+my %manifest;
+getmanifest(\%manifest);
 
 # Execute the action.
 SWITCH: for ($action) {
