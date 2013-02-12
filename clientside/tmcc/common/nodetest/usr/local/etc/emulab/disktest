@@ -2,7 +2,8 @@
 
 SMARTCTL="smartctl"
 DISKSPEEDTEST="perl /usr/local/etc/emulab/disktest.pl"
-#DISKSPEEDTEST="echo -n "
+
+set +x
 
 gettype(){
     aid=`$SMARTCTL --tolerance=verypermissive -i $1 | grep Device | head -1`
@@ -21,6 +22,7 @@ gettype(){
 	echo -n "NA"
     fi
 }
+
 getmodel(){
     case $2 in
 	WD)
@@ -40,6 +42,7 @@ getmodel(){
 	    ;;
     esac
 }
+
 getserial(){
     case $2 in
 	WD)
@@ -59,6 +62,7 @@ getserial(){
 	    ;;
     esac
 }
+
 getfw(){
     case $2 in
 	WD)
@@ -78,6 +82,7 @@ getfw(){
 	    ;;
     esac
 }
+
 gettemp(){
     case $2 in
 	WD)
@@ -163,7 +168,7 @@ if [ -z "$disk" ]; then
     exit 1
 fi
 
-mkdir -p ./disktest.log
+logfile=$1
 
 {
     if [ -n "$usbstick" ]; then
@@ -193,15 +198,13 @@ mkdir -p ./disktest.log
 	echo -n ")"
 	echo ""
     done
-} >./disktest.log/$host.log 2>&1
+} >/tmp/$host.log 2>&1
 
-# copy into to readings home directory
-mkdir -p /users/dreading/disktest.log
-cp ./disktest.log/$host.log /users/dreading/disktest.log
-echo ""
-cat ./disktest.log/$host.log
-echo ""
+echo "disktest `date`" >> ${logfile}
+cat /tmp/$host.log >> ${logfile} 
 
+echo ". . . disktest OK"
+echo -n ""
 exit 0
 
 
