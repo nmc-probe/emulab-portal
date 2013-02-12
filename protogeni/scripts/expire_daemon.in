@@ -1086,6 +1086,7 @@ while (1) {
     Node->FlushAll();
     GeniUtil::FlushCaches();
 
+    print "Sleeping for $SLEEP_INTERVAL seconds ...\n";
     sleep($SLEEP_INTERVAL);
 }
 exit(0);
