@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,7 +33,7 @@ use Exporter;
               vz_vnodePreConfig vz_vnodeUnmount vz_vnodeTearDown
               vz_vnodePreConfigControlNetwork vz_vnodePreConfigExpNetwork 
               vz_vnodeConfigResources vz_vnodeConfigDevices
-              vz_vnodePostConfig vz_vnode vz_vnodeExec
+              vz_vnodePostConfig vz_vnode vz_vnodeExec DOSNAP VGNAME
             );
 
 %ops = ( 'init' => \&vz_init,
@@ -85,11 +85,15 @@ $| = 1;
 # 
 
 my $defaultImage = "emulab-default";
+sub DefaultImage() { return $defaultImage; }
 
 my $DOLVM        = 1;
 my $DOSNAP       = 0;
 my $DOLVMDEBUG   = 0;
 my $LVMDEBUGOPTS = "-vvv -dddddd";
+
+# So we can ask this from outside;
+sub DOSNAP()	{ return $DOSNAP; }
 
 my $DOVZDEBUG = 0;
 my $VZDEBUGOPTS = "--verbose";
@@ -115,7 +119,14 @@ my $IP = "/sbin/ip";
 my $VZRC   = "/etc/init.d/vz";
 my $MKEXTRAFS = "/usr/local/etc/emulab/mkextrafs.pl";
 my $BRIDGESETUP = "/usr/local/etc/emulab/xenbridge-setup";
-
+# Extra space for images
+my $EXTRAFS = "/vzscratch";
+# LVM volume group name. 
+my $VGNAME = "openvz";
+# So we can ask this from outside;
+sub VGNAME()  { return $VGNAME; }
+sub EXTRAFS() { return $EXTRAFS; }
+    
 my $CTRLIPFILE = "/var/emulab/boot/myip";
 my $IMQDB      = "/var/emulab/db/imqdb";
 # The kernel will auto create up to 1024 IMQs
@@ -129,6 +140,9 @@ my $RTDB           = "/var/emulab/db/rtdb";
 my $RTTABLES       = "/etc/iproute2/rt_tables";
 # Temporary; later kernel version increases this.
 my $MAXROUTETTABLE = 255;
+
+# Track image usage for GC.
+my $IMAGEDB           = "/var/emulab/db/imagedb";
 
 my $debug = 0;
 
@@ -146,11 +160,11 @@ my $USE_CTRLBR  = 1;
 # qdiscs (which are no longer maintained as of 11/2011).
 #
 my ($kmaj,$kmin,$kpatch) = libvnode::getKernelVersion();
-print STDERR "Got Linux kernel version numbers $kmaj $kmin $kpatch\n";
+#print STDERR "Got Linux kernel version numbers $kmaj $kmin $kpatch\n";
 if ($kmaj >= 2 && $kmin >= 6 && $kpatch >= 32) {
-    print STDERR "Using Linux netem instead of custom qdiscs.\n";
+#    print STDERR "Using Linux netem instead of custom qdiscs.\n";
     $USE_NETEM = 1;
-    print STDERR "Using Linux macvlan instead of OpenVZ veths.\n";
+#    print STDERR "Using Linux macvlan instead of OpenVZ veths.\n";
     $USE_MACVLAN = 1;
 }
 
@@ -281,11 +295,11 @@ sub vz_rootPreConfig {
 	    }
 		    
 	    mysystem("pvcreate $LVMDEBUGOPTS $blockdevs");
-	    mysystem("vgcreate $LVMDEBUGOPTS openvz $blockdevs");
+	    mysystem("vgcreate $LVMDEBUGOPTS $VGNAME $blockdevs");
 	}
 	# make sure our volumes are active -- they seem to become inactive
 	# across reboots
-	mysystem("vgchange $LVMDEBUGOPTS -a y openvz");
+	mysystem("vgchange $LVMDEBUGOPTS -a y $VGNAME");
 
 	#
 	# If we reload the partition, the logical volumes will still
@@ -301,6 +315,10 @@ sub vz_rootPreConfig {
 	    mysystem("mkdir /vz")
 		if (! -e "/vz");
 	    mysystem("cp -pR /vz.save/* /vz/");
+	}
+	if (createExtraFS($EXTRAFS, $VGNAME, "15G")) {
+	    TBScriptUnlock();
+	    return -1;
 	}
     }
     else {
@@ -731,7 +749,8 @@ sub vz_rootPostConfig {
 sub vz_vnodeCreate {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
     my $image = $vnconfig->{'image'};
-    my $reload_args_ref = $vnconfig->{'reloadinfo'};
+    my $raref = $vnconfig->{'reloadinfo'};
+    my $inreload = 0;
 
     my $vmid;
     if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
@@ -744,107 +763,14 @@ sub vz_vnodeCreate {
     if (!defined($image) || $image eq '') {
 	$image = $defaultImage;
     }
-
-    my $imagelockpath = "/var/emulab/db/openvz.image.$image.ready";
     my $imagelockname = "vzimage.$image";
-    my $imagepath = "/vz/template/cache/${image}.tar.gz";
 
-    my %reload_args;
-    if (defined($reload_args_ref)) {
-	%reload_args = %$reload_args_ref;
+    #
+    # This LVM size stuff is needs to go away.
+    #
+    my $rootSize;
+    my $snapSize;
 
-	# Tell stated via tmcd
-	libutil::setState("RELOADSETUP");
-
-	#
-	# So, we are reloading this vnode (and maybe others).  Need to grab
-	# the global lock for this image, check if we really need to download
-	# the image based on the mtime for the currently cached image (if there
-	# is one), if there is old image state, move out of the way, then
-	# download the new image.  State to move out of teh way for an old
-	# image is the ready file, the image file, lvm "root" devices that we
-	# previously had built still-live VMs out of (we need to rename them),
-	# and finally, garbage collecting unused "root" devices.  
-	#
-	# Note that we need to be really careful with the last item -- we 
-	# only GC if our create has happened successfully, and we take the 
-	# global image GC lock to do so.  This may race due to the nature 
-	# of global locks and result in not all old devices getting reaped, 
-	# but oh well.  Best effort for now.
-	#
-	if ((my $locked = TBScriptLock($imagelockname,
-				       TBSCRIPTLOCK_GLOBALWAIT(), 1800))
-	    != TBSCRIPTLOCK_OKAY()) {
-	    print STDERR
-		"Could not get the $imagelockname lock after a long time!\n";
-	    return -1;
-	}
-
-	# do we have the right image file already?
-	my $incache = 0;
-	if (-e $imagepath) {
-	    my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
-		$mtime,undef,undef,undef) = stat($imagepath);
-	    if ("$mtime" eq $reload_args{"IMAGEMTIME"}) {
-		$incache = 1;
-	    }
-	    else {
-		print "mtimes for $imagepath differ: local $mtime, server " . 
-		    $reload_args{"IMAGEMTIME"} . "\n";
-		unlink($imagepath);
-	    }
-	}
-
-	if (!$incache && $DOLVM) {
-	    # did we create an lvm device for the old image at some point?
-	    # (i.e., does the image lock file exist?)
-	    if (-e $imagelockpath) {
-		# Remove the readyfile; no longer ready. 
-		unlink($imagelockpath);
-	    }
-	}
-	elsif (!$incache && -e $imagelockpath) {
-	    # now we can remove the readyfile
-	    unlink($imagelockpath);
-	}
-
-	# Tell stated via tmcd
-	libutil::setState("RELOADING");
-
-	if (!$incache) {
-	    # Now we just download the file, then let create do its normal thing
-	    my $dret = libvnode::downloadImage($imagepath,
-					       0,$vnode_id,$reload_args_ref);
-
-	    # reload has finished, file is written... so let's set its mtime
-	    utime(time(),$reload_args{"IMAGEMTIME"},$imagepath);
-	}
-
-	TBScriptUnlock();
-    }
-    elsif ($image eq $defaultImage && -e $imagelockpath) {
-	#
-        # Image already unpacked, but lets see if the tarball changed.
-	#
-	my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
-	    $mtime1,undef,undef,undef) = stat($imagepath);
-	my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
-	    $mtime2,undef,undef,undef) = stat($imagelockpath);
-
-	if ($mtime1 > $mtime2) {
-	    print STDERR "Default image $imagepath appears to be newer\n";
-	    unlink($imagelockpath);
-	}
-    }
-
-    my $createArg = "";
-    if ((my $locked = TBScriptLock($imagelockname,
-				   TBSCRIPTLOCK_GLOBALWAIT(), 1800))
-	!= TBSCRIPTLOCK_OKAY()) {
-	print STDERR
-	    "Could not get the $imagelockname lock after a long time!\n";
-	return -1;
-    }
     if ($DOLVM) {
 	my $MIN_ROOT_LVM_VOL_SIZE = 2 * 2048;
 	my $MAX_ROOT_LVM_VOL_SIZE = 8 * 1024;
@@ -857,8 +783,8 @@ sub vz_vnodeCreate {
 	# figure out how big our volumes should be based on the volume
 	# group size
 	my $vgSize;
-	my $rootSize = $MAX_ROOT_LVM_VOL_SIZE;
-	my $snapSize = $MAX_SNAPSHOT_VOL_SIZE;
+	$rootSize = $MAX_ROOT_LVM_VOL_SIZE;
+	$snapSize = $MAX_SNAPSHOT_VOL_SIZE;
 
 	open (VFD,"vgdisplay openvz |")
 	    or die "popen(vgdisplay openvz): $!";
@@ -911,114 +837,143 @@ sub vz_vnodeCreate {
 
 	print STDERR "Using LVM with root size $rootSize MB, ".
 	    "snapshot size $snapSize MB.\n";
+    }
+
+    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_GLOBALWAIT(), 1800)
+	!= TBSCRIPTLOCK_OKAY()) {
+	fatal("Could not get $imagelockname lock after a long time!");
+    }
+
+    #
+    # We name the image lvms with a prefix so we know they are image
+    # LVMs. Hard to tell otherwise.
+    #
+    my $imagelvmname = "image+" . $image;
+    my $imagelvmpath = lvmVolumePath($imagelvmname);
+    my $vnodelvmpath = lvmVolumePath($vnode_id);
+
+    if ($image eq $defaultImage) {
+	#
+	# The default image might change, if the file in the template
+	# directory is changed. 
+	#
+	my $imagepath  = "/vz/template/cache/${image}.tar.gz";
+
+	my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
+	    $mtime,undef,undef,undef) = stat($imagepath);
 
 	#
-	# Got the lock; if the imagelock file does not exists, we have
-	# to create the base lvm for it. Otherwise, hold the lock until
-	# we check the existing lvm cache.
+	# createImageDisk() knows to throw the old one away if it changed.
+	# The only reason to go through this (instead of direct untar) is 
+	# so that we are consistent with image downloads in the else clause.
 	#
-	if (! -e $imagelockpath) {
-	    #
-	    # If there is already a logical device for this image, then
-	    # need to GC or rename it (might be in use). Note that a
-	    # reload of the partition will cause the lock files to get
-	    # deleted, which results in some needless work (recreating
-	    # the lvm even if it did not change), but I do not see a
-	    # way to stamp the lvm itself so that we can determine its
-	    # creation date. Besides, it is an atypical case.
-	    #
-	    if (system("lvdisplay /dev/openvz/$image >& /dev/null") == 0) {
-		if (GClvm("$image")) {
-		    fatal("Could not GC or rename $image");
-		}
-	    }
-	    print "Creating LVM core logical device for image $image\n";
+	my $reloadargs = {"IMAGEMTIME" => $mtime};
 
-	    # ok, create the lvm logical volume for this image.
-	    mysystem("lvcreate $LVMDEBUGOPTS ".
-		     "  -L${rootSize}M -n $image openvz");
-	    mysystem("mkfs -t ext3 /dev/openvz/$image");
-	    mysystem("mkdir -p /mnt/$image");
-	    mysystem("mount /dev/openvz/$image /mnt/$image");
-	    mysystem("mkdir -p /mnt/$image/root ".
-		     "         /mnt/$image/private");
-	    mysystem("tar -xzf $imagepath -C /mnt/$image/private");
-	    mysystem("umount /mnt/$image")
-		if ($DOSNAP);
-
-	    # ok, we're done
-	    mysystem("mkdir -p /var/emulab/run");
-	    mysystem("touch $imagelockpath");
+	if (createImageDisk($image, $vnode_id,
+			    $reloadargs, $imagepath, $rootSize)) {
+	    TBScriptUnlock();
+	    fatal("vz_vnodeCreate: ".
+		  "cannot create logical volume for $image");
 	}
+    }
+    elsif (defined($raref)) {
+	$inreload = 1;
+	
+	# Tell stated via tmcd
+	libutil::setState("RELOADSETUP");
 
-	if ($DOSNAP) {
-	    # Snapshots can happen in parallel.
+	#
+	# Immediately drop into RELOADING before calling createImageDisk as
+	# that is the place where any image will be downloaded from the image
+	# server and we want that download to take place in the longer timeout
+	# period afforded by the RELOADING state.
+	#
+	sleep(1);
+	libutil::setState("RELOADING");
+
+	if (createImageDisk($image, $vnode_id, $raref, undef, $rootSize)) {
+	    TBScriptUnlock();
+	    fatal("vz_vnodeCreate: ".
+		  "cannot create logical volume for $image");
+	}
+    }
+    my $createArg = "";
+
+    #
+    # Now we can create the vnode disk from the base disk.
+    #
+    if ($DOSNAP) {
+	#
+	# So, we drop the lock so multiple snapshots can happen in
+	# parallel, but that introduces a small race; the base can
+	# get deleted before the lvcreate runs and the base has a
+	# new child that prevents it from getting garbage collected.
+	#
+	TBScriptUnlock();
+	
+	#
+	# Take a snapshot of this image's logical device
+	#
+	# As above, a partition reload will make it appear that the
+	# container does not exist, when in fact the lvm really does
+	# and we want to reuse it, not create another one. 
+	#
+	if (system("lvdisplay $vnodelvmpath >& /dev/null")) {
+	    mysystem("lvcreate $LVMDEBUGOPTS ".
+		     "  -s -L${snapSize}M -n $vnode_id $imagelvmpath");
+	}
+    }
+    elsif (system("lvdisplay $vnodelvmpath >& /dev/null")) {
+	#
+	# Need to create a new disk for the container. But lets see
+	# if we have a disk cached. We still have the imagelock at
+	# this point.
+	#
+	if (my (@files) = glob("/dev/$VGNAME/_C_${image}_*")) {
+	    #
+	    # Grab the first file and rename it. It becomes ours.
+	    # Then drop the lock.
+	    #
+	    my $file = $files[0];
+	    mysystem("lvrename $file $vnodelvmpath");
+	    TBScriptUnlock();
+	}
+	else {
+	    #
+	    # So, we really should not drop the lock here, cause if
+	    # another vnode comes along using the same image, but the
+	    # image was updated, it will get deleted right out from
+	    # underneath us. But if we hold the lock, we serialize
+	    # every create using this image, and the tar unpack takes
+	    # a while. 
+	    #
 	    TBScriptUnlock();
 	    
-	    #
-	    # Now take a snapshot of this image's logical device
-	    #
-	    # As above, a partition reload will make it appear that the
-	    # container does not exist, when in fact the lvm really does
-	    # and we want to reuse it, not create another one. 
-	    #
-	    if (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
-		mysystem("lvcreate $LVMDEBUGOPTS ".
-			 "  -s -L${snapSize}M -n $vnode_id /dev/openvz/$image");
-	    }
-	}
-	elsif (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
-	    #
-	    # Need to create a new disk for the container. But lets see
-	    # if we have a disk cached. We still have the imagelock at
-	    # this point.
-	    #
-	    if (my (@files) = glob("/dev/openvz/_C_${image}_*")) {
-		#
-		# Grab the first file and rename it. It becomes ours.
-		# Then drop the lock.
-		#
-		my $file = $files[0];
-		mysystem("lvrename $file /dev/openvz/$vnode_id");
-		TBScriptUnlock();
-	    }
-	    else {
-		# This can happen in parallel with other VMs.
-		TBScriptUnlock();
-	    	    
-		mysystem("lvcreate $LVMDEBUGOPTS ".
-			 "  -L${rootSize}M -n $vnode_id openvz");
-		mysystem("mkfs -t ext3 /dev/openvz/$vnode_id");
-		mysystem("mkdir -p /mnt/$vnode_id")
-		    if (! -e "/mnt/$vnode_id");
-		mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
-		mysystem("mkdir -p /mnt/$vnode_id/root /mnt/$vnode_id/private");
-		TBDebugTimeStampWithDate("untaring to /mnt/$vnode_id");
-		if (! -e "/mnt/$image/private") {
-		    # Backwards compat.
-		    mysystem("tar -xzf $imagepath -C /mnt/$vnode_id/private");
-		}
-		else {
-		    mysystem("cd /mnt/$image/private; ".
-			     "tar -b 64 -cf - . | ".
-			     "tar -b 64 -xf - -C /mnt/$vnode_id/private");
-		}
-		TBDebugTimeStampWithDate("untar done");
-	    }
+	    mysystem("lvcreate $LVMDEBUGOPTS ".
+		     "  -L${rootSize}M -n $vnode_id $VGNAME");
+	    mysystem("mkfs -t ext3 $vnodelvmpath");
+	    mysystem("mkdir -p /mnt/$vnode_id")
+		if (! -e "/mnt/$vnode_id");
+	    mysystem("mount $vnodelvmpath /mnt/$vnode_id");
+	    mysystem("mkdir -p /mnt/$vnode_id/root /mnt/$vnode_id/private");
+	    TBDebugTimeStampWithDate("untaring to /mnt/$vnode_id");
+	    mysystem("cd /mnt/$image/private; ".
+		     "tar -b 64 -cf - . | ".
+		     "tar -b 64 -xf - -C /mnt/$vnode_id/private");
+	    TBDebugTimeStampWithDate("untar done");
 	}
 	mysystem("mkdir -p /mnt/$vnode_id")
 	    if (! -e "/mnt/$vnode_id");
-	mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id")
+	mysystem("mount $vnodelvmpath /mnt/$vnode_id")
 	    if (! -e "/mnt/$vnode_id/private");
 
 	$createArg = "--private /mnt/$vnode_id/private" . 
 	    " --root /mnt/$vnode_id/root --nofs yes";
     }
-    else {
-	TBScriptUnlock();
-    }
+    # For GC after teardown.
+    $private->{'baseimage'} = $image;
 
-    if (defined($reload_args_ref)) {
+    if ($inreload) {
 	# Tell stated via tmcd
 	libutil::setState("RELOADDONE");
 	sleep(4);
@@ -1227,15 +1182,46 @@ sub vz_vnodeDestroy {
 	}
 	dbmclose(%MDB);
     }
-    TBScriptUnlock();
 
     if ($DOLVM) {
+	my $vnodelvmpath = lvmVolumePath($vnode_id);
+	
 	mysystem2("umount /mnt/$vnode_id");
-	if (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null") == 0) {
-	    mysystem("lvremove $LVMDEBUGOPTS -f /dev/openvz/$vnode_id");
+	if (system("lvdisplay $vnodelvmpath >& /dev/null") == 0) {
+	    my $origin;
+
+	    #
+	    # Grab the origin before deletion, since the origin might have
+	    # been renamed from the original base image name. If not doing
+	    # snapshots, then it does not change (not really an origin).
+	    #
+	    if ($DOSNAP) {
+		$origin = lvmOrigin($vnode_id);
+	    }
+	    mysystem2("lvremove $LVMDEBUGOPTS -f $vnodelvmpath");
+	    if ($?) {
+		TBScriptUnlock();
+		return -1;
+	    }
+	    if ($DOSNAP) {
+		my $baseimagelvmname = "image+" . $private->{'baseimage'};
+		
+		#
+		# See if we can delete the image now, but only if its
+		# a renamed origin; these will never be used again
+		# so delete now if we can (no children). 
+		#
+		if (defined($origin) &&
+		    $origin ne "" &&
+		    $origin ne $baseimagelvmname &&
+		    !lvmHasChildren($origin)) {
+		    mysystem2("lvremove $LVMDEBUGOPTS -f /dev/$VGNAME/$origin");
+		}
+	    }
 	}
     }
-    mysystem("$VZCTL $VZDEBUGOPTS destroy $vmid");
+    TBScriptUnlock();
+    mysystem2("$VZCTL $VZDEBUGOPTS destroy $vmid");
     return -1
 	if ($?);
 
@@ -1259,10 +1245,12 @@ sub vz_vnodeState {
     # only happen with LVM)... since the openvz utils seem to need to see the
     # vnode filesystem in order to work properly, which is sensible).
     if ($DOLVM) {
-	if (-e "/etc/vz/conf/$vmid.conf" && -e "/dev/openvz/$vnode_id"
+	my $lvmpath = lvmVolumePath($vnode_id);
+	
+	if (-e "/etc/vz/conf/$vmid.conf" && -e $lvmpath 
 	    && ! -e "/mnt/$vnode_id/private") {
 	    print "Trying to mount LVM logical device for vnode $vnode_id: ";
-	    mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	    mysystem("mount $lvmpath /mnt/$vnode_id");
 	    print "done.\n";
 	}
     }
@@ -1288,7 +1276,9 @@ sub vz_vnodeBoot {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     if ($DOLVM) {
-	system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	my $lvmpath = lvmVolumePath($vnode_id);
+	
+	system("mount $lvmpath /mnt/$vnode_id");
     }
 
     mysystem("$VZCTL $VZDEBUGOPTS start $vnode_id");
@@ -1345,7 +1335,9 @@ sub vz_vnodePreConfig {
     # Make sure we're mounted so that vzlist and friends work; see NOTE about
     # mounting LVM logical devices above.
     if ($DOLVM) {
-	system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	my $lvmpath = lvmVolumePath($vnode_id);
+
+	system("mount $lvmpath /mnt/$vnode_id");
     }
 
     #
@@ -1502,7 +1494,7 @@ sub vz_vnodePreConfigControlNetwork {
     # Make sure we're mounted so that vzlist and friends work; see NOTE about
     # mounting LVM logical devices above.
     if ($DOLVM) {
-	system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	system("mount /dev/$VGNAME/$vnode_id /mnt/$vnode_id");
     }
 
     my $privroot = "/vz/private/$vmid";
@@ -1724,7 +1716,7 @@ sub vz_vnodePreConfigExpNetwork {
     # Make sure we're mounted so that vzlist and friends work; see NOTE about
     # mounting LVM logical devices above.
     if ($DOLVM) {
-	system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	system("mount /dev/$VGNAME/$vnode_id /mnt/$vnode_id");
     }
 
     my $basetable;
@@ -2279,13 +2271,20 @@ sub InitializeRouteTables()
 #
 sub GClvm($)
 {
-    my ($image)  = @_;
+    my ($lvmname)= @_;
     my $oldest   = 0;
     my $inuse    = 0;
     my $found    = 0;
 
-    mysystem("umount /mnt/$image")
-	if (-e "/mnt/$image/private");
+    #
+    # If this is an image, we have to unmount it.
+    #
+    if ($lvmname =~ /^image\+(.*)/) {
+	my $image = $1;
+	
+	mysystem("umount /mnt/$image")
+	    if (-e "/mnt/$image/private");
+    }
 
     if (! open(LVS, "lvs --noheadings -o lv_name,origin openvz |")) {
 	print STDERR "Could not start lvs\n";
@@ -2296,10 +2295,10 @@ sub GClvm($)
 	my $imname;
 	my $origin;
 	
-	if ($line =~ /^\s*([-\w\.]+)\s*$/) {
+	if ($line =~ /^\s*([-\w\.\+]+)\s*$/) {
 	    $imname = $1;
 	}
-	elsif ($line =~ /^\s*([-\w\.]+)\s+([-\w\.]+)$/) {
+	elsif ($line =~ /^\s*([-\w\.\+]+)\s+([-\w\.\+]+)$/) {
 	    $imname = $1;
 	    $origin = $2;
 	}
@@ -2313,18 +2312,18 @@ sub GClvm($)
 
 	# The exact image we are trying to GC.
 	$found = 1
-	    if ($imname eq $image);
+	    if ($imname eq $lvmname);
 
 	# If the origin is the image we are looking for,
 	# then we mark it as inuse.
 	$inuse = 1
-	    if (defined($origin) && $origin eq $image);
+	    if (defined($origin) && $origin eq $lvmname);
 
 	# We want to find the highest numbered backup for this image.
 	# Might not be any of course.
-	if ($imname =~ /^([-\w]+)\.(\d+)$/) {
+	if ($imname =~ /^([-\w\+]+)\.(\d+)$/) {
 	    $oldest = $2
-		if ($1 eq $image && $2 > $oldest);
+		if ($1 eq $lvmname && $2 > $oldest);
 	}
     }
     close(LVS);
@@ -2332,23 +2331,22 @@ sub GClvm($)
 	if ($?);
     print "found:$found, inuse:$inuse, oldest:$oldest\n";
     if (!$found) {
-	print STDERR "GClvm($image): no such lvm found\n";
+	print STDERR "GClvm($lvmname): no such lvm found\n";
 	return -1;
     }
     if (!$inuse) {
-	print "GClvm($image): not in use; deleting\n";
-	system("lvremove $LVMDEBUGOPTS -f /dev/openvz/$image");
+	print "GClvm($lvmname): not in use; deleting\n";
+	system("lvremove $LVMDEBUGOPTS -f /dev/$VGNAME/$lvmname");
 	return -1
 	    if ($?);
 	return 0;
     }
     $oldest++;
     # rename nicely works even when snapshots exist
-    system("lvrename $LVMDEBUGOPTS /dev/openvz/$image" . 
-	   " /dev/openvz/$image.$oldest");
+    system("lvrename $LVMDEBUGOPTS /dev/$VGNAME/$lvmname" . 
+	   " /dev/$VGNAME/$lvmname.$oldest");
     return -1
 	if ($?);
-    
     return 0;
 }
 
@@ -2380,6 +2378,163 @@ sub GCbridge($)
 	}
     }
     return 0;
+}
+
+#
+# Create a logical volume for the image if it doesn't already exist.
+#
+sub createImageDisk($$$$$)
+{
+    my ($image,$vnode_id,$raref,$tarfile,$lvsize) = @_;
+    my $tstamp = $raref->{'IMAGEMTIME'};
+    my $lvname = "image+" . $image;
+    my $imagepath;
+    my $lvmpath = lvmVolumePath($lvname);
+    my $imagedatepath = "/var/emulab/db/openvz.image.${image}.date";
+ 
+    # We are locked by the caller.
+
+    #
+    # Do we have the right image file already? No need to download it
+    # again if the timestamp matches.
+    #
+    if (findLVMLogicalVolume($lvname)) {
+	if (-e $imagedatepath) {
+	    my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
+		$mtime,undef,undef,undef) = stat($imagedatepath);
+	    if ("$mtime" eq "$tstamp") {
+		#
+		# We want to update the access time to indicate a new
+		# use of this image, for pruning unused images later.
+		#
+		utime(time(), $mtime, $imagedatepath);
+		print "Found existing disk: $lvmpath.\n";
+		return 0;
+	    }
+	    print "mtime for $lvmpath differ: local $mtime, server $tstamp\n";
+	}
+	if (-e "/mnt/$image/.mounted" && mysystem2("umount /mnt/$image")) {
+	    print STDERR "Could not umount /mnt/$image\n";
+	    return -1;
+	}
+	if (GClvm($lvname)) {
+	    print STDERR "Could not GC or rename $image\n";
+	    return -1;
+	}
+	unlink($imagedatepath)
+	    if (-e $imagedatepath);
+    }
+
+    if (system("lvcreate -n $lvname -L ${lvsize}M $VGNAME")) {
+	print STDERR "libvnode_openvz: could not create disk for $image\n";
+	return -1;
+    }
+
+    #
+    # Format the volume as a filesystem to dump the tar file into.
+    #
+    goto bad
+	if (! -e "/mnt/$image" && mysystem2("mkdir -p /mnt/$image"));
+    goto bad
+	if (-e "/mnt/$image/.mounted" && mysystem2("umount /mnt/$image"));
+    mysystem2("mkfs -t ext3 $lvmpath");
+    goto bad
+	if ($?);
+    mysystem2("mount $lvmpath /mnt/$image");
+    goto bad
+	if ($?);
+    mysystem2("mkdir -p /mnt/$image/root /mnt/$image/private");
+    goto bad
+	if ($?);
+
+    #
+    # If we were passed a tarfile, use that directly, as for the default.
+    #
+    if (defined($tarfile)) {
+	$imagepath = $tarfile;
+    }
+    else {
+	$imagepath = "$EXTRAFS/${image}.tar.gz";
+
+	# Now we just download the file, then let create do its normal thing
+	if (libvnode::downloadImage($imagepath, 0, $vnode_id, $raref)) {
+	    print STDERR "libvnode_openvz: could not download image $image\n";
+	    return -1;
+	}
+    }
+    # Now unpack the tar file, then remove it.
+    mysystem2("tar zxf $imagepath -C /mnt/$image/private");
+    goto bad
+	if ($?);
+    unlink($imagepath)
+	if (!$tarfile);
+
+    # reload has finished, file is written... so let's set its mtime
+    mysystem2("touch $imagedatepath")
+	if (! -e $imagedatepath);
+    utime(time(), $tstamp, $imagedatepath);
+
+    #
+    # Need to unmount for snapshots.
+    #
+    if ($DOSNAP) {
+	mysystem2("umount /mnt/$image");
+	goto bad
+	    if ($?);
+    }
+
+    #
+    # XXX note that we don't declare RELOADDONE here since we haven't
+    # actually created the vnode shadow disk yet.  That is the caller's
+    # responsibility.
+    #
+    return 0;
+  bad:
+    return -1;
+}
+
+sub lvmVolumePath($)
+{
+    my ($name) = @_;
+    return "/dev/$VGNAME/$name";
+}
+
+sub findLVMLogicalVolume($)
+{
+    my ($lvm)  = @_;
+    my $lvpath = lvmVolumePath($lvm);
+    my $exists = `lvs --noheadings -o origin $lvpath > /dev/null 2>&1`;
+    return 0
+	if ($?);
+
+    return 1;
+}
+
+sub lvmHasChildren($)
+{
+    my ($lvname) = @_;
+
+    foreach (`lvs --noheadings -o origin $VGNAME`) {
+	if (/^\s*${lvname}\s*$/) {
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+sub lvmOrigin($)
+{
+    my ($lvm)  = @_;
+    my $lvpath = lvmVolumePath($lvm);
+    my $origin = `lvs --noheadings -o origin $lvpath`;
+    return undef
+	if ($?);
+
+    # Trim
+    chomp($origin);
+    $origin =~ s/^\s+//;
+    $origin =~ s/\s+$//;
+    return $origin;
 }
 
 # what can I say?
