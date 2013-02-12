@@ -2436,12 +2436,12 @@ sub CreateImage($)
     return $slice
 	if (defined($slice) && GeniResponse::IsResponse($slice));
 
-    main::AddLogfileMetaDataFromSlice($slice);
-
     if (! (defined($slice) && defined($aggregate))) {
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "Slice does not exist");
     }
+    main::AddLogfileMetaDataFromSlice($slice);
+
     # If a monitor process is running, we are "busy".
     if ($slice->monitor_pid()) {
 	return GeniResponse->MonitorResponse();
