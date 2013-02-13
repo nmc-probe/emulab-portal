@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -289,6 +289,34 @@ if ($datetime) {
 exit(0)
     if ($showcurrent);
 
+#
+# If nodes are specified, get the node inception date to limit the
+# initial record. This really only matters for summary stats.
+#
+my %nodestarts = ();
+if (@nodes > 0) {
+    my $nlist = "(" . join(" or ", map {"node_id='$_'"} @nodes) . ")";
+
+    my $query_result =
+	DBQueryFatal("SELECT node_id,UNIX_TIMESTAMP(inception) as tstamp ".
+		     " FROM nodes WHERE $nlist");
+    while (my %row = $query_result->fetchhash()) {
+	my $node = $row{'node_id'};
+
+	# use most recent of inception date...
+	my $ts = $row{'tstamp'};
+	# ...and specified date...
+	if ($datetime && $ts < $datetime) {
+	    $ts = $datetime;
+	}
+	# ...and epoch
+	if ($ts < $epoch) {
+	    $ts = $epoch;
+	}
+	$nodestarts{$node} = $ts;
+    }
+}
+
 my $querymod = "";
 if ($startrecord) {
     $querymod = " AND history_id>='$startrecord'";
@@ -301,6 +329,13 @@ elsif (defined($ip)) {
 }
 elsif (defined($mac)) {
     $querymod .= " AND cnet_mac='$mac'";
+}
+
+if ($datetime) {
+    $querymod .= " AND stamp>='$datetime'";
+}
+if ($datelimit) {
+    $querymod .= " AND stamp<='$datelimit'";
 }
 
 # XXX maybe it would be better to sort them here in perl, outside the DB?
@@ -317,10 +352,7 @@ my $query_result =
 		 "  experiment_stats.exptidx,cnet_ip,phys_nodeid,history_id ".
 		 "FROM node_history,experiment_stats ".
 		 "WHERE node_history.exptidx=experiment_stats.exptidx ".
-		 "$querymod " .
-		 ($datetime  ? " and stamp>='$datetime'  " : "").
-		 ($datelimit ? " and stamp<='$datelimit' " : "").
-		 "$orderby $limitby");
+		 "$querymod $orderby $limitby");
 
 while (my %row = $query_result->fetchhash()) {
     my $pideid = "$row{pid}/$row{eid}";
@@ -332,10 +364,12 @@ while (my %row = $query_result->fetchhash()) {
 
     #
     # XXX if this is the first record for a node, consider it as free
-    # from the epoch til now.
+    # from the epoch (or the low date specified) til now.
     #
     if (!defined($nodeinfo{$node})) {
-	$nodeinfo{$node} = [ "", undef, $epoch, "root", $history_id ];
+	my $ts = $nodestarts{$node};
+	$nodeinfo{$node} = [ "", undef, ($ts ? $ts : $epoch),
+			     "root", $history_id ];
     }
 
     my ($opideid, $oidx, $ostamp, $ouid, $ohistory_id) = @{$nodeinfo{$node}};
