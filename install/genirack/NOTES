@@ -249,7 +249,13 @@ Setting up an InstaGeni Rack. First, we need the following info:
   5400(vlan-10)> name control-hardware
   5400(vlan-10)> untagged A20	  XXXX Make sure about port number! E20?
   5400(vlan-10)> ip address 10.3.1.253/24
-  5400(vlan-10)> exit
+  5400(vlan-10)> exit 
+  5400(config)# openflow
+  5400(openFlow)# vlan 1750
+  5400(openFlow vlan-1750)# enable
+  5400(openFlow vlan-1750)# controller "tcp:10.3.1.7:6633" fail-secure on
+  5400(openFlow vlan-1750)# exit
+  5400(openFlow)# exit
   5400(config)> management-vlan 10
   5400(config)> ip default-gateway 10.3.1.254
   5400(config)> no web-management
