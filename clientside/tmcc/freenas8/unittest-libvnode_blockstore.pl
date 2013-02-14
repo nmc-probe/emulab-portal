@@ -11,6 +11,9 @@ use Data::Dumper;
 # func protos
 sub mkvnconfig($);
 
+# Set debugging in library
+libvnode_blockstore::setDebug(1);
+
 # Test FreeNAS list parsing
 my @list = libvnode_blockstore::parseFreeNASListing("ist_extent");
 print "Dump of FreeNAS ist_extent:\n" . Dumper(@list);
@@ -26,6 +29,14 @@ print "Dump of FreeNAS pools:\n" . Dumper(%$pools);
 # Grab and stash away storageconfig stuff for some vnode.
 my $vnodeid = "dboxvm1-1";
 my $vnconfig = mkvnconfig($vnodeid);
+
+# do full, bottom-up slice setup
+libvnode_blockstore::vnodeCreate($vnodeid, undef, $vnconfig, 
+				 $vnconfig->{'private'});
+libvnode_blockstore::vnodeConfigResources($vnodeid, undef, $vnconfig
+    $vnconfig->{'private'});
+
+exit(0);
 
 # Try to allocate a slice.
 my %sconf = (

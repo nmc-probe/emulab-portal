@@ -76,7 +76,7 @@ use File::Copy;
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 use libutil;
 use libgenvnode;
-use libvnode;
+#use libvnode;
 use libtestbed;
 use libsetup;
 
@@ -234,8 +234,8 @@ sub vnodeState($$$$)
     my $err = 0;
     my $out = VNODE_STATUS_UNKNOWN();
 
-    # if a mapping exists to a blockstore slice, then we are "running".
-    if (mappingExists($vnode_id)) {
+    # if an allocation exists to a blockstore slice, then we are "running".
+    if (allocExists($vnode_id)) {
 	$out = VNODE_STATUS_RUNNING();
     }
     return ($err, $out);
@@ -448,15 +448,15 @@ sub runFreeNASCmd($$) {
     my ($verb, $argstr) = @_;
 
     if (!exists($cliverbs{$verb})) {
-	warn("*** ERROR: blockstore_runFreeNASCmd: "
+	warn("*** ERROR: blockstore_runFreeNASCmd: ".
 	     "Invalid FreeNAS CLI verb: $verb");
 	return -1;
     }
 
     my $output = `$FREENAS_CLI $verb $argstr`;
     if ($? != 0) {
-	print STDERR $ouput if $debug;
-	warn("*** ERROR: blockstore_runFreeNASCmd: "
+	print STDERR $output if $debug;
+	warn("*** ERROR: blockstore_runFreeNASCmd: ".
 	     "Error returned from FreeNAS CLI: $?");
 	return -1;
     }
@@ -545,14 +545,15 @@ sub getSliceList() {
 }
 
 # helper function.
-# Slice names look like: '<pid>:<eid>:<volname>'
+# Slice names look like: 'iqn.<date>.<tld>.<domain>:<pid>:<eid>:<volname>'
 sub parseSliceName($) {
     my $name = shift;
     my @parts = split(/:/, $name);
-    if (scalar(@parts) != 3) {
+    if (scalar(@parts) != 4) {
 	warn("*** WARNING: blockstore_parseSliceName: Bad slice name: $name");
 	return undef;
     }
+    shift @parts;
     return @parts;
 }
 
@@ -774,13 +775,13 @@ sub exportSlice($$$) {
     }
 
     # Create iSCSI auth group
-    # XXX: ugh, $tag is tainted - figure out how to untaint!
     my $tag = getNextAuthITag();
-    if ($tag !~ /^\d+$/) {
+    if ($tag !~ /^(\d+)$/) {
 	warn("*** ERROR: blockstore_exportSlice: ".
 	     "bad tag returned from getNextAuthITag: $tag");
 	return -1;
     }
+    $tag = $1; # untaint.
     if (runFreeNASCmd($CLI_VERB_IST_AUTHI,
 		      "add $tag ALL $network/$cmask") != 0)
     {
