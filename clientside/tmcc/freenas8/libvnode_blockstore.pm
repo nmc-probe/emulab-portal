@@ -84,13 +84,6 @@ use libsetup;
 # Constants
 #
 my $GLOBAL_CONF_LOCK     = "blkconf";
-my $FREENAS_CLI          = "$BINDIR/freenas-config";
-my $CLI_VERB_IST_EXTENT  = "ist_extent";
-my $CLI_VERB_IST_AUTHI   = "ist_authinit";
-my $CLI_VERB_IST_TARGET  = "ist";
-my $CLI_VERB_IST_ASSOC   = "ist_assoc";
-my $CLI_VERB_VOLUME      = "volume";
-my $CLI_VERB_POOL        = "pool";
 my $ZPOOL_CMD            = "/sbin/zpool";
 my $ZFS_CMD              = "/sbin/zfs";
 my $ZPOOL_STATUS_UNKNOWN = "unknown";
@@ -99,6 +92,30 @@ my $ZPOOL_LOW_WATERMARK  = 2 * 2**10; # 2GiB, expressed in MiB
 my $FREENAS_MNT_PREFIX   = "/mnt";
 my $ISCSI_GLOBAL_PORTAL  = 1;
 my $SER_PREFIX           = "d0d0";
+
+# storageconfig constants
+# XXX: should go somewhere more general
+my $BS_CLASS_SAN         = "SAN";
+my $BS_PROTO_ISCSI       = "iSCSI";
+my $BS_UUID_TYPE_IQN     = "iqn";
+
+# CLI stuff
+my $FREENAS_CLI          = "$BINDIR/freenas-config";
+my $CLI_VERB_IST_EXTENT  = "ist_extent";
+my $CLI_VERB_IST_AUTHI   = "ist_authinit";
+my $CLI_VERB_IST_TARGET  = "ist";
+my $CLI_VERB_IST_ASSOC   = "ist_assoc";
+my $CLI_VERB_VOLUME      = "volume";
+my $CLI_VERB_POOL        = "pool";
+
+my %cliverbs = (
+    $CLI_VERB_IST_EXTENT => 1,
+    $CLI_VERB_IST_AUTHI  => 1,
+    $CLI_VERB_IST_TARGET => 1,
+    $CLI_VERB_IST_ASSOC  => 1,
+    $CLI_VERB_VOLUME     => 1,
+    $CLI_VERB_POOL       => 1,
+    );
 
 #
 # Global variables
@@ -427,6 +444,30 @@ sub vnodeUnmount($$$$)
 # package-local functions
 #
 
+sub runFreeNASCmd($$) {
+    my ($verb, $argstr) = @_;
+
+    if (!exists($cliverbs{$verb})) {
+	warn("*** ERROR: blockstore_runFreeNASCmd: "
+	     "Invalid FreeNAS CLI verb: $verb");
+	return -1;
+    }
+
+    my $output = `$FREENAS_CLI $verb $argstr`;
+    if ($? != 0) {
+	print STDERR $ouput if $debug;
+	warn("*** ERROR: blockstore_runFreeNASCmd: "
+	     "Error returned from FreeNAS CLI: $?");
+	return -1;
+    }
+
+    if ($output =~ /"error": false/) {
+	return 0;
+    }
+
+    print STDERR $output if $debug;
+    return 1;
+}
 
 # Run our custom FreeNAS CLI to extract info.  
 #
@@ -609,6 +650,7 @@ sub getPoolList() {
 }
 
 # Allocate a slice based on information from Emulab Central
+# XXX: Do 'sliceconfig' parameter checking.
 sub allocSlice($$$) {
     my ($vnode_id, $sconf, $vnconfig) = @_;
 
@@ -657,11 +699,11 @@ sub allocSlice($$$) {
 
     # Allocate slice in zpool
     # XXX: check on size conversion.
-    mysystem2("$FREENAS_CLI $CLI_VERB_VOLUME add ".
-	      "$bsid $vnode_id ${size}MB off");
-    if ($? != 0) {
+    if (runFreeNASCmd($CLI_VERB_VOLUME, 
+		      "add $bsid $vnode_id ${size}MB off") != 0)
+    {
 	warn("*** ERROR: blockstore_allocSlice: ".
-	     "Failed to create slice on $bsid: CLI exit code: $?");
+	     "slice allocation failed!");
 	return -1;
     }
 
@@ -669,18 +711,20 @@ sub allocSlice($$$) {
 }
 
 # Setup device export.
-# XXX: must do better parameter checking.
-# XXX: convert FREENAS_CLI calls
 sub exportSlice($$$) {
     my ($vnode_id, $sconf, $vnconfig) = @_;
 
     # Should only be one ifconfig entry - checked earlier.
     my $ifcfg   = (@{$vnconfig->{'ifconfig'}})[0];
-    print Dumper($ifcfg);
     my $nmask   = $ifcfg->{'IPMASK'};
     my $cmask   = libutil::CIDRmask($nmask);
     my $network = libutil::ipToNetwork($ifcfg->{'IPADDR'}, $nmask);
-
+    if (!$cmask || !$network) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "Error calculating ip network information.");
+	return -1;
+    }
+    
     # Extract info stored earlier.
     my $priv = $vnconfig->{'private'};
     my $bsid = $priv->{'bsid'};
@@ -690,51 +734,78 @@ sub exportSlice($$$) {
 	return -1;
     }
 
-    # throw out 'iqn' prefix.
-    my @iqnparts = (split(/:/,$sconf->{'UUID'}));
-    shift @iqnparts;
-    my $iqnsuffix = join(":", @iqnparts);
+    # Scrub request - we only support SAN/iSCSI at this point.
+    if (!exists($sconf->{'CLASS'}) || $sconf->{'CLASS'} ne $BS_CLASS_SAN) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "invalid or missing blockstore class!");
+	return -1;
+    }
+
+    if (!exists($sconf->{'PROTO'}) || $sconf->{'PROTO'} ne $BS_PROTO_ISCSI) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "invalid or missing blockstore protocol!");
+	return -1;
+    }
+
+    if (!exists($sconf->{'VOLNAME'})) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "missing volume name!");
+	return -1;
+    }
+    my $volname = $sconf->{'VOLNAME'};
+
+    if (!exists($sconf->{'UUID'}) || 
+	!exists($sconf->{'UUID_TYPE'}) ||
+	$sconf->{'UUID_TYPE'} ne $BS_UUID_TYPE_IQN)
+    {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "bad UUID information!");
+	return -1;
+    }
+    my $iqn = $sconf->{'UUID'};
 
     # Create iSCSI extent
-    mysystem2("$FREENAS_CLI $CLI_VERB_IST_EXTENT add ".
-	      "$iqnsuffix $bsid/$vnode_id");
-    if ($? != 0) {
+    if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
+		      "add $iqn $bsid/$vnode_id") != 0)
+    {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "Failed to create iSCSI extent: CLI exit code: $?");
+	     "Failed to create iSCSI extent!");
 	return -1;
     }
 
     # Create iSCSI auth group
+    # XXX: ugh, $tag is tainted - figure out how to untaint!
     my $tag = getNextAuthITag();
     if ($tag !~ /^\d+$/) {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "bad tag returned from getNextAuthITag.");
+	     "bad tag returned from getNextAuthITag: $tag");
 	return -1;
     }
-    mysystem2("$FREENAS_CLI $CLI_VERB_IST_AUTHI add ".
-	      "$tag ALL $network/$cmask");
-    if ($? != 0) {
+    if (runFreeNASCmd($CLI_VERB_IST_AUTHI,
+		      "add $tag ALL $network/$cmask") != 0)
+    {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "Failed to create iSCSI auth group: CLI exit code: $?");
+	     "Failed to create iSCSI auth group!");
 	return -1;
     }
 
     # Create iSCSI target
     my $serial = genSerial();
-    mysystem2("$FREENAS_CLI $CLI_VERB_IST_TARGET add ".
-	      "$iqnsuffix $serial $ISCSI_GLOBAL_PORTAL $tag Auto -1");
-    if ($? != 0) {
+    if (runFreeNASCmd($CLI_VERB_IST_TARGET,
+		      "add $iqn $serial $ISCSI_GLOBAL_PORTAL ".
+		      "$tag Auto -1") != 0)
+    {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "Failed to create iSCSI target: CLI exit code: $?");
+	     "Failed to create iSCSI target!");
 	return -1;
     }
 
     # Bind iSCSI target to slice (extent)
-    mysystem2("$FREENAS_CLI $CLI_VERB_IST_ASSOC add ".
-	      "$iqnsuffix $iqnsuffix");
-    if ($? != 0) {
+    if (runFreeNASCmd($CLI_VERB_IST_ASSOC,
+		      "add $iqn $iqn") != 0)
+    {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "Failed to associate iSCSI target with extent: CLI exit code: $?");
+	     "Failed to associate iSCSI target with extent!");
 	return -1;
     }
 
