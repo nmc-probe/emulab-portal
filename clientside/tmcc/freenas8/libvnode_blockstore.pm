@@ -76,7 +76,7 @@ use File::Copy;
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 use libutil;
 use libgenvnode;
-#use libvnode;
+use libvnode;
 use libtestbed;
 use libsetup;
 

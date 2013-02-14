@@ -3454,7 +3454,7 @@ sub getstorageconfig($;$) {
     #
     # return operations in decreasing order of IDX.
     #
-    my @sortedops = sort {$b->{'IDX'} <=> $a->{'IDX'}} @ops;
+    my @sortedops = sort {$a->{'IDX'} <=> $b->{'IDX'}} @ops;
 
     @$rptr = @sortedops;
     return 0;

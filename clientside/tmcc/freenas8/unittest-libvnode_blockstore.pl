@@ -33,7 +33,7 @@ my $vnconfig = mkvnconfig($vnodeid);
 # do full, bottom-up slice setup
 libvnode_blockstore::vnodeCreate($vnodeid, undef, $vnconfig, 
 				 $vnconfig->{'private'});
-libvnode_blockstore::vnodeConfigResources($vnodeid, undef, $vnconfig
+libvnode_blockstore::vnodeConfigResources($vnodeid, undef, $vnconfig,
     $vnconfig->{'private'});
 
 exit(0);
