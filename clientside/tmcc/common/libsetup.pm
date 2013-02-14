@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -3247,7 +3247,7 @@ sub getlocalevserver()
 	    print STDERR "*** Could not determine event server!\n";
 	}
     }
-    if (-e "$BOOTDIR/localevserver") {
+    elsif (-e "$BOOTDIR/localevserver") {
 	$evserver = `cat $BOOTDIR/localevserver`;
 	chomp($evserver);
     }
