@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1148,6 +1148,31 @@ sub SSLCert($$$;$)
     $$pref = $cert;
     $$pkey = $privkey
 	if (defined($pkey));
+    return 0;
+}
+
+#
+# Revoke ssl certificates.
+#
+sub RevokeSSLCerts($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $uid_idx = $self->uid_idx();
+
+    #
+    # Do not delete certs; we need them around so we can generte the CRLS.
+    # Just set the revoked flag for them. At some point we need to prune
+    # the table.
+    #
+    DBQueryWarn("update user_sslcerts set revoked=now() ".
+		"where uid_idx='$uid_idx' and revoked is null")
+	or return -1;
+
     return 0;
 }
 
