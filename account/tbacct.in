@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,7 +43,7 @@ use Getopt::Std;
 sub usage()
 {
     print("Usage: tbacct [-f] [-b] [-u] ".
-	  "<add|del|mod|passwd|wpasswd|email|freeze|thaw|verify> ".
+	  "<add|del|mod|passwd|wpasswd|email|freeze|thaw|verify|revoke> ".
 	  "<user> [args]\n");
     exit(-1);
 }
@@ -71,6 +71,7 @@ my $MAILMANSUPPORT= @MAILMANSUPPORT@;
 my $THISHOMEBASE= "@THISHOMEBASE@";
 my $PROTOUSER   = 'elabman';
 my $ELABINELAB  = @ELABINELAB@;
+my $PGENISUPPORT= @PROTOGENI_SUPPORT@;
 my $GENIRACK    = @PROTOGENI_GENIRACK@;
 
 my $SAMBANODE	= "fs";  # DNS makes this do the right thing in E-in-E.
@@ -103,6 +104,7 @@ my $OPSDBCONTROL= "$TB/sbin/opsdb_control";
 my $ADDHOOK     = "$TB/sbin/adduserhook";
 my $SETGROUPS   = "$TB/sbin/setgroups";
 my $NOLOGIN	= "/sbin/nologin";
+my $POSTCRL     = "$TB/sbin/protogeni/postcrl";
 my $SSH		= "$TB/bin/sshtb";
 my $SAVEUID	= $UID;
 my $NOSUCHUSER  = 67;
@@ -169,6 +171,7 @@ sub VerifyUser();
 sub UpdateEmail();
 sub CheckDotFiles();
 sub GenerateSFSKey();
+sub RevokeUser();
 sub fatal($);
 
 my $HOMEDIR	= USERROOT();
@@ -215,7 +218,7 @@ if ($user =~ /^([-\w]+)$/i) {
 else {
     die("Tainted argument: $user\n");
 }
-if ($cmd =~ /^(add|del|mod|freeze|passwd|wpasswd|thaw|email|verify)$/) {
+if ($cmd =~ /^(add|del|mod|freeze|passwd|wpasswd|thaw|email|verify|revoke)$/) {
     $cmd = $1;
 }
 else {
@@ -336,6 +339,10 @@ SWITCH: for ($cmd) {
     };
     /^thaw$/ && do {
 	ThawUser();
+	last SWITCH;
+    };
+    /^revoke$/ && do {
+	RevokeUser();
 	last SWITCH;
     };
     /^verify$/ && do {
@@ -1068,6 +1075,31 @@ sub VerifyUser()
     $target_user->SendVerifiedEmail() == 0 or
 	fatal("Could not send verified email for $target_user");
 
+    return 0;
+}
+
+#
+# Revoke user ssl certs
+#
+sub RevokeUser()
+{
+    #
+    # Only admin people can do this.
+    #
+    if (! TBAdmin($UID)) {
+	fatal("You do not have permission to thaw user $user.");
+    }
+    $target_user->RevokeSSLCerts();
+
+    if ($PGENISUPPORT) {
+	$UID = 0;
+	system("$POSTCRL");
+	if ($? >> 8 < 0) {
+	    fatal("Could not post updated CRL");
+	}
+	$UID = $SAVEUID;
+    }
+    
     return 0;
 }
 
