@@ -3051,18 +3051,6 @@ sub SliverWorkAux($$$$$$$)
     $experiment->CleanLogFiles();
 
     #
-    # Download the images. Do this before we assign nodes, to avoid
-    # pointless cleanup. 
-    #
-    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP -g $pid,$eid");
-    if ($?) {
-	$message = "Could not setup images:\n$output";
-	print STDERR $message;
-	goto bad;
-    }
-    print STDERR $output;
-
-    #
     # The mapper is going to update the resource record, so we have to
     # call PreSwap() first, since it generates a new record. 
     #
@@ -3077,7 +3065,7 @@ sub SliverWorkAux($$$$$$$)
     $didpreswap = 1;
     
     # Add -u for update mode, but not -f (fixnode). 
-    $output = GeniUtil::ExecQuiet("$MAPPER -d -v -z -u $pid $eid");
+    my $output = GeniUtil::ExecQuiet("$MAPPER -d -v -z -u $pid $eid");
     if ($?) {
 	my $logstuff = "";
 	$message = "Could not map to resources";

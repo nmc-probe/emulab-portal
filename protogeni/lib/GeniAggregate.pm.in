@@ -84,6 +84,7 @@ my $SNMPIT         = "$TB/bin/snmpit_test";
 my $NAMEDSETUP     = "$TB/sbin/named_setup";
 my $EXPORTS_SETUP  = "$TB/sbin/exports_setup";
 my $GENTOPOFILE    = "$TB/libexec/gentopofile";
+my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 
 # Cache of instances to avoid regenerating them.
 my %aggregates     = ();
@@ -830,6 +831,18 @@ sub Start($$$)
     my %imageinfo = ();
     # See "bad" label below; want to know what sliver failed (if any).
     my $sliver;
+
+    #
+    # Download the images. If this fails, we have wasted our time,
+    # but we want to do this after we have forked off from the parent
+    # and we have returned to the client (rpc). 
+    #
+    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP -g $pid,$eid");
+    if ($?) {
+	$msg = "Could not setup images:\n$output";
+	goto bad;
+    }
+    print STDERR $output;
 
     foreach $sliver (@slivers) {
 	if (ref($sliver) ne "GeniSliver::Node") {
