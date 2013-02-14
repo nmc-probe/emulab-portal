@@ -21,6 +21,12 @@ sub Install($$$)
     return 0
 	if ($isupdate);
 
+    # Extras for Geni Racks, to handle foam stuff.
+    if ($PROTOGENI_GENIRACK) {
+	push(@LOGFILES, "$LOGDIR/foam.log");
+	push(@LOGFILES, "$LOGDIR/flowvisor.log");
+    }
+
     Phase "syslog", "Setting up syslog", sub {
 	Phase "sysconf", "Editing $SYSLOG_CONF", sub {
 	    DoneIfEdited($SYSLOG_CONF);
@@ -35,6 +41,24 @@ sub Install($$$)
 	    if (scalar(grep(/$LOGFACIL/, @sc)) != 0) {
 		PhaseFail("Testbed chosen facility $LOGFACIL already in use in /etc/syslog.conf!");
 	    }
+	    #
+	    # If there is already a pubsubd line, kill it since it
+	    # is going to be added below. This happens on elabinelab
+	    # cause we already have the entry, but in a different place.
+	    #
+	    my @tmp = ();
+	    while (@sc) {
+		my $line = shift(@sc);
+
+		# Cut two lines out.
+		if ($line =~ /pubsubd/) {
+		    shift(@sc);
+		    next;
+		}
+		push(@tmp, $line);
+	    }
+	    @sc = @tmp;
+
 	    seek(SC,0,0);
 	    truncate(SC,0);
 	    foreach my $line (@sc) {
@@ -76,6 +100,8 @@ sub Install($$$)
 			"!plabrenew", "*.*\t\t\t\t\t\t$LOGDIR/plabrenew.log",
 			"!xmlrpcbag", "*.*\t\t\t\t\t\t$LOGDIR/xmlrpcbag.log",
 			"!sshxmlrpc", "*.*\t\t\t\t\t\t$LOGDIR/sshxmlrpc.log",
+			"!foam",      "*.*\t\t\t\t\t\t$LOGDIR/foam.log",
+			"!flowvisor", "*.*\t\t\t\t\t\t$LOGDIR/flowvisor.log",
 			"!sslxmlrpc", "*.*\t\t\t\t\t\t$LOGDIR/sslxmlrpc.log");
 	};
 
@@ -140,7 +166,10 @@ sub Install($$$)
 		      "$LOGDIR/expire_daemon.log      640  9     1000 *     Z ".
 		      "/var/run/expire_daemon.pid",
 		      "$LOGDIR/sa_daemon.log          640  9     1000 *     Z ".
-		      "/var/run/sa_daemon.pid");
+		      "/var/run/sa_daemon.pid",
+		      "$LOGDIR/foam.log               640  7     *    168   Z",
+		      "$LOGDIR/flowvisor.log          640  7    1000  *     Z");
+			      
 	};
     };
 
