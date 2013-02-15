@@ -44,7 +44,8 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  getchcredential genallow_extcred advt-merge.py \
 		  reservevlans delgeniuser delegatecredential \
 		  updatecert fixcerts initcerts cacontrol webcacontrol \
-		  genextend_lifetime rspeclint chstats
+		  genextend_lifetime rspeclint chstats \
+		  maptoslice webmaptoslice
 
 ifeq ($(ISCLEARINGHOUSE),1)
 PSBIN_STUFF     += ch_daemon
@@ -65,7 +66,8 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 
 install: $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
 	$(addprefix $(INSTALL_SBINDIR)/protogeni/, $(PSBIN_STUFF)) \
-	$(INSTALL_LIBEXECDIR)/webcacontrol
+	$(INSTALL_LIBEXECDIR)/webcacontrol \
+	$(INSTALL_LIBEXECDIR)/webmaptoslice
 
 control-install:
 
