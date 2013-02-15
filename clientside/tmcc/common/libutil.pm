@@ -29,7 +29,7 @@ use Exporter;
 @ISA    = "Exporter";
 @EXPORT = qw( ipToMac macAddSep fatal mysystem mysystem2
               findDNS setState isRoutable findDomain convertToMebi
-              ipToNetwork CIDRmask
+              ipToNetwork CIDRmask untaintNumber untaintHostname
             );
 
 use libtmcc;
@@ -202,6 +202,40 @@ sub convertToMebi($) {
 
     return $outsize;
 }
+
+sub untaintNumber($) {
+    my $number = shift;
+
+    return undef
+	unless defined($number);
+
+    # Tack on a '0' to a bare, leading decimal for the regex below.
+    $number = $number =~ /^\./ ? "0" . $number : $number;
+
+    $number =~ /^(\d+(\.\d+)?)$/;
+    my $retval = $1;
+
+    return undef
+	unless defined($retval);
+
+    return $retval;
+}
+
+sub untaintHostname($) {
+    my $name = shift;
+
+    return undef
+	unless defined($name);
+
+    $name =~ /^([-\.\w]+)$/;
+    my $retval = $1;
+
+    return undef
+	unless defined($retval);
+
+    return $retval;
+}
+
 
 #
 # Print error and exit.

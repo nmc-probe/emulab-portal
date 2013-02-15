@@ -26,7 +26,7 @@
 package libvnode;
 use Exporter;
 @ISA    = "Exporter";
-@EXPORT = qw( setDebug
+@EXPORT = qw(              
               forwardPort removePortForward
             );
 
@@ -98,3 +98,6 @@ sub removePortForward($) {
     my $ref = shift;
     forwardPort($ref,1)
 }
+
+# silly Perl
+1;

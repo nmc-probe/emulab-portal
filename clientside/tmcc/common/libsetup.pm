@@ -3436,17 +3436,17 @@ sub getstorageconfig($;$) {
 	    }
 
 	    #
-	    # Validate the info.
+	    # Validate the info and untaint.
 	    #
 	    if (!exists($fields{$key})) {
 		warn("*** WARNING: invalid keyword in storageinfo: '$key'\n");
 		return -1;
 	    }
-	    if ($val !~ /^$fields{$key}$/) {
+	    if ($val !~ /^($fields{$key})$/) {
 		warn("*** WARNING: invalid value for $key in storageinfo: '$val'\n");
 		return -1;
 	    }
-	    $res{$key} = $val;
+	    $res{$key} = $1;
 	}
 	push(@ops, \%res);
     }

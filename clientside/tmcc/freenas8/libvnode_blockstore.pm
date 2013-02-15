@@ -453,6 +453,9 @@ sub runFreeNASCmd($$) {
 	return -1;
     }
 
+    print "DEBUG: blockstore_runFreeNASCmd:\n".
+	"\trunning: $verb $argstr\n" if $debug;
+
     my $output = `$FREENAS_CLI $verb $argstr`;
     if ($? != 0) {
 	print STDERR $output if $debug;
@@ -608,7 +611,7 @@ sub calcSliceSizes($) {
 	    $size = $slice->{'filesize'};
 	    $size =~ s/B$/iB/; # re-write with correct units.
 	}
-	$slice->{'size'} = libutil::convertToMebi($size);
+	$slice->{'size'} = convertToMebi($size);
     }
     return;
 }
@@ -637,8 +640,8 @@ sub getPoolList() {
 	next if $pname =~ /\//;  # filter out zvols.
 	if (exists($poolh->{$pname})) {
 	    my $pool = $poolh->{$pname};
-	    $pused  = libutil::convertToMebi($pused);
-	    $pavail = libutil::convertToMebi($pavail);
+	    $pused  = convertToMebi($pused);
+	    $pavail = convertToMebi($pavail);
 	    $pool->{'size'}  = $pused + $pavail;
 	    $pool->{'avail'} = $pavail;
 	} else {
@@ -655,16 +658,6 @@ sub getPoolList() {
 sub allocSlice($$$) {
     my ($vnode_id, $sconf, $vnconfig) = @_;
 
-    # 1) Grab slice lock
-    # 2) Get pool info
-    #    a) pool to allocate from is passed in.
-    # 3) Get existing slice info
-    # 4) Check if slice exists
-    #    a) Do what if it does?
-    # 5) Create slice if possible
-    #    a) Enough free space?
-    # 6) Return success/fail
-
     my $priv = $vnconfig->{'private'};
 
     my $slices = getSliceList();
@@ -678,7 +671,7 @@ sub allocSlice($$$) {
     }
 
     # Does the requested pool exist?
-    my $bsid = $sconf->{'BSID'};
+    my $bsid = untaintHostname($sconf->{'BSID'});
     my $destpool;
     if (exists($pools->{$bsid})) {
 	$destpool = $pools->{$bsid};
@@ -691,7 +684,7 @@ sub allocSlice($$$) {
 
     # Is there enough space on the requested blockstore?  If not, there is
     # a discrepancy between reality and the Emulab database.
-    my $size = $sconf->{'VOLSIZE'};
+    my $size = untaintNumber($sconf->{'VOLSIZE'});
     if ($size + $ZPOOL_LOW_WATERMARK > $destpool->{'avail'}) {
 	warn("*** ERROR: blockstore_allocSlice: ". 
 	     "Not enough space remaining on requested blockstore: $bsid");
@@ -763,7 +756,12 @@ sub exportSlice($$$) {
 	     "bad UUID information!");
 	return -1;
     }
-    my $iqn = $sconf->{'UUID'};
+    if ($sconf->{'UUID'} !~ /^([-\.:\w]+)$/) {
+	warn("*** ERROR: blockstore_exportSlice: ".
+	     "bad characters in UUID!");
+	return -1;
+    }
+    my $iqn = $1; # untaint.
 
     # Create iSCSI extent
     if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
