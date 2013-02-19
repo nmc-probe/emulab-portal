@@ -430,7 +430,15 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	boss> wap emulabfeature create LibVtopTest 'Test version of libvtop'
 	boss> wap emulabfeature enable LibVtopTest
 
-* Create some test experiments. Test the ProtoGeni API. 
+* Create some test experiments. Test the ProtoGeni API.
+
+* Create the shared-pool experiment. Use this NS file:
+
+	testbed/install/genirack/shared-exp.ns
+
+  You will need to toggle the lockdown on the Show Experiment page first,
+  and then toggle it back after the experiment has swapped in. Be sure to
+  test shared node experiments.
 
 * Need to reset the mailing lists to the local admin.
 
