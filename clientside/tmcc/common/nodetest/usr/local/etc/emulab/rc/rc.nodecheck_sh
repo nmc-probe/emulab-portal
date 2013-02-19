@@ -6,9 +6,6 @@
 #
 
 #
-# Enable ICMP ping-of-death
-# Support both the old style (host only) and the new style (host+mask+key)
-#
 # This is a shell script instead of a perl script since we want to use this
 # in the frisbee MFS which does not include perl.
 #
@@ -19,12 +16,34 @@ else
         BINDIR=/etc/testbed
 fi
 
-echo ". . . Running disktest"
-/usr/local/etc/emulab/disktest
-cat /usr/local/etc/emulab/disktest.log/*.log
+# FREEBSD
 
-echo ". . . Running cputest"
-/usr/local/etc/emulab/cputest
+host=`hostname`
+if [ -e "/var/emulab/boot/realname" ]; then
+    host=`cat /var/emulab/boot/realname`
+fi
 
-echo ". . . Running memtest"
-/usr/local/etc/emulab/memtest
+echo "Running nodechecks"
+cat /dev/null > /var/emulab/logs/nodecheck.log
+
+echo -n ". . . Starting disktest"
+/usr/local/bin/bash /usr/local/etc/emulab/disktest /var/emulab/logs/nodecheck.log
+
+echo -n ". . . Starting cputest"
+/usr/local/etc/emulab/cputest /var/emulab/logs/nodecheck.log
+
+echo -n ". . . Starting memtest"
+/usr/local/etc/emulab/memtest /var/emulab/logs/nodecheck.log
+
+echo -n ". . . Starting diskspeedtest"
+/usr/local/bin/bash /usr/local/etc/emulab/diskspeedtest /var/emulab/logs/nodecheck.log
+
+echo "Done with nodechecks"
+
+# move logfile to my directory
+mkdir -p /users/dreading/nodecheck_logs
+cat /var/emulab/logs/nodecheck.log >> /users/dreading/nodecheck_logs/$host.log 
+
+
+
+exit 0

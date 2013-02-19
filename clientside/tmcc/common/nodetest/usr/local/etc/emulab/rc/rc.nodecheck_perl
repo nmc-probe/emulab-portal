@@ -30,14 +30,30 @@ $| = 1;
 # Drag in path stuff so we can find emulab stuff.
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
-system("echo '. . . Running disktest'");
-system("bash /usr/local/etc/emulab/disktest");
-system("cat /usr/local/etc/emulab/disktest.log/*.log");
+#LINUX
 
-system("echo '. . . Running cputest'");
-system("bash /usr/local/etc/emulab/cputest");
+system("echo 'Running nodechecks'");
+system("cat /dev/null > /var/emulab/logs/nodecheck.log");
 
-system("echo '. . . Running memtest'");
-system("bash /usr/local/etc/emulab/memtest");
+system("echo -n '. . . Starting disktest'");
+system("/usr/local/etc/emulab/disktest /var/emulab/logs/nodecheck.log");
+
+system("echo -n '. . . Starting cputest'");
+system("/usr/local/etc/emulab/cputest /var/emulab/logs/nodecheck.log");
+
+system("echo -n '. . . Starting memtest'");
+system("/usr/local/etc/emulab/memtest /var/emulab/logs/nodecheck.log");
+
+system("echo -n '. . . Starting diskspeedtest'");
+system("/usr/local/etc/emulab/diskspeedtest /var/emulab/logs/nodecheck.log");
+
+system("echo 'Done with nodechecks'");
+
+# move logfile to my directory
+system("mkdir -p /users/dreading/nodecheck_logs");
+
+# this XXX needs to change
+system("cat /var/emulab/logs/nodecheck.log >> /users/dreading/nodecheck_logs/`cat /var/emulab/boot/realname`.log" );
+
 
 exit(0);
