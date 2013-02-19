@@ -1,0 +1,14 @@
+#! /bin/sh
+
+logfile=$1
+
+host=`hostname`
+if [ -e "/var/emulab/boot/realname" ]; then
+    host=`cat /var/emulab/boot/realname`
+fi
+
+echo "${host}: cputest `date` OK" >> ${logfile}
+
+echo ". . . cputest OK"
+echo -n ""
+exit 0

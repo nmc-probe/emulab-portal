@@ -2,8 +2,20 @@
 
 SMARTCTL="smartctl"
 DISKSPEEDTEST="perl /usr/local/etc/emulab/disktest.pl"
+failed=""
 
-set +x
+# setup logging
+if [ $1 ] ; then
+    logfile=$1
+else
+    logfile="/tmp/nodecheck.log"
+fi
+tmplog=/tmp/.$$.log
+cat /dev/null > ${tmplog}
+cat /dev/null > ${logfile}
+
+#exit on unbound var
+set -u
 
 gettype(){
     aid=`$SMARTCTL --tolerance=verypermissive -i $1 | grep Device | head -1`
@@ -108,6 +120,18 @@ gettemp(){
 	    
 }
 
+{
+#need to make sure smartcrl is installed - not by default on our linux images
+    if [ ! -e "/usr/sbin/smartctl" ]; then 
+	apt-get install smartmontools
+    fi
+    if [ ! -e "/usr/sbin/smartctl" ]; then 
+	echo "smartmontools is missing and install failed"
+	failed="FAIL"
+    fi
+    
+} >> ${tmplog} 2>&1
+
 host=`hostname`
 if [ -e "/var/emulab/boot/realname" ]; then
     host=`cat /var/emulab/boot/realname`
@@ -168,8 +192,6 @@ if [ -z "$disk" ]; then
     exit 1
 fi
 
-logfile=$1
-
 {
     if [ -n "$usbstick" ]; then
 	scid=`gettype $usbstick $os`
@@ -198,13 +220,19 @@ logfile=$1
 	echo -n ")"
 	echo ""
     done
-} >/tmp/$host.log 2>&1
+} >> ${tmplog} 2>&1
 
 echo "disktest `date`" >> ${logfile}
-cat /tmp/$host.log >> ${logfile} 
+cat ${tmplog} >> ${logfile} 
 
-echo ". . . disktest OK"
+if [ -n ${failed} ]
+then
+    echo ". . . disktest OK"
+else
+    echo ". . . disktest FAILED"
+fi
 echo -n ""
+
 exit 0
 
 
