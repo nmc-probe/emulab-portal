@@ -113,10 +113,10 @@ Usage: $0 [-h] [-v level] [-q] [-n] [-i device] [-S stack]
 	  [-p <10|100|1000> ports] [-u <half|full> ports]
 	  [-c]
           [--redirect-err]
-          [--of-disable vlanid pid eid]
-          [--of-enable vlanid pid eid]
-          [--of-controller vlanid pid eid tcp:ip:port]
-          [--of-listener vlanid pid eid]
+          [--of-disable name pid eid]
+          [--of-enable name pid eid]
+          [--of-controller name pid eid tcp:ip:port]
+          [--of-listener name pid eid]
 General:
   -h              Display this help message
   -v <level>      Verbose mode
@@ -158,19 +158,18 @@ VLAN Control:
                         WITH EXTREME CAUTION **
   -F                Create all vlans in the given stack on the leader for
 		    use in leader->{ALLVLANSONLEADER} (Internal use only)
-  --of-enable <vlanid> <pid> <eid> 
-                    Enable Openflow on VLAN with the id <vlanid> that is 
+  --of-enable <name> <pid> <eid> 
+                    Enable Openflow on VLAN with the name that is 
 		        associated with the given experiment 
-  --of-disable <vlanid> <pid> <eid>
-                    Disable Openflow on VLAN with the id <vlanid> that is 
+  --of-disable <name> <pid> <eid>
+                    Disable Openflow on VLAN with the name that is 
 		        associated with the given experiment
-  --of-controller <vlanid> <pid> <eid> tcp:ip:port
+  --of-controller <name> <pid> <eid> tcp:ip:port
                     Set controller for Openflow-enabled VLAN with the 
-		        id <vlanid> that is associated with the given 
-			experiment
-  --of-listener <vlanid> <pid> <eid> 
+		        name that is associated with the given experiment
+  --of-listener <name> <pid> <eid> 
                     Enable listener for Openflow-enabled VLAN with the 
-		        id <vlanid> that is associated with the given 
+		        name that is associated with the given 
 			experiment, snmpit will print out the listener 
 			connection string
 
@@ -964,16 +963,25 @@ COMMAND: foreach my $command (@commands) {
             last;
         };
 	(/ofenable/ || /ofdisable/ || /ofcontroller/ || /oflistener/) && do {
-	    @vlans = @args;
-
-	    # Same to 'remove', we find stacks by VLAN 
+	    my ($vlan_name) = @args;
 	    my ($vlanobj, $stack);
+	    if ($vlan_name =~ /^\d*$/) {
+		$vlanobj = VLan->Lookup($vlan_name);
+	    }
+	    else {
+		$vlanobj = VLan->Lookup($experiment, $vlan_name);
+	    }
+	    if (!defined($vlanobj)) {
+		print STDERR "No such vlan '$vlan_name' in $experiment\n";
+		next COMMAND;
+	    }
+	    @vlans = ($vlanobj->id());
+	    
             if ($supplied_switches && !$skip_supplied) {
                 debug("Openflow operations: using supplied switches\n");
                 @devicenames = @supplied_switches;
-            } elsif (defined($experiment) &&
-                     defined($vlanobj = VLan->Lookup($experiment,$vlans[0])) &&
-                     defined($stack = $vlanobj->GetStack())) {
+            }
+	    elsif (defined($stack = $vlanobj->GetStack())) {
                 debug("Openflow operations: found stack $stack in database\n");
                 @devicenames = getSwitchesInStack($stack);
             } else {
