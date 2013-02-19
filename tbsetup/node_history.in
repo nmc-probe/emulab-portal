@@ -54,6 +54,7 @@ my $epoch = 1105563540;
 sub usage {
     print("Usage: $0 [-ARalrsvw] [node ...]\n".
     "  -A       print history of all nodes (you do NOT want to do this)\n".
+    "  -T type  print history of all nodes of a given type\n".  
     "  -R       print raw records (default is to combine some records)\n".
     "  -S field sort list by field (date, node, pideid, uid, elapsed)\n".
     "  -a       show only when allocated to experiment\n".
@@ -69,10 +70,11 @@ sub usage {
     exit(1);
 }
 
-my $optlist = "ARS:aln:rswvd:i:ct:x:m:";
+my $optlist = "AT:RS:aln:rswvd:i:ct:x:m:";
 my $warnme = 0;
 my $verbose = 0;
 my $showall = 0;
+my $showtype = "";
 my $showcurrent = 0;
 my $showalloconly = 0;
 my $list = 0;
@@ -127,6 +129,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"A"})) {
     $showall = 1;
+}
+if (defined($options{"T"})) {
+    $showtype = $options{"T"};
 }
 if (defined($options{"R"})) {
     $raw = 1;
@@ -190,11 +195,21 @@ if (defined($options{"w"})) {
 if (defined($options{"v"})) {
     $verbose = 1;
 }
-if (!$showall && @ARGV == 0 && !(defined($ip) || defined($mac))) {
+if (!($showall || $showtype) &&
+    @ARGV == 0 && !(defined($ip) || defined($mac))) {
     usage();
 }
-@nodes = @ARGV
-    if (! (defined($ip) || defined($mac)));
+
+if ($showtype) {
+    my $query_result =
+	DBQueryFatal("SELECT node_id FROM nodes where type='$showtype'");
+    while (my %row = $query_result->fetchhash()) {
+	push @nodes, $row{node_id};
+    }
+} else {
+    @nodes = @ARGV
+	if (! (defined($ip) || defined($mac)));
+}
 
 if (!$list && !$summary) {
     $list = 1;
@@ -526,6 +541,7 @@ if (@records) {
 #
 # Print out summary information
 #
+my ($t_ftime, $t_atime, $t_rtime, $t_dtime) = (0, 0, 0, 0);
 for $node (sort keys(%nodestats)) {
     if ($summary && defined($nodestats{$node})) {
 	my ($ftime, $atime, $rtime, $dtime) = @{$nodestats{$node}};
@@ -537,22 +553,49 @@ for $node (sort keys(%nodestats)) {
 	    if ($atime > 0) {
 		$pct = ($atime * 100) / $ttime;
 		printf("  Allocted:  %9d sec (%5.1f%%)\n", $atime, $pct);
+		$t_atime += $atime;
 	    }
 	    if ($ftime > 0) {
 		$pct = ($ftime * 100) / $ttime;
 		printf("  Free:      %9d sec (%5.1f%%)\n", $ftime, $pct);
+		$t_ftime += $ftime;
 	    }
 	    if ($rtime > 0) {
 		$pct = ($rtime * 100) / $ttime;
 		printf("  Reloading: %9d sec (%5.1f%%)\n", $rtime, $pct);
+		$t_rtime += $rtime;
 	    }
 	    if ($dtime > 0) {
 		$pct = ($dtime * 100) / $ttime;
 		printf("  Down:      %9d sec (%5.1f%%)\n", $dtime, $pct);
+		$t_dtime += $dtime;
 	    }
 	} else {
 	    print "$node SUM $atime $ftime $rtime $dtime\n";
 	}
+    }
+}
+if ($verbose) {
+    my $ttime = $t_ftime + $t_atime + $t_rtime + $t_dtime;
+    my $n = scalar(keys %nodestats);
+    my $pct;
+
+    print "TOTAL ($n nodes)\n";
+    if ($t_atime > 0) {
+	$pct = ($t_atime * 100) / $ttime;
+	printf("  Allocted:  %9d sec (%5.1f%%)\n", $t_atime, $pct);
+    }
+    if ($t_ftime > 0) {
+	$pct = ($t_ftime * 100) / $ttime;
+	printf("  Free:      %9d sec (%5.1f%%)\n", $t_ftime, $pct);
+    }
+    if ($t_rtime > 0) {
+	$pct = ($t_rtime * 100) / $ttime;
+	printf("  Reloading: %9d sec (%5.1f%%)\n", $t_rtime, $pct);
+    }
+    if ($t_dtime > 0) {
+	$pct = ($t_dtime * 100) / $ttime;
+	printf("  Down:      %9d sec (%5.1f%%)\n", $t_dtime, $pct);
     }
 }
 
