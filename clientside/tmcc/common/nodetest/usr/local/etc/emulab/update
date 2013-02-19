@@ -1,26 +1,41 @@
+#!/bin/bash
 
-machines="pc219 pc286"
-linux="pc219"
+machines="pc219 pc286 pc472"
+linux="pc219 pc472"
 bsd="pc286"
 
-for i in $machines
-do
-	sudo rsync -a -P disktest* $i:/usr/local/etc/emulab
-	sudo ssh $i chown root /usr/local/etc/emulab/disktest*
-#	sudo ssh $i chgrp root /usr/local/etc/emulab/disktest*
-done
+utils="disktest disktest.pl memtest cputest"
 
 for i in $linux
 do
-	sudo scp -p rc/rc.disktest_perl $i:/usr/local/etc/emulab/rc/rc.disktest
-	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.disktest
-	sudo ssh $i chgrp root /usr/local/etc/emulab/rc/rc.disktest
+	echo $i:rc.nodetest
+	sudo scp -q -p rc/rc.nodecheck_perl $i:/usr/local/etc/emulab/rc/rc.nodetest
+	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.nodetest
+	sudo ssh $i chgrp root /usr/local/etc/emulab/rc/rc.nodetest
 done
 
 for i in $bsd
 do
-	sudo scp -p rc/rc.disktest_sh $i:/usr/local/etc/emulab/rc/rc.disktest
-	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.disktest
-	sudo ssh $i chgrp wheel /usr/local/etc/emulab/rc/rc.disktest
+	echo $i:rc.nodetest
+	sudo scp -q -p rc/rc.nodecheck_sh $i:/usr/local/etc/emulab/rc/rc.nodetest
+	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.nodetest
+	sudo ssh $i chgrp wheel /usr/local/etc/emulab/rc/rc.nodetest
+done
+
+
+for i in $machines
+do
+	for j in ${utils}
+	do
+		echo $i:$j
+		sudo rsync -q -a ${j} $i:/usr/local/etc/emulab
+		sudo ssh $i chown root /usr/local/etc/emulab/${j}
+		sudo ssh $i chgrp 0 /usr/local/etc/emulab/${j}
+	done 
+
+	echo $i:rc.config
+	sudo rsync -q -a -P rc/rc.config $i:/usr/local/etc/emulab/rc/rc.config
+	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.config
+	sudo ssh $i chgrp 0 /usr/local/etc/emulab/rc/rc.config
 done
 
