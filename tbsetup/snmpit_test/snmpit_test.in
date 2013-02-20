@@ -2460,7 +2460,10 @@ sub syncVlansFromTables($$@) {
     my @controlports = ();
     
     foreach my $port (values(%currentTrunks)) {
-	if (!exists($needTrunking{"$port"})) {
+	#
+	# Look at the actual physical port; whatever it says goes.
+	#
+	if (!$port->trunk()) {
 	    debug("Disabling trunking on $port\n");
 	    
 	    next
