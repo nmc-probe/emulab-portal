@@ -1,7 +1,11 @@
 #! /bin/bash
 
-SMARTCTL="smartctl"
-DISKSPEEDTEST="perl /usr/local/etc/emulab/disktest.pl"
+# find the number of disks
+# find the size of each disk
+
+# first arg is the log output file, if not set then /tmp/...
+
+SMARTCTL=""
 failed=""
 
 # setup logging
@@ -12,28 +16,10 @@ else
 fi
 tmplog=/tmp/.$$.log
 cat /dev/null > ${tmplog}
-cat /dev/null > ${logfile}
 
+set +x
 #exit on unbound var
-set -u
-
-gettype(){
-    aid=`$SMARTCTL --tolerance=verypermissive -i $1 | grep Device | head -1`
-    aid=${aid//[/}; aid=${aid//]/}; aid=${aid// /}
-    if [ ${aid} != ${aid//WD/} ] ; then
-	echo -n "WD"
-    elif [ $aid != ${aid//ST/} ] ; then
-	if [ $aid != ${aid//SEAGATE/} ] ; then
-	    echo -n "SG"
-	else
-	    echo -n "ST"
-	fi
-    elif [ $aid != ${aid//Clip/} ]; then
-	echo -n "CL"
-    else
-	echo -n "NA"
-    fi
-}
+#set -u
 
 getmodel(){
     case $2 in
@@ -120,107 +106,68 @@ gettemp(){
 	    
 }
 
-{
 #need to make sure smartcrl is installed - not by default on our linux images
-    if [ ! -e "/usr/sbin/smartctl" ]; then 
-	apt-get install smartmontools
-    fi
-    if [ ! -e "/usr/sbin/smartctl" ]; then 
-	echo "smartmontools is missing and install failed"
-	failed="FAIL"
-    fi
-    
-} >> ${tmplog} 2>&1
-
-host=`hostname`
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
-fi
-case "$host" in
-    boss*|ops*|bas*|*.flux.utah.edu)
-        echo "No way am I going to run this on $host!"
-	exit 1
-	;;
-    # these are temporarily server machines
-    pc436*)
-	echo "$host: skipping temporary server machine"
-	exit 0
-	;;
-    pc*)
-	;;
-esac
-
-os=`uname`
-disk=""
-disk2=""
-usbstick=""
-
-if [ $os = "FreeBSD" ]; then
-    if [ -e "/dev/da1" ]; then
-	disk="/dev/da1"
-    fi
-elif [ $os = "Linux" ]; then
-    if [ -e "/dev/sda" ] ; then
-	if [ `gettype /dev/sda $os` == "CL" ]; then
-	    if [ -e "/dev/sda4" ]; then
-		usbstick="/dev/sda4"
-	    else
-		usbstick="/dev/sda"
-	    fi
-	    disk="/dev/sdb1"
-	else
-	    disk="/dev/sda1"
-	    disk2="/dev/sdb"
-	fi
-    fi
-    list="c d e f"
-    for drive in $list ; do
-	if [ -e /dev/sd$drive ]; then
-	    disk2="$disk2 /dev/sd$drive"
-	fi
-    done
-fi
-
-#tack first drive on front
-disk2="$disk $disk2"
-
-#echo os=$os disk=$disk usbstick=$usbstick
-#echo disk2=:$disk2:
-
-if [ -z "$disk" ]; then
-    echo "$host: no disk ????"
-    exit 1
-fi
-
 {
-    if [ -n "$usbstick" ]; then
-	scid=`gettype $usbstick $os`
-	echo -n "$host: $usbstick ("
-	echo -n "read: "
-	$DISKSPEEDTEST -q -f -i $usbstick
-	echo -n Serial:; getserial $usbstick $scid $os
-	echo -n " Model:"; getmodel $usbstick $scid $os 
-	echo -n " Firmware:"; getfw $usbstick $scid $os
-	echo -n "): "
-	echo -n 
-	echo ""
+    SMARTCTL=$(which smartctl)
+    if [ -z ${SMARTCTL} ] ; then
+	if [ -e "/usr/sbin/smartctl" ]; then
+	    SMARTCTL="/usr/sbin/smartctl"
+	else	    
+	    apt-get install smartmontools
+	fi
+    fi
+    SMARTCTL=$(which smartctl)
+    if [ -z ${SMARTCTL} ] ; then
+	if [ -e "/usr/sbin/smartctl" ]; then
+	    SMARTCTL="/usr/sbin/smartctl"
+	else	    
+	    echo "smartmontools is missing and install failed"
+	    failed="FAIL"
+	fi
     fi
     
-    for i in $disk2 ; do
-	scid=`gettype $i $os`
-	echo -n "$host: $i "
-	echo -n "Temp:" ; gettemp $i $scid $os
-	echo -n " "
-	echo -n "read: "; $DISKSPEEDTEST -q -f -i $i
-	echo -n "write:"; $DISKSPEEDTEST -q -f -o $i
-	echo -n " "
-	echo -n "(Serial:"; getserial $i $scid $os 
-	echo -n " Model:"; getmodel $i $scid $os 
-	echo -n " Firmware:"; getfw $i $scid $os 
-	echo -n ")"
-	echo ""
-    done
 } >> ${tmplog} 2>&1
+
+# needed ?
+os=`uname`
+
+# index into dirveinv array
+name=0; driver=1; type=2; size=3; temp=4;
+
+# put smartctl --scan into drive array
+unset -v scan ; declare -a scan=($($SMARTCTL --scan))
+unset -v drive ; declare -a drivescan=()
+y=0
+for elm in ${scan[@]} ; do
+    drivescan[$y]="${drivescan[$y]} ${elm}"
+    [[ "${elm}" == "device" ]] && ((++y))
+done
+
+# start stanitizing the info we need
+unset -v driveinv ; declare -a driveinv=()
+for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
+    unset -v d ; declare -a d=(${drivescan[$idx]})
+    lend=${#d[*]} ; x=$((lend - 2))
+#    driveinv[$idx]=("${d[0]}" "${d[2]}" "${d[$x]}")
+    driveinv[$idx]="${d[0]} "
+    driveinv[$idx]+="${d[2]} "
+    driveinv[$idx]+="${d[$x]} "
+done
+
+#now size
+
+
+
+
+
+#output to log file - then quit
+#{
+echo -e "name\t\tdriver\t\ttype\t\tsize\t\ttemp"
+for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
+    unset -v d ; declare -a d=(${driveinv[$idx]})
+    echo -e "${d[$name]}\t${d[$driver]}\t${d[$type]}\t${d[$size]}\t${d[$temp]}"
+done
+#} >> ${tmplog} 2>&1
 
 echo "disktest `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
