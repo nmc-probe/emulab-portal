@@ -143,29 +143,50 @@ for elm in ${scan[@]} ; do
     [[ "${elm}" == "device" ]] && ((++y))
 done
 
-# start stanitizing the info we need
+# collect info into driveinv array
 unset -v driveinv ; declare -a driveinv=()
 for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${drivescan[$idx]})
     lend=${#d[*]} ; x=$((lend - 2))
-#    driveinv[$idx]=("${d[0]}" "${d[2]}" "${d[$x]}")
-    driveinv[$idx]="${d[0]} "
-    driveinv[$idx]+="${d[2]} "
-    driveinv[$idx]+="${d[$x]} "
+
+    #name
+    cnt=${#driveinv[$idx]}
+    driveinv[$idx]="${d[0]}"
+    [[ ${#driveinv[*]} -eq $cnt ]] && driveinv[$idx]="NA " && echo Fuck
+    driveinv[$idx]+=" "
+
+    #driver
+    cnt=${#driveinv[$idx]}
+    driveinv[$idx]+="${d[2]}"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="NA"
+    driveinv[$idx]+=" "
+
+    #type
+    cnt=${#driveinv[$idx]}
+    driveinv[$idx]+="${d[$x]}"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="NA"
+    driveinv[$idx]+=" "
+
+    #size
+    cnt=${#driveinv[$idx]}
+    driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $5$6}' | sed s/[][]//g)"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="NA"
+    driveinv[$idx]+=" "
+
+    #temp
+    cnt=${#driveinv[$idx]}
+    driveinv[$idx]+="$($SMARTCTL  -l scttempsts ${d[0]} | grep -i "current" | awk '{print $3}')"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="NA"
+    driveinv[$idx]+=" "
 done
-
-#now size
-
-
-
 
 
 #output to log file - then quit
 #{
-echo -e "name\t\tdriver\t\ttype\t\tsize\t\ttemp"
+echo -e "name\t\tdriver\t\ttype\tsize\ttemp"
 for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${driveinv[$idx]})
-    echo -e "${d[$name]}\t${d[$driver]}\t${d[$type]}\t${d[$size]}\t${d[$temp]}"
+    echo -e "${d[$name]}\t${d[$driver]}\t\t${d[$type]}\t${d[$size]}\t${d[$temp]}"
 done
 #} >> ${tmplog} 2>&1
 
