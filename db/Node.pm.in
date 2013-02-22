@@ -53,7 +53,7 @@ use Data::Dumper;
 use overload ('""' => 'Stringify');
 
 use vars qw($NODEROLE_TESTNODE $MFS_INITIAL $STATE_INITIAL
-	    %nodes @cleantables %carped);
+	    %nodes @cleantables);
 
 # Exported defs
 $NODEROLE_TESTNODE	= 'testnode';
@@ -63,35 +63,6 @@ $NODEROLE_TESTNODE	= 'testnode';
 
 # Cache of instances to avoid regenerating them.
 %nodes = ();
-
-# Sorry, one carp per customer...
-%carped = ();
-
-#
-# XXX debugging
-# Find out where nulls at end of strings are coming from
-#
-sub checknodeid($$)
-{
-    my ($nid,$msg) = @_;
-
-    if ($nid =~ /^(.*)\x0/) {
-	my $onid = $nid;
-	$nid = $1;
-	if (!exists($carped{$nid}) && open(MAIL, "| /usr/sbin/sendmail -t")) {
-	    $carped{$nid} = 1;
-	    require Carp;
-	    print MAIL "To: $TBOPS\n";
-	    print MAIL "Subject: NUL in node_id '$nid' ('$onid')\n";
-	    print MAIL "$msg\n";
-	    print MAIL "\n";
-	    print MAIL Carp::longmess();
-	    print MAIL "\n";
-	    close(MAIL);
-	}
-    }
-    return $nid;
-}
 
 # Little helper and debug function.
 sub mysystem($)
@@ -168,18 +139,9 @@ sub Lookup($$)
 	return undef;
     }
 
-    # XXX debug
-    $nodeid = checknodeid($nodeid, "Argument");
-
     # Look in cache first
-    if (exists($nodes{$nodeid})) {
-
-	# XXX debug
-	my $row = $nodes{$nodeid}->{"DBROW"};
-	$row->{'node_id'} = checknodeid($row->{'node_id'}, "Cache");
-
-	return $nodes{$nodeid};
-    }
+    return $nodes{$nodeid}
+        if (exists($nodes{$nodeid}));
 
     my $query_result =
 	DBQueryWarn("select * from nodes as n ".
@@ -188,17 +150,7 @@ sub Lookup($$)
     return undef
 	if (!$query_result || !$query_result->numrows);
 
-    #
-    # Make a copy of the array. Still fighting memory corruption error.
-    #
-    my $hash_orig = $query_result->fetchrow_hashref();
-    my $hash_copy = {};
-    foreach my $key (keys(%{ $hash_orig })) {
-	my $val = $hash_orig->{$key};
-	$hash_copy->{$key} = $val;
-    }
-
-    return LookupRow($class, $hash_copy);
+    return LookupRow($class, $query_result->fetchrow_hashref());
 }
 
 #
@@ -207,10 +159,10 @@ sub Lookup($$)
 #
 sub LookupRow($$)
 {
-    my ($class, $hash_copy) = @_;
+    my ($class, $row) = @_;
 
     my $self            = {};
-    $self->{"DBROW"}    = $hash_copy;
+    $self->{"DBROW"}    = $row;
     $self->{"RSRV"}     = undef;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
@@ -219,12 +171,7 @@ sub LookupRow($$)
     $self->{"HASH"}     = {};
     bless($self, $class);
 
-    # XXX debug
-    my $row = $self->{"DBROW"};
-    my $nodeid = checknodeid($row->{'node_id'}, "From DB");
-
-    # Add to cache.
-    $nodes{$nodeid} = $self;
+    $nodes{$row->{'node_id'}} = $self;
     return $self;
 }
 
@@ -252,18 +199,6 @@ sub DESTROY {
     $self->{"IFACES"}   = undef;
     $self->{"HASH"}     = undef;
     $self->{"WAROW"}    = undef;
-}
-
-sub node_id($)
-{
-    my $self = shift;
-    return checknodeid($self->{"DBROW"}->{'node_id'}, "node_id method");
-}
-
-sub phys_nodeid($)
-{
-    my $self = shift;
-    return $self->{"DBROW"}->{'phys_nodeid'};
 }
 
 #
@@ -329,7 +264,7 @@ sub BulkLookup($$$)
 	if (!defined($query_result));
 
     while (my $row = $query_result->fetchrow_hashref()) {
-	my $nodeid = checknodeid($row->{'node_id'}, "BulkLookup method I");
+	my $nodeid = $row->{'node_id'};
 	my $node;
 
 	if (exists($nodes{$nodeid})) {
@@ -361,7 +296,7 @@ sub BulkLookup($$$)
 	if (!defined($query_result));
     
     while (my $row = $query_result->fetchrow_hashref()) {
-	my $nodeid = checknodeid($row->{'node_id'}, "BulkLookup method II");
+	my $nodeid = $row->{'node_id'};
 	my $node   = $nodelist{$nodeid};
 
 	return -1
@@ -378,7 +313,7 @@ sub BulkLookup($$$)
 	if (!defined($query_result));
     
     while (my $row = $query_result->fetchrow_hashref()) {
-	my $nodeid = checknodeid($row->{'node_id'}, "BulkLookup method III");
+	my $nodeid = $row->{'node_id'};
 	my $key    = $row->{'attrkey'};
 	my $node   = $nodelist{$nodeid};
 
@@ -653,11 +588,6 @@ sub Refresh($)
 	if (!$query_result || !$query_result->numrows);
 
     $self->{"DBROW"}  = $query_result->fetchrow_hashref();
-
-    # XXX debug
-    my $row = $nodes{$nodeid}->{"DBROW"};
-    $row->{'node_id'} = checknodeid($row->{'node_id'}, "Refresh");
-
     # Force reload
     $self->{"RSRV"}     = undef;
     $self->{"TYPEINFO"} = undef;
