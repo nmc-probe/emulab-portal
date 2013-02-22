@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -51,6 +51,7 @@ my $power = "$TB/bin/power";
 my $apod = "$TB/sbin/apod";
 my $TBLOG = "@TBLOGFACIL@";
 my $LOGFILE = "$TB/log/stated.log";
+my $MAILFILE = "$TB/log/stated-mail.log";
 
 $| = 1;
 
@@ -67,6 +68,12 @@ use Fcntl;			# file constants for pidfile
 use POSIX ":sys_wait_h";
 use IO::Poll qw(POLLIN);
 use POSIX qw(:errno_h);
+
+#
+# Set this non-zero if you want to send mail on abnormal stated events.
+# Otherwise we just log them to $MAILFILE.
+#
+my $SPAMME = 0;
 
 # Set up some notification throttling
 my $mailgap = 15;		# in seconds
@@ -311,7 +318,7 @@ sub process_event_queue() {
 	   !($sigrestart || $sigcleanup || $do_reload || $do_reopen)) {
 	$lastcount = $event_count;
 	# Don't block if we got a signal!
-	if ($wait<=0 || $sigrestart || $sigcleanup || $do_reload || $do_reload){
+	if ($wait<=0 || $sigrestart || $sigcleanup || $do_reload || $do_reopen) {
 	    PollEvents(0, 0);
 	} else {
 	    #debug("Using blocking event poll - $wait seconds\n");
@@ -813,7 +820,6 @@ sub stateTransition($$) {
 		#
 		debug("Running $PXEBOOT trigger\n");
 		if ($mode ne $PXEKERNEL) {
-		    info("$node: Forcing mode transition into $PXEKERNEL!\n");
 		    opModeTransition($node, $PXEKERNEL, 1);
 		    $mode=$PXEKERNEL;
 		}
@@ -891,7 +897,6 @@ sub stateTransition($$) {
 			# supposed to, and that this change matches
 			# what the node is booting.
 			#
-			info("$node: Forcing mode transition out of $PXEKERNEL!\n");
 			opModeTransition($node, $bootopmode, 1);
 			$mode=$bootopmode;
 		    }
@@ -908,14 +913,13 @@ sub stateTransition($$) {
 				      "where node_id='$node'");
 			my ($nextmode) = $query_result->fetchrow();
 			if ($nextmode) {
-			    info("$node: Forcing mode transition!\n");
 			    opModeTransition($node, $nextmode, 1);
 			    $mode=$nextmode;
 			}
 		    }
 		    else {
-			my $str = "$node is running $bootosid, but in ".
-			  "mode $mode\ninstead of mode $bootopmode!\n";
+			my $str = "$node running $bootosid in ".
+			  "mode $mode instead of mode $bootopmode!\n";
 			
 			if ($bootopmode eq "RELOAD") {
 			    #
@@ -1051,13 +1055,14 @@ sub opModeTransition($$;$) {
 
     my ($node,$newmode,$force) = @_;
     if (!defined($force)) { $force = 0; }
+    my $mode = $nodes{$node}{mode};
 
-    info("$node: Mode change to $newmode requested ($force)\n");
+    info("$node: Mode change $mode => $newmode ".
+	 ($force ? "forced" : "requested"). "\n");
 
     # Check for invalid transitions
-    my ($oldstate, $mode, $nextstate);
+    my ($oldstate, $nextstate);
     $oldstate = $nodes{$node}{state};
-    $mode     = $nodes{$node}{mode};
 
     if (defined($modeTrans{"$mode:$oldstate"}) || $force) {
 	#
@@ -1070,9 +1075,11 @@ sub opModeTransition($$;$) {
 	    #debug("translist=$translist\n");
 	    #debug("splitlist=".join(", ",split(/[:,]/,$translist))."\n");
 	    my %trans = split(/[:,]/,$translist);
-	    debug("Valid transitions from $mode/$oldstate are:\n");
-	    foreach my $k (sort keys %trans) {
-		debug("$k => $trans{$k}\n");
+	    if ($debug) {
+		print STDERR "Valid transitions from $mode/$oldstate are:\n";
+		foreach my $k (sort keys %trans) {
+		    print STDERR "$k => $trans{$k}\n";
+		}
 	    }
 	    if (defined($trans{$newmode})) {
 		$nextstate=$trans{$newmode};
@@ -1113,14 +1120,17 @@ sub opModeTransition($$;$) {
 sub handleCtrlEvent($$) {
     my ($node,$event) = @_;
 
+    info("$node: CtrlEvent: $event\n");
+
+    #
     # stated should use the node objects.
-    my $nodeobj = Node->Lookup($node);
+    # XXX but since it largely doesn't, we need to make sure to sync up here.
+    #
+    my $nodeobj = Node->LookupSync($node);
     if (!defined($nodeobj)) {
-	notify("handleCtrlEvent: Could not lookup node object for $node!\n");
+	info("$node: CtrlEvent: could not lookup node object, event ignored!\n");
 	return;
     }
-    $nodeobj->FlushReserved();
-    info("CtrlEvent: $node, $event\n");
 
     foreach ($event) {
 	/^$TBPXERESET$/ && do {
@@ -1222,9 +1232,9 @@ sub handleCtrlEvent($$) {
 		    #
 		    # Failed too many times, power cycle instead.
 		    #
-		    notify("Node $node has timed out $timedout times in ".
+		    notify("Node $node timed out $timedout times in ".
 			   "$PXEWAKEUP!\n".
-			   "Sending it a reboot command\n");
+			   "Sending it a reboot command.\n");
 		    $optarg .= "-k";
 		}
 		my $cmd = "$nodereboot -r $optarg $node";
@@ -1405,39 +1415,33 @@ sub handleCommand($$;$$) {
 sub checkGenISUP($) {
     my ($node) = @_;
     debug("$node: Checking ISUP Generation\n");
-    my $r = DBQueryWarn("select osfeatures from nodes as n ".
+    my $r = DBQueryWarn("select FIND_IN_SET('isup',osfeatures) as isup,".
+			"  FIND_IN_SET('ping',osfeatures) as ping ".
+			"from nodes as n ".
 			"left join os_info as o on o.osid=n.osid ".
 			"where node_id='$node' and osfeatures is not null");
-    my $osfeatures="";
-    # If we don't get anything back, assume it has no features.
     if ($r->num_rows() > 0) {
-	($osfeatures) = $r->fetchrow();
-    }
+	my ($isup,$ping) = $r->fetchrow();
 
-    my @features = split(",",$osfeatures);
-    # Make sure features I care about are defined
-    my %can=("ping"=>0, "isup"=>0);
-    foreach my $f (@features) {
-	$can{"\L$f"}=1;	# make sure it's all lowercase
-    }
+	# If os will send ISUP on its own, do nothing here.
+	if ($isup) {
+	    debug("$node: Will send own ISUP\n");
+	    return;
+	}
 
-    # If os will send ISUP on its own, do nothing here.
-    if ($can{"isup"}) {
-	debug("$node: Will send own ISUP\n");
-	return 0;
-    }
-
-    # If os doesn't support isup but can ping, fork and ping it every
-    # few seconds and send isup when it pings, or timeout after too long.
-    if ($can{"ping"}) {
-	debug("$node: Needs to be pinged - calling eventping\n");
-	system("$TB/sbin/eventping $node &");
-	return 0;
+	# If os doesn't support isup but can ping, fork and ping it every
+	# few seconds and send isup when it pings, or timeout after too long.
+	if ($ping) {
+	    info("$node: starting eventping\n");
+	    debug("$node: Needs to be pinged - calling eventping\n");
+	    system("$TB/sbin/eventping $node &");
+	    return;
+	}
     }
 
     # If os doesn't support ping or isup, stated sends ISUP just after
     # the node gets to BOOTING (a bit early, but the best we can do)
-
+    info("$node: sending ISUP event\n");
     debug("$node: OS doesn't ping - sending ISUP\n");
     EventSendWarn(host      => $BOSSNODE ,
 		  objtype   => TBDB_TBEVENT_NODESTATE ,
@@ -1759,8 +1763,9 @@ sub notify($;$) {
     # Use a timestamp, now that we're throttling mail
     my $tstamp=strftime("%b %e %H:%M:%S",localtime);
     showqueue();
+    chomp($message);
     if (!$checkonly) {
-	info($message);
+	info("$message\n");
 	$mailqueue++;
 	# Queue up the message
 	# (The queue is a hash of lists of timestamps, keyed by message
@@ -1788,7 +1793,7 @@ sub notify($;$) {
 		    my $last = pop @tlist;
 		    $mailbody .= "($count copies from $first to $last)\n";
 		} else {
-		    $mailbody .= "($count copy at $tlist[0])\n";
+		    $mailbody .= "(1 copy at $tlist[0])\n";
 		}
 		$mailbody .= "$sep\n";
 	    }
@@ -1797,7 +1802,13 @@ sub notify($;$) {
 	    $mailqueue=0;
 	    showqueue();
 	    $lastmail = time;
-	    if (!$debug) {
+	    if (!$SPAMME) {
+		# Just write to the logfile
+		if (open(MLOG, ">>$MAILFILE")) {
+		    print MLOG "$mailbody";
+		    close(MLOG);
+		}
+	    } elsif (!$debug) {
 		SENDMAIL("Stated List <".$TBOPS.">",
 			 "Stated Messsage",$mailbody,
 			 "Stated Daemon <".$TBOPS.">");
@@ -1812,8 +1823,8 @@ sub notify($;$) {
 sub announce($) {
     my $message = shift;
     my $tstamp=strftime("%b %e %H:%M:%S",localtime);
-    notify("ANNOUCEMENT: ".$message."\n\n(Sent to $REALTBOPS)\n");
-    $mailbody = "\n$message\n\n$tstamp\n";
+    notify("ANNOUNCEMENT: ".$message."\n(Sent to $REALTBOPS)\n");
+    $mailbody = "\n$message\n$tstamp\n";
     if (!$debug) {
 	SENDMAIL($REALTBOPS,
 		 "Stated Messsage",$mailbody,
