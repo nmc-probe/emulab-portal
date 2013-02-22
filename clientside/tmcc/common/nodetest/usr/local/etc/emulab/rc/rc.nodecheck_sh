@@ -30,10 +30,10 @@ echo -n ". . . Starting disktest"
 /usr/local/bin/bash /usr/local/etc/emulab/disktest /var/emulab/logs/nodecheck.log
 
 echo -n ". . . Starting cputest"
-/usr/local/etc/emulab/cputest /var/emulab/logs/nodecheck.log
+/usr/local/bin/bash /usr/local/etc/emulab/cputest /var/emulab/logs/nodecheck.log
 
 echo -n ". . . Starting memtest"
-/usr/local/etc/emulab/memtest /var/emulab/logs/nodecheck.log
+/usr/local/bin/bash /usr/local/etc/emulab/memtest /var/emulab/logs/nodecheck.log
 
 echo -n ". . . Starting diskspeedtest"
 /usr/local/bin/bash /usr/local/etc/emulab/diskspeedtest /var/emulab/logs/nodecheck.log

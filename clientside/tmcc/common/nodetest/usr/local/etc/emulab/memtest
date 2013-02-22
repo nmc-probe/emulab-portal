@@ -1,14 +1,28 @@
 #! /bin/sh
 
-logfile=$1
 
-host=`hostname`
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
+# setup logging
+if [ $1 ] ; then
+    logfile=$1
+else
+    logfile="/tmp/nodecheck.log"
 fi
+tmplog=/tmp/.$$.log
+cat /dev/null > ${tmplog}
 
-echo "${host}: memtest `date` OK" >> ${logfile}
+set +x
+#exit on unbound var
+#set -u
 
-echo ". . . memtest OK"
+echo "memtest `date`" >> ${logfile}
+cat ${tmplog} >> ${logfile} 
+
+if [ -n ${failed} ]
+then
+    echo ". . . memtest OK"
+else
+    echo ". . . memtest FAILED"
+fi
 echo -n ""
+
 exit 0

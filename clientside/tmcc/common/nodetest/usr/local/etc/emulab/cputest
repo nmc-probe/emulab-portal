@@ -1,14 +1,28 @@
 #! /bin/sh
 
-logfile=$1
 
-host=`hostname`
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
+# setup logging
+if [ $1 ] ; then
+    logfile=$1
+else
+    logfile="/tmp/nodecheck.log"
 fi
+tmplog=/tmp/.$$.log
+cat /dev/null > ${tmplog}
 
-echo "${host}: cputest `date` OK" >> ${logfile}
+set +x
+#exit on unbound var
+#set -u
 
-echo ". . . cputest OK"
+echo "cputest `date`" >> ${logfile}
+cat ${tmplog} >> ${logfile} 
+
+if [ -n ${failed} ]
+then
+    echo ". . . cputest OK"
+else
+    echo ". . . cputest FAILED"
+fi
 echo -n ""
+
 exit 0
