@@ -8,7 +8,8 @@ use installvars;
 my @LOGFILES = ("$LOGDIR/bootinfo.log", "$LOGDIR/tmcd.log",
     "$LOGDIR/capture.log", "$LOGDIR/dhcpd.log", "$LOGDIR/capserver.log",
     "$LOGDIR/frisbeed.log", "$LOGDIR/mfrisbeed.log", "$LOGDIR/proxydhcpd.log",
-    "$LOGDIR/stated.log", "$LOGDIR/osselect.log", "$LOGDIR/power.log",
+    "$LOGDIR/stated.log", "$LOGDIR/stated-mail.log",
+    "$LOGDIR/osselect.log", "$LOGDIR/power.log",
     "$LOGDIR/tftpd.log", "$LOGDIR/sdcollectd.log", "$LOGDIR/genlastlog.log",
     "$LOGDIR/sshxmlrpc.log", "$LOGDIR/plabgetfree.log", "$LOGDIR/xmlrpcbag.log",
     "$LOGDIR/plabrenew.log", "$LOGDIR/sslxmlrpc.log", "$LOGDIR/pubsubd.log");
@@ -136,6 +137,8 @@ sub Install($$$)
 	    AppendToFileFatal($NEWSYSLOG_CONF,
 		      "$LOGDIR/tmcd.log               640  9     1000 *     Z",
 		      "$LOGDIR/stated.log             640  9     1000 *     Z ".
+		      "/var/run/stated.pid 31",
+		      "$LOGDIR/stated-mail.log        640  9     1000 *     Z ".
 		      "/var/run/stated.pid 31",
 		      "$LOGDIR/checknodes.log         640  14    300  *     Z ".
 		      "/var/run/checknodes_daemon.pid",
