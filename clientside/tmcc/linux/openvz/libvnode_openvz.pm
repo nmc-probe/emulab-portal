@@ -107,6 +107,7 @@ sub VZSTAT_MOUNTED() { return "mounted"; }
 my $VZCTL  = "/usr/sbin/vzctl";
 my $VZLIST = "/usr/sbin/vzlist";
 my $IFCONFIG = "/sbin/ifconfig";
+my $ETHTOOL = "/sbin/ethtool";
 my $NETSTAT  = "/bin/netstat";
 my $ROUTE = "/sbin/route";
 my $BRCTL = "/usr/sbin/brctl";
@@ -364,6 +365,10 @@ sub vz_rootPreConfig {
     # packets on the veths?
     mysystem("sysctl -w net.core.netdev_max_backlog=2048");
 
+    # Turn off ipv6; some kind of leaking kernel thing.
+    mysystem("sysctl -w net.ipv6.conf.all.disable_ipv6=1");
+    mysystem("sysctl -w net.ipv6.conf.default.disable_ipv6=1");
+
     #
     # Ryan figured this one out. It was causing 75% packet loss on
     # gre tunnels. 
@@ -533,6 +538,7 @@ sub vz_rootPreConfigNetwork {
 			if ($?);
 		    mysystem2("$VLANCONFIG set_name_type VLAN_PLUS_VID_NO_PAD");
 		    mysystem2("$IFCONFIG $vdev up");
+		    mysystem2("$ETHTOOL -K $vdev tso off gso off");
 		    makeIfaceMaps();
 
 		    #
@@ -542,6 +548,8 @@ sub vz_rootPreConfigNetwork {
 		    # Leaving it behind is harmless, I think.
 		    #
 		}
+		# Temporary, to get existing devices after upgrade.
+		mysystem2("$ETHTOOL -K $vdev tso off gso off");
 
 		my $brname = "${prefix}$vdev";
 		$brs{$brname}{ENCAP} = 1;
