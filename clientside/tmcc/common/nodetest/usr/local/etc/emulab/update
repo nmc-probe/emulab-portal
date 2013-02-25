@@ -4,7 +4,7 @@ machines="pc219 pc286 pc472"
 linux="pc219 pc472"
 bsd="pc286"
 
-utils="disktest disktest.pl memtest cputest"
+utils="disktest disktest.pl diskspeedtest memtest cputest getfromtb.sh"
 
 for i in $linux
 do

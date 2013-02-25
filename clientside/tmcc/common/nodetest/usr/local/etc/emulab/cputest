@@ -1,6 +1,12 @@
 #! /bin/sh
 
 
+os=`uname`
+host=`hostname`
+if [ -e "/var/emulab/boot/realname" ]; then
+    host=`cat /var/emulab/boot/realname`
+fi
+
 # setup logging
 if [ $1 ] ; then
     logfile=$1

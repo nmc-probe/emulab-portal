@@ -1,7 +1,10 @@
 #! /bin/sh
 
+source getfromtb.sh
+
 os=`uname`
 host=`hostname`
+failed=""
 if [ -e "/var/emulab/boot/realname" ]; then
     host=`cat /var/emulab/boot/realname`
 fi
@@ -20,15 +23,41 @@ set +x
 #exit on unbound var
 #set -u
 
+{
+case $os in
+    Linux )
+	unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
+	meminfo=${d[1]}${d[2]}
+	;;
+    FreeBSD )
+	unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
+	w=${d[4]} ; x=${w#(}
+	z=${d[5]} ; y=${z%)}
+	meminfo=$x$y
+	;;
+    * )
+	echo "os $os unknown"
+	meminfo="0"
+	failed=FAIL
+	;;
+esac
+echo -n "Found phys memory $meminfo"
+} >> ${tmplog} 2>&1
+
+tbinfo=$(getfromtb meminfo $host)
+
+{
+if [ "$tbinfo" == "$meminfo" ] ; then
+    echo " equals node inventory $tbinfo"
+else
+    echo " does not equals node inventory $tbinfo"    
+    failed=FAIL
+fi
+} >> ${tmplog} 2>&1
+
 echo "memtest `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-if [ -n ${failed} ]
-then
-    echo ". . . memtest OK"
-else
-    echo ". . . memtest FAILED"
-fi
-echo -n ""
+[[ -z ${failed} ]] && echo ". . . memtest OK" || echo ". . . memtest FAILED"
 
 exit 0

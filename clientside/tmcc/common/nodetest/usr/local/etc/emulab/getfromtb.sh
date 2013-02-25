@@ -18,7 +18,7 @@ case ${d[0]} in
 #	    ibapah ) echo "8110204kB" ;;
 	    ibapah ) echo "8GiB" ;;
 #	    boss.emulab.net ) echo "4096MB" ;;
-	    boss.emulab.net ) echo "4096MB" ;;
+	    boss.emulab.net ) echo "4GiB" ;;
 	    * ) echo "0" ;;
 	esac
 	;;

@@ -8,6 +8,12 @@
 SMARTCTL=""
 failed=""
 
+os=`uname`
+host=`hostname`
+if [ -e "/var/emulab/boot/realname" ]; then
+    host=`cat /var/emulab/boot/realname`
+fi
+
 # setup logging
 if [ $1 ] ; then
     logfile=$1
@@ -27,8 +33,9 @@ set +x
     if [ -z ${SMARTCTL} ] ; then
 	if [ -e "/usr/sbin/smartctl" ]; then
 	    SMARTCTL="/usr/sbin/smartctl"
-	else	    
-	    apt-get install smartmontools
+	else
+	    [[ "$os" == "Linux" ]] && apt-get install smartmontools
+	    [[ "$os" == "FreeBSD" ]] && echo "FreeBSD: need smartcrtl installed"
 	fi
     fi
     SMARTCTL=$(which smartctl)
@@ -42,9 +49,14 @@ set +x
     fi
     
 } >> ${tmplog} 2>&1
+if [ $failed ] ; then
+    echo "disktest `date`" >> ${logfile}
+    cat ${tmplog} >> ${logfile} 
+    echo ". . . disktest FAILED"
+    exit 1
+fi
 
 # needed ?
-os=`uname`
 
 # index into dirveinv array
 name=0; driver=1; type=2; size=3; temp=4; model=5;
@@ -90,7 +102,7 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
 
     #temp
     cnt=${#driveinv[$idx]}
-    #type 1
+        #type 1
     driveinv[$idx]+="$($SMARTCTL  -l scttempsts ${d[0]} | grep "Current Temperature:" | awk '{print $3}')"
     if [ ${#driveinv[idx]} -eq $cnt ] ; then
         #type 2
@@ -101,7 +113,7 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
 
     #vendor product
     cnt=${#driveinv[$idx]}
-    #type 1
+        #type 1
     driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep "Device Model:" | awk '{print $3$4}')"
     if [ ${#driveinv[idx]} -eq $cnt ] ; then
         #type 2
@@ -111,15 +123,21 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     driveinv[$idx]+=" "
 done
 
+## # does number of drives and size match ?
+## # getfromtb operation node_id drivename drive size
+## for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
+##     unset -v d ; declare -a d=(${driveinv[$idx]})
+##     tbdata=getfromtb $host driveinfo ${d[$name]} 
+## done
 
 #output to log file - then quit
-#{
+{
 echo -e "name\t\tdriver\t\ttype\tsize\ttemp\tmodel"
 for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${driveinv[$idx]})
     echo -e "${d[$name]}\t${d[$driver]}\t\t${d[$type]}\t${d[$size]}\t${d[$temp]}\t${d[$model]}"
 done
-#} >> ${tmplog} 2>&1
+} >> ${tmplog} 2>&1
 
 echo "disktest `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
