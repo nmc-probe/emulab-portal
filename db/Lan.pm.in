@@ -3911,6 +3911,7 @@ sub node_type($)  { return field($_[0], 'node_type'); }
 sub network_id($) { return field($_[0], 'network_id'); }
 sub min_vlan($)	  { return field($_[0], 'min_vlan'); }
 sub max_vlan($)	  { return field($_[0], 'max_vlan'); }
+sub mode($)       { return field($_[0], 'mode'); }
 
 #
 # Stringify for output.
