@@ -20,14 +20,14 @@ set +x
 #exit on unbound var
 #set -u
 
-echo "cputest `date`" >> ${logfile}
+echo "cpucheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
 if [ -n ${failed} ]
 then
-    echo ". . . cputest OK"
+    echo ". . . cpucheck OK"
 else
-    echo ". . . cputest FAILED"
+    echo ". . . cpucheck FAILED"
 fi
 echo -n ""
 

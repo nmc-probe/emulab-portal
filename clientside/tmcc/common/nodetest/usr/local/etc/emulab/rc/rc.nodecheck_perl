@@ -35,23 +35,23 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 system("echo 'Running nodechecks'");
 system("cat /dev/null > /var/emulab/logs/nodecheck.log");
 
-system("echo -n '. . . Starting disktest'");
-system("bash /usr/local/etc/emulab/disktest /var/emulab/logs/nodecheck.log");
+system("echo -n '. . . Starting diskcheck'");
+system("bash /usr/local/etc/emulab/diskcheck /var/emulab/logs/nodecheck.log");
 
-system("echo -n '. . . Starting cputest'");
-system("bash /usr/local/etc/emulab/cputest /var/emulab/logs/nodecheck.log");
+system("echo -n '. . . Starting cpucheck'");
+system("bash /usr/local/etc/emulab/cpucheck /var/emulab/logs/nodecheck.log");
 
-system("echo -n '. . . Starting memtest'");
-system("bash /usr/local/etc/emulab/memtest /var/emulab/logs/nodecheck.log");
+system("echo -n '. . . Starting memcheck'");
+system("bash /usr/local/etc/emulab/memcheck /var/emulab/logs/nodecheck.log");
 
-system("echo -n '. . . Starting timetest'");
-system("bash /usr/local/etc/emulab/timetest /var/emulab/logs/nodecheck.log");
+system("echo -n '. . . Starting timecheck'");
+system("bash /usr/local/etc/emulab/timecheck /var/emulab/logs/nodecheck.log");
 
-system("echo -n '. . . Starting nictest'");
-system("bash /usr/local/etc/emulab/nictest /var/emulab/logs/nodecheck.log");
+system("echo -n '. . . Starting niccheck'");
+system("bash /usr/local/etc/emulab/niccheck /var/emulab/logs/nodecheck.log");
 
-system("echo -n '. . . Starting diskspeedtest'");
-system("bash /usr/local/etc/emulab/diskspeedtest /var/emulab/logs/nodecheck.log");
+system("echo -n '. . . Starting diskspeedcheck'");
+system("bash /usr/local/etc/emulab/diskspeedcheck /var/emulab/logs/nodecheck.log");
 
 system("echo 'Done with nodechecks'");
 

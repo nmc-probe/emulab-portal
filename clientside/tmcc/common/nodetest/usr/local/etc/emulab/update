@@ -1,41 +1,42 @@
 #!/bin/bash
 
 machines="pc219 pc286 pc472"
+
 linux="pc219 pc472"
 bsd="pc286"
 
-utils="disktest disktest.pl diskspeedtest memtest cputest getfromtb.sh timetest nictest"
+utils="diskcheck diskspeedcheck memcheck cpucheck getfromtb.sh timecheck niccheck"
 
 for i in $linux
 do
-	echo $i:rc.nodetest
-	sudo scp -q -p rc/rc.nodecheck_perl $i:/usr/local/etc/emulab/rc/rc.nodetest
-	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.nodetest
-	sudo ssh $i chgrp root /usr/local/etc/emulab/rc/rc.nodetest
+	echo $i:rc.nodecheck
+	sudo scp -q -p rc/rc.nodecheck_perl $i:/usr/local/etc/emulab/rc/rc.nodecheck
+	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.nodecheck
+	sudo ssh $i chgrp root /usr/local/etc/emulab/rc/rc.nodecheck
 done
 
 for i in $bsd
 do
-	echo $i:rc.nodetest
-	sudo scp -q -p rc/rc.nodecheck_sh $i:/usr/local/etc/emulab/rc/rc.nodetest
-	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.nodetest
-	sudo ssh $i chgrp wheel /usr/local/etc/emulab/rc/rc.nodetest
+	echo $i:rc.nodecheck
+	sudo scp -q -p rc/rc.nodecheck_sh $i:/usr/local/etc/emulab/rc/rc.nodecheck
+	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.nodecheck
+	sudo ssh $i chgrp wheel /usr/local/etc/emulab/rc/rc.nodecheck
 done
 
 
 for i in $machines
 do
-	for j in ${utils}
-	do
-		echo $i:$j
-		sudo rsync -q -a ${j} $i:/usr/local/etc/emulab
-		sudo ssh $i chown root /usr/local/etc/emulab/${j}
-		sudo ssh $i chgrp 0 /usr/local/etc/emulab/${j}
-	done 
+    echo $i:${utils}
+    sudo rsync -q -a ${utils} $i:/usr/local/etc/emulab
+    sudo ssh $i "cd /usr/local/etc/emulab ; chown root ${utils} "
+    sudo ssh $i "cd /usr/local/etc/emulab ; chgrp 0 ${utils} "
 
-	echo $i:rc.config
-	sudo rsync -q -a -P rc/rc.config $i:/usr/local/etc/emulab/rc/rc.config
-	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.config
-	sudo ssh $i chgrp 0 /usr/local/etc/emulab/rc/rc.config
+sudo ssh $i "cd /usr/local/etc/emulab/rc ; rm rc.nodetest"
+
+    
+    echo $i:rc.config
+    sudo rsync -q -a -P rc/rc.config $i:/usr/local/etc/emulab/rc/rc.config
+    sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.config
+    sudo ssh $i chgrp 0 /usr/local/etc/emulab/rc/rc.config
 done
 

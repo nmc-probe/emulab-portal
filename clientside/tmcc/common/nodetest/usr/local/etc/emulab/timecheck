@@ -46,18 +46,18 @@ esac
 
 #tbinfo=$(getfromtb meminfo $host)
 
-{
-if [ "$tbinfo" == "$meminfo" ] ; then
+#{
+#if [ "$tbinfo" == "$meminfo" ] ; then
  #   echo " equals node inventory $tbinfo"
-else
+#else
 #    echo " does not equals node inventory $tbinfo"    
 #    failed=FAIL
-fi
-} >> ${tmplog} 2>&1
+#fi
+#} >> ${tmplog} 2>&1
 
-echo "memtest `date`" >> ${logfile}
+echo "timecheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo ". . . SKEL OK" || echo ". . . SKEL FAILED"
+[[ -z ${failed} ]] && echo ". . . timecheck OK" || echo ". . . timecheck FAILED"
 
 exit 0

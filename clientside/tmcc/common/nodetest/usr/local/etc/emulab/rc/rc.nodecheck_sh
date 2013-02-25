@@ -26,23 +26,23 @@ fi
 echo "Running nodechecks"
 cat /dev/null > /var/emulab/logs/nodecheck.log
 
-echo -n ". . . Starting disktest"
-/usr/local/bin/bash /usr/local/etc/emulab/disktest /var/emulab/logs/nodecheck.log
+echo -n ". . . Starting diskcheck"
+/usr/local/bin/bash /usr/local/etc/emulab/diskcheck /var/emulab/logs/nodecheck.log
 
-echo -n ". . . Starting cputest"
-/usr/local/bin/bash /usr/local/etc/emulab/cputest /var/emulab/logs/nodecheck.log
+echo -n ". . . Starting cpucheck"
+/usr/local/bin/bash /usr/local/etc/emulab/cpucheck /var/emulab/logs/nodecheck.log
 
-echo -n ". . . Starting memtest"
-/usr/local/bin/bash /usr/local/etc/emulab/memtest /var/emulab/logs/nodecheck.log
+echo -n ". . . Starting memcheck"
+/usr/local/bin/bash /usr/local/etc/emulab/memcheck /var/emulab/logs/nodecheck.log
 
 echo -n ". . . Starting timetext"
-/usr/local/bin/bash /usr/local/etc/emulab/timetest /var/emulab/logs/nodecheck.log
+/usr/local/bin/bash /usr/local/etc/emulab/timecheck /var/emulab/logs/nodecheck.log
 
-echo -n ". . . Starting nictest"
-/usr/local/bin/bash /usr/local/etc/emulab/nictest /var/emulab/logs/nodecheck.log
+echo -n ". . . Starting niccheck"
+/usr/local/bin/bash /usr/local/etc/emulab/niccheck /var/emulab/logs/nodecheck.log
 
-echo -n ". . . Starting diskspeedtest"
-/usr/local/bin/bash /usr/local/etc/emulab/diskspeedtest /var/emulab/logs/nodecheck.log
+echo -n ". . . Starting diskspeedcheck"
+/usr/local/bin/bash /usr/local/etc/emulab/diskspeedcheck /var/emulab/logs/nodecheck.log
 
 echo "Done with nodechecks"
 

@@ -55,9 +55,9 @@ else
 fi
 } >> ${tmplog} 2>&1
 
-echo "memtest `date`" >> ${logfile}
+echo "memcheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo ". . . memtest OK" || echo ". . . memtest FAILED"
+[[ -z ${failed} ]] && echo ". . . memcheck OK" || echo ". . . memcheck FAILED"
 
 exit 0

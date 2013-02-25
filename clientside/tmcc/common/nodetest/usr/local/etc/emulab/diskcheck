@@ -50,9 +50,9 @@ set +x
     
 } >> ${tmplog} 2>&1
 if [ $failed ] ; then
-    echo "disktest `date`" >> ${logfile}
+    echo "diskcheck `date`" >> ${logfile}
     cat ${tmplog} >> ${logfile} 
-    echo ". . . disktest FAILED"
+    echo ". . . diskcheck FAILED"
     exit 1
 fi
 
@@ -139,14 +139,14 @@ for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
 done
 } >> ${tmplog} 2>&1
 
-echo "disktest `date`" >> ${logfile}
+echo "diskcheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
 if [ -n ${failed} ]
 then
-    echo ". . . disktest OK"
+    echo ". . . diskcheck OK"
 else
-    echo ". . . disktest FAILED"
+    echo ". . . diskcheck FAILED"
 fi
 echo -n ""
 
