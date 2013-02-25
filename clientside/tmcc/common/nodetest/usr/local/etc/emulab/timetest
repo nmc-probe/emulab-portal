@@ -1,0 +1,63 @@
+#! /bin/sh
+
+source getfromtb.sh
+
+os=`uname`
+host=`hostname`
+failed=""
+if [ -e "/var/emulab/boot/realname" ]; then
+    host=`cat /var/emulab/boot/realname`
+fi
+
+
+# setup logging
+if [ $1 ] ; then
+    logfile=$1
+else
+    logfile="/tmp/nodecheck.log"
+fi
+tmplog=/tmp/.$$.log
+cat /dev/null > ${tmplog}
+
+set +x
+#exit on unbound var
+#set -u
+
+{
+case $os in
+    Linux )
+#	unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
+#	meminfo=${d[1]}${d[2]}
+	;;
+    FreeBSD )
+#	unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
+#	w=${d[4]} ; x=${w#(}
+#	z=${d[5]} ; y=${z%)}
+#	meminfo=$x$y
+	;;
+    * )
+	echo "os $os unknown"
+	meminfo="0"
+	failed=FAIL
+	;;
+esac
+#echo -n "Found phys memory $meminfo"
+} >> ${tmplog} 2>&1
+
+#tbinfo=$(getfromtb meminfo $host)
+
+{
+if [ "$tbinfo" == "$meminfo" ] ; then
+ #   echo " equals node inventory $tbinfo"
+else
+#    echo " does not equals node inventory $tbinfo"    
+#    failed=FAIL
+fi
+} >> ${tmplog} 2>&1
+
+echo "memtest `date`" >> ${logfile}
+cat ${tmplog} >> ${logfile} 
+
+[[ -z ${failed} ]] && echo ". . . SKEL OK" || echo ". . . SKEL FAILED"
+
+exit 0
