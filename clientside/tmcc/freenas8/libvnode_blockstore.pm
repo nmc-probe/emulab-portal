@@ -92,6 +92,7 @@ my $ZPOOL_LOW_WATERMARK  = 2 * 2**10; # 2GiB, expressed in MiB
 my $FREENAS_MNT_PREFIX   = "/mnt";
 my $ISCSI_GLOBAL_PORTAL  = 1;
 my $SER_PREFIX           = "d0d0";
+my $VLAN_IFACE_PREFIX    = "vlan";
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -101,18 +102,22 @@ my $BS_UUID_TYPE_IQN     = "iqn";
 
 # CLI stuff
 my $FREENAS_CLI          = "$BINDIR/freenas-config";
+my $CLI_VERB_IFACE       = "interface";
 my $CLI_VERB_IST_EXTENT  = "ist_extent";
 my $CLI_VERB_IST_AUTHI   = "ist_authinit";
 my $CLI_VERB_IST_TARGET  = "ist";
 my $CLI_VERB_IST_ASSOC   = "ist_assoc";
+my $CLI_VERB_VLAN        = "vlan";
 my $CLI_VERB_VOLUME      = "volume";
 my $CLI_VERB_POOL        = "pool";
 
 my %cliverbs = (
+    $CLI_VERB_IFACE      => 1,
     $CLI_VERB_IST_EXTENT => 1,
     $CLI_VERB_IST_AUTHI  => 1,
     $CLI_VERB_IST_TARGET => 1,
     $CLI_VERB_IST_ASSOC  => 1,
+    $CLI_VERB_VLAN       => 1,
     $CLI_VERB_VOLUME     => 1,
     $CLI_VERB_POOL       => 1,
     );
@@ -131,7 +136,8 @@ sub parseSliceName($);
 sub parseSlicePath($);
 sub calcSliceSizes($);
 sub getPoolList();
-sub createVlanInterface($$$$);
+sub mkVlanIfaceName($$$);
+sub createVlanInterface($$$$$);
 sub setVlanInterfaceIPAddress($$$$);
 sub allocSlice($$$);
 sub exportSlice($$$);
@@ -295,38 +301,43 @@ sub vnodePreConfigExpNetwork($$$$)
     my $ifconfigs     = $vnconfig->{'ifconfig'};
 
     if (@$ifconfigs != 1) {
-	fatal("blockstore_vnodePreConfigExpNetwork: Wrong number of ".
-	      "network interfaces.  There can be only one!");
+	warn("*** ERROR: blockstore_vnodePreConfigExpNetwork: ".
+	     "Wrong number of network interfaces.  There can be only one!");
+	return -1;
     }
 
-    my $ifc = $ifconfigs->[0];
+    my $ifc = @$ifconfigs[0];
 
-    if ($ifc->['ITYPE'] ne "vlan") {
-	fatal("blockstore_vnodePreConfigExpNetwork: ".
-	      "interface type MUST be vlan!")
+    if ($ifc->{'ITYPE'} ne "vlan") {
+	warn("*** ERROR: blockstore_vnodePreConfigExpNetwork: ".
+	     "Interface must be of type 'vlan'!");
+	return -1;
     }
 
-    my $vtag  = $ifc->['VTAG'];
-    my $pmac  = $ifc->['PMAC'];
-    my $iface = $ifc->['IFACE'];
-    my $ip    = $ifc->['IPADDR'];
-    my $mask  = $ifc->['IPMASK'];
+    my $vtag   = $ifc->{'VTAG'};
+    my $pmac   = $ifc->{'PMAC'};
+    my $piface = $ifc->{'IFACE'};
+    my $ip     = $ifc->{'IPADDR'};
+    my $mask   = $ifc->{'IPMASK'};
+
+    # Create vlan interface name
+    my $viface = mkVlanIfaceName($piface,$pmac,$vtag);
 
     # First, create the vlan interface
-    if (createVlanInterface($vnode_id, $iface, $pmac, $vtag) != 0) {
-	fatal("blockstore:vnodePreConfigExpNetwork: ".
-	      "could not create vlan interface: $iface");
+    if (createVlanInterface($vnode_id, $piface, $pmac, $viface, $vtag) != 0) {
+	warn("*** ERROR: blockstore_vnodePreConfigExpNetwork: ".
+	     "could not create vlan interface: $viface");
+	return -1;
     }
 
     # Next, setup its IP parameters
-    if (setVlanInterfaceIPAddress($vnode_id, $iface, $ip, $mask) != 0) {
-	fatal("blockstore:vnodePreConfigExpNetwork: ".
-	      "could not set IP parameters on interface: $iface");	
+    if (setVlanInterfaceIPAddress($vnode_id, $viface, $ip, $mask) != 0) {
+	warn("*** ERROR: blockstore_vnodePreConfigExpNetwork: ".
+	     "could not set IP parameters on interface: $viface");
+	return -1;
     }
 
-    # XXX: not done.
-
-    return 0
+    return 0;
 }
 
 # Run through blockstore setup command sequence returned by
@@ -860,13 +871,99 @@ sub genSerial() {
     return $SER_PREFIX . $rand_hex;
 }
 
-sub createVlanInterface($$$$) {
-    my ($vnode_id, $iface, $pmac, $vtag) = @_
+# Helper - make vlan interface name given some inputs.
+sub mkVlanIfaceName($$$) {
+    my ($piface, $pmac, $vtag) = @_;
 
+    return undef
+	if !$vtag;
+
+    return $VLAN_IFACE_PREFIX . $vtag;
+}
+
+#
+# Given a physical interface/mac and vlan tag, make a vlan interface.
+#
+sub createVlanInterface($$$$$) {
+    my ($vnode_id, $piface, $pmac, $viface, $vtag) = @_;
+
+    # Untaint stuff.
+    if ($piface !~ /^([-\w]+)$/) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
+	     "bad data physical interface name!");
+	return -1;
+    }
+    $piface = $1;
+
+    if ($pmac !~ /^([a-fA-F0-9:]+)$/) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
+	     "bad data in physical mac address!");
+	return -1;
+    }
+    $pmac = $1;
+
+    if ($viface !~ /^([-\w]+)$/) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
+	     "bad data in vlan interface name!");
+	return -1;
+    }
+    $viface = $1;
+
+    if ($vtag !~ /^(\d+)$/) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
+	     "bad data in vlan tag!");
+	return -1;
+    }
+    $vtag = $1;
+
+    # First, create the vlan interface:
+    my $rval = runFreeNASCmd($CLI_VERB_VLAN,
+			     "add $piface $viface $vtag");
+
+    if ($rval != 0) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
+	     "failure while creating vlan interface!");
+	return -1;
+    }
+
+    return 0;
 }
 
 sub setVlanInterfaceIPAddress($$$$) {
-    my ($vnode_id, $iface, $ip, $mask) = @_;
+    my ($vnode_id, $viface, $ip, $mask) = @_;
+
+    # Check, untaint, convert, blah blah blah.
+    if ($viface !~ /^([-\w]+)$/) {
+	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ". 
+	     "bad data in vlan interface name!");
+	return -1;
+    }
+    $viface = $1;
+    
+    if ($ip !~ /^([\.\d]+)$/) {
+	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ". 
+	     "bad data in IP address!");
+	return -1;
+    }
+    $ip = $1;
+
+    if ($mask !~ /^([\.\d]+)$/) {
+	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ". 
+	     "bad characters in subnet!");
+	return -1;
+    }
+    $mask = libutil::CIDRmask($1);
+
+    my $rval = runFreeNASCmd($CLI_VERB_IFACE,
+			     "add $viface $viface $ip/$mask");
+
+    if ($rval != 0) {
+	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ".
+	     "failure while setting vlan interface parameters!");
+	return -1;
+    }
+
+    return 0;
 
 }
 
