@@ -30,13 +30,14 @@ use vars qw(@ISA @EXPORT $AUTOLOAD @EXPORT_OK);
 @EXPORT = qw();
 
 # Configure variables
-use vars qw($TB $BOSSNODE $WOL $OSSELECT $ISUTAH $CONTROL_NETMASK
+use vars qw($TB $BOSSNODE $WOL $OSSELECT $IPOD $ISUTAH $CONTROL_NETMASK
             $TBOPS $JAILIPMASK);
 $TB	     = "@prefix@";
 $BOSSNODE    = "@BOSSNODE@";
 $TBOPS       = "@TBOPSEMAIL@";
 $WOL         = "$TB/sbin/whol";
 $OSSELECT    = "$TB/bin/os_select";
+$IPOD	     = "$TB/sbin/ipod";
 # XXX stinky hack detection
 $ISUTAH	     = @TBMAINSITE@;
 # Need this for jail ip assignment.
@@ -3497,6 +3498,48 @@ sub RunningOsImage($)
     # This might not exist for a virtnode; caller has to deal with it.
     my $image = Image->Lookup($imageid);
     return ($osinfo, $image);
+}
+
+#
+# Send an authenticated ipod to the node.
+# Return 0 on success, non-zero otherwise.
+#
+sub SendApod($$)
+{
+    my ($self,$tryipod)  = @_;
+    return -1
+	if (! ref($self));
+
+    my $nodeid = $self->node_id();
+
+    my $query_result =
+	DBQueryFatal("select ipodhash from nodes where node_id='$nodeid'");
+    if ($query_result && $query_result->numrows == 1) {
+	my ($hash) = $query_result->fetchrow_array();
+	if ($hash) {
+	    #
+	    # It is okay to put this hash on the command line in the
+	    # Emulab context. These are one-time passwords, and for that
+	    # one time, if someone sees it on the command line the worst
+	    # they can do is reboot the node. And that is what we are trying
+	    # to do anyway!
+	    #
+	    # Also, note there we do not quote the hash, we don't want
+	    # perl to invoke an extra level of shell. The hash had better
+	    # not have any spaces or shell metachars!
+	    #
+	    if (system("$IPOD -h $hash $nodeid") == 0) {
+		return 0;
+	    }
+	}
+    }
+
+    # no hash or authenticated version failed, try plain ole ipod
+    if ($tryipod && system("$IPOD $nodeid") == 0) {
+	return 0;
+    }
+
+    return -1;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2002 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -51,6 +51,7 @@ my $TB		= "@prefix@";
 use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
+use Node;
 
 my $ipod	= "$TB/sbin/ipod";
 #my $ipod	= "./ipod";
@@ -61,13 +62,6 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
 # Turn off line buffering on output
 $| = 1; 
-
-#
-# We don't want to run this script unless its the real version.
-#
-if ($EUID != 0) {
-    die("Must be root! Maybe its a development version?");
-}
 
 if (@ARGV == 0) {
     usage();
@@ -97,30 +91,14 @@ if ($UID && !TBAdmin($UID) &&
 #
 # Smack em!
 #
+my $rv = 0;
 foreach my $node (@nodes) {
-    my $query_result = DBQueryFatal("select ipodhash from nodes ".
-		     "where node_id='$node'");
+    my $nodeobj = Node->Lookup($node);
 
-    if ($query_result->numrows != 1) {
-	print STDOUT "No ipodhash entry for node $node!?\n";
-	exit(-1);
-    }
-
-    my ($hash) = $query_result->fetchrow_array();
-    my $didit = 0;
-    if (defined($hash)) {
-	if (system("echo $hash | $ipod -i - $node") != 0) {
-	    print STDOUT "Authenticated IPOD failed on node $node";
-	} else {
-	    $didit = 1;
-	}
-    } else {
-	print STDOUT "No hash for node $node";
-    }
-    if (!$didit) {
-	print STDOUT ", attempting naked IPOD...\n";
-	if (system("$ipod $node") != 0) {
-	    print STDOUT "IPOD failed on node $node\n";
-	}
+    if ($nodeobj->SendApod(1)) {
+	print STDERR "Authenticated IPOD failed on node $node\n";
+	$rv++;
     }
 }
+
+exit($rv);
