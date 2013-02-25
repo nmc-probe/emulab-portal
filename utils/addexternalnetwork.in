@@ -31,13 +31,13 @@ use File::Temp qw(tempfile);
 #
 sub usage()
 {
-    print STDERR "Usage: addexternalnetwork [-d] [-n] [-w external_wire_urn] [-i external_interface_urn] <network_id> <node_id> <external_manager> <minvlan>-<maxvlan>\n";
+    print STDERR "Usage: addexternalnetwork [-d] [-n] [-w external_wire_urn] [-i external_interface_urn] [-t vm-type] <network_id> <node_id> <external_manager> <minvlan>-<maxvlan>\n";
     print STDERR "Options:\n";
     print STDERR " -d       - Turn on debugging\n";
     print STDERR " -n       - Dry run mode\n";
     exit(-1);
 }
-my $optlist   = "hdnw:i:";
+my $optlist   = "hdnw:i:t:";
 my $debug     = 0;
 my $impotent  = 0;
 my $network;
@@ -48,6 +48,7 @@ my $minvlan;
 my $maxvlan;
 my $wire;
 my $iface;
+my $vmtype;
 
 # Protos
 sub fatal($);
@@ -101,6 +102,9 @@ if (defined($options{'w'})) {
 if (defined($options{'i'})) {
     $iface = $options{'i'};
 }
+if (defined($options{'t'})) {
+    $vmtype = $options{'t'};
+}
 usage()
     if (scalar(@ARGV) != 4);
 
@@ -133,6 +137,9 @@ if (! defined($node)) {
 }
 
 my $type = $node->type();
+if (defined($vmtype)) {
+    $type = $vmtype;
+}
 
 sub fatal($)
 {

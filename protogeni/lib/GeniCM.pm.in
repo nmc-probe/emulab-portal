@@ -2219,7 +2219,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $network   = $stitching_paths{$linkname}->{'network'};
 	my $slice_urn = $slice->urn();
 	my $retries   = 10;
-	my $chainmode = ($network->node_type() eq "interconnect-vm" ? 1 : 0);
+	my $chainmode = ($network->mode() eq "chain" ? 1 : 0);
 	my $madevlan  = 0;
 
 	#
