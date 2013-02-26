@@ -9,16 +9,18 @@ case ${d[0]} in
         #freeBSD - grep memory /var/run/dmesg.boot
 	#linux - cat /proc/meminfo | grep MemTotal + 1048576 / 1048576
 	# see also http://en.wikipedia.org/wiki/Gigabyte
-	# GiB = 1073741824 (2**30) bytes, MiB = (2**20) bytes 
+	# GiB = 1073741824 (2**30) bytes, MiB = 1048576 (2**20) bytes 
 	case ${d[1]} in
 #	    pc286 ) echo "2048MB" ;;
-	    pc286 ) echo "2GiB" ;;
-#	    pc219 ) echo "1990948kB" ;;
-	    pc219 ) echo "2GiB" ;;
 #	    ibapah ) echo "8110204kB" ;;
-	    ibapah ) echo "8GiB" ;;
 #	    boss.emulab.net ) echo "4096MB" ;;
+#	    pc472 ) echo "12163328kB" ;;
+#	    pc219 ) echo "1990948kB" ;;
+	    pc286 ) echo "2GiB" ;;
+	    pc219 ) echo "2GiB" ;;
+	    ibapah ) echo "8GiB" ;;
 	    boss.emulab.net ) echo "4GiB" ;;
+	    pc472 ) echo "12GiB" ;;
 	    * ) echo "0" ;;
 	esac
 	;;

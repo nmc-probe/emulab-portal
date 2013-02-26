@@ -1,6 +1,10 @@
-#! /bin/sh
+#! /bin/bash
 
-source getfromtb.sh
+source /usr/local/etc/emulab/getfromtb.sh
+
+KILO=1024
+MEG=1048576
+GIG=1073741824
 
 os=`uname`
 host=`hostname`
@@ -23,17 +27,67 @@ set +x
 #exit on unbound var
 #set -u
 
+#how big is this
+hbis() {
+    number=$1
+    
+    x=$number
+    y=$(echo ${x,,})
+    if [ ${y%%m*} != ${y} ] ; then
+	    # in mego-bytes
+	mego=${y%%m*}
+	mego=$((${y%%m*}*$MEG))
+	megs=0
+	for ((x=$MEG; ; x+=$MEG)) ; do
+	    ((++megs))
+	    if [ $x -ge $mego ] ; then
+		break
+	    fi
+	done
+	#echo ${megs}M
+	echo $((${megs}/$KILO))G
+    elif [ ${y%%g*} != ${y} ] ; then
+	gigo=$((${y%%g*}*$GIG))
+	gigs=0
+	for ((x=$GIG; ; x+=$GIB)) ; do
+	    ((++gigs))
+	    if [ $x -ge $gigo ] ; then
+		break
+	    fi
+	done
+	echo ${gigs}G
+    elif [ ${y%%k*} != ${y} ] ; then
+	kilo=${y%%k*}
+	end=$(($kilo+$MEG))
+	kilos=0
+	for ((x=$KILO; ; x+=$KILO)) ; do
+	    ((++kilos))
+	    if [ $x -ge $end ] ; then
+		break
+	    fi
+	done
+#	echo ${kilos}M
+	echo $(($kilos/$KILO))G
+    else
+	echo "hibs enternal error"
+	exit 1
+    fi
+}
+
 {
 case $os in
     Linux )
 	unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
 	meminfo=${d[1]}${d[2]}
+	# how big is this?
+	meminfo=$(hbis $meminfo)
 	;;
     FreeBSD )
 	unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
 	w=${d[4]} ; x=${w#(}
 	z=${d[5]} ; y=${z%)}
 	meminfo=$x$y
+	meminfo=$(hbis $meminfo)
 	;;
     * )
 	echo "os $os unknown"
@@ -41,13 +95,17 @@ case $os in
 	failed=FAIL
 	;;
 esac
+
 echo -n "Found phys memory $meminfo"
 } >> ${tmplog} 2>&1
 
 tbinfo=$(getfromtb meminfo $host)
+a=${tbinfo,,} ; b=${meminfo,,}
+x=${a%%g*} y=${b%%g*}
+#echo meminfo:$meminfo x=$x tbinfo:$tbinfo y=$y
 
 {
-if [ "$tbinfo" == "$meminfo" ] ; then
+if [ "$x" == "$y" ] ; then
     echo " equals node inventory $tbinfo"
 else
     echo " does not equals node inventory $tbinfo"    
@@ -58,6 +116,6 @@ fi
 echo "memcheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo ". . . memcheck OK" || echo ". . . memcheck FAILED"
+[[ -z ${failed} ]] && echo ". . . $tbinfo memcheck OK" || echo ". . . memcheck $meminfo FAILED"
 
 exit 0
