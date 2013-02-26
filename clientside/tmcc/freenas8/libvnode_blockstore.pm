@@ -155,8 +155,8 @@ sub parseSlicePath($);
 sub calcSliceSizes($);
 sub getPoolList();
 sub mkVlanIfaceName($$$);
-sub createVlanInterface($$$$$);
-sub setVlanInterfaceIPAddress($$$$);
+sub createVlanInterface($$);
+sub runBlockstoreCmds($$);
 sub removeVlanInterface($);
 sub allocSlice($$$);
 sub exportSlice($$$);
@@ -268,8 +268,6 @@ sub vnodeState($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
-    my $err = 0;
-
     # Do we exist?
     my $slices = getSliceList();
     if (exists($slices->{$vnode_id})) {
@@ -283,41 +281,53 @@ sub vnodeState($$$$)
 	$vnstates{$vnode_id} = VNODE_STATUS_UNKNOWN();
     }
 
-    return ($err, $vnstates{$vnode_id});
+    return $vnstates{$vnode_id};
 }
 
-# Not much to do - just pull down the storage config and stash it for
-# later calls.
+# All the creation heavy lifting is coordinated from here for blockstores.
 sub vnodeCreate($$$$)
 {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
-    my $attributes = $vnconfig->{'attributes'};
     my $vninfo = $private;
 
+    # Create vmid from the vnode's name.
     my $vmid;
     if ($vnode_id =~ /^\w+\d+\-(\d+)$/) {
 	$vmid = $1;
-    }
-    else {
-	fatal("blockstore_vnodeCreate: bad vnode_id $vnode_id!");
+    } else {
+	fatal("blockstore_vnodeCreate: ".
+	      "bad vnode_id $vnode_id!");
     }
     $vninfo->{'vmid'} = $vmid;
     $private->{'vndir'} = VNODE_PATH() . "/$vnode_id";
 
-    # Grab and stash away storageconfig stuff for this vnode.
-    # XXX: this bit should ultimately be moved into mkvnode.pl
-    my @tmp;
-    fatal("getstorageconfig($vnode_id): $!")
-	if (getstorageconfig(\@tmp));
-    $vnconfig->{"storageconfig"} = \@tmp;
+    # Grab the global lock to prevent concurrency.
+    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
+	fatal("blockstore_vnodeCreate: ".
+	      "Could not get the blkalloc lock after a long time!");
+    }
 
-    return 0;
+    # Create the experimental net (tagged vlan) interface
+    if (createVlanInterface($vnode_id, $vnconfig) != 0) {
+	TBScriptUnlock();
+	fatal("blockstore_vnodeCreate: ".
+	      "Failed to create experimental network interface!");
+    }
+
+    # Create blockstore slice
+    if (runBlockstoreCmds($vnode_id, $vnconfig) != 0) {
+	TBScriptUnlock();
+	fatal("blockstore_vnodeCreate: ".
+	      "Blockstore slice creation failed!");
+    }
+
+    TBScriptUnlock();
+    return $vmid;
 }
 
 # Nothing to do presently.
 sub vnodePreConfig($$$$$){
     my ($vnode_id, $vmid, $vnconfig, $private, $callback) = @_;
-    my $vninfo = $private;
 
     return 0;
 }
@@ -327,92 +337,30 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private,
 	$ip,$mask,$mac,$gw, $vname,$longdomain,$shortdomain,$bossip) = @_;
-    my $vninfo = $private;
 
     return 0;
 }
 
-# Here we actually do some work - setup the vlan interface.
+# All setup/creation is handled elsewhere.
 sub vnodePreConfigExpNetwork($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
-    my $vninfo        = $private;
-    my $ifconfigs     = $vnconfig->{'ifconfig'};
-
-    if (@$ifconfigs != 1) {
-	warn("*** ERROR: blockstore_vnodePreConfigExpNetwork: ".
-	     "Wrong number of network interfaces.  There can be only one!");
-	return -1;
-    }
-
-    my $ifc = @$ifconfigs[0];
-
-    if ($ifc->{'ITYPE'} ne "vlan") {
-	warn("*** ERROR: blockstore_vnodePreConfigExpNetwork: ".
-	     "Interface must be of type 'vlan'!");
-	return -1;
-    }
-
-    my $vtag   = $ifc->{'VTAG'};
-    my $pmac   = $ifc->{'PMAC'};
-    my $piface = $ifc->{'IFACE'};
-    my $ip     = $ifc->{'IPADDR'};
-    my $mask   = $ifc->{'IPMASK'};
-
-    # Create vlan interface name
-    my $viface = mkVlanIfaceName($piface,$pmac,$vtag);
-
-    # First, create the vlan interface
-    if (createVlanInterface($vnode_id, $piface, $pmac, $viface, $vtag) != 0) {
-	return -1;
-    }
-
-    # Next, setup its IP parameters
-    if (setVlanInterfaceIPAddress($vnode_id, $viface, $ip, $mask) != 0) {
-	return -1;
-    }
 
     return 0;
 }
 
-# Run through blockstore setup command sequence returned by
-# 'storageconfig' tmcd call.  Hold the lock - we don't want
-# concurrency with other blockstore pseudo-VMs!
+# Nothing to do.
 sub vnodeConfigResources($$$$){
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
-    my $sconfigs = $vnconfig->{'storageconfig'};
 
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	warn("*** ERROR: blockstore_allocSlice: ".
-	     "Could not get the blkalloc lock after a long time!");
-	return -1;
-    }
-    
-    foreach my $sconf (@$sconfigs) {
-	my $cmd = $sconf->{'CMD'};
-	if (exists($setup_cmds{$cmd})) {
-	    if ($setup_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
-		warn("*** ERROR: blockstore_vnodeConfigResources: ".
-		     "Failed to execute setup command: $cmd");
-		TBScriptUnlock();
-		return -1;
-	    }
-	} else {
-	    warn("*** ERROR: blockstore_vnodeCongfigResources: ".
-		 "Don't know how to execute: $cmd");
-	    TBScriptUnlock();
-	    return -1;
-	}
-    }
-
-    TBScriptUnlock();
     return 0;
 }
 
-# Nothing to do (yet).
+# Nothing to do.
 sub vnodeConfigDevices($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+
     return 0;
 }
 
@@ -457,23 +405,23 @@ sub vnodeReboot($$$$)
 sub vnodeTearDown($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+
     return 0;
 }
 
 # Reverse the list of 'storageconfig' setup directives, then run the
 # corresponding teardown commands.  Hold the lock while we do this
 # to avoid concurrency here.
-sub vnodeDestroy($$$$)
-{
+sub vnodeDestroy($$$$){
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
     my $sconfigs = $vnconfig->{'storageconfig'};
 
     my @revconfigs = sort {$b->{'IDX'} <=> $a->{'IDX'}} @$sconfigs;
 
+    # Grab the global lock to prevent concurrency.
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	warn("*** ERROR: blockstore_vnodeDestroy: ".
-	     "Could not get the blkalloc lock after a long time!");
-	return -1;
+	fatal("blockstore_vnodeDestroy: ".
+	      "Could not get the blkalloc lock after a long time!");
     }
 
     # Run through blockstore removal commands (reversed creation list).
@@ -481,16 +429,14 @@ sub vnodeDestroy($$$$)
 	my $cmd = $sconf->{'CMD'};
 	if (exists($teardown_cmds{$cmd})) {
 	    if ($teardown_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
-		warn("*** ERROR: blockstore_vnodeDestroy: ".
-		     "Failed to execute teardown command: $cmd");
 		TBScriptUnlock();
-		return -1;
+		fatal("blockstore_vnodeDestroy: ".
+		      "Failed to execute teardown command: $cmd");
 	    }
 	} else {
-	    warn("*** ERROR: blockstore_vnodeDestroy: ".
-		 "Don't know how to execute: $cmd");
 	    TBScriptUnlock();
-	    return -1;
+	    fatal("blockstore_vnodeDestroy: ".
+		  "Don't know how to execute: $cmd");
 	}
     }
 
@@ -500,10 +446,9 @@ sub vnodeDestroy($$$$)
     my $vtag  = $ifcfg->{'VTAG'};
     my $viface = $VLAN_IFACE_PREFIX . $vtag;
     if (removeVlanInterface($viface) != 0) {
-	warn("*** ERROR: blockstore_vnodeDestroy: ".
-	     "Could not remove the vlan interface!");
 	TBScriptUnlock();
-	return -1;
+	fatal("blockstore_vnodeDestroy: ".
+	      "Could not remove the vlan interface!");
     }
 
     TBScriptUnlock();
@@ -616,6 +561,32 @@ sub parseFreeNASListing($) {
     }
     close(CLI);
     return @retlist;
+}
+
+#
+# Run through list of storage commands and execute them, checking
+# for errors.  (Should have a lock before doing this.)
+#
+sub runBlockstoreCmds($$) {
+    my ($vnode_id, $vnconfig) = @_;
+    my $sconfigs = $vnconfig->{'storageconfig'};
+    
+    foreach my $sconf (@$sconfigs) {
+	my $cmd = $sconf->{'CMD'};
+	if (exists($setup_cmds{$cmd})) {
+	    if ($setup_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
+		warn("*** ERROR: blockstore_runBlockstoreCmds: ".
+		     "Failed to execute setup command: $cmd");
+		return -1;
+	    }
+	} else {
+	    warn("*** ERROR: blockstore_runBlockstoreCmds: ".
+		 "Don't know how to execute: $cmd");
+	    return -1;
+	}
+    }
+
+    return 0;
 }
 
 # Yank information about blockstore slices out of FreeNAS.
@@ -979,8 +950,33 @@ sub mkVlanIfaceName($$$) {
 #
 # Given a physical interface/mac and vlan tag, make a vlan interface.
 #
-sub createVlanInterface($$$$$) {
-    my ($vnode_id, $piface, $pmac, $viface, $vtag) = @_;
+sub createVlanInterface($$) {
+    my ($vnode_id, $vnconfig) = @_;
+
+    # Create the control network vlan interface
+    my $ifconfigs     = $vnconfig->{'ifconfig'};
+    if (@$ifconfigs != 1) {
+	warn("*** ERROR: blockstore_createVlanInterface: ".
+	     "Wrong number of network interfaces.  There can be only one!");
+	return -1;
+    }
+
+    my $ifc = @$ifconfigs[0];
+
+    if ($ifc->{'ITYPE'} ne "vlan") {
+	warn("*** ERROR: blockstore_createVlanInterface: ".
+	     "Interface must be of type 'vlan'!");
+	return -1;
+    }
+
+    my $vtag   = $ifc->{'VTAG'};
+    my $pmac   = $ifc->{'PMAC'};
+    my $piface = $ifc->{'IFACE'};
+    my $ip     = $ifc->{'IPADDR'};
+    my $mask   = $ifc->{'IPMASK'};
+
+    # Create vlan interface name
+    my $viface = mkVlanIfaceName($piface,$pmac,$vtag);
 
     # Untaint stuff.
     if ($piface !~ /^([-\w]+)$/) {
@@ -1011,33 +1007,6 @@ sub createVlanInterface($$$$$) {
     }
     $vtag = $1;
 
-    # First, create the vlan interface:
-    my $rval = runFreeNASCmd($CLI_VERB_VLAN,
-			     "add $piface $viface $vtag");
-
-    if ($rval != 0) {
-	warn("*** ERROR: blockstore_createVlanInterface: ". 
-	     "failure while creating vlan interface!");
-	return -1;
-    }
-
-    return 0;
-}
-
-#
-# Set network parameters on an existing network interface (via FreeNAS CLI).
-#
-sub setVlanInterfaceIPAddress($$$$) {
-    my ($vnode_id, $viface, $ip, $mask) = @_;
-
-    # Check, untaint, convert, blah blah blah.
-    if ($viface !~ /^([-\w]+)$/) {
-	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ". 
-	     "bad data in vlan interface name!");
-	return -1;
-    }
-    $viface = $1;
-    
     if ($ip !~ /^([\.\d]+)$/) {
 	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ". 
 	     "bad data in IP address!");
@@ -1052,8 +1021,19 @@ sub setVlanInterfaceIPAddress($$$$) {
     }
     $mask = libutil::CIDRmask($1);
 
-    my $rval = runFreeNASCmd($CLI_VERB_IFACE,
-			     "add $viface $viface $ip/$mask");
+    # First, create the vlan interface:
+    my $rval = runFreeNASCmd($CLI_VERB_VLAN,
+			     "add $piface $viface $vtag");
+
+    if ($rval != 0) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
+	     "failure while creating vlan interface!");
+	return -1;
+    }
+
+    # Next, set its address.
+    $rval = runFreeNASCmd($CLI_VERB_IFACE,
+			  "add $viface $viface $ip/$mask");
 
     if ($rval != 0) {
 	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ".
@@ -1061,8 +1041,8 @@ sub setVlanInterfaceIPAddress($$$$) {
 	return -1;
     }
 
-    return 0;
 
+    return 0;
 }
 
 #

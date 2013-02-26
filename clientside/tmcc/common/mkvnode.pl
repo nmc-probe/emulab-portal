@@ -138,6 +138,9 @@ if ($UID != 0) {
 # Tell the library what vnode we are messing with.
 libsetup_setvnodeid($vnodeid);
 
+# XXX XXX XXX: testing!
+libtmcc::configtmcc("portnum",7778);
+
 # Can set this after above line. 
 my $RUNNING_FILE = CONFDIR() . "/running";
 
@@ -281,6 +284,7 @@ my %vnconfig = ( "vnodeid"   => $vnodeid,
 		 "ldconfig"  => undef,
 		 "tunconfig" => undef,
 		 "attributes"=> undef,
+                 "storageconfig" => undef,
 );
 sub VNCONFIG($) { return $vnconfig{'config'}->{$_[0]}; }
 
@@ -333,6 +337,10 @@ $vnconfig{"tunconfig"} = $tmp;
 fatal("getnodeattributes($vnodeid): $!")
     if (getnodeattributes(\%attrs));
 $vnconfig{"attributes"} = \%attrs;
+
+fatal("getstorageconfig($vnodeid): $!")
+    if (getstorageconfig(\@tmp));
+$vnconfig{"storageconfig"} = [ @tmp ];
 
 if ($debug) {
     print "VN Config:\n";

@@ -51,10 +51,6 @@ my $vnconfig = mkvnconfig($vnodeid);
 if ($setup) {
     libvnode_blockstore::vnodeCreate($vnodeid, undef, $vnconfig, 
 				     $vnconfig->{'private'});
-    libvnode_blockstore::vnodePreConfigExpNetwork($vnodeid, undef, $vnconfig,
-						  $vnconfig->{'private'});
-    libvnode_blockstore::vnodeConfigResources($vnodeid, undef, $vnconfig,
-					      $vnconfig->{'private'});
 }
 
 # Sleep for a bit...
