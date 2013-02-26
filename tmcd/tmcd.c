@@ -5193,7 +5193,8 @@ COMMAND_PROTOTYPE(dostate)
 	tuple->eventtype = newstate;
 
 	if (myevent_send(tuple)) {
-		error("dostate: Error sending event\n");
+		error("Error sending event\n");
+		info("%s: STATE: %s failed!\n", reqp->nodeid, newstate);
 		return 1;
 	}
 
