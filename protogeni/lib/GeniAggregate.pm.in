@@ -1325,7 +1325,7 @@ sub Start($$$)
 	$sliver->SetState("started")
 	    if (ref($sliver) eq "GeniSliver::Node");
     }
-    if ($MAINSITE || $ELABINELAB) {
+    if (1) {
 	$self->WaitForNodes(@waitpnodes, @waitvnodes);
     }
     
