@@ -141,11 +141,18 @@ sub createVlanInterface($$$$$);
 sub setVlanInterfaceIPAddress($$$$);
 sub allocSlice($$$);
 sub exportSlice($$$);
+sub deallocSlice($$$);
+sub unexportSlice($$$);
 
 # Dispatch table for storage configuration commands.
-my %storageconf_cmds = (
+my %setup_cmds = (
     "SLICE"  => \&allocSlice,
     "EXPORT" => \&exportSlice
+);
+
+my %teardown_cmds = (
+    "SLICE"  => \&deallocSlice,
+    "EXPORT" => \&unexportSlice
 );
 
 #
@@ -202,8 +209,7 @@ sub rootPreConfig() {
     
     print "Configuring root vnode context\n";
 
-    # XXX: nothing to do?
-    # XXX: Put in consistency checks.
+    # XXX: Put in consistency checks (maybe - they may go elsewhere.)
 
     mysystem("touch /var/run/blockstore.ready");
     TBScriptUnlock();
@@ -222,7 +228,6 @@ sub rootPreConfigNetwork($$$$)
     }
 
     # XXX: Nothing to do?
-    # XXX: Put in network consistency checks.
 
     TBScriptUnlock();
     return 0;
@@ -325,15 +330,11 @@ sub vnodePreConfigExpNetwork($$$$)
 
     # First, create the vlan interface
     if (createVlanInterface($vnode_id, $piface, $pmac, $viface, $vtag) != 0) {
-	warn("*** ERROR: blockstore_vnodePreConfigExpNetwork: ".
-	     "could not create vlan interface: $viface");
 	return -1;
     }
 
     # Next, setup its IP parameters
     if (setVlanInterfaceIPAddress($vnode_id, $viface, $ip, $mask) != 0) {
-	warn("*** ERROR: blockstore_vnodePreConfigExpNetwork: ".
-	     "could not set IP parameters on interface: $viface");
 	return -1;
     }
 
@@ -355,8 +356,8 @@ sub vnodeConfigResources($$$$){
     
     foreach my $sconf (@$sconfigs) {
 	my $cmd = $sconf->{'CMD'};
-	if (exists($storageconf_cmds{$cmd})) {
-	    if ($storageconf_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
+	if (exists($setup_cmds{$cmd})) {
+	    if ($setup_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
 		warn("*** ERROR: blockstore_vnodeConfigResources: ".
 		     "Failed to execute setup command: $cmd");
 		TBScriptUnlock();
@@ -402,39 +403,74 @@ sub vnodePostConfig($)
     return 0;
 }
 
-# blockstores don't "reboot"
+# blockstores don't "reboot", but we'll signal that we've gone through
+# the motions anyway.  Hopefully this rapid firing of events doesn't freak
+# out stated.
 sub vnodeReboot($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
+    libutil::setState("SHUTDOWN");
+    libutil::setState("BOOTING");
+    libutil::setState("ISUP");
+
     return 0;
 }
 
-# When this is called, we remove the blockstore export and zap the
-# vlan interface.
+# Do everything in "destroy" function.
 sub vnodeTearDown($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
-    # XXX: implement.
+    return 0;
 }
 
-# When this is called, we remove the blockstore slice altogether.
+# Reverse the list of 'storageconfig' setup directives, then run the
+# corresponding teardown commands.
 sub vnodeDestroy($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
-    my $vninfo = $private;
-    # XXX: implement.
+    my $sconfigs = $vnconfig->{'storageconfig'};
+
+    my @revconfigs = sort {$b->{'IDX'} <=> $a->{'IDX'}} @$sconfigs;
+
+    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
+	warn("*** ERROR: blockstore_vnodeDestroy: ".
+	     "Could not get the blkalloc lock after a long time!");
+	return -1;
+    }
+    
+    foreach my $sconf (@revconfigs) {
+	my $cmd = $sconf->{'CMD'};
+	if (exists($teardown_cmds{$cmd})) {
+	    if ($teardown_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
+		warn("*** ERROR: blockstore_vnodeDestroy: ".
+		     "Failed to execute teardown command: $cmd");
+		TBScriptUnlock();
+		return -1;
+	    }
+	} else {
+	    warn("*** ERROR: blockstore_vnodeDestroy: ".
+		 "Don't know how to execute: $cmd");
+	    TBScriptUnlock();
+	    return -1;
+	}
+    }
+
+    TBScriptUnlock();
+    return 0;
 }
 
-# blockstores don't "halt"
+# blockstores don't "halt", but we'll signal that we did anyway.
 sub vnodeHalt($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
+    libutil::setState("SHUTDOWN");
+
     return 0;
 }
 
-# What would I implement here?
+# Nothing to do...
 sub vnodeExec($$$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private, $command) = @_;
@@ -451,10 +487,17 @@ sub vnodeUnmount($$$$)
     return 0;
 }
 
-#
+#######################################################################
 # package-local functions
 #
 
+#
+# Run a FreeNAS CLI command, checking for a return error and other
+# such things.  We check that the incoming verb is valid.  Command line
+# argument string needs to be untainted or this will fail.
+#
+# Returns numberic code indicating success, failure, internal error.
+#
 sub runFreeNASCmd($$) {
     my ($verb, $argstr) = @_;
 
@@ -525,6 +568,8 @@ sub parseFreeNASListing($) {
 }
 
 # Yank information about blockstore slices out of FreeNAS.
+# Note: this is an expensive call - may want to re-visit caching some of
+# this later if performance becomes a problem.
 sub getSliceList() {
     my $sliceshash = {};
 
@@ -641,7 +686,7 @@ sub getPoolList() {
     }
 
     # Yuck - have to go after capacity and status info by calling the
-    # 'zfs' command line utility.
+    # 'zfs' command line utility since the CLI doesn't return this info.
     open(ZFS, "$ZFS_CMD list -H -o name,used,avail |") or
 	die "Can't run 'zfs list'!";
 
@@ -712,7 +757,7 @@ sub allocSlice($$$) {
 	return -1;
     }
 
-    return 0;    
+    return 0;
 }
 
 # Setup device export.
@@ -864,14 +909,13 @@ sub getNextAuthITag() {
     return $maxtag+1;
 }
 
-# Helper function.
-# Generate a random serial number for an iSCSI target
+# Helper function - Generate a random serial number for an iSCSI target
 sub genSerial() {
     my $rand_hex = join "", map { unpack "H*", chr(rand(256)) } 1..6;
     return $SER_PREFIX . $rand_hex;
 }
 
-# Helper - make vlan interface name given some inputs.
+# Helper function - make vlan interface name given some inputs.
 sub mkVlanIfaceName($$$) {
     my ($piface, $pmac, $vtag) = @_;
 
@@ -965,6 +1009,110 @@ sub setVlanInterfaceIPAddress($$$$) {
 
     return 0;
 
+}
+
+sub unExportSlice($$$) {
+    my ($vnode_id, $sconf, $vnconfig) = @_;
+
+    # Should only be one ifconfig entry - checked earlier.
+    my $ifcfg   = (@{$vnconfig->{'ifconfig'}})[0];
+    my $nmask   = $ifcfg->{'IPMASK'};
+    my $cmask   = libutil::CIDRmask($nmask);
+    my $network = libutil::ipToNetwork($ifcfg->{'IPADDR'}, $nmask);
+    if (!$cmask || !$network) {
+	warn("*** ERROR: blockstore_unexportSlice: ".
+	     "Error calculating ip network information.");
+	return -1;
+    }
+    
+    # All of the sanity checking was done when we first created and
+    # exported this blockstore.  Assume nothing has changed...
+    my $volname = $sconf->{'VOLNAME'};
+    $sconf->{'UUID'} =~ /^([-\.:\w]+)$/;
+    my $iqn = $1; # untaint.
+
+    # Remove iSCSI target-to-extent association.
+    if (runFreeNASCmd($CLI_VERB_IST_ASSOC,
+		      "del $iqn $iqn") != 0)
+    {
+	warn("*** ERROR: blockstore_unexportSlice: ".
+	     "Failed to disassociate iSCSI target with extent!");
+	return -1;
+    }
+
+    # Remove iSCSI target.
+    if (runFreeNASCmd($CLI_VERB_IST_TARGET,
+		      "del $iqn") != 0)
+    {
+	warn("*** ERROR: blockstore_unexportSlice: ".
+	     "Failed to remove iSCSI target!");
+	return -1;
+    }
+
+    # Remove iSCSI extent
+    if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
+		      "del $iqn") != 0)
+    {
+	warn("*** ERROR: blockstore_unexportSlice: ".
+	     "Failed to remove iSCSI extent!");
+	return -1;
+    }
+
+    # Remove iSCSI auth group
+    my $tag = findAuthITag($network,$cmask);
+    if ($tag !~ /^(\d+)$/) {
+	warn("*** ERROR: blockstore_unexportSlice: ".
+	     "bad tag returned from findAuthITag: $tag");
+	return -1;
+    }
+    $tag = $1; # untaint.
+    if (runFreeNASCmd($CLI_VERB_IST_AUTHI,
+		      "del $tag") != 0)
+    {
+	warn("*** ERROR: blockstore_unexportSlice: ".
+	     "Failed to remove iSCSI auth group!");
+	return -1;
+    }
+
+    # All torn down and unexported!
+    return 0;
+}
+
+sub deallocSlice($$$) {
+    my ($vnode_id, $sconf, $vnconfig) = @_;
+
+    my $priv = $vnconfig->{'private'};
+
+    my $slices = getSliceList();
+
+    # Non-fatal, but worthy of a log entry.
+    if (!exists($slices->{$vnode_id})) {
+	warn("*** WARNING: blockstore_deallocSlice: ".
+	     "slice does not exist: $vnode_id.");
+	return 0;
+    }
+
+    if ($slices->{$vnode_id}->{'bsid'} !~ /^([-:\.\w]+)$/) {
+	warn("*** ERROR: blockstore_deallocSlice: ".
+	     "bad characters in bsid!");
+	return -1;
+    }
+    my $bsid = $1; # untaint.
+
+    # deallocate slice.
+    if (runFreeNASCmd($CLI_VERB_VOLUME, 
+		      "del $bsid $vnode_id") != 0)
+    {
+	warn("*** ERROR: blockstore_deallocSlice: ".
+	     "slice removal failed!");
+	return -1;
+    }
+
+    # Checks for lingering slices will be performed separately in
+    # consistency checking routines, so we don't bother here to
+    # check that the above actually succeeded.
+
+    return 0;
 }
 
 # Required perl foo
