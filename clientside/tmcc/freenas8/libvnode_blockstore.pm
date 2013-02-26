@@ -142,6 +142,7 @@ my %cliverbs = (
 #
 # Global variables
 #
+my %vnstates = ();
 my $debug  = 0;
 
 #
@@ -268,14 +269,21 @@ sub vnodeState($$$$)
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     my $err = 0;
-    my $out = VNODE_STATUS_UNKNOWN();
 
-    # if an allocation exists to a blockstore slice, then we are "running".
+    # Do we exist?
     my $slices = getSliceList();
     if (exists($slices->{$vnode_id})) {
-	$out = VNODE_STATUS_RUNNING();
+	# We do, but have we been visited yet (i.e., are we 'booted'?)
+	if (!exists($vnstates{$vnode_id})) {
+	    $vnstates{$vnode_id} = VNODE_STATUS_STOPPED();
+	}
+	# We've been visited.  Our state should be managed elsewhere now.
+    } else {
+	# We don't seem to exist...
+	$vnstates{$vnode_id} = VNODE_STATUS_UNKNOWN();
     }
-    return ($err, $out);
+
+    return ($err, $vnstates{$vnode_id});
 }
 
 # Not much to do - just pull down the storage config and stash it for
@@ -419,6 +427,7 @@ sub vnodeBoot($$$$)
     # state transitions...
     libutil::setState("BOOTING");
     libutil::setState("ISUP");
+    $vnstates{$vnode_id} = VNODE_STATUS_RUNNING();
 
     return 0;
 }
@@ -439,6 +448,7 @@ sub vnodeReboot($$$$)
     libutil::setState("SHUTDOWN");
     libutil::setState("BOOTING");
     libutil::setState("ISUP");
+    $vnstates{$vnode_id} = VNODE_STATUS_RUNNING();
 
     return 0;
 }
@@ -506,6 +516,7 @@ sub vnodeHalt($$$$)
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     libutil::setState("SHUTDOWN");
+    $vnstates{$vnode_id} = VNODE_STATUS_STOPPED();
 
     return 0;
 }
@@ -1159,7 +1170,7 @@ sub deallocSlice($$$) {
     # Get list of allocated slices and search for this one.
     my @slices = parseFreeNASListing($CLI_VERB_VOLUME);
     my $found = 0;
-    foreach $slice (@slices) {
+    foreach my $slice (@slices) {
 	if ($slice->{'vol_name'} eq "$bsid/$vnode_id") {
 	    $found = 1;
 	    last;
