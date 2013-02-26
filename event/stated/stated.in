@@ -1145,20 +1145,20 @@ sub handleCtrlEvent($$) {
 	    system($cmd) and
 		notify("$node/$event: Could not clear next_pxe_boot_path!\n");
 
-	    info("Performed $TBPXERESET for $node\n");
+	    info("$node: Performed $TBPXERESET\n");
 	    next;
 	};
 	/^$TBRESET$/ && do {
 	    # Clear next_boot_path.
-	    if ($nodeobj->OSSelect(undef, "next_boot_osid", 1) != 0) {
+	    if ($nodeobj->OSSelect(undef, "next_boot_osid", 0) != 0) {
 		notify("$node/$event: Could not clear next_boot_path!\n");
 	    }
-
-	    info("Performed $TBRESET for $node\n");
+	    my ($bosid,$bopmode) = TBBootWhat($node, 0);
+	    info("$node: $TBRESET done, bootwhat returns $bopmode,$bosid\n");
 	    next;
 	};
 	(/^$TBRELOADDONEV1$/ || /^$TBRELOADDONEV2$/) && do {
-	    info("Clearing reload info for $node\n");
+	    info("$node: Clearing reload info\n");
 	    $nodeobj->ClearCurrentReload();
 	    $nodeobj->FlushReserved();
 	    my $experiment = $nodeobj->Reservation();
@@ -1168,17 +1168,18 @@ sub handleCtrlEvent($$) {
 		$nodeobj->ClearSchedReload();
 		my $reserved_pid = $nodeobj->CheckPreReserve(1);
 		if (defined($reserved_pid)) {
-		    info("Setting pre reserve for $node to $reserved_pid\n");
+		    info("$node: Setting pre reserve to $reserved_pid\n");
 		}
 		$nodeobj->ClearReservation();
 		$nodeobj->SetNodeHistory(TB_NODEHISTORY_OP_FREE,
 					 undef, $experiment);
-		info("Released $node from $experiment\n");
+		info("$node: Released from $experiment\n");
 	    }
 	    if ($event eq $TBRELOADDONEV2) {
-		info("Sending an apod to $node\n");
-		system("$apod $node") == 0 or
+		info("$node: Sending apod\n");
+		if ($nodeobj->SendApod(1)) {
 		    notify("Could not apod $node after $TBRELOADDONEV2!\n");
+		}
 	    }
 	    next;
 	};
