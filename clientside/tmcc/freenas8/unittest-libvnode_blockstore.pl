@@ -6,10 +6,27 @@ use libutil;
 use libsetup;
 use libtmcc;
 use libvnode_blockstore;
+use Getopt::Std;
 use Data::Dumper;
 
 # func protos
 sub mkvnconfig($);
+
+
+my $setup = 0;
+my $teardown = 0;
+my %opts = ();
+
+if (!getopts("st", \%opts)) {
+    print STDERR "Usage: $0 [-s|-t]\n";
+    exit 1;
+}
+
+$setup = 1
+    if exists($opts{'s'});
+
+$teardown = 1
+    if exists($opts{'t'});
 
 # Set debugging in library
 libvnode_blockstore::setDebug(1);
@@ -31,12 +48,23 @@ my $vnodeid = "dboxvm1-1";
 my $vnconfig = mkvnconfig($vnodeid);
 
 # do full, bottom-up slice setup
-libvnode_blockstore::vnodeCreate($vnodeid, undef, $vnconfig, 
-				 $vnconfig->{'private'});
-libvnode_blockstore::vnodePreConfigExpNetwork($vnodeid, undef, $vnconfig,
-    $vnconfig->{'private'});
-libvnode_blockstore::vnodeConfigResources($vnodeid, undef, $vnconfig,
-    $vnconfig->{'private'});
+if ($setup) {
+    libvnode_blockstore::vnodeCreate($vnodeid, undef, $vnconfig, 
+				     $vnconfig->{'private'});
+    libvnode_blockstore::vnodePreConfigExpNetwork($vnodeid, undef, $vnconfig,
+						  $vnconfig->{'private'});
+    libvnode_blockstore::vnodeConfigResources($vnodeid, undef, $vnconfig,
+					      $vnconfig->{'private'});
+}
+
+# Sleep for a bit...
+#sleep 30;
+
+# Tear it down!
+if ($teardown) {
+    libvnode_blockstore::vnodeDestroy($vnodeid, undef, $vnconfig,
+				      $vnconfig->{'private'});
+}
 
 exit(0);
 

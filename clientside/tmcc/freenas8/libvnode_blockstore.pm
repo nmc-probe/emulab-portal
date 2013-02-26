@@ -28,6 +28,23 @@
 # will invoke all the root* and vnode* functions.  It is up to us to make
 # sure that "one time" operations really are executed only once.
 #
+# Some notes about the current implementation in this module:
+#
+# * No module-specific persistent state
+#
+#  This module does not store anything persistently outside of what
+#  FreeNAS itself stores.  In other words, it refreshes it's idea of
+#  what pools exist, what slices are present, etc., on demand via the
+#  CLI each time it requires this information.  Slower, but more simple
+#  and accurate.
+#
+# * Minimal parallelization
+#
+#  Some read-only calls don't try to grab a global lock, but everything else
+#  does.  Concurrent setup requests should be pretty rare anyway.  The idea
+#  here is twofold: 1) avoid hammering on the FreeNAS interface and 2)
+#  ensure data about existing resources is consistent/accurate.
+#
 package libvnode_blockstore;
 use Exporter;
 @ISA    = "Exporter";
@@ -139,6 +156,7 @@ sub getPoolList();
 sub mkVlanIfaceName($$$);
 sub createVlanInterface($$$$$);
 sub setVlanInterfaceIPAddress($$$$);
+sub removeVlanInterface($);
 sub allocSlice($$$);
 sub exportSlice($$$);
 sub deallocSlice($$$);
@@ -183,9 +201,11 @@ sub init($) {
 # Do once-per-hypervisor-boot activities.
 #
 # Note that this function is called for each VM, so use a marker to
-# tell whether or not we've already been here, done that.  Since
-# FreeNAS uses memory filesystems for pretty much everything,
-# we don't have to worry about removing the flag file on shutdown/reboot.
+# tell whether or not we've already been here, done that.  
+#
+# NB: Since FreeNAS uses memory filesystems for pretty much
+# everything, we don't have to worry about removing the flag file on
+# shutdown/reboot.
 #
 sub rootPreConfig() {
     #
@@ -216,6 +236,7 @@ sub rootPreConfig() {
     return 0;    
 }
 
+# Nothing to do ...
 sub rootPreConfigNetwork($$$$)
 {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
@@ -233,11 +254,15 @@ sub rootPreConfigNetwork($$$$)
     return 0;
 }
 
+# Nothing to do.
 sub rootPostConfig($)
 {
     return 0;
 }
 
+#
+# Report back the current status of the blockstore slice.
+#
 sub vnodeState($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
@@ -246,7 +271,8 @@ sub vnodeState($$$$)
     my $out = VNODE_STATUS_UNKNOWN();
 
     # if an allocation exists to a blockstore slice, then we are "running".
-    if (allocExists($vnode_id)) {
+    my $slices = getSliceList();
+    if (exists($slices->{$vnode_id})) {
 	$out = VNODE_STATUS_RUNNING();
     }
     return ($err, $out);
@@ -417,7 +443,7 @@ sub vnodeReboot($$$$)
     return 0;
 }
 
-# Do everything in "destroy" function.
+# Do everything in the "destroy" function.
 sub vnodeTearDown($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
@@ -425,7 +451,8 @@ sub vnodeTearDown($$$$)
 }
 
 # Reverse the list of 'storageconfig' setup directives, then run the
-# corresponding teardown commands.
+# corresponding teardown commands.  Hold the lock while we do this
+# to avoid concurrency here.
 sub vnodeDestroy($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
@@ -438,7 +465,8 @@ sub vnodeDestroy($$$$)
 	     "Could not get the blkalloc lock after a long time!");
 	return -1;
     }
-    
+
+    # Run through blockstore removal commands (reversed creation list).
     foreach my $sconf (@revconfigs) {
 	my $cmd = $sconf->{'CMD'};
 	if (exists($teardown_cmds{$cmd})) {
@@ -454,6 +482,18 @@ sub vnodeDestroy($$$$)
 	    TBScriptUnlock();
 	    return -1;
 	}
+    }
+
+    # Lastly, remove the vlan inteface.  That we only have one interface
+    # and that it has the correct params was established at creation time.
+    my $ifcfg = (@{$vnconfig->{'ifconfig'}})[0];
+    my $vtag  = $ifcfg->{'VTAG'};
+    my $viface = $VLAN_IFACE_PREFIX . $vtag;
+    if (removeVlanInterface($viface) != 0) {
+	warn("*** ERROR: blockstore_vnodeDestroy: ".
+	     "Could not remove the vlan interface!");
+	TBScriptUnlock();
+	return -1;
     }
 
     TBScriptUnlock();
@@ -973,6 +1013,9 @@ sub createVlanInterface($$$$$) {
     return 0;
 }
 
+#
+# Set network parameters on an existing network interface (via FreeNAS CLI).
+#
 sub setVlanInterfaceIPAddress($$$$) {
     my ($vnode_id, $viface, $ip, $mask) = @_;
 
@@ -1011,8 +1054,38 @@ sub setVlanInterfaceIPAddress($$$$) {
 
 }
 
-sub unExportSlice($$$) {
+#
+# Remove previously created VLAN interface.  This will also unblumb it
+# from the network stack, so no need to call "interface del"
+#
+sub removeVlanInterface($) {
+    my ($viface,) = @_;
+
+    return -1
+	unless defined($viface);
+
+    my $rval = runFreeNASCmd($CLI_VERB_VLAN,
+			     "del $viface");
+
+    if ($rval != 0) {
+	warn("*** ERROR: blockstore_removeVlanInterface: ".
+	     "failure while removing vlan interface!");
+	return -1;
+    }
+
+    return 0;
+}
+
+sub unexportSlice($$$) {
     my ($vnode_id, $sconf, $vnconfig) = @_;
+
+    # Check that the slice exists.  Emit warning and return if not.
+    my $slices = getSliceList();
+    if (!exists($slices->{$vnode_id})) {
+	warn("*** WARNING: blockstore_unexportSlice: ".
+	     "Slice does not exist!");
+	return 0;
+    }
 
     # Should only be one ifconfig entry - checked earlier.
     my $ifcfg   = (@{$vnconfig->{'ifconfig'}})[0];
@@ -1031,12 +1104,13 @@ sub unExportSlice($$$) {
     $sconf->{'UUID'} =~ /^([-\.:\w]+)$/;
     my $iqn = $1; # untaint.
 
-    # Remove iSCSI target-to-extent association.
-    if (runFreeNASCmd($CLI_VERB_IST_ASSOC,
-		      "del $iqn $iqn") != 0)
+    # Remove iSCSI extent.  This will also zap the target-to-extent
+    # association.
+    if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
+		      "del $iqn") != 0)
     {
 	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "Failed to disassociate iSCSI target with extent!");
+	     "Failed to remove iSCSI extent!");
 	return -1;
     }
 
@@ -1046,15 +1120,6 @@ sub unExportSlice($$$) {
     {
 	warn("*** ERROR: blockstore_unexportSlice: ".
 	     "Failed to remove iSCSI target!");
-	return -1;
-    }
-
-    # Remove iSCSI extent
-    if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
-		      "del $iqn") != 0)
-    {
-	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "Failed to remove iSCSI extent!");
 	return -1;
     }
 
@@ -1080,24 +1145,33 @@ sub unExportSlice($$$) {
 
 sub deallocSlice($$$) {
     my ($vnode_id, $sconf, $vnconfig) = @_;
-
     my $priv = $vnconfig->{'private'};
 
-    my $slices = getSliceList();
-
-    # Non-fatal, but worthy of a log entry.
-    if (!exists($slices->{$vnode_id})) {
-	warn("*** WARNING: blockstore_deallocSlice: ".
-	     "slice does not exist: $vnode_id.");
-	return 0;
-    }
-
-    if ($slices->{$vnode_id}->{'bsid'} !~ /^([-:\.\w]+)$/) {
+    # Check that the associated storage pool exists.
+    my $pools = getPoolList();
+    my $bsid = untaintHostname($sconf->{'BSID'});
+    if (!exists($pools->{$bsid})) {
 	warn("*** ERROR: blockstore_deallocSlice: ".
-	     "bad characters in bsid!");
+	     "Pool does not exist: $bsid");
 	return -1;
     }
-    my $bsid = $1; # untaint.
+
+    # Get list of allocated slices and search for this one.
+    my @slices = parseFreeNASListing($CLI_VERB_VOLUME);
+    my $found = 0;
+    foreach $slice (@slices) {
+	if ($slice->{'vol_name'} eq "$bsid/$vnode_id") {
+	    $found = 1;
+	    last;
+	}
+    }
+
+    # If we don't find it, just emit a warning.
+    if (!$found) {
+	warn("*** WARNING: blockstore_deallocSlice: ".
+	     "Slice does not exist: $bsid/$vnode_id");
+	return 0;
+    }
 
     # deallocate slice.
     if (runFreeNASCmd($CLI_VERB_VOLUME, 

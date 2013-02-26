@@ -3442,11 +3442,11 @@ sub getstorageconfig($;$) {
 		warn("*** WARNING: invalid keyword in storageinfo: '$key'\n");
 		return -1;
 	    }
-	    if ($val !~ /^($fields{$key})$/) {
+	    if ($val !~ /^$fields{$key}$/) {
 		warn("*** WARNING: invalid value for $key in storageinfo: '$val'\n");
 		return -1;
 	    }
-	    $res{$key} = $1;
+	    $res{$key} = $val;
 	}
 	push(@ops, \%res);
     }
