@@ -41,6 +41,8 @@ ipod: ipod.c
 
 install: all $(INSTALL_SBINDIR)/ipod $(INSTALL_SBINDIR)/apod
 
+post-install:
+
 #
 # Control node installation (okay, plastic)
 #
