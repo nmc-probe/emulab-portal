@@ -155,9 +155,11 @@ sub parseSlicePath($);
 sub calcSliceSizes($);
 sub getPoolList();
 sub mkVlanIfaceName($$$);
+sub getIfConfig($);
+sub interfaceExists($);
 sub createVlanInterface($$);
 sub runBlockstoreCmds($$);
-sub removeVlanInterface($);
+sub removeVlanInterface($$);
 sub allocSlice($$$);
 sub exportSlice($$$);
 sub deallocSlice($$$);
@@ -442,10 +444,7 @@ sub vnodeDestroy($$$$){
 
     # Lastly, remove the vlan inteface.  That we only have one interface
     # and that it has the correct params was established at creation time.
-    my $ifcfg = (@{$vnconfig->{'ifconfig'}})[0];
-    my $vtag  = $ifcfg->{'VTAG'};
-    my $viface = $VLAN_IFACE_PREFIX . $vtag;
-    if (removeVlanInterface($viface) != 0) {
+    if (removeVlanInterface($vnode_id, $vnconfig) != 0) {
 	TBScriptUnlock();
 	fatal("blockstore_vnodeDestroy: ".
 	      "Could not remove the vlan interface!");
@@ -797,12 +796,11 @@ sub exportSlice($$$) {
 	return -1;
     }
     
-    # Extract info stored earlier.
-    my $priv = $vnconfig->{'private'};
-    my $bsid = $priv->{'bsid'};
+    # Extract bsid
+    my $bsid = untaintHostname($sconf->{'BSID'});
     if (!defined($bsid)) {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "blockstore ID not found - cannot proceed!");
+	     "blockstore ID not found or invalid!");
 	return -1;
     }
 
@@ -941,31 +939,69 @@ sub genSerial() {
 sub mkVlanIfaceName($$$) {
     my ($piface, $pmac, $vtag) = @_;
 
-    return undef
-	if !$vtag;
+    if ($vtag !~ /^(\d+)$/) {
+	return undef;
+    }
 
-    return $VLAN_IFACE_PREFIX . $vtag;
+    # return untainted interface name
+    return $VLAN_IFACE_PREFIX . $1;
 }
 
-#
-# Given a physical interface/mac and vlan tag, make a vlan interface.
-#
-sub createVlanInterface($$) {
-    my ($vnode_id, $vnconfig) = @_;
+# Helper function - get the _single_ ifconfig line passed in via tmcd.
+# If there is more than one, then there is a problem.
+sub getIfConfig($) {
+    my ($vnconfig,) = @_;
 
-    # Create the control network vlan interface
-    my $ifconfigs     = $vnconfig->{'ifconfig'};
+    my $ifconfigs = $vnconfig->{'ifconfig'};
+    
     if (@$ifconfigs != 1) {
-	warn("*** ERROR: blockstore_createVlanInterface: ".
+	warn("*** ERROR: blockstore_getIfConfig: ".
 	     "Wrong number of network interfaces.  There can be only one!");
-	return -1;
+	return undef;
     }
 
     my $ifc = @$ifconfigs[0];
 
     if ($ifc->{'ITYPE'} ne "vlan") {
-	warn("*** ERROR: blockstore_createVlanInterface: ".
+	warn("*** ERROR: blockstore_getIfConfig: ".
 	     "Interface must be of type 'vlan'!");
+	return undef;
+    }
+
+    return $ifc;
+}
+
+# Helper function - search output of FreeNAS vlan CLI command for the
+# presence of the interface name passed in.
+sub interfaceExists($) {
+    my ($viface,) = @_;
+
+    return 0
+	if !defined($viface);
+
+    my @ifaces = parseFreeNASListing($CLI_VERB_VLAN);
+
+    my $found = 0;
+    foreach my $iface (@ifaces) {
+	if ($viface eq $iface->{'vint'}) {
+	    $found = 1;
+	    last;
+	}
+    }
+
+    return $found;
+}
+
+#
+# Make a vlan interface for this node (tagged, vlan).
+#
+sub createVlanInterface($$) {
+    my ($vnode_id, $vnconfig) = @_;
+
+    my $ifc    = getIfConfig($vnconfig);
+    if (!defined($ifc)) {
+	warn("*** ERROR: blockstore_createVlanInterface: ".
+	     "No valid interface record found!");
 	return -1;
     }
 
@@ -993,13 +1029,6 @@ sub createVlanInterface($$) {
     }
     $pmac = $1;
 
-    if ($viface !~ /^([-\w]+)$/) {
-	warn("*** ERROR: blockstore_createVlanInterface: ". 
-	     "bad data in vlan interface name!");
-	return -1;
-    }
-    $viface = $1;
-
     if ($vtag !~ /^(\d+)$/) {
 	warn("*** ERROR: blockstore_createVlanInterface: ". 
 	     "bad data in vlan tag!");
@@ -1020,6 +1049,13 @@ sub createVlanInterface($$) {
 	return -1;
     }
     $mask = libutil::CIDRmask($1);
+
+    # Kick back the request to create if the interface is already there.
+    if (interfaceExists($viface)) {
+	warn("*** ERROR: blockstore_createVlanInterface: ".
+	     "Interface already exists!");
+	return -1;
+    }
 
     # First, create the vlan interface:
     my $rval = runFreeNASCmd($CLI_VERB_VLAN,
@@ -1049,12 +1085,33 @@ sub createVlanInterface($$) {
 # Remove previously created VLAN interface.  This will also unblumb it
 # from the network stack, so no need to call "interface del"
 #
-sub removeVlanInterface($) {
-    my ($viface,) = @_;
+sub removeVlanInterface($$) {
+    my ($vnode_id, $vnconfig) = @_;
 
-    return -1
-	unless defined($viface);
+    # Fetch the interface record for this pseudo-VM
+    my $ifc    = getIfConfig($vnconfig);
+    if (!defined($ifc)) {
+	warn("*** ERROR: blockstore_removeVlanInterface: ".
+	     "No valid interface record found!");
+	return -1;
+    }
 
+    my $vtag   = $ifc->{'VTAG'};
+    my $pmac   = $ifc->{'PMAC'};
+    my $piface = $ifc->{'IFACE'};
+    my $ip     = $ifc->{'IPADDR'};
+    my $mask   = $ifc->{'IPMASK'};
+
+    # construct vlan interface name
+    my $viface = mkVlanIfaceName($piface,$pmac,$vtag);
+
+    if (!interfaceExists($viface)) {
+	warn("*** WARNING: blockstore_removeVlanInterface: ".
+	     "Interface does not exist.");
+	return 0;
+    }
+
+    # Delete it!
     my $rval = runFreeNASCmd($CLI_VERB_VLAN,
 			     "del $viface");
 
