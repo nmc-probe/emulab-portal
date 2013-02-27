@@ -270,18 +270,19 @@ sub vnodeState($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
-    # Do we exist?
-    my $slices = getSliceList();
-    if (exists($slices->{$vnode_id})) {
-	# We do, but have we been visited yet (i.e., are we 'booted'?)
-	if (!exists($vnstates{$vnode_id})) {
+    # Initialize our state if necessary.
+    if (!exists($vnstates{$vnode_id})) {
+	# Do we exist?
+	my $slices = getSliceList();
+	if (exists($slices->{$vnode_id})) {
 	    $vnstates{$vnode_id} = VNODE_STATUS_STOPPED();
+	} else {
+	    # We don't seem to exist...
+	    $vnstates{$vnode_id} = VNODE_STATUS_UNKNOWN();
 	}
-	# We've been visited.  Our state should be managed elsewhere now.
-    } else {
-	# We don't seem to exist...
-	$vnstates{$vnode_id} = VNODE_STATUS_UNKNOWN();
     }
+
+    # Once initialized, further state management happens elsewhere.
 
     return $vnstates{$vnode_id};
 }
@@ -377,14 +378,18 @@ sub vnodeBoot($$$$)
     # state transitions...
     libutil::setState("BOOTING");
     libutil::setState("ISUP");
-    $vnstates{$vnode_id} = VNODE_STATUS_RUNNING();
 
     return 0;
 }
 
-# Nothing to do.
+# Just a wee smidge of state management here.  Mark that the
+# blockstore pseudo-VM is up and running since 'vnodeBoot' is run
+# inside a forked process, where such memory state changes are lost.
 sub vnodePostConfig($)
 {
+    my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+
+    $vnstates{$vnode_id} = VNODE_STATUS_RUNNING();
     return 0;
 }
 
@@ -398,7 +403,6 @@ sub vnodeReboot($$$$)
     libutil::setState("SHUTDOWN");
     libutil::setState("BOOTING");
     libutil::setState("ISUP");
-    $vnstates{$vnode_id} = VNODE_STATUS_RUNNING();
 
     return 0;
 }
@@ -673,7 +677,7 @@ sub calcSliceSizes($) {
 
 	if ($type eq "zvol") {
 	    foreach my $zvol (@zvols) {
-		print STDERR "DEBUG: volume: ". $zvol->{'vol_name'} ."\n";
+		#print STDERR "DEBUG: volume: ". $zvol->{'vol_name'} ."\n";
 		if ($zvol->{'vol_name'} eq "$bsid/$vnode_id") {
 		    $size = $zvol->{'vol_size'};
 		    last;
