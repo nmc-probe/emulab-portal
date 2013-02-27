@@ -138,9 +138,6 @@ if ($UID != 0) {
 # Tell the library what vnode we are messing with.
 libsetup_setvnodeid($vnodeid);
 
-# XXX XXX XXX: testing!
-libtmcc::configtmcc("portnum",7778);
-
 # Can set this after above line. 
 my $RUNNING_FILE = CONFDIR() . "/running";
 

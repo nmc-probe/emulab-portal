@@ -110,7 +110,7 @@ sub mkvnconfig($) {
     my $tmp;
     my %attrs;
 
-    libtmcc::configtmcc("portnum",7778);
+    #libtmcc::configtmcc("portnum",7778);
 
     fatal("Could not get vnode config for $vnodeid")
 	if (getgenvnodeconfig(\%tmp));
