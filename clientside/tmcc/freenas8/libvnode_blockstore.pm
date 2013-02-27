@@ -158,12 +158,12 @@ sub mkVlanIfaceName($$$);
 sub getIfConfig($);
 sub interfaceExists($);
 sub createVlanInterface($$);
-sub runBlockstoreCmds($$);
+sub runBlockstoreCmds($$$);
 sub removeVlanInterface($$);
-sub allocSlice($$$);
-sub exportSlice($$$);
-sub deallocSlice($$$);
-sub unexportSlice($$$);
+sub allocSlice($$$$);
+sub exportSlice($$$$);
+sub deallocSlice($$$$);
+sub unexportSlice($$$$);
 
 # Dispatch table for storage configuration commands.
 my %setup_cmds = (
@@ -317,7 +317,7 @@ sub vnodeCreate($$$$)
     }
 
     # Create blockstore slice
-    if (runBlockstoreCmds($vnode_id, $vnconfig) != 0) {
+    if (runBlockstoreCmds($vnode_id, $vnconfig, $private) != 0) {
 	TBScriptUnlock();
 	fatal("blockstore_vnodeCreate: ".
 	      "Blockstore slice creation failed!");
@@ -430,7 +430,8 @@ sub vnodeDestroy($$$$){
     foreach my $sconf (@revconfigs) {
 	my $cmd = $sconf->{'CMD'};
 	if (exists($teardown_cmds{$cmd})) {
-	    if ($teardown_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
+	    if ($teardown_cmds{$cmd}->($vnode_id, $sconf, 
+				       $vnconfig, $private) != 0) {
 		TBScriptUnlock();
 		fatal("blockstore_vnodeDestroy: ".
 		      "Failed to execute teardown command: $cmd");
@@ -566,14 +567,15 @@ sub parseFreeNASListing($) {
 # Run through list of storage commands and execute them, checking
 # for errors.  (Should have a lock before doing this.)
 #
-sub runBlockstoreCmds($$) {
-    my ($vnode_id, $vnconfig) = @_;
+sub runBlockstoreCmds($$$) {
+    my ($vnode_id, $vnconfig, $private) = @_;
     my $sconfigs = $vnconfig->{'storageconfig'};
     
     foreach my $sconf (@$sconfigs) {
 	my $cmd = $sconf->{'CMD'};
 	if (exists($setup_cmds{$cmd})) {
-	    if ($setup_cmds{$cmd}->($vnode_id, $sconf, $vnconfig) != 0) {
+	    if ($setup_cmds{$cmd}->($vnode_id, $sconf, 
+				    $vnconfig, $private) != 0) {
 		warn("*** ERROR: blockstore_runBlockstoreCmds: ".
 		     "Failed to execute setup command: $cmd");
 		return -1;
@@ -732,10 +734,8 @@ sub getPoolList() {
 
 # Allocate a slice based on information from Emulab Central
 # XXX: Do 'sliceconfig' parameter checking.
-sub allocSlice($$$) {
-    my ($vnode_id, $sconf, $vnconfig) = @_;
-
-    my $priv = $vnconfig->{'private'};
+sub allocSlice($$$$) {
+    my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
 
     my $slices = getSliceList();
     my $pools  = getPoolList();
@@ -752,7 +752,7 @@ sub allocSlice($$$) {
     my $destpool;
     if (exists($pools->{$bsid})) {
 	$destpool = $pools->{$bsid};
-	$priv->{"bsid"} = $bsid; # save for future calls.
+	$priv->{'bsid'} = $bsid; # save for future calls.
     } else {
 	warn("*** ERROR: blockstore_allocSlice: ".
 	     "Requested blockstore not found: $bsid!");
@@ -782,8 +782,8 @@ sub allocSlice($$$) {
 }
 
 # Setup device export.
-sub exportSlice($$$) {
-    my ($vnode_id, $sconf, $vnconfig) = @_;
+sub exportSlice($$$$) {
+    my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
 
     # Should only be one ifconfig entry - checked earlier.
     my $ifcfg   = (@{$vnconfig->{'ifconfig'}})[0];
@@ -797,10 +797,10 @@ sub exportSlice($$$) {
     }
     
     # Extract bsid
-    my $bsid = untaintHostname($sconf->{'BSID'});
+    my $bsid = $priv->{'bsid'};
     if (!defined($bsid)) {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "blockstore ID not found or invalid!");
+	     "blockstore ID not found!");
 	return -1;
     }
 
@@ -1124,8 +1124,8 @@ sub removeVlanInterface($$) {
     return 0;
 }
 
-sub unexportSlice($$$) {
-    my ($vnode_id, $sconf, $vnconfig) = @_;
+sub unexportSlice($$$$) {
+    my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
 
     # Check that the slice exists.  Emit warning and return if not.
     my $slices = getSliceList();
@@ -1191,9 +1191,8 @@ sub unexportSlice($$$) {
     return 0;
 }
 
-sub deallocSlice($$$) {
-    my ($vnode_id, $sconf, $vnconfig) = @_;
-    my $priv = $vnconfig->{'private'};
+sub deallocSlice($$$$) {
+    my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
 
     # Check that the associated storage pool exists.
     my $pools = getPoolList();

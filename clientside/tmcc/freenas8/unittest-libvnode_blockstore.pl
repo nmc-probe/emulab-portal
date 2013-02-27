@@ -72,7 +72,8 @@ my %sconf = (
     'VOLNAME' => "d-1",
     'VOLSIZE' => "51200",
     );
-libvnode_blockstore::allocSlice($vnodeid, \%sconf, $vnconfig);
+libvnode_blockstore::allocSlice($vnodeid, \%sconf, $vnconfig,
+				$vnconfig->{'private'});
 
 # Try to export it!
 my %sconf2 = (
@@ -86,7 +87,8 @@ my %sconf2 = (
     'UUID' => "iqn.2000-10.net.emulab:tbres:sandev:d-1",
     'UUID_TYPE' => "iqn",
     );
-libvnode_blockstore::exportSlice($vnodeid, \%sconf2, $vnconfig);
+libvnode_blockstore::exportSlice($vnodeid, \%sconf2, $vnconfig, 
+				 $vnconfig->{'private'});
 
 sub mkvnconfig($) {
     my $vnodeid = shift;
