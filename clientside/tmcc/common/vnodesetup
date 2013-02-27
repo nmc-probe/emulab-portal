@@ -128,6 +128,9 @@ my $sysname = `uname -s`;
 chomp($sysname);
 my $islinux = ($sysname eq "Linux");
 
+# ...
+my $isfreenas = -e "/etc/rc.freenas" ? 1 : 0;
+
 #
 # Parse command arguments. Once we return from getopts, all that should be
 # left are the required arguments.
@@ -419,7 +422,7 @@ if ($doplab) {
     $GID = 0;
     ($pid, $eid, $vname) = vnodeplabsetup($vnodeid);
 }
-elsif ($islinux) {
+elsif ($islinux || $isfreenas) {
     ($pid, $eid, $vname) = genvnodesetup($vnodeid);
 }
 else {
@@ -483,7 +486,7 @@ if ($dojail) {
 	my $options      = "";
 	my $mkv;
 
-	if ($islinux) {
+	if ($islinux || $isfreenas) {
 	    $mkv = "mkvnode.pl";
 	}
 	else {
