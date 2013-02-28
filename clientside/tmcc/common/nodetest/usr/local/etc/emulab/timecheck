@@ -1,6 +1,7 @@
 #! /bin/sh
 
-source getfromtb.sh
+ntpserver="155.98.32.70"
+#ntpserver="time.xmission.com"
 
 os=`uname`
 host=`hostname`
@@ -19,45 +20,35 @@ fi
 tmplog=/tmp/.$$.log
 cat /dev/null > ${tmplog}
 
-set +x
+#set +x
 #exit on unbound var
 #set -u
 
 {
 case $os in
-    Linux )
-#	unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
-#	meminfo=${d[1]}${d[2]}
-	;;
-    FreeBSD )
-#	unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
-#	w=${d[4]} ; x=${w#(}
-#	z=${d[5]} ; y=${z%)}
-#	meminfo=$x$y
+    Linux | FreeBSD )
+	unset -v d ; declare -a d=($(ntpdate -q $ntpserver))
+	for ((idx=0; idx<${#d[*]}; idx++)) ; do
+	    [[ "${d[idx]}" == "offset" ]] && break
+	done
+	((++idx))
+	z=${d[idx]}
+	offset=$(echo ${z} | tr -d ,)
+	[[ $offset < 0 ]] && a=$(echo "-(10 * $offset)" | bc) || a=$(echo "(10 * $offset)" | bc)
+	[[ $a > 1 ]] && failed=FAIL
+	[[ $failed ]] && echo "Time check failed offset $offset greater then 1 second " || echo "Time check passed offset $offset"
 	;;
     * )
 	echo "os $os unknown"
-	meminfo="0"
+	offset="-1"
 	failed=FAIL
 	;;
 esac
-#echo -n "Found phys memory $meminfo"
 } >> ${tmplog} 2>&1
-
-#tbinfo=$(getfromtb meminfo $host)
-
-#{
-#if [ "$tbinfo" == "$meminfo" ] ; then
- #   echo " equals node inventory $tbinfo"
-#else
-#    echo " does not equals node inventory $tbinfo"    
-#    failed=FAIL
-#fi
-#} >> ${tmplog} 2>&1
 
 echo "timecheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo ". . . timecheck OK" || echo ". . . timecheck FAILED"
+[[ -z ${failed} ]] && echo ". . . timecheck offset $offset OK" || echo ". . . timecheck offset $offset FAILED"
 
 exit 0
