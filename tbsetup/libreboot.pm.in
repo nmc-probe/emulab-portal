@@ -72,7 +72,7 @@ my $BATCHSLEEP	= 5;
 #   ($REBOOTTIMO + $PINGWAIT) and ($REBOOTTIMO + 2 * $PINGWAIT) seconds.
 # unresponsive to ipod, returns after ($REBOOTTIMO + 2 * $PINGWAIT) seconds.
 #
-# With current settings, this is between "immediately" and 60 seconds
+# With current settings, this is between "immediately" and 80 seconds
 # per node. In the common cases where nodes are in PXEWAIT, alive and
 # well (ssh running), or completely dead it takes around 10 seconds max.
 # Ironically, the slowest case if for the "alive and well" scenario where
@@ -102,7 +102,7 @@ my $MAXWAITTIME	= (6 * 60);
 # Wait times for a node to stop pinging.
 # Both regular case and when the prepare script has to be run.
 #
-my $PINGWAIT	= 20;
+my $PINGWAIT	= 30;
 my $PREPAREWAIT	= 200;
 
 #
@@ -423,13 +423,14 @@ sub nodereboot($$)
 	    $i++;
 	}
 
+	info("BATCH: ". ($powercycle ? "power cycling " : "rebooting ").
+	     join(" ", @batch));
 	if ($powercycle) {
 	    #
 	    # In powercyle mode, call the power program for the whole
 	    # batch, and continue on. We do not wait for them to go down or
 	    # reboot.
 	    #
-	    info("*** reboot: Powercycle mode: power cycle ".join(" ",@batch));
 	    if (PowerCycle(@batch)) {
 		tberror "Powercycle failed for one or more of " .
 		    join(" ",@batch);
@@ -456,8 +457,7 @@ sub nodereboot($$)
 	# moment.
 	#
 	if (@sortednodes) {
-	    print STDERR "reboot: Pausing to give some nodes time to reboot\n"
-		if ($debug);
+	    info("BATCH: pausing for ${BATCHSLEEP}s");
 	    sleep($BATCHSLEEP);
 	}
     }
@@ -625,7 +625,7 @@ sub nodereboot($$)
 #
 sub RebootNode {
     my ($nodeobject, $reconfig, $killmode, $rebootmode, $prepare) = @_;
-    my ($status, $syspid, $mypid, $didipod, $nodestate);
+    my ($status, $syspid, $mypid, $nodestate);
     my $pc = $nodeobject->node_id();
 
     #
@@ -658,9 +658,7 @@ sub RebootNode {
     # the -k option to force a power cycle.
     #
     if ($nodeobject->GetEventState(\$nodestate)) {
-	info("$pc has no event state: power cycle");
-	print STDERR "*** reboot ($pc): no event state; will power cycle.\n"
-	    if $debug;
+	info("*** $pc: no event state, power cycling");
 	
 	# Signal to the called that the node needs to be power cycled
 	return -2;
@@ -674,9 +672,7 @@ sub RebootNode {
 	# is in waitmode, but not responding to the wakeups.
 	#
 	if ($killmode) {
-	    info("$pc: in $nodestate: but power cycling in killmode");
-	    print STDERR "reboot ($pc): in $nodestate, ".
-		"but power cycling in killmode.\n" if $debug;
+	    info("$pc: in $nodestate, but power cycling in killmode");
 	    
 	    # Signal to the caller that the node needs to be power cycled
 	    return -2;
@@ -693,13 +689,13 @@ sub RebootNode {
 	# The aux program sends the event to stated ...
 	#
 	my $reqarg = ($rebootmode ? "-r" : "-q");
-	my $optarg = ($debug ? "-dd" : "");
+	#my $optarg = ($debug ? "-dd" : "");
+	my $optarg = "";
 	
-	print STDERR "reboot ($pc): in $nodestate: sending wakeup command.\n"
-	    if $debug;
+	info("$pc: in $nodestate, sending PXEWAKEUP");
 	system("$bisend $optarg $reqarg $pc");
 	if ($?) {
-	    info("$pc: PXEWAKEUP failed ... power cycle");
+	    info("$pc: PXEWAKEUP failed, power cycling");
 	    tbnotice "$pc: PXEWAKEUP failed; will power cycle.\n";
 	    
 	    # Signal to the caller that the node needs to be power cycled
@@ -724,11 +720,11 @@ sub RebootNode {
     #
     if (! DoesPing($pc, 0, 1)) {
         if ($nodestate eq TBDB_NODESTATE_POWEROFF) {
-            info("$pc powered off: will power on");
+            info("$pc: powered off, will power on");
             tbnotice "$pc powered off; will power on.";
             exit(3);
         }
-	info("$pc appears dead: power cycle");
+	info("$pc: appears dead, power cycle");
 	tbnotice "$pc appears dead; will power cycle.";
 	
 	# Signal to the parent that the node needs to be power cycled
@@ -740,8 +736,7 @@ sub RebootNode {
     # Machine is pingable at least. Try to reboot it gracefully,
     # or power cycle anyway if that does not work.
     #
-    print STDERR "reboot ($pc): Trying ssh ",
-                 ($reconfig ? "reconfig" : "reboot"), ".\n" if $debug;
+    info("$pc: trying ssh ".($reconfig ? "reconfig" : "reboot"));
 
     #
     # Must change our real UID to root so that ssh will work. We save the old
@@ -768,8 +763,7 @@ sub RebootNode {
 	    # FreeBSD for example.
 	    #
 	    my $stat = $?;
-	    print STDERR "reboot ($pc): reconfig returned ", ($stat >> 8), ".\n"
-		if $debug;
+	    info("$pc: reconfig returned ".($stat >> 8));
 
 	    #
 	    # Any failure, revert to plain reboot below.
@@ -817,6 +811,8 @@ sub RebootNode {
 	}
     }
 
+    my $didipod = 0;
+
     #
     # Run an ssh command in a child process, protected by an alarm to
     # ensure that the ssh is not hung up forever if the machine is in
@@ -842,8 +838,7 @@ sub RebootNode {
 	# of seconds.
 	#
 	if ($timedout) {
-	    info("$pc: ssh reboot failed (hung) ... sending ipod");
-	    print STDERR "*** reboot ($pc): wedged, sending ipod.\n" if $debug;
+	    info("$pc: ssh reboot hung, sending ipod");
 
 	    if ($nodeobject->SendApod(1) == 0) {
 		$didipod = 1;
@@ -854,9 +849,7 @@ sub RebootNode {
 	# FreeBSD for example.
 	#
 	else {
-	    info("$pc: ssh reboot ($stat)");
-	    print STDERR "reboot ($pc): reboot returned $stat.\n" if $debug;
-	    $didipod = 0;
+	    info("$pc: ssh reboot returned $stat");
 	}
     }
     else {
@@ -880,8 +873,9 @@ sub RebootNode {
     # goes silent, whack it with a bigger stick.
     #
     my $wtime = ($prepare ? $PREPAREWAIT : $PINGWAIT);
-    print STDERR "reboot ($pc): waiting for $wtime for reboot.\n" if $debug;
+    info("$pc: waiting ${wtime}s for reboot");
     if (WaitTillDead($pc, $wtime) == 0) {
+	info("$pc: rebooted");
 	my $state = TBDB_NODESTATE_SHUTDOWN;
 	TBSetNodeEventState($pc,$state);
 	exit(0);
@@ -895,16 +889,14 @@ sub RebootNode {
     # power cycle capability to fall back on.
     #
     if (! $didipod) {
-	info("$pc: ssh reboot failed ... sending ipod");
-	print STDERR "*** reboot ($pc): ssh reboot failed, sending ipod\n"
-	    if ($debug);
+	info("$pc: ssh reboot failed, sending ipod");
 	$UID = 0;
 	my $rv = $nodeobject->SendApod(1);
 	$UID = $oldUID;
 	if ($rv == 0) {
-	    print STDERR "reboot ($pc): waiting for $PINGWAIT for ipod.\n"
-		if $debug;
+	    info("$pc: waiting ${PINGWAIT}s for ipod");
 	    if (WaitTillDead($pc, $PINGWAIT) == 0) {
+		info("$pc: rebooted");
 		my $state = TBDB_NODESTATE_SHUTDOWN;
 		TBSetNodeEventState($pc,$state);
 		exit(0);
@@ -912,9 +904,7 @@ sub RebootNode {
 	}
     }
 
-    info("$pc: ipod failed ... power cycle");
-    print STDERR "*** reboot ($pc): ipod failed, will power cycle.\n"
-	if $debug;
+    info("$pc: ipod failed, power cycling");
     exit(2);
 }
 
@@ -1041,7 +1031,8 @@ sub WaitTillDead {
 	    return 0;
 	}
     }
-    print STDERR "reboot ($pc): still alive after $waittime seconds.\n" if $debug;
+    print STDERR "reboot ($pc): still alive after $waittime seconds.\n"
+	if $debug > 1;
     return 1;
 }
 
@@ -1094,14 +1085,18 @@ sub DoesPing {
     return 1;
 }
 
-
 sub info($) {
     my $message = shift;
-    # Print out log entries like this:
+
+    # Time stamp log messages like:
     # Sep 20 09:36:00 $message
+    my $tstamp = strftime("%b %e %H:%M:%S", localtime);
+
     open(LOG,">> $logfile");
-    print LOG strftime("%b %e %H:%M:%S",localtime)." $message\n";
+    print LOG "$tstamp $message\n";
     close(LOG);
+
+    print STDERR "$message\n" if ($debug);
 }
 
 #
