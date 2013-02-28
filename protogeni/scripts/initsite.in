@@ -183,10 +183,7 @@ Phase "ports", "Installing ports", sub {
 	    if (!ExecQuiet("$PKG_INFO -E '${pkgname}*'")) {
 		PhaseSkip("Already installed");
 	    }
-	    chdir "$pkgdir" or
-		PhaseFail("Unable to change to cd to $pkgdir");
-
-	    ExecQuietFatal("make -DBATCH install");
+	    ExecQuietFatal("cd $pkgdir; make -DBATCH install");
 	};
     }
 };
@@ -463,7 +460,8 @@ Phase "initcerts", "Creating PG certificates", sub {
 #
 if (!$asch) {
     Phase "getcacerts", "Getting current CA bundle", sub {
-	ExecQuietFatal("$GETCACERTS -l -p");
+	# Use -f cause testbed is probably shutdown.
+	ExecQuietFatal("$GETCACERTS -l -p -f");
     };
     #
     # This cron entry will autoupdate the CA/CRL certs by getting them from
