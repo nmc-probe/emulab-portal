@@ -1709,7 +1709,7 @@ sub Volunteers($)
 	$node->_maxwait($node->_maxwait() + 300)
 	    if ($node->_reloaded());
 	
-	$node->_seteupstatus($libossetup::SETUP_OKAY);
+	$node->_setupstatus($libossetup::SETUP_OKAY);
     }
     return @nodelist;
 }
@@ -2011,10 +2011,12 @@ sub WaitDone($@)
 
 #####################################################################
 #
-# Place holder for blockstore
+# Blockstore pseudo-VMs - treat like other VMs since the client-side
+# is coded to emulate a VM (in the interest of simplified
+# handling).
 #
 package libossetup_blockstore;
-use base qw(libossetup_handler);
+use base qw(libossetup_virtnode);
 
 use libdb;
 use libtestbed;
@@ -2040,19 +2042,7 @@ sub AddNode($$)
 {
     my ($self, $node) = @_;
 
-    print "Will skip blockstore $node ISUP wait.\n";
-
     return $self->SUPER::AddNode($node);
-}
-
-#
-# We do not currently do anything with blockstores; no waiting for ISUP. 
-#
-sub Volunteers($)
-{
-    my ($self) = @_;
-
-    return ();
 }
 
 1;
