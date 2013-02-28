@@ -70,6 +70,7 @@ my $MAINBUNDLE	  = "$TB/etc/genica.bundle";
 my $TEMPBUNDLE	  = "$TB/etc/unapproved.bundle";
 my $CERTDIR	  = "$TB/etc/genicacerts";
 my $GENCABUNDLE   = "$TB/sbin/gencabundle";
+my $GENCRLBUNDLE  = "$TB/sbin/gencrlbundle";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -460,6 +461,9 @@ sub Regenerate($$)
 	# Child runs this. 
 	system("$GENCABUNDLE") == 0
 	    or fatal("$GENCABUNDLE failed");
+	# Must do this too since a crl might no longer be valid.
+	system("$GENCRLBUNDLE") == 0
+	    or fatal("$GENCRLBUNDLE failed");
     }
     return 0;
 }
