@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -611,7 +611,7 @@ main(int argc, char **argv)
 
 	    sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	    if (sched_setscheduler(0, SCHED_FIFO, &sp) < 0) {
-		pwarning("main: cannot set real-time priority\n");
+		pwarning("main: cannot set real-time priority");
 	    }
 	}
 #endif
