@@ -5,6 +5,8 @@
 
 # first arg is the log output file, if not set then /tmp/...
 
+source /usr/local/etc/emulab/getfromtb.sh
+
 SMARTCTL=""
 failed=""
 
@@ -34,7 +36,7 @@ set +x
 	if [ -e "/usr/sbin/smartctl" ]; then
 	    SMARTCTL="/usr/sbin/smartctl"
 	else
-	    [[ "$os" == "Linux" ]] && apt-get install smartmontools
+#	    [[ "$os" == "Linux" ]] && apt-get -y install smartmontools
 	    [[ "$os" == "FreeBSD" ]] && echo "FreeBSD: need smartcrtl installed"
 	fi
     fi
@@ -43,7 +45,8 @@ set +x
 	if [ -e "/usr/sbin/smartctl" ]; then
 	    SMARTCTL="/usr/sbin/smartctl"
 	else	    
-	    echo "smartmontools is missing and install failed"
+#	    echo "smartmontools is missing and install failed"
+	    echo "smartmontools is missing "
 	    failed="FAIL"
 	fi
     fi

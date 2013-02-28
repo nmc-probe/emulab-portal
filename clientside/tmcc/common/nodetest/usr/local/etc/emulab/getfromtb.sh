@@ -16,12 +16,14 @@ case ${d[0]} in
 #	    boss.emulab.net ) echo "4096MB" ;;
 #	    pc472 ) echo "12163328kB" ;;
 #	    pc219 ) echo "1990948kB" ;;
-	    pc286 ) echo "2GiB" ;;
-	    pc219 ) echo "2GiB" ;;
-	    ibapah ) echo "8GiB" ;;
-	    boss.emulab.net ) echo "4GiB" ;;
-	    pc472 ) echo "12GiB" ;;
-	    * ) echo "0" ;;
+
+	    pc4 | pc7 ) echo "256MiB" ;;
+	    pc126 | pc121 ) echo "512MiB" ;;
+	    pc286 | pc219 ) echo "2048MiB" ;;
+	    ibapah ) echo "8096MiB" ;;
+	    boss.emulab.net ) echo "4096MiB" ;;
+	    pc472 ) echo "12288MiB" ;;
+	    * ) echo "-1" ;;
 	esac
 	;;
     cpuinfo )

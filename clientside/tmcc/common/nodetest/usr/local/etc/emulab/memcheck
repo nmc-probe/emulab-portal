@@ -1,10 +1,14 @@
 #! /bin/bash
 
 source /usr/local/etc/emulab/getfromtb.sh
+#source /home/dreading/r710diskstudies/usr/local/etc/emulab/getfromtb.sh
 
-KILO=1024
-MEG=1048576
-GIG=1073741824
+# smallest chunk to count with, in MiB
+SmallestCNT=256
+KiB=1024
+KiB256=$(($KiB*${SmallestCNT}))  #smallest chunk to count with
+MiB=1048576
+GiB=1073741824
 
 os=`uname`
 host=`hostname`
@@ -30,48 +34,69 @@ set +x
 #how big is this
 hbis() {
     number=$1
-    
+#number="250260kB"
+#number="443124kB"
+#number="4000848kB"
+#number="8110204kB"
+    base=""
+
+    # what units is the number in
     x=$number
-    y=$(echo ${x,,})
+    y=$(echo ${x,,}) #lower case letters
+
     if [ ${y%%m*} != ${y} ] ; then
-	    # in mego-bytes
-	mego=${y%%m*}
-	mego=$((${y%%m*}*$MEG))
-	megs=0
-	for ((x=$MEG; ; x+=$MEG)) ; do
-	    ((++megs))
-	    if [ $x -ge $mego ] ; then
-		break
-	    fi
-	done
-	#echo ${megs}M
-	echo $((${megs}/$KILO))G
+	# its in megs
+	base="m"
+	# strip letters
+	number=${y%%m*}
+	bytes=$((${number}*$MiB))
     elif [ ${y%%g*} != ${y} ] ; then
-	gigo=$((${y%%g*}*$GIG))
-	gigs=0
-	for ((x=$GIG; ; x+=$GIB)) ; do
-	    ((++gigs))
-	    if [ $x -ge $gigo ] ; then
-		break
-	    fi
-	done
-	echo ${gigs}G
+	base="g"
+	number=${y%%g*}
+	bytes=$((${number}*$GiB))
     elif [ ${y%%k*} != ${y} ] ; then
-	kilo=${y%%k*}
-	end=$(($kilo+$MEG))
-	kilos=0
-	for ((x=$KILO; ; x+=$KILO)) ; do
-	    ((++kilos))
-	    if [ $x -ge $end ] ; then
-		break
-	    fi
-	done
-#	echo ${kilos}M
-	echo $(($kilos/$KILO))G
+	number=${y%%k*}
+	base="k"
+	bytes=$((${number}*$KiB))
     else
-	echo "hibs enternal error"
-	exit 1
+	base="b"
+	number=${y%%[a-z]*}
+	bytes=$number
     fi
+
+    # return numbers in MiB
+    case $base in
+	g )
+	    c=0
+	    for ((x=$GiB;;x+=$GiB)) ; do
+		((++c))
+		[[ $x -ge $bytes ]] && break
+	    done
+	    echo ${c}GiB
+	    ;;
+	m )
+	    c=0
+	    for ((x=$MiB;;x+=$MiB)) ; do
+		((++c))
+		[[ $x -ge $bytes ]] && break
+	    done
+	    echo ${c}MiB
+	    ;;
+
+	k )
+	    c=0
+	    for ((x=${KiB256};;x+=${KiB256})) ; do
+		((++c))
+		[[ $x -ge $number ]] && break
+	    done
+	    [[ $number -ge $(($MiB*4)) ]] && ((++c))
+	    echo $((${c}*${SmallestCNT}))MiB
+	    ;;
+	
+	b )
+	    echo ${number}BiB
+	    ;;
+    esac
 }
 
 {
@@ -102,7 +127,7 @@ echo -n "Found phys memory $meminfo"
 tbinfo=$(getfromtb meminfo $host)
 a=${tbinfo,,} ; b=${meminfo,,}
 x=${a%%g*} y=${b%%g*}
-#echo meminfo:$meminfo x=$x tbinfo:$tbinfo y=$y
+echo meminfo:$meminfo x=$x tbinfo:$tbinfo y=$y
 
 {
 if [ "$x" == "$y" ] ; then

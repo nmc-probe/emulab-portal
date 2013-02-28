@@ -1,42 +1,40 @@
 #!/bin/bash
 
-machines="pc219 pc286 pc472"
+domain=".nodecheck-image.emulab-ops.emulab.net"
+machines="pc3000freebsd pc3000ubuntu pc850freebsd pc850ubuntu pc600freebsd pc600ubuntu"
 
-linux="pc219 pc472"
-bsd="pc286"
+linux="pc3000ubuntu pc850ubuntu pc600ubuntu"
+bsd="pc3000freebsd pc850freebsd pc600freebsd"
 
 utils="diskcheck diskspeedcheck memcheck cpucheck getfromtb.sh timecheck niccheck"
 
 for i in $linux
 do
-	echo $i:rc.nodecheck
-	sudo scp -q -p rc/rc.nodecheck_perl $i:/usr/local/etc/emulab/rc/rc.nodecheck
-	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.nodecheck
-	sudo ssh $i chgrp root /usr/local/etc/emulab/rc/rc.nodecheck
+	echo ${i}${domain}:rc.nodecheck
+	sudo scp -q -p rc/rc.nodecheck_perl ${i}${domain}:/usr/local/etc/emulab/rc/rc.nodecheck
+	sudo ssh ${i}${domain} chown root /usr/local/etc/emulab/rc/rc.nodecheck
+	sudo ssh ${i}${domain} chgrp root /usr/local/etc/emulab/rc/rc.nodecheck
 done
 
 for i in $bsd
 do
-	echo $i:rc.nodecheck
-	sudo scp -q -p rc/rc.nodecheck_sh $i:/usr/local/etc/emulab/rc/rc.nodecheck
-	sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.nodecheck
-	sudo ssh $i chgrp wheel /usr/local/etc/emulab/rc/rc.nodecheck
+	echo ${i}${domain}:rc.nodecheck
+	sudo scp -q -p rc/rc.nodecheck_sh ${i}${domain}:/usr/local/etc/emulab/rc/rc.nodecheck
+	sudo ssh ${i}${domain} chown root /usr/local/etc/emulab/rc/rc.nodecheck
+	sudo ssh ${i}${domain} chgrp wheel /usr/local/etc/emulab/rc/rc.nodecheck
 done
 
 
 for i in $machines
 do
-    echo $i:${utils}
-    sudo rsync -q -a ${utils} $i:/usr/local/etc/emulab
-    sudo ssh $i "cd /usr/local/etc/emulab ; chown root ${utils} "
-    sudo ssh $i "cd /usr/local/etc/emulab ; chgrp 0 ${utils} "
+    echo ${i}${domain}:${utils}
+    sudo rsync -q -a ${utils} ${i}${domain}:/usr/local/etc/emulab
+    sudo ssh ${i}${domain} "cd /usr/local/etc/emulab ; chown root ${utils} "
+    sudo ssh ${i}${domain} "cd /usr/local/etc/emulab ; chgrp 0 ${utils} "
 
-sudo ssh $i "cd /usr/local/etc/emulab/rc ; rm rc.nodetest"
-
-    
-    echo $i:rc.config
-    sudo rsync -q -a -P rc/rc.config $i:/usr/local/etc/emulab/rc/rc.config
-    sudo ssh $i chown root /usr/local/etc/emulab/rc/rc.config
-    sudo ssh $i chgrp 0 /usr/local/etc/emulab/rc/rc.config
+    echo ${i}${domain}:rc.config
+    sudo rsync -q -a -P rc/rc.config ${i}${domain}:/usr/local/etc/emulab/rc/rc.config
+    sudo ssh ${i}${domain} chown root /usr/local/etc/emulab/rc/rc.config
+    sudo ssh ${i}${domain} chgrp 0 /usr/local/etc/emulab/rc/rc.config
 done
 
