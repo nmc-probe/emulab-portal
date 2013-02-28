@@ -2261,20 +2261,22 @@ sub print_raw_osids
 sub print_osids
 {
     my ($osids_arg, $default) = @_;
-    my @osids = @{ $osids_arg };
-    foreach my $os (@osids) {
-	if (defined($osid_name{$os})) {
-	    my $urn = GeniHRN::Generate($OURDOMAIN, "image",
-				      $osid_pid{$os} . "//" . $osid_name{$os});
-	    print "<disk_image ";
-	    print "name=\"" . $urn . "\" ";
-	    print "os=\"" . $osid_os{$os} . "\" ";
-	    print "version=\"" . $osid_version{$os} . "\" ";
-	    print "description=\"" . $osid_description{$os} . "\" ";
-	    if (defined($default) && $os eq $default) {
-		print "default=\"true\" ";
+    if (defined ($osids_arg)) {
+	my @osids = @{ $osids_arg };
+	foreach my $os (@osids) {
+	    if (defined($osid_name{$os})) {
+		my $urn = GeniHRN::Generate($OURDOMAIN, "image",
+					    $osid_pid{$os} . "//" . $osid_name{$os});
+		print "<disk_image ";
+		print "name=\"" . $urn . "\" ";
+		print "os=\"" . $osid_os{$os} . "\" ";
+		print "version=\"" . $osid_version{$os} . "\" ";
+		print "description=\"" . $osid_description{$os} . "\" ";
+		if (defined($default) && $os eq $default) {
+		    print "default=\"true\" ";
+		}
+		print "/>\n";
 	    }
-	    print "/>\n";
 	}
     }
 }
