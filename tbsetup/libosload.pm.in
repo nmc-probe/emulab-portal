@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -581,6 +581,7 @@ sub osload ($$) {
 	# later, we'll know how to handle it
 	#
 	$reload_info{$node} = {
+	    'nodeobj'  => $nodeobject,
 	    'node'     => $node,
 	    'mode'     => $reload_mode,
 	    'func'     => $reload_func,
@@ -1115,6 +1116,7 @@ sub WaitTillReloadDone($$$$$@)
 sub SetupReloadFrisbee($)
 {
     my $reload_info   = $_[0];
+    my $nodeobject    = $reload_info->{'nodeobj'};
     my $node          = $reload_info->{'node'};
     my $imageids      = $reload_info->{'imageids'};
     my $zerofree      = $reload_info->{'zerofree'};
@@ -1126,10 +1128,7 @@ sub SetupReloadFrisbee($)
     # Put it in the current_reloads table so that nodes can find out which
     # OS to load. See tmcd. 
     #
-    my $query_result = 
-	DBQueryWarn("delete from current_reloads where node_id = '$node'");
-    return -1
-	if (!$query_result);
+    $nodeobject->ClearCurrentReload();
 
     my $idx = 1;
     foreach my $imageid (@$imageids) {
@@ -1143,15 +1142,21 @@ sub SetupReloadFrisbee($)
 	++$idx;
     }
 
-    system("$osselect -1 $osid $node");
-    if ($?) {
+    #
+    # We used to invoke os_select here and it checks for MODIFYINFO permission
+    # on the node. Since we have already checked for LOADIMAGE permission,
+    # which requires the same user privilege, we do not need to check further.
+    #
+    my $osinfo = OSinfo->Lookup($osid);
+    if (!defined($osinfo) ||
+	$nodeobject->OSSelect($osinfo, "next_boot_osid", 0)) {
 	tberror "os_select $osid failed!";
 	return -1;
     }
 
     # Need to kick virtnodes so stated picks up the next_op_mode from os_select
     if ($isvirtnode) {
-	TBSetNodeEventState($node,TBDB_NODESTATE_SHUTDOWN);
+	$nodeobject->SetEventState(TBDB_NODESTATE_SHUTDOWN);
     }
 
     return 0;
