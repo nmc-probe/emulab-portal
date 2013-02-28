@@ -1905,6 +1905,11 @@ sub doVlansFromTables($$@) {
 		if (!$trunk_vlan->CreatedOnSwitches()) {
 		    die("Trunk vlanid $trunk_vlan is not instantiated\n");
 		}
+		#
+		# To maintain backwards compatibility with how snmpit used
+		# to operate, "internal" vlans are sometimes named on the switch
+		# by the symbolic name instead of the lanid.
+		#
 		if ($trunk_vlan->IsInternal() &&
 		    !$stack->vlanExists($trunk_vlanid)) {
 		    $trunk_vlanid = $trunk_vlan->vname();
@@ -2539,6 +2544,11 @@ sub syncVlansFromTables($$@) {
 		if (!$trunk_vlan->CreatedOnSwitches()) {
 		    die("Trunk vlanid $trunk_vlan is not instantiated\n");
 		}
+		#
+		# To maintain backwards compatibility with how snmpit used
+		# to operate, "internal" vlans are sometimes named on the switch
+		# by the symbolic name instead of the lanid.
+		#
 		if ($trunk_vlan->IsInternal() &&
 		    !$stack->vlanExists($trunk_vlanid)) {
 		    $trunk_vlanid = $trunk_vlan->vname();
@@ -3305,11 +3315,17 @@ sub doMakeVlan($$@) {
     # to operate, "internal" vlans are named on the switch by the
     # symbolic name instead of the lanid.
     #
-    my $device_id = ($target_vlan->IsInternal() ?
-		     $target_vlan->vname() : $target_vlan->id());
+    my $device_id;
 
-    # Save for error recovery.
-    $vlanexists = $stack->vlanExists($device_id);
+    if ($target_vlan->IsInternal() &&
+	$stack->vlanExists($target_vlan->vname())) {
+	$vlanexists = 1;
+	$device_id  = $target_vlan->vname();
+    }
+    else {
+	$device_id  = $target_vlan->id();
+	$vlanexists = $stack->vlanExists($device_id);
+    }
 
     #
     # Remove the current set of switch trunks since we have to generate
@@ -3515,21 +3531,25 @@ sub doDeleteVlan($@) {
 	my $vlan_name;
 	my $vlan_id;
 
-	#
-	# To maintain backwards compatibility with how snmpit used
-	# to operate, "internal" vlans are named on the switch by the
-	# symbolic name instead of the lanid.
-	#
-	if (ref($vlan)) {
-	    $vlan_name = ($vlan->IsInternal() ?
-			  $vlan->vname() : $vlan->id());
-	    $vlan_id   = $vlan->id();
-	}
-	else {
-	    $vlan_name = $vlan_id = $vlan;
-	}
-
 	foreach my $stack (@$stacks) {
+	    #
+	    # To maintain backwards compatibility with how snmpit used
+	    # to operate, "internal" vlans are (sometimes) named on the
+	    # switch by the symbolic name instead of the lanid. 
+	    #
+	    if (ref($vlan)) {
+		if ($vlan->IsInternal() && $stack->vlanExists($vlan->vname())) {
+		    $vlan_name = $vlan->vname();
+		}
+		else {
+		    $vlan_name = $vlan->id();
+		}
+		$vlan_id   = $vlan->id();
+	    }
+	    else {
+		$vlan_name = $vlan_id = $vlan;
+	    }
+
 	    next
 		if (! $stack->vlanExists($vlan_name));
 		
