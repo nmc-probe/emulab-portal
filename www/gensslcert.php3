@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -107,6 +107,7 @@ function SPITFORM($target_user, $formfields, $errors)
 
     $target_uid    = $target_user->uid();
     $target_webid  = $target_user->webid();
+    $url           = CreateURL("gensslcert.php3", $target_user);
 
     echo "<blockquote>
           By creating an encrypted SSL certificate, you are able to use
@@ -153,9 +154,7 @@ function SPITFORM($target_user, $formfields, $errors)
 
     echo "<table align=center border=1> 
           <form enctype=multipart/form-data
-                action=gensslcert.php3 method=post>\n";
-    echo "<input type=hidden name=\"formfields[user]\" ".
-	         "value=$target_webid>\n";
+                action='$url' method=post>\n";
     echo "<input type=hidden name=which value=create>\n";
 
     echo "<tr>
@@ -227,9 +226,7 @@ function SPITFORM($target_user, $formfields, $errors)
     
     echo "<table align=center border=1> 
           <form enctype=multipart/form-data
-                action=gensslcert.php3 method=post>\n";
-    echo "<input type=hidden name=\"formfields[user]\" ".
-	         "value=$target_webid>\n";
+                action='$url' method=post>\n";
     echo "<input type=hidden name=which value=change>\n";
 
     echo "<tr>
