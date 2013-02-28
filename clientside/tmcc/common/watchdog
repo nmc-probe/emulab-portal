@@ -718,8 +718,9 @@ sub ntpdrift($)
 	logmsg("ntpdrift: updating NTP drift from $lastdrift to $drift\n");
 
 	# Server also checks the value for sanity.
-	tmcc(TMCCCMD_NTPDRIFT, "-- $1", undef, ("timeout" => 3));
-	$lastdrift = $drift;
+	if (tmcc(TMCCCMD_NTPDRIFT, "-- $1", undef, ("timeout" => 3)) == 0) {
+	    $lastdrift = $drift;
+	}
     }
 
     qinsert($curtime + $iv{drift}, \&ntpdrift)
