@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -40,7 +40,9 @@ sub usage()
     print "Usage: gencrlbundle\n";
     exit(1);
 }
-my $optlist = "";
+my $optlist  = "nd";
+my $debug    = 0;
+my $impotent = 0;
 
 #
 # Configure variables
@@ -52,8 +54,10 @@ my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $WWWBUNDLE	  = "$TB/www/genicrl.bundle";
 my $BUNDLE	  = "$TB/etc/genicrl.bundle";
+my $CABUNDLE	  = "$TB/etc/genica.bundle";
 my $POSTCRL       = "$TB/sbin/protogeni/postcrl";
 my $APACHE_START  = "@APACHE_START_COMMAND@";
+my $OPENSSL       = "/usr/bin/openssl";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -89,6 +93,12 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"n"})) {
+    $impotent = 1;
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
 
 #
 # Do not run when the testbed is disabled.
@@ -114,22 +124,46 @@ if (-d "$TB/expwork/emulab-ops") {
 }
 
 my $query_result =
-    DBQueryWarn("select cert,uuid, ".
+    DBQueryWarn("select cert,uuid,DN, ".
 		" UNIX_TIMESTAMP(expires) < UNIX_TIMESTAMP(now()) as expired ".
 		"from geni_crls ".
 		"order by uuid");
 
 open(BUNDLE, ">/tmp/crlbundle.$$")
     or fatal("Could not create new CRL bundle file");
-while (my ($cert,$uuid,$expired) = $query_result->fetchrow_array()) {
+while (my ($cert,$uuid,$DN,$expired) = $query_result->fetchrow_array()) {
     if ($expired) {
 	print STDERR "*** CRL for $uuid has expired. Skipping ...\n";
-	$errors++;
+	print STDERR "    $DN\n";
+	#
+	# Just delete, no point in seeing it again.
+	#
+	DBQueryWarn("delete from geni_crls where uuid='$uuid'");
 	next;
+    }
+    #
+    # Make sure we can verify the CRL against our bundle. 
+    #
+    if (open(OP, "| $OPENSSL crl -noout -CAfile $CABUNDLE >/dev/null 2>&1")) {
+	print OP $cert;
+	close(OP);
+	if ($?) {
+	    print STDERR "*** CRL for $uuid cannot be verified. Skipping ...\n";
+	    print STDERR "    $DN\n";
+	    #
+	    # Just delete, no point in seeing it again.
+	    #
+	    DBQueryWarn("delete from geni_crls where uuid='$uuid'");
+	    $errors++;
+	    next;
+	}
     }
     print BUNDLE $cert;
 }
 close(BUNDLE);
+
+exit(0)
+    if ($impotent);
 
 # Don't bother if no change
 system("/usr/bin/diff -q $BUNDLE /tmp/crlbundle.$$");
@@ -137,14 +171,18 @@ if ($?) {
     system("/bin/mv /tmp/crlbundle.$$ $BUNDLE") == 0
 	or fatal("Could not copy to $BUNDLE!");
 
-    system("$APACHE_START restart") == 0
-	or fatal("Could not restart apache!");
+    system("$APACHE_START stop") == 0
+	or fatal("Could not stop apache!");
+
+    # Something whacky is going on; httpd refuses to die!
+    sleep(2);
+    system("killall httpd");
     
     system("/bin/cp $BUNDLE $WWWBUNDLE") == 0
 	or fatal("Could not copy to $WWWBUNDLE!");
 
-    system("$APACHE_START restart") == 0
-	or fatal("Could not restart apache!");
+    system("$APACHE_START start") == 0
+	or fatal("Could not start apache!");
 }
 # Apache spits out stuff. No errors at this point, nothing to report.
 AuditEnd()
