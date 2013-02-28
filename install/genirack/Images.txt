@@ -170,7 +170,8 @@ Note, DO NOT CHANGE THESE ON THE ROOT DISK! The clone is mounted on
   new rack. Leave Utah's boss (155.98.32.70) as the last one.
 
 * /mnt/etc/hostname; the hostname of course (which you added to the
-  instageni.net.db file above). 
+  instageni.net.db file above). Make sure there is a newline at the
+  end of the file!
 
 * /mnt/etc/hosts: IP Hostname of course.
 
