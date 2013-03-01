@@ -7200,7 +7200,7 @@ COMMAND_PROTOTYPE(dojailconfig)
 	char		buf[MYBUFSIZE];
 	char		jailip[TBDB_FLEN_IP], jailipmask[TBDB_FLEN_IPMASK];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
-	int		low, high;
+	int		low, high, nrows;
 
 	/*
 	 * Only vnodes get a jailconfig of course, and only allocated ones.
@@ -7279,6 +7279,8 @@ COMMAND_PROTOTYPE(dojailconfig)
 		strcpy(jailip, row[1]);
 		strcpy(jailipmask, (row[2] ? row[2] : JAILIPMASK));
 	}
+	else
+		jailip[0] = '\0';
 
 	bzero(buf, sizeof(buf));
 	if (jailip[0]) {
@@ -7338,8 +7340,8 @@ COMMAND_PROTOTYPE(dojailconfig)
 				bufp = buf;
 				bufp += OUTPUT(bufp, ebufp - bufp,
 					       "VDSIZE=%s\n", attrvalue);
+				client_writeback(sock, buf, strlen(buf), tcp);
 			}
-			client_writeback(sock, buf, strlen(buf), tcp);
 		}
 		mysql_free_result(res);
 	}
@@ -7362,9 +7364,7 @@ COMMAND_PROTOTYPE(dojailconfig)
 		      reqp->nodeid);
 		return 1;
 	}
-	if (mysql_num_rows(res)) {
-		int nrows = mysql_num_rows(res);
-
+	if ((nrows = (int)mysql_num_rows(res))) {
 		while (nrows) {
 			nrows--;
 			row = mysql_fetch_row(res);
