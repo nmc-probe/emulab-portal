@@ -2022,7 +2022,8 @@ sub GenVirtNodes($)
 	    # Create a parent node for the sanhost. 
 	    #
 	    $self->createNode($sanhost, $mycmurn,
-			      "pc", '1', {"pcstorage" => ['', 1.0]}, undef);
+			      "pcsanhost", '1', {"pcstorage" => ['', 1.0]}, 
+			      undef);
 	    $self->sanhosts()->{$sanhost} = $sanhost;
 
 	    #
