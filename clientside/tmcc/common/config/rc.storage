@@ -125,7 +125,7 @@ sub doboot()
     }
 
     if (!@cmds) {
-	warn("*** No storageconfig output - nothing to do");
+	#warn("*** No storageconfig output - nothing to do");
 	return;
     }
 
