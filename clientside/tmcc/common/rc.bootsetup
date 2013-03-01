@@ -71,7 +71,7 @@ sub doboot();
 sub doshutdown();
 sub doreconfig();
 sub docleanup();
-sub BootReport($$);
+sub BootReport($;$);
 
 #
 # If this is the MFS, hand off to that script.
