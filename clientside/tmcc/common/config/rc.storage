@@ -117,7 +117,7 @@ sub doboot()
     print STDOUT "Checking Testbed storage configuration ... \n";
 
     # XXX uncomment this for tmp testing with alternate tmcd
-    configtmcc("portnum",7778);
+    #configtmcc("portnum",7778);
 
     my @cmds;
     if (getstorageconfig(\@cmds) != 0) {
