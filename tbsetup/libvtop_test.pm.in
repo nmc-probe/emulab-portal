@@ -3004,7 +3004,7 @@ sub GenVirtLans($)
 	    # check is only made for links comprised of physical nodes,
 	    # since if the OS supports virtual nodes, it supports linkdelays.
 	    #
-	    if ($shaped && $virtnodes == 0 &&
+	    if ($shaped && $virtnodes != scalar(@members)  &&
 		$self->virtlan_use_linkdelay($vlan, $shaped)) {
 		#
 		# The user had to specify the OS.
@@ -3022,6 +3022,10 @@ sub GenVirtLans($)
 		    #
 		    foreach my $virtnode ($virtnode0, $virtnode1) {
 			my $osinfo = $virtnode->_osinfo();
+
+			# Always supports.
+			next
+			    if ($virtnode->_isvirtnode());
 			
 			if (! $osdoeslinkdelays{$osinfo->osid()}) {
 			    my $osname = $osinfo->osname();
@@ -3280,7 +3284,7 @@ sub GenVirtLans($)
 		my ($delay,$bw,$ebw,$backfill,$loss,
 		    $rdelay,$rbw,$rebw,$rbackfill,$rloss) =
 			@{$member->_delayinfo()};
-		
+
 		# Need to know about tracing on a per queue basis, since the
 		# user can specify tracing asymmetrically.
 		my ($traced,$trace_endnode)  = @{$member->_traceinfo()};
@@ -3321,7 +3325,7 @@ sub GenVirtLans($)
 		# nodes, since if the OS supports virtual nodes, it
 		# supports linkdelays.
 		#
-		if ($shaped && $virtnodes == 0 &&
+		if ($shaped && $virtnodes != scalar(@members) &&
 		    $self->virtlan_use_linkdelay($vlan, $shaped)) {
 		    #
 		    # The user had to specify the OS.
@@ -3332,7 +3336,7 @@ sub GenVirtLans($)
 				"(endnode traffic shaping)\n");
 			$errors++;
 		    }
-		    else {
+		    elsif (!$virtnode->_isvirtnode()) {
 			#
 			# All the OSes have to support linkdelays.
 			#
@@ -3917,12 +3921,12 @@ sub requires_delay($$$$)
     # A target bandwidth of zero indicates that we want assign to choose.
     # Therefore, no delay is needed since assign picks the native bw.
     #
-    return 0
+    goto norequire
 	if ($targetbw == 0);
 	
     if (!exists($linkbws->{$node_type}{$protocol})) {    
 	warn("requires_delay(): $virtnode - invalid type $node_type!\n");
-	return 0;
+	goto norequire;
     }
 
     if (! $virtnode->_isvtyped()) {
@@ -3930,21 +3934,26 @@ sub requires_delay($$$$)
 	
 	if (!exists($linkbws->{$node_class}{$protocol})) {
 	    warn("requires_delay(): $virtnode - invalid class $node_class!\n");
-	    return 0;
+	    goto norequire;
 	}
     }
 
     foreach my $bw (keys(%{ $linkbws->{$node_type}{$protocol} })) {
-	return 0
+	goto norequire
 	    if ($targetbw == $bw);
     }
     if (defined($node_class)) {
 	foreach my $bw (keys(%{ $linkbws->{$node_class}{$protocol} })) {
-	    return 0
+	    goto norequire
 		if ($targetbw == $bw);
 	}
     }
+    $self->printdb("requires_delay:1 $virtnode, $virtlan, $targetbw\n");
     return 1;
+
+  norequire:
+    $self->printdb("requires_delay:0 $virtnode, $virtlan, $targetbw\n");
+    return 0;
 }
 
 #
