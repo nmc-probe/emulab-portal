@@ -7273,7 +7273,7 @@ COMMAND_PROTOTYPE(dojailconfig)
 	row   = mysql_fetch_row(res);
 	if (row[3]) {
 		strcpy(jailip, row[3]);
-		strcpy(jailipmask, row[4]);
+		strcpy(jailipmask, (row[4] ? row[4] : CONTROL_NETMASK));
 	}
 	else if (row[1]) {
 		strcpy(jailip, row[1]);
