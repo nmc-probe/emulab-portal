@@ -142,7 +142,7 @@ our %linkparents = ();
 
 sub getRoot($) {
     my ($link) = @_;
-    while (exists($linkparents{$link})) {
+    while (exists($linkparents{$link}) && $linkparents{$link} ne $link) {
 	$link = $linkparents{$link};
     }
     return $link;
