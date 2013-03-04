@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -294,11 +294,13 @@ sub CheckExisting($$)
 {
     my ($class, $certificate) = @_;
     my $urn = $certificate->urn();
+    my $hrn = $certificate->hrn();
 
     my (undef, undef, $type) = GeniHRN::Parse($urn);
     return -1
 	if (!defined($type));
     my $safe_urn = DBQuoteSpecial($urn);
+    my $safe_hrn = DBQuoteSpecial($hrn);
 
     my $query_result =
 	DBQueryWarn("select urn,type from geni_authorities ".
@@ -322,7 +324,18 @@ sub CheckExisting($$)
 	return 1
 	    if ($urn ne $DBurn && $type eq $DBtype);
     }
-    return 0;
+
+    #
+    # Look for a duplicate hrn.
+    # 
+    $query_result =
+	DBQueryWarn("select urn from geni_authorities ".
+		    "where hrn=$safe_hrn and urn!=$safe_urn");
+
+    return -1
+	if (!$query_result);
+
+    return $query_result->numrows;
 }
 
 #
