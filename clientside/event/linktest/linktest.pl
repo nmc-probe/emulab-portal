@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w -T
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1486,7 +1486,7 @@ sub link_rtt {
     } else {
 	$bwthresh = 10000000;
     }
-    if ($edge->bw < $bwthresh) {
+    if ($edge->bw > 0 && $edge->bw < $bwthresh) {
 	$u += (1000 * $bits_per_packet / $edge->bw);
     }
 
@@ -1496,7 +1496,7 @@ sub link_rtt {
     } else {
 	$bwthresh = 10000000;
     }
-    if ($other_edge->bw < $bwthresh) {
+    if ($other_edge->bw > 0 && $other_edge->bw < $bwthresh) {
 	$u += (1000 * $bits_per_packet / $other_edge->bw);
     }
 
@@ -1810,7 +1810,9 @@ sub bw_test {
 		    # how long til we hit the wire and add that to the RTT.
 		    #
 		    my $psize = (&header_size($edge) + IPERF_PKTSIZE) * 8;
-		    $minacktime += (($psize * 50/2) / $edge->bw) * 1000;
+		    if ($edge->bw > 0) {
+			$minacktime += (($psize * 50/2) / $edge->bw) * 1000;
+		    }
 		    $minacktime = int($minacktime);
 
 		    # must not be less than RTT or clock resolution
