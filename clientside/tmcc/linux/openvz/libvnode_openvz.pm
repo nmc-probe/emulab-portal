@@ -2417,11 +2417,20 @@ sub createImageDisk($$$$$)
 		#
 		utime(time(), $mtime, $imagedatepath);
 		print "Found existing disk: $lvmpath.\n";
+		
+		#
+		# Make sure still mounted; might have been a reboot.
+		#
+		if (! -e "/mnt/$image/private") {
+		    mysystem2("mount $lvmpath /mnt/$image");
+		    goto bad
+			if ($?);
+		}
 		return 0;
 	    }
 	    print "mtime for $lvmpath differ: local $mtime, server $tstamp\n";
 	}
-	if (-e "/mnt/$image/.mounted" && mysystem2("umount /mnt/$image")) {
+	if (-e "/mnt/$image/private" && mysystem2("umount /mnt/$image")) {
 	    print STDERR "Could not umount /mnt/$image\n";
 	    return -1;
 	}
@@ -2444,7 +2453,7 @@ sub createImageDisk($$$$$)
     goto bad
 	if (! -e "/mnt/$image" && mysystem2("mkdir -p /mnt/$image"));
     goto bad
-	if (-e "/mnt/$image/.mounted" && mysystem2("umount /mnt/$image"));
+	if (-e "/mnt/$image/private" && mysystem2("umount /mnt/$image"));
     mysystem2("mkfs -t ext3 $lvmpath");
     goto bad
 	if ($?);
