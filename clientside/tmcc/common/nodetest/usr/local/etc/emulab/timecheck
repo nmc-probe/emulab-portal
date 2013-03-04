@@ -49,6 +49,6 @@ esac
 echo "timecheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo ". . . timecheck offset $offset OK" || echo ". . . timecheck offset $offset FAILED"
+[[ -z ${failed} ]] && echo ". . . offset $offset OK" || echo ". . . offset $offset FAILED"
 
 exit 0

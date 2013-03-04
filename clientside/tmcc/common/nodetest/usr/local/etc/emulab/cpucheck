@@ -16,19 +16,85 @@ fi
 tmplog=/tmp/.$$.log
 cat /dev/null > ${tmplog}
 
-set +x
+#set +x
 #exit on unbound var
 #set -u
+
+#{
+case $os in
+    Linux )
+	unset -v d ; declare -a d=($(lscpu))
+	for ((idx=0; idx<${#d[*]}; idx++)) ; do
+	    [[ "${d[idx]}" == "Architecture:" ]] && break
+	done
+	    ((++idx))
+	    arch=${d[idx]}
+	echo -n "Architecture:$arch "
+	for ((idx=0; idx<${#d[*]}; idx++)) ; do
+	    [[ "${d[idx]}" == "Socket(s):" ]] && break
+	done
+	    ((++idx))
+	    sockets=${d[idx]}
+	echo -n "Sockets:$sockets "
+	for ((idx=0; idx<${#d[*]}; idx++)) ; do
+	    [[ "${d[idx]}" == "CPU(s):" ]] && break
+	done
+	    ((++idx))
+	    cores=${d[idx]}
+	echo -n "cores:$cores "
+	for ((idx=0; idx<${#d[*]}; idx++)) ; do
+	    [[ "${d[idx]}" == "MHz:" ]] && break
+	done
+	    ((++idx))
+	    mhz=${d[idx]}
+	echo "MHz:$mhz "
+	;;
+    FreeBSD )
+	    x=y=""
+	    x=$(grep 'CPU:' /var/run/dmesg.boot | grep CPU:)
+	    echo $x
+	    x=${x#CPU: }
+	    x=${x%%CPU*}
+	    x=${x%%([0-9]*}
+	    x=${x/Intel(R) /}
+	    x=${x/(R) /}
+	    arch=$x
+	    x=$(grep 'FreeBSD/SMP:' /var/run/dmesg.boot | grep package)
+	    x=${x#FreeBSD/SMP: }
+	    [[ $x ]] && sockets=${x%%package*} || sockets=1
+	    y=$(grep 'FreeBSD/SMP' /var/run/dmesg.boot | grep core)
+	    y=${y#*x }
+	    y=${y%%x*}
+	    [[ $y ]] && y=${y%%core*} || y=1
+	    cores=$(($y*$sockets))
+	    x=$(grep 'CPU\|SMP' /var/run/dmesg.boot | grep CPU:)
+	    x=${x%%-MHz*}
+	    mhz=${x##*(}
+	;;
+    * )
+	    echo "internal error cpucheck"
+	    failed=FAIL
+	    exit 1
+	    ;;
+esac
+
+#}>> ${tmplog} 2>&1
+
+# no check with tb == fail
+failed=FAIL
 
 echo "cpucheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-if [ -n ${failed} ]
+echo -n ". . . Arch:$arch Sockets:$sockets Total_Cores:$cores Mhz=$mhz "
+
+if [ -z ${failed} ]
 then
-    echo ". . . cpucheck OK"
+    echo "OK"
 else
-    echo ". . . cpucheck FAILED"
+    echo "FAILED"
 fi
+
 echo -n ""
 
 exit 0

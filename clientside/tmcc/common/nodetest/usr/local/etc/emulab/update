@@ -1,10 +1,13 @@
 #!/bin/bash
 
 domain=".nodecheck-image.emulab-ops.emulab.net"
-machines="pc3000freebsd pc3000ubuntu pc850freebsd pc850ubuntu pc600freebsd pc600ubuntu"
+machines="pc3000freebsd pc3000ubuntu pc850freebsd pc850ubuntu pc600freebsd pc600ubuntu pc137 pc133 pc446 pc406"
+machines="pc3000freebsd pc3000ubuntu pc600freebsd pc600ubuntu pc137 pc133 pc446 pc406"
 
-linux="pc3000ubuntu pc850ubuntu pc600ubuntu"
-bsd="pc3000freebsd pc850freebsd pc600freebsd"
+#linux="pc3000ubuntu pc850ubuntu pc600ubuntu pc137 pc406"
+linux="pc3000ubuntu  pc600ubuntu pc137 pc406"
+#bsd="pc3000freebsd pc850freebsd pc600freebsd pc133 pc446"
+bsd="pc3000freebsd pc600freebsd pc133 pc446"
 
 utils="diskcheck diskspeedcheck memcheck cpucheck getfromtb.sh timecheck niccheck"
 

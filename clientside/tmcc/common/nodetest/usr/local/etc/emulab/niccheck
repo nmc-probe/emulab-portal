@@ -26,10 +26,12 @@ set +x
 {
 case $os in
     Linux )
+	    numnics=$(ifconfig -a | grep "Link encap:Ethernet" | wc -l)
 #	unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
 #	meminfo=${d[1]}${d[2]}
 	;;
     FreeBSD )
+	    numnics=$(ifconfig -a | grep "media: Ethernet" | wc -l)
 #	unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
 #	w=${d[4]} ; x=${w#(}
 #	z=${d[5]} ; y=${z%)}
@@ -58,6 +60,7 @@ esac
 echo "niccheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo ". . . niccheck OK" || echo ". . . nictest FAILED"
+failed=FAIL
+[[ -z ${failed} ]] && echo ". . . interfaces $numnics OK" || echo ". . . interfaces $numnics FAILED"
 
 exit 0

@@ -5,7 +5,8 @@
 
 # first arg is the log output file, if not set then /tmp/...
 
-source /usr/local/etc/emulab/getfromtb.sh
+#source /usr/local/etc/emulab/getfromtb.sh
+source getfromtb.sh
 
 SMARTCTL=""
 failed=""
@@ -25,63 +26,88 @@ fi
 tmplog=/tmp/.$$.log
 cat /dev/null > ${tmplog}
 
-set +x
+#set +x
 #exit on unbound var
 #set -u
 
 #need to make sure smartcrl is installed - not by default on our linux images
 {
+##     SMARTCTL=$(which smartctl)
+##     if [ -z ${SMARTCTL} ] ; then
+## 	if [ -e "/usr/sbin/smartctl" ]; then
+## 	    SMARTCTL="/usr/sbin/smartctl"
+## 	else
+## #	    [[ "$os" == "Linux" ]] && apt-get -y install smartmontools
+## 	    [[ "$os" == "FreeBSD" ]] && echo "FreeBSD: need smartcrtl installed"
+## 	fi
+##     fi
     SMARTCTL=$(which smartctl)
     if [ -z ${SMARTCTL} ] ; then
 	if [ -e "/usr/sbin/smartctl" ]; then
 	    SMARTCTL="/usr/sbin/smartctl"
-	else
-#	    [[ "$os" == "Linux" ]] && apt-get -y install smartmontools
-	    [[ "$os" == "FreeBSD" ]] && echo "FreeBSD: need smartcrtl installed"
-	fi
-    fi
-    SMARTCTL=$(which smartctl)
-    if [ -z ${SMARTCTL} ] ; then
-	if [ -e "/usr/sbin/smartctl" ]; then
-	    SMARTCTL="/usr/sbin/smartctl"
+	    good=$(($SMARTCTL --scan))
+	    if [ "${good/UNRECOGNIZED//}" == "${good}" ] ; then
+		err="no suppport --scan"
+		echo $err
+		failed="scan"
+	    fi
 	else	    
-#	    echo "smartmontools is missing and install failed"
-	    echo "smartmontools is missing "
-	    failed="FAIL"
+	    err="smartmontools missing"
+	    echo $err
+	    failed="missing"
 	fi
     fi
-    
 } >> ${tmplog} 2>&1
-if [ $failed ] ; then
-    echo "diskcheck `date`" >> ${logfile}
-    cat ${tmplog} >> ${logfile} 
-    echo ". . . diskcheck FAILED"
-    exit 1
-fi
 
-# needed ?
+echo "diskcheck `date`" >> ${logfile}
+cat ${tmplog} >> ${logfile} 
+
+[[ $failed ]] && echo -n ". . . $err attempt workaround " || echo -n ". . . "
+
 
 # index into dirveinv array
 name=0; driver=1; type=2; size=3; temp=4; model=5;
+unset -v driveinv ; declare -a driveinv=()
 
 # put smartctl --scan into drive array
-unset -v scan ; declare -a scan=($($SMARTCTL --scan))
-unset -v drive ; declare -a drivescan=()
-y=0
-for elm in ${scan[@]} ; do
-    drivescan[$y]="${drivescan[$y]} ${elm}"
-    [[ "${elm}" == "device" ]] && ((++y))
-done
+# bad control flow control - need to replace
+case $failed in
+    scan )
+	driveinv[$name]="NoScan"
+	driveinv[$driver]="UKN"
+	driveinv[$type]="UKN"
+	driveinv[$size]="0GB"
+	driveinv[$temp]="UKN"
+	driveinv[$model]="UKN"
+	;;
+    missing )
+	driveinv[$name]="Missing"
+	driveinv[$driver]="UKN"
+	driveinv[$type]="UKN"
+	driveinv[$size]="0GB"
+	driveinv[$temp]="UKN"
+	driveinv[$model]="UKN"
+	;;
+    * )
+    unset -v scan ; declare -a scan=($($SMARTCTL --scan))
+    unset -v drive ; declare -a drivescan=()
+    y=0
+    for elm in ${scan[@]} ; do
+	drivescan[$y]="${drivescan[$y]} ${elm}"
+	[[ "${elm}" == "device" ]] && ((++y))
+    done
 
 # collect info into driveinv array
-unset -v driveinv ; declare -a driveinv=()
 for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${drivescan[$idx]})
     lend=${#d[*]} ; x=$((lend - 2))
 
     #name
     cnt=${#driveinv[$idx]}
-    driveinv[$idx]="${d[0]}"
+    lname="${d[0]}"
+    sname="${lname:5}"
+    [[  "$sname" == "pass2" ]] && break # /dev/pass2 on freebsd tape device
+    driveinv[$idx]="$sname"
     [[ ${#driveinv[*]} -eq $cnt ]] && driveinv[$idx]="NA"
     driveinv[$idx]+=" "
 
@@ -125,6 +151,8 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="NA"
     driveinv[$idx]+=" "
 done
+;;
+esac
 
 ## # does number of drives and size match ?
 ## # getfromtb operation node_id drivename drive size
@@ -135,7 +163,7 @@ done
 
 #output to log file - then quit
 {
-echo -e "name\t\tdriver\t\ttype\tsize\ttemp\tmodel"
+echo -e "name\tdriver\t\ttype\tsize\ttemp\tmodel"
 for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${driveinv[$idx]})
     echo -e "${d[$name]}\t${d[$driver]}\t\t${d[$type]}\t${d[$size]}\t${d[$temp]}\t${d[$model]}"
@@ -145,12 +173,31 @@ done
 echo "diskcheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-if [ -n ${failed} ]
-then
-    echo ". . . diskcheck OK"
+drivestring=drivesize=""
+
+if [ -z $failed ] ; then
+    for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
+	unset -v d ; declare -a d=(${driveinv[$idx]})
+	echo -n "${d[$name]} ${d[$size]} "
+	drivestring+="${d[$name]} ${d[$size]} "
+	drivesize+="${d[$size]} "
+    done
+    drivesize=${drivesize% } # get rid of trailing space
 else
-    echo ". . . diskcheck FAILED"
+	echo -n "id:${driveinv[$name]} size:${driveinv[$size]} model:${driveinv[$model]}"
+	failed="FATEL"
 fi
+
+# Now check against the testbed DB
+
+tbinfo=$(getfromtb diskinfo $host)
+err=$?
+# echo drivesize:$drivesize: tbinfo:$tbinfo: err:$err
+
+[[ "$tbinfo" == "$drivesize" ]] && failed="" || failed="MISSMATCHED $tbinfo"
+
+
+[[ ${failed} ]] && echo " ${failed}" || echo " OK"
 echo -n ""
 
 exit 0
