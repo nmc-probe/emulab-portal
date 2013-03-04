@@ -3103,7 +3103,7 @@ COMMAND_PROTOTYPE(doaccounts)
 				 "  u.name, "
 				 "  'local_root',g.pid,g.gid,g.unix_gid,0, "
 				 "  NULL,NULL, "
-				 "  UNIX_TIMESTAMP(now()), "
+				 "  UNIX_TIMESTAMP(u.created), "
 				 "  u.email,'csh', "
 				 "  0,0, "
 				 "  NULL,u.uid_idx "
