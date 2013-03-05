@@ -546,10 +546,11 @@ sub DeleteSliver()
 sub XmlToJson
 {
     my ($node) = @_;
+    my $coder = Frontier::RPC2->new();
  
     my $attrs = {};
     foreach my $attr ($node->attributes) {
-        $attrs->{$attr->nodeName()} = $attr->nodeValue();
+        $attrs->{$attr->nodeName()} = $coder->string($attr->nodeValue());
     }
 
     my $children = [];
