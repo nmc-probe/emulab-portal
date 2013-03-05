@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,12 +32,13 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print("Usage: editnodetype [-v] <xmlfile>\n");
+    print("Usage: editnodetype [-v] [-p] <xmlfile>\n");
     exit(-1);
 }
-my $optlist = "dv";
-my $debug   = 0;
-my $verify  = 0;	# Check data and return status only. 
+my $optlist  = "dvp";
+my $restrict = 0;
+my $debug    = 0;
+my $verify   = 0;	# Check data and return status only. 
 
 #
 # Configure variables
@@ -45,6 +46,7 @@ my $verify  = 0;	# Check data and return status only.
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $TBAUDIT	= "@TBAUDITEMAIL@";
+my $UPDATEPERMS = "$TB/sbin/update_permissions";
 
 #
 # Untaint the path
@@ -85,6 +87,9 @@ if (defined($options{"d"})) {
 }
 if (defined($options{"v"})) {
     $verify = 1;
+}
+if (defined($options{"p"})) {
+    $restrict = 1;
 }
 if (@ARGV != 1) {
     usage();
@@ -587,10 +592,17 @@ if ($new_type) {
 		     "   attrvalue='$value' ");
     }
 
-    # And a group policy that prevents new type from being used.
-    DBQueryFatal("replace into group_policies ".
-		 "(pid_idx, gid_idx, pid, gid, policy, auxdata, count) ".
-		 "values (0, 0, '-', '-', 'type', '$node_type', 0)");
+    if ($restrict) {
+	# And a group policy that prevents new type from being used.
+	DBQueryFatal("replace into group_policies ".
+		     "(pid_idx, gid_idx, pid, gid, policy, auxdata, count) ".
+		     "values (0, 0, '-', '-', 'type', '$node_type', 0)");
+
+        #
+        # Now update the permissions table. 
+        #
+	system($UPDATEPERMS);
+    }
 }
 else {
     DBQueryFatal("update node_types set ".

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -346,6 +346,24 @@ function SPITFORM($node_type, $formfields, $attributes, $deletes, $errors)
 	                size=2>
              </td>
           </tr>\n";
+
+    if ($new_type) {
+	echo "<tr>
+		  <td colspan=2>Restricted?:</td>
+		  <td class=left>
+		      <input type=checkbox
+			     name=\"formfields[restricted]\"
+			     value=Yep";
+
+	if (isset($formfields["restricted"]) &&
+	    $formfields["restricted"] == "Yep")
+	    echo "           checked";
+	    
+	echo "                       > (Initially restrict nodes to emulab-ops)
+		  </td>
+	      </tr>\n";
+    }
+    
 
     #
     # Now do attributes.
@@ -699,7 +717,14 @@ if (isset($newattribute_name) && $newattribute_name != "" &&
     $args["attr_${newattribute_type}_$newattribute_name"] = $newattribute_value;
 }
 
-if (! ($result = SetNodeType($node_type, $args, $errors))) {
+# Restricted checkbox.
+$restricted = 0;
+if (isset($new_type) &&
+    isset($formfields['restricted']) && $formfields['restricted'] == "Yep") {
+    $restricted = 1;
+}
+
+if (! ($result = SetNodeType($node_type, $restricted, $args, $errors))) {
     # Always respit the form so that the form fields are not lost.
     # I just hate it when that happens so lets not be guilty of it ourselves.
     SPITFORM($node_type, $formfields, $attributes, $deletes, $errors);
@@ -723,7 +748,7 @@ PAGEFOOTER();
 #
 # Create or edit a nodetype.  (No class for that at present.)
 #
-function SetNodeType($node_type, $args, &$errors) {
+function SetNodeType($node_type, $restricted, $args, &$errors) {
     global $suexec_output, $suexec_output_array;
 
     #
@@ -754,7 +779,10 @@ function SetNodeType($node_type, $args, &$errors) {
     fclose($fp);
     chmod($xmlname, 0666);
 
-    $retval = SUEXEC("nobody", "nobody", "webeditnodetype $xmlname",
+    # Restricted checkbox.
+    $optarg = ($restricted ? "-p" : "");
+
+    $retval = SUEXEC("nobody", "nobody", "webeditnodetype $optarg $xmlname",
 		     SUEXEC_ACTION_IGNORE);
 
     if ($retval) {
