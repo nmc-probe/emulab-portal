@@ -2245,6 +2245,9 @@ sub Create($$$$$$)
     }
     # print STDERR "$ip1, $ip2, $ctrlip1, $ctrlip2\n";
 
+    #
+    # NOTE: If you change these names, change them GENTOPOFILE!
+    #
     if (defined($member1)) {
 	$member1->SetAttribute("tunnel_ip", $ip1);
 	$member1->SetAttribute("tunnel_peerip", $ip2);
@@ -2256,6 +2259,7 @@ sub Create($$$$$$)
 	$member1->SetAttribute("tunnel_lan", $linkname);
 	$member1->SetAttribute("tunnel_unit", $tunnel_number + 1);
 	$member1->SetAttribute("tunnel_style", "gre");
+	$member1->SetAttribute("tunnel_myid", $virtid1);
 	$member1->SetAttribute("tunnel_peerid", $virtid2);
 	$member1->SetAttribute("tunnel_tag", $cksum);
 
@@ -2286,6 +2290,7 @@ sub Create($$$$$$)
 	$member2->SetAttribute("tunnel_lan", $linkname);
 	$member2->SetAttribute("tunnel_unit", $tunnel_number + 1);
 	$member2->SetAttribute("tunnel_style", "gre");
+	$member2->SetAttribute("tunnel_myid", $virtid2);
 	$member2->SetAttribute("tunnel_peerid", $virtid1);
 	$member2->SetAttribute("tunnel_tag", $cksum);
 
