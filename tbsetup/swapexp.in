@@ -433,6 +433,18 @@ if ($overquota) {
 }
 
 #
+# Lets check to make sure user did not delete their home dir.
+# Maybe in the future, when exports_setup does not cause all
+# mounts to hiccup.
+#
+if (0 && $inout ne "out" && $inout ne "pause") {
+    my $homdirerror;
+    if ($this_user->HomeDirOkay(\$homdirerror) != 0) {
+	ExitWithStatus(1, "$homdirerror\n");
+    }
+}
+
+#
 # Temp fix; Disallow swapmod to firewalled experiments. This will come
 # out later.
 #

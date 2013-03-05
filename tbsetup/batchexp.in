@@ -208,6 +208,20 @@ if (system("$checkquota $user_uid") != 0) {
 }
 
 #
+# Lets check to make sure user did not delete their home dir.
+# Maybe in the future, when exports_setup does not cause all
+# mounts to hiccup.
+#
+if (0) {
+    my $homdirerror;
+    if ($this_user->HomeDirOkay(\$homdirerror) != 0) {
+	tberror({cause => 'user', type => 'primary', severity => SEV_ERROR},
+		$homdirerror);
+	exit(1);
+    }
+}
+
+#
 # Parse command arguments.
 #
 ParseArgs();

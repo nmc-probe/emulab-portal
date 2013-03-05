@@ -1944,6 +1944,32 @@ sub PeerExports($$)
     return 0;
 }
 
+#
+# Make sure user did not delete their home dir.
+#
+sub HomeDirOkay($;$)
+{
+    my ($self, $pmsg)  = @_;
+    my $homedir = $self->HomeDir();
+
+    if (! -e "$homedir/.ssl/emulab.pem") {
+	$$pmsg = "Your Emulab SSL certificate is gone! Did you delete it?"
+	    if (defined($pmsg));
+	return -1;
+    }
+    if (! -e "$homedir/.ssl") {
+	$$pmsg = "Your .ssl directory is gone! Did you delete it?"
+	    if (defined($pmsg));
+	return -1;
+    }
+    if (! -e "$homedir") {
+	$$pmsg = "Your home directory is gone! Did you delete it?"
+	    if (defined($pmsg));
+	return -1;
+    }
+    return 0;
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
 
