@@ -775,6 +775,9 @@ sub GetText($$)
     if (defined($child)) {
 	$result = $child->textContent();
     }
+    if (defined($result)) {
+	$result =~ s/^\s*(.*)\s*$/$1/s;
+    }
     return $result;
 }
 
