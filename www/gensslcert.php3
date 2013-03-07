@@ -107,7 +107,7 @@ function SPITFORM($target_user, $formfields, $errors)
 
     $target_uid    = $target_user->uid();
     $target_webid  = $target_user->webid();
-    $url           = CreateURL("gensslcert.php3", $target_user);
+    $url           = CreateURL("gensslcert", $target_user);
 
     echo "<blockquote>
           By creating an encrypted SSL certificate, you are able to use
