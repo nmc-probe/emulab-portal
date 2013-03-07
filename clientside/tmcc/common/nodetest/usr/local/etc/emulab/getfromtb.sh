@@ -7,29 +7,47 @@ case ${d[0]} in
     meminfo )
 #	echo "asked for meminfo node:${d[1]}:"
         #freeBSD - grep memory /var/run/dmesg.boot
-	#linux - cat /proc/meminfo | grep MemTotal + 1048576 / 1048576
+	#linux - cat /proc/meminfo | grep MemTotal
 	# see also http://en.wikipedia.org/wiki/Gigabyte
 	# GiB = 1073741824 (2**30) bytes, MiB = 1048576 (2**20) bytes 
 	case ${d[1]} in
-#	    pc286 ) echo "2048MB" ;;
-#	    ibapah ) echo "8110204kB" ;;
-#	    boss.emulab.net ) echo "4096MB" ;;
-#	    pc472 ) echo "12163328kB" ;;
-#	    pc219 ) echo "1990948kB" ;;
-
 	    pc4 | pc7 ) echo "256MiB" ;;
 	    pc126 | pc121 | pc137 | pc133) echo "512MiB" ;;
 	    pc207 | pc208| pc286 | pc219 ) echo "2048MiB" ;;
 	    ibapah ) echo "8096MiB" ;;
 	    boss.emulab.net ) echo "4096MiB" ;;
-	    pc472 ) echo "12288MiB" ;;
-	    * ) echo "-1" ;;
+	    pc472 | pc446 | pc406 ) echo "12288MiB" ;;
+	    pc607 )
+		# real 128.0 GiB = 137 438 953 472 B =  134 217 728 KiB =  131 702 MiB
+		# /proc/meminfo                         131 824 428 kB
+		# kern.log                              131 805 900 k/ 13 526 6304k
+		echo "131702MiB"
+		;;
+	    * ) echo "tb ${d[1]} unknown_host" ;;
 	esac
 	;;
     cpuinfo )
 #	echo "asked for cpuinfo node:${d[0]}:"
-        
+	#Architecture  Sockets Cores_socket Threads_core MHz {HT}{x64}{VIRT}
+	case ${d[1]} in
+	    pc4 | pc7 ) echo "i686 1 1 1 600 000" ;;
+	    pc126 | pc121 | pc137 | pc133 ) echo "i686 1 1 1 850 000" ;;
+	    pc207 | pc208 | pc286 | pc219 ) echo "x86_64 1 1 2 3000 110" ;;
+	    ibapah ) echo "x86_64 1 2 2400 110" ;;
+	    boss.emulab.net ) echo "x86_64 2 1 1 3000 110" ;;
+	    pc472 | pc406 | pc446 ) echo "x86_64 1 4 2 2400 111" ;;
+	    pc607 ) echo "x86_64 4 8 2 2200 111" ;;
+	    * ) 
+		echo "tb ${d[1]} unknown_host"
+	        return 1
+		;;
+	esac
 	;;
+    * )
+	echo "unknown_request"
+	return 1
+	;;
+
     diskinfo )
 #	echo "asked for diskinfo node:${d[0]}:"
 	case ${d[1]} in
