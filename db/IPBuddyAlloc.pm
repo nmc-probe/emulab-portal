@@ -23,7 +23,7 @@
 #
 # IP Address Range buddy allocator, a la memory management.
 #
-package IPBuddy;
+package IPBuddyAlloc;
 
 use strict;
 use Carp;
@@ -33,16 +33,10 @@ use vars qw(@ISA @EXPORT);
 @ISA = qw(Exporter);
 @EXPORT = qw ( );
 
-#use libdb;
-#use libtestbed;
 use English;
-use Data::Dumper;
-#use overload ('""' => 'Stringify');
 use Tree::Binary;
 use Net::IP;
 use Socket;
-
-# Constants
 
 # Global vars
 my $debug    = 0;
@@ -51,11 +45,12 @@ my $debug    = 0;
 sub setSpace($$);
 sub embedAddressRange($$);
 sub requestAddressRange($$);
-sub print($);
+sub printTree($);
+sub getRanges($);
 sub _findFree($$$);
 
 #
-# Constructor takes the parent address space parameters.
+# Constructor takes the base address space (e.g. x.x.x.x/y) as a parameter.
 #
 sub new($$) {
     my ($class, $addr) = @_;
@@ -87,7 +82,7 @@ sub setDebug($$) {
 }
 
 #
-# Set the parent IP space in which addresses will be embedded and
+# Set the base IP space in which addresses will be embedded and
 # requested.
 #
 sub setSpace($$) {
@@ -116,14 +111,15 @@ sub embedAddressRange($$) {
 	die Net::IP::Error();
     }
 
-    # Check that the incoming address range is inside the parent range
+    # Check that the incoming address range is inside the base range.
     if ($bobj->overlaps($inobj) != $IP_B_IN_A_OVERLAP) {
-	die "range to embed (". $inobj->prefix() .") must belong to base range: " . $bobj->prefix();
+	die "range to embed (" . $inobj->prefix() .
+	    ") must belong to base range: " . $bobj->prefix();
     }
 
     # Blow up bits representing input IP address into an array for
     # embedding in the binary tree.  Zap the leading bits corresponding
-    # to the parent range prefix.
+    # to the base range prefix.
     my $ibits   = $inobj->binip();
     my @ibitarr = split(//, $ibits);
     splice(@ibitarr, 0, $bobj->prefixlen());
@@ -132,13 +128,14 @@ sub embedAddressRange($$) {
 	"bits: @ibitarr\n" if $debug;
 
     # Set initial depth value to base range address mask depth (prefix)
-    # so that we skip over the common base range prefix bits.
+    # so that we skip over the common prefix bits.
     my $curdepth = $bobj->prefixlen();
     # Loop through the bits in the address, creating corresponding nodes in
-    # the binary tree.
+    # the binary tree (as needed) and looking for collisions.
     my $tptr = $self->getroot();  # start embedding at the root, obviously!
     foreach my $bit (@ibitarr) {
 	$curdepth++;
+	# Are we at terminal depth for the input range?
 	my $term = $inobj->prefixlen() == $curdepth ? 1 : 0;
 	# Check bit, and go down correct path
 	if ($bit) {
@@ -204,7 +201,7 @@ sub requestAddressRange($$) {
     my $reqdepth = $prefix - $bobj->prefixlen();
     # Can we fulfill the request?
     if ($reqdepth <= 0) {
-	die "Prefix is too big for the parent range.\n".
+	die "Prefix is too big for the base range.\n".
 	    "Requested: $prefix\t Base Range: ". $bobj->prefix();
     }
 
@@ -239,13 +236,13 @@ sub requestAddressRange($$) {
 # Helper method.
 # Traverse the binary tree looking for an empty slot at the right depth.
 # Create nodes/branches as necesary to get to the requested depth.  This
-# procedure walks down the "left side" of the graph, going right only when
+# procedure walks down the "left side" of the tree, going right only when
 # it must.
 #
 # $self - Object reference for this class 
 # $cn - The "current" Tree::Binary node object in the recursive traversal.
 # $reqdepth - The requested depth.  This should be the input prefix size with 
-#             the parent range prefix length subtracted.
+#             the base range prefix length subtracted.
 #
 sub _findFree($$$) {
     my ($self, $cn, $reqdepth) = @_;
@@ -291,7 +288,7 @@ sub _findFree($$$) {
 }
 
 # print out a traversal of the tree using spaces to demarc levels.
-sub print($) {
+sub printTree($) {
     my $self = shift;
 
     my $cn = $self->getroot();
@@ -301,10 +298,38 @@ sub print($) {
 	return if $_tree->isRoot();
 	my $val = $_tree->getNodeValue()->{'value'};
 	my $term = $_tree->getNodeValue()->{'term'} ? '*' : "";
-	print ((" " x $_tree->getDepth()),
-	       $val, $term,
-	       "\n");
-	});
+	print " " x $_tree->getDepth() . "${val}${term}\n";
+    });
+}
+
+# print out all ranges embedded in the tree.
+sub getRanges($) {
+    my $self = shift;
+
+    my $cn = $self->getroot();
+    my $bobj = $self->getobj();
+    my $pflen = $bobj->prefixlen();
+    my $bprebits = substr($bobj->binip(), 0, $pflen);
+    my $postlen = length($bobj->binip()) - $pflen;
+    my @addr = ();
+    my @results = ();
+
+    $cn->traverse(sub {
+	my ($_tree) = @_;
+	my $depth = $_tree->getDepth();
+	return if $_tree->isRoot();
+	splice(@addr, $depth-1);
+	push @addr, $_tree->getNodeValue()->{'value'};
+	if ($_tree->isLeaf()) {
+	    my $hbits = "0" x ($postlen - $depth);
+	    my $ipstr = 
+		Net::IP::ip_bintoip($bprebits . join("", @addr) . $hbits,
+				    $bobj->version());
+	    push @results, "$ipstr/" . ($depth + $pflen);
+	}
+    });
+
+    return @results;
 }
 
 #
