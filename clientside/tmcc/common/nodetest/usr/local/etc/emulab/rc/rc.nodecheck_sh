@@ -23,33 +23,18 @@ if [ -e "/var/emulab/boot/realname" ]; then
     host=`cat /var/emulab/boot/realname`
 fi
 
+checks="disk cpu mem time nic diskspeed"
+
 echo "Running nodechecks"
-cat /dev/null > /var/emulab/logs/nodecheck.log
-
-echo -n ". . . Starting diskcheck"
-/usr/local/bin/bash /usr/local/etc/emulab/diskcheck /var/emulab/logs/nodecheck.log
-
-echo -n ". . . Starting cpucheck"
-/usr/local/bin/bash /usr/local/etc/emulab/cpucheck /var/emulab/logs/nodecheck.log
-
-echo -n ". . . Starting memcheck"
-/usr/local/bin/bash /usr/local/etc/emulab/memcheck /var/emulab/logs/nodecheck.log
-
-echo -n ". . . Starting timetext"
-/usr/local/bin/bash /usr/local/etc/emulab/timecheck /var/emulab/logs/nodecheck.log
-
-echo -n ". . . Starting niccheck"
-/usr/local/bin/bash /usr/local/etc/emulab/niccheck /var/emulab/logs/nodecheck.log
-
-echo -n ". . . Starting diskspeedcheck"
-/usr/local/bin/bash /usr/local/etc/emulab/diskspeedcheck /var/emulab/logs/nodecheck.log
-
+for i in $checks
+do
+    echo "boot--- ${1}check " >> /var/emulab/logs/nodecheck.log
+    /usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log
+done
 echo "Done with nodechecks"
 
 # move logfile to my directory
 mkdir -p /users/dreading/nodecheck_logs
 cat /var/emulab/logs/nodecheck.log >> /users/dreading/nodecheck_logs/$host.log 
-
-
 
 exit 0
