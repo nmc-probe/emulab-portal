@@ -1,5 +1,7 @@
 #! /bin/sh
 
+echo -n ' Starting timecheck...'
+
 ntpserver="155.98.32.70"
 maxdrift="0.05"
 
@@ -41,7 +43,7 @@ case $os in
 	[[ $offset < -1 ]] && a=$(echo "-($offset)" | bc) || a=$(echo "($offset)" | bc) # make $a abs()
 	[[ $a > $maxdrift ]] && failed="maxdrift"
 	if  [ -z "${failed}" ]; then
-	    echo "Time check passed offset $offset alowed $maxdrift"
+	    echo "Time check passed offset $offset allowed $maxdrift"
 	elif [ "${failed}" == "maxdrift" ] ; then
 	    echo "Time check failed offset $offset greater then $maxdrift second "
 	else
@@ -60,11 +62,11 @@ echo "timecheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
 if [ -z "${failed}" ] ; then 
-    echo ". . . offset |$offset| < $maxdrift OK" 
+    echo "...offset $offset < $maxdrift OK" 
 elif [ "${failed}" == "maxdrift" ] ; then
-    echo ". . . offset |$offset| > $maxdrift FAILED"
+    echo "...offset $offset > $maxdrift FAILED"
 else
-    echo ". . . ${failed} FAILED"
+    echo "...${failed} FAILED"
 fi
 
 exit 0
