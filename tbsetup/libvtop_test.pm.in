@@ -3036,8 +3036,9 @@ sub GenVirtLans($)
 			my $osinfo = $virtnode->_osinfo();
 
 			# Always supports.
+			# XXX Ignore for GEC16
 			next
-			    if ($virtnode->_isvirtnode());
+			    if (1 || $virtnode->_isvirtnode());
 			
 			if (! $osdoeslinkdelays{$osinfo->osid()}) {
 			    my $osname = $osinfo->osname();
