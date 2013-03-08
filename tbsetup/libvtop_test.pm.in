@@ -2885,10 +2885,22 @@ sub GenVirtLans($)
 	    # So we ignore it when it comes back from assign.
 	    $self->lannodes()->{$lannode} = 1;
 
+	    my $others = {};
+	    my $bw     = '*';
+
+	    #
+	    # We do not do link delays, but we do want to multiplex
+	    # these links. For now, use usevirtiface() as an indicator.
+	    #
+	    if ($vlan->usevirtiface()) {
+		$others->{'emulated'}   = 1;
+		# assign seems to require this, but it seems wrong.
+		$others->{'trivial_ok'} = 1;
+		$bw = 1000;
+	    }
 	    foreach my $member (@members) {
 		my $virtnode   = $member->virt_node();
 		my $vnodevname = $virtnode->vname();
-		my $others     = {};
 		my $plink      = "portlan/$vname/$member";
 
 		$self->createLink($vname, $plink,
@@ -2896,7 +2908,7 @@ sub GenVirtLans($)
 				  {'virtual_node_id' => $vnodevname,
 				   'virtual_interface_id' =>"$member" },
 				  {'virtual_node_id' => $lannode },
-				  '*', $protocol, $others);
+				  $bw, $protocol, $others);
 	    }
 	}
 	elsif (@members == 2 && !$vlan->_bridged()) {
