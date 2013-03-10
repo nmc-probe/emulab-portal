@@ -1,8 +1,8 @@
-#! /bin/sh
+#!/bin/bash
 
 echo -n ' Starting timecheck...'
 
-ntpserver="155.98.32.70"
+ntpserver="ntp1"
 maxdrift="0.05"
 
 #ntpserver="time.xmission.com"
