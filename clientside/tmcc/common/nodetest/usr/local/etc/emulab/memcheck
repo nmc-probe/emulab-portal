@@ -1,12 +1,19 @@
-#! /bin/bash
+#!/bin/bash
 
-#source /usr/local/etc/emulab/getfromtb.sh
-#source /home/dreading/r710diskstudies/usr/local/etc/emulab/getfromtb.sh
+_1KiB=1
+_1KMiB=1024
+_256KMiB=262144
+_1KGiB=1048576
+_32KGiB=33554432
+
+echo -n ' Starting memcheck..'
+
 source getfromtb.sh
+
+declare failed="" s=""
 
 os=`uname`
 host=`hostname`
-failed=""
 if [ -e "/var/emulab/boot/realname" ]; then
     host=`cat /var/emulab/boot/realname`
 fi
@@ -21,43 +28,96 @@ fi
 tmplog=/tmp/.$$.log
 cat /dev/null > ${tmplog}
 
-set +x
+#set +x
 #exit on unbound var
 set -u
+
+finish() {
+    echo "memcheck `date`" >> ${logfile}
+    cat ${tmplog} >> ${logfile} 
+    
+#    if [ -z "${failed}" ]
+#    then
+#	echo -n ""
+#	echo "OK"
+#    else
+	echo "$failed"
+	echo "$failed" >> ${logfile} 
+	exit 1
+#    fi
+    
+    exit 0
+}
+
+# check that external need program are installed
+case $os in
+    Linux )
+	progs="cat grep bc"
+	;;
+    FreeBSD )
+	progs="grep cat"
+	;;
+    * )
+	failed="Unknown OS :$os:"
+	finish
+	exit 1
+	;;
+esac
+for i in $progs ; do
+    type $i &>/dev/null && continue  || s="$s $i "
+done
+if [ -n "$s" ] ; then
+    failed=" Unable to run need missing command(s) $s"
+    echo "$failed" >> ${tmplog}
+    finish
+fi
+
 
 {
 case $os in
     Linux )
-	unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
-	meminfo=${d[1]}${d[2]}
-	# how big is this?
-	meminfo=$(hbis $meminfo)
-	;;
+	    unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
+	    # Linux under reports, add 11MiB (in KiB units) for reserved mem
+	    if (( ${d[1]} > $_32KGiB )) ; then
+		number=$(echo "scale=0; (${d[1]} * 1.015) / 1;" | bc)
+	    elif (( ${d[1]} > $_1KGiB )) ; then
+		number=$(echo "scale=0; (${d[1]} * 1.03) / 1;" | bc)
+	    elif (( ${d[1]} > $_256KMiB )) ; then
+		number=$(echo "scale=0; (${d[1]} * 1.183) / 1;" | bc)
+	    elif (( ${d[1]} > $_1KMiB )) ; then
+		number=$(echo "scale=0; (${d[1]} * 1.047) / 1;" | bc)
+	    else 
+		number=$(echo "scale=0; (${d[1]} * 1.0) / 1;" | bc)
+	    fi
+	    mi=${number}${d[2]}
+#echo  "$0:${LINENO} ========== was:${d[1]} now number:$number sent:$mi "
+	    meminfo=$(hbis $mi)
+#echo  "$0:${LINENO} ========== returned:$meminfo"
+	    ;;
     FreeBSD )
-	unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
-	w=${d[4]} ; x=${w#(}
-	z=${d[5]} ; y=${z%)}
-	meminfo=$x$y
-	meminfo=$(hbis $meminfo)
-	;;
+	    unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
+	    w=${d[4]} ; x=${w#(}
+		z=${d[5]} ; y=${z%)}
+	    meminfo=$x$y
+	    meminfo=$(hbis $meminfo)
+	    ;;
     * )
-	echo "os $os unknown"
-	meminfo="0"
-	failed=FAIL
-	;;
+	    echo "os $os unknown"
+	    meminfo="0"
+	    failed=FAIL
+	    ;;
 esac
 
 echo -n "Found phys memory $meminfo"
 } >> ${tmplog} 2>&1
 
 tbinfo=$(getfromtb meminfo $host)
-# echo meminfo:$meminfo tbinfo:$tbinfo
 
 {
 if [ "$meminfo" == "$tbinfo" ] ; then
-    echo " equals node inventory $tbinfo"
+    echo " Equals node inventory $tbinfo"
 else
-    echo " does not equals node inventory $tbinfo"    
+    echo " Does not equals node inventory $tbinfo"    
     failed=FAIL
 fi
 } >> ${tmplog} 2>&1
@@ -65,6 +125,6 @@ fi
 echo "memcheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo ". . . $tbinfo OK" || echo ". . . $meminfo is not $tbinfo FAILED"
+[[ -z ${failed} ]] && echo "$tbinfo OK" || echo "TBmiss Have |$meminfo| Want |$tbinfo| FAILED"
 
 exit 0
