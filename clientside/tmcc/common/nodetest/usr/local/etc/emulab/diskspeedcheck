@@ -1,5 +1,7 @@
 #! /bin/bash
 
+echo -n '. . . Starting diskspeedcheck'
+
 # find the read and write speed of the disks on the system
 
 source getfromtb.sh
@@ -34,7 +36,8 @@ echo ""
 echo "diskspeedcheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo ". . . diskspeedcheck OK" || echo ". . . diskspeedcheck FAILED"
+failed=FAIL
+[[ -z ${failed} ]] && echo ". . . OK" || echo ". . . FAILED"
 
 exit 0
 

@@ -70,7 +70,7 @@ case $os in
 	progs="grep bc echo"
 	;;
     * )
-	failed="Unknown OS :$os:"
+	failed="Unknown OS :$os: FAILED"
 	finish
 	exit 1
 	;;
@@ -79,7 +79,7 @@ for i in $progs ; do
     type $i &>/dev/null && continue  || s="$s $i "
 done
 if [ -n "$s" ] ; then
-    failed=" Unable to run need missing command(s) $s"
+    failed=" Unable to run need missing command(s) $s FAILED"
     echo "$failed" >> ${tmplog}
     finish
 fi
@@ -208,14 +208,14 @@ echo ""
 tbinfo=$(getfromtb cpuinfo $host)
 err=$?
 if [ $err != 0 ] ; then 
-    failed=$tbinfo ; finish
+    failed="$tbinfo FAILED"; finish
 fi
 
 # echo $tbinfo
 if [ "$tbinfo" = "${arch} ${sockets} ${cores_socket} ${threads_core} ${mhz} ${hyperthread}${x64bit}${hwvirt}" ] ; then
     failed=""
 else
-    failed="TBmiss Have |${arch} ${sockets} ${cores_socket} ${threads_core} ${mhz} ${hyperthread}${x64bit}${hwvirt}| Want |$tbinfo|"
+    failed="TBmiss Have |${arch} ${sockets} ${cores_socket} ${threads_core} ${mhz} ${hyperthread}${x64bit}${hwvirt}| Want |$tbinfo| FAILED"
 fi
 
 

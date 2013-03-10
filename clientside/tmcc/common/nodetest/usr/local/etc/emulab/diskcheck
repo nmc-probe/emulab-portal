@@ -1,5 +1,7 @@
 #! /bin/bash
 
+echo -n ' Starting diskcheck..'
+
 # find the number of disks
 # find the size of each disk
 
@@ -32,15 +34,6 @@ cat /dev/null > ${tmplog}
 
 #need to make sure smartcrl is installed - not by default on our linux images
 {
-##     SMARTCTL=$(which smartctl)
-##     if [ -z ${SMARTCTL} ] ; then
-## 	if [ -e "/usr/sbin/smartctl" ]; then
-## 	    SMARTCTL="/usr/sbin/smartctl"
-## 	else
-## #	    [[ "$os" == "Linux" ]] && apt-get -y install smartmontools
-## 	    [[ "$os" == "FreeBSD" ]] && echo "FreeBSD: need smartcrtl installed"
-## 	fi
-##     fi
     SMARTCTL=$(which smartctl)
     if [ -z ${SMARTCTL} ] ; then
 	if [ -e "/usr/sbin/smartctl" ]; then
@@ -62,7 +55,7 @@ cat /dev/null > ${tmplog}
 echo "diskcheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ $failed ]] && echo -n ". . . $err attempt workaround " || echo -n ". . . "
+[[ $failed ]] && echo -n "$err attempt workaround " || echo -n " "
 
 
 # index into dirveinv array
@@ -194,7 +187,7 @@ tbinfo=$(getfromtb diskinfo $host)
 err=$?
 # echo drivesize:$drivesize: tbinfo:$tbinfo: err:$err
 
-[[ "$tbinfo" == "$drivesize" ]] && failed="" || failed="MISSMATCHED $tbinfo"
+[[ "$tbinfo" == "$drivesize" ]] && failed="" || failed="TBmissed Have |$drivesize| Want |$tbinfo|"
 
 
 [[ ${failed} ]] && echo " ${failed}" || echo " OK"
