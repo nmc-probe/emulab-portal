@@ -1,6 +1,6 @@
 #! /bin/sh
 
-echo -n '. . . Starting niccheck'
+echo -n ' Starting niccheck.. '
 
 source getfromtb.sh
 
@@ -19,50 +19,97 @@ else
     logfile="/tmp/nodecheck.log"
 fi
 tmplog=/tmp/.$$.log
+tmplog2=/tmp/.2tmp
 cat /dev/null > ${tmplog}
 
-set +x
-#exit on unbound var
-#set -u
-
-{
-case $os in
-    Linux )
-	    numnics=$(ifconfig -a | grep "Link encap:Ethernet" | wc -l)
-#	unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
-#	meminfo=${d[1]}${d[2]}
-	;;
-    FreeBSD )
-	    numnics=$(ifconfig -a | grep "media: Ethernet" | wc -l)
-#	unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
-#	w=${d[4]} ; x=${w#(}
-#	z=${d[5]} ; y=${z%)}
-#	meminfo=$x$y
-	;;
-    * )
-	echo "os $os unknown"
-	meminfo="0"
-	failed=FAIL
-	;;
-esac
-#echo -n "Found phys memory $meminfo"
-} >> ${tmplog} 2>&1
-
-#tbinfo=$(getfromtb meminfo $host)
-
-#{
-#if [ "$tbinfo" == "$meminfo" ] ; then
- #   echo " equals node inventory $tbinfo"
-#else
-#    echo " does not equals node inventory $tbinfo"    
-#    failed=FAIL
-#fi
-#} >> ${tmplog} 2>&1
-
+finished() {
+cat ${tmplog2}
 echo "niccheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
+cat ${tmplog2} >> ${logfile} 
+rm -f ${tmplog2}
 
-failed=FAIL
-[[ -z ${failed} ]] && echo ". . . interfaces $numnics OK" || echo ". . . interfaces $numnics FAILED"
+[[ -z ${failed} ]] && exit 1 || exit 0
+
+}
+
+# set +x
+#exit on unbound var
+set -u
+
+{
+unset -v ifinfo ; declare -a ifinfo=()
+case $os in
+    Linux )
+	delimiter="HWaddr" ;;
+    FreeBSD )
+	delimiter="ether" ;;
+    * )
+	failed="os $os unknown"
+	finished
+	;;
+esac
+
+unset -v d ; declare -a d=($(ifconfig -a | grep $delimiter))
+declare -i cnt=0;
+for ((idx=0; idx<${#d[*]};idx++)) ; do
+    [[ "${d[idx]}" == "${delimiter}" ]] || continue
+    ((++idx))
+    y=${d[idx]}
+    ifinfo[$cnt]=${y//:/}
+    ((++cnt))
+done
+echo "${ifinfo[@]}"
+
+} >> ${tmplog} 2>&1
+
+tbreturn=$(getfromtb macinfo $host)
+
+#lowercase
+tbreturn=${tbreturn,,}
+
+#turn space seperated string into array
+unset -v tbinfo; declare -a tbinfo=(${tbreturn// / })
+
+ifcnt=${#ifinfo[*]}
+tbcnt=${#tbinfo[*]}
+numnics=$ifcnt
+
+if [[ ${ifcnt} -ne ${tbcnt} ]] ; then
+    failed="TBmiss number of nics "
+    if [[ ${ifcnt} -gt ${tbcnt} ]] ; then
+	    failed="$failed TB missing nic "
+	    maxcnt=${ifcnt}
+    else
+	    failed="$failed TB extra nic "
+	    maxcnt=${tbcnt}
+    fi
+else
+    maxcnt=${ifcnt}
+fi
+
+for ((idx=0; idx<$maxcnt; idx++)) ; do
+    for ((ifi=0; ifi<$ifcnt; ifi++)) ; do
+	for ((tbi=0; tbi<$tbcnt; tbi++)) ; do
+	    if [ "${ifinfo[$ifi]}" = "${tbinfo[$tbi]}" ] ; then
+		ifinfo[$ifi]=''
+		tbinfo[$tbi]=''
+	    fi
+	done
+    done
+done
+ifresult=${ifinfo[@]}
+tbresult=${tbinfo[@]}
+
+[[ "$ifresult" || "$tbresult" ]] && failed="$failed $ifresult $tbresult"
+
+{
+    [[ -z ${failed} ]] && echo "$numnics interfaces OK" || echo "$numnics interfaces $failed" FAILED
+
+} >> ${tmplog2} 2>&1
+
+
+finished
+
 
 exit 0

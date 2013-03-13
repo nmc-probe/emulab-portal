@@ -18,7 +18,7 @@ getfromtb() {
 		ibapah ) echo "8GiB" ;;
 		boss.emulab.net ) echo "4GiB" ;;
 		pc472 | pc446 | pc406 ) echo "12GiB" ;;
-		pc607 ) echo "128GiB" ;;
+		pc603 | pc607 ) echo "128GiB" ;;
 		* ) echo "tb ${d[1]} unknown_host" ;;
 	    esac
 	    ;;
@@ -32,7 +32,7 @@ getfromtb() {
 		ibapah ) echo "x86_64 1 2 2400 110" ;;
 		boss.emulab.net ) echo "x86_64 2 1 1 3000 110" ;;
 		pc472 | pc406 | pc446 ) echo "x86_64 1 4 2 2400 111" ;;
-		pc607 ) echo "x86_64 4 8 2 2200 111" ;;
+		pc603 | pc607 ) echo "x86_64 4 8 2 2200 111" ;;
 		* ) 
 		    echo "tb ${d[1]} unknown_host"
 	            return 1
@@ -48,9 +48,29 @@ getfromtb() {
 		ibapah ) echo "160GB 500GB 500GB" ;;
 #	    boss.emulab.net ) echo "" ;;
 		pc472 | pc406 | pc446 ) echo "500GB 250GB" ;;
+		pc603 | pc607 ) echo "250GB 600GB 600GB 600GB 600GB 600GB 600GB" ;;
 		* ) 
 		    echo "unknown_host"
 	            return 1
+		    ;;
+	    esac
+	    ;;
+	macinfo )
+	    case ${d[1]} in
+		pc4 ) echo "00d0b713f4f0 00d0b713f644 00d0b713f492 00d0b713f65a 00d0b713f470 00179AC3657F" ;;
+		pc7 ) echo "00d0b713f636 00d0b713f277 00d0b726c1ca 00d0b713f44f 00d0b7102b20 00179AC3657E";;
+		pc137 ) echo "00034773a233 00034773a234 0002b3861f8a 0002b3861f8b 00d0b725463a" ;;
+		pc133 ) echo "000347738e57 000347738e58 0002b3861d88 0002b3861d89 00034795793e" ;;
+		pc207 ) echo "001143e45bc1 001143e45bc2 000423b7424e 000423b7424f 000423b7425a 000423b7425b" ;;
+		pc208 ) echo "001143e492cc 001143e492cd 000423b7210a 000423b7210b 000423b72108 000423b72109" ;;
+		pc406 ) echo "0024e877694b 0024e877694d 0024e877694f 0024e8776951 00101856ab84 00101856ab86" ;;
+		pc446 ) echo "0024e877ad57 0024e877ad59 0024e877ad5b 0024e877ad5d 001018568fac 001018568fae" ;;
+		pc603 ) echo "D4AE529B88D3 D4AE529B88D4 D4AE529B88D5 D4AE529B88D6 a0369f0731b4 a0369f0731b6 a0369f073258" ;;
+		pc607 ) echo "D4AE529B6DDB D4AE529B6DDC D4AE529B6DDD D4AE529B6DDE a0369f073390 a0369f073392 a0369f070b2c" ;;
+		boss.emulab.net ) echo "001143e453fe 001143e453ff 000e0c21a0fa 0002e3001c10" ;;
+		* )
+		    echo "unknown_host"
+		    return 1
 		    ;;
 	    esac
 	    ;;
