@@ -8,8 +8,8 @@ sub DoUpdate($$$)
 {
     my ($dbhandle, $dbname, $version) = @_;
 
-    if(!DBTableExists("address_reservations")) {
-	DBQueryFatal("CREATE TABLE `address_reservations` ( ".
+    if(!DBTableExists("reserved_addresses")) {
+	DBQueryFatal("CREATE TABLE `reserved_addresses` ( ".
 		     " `rsrvidx` int(10) unsigned NOT NULL default '0', ".
 		     " `pid` varchar(48) NOT NULL default '',  ".
 		     " `eid` varchar(32) NOT NULL default '', ".

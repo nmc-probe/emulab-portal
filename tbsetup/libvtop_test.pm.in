@@ -5644,6 +5644,11 @@ sub InterpLinks($)
 	}
     }
 
+    # Check nodes for shared members that require special address
+    # treatment.  Perform address substitution and reservation
+    # on attached lans / lan members.
+    $self->CheckIPAddressReservations() == 0
+	or return -1;
     # Write the vlans to the DB.
     $self->UploadVlans() == 0
 	or return -1;
@@ -7661,6 +7666,122 @@ sub SetUpTracing($$$$$)
 		 "   '$trace_db')")
 	or return -1;
     
+    return 0;
+}
+
+#
+# Look for shared entities that require special IP address treatment.
+# This usually means getting a new mutually exclusive address range,
+# reserving it for this experiment in the database.  Substitute
+# addresses on co-located link/lan members to accomodate.  This is
+# _NOT_ a persisitent reservation.  It is per experiment swap-in.
+#
+sub CheckIPAddressReservations($) {
+    my ($self) = @_;
+
+    # For stashing lans we need to take a closer look at.
+    my @sharedlans = ();
+
+    # Round 1, peel off lans that contain members that need special
+    # address treatment.  These lans could probably be marked when
+    # such a node is added, but doing it here keeps this procedure
+    # self-contained.
+    foreach my $virtlan (values(%{ $self->vlans() })) {
+	next
+	    if ($virtlan->_layer() != 2);  # foo from the beyond.
+
+	foreach my $member ($virtlan->memberlist()) {
+	    # Will this happen?
+	    next
+		if (!exists($self->solution_portmap()->{$member}));
+
+	    my $vnodename = $member->vnode();
+	    my $pnodename = $self->solution_v2p()->{$vnodename};
+	    my $pnode     = $self->pnodes()->{$pnodename};
+	    my $smode     = $pnode->sharing_mode();
+	    # Only looking for shared storage hosts at present,
+	    # but this could easily be changed to add more.
+	    if (defined($smode) && $smode eq "storage_host") {
+		push @sharedlans, $virtlan;
+	    }
+	}
+    }
+
+    # Round 2: re-assign addresses using the IP buddy allocator, via
+    # its testbed wrapper.  Note that this amends the addresses assigned
+    # in the virt_lans table as well.
+    if (@sharedlans) {
+	# Don't pull this module in until now to avoid unnecessary
+	# dependencies.  If we find ourselves using it in other places,
+	# then move this up to package scope.
+	require IPBuddyWrapper;
+	# Tie this buddy allocator to the "storage_host" global address range.
+	my $buddy = IPBuddyWrapper->new("storage_host");
+	return -1 
+	    unless defined($buddy);
+	# This call will lock the "reserved_addresses" table.
+	$buddy->lock() 
+	    or return -1;
+	# Now preload the reservations in the DB, including those associated
+	# with this experiment.  The buddy allocator will allocate around
+	# these.
+	$buddy->loadReservedRanges($self->virtexperiment()) == 0
+	    or return -1;
+
+	foreach my $virtlan (@sharedlans) {
+	    my $vlanname = $virtlan->vname();
+	    my $mask     = $virtlan->_mask();
+	    my $range    = $buddy->requestAddressRange($self->virtexperiment(),
+						       $mask);
+	    if (!defined($range)) {
+		$buddy->unlock();
+		return -1;
+	    }
+	    $self->printdb("Reserved shared address range for ".
+			   "$vlanname: $range/$mask");
+
+	    # Got a new reserved range, so re-IP this lan.
+	    foreach my $member ($virtlan->memberlist()) {
+		# Will this happen?
+		next
+		    if (!exists($self->solution_portmap()->{$member}));
+		
+		# Grab some info/objects for the current lan member.
+		my $ip        = $member->ip();
+		my $iface     = $self->solution_portmap()->{$member};
+		my $vnodename = $member->vnode();
+
+		# re-IP this member.  Push back into the virt_lans
+		# table; otherwise, things that expect the IP set
+		# there to match what is set in the
+		# interfaces/vinterfaces table will go wonky.
+		my $new_ip = $buddy->getNextAddress($range);
+		if (!defined($new_ip)) {
+		    $buddy->unlock();
+		    return -1;
+		}
+		# XXX: this stuff may not work...
+		$member->ip($new_ip);
+		my $sflags = 0;
+		$sflags |= $self->verbose() ? 
+		    VirtExperiment::STORE_FLAGS_DEBUG :
+		    0;
+		$sflags |= $self->impotent() ?
+		    VirtExperiment::STORE_FLAGS_IMPOTENT :
+		    0;
+		if ($member->Store($sflags) != 0) {
+		    $buddy->unlock();
+		    return -1;
+		}
+	    }
+	}
+
+	# All done with reservations, so commit and unlock.
+	$buddy->commitReservations()
+	    unless $self->impotent();
+	$buddy->unlock();
+    }
+
     return 0;
 }
 

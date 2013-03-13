@@ -36,7 +36,6 @@ use vars qw(@ISA @EXPORT);
 use English;
 use Tree::Binary;
 use Net::IP;
-use Socket;
 
 # Global vars
 my $debug    = 0;
