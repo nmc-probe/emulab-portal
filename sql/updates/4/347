@@ -22,7 +22,7 @@ sub DoUpdate($$$)
 		     " `role` enum('public','internal') ".
 		     "    NOT NULL default 'internal', ".
 		     " PRIMARY KEY (`rsrvidx`), ".
-		     " UNIQUE KEY  (`baseaddr`,`prefix`) ".
+		     " UNIQUE KEY `type_base` (`type`,`baseaddr`,`prefix`) ".
 		     ")");
     }
 

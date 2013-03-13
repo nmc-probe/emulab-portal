@@ -16,6 +16,19 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
+-- Table structure for table `address_ranges`
+--
+
+DROP TABLE IF EXISTS `address_ranges`;
+CREATE TABLE `address_ranges` (
+  `baseaddr` varchar(40) NOT NULL default '',
+  `prefix` tinyint(4) unsigned NOT NULL default '0',
+  `type` varchar(30) NOT NULL default '',
+  `role` enum('public','internal') NOT NULL default 'internal',
+  PRIMARY KEY (`baseaddr`,`prefix`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `accessed_files`
 --
 
@@ -3655,6 +3668,25 @@ CREATE TABLE `reserved` (
   UNIQUE KEY `vname2` (`exptidx`,`vname`),
   KEY `old_pid` (`old_pid`,`old_eid`),
   KEY `old_exptidx` (`old_exptidx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `reserved_addresses`
+--
+
+DROP TABLE IF EXISTS `reserved_addresses`;
+CREATE TABLE `reserved_addresses` (
+  `rsrvidx` int(10) unsigned NOT NULL default '0',
+  `pid` varchar(48) NOT NULL default '',
+  `eid` varchar(32) NOT NULL default '',
+  `exptidx` int(10) unsigned NOT NULL default '0',
+  `rsrv_time` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  `baseaddr` varchar(40) NOT NULL default '',
+  `prefix` tinyint(4) unsigned NOT NULL default '0',
+  `type` varchar(30) NOT NULL default '',
+  `role` enum('public','internal') NOT NULL default 'internal',
+  PRIMARY KEY (`rsrvidx`),
+  UNIQUE KEY `type_base` (`type`,`baseaddr`,`prefix`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
