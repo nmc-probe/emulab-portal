@@ -54,21 +54,21 @@ use Socket;
 # the type of address reservations to target.
 #
 sub new($$) {
-    my ($class, $type) = @_;
+    my ($class, $intype) = @_;
     my $self = {};
 
     return undef
-	unless defined($type);
+	unless defined($intype);
 
     # Get the address range corresponding to this type from the database.
     # Currently this only supports one type, and one range for that type.
     my $qres =
-	DBQueryWarn("select * from address_ranges where type='$type'");
+	DBQueryWarn("select * from address_ranges where type='$intype'");
     return undef
 	if (!$qres);
     if ($qres->numrows() != 1) {
 	tberror("More than one range entry found for this address ".
-		"type in the DB: $type\n");
+		"type in the DB: $intype\n");
 	return undef;
     }
 
@@ -318,6 +318,7 @@ sub new($$$) {
     $self->{'RANGE'} = $range;
     $self->{'IPOBJ'} = $ipobj;
     
+    bless($self, $class);
     return $self;
 }
 
@@ -344,7 +345,7 @@ sub getNextAddress($) {
 # Reset back to base address from this object's range.
 #
 sub resetAddress($) {
-    my $self = $shift;
+    my $self = shift;
 
     my $ipobj = Net::IP->new($self->getrange());
     $self->{'IPOBJ'} = $ipobj;

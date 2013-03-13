@@ -33,7 +33,7 @@ sub DoUpdate($$$)
 		     " `type` varchar(30) NOT NULL default '', ".
 		     " `role` enum('public','internal') ".
 		     "    NOT NULL default 'internal', ".
-		     " PRIMARY KEY (`baseaddr`,`prefix`)"
+		     " PRIMARY KEY (`baseaddr`,`prefix`)".
 		     ")");
     }
 

@@ -7764,10 +7764,10 @@ sub CheckIPAddressReservations($) {
 		$member->ip($new_ip);
 		my $sflags = 0;
 		$sflags |= $self->verbose() ? 
-		    VirtExperiment::STORE_FLAGS_DEBUG :
+		    $VirtExperiment::STORE_FLAGS_DEBUG :
 		    0;
 		$sflags |= $self->impotent() ?
-		    VirtExperiment::STORE_FLAGS_IMPOTENT :
+		    $VirtExperiment::STORE_FLAGS_IMPOTENT :
 		    0;
 		if ($member->Store($sflags) != 0) {
 		    $buddy->unlock();
