@@ -250,12 +250,6 @@ Setting up an InstaGeni Rack. First, we need the following info:
   5400(vlan-10)> untagged A20	  XXXX Make sure about port number! E20?
   5400(vlan-10)> ip address 10.3.1.253/24
   5400(vlan-10)> exit 
-  5400(config)# openflow
-  5400(openFlow)# vlan 1750
-  5400(openFlow vlan-1750)# enable
-  5400(openFlow vlan-1750)# controller "tcp:10.3.1.7:6633" fail-secure on
-  5400(openFlow vlan-1750)# exit
-  5400(openFlow)# exit
   5400(config)> management-vlan 10
   5400(config)> ip default-gateway 10.3.1.254
   5400(config)> no web-management
@@ -344,10 +338,25 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	sudo sh /usr/testbed/etc/initilo.sh
 
-* NOTE: scripted ssh key upload broke in the new iLo. Need to upload the
-  elabman ssh key to each node's ilo using the web interface instead. The
-  above command happily changed all the passwords so they are now the same
-  so that makes it a little easier. 
+* NOTE: scripted ssh key upload broke in the new iLo, which the script
+  above used to take care of. So now we need to upload the root ssh
+  key to each node's ilo using the web interface instead. The above
+  command happily changed all the passwords so they are now the same
+  so that makes it a little easier. Use this key:
+
+	/root/.ssh/id_dsa.pub
+
+  Install the key into BOTH the ELABMAN and ADMINISTRATOR accounts!!!!!
+
+  Now do this:
+
+	/usr/testbed/sbin/initilo.pl -b pc1
+	/usr/testbed/sbin/initilo.pl -b pc2
+	/usr/testbed/sbin/initilo.pl -b pc3
+	/usr/testbed/sbin/initilo.pl -b pc4
+	/usr/testbed/sbin/initilo.pl -b pc5
+
+  DAMN YOU HP!
 
 * Free all the nodes up and lets hope they reload okay. Okay, lets
   just do one to start with.
@@ -401,6 +410,17 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	boss> wap snmpit -l -l -O
 
+* Telnet to procurve2 (/usr/testbed/etc/switch.pswd):
+
+	5400> config
+	5400(config)# openflow
+	5400(openFlow)# vlan 1750
+	5400(openFlow vlan-1750)# enable
+	5400(openFlow vlan-1750)# controller "tcp:10.3.1.7:6633" fail-secure on
+	5400(openFlow vlan-1750)# exit
+	5400(openFlow)# exit
+	5400(config)> write memory
+
 * Add the public IP space, if appropriate. See the site survey response.
   This needs to go into the image baking script.
 
@@ -424,11 +444,6 @@ Setting up an InstaGeni Rack. First, we need the following info:
 		emulab-ops openflow-vlans XXXX-YYYY:eth0
 	boss> wap sharevlan -o emulab-ops,openflow-vlans \
 		mesoscale-openflow mesoscale-openflow
-
-* This needs to go into the image baking script:
-
-	boss> wap emulabfeature create LibVtopTest 'Test version of libvtop'
-	boss> wap emulabfeature enable LibVtopTest
 
 * Create some test experiments. Test the ProtoGeni API.
 
