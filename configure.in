@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1226,6 +1226,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	protogeni/rspec-emulab/2/GNUmakefile \
         collab/GNUmakefile \
         collab/trac/GNUmakefile \
+        collab/plone/GNUmakefile \
         collab/jabber/GNUmakefile \
         collab/mailman/GNUmakefile collab/cvstools/GNUmakefile \
 	collab/mailman/mmlistmembership \

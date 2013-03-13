@@ -7611,6 +7611,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	protogeni/rspec-emulab/2/GNUmakefile \
         collab/GNUmakefile \
         collab/trac/GNUmakefile \
+        collab/plone/GNUmakefile \
         collab/jabber/GNUmakefile \
         collab/mailman/GNUmakefile collab/cvstools/GNUmakefile \
 	collab/mailman/mmlistmembership \

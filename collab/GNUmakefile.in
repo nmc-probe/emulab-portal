@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2005, 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -25,10 +25,14 @@ SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
 OBJDIR		= ..
 SUBDIR		= collab
+ISMAINSITE	= @TBMAINSITE@
 
 include $(OBJDIR)/Makeconf
 
 SUBDIRS	= mailman cvstools jabber trac
+ifeq ($(ISMAINSITE),1)
+#SUBDIRS += plone
+endif
 ifeq ($(EXP_VIS_SUPPORT),1)
 SUBDIRS += exp-vis
 endif
@@ -41,6 +45,9 @@ control-install:
 	@$(MAKE) -C mailman control-install
 	@$(MAKE) -C cvstools control-install
 	@$(MAKE) -C trac control-install
+ifeq ($(ISMAINSITE),1)
+	@$(MAKE) -C plone control-install
+endif
 
 install:	install-subdirs
 clean:		clean-subdirs
@@ -51,6 +58,9 @@ post-install:
 	@$(MAKE) -C cvstools post-install
 	@$(MAKE) -C jabber post-install
 	@$(MAKE) -C trac post-install
+ifeq ($(ISMAINSITE),1)
+	@$(MAKE) -C plone post-install
+endif
 ifeq ($(EXP_VIS_SUPPORT),1)
 	@$(MAKE) -C exp-vis post-install
 endif
