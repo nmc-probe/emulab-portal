@@ -373,7 +373,8 @@ sub getVlanPorts (@) {
 
 #
 # Returns an an array of trunked ports (in node:card form) used by an
-# experiment
+# experiment. These are ports that must be in trunk mode; whether they
+# are currently *in* trunk mode is not relevant.
 #
 sub getExperimentTrunks($$@) {
     my ($pid, $eid, @vlans) = @_;
@@ -389,22 +390,52 @@ sub getExperimentTrunks($$@) {
 
     #
     # We want to restrict the set of ports to just those in the
-    # provided vlans, lest we get into a problem with a missing
-    # device from the stack. This became necessary after adding
-    # shared vlans, since those ports technically belong to the
-    # current experiment, but are setup in the context of a
-    # different experiment.
+    # provided vlans, lest we get into a problem with a missing device from
+    # the stack. This became necessary after adding shared vlans, since
+    # those ports technically belong to the current experiment, but are
+    # setup in the context of a different experiment.
     #
-    # However, there is a problem. Without the check against the
-    # reserved table, we will also get the physical ports on a shared
-    # node, which are in use by the VMs on the node, but actually
-    # belong to the holding experiment, and thus should not be considered,
-    # lest we change the tagging and mess up all the VMs using that
-    # port. In other words, sometimes we want to consider ports on
-    # nodes that belong to another experiment (shared vlan) and sometimes
-    # we do not (shared nodes). Sadly, the nodes that get added to a
-    # shared lan are sometimes shared nodes! Confused yet?
+    # Consider these different setups.
+    # 1. Normal:
+    #    The vlans and the ports belong to the experiment in question.
+    # 2. Shared Nodes:
+    #    There is a base vlan (dual mode) for the shared node experiment
+    #    and all of the ports belong to that experiment. That vlan is setup
+    #    at the beginning of time when swapping in the shared node
+    #    experiment. When experiments that use the shared nodes are
+    #    swapped, we never want to touch the port trunk mode, just add
+    #    vlans to those ports since they will already be tagged.
+    #    NOTE: Fake nodes (like ion) are also considered shared nodes,
+    #    but in a different holding experiment. 
+    # 3. Shared vlans:
+    #    These vlans exist in a holding experiment, but the ports that we
+    #    put into those vlans belong to nodes in other experiments.
+    #    Basically the reverse of the situation above with shared nodes.
+    #    We run snmpit in the context of the holding experiment, and so the
+    #    ports we want to trunk belong to another experiment. See, exactly
+    #    the opposite of above. Ick.
+    #    NOTE: If we a shared vlan is being used by a shared node, we
+    #    do not want to mess with trunk mode on those ports.
     #
+    # So the cases are:
+    # 1. Swapin/Swapout normal experiment.
+    # 2. Swapin/Swapout the shared node experiment.
+    # 3. Swapin/Swapout experiments using shared nodes.
+    # 4. Swapin/Swapout experiments using shared vlans.
+    # 5. Swapin/Swapout experiments using shared nodes AND shared vlans.
+    #
+    # Remember, for 4 that we run snmpit in the context of the holding
+    # experiment that owns the shared vlan. AND we run snmpit in the
+    # context of the experiment swaping.
+    #
+    # So we have to check each node (its ports) in a vlan against the
+    # current experiment. We skip those ports that do not belong to it if
+    # the experiment they belong to is a shared node holding experiment).
+    # We can determine this by looking in the reserved table for the node.
+    # A physical node is a shared host and a virtual node is a shared node.
+    # But if the port does not belong to it, is a shared vlan port, and
+    # not a shared node port, we have to trunk/untrunk it!
+    # 
     foreach my $vlanid (@vlans) {
 	# Allow vlan list to be vlan objects.
 	$vlanid = $vlanid->id()
@@ -414,28 +445,50 @@ sub getExperimentTrunks($$@) {
 	    next
 		if (!$port->trunk());
 
-	    #
-	    # Look at the node. If the node is reserved to another
-	    # experiment, then consider it only if the lan is marked
-	    # as a shared lan.
-	    #
 	    my $node = Node->Lookup($port->node_id());
 	    if (!defined($node)) {
-		print STDERR "*** No such node for $port\n";
+		print STDERR "*** getExperimentTrunks: ".
+		    "*** No such node for $port\n";
 		next;
 	    }
 	    my $reservation = $node->Reservation();
-	    next
-		if (!defined($reservation));
-
-	    if (! $experiment->SameExperiment($reservation)) {
-		my $query_result =
-		    DBQueryFatal("select lanid from shared_vlans ".
-				 "where lanid='$vlanid'");
-		next
-		    if (!$query_result->numrows);
+	    if (!defined($reservation)) {
+		print STDERR "*** getExperimentTrunks: ".
+		    "$node is not reserved!\n";
+		next;
 	    }
-	    $ports{$port->toString()} = $port;
+
+	    #
+	    # Case #1 and #2.
+	    #
+	    if ($experiment->SameExperiment($reservation)) {
+		$ports{$port->toString()} = $port;
+		next;
+	    }
+	    #
+	    # Case #3; skip ports belonging to a shared physical host.
+	    # They are already in trunk mode and should be left alone,
+	    # or we risk losing all of the vlans that port is tagged on. 
+	    #
+	    # XXX Sanity check to make sure?
+	    #
+	    next
+		if ($node->sharing_mode());
+	    
+	    #
+	    # Case #4: Running snmpit on a shared vlan, all ports belong
+	    # to other experiments, they are need to be trunked, and we
+	    # know from case #3 above that they are not shared hosts.
+	    #
+	    my $query_result =
+		DBQueryFatal("select lanid from shared_vlans ".
+			     "where lanid='$vlanid'");
+	    if ($query_result->numrows) {
+		$ports{$port->toString()} = $port;
+		next;
+	    }
+	    print STDERR "*** getExperimentTrunks: ".
+		"Do not know trunk mode for $port in $vlanid!\n";
 	}
     }
     return %ports;
@@ -449,75 +502,29 @@ sub getExperimentTrunks($$@) {
 sub getExperimentCurrentTrunks($$@) {
     my ($pid, $eid, @vlans) = @_;
     my %ports = ();
-
-    # For debugging only.
-    @vlans = getExperimentVlans($pid, $eid)
-	if (!@vlans);
-
-    my $experiment = Experiment->Lookup($pid, $eid);
-    return undef
-	if (!defined($experiment));
+    
+    #
+    # Get all of the ports we are allowed to act on from above function.
+    #
+    my %allports = getExperimentTrunks($pid, $eid, @vlans);
 
     #
-    # We want to restrict the set of ports to just those in the
-    # provided vlans, lest we get into a problem with a missing
-    # device from the stack. This became necessary after adding
-    # shared vlans, since those ports technically belong to the
-    # current experiment, but are setup in the context of a
-    # different experiment.
+    # Check which of these ports is actually in trunk mode. 
     #
-    # However, there is a problem. Without the check against the
-    # reserved table, we will also get the physical ports on a shared
-    # node, which are in use by the VMs on the node, but actually
-    # belong to the holding experiment, and thus should not be considered,
-    # lest we change the tagging and mess up all the VMs using that
-    # port. In other words, sometimes we want to consider ports on
-    # nodes that belong to another experiment (shared vlan) and sometimes
-    # we do not (shared nodes). Sadly, the nodes that get added to a
-    # shared lan are sometimes shared nodes! Confused yet?
-    #
-    foreach my $vlanid (@vlans) {
-	# Allow vlan list to be vlan objects.
-	$vlanid = $vlanid->id()
-	    if (ref($vlanid));
-
-	my @vlanports = getExperimentVlanPorts($vlanid);
-
-	foreach my $port (@vlanports) {
-	    my $node_id = $port->node_id();
-	    my $iface   = $port->iface();
+    foreach my $key (keys(%allports)) {
+	my $port    = $allports{$key};
+	my $node_id = $port->node_id();
+	my $iface   = $port->iface();
 	
-	    my $query_result =
-		DBQueryFatal("select tagged from interface_state ".
-			     "where node_id='$node_id' and iface='$iface' and ".
-			     "      tagged!=0");
+	my $query_result =
+	    DBQueryFatal("select tagged from interface_state ".
+			 "where node_id='$node_id' and iface='$iface' and ".
+			 "      tagged!=0");
 
-	    next
-		if (! $query_result->numrows);
+	next
+	    if (! $query_result->numrows);
 
-	    #
-	    # Look at the node. If the node is reserved to another
-	    # experiment, then consider it only if the lan is marked
-	    # as a shared lan.
-	    #
-	    my $node = Node->Lookup($node_id);
-	    if (!defined($node)) {
-		print STDERR "*** No such node for $port\n";
-		next;
-	    }
-	    my $reservation = $node->Reservation();
-	    next
-		if (!defined($reservation));
-
-	    if (! $experiment->SameExperiment($reservation)) {
-		my $query_result =
-		    DBQueryFatal("select lanid from shared_vlans ".
-				 "where lanid='$vlanid'");
-		next
-		    if (!$query_result->numrows);
-	    }
-	    $ports{$port->toString()} = $port;
-	}
+	$ports{$key} = $port;
     }
     return %ports;
 }
