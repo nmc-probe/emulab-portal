@@ -695,8 +695,8 @@ sub GetDelayPipes($)
 sub IsUntaggedLan($)
 {
     my ($link) = @_;
-    my @result = FindNodeNS("n:untagged_vlan", $link,
-			    $EMULAB_NS)->get_nodelist();
+    my @result = FindNodesNS("n:untagged_vlan", $link,
+			     $EMULAB_NS)->get_nodelist();
     return scalar(@result) > 0;
 }
 
