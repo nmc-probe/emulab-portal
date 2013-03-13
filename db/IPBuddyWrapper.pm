@@ -24,6 +24,9 @@
 # Emulab wrapper class for the IP range buddy allocator.  Handles all of the
 # Emulab-specific goo around allocating address ranges.
 #
+# Note:  Currently this class only supports a single global address range
+#        type.  It really should be augmented to support multiple.
+#
 package IPBuddyWrapper;
 
 use strict;
@@ -35,8 +38,9 @@ use vars qw(@ISA @EXPORT);
 
 use English;
 use emdb;
+use emutil qw( TBGetUniqueIndex );
 use libtblog_simple;
-use VirtExperiment;
+use Experiment;
 use IPBuddyAlloc;
 use Socket;
 
@@ -57,7 +61,7 @@ sub new($$) {
 	unless defined($type);
 
     # Get the address range corresponding to this type from the database.
-    # Currently we only support one range per type.
+    # Currently this only supports one type, and one range for that type.
     my $qres =
 	DBQueryWarn("select * from address_ranges where type='$type'");
     return undef
@@ -77,6 +81,8 @@ sub new($$) {
 	return undef;
     }
 
+    $self->{'TYPE'}  = $type;
+    $self->{'ROLE'}  = $role;
     $self->{'BUDDY'} = $buddy;
     $self->{'ALLOC_RANGES'} = {};
     $self->{'NEWLIST'} = [];
@@ -88,6 +94,7 @@ sub new($$) {
 # Internal Accessors
 sub _getbuddy($)   { return $_[0]->{'BUDDY'}; }
 sub _gettype($)    { return $_[0]->{'TYPE'}; }
+sub _getrole($)    { return $_[0]->{'ROLE'}; }
 sub _allranges($)  { return $_[0]->{'ALLOC_RANGES'}; }
 sub _allnew($)     { return $_[0]->{'NEWLIST'}; }
 sub _getrange($$)  { return $_[0]->_allranges()->{$_[1]}; }
@@ -121,7 +128,7 @@ sub unlock($) {
 #                set of reserved address ranges.
 #
 sub loadReservedRanges($;$) {
-    my ($self, $virtexperiment) = @_;
+    my ($self, $experiment) = @_;
 
     my $bud      = $self->_getbuddy();
     my $ranges   = $self->_getranges();
@@ -149,14 +156,14 @@ sub loadReservedRanges($;$) {
     }
 
     # Add an experiment's virtlans if that parameter was passed in.
-    if (defined($virtexperiment)) {
-	if (ref($virtexperiment) ne "HASH" ||
-	    !$virtexperiment->isa(VirtExperiment)) {
-	    tberror("Argument was not a VirtExperiment object!\n");
+    if (defined($experiment)) {
+	if (ref($experiment) ne "HASH") {
+	    tberror("Experiment argument is not an object!\n");
 	    return -1;
 	}
-	my $exptidx    = $virtexperiment->exptidx();
-	my $virtlans   = $virtexperiment->Table("virt_lans");
+	my $exptidx    = $experiment->idx();
+	my $virtexpt   = $experiment->GetVirtExperiment();
+	my $virtlans   = $virtexpt->Table("virt_lans");
 	foreach my $virtlan (values %{$virtlans}) {
 	    my $ip     = inet_aton($virtlan->ip());
 	    my $mask   = inet_aton($virtlan->mask());
@@ -165,6 +172,9 @@ sub loadReservedRanges($;$) {
 	    next if !$self->_getrange("$base/$prefix");
 	    my $rval   = eval { $bud->embedAddressRange("$base/$prefix") };
 	    if ($@) {
+		# Just skip if the current range isn't in the base
+		# address range.
+		next if $@ =~ /must belong to base range/;
 		tberror("Error while embedding experiment lan range: $@\n");
 		return -1;
 	    }
@@ -184,25 +194,28 @@ sub loadReservedRanges($;$) {
 # database.
 #
 sub requestAddressRange($$$) {
-    my ($self, $virtexperiment, $mask) = @_;
+    my ($self, $experiment, $mask) = @_;
 
     return undef unless 
-	ref($virtexperiment) == "HASH" &&
+	ref($experiment) == "HASH" &&
 	defined($mask);
 
+    # Check mask argument to see if it is a dotted-quad mask or a CIDR
+    # prefix.  Convert dotted-quad masks to CIDR prefixes.
     my $prefix;
     if ($mask =~ /^\d+\.\d+\.\d+\.\d+$/) {
 	$prefix = unpack('%32b*', inet_aton($mask));
     } elsif ($prefix =~ /^\d+$/) {
 	$prefix = $mask;
     } else {
-	tberror("Invalid mask/prefix: $mask\n");
+	tberror("Invalid mask or prefix: $mask\n");
 	return undef;
     }
 
-    my $exptidx = $virtexperiment->exptidx();
+    my $exptidx = $experiment->idx();
     my $bud     = $self->_getbuddy();
 
+    # IPBuddyAlloc throws exceptions.
     my $range = eval { $bud->requestAddressRange($prefix) };
     if ($@) {
 	tberror("Error while requesting address range: $@");
@@ -212,6 +225,8 @@ sub requestAddressRange($$$) {
 	tberror("Could not get a free address range!\n");
 	return undef;
     }
+    # Push the new range onto the new range list.  This also puts it
+    # into the "allocated" hash.
     $self->_newrange($range, IPBuddyWrapper::Allocation->new($exptidx,
 							     $range));
 
@@ -220,7 +235,7 @@ sub requestAddressRange($$$) {
 
 #
 # Request the next address from the input range.  It should have been
-# previously allocated with requestAddressRange()
+# previously allocated with requestAddressRange().
 #
 sub getNextAddress($$) {
     my ($self, $range) = @_;
@@ -237,16 +252,40 @@ sub getNextAddress($$) {
 sub DESTROY($) {
     my $self = shift;
 
+    $self->{'TYPE'} = undef;
+    $self->{'ROLE'} = undef;
     $self->{'BUDDY'} = undef;
     $self->{'ALLOC_RANGES'} = undef;
     $self->{'NEWLIST'} = undef;
 }
 
 #
-# XXX: implement
+# Splat the list of newly allocated address ranges into the database.
 #
 sub commitReservations($) {
     my ($self) = @_;
+    my $type = $self->_gettype();
+    my $role = $self->_getrole();
+
+    foreach my $alloc (@{$self->_allnew()}) {
+	my $exptidx = $alloc->exptidx();
+	my ($base, $prefix) = split(/\//, $alloc->getrange());
+	my $expt    = Experiment->Lookup($exptidx);
+	return -1
+	    if !$expt;
+	my $pid = $expt->pid();
+	my $eid = $expt->eid();
+	# Other IPBuddyWrapper objects should already be blocked on
+	# our lock on the "reserved_addresses" table.
+	my $nolock = 1;
+	my $idxinitval = 1;
+	my $ridx = TBGetUniqueIndex("next_resvaddridx",$idxinitval,$nolock);
+	
+	DBQueryWarn("insert into reserved_addresses ".
+		    "values ('$ridx','$pid','$eid','$exptidx',".
+		    "NOW(),'$base','$prefix','$type','$role')")
+	    || return -1;
+    }
 
     return 0;
 }
@@ -284,7 +323,8 @@ sub new($$$) {
 
 # accessors
 sub _getobj($) { return $_[0]->{'IPOBJ'}; }
-sub _getrange($) { return $_[0]->{'RANGE'}; }
+sub getrange($) { return $_[0]->{'RANGE'}; }
+sub exptidx($) { return $_[0]->{'EXPTIDX'}; }
 
 #
 # Get next available address in the range. ('+' is overloaded in Net::IP).
@@ -306,7 +346,7 @@ sub getNextAddress($) {
 sub resetAddress($) {
     my $self = $shift;
 
-    my $ipobj = Net::IP->new($self->_getrange());
+    my $ipobj = Net::IP->new($self->getrange());
     $self->{'IPOBJ'} = $ipobj;
 }
 

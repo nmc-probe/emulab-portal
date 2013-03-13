@@ -7673,8 +7673,8 @@ sub SetUpTracing($$$$$)
 # Look for shared entities that require special IP address treatment.
 # This usually means getting a new mutually exclusive address range,
 # reserving it for this experiment in the database.  Substitute
-# addresses on co-located link/lan members to accomodate.  This is
-# _NOT_ a persisitent reservation.  It is per experiment swap-in.
+# addresses on co-located link/lan members to accomodate.  This
+# reservation does _NOT_ persist across swapins.
 #
 sub CheckIPAddressReservations($) {
     my ($self) = @_;
@@ -7684,8 +7684,8 @@ sub CheckIPAddressReservations($) {
 
     # Round 1, peel off lans that contain members that need special
     # address treatment.  These lans could probably be marked when
-    # such a node is added, but doing it here keeps this procedure
-    # self-contained.
+    # such a node is added to them, but doing it here keeps this
+    # procedure self-contained.
     foreach my $virtlan (values(%{ $self->vlans() })) {
 	next
 	    if ($virtlan->_layer() != 2);  # foo from the beyond.
@@ -7725,13 +7725,13 @@ sub CheckIPAddressReservations($) {
 	# Now preload the reservations in the DB, including those associated
 	# with this experiment.  The buddy allocator will allocate around
 	# these.
-	$buddy->loadReservedRanges($self->virtexperiment()) == 0
+	$buddy->loadReservedRanges($self->experiment()) == 0
 	    or return -1;
 
 	foreach my $virtlan (@sharedlans) {
 	    my $vlanname = $virtlan->vname();
 	    my $mask     = $virtlan->_mask();
-	    my $range    = $buddy->requestAddressRange($self->virtexperiment(),
+	    my $range    = $buddy->requestAddressRange($self->experiment(),
 						       $mask);
 	    if (!defined($range)) {
 		$buddy->unlock();
