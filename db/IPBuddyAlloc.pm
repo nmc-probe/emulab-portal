@@ -269,7 +269,7 @@ sub _findFree($$$) {
     }
 
     # Not at the terminal depth yet, so keep walking down (keeping
-    # left), creating nodes as necessary.
+    # right), creating nodes as necessary.
     if (!$cn->hasRight()) {
 	$cn->setRight(Tree::Binary->new({"value" => 1, 
 					 "term"  => 0}));

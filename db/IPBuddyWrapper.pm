@@ -217,6 +217,7 @@ sub requestAddressRange($$$) {
     my $bud     = $self->_getbuddy();
 
     # IPBuddyAlloc throws exceptions.
+  again:
     my $base = eval { $bud->requestAddressRange($prefix) };
     if ($@) {
 	tberror("Error while requesting address range: $@");
@@ -225,6 +226,14 @@ sub requestAddressRange($$$) {
     if (!defined($base)) {
 	tberror("Could not get a free address range!\n");
 	return undef;
+    }
+    # Throw away any ranges where all the bits are set in the quad.
+    # We want to avoid confusion and potential issues with broadcast
+    # addresses.
+    foreach my $quad (split(/\./, $base)) {
+	if ($quad == 255) {
+	    goto again;
+	}
     }
     my $range = "$base/$prefix";
     # Push the new range onto the new range list.  This also puts it
