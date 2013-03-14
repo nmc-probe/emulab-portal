@@ -371,13 +371,20 @@ sub getVlanPorts (@) {
     return @ports;
 }
 
+sub getExperimentTrunks($$@)
+{
+    my ($pid, $eid, @vlans) = @_;
+
+    return getExperimentTrunksHelper(0, $pid, $eid, @vlans);
+}
+
 #
 # Returns an an array of trunked ports (in node:card form) used by an
 # experiment. These are ports that must be in trunk mode; whether they
 # are currently *in* trunk mode is not relevant.
 #
-sub getExperimentTrunks($$@) {
-    my ($pid, $eid, @vlans) = @_;
+sub getExperimentTrunksHelper($$$$@) {
+    my ($current, $pid, $eid, @vlans) = @_;
     my %ports = ();
 
     # For debugging only.
@@ -440,8 +447,11 @@ sub getExperimentTrunks($$@) {
 	# Allow vlan list to be vlan objects.
 	$vlanid = $vlanid->id()
 	    if (ref($vlanid));
+
+	my @vlanports =
+	    ($current ? getExperimentVlanPorts($vlanid) :getVlanPorts($vlanid));
 	
-	foreach my $port (getVlanPorts($vlanid)) {
+	foreach my $port (@vlanports) {
 	    next
 		if (!$port->trunk());
 
@@ -506,7 +516,7 @@ sub getExperimentCurrentTrunks($$@) {
     #
     # Get all of the ports we are allowed to act on from above function.
     #
-    my %allports = getExperimentTrunks($pid, $eid, @vlans);
+    my %allports = getExperimentTrunksHelper(1, $pid, $eid, @vlans);
 
     #
     # Check which of these ports is actually in trunk mode. 
