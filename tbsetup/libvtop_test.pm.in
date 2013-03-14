@@ -7682,6 +7682,8 @@ sub CheckIPAddressReservations($) {
     # For stashing lans we need to take a closer look at.
     my @sharedlans = ();
 
+    $self->printdb("Checking IP Address Reservations.\n");
+
     # Round 1, peel off lans that contain members that need special
     # address treatment.  These lans could probably be marked when
     # such a node is added to them, but doing it here keeps this
@@ -7711,6 +7713,8 @@ sub CheckIPAddressReservations($) {
     # its testbed wrapper.  Note that this amends the addresses assigned
     # in the virt_lans table as well.
     if (@sharedlans) {
+	$self->printdb("Modifying address allocations for " . 
+		       (map { $_->vname() } @sharedlans) . "\n" );
 	# Don't pull this module in until now to avoid unnecessary
 	# dependencies.  If we find ourselves using it in other places,
 	# then move this up to package scope.
