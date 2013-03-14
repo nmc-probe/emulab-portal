@@ -233,9 +233,9 @@ sub requestAddressRange($$) {
 }
 
 # Helper method.
-# Traverse the binary tree looking for an empty slot at the right depth.
+# Traverse the binary tree looking for an empty slot at the correct depth.
 # Create nodes/branches as necesary to get to the requested depth.  This
-# procedure walks down the "left side" of the tree, going right only when
+# procedure walks down the "right side" of the tree, going left only when
 # it must.
 #
 # $self - Object reference for this class 
@@ -254,14 +254,14 @@ sub _findFree($$$) {
     # Are we just above the requested depth (prefix length)?  If there
     # is a free slot underneath, we'll use/return it!
     if ($cn->getDepth() == $reqdepth-1) {
-	if (!$cn->hasLeft()) {
-	    $cn->setLeft(Tree::Binary->new({"value" => 0, 
-					    "term"  => 1}));
-	    return $cn->getLeft();
-	} elsif (!$cn->hasRight()) {
+	if (!$cn->hasRight()) {
 	    $cn->setRight(Tree::Binary->new({"value" => 1, 
 					     "term"  => 1}));
 	    return $cn->getRight();
+	} elsif (!$cn->hasLeft()) {
+	    $cn->setLeft(Tree::Binary->new({"value" => 0, 
+					    "term"  => 1}));
+	    return $cn->getLeft();
 	} else {
 	    # No free slot - dead end.
 	    return undef;
@@ -270,18 +270,18 @@ sub _findFree($$$) {
 
     # Not at the terminal depth yet, so keep walking down (keeping
     # left), creating nodes as necessary.
-    if (!$cn->hasLeft()) {
-	$cn->setLeft(Tree::Binary->new({"value" => 0, 
-					"term"  => 0}));
+    if (!$cn->hasRight()) {
+	$cn->setRight(Tree::Binary->new({"value" => 1, 
+					 "term"  => 0}));
     }
-    my $rval = $self->_findFree($cn->getLeft(), $reqdepth);
+    my $rval = $self->_findFree($cn->getRight(), $reqdepth);
     if (!$rval) {
-	# Nothing to the left; go right...
-	if (!$cn->hasRight()) {
-	    $cn->setRight(Tree::Binary->new({"value" => 1, 
-					     "term"  => 0}));
+	# Nothing to the right, go left...
+	if (!$cn->hasLeft()) {
+	    $cn->setLeft(Tree::Binary->new({"value" => 0, 
+					    "term"  => 0}));
 	}
-	$rval = $self->_findFree($cn->getRight(), $reqdepth);
+	$rval = $self->_findFree($cn->getLeft(), $reqdepth);
     }
     return $rval;
 }

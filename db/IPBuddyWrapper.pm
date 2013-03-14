@@ -327,7 +327,6 @@ sub new($$$) {
 }
 
 # accessors
-sub _getobj($) { return $_[0]->{'IPOBJ'}; }
 sub getrange($) { return $_[0]->{'RANGE'}; }
 sub exptidx($) { return $_[0]->{'EXPTIDX'}; }
 
