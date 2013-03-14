@@ -206,7 +206,7 @@ sub requestAddressRange($$$) {
     my $prefix;
     if ($mask =~ /^\d+\.\d+\.\d+\.\d+$/) {
 	$prefix = unpack('%32b*', inet_aton($mask));
-    } elsif ($prefix =~ /^\d+$/) {
+    } elsif ($mask =~ /^\d+$/) {
 	$prefix = $mask;
     } else {
 	tberror("Invalid mask or prefix: $mask\n");

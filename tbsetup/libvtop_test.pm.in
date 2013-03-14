@@ -7716,6 +7716,7 @@ sub CheckIPAddressReservations($) {
 	$self->printdb("Modifying address allocations for: ".
 		       join(", ", map { $_->vname() } @sharedlans) .
 		       "\n");
+	require Socket;
 	# Don't pull this module in until now to avoid unnecessary
 	# dependencies.  If we find ourselves using it in other places,
 	# then move this up to package scope.
@@ -7734,10 +7735,25 @@ sub CheckIPAddressReservations($) {
 	    or return -1;
 
 	foreach my $virtlan (@sharedlans) {
-	    my $vlanname = $virtlan->vname();
-	    my $mask     = $virtlan->_mask();
-	    my $range    = $buddy->requestAddressRange($self->experiment(),
-						       $mask);
+	    my $vlanname    = $virtlan->vname();
+	    my @members     = $virtlan->memberlist();
+	    my $hbits       = 1;
+
+	    # Figure out how many host bits this lan actually needs.
+	    # XXX: This is only compatible with IPv4
+	    while (scalar(@members)+2 > 2**$hbits) {
+		$hbits++;
+	    }
+	    if ($hbits > 24) {
+		tberror("Lan $vlanname has too many members!\n");
+		return -1;
+	    }
+	    my $prefix = 32 - $hbits;
+	    my $newmask = Socket::inet_ntoa(pack("B32", "1" x $prefix));
+	    $virtlan->_mask($newmask);
+	    
+	    my $range       = $buddy->requestAddressRange($self->experiment(),
+							  $prefix);
 	    if (!defined($range)) {
 		$buddy->unlock();
 		return -1;
@@ -7745,16 +7761,16 @@ sub CheckIPAddressReservations($) {
 	    $self->printdb("Reserved shared address range for ".
 			   "$vlanname: $range\n");
 
-	    # Got a new reserved range, so re-IP this lan.
-	    foreach my $member ($virtlan->memberlist()) {
+	    # Got a new reserved range, so re-IP members of this lan.
+	    foreach my $member (@members) {
 		# Will this happen?
 		next
 		    if (!exists($self->solution_portmap()->{$member}));
 		
 		# Grab some info/objects for the current lan member.
-		my $ip        = $member->ip();
-		my $iface     = $self->solution_portmap()->{$member};
-		my $vnodename = $member->vnode();
+		my $vmember   = $member->virt_member();
+		my $ip        = $vmember->ip();
+		my $vnodename = $vmember->vnode();
 
 		# re-IP this member.  Push back into the virt_lans
 		# table; otherwise, things that expect the IP set
@@ -7767,16 +7783,20 @@ sub CheckIPAddressReservations($) {
 		    return -1;
 		}
 		$self->printdb("$vnodename: $ip -> $new_ip\n");
-		# XXX: this stuff may not work...
-		$member->ip($new_ip);
-		my $sflags = 0;
+		$vmember->ip($new_ip);
+		$vmember->mask($newmask);
+		# XXX: This is a bit hacky, but the only impact
+		# setting the "simparse" flag has on the Store()
+		# method is to use "replace" instead of "insert" in
+		# the query.  This is what we need here.
+		my $sflags = $VirtExperiment::STORE_FLAGS_SIMPARSE;
 		$sflags |= $self->verbose() ? 
 		    $VirtExperiment::STORE_FLAGS_DEBUG :
 		    0;
 		$sflags |= $self->impotent() ?
 		    $VirtExperiment::STORE_FLAGS_IMPOTENT :
 		    0;
-		if ($member->Store($sflags) != 0 && !$self->impotent()) {
+		if ($vmember->Store($sflags) != 0 && !$self->impotent()) {
 		    tberror("Could not store updated vlan_member entry!\n");
 		    $buddy->unlock();
 		    return -1;
