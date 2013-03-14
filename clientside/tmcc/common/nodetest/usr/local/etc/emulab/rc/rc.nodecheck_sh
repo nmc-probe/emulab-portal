@@ -28,13 +28,11 @@ checks="disk cpu mem time nic diskspeed"
 echo "Running nodechecks"
 for i in $checks
 do
-    echo "boot--- ${1}check " >> /var/emulab/logs/nodecheck.log
+    if [ "$1" = "boot" ] ; then
+	echo "boot - ${i}check " >> /var/emulab/logs/nodecheck.log
+    fi
     /usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log
 done
 echo "Done with nodechecks"
-
-# move logfile to my directory
-mkdir -p /users/dreading/nodecheck_logs
-cat /var/emulab/logs/nodecheck.log >> /users/dreading/nodecheck_logs/$host.log 
 
 exit 0
