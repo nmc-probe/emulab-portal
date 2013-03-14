@@ -7713,8 +7713,9 @@ sub CheckIPAddressReservations($) {
     # its testbed wrapper.  Note that this amends the addresses assigned
     # in the virt_lans table as well.
     if (@sharedlans) {
-	$self->printdb("Modifying address allocations for " . 
-		       (map { $_->vname() } @sharedlans) . "\n" );
+	$self->printdb("Modifying address allocations for: ".
+		       join(", ", map { $_->vname() } @sharedlans) .
+		       "\n");
 	# Don't pull this module in until now to avoid unnecessary
 	# dependencies.  If we find ourselves using it in other places,
 	# then move this up to package scope.
@@ -7742,7 +7743,7 @@ sub CheckIPAddressReservations($) {
 		return -1;
 	    }
 	    $self->printdb("Reserved shared address range for ".
-			   "$vlanname: $range/$mask");
+			   "$vlanname: $range\n");
 
 	    # Got a new reserved range, so re-IP this lan.
 	    foreach my $member ($virtlan->memberlist()) {
@@ -7761,9 +7762,11 @@ sub CheckIPAddressReservations($) {
 		# interfaces/vinterfaces table will go wonky.
 		my $new_ip = $buddy->getNextAddress($range);
 		if (!defined($new_ip)) {
+		    tberror("Could not get an address in range: $range\n");
 		    $buddy->unlock();
 		    return -1;
 		}
+		$self->printdb("$vnodename: $ip -> $new_ip\n");
 		# XXX: this stuff may not work...
 		$member->ip($new_ip);
 		my $sflags = 0;
@@ -7773,7 +7776,8 @@ sub CheckIPAddressReservations($) {
 		$sflags |= $self->impotent() ?
 		    $VirtExperiment::STORE_FLAGS_IMPOTENT :
 		    0;
-		if ($member->Store($sflags) != 0) {
+		if ($member->Store($sflags) != 0 && !$self->impotent()) {
+		    tberror("Could not store updated vlan_member entry!\n");
 		    $buddy->unlock();
 		    return -1;
 		}

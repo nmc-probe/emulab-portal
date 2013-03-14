@@ -43,6 +43,7 @@ use libtblog_simple;
 use Experiment;
 use IPBuddyAlloc;
 use Socket;
+use Data::Dumper;
 
 # Constants
 
@@ -75,7 +76,7 @@ sub new($$) {
     my ($baseaddr, $prefix, $type, $role) = $qres->fetchrow();
 
     # IPBuddyAlloc throws exceptions.
-    my $buddy = eval { IPBuddyAlloc->New("$baseaddr/$prefix") };
+    my $buddy = eval { IPBuddyAlloc->new("$baseaddr/$prefix") };
     if ($@) {
 	tberror("Could not allocate a new IP Buddy Allocator object: $@\n");
 	return undef;
@@ -131,7 +132,7 @@ sub loadReservedRanges($;$) {
     my ($self, $experiment) = @_;
 
     my $bud      = $self->_getbuddy();
-    my $ranges   = $self->_getranges();
+    my $ranges   = $self->_allranges();
     my $addrtype = $self->_gettype();
 
     my $qres =
@@ -157,16 +158,16 @@ sub loadReservedRanges($;$) {
 
     # Add an experiment's virtlans if that parameter was passed in.
     if (defined($experiment)) {
-	if (ref($experiment) ne "HASH") {
+	if (!ref($experiment)) {
 	    tberror("Experiment argument is not an object!\n");
 	    return -1;
 	}
 	my $exptidx    = $experiment->idx();
 	my $virtexpt   = $experiment->GetVirtExperiment();
 	my $virtlans   = $virtexpt->Table("virt_lans");
-	foreach my $virtlan (values %{$virtlans}) {
-	    my $ip     = inet_aton($virtlan->ip());
-	    my $mask   = inet_aton($virtlan->mask());
+	foreach my $vlrow ($virtlans->Rows()) {
+	    my $ip     = inet_aton($vlrow->ip());
+	    my $mask   = inet_aton($vlrow->mask());
 	    my $prefix = unpack('%32b*', $mask);
 	    my $base   = inet_ntoa($ip & $mask);
 	    next if !$self->_getrange("$base/$prefix");
@@ -197,7 +198,7 @@ sub requestAddressRange($$$) {
     my ($self, $experiment, $mask) = @_;
 
     return undef unless 
-	ref($experiment) == "HASH" &&
+	ref($experiment) &&
 	defined($mask);
 
     # Check mask argument to see if it is a dotted-quad mask or a CIDR
@@ -216,15 +217,16 @@ sub requestAddressRange($$$) {
     my $bud     = $self->_getbuddy();
 
     # IPBuddyAlloc throws exceptions.
-    my $range = eval { $bud->requestAddressRange($prefix) };
+    my $base = eval { $bud->requestAddressRange($prefix) };
     if ($@) {
 	tberror("Error while requesting address range: $@");
 	return undef;
     }
-    if (!defined($range)) {
+    if (!defined($base)) {
 	tberror("Could not get a free address range!\n");
 	return undef;
     }
+    my $range = "$base/$prefix";
     # Push the new range onto the new range list.  This also puts it
     # into the "allocated" hash.
     $self->_newrange($range, IPBuddyWrapper::Allocation->new($exptidx,
@@ -244,8 +246,10 @@ sub getNextAddress($$) {
 	unless defined($range);
 
     my $robj = $self->_getrange($range);
-    return undef
-	unless defined($robj);
+    if (!defined($robj)) {
+	tberror("Can't find allocation object for range: $range!\n");
+	return undef
+    }
     return $robj->getNextAddress();
 }
 
@@ -333,9 +337,8 @@ sub exptidx($) { return $_[0]->{'EXPTIDX'}; }
 sub getNextAddress($) {
     my ($self) = @_;
 
-    my $curip = $self->_getobj();
-    if (++$curip) {
-	return $curip->ip();
+    if (++$self->{'IPOBJ'}) {
+	return $self->{'IPOBJ'}->ip();
     }
     
     return undef;
