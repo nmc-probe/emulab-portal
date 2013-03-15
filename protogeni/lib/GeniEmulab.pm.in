@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -489,11 +489,13 @@ sub AddGroup($)
 				    "Project leader does not exist");
     }
     # Make sure our record really says the caller is the creator.
-    if ($project->manager_urn() ne $credential->owner_urn()) {
+    if (!defined($project->manager_urn()) ||
+	$project->manager_urn() ne $credential->owner_urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "You are not the project creator");
     }
-    if ($user->manager_urn() ne $credential->owner_urn()) {
+    if (!defined($user->manager_urn()) ||
+	$user->manager_urn() ne $credential->owner_urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "You are not the leader creator");
     }
@@ -570,7 +572,8 @@ sub SetGroups($)
 				    "User does not exist");
     }
     # Make sure our record really says the caller is the creator.
-    if ($user->manager_urn() ne $credential->owner_urn()) {
+    if (!defined($user->manager_urn()) ||
+	$user->manager_urn() ne $credential->owner_urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "You are not the user creator");
     }
@@ -593,7 +596,8 @@ sub SetGroups($)
 
 	# We do not touch membership in local/other projects.
 	next
-	    if ($project->manager_urn() ne $credential->owner_urn());
+	    if (!defined($project->manager_urn()) ||
+		$project->manager_urn() ne $credential->owner_urn());
 
 	my $membership = $group->LookupUser($user);
 	if (!defined($membership)) {
@@ -645,7 +649,8 @@ sub SetGroups($)
 
 	# We do not touch membership in local/other projects.
 	next
-	    if ($project->manager_urn() ne $credential->owner_urn());
+	    if (!defined($project->manager_urn()) ||
+		$project->manager_urn() ne $credential->owner_urn());
 
 	# Must have a project trust level in the data.
 	if (!exists($groups->{"$pid,$pid"})) {
@@ -733,7 +738,8 @@ sub CrossLogin($)
 				    "User does not exist");
     }
     # Make sure our record really says the caller is the creator.
-    if ($user->manager_urn() ne $credential->owner_urn()) {
+    if (!defined($user->manager_urn()) ||
+	$user->manager_urn() ne $credential->owner_urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "You are not the user creator");
     }
