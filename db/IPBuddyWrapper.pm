@@ -174,8 +174,11 @@ sub loadReservedRanges($;$) {
 	    my $rval   = eval { $bud->embedAddressRange("$base/$prefix") };
 	    if ($@) {
 		# Just skip if the current range isn't in the base
-		# address range.
+		# address range or conflicts with an existing
+		# range. We only care about adding new ranges within
+		# the base range considered for allocation.
 		next if $@ =~ /must belong to base range/;
+		next if $@ =~ /found conflicting node/;
 		tberror("Error while embedding experiment lan range: $@\n");
 		return -1;
 	    }
