@@ -4742,6 +4742,16 @@ sub InterpNodes($)
 	    }
 	}
     }
+
+    # Check nodes for shared members that require special address
+    # treatment.  Perform address substitution and reservation
+    # on attached lans / lan members.  Have to do this before InterpLinks
+    # because node allocation results in the creation of 'vinterfaces'
+    # entries prior to InterpLinks.
+    $self->CheckIPAddressReservations() == 0
+	or return -1;
+
+    return 0;
 }
 
 #
@@ -5644,11 +5654,6 @@ sub InterpLinks($)
 	}
     }
 
-    # Check nodes for shared members that require special address
-    # treatment.  Perform address substitution and reservation
-    # on attached lans / lan members.
-    $self->CheckIPAddressReservations() == 0
-	or return -1;
     # Write the vlans to the DB.
     $self->UploadVlans() == 0
 	or return -1;
@@ -7688,23 +7693,21 @@ sub CheckIPAddressReservations($) {
     # address treatment.  These lans could probably be marked when
     # such a node is added to them, but doing it here keeps this
     # procedure self-contained.
+  virtlans:
     foreach my $virtlan (values(%{ $self->vlans() })) {
 	next
 	    if ($virtlan->_layer() != 2);  # foo from the beyond.
 
 	foreach my $member ($virtlan->memberlist()) {
-	    # Will this happen?
-	    next
-		if (!exists($self->solution_portmap()->{$member}));
-
 	    my $vnodename = $member->vnode();
-	    my $pnodename = $self->solution_v2p()->{$vnodename};
-	    my $pnode     = $self->pnodes()->{$pnodename};
-	    my $smode     = $pnode->sharing_mode();
-	    # Only looking for shared storage hosts at present,
-	    # but this could easily be changed to add more.
-	    if (defined($smode) && $smode eq "storage_pool") {
+	    my $virtnode  = $member->virt_node();
+	    my $vtype     = $virtnode->type();
+	    # XXX: This isn't quite right.  Need to figure out how to check
+	    # to see if the lan member is attached to a 'sanhost', but I can't
+	    # figure out the right path through the libvtop objects...
+	    if ($vtype eq "blockstore") {
 		push @sharedlans, $virtlan;
+		next virtlans;
 	    }
 	}
     }
@@ -7763,10 +7766,6 @@ sub CheckIPAddressReservations($) {
 
 	    # Got a new reserved range, so re-IP members of this lan.
 	    foreach my $member (@members) {
-		# Will this happen?
-		next
-		    if (!exists($self->solution_portmap()->{$member}));
-		
 		# Grab some info/objects for the current lan member.
 		my $vmember   = $member->virt_member();
 		my $ip        = $vmember->ip();
