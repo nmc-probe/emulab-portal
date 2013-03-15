@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -92,6 +92,9 @@ if ($node->HasSerialConsole()) {
     WRITESUBMENUBUTTON("Connect to Serial Line</a> " . 
 	"<a href=\"faq.php3#tiptunnel\">(howto)",
 	"nodetipacl.php3?node_id=$node_id");
+
+    WRITESUBMENUBUTTON("Report a Problem&nbsp;<img src=\"/new.gif\">" ,
+		       "reportnode.php3?node_id=$node_id");
 
     WRITESUBMENUBUTTON("Show Console Log",
 		       "showconlog.php3?node_id=$node_id&linecount=500");
