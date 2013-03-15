@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -147,7 +147,8 @@ else {
 	if (defined($interface));
 }
 if ($removing) {
-    if ($node->erole() eq "sharedhost" && !$notrunk) {
+    if ($node->IsReserved() &&
+	$node->erole() eq "sharedhost" && !$notrunk) {
 	print "Turning off trunk mode for $node_id:$iface_id\n";
 	system("$SNMPIT -T $node_id:$iface_id") == 0
 	    or fatal("Could not put port into trunking mode");
@@ -221,7 +222,8 @@ my $ifaceargs = {
     "switch_id"   => $switchid,
     "switch_port" => $switchport,
     "switch_card" => $switchcard,
-    "trunk"       => ($node->erole() eq "sharedhost" ? 1 : 0),
+    "trunk"       => ($node->IsReserved() &&
+		      $node->erole() eq "sharedhost" ? 1 : 0),
     "mac"         => "000000000000",
 };
 print "Creating interface with arguments:\n";
@@ -230,7 +232,8 @@ if (!$impotent) {
     Interface->Create($node, $ifaceargs)
 	or fatal("Could not create interface entry");
 
-    if ($node->erole() eq "sharedhost" && !$notrunk) {
+    if ($node->IsReserved() &&
+	$node->erole() eq "sharedhost" && !$notrunk) {
 	print "Setting $node_id:$iface_id to trunking mode\n";
 	system("$SNMPIT -E $node_id:$iface_id") == 0
 	    or fatal("Could not put port into trunking mode");
