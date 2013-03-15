@@ -187,7 +187,8 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "linkdelays"    => ["node_id", "vlan", "vnode"],
 		   "traces"        => ["node_id", "idx"],
 		   "portmap"       => undef,
-		   "bridges"       => ["node_id", "bridx", "iface"]); 
+		   "bridges"       => ["node_id", "bridx", "iface"],
+                   "reserved_addresses" => undef); 
 
 # These are slots in the node table that need to be restored. 
 @nodetable_fields = ("def_boot_osid",
