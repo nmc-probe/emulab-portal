@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo -n ' Starting timecheck...'
+echo -n ' Starting timecheck.. '
 
 ntpserver="ntp1"
 maxdrift="0.05"
@@ -62,11 +62,11 @@ echo "timecheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
 if [ -z "${failed}" ] ; then 
-    echo "...offset $offset < $maxdrift OK" 
+    echo "offset $offset < $maxdrift OK" 
 elif [ "${failed}" == "maxdrift" ] ; then
-    echo "...offset $offset > $maxdrift FAILED"
+    echo "offset $offset > $maxdrift FAILED"
 else
-    echo "...${failed} FAILED"
+    echo "${failed} FAILED"
 fi
 
 exit 0
