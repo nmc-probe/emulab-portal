@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2012 University of Utah and the Flux Group.
+# Copyright (c) 2006-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -244,7 +244,7 @@ class Node
 	$node_id = $this->node_id();
 	
 	$html = "<font size=+2>Node <b>".
-	    "<a href=shownode.php3?node_id=$node_id><b>$node_id</a>";
+	    "<a href=shownode.php3?node_id=$node_id><b>$node_id</a>".
 	    "</b></font>\n";
 
 	return $html;
