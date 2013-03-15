@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -24,6 +24,7 @@
 use strict;
 use English;
 use Getopt::Std;
+use Data::Dumper;
 
 #
 # Grant and revoke shared vlan access.
@@ -31,16 +32,19 @@ use Getopt::Std;
 sub usage()
 {
     print STDERR "Usage: sharevlan [-o] eid lanname token\n";
-    print STDERR "       sharevlan -r token\n";
+    print STDERR "       sharevlan -r | -i token\n";
     print STDERR " -r    Revoke sharing instead\n";
+    print STDERR " -i    Show members.\n";
     print STDERR " -o    Sharing is open to everyone.\n";
     print STDERR " -l    List all shared vlans\n";
     exit(-1);
 }
-my $optlist  = "hrol";
+my $optlist  = "hrolif";
 my $revoke   = 0;
 my $open     = 0;
 my $list     = 0;
+my $info     = 0;
+my $force    = 0;
 
 # Protos
 sub fatal($);
@@ -93,7 +97,16 @@ if (defined($options{'h'})) {
 if (defined($options{'o'})) {
     $open = 1;
 }
-if (defined($options{'l'})) {
+if (defined($options{'f'})) {
+    $force = 1;
+}
+if (defined($options{'i'})) {
+    $info = 1;
+
+    usage()
+	if (@ARGV != 1);
+}
+elsif (defined($options{'l'})) {
     $list = 1;
 }
 elsif (defined($options{'r'})) {
@@ -142,6 +155,51 @@ if ($list) {
     exit(0);
 }
 
+if ($info) {
+    my $token = $ARGV[0];
+    my $query_result =
+	DBQueryFatal("select lanid from shared_vlans where token='$token'");
+    if (!$query_result) {
+	fatal("No such shared vlan");
+    }
+    my ($lanid) = $query_result->fetchrow_array();
+    my $vlan = VLan->Lookup($lanid);
+    if (!defined($vlan)) {
+	fatal("No such vlan $lanid");
+    }
+    my @members;
+    if ($vlan->MemberList(\@members) != 0) {
+	fatal("Could not get member list for $vlan");
+    }
+    foreach my $member (@members) {
+	my $node;
+	my $iface;
+	$member->GetNodeIface(\$node, \$iface);
+	print $node->node_id() . ":$iface";
+
+	my $portlan_exptidx;
+	my $portlan_lanname;
+	my $experiment;
+	$member->GetAttribute("portlan_exptidx", \$portlan_exptidx);
+	$member->GetAttribute("portlan_lanname", \$portlan_lanname);
+	
+	if (defined($portlan_exptidx) && defined($portlan_lanname)) {
+	    $experiment = Experiment->Lookup($portlan_exptidx);
+	    if (defined($experiment)) {
+		print " " . $experiment->pid() . ":" . $experiment->eid();
+	    }
+	}
+	my $reservation = $node->Reservation();
+	if (defined($reservation) &&
+	    (!defined($experiment) ||
+	     !$reservation->SameExperiment($experiment))) {
+	    print " (" . $reservation->pid() . ":" . $reservation->eid() . ")";
+	}
+	print "\n";
+    }
+    exit(0);
+}
+
 if ($revoke) {
     my $token = $ARGV[0];
     
@@ -157,8 +215,8 @@ my $experiment = Experiment->Lookup($eid);
 if (!defined($experiment)) {
     fatal("No such experiment $eid");
 }
-if ($experiment->state() ne EXPTSTATE_ACTIVE()) {
-    fatal("Experiment is not active");
+if ($experiment->state() ne EXPTSTATE_ACTIVE() && !$force) {
+    fatal("Experiment is not active; use -f option to override");
 }
 my $vlan = VLan->Lookup($experiment, $lanname);
 if (!defined($vlan)) {
