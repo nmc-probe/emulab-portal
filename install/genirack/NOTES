@@ -358,6 +358,18 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
   DAMN YOU HP!
 
+* The above command resets the ilo, so lets play the minute waltz, maybe
+  twice.
+
+	http://www.pianoparadise.com/downloadmp3/nocturne.wav
+
+* Now we power on all of the nodes.
+
+	wap power on pc1 pc2 pc3 pc4 pc5
+
+* If the nodes were actually off, it is going to take a couple of minutes
+  before we can go on with the next step. Play the waltz a few more times.
+
 * Free all the nodes up and lets hope they reload okay. Okay, lets
   just do one to start with.
 
@@ -409,6 +421,12 @@ Setting up an InstaGeni Rack. First, we need the following info:
 * Wait for the switch to reboot, now lets see if snmpit works:
 
 	boss> wap snmpit -l -l -O
+
+  NOTE: You may see this warning:
+
+	No such VLAN control-hardware in lans table
+
+  No worries, you can ignore it. 
 
 * Telnet to procurve2 (/usr/testbed/etc/switch.pswd):
 
