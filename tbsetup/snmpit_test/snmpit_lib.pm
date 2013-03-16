@@ -383,7 +383,7 @@ sub getExperimentTrunks($$@)
 # experiment. These are ports that must be in trunk mode; whether they
 # are currently *in* trunk mode is not relevant.
 #
-sub getExperimentTrunksHelper($$$$@) {
+sub getExperimentTrunksHelper($$$@) {
     my ($current, $pid, $eid, @vlans) = @_;
     my %ports = ();
 
