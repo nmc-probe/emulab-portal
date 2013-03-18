@@ -7679,7 +7679,7 @@ sub SetUpTracing($$$$$)
 # This usually means getting a new mutually exclusive address range,
 # reserving it for this experiment in the database.  Substitute
 # addresses on co-located link/lan members to accomodate.  This
-# reservation does _NOT_ persist across swapins.
+# reservation purposely does _NOT_ persist across swapins.
 #
 sub CheckIPAddressReservations($) {
     my ($self) = @_;
@@ -7702,9 +7702,10 @@ sub CheckIPAddressReservations($) {
 	    my $vnodename = $member->vnode();
 	    my $virtnode  = $member->virt_node();
 	    my $vtype     = $virtnode->type();
-	    # XXX: This isn't quite right.  Need to figure out how to check
-	    # to see if the lan member is attached to a 'sanhost', but I can't
-	    # figure out the right path through the libvtop objects...
+	    # XXX: This isn't quite right.  Need to figure out how to
+	    # check to see if the current lan member is attached to a
+	    # 'sanhost', but I can't figure out the right path through
+	    # the libvtop objects...
 	    if ($vtype eq "blockstore") {
 		push @sharedlans, $virtlan;
 		next virtlans;
@@ -7724,11 +7725,11 @@ sub CheckIPAddressReservations($) {
 	# dependencies.  If we find ourselves using it in other places,
 	# then move this up to package scope.
 	require IPBuddyWrapper;
-	# Tie this buddy allocator to the "storage_host" global address range.
+	# Tie this buddy allocator to the "storage_pool" global address range.
 	my $buddy = IPBuddyWrapper->new("storage_pool");
 	return -1 
 	    unless defined($buddy);
-	# This call will lock the "reserved_addresses" table.
+	# Grab the reserved addresses buddy allocator lock.
 	$buddy->lock() 
 	    or return -1;
 	# Now preload the reservations in the DB, including those associated
@@ -7784,11 +7785,9 @@ sub CheckIPAddressReservations($) {
 		$self->printdb("$vnodename: $ip -> $new_ip\n");
 		$vmember->ip($new_ip);
 		$vmember->mask($newmask);
-		# XXX: This is a bit hacky, but the only impact
-		# setting the "simparse" flag has on the Store()
-		# method is to use "replace" instead of "insert" in
-		# the query.  This is what we need here.
-		my $sflags = $VirtExperiment::STORE_FLAGS_SIMPARSE;
+		# Replace the virt_lans row.  It already exists, so an insert
+		# would fail.
+		my $sflags = $VirtExperiment::STORE_FLAGS_REPLACE;
 		$sflags |= $self->verbose() ? 
 		    $VirtExperiment::STORE_FLAGS_DEBUG :
 		    0;
@@ -7796,7 +7795,7 @@ sub CheckIPAddressReservations($) {
 		    $VirtExperiment::STORE_FLAGS_IMPOTENT :
 		    0;
 		if ($vmember->Store($sflags) != 0 && !$self->impotent()) {
-		    tberror("Could not store updated vlan_member entry!\n");
+		    tberror("Could not store updated virt_lans row!\n");
 		    $buddy->unlock();
 		    return -1;
 		}

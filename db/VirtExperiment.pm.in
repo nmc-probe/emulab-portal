@@ -38,6 +38,7 @@ use Data::Dumper;
 use overload ('""' => 'Stringify');
 
 use vars qw($STORE_FLAGS_DEBUG $STORE_FLAGS_IMPOTENT $STORE_FLAGS_SIMPARSE
+            $STORE_FLAGS_REPLACE
 	    $LOOKUP_FLAGS_NOLOAD
 	    %virtual_tables %experiment_fields
 	    $AUTOLOAD @EXPORT_OK);
@@ -46,12 +47,14 @@ use vars qw($STORE_FLAGS_DEBUG $STORE_FLAGS_IMPOTENT $STORE_FLAGS_SIMPARSE
 $STORE_FLAGS_DEBUG	= 0x01;
 $STORE_FLAGS_IMPOTENT	= 0x02;
 $STORE_FLAGS_SIMPARSE	= 0x04;
+$STORE_FLAGS_REPLACE    = 0x08;
 # Lookup Flags
 $LOOKUP_FLAGS_NOLOAD    = 0x01;
 
 # Why, why, why?
 @EXPORT_OK = qw($STORE_FLAGS_DEBUG $STORE_FLAGS_IMPOTENT
-		$STORE_FLAGS_SIMPARSE $LOOKUP_FLAGS_NOLOAD);
+		$STORE_FLAGS_SIMPARSE $STORE_FLAGS_REPLACE
+                $LOOKUP_FLAGS_NOLOAD);
 
 # Configure variables
 my $TB		= "@prefix@";
@@ -935,6 +938,7 @@ sub Store($;$)
     my $debug    = ($flags & $VirtExperiment::STORE_FLAGS_DEBUG ? 1 : 0);
     my $impotent = ($flags & $VirtExperiment::STORE_FLAGS_IMPOTENT ? 1 : 0);
     my $simparse = ($flags & $VirtExperiment::STORE_FLAGS_SIMPARSE ? 1 : 0);
+    my $replace  = ($flags & $VirtExperiment::STORE_FLAGS_REPLACE ? 1 : 0);
     my $tablename= $self->tablename();
     my $row      = $self->tablerow();
     my $pid      = $self->experiment()->pid();
@@ -999,7 +1003,7 @@ sub Store($;$)
 	return -1;
     }
     my $query;
-    if ($simparse) {
+    if ($simparse || $replace) {
 	#
 	# If we are called after an nseparse, we need to use replace
 	# coz some of the tables such as virt_agents and eventlist are

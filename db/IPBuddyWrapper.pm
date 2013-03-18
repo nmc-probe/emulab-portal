@@ -39,13 +39,14 @@ use vars qw(@ISA @EXPORT);
 use English;
 use emdb;
 use emutil qw( TBGetUniqueIndex );
+use libtestbed;
 use libtblog_simple;
 use Experiment;
 use IPBuddyAlloc;
 use Socket;
-use Data::Dumper;
 
 # Constants
+my $BUDDYRESLOCK = "reserved_addresses";
 
 # Prototypes
 
@@ -104,18 +105,27 @@ sub _newrange($$$) { $_[0]->_putrange($_[1],$_[2]);
 		     push @{$_[0]->_allnew()}, $_[2]; }
 
 #
-# XXX: implement
+# Grab the reserved address lock.
 #
 sub lock($) {
     my $self = shift;
+
+    # Use a file lock instead of a table lock since we don't know what
+    # other tables might be used while this is locked.
+    TBScriptLock($BUDDYRESLOCK) == TBSCRIPTLOCK_OKAY()
+	or return 0;
+
     return 1;
 }
 
 #
-# XXX: implement
+# Release the lock.
 #
 sub unlock($) {
     my $self = shift;
+
+    TBScriptUnlock();
+
     return 1;
 }
 
@@ -170,7 +180,7 @@ sub loadReservedRanges($;$) {
 	    my $mask   = inet_aton($vlrow->mask());
 	    my $prefix = unpack('%32b*', $mask);
 	    my $base   = inet_ntoa($ip & $mask);
-	    next if !$self->_getrange("$base/$prefix");
+	    next if $self->_getrange("$base/$prefix");
 	    my $rval   = eval { $bud->embedAddressRange("$base/$prefix") };
 	    if ($@) {
 		# Just skip if the current range isn't in the base
