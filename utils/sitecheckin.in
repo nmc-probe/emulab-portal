@@ -220,10 +220,11 @@ delete($checkin_args{"certificate"});
 my $urn = "";
 my $commonname = $certificate->CommonName();
 
-if (defined($certificate->urn()) &&
-    ! TBcheck_dbslot($certificate->urn(), "emulab_sites", "urn",
-		     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-    fatal("Illegal URN:" . $certificate->urn());
+if (defined($certificate->urn())) {
+    if (! TBcheck_dbslot($certificate->urn(), "emulab_sites", "urn",
+			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	fatal("Illegal URN:" . $certificate->urn());
+    }
     $urn = $certificate->urn();    
 }
 if (!defined($commonname) ||
@@ -266,8 +267,11 @@ foreach my $key (keys(%checkin_args)) {
 }
 my $query = "set " . join(",", @sets) . ", updated=now()";
 if ($exists) {
-    $query = "update emulab_sites $query, buildinfo=FROM_UNIXTIME($buildinfo) ".
-	"where commonname=$safe_cn";
+    $query = "update emulab_sites $query,buildinfo=FROM_UNIXTIME($buildinfo) ";
+    if ($urn ne "") {
+	$query .= ",urn=$safe_urn ";
+    }
+    $query .= "where commonname=$safe_cn";
 }
 else {
     $query = "insert into emulab_sites $query, ".
