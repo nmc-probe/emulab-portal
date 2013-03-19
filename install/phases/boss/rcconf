@@ -38,6 +38,25 @@ sub Install($$$)
 			 qq|apache_flags="-DSSL"|)),
 		       qq|pubsubd_flags="-T 10"|);
 
+	# OPSVM
+	if (ISFS($server)) {
+	    if ($WINSUPPORT) {
+		if ($FBSD_MAJOR > 8 || ($FBSD_MAJOR == 8 && $FBSD_MINOR > 2)) {
+		    push(@strings, qq|samba_enable="YES"|);
+		    push(@strings, qq|nmbd_enable="NO"|);
+		} else {
+		    push(@strings, qq|smbd_enable="YES"|);
+		}
+	    }
+	    if ($QUOTA_FSLIST ne "") {
+		if ($FBSD_MAJOR > 8 || ($FBSD_MAJOR == 8 && $FBSD_MINOR > 2)) {
+		    push(@strings, qq|quota_enable="YES"|);
+		} else {
+		    push(@strings, qq|enable_quotas="YES"|);
+		}
+	    }
+	}
+
 	# Starting at FreeBSD 6 we use the default version of bind, not the port.
 	if ($FBSD_MAJOR < 6) {
 	    push(@strings, qq|named_enable="NO"|);

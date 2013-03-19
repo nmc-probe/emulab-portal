@@ -240,7 +240,7 @@ elsif ($server eq "boss") {
 	      'apache', 'boss/rcfiles', 'boss/rcconf', 'boss/syslog',
 	      'boss/database', 'etchosts', 'resolvetest',
 	      'exports', 'nfsmounts', 'boss/mibs', 'boss/crontab', 'sudoers',
-	      'boss/ssh', 'boss/hostkeys',
+	      'samba', 'boss/ssh', 'boss/hostkeys',
 	      'boss/rndc', 'boss/loaderconf', 'boss/sysctlconf',
 	      'boss/sslcerts', 'boss/mailman', 'boss/pubsub',
 	      'boss/software', 
