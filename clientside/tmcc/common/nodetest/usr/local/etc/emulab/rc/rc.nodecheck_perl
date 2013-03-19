@@ -46,6 +46,7 @@ if (!$ARGV[0]) {
 
 foreach my $i (@checkscripts) {
     if ($action eq "boot") {
+	system("rm -rf /var/emulab/logs/nodecheck.log");
         system("echo 'boot - ${i}check' >> /var/emulab/logs/nodecheck.log");
     }
     system("bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log");

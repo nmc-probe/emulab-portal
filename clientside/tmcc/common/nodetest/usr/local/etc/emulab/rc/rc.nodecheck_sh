@@ -29,6 +29,7 @@ echo "Running nodechecks"
 for i in $checks
 do
     if [ "$1" = "boot" ] ; then
+	$(rm -f /var/emulab/logs/nodecheck.log)
 	echo "boot - ${i}check " >> /var/emulab/logs/nodecheck.log
     fi
     /usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log
