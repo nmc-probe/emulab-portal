@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -31,14 +31,14 @@ IN THE WORK.
 
 -->
 
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<windows:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						  xmlns:s="library://ns.adobe.com/flex/spark" 
 						  xmlns:mx="library://ns.adobe.com/flex/mx"
 						  xmlns:components="com.flack.shared.display.components.*"
-						  title="Add Authority">
-	<components:layout>
+						  title="Add Authority" xmlns:windows="com.flack.shared.display.windows.*">
+	<windows:layout>
 		<s:VerticalLayout paddingBottom="4" paddingTop="4" paddingLeft="4" paddingRight="4" />
-	</components:layout>
+	</windows:layout>
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.GeniMain;
@@ -117,7 +117,7 @@ IN THE WORK.
 	</s:HGroup>
 	<s:TextArea width="100%" height="100%" id="certTextarea" />
 	
-	<components:controlBarContent>
+	<windows:controlBarContent>
 		<s:Button id="okButton"
 				  icon="{ImageUtil.availableIcon}"
 				  label="OK"
@@ -125,5 +125,5 @@ IN THE WORK.
 		<s:Button label="Cancel"
 				  icon="{ImageUtil.cancelIcon}"
 				  click="closeWindow()" />
-	</components:controlBarContent>
-</components:DefaultWindow>
+	</windows:controlBarContent>
+</windows:DefaultWindow>

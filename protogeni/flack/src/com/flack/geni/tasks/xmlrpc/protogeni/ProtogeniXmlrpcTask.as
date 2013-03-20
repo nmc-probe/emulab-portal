@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -62,6 +62,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni
 		public static const METHOD_GETTICKET:String = "GetTicket";
 		public static const METHOD_GETVERSION:String = "GetVersion";
 		public static const METHOD_LISTCOMPONENTS:String = "ListComponents";
+		public static const METHOD_LISTIMAGES:String = "ListImages";
 		public static const METHOD_REDEEMTICKET:String = "RedeemTicket";
 		public static const METHOD_RELEASETICKET:String = "ReleaseTicket";
 		public static const METHOD_RESTARTSLIVER:String = "RestartSliver";
@@ -149,8 +150,6 @@ package com.flack.geni.tasks.xmlrpc.protogeni
 		 */
 		public var output:String;
 		
-		public var protogeniErrorLog:String = "";
-		
 		/**
 		 * Initializes a ProtoGENI XML-RPC call
 		 * 
@@ -197,9 +196,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni
 			
 			code = response.code;
 			output = response.output;
-			if (response.protogeni_error_log != null)
+			if (response.protogeni_error_log_urn != null)
 			{
-				protogeniErrorLog = String(response.protogeni_error_log);
+				errorLogUrn = String(response.protogeni_error_log_urn);
+			}
+			if (response.protogeni_error_log_url != null)
+			{
+				errorLogUrl = String(response.protogeni_error_log_url);
 			}
 			
 			// Restart if busy
@@ -238,6 +241,9 @@ package com.flack.geni.tasks.xmlrpc.protogeni
 			var errorMessage:String = GeniresponseToString(code);
 			if(output != null && output.length > 0)
 				errorMessage += ": " + output;
+			var errorLog:String = ErrorLog;
+			if(errorLog.length > 0)
+				errorMessage += "\n" + errorLog;
 			afterError(
 				new TaskError(
 					errorMessage,

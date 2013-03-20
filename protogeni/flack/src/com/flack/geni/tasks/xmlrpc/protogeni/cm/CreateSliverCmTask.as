@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,6 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
+	import com.flack.geni.resources.GeniCollaborator;
 	import com.flack.geni.resources.docs.GeniCredential;
 	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
@@ -48,7 +49,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class CreateSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:AggregateSliver;
+		public var aggregateSliver:AggregateSliver;
 		public var request:Rspec;
 		
 		/**
@@ -71,13 +72,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 			
 			request = useRspec;
 			
 			addMessage(
 				"Waiting to create...",
-				"A sliver will be created at " + sliver.manager.hrn,
+				"A sliver will be created at " + aggregateSliver.manager.hrn,
 				LogMessage.LEVEL_INFO,
 				LogMessage.IMPORTANCE_HIGH
 			);
@@ -85,13 +86,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function runStart():void
 		{
-			sliver.markStaged();
-			sliver.manifest = null;
+			aggregateSliver.markStaged();
+			aggregateSliver.manifest = null;
 			
 			// Generate a rspec if needed
 			if(request == null)
 			{
-				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, false, false);
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(aggregateSliver, true, false, false);
 				generateNewRspec.start();
 				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
 				{
@@ -112,24 +113,37 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function createFields():void
 		{
-			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("slice_urn", aggregateSliver.slice.id.full);
 			addNamedField("rspec", request.document);
-			var keys:Array = [];
-			for each(var key:String in sliver.slice.creator.keys) {
-				keys.push({type:"ssh", key:key}); // XXX type
+			var users:Array = [];
+			var user:Object = {urn: aggregateSliver.slice.creator.id.full, login: aggregateSliver.slice.creator.id.name};
+			var userKeys:Array = [];
+			for each(var key:String in aggregateSliver.slice.creator.keys) {
+				userKeys.push({type:"ssh", key:key}); // XXX type
 			}
-			addNamedField("keys", keys);
-			addNamedField("credentials", [sliver.slice.credential.Raw]);
+			user.keys = userKeys;
+			users.push(user);
+			for each(var friend:GeniCollaborator in aggregateSliver.slice.creator.collaborators) {
+				var friendObj:Object = {login: friend.id.name};
+				var friendKeys:Array = [];
+				for each(var friendKey:String in friend.keys) {
+					friendKeys.push({type:"ssh", key:friendKey}); // XXX type
+				}
+				friendObj.keys = friendKeys;
+				users.push(friendObj);
+			}
+			addNamedField("keys", users);
+			addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				sliver.credential = new GeniCredential(data[0], GeniCredential.TYPE_SLIVER, sliver.manager);
-				sliver.id = sliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
-				sliver.Expires = sliver.credential.Expires;
-				sliver.manifest = new Rspec(data[1],null,null,null, Rspec.TYPE_MANIFEST);
+				aggregateSliver.credential = new GeniCredential(data[0], GeniCredential.TYPE_SLIVER, aggregateSliver.manager);
+				aggregateSliver.id = aggregateSliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
+				aggregateSliver.Expires = aggregateSliver.credential.Expires;
+				aggregateSliver.manifest = new Rspec(data[1],null,null,null, Rspec.TYPE_MANIFEST);
 				
 				addMessage(
 					"Credential received",
@@ -144,13 +158,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				addMessage(
-					"Expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
-					"Expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
+					"Expires in " + DateUtil.getTimeUntil(aggregateSliver.EarliestExpiration),
+					"Expires in " + DateUtil.getTimeUntil(aggregateSliver.EarliestExpiration),
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
+				parent.add(new ParseRequestManifestTask(aggregateSliver, aggregateSliver.manifest, false, true));
 				
 				super.afterComplete(addCompletedMessage);
 			}

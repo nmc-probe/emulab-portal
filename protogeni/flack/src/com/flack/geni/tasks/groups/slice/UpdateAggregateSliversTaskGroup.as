@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -32,11 +32,9 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.AggregateSliverCollection;
 	import com.flack.geni.resources.virtual.SliverCollection;
-	import com.flack.geni.resources.virtual.VirtualComponentCollection;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.am.AllocateTask;
-	import com.flack.geni.tasks.xmlrpc.am.CreateSliverTask;
 	import com.flack.geni.tasks.xmlrpc.am.DeleteTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RedeemTicketCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.StartSliverCmTask;
@@ -46,11 +44,15 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.SerialTaskGroup;
 	import com.flack.shared.tasks.Task;
+	import com.flack.shared.tasks.xmlrpc.XmlrpcTask;
+	import com.flack.shared.utils.NetUtil;
 	
 	import flash.display.Sprite;
+	import flash.events.TextEvent;
 	
 	import mx.controls.Alert;
 	import mx.core.FlexGlobals;
+	import mx.core.mx_internal;
 	import mx.events.CloseEvent;
 	
 	/**
@@ -150,15 +152,24 @@ package com.flack.geni.tasks.groups.slice
 		{
 			var msg:String = "";
 			if(task is UpdateSliverCmTask)
-				msg = " updating aggregate on " + (task as UpdateSliverCmTask).sliver.manager.hrn;
+				msg = " updating aggregate on " + (task as UpdateSliverCmTask).aggregateSliver.manager.hrn;
 			else if(task is RedeemTicketCmTask)
-				msg = " redeeming ticket on " + (task as RedeemTicketCmTask).sliver.manager.hrn;
+				msg = " redeeming ticket on " + (task as RedeemTicketCmTask).aggregateSliver.manager.hrn;
 			else if(task is ParseRequestManifestTask)
 				msg = " parsing the manifest on " + (task as ParseRequestManifestTask).aggregateSliver.manager.hrn;
 			else if(task is StartSliverCmTask)
-				msg = " starting the aggregate on " + (task as StartSliverCmTask).sliver.manager.hrn;
-			Alert.show(
-				"Problem" + msg + ". Continue with the remaining actions?",
+				msg = " starting the aggregate on " + (task as StartSliverCmTask).aggregateSliver.manager.hrn;
+			msg = " starting the sliver on " + (task as StartSliverCmTask).aggregateSliver.manager.hrn;
+			var errorLogHtml:String = "";
+			if(task is XmlrpcTask)
+			{
+				errorLogHtml = (task as XmlrpcTask).ErrorLogHtml;
+				if(errorLogHtml.length > 0)
+					errorLogHtml = "<br><br>" + errorLogHtml;
+			}
+			var alertMsg:String = "Problem" + msg + ". Continue with the remaining actions?" + errorLogHtml;
+			var alert:Alert = Alert.show(
+				alertMsg,
 				"Continue?",
 				Alert.YES|Alert.NO,
 				FlexGlobals.topLevelApplication as Sprite,
@@ -166,6 +177,12 @@ package com.flack.geni.tasks.groups.slice
 				null,
 				Alert.YES
 			);
+			alert.mx_internal::alertForm.mx_internal::textField.htmlText = alertMsg;
+			alert.mx_internal::alertForm.mx_internal::textField.addEventListener(
+				TextEvent.LINK,
+				function clickHandler(e:TextEvent):void {
+					NetUtil.openWebsite(e.text);
+				});
 		}
 		
 		public function userChoice(event:CloseEvent):void

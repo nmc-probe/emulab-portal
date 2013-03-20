@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -38,7 +38,7 @@ package com.flack.geni.resources.sites.clearinghouses
 	 */
 	public class ProtogeniClearinghouse extends IdentifiableObject
 	{
-		public var url:String = "https://boss.emulab.net/protogeni/xmlrpc/";
+		public var url:String = "https://www.emulab.net:12369/protogeni/xmlrpc/";
 		
 		public function ProtogeniClearinghouse()
 		{

@@ -1,5 +1,5 @@
 /* 
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -37,8 +37,6 @@ package com.flack.geni.tasks.http
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.http.HttpTask;
-	import com.flack.shared.tasks.http.JsHttpTask;
-	import com.flack.shared.utils.NetUtil;
 	
 	/**
 	 * Downloads a list of cached advertisements

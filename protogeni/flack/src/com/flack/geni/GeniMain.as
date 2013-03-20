@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2008-2012 University of Utah and the Flux Group.
+* Copyright (c) 2008-2013 University of Utah and the Flux Group.
 * 
 * {{{GENIPUBLIC-LICENSE
 * 
@@ -35,6 +35,7 @@ package com.flack.geni
 	import com.flack.geni.display.windows.StartWindow;
 	import com.flack.geni.plugins.Plugin;
 	import com.flack.geni.plugins.emulab.Emulab;
+	import com.flack.geni.plugins.gemini.Gemini;
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.openflow.Openflow;
 	import com.flack.geni.plugins.planetlab.Planetlab;
@@ -65,9 +66,10 @@ package com.flack.geni
 		public static const sshKeysSteps:String = "http://www.protogeni.net/trac/protogeni/wiki/Tutorial#UploadingSSHKeys";
 		
 		// Portal
-		public static var securityPreset:Boolean = false;
-		public static var loadAllManagers:Boolean = false;
-		public static var useSa:ProtogeniSliceAuthority = null;
+		public static var skipStartup:Boolean = false;
+		public static var keycertPreset:Boolean = false;
+		public static var bundlePreset:Boolean = false;
+		public static var loadAllManagersWithoutAsking:Boolean = false;
 		public static var useSlice:Slice = null;
 		public static var chUrl:String = "";
 		
@@ -95,6 +97,7 @@ package com.flack.geni
 		public static function initPlugins():void
 		{
 			plugins = new Vector.<Plugin>();
+			plugins.push(new Gemini());
 			plugins.push(new Instools());
 			plugins.push(new Emulab());
 			plugins.push(new Planetlab());
@@ -106,23 +109,30 @@ package com.flack.geni
 		
 		public static function runFirst():void
 		{
-			if(securityPreset)
+			if(geniUniverse.user.CertificateSetUp)
 			{
 				geniUniverse.loadAuthenticated();
 			}
 			else
 			{
 				// Initial tasks
-				if(SharedMain.Bundle.length == 0)
+				if(SharedMain.Bundle.length == 0 && !bundlePreset)
 					SharedMain.tasker.add(new GetCertBundlesTaskGroup());
 				if(GeniMain.geniUniverse.authorities.length == 0)
 					SharedMain.tasker.add(new PublicListAuthoritiesTask());
 				
-				// Load initial window
-				var startWindow:StartWindow = new StartWindow();
-				startWindow.showWindow(true, true);
+				// Load initial window if needed
+				if(geniUniverse.user.authority != null)
+				{
+					if(!geniUniverse.user.SslCertReady)
+						GeniMain.geniUniverse.loadAuthenticated();
+				}
+				else
+				{
+					var startWindow:StartWindow = new StartWindow();
+					startWindow.showWindow(true, true);
+				}
 			}
-			
 		}
 		
 		[Bindable]
@@ -166,13 +176,6 @@ package com.flack.geni
 		public static function preloadParams():void
 		{
 			/*
-			try{
-			if(FlexGlobals.topLevelApplication.parameters.mapkey != null)
-			{
-			Main.Application().forceMapKey = FlexGlobals.topLevelApplication.parameters.mapkey;
-			}
-			} catch(all:Error) {
-			}
 			
 			try{
 			if(FlexGlobals.topLevelApplication.parameters.debug != null)
@@ -195,57 +198,60 @@ package com.flack.geni
 		public static function loadParams():void
 		{
 			// External examples
-			try{
-				if(FlexGlobals.topLevelApplication.parameters.rspeclisturl != null)
-				{
-					rspecListUrl = FlexGlobals.topLevelApplication.parameters.rspeclisturl;
-					viewList = true;
-				}
-			} catch(all:Error) {
+			if(FlexGlobals.topLevelApplication.parameters.rspeclisturl != null)
+			{
+				rspecListUrl = FlexGlobals.topLevelApplication.parameters.rspeclisturl;
+				viewList = true;
 			}
 			
 			// Portal
-			try{
-				if(FlexGlobals.topLevelApplication.parameters.securitypreset != null)
-				{
-					securityPreset = FlexGlobals.topLevelApplication.parameters.securitypreset == "1";
-					geniUniverse.user.hasSetupSecurity = true;
-				}
-			} catch(all:Error) {
+			if(FlexGlobals.topLevelApplication.parameters.skipstartup != null)
+			{
+				skipStartup = FlexGlobals.topLevelApplication.parameters.skipstartup == "1";
 			}
-			try{
-				if(FlexGlobals.topLevelApplication.parameters.loadallmanagers != null)
-				{
-					loadAllManagers = FlexGlobals.topLevelApplication.parameters.loadallmanagers == "1";
-				}
-			} catch(all:Error) {
+			if(FlexGlobals.topLevelApplication.parameters.bundlepreset != null)
+			{
+				bundlePreset = FlexGlobals.topLevelApplication.parameters.bundlepreset == "1";
 			}
-			try{
-				if(FlexGlobals.topLevelApplication.parameters.saurl != null && FlexGlobals.topLevelApplication.parameters.saurn != null)
-				{
-					useSa = new ProtogeniSliceAuthority(FlexGlobals.topLevelApplication.parameters.saurn, FlexGlobals.topLevelApplication.parameters.saurl);
-					geniUniverse.user.authority = useSa;
-					geniUniverse.authorities.add(useSa);
-				}
-			} catch(all:Error) {
+			if(FlexGlobals.topLevelApplication.parameters.keycertpreset != null)
+			{
+				geniUniverse.user.hasSetupSecurity = FlexGlobals.topLevelApplication.parameters.keycertpreset == "1";
 			}
-			try{
-				if(FlexGlobals.topLevelApplication.parameters.churl != null)
-				{
-					chUrl = FlexGlobals.topLevelApplication.parameters.churl;
-					geniUniverse.clearinghouse.url = chUrl;
+			if(FlexGlobals.topLevelApplication.parameters.keycert != null)
+			{
+				geniUniverse.user.sslCert = FlexGlobals.topLevelApplication.parameters.keycert;
+				if(!geniUniverse.user.PrivateKeyEncrypted && bundlePreset) {
+					geniUniverse.user.setSecurity(geniUniverse.user.sslCert);
+				} else {
+					if(FlexGlobals.topLevelApplication.parameters.keypassphrase != null) {
+						geniUniverse.user.password = FlexGlobals.topLevelApplication.parameters.keypassphrase;
+						if(bundlePreset)
+							geniUniverse.user.setSecurity(geniUniverse.user.sslCert, geniUniverse.user.password);
+					}
 				}
-			} catch(all:Error) {
 			}
-			try{
-				if(FlexGlobals.topLevelApplication.parameters.sliceurn != null)
-				{
-					useSlice = new Slice(FlexGlobals.topLevelApplication.parameters.sliceurn);
-					useSlice.authority = geniUniverse.user.authority;
-					useSlice.creator = geniUniverse.user;
-					geniUniverse.user.slices.add(useSlice);
-				}
-			} catch(all:Error) {
+			if(FlexGlobals.topLevelApplication.parameters.loadallmanagerswithoutasking != null)
+			{
+				loadAllManagersWithoutAsking = FlexGlobals.topLevelApplication.parameters.loadallmanagerswithoutasking == "1";
+			}
+			if(FlexGlobals.topLevelApplication.parameters.saurl != null && FlexGlobals.topLevelApplication.parameters.saurn != null)
+			{
+				geniUniverse.user.authority = new ProtogeniSliceAuthority(
+					FlexGlobals.topLevelApplication.parameters.saurn,
+					FlexGlobals.topLevelApplication.parameters.saurl);
+				geniUniverse.authorities.add(geniUniverse.user.authority);
+			}
+			if(FlexGlobals.topLevelApplication.parameters.churl != null)
+			{
+				chUrl = FlexGlobals.topLevelApplication.parameters.churl;
+				geniUniverse.clearinghouse.url = chUrl;
+			}
+			if(FlexGlobals.topLevelApplication.parameters.sliceurn != null)
+			{
+				useSlice = new Slice(FlexGlobals.topLevelApplication.parameters.sliceurn);
+				useSlice.authority = geniUniverse.user.authority;
+				useSlice.creator = geniUniverse.user;
+				geniUniverse.user.slices.add(useSlice);
 			}
 			
 			/*

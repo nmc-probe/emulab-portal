@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -31,16 +31,17 @@ IN THE WORK.
 
 -->
 
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<windows:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						  xmlns:s="library://ns.adobe.com/flex/spark" 
 						  xmlns:mx="library://ns.adobe.com/flex/mx"
 						  xmlns:components="com.flack.shared.display.components.*"
+						  xmlns:windows="com.flack.shared.display.windows.*"
 						  xmlns:view="com.flack.geni.view.*"
 						  height="102" width="400"
 						  creationComplete="this.valueTextinput.setFocus();">
-	<components:layout>
+	<windows:layout>
 		<s:VerticalLayout paddingTop="4" paddingLeft="4" paddingRight="4" paddingBottom="4" />
-	</components:layout>
+	</windows:layout>
 	<fx:Script>
 		<![CDATA[
 			import com.flack.shared.utils.ImageUtil;
@@ -86,14 +87,14 @@ IN THE WORK.
 				 text="{initialText}"
 				 enter="success()" />
 	
-	<components:controlBarLayout>
+	<windows:controlBarLayout>
 		<s:HorizontalLayout verticalAlign="middle"
 							paddingBottom="2"
 							paddingLeft="2"
 							paddingRight="2"
 							paddingTop="2" />
-	</components:controlBarLayout>
-	<components:controlBarContent>
+	</windows:controlBarLayout>
+	<windows:controlBarContent>
 		<s:Button id="okButton"
 				  label="OK"
 				  click="success();"
@@ -101,5 +102,5 @@ IN THE WORK.
 		<s:Button label="Cancel"
 				  click="cancel();"
 				  height="24" icon="{ImageUtil.crossIcon}" />
-	</components:controlBarContent>
-</components:DefaultWindow>
+	</windows:controlBarContent>
+</windows:DefaultWindow>

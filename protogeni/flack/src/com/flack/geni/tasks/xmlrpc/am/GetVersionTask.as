@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -68,6 +68,7 @@ package com.flack.geni.tasks.xmlrpc.am
 				"Get Version"
 			);
 			maxTries = 1;
+			timeout = 60;
 			promptAfterMaxTries = false;
 			newManager.Status = FlackManager.STATUS_INPROGRESS;
 			relatedTo.push(newManager);
@@ -88,9 +89,13 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				manager.api.version = Number(data.geni_api);
-				
-				manager.apis = new Vector.<ApiDetails>();
+				var apiDetail:ApiDetails = new ApiDetails(manager.api.type, Number(data.geni_api), manager.api.url, manager.api.level);
+				manager.api = apiDetail;
+				manager.apis.removeAll(manager.apis.getType(ApiDetails.API_GENIAM));
+				if(manager.type == GeniManager.TYPE_PROTOGENI && manager.apis.getType(ApiDetails.API_PROTOGENI).length == 0) {
+					manager.apis.add(new ApiDetails(ApiDetails.API_PROTOGENI, NaN, manager.url));
+				}
+				manager.apis.add(apiDetail);
 				if(data.geni_api_versions != null)
 				{
 					//URL
@@ -104,9 +109,11 @@ package com.flack.geni.tasks.xmlrpc.am
 								Number(supportedApiVersion),
 								supportedApiUrl
 							);
+						if (manager.api.equals(supportedApi))
+							continue;
 						if(supportedApi.version <= 4 && supportedApi.version > highestSuppportedVersion.version)
 							highestSuppportedVersion = supportedApi;
-						manager.apis.push(supportedApi);
+						manager.apis.add(supportedApi);
 					}
 					var oldApi:ApiDetails = manager.api;
 					manager.setApi(highestSuppportedVersion);

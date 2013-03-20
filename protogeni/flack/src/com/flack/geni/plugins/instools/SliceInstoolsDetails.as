@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (c) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -30,10 +30,11 @@
 
 package com.flack.geni.plugins.instools
 {
-	import com.adobe.crypto.SHA1;
 	import com.flack.geni.GeniMain;
-	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virtual.Slice;
+	import com.hurlant.crypto.hash.SHA1;
+	import com.hurlant.util.Hex;
 	
 	import flash.net.URLRequest;
 	import flash.net.URLVariables;
@@ -98,7 +99,8 @@ package com.flack.geni.plugins.instools
 		 */
 		public function goToPortal():void
 		{
-			var out:String = SHA1.hash(GeniMain.geniUniverse.user.password);
+			var sh:SHA1 = new SHA1();
+			var out:String = Hex.fromArray(sh.hash(Hex.toArray(Hex.fromString(GeniMain.geniUniverse.user.password))));
 			//var boo:String = "secretkey";
 			//var out:String = Util.rc4encrypt(boo,data);
 			//out = encodeURI(out);

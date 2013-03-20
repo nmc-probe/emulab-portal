@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -32,16 +32,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.VirtualComponent;
-	import com.flack.geni.tasks.process.ParseRequestManifestTask;
-	import com.flack.shared.FlackEvent;
-	import com.flack.shared.SharedMain;
-	import com.flack.shared.logging.LogMessage;
-	import com.flack.shared.resources.docs.Rspec;
-	import com.flack.shared.resources.docs.RspecVersion;
-	import com.flack.shared.tasks.TaskError;
-	import com.flack.shared.utils.CompressUtil;
 	import com.flack.shared.utils.DateUtil;
-	import com.flack.shared.utils.StringUtil;
 	
 	/**
 	 * Performs the given action to change the operational states of the slivers.

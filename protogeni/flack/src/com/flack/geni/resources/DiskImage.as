@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -54,22 +54,25 @@ package com.flack.geni.resources
 								  newVersion:String = "",
 								  newDescription:String = "",
 								  newIsDefault:Boolean = false,
-								  newUrl:String = "")
+								  newUrl:String = "",
+								  newCreator:String = "")
 		{
 			super(newId);
-			if(id.full.length > 0 && IdnUrn.isIdnUrn(newId))
-				id = IdnUrn.makeFrom(id.authority, id.type, id.name.replace(":", "//"));
+			/*if(id.full.length > 0 && IdnUrn.isIdnUrn(newId))
+				id = IdnUrn.makeFrom(id.authority, id.type, id.name.replace(":", "//"));*/
 			os = newOs;
 			version = newVersion;
 			description = newDescription;
 			isDefault = newIsDefault;
 			url = newUrl;
+			creator = newCreator;
 		}
 		
 		public var os:String;
 		public var version:String;
 		public var description:String;
 		public var url:String;
+		public var creator:String
 		public var isDefault:Boolean;
 		
 		public var extensions:Extensions = new Extensions();

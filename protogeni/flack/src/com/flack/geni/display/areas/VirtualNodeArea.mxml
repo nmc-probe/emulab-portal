@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -53,12 +53,9 @@ IN THE WORK.
 			import com.flack.geni.display.slicer.ExecuteServiceComponent;
 			import com.flack.geni.display.slicer.InstallServiceComponent;
 			import com.flack.geni.plugins.SliverTypePart;
-			import com.flack.geni.plugins.emulab.Pipe;
-			import com.flack.geni.plugins.emulab.PipeCollection;
 			import com.flack.geni.resources.DiskImage;
 			import com.flack.geni.resources.Extensions;
 			import com.flack.geni.resources.SliverType;
-			import com.flack.geni.resources.SliverTypes;
 			import com.flack.geni.resources.physical.HardwareType;
 			import com.flack.geni.resources.physical.HardwareTypeCollection;
 			import com.flack.geni.resources.physical.PhysicalNode;
@@ -66,36 +63,36 @@ IN THE WORK.
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.managers.SupportedSliverType;
 			import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
-			import com.flack.geni.resources.virtual.AggregateSliver;
 			import com.flack.geni.resources.virtual.ExecuteService;
 			import com.flack.geni.resources.virtual.InstallService;
 			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.VirtualComponent;
 			import com.flack.geni.resources.virtual.VirtualInterface;
 			import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
 			import com.flack.geni.resources.virtual.VirtualLink;
 			import com.flack.geni.resources.virtual.VirtualLinkCollection;
 			import com.flack.geni.resources.virtual.VirtualNode;
 			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.geni.tasks.groups.ListImagesTaskGroup;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateImageCmTask;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.DocumentArea;
 			import com.flack.shared.display.components.DataButton;
-			import com.flack.shared.display.components.TextInputWindow;
+			import com.flack.shared.display.windows.TextInputWindow;
 			import com.flack.shared.resources.sites.FlackManager;
-			import com.flack.shared.tasks.Tasker;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
 			
 			import mx.collections.ArrayCollection;
+			import mx.collections.VectorCollection;
 			import mx.controls.Alert;
 			import mx.events.FlexEvent;
 			
 			import spark.collections.Sort;
 			import spark.collections.SortField;
 			import spark.components.Button;
+			import spark.events.IndexChangeEvent;
 			import spark.events.TextOperationEvent;
 			import spark.primitives.Rect;
 			
@@ -103,13 +100,18 @@ IN THE WORK.
 			public var node:VirtualNode = null;
 			
 			[Bindable]
-			private var managers:ArrayCollection = new ArrayCollection();
+			private var managers:VectorCollection = new VectorCollection();
 			[Bindable]
 			private var physicalNodes:ArrayCollection = new ArrayCollection();
 			[Bindable]
 			private var sliverTypes:ArrayCollection = new ArrayCollection();
 			[Bindable]
 			private var hardwareForVirtual:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var diskImageUsers:VectorCollection = new VectorCollection();
+			[Bindable]
+			private var userDiskImages:VectorCollection = new VectorCollection();
 			[Bindable]
 			private var diskImages:ArrayCollection = new ArrayCollection();
 			
@@ -141,9 +143,8 @@ IN THE WORK.
 			public function init():void
 			{
 				if(node != null)
-				{
 					load(node);
-				}
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_USERDISKIMAGES, loadUserDiskImageStuff);
 			}
 			
 			public function load(n:VirtualNode):void
@@ -164,12 +165,7 @@ IN THE WORK.
 				physicalNodes.sort = nameSort;
 				
 				// Build up lists
-				managers.removeAll();
-				for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
-				{
-					if(manager.Status == FlackManager.STATUS_VALID)
-						managers.addItem(manager);
-				}
+				managers = new VectorCollection(GeniMain.geniUniverse.managers.getByStatus(FlackManager.STATUS_VALID).collection);
 				
 				if(initialized)
 				{
@@ -178,6 +174,7 @@ IN THE WORK.
 					titleColor = ColorUtil.colorsLight[node.manager.colorIdx];
 					errorButton.visible = node.error.length > 0;
 					manifestButton.visible = node.manifest.length>0;
+					loadDiskImageUsers();
 					if(node.allocationState != Sliver.ALLOCATION_UNALLOCATED)
 					{
 						statusImage.visible = true;
@@ -282,6 +279,46 @@ IN THE WORK.
 					}
 					
 					okButton.enabled = false;
+				}
+			}
+			
+			private function loadUserDiskImageStuff(e:FlackEvent):void
+			{
+				if(e.changedObject != null)
+				{
+					loadDiskImageUsers(e.changedObject as String);
+					loadUserDiskImages(e.changedObject as String);
+				}
+				else
+				{
+					loadDiskImageUsers();
+					loadUserDiskImages();
+				}
+			}
+			
+			public function loadDiskImageUsers(selectedUser:String = ""):void
+			{
+				diskImageUsers = new VectorCollection(GeniMain.geniUniverse.userDiskImages.Creators);
+				diskImageUsers.addItem("");
+				if(selectedUser.length > 0)
+					diskImageUserSelect.selectedItem = selectedUser;
+			}
+			
+			public function loadUserDiskImages(selectedUser:String = ""):void
+			{
+				if(selectedUser.length > 0)
+				{
+					userDiskImages = new VectorCollection(
+						GeniMain.geniUniverse.userDiskImages.getByCreator(selectedUser).collection);
+				}
+				else if(diskImageUserSelect.selectedItem != null
+					&& diskImageUserSelect.selectedItem.length > 0)
+				{
+					userDiskImages = new VectorCollection(
+						GeniMain.geniUniverse.userDiskImages.getByCreator(
+							diskImageUserSelect.selectedItem as String).collection);
+				} else {
+					userDiskImages = new VectorCollection();
 				}
 			}
 			
@@ -599,7 +636,9 @@ IN THE WORK.
 				// Make sure we HAVE a client id
 				if(clientIdInput.text.length == 0)
 				{
-					Alert.show("Either choose an unbound node or choose a node to bind to.", "No bound node indicated");
+					Alert.show(
+						"Either choose an unbound node or choose a node to bind to.",
+						"No bound node indicated");
 					return true;
 				}
 				
@@ -809,6 +848,40 @@ IN THE WORK.
 				}
 			}
 			
+			private function diskImageUserDisplay(obj:Object):String
+			{
+				if(obj.length == 0)
+					return "Add user and list disk images";
+				return obj as String;
+			}
+			
+			protected function diskImageUserSelect_changeHandler(event:IndexChangeEvent):void
+			{
+				if(diskImageUserSelect.selectedItem == null)
+					return;
+				if(diskImageUserSelect.selectedItem.length == 0) {
+					SharedMain.tasker.add(new ListImagesTaskGroup());
+					diskImageUserSelect.selectedIndex = -1;
+				} else {
+					loadUserDiskImages();
+				}
+			}
+			
+			protected function userDiskImageSelect_changeHandler(event:IndexChangeEvent):void
+			{
+				var selectedImage:DiskImage = userDiskImageSelect.selectedItem as DiskImage;
+				if(selectedImage.id.authority == this.SelectedManager.id.authority)
+				{
+					diskImageText.text = selectedImage.id.full;
+					diskSourceGroup.selection = diskImageNameCheckbox;
+				}
+				else
+				{
+					diskImageText.text = selectedImage.url;
+					diskSourceGroup.selection = diskImageUrlCheckbox;
+				}
+			}
+			
 		]]>
 	</fx:Script>
 	
@@ -968,9 +1041,11 @@ IN THE WORK.
 									label="Exclusive?" />
 					</s:VGroup>
 				</s:HGroup>
+				<components:DefaultLine percentWidth="100" />
 				<s:VGroup id="diskImageGroup"
 						  width="100%"
 						  gap="2"
+						  verticalAlign="top"
 						  includeInLayout="{diskImageGroup.visible}">
 					<s:HGroup width="100%"
 							  gap="2"
@@ -978,12 +1053,29 @@ IN THE WORK.
 						<s:Label text="Disk Image"
 								 fontWeight="bold" />
 						<s:Rect />
-						<s:DropDownList id="diskImageSelect"
-										width="100%"
-										prompt="Select image to override default"
-										dataProvider="{diskImages}"
-										labelField="description"
-										change="diskImageText.text = diskImageSelect.selectedItem.id.full; diskImageNameCheckbox.selected = true;" />
+						<s:VGroup width="100%">
+							<s:DropDownList id="diskImageSelect"
+											width="100%"
+											prompt="Select advertised image"
+											dataProvider="{diskImages}"
+											labelField="description"
+											change="diskImageText.text = diskImageSelect.selectedItem.id.full; diskImageNameCheckbox.selected = true;" />
+							<s:HGroup width="100%">
+								<s:DropDownList id="diskImageUserSelect"
+												width="100%"
+												prompt="Select a user for user-created disk images"
+												dataProvider="{diskImageUsers}"
+												labelFunction="diskImageUserDisplay"
+												change="diskImageUserSelect_changeHandler(event)" />
+								<s:DropDownList id="userDiskImageSelect"
+												width="100%"
+												prompt="Select user-created disk image"
+												dataProvider="{userDiskImages}"
+												labelField="description"
+												change="userDiskImageSelect_changeHandler(event)" />
+							</s:HGroup>
+							
+						</s:VGroup>
 						<s:Rect />
 						<s:Button id="createImageButton"
 								  visible="false"
@@ -1015,6 +1107,7 @@ IN THE WORK.
 									 valueCommit="diskImageText_changeHandler(event)" />
 					</s:HGroup>
 				</s:VGroup>
+				<components:DefaultLine percentWidth="100" />
 				<s:HGroup width="100%"
 						  height="100%"
 						  gap="2"

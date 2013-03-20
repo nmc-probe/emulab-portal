@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -43,17 +43,12 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.GeniMain;
-			import com.flack.geni.resources.sites.GeniAuthority;
-			import com.flack.geni.tasks.groups.GetUserTaskGroup;
 			import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.tasks.TaskCollection;
 			import com.flack.shared.tasks.TaskEvent;
 			import com.flack.shared.utils.ImageUtil;
-			
-			import mx.collections.ArrayCollection;
-			import mx.controls.Alert;
 			
 			public function init():void
 			{

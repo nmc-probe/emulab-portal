@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -31,7 +31,6 @@ package com.flack.geni.tasks.xmlrpc.am
 {
 	import com.flack.geni.resources.docs.GeniCredential;
 	import com.flack.shared.logging.LogMessage;
-	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.tasks.TaskGroup;
 	import com.flack.shared.tasks.xmlrpc.XmlrpcTask;
@@ -66,6 +65,8 @@ package com.flack.geni.tasks.xmlrpc.am
 		// Added in v4
 		public static const METHOD_CANCEL:String = "Cancel";
 		public static const METHOD_UPDATE:String = "Update";
+		// Available at ProtoGENI hosts
+		public static const METHOD_LISTIMAGES:String = "ListImages";
 		
 		// GENI response codes
 		public static const GENICODE_SUCCESS:int = 0;
@@ -127,7 +128,6 @@ package com.flack.geni.tasks.xmlrpc.am
 		 */
 		public var output:String;
 
-		public var protogeniErrorLog:String = "";
 		public var amType:String = "";
 		public var amCode:Number = NaN;
 		
@@ -198,9 +198,13 @@ package com.flack.geni.tasks.xmlrpc.am
 					genicode = int(response.code.geni_code);
 					output = response.output;
 					
-					if (response.protogeni_error_log != null)
+					if (response.protogeni_error_log_urn != null)
 					{
-						protogeniErrorLog = String(response.protogeni_error_log);
+						errorLogUrn = String(response.protogeni_error_log_urn);
+					}
+					if (response.protogeni_error_log_url != null)
+					{
+						errorLogUrl = String(response.protogeni_error_log_url);
 					}
 					if (response.am_type != null)
 					{
@@ -250,6 +254,9 @@ package com.flack.geni.tasks.xmlrpc.am
 			var errorMessage:String = GeniresponseToString(genicode);
 			if(output != null && output.length > 0)
 				errorMessage += ": " + output;
+			var errorLog:String = ErrorLog;
+			if(errorLog.length > 0)
+				errorMessage += "\n" + errorLog;
 			afterError(
 				new TaskError(
 					errorMessage,

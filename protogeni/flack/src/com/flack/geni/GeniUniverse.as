@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2008-2012 University of Utah and the Flux Group.
+* Copyright (c) 2008-2013 University of Utah and the Flux Group.
 * 
 * {{{GENIPUBLIC-LICENSE
 * 
@@ -31,6 +31,7 @@ package com.flack.geni
 {
 	import com.flack.geni.display.areas.SliceArea;
 	import com.flack.geni.display.windows.LoginWindow;
+	import com.flack.geni.resources.DiskImageCollection;
 	import com.flack.geni.resources.GeniUser;
 	import com.flack.geni.resources.sites.GeniAuthority;
 	import com.flack.geni.resources.sites.GeniAuthorityCollection;
@@ -61,6 +62,8 @@ package com.flack.geni
 		}
 		public var authorities:GeniAuthorityCollection;
 		public var clearinghouse:ProtogeniClearinghouse;
+		
+		public var userDiskImages:DiskImageCollection = new DiskImageCollection();
 		
 		public function GeniUniverse()
 		{

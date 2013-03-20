@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -37,10 +37,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 	import com.flack.geni.plugins.emulab.FirewallSliverType;
 	import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
 	import com.flack.geni.resources.GeniUser;
-	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.sites.managers.SupportedSliverType;
 	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
@@ -48,8 +46,6 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.sites.ApiDetails;
-	import com.flack.shared.resources.sites.FlackManager;
-	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.StringUtil;
 	
 	/**
@@ -100,7 +96,6 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 					try
 					{
 						var url:String = obj.url;
-						url = url.replace(":12369", "");
 						var newId:IdnUrn = new IdnUrn(obj.urn);
 						var newManager:GeniManager = new GeniManager(GeniManager.TYPE_UNKNOWN, ApiDetails.API_GENIAM, newId.full, obj.hrn);
 						

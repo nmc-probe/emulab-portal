@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -31,16 +31,15 @@ IN THE WORK.
 
 -->
 
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<windows:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						xmlns:s="library://ns.adobe.com/flex/spark" 
 						xmlns:mx="library://ns.adobe.com/flex/mx"
 						xmlns:components="com.flack.shared.display.components.*"
-						xmlns:view="com.flack.geni.view.*">
+						xmlns:view="com.flack.geni.view.*"
+						xmlns:windows="com.flack.shared.display.windows.*">
 	<fx:Script>
 		<![CDATA[
-			import com.flack.shared.tasks.file.FileTask;
-			import com.flack.shared.utils.ImageUtil;
-			
+
 			[Bindable]
 			private var doc:String = "";
 			public function set Document(value:String):void {
@@ -50,4 +49,4 @@ IN THE WORK.
 		]]>
 	</fx:Script>
 	<components:AdvancedTextArea text="{doc}" />
-</components:DefaultWindow>
+</windows:DefaultWindow>

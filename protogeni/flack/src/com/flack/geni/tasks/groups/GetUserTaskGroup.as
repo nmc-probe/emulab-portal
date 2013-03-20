@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -32,14 +32,10 @@ package com.flack.geni.tasks.groups
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.resources.GeniUser;
 	import com.flack.geni.resources.docs.GeniCredential;
-	import com.flack.geni.resources.sites.GeniAuthority;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.tasks.groups.slice.DescribeSlicesTaskGroup;
 	import com.flack.geni.tasks.groups.slice.GetSlicesTaskGroup;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
-	import com.flack.shared.tasks.ParallelTaskGroup;
 	import com.flack.shared.tasks.SerialTaskGroup;
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskError;
@@ -105,9 +101,17 @@ package com.flack.geni.tasks.groups
 						add(new ResolveUserTaskGroup(GeniMain.geniUniverse.user));
 					else if(user.credential.type == GeniCredential.TYPE_SLICE)
 						getResources();
+					else
+					{
+						addMessage("Failed to find case", "user.credential is of type " + user.credential.type, LogMessage.LEVEL_WARNING);
+					}
 				}
 				else if(shouldGetSlices)
 					getResources();
+				else
+				{
+					addMessage("Nothing to do for user?", "Nothing to do for user?", LogMessage.LEVEL_WARNING);
+				}
 			}
 			super.runStart();
 		}
@@ -122,7 +126,10 @@ package com.flack.geni.tasks.groups
 		private function getResources():void
 		{
 			if(user.slices.length == 0)
+			{
+				addMessage("No slices", "No slices", LogMessage.LEVEL_WARNING);
 				afterComplete();
+			}
 			else
 				add(new GetSlicesTaskGroup(user.slices));
 		}

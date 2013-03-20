@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,7 +29,6 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.flack.geni.GeniMain;
 	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.resources.virtual.VirtualComponent;
@@ -42,7 +41,6 @@ package com.flack.geni.tasks.xmlrpc.am
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.DateUtil;
-	import com.flack.shared.utils.StringUtil;
 	
 	import flash.utils.Dictionary;
 	

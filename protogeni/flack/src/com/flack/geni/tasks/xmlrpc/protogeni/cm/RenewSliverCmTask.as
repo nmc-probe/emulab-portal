@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -46,7 +46,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class RenewSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:AggregateSliver;
+		public var aggregateSliver:AggregateSliver;
 		public var newExpires:Date;
 		
 		/**
@@ -69,35 +69,35 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(renewSliver);
 			relatedTo.push(renewSliver.slice);
 			relatedTo.push(renewSliver.manager);
-			sliver = renewSliver;
+			aggregateSliver = renewSliver;
 			newExpires = newExpirationDate;
 		}
 		
 		override protected function createFields():void
 		{
-			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("slice_urn", aggregateSliver.slice.id.full);
 			addNamedField("expiration", DateUtil.toRFC3339(newExpires));
-			addNamedField("credentials", [sliver.slice.credential.Raw]);
+			addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				sliver.Expires = newExpires;
+				aggregateSliver.Expires = newExpires;
 				
 				SharedMain.sharedDispatcher.dispatchChanged(
 					FlackEvent.CHANGED_SLIVER,
-					sliver
+					aggregateSliver
 				);
 				SharedMain.sharedDispatcher.dispatchChanged(
 					FlackEvent.CHANGED_SLICE,
-					sliver.slice
+					aggregateSliver.slice
 				);
 				
 				addMessage(
 					"Renewed",
-					"Renewed, expires in " + DateUtil.getTimeUntil(sliver.EarliestExpiration),
+					"Renewed, expires in " + DateUtil.getTimeUntil(aggregateSliver.EarliestExpiration),
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
@@ -106,7 +106,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			}
 			else
 			{
-				Alert.show("Failed to renew sliver @ " + sliver.manager.hrn);
+				Alert.show("Failed to renew sliver @ " + aggregateSliver.manager.hrn);
 				faultOnSuccess();
 			}
 		}

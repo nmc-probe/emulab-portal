@@ -4,7 +4,7 @@
  * See: http://flexponential.com/2010/01/10/resizable-titlewindow-in-flex-4/
  */
 
-package com.flack.shared.display.components
+package com.flack.shared.display.windows
 {
 	import com.flack.shared.display.skins.ResizableTitleWindowSkin;
 	

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -35,7 +35,6 @@ package com.flack.geni.resources.virtual
 	import com.flack.geni.resources.sites.GeniAuthority;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.virtual.extensions.ClientInfo;
 	import com.flack.geni.resources.virtual.extensions.SliceFlackInfo;
 	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistory;
 	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistoryItem;
@@ -44,10 +43,9 @@ package com.flack.geni.resources.virtual
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.resources.IdentifiableObject;
-	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.resources.IdentifiableObjectCollection;
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.utils.DateUtil;
-	import com.mapquest.tilemap.util.NullableBoolean;
 	
 	import flash.globalization.DateTimeFormatter;
 	import flash.globalization.DateTimeStyle;
@@ -186,7 +184,7 @@ package com.flack.geni.resources.virtual
 		public function pushState():void
 		{
 			// Don't push an empty state
-			if(nodes.length == 0)
+			if(nodes.length == 0 && links.length == 0)
 				return;
 			
 			// Remove any redo history
@@ -204,6 +202,10 @@ package com.flack.geni.resources.virtual
 					history.stateName
 				)
 			);
+			if(oldHistory.states.length > 20)
+			{
+				oldHistory.states.splice(0, oldHistory.states.length - 20);
+			}
 			oldHistory.backIndex = history.states.length-1;
 			history = oldHistory;
 			history.stateName = "";

@@ -1,5 +1,5 @@
 /* 
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -30,7 +30,6 @@
 package com.flack.geni.tasks.process
 {
 	import com.flack.geni.RspecUtil;
-	import com.flack.geni.plugins.RspecProcessInterface;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
 	import com.flack.geni.plugins.emulab.EmulabSppSliverType;
@@ -40,7 +39,6 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.DiskImage;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverType;
-	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.physical.HardwareType;
 	import com.flack.geni.resources.physical.PhysicalInterface;
 	import com.flack.geni.resources.physical.PhysicalLink;

@@ -24,6 +24,11 @@ package com.mattism.http.xmlrpc
         ExternalInterface.call("setServerCert", newCert);
     }
 	
+	public static function addServerCertificate(newCert : String) : void
+	{
+		ExternalInterface.call("addServerCert", newCert);
+	}
+	
 	/**
 	 * 
 	 * @param password Password for the private key

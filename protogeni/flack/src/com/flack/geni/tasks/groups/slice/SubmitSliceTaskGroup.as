@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -36,14 +36,9 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.resources.virtual.AggregateSliverCollection;
 	import com.flack.geni.resources.virtual.AggregateSliverCollectionCollection;
-	import com.flack.geni.resources.virtual.LinkType;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.SliverCollection;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
 	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetUserKeysSaTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -56,7 +51,6 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.shared.tasks.TaskEvent;
 	
 	import flash.display.Sprite;
-	import flash.utils.Dictionary;
 	
 	import mx.controls.Alert;
 	import mx.core.FlexGlobals;

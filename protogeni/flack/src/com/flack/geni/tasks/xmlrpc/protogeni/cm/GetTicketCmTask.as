@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -33,8 +33,6 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	import com.flack.geni.resources.virtual.Sliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
-	import com.flack.shared.FlackEvent;
-	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.sites.ApiDetails;
@@ -51,7 +49,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class GetTicketCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:AggregateSliver;
+		public var aggregateSliver:AggregateSliver;
 		public var request:Rspec;
 		public var ticket:String;
 		
@@ -76,12 +74,12 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
 			
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 			request = useRspec;
 			
 			addMessage(
 				"Waiting to get ticket...",
-				"A ticket will be ask for at " + sliver.manager.hrn,
+				"A ticket will be ask for at " + aggregateSliver.manager.hrn,
 				LogMessage.LEVEL_INFO,
 				LogMessage.IMPORTANCE_HIGH
 			);
@@ -89,14 +87,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function createFields():void
 		{
-			addNamedField("slice_urn", sliver.slice.id.full);
+			addNamedField("slice_urn", aggregateSliver.slice.id.full);
 			addNamedField("rspec", request.document);
-			addNamedField("credentials", [sliver.slice.credential.Raw]);
+			addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
 		}
 		
 		override protected function runStart():void
 		{
-			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
+			if(aggregateSliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
 			{
 				afterError(
 					new TaskError(
@@ -109,7 +107,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			
 			if(request == null)
 			{
-				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, false, false);
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(aggregateSliver, true, false, false);
 				generateNewRspec.start();
 				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
 				{
@@ -133,11 +131,11 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
 				ticket = String(data);
-				sliver.ticket = new Rspec(ticket);
-				if (Sliver.isProvisioned(sliver.AllocationState))
-					sliver.AllocationState = Sliver.ALLOCATION_UPDATING;
+				aggregateSliver.ticket = new Rspec(ticket);
+				if (Sliver.isProvisioned(aggregateSliver.AllocationState))
+					aggregateSliver.AllocationState = Sliver.ALLOCATION_UPDATING;
 				else
-					sliver.AllocationState = Sliver.ALLOCATION_ALLOCATED;
+					aggregateSliver.AllocationState = Sliver.ALLOCATION_ALLOCATED;
 				
 				addMessage(
 					"Ticket received",
@@ -146,7 +144,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new RedeemTicketCmTask(sliver));
+				parent.add(new RedeemTicketCmTask(aggregateSliver));
 				
 				super.afterComplete(addCompletedMessage);
 			}

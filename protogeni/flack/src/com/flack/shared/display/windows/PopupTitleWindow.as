@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -27,7 +27,7 @@
  * }}}
  */
 
-package com.flack.shared.display.components
+package com.flack.shared.display.windows
 {
 	import flash.display.DisplayObject;
 	import flash.events.Event;

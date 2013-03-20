@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -27,18 +27,19 @@
  * }}}
  */
 
-package com.flack.geni.resources.physical
+package com.flack.geni.resources
 {
-	import com.flack.geni.resources.DiskImage;
+	import com.flack.shared.resources.IdnUrn;
 
 	/**
-	 * Collection of disk images
+	 * Collection of extension spaces
+	 * 
 	 * @author mstrum
 	 * 
 	 */
 	public class DiskImageCollection
 	{
-		public var collection:Vector.<DiskImage>;
+		public var collection:Vector.<DiskImage> = new Vector.<DiskImage>();
 		public function DiskImageCollection()
 		{
 			collection = new Vector.<DiskImage>();
@@ -46,11 +47,6 @@ package com.flack.geni.resources.physical
 		
 		public function add(image:DiskImage):void
 		{
-			for each(var existingImage:DiskImage in collection)
-			{
-				if(existingImage.id.full == image.id.full)
-					return;
-			}
 			collection.push(image);
 		}
 		
@@ -61,6 +57,12 @@ package com.flack.geni.resources.physical
 				collection.splice(idx, 1);
 		}
 		
+		public function removeAll(imgs:DiskImageCollection):void
+		{
+			for each(var img:DiskImage in imgs.collection)
+				remove(img);
+		}
+		
 		public function contains(image:DiskImage):Boolean
 		{
 			return collection.indexOf(image) > -1;
@@ -69,6 +71,17 @@ package com.flack.geni.resources.physical
 		public function get length():int
 		{
 			return collection.length;
+		}
+		
+		public function get Creators():Vector.<String>
+		{
+			var creators:Vector.<String> = new Vector.<String>();
+			for each(var image:DiskImage in collection)
+			{
+				if(creators.indexOf(image.creator) == -1)
+					creators.push(image.creator);
+			}
+			return creators;
 		}
 		
 		/**
@@ -103,17 +116,42 @@ package com.flack.geni.resources.physical
 			return null;
 		}
 		
+		public function getByCreator(urn:String):DiskImageCollection
+		{
+			var result:DiskImageCollection = new DiskImageCollection();
+			for each(var image:DiskImage in collection)
+			{
+				if(image.creator == urn)
+					result.add(image);
+			}
+			return result;
+		}
+		
+		public function getByAuthority(authority:String):DiskImageCollection
+		{
+			var result:DiskImageCollection = new DiskImageCollection();
+			for each(var image:DiskImage in collection)
+			{
+				if(IdnUrn.isIdnUrn(image.id.full) && image.id.authority == authority)
+					result.add(image);
+			}
+			return result;
+		}
+		
 		/**
 		 * 
 		 * @return Default image
 		 * 
 		 */
-		public function getDefault():DiskImage
+		public function getDefault(creatorUrn:String = ""):DiskImage
 		{
 			for each(var image:DiskImage in collection)
 			{
-				if(image.isDefault)
-					return image;
+				if(creatorUrn.length == 0 || image.creator == creatorUrn)
+				{
+					if(image.isDefault)
+						return image;
+				}
 			}
 			return null;
 		}

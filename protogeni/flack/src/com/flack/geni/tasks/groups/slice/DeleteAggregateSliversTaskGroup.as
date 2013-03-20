@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -38,11 +38,15 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.ParallelTaskGroup;
 	import com.flack.shared.tasks.Task;
+	import com.flack.shared.tasks.xmlrpc.XmlrpcTask;
+	import com.flack.shared.utils.NetUtil;
 	
 	import flash.display.Sprite;
+	import flash.events.TextEvent;
 	
 	import mx.controls.Alert;
 	import mx.core.FlexGlobals;
+	import mx.core.mx_internal;
 	import mx.events.CloseEvent;
 	
 	/**
@@ -119,9 +123,17 @@ package com.flack.geni.tasks.groups.slice
 			if(task is DeleteTask)
 				name = (task as DeleteTask).aggregateSliver.manager.hrn;
 			else
-				name = (task as DeleteSliverCmTask).sliver.manager.hrn;
-			Alert.show(
-				"Problem releasing resources on " + name + ". Continue with the remaining actions?",
+				name = (task as DeleteSliverCmTask).aggregateSliver.manager.hrn;
+			var errorLogHtml:String = "";
+			if(task is XmlrpcTask)
+			{
+				errorLogHtml = (task as XmlrpcTask).ErrorLogHtml;
+				if(errorLogHtml.length > 0)
+					errorLogHtml = "<br><br>" + errorLogHtml;
+			}
+			var alertMsg:String = "Problem deleting sliver on " + name + ". Continue with the remaining actions?" + errorLogHtml;
+			var alert:Alert = Alert.show(
+				alertMsg,
 				"Continue?",
 				Alert.YES|Alert.NO,
 				FlexGlobals.topLevelApplication as Sprite,
@@ -129,6 +141,12 @@ package com.flack.geni.tasks.groups.slice
 				null,
 				Alert.YES
 			);
+			alert.mx_internal::alertForm.mx_internal::textField.htmlText = alertMsg;
+			alert.mx_internal::alertForm.mx_internal::textField.addEventListener(
+				TextEvent.LINK,
+				function clickHandler(e:TextEvent):void {
+					NetUtil.openWebsite(e.text);
+				});
 		}
 		
 		public function userChoice(event:CloseEvent):void

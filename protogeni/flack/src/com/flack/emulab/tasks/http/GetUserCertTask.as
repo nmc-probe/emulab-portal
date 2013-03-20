@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -98,7 +98,7 @@ package com.flack.emulab.tasks.http
 					return;
 				}*/
 				
-				if(SharedMain.user.setSecurity("", pem))
+				if(SharedMain.user.setSecurity(pem))
 				{
 					Alert.show("It appears that the password is incorrect, try again", "Incorrect password");
 					return;

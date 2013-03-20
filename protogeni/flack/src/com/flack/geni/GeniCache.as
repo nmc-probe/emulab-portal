@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2008-2012 University of Utah and the Flux Group.
+* Copyright (c) 2008-2013 University of Utah and the Flux Group.
 * 
 * {{{GENIPUBLIC-LICENSE
 * 
@@ -33,8 +33,6 @@ package com.flack.geni
 	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.shared.SharedCache;
 	import com.flack.shared.SharedMain;
-	import com.flack.shared.resources.sites.ApiDetails;
-	import com.flack.shared.resources.sites.FlackManager;
 	
 	import flash.utils.Dictionary;
 

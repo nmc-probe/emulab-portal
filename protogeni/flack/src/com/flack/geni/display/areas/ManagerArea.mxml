@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -42,17 +42,15 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.GeniCache;
-			import com.flack.geni.resources.docs.GeniCredential;
 			import com.flack.geni.resources.docs.GeniCredentialVersion;
 			import com.flack.geni.resources.docs.GeniCredentialVersionCollection;
-			import com.flack.geni.resources.physical.HardwareType;
-			import com.flack.geni.resources.physical.HardwareTypeCollection;
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.tasks.groups.GetManagerTaskGroup;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.DocumentArea;
 			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
+			import com.flack.shared.display.skins.ButtonBarSkin;
 			import com.flack.shared.resources.docs.RspecVersion;
 			import com.flack.shared.resources.docs.RspecVersionCollection;
 			import com.flack.shared.resources.sites.FlackManager;
@@ -63,18 +61,22 @@ IN THE WORK.
 			import com.flack.shared.utils.NetUtil;
 			import com.flack.shared.utils.ViewUtil;
 			
-			import mx.collections.ArrayCollection;
+			import mx.collections.VectorCollection;
 			import mx.controls.Alert;
+			
+			import spark.events.IndexChangeEvent;
 			
 			[Bindable]
 			private var manager:GeniManager = null;
 			
 			[Bindable]
-			private var nodeTypes:ArrayCollection;
+			private var nodeTypes:VectorCollection;
 			[Bindable]
-			private var linkTypes:ArrayCollection;
+			private var linkTypes:VectorCollection;
 			[Bindable]
-			private var sharedVlans:ArrayCollection;
+			private var sharedVlans:VectorCollection;
+			[Bindable]
+			private var apiDetails:VectorCollection;
 			
 			public function init():void
 			{
@@ -137,10 +139,11 @@ IN THE WORK.
 							break;
 					}
 					messageButton.visible = manager.errorDescription.length > 0;
-					resourcesGroup.visible = manager.advertisement != null;
+					//resourcesGroup.visible = manager.advertisement != null;
 					deleteCacheButton.visible = GeniCache.wasManagerManuallyAdded(manager);
 					
-					apiLabel.text = manager.api.toString();
+					apiDetails = new VectorCollection(manager.apis.collection);
+					apiDropdownlist.selectedItem = manager.api;
 					typeLabel.text = GeniManager.typeToHumanReadable(manager.type);
 					
 					codeVersionLabel.text = manager.codeVersion;
@@ -148,25 +151,12 @@ IN THE WORK.
 					allocateLabel.text = GeniManager.allocateToHumanReadableString(manager.allocate);
 					singleAllocationCheckbox.selected = manager.singleAllocation;
 					
-					nodesButton.enabled = manager.nodes.length > 0;
-					linksButton.enabled = manager.links.length > 0;
+					nodesView.label = manager.nodes.length + " Node" + (manager.nodes.length != 1 ? "s" : "");
+					linksView.label = manager.links.length + " Link" + (manager.nodes.length != 1 ? "s" : "");
 					
-					nodeTypes = new ArrayCollection();
-					var nodeHardwareTypes:HardwareTypeCollection = manager.nodes.HardwareTypes;
-					for each(var nodeType:HardwareType in nodeHardwareTypes.collection)
-						nodeTypes.addItem(nodeType);
-					
-					linkTypes = new ArrayCollection();
-					for each(var linkType:String in manager.links.Types)
-					{
-						linkTypes.addItem(linkType);
-					}
-						
-					sharedVlans = new ArrayCollection();
-					for each(var sharedVlan:String in manager.sharedVlans)
-					{
-						sharedVlans.addItem(sharedVlan);
-					}
+					nodeTypes = new VectorCollection(manager.nodes.HardwareTypes.collection);
+					linkTypes = new VectorCollection(manager.links.Types);
+					sharedVlans = new VectorCollection(manager.sharedVlans);
 					
 					sliverTypesControl.load(manager.supportedSliverTypes.SliverTypes);
 					
@@ -304,6 +294,20 @@ IN THE WORK.
 				SharedMain.tasker.add(reloadTask)
 			}
 			
+			protected function apiDropdownlist_changeHandler(event:IndexChangeEvent):void
+			{
+				applyApiButton.enabled = !manager.api.equals(apiDropdownlist.selectedItem);
+			}
+			
+			protected function applyApiButton_clickHandler(event:MouseEvent):void
+			{
+				manager.setApi(apiDropdownlist.selectedItem);
+				
+				var getManagerTask:GetManagerTaskGroup = new GetManagerTaskGroup(manager);
+				getManagerTask.forceRunNow = true;
+				SharedMain.tasker.add(getManagerTask);
+			}
+			
 		]]>
 	</fx:Script>
 	
@@ -369,93 +373,130 @@ IN THE WORK.
 									toolTip="Close"
 									click="close()" />
 		</s:HGroup>
-		
 	</s:Group>
+	
 	
 	<s:VGroup paddingLeft="2"
 			  paddingRight="2"
 			  gap="2"
 			  width="100%"
 			  height="100%">
-		<s:HGroup gap="2">
-			<s:Label text="Framework:"
-					 fontWeight="bold" />
-			<s:Label id="typeLabel" />
-			<s:Label text="API:"
-					 fontWeight="bold" />
-			<s:Label id="apiLabel" />
-		</s:HGroup>
-		<s:HGroup gap="2">
-			<s:Label text="Code Version:"
-					 fontWeight="bold" />
-			<s:Label id="codeVersionLabel" />
-		</s:HGroup>
-		<s:HGroup gap="2">
-			<s:Label text="Advertises:"
-					 fontWeight="bold" />
-			<s:HGroup id="outputVersionsHgroup" />
-			<s:Label text="Accepts:"
-					 fontWeight="bold" />
-			<s:HGroup id="inputVersionsHgroup" />
-		</s:HGroup>
-		<s:HGroup gap="2">
-			<s:Label text="Credentials Accepted:"
-					 fontWeight="bold" />
-			<s:HGroup id="credentialsAcceptedHgroup" />
-		</s:HGroup>
-		<s:HGroup gap="2" verticalAlign="middle">
-			<s:Label text="Allocate:"
-					 fontWeight="bold" />
-			<s:Label id="allocateLabel" />
-			<s:CheckBox id="singleAllocationCheckbox"
-						enabled="false"
-						label="Single Allocation" />
-		</s:HGroup>
-		<components:DefaultLine percentWidth="100"
-								lineThickness="2" />
-		<s:VGroup id="resourcesGroup"
-				  width="100%"
-				  height="100%" includeInLayout="{resourcesGroup.visible}"
+		<s:HGroup width="100%"
 				  gap="2">
-			<s:HGroup width="100%"
+			<s:VGroup width="100%"
 					  height="100%"
 					  gap="2">
-				<s:VGroup width="33%"
-						  height="100%"
-						  gap="2">
-					<s:Label text="RSPEC"
+				<s:HGroup gap="2"
+						  verticalAlign="middle">
+					<s:Label text="Framework:"
 							 fontWeight="bold" />
-					<s:Button id="rpsecViewButton"
-							  icon="{ImageUtil.advertisementIcon}"
-							  label="View"
-							  click="viewRspec()" />
-					<s:Button id="rpsecSaveButton"
-							  icon="{ImageUtil.saveIcon}"
-							  label="Save to file"
-							  click="saveAdvertisement(event)" />
-				</s:VGroup>
-				<s:VGroup width="33%"
-						  height="100%"
-						  gap="2">
-					<s:Label text="Nodes" fontWeight="bold" />
-					<s:Button id="nodesButton"
-							  label="{manager.nodes.length} Nodes ({manager.nodes.Available.length} Available)"
-							  click="viewNodes()" />
-					<s:Label text="Node Types"
+					<s:Label id="typeLabel" />
+					<s:Label text="API:"
 							 fontWeight="bold" />
-					<s:List id="nodeTypesList"
-							dataProvider="{nodeTypes}"
-							labelField="name"
-							height="100%" />
-				</s:VGroup>
-				<s:VGroup width="33%"
+					<s:DropDownList id="apiDropdownlist" width="200"
+									dataProvider="{apiDetails}"
+									labelField="ReadableString"
+									change="apiDropdownlist_changeHandler(event)" />
+					<components:ImageButton id="applyApiButton"
+											icon="{ImageUtil.actionIcon}" enabled="false"
+											click="applyApiButton_clickHandler(event)" />
+				</s:HGroup>
+				<s:HGroup gap="2">
+					<s:Label text="Code Version:"
+							 fontWeight="bold" />
+					<s:Label id="codeVersionLabel" />
+				</s:HGroup>
+				<s:HGroup gap="2">
+					<s:Label text="Advertises:"
+							 fontWeight="bold" />
+					<s:HGroup id="outputVersionsHgroup" />
+					<s:Label text="Accepts:"
+							 fontWeight="bold" />
+					<s:HGroup id="inputVersionsHgroup" />
+				</s:HGroup>
+				<s:HGroup gap="2">
+					<s:Label text="Credentials Accepted:"
+							 fontWeight="bold" />
+					<s:HGroup id="credentialsAcceptedHgroup" />
+				</s:HGroup>
+				<s:HGroup gap="2" verticalAlign="middle">
+					<s:Label text="Allocate:"
+							 fontWeight="bold" />
+					<s:Label id="allocateLabel" />
+					<s:CheckBox id="singleAllocationCheckbox"
+								enabled="false"
+								label="Single Allocation" />
+				</s:HGroup>
+			</s:VGroup>
+			<s:VGroup height="100%"
+					  gap="2">
+				<s:Label text="RSPEC"
+						 fontWeight="bold" />
+				<s:Button id="rpsecViewButton"
+						  width="100%"
+						  icon="{ImageUtil.advertisementIcon}"
+						  label="View"
+						  click="viewRspec()" />
+				<s:Button id="rpsecSaveButton"
+						  icon="{ImageUtil.saveIcon}"
+						  label="Save to file"
+						  click="saveAdvertisement(event)" />
+			</s:VGroup>
+		</s:HGroup>
+		
+		<s:ButtonBar dataProvider="{componentsViewstack}"
+					 requireSelection="true"
+					 skinClass="com.flack.shared.display.skins.ButtonBarSkin"
+					 width="100%" />
+		<mx:ViewStack id="componentsViewstack"
+					  width="100%"
+					  height="100%"
+					  paddingTop="4">
+			<s:NavigatorContent id="nodesView"
+								width="100%"
+								height="100%"
+								label="Nodes"
+								toolTip="Nodes">
+				
+				<s:VGroup width="100%"
 						  height="100%"
-						  gap="2">
-					<s:Label text="Links" fontWeight="bold" />
+						  gap="2"
+						  paddingLeft="2"
+						  paddingRight="2">
+					<s:HGroup width="100%"
+							  height="100%"
+							  gap="2">
+						<s:VGroup height="100%"
+								  gap="2">
+							<s:Button id="nodesButton"
+									  label="View all ({manager.nodes.Available.length} Available)"
+									  enabled="{manager.nodes.length > 0}"
+									  click="viewNodes()" />
+							<s:Label text="Types"
+									 fontWeight="bold" />
+							<s:List id="nodeTypesList"
+									dataProvider="{nodeTypes}"
+									labelField="name"
+									height="100%" />
+						</s:VGroup>
+					</s:HGroup>
+					<display:SliverTypesControl id="sliverTypesControl" />
+				</s:VGroup>
+			</s:NavigatorContent>
+			<s:NavigatorContent id="linksView"
+								width="100%"
+								height="100%"
+								label="Links"
+								toolTip="Links">
+				<s:VGroup width="100%"
+						  height="100%"
+						  gap="2"
+						  paddingLeft="2"
+						  paddingRight="2">
 					<s:Button id="linksButton"
-							  label="{manager.links.length} Links"
+							  label="View all"
 							  click="viewLinks()" />
-					<s:Label text="Link Types"
+					<s:Label text="Types"
 							 fontWeight="bold" />
 					<s:List id="linkTypesList"
 							dataProvider="{linkTypes}"
@@ -466,9 +507,8 @@ IN THE WORK.
 							dataProvider="{sharedVlans}"
 							height="33%" />
 				</s:VGroup>
-			</s:HGroup>
-			<display:SliverTypesControl id="sliverTypesControl" />
-		</s:VGroup>
+			</s:NavigatorContent>
+		</mx:ViewStack>
 	</s:VGroup>
 	
 </areas1:AreaContent>

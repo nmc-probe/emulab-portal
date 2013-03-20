@@ -1,5 +1,5 @@
 /* 
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -35,7 +35,6 @@ package com.flack.geni.tasks.http
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.http.HttpTask;
-	import com.flack.shared.tasks.http.JsHttpTask;
 	
 	/**
 	 * Downloads a public list of ProtoGENI slice authorities
@@ -70,7 +69,6 @@ package com.flack.geni.tasks.http
 						sliceAuthorityLineParts[1],
 						true
 					);
-				sliceAuthority.url = sliceAuthority.url.replace(":12369", "");
 				if(GeniMain.geniUniverse.authorities.getByUrl(sliceAuthority.url) == null)
 					GeniMain.geniUniverse.authorities.add(sliceAuthority);
 				addMessage(

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -63,6 +63,7 @@ package com.flack.shared
 		public static const CHANGED_SLICE:String = "slice_changed";
 		public static const CHANGED_SLIVER:String = "sliver_changed";
 		public static const CHANGED_AUTHORITIES:String = "authorities_changed";
+		public static const CHANGED_USERDISKIMAGES:String = "userdiskimages_changed";
 		// Emulab
 		public static const CHANGED_EXPERIMENTS:String = "experiments_changed";
 		public static const CHANGED_EXPERIMENT:String = "experiment_changed";

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -66,7 +66,7 @@ package com.flack.shared.resources.sites
 		public var hrn:String = "";
 		
 		public var api:ApiDetails;
-		public var apis:Vector.<ApiDetails> = new Vector.<ApiDetails>();
+		public var apis:ApiDetailsCollection = new ApiDetailsCollection();
 		
 		// Resources
 		public var advertisement:Rspec = null;

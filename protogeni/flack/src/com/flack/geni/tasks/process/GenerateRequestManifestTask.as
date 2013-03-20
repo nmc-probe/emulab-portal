@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -33,11 +33,9 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.plugins.SliverTypeInterface;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
-	import com.flack.geni.plugins.emulab.Pipe;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.Property;
-	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
@@ -51,7 +49,6 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.resources.virtual.SliverCollection;
 	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
 	import com.flack.geni.resources.virtual.VirtualInterfaceReference;
 	import com.flack.geni.resources.virtual.VirtualLink;
 	import com.flack.geni.resources.virtual.VirtualLinkCollection;
@@ -59,7 +56,6 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virtual.VirtualNodeCollection;
 	import com.flack.geni.resources.virtual.extensions.ClientInfo;
 	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistoryItem;
-	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.tasks.Task;
@@ -76,7 +72,7 @@ package com.flack.geni.tasks.process
 	 */
 	public final class GenerateRequestManifestTask extends Task
 	{
-		public var sliver:AggregateSliver;
+		public var aggregateSliver:AggregateSliver;
 		public var slice:Slice;
 		public var useRspecVersion:RspecVersion;
 		public var includeOnlySliver:Boolean;
@@ -113,9 +109,9 @@ package com.flack.geni.tasks.process
 				slice = newSource;
 			else if(newSource is AggregateSliver)
 			{
-				sliver = newSource;
-				slice = sliver.slice;
-				relatedTo.push(sliver);
+				aggregateSliver = newSource;
+				slice = aggregateSliver.slice;
+				relatedTo.push(aggregateSliver);
 			}
 			if(slice != null)
 				relatedTo.push(slice);
@@ -137,11 +133,11 @@ package com.flack.geni.tasks.process
 					null, null, Rspec.TYPE_REQUEST
 				);
 			}
-			else if(sliver != null)
+			else if(aggregateSliver != null)
 			{
 				resultRspec = new Rspec(
 					"",
-					sliver.UseInputRspecInfo,
+					aggregateSliver.UseInputRspecInfo,
 					null, null, Rspec.TYPE_REQUEST
 				);
 			}
@@ -156,8 +152,8 @@ package com.flack.geni.tasks.process
 			
 			
 			var xmlDocument:XML = null;
-			if(sliver != null)
-				xmlDocument = sliver.extensions.createAndApply("rspec");
+			if(aggregateSliver != null)
+				xmlDocument = aggregateSliver.extensions.createAndApply("rspec");
 			else
 			{
 				if(slice != null && slice.aggregateSlivers.length > 0)
@@ -302,9 +298,9 @@ package com.flack.geni.tasks.process
 			{
 				return null;
 			}
-			if(sliver != null
+			if(aggregateSliver != null
 				&& node.sliverType.name == EmulabBbgSliverType.TYPE_EMULAB_BBG
-				&& node.manager != sliver.manager)
+				&& node.manager != aggregateSliver.manager)
 			{
 				return null;
 			}
@@ -743,7 +739,7 @@ package com.flack.geni.tasks.process
 				case LinkType.VLAN:
 					// Don't include if external VLAN depends on this VLAN
 					var vlanManagers:GeniManagerCollection = link.interfaceRefs.Interfaces.Managers;
-					if(sliver != null)
+					if(aggregateSliver != null)
 					{
 						if(vlanManagers.length > 1)
 						{
@@ -751,7 +747,7 @@ package com.flack.geni.tasks.process
 								return null;
 						}
 						else if(vlanManagers.length == 1
-							&& vlanManagers.collection[0] != sliver.manager)
+							&& vlanManagers.collection[0] != aggregateSliver.manager)
 						{
 							return null;
 						}

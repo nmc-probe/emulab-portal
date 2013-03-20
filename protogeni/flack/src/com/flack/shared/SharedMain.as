@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -51,7 +51,7 @@ package com.flack.shared
 		/**
 		 * Flack version
 		 */
-		public static const version:String = "v15.0";
+		public static const version:String = "v16.1";
 		
 		public static const MODE_GENI:int = 0;
 		public static const MODE_EMULAB:int = 1;
@@ -143,7 +143,11 @@ package com.flack.shared
 		{
 			bundle = value;
 			SharedCache.updateCertBundle(value);
-			JSLoader.setServerCertificate(value);
+			if(GeniMain.bundlePreset) {
+				JSLoader.addServerCertificate(value);
+			} else {
+				JSLoader.setServerCertificate(value);
+			}
 		}
 		/**
 		 * 

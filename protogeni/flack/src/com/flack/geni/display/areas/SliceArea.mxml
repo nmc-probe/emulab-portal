@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -79,11 +79,10 @@ IN THE WORK.
 			import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
-			import com.flack.shared.display.areas.Area;
 			import com.flack.shared.display.areas.DocumentArea;
 			import com.flack.shared.display.areas.DocumentsArea;
 			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
-			import com.flack.shared.display.components.TextInputWindow;
+			import com.flack.shared.display.windows.TextInputWindow;
 			import com.flack.shared.resources.docs.RspecVersion;
 			import com.flack.shared.resources.docs.RspecVersionCollection;
 			import com.flack.shared.resources.sites.FlackManager;
@@ -180,7 +179,7 @@ IN THE WORK.
 					action: viewManifests
 				}, 
 				{
-					label: "SSH Keys",
+					label: "SSH Keys & Collaborators",
 					icon: ImageUtil.keyIcon,
 					action: viewKeys
 				},
@@ -284,8 +283,13 @@ IN THE WORK.
 				plugins = new ArrayCollection();
 				for each(var plugin:Plugin in GeniMain.plugins)
 				{
-					if(plugin.Area != null)
-						plugins.addItem(plugin);
+					var pluginArea:PluginArea = plugin.Area;
+					if(pluginArea != null)
+					{
+						pluginArea.HostSlice = _slice;
+						pluginArea.host = this;
+						plugins.addItem(pluginArea);
+					}
 				}
 				if(_slice != null)
 				{
@@ -753,10 +757,8 @@ IN THE WORK.
 			{
 				if(!Sliver.isAllocated(_slice.AllocationState))
 				{
-					Alert.show(
-						"There is no valid manifest for the slice yet",
-						"No manifests"
-					);
+					previewRspec();
+					Alert.show("The slice hasn't been submitted yet");
 					return;
 				}
 				
@@ -1163,7 +1165,7 @@ IN THE WORK.
 										requireSelection="true"
 										labelField="Title"
 										dataProvider="{plugins}"
-										valueCommit="pluginGroup.removeAllElements(); var pluginArea:PluginArea = pluginList.selectedItem.Area; pluginArea.slice = _slice; pluginArea.host = this; pluginGroup.addElement(pluginArea);">
+										valueCommit="pluginGroup.removeAllElements(); pluginGroup.addElement(pluginList.selectedItem);">
 						</s:DropDownList>
 						<s:Group id="pluginGroup"
 								 width="100%"

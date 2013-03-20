@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -30,13 +30,14 @@
 package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.display.windows.CreateSliceWindow;
+	import com.flack.geni.resources.sites.GeniAuthority;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.geni.resources.virtual.Slice;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
-	import com.flack.shared.display.components.TextInputWindow;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.tasks.TaskError;
@@ -89,7 +90,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.sa
 		
 		public function promptName():void
 		{
-			var promptForNameWindow:TextInputWindow = new TextInputWindow();
+			var promptForNameWindow:CreateSliceWindow = new CreateSliceWindow();
 			promptForNameWindow.onSuccess = userChoseName;
 			promptForNameWindow.onCancel = cancel;
 			promptForNameWindow.showWindow();
@@ -99,11 +100,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.sa
 				promptForNameWindow.title = "Slice name not valid, please try another";
 			else
 				promptForNameWindow.title = "Please enter a valid, non-existing slice name";
-			promptForNameWindow.Text = slice.Name;
+			promptForNameWindow.SliceName = slice.Name;
 		}
 		
-		public function userChoseName(newName:String):void
+		public function userChoseName(newName:String, newAuthority:GeniAuthority):void
 		{
+			slice.authority = newAuthority;
+			url = newAuthority.url;
 			slice.id = IdnUrn.makeFrom(slice.authority.id.authority, IdnUrn.TYPE_SLICE, newName);
 			super.runStart();
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -73,6 +73,33 @@ package com.flack.shared.tasks.xmlrpc
 		// Options for retries
 		public var maxTries:int = 10;
 		public var promptAfterMaxTries:Boolean = true;
+		
+		public var errorLogUrn:String = "";
+		public var errorLogUrl:String = "";
+		public function get ErrorLog():String {
+			var errorLog:String = "";
+			if(errorLogUrl.length > 0)
+				errorLog += "For more information, please visit: " + errorLogUrl;
+			if(errorLogUrn.length > 0)
+			{
+				if(errorLog.length > 0)
+					errorLog += "\n";
+				errorLog += "For reference, the ProtoGENI error URN is: " + errorLogUrn;
+			}
+			return errorLog;
+		}
+		public function get ErrorLogHtml():String {
+			var errorLog:String = "";
+			if(errorLogUrl.length > 0)
+				errorLog += "For more information, please visit: <a href=\"" + errorLogUrl + "\">" + errorLogUrl + "</a>";
+			if(errorLogUrn.length > 0)
+			{
+				if(errorLog.length > 0)
+					errorLog += "<br>";
+				errorLog += "For reference, the error id is: <a href=\"" + errorLogUrn + "\">" + errorLogUrn + "</a>";
+			}
+			return errorLog;
+		}
 		
 		/**
 		 * 

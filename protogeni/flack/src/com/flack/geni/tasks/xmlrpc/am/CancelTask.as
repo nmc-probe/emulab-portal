@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -33,8 +33,6 @@ package com.flack.geni.tasks.xmlrpc.am
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
-	import com.flack.shared.tasks.TaskError;
-	import com.flack.shared.utils.StringUtil;
 	
 	/**
 	 * Deallocates all resources in the sliver.

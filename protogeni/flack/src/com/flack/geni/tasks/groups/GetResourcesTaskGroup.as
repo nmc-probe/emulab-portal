@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -142,17 +142,18 @@ package com.flack.geni.tasks.groups
 			}
 			else
 			{
-				if(GeniCache.shouldAskWhichManagersToWatch()
-					&& !GeniMain.loadAllManagers
-					&& GeniMain.geniUniverse.user.authority.type != GeniAuthority.TYPE_EMULAB)
+				if(GeniMain.loadAllManagersWithoutAsking)
+				{
+					getResources(GeniMain.geniUniverse.managers);
+				}
+				else if(GeniCache.shouldAskWhichManagersToWatch() &&
+					GeniMain.geniUniverse.user.authority.type != GeniAuthority.TYPE_EMULAB)
 				{
 					var askWindow:ChooseManagersToWatchWindow = new ChooseManagersToWatchWindow();
 					askWindow.callAfter = getResources;
 					askWindow.showWindow(true, true);
 					return true;
-				}
-				else
-				{
+				} else {
 					var managersToWatch:Dictionary = GeniCache.getManagersToWatch();
 					var managers:GeniManagerCollection = GeniMain.geniUniverse.managers.Clone;
 					for(var managerId:String in managersToWatch)

@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -31,15 +31,16 @@ IN THE WORK.
 
 -->
 
-<components:PopupTitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<windows:PopupTitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 							 xmlns:s="library://ns.adobe.com/flex/spark" 
 							 xmlns:mx="library://ns.adobe.com/flex/mx"
 							 xmlns:components="com.flack.shared.display.components.*"
 							 skinClass="com.flack.shared.display.skins.TitleWindowSkinNoCloseButton"
-							 title="{SharedMain.version}">
-	<components:layout>
+							 title="{SharedMain.version}"
+							 xmlns:windows="com.flack.shared.display.windows.*">
+	<windows:layout>
 		<s:VerticalLayout horizontalAlign="center" paddingBottom="10" />
-	</components:layout>
+	</windows:layout>
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.GeniMain;
@@ -72,4 +73,4 @@ IN THE WORK.
 			  toolTip="Follow a few simple steps to be able to allocate resources"
 			  click="NetUtil.openWebsite(GeniMain.becomeUserUrl)" />
 	
-</components:PopupTitleWindow>
+</windows:PopupTitleWindow>

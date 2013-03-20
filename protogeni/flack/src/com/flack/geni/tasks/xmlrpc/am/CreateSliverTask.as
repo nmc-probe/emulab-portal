@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -30,6 +30,7 @@
 package com.flack.geni.tasks.xmlrpc.am
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.GeniCollaborator;
 	import com.flack.geni.resources.virtual.AggregateSliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
@@ -118,17 +119,25 @@ package com.flack.geni.tasks.xmlrpc.am
 			addOrderedField(sliver.slice.id.full);
 			addOrderedField([sliver.slice.credential.Raw]);
 			addOrderedField(request.document);
+			var users:Array = [];
+			var user:Object = {urn: sliver.slice.creator.id.full};
 			var userKeys:Array = [];
 			for each(var key:String in sliver.slice.creator.keys)
+			{
 				userKeys.push(key);
-			addOrderedField(
-				[
-					{
-						urn:GeniMain.geniUniverse.user.id.full,
-						keys:userKeys
-					}
-				]
-			);
+			}
+			user.keys = userKeys;
+			users.push(user);
+			for each(var friend:GeniCollaborator in sliver.slice.creator.collaborators) {
+				var friendObj:Object = {urn: friend.id.full};
+				var friendKeys:Array = [];
+				for each(var friendKey:String in friend.keys) {
+					friendKeys.push(friendKey);
+				}
+				friendObj.keys = friendKeys;
+				users.push(friendObj);
+			}
+			addOrderedField(users);
 			if(apiVersion > 1)
 				addOrderedField({});
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -41,7 +41,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class RestartSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:AggregateSliver;
+		public var aggregateSliver:AggregateSliver;
 		
 		/**
 		 * 
@@ -61,13 +61,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 		}
 		
 		override protected function createFields():void
 		{
-			addNamedField("slice_urn", sliver.slice.id.full);
-			addNamedField("credentials", [sliver.slice.credential.Raw]);
+			addNamedField("slice_urn", aggregateSliver.slice.id.full);
+			addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void

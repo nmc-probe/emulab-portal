@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -37,9 +37,10 @@ IN THE WORK.
 		  xmlns:components="com.flack.shared.display.components.*"
 		  xmlns:display="com.flack.geni.display.*"
 		  xmlns:areas="com.flack.geni.display.areas.*"
+		  xmlns:areas1="com.flack.shared.display.areas.*"
 		  title="About Flack {SharedMain.version}"
 		  initialize="afterReady()"
-		  horizontalAlign="center" xmlns:areas1="com.flack.shared.display.areas.*">
+		  horizontalAlign="center">
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.GeniCache;
@@ -68,19 +69,22 @@ IN THE WORK.
 			
 			public function afterReady():void
 			{
-				memoryString =  (System.totalMemoryNumber/1048576).toFixed(2) + " MB";
+				memoryString = (System.totalMemoryNumber / 1048576).toFixed(2)
+					           + " MB";
 			}
 			
 			private function saveBundleToFile(event:MouseEvent):void
 			{
-				var savePublicKeyTask:FileTask = new FileTask(SharedMain.Bundle);
+				var savePublicKeyTask:FileTask =
+					new FileTask(SharedMain.Bundle);
 				savePublicKeyTask.startOperation(event);
 			}
 			
 			private function loadBundleFromFile(event:MouseEvent):void
 			{
 				var loadBundleTask:FileTask = new FileTask();
-				loadBundleTask.addEventListener(TaskEvent.FINISHED, afterLoadBundle);
+				loadBundleTask.addEventListener(TaskEvent.FINISHED,
+												afterLoadBundle);
 				loadBundleTask.startOperation(event);
 			}
 			
@@ -132,7 +136,10 @@ IN THE WORK.
 							height="100%">
 			<s:Scroller width="100%"
 						height="100%">
-				<s:HGroup width="100%" height="100%" horizontalAlign="center" verticalAlign="middle">
+				<s:HGroup width="100%"
+						  height="100%"
+						  horizontalAlign="center"
+						  verticalAlign="middle">
 					<s:VGroup horizontalAlign="right"
 							  paddingBottom="2"
 							  paddingLeft="2"

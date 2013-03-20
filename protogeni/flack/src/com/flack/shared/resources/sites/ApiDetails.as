@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -70,6 +70,19 @@ package com.flack.shared.resources.sites
 			version = newVersion;
 			url = newUrl;
 			level = newLevel;
+		}
+		
+		public function equals(other:ApiDetails):Boolean
+		{
+			return type == other.type &&
+				version == other.version &&
+				url == other.url &&
+				level == other.level;
+		}
+		
+		public function get ReadableString():String
+		{
+			return toString();
 		}
 		
 		public function toString():String

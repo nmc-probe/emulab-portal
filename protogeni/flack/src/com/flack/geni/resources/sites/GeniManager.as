@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,7 +29,7 @@
 
 package com.flack.geni.resources.sites
 {
-	import com.flack.geni.resources.SliverTypeCollection;
+	import com.flack.geni.resources.DiskImageCollection;
 	import com.flack.geni.resources.docs.GeniCredentialVersionCollection;
 	import com.flack.geni.resources.physical.PhysicalLink;
 	import com.flack.geni.resources.physical.PhysicalLinkCollection;
@@ -79,7 +79,12 @@ package com.flack.geni.resources.sites
 		[Bindable]
 		public var links:PhysicalLinkCollection;
 		
-		// External connection information
+		public var sharedVlans:Vector.<String> = null;
+		
+		public var opStates:OpStateCollection = new OpStateCollection();
+		
+		public var stitching:Stitching = null;
+
 		public var externalRefs:ExternalRefCollection = new ExternalRefCollection();
 		
 		// Support Information
@@ -101,13 +106,7 @@ package com.flack.geni.resources.sites
 		public var credentialTypes:GeniCredentialVersionCollection = new GeniCredentialVersionCollection();
 		
 		public var locations:PhysicalLocationCollection;
-		
-		public var sharedVlans:Vector.<String> = null;
-		
-		public var opStates:OpStateCollection = new OpStateCollection();
-		
-		public var stitching:Stitching = null;
-		
+
 		public var singleAllocation:Boolean = false;
 		public var allocate:String = ALLOCATE_SINGLE;
 		

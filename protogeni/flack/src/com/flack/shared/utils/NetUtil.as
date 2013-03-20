@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -36,7 +36,6 @@ package com.flack.shared.utils
 	import flash.system.Security;
 	import flash.utils.Dictionary;
 	
-	import mx.controls.Alert;
 	import mx.core.FlexGlobals;
 	
 	/**

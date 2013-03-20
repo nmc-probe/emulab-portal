@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -154,10 +154,10 @@ package com.flack.geni.resources.virtual
 				case OPERATIONAL_NOTREADY: return "Not ready";
 				case OPERATIONAL_READY: return "Ready";
 				case OPERATIONAL_FAILED: return "Failed";
-				case STAGED: "Staged";
-				case UNKNOWN: "Unknown";
-				case MIXED_FINISHED: "Mixed (done)";
-				case MIXED_CHANGING: "Mixed (changing)";
+				case STAGED: return "Staged";
+				case UNKNOWN: return "Unknown";
+				case MIXED_FINISHED: return "Mixed (done)";
+				case MIXED_CHANGING: return "Mixed (changing)";
 				default: return value;
 			}
 		}

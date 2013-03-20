@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -48,7 +48,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class UpdateSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:AggregateSliver;
+		public var aggregateSliver:AggregateSliver;
 		public var request:Rspec;
 		public var ticket:String;
 		
@@ -73,12 +73,12 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
 			
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 			request = useRspec;
 			
 			addMessage(
 				"Waiting to update...",
-				"A sliver will be updated at " + sliver.manager.hrn,
+				"A sliver will be updated at " + aggregateSliver.manager.hrn,
 				LogMessage.LEVEL_INFO,
 				LogMessage.IMPORTANCE_HIGH
 			);
@@ -86,14 +86,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function createFields():void
 		{
-			addNamedField("sliver_urn", sliver.id.full);
+			addNamedField("sliver_urn", aggregateSliver.id.full);
 			addNamedField("rspec", request.document);
-			addNamedField("credentials", [sliver.slice.credential.Raw]);
+			addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
 		}
 		
 		override protected function runStart():void
 		{
-			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
+			if(aggregateSliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
 			{
 				afterError(
 					new TaskError(
@@ -103,12 +103,12 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				);
 				return;
 			}
-			sliver.clearStates();
+			aggregateSliver.clearStates();
 			
 			// Generate a rspec if needed
 			if(request == null)
 			{
-				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(sliver, true, true, false);
+				var generateNewRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(aggregateSliver, true, true, false);
 				generateNewRspec.start();
 				if(generateNewRspec.Status != Task.STATUS_SUCCESS)
 				{
@@ -126,7 +126,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLICE,
-				sliver.slice,
+				aggregateSliver.slice,
 				FlackEvent.ACTION_STATUS
 			);
 			super.runStart();
@@ -137,7 +137,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
 				ticket = String(data);
-				sliver.ticket = new Rspec(ticket);
+				aggregateSliver.ticket = new Rspec(ticket);
 				
 				addMessage(
 					"Ticket received",
@@ -146,7 +146,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new RedeemTicketCmTask(sliver));
+				parent.add(new RedeemTicketCmTask(aggregateSliver));
 				
 				super.afterComplete(addCompletedMessage);
 			}
