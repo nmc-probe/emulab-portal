@@ -1,11 +1,64 @@
-#!/bin/bash
+#!/usr/local/bin/bash
 
-linux="pc7 pc137 pc406 pc207 pc607"
-bsd="pc446 pc208 pc4 pc133 pc603"
+linux="pc7 pc137 pc406 pc207 pc606"
+bsd="pc446 pc208 pc4 pc133"
 machines="${linux} ${bsd}"
+
+arg=$1
+set -u
 
 utils="diskcheck diskspeedcheck memcheck cpucheck getfromtb.sh timecheck niccheck"
 
+arg=${arg=""} # use var if set else use ""
+
+
+case $arg in
+    disk | mem | cpu | diskspeed | time | nic)
+	for i in $machines ; do
+	    sudo scp -q ${arg}check $i:/usr/local/etc/emulab
+	    echo -n "$i "
+	    sudo ssh $i "cd /usr/local/etc/emulab; bash /usr/local/etc/emulab/${arg}check"
+	    echo ""
+	done
+	;;
+    run | boot )
+	[[ "$arg" == "boot" ]] && action=boot || action=''
+	for i in $linux ; do
+	    sudo scp -q rc/rc.nodecheck_perl $i:/usr/local/etc/emulab/rc/rc.nodecheck
+	done
+	for i in $bsd ; do
+	    sudo scp -q rc/rc.nodecheck_sh $i:/usr/local/etc/emulab/rc/rc.nodecheck
+	done
+	for i in $machines ; do
+	    echo "----------------- $i --------------------"
+	    sudo ssh $i "cd /usr/local/etc/emulab; /usr/local/etc/emulab/rc/rc.nodecheck ${action}"
+	done
+	;;
+    getlog )
+	for i in $machines ; do
+	    echo "----------------- $i --------------------"
+	    sudo ssh $i "cat /var/emulab/logs/nodecheck.log"
+	done
+	;;
+    clearlog )
+	for i in $machines ; do
+	    sudo ssh $i "rm -f /var/emulab/logs/nodecheck.log"
+	done
+	;;
+    help | -help | -h | ? )
+	cat <<EOF
+        Usage:
+	Nodes to be operated on $machines
+	[disk|mem|cpu|diskspeed|time|nic] Update node test and run
+	[run] Update bootscript and run all the nodetests
+	[boot] Update bootscript run the nodetests as if run at boot time
+	[getlog] get and display nodecheck.log files
+	[clearlog] clear the nodecheck.log files
+        No argument will update all node with checknode scripts
+EOF
+	;;
+    * )
+    
 for i in $machines
 do
     echo "$i rc.config "
@@ -40,3 +93,5 @@ do
 
 done
 
+;;
+esac
