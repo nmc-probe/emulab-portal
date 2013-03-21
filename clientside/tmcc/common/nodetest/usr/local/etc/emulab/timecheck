@@ -3,7 +3,7 @@
 echo -n ' Starting timecheck.. '
 
 ntpserver="ntp1"
-maxdrift="0.05"
+maxdrift="0.001"
 
 #ntpserver="time.xmission.com"
 
@@ -40,7 +40,7 @@ case $os in
 	((++idx))
 	z=${d[$idx]}
 	offset=$(echo ${z} | tr -d ,) # remove comma
-	[[ $offset < -1 ]] && a=$(echo "-($offset)" | bc) || a=$(echo "($offset)" | bc) # make $a abs()
+	[[ $offset < 0 ]] && a=$(echo "-($offset)" | bc) || a=$(echo "($offset)") # make $a abs()
 	[[ $a > $maxdrift ]] && failed="maxdrift"
 	if  [ -z "${failed}" ]; then
 	    echo "Time check passed offset $offset allowed $maxdrift"
