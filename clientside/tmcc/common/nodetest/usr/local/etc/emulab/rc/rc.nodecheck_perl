@@ -44,12 +44,15 @@ if (!$ARGV[0]) {
     $action = "boot"
 }
 
+# truncate file at boot time
+if ($action eq "boot") {
+        system("echo 'Start boot_time_node_check' > /var/emulab/logs/nodecheck.log");
+}
 foreach my $i (@checkscripts) {
-    if ($action eq "boot") {
-	system("rm -rf /var/emulab/logs/nodecheck.log");
-        system("echo 'boot - ${i}check' >> /var/emulab/logs/nodecheck.log");
-    }
     system("bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log");
+}
+if ($action eq "boot") {
+        system("echo 'Finish boot_time_node_check' >> /var/emulab/logs/nodecheck.log");
 }
 
 system("echo 'Done with nodechecks'");

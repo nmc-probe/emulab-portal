@@ -26,14 +26,18 @@ fi
 checks="disk cpu mem time nic diskspeed"
 
 echo "Running nodechecks"
+# truncate file at boot time
+if [ "$1" = "boot" ] ; then
+    $(echo "Start boot_time_node_check" > /var/emulab/logs/nodecheck.log)
+fi
 for i in $checks
 do
-    if [ "$1" = "boot" ] ; then
-	$(rm -f /var/emulab/logs/nodecheck.log)
-	echo "boot - ${i}check " >> /var/emulab/logs/nodecheck.log
-    fi
     /usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log
 done
+if [ "$1" = "boot" ] ; then
+    $(echo "Finish boot_time_node_check" >> /var/emulab/logs/nodecheck.log)
+fi
+
 echo "Done with nodechecks"
 
 exit 0
