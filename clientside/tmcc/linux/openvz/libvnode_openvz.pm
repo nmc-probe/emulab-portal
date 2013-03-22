@@ -1982,7 +1982,7 @@ sub vz_vnodePreConfigExpNetwork {
 		TBScriptUnlock();
 		return -1;
 	    }
-	    $private->{'iprules'}->{$gre} = $gre;
+	    $private->{'iprules'}->{$veth} = $veth;
 
 	    my $net = inet_ntoa(inet_aton($inetip) & inet_aton($mask));
 	    mysystem2("/sbin/ip route replace ".
