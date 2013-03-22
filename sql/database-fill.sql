@@ -1108,7 +1108,7 @@ REPLACE INTO table_regex VALUES ('mailman_lists','listname','text','redirect','m
 REPLACE INTO table_regex VALUES ('mailman_listnames','listname','text','regex','^[-\\w\\.\\+]+$',3,64,NULL);
 
 REPLACE INTO table_regex VALUES ('node_attributes','attrkey','text','regex','^[-\\w]+$',1,32,NULL);
-REPLACE INTO table_regex VALUES ('node_attributes','attrvalue','text','regex','^[-\\w\\.+,\\s]+$',0,255,NULL);
+REPLACE INTO table_regex VALUES ('node_attributes','attrvalue','text','regex','^[-\\w\\.\\+,\\s\\/:]+$',0,255,NULL);
 REPLACE INTO table_regex VALUES ('archive_tags','description','text','redirect','projects:why',1,2048,NULL);
 REPLACE INTO table_regex VALUES ('archive_tags','tag','text','regex','^[a-zA-Z][-\\w\\.\\+]+$',2,64,NULL);
 REPLACE INTO table_regex VALUES ('experiment_templates','description','text','redirect','default:fulltext',1,4096,NULL);
