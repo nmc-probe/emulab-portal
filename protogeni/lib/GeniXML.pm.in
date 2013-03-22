@@ -42,7 +42,7 @@ GetManagerId GetColocate GetSubnodeOf GetStartupCommand GetTarball
 GetVirtualizationType SetVirtualizationSubtype GetVirtualizationSubtype
 GetExclusive SetExclusive GetLinkManager SetText GetText Serialize
 CreateDocument AddElement RemoveChild PolicyExists GetMask
-GetDiskImage IsUntaggedLan);
+GetDiskImage IsUntaggedLan IsTaggedLan);
 
 use English;
 use XML::LibXML;
@@ -695,9 +695,27 @@ sub GetDelayPipes($)
 sub IsUntaggedLan($)
 {
     my ($link) = @_;
-    my @result = FindNodesNS("n:untagged_vlan", $link,
+    my $result = 0;
+    my @tagged = FindNodesNS("n:untagged_vlan", $link,
 			     $EMULAB_NS)->get_nodelist();
-    return scalar(@result) > 0;
+    if (scalar(@tagged) > 0) {
+	my $enabled = GetText("enabled", $tagged[0]);
+	$result = defined($enabled) && $enabled eq "false";
+    }
+    return $result;
+}
+
+sub IsTaggedLan($)
+{
+    my ($link) = @_;
+    my $result = 0;
+    my @tagged = FindNodesNS("n:untagged_vlan", $link,
+			     $EMULAB_NS)->get_nodelist();
+    if (scalar(@tagged) > 0) {
+	my $enabled = GetText("enabled", $tagged[0]);
+	$result = defined($enabled) && $enabled eq "true";
+    }
+    return $result;
 }
 
 sub GetSharedLanName($)
