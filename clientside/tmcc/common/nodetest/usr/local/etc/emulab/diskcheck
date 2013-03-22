@@ -14,7 +14,7 @@ SMARTCTL=""
 failed=""
 error=""
 
-os=`uname`
+os=`uname -s`
 host=`hostname`
 if [ -e "/var/emulab/boot/realname" ]; then
     host=`cat /var/emulab/boot/realname`
@@ -43,14 +43,14 @@ set -u
     if [ -x "${SMARTCTL}" ] ; then
 	# unrecongnized
 	rtn=$($SMARTCTL --scan | grep UNRECOGNIZED)
-	[[ $rtn ]] && error="smartctl option '--scan' not supported" && failed=scan
+	[[ $rtn ]] && error="(smartctl option '--scan' not supported" && failed=scan
 	# empty
 	rtn=$($SMARTCTL --scan)
 	if [ -z "$rtn" ] ; then
 	    dt=$(df / | grep /dev)
 	    dt=${dt:5}
 	    dt=${dt%% *}
-	    error="smartctl device_type '$dt' not supported"
+	    error="(smartctl device_type '$dt' not supported"
 	    failed=device 
 	fi
 	[[ $error ]] && echo "$error"
@@ -71,32 +71,44 @@ unset -v driveinv ; declare -a driveinv=()
 # a better control flow control could be used 
 case $failed in
     scan )
-	driveinv[$name]="NoScan"
-	driveinv[$driver]="UKN"
-	driveinv[$type]="UKN"
-	driveinv[$size]="0GB"
-	driveinv[$temp]="UKN"
-	driveinv[$model]="UKN"
-	echo " $error  Attempt alternet method FAIL"
+	echo -n "$error Attempt alternet method) "
+	placeholder=" . . . . . device"
+	case $os in
+	    Linux )
+		list="a b c d e f g"
+		for i in $list
+		do
+		    if [ -b /dev/sd${i} ] ; then
+			buildscan+="/dev/sd${i} $placeholder"
+		    fi
+		done
+		;;
+	    FreeBSD )
+		list="0 1 2 3 4 5 6"
+		for i in $list
+		do
+		    if [ -b /dev/da${i} ] ; then
+			buildscan+="/dev/da${i} $placeholder"
+		    fi
+		done
+		;;
+	    * )
+		echo "Internal error"
+		exit
+		;;
+	esac
+	declare -a scan=($buildscan)
+
 	;;
-    missing )
-	echo "$error. FAIL"
-#	driveinv[$name]="Missing"
-#	driveinv[$driver]="UKN"
-#	driveinv[$type]="UKN"
-#	driveinv[$size]="0GB"
-#	driveinv[$temp]="UKN"
-#	driveinv[$model]="UKN"
-	exit
-	;;
-    device )
+    missing | device )
 	echo "$error. FAIL"
 	exit
 	;;
     * )
-
-    # get the output of --scan into array scan
-    unset -v scan ; declare -a scan=($($SMARTCTL --scan))
+        # get the output of --scan into array scan
+	unset -v scan ; declare -a scan=($($SMARTCTL --scan))
+	;;
+esac
     unset -v drive ; declare -a drivescan=()
     #now split up each line using 'device' into the array drivescan
     # This is an example of the string we are parsing:
@@ -137,7 +149,14 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
 
     #size
     cnt=${#driveinv[$idx]}
-    driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $5$6}' | sed s/[][]//g)"
+    sz="$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $5$6}' | sed s/[][]//g)"
+    if [[ $sz ]] ; then
+	driveinv[$idx]+="$sz"
+	else
+	x=$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $3}' | sed s/,//g)
+	[[ $x ]] && sz=$(hbis $x) || sz="UKN"
+	driveinv[$idx]+="$sz"
+    fi
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
 
@@ -168,8 +187,6 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
 done
-;;
-esac
 
 ## # does number of drives and size match ?
 ## # getfromtb operation node_id drivename drive size
@@ -190,17 +207,12 @@ cat ${tmplog} >> ${logfile}
 
 driveinfo=""
 
-if [ -z $failed ] ; then
-    for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
-	unset -v d ; declare -a d=(${driveinv[$idx]})
-	echo -n "${d[$name]} ${d[$size]} ${d[$serial]}  "
-	driveinfo+="${d[$serial]} "
-    done
-    driveinfo=${driveinfo% } # get rid of trailing space
-else
-	echo -n "id:${driveinv[$name]} size:${driveinv[$size]} model:${driveinv[$model]} serial:${driveinv[$serial]}"
-	failed="FATEL"
-fi
+for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
+    unset -v d ; declare -a d=(${driveinv[$idx]})
+    echo -n "${d[$name]} ${d[$size]} ${d[$serial]}  "
+    driveinfo+="${d[$serial]} "
+done
+driveinfo=${driveinfo% } # get rid of trailing space
 
 # Now check against the testbed DB
 
