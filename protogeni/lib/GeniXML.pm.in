@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2012 University of Utah and the Flux Group.
+# Copyright (c) 2010-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -696,7 +696,7 @@ sub IsUntaggedLan($)
 {
     my ($link) = @_;
     my $result = 0;
-    my @tagged = FindNodesNS("n:untagged_vlan", $link,
+    my @tagged = FindNodesNS("n:vlan_tagging", $link,
 			     $EMULAB_NS)->get_nodelist();
     if (scalar(@tagged) > 0) {
 	my $enabled = GetText("enabled", $tagged[0]);
@@ -709,7 +709,7 @@ sub IsTaggedLan($)
 {
     my ($link) = @_;
     my $result = 0;
-    my @tagged = FindNodesNS("n:untagged_vlan", $link,
+    my @tagged = FindNodesNS("n:vlan_tagging", $link,
 			     $EMULAB_NS)->get_nodelist();
     if (scalar(@tagged) > 0) {
 	my $enabled = GetText("enabled", $tagged[0]);
