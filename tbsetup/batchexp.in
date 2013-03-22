@@ -112,6 +112,7 @@ my $TBLOGS   = "@TBLOGSEMAIL@";
 my $TBDOCBASE = "@TBDOCBASE@";
 my $TBBASE   = "@TBBASE@";
 my $CONTROL  = "@USERNODE@";
+my $ISFS     = ("@BOSSNODE_IP@" eq "@FSNODE_IP@") ? 1 : 0;
 
 #
 # Testbed Support libraries
@@ -1026,7 +1027,7 @@ sub ParseArgs()
 	if (! ($tempnsfile =~ /^\/tmp\/[-\w]+-\d+\.nsfile/) &&
 	    ! ($tempnsfile =~ /^\/tmp\/\d+\.ns/) &&
 	    ! ($tempnsfile =~ /^\/var\/tmp\/php[-\w]+/) &&
-	    ! TBValidUserDir($tempnsfile, 0)) {
+	    ! TBValidUserDir($tempnsfile, $ISFS)) {
 	    tberror({type => 'primary', severity => SEV_ERROR,
 		     error => ['disallowed_directory', $tempnsfile]},
 		    "$tempnsfile does not resolve to an allowed directory!");

@@ -90,6 +90,7 @@ my $TBINFO = "$TB/expinfo";
 my $TBDOCBASE = "@TBDOCBASE@";
 my $TBBASE = "@TBBASE@";
 my $CONTROL  = "@USERNODE@";
+my $ISFS     = ("@BOSSNODE_IP@" eq "@FSNODE_IP@") ? 1 : 0;
 
 #
 # Testbed Support libraries
@@ -304,7 +305,7 @@ if ($inout eq "modify" && @ARGV > 2) {
     #
     if (! ($tempnsfile =~ /^\/tmp\/[-\w]+-\d+\.nsfile/) &&
 	! ($tempnsfile =~ /^\/var\/tmp\/php\w+/) &&
-	! TBValidUserDir($tempnsfile, 0)) {
+	! TBValidUserDir($tempnsfile, $ISFS)) {
 	tbdie("$tempnsfile does not resolve to an allowed directory!");
     }
 
