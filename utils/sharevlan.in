@@ -188,6 +188,9 @@ if ($info) {
 	    if (defined($experiment)) {
 		print " " . $experiment->pid() . ":" . $experiment->eid();
 	    }
+	    else {
+		print " oops";
+	    }
 	}
 	my $reservation = $node->Reservation();
 	if (defined($reservation) &&
@@ -202,6 +205,54 @@ if ($info) {
 
 if ($revoke) {
     my $token = $ARGV[0];
+    my $busy  = 0;
+
+    #
+    # Do not allow if the lan is actually being used by other experiments.
+    #
+    my $query_result =
+	DBQueryFatal("select lanid from shared_vlans where token='$token'");
+    if (!$query_result) {
+	fatal("No such shared vlan");
+    }
+    my ($lanid) = $query_result->fetchrow_array();
+    my $vlan = VLan->Lookup($lanid);
+    if (!defined($vlan)) {
+	fatal("No such vlan $lanid");
+    }
+    my @members;
+    if ($vlan->MemberList(\@members) != 0) {
+	fatal("Could not get member list for $vlan");
+    }
+    foreach my $member (@members) {
+	my $node;
+	my $iface;
+	$member->GetNodeIface(\$node, \$iface);
+
+	my $portlan_exptidx;
+	my $portlan_lanname;
+	my $experiment;
+	$member->GetAttribute("portlan_exptidx", \$portlan_exptidx);
+	$member->GetAttribute("portlan_lanname", \$portlan_lanname);
+	
+	if (defined($portlan_exptidx) && defined($portlan_lanname)) {
+	    $experiment = Experiment->Lookup($portlan_exptidx);
+	    if (defined($experiment)) {
+		print $node->node_id() . ":$iface in ";
+		print $experiment->pid() . "/" . $experiment->eid() . " ";
+		print "is using this vlan!\n";
+		$busy++;
+	    }
+	    else {
+		print $node->node_id() . ":$iface is marked as in this vlan ";
+		print "but the experiment is gone!\n";
+	    }
+	}
+    }
+    if ($busy) {
+	print "*** Refusing to delete shared vlan until sharers give it up!\n";
+	exit(1);
+    }
     
     DBQueryFatal("delete from shared_vlans where token='$token'");
     exit(0);
