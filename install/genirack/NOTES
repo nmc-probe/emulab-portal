@@ -475,6 +475,10 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 * Need to reset the mailing lists to the local admin.
 
+  All of the mailing lists are stored in ops:/etc/mail/lists. Add the local
+  admin to the testbed-*.list files. Do not change the defs file, since we
+  want the email to go to the local admin *and* Utah.
+
 ---
 TODO:
 
