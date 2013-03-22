@@ -2724,5 +2724,89 @@ sub ListImages($)
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@result);
 }
 
+#
+# Active slivers.
+#
+sub ListActiveSlivers($)
+{
+    my ($argref) = @_;
+    my $credentials  = $argref->{'credentials'};
+
+    if (! (defined($credentials))) {
+	return GeniResponse->MalformedArgsResponse("credential");
+    }
+
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR "Could not find local authority object\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    my $credential = CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege("readhistory") or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+
+    my $certificate = GeniRegistry::ClearingHouse->GetCertificate();
+    if (!defined($certificate)) {
+	print STDERR "Could not load clearinghouse certificate\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    
+    # The target has to match the clearinghouse (delegated credential).
+    if ($credential->target_urn() ne $certificate->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Only the clearinghouse can do this!");
+    }
+    my $query_result =
+	DBQueryWarn("select a.idx,m.manifest from geni_aggregates as a ".
+		    "left join geni_manifests as m on ".
+		    "     m.slice_uuid=a.slice_uuid ".
+		    "where a.type='Aggregate'");
+
+    return GeniResponse->Create(GENIRESPONSE_ERROR)
+	if (!$query_result);
+    
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				"Mo matching records")
+	if (! $query_result->numrows);
+
+    my @results = ();
+
+    while (my ($idx,$manifest) = $query_result->fetchrow_array()) {
+	my $aggregate = GeniAggregate->Lookup($idx);
+	next
+	    if (!defined($aggregate));
+
+	my $slice = $aggregate->GetSlice();
+	next
+	    if (!defined($slice));
+
+	my %blob = ();
+	$blob{'sliver_uuid'}  = $aggregate->uuid();
+	$blob{'sliver_urn'}   = $aggregate->urn();
+	$blob{'slice_urn'}    = $slice->urn();
+	$blob{'slice_uuid'}   = $slice->uuid();
+	$blob{'creator_urn'}  = $slice->creator_urn();
+	$blob{'creator_uuid'} = $slice->creator_uuid();
+	$blob{'created'}      = $aggregate->created();
+	$blob{'expires'}      = $aggregate->expires();
+	$blob{'status'}       = $aggregate->status();
+	$blob{'state'}        = $aggregate->state();
+	if (defined($manifest)) {
+	    $blob{'manifest'} = $manifest;
+	}
+	else {
+	    $blob{'manifest'} = "";
+	}
+	push(@results, \%blob);
+    }
+    # Slow down the GMOC queries. 
+    sleep(5);
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@results);
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;

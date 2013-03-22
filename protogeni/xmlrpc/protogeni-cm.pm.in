@@ -102,6 +102,7 @@ elsif ($GENI_VERSION eq "2.0") {
 	"CreateImage"       => \&GeniCMV2::CreateImage,
 	"DeleteImage"       => \&GeniCMV2::DeleteImage,
 	"ListImages"        => \&GeniCMV2::ListImages,
+	"ListActiveSlivers" => \&GeniCMV2::ListActiveSlivers,
     };
 }
 

@@ -44,7 +44,7 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  getchcredential genallow_extcred advt-merge.py \
 		  reservevlans delgeniuser delegatecredential \
 		  updatecert fixcerts initcerts cacontrol webcacontrol \
-		  genextend_lifetime rspeclint chstats \
+		  genextend_lifetime rspeclint chstats listactive \
 		  maptoslice webmaptoslice
 
 ifeq ($(ISCLEARINGHOUSE),1)
