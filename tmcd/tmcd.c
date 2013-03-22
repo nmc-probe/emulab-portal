@@ -4899,12 +4899,13 @@ COMMAND_PROTOTYPE(doloadinfo)
 	MYSQL_ROW	row, row2;
 	char		buf[MYBUFSIZE];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
-	char		*disktype, *useacpi, *useasf, *noclflush, *vgaonly;
+	char		*disktype, *useacpi, *useasf, *noclflush;
+	char		*vgaonly, *consoletype;
 	char		address[MYBUFSIZE];
 	char            server_address[MYBUFSIZE];
 	char		mbrvers[51];
 	char            *loadpart, *OS, *prepare, *attrclause;
-	int		disknum, nrows, zfill;
+	int		disknum, biosdisknum, nrows, zfill;
 
 	/*
 	 * Get the address the node should contact to load its image
@@ -5085,10 +5086,11 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 */
 		disktype = DISKTYPE;
 		disknum = DISKNUM;
+		biosdisknum = -1;
 		useacpi = "unknown";
 		useasf = "unknown";
 		noclflush = "unknown";
-		vgaonly = (char *) NULL;
+		vgaonly = consoletype = (char *) NULL;
 
 		/*
 		 * This query is intended to select certain attributes from
@@ -5106,9 +5108,11 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 */
 		attrclause =
 			"(attrkey='bootdisk_unit' or "
+			" attrkey='bootdisk_bios_id' or "
 			" attrkey='disktype' or "
 			" attrkey='use_acpi' or "
 			" attrkey='use_asf' or "
+			" attrkey='console_type' or "
 			" attrkey='vgaonly' or "
 			" attrkey='no_clflush')";
 
@@ -5146,6 +5150,9 @@ COMMAND_PROTOTYPE(doloadinfo)
 					if (strcmp(row2[0], "bootdisk_unit") == 0) {
 						disknum = atoi(attrstr);
 					}
+					if (strcmp(row2[0], "bootdisk_biod_id") == 0) {
+						biosdisknum = strtol(attrstr, 0, 0);
+					}
 					else if (strcmp(row2[0], "disktype") == 0) {
 						disktype = attrstr;
 					}
@@ -5161,6 +5168,9 @@ COMMAND_PROTOTYPE(doloadinfo)
 					else if (strcmp(row2[0], "vgaonly") == 0) {
 						vgaonly = attrstr;
 					}
+					else if (strcmp(row2[0], "console_type") == 0) {
+						consoletype = attrstr;
+					}
 				}
 				nrows2--;
 			}
@@ -5169,9 +5179,16 @@ COMMAND_PROTOTYPE(doloadinfo)
 		bufp += OUTPUT(bufp, ebufp - bufp,
 			       " DISK=%s%d ZFILL=%d ACPI=%s MBRVERS=%s ASF=%s PREPARE=%s NOCLFLUSH=%s",
 			       disktype, disknum, zfill, useacpi, mbrvers, useasf, prepare, noclflush);
-		if (vgaonly) {
+		if (consoletype) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " CONSOLE=%s", consoletype);
+		} else if (vgaonly) {
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       " VGAONLY=%s", vgaonly);
+		}
+		if (biosdisknum >= 0) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " BIOSDISK=0x%02x", biosdisknum);
 		}
 		/*
 		 * Do this here, so that we are not using strings above,
