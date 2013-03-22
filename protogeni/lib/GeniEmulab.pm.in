@@ -69,6 +69,7 @@ my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
 my $ELABINELAB     = "@ELABINELAB@";
 my $NEWUSER	   = "$TB/sbin/newuser";
 my $RMUSER	   = "$TB/sbin/rmuser";
+my $CHPASS	   = "$TB/sbin/tbacct passwd";
 my $ADDUSER	   = "$TB/sbin/tbacct add";
 my $MODUSER	   = "$TB/bin/moduserinfo";
 my $NEWPROJ	   = "$TB/sbin/newproj";
@@ -100,6 +101,7 @@ sub AddUser($)
     my $credentials = $argref->{'credentials'};
     my $xmlgoo      = $argref->{'xmlstring'};
     my $urn         = $argref->{'urn'};
+    my $passhash;
 
     if (! (defined($credentials) && defined($xmlgoo) && defined($urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
@@ -134,6 +136,15 @@ sub AddUser($)
 
     return GeniResponse->Create(GENIRESPONSE_BADARGS)
 	if (! User->ValidUID($login));
+
+    if (exists($xmlparse->{'attribute'}->{"passhash"})) {
+	$passhash = $xmlparse->{'attribute'}->{"passhash"}->{'value'};
+
+	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				    "Invalid characters in password hash")
+	    if (! ($passhash =~ /^\$\d\$\w*\$[\w\/\.]*$/ ||
+		   $passhash =~ /^[\w\/\.]*$/));
+    }
 
     my $user = User->Lookup($login);
     if (defined($user)) {
@@ -182,6 +193,14 @@ sub AddUser($)
     $user->SetStatus($User::USERSTATUS_ACTIVE);
     $user->Update({"nocollabtools" => "1",
 		   "manager_urn"   => $credential->owner_urn()});
+
+    if (defined($passhash) &&
+	$user->SetPassword($passhash) != 0) {
+	GeniUtil::FlipToGeniUser();
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Internal error setting user password");
+    }
+    
     $output = GeniUtil::ExecQuiet("$WAP $ADDUSER $login");
     if ($?) {
 	$user->Delete();
@@ -314,6 +333,37 @@ sub ModifyUser($)
 				    "Internal error modifying user");
     }
     unlink($filename);
+
+    #
+    # Look for password change. Need special treatment cause its a hash.
+    #
+    my $xmlparse = eval { XMLin($xmlgoo,
+				ForceArray => ["pubkeys"],
+				VarAttr => 'name',
+				ContentKey => '-content',
+				SuppressEmpty => undef); };
+    
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef, "$@")
+	if ($@);
+
+    if (exists($xmlparse->{'attribute'}->{"passhash"})) {
+	my $hash = $xmlparse->{'attribute'}->{"passhash"}->{'value'};
+
+	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				    "Invalid characters in password hash")
+	    if (! ($hash =~ /^\$\d\$\w*\$[\w\/\.]*$/ ||
+		   $hash =~ /^[\w\/\.]*$/));
+
+	my $uid = $user->uid();
+	my $safe_encoding = User::escapeshellarg($hash);
+	$output = GeniUtil::ExecQuiet("$WAP $CHPASS $uid $safe_encoding");
+	if ($?) {
+	    GeniUtil::FlipToGeniUser();
+	    print STDERR $output;
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"Internal error modifying user password");
+	}
+    }
     GeniUtil::FlipToGeniUser();
     
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);

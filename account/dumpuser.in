@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2011 University of Utah and the Flux Group.
+# Copyright (c) 2010-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -121,7 +121,7 @@ sub DumpUser($)
 			    "optional"	=> 0 },
 	"email"         => {"tag"       => "email",
 			   "optional"	=> 0 },
-	"pswd"		=> {"tag"       => "password",
+	"pswd"		=> {"tag"       => "passhash",
 			    "optional"	=> 0 },
 	"uid"		=> {"tag"       => "uid",
 			    "optional"	=> 0 },

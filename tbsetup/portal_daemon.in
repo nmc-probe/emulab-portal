@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009-2011 University of Utah and the Flux Group.
+# Copyright (c) 2009-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -49,7 +49,7 @@ my $PIDFILE       = "/var/run/portal_daemon.pid";
 my $SUDO          = "/usr/local/bin/sudo";
 my $PROTOUSER     = "elabman";
 my $WAP           = "$TB/sbin/withadminprivs";
-my $MANAGEREMOTE  = "$TB/sbin/manageremote";
+my $MANAGEREMOTE  = "$TB/sbin/manageremote -p";
 my $PORTAL_ENABLE = @PORTAL_ENABLE@;
 my $PORTAL_PRIMARY= @PORTAL_ISPRIMARY@;
 
@@ -377,9 +377,17 @@ while (1)
 	next;
     }
     logit("Running");
+    #
+    # Lock, to avoid race with command line tool.
+    #
+    if (TBScriptLock("portal_op", 0, 30) != TBSCRIPTLOCK_OKAY()) {
+	logit("Could not get the lock after a long time. Trying again ...\n");
+	next;
+    }
     ExportUsers();
     ExportGroups();
     UpdateUsers();
+    TBScriptUnlock();
 
     last
 	if ($oneshot);

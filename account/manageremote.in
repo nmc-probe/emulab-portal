@@ -49,10 +49,12 @@ sub usage()
     print "       manageremote addgroup <remote> <gid>\n";
     exit(1);
 }
-my $optlist    = "dnf";
+my $optlist    = "dnfp";
 my $debug      = 0;
 my $force      = 0;
 my $impotent   = 0;
+my $locked     = 0;
+my $fromdaemon = 0;
 
 #
 # Function prototypes
@@ -121,8 +123,11 @@ if (defined($options{"f"})) {
 if (defined($options{"n"})) {
     $impotent = 1;
 }
+if (defined($options{"p"})) {
+    $fromdaemon = 1;
+}
 usage()
-    if (@ARGV < 2 || @ARGV > 4);
+    if (@ARGV < 2 || @ARGV > 5);
 
 my $cmd      = shift(@ARGV);
 my $peername = shift(@ARGV);
@@ -170,26 +175,36 @@ my $credential = GeniCredential->GetSelfCredential($me);
 if (!defined($credential)) {
     fatal("Could not create self credential for $me");
 }
+my $authority;
 
 #
 # All operations other then AddPeer require that the peer be
 # in the DB.
 #
-if ($cmd eq "addpeer") {
-    AddPeer();
-    exit(0);
-}
-else {
+if ($cmd ne "addpeer") {
     my $query_result =
 	DBQueryFatal("select name,urn from emulab_peers ".
 		     "where name='$peername' or urn='$peername'");
     fatal("Unknown peer")
 	if (!$query_result->numrows);
     ($peername,$peerurn) = $query_result->fetchrow_array();
+
+    $authority = GeniAuthority->CreateFromRegistry("sa", $peerurn);
+    if (!defined($authority)) {
+	fatal("Could not locate authority for $peername");
+    }
 }
-my $authority = GeniAuthority->CreateFromRegistry("sa", $peerurn);
-if (!defined($authority)) {
-    fatal("Could not locate authority for $peername");
+
+#
+# All operations other then xlogin require locking to avoid a
+# race with the portal_daemon. 
+#
+if ($cmd ne "xlogin" && !$fromdaemon) {
+    while (TBScriptLock("portal_op", 0, 5) != TBSCRIPTLOCK_OKAY()) {
+	print "Could not get the lock; trying again ... ^C to stop trying.\n";
+	next;
+    }
+    $locked = 1;
 }
 
 #
@@ -202,6 +217,10 @@ SWITCH: for ($cmd) {
     };
     /^adduser$/ && do {
 	AddUser();
+	last SWITCH;
+    };
+    /^addpeer$/ && do {
+	AddPeer();
 	last SWITCH;
     };
     /^deluser$/ && do {
@@ -230,8 +249,12 @@ SWITCH: for ($cmd) {
     };
     
     # Default
+    TBScriptUnlock()
+	if ($locked);
     usage();
 }
+TBScriptUnlock()
+    if ($locked);
 exit(0);
 
 #
@@ -315,7 +338,7 @@ sub AddUser(;$)
     }
     my $urn = GeniHRN::Generate($OURDOMAIN, "user", $user->uid());
     
-    my $xmlgoo = emutil::ExecQuiet("$DUMPUSER -p $uid");
+    my $xmlgoo = emutil::ExecQuiet("$DUMPUSER $uid");
     if ($?) {
 	fatal("$DUMPUSER failed");
     }
@@ -393,7 +416,7 @@ sub ModifyUser()
     }
     my $urn = GeniHRN::Generate($OURDOMAIN, "user", $user->uid());
     
-    my $xmlgoo = emutil::ExecQuiet("$DUMPUSER -p $uid");
+    my $xmlgoo = emutil::ExecQuiet("$DUMPUSER $uid");
     if ($?) {
 	fatal("$DUMPUSER failed");
     }
@@ -568,9 +591,7 @@ sub AddProject()
 		 "  exported=now(), updated=now(), ".
 		 "  peer='$peername'");
     
-    if (!$leader_result->numrows) {
-	SetGroups($leader_idx);
-    }
+    SetGroups($leader_idx);
     return 0;
 }
 

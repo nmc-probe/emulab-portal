@@ -735,6 +735,9 @@ sub UpdatePassword()
     #
     return 0
 	if (getpwuid($UID) eq "nobody");
+
+    return 0
+	if ($isnonlocal || $nocollabtools);
     
     $EUID = $UID;
     # And the wiki if enabled.
@@ -882,6 +885,9 @@ sub UpdateUser(;$)
     }
     $UID = $SAVEUID;
 
+    return 0
+	if ($isnonlocal || $nocollabtools);
+    
     $EUID = $UID;
     # Update elists in case email changed.
     system("$MMMODIFYUSER $user")

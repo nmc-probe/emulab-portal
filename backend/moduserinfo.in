@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -183,6 +183,8 @@ my %xmlfields =
      "user_interface"	=> ["user_interface",	$SLOT_OPTIONAL],
      "pubkeys"		=> ["pubkeys",		$SLOT_SKIP],
      "wikiname"		=> ["pubkeys",		$SLOT_SKIP],
+     # The portal code sets this, we ignore it here. 
+     "passhash"		=> ["passhash",		$SLOT_SKIP],
      # These are alternates.
      "name"		=> ["usr_name",		$SLOT_OPTIONAL],
      "title"	        => ["usr_title",	$SLOT_OPTIONAL],
