@@ -1894,7 +1894,15 @@ sub GetTicketAuxAux($$$$$$$$$)
 		$sharedvlansetting = 1;
 	    }
 	    
-	  stitch:	    
+	  stitch:
+	    #
+	    # Special hack to turn on vlan encap. The problem is that
+	    # this is an experiment wide setting right now.
+	    #
+	    if (GeniXML::IsTaggedLan($linkref)) {
+		$virtexperiment->encap_style("vlan");
+	    }
+	    
 	    my $virtlan =
 		$virtexperiment->NewTableRow("virt_lans",
 					 {"vname"       => $lanname,
@@ -4617,8 +4625,7 @@ sub ListUsage($)
 	    next
 		if ($sliver->resource_type() ne "Node");
 
-	    my $node = {"sliver_gid"    => $sliver->cert(),
-			"sliver_hrn"    => $sliver->hrn(),
+	    my $node = {"sliver_hrn"    => $sliver->hrn(),
 			"sliver_urn"    => $sliver->sliver_urn() };
 	    
 	    my $component = GeniComponent->Lookup($sliver->resource_uuid());
@@ -5854,7 +5861,6 @@ sub GeniExperiment($;$)
 	    $gid = $group->gid();
 	}
     }
-
     #
     # Form an eid for the experiment. 
     #
@@ -5862,6 +5868,22 @@ sub GeniExperiment($;$)
 	# What shall we do?
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "$eid is not a valid experiment ID");
+    }
+
+    #
+    # Look to see if this eid is already in use. Normally we do not
+    # allow this, but if the slice urn has a subauthority, we really
+    # do want to accept it, since it would be really confusing for
+    # users otherwise.
+    #
+    $experiment = Experiment->Lookup($project->pid(), $eid);
+    if (defined($experiment)) {
+	if (!defined($group)) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Slice name already exists");
+	}
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Slice name already exists");
     }
 
     #
