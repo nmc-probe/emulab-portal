@@ -12,6 +12,7 @@ source getfromtb.sh
 
 SMARTCTL=""
 failed=""
+error=""
 
 os=`uname`
 host=`hostname`
@@ -28,37 +29,34 @@ fi
 tmplog=/tmp/.$$.log
 cat /dev/null > ${tmplog}
 
-#set +x
 #exit on unbound var
 set -u
 
 #need to make sure smartcrl is installed - not by default on our linux images
 {
     SMARTCTL=$(which smartctl)
-    if [ -z ${SMARTCTL} ] ; then
-	if [ -e "/usr/sbin/smartctl" ]; then
+    if [ -z "${SMARTCTL}" ] ; then
+	if [ -x "/usr/sbin/smartctl" ]; then
 	    SMARTCTL="/usr/sbin/smartctl"
 	fi
     fi
-    if [ ${SMARTCTL} ] ; then
-	good=$($SMARTCTL --scan)
-	if [ -z ${good} -o \( "${good/UNRECOGNIZED//}" == "${good}" \)  ] ; then
-	    err="smartctl --scan not supported"
-	    echo $err
-	    failed="scan"
-	fi
+    if [ -x "${SMARTCTL}" ] ; then
+	# unrecongnized
+	rtn=$($SMARTCTL --scan | grep UNRECOGNIZED)
+	[[ $rtn ]] && error="smartctl option '--scan' not supported" && failed=scan
+	# empty
+	rtn=$($SMARTCTL --scan)
+	[[ ! $rtn ]] && error="smartctl device_type not supported" && failed=device 
     else	    
-	err="smartmontools missing"
-	echo $err
+	error="smartmontools missing"
 	failed="missing"
+	echo ", none found. FAIL"
     fi
 } >> ${tmplog} 2>&1
-
 echo "diskcheck `date`" >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ $failed ]] && echo "$err attempt workaround " || echo -n " "
-
+[[ $error ]] && echo -n "$error Attempt alternet method" || echo -n " "
 
 # the index into dirveinv array
 name=0; driver=1; type=2; size=3; temp=4; model=5; serial=6;
@@ -76,12 +74,18 @@ case $failed in
 	driveinv[$model]="UKN"
 	;;
     missing )
-	driveinv[$name]="Missing"
-	driveinv[$driver]="UKN"
-	driveinv[$type]="UKN"
-	driveinv[$size]="0GB"
-	driveinv[$temp]="UKN"
-	driveinv[$model]="UKN"
+	echo ", none found. FAIL"
+#	driveinv[$name]="Missing"
+#	driveinv[$driver]="UKN"
+#	driveinv[$type]="UKN"
+#	driveinv[$size]="0GB"
+#	driveinv[$temp]="UKN"
+#	driveinv[$model]="UKN"
+	exit
+	;;
+    device )
+	echo ". FAIL"
+	exit
 	;;
     * )
 
@@ -134,10 +138,10 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     #temp
     cnt=${#driveinv[$idx]}
         #type 1
-    driveinv[$idx]+="$($SMARTCTL  -l scttempsts ${d[0]} | grep "Current Temperature:" | awk '{print $3}')"
+    driveinv[$idx]+="$($SMARTCTL  -l scttempsts ${d[0]} | grep -i "Current Temperature:" | awk '{print $3}')"
     if [ ${#driveinv[idx]} -eq $cnt ] ; then
         #type 2
-	driveinv[$idx]+="$($SMARTCTL  -a ${d[0]} | grep "Current Drive Temperature:" | awk '{print $4}')"
+	driveinv[$idx]+="$($SMARTCTL  -a ${d[0]} | grep -i "Current Drive Temperature:" | awk '{print $4}')"
     fi
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
@@ -145,7 +149,7 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     #vendor product
     cnt=${#driveinv[$idx]}
         #type 1
-    driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep "Device Model:" | awk '{print $3$4}')"
+    driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Device Model:" | awk '{print $3$4}')"
     if [ ${#driveinv[idx]} -eq $cnt ] ; then
         #type 2
 	driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Product:" | awk '{print $2}')"
@@ -154,7 +158,7 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     driveinv[$idx]+=" "
 
     # serial number
-    driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep "Serial Number:" | awk '{print $3}')"
+    driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Serial Number:" | awk '{print $3}')"
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
 done
@@ -185,7 +189,7 @@ driveinfo=""
 if [ -z $failed ] ; then
     for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
 	unset -v d ; declare -a d=(${driveinv[$idx]})
-	echo -n "${d[$name]} ${d[$size]} ${d[$serial]}"
+	echo -n "${d[$name]} ${d[$size]} ${d[$serial]}  "
 	driveinfo+="${d[$serial]} "
     done
     driveinfo=${driveinfo% } # get rid of trailing space
@@ -197,8 +201,8 @@ fi
 # Now check against the testbed DB
 
 tbinfo=$(getfromtb diskinfo $host)
-err=$?
-# echo drivesize:$drivesize: tbinfo:$tbinfo: err:$err
+error=$?
+# echo drivesize:$drivesize: tbinfo:$tbinfo: error:$error
 
 [[ "$tbinfo" == "$driveinfo" ]] && failed="" || failed="TBmiss Have |$driveinfo| Want |$tbinfo|"
 
