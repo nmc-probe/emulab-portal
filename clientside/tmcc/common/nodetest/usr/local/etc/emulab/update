@@ -1,23 +1,48 @@
 #!/usr/local/bin/bash
 
-linux="pc7 pc137 pc406 pc207 pc606"
-bsd="pc446 pc208 pc4 pc133"
-machines="${linux} ${bsd}"
-
 arg=$1
+
+#list="pc4 pc7 pc133 pc137 pc207 pc208 pc406 pc446 pc511 pc606"
+list=$(mysql -B -N -e "select node_id from reserved where pid='emulab-ops' and eid='nodecheck-image';" tbdb)
+
+linux=""
+bsd=""
+machines=""
+
 set -u
+
+#echo "||$machines||"
+#echo "bsd||$bsd||"
+#echo "linux||$linux||"
+
 
 utils="diskcheck diskspeedcheck memcheck cpucheck getfromtb.sh timecheck niccheck"
 
 arg=${arg=""} # use var if set else use ""
 
+case $arg in
+    disk | mem | cpu | diskspeed | time | nic | getlogs | clearlogs | help | -help | -h | ? ) machines=$list ;;
+    * )
+	for i in $list
+	do
+	    os=$(sudo ssh $i uname -s)
+	    if [ "$os" == "FreeBSD" ] ; then
+		bsd="$bsd $i" ; machines="$machines $i"
+	    elif [ "$os" == "Linux" ] ; then
+		linux="$linux $i" ; machines="$machines $i"
+	    else
+		echo "Do not know the $os of $i, skipping"
+	    fi
+	done
+	;;
+esac
 
 case $arg in
     disk | mem | cpu | diskspeed | time | nic)
 	for i in $machines ; do
 	    sudo scp -q ${arg}check $i:/usr/local/etc/emulab
 	    echo -n "$i "
-	    sudo ssh $i "cd /usr/local/etc/emulab; bash /usr/local/etc/emulab/${arg}check"
+	    sudo ssh $i "cd /usr/local/etc/emulab; bash /usr/local/etc/emulab/${arg}check /var/emulab/logs/nodecheck.log"
 	    echo ""
 	done
 	;;
@@ -34,13 +59,13 @@ case $arg in
 	    sudo ssh $i "cd /usr/local/etc/emulab; /usr/local/etc/emulab/rc/rc.nodecheck ${action}"
 	done
 	;;
-    getlog )
+    getlogs )
 	for i in $machines ; do
 	    echo "----------------- $i --------------------"
 	    sudo ssh $i "cat /var/emulab/logs/nodecheck.log"
 	done
 	;;
-    clearlog )
+    clearlogs )
 	for i in $machines ; do
 	    sudo ssh $i "rm -f /var/emulab/logs/nodecheck.log"
 	done
