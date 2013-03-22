@@ -1060,6 +1060,29 @@ sub ExperimentLans($$$)
 }
 
 #
+# Find a lan by looking an interface in the member list
+#
+sub FindLanByInterface($$$)
+{
+    my ($class, $experiment, $interface) = @_;
+    my $exptidx = $experiment->idx();
+    my $iface   = $interface->iface();
+    my @lans   = ();
+
+    #
+    # We do not do this often, so worry about optimizing later.
+    #
+    return undef
+	if (Lan->ExperimentLans($experiment, \@lans) != 0);
+
+    foreach my $lan (@lans) {
+	return $lan
+	    if ($lan->IsMember($interface->node_id(), $interface->iface()));
+    }
+    return undef;
+}
+
+#
 # Initialize from vlans table. Used when converting from old vlans table.
 #
 # XXX Need to deal with vlan encapsulation ...
