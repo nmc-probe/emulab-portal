@@ -44,10 +44,14 @@ getfromtb() {
 	    case ${d[1]} in
 		pc4 | pc7 ) echo "13GB" ;;
 		pc126 | pc121 | pc137 | pc136 ) echo "41GB" ;;
-		pc207 | pc208 | pc286 | pc219 ) echo "146GB 146GB" ;;
+		pc207 ) echo "3KS0XJW1 3KS0XJK4";;
+		pc208 ) echo "3KS0WR70 3KS0X47T" ;;
+		pc208 | pc286 | pc219 ) echo "146GB 146GB" ;;
 		ibapah ) echo "160GB 500GB 500GB" ;;
 #	    boss.emulab.net ) echo "" ;;
-		pc472 | pc406 | pc446 ) echo "500GB 250GB" ;;
+		pc472 ) echo "500GB 250GB" ;;
+		pc406 ) echo "WD-WMAYP3198698 9SF16YDY" ;;
+		pc446 ) echo "WD-WMAYP3465928 9SF16G29" ;;
 		pc603 | pc607 ) echo "250GB 600GB 600GB 600GB 600GB 600GB 600GB" ;;
 		* ) 
 		    echo "unknown_host"
