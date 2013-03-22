@@ -110,6 +110,7 @@ my $FREENAS_MNT_PREFIX   = "/mnt";
 my $ISCSI_GLOBAL_PORTAL  = 1;
 my $SER_PREFIX           = "d0d0";
 my $VLAN_IFACE_PREFIX    = "vlan";
+my $UNEXPORT_WAITTIME    = 5;
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -1156,17 +1157,8 @@ sub unexportSlice($$$$) {
     $sconf->{'UUID'} =~ /^([-\.:\w]+)$/;
     my $iqn = $1; # untaint.
 
-    # Remove iSCSI extent.  This will also zap the target-to-extent
+    # Remove iSCSI target.  This will also zap the target-to-extent
     # association.
-    if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
-		      "del $iqn") != 0)
-    {
-	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "Failed to remove iSCSI extent!");
-	return -1;
-    }
-
-    # Remove iSCSI target.
     if (runFreeNASCmd($CLI_VERB_IST_TARGET,
 		      "del $iqn") != 0)
     {
@@ -1190,6 +1182,19 @@ sub unexportSlice($$$$) {
 	     "Failed to remove iSCSI auth group!");
 	return -1;
     }
+
+
+    # Remove iSCSI extent.
+    if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
+		      "del $iqn") != 0)
+    {
+	warn("*** ERROR: blockstore_unexportSlice: ".
+	     "Failed to remove iSCSI extent!");
+	return -1;
+    }
+
+    # Wait a tick to make sure the underlying volume has been released.
+    sleep($UNEXPORT_WAITTIME);
 
     # All torn down and unexported!
     return 0;
