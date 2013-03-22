@@ -3493,6 +3493,9 @@ sub doDeleteVlan($@) {
 	    if (defined($vlan) && $vlan->GetAliases()) {
 		die("$vlan has aliases; cannot delete before aliases\n");
 	    }
+	    if (defined($vlan) && $vlan->IsShared()) {
+		die("$vlan is shared; cannot delete while shared\n");
+	    }
 	    # Allow deletion by name without vlan object, by force only.
 	    $vlans{$vlan_name} = $vlan || $vlan_name;
 	}
