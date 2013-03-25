@@ -123,7 +123,7 @@ if ($UID && !$impotent) {
 }
 
 # Record output in case of error.
-LogStart(0, undef, LIBAUDIT_LOGTBOPS());
+LogStart(0, undef, LIBAUDIT_LOGONLY() | LIBAUDIT_LOGTBLOGS());
 
 #
 # We use elabman user below for marking the image update.
