@@ -47,7 +47,6 @@ $JAILIPMASK  = "@JAILIPMASK@";
 use libdb;
 use libtestbed;
 use emutil;
-use event;
 use English;
 use Socket;
 use Data::Dumper;
@@ -1888,6 +1887,7 @@ sub GetBootLog($$)
 sub SetEventState($$)
 {
     my ($self, $state) = @_;
+    require event;
 
     # Must be a real reference. 
     return -1
@@ -1899,10 +1899,10 @@ sub SetEventState($$)
     # If using the event system, we send out an event for the state daemon to
     # pick up. Otherwise, we just set the state in the database ourselves
     #
-    return EventSendFatal(objtype   => TBDB_TBEVENT_NODESTATE,
-			  objname   => $node_id,
-			  eventtype => $state,
-			  host      => $BOSSNODE);
+    return event::EventSendFatal(objtype   => TBDB_TBEVENT_NODESTATE,
+				 objname   => $node_id,
+				 eventtype => $state,
+				 host      => $BOSSNODE);
 
     return $self->Update({"eventstate"      => $state,
 			  "state_timestamp" => time()});
