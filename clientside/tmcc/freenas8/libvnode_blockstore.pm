@@ -110,7 +110,8 @@ my $FREENAS_MNT_PREFIX   = "/mnt";
 my $ISCSI_GLOBAL_PORTAL  = 1;
 my $SER_PREFIX           = "d0d0";
 my $VLAN_IFACE_PREFIX    = "vlan";
-my $UNEXPORT_WAITTIME    = 5;
+my $MAX_BUSY_COUNT       = 5;
+my $SLICE_BUSY_WAIT      = 10;
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -432,16 +433,23 @@ sub vnodeDestroy($$$$){
     }
 
     # Run through blockstore removal commands (reversed creation list).
+    my $failed = 0;
     foreach my $sconf (@revconfigs) {
 	my $cmd = $sconf->{'CMD'};
 	if (exists($teardown_cmds{$cmd})) {
 	    if ($teardown_cmds{$cmd}->($vnode_id, $sconf, 
 				       $vnconfig, $private) != 0) {
-		TBScriptUnlock();
-		fatal("blockstore_vnodeDestroy: ".
-		      "Failed to execute teardown command: $cmd");
+		warn("*** ERROR: blockstore_vnodeDestroy: ".
+		     "Teardown command failed: $cmd");
+		# Don't die yet.  We want to try removing the
+		# interface first.  Do jump out of this loop however
+		# since subsequent commands here may also fail (and
+		# perhaps cause worse fallout).
+		$failed = 1;
+		last;
 	    }
 	} else {
+	    # Escape hatch for unknown command.
 	    TBScriptUnlock();
 	    fatal("blockstore_vnodeDestroy: ".
 		  "Don't know how to execute: $cmd");
@@ -457,6 +465,7 @@ sub vnodeDestroy($$$$){
     }
 
     TBScriptUnlock();
+    die() if $failed;      # If the command loop above failed, die now.
     return 0;
 }
 
@@ -497,16 +506,13 @@ sub vnodeUnmount($$$$)
 # such things.  We check that the incoming verb is valid.  Command line
 # argument string needs to be untainted or this will fail.
 #
-# Returns numberic code indicating success, failure, internal error.
+# Throws exceptions (dies), passing along errors in $@.
 #
 sub runFreeNASCmd($$) {
     my ($verb, $argstr) = @_;
 
-    if (!exists($cliverbs{$verb})) {
-	warn("*** ERROR: blockstore_runFreeNASCmd: ".
-	     "Invalid FreeNAS CLI verb: $verb");
-	return -1;
-    }
+    die "Invalid FreeNAS CLI verb: $verb"
+	unless exists($cliverbs{$verb});
 
     print "DEBUG: blockstore_runFreeNASCmd:\n".
 	"\trunning: $verb $argstr\n" if $debug;
@@ -514,17 +520,20 @@ sub runFreeNASCmd($$) {
     my $output = `$FREENAS_CLI $verb $argstr`;
     if ($? != 0) {
 	print STDERR $output if $debug;
-	warn("*** ERROR: blockstore_runFreeNASCmd: ".
-	     "Error returned from FreeNAS CLI: $?");
-	return -1;
+	die "Error returned from FreeNAS CLI: $?";
     }
 
-    if ($output =~ /"error": false/) {
+    $output =~ /"error": (true|false)/;
+    my $errstate = $1;
+    $output =~ /"message": "([^"]+)"/;
+    my $message = $1;
+
+    if ($errstate eq "false") {
 	return 0;
     }
 
     print STDERR $output if $debug;
-    return 1;
+    die $message;
 }
 
 # Run our custom FreeNAS CLI to extract info.  
@@ -775,11 +784,11 @@ sub allocSlice($$$$) {
 
     # Allocate slice in zpool
     # XXX: check on size conversion.
-    if (runFreeNASCmd($CLI_VERB_VOLUME, 
-		      "add $bsid $vnode_id ${size}MB off") != 0)
-    {
+    eval { runFreeNASCmd($CLI_VERB_VOLUME, 
+			 "add $bsid $vnode_id ${size}MB off") };
+    if ($@) {
 	warn("*** ERROR: blockstore_allocSlice: ".
-	     "slice allocation failed!");
+	     "slice allocation failed: $@");
 	return -1;
     }
 
@@ -845,11 +854,11 @@ sub exportSlice($$$$) {
     my $iqn = $1; # untaint.
 
     # Create iSCSI extent
-    if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
-		      "add $iqn $bsid/$vnode_id") != 0)
-    {
+    eval { runFreeNASCmd($CLI_VERB_IST_EXTENT, 
+			 "add $iqn $bsid/$vnode_id") };
+    if ($@) {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "Failed to create iSCSI extent!");
+	     "Failed to create iSCSI extent: $@");
 	return -1;
     }
 
@@ -861,31 +870,31 @@ sub exportSlice($$$$) {
 	return -1;
     }
     $tag = $1; # untaint.
-    if (runFreeNASCmd($CLI_VERB_IST_AUTHI,
-		      "add $tag ALL $network/$cmask") != 0)
-    {
+    eval { runFreeNASCmd($CLI_VERB_IST_AUTHI,
+			 "add $tag ALL $network/$cmask") };
+    if ($@) {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "Failed to create iSCSI auth group!");
+	     "Failed to create iSCSI auth group: $@");
 	return -1;
     }
 
     # Create iSCSI target
     my $serial = genSerial();
-    if (runFreeNASCmd($CLI_VERB_IST_TARGET,
+    eval { runFreeNASCmd($CLI_VERB_IST_TARGET,
 		      "add $iqn $serial $ISCSI_GLOBAL_PORTAL ".
-		      "$tag Auto -1") != 0)
-    {
+			 "$tag Auto -1") };
+    if ($@) {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "Failed to create iSCSI target!");
+	     "Failed to create iSCSI target: $@");
 	return -1;
     }
 
     # Bind iSCSI target to slice (extent)
-    if (runFreeNASCmd($CLI_VERB_IST_ASSOC,
-		      "add $iqn $iqn") != 0)
-    {
+    eval { runFreeNASCmd($CLI_VERB_IST_ASSOC,
+			 "add $iqn $iqn") };
+    if ($@) {
 	warn("*** ERROR: blockstore_exportSlice: ".
-	     "Failed to associate iSCSI target with extent!");
+	     "Failed to associate iSCSI target with extent: $@");
 	return -1;
     }
 
@@ -1063,22 +1072,20 @@ sub createVlanInterface($$) {
     }
 
     # First, create the vlan interface:
-    my $rval = runFreeNASCmd($CLI_VERB_VLAN,
-			     "add $piface $viface $vtag");
-
-    if ($rval != 0) {
+    eval { runFreeNASCmd($CLI_VERB_VLAN,
+			 "add $piface $viface $vtag") };
+    if ($@) {
 	warn("*** ERROR: blockstore_createVlanInterface: ". 
-	     "failure while creating vlan interface!");
+	     "failure while creating vlan interface: $@");
 	return -1;
     }
 
     # Next, set its address.
-    $rval = runFreeNASCmd($CLI_VERB_IFACE,
-			  "add $viface $viface $ip/$mask");
-
-    if ($rval != 0) {
+    eval { runFreeNASCmd($CLI_VERB_IFACE,
+			 "add $viface $viface $ip/$mask") };
+    if ($@) {
 	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ".
-	     "failure while setting vlan interface parameters!");
+	     "failure while setting vlan interface parameters: $@");
 	return -1;
     }
 
@@ -1117,12 +1124,11 @@ sub removeVlanInterface($$) {
     }
 
     # Delete it!
-    my $rval = runFreeNASCmd($CLI_VERB_VLAN,
-			     "del $viface");
-
-    if ($rval != 0) {
+    eval { runFreeNASCmd($CLI_VERB_VLAN,
+			 "del $viface") };
+    if ($@) {
 	warn("*** ERROR: blockstore_removeVlanInterface: ".
-	     "failure while removing vlan interface!");
+	     "failure while removing vlan interface: $@");
 	return -1;
     }
 
@@ -1159,11 +1165,11 @@ sub unexportSlice($$$$) {
 
     # Remove iSCSI target.  This will also zap the target-to-extent
     # association.
-    if (runFreeNASCmd($CLI_VERB_IST_TARGET,
-		      "del $iqn") != 0)
-    {
+    eval { runFreeNASCmd($CLI_VERB_IST_TARGET,
+			 "del $iqn") };
+    if ($@) {
 	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "Failed to remove iSCSI target!");
+	     "Failed to remove iSCSI target: $@");
 	return -1;
     }
 
@@ -1175,26 +1181,23 @@ sub unexportSlice($$$$) {
 	return -1;
     }
     $tag = $1; # untaint.
-    if (runFreeNASCmd($CLI_VERB_IST_AUTHI,
-		      "del $tag") != 0)
-    {
+    eval { runFreeNASCmd($CLI_VERB_IST_AUTHI,
+			 "del $tag") };
+    if ($@) {
 	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "Failed to remove iSCSI auth group!");
+	     "Failed to remove iSCSI auth group: $@");
 	return -1;
     }
 
 
     # Remove iSCSI extent.
-    if (runFreeNASCmd($CLI_VERB_IST_EXTENT, 
-		      "del $iqn") != 0)
-    {
+    eval { runFreeNASCmd($CLI_VERB_IST_EXTENT, 
+			 "del $iqn") };
+    if ($@) {
 	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "Failed to remove iSCSI extent!");
+	     "Failed to remove iSCSI extent: $@");
 	return -1;
     }
-
-    # Wait a tick to make sure the underlying volume has been released.
-    sleep($UNEXPORT_WAITTIME);
 
     # All torn down and unexported!
     return 0;
@@ -1230,17 +1233,36 @@ sub deallocSlice($$$$) {
     }
 
     # deallocate slice.
-    if (runFreeNASCmd($CLI_VERB_VOLUME, 
-		      "del $bsid $vnode_id") != 0)
-    {
-	warn("*** ERROR: blockstore_deallocSlice: ".
-	     "slice removal failed!");
-	return -1;
+    my $busycount;
+    for ($busycount = 1; $busycount <= $MAX_BUSY_COUNT; $busycount++) {
+	eval { runFreeNASCmd($CLI_VERB_VOLUME, 
+			     "del $bsid $vnode_id") };
+	if ($@) { 
+	    if ($@ =~ /dataset is busy/) {
+		warn("*** WARNING: blockstore_deallocSlice: ".
+		     "Slice is busy.  Waiting a bit before trying ".
+		     "to free again (count=$busycount).");
+		TBScriptUnlock();  # Don't hold up the queue.  Hopefully safe!
+		sleep $SLICE_BUSY_WAIT;
+	    } else {
+		warn("*** ERROR: blockstore_deallocSlice: ".
+		     "slice removal failed: $@");
+		return -1;
+	    }
+	} else {
+	    # No error condition - jump out of loop.
+	    last;
+	}
     }
 
-    # Checks for lingering slices will be performed separately in
-    # consistency checking routines, so we don't bother here to
-    # check that the above actually succeeded.
+    # Note: Checks for lingering slices will be performed separately in
+    # consistency checking routines.
+
+    if ($busycount > $MAX_BUSY_COUNT) {
+	warn("*** WARNING: blockstore_deallocSlice: ".
+	     "Could not free slice after several attempts!");
+	return -1;
+    }
 
     return 0;
 }
