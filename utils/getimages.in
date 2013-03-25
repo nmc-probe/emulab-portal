@@ -61,6 +61,7 @@ my $PROTOUSER    = "elabman";
 my $WAP          = "$TB/sbin/withadminprivs";
 my $metadata	 = "/tmp/imageinfo-$$.xml";
 my $NEWIMAGE_EZ  = "$TB/bin/newimageid_ez";
+my $MAXATTEMPTS  = 5;
 
 #
 # Testbed Support libraries
@@ -260,25 +261,49 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     my $tmpfilename   = "${imagefilename}.new";
     unlink($tmpfilename)
 	if (-e $tmpfilename);
-    print "Fetching $imageurl\n";
-    if (system("$FETCH  -o $tmpfilename $imageurl")) {
-	unlink($tmpfilename);
-	fatal("Could not fetch $imageurl");
-    }
+    # Try a few times, so we don't fail on temporary errors.  Restart
+    # from the beginning if what we have is hopeless; attempt to continue
+    # if we have part of a file and aren't convinced it's useless.
+    my $attempt = 1;
+    while( 1 ) {
+	print "Fetching $imageurl (attempt $attempt of $MAXATTEMPTS)...\n";
+	# Ignore exit code from fetch.  Maybe we got lucky and got a
+	# good transfer before it died; maybe it gave up halfway through
+	# and we have half a good file and can continue where we left off.
+	my $expectedsize = `$FETCH -s $imageurl`;
+	system("$FETCH -a -F -R -r -o $tmpfilename $imageurl");
 
-    #
-    # Do an integrity check.
-    #
-    print "Doing an integrity check ...\n";
-    my $filehash = `/sbin/sha1 -q $tmpfilename`;
-    if ($?) {
-	fatal("Could not generate sha1 of $tmpfilename");
-    }
-    chomp($filehash);
-    if ($filehash ne $hash) {
-	fatal("Integrity check failure. $hash ne $filehash");
-    }
+	if( -s $tmpfilename < $expectedsize ) {
+	    print "Local file appears truncated, retrying...\n";
+	    next;
+	}
 
+	#
+	# Do an integrity check.
+	#
+	print "Doing an integrity check ...\n";
+	my $filehash = `/sbin/sha1 -q $tmpfilename`;
+	if ($?) {
+	    print "Could not generate sha1 of $tmpfilename\n";
+	    unlink( $tmpfilename );
+	    next;
+	}
+	chomp($filehash);
+	if ($filehash ne $hash) {
+	    print "Integrity check failure. $hash ne $filehash\n";
+	    # Looking bad.  But let's start again and give it another try
+	    # just in case.
+	    unlink( $tmpfilename );
+	    next;
+	}
+	# We got it!
+	last;
+    } continue {
+	$attempt++;
+	fatal( "Could not retrieve $imageurl after $MAXATTEMPTS tries." )
+	    if( $attempt > $MAXATTEMPTS );
+    }
+    
     if ($impotent) {
 	print "Impotent mode is on; not installing the new image.\n";
 	print "Hash:$hash, time:$newtime\n";
