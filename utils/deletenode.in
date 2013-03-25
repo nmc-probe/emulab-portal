@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2012 University of Utah and the Flux Group.
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -79,7 +79,7 @@ if ($result->num_rows() != 1) {
     die "Node $node does not exist!\n";
 }
 my ($role) = $result->fetchrow_array();
-if ($role ne "testnode") {
+if ($role ne "testnode" && ! defined($options{"f"})) {
     die "Node $node is not a testnode!\n";
 }
 
