@@ -91,7 +91,7 @@ Once the VMs are ready, copy the directory mentioned above over to the
 inner boss as /usr/testbed/etc/genirack. Do NOT put this stuff on the
 inner ops!
 
-	boss> sudo scp -rp ~stoller/geniracks/racks/XXX
+	boss> sudo scp -rp ~stoller/genirack/racks/XXX
 	         	pcvmXXX-1:/usr/testbed/etc/genirack
 
 Now we convert the VMs for boot in the target environment, which means
@@ -104,15 +104,15 @@ command to save the errors.
 	boss> sudo perl emulab-install -b -i boss/genirack boss
 	boss> exit
 
-then log out and ssh (as root) into inner ops:
+Grab (inner) boss:/usr/testbed/etc/elabman.pswd and store it in our
+file. See Utah (outer) boss:~stoller/genirack/racks/pswd.txt. 
+
+Now ssh (as root) into inner ops:
 
 	ops> cd /usr/testbed/obj/testbed/install
 	ops> script
 	ops> sudo perl emulab-install -b -i ops/genirack ops
 	ops> exit
-
-Grab (inner) boss:/usr/testbed/etc/elabman.pswd and store it in our
-file. See Utah (outer) boss:~stoller/genirack/racks/pswd.txt. 
 
 Now we have to shutdown the VMs. Log out of the boss/ops vms, and log
 into the physical host and then:
