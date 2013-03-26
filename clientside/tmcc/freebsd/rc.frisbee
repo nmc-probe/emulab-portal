@@ -28,6 +28,8 @@ if [ $# -eq 1 -a "$1" = "-noreboot" ]; then
     reboot=0
 fi
 
+echo "`date`: rc.frisbee starting"
+
 #
 # Amount of memory in MB to leave for everyone else in the system.  If you
 # get out-of-memory or vm_pager error while running frisbee, increase this.
@@ -442,10 +444,10 @@ loadone() {
     fi
 
     if [ x"$imagefile" != x ]; then
-	echo "Running /usr/local/bin/imageunzip -o -O -W 32 $ZFILL $imagefile /dev/${DISK}s${PART}"
+	echo "`date`: Running /usr/local/bin/imageunzip -o -O -W 32 $ZFILL $imagefile /dev/${DISK}s${PART}"
 	/usr/local/bin/imageunzip -o -O -W 32 $ZFILL $imagefile /dev/${DISK}s${PART}
     else
-	echo "Running $BINDIR/frisbee -S $SERVER $MEMARGS $KA $ZFILL $SLICE $IMAGEID /dev/$DISK at `date`"
+	echo "`date`: Running $BINDIR/frisbee -S $SERVER $MEMARGS $KA $ZFILL $SLICE $IMAGEID /dev/$DISK"
 	$BINDIR/frisbee -S $SERVER $MEMARGS $KA $ZFILL $SLICE $IMAGEID /dev/$DISK
     fi
     fstat=$?
@@ -471,13 +473,13 @@ loadone() {
 
     case $fstat in
     0)
-	echo "Adjusting slice-related files"
+	echo "`date`: Adjusting slice-related files"
 	export SLICEFIX_ACPI=$ACPI
 	export SLICEFIX_ASF=$ASF
 	export SLICEFIX_NOCLFLUSH=$NOCLFLUSH
 	export SLICEFIX_VGAONLY=$VGAONLY
 	$BINDIR/slicefix $PART $DISK
-	echo "Image #$_NUM load complete at `date`"
+	echo "`date`: Image #$_NUM load complete"
 	return 0
 	;;
     *)
@@ -555,15 +557,15 @@ esac
 NUM=0
 while [ "$1"x != x ]; do
     loadone "$1" $NUM || {
-	echo "Failed to load disk, dropping to login prompt at `date`"
+	echo "`date`: Failed to load disk, dropping to login prompt"
         exit 1
     }
     shift
     NUM=`expr $NUM + 1`
 done
-echo "Frisbee run(s) finished"
+echo "`date`: Frisbee run(s) finished"
 
-echo "Resizing final disk partition"
+echo "`date`: Resizing final disk partition"
 $BINDIR/growdisk -vW /dev/$DISK
 
 #
@@ -583,19 +585,19 @@ $BINDIR/growdisk -vW /dev/$DISK
 #
 if [ $reboot -eq 1 ]; then
     $BINDIR/tmcc state RELOADDONEV2
-    echo "Waiting for server to reboot us ..."
+    echo "`date`: Waiting for server to reboot us ..."
     if [ $isrem -eq 1 ]; then
 	sleep 30
     else
-	sleep 240
+	sleep 300
     fi
-    echo "No response from server, rebooting myself ..."
+    echo "`date`: No response from server, rebooting myself ..."
     /sbin/reboot
     sleep 100
 else
     $BINDIR/tmcc state RELOADDONE
 fi
 
-echo "Frisbee finished"
+echo "`date`: rc.frisbee finished"
 
 exit 0
