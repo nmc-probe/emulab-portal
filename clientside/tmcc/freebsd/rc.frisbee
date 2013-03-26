@@ -169,6 +169,7 @@ loadone() {
     PART=""
     PARTOS=""
     DISK=""
+    BIOSDISK=""
     ZFILL=""
     ACPI=""
     ASF=""
@@ -178,6 +179,7 @@ loadone() {
     VGAONLY=""
     IMAGEID=""
     KEEPALIVE=""
+    CONSOLE=""
 
     for parm in $_LOADINFO; do
         case $parm in
@@ -186,6 +188,7 @@ loadone() {
 	PARTOS=*|\
 	SERVER=*|\
 	DISK=*|\
+	BIOSDISK=*|\
 	ZFILL=*|\
 	ACPI=*|\
 	NOCLFLUSH=*|\
@@ -194,7 +197,8 @@ loadone() {
 	PREPARE=*|\
 	VGAONLY=*|\
         IMAGEID=*|\
-	KEEPALIVE=*)
+        KEEPALIVE=*|\
+	CONSOLE=*)
 	    # XXX need to parse better, eval is dangerous!
 	    eval $parm
 	    ;;
@@ -218,6 +222,7 @@ loadone() {
     VGAONLY=${VGAONLY:-'unknown'}
     MBRVERS=${MBRVERS:-'1'}
     PREPARE=${PREPARE:-'0'}
+    CONSOLE=${CONSOLE:-'unknown'}
 
     #
     # XXX If KEEPALIVE is not explicitly set, attempt to intuit a value.
@@ -478,6 +483,8 @@ loadone() {
 	export SLICEFIX_ASF=$ASF
 	export SLICEFIX_NOCLFLUSH=$NOCLFLUSH
 	export SLICEFIX_VGAONLY=$VGAONLY
+	export SLICEFIX_CONSOLE=$CONSOLE
+	export SLICEFIX_BIOSDISK=$BIOSDISK
 	$BINDIR/slicefix $PART $DISK
 	echo "`date`: Image #$_NUM load complete"
 	return 0

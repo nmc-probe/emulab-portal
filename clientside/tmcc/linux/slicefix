@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -72,6 +72,10 @@ fi
 #
 # Handle pseudo arguments in the environment.
 #
+
+#
+# Explicitly enable/disable ACPI (BSD only)
+#
 ACPI=${SLICEFIX_ACPI:-'unknown'}
 case $ACPI in
 0|no|NO)
@@ -85,6 +89,9 @@ case $ACPI in
     ;;
 esac
 
+#
+# Explicitly enable/disable ASF management on Broadcom (BSD only)
+#
 ASF=${SLICEFIX_ASF:-'unknown'}
 case $ASF in
 0|no|NO)
@@ -98,6 +105,9 @@ case $ASF in
     ;;
 esac
 
+#
+# Explicitly enable/disable use of clflush instruction (BSD only)
+#
 NOCLFLUSH=${SLICEFIX_NOCLFLUSH:-'unknown'}
 case $NOCLFLUSH in
 0|no|NO)
@@ -111,26 +121,65 @@ case $NOCLFLUSH in
     ;;
 esac
 
-VGAONLY=${SLICEFIX_VGAONLY:-'unknown'}
-case $VGAONLY in
-0|no|NO)
-    VGAONLY=no
-    ;;
-1|yes|YES)
-    VGAONLY=yes
-    ;;
-*)
-    # XXX check the MFS filesystem
-    if [ -r $ETCDIR/isvgaonly ]; then
-	VGAONLY=yes
-    else
-	VGAONLY=unknown
-    fi
-    ;;
-esac
+#
+# Explicitly set the BIOS boot ID for Grub (Linux only)
+#
+BIOSDISK=$SLICEFIX_BIOSDISK
+if [ -n "$BIOSDISK" ]; then
+    case $BIOSDISK in
+    0x8[0123456789])
+	;;
+    *)
+	echo "WARNING: unknown BIOS disk setting \"$BIOSDISK\" ignored"
+	BIOSDISK=
+	;;
+    esac
+fi
 
 #
-# ...or the filesystem
+# Find out what our console should be:
+#   if $CONSOLE is set and valid, use that
+#   ow if $VGAONLY is set, console is "vga"
+#   ow console is "sio1"
+# NOTE: we change "sio" to "sio1" and "vga" to "vid" for convenience later
+#
+CONSOLE=${SLICEFIX_CONSOLE:-'unknown'}
+case $CONSOLE in
+sio)
+    CONSOLE=sio1
+    ;;
+vga)
+    CONSOLE=vid
+    ;;
+sio1|sio2|sio3|sio4|null|unknown)
+    ;;
+*)
+    echo "WARNING: unknown console type \"$CONSOLE\", assuming \"sio1\""
+    CONSOLE=sio1
+    ;;
+esac
+if [ $CONSOLE = "unknown" ]; then
+    VGAONLY=${SLICEFIX_VGAONLY:-'unknown'}
+    case $VGAONLY in
+    0|no|NO)
+	;;
+    1|yes|YES)
+	CONSOLE=vid
+	;;
+    *)
+	if [ -r $ETCDIR/isvgaonly ]; then
+	    CONSOLE=vid
+	fi
+	;;
+    esac
+fi
+if [ $CONSOLE = "unknown" ]; then
+    echo "WARNING: console type not set, assuming \"sio1\""
+    CONSOLE=sio1
+fi
+
+#
+# Handle pseudo-arguments in the filesystem
 #
 if [ -r $ETCDIR/isflash ]; then
     FLASHBOOT=1
@@ -155,6 +204,19 @@ islocalized() {
 	return 0;
     fi
     return 1;
+}
+
+#
+# Get the last setting of a loader variable from the list of standard files
+#
+getloadervar() {
+    _var=$1
+    _mnt=$2
+    _flist="$_mnt/boot/defaults/loader.conf $_mnt/boot/device.hints $_mnt/boot/loader.conf $_mnt/boot/loader.conf.local"
+
+    _last=`grep "^${_var}=" $_flist 2>/dev/null | tail -1`
+    _val=`echo ${_last#*=} | sed -e 's/^"//' -e 's/"$//'`
+    echo $_val
 }
 
 dofreebsd() {
@@ -344,19 +406,35 @@ dofreebsd() {
 	fi
 
 	#
-	# If node doesn't have a serial port, make sure comconsole is not set!
+	# See if we need to fix console related settings.
 	#
-	if [ $VGAONLY = "yes" ]; then
-	    grep "^console=\"comconsole\"" /mnt/boot/loader.conf >/dev/null 2>&1
-	    case $? in
-	    0)
+	curconsole=`getloadervar console /mnt`
+	case $CONSOLE in
+	null|vid)
+	    if [ "$curconsole" != "${CONSOLE}console" ]; then
 		changecons=1
 		fixit=1
-		;;
-	    *)
-	        ;;
-	    esac
-	fi
+	    fi
+	    ;;
+	sio*)
+	    if [ "$curconsole" != "comconsole" ]; then
+		# not comconsole, fix it
+		changecons=1
+		fixit=1
+	    else
+		# see if the com port has changed
+		unit=`expr ${CONSOLE#sio} - 1`
+		flags=`getloadervar hint.uart.$unit.flags /mnt`
+		if [ -z "$flags" ]; then
+		    flags=`getloadervar hint.sio.$unit.flags /mnt`
+		fi
+		if [ "$flags" != "0x10" ]; then
+		    changecons=1
+		    fixit=1
+		fi
+	    fi
+	    ;;
+	esac
 
         # check to see if we need to download any postconfig scripts:
 	doosconfig=0
@@ -389,7 +467,7 @@ dofreebsd() {
 		fi
 	    fi
 
-	    # Check the root keys
+	    # Check the root keys.
 	    if [ -e /root/.ssh/authorized_keys2 ]; then
 		cmp -s /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys
 		if [ $? -ne 0 ]; then
@@ -398,7 +476,7 @@ dofreebsd() {
 		fi
 	    fi
 	
-	    # Check the host keys
+	    # Check the host keys.
 	    if [ -e /etc/ssh/ssh_host_key ]; then
 		cmp -s /etc/ssh/ssh_host_key /mnt/etc/ssh/ssh_host_key
 		if [ $? -ne 0 ]; then
@@ -550,19 +628,104 @@ EOF2
 	fi
 
 	#
-	# Remove console="comconsole"
+	# Fix up console.
+	# null and vga are easy, just set console={null,vid}console
+	# Serial port requires tweaking/adding hints.
 	#
 	if [ $changecons -eq 1 ]; then
-	    echo "  disabling comconsole"
+	    echo "  setting console to $CONSOLE"
+
 	    if [ -n "$lcbak" ]; then
 		cp -fp /mnt/boot/loader.conf /mnt/boot/loader.conf${lcbak}
 		lcbak=""
 	    fi
-	    sed -E -i -e "/^console=\"comconsole\"/d" /mnt/boot/loader.conf || {
+	    # get rid of any existing console setting
+	    sed -i -e "/^console=/d" /mnt/boot/loader.conf || {
 		echo "Failed to update /boot/loader.conf"
 		umount $rootdev
 		return 1
 	    }
+
+	    case $CONSOLE in
+	    null|vid)
+		cname="${CONSOLE}console"
+		;;
+	    sio1)
+		cname="comconsole"
+		unit=0
+		port=0x3F8
+		irq=4
+		;;
+	    sio2)
+		cname="comconsole"
+		unit=1
+		port=0x2F8
+		irq=3
+		;;
+	    sio3)
+		cname="comconsole"
+		unit=2
+		port=0x3E8
+		irq=5
+		;;
+	    sio4)
+		cname="comconsole"
+		unit=3
+		port=0x2E8
+		irq=9
+		;;
+	    esac
+
+	    # spit out the name
+	    cat <<EOF1 >>/mnt/boot/loader.conf
+console="$cname"
+EOF1
+
+	    # get rid of any comconsole excesses
+	    if [ "$curconsole" = "comconsole" ]; then
+		sed -i -e "/^comconsole/d" -e "/^hint.$drv./d" /mnt/boot/loader.conf
+	    fi
+
+	    # now deal with comconsole settings
+	    if [ "$cname" = "comconsole" ]; then
+		#
+		# Determine driver name:
+		# if /boot/device.hints does not exist, assume "sio" (pre 5?)
+		# ow, if hint.uart.0.at exists, it is "uart" (8+)
+		# ow, if hint.sio.0.at exists, it is "sio" (5-7)
+		#
+		drv=none
+		at=`getloadervar hint.uart.0.at /mnt`
+		if [ -n "$at" ]; then
+		    drv=uart
+		else
+		    at=`getloadervar hint.sio.0.at /mnt`
+		    if [ -n "$at" ]; then
+			drv=sio
+		    fi
+		fi
+
+		# XXX should be passed in
+		speed=115200
+
+		# only change things if there were hints found
+		if [ $drv != "none" ]; then
+		    # put in the new info
+		    cat <<EOF2 >>/mnt/boot/loader.conf
+comconsole_port="$port"
+comconsole_speed="$speed"
+hint.$drv.0.flags="0x0"
+hint.$drv.1.flags="0x0"
+hint.$drv.2.flags="0x0"
+hint.$drv.3.flags="0x0"
+hint.$drv.$unit.at="isa"
+hint.$drv.$unit.port="$port"
+hint.$drv.$unit.irq="$irq"
+hint.$drv.$unit.flags="0x10"
+hint.$drv.$unit.disabled="0"
+EOF2
+		fi
+	    fi
 	fi
 
 	#
