@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -494,8 +494,12 @@ STATUS=`$BINDIR/tmcc status`
 
 BOSSIP=`echo $BOSSINFO | awk '{ print $2 }'`
 
+NTPIP=`grep -w ntp1 /etc/hosts 2>/dev/null | awk '{ print $1 }'`
+if [ -z "$NTPIP" ]; then
+    NTPIP=$BOSSIP
+fi
 if [ -x /usr/sbin/ntpdate ]; then
-	/usr/sbin/ntpdate -b $BOSSIP >/dev/null 2>&1
+	/usr/sbin/ntpdate -b $NTPIP >/dev/null 2>&1
 fi
 
 # Enable IPoD
