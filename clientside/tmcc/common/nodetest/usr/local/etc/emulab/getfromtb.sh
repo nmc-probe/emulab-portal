@@ -20,7 +20,7 @@ getfromtb() {
 		pc472 | pc446 | pc406 | pc511 ) echo "12GiB" ;;
 		pc603 | pc607 | pc606 ) echo "128GiB" ;;
 		dbox3 ) echo "48GiB" ;;
-		* ) echo "tb ${d[1]} unknown_host" ;;
+		* ) echo "tb ${d[1]} unknown_node" ;;
 	    esac
 	    ;;
 	cpuinfo )
@@ -36,7 +36,7 @@ getfromtb() {
 		pc603 | pc607 | pc606 ) echo "x86_64 4 8 2 2200 111" ;;
 		dbox3 ) echo "x86_64 2 6 2 2600 111" ;;
 		* ) 
-		    echo "tb ${d[1]} unknown_host"
+		    echo "tb ${d[1]} unknown_node"
 	            return 1
 		    ;;
 	    esac
@@ -54,10 +54,10 @@ getfromtb() {
 		pc446 ) echo "WD-WMAYP3465928 9SF16G29" ;;
 		pc511 ) echo "WD-WMAYP4342739 9SF1703S" ;;
 		pc603 | pc607 ) echo "250GB 600GB 600GB 600GB 600GB 600GB 600GB" ;;
-		pc606 ) echo "EA03PC309EVC EA03PC309EPB EA03PC309E9S EA03PC20973J EA03PC20973B EA03PC309E5U" ;;
+		pc606 ) echo "EA03PC309EVC 9XE02KSQ  EA03PC309EPB EA03PC309E9S EA03PC20973J EA03PC20973B EA03PC309E5U" ;;
 		dbox3 ) echo "9SP2LK89 9SP2LLRK" ;;
 		* ) 
-		    echo "unknown_host"
+		    echo "unknown_node"
 	            return 1
 		    ;;
 	    esac
@@ -79,7 +79,7 @@ getfromtb() {
 		boss.emulab.net ) echo "001143e453fe 001143e453ff 000e0c21a0fa 0002e3001c10" ;;
 		dbox3 ) echo "c80aa9f17ce6 c80aa9f17ce7 e89a8f63eac2 e89a8f63eac3" ;;
 		* )
-		    echo "unknown_host"
+		    echo "unknown_node"
 		    return 1
 		    ;;
 	    esac
