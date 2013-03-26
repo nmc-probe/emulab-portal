@@ -1478,6 +1478,7 @@ CREATE TABLE `external_networks` (
   `external_manager` tinytext,
   `external_interface` tinytext,
   `external_wire` tinytext,
+  `external_subport` tinytext,
   `mode` enum('chain','tree') NOT NULL default 'tree',
   PRIMARY KEY  (`network_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
