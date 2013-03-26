@@ -3886,7 +3886,7 @@ class node:
             (exitval, output) = runcommand(TBDIR + "/bin/power off " + argstr)
             if exitval:
                 return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
-            time.sleep(10)
+            time.sleep(30)
             (exitval, output) = runcommand(TBDIR + "/bin/power on " + argstr)
             if exitval:
                 return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
