@@ -9,6 +9,7 @@ _32KGiB=33554432
 echo -n ' Starting memcheck..'
 
 source getfromtb.sh
+source hbis.sh
 
 declare failed="" s=""
 

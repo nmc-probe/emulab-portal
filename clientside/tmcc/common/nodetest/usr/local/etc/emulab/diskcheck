@@ -7,8 +7,8 @@ echo -n ' Starting diskcheck..'
 
 # first arg is the log output file, if not set then /tmp/...
 
-#source /usr/local/etc/emulab/getfromtb.sh
 source getfromtb.sh
+source hbis.sh
 
 SMARTCTL=""
 failed=""
@@ -44,6 +44,9 @@ set -u
 	# unrecongnized
 	rtn=$($SMARTCTL --scan | grep UNRECOGNIZED)
 	[[ $rtn ]] && error="(smartctl option '--scan' not supported" && failed=scan
+	# output unexpected
+	rtn=$($SMARTCTL --scan | grep device)
+	[[ ! $rtn ]] && error="(smartctl option '--scan' strange ouput" && failed=scan
 	# empty
 	rtn=$($SMARTCTL --scan)
 	if [ -z "$rtn" ] ; then
@@ -75,7 +78,7 @@ case $failed in
 	placeholder=" . . . . . device"
 	case $os in
 	    Linux )
-		list="a b c d e f g"
+		list="a b c d e f g h i j k l m n o p"
 		for i in $list
 		do
 		    if [ -b /dev/sd${i} ] ; then
@@ -84,12 +87,11 @@ case $failed in
 		done
 		;;
 	    FreeBSD )
-		list="0 1 2 3 4 5 6"
+		list="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
 		for i in $list
 		do
-		    if [ -b /dev/da${i} ] ; then
-			buildscan+="/dev/da${i} $placeholder"
-		    fi
+		    [[ -b /dev/da${i} ]] && buildscan+="/dev/da${i} $placeholder " 
+		    [[ -c /dev/ad${i} ]] && buildscan+="/dev/ad${i} $placeholder " 
 		done
 		;;
 	    * )
@@ -98,7 +100,6 @@ case $failed in
 		;;
 	esac
 	declare -a scan=($buildscan)
-
 	;;
     missing | device )
 	echo "$error. FAIL"
@@ -220,7 +221,7 @@ tbinfo=$(getfromtb diskinfo $host)
 error=$?
 # echo drivesize:$drivesize: tbinfo:$tbinfo: error:$error
 
-[[ "$tbinfo" == "$driveinfo" ]] && failed="" || failed="TBmiss Have |$driveinfo| Want |$tbinfo|"
+[[ "$tbinfo" == "$driveinfo" ]] && failed="" || failed="TBmiss Found |$driveinfo| DBsays |$tbinfo|"
 
 
 [[ ${failed} ]] && echo " ${failed} FAILED" || echo " OK"
