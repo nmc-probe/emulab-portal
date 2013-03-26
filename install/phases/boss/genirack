@@ -1,20 +1,23 @@
 #
 # TODO:
-# Build from /usr/testbed/src/emulab-stable.
 #
 # Bake in the routable ip space if possible
-# Add partial reverse zone stuff. See the NOTES file. 
-# 
+# Add partial reverse zone stuff. See the NOTES file.
+#
+
 use strict;
 use libinstall;
 use installvars;
 use libtestbed;
 use emutil;
+use libEmulab;
 use emdb;
 use User;
 use NodeType;
 use OSinfo;
 use Image;
+use Node;
+use EmulabFeatures;
 
 my $EMULABDEVEL  = "git://git-public.flux.utah.edu/emulab-devel.git";
 my $EMULABSTABLE = "git://git-public.flux.utah.edu/emulab-stable.git";
@@ -35,8 +38,10 @@ my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU12-64-STD");
 my $PGOSSITEVAR  = "protogeni/default_osname";
 my $CHPASS	 = "/usr/bin/chpass";
 my $SSHTB	 = "$PREFIX/bin/sshtb";
+my $DELETENODE	 = "$PREFIX/sbin/deletenode";
 my $RACKNTPCONF  = "$TOP_SRCDIR/install/genirack/ntp.conf";
 my $ETCNTPCONF   = "/etc/ntp.conf";
+my $ELABMANDIR   = "/users/elabman";
 
 my %INTERFACES = (
     "xn1"   => "inet 10.1.1.1 netmask 255.255.255.0",
@@ -212,9 +217,19 @@ sub Install($$$)
 	}
 
 	#
+	# Trun on arp lockdown.
+	#
+	if (0) {
+	Phase "arplockdown", "Turning on arplockdown", sub {
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "general/arplockdown staticonly");
+	};
+	}
+
+	#
 	# A reasonable default image.
 	#
-	Phase "sitevar", "Setting sitevar $PGOSSITEVAR", sub {
+	Phase "sitevar1", "Setting sitevar $PGOSSITEVAR", sub {
 	    my $osinfo = OSinfo->LookupByName($DEFAULTOSID);
 	    PhaseFail("Could not look up $DEFAULTOSID osid")
 		if (!defined($osinfo));
@@ -222,6 +237,35 @@ sub Install($$$)
 	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
 			   "'$PGOSSITEVAR' '$DEFAULTOSID'");
 	};
+
+	#
+	# Latitude/Longitude
+	#
+	if (exists($configvars{'GENIRACK_COUNTRY'}) &&
+	    $configvars{'GENIRACK_COUNTRY'} ne "") {
+	    Phase "sitevar2", "Setting country sitevar", sub {
+		SetSiteVar("general/default_country",
+			   $configvars{'GENIRACK_COUNTRY'})
+		    or PhaseFail("failed");
+	    };
+	}
+	if (exists($configvars{'GENIRACK_LATITUDE'}) &&
+	    $configvars{'GENIRACK_LATITUDE'} ne "") {
+	    Phase "sitevar3", "Setting latitude sitevar", sub {
+		SetSiteVar("general/default_latitude",
+			   $configvars{'GENIRACK_LATITUDE'})
+		    or PhaseFail("failed");
+	    };
+	}
+	if (exists($configvars{'GENIRACK_LONGITUDE'}) &&
+	    $configvars{'GENIRACK_LONGITUDE'} ne "") {
+	    Phase "sitevar4", "Setting longitude sitevar", sub {
+		SetSiteVar("general/default_longitude",
+			   $configvars{'GENIRACK_LONGITUDE'})
+		    or PhaseFail("failed");
+	    };
+	}
+	
 	
 	#
 	# Shutdown the testbed for the rest of this.
@@ -235,6 +279,7 @@ sub Install($$$)
 	#
 	# Create a clone of emulab-devel while we are close to the server.
 	#
+	if (0) {
 	Phase "cloning1", "Cloning emulab-devel repository", sub {
 	    DoneIfExists("$PREFIX/src/emulab-devel");
 	    ExecQuietFatal("cd $PREFIX/src; ".
@@ -245,6 +290,7 @@ sub Install($$$)
 	    ExecQuietFatal("cd $PREFIX/src; ".
 			   "    git clone $EMULABSTABLE emulab-stable");
 	};
+	}
 
 	#
 	# Also grab the port source while close to the server.
@@ -437,6 +483,26 @@ sub Install($$$)
 	};
 
 	#
+	# Add this feature so we get the right libvtop.
+	#
+	my $LIBVTOP_FEATURE     = "LibVtopTest";
+	my $LIBVTOP_DESRIPTION  = "Test version of libvtop";
+    
+	my $feature = EmulabFeatures->Lookup($LIBVTOP_FEATURE);
+	Phase "feature", "Adding libvtop_test feature", sub {
+	    PhaseSkip("already exists")
+		if (defined($feature));
+	    $feature = EmulabFeatures->Create($LIBVTOP_FEATURE,
+					      $LIBVTOP_DESRIPTION);
+	    PhaseFail("Failed to create feature")
+		if (!defined($feature));
+	};
+	Phase "feature", "Enabling libvtop_test feature", sub {
+	    $feature->SetGlobalEnable(1) == 0
+		or PhaseFail("Could not enable feature");
+	};
+
+	#
 	# Update the DB with the switch community string.
 	#
 	if (exists($configvars{'GENIRACK_COMMUNITY'})) {
@@ -445,6 +511,15 @@ sub Install($$$)
 			"snmp_community=$safe_password")
 		or PhaseFail("Could not set snmp community strings");
 	}
+
+	#
+	# Delete existing ops node; we recreate it later. 
+	#
+	Phase "opsnode", "Deleting ops node", sub {
+	    PhaseSkip("already deleted")
+		if (!defined(Node->Lookup("ops")));
+	    ExecQuietFatal("$DELETENODE -f -s ops");
+	};
 
 	#
 	# Shutdown DHCP and fix the dynamic range that rc.mkelab changed.
@@ -518,6 +593,44 @@ sub Install($$$)
 
 	Phase "ntpconf", "Installing better /etc/ntp.conf", sub {
 	    ExecQuietFatal("/bin/cp -fp $RACKNTPCONF $ETCNTPCONF");
+	};
+
+	#
+	# 
+	#
+	Phase "buildenv", "Creating build environment", sub {
+	    Phase "mkdir", "Creating directory in elabman", sub {
+		DoneIfExists("$ELABMANDIR/emulab-devel");
+		mkdir "$ELABMANDIR/emulab-devel",0775 or
+		    PhaseFail("Unable to create $ELABMANDIR/emulab-devel: $!");
+
+	    };
+	    Phase "cpdefs", "Coping defs file to elabman", sub {
+		DoneIfExists("$ELABMANDIR/emulab-devel/defs-genirack");
+		ExecQuietFatal("/bin/cp -f $PREFIX/src/testbed/defs-genirack ".
+			       "        $ELABMANDIR/emulab-devel");
+	    };
+	    Phase "mvsrc", "Moving src directory to elabman", sub {
+		DoneIfExists("$ELABMANDIR/emulab-devel/emulab-devel");
+		ExecQuietFatal("/bin/mv -f $PREFIX/src/testbed ".
+			       "        $ELABMANDIR/emulab-devel/emulab-devel");
+	    };
+	    Phase "mvobj", "Moving obj directory to elabman", sub {
+		DoneIfExists("$ELABMANDIR/emulab-devel/obj");
+		ExecQuietFatal("/bin/mv -f $PREFIX/obj/testbed ".
+			       "        $ELABMANDIR/emulab-devel/obj");
+	    };
+	    Phase "srcsymlink", "Leaving src symlink behind", sub {
+		DoneIfExists("$PREFIX/src/testbed");
+		ExecQuietFatal("cd $PREFIX/src; ln -s ".
+			       "  $ELABMANDIR/emulab-devel/emulab-devel ".
+			       "  testbed");
+	    };
+	    Phase "objsymlink", "Leaving obj symlink behind", sub {
+		DoneIfExists("$PREFIX/obj/testbed");
+		ExecQuietFatal("cd $PREFIX/obj; ln -s ".
+			       "  $ELABMANDIR/emulab-devel/obj obj");
+	    };
 	};
 
 	PhaseSucceed("Rack Setup Done");

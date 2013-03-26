@@ -1,8 +1,7 @@
 #
 # Additional stuff for setting up the geni racks. 
 #
-# This has to happen after reboot. Not sure yet ... 
-#  remove rc.local
+# TODO:
 #
 use strict;
 use libinstall;
@@ -100,6 +99,10 @@ sub Install($$$)
 	    };
 	    Phase "rc.testbed", "Installing testbed RC scripts", sub {
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d control-install");
+	    };
+	    Phase "control", "Installing control node clientside scripts", sub {
+		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/clientside/tmcc/freebsd ".
+			       "control-install");
 	    };
 	    CreateFile("$PREFIX/marker", "genirack install marker");
 	};
@@ -202,7 +205,7 @@ sub Install($$$)
 	#
 	if (defined($configvars{"NAMED_FORWARDERS"})) {
 	    my $forwarders = $configvars{"NAMED_FORWARDERS"};
-	    my @forwarders = split(/\s+/, $forwarders);
+	    my @forwarders = split(/[\s,]+/, $forwarders);
 	    if (@forwarders) {
 		@forwarders = map {"nameserver $_"} @forwarders;
 		
