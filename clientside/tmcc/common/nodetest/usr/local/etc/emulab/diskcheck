@@ -13,6 +13,7 @@ source hbis.sh
 SMARTCTL=""
 failed=""
 error=""
+err=""
 
 os=`uname -s`
 host=`hostname`
@@ -41,25 +42,27 @@ set -u
 	fi
     fi
     if [ -x "${SMARTCTL}" ] ; then
-	# unrecongnized
-	rtn=$($SMARTCTL --scan | grep UNRECOGNIZED)
-	[[ $rtn ]] && error="(smartctl option '--scan' not supported" && failed=scan
-	# output unexpected
-	rtn=$($SMARTCTL --scan | grep device)
-	[[ ! $rtn ]] && error="(smartctl option '--scan' strange ouput" && failed=scan
-	# empty
 	rtn=$($SMARTCTL --scan)
-	if [ -z "$rtn" ] ; then
+	# unrecongnized
+	if [ -n "$(echo $rtn | grep 'UNRECOGNIZED OPTION')" ] ; then
+	    error="(smartctl option '--scan' not supported. Attempt alternet method) "
+	    err=scan
+	elif [ -n "$(echo $rtn | grep -v 'device')" ] ; then
+            # output in unexpected format - missing deliminator "device"
+	    error="(smartctl option '--scan' strange ouput. Attempt alternet method) "
+	    err=scan
+	# empty
+	elif [ -z "$rtn" ] ; then
 	    dt=$(df / | grep /dev)
 	    dt=${dt:5}
 	    dt=${dt%% *}
 	    error="(smartctl device_type '$dt' not supported"
-	    failed=device 
+	    err=device 
 	fi
 	[[ $error ]] && echo "$error"
     else	    
 	error="smartmontools missing."
-	failed="missing"
+	err="missing"
 	echo "$error. FAIL"
     fi
 } > ${tmplog} 2>&1
@@ -72,9 +75,9 @@ unset -v driveinv ; declare -a driveinv=()
 
 # put smartctl --scan into driveinv array
 # a better control flow control could be used 
-case $failed in
+case $err in
     scan )
-	echo -n "$error Attempt alternet method) "
+
 	placeholder=" . . . . . device"
 	case $os in
 	    Linux )
@@ -107,25 +110,27 @@ case $failed in
 	;;
     * )
         # get the output of --scan into array scan
-	unset -v scan ; declare -a scan=($($SMARTCTL --scan))
+	unset -v scan ; declare -a scan=($rtn)
 	;;
 esac
-    unset -v drive ; declare -a drivescan=()
-    #now split up each line using 'device' into the array drivescan
-    # This is an example of the string we are parsing:
-    # '/dev/sdb -d scsi # /dev/sdb, SCSI device'    
-    y=0
-     for elm in ${scan[@]} ; do
-set +u
-	drivescan[$y]="${drivescan[$y]} ${elm}"
-	[[ "${elm}" == "device" ]] && ((++y))
-set -u
-    done
 
+#now split up each line using 'device' into the array drivescan
+# This is an example of the string we are parsing:
+# '/dev/sdb -d scsi # /dev/sdb, SCSI device'    
+unset -v drive ; declare -a drivescan=()
+y=0
+for elm in ${scan[@]} ; do
+    set +u
+    drivescan[$y]="${drivescan[$y]} ${elm}"
+    [[ "${elm}" == "device" ]] && ((++y))
+    set -u
+done
+
+#echo ------------------- ${drivescan[@]}
 for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${drivescan[$idx]})
     lend=${#d[*]} ; x=$((lend - 2))
-
+    
     #name
     cnt=${#driveinv[$idx]}
     lname="${d[0]}"
@@ -135,32 +140,32 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     #if we did not get any info then fill in value meaning unknown.
     [[ ${#driveinv[*]} -eq $cnt ]] && driveinv[$idx]="MissingCMD"
     driveinv[$idx]+=" "
-
+    
     #driver
     cnt=${#driveinv[$idx]}
     driveinv[$idx]+="${d[2]}"
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
-
+    
     #type
     cnt=${#driveinv[$idx]}
     driveinv[$idx]+="${d[$x]}"
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
-
+    
     #size
     cnt=${#driveinv[$idx]}
     sz="$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $5$6}' | sed s/[][]//g)"
     if [[ $sz ]] ; then
 	driveinv[$idx]+="$sz"
-	else
+    else
 	x=$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $3}' | sed s/,//g)
 	[[ $x ]] && sz=$(hbis $x) || sz="UKN"
 	driveinv[$idx]+="$sz"
     fi
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
-
+    
     #temp
     cnt=${#driveinv[$idx]}
         #type 1
@@ -171,7 +176,7 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     fi
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
-
+    
     #vendor product
     cnt=${#driveinv[$idx]}
         #type 1
@@ -182,7 +187,7 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     fi
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
     driveinv[$idx]+=" "
-
+    
     # serial number
     driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Serial Number:" | awk '{print $3}')"
     [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
@@ -208,6 +213,7 @@ cat ${tmplog} >> ${logfile}
 
 driveinfo=""
 
+# echo name,size and serial to stdout, addr serialnumber
 for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${driveinv[$idx]})
     echo -n "${d[$name]} ${d[$size]} ${d[$serial]}  "
@@ -221,10 +227,62 @@ tbinfo=$(getfromtb diskinfo $host)
 error=$?
 # echo drivesize:$drivesize: tbinfo:$tbinfo: error:$error
 
-[[ "$tbinfo" == "$driveinfo" ]] && failed="" || failed="TBmiss Found |$driveinfo| DBsays |$tbinfo|"
+
+{ 
+#save for both output to stdout and log file 
+if [ -z "$tbinfo" ] ; then
+    failed="TBmiss no info"
+    echo "TBmiss empty info returned. Have ${tbinfo[@]} FAILED"
+fi
+
+#lower case
+tbinfo=${tbinfo,,}
+driveinfo=${driveinfo,,}
+# turn space seperated string into array
+unset -v tb; declare -a tb=(${tbinfo// / })
+unset -v have; declare -a have=(${driveinfo// / })
+
+havecnt=${#have[*]}
+tbcnt=${#tb[*]}
+numserial=${tbcnt}
+maxcnt=${tbcnt}
+
+if [[ ${tbcnt} -ne ${havecnt} ]] ; then
+    failed="TBmiss"
+    [[ ${tbcnt} -gt ${havecnt} ]] && maxcnt=${tbcnt} || maxcnt=${havecnt}
+fi
+
+for ((idx=0; idx<$maxcnt; idx++)) ; do
+    for ((ifi=0; ifi<$havecnt; ifi++)) ; do
+	for ((tbi=0; tbi<$tbcnt; tbi++)) ; do
+	    if [ "${have[$ifi]}" = "${tb[$tbi]}" ] ; then
+		have[$ifi]=''
+		tb[$tbi]=''
+	    fi
+	done
+    done
+done
+#turn array into string
+haveresult=${have[@]}
+tbresult=${tb[@]}
+
+if [[ "$haveresult" || "$tbresult" ]] ; then
+    if [[ $haveresult ]] ; then
+	failed="${failed}: NotIn TB $haveresult"
+    fi
+    if [[ $tbresult ]] ; then
+	failed="${failed}: TB Claims $tbresult"
+    fi
+fi
+
+echo -n "Have $havecnt drive"
+[[ ${havecnt} -gt 1 ]] && echo -n "s" 
+[[ -z ${failed} ]] && echo " OK" || echo " $failed" FAILED
 
 
-[[ ${failed} ]] && echo " ${failed} FAILED" || echo " OK"
+} > ${tmplog} 2>&1
+cat ${tmplog} >> $logfile
+cat ${tmplog}
 
 exit 0
 
