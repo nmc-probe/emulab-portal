@@ -123,7 +123,7 @@ if (! ($query_result =
 		   "      e.expt_swapped < date_sub(now(), interval 1 day) and ".
 		   "      nt.isvirtnode=0 and nt.isremotenode=0 and ".
 		   # Ignored shared hosts. 
-		   "      and r.sharing_mode is null ".
+		   "      r.sharing_mode is null ".
 		   "group by e.pid,e.eid ".
 		   "having ncount>0 ".
 		   "order by expt_swapped desc"))) {
