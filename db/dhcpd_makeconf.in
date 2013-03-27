@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -422,7 +422,10 @@ if ($install) {
 	    fatal("Bad pid for DHCPD: $dpid");
 	}
 	if (kill('TERM', $dpid) == 0) {
-	    fatal("Could not kill(TERM) process $dpid (dhcpd): $!");
+	    fatal("Could not kill(TERM) process $dpid (dhcpd): $!.\n".
+		  "    dhcpd will NOT be restarted.\n".
+		  "    Restart manually with ".
+		  "'/usr/local/etc/rc.d/2.dhcpd.sh start'\n");
 	}
 
         my $old_uid = $UID;
