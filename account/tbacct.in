@@ -770,7 +770,8 @@ sub UpdateWindowsPassword()
     my $new_wpswd  = shift(@ARGV);
 
     # Lets not do this if no changes.
-    if ($new_wpswd eq $target_user->w_pswd()) {
+    if (defined($target_user->w_pswd()) &&
+	$new_wpswd eq $target_user->w_pswd()) {
 	print "Password has not changed ...\n";
 	return 0;
     }
