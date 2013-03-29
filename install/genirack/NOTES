@@ -1,79 +1,8 @@
 Setting up an InstaGeni Rack. First, we need the following info:
 
-1. Domain for your rack. Something like instageni.foo.bar.edu
-
-1. IP subnet and netmask for your rack. This should be a static subnet;
-   Emulab acts as a DHCP server for the subnet (and the uplink should
-   not pass DHCP packets through).
-
-1. IP for the default router on the subnet.
-   Once you tell us the subnet and mask, we can assign IPs to the
-   infrastructure nodes (control node, ilo, boss, ops, foam, flowvisor,
-   etc). For example, on a /24 subnet (ideal!), boss will be XXX.YYY.ZZZ.4, 
-   which is important to know for the next step (configuring DNS delegation).
-   
-1. IP for your DNS forwarder(s). 
-   DNS for the rack subnet must be delegated to the local Emulab.
-   This includes the reverse lookup map. Assuming a /24 network, your
-   forward delegation will look like this. You also need the reverse map
-   delegated.
-
-	ns.instageni        IN      A       XXX.YYY.ZZZ.4
-	instageni           IN      NS      ns.instageni
-	instageni           IN      NS      ns.emulab.net.
-
-   As you can see, Utah will serve as a backup server for the rack.
-   
-   Note: If your subnet is partial, then the reverse name delegation is
-   classless; be sure to tell us how the reverse zone is delegated. For
-   example, the upper half of a /25 subnet will typically have the reverse
-   zone delegated to boss like this:
-
-	129/25 IN NS ns.instageni.foo.bar.edu.
-	129/25 IN NS ns.emulab.net. 
-	$GENERATE 129-255 $ IN CNAME $.129/XXX.XXX.XXX.XXX.in-addr.arpa.
-
-   which requires a corresponding setup on boss' DNS setup.
-   
-1. Login (email), and ssh version 2 public key for a local administrator.
-   This should be a real person, not a pseudo user. An administrator account
-   will be built on the control node, from which other admin accounts can
-   be added. See https://users.emulab.net/trac/protogeni/wiki/RackAdminAccounts
-   for more details on adding local admin accounts, and for instructions on
-   how to get an admin account inside the Emulab VMs. 
-
-1. What sections of your subnet should be reserved for "routable" ips for
-   VMs. VMs do not get routable IPs, so if you want to have access to them
-   from outside your subnet, you need to reserve a portion of your space in
-   the Emulab DB. For example, on a /24 network you could use 128-226. On a
-   /25 you could use 150-179 and 190-250 (or the equiv on the lower
-   half). We recommend these example ranges as they leave room for adding
-   more physical hosts later. 
-
-   NOTE: This can be changed as needed later, but is nice to setup early
-   for users.
-
-1. External network information.
-     A. We need to know what port on the data switch will bring in the
-        openflow vlan (1750). If you have the all-copper module, we
-        suggest that you use port 24 for the upwire to the switch
-        providing that vlan. If you use a different port, be sure to
-        tell us!
-     B. We also need to know any other external connections such as
-        ION, NLR, etc. For each of these connections, we need to know
-        what port on the data plane switch it comes in on, what vlan
-        numbers are available, and the endpoint. For example, here is
-        the info for the BBN rack:
-           * VLAN IDs 3747-3749 to Internet2
-	     (ION endpoint bbn.newy.ion.internet2.edu)
-           * VLAN IDs 2644-2649 to NLR
-	     (FrameNet endpoint bost.layer2.nlr.net[Gi9/2])
-     C. If you are really ambitious, you can generate a wiki page like
-        this: http://groups.geni.net/geni/wiki/SiteBbn  :-)
-	
-* Send Utah all of the above info so that we can "bake" the images
-  for you. Once you hear back from us, you may continue with these
-  instructions.
+* We start here, after you have sent Utah "checklist", waiting for the
+  images to be baked. Once you hear back from us, you may continue
+  with these instructions.
 
   Waiting, waiting, waiting ...
 
@@ -180,7 +109,8 @@ Setting up an InstaGeni Rack. First, we need the following info:
   will need to add the key from /root/.ssh/elabman_dsa to your ssh agent,
   and the pass phrase is in boss:/usr/testbed/etc/elabman_dsa.pswd
 
-* Make sure all five of the experimental nodes are fully powered off;
+
+  * Make sure all five of the experimental nodes are fully powered off;
   the ilo has to be off, and the easiest thing to do is just unplug
   them.
 
@@ -188,14 +118,15 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 * Connect to the 2620 using this command:
 
-	sudo screen /dev/ttyS0 115200
+	sudo screen /dev/ttyS0 19200
 
   It might not do anything when you carriage return; it is trying to sync
   up the speed (the switch does auto-sense). Wait 30 seconds, hit carriage
   return a few times again. If still not working, exit from screen ("^A \")
   and try again. Might take another iteration or two. When you have the
   prompt: 
-  
+
+  2610> config
   2610(config)> vlan 11
   2610(vlan-11)> name control-alternate
   2610(vlan-11)> untagged 24        XXXX Make sure about port number!
@@ -478,6 +409,16 @@ Setting up an InstaGeni Rack. First, we need the following info:
   All of the mailing lists are stored in ops:/etc/mail/lists. Add the local
   admin to the testbed-*.list files. Do not change the defs file, since we
   want the email to go to the local admin *and* Utah.
+
+* Run register_resources
+
+	boss> wap /usr/testbed/sbin/protogeni/register_resources
+
+* Run update_sitevars and addservers to get boss/ops into the DB
+  and to turn on arp lockdown.
+
+	boss> wap /usr/testbed/sbin/update_sitevars 
+	boss> wap /usr/testbed/sbin/addservers 
 
 ---
 TODO:
