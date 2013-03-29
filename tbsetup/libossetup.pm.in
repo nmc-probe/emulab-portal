@@ -43,6 +43,7 @@ use libosload;
 use Node;
 use NodeType;
 use libtblog;
+use Logfile;
 use English;
 use Data::Dumper;
 use EmulabFeatures;
@@ -918,7 +919,7 @@ sub NewType($$)
     # Not loaded?
     if ($@) {
 	#print STDERR "module load failed: " . $@ . "\n";
-	eval "require libossetup_$type";
+	eval "require \"libossetup_" . $type . "\"";
 	$newtype  = eval { $packname->New($self); };
 	if ($@) {
 #	    print STDERR "$self NewType($type): module load failed: " . $@ . "\n"
@@ -1754,6 +1755,18 @@ sub WaitDone($@)
 	    print "$node_id is alive and well\n";
 	    $node->SetBootStatus(NODEBOOTSTATUS_OKAY);
 	    $node->SetAllocState(TBDB_ALLOCSTATE_RES_READY());
+
+	    #
+	    # Look for a node boot log and create a logfile from it. 
+	    #
+	    my $bootlog;
+	    if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
+		my $logfile = Logfile->CreateFromString($self->group(),
+							$bootlog);
+		if (defined($logfile)) {
+		    $logfile->SetMetadata({"bootlog" => $node->node_id()}, 1);
+		}
+	    }
 	    next;
 	}
 	$node->SetBootStatus(NODEBOOTSTATUS_FAILED);
@@ -1772,6 +1785,17 @@ sub WaitDone($@)
 	else {
 	    tbwarn("$node_id failed to boot\n");
 	}
+	#
+	# Look for a node boot log and create a logfile from it. 
+	#
+	my $bootlog;
+	if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
+	    my $logfile = Logfile->CreateFromString($self->group(), $bootlog);
+	    if (defined($logfile)) {
+		$logfile->SetMetadata({"bootlog" => $node->node_id()}, 1);
+	    }
+	}
+	
 	if ($node->_canfail() &&
 	    !($experiment->canceled() || $parent->noretry())) {
 
