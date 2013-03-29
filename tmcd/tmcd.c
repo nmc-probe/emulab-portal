@@ -10282,9 +10282,12 @@ COMMAND_PROTOTYPE(doarpinfo)
 
 		res = mydb_query("select i.node_id,i.IP,i.mac,n.role "
 				 "from interfaces as i,nodes as n "
+				 "left join reserved as r on r.node_id=n.node_id "
 				 "where n.node_id=i.node_id and i.role='ctrl' "
-				 " and n.role in ('testnode','virtnode') "
-				 " and i.mac not like '000000%%' ", 4);
+				 " and i.mac not like '000000%%' "
+				 " and (n.role='testnode' or "
+				 "      (n.role='virtnode' and "
+				 "       sharing_mode is null)) ", 4);
 		if (!res) {
 			error("doarpinfo: %s: DB Error getting"
 			      "control interface info\n", reqp->nodeid);
