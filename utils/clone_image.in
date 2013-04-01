@@ -66,6 +66,7 @@ my $global;
 #
 my $TB           = "@prefix@";
 my $PROJROOT     = "@PROJROOT_DIR@";
+my $GROUPROOT    = "@GROUPSROOT_DIR@";
 my $CREATEIMAGE  = "$TB/bin/create_image";
 my $NEWIMAGEEZ   = "$TB/bin/newimageid_ez";
 
@@ -151,6 +152,7 @@ if (!defined($experiment)) {
 }
 my $pid     = $experiment->pid();
 my $group   = $experiment->GetGroup();
+my $gid     = $group->gid();
 my $project = $experiment->GetProject();
 if (! (defined($project) && defined($group))) {
     fatal("Could not get project/group for $experiment");
@@ -213,6 +215,11 @@ print "$node_id is running $base_osinfo" .
     (defined($base_image) ? ",$base_image" : "") . "\n"
     if ($debug);
 
+# Subgroups change the path
+my $path = ($experiment->pid() eq $experiment->gid() ?
+	    "$PROJROOT/$pid/images/${imagename}.ndz" :
+	    "$GROUPROOT/$pid/$gid/images/${imagename}.ndz");
+
 #
 # Create the image descriptor. We use the backend script to do the
 # heavy lifting, but we have to cons up an XML file based on the image
@@ -228,7 +235,7 @@ my %xmlfields =
      "description"	=> $base_osinfo->description(),
      "OS"		=> $base_osinfo->OS(),
      "version"		=> $base_osinfo->version(),
-     "path"		=> "$PROJROOT/$pid/images/${imagename}.ndz",
+     "path"		=> $path,
      "op_mode",		=> $base_osinfo->op_mode(),
      "global"           => (defined($global) ?
 			    ($global ? 1 : 0) : $base_osinfo->shared()),
@@ -308,6 +315,8 @@ if ($debug) {
 my $output = emutil::ExecQuiet("$NEWIMAGEEZ -s -v $filename");
 if ($?) {
     print STDERR $output;
+    my $foo = `cat $filename`;
+    print STDERR $foo;
     fatal("Failed to verify image descriptor from $filename");
 }
 if ($impotent) {
