@@ -1621,7 +1621,7 @@ sub vz_vnodePreConfigControlNetwork {
     #
     print FD "$ctrlnet/$ctrlmaskbits dev ${CONTROL_IFDEV}\n";
     if ($isroutable) {
-	print FD "$JAILCTRLNET/$JAILCTRLNETMASK via $gw\n";
+	print FD "$JAILCTRLNET/$JAILCTRLNETMASK dev ${CONTROL_IFDEV}\n";
 	# Switch to real router.
 	$gw = `cat /var/emulab/boot/routerip`;
 	chomp($gw);
