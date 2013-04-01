@@ -890,6 +890,9 @@ sub os_ifconfig_veth($$$$$;$$$$%)
 
 	$uplines   .= "$VLANCONFIG add $iface $vtag\n    ";
 	$uplines   .= sprintf($IFCONFIG, $vdev, $inet, $mask);
+	# configure the MAC address.
+	$uplines   .= "\n    $IFCONFIGBIN $vdev hw ether $vmac"
+	    if ($vmac);
 	$downlines .= "$IFCONFIGBIN $vdev down\n    ";
 	$downlines .= "$VLANCONFIG rem $vdev";
     }
