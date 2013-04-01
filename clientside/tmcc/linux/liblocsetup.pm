@@ -2164,7 +2164,7 @@ sub os_config_gre($$$$$$$;$)
     if (GENVNODE() && GENVNODETYPE() eq "openvz") {
 	$dev = "gre$unit";
 
-	if (system("$IFCONFIGBIN $dev $inetip netmask $mask up")) {
+	if (system("$IFCONFIGBIN $dev $inetip netmask $mask mtu 1472 up")) {
 	    warn("Could not start tunnel $dev!\n");
 	    return -1;
 	}
