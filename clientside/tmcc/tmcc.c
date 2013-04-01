@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -157,6 +157,51 @@ tooktoolong(void)
 
 	siglongjmp(progtimo, 1);
 }
+
+/*
+ * We do not want to fail outright if we cannot resolve. Lets retry
+ * a few times. This is imperfect of course; the caller should deal
+ * with this, but most cases can be dealt with more easily here.
+ */
+struct hostent *
+gethostbyname_retry(const char *name)
+{
+	int		count = 5;
+
+	while (count) {
+		struct hostent *he = gethostbyname(name);
+		if (he)
+			return he;
+		if (debug) {
+			herror("gethostbyname failed");
+		}
+		count--;
+		if (count)
+			sleep(5);
+	}
+	return (struct hostent *) NULL;
+}
+
+struct hostent *
+gethostbyaddr_retry(const void *addr, socklen_t len, int type)
+{
+	int		count = 5;
+
+	while (count) {
+		struct hostent *he = gethostbyaddr(addr, len, type);
+		if (he)
+			return he;
+		if (debug) {
+			herror("gethostbyaddr failed");
+		}
+		count--;
+		if (count)
+			sleep(5);
+	}
+	return (struct hostent *) NULL;
+}
+#define gethostbyname gethostbyname_retry
+#define gethostbyaddr gethostbyaddr_retry
 
 int
 main(int argc, char **argv)
