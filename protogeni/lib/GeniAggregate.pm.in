@@ -1441,7 +1441,7 @@ sub WaitForNodes($@)
 	    # Bump waitime according to number of virtnodes on each physnode.
 	    #
 	    $node->_maxwait($node->_maxwait() +
-			    ($childcounts{$node->phys_nodeid()} * 60));
+			    ($childcounts{$node->phys_nodeid()} * 90));
 	    
 	    #
 	    # If the parent of a virtnode is not in the list, it
@@ -1592,7 +1592,7 @@ sub WaitForNodes($@)
 
 	SENDMAIL("$name <$email>", "$count nodes failed to boot",
 		 "Nodes:\n".
-		 "  " . join(" ", @nodes) . "\n".
+		 "  " . join(" ", @failed) . "\n".
 		 "in $urn failed.\n\n",
 		 $TBOPS, "Cc: $TBOPS");
     }
