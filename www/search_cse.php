@@ -32,6 +32,10 @@ $optargs = OptionalPageArguments("submit",      PAGEARG_STRING,
 if (!isset($query) || $query == "Search Documentation") {
     $query = "";
 }
+else {
+    $query = urldecode($query);
+    $query = preg_replace("/[\ ]+/", "+", $query);
+}
 header("Location: http://wiki.emulab.net/@@search?SearchableText=$query");
 
 ?>
