@@ -294,6 +294,7 @@ sub vnodeCreate($$$$)
 {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
     my $vninfo = $private;
+    my $cleanup = 0;
 
     # Create vmid from the vnode's name.
     my $vmid;
@@ -314,19 +315,29 @@ sub vnodeCreate($$$$)
 
     # Create the experimental net (tagged vlan) interface
     if (createVlanInterface($vnode_id, $vnconfig) != 0) {
-	TBScriptUnlock();
-	fatal("blockstore_vnodeCreate: ".
-	      "Failed to create experimental network interface!");
+	$cleanup = 1;
+	warn("blockstore_vnodeCreate: ".
+	     "Failed to create experimental network interface!");
     }
 
     # Create blockstore slice
     if (runBlockstoreCmds($vnode_id, $vnconfig, $private) != 0) {
-	TBScriptUnlock();
-	fatal("blockstore_vnodeCreate: ".
-	      "Blockstore slice creation failed!");
+	$cleanup = 1;
+	warn("blockstore_vnodeCreate: ".
+	     "Blockstore slice creation failed!");
     }
 
+    # Rain or shine, the creation attempt is done, so unlock.
     TBScriptUnlock();
+
+    # Try to cleanup if something failed above.  Existing callers
+    # appear to assume that if vnodeCreate() fails, then they don't
+    # need to do anything to clean up ...
+    if ($cleanup) {
+	vnodeDestroy($vnode_id, $vmid, $vnconfig, $private);
+	fatal("Failed creation attempt aborted.");
+    }
+
     return $vmid;
 }
 
