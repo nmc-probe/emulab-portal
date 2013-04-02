@@ -2569,9 +2569,7 @@ sub GenVirtLans($)
 	# for all vlinks on a physical link to use the same style!
 	# But we don't want to go there right now, so for simplicity,
 	# we require that the user specify identical values for all
-	# members of a virt_lan.  For now, we do this by ignoring per-link
-	# settings ($encap) and using only the global setting ($encapstyle)
-	# except for backward compat (see next paragraph).
+	# members of a virt_lan.  
 	#
 	# XXX this is made hideous by having both global and per-link
 	# encapsulation values that were previously used for two
@@ -2628,11 +2626,9 @@ sub GenVirtLans($)
 	# some pseudo-device on which to hang a route table ID; i.e:
 	# we cannot just do IP aliasing.
 	#
-	#
         # Encapsulation can be specified per link.  The default link
         # encapsulation can also be specified by a per-experiment
-        # setting.  At the moment, only the latter (global) is
-        # implemented.
+        # setting. 
         #
 	my $globalencap = $experiment->encap_style();
 
@@ -2649,12 +2645,6 @@ sub GenVirtLans($)
 	    $errors++;
 	    next;
 	}
-	if ($linkencap ne "default" && $linkencap ne $globalencap) {
-	    tbwarn("$vname: per-link encapsulation type not supported\n");
-	    $errors++;
-	    next;
-	}
-
 	if ($virtnodes) {
 	    #
 	    # At the present time, links with virtnodes require that we 
@@ -2669,7 +2659,11 @@ sub GenVirtLans($)
 	    # resource, and most VM implementations should support them in
 	    # some manner (eg: openvz veth device). 
 	    #
-	    if ($globalencap eq "default") {
+	    if ($linkencap ne "default") {
+		# Non default link encap overrides global encap.
+		$encapval = $linkencap;
+	    }
+	    elsif ($globalencap eq "default") {
 		$encapval = "veth-ne";
 	    }
 	    else {
@@ -2682,18 +2676,26 @@ sub GenVirtLans($)
 	    # be multiplexed (emulated). This allows the experimentor to
 	    # have more links then just the number of physical interfaces.
 	    # Encapsulation without multiplexing is okay, although useful
-	    # mostly for testing purposes. If the link is emulated but not
+	    # mostly for testing purposes. If the link is multiplexed but not
 	    # encapsulated, an encapsulation method must be chosen. We
 	    # prefer vlan these days cause it runs everywhere. Might want
 	    # to look at the nodesdo info at some point.
 	    #
 	    if ($emulated) {
-		if ($globalencap eq "default") {
+		if ($linkencap ne "default") {
+		    # Non default link encap overrides global encap.
+		    $encapval = $linkencap;
+		}
+		elsif ($globalencap eq "default") {
 		    $encapval = "vlan";
 		}
 		else {
 		    $encapval = $globalencap;
 		}
+	    }
+	    elsif ($linkencap ne "default") {
+		# Non default link encap overrides global encap.
+		$encapval = $linkencap;
 	    }
 	    elsif ($globalencap ne "default") {
 		$encapval = $globalencap;
