@@ -863,6 +863,17 @@ sub GetTicketAuxAux($$$$$$$$$)
 		goto bad;
 	    }
 	    #
+	    # Check for total hostname length > 64 characters. This
+	    # breaks a lot of clients. Do this until we have a plan
+	    # for dealing with it on the clients. 
+	    #
+	    my $fullhostname = $node_nickname . ".${eid}.${pid}.${OURDOMAIN}";
+	    if (length($fullhostname) > 64) {
+		$response = GeniResponse->Create(GENIRESPONSE_TOOBIG, undef,
+				 "Hostname > 64 characters: $fullhostname");
+	    }
+	    
+	    #
 	    # Is the node a virtual node? Must be an update to an
 	    # existing sliver/ticket, since we now return the node_id
 	    # of the allocated virtual node, not the physical node.
@@ -1557,8 +1568,6 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $ifacenum   = 1;
 	my $vindex     = 0;
 	my $trivial_ok = 1;
-	# Avoid multiple insertions for this setting.
-	my $sharedvlansetting = 0;
 
 	if (!defined($lanname)) {
 	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -1642,6 +1651,29 @@ sub GetTicketAuxAux($$$$$$$$$)
 	}
 
 	#
+	# Look for shared and tagging attributes for the link.
+	#
+	my $isshared = 0;
+	my $encap    = "default";
+
+	if (my $shared_vlan = GeniXML::GetSharedLanName($linkref)) {
+	    # This is the magic for libvtop.
+	    $virtexperiment->NewTableRow("virt_lan_settings",
+					 {"vname"   => $lanname,
+					  "capkey"  => "sharedvlan",
+					  "capval"  => $shared_vlan});
+	    $isshared = 1;
+	    $encap    = "vlan";
+	}
+	#
+	# Allow user to specify vlan encap, which might override that we
+	# just set it above. Experts only please.
+	#
+	if (GeniXML::HasTagSetting($linkref)) {
+	    $encap = (IsTaggedLan($linkref) ? "vlan" : "default");
+	}
+
+	#
 	# Sanity check, and determine if the link has any virtnodes
 	# in it, cause that is going to change the default bandwidth
 	# we use for the entire link or lan.
@@ -1678,6 +1710,14 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    if (defined($nodetype) && $nodetype->isvirtnode()) {
 		# 100Mb
 		$default_bandwidth = 100000;
+	    }
+
+	    #
+	    # Stitched links always use vlan encap. We could probably
+	    # set this latter in the mapper.
+	    #
+	    if (!$istunnel && exists($external_nodemap{$node_nickname})) {
+		$encap = "vlan";
 	    }
 	}
 
@@ -1779,7 +1819,6 @@ sub GetTicketAuxAux($$$$$$$$$)
 						 {"vname"    => $node_nickname,
 						  "desire"   => "pcshared",
 						  "weight"   => 0.95});
-			$virtexperiment->encap_style("vlan");
 		    }
 		    $iface_name  = $edgeiface->iface();
 		    $iface_vport = $external_vportmap{$node_nickname};
@@ -1868,41 +1907,14 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    if (defined($bblob->{'latency'}));
 		$bridge_vname = $bblob->{'name'};
 	    }
-	    
-	    # Watch for shared lans; we have to add the lan entries for them.
-	    my $shared_vlan = GeniXML::GetSharedLanName($linkref);
-	    if (defined($shared_vlan) && !$sharedvlansetting) {
-		# This is the magic for libvtop.
-		$virtexperiment->NewTableRow("virt_lan_settings",
-					     {"vname"   => $lanname,
-					      "capkey"  => "sharedvlan",
-					      "capval"  => $shared_vlan});
-
-		#
-		# We allow the rpsec to turn off vlan encap, but this
-		# is not generally advisable, so don't do it unless you
-		# know what you are doing.
-		#
-		if (! GeniXML::IsUntaggedLan($linkref)) {
-		    $virtexperiment->encap_style("vlan");
-		}
-
+	    if ($isshared) {
 		# Clear all this.
 		$bandwidth = 0;
 		$latency   = 0.0;
 		$lossrate  = 0.0;
-		$sharedvlansetting = 1;
 	    }
 	    
 	  stitch:
-	    #
-	    # Special hack to turn on vlan encap. The problem is that
-	    # this is an experiment wide setting right now.
-	    #
-	    if (GeniXML::IsTaggedLan($linkref)) {
-		$virtexperiment->encap_style("vlan");
-	    }
-	    
 	    my $virtlan =
 		$virtexperiment->NewTableRow("virt_lans",
 					 {"vname"       => $lanname,
@@ -1922,6 +1934,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 					  "rest_bandwidth" => $estbw,
 					  "rlossrate"   => 0.0,
 					  "bridge_vname"=> $bridge_vname,
+					  "encap_style" => $encap,
 					  "fixed_iface" => $iface_name});
 	    $vportmap{$member}->{"virtlan"} = $virtlan;
 	    $ifacenum++;
