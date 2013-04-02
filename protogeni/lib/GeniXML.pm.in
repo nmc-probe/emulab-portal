@@ -692,6 +692,14 @@ sub GetDelayPipes($)
     return @result;
 }
 
+sub HasTagSetting($)
+{
+    my ($link) = @_;
+    my @tagged = FindNodesNS("n:vlan_tagging", $link,
+			     $EMULAB_NS)->get_nodelist();
+    return scalar(@tagged);
+}
+
 sub IsUntaggedLan($)
 {
     my ($link) = @_;
