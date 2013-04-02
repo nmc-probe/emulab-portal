@@ -376,7 +376,7 @@ sub doboot()
     #
     # For SHAREDHOSTs we now use clusterd (no pubsubd or evproxy).
     #
-    if (SHAREDHOST()) {
+    if (SHAREDHOST() || STORAGEHOST()) {
 	#
 	# Kill off pubsubd and start clusterd. 
 	#
