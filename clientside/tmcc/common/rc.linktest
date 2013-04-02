@@ -52,7 +52,7 @@ sub LINKDELAYHOST() { if (-e TMLINKDELAY()) { return 1; } else { return 0; } }
 # Exit if not a valid node to run linktest on.
 # 
 exit(0)
-    if (MFS() || REMOTE() || SIMHOST() || JAILHOST() ||
+    if (MFS() || REMOTE() || SIMHOST() || JAILHOST() || STORAGEHOST() ||
 	(DELAYHOST() && !LINKDELAYHOST()));
 
 #
