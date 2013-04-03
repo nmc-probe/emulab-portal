@@ -112,6 +112,8 @@ my $SER_PREFIX           = "d0d0";
 my $VLAN_IFACE_PREFIX    = "vlan";
 my $MAX_BUSY_COUNT       = 5;
 my $SLICE_BUSY_WAIT      = 10;
+my $IFCONFIG             = "/sbin/ifconfig";
+my $ALIASMASK            = "255.255.255.255";
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -156,9 +158,8 @@ sub parseSliceName($);
 sub parseSlicePath($);
 sub calcSliceSizes($);
 sub getPoolList();
-sub mkVlanIfaceName($$$);
 sub getIfConfig($);
-sub interfaceExists($);
+sub getVlan($);
 sub createVlanInterface($$);
 sub runBlockstoreCmds($$$);
 sub removeVlanInterface($$);
@@ -960,18 +961,6 @@ sub genSerial() {
     return $SER_PREFIX . $rand_hex;
 }
 
-# Helper function - make vlan interface name given some inputs.
-sub mkVlanIfaceName($$$) {
-    my ($piface, $pmac, $vtag) = @_;
-
-    if ($vtag !~ /^(\d+)$/) {
-	return undef;
-    }
-
-    # return untainted interface name
-    return $VLAN_IFACE_PREFIX . $1;
-}
-
 # Helper function - get the _single_ ifconfig line passed in via tmcd.
 # If there is more than one, then there is a problem.
 sub getIfConfig($) {
@@ -997,24 +986,24 @@ sub getIfConfig($) {
 }
 
 # Helper function - search output of FreeNAS vlan CLI command for the
-# presence of the interface name passed in.
-sub interfaceExists($) {
-    my ($viface,) = @_;
+# presence of the vlan name passed in.  Return what is found.
+sub getVlan($) {
+    my ($vtag,) = @_;
 
-    return 0
-	if !defined($viface);
+    return undef
+	if (!defined($vtag) || $vtag !~ /^(\d+)$/);
 
-    my @ifaces = parseFreeNASListing($CLI_VERB_VLAN);
+    my @vlans = parseFreeNASListing($CLI_VERB_VLAN);
 
-    my $found = 0;
-    foreach my $iface (@ifaces) {
-	if ($viface eq $iface->{'vint'}) {
-	    $found = 1;
+    my $retval = undef;
+    foreach my $vlan (@vlans) {
+	if ($vtag == $vlan->{'tag'}) {
+	    $retval = $vlan;
 	    last;
 	}
     }
-
-    return $found;
+    
+    return $retval;
 }
 
 #
@@ -1034,10 +1023,10 @@ sub createVlanInterface($$) {
     my $pmac   = $ifc->{'PMAC'};
     my $piface = $ifc->{'IFACE'};
     my $ip     = $ifc->{'IPADDR'};
-    my $mask   = $ifc->{'IPMASK'};
+    my $qmask  = $ifc->{'IPMASK'};
+    my $lname  = $ifc->{'LAN'};
 
-    # Create vlan interface name
-    my $viface = mkVlanIfaceName($piface,$pmac,$vtag);
+    my $viface = $VLAN_IFACE_PREFIX . $vtag;
 
     # Untaint stuff.
     if ($piface !~ /^([-\w]+)$/) {
@@ -1062,45 +1051,67 @@ sub createVlanInterface($$) {
     $vtag = $1;
 
     if ($ip !~ /^([\.\d]+)$/) {
-	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ". 
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
 	     "bad data in IP address!");
 	return -1;
     }
     $ip = $1;
 
-    if ($mask !~ /^([\.\d]+)$/) {
-	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ". 
+    if ($qmask !~ /^([\.\d]+)$/) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
 	     "bad characters in subnet!");
 	return -1;
     }
-    $mask = libutil::CIDRmask($1);
+    my $cidrmask = libutil::CIDRmask($1);
 
-    # Kick back the request to create if the interface is already there.
-    if (interfaceExists($viface)) {
-	warn("*** ERROR: blockstore_createVlanInterface: ".
-	     "Interface already exists!");
-	return -1;
+    # see if vlan already exists.  do sanity checks to make sure this
+    # is the correct vlan for this interface, and then create it.
+    my $vlan = getVlan($vtag);
+    if ($vlan) {
+	my $vlabel = $vlan->{'description'};
+	# This is not a fool-proof consistency check, but the odds of
+	# having an existing vlan with the same LAN name and vlan tag
+	# as one in a different experiment are vanishingly small.
+	if ($vlabel ne $lname) {
+	    warn("*** ERROR: blockstore_createVlanInterface: ".
+		 "Mismatched vlan: $lname != $vlabel");
+	    return -1;
+	}
+
+	# Don't bother to check to see if the alias is already there.  Just
+	# try to create it.
+
+	# ARGH!  FreeNAS is trying to be helpful, and won't allow adding
+	# an alias that overlaps with an existing subnet.  Have to go after
+	# ifconfig directly...
+	if (system("$IFCONFIG $viface alias $ip netmask $ALIASMASK") != 0) {
+	    warn("*** ERROR: blockstore_createVlanInterface: ".
+		 "Failed to setup IP alias on $viface: $?");
+	    return -1;
+	}
+    }
+    # vlan does not exist.
+    else {
+	# Create the vlan entry in FreeNAS.
+	eval { runFreeNASCmd($CLI_VERB_VLAN,
+			     "add $piface $viface $vtag $lname") };
+	if ($@) {
+	    warn("*** ERROR: blockstore_createVlanInterface: ". 
+		 "failure while creating vlan interface: $@");
+	    return -1;
+	}
+
+	# Create the initial alias on this vlan interface.
+	eval { runFreeNASCmd($CLI_VERB_IFACE,
+			     "add $viface $vnode_id $ip/$cidrmask") };
+	if ($@) {
+	    warn("*** ERROR: blockstore_createVlanInterface: ".
+		 "failure while setting vlan interface parameters: $@");
+	    return -1;
+	}
     }
 
-    # First, create the vlan interface:
-    eval { runFreeNASCmd($CLI_VERB_VLAN,
-			 "add $piface $viface $vtag") };
-    if ($@) {
-	warn("*** ERROR: blockstore_createVlanInterface: ". 
-	     "failure while creating vlan interface: $@");
-	return -1;
-    }
-
-    # Next, set its address.
-    eval { runFreeNASCmd($CLI_VERB_IFACE,
-			 "add $viface $viface $ip/$mask") };
-    if ($@) {
-	warn("*** ERROR: blockstore_setVlanInterfaceIPAddress: ".
-	     "failure while setting vlan interface parameters: $@");
-	return -1;
-    }
-
-
+    # All done.
     return 0;
 }
 
@@ -1124,17 +1135,18 @@ sub removeVlanInterface($$) {
     my $piface = $ifc->{'IFACE'};
     my $ip     = $ifc->{'IPADDR'};
     my $mask   = $ifc->{'IPMASK'};
+    my $lname  = $ifc->{'LAN'};
 
-    # construct vlan interface name
-    my $viface = mkVlanIfaceName($piface,$pmac,$vtag);
+    # Create vlan interface name
+    my $viface = $VLAN_IFACE_PREFIX . $vtag;
 
-    if (!interfaceExists($viface)) {
+    if (!getVlan($vtag)) {
 	warn("*** WARNING: blockstore_removeVlanInterface: ".
 	     "Interface does not exist.");
 	return 0;
     }
 
-    # Delete it!
+    # Delete it!  This will zap the main ip address and all aliases too.
     eval { runFreeNASCmd($CLI_VERB_VLAN,
 			 "del $viface") };
     if ($@) {
