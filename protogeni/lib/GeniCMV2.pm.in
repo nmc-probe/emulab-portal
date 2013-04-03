@@ -2287,20 +2287,18 @@ sub Credential2SliceAggregate($)
 				 "Duplicate slice URN already exists here"));
 	}
 	if ($credential->expires() gt $slice->expires()) {
-	    #
 	    # The credential presented lasts longer than we thought the
 	    # slice did: our expiry date must have been stale.  This can
 	    # happen because the SA is always free to extend the lifetime
 	    # of a slice, and is not required to tell us.
 	    #
-	    # If the slice has already expired, then the expiration daemon will
-	    # take care of this, and lets not get in the way of that.
-	    # The user needed to renew the slice to prevent it.
-	    # 
-	    # If not expired, still do nothing; it is up to the user to renew
-	    # the sliver.
-	    #
-	    ;
+	    # This is important, because we use the slice expiry time
+	    # for a whole bunch of validity checks.  Requiring the user
+	    # to renew their sliver is not sufficient, because they might
+	    # not even HAVE a sliver (and if we don't keep the slice
+	    # expiry time right, they might not have permission to create
+	    # one, either).
+	    $slice->SetExpiration( $credential->expires() );
 	}
 	$aggregate = GeniAggregate->SliceAggregate($slice);
     }
