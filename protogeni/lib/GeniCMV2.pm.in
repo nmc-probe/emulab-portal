@@ -2286,7 +2286,10 @@ sub Credential2SliceAggregate($)
 	    return (GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				 "Duplicate slice URN already exists here"));
 	}
-	if ($credential->expires() gt $slice->expires()) {
+	my $cred_expires = str2time( $credential->expires() );
+	my $slice_expires = str2time( $slice->expires() );
+
+	if( $cred_expires > $slice_expires ) {
 	    # The credential presented lasts longer than we thought the
 	    # slice did: our expiry date must have been stale.  This can
 	    # happen because the SA is always free to extend the lifetime
@@ -2298,7 +2301,7 @@ sub Credential2SliceAggregate($)
 	    # not even HAVE a sliver (and if we don't keep the slice
 	    # expiry time right, they might not have permission to create
 	    # one, either).
-	    $slice->SetExpiration( $credential->expires() );
+	    $slice->SetExpiration( $cred_expires );
 	}
 	$aggregate = GeniAggregate->SliceAggregate($slice);
     }
