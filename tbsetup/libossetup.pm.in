@@ -1759,6 +1759,7 @@ sub WaitDone($@)
 	    #
 	    # Look for a node boot log and create a logfile from it. 
 	    #
+	    if (0) {
 	    my $bootlog;
 	    if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
 		my $logfile = Logfile->CreateFromString($self->group(),
@@ -1766,6 +1767,7 @@ sub WaitDone($@)
 		if (defined($logfile)) {
 		    $logfile->SetMetadata({"bootlog" => $node->node_id()}, 1);
 		}
+	    }
 	    }
 	    next;
 	}
@@ -1788,12 +1790,14 @@ sub WaitDone($@)
 	#
 	# Look for a node boot log and create a logfile from it. 
 	#
+	if (0) {
 	my $bootlog;
 	if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
 	    my $logfile = Logfile->CreateFromString($self->group(), $bootlog);
 	    if (defined($logfile)) {
 		$logfile->SetMetadata({"bootlog" => $node->node_id()}, 1);
 	    }
+	}
 	}
 	
 	if ($node->_canfail() &&
