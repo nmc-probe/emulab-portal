@@ -2301,6 +2301,7 @@ sub Credential2SliceAggregate($)
 	    # not even HAVE a sliver (and if we don't keep the slice
 	    # expiry time right, they might not have permission to create
 	    # one, either).
+	    print STDERR "Changing expiration from $slice_expires to $cred_expires\n";
 	    $slice->SetExpiration( $cred_expires );
 	}
 	$aggregate = GeniAggregate->SliceAggregate($slice);
