@@ -612,7 +612,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 					"Illegal valid_until in rspec");
 	}
 	# Convert to a localtime.
-	my $when = timegm(strptime($expires));
+	my $when = str2time($expires);
 	if (!defined($when)) {
 	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 					"Could not parse valid_until");
