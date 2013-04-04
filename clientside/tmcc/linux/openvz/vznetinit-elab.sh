@@ -27,6 +27,7 @@ IFCONFIG=/sbin/ifconfig
 ROUTE=/sbin/route
 IP=/sbin/ip
 BRCTL=/usr/sbin/brctl
+OVSCTL=/usr/local/bin/ovs-vsctl
 
 # ELABIFS="veth100.1,br0;veth100.2,brp3"
 # ELABBRS="br0:noencap,short;brp3:encap"
@@ -43,7 +44,11 @@ fi
 if [ $ELABCTRLDEV = $DEV ]; then
     echo "Emulab configuring network for CT$VEID: control net ($ELABCTRLDEV)"
     if [ "x$ELABCTRLBR" != "x" ]; then
-	$BRCTL addif $ELABCTRLBR $ELABCTRLDEV
+	if [ -e /usr/local/var/run/openvswitch/ovsdb-server.pid ]; then
+	    $OVSCTL add-port $ELABCTRLBR $ELABCTRLDEV
+	else
+	    $BRCTL addif $ELABCTRLBR $ELABCTRLDEV
+	fi
     fi
     $IFCONFIG $ELABCTRLDEV 2&>1 > /dev/null
     while [ $? -ne 0 ]; do
@@ -78,7 +83,11 @@ echo "$ELABIFS" | sed -e 's/;/\n/g' | \
 	if [ $_if = $DEV ]; then
 	    echo "Emulab configuring network for CT$VEID: exp net ($_if)"
     	    if [ "x$_br" != "x" ]; then
-	        $BRCTL addif $_br $_if
+		if [ -e /usr/local/var/run/openvswitch/ovsdb-server.pid ]; then
+		    $OVSCTL add-port $_br $_if
+		else
+	            $BRCTL addif $_br $_if
+		fi
 	    fi
 	    $IFCONFIG $_if 2&>1 > /dev/null
 	    while [ $? -ne 0 ]; do
@@ -96,16 +105,18 @@ echo "$ELABIFS" | sed -e 's/;/\n/g' | \
 #
 # Get the routes, as for tunnels. This is not a workable approach.
 #
-echo "$ELABROUTES" | sed -e 's/;/\n/g' | \
-    while read route; \
-    do \
-        _if=`echo "$route" | sed -r -e 's/([^,]*),[^,]*,[^,]*/\1/'`
-        _rt=`echo "$route" | sed -r -e 's/[^,]*,([^,]*),[^,]*/\1/'`
+if [ "x$ELABROUTES" != "x" ]; then
+    echo "$ELABROUTES" | sed -e 's/;/\n/g' | \
+	while read route; \
+	do \
+            _if=`echo "$route" | sed -r -e 's/([^,]*),[^,]*,[^,]*/\1/'`
+            _rt=`echo "$route" | sed -r -e 's/[^,]*,([^,]*),[^,]*/\1/'`
 
-	if [ $_if = $DEV ]; then
-	    echo "Emulab configuring route for CT$VEID: exp net ($_if)"
-	    $IP route replace $_rt dev $_if table $ROUTETABLE
-	fi
+	    if [ $_if = $DEV ]; then
+		echo "Emulab configuring route for CT$VEID: exp net ($_if)"
+		$IP route replace $_rt dev $_if table $ROUTETABLE
+	    fi
     done
+fi
 
 exit 0

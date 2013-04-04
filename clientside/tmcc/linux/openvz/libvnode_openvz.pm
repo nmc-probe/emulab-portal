@@ -156,6 +156,11 @@ my $USE_MACVLAN = 0;
 # Use control network bridging for all containers. 
 my $USE_CTRLBR  = 1;
 
+# Switch to openvswitch
+my $USE_OPENVSWITCH = 0;
+my $OVSCTL   = "/usr/local/bin/ovs-vsctl";
+my $OVSSTART = "/usr/local/share/openvswitch/scripts/ovs-ctl";
+
 #
 # If we are using a modern kernel, use netem instead of our own plr/delay
 # qdiscs (which are no longer maintained as of 11/2011).
@@ -190,11 +195,49 @@ sub GClvm($);
 sub GCbridge($);
 
 #
+# Bridge stuff
+#
+sub addbr($)
+{
+    my $br  = $_[0];
+    my $cmd = ($USE_OPENVSWITCH ? "$OVSCTL add-br" : "$BRCTL addbr") . " $br";
+
+    system($cmd);
+}
+sub delbr($)
+{
+    my $br  = $_[0];
+    my $cmd = ($USE_OPENVSWITCH ? "$OVSCTL del-br" : "$BRCTL delbr") . " $br";
+
+    system($cmd);
+}
+sub addbrif($$)
+{
+    my $br  = $_[0];
+    my $if  = $_[1];
+    my $cmd = ($USE_OPENVSWITCH ? "$OVSCTL add-port" : "$BRCTL addif") .
+	" $br $if";
+
+    system($cmd);
+}
+sub delbrif($$)
+{
+    my $br  = $_[0];
+    my $if  = $_[1];
+    my $cmd = ($USE_OPENVSWITCH ? "$OVSCTL del-port" : "$BRCTL delif") .
+	" $br $if";
+
+    system($cmd);
+}
+
+#
 # Initialize the lib (and don't use BEGIN so we can do reinit).
 #
 sub vz_init {
     makeIfaceMaps();
-    makeBridgeMaps();
+    if (!$USE_MACVLAN) {
+	makeBridgeMaps();
+    }
 
     #
     # Turn off LVM if already using a /vz mount.
@@ -407,7 +450,12 @@ sub vz_rootPreConfig {
     }
 
     # For tunnels
-    mysystem("$MODPROBE ip_gre");
+    if ($USE_OPENVSWITCH) {
+	mysystem("$MODPROBE openvswitch");
+    }
+    else {
+	mysystem("$MODPROBE ip_gre");
+    }
 
     # For VLANs
     mysystem("$MODPROBE 8021q");
@@ -442,11 +490,19 @@ sub vz_rootPreConfig {
     mysystem("$MODPROBE imq");
     mysystem("$MODPROBE ipt_IMQ");
 
+    # start up open vswitch stuff.
+    if ($USE_OPENVSWITCH) {
+	mysystem("$OVSSTART --delete-bridges start");
+    }
+
     #
     # Need to create a control network bridge to accomodate routable
     # control network addresses.
     #
-    mysystem("$BRIDGESETUP -b vzbr0");
+    if (! -e "/sys/class/net/vzbr0") {
+	mysystem("$BRIDGESETUP " .
+		 ($USE_OPENVSWITCH ? "-o" : "") . " -b vzbr0");
+    }
 
     # Create a DB to manage them. 
     my %MDB;
@@ -488,7 +544,9 @@ sub vz_rootPreConfigNetwork {
 
     # Do this again after lock.
     makeIfaceMaps();
-    makeBridgeMaps();
+    if (!$USE_MACVLAN) {
+	makeBridgeMaps();
+    }
     
     my @node_ifs = @{ $vnconfig->{'ifconfig'} };
     my @node_lds = @{ $vnconfig->{'ldconfig'} };
@@ -599,7 +657,7 @@ sub vz_rootPreConfigNetwork {
 	if (!$USE_MACVLAN) {
 	    # building bridges is an important activity
 	    if (! -d "/sys/class/net/$k/bridge") {
-		mysystem2("$BRCTL addbr $k");
+		addbr($k);
 		goto bad
 		    if ($?);
 		# record bridge created.
@@ -616,13 +674,13 @@ sub vz_rootPreConfigNetwork {
 		# this bridge.
 		my $obr = findBridge($brs{$k}{PHYSDEV});
 		if (defined($obr)) {
-		    mysystem2("$BRCTL delif " . $obr . " " .$brs{$k}{PHYSDEV});
+		    delbrif($obr, $brs{$k}{PHYSDEV});
 		    goto bad
 			if ($?);
 		    # rebuild hashes
 		    makeBridgeMaps();
 		}
-		mysystem2("$BRCTL addif $k $brs{$k}{PHYSDEV}");
+		addbrif($k, $brs{$k}{PHYSDEV});
 		goto bad
 		    if ($?);
 		# record iface added to bridge 
@@ -692,32 +750,30 @@ sub vz_rootPreConfigNetwork {
     #
     # Unwind anything we did.
     #
-    if ($USE_MACVLAN) {
-	# Remove interfaces we *added* to bridges.
-	if (exists($private->{'bridgeifaces'})) {
-	    foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
-		my $ref = $private->{'bridgeifaces'}->{$brname};
+    # Remove interfaces we *added* to bridges.
+    if (exists($private->{'bridgeifaces'})) {
+	foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
+	    my $ref = $private->{'bridgeifaces'}->{$brname};
 
-		foreach my $iface (keys(%{ $ref })) {
-		    mysystem2("$BRCTL delif $brname $iface");
-		    delete($ref->{$brname}->{$iface})
-			if (! $?);
- 		}
-	    }
-	}
-	# Delete bridges we *created* 
-	if (exists($private->{'bridges'})) {
-	    foreach my $brname (keys(%{ $private->{'bridges'} })) {
-		mysystem2("$IFCONFIG $brname down");
-		# We can delete this cause we still have the lock and
-		# no one else got a chance to add to it. 
-		mysystem2("$BRCTL delbr $brname");		
-		delete($private->{'bridges'}->{$brname})
+	    foreach my $iface (keys(%{ $ref })) {
+		delbrif($brname, $iface);
+		delete($ref->{$brname}->{$iface})
 		    if (! $?);
 	    }
 	}
     }
-    else {
+    # Delete bridges we *created* 
+    if (exists($private->{'bridges'})) {
+	foreach my $brname (keys(%{ $private->{'bridges'} })) {
+	    mysystem2("$IFCONFIG $brname down");
+	    # We can delete this cause we still have the lock and
+	    # no one else got a chance to add to it.
+	    delbr($brname);		
+	    delete($private->{'bridges'}->{$brname})
+		if (! $?);
+	}
+    }
+    if ($USE_MACVLAN) {
 	# Delete the dummy macvlan thingies we created.
 	if (exists($private->{'dummys'})) {
 	    # We can delete this cause we have the lock and no one else got
@@ -1069,37 +1125,35 @@ sub vz_vnodeTearDown {
     #
     # Unwind anything we did.
     #
-    if (!$USE_MACVLAN) {
-	# Remove interfaces we *added* to bridges.
-	if (exists($private->{'bridgeifaces'})) {
-	    foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
-		my $ref = $private->{'bridgeifaces'}->{$brname};
-
-		foreach my $iface (keys(%{ $ref })) {
-		    mysystem2("$BRCTL delif $brname $iface");
-		    goto badbad
-			if ($?);
-		    delete($ref->{$brname}->{$iface});
-		}
-		# Delete bridge when no more members.
-		# Another container might have created the bridge, but
-		# it exited first. So we need to clean it up.
-		if (my $foo = GCbridge($brname)) {
-		    goto badbad
-			if ($foo < 0);
-		    delete($private->{'bridges'}->{$brname})
-			if (exists($private->{'bridges'}->{$brname}));
-		}
-		delete($private->{'bridgeifaces'}->{$brname});
-	    }
-	}
-	# Delete bridges we created which have no current members.
-	if (exists($private->{'bridges'})) {
-	    foreach my $brname (keys(%{ $private->{'bridges'} })) {
+    # Remove interfaces we *added* to bridges.
+    if (exists($private->{'bridgeifaces'})) {
+	foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
+	    my $ref = $private->{'bridgeifaces'}->{$brname};
+	    
+	    foreach my $iface (keys(%{ $ref })) {
+		delbrif($brname, $iface);
 		goto badbad
-		    if (GCbridge($brname) < 0);
-		delete($private->{'bridges'}->{$brname});
+		    if ($?);
+		delete($ref->{$brname}->{$iface});
 	    }
+	    # Delete bridge when no more members.
+	    # Another container might have created the bridge, but
+	    # it exited first. So we need to clean it up.
+	    if (my $foo = GCbridge($brname)) {
+		goto badbad
+		    if ($foo < 0);
+		delete($private->{'bridges'}->{$brname})
+		    if (exists($private->{'bridges'}->{$brname}));
+	    }
+	    delete($private->{'bridgeifaces'}->{$brname});
+	}
+    }
+    # Delete bridges we created which have no current members.
+    if (exists($private->{'bridges'})) {
+	foreach my $brname (keys(%{ $private->{'bridges'} })) {
+	    goto badbad
+		if (GCbridge($brname) < 0);
+	    delete($private->{'bridges'}->{$brname});
 	}
     }
     # Delete the tunnel devices.
@@ -1131,6 +1185,14 @@ sub vz_vnodeTearDown {
 	    delete($private->{'iplinks'}->{$iface});
 	}
     }
+    # Delete the control veth from the bridge (USE_OPENVSWITCH=1).
+    if ($USE_OPENVSWITCH && exists($private->{'controlveth'})) {
+	my $cnet_veth = $private->{'controlveth'};
+	
+	mysystem2("$OVSCTL -- --if-exists del-port vzbr0 $cnet_veth");
+	delete($private->{'controlveth'});
+    }
+    
     #
     # A word about these two. David sez that it is impossible to garbage
     # collect these dummy devices cause once they move into a container,
@@ -1524,6 +1586,9 @@ sub vz_vnodePreConfigControlNetwork {
 	# to the xen equivalent code, this is what ya do. 
 	$ext_vethmac = "fe:ff:ff:ff:ff:ff";
     }
+    # Record the name of the control network veth so it can be removed
+    # from the bridge (USE_OPENVSWITCH=1).
+    $private->{"controlveth"} = $cnet_veth;
 
     #
     # we have to hack the VEID.conf file BEFORE calling --netif_add ... --save
@@ -1771,8 +1836,9 @@ sub vz_vnodePreConfigExpNetwork {
 	# XXX The server has also set the local admin flag (0x02), which
 	# is required, but we set it anyway.
 	#
+	my $veth;
 	my $eth     = "eth" . $ifc->{VTAG};
-	my ($vethmac,$ethmac) = build_fake_macs($ifc->{VMAC});
+	my ($ethmac,$vethmac) = build_fake_macs($ifc->{VMAC});
 	if (!defined($vethmac)) {
 	    print STDERR "Could not construct veth/eth macs\n";
 	    return -1;
@@ -1788,30 +1854,30 @@ sub vz_vnodePreConfigExpNetwork {
 	    # BUG here. interface might be left behind from a previous
 	    # failure. Broke during the tutorial.
 	    #
-	    my $vname = "mv$vmid.$ifc->{ID}";
-	    if (-e "/sys/class/net/$vname") {
-	        mysystem2("$IP link del dev $vname");
+	    $veth = "mv$vmid.$ifc->{ID}";
+	    if (-e "/sys/class/net/$veth") {
+	        mysystem2("$IP link del dev $veth");
 	    }
-	    mysystem("$IP link add link $physdev name $vname ".
-		     "  address $vethmac type macvlan mode bridge ");
-	    $private->{'iplinks'}->{$vname} = $physdev;
+	    mysystem("$IP link add link $physdev name $veth ".
+		     "  address $ethmac type macvlan mode bridge ");
+	    $private->{'iplinks'}->{$veth} = $physdev;
 	    
 	    #
 	    # When the bridge is a dummy, record that we added an interface
 	    # to it, so that we can garbage collect the dummy devices later.
 	    #
 	    if ($physdev eq $br) {
-		$private->{'dummyifaces'}->{$br}->{$vname} = $br;
+		$private->{'dummyifaces'}->{$br}->{$veth} = $br;
 	    }
 	    mysystem("$VZCTL $VZDEBUGOPTS set $vnode_id --netdev_add ".
-		     "  $vname --save");
+		     "  $veth --save");
 	}
 	else {
 	    #
 	    # Add to ELABIFS for addition to conf file (for runtime config by 
 	    # external custom script)
 	    #
-	    my $veth = "veth$vmid.$ifc->{ID}";
+	    $veth = "veth$vmid.$ifc->{ID}";
 	    if ($elabifs ne '') {
 		$elabifs .= ';';
 	    }
@@ -1836,52 +1902,55 @@ sub vz_vnodePreConfigExpNetwork {
 	    print STDERR "Could not get the tunne lock after a long time!\n";
 	    return -1;
 	}
-	$basetable = AllocateRouteTable("VZ$vmid");
-	if (!defined($basetable)) {
-	    print STDERR "Could not allocate a routing table!\n";
-	    TBScriptUnlock();
-	    return -1;
-	}
-	$private->{'routetables'}->{"VZ$vmid"} = $basetable;
-
-	#
-	# Get current gre list.
-	#
-	if (! open(IP, "/sbin/ip tunnel show|")) {
-	    print STDERR "Could not start /sbin/ip\n";
-	    TBScriptUnlock();
-	    return -1;
-	}
 	my %key2gre = ();
 	my $maxgre  = 0;
-	my $table   = $vmid + 100;
+	
+	if (! $USE_OPENVSWITCH) {
+	    $basetable = AllocateRouteTable("VZ$vmid");
+	    if (!defined($basetable)) {
+		print STDERR "Could not allocate a routing table!\n";
+		TBScriptUnlock();
+		return -1;
+	    }
+	    $private->{'routetables'}->{"VZ$vmid"} = $basetable;
 
-	while (<IP>) {
-	    if ($_ =~ /^(gre\d*):.*key\s*([\d\.]*)/) {
-		$key2gre{$2} = $1;
-		if ($1 =~ /^gre(\d*)$/) {
-		    $maxgre = $1
-			if ($1 > $maxgre);
+	    #
+	    # Get current gre list.
+	    #
+	    if (! open(IP, "/sbin/ip tunnel show|")) {
+		print STDERR "Could not start /sbin/ip\n";
+		TBScriptUnlock();
+		return -1;
+	    }
+	    my $table   = $vmid + 100;
+
+	    while (<IP>) {
+		if ($_ =~ /^(gre\d*):.*key\s*([\d\.]*)/) {
+		    $key2gre{$2} = $1;
+		    if ($1 =~ /^gre(\d*)$/) {
+			$maxgre = $1
+			    if ($1 > $maxgre);
+		    }
+		}
+		elsif ($_ =~ /^(gre\d*):.*remote\s*([\d\.]*)\s*local\s*([\d\.]*)/) {
+		    #
+		    # This is just a temp fixup; delete tunnels with no key
+		    # since we no longer use non-keyed tunnels, and cause it
+		    # will cause the kernel to throw an error in the tunnel add
+		    # below. 
+		    #
+		    mysystem2("/sbin/ip tunnel del $1");
+		    if ($?) {
+			TBScriptUnlock();
+			return -1;
+		    }
 		}
 	    }
-	    elsif ($_ =~ /^(gre\d*):.*remote\s*([\d\.]*)\s*local\s*([\d\.]*)/) {
-		#
-		# This is just a temp fixup; delete tunnels with no key
-		# since we no longer use non-keyed tunnels, and cause it
-		# will cause the kernel to throw an error in the tunnel add
-		# below. 
-		#
-		mysystem2("/sbin/ip tunnel del $1");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
+	    if (!close(IP)) {
+		print STDERR "Could not get tunnel list\n";
+		TBScriptUnlock();
+		return -1;
 	    }
-	}
-	if (!close(IP)) {
-	    print STDERR "Could not get tunnel list\n";
-	    TBScriptUnlock();
-	    return -1;
 	}
 
 	foreach my $tunnel (values(%{ $tunnels })) {
@@ -1895,49 +1964,80 @@ sub vz_vnodePreConfigExpNetwork {
 	    my $peerip   = $tunnel->{"tunnel_peerip"};
 	    my $mask     = $tunnel->{"tunnel_ipmask"};
 	    my $unit     = $tunnel->{"tunnel_unit"};
-	    my $grekey   = inet_ntoa(pack("N", $tunnel->{"tunnel_tag"}));
+	    my $grekey   = $tunnel->{"tunnel_tag"};
 	    my $gre;
+	    my $br;
 
-	    if (exists($key2gre{$grekey})) {
-		$gre = $key2gre{$grekey};
+	    if (!$USE_OPENVSWITCH) {
+		if (exists($key2gre{$grekey})) {
+		    $gre = $key2gre{$grekey};
+		}
+		else {
+		    $grekey = inet_ntoa(pack("N", $grekey));
+		    $gre    = "gre" . ++$maxgre;
+		    mysystem2("/sbin/ip tunnel add $gre mode gre ".
+			      "local $srchost remote $dsthost ttl 64 ".
+			      (0 ? "key $grekey" : ""));
+		    if ($?) {
+			TBScriptUnlock();
+			return -1;
+		    }
+		    mysystem2("/sbin/ifconfig $gre 0 up");
+		    if ($?) {
+			TBScriptUnlock();
+			return -1;
+		    }
+		    # Must do this else routing lookup fails. 
+		    mysystem2("echo 1 > /proc/sys/net/ipv4/conf/$gre/forwarding");
+		    if ($?) {
+			TBScriptUnlock();
+			return -1;
+		    }
+		    $key2gre{$grekey} = $gre;
+		    # Record gre creation.
+		    $private->{'tunnels'}->{$gre} = $gre;
+		}
+		#
+		# All packets arriving from gre devices will use the same table.
+		# The route will be a network route to the root context device.
+		# The route cannot be inserted until later, since the root 
+		# context device does not exists until the VM is running.
+		# See the route stuff in vznetinit-elab.sh.
+		#
+		mysystem2("/sbin/ip rule add unicast iif $gre table $basetable");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
+		$private->{'iprules'}->{$gre} = $gre;
 	    }
 	    else {
-		$gre = "gre" . ++$maxgre;
-		mysystem2("/sbin/ip tunnel add $gre mode gre ".
-			 "local $srchost remote $dsthost ttl 64 key $grekey");
+		#
+		# Need to create an openvswitch bridge and gre tunnel inside.
+		# We can then put the veth device into the bridge. 
+		#
+		# These are the devices outside the container. 
+		$gre = "gre$vmid.$unit";
+		$br  = "br$vmid.$unit";
+		mysystem2("$OVSCTL add-br $br");
 		if ($?) {
 		    TBScriptUnlock();
 		    return -1;
 		}
-		mysystem2("/sbin/ifconfig $gre 0 up");
+		# Record bridge created. 
+		$private->{'bridges'}->{$br} = $br;
+
+		mysystem2("$OVSCTL add-port $br $gre -- set interface $gre ".
+			  "  type=gre options:remote_ip=$dsthost " .
+			  "           options:local_ip=$srchost " .
+			  (0 ? "      options:key=$grekey" : ""));
 		if ($?) {
 		    TBScriptUnlock();
 		    return -1;
 		}
-		# Must do this else routing lookup fails. 
-		mysystem2("echo 1 > /proc/sys/net/ipv4/conf/$gre/forwarding");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
-		$key2gre{$grekey} = $gre;
-		# Record gre creation.
-		$private->{'tunnels'}->{$gre} = $gre;
-		
+		# Record iface added to bridge 
+		$private->{'bridgeifaces'}->{$br}->{$gre} = $br;
 	    }
-	    #
-	    # All packets arriving from gre devices will use the same table.
-	    # The route will be a network route to the root context device.
-	    # The route cannot be inserted until later, since the root 
-	    # context device does not exists until the VM is running.
-	    # See the route stuff in vznetinit-elab.sh.
-	    #
-	    mysystem2("/sbin/ip rule add unicast iif $gre table $basetable");
-	    if ($?) {
-		TBScriptUnlock();
-		return -1;
-	    }
-	    $private->{'iprules'}->{$gre} = $gre;
 	    
 	    # device name outside the container
 	    my $veth = "veth$vmid.tun$unit";
@@ -1950,46 +2050,56 @@ sub vz_vnodePreConfigExpNetwork {
 	    }
 	    # Leave bridge blank; see vznetinit-elab.sh. It does stuff.
 	    $elabifs .= "$veth,";
-	    # Route.
 
-	    if ($elabroutes ne '') {
-		$elabroutes .= ';';
+	    if ($USE_OPENVSWITCH) {
+		# Unless we are using openvswitch; gre can go into a bridge.
+		$elabifs .= "$br";
+		# Record for removal, even though this happens in vznetinit.
+		$private->{'bridgeifaces'}->{$br}->{$veth} = $br;
 	    }
-	    $elabroutes .= "$veth,$inetip,$gre";
 
-	    #
-	    # We need a routing table for each tunnel in the other direction.
-	    # This makes sure that all packets coming out of the root context
-	    # device (leaving the VM) got shoved into the real gre device.
-	    # Need to use a default route so all packets ae matched, which is
-	    # why we need a table per tunnel.
-	    #
-	    my $routetable = AllocateRouteTable($veth);
-	    if (!defined($routetable)) {
+	    # Route.
+	    if (!$USE_OPENVSWITCH) {
+		if ($elabroutes ne '') {
+		    $elabroutes .= ';';
+		}
+		$elabroutes .= "$veth,$inetip,$gre";
+
+		#
+		# We need a routing table for each tunnel in the other
+		# direction.  This makes sure that all packets coming out
+		# of the root context device (leaving the VM) got shoved
+		# into the real gre device.  Need to use a default route so
+		# all packets ae matched, which is why we need a table per
+		# tunnel.
+		#
+		my $routetable = AllocateRouteTable($veth);
+		if (!defined($routetable)) {
 		    print STDERR "No free route tables for $veth\n";
 		    TBScriptUnlock();
 		    return -1;
-	    }
-	    $private->{'routetables'}->{"$veth"} = $routetable;
+		}
+		$private->{'routetables'}->{"$veth"} = $routetable;
 
-	    #
-	    # Convenient, is that even though the root context device does
-	    # not exist, we can insert the ip *rule* for it that directs
-	    # the traffic through the iproute inserted below.
-	    #
-	    mysystem2("/sbin/ip rule add unicast iif $veth table $routetable");
-	    if ($?) {
-		TBScriptUnlock();
-		return -1;
-	    }
-	    $private->{'iprules'}->{$veth} = $veth;
+		#
+		# Convenient, is that even though the root context device does
+		# not exist, we can insert the ip *rule* for it that directs
+		# the traffic through the iproute inserted below.
+		#
+		mysystem2("/sbin/ip rule add unicast iif $veth table $routetable");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
+		$private->{'iprules'}->{$veth} = $veth;
 
-	    my $net = inet_ntoa(inet_aton($inetip) & inet_aton($mask));
-	    mysystem2("/sbin/ip route replace ".
-		      "  default dev $gre table $routetable");
-	    if ($?) {
-		TBScriptUnlock();
-		return -1;
+		my $net = inet_ntoa(inet_aton($inetip) & inet_aton($mask));
+		mysystem2("/sbin/ip route replace ".
+			  "  default dev $gre table $routetable");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
 	    }
 	}
 	TBScriptUnlock();
@@ -2371,18 +2481,36 @@ sub GCbridge($)
     # bridge might be shared with other containers, to have to
     # explicitly check (we have the lock).
     #
-    my $foo = `$BRCTL showmacs $brname | wc -l`;
-    if ($?) {
-	print STDERR "'brctl showmacs $brname' failed\n";
-	return -1;
+    if ($USE_OPENVSWITCH) {
+	my $foo = `$OVSCTL list-ports $brname | wc -l`;
+	if ($?) {
+	    print STDERR "'$OVSCTL list-ports $brname' failed\n";
+	    return -1;
+	}
+	else {
+	    chomp($foo);
+	    print STDERR "$foo ports in $brname\n";
+	    if ("$foo" eq "0") {
+		mysystem2("$IFCONFIG $brname down");	    
+		mysystem2("$OVSCTL del-br $brname");
+		return 1;
+	    }
+	}
     }
     else {
-	chomp($foo);
-	# Just a header line. Ick. 
-	if ($foo <= 1) {
-	    mysystem2("$IFCONFIG $brname down");	    
-	    mysystem2("$BRCTL delbr $brname");
-	    return 1;
+	my $foo = `$BRCTL showmacs $brname | wc -l`;
+	if ($?) {
+	    print STDERR "'brctl showmacs $brname' failed\n";
+	    return -1;
+	}
+	else {
+	    chomp($foo);
+	    # Just a header line. Ick. 
+	    if ($foo <= 1) {
+		mysystem2("$IFCONFIG $brname down");	    
+		mysystem2("$BRCTL delbr $brname");
+		return 1;
+	    }
 	}
     }
     return 0;
