@@ -147,6 +147,7 @@ my %cliverbs = (
 # Global variables
 #
 my %vnstates = ();
+my $_gFirstOnLAN = 0;
 my $debug  = 0;
 
 #
@@ -432,13 +433,10 @@ sub vnodeReboot($$$$)
     return 0;
 }
 
-# Not much to do here.  Yank the IP alias and set some state.
+# Nothing to see here folks.  Move along!
 sub vnodeTearDown($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
-
-    setupIPAlias($vnconfig,1);
-    $vnstates{$vnode_id} = VNODE_STATUS_STOPPED();
 
     return 0;
 }
@@ -499,10 +497,13 @@ sub vnodeDestroy($$$$){
     return 0;
 }
 
-# blockstores don't "halt", but we'll signal that we did anyway.
+# blockstores don't "halt", but we'll signal that we did anyway.  Also
+# remove the IP alias.
 sub vnodeHalt($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+
+    setupIPAlias($vnconfig,1);
 
     libutil::setState("SHUTDOWN");
     $vnstates{$vnode_id} = VNODE_STATUS_STOPPED();
@@ -1071,6 +1072,9 @@ sub createVlanInterface($$) {
 		 "Mismatched vlan: $lname != $vlabel");
 	    return -1;
 	}
+
+	# Not the first kid on the block.
+	$_gFirstOnLAN = 0;
     }
     # vlan does not exist.
     else {
@@ -1091,6 +1095,10 @@ sub createVlanInterface($$) {
 		 "failure while setting vlan interface parameters: $@");
 	    return -1;
 	}
+
+	# We are the first blockstore on the vlan interface, so set a flag
+	# telling setupIPAlias that it needs to use the full netmask.
+	$_gFirstOnLAN = 1;
     }
 
     # All done.
@@ -1126,8 +1134,10 @@ sub setupIPAlias($;$) {
 	     "bad characters in subnet!");
 	return -1;
     }
-    $qmask = $1;
-    my $cidrmask = libutil::CIDRmask($qmask);
+    # If this is the first blockstore on the lan, then use the real netmask,
+    # otherwise this is yet another alias on the same interface, so use the
+    # all 1's mask.
+    $qmask = $_gFirstOnLAN ? $1 : $ALIASMASK;
 
     if ($teardown) {
 	if (system("$IFCONFIG $viface -alias $ip") != 0) {
@@ -1137,7 +1147,7 @@ sub setupIPAlias($;$) {
     } else {
 	# Add an alias for this psuedo-VM.  Have to do this underneath FreeNAS
 	# because it makes adding and removing them ridiculously impractical.
-	if (system("$IFCONFIG $viface alias $ip netmask $ALIASMASK") != 0) {
+	if (system("$IFCONFIG $viface alias $ip netmask $qmask") != 0) {
 	    warn("*** ERROR: blockstore_createVlanInterface: ".
 		 "ifconfig failed while clearing IP alias parameters: $?");
 	}
@@ -1178,7 +1188,7 @@ sub removeVlanInterface($$) {
 
     # Look to see if any addresses remain on the interface.  If not,
     # blow it away.
-    if (!open(VIFC, "$IFCONFIG $viface")) {
+    if (!open(VIFC, "$IFCONFIG $viface |")) {
 	warn("*** WARNING: blockstore_removeVlanInterface: ".
 	     "Could not run ifconfig: $!");
 	return -1;
