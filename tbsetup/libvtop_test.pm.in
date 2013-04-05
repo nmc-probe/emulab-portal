@@ -2879,7 +2879,8 @@ sub GenVirtLans($)
 	    my $lannode  = "portlan/$vname";
 	    
 	    # Lan node for assign.
-	    $self->createNode($lannode, $mycmurn, "lan", '1', '',
+	    $self->createNode($lannode, $mycmurn, "lan", '1',
+			      { 'real-switch' => ['' , "1.0"] },
 			      { 'virtualization_type' => 'raw' });
 	    
 	    # So we ignore it when it comes back from assign.
@@ -3502,6 +3503,9 @@ sub GenVirtLans($)
 		    #
 		    if (defined($virtnode->_fixedvm())) {
 			$vnodevname = $virtnode->_fixedvm()->vname();
+		    }
+		    elsif (defined($virtnode->_sanhostname())) {
+			$vnodevname = $virtnode->_sanhostname();
 		    }
 		    
 		    #
