@@ -160,9 +160,13 @@ sub calcSliceSizes($);
 sub getPoolList();
 sub getIfConfig($);
 sub getVlan($);
+sub getNextAuthITag();
+sub genSerial();
+sub findAuthITag($);
 sub createVlanInterface($$);
-sub runBlockstoreCmds($$$);
 sub removeVlanInterface($$);
+sub setupIPAlias($;$);
+sub runBlockstoreCmds($$$);
 sub allocSlice($$$$);
 sub exportSlice($$$$);
 sub deallocSlice($$$$);
@@ -275,9 +279,11 @@ sub vnodeState($$$$)
 
     # Initialize our state if necessary.
     if (!exists($vnstates{$vnode_id})) {
-	# Do we exist?
-	my $slices = getSliceList();
-	if (exists($slices->{$vnode_id})) {
+	# This looks strange, but if we don't yet know what state the
+	# blockstore is in and this file exists, then assume it exists
+	# and is "stopped".  We do this to fake out the vnode "boot"
+	# code in mkvnode.pl
+	if (-e CONFDIR() . "/running") {
 	    $vnstates{$vnode_id} = VNODE_STATUS_STOPPED();
 	} else {
 	    # We don't seem to exist...
@@ -295,6 +301,7 @@ sub vnodeCreate($$$$)
 {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
     my $vninfo = $private;
+    my $bsconf = $vnconfig->{'storageconfig'};
     my $cleanup = 0;
 
     # Create vmid from the vnode's name.
@@ -306,7 +313,7 @@ sub vnodeCreate($$$$)
 	      "bad vnode_id $vnode_id!");
     }
     $vninfo->{'vmid'} = $vmid;
-    $private->{'vndir'} = VNODE_PATH() . "/$vnode_id";
+    $private->{'vndir'} = VNODE_PATH($vnode_id);
 
     # Grab the global lock to prevent concurrency.
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
@@ -317,14 +324,14 @@ sub vnodeCreate($$$$)
     # Create the experimental net (tagged vlan) interface
     if (createVlanInterface($vnode_id, $vnconfig) != 0) {
 	$cleanup = 1;
-	warn("blockstore_vnodeCreate: ".
+	warn("*** ERROR: blockstore_vnodeCreate: ".
 	     "Failed to create experimental network interface!");
     }
 
     # Create blockstore slice
     if (runBlockstoreCmds($vnode_id, $vnconfig, $private) != 0) {
 	$cleanup = 1;
-	warn("blockstore_vnodeCreate: ".
+	warn("*** ERROR: blockstore_vnodeCreate: ".
 	     "Blockstore slice creation failed!");
     }
 
@@ -336,7 +343,8 @@ sub vnodeCreate($$$$)
     # need to do anything to clean up ...
     if ($cleanup) {
 	vnodeDestroy($vnode_id, $vmid, $vnconfig, $private);
-	fatal("Failed creation attempt aborted.");
+	fatal("blockstore_vnodeCreate: ".
+	      "Failed creation attempt aborted.");
     }
 
     return $vmid;
@@ -358,10 +366,13 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     return 0;
 }
 
-# All setup/creation is handled elsewhere.
+# Setup IP alias for this blockstore pseudo-VM.
 sub vnodePreConfigExpNetwork($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+
+    return -1
+	unless setupIPAlias($vnconfig) == 0;
 
     return 0;
 }
@@ -421,10 +432,13 @@ sub vnodeReboot($$$$)
     return 0;
 }
 
-# Do everything in the "destroy" function.
+# Not much to do here.  Yank the IP alias and set some state.
 sub vnodeTearDown($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
+
+    setupIPAlias($vnconfig,1);
+    $vnstates{$vnode_id} = VNODE_STATUS_STOPPED();
 
     return 0;
 }
@@ -437,6 +451,10 @@ sub vnodeDestroy($$$$){
     my $sconfigs = $vnconfig->{'storageconfig'};
 
     my @revconfigs = sort {$b->{'IDX'} <=> $a->{'IDX'}} @$sconfigs;
+
+    # Mark this node as no longer running/existing (for vnodeState())
+    unlink(CONFDIR() . "/running");
+    $vnstates{$vnode_id} = VNODE_STATUS_UNKNOWN();
 
     # Grab the global lock to prevent concurrency.
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
@@ -706,7 +724,7 @@ sub calcSliceSizes($) {
 		}
 	    }
 	    if (!defined($size)) {
-		warn("*** WARNING: blockstore_getSliceList: ".
+		warn("*** WARNING: blockstore_calcSliceList: ".
 		     "Could not find matching volume entry for ".
 		     "zvol slice: $slice->{'name'}");
 		next;
@@ -763,15 +781,7 @@ sub getPoolList() {
 sub allocSlice($$$$) {
     my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
 
-    my $slices = getSliceList();
     my $pools  = getPoolList();
-
-    # XXX: What should we do if the slice is already there?
-    if (exists($slices->{$vnode_id})) {
-	warn("*** ERROR: blockstore_allocSlice: ".
-	     "slice already exists: $vnode_id. Please clean up!");
-	return -1;
-    }
 
     # Does the requested pool exist?
     my $bsid = untaintHostname($sconf->{'BSID'});
@@ -781,7 +791,7 @@ sub allocSlice($$$$) {
 	$priv->{'bsid'} = $bsid; # save for future calls.
     } else {
 	warn("*** ERROR: blockstore_allocSlice: ".
-	     "Requested blockstore not found: $bsid!");
+	     "Requested pool not found: $bsid!");
 	return -1;
     }
 
@@ -790,7 +800,7 @@ sub allocSlice($$$$) {
     my $size = untaintNumber($sconf->{'VOLSIZE'});
     if ($size + $ZPOOL_LOW_WATERMARK > $destpool->{'avail'}) {
 	warn("*** ERROR: blockstore_allocSlice: ". 
-	     "Not enough space remaining on requested blockstore: $bsid");
+	     "Not enough space remaining in requested pool: $bsid");
 	return -1;
     }
 
@@ -822,7 +832,7 @@ sub exportSlice($$$$) {
 	return -1;
     }
     
-    # Extract bsid
+    # Extract bsid as stashed away in prior setup.
     my $bsid = $priv->{'bsid'};
     if (!defined($bsid)) {
 	warn("*** ERROR: blockstore_exportSlice: ".
@@ -883,7 +893,7 @@ sub exportSlice($$$$) {
     }
     $tag = $1; # untaint.
     eval { runFreeNASCmd($CLI_VERB_IST_AUTHI,
-			 "add $tag ALL $network/$cmask") };
+			 "add $tag ALL $network/$cmask $vnode_id") };
     if ($@) {
 	warn("*** ERROR: blockstore_exportSlice: ".
 	     "Failed to create iSCSI auth group: $@");
@@ -916,11 +926,11 @@ sub exportSlice($$$$) {
 
 # Helper function.
 # Locate and return tag for given network, if it exists.
-sub findAuthITag($$) {
-    my ($subnet, $cidrmask) = @_;
+sub findAuthITag($) {
+    my ($vnode_id,) = @_;
 
     return undef
-	if !defined($subnet) or !defined($cidrmask);
+	if !defined($vnode_id);
 
     my @authentries = parseFreeNASListing($CLI_VERB_IST_AUTHI);
 
@@ -928,7 +938,7 @@ sub findAuthITag($$) {
 	if !@authentries;
 
     foreach my $authent (@authentries) {
-	if ($authent->{'auth_network'} eq "$subnet/$cidrmask") {
+	if ($authent->{'comment'} eq $vnode_id) {
 	    return $authent->{'tag'};
 	}
     }
@@ -1022,8 +1032,6 @@ sub createVlanInterface($$) {
     my $vtag   = $ifc->{'VTAG'};
     my $pmac   = $ifc->{'PMAC'};
     my $piface = $ifc->{'IFACE'};
-    my $ip     = $ifc->{'IPADDR'};
-    my $qmask  = $ifc->{'IPMASK'};
     my $lname  = $ifc->{'LAN'};
 
     my $viface = $VLAN_IFACE_PREFIX . $vtag;
@@ -1050,20 +1058,6 @@ sub createVlanInterface($$) {
     }
     $vtag = $1;
 
-    if ($ip !~ /^([\.\d]+)$/) {
-	warn("*** ERROR: blockstore_createVlanInterface: ". 
-	     "bad data in IP address!");
-	return -1;
-    }
-    $ip = $1;
-
-    if ($qmask !~ /^([\.\d]+)$/) {
-	warn("*** ERROR: blockstore_createVlanInterface: ". 
-	     "bad characters in subnet!");
-	return -1;
-    }
-    my $cidrmask = libutil::CIDRmask($1);
-
     # see if vlan already exists.  do sanity checks to make sure this
     # is the correct vlan for this interface, and then create it.
     my $vlan = getVlan($vtag);
@@ -1075,18 +1069,6 @@ sub createVlanInterface($$) {
 	if ($vlabel ne $lname) {
 	    warn("*** ERROR: blockstore_createVlanInterface: ".
 		 "Mismatched vlan: $lname != $vlabel");
-	    return -1;
-	}
-
-	# Don't bother to check to see if the alias is already there.  Just
-	# try to create it.
-
-	# ARGH!  FreeNAS is trying to be helpful, and won't allow adding
-	# an alias that overlaps with an existing subnet.  Have to go after
-	# ifconfig directly...
-	if (system("$IFCONFIG $viface alias $ip netmask $ALIASMASK") != 0) {
-	    warn("*** ERROR: blockstore_createVlanInterface: ".
-		 "Failed to setup IP alias on $viface: $?");
 	    return -1;
 	}
     }
@@ -1101,9 +1083,9 @@ sub createVlanInterface($$) {
 	    return -1;
 	}
 
-	# Create the initial alias on this vlan interface.
+	# Create the vlan interface.
 	eval { runFreeNASCmd($CLI_VERB_IFACE,
-			     "add $viface $vnode_id $ip/$cidrmask") };
+			     "add $viface $lname") };
 	if ($@) {
 	    warn("*** ERROR: blockstore_createVlanInterface: ".
 		 "failure while setting vlan interface parameters: $@");
@@ -1115,12 +1097,65 @@ sub createVlanInterface($$) {
     return 0;
 }
 
+# Create (or remove) the ephemeral IP alias for this blockstore.
+sub setupIPAlias($;$) {
+    my ($vnconfig, $teardown) = @_;
+
+    my $ifc    = getIfConfig($vnconfig);
+    if (!defined($ifc)) {
+	warn("*** ERROR: blockstore_createVlanInterface: ".
+	     "No valid interface record found!");
+	return -1;
+    }
+
+    my $vtag   = $ifc->{'VTAG'};
+    my $ip     = $ifc->{'IPADDR'};
+    my $qmask  = $ifc->{'IPMASK'};
+
+    my $viface = $VLAN_IFACE_PREFIX . $vtag;
+
+    if ($ip !~ /^([\.\d]+)$/) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
+	     "bad data in IP address!");
+	return -1;
+    }
+    $ip = $1;
+
+    if ($qmask !~ /^([\.\d]+)$/) {
+	warn("*** ERROR: blockstore_createVlanInterface: ". 
+	     "bad characters in subnet!");
+	return -1;
+    }
+    $qmask = $1;
+    my $cidrmask = libutil::CIDRmask($qmask);
+
+    if ($teardown) {
+	if (system("$IFCONFIG $viface -alias $ip") != 0) {
+	    warn("*** ERROR: blockstore_createVlanInterface: ".
+		 "ifconfig failed while setting IP alias parameters: $?");
+	}
+    } else {
+	# Add an alias for this psuedo-VM.  Have to do this underneath FreeNAS
+	# because it makes adding and removing them ridiculously impractical.
+	if (system("$IFCONFIG $viface alias $ip netmask $ALIASMASK") != 0) {
+	    warn("*** ERROR: blockstore_createVlanInterface: ".
+		 "ifconfig failed while clearing IP alias parameters: $?");
+	}
+    }
+
+    return 0;
+}
+
 #
-# Remove previously created VLAN interface.  This will also unblumb it
-# from the network stack, so no need to call "interface del"
+# Remove previously created VLAN interface.  Will only actually do
+# something if all IP aliases have been removed.  I.e., the last
+# pseudo-VM in the vlan on this blockstore host that passes through
+# here will result in interface removal.
 #
 sub removeVlanInterface($$) {
     my ($vnode_id, $vnconfig) = @_;
+
+    my $retcode = 0;
 
     # Fetch the interface record for this pseudo-VM
     my $ifc    = getIfConfig($vnconfig);
@@ -1131,55 +1166,56 @@ sub removeVlanInterface($$) {
     }
 
     my $vtag   = $ifc->{'VTAG'};
-    my $pmac   = $ifc->{'PMAC'};
-    my $piface = $ifc->{'IFACE'};
-    my $ip     = $ifc->{'IPADDR'};
-    my $mask   = $ifc->{'IPMASK'};
-    my $lname  = $ifc->{'LAN'};
-
-    # Create vlan interface name
     my $viface = $VLAN_IFACE_PREFIX . $vtag;
 
+    # Does FreeNAS have record of this vlan?  If not, it's probably safe
+    # to assume the interface isn't there, so there is nothing to do here.
     if (!getVlan($vtag)) {
 	warn("*** WARNING: blockstore_removeVlanInterface: ".
-	     "Interface does not exist.");
+	     "Vlan entry does not exist...");
 	return 0;
     }
 
-    # Delete it!  This will zap the main ip address and all aliases too.
-    eval { runFreeNASCmd($CLI_VERB_VLAN,
-			 "del $viface") };
-    if ($@) {
-	warn("*** ERROR: blockstore_removeVlanInterface: ".
-	     "failure while removing vlan interface: $@");
+    # Look to see if any addresses remain on the interface.  If not,
+    # blow it away.
+    if (!open(VIFC, "$IFCONFIG $viface")) {
+	warn("*** WARNING: blockstore_removeVlanInterface: ".
+	     "Could not run ifconfig: $!");
 	return -1;
     }
 
-    return 0;
+    my $ifcount = 0;
+    while (my $vline = <VIFC>) {
+	chomp $vline;
+	$ifcount++
+	    if $vline =~ /^\s+inet /;
+    }
+    close(VIFC);
+    if ($? != 0) {
+	warn("*** WARNING: blockstore_removeVlanInterface: ".
+	     "Error running ifconfig: $?");
+	return -1;
+    }
+
+    if ($ifcount == 0) {
+	# No more addresses: Delete the vlan interface.
+	eval { runFreeNASCmd($CLI_VERB_VLAN,
+			     "del $viface") };
+	if ($@) {
+	    warn("*** ERROR: blockstore_removeVlanInterface: ".
+		 "failure while removing vlan interface: $@");
+	    $retcode = -1;
+	}
+    }
+
+    return $retcode;
 }
 
 sub unexportSlice($$$$) {
     my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
 
-    # Check that the slice exists.  Emit warning and return if not.
-    my $slices = getSliceList();
-    if (!exists($slices->{$vnode_id})) {
-	warn("*** WARNING: blockstore_unexportSlice: ".
-	     "Slice does not exist!");
-	return 0;
-    }
+    my $retcode = 0;
 
-    # Should only be one ifconfig entry - checked earlier.
-    my $ifcfg   = (@{$vnconfig->{'ifconfig'}})[0];
-    my $nmask   = $ifcfg->{'IPMASK'};
-    my $cmask   = libutil::CIDRmask($nmask);
-    my $network = libutil::ipToNetwork($ifcfg->{'IPADDR'}, $nmask);
-    if (!$cmask || !$network) {
-	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "Error calculating ip network information.");
-	return -1;
-    }
-    
     # All of the sanity checking was done when we first created and
     # exported this blockstore.  Assume nothing has changed...
     my $volname = $sconf->{'VOLNAME'};
@@ -1191,69 +1227,40 @@ sub unexportSlice($$$$) {
     eval { runFreeNASCmd($CLI_VERB_IST_TARGET,
 			 "del $iqn") };
     if ($@) {
-	warn("*** ERROR: blockstore_unexportSlice: ".
+	warn("*** WARNING: blockstore_unexportSlice: ".
 	     "Failed to remove iSCSI target: $@");
-	return -1;
+	$retcode = -1;
     }
 
     # Remove iSCSI auth group
-    my $tag = findAuthITag($network,$cmask);
-    if ($tag !~ /^(\d+)$/) {
-	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "bad tag returned from findAuthITag: $tag");
-	return -1;
+    my $tag = findAuthITag($vnode_id);
+    if ($tag && $tag =~ /^(\d+)$/) {
+	$tag = $1; # untaint.
+	eval { runFreeNASCmd($CLI_VERB_IST_AUTHI,
+			     "del $tag") };
+	if ($@) {
+	    warn("*** WARNING: blockstore_unexportSlice: ".
+		 "Failed to remove iSCSI auth group: $@");
+	    $retcode = -1;
+	}
     }
-    $tag = $1; # untaint.
-    eval { runFreeNASCmd($CLI_VERB_IST_AUTHI,
-			 "del $tag") };
-    if ($@) {
-	warn("*** ERROR: blockstore_unexportSlice: ".
-	     "Failed to remove iSCSI auth group: $@");
-	return -1;
-    }
-
 
     # Remove iSCSI extent.
     eval { runFreeNASCmd($CLI_VERB_IST_EXTENT, 
 			 "del $iqn") };
     if ($@) {
-	warn("*** ERROR: blockstore_unexportSlice: ".
+	warn("*** WARNING: blockstore_unexportSlice: ".
 	     "Failed to remove iSCSI extent: $@");
-	return -1;
+	$retcode = -1;
     }
 
     # All torn down and unexported!
-    return 0;
+    return $retcode;
 }
 
 sub deallocSlice($$$$) {
     my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
-
-    # Check that the associated storage pool exists.
-    my $pools = getPoolList();
-    my $bsid = untaintHostname($sconf->{'BSID'});
-    if (!exists($pools->{$bsid})) {
-	warn("*** ERROR: blockstore_deallocSlice: ".
-	     "Pool does not exist: $bsid");
-	return -1;
-    }
-
-    # Get list of allocated slices and search for this one.
-    my @slices = parseFreeNASListing($CLI_VERB_VOLUME);
-    my $found = 0;
-    foreach my $slice (@slices) {
-	if ($slice->{'vol_name'} eq "$bsid/$vnode_id") {
-	    $found = 1;
-	    last;
-	}
-    }
-
-    # If we don't find it, just emit a warning.
-    if (!$found) {
-	warn("*** WARNING: blockstore_deallocSlice: ".
-	     "Slice does not exist: $bsid/$vnode_id");
-	return 0;
-    }
+    my $bsid = $sconf->{'BSID'};
 
     # deallocate slice.
     my $busycount;
@@ -1265,7 +1272,6 @@ sub deallocSlice($$$$) {
 		warn("*** WARNING: blockstore_deallocSlice: ".
 		     "Slice is busy.  Waiting a bit before trying ".
 		     "to free again (count=$busycount).");
-		TBScriptUnlock();  # Don't hold up the queue.  Hopefully safe!
 		sleep $SLICE_BUSY_WAIT;
 	    } else {
 		warn("*** ERROR: blockstore_deallocSlice: ".

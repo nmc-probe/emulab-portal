@@ -46,7 +46,13 @@ sub VNODE_STATUS_UNKNOWN() { return "unknown"; }
 
 # VM path stuff
 my $VMPATH     = "$VARDIR/vminfo";
-sub VNODE_PATH() { return $VMPATH; }
+sub VNODE_PATH(;$) { 
+    my $vnode_id = shift;
+    return 
+	$VMPATH . 
+	(defined($vnode_id) ? "/$vnode_id" : "") . 
+	"/";
+}
 
 #
 # Magic control network config parameters.
