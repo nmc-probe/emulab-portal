@@ -1165,8 +1165,6 @@ sub setupIPAlias($;$) {
 sub removeVlanInterface($$) {
     my ($vnode_id, $vnconfig) = @_;
 
-    my $retcode = 0;
-
     # Fetch the interface record for this pseudo-VM
     my $ifc    = getIfConfig($vnconfig);
     if (!defined($ifc)) {
@@ -1214,17 +1212,14 @@ sub removeVlanInterface($$) {
 	if ($@) {
 	    warn("*** ERROR: blockstore_removeVlanInterface: ".
 		 "failure while removing vlan interface: $@");
-	    $retcode = -1;
 	}
     }
 
-    return $retcode;
+    return 0;
 }
 
 sub unexportSlice($$$$) {
     my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
-
-    my $retcode = 0;
 
     # All of the sanity checking was done when we first created and
     # exported this blockstore.  Assume nothing has changed...
@@ -1239,7 +1234,6 @@ sub unexportSlice($$$$) {
     if ($@) {
 	warn("*** WARNING: blockstore_unexportSlice: ".
 	     "Failed to remove iSCSI target: $@");
-	$retcode = -1;
     }
 
     # Remove iSCSI auth group
@@ -1251,7 +1245,6 @@ sub unexportSlice($$$$) {
 	if ($@) {
 	    warn("*** WARNING: blockstore_unexportSlice: ".
 		 "Failed to remove iSCSI auth group: $@");
-	    $retcode = -1;
 	}
     }
 
@@ -1261,11 +1254,10 @@ sub unexportSlice($$$$) {
     if ($@) {
 	warn("*** WARNING: blockstore_unexportSlice: ".
 	     "Failed to remove iSCSI extent: $@");
-	$retcode = -1;
     }
 
     # All torn down and unexported!
-    return $retcode;
+    return 0;
 }
 
 sub deallocSlice($$$$) {
