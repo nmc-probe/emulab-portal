@@ -110,8 +110,9 @@ my $FREENAS_MNT_PREFIX   = "/mnt";
 my $ISCSI_GLOBAL_PORTAL  = 1;
 my $SER_PREFIX           = "d0d0";
 my $VLAN_IFACE_PREFIX    = "vlan";
-my $MAX_BUSY_COUNT       = 5;
+my $MAX_RETRY_COUNT      = 5;
 my $SLICE_BUSY_WAIT      = 10;
+my $SLICE_GONE_WAIT      = 5;
 my $IFCONFIG             = "/sbin/ifconfig";
 my $ALIASMASK            = "255.255.255.255";
 
@@ -154,6 +155,7 @@ my $debug  = 0;
 # Local Functions
 #
 sub parseFreeNASListing($);
+sub runFreeNASCmd($$);
 sub getSliceList();
 sub parseSliceName($);
 sub parseSlicePath($);
@@ -542,29 +544,33 @@ sub vnodeUnmount($$$$)
 sub runFreeNASCmd($$) {
     my ($verb, $argstr) = @_;
 
+    my $errstate = 0;
+    my $message;
+
     die "Invalid FreeNAS CLI verb: $verb"
 	unless exists($cliverbs{$verb});
 
     print "DEBUG: blockstore_runFreeNASCmd:\n".
 	"\trunning: $verb $argstr\n" if $debug;
 
-    my $output = `$FREENAS_CLI $verb $argstr`;
+    my $output = `$FREENAS_CLI $verb $argstr 2>&1`;
+
     if ($? != 0) {
+	$errstate = 1;
+	$output =~ /^(.+Error: .+)$/;
+	$message = defined($1) ? $1 : "Error code: $?";
+    } elsif ($output =~ /"error": true/) {
+	$errstate = 1;
+	$output =~ /"message": "([^"]+)"/;
+	$message = $1;
+    }
+
+    if ($errstate) {
 	print STDERR $output if $debug;
-	die "Error returned from FreeNAS CLI: $?";
+	die $message;
     }
 
-    $output =~ /"error": (true|false)/;
-    my $errstate = $1;
-    $output =~ /"message": "([^"]+)"/;
-    my $message = $1;
-
-    if ($errstate eq "false") {
-	return 0;
-    }
-
-    print STDERR $output if $debug;
-    die $message;
+    return 0;
 }
 
 # Run our custom FreeNAS CLI to extract info.  
@@ -1264,18 +1270,36 @@ sub deallocSlice($$$$) {
     my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
     my $bsid = $sconf->{'BSID'};
 
-    # deallocate slice.
-    my $busycount;
-    for ($busycount = 1; $busycount <= $MAX_BUSY_COUNT; $busycount++) {
+    # Deallocate slice.  Wrap in loop to enable retries.
+    my $count;
+    for ($count = 1; $count <= $MAX_RETRY_COUNT; $count++) {
 	eval { runFreeNASCmd($CLI_VERB_VOLUME, 
 			     "del $bsid $vnode_id") };
+	# Process exceptions thrown during deletion attempt.  Retry on
+	# some errors.
 	if ($@) { 
 	    if ($@ =~ /dataset is busy/) {
 		warn("*** WARNING: blockstore_deallocSlice: ".
 		     "Slice is busy.  Waiting a bit before trying ".
-		     "to free again (count=$busycount).");
+		     "to free again (count=$count).");
 		sleep $SLICE_BUSY_WAIT;
-	    } else {
+	    }
+	    elsif ($@ =~ /does not exist/) {
+		if ($count < $MAX_RETRY_COUNT) {
+		    warn("*** WARNING: blockstore_deallocSlice: ".
+			 "Blockstore slice seems to be gone, retrying.");
+		    # Bump counter to just under termination to try once more.
+		    $count = $MAX_RETRY_COUNT-1;
+		    sleep $SLICE_GONE_WAIT;
+		} else {
+		    warn("*** WARNING: blockstore_deallocSlice: ".
+			 "Blockstore slice still seems to be gone.");
+		    # Bail now because we don't want to report this as an
+		    # error to the caller.
+		    return 0;
+		}
+	    } 
+	    else {
 		warn("*** ERROR: blockstore_deallocSlice: ".
 		     "slice removal failed: $@");
 		return -1;
@@ -1289,7 +1313,7 @@ sub deallocSlice($$$$) {
     # Note: Checks for lingering slices will be performed separately in
     # consistency checking routines.
 
-    if ($busycount > $MAX_BUSY_COUNT) {
+    if ($count > $MAX_RETRY_COUNT) {
 	warn("*** WARNING: blockstore_deallocSlice: ".
 	     "Could not free slice after several attempts!");
 	return -1;
