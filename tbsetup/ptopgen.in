@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -550,6 +550,7 @@ while (my ($node_id, $feature, $weight) = $result->fetchrow()) {
 	push @{$features{$node_id}}, "$feature:$weight";
     }
 }
+
 #
 # Read in the node_auxtypes table for each node.
 #
@@ -844,7 +845,8 @@ $result =
 		 "  np.battery_percentage,np.uuid,b.sharing_mode, ".
 		 "  ru.load_1min, ru.load_5min, ru.status_timestamp, ".
 		 "  a.def_boot_osid, nat2.attrvalue, wn.country, " .
-                 "  wn.latitude, wn.longitude, t.isremotenode, b.erole ".
+                 "  wn.latitude, wn.longitude, t.isremotenode, b.erole, ".
+		 "  nat3.attrvalue ".
 		 "from nodes as a ".
 		 "left join reserved as b on a.node_id=b.node_id ".
 		 "left join reserved as m on a.phys_nodeid=m.node_id ".
@@ -856,6 +858,9 @@ $result =
 		 "left join node_attributes as nat2 on ".
 		 "     nat2.node_id=a.node_id and ".
 		 "     nat2.attrkey='shared_weight' ".
+		 "left join node_attributes as nat3 on ".
+		 "     nat3.node_id=a.node_id and ".
+		 "     nat3.attrkey='allowed_projects' ".
 		 "left join node_rusage as ru on ru.node_id=a.node_id ".
 		 "left outer join ". 
 		 "  (select type,attrvalue ".
@@ -865,7 +870,6 @@ $result =
 		 "  on t.type=dedicated_wa_types.type ".
                  "left join widearea_nodeinfo as wn on a.node_id=wn.node_id ".
 		 "where $free_condition and ".
-#		 "      a.role='testnode'"
 		 "   (a.role='testnode' and (t.isremotenode=0 or ".
 		 "                           dedicated_wa_types.attrvalue=1))");
 
@@ -880,13 +884,21 @@ $result =
 while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 	$prereserved,$eventstate,$battery_perc,$uuid,$sharing_mode,
 	$load_1min,$load_5min,$load_tstamp,$osid,$weight,$country,$latitude,
-        $longitude,$isremote,$erole) = $result->fetchrow_array) {
+        $longitude,$isremote,$erole,
+	$allowed_projects) = $result->fetchrow_array) {
     my $current = $top->CreateNode($node);
     $current->SetSubnode($physnode, $issubnode);
     $current->SetRemote($isremote);
 
-#    next
-#	if ($isremote);
+    #
+    # Look for a specific node restriction. Easier to to do here
+    # then trying to do this up above in the already bizarre query.
+    #
+    if (defined($pid) && defined($allowed_projects)) {
+	my @allowed = split(",", $allowed_projects);
+	next
+	    if (! grep {$_ eq $pid} @allowed);	
+    }
 
     $nodes{$node} = $type
 	if (!defined($pid) ||
