@@ -598,6 +598,7 @@ sub TBDB_PHYSICAL_NODE_TABLES() {
 	'next_reserve'		=> [ 'node_id' ],
 	'node_activity'		=> [ 'node_id' ],
 	'node_auxtypes'		=> [ 'node_id' ],
+	'node_attributes'	=> [ 'node_id' ],
 	'node_features'		=> [ 'node_id' ],
 	'node_hostkeys'		=> [ 'node_id' ],
 	'node_idlestats'	=> [ 'node_id' ],

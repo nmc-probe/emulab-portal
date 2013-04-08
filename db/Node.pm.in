@@ -2450,6 +2450,7 @@ sub DeleteVnodes(@)
 	DBQueryWarn("delete from node_hostkeys where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_status where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_rusage where node_id='$vnodeid'");
+	DBQueryWarn("delete from node_attributes where node_id='$vnodeid'");
 	# Need to clean out some additional tables since some vnodes can be
 	# reimaged now!
 	DBQueryWarn("delete from current_reloads where node_id='$vnodeid'");
