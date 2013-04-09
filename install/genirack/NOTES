@@ -278,14 +278,15 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	/root/.ssh/id_dsa.pub
 
   Install the key into BOTH the ELABMAN and ADMINISTRATOR accounts!!!!!
+  Do this for all five pcs *and* the control node. 
 
-  Now do this:
+  After you have installed the keys, do this:
 
-	/usr/testbed/sbin/initilo.pl -b pc1
-	/usr/testbed/sbin/initilo.pl -b pc2
-	/usr/testbed/sbin/initilo.pl -b pc3
-	/usr/testbed/sbin/initilo.pl -b pc4
-	/usr/testbed/sbin/initilo.pl -b pc5
+	sudo /usr/testbed/sbin/initilo.pl -b pc1
+	sudo /usr/testbed/sbin/initilo.pl -b pc2
+	sudo /usr/testbed/sbin/initilo.pl -b pc3
+	sudo /usr/testbed/sbin/initilo.pl -b pc4
+	sudo /usr/testbed/sbin/initilo.pl -b pc5
 
   DAMN YOU HP!
 
@@ -296,7 +297,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 * Now we power on all of the nodes.
 
-	wap power on pc1 pc2 pc3 pc4 pc5
+	sudo wap power on pc1 pc2 pc3 pc4 pc5
 
 * If the nodes were actually off, it is going to take a couple of minutes
   before we can go on with the next step. Play the waltz a few more times.
@@ -319,7 +320,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	sudo /usr/testbed/sbin/protogeni/getcacerts
 
-* Arrange for the VMs to auto starts (on the control node):
+* Arrange for the VMs to auto start (on the control node):
 
 	cd /etc/xen/auto/
 	sudo ln -s ~elabman/ops/xm.conf 1.ops.conf
