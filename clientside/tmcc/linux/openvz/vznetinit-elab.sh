@@ -114,7 +114,7 @@ if [ "x$ELABROUTES" != "x" ]; then
 
 	    if [ $_if = $DEV ]; then
 		echo "Emulab configuring route for CT$VEID: exp net ($_if)"
-		$IP route replace $_rt dev $_if table $ROUTETABLE
+		$IP route replace default via $_rt dev $_if onlink table $ROUTETABLE
 	    fi
     done
 fi
