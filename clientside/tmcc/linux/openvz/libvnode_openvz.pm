@@ -116,6 +116,7 @@ my $MODPROBE = "/sbin/modprobe";
 my $RMMOD = "/sbin/rmmod";
 my $VLANCONFIG = "/sbin/vconfig";
 my $IP = "/sbin/ip";
+my $TC = "/sbin/tc";
 
 my $VZRC   = "/etc/init.d/vz";
 my $MKEXTRAFS = "/usr/local/etc/emulab/mkextrafs.pl";
@@ -170,8 +171,11 @@ my ($kmaj,$kmin,$kpatch) = libvnode::getKernelVersion();
 if ($kmaj >= 2 && $kmin >= 6 && $kpatch >= 32) {
 #    print STDERR "Using Linux netem instead of custom qdiscs.\n";
     $USE_NETEM = 1;
-#    print STDERR "Using Linux macvlan instead of OpenVZ veths.\n";
-    $USE_MACVLAN = 1;
+    # No longer using macvlan.
+    if (0) {
+        # print STDERR "Using Linux macvlan instead of OpenVZ veths.\n";
+	$USE_MACVLAN = 1;
+    }
 }
 
 #
@@ -193,6 +197,7 @@ sub vmrunning($);
 sub vmstopped($);
 sub GClvm($);
 sub GCbridge($);
+sub SetupCaps($$$$);
 
 #
 # Bridge stuff
@@ -547,6 +552,14 @@ sub vz_rootPreConfigNetwork {
     if (!$USE_MACVLAN) {
 	makeBridgeMaps();
     }
+
+    my $vmid;
+    if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
+	$vmid = $1;
+    }
+    else {
+	fatal("vz_rootPreConfigNetwork: bad vnode_id $vnode_id!");
+    }
     
     my @node_ifs = @{ $vnconfig->{'ifconfig'} };
     my @node_lds = @{ $vnconfig->{'ldconfig'} };
@@ -566,12 +579,12 @@ sub vz_rootPreConfigNetwork {
     #
     my %brs = ();
     my $prefix = "br.";
-    if ($USE_MACVLAN) {
-	$prefix = "mvsw.";
-    }
     {
 	foreach my $ifc (@node_ifs) {
 	    next if (!$ifc->{ISVIRT});
+
+	    my $brname;
+	    my $physdev;
 
 	    if ($ifc->{ITYPE} eq "loop") {
 		my $vtag  = $ifc->{VTAG};
@@ -580,7 +593,7 @@ sub vz_rootPreConfigNetwork {
 		# No physical device. Its a loopback (trivial) link/lan
 		# All we need is a common bridge to put the veth ifaces into.
 		#
-		my $brname = "${prefix}$vtag";
+		$physdev = $brname = "${prefix}$vtag";
 		$brs{$brname}{ENCAP} = 0;
 		$brs{$brname}{SHORT} = 0;
 	    }
@@ -609,30 +622,34 @@ sub vz_rootPreConfigNetwork {
 		# Temporary, to get existing devices after upgrade.
 		mysystem2("$ETHTOOL -K $vdev tso off gso off");
 
-		my $brname = "${prefix}$vdev";
+		$physdev =  $vdev;
+		$brname  = "${prefix}$vdev";
 		$brs{$brname}{ENCAP} = 1;
 		$brs{$brname}{SHORT} = 0;
 		$brs{$brname}{PHYSDEV} = $vdev;
+		$brs{$brname}{IFC}   = $ifc;
 	    }
 	    elsif ($ifc->{PMAC} eq "none") {
-		my $brname = "${prefix}" . $ifc->{VTAG};
+		$physdev = $brname = "${prefix}" . $ifc->{VTAG};
 		# if no PMAC, we don't need encap on the bridge
 		$brs{$brname}{ENCAP} = 0;
-		# count up the members so we can figure out if this is a shorty
-		if (!exists($brs{$brname}{MEMBERS})) {
-		    $brs{$brname}{MEMBERS} = 0;
-		}
-		else {
-		    $brs{$brname}{MEMBERS}++;
-		}
+		# count members below so we can figure out if this is a shorty
+		$brs{$brname}{MEMBERS} = 0;
 	    }
 	    else {
 		my $iface = findIface($ifc->{PMAC});
-		my $brname = "${prefix}$iface";
+		$physdev = $iface;
+		$brname  = "${prefix}$iface";
 		$brs{$brname}{ENCAP} = 1;
 		$brs{$brname}{SHORT} = 0;
+		$brs{$brname}{IFC}   = $ifc;
 		$brs{$brname}{PHYSDEV} = $iface;
 	    }
+	    # Stash for later phase.
+	    $ifc->{'PHYSDEV'} = $physdev
+		if (defined($physdev));
+	    $ifc->{'BRIDGE'} = $brname
+		if (defined($brname));
 	}
     }
 
@@ -644,6 +661,7 @@ sub vz_rootPreConfigNetwork {
     #
     foreach my $k (keys(%brs)) {
 	# postpass to setup SHORT if only two members and no PMAC
+	# NOTE: We have never used this code. What is it?
 	if (exists($brs{$k}{MEMBERS})) {
 	    if ($brs{$k}{MEMBERS} == 2) {
 		$brs{$k}{SHORT} = 1;
@@ -669,22 +687,90 @@ sub vz_rootPreConfigNetwork {
 
 	if (exists($brs{$k}{PHYSDEV})) {
 	    if (!$USE_MACVLAN) {
+		my $physdev = $brs{$k}{PHYSDEV};
+		my $ifc     = $brs{$k}{IFC};
+		
 		# make sure this iface isn't already part of another bridge;
 		# if it it is, remove it from there first and add to
 		# this bridge.
-		my $obr = findBridge($brs{$k}{PHYSDEV});
+		my $obr = findBridge($physdev);
 		if (defined($obr)) {
-		    delbrif($obr, $brs{$k}{PHYSDEV});
+		    delbrif($obr, $physdev);
 		    goto bad
 			if ($?);
 		    # rebuild hashes
 		    makeBridgeMaps();
 		}
-		addbrif($k, $brs{$k}{PHYSDEV});
+		addbrif($k, $physdev);
 		goto bad
 		    if ($?);
 		# record iface added to bridge 
-		$private->{'bridgeifaces'}->{$k}->{$brs{$k}{PHYSDEV}} = $k;
+		$private->{'bridgeifaces'}->{$k}->{$physdev} = $k;
+
+		if (SHAREDHOST()) {
+		    #
+		    # We do not put the virtual interface into the same
+		    # bridge as the physical device. We create a second
+		    # veth pair and another bridge so that we can hang bw
+		    # controls onto them.
+		    #
+		    my $ifcid = $ifc->{ID};
+		    my $vbr   = "br$vmid.$ifcid";
+		    my $va    = "sheth$vmid.${ifcid}A";
+		    my $vb    = "sheth$vmid.${ifcid}B";
+		    
+		    if (! -d "/sys/class/net/$vbr/bridge") {
+			addbr($vbr);
+			goto bad
+			    if ($?);
+			# record bridge created.
+			$private->{'bridges'}->{$vbr} = $vbr;
+		    }
+		    # repetitions of this should not hurt anything
+		    mysystem2("$IFCONFIG $vbr 0 up");
+
+		    # Tell later phase the new name of the bridge.
+		    $ifc->{'BRIDGE'} = $vbr;
+
+		    # Now create the veth pair. 
+		    mysystem2("$IP link add $va type veth peer name $vb");
+		    goto bad
+			if ($?);
+		    # record pair created. Only need to record $va; when
+		    # we delete that, the other dies.
+		    $private->{'iplinks'}->{$va} = $vb;
+
+		    mysystem2("$IFCONFIG $va 0 up");
+		    mysystem2("$IFCONFIG $vb 0 up");
+
+		    #
+		    # One side of the veth goes into the br with the
+		    # physical device. The other side goes into the
+		    # other bridge (happens later) which connects
+		    # it to the veth that is connected to the container.
+		    #
+		    addbrif($vbr, $va);
+		    goto bad
+			if ($?);
+		    # record iface added to bridge 
+		    $private->{'bridgeifaces'}->{$vbr}->{$va} = $vbr;
+
+		    addbrif($k, $vb);
+		    goto bad
+			if ($?);
+		    # record iface added to bridge 
+		    $private->{'bridgeifaces'}->{$k}->{$vb} = $k;
+		    
+		    #
+		    # See if we have a delay config for this interface.
+		    # Set up the rules now. Could do it later, but why.
+		    #
+		    foreach my $ld (@node_lds) {
+			if ($ld->{'IFACE'} eq $ifc->{MAC}) {
+			    SetupCaps($ld, $private, $va, $vb);
+			}
+		    }
+		}
 	    }
 	}
 	elsif ($USE_MACVLAN
@@ -750,6 +836,8 @@ sub vz_rootPreConfigNetwork {
     #
     # Unwind anything we did.
     #
+    KillCaps($private);
+    
     # Remove interfaces we *added* to bridges.
     if (exists($private->{'bridgeifaces'})) {
 	foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
@@ -783,6 +871,17 @@ sub vz_rootPreConfigNetwork {
 		delete($private->{'dummys'}->{$brname})
 		    if ($?);
 	    }
+	}
+    }
+    # Delete the ip links
+    if (exists($private->{'iplinks'})) {
+	foreach my $iface (keys(%{ $private->{'iplinks'} })) {
+            if (-e "/sys/class/net/$iface") {
+	        mysystem2("$IP link del dev $iface");
+	        goto badbad
+		  if ($?);
+            }
+	    delete($private->{'iplinks'}->{$iface});
 	}
     }
     # Undo the IMQs
@@ -1125,6 +1224,8 @@ sub vz_vnodeTearDown {
     #
     # Unwind anything we did.
     #
+    KillCaps($private);
+    
     # Remove interfaces we *added* to bridges.
     if (exists($private->{'bridgeifaces'})) {
 	foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
@@ -1441,7 +1542,7 @@ sub vz_vnodePreConfig {
         if (! -d "/sys/class/net/$dev") {
 	    system("$IP link add name $dev type imq");
         }
-	    
+
 	if ($devs{$dev} == 1) {
 	    mysystem("$VZCTL $VZDEBUGOPTS set $vnode_id --netdev_add $dev --save");
 	}
@@ -1799,29 +1900,8 @@ sub vz_vnodePreConfigExpNetwork {
     foreach my $ifc (@$ifs) {
 	next if (!$ifc->{ISVIRT});
 
-	my $br;
-	my $prefix = "br.";
-	if ($USE_MACVLAN) {
-	    $prefix = "mvsw.";
-	}
-
-	my $physdev;
-	if ($ifc->{ITYPE} eq "vlan") {
-	    my $iface = $ifc->{IFACE};
-	    my $vtag  = $ifc->{VTAG};
-	    my $vdev  = "${iface}.${vtag}";
-	    $br = "${prefix}$vdev";
-	    $physdev = $vdev;
-	}
-	elsif ($ifc->{PMAC} eq "none" || $ifc->{ITYPE} eq "loop") {
-	    $br = "${prefix}" . $ifc->{VTAG};
-	    $physdev = $br;
-	}
-	else {
-	    my $iface = findIface($ifc->{PMAC});
-	    $br = "${prefix}$iface";
-	    $physdev = $iface;
-	}
+	my $br       = $ifc->{"BRIDGE"};
+	my $physdev  = $ifc->{"PHYSDEV"};
 
 	#
 	# The server gives us random/unique macs. Well, as unique as can
@@ -1954,8 +2034,10 @@ sub vz_vnodePreConfigExpNetwork {
 	}
 
 	foreach my $tunnel (values(%{ $tunnels })) {
+	    my $style = $tunnel->{"tunnel_style"};
+	    
 	    next
-		if ($tunnel->{"tunnel_style"} ne "gre");
+		if (! ($style eq "gre" || $style eq "egre"));
 
 	    my $name     = $tunnel->{"tunnel_lan"};
 	    my $srchost  = $tunnel->{"tunnel_srcip"};
@@ -1968,6 +2050,17 @@ sub vz_vnodePreConfigExpNetwork {
 	    my $gre;
 	    my $br;
 
+	    if ($style eq "egre" && !$USE_OPENVSWITCH) {
+		print STDERR "Cannot create egre tunnel without OVS\n";
+		TBScriptUnlock();
+		return -1;
+	    }
+	    if ($style eq "gre" && $USE_OPENVSWITCH) {
+		print STDERR "Cannot create gre tunnel with OVS\n";
+		TBScriptUnlock();
+		return -1;
+	    }
+
 	    if (!$USE_OPENVSWITCH) {
 		if (exists($key2gre{$grekey})) {
 		    $gre = $key2gre{$grekey};
@@ -1977,7 +2070,7 @@ sub vz_vnodePreConfigExpNetwork {
 		    $gre    = "gre" . ++$maxgre;
 		    mysystem2("/sbin/ip tunnel add $gre mode gre ".
 			      "local $srchost remote $dsthost ttl 64 ".
-			      (0 ? "key $grekey" : ""));
+			      (1 ? "key $grekey" : ""));
 		    if ($?) {
 			TBScriptUnlock();
 			return -1;
@@ -2030,7 +2123,7 @@ sub vz_vnodePreConfigExpNetwork {
 		mysystem2("$OVSCTL add-port $br $gre -- set interface $gre ".
 			  "  type=gre options:remote_ip=$dsthost " .
 			  "           options:local_ip=$srchost " .
-			  (0 ? "      options:key=$grekey" : ""));
+			  (1 ? "      options:key=$grekey" : ""));
 		if ($?) {
 		    TBScriptUnlock();
 		    return -1;
@@ -2070,7 +2163,7 @@ sub vz_vnodePreConfigExpNetwork {
 		# direction.  This makes sure that all packets coming out
 		# of the root context device (leaving the VM) got shoved
 		# into the real gre device.  Need to use a default route so
-		# all packets ae matched, which is why we need a table per
+		# all packets are matched, which is why we need a table per
 		# tunnel.
 		#
 		my $routetable = AllocateRouteTable($veth);
@@ -2680,6 +2773,55 @@ sub lvmOrigin($)
     $origin =~ s/^\s+//;
     $origin =~ s/\s+$//;
     return $origin;
+}
+
+#
+# Setup the BW caps.
+#
+sub SetupCaps($$$$)
+{
+    my ($ldinfo, $private, $va, $vb) = @_;
+    my $bw = $ldinfo->{"BW"};
+
+    my $cmd1 = "$va handle 1 root htb default 1";
+
+    mysystem2("$TC qdisc add dev $cmd1") == 0
+	or return -1;
+    $private->{"qdisc"}->{$va} = $cmd1;
+
+    mysystem2("$TC class add dev $va parent 1 classid 1:1 ".
+	      "  htb rate ${bw}kbit ceil ${bw}kbit") == 0
+	or return -1;
+
+    my $cmd2 = "$vb handle 1 root htb default 1";
+
+    mysystem2("$TC qdisc add dev $cmd2") == 0
+	or return -1;
+    $private->{"qdisc"}->{$vb} = $cmd2;
+
+    mysystem2("$TC class add dev $vb parent 1 classid 1:1 ".
+	      "  htb rate ${bw}kbit ceil ${bw}kbit") == 0
+	or return -1;
+
+    return 0;
+}
+
+sub KillCaps($)
+{
+    my ($private) = @_;
+
+    return 0
+	if (!exists($private->{"qdisc"}));
+
+    foreach my $veth (keys(%{ $private->{"qdisc"} })) {
+	my $cmd = $private->{"qdisc"}->{$veth};
+	
+	mysystem2("$TC qdisc del dev $cmd") == 0
+	    or return -1;
+	
+	delete($private->{"qdisc"}->{$veth});
+    }
+    return 0;
 }
 
 # what can I say?
