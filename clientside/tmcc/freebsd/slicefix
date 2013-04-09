@@ -995,22 +995,26 @@ dolinux() {
 
 	    # grub1
 	    if grep -q '^[^#].*root (hd[0-9],[0-9])' $tgconf 2>/dev/null; then
-		echo "    fixing grub1 root"
+		echo "    setting grub1 root to (hd${gdisk},${gpart})"
 		sed -i '' -e "s;root (hd[0-9],[0-9]);root (hd${gdisk},${gpart});" $tgconf
 	    fi
 
 	    # grub2 (note 'part' and not 'gpart'; no -1 in grub2)
 	    if grep -q "^[^#].*set root='(hd[0-9],[^)]*)'" $tgconf 2>/dev/null; then
-		echo "    fixing grub2 root"
+		echo "    setting grub2 root to (hd${gdisk},${part})"
 		sed -i '' -e "s;set root='(hd[0-9],[^)]*)';set root='(hd${gdisk},${part})';" $tgconf
 	    fi
 
 	    #
 	    # Console.
-	    # For vid or null, comment out terminal/serial lines.
+	    # For vid or null, comment out terminal/serial lines and
+	    # fix up any terminal_{input,output} lines (for grub2).
+	    #
 	    # For sio[1-3], add:
-	    #   terminal --dumb --timeout=0 serial console
 	    #   serial --unit=N --speed=S
+	    #   terminal --dumb --timeout=0 serial console # grub1
+	    #   terminal_input serial			   # grub2
+	    #   terminal_output serial			   # grub2
 	    #
 	    echo "    setting console to $CONSOLE"
 	    case $CONSOLE in
@@ -1020,9 +1024,18 @@ dolinux() {
 		    sed -i '' -e 's;^serial;#serial;' $tgconf
 		fi
 		# make sure the "terminal" line is correct
-		if grep -q '^terminal' $tgconf 2>/dev/null; then
+		if grep -q '^terminal ' $tgconf 2>/dev/null; then
 		    tstr="terminal --timeout=5 console"
 		    sed -i '' -e "s;^terminal.*;$tstr;" $tgconf
+		fi
+		# or terminal_{input,output} for grub2
+		if grep -q '^terminal_input' $tgconf 2>/dev/null; then
+		    tstr="terminal_input console"
+		    sed -i '' -e "s;^terminal_input.*;$tstr;" $tgconf
+		fi
+		if grep -q '^terminal_output' $tgconf 2>/dev/null; then
+		    tstr="terminal_output console"
+		    sed -i '' -e "s;^terminal_output.*;$tstr;" $tgconf
 		fi
 		# and fixup kernel/initrd command lines
 		if grep -q 'console=tty0 ' $tgconf 2>/dev/null; then
@@ -1058,9 +1071,18 @@ dolinux() {
 		    sed -E -i '' -e "s;^#?serial.*;$sstr;" $tgconf
 		fi
 		# make sure the "terminal" line is correct
-		if grep -q '^terminal' $tgconf 2>/dev/null; then
+		if grep -q '^terminal ' $tgconf 2>/dev/null; then
 		    tstr="terminal --dumb --timeout=0 serial console"
 		    sed -i '' -e "s;^terminal.*;$tstr;" $tgconf
+		fi
+		# or terminal_{input,output} for grub2
+		if grep -q '^terminal_input' $tgconf 2>/dev/null; then
+		    tstr="terminal_input serial"
+		    sed -i '' -e "s;^terminal_input.*;$tstr;" $tgconf
+		fi
+		if grep -q '^terminal_output' $tgconf 2>/dev/null; then
+		    tstr="terminal_output serial"
+		    sed -i '' -e "s;^terminal_output.*;$tstr;" $tgconf
 		fi
 		# and fixup kernel/initrd command lines
 		if grep -q "console=ttyS[^ ]" $tgconf 2>/dev/null; then

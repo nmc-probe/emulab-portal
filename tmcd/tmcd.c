@@ -5150,7 +5150,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 					if (strcmp(row2[0], "bootdisk_unit") == 0) {
 						disknum = atoi(attrstr);
 					}
-					if (strcmp(row2[0], "bootdisk_biod_id") == 0) {
+					if (strcmp(row2[0], "bootdisk_bios_id") == 0) {
 						biosdisknum = strtol(attrstr, 0, 0);
 					}
 					else if (strcmp(row2[0], "disktype") == 0) {
@@ -10880,5 +10880,3 @@ COMMAND_PROTOTYPE(dodisks)
 	}
 	return 0;
 }
-
-
