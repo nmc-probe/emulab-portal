@@ -252,7 +252,7 @@ elsif ($server eq "boss") {
 	      'boss/firstuser', 'boss/checkupuser', 'boss/wikidocs',
 	      'boss/updatesitevars', 'boss/logdirs',
 	      'boss/mfs', 'boss/images', 'boss/openvz', 'boss/experiments',
-	      'boss/protogeni', 'boss/firewall'
+	      'boss/protogeni', 'boss/firewall', 'boss/servers'
 	     );
 }
 elsif ($server eq "fs") {
