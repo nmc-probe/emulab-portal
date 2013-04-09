@@ -126,30 +126,30 @@ Setting up an InstaGeni Rack. First, we need the following info:
   and try again. Might take another iteration or two. When you have the
   prompt: 
 
-  2610> config
-  2610(config)> vlan 11
-  2610(vlan-11)> name control-alternate
-  2610(vlan-11)> untagged 24        XXXX Make sure about port number!
-  2610(vlan-11)> ip address 10.2.1.253/24
-  2610(vlan-11)> exit
-  2610(config)> vlan 10
-  2610(vlan-10)> name control-hardware
-  2610(vlan-10)> untagged 23	   XXXX Make sure about port number!
-  2610(vlan-10)> ip address 10.1.1.253/24
-  2610(vlan-10)> exit
-  2610(config)> vlan 1
-  2610(vlan-1)> ip address 10.254.254.253/24  # IGMP querier requires this
-  2610(vlan-1)> exit
-  2610(config)> management-vlan 10
-  2610(config)> ip default-gateway 10.1.1.254
-  2610(config)> vlan 1 ip igmp
-  2610(config)> vlan 1 ip igmp querier
-  2610(config)> no web-management
-  2610(config)> no snmp-server community public
-  2610(config)> snmp-server community XXXXX manager unrestricted
-  2610(config)> password all (type in same password for manager/operator)
-  2610(config)> write memory
-  2610(config)> reload
+  2620> config
+  2620(config)> vlan 11
+  2620(vlan-11)> name control-alternate
+  2620(vlan-11)> untagged 24        XXXX Make sure about port number!
+  2620(vlan-11)> ip address 10.2.1.253/24
+  2620(vlan-11)> exit
+  2620(config)> vlan 10
+  2620(vlan-10)> name control-hardware
+  2620(vlan-10)> untagged 23	   XXXX Make sure about port number!
+  2620(vlan-10)> ip address 10.1.1.253/24
+  2620(vlan-10)> exit
+  2620(config)> vlan 1
+  2620(vlan-1)> ip address 10.254.254.253/24  # IGMP querier requires this
+  2620(vlan-1)> exit
+  2620(config)> management-vlan 10
+  2620(config)> ip default-gateway 10.1.1.254
+  2620(config)> vlan 1 ip igmp
+  2620(config)> vlan 1 ip igmp querier
+  2620(config)> no web-management
+  2620(config)> no snmp-server community public
+  2620(config)> snmp-server community XXXXX manager unrestricted
+  2620(config)> password all (type in same password for manager/operator)
+  2620(config)> write memory
+  2620(config)> reload
 
   UTAH: THE PASSWORD and COMMUNITY string come from variables.txt file
   in the rack subdir. Use the same for both switches.
