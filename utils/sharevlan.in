@@ -133,13 +133,16 @@ if (!$this_user->IsAdmin()) {
 
 if ($list) {
     my $query_result =
-	DBQueryFatal("select * from shared_vlans order by token");
+	DBQueryFatal("select * from shared_vlans as s ".
+		     "left join vlans as v on v.id=s.lanid ".
+		     "order by s.token");
     exit(0)
 	if (! $query_result->numrows);
 
-    printf("%-15s %-15s %-15s %-15s %s\n",
-	   "PID", "EID", "Token", "Lan", "Who");
-    print "-------------------------------------------------------------\n";
+    printf("%-15s %-20s %-20s %-20s %-5s %s\n",
+	   "PID", "EID", "Token", "Lan", "Tag", "Who");
+    print "-------------------------------------------------------------";
+    print "------------------------------\n";
 	
     while (my $row = $query_result->fetchrow_hashref()) {
 	my $pid      = $row->{'pid'};
@@ -148,9 +151,10 @@ if ($list) {
 	my $lan      = $row->{'vname'};
 	my $created  = $row->{'created'};
 	my $creator  = $row->{'creator'};
+	my $tag      = $row->{'tag'} || "";
 
-	printf("%-15s %-15s %-15s %-15s %s\n",
-	       $pid, $eid, $token, $lan, $creator);
+	printf("%-15s %-20s %-20s %-20s %-5s %s\n",
+	       $pid, $eid, $token, $lan, "$tag", $creator);
     }
     exit(0);
 }
