@@ -688,7 +688,9 @@ sub setPortVlan($$@) {
 
     my @swports = $self->convertPortFormat($PORT_FORMAT_SYSDB, @ports);
 
+    $self->lock();
     my $resp = $self->callRPC($id, 'setPortVlan', $vlan_number, \@swports);
+    $self->unlock();
     
     if (defined($resp)) {
 	$errors = $resp;
