@@ -1292,7 +1292,7 @@ sub SetupOpsNode($)
     # This avoids nfs mounts interruptions
     if (exists($emulabconfig{PACKAGE_TARBALL})) {
 	RecreateDir("$TBDIR/packages", 1);
-	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR/packages");
+	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR");
     }
 
     #
@@ -1935,7 +1935,7 @@ sub SetupBossNode($)
     # This avoids nfs mounts interruptions
     if (exists($emulabconfig{PACKAGE_TARBALL})) {
 	RecreateDir("$TBDIR/packages", 1);
-	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR/packages");
+	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR");
     }
 
     #
