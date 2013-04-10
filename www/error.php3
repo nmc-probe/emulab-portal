@@ -31,7 +31,7 @@ RequiredPageArguments();
 #
 PAGEHEADER("Non Existent Page!");
 
-USERERROR("The URL you gave: <b>$REQUEST_URI</b>
+USERERROR("The URL you gave: <b>" . htmlentities( $REQUEST_URI ) . "</b>
            is not available or is broken.", 1);
 
 #
