@@ -33,8 +33,8 @@ package com.flack.geni.plugins.planetlab
 	import com.flack.geni.plugins.SliverTypeInterface;
 	import com.flack.geni.plugins.SliverTypePart;
 	import com.flack.geni.resources.physical.PhysicalNode;
-	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualNode;
 	
 	import mx.collections.ArrayCollection;
 

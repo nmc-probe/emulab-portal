@@ -46,7 +46,7 @@ package com.flack.geni.resources.sites.managers
 	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.SliverType;
 	import com.flack.geni.resources.SliverTypes;
-	import com.flack.geni.resources.virtual.LinkType;
+	import com.flack.geni.resources.virt.LinkType;
 	import com.flack.shared.resources.docs.RspecVersion;
 
 	public class SupportedSliverType

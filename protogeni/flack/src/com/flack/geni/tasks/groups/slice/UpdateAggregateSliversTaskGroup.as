@@ -29,9 +29,9 @@
 
 package com.flack.geni.tasks.groups.slice
 {
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.AggregateSliverCollection;
-	import com.flack.geni.resources.virtual.SliverCollection;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.AggregateSliverCollection;
+	import com.flack.geni.resources.virt.SliverCollection;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.am.AllocateTask;

@@ -43,9 +43,9 @@ IN THE WORK.
 			import com.flack.geni.resources.physical.PhysicalInterface;
 			import com.flack.geni.resources.physical.PhysicalInterfaceCollection;
 			import com.flack.geni.resources.physical.PhysicalNode;
-			import com.flack.geni.resources.virtual.VirtualInterface;
-			import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
-			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualInterface;
+			import com.flack.geni.resources.virt.VirtualInterfaceCollection;
+			import com.flack.geni.resources.virt.VirtualNode;
 			import com.flack.shared.resources.IdnUrn;
 			
 			import mx.collections.ArrayCollection;

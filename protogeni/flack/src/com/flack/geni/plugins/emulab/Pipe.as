@@ -29,7 +29,7 @@
 
 package com.flack.geni.plugins.emulab
 {
-	import com.flack.geni.resources.virtual.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualInterface;
 
 	/**
 	 * Pipe used within a delay node to edit network properties from one interface to another

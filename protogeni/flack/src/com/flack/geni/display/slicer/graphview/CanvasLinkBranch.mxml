@@ -49,8 +49,8 @@ VirtualNode for use on the slice canvas
 		  paddingBottom="0">
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.VirtualInterface;
-			import com.flack.geni.resources.virtual.VirtualLink;
+			import com.flack.geni.resources.virt.VirtualInterface;
+			import com.flack.geni.resources.virt.VirtualLink;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
 			

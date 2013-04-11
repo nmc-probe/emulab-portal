@@ -37,7 +37,7 @@ package com.flack.geni
 	import com.flack.geni.resources.sites.GeniAuthorityCollection;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.geni.resources.sites.clearinghouses.ProtogeniClearinghouse;
-	import com.flack.geni.resources.virtual.SliceCollection;
+	import com.flack.geni.resources.virt.SliceCollection;
 	import com.flack.geni.tasks.groups.GetPublicResourcesTaskGroup;
 	import com.flack.geni.tasks.groups.GetResourcesTaskGroup;
 	import com.flack.geni.tasks.groups.GetUserTaskGroup;

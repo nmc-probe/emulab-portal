@@ -39,23 +39,23 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.ComponentHop;
-	import com.flack.geni.resources.virtual.ExecuteService;
-	import com.flack.geni.resources.virtual.GeniManagerReference;
-	import com.flack.geni.resources.virtual.InstallService;
-	import com.flack.geni.resources.virtual.LinkType;
-	import com.flack.geni.resources.virtual.LoginService;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.SliverCollection;
-	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualInterfaceReference;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
-	import com.flack.geni.resources.virtual.extensions.ClientInfo;
-	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistoryItem;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.ComponentHop;
+	import com.flack.geni.resources.virt.ExecuteService;
+	import com.flack.geni.resources.virt.GeniManagerReference;
+	import com.flack.geni.resources.virt.InstallService;
+	import com.flack.geni.resources.virt.LinkType;
+	import com.flack.geni.resources.virt.LoginService;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.SliverCollection;
+	import com.flack.geni.resources.virt.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualInterfaceReference;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.extensions.ClientInfo;
+	import com.flack.geni.resources.virt.extensions.slicehistory.SliceHistoryItem;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.tasks.Task;
@@ -433,6 +433,8 @@ package com.flack.geni.tasks.process
 						diskImageXml.@name = node.sliverType.selectedImage.id.full;
 					if(node.sliverType.selectedImage.url.length > 0)
 						diskImageXml.@url = node.sliverType.selectedImage.url;
+					if(node.sliverType.selectedImage.version.length > 0)
+						diskImageXml.@version = node.sliverType.selectedImage.version;
 					nodeXml.appendChild(diskImageXml);
 				}
 			}
@@ -451,6 +453,8 @@ package com.flack.geni.tasks.process
 						sliverDiskImageXml.@name = node.sliverType.selectedImage.id.full;
 					if(node.sliverType.selectedImage.url.length > 0)
 						sliverDiskImageXml.@url = node.sliverType.selectedImage.url;
+					if(node.sliverType.selectedImage.version.length > 0)
+						sliverDiskImageXml.@version = node.sliverType.selectedImage.version;
 					sliverType.appendChild(sliverDiskImageXml);
 				}
 				nodeXml.appendChild(sliverType);

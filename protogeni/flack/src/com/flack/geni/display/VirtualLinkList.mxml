@@ -38,10 +38,10 @@ IN THE WORK.
 		  paddingLeft="4">
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.Slice;
-			import com.flack.geni.resources.virtual.SliceCollection;
-			import com.flack.geni.resources.virtual.VirtualLink;
-			import com.flack.geni.resources.virtual.VirtualLinkCollection;
+			import com.flack.geni.resources.virt.Slice;
+			import com.flack.geni.resources.virt.SliceCollection;
+			import com.flack.geni.resources.virt.VirtualLink;
+			import com.flack.geni.resources.virt.VirtualLinkCollection;
 			import com.flack.shared.FlackEvent;
 			
 			import mx.collections.ArrayCollection;

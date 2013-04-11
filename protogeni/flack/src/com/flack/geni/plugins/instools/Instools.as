@@ -33,9 +33,9 @@ package com.flack.geni.plugins.instools
 	import com.flack.geni.plugins.Plugin;
 	import com.flack.geni.plugins.PluginArea;
 	import com.flack.geni.plugins.instools.instasks.InstrumentizeSliceGroupTask;
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.Sliver;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.tasks.TaskCollection;

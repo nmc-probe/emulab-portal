@@ -53,14 +53,14 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.sites.managers.opstates.OpStateCollection;
 	import com.flack.geni.resources.sites.managers.opstates.OpStateState;
 	import com.flack.geni.resources.sites.managers.opstates.Wait;
-	import com.flack.geni.resources.sites.managers.stitching.Stitching;
-	import com.flack.geni.resources.sites.managers.stitching.StitchingAggregate;
-	import com.flack.geni.resources.sites.managers.stitching.StitchingLink;
-	import com.flack.geni.resources.sites.managers.stitching.StitchingNode;
-	import com.flack.geni.resources.sites.managers.stitching.StitchingPort;
-	import com.flack.geni.resources.sites.managers.stitching.SwitchingCapabilityDescriptor;
-	import com.flack.geni.resources.sites.managers.stitching.SwitchingCapabilitySpecificInfoL2sc;
-	import com.flack.geni.resources.sites.managers.stitching.SwitchingCapabilitySpecificInfoLsc;
+	import com.flack.geni.resources.virt.extensions.stitching.AdvertisedStitching;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingAggregate;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingLink;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingNode;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingPort;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilityDescriptor;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoL2sc;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoLsc;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -413,23 +413,23 @@ package com.flack.geni.tasks.process
 				var stitchingObj:XMLList = xmlDocument.stitchingNamepace::stitching;
 				if(stitchingObj != null && stitchingObj.length() == 1)
 				{
-					manager.stitching = new Stitching();
+					manager.stitching = new AdvertisedStitching();
 					var aggregates:XMLList = stitchingObj.stitchingNamepace::aggregate;
 					for each(var aggregateObj:XML in aggregates)
 					{
 						var newAggregate:StitchingAggregate = new StitchingAggregate(String(aggregateObj.@id));
 						newAggregate.url = String(aggregateObj.@url);
-						if (aggregateObj.aggregatetype.length() == 1) {
-							newAggregate.aggregateType = String(aggregateObj.aggregatetype);
+						if (aggregateObj.stitchingNamepace::aggregatetype.length() == 1) {
+							newAggregate.aggregateType = String(aggregateObj.stitchingNamepace::aggregatetype);
 						}
-						if (aggregateObj.stitchingmode.length() == 1) {
-							newAggregate.stitchingMode = String(aggregateObj.stitchingmode);
+						if (aggregateObj.stitchingNamepace::stitchingmode.length() == 1) {
+							newAggregate.stitchingMode = String(aggregateObj.stitchingNamepace::stitchingmode);
 						}
-						if (aggregateObj.scheduledservices.length() == 1) {
-							newAggregate.scheduledServices = aggregateObj.scheduledservices == "true" || aggregateObj.scheduledservices == "1";
+						if (aggregateObj.stitchingNamepace::scheduledservices.length() == 1) {
+							newAggregate.scheduledServices = aggregateObj.stitchingNamepace::scheduledservices == "true" || aggregateObj.stitchingNamepace::scheduledservices == "1";
 						}
-						if (aggregateObj.negotiatedservices.length() == 1) {
-							newAggregate.negotiatedServices = aggregateObj.negotiatedservices == "true" || aggregateObj.negotiatedservices == "1";
+						if (aggregateObj.stitchingNamepace::negotiatedservices.length() == 1) {
+							newAggregate.negotiatedServices = aggregateObj.stitchingNamepace::negotiatedservices == "true" || aggregateObj.stitchingNamepace::negotiatedservices == "1";
 						}
 						
 						// Add nodes
@@ -443,17 +443,17 @@ package com.flack.geni.tasks.process
 							for each(var stitchingPortObj:XML in stitchingPorts)
 							{
 								var newStitchingPort:StitchingPort = new StitchingPort(String(stitchingPortObj.@id));
-								if (stitchingPortObj.capacity.length() == 1) {
-									newStitchingPort.capacity = Number(stitchingPortObj.capacity);
+								if (stitchingPortObj.stitchingNamepace::capacity.length() == 1) {
+									newStitchingPort.capacity = Number(stitchingPortObj.stitchingNamepace::capacity);
 								}
-								if (stitchingPortObj.maximumReservableCapacity.length() == 1) {
-									newStitchingPort.maximumReservableCapacity = Number(stitchingPortObj.maximumReservableCapacity);
+								if (stitchingPortObj.stitchingNamepace::maximumReservableCapacity.length() == 1) {
+									newStitchingPort.maximumReservableCapacity = Number(stitchingPortObj.stitchingNamepace::maximumReservableCapacity);
 								}
-								if (stitchingPortObj.minimumReservableCapacity.length() == 1) {
-									newStitchingPort.minimumReservableCapacity = Number(stitchingPortObj.minimumReservableCapacity);
+								if (stitchingPortObj.stitchingNamepace::minimumReservableCapacity.length() == 1) {
+									newStitchingPort.minimumReservableCapacity = Number(stitchingPortObj.stitchingNamepace::minimumReservableCapacity);
 								}
-								if (stitchingPortObj.granularity.length() == 1) {
-									newStitchingPort.granularity = Number(stitchingPortObj.granularity);
+								if (stitchingPortObj.stitchingNamepace::granularity.length() == 1) {
+									newStitchingPort.granularity = Number(stitchingPortObj.stitchingNamepace::granularity);
 								}
 								
 								// Add links
@@ -461,69 +461,69 @@ package com.flack.geni.tasks.process
 								for each(var stitchingLinkObj:XML in stitchingLinks)
 								{
 									var newStitchingLink:StitchingLink = new StitchingLink(String(stitchingLinkObj.@id));
-									if (stitchingLinkObj.remoteLinkId.length() == 1) {
-										newStitchingLink.remoteLinkId.full = String(stitchingLinkObj.remoteLinkId);
+									if (stitchingLinkObj.stitchingNamepace::remoteLinkId.length() == 1) {
+										newStitchingLink.remoteLinkId.full = String(stitchingLinkObj.stitchingNamepace::remoteLinkId);
 									}
-									if (stitchingLinkObj.trafficEngineeringMetric.length() == 1) {
-										newStitchingLink.trafficEngineeringMetric = Number(stitchingLinkObj.trafficEngineeringMetric);
+									if (stitchingLinkObj.stitchingNamepace::trafficEngineeringMetric.length() == 1) {
+										newStitchingLink.trafficEngineeringMetric = Number(stitchingLinkObj.stitchingNamepace::trafficEngineeringMetric);
 									}
 									if (stitchingLinkObj.capacity.length() == 1) {
 										newStitchingLink.capacity = Number(stitchingLinkObj.capacity);
 									}
-									if (stitchingLinkObj.maximumReservableCapacity.length() == 1) {
-										newStitchingLink.maximumReservableCapacity = Number(stitchingLinkObj.maximumReservableCapacity);
+									if (stitchingLinkObj.stitchingNamepace::maximumReservableCapacity.length() == 1) {
+										newStitchingLink.maximumReservableCapacity = Number(stitchingLinkObj.stitchingNamepace::maximumReservableCapacity);
 									}
-									if (stitchingLinkObj.minimumReservableCapacity.length() == 1) {
-										newStitchingLink.minimumReservableCapacity = Number(stitchingLinkObj.minimumReservableCapacity);
+									if (stitchingLinkObj.stitchingNamepace::minimumReservableCapacity.length() == 1) {
+										newStitchingLink.minimumReservableCapacity = Number(stitchingLinkObj.stitchingNamepace::minimumReservableCapacity);
 									}
-									if (stitchingLinkObj.granularity.length() == 1) {
-										newStitchingLink.granularity = Number(stitchingLinkObj.granularity);
+									if (stitchingLinkObj.stitchingNamepace::granularity.length() == 1) {
+										newStitchingLink.granularity = Number(stitchingLinkObj.stitchingNamepace::granularity);
 									}
 									
 									var switchingCapabilityDescriptors:XMLList = stitchingLinkObj.stitchingNamepace::switchingCapabilityDescriptor;
 									for each(var switchingCapabilityDescriptorObj:XML in switchingCapabilityDescriptors)
 									{
 										var newSwitchingCapabilityDescriptor:SwitchingCapabilityDescriptor = new SwitchingCapabilityDescriptor();
-										if (switchingCapabilityDescriptorObj.switchingcapType.length() == 1) {
-											newSwitchingCapabilityDescriptor.switchingcapType = String(switchingCapabilityDescriptorObj.switchingcapType);
+										if (switchingCapabilityDescriptorObj.stitchingNamepace::switchingcapType.length() == 1) {
+											newSwitchingCapabilityDescriptor.switchingcapType = String(switchingCapabilityDescriptorObj.stitchingNamepace::switchingcapType);
 										}
-										if (switchingCapabilityDescriptorObj.encodingType.length() == 1) {
-											newSwitchingCapabilityDescriptor.encodingType = String(switchingCapabilityDescriptorObj.encodingType);
+										if (switchingCapabilityDescriptorObj.stitchingNamepace::encodingType.length() == 1) {
+											newSwitchingCapabilityDescriptor.encodingType = String(switchingCapabilityDescriptorObj.stitchingNamepace::encodingType);
 										}
 										
 										var switchingCapabilitySpecificInfos:XMLList = switchingCapabilityDescriptorObj.stitchingNamepace::switchingCapabilitySpecificInfo;
 										for each(var switchingCapabilitySpecificInfoObj:XML in switchingCapabilitySpecificInfos)
 										{
-											if (switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_L2sc.length() == 1) {
+											if (switchingCapabilitySpecificInfoObj.stitchingNamepace::switchingCapabilitySpecificInfo_L2sc.length() == 1) {
 												newSwitchingCapabilityDescriptor.l2scInfo = new SwitchingCapabilitySpecificInfoL2sc();
-												var l2scInfoObj:XML = switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_L2sc[0];
-												if (l2scInfoObj.interfaceMTU.length() == 1) {
-													newSwitchingCapabilityDescriptor.l2scInfo.interfaceMTU = Number(l2scInfoObj.interfaceMTU);
+												var l2scInfoObj:XML = switchingCapabilitySpecificInfoObj.stitchingNamepace::switchingCapabilitySpecificInfo_L2sc[0];
+												if (l2scInfoObj.stitchingNamepace::interfaceMTU.length() == 1) {
+													newSwitchingCapabilityDescriptor.l2scInfo.interfaceMTU = Number(l2scInfoObj.stitchingNamepace::interfaceMTU);
 												}
-												if (l2scInfoObj.vlanRangeAvailability.length() == 1) {
-													newSwitchingCapabilityDescriptor.l2scInfo.vlanRangeAvailability = String(l2scInfoObj.vlanRangeAvailability);
+												if (l2scInfoObj.stitchingNamepace::vlanRangeAvailability.length() == 1) {
+													newSwitchingCapabilityDescriptor.l2scInfo.vlanRangeAvailability = String(l2scInfoObj.stitchingNamepace::vlanRangeAvailability);
 												}
-												if (l2scInfoObj.suggestedVLANRange.length() == 1) {
-													newSwitchingCapabilityDescriptor.l2scInfo.suggestedVLANRange = String(l2scInfoObj.suggestedVLANRange);
+												if (l2scInfoObj.stitchingNamepace::suggestedVLANRange.length() == 1) {
+													newSwitchingCapabilityDescriptor.l2scInfo.suggestedVLANRange = String(l2scInfoObj.stitchingNamepace::suggestedVLANRange);
 												}
-												if (l2scInfoObj.vlanTranslation.length() == 1) {
-													newSwitchingCapabilityDescriptor.l2scInfo.vlanTranslation = l2scInfoObj.vlanTranslation == "true" || l2scInfoObj.vlanTranslation == "1";
+												if (l2scInfoObj.stitchingNamepace::vlanTranslation.length() == 1) {
+													newSwitchingCapabilityDescriptor.l2scInfo.vlanTranslation = l2scInfoObj.stitchingNamepace::vlanTranslation == "true" || l2scInfoObj.stitchingNamepace::vlanTranslation == "1";
 												}
 											}
-											if (switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_Lsc.length() == 1) {
+											if (switchingCapabilitySpecificInfoObj.stitchingNamepace::switchingCapabilitySpecificInfo_Lsc.length() == 1) {
 												newSwitchingCapabilityDescriptor.lscInfo = new SwitchingCapabilitySpecificInfoLsc();
-												var lscInfoObj:XML = switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_Lsc[0];
-												if (lscInfoObj.wavelengthSpacing.length() == 1) {
-													newSwitchingCapabilityDescriptor.lscInfo.wavelengthSpacing = String(lscInfoObj.wavelengthSpacing);
+												var lscInfoObj:XML = switchingCapabilitySpecificInfoObj.stitchingNamepace::switchingCapabilitySpecificInfo_Lsc[0];
+												if (lscInfoObj.stitchingNamepace::wavelengthSpacing.length() == 1) {
+													newSwitchingCapabilityDescriptor.lscInfo.wavelengthSpacing = String(lscInfoObj.stitchingNamepace::wavelengthSpacing);
 												}
-												if (lscInfoObj.wavelengthRangeAvailability.length() == 1) {
-													newSwitchingCapabilityDescriptor.lscInfo.wavelengthRangeAvailability = String(lscInfoObj.wavelengthRangeAvailability);
+												if (lscInfoObj.stitchingNamepace::wavelengthRangeAvailability.length() == 1) {
+													newSwitchingCapabilityDescriptor.lscInfo.wavelengthRangeAvailability = String(lscInfoObj.stitchingNamepace::wavelengthRangeAvailability);
 												}
-												if (lscInfoObj.suggestedWavelengthRange.length() == 1) {
-													newSwitchingCapabilityDescriptor.lscInfo.suggestedWavelengthRange = String(lscInfoObj.suggestedWavelengthRange);
+												if (lscInfoObj.stitchingNamepace::suggestedWavelengthRange.length() == 1) {
+													newSwitchingCapabilityDescriptor.lscInfo.suggestedWavelengthRange = String(lscInfoObj.stitchingNamepace::suggestedWavelengthRange);
 												}
-												if (lscInfoObj.wavelengthTranslation.length() == 1) {
-													newSwitchingCapabilityDescriptor.lscInfo.wavelengthTranslation = String(lscInfoObj.wavelengthTranslation);
+												if (lscInfoObj.stitchingNamepace::wavelengthTranslation.length() == 1) {
+													newSwitchingCapabilityDescriptor.lscInfo.wavelengthTranslation = String(lscInfoObj.stitchingNamepace::wavelengthTranslation);
 												}
 											}
 										}
@@ -539,6 +539,8 @@ package com.flack.geni.tasks.process
 							
 							newAggregate.nodes.add(newStitchingNode);
 						}
+						
+						manager.stitching.aggregates.add(newAggregate);
 					}
 				}
 				else

@@ -36,7 +36,7 @@ package com.flack.geni.plugins.openflow
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.docs.Rspec;
 	

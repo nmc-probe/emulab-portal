@@ -33,8 +33,8 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.display.windows.ChooseManagerWindow;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.docs.RspecVersion;

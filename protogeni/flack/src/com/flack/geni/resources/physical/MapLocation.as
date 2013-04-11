@@ -29,8 +29,8 @@
 
 package com.flack.geni.resources.physical
 {
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 
 	public class MapLocation
 	{

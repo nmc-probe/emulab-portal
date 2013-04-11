@@ -30,7 +30,7 @@
 package com.flack.geni.resources
 {
 	import com.flack.geni.resources.physical.PhysicalInterface;
-	import com.flack.geni.resources.virtual.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualInterface;
 	import com.flack.shared.utils.NetUtil;
 
 	/**

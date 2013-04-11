@@ -29,8 +29,8 @@
 
 package com.flack.geni.tasks.groups.slice
 {
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
 	import com.flack.geni.tasks.xmlrpc.am.RenewTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RenewSliverCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.RenewSliceSaTask;

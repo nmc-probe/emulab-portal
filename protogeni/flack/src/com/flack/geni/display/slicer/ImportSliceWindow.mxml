@@ -38,7 +38,7 @@ IN THE WORK.
 					   title="Paste RSPEC" xmlns:windows="com.flack.shared.display.windows.*">
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virt.Slice;
 			import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
 			import com.flack.shared.utils.ImageUtil;
 			

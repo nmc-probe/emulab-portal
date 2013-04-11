@@ -38,15 +38,13 @@ package com.flack.geni.plugins.gemini
 	import com.flack.geni.resources.ExtensionSpaceCollection;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	
 	import flash.utils.Dictionary;
-	
-	import mx.controls.Alert;
 	
 	public class Gemini implements Plugin
 	{
@@ -126,7 +124,7 @@ package com.flack.geni.plugins.gemini
 			var globalNode:VirtualNode = new VirtualNode(
 				slice,
 				manager,
-				manager.makeValidClientIdFor(slice.getUniqueId(null, "GN" + manager.hrn)),
+				manager.makeValidClientIdFor(slice.getUniqueId(null, ("GN" + manager.hrn).replace(/\./g, "").substr(0, 16))),
 				false,
 				"emulab-openvz");
 			globalNode.emulabRoutableControlIp = true;

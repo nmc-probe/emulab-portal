@@ -40,8 +40,8 @@ IN THE WORK.
 				   creationComplete="init()" xmlns:areas1="com.flack.shared.display.areas.*">
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.VirtualNode;
-			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.geni.resources.virt.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualNodeCollection;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.display.areas.AreaContent;
 			

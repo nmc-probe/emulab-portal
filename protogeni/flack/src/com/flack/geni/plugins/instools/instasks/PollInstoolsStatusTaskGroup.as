@@ -31,7 +31,7 @@
 package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.tasks.ParallelTaskGroup;

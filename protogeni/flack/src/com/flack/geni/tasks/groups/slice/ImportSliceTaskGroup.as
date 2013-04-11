@@ -30,8 +30,8 @@
 package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.Sliver;
 	import com.flack.geni.tasks.process.StartImportSliceTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;

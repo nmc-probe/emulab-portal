@@ -29,8 +29,8 @@
 
 package com.flack.geni.resources.sites.managers
 {
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 
 	public class SupportedLinkTypeCollection
 	{

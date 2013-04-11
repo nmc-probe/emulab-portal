@@ -31,8 +31,8 @@
 package com.flack.geni.plugins.instools
 {
 	import com.flack.geni.GeniMain;
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
 	import com.hurlant.crypto.hash.SHA1;
 	import com.hurlant.util.Hex;
 	

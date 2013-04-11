@@ -46,7 +46,7 @@ IN THE WORK.
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.managers.SupportedSliverType;
 			import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
-			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualNode;
 			import com.flack.shared.display.components.DataButton;
 			import com.flack.shared.display.components.ImageButton;
 			import com.flack.shared.utils.ColorUtil;

@@ -42,27 +42,33 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.physical.HardwareType;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.virtual.ComponentHop;
-	import com.flack.geni.resources.virtual.ExecuteService;
-	import com.flack.geni.resources.virtual.GeniManagerReference;
-	import com.flack.geni.resources.virtual.Host;
-	import com.flack.geni.resources.virtual.InstallService;
-	import com.flack.geni.resources.virtual.Ip;
-	import com.flack.geni.resources.virtual.LinkType;
-	import com.flack.geni.resources.virtual.LoginService;
-	import com.flack.geni.resources.virtual.Services;
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
-	import com.flack.geni.resources.virtual.VirtualInterfaceReference;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
-	import com.flack.geni.resources.virtual.extensions.MCInfo;
-	import com.flack.geni.resources.virtual.extensions.SliceFlackInfo;
-	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistory;
-	import com.flack.geni.resources.virtual.extensions.slicehistory.SliceHistoryItem;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.ComponentHop;
+	import com.flack.geni.resources.virt.ExecuteService;
+	import com.flack.geni.resources.virt.GeniManagerReference;
+	import com.flack.geni.resources.virt.Host;
+	import com.flack.geni.resources.virt.InstallService;
+	import com.flack.geni.resources.virt.Ip;
+	import com.flack.geni.resources.virt.LinkType;
+	import com.flack.geni.resources.virt.LoginService;
+	import com.flack.geni.resources.virt.Services;
+	import com.flack.geni.resources.virt.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualInterfaceCollection;
+	import com.flack.geni.resources.virt.VirtualInterfaceReference;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.extensions.MCInfo;
+	import com.flack.geni.resources.virt.extensions.SliceFlackInfo;
+	import com.flack.geni.resources.virt.extensions.slicehistory.SliceHistory;
+	import com.flack.geni.resources.virt.extensions.slicehistory.SliceHistoryItem;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingHop;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingLink;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingPath;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilityDescriptor;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoL2sc;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoLsc;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -569,6 +575,8 @@ package com.flack.geni.tasks.process
 									var diskImageV1:DiskImage = new DiskImage(diskImageV1Name);//sliver.manager.diskImages.getByLongId(diskImageV1Name);
 									if(nodeChildXml.@url.length() == 1)
 										diskImageV1.url = nodeChildXml.@url;
+									if(nodeChildXml.@version.length() == 1)
+										diskImageV1.version = nodeChildXml.@version;
 									diskImageV1.extensions.buildFromOriginal(nodeChildXml, [defaultNamespace.uri]);
 									virtualNode.sliverType.selectedImage = diskImageV1;
 									break;
@@ -596,6 +604,8 @@ package com.flack.geni.tasks.process
 												var diskImageV2:DiskImage = new DiskImage(diskImageV2Name);//sliver.manager.diskImages.getByLongId(diskImageV2Name);
 												if(sliverTypeChild.@url.length() == 1)
 													diskImageV2.url = sliverTypeChild.@url;
+												if(sliverTypeChild.@version.length() == 1)
+													diskImageV2.version = sliverTypeChild.@version;
 												diskImageV2.extensions.buildFromOriginal(sliverTypeChild, [defaultNamespace.uri]);
 												virtualNode.sliverType.selectedImage = diskImageV2;
 											}
@@ -1081,6 +1091,121 @@ package com.flack.geni.tasks.process
 					
 					if(isManifestFinished)
 						virtualLink.manifest = linkXml.toXMLString();
+				}
+
+				// Parse stitching info.
+				var stitchingNamespace:Namespace = RspecUtil.stitchingNamespace;
+				for each(var stitchingXml:XML in xmlDocument.stitchingNamespace::stitching)
+				{
+					var lastUpdateTimeString:String = String(stitchingXml.@lastUpdateTime);
+					var year:Number = Number(lastUpdateTimeString.substr(0, 4));
+					var lastUpdateTime:Date = new Date(
+						Number(lastUpdateTimeString.substr(0, 4)),
+						Number(lastUpdateTimeString.substr(4, 2)),
+						Number(lastUpdateTimeString.substr(6, 2)),
+						Number(lastUpdateTimeString.substr(9, 2)),
+						Number(lastUpdateTimeString.substr(12, 2)),
+						Number(lastUpdateTimeString.substr(15, 2)));
+					aggregateSliver.slice.stitching.lastUpdateTime = lastUpdateTime;
+					for each(var pathXml:XML in stitchingXml.stitchingNamespace::path)
+					{
+						var pathVirtualLink:VirtualLink = aggregateSliver.slice.links.getByClientId(String(pathXml.@id)) as VirtualLink;
+						// Link not parsed yet.
+						if(pathVirtualLink == null)
+							continue;
+						var path:StitchingPath = aggregateSliver.slice.stitching.paths.getByVirtualLinkClientId(pathVirtualLink.clientId);
+						if (path == null) {
+							path = new StitchingPath(pathVirtualLink);
+							aggregateSliver.slice.stitching.paths.add(path);
+						}
+						for each(var hopXml:XML in pathXml.stitchingNamespace::hop)
+						{
+							var hopId:Number = Number(hopXml.@id);
+							var hop:StitchingHop = path.hops.getById(hopId);
+							if (hop == null) {
+								hop = new StitchingHop(hopId);
+								path.hops.add(hop);
+							}
+							for each(var stitchingLinkXml:XML in hopXml.stitchingNamespace::link)
+							{
+								var linkId:String = String(stitchingLinkXml.@id);
+								
+								var advertisedLink:StitchingLink = hop.advertisedLink;
+								if (advertisedLink == null || advertisedLink.id.full != linkId) {
+									advertisedLink = GeniMain.geniUniverse.managers.getComponentById(linkId) as StitchingLink;
+									hop.advertisedLink = advertisedLink;
+								}
+								
+								var requestLink:StitchingLink = hop.requestLink;
+								if (requestLink == null || requestLink.id.full != linkId) {
+									requestLink = new StitchingLink(linkId);
+									hop.requestLink = requestLink;
+								}
+								
+								if (stitchingLinkXml.stitchingNamespace::trafficEngineeringMetric.length() == 1) {
+									requestLink.trafficEngineeringMetric = Number(stitchingLinkXml.stitchingNamespace::trafficEngineeringMetric);
+								}
+								if (stitchingLinkXml.stitchingNamespace::capacity.length() == 1) {
+									requestLink.capacity = Number(stitchingLinkXml.stitchingNamespace::capacity);
+								}
+								
+								var switchingCapabilityDescriptors:XMLList = stitchingLinkXml.stitchingNamespace::switchingCapabilityDescriptor;
+								for each(var switchingCapabilityDescriptorObj:XML in switchingCapabilityDescriptors)
+								{
+									var newSwitchingCapabilityDescriptor:SwitchingCapabilityDescriptor = new SwitchingCapabilityDescriptor();
+									if (switchingCapabilityDescriptorObj.stitchingNamespace::switchingcapType.length() == 1) {
+										newSwitchingCapabilityDescriptor.switchingcapType = String(switchingCapabilityDescriptorObj.stitchingNamespace::switchingcapType);
+									}
+									if (switchingCapabilityDescriptorObj.stitchingNamespace::encodingType.length() == 1) {
+										newSwitchingCapabilityDescriptor.encodingType = String(switchingCapabilityDescriptorObj.stitchingNamespace::encodingType);
+									}
+									
+									var switchingCapabilitySpecificInfos:XMLList = switchingCapabilityDescriptorObj.stitchingNamespace::switchingCapabilitySpecificInfo;
+									for each(var switchingCapabilitySpecificInfoObj:XML in switchingCapabilitySpecificInfos)
+									{
+										if (switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_L2sc.length() == 1) {
+											newSwitchingCapabilityDescriptor.l2scInfo = new SwitchingCapabilitySpecificInfoL2sc();
+											var l2scInfoObj:XML = switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_L2sc[0];
+											if (l2scInfoObj.stitchingNamespace::interfaceMTU.length() == 1) {
+												newSwitchingCapabilityDescriptor.l2scInfo.interfaceMTU = Number(l2scInfoObj.stitchingNamespace::interfaceMTU);
+											}
+											if (l2scInfoObj.stitchingNamespace::vlanRangeAvailability.length() == 1) {
+												newSwitchingCapabilityDescriptor.l2scInfo.vlanRangeAvailability = String(l2scInfoObj.stitchingNamespace::vlanRangeAvailability);
+											}
+											if (l2scInfoObj.stitchingNamespace::suggestedVLANRange.length() == 1) {
+												newSwitchingCapabilityDescriptor.l2scInfo.suggestedVLANRange = String(l2scInfoObj.stitchingNamespace::suggestedVLANRange);
+											}
+											if (l2scInfoObj.stitchingNamespace::vlanTranslation.length() == 1) {
+												newSwitchingCapabilityDescriptor.l2scInfo.vlanTranslation = l2scInfoObj.stitchingNamespace::vlanTranslation == "true" || l2scInfoObj.stitchingNamespace::vlanTranslation == "1";
+											}
+										}
+										if (switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_Lsc.length() == 1) {
+											newSwitchingCapabilityDescriptor.lscInfo = new SwitchingCapabilitySpecificInfoLsc();
+											var lscInfoObj:XML = switchingCapabilitySpecificInfoObj.switchingCapabilitySpecificInfo_Lsc[0];
+											if (lscInfoObj.stitchingNamespace::wavelengthSpacing.length() == 1) {
+												newSwitchingCapabilityDescriptor.lscInfo.wavelengthSpacing = String(lscInfoObj.stitchingNamespace::wavelengthSpacing);
+											}
+											if (lscInfoObj.stitchingNamespace::wavelengthRangeAvailability.length() == 1) {
+												newSwitchingCapabilityDescriptor.lscInfo.wavelengthRangeAvailability = String(lscInfoObj.stitchingNamespace::wavelengthRangeAvailability);
+											}
+											if (lscInfoObj.stitchingNamespace::suggestedWavelengthRange.length() == 1) {
+												newSwitchingCapabilityDescriptor.lscInfo.suggestedWavelengthRange = String(lscInfoObj.stitchingNamespace::suggestedWavelengthRange);
+											}
+											if (lscInfoObj.stitchingNamespace::wavelengthTranslation.length() == 1) {
+												newSwitchingCapabilityDescriptor.lscInfo.wavelengthTranslation = String(lscInfoObj.stitchingNamespace::wavelengthTranslation);
+											}
+										}
+									}
+									
+									requestLink.switchingCapabilityDescriptors.add(newSwitchingCapabilityDescriptor);
+								}
+							}
+							
+							if (hopXml.stitchingNamespace::nextHop.length() == 1) {
+								hop.nextHop = Number(hopXml.stitchingNamespace::nextHop);
+							}
+						}
+					}
 				}
 				
 				if(parseManifest)

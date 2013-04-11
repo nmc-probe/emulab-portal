@@ -67,8 +67,8 @@ package com.flack.geni.tasks.xmlrpc.am
 				"Getting the version information of the aggregate manager for " + newManager.hrn,
 				"Get Version"
 			);
-			maxTries = 1;
-			timeout = 60;
+			maxTries = 2;
+			timeout = 30;
 			promptAfterMaxTries = false;
 			newManager.Status = FlackManager.STATUS_INPROGRESS;
 			relatedTo.push(newManager);
@@ -82,6 +82,10 @@ package com.flack.geni.tasks.xmlrpc.am
 			{
 				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
 				{
+					if(numberTries < maxTries) {
+						runRetry(5);
+						return;
+					}
 					faultOnSuccess();
 					return;
 				}
@@ -129,9 +133,13 @@ package com.flack.geni.tasks.xmlrpc.am
 
 				if(data.geni_am_type != null)
 				{
+					manager.types = new Vector.<String>();
 					for(var amType:String in data.geni_am_type)
 					{
 						manager.types.push(amType);
+					}
+					if (manager.types.length == 1) {
+						manager.type = manager.types[0];
 					}
 				}
 				if(data.geni_am_code_version != null)
@@ -261,6 +269,10 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function afterError(taskError:TaskError):void
 		{
+			if(numberTries < maxTries) {
+				runRetry(5);
+				return;
+			}
 			manager.Status = FlackManager.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_MANAGER,

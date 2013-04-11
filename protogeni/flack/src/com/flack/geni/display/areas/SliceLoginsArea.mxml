@@ -43,8 +43,8 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.display.DisplayUtil;
-			import com.flack.geni.resources.virtual.Slice;
-			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virt.Slice;
+			import com.flack.geni.resources.virt.VirtualNode;
 			import com.flack.shared.display.components.DataButton;
 			import com.flack.shared.tasks.file.FileTask;
 			import com.flack.shared.utils.ImageUtil;

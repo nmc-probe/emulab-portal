@@ -33,9 +33,9 @@ package com.flack.geni.plugins.emulab
 	import com.flack.geni.plugins.SliverTypeInterface;
 	import com.flack.geni.plugins.SliverTypePart;
 	import com.flack.geni.resources.physical.PhysicalNode;
-	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 	
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;

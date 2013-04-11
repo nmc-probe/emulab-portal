@@ -43,8 +43,8 @@ IN THE WORK.
 	</fx:Declarations>
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.Slice;
-			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virt.Slice;
+			import com.flack.geni.resources.virt.VirtualNode;
 			
 			import mx.controls.Alert;
 			

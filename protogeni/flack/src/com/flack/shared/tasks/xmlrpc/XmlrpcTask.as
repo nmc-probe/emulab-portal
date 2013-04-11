@@ -401,8 +401,12 @@ package com.flack.shared.tasks.xmlrpc
 				runRetry();
 		}
 		
-		protected function runRetry():void
+		protected function runRetry(newDelay:int=-1):void
 		{
+			if(newDelay == -1)
+				delay =  MathUtil.randomNumberBetween(20, 60);
+			else
+				delay = newDelay;
 			delay =  MathUtil.randomNumberBetween(20, 60);
 			addMessage(
 				"Scheduling retry",

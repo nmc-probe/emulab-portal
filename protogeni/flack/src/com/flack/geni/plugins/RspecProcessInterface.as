@@ -29,7 +29,7 @@
 
 package com.flack.geni.plugins
 {
-	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 
 	public interface RspecProcessInterface
 	{

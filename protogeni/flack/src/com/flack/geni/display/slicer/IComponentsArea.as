@@ -29,9 +29,9 @@
 
 package com.flack.geni.display.slicer
 {
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.VirtualComponent;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualComponent;
+	import com.flack.geni.resources.virt.VirtualNode;
 
 	public interface IComponentsArea
 	{

@@ -29,8 +29,8 @@
 
 package com.flack.geni.tasks.groups.slice
 {
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.SliceCollection;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.SliceCollection;
 	import com.flack.shared.tasks.ParallelTaskGroup;
 	
 	/**

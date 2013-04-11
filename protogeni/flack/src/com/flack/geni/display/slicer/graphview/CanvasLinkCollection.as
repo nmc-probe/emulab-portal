@@ -29,8 +29,8 @@
 
 package com.flack.geni.display.slicer.graphview
 {
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
 
 	public class CanvasLinkCollection
 	{

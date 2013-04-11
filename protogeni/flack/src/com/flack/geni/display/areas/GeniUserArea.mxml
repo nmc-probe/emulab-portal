@@ -48,7 +48,7 @@ IN THE WORK.
 			import com.flack.geni.resources.GeniCollaborator;
 			import com.flack.geni.resources.physical.PhysicalNode;
 			import com.flack.geni.resources.sites.GeniAuthority;
-			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virt.Slice;
 			import com.flack.geni.tasks.groups.GetUserTaskGroup;
 			import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetUserKeysSaTask;
 			import com.flack.shared.FlackEvent;

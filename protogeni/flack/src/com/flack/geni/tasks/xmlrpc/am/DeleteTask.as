@@ -29,10 +29,10 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.SliverCollection;
-	import com.flack.geni.resources.virtual.VirtualComponent;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Sliver;
+	import com.flack.geni.resources.virt.SliverCollection;
+	import com.flack.geni.resources.virt.VirtualComponent;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;

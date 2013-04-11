@@ -33,12 +33,12 @@ package com.flack.geni.tasks.tests
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverTypes;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 	import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.RenewSliceTaskGroup;

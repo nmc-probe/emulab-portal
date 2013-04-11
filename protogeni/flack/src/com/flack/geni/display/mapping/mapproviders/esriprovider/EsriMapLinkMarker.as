@@ -37,7 +37,7 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 	import com.flack.geni.resources.physical.PhysicalLocation;
 	import com.flack.geni.resources.physical.PhysicalLocationCollection;
 	import com.flack.geni.resources.physical.PhysicalNodeCollection;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 	
 	import flash.events.MouseEvent;
 	

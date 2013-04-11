@@ -32,8 +32,8 @@ package com.flack.geni.tasks.tests
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.SliverTypes;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualNode;
 	import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.DeleteAggregateSliversTaskGroup;
 	import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;

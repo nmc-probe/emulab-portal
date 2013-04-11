@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNode;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.TaskError;

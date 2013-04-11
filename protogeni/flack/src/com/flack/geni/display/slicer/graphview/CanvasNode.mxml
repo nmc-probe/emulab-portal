@@ -79,10 +79,10 @@ VirtualNode for use on the slice canvas
 	</fx:Style>
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.AggregateSliver;
-			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.VirtualComponent;
-			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virt.AggregateSliver;
+			import com.flack.geni.resources.virt.Sliver;
+			import com.flack.geni.resources.virt.VirtualComponent;
+			import com.flack.geni.resources.virt.VirtualNode;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.StringUtil;

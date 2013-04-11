@@ -29,9 +29,9 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.VirtualComponent;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Sliver;
+	import com.flack.geni.resources.virt.VirtualComponent;
 	import com.flack.shared.utils.DateUtil;
 	
 	/**

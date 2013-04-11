@@ -31,7 +31,7 @@ package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.resources.sites.GeniAuthority;
-	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virt.Slice;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.ResolveSliceSaTask;
 	import com.flack.shared.resources.IdnUrn;

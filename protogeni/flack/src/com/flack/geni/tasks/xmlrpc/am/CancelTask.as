@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
-	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;

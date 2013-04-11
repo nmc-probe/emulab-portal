@@ -47,8 +47,12 @@ package com.mattism.http.xmlrpc
 			var data:Object;
 			var i:int;
 			
+			if (node == null) {
+				return "";
+			}
+			
 			if (node.nodeKind() == 'text') {
-				return node.*;
+				return node.toString();
 			}
 			else if (node.nodeKind() == 'element') {
 				
@@ -61,28 +65,28 @@ package com.mattism.http.xmlrpc
 					node.name() == ARRAY_NODE
 					) {
 					
-					debug("_parse(): >> " + node.name());
+					//debug("_parse(): >> " + node.name());
 					return _parse( node.*[0] );
 				}
 				else if (node.name() == DATA_NODE) {
-					debug("_parse(): >> Begin Array");
+					//debug("_parse(): >> Begin Array");
 					data = new Array();
 					for (i=0; i<node.children().length(); i++) {
 						data.push( _parse(node.children()[i]) );
-						debug("_parse(): adding data to array: "+data[data.length-1]);
+						//debug("_parse(): adding data to array: "+data[data.length-1]);
 					}
-					debug("_parse(): << End Array");
+					//debug("_parse(): << End Array");
 					return data;
 				}
 				else if (node.name() == STRUCT_NODE) {
-					debug("_parse(): >> Begin Struct");
+					//debug("_parse(): >> Begin Struct");
 					data = new Object();
 					for (i=0; i<node.children().length();i++) {
 						var temp:Object = _parse(node.children()[i]);
 						data[temp.name]=temp.value;
-						debug("_parse(): Struct  item "+temp.name + ":" + temp.value);
+						//debug("_parse(): Struct  item "+temp.name + ":" + temp.value);
 					}
-					debug("_parse(): << End Stuct");
+					//debug("_parse(): << End Stuct");
 					return data;
 				}
 				else if (node.name() == MEMBER_NODE) {
@@ -105,7 +109,7 @@ package com.mattism.http.xmlrpc
 				}			
 			}
 			
-			debug("Received an invalid Response.");
+			//debug("Received an invalid Response.");
 			return null;
 		}
 		

@@ -29,10 +29,8 @@
 
 package com.flack.geni.resources
 {
-	import com.flack.geni.plugins.Plugin;
 	import com.flack.geni.plugins.RspecProcessInterface;
 	import com.flack.geni.plugins.SliverTypeInterface;
-	import com.flack.geni.plugins.SliverTypePart;
 	
 	import flash.utils.Dictionary;
 

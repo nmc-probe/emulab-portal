@@ -44,8 +44,8 @@ IN THE WORK.
 	</fx:Declarations>
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.AggregateSliver;
-			import com.flack.geni.resources.virtual.Sliver;
+			import com.flack.geni.resources.virt.AggregateSliver;
+			import com.flack.geni.resources.virt.Sliver;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.utils.ImageUtil;

@@ -68,7 +68,7 @@ IN THE WORK.
 			import com.flack.geni.display.areas.GeniUserArea;
 			import com.flack.geni.display.areas.SliceArea;
 			import com.flack.geni.resources.sites.GeniAuthority;
-			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virt.Slice;
 			import com.flack.geni.tasks.groups.GetUserTaskGroup;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;

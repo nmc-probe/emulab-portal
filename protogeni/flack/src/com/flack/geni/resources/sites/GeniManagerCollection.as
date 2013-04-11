@@ -336,7 +336,7 @@ package com.flack.geni.resources.sites
 				for(var i:int = 0; i < sharedVlans.length; i++)
 				{
 					var sharedVlan:String = sharedVlans[i];
-					if(manager.sharedVlans.indexOf(sharedVlan) == -1)
+					if(manager.sharedVlans != null && manager.sharedVlans.indexOf(sharedVlan) == -1)
 					{
 						sharedVlans.splice(i, 1);
 						i--;

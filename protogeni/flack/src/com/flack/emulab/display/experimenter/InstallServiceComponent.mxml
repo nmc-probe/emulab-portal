@@ -40,7 +40,7 @@ IN THE WORK.
 		  verticalAlign="middle">
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.InstallService;
+			import com.flack.geni.resources.virt.InstallService;
 			import com.flack.shared.utils.ImageUtil;
 			
 			import spark.components.Group;

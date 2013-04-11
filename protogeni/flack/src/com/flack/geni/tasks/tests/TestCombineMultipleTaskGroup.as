@@ -32,8 +32,8 @@ package com.flack.geni.tasks.tests
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.instasks.InstrumentizeSliceGroupTask;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;

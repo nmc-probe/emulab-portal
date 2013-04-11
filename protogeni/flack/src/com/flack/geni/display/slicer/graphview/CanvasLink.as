@@ -29,10 +29,10 @@
 
 package com.flack.geni.display.slicer.graphview
 {
-	import com.flack.geni.resources.virtual.LinkType;
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.VirtualComponent;
-	import com.flack.geni.resources.virtual.VirtualLink;
+	import com.flack.geni.resources.virt.LinkType;
+	import com.flack.geni.resources.virt.Sliver;
+	import com.flack.geni.resources.virt.VirtualComponent;
+	import com.flack.geni.resources.virt.VirtualLink;
 	import com.flack.shared.utils.ColorUtil;
 	
 	import flash.display.CapsStyle;

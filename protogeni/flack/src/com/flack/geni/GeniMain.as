@@ -39,8 +39,9 @@ package com.flack.geni
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.openflow.Openflow;
 	import com.flack.geni.plugins.planetlab.Planetlab;
+	import com.flack.geni.plugins.stitching.Stitching;
 	import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
-	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virt.Slice;
 	import com.flack.geni.tasks.groups.GetCertBundlesTaskGroup;
 	import com.flack.geni.tasks.http.PublicListAuthoritiesTask;
 	import com.flack.shared.SharedMain;
@@ -98,6 +99,7 @@ package com.flack.geni
 		{
 			plugins = new Vector.<Plugin>();
 			plugins.push(new Gemini());
+			plugins.push(new Stitching());
 			plugins.push(new Instools());
 			plugins.push(new Emulab());
 			plugins.push(new Planetlab());

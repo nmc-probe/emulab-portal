@@ -52,7 +52,7 @@ IN THE WORK.
 			import com.flack.geni.resources.docs.GeniCredential;
 			import com.flack.geni.resources.sites.GeniAuthority;
 			import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
-			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virt.Slice;
 			import com.flack.geni.tasks.http.PublicListAuthoritiesTask;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedCache;

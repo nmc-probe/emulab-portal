@@ -81,10 +81,10 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.display.DisplayUtil;
-			import com.flack.geni.resources.virtual.AggregateSliver;
-			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.VirtualComponent;
-			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virt.AggregateSliver;
+			import com.flack.geni.resources.virt.Sliver;
+			import com.flack.geni.resources.virt.VirtualComponent;
+			import com.flack.geni.resources.virt.VirtualNode;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			

@@ -32,7 +32,7 @@ package com.flack.geni.resources
 	import com.flack.geni.resources.docs.GeniCredential;
 	import com.flack.geni.resources.sites.GeniAuthority;
 	import com.flack.geni.resources.sites.GeniAuthorityCollection;
-	import com.flack.geni.resources.virtual.SliceCollection;
+	import com.flack.geni.resources.virt.SliceCollection;
 	import com.flack.shared.resources.FlackUser;
 
 	/**

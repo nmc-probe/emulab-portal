@@ -36,7 +36,7 @@ package com.flack.geni.plugins.instools.instasks
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.AggregateSliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;

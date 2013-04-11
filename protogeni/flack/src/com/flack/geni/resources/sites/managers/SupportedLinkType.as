@@ -29,10 +29,7 @@
 
 package com.flack.geni.resources.sites.managers
 {
-	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
-	import com.flack.geni.resources.SliverType;
-	import com.flack.geni.resources.SliverTypeCollection;
-	import com.flack.geni.resources.virtual.LinkType;
+	import com.flack.geni.resources.virt.LinkType;
 
 	public class SupportedLinkType
 	{
@@ -72,7 +69,7 @@ package com.flack.geni.resources.sites.managers
 				case LinkType.LAN_V2:
 					level = 0;
 					break;
-				case LinkType.UNSPECIFIED:
+				case LinkType.STITCHED:
 					supportsManyManagers = true;
 					level = 1000;
 					break;

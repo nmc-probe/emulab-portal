@@ -39,7 +39,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 	import com.flack.geni.resources.GeniUser;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.virtual.LinkType;
+	import com.flack.geni.resources.virt.LinkType;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -96,11 +96,16 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 					try
 					{
 						var url:String = obj.url;
+						var hostPattern:RegExp = /^(http(s?):\/\/([^\/]+))(\/.*)?$/;
+						var match : Object = hostPattern.exec(url);
+						if(match != null && match[4] == null) {
+							url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
+						}
 						var newId:IdnUrn = new IdnUrn(obj.urn);
 						var newManager:GeniManager = new GeniManager(GeniManager.TYPE_UNKNOWN, ApiDetails.API_GENIAM, newId.full, obj.hrn);
 						
 						// ProtoGENI Component Manager
-						if(url.toLowerCase().lastIndexOf("/cm") == url.length - 3)
+						if(newId.name.toLowerCase() == "cm")
 						{
 							newManager.type = GeniManager.TYPE_PROTOGENI;
 							newManager.api.type = ApiDetails.API_PROTOGENI;
@@ -108,7 +113,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							
 							newManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
 							newManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
-							newManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
+							newManager.supportedLinkTypes.getOrCreateByName(LinkType.STITCHED);
 							
 							if(newManager.hrn == "shadowgeni.cm")
 							{
@@ -158,22 +163,21 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 						{
 							newManager.type = GeniManager.TYPE_SFA;
 							newManager.api.type = ApiDetails.API_GENIAM;
-							
-							newManager.url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
+							newManager.url = url;
 							
 							if(newManager.hrn != "genicloud.hplabs.sa")
 							{
 								newManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
-								newManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
+								newManager.supportedLinkTypes.getOrCreateByName(LinkType.STITCHED);
 							}
 							
 							newManager.supportedSliverTypes.getOrCreateByName(PlanetlabSliverType.TYPE_PLANETLAB_V2);
 						}
 						else
 						{
-							newManager.url = StringUtil.makeSureEndsWith(url, "/");
+							newManager.url = url;
 							
-							newManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
+							newManager.supportedLinkTypes.getOrCreateByName(LinkType.STITCHED);
 						}
 						newManager.api.url = newManager.url;
 						

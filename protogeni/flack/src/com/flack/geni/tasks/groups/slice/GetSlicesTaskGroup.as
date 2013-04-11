@@ -31,8 +31,8 @@ package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.SliceCollection;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.SliceCollection;
 	import com.flack.geni.tasks.groups.GetResourcesTaskGroup;
 	import com.flack.shared.resources.sites.FlackManager;
 	import com.flack.shared.tasks.SerialTaskGroup;

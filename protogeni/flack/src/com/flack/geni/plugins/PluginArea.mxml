@@ -42,7 +42,7 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.display.areas.SliceArea;
-			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virt.Slice;
 			
 			private var title:String;
 			public function set Title(value:String):void

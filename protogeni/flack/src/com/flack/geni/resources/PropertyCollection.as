@@ -29,7 +29,7 @@
 
 package com.flack.geni.resources
 {
-	import com.flack.geni.resources.virtual.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualInterface;
 
 	/**
 	 * Properties of a link

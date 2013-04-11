@@ -33,13 +33,18 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.AggregateSliverCollection;
-	import com.flack.geni.resources.virtual.AggregateSliverCollectionCollection;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.AggregateSliverCollection;
+	import com.flack.geni.resources.virt.AggregateSliverCollectionCollection;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.Sliver;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingDependency;
+	import com.flack.geni.tasks.groups.GetResourcesTaskGroup;
+	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetUserKeysSaTask;
+	import com.flack.geni.tasks.xmlrpc.scs.ComputePathTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -133,54 +138,74 @@ package com.flack.geni.tasks.groups.slice
 				// Invalidate the slice
 				slice.markStaged();
 				
-				addMessage(
-					"Generating request",
-					slice.toString(),
-					LogMessage.LEVEL_INFO,
-					LogMessage.IMPORTANCE_HIGH
-				);
-				
-				// Build up slivers which need to be created/deleted/updated
-				var newManagers:GeniManagerCollection = slice.nodes.Managers;
-				deleteAggregateSlivers = new AggregateSliverCollection();
-				updateAggregateSlivers = new AggregateSliverCollection();
-				newAggregateSlivers = new AggregateSliverCollection();
-				for each(var existingSliver:AggregateSliver in slice.aggregateSlivers.collection)
+				// If stitching is needed, do that first.
+				if(slice.links.Stitched.UnsubmittedChanges)
 				{
-					if(Sliver.isAllocated(existingSliver.AllocationState))
-					{
-						if(newManagers.contains(existingSliver.manager))
-						{
-							if(existingSliver.UnsubmittedChanges || !skipUnchangedSlivers)
-								updateAggregateSlivers.add(existingSliver);
-						}
-						else
-							deleteAggregateSlivers.add(existingSliver);
-						newManagers.remove(existingSliver.manager);
-					}
-					else
-						newAggregateSlivers.add(existingSliver);
+					addMessage(
+						"Stitching needed, computing that first.",
+						slice.toString(),
+						LogMessage.LEVEL_INFO,
+						LogMessage.IMPORTANCE_HIGH
+					);
+					
+					slice.ensureSliversExist();
+					var createSliceRspec:GenerateRequestManifestTask = new GenerateRequestManifestTask(
+						slice,
+						true,
+						false,
+						false);
+					createSliceRspec.start();
+					
+					add(new ComputePathTask(slice, createSliceRspec.resultRspec));
 				}
-				for each(var newManager:GeniManager in newManagers.collection)
+				// Otherwise just calculate changes and submit.
+				else
 				{
-					if(slice.aggregateSlivers.getByManager(newManager) == null)
-					{
-						var newSliver:AggregateSliver = new AggregateSliver(slice, newManager);
-						slice.aggregateSlivers.add(newSliver);
-						newAggregateSlivers.add(newSliver);
-					}
+					calculateChanges();
+					
+					if(tryApplyChanges())
+						return;
 				}
-				
-				SharedMain.sharedDispatcher.dispatchChanged(
-					FlackEvent.CHANGED_SLICE,
-					slice
-				);
-				
-				// Add tasks to be run...
-				if(tryApplyChanges())
-					return;
 			}
 			super.runStart();
+		}
+		
+		private function calculateChanges():void
+		{
+			var newManagers:GeniManagerCollection = slice.nodes.Managers;
+			deleteAggregateSlivers = new AggregateSliverCollection();
+			updateAggregateSlivers = new AggregateSliverCollection();
+			newAggregateSlivers = new AggregateSliverCollection();
+			for each(var existingSliver:AggregateSliver in slice.aggregateSlivers.collection)
+			{
+				if(Sliver.isAllocated(existingSliver.AllocationState))
+				{
+					if(newManagers.contains(existingSliver.manager))
+					{
+						if(existingSliver.UnsubmittedChanges || !skipUnchangedSlivers)
+							updateAggregateSlivers.add(existingSliver);
+					}
+					else
+						deleteAggregateSlivers.add(existingSliver);
+					newManagers.remove(existingSliver.manager);
+				}
+				else
+					newAggregateSlivers.add(existingSliver);
+			}
+			for each(var newManager:GeniManager in newManagers.collection)
+			{
+				if(slice.aggregateSlivers.getByManager(newManager) == null)
+				{
+					var newSliver:AggregateSliver = new AggregateSliver(slice, newManager);
+					slice.aggregateSlivers.add(newSliver);
+					newAggregateSlivers.add(newSliver);
+				}
+			}
+			
+			SharedMain.sharedDispatcher.dispatchChanged(
+				FlackEvent.CHANGED_SLICE,
+				slice
+			);
 		}
 		
 		private function tryApplyChanges():Boolean
@@ -206,6 +231,10 @@ package com.flack.geni.tasks.groups.slice
 					submitMsg += "\nDelete " + deleteAggregateSlivers.length + " at existing aggregate" + (deleteAggregateSlivers.length ? "s" : "");
 					for(i = 0; i < deleteAggregateSlivers.length; i++)
 						submitMsg += "\n\t@ " + deleteAggregateSlivers.collection[i].manager.hrn;
+				}
+				if(slice.links.Stitched.getByAllocated(false).length > 0)
+				{
+					submitMsg += "\nStitch " + slice.links.Stitched.getByAllocated(false).length + " multi-aggregate links";
 				}
 				Alert.show(
 					submitMsg,
@@ -257,7 +286,8 @@ package com.flack.geni.tasks.groups.slice
 				sliverGraph.getOrAdd(updateSliver);
 			for each(var createSliver:AggregateSliver in newAggregateSlivers.collection)
 				sliverGraph.getOrAdd(createSliver);
-			// Add dependancies
+
+			// Add dependancies for BBG nodes.
 			for each(var node:VirtualNode in slice.nodes.collection)
 			{
 				if(node.sliverType.name == EmulabBbgSliverType.TYPE_EMULAB_BBG)
@@ -270,6 +300,16 @@ package com.flack.geni.tasks.groups.slice
 					}
 				}
 			}
+			
+			// Add dependancies for stitching.
+			if(slice.stitching != null && slice.stitching.dependencies != null)
+			{
+				for each(var dependency:StitchingDependency in slice.stitching.dependencies.collection)
+				{
+					addDependenciesFor(sliverGraph, dependency);
+				}
+			}
+			
 			// Just update & create if no dependancies
 			if(sliverGraph.numDependencies == 0)
 			{
@@ -297,6 +337,17 @@ package com.flack.geni.tasks.groups.slice
 			super.runStart();
 		}
 		
+		private function addDependenciesFor(sliverGraph:AggregateSliverCollectionCollection, dependency:StitchingDependency):void
+		{
+			for each(var lowerDependency:StitchingDependency in dependency.dependencies.collection)
+			{
+				sliverGraph.add(
+					slice.aggregateSlivers.getByManager(dependency.aggregate),
+					slice.aggregateSlivers.getByManager(lowerDependency.aggregate));
+				addDependenciesFor(sliverGraph, lowerDependency);
+			}
+		}
+		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			if(prompting)
@@ -316,6 +367,17 @@ package com.flack.geni.tasks.groups.slice
 				addMessage("Submitted", slice.toString(), LogMessage.LEVEL_INFO, LogMessage.IMPORTANCE_HIGH);
 				super.afterComplete(addCompletedMessage);
 			}
+		}
+		
+		override public function completedTask(task:Task):void
+		{
+			if(task is ComputePathTask)
+			{
+				calculateChanges();
+				if(tryApplyChanges())
+					return;
+			}
+			super.completedTask(task);
 		}
 		
 		// If any of the slice operation groups are canceled, the entire process has been canceled

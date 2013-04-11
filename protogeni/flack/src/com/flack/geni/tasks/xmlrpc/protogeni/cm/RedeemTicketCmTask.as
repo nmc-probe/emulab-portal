@@ -31,8 +31,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
 	import com.flack.geni.resources.GeniCollaborator;
 	import com.flack.geni.resources.docs.GeniCredential;
-	import com.flack.geni.resources.virtual.AggregateSliver;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Sliver;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;

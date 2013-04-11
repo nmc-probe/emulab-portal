@@ -32,8 +32,8 @@ package com.flack.geni.display.mapping.mapproviders.mapquestprovider
 	import com.flack.geni.display.mapping.GeniMapLink;
 	import com.flack.geni.display.mapping.GeniMapNodeMarker;
 	import com.flack.geni.resources.physical.PhysicalLinkCollection;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
 	import com.mapquest.LatLngCollection;
 	import com.mapquest.tilemap.overlays.LineOverlay;
 	import com.mapquest.tilemap.pois.Poi;

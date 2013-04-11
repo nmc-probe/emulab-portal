@@ -29,7 +29,6 @@
 
 package com.flack.geni.resources.sites
 {
-	import com.flack.geni.resources.DiskImageCollection;
 	import com.flack.geni.resources.docs.GeniCredentialVersionCollection;
 	import com.flack.geni.resources.physical.PhysicalLink;
 	import com.flack.geni.resources.physical.PhysicalLinkCollection;
@@ -40,7 +39,7 @@ package com.flack.geni.resources.sites
 	import com.flack.geni.resources.sites.managers.SupportedLinkTypeCollection;
 	import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
 	import com.flack.geni.resources.sites.managers.opstates.OpStateCollection;
-	import com.flack.geni.resources.sites.managers.stitching.Stitching;
+	import com.flack.geni.resources.virt.extensions.stitching.AdvertisedStitching;
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.resources.docs.RspecVersionCollection;
 	import com.flack.shared.resources.sites.ApiDetails;
@@ -83,7 +82,7 @@ package com.flack.geni.resources.sites
 		
 		public var opStates:OpStateCollection = new OpStateCollection();
 		
-		public var stitching:Stitching = null;
+		public var stitching:AdvertisedStitching;
 
 		public var externalRefs:ExternalRefCollection = new ExternalRefCollection();
 		
@@ -118,6 +117,7 @@ package com.flack.geni.resources.sites
 		public static const TYPE_FOAM:String = "foam";
 		public static const TYPE_PROTOGENI:String = "protogeni";
 		public static const TYPE_SFA:String = "sfa";
+		public static const TYPE_DCN:String = "dcn";
 		public static const TYPE_UNKNOWN:String = "";
 		public static function typeToHumanReadable(type:String):String
 		{
@@ -131,6 +131,8 @@ package com.flack.geni.resources.sites
 					return "FOAM";
 				case TYPE_ORCA:
 					return "ORCA";
+				case TYPE_DCN:
+					return "DCN";
 				case TYPE_UNKNOWN:
 					return "Unknown";
 				default:
@@ -181,6 +183,7 @@ package com.flack.geni.resources.sites
 			nodes = new PhysicalNodeCollection();
 			links = new PhysicalLinkCollection();
 			locations = new PhysicalLocationCollection();
+			stitching = new AdvertisedStitching();
 		}
 		
 		/**
@@ -212,6 +215,9 @@ package com.flack.geni.resources.sites
 			var component:* = nodes.getById(findId);
 			if(component != null)
 				return component;
+			component = stitching.getById(findId);
+			if(component != null)
+				return component;
 			return nodes.getInterfaceById(findId);
 		}
 		
@@ -219,7 +225,7 @@ package com.flack.geni.resources.sites
 		{
 			if(type == GeniManager.TYPE_PROTOGENI)
 			{
-				return value.replace(".", "");
+				return value.replace(/\./g, "").substr(0, 16);
 			}
 			return value;
 		}

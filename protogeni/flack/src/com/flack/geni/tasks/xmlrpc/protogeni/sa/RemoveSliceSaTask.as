@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
-	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virt.Slice;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	
 	/**

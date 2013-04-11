@@ -41,8 +41,8 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.display.VirtualNodeList;
-			import com.flack.geni.resources.virtual.VirtualLink;
-			import com.flack.geni.resources.virtual.VirtualLinkCollection;
+			import com.flack.geni.resources.virt.VirtualLink;
+			import com.flack.geni.resources.virt.VirtualLinkCollection;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.display.areas.AreaContent;
 			

@@ -45,12 +45,9 @@ IN THE WORK.
 			import com.flack.geni.resources.PropertyCollection;
 			import com.flack.geni.resources.sites.managers.SupportedLinkType;
 			import com.flack.geni.resources.sites.managers.SupportedLinkTypeCollection;
-			import com.flack.geni.resources.virtual.AggregateSliver;
-			import com.flack.geni.resources.virtual.LinkType;
-			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.VirtualComponent;
-			import com.flack.geni.resources.virtual.VirtualInterface;
-			import com.flack.geni.resources.virtual.VirtualLink;
+			import com.flack.geni.resources.virt.Sliver;
+			import com.flack.geni.resources.virt.VirtualInterface;
+			import com.flack.geni.resources.virt.VirtualLink;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.DocumentArea;
@@ -152,9 +149,9 @@ IN THE WORK.
 						for each(var supportedType:SupportedLinkType in supportedTypes.collection)
 						{
 							if(supportedType.name.length == 0)
-								supportedType.name = "Unspecified";
+								supportedType.name = "Stitched (Unspecified)";
 							types.addItem(supportedType);
-							if(supportedType.name == link.type.name || (supportedType.name == "Unspecified" && link.type.name.length == 0))
+							if(supportedType.name == link.type.name || (supportedType.name == "Stitched (Unspecified)" && link.type.name.length == 0))
 								typeList.selectedIndex = types.length-1;
 						}
 						if(supportedTypes.getByName(link.type.name) == null)
@@ -344,6 +341,7 @@ IN THE WORK.
 					 fontWeight="bold"
 					 fontSize="16"
 					 restrict="a-zA-Z0-9\-"
+					 maxChars="16"
 					 toolTip="{link.clientId}"
 					 change="okButton.enabled = true" />
 		<s:Image id="statusImage"
@@ -556,7 +554,7 @@ IN THE WORK.
 											<fx:Script>
 												<![CDATA[
 													import com.flack.geni.resources.Property;
-													import com.flack.geni.resources.virtual.VirtualInterface;
+													import com.flack.geni.resources.virt.VirtualInterface;
 												]]>
 											</fx:Script>
 											<s:HGroup height="100%" verticalAlign="middle" paddingLeft="2">

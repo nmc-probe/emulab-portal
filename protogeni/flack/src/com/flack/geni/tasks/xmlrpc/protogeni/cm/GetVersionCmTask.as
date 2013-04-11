@@ -157,11 +157,21 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				super.afterComplete(addCompletedMessage);
 			}
 			else
+			{
+				if(numberTries < maxTries) {
+					runRetry(5);
+					return;
+				}
 				faultOnSuccess();
+			}
 		}
 		
 		override protected function afterError(taskError:TaskError):void
 		{
+			if(numberTries < maxTries) {
+				runRetry(5);
+				return;
+			}
 			manager.Status = FlackManager.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_MANAGER,

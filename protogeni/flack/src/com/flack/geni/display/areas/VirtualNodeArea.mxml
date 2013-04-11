@@ -63,15 +63,15 @@ IN THE WORK.
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.managers.SupportedSliverType;
 			import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
-			import com.flack.geni.resources.virtual.ExecuteService;
-			import com.flack.geni.resources.virtual.InstallService;
-			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.VirtualInterface;
-			import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
-			import com.flack.geni.resources.virtual.VirtualLink;
-			import com.flack.geni.resources.virtual.VirtualLinkCollection;
-			import com.flack.geni.resources.virtual.VirtualNode;
-			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.geni.resources.virt.ExecuteService;
+			import com.flack.geni.resources.virt.InstallService;
+			import com.flack.geni.resources.virt.Sliver;
+			import com.flack.geni.resources.virt.VirtualInterface;
+			import com.flack.geni.resources.virt.VirtualInterfaceCollection;
+			import com.flack.geni.resources.virt.VirtualLink;
+			import com.flack.geni.resources.virt.VirtualLinkCollection;
+			import com.flack.geni.resources.virt.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualNodeCollection;
 			import com.flack.geni.tasks.groups.ListImagesTaskGroup;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateImageCmTask;
 			import com.flack.shared.FlackEvent;
@@ -241,10 +241,12 @@ IN THE WORK.
 							diskImageNameCheckbox.selected = true;
 							diskImageText.text = node.sliverType.selectedImage.id.full;
 						}
+						diskImageVersionText.text = node.sliverType.selectedImage.version;
 					}
 					else
 					{
 						diskImageText.text = "";
+						diskImageVersionText.text = "";
 					}
 					
 					if(node.manager.type == GeniManager.TYPE_PROTOGENI && Sliver.isAllocated(node.allocationState))
@@ -741,9 +743,9 @@ IN THE WORK.
 					if(diskImageText.visible && diskImageText.text.length > 0)
 					{
 						if(diskImageUrlCheckbox.selected)
-							node.sliverType.selectedImage = new DiskImage("", "", "", "", false, diskImageText.text);
+							node.sliverType.selectedImage = new DiskImage("", "", diskImageVersionText.text, "", false, diskImageText.text);
 						else
-							node.sliverType.selectedImage = new DiskImage(diskImageText.text);
+							node.sliverType.selectedImage = new DiskImage(diskImageText.text, "", diskImageVersionText.text);
 					}
 					var serviceIdx:int;
 					if(selectedType.supportsInstallService)
@@ -902,6 +904,7 @@ IN THE WORK.
 						 fontWeight="bold"
 						 fontSize="16"
 						 restrict="a-zA-Z0-9\-"
+						 maxChars="16"
 						 toolTip="{node.clientId}"
 						 change="if(!okButton.enabled) okButton.enabled = clientIdInput.text != node.clientId" />
 			<s:Image id="statusImage"
@@ -1105,6 +1108,15 @@ IN THE WORK.
 									 prompt="Select image above, paste URN, or manually type OSID"
 									 change="diskImageText_changeHandler(event)"
 									 valueCommit="diskImageText_changeHandler(event)" />
+					</s:HGroup>
+					<s:HGroup width="100%"
+							  verticalAlign="middle"
+							  gap="2">
+						<s:Label text="Version" />
+						<s:TextInput id="diskImageVersionText"
+									 width="100%"
+									 prompt="If required, give a disk image version."
+									 change="if(!okButton.enabled) okButton.enabled = exclusiveCheckbox.selected != node.exclusive" />
 					</s:HGroup>
 				</s:VGroup>
 				<components:DefaultLine percentWidth="100" />

@@ -40,7 +40,7 @@ IN THE WORK.
 			import com.flack.geni.plugins.emulab.FirewallVgroup;
 			import com.flack.geni.resources.SliverType;
 			import com.flack.geni.resources.SliverTypes;
-			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualNode;
 			import com.flack.shared.utils.ImageUtil;
 			
 			import mx.collections.ArrayCollection;
