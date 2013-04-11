@@ -1,5 +1,6 @@
 from BaseHTTPServer import BaseHTTPRequestHandler
 import urlparse
+import traceback
 import os
 import mysql.connector
 
@@ -11,6 +12,9 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
                               database='tbdb', unix_socket='/tmp/mysql.sock')
         BaseHTTPRequestHandler.__init__(self,req,ca,huh)
 
+
+
+
     def do_GET(self):
         parsed_path = urlparse.urlparse(self.path)
 
@@ -19,54 +23,59 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         while 1:
             only_path,folder=os.path.split(only_path)
 
-            if folder!="":
-                folders.append(folder)
-            else:
-                if only_path!="":
-                    folders.append(only_path)
-
-                break
+	    if folder != "":
+	        folders.append(folder)
+	    if only_path=="/":
+		break;
 
         folders.reverse()
-        folders.pop(0) #Drop /
+        print folders
 
-        #Ignore first arg - the metadata version
-        #TODO throw in some verification
-        folders.pop(0)
-
-        if len(folders) == 0:
+        try:
+            message = self.handle_req(folders, self.metas)
+            message = message + "\n"
+        except Exception as e:
+            print traceback.format_exc()
             self.send_response(404)
             self.end_headers()
             return
-
-        #User-data or meta-data
-        if folders[0] == "user-data":
-            folders.pop(0)
-            message = self.handle_user()
-        elif folders[0] == "meta-data":
-            folders.pop(0)
-            message = self.handle_meta(folders)
 
         self.send_response(200)
         self.end_headers()
         self.wfile.write(message)
         return
 
-    def handle_meta(self, arg):
-        if arg == "":
-            return self.listmetas()
-        else:
-            return (Ec2MetaHandler.topmetas[arg[0]](self,arg[1:]))
-
-
-    def handle_user(self):
-        return self.client_address[0]
-
-
-    def listtopmetas(self):
-        message = "\n".join(Ec2MetaHandler.topmetas.viewkeys())
+    def listmetas(self, metas):
+        message = "\n".join(map(lambda x: x + "/" if (x == "public-keys" or not(callable(metas[x])))  else x,
+                        metas.keys()));
         return message
 
+    def handle_req(self, arg, metas):
+        if callable(metas):
+            return metas(self, arg)
+        elif len(arg) == 0:
+            return self.listmetas(metas);
+        else:
+            return self.handle_req(arg[1:], metas[arg[0]])
+
+    def do_userdata(self):
+        #TODO
+        return "\n";
+
+    def doamiid(self, arg):
+        cursor = self.cnx.cursor()
+        ip = self.client_address[0]
+        cursor.execute("select osname from os_info "
+            "join nodes on os_info.osid = nodes.osid "
+            "join interfaces on nodes.node_id=interfaces.node_id "
+            "where interfaces.ip=%s", (ip,));
+        if cursor.with_rows:
+            ami_id = cursor.fetchone()
+            ami_id = ami_id[0]
+        else:
+            ami_id = ""
+        cursor.close()
+        return ami_id;
 
     def dolocal_hostname(self, args):
         cursor = self.cnx.cursor()
@@ -76,10 +85,20 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         if cursor.with_rows:
             node_id = cursor.fetchone()
         else:
+            cursor.close()
             return ""
 
         cursor.close()
         return node_id[0] + "." + node_id[1] + "." + node_id[2] + "." + "emulab.net"
+
+    def doavail(self, args):
+        #TODO
+        return "emulab"
+
+
+    def domacs(self, args):
+        #TODO
+        return "324AF"
 
     def domac(self, args):
         cursor = self.cnx.cursor()
@@ -89,6 +108,7 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         if cursor.with_rows:
             mac = cursor.fetchone()
         else:
+            cursor.close()
             return ""
 
         cursor.close()
@@ -103,6 +123,7 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         if cursor.with_rows:
             uuid = cursor.fetchone()
         else:
+            cursor.close()
             return ""
 
         cursor.close()
@@ -128,6 +149,7 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
                     list = list + str(ctr) + "=" + str(user) + str(uid) + "\n"
                     ctr = ctr+1
             else:
+                cursor.close()
                 return ""
 
             cursor.close()
@@ -149,28 +171,31 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
             if cursor.with_rows:
                 key = cursor.fetchone()
             else:
+                cursor.close()
                 return ""
 
             cursor.close()
             return key[0]
 
+    metas = {
+        "latest" : {
+            "meta-data" : {
+                "placement" : {"availability-zone" : doavail},
+                "ami-id": doamiid,
+                "local-hostname" : dolocal_hostname,
+                "public-hostname":dolocal_hostname,
+                "network": {"interfaces": {"macs" : domacs}},
+                "mac":domac,
+                "instance-id":doinstance_id,
+                "public-keys": dopublic_keys },
+            "user-data" : do_userdata
+        }
+    }
 
-
-
-
-
-
-
-
-    topmetas = {
-        "local-hostname":dolocal_hostname,
-        "public-hostname":dolocal_hostname,
-        "mac":domac,
-        "instance-id":doinstance_id,
-        "public-keys":dopublic_keys}
 
 if __name__ == '__main__':
     from BaseHTTPServer import HTTPServer
-    server = HTTPServer(('', 8080), Ec2MetaHandler)
+    server = HTTPServer(('155.98.36.155', 8787), Ec2MetaHandler)
     print 'Starting server, use <Ctrl-C> to stop'
     server.serve_forever()
+
