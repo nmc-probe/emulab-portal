@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -646,9 +646,9 @@ sub GenDefsFile($)
     #
     my %defvalues = (
 	"elabinelab/singlenet" => 0,
-	"elabinelab/boss_osid" => "FBSD73-STD",
-	"elabinelab/ops_osid"  => "FBSD73-STD",
-	"elabinelab/fs_osid"   => "FBSD73-STD"
+	"elabinelab/boss_osid" => "FBSD83-STD",
+	"elabinelab/ops_osid"  => "FBSD83-STD",
+	"elabinelab/fs_osid"   => "FBSD83-STD"
     );
     while (my ($var, $def) = each(%defvalues)) {
 	if (!exists($sitevars{$var})) {
