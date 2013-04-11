@@ -177,6 +177,8 @@ def _removeVlan(vlan_num):
 # Assign ports to a VLAN, and enable them.
 #
 # Return #errors.
+#
+# Port-channel safe; tagging safe.
 # 
 def _setPortVlan(vlan_num, ports):
     errors = 0
@@ -205,8 +207,9 @@ def _setPortVlan(vlan_num, ports):
                         else:
                             set_mode = 'Move'
                     else: # trunk mode
-                        if pbc.trunkNativeVlan == 0:
+                        if pbc.trunkNativeVlan == 0 or pbc.trunkNativeVlan == 1:
                             set_mode = 'AllTagAdd'
+                            pbc.trunkNativeVlan = 0
                         else:
                             set_mode = 'TagWithUntagNative'
                 else:
@@ -242,6 +245,8 @@ def _setPortVlan(vlan_num, ports):
 # Return #errors.
 # If ports is empty, remove all ports from the VLAN.
 #
+# Port-channel safe; tagging safe.
+#
 def _removePortsFromVlan(vlan_num, ports, leavetrunk = False):
     errors = 0
     sign = "_removePortsFromVlan("+str(vlan_num)+","+str(ports)+")"
@@ -255,32 +260,23 @@ def _removePortsFromVlan(vlan_num, ports, leavetrunk = False):
                 
             for p in ports:
                 try:
-                    pbc = bc.switchIntfConfig.newMember(p)
+                    if p in bc.switchIntfConfig.keys():
+                        pbc = bc.switchIntfConfig.get(p)
+                        if pbc.switchportMode == 'access':
+                            if pbc.accessVlan == int(vlan_num):
+                                pbc.accessVlan = DEFAULT_VLAN_NUM
+                                setPortAdminStatus(sysdbroot, p, 0)
+                            else:
+                                debug("Warnning: port %s not in VLAN %d"
+                                      %(str(p), int(vlan_num)))
+                        else: # trunk mode
+                            if pbc.trunkNativeVlan == int(vlan_num):
+                                pbc.trunkNativeVlan = 0
+                            disableVlanOnTrunkedPort(sysdbroot, p, vlan_num)
                 except:
                     debug("removePortsFromVlan: Error when getting port %s - %s"
                           %(str(p), str(sys_exc_info())))
                     errors += 1
-                else:
-                    if pbc.switchportMode == 'access':
-                        if pbc.accessVlan == int(vlan_num):
-                            pbc.accessVlan = DEFAULT_VLAN_NUM
-                            setPortAdminStatus(sysdbroot, p, 0)
-                        else:
-                            debug("Warnning: port %s not in VLAN %d"
-                                  %(str(p), int(vlan_num)))
-                    else: # trunk mode
-                        if pbc.trunkNativeVlan = int(vlan_num):
-                            pbc.trunkNativeVlan = 0
-                        disableVlanOnTrunkedPort(sysdbroot, p, vlan_num)
-
-                        if leavetrunk:
-                            # if no allowed vlans AND native is disabled, it means
-                            #    we can go back to access mode now
-                            if pbc.trunkNativeVlan==0 and pbc.trunkAllowedVlans=='':
-                                pbc.switchportMode = 'access'
-                                pbc.accessVlan = DEFAULT_VLAN_NUM
-                                # setPortAdminStatus(sysdbroot, p, 0)
-
     except:
         print sign + " error: "+str(sys.exc_info())
         errors = 1
@@ -388,20 +384,47 @@ def _listVlans():
 # Note: First clear all existing allowed VLANs, then
 #       set port mode, and set nativeVlan or allowedVlans.
 #
+# Port-channel safe; tagging safe.
+#
 def _enablePortTrunking(port, native_vlan_num, tag_native):
     retval = 0
     sign = "_enablePortTrunking("+str(port)+","+str(native_vlan_num)+","+str(tag_native)+")"
     debug(dign)
     try:
         pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
-        
-        pc.switchportMode = 'trunk'
-        if int(tag_native) == 1:
-            pc.trunkNativeVlan = 0
-        else:
-            pc.trunkNativeVlan = int(native_vlan_num)
 
-        pc.trunkAllowedVlans = str(native_vlan_num)
+        if pc.switchportMode == 'trunk':
+            if int(tag_native) == 1:
+                bmp  = string2Bitmap(pc.trunkAllowedVlans)
+                if pc.trunkNativeVlan != 0: # !=1?
+                    bmp[int(pc.trunkNativeVlan)] = 1
+                    pc.trunkNativeVlan = 0
+                if int(native_vlan_num) > 1:
+                    bmp[int(native_vlan_num)] = 1
+                pc.trunkAllowedVlans = bitmap2String(bmp)
+            else:
+                oldnative = pc.trunkNativeVlan
+                pc.trunkNativeVlan = int(native_vlan_num)
+                bmp  = string2Bitmap(pc.trunkAllowedVlans)
+                if int(native_vlan_num) > 1:
+                    bmp[int(native_vlan_num)] = 0
+                if oldnative != 0 and oldnative != int(native_vlan_num):
+                    bmp[oldnative] = 1
+                pc.trunkAllowedVlans = bitmap2String(bmp)
+
+        else: # access mode
+            pc.switchportMode = 'trunk'
+            if int(native_vlan_num) > 1:
+                pc.accessVlan = int(native_vlan_num)
+            if int(tag_native) == 1:
+                pc.trunkNativeVlan = 0
+                bmp = string2Bitmap('')
+                bmp[int(native_vlan_num)] = 1
+                pc.trunkAllowedVlans = bitmap2String(bmp)
+            else:
+                pc.trunkAllowedVlans = ''
+                pc.trunkNativeVlan = int(native_vlan_num)
+        
         pc.enabled = True
         setPortStatus(sysdbroot, str(port), 1)
         retval = 1
@@ -418,6 +441,8 @@ def _enablePortTrunking(port, native_vlan_num, tag_native):
 #
 # Return 1 on success, 0 on failure.
 #
+# Port-channel safe; tagging safe.
+#
 def _disablePortTrunking(port):
     retval = 0
     sign = "_disablePortTrunking("+str(port)+")"
@@ -427,17 +452,21 @@ def _disablePortTrunking(port):
         if pc.switchportMode != 'access':
             native_vlan = pc.trunkNativeVlan
             pc.trunkAllowedVlans = ''
+            pc.trunkNativeVlan = 0
             pc.switchportMode = 'access'
 
-            #
-            # !!! This is a little bit aggressive.
-            #
-            if pc.accessVlan == 1 and native_vlan != 0:
+            if native_vlan == 0 or native_vlan == 1:
+                # trunkNativeVlan may not enough:
+                # a potential extra step:
+                # remove the following line, just leave accessVlan as what is was
+                
+                pc.accessVlan = 1
+
+                if pc.accessVlan == 1:  # to match removed above line (if removed)
+                    setPortStatus(sysdbroot, str(port), 0)
+            else:
                 pc.accessVlan = native_vlan
                 
-            pc.enabled = True
-            setPortStatus(sysdbroot, str(port), 1)
-            
         retval = 1
     except:
         print sign + " error: "+str(sys.exc_info())
@@ -505,6 +534,8 @@ def bitmap2String(bmp):
 #
 # Pre-condition: port must be trunked.
 #
+# Port-channel safe; tagging safe.
+#
 def disableVlanOnTrunkedPort(sysdb, port, vlan_num):
     sign = "disableVlanOnTrunkedPort("+str(port)+","+str(vlan_num)+")"
     debug(sign)
@@ -517,12 +548,14 @@ def disableVlanOnTrunkedPort(sysdb, port, vlan_num):
 #
 # Set allowed VLANs on trunked port.
 #
-# Return 1 on success, 1 on failure.
+# Return 0 on success, 1 on failure.
 #
 # NOTE: Arista switch CLI supports more sophisticated VLAN range, here
 #       we only need deal with the range value in existing trunkAllowedVlans.
 #       This works because vnums are passed from snmpit, and are all
 #       single numbers.
+#
+# Port-channel safe; tagging safe.
 #
 def _setAllowedVlansOnTrunkedPort(port, allow, vnums):
     retval = 0
@@ -530,24 +563,27 @@ def _setAllowedVlansOnTrunkedPort(port, allow, vnums):
     debug(sign)
     try:
         pc = getBridgingConfig(sysdbroot).switchIntfConfig.newMember(str(port))
-        setPortStatus(sysdbroot, str(port), 1)
+        # setPortStatus(sysdbroot, str(port), 1)
 
         if pc.switchportMode == 'access':
-            pc.switchportMode = 'trunk'
-            pc.trunkAllowedVlans = ''
+            retval = -1
+        else:            
+            bmp = string2Bitmap(pc.trunkAllowedVlans)
+            vlan_ranges = map(lambda x: (int(x), int(x)), vnums)
+            if int(allow) == 1:
+                bmp = setBitmapByRanges(bmp, vlan_ranges)
+            else:
+                bmp = setBitmapByRanges(bmp, vlan_ranges, 0)
+                if pc.trunkNativeVlan != 0 and pc.trunkNativeVlan in map(lambda x: int(x), vnums):
+                    pc.accessVlan = pc.trunkNativeVlan
+                    pc.trunkNativeVlan = 0
 
-        bmp = string2Bitmap(pc.trunkAllowedVlans)
-        vlan_ranges = map(lambda x: (int(x), int(x)), vnums)
-        if int(allow) == 1:
-            bmp = setBitmapByRanges(bmp, vlan_ranges)
-        else:
-            bmp = setBitmapByRanges(bmp, vlan_ranges, 0)
-            
-        pc.trunkAllowedVlans = bitmap2String(bmp)
-        retval = 1
+            bmp[pc.trunkNativeVlan] = 0            
+            pc.trunkAllowedVlans = bitmap2String(bmp)            
+
     except:
         print sign + " error: "+ str(sys.exc_info())
-        retval = 0
+        retval = 1
 
     debug(sign + " returns " + str(retval))
     return retval

@@ -665,7 +665,24 @@ sub createVlan($$$) {
 #
 # Put the given ports in the given VLAN. The VLAN is given as an 802.1Q 
 # tag number.
+############################################################
+# Semantics:
 #
+#   Case mode(port):
+#      'free' or 'in default untagged':
+#          add port to vlan_number untagged.
+#      'in use(not in default) untagged':
+#          add port to vlan_number untagged.
+#      'in use(not in default) all tagged':
+#          add port to vlan_number tagged.
+#      'in use(may in default) native tagged':
+#          add port to vlan_number tagged;
+#          if native_vlan == default:
+#              remove native_vlan
+#
+# Arista 'free': switchportMode='access' AND accessVlan=1
+#
+############################################################
 # usage: setPortVlan($self, $vlan_number, @ports)
 #	 returns 0 on sucess.
 #	 returns the number of failed ports on failure.
@@ -734,7 +751,9 @@ sub delPortVlan($$@) {
 
     my @swports = $self->convertPortFormat($PORT_FORMAT_SYSDB, @ports);
 
-    my $resp = $self->callRPC($id, 'removePortsFromVlan', $vlan_number, \@swports);
+    my $resp = $self->callRPC($id,
+			      'removePortsFromVlan',
+			      $vlan_number, \@swports);
     
     if (defined($resp)) {
 	$errors = $resp;
@@ -767,7 +786,9 @@ sub removePortsFromVlan($@) {
 	     $errors++;
 	 }
     
-	 my $resp = $self->callRPC($id, 'removePortsFromVlan', $vlan_number, []);
+	 my $resp = $self->callRPC($id,
+				   'removePortsFromVlan',
+				   $vlan_number, []);
     
 	 if (defined($resp)) {
 	     $errors += $resp;
@@ -782,6 +803,18 @@ sub removePortsFromVlan($@) {
 #
 # Removes and disables some ports in a given VLAN.
 # The VLAN is given as a VLAN 802.1Q tag value.
+#
+# Semantics:
+#     Case:
+#         untagged:
+#                       move to default VLAN, put port down
+#         alltagged:
+#                       untag port
+#         nativetagged:
+#              remove native vlan:
+#                       clear native
+#              nonative vlan:
+#                       untag               
 #
 # usage: removeSomePortsFromVlan(self,vlan,@ports)
 #	 returns 0 on sucess.
@@ -1064,13 +1097,29 @@ sub setVlansOnTrunk($$$$) {
     my ($self, $modport, $value, @vlan_numbers) = @_;
     my $id = $self->{NAME} . "::setVlansOnTrunk";
 
+    #
+    # Some error checking (from HP)
+    #
+    if (($value != 1) && ($value != 0)) {
+	warn "Invalid value $value passed to setVlansOnTrunk\n";
+	return 0;
+    }
+    if (grep(/^1$/,@vlan_numbers)) {
+	warn "VLAN 1 passed to setVlansOnTrunk\n";
+	return 0;
+    }
+
     my ($swport) = $self->convertPortFormat($PORT_FORMAT_SYSDB, $modport);
     my $resp = $self->callRPC($id, 'setAllowedVlansOnTrunkedPort', $swport,
 			      ($value?1:0), \@vlan_numbers);
     if ($resp) {
-	return 1;
-    } else {
+	if (int($resp) == -1) {
+	    warn "$id: port $modport is normal port, " .
+		"refusing to add vlan(s) @vlan_numbers\n";
+	}
 	return 0;
+    } else {
+	return 1;
     }
 }
 
@@ -1089,6 +1138,16 @@ sub enablePortTrunking2($$$$) {
     my ($self,$port,$native_vlan,$equaltrunking) = @_;
     my $id = $self->{NAME} .
 		"::enablePortTrunking($port,$native_vlan,$equaltrunking)";
+
+    if ((!$equaltrunking) &&
+	(!defined($native_vlan) || ($native_vlan <= 1))) {
+	warn "$id: inappropriate or missing PVID for trunk\n";
+	return 0;
+    }
+
+    if (!defined($native_vlan)) {
+	$native_vlan = -1
+    }
 
     my ($swport) = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
     my $resp = $self->callRPC($id, 'enablePortTrunking',
