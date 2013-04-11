@@ -407,7 +407,7 @@ sub SetOS($$)
 	if (! $osinfo) {
 	    die_noretry("$node has no bootpath and no def_boot_osid set!");
 	}
-	$self->SetOSAux($node, $osinfo, 0);
+	$self->SetOSAux($node, $osinfo, 0, $loadlist);
 
 	#
 	# Now look for additional loads. 
@@ -422,7 +422,7 @@ sub SetOS($$)
 		die_noretry("Could not map $osname to its object!")
 		    if (!defined($osinfo));
 
-		$self->SetOSAux($node, $osinfo, 1);
+		$self->SetOSAux($node, $osinfo, 1, 1);
 	    }
 	}
     }
@@ -436,9 +436,9 @@ sub SetOS($$)
 #
 # Helper for above.
 #
-sub SetOSAux($$$$)
+sub SetOSAux($$$$$)
 {
-    my ($self, $node, $osinfo, $auxload) = @_;
+    my ($self, $node, $osinfo, $auxload, $multiple) = @_;
     my $node_id       = $node->node_id();
     my $experiment    = $self->experiment();
     my $pid           = $experiment->pid();
@@ -472,9 +472,18 @@ sub SetOSAux($$$$)
 	}
 	if ($isloaded) {
 	    #
+	    # XXX the primary (boot) OSID is already loaded, but we are loading
+	    # multiple images. In this case we reload the primary OS anyway so that
+	    # the logic in osload continues to work (it assumes that it is responsible
+	    # for setting the def_boot_osid based on the last image specified).
+	    #
+	    if (!$auxload && $multiple) {
+		$self->SetupReload($node, $osinfo, $auxload);
+	    }
+	    #
 	    # OSID is loaded, but might need to be cleaned.
 	    #
-	    if ($self->dolastload() &&
+	    elsif ($self->dolastload() &&
 		defined($node->last_reservation()) &&
 		$node->last_reservation() ne $pid) {
 		$self->SetupReload($node, $osinfo, $auxload);
