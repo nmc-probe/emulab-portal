@@ -56,7 +56,7 @@
       </extensions>
       <!-- compiler.external-library-path: list of SWC files or directories to compile against but to omit from linking-->
       <external-library-path>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\player\11.1\playerglobal.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\player\11.1\playerglobal.swc</path-element>
       </external-library-path>
       <fonts>
          <!-- compiler.fonts.advanced-anti-aliasing: enables advanced anti-aliasing for embedded fonts, which provides greater clarity for small fonts.-->
@@ -129,20 +129,38 @@
       <keep-generated-actionscript>false</keep-generated-actionscript>
       <!-- compiler.library-path: list of SWC files or directories that contain SWC files-->
       <library-path>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\framework.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\textLayout.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\spark.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\sparkskins.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\rpc.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\charts.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\spark_dmv.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\mx\mx.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\osmf.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\advancedgrids.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\authoringsupport.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\libs\flash-integration.swc</path-element>
-         <path-element>C:\Program Files (x86)\Adobe\Adobe Flash Builder 4.5\sdks\4.6.0\frameworks\locale\{locale}</path-element>
-         <path-element>D:\Projects\Flash Builder 4.5\flack2\libs</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\framework.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\textLayout.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\spark.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\sparkskins.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\rpc.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\charts.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\spark_dmv.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\osmf.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\mx\mx.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\advancedgrids.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\apache.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\authoringsupport.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\experimental.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\libs\flash-integration.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\advancedgrids_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\airframework_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\airspark_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\apache_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\automation_agent_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\automation_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\charts_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\experimental_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\flash-integration_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\framework_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\mobilecomponents_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\mx_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\playerglobal_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\rpc_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\spark_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\textLayout_rb.swc</path-element>
+         <path-element>C:\Program Files\Adobe\Adobe Flash Builder 4.7 (64 Bit)\sdks\4.9.0\frameworks\locale\en_US\tool_air_rb.swc</path-element>
+         <path-element>E:\Documents\fb47\flack\libs</path-element>
       </library-path>
       <!-- compiler.locale: specifies the locale for internationalization-->
       <locale>
@@ -183,6 +201,14 @@
             <uri>http://www.adobe.com/2006/mxml</uri>
             <manifest>mxml-manifest.xml</manifest>
          </namespace>
+         <namespace>
+            <uri>http://flex.apache.org/ns</uri>
+            <manifest>apache-manifest.xml</manifest>
+         </namespace>
+         <namespace>
+            <uri>http://flex.apache.org/experimental/ns</uri>
+            <manifest>experimental-manifest.xml</manifest>
+         </namespace>
       </namespaces>
       <!-- compiler.omit-trace-statements: toggle whether trace statements are omitted-->
       <omit-trace-statements>true</omit-trace-statements>
@@ -218,7 +244,7 @@
       <show-unused-type-selector-warnings>true</show-unused-type-selector-warnings>
       <!-- compiler.source-path: list of path elements that form the roots of ActionScript class hierarchies-->
       <source-path>
-         <path-element>D:\Projects\Flash Builder 4.5\flack2\src</path-element>
+         <path-element>E:\Documents\fb47\flack\src</path-element>
       </source-path>
       <!-- compiler.strict: runs the AS3 compiler in strict error checking mode.-->
       <strict>true</strict>
@@ -378,7 +404,7 @@
       <date>text</date>
       -->
       <!-- metadata.description: The default description to store in the SWF metadata-->
-      <description>http://www.adobe.com/products/flex</description>
+      <description>http://incubator.apache.org/flex</description>
       <!-- metadata.language: The language to store in the SWF metadata (i.e. EN, FR)-->
       <language>EN</language>
       <!-- metadata.localized-description: A localized RDF/XMP description to store in the SWF metadata-->
@@ -398,9 +424,9 @@
       </localized-title>
       -->
       <!-- metadata.publisher: A publisher's name to store in the SWF metadata-->
-      <publisher>unknown</publisher>
+      <publisher>Apache Software Foundation</publisher>
       <!-- metadata.title: The default title to store in the SWF metadata-->
-      <title>Adobe Flex 4 Application</title>
+      <title>Apache Flex Application</title>
    </metadata>
    <!-- raw-metadata: XML text to store in the SWF metadata (overrides metadata.* configuration)-->
    <!-- raw-metadata usage:
@@ -448,7 +474,7 @@
    <size-report>filename</size-report>
    -->
    <!-- static-link-runtime-shared-libraries: statically link the libraries specified by the -runtime-shared-libraries-path option.-->
-   <static-link-runtime-shared-libraries>false</static-link-runtime-shared-libraries>
+   <static-link-runtime-shared-libraries>true</static-link-runtime-shared-libraries>
    <!-- swf-version: specifies the version of the compiled SWF file.-->
    <swf-version>14</swf-version>
    <!-- target-player: specifies the version of the player the application is targeting. Features requiring a later version will not be compiled into the application. The minimum value supported is "9.0.0".-->
