@@ -1139,6 +1139,7 @@ sub enablePortTrunking2($$$$) {
     my $id = $self->{NAME} .
 		"::enablePortTrunking($port,$native_vlan,$equaltrunking)";
 
+    $self->debug($id."\n");
     if ((!$equaltrunking) &&
 	(!defined($native_vlan) || ($native_vlan <= 1))) {
 	warn "$id: inappropriate or missing PVID for trunk\n";
@@ -1146,7 +1147,7 @@ sub enablePortTrunking2($$$$) {
     }
 
     if (!defined($native_vlan)) {
-	$native_vlan = -1
+	$native_vlan = -1;
     }
 
     my ($swport) = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
@@ -1168,6 +1169,8 @@ sub enablePortTrunking2($$$$) {
 sub disablePortTrunking($$) {
     my ($self, $port) = @_;
     my $id = $self->{NAME} . "::disablePortTrunking($port)";
+
+    $self->debug($id."\n");
 
     my ($swport) = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
     my $resp = $self->callRPC($id, 'disablePortTrunking',
