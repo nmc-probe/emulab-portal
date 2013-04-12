@@ -1,43 +1,192 @@
-#! /bin/bash
+#!/bin/bash
 
-echo -n '. . . Starting diskspeedcheck'
 
-# find the read and write speed of the disks on the system
-
-source getfromtb.sh
-
-os=`uname`
-host=`hostname`
-failed=""
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
-fi
-
-# setup logging
-if [ $1 ] ; then
-    logfile=$1
-else
-    logfile="/tmp/nodecheck.log"
-fi
-tmplog=/tmp/.$$.log
-cat /dev/null > ${tmplog}
-
-set +x 
-#exit on unbound var
+# error out if referencing unset variable, better safe then sorry
 set -u
+# stop if any error
+#set -e
+
+# GLOBAL DEFINEDs
+# startdir
+declare startdir=$(pwd)
+# need this much space free
+declare os host failed
+declare logfile tmplog tmplog2
+# max time the dd will run
+declare -r maxddtime=4
+# need this much space free, how many K's can be written in maxddtime assuming 600Mb/sec
+declare -r needsize=$((600 * 1024 * $maxddtime))
+# directory were speed test file will be written
+declare -r tempwkdir="/var/tmp"
+# results
+declare wkps rkps
+
+#helper functions
+source getfromtb.sh
+source checkutils.sh
+source hbis.sh
+
+FUNCDEBUG=n
+
+main() {
+	funcdebug $FUNCNAME:$LINENO enter: $@
+	echo -n ' Starting diskspeedcheck.. '
+	initalize "$@"
+	doit
+	checkwithdb
+	finished
+}
+
+# args: if of max_time
+ddspeed() {
+    funcdebug $FUNCNAME:$LINENO enter: $@
+    local if of time res
+
+    ifile=$1
+    ofile=$2
+    time=$3
+    res=/tmp/.$$ddresult
+    
+    $(timesys $time $res dd if=$ifile of=$ofile bs=4k)
+    declare -a ary=($(grep bytes $res))
+
+    numelm=${#ary[*]}
+    [[ ${numelm} -ne 8 ]] && printf "PROGRAMMING ERROR $FUNCNAME $LINENO \n" && exit 1
+    numelm=$(($numelm - 2))
+#debug
+#numelm=6
+    s=${ary[$numelm]}
+    s=${s#(}
+    speed=$(hbis $s)
+
+    rm -f $res
+    echo $speed
+    return 0
+}
+
+initalize() {
+    funcdebug $FUNCNAME:$LINENO enter: $@
+    startdir=$(pwd)
+    os=`uname`
+    host=`hostname`
+    failed=""
+    if [ -e "/var/emulab/boot/realname" ]; then
+	host=`cat /var/emulab/boot/realname`
+    fi
+
+    # setup logging
+    [[ $# -gt 0 ]] && logfile=$1 || logfile="/tmp/nodecheck.log"
+    tmplog=/tmp/.$$.log
+    tmplog2=/tmp/.2tmp
+    cat /dev/null > ${tmplog}
+    touch $logfile
+}
+
+finished() {
+    funcdebug $FUNCNAME:$LINENO enter: $@
+    echo "diskspeedcheck `date`" >> ${logfile}
+    cat ${tmplog} >> ${logfile} 
+    if [ -r ${tmplog2} ] ; then
+#	cat ${tmplog2}
+	cat ${tmplog2} >> ${logfile} 
+	rm -f ${tmplog2}
+    fi
+
+    [[ -z ${failed} ]] && exit 1 || exit 0
+}
 
 
-logfile=$1
+doit() {
+    funcdebug $FUNCNAME:$LINENO enter: $@
+    local err=0
+    # 4 seconds at 200MB/s == 800MB
+    # make sure we have at least 1G avail, 1024000 k blocks
+    cd $tempwkdir
+    # hardcoded name to copies don't stack up
+    tempfile=${tempwkdir}/dskspdchckwrt
+    declare -a df=($(df -k . | grep / | tail -1 ))
+    havesize=${df[3]}
+    
+    if [[ $havesize -gt $needsize ]] ; then
+	# tempfile to hold writes
+	$(rm -f $tempfile) ;	$(sync ; sync)
+	# write speed time limited
+	wkps=$(ddspeed "/dev/zero" "$tempfile" $maxddtime)
+	# read speed
+	rkps=$(ddspeed "$tempfile" "/dev/null" $maxddtime)
+	$(rm $tempfile)
+    else
+	echo "not enough space"
+	failed="not enough space"
+	err=1
+    fi
+    cd ${startdir}
+    return $err
+}
 
-{
-echo ""
-} >> ${tmplog} 2>&1
+checkwithdb() {
+    funcdebug $FUNCNAME:$LINENO enter: $@
 
-echo "diskspeedcheck `date`" >> ${logfile}
-cat ${tmplog} >> ${logfile} 
+    local testsays="Write_Speed ${wkps}/sec  Read_Speed ${rkps}/sec"
+    local tbreturn
+    local err=''
+    echo -n ${testsays}
+    echo ${testsays} >> $tmplog
+    tbreturn=$(getfromtb diskspeedinfo $host)
+    if [ -z "$tbreturn" ] ; then 
+	failed="TBmiss no info"
+	echo " $failed FAILED"
+	$(echo "TBmiss empty info returned." >> ${tmplog2})
+	return 1
+    elif [ "${tbreturn}" != "${tbreturn/unknown_node/}" ] ; then
+	failed=$tbreturn
+	echo " $failed FAILED"
+	$(echo "$failed" >> ${tmplog2})
+	return 1
+    fi
 
-failed=FAIL
-[[ -z ${failed} ]] && echo ". . . OK" || echo ". . . FAILED"
+    #lowercase
+    tbreturn=${tbreturn,,}
+
+    #turn space seperated string into array
+    unset -v tbinfo; declare -a tbinfo=(${tbreturn// / })
+    dskstring="$wkps $rkps"
+    dskstring=${dskstring,,}
+    unset -v dskspdinfo; declare -a dskspdinfo=(${dskstring// / })
+
+    # strip letters
+    x=${tbinfo[0]} ; x=${x%%[a-z]*} ; tbinfo[0]=$x
+    x=${tbinfo[1]} ; x=${x%%[a-z]*} ; tbinfo[1]=$x
+    x=${dskspdinfo[0]} ; x=${x%%[a-z]*} ; dskspdinfo[0]=$x
+    x=${dskspdinfo[1]} ; x=${x%%[a-z]*} ; dskspdinfo[1]=$x
+
+    halfwritespeed=$((${tbinfo[0]} / 2))
+    halfreadspeed=$((${tbinfo[1]} / 2))
+    doublewritespeed=$((${tbinfo[0]} * 2))
+    doublereadspeed=$((${tbinfo[1]} * 2))
+    
+
+    if (( ${dskspdinfo[0]} < $halfwritespeed )) ; then
+	$(echo "write speed slow" >> ${tmplog2})
+	err="WriteSlow"
+    fi
+    if (( ${dskspdinfo[1]} < $halfreadspeed )) ; then
+	$(echo "read speed slow" >> ${tmplog2})
+	err="$err ReadSlow"
+    fi
+    if (( ${dskspdinfo[0]} > $doublewritespeed )) ; then
+	$(echo "write speed fast" >> ${tmplog2})
+	err="$err WriteFast"
+    fi
+    if (( ${dskspdinfo[1]} > $doublereadspeed )) ; then
+	$(echo "read speed fast" >> ${tmplog2})
+	err="$err ReadFast"
+    fi
+    [[ $err ]] && echo " $err FAILED" || echo " OK"
+
+}
+
+main "$@"
 
 exit 0
 

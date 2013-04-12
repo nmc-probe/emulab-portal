@@ -7,19 +7,18 @@ echo -n ' Starting diskcheck..'
 
 # first arg is the log output file, if not set then /tmp/...
 
+#Global
+declare SMARTCTL=''
+declare failed=""
+declare error=""
+declare err=""
+
 source getfromtb.sh
 source hbis.sh
+source checkutils.sh
 
-SMARTCTL=""
-failed=""
-error=""
-err=""
 
-os=`uname -s`
-host=`hostname`
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
-fi
+
 
 # setup logging
 if [ $1 ] ; then
@@ -27,92 +26,40 @@ if [ $1 ] ; then
 else
     logfile="/tmp/nodecheck.log"
 fi
+
+#exit on unbound var, set after sourcing files
+set -u
+
+os=`uname -s`
+host=`hostname`
+if [ -e "/var/emulab/boot/realname" ]; then
+    host=`cat /var/emulab/boot/realname`
+fi
+
 tmplog=/tmp/.$$.log
 cat /dev/null > ${tmplog}
 
-#exit on unbound var
-set -u
+tmpout=/tmp/.$$tmpout.log ; touch ${tmpout}
+logout=/tmp/.$$logout.log ; touch ${logout}
 
-#need to make sure smartcrl is installed - not by default on our linux images
-{
-    SMARTCTL=$(which smartctl)
-    if [ -z "${SMARTCTL}" ] ; then
-	if [ -x "/usr/sbin/smartctl" ]; then
-	    SMARTCTL="/usr/sbin/smartctl"
-	fi
-    fi
-    if [ -x "${SMARTCTL}" ] ; then
-	rtn=$($SMARTCTL --scan)
-	# unrecongnized
-	if [ -n "$(echo $rtn | grep 'UNRECOGNIZED OPTION')" ] ; then
-	    error="(smartctl option '--scan' not supported. Attempt alternet method) "
-	    err=scan
-	elif [ -n "$(echo $rtn | grep -v 'device')" ] ; then
-            # output in unexpected format - missing deliminator "device"
-	    error="(smartctl option '--scan' strange ouput. Attempt alternet method) "
-	    err=scan
-	# empty
-	elif [ -z "$rtn" ] ; then
-	    dt=$(df / | grep /dev)
-	    dt=${dt:5}
-	    dt=${dt%% *}
-	    error="(smartctl device_type '$dt' not supported"
-	    err=device 
-	fi
-	[[ $error ]] && echo "$error"
-    else	    
-	error="smartmontools missing."
-	err="missing"
-	echo "$error. FAIL"
-    fi
-} > ${tmplog} 2>&1
+disknames=$(getdriveinfo ${logout} ${tmpout})
+cat ${tmpout} ; rm -f ${tmpout}
 echo "diskcheck `date`" >> ${logfile}
-cat ${tmplog} >> ${logfile} 
+cat ${logout} >> ${logfile} ; rm -f ${logout}
+
+#echo "" ; echo -n "$0:${LINENO} " ; echo disknames:${disknames}:
+if [ -z "$disknames" ] ; then
+    echo "No drives found. exit"
+    exit 1
+fi
+
+unset -v scan; declare -a scan=(${disknames// / })
+
+echo -n "$0:${LINENO} " ; echo scan:"${scan[@]}":
 
 # the index into dirveinv array
 name=0; driver=1; type=2; size=3; temp=4; model=5; serial=6;
 unset -v driveinv ; declare -a driveinv=()
-
-# put smartctl --scan into driveinv array
-# a better control flow control could be used 
-case $err in
-    scan )
-
-	placeholder=" . . . . . device"
-	case $os in
-	    Linux )
-		list="a b c d e f g h i j k l m n o p"
-		for i in $list
-		do
-		    if [ -b /dev/sd${i} ] ; then
-			buildscan+="/dev/sd${i} $placeholder"
-		    fi
-		done
-		;;
-	    FreeBSD )
-		list="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
-		for i in $list
-		do
-		    [[ -b /dev/da${i} ]] && buildscan+="/dev/da${i} $placeholder " 
-		    [[ -c /dev/ad${i} ]] && buildscan+="/dev/ad${i} $placeholder " 
-		done
-		;;
-	    * )
-		echo "Internal error"
-		exit
-		;;
-	esac
-	declare -a scan=($buildscan)
-	;;
-    missing | device )
-	echo "$error. FAIL"
-	exit
-	;;
-    * )
-        # get the output of --scan into array scan
-	unset -v scan ; declare -a scan=($rtn)
-	;;
-esac
 
 #now split up each line using 'device' into the array drivescan
 # This is an example of the string we are parsing:
@@ -125,8 +72,6 @@ for elm in ${scan[@]} ; do
     [[ "${elm}" == "device" ]] && ((++y))
     set -u
 done
-
-#echo ------------------- ${drivescan[@]}
 for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${drivescan[$idx]})
     lend=${#d[*]} ; x=$((lend - 2))
@@ -137,20 +82,20 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     sname="${lname:5}"
     [[  "$sname" == "pass2" ]] && break # /dev/pass2 on freebsd is tape device, skip
     driveinv[$idx]="$sname"
-    #if we did not get any info then fill in value meaning unknown.
-    [[ ${#driveinv[*]} -eq $cnt ]] && driveinv[$idx]="MissingCMD"
+    #if we did not get any info then fillin value meaning unknown.
+    [[ ${#driveinv[*]} -eq $cnt ]] && driveinv[$idx]="MissingDRIVE"
     driveinv[$idx]+=" "
     
     #driver
     cnt=${#driveinv[$idx]}
     driveinv[$idx]+="${d[2]}"
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
     driveinv[$idx]+=" "
     
     #type
     cnt=${#driveinv[$idx]}
     driveinv[$idx]+="${d[$x]}"
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
     driveinv[$idx]+=" "
     
     #size
@@ -160,10 +105,10 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
 	driveinv[$idx]+="$sz"
     else
 	x=$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $3}' | sed s/,//g)
-	[[ $x ]] && sz=$(hbis $x) || sz="UKN"
+	[[ $x ]] && sz=$(hbis $x) || sz="UNK"
 	driveinv[$idx]+="$sz"
     fi
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
     driveinv[$idx]+=" "
     
     #temp
@@ -174,7 +119,7 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
         #type 2
 	driveinv[$idx]+="$($SMARTCTL  -a ${d[0]} | grep -i "Current Drive Temperature:" | awk '{print $4}')"
     fi
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
     driveinv[$idx]+=" "
     
     #vendor product
@@ -185,12 +130,13 @@ for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
         #type 2
 	driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Product:" | awk '{print $2}')"
     fi
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
     driveinv[$idx]+=" "
     
     # serial number
+    cnt=${#driveinv[$idx]}
     driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Serial Number:" | awk '{print $3}')"
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UKN"
+    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
     driveinv[$idx]+=" "
 done
 
@@ -210,6 +156,7 @@ for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
 done
 } > ${tmplog} 2>&1
 cat ${tmplog} >> ${logfile} 
+
 
 driveinfo=""
 

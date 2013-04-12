@@ -23,6 +23,12 @@ getfromtb() {
 		* ) echo "tb ${d[1]} unknown_node" ;;
 	    esac
 	    ;;
+	diskspeedinfo )
+	    case ${d[1]} in
+		boss.emulab.net) echo "100mib 400mib";;
+		* ) echo "tb ${d[1]} unknown_node" ;;
+	    esac
+	    ;;
 	cpuinfo )
 #	echo "asked for cpuinfo node:${d[0]}:"
 	#Architecture  Sockets Cores_socket Threads_core MHz {HT}{x64}{VIRT}
@@ -44,6 +50,7 @@ getfromtb() {
 	diskinfo )
 #	echo "asked for diskinfo node:${d[0]}:"
 	    case ${d[1]} in
+		pc4 | pc133 ) echo "UNK" ;;
 		pc7 ) echo "JHYJHT7R523" ;;
 		pc137 ) echo "SX0SXM24424" ;;
 		pc207 ) echo "3KS0XJW1 3KS0XJK4";;

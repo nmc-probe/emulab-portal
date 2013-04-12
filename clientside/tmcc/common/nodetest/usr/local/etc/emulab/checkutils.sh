@@ -1,26 +1,19 @@
 
-# set -u should done before calling 
-
-# return a list of the drives on the system
-# use smartctl, /dev, df, fstab, dmesg etc.
-
-# arg1 - filename to hold logging info
-# arg2 - filename to hold runtime output
-# returns space sperated list of drive names IN "smartctl --scan" format
-
-
-NOSM="echo"
-SMARTCTL=$(which smartctl)
-if [ -z "${SMARTCTL}" ] ; then
-    if [ -x "/usr/sbin/smartctl" ]; then
-	SMARTCTL="/usr/sbin/smartctl"
-    else
-	SMARTCTL=$NOSM
+findSmartctl() {
+    local NOSM="echo"
+    SMARTCTL=$(which smartctl)
+    if [ -z "${SMARTCTL}" ] ; then
+	if [ -x "/usr/sbin/smartctl" ]; then
+	    SMARTCTL="/usr/sbin/smartctl"
+	else
+	    SMARTCTL=$NOSM
+	fi
     fi
-fi
+}
 
 getdriveinfo () {
 #need to make sure smartcrl is installed
+findSmartctl
 {
 #    echo -n "${FUNCNAME[0]}:${LINENO} " ; echo "args::$@::"
     declare buildscan=""
@@ -105,3 +98,57 @@ esac
 echo -n "${scan[@]}"
 
 }
+
+# The timesys function terminates its script unless it terminates earlier on its own
+# args: max_time output_file command command_args
+timesys() {
+    maxtime="$1"; shift;
+    out="$1" ; shift;
+    command="$1"; shift;
+    args="$*"
+    me_pid=$$;
+    sleep $maxtime &
+    timer_pid=$!
+{
+    $command $args &
+    command_pid=$!
+    wait ${timer_pid}
+    kill -2 ${command_pid}
+} > $out 2>&1
+}
+
+# Internally used
+declare FUNCDEBUG=n
+declare ECHOCMDS=n
+
+#TOUPPER() { $(echo $@ |tr 'a-z' 'A-Z') }
+#TOLOWER() { $(echo ${@,,}) }
+
+# Function Tracing
+funcdebug ()
+{
+    [[ $FUNCDEBUG = y ]] && echo -e "    ====> $(/bin/date +%k:%M:%S) $@" >&2
+    return 0
+}
+
+# command debugging
+runCmd ()
+{
+    if [[ $ECHOCMDS = y ]] ; then
+        echo "    =CMD> $@" >&2
+    fi
+    eval $@
+    return $?
+}
+
+# skeleton function
+functionSkel ()
+{
+    funcdebug $FUNCNAME:$LINENO enter $@
+
+printf "PROGRAMMING ERROR $FUNCNAME $LINENO \n" && exit 1
+
+    funcdebug $FUNCNAME:$LINENO leave
+    return 0
+}
+

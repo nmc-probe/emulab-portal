@@ -17,13 +17,13 @@ bsd=""
 #echo "linux||$linux||"
 
 
-utils="diskcheck diskspeedcheck memcheck cpucheck getfromtb.sh hbis.sh timecheck niccheck"
+utils="diskcheck diskspeedcheck memcheck cpucheck checkutils.sh getfromtb.sh hbis.sh timecheck niccheck"
 
 arg=${arg=""} # use var if set else use ""
 
 case $arg in
     # don't need OS if not 
-    disk | mem | cpu | diskspeed | time | nic | Ngetlogs | clearlogs | help | -help | -h | ? ) machines=$list ;;
+    drive | disk | mem | cpu | diskspeed | time | nic | Ngetlogs | clearlogs | help | -help | -h | ? ) machines=$list ;;
     * )
 	for i in $list
 	do
@@ -40,7 +40,8 @@ case $arg in
 esac
 
 case $arg in
-    disk | mem | cpu | diskspeed | time | nic)
+    drive | disk | mem | cpu | diskspeed | time | nic)
+	[[ "$arg" == "drive" ]] && arg=disk
 	for i in $machines ; do
 	    sudo scp -q ${arg}check $i:/usr/local/etc/emulab
 	    echo -n "$i "
