@@ -675,7 +675,8 @@ Simulator instproc run {} {
 	$node updatedb "sql"
 
 	if { $default_sync_server == {} &&
-	     ![$node set issubnode] && ![$node set isbridgenode]} {
+	     ![$node set issubnode] && ![$node set isbridgenode] &&
+	     [$node set type] != "blockstore" } {
 	    set default_sync_server $node
 	}
     }

@@ -976,10 +976,11 @@ Link instproc updatedb {DB} {
     }
 
     #
-    # If this is a SAN, then nullify shaping
+    # If this is a SAN, then nullify shaping and set up vlan encapsulation.
     #
     if {$sanlan == 1} {
 	set nobwshaping 1
+	set encap "vlan"
     }
 
     foreach nodeport $nodelist {
@@ -1217,10 +1218,11 @@ Lan instproc updatedb {DB} {
     }
 
     #
-    # If this is a SAN, then nullify shaping
+    # If this is a SAN, then nullify shaping and setup vlan encapsulation.
     #
     if {$sanlan == 1} {
 	set nobwshaping 1
+	set encap "vlan"
     }
 
     foreach nodeport $nodelist {
