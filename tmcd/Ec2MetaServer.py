@@ -23,13 +23,14 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         while 1:
             only_path,folder=os.path.split(only_path)
 
-	    if folder != "":
-	        folders.append(folder)
-	    if only_path=="/":
-		break;
+            if folder != "":
+                folders.append(folder)
+            if only_path=="/":
+                break;
 
+        if len(folders) > 0:
+            folders.pop() #Ignore version
         folders.reverse()
-        print folders
 
         try:
             message = self.handle_req(folders, self.metas)
@@ -178,24 +179,24 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
             return key[0]
 
     metas = {
-        "latest" : {
-            "meta-data" : {
-                "placement" : {"availability-zone" : doavail},
-                "ami-id": doamiid,
-                "local-hostname" : dolocal_hostname,
-                "public-hostname":dolocal_hostname,
-                "network": {"interfaces": {"macs" : domacs}},
-                "mac":domac,
-                "instance-id":doinstance_id,
-                "public-keys": dopublic_keys },
-            "user-data" : do_userdata
-        }
+        "meta-data" : {
+            "placement" : {"availability-zone" : doavail},
+            "ami-id": doamiid,
+            "local-hostname" : dolocal_hostname,
+            "public-hostname":dolocal_hostname,
+            "network": {"interfaces": {"macs" : domacs}},
+            "mac":domac,
+            "instance-id":doinstance_id,
+            "public-keys": dopublic_keys },
+        "user-data" : do_userdata
     }
 
 
 if __name__ == '__main__':
     from BaseHTTPServer import HTTPServer
-    server = HTTPServer(('155.98.36.155', 8787), Ec2MetaHandler)
+    import socket
+    server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787), Ec2MetaHandler)
     print 'Starting server, use <Ctrl-C> to stop'
     server.serve_forever()
+
 
