@@ -20,7 +20,7 @@ fi
 
 host=`hostname`
 if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
+    host=$(cat /var/emulab/boot/realname)
 fi
 
 checks="disk cpu mem time nic diskspeed"
@@ -28,14 +28,19 @@ checks="disk cpu mem time nic diskspeed"
 echo "Running nodechecks"
 # truncate file at boot time
 if [ "$1" = "boot" ] ; then
-    $(echo "Start boot_time_node_check" > /var/emulab/logs/nodecheck.log)
+    $(echo "-- Start boot_time_node_check --" > /var/emulab/logs/nodecheck.log)
+    $(cp /dev/null /var/emulab/logs/nodecheck.log.tb)
 fi
+
 for i in $checks
 do
-    /usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log
+    /usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /var/emulab/logs/nodecheck.log.tb
 done
 if [ "$1" = "boot" ] ; then
-    $(echo "Finish boot_time_node_check" >> /var/emulab/logs/nodecheck.log)
+    $(echo "-- Finish boot_time_node_check --" >> /var/emulab/logs/nodecheck.log)
+    if [ -e /var/emulab/logs/nodecheck.log.tb ] ; then
+	cp /var/emulab/logs/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host
+    fi
 fi
 
 echo "Done with nodechecks"

@@ -36,7 +36,11 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
 
 system("echo 'Running nodechecks'");
-
+$host = `hostname`;
+if ( -r '/var/emulab/boot/realname' ) {
+    $host = `cat /var/emulab/boot/realname`;
+}
+print "from startup host:$host\n";
 if (!$ARGV[0]) {
     $action = "noboot";
 } else
@@ -47,12 +51,16 @@ if (!$ARGV[0]) {
 # truncate file at boot time
 if ($action eq "boot") {
         system("echo 'Start boot_time_node_check' > /var/emulab/logs/nodecheck.log");
+        system("cp /dev/null /var/emulab/logs/nodecheck.log.tb");
 }
 foreach my $i (@checkscripts) {
     system("bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log");
 }
 if ($action eq "boot") {
-        system("echo 'Finish boot_time_node_check' >> /var/emulab/logs/nodecheck.log");
+        system("echo '-- Finish boot_time_node_check --' >> /var/emulab/logs/nodecheck.log");
+	if ( -e  "/var/emulab/logs/nodecheck.log.tb" ) {
+	    system("cp /var/emulab/logs/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host");
+	}
 }
 
 system("echo 'Done with nodechecks'");
