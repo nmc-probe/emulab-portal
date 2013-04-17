@@ -22,6 +22,12 @@ utils="diskcheck diskspeedcheck memcheck cpucheck checkutils.sh getfromtb.sh hbi
 arg=${arg=""} # use var if set else use ""
 
 case $arg in
+    drive | disk | mem | cpu | diskspeed | time | nic | Ngetlogs | clearlogs | help | -help | -h | ? ) ;;
+    pc* )
+	list=$arg ;;
+esac
+
+case $arg in
     # don't need OS if not 
     drive | disk | mem | cpu | diskspeed | time | nic | Ngetlogs | clearlogs | help | -help | -h | ? ) machines=$list ;;
     * )
