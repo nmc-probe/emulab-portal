@@ -13,9 +13,9 @@ declare startdir=$(pwd)
 declare os host failed
 declare logfile tmplog tmplog2
 # max time the dd will run
-declare -r maxddtime=4
-# need this much space free, how many K's can be written in maxddtime assuming 600Mb/sec
-declare -r needsize=$((600 * 1024 * $maxddtime))
+declare -r maxddtime=3
+# need this much space free, how many K's can be written in maxddtime assuming 300Mb/sec
+declare -r needsize=$((100 * 1024 * $maxddtime))
 # directory were speed test file will be written
 declare -r tempwkdir="/var/tmp"
 # results
@@ -26,14 +26,13 @@ source getfromtb.sh
 source checkutils.sh
 source hbis.sh
 
-FUNCDEBUG=n
+FUNCDEBUG=y
 
 main() {
 	funcdebug $FUNCNAME:$LINENO enter: $@
 	echo -n ' Starting diskspeedcheck.. '
 	initalize "$@"
-	doit
-	checkwithdb
+	doit && checkwithdb
 	finished
 }
 
@@ -46,18 +45,41 @@ ddspeed() {
     ofile=$2
     time=$3
     res=/tmp/.$$ddresult
-    
+    $(cp /dev/null $res)
+echo res:$res   
     $(timesys $time $res dd if=$ifile of=$ofile bs=4k)
+set -x
+echo res:$res
+echo $(ls -l $res)
+cat $res
+    linewithbytes=$(grep bytes $res)
+    unset -v ary; declare -a ary=(${linewithbytes// / }) #turn space seperated string into array
     declare -a ary=($(grep bytes $res))
-
     numelm=${#ary[*]}
-    [[ ${numelm} -ne 8 ]] && printf "PROGRAMMING ERROR $FUNCNAME $LINENO \n" && exit 1
-    numelm=$(($numelm - 2))
+
+    # need to parse the dd output per OS
+    if [ "$os" == "FreeBSD" ] ; then
+	[[ ${numelm} -ne 8 ]] && printf "PROGRAMMING ERROR $FUNCNAME:$LINENO numlen=${numelm}\n"  && $(rm -f $res) && exit 1
+#	numelm=$(($numelm - 2))
 #debug
 #numelm=6
-    s=${ary[$numelm]}
-    s=${s#(}
-    speed=$(hbis $s)
+	s=${ary[6]}
+	# stip leading (
+	s=${s#(}
+	speed=$(hbis $s)
+    elif [ "$os" == "Linux" ] ; then
+set -x
+	[[ ${numelm} -ne 9 ]] && printf "PROGRAMMING ERROR $FUNCNAME:$LINENO numlen=${numelm}\n" # && $(rm -f $res) && exit 1
+	s="${ary[8]} ${ary[9]}"
+        #remove space
+        s=${s// }
+exit
+	speed=$(hbis $s)
+exit
+    else
+	echo "I give up don't know this OS claming to be $os, I give up."
+	exit 1
+    fi
 
     rm -f $res
     echo $speed
@@ -99,11 +121,10 @@ finished() {
 doit() {
     funcdebug $FUNCNAME:$LINENO enter: $@
     local err=0
-    # 4 seconds at 200MB/s == 800MB
-    # make sure we have at least 1G avail, 1024000 k blocks
     cd $tempwkdir
     # hardcoded name to copies don't stack up
     tempfile=${tempwkdir}/dskspdchckwrt
+    $(rm -f $tempfile)
     declare -a df=($(df -k . | grep / | tail -1 ))
     havesize=${df[3]}
     
@@ -113,11 +134,12 @@ doit() {
 	# write speed time limited
 	wkps=$(ddspeed "/dev/zero" "$tempfile" $maxddtime)
 	# read speed
-	rkps=$(ddspeed "$tempfile" "/dev/null" $maxddtime)
+#	rkps=$(ddspeed "$tempfile" "/dev/null" $maxddtime)
 	$(rm $tempfile)
     else
-	echo "not enough space"
-	failed="not enough space"
+	failed="not enough space need:$needsize have:$havesize"
+	echo "$failed FAILED"
+	echo "$failed" >>  ${tmplog}
 	err=1
     fi
     cd ${startdir}
