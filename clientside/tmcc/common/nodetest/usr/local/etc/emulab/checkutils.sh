@@ -1,103 +1,120 @@
+#function debugging by setting  FUNCDEBUG=y
+
+#exit on unbound var
+set -u
+#exit on any error
+set -e
+
+# Gobal Vars
+declare NOSM="echo" #do nothing command
+declare host       #emulab hostname
+declare failed=""  #major falure to be commicated to user
+declare os=""      #[Linux|FreeBSD] for now
+
+inithostname() {
+    os=`uname -s`
+    host=`hostname`
+    if [ -e "/var/emulab/boot/realname" ]; then
+        host=`cat /var/emulab/boot/realname`
+    fi
+    return 0
+}
 
 findSmartctl() {
-    local NOSM="echo"
-    SMARTCTL=$(which smartctl)
-    if [ -z "${SMARTCTL}" ] ; then
+    local findit=$(which smartctl)
+    if [ -z "${findit}" ] ; then
 	if [ -x "/usr/sbin/smartctl" ]; then
-	    SMARTCTL="/usr/sbin/smartctl"
+	    findit="/usr/sbin/smartctl"
 	else
-	    SMARTCTL=$NOSM
+	    findit=$NOSM
 	fi
     fi
+    echo $findit
+    return 0
 }
 
-getdriveinfo () {
-#need to make sure smartcrl is installed
-findSmartctl
-{
-#    echo -n "${FUNCNAME[0]}:${LINENO} " ; echo "args::$@::"
-    declare buildscan=""
-    logout="$1"
-    tmpout="$2"
+# setup logging
+initlogs () {
+    funcdebug $FUNCNAME:$LINENO enter $@
 
-    if [ "${SMARTCTL}" != "$NOSM" ] ; then
-	rtn=$($SMARTCTL --scan)
-	# unrecongnized
-	if [ -n "$(echo $rtn | grep 'UNRECOGNIZED OPTION')" ] ; then
-	    error="(smartctl option '--scan' not supported. Attempt alternet method) "
-	    err=scan
-	elif [ -n "$(echo $rtn | grep -v 'device')" ] ; then
-            # output in unexpected format - missing deliminator "device"
-	    error="(smartctl option '--scan' strange ouput. Attempt alternet method) "
-	    err=scan
-	# empty
-	elif [ -z "$rtn" ] ; then
-	    dt=$(df / | grep /dev)
-	    dt=${dt:5}
-	    dt=${dt%% *}
-	    error="(smartctl device_type '$dt' not supported"
-	    err=device
-	fi
-	[[ $error ]] && echo "$error"
-    else
-	error="smartmontools missing."
-	err="missing"
-	echo "$error. FAIL "
-    fi
-} > ${logout} 2>&1
+    logfile=${1-"/tmp/nodecheck.log"}
+    logfile4tb=${2-""}
+    tmplog=/tmp/.$$.log ; cat /dev/null > ${tmplog} # create and truncate
 
-# put smartctl --scan into driveinv array
-# a better control flow control could be used 
+    logout=/tmp/.$$logout.log ; touch ${logout} # make it exist
+    tmpout=/tmp/.$$tmpout.log ; touch ${tmpout}
+#    tmpfunctionout=/tmp/.$$tmpfunctionout.log 
 
-placeholder=" . . . . . device"
-case $err in
-    scan | missing | device )
-	case $os in
-	    Linux )
-		list="a b c d e f g h i j k l m n o p"
-		for i in $list
-		do
-		    if [ -b /dev/sd${i} ] ; then
-			buildscan+="/dev/sd${i} $placeholder"
-		    fi
-		done
-		;;
-	    FreeBSD )
-		list="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
-		for i in $list
-		do
-		    [[ -b /dev/da${i} ]] && buildscan+="/dev/da${i} $placeholder " 
-		    [[ -c /dev/ad${i} ]] && buildscan+="/dev/ad${i} $placeholder " 
-		    [[ -c /dev/amrd${i} ]] && buildscan+="/dev/amrd${i} $placeholder " 
-		done
-		;;
-	    * )
-		echo "${FUNCNAME[0]}:${LINENO} Internal error"
-		exit
-		;;
-	esac
-	unset -v scan
-	[[ $buildscan ]] && declare -a scan=($buildscan) || declare -a scan=("")
-#	echo -n "${FUNCNAME[0]}:${LINENO} " ; echo "buildscan::${buildscan}::"
-	;;
-    root )
-	echo -n "$error. FAIL " >> ${tmpout}
-	echo "Last attempt return roots mount point" >> ${tmpout}
-	x=$(df / | grep /dev)
-	lastattempt="${x%% *} $placeholder "
-	unset -v scan ; declare -a scan=($lastattempt)
-	;;
-    * )
-        # get the output of --scan into array scan
-	 unset -v scan ; declare -a scan=($rtn)
-#	 echo -n "${FUNCNAME[0]}:${LINENO} " ; echo "rtn::${rtn}::"
-	;;
-esac
-
-# the result
-echo -n "${scan[@]}"
-
+    funcdebug $FUNCNAME:$LINENO leave
+    return 0
 }
+
+cleanup() {
+    rm -f $tmplog $logout $tmpout 
+}
+
+getdrivenames() {
+    # use smartctl if exits
+    # use scan of disk devices
+    # use / 
+    # truncate all together and then make uniq
+
+    local os=$(uname -s)
+    local sm=$(findSmartctl)
+    local drivelist=""
+    local drives="" 
+    local x elm
+
+#    if [ "$sm" != "${sm/smartctl}" ] ; then
+#	x=$($sm --scan-open | awk '{print $1}')
+#	if [ "$x" != "${x/dev}" ] ; then
+#	    for elm in $x ; do
+#		x=${x/"/dev/pass2"/} # FreeBSD not a HD, Tape?
+#		drivelist+="$x "
+#	    done
+#	fi
+#    fi
+
+
+    case $os in
+	Linux )
+	    list="a b c d e f g h i j k l m n o p"
+	    for i in $list
+	    do
+		if [ -b /dev/sd${i} ] ; then
+		    drivelist+="/dev/sd${i} "
+		fi
+	    done
+	    ;;
+	FreeBSD )
+	    list="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
+	    for i in $list
+	    do
+		[[ -b /dev/da${i} ]] && drivelist+="/dev/da${i} " 
+		[[ -c /dev/ad${i} ]] && drivelist+="/dev/ad${i} " 
+		[[ -c /dev/amrd${i} ]] && drivelist+="/dev/amrd${i} " 
+	    done
+	    ;;
+	* )
+	    echo "${FUNCNAME[0]}:${LINENO} Internal error"
+	    exit
+	    ;;
+    esac
+    
+#echo "drivelist||$drivelist||" >&2
+#
+#    while (( ${#drivelist} ))  ; do
+#	elm=${drivelist%% *}
+#	drives+="$elm"
+#	drivelist=${drivelist//$elm/}
+#echo "drivelist||$drivelist|| drives||$drives||" >&2
+#    done
+#    echo $drives
+    echo $drivelist
+#echo "checkutils drives:||$drives||"
+    return 0
+}
+
 
 # The timesys function terminates its script unless it terminates earlier on its own
 # args: max_time output_file command command_args
