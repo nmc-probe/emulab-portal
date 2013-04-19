@@ -29,18 +29,21 @@ echo "Running nodechecks"
 # truncate file at boot time
 if [ "$1" = "boot" ] ; then
     $(echo "-- Start boot_time_node_check --" > /var/emulab/logs/nodecheck.log)
-    $(cp /dev/null /var/emulab/logs/nodecheck.log.tb)
-fi
-
-for i in $checks
-do
-    /usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /var/emulab/logs/nodecheck.log.tb
-done
-if [ "$1" = "boot" ] ; then
+    $(cp /dev/null /tmp/nodecheck.log.tb)
+    for i in $checks
+    do
+	/usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /tmp/nodecheck.log.tb
+    done
     $(echo "-- Finish boot_time_node_check --" >> /var/emulab/logs/nodecheck.log)
-    if [ -e /var/emulab/logs/nodecheck.log.tb ] ; then
-	cp /var/emulab/logs/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host
+    if [ -e /tmp/nodecheck.log.tb ] ; then
+	cp /tmp/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host
     fi
+else
+    $(rm -f /tmp/nodecheck.log.tb)
+    for i in $checks
+    do
+	/usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log
+    done
 fi
 
 echo "Done with nodechecks"
