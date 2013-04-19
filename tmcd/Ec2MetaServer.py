@@ -196,7 +196,19 @@ if __name__ == '__main__':
     from BaseHTTPServer import HTTPServer
     import socket
     server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787), Ec2MetaHandler)
+    pid = str(os.getpid())
+    pidfile = "/var/run/tmcd-meta.pid"
+
+    if os.path.isfile(pidfile):
+        print "%s already exists, exiting" % pidfile
+        sys.exit()
+    else:
+        file(pidfile, 'w').write(pid)
+
+
     print 'Starting server, use <Ctrl-C> to stop'
     server.serve_forever()
+
+    os.unlink(pidfile)
 
 
