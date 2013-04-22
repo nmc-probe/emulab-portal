@@ -662,7 +662,7 @@ sub check_kernel
 	my $kernel_has_ide = 0;
 	my $version_string;
 
-	open KERNEL, $kernel or die "Couldn't open kernel: $!\n";
+	open KERNEL, $kernel or die "Couldn't open $kernel: $!\n";
 	read KERNEL, $buffer, 4;
 	while ($rc = read KERNEL, $buffer, 1, length($buffer)) {
 		my ($value) = unpack 'N', $buffer;
