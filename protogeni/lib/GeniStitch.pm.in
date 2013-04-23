@@ -39,7 +39,7 @@ use GeniDB;
 use English;
 use libEmulab;
 use GeniResponse;
-use overload ('""' => 'Stringify');
+#use overload ('""' => 'Stringify');
 our $TB             = "@prefix@";
 our $OURDOMAIN      = "@OURDOMAIN@";
 our %stitchpoints = ();
