@@ -241,7 +241,7 @@ sub addStitchPoint($@)
 	return;
     }
     foreach my $point ($self->points()) {
-	if (GeniXML::GetHopLinkID($point->{'internal'} eq $internalurn)) {
+	if (GeniXML::GetHopLinkID($point->{'internal'}) eq $internalurn)) {
 	    # If there is just one stitch point, this may be a duplicate
 	    return;
 	}
