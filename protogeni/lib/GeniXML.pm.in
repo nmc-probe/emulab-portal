@@ -42,7 +42,8 @@ GetManagerId GetColocate GetSubnodeOf GetStartupCommand GetTarball
 GetVirtualizationType SetVirtualizationSubtype GetVirtualizationSubtype
 GetExclusive SetExclusive GetLinkManager SetText GetText Serialize
 CreateDocument AddElement RemoveChild PolicyExists GetMask
-GetDiskImage IsUntaggedLan IsTaggedLan);
+GetDiskImage IsUntaggedLan IsTaggedLan GetHopLinkID GetCapabilitySection
+GetSuggestedVlanFromHop SetVlanTagInHop);
 
 use English;
 use XML::LibXML;
@@ -911,6 +912,64 @@ sub PolicyExists($$)
     }       
   
     return $exists;
+}
+
+sub GetHopLinkID($)
+{
+    my ($ref)  = @_;
+    my $result = "";
+			
+    my $link = FindFirst("n:link", $ref);
+    if (defined($link)) {
+	$result = GetText("id", $link);
+    }
+    return $result;
+}
+
+sub GetHopCapabilitySection($)
+{
+    my ($hopref) = @_;
+    
+    #
+    # Dig out the section we need from the hop.
+    #
+    my $tmp = FindFirst("n:link", $hopref);
+    $tmp = (FindFirst("n:switchingCapabilityDescriptor", $tmp) ||
+	    FindFirst("n:switchingCapabilityDescriptors", $tmp))
+	if (defined($tmp));
+    $tmp = FindFirst("n:switchingCapabilitySpecificInfo", $tmp)
+	if (defined($tmp));
+    if (defined($tmp) &&
+	FindFirst("n:switchingCapabilitySpecificInfo_L2sc", $tmp)) {
+	$tmp = FindFirst("n:switchingCapabilitySpecificInfo_L2sc", $tmp)
+    }
+    return $tmp;
+}
+
+sub GetSuggestedVlanFromHop($)
+{
+    my ($hopref) = @_;
+    my $capref   = GetHopCapabilitySection($hopref);
+    return undef
+	if (!defined($capref));
+
+    my $tag = GeniXML::GetText("suggestedVLANRange", $capref);
+    $tag = undef
+	if (defined($tag) && ! looks_like_number($tag));
+    return $tag;
+}
+
+sub SetVlanTagInHop($$)
+{
+    my ($hopref, $tag) = @_;
+
+    my $capref = GetHopCapabilitySection($hopref);
+    return undef
+	if (!defined($capref));
+
+    GeniXML::SetText("vlanRangeAvailability", $capref, "$tag");
+    GeniXML::SetText("suggestedVLANRange", $capref, "$tag");
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

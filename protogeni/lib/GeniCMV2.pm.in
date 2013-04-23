@@ -54,6 +54,7 @@ use GeniUtil;
 use GeniCM;
 use GeniHRN;
 use GeniXML;
+use GeniStitch;
 use emutil;
 use English;
 use Data::Dumper;
@@ -1964,39 +1965,14 @@ sub ReserveVlanTags($)
 	goto done;
     }
 
-    #
-    # Need to dig inside the stitching section to find the path.
-    #
-    my $stitching_path;
-    
-    foreach my $ref (GeniXML::FindNodesNS("n:stitching",
-					  $rspec,
-					  $GeniXML::STITCH_NS)->get_nodelist()){
-	foreach my $path (GeniXML::FindNodes("n:path",
-					     $ref)->get_nodelist()) {
-	    my $path_id = GeniXML::GetText("id", $path);
-
-	    if ($path_id eq $linkname) {
-		$stitching_path = $path;
-		last;
-	    }
-	}
+    my $stitchpath = GeniStitch->Lookup($linkname, $rspec);
+    if (defined($stitchpath->error())) {
+	$response = $stitchpath->error();
+	goto done;
     }
-    if (!defined($stitching_path)) {
+    if (!defined($stitchpath)) {
 	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					 "Could not find path in rspec");
-	goto done;
-    }
-	    
-    #
-    # Look at the hop list to find the edge point.
-    #
-    my @hoplist = GeniXML::FindNodes("n:hop", $stitching_path)->get_nodelist();
-    my (undef, $network, undef, $edgeresponse)
-	= GeniCM::findStitchPoint($linkname, @hoplist);
-    if (defined($edgeresponse)) {
-	$response = $edgeresponse;
-	goto done;
+					 "Could not find stitchpath in rspec");
     }
 
     #
@@ -2056,15 +2032,15 @@ sub ReserveVlanTags($)
 	my @tags = ();
 	foreach my $tag (@{ $taglist }) {
 	    push(@tags, $tag)
-		if ($network->VlanTagOkay($tag));
+		if ($stitchpath->vlan_ok($tag));
 	}
 	if (!@tags) {
 	    #
 	    # Return a list of okay tags. 
 	    #
 	    my @okaytags = ();
-	    for (my $i = $network->min_vlan();
-		 $i < $network->max_vlan(); $i++) {
+	    for (my $i = $stitchpath->min_vlan();
+		 $i < $stitchpath->max_vlan(); $i++) {
 		push(@okaytags, $i);
 	    }
 	    $response = GeniResponse->Create(GENIRESPONSE_SEARCHFAILED,

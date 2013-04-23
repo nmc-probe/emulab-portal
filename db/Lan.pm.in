@@ -3956,7 +3956,7 @@ sub VlanTagOkay($$)
 {
     my ($self, $tag) = @_;
 
-    return ($tag >= $self->min_vlan() && $tag < $self->max_vlan() ? 1 : 0);
+    return ($tag >= $self->min_vlan() && $tag <= $self->max_vlan() ? 1 : 0);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
