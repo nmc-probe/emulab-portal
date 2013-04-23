@@ -1738,6 +1738,10 @@ sub GetTicketAuxAux($$$$$$$$$)
 					  "$node_nickname");
 		    goto bad;
 		}
+		if (defined($stitchpath->error())) {
+		    $response = $stitchpath->error();
+		    goto bad;
+		}
 
 		# XXX: This is completely bogus. There is no current
 		# way to map interface refs in the link with
@@ -2218,6 +2222,18 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $stitchpath   = GeniStitch->Lookup($linkname);
 	my $slice_urn = $slice->urn();
 	my $retries   = 10;
+
+	if (! defined($stitchpath)) {
+	    $response =
+		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				     "$linkname: No stitching path");
+	    goto bad;
+	}
+	if (defined($stitchpath->error())) {
+	    $response = $stitchpath->error();
+	    goto bad;
+	}
+
 	my $chainmode = ($stitchpath->mode() eq "chain" ? 1 : 0);
 	my $madevlan  = 0;
 
@@ -2314,6 +2330,16 @@ sub GetTicketAuxAux($$$$$$$$$)
 	#
 	while ($retries) {
 	    my $stitchpath   = GeniStitch->Lookup($linkname);
+	    if (! defined($stitchpath)) {
+		$response =
+		    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					 "$linkname: No stitching path to ");
+		    goto bad;
+	    }
+	    if (defined($stitchpath->error())) {
+		$response = $stitchpath->error();
+		goto bad;
+	    }
 	    
 	    #
 	    # Already have a reserved tag? This could happen if the other CM
