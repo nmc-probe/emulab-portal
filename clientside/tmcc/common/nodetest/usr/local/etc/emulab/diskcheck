@@ -35,7 +35,7 @@ main() {
 
     numberofdrives=${#drive[*]}
 
-    # the index into dirveinv array
+   # the index into dirveinv array
     # DISKUNIT SN=<serial> TYPE=<PATA|SATA|SCSI|RAID> SECSIZE=<#> SECTORS=<#> RSPE ED=<MBs> WSPEED=<MBs> 
     declare -i -r header=0
     declare -i -r header_val=1
@@ -114,7 +114,7 @@ main() {
 		$driver_val ) d[$driver_val]=$(getdriver ${drive[$idx]}) ;;
 		$type_val ) d[$type_val]=$(gettype ${drive[$idx]}) ;;
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
-#		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
+		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
 #		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
 #		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
 #		$rspeed_val ) d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
@@ -392,43 +392,43 @@ getdriver() {
     # don't support this right now
 #    smtcl=$(findSmartctl)
 #    if [ "${smtcl/smartcl}" == "$smtcl" ] ; then
-#	echo '"UNKNOWN"'
+#	echo "UNKNOWN"
 #	return 0
 #    fi
-    echo '"NA"'
+    echo "NA"
     return 0
 }
 gettype() { 
     smtcl=$(findSmartctl)
     if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
-	echo '"NA"'
+	echo "NA"
 	return 0
     fi
     res=$($smtcl -i $1 | grep "ATA Version is")
     if [ -n "$res" ] ; then
 	res=${res##*is: }
 	res=${res// /} #get rid of spaces
-	[[ $res > 6 ]] && res='"SATA"' || res='"PATA"'
+	[[ $res > 6 ]] && res="SATA" || res="PATA"
 	echo $res
 	return 0
     fi
     res=$($smtcl -i $1 | grep "SAS")
     if [ -n "$res" ] ; then
-	echo '"SAS"'
+	echo "SAS"
 	return 0
     fi
     res=$($smtcl -i $1 | grep "SCSI")
     if [ -n "$res" ] ; then
-	echo '"SCSI"'
+	echo "SCSI"
 	return 0
     fi
-    echo '"UNKNOWN"'
+    echo "UNKNOWN"
     return 0
 }
 gettemp() { 
     smtcl=$(findSmartctl)
     if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
-	echo '"NA"'
+	echo "NA"
 	return 0
     fi
     res="$($smtcl  -l scttempsts $1 | grep -i "Current Temperature:" | awk '{print $3}')"
@@ -436,11 +436,22 @@ gettemp() {
         #type 2
 	res="$($smtcl -a $1 | grep -i "Current Drive Temperature:" | awk '{print $4}')"
     fi
-    [[ $res ]] && echo $res || echo '"UNKNOWN"'
+    [[ $res ]] && echo $res || echo "UNKNOWN"
     return 0
 }
 getmodel() { 
-    echo $FUNCNAME
+    smtcl=$(findSmartctl)
+    if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
+	echo "NA"
+	return 0
+    fi
+    res=$($smtcl -a $1 | grep 'Device Model:')
+    res=${res/Device Model: }
+    if [ -z "$res" ] ; then
+	res=$($smtcl -a $1 | grep 'Product:')
+	res=${res/Product: }
+    fi
+    [[ $res ]] && echo "$res" || echo "UNKNOWN"
     return 0
 }
 getserial() { 
