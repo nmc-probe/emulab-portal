@@ -115,7 +115,7 @@ main() {
 		$type_val ) d[$type_val]=$(gettype ${drive[$idx]}) ;;
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
 		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
-#		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
+		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
 #		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
 #		$rspeed_val ) d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
 	    esac
@@ -455,7 +455,17 @@ getmodel() {
     return 0
 }
 getserial() { 
-    echo $FUNCNAME
+    smtcl=$(findSmartctl)
+    if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
+	echo "NA"
+	return 0
+    fi
+    res=$($smtcl -a $1 | grep -i 'Serial number:')
+    res=${res,,} # lower case
+    res=${res/serial number: }
+    res=$(echo $res | tr 'a-z' 'A-Z') # upper case
+
+    [[ $res ]] && echo "$res" || echo "UNKNOWN"
     return 0
 }
 getbpers() { 
