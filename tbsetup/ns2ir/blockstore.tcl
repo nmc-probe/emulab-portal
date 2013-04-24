@@ -98,6 +98,8 @@ Blockstore instproc set-type {newtype} {
 }
 
 Blockstore instproc set-size {newsize} {
+    $self instvar node
+
     set mindisksize 1; # 1 MiB
 
     # Convert various input size strings to mebibytes.
@@ -109,10 +111,39 @@ Blockstore instproc set-size {newsize} {
 	return
     }
 
+    # Hack/shortcut for local nodes.  If the blockstore is fixed to
+    # anything other than a blockstore pseudo-VM, then just attach a
+    # desire to the parent node indicating a need for disk space.
+    if { $node != {} && [$node set type] != "Blockstore" } {
+	$node add-desire "?+disk" $convsize
+    }
+
     $self set size $convsize
     return
 }
 
+#
+# Explicitly fix a blockstore to a node.
+#
+Blockstore instproc set_fixed {pnode} {
+    $self instvar node
+    $self instvar size
+
+    if { [$pnode info class] != "Node" } {
+	perror "Can only fix blockstores to a node object!"
+	return
+    }
+
+    # Hack/shortcut for local nodes.  If the blockstore is fixed to
+    # anything other than a blockstore pseudo-VM, then just attach a
+    # desire to the parent node indicating a need for disk space.
+    if { $size != 0 && [$pnode set type] != "Blockstore" } {
+	$pnode add-desire "?+disk" $size
+    }
+    
+    set node $pnode
+    return
+}
 
 # Create a node object to represent the host that contains this blockstore,
 # or return it if it already exists.

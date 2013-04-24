@@ -1553,6 +1553,13 @@ sub LoadVirtNodes($)
 	    return -1;
 	}
 
+	# XXX: If the virt blockstore object isn't fixed to a
+	# blockstore pseudo-VM, then abort the bookkeeping and mapping
+	# for it.  This means we are dealing with local node storage
+	# via a features and desires hack.
+	next 
+	    if $fixnode->type() ne "blockstore";
+
 	#
 	# We need a place to hang the attributes, but they are split
 	# between the blockstore and the blockstore_attributes. Another

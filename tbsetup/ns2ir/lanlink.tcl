@@ -309,6 +309,11 @@ LanLink instproc init {s nodes bw d type} {
 	    set bs $node
 	    set node [$bs get_node]
 	    $self set sanlan 1
+	    # XXX: see comment in parse_bw() in parse.tcl
+	    if {$bw != 10} {
+		perror "Only '~' (indicating best-effort) is supported as the bandwidth for network links/lans containing storage members."
+		return
+	    }
 	}
 	set nodepair [list $node [$node add_lanlink $self]]
 	set bandwidth($nodepair) $bw

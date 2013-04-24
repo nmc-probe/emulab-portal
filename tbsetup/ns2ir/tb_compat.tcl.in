@@ -1092,7 +1092,8 @@ proc tb-set-link-failure-action {lanlink type} {
 }
 
 proc tb-fix-node {vnode pnode} {
-    if {[$vnode info class] != "Node"} {
+    if {[$vnode info class] != "Node" || 
+	[$vnode info class] != "Blockstore"} {
 	perror "\[tb-fix-node] $vnode is not a node."
 	return
     }
