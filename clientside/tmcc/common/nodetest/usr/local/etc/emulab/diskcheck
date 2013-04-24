@@ -27,53 +27,119 @@ main() {
 	echo "No drives found. exit"
 	exit 1
     fi
-    
-
-
-#XXX XXX     disknames=$(getdriveinfo ${logout} ${tmpout})
-#XXX XXX     ## echo disknames:$disknames
-#XXX XXX     cat ${tmpout} ; rm -f ${tmpout}
-#XXX XXX     echo "diskcheck `date`" >> ${logfile}
-#XXX XXX     cat ${logout} >> ${logfile} ; rm -f ${logout}
-
-#echo "" ; echo -n "$0:${LINENO} " ; echo drivenames:${disknames}:
-
-    #turn string into array
-#XXX XXX    unset -v scan; declare -a scan=(${drivename// / })
-
-#echo -n "$0:${LINENO} " ; echo scan:"${scan[@]}":
-
-    # the index into dirveinv array
-    name=0; driver=1; type=2; size=3; temp=4; 
-    model=5; serial=6; bpers=7; sectors=8;
 
     # array to put drive inventory
     unset -v driveinv ; declare -a driveinv=()
     # array of drives to hold each drive inventory
-echo ""
-echo "drivenames:||$drivenames||"
     unset -v drive ; declare -a drive=($drivenames)
 
-numberofdrives=${#drive[*]}
-echo len=$len
-for (( i = 0; i < $len ; i++ )) ; do
-    echo drive:$i = ${drive[$i]}
-done 
-exit	
-	
-    
+    numberofdrives=${#drive[*]}
 
-#now split up each line using 'device' into the array drivescan
-# This is an example of the string we are parsing:
-# '/dev/sdb -d scsi # /dev/sdb, SCSI device'    
-unset -v drive ; declare -a drivescan=()
-y=0
-for elm in ${scan[@]} ; do
-    set +u
-    drivescan[$y]="${drivescan[$y]} ${elm}"
-    [[ "${elm}" == "device" ]] && ((++y))
-    set -u
+    # the index into dirveinv array
+    # DISKUNIT SN=<serial> TYPE=<PATA|SATA|SCSI|RAID> SECSIZE=<#> SECTORS=<#> RSPE ED=<MBs> WSPEED=<MBs> 
+    declare -i -r header=0
+    declare -i -r header_val=1
+    declare -i -r name=2
+    declare -i -r name_val=3
+    declare -i -r driver=4
+    declare -i -r driver_val=5
+    declare -i -r type=6
+    declare -i -r type_val=7
+    declare -i -r size=8
+    declare -i -r size_val=9
+    declare -i -r temp=10
+    declare -i -r temp_val=11
+    declare -i -r model=12
+    declare -i -r model_val=13
+    declare -i -r serial=14 
+    declare -i -r serial_val=15
+    declare -i -r bpers=16
+    declare -i -r bpers_val=17
+    declare -i -r sectors=18
+    declare -i -r sectors_val=19
+    declare -i -r wspeed=20    
+    declare -i -r wspeed_val=21
+    declare -i -r rspeed=22
+    declare -i -r rspeed_val=23
+    declare -i -r lastslot=23
+
+    # init a default string
+    unset -v d; declare -a d=()
+    for ((i=0;i<=$lastslot;i++)) ; do
+	case $i in
+	    $header ) d[$header]="DISKUNIT" ;;
+	    $header_val ) d[$header_val]="$header_val" ;;
+	    $name ) d[$name]="Device=" ;;
+	    $name_val ) d[$name_val]="unset " ;;
+	    $driver ) d[$driver]="Driver=" ;;
+	    $driver_val ) d[$driver_val]="\"UNKNOWN\" " ;;
+	    $type ) d[$type]="TYPE=" ;;
+	    $type_val ) d[$type_val]="\"UNKNOWN\"" ;;
+	    $size ) d[$size]="Size=" ;;
+	    $size_val ) d[$size_val]="unk" ;;
+	    $temp ) d[$temp]="Temp=" ;;
+	    $temp_val ) d[$temp_val]="unk" ;;
+	    $model ) d[$model]="Model=" ;;
+	    $model_val ) d[$model_val]="unk" ;;
+	    $serial  ) d[$serial ]="SN=" ;;
+	    $serial_val ) d[$serial_val]="\"UNKNOWN\"" ;;
+	    $bpers ) d[$bpers]="SECSIZE=" ;;
+	    $bpers_val ) d[$bpers_val]="unk" ;;
+	    $sectors ) d[$sectors]="SECTORS=" ;;
+	    $sectors_val ) d[$sectors_val]="\"UNKNOWN\"" ;;
+	    $wspeed   ) d[$wspeed  ]="WSPEED=" ;;
+	    $wspeed_val ) d[$wspeed_val]="\"UNKNOWN\"" ;;
+	    $rspeed ) d[$rspeed]="RSPEED" ;;
+	    $rspeed_val ) d[$rspeed_val]="\"UNKNOWN\"" ;;
+	esac
+    done
+
+    #default string
+    driveinvinit="${d[@]}"
+
+    # initalize the driveinv array
+    for ((idx=0; idx<$numberofdrives; idx++)) ; do
+	driveinv[$idx]="$driveinvinit" 
+    done
+
+    #now fill in the array values
+    for ((idx=0; idx<$numberofdrives; idx++)) ; do
+	unset -v d ; declare -a d=(${driveinv[$idx]})
+	for ((i=0;i<=$lastslot;i++)) ; do
+	    case $i in
+		$header_val ) d[$header_val]="$idx" ;;
+		$name_val ) d[$name_val]="${drive[$idx]}" ;;
+		$sectors_val ) d[$sectors_val]=$(getsectors ${drive[$idx]}) ;;
+		$bpers_val ) d[$bpers_val]=$(getbpers ${drive[$idx]}) ;;
+#		$driver_val ) d[$driver_val]=$(getdriver ${drive[$idx]}) ;;
+#		$type_val ) d[$type_val]=$(gettype ${drive[$idx]}) ;;
+#		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
+#		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
+#		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
+#		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
+#		$rspeed_val ) d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
+	    esac
+	done
+	
+	for ((i=0;i<=$lastslot;i++)) ; do
+	    case $i in
+		$size_val ) 
+		x=$((${d[$sectors_val]}*${d[$bpers_val]}))
+		d[$size_val]=$(($x / 1000000000))		
+		;;
+	    esac
+	done
+	driveinv[$idx]=${d[@]}
+    done
+
+# dbug
+echo ""
+for ((idx=0; idx<$numberofdrives; idx++)) ; do
+echo "${driveinv[$idx]}"
 done
+exit
+
+
 for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${drivescan[$idx]})
     lend=${#d[*]} ; x=$((lend - 2))
@@ -321,6 +387,129 @@ esac
 echo -n "${scan[@]}"
 
 }
+
+getdriver() { 
+	echo '"UNKNOWN"'
+	return 0
+}
+gettype() { 
+    set -x
+    smtcl=$(findSmartctl)
+    if [ "${smtcl/smartcl}" == "$smtcl" ] ; then
+	echo '"UNKNOWN"'
+	return 0
+    fi
+    data=$($smtcl $1 | grep "")
+    res=1
+    set +x
+    return 0
+    echo $FUNCNAME
+    return 0
+}
+gettemp() { 
+    echo $FUNCNAME
+    return 0
+}
+getmodel() { 
+    echo $FUNCNAME
+    return 0
+}
+getserial() { 
+    echo $FUNCNAME
+    return 0
+}
+getbpers() { 
+    hdname=$1
+    case $os in
+	Linux )
+	    hdname=${hdname##*/}
+	    res=$(dmesg | grep "logical blocks" | grep $hdname)
+	    if [ -z "$res" ] ; then
+		echo 0
+		return 0
+	    fi
+	    res=${res%%-byte *}
+	    res=${res##*] }
+	    res=${res#* }
+	    [[ $res ]] || res=512
+	    ;;
+	FreeBSD )
+	    hdname=${hdname##*/}
+	    res=$(grep sectors /var/run/dmesg.boot | grep $hdname)
+	    if [ -z "$res" ] ; then
+		hdnamex=${hdname/ad/ada}
+		res=$(grep sectors /var/run/dmesg.boot | grep $hdnamex)
+		if [ -z "$res" ] ; then
+		    echo 512
+		    return 0
+		fi
+	    fi
+	    res=${res%%byte sectors*}
+	    res=${res##*(}
+	    res=${res#* }
+	    [[ $res ]] || res=512
+	    ;;
+	* ) echo "$FUNCNAME internal error"
+	    exit 1
+	    ;;
+    esac
+    echo $res
+    return 0
+}
+getsectors() { 
+    hdname=$1
+    case $os in
+	Linux )
+	    hdname=${hdname##*/}
+	    res=$(dmesg | grep "logical blocks" | grep $hdname)
+	    if [ -z "$res" ] ; then
+		echo 0
+		return 0
+	    fi
+	    res=${res%%-byte *}
+	    res=${res##*] }
+	    res=${res%% *}
+	    [[ $res ]] || res=0
+	    ;;
+	FreeBSD )
+	    hdname=${hdname##*/}
+	    res=$(grep sectors /var/run/dmesg.boot | grep $hdname)
+	    if [ -z "$res" ] ; then
+		hdnamex=${hdname/ad/ada}
+		res=$(grep sectors /var/run/dmesg.boot | grep $hdnamex)
+		if [ -z "$res" ] ; then
+		    res=$(grep ${hdname} /var/run/dmesg.boot)
+		    if [ -z "$res" ] ; then
+			echo 0
+			return 0
+		    fi
+		    res=${res%%MB*}
+		    res=${res#* }
+		    echo $(( $res * 2048 )) # assume 512 byte sectors
+		    return 0
+		fi
+	    fi
+	    res=${res%%byte sectors*}
+	    res=${res##*(}
+	    res=${res%% *}
+	    [[ $res ]] || res=0
+	    ;;
+	* ) echo "$FUNCNAME internal error"
+	    exit 1
+	    ;;
+    esac
+    echo $res
+    return 0
+}
+getwspeed() { 
+    echo $FUNCNAME
+    return 0
+}
+getrspeed() { 
+    echo $FUNCNAME
+    return 0
+}
+
 
 main $@
 
