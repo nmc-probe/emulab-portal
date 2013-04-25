@@ -26,13 +26,13 @@ source getfromtb.sh
 source checkutils.sh
 source hbis.sh
 
-FUNCDEBUG=y
+#FUNCDEBUG=y
 
-main() {
+main_diskspeedcheck() {
 	funcdebug $FUNCNAME:$LINENO enter: $@
 	echo -n ' Starting diskspeedcheck.. '
 	initalize "$@"
-	doit && checkwithdb
+	doit_diskspeed && checkwithdb
 	finished
 }
 
@@ -46,20 +46,17 @@ ddspeed() {
     time=$3
     res=/tmp/.$$ddresult
     $(cp /dev/null $res)
-echo res:$res   
     $(timesys $time $res dd if=$ifile of=$ofile bs=4k)
-set -x
-echo res:$res
-echo $(ls -l $res)
-cat $res
+    [[ -s $res ]] || exit 1
     linewithbytes=$(grep bytes $res)
     unset -v ary; declare -a ary=(${linewithbytes// / }) #turn space seperated string into array
     declare -a ary=($(grep bytes $res))
     numelm=${#ary[*]}
 
     # need to parse the dd output per OS
+    os=`uname -s`    
     if [ "$os" == "FreeBSD" ] ; then
-	[[ ${numelm} -ne 8 ]] && printf "PROGRAMMING ERROR $FUNCNAME:$LINENO numlen=${numelm}\n"  && $(rm -f $res) && exit 1
+	[[ ${numelm} -ne 8 ]] && printf "PROGRAMMING ERROR $FUNCNAME:$LINENO numlen=${numelm}\n"  && $(rm -f $res) && return 0
 #	numelm=$(($numelm - 2))
 #debug
 #numelm=6
@@ -68,14 +65,11 @@ cat $res
 	s=${s#(}
 	speed=$(hbis $s)
     elif [ "$os" == "Linux" ] ; then
-set -x
-	[[ ${numelm} -ne 9 ]] && printf "PROGRAMMING ERROR $FUNCNAME:$LINENO numlen=${numelm}\n" # && $(rm -f $res) && exit 1
+	[[ ${numelm} -ne 9 ]] && printf "PROGRAMMING ERROR $FUNCNAME:$LINENO numlen=${numelm}\n" # && $(rm -f $res) && return 0
 	s="${ary[8]} ${ary[9]}"
         #remove space
         s=${s// }
-exit
 	speed=$(hbis $s)
-exit
     else
 	echo "I give up don't know this OS claming to be $os, I give up."
 	exit 1
@@ -118,32 +112,28 @@ finished() {
 }
 
 
-doit() {
+doit_diskspeed() {
     funcdebug $FUNCNAME:$LINENO enter: $@
-    local err=0
     cd $tempwkdir
     # hardcoded name to copies don't stack up
     tempfile=${tempwkdir}/dskspdchckwrt
-    $(rm -f $tempfile)
+    $(rm -f $tempfile) ; $(sync ; sync)
     declare -a df=($(df -k . | grep / | tail -1 ))
     havesize=${df[3]}
     
     if [[ $havesize -gt $needsize ]] ; then
-	# tempfile to hold writes
-	$(rm -f $tempfile) ;	$(sync ; sync)
 	# write speed time limited
 	wkps=$(ddspeed "/dev/zero" "$tempfile" $maxddtime)
 	# read speed
-#	rkps=$(ddspeed "$tempfile" "/dev/null" $maxddtime)
+	rkps=$(ddspeed "$tempfile" "/dev/null" $maxddtime)
 	$(rm $tempfile)
     else
 	failed="not enough space need:$needsize have:$havesize"
 	echo "$failed FAILED"
 	echo "$failed" >>  ${tmplog}
-	err=1
     fi
     cd ${startdir}
-    return $err
+    return 0
 }
 
 checkwithdb() {
@@ -208,8 +198,11 @@ checkwithdb() {
 
 }
 
-main "$@"
+# Hmmm when to run this
+main_diskspeedcheck "$@"
+#doit_diskspeed
+#echo wkps:$wkps rkps:$rkps
 
-exit 0
+#exit 0
 
 
