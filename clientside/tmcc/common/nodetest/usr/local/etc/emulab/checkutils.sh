@@ -130,7 +130,12 @@ timesys() {
     $command $args &
     command_pid=$!
     wait ${timer_pid}
-    kill -2 ${command_pid}
+    siglist="2 15 9"
+    for i in $siglist ; do
+	running=$(ps -a | grep $command_pid | grep dd)
+	[[ "$running" ]] || break
+	kill -${i} ${command_pid}
+    done
 } > $out 2>&1
 }
 
