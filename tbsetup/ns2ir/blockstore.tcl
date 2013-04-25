@@ -115,7 +115,11 @@ Blockstore instproc set-size {newsize} {
     # anything other than a blockstore pseudo-VM, then just attach a
     # desire to the parent node indicating a need for disk space.
     if { $node != {} && [$node set type] != "Blockstore" } {
-	$node add-desire "?+disk" $convsize
+	set cursize [$node get-desire "?+disk"]
+	if {$cursize == {}} {
+	    set cursize 0
+	}
+	$node add-desire "?+disk" [expr $convsize + $cursize] 1
     }
 
     $self set size $convsize
@@ -138,7 +142,11 @@ Blockstore instproc set_fixed {pnode} {
     # anything other than a blockstore pseudo-VM, then just attach a
     # desire to the parent node indicating a need for disk space.
     if { $size != 0 && [$pnode set type] != "Blockstore" } {
-	$pnode add-desire "?+disk" $size
+	set cursize [$pnode get-desire "?+disk"]
+	if {$cursize == {}} {
+	    set cursize 0
+	}
+	$pnode add-desire "?+disk" [expr $size + $cursize] 1
     }
     
     set node $pnode
