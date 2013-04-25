@@ -29,7 +29,7 @@ class EmulabExport
     end
 
     def check_prereqs()
-        raise "No unzip found. Please install unzip" unless system("command -v fo >/dev/null 2>&1")
+        raise "No unzip found. Please install unzip" unless system("command -v unzip >/dev/null 2>&1")
     end
 
     def get_kernel()
