@@ -143,81 +143,12 @@ main() {
 	driveinv[$idx]=${d[@]}
     done
 
-# dbug
-echo ""
-for ((idx=0; idx<$numberofdrives; idx++)) ; do
-echo "${driveinv[$idx]}"
-done
-exit
-
-
-for ((idx=0; idx<${#drivescan[*]}; idx++)) ; do
-    unset -v d ; declare -a d=(${drivescan[$idx]})
-    lend=${#d[*]} ; x=$((lend - 2))
-    
-    #name
-    cnt=${#driveinv[$idx]}
-    lname="${d[0]}"
-    sname="${lname:5}"
-    [[  "$sname" == "pass2" ]] && break # /dev/pass2 on freebsd is tape device, skip
-    driveinv[$idx]="$sname"
-    #if we did not get any info then fillin value meaning unknown.
-    [[ ${#driveinv[*]} -eq $cnt ]] && driveinv[$idx]="MissingDRIVE"
-    driveinv[$idx]+=" "
-    
-    #driver
-    cnt=${#driveinv[$idx]}
-    driveinv[$idx]+="${d[2]}"
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
-    driveinv[$idx]+=" "
-    
-    #type
-    cnt=${#driveinv[$idx]}
-    driveinv[$idx]+="${d[$x]}"
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
-    driveinv[$idx]+=" "
-    
-    #size
-    cnt=${#driveinv[$idx]}
-    sz="$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $5$6}' | sed s/[][]//g)"
-    if [[ $sz ]] ; then
-	driveinv[$idx]+="$sz"
-    else
-	x=$($SMARTCTL  -i ${d[0]} | grep -i "capacity" | awk '{print $3}' | sed s/,//g)
-	[[ $x ]] && sz=$(hbis $x) || sz="UNK"
-	driveinv[$idx]+="$sz"
-    fi
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
-    driveinv[$idx]+=" "
-    
-    #temp
-    cnt=${#driveinv[$idx]}
-        #type 1
-    driveinv[$idx]+="$($SMARTCTL  -l scttempsts ${d[0]} | grep -i "Current Temperature:" | awk '{print $3}')"
-    if [ ${#driveinv[idx]} -eq $cnt ] ; then
-        #type 2
-	driveinv[$idx]+="$($SMARTCTL  -a ${d[0]} | grep -i "Current Drive Temperature:" | awk '{print $4}')"
-    fi
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
-    driveinv[$idx]+=" "
-    
-    #vendor product
-    cnt=${#driveinv[$idx]}
-        #type 1
-    driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Device Model:" | awk '{print $3$4}')"
-    if [ ${#driveinv[idx]} -eq $cnt ] ; then
-        #type 2
-	driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Product:" | awk '{print $2}')"
-    fi
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
-    driveinv[$idx]+=" "
-    
-    # serial number
-    cnt=${#driveinv[$idx]}
-    driveinv[$idx]+="$($SMARTCTL  -i ${d[0]} | grep -i "Serial Number:" | awk '{print $3}')"
-    [[ ${#driveinv[idx]} -eq $cnt ]] && driveinv[$idx]+="UNK"
-    driveinv[$idx]+=" "
-done
+# debug
+# echo ""
+# for ((idx=0; idx<$numberofdrives; idx++)) ; do
+# echo "${driveinv[$idx]}"
+#done
+# exit
 
 ## # does number of drives and size match ?
 ## # getfromtb operation node_id drivename drive size
