@@ -50,6 +50,7 @@ use XML::LibXML;
 use XML::LibXML::XPathContext;
 use XML::LibXML::NodeList;
 use GeniHRN;
+use GeniResponse;
 use GeniUtil;
 use Carp qw(cluck carp);
 
@@ -338,7 +339,18 @@ sub IsTunnel($)
 sub GetExpires($)
 {
     my ($node) = @_;
-    return GetFirstText($node, "valid_until", "expires");
+    my $result = undef;
+    my $text = GetFirstText($node, "valid_until", "expires");
+    if (defined($text)) {
+	if ($text =~
+	  /[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}T[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}Z/) {
+	    $result = $text;
+	} else {
+	    $result = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					   "$text: Invalid Datetime Format");
+	}
+    }
+    return $result;
 }
 
 sub SetExpires($$)

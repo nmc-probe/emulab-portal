@@ -608,9 +608,8 @@ sub GetTicketAuxAux($$$$$$$$$)
     #
     my $expires = GeniXML::GetExpires($rspec);
     if (defined($expires)) {
-	if (! ($expires =~ /^[-\w:.\/]+/)) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					"Illegal valid_until in rspec");
+	if (GeniResponse::IsResponse($expires)) {
+	    return $expires;
 	}
 	# Convert to a localtime.
 	my $when = str2time($expires);
@@ -2817,7 +2816,7 @@ sub SliverWorkAux($$$$$$$)
     #
     my $expires = GeniXML::GetExpires($rspec);
     if (defined($expires)) {
-	if (! ($expires =~ /^[-\w:.\/]+/)) {
+	if (GeniResponse::IsResponse($expires)) {
 	    $message = "Illegal valid_until in rspec";
 	    goto bad;
 	}
