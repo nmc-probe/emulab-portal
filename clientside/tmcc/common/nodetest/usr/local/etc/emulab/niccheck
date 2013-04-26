@@ -2,6 +2,7 @@
 
 echo -n ' Starting niccheck.. '
 
+source checkutils.sh
 source getfromtb.sh
 
 os=`uname`
@@ -12,15 +13,17 @@ if [ -e "/var/emulab/boot/realname" ]; then
 fi
 
 
-# setup logging
-if [ $1 ] ; then
-    logfile=$1
-else
-    logfile="/tmp/nodecheck.log"
-fi
-tmplog=/tmp/.$$.log
+initlogs
+## # setup logging
+## if [ $1 ] ; then
+##     logfile=$1
+## else
+##    logfile="/tmp/nodecheck.log"
+## fi
+##tmplog=/tmp/.$$.log
+##cat /dev/null > ${tmplog}
+
 tmplog2=/tmp/.2tmp
-cat /dev/null > ${tmplog}
 
 finished() {
 cat ${tmplog2}
@@ -80,6 +83,15 @@ ifcnt=${#ifinfo[*]}
 tbcnt=${#tbinfo[*]}
 numnics=$ifcnt
 maxcnt=${ifcnt}
+
+# if saving data for testbed database
+if [ -f ${logfile4tb} ] ; then
+    printf "NETINFO UNITS=%s\n"  ${ifcnt} >> ${logfile4tb}
+    for ((ifi=0; ifi<$ifcnt; ifi++)) ; do
+	printf "NETUNIT TYPE=\""ETH\"" ID=\""%s\""\n" ${ifinfo[$ifi]} >> ${logfile4tb}
+    done
+fi
+
 
 if [[ ${ifcnt} -ne ${tbcnt} ]] ; then
     failed="TBmiss"

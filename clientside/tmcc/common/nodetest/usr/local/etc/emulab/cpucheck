@@ -2,6 +2,7 @@
 
 echo -n ' Cpucheck..'
 
+source checkutils.sh
 source getfromtb.sh
 
 declare arch="" failed="" s=""
@@ -14,14 +15,17 @@ if [ -e "/var/emulab/boot/realname" ]; then
     host=`cat /var/emulab/boot/realname`
 fi
 
-# setup logging
-if [ $1 ] ; then
-    logfile=$1
-else
-    logfile="/tmp/nodecheck.log"
-fi
-tmplog=/tmp/.$$.log
-cat /dev/null > ${tmplog}
+### setup logging
+##if [ $1 ] ; then
+##    logfile=$1
+##else
+##    logfile="/tmp/nodecheck.log"
+##fi
+##tmplog=/tmp/.$$.log
+##cat /dev/null > ${tmplog}
+
+initlogs
+
 
 #set +x
 
@@ -44,7 +48,7 @@ finish() {
     exit 0
 }
 
-round1p () {
+round1p() {
     in=$1
 
     y=$(echo "((($in * .005)) + $in)/1" | bc)
@@ -204,6 +208,12 @@ fi
 echo ""
 }>> ${tmplog} 2>&1
 
+# if saving data for testbed database
+[[ ${x64bit} == 1 ]] && bits=64 || bits=32
+if [ -f ${logfile4tb} ] ; then
+    printf "CPUINFO SOCKET=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
+      ${sockets} ${threads_core} ${mhz} ${bits} ${hyperthread} >> ${logfile4tb}
+fi
 
 tbinfo=$(getfromtb cpuinfo $host)
 err=$?

@@ -41,7 +41,7 @@ $host = `hostname`;
 if ( -r '/var/emulab/boot/realname' ) {
     $host = `cat /var/emulab/boot/realname`;
 }
-print "from startup host:$host\n";
+
 if (!$ARGV[0]) {
     $action = "noboot";
 } else

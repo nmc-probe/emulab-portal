@@ -8,6 +8,7 @@ _32KGiB=33554432
 
 echo -n ' Starting memcheck..'
 
+source checkutils.sh
 source getfromtb.sh
 source hbis.sh
 
@@ -20,14 +21,16 @@ if [ -e "/var/emulab/boot/realname" ]; then
 fi
 
 
-# setup logging
-if [ $1 ] ; then
-    logfile=$1
-else
-    logfile="/tmp/nodecheck.log"
-fi
-tmplog=/tmp/.$$.log
-cat /dev/null > ${tmplog}
+## # setup logging
+##if [ $1 ] ; then
+##    logfile=$1
+## else
+##    logfile="/tmp/nodecheck.log"
+## fi
+## tmplog=/tmp/.$$.log
+## cat /dev/null > ${tmplog}
+
+initlogs
 
 #set +x
 #exit on unbound var
@@ -111,6 +114,18 @@ esac
 
 echo -n "Found phys memory $meminfo"
 } >> ${tmplog} 2>&1
+
+# if saving data for testbed database
+num=${meminfo//[a-z]*/}
+num=${meminfo//[A-Z]*/}
+base=${meminfo//[0-9]/}
+#it is MiB or GiB
+if [ "$base" == "GiB" ] ; then
+    num=$(($num * 1024))
+fi
+if [ -f ${logfile4tb} ] ; then
+    printf "MEMINFO SIZE=%s\n" ${num} >> ${logfile4tb}
+fi
 
 tbinfo=$(getfromtb meminfo $host)
 
