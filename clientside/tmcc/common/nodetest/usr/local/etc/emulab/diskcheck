@@ -15,7 +15,6 @@ declare err=""
 source getfromtb.sh
 source hbis.sh
 source checkutils.sh
-source diskspeedcheck
 
 main() {
     inithostname
@@ -90,7 +89,7 @@ main() {
 	    $sectors_val ) d[$sectors_val]="\"UNKNOWN\"" ;;
 	    $wspeed   ) d[$wspeed  ]="WSPEED=" ;;
 	    $wspeed_val ) d[$wspeed_val]="\"UNKNOWN\"" ;;
-	    $rspeed ) d[$rspeed]="RSPEED" ;;
+	    $rspeed ) d[$rspeed]="RSPEED=" ;;
 	    $rspeed_val ) d[$rspeed_val]="\"UNKNOWN\"" ;;
 	esac
     done
@@ -104,6 +103,7 @@ main() {
     done
 
     #now fill in the array values
+#set -x
     for ((idx=0; idx<$numberofdrives; idx++)) ; do
 	unset -v d ; declare -a d=(${driveinv[$idx]})
 	for ((i=0;i<=$lastslot;i++)) ; do
@@ -117,27 +117,31 @@ main() {
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
 		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
 		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
-# only on first drive -- see below
-#		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
-#		$rspeed_val ) d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
+# only on first drive only until we have better test 
+		$wspeed_val ) [[ $idx == 0 ]] && d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
 	    esac
 	done
-	
+#set +x	
+	# Must have sectors and dpers values first and case statments
+	#  might now execute in order
+        # for/case loop not need since only one values is being filled
+	#  keep commented just for documentation
+	# same gos for rspeel, wspeed must be done first
 	for ((i=0;i<=$lastslot;i++)) ; do
 	    case $i in
 		$size_val ) 
 		x=$((${d[$sectors_val]}*${d[$bpers_val]}))
 		d[$size_val]=$(($x / 1000000000))		
 		;;
+		# and getwspeed must be done before getrspeed
+		$rspeed_val ) [[ $idx == 0 ]] && d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
 	    esac
 	done
+	# just in case
+	$(rm -f /var/tmp/ddout)
+	# update driveinv with modified data
 	driveinv[$idx]=${d[@]}
     done
-    #do speed test only on root drive
-    doit_diskspeed
-    d[$wspeed_val]=$wkps
-    d[$rspeed_val]=$rkps
-	    
 
 # dbug
 echo ""
@@ -559,14 +563,37 @@ getsectors() {
     return 0
 }
 getwspeed() { 
-    echo $FUNCNAME
+    rm -f /var/tmp/ddout ; sync ; sync
+    if [ "$os" != "Linux" ] ; then 
+	echo "LinuxNot"
+	return 0
+    fi
+{ 
+    $(dd if=/dev/zero of=/var/tmp/ddout bs=64k count=8000 oflag=direct)
+} > /tmp/ddresultw 2>&1
+    res=$(grep bytes /tmp/ddresultw)
+    echo $(parsedd $res)
     return 0
 }
 getrspeed() { 
-    echo $FUNCNAME
+    if [ "$os" != "Linux" ] ; then 
+	echo "LinuxNot"
+	return 0
+    fi
+{ 
+    $(dd of=/dev/null if=/var/tmp/ddout bs=64k iflag=direct)
+} > /tmp/ddresultr 2>&1
+    rm -f /var/tmp/ddout
+    res=$(grep bytes /tmp/ddresultr)
+    echo $(parsedd $res)
     return 0
 }
 
+parsedd() {
+    # only Linux checks for now
+    # format of "524288000 bytes (524 MB) copied, 5.19277 s, 101 MB/s"
+    echo $8
+}
 
 main $@
 
