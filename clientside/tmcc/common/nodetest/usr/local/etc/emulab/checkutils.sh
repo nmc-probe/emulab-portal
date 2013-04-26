@@ -38,7 +38,11 @@ initlogs () {
     funcdebug $FUNCNAME:$LINENO enter $@
 
     logfile=${1-"/tmp/nodecheck.log"}
-    logfile4tb=${2-""}
+# start XXX XXX should be "" when in production
+#    logfile4tb=${2-""}
+    logfile4tb=${2-"/tmp/nodecheck.log.tb"}
+    touch ${logfile4tb}
+# end XXX XXX 
     tmplog=/tmp/.$$.log ; cat /dev/null > ${tmplog} # create and truncate
 
     logout=/tmp/.$$logout.log ; touch ${logout} # make it exist

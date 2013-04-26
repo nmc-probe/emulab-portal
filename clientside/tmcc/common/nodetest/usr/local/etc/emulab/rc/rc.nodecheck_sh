@@ -23,7 +23,8 @@ if [ -e "/var/emulab/boot/realname" ]; then
     host=$(cat /var/emulab/boot/realname)
 fi
 
-checks="disk cpu mem time nic diskspeed"
+#checks="disk cpu mem time nic diskspeed"
+checks="disk cpu mem time nic"
 
 echo "Running nodechecks"
 # truncate file at boot time
@@ -35,7 +36,7 @@ if [ "$1" = "boot" ] ; then
 	/usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /tmp/nodecheck.log.tb
     done
     $(echo "-- Finish boot_time_node_check --" >> /var/emulab/logs/nodecheck.log)
-    if [ -e /tmp/nodecheck.log.tb ] ; then
+    if [ -f /tmp/nodecheck.log.tb ] ; then
 	cp /tmp/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host
     fi
 else
