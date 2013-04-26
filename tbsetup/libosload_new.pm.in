@@ -298,7 +298,7 @@ sub NewType($$)
     # Not loaded?
     if ($@) {
 	$self->dprint(2,"NewType($type): simple module load failed: " . $@);
-	eval "require \"libosload_" . $type . "\"";
+	eval "require libosload_${type}";
 	$newtype  = eval { $packname->New($self); };
 	if ($@) {
 	    $self->dprint(1,"$self NewType($type): module load failed: " . $@);
