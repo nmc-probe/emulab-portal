@@ -109,6 +109,9 @@ while (<CN>) {
 	if ($val =~ /^'(.*)'$/) {
 	    $val = $1;
 	}
+	elsif ($val =~ /^"(.*)"$/) {
+	    $val = $1;
+	}
 	$configvars{$key} = "$val";
     }
 }
@@ -178,8 +181,11 @@ system("/bin/cp -pf $tzfile $timezone") == 0
     or Fatal("Could not copy $tzfile to $timezone");
 
 print "Setting root password\n";
-my $salt = join '', ('.', '/', 0..9, 'A'..'Z', 'a'..'z')[rand 64, rand 64];
-my $encrypted = crypt($configvars{"rootpswd"}, $salt);
+my $salt = "";
+for (my $i = 0; $i < 8; $i++) {
+    $salt .= ('.', '/', 0..9, 'A'..'Z', 'a'..'z')[rand 64];
+}
+my $encrypted = crypt($configvars{"rootpswd"}, "\$6\$${salt}\$");
 system("chroot $MNTPOINT /usr/sbin/usermod -p '$encrypted' root") == 0
     or Fatal("Could not set root password");
 
@@ -219,6 +225,8 @@ exit(0)
     if (!$snapshot);
 
 print "Unmounting filesystem ...\n";
+system("/bin/sync");
+
 system("/bin/umount $MNTPOINT/usr $MNTPOINT") == 0
     or Fatal("Could unmount $MNTPOINT");
 
