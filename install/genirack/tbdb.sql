@@ -6,6 +6,13 @@ REPLACE INTO `interface_capabilities`
   VALUES ('bce','ethernet_defspeed','1000000');
 
 REPLACE INTO `interface_types`
+  VALUES ('igb',1000000,1,'Intel','Gigabit Ethernet',1,'RJ45');
+REPLACE INTO `interface_capabilities`
+  VALUES ('igb','protocols','ethernet');
+REPLACE INTO `interface_capabilities`
+  VALUES ('igb','ethernet_defspeed','1000000');
+
+REPLACE INTO `interface_types`
   VALUES ('ilo2',0,1,'HP','HP iLO 2',1,'RJ45');
 
 replace into node_types set

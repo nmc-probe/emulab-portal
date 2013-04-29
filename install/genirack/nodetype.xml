@@ -21,7 +21,7 @@
 <attribute name="attr_integer_frequency">  <value>2666</value></attribute>
 <attribute name="attr_boolean_imageable">  <value>1</value></attribute>
 <attribute name="attr_integer_max_interfaces">  <value>4</value></attribute>
-<attribute name="attr_integer_memory">  <value>3574</value></attribute>
+<attribute name="attr_integer_memory">  <value>48155</value></attribute>
 <attribute name="attr_integer_power_delay">  <value>120</value></attribute>
 <attribute name="attr_string_processor">  <value>QuadCore</value></attribute>
 <attribute name="attr_boolean_rebootable">  <value>1</value></attribute>
