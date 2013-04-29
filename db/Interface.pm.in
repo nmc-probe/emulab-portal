@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1062,8 +1062,12 @@ sub Update($$)
     return -1
 	if (! ref($self));
 
-    return 0
-	if (exists($self->{'FAKE'}));
+    if (exists($self->{'FAKE'})) {
+	foreach my $key (keys(%{$argref})) {
+	    $self->{"DBROW"}->{$key} = $argref->{$key};
+	}
+	return 0;
+    }
 
     my $nodeid  = $self->node_id();
     my $unit    = $self->unit();
