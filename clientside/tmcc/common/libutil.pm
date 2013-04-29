@@ -30,6 +30,7 @@ use Exporter;
 @EXPORT = qw( ipToMac macAddSep fatal mysystem mysystem2
               findDNS setState isRoutable findDomain convertToMebi
               ipToNetwork CIDRmask untaintNumber untaintHostname
+	      GenFakeMac
             );
 
 use libtmcc;
@@ -276,6 +277,31 @@ sub mysystem2($)
     if ($?) {
 	print STDERR "Command failed: $? - '$command'\n";
     }
+}
+
+#
+# Generate a hopefully unique mac address that is suitable for use
+# on a shared node where uniqueness matters.
+#
+sub GenFakeMac()
+{
+    my $mac;
+    
+    #
+    # Random number for lower 4 octets.
+    # 
+    my $ran=`/bin/dd if=/dev/urandom count=32 bs=1 2>/dev/null | /usr/bin/sha256sum`;
+    return undef
+	if ($?);
+    
+    if ($ran =~ /^\w\w\w(\w\w\w\w\w\w\w\w\w\w)/)  {
+	$mac = $1;
+    }
+
+    #
+    # Set the "locally administered" bit, good practice.
+    #
+    return "02" . $mac;
 }
 
 # Must be last thing in file.
