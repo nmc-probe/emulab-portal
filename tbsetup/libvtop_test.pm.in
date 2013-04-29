@@ -28,7 +28,7 @@ use Exporter;
 use vars qw(@ISA @EXPORT @EXPORT_OK
 	    $VTOP_FLAGS_UPDATE $VTOP_FLAGS_VERBOSE $VTOP_FLAGS_QUIET
 	    $VTOP_FLAGS_FIXNODES $VTOP_FLAGS_IMPOTENT $VTOP_FLAGS_ALLOCONLY
-	    $VTOP_FLAGS_REGRESSION);
+	    $VTOP_FLAGS_REGRESSION $VTOP_FLAGS_FIXLANNODES);
 
 @ISA    = "Exporter";
 @EXPORT = qw( );
@@ -82,10 +82,11 @@ $VTOP_FLAGS_IMPOTENT	= 0x08;
 $VTOP_FLAGS_REGRESSION  = 0x10;
 $VTOP_FLAGS_QUIET       = 0x20;
 $VTOP_FLAGS_ALLOCONLY	= 0x40;
+$VTOP_FLAGS_FIXLANNODES	= 0x80;
 
 @EXPORT_OK = qw($VTOP_FLAGS_UPDATE $VTOP_FLAGS_VERBOSE $VTOP_FLAGS_FIXNODES
 		$VTOP_FLAGS_IMPOTENT $VTOP_FLAGS_REGRESSION $VTOP_FLAGS_QUIET
-		$VTOP_FLAGS_ALLOCONLY);
+		$VTOP_FLAGS_ALLOCONLY $VTOP_FLAGS_FIXLANNODES);
 
 #
 # Create an object representing the stuff we need to create the vtop file.
@@ -133,10 +134,14 @@ sub Create($$$$)
     # Mostly for update mode.
     $self->{'FIXEDNODES'}  = {};
     $self->{'CURRENT_V2P'} = {};
+    $self->{'CURRENT_V2P'} = {};
     $self->{'CURRENT_P2V'} = {};
     $self->{'CURRENT_V2V'} = {};
     $self->{'OLDRSRVCLEAN_FLAG'}  = 0;
     $self->{'OLDRSRVCLEAN_NODES'} = {};
+
+    # This is just for lannodes.
+    $self->{'CURRENT_V2PMAP'} = {};
 
     # Below is for interpretation of assign results.
     $self->{'PNODES'}      = {};
@@ -178,6 +183,7 @@ sub results($)          { return $_[0]->{'RESULTS'}; }
 sub current_v2p($)      { return $_[0]->{'CURRENT_V2P'}; }
 sub current_p2v($)      { return $_[0]->{'CURRENT_P2V'}; }
 sub current_v2v($)      { return $_[0]->{'CURRENT_V2V'}; }
+sub current_v2pmap($)   { return $_[0]->{'CURRENT_V2PMAP'}; }
 sub pnodes($)           { return $_[0]->{'PNODES'}; }
 sub fixednodes($)       { return $_[0]->{'FIXEDNODES'}; }
 sub newreserved($)      { return $_[0]->{'NEWRESERVED'}; }
@@ -200,6 +206,7 @@ sub virt_lan_lans($)    { return $_[0]->virt_table("virt_lan_lans"); }
 sub virt_paths($)       { return $_[0]->virt_table("virt_paths"); }
 sub virt_bridges($)     { return $_[0]->virt_table("virt_bridges"); }
 sub virt_desires($)	{ return $_[0]->virt_table("virt_node_desires"); }
+sub virt_attributes($)	{ return $_[0]->virt_table("virt_node_attributes"); }
 sub virt_startloc($)	{ return $_[0]->virt_table("virt_node_startloc"); }
 sub virt_trafgens($)	{ return $_[0]->virt_table("virt_trafgens"); }
 sub virt_lan_settings($){ return $_[0]->virt_table("virt_lan_settings"); }
@@ -219,6 +226,7 @@ sub verbose($)		{ return $_[0]->flags() & $VTOP_FLAGS_VERBOSE; }
 sub quiet($)		{ return $_[0]->flags() & $VTOP_FLAGS_QUIET; }
 sub updating($)		{ return $_[0]->flags() & $VTOP_FLAGS_UPDATE; }
 sub fixcurrent($)	{ return $_[0]->flags() & $VTOP_FLAGS_FIXNODES; }
+sub fixlanodes($)	{ return $_[0]->flags() & $VTOP_FLAGS_FIXLANNODES; }
 sub impotent($)		{ return $_[0]->flags() & $VTOP_FLAGS_IMPOTENT; }
 sub alloconly($)	{ return $_[0]->flags() & $VTOP_FLAGS_ALLOCONLY; }
 sub regression($)	{ return $_[0]->flags() & $VTOP_FLAGS_REGRESSION; }
@@ -935,6 +943,7 @@ sub interfacespeedmbps($$$)
 sub LoadCurrentResources($)
 {
     my ($self) = @_;
+    my $exptidx = $self->exptidx();
 
     $self->counters()->{'reserved_simcount'}  = 0;
     $self->counters()->{'reserved_virtcount'} = 0;
@@ -1052,6 +1061,18 @@ sub LoadCurrentResources($)
 	    }
 	}
     }
+    #
+    # Grab the v2pmap table so we can find out where lan nodes were
+    # assigned last time.
+    #
+    my $query_result =
+	DBQueryWarn("select vname,node_id from v2pmap where exptidx='$exptidx'");
+    return -1
+	if (!$query_result);
+
+    while (my ($vname,$nodeid) = $query_result->fetchrow_array()) {
+	$self->current_v2pmap()->{$vname} = $nodeid;
+    }
     return 0;
 }
 
@@ -1070,6 +1091,7 @@ sub LoadVirtNodes($)
 	my $vnode    = libvtop::virt_node->Create($self, $virt_node);
 	my $vname    = $vnode->vname();
 	my $desires  = {};
+	my $attrs    = {};
 	my $startloc = undef;
 
 	# Other fields we need.
@@ -1357,6 +1379,58 @@ sub LoadVirtNodes($)
 		if ($isvirt && $desire->desire() eq "pcshared");
 	}
 	$vnode->_desires($desires);
+
+	#
+	# Add in attributes.
+	#
+	foreach my $attr ($self->virt_attributes()->Rows()) {
+	    next
+		if ($attr->vname() ne $vname);
+	    
+	    $attrs->{$attr->attrkey()} = $attr->attrvalue();
+
+	    if ($attr->attrkey() eq "XEN_MEMSIZE" ||
+		$attr->attrkey() eq "MEMORYSIZE") {
+		$vnode->_desires()->{"?+ram"} = $attr->attrvalue();
+	    }
+	}
+	$vnode->_atttributes($attrs);
+
+	#
+	# Need to set a default. But this needs to be seen on
+	# the client too, via virt_node_attributes.
+	#
+	# We need a way to associate these defaults with the virtualization
+	# type, but that is a function of the image. Needs more thought.
+	#
+	if ($isvirt) {
+	    my $defmem = 128;
+	    my $maxmem = 128;
+
+	    if ($vnode->_parent_osinfo()->osname() =~ /xen/i) {
+		$defmem = 256;
+		$maxmem = 512;
+	    }	    
+	    if (!exists($vnode->_desires()->{"?+ram"})) {
+		$self->printdb("Setting VM memsize to $defmem for $vname\n");
+		$vnode->_desires()->{"?+ram"} = $defmem;
+	    }
+	    else {
+		#
+		# If the user wants a shared node, they are not allowed to
+		# ask for more then the max, unless its an admin. 
+		#
+		if ($vnode->_desires()->{"?+ram"} > $maxmem &&
+		    $vnode->_sharedokay() &&
+		    !$self->user()->IsAdmin()) {
+		    tberror("Invalid def_parentosid in " .
+			    $vnode->_osinfo() . "\n");
+		    return -1;
+		}
+	    }
+	    $self->experiment()->SetVirtNodeAttribute($vname, "VM_MEMSIZE",
+					      $vnode->_desires()->{"?+ram"});
+	}
 
 	#
 	# And the startloc, but doubt this is used anymore.
@@ -2236,6 +2310,18 @@ sub GenFixNodes($)
 	if ($self->isatoponode($vname) || $self->isadelaynode($vname) ||
 	    $self->isasanhost($vname)) {
 	    $self->createFixedNode($vname, $fixed);
+	}
+    }
+    if ($self->fixlanodes()) {
+	#
+	# Add lan node fixnodes.
+	#
+	foreach my $lannode (sort(keys(%{ $self->lannodes() }))) {
+	    next
+		if (!exists($self->current_v2pmap()->{$lannode}));
+
+	    $self->createFixedNode($lannode,
+				   $self->current_v2pmap()->{$lannode});
 	}
     }
     return 0;
@@ -4148,9 +4234,13 @@ sub AddNodeToSolution($$$)
 {
     my ($self, $virtual, $physical) = @_;
 
-    # Skip LAN/Fake nodes.
-    return 0
-	if (exists($self->lannodes()->{$virtual}));
+    #
+    # We generally ignore lannodes, but lets remember the mapping.
+    #
+    if (exists($self->lannodes()->{$virtual})) {
+	$self->lannodes()->{$virtual} = $physical;
+	return 0;
+    }
 
     #
     # XXX Must distinguish between local and ProtoGeni resources
@@ -4482,10 +4572,13 @@ sub ReadRspecSolution($$)
 	my $node_urn  = GeniXML::GetNodeId($ref);
 	my $virtual   = GeniXML::GetVirtualId($ref);
 
-	# Skip LAN/Fake nodes.
-	return 0
-	    if (exists($self->lannodes()->{$virtual}));
-
+	#
+	# We generally ignore lannodes, but lets remember the mapping.
+	#
+	if (exists($self->lannodes()->{$virtual})) {
+	    $self->lannodes()->{$virtual} = $node_urn;
+	    return 0;
+	}
 	$self->AddNodeToSolution($virtual, $node_urn);
 	    
 	$ifacemap{$virtual} = {};
@@ -5221,8 +5314,7 @@ sub AllocNodes($)
     }
 
     #
-    # Upload the v2pmap table. The only place I know that cares about
-    # this table is dohosts() in tmcd.c
+    # Upload the v2pmap table. 
     #
     foreach my $vnodename (keys(%{ $self->solution_v2p() })) {
 	#
@@ -5240,7 +5332,16 @@ sub AllocNodes($)
 		    "  vname='$vnodename', node_id='$pnodename'")
 	    or return -1 if (!($self->impotent() || $self->alloconly()));
     }
-    
+    foreach my $vnodename (keys(%{ $self->lannodes() })) {
+	my $pnodename = $self->lannodes()->{$vnodename};
+
+	$self->printdb("v2pmap (lannode): $vnodename $pnodename\n");
+
+	DBQueryWarn("insert into v2pmap set ".
+		    "  pid='$pid', eid='$eid', exptidx='$idx', ".
+		    "  vname='$vnodename', node_id='$pnodename'")
+	    or return -1 if (!($self->impotent() || $self->alloconly()));
+    }
     return 0;
 }
 
@@ -6373,7 +6474,7 @@ sub InterpLinksAux($)
 		    # If the "lannode" is placed on a node, and that node is
 		    # different than the current node, we have to connect the
 		    # two in the vlan. Typically, the lannode is placed on a
-		    # switch, and this is not an issue. Rob understands this!
+		    # switch, and this is not an issue. 
 		    #
 		    if (!$virtnodeA->_onsharednode() &&
 			! ($member0->_lannode() ne "null" &&
@@ -7122,7 +7223,10 @@ sub NewVirtIface($$$$;$)
     if (!defined($virtiface)) {
 	return undef;
     }
-    $self->printdb("$virtiface: $member, isvdev:$isvdev, isveth:$isveth\n");
+    $self->printdb("$virtiface: $member, ".
+		   "isvdev:$isvdev, isveth:$isveth" .
+		   (defined($pport) ? ", pport:$pport" : "") . "\n");
+    
     my $newid = $virtiface->unit();
 
     # Record this vinterface mapping.
@@ -7154,7 +7258,7 @@ sub NewVirtIface($$$$;$)
     }
 
     #
-    # XXX hackery that only Rob and Leigh understand.
+    # This is to assist with patching up virts. See AddVirtPatch().
     # A LAN of vnodes split across multiple physical machines may
     # not have the correct physical LAN info coming out of assign
     # and may need to be patched up later.
@@ -7165,7 +7269,7 @@ sub NewVirtIface($$$$;$)
 	$self->solution_vethmap()->{$lan}->{$pnodename} = []
 	  if (!exists($self->solution_vethmap()->{$lan}->{$pnodename}));
 	
-	push(@{ $self->solution_vethmap()->{$lan}->{$pnodename} }, $newid);
+	push(@{ $self->solution_vethmap()->{$lan}->{$pnodename} }, $virtiface);
     }
     return $virtiface;
 }
@@ -8252,6 +8356,43 @@ sub UploadVlans($)
     }
 
     #
+    # Patch up virts.
+    #
+    foreach my $vname (keys(%{ $self->vlans() })) {
+	next
+	    if (!exists($self->solution_vethpatch()->{$vname}));
+
+	foreach my $pname (keys(%{ $self->solution_vethmap()->{$vname} })) {
+	    next
+		if (!exists($self->solution_vethpatch()->{$vname}->{$pname}));
+
+	    my $pport = $self->solution_vethpatch()->{$vname}->{$pname};
+	    my $pnode = $self->pnodes()->{$pname};
+
+	    foreach my $viface (@{$self->solution_vethmap()->{$vname}->{$pname}}) {
+		#
+		# For veth and vlan interfaces, we need to set the
+		# characteristics of the underlying physical
+		# interface.
+		#
+		my $speed =
+		    $self->interfacespeedmbps(physinterfacetype($pnode, $pport),
+					      "ethernet");
+		    
+		$self->printdb("Virt Patch: ".
+			       "$vname $pname $viface $pport $speed\n");
+
+		my $member = $viface->_member();
+		$viface->_speed($speed);
+		$viface->_trunk(($viface->type() eq "vlan") ? 1 : 0);
+		# This is a fake data structure in impotent mode.
+		$viface->Update({"iface" => $pport})
+		    if (! $self->alloconly());
+	    }
+	}
+    }
+
+    #
     # Upload the port bw to the interfaces table for each iface.
     #
     foreach my $virtlan (values(%{ $self->vlans() })) {
@@ -8388,46 +8529,7 @@ sub UploadVlans($)
 	    }
 	}
     }
-
-    #
-    # Patch up virts.
-    #
-    foreach my $vname (keys(%{ $self->vlans() })) {
-	next
-	    if (!exists($self->solution_vethpatch()->{$vname}));
-
-	foreach my $pname (keys(%{ $self->solution_vethmap()->{$vname} })) {
-	    next
-		if (!exists($self->solution_vethpatch()->{$vname}->{$pname}));
-
-	    my $pport = $self->solution_vethpatch()->{$vname}->{$pname};
-	    my $pnode = $self->pnodes()->{$pname};
-
-	    foreach my $vid (@{$self->solution_vethmap()->{$vname}->{$pname}}) {
-		#
-		# For veth and vlan interfaces, we need to set the
-		# characteristics of the underlying physical
-		# interface.
-		#
-		my $speed =
-		    $self->interfacespeedmbps(physinterfacetype($pnode, $pport),
-					      "ethernet");
-		$self->printdb("Virt Patch: ".
-			       "$vname $pname $vid $pport $speed\n");
-	
-		if (!($self->impotent() || $self->alloconly())) {
-		    DBQueryWarn("update vinterfaces set iface='$pport' ".
-				"where node_id='$pname' and unit='$vid'")
-			or return -1;
-
-		    DBQueryWarn("update interfaces set " .
-				"   current_speed='$speed' " .
-				"where node_id='$pname' and iface='$pport'")
-			or return -1;
-		}
-	    }
-	}
-    }
+    return 0;
 }
 
 #

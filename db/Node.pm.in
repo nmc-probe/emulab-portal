@@ -1546,6 +1546,9 @@ sub rebootable($;$) {
 sub bios_waittime($;$) {
     return NodeTypeInfo($_[0])->bios_waittime($_[1]);
 }
+sub memory($;$) {
+    return NodeTypeInfo($_[0])->memory($_[1]);
+}
 
 #
 # Perform some updates ...
@@ -1621,7 +1624,7 @@ sub ClearBootAttributes($)
 		"update_accounts=0,ipport_next=ipport_low,rtabid=0, ".
 		"sfshostid=NULL,allocstate='$allocFreeState',boot_errno=0, ".
 		"destination_x=NULL,destination_y=NULL, ".
-		"destination_orientation=NULL ".
+		"destination_orientation=NULL,reserved_memory=0 ".
 		"where node_id='$node_id'")
 	or return -1;
 
@@ -2092,6 +2095,14 @@ sub CreateVnodes($$$)
 	return -1;
     }
 
+    # Need this below.
+    my $total_memory    = $node->memory();
+    my $node_attributes = $node->GetNodeAttributes();
+    if (defined($node_attributes) &&
+	exists($node_attributes->{"physical_ram"})) {
+	$total_memory = $node_attributes->{"physical_ram"};
+    }
+
     #
     # Assign however many we are told to (typically by assign). Locally
     # this is not a problem since nodes are not shared; assign always
@@ -2177,6 +2188,44 @@ sub CreateVnodes($$$)
     my $allocstate = TBDB_ALLOCSTATE_FREE_CLEAN();
 
     #
+    # Check memory constraints before we create anything. 
+    #
+    my $reserved_memory = ();
+
+    if (defined($total_memory)) {
+	foreach my $ref (@tocreate) {
+	    my ($n, $vname) = @{ $ref };
+	    my $vm_memsize;
+
+	    #
+	    # Look to see if the container can actually get the memory it
+	    # needs. This really only matters on a shared node. On a
+	    # dedicated node, assign will never violate this, but on a
+	    # shared node it could happen if two swapins are running
+	    # at the same time. Like bandwidth.
+	    #
+	    $experiment->GetVirtNodeAttribute($vname,
+					      "VM_MEMSIZE", \$vm_memsize)
+		== 0 or goto bad;
+
+	    if ($vm_memsize) {
+		if ($verbose) {
+		    print STDERR
+			"$vname is reserving $vm_memsize MB on $node\n";
+		}
+		if ($total_memory < $vm_memsize) {
+		    print STDERR "*** CreateVnodes: ".
+			"no free memory for $vname on $pnode\n";
+		    goto bad;
+		}
+		$total_memory -= $vm_memsize;
+		# remember for below.
+		$reserved_memory{$vname} = $vm_memsize;
+	    }
+	}
+    }
+
+    #
     # Create a bunch.
     #
     foreach my $ref (@tocreate) {
@@ -2186,14 +2235,14 @@ sub CreateVnodes($$$)
 	my ( $jailip, $jailmask );
 
 	if ($isjailed) {
-	    $query_result =
-		DBQueryWarn( "SELECT attrvalue FROM virt_node_attributes " .
-			     "WHERE pid='$pid' AND eid='$eid' AND " .
-			     "vname='$vname' AND " .
-			     "attrkey='routable_control_ip'" );
-	    
-	    if( $query_result && $query_result->numrows &&
-		( $query_result->fetchrow_array() )[ 0 ] eq "true" ) {
+	    my $routable_control_ip;
+
+	    $experiment->GetVirtNodeAttribute($vname, "routable_control_ip",
+					      \$routable_control_ip)
+		== 0 or goto bad;
+
+	    if ($routable_control_ip &&
+		$routable_control_ip eq "true") {
 		#
 		# Grab a public IP address from the free pool, if there
 		# is one.
@@ -2274,12 +2323,10 @@ sub CreateVnodes($$$)
 			"def_boot_osid" => $osid,
 			"update_accounts" => 1,
 			"jailflag" => $isjailed);
-	# This is deprecated and will be removed. We now create real
-	# interfaces, see below.
-	if (0 && $isjailed && !$isremote) {
-	    $nodesets{"jailip"} = $jailip;
-	    $nodesets{"jailipmask"} = $JAILIPMASK;
-	}
+
+	if (exists($reserved_memory{$vname})) {
+	    $nodesets{"reserved_memory"} = $reserved_memory{$vname};
+	}	    
 	my $statement = "insert into nodes set ".
 	    join(",", map("$_='" . $nodesets{$_} . "'", keys(%nodesets)));
 

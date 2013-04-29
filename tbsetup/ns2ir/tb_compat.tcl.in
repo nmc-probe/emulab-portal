@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -2302,6 +2302,16 @@ proc tb-set-node-routable-ip {node onoff} {
     } else {
 	perror "\[tb-set-node-routable-ip] $onoff must be 0/1"
     }
+}
+
+# This number is MBs.
+proc tb-set-node-memory-size {node mem} {
+    if {[$node info class] != "Node"} {
+	perror "\[tb-set-node-memory-size] $node is not a node."
+	return
+    }
+    $node add-attribute "MEMORY_SIZE" "$mem"
+    $node add-desire "?+ram" "$mem"
 }
 
 # The following codes are written, in order to use OML to send data to a server
