@@ -254,6 +254,9 @@ sub makeIfaceMaps()
     closedir(SD);
 
     foreach my $iface (@ifs) {
+	next
+	    if ($iface =~ /^ifb/ || $iface =~ /^imq/);
+	
 	if ($iface =~ /^([\w\d\-_]+)$/) {
 	    $iface = $1;
 	}
