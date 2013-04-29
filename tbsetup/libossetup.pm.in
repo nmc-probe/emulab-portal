@@ -93,7 +93,8 @@ sub New($$$@)
     my $self              = {};
     $self->{'USER'}       = $user;
     $self->{'EXPT'}       = $experiment;
-    $self->{'GROUP'}      = (defined($experiment)) ? $experiment->GetGroup() : undef;
+    $self->{'GROUP'}      = (defined($experiment) ?
+			     $experiment->GetGroup() : undef);
     $self->{'HASH'}       = {};
     $self->{'NODES'}      = {};
     $self->{'PHYSNODES'}  = {};
