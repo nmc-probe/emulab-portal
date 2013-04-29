@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -251,8 +251,8 @@ else {
     };
     if (defined($switchinfo)) {
 	$ifaceargs->{'switch_id'}   = $switchid;
-	$ifaceargs->{'switch_port'} = $switchcard;
-	$ifaceargs->{'switch_card'} = $switchport;
+	$ifaceargs->{'switch_port'} = $switchport;
+	$ifaceargs->{'switch_card'} = $switchcard;
     }
     Interface->Create($node, $ifaceargs)
 	or fatal("Could not create interface entry");
