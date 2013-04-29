@@ -4,6 +4,8 @@
 # Bake in the routable ip space if possible
 # Add partial reverse zone stuff. See the NOTES file.
 #
+# Add /usr/testbed/bin and sbin to elabman path.
+# Kill OUTERBOSS_NODENAME and OUTERBOSS_SSLCERTNAME from defs
 
 use strict;
 use libinstall;
@@ -630,6 +632,10 @@ sub Install($$$)
 		DoneIfExists("$PREFIX/obj/testbed");
 		ExecQuietFatal("cd $PREFIX/obj; ln -s ".
 			       "  $ELABMANDIR/emulab-devel/obj obj");
+	    };
+	    Phase "chown", "Changing owner and group", sub {
+		ExecQuietFatal("$CHOWN -R elabman:emulab-ops ".
+			       "   $ELABMANDIR/emulab-devel");
 	    };
 	};
 
