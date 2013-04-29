@@ -156,6 +156,8 @@ my $USE_NETEM   = 0;
 my $USE_MACVLAN = 0;
 # Use control network bridging for all containers. 
 my $USE_CTRLBR  = 1;
+# Use extra bridging for BW limiting. Always on shared hosts.
+my $USE_TCBRS   = 1;
 
 # Switch to openvswitch
 my $USE_OPENVSWITCH = 0;
@@ -177,6 +179,9 @@ if ($kmaj >= 2 && $kmin >= 6 && $kpatch >= 32) {
 	$USE_MACVLAN = 1;
     }
 }
+if (SHAREDHOST()) {
+    $USE_TCBRS = 1;
+}
 
 #
 # Helpers.
@@ -196,7 +201,6 @@ sub vmstatus($);
 sub vmrunning($);
 sub vmstopped($);
 sub GClvm($);
-sub GCbridge($);
 sub SetupCaps($$$$);
 
 #
@@ -212,9 +216,13 @@ sub addbr($)
 sub delbr($)
 {
     my $br  = $_[0];
-    my $cmd = ($USE_OPENVSWITCH ? "$OVSCTL del-br" : "$BRCTL delbr") . " $br";
-
-    system($cmd);
+    if ($USE_OPENVSWITCH) {
+	mysystem2("$OVSCTL del-br $br");
+    }
+    else {
+	mysystem2("$IFCONFIG $br down");
+	mysystem2("$BRCTL delbr $br");
+    }
 }
 sub addbrif($$)
 {
@@ -518,7 +526,7 @@ sub vz_rootPreConfig {
     }
     for (my $i = 0; $i < $MAXIMQ; $i++) {
 	$MDB{"$i"} = ""
-	    if (!exists($MDB{"$i"}));
+	    if (!defined($MDB{"$i"}));
     }
     dbmclose(%MDB);
 
@@ -623,7 +631,7 @@ sub vz_rootPreConfigNetwork {
 		mysystem2("$ETHTOOL -K $vdev tso off gso off");
 
 		$physdev =  $vdev;
-		$brname  = "${prefix}$vdev";
+		$brname  = "${prefix}${vdev}";
 		$brs{$brname}{ENCAP} = 1;
 		$brs{$brname}{SHORT} = 0;
 		$brs{$brname}{PHYSDEV} = $vdev;
@@ -660,27 +668,25 @@ sub vz_rootPreConfigNetwork {
     # underlying physdev to "host" the macvlan.
     #
     foreach my $k (keys(%brs)) {
-	# postpass to setup SHORT if only two members and no PMAC
-	# NOTE: We have never used this code. What is it?
-	if (exists($brs{$k}{MEMBERS})) {
-	    if ($brs{$k}{MEMBERS} == 2) {
-		$brs{$k}{SHORT} = 1;
-	    }
-	    else {
-		$brs{$k}{SHORT} = 0;
-	    }
-	    $brs{$k}{MEMBERS} = undef;
-	}
-
 	if (!$USE_MACVLAN) {
-	    # building bridges is an important activity
+	    #
+	    # This bridge might be shared with other containers, so difficult
+	    # to delete. This really only matters on shared nodes though, where
+	    # bridges and vlans could stack up forever (or just a long time).
+	    # The good news is that because we create a traffic shaping bridge
+	    # (see below) on shared nodes, all modifications to the bridge
+	    # are under lock, so each time a container exits, we can check to
+	    # see if there anyone else is using it. So, just record that we
+	    # are using this bridge. See additional note below.
+	    #
 	    if (! -d "/sys/class/net/$k/bridge") {
 		addbr($k);
 		goto bad
 		    if ($?);
-		# record bridge created.
-		$private->{'bridges'}->{$k} = $k;
 	    }
+	    # record bridge used
+	    $private->{'physbridges'}->{$k} = $k;
+	    
 	    # repetitions of this should not hurt anything
 	    mysystem2("$IFCONFIG $k 0 up");
 	}
@@ -689,25 +695,33 @@ sub vz_rootPreConfigNetwork {
 	    if (!$USE_MACVLAN) {
 		my $physdev = $brs{$k}{PHYSDEV};
 		my $ifc     = $brs{$k}{IFC};
-		
-		# make sure this iface isn't already part of another bridge;
-		# if it it is, remove it from there first and add to
-		# this bridge.
+
+		#
+		# This interface should not be a member of another bridge.
+		# If it is, it is an error.
+		#
+		# Continuing the comment above, this bridge and this interface
+		# might be shared with other containers, so we cannot remove it
+		# unless it is the only one left. 
+		#
 		my $obr = findBridge($physdev);
-		if (defined($obr)) {
+		if (defined($obr) && $obr ne $k) {
+		    # Avoid removing the device from the bridge if it
+		    # is in the correct bridge. 
 		    delbrif($obr, $physdev);
+		    goto bad
+			if ($?);
+		    $obr = undef;
+		}
+		if (!defined($obr)) {
+		    addbrif($k, $physdev);
 		    goto bad
 			if ($?);
 		    # rebuild hashes
 		    makeBridgeMaps();
 		}
-		addbrif($k, $physdev);
-		goto bad
-		    if ($?);
-		# record iface added to bridge 
-		$private->{'bridgeifaces'}->{$k}->{$physdev} = $k;
 
-		if (SHAREDHOST()) {
+		if ($USE_TCBRS) {
 		    #
 		    # We do not put the virtual interface into the same
 		    # bridge as the physical device. We create a second
@@ -834,7 +848,7 @@ sub vz_rootPreConfigNetwork {
 
   bad:
     #
-    # Unwind anything we did.
+    # Unwind anything we did. 
     #
     KillCaps($private);
     
@@ -854,8 +868,6 @@ sub vz_rootPreConfigNetwork {
     if (exists($private->{'bridges'})) {
 	foreach my $brname (keys(%{ $private->{'bridges'} })) {
 	    mysystem2("$IFCONFIG $brname down");
-	    # We can delete this cause we still have the lock and
-	    # no one else got a chance to add to it.
 	    delbr($brname);		
 	    delete($private->{'bridges'}->{$brname})
 		if (! $?);
@@ -895,6 +907,18 @@ sub vz_rootPreConfigNetwork {
 	    delete($private->{'imqs'}->{"$i"});
 	}
 	dbmclose(%MDB);
+    }
+    if ($USE_TCBRS && exists($private->{'physbridges'})) {
+	makeBridgeMaps();
+	
+	foreach my $brname (keys(%{ $private->{'physbridges'} })) {
+	    my @ifaces = findBridgeIfaces($brname);
+	    if (@ifaces <= 1) {
+		delbr($brname);
+		delete($private->{'physbridges'}->{$brname})
+		    if (! $?);
+	    }
+	}
     }
   badbad:
     TBScriptUnlock();
@@ -1237,23 +1261,14 @@ sub vz_vnodeTearDown {
 		    if ($?);
 		delete($ref->{$brname}->{$iface});
 	    }
-	    # Delete bridge when no more members.
-	    # Another container might have created the bridge, but
-	    # it exited first. So we need to clean it up.
-	    if (my $foo = GCbridge($brname)) {
-		goto badbad
-		    if ($foo < 0);
-		delete($private->{'bridges'}->{$brname})
-		    if (exists($private->{'bridges'}->{$brname}));
-	    }
 	    delete($private->{'bridgeifaces'}->{$brname});
 	}
     }
     # Delete bridges we created which have no current members.
     if (exists($private->{'bridges'})) {
 	foreach my $brname (keys(%{ $private->{'bridges'} })) {
-	    goto badbad
-		if (GCbridge($brname) < 0);
+	    mysystem2("$IFCONFIG $brname down");	    
+	    mysystem2("$BRCTL delbr $brname");
 	    delete($private->{'bridges'}->{$brname});
 	}
     }
@@ -1292,6 +1307,18 @@ sub vz_vnodeTearDown {
 	
 	mysystem2("$OVSCTL -- --if-exists del-port vzbr0 $cnet_veth");
 	delete($private->{'controlveth'});
+    }
+    if ($USE_TCBRS && exists($private->{'physbridges'})) {
+	makeBridgeMaps();
+	
+	foreach my $brname (keys(%{ $private->{'physbridges'} })) {
+	    my @ifaces = findBridgeIfaces($brname);
+	    if (@ifaces <= 1) {
+		delbr($brname);
+		delete($private->{'physbridges'}->{$brname})
+		    if (! $?);
+	    }
+	}
     }
     
     #
@@ -1979,7 +2006,7 @@ sub vz_vnodePreConfigExpNetwork {
 	# gres and route tables are a global resource.
 	#
 	if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	    print STDERR "Could not get the tunne lock after a long time!\n";
+	    print STDERR "Could not get the global lock after a long time!\n";
 	    return -1;
 	}
 	my %key2gre = ();
@@ -2186,7 +2213,6 @@ sub vz_vnodePreConfigExpNetwork {
 		}
 		$private->{'iprules'}->{$veth} = $veth;
 
-		my $net = inet_ntoa(inet_aton($inetip) & inet_aton($mask));
 		mysystem2("/sbin/ip route replace ".
 			  "  default dev $gre table $routetable");
 		if ($?) {
@@ -2558,54 +2584,6 @@ sub GClvm($)
 	   " /dev/$VGNAME/$lvmname.$oldest");
     return -1
 	if ($?);
-    return 0;
-}
-
-#
-# See if we can delete a bridge.
-#
-sub GCbridge($)
-{
-    my ($brname) = @_;
-    
-    #
-    # See if we need to delete the bridge; once all the members
-    # are removed, we want to get rid of the bridge. But the
-    # bridge might be shared with other containers, to have to
-    # explicitly check (we have the lock).
-    #
-    if ($USE_OPENVSWITCH) {
-	my $foo = `$OVSCTL list-ports $brname | wc -l`;
-	if ($?) {
-	    print STDERR "'$OVSCTL list-ports $brname' failed\n";
-	    return -1;
-	}
-	else {
-	    chomp($foo);
-	    print STDERR "$foo ports in $brname\n";
-	    if ("$foo" eq "0") {
-		mysystem2("$IFCONFIG $brname down");	    
-		mysystem2("$OVSCTL del-br $brname");
-		return 1;
-	    }
-	}
-    }
-    else {
-	my $foo = `$BRCTL showmacs $brname | wc -l`;
-	if ($?) {
-	    print STDERR "'brctl showmacs $brname' failed\n";
-	    return -1;
-	}
-	else {
-	    chomp($foo);
-	    # Just a header line. Ick. 
-	    if ($foo <= 1) {
-		mysystem2("$IFCONFIG $brname down");	    
-		mysystem2("$BRCTL delbr $brname");
-		return 1;
-	    }
-	}
-    }
     return 0;
 }
 
