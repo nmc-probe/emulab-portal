@@ -5306,6 +5306,25 @@ sub GetVirtNodeAttribute($$$$)
     return 0;
 }
 
+sub SetVirtNodeAttribute($$$$)
+{
+    my ($self, $vname, $key, $val) = @_;
+    $$pval = undef;
+
+    my $exptidx  = $self->idx();
+    my $pid      = $self->pid();
+    my $eid      = $self->eid();
+    my $safe_key = DBQuoteSpecial($key);
+    my $safe_val = DBQuoteSpecial($val);
+
+    DBQueryWarn("replace into virt_node_attributes set ".
+		"  pid='$pid', eid='$eid', exptidx='$exptidx', ".
+		"  vname='$vname', attrkey=$safe_key, attrvalue=$safe_val")
+	or return -1;
+
+    return 0;
+}
+
 #
 # Mark all nodes for (account) update.
 #
