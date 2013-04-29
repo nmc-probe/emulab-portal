@@ -481,7 +481,7 @@ NODE: foreach my $node_id (@node_ids) {
 	    $iface_IP  = "";
 	}
 
-	if (! $useScriptFeature)
+	if (!$useScriptFeature || !defined($port))
 	{
 	    $port = 1;
 	}
