@@ -71,10 +71,11 @@ sub usage ()
     print STDERR " -A   - Tell ptopgen all nodes are free; only with -n\n";
     exit($WRAPPER_FAILED);
 }
-my $optlist    = "dvunfprqczxm:ko:altzZAC";
+my $optlist    = "dvunfprqczxm:ko:altzZACF";
 my $verbose    = 0;
 my $debug      = 0;
 my $fixmode    = 0;
+my $fixlannodes= 0;
 my $updating   = 0;
 my $impotent   = 0;
 my $precheck   = 0;
@@ -188,6 +189,9 @@ if (defined($options{"n"})) {
 if (defined($options{"f"})) {
     $fixmode = 1;
 }
+if (defined($options{"F"})) {
+    $fixlannodes = 1;
+}
 if (defined($options{"p"})) {
     $precheck = 1;
 }
@@ -283,6 +287,13 @@ if ($usecontrol && $MAINSITE) {
     $verbose = 1;
 }
 
+# XXX Hacky!
+if ($MAINSITE && $TB ne "/usr/testbed") {
+    $debug   = 1;
+    $verbose = 1;
+    $fixlannodes = $fixmode;
+}
+
 libvtop::Init($this_user, $experiment->GetGroup(), $experiment);
     
 #
@@ -297,6 +308,8 @@ $vtopflags |= $libvtop::VTOP_FLAGS_UPDATE
     if ($updating);
 $vtopflags |= $libvtop::VTOP_FLAGS_FIXNODES
     if ($fixmode || $usecurrent);
+$vtopflags |= $libvtop::VTOP_FLAGS_FIXLANNODES
+    if ($fixlannodes);
 $vtopflags |= $libvtop::VTOP_FLAGS_IMPOTENT
     if ($impotent);
 $vtopflags |= $libvtop::VTOP_FLAGS_ALLOCONLY
@@ -311,7 +324,8 @@ if ($regression) {
 	$fixmode    = 1;
 	$clear      = 0;
 	$vtopflags |=
-	    ($libvtop::VTOP_FLAGS_UPDATE|$libvtop::VTOP_FLAGS_FIXNODES);
+	    ($libvtop::VTOP_FLAGS_UPDATE|$libvtop::VTOP_FLAGS_FIXLANNODES|
+	     $libvtop::VTOP_FLAGS_FIXNODES);
 
 	MapperWrapper();
     }
