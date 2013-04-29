@@ -819,8 +819,13 @@ dolinux() {
 		dunit=`expr $dunit - 4`
 		lrootdev="8${dunit}${part}"
 		;;
+	ad2[4-7])
+		dtype="sd"
+		dunit=`expr $dunit - 24`
+		lrootdev="8${dunit}${part}"
+		;;
 	# SCSI
-	da[0-7])
+	da[0-7]|ada[0-7])
 		dtype="sd"
 		lrootdev="8${dunit}${part}"
 		;;
