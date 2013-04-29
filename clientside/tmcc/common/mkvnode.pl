@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009-2012 University of Utah and the Flux Group.
+# Copyright (c) 2009-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -119,7 +119,7 @@ if (defined($options{"c"})) {
 }
 if (defined($options{"s"})) {
     $showstate = 1;
-    $debug   = 0;
+    $debug     = 0;
 }
 usage()
     if (@ARGV != 1);
@@ -184,7 +184,7 @@ foreach my $type (@nodetypes) {
     }
     $libops{$type} = \%ops;
     if ($debug) {
-	$libops{$type}{'setDebug'}->(1);
+	$libops{$type}{'setDebug'}->($debug);
     }
     $libops{$type}{'init'}->();
 
