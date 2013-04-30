@@ -343,6 +343,7 @@ COMMAND_PROTOTYPE(doimagekey);
 COMMAND_PROTOTYPE(donodeattributes);
 COMMAND_PROTOTYPE(dodisks);
 COMMAND_PROTOTYPE(doarpinfo);
+COMMAND_PROTOTYPE(dohwinfo);
 
 /*
  * The fullconfig slot determines what routines get called when pushing
@@ -455,7 +456,7 @@ struct command {
 	{ "nodeattributes", FULLCONFIG_ALL, 0, donodeattributes},
 	{ "disks",	  FULLCONFIG_ALL, 0, dodisks},
 	{ "arpinfo",	  FULLCONFIG_NONE, 0, doarpinfo},
-	
+	{ "hwinfo",	  FULLCONFIG_NONE, 0, dohwinfo},
 };
 static int numcommands = sizeof(command_array)/sizeof(struct command);
 
@@ -5100,6 +5101,12 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 * results from the second select on node_attributes will
 		 * overwrite anything returned for the same key in the first
 		 * select on node_type_attributes.
+		 *
+		 * N.B. the above paragraph is not correct. The union actually
+		 * returns key/value rows from BOTH tables unless the values
+		 * are also identical. It is the while loop below that always
+		 * chooses the second value (the node_attributes value) in
+		 * preference to the first.
 		 *
 		 * The original select required that the key be in the
 		 * node_type_attributes table, else it would fail to find
@@ -10878,5 +10885,233 @@ COMMAND_PROTOTYPE(dodisks)
 		mysql_free_result(res);
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
+	return 0;
+}
+
+/*
+ * Return info about hardware that should be present on the node.
+ * Current info looks like:
+ *
+ * CPU (one line per node):
+ *
+ * CPUINFO SOCKETS=<#> CORES=<#> THREADS=<#> SPEED=<MHz> BITS=<32|64> HV=<1|0>
+ *
+ * Memory (one line per node):
+ *
+ * MEMINFO SIZE=<MiB>
+ *
+ * Disks (one DISKINFO per node, one DISKUNIT per disk):
+ *
+ * DISKINFO UNITS=<#>
+ * DISKUNIT SN=<serial> TYPE=<PATA|SATA|...> SECSIZE=<#> \
+ *    SIZE=<MB> RSPEED=<MB/s> WSPEED=<MB/s>
+ *
+ * Network (one NETINFO per node, one NETUNIT per interface):
+ *
+ * NETINFO UNITS=<#>
+ * NETUNIT TYPE=<ETH|WIFI|...> ID=<mac>
+ */
+COMMAND_PROTOTYPE(dohwinfo)
+{
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	char		buf[MYBUFSIZE];
+	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
+	int		nrows;
+
+	/* XXX only done for allocated physical nodes right now */
+	if (!reqp->allocated || reqp->isvnode) {
+		return 0;
+	}
+
+	/*
+	 * CPU and memory info comes from node_type_attributes or
+	 * node_attributes.
+	 */
+
+	/*
+	 * Note that the union query returns key/value rows from both
+	 * node_attributes and node_type_attributes. The while loop
+	 * following the query chooses the last value (from node_attributes)
+	 * in preference to the first for any attrkey.
+	 */
+	res = mydb_query("(select attrkey,attrvalue from nodes as n,"
+			 " node_type_attributes as a where "
+			 "   n.type=a.type and n.node_id='%s' and "
+			 "   a.attrkey like 'hw_%%') "
+			 "union "
+			 "(select attrkey,attrvalue "
+			 "   from node_attributes "
+			 " where node_id='%s' and attrkey like 'hw_%%')",
+			 2, reqp->nodeid, reqp->nodeid);
+	if (!res) {
+		error("dohwinfo: %s: DB Error getting CPU attributes!\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	if ((nrows = (int)mysql_num_rows(res)) > 0) {
+		int sockets, cores, threads, speed, bits, hv, memsize;
+
+		sockets = cores = threads = speed = bits = hv = memsize = -1;
+		while (nrows) {
+			row = mysql_fetch_row(res);
+			if (row[1] && row[1][0]) {
+				char *key = row[0] + 3; /* skip "hw_" */
+				char *val = row[1];
+
+				if (strcmp(key, "cpu_sockets") == 0) {
+					sockets = atoi(val);
+				}
+				else if (strcmp(key, "cpu_cores") == 0) {
+					cores = atoi(val);
+				}
+				else if (strcmp(key, "cpu_threads") == 0) {
+					threads = atoi(val);
+				}
+				else if (strcmp(key, "cpu_speed") == 0) {
+					speed = atoi(val);
+				}
+				else if (strcmp(key, "cpu_bits") == 0) {
+					bits = atoi(val);
+				}
+				else if (strcmp(key, "cpu_hv") == 0) {
+					hv = atoi(val);
+				}
+				else if (strcmp(key, "mem_size") == 0) {
+					memsize = atoi(val);
+				}
+			}
+			nrows--;
+		}
+
+		bufp += OUTPUT(bufp, ebufp - bufp, "CPUINFO");
+		if (sockets >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " SOCKETS=%d",
+				       sockets);
+		if (cores >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " CORES=%d",
+				       cores);
+		if (threads >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " THREADS=%d",
+				       threads);
+		if (speed >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " SPEED=%d",
+				       speed);
+		if (bits >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " BITS=%d",
+				       bits);
+		if (hv >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " HV=%d",
+				       hv);
+		bufp += OUTPUT(bufp, ebufp - bufp, "\n");
+
+		if (memsize >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, "MEMINFO SIZE=%d\n",
+				       memsize);
+		client_writeback(sock, buf, strlen(buf), tcp);
+		bufp = buf;
+	}
+	mysql_free_result(res);
+
+	/*
+	 * Disk info comes from blockstores, blockstore_type_attributes, and
+	 * blockstore_attributes.
+	 */
+	res = mydb_query("select bs.total_size,a.attrvalue,ta.attrvalue "
+			 "from "
+			 "  blockstores as bs,"
+			 "  blockstore_type_attributes as ta,"
+			 "  blockstore_attributes as a "
+			 "where "
+			 "  bs.bsidx=a.bsidx and bs.role='element' and "
+			 "  bs.type=ta.type and ta.attrkey='protocol' and "
+			 "  a.attrkey='serialnum' and node_id='%s'",
+			 3, reqp->nodeid);
+	if (!res) {
+		error("dohwinfo: %s: DB Error getting DISK attributes!\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	nrows = (int)mysql_num_rows(res);
+	if (nrows)
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       "DISKINFO UNITS=%d\n", nrows);
+
+	while (nrows) {
+		row = mysql_fetch_row(res);
+		bufp += OUTPUT(bufp, ebufp - bufp, "DISKUNIT");
+
+		/* SN */
+		if (row[1] && row[1][0])
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " SN=\"%s\"", row[1]);
+
+		/* TYPE */
+		if (row[2] && row[2][0])
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " TYPE=\"%s\"", row[2]);
+
+		/* SECSIZE -- XXX hardwired for now */
+		bufp += OUTPUT(bufp, ebufp - bufp, " SECSIZE=512");
+
+		/* SIZE -- convert MiB to MB */
+		if (row[0] && row[0][0]) {
+			long disksize;
+
+			disksize = strtol(row[0], 0, 0);
+			disksize = (long)(((long long)disksize *
+					   1048576) / 1000000);
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " SIZE=%ld", disksize);
+		}
+
+		bufp += OUTPUT(bufp, ebufp - bufp, "\n");
+		nrows--;
+	}
+
+	client_writeback(sock, buf, strlen(buf), tcp);
+	bufp = buf;
+	mysql_free_result(res);
+
+	/*
+	 * Network info comes from interfaces table.
+	 */
+	res = mydb_query("select mac from interfaces "
+			 "where mac not like '000000%%' and node_id='%s'"
+			 "order by card",
+			 1, reqp->nodeid);
+	if (!res) {
+		error("dohwinfo: %s: DB Error getting NET attributes!\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	nrows = (int)mysql_num_rows(res);
+	if (nrows)
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       "NETINFO UNITS=%d\n", nrows);
+
+	while (nrows) {
+		row = mysql_fetch_row(res);
+		bufp += OUTPUT(bufp, ebufp - bufp, "NETUNIT");
+
+		if (row[0] && row[0][0]) {
+			/* TYPE -- XXX everything it "ETH" right now */
+			bufp += OUTPUT(bufp, ebufp - bufp, " TYPE=\"ETH\"");
+
+			/* ID is MAC */
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " ID=\"%s\"", row[0]);
+
+			bufp += OUTPUT(bufp, ebufp - bufp, "\n");
+		}
+		nrows--;
+	}
+
+	client_writeback(sock, buf, strlen(buf), tcp);
+	mysql_free_result(res);
+
 	return 0;
 }
