@@ -331,6 +331,9 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     $image->MarkUpdate($elabman, $newtime);
 }
 
+# No email if no errors.
+LogAbort();
+
 exit(0);
 
 sub fatal($)
