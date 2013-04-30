@@ -933,9 +933,21 @@ sub os_fwrouteconfig_line($$$)
     return ($upline, $downline);
 }
 
-sub os_config_gre($$$$$$$)
+sub os_config_gre($$$$$$$;$)
 {
-    my ($name, $unit, $inetip, $peerip, $mask, $srchost, $dsthost) = @_;
+    my ($name, $unit, $inetip, $peerip, $mask, $srchost, $dsthost, $tag) = @_;
+
+    if (GENVNODE() && GENVNODETYPE() eq "openvz") {
+	$dev = "gre$unit";
+
+	if (system("$IFCONFIGBIN $dev $inetip netmask $mask mtu 1472 up")) {
+	    warn("Could not start tunnel $dev!\n");
+	    return -1;
+	}
+	return 0;
+    }
+    require Socket;
+    import Socket;
 
     my $gre = `ifconfig gre create`;
     if ($?) {
@@ -953,6 +965,15 @@ sub os_config_gre($$$$$$$)
 	system("ifconfig $gre tunnel $srchost $dsthost")) {
 	warn("Could not start tunnel!\n");
 	return -1;
+    }
+    if (defined($tag)) {
+	my $grekey = inet_ntoa(pack("N", $tag));
+
+	system("ifconfig $gre grekey $grekey");
+	if ($?) {
+	    warn("Could not add key to $gre interface!\n");
+	    return -1;
+	}
     }
     return 0;
 }

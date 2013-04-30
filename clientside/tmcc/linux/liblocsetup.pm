@@ -2171,7 +2171,7 @@ sub os_config_gre($$$$$$$;$)
     }
     # This gre key stuff is not ready yet. 
     my $keyopt = "";
-    if (0 && defined($tag)) {
+    if (defined($tag)) {
 	my $grekey = inet_ntoa(pack("N", $tag));
 	$keyopt = "key $grekey";
     }
