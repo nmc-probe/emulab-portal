@@ -351,7 +351,8 @@ sub WalkHops(@)
 	    $is_inside = 0;
 	} elsif (! defined($is_inside) && $auth eq $OURDOMAIN) {
 	    $is_inside = 1;
-	} elsif ($is_inside && $auth ne $OURDOMAIN) {
+	}
+	if ($is_inside && $auth ne $OURDOMAIN) {
 	    $external = $hop;
 	    $internal = $lasthop;
 	    last;
