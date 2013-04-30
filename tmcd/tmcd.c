@@ -11071,8 +11071,10 @@ COMMAND_PROTOTYPE(dohwinfo)
 		nrows--;
 	}
 
-	client_writeback(sock, buf, strlen(buf), tcp);
-	bufp = buf;
+	if (bufp != buf) {
+		client_writeback(sock, buf, strlen(buf), tcp);
+		bufp = buf;
+	}
 	mysql_free_result(res);
 
 	/*
@@ -11110,7 +11112,8 @@ COMMAND_PROTOTYPE(dohwinfo)
 		nrows--;
 	}
 
-	client_writeback(sock, buf, strlen(buf), tcp);
+	if (bufp != buf)
+		client_writeback(sock, buf, strlen(buf), tcp);
 	mysql_free_result(res);
 
 	return 0;
