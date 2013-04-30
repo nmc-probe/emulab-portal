@@ -417,6 +417,10 @@ sub SetupControlNode($$)
     if (SendXML($ip, $xmlgoo)) {
 	Fatal("Failed to send chpswd xml to $ip");
     }
+    $xmlgoo = sprintf($sshkeygoo, $elabmanpswd, $pubkey, $pubkey);
+    if (SendXML($ip, $xmlgoo)) {
+	Fatal("Failed to send addsshkey xml to $ip");
+    }
     return 0;
 }
 
