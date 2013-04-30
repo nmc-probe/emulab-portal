@@ -184,5 +184,7 @@ The -s option says to unmount the disk, create a frisbee image in
 to boss.emulab.net:/usr/testbed/www/downloads
 
 Might be a good idea to delete the file from /tmp since it has a
-password in it.
+password in it. But make sure you have stored a copy in the geniracks
+directory to be safe.
+
 
