@@ -1225,6 +1225,7 @@ REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','eid','text','redi
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','vname','text','redirect','virt_blockstores:vname',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','attrkey','text','regex','^[-\\w]+$',1,64,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','attrvalue','text','regex','^[-\\w\\.\\+,\\s\\/:]+$',0,255,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','isdesire','int','redirect','default:boolean',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('emulab_sites','certificate','text','regex','^[\\012\\015\\040-\\176]*$',128,4096,NULL);
 REPLACE INTO table_regex VALUES ('emulab_sites','url','text','redirect','default:tinytext',0,0,NULL);

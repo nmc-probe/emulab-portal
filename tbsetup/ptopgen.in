@@ -1368,21 +1368,18 @@ if ($useblockstore) {
 			   "from blockstores as b ".
 			   "left join blockstore_state as s ".
 			   "on b.bsidx=s.bsidx ".
-			   "where s.remaining_capacity is not null");
+			   "where s.ready=1");
     while (my ($nodeId, $bsId, $typeName,
 	       $capacity) = $result->fetchrow_array) {
 	my $type = BlockstoreType->Lookup($typeName);
 	if (defined($type)) {
 	    my @features = ();
-	    my $class;
-	    $type->GetAttribute("class", \$class);
-	    if (defined($class)) {
-		push(@features, "bs-class-$class:0.5");
-	    }
-	    my $protocol;
-	    $type->GetAttribute("protocol", \$protocol);
-	    if (defined($protocol)) {
-		push(@features, "bs-protocol-$protocol:0.5");
+	    foreach my $attr (values %{$type->GetAttributes()}) {
+		if (exists($attr->{'isfeature'}) && $attr->{'isfeature'}) {
+		    my $attrkey = $attr->{'key'};
+		    my $attrval = $attr->{'value'};
+		    push (@features, "bs-${attrkey}-${attrval}:0.5");
+		}
 	    }
 	    my $divisible;
 	    $type->GetAttribute("divisible", \$divisible);

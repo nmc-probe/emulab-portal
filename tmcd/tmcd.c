@@ -4066,6 +4066,7 @@ COMMAND_PROTOTYPE(dostorageconfig)
 	 *
 	 * - List of local storage elements to verify.
 	 * - List of remote storage elements to link up to.
+	 * - List of static slices to setup
 	 * - ... XXX: Other stuff later (e.g., aggregates).
 	 */
 	
@@ -4145,6 +4146,37 @@ COMMAND_PROTOTYPE(dostorageconfig)
 
 		client_writeback(sock, buf, strlen(buf), tcp);
 		mysql_free_result(res2);
+	}
+	mysql_free_result(res);
+
+	/* 
+	 * Send across local blockstore volumes (slices).  These don't
+	 * show up in the reserved table, existing entirely in the
+	 * virt_blockstore* tables since local disk space is dedicated
+	 * to the current experiment.
+	 */
+	res = mydb_query("select vname,size "
+			 "from virt_blockstores "
+			 "where exptidx=%d and "
+			 "fixed='%s'",
+			 2, reqp->exptidx, reqp->nickname);
+	
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting virt_blockstore "
+		      "info.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	nrows = (int) mysql_num_rows(res);
+	while (nrows--) {
+		row = mysql_fetch_row(res);
+		vname = row[0];
+		volsize = atoi(row[1]);
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=SLICE IDX=%d VOLNAME=%s VOLSIZE=%d", 
+		       cmdidx++, vname, volsize);
+		sendstoreconf(sock, tcp, reqp, buf, vname);
 	}
 	mysql_free_result(res);
 	
@@ -4230,9 +4262,10 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
         MYSQL_RES	*res;
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
+	char            *bufp, *ebufp = &buf[sizeof(buf)];
 	char            iqn[BS_IQN_MAXSIZE];
 	char            *mynodeid;
-	char            *class, *protocol, *perms;
+	char            *class, *protocol, *perms, *placement, *mountpoint;
 	int		nrows, nattrs;
 
 	/* Remember the nodeid we care about up front. */
@@ -4253,7 +4286,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 	/* Find out what type of blockstore we are dealing with and
 	   grab some additional attributes. */
 	nrows = nattrs = (int) mysql_num_rows(res);
-	class = protocol = perms = "\0";
+	class = protocol = perms = placement = mountpoint = "\0";
 	while (nrows--) {
 		char *key, *val;
 		row = mysql_fetch_row(res);
@@ -4265,6 +4298,10 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 			protocol = val;
 		} else if (strcmp(key,"permissions") == 0) {
 			perms = val;
+		} else if (strcmp(key,"placement") == 0) {
+			placement = val;
+		} else if (strcmp(key,"mountpoint") == 0) {
+			mountpoint = val;
 		}
 	}
 
@@ -4288,6 +4325,29 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 		OUTPUT(buf, sizeof(buf),
 		       "%s CLASS=%s PROTO=%s UUID=%s UUID_TYPE=iqn PERMS=%s\n",
 		       bscmd, class, protocol, iqn, perms);
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+
+	/* local disk. */
+	else if ((strcmp(class, BS_CLASS_LOCAL) == 0) &&
+		 ((strcmp(protocol, BS_PROTO_SAS) == 0) ||
+		  (strcmp(protocol, BS_PROTO_SCSI) == 0))) {
+
+		/* Set default placement if not defined. */
+		placement = strlen(placement) ? placement : BS_PLACEMENT_DEF;
+
+		bufp = buf;
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       "%s CLASS=%s PROTO=%s BSID=%s",
+			       bscmd, class, protocol, placement);
+
+		/* Add the mountpoint to the buffer, if requested.*/
+		if (strlen(mountpoint)) {
+			bufp += OUTPUT(bufp, ebufp-bufp, " MOUNTPOINT=%s",
+				       mountpoint);
+		}
+
+		bufp += OUTPUT(bufp, ebufp-bufp, "\n");
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
 

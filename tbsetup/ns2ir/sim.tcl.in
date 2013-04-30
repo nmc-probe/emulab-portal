@@ -564,8 +564,6 @@ Simulator instproc run {} {
     # Go through the list of nodes, and find subnode hosts:
     # - If the subnode is of class Node, we have to add a
     #   desire to have the hosts-<type-of-child> feature.
-    # - If it is of type Blockstore, we add a "sanhost"
-    #   desire.
     foreach node [lsort [array names node_list]] {
 	if { [$node set subnodehost] == 1 } {
 	    set child [$node set subnodechild]

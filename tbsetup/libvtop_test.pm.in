@@ -1579,9 +1579,14 @@ sub LoadVirtNodes($)
 	my $vname   = $virt_bs_attr->vname();
 	my $attrkey = $virt_bs_attr->attrkey();
 	my $attrval = $virt_bs_attr->attrvalue();
+	my $isdesire = $virt_bs_attr->isdesire();
 
+	# Skip any blockstores that don't have a corresponding entry in the
+	# 'blockstores' libvtop hash.  Also skip any attributes that are not
+	# marked as a desire.
 	next
-	    if (! exists($self->blockstores()->{$vname}));
+	    if (! exists($self->blockstores()->{$vname}) ||
+		! $isdesire);
 
 	my $fixnode = $self->blockstores()->{$vname};
 	$fixnode->_blockstore_attributes()->{$attrkey} = $attrval;

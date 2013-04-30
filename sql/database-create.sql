@@ -197,6 +197,7 @@ CREATE TABLE `blockstore_type_attributes` (
   `attrkey` varchar(32) NOT NULL default '',
   `attrvalue` tinytext NOT NULL,
   `attrtype` enum('integer','float','boolean','string') default 'string',
+  `isfeature` tinyint(4) unsigned NOT NULL default '0',
   PRIMARY KEY  (`type`,`attrkey`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -4460,6 +4461,7 @@ CREATE TABLE `virt_blockstore_attributes` (
   `attrkey` varchar(32) NOT NULL default '',
   `attrvalue` tinytext NOT NULL,
   `attrtype` enum('integer','float','boolean','string') default 'string',
+  `isdesire` tinyint(4) unsigned NOT NULL default '0',
   PRIMARY KEY (`exptidx`,`vname`,`attrkey`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 

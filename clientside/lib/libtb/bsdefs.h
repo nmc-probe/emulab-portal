@@ -37,6 +37,7 @@
 /* Blockstore protocols (a.k.a. bus type) */
 #define BS_PROTO_ISCSI  "iSCSI"
 #define BS_PROTO_SCSI   "SCSI"
+#define BS_PROTO_SAS    "SAS"
 
 /* Definitions related to iSCSI */
 #define BS_IQN_PREFIX   "iqn.2000-10.net.emulab" /* XXX: don't hardcode. */
@@ -45,5 +46,11 @@
 #define BS_PERMS_ISCSI_RO  "RO" /* read/write */
 #define BS_PERMS_ISCSI_RW  "RW" /* read/write */
 #define BS_PERMS_ISCSI_DEF BS_PERMS_ISCSI_RW
+
+/* Local placement directives */
+#define BS_PLACEMENT_ALL    "ALL_SPACE"
+#define BS_PLACEMENT_SYSVOL "ALL_SYSVOL"
+#define BS_PLACEMENT_NONSYS "ALL_NONSYSVOL"
+#define BS_PLACEMENT_DEF    BS_PLACEMENT_ALL
 
 #endif /* BSDEFS_H */

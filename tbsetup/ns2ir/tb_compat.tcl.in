@@ -98,6 +98,17 @@ namespace eval TBCOMPAT {
     variable sotypes
     variable soclasses
     variable soprotocols
+    variable sodesires 
+    array set sodesires {
+	"class" 1
+	"protocol" 1
+    }
+    variable soplacements
+    array set soplacements {
+	"all_remaining" "ALL_SPACE"
+	"sysvol_remaining" "ALL_SYSVOL"
+	"nonsysvol_remaining" "ALL_NONSYSVOL"
+    }
 
     # NSE hack: sim type is not in DB. Just adding it now
     set hwtypes(sim) 1

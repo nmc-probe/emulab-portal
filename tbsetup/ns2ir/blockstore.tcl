@@ -97,6 +97,35 @@ Blockstore instproc set-type {newtype} {
     return
 }
 
+Blockstore instproc set-placement {newplace} {
+    var_import ::TBCOMPAT::soplacements
+    $self instvar attributes
+
+    if {![info exists soplacements($newplace)]} {
+	perror("Invalid placement specified: $newplace")
+	return
+    }
+
+    $self set attributes(placement) $soplacements($newplace)
+    return
+}
+
+Blockstore instproc set-mount-point {newmount} {
+    $self instvar attributes
+
+    # Keep the mount point path rules simple but strict:
+    #  * Must start with a forward slash (absolute path)
+    #  * Directory names must only consist of characters in: [a-zA-Z0-9_]
+    #  * Two forward slashes in a row not allowed
+    #  * Optionally end with a forward slash
+    if {![regexp {^(/\w+){1,}/?$} $newmount]} {
+	perror "Bad mountpoint: $newmount"
+    }
+
+    $self set attributes(mountpoint) $newmount
+    return
+}
+
 Blockstore instproc set-size {newsize} {
     $self instvar node
 
@@ -124,6 +153,13 @@ Blockstore instproc set-size {newsize} {
 
     $self set size $convsize
     return
+}
+
+#
+# Alias for procedure below
+#
+Blockstore instproc set-node {pnode} {
+    return [$self set_fixed $pnode]
 }
 
 #
@@ -179,6 +215,7 @@ Blockstore instproc get_node {} {
 Blockstore instproc updatedb {DB} {
     var_import ::GLOBALS::pid
     var_import ::GLOBALS::eid
+    var_import ::TBCOMPAT::sodesires
     $self instvar sim
     $self instvar node
     $self instvar type
@@ -199,7 +236,14 @@ Blockstore instproc updatedb {DB} {
     # Emit attributes.
     foreach key [lsort [array names attributes]] {
 	set val $attributes($key)
-	$sim spitxml_data "virt_blockstore_attributes" [list "vname" "attrkey" "attrvalue"] [list $self $key $val]
+	set vba_fields [list "vname" "attrkey" "attrvalue" "isdesire"] 
+	set vba_values [list $self $key $val]
+	
+	set isdesire [expr [info exists sodesires($key)] ? 1 : 0]
+	lappend vba_values $isdesire
+
+	$sim spitxml_data "virt_blockstore_attributes" $vba_fields $vba_values
+
     }
 }
 
