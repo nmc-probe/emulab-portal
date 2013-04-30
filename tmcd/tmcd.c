@@ -3986,9 +3986,6 @@ COMMAND_PROTOTYPE(doreadycount)
  * mounts, local disk checks, aggregate creation (volume managment),
  * slicing operations, and finally exports.
  *
- * XXX: initially we will just spit out minimal information:
- *      1) slices and exports for storage host "vnodes"
- *      2) remote disk mounts for client nodes
  */
 COMMAND_PROTOTYPE(dostorageconfig)
 {
@@ -4265,7 +4262,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 	char            *bufp, *ebufp = &buf[sizeof(buf)];
 	char            iqn[BS_IQN_MAXSIZE];
 	char            *mynodeid;
-	char            *class, *protocol, *perms, *placement, *mountpoint;
+	char            *class, *protocol, *placement, *mountpoint;
 	int		nrows, nattrs;
 
 	/* Remember the nodeid we care about up front. */
@@ -4286,7 +4283,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 	/* Find out what type of blockstore we are dealing with and
 	   grab some additional attributes. */
 	nrows = nattrs = (int) mysql_num_rows(res);
-	class = protocol = perms = placement = mountpoint = "\0";
+	class = protocol = placement = mountpoint = "\0";
 	while (nrows--) {
 		char *key, *val;
 		row = mysql_fetch_row(res);
@@ -4296,8 +4293,6 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 			class = val;
 		} else if (strcmp(key,"protocol") == 0) {
 			protocol = val;
-		} else if (strcmp(key,"permissions") == 0) {
-			perms = val;
 		} else if (strcmp(key,"placement") == 0) {
 			placement = val;
 		} else if (strcmp(key,"mountpoint") == 0) {
@@ -4308,10 +4303,6 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 	/* iSCSI blockstore */
 	if ((strcmp(class, BS_CLASS_SAN) == 0) &&
 	    (strcmp(protocol, BS_PROTO_ISCSI) == 0)) {
-		/* Do we have explicit permissions to pass along? 
-		   If not, pass the default permissions. */
-		perms = strlen(perms) ? perms : BS_PERMS_ISCSI_DEF;
-
 		/* Construct IQN string. */
 		if (snprintf(iqn, sizeof(iqn), "%s:%s:%s:%s",
 			     BS_IQN_PREFIX, reqp->pid, 
@@ -4322,9 +4313,17 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 			return 1;
 		}
 
-		OUTPUT(buf, sizeof(buf),
-		       "%s CLASS=%s PROTO=%s UUID=%s UUID_TYPE=iqn PERMS=%s\n",
-		       bscmd, class, protocol, iqn, perms);
+		bufp = buf;
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       "%s CLASS=%s PROTO=%s UUID=%s UUID_TYPE=iqn",
+			       bscmd, class, protocol, iqn);
+
+		if (strlen(mountpoint)) {
+			bufp += OUTPUT(bufp, ebufp-bufp, " MOUNTPOINT=%s",
+				       mountpoint);
+		}
+
+		bufp += OUTPUT(bufp, ebufp-bufp, "\n");
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
 
