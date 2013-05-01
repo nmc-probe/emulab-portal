@@ -15,12 +15,20 @@ if [ -r /etc/emulab/paths.sh ]; then
 else
         BINDIR=/etc/testbed
 fi
+if [ "`uname -s`" = "FreeBSD" ]; then
+    PATH=/usr/local/bin:/proj/emulab-ops/nodecheck/bin_freebsd:$PATH
+    export PATH
+fi
+
 
 # FREEBSD
 
 host=`hostname`
 if [ -e "/var/emulab/boot/realname" ]; then
     host=$(cat /var/emulab/boot/realname)
+elif
+    [ -e "/var/emulab/boot/nodeid" ]; then
+    host=$(cat /var/emulab/boot/nodeid)
 fi
 
 #checks="disk cpu mem time nic diskspeed"
@@ -33,17 +41,18 @@ if [ "$1" = "boot" ] ; then
     $(cp /dev/null /tmp/nodecheck.log.tb)
     for i in $checks
     do
-	/usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /tmp/nodecheck.log.tb
+	bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /tmp/nodecheck.log.tb
     done
     $(echo "-- Finish boot_time_node_check --" >> /var/emulab/logs/nodecheck.log)
     if [ -f /tmp/nodecheck.log.tb ] ; then
 	cp /tmp/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host
+	chmod a+r /proj/emulab-ops/nodecheck/$host
     fi
 else
     $(rm -f /tmp/nodecheck.log.tb)
     for i in $checks
     do
-	/usr/local/bin/bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log
+	bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log
     done
 fi
 

@@ -3,7 +3,29 @@
 arg=$1
 
 #list="pc4 pc7 pc133 pc137 pc207 pc208 pc406 pc446 pc511 pc606"
-list=$(mysql -B -N -e "select node_id from reserved where pid='emulab-ops' and eid='nodecheck-image';" tbdb)
+
+if [ "${arg}" == "static" ] ; then
+    here=$(pwd)
+    if [ -d "bin_FreeBSD_static" ] ; then
+	cd bin_FreeBSD_static
+	stuff=$(ls)
+	if [ -n "${stuff}" ] ; then
+	    sudo rsync -a -P * /proj/emulab-ops/nodecheck/bin_freebsd
+	fi
+	cd $here
+    fi
+    if [ -d "bin_Linux_static" ] ; then
+	cd bin_Linux_static
+	stuff=$(ls)
+	if [ -n "${stuff}" ] ; then
+	    sudo rsync -a -P * /proj/emulab-ops/nodecheck/bin_linux
+	fi
+	cd $here
+    fi
+    exit 0
+fi
+
+list=$(mysql -B -N -e "select node_id from reserved where pid='emulab-ops' and eid='adminnodecheck';" tbdb)
 
 machines=""
 
@@ -98,7 +120,8 @@ EOF
 for i in $machines
 do
     echo "$i rc.config "
-    sudo rsync -a rc/rc.config ${i}:/usr/local/etc/emulab/rc/rc.config
+#    sudo rsync -a rc/rc.config ${i}:/usr/local/etc/emulab/rc/rc.config
+    sudo scp -p rc/rc.config ${i}:/usr/local/etc/emulab/rc/rc.config
 #    sudo ssh ${i} chown root /usr/local/etc/emulab/rc/rc.config
 #    sudo ssh ${i} chgrp 0 /usr/local/etc/emulab/rc/rc.config
 done
@@ -123,7 +146,10 @@ done
 for i in $machines
 do
     echo "${i}:utils "
-    sudo rsync -a ${utils} ${i}:/usr/local/etc/emulab
+#    sudo rsync -a ${utils} ${i}:/usr/local/etc/emulab
+    for u in ${utils} ; do
+	scp -p $u ${i}:/usr/local/etc/emulab
+    done
  #   sudo ssh ${i} "cd /usr/local/etc/emulab ; chown root ${utils} "
  #   sudo ssh ${i} "cd /usr/local/etc/emulab ; chgrp 0 ${utils} "
 

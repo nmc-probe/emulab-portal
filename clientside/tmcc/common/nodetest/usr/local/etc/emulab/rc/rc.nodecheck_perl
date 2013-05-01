@@ -40,6 +40,13 @@ system("echo 'Running nodechecks'");
 $host = `hostname`;
 if ( -r '/var/emulab/boot/realname' ) {
     $host = `cat /var/emulab/boot/realname`;
+} elsif ( -f '/var/emulab/boot/nodeid' ) {
+    $host = `cat /var/emulab/boot/nodeid`;
+}
+my $os = `uname -s`;
+chomp($os);
+if ($os eq "Linux") {
+    $ENV{'PATH'} = "/usr/local/bin:/proj/emulab-ops/nodecheck/bin_linux:$ENV{'PATH'}";
 }
 
 if (!$ARGV[0]) {
@@ -59,6 +66,7 @@ if ($action eq "boot") {
     system("echo '-- Finish boot_time_node_check --' >> /var/emulab/logs/nodecheck.log");
     if ( -e  "/tmp/nodecheck.log.tb" ) {
 	    system("cp /tmp/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host");
+	    system("chmod a+r /proj/emulab-ops/nodecheck/$host");
     }
 } else {
     system("rm -f /tmp/nodecheck.log.tb");

@@ -11,11 +11,28 @@ declare host       #emulab hostname
 declare failed=""  #major falure to be commicated to user
 declare os=""      #[Linux|FreeBSD] for now
 
+# which is not in busybox and not a bash builtin
+which() {
+    mypath=$(env | grep PATH)
+    mypath=${mypath/PATH=/}
+    mypath=${mypath//:/ }
+    for i in $mypath ; do
+	if [ -e $i/$1 ] ; then
+	    echo $i/$1
+	    return 0
+	fi
+    done
+    return 1
+}
+
 inithostname() {
     os=`uname -s`
     host=`hostname`
     if [ -e "/var/emulab/boot/realname" ]; then
         host=`cat /var/emulab/boot/realname`
+    elif
+	[ -e "/var/emulab/boot/nodeid" ]; then
+	host=$(cat /var/emulab/boot/nodeid)
     fi
     return 0
 }
