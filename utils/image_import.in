@@ -283,6 +283,7 @@ sub CreateImage($$$$)
 {
     my ($url, $xmlparse, $user, $group) = @_;
     my $alltypes = "-a";
+    my $global   = 0;
     
     $xmlparse->{'attribute'}->{"pid"} = {};
     $xmlparse->{'attribute'}->{"gid"} = {};
@@ -298,6 +299,12 @@ sub CreateImage($$$$)
 	$xmlparse->{'attribute'}->{"mtype_pcvm"} = {};
 	$xmlparse->{'attribute'}->{"mtype_pcvm"}->{'value'} = 1;
 	$alltypes = "";
+    }
+
+    # For setting the path below.
+    if (exists($xmlparse->{'attribute'}->{"global"}) &&
+	$xmlparse->{'attribute'}->{"global"}->{'value'}) {
+	$global = 1;
     }
 
     #
@@ -328,8 +335,14 @@ sub CreateImage($$$$)
 	print STDERR "Using imagename: $imagename\n";
     }
     # do not trust path coming in.
-    $xmlparse->{'attribute'}->{"path"}->{'value'} =
-	"$TBPROJ_DIR/" . $group->pid() . "/images/${imagename}.ndz";
+    if ($global && $user->IsAdmin()) {
+	$xmlparse->{'attribute'}->{"path"}->{'value'} =
+	    "$TB/images/${imagename}.ndz";
+    }
+    else {
+	$xmlparse->{'attribute'}->{"path"}->{'value'} =
+	    "$TBPROJ_DIR/" . $group->pid() . "/images/${imagename}.ndz";
+    }
     
     #
     # Generate a new XML description to feed into newimageid.
