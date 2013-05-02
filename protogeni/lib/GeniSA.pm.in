@@ -130,7 +130,7 @@ sub GetCredential($)
 	    $credential =
 		GeniCredential->CreateSigned($authority,
 					     $geniuser,
-					     $GeniCredential::LOCALSA_FLAG);
+					     $authority->GetCertificate() );
 
 	    # Okay if this fails.
 	    $credential->Store()
@@ -210,7 +210,7 @@ sub GetCredential($)
 	    $slice_credential =
 		GeniCredential->CreateSigned($slice,
 					     $this_user,
-					     $GeniCredential::LOCALSA_FLAG);
+					     $authority->GetCertificate() );
 	    # Okay if this fails.
 	    $slice_credential->Store()
 		if (defined($slice_credential));
@@ -915,6 +915,14 @@ sub RenewSlice($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "Unknown slice for this credential");
     }
+
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR
+	    "Could not find local authority object for $ENV{'MYURN'}\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+
     #
     # Not allowed to renew a cooked mode slice via this interface.
     #
@@ -1001,7 +1009,7 @@ sub RenewSlice($)
     my $slice_credential =
 	GeniCredential->CreateSigned($slice,
 				     $this_user,
-				     $GeniCredential::LOCALSA_FLAG);
+				     $authority->GetCertificate() );
     if (!defined($slice_credential)) {
 	$slice->UnLock();
 	$message = "Could not create new slice credential";
