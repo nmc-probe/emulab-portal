@@ -579,7 +579,7 @@ sub Register($)
 	my $slice_credential =
 	    GeniCredential->CreateSigned($slice,
 					 $this_user,
-					 $GeniCredential::LOCALSA_FLAG);
+					 $authority->GetCertificate() );
 	if (!defined($slice_credential)) {
 	    $slice->Delete();
 	    return GeniResponse->Create(GENIRESPONSE_ERROR);
