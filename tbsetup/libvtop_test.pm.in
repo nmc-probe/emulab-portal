@@ -9019,7 +9019,23 @@ sub getportlist(@)
     my @result = ();
     # The beginning and end of the list are ignored for the path
     # since we care only about the Trunk links.
-    @info = splice(@info, 4, $#info);
+    @info = splice(@info, 2, $#info);
+
+    #
+    # The first thing might actually be a path member, as for a
+    # fake lan node. According to Rob, the path is path from the
+    # source to destination and when the lannode is on a switch,
+    # the first item is that switch, and that is part of the path.
+    # When it is a node, we do not need/want that in the path and
+    # so we skip it.
+    #
+    # The problem is how to properly distinguish between them. This
+    # is the best I came up with.
+    #
+    if ($info[0] =~ /^link\-([-\w]*):([-\w]*):/) {
+	shift(@info);
+	shift(@info);
+    }
 
     while (@info) {
 	#
