@@ -38,6 +38,19 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 ======================================================================
 
+* Verify that the DNS records are being served properly from the
+  parent domain.  For instance, if the rack is instageni.foo.edu, then
+  try:
+
+        $ host -t NS instageni.foo.edu
+        instageni.foo.edu name server ns.instageni.foo.edu
+        $ host -t A ns.instageni.foo.edu
+        ns.instageni.foo.edu has address 123.123.123.123
+
+  If you don't get positive responses to either query (if things are
+  broken, then NXDOMAIN errors are a likely symptom), then stop and
+  ask the local admin to fix it.
+
 * Using your web browser, go to the iLo IP you set, and login using
   Administrator and the iLo password that is stamped on top of the
   control node, or in the data file you received. If using the
