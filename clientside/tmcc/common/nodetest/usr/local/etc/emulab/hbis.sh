@@ -25,7 +25,8 @@ hbis() {
     base=""
 
     # little input checking - remove punction and spaces
-    z=$(echo ${number} | tr -d [:punct:] | tr -d [:space:])
+#    z=$(echo ${number} | tr -d [:punct:] | tr -d [:space:])
+    z=$number
     y=$(echo ${z,,}) #lower case letters
 
     # what units is the number in

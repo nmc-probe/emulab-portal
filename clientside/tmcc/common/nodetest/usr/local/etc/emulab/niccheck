@@ -24,6 +24,7 @@ initlogs
 ##cat /dev/null > ${tmplog}
 
 tmplog2=/tmp/.2tmp
+touch ${tmplog2}
 
 finished() {
 cat ${tmplog2}
@@ -66,6 +67,16 @@ echo "${ifinfo[@]}"
 
 } >> ${tmplog} 2>&1
 
+ifcnt=${#ifinfo[*]}
+# if saving data for testbed database
+if [ -f ${logfile4tb} ] ; then
+    printf "NETINFO UNITS=%s\n"  ${ifcnt} >> ${logfile4tb}
+    for ((ifi=0; ifi<$ifcnt; ifi++)) ; do
+	printf "NETUNIT TYPE=\""ETH\"" ID=\""%s\""\n" ${ifinfo[$ifi]} >> ${logfile4tb}
+    done
+    finished
+fi
+
 tbreturn=$(getfromtb macinfo $host)
 if [ -z "$tbreturn" ] ; then 
     failed="TBmiss no info"
@@ -79,18 +90,9 @@ tbreturn=${tbreturn,,}
 #turn space seperated string into array
 unset -v tbinfo; declare -a tbinfo=(${tbreturn// / })
 
-ifcnt=${#ifinfo[*]}
 tbcnt=${#tbinfo[*]}
 numnics=$ifcnt
 maxcnt=${ifcnt}
-
-# if saving data for testbed database
-if [ -f ${logfile4tb} ] ; then
-    printf "NETINFO UNITS=%s\n"  ${ifcnt} >> ${logfile4tb}
-    for ((ifi=0; ifi<$ifcnt; ifi++)) ; do
-	printf "NETUNIT TYPE=\""ETH\"" ID=\""%s\""\n" ${ifinfo[$ifi]} >> ${logfile4tb}
-    done
-fi
 
 
 if [[ ${ifcnt} -ne ${tbcnt} ]] ; then

@@ -14,12 +14,7 @@ source hbis.sh
 
 declare failed="" s=""
 
-os=`uname`
-host=`hostname`
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
-fi
-
+inithostname
 
 ## # setup logging
 ##if [ $1 ] ; then
@@ -53,10 +48,15 @@ finish() {
     exit 0
 }
 
+s=""
 # check that external need program are installed
 case $os in
     Linux )
-	progs="cat grep bc"
+	if [ -f ${logfile4tb} ] ; then
+	    progs="cat grep"
+	else
+	    progs="cat grep bc"
+	fi
 	;;
     FreeBSD )
 	progs="grep cat"
@@ -82,6 +82,10 @@ case $os in
     Linux )
 	    unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
 	    # Linux under reports, add 11MiB (in KiB units) for reserved mem
+	    if [ -f ${logfile4tb} ] ; then
+		meminfo=${d[1]}
+		meminfo=$(($meminfo / 1000))
+	    else
 	    if (( ${d[1]} > $_32KGiB )) ; then
 		number=$(echo "scale=0; (${d[1]} * 1.015) / 1;" | bc)
 	    elif (( ${d[1]} > $_1KGiB )) ; then
@@ -97,6 +101,7 @@ case $os in
 #echo  "$0:${LINENO} ========== was:${d[1]} now number:$number sent:$mi "
 	    meminfo=$(hbis $mi)
 #echo  "$0:${LINENO} ========== returned:$meminfo"
+	    fi
 	    ;;
     FreeBSD )
 	    unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
@@ -125,6 +130,7 @@ if [ "$base" == "GiB" ] ; then
 fi
 if [ -f ${logfile4tb} ] ; then
     printf "MEMINFO SIZE=%s\n" ${num} >> ${logfile4tb}
+    exit 0
 fi
 
 tbinfo=$(getfromtb meminfo $host)

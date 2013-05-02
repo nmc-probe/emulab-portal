@@ -33,7 +33,10 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 #LINUX
 
 #@checkscripts = ("disk", "cpu", "mem", "time", "nic", "diskspeed");
-@checkscripts = ("disk", "cpu", "mem", "time", "nic");
+
+# do not run timecheck for MFS hw gather mode
+#@checkscripts = ("disk", "cpu", "mem", "time", "nic");
+@checkscripts = ("disk", "cpu", "mem", "nic");
 
 
 system("echo 'Running nodechecks'");

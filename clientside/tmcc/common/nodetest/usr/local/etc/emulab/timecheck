@@ -24,10 +24,34 @@ fi
 tmplog=/tmp/.$$.log
 cat /dev/null > ${tmplog}
 
+# check that external need program are installed
+s=""
+case $os in
+    Linux | FreeBSD )
+	progs="tr bc ntpserver"
+	;;
+    * )
+	failed="Unknown OS :$os: FAILED"
+	echo "$failed" >> ${logfile}
+	echo "$failed"
+	exit 1
+	;;
+esac
+for i in $progs ; do
+    type $i &>/dev/null && continue  || s="$s $i "
+done
+if [ -n "$s" ] ; then
+    failed=" Unable to run need missing command(s) $s FAILED"
+    echo "$failed" >> ${logfile}
+    echo "$failed"
+    exit 1
+fi
+
 #exit on unbound var
 set -u
 
 {
+set -x
 unset -v d ; declare -a d=()
 case $os in
     Linux | FreeBSD )

@@ -32,7 +32,10 @@ elif
 fi
 
 #checks="disk cpu mem time nic diskspeed"
-checks="disk cpu mem time nic"
+
+# do not run timecheck for MFS hw gather mode
+#checks="disk cpu mem time nic"
+checks="disk cpu mem nic"
 
 echo "Running nodechecks"
 # truncate file at boot time

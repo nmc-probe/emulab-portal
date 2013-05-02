@@ -48,30 +48,52 @@ finish() {
     exit 0
 }
 
+
 round1p() {
+    # round up 1 place
     in=$1
 
-    y=$(echo "((($in * .005)) + $in)/1" | bc)
+    #truncate decimal
+    y=${in%%.*}
+    #count digits
     n=${#y}
-    if [ $n == 5 ] ; then
-	echo -n $(echo "($y / 1000) * 1000" | bc)
+    # according to #digits add roundup and get most sig-bits
+    if [ $n == 6 ] ; then
+	y=$(($y + 5000))
+	y=$(($y / 10000))
+	y=$(($y * 10000))
+	echo -n $y
+    elif [ $n == 5 ] ; then
+	y=$(($y + 500))
+	y=$(($y / 1000))
+	y=$(($y * 1000))
+	echo -n $y
     elif [ $n == 4 ] ; then
-	echo -n $(echo "($y / 100) * 100" | bc)
+	y=$(($y + 50))
+	y=$(($y / 100))
+	y=$(($y * 100))
+	echo -n $y
     elif [ $n == 3 ] ; then
-	echo -n $(echo "($y / 10) * 10" | bc)
+	y=$(($y + 25))
+	y=$(($y / 10))
+	y=$(($y * 10))
+	echo -n $y
     else
 	echo -n $y 
+	return 1
     fi
     return 0
 }
 
 # check that external need program are installed
+
+s=""
 case $os in
     Linux )
-	progs="grep bc echo lscpu"
+	progs="grep"
 	;;
     FreeBSD )
-	progs="grep bc echo"
+	progs="grep"
 	;;
     * )
 	failed="Unknown OS :$os: FAILED"
@@ -91,40 +113,31 @@ fi
 
 {
 case $os in
-    Linux )
-	    unset -v d ; declare -a d=()
-	    d=($(lscpu))
-	    for ((idx=0; idx<${#d[*]}; idx++)) ; do
-		[[ "${d[$idx]}" == "Architecture:" ]] && break
-	    done
-	    ((++idx))
-	    arch=${d[$idx]}
-	    echo -n "Architecture:$arch "
-	    for ((idx=0; idx<${#d[*]}; idx++)) ; do
-		z=${d[$idx]}; y=$(echo ${z,,}) #lower case letters
-		[[ "${y}" == "socket(s):" ]] && break
-	    done
-	    ((++idx))
-	    sockets=${d[$idx]}
-	    [[ $sockets == 0 ]] && sockets=1
-	    echo -n "Sockets:$sockets "
-	    for ((idx=0; idx<${#d[*]}; idx++)) ; do
-		[[ "${d[$idx]}" == "socket:" ]] && break
-	    done
-	    ((++idx))
-	    cores_socket=${d[$idx]}
-	    echo -n "Cores_socket:$cores_socket "
-	    for ((idx=0; idx<${#d[*]}; idx++)) ; do
-		[[ "${d[$idx]}" == "core:" ]] && break
-	    done
-	    ((++idx))
-	    threads_core=${d[$idx]}
-	    echo -n "Threads_core:$threads_core "
-	    for ((idx=0; idx<${#d[*]}; idx++)) ; do
-		[[ "${d[$idx]}" == "MHz:" ]] && break
-	    done
-	    ((++idx))
-	    rawmhz=${d[$idx]}
+    Linux )	
+	    # XXX if have lscpu then us it to get arch
+	    x=$(grep "model name" /proc/cpuinfo | head -1)
+	    x=${x##*: }
+	    #takeout all the spaces
+	    x=${x// /}
+	    [[ "${x:0:16}" == "Intel(R)Core(TM)" ]] && arch="x86_64" || arch=$x
+	    [[ "${x:0:15}" == "Intel(R)Xeon(R)" ]] && arch="x86_64" || arch=$x
+
+    	    x=$(grep "cpu cores" /proc/cpuinfo | head -1)
+	    x=${x##*: }
+	    cores_socket=$x
+
+    	    x=$(grep "siblings" /proc/cpuinfo | head -1)
+	    x=${x##*: }
+	    threads_core=$(($x/$cores_socket))
+
+    	    x=$(grep "processor" /proc/cpuinfo | tail -1)
+	    x=${x##*: }
+	    ((++x))
+	    cpus=$x
+
+	    sockets=$(($cpus/$threads_core))
+	    sockets=$(($sockets/$cores_socket))
+
 	    #better if dmesg not to old
     	    dmesgmhz=$(dmesg | grep -i mhz | grep processor)
 	    if [ -n "$dmesgmhz" ] ; then
@@ -133,6 +146,11 @@ case $os in
 		rawmhz=$x
 	    fi
 	    mhz=$(round1p $rawmhz)
+
+	    echo -n "Architecture:$arch "
+	    echo -n "Sockets:$sockets "
+	    echo -n "Cores_socket:$cores_socket "
+	    echo -n "Threads_core:$threads_core "
 	    echo -n "MHz:$mhz "
 	    
 	    cpuflags=$(grep flags /proc/cpuinfo | head -1)
@@ -143,7 +161,7 @@ case $os in
     FreeBSD )
 	    x=y=""
 	    x=$(grep 'CPU:' /var/run/dmesg.boot | grep CPU:)
-	    echo -n $x
+
 	    x=${x#CPU: }
 	    x=${x%%CPU*}
 	    x=${x%%([0-9]*}
@@ -174,6 +192,7 @@ case $os in
 		[[ $x ]] && threads_core=${x%%SMT*} || threads_core=1
 		
 		x=$(grep 'CPU\|SMP' /var/run/dmesg.boot | grep CPU:)
+		# example CPU: Intel(R) Xeon(TM) CPU 3.00GHz (2992.71-MHz 686-class CPU)
 		x=${x%%-MHz*}
 		mhz=$(round1p ${x##*(})
 		    
@@ -211,8 +230,9 @@ echo ""
 # if saving data for testbed database
 [[ ${x64bit} == 1 ]] && bits=64 || bits=32
 if [ -f ${logfile4tb} ] ; then
-    printf "CPUINFO SOCKET=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
-      ${sockets} ${threads_core} ${mhz} ${bits} ${hyperthread} >> ${logfile4tb}
+    printf "CPUINFO SOCKET=%s CORES=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
+      ${sockets} ${cores_socket} ${threads_core} ${mhz} ${bits} ${hwvirt} >> ${logfile4tb}
+    exit 0
 fi
 
 tbinfo=$(getfromtb cpuinfo $host)
