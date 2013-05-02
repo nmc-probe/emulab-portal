@@ -4328,10 +4328,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 	}
 
 	/* local disk. */
-	else if ((strcmp(class, BS_CLASS_LOCAL) == 0) &&
-		 ((strcmp(protocol, BS_PROTO_SAS) == 0) ||
-		  (strcmp(protocol, BS_PROTO_SCSI) == 0))) {
-
+	else if (strcmp(class, BS_CLASS_LOCAL) == 0) {
 		/* Set default placement if not defined. */
 		placement = strlen(placement) ? placement : BS_PLACEMENT_DEF;
 
