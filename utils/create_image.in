@@ -67,11 +67,12 @@ sub usage()
 	  "<node>      - nodeid to create the image from\n");
     exit(-1);
 }
-my $optlist  = "p:wsNdf";
+my $optlist  = "p:wsNdfe";
 my $waitmode = 0;
-my $usessh = 0;
-my $usenfs = 0;
-my $usefup = 1;
+my $usessh   = 0;
+my $usenfs   = 0;
+my $usefup   = 1;
+my $noemail  = 0;
 
 #
 # Configure variables
@@ -156,6 +157,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"w"})) {
     $waitmode = 1;
+}
+if (defined($options{"e"})) {
+    $noemail = 1;
 }
 if (defined($options{"s"})) {
     $usessh = 1;
@@ -789,7 +793,7 @@ SENDMAIL("$user_name <$user_email>",
 	 "$swmsg",
 	 "$user_name <$user_email>",
 	 "Bcc: $TBLOGS",
-	 defined($logfile) ? ($logfile->filename()) : ());
+	 defined($logfile) ? ($logfile->filename()) : ()) if (!$noemail);
 
 if (defined($logfile)) {
     # Close up the log file so the webpage stops.

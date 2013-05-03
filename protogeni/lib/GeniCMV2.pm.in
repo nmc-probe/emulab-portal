@@ -2518,7 +2518,7 @@ sub CreateImage($)
     # Do the snapshot.
     #
     $output =
-	GeniUtil::ExecQuiet("$CREATEIMAGE -f -p $pid $imagename $node_id");
+	GeniUtil::ExecQuiet("$CREATEIMAGE -e -f -p $pid $imagename $node_id");
     # Not a typical op, so always print debugging info;
     print STDERR $output;
     if ($?) {
@@ -2527,7 +2527,9 @@ sub CreateImage($)
 	if ($user->email()) {
 	    libtestbed::SENDMAIL($user->email(),
 				 "Failed to clone image",
-				 "$output\n");
+				 "$output\n",
+				 $user->email(),
+				 "Bcc: $TBOPS");
 	}
 	return -1;
     }
@@ -2538,7 +2540,9 @@ sub CreateImage($)
 				 "Image URL: $image_url\n".
 				 "\n".
 				 "-----------------------------------------\n".
-				 "$output\n");
+				 "$output\n",
+				 $user->email(),
+				 "Bcc: $TBOPS");
     }
     $slice->UnLock();
     return 0;
