@@ -58,6 +58,7 @@ use Data::Dumper;
 use Date::Parse;
 use POSIX qw(strftime);
 use Time::Local;
+use Project;
 
 # Configure variables
 my $TB		   = "@prefix@";
@@ -115,6 +116,13 @@ sub GetCredential($)
 		"Could not find local authority object for $ENV{'MYURN'}\n";
 	    return GeniResponse->Create(GENIRESPONSE_ERROR);
 	}
+
+	if( !CheckMembership( $geniuser ) ) {
+	    return GeniResponse->Create( GENIRESPONSE_FORBIDDEN,
+					 undef, "No privilege at this " .
+					 "authority" );
+	}
+
 	my $credential = GeniCredential->Lookup($authority, $geniuser);
 	if (defined($credential)) {
 	    #
@@ -130,7 +138,9 @@ sub GetCredential($)
 	    $credential =
 		GeniCredential->CreateSigned($authority,
 					     $geniuser,
-					     $authority->GetCertificate() );
+					     $main::PROJECT ?
+					     $authority->GetCertificate() :
+					     $GeniCredential::LOCALSA_FLAG );
 
 	    # Okay if this fails.
 	    $credential->Store()
@@ -166,6 +176,12 @@ sub GetCredential($)
     }
     my ($undef, $type, $id) = GeniHRN::Parse($urn);
 	
+    if( !CheckMembership( $this_user ) ) {
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN,
+				     undef, "No privilege at this " .
+				     "authority" );
+    }
+
     #
     # User provided a credential, and wants a new credential to access
     # the object referenced by the URN.
@@ -210,7 +226,10 @@ sub GetCredential($)
 	    $slice_credential =
 		GeniCredential->CreateSigned($slice,
 					     $this_user,
-					     $authority->GetCertificate() );
+					     $main::PROJECT ?
+					     $authority->GetCertificate() :
+					     $GeniCredential::LOCALSA_FLAG );
+
 	    # Okay if this fails.
 	    $slice_credential->Store()
 		if (defined($slice_credential));
@@ -458,6 +477,12 @@ sub Register($)
 				    "Who are you? No local record");
     }
     
+    if( !CheckMembership( $this_user ) ) {
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN,
+				     undef, "No privilege at this " .
+				     "authority" );
+    }
+
     #
     # Bump the activity counter for the user. Lets us know in the
     # main DB that a user is doing something useful.
@@ -518,7 +543,7 @@ sub Register($)
 	    }
 	    $expires = $when;
 	}
-	
+
 	my ($ourdomain, undef, undef) = GeniHRN::Parse( $ENV{ 'MYURN' } );
 	my $urn = GeniHRN::Generate( $ourdomain, "slice", $hrn );
 	
@@ -557,7 +582,7 @@ sub Register($)
 	    print STDERR "Could not create new certificate for slice\n";
 	    return GeniResponse->Create(GENIRESPONSE_ERROR);
 	}
-	
+
 	# Slice is created as locked.
 	my $slice = GeniSlice->Create($certificate,
 				      $this_user, $authority, undef, 1);
@@ -579,7 +604,10 @@ sub Register($)
 	my $slice_credential =
 	    GeniCredential->CreateSigned($slice,
 					 $this_user,
-					 $authority->GetCertificate() );
+					 $main::PROJECT ?
+					 $authority->GetCertificate() :
+					 $GeniCredential::LOCALSA_FLAG );
+
 	if (!defined($slice_credential)) {
 	    $slice->Delete();
 	    return GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -607,6 +635,7 @@ sub Register($)
 	    }
 	}
 	$slice->UnLock();
+
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
 				    $slice_credential->asString());
     }
@@ -674,6 +703,12 @@ sub Remove($)
 				    "Who are you? No local record");
     }
     
+    if( !CheckMembership( $this_user ) ) {
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN,
+				     undef, "No privilege at this " .
+				     "authority" );
+    }
+
     if ($type eq "slice") {
 	my $slice = GeniSlice->Lookup($urn || $hrn);
 	if (!defined($slice)) {
@@ -1009,7 +1044,10 @@ sub RenewSlice($)
     my $slice_credential =
 	GeniCredential->CreateSigned($slice,
 				     $this_user,
-				     $authority->GetCertificate() );
+				     $main::PROJECT ?
+				     $authority->GetCertificate() :
+				     $GeniCredential::LOCALSA_FLAG );
+
     if (!defined($slice_credential)) {
 	$slice->UnLock();
 	$message = "Could not create new slice credential";
@@ -1270,6 +1308,34 @@ sub CheckCredential($;$)
 	    $credential->target_urn() ne $authority->urn());
 	
     return $credential;
+}
+
+#
+# Verify a local user's membership in a project (to properly restrict
+# users to the appropriate sub-authorities).
+#
+sub CheckMembership($$)
+{
+    require EmulabConstants;
+
+    my ($geniuser) = @_;
+
+    if( !$main::PROJECT ) {
+	# No project specified -- i.e. the top level SA.  For now, allow
+	# every local user to use it.  But when we want to turn on
+	# mandatory project association for slices, we will reject this.
+	return 1;
+    }
+
+    my $project = Project->Lookup( $main::PROJECT );
+
+    return 0 unless defined( $project );
+
+    return 0 unless $geniuser->IsLocal();
+    my $user = $geniuser->emulab_user();
+
+    return $project->AccessCheck( $user,
+				  EmulabConstants::TB_PROJECT_CREATEEXPT() );
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
