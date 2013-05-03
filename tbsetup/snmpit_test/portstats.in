@@ -1,7 +1,7 @@
 #!/usr/bin/perl -T
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -340,6 +340,11 @@ DEVICE: foreach my $name (keys %portMap) {
 	/hp/ && do {
 	    require snmpit_hp;
 	    $device = new snmpit_hp($name);
+	    last;
+	};
+	/arista/ && do {
+	    require snmpit_arista;
+	    $device = new snmpit_arista($name);
 	    last;
 	};
 
