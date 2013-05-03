@@ -317,8 +317,8 @@ if( $PROJECT ) {
     my $authority = GeniAuthority->Lookup( $name );
 
     if (!defined($authority)) {
-	die("*** $0:\n".
-	    "    Could not resolve requested authority\n");
+	XMLError( XMLRPC_APPLICATION_ERROR(),
+		  "Could not resolve requested authority" );
     }
     $ENV{'MYUUID'} = $authority->uuid();
     $ENV{'MYURN'}  = $authority->urn();
