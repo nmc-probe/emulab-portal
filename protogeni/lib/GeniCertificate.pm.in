@@ -204,8 +204,49 @@ sub Create($$;$)
     my ($authority, $type, $name) = GeniHRN::Parse($urn);
     my $caflag = $type eq "authority" ? "" : "-n";
     my $showuuidflag = $showuuid ? " -U " : "";
+    my $signer;
+    my $unlink;
+    if( $type eq "authority" ) {
+	if( $authority =~ /:/ ) {
+	    # A certificate for a sub-authority.
+	    # Right now, the only sub-authorities we have are all sub-SAs.
+	    # If this assumption is ever relaxed, we will have to be smarter
+	    # here about finding the real authority.
+	    $signer = "-a $TB/etc/genisa.pem";
+	} else {
+	    # Top level authority certificates are always signed by the
+	    # root CA.  This is the mksyscert default, so don't do anything.
+	    $signer = "";
+	}
+    } elsif( $authority =~ /:/ ) {
+	# A certificate for an object under a sub-authority.
+	# Again, we assume sub-authorities are SAs.
+	# Unfortunately, we don't have the certificate and key in a file
+	# the same way we do for the top-level authorities, so we have
+	# to make a temporary.
+	my $auth = GeniAuthority->Lookup( GeniHRN::Generate( $authority,
+							     "authority",
+							     "sa" ) );
+	my $fh;
+	( $fh, $unlink ) = tempfile( UNLINK => 0 );
+	print $fh "-----BEGIN CERTIFICATE-----\n";
+	print $fh $auth->cert();
+	print $fh "-----END CERTIFICATE-----\n";
+	print $fh "-----BEGIN RSA PRIVATE KEY-----\n";
+	print $fh $auth->GetCertificate()->privkey();
+	print $fh "-----END RSA PRIVATE KEY-----\n";
+	close( $fh );
+	$signer = "-a $unlink";
+    } elsif( $type eq "user" || $type eq "slice" ) {
+	# Top level SA user or slice -- sign with the main SA.
+	$signer = "-a $TB/etc/genisa.pem";
+    } else {
+	# Other object types are signed by the CM.
+	$signer = "-a $TB/etc/genicm.pem";
+    }
+
     if (! open(CERT, "$MKCERT $caflag -i \"$urn\" $url -e \"$email\" $hrn " .
-	       "$showuuidflag$uuid |")) {
+	       "$signer $showuuidflag$uuid |")) {
 	print STDERR "Could not start $MKCERT\n";
 	return undef;
     }
@@ -217,6 +258,7 @@ sub Create($$;$)
 	print STDERR "$MKCERT failed!\n";
 	return undef;
     }
+    unlink( $unlink ) if $unlink;
     my $cert;
     my $privkey;
     my $string;
