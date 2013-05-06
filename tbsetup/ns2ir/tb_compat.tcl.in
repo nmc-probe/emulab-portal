@@ -109,6 +109,16 @@ namespace eval TBCOMPAT {
 	"sysvol_remaining" "ALL_SYSVOL"
 	"nonsysvol_remaining" "ALL_NONSYSVOL"
     }
+    # XXX: feed in via emulab site variable.
+    variable sodisallowedmounts {
+	"/" "/bin" "/boot" "/dev" "/etc" "/lib" "/libexec" "/proc" 
+	"/sbin" "/sys" "/usr" "/usr/bin" "/usr/local" "/usr/local/etc" 
+	"/usr/local/bin" "/usr/local/sbin" "/usr/sbin" "/var"
+	"/etc/emulab" "/group" "/proj" "/share" "/scratch" 
+	"/users" "/usr/local/etc/emulab" "/var/emulab"
+    }
+    variable sonodemounts
+    array set sonodemounts {}
 
     # NSE hack: sim type is not in DB. Just adding it now
     set hwtypes(sim) 1

@@ -663,9 +663,10 @@ Simulator instproc run {} {
 	$self spitxml_data "nseconfigs" [list "vname" "nseconfig" ] [list fullsim $nsecfg_script ]
     }
 
-    # Make sure the blockstore parent nodes are created.
+    # Finalize the blockstore objects - last minute allocations and checks
+    # before they are spit out to the db.
     foreach blockstore [array names blockstore_list] {
-	set blockstore_node [$blockstore get_node]
+	$blockstore finalize
     }
     
     # Update the DB

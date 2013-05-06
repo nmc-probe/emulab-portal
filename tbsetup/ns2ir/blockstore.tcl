@@ -26,7 +26,13 @@
 ######################################################################
 # blockstore.tcl
 #
-# This class defines the blockstore storage object.
+# This class defines the blockstore storage object.  Note: Each
+# blockstore object's finalize() method MUST be called AFTER all of
+# the set-* calls, but BEFORE the updatedb() method.  Generally,
+# finalize() should be called once it is clear that no other set-*
+# methods will be called; before the object is used.  E.g., the
+# sim.tcl code calls finalize() for all blockstore object near the top
+# of the run() method.
 #
 ######################################################################
 
@@ -111,7 +117,9 @@ Blockstore instproc set-placement {newplace} {
 }
 
 Blockstore instproc set-mount-point {newmount} {
+    var_import ::TBCOMPAT::sodisallowedmounts
     $self instvar attributes
+    $self instvar node
 
     # Keep the mount point path rules simple but strict:
     #  * Must start with a forward slash (absolute path)
@@ -120,6 +128,11 @@ Blockstore instproc set-mount-point {newmount} {
     #  * Optionally end with a forward slash
     if {![regexp {^(/\w+){1,}/?$} $newmount]} {
 	perror "Bad mountpoint: $newmount"
+    }
+
+    # Try to prevent user from shooting their own foot.
+    if {[lsearch -exact $sodisallowedmounts $newmount] != -1} {
+	perror "Cannot mount over important system directory: $newmount"
     }
 
     $self set attributes(mountpoint) $newmount
@@ -138,17 +151,6 @@ Blockstore instproc set-size {newsize} {
     if { $convsize < $mindisksize } {
 	perror "\[set-size] $newsize is smaller than allowed minimum (1 MiB)"
 	return
-    }
-
-    # Hack/shortcut for local nodes.  If the blockstore is fixed to
-    # anything other than a blockstore pseudo-VM, then just attach a
-    # desire to the parent node indicating a need for disk space.
-    if { $node != {} && [$node set type] != "Blockstore" } {
-	set cursize [$node get-desire "?+disk"]
-	if {$cursize == {}} {
-	    set cursize 0
-	}
-	$node add-desire "?+disk" [expr $convsize + $cursize] 1
     }
 
     $self set size $convsize
@@ -172,17 +174,6 @@ Blockstore instproc set_fixed {pnode} {
     if { [$pnode info class] != "Node" } {
 	perror "Can only fix blockstores to a node object!"
 	return
-    }
-
-    # Hack/shortcut for local nodes.  If the blockstore is fixed to
-    # anything other than a blockstore pseudo-VM, then just attach a
-    # desire to the parent node indicating a need for disk space.
-    if { $size != 0 && [$pnode set type] != "Blockstore" } {
-	set cursize [$pnode get-desire "?+disk"]
-	if {$cursize == {}} {
-	    set cursize 0
-	}
-	$pnode add-desire "?+disk" [expr $size + $cursize] 1
     }
     
     set node $pnode
@@ -209,6 +200,47 @@ Blockstore instproc get_node {} {
     return $hname
 }
 
+Blockstore instproc finalize {} {
+    var_import ::TBCOMPAT::sonodemounts
+    $self instvar node
+    $self instvar size
+    $self instvar attributes
+
+    # Instantiate blockstore pseudo-VM and attach to it if bstore 
+    # isn't attached to anything at this point.
+    if { $node == {} } {
+	set dummy [$self get_node]
+    }
+
+    # Hack/shortcut for local nodes.  If the blockstore is fixed to
+    # anything other than a blockstore pseudo-VM, then just attach a
+    # desire to the parent node indicating a need for disk space.
+    if { $size != 0 && [$node set type] != "Blockstore" } {
+	set cursize [$node get-desire "?+disk"]
+	if {$cursize == {}} {
+	    set cursize 0
+	}
+	$node add-desire "?+disk" [expr $size + $cursize] 1
+    }
+
+    # bookkeeping for node mount collisions.
+    if {[array exists attributes(mountpoint)]} {
+	set mymount $attributes(mountpoint)
+	if {![array exists sonodemounts($node)]} {
+	    set sonodemounts($node) {}
+	}
+	foreach nodemount $sonodemounts($node) {
+	    set minlen [expr min([string length $nodemount],
+				 [string length $mymount])]
+	    if {[string compare -length $minlen $mount $mymount] != 0} {
+		perror "Mount collision or nested mount detected on $node: $mount, $mountpoint"
+	    }
+	}
+	lappend sonodemounts($node) $mymount
+    }
+
+}
+
 # updatedb DB
 # This adds rows to the virt_blockstores and virt_blockstore_attributes 
 # tables, corresponding to this storage object.
@@ -223,7 +255,7 @@ Blockstore instproc updatedb {DB} {
     $self instvar role
     $self instvar attributes
 
-    # XXX: role needs more thought...
+    # XXX: blockstore role needs more thought...
     #if { $role == "unknown" } {
     #    puts stderr "*** WARNING: blockstore role not set and unable to infer it."
     #}
@@ -246,4 +278,3 @@ Blockstore instproc updatedb {DB} {
 
     }
 }
-
