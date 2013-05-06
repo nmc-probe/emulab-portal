@@ -71,10 +71,9 @@ Blockstore instproc set-class {newclass} {
 
     if {![info exists soclasses($newclass)]} {
 	perror "\[set-class] Invalid storage class: $newclass"
-	return
     }
 
-    $self set attributes(class) $newclass
+    set attributes(class) $newclass
     return
 }
 
@@ -84,35 +83,34 @@ Blockstore instproc set-protocol {newproto} {
 
     if {![info exists soprotocols($newproto)]} {
 	perror "\[set-protocol] Invalid storage protocol: $newproto"
-	return
     }
 
-    $self set attributes(protocol) $newproto
+    set attributes(protocol) $newproto
     return
 }
 
 Blockstore instproc set-type {newtype} {
     var_import ::TBCOMPAT::sotypes
+    $self instvar type
 
     if {![info exists sotypes($newtype)]} {
 	perror "\[set-type] Invalid storage object type: $newtype"
-	return
     }
 
-    $self set type $type
+    set type $type
     return
 }
 
 Blockstore instproc set-placement {newplace} {
-    var_import ::TBCOMPAT::soplacements
+    var_import ::TBCOMPAT::soplacementdesires
     $self instvar attributes
 
-    if {![info exists soplacements($newplace)]} {
-	perror("Invalid placement specified: $newplace")
-	return
+    set newplace [string toupper $newplace]
+    if {![info exists soplacementdesires($newplace)]} {
+	perror "Invalid placement specified: $newplace"
     }
 
-    $self set attributes(placement) $soplacements($newplace)
+    set attributes(placement) $newplace
     return
 }
 
@@ -135,12 +133,13 @@ Blockstore instproc set-mount-point {newmount} {
 	perror "Cannot mount over important system directory: $newmount"
     }
 
-    $self set attributes(mountpoint) $newmount
+    set attributes(mountpoint) $newmount
     return
 }
 
 Blockstore instproc set-size {newsize} {
     $self instvar node
+    $self instvar size
 
     set mindisksize 1; # 1 MiB
 
@@ -150,10 +149,9 @@ Blockstore instproc set-size {newsize} {
     # Do some boundary checks.
     if { $convsize < $mindisksize } {
 	perror "\[set-size] $newsize is smaller than allowed minimum (1 MiB)"
-	return
     }
 
-    $self set size $convsize
+    set size $convsize
     return
 }
 
@@ -169,11 +167,9 @@ Blockstore instproc set-node {pnode} {
 #
 Blockstore instproc set_fixed {pnode} {
     $self instvar node
-    $self instvar size
 
     if { [$pnode info class] != "Node" } {
 	perror "Can only fix blockstores to a node object!"
-	return
     }
     
     set node $pnode
@@ -200,7 +196,12 @@ Blockstore instproc get_node {} {
     return $hname
 }
 
+# Do final (AFTER set-*, but BEFORE updatedb) validations and
+# initializations.
 Blockstore instproc finalize {} {
+    var_import ::TBCOMPAT::sodefaultplacement
+    var_import ::TBCOMPAT::sonodeplacements
+    var_import ::TBCOMPAT::soplacementdesires
     var_import ::TBCOMPAT::sonodemounts
     $self instvar node
     $self instvar size
@@ -212,19 +213,59 @@ Blockstore instproc finalize {} {
 	set dummy [$self get_node]
     }
 
-    # Hack/shortcut for local nodes.  If the blockstore is fixed to
+    #
+    # Local node hacks and stuff.  If the blockstore is fixed to
     # anything other than a blockstore pseudo-VM, then just attach a
     # desire to the parent node indicating a need for disk space.
-    if { $size != 0 && [$node set type] != "Blockstore" } {
-	set cursize [$node get-desire "?+disk"]
-	if {$cursize == {}} {
-	    set cursize 0
+    #
+    # Also check for a bunch of incompatible specifications.
+    #
+    if {[$node set type] != "Blockstore"} {
+	# Initialization for placement (for blockstore and attached node).
+	if {![info exists attributes(placement)]} {
+	    set attributes(placement) $sodefaultplacement
+	} 
+	set myplace $attributes(placement)
+	if {![info exists sonodeplacements($node)]} {
+	    set sonodeplacements($node) {}
 	}
-	$node add-desire "?+disk" [expr $size + $cursize] 1
+
+	# Look for an incompatible mix of "ANY" and other placements (per-node).
+	set srchres 0
+	if {$myplace == "ANY"} {
+	    set srchres [lsearch -exact -not $sonodeplacements($node) "ANY"]
+	} else {
+	    set srchres [lsearch -exact $sonodeplacements($node) "ANY"]
+	}
+	if {$srchres != -1} {
+	    perror "Incompatible mix of 'ANY' and other placements ($node)."
+	}
+
+	# Add a desire for space of the given placement type.
+	if {$size != 0} {
+	    set pldesire $soplacementdesires($myplace)
+	    set cursize [$node get-desire $pldesire]
+	    if {$cursize == {}} {
+		set cursize 0
+	    }
+	    $node add-desire $pldesire [expr $size + $cursize] 1
+	} else {
+	    # No size specified, which means: "use all space of given
+	    # placement".  Therefore, must restrict to one blockstore per
+	    # placement if any of that placement are full-sized.
+	    if {[lsearch -exact $sonodeplacements($node) $myplace] != -1} {
+		perror "Can only specify one full-sized placement of each type per local node ($node: $myplace)."
+	    }
+	}
+	lappend sonodeplacements($node) $myplace
+    } else {
+	if {[info exists attributes(placement)]} {
+	    perror "Placement setting can only be used with a local blockstore."
+	}
     }
 
-    # bookkeeping for node mount collisions.
-    if {[array exists attributes(mountpoint)]} {
+    # Bookkeeping for node mount collisions.
+    if {[info exists attributes(mountpoint)]} {
 	set mymount $attributes(mountpoint)
 	if {![array exists sonodemounts($node)]} {
 	    set sonodemounts($node) {}
