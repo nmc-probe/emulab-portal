@@ -112,8 +112,10 @@ namespace eval TBCOMPAT {
 	"NONSYSVOL" "?+disk_nonsysvol"
     }
     variable sodefaultplacement "ANY"
-    variable sonodeplacements
-    array set sonodeplacements {}
+    variable sopartialplacements
+    array set sopartialplacements {}
+    variable sofullplacements
+    array set sofullplacements {}
 
     variable sodisallowedmounts {
 	"/" "/bin" "/boot" "/dev" "/etc" "/lib" "/libexec" "/proc" 

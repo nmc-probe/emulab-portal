@@ -200,7 +200,8 @@ Blockstore instproc get_node {} {
 # initializations.
 Blockstore instproc finalize {} {
     var_import ::TBCOMPAT::sodefaultplacement
-    var_import ::TBCOMPAT::sonodeplacements
+    var_import ::TBCOMPAT::sopartialplacements
+    var_import ::TBCOMPAT::sofullplacements
     var_import ::TBCOMPAT::soplacementdesires
     var_import ::TBCOMPAT::sonodemounts
     $self instvar node
@@ -221,60 +222,76 @@ Blockstore instproc finalize {} {
     # Also check for a bunch of incompatible specifications.
     #
     if {[$node set type] != "Blockstore"} {
-	# Initialization for placement (for blockstore and attached node).
+	# Initialization for placement.
 	if {![info exists attributes(placement)]} {
 	    set attributes(placement) $sodefaultplacement
 	} 
 	set myplace $attributes(placement)
-	if {![info exists sonodeplacements($node)]} {
-	    set sonodeplacements($node) {}
+	set nodeplace "${node}:${myplace}"
+	if {![info exists sopartialplacements($nodeplace)]} {
+	    set sopartialplacements($nodeplace) 0
 	}
-
-	# Look for an incompatible mix of "ANY" and other placements (per-node).
-	set srchres 0
-	if {$myplace == "ANY"} {
-	    set srchres [lsearch -exact -not $sonodeplacements($node) "ANY"]
-	} else {
-	    set srchres [lsearch -exact $sonodeplacements($node) "ANY"]
-	}
-	if {$srchres != -1} {
-	    perror "Incompatible mix of 'ANY' and other placements ($node)."
+	if {![info exists sofullplacements($nodeplace)]} {
+	    set sofullplacements($nodeplace) 0
 	}
 
 	# Add a desire for space of the given placement type.
+	set pldesire $soplacementdesires($myplace)
 	if {$size != 0} {
-	    set pldesire $soplacementdesires($myplace)
 	    set cursize [$node get-desire $pldesire]
 	    if {$cursize == {}} {
 		set cursize 0
 	    }
 	    $node add-desire $pldesire [expr $size + $cursize] 1
+	    incr sopartialplacements($nodeplace) 1
 	} else {
-	    # No size specified, which means: "use all space of given
-	    # placement".  Therefore, must restrict to one blockstore per
-	    # placement if any of that placement are full-sized.
-	    if {[lsearch -exact $sonodeplacements($node) $myplace] != -1} {
-		perror "Can only specify one full-sized placement of each type per local node ($node: $myplace)."
-	    }
+	    # add a token 1MiB desire, just to make sure something is there.
+	    $node add-desire $pldesire 1 1
+	    incr sofullplacements($nodeplace) 1
 	}
-	lappend sonodeplacements($node) $myplace
+
+	# Sanity check for full placements.  There can be only one per node
+	# per placement type.
+	if { $sofullplacements($nodeplace) > 1 ||
+	     ($sofullplacements($nodeplace) == 1 &&
+	      $sopartialplacements($nodeplace) > 0) } {
+	    perror "Full placement collision detected ($node:$myplace)!"
+	    return
+	}
+
+	# Look for an incompatible mix of "ANY" and other placements (per-node).
+	set srchres 0
+	set allplacements [concat [array names sopartialplacements -glob "${node}:*"] [array names sofullplacements -glob "${node}:*"]]
+	if {$myplace == "ANY"} {
+	    set srchres [lsearch -exact -not $allplacements "${node}:ANY"]
+	} else {
+	    set srchres [lsearch -exact $allplacements "${node}:ANY"]
+	}
+	if {$srchres != -1} {
+	    perror "Incompatible mix of 'ANY' and other placements ($node)!"
+	    return
+	}
+
     } else {
 	if {[info exists attributes(placement)]} {
 	    perror "Placement setting can only be used with a local blockstore."
+	    return
 	}
     }
 
-    # Bookkeeping for node mount collisions.
+    # Check for node mount collisions.
     if {[info exists attributes(mountpoint)]} {
 	set mymount $attributes(mountpoint)
-	if {![array exists sonodemounts($node)]} {
+	if {![info exists sonodemounts($node)]} {
 	    set sonodemounts($node) {}
 	}
 	foreach nodemount $sonodemounts($node) {
-	    set minlen [expr min([string length $nodemount],
-				 [string length $mymount])]
-	    if {[string compare -length $minlen $mount $mymount] != 0} {
-		perror "Mount collision or nested mount detected on $node: $mount, $mountpoint"
+	    set nmlen [string length $nodemount]
+	    set mplen [string length $mymount]
+	    set minlen [expr {$nmlen < $mplen ? $nmlen : $mplen}]
+	    if {[string compare -length $minlen $nodemount $mymount] == 0} {
+		perror "Mount collision or nested mount detected on $node: $mymount, $nodemount"
+		return
 	    }
 	}
 	lappend sonodemounts($node) $mymount
