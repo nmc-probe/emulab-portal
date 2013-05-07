@@ -32,11 +32,16 @@ use vars qw(@ISA @EXPORT);
 @EXPORT = qw(TBDB_CHECKDBSLOT_NOFLAGS TBDB_CHECKDBSLOT_WARN
 	     TBDB_CHECKDBSLOT_ERROR TBcheck_dbslot TBFieldErrorString
 	     TBGetUniqueIndex ParRun VersionInfo UpdateVersionInfo
-	     SpanningTree GenFakeMac BackTraceOnWarning PassWordHash);
+	     SpanningTree GenFakeMac BackTraceOnWarning PassWordHash
+             SSHwithTimeout
+);
 
 use emdb;
 use English;
 use Carp;
+
+# Configure variables.
+my $TB          = "@prefix@";
 
 #
 # Support for checking field values against what is specified.
@@ -687,6 +692,44 @@ sub GenFakeMac()
     # Set the "locally administered" bit, good practice.
     #
     return "02" . $mac;
+}
+
+#
+# SSH with timeout. 
+#
+sub SSHwithTimeout($$$$)
+{
+    my ($host, $cmd, $timeout, $debug) = @_;
+    my $childpid;
+    my $timedout = 0;
+    my $SSHTB    = "@prefix@/bin/sshtb";
+
+    $cmd = "$SSHTB -host $host $cmd";
+    print "SSHwithTimeout($timeout): $cmd\n"
+	if ($debug);
+
+    if ($timeout) {
+	$childpid = fork();
+
+	if ($childpid) {
+	    local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
+	    alarm $timeout;
+	    waitpid($childpid, 0);
+	    my $exitstatus = $?;
+	    alarm 0;
+
+	    if ($timedout) {
+		print STDERR "*** ssh timed out.\n";
+		return -1;
+	    }
+	    return $exitstatus;
+	}
+	exec($cmd);
+	die("Could not exec '$cmd'");
+    }
+    else {
+	return system($cmd);
+    }
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
