@@ -285,11 +285,25 @@ Blockstore instproc finalize {} {
 	if {![info exists sonodemounts($node)]} {
 	    set sonodemounts($node) {}
 	}
+	# Look through all mount points for blockstores attached to the same
+	# node as this blockstore.
+	set mplist [lreplace [split $mymount   "/"] 0 0]
 	foreach nodemount $sonodemounts($node) {
-	    set nmlen [string length $nodemount]
-	    set mplen [string length $mymount]
-	    set minlen [expr {$nmlen < $mplen ? $nmlen : $mplen}]
-	    if {[string compare -length $minlen $nodemount $mymount] == 0} {
+	    set nmlist [lreplace [split $nodemount "/"] 0 0]
+	    set diff 0
+	    # Look for any differences in path components.  If one is a 
+	    # matching prefix of the other, then the mount is nested or
+	    # identical.
+	    foreach nmcomp $nmlist mpcomp $mplist {
+		# Have we hit the end of the list for one or the other?
+		if {$nmcomp == {} || $mpcomp == {}} {
+		    break
+		} elseif {$nmcomp != $mpcomp} {
+		    set diff 1
+		    break
+		}
+	    }
+	    if {!$diff} {
 		perror "Mount collision or nested mount detected on $node: $mymount, $nodemount"
 		return
 	    }
