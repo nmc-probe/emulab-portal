@@ -166,6 +166,7 @@ sub LookupRow($$)
     $self->{"RSRV"}     = undef;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
+    $self->{"FEATURES"} = undef;
     $self->{"IFACES"}   = undef;
     $self->{"WAROW"}    = undef;
     $self->{"HASH"}     = {};
@@ -196,6 +197,7 @@ sub DESTROY {
     $self->{"RSRV"}     = undef;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
+    $self->{"FEATURES"} = undef;
     $self->{"IFACES"}   = undef;
     $self->{"HASH"}     = undef;
     $self->{"WAROW"}    = undef;
@@ -236,6 +238,7 @@ sub MakeFake($$$$)
     $self->{"RSRV"}     = $rsrvrow;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
+    $self->{"FEATURES"} = undef;
     $self->{"IFACES"}   = undef;
     $self->{"WAROW"}    = undef;
     $self->{"HASH"}     = {};
@@ -282,6 +285,7 @@ sub BulkLookup($$$)
 	$node->{"RSRV"}     = undef;
 	$node->{"TYPEINFO"} = undef;
 	$node->{"ATTRS"}    = undef;
+	$self->{"FEATURES"} = undef;
 	$node->{"IFACES"}   = undef;
 	$node->{"WAROW"}    = undef;
 	$node->{"HASH"}     = {};
@@ -592,6 +596,7 @@ sub Refresh($)
     $self->{"RSRV"}     = undef;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
+    $self->{"FEATURES"} = undef;
     $self->{"IFACES"}   = undef;
     $self->{"WAROW"}    = undef;
     return 0;
@@ -1370,6 +1375,37 @@ sub GetNodeAttributes($)
     }
 
     return $self->{"ATTRS"};
+}
+
+#
+# Return a hash of the node features for this node.
+#
+sub GetNodeFeatures($)
+{
+    my ($self) = @_;
+    
+    return undef
+	if (!ref($self));
+
+    my $node_id = $self->node_id();
+
+    if (!defined($self->{"FEATURES"})) {
+	my $query_result =
+	    DBQueryWarn("select * from node_features ".
+			"where node_id='$node_id'");
+
+	return -1
+	    if (!defined($query_result));
+
+       	$self->{"FEATURES"} = {};
+	while (my $row = $query_result->fetchrow_hashref()) {
+	    my $feature = $row->{'feature'};
+	    my $weight  = $row->{'weight'};
+
+	    $self->{"FEATURES"}->{$feature} = $weight;
+	}
+    }
+    return $self->{"FEATURES"};
 }
 
 #
