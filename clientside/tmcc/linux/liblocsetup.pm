@@ -39,7 +39,7 @@ use Exporter;
 	 os_groupdel os_getnfsmounts os_islocaldir os_mountextrafs
 	 os_fwconfig_line os_fwrouteconfig_line os_config_gre
 	 os_get_disks os_get_disk_size os_get_partition_info os_nfsmount
-	 os_check_storage os_create_storage os_remove_storage
+	 os_init_storage os_check_storage os_create_storage os_remove_storage
 	 os_get_ctrlnet_ip
 	 os_getarpinfo os_createarpentry os_removearpentry
 	 os_getstaticarp os_setstaticarp
@@ -2537,7 +2537,68 @@ sub serial_to_dev($)
 }
 
 #
-# os_check_storage(confighash)
+# Handle one-time operations.
+# Return a cookie (object) with current state of storage subsystem.
+#
+sub os_init_storage($)
+{
+    my ($lref) = @_;
+    my $gotlocal = 0;
+    my $gotnonlocal = 0;
+    my $gotelement = 0;
+    my $gotslice = 0;
+    my $gotiscsi = 0;
+    my $needavol = 0;
+    my $needall = 0;
+
+    my %so = ();
+
+    foreach my $href (@{$lref}) {
+	if ($href->{'CMD'} eq "ELEMENT") {
+	    $gotelement++;
+	} elsif ($href->{'CMD'} eq "SLICE") {
+	    $gotslice++;
+	    if ($href->{'BSID'} eq "SYSVOL" ||
+		$href->{'BSID'} eq "ONSYSVOL") {
+		$needavol = 1;
+	    } elsif ($href->{'BSID'} eq "ANY") {
+		$needall = 1;
+	    }
+	}
+	if ($href->{'CLASS'} eq "local") {
+	    $gotlocal++;
+	} else {
+	    $gotnonlocal++;
+	    if ($href->{'PROTO'} eq "iSCSI") {
+		$gotiscsi++;
+	    }
+	}
+    }
+
+    # check for local storage incompatibility
+    if ($needall && $needavol) {
+	warn("*** storage: Incompatible local volumes.\n");
+	return undef;
+    }
+	
+    # initialize volume manage if needed for local slices
+    if ($gotlocal && $gotslice) {
+	;
+    }
+
+    if ($gotiscsi) {
+	if (! -x "$ISCSI") {
+	    warn("*** storage: $ISCSI does not exist, cannot continue\n");
+	    return undef;
+	}
+    }
+
+    $so{'INITIALIZED'} = 1;
+    return \%so;
+}
+
+#
+# os_check_storage(sobject,confighash)
 #
 #   Determines if the storage unit described by confighash exists and
 #   is properly configured. Returns zero if it doesn't exist, 1 if it
@@ -2546,9 +2607,22 @@ sub serial_to_dev($)
 #   Side-effect: Creates the hash member $href->{'LNAME'} with the /dev
 #   name of the storage unit.
 #
-sub os_check_storage($)
+sub os_check_storage($$)
 {
-    my ($href) = @_;
+    my ($so,$href) = @_;
+
+    if ($href->{'CMD'} eq "ELEMENT") {
+	return os_check_storage_element($so,$href);
+    }
+    if ($href->{'CMD'} eq "SLICE") {
+	return os_check_storage_slice($so,$href);
+    }
+    return -1;
+}
+
+sub os_check_storage_element($$)
+{
+    my ($so,$href) = @_;
     my $CANDISCOVER = 0;
 
     #
@@ -2561,11 +2635,6 @@ sub os_check_storage($)
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
 	my @lines;
-
-	if (! -x "$ISCSI") {
-	    warn("*** $ISCSI does not exist, cannot continue\n");
-	    return -1;
-	}
 
 	#
 	# See if the block store exists on the indicated server.
@@ -2642,15 +2711,41 @@ sub os_check_storage($)
 }
 
 #
+# Return 0 if does not exist
+# Return 1 if exists and correct
+# Return -1 otherwise
+#
+sub os_check_storage_slice($$)
+{
+    my ($so,$href) = @_;
+
+    warn("*** $bsid: unsupported class '" . $href->{'CLASS'} . "'\n");
+    return -1;
+}
+
+#
 # os_create_storage(confighash)
 #
 #   Create the storage unit described by confighash. Unit must not exist
 #   (os_check_storage should be called first to verify). Return one on
 #   success, zero otherwise.
 #
-sub os_create_storage($)
+sub os_create_storage($$)
 {
-    my ($href) = @_;
+    my ($so,$href) = @_;
+
+    if ($href->{'CMD'} eq "ELEMENT") {
+	return os_create_storage_element($so, $href);
+    }
+    if ($href->{'CMD'} eq "SLICE") {
+	return os_create_storage_slice($so, $href);
+    }
+    return 0;
+}
+
+sub os_create_storage_element($$)
+{
+    my ($so,$href) = @_;
     #my $redir = "";
     my $redir = ">/dev/null 2>&1";
 
@@ -2701,9 +2796,30 @@ sub os_create_storage($)
     return 0;
 }
 
-sub os_remove_storage($$)
+sub os_create_storage_slice($$)
 {
-    my ($href,$teardown) = @_;
+    my ($so,$href) = @_;
+
+    warn("*** $bsid: unsupported class '" . $href->{'CLASS'} . "'\n");
+    return 0;
+}
+
+sub os_remove_storage($$$)
+{
+    my ($so,$href,$teardown) = @_;
+
+    if ($href->{'CMD'} eq "ELEMENT") {
+	return os_remove_storage_element($so, $href, $teardown);
+    }
+    if ($href->{'CMD'} eq "SLICE") {
+	return os_remove_storage_slice($so, $href, $teardown);
+    }
+    return 0;
+}
+
+sub os_remove_storage_element($$$)
+{
+    my ($so,$href,$teardown) = @_;
     #my $redir = "";
     my $redir = ">/dev/null 2>&1";
 
@@ -2737,6 +2853,17 @@ sub os_remove_storage($$)
     }
 
     warn("*** Only support iSCSI now\n");
+    return 0;
+}
+
+#
+# teardown==0 means we are rebooting: unmount and shutdown gvinum
+# teardown==1 means we are reconfiguring and will be destroying everything
+#
+sub os_remove_storage_slice($$$)
+{
+    my ($so,$href,$teardown) = @_;
+
     return 0;
 }
 

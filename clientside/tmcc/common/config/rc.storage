@@ -50,6 +50,7 @@ if ($EUID != 0) {
 # Script specific goo
 my $IQN_PREFIX = "iqn.2000-10.net.emulab";
 my $OLDCONFIG = "$VARDIR/db/storage.conf";
+my $STORAGEMAP = "$BOOTDIR/storagemap";
 
 #
 # Load the OS independent support library. It will load the OS dependent
@@ -133,8 +134,12 @@ sub doboot()
     # Process each command in turn.  Already sorted by
     # getstorageconfig().
     #
+    my $so = os_init_storage(\@cmds);
+    if (!$so) {
+	fatal("Could not initialize storage subsystem!");
+    }
     foreach my $cmd (@cmds) {
-	if (!process($cmd, 1)) {
+	if (!process($so, $cmd, 1)) {
 	    fatal("Could not process storage commands!");
 	}
     }
@@ -149,6 +154,21 @@ sub doboot()
     if (!$ret) {
 	fatal("Error stashing away storage config!");
     }
+
+    #
+    # Stash mapping of block stores to local names for the convenience
+    # of the user.
+    #
+    if (open(MAP, ">$STORAGEMAP")) {
+	foreach my $cmd (@cmds) {
+	    if (exists($cmd->{'LNAME'})) {
+		print MAP $cmd->{'VOLNAME'} . " /dev/" . $cmd->{'LNAME'} . "\n";
+	    }
+	}
+	close(MAP);
+    } else {
+	warn("*** Could not create storage map: $STORAGEMAP\n");
+    }
 }
 
 #
@@ -161,11 +181,10 @@ sub doshutdown()
 
 #
 # Node Reconfig Action (without rebooting).
+# XXX don't do anything til we figure out what would be correct.
 #
 sub doreconfig()
 {
-    docleanup(1);
-    doboot();
 }
 
 #
@@ -196,11 +215,17 @@ sub docleanup($)
     #
     # Process each command in turn.  Already sorted.
     #
+    my $so = os_init_storage($cmdref);
+    if (!$so) {
+	fatal("Could not initialize storage subsystem!");
+    }
     foreach my $cmd (@$cmdref) {
-	if (!process($cmd, 0, $doteardown)) {
+	if (!process($so, $cmd, 0, $doteardown)) {
 	    fatal("Could not process storage commands!");
 	}
     }
+
+    unlink($STORAGEMAP);
 }
 
 #
@@ -208,49 +233,64 @@ sub docleanup($)
 # This may wind up just being a call to the os-specific setup. But for now
 # we do further validation of params based on what we currently implement.
 #
-sub process($$;$)
+sub process($$$;$)
 {
-    my ($href,$dosetup,$doteardown) = @_;
+    my ($so,$href,$dosetup,$doteardown) = @_;
     my $class = $href->{'CLASS'};
 
-    if ($href->{'CMD'} ne "ELEMENT") {
-	warn("*** Only handle storage elements right now\n");
-	return 0;
-    }
-
-    # look up the host name and convert to IP
-    my $hostip = gethostbyname($href->{'HOSTID'});
-    if (!defined($hostip)) {
-	warn("*** Cannot resolve hostname '" . $href->{'HOSTID'} . "'\n");
-	return 0;
-    }
-    $href->{'HOSTIP'} = inet_ntoa($hostip);
-
-    if ($class eq "SAN") {
-	if ($href->{'PROTO'} ne "iSCSI") {
-	    warn("*** SAN protocol '" .
-		 $href->{'PROTO'} . "' not implemented\n");
-	    return 0;
-	}
-	if ($href->{'UUID_TYPE'} ne "iqn" ||
-	    $href->{'UUID'} !~ /^$IQN_PREFIX/) {
-	    warn("*** Invalid iSCSI target name '" . $href->{'UUID'} . "'\n");
-	    return 0;
+    if ($href->{'CMD'} eq "ELEMENT") {
+	# look up the host name and convert to IP
+	if (exists($href->{'HOSTID'})) {
+	    my $hostip = gethostbyname($href->{'HOSTID'});
+	    if (!defined($hostip)) {
+		warn("*** Cannot resolve hostname '" . $href->{'HOSTID'} . "'\n");
+		return 0;
+	    }
+	    $href->{'HOSTIP'} = inet_ntoa($hostip);
 	}
 
-    }
-    elsif ($class eq "local") {
-	if ($href->{'HOSTID'} ne "localhost" ||
-	    $href->{'UUID_TYPE'} ne "serial") {
-	    warn("*** Unexpected parameters for local storage\n");
+	if ($class eq "SAN") {
+	    if ($href->{'PROTO'} ne "iSCSI") {
+		warn("*** SAN protocol '" .
+		     $href->{'PROTO'} . "' not implemented\n");
+		return 0;
+	    }
+	    if (!exists($href->{'HOSTID'})) {
+		warn("*** No iSCSI target portal specified\n");
+		return 0;
+	    }
+	    if ($href->{'UUID_TYPE'} ne "iqn" ||
+		$href->{'UUID'} !~ /^$IQN_PREFIX/) {
+		warn("*** Invalid iSCSI target name '".$href->{'UUID'}."'\n");
+		return 0;
+	    }
+
+	}
+	elsif ($class eq "local") {
+	    if ($href->{'HOSTID'} ne "localhost" ||
+		$href->{'UUID_TYPE'} ne "serial") {
+		warn("*** Unexpected parameters for local storage\n");
+		return 0;
+	    }
+	} else {
+	    warn("*** Unknown storage element class '$class'\n");
+	    return 0;
+	}
+    } elsif ($href->{'CMD'} eq "SLICE") {
+	if ($class ne "local") {
+	    warn("*** Unknown storage slice class '$class'\n");
+	    return 0;
+	}
+	if ($href->{'BSID'} !~ /^ALL_(SPACE|SYSVOL|NONSYSVOL)$/) {
+	    warn("*** Unknown storage slice bsid '".$href->{'BSID'}."'\n");
 	    return 0;
 	}
     } else {
-	warn("*** Unknown storage class '$class'\n");
+	warn("*** Unrecognized storage command '".$href->{'CMD'}."'\n");
 	return 0;
     }
 
-    my $exists = os_check_storage($href);
+    my $exists = os_check_storage($so, $href);
 
     #
     # Infrastructure failure or storage unit was partially configured.
@@ -268,25 +308,46 @@ sub process($$;$)
     #
     if ($exists > 0) {
 	if ($dosetup) {
-	    my $msg;
+	    if ($href->{'CMD'} eq "ELEMENT") {
+		my $msg;
 
-	    if ($href->{'PROTO'} eq "iSCSI") {
-		$msg = "iSCSI node";
-	    } elsif ($href->{'PROTO'} eq "local") {
-		$msg = "local disk";
+		if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
+		    $msg = "iSCSI node";
+		} elsif ($href->{'CLASS'} eq "local") {
+		    $msg = "local disk";
+		}
+		print "  " . $href->{'VOLNAME'} . ": $msg at /dev/" .
+		    $href->{'LNAME'};
+	    } elsif ($href->{'CMD'} eq "SLICE") {
+		if ($href->{'CLASS'} eq "local") {
+		    print "  " . $href->{'VOLNAME'} . ": /dev/" .
+			$href->{'LNAME'};
+		}
 	    }
-	    print "  " . $href->{'VOLNAME'} . ": $msg at /dev/" .
-		$href->{'LNAME'} . "\n";
+	    if ($href->{'MOUNTPOINT'}) {
+		print " mounted on " . $href->{'MOUNTPOINT'};
+	    }
+	    print "\n";
 	} else {
-	    if (!os_remove_storage($href, $doteardown)) {
+	    if (!os_remove_storage($so, $href, $doteardown)) {
 		warn("*** Could not remove storage device '" .
 		     $href->{'VOLNAME'} . "'\n");
 		return 0;
 	    }
-	    if ($href->{'PROTO'} eq "iSCSI") {
+	    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
 		print "  " . $href->{'VOLNAME'} .
 		    ": iSCSI node detached from /dev/" .
 		    $href->{'LNAME'} . "\n";
+	    } elsif ($href->{'CMD'} eq "SLICE") {
+		print "  " . $href->{'VOLNAME'} . ": ";
+		if ($href->{'MOUNTPOINT'}) {
+		    print "unmounted " . $href->{'MOUNTPOINT'} .
+			($doteardown ? " and " : " ");
+		}
+		if ($doteardown) {
+		    print "destroyed /dev/" . $href->{'LNAME'};
+		}
+		print "\n";
 	    }
 	}
 	return 1;
@@ -297,17 +358,29 @@ sub process($$;$)
     # If setting up, do it. Otherwise there is nothing to do.
     #
     if ($dosetup) {
-	if (!os_create_storage($href)) {
+	if (!os_create_storage($so, $href)) {
 	    warn("*** Could not create storage device '" .
 		 $href->{'VOLNAME'} . "'\n");
 	    return 0;
 	}
 
-	if ($href->{'PROTO'} eq "iSCSI") {
-	    print "  " . $href->{'VOLNAME'} .
-		": iSCSI node attached as /dev/" .
-		$href->{'LNAME'} . "\n";
+	if ($href->{'CMD'} eq "ELEMENT") {
+	    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
+		print "  " . $href->{'VOLNAME'} .
+		    ": iSCSI node attached as /dev/" .
+		    $href->{'LNAME'};
+	    }
 	}
+	elsif ($href->{'CMD'} eq "SLICE") {
+	    if ($href->{'CLASS'} eq "local") {
+		print "  " . $href->{'VOLNAME'} . ": /dev/" .
+		    $href->{'LNAME'};
+	    }
+	}
+	if ($href->{'MOUNTPOINT'}) {
+	    print " mounted on " . $href->{'MOUNTPOINT'};
+	}
+	print "\n";
     } else {
 	print "  " . $href->{'VOLNAME'} . ": not configured\n";
     }

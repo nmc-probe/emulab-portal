@@ -3347,13 +3347,13 @@ sub getarpinfo($;$)
 # line into a hash, verifying the fields.  Return sorted (by index)
 # list of storage commands hashes.
 #
-# Format:
+# ELEMENT format:
 #
 # CMD=ELEMENT IDX=<index> HOSTID=<some-storage-host> \
-# CLASS=(SAN|local) PROTO=(iSCSI|local) \
-# UUID=<unique-id> UUID_TYPE=<id-type> \
-# VOLNAME=<id> VOLSIZE=<size-in-MiB> PERMS=<permissions>
-# 
+#   CLASS=(SAN|local) PROTO=(iSCSI|local) \
+#   UUID=<unique-id> UUID_TYPE=<id-type> \
+#   VOLNAME=<id> VOLSIZE=<size-in-MiB> PERMS=<permissions>
+#
 # Where:
 #  
 # if CLASS=="SAN" && PROTO=="iSCSI" :
@@ -3388,6 +3388,31 @@ sub getarpinfo($;$)
 #   \d+ -- size in mebibytes. Informational; could be used for sanity checking.
 # PERMS :=
 #   <notpresent> -- this field will not show up for local elements
+#
+# SLICE format:
+#
+# CMD=SLICE IDX=<index> CLASS=local PROTO=<SAS|SCSI|SATA> \
+#   BSID=<local-disk-id> VOLNAME=<id> VOLSIZE=<size-in-MiB> MOUNTPOINT=<dir>
+#
+# Where:
+#  
+# if CLASS=="local" :
+# IDX :=
+#   \d+ -- monotonically increasing number indicating order of operations
+# BSID :=
+#   (ALL_SPACE|ALL_SYSVOL|ALL_NONSYSVOL) -- i.e. where to take space from
+#   "ALL_SPACE" will take from any disk, possibly from multiple disks via
+#	use of a logical volume manager
+#   "ALL_SYSVOL" will take from any remaining space on the boot disk
+#   "ALL_NONSYSVOL" will take from any space on any non-boot disk, possibly
+#	from multiple disks via a LVM.
+# VOLNAME :=
+#   string -- Emulab name for the element
+# VOLSIZE :=
+#   \d+ -- size in mebibytes
+# MOUNTPOINT :=
+#   If specified, implies the creation of a filesystem and mounting on
+#   the indicated directory.
 # 
 sub getstorageconfig($;$) {
     my ($rptr,$nocache) = @_;
@@ -3409,8 +3434,9 @@ sub getstorageconfig($;$) {
         'BSID'    => '[-\w]+',
 	'CLASS'	  => '(SAN|local)',
 	'HOSTID'  => '[-\w\.]+',
+	'MOUNTPOINT' => '\/[-\w\/\.]+',
 	'PERMS'	  => '(RO|RW)',
-	'PROTO'	  => '(iSCSI|local)',
+	'PROTO'	  => '(iSCSI|local|SCSI|SAS|SATA|PATA|IDE)',
 	'UUID'	  => '[-\w\.:]+',
 	'UUID_TYPE'=> '(iqn|serial)',
 	'VOLNAME' => '[-\w]+',
