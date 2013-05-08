@@ -165,6 +165,24 @@ if (! -e "/var/run/mkvnode.ready") {
 my @nodetypes = ( GENVNODETYPE() );
 
 #
+# Need the domain, but no conistent way to do it. Ask tmcc for the
+# boss node and parse out the domain. 
+#
+my ($DOMAINNAME,$BOSSIP) = tmccbossinfo();
+die("Could not get bossname from tmcc!")
+    if (!defined($DOMAINNAME));
+
+if ($DOMAINNAME =~ /^[-\w]+\.(.*)$/) {
+    $DOMAINNAME = $1;
+}
+else {
+    die("Could not parse domain name!");
+}
+if ($BOSSIP !~ /^\d+\.\d+\.\d+\.\d+$/) {
+    die "Bad bossip '$BOSSIP' from bossinfo!";
+}
+
+#
 # We go through this crap so that we can pull in multiple packages implementing
 # the libvnode API so they (hopefully) won't step on our namespace too much.
 #
@@ -190,7 +208,7 @@ foreach my $type (@nodetypes) {
 
     # need to do this for each type encountered. 
     TBDebugTimeStampWithDate("starting $type rootPreConfig()");
-    $libops{$type}{'rootPreConfig'}->();
+    $libops{$type}{'rootPreConfig'}->($BOSSIP);
     TBDebugTimeStampWithDate("finished $type rootPreConfig()");
 }
 if ($debug) {
@@ -198,23 +216,6 @@ if ($debug) {
     print "libops:\n" . Dumper(%libops);
 }
 
-#
-# Need the domain, but no conistent way to do it. Ask tmcc for the
-# boss node and parse out the domain. 
-#
-my ($DOMAINNAME,$BOSSIP) = tmccbossinfo();
-die("Could not get bossname from tmcc!")
-    if (!defined($DOMAINNAME));
-
-if ($DOMAINNAME =~ /^[-\w]+\.(.*)$/) {
-    $DOMAINNAME = $1;
-}
-else {
-    die("Could not parse domain name!");
-}
-if ($BOSSIP !~ /^\d+\.\d+\.\d+\.\d+$/) {
-    die "Bad bossip '$BOSSIP' from bossinfo!";
-}
 
 #
 # This holds the container state set up by the library. There is state

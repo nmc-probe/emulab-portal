@@ -111,6 +111,7 @@ my $BRCTL = "brctl";
 my $IFCONFIG = "/sbin/ifconfig";
 my $ETHTOOL = "/sbin/ethtool";
 my $ROUTE = "/sbin/route";
+my $IP = "/sbin/ip";
 my $SYSCTL = "/sbin/sysctl";
 my $VLANCONFIG = "/sbin/vconfig";
 my $MODPROBE = "/sbin/modprobe";
@@ -287,8 +288,9 @@ sub setDebug($)
 # Called on each vnode, but should only be executed once per boot.
 # We use a file in /var/run (cleared on reboots) to ensure this.
 #
-sub rootPreConfig()
+sub rootPreConfig($)
 {
+    my $bossip = shift;
     #
     # Haven't been called yet, grab the lock and double check that someone
     # didn't do it while we were waiting.
@@ -465,6 +467,12 @@ sub rootPreConfig()
     print "Creating dhcp.conf skeleton...\n"
         if ($debug);
     createDHCP();
+
+    # Set up for metadata server for ec2 support
+    print "Setting up redirection for meta server...\n";
+    mysystem("$IP addr add 169.254.169.254/32 scope global dev $cnet_iface");
+    mysystem("$IPTABLES -t nat -A PREROUTING -d 169.254.169.254/32 -p tcp " .
+        "-m tcp --dport 80 -j DNAT --to-destination " . $bossip . ":8787");
 
     print "Creating scratch FS ...\n";
     if (createExtraFS($EXTRAFS, $VGNAME, "50G")) {
