@@ -250,6 +250,14 @@ Blockstore instproc finalize {} {
 	    incr sofullplacements($nodeplace) 1
 	}
 
+	# Check that there is only one sysvol placement per node
+	set systotal [expr $sopartialplacements($nodeplace) + \
+			   $sofullplacements($nodeplace)]
+	if { $myplace == "SYSVOL" && $systotal > 1 } {
+	    perror "Only one sysvol placement allowed per node!"
+	    return
+	}
+
 	# Sanity check for full placements.  There can be only one per node
 	# per placement type.
 	if { $sofullplacements($nodeplace) > 1 ||
