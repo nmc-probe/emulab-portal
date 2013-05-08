@@ -600,6 +600,14 @@ Simulator instproc run {} {
 	}
     }
 
+    # Finalize the blockstore objects - last minute initialization and checks
+    # before they are spit out to the db.
+    foreach bstore [array names blockstore_list] {
+	if {[$bstore finalize] != 0} {
+	    break
+	}
+    }
+
     # If any errors occur stop here.
     if {$errors == 1} {return}
 
@@ -661,12 +669,6 @@ Simulator instproc run {} {
  	append nsecfg_script $nseconfig
 
 	$self spitxml_data "nseconfigs" [list "vname" "nseconfig" ] [list fullsim $nsecfg_script ]
-    }
-
-    # Finalize the blockstore objects - last minute allocations and checks
-    # before they are spit out to the db.
-    foreach blockstore [array names blockstore_list] {
-	$blockstore finalize
     }
     
     # Update the DB

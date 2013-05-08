@@ -71,6 +71,7 @@ Blockstore instproc set-class {newclass} {
 
     if {![info exists soclasses($newclass)]} {
 	perror "\[set-class] Invalid storage class: $newclass"
+	return
     }
 
     set attributes(class) $newclass
@@ -83,6 +84,7 @@ Blockstore instproc set-protocol {newproto} {
 
     if {![info exists soprotocols($newproto)]} {
 	perror "\[set-protocol] Invalid storage protocol: $newproto"
+	return
     }
 
     set attributes(protocol) $newproto
@@ -95,6 +97,7 @@ Blockstore instproc set-type {newtype} {
 
     if {![info exists sotypes($newtype)]} {
 	perror "\[set-type] Invalid storage object type: $newtype"
+	return
     }
 
     set type $type
@@ -108,6 +111,7 @@ Blockstore instproc set-placement {newplace} {
     set newplace [string toupper $newplace]
     if {![info exists soplacementdesires($newplace)]} {
 	perror "Invalid placement specified: $newplace"
+	return
     }
 
     set attributes(placement) $newplace
@@ -126,11 +130,13 @@ Blockstore instproc set-mount-point {newmount} {
     #  * Optionally end with a forward slash
     if {![regexp {^(/\w+){1,}/?$} $newmount]} {
 	perror "Bad mountpoint: $newmount"
+	return
     }
 
     # Try to prevent user from shooting their own foot.
     if {[lsearch -exact $sodisallowedmounts $newmount] != -1} {
 	perror "Cannot mount over important system directory: $newmount"
+	return
     }
 
     set attributes(mountpoint) $newmount
@@ -149,6 +155,7 @@ Blockstore instproc set-size {newsize} {
     # Do some boundary checks.
     if { $convsize < $mindisksize } {
 	perror "\[set-size] $newsize is smaller than allowed minimum (1 MiB)"
+	return
     }
 
     set size $convsize
@@ -255,7 +262,7 @@ Blockstore instproc finalize {} {
 			   $sofullplacements($nodeplace)]
 	if { $myplace == "SYSVOL" && $systotal > 1 } {
 	    perror "Only one sysvol placement allowed per node!"
-	    return
+	    return -1
 	}
 
 	# Sanity check for full placements.  There can be only one per node
@@ -264,7 +271,7 @@ Blockstore instproc finalize {} {
 	     ($sofullplacements($nodeplace) == 1 &&
 	      $sopartialplacements($nodeplace) > 0) } {
 	    perror "Full placement collision detected ($node:$myplace)!"
-	    return
+	    return -1
 	}
 
 	# Look for an incompatible mix of "ANY" and other placements (per-node).
@@ -277,13 +284,13 @@ Blockstore instproc finalize {} {
 	}
 	if {$srchres != -1} {
 	    perror "Incompatible mix of 'ANY' and other placements ($node)!"
-	    return
+	    return -1
 	}
 
     } else {
 	if {[info exists attributes(placement)]} {
 	    perror "Placement setting can only be used with a local blockstore."
-	    return
+	    return -1
 	}
     }
 
@@ -313,12 +320,13 @@ Blockstore instproc finalize {} {
 	    }
 	    if {!$diff} {
 		perror "Mount collision or nested mount detected on $node: $mymount, $nodemount"
-		return
+		return -1
 	    }
 	}
 	lappend sonodemounts($node) $mymount
     }
-
+    
+    return 0
 }
 
 # updatedb DB
