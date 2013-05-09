@@ -763,9 +763,13 @@ pki.rsa.setPublicKey = function(n, e) {
        var obj = asn1.fromDer(d);
 
        // compare the given digest to the decrypted one
-       return digest === obj.value[1].value;
+	   var result = digest === obj.value[1].value;
+	   forge.log.debug('forge.rsa', "key.verify result with no scheme was " + result);
+       return result;
      } else {
-       return scheme.verify(digest, d, key.n.bitLength());
+	   var result = scheme.verify(digest, d, key.n.bitLength());
+	   forge.log.debug('forge.rsa', "key.verify result using scheme was " + result);
+       return result;
      }
   };
 

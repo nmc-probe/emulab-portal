@@ -29,12 +29,14 @@
 
 package com.flack.geni.resources.virt.extensions.stitching
 {
+	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.shared.resources.IdentifiableObject;
 	import com.flack.shared.resources.IdnUrn;
 	
 	public class StitchingLink extends IdentifiableObject
 	{
 		public var remoteLinkId:IdnUrn = new IdnUrn();
+		public var manager:GeniManager = null;
 		public var trafficEngineeringMetric:Number = NaN;
 		public var capacity:Number = NaN;
 		public var maximumReservableCapacity:Number = NaN;
@@ -43,9 +45,10 @@ package com.flack.geni.resources.virt.extensions.stitching
 		public var unreservedCapacity:Number = NaN;
 		public var switchingCapabilityDescriptors:SwitchingCapabilityDescriptorCollection = new SwitchingCapabilityDescriptorCollection();
 		
-		public function StitchingLink(newId:String="")
+		public function StitchingLink(newId:String="", newManager:GeniManager=null)
 		{
 			super(newId);
+			manager = newManager;
 		}
 	}
 }

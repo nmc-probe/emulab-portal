@@ -46,6 +46,7 @@ package com.flack.geni.resources.virt.extensions.stitching
 		public var scheduledServices:Boolean = false;
 		public var negotiatedServices:Boolean = false;
 		//lifetime
+		//capabilities
 		
 		public var nodes:StitchingNodeCollection = new StitchingNodeCollection();
 		public var ports:StitchingPortCollection = new StitchingPortCollection();

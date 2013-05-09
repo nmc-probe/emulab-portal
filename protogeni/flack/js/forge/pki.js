@@ -5,7 +5,7 @@
  * @author Dave Longley
  * @author Stefan Siegl <stesie@brokenpipe.de>
  *
- * Copyright (c) 2010-2012 Digital Bazaar, Inc.
+ * Copyright (c) 2010-2013 Digital Bazaar, Inc.
  * Copyright (c) 2012 Stefan Siegl <stesie@brokenpipe.de>
  *
  * The ASN.1 representation of an X.509v3 certificate is as follows
@@ -283,7 +283,7 @@ var x509CertificateValidator = {
     tagClass: asn1.Class.UNIVERSAL,
     type: asn1.Type.SEQUENCE,
     constructed: true,
-    captureAsn1: 'certTbs',
+    captureAsn1: 'tbsCertificate',
     value: [{
       name: 'Certificate.TBSCertificate.version',
       tagClass: asn1.Class.CONTEXT_SPECIFIC,
@@ -331,14 +331,18 @@ var x509CertificateValidator = {
       tagClass: asn1.Class.UNIVERSAL,
       type: asn1.Type.SEQUENCE,
       constructed: true,
+      // Note: UTC and generalized times may both appear so the capture
+      // names are based on their detected order, the names used below
+      // are only for the common case, which validity time really means
+      // "notBefore" and which means "notAfter" will be determined by order
       value: [{
         // notBefore (Time) (UTC time case)
-        name: 'Certificate.TBSCertificate.validity.notBefore',
+        name: 'Certificate.TBSCertificate.validity.notBefore (utc)',
         tagClass: asn1.Class.UNIVERSAL,
         type: asn1.Type.UTCTIME,
         constructed: false,
         optional: true,
-        capture: 'certNotBefore'
+        capture: 'certValidity1UTCTime'
       }, {
         // notBefore (Time) (generalized time case)
         name: 'Certificate.TBSCertificate.validity.notBefore (generalized)',
@@ -346,23 +350,23 @@ var x509CertificateValidator = {
         type: asn1.Type.GENERALIZEDTIME,
         constructed: false,
         optional: true,
-        capture: 'certNotBeforeGeneralized'
+        capture: 'certValidity2GeneralizedTime'
       }, {
         // notAfter (Time) (only UTC time is supported)
-        name: 'Certificate.TBSCertificate.validity.notAfter',
+        name: 'Certificate.TBSCertificate.validity.notAfter (utc)',
         tagClass: asn1.Class.UNIVERSAL,
         type: asn1.Type.UTCTIME,
         constructed: false,
         optional: true,
-        capture: 'certNotAfter'
+        capture: 'certValidity3UTCTime'
       }, {
         // notAfter (Time) (only UTC time is supported)
-        name: 'Certificate.TBSCertificate.validity.notAfter',
+        name: 'Certificate.TBSCertificate.validity.notAfter (generalized)',
         tagClass: asn1.Class.UNIVERSAL,
         type: asn1.Type.GENERALIZEDTIME,
         constructed: false,
         optional: true,
-        capture: 'certNotAfterGeneralized'
+        capture: 'certValidity4GeneralizedTime'
       }]
     }, {
       // Name (subject) (RDNSequence)
@@ -771,6 +775,7 @@ pki.RDNAttributesAsArray = function(rdn, md) {
       attr = set.value[i];
       obj.type = asn1.derToOid(attr.value[0].value);
       obj.value = attr.value[1].value;
+      obj.valueTagClass = attr.value[1].type;
       // if the OID is known, get its name and short name
       if(obj.type in oids) {
         obj.name = oids[obj.type];
@@ -1538,7 +1543,8 @@ pki.createCertificate = function() {
     cert.md = forge.md.sha1.create();
 
     // get TBSCertificate, convert to DER
-    var bytes = asn1.toDer(pki.getTBSCertificate(cert));
+    cert.tbsCertificate = pki.getTBSCertificate(cert);
+    var bytes = asn1.toDer(cert.tbsCertificate);
 
     // digest and sign
     cert.md.update(bytes.getBytes());
@@ -1556,14 +1562,47 @@ pki.createCertificate = function() {
   cert.verify = function(child) {
     var rval = false;
 
-    if(child.md !== null) {
-      var scheme;
+    var md = child.md;
+    if(md === null) {
+      // check signature OID for supported signature types
+      if(cert.signatureOid in oids) {
+        var oid = oids[cert.signatureOid];
+        switch(oid) {
+        case 'sha1withRSAEncryption':
+          md = forge.md.sha1.create();
+          break;
+        case 'md5withRSAEncryption':
+          md = forge.md.md5.create();
+          break;
+        case 'sha256WithRSAEncryption':
+          md = forge.md.sha256.create();
+          break;
+        case 'RSASSA-PSS':
+          md = forge.md.sha256.create();
+          break;
+        }
+      }
+      if(md === null) {
+        throw {
+          message: 'Could not compute certificate digest. ' +
+            'Unknown signature OID.',
+          signatureOid: cert.signatureOid
+        };
+      }
+
+      // produce DER formatted TBSCertificate and digest it
+      var tbsCertificate = child.tbsCertificate || pki.getTBSCertificate(child);
+      var bytes = asn1.toDer(tbsCertificate);
+      md.update(bytes.getBytes());
+    }
+
+    if(md !== null) {
+      var scheme = undefined;
 
       switch(child.signatureOid) {
       case oids['sha1withRSAEncryption']:
         scheme = undefined;  /* use PKCS#1 v1.5 padding scheme */
         break;
-
       case oids['RSASSA-PSS']:
         var hash, mgf;
 
@@ -1605,7 +1644,7 @@ pki.createCertificate = function() {
 
       // verify signature on cert using public key
       rval = cert.publicKey.verify(
-        child.md.digest().getBytes(), child.signature, scheme);
+        md.digest().getBytes(), child.signature, scheme);
     }
 
     return rval;
@@ -1700,33 +1739,38 @@ pki.certificateFromAsn1 = function(obj, computeHash) {
   ++signature.read;
   cert.signature = signature.getBytes();
 
-  if(capture.certNotBefore !== undefined) {
-    cert.validity.notBefore = asn1.utcTimeToDate(capture.certNotBefore);
+  var validity = [];
+  if(capture.certValidity1UTCTime !== undefined) {
+    validity.push(asn1.utcTimeToDate(capture.certValidity1UTCTime));
   }
-  else if(capture.certNotBeforeGeneralized !== undefined) {
-    cert.validity.notBefore = asn1.generalizedTimeToDate
-      (capture.certNotBeforeGeneralized);
+  if(capture.certValidity2GeneralizedTime !== undefined) {
+    validity.push(asn1.generalizedTimeToDate(
+      capture.certValidity2GeneralizedTime));
   }
-  else {
+  if(capture.certValidity3UTCTime !== undefined) {
+    validity.push(asn1.utcTimeToDate(capture.certValidity3UTCTime));
+  }
+  if(capture.certValidity4GeneralizedTime !== undefined) {
+    validity.push(asn1.generalizedTimeToDate(
+      capture.certValidity4GeneralizedTime));
+  }
+  if(validity.length > 2) {
     throw {
-      message: 'Cannot read notBefore time, neither provided as UTCTime ' +
-        'nor as GeneralizedTime.'
+      message: 'Cannot read notBefore/notAfter validity times; more than ' +
+        'two times were provided in the certificate.'
     };
   }
+  if(validity.length < 2) {
+    throw {
+      message: 'Cannot read notBefore/notAfter validity times; they were not ' +
+        'provided as either UTCTime or GeneralizedTime.'
+    };
+  }
+  cert.validity.notBefore = validity[0];
+  cert.validity.notAfter = validity[1];
 
-  if(capture.certNotAfter !== undefined) {
-    cert.validity.notAfter = asn1.utcTimeToDate(capture.certNotAfter);
-  }
-  else if(capture.certNotAfterGeneralized !== undefined) {
-    cert.validity.notAfter = asn1.generalizedTimeToDate
-      (capture.certNotAfterGeneralized);
-  }
-  else {
-    throw {
-      message: 'Cannot read notAfter time, neither provided as UTCTime ' +
-        'nor as GeneralizedTime.'
-    };
-  }
+  // keep TBSCertificate to preserve signature when exporting
+  cert.tbsCertificate = capture.tbsCertificate;
 
   if(computeHash) {
     // check signature OID for supported signature types
@@ -1734,21 +1778,18 @@ pki.certificateFromAsn1 = function(obj, computeHash) {
     if(cert.signatureOid in oids) {
       var oid = oids[cert.signatureOid];
       switch(oid) {
-        case 'sha1withRSAEncryption':
-          cert.md = forge.md.sha1.create();
-          break;
-
-        case 'md5withRSAEncryption':
-          cert.md = forge.md.md5.create();
-          break;
-
-        case 'sha256WithRSAEncryption':
-          cert.md = forge.md.sha256.create();
-          break;
-
-        case 'RSASSA-PSS':
-          cert.md = forge.md.sha256.create();
-          break;
+      case 'sha1withRSAEncryption':
+        cert.md = forge.md.sha1.create();
+        break;
+      case 'md5withRSAEncryption':
+        cert.md = forge.md.md5.create();
+        break;
+      case 'sha256WithRSAEncryption':
+        cert.md = forge.md.sha256.create();
+        break;
+      case 'RSASSA-PSS':
+        cert.md = forge.md.sha256.create();
+        break;
       }
     }
     if(cert.md === null) {
@@ -1760,7 +1801,7 @@ pki.certificateFromAsn1 = function(obj, computeHash) {
     }
 
     // produce DER formatted TBSCertificate and digest it
-    var bytes = asn1.toDer(capture.certTbs);
+    var bytes = asn1.toDer(cert.tbsCertificate);
     cert.md.update(bytes.getBytes());
   }
 
@@ -1811,6 +1852,18 @@ _dnToAsn1 = function(obj) {
   var attrs = obj.attributes;
   for(var i = 0; i < attrs.length; ++i) {
     attr = attrs[i];
+    var value = attr.value;
+
+    // reuse tag class for attribute value if available
+    var valueTagClass = asn1.Type.PRINTABLESTRING;
+    if('valueTagClass' in attr) {
+      valueTagClass = attr.valueTagClass;
+
+      if(valueTagClass === asn1.Type.UTF8) {
+        value = forge.util.encodeUtf8(value);
+      }
+      // FIXME: handle more encodings
+    }
 
     // create a RelativeDistinguishedName set
     // each value in the set is an AttributeTypeAndValue first
@@ -1821,10 +1874,7 @@ _dnToAsn1 = function(obj) {
         asn1.create(asn1.Class.UNIVERSAL, asn1.Type.OID, false,
           asn1.oidToDer(attr.type).getBytes()),
         // AttributeValue
-        // TODO: make value types more sophisticated
-        asn1.create(
-          asn1.Class.UNIVERSAL, asn1.Type.PRINTABLESTRING, false,
-          attr.value)
+        asn1.create(asn1.Class.UNIVERSAL, valueTagClass, false, value)
       ])
     ]);
     rval.value.push(set);
@@ -2028,10 +2078,13 @@ pki.distinguishedNameToAsn1 = function(dn) {
  * @return the asn1 representation of an X.509v3 RSA certificate.
  */
 pki.certificateToAsn1 = function(cert) {
+  // prefer cached TBSCertificate over generating one
+  var tbsCertificate = cert.tbsCertificate || pki.getTBSCertificate(cert);
+
   // Certificate
   return asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [
     // TBSCertificate
-    pki.getTBSCertificate(cert),
+    tbsCertificate,
     // AlgorithmIdentifier (signature algorithm)
     asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [
       // algorithm
@@ -2323,16 +2376,20 @@ pki.verifyCertificateChain = function(caStore, chain, verify) {
       var verified = false;
       if(chain.length > 0) {
         // verify using parent
+		  forge.log.debug('forge.pki.verifyCertificateChain', "verifying using parent");
         parent = chain[0];
         try {
           verified = parent.verify(cert);
+		  forge.log.debug('forge.pki.verifyCertificateChain', "parent.verify result was " + verified);
         }
         catch(ex) {
+		  forge.log.debug('forge.pki.verifyCertificateChain', "parent.verify resulted in an exception: " + ex.message);
           // failure to verify, don't care why, just fail
         }
       }
       // get parent(s) from CA store
       else {
+		  forge.log.debug('forge.pki.verifyCertificateChain', "verifying using parents from the caStore");
         var parents = caStore.getIssuer(cert);
         if(parents === null) {
           // no parent issuer, so certificate not trusted
@@ -2351,12 +2408,15 @@ pki.verifyCertificateChain = function(caStore, chain, verify) {
           }
 
           // multiple parents to try verifying with
+		  forge.log.debug('forge.pki.verifyCertificateChain', "trying against any parent");
           while(!verified && parents.length > 0) {
             parent = parents.shift();
             try {
               verified = parent.verify(cert);
+		      forge.log.debug('forge.pki.verifyCertificateChain', "parent.verify result was " + verified);
             }
             catch(ex) {
+		      forge.log.debug('forge.pki.verifyCertificateChain', "parent.verify resulted in an exception (need to try next cert): " + ex.message);
               // failure to verify, try next one
             }
           }

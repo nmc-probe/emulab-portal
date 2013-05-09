@@ -213,11 +213,9 @@ package com.flack.geni.resources.sites
 		public function getById(findId:String):*
 		{
 			var component:* = nodes.getById(findId);
-			if(component != null)
-				return component;
+			if(component != null) return component;
 			component = stitching.getById(findId);
-			if(component != null)
-				return component;
+			if(component != null) return component;
 			return nodes.getInterfaceById(findId);
 		}
 		

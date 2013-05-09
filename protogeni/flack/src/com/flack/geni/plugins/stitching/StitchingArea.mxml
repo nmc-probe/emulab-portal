@@ -39,9 +39,11 @@ IN THE WORK.
 					Title="Stitching">
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.display.DisplayUtil;
 			import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 			import com.flack.geni.tasks.xmlrpc.scs.ComputePathTask;
 			import com.flack.shared.SharedMain;
+			import com.flack.shared.display.windows.DocumentWindow;
 			import com.flack.shared.tasks.Task;
 			import com.flack.shared.tasks.TaskEvent;
 			
@@ -70,7 +72,10 @@ IN THE WORK.
 				if(event.task.Status == Task.STATUS_SUCCESS)
 				{
 					var computePath:ComputePathTask = event.task as ComputePathTask;
-					Alert.show(computePath.serviceRspec, "Service RSPEC");
+					var viewResult:DocumentWindow = new DocumentWindow();
+					viewResult.showWindow();
+					viewResult.title = "Service RSPEC";
+					viewResult.Document = computePath.serviceRspec;
 				}
 			}
 			

@@ -460,7 +460,7 @@ package com.flack.geni.tasks.process
 								var stitchingLinks:XMLList = stitchingPortObj.stitchingNamepace::link;
 								for each(var stitchingLinkObj:XML in stitchingLinks)
 								{
-									var newStitchingLink:StitchingLink = new StitchingLink(String(stitchingLinkObj.@id));
+									var newStitchingLink:StitchingLink = new StitchingLink(String(stitchingLinkObj.@id), manager);
 									if (stitchingLinkObj.stitchingNamepace::remoteLinkId.length() == 1) {
 										newStitchingLink.remoteLinkId.full = String(stitchingLinkObj.stitchingNamepace::remoteLinkId);
 									}

@@ -143,7 +143,10 @@ if(typeof(window) !== 'undefined') {
 // define node.js module
 else if(typeof(module) !== 'undefined' && module.exports) {
   var forge = {
-    util: require('./util')
+    util: require('./util'),
+    pki: {
+      oids: require('./oids')
+    }
   };
   module.exports = forge.asn1 = {};
 }
@@ -205,6 +208,18 @@ asn1.create = function(tagClass, type, constructed, value) {
     constructed, it will contain a list of other asn1 objects. If not,
     it will contain the ASN.1 value as an array of bytes formatted
     according to the ASN.1 data type. */
+
+  // remove undefined values
+  if(value.constructor == Array) {
+    var tmp = [];
+    for(var i = 0; i < value.length; ++i) {
+      if(value[i] !== undefined) {
+        tmp.push(value[i]);
+      }
+    }
+    value = tmp;
+  }
+
   return {
     tagClass: tagClass,
     type: type,
@@ -366,7 +381,8 @@ asn1.fromDer = function(bytes) {
       for(var i = 0; i < length; i += 2) {
         value += String.fromCharCode(bytes.getInt16());
       }
-    } else {
+    }
+    else {
       value = bytes.getBytes(length);
     }
   }
@@ -412,7 +428,14 @@ asn1.toDer = function(obj) {
   }
   // use asn1.value directly
   else {
-    value.putBytes(obj.value);
+    if(obj.type === asn1.Type.BMPSTRING) {
+      for(var i = 0; i < obj.value.length; ++i) {
+        value.putInt16(obj.value.charCodeAt(i));
+      }
+    }
+    else {
+      value.putBytes(obj.value);
+    }
   }
 
   // add tag byte
@@ -883,64 +906,72 @@ asn1.prettyPrint = function(obj, level, indentation) {
   }
 
   if(obj.tagClass === asn1.Class.UNIVERSAL) {
+    rval += obj.type;
+
     // known types
     switch(obj.type) {
     case asn1.Type.NONE:
-      rval += 'None';
+      rval += ' (None)';
       break;
     case asn1.Type.BOOLEAN:
-      rval += 'Boolean';
+      rval += ' (Boolean)';
       break;
     case asn1.Type.BITSTRING:
-      rval += 'Bit string';
+      rval += ' (Bit string)';
       break;
     case asn1.Type.INTEGER:
-      rval += 'Integer';
+      rval += ' (Integer)';
       break;
     case asn1.Type.OCTETSTRING:
-      rval += 'Octet string';
+      rval += ' (Octet string)';
       break;
     case asn1.Type.NULL:
-      rval += 'Null';
+      rval += ' (Null)';
       break;
     case asn1.Type.OID:
-      rval += 'Object Identifier';
+      rval += ' (Object Identifier)';
       break;
     case asn1.Type.ODESC:
-      rval += 'Object Descriptor';
+      rval += ' (Object Descriptor)';
       break;
     case asn1.Type.EXTERNAL:
-      rval += 'External or Instance of';
+      rval += ' (External or Instance of)';
       break;
     case asn1.Type.REAL:
-      rval += 'Real';
+      rval += ' (Real)';
       break;
     case asn1.Type.ENUMERATED:
-      rval += 'Enumerated';
+      rval += ' (Enumerated)';
       break;
     case asn1.Type.EMBEDDED:
-      rval += 'Embedded PDV';
+      rval += ' (Embedded PDV)';
+      break;
+    case asn1.Type.UTF8:
+      rval += ' (UTF8)';
       break;
     case asn1.Type.ROID:
-      rval += 'Relative Object Identifier';
+      rval += ' (Relative Object Identifier)';
       break;
     case asn1.Type.SEQUENCE:
-      rval += 'Sequence';
+      rval += ' (Sequence)';
       break;
     case asn1.Type.SET:
-      rval += 'Set';
+      rval += ' (Set)';
       break;
     case asn1.Type.PRINTABLESTRING:
-      rval += 'Printable String';
+      rval += ' (Printable String)';
       break;
     case asn1.Type.IA5String:
-      rval += 'IA5String (ASCII)';
+      rval += ' (IA5String (ASCII))';
       break;
     case asn1.Type.UTCTIME:
-      rval += 'UTC time';
+      rval += ' (UTC time)';
       break;
-    default:
-      rval += obj.type;
+    case asn1.Type.GENERALIZEDTIME:
+      rval += ' (Generalized time)';
+      break;
+    case asn1.Type.BMPSTRING:
+      rval += ' (BMP String)';
       break;
     }
   }
@@ -952,18 +983,32 @@ asn1.prettyPrint = function(obj, level, indentation) {
   rval += indent + 'Constructed: ' + obj.constructed + '\n';
 
   if(obj.composed) {
-    rval += indent + 'Sub values: ' + obj.value.length;
+    var subvalues = 0;
+    var sub = '';
     for(var i = 0; i < obj.value.length; ++i) {
-      rval += asn1.prettyPrint(obj.value[i], level + 1, indentation);
-      if((i + 1) < obj.value.length) {
-        rval += ',';
+      if(obj.value[i] !== undefined) {
+        subvalues += 1;
+        sub += asn1.prettyPrint(obj.value[i], level + 1, indentation);
+        if((i + 1) < obj.value.length) {
+          sub += ',';
+        }
       }
     }
+    rval += indent + 'Sub values: ' + subvalues + sub;
   }
   else {
     rval += indent + 'Value: ';
+    if(obj.type === asn1.Type.OID) {
+      var oid = asn1.derToOid(obj.value);
+      rval += oid;
+      if(forge.pki && forge.pki.oids) {
+        if(oid in forge.pki.oids) {
+          rval += ' (' + forge.pki.oids[oid] + ')';
+        }
+      }
+    }
     // FIXME: choose output (hex vs. printable) based on asn1.Type
-    if(_nonLatinRegex.test(obj.value)) {
+    else if(_nonLatinRegex.test(obj.value)) {
       rval += '0x' + forge.util.createBuffer(obj.value, 'utf8').toHex();
     }
     else if(obj.value.length === 0) {

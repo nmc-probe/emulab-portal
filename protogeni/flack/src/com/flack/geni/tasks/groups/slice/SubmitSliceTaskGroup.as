@@ -38,10 +38,8 @@ package com.flack.geni.tasks.groups.slice
 	import com.flack.geni.resources.virt.AggregateSliverCollectionCollection;
 	import com.flack.geni.resources.virt.Slice;
 	import com.flack.geni.resources.virt.Sliver;
-	import com.flack.geni.resources.virt.VirtualLinkCollection;
 	import com.flack.geni.resources.virt.VirtualNode;
 	import com.flack.geni.resources.virt.extensions.stitching.StitchingDependency;
-	import com.flack.geni.tasks.groups.GetResourcesTaskGroup;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.sa.GetUserKeysSaTask;
 	import com.flack.geni.tasks.xmlrpc.scs.ComputePathTask;
@@ -139,6 +137,8 @@ package com.flack.geni.tasks.groups.slice
 				slice.markStaged();
 				
 				// If stitching is needed, do that first.
+				// TODO: Put back in when stitching is working.
+				/*
 				if(slice.links.Stitched.UnsubmittedChanges)
 				{
 					addMessage(
@@ -160,19 +160,19 @@ package com.flack.geni.tasks.groups.slice
 				}
 				// Otherwise just calculate changes and submit.
 				else
-				{
+				{*/
 					calculateChanges();
 					
 					if(tryApplyChanges())
 						return;
-				}
+				/*}*/
 			}
 			super.runStart();
 		}
 		
 		private function calculateChanges():void
 		{
-			var newManagers:GeniManagerCollection = slice.nodes.Managers;
+			var newManagers:GeniManagerCollection = slice.Managers;
 			deleteAggregateSlivers = new AggregateSliverCollection();
 			updateAggregateSlivers = new AggregateSliverCollection();
 			newAggregateSlivers = new AggregateSliverCollection();

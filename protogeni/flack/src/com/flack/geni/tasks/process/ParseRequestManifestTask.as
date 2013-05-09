@@ -1134,11 +1134,20 @@ package com.flack.geni.tasks.process
 								if (advertisedLink == null || advertisedLink.id.full != linkId) {
 									advertisedLink = GeniMain.geniUniverse.managers.getComponentById(linkId) as StitchingLink;
 									hop.advertisedLink = advertisedLink;
+									
+									if (advertisedLink == null) {
+										addMessage(
+											"Advertised stitching link '"+linkId+"' was not found.",
+											"Advertised stitching link '"+linkId+"' was not found.",
+											LogMessage.LEVEL_WARNING
+										);
+										continue;
+									}
 								}
 								
 								var requestLink:StitchingLink = hop.requestLink;
 								if (requestLink == null || requestLink.id.full != linkId) {
-									requestLink = new StitchingLink(linkId);
+									requestLink = new StitchingLink(linkId, advertisedLink.manager);
 									hop.requestLink = requestLink;
 								}
 								

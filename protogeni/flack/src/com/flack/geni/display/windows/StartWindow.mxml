@@ -47,6 +47,8 @@ IN THE WORK.
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
+			
+			import flash.net.navigateToURL;
 		]]>
 	</fx:Script>
 	
@@ -57,6 +59,11 @@ IN THE WORK.
 			  icon="{ImageUtil.authenticationIcon}"
 			  toolTip="Log in to view and be able to allocate resources"
 			  click="GeniMain.geniUniverse.loadAuthenticated(); closeWindow();" />
+	<s:Button label="Back to stable Flack" id="goOlderButton"
+			  width="50%" height="28"
+			  icon="{ImageUtil.leftIcon}"
+			  toolTip="Launch the previous version of stable Flack"
+			  click="navigateToURL(new URLRequest('https://www.emulab.net/protogeni/flack2/flack.html'), '_self');" />
 	<s:Button label="Tutorial" id="tutorialButton"
 			  width="50%" height="28"
 			  icon="{ImageUtil.helpIcon}"

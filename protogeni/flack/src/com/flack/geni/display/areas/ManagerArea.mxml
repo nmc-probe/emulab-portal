@@ -45,6 +45,9 @@ IN THE WORK.
 			import com.flack.geni.resources.docs.GeniCredentialVersion;
 			import com.flack.geni.resources.docs.GeniCredentialVersionCollection;
 			import com.flack.geni.resources.sites.GeniManager;
+			import com.flack.geni.resources.virt.extensions.stitching.StitchingLink;
+			import com.flack.geni.resources.virt.extensions.stitching.StitchingNode;
+			import com.flack.geni.resources.virt.extensions.stitching.StitchingPort;
 			import com.flack.geni.tasks.groups.GetManagerTaskGroup;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
@@ -63,6 +66,7 @@ IN THE WORK.
 			
 			import mx.collections.VectorCollection;
 			import mx.controls.Alert;
+			import mx.events.FlexEvent;
 			
 			import spark.events.IndexChangeEvent;
 			
@@ -77,6 +81,13 @@ IN THE WORK.
 			private var sharedVlans:VectorCollection;
 			[Bindable]
 			private var apiDetails:VectorCollection;
+			
+			[Bindable]
+			private var stitchingNodes:VectorCollection;
+			[Bindable]
+			private var stitchingPorts:VectorCollection;
+			[Bindable]
+			private var stitchingLinks:VectorCollection;
 			
 			public function init():void
 			{
@@ -308,6 +319,49 @@ IN THE WORK.
 				SharedMain.tasker.add(getManagerTask);
 			}
 			
+			protected function stitchingView_creationCompleteHandler(event:FlexEvent):void
+			{
+				if(manager.stitching != null && manager.stitching.aggregates.length == 1) {
+					stitchingAggregateModeLabel.text = manager.stitching.aggregates.collection[0].stitchingMode;
+					stitchingAggregateNegotiatedServicesCheckbox.selected = manager.stitching.aggregates.collection[0].negotiatedServices;
+					stitchingAggregateScheduledServicesCheckbox.selected = manager.stitching.aggregates.collection[0].scheduledServices;
+					stitchingAggregateTypeLabel.text = manager.stitching.aggregates.collection[0].aggregateType;
+					stitchingNodes = new VectorCollection(manager.stitching.aggregates.collection[0].nodes.collection);
+				} else {
+					stitchingAggregateModeLabel.text = "";
+					stitchingAggregateNegotiatedServicesCheckbox.selected = false;
+					stitchingAggregateScheduledServicesCheckbox.selected = false;
+					stitchingAggregateTypeLabel.text = "";
+					stitchingNodes = new VectorCollection();
+					stitchingPorts = new VectorCollection();
+					stitchingLinks = new VectorCollection();
+				}
+			}
+			
+			protected function stitchingItem_labelFunction(item:Object):String {
+				return item.id.name;
+			}
+			
+			protected function stitchingNodesList_valueCommitHandler(event:FlexEvent):void
+			{
+				var stitchingNode:StitchingNode = stitchingNodesList.selectedItem;
+				if(stitchingNode == null) {
+					stitchingPorts = new VectorCollection();
+				} else {
+					stitchingPorts = new VectorCollection(stitchingNode.ports.collection);
+				}
+			}
+			
+			protected function stitchingPortsList_valueCommitHandler(event:FlexEvent):void
+			{
+				var stitchingPort:StitchingPort = stitchingPortsList.selectedItem;
+				if(stitchingPort == null) {
+					stitchingLinks = new VectorCollection();
+				} else {
+					stitchingLinks = new VectorCollection(stitchingPort.links.collection);
+				}
+			}
+			
 		]]>
 	</fx:Script>
 	
@@ -506,6 +560,64 @@ IN THE WORK.
 					<s:List id="sharedVlansList"
 							dataProvider="{sharedVlans}"
 							height="33%" />
+				</s:VGroup>
+			</s:NavigatorContent>
+			<s:NavigatorContent id="stitchingView"
+								width="100%"
+								height="100%"
+								label="Stitching"
+								toolTip="Stitching">
+				<s:VGroup width="100%"
+						  height="100%"
+						  gap="2"
+						  paddingLeft="2"
+						  paddingRight="2"
+						  creationComplete="stitchingView_creationCompleteHandler(event)">
+					<s:Label text="Type"
+							 fontWeight="bold" />
+					<s:Label id="stitchingAggregateTypeLabel" />
+					<s:Label text="Mode"
+							 fontWeight="bold" />
+					<s:Label id="stitchingAggregateModeLabel" />
+					<s:CheckBox id="stitchingAggregateScheduledServicesCheckbox"
+								label="Scheduled services"
+								enabled="false"
+								fontWeight="bold" />
+					<s:CheckBox id="stitchingAggregateNegotiatedServicesCheckbox"
+								label="Negotiated services"
+								enabled="false"
+								fontWeight="bold" />
+					<s:HGroup height="100%" width="100%">
+						<s:VGroup height="100%" width="33%">
+							<s:Label text="Nodes"
+									 fontWeight="bold" />
+							<s:List id="stitchingNodesList"
+									dataProvider="{stitchingNodes}"
+									height="100%"
+									width="100%"
+									labelFunction="stitchingItem_labelFunction"
+									valueCommit="stitchingNodesList_valueCommitHandler(event)" />
+						</s:VGroup>
+						<s:VGroup height="100%" width="33%">
+							<s:Label text="Ports"
+									 fontWeight="bold" />
+							<s:List id="stitchingPortsList"
+									dataProvider="{stitchingPorts}"
+									height="100%"
+									width="100%"
+									labelFunction="stitchingItem_labelFunction"
+									valueCommit="stitchingPortsList_valueCommitHandler(event)" />
+						</s:VGroup>
+						<s:VGroup height="100%" width="33%">
+							<s:Label text="Links"
+									 fontWeight="bold" />
+							<s:List id="stitchingLinksList"
+									dataProvider="{stitchingLinks}"
+									height="100%"
+									width="100%"
+									labelFunction="stitchingItem_labelFunction" />
+						</s:VGroup>
+					</s:HGroup>
 				</s:VGroup>
 			</s:NavigatorContent>
 		</mx:ViewStack>

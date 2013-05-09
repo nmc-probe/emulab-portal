@@ -162,6 +162,7 @@ var pfxValidator = {
     type: asn1.Type.SEQUENCE,
     constructed: true,
     optional: true,
+    captureAsn1: 'mac',
     value: [{
       name: 'PFX.macData.mac',
       tagClass: asn1.Class.UNIVERSAL,
@@ -269,7 +270,7 @@ var certBagValidator = {
     tagClass: asn1.Class.CONTEXT_SPECIFIC,
     constructed: true,
     /* So far we only support X.509 certificates (which are wrapped in
-       a OCTET STRING, hence hard code that here). */
+       an OCTET STRING, hence hard code that here). */
     value: [{
       name: 'CertBag.certValue[0]',
       tagClass: asn1.Class.UNIVERSAL,
@@ -378,8 +379,58 @@ p12.pkcs12FromAsn1 = function(obj, password) {
   if(data.tagClass !== asn1.Class.UNIVERSAL ||
      data.type !== asn1.Type.OCTETSTRING) {
     throw {
-      message: 'PKCS#12 authSafe content data is not a OCTET STRING'
+      message: 'PKCS#12 authSafe content data is not an OCTET STRING.'
     };
+  }
+
+  // check for MAC
+  if(capture.mac) {
+    var md = null;
+    var macKeyBytes = 0;
+    var macAlgorithm = asn1.derToOid(capture.macAlgorithm);
+    switch(macAlgorithm) {
+    case oids['sha1']:
+      md = forge.md.sha1.create();
+      macKeyBytes = 20;
+      break;
+    case oids['sha256']:
+      md = forge.md.sha256.create();
+      macKeyBytes = 32;
+      break;
+    case oids['sha384']:
+      md = forge.md.sha384.create();
+      macKeyBytes = 48;
+      break;
+    case oids['sha512']:
+      md = forge.md.sha512.create();
+      macKeyBytes = 64;
+      break;
+    case oids['md5']:
+      md = forge.md.md5.create();
+      macKeyBytes = 16;
+      break;
+    }
+    if(md === null) {
+      throw {
+        message: 'PKCS#12 uses unsupported MAC algorithm: ' + macAlgorithm
+      };
+    }
+
+    // verify MAC (iterations default to 1)
+    var macSalt = new forge.util.ByteBuffer(capture.macSalt);
+    var macIterations = (('macIterations' in capture) ?
+      parseInt(forge.util.bytesToHex(capture.macIterations), 16) : 1);
+    var macKey = p12.generateKey(
+      password || '', macSalt, 3, macIterations, macKeyBytes, md);
+    var mac = forge.hmac.create();
+    mac.start(md, macKey);
+    mac.update(data.value);
+    var macValue = mac.getMac();
+    if(macValue.getBytes() !== capture.macDigest) {
+      throw {
+        message: 'PKCS#12 MAC could not be verified. Invalid password?'
+      };
+    }
   }
 
   _decodeAuthenticatedSafe(pfx, data.value, password);
@@ -416,7 +467,7 @@ function _decodeAuthenticatedSafe(pfx, authSafe, password) {
     var errors = [];
     if(!asn1.validate(contentInfo, contentInfoValidator, capture, errors)) {
       throw {
-        message: 'Cannot read ContentInfo. ',
+        message: 'Cannot read ContentInfo.',
         errors: errors
       };
     }
@@ -431,13 +482,19 @@ function _decodeAuthenticatedSafe(pfx, authSafe, password) {
         if(data.tagClass !== asn1.Class.UNIVERSAL ||
            data.type !== asn1.Type.OCTETSTRING) {
           throw {
-            message: 'PKCS#12 SafeContents Data is not a OCTET STRING'
+            message: 'PKCS#12 SafeContents Data is not an OCTET STRING.'
           };
         }
         safeContents = data.value;
         break;
 
       case oids.encryptedData:
+        if(password === undefined) {
+          throw {
+            message: 'Found PKCS#12 Encrypted SafeContents Data but ' +
+              'no password available.'
+          };
+        }
         safeContents = _decryptSafeContents(data, password);
         obj.encrypted = true;
         break;
@@ -579,7 +636,7 @@ function _decodeSafeContents(safeContents, password) {
             };
           }
 
-          bag.cert = pki.certificateFromAsn1(asn1.fromDer(capture.cert));
+          bag.cert = pki.certificateFromAsn1(asn1.fromDer(capture.cert), true);
         };
         break;
 
@@ -646,10 +703,17 @@ function _decodeBagAttributes(attributes) {
  * Wraps a private key and certificate in a PKCS#12 PFX wrapper. If a
  * password is provided then the private key will be encrypted.
  *
+ * An entire certificate chain may also be included. To do this, pass
+ * an array for the "cert" parameter where the first certificate is
+ * the one that is paired with the private key and each subsequent one
+ * verifies the previous one. The certificates may be in PEM format or
+ * have been already parsed by Forge.
+ *
  * @todo implement password-based-encryption for the whole package
  *
  * @param key the private key.
- * @param cert the certificate.
+ * @param cert the certificate (may be an array of certificates in order
+ *          to specify a certificate chain).
  * @param password the password to use.
  * @param options:
  *          encAlgorithm the encryption algorithm to use
@@ -657,6 +721,7 @@ function _decodeBagAttributes(attributes) {
  *          count the iteration count to use.
  *          saltSize the salt size to use.
  *          useMac true to include a MAC, false not to, defaults to true.
+ *          localKeyId the local key ID to use, in hex.
  *          generateLocalKeyId true to generate a random local key ID,
  *            false not to, defaults to true.
  *
@@ -671,14 +736,24 @@ p12.toPkcs12Asn1 = function(key, cert, password, options) {
   if(!('useMac' in options)) {
     options.useMac = true;
   }
+  if(!('localKeyId' in options)) {
+    options.localKeyId = null;
+  }
   if(!('generateLocalKeyId' in options)) {
     options.generateLocalKeyId = true;
   }
 
+  var localKeyId = options.localKeyId;
   var bagAttrs = undefined;
-  if(options.generateLocalKeyId) {
+  if(localKeyId !== null) {
+    localKeyId = forge.util.hexToBytes(localKeyId);
+  }
+  else if(options.generateLocalKeyId) {
     // set localKeyId and friendlyName (if specified)
-    var localKeyId = forge.random.getBytes(20);
+    localKeyId = forge.random.getBytes(20);
+  }
+
+  if(localKeyId !== null) {
     var attrs = [
       // localKeyID
       asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [
@@ -756,9 +831,27 @@ p12.toPkcs12Asn1 = function(key, cert, password, options) {
     contents.push(keyCI);
   }
 
-  // create safe bag for certificate
+  // create safe bag(s) for certificate chain
+  var chain = [];
   if(cert !== null) {
+    if((Array.isArray && Array.isArray(cert)) || cert.constructor === Array) {
+      chain = cert;
+    }
+    else {
+      chain = [cert];
+    }
+  }
+
+  var certSafeBags = [];
+  for(var i = 0; i < chain.length; ++i) {
+    // convert cert from PEM as necessary
+    cert = chain[i];
+    if(typeof cert === 'string') {
+      cert = pki.certificateFromPem(cert);
+    }
+
     // SafeBag
+    var certBagAttrs = (i === 0) ? bagAttrs : undefined;
     var certAsn1 = pki.certificateToAsn1(cert);
     var certSafeBag =
       asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [
@@ -779,12 +872,15 @@ p12.toPkcs12Asn1 = function(key, cert, password, options) {
                 asn1.toDer(certAsn1).getBytes())
             ])])]),
         // bagAttributes (OPTIONAL)
-        bagAttrs
+        certBagAttrs
       ]);
+    certSafeBags.push(certSafeBag);
+  }
 
+  if(certSafeBags.length > 0) {
     // SafeContents
     var certSafeContents = asn1.create(
-      asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [certSafeBag]);
+      asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, certSafeBags);
 
     // ContentInfo
     var certCI =
@@ -842,7 +938,7 @@ p12.toPkcs12Asn1 = function(key, cert, password, options) {
         asn1.Class.UNIVERSAL, asn1.Type.OCTETSTRING, false, macSalt.getBytes()),
       // iterations INTEGER (XXX: Only support count < 65536)
       asn1.create(asn1.Class.UNIVERSAL, asn1.Type.INTEGER, false,
-        forge.util.hexToBytes( count.toString(16))
+        forge.util.hexToBytes(count.toString(16))
       )
     ]);
   }
@@ -870,20 +966,21 @@ p12.toPkcs12Asn1 = function(key, cert, password, options) {
 };
 
 /**
- * PKCS#12 key derivation
+ * Derives a PKCS#12 key.
  *
- * @param {String} password The password to derive the key material from
- * @param {ByteBuffer} salt The salt to use
- * @param {int} id The PKCS#12 ID byte (1 = key material, 2 = IV, 3 = MAC)
- * @param {int} iter The iteration count
- * @param {int} n Number of bytes to derive from the password
- * @param md The message digest to use, defaults to SHA-1.
- * @return {ByteBuffer} The bytes derived from the password
+ * @param {String} password the password to derive the key material from.
+ * @param {ByteBuffer} salt the salt to use.
+ * @param {int} id the PKCS#12 ID byte (1 = key material, 2 = IV, 3 = MAC).
+ * @param {int} iter the iteration count.
+ * @param {int} n the number of bytes to derive from the password.
+ * @param md the message digest to use, defaults to SHA-1.
+ *
+ * @return {ByteBuffer} The bytes derived from the password.
  */
 p12.generateKey = function(password, salt, id, iter, n, md) {
   var j, l;
 
-  if(typeof(md) === 'undefined' || md === null) {
+  if(typeof md === 'undefined' || md === null) {
     md = forge.md.sha1.create();
   }
 

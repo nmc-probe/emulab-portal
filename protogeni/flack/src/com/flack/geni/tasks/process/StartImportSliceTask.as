@@ -33,8 +33,15 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.display.windows.ChooseManagerWindow;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virt.Slice;
 	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingHop;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingLink;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingPath;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilityDescriptor;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoL2sc;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoLsc;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.docs.RspecVersion;
@@ -295,6 +302,26 @@ package com.flack.geni.tasks.process
 				
 				if(managersWithResources.indexOf(useManager) == -1)
 					managersWithResources.push(useManager);
+			}
+			var stitchingNamespace:Namespace = RspecUtil.stitchingNamespace;
+			for each(var stitchingXml:XML in checkRspec.stitchingNamespace::stitching)
+			{
+				for each(var pathXml:XML in stitchingXml.stitchingNamespace::path)
+				{
+					for each(var hopXml:XML in pathXml.stitchingNamespace::hop)
+					{
+						for each(var stitchingLinkXml:XML in hopXml.stitchingNamespace::link)
+						{
+							var linkId:String = String(stitchingLinkXml.@id);
+							var advertisedLink:StitchingLink = GeniMain.geniUniverse.managers.getComponentById(linkId) as StitchingLink;
+							if(advertisedLink == null) {
+								continue;
+							}
+							if(managersWithResources.indexOf(advertisedLink.manager) == -1)
+								managersWithResources.push(advertisedLink.manager);
+						}
+					}
+				}
 			}
 			
 			addMessage(

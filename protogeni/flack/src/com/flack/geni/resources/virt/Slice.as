@@ -410,6 +410,20 @@ package com.flack.geni.resources.virt
 		{
 			return aggregateSlivers.OperationalState;
 		}
+
+		public function get Managers():GeniManagerCollection
+		{
+			var managers:GeniManagerCollection = nodes.Managers;
+			var stitchingManagers:GeniManagerCollection = stitching.Managers;
+			for each(var stitchingManager:GeniManager in stitchingManagers.collection)
+			{
+				if(!managers.contains(stitchingManager))
+				{
+					managers.add(stitchingManager);
+				}
+			}
+			return managers;
+		}
 		
 		public function clearStatus():void
 		{
@@ -435,7 +449,7 @@ package com.flack.geni.resources.virt
 		
 		public function ensureSliversExist():void
 		{
-			for each(var manager:GeniManager in this.nodes.Managers.collection)
+			for each(var manager:GeniManager in this.Managers.collection)
 				aggregateSlivers.getOrCreateByManager(manager, this);
 		}
 		

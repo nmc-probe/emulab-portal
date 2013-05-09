@@ -93,6 +93,8 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
+				manager.id.full = data.urn;
+				
 				var apiDetail:ApiDetails = new ApiDetails(manager.api.type, Number(data.geni_api), manager.api.url, manager.api.level);
 				manager.api = apiDetail;
 				manager.apis.removeAll(manager.apis.getType(ApiDetails.API_GENIAM));
@@ -115,7 +117,7 @@ package com.flack.geni.tasks.xmlrpc.am
 							);
 						if (manager.api.equals(supportedApi))
 							continue;
-						if(supportedApi.version <= 4 && supportedApi.version > highestSuppportedVersion.version)
+						if(supportedApi.version <= 3 && supportedApi.version > highestSuppportedVersion.version)
 							highestSuppportedVersion = supportedApi;
 						manager.apis.add(supportedApi);
 					}
@@ -131,6 +133,7 @@ package com.flack.geni.tasks.xmlrpc.am
 					}
 				}
 
+				//V3
 				if(data.geni_am_type != null)
 				{
 					manager.types = new Vector.<String>();
@@ -142,6 +145,7 @@ package com.flack.geni.tasks.xmlrpc.am
 						manager.type = manager.types[0];
 					}
 				}
+				
 				if(data.geni_am_code_version != null)
 				{
 					manager.codeVersion = String(data.geni_am_code_version);

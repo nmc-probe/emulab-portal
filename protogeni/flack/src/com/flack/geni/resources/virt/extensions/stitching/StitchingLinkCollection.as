@@ -52,7 +52,7 @@ package com.flack.geni.resources.virt.extensions.stitching
 			var result:* = null;
 			for each(var link:StitchingLink in collection)
 			{
-				if(link.id.full == id || link.remoteLinkId.full == id)
+				if(link.id.full == id)
 					return link;
 			}
 			return null;
