@@ -215,20 +215,46 @@ Blockstore instproc finalize {} {
     $self instvar size
     $self instvar attributes
 
-    # Instantiate blockstore pseudo-VM and attach to it if bstore 
-    # isn't attached to anything at this point.
+    # Die if the user didn't attach the blockstore to anything.
     if { $node == {} } {
-	set dummy [$self get_node]
+	perror "Blockstore is not attached to anything: $self"
+	return -1
+    }
+
+    # Make sure the blockstore has class...
+    if {![info exists attributes(class)]} {
+	perror "Blockstore's class must be specified: $self"
+	return -1
+    }
+    set myclass $attributes(class)
+
+    # Remote blockstore validation.
+    if {$myclass == "SAN"} {
+	# Size matters here.
+	if {$size == 0} {
+	    perror "Remote blockstores must have a size: $self"
+	    return -1
+	}
+	# Die if the user has attempted to connect the blockstore via multiple
+	# links.  We only support one.
+	if {[llength [$node set portlist]] != 1} {
+	    perror "A remote blockstore must be connected to one, and only one, link/lan: $self"
+	    return -1
+	}
+	# Placement directives are invalid for remote blockstores.
+	if {[info exists attributes(placement)]} {
+	    perror "Placement setting only makes sense with local blockstores: $self"
+	    return -1
+	}
     }
 
     #
-    # Local node hacks and stuff.  If the blockstore is fixed to
-    # anything other than a blockstore pseudo-VM, then just attach a
-    # desire to the parent node indicating a need for disk space.
+    # Local node hacks and stuff.  For local blockstores, we simply add
+    # a disk space 'desire' to the attached node.
     #
-    # Also check for a bunch of incompatible specifications.
+    # Also perform validation checks.
     #
-    if {[$node set type] != "Blockstore"} {
+    if {$myclass == "local"} {
 	# Initialization for placement.
 	if {![info exists attributes(placement)]} {
 	    set attributes(placement) $sodefaultplacement
@@ -252,7 +278,8 @@ Blockstore instproc finalize {} {
 	    $node add-desire $pldesire [expr $size + $cursize] 1
 	    incr sopartialplacements($nodeplace) 1
 	} else {
-	    # add a token 1MiB desire, just to make sure something is there.
+	    # In the case of a full-sized placement, add a token 1MiB
+	    # desire just to make sure something is there.
 	    $node add-desire $pldesire 1 1
 	    incr sofullplacements($nodeplace) 1
 	}
@@ -261,7 +288,7 @@ Blockstore instproc finalize {} {
 	set systotal [expr $sopartialplacements($nodeplace) + \
 			   $sofullplacements($nodeplace)]
 	if { $myplace == "SYSVOL" && $systotal > 1 } {
-	    perror "Only one sysvol placement allowed per node!"
+	    perror "Only one sysvol placement allowed per node: $node"
 	    return -1
 	}
 
@@ -270,26 +297,23 @@ Blockstore instproc finalize {} {
 	if { $sofullplacements($nodeplace) > 1 ||
 	     ($sofullplacements($nodeplace) == 1 &&
 	      $sopartialplacements($nodeplace) > 0) } {
-	    perror "Full placement collision detected ($node:$myplace)!"
+	    perror "Full placement collision found for $nodeplace"
 	    return -1
 	}
 
 	# Look for an incompatible mix of "ANY" and other placements (per-node).
 	set srchres 0
-	set allplacements [concat [array names sopartialplacements -glob "${node}:*"] [array names sofullplacements -glob "${node}:*"]]
+	set allplacements \
+	    [concat \
+		 [array names sopartialplacements -glob "${node}:*"] \
+		 [array names sofullplacements -glob "${node}:*"]]
 	if {$myplace == "ANY"} {
 	    set srchres [lsearch -exact -not $allplacements "${node}:ANY"]
 	} else {
 	    set srchres [lsearch -exact $allplacements "${node}:ANY"]
 	}
 	if {$srchres != -1} {
-	    perror "Incompatible mix of 'ANY' and other placements ($node)!"
-	    return -1
-	}
-
-    } else {
-	if {[info exists attributes(placement)]} {
-	    perror "Placement setting can only be used with a local blockstore."
+	    perror "Incompatible mix of 'ANY' and other placements on $node"
 	    return -1
 	}
     }
@@ -297,13 +321,33 @@ Blockstore instproc finalize {} {
     # Check for node mount collisions.
     if {[info exists attributes(mountpoint)]} {
 	set mymount $attributes(mountpoint)
-	if {![info exists sonodemounts($node)]} {
-	    set sonodemounts($node) {}
+	set mynode $node
+
+	# Dig up the other end of the link for remote blockstores since the
+	# node there will be the one doing the mounting.
+	if {$myclass == "SAN"} {
+	    # We only support a single link/lan - checked above.
+	    set link [lindex [$node set portlist] 0]
+	    # Don't allow mount points for shared remote blockstores (i.e.,
+	    # blockstores on a lan.
+	    if {[$link info class] != "Link"} {
+		perror "Cannot specify a mount point for blockstores connected to multiple nodes (i.e., on a lan): $self"
+		return -1
+	    }
+	    set src [$link set src_node]
+	    set dst [$link set dst_node]
+	    set mynode [expr {$src == $node ? $dst : $src}]
 	}
-	# Look through all mount points for blockstores attached to the same
-	# node as this blockstore.
+
+	# Bit of init.
+	if {![info exists sonodemounts($mynode)]} {
+	    set sonodemounts($mynode) {}
+	}
+
+	# Look through all mount points for other blockstores attached
+	# to the same node as this blockstore.
 	set mplist [lreplace [split $mymount   "/"] 0 0]
-	foreach nodemount $sonodemounts($node) {
+	foreach nodemount $sonodemounts($mynode) {
 	    set nmlist [lreplace [split $nodemount "/"] 0 0]
 	    set diff 0
 	    # Look for any differences in path components.  If one is a 
@@ -323,7 +367,7 @@ Blockstore instproc finalize {} {
 		return -1
 	    }
 	}
-	lappend sonodemounts($node) $mymount
+	lappend sonodemounts($mynode) $mymount
     }
     
     return 0
