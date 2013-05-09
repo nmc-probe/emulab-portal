@@ -124,7 +124,9 @@ if __FILE__ == $0
         end
         ex.push_to_emulab
     rescue Exception => e
-        print "Error while creating an image: ", e, "\n"
+        print "Error while creating an image: \n"
+        puts e.message
+        print e.backtrace.join("\n")
     ensure
         ex.finalize()        
     end
