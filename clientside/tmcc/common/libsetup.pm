@@ -3400,11 +3400,11 @@ sub getarpinfo($;$)
 # IDX :=
 #   \d+ -- monotonically increasing number indicating order of operations
 # BSID :=
-#   (ALL_SPACE|ALL_SYSVOL|ALL_NONSYSVOL) -- i.e. where to take space from
-#   "ALL_SPACE" will take from any disk, possibly from multiple disks via
+#   (ANY|SYSVOL|NONSYSVOL) -- i.e. where to take space from
+#   "ANY" will take from any disk, possibly from multiple disks via
 #	use of a logical volume manager
-#   "ALL_SYSVOL" will take from any remaining space on the boot disk
-#   "ALL_NONSYSVOL" will take from any space on any non-boot disk, possibly
+#   "SYSVOL" will take from any remaining space on the boot disk
+#   "NONSYSVOL" will take from any space on any non-boot disk, possibly
 #	from multiple disks via a LVM.
 # VOLNAME :=
 #   string -- Emulab name for the element

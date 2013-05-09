@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -239,6 +239,7 @@ script-install:	dir-install $(SCRIPTS)
 	$(INSTALL) -m 755 $(SRCDIR)/reboot_prepare $(BINDIR)/reboot_prepare
 	$(INSTALL) -m 755 $(SRCDIR)/ixpboot $(BINDIR)/ixpboot
 	$(INSTALL) -m 755 $(SRCDIR)/liblocsetup.pm $(BINDIR)/liblocsetup.pm
+	$(INSTALL) -m 755 $(SRCDIR)/liblocstorage.pm $(BINDIR)/liblocstorage.pm
 	$(INSTALL) -m 755 $(SRCDIR)/libvnode.pm $(BINDIR)/libvnode.pm
 	$(INSTALL) -m 755 $(SRCDIR)/rc.delayagent $(BINDIR)/rc/rc.delayagent
 	$(INSTALL) -m 755 $(SRCDIR)/rc.healthd $(BINDIR)/rc/rc.healthd

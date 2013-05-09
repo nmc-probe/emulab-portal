@@ -58,6 +58,7 @@ my $STORAGEMAP = "$BOOTDIR/storagemap";
 # 
 use libsetup;
 use liblocsetup;
+use liblocstorage;
 use libtmcc;
 use librc;
 
@@ -238,6 +239,14 @@ sub process($$$;$)
     my ($so,$href,$dosetup,$doteardown) = @_;
     my $class = $href->{'CLASS'};
 
+    #
+    # XXX get rid of any trailing slashes on the mountpoint so it
+    # doesn't cause grief for the OS-dependent backend.
+    #
+    if (exists($href->{'MOUNTPOINT'})) {
+	$href->{'MOUNTPOINT'} =~ s#/+$##;
+    }
+
     if ($href->{'CMD'} eq "ELEMENT") {
 	# look up the host name and convert to IP
 	if (exists($href->{'HOSTID'})) {
@@ -281,7 +290,7 @@ sub process($$$;$)
 	    warn("*** Unknown storage slice class '$class'\n");
 	    return 0;
 	}
-	if ($href->{'BSID'} !~ /^ALL_(SPACE|SYSVOL|NONSYSVOL)$/) {
+	if ($href->{'BSID'} !~ /^(ANY|SYSVOL|NONSYSVOL)$/) {
 	    warn("*** Unknown storage slice bsid '".$href->{'BSID'}."'\n");
 	    return 0;
 	}
@@ -329,6 +338,7 @@ sub process($$$;$)
 	    }
 	    print "\n";
 	} else {
+	    print "  Deconfiguring '" . $href->{'VOLNAME'} . "'...\n";
 	    if (!os_remove_storage($so, $href, $doteardown)) {
 		warn("*** Could not remove storage device '" .
 		     $href->{'VOLNAME'} . "'\n");
@@ -358,6 +368,7 @@ sub process($$$;$)
     # If setting up, do it. Otherwise there is nothing to do.
     #
     if ($dosetup) {
+	print "  Configuring '" . $href->{'VOLNAME'} . "'...\n";
 	if (!os_create_storage($so, $href)) {
 	    warn("*** Could not create storage device '" .
 		 $href->{'VOLNAME'} . "'\n");
