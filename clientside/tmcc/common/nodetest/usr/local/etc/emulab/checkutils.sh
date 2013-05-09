@@ -10,6 +10,91 @@ declare NOSM="echo" #do nothing command
 declare host       #emulab hostname
 declare failed=""  #major falure to be commicated to user
 declare os=""      #[Linux|FreeBSD] for now
+declare mfsmode="" #are we running in a MFS (ie busybox) mode
+
+declare -A tcm_in  # hwinv from tmcc.bin
+declare tcm_in_keywords=""
+declare -A tcm_out # hwinv for output
+declare tcm_out_keywords=""
+declare -A tcm_inv # what we have discovered
+declare tcm_inv_keywords=""
+
+
+# one arg 'on' or anything else
+setmfsmode() {
+    [[ "$1" == "on" ]] && mfsmode="on" || mfsmode=""
+}
+
+# read info from tmcc no args uses the globel array tcm_in
+# if $1 then use that for a input file else use tmcc
+readtmcinfo() {
+    local -A ina
+    local keyword
+    local -i dcnt=0
+    local -i ncnt=0
+    local ifile 
+    local itmp
+
+    ifile=${1+$1}
+    if [ -z "$ifile" ] ; then
+	itmp="y"
+	ifile=/tmp/.$$tmcchwinv
+	$(/usr/local/etc/emulab/tmcc.bin hwinfo > $ifile)
+    else
+	itmp=""
+    fi
+
+    tcm_in=() # clear array
+
+    # handle mult-line 
+    while read -r in ; do
+	keyword=${in%% *}
+	case $keyword in
+	    DISKUNIT ) 
+		keyword+="$dcnt"
+		((++dcnt))
+		;;
+	    NETUNIT ) 
+		keyword+="$ncnt"
+		((++ncnt))
+		;;
+	    esac
+	tcm_in_keywords+="$keyword " # keeping the keyword list preserves order
+	tcm_in[$keyword]=$in
+#    done < <(/usr/local/etc/emulab/tmcc.bin hwinfo)
+    done < $ifile
+    [ -n "$itmp" ] && rm $ifile || : # the colon just stops a error being caught by -e
+
+#    /usr/local/etc/emulab/tmcc.bin hwinfo
+}
+
+# no args uses the globel arrays tcm_inv, tcm_in, tcm_out
+mergetmcinfo() {
+:
+}
+
+# arg $1 is the file to write uses the globel tcm_out array
+writetmcinfo() {
+:
+}
+
+# arg $1 which globel array to print
+printtmcinfo() {
+#declare -p tcm_in_keywords
+#declare -p tcm_in
+#echo ""
+    for i in $tcm_in_keywords ; do
+	printf "%s\n" "${tcm_in[$i]}"
+    done
+#x=$(declare -p tcm_in)
+#    local -A ina
+#declare -p ina
+#    case "$1" in
+#	tcm_in ) ina=tcm_in ;;
+#     ina=${tcm_in[@]}
+#declare -p ina
+
+}
 
 # which is not in busybox and not a bash builtin
 which() {
