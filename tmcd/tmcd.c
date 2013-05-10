@@ -4334,8 +4334,14 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 
 		bufp = buf;
 		bufp += OUTPUT(bufp, ebufp-bufp,
-			       "%s CLASS=%s PROTO=%s BSID=%s",
-			       bscmd, class, protocol, placement);
+			       "%s CLASS=%s BSID=%s",
+			       bscmd, class, placement);
+
+		/* Add the protocol to the buffer, if present.*/
+		if (strlen(protocol)) {
+			bufp += OUTPUT(bufp, ebufp-bufp, " PROTOCOL=%s",
+				       protocol);
+		}
 
 		/* Add the mountpoint to the buffer, if requested.*/
 		if (strlen(mountpoint)) {
