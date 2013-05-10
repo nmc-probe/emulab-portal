@@ -59,6 +59,9 @@ my $UMOUNT	= "/sbin/umount";
 my $ISCSI	= "/sbin/iscontrol";
 my $ISCSICNF	= "/etc/iscsi.conf";
 my $SMARTCTL	= "/usr/local/sbin/smartctl";
+my $GEOM	= "/sbin/geom";
+my $GPART	= "/sbin/gpart";
+my $GVINUM	= "/sbin/gvinum";
 
 #
 # To find the block stores exported from a target portal:
@@ -151,6 +154,35 @@ sub serial_to_dev($)
     return undef;
 }
 
+#
+# Returns one if the indicated device is an iSCSI-provided one
+# XXX another total hack
+#
+sub is_iscsi_dev($)
+{
+    my ($dev) = @_;
+
+    if ($dev !~ /^da\d+$/) {
+	return 0;
+    }
+    if (!open(FD, "$GEOM disk list $dev|")) {
+	return 0;
+    }
+    my $descr = "";
+    while (<FD>) {
+	if (/^\s+descr:\s+(.*)$/) {
+	    $descr = $1;
+	    last;
+	}
+    }
+    close(FD);
+    if ($descr !~ /^FreeBSD iSCSI Disk/) {
+	return 0;
+    }
+
+    return 1;
+}
+
 sub uuid_to_session($)
 {
     my ($uuid) = @_;
@@ -229,6 +261,8 @@ sub get_geominfo()
 	    $geominfo{$dev}{'size'} = int($vals[3] / 1024 / 1024);
 	    if ($vals[1] eq "DISK") {
 		$geominfo{$dev}{'inuse'} = 0;
+	    } else {
+		$geominfo{$dev}{'inuse'} = 1;
 	    }
 	}
     } else {
@@ -236,7 +270,7 @@ sub get_geominfo()
 	my ($curdev,$curpart,$skipping);
 
 	# first find all the disks
-	if (!open(FD, "geom disk list|")) {
+	if (!open(FD, "$GEOM disk list|")) {
 	    warn("*** get_geominfo: could not execute geom command\n");
 	    return undef;
 	}
@@ -260,7 +294,7 @@ sub get_geominfo()
 	close(FD);
 
 	# now find all the partitions on those disks
-	if (!open(FD, "geom part list|")) {
+	if (!open(FD, "$GEOM part list|")) {
 	    warn("*** get_geominfo: could not execute geom command\n");
 	    return undef;
 	}
@@ -286,6 +320,7 @@ sub get_geominfo()
 		$curpart = $1;
 		$geominfo{$curpart}{'level'} = $geominfo{$curdev}{'level'} + 1;
 		$geominfo{$curpart}{'type'} = "PART";
+		$geominfo{$curpart}{'inuse'} = -1;
 		next;
 	    }
 	    if (/\sMediasize:\s+(\d+)\s/) {
@@ -301,7 +336,7 @@ sub get_geominfo()
 	close(FD);
 
 	# and finally, vinums
-	if (!open(FD, "geom vinum list|")) {
+	if (!open(FD, "$GEOM vinum list|")) {
 	    warn("*** get_geominfo: could not execute geom command\n");
 	    return undef;
 	}
@@ -318,6 +353,7 @@ sub get_geominfo()
 		$curpart = $1;
 		$geominfo{$curpart}{'level'} = 2;
 		$geominfo{$curpart}{'type'} = "VINUM";
+		$geominfo{$curpart}{'inuse'} = -1;
 		next;
 	    }
 	    if (/\sMediasize:\s+(\d+)\s/) {
@@ -335,11 +371,15 @@ sub get_geominfo()
 
     #
     # Make a pass through and mark disks that are in use where "in use"
-    # means "has a partition".
+    # means "has a partition" or is an iSCSI disk.
     #
     foreach my $dev (keys %geominfo) {
-	if ($geominfo{$dev}{'type'} eq "PART" &&
-	    $geominfo{$dev}{'level'} == 1 &&
+	my $type = $geominfo{$dev}{'type'};
+	if ($type eq "DISK" && is_iscsi_dev($dev)) {
+	    $geominfo{$dev}{'type'} = "iSCSI";
+	    $geominfo{$dev}{'inuse'} = -1;
+	}
+	elsif ($type eq "PART" && $geominfo{$dev}{'level'} == 1 &&
 	    $dev =~ /^(.*)s\d+$/) {
 	    if (exists($geominfo{$1})) {
 		$geominfo{$1}{'inuse'} = 1;
@@ -366,6 +406,12 @@ sub os_init_storage($)
     my $needall = 0;
 
     my %so = ();
+
+    # we rely heavily on GEOM
+    if (! -x "$GEOM") {
+	warn("*** storage: $GEOM does not exist, cannot continue\n");
+	return undef;
+    }
 
     foreach my $href (@{$lref}) {
 	if ($href->{'CMD'} eq "ELEMENT") {
@@ -411,7 +457,7 @@ sub os_init_storage($)
 	    close(FD);
 
 	    # and do a one-time start
-	    mysystem("gvinum start");
+	    mysystem("$GVINUM start");
 	}
 
 	#
@@ -473,6 +519,18 @@ sub os_check_storage($$)
 {
     my ($so,$href) = @_;
 
+    if (0) {
+	my $ginfo = get_geominfo();
+	print STDERR "GEOMINFO=\n";
+	foreach my $dev (keys %$ginfo) {
+	    my $type = $ginfo->{$dev}->{'type'};
+	    my $lev = $ginfo->{$dev}->{'level'};
+	    my $size = $ginfo->{$dev}->{'size'};
+	    my $inuse = $ginfo->{$dev}->{'inuse'};
+	    print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
+	}
+    }
+
     if ($href->{'CMD'} eq "ELEMENT") {
 	return os_check_storage_element($so,$href);
     }
@@ -486,7 +544,6 @@ sub os_check_storage_element($$)
 {
     my ($so,$href) = @_;
     my $CANDISCOVER = 0;
-    #my $redir = "";
     my $redir = ">/dev/null 2>&1";
 
     #
@@ -556,19 +613,43 @@ sub os_check_storage_element($$)
 	}
 
 	#
-	# Figure out the device name from the session and report all is good.
+	# Figure out the device name from the session.
 	#
 	my $dev = iscsi_to_dev($session);
-	if (defined($dev)) {
-	    $href->{'LNAME'} = $dev;
-	    return 1;
+	if (!defined($dev)) {
+	    warn("*** $bsid: found iSCSI session but could not find device\n");
+	    return -1;
 	}
+	$href->{'LNAME'} = $dev;
 
 	#
-	# Otherwise, we are in some indeterminite state, return -1.
+	# If there is a mount point, see if it is mounted.
 	#
-	warn("*** $bsid: found iSCSI session but could not determine local device\n");
-	return -1;
+	# XXX because mounts in /etc/fstab happen before iSCSI and possibly
+	# even the network are setup, we don't put our mounts there as we
+	# do for local blockstores. Thus, if the blockstore device is not
+	# mounted, we do it here.
+	#
+	my $mpoint = $href->{'MOUNTPOINT'};
+	if ($mpoint) {
+	    my $line = `$MOUNT | grep '^/dev/$dev on '`;
+	    if (!$line) {
+		if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint $redir")) {
+		    warn("*** $bsid: could not create mountdir $mpoint\n");
+		    return -1;
+		}
+		if (mysystem("$MOUNT -t ufs /dev/$dev $mpoint $redir")) {
+		    warn("*** $bsid: could not mount /dev/$dev on $mpoint\n");
+		    return -1;
+		}
+	    }
+	    elsif ($line !~ /^\/dev\/$dev on (\S+) / || $1 ne $mpoint) {
+		warn("*** $bsid: mounted on $1, should be on $mpoint\n");
+		return -1;
+	    }
+	}
+
+	return 1;
     }
 
     #
@@ -687,27 +768,82 @@ sub os_check_storage_slice($$)
 sub os_create_storage($$)
 {
     my ($so,$href) = @_;
+    my $rv = 0;
 
     if ($href->{'CMD'} eq "ELEMENT") {
-	return os_create_storage_element($so, $href);
+	$rv = os_create_storage_element($so, $href);
     }
-    if ($href->{'CMD'} eq "SLICE") {
-	return os_create_storage_slice($so, $href);
+    elsif ($href->{'CMD'} eq "SLICE") {
+	$rv = os_create_storage_slice($so, $href);
     }
-    return 0;
+    if ($rv == 0) {
+	return 0;
+    }
+
+    if (exists($href->{'MOUNTPOINT'})) {
+	my $mdev = $href->{'LNAME'};
+	my $redir = ">/dev/null 2>&1";
+
+	#
+	# Create the filesystem
+	#
+	if (mysystem("newfs /dev/$mdev $redir")) {
+	    warn("*** $lv: could not create FS\n");
+	    return 0;
+	}
+
+	#
+	# Mount the filesystem
+	#
+	my $mpoint = $href->{'MOUNTPOINT'};
+	if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint")) {
+	    warn("*** $lv: could not create mountpoint '$mpoint'\n");
+	    return 0;
+	}
+
+	#
+	# XXX because mounts in /etc/fstab happen before iSCSI and possibly
+	# even the network are setup, we don't put our mounts there as we
+	# do for local blockstores. Instead, the check_storage call will
+	# take care of these mounts.
+	#
+	if (!($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI")) {
+	    if (!open(FD, ">>/etc/fstab")) {
+		warn("*** $lv: could not add mount to /etc/fstab\n");
+		return 0;
+	    }
+	    print FD "/dev/$mdev\t$mpoint\tufs\trw\t2\t2\n";
+	    close(FD);
+	    if (mysystem("$MOUNT $mpoint $redir")) {
+		warn("*** $lv: could not mount on $mpoint\n");
+		return 0;
+	    }
+	} else {
+	    if (mysystem("$MOUNT -t ufs /dev/$mdev $mpoint $redir")) {
+		warn("*** $lv: could not mount /dev/$mdev on $mpoint\n");
+		return 0;
+	    }
+	}
+    }
+
+    return 1;
 }
 
 sub os_create_storage_element($$)
 {
     my ($so,$href) = @_;
-    #my $redir = "";
-    my $redir = ">/dev/null 2>&1";
 
     if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
 	my $hostip = $href->{'HOSTIP'};
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
 	my $cmd;
+
+	# record all the output for debugging
+	my $log = "/var/emulab/logs/$bsid.out";
+	my $redir = ">>$log 2>&1";
+	my $logmsg = ", see $log";
+	mysystem("cp /dev/null $log");
 
 	#
 	# Handle one-time setup of /etc/iscsi.conf.
@@ -808,12 +944,12 @@ sub os_create_storage_slice($$)
 	    my $slice = "$bdisk" . "s4";
 	    my $part = "$slice" . "a";
 
-	    if (mysystem("gpart add -i 4 -t freebsd $bdisk $redir")) {
+	    if (mysystem("$GPART add -i 4 -t freebsd $bdisk $redir")) {
 		warn("*** $lv: could not create $slice$logmsg\n");
 		return 0;
 	    }
-	    if (mysystem("gpart create -s BSD $slice $redir") ||
-		mysystem("gpart add -t freebsd-ufs $slice $redir")) {
+	    if (mysystem("$GPART create -s BSD $slice $redir") ||
+		mysystem("$GPART add -t freebsd-ufs $slice $redir")) {
 		warn("*** $lv: could not create $part$logmsg\n");
 		return 0;
 	    }
@@ -858,13 +994,13 @@ sub os_create_storage_slice($$)
 		    # If pnum==0, we need an MBR first
 		    #
 		    if ($pnum == 0) {
-			if (mysystem("gpart create -s mbr $disk $redir")) {
+			if (mysystem("$GPART create -s mbr $disk $redir")) {
 			    warn("*** $lv: could not create MBR on $disk$logmsg\n");
 			    return 0;
 			}
 			$pnum = $spacemap{$disk}{'pnum'} = 1;
 		    }
-		    if (mysystem("gpart add -i $pnum -t freebsd $disk $redir")) {
+		    if (mysystem("$GPART add -i $pnum -t freebsd $disk $redir")) {
 			warn("*** $lv: could not create ${disk}s${pnum}$logmsg\n");
 			return 0;
 		    }
@@ -953,7 +1089,7 @@ sub os_create_storage_slice($$)
 	    close(FD);
 
 	    # create the vinum
-	    if (mysystem("gvinum create $cfile $redir")) {
+	    if (mysystem("$GVINUM create $cfile $redir")) {
 		warn("*** $lv: could not create vinum$logmsg\n");
 		unlink($cfile);
 		return 0;
@@ -978,39 +1114,7 @@ sub os_create_storage_slice($$)
 	    return 0;
 	}
 
-	#
-	# Create the filesystem
-	#
-	if (mysystem("newfs /dev/$mdev $redir")) {
-	    warn("*** $lv: could not create FS$logmsg\n");
-	    return 0;
-	}
 	$href->{'LNAME'} = $mdev;
-
-	#
-	# Handle optional mounting
-	#
-	if (exists($href->{'MOUNTPOINT'})) {
-	    my $mpoint = $href->{'MOUNTPOINT'};
-
-	    if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint")) {
-		warn("*** $lv: could not create mountpoint '$mpoint'\n");
-		return 0;
-	    }
-
-	    if (!open(FD, ">>/etc/fstab")) {
-		warn("*** $lv: could not add mount to /etc/fstab\n");
-		return 0;
-	    }
-	    print FD "/dev/$mdev\t$mpoint\tufs\trw\t2\t2\n";
-	    close(FD);
-
-	    if (mysystem("$MOUNT $mpoint $redir")) {
-		warn("*** $lv: could not mount on $mpoint$logmsg\n");
-		return 0;
-	    }
-	}
-
 	return 1;
     }
 
@@ -1040,6 +1144,17 @@ sub os_remove_storage_element($$$)
     if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
+
+	#
+	# Unmount it
+	#
+	if (exists($href->{'MOUNTPOINT'})) {
+	    my $mpoint = $href->{'MOUNTPOINT'};
+
+	    if (mysystem("$UMOUNT $mpoint")) {
+		warn("*** $bsid: could not unmount $mpoint\n");
+	    }
+	}
 
 	#
 	# Find the daemon instance and HUP it.
@@ -1172,10 +1287,10 @@ sub os_remove_storage_slice($$$)
 	    if ($bsid eq "SYSVOL") {
 		my $slice = "$bdisk" . "s4";
 
-		if (mysystem("gpart destroy -F $slice $redir")) {
+		if (mysystem("$GPART destroy -F $slice $redir")) {
 		    warn("*** $lv: could not destroy ${slice}a$logmsg\n");
 		}
-		if (mysystem("gpart delete -i 4 $bdisk $redir")) {
+		if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
 		    warn("*** $lv: could not destroy $slice$logmsg\n");
 		}
 		return 1;
@@ -1186,7 +1301,7 @@ sub os_remove_storage_slice($$$)
 	    #
 	    #   gvinum rm -r h2d2
 	    #
-	    if (mysystem("gvinum rm -r $lv $redir")) {
+	    if (mysystem("$GVINUM rm -r $lv $redir")) {
 		warn("*** $lv: could not destroy$logmsg\n");
 	    }
 
@@ -1199,13 +1314,13 @@ sub os_remove_storage_slice($$$)
 	    #   gpart delete -i 4 da0 (ANY only)
 	    #   gpart destroy -F da1
 	    #
-	    my $line = `gvinum lv | grep 'volumes:'`;
+	    my $line = `$GVINUM lv | grep 'volumes:'`;
 	    chomp($line);
 	    if (!$line || $line !~ /^0 volumes:/) {
 		return 1;
 	    }
 
-	    if (!open(FD, "gvinum ld|")) {
+	    if (!open(FD, "$GVINUM ld|")) {
 		warn("*** $lv: could not find subdisks$logmsg\n");
 		return 1;
 	    }
@@ -1214,17 +1329,17 @@ sub os_remove_storage_slice($$$)
 		if (/^D vinum_(\S+)/) {
 		    my $slice = $1;
 
-		    if (mysystem("gvinum rm vinum_$slice $redir")) {
+		    if (mysystem("$GVINUM rm vinum_$slice $redir")) {
 			warn("*** $lv: could not destroy subdisk vinum_$slice$logmsg\n");
 		    }
 		    if ($slice eq "${bdisk}s4") {
-			if (mysystem("gpart delete -i 4 $bdisk $redir")) {
+			if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
 			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
 		    } elsif ($slice =~ /^(.*)s1$/) {
 			my $disk = $1;
 			if ($disk eq $bdisk ||
-			    mysystem("gpart destroy -F $disk $redir")) {
+			    mysystem("$GPART destroy -F $disk $redir")) {
 			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
 		    }
@@ -1232,7 +1347,7 @@ sub os_remove_storage_slice($$$)
 	    }
 	    close(FD);
 
-	    if (mysystem("gvinum stop $redir")) {
+	    if (mysystem("$GVINUM stop $redir")) {
 		warn("*** $lv: could not stop gvinum$logmsg\n");
 	    }
 	    if (mysystem("sed -i -e '/^# added by.*rc.storage/,+1d' /boot/loader.conf")) {

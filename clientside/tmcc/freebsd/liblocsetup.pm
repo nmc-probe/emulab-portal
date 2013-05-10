@@ -39,7 +39,6 @@ use Exporter;
 	 os_groupdel os_getnfsmounts os_islocaldir os_mountextrafs
 	 os_fwconfig_line os_fwrouteconfig_line os_config_gre os_nfsmount
 	 os_find_freedisk os_get_ctrlnet_ip
-	 os_init_storage os_check_storage os_create_storage os_remove_storage
 	 os_getarpinfo os_createarpentry os_removearpentry
 	 os_getstaticarp os_setstaticarp
        );

@@ -119,6 +119,23 @@ sub iscsi_to_dev($)
     return undef;
 }
 
+#
+# Returns one if the indicated device is an iSCSI-provided one
+# XXX another total hack
+#
+sub is_iscsi_dev($)
+{
+    my ($dev) = @_;
+
+    if (-e "/sys/block/$dev") {
+	my $line = `ls -l /sys/block/$dev 2>/dev/null`;
+	if ($line =~ m#/sys/block/$dev -> ../devices/platform/host\d+/session\d+#) {
+	    return 1;
+	    }
+    }
+    return 0;
+}
+
 sub serial_to_dev($)
 {
     my ($sn) = @_;
@@ -202,7 +219,14 @@ sub get_geominfo()
 		$geominfo{$pdev}{'size'} = int($size / 1024);
 		$geominfo{$pdev}{'inuse'} = get_parttype($dev, $part);
 	    }
-	    # raw disk
+	    # XXX iSCSI disk
+	    elsif (is_iscsi_dev($dev)) {
+		$geominfo{$dev}{'level'} = 0;
+		$geominfo{$dev}{'type'} = "iSCSI";
+		$geominfo{$dev}{'size'} = int($size / 1024);
+		$geominfo{$dev}{'inuse'} = -1;
+	    }
+	    # raw local disk
 	    else {
 		$geominfo{$dev}{'level'} = 0;
 		$geominfo{$dev}{'type'} = "DISK";
@@ -395,6 +419,18 @@ sub os_init_storage($)
 sub os_check_storage($$)
 {
     my ($so,$href) = @_;
+
+    if (1) {
+	my $ginfo = get_geominfo();
+	print STDERR "GEOMINFO=\n";
+	foreach my $dev (keys %$ginfo) {
+	    my $type = $ginfo->{$dev}->{'type'};
+	    my $lev = $ginfo->{$dev}->{'level'};
+	    my $size = $ginfo->{$dev}->{'size'};
+	    my $inuse = $ginfo->{$dev}->{'inuse'};
+	    print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
+	}
+    }
 
     if ($href->{'CMD'} eq "ELEMENT") {
 	return os_check_storage_element($so,$href);
@@ -603,26 +639,76 @@ sub os_check_storage_slice($$)
 sub os_create_storage($$)
 {
     my ($so,$href) = @_;
+    my $rv = 0;
 
     if ($href->{'CMD'} eq "ELEMENT") {
-	return os_create_storage_element($so, $href);
+	$rv = os_create_storage_element($so, $href);
     }
-    if ($href->{'CMD'} eq "SLICE") {
-	return os_create_storage_slice($so, $href);
+    elsif ($href->{'CMD'} eq "SLICE") {
+	$rv = os_create_storage_slice($so, $href);
     }
-    return 0;
+    if ($rv == 0) {
+	return 0;
+    }
+
+    if (exists($href->{'MOUNTPOINT'})) {
+	my $mdev = $href->{'LNAME'};
+	my $redir = ">/dev/null 2>&1";
+
+	#
+	# Create the filesystem
+	#
+	# if ext3 supported, mkfs -t ext3 ...
+	# else, mkfs -t ext2 ...
+	#
+	my $fstype = "ext3";
+	if (mysystem("mkfs -t $fstype /dev/$mdev $redir")) {
+	    $fstype = "ext2";
+	    if (mysystem("mkfs -t $fstype /dev/$mdev $redir")) {
+		warn("*** $lv: could not create FS\n");
+		return 0;
+	    }
+	}
+
+	#
+	# Mount the filesystem
+	#
+	my $mpoint = $href->{'MOUNTPOINT'};
+	if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint")) {
+	    warn("*** $lv: could not create mountpoint '$mpoint'\n");
+	    return 0;
+	}
+
+	if (!open(FD, ">>/etc/fstab")) {
+	    warn("*** $lv: could not add mount to /etc/fstab\n");
+	    return 0;
+	}
+	print FD "/dev/$mdev\t$mpoint\t$fstype\tdefaults\t0\t0\n";
+	close(FD);
+
+	if (mysystem("$MOUNT $mpoint $redir")) {
+	    warn("*** $lv: could not mount on $mpoint\n");
+	    return 0;
+	}
+    }
+
+    return 1;
 }
 
 sub os_create_storage_element($$)
 {
     my ($so,$href) = @_;
-    #my $redir = "";
-    my $redir = ">/dev/null 2>&1";
 
     if ($href->{'PROTO'} eq "iSCSI") {
 	my $hostip = $href->{'HOSTIP'};
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
+
+	# record all the output for debugging
+	my $log = "/var/emulab/logs/$bsid.out";
+	my $redir = ">>$log 2>&1";
+	my $logmsg = ", see $log";
+	mysystem("cp /dev/null $log");
 
 	#
 	# Perform one time iSCSI operations
@@ -630,7 +716,7 @@ sub os_create_storage_element($$)
 	if (mysystem("$ISCSI -m node -T $uuid -p $hostip -o new $redir") ||
 	    mysystem("$ISCSI -m node -T $uuid -p $hostip -o update -n node.startup -v automatic $redir") ||
 	    mysystem("$ISCSI -m node -T $uuid -p $hostip -l $redir")) {
-	    warn("*** Could not perform first-time initialization of block store $bsid (uuid=$uuid)\n");
+	    warn("*** Could not perform first-time initialization of block store $bsid (uuid=$uuid)$logmsg\n");
 	    return 0;
 	}
 
@@ -773,46 +859,7 @@ sub os_create_storage_slice($$)
 	    $mdev = "emulab_vg/$lv";
 	}
 
-	#
-	# Create the filesystem
-	#
-	# if ext3 supported, mkfs -t ext3 ...
-	# else, mkfs -t ext2 ...
-	#
-	my $fstype = "ext3";
-	if (mysystem("mkfs -t $fstype /dev/$mdev $redir")) {
-	    $fstype = "ext2";
-	    if (mysystem("mkfs -t $fstype /dev/$mdev $redir")) {
-		warn("*** $lv: could not create FS$logmsg\n");
-		return 0;
-	    }
-	}
 	$href->{'LNAME'} = $mdev;
-
-	#
-	# Handle optional mounting
-	#
-	if (exists($href->{'MOUNTPOINT'})) {
-	    my $mpoint = $href->{'MOUNTPOINT'};
-
-	    if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint")) {
-		warn("*** $lv: could not create mountpoint '$mpoint'\n");
-		return 0;
-	    }
-
-	    if (!open(FD, ">>/etc/fstab")) {
-		warn("*** $lv: could not add mount to /etc/fstab\n");
-		return 0;
-	    }
-	    print FD "/dev/$mdev\t$mpoint\t$fstype\tdefaults\t0\t0\n";
-	    close(FD);
-
-	    if (mysystem("mount $mpoint $redir")) {
-		warn("*** $lv: could not mount on $mpoint$logmsg\n");
-		return 0;
-	    }
-	}
-
 	return 1;
     }
 
