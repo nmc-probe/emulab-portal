@@ -12,12 +12,9 @@ declare failed=""  #major falure to be commicated to user
 declare os=""      #[Linux|FreeBSD] for now
 declare mfsmode="" #are we running in a MFS (ie busybox) mode
 
-declare -A tcm_in  # hwinv from tmcc.bin
-declare tcm_in_keywords=""
-declare -A tcm_out # hwinv for output
-declare tcm_out_keywords=""
-declare -A tcm_inv # what we have discovered
-declare tcm_inv_keywords=""
+declare -A hwinv  # hwinv from tmcc.bin
+#declare -A tcm_out # hwinv for output
+#declare -A tcm_inv # what we have discovered
 
 
 # one arg 'on' or anything else
@@ -25,8 +22,8 @@ setmfsmode() {
     [[ "$1" == "on" ]] && mfsmode="on" || mfsmode=""
 }
 
-# read info from tmcc no args uses the globel array tcm_in
-# if $1 then use that for a input file else use tmcc
+# read info from tmcc no args uses the globel array hwinv
+# if $1 then use that for a input file else use tmcc.bin
 readtmcinfo() {
     local -A ina
     local keyword
@@ -34,7 +31,7 @@ readtmcinfo() {
     local -i ncnt=0
     local ifile 
     local itmp
-
+echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
     ifile=${1+$1}
     if [ -z "$ifile" ] ; then
 	itmp="y"
@@ -44,7 +41,8 @@ readtmcinfo() {
 	itmp=""
     fi
 
-    tcm_in=() # clear array
+    hwinv["hwinvidx"]="" #rest the array, or at least the index of array
+#    tcm_in_hwinvidx="" #rest the array, or at least the index of array
 
     # handle mult-line 
     while read -r in ; do
@@ -58,19 +56,18 @@ readtmcinfo() {
 		keyword+="$ncnt"
 		((++ncnt))
 		;;
-	    esac
-	tcm_in_keywords+="$keyword " # keeping the keyword list preserves order
-	tcm_in[$keyword]=$in
-#    done < <(/usr/local/etc/emulab/tmcc.bin hwinfo)
+	esac
+	hwinv["hwinvidx"]+="$keyword " # keeping the keyword list preserves order
+	hwinv[$keyword]=$in
     done < $ifile
     [ -n "$itmp" ] && rm $ifile || : # the colon just stops a error being caught by -e
-
-#    /usr/local/etc/emulab/tmcc.bin hwinfo
 }
 
-# no args uses the globel arrays tcm_inv, tcm_in, tcm_out
+# no args uses the globel arrays hwinvv, tcm_in, tcm_out
 mergetmcinfo() {
-:
+    for i in ${hwinv["hwinvidx"]} ; do
+	hwinv[$i]+=" ADD"
+    done
 }
 
 # arg $1 is the file to write uses the globel tcm_out array
@@ -78,22 +75,61 @@ writetmcinfo() {
 :
 }
 
-# arg $1 which globel array to print
-printtmcinfo() {
-#declare -p tcm_in_keywords
-#declare -p tcm_in
-#echo ""
-    for i in $tcm_in_keywords ; do
-	printf "%s\n" "${tcm_in[$i]}"
-    done
-#x=$(declare -p tcm_in)
-#    local -A ina
-#declare -p ina
-#    case "$1" in
-#	tcm_in ) ina=tcm_in ;;
-#     ina=${tcm_in[@]}
-#declare -p ina
 
+# print only the testbed data table
+printtmcinfo() {
+    local -i hdunits=0 nicunits=0
+    for i in ${hwinv["hwinvidx"]} ; do
+	case $i in 
+	    CPUINFO ) printf "%s\n" "${hwinv[$i]}" ;;
+	    MEMINFO ) printf "%s\n" "${hwinv[$i]}" ;;
+	    DISKINFO ) 
+		printf "%s\n" "${hwinv[$i]}" 
+		x=${hwinv[$i]}
+		hdunits=${x/#DISKINFO UNITS=/}
+
+		# for HD need also check that we have a valid value
+		# we collect more info then the testbed data base wants
+		for ((n=0; n<$hdunits; n++)) ; do
+		    # grab diskunitline
+                    s=${hwinv[DISKUNIT$n]}
+		    # turn space seperated string into array
+		    unset -v d ; declare -a d=(${s// / })
+		    numelm=${#d[*]}
+		    echo -n "${d[0]} " #that is the word DISKUNIT
+		    
+		    for ((elm=1; elm<$numelm; elm++)) ; do
+		        # must have form obj=value (where val can be blank) to work
+			objval=${d[$elm]}
+			[[ -z $objval ]] && continue  # that's bad no tupil
+			obj=${objval%%=*}
+			val=${objval##*=}
+			[[ -z $val ]] && continue # bad also no value (or empty string)
+			u=${val,,} #lower case
+			[[ $u == ${u/unk} ]] || continue # the value has the unk-nown value
+		        # out put the stuff the database wants
+		        # skip the stuff the database does not want
+			case $obj in
+			    SN | TYPE | SECSIZE | SECTORS | WSPEED | RSPEED )
+				echo -n "$objval " ;;
+			esac
+		    done
+		    echo "" # end the line
+		done
+		;;
+            NETINFO ) printf "%s\n" "${hwinv[$i]}" 
+		x=${hwinv[$i]}
+		nicunits=${x/#NETINFO UNITS=/}
+		for ((i=0; i<$nicunits; i++)); do printf "%s\n" "${hwinv[NETUNIT$i]}"; done ;;
+	esac
+    done
+}
+
+# print all hwinv
+printhwinv() {
+    for i in ${hwinv["hwinvidx"]} ; do
+	printf "%s\n" "${hwinv[$i]}"
+    done
 }
 
 # which is not in busybox and not a bash builtin
@@ -280,3 +316,9 @@ printf "PROGRAMMING ERROR $FUNCNAME $LINENO \n" && exit 1
     return 0
 }
 
+#init_tcminfo()
+#{
+#    <<EOF
+#
+#EOF
+#}
