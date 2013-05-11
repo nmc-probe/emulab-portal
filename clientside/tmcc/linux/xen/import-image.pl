@@ -116,18 +116,18 @@ if (! -e $infile){
 system("mkdir -p $workdir");
 system("tar -xvzf $infile -C $workdir");
 
-# TODO: Proper sda size based on image size
+# TODO: Proper sda size based on image size?
 # TODO: Maybe handle bootopts
 # Create the "special" xm.conf
 my $heredoc = <<XMCONF;
 disksizes = 'sdb:2.00g,sda:12.00g'
 memory = '256'
-disk = ['phy:/dev/xen-vg/pcvm666-1,sda,w','phy:/dev/xen-vg/pcvm666.swap,sdb,w']
+disk = ['phy:/dev/xen-vg/pcvm666-1,xvda1,w','phy:/dev/xen-vg/pcvm666.swap,xvda2,w']
 kernel = 'kernel'
 ramdisk = 'initrd'
 vif = ['mac=02:bf:bb:b9:ae:9c, ip=172.19.140.1, bridge=xenbr0']
 name = 'pcvm666-1'
-extra = 'root=/dev/sda boot_verbose=1 vfs.root.mountfrom=ufs:/dev/da0a kern.bootfile=/boot/kernel/kernel console=xvc0 selinux=0'
+extra = 'root=/dev/xvda1 boot_verbose=1 vfs.root.mountfrom=ufs:/dev/da0a kern.bootfile=/boot/kernel/kernel console=xvc0 selinux=0'
 XMCONF
 
 open(FH, '>', "$workdir/xm.conf") or goto cleanup;
