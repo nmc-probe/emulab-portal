@@ -35,7 +35,7 @@ fi
 
 # do not run timecheck for MFS hw gather mode
 #checks="disk cpu mem time nic"
-checks="disk cpu mem nic"
+checks="disk cpu mem nic gather"
 
 echo "Running nodechecks"
 # truncate file at boot time
@@ -49,7 +49,8 @@ if [ "$1" = "boot" ] ; then
     $(echo "-- Finish boot_time_node_check --" >> /var/emulab/logs/nodecheck.log)
     if [ -f /tmp/nodecheck.log.tb ] ; then
 	cp /tmp/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host
-	chmod a+r /proj/emulab-ops/nodecheck/$host
+	cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/$host.full
+	chmod a+r /proj/emulab-ops/nodecheck/$host*
     fi
 else
     $(rm -f /tmp/nodecheck.log.tb)

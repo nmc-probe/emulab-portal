@@ -31,7 +31,7 @@ readtmcinfo() {
     local -i ncnt=0
     local ifile 
     local itmp
-echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+
     ifile=${1+$1}
     if [ -z "$ifile" ] ; then
 	itmp="y"
@@ -106,7 +106,10 @@ printtmcinfo() {
 			val=${objval##*=}
 			[[ -z $val ]] && continue # bad also no value (or empty string)
 			u=${val,,} #lower case
-			[[ $u == ${u/unk} ]] || continue # the value has the unk-nown value
+			[[ $u == ${u/unk} ]] || continue # the value has the UNKNOWN value
+			[[ $u == ${u/na} ]] || continue # the value has the NA
+			[[ $u == ${u/not} ]] || continue # the value has the LinuxNot
+			[[ $u == ${u/bad} ]] || continue # the value bad_dd
 		        # out put the stuff the database wants
 		        # skip the stuff the database does not want
 			case $obj in
@@ -235,6 +238,7 @@ getdrivenames() {
 		[[ -c /dev/da${i} ]] && drivelist+="/dev/da${i} " 
 		[[ -c /dev/ad${i} ]] && drivelist+="/dev/ad${i} " 
 		[[ -c /dev/amrd${i} ]] && drivelist+="/dev/amrd${i} " 
+		[[ -c /dev/mfid${i} ]] && drivelist+="/dev/mfid${i} " 
 	    done
 	    ;;
 	* )

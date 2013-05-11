@@ -115,10 +115,9 @@ main() {
 		$driver_val ) d[$driver_val]=$(getdriver ${drive[$idx]}) ;;
 		$type_val ) d[$type_val]=$(gettype ${drive[$idx]}) ;;
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
-	$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
+		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
 		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
-# only on first drive only until we have better test 
-		$wspeed_val ) [[ $idx == 0 ]] && d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
+		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
 	    esac
 	done
 #set +x	
@@ -134,7 +133,7 @@ main() {
 		d[$size_val]=$(($x / 1000000000))		
 		;;
 		# and getwspeed must be done before getrspeed
-		$rspeed_val ) [[ $idx == 0 ]] && d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
+		$rspeed_val ) d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
 	    esac
 	done
 	# just in case
@@ -161,10 +160,10 @@ main() {
 
 # if saving data for testbed database
 if [ -f ${logfile4tb} ] ; then
-    printf "%s %d\n"  "DISKINFO" ${numberofdrives} >> ${logfile4tb}
+    printf "%s%d\n"  "DISKINFO UNITS=" ${numberofdrives} >> ${logfile4tb}
     for (( idx=0; idx<$numberofdrives; idx++)) ; do
 	unset -v d ; declare -a d=(${driveinv[$idx]})
-	printf "%s %s\""%s\"" %s\""%s\"" %s%s %s%s %s%s %s%s\n" \
+	printf "%s %s\""%s\"" %s\""%s\"" %s%s %s%s %s%s %s%s" \
 	    ${d[$header]} \
 	    ${d[$serial]} ${d[$serial_val]} \
 	    ${d[$type]} ${d[$type_val]} \
@@ -172,6 +171,12 @@ if [ -f ${logfile4tb} ] ; then
 	    ${d[$sectors]} ${d[$sectors_val]} \
 	    ${d[$wspeed]} ${d[$wspeed_val]} \
 	    ${d[$rspeed]} ${d[$rspeed_val]} >> ${logfile4tb}
+	printf " %s%s %s%s %s%s %s%s %s%s\n" \
+	    ${d[$name]} ${d[$name_val]} \
+	    ${d[$size]} ${d[$size_val]} \
+	    ${d[$temp]} ${d[$temp_val]} \
+	    ${d[$model]} ${d[$model_val]} \
+	    ${d[$driver]} ${d[$driver_val]} >> ${logfile4tb}
     done
 fi
 #output to log file
@@ -462,9 +467,16 @@ getbpers() {
 		    return 0
 		fi
 	    fi
-	    res=${res%%byte sectors*}
-	    res=${res##*(}
-	    res=${res#* }
+	    if [ "$res" == "${res/sectors)}" ] ; then
+		# this format: "da0: 140014MB (286749480 512 byte sectors: 255H 63S/T 17849C)"
+		res=${res%%byte sectors*}
+		res=${res##*(}
+		res=${res#* }
+	    else
+		# this format: "mfid0: 5869927MB (12021612416 sectors) RAID volume '' is optimal"
+		# just assume 512
+		res=512
+	    fi
 	    [[ $res ]] || res=512
 	    ;;
 	* ) echo "$FUNCNAME internal error"
@@ -474,6 +486,7 @@ getbpers() {
     echo $res
     return 0
 }
+
 getsectors() { 
     hdname=$1
     case $os in
@@ -501,15 +514,24 @@ getsectors() {
 			echo 0
 			return 0
 		    fi
+		    # fake and go by the size 
 		    res=${res%%MB*}
 		    res=${res#* }
 		    echo $(( $res * 2048 )) # assume 512 byte sectors
 		    return 0
 		fi
 	    fi
-	    res=${res%%byte sectors*}
-	    res=${res##*(}
-	    res=${res%% *}
+	    if [ "$res" == "${res/sectors)}" ] ; then
+	        # this format: "da0: 140014MB (286749480 512 byte sectors: 255H 63S/T 17849C)"
+		res=${res%%byte sectors*} # truncate 'byte sectors' to end
+		res=${res##*(} # chop off begining to sector number
+		res=${res%% *} # get rid of everthing after the space
+	    else
+		# this format: "mfid0: 5869927MB (12021612416 sectors) RAID volume '' is optimal"
+		res=${res%%sectors)*}
+		res=${res##*(}
+		res=${res%% *}
+	    fi
 	    [[ $res ]] || res=0
 	    ;;
 	* ) echo "$FUNCNAME internal error"
@@ -519,37 +541,60 @@ getsectors() {
     echo $res
     return 0
 }
+
 getwspeed() { 
-    rm -f /var/tmp/ddout ; sync ; sync
-    if [ "$os" != "Linux" ] ; then 
-	echo "LinuxNot"
-	return 0
+    hdname=$1
+    # disk is mounted somewhere then don't do the raw write speed
+    canwe=$(df | grep $hdname)
+    [[ $canwe ]] && { echo mounted; return 0; }
+    if [ "$os" == "Linux" ] ; then 
+	args="bs=64k iflag=direct count=8000"
+    elif [ "$os" == "FreeBSD" ] ; then 
+	args="bs=64k count=8000"
     fi
-{ 
-    $(dd if=/dev/zero of=/var/tmp/ddout bs=64k count=8000 oflag=direct)
+    # do we have a working dd
+    canwe=$(which dd)
+    canwe=$(ls -l $canwe | grep busybox)
+    [[ $canwe ]] && { echo bad_dd; return 0; }
+    { 
+    $(dd if=/dev/zero of=$hdname $args)
 } > /tmp/ddresultw 2>&1
     res=$(grep bytes /tmp/ddresultw)
     echo $(parsedd $res)
     return 0
 }
 getrspeed() { 
-    if [ "$os" != "Linux" ] ; then 
-	echo "LinuxNot"
-	return 0
+    hdname=$1
+    if [ "$os" == "Linux" ] ; then 
+	args="bs=64k iflag=direct count=8000"
+    elif [ "$os" == "FreeBSD" ] ; then 
+	args="bs=64k count=8000"
     fi
+    # do we have a working dd
+    canwe=$(which dd)
+    canwe=$(ls -l $canwe | grep busybox)
+    [[ $canwe ]] && { echo bad_dd; return 0; }
 { 
-    $(dd of=/dev/null if=/var/tmp/ddout bs=64k iflag=direct)
+    $(dd of=/dev/null if=$hdname $args)
 } > /tmp/ddresultr 2>&1
-    rm -f /var/tmp/ddout
     res=$(grep bytes /tmp/ddresultr)
     echo $(parsedd $res)
     return 0
 }
 
 parsedd() {
-    # only Linux checks for now
-    # format of "524288000 bytes (524 MB) copied, 5.19277 s, 101 MB/s"
-    echo $8
+    if [ "$os" == "Linux" ] ; then 
+ 	echo $8
+    elif [ "$os" == "FreeBSD" ] ; then 
+        x=$7
+	x=${x#(}
+	y=$8
+	if [ "$y" == "bytes/sec)" ] ; then
+	    x=$(( $x / 1048576 ))
+	fi
+    fi
+    echo $x
+    return 0
 }
 
 main $@
