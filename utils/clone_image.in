@@ -272,7 +272,7 @@ if ($isvirtnode) {
 	$parentosinfo->pid() . "," . $parentosinfo->osname();
 
     # And this is just plain bogus. 
-    $xmlfields{"mbr_version"} = 2;
+    $xmlfields{"mbr_version"} = 99;
 }
 
 #

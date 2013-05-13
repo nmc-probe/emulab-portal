@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -913,7 +913,7 @@ if (!isset($submit)) {
 	$defaults["mtype_all"] = "Yep";
 
 	# Bogus. This tells the client that the ndz file is a package.
-	$defaults["mbr_version"] = "2";
+	$defaults["mbr_version"] = "99";
     }
     elseif (isset($nodetype) && $nodetype == "mote") {
 	# Defaults for mote-type nodes
