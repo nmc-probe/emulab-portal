@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -329,6 +329,7 @@ sub bootvnode($$$)
     my ($vnode, $action, $jailed) = @_;
     my $opt;
     my $act;
+    my $extrawait;
 
     if ($action eq "halt") {
 	$opt = "-h";
@@ -337,6 +338,8 @@ sub bootvnode($$$)
     elsif ($action eq "reboot") {
 	$opt = "-r";
 	$act = "Rebooting";
+	$extrawait = 20
+	    if (GENVNODETYPE() eq "xen");
     }
     elsif ($action eq "kill") {
 	$opt = "-k";
@@ -345,11 +348,17 @@ sub bootvnode($$$)
     else {
 	$opt = "-b";
 	$act = "Booting";
+	$extrawait = 20
+	    if (GENVNODETYPE() eq "xen");
     }
     $opt .= ($jailed ? " -jVt" : " -i");
     
     print "$act vnode $vnode with options '$opt' at " .
 	libsetup::TBTimeStamp() . "\n";
     system("vnodesetup $opt $vnode");
-    return($?);
+    return($?)
+	if ($?);
+    sleep($extrawait)
+	if (defined($extrawait));
+    return 0;
 }
