@@ -1572,7 +1572,8 @@ sub latency_test {
 			# call ping_node with ttl=1
 			my ($result_cnt, $sample_avg, $sample_dev) =
 			    &ping_node($edge->dst . "-" . $edge->name,
-				       1, undef, $ptimo);
+				       $edge->mpxstyle eq "gre" ? 2 : 1,
+				       undef, $ptimo);
 			
 			if ($reportonly) {
 			    my $u = &link_rtt($edge, $other_edge);
@@ -1695,7 +1696,7 @@ sub bw_test {
 	# add 10 percent.
 	my $bw = 0;
 
-	if (defined($edge) && defined($redge)) {
+	if (defined($edge) && defined($redge) && $edge->mpxstyle ne "gre") {
 	    if($hostname eq $edge->dst) {
 		#
 		# iperf does a twoway test.
@@ -1876,6 +1877,7 @@ sub bw_test {
 	    $trun++;
 	}
 	&barrier();
+	sleep(5);
     }
 
     # read the log file.
