@@ -616,8 +616,7 @@ sub killvnode() {
     my $i = 0;
     while (-e $pidfile) {
 	if ($i >= 30) {
-	    print "*** Not able to kill running vnode manager process ".
-		"$mpid!\n";
+	    print "*** vnode manager process ($mpid) has not stopped yet.\n";
 	    last;
 	}
 	sleep(1);
