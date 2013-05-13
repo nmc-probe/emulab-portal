@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -916,6 +916,16 @@ sub doSwapout($) {
 	    }
 	    TBDebugTimeStamp("exports finished");
 
+	    print "Resetting locked down arp entries\n";
+	    TBDebugTimeStamp("arplockdown started");
+	    if (system("arplockdown -v -d")) {
+		tberror({type => 'secondary', severity => SEV_SECONDARY,
+			 error => ['arplockdown_setup_failed']},
+			"Failed to reset locked down arp entries");
+		return 1;
+	    }
+	    TBDebugTimeStamp("arplockdown finished");
+    
 	    #
 	    # Ditto these two. 
 	    #
@@ -1326,6 +1336,16 @@ sub doSwapin($) {
     # os_setup. (Actually, these probably can too, since they should finish
     # long before the nodes reboot, but better safe than sorry)
     #
+    print "Locking down arp entries\n";
+    TBDebugTimeStamp("arplockdown started");
+    if (system("arplockdown -v -d")) {
+	tberror({type => 'secondary', severity => SEV_SECONDARY,
+		 error => ['arplockdown_setup_failed']},
+		"Failed to lockdown arp entries");
+	return 1;
+    }
+    TBDebugTimeStamp("arplockdown finished");
+    
     print "Setting up mountpoints.\n";
     TBDebugTimeStamp("mountpoints started");
     if (system("exports_setup")) {

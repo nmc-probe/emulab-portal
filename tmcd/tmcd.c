@@ -10355,8 +10355,7 @@ COMMAND_PROTOTYPE(doarpinfo)
 				 "where n.node_id=i.node_id and i.role='ctrl' "
 				 " and i.mac not like '000000%%' "
 				 " and (n.role='testnode' or "
-				 "      (n.role='virtnode' and "
-				 "       sharing_mode is null)) ", 4);
+				 "      n.role='virtnode') ", 4);
 		if (!res) {
 			error("doarpinfo: %s: DB Error getting"
 			      "control interface info\n", reqp->nodeid);
