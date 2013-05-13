@@ -39,13 +39,13 @@ bsd=""
 #echo "linux||$linux||"
 
 
-utils="diskcheck diskspeedcheck memcheck cpucheck checkutils.sh getfromtb.sh hbis.sh timecheck niccheck"
+utils="diskcheck diskspeedcheck memcheck cpucheck checkutils.sh getfromtb.sh hbis.sh timecheck niccheck gathercheck"
 
 arg=${arg=""} # use var if set else use ""
 
 case $arg in
     drive | disk | mem | cpu | diskspeed | time | nic | Ngetlogs | clearlogs | help | -help | -h | ? ) ;;
-    pc* )
+    pc* | dbox* )
 	list=$arg ;;
 esac
 
