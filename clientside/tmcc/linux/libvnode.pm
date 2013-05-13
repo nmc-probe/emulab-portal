@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -512,24 +512,36 @@ sub createExtraFS($$$)
 {
     my ($path, $vgname, $size) = @_;
     
-    return
-	if (-e $path);
-
-    system("mkdir $path") == 0
-	or return -1;
+    if (! -e $path) {
+	system("mkdir $path") == 0
+	    or return -1;
+    }
+    return 0
+	if (-e "$path/.mounted");
     
-    system("lvcreate -n extrafs -L $size $vgname") == 0
-	or return -1;
+    my $lvname;
+    if ($path =~ /\/(.*)$/) {
+	$lvname = $1;
+    }
+    my $lvpath = "/dev/$vgname/$lvname";
+    my $exists = `lvs --noheadings -o origin $lvpath > /dev/null 2>&1`;
+    if ($?) {
+	system("lvcreate -n $lvname -L $size $vgname") == 0
+	    or return -1;
 
-    system("mke2fs -j /dev/$vgname/extrafs") == 0
-	or return -1;
+	system("mke2fs -j $lvpath") == 0
+	    or return -1;
+    }
+    if (! -e "$path/.mounted") {
+	system("mount $lvpath $path") == 0
+	    or return -1;
+    }
+    system("touch $path/.mounted");
 
-    system("mount /dev/$vgname/extrafs $path") == 0
-	or return -1;
-
-    system("echo '/dev/$vgname/extrafs $path ext3 defaults 0 0' >> /etc/fstab")
-	== 0 or return -1;
-
+    if (system("egrep -q -s '^${lvpath}' /etc/fstab")) {
+	system("echo '$lvpath $path ext3 defaults 0 0' >> /etc/fstab")
+	    == 0 or return -1;
+    }
     return 0;
 }
 
