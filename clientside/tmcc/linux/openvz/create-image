@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -172,7 +172,7 @@ if ($status eq "running") {
 	    chomp($stuff);
 	    die("Could not parse container status: '$stuff'\n");
 	}
-	sleep(5);
+	sleep(15);
     }
     if ($status ne "stopped") {
 	die("Container $ctid would not stop!\n");
