@@ -1071,6 +1071,8 @@ sub LoadCurrentResources($)
 	if (!$query_result);
 
     while (my ($vname,$nodeid) = $query_result->fetchrow_array()) {
+	$self->printdb("current v2p: $nodeid -> $vname\n");
+	
 	$self->current_v2pmap()->{$vname} = $nodeid;
     }
     return 0;
@@ -1423,8 +1425,7 @@ sub LoadVirtNodes($)
 		if ($vnode->_desires()->{"?+ram"} > $maxmem &&
 		    $vnode->_sharedokay() &&
 		    !$self->user()->IsAdmin()) {
-		    tberror("Invalid def_parentosid in " .
-			    $vnode->_osinfo() . "\n");
+		    tberror("You asked for too much memory on $vnode\n");
 		    return -1;
 		}
 	    }
@@ -1699,6 +1700,7 @@ sub LoadVirtLans($)
 	$virtlan->_implemented_by($implemented_by);
 	$virtlan->_vpath(undef);
 	$virtlan->_bridged(0);
+	$virtlan->_wiretype("ethernet");
 	
 	if (defined($encap) &&
 	    ($encap eq "vtun" || $encap eq "gre" || $encap eq "egre")) {
@@ -1815,6 +1817,20 @@ sub LoadVirtLans($)
     }
 
     #
+    # Look for lans with reserved tags in the highvlan range. Ick.
+    # Luckily, only at Utah.
+    #
+    if ($MAINSITE) {
+	foreach my $virtlan (values(%{ $self->vlans() })) {
+	    my $tag = VLan::GetReservedVlanTag($self->experiment(),
+					       $virtlan->vname());
+	    if (defined($tag) && $tag > 1000) {
+		$virtlan->_wiretype("ethernet-highvlan");
+	    }
+	}
+    }
+
+    #
     # Sanity check the shared lan requests.
     #
     foreach my $virtlan (values(%{ $self->vlans() })) {
@@ -1855,9 +1871,10 @@ sub LoadVirtLans($)
 		#
 		# Add a desire to all of the nodes.
 		#
-		foreach my $member ($virtlan->memberlist()) {
-		    $member->virt_node()->_desires()->{"highvlan"} = "1.0";
-		}
+		#foreach my $member ($virtlan->memberlist()) {
+		#    $member->virt_node()->_desires()->{"highvlan"} = "1.0";
+		#}
+		$virtlan->_wiretype("ethernet-highvlan");
 	    }
 	}
 	# Convert to actual object for later
@@ -2334,6 +2351,14 @@ sub GenFixNodes($)
 
 	    $self->createFixedNode($lannode,
 				   $self->current_v2pmap()->{$lannode});
+	}
+	foreach my $delaynode (sort(keys(%{ $self->delaynodes() }))) {
+	    next
+		if (exists($self->fixednodes()->{$delaynode}) ||
+		    ! exists($self->current_v2pmap()->{$delaynode}));
+	    
+	    $self->createFixedNode($delaynode,
+				   $self->current_v2pmap()->{$delaynode});
 	}
     }
     return 0;
@@ -3009,7 +3034,7 @@ sub GenVirtLans($)
 				  {'virtual_node_id' => $vnodevname,
 				   'virtual_interface_id' =>"$member" },
 				  {'virtual_node_id' => $lannode },
-				  $bw, $protocol, $others);
+				  $bw, $vlan->_wiretype(), $others);
 	    }
 	}
 	elsif (@members == 2 && !$vlan->_bridged()) {
@@ -3218,7 +3243,8 @@ sub GenVirtLans($)
 				    {'virtual_node_id' => $vname1,
 				     'virtual_interface_id' => "$member1" },
 				      ($top_bw == 0 ? "*" : 
-				       max($top_bw, $top_rbw)), $protocol,
+				       max($top_bw, $top_rbw)),
+				      $vlan->_wiretype(),
 				      $others);
 		    }
 		    my @delayinfo = ($delay,$bw,$backfill,$loss,
@@ -3258,7 +3284,7 @@ sub GenVirtLans($)
 				      {'virtual_node_id' => $delayname,
 				       'virtual_interface_id' => "$member1" },
 				      ($top_bw == 0 ? "*" : $top_bw), 
-				      $protocol, $others);
+				      $vlan->_wiretype(), $others);
 		    
 		    $self->createLink($vname,
 				      "linksdelaydst/$vname/$member1,$member0",
@@ -3268,7 +3294,7 @@ sub GenVirtLans($)
 				      {'virtual_node_id' => $delayname,
 				       'virtual_interface_id' =>"$member0" },
 				      ($top_bw == 0 ? "*" : $top_bw), 
-				      $protocol, $others);
+				      $vlan->_wiretype(), $others);
 		    
 		    $self->printdb("Delay node $plink ($delayname) = " . 
 				   join(" ", @delayinfo) . "\n");
@@ -3358,7 +3384,7 @@ sub GenVirtLans($)
 				       'virtual_interface_id' =>"$member0" },
 				      {'virtual_node_id' => $vname1,
 				       'virtual_interface_id' =>"$member1" },
-				      $bw, $protocol, $others);
+				      $bw, $vlan->_wiretype(), $others);
 		}
 	    }
 	}
@@ -3518,7 +3544,7 @@ sub GenVirtLans($)
 					  {'virtual_node_id' => "$lannode" },
 					  $top_bw == 0 ? "*" : 
 					  max($top_bw,$top_rbw),
-					  $protocol, $others);
+					  $vlan->_wiretype(), $others);
 			
 			$self->printdb("Delay link $plink = " .
 				       join(" ", @delayinfo) . "\n");
@@ -3553,7 +3579,7 @@ sub GenVirtLans($)
 				       {'virtual_node_id' => $delayname,
 					 'virtual_interface_id' =>"$member" },
 					  $top_bw == 0 ? "*" : $top_bw,
-					  $protocol, $others);
+					  $vlan->_wiretype(), $others);
 				
 			$self->createLink($vname,
 					  "linkdelaydst/$vname/$member",
@@ -3563,7 +3589,7 @@ sub GenVirtLans($)
 					{'virtual_node_id' => $delayname,
 					 'virtual_interface_id' =>"$member" },
 					  $top_bw == 0 ? "*" : $top_bw,
-					  $protocol, {});
+					  $vlan->_wiretype(), {});
 			
 			$self->printdb("Delay node $plink ($delayname) = " .
 				       join(" ", @delayinfo) . "\n");
@@ -3630,7 +3656,7 @@ sub GenVirtLans($)
 				       'virtual_interface_id' =>"$member" },
 				      {'virtual_node_id' => $lannode },
 				      ($top_bw == 0 ? "*" : $top_bw), 
-				      $protocol, $others);
+				      $vlan->_wiretype(), $others);
 		}
 	    }
 	}
@@ -4412,7 +4438,9 @@ sub AddLinkToSolution($$$$$$$$;$)
 	$self->printdb("  $vlink ".
 		       (defined($nodeA) ? "A:$nodeA:$portA " : "") .
 		       (defined($nodeB) ? "B:$nodeB:$portB " : "") .
-		       ($direct ? " (direct)" : "") . "\n");
+		       ($direct ? " (direct)" : "") .
+		       (defined($switchpath) ? " $switchpath" : "") .
+		       "\n");
     }
     else {
 	$self->printdb("  $vlink trivial\n");
@@ -5820,7 +5848,7 @@ sub InterpLinksAux($)
 	else {
 	    $self->printdb("plink $plink\n");
 	}
-	$self->printdb("  path - $pathA\n")
+	$self->printdb("  pathA - $pathA\n")
 	    if (defined($pathA));
 
 	# There is always a member0.
@@ -5952,6 +5980,7 @@ sub InterpLinksAux($)
 	    }
 	    $protolanlan->AddMember($nodeD, $portD);
 	    if (defined($pathB)) {
+		$self->printdb("  pathB - $pathB\n");
 		my $path = $protolanlan->GetAttribute("switchpath");
 		$protolanlan->SetAttribute("switchpath",
 					   AddToSwitchPath($path, $pathB));
@@ -9585,7 +9614,8 @@ sub AddToSwitchPath($$)
 	    if (! ((grep {$_ eq $n} @cur) ||
 		   (grep {$_ eq "$s2:$s1"} @cur)));
     }
-    return join(" ", @cur);
+    my $rval = join(" ", @cur);
+    return $rval;
 }
 
 1;

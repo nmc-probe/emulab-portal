@@ -1775,8 +1775,28 @@ while (($node1,$card1,$port1,$node2,$card2,$port2) =
             # that it allows people to ask for links to specific
             # switches, specific interface types, etc.
 	    #
-	    push(@types, $basetype . "-" . $switchobj->node_id())
-		if (defined($switchobj));
+	    if (defined($switchobj)) {
+		push(@types, $basetype . "-" . $switchobj->node_id());
+
+		#
+		# Look for wire_* atrributes on the switch and convert that
+		# to a link type. Added, so we could associate a
+		# highvlan feature on wires attached to switches that
+		# allow high numbered vlans. This is needed in Utah,
+		# where only parts of the fabric support high vlans.
+		#
+		my $attributes = $switchobj->GetNodeAttributes();
+		if (defined($attributes)) {
+		    foreach my $key (keys(%{ $attributes })) {
+			next
+			    if ($key !~ /^wire_/);
+
+			my $val = $attributes->{$key}->{"attrvalue"};
+			
+			push @types, "$basetype-$val";
+		    }
+		}
+	    }
 
             if ($interfacetypes{"$node1:$card1:$port1"}) {
                 push @types, "$basetype-" .
