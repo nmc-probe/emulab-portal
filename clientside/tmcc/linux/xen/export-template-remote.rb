@@ -15,7 +15,7 @@ class EmulabExport
         raise "Failed unzippinging ec2-utils" unless
             system("unzip ec2-ami-tools.zip")
 
-        $: << Dir.pwd + "/ec2-ami-tools-1.4.0.9/lib/"
+        $:.unshift(Dir.pwd + "/ec2-ami-tools-1.4.0.9/lib/")
         require 'ec2/platform/current'
 
         excludes = ['/tmp/image', '/dev', '/media', '/mnt', '/proc', '/sys', '/', '/proc/sys/fs/binfmt_misc', '/dev/pts']
