@@ -118,6 +118,9 @@ my $VLANCONFIG = "/sbin/vconfig";
 my $IP = "/sbin/ip";
 my $TC = "/sbin/tc";
 
+# where all our config files go
+my $VMDIR = "/var/emulab/vms/vminfo";
+
 my $VZRC   = "/etc/init.d/vz";
 my $MKEXTRAFS = "/usr/local/etc/emulab/mkextrafs.pl";
 my $BRIDGESETUP = "/usr/local/etc/emulab/xenbridge-setup";
@@ -133,6 +136,11 @@ my $CTRLIPFILE = "/var/emulab/boot/myip";
 my $IMQDB      = "/var/emulab/db/imqdb";
 # The kernel will auto create up to 1024 IMQs
 my $MAXIMQ     = 1024;
+
+# IFBs
+my $IFBDB      = "/var/emulab/db/ifbdb";
+# Kernel auto-creates only two! Sheesh, why a fixed limit?
+my $MAXIFB     = 512;
 
 my $CONTROL_IFNUM  = 999;
 my $CONTROL_IFDEV  = "eth${CONTROL_IFNUM}";
@@ -156,8 +164,6 @@ my $USE_NETEM   = 0;
 my $USE_MACVLAN = 0;
 # Use control network bridging for all containers. 
 my $USE_CTRLBR  = 1;
-# Use extra bridging for BW limiting. Always on shared hosts.
-my $USE_TCBRS   = 1;
 
 # Switch to openvswitch
 my $USE_OPENVSWITCH = 0;
@@ -179,9 +185,6 @@ if ($kmaj >= 2 && $kmin >= 6 && $kpatch >= 32) {
 	$USE_MACVLAN = 1;
     }
 }
-if (SHAREDHOST()) {
-    $USE_TCBRS = 1;
-}
 
 #
 # Helpers.
@@ -201,7 +204,6 @@ sub vmstatus($);
 sub vmrunning($);
 sub vmstopped($);
 sub GClvm($);
-sub SetupCaps($$$$);
 
 #
 # Bridge stuff
@@ -503,6 +505,9 @@ sub vz_rootPreConfig {
     mysystem("$MODPROBE imq");
     mysystem("$MODPROBE ipt_IMQ");
 
+    # Switching to IFBs (eventually).
+    mysystem("$MODPROBE ifb numifbs=$MAXIFB");
+
     # start up open vswitch stuff.
     if ($USE_OPENVSWITCH) {
 	mysystem("$OVSSTART --delete-bridges start");
@@ -517,7 +522,7 @@ sub vz_rootPreConfig {
 		 ($USE_OPENVSWITCH ? "-o" : "") . " -b vzbr0");
     }
 
-    # Create a DB to manage them. 
+    # Create a DB to manage IMQs
     my %MDB;
     if (!dbmopen(%MDB, $IMQDB, 0660)) {
 	print STDERR "*** Could not create $IMQDB\n";
@@ -525,6 +530,18 @@ sub vz_rootPreConfig {
 	return -1;
     }
     for (my $i = 0; $i < $MAXIMQ; $i++) {
+	$MDB{"$i"} = ""
+	    if (!defined($MDB{"$i"}));
+    }
+    dbmclose(%MDB);
+
+    # Create a DB to manage IFBs
+    if (!dbmopen(%MDB, $IFBDB, 0660)) {
+	print STDERR "*** Could not create $IFBDB\n";
+	TBScriptUnlock();
+	return -1;
+    }
+    for (my $i = 0; $i < $MAXIFB; $i++) {
 	$MDB{"$i"} = ""
 	    if (!defined($MDB{"$i"}));
     }
@@ -616,6 +633,17 @@ sub vz_rootPreConfigNetwork {
 		    goto bad
 			if ($?);
 		    mysystem2("$VLANCONFIG set_name_type VLAN_PLUS_VID_NO_PAD");
+
+		    #
+		    # We do not want the vlan device to have the same
+		    # mac as the physical device, since that will confuse
+		    # findif later.
+		    #
+		    my $bmac = fixupMac(GenFakeMac());
+		    mysystem2("$IP link set $vdev address $bmac");
+		    goto bad
+			if ($?);
+		    
 		    mysystem2("$IFCONFIG $vdev up");
 		    mysystem2("$ETHTOOL -K $vdev tso off gso off");
 		    makeIfaceMaps();
@@ -673,11 +701,6 @@ sub vz_rootPreConfigNetwork {
 	    # This bridge might be shared with other containers, so difficult
 	    # to delete. This really only matters on shared nodes though, where
 	    # bridges and vlans could stack up forever (or just a long time).
-	    # The good news is that because we create a traffic shaping bridge
-	    # (see below) on shared nodes, all modifications to the bridge
-	    # are under lock, so each time a container exits, we can check to
-	    # see if there anyone else is using it. So, just record that we
-	    # are using this bridge. See additional note below.
 	    #
 	    if (! -d "/sys/class/net/$k/bridge") {
 		addbr($k);
@@ -686,6 +709,19 @@ sub vz_rootPreConfigNetwork {
 	    }
 	    # record bridge used
 	    $private->{'physbridges'}->{$k} = $k;
+
+	    #
+	    # Bad feature of bridges; they take on the lowest numbered
+	    # mac of the added interfaces (and it changes as interfaces
+	    # are added and removed!). But the main point is that we end
+	    # up with a bridge that has the same mac as a physical device
+	    # and that screws up findIface(). But if we "assign" a mac
+	    # address, it does not change and we know it will be unique.
+	    #
+	    my $bmac = fixupMac(GenFakeMac());
+	    mysystem2("$IP link set $k address $bmac");
+	    goto bad
+		if ($?);
 	    
 	    # repetitions of this should not hurt anything
 	    mysystem2("$IFCONFIG $k 0 up");
@@ -720,71 +756,6 @@ sub vz_rootPreConfigNetwork {
 		    # rebuild hashes
 		    makeBridgeMaps();
 		}
-
-		if ($USE_TCBRS) {
-		    #
-		    # We do not put the virtual interface into the same
-		    # bridge as the physical device. We create a second
-		    # veth pair and another bridge so that we can hang bw
-		    # controls onto them.
-		    #
-		    my $ifcid = $ifc->{ID};
-		    my $vbr   = "br$vmid.$ifcid";
-		    my $va    = "sheth$vmid.${ifcid}A";
-		    my $vb    = "sheth$vmid.${ifcid}B";
-		    
-		    if (! -d "/sys/class/net/$vbr/bridge") {
-			addbr($vbr);
-			goto bad
-			    if ($?);
-			# record bridge created.
-			$private->{'bridges'}->{$vbr} = $vbr;
-		    }
-		    # repetitions of this should not hurt anything
-		    mysystem2("$IFCONFIG $vbr 0 up");
-
-		    # Tell later phase the new name of the bridge.
-		    $ifc->{'BRIDGE'} = $vbr;
-
-		    # Now create the veth pair. 
-		    mysystem2("$IP link add $va type veth peer name $vb");
-		    goto bad
-			if ($?);
-		    # record pair created. Only need to record $va; when
-		    # we delete that, the other dies.
-		    $private->{'iplinks'}->{$va} = $vb;
-
-		    mysystem2("$IFCONFIG $va 0 up");
-		    mysystem2("$IFCONFIG $vb 0 up");
-
-		    #
-		    # One side of the veth goes into the br with the
-		    # physical device. The other side goes into the
-		    # other bridge (happens later) which connects
-		    # it to the veth that is connected to the container.
-		    #
-		    addbrif($vbr, $va);
-		    goto bad
-			if ($?);
-		    # record iface added to bridge 
-		    $private->{'bridgeifaces'}->{$vbr}->{$va} = $vbr;
-
-		    addbrif($k, $vb);
-		    goto bad
-			if ($?);
-		    # record iface added to bridge 
-		    $private->{'bridgeifaces'}->{$k}->{$vb} = $k;
-		    
-		    #
-		    # See if we have a delay config for this interface.
-		    # Set up the rules now. Could do it later, but why.
-		    #
-		    foreach my $ld (@node_lds) {
-			if ($ld->{'IFACE'} eq $ifc->{MAC}) {
-			    SetupCaps($ld, $private, $va, $vb);
-			}
-		    }
-		}
 	    }
 	}
 	elsif ($USE_MACVLAN
@@ -799,50 +770,36 @@ sub vz_rootPreConfigNetwork {
     }
 
     #
-    # Use the IMQDB to reserve the devices to the container. We have the lock.
+    # IMQs are a little tricky. Once they are mapped into a container,
+    # we never get to see them again until the container is fully
+    # destroyed or until we explicitly unmap them from the container.
+    # We also want to hang onto them so we do not get into a situation
+    # where we stopped to take a disk image, and then cannot start
+    # again cause we ran out of resources (shared nodes). So, we have
+    # to look for IMQs (and IFBs) that are already allocated to the
+    # container. See the allocate routines, which make use of the tag.
     #
-    my %MDB;
-    if (!dbmopen(%MDB, $IMQDB, 0660)) {
-	print STDERR "*** Could not create $IMQDB\n";
-	goto bad;
-    }
-    my $i = 0;
-    {
-        foreach my $ldc (@node_lds) {
+    if (@node_lds) {
+	my $ifbs = AllocateIFBs($vmid, \@node_lds, $private);
+	my $imqs = AllocateIMQs($vmid, \@node_lds, $private);
+
+	goto bad
+	    if (! (defined($ifbs) && defined($imqs)));
+
+	foreach my $ldc (@node_lds) {
+	    my $tag = "$vnode_id:" . $ldc->{'LINKNAME'};
+	    my $ifb = pop(@$ifbs);
+	    $private->{'ifbs'}->{$ifb} = $tag;
+	    
+	    # Stash for later.
+	    $ldc->{'IFB'} = $ifb;
+
 	    if ($ldc->{"TYPE"} eq 'duplex') {
-		while ($i < $MAXIMQ) {
-		    my $current = $MDB{"$i"};
-
-		    if (!defined($current) ||
-			$current eq "" || $current eq $vnode_id) {
-			$MDB{"$i"} = $vnode_id;
-			$i++;
-			# Record imq in use
-			$private->{'imqs'}->{"$i"} = $i;
-			last;
-		    }
-		    $i++;
-		}
-		if ($i == $MAXIMQ) {
-		    print STDERR "*** No more IMQs\n";
-		    dbmclose(%MDB);
-		    goto bad;
-		}
-	    }
-	}
-	# Clear anything else this node is using; no longer needed.
-	for (my $j = $i; $j < $MAXIMQ; $j++) {
-	    my $current = $MDB{"$j"};
-
-	    if (!defined($current)) {
-		$MDB{"$j"} = $current = "";
-	    }
-	    if ($current eq $vnode_id) {
-		$MDB{"$j"} = "";
+		my $imq = pop(@$imqs);
+		$private->{'imqs'}->{$imq} = $tag;
 	    }
 	}
     }
-    dbmclose(%MDB);
     TBScriptUnlock();
     return 0;
 
@@ -850,8 +807,6 @@ sub vz_rootPreConfigNetwork {
     #
     # Unwind anything we did. 
     #
-    KillCaps($private);
-    
     # Remove interfaces we *added* to bridges.
     if (exists($private->{'bridgeifaces'})) {
 	foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
@@ -897,29 +852,13 @@ sub vz_rootPreConfigNetwork {
 	}
     }
     # Undo the IMQs
-    if (exists($private->{'imqs'})) {
-	if (!dbmopen(%MDB, $IMQDB, 0660)) {
-	    print STDERR "*** Could not open $IMQDB\n";
-	    goto badbad;
-	}
-	foreach my $i (keys(%{ $private->{'imqs'} })) {
-	    $MDB{"$i"} = "";
-	    delete($private->{'imqs'}->{"$i"});
-	}
-	dbmclose(%MDB);
-    }
-    if ($USE_TCBRS && exists($private->{'physbridges'})) {
-	makeBridgeMaps();
-	
-	foreach my $brname (keys(%{ $private->{'physbridges'} })) {
-	    my @ifaces = findBridgeIfaces($brname);
-	    if (@ifaces <= 1) {
-		delbr($brname);
-		delete($private->{'physbridges'}->{$brname})
-		    if (! $?);
-	    }
-	}
-    }
+    ReleaseIMQs($vmid, $private)
+	if (exists($private->{'imqs'}));
+		    
+    # Release the IFBs
+    ReleaseIFBs($vmid, $private)
+	if (exists($private->{'ifbs'}));
+
   badbad:
     TBScriptUnlock();
     return -1;
@@ -1084,7 +1023,6 @@ sub vz_vnodeCreate {
 		  "cannot create logical volume for $image");
 	}
     }
-    my $createArg = "";
 
     #
     # Now we can create the vnode disk from the base disk.
@@ -1149,14 +1087,15 @@ sub vz_vnodeCreate {
 		     "tar -b 64 -xf - -C /mnt/$vnode_id/private");
 	    TBDebugTimeStampWithDate("untar done");
 	}
-	mysystem("mkdir -p /mnt/$vnode_id")
-	    if (! -e "/mnt/$vnode_id");
-	mysystem("mount $vnodelvmpath /mnt/$vnode_id")
-	    if (! -e "/mnt/$vnode_id/private");
-
-	$createArg = "--private /mnt/$vnode_id/private" . 
-	    " --root /mnt/$vnode_id/root --nofs yes";
     }
+    mysystem("mkdir -p /mnt/$vnode_id")
+	if (! -e "/mnt/$vnode_id");
+    mysystem("mount $vnodelvmpath /mnt/$vnode_id")
+	if (! -e "/mnt/$vnode_id/private");
+
+    my $createArg = "--private /mnt/$vnode_id/private" . 
+	    " --root /mnt/$vnode_id/root --nofs yes";
+
     # For GC after teardown.
     $private->{'baseimage'} = $image;
 
@@ -1248,8 +1187,6 @@ sub vz_vnodeTearDown {
     #
     # Unwind anything we did.
     #
-    KillCaps($private);
-    
     # Remove interfaces we *added* to bridges.
     if (exists($private->{'bridgeifaces'})) {
 	foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
@@ -1308,19 +1245,7 @@ sub vz_vnodeTearDown {
 	mysystem2("$OVSCTL -- --if-exists del-port vzbr0 $cnet_veth");
 	delete($private->{'controlveth'});
     }
-    if ($USE_TCBRS && exists($private->{'physbridges'})) {
-	makeBridgeMaps();
-	
-	foreach my $brname (keys(%{ $private->{'physbridges'} })) {
-	    my @ifaces = findBridgeIfaces($brname);
-	    if (@ifaces <= 1) {
-		delbr($brname);
-		delete($private->{'physbridges'}->{$brname})
-		    if (! $?);
-	    }
-	}
-    }
-    
+
     #
     # A word about these two. David sez that it is impossible to garbage
     # collect these dummy devices cause once they move into a container,
@@ -1360,26 +1285,24 @@ sub vz_vnodeDestroy {
 	    delete($private->{'routetables'}->{$token});
 	}
     }
-
     #
     # We keep the IMQs until complete destruction since the container
-    # references them inside. It might be possible to reclaim them in
-    # TearDown above, but I am not sure.
+    # references them inside, and so they are not usable by anyone else
+    # until the container is fully destroyed. We do this cause we do
+    # want to get into a situation where we stopped a container to do
+    # something like take a disk snapshot, and then not be able to
+    # restart it cause there are no more resources available (as might
+    # happen on a shared node). 
     #
-    if (exists($private->{'imqs'})) {
-	my %MDB;
-	
-	if (!dbmopen(%MDB, $IMQDB, 0660)) {
-	    print STDERR "*** Could not open $IMQDB\n";
-	    dbmclose(%MDB);
-	    TBScriptUnlock();
-	    return -1;
-	}
-	foreach my $i (keys(%{ $private->{'imqs'} })) {
-	    $MDB{"$i"} = "";
-	}
-	dbmclose(%MDB);
-    }
+    ReleaseIMQs($vmid, $private)
+	if (exists($private->{'imqs'}));
+
+    #
+    # Ditto the IFBs, although they are not mapped into the container,
+    # we just do not want to run out of them.
+    #
+    ReleaseIFBs($vmid, $private)
+	if (exists($private->{'ifbs'}));
 
     if ($DOLVM) {
 	my $vnodelvmpath = lvmVolumePath($vnode_id);
@@ -1561,13 +1484,13 @@ sub vz_vnodePreConfig {
 	}
 	else {
 	    # was already mapped, leave alone
-	    $devs{$dev} = undef;
+	    delete($devs{$dev});
 	}
     }
 
     foreach my $dev (keys(%devs)) {
         if (! -d "/sys/class/net/$dev") {
-	    system("$IP link add name $dev type imq");
+	    mysystem("$IP link add name $dev type imq");
         }
 
 	if ($devs{$dev} == 1) {
@@ -1929,6 +1852,16 @@ sub vz_vnodePreConfigExpNetwork {
 
 	my $br       = $ifc->{"BRIDGE"};
 	my $physdev  = $ifc->{"PHYSDEV"};
+	my $ldinfo;
+
+	#
+	# Find associated delay info
+	#
+	foreach my $ld (@$lds) {
+	    if ($ld->{"IFACE"} eq $ifc->{"MAC"}) {
+		$ldinfo = $ld;
+	    }
+	}
 
 	#
 	# The server gives us random/unique macs. Well, as unique as can
@@ -1985,10 +1918,25 @@ sub vz_vnodePreConfigExpNetwork {
 	    # external custom script)
 	    #
 	    $veth = "veth$vmid.$ifc->{ID}";
+
+	    #
+	    # Generate a script to install the shaping, once the veth device
+	    # is created. The nice thing is that since the caps are attached
+	    # to a veth, we do not to clean up anything; it all goes away
+	    # when the veth is destroyed by the container exit.
+	    #
+	    my $script = "";
+	    if (defined($ldinfo)) {
+		$script = "$VMDIR/$vnode_id/enet-$vethmac";		
+		my $ifb = $ldinfo->{"IFB"};
+	    
+		CreateCapScript($vmid, $script, $ldinfo, $veth, "ifb$ifb")
+		    == 0 or return -1;
+	    }
 	    if ($elabifs ne '') {
 		$elabifs .= ';';
 	    }
-	    $elabifs .= "$veth,$br";
+	    $elabifs .= "$veth,$br,$script";
 
 	    #
 	    # Save for later calling, since we need to hack the 
@@ -2169,7 +2117,7 @@ sub vz_vnodePreConfigExpNetwork {
 		$elabifs .= ';';
 	    }
 	    # Leave bridge blank; see vznetinit-elab.sh. It does stuff.
-	    $elabifs .= "$veth,";
+	    $elabifs .= "$veth,,";
 
 	    if ($USE_OPENVSWITCH) {
 		# Unless we are using openvswitch; gre can go into a bridge.
@@ -2606,6 +2554,22 @@ sub createImageDisk($$$$$)
     # again if the timestamp matches.
     #
     if (findLVMLogicalVolume($lvname)) {
+	# Watch for reload, the mnt dir will be gone.
+	goto bad
+	    if (! -e "/mnt/$image" && mysystem2("mkdir -p /mnt/$image"));
+	
+	if (! -e $imagedatepath) {
+	    #
+	    # See if we can figure out the date. Must be a reboot/reload.
+	    #
+	    if (! -e "/mnt/$image/private") {
+		mysystem2("mount $lvmpath /mnt/$image");
+		if ($? == 0 && -e "/mnt/$image/.created") {
+		    mysystem2("/bin/cp -p /mnt/$image/.created $imagedatepath");
+		}
+	    }
+	}
+	
 	if (-e $imagedatepath) {
 	    my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
 		$mtime,undef,undef,undef) = stat($imagedatepath);
@@ -2689,7 +2653,9 @@ sub createImageDisk($$$$$)
     mysystem2("touch $imagedatepath")
 	if (! -e $imagedatepath);
     utime(time(), $tstamp, $imagedatepath);
-
+    # Store inside so we can find out after reboot/reload.
+    mysystem2("/bin/cp -p $imagedatepath /mnt/$image/.created");
+    
     #
     # Need to unmount for snapshots.
     #
@@ -2754,52 +2720,215 @@ sub lvmOrigin($)
 }
 
 #
-# Setup the BW caps.
+# Create a file to run from vznet-init, to set up the caps for a link.
 #
-sub SetupCaps($$$$)
+sub CreateCapScript($$$$$)
 {
-    my ($ldinfo, $private, $va, $vb) = @_;
-    my $bw = $ldinfo->{"BW"};
+    my ($vmid, $script, $ldinfo, $iface, $ifb) = @_;
+    my $bw    = $ldinfo->{"BW"};
+    my $type  = $ldinfo->{'TYPE'};
 
-    my $cmd1 = "$va handle 1 root htb default 1";
+    if (! open(FILE, ">$script")) {
+	print STDERR "Error creating $script: $!\n";
+	return -1;
+    }
+    print FILE "#!/bin/sh\n";
 
-    mysystem2("$TC qdisc add dev $cmd1") == 0
-	or return -1;
-    $private->{"qdisc"}->{$va} = $cmd1;
+    my @cmds = ();
+    
+    push(@cmds, "$TC qdisc add dev $iface handle 1 root htb default 1");
+    push(@cmds, "$TC class add dev $iface classid 1:1 ".
+	        "parent 1 htb rate ${bw}kbit ceil ${bw}kbit");
 
-    mysystem2("$TC class add dev $va parent 1 classid 1:1 ".
-	      "  htb rate ${bw}kbit ceil ${bw}kbit") == 0
-	or return -1;
+    push(@cmds, "$IFCONFIG $ifb up");
+    push(@cmds, "$TC qdisc del dev $ifb root");
+    push(@cmds, "$TC qdisc add dev $iface handle ffff: ingress");
+    push(@cmds, "$TC filter add dev $iface parent ffff: protocol ip ".
+	        "u32 match u32 0 0 action mirred egress redirect dev $ifb");
+    push(@cmds, "$TC qdisc add dev $ifb root handle 2: htb default 1");
+    push(@cmds, "$TC class add dev $ifb parent 2: classid 2:1 ".
+	        "htb rate ${bw}kbit ceil ${bw}kbit");
 
-    my $cmd2 = "$vb handle 1 root htb default 1";
+    foreach my $cmd (@cmds) {
+	print FILE "echo \"$cmd\"\n";
+	print FILE "$cmd\n\n";
+    }
+    print FILE "exit 0\n";
 
-    mysystem2("$TC qdisc add dev $cmd2") == 0
-	or return -1;
-    $private->{"qdisc"}->{$vb} = $cmd2;
-
-    mysystem2("$TC class add dev $vb parent 1 classid 1:1 ".
-	      "  htb rate ${bw}kbit ceil ${bw}kbit") == 0
-	or return -1;
-
+    close(FILE);
+    chmod(0554, $script);
     return 0;
 }
 
-sub KillCaps($)
+#
+# Deal with IFBs.
+#
+sub AllocateIFBs($$$)
 {
-    my ($private) = @_;
+    my ($vmid, $node_lds, $private) = @_;
+    my @ifbs = ();
 
-    return 0
-	if (!exists($private->{"qdisc"}));
-
-    foreach my $veth (keys(%{ $private->{"qdisc"} })) {
-	my $cmd = $private->{"qdisc"}->{$veth};
-	
-	mysystem2("$TC qdisc del dev $cmd") == 0
-	    or return -1;
-	
-	delete($private->{"qdisc"}->{$veth});
+    my %MDB;
+    if (!dbmopen(%MDB, $IFBDB, 0660)) {
+	print STDERR "*** Could not create $IFBDB\n";
+	return undef;
     }
+
+    #
+    # We need an IFB for every ld, so just make sure we can get that many.
+    #
+    my $needed = scalar(@$node_lds);
+
+    #
+    # First pass, look for enough before actually allocating them.
+    #
+    my $i = 0;
+    my $n = $needed;
+    
+    while ($n && $i < $MAXIFB) {
+	if (!defined($MDB{"$i"}) || $MDB{"$i"} eq "" || $MDB{"$i"} eq "$vmid") {
+	    $n--;
+	}
+	$i++;
+    }
+    if ($i == $MAXIFB || $n) {
+	print STDERR "*** No more IFBs\n";
+	dbmclose(%MDB);
+	return undef;
+    }
+    #
+    # Now allocate them.
+    #
+    $i = 0;
+    $n = $needed;
+    
+    while ($n && $i < $MAXIFB) {
+	if (!defined($MDB{"$i"}) || $MDB{"$i"} eq "" || $MDB{"$i"} eq "$vmid") {
+	    $MDB{"$i"} = $vmid;
+	    # Record ifb in use
+	    $private->{'ifbs'}->{$i} = $i;
+	    push(@ifbs, $i);
+	    $n--;
+	}
+	$i++;
+    }
+    dbmclose(%MDB);
+    return \@ifbs;
+}
+
+sub ReleaseIFBs($$)
+{
+    my ($vmid, $private) = @_;
+    
+    my %MDB;
+    if (!dbmopen(%MDB, $IFBDB, 0660)) {
+	print STDERR "*** Could not create $IFBDB\n";
+	return -1;
+    }
+    #
+    # Do not worry about what we think we have, just make sure we
+    # have released everything assigned to this vmid. 
+    #
+    for (my $i = 0; $i < $MAXIFB; $i++) {
+	if (defined($MDB{"$i"}) && $MDB{"$i"} eq "$vmid") {
+	    $MDB{"$i"} = "";
+	}
+    }
+    dbmclose(%MDB);
+    delete($private->{'ifbs'});
     return 0;
+}
+
+sub AllocateIMQs($$$)
+{
+    my ($vmid, $node_lds, $private) = @_;
+    my @imqs = ();
+    
+    #
+    # We need an IMQ for every duplex ld.
+    #
+    my $needed = 0;
+
+    foreach my $ldc (@$node_lds) {
+	$needed++
+	    if ($ldc->{"TYPE"} eq 'duplex');
+    }
+    return ()
+	if (!$needed);
+
+    my %MDB;
+    if (!dbmopen(%MDB, $IMQDB, 0660)) {
+	print STDERR "*** Could not create $IMQDB\n";
+	return undef;
+    }
+
+    #
+    # First pass, look for enough before actually allocating them.
+    #
+    my $i = 0;
+    my $n = $needed;
+    
+    while ($n && $i < $MAXIMQ) {
+	if (!defined($MDB{"$i"}) || $MDB{"$i"} eq "" || $MDB{"$i"} eq "$vmid") {
+	    $n--;
+	}
+	$i++;
+    }
+    if ($i == $MAXIMQ || $n) {
+	print STDERR "*** No more IMQs\n";
+	dbmclose(%MDB);
+	return undef;
+    }
+    #
+    # Now allocate them.
+    #
+    $i = 0;
+    $n = $needed;
+    
+    while ($n && $i < $MAXIMQ) {
+	if (!defined($MDB{"$i"}) || $MDB{"$i"} eq "" || $MDB{"$i"} eq "$vmid") {
+	    $MDB{"$i"} = $vmid;
+	    # Record imq in use
+	    $private->{'imqs'}->{$i} = $i;
+	    push(@imqs, $i);
+	    $n--;
+	}
+	$i++;
+    }
+    dbmclose(%MDB);
+    return \@imqs;
+}
+
+sub ReleaseIMQs($$)
+{
+    my ($vmid, $private) = @_;
+    
+    my %MDB;
+    if (!dbmopen(%MDB, $IMQDB, 0660)) {
+	print STDERR "*** Could not create $IMQDB\n";
+	return -1;
+    }
+    #
+    # Do not worry about what we think we have, just make sure we
+    # have released everything assigned to this vmid. 
+    #
+    for (my $i = 0; $i < $MAXIMQ; $i++) {
+	if (defined($MDB{"$i"}) && $MDB{"$i"} eq "$vmid") {
+	    $MDB{"$i"} = "";
+	}
+    }
+    dbmclose(%MDB);
+    delete($private->{'imqs'});
+    return 0;
+}
+
+# convert 123456 into 12:34:56
+sub fixupMac($)
+{
+    my ($x) = @_;
+    $x =~ s/(\w\w)/$1:/g;
+    chop($x);
+    return $x;
 }
 
 # what can I say?
