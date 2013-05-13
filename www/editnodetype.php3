@@ -150,6 +150,15 @@ $initial_attributes = array(
 	  "attrtype" => "integer"),
     );
 
+$initial_device_attributes = array(
+    array("attrkey" => "default_osid", "attrvalue" => $rhl_std->osid(),
+	  "attrtype" => "integer"),
+    array("attrkey" => "imageable", "attrvalue" => "0",
+	  "attrtype" => "boolean"),
+    array("attrkey" => "rebootable", "attrvalue" => "0",
+	  "attrtype" => "boolean"),
+    );
+
 #
 # Spit the form out using the array of data.
 #
@@ -481,6 +490,9 @@ if (isset($new_type)) {
                       "isswitch" => ($node_class == "switch" ? 1 : 0));
     if ($node_class == "switch") {
         $initial_attributes = $initial_switch_attributes;
+    }
+    elseif ($node_class == "device") {
+        $initial_attributes = $initial_device_attributes;
     }
     $default_attributes = array();
     $attribute_types = array();
