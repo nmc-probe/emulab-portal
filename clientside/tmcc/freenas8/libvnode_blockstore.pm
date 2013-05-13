@@ -1023,6 +1023,22 @@ sub getVlan($) {
     return $retval;
 }
 
+sub addressExists($) {
+    my ($iface,) = @_;
+    my $retval = 0;
+    
+    my $ifc_out = `$IFCONFIG $iface`;
+    if ($? != 0) {
+	warn("*** ERROR: blockstore_addressExists: ".
+	     "Problem running ifconfig: $?");
+	$retval = undef;
+    } elsif ($ifc_out =~ /inet \d+\.\d+\.\d+\.\d+/) {
+	$retval = 1;
+    } 
+
+    return $retval;
+}
+
 #
 # Make a vlan interface for this node (tagged, vlan).
 #
@@ -1078,9 +1094,6 @@ sub createVlanInterface($$) {
 		 "Mismatched vlan: $lname != $vlabel");
 	    return -1;
 	}
-
-	# Not the first kid on the block.
-	$_gFirstOnLAN = 0;
     }
     # vlan does not exist.
     else {
@@ -1101,10 +1114,6 @@ sub createVlanInterface($$) {
 		 "failure while setting vlan interface parameters: $@");
 	    return -1;
 	}
-
-	# We are the first blockstore on the vlan interface, so set a flag
-	# telling setupIPAlias that it needs to use the full netmask.
-	$_gFirstOnLAN = 1;
     }
 
     # All done.
@@ -1143,7 +1152,7 @@ sub setupIPAlias($;$) {
     # If this is the first blockstore on the lan, then use the real netmask,
     # otherwise this is yet another alias on the same interface, so use the
     # all 1's mask.
-    $qmask = $_gFirstOnLAN ? $1 : $ALIASMASK;
+    $qmask = addressExists($viface) ? $ALIASMASK : $1;
 
     if ($teardown) {
 	if (system("$IFCONFIG $viface -alias $ip") != 0) {
@@ -1190,28 +1199,7 @@ sub removeVlanInterface($$) {
 	return 0;
     }
 
-    # Look to see if any addresses remain on the interface.  If not,
-    # blow it away.
-    if (!open(VIFC, "$IFCONFIG $viface |")) {
-	warn("*** WARNING: blockstore_removeVlanInterface: ".
-	     "Could not run ifconfig: $!");
-	return -1;
-    }
-
-    my $ifcount = 0;
-    while (my $vline = <VIFC>) {
-	chomp $vline;
-	$ifcount++
-	    if $vline =~ /^\s+inet /;
-    }
-    close(VIFC);
-    if ($? != 0) {
-	warn("*** WARNING: blockstore_removeVlanInterface: ".
-	     "Error running ifconfig: $?");
-	return -1;
-    }
-
-    if ($ifcount == 0) {
+    if (!addressExists($viface)) {
 	# No more addresses: Delete the vlan interface.
 	eval { runFreeNASCmd($CLI_VERB_VLAN,
 			     "del $viface") };
