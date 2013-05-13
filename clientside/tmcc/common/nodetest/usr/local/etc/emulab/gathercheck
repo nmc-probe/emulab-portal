@@ -1,0 +1,23 @@
+#! /bin/bash
+
+echo -n '  Gathering Inventory..'
+
+source checkutils.sh
+
+# cat /tmp/nodecheck.log.tb
+
+readtmcinfo /tmp/nodecheck.log.tb
+
+mv /tmp/nodecheck.log.tb /tmp/nodecheck.bk
+
+{ printtmcinfo
+} > /tmp/nodecheck.log.tb
+
+{ printhwinv
+} > /tmp/nodecheck.log.inv
+
+
+
+
+
+
