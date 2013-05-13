@@ -2358,6 +2358,10 @@ sub os_getarpinfo($$)
 		next;
 	    }
 
+	    # Skip aliases.
+	    next
+		if (system("$BINDIR/findif -i $ip >/dev/null 2>&1") == 0);
+
 	    if (exists($arpinfo{$ip})) {
 		if ($arpinfo{$ip}{'mac'} ne $mac) {
 		    print "os_getarpinfo: Conflicting arpinfo info for $ip:\n";
