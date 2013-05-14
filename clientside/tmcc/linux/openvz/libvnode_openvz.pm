@@ -2853,7 +2853,7 @@ sub AllocateIMQs($$$)
 	$needed++
 	    if ($ldc->{"TYPE"} eq 'duplex');
     }
-    return ()
+    return \@imqs
 	if (!$needed);
 
     my %MDB;
