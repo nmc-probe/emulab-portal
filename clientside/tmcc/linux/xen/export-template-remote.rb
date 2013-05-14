@@ -18,7 +18,8 @@ class EmulabExport
         $:.unshift(Dir.pwd + "/ec2-ami-tools-1.4.0.9/lib/")
         require 'ec2/platform/current'
 
-        excludes = ['/tmp/image', '/dev', '/media', '/mnt', '/proc', '/sys', '/', '/proc/sys/fs/binfmt_misc', '/dev/pts']
+        excludes = ['/tmp/image', '/dev', '/media', '/mnt',
+            '/proc', '/sys', '/', '/proc/sys/fs/binfmt_misc', '/dev/pts']
         image = EC2::Platform::Current::Image.new("/",
                         "/tmp/image",
                         10* 1024,
@@ -31,7 +32,8 @@ class EmulabExport
     end
 
     def check_prereqs()
-        raise "No unzip found. Please install unzip" unless system("command -v unzip >/dev/null 2>&1")
+        raise "No unzip found. Please install unzip"
+            unless system("command -v unzip >/dev/null 2>&1")
     end
 
     def get_kernel()
@@ -78,7 +80,8 @@ class EmulabExport
 
     def gen_tar()
         raise "Couldn't tar" unless
-            system("tar -cvzf emulab.tar.gz kernel initrd bootopts -C /tmp/ image 2>&1")
+            system("tar -cvzf emulab.tar.gz kernel initrd " +
+                "bootopts -C /tmp/ image 2>&1")
     end
 
    end
