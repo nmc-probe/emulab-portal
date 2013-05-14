@@ -35,19 +35,39 @@ class EmulabExport
     end
 
     def get_kernel()
-        version = `uname -a`
-        version = version.split[2]
+        version = `uname -r`.chomp
 
-        if File.exists?("/boot/vmlinuz-" + version) 
-            raise "Couldn't copy kernel" unless
-                system("cp /boot/vmlinuz-" + version + " kernel")
+        pkernels = []
+        pkernels << "/boot/vmlinuz-" + version
+        pkernels << "/boot/vmlinuz-" + version + ".img"
+
+        pinitrd = []
+        pinitrd << "/boot/initramfs-" + version + ".img"
+        pinitrd << "/boot/initrd-" + version
+        pinitrd << "/boot/initrd-" + version + ".img"
+
+        kernelfound = false
+        pkernels.each do |kernel|
+            if File.exists?(kernel)
+                kernelfound = true
+                raise "Couldn't copy kernel" unless
+                    system("cp " + kernel + " kernel")
+                break
+            end
         end
+        raise "Couldn't find kernel" if kernelfound == false
 
-
-        if File.exists?("/boot/initramfs-" + version + ".img")
-            raise "Couldn't copy initramfs" unless
-                system("cp /boot/initramfs-" + version + ".img initrd")
+        initrdfound = false
+        pinitrd.each do |initrd|
+            if File.exists?(initrd)
+                initrdfound = true
+                raise "Couldn't copy initrd" unless
+                    system("cp " + initrd + " initrd")
+                break
+            end
         end
+        raise "Couldn't find initrd" if initrdfound == false
+
     end
 
 
