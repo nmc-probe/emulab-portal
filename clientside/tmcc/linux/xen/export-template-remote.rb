@@ -19,7 +19,8 @@ class EmulabExport
         require 'ec2/platform/current'
 
         excludes = ['/tmp/image', '/dev', '/media', '/mnt',
-            '/proc', '/sys', '/', '/proc/sys/fs/binfmt_misc', '/dev/pts']
+            '/proc', '/sys', '/', '/proc/sys/fs/binfmt_misc', '/dev/pts',
+            '/var/lib/cloud/sem']
         image = EC2::Platform::Current::Image.new("/",
                         "/tmp/image",
                         10* 1024,
