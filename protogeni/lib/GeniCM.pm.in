@@ -862,14 +862,16 @@ sub GetTicketAuxAux($$$$$$$$$)
 		goto bad;
 	    }
 	    #
-	    # Check for total hostname length > 64 characters. This
+	    # Check for total hostname length > 63 characters. This
 	    # breaks a lot of clients. Do this until we have a plan
-	    # for dealing with it on the clients. 
+	    # for dealing with it on the clients. Why 63 instead of 64?
+	    # Cause of a bug in the event library code, that is now fixed,
+	    # but will not make it out to all images for a while. 
 	    #
 	    my $fullhostname = $node_nickname . ".${eid}.${pid}.${OURDOMAIN}";
-	    if (length($fullhostname) > 64) {
+	    if (length($fullhostname) > 63) {
 		$response = GeniResponse->Create(GENIRESPONSE_TOOBIG, undef,
-				 "Hostname > 64 characters: $fullhostname");
+				 "Hostname > 63 characters: $fullhostname");
 	    }
 	    
 	    #
