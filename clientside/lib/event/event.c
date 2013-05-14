@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -78,7 +78,7 @@ char	emulab_event_library_buildinfo[] =
 static int event_notification_check_hmac(event_handle_t handle,
 					  event_notification_t notification);
 
-static char hostname[MAXHOSTNAMELEN];
+static char hostname[MAXHOSTNAMELEN+1];
 static char ipaddr[32];
 
 /*
@@ -180,7 +180,7 @@ event_register_withkeydata_withretry(char *name, int threaded,
     char	       *sstr = 0, *pstr = 0, *cp;
     int			port = PUBSUB_SERVER_PORTNUM;
 
-    if (gethostname(hostname, MAXHOSTNAMELEN) == -1) {
+    if (gethostname(hostname, sizeof(hostname)) == -1) {
         ERROR("could not get hostname: %s\n", strerror(errno));
         return 0;
     }
