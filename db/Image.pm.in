@@ -1195,5 +1195,69 @@ sub ListForURN($$)
     return @result;
 }
 
+#
+# Set to use the logfile. It becomes the "current" spew.
+#
+sub SetLogFile($$)
+{
+    my ($self, $logfile) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self) || !ref($logfile));
+
+    return -1
+	if (! $self->Update({'logfileid' => $logfile->logid()}));
+
+    return 0;
+}
+
+#
+# Get the logfile.
+#
+sub GetLogFile($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return undef
+	if (! ref($self));
+
+    # Must do this to catch updates to the logfile variables.
+    return undef
+	if ($self->Refresh());
+
+    return undef
+	if (! $self->logfileid());
+
+    return Logfile->Lookup($self->logfileid());
+}
+
+#
+# And clear it ...
+#
+sub ClearLogFile($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $logfile = $self->GetLogFile();
+    return -1
+	if (!defined($logfile));
+
+    $logfile->Delete(1) == 0
+	or return -1;
+
+    my $imageid = $self->imageid();
+    DBQueryWarn("update images set logfileid=NULL ".
+		"where imageid='$imageid'")
+	or return -1;
+
+    return $self->Refresh();
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
