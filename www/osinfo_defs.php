@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2012 University of Utah and the Flux Group.
+# Copyright (c) 2006-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -60,7 +60,12 @@ class OSinfo
 
     # Lookup by osname in a project
     function LookupByName($project, $name) {
-	$pid       = $project->pid();
+	if (is_a($project, "Project")) {
+	    $pid = $project->pid();
+	}
+	else {
+	    $pid = addslashes($project);
+	}
 	$safe_name = addslashes($name);
 	
 	$query_result =
