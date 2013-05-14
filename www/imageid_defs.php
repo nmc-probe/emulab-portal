@@ -126,7 +126,7 @@ class Image
 	    $this->imageid = NULL;
 	    return -1;
 	}
-	$this->imageid = mysql_fetch_array($query_result);
+	$this->image = mysql_fetch_array($query_result);
 
 	#
 	# Reload the type info.
@@ -363,6 +363,7 @@ class Image
     function hash()		{ return $this->field("hash"); }
     function metadata_url()	{ return $this->field("metadata_url"); }
     function imagefile_url()	{ return $this->field("imagefile_url"); }
+    function logfileid()	{ return $this->field("logfileid"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -839,5 +840,13 @@ class Image
 	    return 1;
 	}
 	return 0;
+    }
+
+    function GetLogfile() {
+	$this->Refresh();
+	
+	if ($this->logfileid()) 
+	    return Logfile::Lookup($this->logfileid());
+	return null;
     }
 }

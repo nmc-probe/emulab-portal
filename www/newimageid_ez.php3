@@ -53,10 +53,16 @@ $optargs = OptionalPageArguments("submit",       PAGEARG_STRING,
 				 "nodeclass",    PAGEARG_STRING,
 				 "canceled",     PAGEARG_BOOLEAN,
 				 "confirmed",    PAGEARG_BOOLEAN,
+				 "ec2",		 PAGEARG_BOOLEAN,
 				 "node",	 PAGEARG_NODE,
 				 "baseimage",    PAGEARG_IMAGE,
 				 "baseosinfo",   PAGEARG_OSINFO,
 				 "formfields",   PAGEARG_ARRAY);
+
+# Flag to import an EC2 image.
+if (!isset($ec2)) {
+    $ec2 = 0;
+}
 
 #
 # If starting from a specific node we can derive the type and possibly
@@ -77,6 +83,9 @@ if (isset($node)) {
     if (! $baseimage) {
 	$baseosinfo = OSinfo::Lookup($node->def_boot_osid());
     }
+}
+elseif ($ec2) {
+    $nodetype = "pcvm";
 }
 
 #
@@ -191,7 +200,7 @@ function SPITFORM($formfields, $errors)
     global $nodeclass, $node;
     global $TBDB_OSID_OSNAMELEN, $TBDB_NODEIDLEN;
     global $TBDB_OSID_VERSLEN, $TBBASE, $TBPROJ_DIR, $TBGROUP_DIR;
-    global $view;
+    global $view, $ec2;
     
     #
     # Explanation of the $view argument: used to turn on and off display of
@@ -317,6 +326,9 @@ function SPITFORM($formfields, $errors)
     if (isset($node)) {
 	$id = $node->node_id();
 	echo "<input type=hidden name=node_id value='$id'>";
+    }
+    if ($ec2) {
+	echo "<input type=hidden name=ec2 value=true>";
     }
 
     #
@@ -491,7 +503,18 @@ function SPITFORM($formfields, $errors)
     #
     # Node to Snapshot image from.
     #
-    if (isset($view["hide_snapshot"])) {
+    if ($ec2) {
+	echo "<tr>
+		  <td>EC2 User@Node Info:</td>
+		  <td class=left>
+		      <input type=text
+			     name=\"formfields[ec2_info]\"
+			     value=\"" . $formfields["ec2_info"] . "\"
+			     size=64>
+		  </td>
+	      </tr>\n";
+    }
+    elseif (isset($view["hide_snapshot"])) {
 	spithidden($formfields, 'node');
     } else {
 	echo "<tr>
@@ -504,6 +527,7 @@ function SPITFORM($formfields, $errors)
 		  </td>
 	      </tr>\n";
     }
+    
 
     #
     # OS Features.
@@ -955,16 +979,27 @@ if (!isset($submit)) {
 	$defaults["reboot_waittime"]     = "240";
 	$defaults["os_feature_ping"]	 = "checked";
 	$defaults["os_feature_ssh"]	 = "checked";
-	$defaults["os_feature_isup"]	 = "checked";
-	$defaults["os_feature_linktest"] = "checked";
-        #
-	# XXX At the moment we have only one parent that can run openvz
-        # container images, so rather then give the user a choice, just
-        # hardwire it. Needs more thought, cause we also have the os_submap
-        # table and not sure how to deal with that either.
-	#
-	$def_parentosinfo =
-	    OSinfo::LookupByName("emulab-ops". "FEDORA15-OPENVZ-STD");
+
+	if ($ec2) {
+	    #
+	    # XXX Need to fix this.
+	    # 
+	    $def_parentosinfo =
+		OSinfo::LookupByName("emulab-ops", "XEN41-64-STD");
+	}
+	else {
+	    #
+            # XXX At the moment we have only one parent that can run openvz
+            # container images, so rather then give the user a choice, just
+            # hardwire it. Needs more thought, cause we also have the os_submap
+            # table and not sure how to deal with that either.
+	    #
+	    $def_parentosinfo =
+		OSinfo::LookupByName("emulab-ops", "FEDORA15-OPENVZ-STD");
+
+	    $defaults["os_feature_isup"]	 = "checked";
+	    $defaults["os_feature_linktest"] = "checked";
+	}
 	if (! $def_parentosinfo) {
 	    TBERROR("Could not lookup osinfo object for ".
 		    "FEDORA15-OPENVZ-STD" , 1);
@@ -1108,6 +1143,19 @@ elseif ($project) {
 if ($group &&
     ! $group->AccessCheck($this_user, $TB_PROJECT_MAKEIMAGEID)) {
     $errors["Project"] = "Not enough permission";
+}
+
+#
+# EC2 Checks
+#
+if ($ec2) {
+    if (!isset($formfields["ec2_info"]) ||
+	strcmp($formfields["ec2_info"], "") == 0) {
+	$errors["EC2 Info"] = "Missing Field";
+    }
+    if (!preg_match("/^[-\w\@\.\+]+$/", $formfields["ec2_info"])) {
+	$errors["EC2 Info"] = "Illegal characters";
+    }
 }
  
 #
@@ -1298,7 +1346,7 @@ if (isset($nodetype) && $nodetype == "mote") {
                you gave in the form yourself.<br />
                Continue only if this is what you want.</h2>";
     }
-} else {
+} elseif (! $ec2) {
     if (! isset($node)) {
         # We expect them to pick a node to take a snapshot from
         $confirmationWarning .=
@@ -1340,6 +1388,9 @@ if (!isset($confirmed) && 0 != strcmp($confirmationWarning,"")) {
     echo "<input type=hidden name='submit' value='Submit'>\n";
     echo "<input type=submit name=confirmed value=Confirm>&nbsp;";
     echo "<input type=submit name=canceled  value=Back>\n";
+    if ($ec2) {
+	echo "<input type=hidden name=ec2 value=true>";
+    }
     echo "</form></center>";
 
     PAGEFOOTER();
@@ -1383,7 +1434,7 @@ SUBMENUEND();
 $image->Show();
 SUBPAGEEND();
 
-if (isset($node)) {
+if (isset($node) || $ec2) {
     #
     # Create the image.
     #
@@ -1397,26 +1448,35 @@ if (isset($node)) {
     $unix_gid  = $group->unix_gid();
     $unix_pid  = $project->unix_gid();
     $safe_name = escapeshellarg($imagename);
-    $experiment = $node->Reservation();
 
-    echo "<br>
-	  Taking a snapshot of node '$node_id' for image ...
-          <br><br>\n";
+    echo "<br>";
+
+    if ($ec2) {
+	$target = $formfields["ec2_info"];
+    }
+    else {
+	$target = $node_id;
+    }
+    echo "Taking a snapshot of $target for image ...";
+    echo "<br><br>\n";
+    $safe_target = escapeshellarg($target);
+
     flush();
 
     SUEXEC($uid, "$unix_pid,$unix_gid",
-	   "webcreate_image -p $pid $safe_name $node_id",
+	   "webcreate_image -p $pid $safe_name $safe_target",
 	   SUEXEC_ACTION_DUPDIE);
 
-    echo "This will take 10 minutes or more; you will receive email
+    echo "This will take as little as 10 minutes or as much as an hour;
+          you will receive email
           notification when the image is complete. In the meantime,
-          <b>PLEASE DO NOT</b> delete the imageid or the experiment
-          $node_id is in. In fact, it is best if you do not mess with 
+          <b>PLEASE DO NOT</b> delete the imageid or mess with
           the node at all!<br>\n";
 
-    flush();
-
-    STARTLOG($experiment);
+    $logfile = $image->GetLogfile();
+    if ($logfile) {
+	STARTLOG($logfile);
+    }
 }
 
 #

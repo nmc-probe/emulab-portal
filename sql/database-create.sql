@@ -1883,6 +1883,7 @@ CREATE TABLE `images` (
   `locker_pid` int(11) default '0',
   `metadata_url` tinytext,
   `imagefile_url` tinytext,
+  `logfileid` varchar(40) default NULL,
   PRIMARY KEY  (`imageid`),
   UNIQUE KEY `pid` (`pid`,`imagename`),
   KEY `gid` (`gid`),
