@@ -377,6 +377,11 @@ Simulator instproc make-cloud {nodelist bw delay args} {
     return $retval
 }
 
+# Storage sugar.
+Simulator instproc make-san {nodelist} {
+    return [$self make-lan $nodelist ~ 0ms]
+}
+
 Simulator instproc event-timeline {args} {
     $self instvar id_counter
     $self instvar timeline_list

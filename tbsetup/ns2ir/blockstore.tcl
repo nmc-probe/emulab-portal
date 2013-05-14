@@ -51,6 +51,8 @@ Blockstore instproc init {s} {
     $self set size 0
     $self set type {}
     $self set role "unknown"
+    # for compat with LanLink
+    $self set simulated 0
 
     # storage attributes (class, protocol, etc.)
     $self instvar attributes
@@ -173,34 +175,48 @@ Blockstore instproc set-node {pnode} {
 # Explicitly fix a blockstore to a node.
 #
 Blockstore instproc set_fixed {pnode} {
+    $self instvar sim
     $self instvar node
+    $self instvar attributes
 
     if { [$pnode info class] != "Node" } {
 	perror "Can only fix blockstores to a node object!"
     }
-    
-    set node $pnode
+
+    # Deal with some syntactic sugar for 1-to-1 bindings to nodes.
+    if {[$pnode set type] != "blockstore" && $attributes(class) == "SAN"} {
+	set node [$self alloc_pseudonode]
+	uplevel "#0" "set ${self}-link [$sim duplex-link $pnode $node ~ 0ms DropTail]"
+    } else {
+	set node $pnode
+    }
+
     return
+}
+
+# Create a "blockstore" pseudo-VM to represent the blockstore as a
+# node object within the guts of Emulab.
+Blockstore instproc alloc_pseudonode {} {
+    $self instvar sim
+
+    # Allocate blockstore pseudo-VM
+    set hname "blockhost-${self}"
+    uplevel "#0" "set $hname [$sim node]"
+    $hname set_hwtype "blockstore" 0 1 0
+
+    return $hname
 }
 
 # Create a node object to represent the host that contains this blockstore,
 # or return it if it already exists.
 Blockstore instproc get_node {} {
-    $self instvar sim
     $self instvar node
 
-    if {$node != {}} {
-	return $node
+    if {$node == {}} {
+	set node [$self alloc_pseudonode]
     }
 
-    # Allocate parent host and bind to it.
-    set hname "blockhost-${self}"
-    uplevel "#0" "set $hname [$sim node]"
-    set node $hname
-    $node set_hwtype "blockstore" 0 1 0    
-
-    # Return parent node object.
-    return $hname
+    return $node
 }
 
 # Do final (AFTER set-*, but BEFORE updatedb) validations and
@@ -211,6 +227,7 @@ Blockstore instproc finalize {} {
     var_import ::TBCOMPAT::sofullplacements
     var_import ::TBCOMPAT::soplacementdesires
     var_import ::TBCOMPAT::sonodemounts
+    $self instvar sim
     $self instvar node
     $self instvar size
     $self instvar attributes
@@ -228,22 +245,22 @@ Blockstore instproc finalize {} {
     }
     set myclass $attributes(class)
 
-    # Remote blockstore validation.
+    # Remote blockstore validation/handling.
     if {$myclass == "SAN"} {
 	# Size matters here.
 	if {$size == 0} {
 	    perror "Remote blockstores must have a size: $self"
 	    return -1
 	}
+	# Placement directives are invalid for remote blockstores.
+	if {[info exists attributes(placement)]} {
+	    perror "Placement setting only makes sense with local blockstores: $self"
+	    return -1
+	}
 	# Die if the user has attempted to connect the blockstore via multiple
 	# links.  We only support one.
 	if {[llength [$node set portlist]] != 1} {
 	    perror "A remote blockstore must be connected to one, and only one, link/lan: $self"
-	    return -1
-	}
-	# Placement directives are invalid for remote blockstores.
-	if {[info exists attributes(placement)]} {
-	    perror "Placement setting only makes sense with local blockstores: $self"
 	    return -1
 	}
     }
