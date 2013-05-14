@@ -103,7 +103,7 @@ if(system("ssh -t -t -l $ruser $remote 'sudo ruby < ~/export.rb'")){
 }
 
 # SCP back the generated image file
-system("scp $ruser@$remote:~/emulab.tar.gz $infile");
+system("scp $ruser\@$remote:~/emulab.tar.gz $infile");
 
 # Process the tar blah image
 if (! -e $infile){
