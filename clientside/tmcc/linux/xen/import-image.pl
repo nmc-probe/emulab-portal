@@ -56,7 +56,6 @@ my $TAR      = "tar";
 my $sudo;
 my $zipper   = "/usr/local/bin/imagezip";
 my $uploader = "/usr/local/etc/emulab/frisupload";
-my $error    = 0;
 
 for my $path (qw#/usr/local/bin /usr/bin#) {
     if (-e "$path/sudo") {
@@ -94,16 +93,20 @@ my $workdir = $WORK_BASE . $project . "/" . $user . "/" . $osid . "-tmp";
 
 # Remotely execute the export script
 if(system("scp export-template-remote.rb $ruser\@$remote:~/export.rb")){
-    print STDOUT "scp export-template-remote.rb $ruser\@$remote:~/export.rb";
+    print STDERR "Couldn't scp exporter script into $remote\n";
     goto cleanup;
 }
 
 if(system("ssh -t -t -l $ruser $remote 'sudo ruby < ~/export.rb'")){
+    print STDERR "Remote image creation failed\n";
     goto cleanup;
 }
 
 # SCP back the generated image file
-system("scp $ruser\@$remote:~/emulab.tar.gz $infile");
+if(system("scp $ruser\@$remote:~/emulab.tar.gz $infile")){
+    print STDERR "Couldn't scp image back into ops\n";
+    goto cleanup;
+}
 
 # Process the tar blah image
 if (! -e $infile){
@@ -113,8 +116,15 @@ if (! -e $infile){
 }
     
 # Unzip into the working dir
-system("mkdir -p $workdir");
-system("tar -xvzf $infile -C $workdir");
+if (system("mkdir -p $workdir")){
+    print STDERR "Couldn't mkdir $workdir \n";
+    goto cleanup;
+}
+
+if (system("tar -xvzf $infile -C $workdir")){
+    print STDERR "Failed to extract $infile \n";
+    goto cleanup;
+}
 
 # TODO: Proper sda size based on image size?
 # TODO: Maybe handle bootopts
@@ -139,8 +149,7 @@ close(FH);
 # Image zip the raw image
 if (system("$zipper -o -l $workdir/image $workdir/sda")) {
     print STDERR "*** Failed to greate image!\n";
-    print STDERR "    command: $zipper -o -l $workdir/image $workdir/sda";
-    $error = 1;
+    print STDERR "    command: $zipper -o -l $workdir/image $workdir/sda\n";
 }
 
 
@@ -150,11 +159,10 @@ my $cmd = "$TAR zcf - -C $workdir sda xm.conf kernel initrd | $zipper -f - $osid
 if (system("$cmd")) {
     print STDERR "*** Failed to create image!\n";
     print STDERR "    command: '$cmd'\n";
-    $error = 1;
     goto cleanup;
 }
 
 cleanup:
 # Clean up the directory.
-system("$sudo /bin/rm -rf $workdir");
+system("$sudo /bin/rm -rf $workdir 2>/dev/null");
 

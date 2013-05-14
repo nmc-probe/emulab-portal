@@ -101,7 +101,7 @@ if __FILE__ == $0
     rescue Exception => e
         print "Error while creating an image: \n"
         puts e.message
-        print e.backtrace.join("\n")
+        puts e.backtrace.join("\n")
     ensure
         ex.finalize()        
     end
