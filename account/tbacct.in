@@ -1070,7 +1070,7 @@ sub VerifyUser()
     }
 
     if ($target_user->status() ne USERSTATUS_NEWUSER) {
-	fatal("$user is not a newuser! Cannot verify the account!");
+	fatal("$target_user is not a newuser! Cannot verify the account!");
     }
 
     my $newstatus = ($target_user->wikionly() ?
