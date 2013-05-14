@@ -77,8 +77,9 @@ fi
 echo "$ELABIFS" | sed -e 's/;/\n/g' | \
     while read iface; \
     do \
-        _if=`echo "$iface" | sed -r -e 's/([^,]*),[^,]*/\1/'`
-        _br=`echo "$iface" | sed -r -e 's/[^,]*,([^,]*)/\1/'`
+        _if=`echo "$iface" | sed -r -e 's/([^,]*),[^,]*,[^,]*/\1/'`
+        _br=`echo "$iface" | sed -r -e 's/[^,]*,([^,]*),[^,]*/\1/'`
+        _sc=`echo "$iface" | sed -r -e 's/[^,]*,[^,]*,([^,]*)/\1/'`
 
 	if [ $_if = $DEV ]; then
 	    echo "Emulab configuring network for CT$VEID: exp net ($_if)"
@@ -99,6 +100,7 @@ echo "$ELABIFS" | sed -e 's/;/\n/g' | \
 	    $IFCONFIG $_if 0 up
 	    echo 1 > /proc/sys/net/ipv4/conf/$_if/forwarding
 	    echo 1 > /proc/sys/net/ipv4/conf/$_if/proxy_arp
+	    $_sc
 	fi
     done
 
