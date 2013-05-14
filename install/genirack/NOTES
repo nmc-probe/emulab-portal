@@ -432,7 +432,10 @@ Setting up an InstaGeni Rack. First, we need the following info:
   and to turn on arp lockdown.
 
 	boss> wap /usr/testbed/sbin/update_sitevars 
-	boss> wap /usr/testbed/sbin/addservers 
+	boss> wap /usr/testbed/sbin/addservers
+
+* Send email to local admin with pointer to instructions on getting their
+  admin account on boss: http://www.protogeni.net/wiki/RackAdminAccounts
 
 ---
 TODO:
