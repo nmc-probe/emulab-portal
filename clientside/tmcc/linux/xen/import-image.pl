@@ -126,11 +126,11 @@ if (system("tar -xvzf $infile -C $workdir")){
     goto cleanup;
 }
 
-# TODO: Proper sda size based on image size?
+# TODO: Proper xvda1 size based on image size?
 # TODO: Maybe handle bootopts
 # Create the "special" xm.conf
 my $heredoc = <<XMCONF;
-disksizes = 'sdb:2.00g,sda:12.00g'
+disksizes = 'xvda2:2.00g,xvda1:12.00g'
 memory = '256'
 disk = ['phy:/dev/xen-vg/pcvm666-1,xvda1,w','phy:/dev/xen-vg/pcvm666.swap,xvda2,w']
 kernel = 'kernel'
@@ -147,14 +147,14 @@ print FH $heredoc;
 close(FH);
 
 # Image zip the raw image
-if (system("$zipper -o -l $workdir/image $workdir/sda")) {
+if (system("$zipper -o -l $workdir/image $workdir/xvda1")) {
     print STDERR "*** Failed to greate image!\n";
-    print STDERR "    command: $zipper -o -l $workdir/image $workdir/sda\n";
+    print STDERR "    command: $zipper -o -l $workdir/image $workdir/xvda1\n";
 }
 
 
 # Tar everything up and then imagezip
-my $cmd = "$TAR zcf - -C $workdir sda xm.conf kernel initrd | $zipper -f - $osid.ndz";
+my $cmd = "$TAR zcf - -C $workdir xvda1 xm.conf kernel initrd | $zipper -f - $osid.ndz";
 
 if (system("$cmd")) {
     print STDERR "*** Failed to create image!\n";
