@@ -4339,7 +4339,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
 
 		/* Add the protocol to the buffer, if present.*/
 		if (strlen(protocol)) {
-			bufp += OUTPUT(bufp, ebufp-bufp, " PROTOCOL=%s",
+			bufp += OUTPUT(bufp, ebufp-bufp, " PROTO=%s",
 				       protocol);
 		}
 
