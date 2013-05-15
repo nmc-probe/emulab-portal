@@ -34,6 +34,8 @@ use Exporter;
 use vars qw(@ISA);
 @ISA = "Exporter";
 
+use Data::Dumper;
+
 # Must come after package declaration!
 use GeniDB;
 use English;
@@ -240,6 +242,9 @@ sub addStitchPoint($@)
 				 "$lanname: missing urn on path");
 	return;
     }
+    print STDERR "--- Add Stich Point ---\n";
+    print STDERR Dumper($self->points());
+    print STDERR "\n---------------\n";
     foreach my $point ($self->points()) {
 	my $pointurn = GeniXML::GetHopLinkID($point->{'internal_hop'});
 	if (defined($pointurn) && $pointurn eq $internalurn) {
