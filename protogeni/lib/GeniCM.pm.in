@@ -75,7 +75,6 @@ use Compress::Zlib;
 use File::Temp qw(tempfile);
 use MIME::Base64;
 use Digest::SHA1 qw(sha1_hex);
-use Scalar::Util qw(looks_like_number);
 
 # Configure variables
 my $TB		   = "@prefix@";

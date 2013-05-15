@@ -53,6 +53,7 @@ use GeniHRN;
 use GeniResponse;
 use GeniUtil;
 use Carp qw(cluck carp);
+use Scalar::Util qw(looks_like_number);
 
 use vars qw($RSPEC_0_1 $RSPEC_0_2 $RSPEC_2 $RSPEC_3
             $RSPEC_0_1_NS $RSPEC_0_2_NS $RSPEC_2_NS
