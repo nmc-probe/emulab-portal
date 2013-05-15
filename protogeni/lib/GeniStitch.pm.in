@@ -242,10 +242,7 @@ sub addStitchPoint($@)
 				 "$lanname: missing urn on path");
 	return;
     }
-    print STDERR "--- Add Stich Point ---\n";
-    print STDERR Dumper($self->points());
-    print STDERR "\n---------------\n";
-    foreach my $point ($self->points()) {
+    foreach my $point (@{ $self->points() }) {
 	my $pointurn = GeniXML::GetHopLinkID($point->{'internal_hop'});
 	if (defined($pointurn) && $pointurn eq $internalurn) {
 	    # If there is just one stitch point, this may be a duplicate
