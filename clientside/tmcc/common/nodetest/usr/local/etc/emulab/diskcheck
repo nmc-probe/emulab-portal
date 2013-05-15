@@ -14,7 +14,13 @@ declare err=""
 
 source getfromtb.sh
 source hbis.sh
-source checkutils.sh
+# if in mfsmode checkutils has all ready been sourced, don't to it again
+# else with get second set of varibles
+if [ -f /etc/emulab/mfs ] ; then
+    :
+else
+    source checkutils.sh
+fi
 
 main() {
     inithostname
