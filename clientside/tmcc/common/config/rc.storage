@@ -105,6 +105,11 @@ SWITCH: for ($action) {
 	docleanup(1);
 	last SWITCH;
     };
+    # XXX non-standard, for debugging
+    /^fullreset$/i && do {
+	docleanup(2);
+	last SWITCH;
+    };
     fatal("Invalid action: $action\n");
 }
 exit(0);
@@ -140,7 +145,7 @@ sub doboot()
 	fatal("Could not initialize storage subsystem!");
     }
     foreach my $cmd (@cmds) {
-	if (!process($so, $cmd, 1)) {
+	if (!process($so, $cmd, 1, 0)) {
 	    fatal("Could not process storage commands!");
 	}
     }
@@ -162,9 +167,14 @@ sub doboot()
     #
     if (open(MAP, ">$STORAGEMAP")) {
 	foreach my $cmd (@cmds) {
-	    if (exists($cmd->{'LNAME'})) {
-		print MAP $cmd->{'VOLNAME'} . " /dev/" . $cmd->{'LNAME'} . "\n";
+	    print MAP $cmd->{'VOLNAME'};
+	    if (exists($cmd->{'LVDEV'})) {
+		print MAP " " . $cmd->{'LVDEV'};
 	    }
+	    if (exists($cmd->{'MOUNTPOINT'})) {
+		print MAP " " . $cmd->{'MOUNTPOINT'};
+	    }
+	    print MAP "\n";
 	}
 	close(MAP);
     } else {
@@ -210,7 +220,19 @@ sub docleanup($)
 	}
     }
     if (!@$cmdref) {
-	return;
+	if ($doteardown != 2) {
+	    return;
+	}
+
+	# no old config, try current config
+	getstorageconfig($cmdref);
+	if (!@$cmdref) {
+	    return;
+	}
+    }
+
+    if ($doteardown == 2) {
+	print "Forcing teardown of storage, ignore errors...\n";
     }
 
     #
@@ -234,7 +256,7 @@ sub docleanup($)
 # This may wind up just being a call to the os-specific setup. But for now
 # we do further validation of params based on what we currently implement.
 #
-sub process($$$;$)
+sub process($$$$)
 {
     my ($so,$href,$dosetup,$doteardown) = @_;
     my $class = $href->{'CLASS'};
@@ -299,15 +321,23 @@ sub process($$$;$)
 	return 0;
     }
 
-    my $exists = os_check_storage($so, $href);
+    my $vname = $href->{'VOLNAME'};
+    my $exists;
+    if ($doteardown == 2) {
+	$exists = 1;
+    } else {
+	print "  Checking '$vname'...\n";
+	$exists = os_check_storage($so, $href);
+    }
+    my $dev = $href->{'LVDEV'};
 
     #
     # Infrastructure failure or storage unit was partially configured.
     # Be conservative for both setup and teardown: just punt.
     #
     if ($exists < 0) {
-	warn("*** Storage device '" . $href->{'VOLNAME'} .
-	     "' incorrectly configured, doing nothing\n");
+	warn("*** Storage device '$vname' incorrectly configured, " .
+	     "doing nothing\n");
 	return 0;
     }
 
@@ -325,37 +355,40 @@ sub process($$$;$)
 		} elsif ($href->{'CLASS'} eq "local") {
 		    $msg = "local disk";
 		}
-		print "  " . $href->{'VOLNAME'} . ": $msg at /dev/" .
-		    $href->{'LNAME'};
+		print "  $vname: $msg at $dev";
 	    } elsif ($href->{'CMD'} eq "SLICE") {
 		if ($href->{'CLASS'} eq "local") {
-		    print "  " . $href->{'VOLNAME'} . ": /dev/" .
-			$href->{'LNAME'};
+		    print "  $vname: $dev";
 		}
 	    }
 	    if ($href->{'MOUNTPOINT'}) {
 		print " mounted on " . $href->{'MOUNTPOINT'};
+	    } else {
+		print " exists";
 	    }
 	    print "\n";
 	} else {
-	    print "  Deconfiguring '" . $href->{'VOLNAME'} . "'...\n";
+	    print "  Deconfiguring '$vname'...\n";
 	    if (!os_remove_storage($so, $href, $doteardown)) {
-		warn("*** Could not remove storage device '" .
-		     $href->{'VOLNAME'} . "'\n");
+		if ($doteardown == 2) {
+		    return 1;
+		}
+		warn("*** Could not remove storage device '$vname'\n");
 		return 0;
 	    }
+	    if ($doteardown == 2) {
+		return 1;
+	    }
 	    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
-		print "  " . $href->{'VOLNAME'} .
-		    ": iSCSI node detached from /dev/" .
-		    $href->{'LNAME'} . "\n";
+		print "  $vname: iSCSI node detached from $dev\n";
 	    } elsif ($href->{'CMD'} eq "SLICE") {
-		print "  " . $href->{'VOLNAME'} . ": ";
+		print "  $vname: ";
 		if ($href->{'MOUNTPOINT'}) {
 		    print "unmounted " . $href->{'MOUNTPOINT'} .
 			($doteardown ? " and " : " ");
 		}
 		if ($doteardown) {
-		    print "destroyed /dev/" . $href->{'LNAME'};
+		    print "destroyed $dev";
 		}
 		print "\n";
 	    }
@@ -368,24 +401,21 @@ sub process($$$;$)
     # If setting up, do it. Otherwise there is nothing to do.
     #
     if ($dosetup) {
-	print "  Configuring '" . $href->{'VOLNAME'} . "'...\n";
+	print "  Configuring '$vname'...\n";
 	if (!os_create_storage($so, $href)) {
-	    warn("*** Could not create storage device '" .
-		 $href->{'VOLNAME'} . "'\n");
+	    warn("*** Could not create storage device '$vname'\n");
 	    return 0;
 	}
+	my $dev = $href->{'LVDEV'};
 
 	if ($href->{'CMD'} eq "ELEMENT") {
 	    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
-		print "  " . $href->{'VOLNAME'} .
-		    ": iSCSI node attached as /dev/" .
-		    $href->{'LNAME'};
+		print "  $vname: iSCSI node attached as $dev";
 	    }
 	}
 	elsif ($href->{'CMD'} eq "SLICE") {
 	    if ($href->{'CLASS'} eq "local") {
-		print "  " . $href->{'VOLNAME'} . ": /dev/" .
-		    $href->{'LNAME'};
+		print "  $vname: $dev";
 	    }
 	}
 	if ($href->{'MOUNTPOINT'}) {
@@ -393,7 +423,7 @@ sub process($$$;$)
 	}
 	print "\n";
     } else {
-	print "  " . $href->{'VOLNAME'} . ": not configured\n";
+	print "  $vname: not configured\n";
     }
     return 1;
 }

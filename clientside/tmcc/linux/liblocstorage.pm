@@ -57,6 +57,8 @@ BEGIN
 my $MOUNT	= "/bin/mount";
 my $UMOUNT	= "/bin/umount";
 my $MKDIR	= "/bin/mkdir";
+my $MKFS	= "/sbin/mke2fs";
+my $FSCK	= "/sbin/e2fsck";
 my $DOSTYPE	= "$BINDIR/dostype";
 my $ISCSI	= "/sbin/iscsiadm";
 
@@ -189,7 +191,12 @@ sub get_parttype($$)
 }
 
 #
-# We use a simplified version of the libvnode findSpareDisks here.
+# Get information about local disks.
+#
+# Ideally, this comes from the list of ELEMENTs passed in.
+#
+# But if that is not available, we figure it out outselves by using
+# a simplified version of the libvnode findSpareDisks.
 # XXX the various "get space on the local disk" mechanisms should be
 # reconciled.
 #
@@ -390,7 +397,7 @@ sub os_init_storage($)
 	#
 	# See if the volume group exists already
 	#
-	if (mysystem("vgs emulab_vg $redir") == 0) {
+	if (mysystem("vgs emulab $redir") == 0) {
 	    $so{'LVM_VGCREATED'} = 1;
 	}
     }
@@ -399,6 +406,15 @@ sub os_init_storage($)
 	if (! -x "$ISCSI") {
 	    warn("*** storage: $ISCSI does not exist, cannot continue\n");
 	    return undef;
+	}
+	#
+	# XXX don't grok the Ubuntu startup, so...
+	# make sure automatic sessions are started
+	#
+	my $nsess = `$ISCSI -m session 2>/dev/null | grep -c ^`;
+	chomp($nsess);
+	if ($nsess == 0) {
+	    mysystem("$ISCSI -m node --loginall=automatic $redir");
 	}
     }
 
@@ -413,14 +429,14 @@ sub os_init_storage($)
 #   is properly configured. Returns zero if it doesn't exist, 1 if it
 #   exists and is correct, -1 otherwise.
 #
-#   Side-effect: Creates the hash member $href->{'LNAME'} with the /dev
+#   Side-effect: Creates the hash member $href->{'LVDEV'} with the /dev
 #   name of the storage unit.
 #
 sub os_check_storage($$)
 {
     my ($so,$href) = @_;
 
-    if (1) {
+    if (0) {
 	my $ginfo = get_geominfo();
 	print STDERR "GEOMINFO=\n";
 	foreach my $dev (keys %$ginfo) {
@@ -445,13 +461,14 @@ sub os_check_storage_element($$)
 {
     my ($so,$href) = @_;
     my $CANDISCOVER = 0;
+    my $redir = ">/dev/null 2>&1";
 
     #
     # iSCSI:
     #  make sure the IQN exists
     #  make sure a session exists
     #
-    if ($href->{'PROTO'} eq "iSCSI") {
+    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
 	my $hostip = $href->{'HOSTIP'};
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
@@ -493,19 +510,49 @@ sub os_check_storage_element($$)
 	}
 
 	#
-	# We have a session, everything has been setup, return 1.
+	# If there is no session, we have a problem.
 	#
 	my $dev = iscsi_to_dev($session);
-	if (defined($dev)) {
-	    $href->{'LNAME'} = $dev;
-	    return 1;
+	if (!defined($dev)) {
+	    warn("*** $bsid: found iSCSI session but could not determine local device\n");
+	    return -1;
 	}
+	$href->{'LVDEV'} = "/dev/$dev";
 
 	#
-	# Otherwise, we are in some indeterminite state, return -1.
+	# If there is a mount point, see if it is mounted.
 	#
-	warn("*** $bsid: found iSCSI session but could not determine local device\n");
-	return -1;
+	# XXX because mounts in /etc/fstab happen before iSCSI and possibly
+	# even the network are setup, we don't put our mounts there as we
+	# do for local blockstores. Thus, if the blockstore device is not
+	# mounted, we do it here.
+	#
+	my $mpoint = $href->{'MOUNTPOINT'};
+	if ($mpoint) {
+	    my $line = `$MOUNT | grep '^/dev/$dev on '`;
+	    if (!$line) {
+		# the mountpoint should exist
+		if (! -d "$mpoint") {
+		    warn("*** $bsid: no mount point $mpoint\n");
+		    return -1;
+		}
+		# fsck it in case of an abrupt shutdown
+		if (mysystem("$FSCK -p /dev/$dev $redir")) {
+		    warn("*** $bsid: fsck of /dev/$dev failed\n");
+		    return -1;
+		}
+		if (mysystem("$MOUNT /dev/$dev $mpoint $redir")) {
+		    warn("*** $bsid: could not mount /dev/$dev on $mpoint\n");
+		    return -1;
+		}
+	    }
+	    elsif ($line !~ /^\/dev\/$dev on (\S+) / || $1 ne $mpoint) {
+		warn("*** $bsid: mounted on $1, should be on $mpoint\n");
+		return -1;
+	    }
+	}
+
+	return 1;
     }
 
     #
@@ -518,7 +565,7 @@ sub os_check_storage_element($$)
 
 	my $dev = serial_to_dev($sn);
 	if (defined($dev)) {
-	    $href->{'LNAME'} = $dev;
+	    $href->{'LVDEV'} = "/dev/$dev";
 	    return 1;
 	}
 
@@ -568,8 +615,8 @@ sub os_check_storage_slice($$)
 	    $dev = $mdev = "${bdisk}4";
 	    $devtype = "PART";
 	} else {
-	    $dev = "emulab_vg/$lv";
-	    $mdev = "mapper/emulab_vg-$lv";
+	    $dev = "emulab/$lv";
+	    $mdev = "mapper/emulab-$lv";
 	    $devtype = "LVM";
 	}
 	my $devsize = $href->{'VOLSIZE'};
@@ -585,8 +632,9 @@ sub os_check_storage_slice($$)
 	    return -1;
 	}
 	# ditto for size, unless this is the SYSVOL where we ignore user size
+	# or if the size was not specified.
 	my $asize = $ginfo->{$dev}->{'size'};
-	if ($bsid ne "SYSVOL" && $asize != $devsize) {
+	if ($bsid ne "SYSVOL" && $devsize && $asize != $devsize) {
 	    warn("*** $lv: actual size ($asize) != expected size ($devsize)\n");
 	    return -1;
 	}
@@ -621,7 +669,7 @@ sub os_check_storage_slice($$)
 	    }
 	}
 
-	$href->{'LNAME'} = $dev;
+	$href->{'LVDEV'} = "/dev/$dev";
 	return 1;
     }
 
@@ -652,22 +700,35 @@ sub os_create_storage($$)
     }
 
     if (exists($href->{'MOUNTPOINT'})) {
-	my $mdev = $href->{'LNAME'};
+	my $lv = $href->{'VOLNAME'};
+	my $mdev = $href->{'LVDEV'};
 	my $redir = ">/dev/null 2>&1";
 
 	#
-	# Create the filesystem
+	# Create the filesystem:
 	#
-	# if ext3 supported, mkfs -t ext3 ...
-	# else, mkfs -t ext2 ...
+	# If this is SYSVOL, stick with ext2 or ext3 for the benefit
+	# of older versions of imagezip that don't know ext4.
+	# Otherwise, lets start by trying ext4 which is much faster
+	# when creating large FSes.
 	#
-	my $fstype = "ext3";
-	if (mysystem("mkfs -t $fstype /dev/$mdev $redir")) {
+	my $failed = 1;
+	my $fstype;
+	if ($href->{'CLASS'} ne "local" || $href->{'BSID'} ne "SYSVOL") {
+	    $fstype = "ext4";
+	    $failed = mysystem("$MKFS -t $fstype -F $mdev $redir");
+	}
+	if ($failed) {
+	    $fstype = "ext3";
+	    $failed = mysystem("$MKFS -t $fstype -F $mdev $redir");
+	}
+	if ($failed) {
 	    $fstype = "ext2";
-	    if (mysystem("mkfs -t $fstype /dev/$mdev $redir")) {
-		warn("*** $lv: could not create FS\n");
-		return 0;
-	    }
+	    $failed = mysystem("$MKFS -t $fstype -F $mdev $redir");
+	}
+	if ($failed) {
+	    warn("*** $lv: could not create FS\n");
+	    return 0;
 	}
 
 	#
@@ -679,16 +740,28 @@ sub os_create_storage($$)
 	    return 0;
 	}
 
-	if (!open(FD, ">>/etc/fstab")) {
-	    warn("*** $lv: could not add mount to /etc/fstab\n");
-	    return 0;
-	}
-	print FD "/dev/$mdev\t$mpoint\t$fstype\tdefaults\t0\t0\n";
-	close(FD);
-
-	if (mysystem("$MOUNT $mpoint $redir")) {
-	    warn("*** $lv: could not mount on $mpoint\n");
-	    return 0;
+	#
+	# XXX because mounts in /etc/fstab happen before iSCSI and possibly
+	# even the network are setup, we don't put our mounts there as we
+	# do for local blockstores. Instead, the check_storage call will
+	# take care of these mounts.
+	#
+	if (!($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI")) {
+	    if (!open(FD, ">>/etc/fstab")) {
+		warn("*** $lv: could not add mount to /etc/fstab\n");
+		return 0;
+	    }
+	    print FD "$mdev\t$mpoint\t$fstype\tdefaults\t0\t0\n";
+	    close(FD);
+	    if (mysystem("$MOUNT $mpoint $redir")) {
+		warn("*** $lv: could not mount on $mpoint\n");
+		return 0;
+	    }
+	} else {
+	    if (mysystem("$MOUNT -t $fstype $mdev $mpoint $redir")) {
+		warn("*** $lv: could not mount $mdev on $mpoint\n");
+		return 0;
+	    }
 	}
     }
 
@@ -699,7 +772,7 @@ sub os_create_storage_element($$)
 {
     my ($so,$href) = @_;
 
-    if ($href->{'PROTO'} eq "iSCSI") {
+    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
 	my $hostip = $href->{'HOSTIP'};
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
@@ -744,7 +817,7 @@ sub os_create_storage_element($$)
 	    return 0;
 	}
 
-	$href->{'LNAME'} = $dev;
+	$href->{'LVDEV'} = "/dev/$dev";
 	return 1;
     }
 
@@ -829,16 +902,16 @@ sub os_create_storage_slice($$)
 		# Create the volume group:
 		#
 		# pvcreate /dev/sdb /dev/sda4		(ANY)
-		# vgcreate emulab_vg /dev/sdb /dev/sda4	(ANY)
+		# vgcreate emulab /dev/sdb /dev/sda4	(ANY)
 		#
 		# pvcreate /dev/sdb			(NONSYSVOL)
-		# vgcreate emulab_vg /dev/sdb		(NONSYSVOL)
+		# vgcreate emulab /dev/sdb		(NONSYSVOL)
 		#
 		if (mysystem("pvcreate @devs $redir")) {
 		    warn("*** $lv: could not create PVs '@devs'$logmsg\n");
 		    return 0;
 		}
-		if (mysystem("vgcreate emulab_vg @devs $redir")) {
+		if (mysystem("vgcreate emulab @devs $redir")) {
 		    warn("*** $lv: could not create VG from '@devs'$logmsg\n");
 		    return 0;
 		}
@@ -849,17 +922,25 @@ sub os_create_storage_slice($$)
 	    #
 	    # Now create an LV for the volume:
 	    #
-	    # lvcreate -n h2d2 -L 100m emulab_vg
+	    # lvcreate -n h2d2 -L 100m emulab
 	    #
-	    if (mysystem("lvcreate -n $lv -L $lvsize emulab_vg $redir")) {
+	    if ($lvsize == 0) {
+		my $sz = `vgs -o vg_size --units m --noheadings emulab`;
+		if ($sz =~ /([\d\.]+)/) {
+		    $lvsize = int($1);
+		} else {
+		    warn("*** $lv: could not find size of VG\n");
+		}
+	    }
+	    if (mysystem("lvcreate -n $lv -L ${lvsize}m emulab $redir")) {
 		warn("*** $lv: could not create LV$logmsg\n");
 		return 0;
 	    }
 
-	    $mdev = "emulab_vg/$lv";
+	    $mdev = "emulab/$lv";
 	}
 
-	$href->{'LNAME'} = $mdev;
+	$href->{'LVDEV'} = "/dev/$mdev";
 	return 1;
     }
 
@@ -886,10 +967,21 @@ sub os_remove_storage_element($$$)
     #my $redir = "";
     my $redir = ">/dev/null 2>&1";
 
-    if ($href->{'PROTO'} eq "iSCSI") {
+    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
 	my $hostip = $href->{'HOSTIP'};
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
+
+	#
+	# Unmount it
+	#
+	if (exists($href->{'MOUNTPOINT'})) {
+	    my $mpoint = $href->{'MOUNTPOINT'};
+
+	    if (mysystem("$UMOUNT $mpoint")) {
+		warn("*** $bsid: could not unmount $mpoint\n");
+	    }
+	}
 
 	#
 	# Logout of the session.
@@ -940,8 +1032,8 @@ sub os_remove_storage_slice($$$)
 	    $dev = $mdev = "${bdisk}4";
 	    $devtype = "PART";
 	} else {
-	    $dev = "emulab_vg/$lv";
-	    $mdev = "mapper/emulab_vg-$lv";
+	    $dev = "emulab/$lv";
+	    $mdev = "mapper/emulab-$lv";
 	    $devtype = "LVM";
 	}
 
@@ -1005,9 +1097,9 @@ sub os_remove_storage_slice($$$)
 	    #
 	    # Other, LVM volume:
 	    #
-	    # lvremove -f emulab_vg/h2d2
+	    # lvremove -f emulab/h2d2
 	    #
-	    if (mysystem("lvremove -f emulab_vg/$lv $redir")) {
+	    if (mysystem("lvremove -f emulab/$lv $redir")) {
 		warn("*** $lv: could not destroy$logmsg\n");
 	    }
 
@@ -1015,17 +1107,17 @@ sub os_remove_storage_slice($$$)
 	    # If no volumes left:
 	    #
 	    # Remove the VG:
-	    #  vgremove -f emulab_vg
+	    #  vgremove -f emulab
 	    # Remove the PVs:
 	    #  pvremove -f /dev/sda4 /dev/sdb
 	    #
 	    my $gotlvs = 0;
-	    my $lvs = `lvs -o vg_name --noheadings emulab_vg 2>/dev/null`;
+	    my $lvs = `lvs -o vg_name --noheadings emulab 2>/dev/null`;
 	    if ($lvs) {
 		return 1;
 	    }
 
-	    if (mysystem("vgremove -f emulab_vg $redir")) {
+	    if (mysystem("vgremove -f emulab $redir")) {
 		warn("*** $lv: could not destroy VG$logmsg\n");
 	    }
 
