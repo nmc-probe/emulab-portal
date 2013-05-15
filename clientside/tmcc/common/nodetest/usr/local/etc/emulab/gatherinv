@@ -1,21 +1,53 @@
 #! /bin/bash
 
-echo -n '  Gathering Inventory..'
+# need to make sure we are running with a full verseion of bash
+if [ -f '/etc/emulab/ismfs' ] ; then
+    # check to see if we are using correct bash
+    verbash=$(file `which bash`)
+    if [ "$verbash" != "${verbash/busybox}" ] ; then
+	# NO! we do not, retstart using new bash
+	# we not be in a loop since correct path is now set
+	export PATH=/proj/emulab-ops/nodecheck/$(uname -s)/bin:$PATH
+	bash $0
+	exit 0
+    fi
+fi
 
 source checkutils.sh
 
+gatherinv_main() {
+    echo -n '  Gathering Inventory..'
+
+    $(cp /dev/null /tmp/nodecheck.log.tb)
+
+    checks="disk cpu mem nic"
+set +e
+    for i in $checks ; do
+	bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /tmp/nodecheck.log.tb
+    done
+
 # cat /tmp/nodecheck.log.tb
 
-readtmcinfo /tmp/nodecheck.log.tb
+    readtmcinfo /tmp/nodecheck.log.tb
 
-mv /tmp/nodecheck.log.tb /tmp/nodecheck.bk
+#mv /tmp/nodecheck.log.tb /tmp/nodecheck.bk
 
-{ printtmcinfo
+    { printtmcinfo
 } > /tmp/nodecheck.log.tb
-
-{ printhwinv
+	
+    { printhwinv
 } > /tmp/nodecheck.log.inv
 
+    host=$(tmcc.bin nodeid)
+	
+    $(cp /tmp/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host);
+    $(cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/$host.full);
+    $(chmod a+r /proj/emulab-ops/nodecheck/$host*);
+	
+    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv"
+}
+
+gatherinv_main $0
 
 
 

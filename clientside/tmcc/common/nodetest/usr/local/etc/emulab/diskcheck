@@ -516,7 +516,7 @@ getsectors() {
 		    fi
 		    # fake and go by the size 
 		    res=${res%%MB*}
-		    res=${res#* }
+		    res=${res##* }
 		    echo $(( $res * 2048 )) # assume 512 byte sectors
 		    return 0
 		fi
@@ -548,7 +548,12 @@ getwspeed() {
     canwe=$(df | grep $hdname)
     [[ $canwe ]] && { echo mounted; return 0; }
     if [ "$os" == "Linux" ] ; then 
-	args="bs=64k iflag=direct count=8000"
+	if [ "$mfsmode" == "1" ] ; then
+	    # static dd we are using may now match kernel call for direct i/o, guess
+	    args="bs=64k count=8000"
+	else
+	    args="bs=64k iflag=direct count=8000"
+	fi
     elif [ "$os" == "FreeBSD" ] ; then 
 	args="bs=64k count=8000"
     fi
@@ -559,6 +564,7 @@ getwspeed() {
     { 
     $(dd if=/dev/zero of=$hdname $args)
 } > /tmp/ddresultw 2>&1
+    add_on_exit "rm -f /tmp/ddresultw"
     res=$(grep bytes /tmp/ddresultw)
     echo $(parsedd $res)
     return 0
@@ -577,6 +583,7 @@ getrspeed() {
 { 
     $(dd of=/dev/null if=$hdname $args)
 } > /tmp/ddresultr 2>&1
+    add_on_exit "rm -f /tmp/ddresultr"
     res=$(grep bytes /tmp/ddresultr)
     echo $(parsedd $res)
     return 0
@@ -584,7 +591,12 @@ getrspeed() {
 
 parsedd() {
     if [ "$os" == "Linux" ] ; then 
- 	echo $8
+	y=$9
+	if [ $y != ${y/MB} ] ; then
+	    x=$8
+	else
+	    x="PareddError"
+	fi
     elif [ "$os" == "FreeBSD" ] ; then 
         x=$7
 	x=${x#(}

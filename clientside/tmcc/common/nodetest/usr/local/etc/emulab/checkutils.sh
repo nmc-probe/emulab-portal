@@ -1,26 +1,55 @@
 #function debugging by setting  FUNCDEBUG=y
 
+# add static binaries if needed
+declare mfsmode="" #are we running in a MFS (ie busybox) mode
+if [ -f /etc/emulab/ismfs ] ; then
+    meos=$(uname -s)
+    mfsmode=1
+    mfs_base="/proj/emulab-ops/nodecheck"
+    mfs_osdir="${mfs_base}/${meos}"
+    mfs_bin="${mfs_osdir}/bin"
+    mfs_lib="${mfs_osdir}/lib"
+    if [ $PATH == ${PATH/${mfs_bin}} ] ; then
+	if [ -d ${mfs_osdir} ] ; then
+	    export PATH=/proj/emulab-ops/nodecheck/${meos}/bin:$PATH
+	fi
+    fi
+else
+    mfsmode=0
+fi
+
 #exit on unbound var
 set -u
 #exit on any error
 set -e
+declare errext_val
 
 # Gobal Vars
 declare NOSM="echo" #do nothing command
 declare host       #emulab hostname
 declare failed=""  #major falure to be commicated to user
 declare os=""      #[Linux|FreeBSD] for now
-declare mfsmode="" #are we running in a MFS (ie busybox) mode
+declare -a todo_exit
 
 declare -A hwinv  # hwinv from tmcc.bin
 #declare -A tcm_out # hwinv for output
 #declare -A tcm_inv # what we have discovered
 
-
-# one arg 'on' or anything else
-setmfsmode() {
-    [[ "$1" == "on" ]] && mfsmode="on" || mfsmode=""
+# any command causes exit if -e option set
+# including a grep just used so see if some sting is in a file
+save_e() {
+    x=$-
+    [[ "${x/e}" == "${x}" ]] &&	errexit_val=off || errexit_val=on
 }
+restore_e() {
+    [[ $errexit_val == "on" ]] && set -e || set +e
+}
+# give some indication of exit on ERR trap
+err_report() {
+    echo "TRAP ERR at $1"
+}
+trap 'err_report $FUNCNAME:$LINENO' ERR
+
 
 # read info from tmcc no args uses the globel array hwinv
 # if $1 then use that for a input file else use tmcc.bin
@@ -174,6 +203,24 @@ findSmartctl() {
     return 0
 }
 
+
+function on_exit()
+{
+    for i in "${todo_exit[@]}" ; do
+echo "EXIT TODO: $i"
+        $($i)
+    done
+}
+
+function add_on_exit()
+{
+    local n=${#todo_exit[*]}
+    todo_exit[$n]="$@"
+    if [[ $n -eq 0 ]]; then
+        trap on_exit EXIT
+    fi
+}
+
 # setup logging
 initlogs () {
     funcdebug $FUNCNAME:$LINENO enter $@
@@ -185,9 +232,12 @@ initlogs () {
     touch ${logfile4tb}
 # end XXX XXX 
     tmplog=/tmp/.$$.log ; cat /dev/null > ${tmplog} # create and truncate
+    add_on_exit "rm -f $tmplog"
 
     logout=/tmp/.$$logout.log ; touch ${logout} # make it exist
+    add_on_exit "rm -f $logout"
     tmpout=/tmp/.$$tmpout.log ; touch ${tmpout}
+    add_on_exit "rm -f $tmpout"
 #    tmpfunctionout=/tmp/.$$tmpfunctionout.log 
 
     funcdebug $FUNCNAME:$LINENO leave

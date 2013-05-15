@@ -35,24 +35,37 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 #@checkscripts = ("disk", "cpu", "mem", "time", "nic", "diskspeed");
 
 # do not run timecheck for MFS hw gather mode
-#@checkscripts = ("disk", "cpu", "mem", "time", "nic");
-@checkscripts = ("disk", "cpu", "mem", "nic", "gather");
+@checkscripts = ("disk", "cpu", "mem", "time", "nic");
 
+$host = `/usr/bin/tmcc.bin nodid`;
 
-system("echo 'Running nodechecks'");
-$host = `hostname`;
-if ( -r '/var/emulab/boot/realname' ) {
-    $host = `cat /var/emulab/boot/realname`;
-} elsif ( -f '/var/emulab/boot/nodeid' ) {
-    $host = `cat /var/emulab/boot/nodeid`;
-}
+#$host = `hostname`;
+#if ( -r '/var/emulab/boot/realname' ) {
+#    $host = `cat /var/emulab/boot/realname`;
+#} elsif ( -f '/var/emulab/boot/nodeid' ) {
+#    $host = `cat /var/emulab/boot/nodeid`;
+#}
+
 chomp($host);
 
-my $os = `uname -s`;
-chomp($os);
-if ($os eq "Linux") {
-    $ENV{'PATH'} = "/usr/local/bin:/proj/emulab-ops/nodecheck/bin_linux:$ENV{'PATH'}";
-}
+if ( -r '/etc/emulab/ismfs' ) {
+    system("mount fs.emulab.net:/q/proj/emulab-ops /proj/emulab-ops");
+    my $os = `uname -s`;
+    chomp($os);
+    if ($os eq "Linux") {
+	$ENV{'PATH'} = "/usr/local/bin:/proj/emulab-ops/nodecheck/Linux/bin:$ENV{'PATH'}";
+    }
+    if ($os eq "FreeBSD") {
+	$ENV{'PATH'} = "/usr/local/bin:/proj/emulab-ops/nodecheck/FreeBSD/bin:$ENV{'PATH'}";
+    }
+    system("echo 'Running Hardware Inventory Gather'");
+    system("bash /usr/local/etc/emulab/gatherinv");
+    system("echo 'Done Running Hardware Inventory'");
+    exit (0);
+}    
+	
+system("echo 'Running nodechecks'");
+
 
 if (!$ARGV[0]) {
     $action = "noboot";
@@ -63,22 +76,15 @@ if (!$ARGV[0]) {
 
 # truncate file at boot time
 if ($action eq "boot") {
-    system("echo 'Start boot_time_node_check' > /var/emulab/logs/nodecheck.log");
-    system("cp /dev/null /tmp/nodecheck.log.tb");
-    foreach my $i (@checkscripts) {
-	system("bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log");
-    }
+    system("echo '-- Start boot_time_node_check --' > /var/emulab/logs/nodecheck.log");
+}
+
+foreach my $i (@checkscripts) {
+    system("bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log");
+}
+
+if ($action eq "boot") {
     system("echo '-- Finish boot_time_node_check --' >> /var/emulab/logs/nodecheck.log");
-    if ( -e  "/tmp/nodecheck.log.tb" ) {
-	    system("cp /tmp/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host");
-	    system("cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/$host.full");
-	    system("chmod a+r /proj/emulab-ops/nodecheck/$host*");
-    }
-} else {
-    system("rm -f /tmp/nodecheck.log.tb");
-    foreach my $i (@checkscripts) {
-	system("bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log");
-    }
 }
 
 system("echo 'Done with nodechecks'");
