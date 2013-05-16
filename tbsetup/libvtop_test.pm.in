@@ -1558,9 +1558,21 @@ sub LoadVirtNodes($)
 	# XXX: If the virt blockstore object isn't fixed to a
 	# blockstore pseudo-VM, then abort the bookkeeping and mapping
 	# for it.  This means we are dealing with local node storage
-	# via a features and desires hack.
-	next 
-	    if $fixnode->type() ne "blockstore";
+	# via a features and desires hack.  Check that the OS on the
+	# host has the local blockstore feature.
+	if ($fixnode->type() ne "blockstore") {
+	    my $fosinfo = $fixnode->_osinfo();
+	    if (!defined($fosinfo)) {
+		tberror("OS unknown on node $fixnode: ".
+			"Can't check for local blockstore support!");
+		return -1;
+	    } elsif (!$fosinfo->FeatureSupported("loc-bstore")) {
+		tberror("OS $fosinfo on $fixnode hosting $virt_bs doesn't ".
+			"support local blockstores.\n");
+		return -1;
+	    }
+	    next;
+	}
 
 	#
 	# We need a place to hang the attributes, but they are split
@@ -1617,6 +1629,7 @@ sub LoadVirtLans($)
 	    # Add it to the toplevel list of lans.
 	    $self->vlans()->{$vlanname} = $virtlan;
 	    $virtlan->_accesspoint(undef);
+	    $virtlan->_sanlan(0);
 	}
 
 	# Now the local wrapper for the virt_lan table entry (the "member").
@@ -1815,6 +1828,14 @@ sub LoadVirtLans($)
 	    $vlanmember->_nobwshaping(1);
 	    $self->printdb("  Forcing $vlanmember to reserve shared bandwidth\n");
 	}
+
+	# If any vlan member is a blockstore pseudo-VM, then mark the virtlan
+	# as a sanlan.  This designation is used later to do an OS feature
+	# check.
+	if ($vlanmember->virt_node()->type() eq "blockstore") {
+	    $virtlan->_sanlan(1);
+	}
+	
     }
 
     #
@@ -2498,6 +2519,7 @@ sub GenVirtLans($)
     my %osdoesvlan       = ();
     my %osdoesmlink      = ();
     my %osdoeslinkdelays = ();
+    my %osdoesrembstore  = ();  # Remote blockstore support
 
     foreach my $vname (sort(keys(%{ $self->{'VLANS'} }))) {
 	my $vlan = $self->vlans()->{$vname};
@@ -2516,7 +2538,7 @@ sub GenVirtLans($)
 	my $sharednodes  = 0;
 	my $geninodes    = 0;
 	my %nodesdo      = ("alias"=>0, "veth"=>0, "vlan"=>0, "ldelay"=>0,
-			    "veth-ne"=>0, "veth-en"=>0);
+			    "veth-ne"=>0, "veth-en"=>0, "rem-bstore"=>0);
 	my $trivial_ok   = 0;
 	my $emulated     = $vlan->_emulated();
         my $uselinkdelay = $vlan->_uselinkdelay();
@@ -2525,6 +2547,7 @@ sub GenVirtLans($)
 	my $protocol     = $vlan->_protocol();
 	my $linkencap    = $vlan->_encapstyle();
 	my $layer        = $vlan->_layer();
+	my $sanlan       = $vlan->_sanlan();
 
 	# For mixing pnodes and vnodes.
 	$vlan->_mixedencap(0);
@@ -2562,6 +2585,7 @@ sub GenVirtLans($)
 		    $osdoesvethEN{$osid} = 1;
 		    $osdoesvlan{$osid} = 0;
 		    $osdoeslinkdelays{$osid} = 1;
+		    $osdoesrembstore{$osid} = 0;
 		}
 	    }
 	    else {
@@ -2624,18 +2648,22 @@ sub GenVirtLans($)
 			# Need this for phys nodes requesting lindelays.
 			$osdoeslinkdelays{$osid} =
 			    $osinfo->FeatureSupported('linkdelays');
+			# remote blockstore support.
+			$osdoesrembstore{$osid} =
+			    $osinfo->FeatureSupported('rem-bstore');
 		    }
 		} else {
 		    # XXX If the user doesn't explicitly set an OS on a PC.
 		    # Be conservative and assume minimum features.
 		    $osid = "<DEFAULT>";
-		    if (!exists($osdoesmlink{$osid})) {
+ 		    if (!exists($osdoesmlink{$osid})) {
 			$osdoesmlink{$osid} = 0;
 			$osdoesveth{$osid} = 0;
 			$osdoesvethNE{$osid} = 0;
 			$osdoesvethEN{$osid} = 0;
 			$osdoesvlan{$osid} = 0;
 			$osdoeslinkdelays{$osid} = 0;
+			$osdoesrembstore{$osid} = 0;
 		    }
 		}
 		$realnodes++;
@@ -2654,6 +2682,8 @@ sub GenVirtLans($)
 		if ($osdoesvlan{$osid});
 	    $nodesdo{"ldelay"}++
 		if ($osdoeslinkdelays{$osid});
+	    $nodesdo{"rem-bstore"}++
+		if ($osdoesrembstore{$osid});
 
 	    # Remember since we went to the trouble of determining the osid.
 	    $member->_osdoesvethNE($osdoesvethNE{$osid});
@@ -2675,12 +2705,21 @@ sub GenVirtLans($)
 		       scalar(@members) .
 		       " real/virt/sim = ".
 		       "$nonvirtnodes/$virtnodes/$simnodes ".
-		       "mlink/veth-ne/veth-en/vlan/ldelay = ".
+		       "mlink/veth-ne/veth-en/vlan/ldelay/rbstore = ".
 		       $nodesdo{"alias"} . "/".
 		       $nodesdo{"veth-en"} . "/".
 		       $nodesdo{"veth-ne"} . "/".
 		       $nodesdo{"vlan"} . "/".
-		       $nodesdo{"ldelay"} . "\n");
+		       $nodesdo{"ldelay"} . "/".
+		       $nodesdo{"rem-bstore"} . "\n");
+
+	# The OS on all nodes in a lan containing remote blockstores
+	# (sanlan) must support the "rem-bstore" OS feature.
+	if ($sanlan && $nodesdo{'rem-bstore'} != $realnodes) {
+	    tberror("The OS on all nodes in sanlan $vname must support ".
+		    "remote blockstores.\n");
+	    return -1;
+	}
 
 	#
 	# Determine the emulation/encapsulation style for the link.
