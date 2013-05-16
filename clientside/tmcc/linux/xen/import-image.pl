@@ -85,25 +85,26 @@ my $osid = $ARGV[4];
 my $infile = $IN_BASE . $project . "/" . $user . "/" . $osid . ".tar.gz";
 my $workdir = $WORK_BASE . $project . "/" . $user . "/" . $osid . "-tmp";
 
-#
-# Untaint the arguments.
-#
-# Note different taint check (allow /).
-#TODO UNTAINT
+# Man, this really needs some exception handling
+if(system("ssh -t -t -l $ruser $remote 'mkdir ~/.emulab'")){
+    print STDERR "Couldn't mkdir ~/.emulab";
+    goto cleanup;
+}
 
 # Remotely execute the export script
-if(system("scp export-template-remote.rb $ruser\@$remote:~/export.rb")){
+if(system("scp export-template-remote.rb $ruser\@$remote:~/.emulab/export.rb")){
     print STDERR "Couldn't scp exporter script into $remote\n";
     goto cleanup;
 }
 
-if(system("ssh -t -t -l $ruser $remote 'sudo ruby < ~/export.rb'")){
+if(system("ssh -t -t -l $ruser $remote 'sudo ruby < ~/.emulab/export.rb'")){
     print STDERR "Remote image creation failed\n";
     goto cleanup;
 }
 
 # SCP back the generated image file
-if(system("scp $ruser\@$remote:~/emulab.tar.gz $infile")){
+# TODO Saner name for tar and .emulab?
+if(system("scp $ruser\@$remote:~/.emulab/emulab.tar.gz $infile")){
     print STDERR "Couldn't scp image back into ops\n";
     goto cleanup;
 }
@@ -126,11 +127,14 @@ if (system("tar -xvzf $infile -C $workdir")){
     goto cleanup;
 }
 
+my $filesize = ceil((-s "$workdir/image")/(1024*1024*1024));
+$filesize = $filesize + 4;
+
 # TODO: Proper xvda1 size based on image size?
 # TODO: Maybe handle bootopts
 # Create the "special" xm.conf
 my $heredoc = <<XMCONF;
-disksizes = 'xvda2:2.00g,xvda1:12.00g'
+disksizes = 'xvda2:2.00g,xvda1:$filesize.00g'
 memory = '256'
 disk = ['phy:/dev/xen-vg/pcvm666-1,xvda1,w','phy:/dev/xen-vg/pcvm666.swap,xvda2,w']
 kernel = 'kernel'
@@ -164,5 +168,6 @@ if (system("$cmd")) {
 
 cleanup:
 # Clean up the directory.
+print STDOUT "Performing cleanup...\n";
 system("$sudo /bin/rm -rf $workdir 2>/dev/null");
-
+system("ssh -t -t -l $ruser $remote 'rm -Rf ~/.emulab'");
