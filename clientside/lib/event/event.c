@@ -180,25 +180,42 @@ event_register_withkeydata_withretry(char *name, int threaded,
     char	       *sstr = 0, *pstr = 0, *cp;
     int			port = PUBSUB_SERVER_PORTNUM;
 
+    /*
+     * So, this might fail if the hostame is too long, but lets not
+     * give up; we can still get our IP on experimental nodes. 
+     */
     if (gethostname(hostname, sizeof(hostname)) == -1) {
         ERROR("could not get hostname: %s\n", strerror(errno));
-        return 0;
+        bzero(hostname, sizeof(hostname));
+    }
+
+    /*
+     * Make sure hostname is qualified, else we could get the
+     * IP of an experimental interface. Just clear the hostname
+     * so that we use the fallback method below. This should never
+     * happen on server nodes (boss, ops, etc) and if it does, we
+     * want to fail below. 
+     */
+    if (! strchr(hostname, '.')) {
+        bzero(hostname, sizeof(hostname));
     }
 
     /*
      * Get our IP address. Thats how we name ourselves to the
      * Testbed Event System. 
      */
-    if ((he = gethostbyname(hostname)) != NULL) {
+    if (strlen(hostname) && 
+	(he = gethostbyname(hostname)) != NULL) {
         memcpy((char *)&myip, he->h_addr, he->h_length);
         strcpy(ipaddr, inet_ntoa(myip));
-    } else {
+    }
+    else {
 	unsigned int        o1, o2, o3, o4;
 	int                 scanres;
 	FILE               *fp;
 
-	ERROR("could not get IP address from hostname: %s, "
-              "reading IP from %s.\n", hostname, IPADDRFILE);
+	ERROR("could not get IP address from hostname, "
+              "reading IP from %s.\n", IPADDRFILE);
         /* Try getting the node's ID from BOOTDIR/myip before giving up. */
 	fp = fopen(IPADDRFILE, "r");
 	if (fp != NULL) {
@@ -219,7 +236,7 @@ event_register_withkeydata_withretry(char *name, int threaded,
         }
     }
 
-    TRACE("registering with event system (hostname=\"%s\")\n", hostname);
+    TRACE("registering with event system (ipaddr=\"%s\")\n", ipaddr);
 
     /* Allocate a handle to be returned to the caller: */
     handle = xmalloc(sizeof(*handle));
@@ -319,7 +336,7 @@ event_unregister(event_handle_t handle)
         return 0;
     }
 
-    TRACE("unregistering with event system (hostname=\"%s\")\n", hostname);
+    TRACE("unregistering with event system (ipaddr=\"%s\")\n", ipaddr);
 
     /* Disconnect from the server: */
     if (handle->disconnect(handle->server) != 0) {
