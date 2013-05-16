@@ -65,6 +65,9 @@ if (! isset($target) || isset($canceled)) {
     if (isset($canceled)) {
 	echo "<h3>Operation canceled.</h3>";
     }
+    else {
+	$target = "";
+    }
     echo "<br />";
 
     $url = CreateURL("loadimage", $image); 
