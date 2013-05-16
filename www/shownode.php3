@@ -135,7 +135,7 @@ if ($node->AccessCheck($this_user, $TB_NODEACCESS_LOADIMAGE)) {
     if ($baseimage &&
 	$baseimage->AccessCheck($this_user, $TB_IMAGEID_DESTROY)) {
 	WRITESUBMENUBUTTON("Create a Disk Image",
-			   "loadimage.php3?node_id=$node_id" .
+			   "loadimage.php3?target=$node_id" .
 			   "&imageid=" . $baseimage->imageid());
     }
     else {
