@@ -183,13 +183,7 @@ Blockstore instproc set_fixed {pnode} {
 	perror "Can only fix blockstores to a node object!"
     }
 
-    # Deal with some syntactic sugar for 1-to-1 bindings to nodes.
-    if {[$pnode set type] != "blockstore" && $attributes(class) == "SAN"} {
-	set node [$self alloc_pseudonode]
-	uplevel "#0" "set ${self}-link [$sim duplex-link $pnode $node ~ 0ms DropTail]"
-    } else {
-	set node $pnode
-    }
+    set node $pnode
 
     return
 }
@@ -257,6 +251,13 @@ Blockstore instproc finalize {} {
 	    perror "Placement setting only makes sense with local blockstores: $self"
 	    return -1
 	}
+	# Deal with some syntactic sugar for 1-to-1 bindings to nodes.
+	if {[$node set type] != "blockstore"} {
+	    set pnode $node
+	    set node [$self alloc_pseudonode]
+	    uplevel "#0" "set ${self}-link [$sim duplex-link $pnode $node ~ 0ms DropTail]"
+	}
+	${self}-link set sanlan 1
 	# Die if the user has attempted to connect the blockstore via multiple
 	# links.  We only support one.
 	if {[llength [$node set portlist]] != 1} {

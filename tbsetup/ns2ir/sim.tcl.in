@@ -559,6 +559,14 @@ Simulator instproc run {} {
 	uplevel 1 real_source "@prefix@/lib/ns2ir/fw.ns"
     }
 
+    # Finalize the blockstore objects - last minute initialization and checks
+    # before they are spit out to the db.
+    foreach bstore [array names blockstore_list] {
+	if {[$bstore finalize] != 0} {
+	    break
+	}
+    }
+
     # Fill out IPs
     if {! $use_ipassign } {
 	foreach obj [concat [array names lanlink_list]] {
@@ -602,14 +610,6 @@ Simulator instproc run {} {
     foreach lan [lsort [array names lanlink_list]] {
 	if {! [regexp {^[-0-9A-Za-z]+$} $lan]} {
 	    perror "\[run] Invalid lan/link name $lan.  Can only contain \[-0-9A-Za-z\] for symmetry with node DNS limitations."
-	}
-    }
-
-    # Finalize the blockstore objects - last minute initialization and checks
-    # before they are spit out to the db.
-    foreach bstore [array names blockstore_list] {
-	if {[$bstore finalize] != 0} {
-	    break
 	}
     }
 
