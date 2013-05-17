@@ -1564,6 +1564,8 @@ sub WaitForNodes($@)
 	    if (defined($node->_sliver()) &&
 		$node->_sliver()->status() eq "failed");
 
+	$node->_bootlog(undef);
+	
 	#
 	# Create a logfile from the boot log.
 	#
@@ -1577,6 +1579,7 @@ sub WaitForNodes($@)
 					   ["slice_idx" , $slice->idx()],
 					   ["slice_urn" , $slice->urn()],
 					   ["slice_uuid", $slice->uuid()]], 1);
+		    $node->_bootlog($logfile);
 		}
 	    }
 	}
@@ -1589,11 +1592,21 @@ sub WaitForNodes($@)
 	my $email  = $creator->email();
 	my $count  = scalar(@failed);
 	my $urn    = $slice->urn();
+	my $logs   = "";
+
+	foreach my $node (@failed) {
+	    next
+		if (!defined($node->_bootlog()));
+
+	    $logs .= sprintf("%-15s : %s\n",
+			     $node->node_id(), $node->_bootlog()->URL());
+	}
 
 	SENDMAIL("$name <$email>", "$count nodes failed to boot",
 		 "Nodes:\n".
 		 "  " . join(" ", @failed) . "\n".
-		 "in $urn failed.\n\n",
+		 "in $urn failed.\n\n" .
+		 "$logs\n\n",
 		 $TBOPS, "Cc: $TBOPS");
     }
     # Too late, but reset before return; do not want it left set.
