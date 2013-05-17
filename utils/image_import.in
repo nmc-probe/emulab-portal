@@ -392,37 +392,57 @@ sub CreateImage($$$$)
 #
 sub DownLoadImage($$$$)
 {
-    my ($image, $user, $group) = @_;
+    my ($image, $newhash, $user, $group) = @_;
     my $image_url = uri_unescape($image->imagefile_url());
     my $safe_url  = User::escapeshellarg($image_url);
     my $localfile = $image->path() . ".new";
 
     #
     # Build up a new command line to do the fetch on ops
+    # But no reason to do this if an admin, which is important
+    # when the image is going into /usr/testbed/images.
     #
-    my $cmdargs = "$TB/bin/fetchtar.proxy -h -u $user_uid";
-    my $glist = `/usr/bin/id -G $user_uid`;
-    if ($glist =~ /^([\d ]*)$/) {
-	$glist = join(",", split(/\s+/, $1));
+    if (!$user->IsAdmin()) {
+	my $cmdargs = "$TB/bin/fetchtar.proxy -h -u $user_uid";
+	my $glist = `/usr/bin/id -G $user_uid`;
+	if ($glist =~ /^([\d ]*)$/) {
+	    $glist = join(",", split(/\s+/, $1));
+	}
+	else {
+	    print STDERR "Unexpected results from 'id -G $user': $glist\n";
+	    return -1;
+	}
+	$cmdargs .= " -g '$glist' \"$safe_url\" $localfile";
+
+	print "Downloading $image_url ...\n";
+	if ($debug) {
+	    print "$cmdargs\n";
+	}
+	$EUID = $UID = 0;
+	system("sshtb -host $CONTROL $cmdargs ");
+	if ($?) {
+	    $EUID = $UID = $SAVEUID;
+	    print STDERR "Fetch of image file failed\n";
+	    return -1;
+	}
+	$UID = $SAVEUID;
     }
     else {
-	print STDERR "Unexpected results from 'id -G $user': $glist\n";
-	return -1;
-    }
-    $cmdargs .= " -g '$glist' \"$safe_url\" $localfile";
+	if (! open(GET, "| nice -15 $WGET --no-check-certificate ".
+		   "--timeout=30 -q -O $localfile -i -")) {
+	    print STDERR "Cannot start $WGET\n";
+	    return -1;
+	}
+	print GET "$image_url\n";
+	return -1
+	    if (!close(GET));
 
-    print "Downloading $image_url ...\n";
-    if ($debug) {
-	print "$cmdargs\n";
+	system("$SHA1 $localfile > ${localfile}.sha1");
+	if ($?) {
+	    print STDERR "Could not generate sha1 hash of $localfile\n";
+	    return -1;
+	}
     }
-    $EUID = $UID = 0;
-    system("sshtb -host $CONTROL $cmdargs ");
-    if ($?) {
-	$EUID = $UID = $SAVEUID;
-	print STDERR "Fetch of image file failed\n";
-	return -1;
-    }
-    $UID = $SAVEUID;
 
     #
     # Verify the hash.
