@@ -872,7 +872,11 @@ sub RebootNode {
     # We wait a while for the node to stop responding to pings, and if it never
     # goes silent, whack it with a bigger stick.
     #
-    my $wtime = ($prepare ? $PREPAREWAIT : $PINGWAIT);
+    # We need to give shared hosts a chance to stop their containers.
+    # The standard pingwait is too small. 
+    #
+    my $wtime = ($prepare ||
+		 $nodeobject->sharing_mode() ? $PREPAREWAIT : $PINGWAIT);
     info("$pc: waiting ${wtime}s for reboot");
     if (WaitTillDead($pc, $wtime) == 0) {
 	info("$pc: rebooted");
