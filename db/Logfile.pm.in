@@ -40,6 +40,7 @@ use Data::Dumper;
 # Configure variables
 my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
+my $TBBASE        = "@TBBASE@";
 my $GZIP	  = "/usr/bin/gzip";
 
 #
@@ -296,6 +297,16 @@ sub Empty($)
 	if (! -e $filename || ! -s $filename);
 
     return 0;
+}
+
+#
+# Return a logfile URL.
+#
+sub URL($)
+{
+    my ($self) = @_;
+
+    return "$TBBASE/spewlogfile.php3?logfile=" . $self->logid(); 
 }
 
 #
