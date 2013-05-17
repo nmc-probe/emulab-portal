@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,6 +32,7 @@ include_once("osinfo_defs.php");
 $this_user = CheckLoginOrDie();
 $uid       = $this_user->uid();
 $isadmin   = ISADMIN();
+$doespcvm  = 0;
 
 #
 # Verify page arguments.
@@ -42,6 +43,9 @@ $optargs = OptionalPageArguments("submit",     PAGEARG_STRING,
 
 # Need these below.
 $imageid = $image->imageid();
+if ($image->ezid()) {
+    $osinfo = OSinfo::Lookup($imageid);
+}
 
 #
 # Verify permission.
@@ -76,12 +80,17 @@ while ($row = mysql_fetch_array($types_result)) {
 #
 $types_array[] = "pcvm";
 
+$osid_result =
+    DBQueryFatal("select osid,osname,pid from os_info ".
+		 "where (path='' or path is NULL) ".
+		 "order by pid,osname");
+
 #
 # Spit the form out using the array of data.
 #
 function SPITFORM($image, $formfields, $errors)
 {
-    global $uid, $isadmin, $types_array, $defaults;
+    global $uid, $isadmin, $types_array, $defaults, $osid_result, $doespcvm;
     global $TBDB_IMAGEID_IMAGENAMELEN, $TBDB_NODEIDLEN;
 
     if ($errors) {
@@ -257,6 +266,10 @@ function SPITFORM($image, $formfields, $errors)
         if (isset($formfields["mtype_$type"]) &&
 	    $formfields["mtype_$type"] == "Yep") {
 	    $checked = "checked";
+
+	    if ("mtype_$type" == "mtype_pcvm") {
+		$doespcvm = 1;
+	    }
 	}
     
         echo "<input $checked type=checkbox
@@ -295,6 +308,12 @@ function SPITFORM($image, $formfields, $errors)
 			     size= maxlength=2>
 		  </td>
 	      </tr>\n";
+
+	if ($doespcvm) {
+	    WRITEOSIDMENU("Default Parent OS",
+			  "formfields[def_parentosid]",
+			  $osid_result, $formfields["def_parentosid"]);
+	}
     }
 
     echo "<tr>
@@ -317,6 +336,9 @@ if (!isset($submit)) {
     # Generate the current types array for the form.
     foreach ($image->Types() as $type) {
 	$defaults["mtype_${type}"] = "Yep";
+    }
+    if ($image->ezid() && $osinfo->def_parentosid()) {
+	$defaults["def_parentosid"] = $osinfo->def_parentosid();
     }
 
     SPITFORM($image, $defaults, 0);
@@ -352,6 +374,9 @@ foreach ($types_array as $type) {
     if (isset($formfields["mtype_$type"]) &&
 	$formfields["mtype_$type"] == "Yep") {
 	$mtypes_array[] = $type;
+	if ("mtype_$type" == "mtype_pcvm") {
+	    $doespcvm = 1;
+	}
     }
 }
 if (! count($mtypes_array)) {
@@ -483,6 +508,17 @@ if (! ($result = Image::EditImageid($image,
     SPITFORM($image, $formfields, $errors);
     PAGEFOOTER();
     return;
+}
+
+#
+# Special case. 
+#
+if ($isadmin && $doespcvm && $image->ezid() &&
+    isset($formfields["def_parentosid"]) &&
+    $formfields["def_parentosid"] != "" &&
+    TBvalid_osid($formfields["def_parentosid"]) &&
+    OSinfo::Lookup($formfields["def_parentosid"])) {
+    $osinfo->SetParent($formfields["def_parentosid"]);
 }
 
 PAGEREPLACE(CreateURL("showimageid", $image));

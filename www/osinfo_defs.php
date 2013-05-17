@@ -221,6 +221,19 @@ class OSinfo
     function reboot_waittime()  { return $this->field("reboot_waittime"); }
     function def_parentosid()   { return $this->field("def_parentosid"); }
 
+    function SetParent($parent_osid) {
+	$osid = $this->osid();
+	$safe_osid = addslashes($parent_osid);
+
+	DBQueryFatal("update os_info set def_parentosid='$safe_osid' ".
+		     "where osid='$osid'");
+
+	DBQueryFatal("replace into os_submap set ".
+		     " parent_osid='$safe_osid', osid='$osid'");
+
+	return 0;
+    }
+
     #
     # Access Check, determines if $user can access $this record.
     # 
