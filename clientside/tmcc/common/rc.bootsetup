@@ -234,7 +234,18 @@ sub doboot()
     # Sort of a hodgepodge of stuff!
     #
     # Get the boss info for below.
-    my ($bossname, $bossip) = tmccbossinfo();
+    #
+    # So, this appears to fail. Not sure why, but a retry in a
+    # a few seconds appears to work. So before we give up, lets
+    # retry a few times.
+    #
+    my ($bossname, $bossip);
+    for (my $i = 0; $i < 15; $i++) {
+	($bossname, $bossip) = tmccbossinfo();
+	last
+	    if (defined($bossname));
+	sleep(2);
+    }
     if (!defined($bossname)) {
 	fatal("Could not determine the name of the boss server!");
     }
