@@ -77,7 +77,7 @@ my $ZFS		= "/sbin/zfs";
 # (we use a native zfs otherwise), but in case they do create a filesystem
 # on it later, it will be well suited to that use.
 #
-my $UFSBS	= "64k";
+my $UFSBS	= "65536";
 my $ZVOLBS	= "64K";
 
 #
@@ -85,7 +85,7 @@ my $ZVOLBS	= "64K";
 # to avoid FS metadata (which use power-of-two alignment) all winding up
 # on the same disk.
 #
-my $VINUMSS	= "80k";
+my $VINUMSS	= "81920";
 
 #
 # To find the block stores exported from a target portal:
@@ -267,6 +267,92 @@ sub get_bootdisk()
 }
 
 #
+# Return a list of the physical drives (partitions) that are part of
+# the current gvinum config.
+#
+sub get_vinum_drives()
+{
+    my @drives = ();
+
+    if (open(FD, "$GVINUM ld 2>/dev/null|")) {
+	while (<FD>) {
+	    if (/^D emulab_(\S+)/) {
+		push(@drives, $1);
+	    }
+	}
+	close(FD);
+    }
+
+    return @drives;
+}
+
+#
+# In FreeBSD 9+, zpool has a -v command so we could do:
+#   zpool list -vH -o name
+# but alas, FreeBSD 8 doesn't have it. So we do:
+#   zpool iostat -v
+# which is the only other way I have found to list the vdevs of a pool.
+#
+sub get_zpool_vdevs($)
+{
+    my ($pool) = @_;
+    my @vdevs = ();
+
+    if (open(FD, "$ZPOOL iostat -v $pool 2>/dev/null|")) {
+	while (<FD>) {
+	    if (/^\s+(\w+)/) {
+		push(@vdevs, $1);
+	    }
+	}
+	close(FD);
+    }
+
+    return @vdevs;
+}
+
+#
+# Return the name of any datasets in the given pool.
+# Returns an empty list if there is not such pool or no datasets.
+#
+sub get_zpool_datasets($)
+{
+    my ($pool) = @_;
+    my @dsets = ();
+
+    if (open(FD, "$ZFS list -Hr $pool 2>/dev/null|")) {
+	while (<FD>) {
+	    if (/^($pool\/\S+)\s/) {
+		push(@dsets, $1);
+	    }
+	}
+	close(FD);
+    }
+
+    return @dsets;
+}
+
+#
+# Returns 1 if the volume manager has been initialized.
+# For ZFS this means that the "emulab" zpool exists.
+# For gvinum this means that the emulab_* drives exist.
+#
+sub is_lvm_initialized($)
+{
+    my ($usezfs) = @_;
+
+    if ($usezfs) {
+	if (mysystem("$ZPOOL list emulab >/dev/null 2>&1") == 0) {
+	    return 1;
+	}
+    } else {
+	if (get_vinum_drives() > 0) {
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+#
 #
 # Get information about local disks.
 #
@@ -277,7 +363,7 @@ sub get_bootdisk()
 # For FreeBSD 8- we have to go fishing using geom commands.
 # For FreeBSD 9+ there is a convenient sysctl mib that gives us everything.
 #
-sub get_geominfo($)
+sub get_diskinfo($)
 {
     my ($usezfs) = @_;
     my %geominfo = ();
@@ -312,7 +398,7 @@ sub get_geominfo($)
 
 	# first find all the disks
 	if (!open(FD, "$GEOM disk list|")) {
-	    warn("*** get_geominfo: could not execute geom command\n");
+	    warn("*** get_diskinfo: could not execute geom command\n");
 	    return undef;
 	}
 	while (<FD>) {
@@ -336,7 +422,7 @@ sub get_geominfo($)
 
 	# now find all the partitions on those disks
 	if (!open(FD, "$GEOM part list|")) {
-	    warn("*** get_geominfo: could not execute geom command\n");
+	    warn("*** get_diskinfo: could not execute geom command\n");
 	    return undef;
 	}
 	$skipping = 1;
@@ -379,7 +465,7 @@ sub get_geominfo($)
 	# and finally, vinums
 	if (!$usezfs) {
 	    if (!open(FD, "$GEOM vinum list|")) {
-		warn("*** get_geominfo: could not execute geom command\n");
+		warn("*** get_diskinfo: could not execute geom command\n");
 		return undef;
 	    }
 	    $curpart = undef;
@@ -414,50 +500,46 @@ sub get_geominfo($)
 
     #
     # Note that disks are "in use" if they are part of a zpool.
-    # zpool list -vH
     #
-    if (!open(FD, "$ZPOOL list -vH -o name|")) {
-	warn("*** get_geominfo: could not execute ZFS command\n");
-	return undef;
-    }
-    while (<FD>) {
-	if (/^\s+(\S+)/) {
-	    if (exists($geominfo{$1}) && $geominfo{$1}{'type'} eq "DISK") {
-		$geominfo{$1}{'inuse'} = 1;
+    if ($usezfs) {
+	my @vdevs = get_zpool_vdevs("emulab");
+	foreach my $dev (@vdevs) {
+	    if (exists($geominfo{$dev}) && $geominfo{$dev}{'type'} eq "DISK") {
+		$geominfo{$dev}{'inuse'} = 1;
 	    }
 	}
     }
-    close(FD);
 
     #
-    # Find any ZFS datasets
+    # Find any ZFS datasets and their characteristics.
+    # Again, FreeBSD 9+ zfs get has a handy "-t filesystem" or "-t volume"
+    # option that would allow:
     #
     # zfs get -o name,property,value -Hp -t filesystem quota
     # zfs get -o name,property,value -Hp -t volume volsize
     #
+    # but FreeBSD 8 does not, so we do:
+    #
+    # zfs get -o name,property,value -Hp quota,volsize
+    #
+    # zvols will have a quota of '-', zfses will have a volsize of '-'
+    #
     if ($usezfs) {
-	if (!open(FD, "$ZFS get -o name,value -Hp -t filesystem quota|")) {
-	    warn("*** get_geominfo: could not execute ZFS command\n");
+	if (!open(FD, "$ZFS get -o name,property,value -Hp quota,volsize|")) {
+	    warn("*** get_diskinfo: could not execute ZFS command\n");
 	    return undef;
 	}
 	while (<FD>) {
-	    my ($zdev,$size) = split /\s/;
+	    my ($zdev,$prop,$size) = split /\s/;
 	    next if ($zdev eq "emulab");
+	    next if ($size eq "-");
 	    $geominfo{$zdev}{'size'} = int($size / 1024 / 1024);
 	    $geominfo{$zdev}{'level'} = 2;
-	    $geominfo{$zdev}{'type'} = "ZFS";
-	    $geominfo{$zdev}{'inuse'} = -1;
-	}
-	close(FD);
-	if (!open(FD, "$ZFS get -o name,value -Hp -t volume volsize|")) {
-	    warn("*** get_geominfo: could not execute ZFS command\n");
-	    return undef;
-	}
-	while (<FD>) {
-	    my ($zdev,$size) = split /\s/;
-	    $geominfo{$zdev}{'size'} = int($size / 1024 / 1024);
-	    $geominfo{$zdev}{'level'} = 2;
-	    $geominfo{$zdev}{'type'} = "ZVOL";
+	    if ($prop eq "quota") {
+		$geominfo{$zdev}{'type'} = "ZFS";
+	    } else {
+		$geominfo{$zdev}{'type'} = "ZVOL";
+	    }
 	    $geominfo{$zdev}{'inuse'} = -1;
 	}
 	close(FD);
@@ -546,6 +628,17 @@ sub os_init_storage($)
 		$usezfs = 1 if ($1 >= 8 && $2 eq "amd64");
 	    }
 	}
+	$so{'USEZFS'} = $usezfs;
+
+	#
+	# Allow for the zpool to exist.
+	# XXX we create the empty SPACEMAP so we don't try to initialize
+	# it later. ZFS never uses the SPACEMAP once the pool is created.
+	#
+	if ($usezfs && is_lvm_initialized(1)) {
+	    $so{'ZFS_POOLCREATED'} = 1;
+	    $so{'SPACEMAP'} = ();
+	}
 
 	#
 	# gvinum: put module load in /boot/loader.conf so that /etc/fstab
@@ -569,21 +662,20 @@ sub os_init_storage($)
 	# Grab the bootdisk and current GEOM state
 	#
 	my $bdisk = get_bootdisk();
-	my $ginfo = get_geominfo($usezfs);
-	if (!exists($ginfo->{$bdisk}) || $ginfo->{$bdisk}->{'inuse'} == 0) {
+	my $dinfo = get_diskinfo($usezfs);
+	if (!exists($dinfo->{$bdisk}) || $dinfo->{$bdisk}->{'inuse'} == 0) {
 	    warn("*** storage: bootdisk '$bdisk' marked as not in use!?\n");
 	    return undef;
 	}
 	$so{'BOOTDISK'} = $bdisk;
-	$so{'GEOMINFO'} = $ginfo;
-	$so{'USEZFS'} = $usezfs;
+	$so{'DISKINFO'} = $dinfo;
 	if (0) {
-	    print STDERR "BOOTDISK='$bdisk'\nUSEZFS='$usezfs'\nGEOMINFO=\n";
-	    foreach my $dev (keys %$ginfo) {
-		my $type = $ginfo->{$dev}->{'type'};
-		my $lev = $ginfo->{$dev}->{'level'};
-		my $size = $ginfo->{$dev}->{'size'};
-		my $inuse = $ginfo->{$dev}->{'inuse'};
+	    print STDERR "BOOTDISK='$bdisk'\nUSEZFS='$usezfs'\nDISKINFO=\n";
+	    foreach my $dev (keys %$dinfo) {
+		my $type = $dinfo->{$dev}->{'type'};
+		my $lev = $dinfo->{$dev}->{'level'};
+		my $size = $dinfo->{$dev}->{'size'};
+		my $inuse = $dinfo->{$dev}->{'inuse'};
 		print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
 	    }
 	    return undef;
@@ -627,13 +719,13 @@ sub os_check_storage($$)
     my ($so,$href) = @_;
 
     if (0) {
-	my $ginfo = get_geominfo($so->{'USEZFS'});
-	print STDERR "GEOMINFO=\n";
-	foreach my $dev (keys %$ginfo) {
-	    my $type = $ginfo->{$dev}->{'type'};
-	    my $lev = $ginfo->{$dev}->{'level'};
-	    my $size = $ginfo->{$dev}->{'size'};
-	    my $inuse = $ginfo->{$dev}->{'inuse'};
+	my $dinfo = get_diskinfo($so->{'USEZFS'});
+	print STDERR "DISKINFO=\n";
+	foreach my $dev (keys %$dinfo) {
+	    my $type = $dinfo->{$dev}->{'type'};
+	    my $lev = $dinfo->{$dev}->{'level'};
+	    my $size = $dinfo->{$dev}->{'size'};
+	    my $inuse = $dinfo->{$dev}->{'inuse'};
 	    print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
 	}
     }
@@ -817,9 +909,9 @@ sub os_check_storage_slice($$)
     #
     if ($href->{'CLASS'} eq "local") {
 	my $lv = $href->{'VOLNAME'};
-	my ($dev, $devtype, $mdev);
+	my ($dev, $devtype, $mdev, $slop);
 
-	my $ginfo = $so->{'GEOMINFO'};
+	my $dinfo = $so->{'DISKINFO'};
 	my $bdisk = $so->{'BOOTDISK'};
 
 	# figure out the device of interest
@@ -838,27 +930,35 @@ sub os_check_storage_slice($$)
 		    $mdev = "zvol/emulab/$lv";
 		    $devtype = "ZVOL";
 		}
+		$slop = 0;
 	    } else {
 		$dev = $mdev = "gvinum/$lv";
 		$devtype = "VINUM";
+		#
+		# XXX due to round-off when allocating space from individual
+		# gvinum drives, the actual size could be larger than what
+		# was requested by up to 1MiB per disk.
+		#
+		$slop = scalar(get_vinum_drives());
 	    }
 	}
 	my $devsize = $href->{'VOLSIZE'};
 
 	# if the device does not exist, return 0
-	if (!exists($ginfo->{$dev})) {
+	if (!exists($dinfo->{$dev})) {
 	    return 0;
 	}
 	# if it exists but is of the wrong type, we have a problem!
-	my $atype = $ginfo->{$dev}->{'type'};
+	my $atype = $dinfo->{$dev}->{'type'};
 	if ($atype ne $devtype) {
 	    warn("*** $lv: actual type ($atype) != expected type ($devtype)\n");
 	    return -1;
 	}
 	# ditto for size, unless this is the SYSVOL where we ignore user size
 	# or if the size was not specified.
-	my $asize = $ginfo->{$dev}->{'size'};
-	if ($bsid ne "SYSVOL" && $devsize && $asize != $devsize) {
+	my $asize = $dinfo->{$dev}->{'size'};
+	if ($bsid ne "SYSVOL" && $devsize &&
+	    !($asize >= $devsize && $asize <= $devsize + $slop)) {
 	    warn("*** $lv: actual size ($asize) != expected size ($devsize)\n");
 	    return -1;
 	}
@@ -900,11 +1000,15 @@ sub os_create_storage($$)
     my ($so,$href) = @_;
     my $rv = 0;
 
+    # record all the output for debugging
+    my $log = "/var/emulab/logs/" . $href->{'VOLNAME'} . ".out";
+    mysystem("cp /dev/null $log");
+
     if ($href->{'CMD'} eq "ELEMENT") {
-	$rv = os_create_storage_element($so, $href);
+	$rv = os_create_storage_element($so, $href, $log);
     }
     elsif ($href->{'CMD'} eq "SLICE") {
-	$rv = os_create_storage_slice($so, $href);
+	$rv = os_create_storage_slice($so, $href, $log);
     }
     if ($rv == 0) {
 	return 0;
@@ -913,13 +1017,20 @@ sub os_create_storage($$)
     if (exists($href->{'MOUNTPOINT'}) && !exists($href->{'MOUNTED'})) {
 	my $lv = $href->{'VOLNAME'};
 	my $mdev = $href->{'LVDEV'};
-	my $redir = ">/dev/null 2>&1";
+
+	# record all the output for debugging
+	my $redir = "";
+	my $logmsg = "";
+	if ($log) {
+	    $redir = ">>$log 2>&1";
+	    $logmsg = ", see $log";
+	}
 
 	#
 	# Create the filesystem
 	#
 	if (mysystem("$MKFS -b $UFSBS $mdev $redir")) {
-	    warn("*** $lv: could not create FS\n");
+	    warn("*** $lv: could not create FS$logmsg\n");
 	    return 0;
 	}
 
@@ -927,8 +1038,8 @@ sub os_create_storage($$)
 	# Mount the filesystem
 	#
 	my $mpoint = $href->{'MOUNTPOINT'};
-	if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint")) {
-	    warn("*** $lv: could not create mountpoint '$mpoint'\n");
+	if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint $redir")) {
+	    warn("*** $lv: could not create mountpoint '$mpoint'$logmsg\n");
 	    return 0;
 	}
 
@@ -946,12 +1057,12 @@ sub os_create_storage($$)
 	    print FD "$mdev\t$mpoint\tufs\trw\t2\t2\n";
 	    close(FD);
 	    if (mysystem("$MOUNT $mpoint $redir")) {
-		warn("*** $lv: could not mount on $mpoint\n");
+		warn("*** $lv: could not mount on $mpoint$logmsg\n");
 		return 0;
 	    }
 	} else {
 	    if (mysystem("$MOUNT -t ufs $mdev $mpoint $redir")) {
-		warn("*** $lv: could not mount $mdev on $mpoint\n");
+		warn("*** $lv: could not mount $mdev on $mpoint$logmsg\n");
 		return 0;
 	    }
 	}
@@ -960,9 +1071,9 @@ sub os_create_storage($$)
     return 1;
 }
 
-sub os_create_storage_element($$)
+sub os_create_storage_element($$$)
 {
-    my ($so,$href) = @_;
+    my ($so,$href,$log) = @_;
 
     if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
 	my $hostip = $href->{'HOSTIP'};
@@ -971,10 +1082,12 @@ sub os_create_storage_element($$)
 	my $cmd;
 
 	# record all the output for debugging
-	my $log = "/var/emulab/logs/$bsid.out";
-	my $redir = ">>$log 2>&1";
-	my $logmsg = ", see $log";
-	mysystem("cp /dev/null $log");
+	my $redir = "";
+	my $logmsg = "";
+	if ($log) {
+	    $redir = ">>$log 2>&1";
+	    $logmsg = ", see $log";
+	}
 
 	#
 	# Handle one-time setup of /etc/iscsi.conf.
@@ -1030,9 +1143,9 @@ EOF
     return 0;
 }
 
-sub os_create_storage_slice($$)
+sub os_create_storage_slice($$$)
 {
-    my ($so,$href) = @_;
+    my ($so,$href,$log) = @_;
     my $bsid = $href->{'BSID'};
 
     #
@@ -1056,13 +1169,15 @@ sub os_create_storage_slice($$)
 	my $mdev = "";
 
 	my $bdisk = $so->{'BOOTDISK'};
-	my $ginfo = $so->{'GEOMINFO'};
+	my $dinfo = $so->{'DISKINFO'};
 
 	# record all the output for debugging
-	my $log = "/var/emulab/logs/$lv.out";
-	my $redir = ">>$log 2>&1";
-	my $logmsg = ", see $log";
-	mysystem("cp /dev/null $log");
+	my $redir = "";
+	my $logmsg = "";
+	if ($log) {
+	    $redir = ">>$log 2>&1";
+	    $logmsg = ", see $log";
+	}
 
 	#
 	# System volume:
@@ -1104,9 +1219,9 @@ sub os_create_storage_slice($$)
 		if ($bsid eq "ANY") {
 		    $spacemap{$bdisk}{'pnum'} = 4;
 		}
-		foreach my $dev (keys %$ginfo) {
-		    if ($ginfo->{$dev}->{'type'} eq "DISK" &&
-			$ginfo->{$dev}->{'inuse'} == 0) {
+		foreach my $dev (keys %$dinfo) {
+		    if ($dinfo->{$dev}->{'type'} eq "DISK" &&
+			$dinfo->{$dev}->{'inuse'} == 0) {
 			$spacemap{$dev}{'pnum'} = 0;
 		    }
 		}
@@ -1143,18 +1258,18 @@ sub os_create_storage_slice($$)
 		# XXX we allow some time for changes to take effect.
 		#
 		sleep(1);
-		$ginfo = $so->{'GEOMINFO'} = get_geominfo($so->{'USEZFS'});
+		$dinfo = $so->{'DISKINFO'} = get_diskinfo($so->{'USEZFS'});
 
 		my $total_size = 0;
 		my ($min_s,$max_s);
 		foreach my $disk (keys %spacemap) {
 		    my $part = $disk . "s" . $spacemap{$disk}{'pnum'};
-		    if (!exists($ginfo->{$part}) ||
-			$ginfo->{$part}->{'type'} ne "PART") {
+		    if (!exists($dinfo->{$part}) ||
+			$dinfo->{$part}->{'type'} ne "PART") {
 			warn("*** $lv: created partitions are wrong!?\n");
 			return 0;
 		    }
-		    my $dsize = $ginfo->{$part}->{'size'};
+		    my $dsize = $dinfo->{$part}->{'size'};
 		    $spacemap{$disk}{'size'} = $dsize;
 		    $total_size += $dsize;
 		    $min_s = $dsize if (!defined($min_s) || $dsize < $min_s);
@@ -1165,8 +1280,30 @@ sub os_create_storage_slice($$)
 		# See if we can stripe on the available devices.
 		# XXX conservative right now, require all to be the same size.
 		#
-		if (defined($min_s) && $min_s == $max_s) {
+		if (scalar(keys(%spacemap)) > 1 &&
+		    defined($min_s) && $min_s == $max_s) {
 		    $so->{'STRIPESIZE'} = $min_s;
+		}
+
+		if (0) {
+		    print STDERR "DISKINFO=\n";
+		    foreach my $dev (keys %$dinfo) {
+			my $type = $dinfo->{$dev}->{'type'};
+			my $lev = $dinfo->{$dev}->{'level'};
+			my $size = $dinfo->{$dev}->{'size'};
+			my $inuse = $dinfo->{$dev}->{'inuse'};
+			print STDERR "  name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
+		    }
+		    my $ssize = "-";
+		    if (defined($so->{'STRIPESIZE'})) {
+			$ssize = $so->{'STRIPESIZE'};
+		    }
+		    print STDERR "total/stripe/min/max $total_size/$ssize/$min_s/$max_s, SPACEMAP=\n";
+		    foreach my $disk (keys %spacemap) {
+			my $pnum = $spacemap{$disk}{'pnum'};
+			my $size = $spacemap{$disk}{'size'};
+			print STDERR "  disk=$disk, pnum=$pnum, size=$size\n";
+		    }
 		}
 
 		$so->{'SPACEAVAIL'} = $total_size;
@@ -1187,7 +1324,11 @@ sub os_create_storage_slice($$)
 	    #
 	    if ($so->{'USEZFS'}) {
 		if (!exists($so->{'ZFS_POOLCREATED'})) {
-		    my @parts = sort(keys %$space);
+		    my @parts = ();
+		    foreach my $disk (sort keys %$space) {
+			my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
+			push(@parts, $pdev);
+		    }
 		    if (mysystem("$ZPOOL create -f -m none emulab @parts $redir")) {
 			warn("*** $lv: could not create ZFS pool$logmsg\n");
 			return 0;
@@ -1239,12 +1380,12 @@ sub os_create_storage_slice($$)
 	    # VINUM: create a gvinum for the volume using the available space:
 	    #
 	    # cat > /tmp/h2d2.conf
-	    # drive vinum_da0s4 device /dev/da0s4 (ANY only)
-	    # drive vinum_da1s1 device /dev/da1s1
+	    # drive emulab_da0s4 device /dev/da0s4 (ANY only)
+	    # drive emulab_da1s1 device /dev/da1s1
 	    # volume h2d2
 	    #   plex org concat
-	    #     sd length NNNm drive vinum_da0s4 (ANY only)
-	    #     sd length NNNm drive vinum_da1s1
+	    #     sd length NNNm drive emulab_da0s4 (ANY only)
+	    #     sd length NNNm drive emulab_da1s1
 	    #
 	    # gvinum create /tmp/h2d2.conf
 	    #
@@ -1303,10 +1444,10 @@ sub os_create_storage_slice($$)
 		    warn("*** $lv: could not create gvinum config\n");
 		    return 0;
 		}
-		if (!exists($so->{'VINUM_SUBDISKS'})) {
+		if (!exists($so->{'VINUM_DRIVES'})) {
 		    foreach my $disk (keys %$space) {
 			my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
-			print FD "drive vinum_$pdev device /dev/$pdev\n";
+			print FD "drive emulab_$pdev device /dev/$pdev\n";
 		    }
 		}
 		print FD "volume $lv\n";
@@ -1314,7 +1455,7 @@ sub os_create_storage_slice($$)
 		foreach my $disk (keys %$space) {
 		    my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
 		    my $sdsize = $space->{$disk}->{'vsize'};
-		    print FD "    sd length ${sdsize}m drive vinum_$pdev\n";
+		    print FD "    sd length ${sdsize}m drive emulab_$pdev\n";
 		}
 		close(FD);
 
@@ -1324,10 +1465,10 @@ sub os_create_storage_slice($$)
 		    unlink($cfile);
 		    return 0;
 		}
-		unlink($cfile);
+		#unlink($cfile);
 
-		# subdisks exist at this point
-		$so->{'VINUM_SUBDISKS'} = 1;
+		# vinum drives exist at this point
+		$so->{'VINUM_DRIVES'} = 1;
 
 		# XXX need some delay before accessing device?
 		sleep(1);
@@ -1339,8 +1480,8 @@ sub os_create_storage_slice($$)
 	#
 	# Update the geom info to reflect new devices
 	#
-	$ginfo = $so->{'GEOMINFO'} = get_geominfo($so->{'USEZFS'});
-	if (!exists($ginfo->{$mdev})) {
+	$dinfo = $so->{'DISKINFO'} = get_diskinfo($so->{'USEZFS'});
+	if (!exists($dinfo->{$mdev})) {
 	    warn("*** $lv: blockstore did not get created!?\n");
 	    return 0;
 	}
@@ -1455,7 +1596,7 @@ sub os_remove_storage_slice($$$)
 	my $bsid = $href->{'BSID'};
 	my $lv = $href->{'VOLNAME'};
 
-	my $ginfo = $so->{'GEOMINFO'};
+	my $dinfo = $so->{'DISKINFO'};
 	my $bdisk = $so->{'BOOTDISK'};
 
 	# figure out the device of interest
@@ -1478,12 +1619,12 @@ sub os_remove_storage_slice($$$)
 	}
 
 	# if the device does not exist, we have a problem!
-	if (!exists($ginfo->{$dev})) {
+	if (!exists($dinfo->{$dev})) {
 	    warn("*** $lv: device '$dev' does not exist\n");
 	    return 0;
 	}
 	# ditto if it exists but is of the wrong type
-	my $atype = $ginfo->{$dev}->{'type'};
+	my $atype = $dinfo->{$dev}->{'type'};
 	if ($atype ne $devtype) {
 	    warn("*** $lv: actual type ($atype) != expected type ($devtype)\n");
 	    return 0;
@@ -1557,26 +1698,18 @@ sub os_remove_storage_slice($$$)
 		#   gpart delete -i 4 da0 (ANY only)
 		#   gpart destroy -F da1
 		#
-		my $nvols = `$ZFS list -H emulab | grep -c 'emulab/'`;
-		chomp($nvols);
-		if ($nvols > 0) {
+		my @vols = get_zpool_datasets("emulab");
+		if (@vols > 0) {
 		    return 1;
 		}
 
 		#
 		# find devices that are a part of the pool
 		#
-		my @slices = ();
-		if (!open(FD, "$ZPOOL list -vH -o name emulab|")) {
-		    warn("*** $lv: could not find vdevs in zpool\n");
-		    return 1;
+		my @slices = get_zpool_vdevs("emulab");
+		if (@slices == 0) {
+		    warn("*** $lv: could not find components of zpool\n");
 		}
-		while (<FD>) {
-		    if (/^\s+(\S+)/) {
-			push(@slices, $1);
-		    }
-		}
-		close(FD);
 
 		#
 		# Destroy the pool
@@ -1593,7 +1726,7 @@ sub os_remove_storage_slice($$$)
 			if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
 			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
-		    } elsif ($slice =~ /^(.*d\d+)$/) {
+		    } elsif ($slice =~ /^(.*)s1$/) {
 			my $disk = $1;
 			if ($disk eq $bdisk ||
 			    mysystem("$GPART destroy -F $disk $redir")) {
@@ -1615,8 +1748,8 @@ sub os_remove_storage_slice($$$)
 		#
 		# If no volumes left:
 		#
-		#   gvinum rm -r vinum_da0s4 (ANY only)
-		#   gvinum rm -r vinum_da1s1
+		#   gvinum rm -r emulab_da0s4 (ANY only)
+		#   gvinum rm -r emulab_da1s1
 		#
 		#   gpart delete -i 4 da0 (ANY only)
 		#   gpart destroy -F da1
@@ -1627,32 +1760,23 @@ sub os_remove_storage_slice($$$)
 		    return 1;
 		}
 
-		if (!open(FD, "$GVINUM ld|")) {
-		    warn("*** $lv: could not find subdisks$logmsg\n");
-		    return 1;
-		}
-
-		while (<FD>) {
-		    if (/^D vinum_(\S+)/) {
-			my $slice = $1;
-
-			if (mysystem("$GVINUM rm vinum_$slice $redir")) {
-			    warn("*** $lv: could not destroy subdisk vinum_$slice$logmsg\n");
+		my @drives = get_vinum_drives();
+		foreach my $slice (@drives) {
+		    if (mysystem("$GVINUM rm emulab_$slice $redir")) {
+			warn("*** $lv: could not destroy drive emulab_$slice$logmsg\n");
+		    }
+		    if ($slice eq "${bdisk}s4") {
+			if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
+			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
-			if ($slice eq "${bdisk}s4") {
-			    if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
-				warn("*** $lv: could not destroy $slice$logmsg\n");
-			    }
-			} elsif ($slice =~ /^(.*)s1$/) {
-			    my $disk = $1;
-			    if ($disk eq $bdisk ||
-				mysystem("$GPART destroy -F $disk $redir")) {
-				warn("*** $lv: could not destroy $slice$logmsg\n");
-			    }
+		    } elsif ($slice =~ /^(.*)s1$/) {
+			my $disk = $1;
+			if ($disk eq $bdisk ||
+			    mysystem("$GPART destroy -F $disk $redir")) {
+			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
 		    }
 		}
-		close(FD);
 
 		if (mysystem("$GVINUM stop $redir")) {
 		    warn("*** $lv: could not stop gvinum$logmsg\n");

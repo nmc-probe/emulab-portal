@@ -191,6 +191,19 @@ sub get_parttype($$)
 }
 
 #
+# Returns 1 if the volume manager has been initialized.
+# For LVM this means that the "emulab" volume group exists.
+#
+sub is_lvm_initialized()
+{
+    my $vg = `vgs -o vg_name --noheadings emulab 2>/dev/null`;
+    if ($vg) {
+	return 1;
+    }
+    return 0;
+}
+
+#
 # Get information about local disks.
 #
 # Ideally, this comes from the list of ELEMENTs passed in.
@@ -200,7 +213,7 @@ sub get_parttype($$)
 # XXX the various "get space on the local disk" mechanisms should be
 # reconciled.
 #
-sub get_geominfo()
+sub get_diskinfo()
 {
     my %geominfo = ();
 
@@ -209,7 +222,7 @@ sub get_geominfo()
     # XXX only care about sd[a-z] devices and their partitions.
     #
     if (!open(FD, "/proc/partitions")) {
-	warn("*** get_geominfo: could not get disk info from /proc/partitions\n");
+	warn("*** get_diskinfo: could not get disk info from /proc/partitions\n");
 	return undef;
     }
     while (<FD>) {
@@ -246,7 +259,7 @@ sub get_geominfo()
 
     # XXX watch out for mounted disks/partitions (DOS type may be 0)
     if (!open(FD, "/etc/fstab")) {
-	warn("*** get_geominfo: could not get mount info from /etc/fstab\n");
+	warn("*** get_diskinfo: could not get mount info from /etc/fstab\n");
 	return undef;
     }
     while (<FD>) {
@@ -372,18 +385,25 @@ sub os_init_storage($)
     # initialize volume manage if needed for local slices
     if ($gotlocal && $gotslice) {
 	#
+	# Allow for the volume group to exist.
+	#
+	if (is_lvm_initialized()) {
+	    $so{'LVM_VGCREATED'} = 1;
+	}
+
+	#
 	# Grab the bootdisk and current GEOM state
 	#
 	my $bdisk = get_bootdisk();
-	my $ginfo = get_geominfo();
+	my $ginfo = get_diskinfo();
 	if (!exists($ginfo->{$bdisk}) || $ginfo->{$bdisk}->{'inuse'} == 0) {
 	    warn("*** storage: bootdisk '$bdisk' marked as not in use!?\n");
 	    return undef;
 	}
 	$so{'BOOTDISK'} = $bdisk;
-	$so{'GEOMINFO'} = $ginfo;
+	$so{'DISKINFO'} = $ginfo;
 	if (0) {
-	    print STDERR "BOOTDISK='$bdisk'\nGEOMINFO=\n";
+	    print STDERR "BOOTDISK='$bdisk'\nDISKINFO=\n";
 	    foreach my $dev (keys %$ginfo) {
 		my $type = $ginfo->{$dev}->{'type'};
 		my $lev = $ginfo->{$dev}->{'level'};
@@ -392,13 +412,6 @@ sub os_init_storage($)
 		print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
 	    }
 	    return undef;
-	}
-
-	#
-	# See if the volume group exists already
-	#
-	if (mysystem("vgs emulab $redir") == 0) {
-	    $so{'LVM_VGCREATED'} = 1;
 	}
     }
 
@@ -437,8 +450,8 @@ sub os_check_storage($$)
     my ($so,$href) = @_;
 
     if (0) {
-	my $ginfo = get_geominfo();
-	print STDERR "GEOMINFO=\n";
+	my $ginfo = get_diskinfo();
+	print STDERR "DISKINFO=\n";
 	foreach my $dev (keys %$ginfo) {
 	    my $type = $ginfo->{$dev}->{'type'};
 	    my $lev = $ginfo->{$dev}->{'level'};
@@ -607,7 +620,7 @@ sub os_check_storage_slice($$)
 	my $lv = $href->{'VOLNAME'};
 	my ($dev, $devtype, $mdev);
 
-	my $ginfo = $so->{'GEOMINFO'};
+	my $ginfo = $so->{'DISKINFO'};
 	my $bdisk = $so->{'BOOTDISK'};
 
 	# figure out the device of interest
@@ -689,11 +702,15 @@ sub os_create_storage($$)
     my ($so,$href) = @_;
     my $rv = 0;
 
+    # record all the output for debugging
+    my $log = "/var/emulab/logs/" . $href->{'VOLNAME'} . ".out";
+    mysystem("cp /dev/null $log");
+
     if ($href->{'CMD'} eq "ELEMENT") {
-	$rv = os_create_storage_element($so, $href);
+	$rv = os_create_storage_element($so, $href, $log);
     }
     elsif ($href->{'CMD'} eq "SLICE") {
-	$rv = os_create_storage_slice($so, $href);
+	$rv = os_create_storage_slice($so, $href, $log);
     }
     if ($rv == 0) {
 	return 0;
@@ -702,7 +719,14 @@ sub os_create_storage($$)
     if (exists($href->{'MOUNTPOINT'})) {
 	my $lv = $href->{'VOLNAME'};
 	my $mdev = $href->{'LVDEV'};
-	my $redir = ">/dev/null 2>&1";
+
+	# record all the output for debugging
+	my $redir = "";
+	my $logmsg = "";
+	if ($log) {
+	    $redir = ">>$log 2>&1";
+	    $logmsg = ", see $log";
+	}
 
 	#
 	# Create the filesystem:
@@ -735,8 +759,8 @@ sub os_create_storage($$)
 	# Mount the filesystem
 	#
 	my $mpoint = $href->{'MOUNTPOINT'};
-	if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint")) {
-	    warn("*** $lv: could not create mountpoint '$mpoint'\n");
+	if (! -d "$mpoint" && mysystem("$MKDIR -p $mpoint $redir")) {
+	    warn("*** $lv: could not create mountpoint '$mpoint'$logmsg\n");
 	    return 0;
 	}
 
@@ -754,12 +778,12 @@ sub os_create_storage($$)
 	    print FD "$mdev\t$mpoint\t$fstype\tdefaults\t0\t0\n";
 	    close(FD);
 	    if (mysystem("$MOUNT $mpoint $redir")) {
-		warn("*** $lv: could not mount on $mpoint\n");
+		warn("*** $lv: could not mount on $mpoint$logmsg\n");
 		return 0;
 	    }
 	} else {
 	    if (mysystem("$MOUNT -t $fstype $mdev $mpoint $redir")) {
-		warn("*** $lv: could not mount $mdev on $mpoint\n");
+		warn("*** $lv: could not mount $mdev on $mpoint$logmsg\n");
 		return 0;
 	    }
 	}
@@ -768,9 +792,9 @@ sub os_create_storage($$)
     return 1;
 }
 
-sub os_create_storage_element($$)
+sub os_create_storage_element($$$)
 {
-    my ($so,$href) = @_;
+    my ($so,$href,$log) = @_;
 
     if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
 	my $hostip = $href->{'HOSTIP'};
@@ -778,10 +802,12 @@ sub os_create_storage_element($$)
 	my $bsid = $href->{'VOLNAME'};
 
 	# record all the output for debugging
-	my $log = "/var/emulab/logs/$bsid.out";
-	my $redir = ">>$log 2>&1";
-	my $logmsg = ", see $log";
-	mysystem("cp /dev/null $log");
+	my $redir = "";
+	my $logmsg = "";
+	if ($log) {
+	    $redir = ">>$log 2>&1";
+	    $logmsg = ", see $log";
+	}
 
 	#
 	# Perform one time iSCSI operations
@@ -825,9 +851,9 @@ sub os_create_storage_element($$)
     return 0;
 }
 
-sub os_create_storage_slice($$)
+sub os_create_storage_slice($$$)
 {
-    my ($so,$href) = @_;
+    my ($so,$href,$log) = @_;
     my $bsid = $href->{'BSID'};
 
     #
@@ -850,13 +876,15 @@ sub os_create_storage_slice($$)
 	my $mdev = "";
 
 	my $bdisk = $so->{'BOOTDISK'};
-	my $ginfo = $so->{'GEOMINFO'};
+	my $ginfo = $so->{'DISKINFO'};
 
 	# record all the output for debugging
-	my $log = "/var/emulab/logs/$lv.out";
-	my $redir = ">>$log 2>&1";
-	my $logmsg = ", see $log";
-	mysystem("cp /dev/null $log");
+	my $redir = "";
+	my $logmsg = "";
+	if ($log) {
+	    $redir = ">>$log 2>&1";
+	    $logmsg = ", see $log";
+	}
 
 	#
 	# System volume:
@@ -1023,7 +1051,7 @@ sub os_remove_storage_slice($$$)
 	my $bsid = $href->{'BSID'};
 	my $lv = $href->{'VOLNAME'};
 
-	my $ginfo = $so->{'GEOMINFO'};
+	my $ginfo = $so->{'DISKINFO'};
 	my $bdisk = $so->{'BOOTDISK'};
 
 	# figure out the device of interest
