@@ -293,7 +293,7 @@ sub addStitchPoint($@)
     }
     
     # The external network may be attached to node_id2
-    if (! defined($network)) {
+    if (! defined($network) && defined($edgewire)) {
 	$edgenodeid = $edgewire->node_id2();
 	$edgecard = $edgewire->card2();
 	$edgeport = $edgewire->port2();
