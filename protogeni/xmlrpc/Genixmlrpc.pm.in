@@ -316,6 +316,12 @@ sub CallMethod($$$@)
     }
     else {
 	$code   = $goo->value()->{'code'}->value;
+	#
+	# New SFA based AMs use a hash for the code. Why?
+	#
+	if (UNIVERSAL::isa($code,"HASH")) {
+	    $code = $code->{'geni_code'};
+	}
 	$value  = $goo->value()->{'value'}->value;
 	$output = $goo->value()->{'output'}->value;
     }
