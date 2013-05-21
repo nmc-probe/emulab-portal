@@ -4967,14 +4967,15 @@ COMMAND_PROTOTYPE(doloadinfo)
 	char		address[MYBUFSIZE];
 	char            server_address[MYBUFSIZE];
 	char		mbrvers[51];
-	char            *loadpart, *OS, *prepare, *attrclause;
-	int		disknum, biosdisknum, nrows, zfill;
+	char            *loadpart, *OS, *prepare, *attrclause, *version;
+	int		disknum, biosdisknum, nrows, zfill, dom0mem;
 
 	/*
 	 * Get the address the node should contact to load its image
 	 */
 	res = mydb_query("select loadpart,OS,mustwipe,mbr_version,access_key,"
-			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path "
+			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path, "
+			 "   o.version "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
 			 "left join frisbee_blobs as f on f.imageid=i.imageid "
@@ -4982,7 +4983,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
 			 "where node_id='%s' order by r.idx",
-			 11, reqp->nodeid);
+			 12, reqp->nodeid);
 
 	if (!res) {
 		error("doloadinfo: %s: DB Error getting loading address!\n",
@@ -5035,6 +5036,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 		loadpart = row[0];
 		OS = row[1];
 		prepare = row[6];
+		version = row[11];
 
 		res2 = mydb_query("select IP "
 				  " from interfaces as i, subbosses as s "
@@ -5133,6 +5135,8 @@ COMMAND_PROTOTYPE(doloadinfo)
 			bufp += OUTPUT(bufp, ebufp - bufp,
 			               " SERVER=%s", server_address);
 		}
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       " OSVERSION=%s", version);
 
 		/*
 		 * Add zero-fill free space, MBR version fields, and access_key
@@ -5154,6 +5158,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 		useasf = "unknown";
 		noclflush = "unknown";
 		vgaonly = consoletype = (char *) NULL;
+		dom0mem = 1024;
 
 		/*
 		 * This query is intended to select certain attributes from
@@ -5183,6 +5188,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 			" attrkey='use_asf' or "
 			" attrkey='console_type' or "
 			" attrkey='vgaonly' or "
+			" attrkey='dom0mem' or "
 			" attrkey='no_clflush')";
 
 		res2 = mydb_query("(select attrkey,attrvalue from nodes as n "
@@ -5237,6 +5243,9 @@ COMMAND_PROTOTYPE(doloadinfo)
 					else if (strcmp(row2[0], "vgaonly") == 0) {
 						vgaonly = attrstr;
 					}
+					else if (strcmp(row2[0], "dom0mem") == 0) {
+						dom0mem = atoi(attrstr);
+					}
 					else if (strcmp(row2[0], "console_type") == 0) {
 						consoletype = attrstr;
 					}
@@ -5259,6 +5268,9 @@ COMMAND_PROTOTYPE(doloadinfo)
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       " BIOSDISK=0x%02x", biosdisknum);
 		}
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       " DOM0MEM=%d", dom0mem);
+		
 		/*
 		 * Do this here, so that we are not using strings above,
 		 * that have been released to the malloc pool.
@@ -7467,14 +7479,16 @@ COMMAND_PROTOTYPE(dojailconfig)
 	bufp += OUTPUT(bufp, ebufp - bufp, "\"\n");
 
 	/*
-	 * Get the image to be booted. There is an implicit assumption that
-	 * virtual nodes get a single partition table entry.
+	 * Get the image to be booted. 
 	 */
-	res = mydb_query("select p.pid,g.gid,i.imagename from partitions as pa "
+	res = mydb_query("select p.pid,g.gid,i.imagename from nodes as n "
+			 "left join partitions as pa on "
+			 "     pa.node_id=n.node_id and "
+			 "     pa.osid=n.def_boot_osid "
 			 "left join images as i on i.imageid=pa.imageid "
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
-			 "where pa.node_id='%s'",
+			 "where n.node_id='%s'",
 			 3, reqp->nodeid);
 
 	if (!res) {
