@@ -60,7 +60,8 @@ SETUID_LIBX_SCRIPTS  =
 # Force dependencies on the scripts so that they will be rerun through
 # configure if the .in file is changed.
 # 
-all:	$(SBIN_STUFF) $(PSBIN_STUFF) initsite resolve resolvenode resolve-ch
+all:	$(SBIN_STUFF) $(PSBIN_STUFF) \
+	initsite resolve resolvenode resolve-ch getversion
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
