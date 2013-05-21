@@ -5308,8 +5308,7 @@ sub GetVirtNodeAttribute($$$$)
 
 sub SetVirtNodeAttribute($$$$)
 {
-    my ($self, $vname, $key, $pval) = @_;
-    $$pval = undef;
+    my ($self, $vname, $key, $val) = @_;
 
     my $exptidx  = $self->idx();
     my $pid      = $self->pid();
