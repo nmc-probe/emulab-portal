@@ -394,17 +394,16 @@ Setting up an InstaGeni Rack. First, we need the following info:
   the data switch. If this is indeed true, then we can go ahead and set
   that up now, so Nick can get started on the FOAM stuff.
 
-	boss> wap addspecialdevice -t interconnect -s 100 XXXX-XXXX
-        boss> wap addspecialiface -b 1Gb -s procurve2,1,24 XXXX-XXXX eth0
+	boss> wap addspecialdevice -t interconnect -s 100 interconnect-geni-core
+        boss> wap addspecialiface -b 1Gb -s procurve2,1,24 interconnect-geni-core eth0
 
-  where XXXX-XXXX is a pithy name like interconnect-campus. Ask the
-  local site admin. If the rack is wired properly 1,24 is correct.
-  If the module is in another slot, then this might be different. 
+  If the rack is wired properly 1,24 is correct.  If the module is in
+  another slot, then this might be different.
 
   Now create and share the openflow vlan:
 
 	boss> wap snmpit_test --vlan_tag=1750 -m mesoscale-openflow \
-		emulab-ops openflow-vlans XXXX-YYYY:eth0
+		emulab-ops openflow-vlans interconnect-geni-core:eth0
 	boss> wap sharevlan -o emulab-ops,openflow-vlans \
 		mesoscale-openflow mesoscale-openflow
 
