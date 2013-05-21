@@ -2226,7 +2226,7 @@ sub CreateVnodes($$$)
     #
     # Check memory constraints before we create anything. 
     #
-    my $reserved_memory = ();
+    my %reserved_memory = ();
 
     if (defined($total_memory)) {
 	foreach my $ref (@tocreate) {
