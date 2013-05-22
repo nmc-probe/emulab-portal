@@ -706,23 +706,23 @@ sub vz_rootPreConfigNetwork {
 		addbr($k);
 		goto bad
 		    if ($?);
+
+		#
+		# Bad feature of bridges; they take on the lowest numbered
+		# mac of the added interfaces (and it changes as interfaces
+		# are added and removed!). But the main point is that we end
+		# up with a bridge that has the same mac as a physical device
+		# and that screws up findIface(). But if we "assign" a mac
+		# address, it does not change and we know it will be unique.
+		#
+		my $bmac = fixupMac(GenFakeMac());
+		mysystem2("$IP link set $k address $bmac");
+		goto bad
+		    if ($?);
 	    }
 	    # record bridge used
 	    $private->{'physbridges'}->{$k} = $k;
 
-	    #
-	    # Bad feature of bridges; they take on the lowest numbered
-	    # mac of the added interfaces (and it changes as interfaces
-	    # are added and removed!). But the main point is that we end
-	    # up with a bridge that has the same mac as a physical device
-	    # and that screws up findIface(). But if we "assign" a mac
-	    # address, it does not change and we know it will be unique.
-	    #
-	    my $bmac = fixupMac(GenFakeMac());
-	    mysystem2("$IP link set $k address $bmac");
-	    goto bad
-		if ($?);
-	    
 	    # repetitions of this should not hurt anything
 	    mysystem2("$IFCONFIG $k 0 up");
 	}
@@ -1877,7 +1877,17 @@ sub vz_vnodePreConfigExpNetwork {
 	# is required, but we set it anyway.
 	#
 	my $veth;
-	my $eth     = "eth" . $ifc->{VTAG};
+	#
+	# A note about the inner device name; we used to use eth${vlan}
+	# but then people started wanting multiple networks on the same
+	# vlan via the shared network mechanism, and so we have to look
+	# for that and use a different name. Its a special case; in the
+	# normal case I want the names to be pretty.
+	#
+	my $eth = "eth" . $ifc->{VTAG};
+	if (exists($netif_strs{$eth})) {
+	    $eth = "${eth}." . $ifc->{ID};
+	}
 	my ($ethmac,$vethmac) = build_fake_macs($ifc->{VMAC});
 	if (!defined($vethmac)) {
 	    print STDERR "Could not construct veth/eth macs\n";
