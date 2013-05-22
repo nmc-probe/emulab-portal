@@ -130,7 +130,7 @@ usage()
 #
 my $locktype = GetSiteVar("general/arplockdown");
 exit(0)
-    if ($locktype eq "none");
+    if ($locktype eq "none" || $locktype eq "");
 
 #
 # Need the control interface since most likely multihomed.
