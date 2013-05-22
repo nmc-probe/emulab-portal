@@ -4967,8 +4967,8 @@ COMMAND_PROTOTYPE(doloadinfo)
 	char		address[MYBUFSIZE];
 	char            server_address[MYBUFSIZE];
 	char		mbrvers[51];
-	char            *loadpart, *OS, *prepare, *attrclause, *version;
-	int		disknum, biosdisknum, nrows, zfill, dom0mem;
+	char            *loadpart, *OS, *prepare, *attrclause, *version, *dom0mem;
+	int		disknum, biosdisknum, nrows, zfill;
 
 	/*
 	 * Get the address the node should contact to load its image
@@ -5158,7 +5158,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 		useasf = "unknown";
 		noclflush = "unknown";
 		vgaonly = consoletype = (char *) NULL;
-		dom0mem = 1024;
+		dom0mem = "1024M";
 
 		/*
 		 * This query is intended to select certain attributes from
@@ -5244,7 +5244,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 						vgaonly = attrstr;
 					}
 					else if (strcmp(row2[0], "dom0mem") == 0) {
-						dom0mem = atoi(attrstr);
+						dom0mem = attrstr;
 					}
 					else if (strcmp(row2[0], "console_type") == 0) {
 						consoletype = attrstr;
@@ -5269,7 +5269,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 				       " BIOSDISK=0x%02x", biosdisknum);
 		}
 		bufp += OUTPUT(bufp, ebufp - bufp,
-			       " DOM0MEM=%d", dom0mem);
+			       " DOM0MEM=%s", dom0mem);
 		
 		/*
 		 * Do this here, so that we are not using strings above,
