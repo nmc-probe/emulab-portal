@@ -30,7 +30,7 @@ use Exporter;
 	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
               downloadImage getKernelVersion createExtraFS
-              forwardPort removePortForward
+              forwardPort removePortForward lvSize
             );
 
 use Data::Dumper;
@@ -460,7 +460,7 @@ sub downloadImage($$$$) {
 	    $proxyopt = "-P $nodeid";
 	}
 	if ($server && $imageid) {
-	    mysystem2("$FRISBEE -M 64 $proxyopt ".
+	    mysystem2("$FRISBEE -f -M 64 $proxyopt ".
 		     "         -S $server -B 30 -F $imageid $imagepath");
 	    return -1
 		if ($?);
@@ -474,14 +474,14 @@ sub downloadImage($$$$) {
 	my $mcastaddr = $1;
 	my $mcastport = $2;
 
-	mysystem2("$FRISBEE -M 64 -m $mcastaddr -p $mcastport $imagepath");
+	mysystem2("$FRISBEE -f -M 64 -m $mcastaddr -p $mcastport $imagepath");
 	return -1
 	    if ($?);
     }
     elsif ($addr =~ /^http/) {
 	if ($todisk) {
 	    mysystem("wget -nv -N -P -O - '$addr' | ".
-		     "$IMAGEUNZIP -W 32 - $imagepath");
+		     "$IMAGEUNZIP -f -W 32 - $imagepath");
 	} else {
 	    mysystem("wget -nv -N -P -O $imagepath '$addr'");
 	}
@@ -543,6 +543,23 @@ sub createExtraFS($$$)
 	    == 0 or return -1;
     }
     return 0;
+}
+
+#
+# Figure out the size of the LVM.
+#
+sub lvSize($)
+{
+    my ($device) = @_;
+    
+    my $lv_size = `lvs -o lv_size --noheadings --units g $device`;
+    return undef
+	if ($?);
+    
+    chomp($lv_size);
+    $lv_size =~ s/^\s+//;
+    $lv_size =~ s/\s+$//;
+    return $lv_size;
 }
 
 #
