@@ -135,6 +135,8 @@ if [ -n "$BIOSDISK" ]; then
 	;;
     esac
 fi
+# DOM0MEM is optional.
+DOM0MEM=$SLICEFIX_DOM0MEM
 
 #
 # Find out what our console should be:

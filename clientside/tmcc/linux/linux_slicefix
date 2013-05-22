@@ -20,8 +20,8 @@ if [ -r $ETCDIR/bossnode ]; then
 else
     setboss=0
 fi
-
-
+# DOM0MEM is optional.
+DOM0MEM=$SLICEFIX_DOM0MEM
 
 #imageroot="$1"
 #real_root_dev="$2"
@@ -333,6 +333,16 @@ if [ $bootloader = GRUB ] && [ -r $imageroot/$grub_config ]; then
 	    echo "Failed to update root in $grub_config" 1>&2
 	}
 
+        # For XEN, dom0 mem is hardwired on kernel command line.
+	if [ -n "$DOM0MEM" ]; then
+	    if grep -q 'dom0_mem=' $imageroot/$grub_config 2>/dev/null; then
+		echo "Setting grub dom0_mem to $DOM0MEM"
+	        tstr="dom0_mem=$DOM0MEM"
+	        sed -i -e "s;dom0_mem=[A-Za-z0-9]*;$tstr;" $imageroot/$grub_config || {
+		    echo "Failed to update dom0mem in $grub_config" 1>&2
+		}
+	    fi
+        fi
 fi
 
 # Remove swap partitions from fstab

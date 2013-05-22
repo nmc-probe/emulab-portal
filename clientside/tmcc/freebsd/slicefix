@@ -163,6 +163,8 @@ if [ $CONSOLE = "unknown" ]; then
     echo "WARNING: console type not set, assuming \"sio1\""
     CONSOLE=sio1
 fi
+# DOM0MEM is optional
+DOM0MEM=$SLICEFIX_DOM0MEM
 
 #
 # Handle pseudo-arguments in the filesystem
@@ -995,6 +997,16 @@ dolinux() {
 	            gdisk=`expr $gdisk + 1`
 		fi
 	    fi
+
+	    # For XEN, dom0 mem is hardwired on kernel command line.
+	    if [ -n "$DOM0MEM" ]; then
+		if grep -q 'dom0_mem=' $tgconf 2>/dev/null; then
+		    echo "    setting grub2 dom0_mem to $DOM0MEM"
+		    tstr="dom0_mem=$DOM0MEM"
+		    sed -i '' -e "s;dom0_mem=[A-Za-z0-9]*;$tstr;" $tgconf
+		fi
+	    fi
+	    
 	    # grub's partition numbering is zero-based.
 	    gpart=`expr $part - 1`
 

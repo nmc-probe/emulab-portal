@@ -180,6 +180,7 @@ loadone() {
     IMAGEID=""
     KEEPALIVE=""
     CONSOLE=""
+    DOM0MEM=""
 
     for parm in $_LOADINFO; do
         case $parm in
@@ -198,6 +199,8 @@ loadone() {
 	VGAONLY=*|\
         IMAGEID=*|\
         KEEPALIVE=*|\
+        DOM0MEM=*|\
+        OSVERSION=*|\
 	CONSOLE=*)
 	    # XXX need to parse better, eval is dangerous!
 	    eval $parm
@@ -485,6 +488,7 @@ loadone() {
 	export SLICEFIX_VGAONLY=$VGAONLY
 	export SLICEFIX_CONSOLE=$CONSOLE
 	export SLICEFIX_BIOSDISK=$BIOSDISK
+	export SLICEFIX_DOM0MEM=$DOM0MEM
 	$BINDIR/slicefix $PART $DISK
 	echo "`date`: Image #$_NUM load complete"
 	return 0

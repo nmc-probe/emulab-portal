@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -313,6 +313,7 @@ handle_loadinfo()
 	local MBR=`get_value "$LOADINFO" MBRVERS`
 	local PREPARE=`get_value "$LOADINFO" PREPARE`
 	local PTYPE=''
+	local DOM0MEM=`get_value "$LOADINFO" DOM0MEM`
 
 	#
 	# XXX check for secure diskloading info.
@@ -419,6 +420,7 @@ handle_loadinfo()
 	export SLICEFIX_ACPI=$ACPI
 	export SLICEFIX_ASF=$ASF
 	export SLICEFIX_NOCLFLUSH=$NOCLFLUSH
+	export SLICEFIX_DOM0MEM=$DOM0MEM
 	$BINDIR/slicefix $PARTITION $FREEBSD_DISK
 	echo "Image load complete at `date`"
 }
