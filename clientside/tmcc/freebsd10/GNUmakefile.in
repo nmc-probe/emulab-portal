@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -135,6 +135,8 @@ sysetc-install:	dir-install netif-emulab tweak-syslog
 	$(INSTALL) -m 555 ./netif-emulab $(SYSETCDIR)/rc.d/netif-emulab
 	rm -f $(SYSETCDIR)/rc.early
 	$(INSTALL) -m 644 $(SRCDIR)/loader.conf $(DESTDIR)/boot/loader.conf
+	$(INSTALL) -m 755 $(SRCDIR)/dhclient-exit-hooks \
+			$(SYSETCDIR)/dhclient-exit-hooks
 
 script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/rc.freebsd $(BINDIR)/rc

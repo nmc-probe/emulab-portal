@@ -1,4 +1,4 @@
-# $FreeBSD: src/etc/group,v 1.36 2011/01/28 22:28:12 pjd Exp $
+# $FreeBSD: head/etc/group 241823 2012-10-22 01:18:41Z marcel $
 #
 wheel:*:0:root,toor
 daemon:*:1:
@@ -16,6 +16,7 @@ staff:*:20:root,toor
 sshd:*:22:
 smmsp:*:25:
 mailnull:*:26:
+_atf:*:27:
 guest:*:31:root,toor
 bind:*:53:
 proxy:*:62:
