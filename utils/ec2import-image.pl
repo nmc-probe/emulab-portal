@@ -1,24 +1,24 @@
 #!/usr/bin/perl -d:Trace
 #
 # Copyright (c) 2013 University of Utah and the Flux Group.
-# 
+#
 # {{{EMULAB-LICENSE
-# 
+#
 # This file is part of the Emulab network testbed software.
-# 
+#
 # This file is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or (at
 # your option) any later version.
-# 
+#
 # This file is distributed in the hope that it will be useful, but WITHOUT
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
 # License for more details.
-# 
+#
 # You should have received a copy of the GNU Affero General Public License
 # along with this file.  If not, see <http://www.gnu.org/licenses/>.
-# 
+#
 # }}}
 #
 use English;
@@ -47,13 +47,13 @@ $| = 1;
 use libsetup;
 
 
-
+my $TB       = "/usr/testbed";
 #
 # No configure vars.
 #
 my $WORK_BASE  = "/q/import_temp/";
 my $IN_BASE  = "/q/indir/";
-#TODO something in some script that creates these two directories
+#TODO something in some script that creates these two directorieso
 my $TAR      = "tar";
 my $sudo;
 my $zipper   = "/usr/local/bin/imagezip";
@@ -74,38 +74,40 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
+
 if (@ARGV != 5) {
     usage();
 }
 
-print @ARGV;
-exit 1;
+my $remote = $ARGV[0];
+my $project = $ARGV[1];
+my $user = $ARGV[2];
+my $osid = $ARGV[3];
+my $outfile = $ARGV[4];
 
-my $user = $ARGV[1];
-my $remote = $ARGV[2];
-my $project = $ARGV[3];
-my $osid = $ARGV[5];
-my $outfile = $ARGV[6];
-
-my $ruser = split('@',$remote) [0];
-my $raddr = split('@',$remote) [1];
+#my $ruser = split('@',$remote)[0];
+#my $raddr = split('@',$remote)[1];
 
 my $infile = $IN_BASE . $project . "/" . $user . "/" . $osid . ".tar.gz";
 my $workdir = $WORK_BASE . $project . "/" . $user . "/" . $osid . "-tmp";
 
 # Man, this really needs some exception handling
-if(system("ssh -t -t $remote 'mkdir ~/.emulab'")){
+print $remote;
+if(system("echo \"mkdir ~/.emulab\" | ssh $remote bash")){
     print STDERR "Couldn't mkdir ~/.emulab";
-    goto cleanup;
 }
 
 # Remotely execute the export script
-if(system("scp export-template-remote.rb $remote:~/.emulab/export.rb")){
+if(system("scp $TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb")){
     print STDERR "Couldn't scp exporter script into $remote\n";
     goto cleanup;
 }
 
-if(system("ssh -t -t $remote 'sudo ruby < ~/.emulab/export.rb'")){
+#TODO Ruby prereq check
+#TODO return 1 on fail
+
+
+if(system("ssh $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
     print STDERR "Remote image creation failed\n";
     goto cleanup;
 }
@@ -123,7 +125,7 @@ if (! -e $infile){
     print STDERR "Looking for:" . $infile . "\n";
     goto cleanup;
 }
-    
+
 # Unzip into the working dir
 if (system("mkdir -p $workdir")){
     print STDERR "Couldn't mkdir $workdir \n";
@@ -178,5 +180,4 @@ cleanup:
 # Clean up the directory.
 print STDOUT "Performing cleanup...\n";
 system("$sudo /bin/rm -rf $workdir 2>/dev/null");
-system("ssh -t -t $remote 'rm -Rf ~/.emulab'");
-
+system("echo 'rm -Rf ~/.emulab' | ssh $remote bash");
