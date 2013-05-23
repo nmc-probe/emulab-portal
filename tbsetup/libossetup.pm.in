@@ -1709,15 +1709,15 @@ sub Volunteers($)
         # as a function of the number of vnodes on the parent pnode.
         #
 	my $osinfo      = $node->_bootosinfo();
-	my $reboot_time = $osinfo->reboot_waittime() || 15;
+	my $reboot_time = $osinfo->reboot_waittime() || 90;
 
 	#
 	# The wait times are totally bogus! Need a better way to do this.
 	#
-	$node->_maxwait($reboot_time + (90 * $pnode->_vnodecount()));
+	$node->_maxwait($reboot_time + (120 * $pnode->_vnodecount()));
 
 	# Add some time if the node is getting a reload. Also bogus.
-	$node->_maxwait($node->_maxwait() + 300)
+	$node->_maxwait($node->_maxwait() + 500)
 	    if ($node->_reloaded());
 	
 	$node->_setupstatus($libossetup::SETUP_OKAY);
