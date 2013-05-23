@@ -1,5 +1,17 @@
 #function debugging by setting  FUNCDEBUG=y
 
+#exit on unbound var
+set -u
+#exit on any error
+set -e
+
+#only source this file once
+if [ "${checkutils+"beenhere"}" == "beenhere" ] ; then
+    return 0
+else
+    checkutils="sourced"
+fi
+
 # add static binaries if needed
 declare mfsmode="" #are we running in a MFS (ie busybox) mode
 if [ -f /etc/emulab/ismfs ] ; then
@@ -18,10 +30,7 @@ else
     mfsmode=0
 fi
 
-#exit on unbound var
-set -u
-#exit on any error
-set -e
+
 declare errext_val
 
 # Gobal Vars
@@ -30,10 +39,11 @@ declare host       #emulab hostname
 declare failed=""  #major falure to be commicated to user
 declare os=""      #[Linux|FreeBSD] for now
 declare -a todo_exit
-
 declare -A hwinv  # hwinv from tmcc.bin
+
 #declare -A tcm_out # hwinv for output
 #declare -A tcm_inv # what we have discovered
+# declare -p todo_exit
 
 # any command causes exit if -e option set
 # including a grep just used so see if some sting is in a file
@@ -48,7 +58,8 @@ restore_e() {
 err_report() {
     echo "TRAP ERR at $1"
 }
-trap 'err_report $FUNCNAME:$LINENO' ERR
+#trap 'err_report $FUNCNAME:$LINENO' ERR
+trap 'err_report $LINENO' ERR
 
 
 # read info from tmcc no args uses the globel array hwinv
@@ -207,18 +218,21 @@ findSmartctl() {
 function on_exit()
 {
     for i in "${todo_exit[@]}" ; do
-echo "EXIT TODO: $i"
+#echo "EXIT TODO doing: $i"
         $($i)
     done
+    return 0
 }
 
 function add_on_exit()
 {
-    local n=${#todo_exit[*]}
-    todo_exit[$n]="$@"
-    if [[ $n -eq 0 ]]; then
+    local nex=${#todo_exit[*]}
+#echo "add on exit called B4n=${#todo_exit[*]} SHELL=$$ |$@|++++++++++++++++++++"
+    todo_exit[$nex]="$@"
+    if [[ $nex -eq 0 ]]; then
         trap on_exit EXIT
     fi
+    return 0
 }
 
 # setup logging
@@ -231,7 +245,7 @@ initlogs () {
     logfile4tb=${2-"/tmp/nodecheck.log.tb"}
     touch ${logfile4tb}
 # end XXX XXX 
-    tmplog=/tmp/.$$.log ; cat /dev/null > ${tmplog} # create and truncate
+    tmplog=/tmp/.$$tmp.log ; cat /dev/null > ${tmplog} # create and truncate
     add_on_exit "rm -f $tmplog"
 
     logout=/tmp/.$$logout.log ; touch ${logout} # make it exist

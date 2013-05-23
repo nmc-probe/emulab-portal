@@ -14,13 +14,16 @@ declare err=""
 
 source getfromtb.sh
 source hbis.sh
+
 # if in mfsmode checkutils has all ready been sourced, don't to it again
 # else with get second set of varibles
-if [ -f /etc/emulab/mfs ] ; then
-    :
-else
+#if [ -f /etc/emulab/mfs ] ; then
+#    :
+#else
     source checkutils.sh
-fi
+#fi
+
+## declare -p todo_exit
 
 main() {
     inithostname
@@ -109,7 +112,6 @@ main() {
     done
 
     #now fill in the array values
-#set -x
     for ((idx=0; idx<$numberofdrives; idx++)) ; do
 	unset -v d ; declare -a d=(${driveinv[$idx]})
 	for ((i=0;i<=$lastslot;i++)) ; do
@@ -123,15 +125,15 @@ main() {
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
 		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
 		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
-		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
+		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) 
 	    esac
 	done
-#set +x	
 	# Must have sectors and dpers values first and case statments
 	#  might now execute in order
         # for/case loop not need since only one values is being filled
 	#  keep commented just for documentation
 	# same gos for rspeel, wspeed must be done first
+
 	for ((i=0;i<=$lastslot;i++)) ; do
 	    case $i in
 		$size_val ) 
@@ -142,8 +144,7 @@ main() {
 		$rspeed_val ) d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
 	    esac
 	done
-	# just in case
-	rm -f /var/tmp/ddout
+
 	# update driveinv with modified data
 	driveinv[$idx]=${d[@]}
     done
@@ -162,7 +163,6 @@ main() {
 ##     unset -v d ; declare -a d=(${driveinv[$idx]})
 ##     tbdata=getfromtb $host driveinfo ${d[$name]} 
 ## done
-
 
 # if saving data for testbed database
 if [ -f ${logfile4tb} ] ; then
@@ -184,6 +184,11 @@ if [ -f ${logfile4tb} ] ; then
 	    ${d[$model]} ${d[$model_val]} \
 	    ${d[$driver]} ${d[$driver_val]} >> ${logfile4tb}
     done
+fi
+
+# we are done if in MFS mode
+if [ -f /etc/emulab/ismfs ] ; then
+    exit 0
 fi
 #output to log file
 {
@@ -417,33 +422,64 @@ gettemp() {
 getmodel() { 
     smtcl=$(findSmartctl)
     if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
-	echo "NA"
-	return 0
+	#don't have smartctl, maybe we can use hdparm
+	hdp=$(which hdparm)
+	if [ "${hdp/hdparm}" != "${hdp}" ] ; then
+	    x=$(hdparm -I $1 | grep -i 'Model Number:')
+	    x=${x/Model Number: }
+	    res=${x/# */}
+	    res=${res%# */}
+	    # note: can get the model from '/proc/scsi/scsi'
+	else
+	    # XXX 	# note: 'camcontrol devlist'
+	                # will give model on FreeBSD
+	    echo "NA"
+	    return 0
+	fi
+    else
+	res=$($smtcl -a $1 | grep 'Device Model:')
+	res=${res/Device Model: }
+	if [ -z "$res" ] ; then
+	    res=$($smtcl -a $1 | grep 'Product:')
+	    res=${res/Product: }
+	fi
+        # remove leading spaces
+	res=${res##* }
     fi
-    res=$($smtcl -a $1 | grep 'Device Model:')
-    res=${res/Device Model: }
-    if [ -z "$res" ] ; then
-	res=$($smtcl -a $1 | grep 'Product:')
-	res=${res/Product: }
-    fi
-    # remove leading spaces
-    res=${res##* }
     # no internal spaces
+    res=${res// /}
     res=${res// /-}
     [[ $res ]] && echo "$res" || echo "UNKNOWN"
     return 0
 }
-getserial() { 
-    smtcl=$(findSmartctl)
-    if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
-	echo "NA"
-	return 0
+getserial() {
+    res=""
+    if [ "$os" == "Linux" ] ; then
+	smtcl=$(findSmartctl)
+	if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
+	#don't have smartctl, maybe we can use hdparm
+	    hdp=$(which hdparm)
+	    if [ "${hdp/hdparm}" != "${hdp}" ] ; then
+		res=$(hdparm -I $1 | grep -i 'Serial number:')
+	    fi
+	else
+	    res=$($smtcl -a $1 | grep -i 'Serial number:')
+	fi
+	res=${res,,} # lower case
+	res=${res/serial number: }
+	res=$(echo $res | tr 'a-z' 'A-Z') # upper case
     fi
-    res=$($smtcl -a $1 | grep -i 'Serial number:')
-    res=${res,,} # lower case
-    res=${res/serial number: }
-    res=$(echo $res | tr 'a-z' 'A-Z') # upper case
-
+    if [ "$os" == "FreeBSD" ] ; then
+	# note: if the device is mfi then 'mfiutil show drives' will list
+	# serial numbers 
+	cmc=$(which camcontrol)
+	if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
+	    sd=$1
+	    sd=${sd#/dev/}
+	    res=$(camcontrol inquiry $sd -S)
+	fi
+    fi
+    
     [[ $res ]] && echo "$res" || echo "UNKNOWN"
     return 0
 }
@@ -554,12 +590,9 @@ getwspeed() {
     canwe=$(df | grep $hdname)
     [[ $canwe ]] && { echo mounted; return 0; }
     if [ "$os" == "Linux" ] ; then 
-	if [ "$mfsmode" == "1" ] ; then
-	    # static dd we are using may now match kernel call for direct i/o, guess
-	    args="bs=64k count=8000"
-	else
-	    args="bs=64k iflag=direct count=8000"
-	fi
+	#args="bs=64k iflag=direct count=8000"
+	#note iflag direct can't be used with /dev/zero as infile 
+	args="bs=64k count=8000"
     elif [ "$os" == "FreeBSD" ] ; then 
 	args="bs=64k count=8000"
     fi
@@ -567,12 +600,15 @@ getwspeed() {
     canwe=$(which dd)
     canwe=$(ls -l $canwe | grep busybox)
     [[ $canwe ]] && { echo bad_dd; return 0; }
+    add_on_exit 'rm -f /tmp/ddresultw'
+    mynn=${#todo_exit[*]}
+    todo_exit[$mynn]='those are mine'
     { 
     $(dd if=/dev/zero of=$hdname $args)
 } > /tmp/ddresultw 2>&1
-    add_on_exit "rm -f /tmp/ddresultw"
     res=$(grep bytes /tmp/ddresultw)
     echo $(parsedd $res)
+    rm -f /tmp/ddresultw
     return 0
 }
 getrspeed() { 
@@ -586,29 +622,40 @@ getrspeed() {
     canwe=$(which dd)
     canwe=$(ls -l $canwe | grep busybox)
     [[ $canwe ]] && { echo bad_dd; return 0; }
+    add_on_exit 'rm -f /tmp/ddresultr'
 { 
     $(dd of=/dev/null if=$hdname $args)
 } > /tmp/ddresultr 2>&1
-    add_on_exit "rm -f /tmp/ddresultr"
     res=$(grep bytes /tmp/ddresultr)
     echo $(parsedd $res)
+    rm -f /tmp/ddresultr
     return 0
 }
 
 parsedd() {
     if [ "$os" == "Linux" ] ; then 
-	y=$9
-	if [ $y != ${y/MB} ] ; then
-	    x=$8
+	# linux dd returns 9 positional elements
+	if [ $# -lt 9 ] ; then
+	    x="DDtimeinERR"
 	else
-	    x="PareddError"
+	    y=$9
+	    if [ $y != ${y/MB} ] ; then
+		x=$8
+	    else
+		x="PareddError"
+	    fi
 	fi
     elif [ "$os" == "FreeBSD" ] ; then 
-        x=$7
-	x=${x#(}
-	y=$8
-	if [ "$y" == "bytes/sec)" ] ; then
-	    x=$(( $x / 1048576 ))
+	if [ $# -lt 8 ] ; then
+	    x="DDtimeinERR"
+	else
+            x=$7
+	    x=${x#(}
+	    y=$8
+	    # FreeBSD seems to return val in bytes/sec, check and convirt to Mb/sec
+	    if [ "$y" == "bytes/sec)" ] ; then
+		x=$(( $x / 1048576 ))
+	    fi
 	fi
     fi
     echo $x

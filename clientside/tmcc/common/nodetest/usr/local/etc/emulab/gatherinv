@@ -1,11 +1,27 @@
 #! /bin/bash
 
+mywhich() {
+    mypath=$(env | grep PATH)
+    mypath=${mypath/PATH=/}
+    mypath=${mypath//:/ }
+    for i in $mypath ; do
+	if [ -e $i/$1 ] ; then
+	    echo $i/$1
+	    return 0
+	fi
+    done
+    return 1
+}
+
 # need to make sure we are running with a full verseion of bash
 if [ -f '/etc/emulab/ismfs' ] ; then
     # check to see if we are using correct bash
-    verbash=$(file `which bash`)
+    verbash=$(file `mywhich bash`)
+    if [ -z $verbash ] ; then
+	verbash=$(file -m /proj/emulab-ops/nodecheck/FreeBSD/bin/magic `mywhich bash`)
+    fi
     if [ "$verbash" != "${verbash/busybox}" ] ; then
-	# NO! we do not, retstart using new bash
+	# NO! we are not, retstart using the correct bash
 	# we not be in a loop since correct path is now set
 	export PATH=/proj/emulab-ops/nodecheck/$(uname -s)/bin:$PATH
 	bash $0
@@ -21,30 +37,30 @@ gatherinv_main() {
     $(cp /dev/null /tmp/nodecheck.log.tb)
 
     checks="disk cpu mem nic"
-set +e
     for i in $checks ; do
 	bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /tmp/nodecheck.log.tb
     done
+set +e
 
-# cat /tmp/nodecheck.log.tb
-
+    # read in the newly found info
     readtmcinfo /tmp/nodecheck.log.tb
 
-#mv /tmp/nodecheck.log.tb /tmp/nodecheck.bk
-
+    # print it back out 
     { printtmcinfo
-} > /tmp/nodecheck.log.tb
-	
+} > /tmp/nodecheck.log.tb.new
+
+    # print
     { printhwinv
 } > /tmp/nodecheck.log.inv
 
-    host=$(tmcc.bin nodeid)
+    host=$(/usr/local/etc/emulab/tmcc.bin nodeid)
 	
-    $(cp /tmp/nodecheck.log.tb /proj/emulab-ops/nodecheck/$host);
+    $(cp /tmp/nodecheck.log.tb.new /proj/emulab-ops/nodecheck/$host);
     $(cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/$host.full);
     $(chmod a+r /proj/emulab-ops/nodecheck/$host*);
+
 	
-    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv"
+#    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv"
 }
 
 gatherinv_main $0

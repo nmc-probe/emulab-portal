@@ -59,22 +59,22 @@ round1p() {
     n=${#y}
     # according to #digits add roundup and get most sig-bits
     if [ $n == 6 ] ; then
-	y=$(($y + 5000))
-	y=$(($y / 10000))
-	y=$(($y * 10000))
-	echo -n $y
-    elif [ $n == 5 ] ; then
-	y=$(($y + 500))
+	y=$(($y + 1000))
 	y=$(($y / 1000))
 	y=$(($y * 1000))
 	echo -n $y
-    elif [ $n == 4 ] ; then
-	y=$(($y + 50))
+    elif [ $n == 5 ] ; then
+	y=$(($y + 100))
 	y=$(($y / 100))
 	y=$(($y * 100))
 	echo -n $y
+    elif [ $n == 4 ] ; then
+	y=$(($y + 10))
+	y=$(($y / 10))
+	y=$(($y * 10))
+	echo -n $y
     elif [ $n == 3 ] ; then
-	y=$(($y + 25))
+	y=$(($y + 1))
 	y=$(($y / 10))
 	y=$(($y * 10))
 	echo -n $y
@@ -175,7 +175,10 @@ case $os in
 		    "IntelPentiumII") arch="i386" ;;
 		    * ) arch="Unknown" ;;
 		esac
-		
+		echo $-
+		save_e
+		set +e
+		echo $-
 		x=$(grep 'FreeBSD/SMP:' /var/run/dmesg.boot | grep package)
 		x=${x#FreeBSD/SMP: }
 		[[ $x ]] && sockets=${x%%package*} || sockets=1
@@ -192,6 +195,7 @@ case $os in
 		[[ $x ]] && threads_core=${x%%SMT*} || threads_core=1
 		
 		x=$(grep 'CPU\|SMP' /var/run/dmesg.boot | grep CPU:)
+		restore_e
 		# example CPU: Intel(R) Xeon(TM) CPU 3.00GHz (2992.71-MHz 686-class CPU)
 		x=${x%%-MHz*}
 		mhz=$(round1p ${x##*(})

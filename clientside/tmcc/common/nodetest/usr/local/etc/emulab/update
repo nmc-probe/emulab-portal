@@ -39,7 +39,7 @@ bsd=""
 #echo "linux||$linux||"
 
 
-utils="diskcheck diskspeedcheck memcheck cpucheck checkutils.sh getfromtb.sh hbis.sh timecheck niccheck gathercheck"
+utils="diskcheck diskspeedcheck memcheck cpucheck checkutils.sh getfromtb.sh hbis.sh timecheck niccheck gatherinv"
 
 arg=${arg=""} # use var if set else use ""
 
