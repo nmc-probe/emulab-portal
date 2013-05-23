@@ -85,6 +85,7 @@ my $NAMEDSETUP     = "$TB/sbin/named_setup";
 my $EXPORTS_SETUP  = "$TB/sbin/exports_setup";
 my $GENTOPOFILE    = "$TB/libexec/gentopofile";
 my $IMAGE_SETUP    = "$TB/sbin/image_setup";
+my $ARPLOCKDOWN    = "$TB/sbin/arplockdown";
 
 # Cache of instances to avoid regenerating them.
 my %aggregates     = ();
@@ -1171,6 +1172,10 @@ sub Start($$$)
 	}
 	if (system("$EXPORTS_SETUP")) {
 	    $msg .= "$EXPORTS_SETUP failed\n";
+	    goto bad;
+	}
+	if (system("$ARPLOCKDOWN -v -d")) {
+	    $msg .= "$ARPLOCKDOWN failed\n";
 	    goto bad;
 	}
 	# The nodes will not boot locally unless there is a DNS record.
