@@ -256,8 +256,8 @@ Blockstore instproc finalize {} {
 	    set pnode $node
 	    set node [$self alloc_pseudonode]
 	    uplevel "#0" "set ${self}-link [$sim duplex-link $pnode $node ~ 0ms DropTail]"
+	    ${self}-link set sanlan 1
 	}
-	${self}-link set sanlan 1
 	# Die if the user has attempted to connect the blockstore via multiple
 	# links.  We only support one.
 	if {[llength [$node set portlist]] != 1} {
