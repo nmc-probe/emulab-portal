@@ -1,8 +1,16 @@
 #!/usr/bin/ruby
 
+def command?(name)
+  `which #{name}`
+  $?.success?
+end
+
 class EmulabExport
-    
     attr_accessor :identity
+
+    def initialize()
+        @workdir = File.dirname(File.expand_path $0) 
+    end
 
     def finalize()
         system("rm -Rf ec2-ami-tools-1.4.0.9 > /dev/null 2>&1")
@@ -11,9 +19,10 @@ class EmulabExport
 
     def create_image()
         raise "Failed fetching ec2-utils" unless
-            system("wget http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip")
+            system("wget http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip" +
+            " -O " + @workdir + "/ec2-ami-tools.zip")
         raise "Failed unzippinging ec2-utils" unless
-            system("unzip ec2-ami-tools.zip")
+            system("unzip " + @workdir +"/ec2-ami-tools.zip")
 
         $:.unshift(Dir.pwd + "/ec2-ami-tools-1.4.0.9/lib/")
         require 'ec2/platform/current'
@@ -33,8 +42,8 @@ class EmulabExport
     end
 
     def check_prereqs()
-        raise "No unzip found. Please install unzip"
-            unless system("command -v unzip >/dev/null 2>&1")
+        raise "No unzip found. Please install unzip" unless
+            command?("unzip")
     end
 
     def get_kernel()
@@ -54,7 +63,7 @@ class EmulabExport
             if File.exists?(kernel)
                 kernelfound = true
                 raise "Couldn't copy kernel" unless
-                    system("cp " + kernel + " kernel")
+                    system("cp " + kernel + " " + @workdir + "/kernel")
                 break
             end
         end
@@ -65,7 +74,7 @@ class EmulabExport
             if File.exists?(initrd)
                 initrdfound = true
                 raise "Couldn't copy initrd" unless
-                    system("cp " + initrd + " initrd")
+                    system("cp " + initrd + " " + @workdir + "/initrd")
                 break
             end
         end
@@ -76,16 +85,16 @@ class EmulabExport
 
     def get_bootopts()
         raise "Couldn't get bootopts" unless
-            system("cat /proc/cmdline > bootopts") 
+            system("cat /proc/cmdline > " + @workdir + "/bootopts") 
     end
 
     def gen_tar()
         raise "Couldn't tar" unless
-            system("tar -cvzf emulab.tar.gz kernel initrd " +
-                "bootopts -C /tmp/ image 2>&1")
+            system("tar -cvzf -C " + @workdir  + " emulab.tar.gz kernel initrd" +
+            " bootopts -C /tmp/ image 2>&1")
     end
 
-   end
+end
 
 
 if __FILE__ == $0
@@ -106,5 +115,4 @@ if __FILE__ == $0
         ex.finalize()        
     end
 end
-
 
