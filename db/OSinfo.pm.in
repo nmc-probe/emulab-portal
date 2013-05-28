@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2012 University of Utah and the Flux Group.
+# Copyright (c) 2007-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -623,6 +623,26 @@ sub FeatureSupported($$)
 	if (!defined($osfeatures) || $osfeatures eq "");
 
     return grep {$_ eq $feature} split(',', $osfeatures);
+}
+
+#
+# Add a feature.
+#
+sub AddFeature($$)
+{
+    my ($self, $feature) = @_;
+
+    return 0
+	if ($self->FeatureSupported($feature));
+
+    my $osfeatures = $self->osfeatures();
+    if (!defined($osfeatures) || $osfeatures eq "") {
+	$osfeatures = $feature;
+    }
+    else {
+	$osfeatures .= ",$feature";
+    }
+    return $self->Update({"osfeatures" => $osfeatures});
 }
 
 #
