@@ -20,9 +20,11 @@ sub Install($$$)
     return 0
 	if ($isupdate);
 
-    # Another good one for the rack.
+    # Others for the rack.
     if ($PROTOGENI_GENIRACK) {
 	push(@STDIMAGES, "UBUNTU12-64-STD");
+	push(@STDIMAGES, "UBUNTU11-64-STD");
+	push(@STDIMAGES, "FBSD91-STD");
     }
     #
     # XXX don't want to risk breaking GENIRACK, so only do this otherwise.
