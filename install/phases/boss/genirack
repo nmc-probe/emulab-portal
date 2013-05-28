@@ -221,12 +221,25 @@ sub Install($$$)
 	#
 	# Trun on arp lockdown.
 	#
-	if (0) {
 	Phase "arplockdown", "Turning on arplockdown", sub {
 	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
-			   "general/arplockdown staticonly");
+			   "general/arplockdown static");
 	};
-	}
+
+	#
+	# Mike says: With the default server/client settings, the
+	# client is still dropping packets and causing re-requests of
+	# blocks. So for now, use the sitevars to scale back the frisbeed
+	# send rate to 50000000 (50Mb/sec) for both system and user
+	# images. The run time for single client is actually slightly
+	# improved at this lower rate due to many fewer re-requests.
+	#
+	Phase "frisbeerate", "Setting frisbeed max rate", sub {
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "images/frisbee/maxrate_std 50000000");
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "images/frisbee/maxrate_usr 50000000");
+	};
 
 	#
 	# A reasonable default image.
