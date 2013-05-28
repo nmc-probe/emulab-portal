@@ -24,4 +24,6 @@ Ensure:
 
 FLEX SDK only
 -------------
-You should be able to use the included build.xml with the freely available Flex SDK >= 4.6 to generage a flack.swf which you can copy into the js/ directory and run the flack.html.
+You can use the included config.xml with the freely available Flex SDK >= 4.6 to generage a flack.swf which you can copy into the js/ directory and run the flack.html.
+
+Make sure to copy the config.xml file and modify the paths to point to your version of the sdk and the appropriate directories for source and libraries.
