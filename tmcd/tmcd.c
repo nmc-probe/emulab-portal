@@ -74,6 +74,8 @@
 #ifdef  FSDIR_SCRATCH
 #define FSSCRATCHDIR	FSNODE ":" FSDIR_SCRATCH
 #endif
+/* XXX InstaGeni Rack Hack. Hack until I decide on a better way */
+#define FSJAILIP       "172.17.253.254"
 #define PROJDIR		PROJROOT_DIR
 #define GROUPDIR	GROUPSROOT_DIR
 #define USERDIR		USERSROOT_DIR
@@ -4369,6 +4371,7 @@ COMMAND_PROTOTYPE(domounts)
 	char		*bufp, *ebufp = &buf[sizeof(buf)];
 	int		nrows, usesfs;
 	int		nomounts = 0;
+	char		*fsnode = FSNODE;
 #ifdef  ISOLATEADMINS
 	int		isadmin;
 #endif
@@ -4445,7 +4448,6 @@ COMMAND_PROTOTYPE(domounts)
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
 
-
 	/*
 	 * A local phys node acting as a shared host gets toplevel mounts only.
 	 */
@@ -4499,13 +4501,22 @@ COMMAND_PROTOTYPE(domounts)
 		return 0;
 	}
 	else if (!usesfs) {
+#ifdef  PROTOGENI_GENIRACK
+		/*
+		 * XXX Fix this ...
+		 */
+		if (reqp->isvnode) {
+			fsnode = FSJAILIP;
+		}
+#endif
 		/*
 		 * Return project mount first.
 		 */
 		bufp = buf;
 		if (!nomounts)
 			bufp += OUTPUT(bufp, ebufp-bufp,
-				       "REMOTE=%s/%s ", FSPROJDIR, reqp->pid);
+				       "REMOTE=%s:%s/%s ",
+				       fsnode, FSDIR_PROJ, reqp->pid);
 		OUTPUT(bufp, ebufp-bufp, "LOCAL=%s/%s\n",
 		       PROJDIR, reqp->pid);
 		client_writeback(sock, buf, strlen(buf), tcp);
@@ -4520,7 +4531,8 @@ COMMAND_PROTOTYPE(domounts)
 			bufp = buf;
 			if (!nomounts)
 				bufp += OUTPUT(bufp, ebufp-bufp,
-					       "REMOTE=%s/%s/%s ", FSGROUPDIR,
+					       "REMOTE=%s:%s/%s/%s ",
+					       fsnode, FSDIR_GROUPS,
 					       reqp->pid, reqp->gid);
 			OUTPUT(bufp, ebufp-bufp, "LOCAL=%s/%s/%s\n",
 			       GROUPDIR, reqp->pid, reqp->gid);
@@ -4535,8 +4547,8 @@ COMMAND_PROTOTYPE(domounts)
 		bufp = buf;
 		if (!nomounts)
 			bufp += OUTPUT(bufp, ebufp-bufp,
-				       "REMOTE=%s/%s ",
-				       FSSCRATCHDIR, reqp->pid);
+				       "REMOTE=%s:%s/%s ",
+				       fsnode, FSDIR_SCRATCH, reqp->pid);
 		OUTPUT(bufp, ebufp-bufp, "LOCAL=%s/%s\n",
 		       SCRATCHDIR, reqp->pid);
 		client_writeback(sock, buf, strlen(buf), tcp);
@@ -4550,7 +4562,7 @@ COMMAND_PROTOTYPE(domounts)
 		bufp = buf;
 		if (!nomounts)
 			bufp += OUTPUT(bufp, ebufp-bufp,
-				       "REMOTE=%s ", FSSHAREDIR);
+				       "REMOTE=%s:%s ", fsnode, FSDIR_SHARE);
 		OUTPUT(bufp, ebufp-bufp, "LOCAL=%s\n", SHAREDIR);
 		client_writeback(sock, buf, strlen(buf), tcp);
 		/* Leave this logging on all the time for now. */
@@ -4715,8 +4727,8 @@ COMMAND_PROTOTYPE(domounts)
 #endif
 		bufp = buf;
 		if (!nomounts)
-			bufp += OUTPUT(bufp, ebufp-bufp, "REMOTE=%s/%s ",
-				       FSUSERDIR, row[0]);
+			bufp += OUTPUT(bufp, ebufp-bufp, "REMOTE=%s:%s/%s ",
+				       fsnode, FSDIR_USERS, row[0]);
 		OUTPUT(bufp, ebufp-bufp, "LOCAL=%s/%s\n", USERDIR, row[0]);
 		client_writeback(sock, buf, strlen(buf), tcp);
 
