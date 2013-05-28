@@ -22,6 +22,12 @@ sub Install($$$)
     return 0
 	if ($isupdate);
 
+    #
+    # These are the images that are known to run as XEN guests.
+    #
+    my @images = ("FEDORA15-STD", "FBSD82-STD", "FBSD91-STD",
+		  "UBUNTU12-64-STD", "UBUNTU11-64-STD");
+
     Phase "xen", "Adding XEN Support", sub {
 	#
 	# Load up the initial descriptors. 
@@ -89,7 +95,33 @@ sub Install($$$)
 	    $osinfo->SetRunsOnParent($nextosinfo) == 0
 		or PhaseFail("Could not add os_submap entry for XEN-STD");
 	};
-	
+
+	#
+	# Foreach of these images, we need to mark them as running
+	# on the pcvm node type. Then we need to set the parent and
+	# os_submap stuff.
+	#
+	Phase "guests", "Updating images to run as a xen guest", sub {
+	    foreach my $imagename (@images) {
+		Phase "$imagename", "Updating $imagename", sub {
+		    my $image = Image->Lookup(TBOPSPID(), $imagename);
+		    
+		    PhaseSkip("does not exist")
+			if (!defined($image));
+		    
+		    my $osinfo = OSinfo->Lookup(TBOPSPID(), $imagename);
+		    PhaseFail("No osinfo for $imagename")
+			if (!defined($osinfo));
+
+		    $image->SetRunsOnNodeType("pcvm") == 0
+			or PhaseFail("Could not set $imagename to run on pcvm");
+		    $osinfo->SetRunsOnParent($nextosinfo) == 0
+			or PhaseFail("Could not set $imagename to run on parent");
+		    $osinfo->SetParentOS($nextosinfo) == 0
+			or PhaseFail("Could not set $imagename parent os");
+		};
+	    }
+	};
 	PhaseSucceed("done")
     };
     return 0;
