@@ -5510,6 +5510,18 @@ if test $SPEWFROMOPS -eq 1; then
 _ACEOF
 
 fi
+if test $PROTOGENI_SUPPORT -eq 1; then
+    cat >>confdefs.h <<_ACEOF
+#define PROTOGENI_SUPPORT 1
+_ACEOF
+
+fi
+if test $PROTOGENI_GENIRACK -eq 1; then
+    cat >>confdefs.h <<_ACEOF
+#define PROTOGENI_GENIRACK 1
+_ACEOF
+
+fi
 
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
 cat >>confdefs.h <<_ACEOF
