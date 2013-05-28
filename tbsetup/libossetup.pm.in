@@ -292,6 +292,25 @@ sub ClearInformLists($)
 }
 
 #
+# Collect up log files and create a list of urls.
+#
+sub CollectBootLogFiles($@)
+{
+    my ($self, @node_ids) = @_;
+    my $logmsg = "";
+
+    foreach my $node_id (@node_ids) {
+	my $node = $self->node($node_id);
+	next
+	    if (!defined($node) || !defined($node->_bootlog()));
+
+	$logmsg .= sprintf("%-15s : %s\n",
+			   $node->node_id(), $node->_bootlog()->URL());
+    }
+    return $logmsg;
+}
+
+#
 # Spam time! Send mail to the user and testbed-ops about failures.
 #
 sub InformUser($)
@@ -303,6 +322,7 @@ sub InformUser($)
     my $email  = $self->user()->email();
 
     my @nodelist = keys(%{ $self->{'INFORM_USER'} });
+    my $logmsg   = $self->CollectBootLogFiles(@nodelist);
     my $count    = scalar(@nodelist);
     if ($count > 0) {
 	SENDMAIL("$name <$email>", "$count nodes are down",
@@ -315,9 +335,8 @@ sub InformUser($)
 		 "You should terminate this experiment if it cannot ".
 		 "tolerate these failures.\n\n".
 		 "Testbed Operations has also been notified.\n\n".
-		 "Thanks\n".
-		 "Testbed Operations\n",
-		 0,
+		 "$logmsg\n",
+		 undef,
 		 "Cc: $TBOPS");
     }
 }
@@ -331,13 +350,14 @@ sub InformTBopsFatal($)
     my $email  = $self->user()->email();
 
     my @nodelist = keys(%{ $self->{'INFORM_TBOPSFATAL'} });
+    my $logmsg   = $self->CollectBootLogFiles(@nodelist);
     my $count    = scalar(@nodelist);
     if ($count > 0) {
 	SENDMAIL($TBOPS, "$count nodes are down",
 		 "Nodes:\n".
 		 "  " . join(" ", @nodelist) . "\n".
 		 "in pid/eid $pid/$eid appear to be dead.\n\n".
-		 "The nodes have been moved into hardware checkup.\n",
+		 "The nodes have been moved into hardware checkup.\n\n$logmsg",
 		 "$name <$email>");
     }
 }
@@ -351,13 +371,14 @@ sub InformTBopsWarn($)
     my $email  = $self->user()->email();
 
     my @nodelist = keys(%{ $self->{'INFORM_TBOPSWARN'} });
+    my $logmsg   = $self->CollectBootLogFiles(@nodelist);
     my $count    = scalar(@nodelist);
     if ($count > 0) {
 	SENDMAIL($TBOPS, "$count nodes are down",
 		 "Nodes:\n".
 		 "  " . join(" ", @nodelist) . "\n".
 		 "in pid/eid $pid/$eid failed to boot after loading OS.\n\n".
-		 "The nodes have been freed.\n",
+		 "The nodes have been freed.\n\n$logmsg",
 		 "$name <$email>");
     }
 }
@@ -1800,14 +1821,15 @@ sub WaitDone($@)
 	#
 	# Look for a node boot log and create a logfile from it. 
 	#
-	if (0) {
+	$node->_bootlog(undef);
+	
 	my $bootlog;
 	if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
 	    my $logfile = Logfile->CreateFromString($self->group(), $bootlog);
 	    if (defined($logfile)) {
 		$logfile->SetMetadata({"bootlog" => $node->node_id()}, 1);
 	    }
-	}
+	    $node->_bootlog($bootlog);
 	}
 	
 	if ($node->_canfail() &&
