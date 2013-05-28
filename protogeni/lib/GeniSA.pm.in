@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -160,7 +160,7 @@ sub GetCredential($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredential($cred, $authority);
+    my $credential = GeniCredential::CheckCredential($cred, $authority);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -294,7 +294,7 @@ sub Resolve($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredential($cred, $authority);
+    my $credential = GeniCredential::CheckCredential($cred, $authority);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -457,7 +457,7 @@ sub Register($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredential($cred, $authority);
+    my $credential = GeniCredential::CheckCredential($cred, $authority);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -688,7 +688,7 @@ sub Remove($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredential($cred, $authority);
+    my $credential = GeniCredential::CheckCredential($cred, $authority);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -782,7 +782,7 @@ sub GetKeys($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredential($cred, $authority);
+    my $credential = GeniCredential::CheckCredential($cred, $authority);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -845,7 +845,7 @@ sub BindToSlice($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -898,7 +898,7 @@ sub Shutdown($)
     if (!defined($cred)) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -936,7 +936,7 @@ sub RenewSlice($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
 
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -1082,7 +1082,7 @@ sub RegisterSliver($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -1195,7 +1195,7 @@ sub UnRegisterSliver($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -1267,47 +1267,6 @@ sub UnRegisterSliver($)
     
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
-}
-
-#
-# Initial credential check.
-#
-sub CheckCredential($;$)
-{
-    my ($credstring, $authority) = @_;
-
-    my $credential = GeniCredential->CreateFromSigned($credstring);
-    if (!defined($credential)) {
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    $GeniCredential::CreateFromSignedError);
-    }
-    
-    #
-    # Well formed credentials must now have URNs.
-    #
-    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				"Malformed credentials; missing URNs")
-	if (! (defined($credential->owner_urn()) &&
-	       defined($credential->target_urn()) &&
-	       GeniHRN::IsValid($credential->owner_urn()) &&
-	       GeniHRN::IsValid($credential->target_urn())));
-	
-    #
-    # Make sure the credential was issued to the caller.
-    #
-    if ($credential->owner_urn() ne $ENV{'GENIURN'}) {
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				    "This is not your credential");
-    }
-    #
-    # If an authority is provided, the target must match the authority.
-    #
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				"This credential is for another authority!")
-	if (defined($authority) &&
-	    $credential->target_urn() ne $authority->urn());
-	
-    return $credential;
 }
 
 #

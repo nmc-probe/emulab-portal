@@ -173,7 +173,7 @@ sub Resolve($)
 	return GeniResponse->MalformedArgsResponse();
     }
 
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -228,7 +228,7 @@ sub DiscoverResources($)
     my $compress  = $argref->{'compress'} || 0;
     my $version   = $argref->{'rspec_version'} || undef;
 
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -463,7 +463,7 @@ sub GetTicket($;$)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "Improper characters in rspec");
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -2582,7 +2582,7 @@ sub SliverWork($$)
     if (! (defined($credstr) && defined($ticketstr))) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -3917,7 +3917,7 @@ sub RenewSlice($)
     if (! (defined($credstr))) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4060,7 +4060,7 @@ sub ReleaseTicket($)
     if (! (defined($tickstr) && defined($credstr))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4119,7 +4119,7 @@ sub StartSliver($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4212,7 +4212,7 @@ sub DeleteSliver($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4343,7 +4343,7 @@ sub DeleteSlice($)
     if (! defined($credstr)) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4392,7 +4392,7 @@ sub GetSliver($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4468,7 +4468,7 @@ sub BindToSlice($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4517,7 +4517,7 @@ sub Shutdown($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4589,7 +4589,7 @@ sub ListUsage($)
 	return GeniResponse->MalformedArgsResponse();
     }
 
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4687,7 +4687,7 @@ sub ListHistory($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4736,7 +4736,7 @@ sub SliceStatus($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4820,7 +4820,7 @@ sub SliverTicket($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4916,7 +4916,7 @@ sub SliverStatus($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -5024,7 +5024,7 @@ sub ListTickets($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -5691,6 +5691,12 @@ sub GeniExperiment($;$)
 
     require Project;
     require Group;
+
+    #
+    # BUG: We need to check the sub auth chain to make sure that
+    # there the common prefix. Otherwise, a subsa could sign a
+    # slice credential for someone else.
+    #
     
     #
     # If the slice is from this Emulab (SA), then we are going to create the
@@ -6081,34 +6087,6 @@ sub UpdateManifest($)
 		"where slice_uuid='$slice_uuid'");
 
     return 0;
-}
-
-sub CheckCredential($)
-{
-    my $credential = GeniCredential->CreateFromSigned($_[0]);
-    if (!defined($credential)) {
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    $GeniCredential::CreateFromSignedError);
-    }
-
-    #
-    # Well formed credentials must now have URNs.
-    #
-    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				"Malformed credentials; missing URNs")
-	if (! (defined($credential->owner_urn()) &&
-	       defined($credential->target_urn()) &&
-	       GeniHRN::IsValid($credential->owner_urn()) &&
-	       GeniHRN::IsValid($credential->target_urn())));
-	
-    #
-    # Make sure the credential was issued to the caller.
-    #
-    if ($credential->owner_urn() ne $ENV{'GENIURN'}) {
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				    "This is not your credential");
-    }
-    return $credential;
 }
 
 sub CheckTicket($$)
