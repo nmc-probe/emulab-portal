@@ -849,7 +849,8 @@ sub Start($$$)
     my %vnodes   = ();
     my %poweron  = ();
     my %reloads  = ();
-    my %imageinfo = ();
+    my %vnodekills = ();
+    my %imageinfo  = ();
     # See "bad" label below; want to know what sliver failed (if any).
     my $sliver;
 
@@ -929,19 +930,39 @@ sub Start($$$)
 
 		#
 		# If there is an image defined for this os on pcvm,
-		# we need to setup a reload.
+		# we need to setup a reload if it is not loaded.
 		#
-		my $image = $osinfo->MapToImage("pcvm");
-		if (defined($image)) {
-		    print STDERR "Setting $vnode to load $image\n";
+		my $isloaded = $vnode->IsOSLoaded($osinfo);
+		if ($isloaded < 0) {
+		    $msg .= "Error determining if $osinfo is loaded on $vnode";
+		    goto bad;
+		}
+		if (! $isloaded) {
+		    my $image = $osinfo->MapToImage("pcvm");
+		    if (defined($image)) {
+			print STDERR "Setting $vnode to load $image\n";
 		    
-		    if (!exists($reloads{$image->imageid()})) {
-			$reloads{$image->imageid()} = [ ];
-		    } 
-		    push(@{ $reloads{$image->imageid()} }, $vnode);
-		    $imageinfo{$vnode->node_id()} = [$osinfo->osid(),
-						     $image->imageid()];
-		    $vnode->_reloaded(1);
+			if (!exists($reloads{$image->imageid()})) {
+			    $reloads{$image->imageid()} = [ ];
+			} 
+			push(@{ $reloads{$image->imageid()} }, $vnode);
+			$imageinfo{$vnode->node_id()} = [$osinfo->osid(),
+							 $image->imageid()];
+			$vnode->_reloaded(1);
+
+			#
+			# Remove from reboots; we no longer want to do this,
+			# but instead force them to be "killed" so that they
+			# will go through reload when created again. The
+			# client side should probably try to figure this out
+			# instead.
+			#
+			if (exists($reboots{$vnode->node_id()})) {
+			    delete($reboots{$vnode->node_id()});
+			    $vnodekills{$vnode->node_id()} = $vnode;
+			    $vnodes{$node->node_id()} = $vnode;
+			}
+		    }
 		}
 
 		my $physnodeid = $vnode->phys_nodeid();
@@ -1300,6 +1321,15 @@ sub Start($$$)
 	system("$POWER on @node_ids");
 	if ($?) {
 	    $msg .= "Failed to power on @node_ids";
+	    goto bad;
+	}
+    }
+    if (keys(%vnodekills)) {
+	my @node_ids = keys(%vnodekills);
+
+	system("$VNODESETUP -jk -m $pid $eid @node_ids");
+	if ($?) {
+	    $msg .= "Failed to kill vnodes @node_ids";
 	    goto bad;
 	}
     }
