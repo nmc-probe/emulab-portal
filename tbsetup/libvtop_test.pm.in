@@ -1412,7 +1412,7 @@ sub LoadVirtNodes($)
 	    if (defined($vnode->_parent_osinfo())
 		&& $vnode->_parent_osinfo()->osname() =~ /xen/i) {
 		$defmem = 256;
-		$maxmem = 512;
+		$maxmem = 1024;
 	    }	    
 	    if (!exists($vnode->_desires()->{"?+ram"})) {
 		$self->printdb("Setting VM memsize to $defmem for $vname\n");
