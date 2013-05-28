@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2012 University of Utah and the Flux Group.
+# Copyright (c) 2010-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,7 +31,7 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print("Usage: localize_mfs [-d] [-c vga|sio|null] <path>\n");
+    print("Usage: localize_mfs [-d] [-c vga|sio|sio2|sio3|sio4|null] <path>\n");
     exit(-1);
 }
 my $optlist = "dc:";
@@ -197,7 +197,10 @@ sub LocalizeBSD()
     #
     my %consmap = (
 	"sio"  => "com",
+	"sio1" => "com",
 	"sio2" => "com",
+	"sio3" => "com",
+	"sio4" => "com",
 	"vga"  => "vid",
 	"null" => "null"
     );
@@ -258,33 +261,58 @@ sub LocalizeBSD()
 	== 0 or goto bad;
     ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod root -H 0")
 	== 0 or goto bad;
-    # Localize the console to use.
-    my $consdev = $consmap{$MFSCONSOLE} . "console";
-    ExecQuiet("echo 'console=\"$consdev\"' >> loader.conf.orig")
-	== 0 or goto bad;
 
     #
-    # XXX tmp hack.
-    # If console is VGA, create the magic file that tells slicefix
-    # to ensure that serial console is disabled in any FreeBSD image
-    # that is loaded (in case the machine has no serial port).
-    # We should have a more general way to set the console on a per
-    # node basis.
+    # Console handling.
     #
-    if ($MFSCONSOLE eq "vga") {
-	ExecQuiet("$CP /dev/null $mpoint/etc/emulab/isvgaonly") == 0
-	    or goto bad;
-	# Fix for a paths.sh messup on the MFS.
-	if (-e "$mpoint/etc/testbed" &&
-	    ExecQuiet("$CP /dev/null $mpoint/etc/testbed/isvgaonly")) {
-	    goto bad;
+    # Since 2013, the 8.x MFSes don't require customization for the
+    # console type. The console is instead chosen based on the pxeboot
+    # that booted the MFS (i.e., pxeboot customizes the instance of the MFS).
+    #
+    # We detect this by looking for a particular comment in loader.conf.orig.
+    #
+    my $magicstr = "XXX note that pxeboot will now setup the console";
+    if (system("grep -q '$magicstr' loader.conf.orig")) {
+	# Localize the console to use.
+	my $consdev = $consmap{$MFSCONSOLE} . "console";
+	ExecQuiet("echo 'console=\"$consdev\"' >> loader.conf.orig")
+	    == 0 or goto bad;
+
+	#
+	# XXX tmp hack.
+	# If console is VGA, create the magic file that tells slicefix
+	# to ensure that serial console is disabled in any FreeBSD image
+	# that is loaded (in case the machine has no serial port).
+	# We should have a more general way to set the console on a per
+	# node basis.
+	#
+	if ($MFSCONSOLE eq "vga") {
+	    ExecQuiet("$CP /dev/null $mpoint/etc/emulab/isvgaonly") == 0
+		or goto bad;
+	    # Fix for a paths.sh messup on the MFS.
+	    if (-e "$mpoint/etc/testbed" &&
+		ExecQuiet("$CP /dev/null $mpoint/etc/testbed/isvgaonly")) {
+		goto bad;
+	    }
+	}
+	else {
+	    unlink("$mpoint/etc/emulab/isvgaonly")
+		if (-e "$mpoint/etc/emulab/isvgaonly");
+	    unlink("$mpoint/etc/testbed/isvgaonly")
+		if (-e "$mpoint/etc/testbed/isvgaonly");
 	}
     }
     else {
-	unlink("$mpoint/etc/emulab/isvgaonly")
-	    if (-e "$mpoint/etc/emulab/isvgaonly");
-	unlink("$mpoint/etc/testbed/isvgaonly")
-	    if (-e "$mpoint/etc/testbed/isvgaonly");
+	my $cstr = $MFSCONSOLE;
+	$cstr = "sio1" if ($cstr eq "sio");
+
+	print "*** NOTE: This MFS is console-neutral.\n".
+	    "  To set the console type to \"$cstr\" globally, rename\n".
+	    "    /tftpboot/pxeboot.emu-$cstr to be /tftpboot/pxeboot.emu.\n".
+	    "  To set the console to \"$cstr\" for a particular node type, edit the\n".
+	    "    appropriate node type entry in the web page and add/modify the\n".
+	    "    \"pxe_boot_path\" attribute setting the value to\n".
+	    "    \"/tftpboot/pxeboot.emu-$cstr\".\n";
     }
 
     #
