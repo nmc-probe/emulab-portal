@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -30,7 +30,7 @@ include $(OBJDIR)/Makeconf
 
 all:	fullclient client
 fullclient: tmcc
-client: tmcc-nossl findif dostype
+client: tmcc tmcc-nossl findif dostype
 
 # for subboss we use the full SSL tmcc
 subboss: tmcc findif dostype
