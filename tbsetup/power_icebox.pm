@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w
 
 #
-# Copyright (c) 2011 University of Utah and the Flux Group.
+# Copyright (c) 2011-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,11 +41,16 @@ sub spawn_subprocess {
     my(@cmd) = @_;
     my($pid, $pty, $tty, $tty_fd);
 
-    $pty = new IO::Pty() or die $!;
+    $pty = new IO::Pty();
+    if (not defined $pty) {
+	print STDERR "pty failed: $!\n";
+	return undef;
+    }
 
     $pid = fork();
     if (not defined $pid) {
-        die "fork() failed: $!\n";
+        print STDERR "fork() failed: $!\n";
+	return undef;
     } elsif ($pid == 0) {
         # detach from controlling terminal
         POSIX::setsid or die "setsid failed: $!";
@@ -78,21 +83,34 @@ sub _icebox_exec ($$) {
                   "-o", "PubkeyAuthentication=no",
                   "-o", "PasswordAuthentication=yes",
                   "-l", $user, $host);
+    if (not defined $pty) {
+	print STDERR "$host: could not start ssh\n";
+	return undef;
+    }
 
     my $ssh = new Net::Telnet (-fhopen => $pty,
                                -prompt => $prompt,
                                -telnetmode => 0,
                                -cmd_remove_mode => 1,
-                               -output_record_separator => "\r");
+                               -output_record_separator => "\r",
+			       -errmode => "return");
+    if (not defined $ssh) {
+	print STDERR "$host: could not create telnet object\n";
+	return undef;
+    }
 
     # Log in to the icebox
-    $ssh->waitfor(-match => '/password: ?$/i',
-                  -errmode => "return")
-        or die "$host: failed to connect: ", $ssh->lastline;
+    if (!$ssh->waitfor(-match => '/password: ?$/i',
+		       -errmode => "return")) {
+        print STDERR "$host: failed to connect: ", $ssh->lastline;
+	return undef;
+    }
     $ssh->print($password);
-    $ssh->waitfor(-match => $ssh->prompt,
-                  -errmode => "return")
-        or die "$host: login failed: ", $ssh->lastline;
+    if (!$ssh->waitfor(-match => $ssh->prompt,
+		       -errmode => "return")) {
+        print STDERR "$host: login failed: ", $ssh->lastline;
+	return undef;
+    }
 
     # Send the command to the icebox and get any output
     my @output = $ssh->cmd($cmd);
