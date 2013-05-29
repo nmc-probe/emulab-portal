@@ -102,6 +102,7 @@ end
 if __FILE__ == $0
     raise 'Must run as root' unless Process.uid == 0
 
+    retval = 0
     begin
         ex = EmulabExport.new()
         ex.check_prereqs
@@ -113,8 +114,10 @@ if __FILE__ == $0
         print "Error while creating an image: \n"
         puts e.message
         puts e.backtrace.join("\n")
+        retval = 1
     ensure
         ex.finalize()        
     end
+    exit retval
 end
 
