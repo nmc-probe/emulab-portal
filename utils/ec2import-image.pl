@@ -58,6 +58,7 @@ my $TAR      = "tar";
 my $sudo;
 my $zipper   = "/usr/local/bin/imagezip";
 my $uploader = "/usr/local/etc/emulab/frisupload";
+my $error    = 0;
 
 for my $path (qw#/usr/local/bin /usr/bin#) {
     if (-e "$path/sudo") {
@@ -100,6 +101,7 @@ if(system("echo \"mkdir ~/.emulab\" | ssh $remote bash")){
 # Remotely execute the export script
 if(system("scp $TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb")){
     print STDERR "Couldn't scp exporter script into $remote\n";
+    $error = 1;
     goto cleanup;
 }
 
@@ -109,6 +111,7 @@ if(system("scp $TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb"))
 
 if(system("ssh $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
     print STDERR "Remote image creation failed\n";
+    $error = 1;
     goto cleanup;
 }
 
@@ -116,6 +119,7 @@ if(system("ssh $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
 # TODO Saner name for tar and .emulab?
 if(system("scp $remote:~/.emulab/emulab.tar.gz $infile")){
     print STDERR "Couldn't scp image back into ops\n";
+    $error = 1;
     goto cleanup;
 }
 
@@ -123,17 +127,20 @@ if(system("scp $remote:~/.emulab/emulab.tar.gz $infile")){
 if (! -e $infile){
     print STDERR "*** Input tar image not found.\n";
     print STDERR "Looking for:" . $infile . "\n";
+    $error = 1;
     goto cleanup;
 }
 
 # Unzip into the working dir
 if (system("mkdir -p $workdir")){
     print STDERR "Couldn't mkdir $workdir \n";
+    $error = 1;
     goto cleanup;
 }
 
 if (system("tar -xvzf $infile -C $workdir")){
     print STDERR "Failed to extract $infile \n";
+    $error = 1;
     goto cleanup;
 }
 
@@ -164,15 +171,17 @@ close(FH);
 if (system("$zipper -o -l $workdir/image $workdir/xvda1")) {
     print STDERR "*** Failed to greate image!\n";
     print STDERR "    command: $zipper -o -l $workdir/image $workdir/xvda1\n";
+    $error = 1;
+    goto cleanup;
 }
 
 
 # Tar everything up and then imagezip
 my $cmd = "$TAR zcf - -C $workdir xvda1 xm.conf kernel initrd | $zipper -f - $outfile";
-
 if (system("$cmd")) {
     print STDERR "*** Failed to create image!\n";
     print STDERR "    command: '$cmd'\n";
+
     goto cleanup;
 }
 
@@ -181,3 +190,5 @@ cleanup:
 print STDOUT "Performing cleanup...\n";
 system("$sudo /bin/rm -rf $workdir 2>/dev/null");
 system("echo 'rm -Rf ~/.emulab' | ssh $remote bash");
+
+return $error;
