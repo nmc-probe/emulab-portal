@@ -89,8 +89,10 @@ class EmulabExport
     end
 
     def gen_tar()
+        puts "Running:  tar -cvzf emulab.tar.gz kernel initrd" +
+            " bootopts -C /tmp/ image 2>&1"
         raise "Couldn't tar" unless
-            system("tar -cvzf -C " + @workdir  + " emulab.tar.gz kernel initrd" +
+            system("tar -cvzf emulab.tar.gz kernel initrd" +
             " bootopts -C /tmp/ image 2>&1")
     end
 
