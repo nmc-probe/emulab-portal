@@ -27,15 +27,26 @@ class EmulabExport
         $:.unshift(Dir.pwd + "/ec2-ami-tools-1.4.0.9/lib/")
         require 'ec2/platform/current'
 
-        excludes = ['/tmp/image', '/dev', '/media', '/mnt',
+        excludes = ['/tmp/emulab-image', '/dev', '/media', '/mnt',
             '/proc', '/sys', '/', '/proc/sys/fs/binfmt_misc', '/dev/pts',
             '/var/lib/cloud/sem']
+
+        # Remove any previous image tries
+        system("rm /tmp/emulab-image >/dev/null 2>&1");
+
+        # TODO this probably needs to be more elaborate
+        fssize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$3);print $3}'`)
+        empsize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$4);print $4}'`)
+        puts "Disk on / has " + fssize.to_s + "M of data and " +
+            empsize.to_s + "M free space"
+        raise "Not enough disk space to create image" if empsize < fssize * 2.5
+        
         image = EC2::Platform::Current::Image.new("/",
-                        "/tmp/image",
-                        10* 1024,
+                        "/tmp/emulab-image",
+                        fssize+800,
                         excludes,
                         [],
-                        true,
+                        false,
                         nil,
                         true)
         image.make
@@ -90,10 +101,10 @@ class EmulabExport
 
     def gen_tar()
         puts "Running:  tar -cvzf emulab.tar.gz kernel initrd" +
-            " bootopts -C /tmp/ image 2>&1"
+            " bootopts -C /tmp/ emulab-image 2>&1"
         raise "Couldn't tar" unless
             system("tar -cvzf emulab.tar.gz kernel initrd" +
-            " bootopts -C /tmp/ image 2>&1")
+            " bootopts -C /tmp/ emulab-image 2>&1")
     end
 
 end
