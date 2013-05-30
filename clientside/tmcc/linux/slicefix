@@ -685,7 +685,7 @@ EOF1
 
 	    # get rid of any comconsole excesses
 	    if [ "$curconsole" = "comconsole" ]; then
-		sed -i -e "/^comconsole/d" -e "/^hint.$drv./d" /mnt/boot/loader.conf
+		sed -E -i -e "/^comconsole/d" -e "/^hint.$drv./d" /mnt/boot/loader.conf
 	    fi
 
 	    # now deal with comconsole settings

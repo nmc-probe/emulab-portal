@@ -21,6 +21,11 @@ use constant GZHDR2 => 0x1f8b0808;
 use constant LARGEST_PAGE_SIZE => 0x4000;
 use constant UUID_OFFSET => 1036;
 
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
 # Load up the paths. Done like this in case init code is needed.
 BEGIN
 {
@@ -185,6 +190,35 @@ sub set_swap_uuid
 	print DEVICE $swap_header;
 	
 	close DEVICE;
+}
+
+sub fix_grub_dom0mem
+{
+	my ($imageroot, $file) = @_;
+	my $dom0mem = $ENV{"SLICEFIX_DOM0MEM"};
+
+	if (!$dom0mem ||
+	    system("grep -q 'dom0_mem=' $imageroot/$file 2>/dev/null")) {
+		return;
+	}
+
+	print STDERR "Setting dom0 memory to $dom0mem\n";
+	open FILE, "+<$imageroot/$file" ||
+	     die "Couldn't open $imageroot/$file: $!\n";
+
+	my @buffer = ();
+	while (<FILE>) {
+		s#dom0_mem=\w+#dom0_mem=$dom0mem#g;
+		push @buffer, $_;
+	}
+
+	seek FILE, 0, 0;
+
+	print FILE @buffer;
+
+	close FILE;
+
+	return;
 }
 
 sub fix_swap_partitions
@@ -1095,6 +1129,7 @@ sub main
 		file_replace_string($imageroot, $grub_config, $old_uuid, $uuid);
 		set_grub2_root_device($imageroot, $grub_config, $root);
 	}
+	fix_grub_dom0mem($imageroot, $grub_config);
 
 	fix_swap_partitions($imageroot, $root,
 		$kernel_has_ide ? $old_root : undef );
