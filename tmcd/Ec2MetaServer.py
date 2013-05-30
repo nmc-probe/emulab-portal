@@ -2,6 +2,7 @@ from BaseHTTPServer import BaseHTTPRequestHandler
 import urlparse
 import traceback
 import os
+import sys
 import mysql.connector
 
 
@@ -170,7 +171,8 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
             val = int(args[0])
             cursor = self.cnx.cursor()
             ip = self.client_address[0]
-            cursor.execute("((select user_pubkeys.pubkey from user_pubkeys "
+            cursor.execute("select * from "
+                "((select user_pubkeys.pubkey from user_pubkeys "
                 "join group_membership on group_membership.uid = user_pubkeys.uid "
                 "join experiments on experiments.pid=group_membership.pid AND experiments.gid=group_membership.gid "
                 "join reserved on reserved.exptidx=experiments.idx "
@@ -182,7 +184,8 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
                 "join experiments on experiments.pid=group_membership.pid AND experiments.gid=group_membership.gid "
                 "join reserved on reserved.exptidx=experiments.idx "
                 "join interfaces on reserved.node_id=interfaces.node_id "
-                "where interfaces.ip=%s and user_pubkeys.uid!=experiments.expt_swap_uid)) limit " + str(val) + ", 1;",
+                "where interfaces.ip=%s and user_pubkeys.uid!=experiments.expt_swap_uid)) "
+                "as T limit " + str(val) + ", 1;",
                 (ip, ip,))
 
             if cursor.with_rows:
@@ -222,9 +225,10 @@ if __name__ == '__main__':
         file(pidfile, 'w').write(pid)
 
 
-    print 'Starting server, use <Ctrl-C> to stop'
-    server.serve_forever()
-
-    os.unlink(pidfile)
+    try:
+        print 'Starting server, use <Ctrl-C> to stop'
+        server.serve_forever()
+    finally:
+        os.unlink(pidfile)
 
 
