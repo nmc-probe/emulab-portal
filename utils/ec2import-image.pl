@@ -24,6 +24,7 @@
 use English;
 use Getopt::Std;
 use strict;
+use POSIX;
 
 # Drag in path stuff so we can find emulab stuff.
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
@@ -93,24 +94,41 @@ my $infile = $IN_BASE . $project . "/" . $user . "/" . $osid . ".tar.gz";
 my $workdir = $WORK_BASE . $project . "/" . $user . "/" . $osid . "-tmp";
 
 # Man, this really needs some exception handling
-print $remote;
-if(system("echo \"mkdir ~/.emulab\" | ssh $remote bash")){
-    print STDERR "Couldn't mkdir ~/.emulab";
-}
 
-# Remotely execute the export script
-if(system("scp $TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb")){
-    print STDERR "Couldn't scp exporter script into $remote\n";
+# Check if we can connect to the machine using publickey only
+if(system("ssh -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no" .
+        " -o ChallengeResponseAuthentication=no $remote 'exit'")){
+    print STDERR "*** Couldn't connect to $remote\n";
+    print STDERR "    Ensure that Emulabs public key is in the authorized_hosts\n";
+    print STDERR "    command: ssh -o PasswordAuthentication=no ".
+        " -o KbdInteractiveAuthentication=no" ,
+        " -o ChallengeResponseAuthentication=no $remote 'exit'";
     $error = 1;
     goto cleanup;
 }
 
-#TODO Ruby prereq check
-#TODO return 1 on fail
+if(system("echo \"mkdir -p ~/.emulab\" | ssh $remote bash")){
+    print STDERR "*** Couldn't mkdir ~/.emulab";
+    $error = 1;
+    goto cleanup;
+}
 
+# Remotely execute the export script
+if(system("scp $TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb")){
+    print STDERR "*** Couldn't scp exporter script into $remote\n";
+    $error = 1;
+    goto cleanup;
+}
+
+# Check if Ruby exists
+if(system("ssh $remote 'which ruby'")){
+    print STDERR "*** Could not find ruby on remote machine!";
+    $error = 1;
+    goto cleanup;
+}
 
 if(system("ssh $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
-    print STDERR "Remote image creation failed\n";
+    print STDERR "*** Remote image creation failed\n";
     $error = 1;
     goto cleanup;
 }
@@ -118,7 +136,7 @@ if(system("ssh $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
 # SCP back the generated image file
 # TODO Saner name for tar and .emulab?
 if(system("scp $remote:~/.emulab/emulab.tar.gz $infile")){
-    print STDERR "Couldn't scp image back into ops\n";
+    print STDERR "*** Couldn't scp image back into ops\n";
     $error = 1;
     goto cleanup;
 }
@@ -126,25 +144,25 @@ if(system("scp $remote:~/.emulab/emulab.tar.gz $infile")){
 # Process the tar blah image
 if (! -e $infile){
     print STDERR "*** Input tar image not found.\n";
-    print STDERR "Looking for:" . $infile . "\n";
+    print STDERR "    Looking for:" . $infile . "\n";
     $error = 1;
     goto cleanup;
 }
 
 # Unzip into the working dir
 if (system("mkdir -p $workdir")){
-    print STDERR "Couldn't mkdir $workdir \n";
+    print STDERR "*** Couldn't mkdir $workdir \n";
     $error = 1;
     goto cleanup;
 }
 
 if (system("tar -xvzf $infile -C $workdir")){
-    print STDERR "Failed to extract $infile \n";
+    print STDERR "*** Failed to extract $infile \n";
     $error = 1;
     goto cleanup;
 }
 
-my $filesize = ceil((-s "$workdir/image")/(1024*1024*1024));
+my $filesize = ceil((-s "$workdir/emulab-image")/(1024*1024*1024));
 $filesize = $filesize + 4;
 
 # TODO: Proper xvda1 size based on image size?
@@ -168,9 +186,9 @@ print FH $heredoc;
 close(FH);
 
 # Image zip the raw image
-if (system("$zipper -o -l $workdir/image $workdir/xvda1")) {
+if (system("$zipper -o -l $workdir/emulab-image $workdir/xvda1")) {
     print STDERR "*** Failed to greate image!\n";
-    print STDERR "    command: $zipper -o -l $workdir/image $workdir/xvda1\n";
+    print STDERR "    command: $zipper -o -l $workdir/emulab-image $workdir/xvda1\n";
     $error = 1;
     goto cleanup;
 }
@@ -181,7 +199,7 @@ my $cmd = "$TAR zcf - -C $workdir xvda1 xm.conf kernel initrd | $zipper -f - $ou
 if (system("$cmd")) {
     print STDERR "*** Failed to create image!\n";
     print STDERR "    command: '$cmd'\n";
-
+    $error = 1;
     goto cleanup;
 }
 
@@ -191,4 +209,4 @@ print STDOUT "Performing cleanup...\n";
 system("$sudo /bin/rm -rf $workdir 2>/dev/null");
 system("echo 'rm -Rf ~/.emulab' | ssh $remote bash");
 
-return $error;
+exit($error);
