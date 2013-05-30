@@ -337,6 +337,7 @@ if (!isset($submit)) {
     foreach ($image->Types() as $type) {
 	$defaults["mtype_${type}"] = "Yep";
     }
+    $defaults["def_parentosid"] = "";
     if ($image->ezid() && $osinfo->def_parentosid()) {
 	$defaults["def_parentosid"] = $osinfo->def_parentosid();
     }
