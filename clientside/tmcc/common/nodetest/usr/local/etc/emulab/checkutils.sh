@@ -123,16 +123,14 @@ comparetmcinfo() {
     local localnics="" tbdbnics="" netunit=""
     local -i a b
     local x addr
-    # Pull the nics out
+    # Pull the nics out and checkthem
     # 
     # if any NICs test - note at this point the same # of NICS are on both lists
-set -x
     x=${hwinv["NETINFO"]}
     a=${x/NETINFO UNITS=}
     x=${hwinvcopy["NETINFO"]}
     b=${x/NETINFO UNITS=}
     [[ $a > $b ]] && maxnics=$a || maxnics=$b 
-set +x
     for ((i=0; i<$maxnics; i++)) ; do
 	# gather just the nics addresses 
 	netunit="NETUNIT${i}"
@@ -153,9 +151,7 @@ set +x
 	    tbdbidx=${tbdbidx/$netunit}
 	fi
     done
-declare -p localnics
-declare -p tbdbnics
-set -x
+
     # remove from the lists all matching 
     # lower case all
     localnics=${localnics,,}
@@ -168,8 +164,6 @@ set -x
 	fi
     done
     # same other swap arrays
-echo "local |$localnics|"
-echo "tbdb |$tbdbnics|"
     for i in $tbdbnics ; do
 	if [ "${localnics/$i}" != "${localnics}" ]; then
 	    i=$i
@@ -181,9 +175,6 @@ echo "tbdb |$tbdbnics|"
     read -rd '' localnics <<< "$localnics"
     read -rd '' tbdbnics <<< "$tbdbnics"
 
-echo "local |$localnics|"
-echo "tbdb |$tbdbnics|"
-
     # any mismatches would be in localnics and tbdbnics
     [[ -n "${localnics}" ]] && printf "%s %s\n" "Found only locally NICs:" "$localnics" 
     [[ -n "${tbdbnics}" ]] && printf "%s %s\n" "In testbed db but not found NICs:" "$tbdbnics" 
@@ -191,10 +182,7 @@ echo "tbdb |$tbdbnics|"
     arrayidx="$localidx $tbdbidx"
 
     # step through the local index, looking only for one copy
-#    for i in ${hwinv["hwinvidx"]} ; do
-declare -p ${hwinv["hwinvidx"]}
-echo "tbdbidx |$tbdbidx|"
-    for i in ${tbdbidx} ; do
+    for i in ${localidx} ; do
 	# following bash syntax: "${a+$a}" says use $a if exists else use nothing
 	if [ -z "${hwinvcopy[$i]+${hwinvcopy[$i]}}" ] ; then
 	    if [ -n "${hwinv[$i]+${hwinv[$i]}}" ] ; then
@@ -206,10 +194,7 @@ echo "tbdbidx |$tbdbidx|"
     done
 
     # step through the testbed index, looking only for one copy
-#    for i in ${hwinvcopy["hwinvidx"]} ; do
-declare -p ${hwinvcopy["hwinvidx"]}
-echo "localidx |$localidx|"
-    for i in ${localidx} ; do
+    for i in ${tbdbidx} ; do
 	# followin bash syntax: "${a+$a}" says use $a if exists else use nothing
 	if [ -z "${hwinv[$i]+${hwinv[$i]}}" ] ; then
 	    if [ -n "${hwinvcopy[$i]+${hwinvcopy[$i]}}" ] ; then
