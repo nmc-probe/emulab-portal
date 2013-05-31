@@ -84,8 +84,15 @@ readtmcinfo() {
 	itmp=""
     fi
 
-    hwinv["hwinvidx"]="" #reset the array, or at least the index of array
-#    tcm_in_hwinvidx="" #reset the array, or at least the index of array
+    # initalize array
+    if [ -z "${hwinv["hwinvidx"]+${hwinv["hwinvidx"]}}" ] ; then
+	hwinv["hwinvidx"]="" #start the array
+    else	
+	for i in ${hwinv["hwinvidx"]} ; do
+	    unset hwinv[$i]
+	done
+	hwinv["hwinvidx"]="" #restart the array
+    fi
 
     # handle mult-line  input for disks and nets
     while read -r in ; do
@@ -109,115 +116,198 @@ readtmcinfo() {
 # copy assoctive array hwinv into hwinvcopy
 # this is a little stupid but since I can't pass array I use globals
 copytmcinfo () {
-    hwinvcopy["hwinvidx"]=${hwinv["hwinvidx"]} # copy index from old array
+    # initalize array
+    if [ -z "${hwinvcopy["hwinvidx"]+${hwinvcopy["hwinvidx"]}}" ] ; then
+	hwinvcopy["hwinvidx"]="" #start the array
+    else	
+	for i in ${hwinvcopy["hwinvidx"]} ; do
+	    unset hwinvcopy[$i]
+	done
+	hwinvcopy["hwinvidx"]="" #restart the array
+    fi
+    # copy index from old array
+    hwinvcopy["hwinvidx"]=${hwinv["hwinvidx"]} 
     for i in ${hwinv["hwinvidx"]} ; do
 	hwinvcopy[$i]=${hwinv[$i]}
     done
 }
 
-# compare arrays hwinv and copyhwinv
+# compare arrays hwinv and copyhwinv arg1=outputfile
 comparetmcinfo() {
+    local fileout=$1
     # need to handle differing order with disks and nic addresses
     local localidx="${hwinv["hwinvidx"]}"
     local tbdbidx="${hwinvcopy["hwinvidx"]}"
     local localnics="" tbdbnics="" netunit=""
     local -i a b
     local x addr
-    # Pull the nics out and checkthem
-    # 
-    # if any NICs test - note at this point the same # of NICS are on both lists
-    x=${hwinv["NETINFO"]}
-    a=${x/NETINFO UNITS=}
-    x=${hwinvcopy["NETINFO"]}
-    b=${x/NETINFO UNITS=}
-    [[ $a > $b ]] && maxnics=$a || maxnics=$b 
-    for ((i=0; i<$maxnics; i++)) ; do
-	# gather just the nics addresses 
-	netunit="NETUNIT${i}"
-        # following bash syntax: "${a+$a}" says use $a if exists else use nothing
-	if [ -n "${hwinv[$netunit]+${hwinv[$netunit]}}" ] ; then
-	    # add just the address
-	    addr=${hwinv[$netunit]}
-	    addr=${addr#*ID=\"}
-	    addr=${addr%\"*}
-	    localnics+="$addr "
-	    localidx=${localidx/$netunit}
-	fi
-	if [ -n "${hwinvcopy[$netunit]+${hwinvcopy[$netunit]}}" ] ; then
-	    addr=${hwinvcopy[$netunit]}
-	    addr=${addr#*ID=\"}
-	    addr=${addr%\"*}
-	    tbdbnics+="$addr "
-	    tbdbidx=${tbdbidx/$netunit}
-	fi
-    done
 
-    # remove from the lists all matching 
-    # lower case all
-    localnics=${localnics,,}
-    tbdbnics=${tbdbnics,,}
-    for i in $localnics ; do
-	if [ "${tbdbnics/$i}" != "${tbdbnics}" ]; then
-	    i=$i
-	    tbdbnics=${tbdbnics/$i}
-	    localnics=${localnics/$i}
-	fi
-    done
-    # same other swap arrays
-    for i in $tbdbnics ; do
-	if [ "${localnics/$i}" != "${localnics}" ]; then
-	    i=$i
-	    localnics=${localnics/$i}
-	    tbdbnics=${tbdbnics/$i}
-	fi
-    done
-    #remove extra spaces
-    read -rd '' localnics <<< "$localnics"
-    read -rd '' tbdbnics <<< "$tbdbnics"
+    rm -f ${fileout} ${fileout}_local ${fileout}_tbdb
+    retval=$(compareunits NET ${fileout}_local ${fileout}_tbdb)
+    retval2=$(compareunits DISK ${fileout}_local ${fileout}_tbdb)
 
-    # any mismatches would be in localnics and tbdbnics
-    [[ -n "${localnics}" ]] && printf "%s %s\n" "Found only locally NICs:" "$localnics" 
-    [[ -n "${tbdbnics}" ]] && printf "%s %s\n" "In testbed db but not found NICs:" "$tbdbnics" 
-    
+    # take NETUNIT out
+    localidx=${localidx//NETUNIT[[:digit:]][[:digit:]]/}
+    localidx=${localidx//NETUNIT[[:digit:]]/}
+    tbdbidx=${tbdbidx//NETUNIT[[:digit:]][[:digit:]]/}
+    tbdbidx=${tbdbidx//NETUNIT[[:digit:]]/}
+
+    # take DISKUNIT out
+    localidx=${localidx//DISKUNIT[[:digit:]][[:digit:]]/}
+    localidx=${localidx//DISKUNIT[[:digit:]]/}
+    tbdbidx=${tbdbidx//DISKUNIT[[:digit:]][[:digit:]]/}
+    tbdbidx=${tbdbidx//DISKUNIT[[:digit:]]/}
+
     arrayidx="$localidx $tbdbidx"
+    arrayidx=$(uniqstr $arrayidx)
 
     # step through the local index, looking only for one copy
     for i in ${localidx} ; do
 	# following bash syntax: "${a+$a}" says use $a if exists else use nothing
 	if [ -z "${hwinvcopy[$i]+${hwinvcopy[$i]}}" ] ; then
-	    if [ -n "${hwinv[$i]+${hwinv[$i]}}" ] ; then
-		printf "\n%s\n" "${hwinv[$i]} only found local"
-		arrayidx=${arrayidx/$i} # nothing to compare with
-	    fi
-	    continue
+	    # localidx has it - hwinvcopy does not
+	    printf "\n%s\n" "Local only ${hwinv[$i]}" >> ${fileout}
+	    arrayidx=${arrayidx/$i} # nothing to compare with
 	fi
     done
-
     # step through the testbed index, looking only for one copy
     for i in ${tbdbidx} ; do
 	# followin bash syntax: "${a+$a}" says use $a if exists else use nothing
 	if [ -z "${hwinv[$i]+${hwinv[$i]}}" ] ; then
-	    if [ -n "${hwinvcopy[$i]+${hwinvcopy[$i]}}" ] ; then
-		printf "\n%s\n" "${hwinvcopy[$i]} only found testbed db"
-		arrayidx=${arrayidx/$i} 
-	    fi
-	    continue
+	    printf "\n%s\n" "Testbest db only"  >> ${fileout}
+	    arrayidx=${arrayidx/$i} 
 	fi
     done
     
-    arrayidx=$(uniqstr $arrayidx)
-
     #compare what is left
     for i in $arrayidx ; do
 	if [ "${hwinv[$i]}" != "${hwinvcopy[$i]}" ] ; then
-	    echo ""
-	    echo "$i does not match"
-	    echo "local ${hwinv[$i]}"
-	    echo "tbdb ${hwinvcopy[$i]}"
+	    echo "" >> $fileout
+	    echo "$i does not match" >> $fileout
+	    echo "local ${hwinv[$i]}" >> $fileout
+	    echo "tbdb ${hwinvcopy[$i]}" >> $fileout
 	fi
     done
-set +x
+
+    [[ -f ${fileout}_local ]] && cat ${fileout}_local >> ${fileout}
+    [[ -f ${fileout}_tbdb ]] && cat ${fileout}_tbdb >> ${fileout}
+    rm -f ${fileout}_local ${fileout}_tbdb
+
+    return 0
 }
+
+# multi-line units arg1=unittype arg2=localonlyfile arg3=tbdbonlyfile
+compareunits() {
+    local unittype=$1
+    local localonly=$2
+    local tbdbonly=$3
+    # need to handle differing order with disks and nic addresses
+    local localidx="${hwinv["hwinvidx"]}"
+    local tbdbidx="${hwinvcopy["hwinvidx"]}"
+    local localunits="" tbdbunits="" devunit=""
+    local -i a b
+    local x addr
+
+    # How are things different between unit types
+    case $unittype in
+	NET )
+	    unitinfoidx_str="NETINFO"
+	    unitinfo_strip="NETINFO UNITS="
+	    unit_str="NETUNIT"
+	    unit_pre_strip="*ID=\""
+	    unit_post_strip="\"*"
+	    unit_human_output="NIC"
+	    ;;
+	DISK )
+	    unitinfoidx_str="DISKINFO"
+	    unitinfo_strip="DISKINFO UNITS="
+	    unit_str="DISKUNIT"
+	    unit_pre_strip="*SN=\""
+	    unit_post_strip="\"*"
+	    unit_human_output="DISK"
+	    ;;
+	* )
+	    echo "Error in compareunits don't now type $unittype. Giving up."
+	    exit 1
+	    ;;
+    esac
+
+
+    # Pull the units out and checkthem
+    # 
+    # if any UNITs test - note at this point the same # of UNITS are on both lists
+    if [ -n "${hwinv["${unitinfoidx_str}"]+${hwinv["${unitinfoidx_str}"]}}" ] ; then
+	    x=${hwinv["${unitinfoidx_str}"]}
+	    a=${x/${unitinfo_strip}}
+    else
+	a=0
+    fi
+    if [ -n "${hwinvcopy["${unitinfoidx_str}"]+${hwinvcopy["${unitinfoidx_str}"]}}" ] ; then
+	x=${hwinvcopy["${unitinfoidx_str}"]}
+	b=${x/${unitinfo_strip}}
+    else
+	b=0
+    fi
+    [[ $a > $b ]] && maxunits=$a || maxunits=$b 
+    for ((i=0; i<$maxunits; i++)) ; do
+	# gather just the units addresses 
+	devunit="${unit_str}${i}"
+        # following bash syntax: "${a+$a}" says use $a if exists else use nothing
+	if [ -n "${hwinv[$devunit]+${hwinv[$devunit]}}" ] ; then
+	    # add just the address
+	    addr=${hwinv[$devunit]}
+	    addr=${addr#${unit_pre_strip}}
+	    addr=${addr%${unit_post_strip}}
+	    localunits+="$addr "
+	    localidx=${localidx/$devunit}
+	fi
+	if [ -n "${hwinvcopy[$devunit]+${hwinvcopy[$devunit]}}" ] ; then
+	    addr=${hwinvcopy[$devunit]}
+	    addr=${addr#${unit_pre_strip}}
+	    addr=${addr%${unit_post_strip}}
+	    tbdbunits+="$addr "
+	    tbdbidx=${tbdbidx/$devunit}
+	fi
+    done
+
+    # remove from the lists all matching 
+    # lower case all
+    localunits=${localunits,,}
+    tbdbunits=${tbdbunits,,}
+    for i in $localunits ; do
+	if [ "${tbdbunits/$i}" != "${tbdbunits}" ]; then
+	    tbdbunits=${tbdbunits/$i}
+	    localunits=${localunits/$i}
+	fi
+    done
+    # same other swap arrays
+    for i in $tbdbunits ; do
+	if [ "${localunits/$i}" != "${localunits}" ]; then
+	    localunits=${localunits/$i}
+	    tbdbunits=${tbdbunits/$i}
+	fi
+    done
+    #remove extra spaces
+    read -rd '' localunits <<< "$localunits"
+    read -rd '' tbdbunits <<< "$tbdbunits"
+
+    # any mismatches would be in localunits and tbdbunits
+    if [ -n "${localunits}" ]; then
+	if [ ! -f $localonly ] ; then
+	    printf "\n%s\n" "Found only locally" > $localonly
+	fi
+	printf "%s%s %s\n" "${unit_human_output}" "s:" "$localunits"  >> $localonly
+    fi
+    if [ -n "${tbdbunits}" ]; then
+	if [ ! -f $tbdbonly ] ; then
+	    printf "\n%s\n" "In testbed db but not found" > $tbdbonly
+	fi
+	printf "%s%s %s\n" "${unit_human_output}" "s:" "$tbdbunits" >> $tbdbonly
+    fi
+
+    echo "$localidx $tbdbidx"
+}
+
 
 # take a string make the words in it uniq
 uniqstr() {
