@@ -61,29 +61,34 @@ set +e
 	exit 1
     fi
     # have needed dirs ?
-    mkdir -p /proj/emulab-ops/nodecheck/Complete
+    if [ ! -d /proj/emulab-ops/nodecheck/FullInventory ] ; then
+	mkdir -p /proj/emulab-ops/nodecheck/FullInventory
+	chmod 755 /proj/emulab-ops/nodecheck /proj/emulab-ops/nodecheck/FullInventory
+    fi
+
 	
     $(cp /tmp/nodecheck.log.tb.new /proj/emulab-ops/nodecheck/$host);
-    $(cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/Complete/$host);
-    $(chmod a+r /proj/emulab-ops/nodecheck/$host /proj/emulab-ops/nodecheck/Complete/$host);
+    $(cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/FullInventory/$host);
+    $(chmod g+rw /proj/emulab-ops/nodecheck/$host /proj/emulab-ops/nodecheck/FullInventory/$host);
 
     # Test what found local against what is in the database
     readtmcinfo # info from tmcc.bin hwinv
+# for testing    readtmcinfo /proj/emulab-ops/nodecheck/test
     copytmcinfo # copy into hwinvcopy
-    readtmcinfo /proj/emulab-ops/nodecheck/$host # read local found into hwinv
-{ comparetmcinfo
-} > /tmp/$host.diff
-    cat /tmp/$host.diff
-    if [ -s /tmp/$host.diff ] ; then
-	$(cp /tmp/$host.diff /proj/emulab-ops/nodecheck)
-	$(chmod a+r /proj/emulab-ops/nodecheck/$host.diff);
+    readtmcinfo /tmp/nodecheck.log.tb.new # read local found into hwinv
+    comparetmcinfo /tmp/nodecheck.diff # file for output
+
+    if [ -s /tmp/nodecheck.diff ] ; then
+	cat /tmp/nodecheck.diff
+	$(cp /tmp/nodecheck.diff /proj/emulab-ops/nodecheck/${host}.diff)
+	$(chmod g+rw /proj/emulab-ops/nodecheck/${host}.diff);
+    else
+	# no diff maybe it got better
+	rm -f /proj/emulab-ops/nodecheck/${host}.diff
     fi
-
-
-
 	
 #    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv"
-#    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb.new /tmp/$host.diff"
+#    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb.new /tmp/nodecheck.diff"
 }
 
 gatherinv_main $0
