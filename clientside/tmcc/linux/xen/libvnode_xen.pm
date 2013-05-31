@@ -675,10 +675,11 @@ sub vnodeCreate($$$$)
 
 		#
 		# If this is an Ubuntu ramdisk, we have to make sure it
-		# will boot as a XEN guest.
+		# will boot as a XEN guest, by changing the ramdisk. YUCK!
 		#
 		if ($imagemetadata->{'PARTOS'} =~ /ubuntu/i ||
-		    $imagename =~ /ubuntu/i) {
+		    $imagename =~ /ubuntu/i ||
+		    system("strings $kernel | grep -q -i ubuntu") == 0) {
 		    if (FixRamFs($vnode_id, $ramdisk)) {
 			TBScriptUnlock();
 			fatal("xen_vnodeCreate: Failed to fix ramdisk");
