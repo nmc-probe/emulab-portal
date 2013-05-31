@@ -175,10 +175,8 @@ case $os in
 		    "IntelPentiumII") arch="i386" ;;
 		    * ) arch="Unknown" ;;
 		esac
-		echo $-
 		save_e
 		set +e
-		echo $-
 		x=$(grep 'FreeBSD/SMP:' /var/run/dmesg.boot | grep package)
 		x=${x#FreeBSD/SMP: }
 		[[ $x ]] && sockets=${x%%package*} || sockets=1
@@ -234,7 +232,7 @@ echo ""
 # if saving data for testbed database
 [[ ${x64bit} == 1 ]] && bits=64 || bits=32
 if [ -f ${logfile4tb} ] ; then
-    printf "CPUINFO SOCKET=%s CORES=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
+    printf "CPUINFO SOCKETS=%s CORES=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
       ${sockets} ${cores_socket} ${threads_core} ${mhz} ${bits} ${hwvirt} >> ${logfile4tb}
     exit 0
 fi
