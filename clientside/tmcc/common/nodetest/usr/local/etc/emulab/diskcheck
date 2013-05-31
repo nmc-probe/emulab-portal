@@ -4,24 +4,14 @@ echo -n ' Starting diskcheck..'
 
 # find the number of disks
 # find the size of each disk
-
 # first arg is the log output file, if not set then /tmp/...
 
-#Global
-declare failed=""
 declare error=""
 declare err=""
 
-source getfromtb.sh
-source hbis.sh
 
-# if in mfsmode checkutils has all ready been sourced, don't to it again
-# else with get second set of varibles
-#if [ -f /etc/emulab/mfs ] ; then
-#    :
-#else
-    source checkutils.sh
-#fi
+source checkutils.sh
+source hbis.sh
 
 ## declare -p todo_exit
 
@@ -125,7 +115,7 @@ main() {
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
 		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
 		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
-		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) 
+		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
 	    esac
 	done
 	# Must have sectors and dpers values first and case statments
@@ -467,7 +457,8 @@ getserial() {
 	fi
 	res=${res,,} # lower case
 	res=${res/serial number: }
-	res=$(echo $res | tr 'a-z' 'A-Z') # upper case
+#	res=$(echo $res | tr 'a-z' 'A-Z') # upper case
+	res=${res^^} # upper case
     fi
     if [ "$os" == "FreeBSD" ] ; then
 	# note: if the device is mfi then 'mfiutil show drives' will list
@@ -584,7 +575,7 @@ getsectors() {
     return 0
 }
 
-getwspeed() { 
+getwspeed() {
     hdname=$1
     # disk is mounted somewhere then don't do the raw write speed
     canwe=$(df | grep $hdname)
