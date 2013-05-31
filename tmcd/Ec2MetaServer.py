@@ -60,7 +60,7 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         else:
             return self.handle_req(arg[1:], metas[arg[0]])
 
-    def do_userdata(self):
+    def do_userdata(self, arg):
         #TODO
         return "\n";
 
