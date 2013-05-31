@@ -108,6 +108,7 @@ my $logging    = 0;
 my $logforked  = 0;
 my $iserror    = 0;
 my $rpcerror   = 0;
+my $logfile    = undef;
 
 # Determined by version.
 my $responder;
@@ -134,8 +135,13 @@ sub XMLError($$)
     $string     = $decoder->encode_fault($code, $string);
 
     # Make sure the error goes back to user not into the debug file.
-    LogEnd(0)
-	if ($logging);
+    if ($logging) {
+	LogEnd(0);
+	if (!$logforked) {
+	    # Use eval to avoid messing up the output stream if any errors.
+	    eval { $logfile->Store(); };
+	}
+    }
     print "Content-Type: text/xml \n\n";
     print $string;
     exit(0);
@@ -371,7 +377,7 @@ if (!defined($group)) {
     die("*** $0:\n".
 	"    Could not resolve lookup group $GENIGROUP\n");
 }
-my $logfile = Logfile->Create($group);
+$logfile = Logfile->Create($group);
 if (!defined($logfile)) {
     die("*** $0:\n".
 	"    Could not create a new logfile\n");
@@ -435,6 +441,8 @@ sub AddLogfileMetaData($$)
 	return
 	    if ($key eq $metakey);
     }
+    $nostorelogs = 0
+	if ($key eq "cert_error");
     push(@metadata, [$key, $val]);
 }
 sub AddLogfileMetaDataFromSlice($)
@@ -497,7 +505,7 @@ if ($method eq "ListResources" ||
     $method eq "Resolve" ||
     $method eq "DiscoverResources") {
     $debug = 0;
-    # Do no even bother with logs unless an error.
+    # Do not even bother with logs unless an error.
     $nostorelogs = 1;
 }
 # We always want as much data as possible for these.
@@ -505,6 +513,61 @@ if ($method eq "CreateSliver" ||
     $method eq "RedeemTicket" ||
     $method eq "GetTicket") {
     $debug = 2;
+}
+
+#
+# Look for a cert chain and verify the URN namespace along the chain.
+#
+my @chaincerts  = ();
+
+for (my $i = 0; $i < 10; $i++) {
+    last
+	if (!exists($ENV{"SSL_CLIENT_CERT_CHAIN_${i}"}));
+
+    my $chaincert =
+	GeniCertificate->LoadFromString($ENV{"SSL_CLIENT_CERT_CHAIN_${i}"});
+    if (!defined($chaincert)) {
+	print STDERR "Could not load chain certificate:\n";
+	print STDERR $ENV{"SSL_CLIENT_CERT_CHAIN_${i}"} . "\n";
+	XMLError(XMLRPC_APPLICATION_ERROR(),
+		 "Could not load chain certificate $i");
+    }
+    push(@chaincerts, $chaincert);
+}
+#
+# We need the user cert and the CA cert so that we have an
+# entire chain to do namespace verification on.
+#
+my $user_certificate =
+    GeniCertificate->LoadFromString($ENV{'SSL_CLIENT_CERT'});
+if (!defined($user_certificate)) {
+    print STDERR "Could not load user certificate:\n";
+    print STDERR $ENV{'SSL_CLIENT_CERT'} . "\n";
+    XMLError(XMLRPC_APPLICATION_ERROR(),
+	     "Could not load user certificate");
+}
+#
+# Sadly, apache does not tell us what the CA cert is; it just tells
+# us the server cert, which is useless. So we have to recompute the
+# chain to find the CA.
+#
+if ($user_certificate->VerifySSLChain(@chaincerts)) {
+    print STDERR "Could not verify user certificate chain:\n";
+    print STDERR Dumper([$user_certificate, @chaincerts]);
+    XMLError(XMLRPC_APPLICATION_ERROR(),
+	     "Could not verify user certificate chain");
+}
+@chaincerts = (@chaincerts, $user_certificate->rootcert());
+my $errorstr;
+if ($user_certificate->VerifyGeniChain(\$errorstr, @chaincerts)) {
+    print STDERR "Failed to verify Geni chain (user cert): $errorstr\n";
+    print STDERR Dumper([$user_certificate, @chaincerts]);
+    AddLogfileMetaData("cert_error",
+		       "Failed to verify Geni chain (user cert): $errorstr");
+    if (0) {
+	XMLError(XMLRPC_APPLICATION_ERROR(),
+		 "Could not verify user URN namespace chain: $errorstr");
+    }
 }
 
 my $result;
