@@ -513,7 +513,9 @@ while (($node) = $result->fetchrow_array) {
     $node_usb{$node} = 1;
 }
 
+#
 # Physical RAM overrides.
+#
 my %node_ram;
 
 $result = DBQueryFatal("select node_id,attrvalue from node_attributes ".
@@ -796,6 +798,24 @@ if ($virtstuff) {
 		      "and r.exptidx!=" . $experiment->idx() : ""));
 
     while (my ($pnode,$memory) = $result->fetchrow_array()) {
+	$node_ramusage{$pnode} = 0
+	    if (!exists($node_ramusage{$pnode}));
+	
+	$node_ramusage{$pnode} += $memory;
+    }
+
+    #
+    # When running xen and there is a dom0mem attribute, we need to
+    # subtract that too since it is not available. But we do not know
+    # for sure that the node is running XEN. Need to addres this at
+    # some point.
+    #
+    $result = DBQueryFatal("select node_id,attrvalue from node_attributes ".
+			   "where attrkey='dom0mem'");
+    while (my ($pnode,$ram) = $result->fetchrow_array) {
+	$node_ramusage{$pnode} = 0
+	    if (!exists($node_ramusage{$pnode}));
+	
 	$node_ramusage{$pnode} += $memory;
     }
 }
