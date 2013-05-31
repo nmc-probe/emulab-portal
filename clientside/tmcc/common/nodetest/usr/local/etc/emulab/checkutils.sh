@@ -31,7 +31,7 @@ else
 fi
 
 
-declare errext_val
+declare errext_val # used?
 
 # Gobal Vars
 declare NOSM="echo" #do nothing command
@@ -40,6 +40,8 @@ declare failed=""  #major falure to be commicated to user
 declare os=""      #[Linux|FreeBSD] for now
 declare -a todo_exit
 declare -A hwinv  # hwinv from tmcc.bin
+declare -A hwinvcopy  # a copy of hwinv from tmcc.bin
+
 
 #declare -A tcm_out # hwinv for output
 #declare -A tcm_inv # what we have discovered
@@ -72,8 +74,9 @@ readtmcinfo() {
     local ifile 
     local itmp
 
-    ifile=${1+$1}
+    ifile=${1+$1} # use $1 if set otherwise use nothing
     if [ -z "$ifile" ] ; then
+	# noinput file then use a tmp file to hold data from tmcc.bin
 	itmp="y"
 	ifile=/tmp/.$$tmcchwinv
 	$(/usr/local/etc/emulab/tmcc.bin hwinfo > $ifile)
@@ -81,10 +84,10 @@ readtmcinfo() {
 	itmp=""
     fi
 
-    hwinv["hwinvidx"]="" #rest the array, or at least the index of array
-#    tcm_in_hwinvidx="" #rest the array, or at least the index of array
+    hwinv["hwinvidx"]="" #reset the array, or at least the index of array
+#    tcm_in_hwinvidx="" #reset the array, or at least the index of array
 
-    # handle mult-line 
+    # handle mult-line  input for disks and nets
     while read -r in ; do
 	keyword=${in%% *}
 	case $keyword in
@@ -103,17 +106,158 @@ readtmcinfo() {
     [ -n "$itmp" ] && rm $ifile || : # the colon just stops a error being caught by -e
 }
 
-# no args uses the globel arrays hwinvv, tcm_in, tcm_out
-mergetmcinfo() {
+# copy assoctive array hwinv into hwinvcopy
+# this is a little stupid but since I can't pass array I use globals
+copytmcinfo () {
+    hwinvcopy["hwinvidx"]=${hwinv["hwinvidx"]} # copy index from old array
     for i in ${hwinv["hwinvidx"]} ; do
-	hwinv[$i]+=" ADD"
+	hwinvcopy[$i]=${hwinv[$i]}
     done
 }
 
-# arg $1 is the file to write uses the globel tcm_out array
-writetmcinfo() {
-:
+# compare arrays hwinv and copyhwinv
+comparetmcinfo() {
+    # need to handle differing order with disks and nic addresses
+    local localidx="${hwinv["hwinvidx"]}"
+    local tbdbidx="${hwinvcopy["hwinvidx"]}"
+    local localnics="" tbdbnics="" netunit=""
+    local -i a b
+    local x addr
+    # Pull the nics out
+    # 
+    # if any NICs test - note at this point the same # of NICS are on both lists
+set -x
+    x=${hwinv["NETINFO"]}
+    a=${x/NETINFO UNITS=}
+    x=${hwinvcopy["NETINFO"]}
+    b=${x/NETINFO UNITS=}
+    [[ $a > $b ]] && maxnics=$a || maxnics=$b 
+set +x
+    for ((i=0; i<$maxnics; i++)) ; do
+	# gather just the nics addresses 
+	netunit="NETUNIT${i}"
+        # following bash syntax: "${a+$a}" says use $a if exists else use nothing
+	if [ -n "${hwinv[$netunit]+${hwinv[$netunit]}}" ] ; then
+	    # add just the address
+	    addr=${hwinv[$netunit]}
+	    addr=${addr#*ID=\"}
+	    addr=${addr%\"*}
+	    localnics+="$addr "
+	    localidx=${localidx/$netunit}
+	fi
+	if [ -n "${hwinvcopy[$netunit]+${hwinvcopy[$netunit]}}" ] ; then
+	    addr=${hwinvcopy[$netunit]}
+	    addr=${addr#*ID=\"}
+	    addr=${addr%\"*}
+	    tbdbnics+="$addr "
+	    tbdbidx=${tbdbidx/$netunit}
+	fi
+    done
+declare -p localnics
+declare -p tbdbnics
+set -x
+    # remove from the lists all matching 
+    # lower case all
+    localnics=${localnics,,}
+    tbdbnics=${tbdbnics,,}
+    for i in $localnics ; do
+	if [ "${tbdbnics/$i}" != "${tbdbnics}" ]; then
+	    i=$i
+	    tbdbnics=${tbdbnics/$i}
+	    localnics=${localnics/$i}
+	fi
+    done
+    # same other swap arrays
+echo "local |$localnics|"
+echo "tbdb |$tbdbnics|"
+    for i in $tbdbnics ; do
+	if [ "${localnics/$i}" != "${localnics}" ]; then
+	    i=$i
+	    localnics=${localnics/$i}
+	    tbdbnics=${tbdbnics/$i}
+	fi
+    done
+    #remove extra spaces
+    read -rd '' localnics <<< "$localnics"
+    read -rd '' tbdbnics <<< "$tbdbnics"
+
+echo "local |$localnics|"
+echo "tbdb |$tbdbnics|"
+
+    # any mismatches would be in localnics and tbdbnics
+    [[ -n "${localnics}" ]] && printf "%s %s\n" "Found only locally NICs:" "$localnics" 
+    [[ -n "${tbdbnics}" ]] && printf "%s %s\n" "In testbed db but not found NICs:" "$tbdbnics" 
+    
+    arrayidx="$localidx $tbdbidx"
+
+    # step through the local index, looking only for one copy
+#    for i in ${hwinv["hwinvidx"]} ; do
+declare -p ${hwinv["hwinvidx"]}
+echo "tbdbidx |$tbdbidx|"
+    for i in ${tbdbidx} ; do
+	# following bash syntax: "${a+$a}" says use $a if exists else use nothing
+	if [ -z "${hwinvcopy[$i]+${hwinvcopy[$i]}}" ] ; then
+	    if [ -n "${hwinv[$i]+${hwinv[$i]}}" ] ; then
+		printf "\n%s\n" "${hwinv[$i]} only found local"
+		arrayidx=${arrayidx/$i} # nothing to compare with
+	    fi
+	    continue
+	fi
+    done
+
+    # step through the testbed index, looking only for one copy
+#    for i in ${hwinvcopy["hwinvidx"]} ; do
+declare -p ${hwinvcopy["hwinvidx"]}
+echo "localidx |$localidx|"
+    for i in ${localidx} ; do
+	# followin bash syntax: "${a+$a}" says use $a if exists else use nothing
+	if [ -z "${hwinv[$i]+${hwinv[$i]}}" ] ; then
+	    if [ -n "${hwinvcopy[$i]+${hwinvcopy[$i]}}" ] ; then
+		printf "\n%s\n" "${hwinvcopy[$i]} only found testbed db"
+		arrayidx=${arrayidx/$i} 
+	    fi
+	    continue
+	fi
+    done
+    
+    arrayidx=$(uniqstr $arrayidx)
+
+    #compare what is left
+    for i in $arrayidx ; do
+	if [ "${hwinv[$i]}" != "${hwinvcopy[$i]}" ] ; then
+	    echo ""
+	    echo "$i does not match"
+	    echo "local ${hwinv[$i]}"
+	    echo "tbdb ${hwinvcopy[$i]}"
+	fi
+    done
+set +x
 }
+
+# take a string make the words in it uniq
+uniqstr() {
+    local instr="$@"
+    local outstr=""
+    for i in $instr ; do
+	if [ "${outstr/$i}" ==  "$outstr" ] ; then
+	    # $i not in outstr, add it
+	    outstr+="$i "
+	fi
+    done
+    echo $outstr
+}
+
+# no args uses the globel arrays hwinvv, tcm_in, tcm_out
+#mergetmcinfo() {
+#    for i in ${hwinv["hwinvidx"]} ; do
+#	hwinv[$i]+=" ADD"
+#    done
+#}
+
+# arg $1 is the file to write uses the globel tcm_out array
+#writetmcinfo() {
+#:
+#}
 
 
 # print only the testbed data table
@@ -190,13 +334,25 @@ which() {
 }
 
 inithostname() {
-    os=`uname -s`
-    host=`hostname`
-    if [ -e "/var/emulab/boot/realname" ]; then
-        host=`cat /var/emulab/boot/realname`
-    elif
-	[ -e "/var/emulab/boot/nodeid" ]; then
-	host=$(cat /var/emulab/boot/nodeid)
+    os=$(uname -s)
+    if [ -z $os ] ; then
+	echo "ERROR uname messed up"
+	exit 1
+    fi
+    if [ -e "/usr/local/etc/emulab/tmcc.bin" ] ; then
+	host=$(/usr/local/etc/emulab/tmcc.bin nodeid)
+    else
+	echo "ERROR no tmcc.bin command"
+	exit 1
+    fi
+    if [ -z "$host" ] ; then 
+	if [ -e "/var/emulab/boot/realname" ] ; then
+	    host=$(cat /var/emulab/boot/realname)
+	elif [ -e "/var/emulab/boot/nodeid" ] ; then
+	    host=$(cat /var/emulab/boot/nodeid)
+	else
+	    host=$(hostname)
+	fi
     fi
     return 0
 }
@@ -258,9 +414,9 @@ initlogs () {
     return 0
 }
 
-cleanup() {
-    rm -f $tmplog $logout $tmpout 
-}
+#cleanup() {
+#    rm -f $tmplog $logout $tmpout 
+#}
 
 getdrivenames() {
     # use smartctl if exits
@@ -353,8 +509,8 @@ timesys() {
 declare FUNCDEBUG=n
 declare ECHOCMDS=n
 
-#TOUPPER() { $(echo $@ |tr 'a-z' 'A-Z') }
-#TOLOWER() { $(echo ${@,,}) }
+#TOUPPER() { $(echo $@ |tr 'a-z' 'A-Z') } also ${par^^}
+#TOLOWER() { $(echo ${@,,}) }             also #{par,,}
 
 # Function Tracing
 funcdebug ()
@@ -390,3 +546,4 @@ printf "PROGRAMMING ERROR $FUNCNAME $LINENO \n" && exit 1
 #
 #EOF
 #}
+
