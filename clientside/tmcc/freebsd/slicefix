@@ -1201,114 +1201,11 @@ dolinux() {
 	# has the necessary files.
 	#
 	if islocalized; then
-	    # Check the certs.
-	    if [ ! -d /mnt/etc/emulab ]; then
-		mkdir -m 755 /mnt/etc/emulab || {
-	            echo "Failed to mkdir /mnt/etc/emulab"
-		    umount $rootdev
-		    return 1
-		}
-	    fi
-	    if [ -e $ETCDIR/emulab.pem ]; then
-		cmp -s $ETCDIR/emulab.pem /mnt/etc/emulab/emulab.pem
-		if [ $? -ne 0 ]; then
-		    echo "  updating /mnt/etc/emulab/emulab.pem"
-		    cp -p $ETCDIR/emulab.pem /mnt/etc/emulab/ || {
-			echo "Failed to create $ETCDIR/emulab.pem"
-			umount $rootdev
-			return 1
-		    }
-		fi
-	    fi
-	    if [ -e $ETCDIR/client.pem ]; then
-		cmp -s $ETCDIR/client.pem /mnt/etc/emulab/client.pem
-		if [ $? -ne 0 ]; then
-		    echo "  updating /mnt/etc/emulab/client.pem"
-		    cp -p $ETCDIR/client.pem /mnt/etc/emulab/ || {
-			echo "Failed to create $ETCDIR/client.pem"
-			umount $rootdev
-			return 1
-		    }
-		fi
-	    fi
-
-	    # Check the root keys.
-	    if [ -e /root/.ssh/authorized_keys2 ]; then
-		cmp -s /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys
-		if [ $? -ne 0 ]; then
-		    echo "  updating /root/.ssh/authorized_keys"
-		    
-		    if [ ! -d /mnt/root/.ssh ]; then
-			mkdir -m 700 /mnt/root/.ssh || {
-			    echo "Failed to mkdir /root/.ssh"
-			    umount $rootdev
-			    return 1
-			}
-		    fi
-		    # copy to both authorized_keys and _keys2
-		    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/authorized_keys || {
-			echo "Failed to create /root/.ssh/authorized_keys"
-			umount $rootdev
-			return 1
-		    }
-		    cp -p /root/.ssh/authorized_keys2 /mnt/root/.ssh/ || {
-			echo "Failed to create /root/.ssh/authorized_keys2"
-			umount $rootdev
-			return 1
-		    }
-		fi
-	    fi
-
-  	    # Check the host keys.
-	    changehostkeys=0
-	    if [ -e /etc/ssh/ssh_host_key ]; then
-		cmp -s /etc/ssh/ssh_host_key /mnt/etc/ssh/ssh_host_key
-		if [ $? -ne 0 ]; then
-		    changehostkeys=1
-		fi
-	    fi
-	    if [ -e /etc/ssh/ssh_host_rsa_key ]; then
-		cmp -s /etc/ssh/ssh_host_rsa_key /mnt/etc/ssh/ssh_host_rsa_key
-		if [ $? -ne 0 ]; then
-		    changehostkeys=1
-		fi
-	    fi
-	    if [ -e /etc/ssh/ssh_host_dsa_key ]; then
-		cmp -s /etc/ssh/ssh_host_dsa_key /mnt/etc/ssh/ssh_host_dsa_key
-		if [ $? -ne 0 ]; then
-		    changehostkeys=1
-		fi
-	    fi
-	    if [ $changehostkeys -eq 1 ]; then
-		echo "  updating /etc/ssh/hostkeys"
-
-		if [ ! -d /mnt/etc/ssh ]; then
-		    mkdir -m 755 /mnt/etc/ssh || {
-			echo "Failed to mkdir /mnt/etc/ssh"
-			umount $rootdev
-			return 1
-		    }
-		fi
-		cp -p /etc/ssh/ssh_host_* /mnt/etc/ssh/ || {
-	            echo "Failed to create /etc/ssh/hostkeys"
-		    umount $rootdev
-		    return 1
-		}
-	    fi
-
-	    # Check the time zone.
-	    if [ -e /etc/localtime ]; then
-		cmp -s /etc/localtime /mnt/etc/localtime
-		if [ $? -ne 0 ]; then
-		    echo "  updating /etc/localtime"
-
-		    cp -p /etc/localtime /mnt/etc/localtime || {
-			echo "Failed to create /etc/localtime"
-			umount $rootdev
-			return 1
-		    }
-		fi
-	    fi
+	    echo "  localizing ..."
+	    $BINDIR/localize_image /mnt || {
+		umount $rootdev
+		return 1
+	    }
 	fi
 
 	# run any postconfig scripts:

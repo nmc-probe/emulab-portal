@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -120,6 +120,7 @@ subboss-common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/ifsetup $(BINDIR)/ifsetup
 	$(INSTALL) -m 755 $(SRCDIR)/ifdynconfig $(BINDIR)/ifdynconfig
 	$(INSTALL) -m 755 $(SRCDIR)/startcmddone $(BINDIR)/startcmddone
+	$(INSTALL) -m 755 $(SRCDIR)/localize_image $(BINDIR)/localize_image
 	$(INSTALL) -m 755 $(SRCDIR)/getblob $(BINDIR)/getblob
 	$(INSTALL) -m 755 $(SRCDIR)/fixarpinfo $(BINDIR)/fixarpinfo
 	(cd config; $(MAKE) DESTDIR=$(DESTDIR) subboss-script-install)
