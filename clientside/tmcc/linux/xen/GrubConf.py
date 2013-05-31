@@ -1,7 +1,7 @@
 #
 # GrubConf.py - Simple grub.conf parsing
 #
-# Copyright 2009 Citrix Systems Inc.
+# Copyright 2009, 2013 Citrix Systems Inc.
 # Copyright 2005-2006 Red Hat, Inc.
 # Jeremy Katz <katzj@redhat.com>
 #
@@ -67,7 +67,14 @@ class GrubDiskPart(object):
         return self._disk
     def set_disk(self, val):
         val = val.replace("(", "").replace(")", "")
-        self._disk = int(val[2:])
+        if val.startswith("/dev/"):
+            val = val[5:]
+            pass
+        val = val[2:]
+        if not str.isdigit(val):
+            val = ord(val) - ord('a');
+            pass
+        self._disk = int(val)
     disk = property(get_disk, set_disk)
 
     def get_part(self):
@@ -167,6 +174,7 @@ class _GrubConfigFile(object):
         self.images = []
         self.timeout = -1
         self._default = 0
+        self._submenu = ""
         self.passwordAccess = True
         self.passExc = None
 
@@ -227,8 +235,12 @@ class _GrubConfigFile(object):
         if val == "saved":
             self._default = 0
         else:
-            self._default = int(val)
-
+            try:
+                self._default = int(val)
+            except:
+                self._default = 0
+                self._submenu = val
+                pass
         if self._default < 0:
             raise ValueError, "default must be positive number"
     default = property(_get_default, _set_default)
@@ -370,7 +382,9 @@ class Grub2ConfigFile(_GrubConfigFile):
         in_function = False
         img = None
         title = ""
+        subtitle = ""
         menu_level=0
+        submenu_default=0
         for l in lines:
             l = l.strip()
             # skip blank lines
@@ -400,12 +414,23 @@ class Grub2ConfigFile(_GrubConfigFile):
 
             if l.startswith("submenu"):
                 menu_level += 1
+                submenu_default = len(self.images)
+                submenu_match = re.match('^submenu ["\'](.*)["\'] \s*{', l)
+                if submenu_match:
+                    subtitle = submenu_match.group(1)
+                    pass
                 continue
 
             if l.startswith("}"):
                 if img is None:
                     if menu_level > 0:
                         menu_level -= 1
+                        print "foo"
+                        print subtitle
+                        print self._submenu
+                        if subtitle == self._submenu:
+                            self._set_default(submenu_default)
+                            pass
                         continue
                     else:
                         raise RuntimeError, "syntax error: closing brace without menuentry"

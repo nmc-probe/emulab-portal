@@ -17,6 +17,9 @@ import os, sys, string, struct, tempfile, re, traceback
 import copy
 import logging
 import platform
+
+sys.path.append('/usr/lib/xen-default/lib/python')
+
 import xen.lowlevel.xc
 
 import curses, _curses, curses.wrapper, curses.textpad, curses.ascii
@@ -624,6 +627,7 @@ def run_grub(file, entry, fs, cfg_args):
         img = g.cf.images[sel]
     except IndexError:
         img = g.cf.images[0]
+    print str(img)
 
     grubcfg = { "kernel": None, "ramdisk": None, "args": "" }
 
@@ -726,21 +730,27 @@ if __name__ == "__main__":
         except Exception, e:
             print >>sys.stderr, e
             sys.exit("Error opening %s in guest" % file_to_read)
-        (tfd, ret) = tempfile.mkstemp(prefix="boot_"+file_type+".",
-                                      dir=output_directory)
+            pass
+        filename = output_directory + "/" + file_type
+        try:
+            tfd = open(filename, "wb")
+        except Exception, e:
+            print >>sys.stderr, e
+            sys.exit("Error opening %s for writing" % filename)
+            pass
         dataoff = 0
         while True:
             data = datafile.read(FS_READ_MAX, dataoff)
             if len(data) == 0:
-                os.close(tfd)
+                tfd.close()
                 del datafile
-                return ret
+                return filename
             try:
-                os.write(tfd, data)
+                tfd.write(data)
             except Exception, e:
                 print >>sys.stderr, e
-                os.close(tfd)
-                os.unlink(ret)
+                tfd.close()
+                os.unlink(filename)
                 del datafile
                 sys.exit("Error writing temporary copy of "+file_type)
             dataoff += len(data)
@@ -841,6 +851,10 @@ if __name__ == "__main__":
 
     # get list of offsets into file which start partitions
     part_offs = get_partition_offsets(file)
+    print str(part_offs);
+    if len(part_offs) == 0:
+        part_offs = [0]
+        pass
 
     for offset in part_offs:
         try:
