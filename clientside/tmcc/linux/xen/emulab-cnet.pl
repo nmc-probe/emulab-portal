@@ -56,6 +56,7 @@ use libsetup;
 use libtmcc;
 use libutil;
 use libtestbed;
+use libgenvnode;
 
 #
 # Configure.
@@ -103,6 +104,8 @@ chomp($cnet_ip);
 chomp($cnet_mask);
 chomp($cnet_gw);
 my $network   = inet_ntoa(inet_aton($cnet_ip) & inet_aton($cnet_mask));
+
+my ($jail_network,$jail_netmask) = findVirtControlNet();
 
 # Each container gets a tmcc proxy running on another port.
 my $local_tmcd_port = $TMCD_PORT + $vmid;
@@ -208,6 +211,14 @@ sub Online()
 	if ($?);
 
     # 
+    # Ditto for the jail network.
+    # 
+    mysystem2("$IPTABLES -t nat -A POSTROUTING -j ACCEPT " . 
+	      " -s $vnode_ip -d $jail_network/$jail_netmask");
+    return -1
+	if ($?);
+
+    # 
     # Otherwise, setup NAT so that traffic leaving the vnode on its 
     # control net IP, that has been routed out the phys host's
     # control net iface, is NAT'd to the phys host's control
@@ -253,6 +264,9 @@ sub Offline()
 	       "  --to-source $host_ip -s $vnode_ip --destination $fs_ip ".
 	       "  -o $bridge");
     }
+
+    mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
+	      " -s $vnode_ip -d $jail_network/$jail_netmask");
 
     mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
 	      " -s $vnode_ip -d $network/$cnet_mask");
