@@ -738,6 +738,14 @@ class Image
                 <td class=left>$mbr_version</td>
               </tr>\n";
 
+	# Until I change the schema.
+	if ($mbr_version == 99) {
+	    echo "<tr>
+                    <td>XEN Package: </td>
+                    <td class=left>Yes</td>
+                  </tr>\n";
+	}
+
 	if ($hash) {
 	    echo "<tr>
                     <td>SHA1 Hash: </td>

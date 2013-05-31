@@ -501,6 +501,12 @@ if ($isec2node) {
     $command = "$EC2SNAP ";
 }
 elsif ($isvirtnode) {
+    #
+    # XXX Need to add XEN package flag to descriptor.
+    #
+    if ($image->mbr_version() == 99) {
+	$command .= " -p";
+    }
     $command .= " $node_id";
 }
 else {

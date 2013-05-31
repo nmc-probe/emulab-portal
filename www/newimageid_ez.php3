@@ -769,6 +769,22 @@ function SPITFORM($formfields, $errors)
 			 value=\"" . $formfields["def_parentosid"] . "\">
   	          <td class=left><a href='$url'>$osname</a></td>
 	  </tr>\n";
+
+	echo "<tr>
+		  <td>Package:</td>
+		  <td class=left>
+		      <input type=checkbox
+			     name=\"formfields[package]\"
+			     value=Yep";
+
+	if (isset($formfields["package"]) &&
+	    strcmp($formfields["package"], "Yep") == 0)
+	    echo "           checked";
+	    
+	echo "         > Yes (XEN only, and only if you know what this means!)
+		  </td>
+	      </tr>\n";
+	
     }
 
     echo "<tr>
@@ -935,9 +951,6 @@ if (!isset($submit)) {
         # mtype_all is a "fake" variable which makes all
 	# mtypes checked in the virgin form.
 	$defaults["mtype_all"] = "Yep";
-
-	# Bogus. This tells the client that the ndz file is a package.
-	$defaults["mbr_version"] = "99";
     }
     elseif (isset($nodetype) && $nodetype == "mote") {
 	# Defaults for mote-type nodes
@@ -979,6 +992,7 @@ if (!isset($submit)) {
 	$defaults["reboot_waittime"]     = "240";
 	$defaults["os_feature_ping"]	 = "checked";
 	$defaults["os_feature_ssh"]	 = "checked";
+	$defaults["package"]             = "No";
 
 	if ($ec2) {
 	    #
@@ -986,6 +1000,8 @@ if (!isset($submit)) {
 	    # 
 	    $def_parentosinfo =
 		OSinfo::LookupByName("emulab-ops", "XEN41-64-STD");
+
+	    $defaults["package"] = "Yep";
 	}
 	else {
 	    #
@@ -1228,7 +1244,12 @@ if (isset($formfields["max_concurrent"]) &&
     $args["max_concurrent"] = $formfields["max_concurrent"];
 }
 
-if (isset($formfields["mbr_version"]) &&
+if ($ec2 ||
+    (isset($formfields["package"]) && $formfields["package"] == "Yep")) {
+    # Bogus. This tells the client that the ndz file is a package.
+    $args["mbr_version"] = "99";
+}
+elseif (isset($formfields["mbr_version"]) &&
     $formfields["mbr_version"] != "") {
     $args["mbr_version"] = $formfields["mbr_version"];
 }
