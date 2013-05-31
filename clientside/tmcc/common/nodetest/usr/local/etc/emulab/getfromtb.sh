@@ -26,6 +26,7 @@ getfromtb() {
 	diskspeedinfo )
 	    case ${d[1]} in
 		boss.emulab.net) echo "100mib 400mib";;
+		* ) echo "100 100";;
 		* ) echo "tb ${d[1]} unknown_node" ;;
 	    esac
 	    ;;
@@ -58,7 +59,10 @@ getfromtb() {
 		ibapah ) echo "160GB 500GB 500GB" ;;
 #	    boss.emulab.net ) echo "" ;;
 		pc406 ) echo "WD-WMAYP3198698 9SF16YDY" ;;
-		pc446 ) echo "WD-WMAYP3465928 9SF16G29" ;;
+		pc446 ) echo "DISKINFO 2"
+		    echo "DISKUNIT SN="WD-WMAYP3465928" TYPE="SATA" SECSIZE=512 SECTORS=976773168 WSPEED=LinuxNot RSPEED=LinuxNot"
+		    echo "DISKUNIT SN="9SF16G29" TYPE="SATA" SECSIZE=512 SECTORS=488281250 WSPEED="UNKNOWN" RSPEED="UNKNOWN"" 
+		    ;;
 		pc511 ) echo "WD-WMAYP4342739 9SF1703S" ;;
 		pc603 | pc607 ) echo "250GB 600GB 600GB 600GB 600GB 600GB 600GB" ;;
 		pc606 ) echo "EA03PC309EVC 9XE02KSQ  EA03PC309EPB EA03PC309E9S EA03PC20973J EA03PC20973B EA03PC309E5U" ;;
@@ -100,3 +104,5 @@ getfromtb() {
     return 0
     
 }
+
+# getfromtb $@ 
