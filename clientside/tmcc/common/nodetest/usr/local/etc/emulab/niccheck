@@ -3,28 +3,13 @@
 echo -n ' Starting niccheck.. '
 
 source checkutils.sh
-source getfromtb.sh
 
-os=`uname`
-host=`hostname`
-failed=""
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
-fi
-
-
-initlogs
-## # setup logging
-## if [ $1 ] ; then
-##     logfile=$1
-## else
-##    logfile="/tmp/nodecheck.log"
-## fi
-##tmplog=/tmp/.$$.log
-##cat /dev/null > ${tmplog}
-
+inithostname
+initlogs $@
 tmplog2=/tmp/.2tmp
 touch ${tmplog2}
+add_on_exit "rm -f $tmplog2"
+
 
 finished() {
 cat ${tmplog2}
@@ -61,9 +46,11 @@ for ((idx=0; idx<${#d[*]};idx++)) ; do
     [[ "${d[idx]}" == "${delimiter}" ]] || continue
     ((++idx))
     y=${d[idx]}
+    y=${y,,} #lowercase
     ifinfo[$cnt]=${y//:/}
     ((++cnt))
 done
+
 echo "${ifinfo[@]}"
 
 } >> ${tmplog} 2>&1
@@ -73,6 +60,8 @@ ifcnt=${#ifinfo[*]}
 if [ -f ${logfile4tb} ] ; then
     printf "NETINFO UNITS=%s\n"  ${ifcnt} >> ${logfile4tb}
     for ((ifi=0; ifi<$ifcnt; ifi++)) ; do
+	macl="${ifinfo[$ifi]}"
+	macl=${macl,,}
 	printf "NETUNIT TYPE=\""ETH\"" ID=\""%s\""\n" ${ifinfo[$ifi]} >> ${logfile4tb}
     done
     finished
