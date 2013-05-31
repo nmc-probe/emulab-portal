@@ -1,0 +1,96 @@
+#!/bin/bash
+
+echo -n ' Starting timecheck.. '
+
+ntpserver="ntp1"
+maxdrift="0.001"
+
+#ntpserver="time.xmission.com"
+
+os=`uname`
+host=`hostname`
+failed=""
+if [ -e "/var/emulab/boot/realname" ]; then
+    host=`cat /var/emulab/boot/realname`
+fi
+
+
+# setup logging
+if [ $1 ] ; then
+    logfile=$1
+else
+    logfile="/tmp/nodecheck.log"
+fi
+tmplog=/tmp/.$$.log
+cat /dev/null > ${tmplog}
+
+# check that external need program are installed
+s=""
+case $os in
+    Linux | FreeBSD )
+	progs="tr bc ntpserver"
+	;;
+    * )
+	failed="Unknown OS :$os: FAILED"
+	echo "$failed" >> ${logfile}
+	echo "$failed"
+	exit 1
+	;;
+esac
+for i in $progs ; do
+    type $i &>/dev/null && continue  || s="$s $i "
+done
+if [ -n "$s" ] ; then
+    failed=" Unable to run need missing command(s) $s FAILED"
+    echo "$failed" >> ${logfile}
+    echo "$failed"
+    exit 1
+fi
+
+#exit on unbound var
+set -u
+
+{
+set -x
+unset -v d ; declare -a d=()
+case $os in
+    Linux | FreeBSD )
+	d=($(ntpdate -q $ntpserver))
+	(( $? )) && failed="No Response from ntpserver:$ntpserver"
+
+	for ((idx=0; idx<${#d[*]}; idx++)) ; do
+	    [[ "${d[$idx]}" == "offset" ]] && break
+	done
+	((++idx))
+	z=${d[$idx]}
+	offset=$(echo ${z} | tr -d ,) # remove comma
+	[[ $offset < 0 ]] && a=$(echo "-($offset)" | bc) || a=$(echo "($offset)") # make $a abs()
+	[[ $a > $maxdrift ]] && failed="maxdrift"
+	if  [ -z "${failed}" ]; then
+	    echo "Time check passed offset $offset allowed $maxdrift"
+	elif [ "${failed}" == "maxdrift" ] ; then
+	    echo "Time check failed offset $offset greater then $maxdrift second "
+	else
+	    echo "${failed}"
+	fi
+	;;
+    * )
+	echo "os $os unknown"
+	offset="-1"
+	failed="os $os unknown"
+	;;
+esac
+} >> ${tmplog} 2>&1
+
+echo "timecheck `date`" >> ${logfile}
+cat ${tmplog} >> ${logfile} 
+
+if [ -z "${failed}" ] ; then 
+    echo "offset $offset < $maxdrift OK" 
+elif [ "${failed}" == "maxdrift" ] ; then
+    echo "offset $offset > $maxdrift FAILED"
+else
+    echo "${failed} FAILED"
+fi
+
+exit 0

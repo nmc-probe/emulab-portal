@@ -1,0 +1,128 @@
+#!/bin/bash
+
+echo -n ' Starting niccheck.. '
+
+source checkutils.sh
+
+inithostname
+initlogs $@
+tmplog2=/tmp/.2tmp
+touch ${tmplog2}
+add_on_exit "rm -f $tmplog2"
+
+
+finished() {
+cat ${tmplog2}
+echo "niccheck `date`" >> ${logfile}
+cat ${tmplog} >> ${logfile} 
+cat ${tmplog2} >> ${logfile} 
+rm -f ${tmplog2}
+
+# XXXX XXXX XXX [[ -z ${failed} ]] && exit 1 || exit 0
+exit 0
+
+}
+
+# set +x
+#exit on unbound var
+set -u
+
+{
+unset -v ifinfo ; declare -a ifinfo=()
+case $os in
+    Linux )
+	delimiter="HWaddr" ;;
+    FreeBSD )
+	delimiter="ether" ;;
+    * )
+	failed="os $os unknown"
+	finished
+	;;
+esac
+
+unset -v d ; declare -a d=($(ifconfig -a | grep $delimiter))
+declare -i cnt=0;
+for ((idx=0; idx<${#d[*]};idx++)) ; do
+    [[ "${d[idx]}" == "${delimiter}" ]] || continue
+    ((++idx))
+    y=${d[idx]}
+    y=${y,,} #lowercase
+    ifinfo[$cnt]=${y//:/}
+    ((++cnt))
+done
+
+echo "${ifinfo[@]}"
+
+} >> ${tmplog} 2>&1
+
+ifcnt=${#ifinfo[*]}
+# if saving data for testbed database
+if [ -f ${logfile4tb} ] ; then
+    printf "NETINFO UNITS=%s\n"  ${ifcnt} >> ${logfile4tb}
+    for ((ifi=0; ifi<$ifcnt; ifi++)) ; do
+	macl="${ifinfo[$ifi]}"
+	macl=${macl,,}
+	printf "NETUNIT TYPE=\""ETH\"" ID=\""%s\""\n" ${ifinfo[$ifi]} >> ${logfile4tb}
+    done
+    finished
+fi
+
+tbreturn=$(getfromtb macinfo $host)
+if [ -z "$tbreturn" ] ; then 
+    failed="TBmiss no info"
+    $(echo "TBmiss empty info returned. Have ${ifinfo[@]} FAILED" >> ${tmplog2})
+    finished
+fi
+
+#lowercase
+tbreturn=${tbreturn,,}
+
+#turn space seperated string into array
+unset -v tbinfo; declare -a tbinfo=(${tbreturn// / })
+
+tbcnt=${#tbinfo[*]}
+numnics=$ifcnt
+maxcnt=${ifcnt}
+
+
+if [[ ${ifcnt} -ne ${tbcnt} ]] ; then
+    failed="TBmiss"
+    [[ ${ifcnt} -gt ${tbcnt} ]] && maxcnt=${ifcnt} || maxcnt=${tbcnt}
+fi
+
+for ((idx=0; idx<$maxcnt; idx++)) ; do
+    for ((ifi=0; ifi<$ifcnt; ifi++)) ; do
+	for ((tbi=0; tbi<$tbcnt; tbi++)) ; do
+	    if [ "${ifinfo[$ifi]}" = "${tbinfo[$tbi]}" ] ; then
+		ifinfo[$ifi]=''
+		tbinfo[$tbi]=''
+	    fi
+	done
+    done
+done
+ifresult=${ifinfo[@]}
+tbresult=${tbinfo[@]}
+
+#	    failed="$failed TB missing nic "
+#	    failed="$failed TB extra nic "
+
+if [[ "$ifresult" || "$tbresult" ]] ; then
+    if [[ $ifresult ]] ; then
+	failed="${failed}: NotIn TB $ifresult"
+    fi
+    if [[ $tbresult ]] ; then
+	failed="${failed}: TB Claims $tbresult"
+    fi
+fi
+
+
+{
+    [[ -z ${failed} ]] && echo "$numnics interfaces OK" || echo "$numnics interfaces $failed" FAILED
+
+} >> ${tmplog2} 2>&1
+
+
+finished
+
+
+exit 0
