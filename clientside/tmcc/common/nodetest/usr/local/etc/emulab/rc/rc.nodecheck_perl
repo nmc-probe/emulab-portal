@@ -50,7 +50,7 @@ chomp($host);
 
 if ( -r '/etc/emulab/ismfs' ) {
     if ( ! -r '/proj/emulab-ops/nodecheck' ) {
-	system("mount fs.emulab.net:/q/proj/emulab-ops /proj/emulab-ops");
+	system("mount -o bg,soft,intr fs.emulab.net:/q/proj/emulab-ops /proj/emulab-ops");
     }
     my $os = `uname -s`;
     chomp($os);

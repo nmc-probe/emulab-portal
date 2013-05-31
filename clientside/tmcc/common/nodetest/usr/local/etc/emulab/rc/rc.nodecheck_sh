@@ -28,7 +28,7 @@ checks="disk cpu mem nic gather"
 
 if [ -f '/etc/emulab/ismfs' ] ; then
     if [ ! -d '/proj/emulab-ops/nodecheck' ] ; then
-	$("mount fs.emulab.net:/q/proj/emulab-ops /proj/emulab-ops")
+	$("mount -o soft,intr,bg fs.emulab.net:/q/proj/emulab-ops /proj/emulab-ops")
     fi
     os=`uname -s`
     if [ "$os" = "Linux" ] ; then
