@@ -1432,6 +1432,10 @@ sub LoadVirtNodes($)
 	    }
 	    $self->experiment()->SetVirtNodeAttribute($vname, "VM_MEMSIZE",
 					      $vnode->_desires()->{"?+ram"});
+
+	    # We will deal with later, but set a default=1 for now.
+	    $self->experiment()->SetVirtNodeAttribute($vname, "VM_VCPUS", 1)
+		if (!$self->user()->IsAdmin());
 	}
 
 	#
