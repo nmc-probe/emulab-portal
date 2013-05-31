@@ -97,37 +97,43 @@ my $workdir = $WORK_BASE . $project . "/" . $user . "/" . $osid . "-tmp";
 
 # Check if we can connect to the machine using publickey only
 if(system("ssh -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no" .
+        " -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" .
         " -o ChallengeResponseAuthentication=no $remote 'exit'")){
     print STDERR "*** Couldn't connect to $remote\n";
     print STDERR "    Ensure that Emulabs public key is in the authorized_hosts\n";
-    print STDERR "    command: ssh -o PasswordAuthentication=no ".
-        " -o KbdInteractiveAuthentication=no" ,
+    print STDERR "    command: ssh -o PasswordAuthentication=no" .
+        " -o KbdInteractiveAuthentication=no" .
+        " -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" .
         " -o ChallengeResponseAuthentication=no $remote 'exit'";
     $error = 1;
     goto cleanup;
 }
 
-if(system("echo \"mkdir -p ~/.emulab\" | ssh $remote bash")){
+if(system("echo \"mkdir -p ~/.emulab\" | ssh -o UserKnownHostsFile=/dev/null ".
+        "-o StrictHostKeyChecking=no $remote bash")){
     print STDERR "*** Couldn't mkdir ~/.emulab";
     $error = 1;
     goto cleanup;
 }
 
 # Remotely execute the export script
-if(system("scp $TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb")){
+if(system("scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
+        "$TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb")){
     print STDERR "*** Couldn't scp exporter script into $remote\n";
     $error = 1;
     goto cleanup;
 }
 
 # Check if Ruby exists
-if(system("ssh $remote 'which ruby'")){
+if(system("ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
+        "$remote 'which ruby'")){
     print STDERR "*** Could not find ruby on remote machine!";
     $error = 1;
     goto cleanup;
 }
 
-if(system("ssh $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
+if(system("ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
+        "-t -t $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
     print STDERR "*** Remote image creation failed\n";
     $error = 1;
     goto cleanup;
@@ -135,7 +141,8 @@ if(system("ssh $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
 
 # SCP back the generated image file
 # TODO Saner name for tar and .emulab?
-if(system("scp $remote:~/.emulab/emulab.tar.gz $infile")){
+if(system("scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
+        "$remote:~/.emulab/emulab.tar.gz $infile")){
     print STDERR "*** Couldn't scp image back into ops\n";
     $error = 1;
     goto cleanup;
@@ -165,7 +172,6 @@ if (system("tar -xvzf $infile -C $workdir")){
 my $filesize = ceil((-s "$workdir/emulab-image")/(1024*1024*1024));
 $filesize = $filesize + 4;
 
-# TODO: Proper xvda1 size based on image size?
 # TODO: Maybe handle bootopts
 # Create the "special" xm.conf
 my $heredoc = <<XMCONF;
@@ -207,6 +213,7 @@ cleanup:
 # Clean up the directory.
 print STDOUT "Performing cleanup...\n";
 system("$sudo /bin/rm -rf $workdir 2>/dev/null");
-system("echo 'rm -Rf ~/.emulab' | ssh $remote bash");
+system("echo 'rm -Rf ~/.emulab' | ssh -o UserKnownHostsFile=/dev/null ".
+            "-o StrictHostKeyChecking=no $remote bash");
 
 exit($error);
