@@ -39,7 +39,7 @@ class EmulabExport
         empsize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$4);print $4}'`)
         puts "Disk on / has " + fssize.to_s + "M of data and " +
             empsize.to_s + "M free space"
-        raise "Not enough disk space to create image" if empsize < fssize * 2.5
+        raise "Not enough disk space to create image" if empsize < fssize * 1.7
         
         image = EC2::Platform::Current::Image.new("/",
                         "/tmp/emulab-image",
