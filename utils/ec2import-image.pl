@@ -172,7 +172,16 @@ if (system("tar -xvzf $infile -C $workdir")){
 my $filesize = ceil((-s "$workdir/emulab-image")/(1024*1024*1024));
 $filesize = $filesize + 4;
 
-# TODO: Maybe handle bootopts
+my $console = 'hvc0';
+if (-e "$workdir/bootopts") {
+    if(open(my $bo, "<", "/mnt/$imagename/bootopts")) {
+        my $bootopts = join('', <$bo>);
+        if ($bootopts =~ /xvc0/){
+            $extra =~ s/hvc0/xvc0/g;
+        }
+    }
+}
+    
 # Create the "special" xm.conf
 my $heredoc = <<XMCONF;
 disksizes = 'xvda2:2.00g,xvda1:$filesize.00g'
@@ -182,7 +191,7 @@ kernel = 'kernel'
 ramdisk = 'initrd'
 vif = ['mac=02:bf:bb:b9:ae:9c, ip=172.19.140.1, bridge=xenbr0']
 name = 'pcvm666-1'
-extra = 'root=/dev/xvda1 boot_verbose=1 vfs.root.mountfrom=ufs:/dev/da0a kern.bootfile=/boot/kernel/kernel console=xvc0 selinux=0'
+extra = 'root=/dev/xvda1 boot_verbose=1 xencons=tty console=$console selinux=0'
 XMCONF
 
 open(FH, '>', "$workdir/xm.conf") or goto cleanup;
