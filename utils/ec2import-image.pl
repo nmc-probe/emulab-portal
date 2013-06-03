@@ -126,11 +126,12 @@ if(system("scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
 
 # Check if Ruby exists
 if(system("ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
-        "$remote 'which ruby'")){
-    print STDERR "*** Could not find ruby on remote machine!";
+        "$remote 'which ruby unzip'")){
+    print STDERR "*** Could not find either ruby or unzip on remote machine!";
     $error = 1;
     goto cleanup;
 }
+
 
 if(system("ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
         "-t -t $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
