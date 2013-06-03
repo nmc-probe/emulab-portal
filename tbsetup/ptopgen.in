@@ -112,6 +112,7 @@ $opstate = <<'OPSTATE';
   start="geni_notready">
   <sliver_type name="raw-pc" />
   <sliver_type name="emulab-openvz" />
+  <sliver_type name="emulab-xen" />
 
   <state name="geni_notready">
     <action name="geni_start" next="geni_configuring">
@@ -898,7 +899,7 @@ $result =
 		 "  ru.load_1min, ru.load_5min, ru.status_timestamp, ".
 		 "  a.def_boot_osid, nat2.attrvalue, wn.country, " .
                  "  wn.latitude, wn.longitude, t.isremotenode, b.erole, ".
-		 "  nat3.attrvalue ".
+		 "  nat3.attrvalue, so.osfeatures ".
 		 "from nodes as a ".
 		 "left join reserved as b on a.node_id=b.node_id ".
 		 "left join reserved as m on a.phys_nodeid=m.node_id ".
@@ -921,6 +922,7 @@ $result =
 		 "   group by type) as dedicated_wa_types ".
 		 "  on t.type=dedicated_wa_types.type ".
                  "left join widearea_nodeinfo as wn on a.node_id=wn.node_id ".
+		 "left join os_info as so on a.def_boot_osid=so.osid ".
 		 "where $free_condition and ".
 		 "   (a.role='testnode' and (t.isremotenode=0 or ".
 		 "                           dedicated_wa_types.attrvalue=1))");
@@ -937,7 +939,7 @@ while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 	$prereserved,$eventstate,$battery_perc,$uuid,$sharing_mode,
 	$load_1min,$load_5min,$load_tstamp,$osid,$weight,$country,$latitude,
         $longitude,$isremote,$erole,
-	$allowed_projects) = $result->fetchrow_array) {
+	$allowed_projects,$osfeatures) = $result->fetchrow_array) {
     my $current = $top->CreateNode($node);
     $current->SetSubnode($physnode, $issubnode);
     $current->SetRemote($isremote);
@@ -967,7 +969,8 @@ while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 				 "load_5min"   => $load_5min,
 				 "load_tstamp" => $load_tstamp,
 				 "osid"        => $osid,
-				 "weight"      => $weight};
+				 "osfeatures"  => $osfeatures,
+				 "weight"      => $weight };
     } else {
 	$sharing_mode{$node} = 0;
     }
@@ -1036,6 +1039,7 @@ foreach $node (@nodenames) {
     my $uuid = $nodetouuid{$node};
     
     my @types = ("$type:1");
+    my @sliver_types = ();
     my @features = ();
     my @flags;
     my $needvirtgoo = 0;
@@ -1151,6 +1155,24 @@ foreach $node (@nodenames) {
 		#push(@features, "shareweight:$weight");
 	    }
 	}
+	my $osfeatures = $sharing_mode{$node}->{'osfeatures'};
+	if (defined($osfeatures)) {
+	    my @features = split(',', $osfeatures);
+	    my $i = 0;
+	    for (; $i < scalar(@features); ++$i) {
+		if ($features[$i] eq 'openvz-host') {
+		    print STDERR "emulab-openvz: " . $node . "\n";
+		    push(@sliver_types, "emulab-openvz");
+		} elsif ($features[$i] eq 'xen-host') {
+		    print STDERR "emulab-xen: " . $node . "\n";
+		    push(@sliver_types, "emulab-xen");
+		}
+	    }
+	}
+    } else {
+	push(@sliver_types, "raw-pc");
+	push(@sliver_types, "emulab-openvz");
+	push(@sliver_types, "emulab-xen");	
     }
 
     #
@@ -1376,7 +1398,7 @@ foreach $node (@nodenames) {
     my @parse_features = split(" ", join(" ", @features));
     print_node($node, \@types, \@parse_features, \@flags, $uuid,
 	       $nodetointerface{$node}, $country, $latitude, $longitude,
-	       $type);
+	       $type, \@sliver_types);
 }
 
 #
@@ -1411,7 +1433,7 @@ if ($useblockstore) {
 	    print_node("$nodeId:$bsId", ["blockstore:$slots"], \@features,
 		       ["subnode_of:$nodeId"], "", $nodetointerface{$nodeId},
 		       $node_countries{$nodeId}, $node_latitudes{$nodeId},
-		       $node_longitudes{$nodeId}, "blockstore");
+		       $node_longitudes{$nodeId}, "blockstore", []);
 	}
     }
 }
@@ -1426,7 +1448,7 @@ if (($widearea && ! defined($component_name)) || $genimode ne $NO_GENI) {
     #
     my @types = map("*$_:*", @inet_protos);
     print_node($fake_inet_switch, \@types, [], [], undef, [], undef, undef,
-        undef, undef);
+        undef, undef, []);
 }
 
 #
@@ -1575,7 +1597,7 @@ if ($widearea && ! defined($component_name)) {
 
 	print_node($physnode, \@types, \@features, \@flags, $uuid,
 		   $nodetointerface{$physnode},$country,$latitude,$longitude,
-		   undef);
+		   undef, []);
 
         #
         # Print out a link to the 'internet'.
@@ -1973,7 +1995,7 @@ if (! defined($component_name)) {
       }
       if (! $air_printed) {
 	  print_node($fake_air_switch, \@fake_switch_types, [], [], undef,
-		     [], undef, undef, undef, undef);
+		     [], undef, undef, undef, undef, []);
 	  $air_printed = 1;
       }
       print_simple_link($node, $iface,
@@ -2206,7 +2228,7 @@ sub print_switch
     # real switch. See corresponding change in libvtop. 
     my $features = ["real-switch:0"];
     print_node($name, $types, $features, [], $uuid, $interfaces,
-        $country, $latitude, $longitude, undef);
+        $country, $latitude, $longitude, undef, []);
 }
 
 sub print_node
@@ -2221,6 +2243,7 @@ sub print_node
     my $lat = shift(@_);
     my $long = shift(@_);
     my $mainType = shift(@_);
+    my $sliverTypes = shift(@_);
     if (! defined($lat) || ! defined($long)) {
 	$lat = $default_lat;
 	$long = $default_long;
@@ -2267,7 +2290,7 @@ sub print_node
 	if (defined($mainType) && $genimode eq $V_0_2) {
 	    print_raw_osids($mainType);
 	}
-	print_node_types($mainType, @$types);
+	print_node_types($mainType, $types, $sliverTypes);
 	my $avail = "false";
 	if ($nodetoavailable{$name}
 	    || $name eq $fake_inet_switch
@@ -2308,7 +2331,7 @@ sub print_node
 	# ptop format
 	print "<node name=\"$name\"";
 	print ">\n";
-	print_node_types($mainType, @$types);
+	print_node_types($mainType, $types);
 	print_node_flags(@$flags);
 	print_node_features(@$features);
 	print "</node>\n";
@@ -2404,9 +2427,11 @@ sub print_type_limits
 sub print_node_types
 {
     my $mainType = shift(@_);
+    my @types = @{ shift(@_) };
+    my @sliverTypes = @{ shift(@_) };
     my $i = 0;
-    for (; $i < scalar(@_); ++$i) {
-	my ($name, $count) = split(/:/, $_[$i], 2);
+    for (; $i < scalar(@types); ++$i) {
+	my ($name, $count) = split(/:/, $types[$i], 2);
 	my $is_static = 0;
 	if ($name =~ /^\*/) {
 	    $name = substr($name, 1);
@@ -2425,20 +2450,20 @@ sub print_node_types
 	    }
 	    print "  />\n";
 	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	    if ($name eq "pc" || $name eq "pcRemote") {
-		print "  <sliver_type name=\"raw-pc\">\n";
-		if (defined($mainType)) {
-		    print_raw_osids($mainType);
-		}
-		print "  </sliver_type>\n";
-	    }
-	    if ($name eq "pcvm") {
-		print "  <sliver_type name=\"emulab-openvz\">\n";
-		if (defined($openvzid)) {
-		    print_osids($osid_subosids{$openvzid}, undef);
-		}
-		print "  </sliver_type>\n";
-	    }
+#	    if ($name eq "pc" || $name eq "pcRemote") {
+#		print "  <sliver_type name=\"raw-pc\">\n";
+#		if (defined($mainType)) {
+#		    print_raw_osids($mainType);
+#		}
+#		print "  </sliver_type>\n";
+#	    }
+#	    if ($name eq "pcvm") {
+#		print "  <sliver_type name=\"emulab-openvz\">\n";
+#		if (defined($openvzid)) {
+#		    print_osids($osid_subosids{$openvzid}, undef);
+#		}
+#		print "  </sliver_type>\n";
+#	    }
 	    print "  <hardware_type name=\"$name\">\n";
 	    if ($count eq "*") {
 		print "    <emulab:node_type type_slots=\"unlimited\" ";
@@ -2450,6 +2475,24 @@ sub print_node_types
 	    }
 	    print "/>\n";
 	    print "  </hardware_type>\n";
+	}
+    }
+    if ($genimode eq $V_2 || $genimode eq $V_3) {
+	for ($i = 0; $i < scalar(@sliverTypes); ++$i) {
+	    print "  <sliver_type name=\"" . $sliverTypes[$i] . "\">\n";
+
+	    if ($sliverTypes[$i] eq "raw-pc") {
+		if (defined($mainType)) {
+		    print_raw_osids($mainType);
+		}
+	    } elsif ($sliverTypes[$i] eq "emulab-openvz") {
+		if (defined($openvzid)) {
+		    print_osids($osid_subosids{$openvzid}, undef);
+		}
+	    } elsif ($sliverTypes[$i] eq "emulab-openvz") {
+		print_raw_osids("pcvm");
+	    }
+	    print "  </sliver_type>\n";
 	}
     }
 }
