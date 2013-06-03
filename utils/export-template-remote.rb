@@ -68,6 +68,8 @@ class EmulabExport
         pinitrd << "/boot/initramfs-" + version + ".img"
         pinitrd << "/boot/initrd-" + version
         pinitrd << "/boot/initrd-" + version + ".img"
+        pinitrd << "/boot/initrd.img-" + version
+        # TODO Screw this. A few more and I might as well parse the menu.lst
 
         kernelfound = false
         pkernels.each do |kernel|
