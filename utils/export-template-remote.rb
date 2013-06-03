@@ -15,6 +15,7 @@ class EmulabExport
     def finalize()
         system("rm -Rf ec2-ami-tools-1.4.0.9 > /dev/null 2>&1")
         system("rm ec2-ami-tools.zip > /dev/null 2>&1")
+        system("rm /tmp/emulab-image > /dev/null 2>&1")
     end
 
     def create_image()
