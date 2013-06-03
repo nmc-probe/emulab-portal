@@ -1,0 +1,94 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2004, 2006 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use English;
+use Getopt::Std;
+
+# Turn off line buffering on output
+$| = 1;
+
+# Drag in path stuff so we can find emulab stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+
+#LINUX
+
+#@checkscripts = ("disk", "cpu", "mem", "time", "nic", "diskspeed");
+
+# do not run timecheck for MFS hw gather mode
+@checkscripts = ("disk", "cpu", "mem", "time", "nic");
+
+$host = `/usr/local/etc/emulab/tmcc.bin nodeid`;
+
+#$host = `hostname`;
+#if ( -r '/var/emulab/boot/realname' ) {
+#    $host = `cat /var/emulab/boot/realname`;
+#} elsif ( -f '/var/emulab/boot/nodeid' ) {
+#    $host = `cat /var/emulab/boot/nodeid`;
+#}
+
+chomp($host);
+
+if ( -r '/etc/emulab/ismfs' ) {
+    if ( ! -r '/proj/emulab-ops/nodecheck' ) {
+	system("mount -o bg,soft,intr fs.emulab.net:/q/proj/emulab-ops /proj/emulab-ops");
+    }
+    my $os = `uname -s`;
+    chomp($os);
+    if ($os eq "Linux") {
+	$ENV{'PATH'} = "/usr/local/bin:/proj/emulab-ops/nodecheck/Linux/bin:$ENV{'PATH'}";
+    }
+    if ($os eq "FreeBSD") {
+	$ENV{'PATH'} = "/usr/local/bin:/proj/emulab-ops/nodecheck/FreeBSD/bin:$ENV{'PATH'}";
+    }
+    system("echo 'Running Hardware Inventory Gather'");
+    system("bash /usr/local/etc/emulab/gatherinv");
+    system("echo 'Done Running Hardware Inventory'");
+    exit (0);
+}    
+	
+system("echo 'Running nodechecks'");
+
+
+if (!$ARGV[0]) {
+    $action = "noboot";
+} else
+{
+    $action = "boot"
+}
+
+# truncate file at boot time
+if ($action eq "boot") {
+    system("echo '-- Start boot_time_node_check --' > /var/emulab/logs/nodecheck.log");
+}
+
+foreach my $i (@checkscripts) {
+    system("bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log");
+}
+
+if ($action eq "boot") {
+    system("echo '-- Finish boot_time_node_check --' >> /var/emulab/logs/nodecheck.log");
+}
+
+system("echo 'Done with nodechecks'");
+
+exit(0);
