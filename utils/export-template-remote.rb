@@ -29,18 +29,9 @@ class EmulabExport
 
         excludes = ['/tmp/emulab-image', '/dev', '/media', '/mnt',
             '/proc', '/sys', '/', '/proc/sys/fs/binfmt_misc', '/dev/pts',
-            '/var/lib/cloud/sem']
+            '/var/lib/cloud/sem', @workdir]
 
-        # Remove any previous image tries
-        system("rm /tmp/emulab-image >/dev/null 2>&1");
-
-        # TODO this probably needs to be more elaborate
-        fssize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$3);print $3}'`)
-        empsize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$4);print $4}'`)
-        puts "Disk on / has " + fssize.to_s + "M of data and " +
-            empsize.to_s + "M free space"
-        raise "Not enough disk space to create image" if empsize < fssize * 1.7
-        
+       
         image = EC2::Platform::Current::Image.new("/",
                         "/tmp/emulab-image",
                         fssize+800,
@@ -55,6 +46,19 @@ class EmulabExport
     def check_prereqs()
         raise "No unzip found. Please install unzip" unless
             command?("unzip")
+
+        # Remove any previous image tries
+        system("rm /tmp/emulab-image >/dev/null 2>&1");
+        system("rm " + @workdir + "/* >/dev/null 2>&1");
+
+
+        # TODO this probably needs to be more elaborate
+        fssize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$3);print $3}'`)
+        empsize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$4);print $4}'`)
+        puts "Disk on / has " + fssize.to_s + "M of data and " +
+            empsize.to_s + "M free space"
+        raise "Not enough disk space to create image" if empsize < fssize * 1.7
+        
     end
 
     def get_kernel()
@@ -119,9 +123,9 @@ if __FILE__ == $0
     begin
         ex = EmulabExport.new()
         ex.check_prereqs
-        ex.create_image
         ex.get_kernel
         ex.get_bootopts
+        ex.create_image
         ex.gen_tar
     rescue Exception => e
         print "Error while creating an image: \n"
