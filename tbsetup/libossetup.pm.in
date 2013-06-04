@@ -1793,10 +1793,10 @@ sub WaitDone($@)
 	    if (0) {
 	    my $bootlog;
 	    if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
-		my $logfile = Logfile->CreateFromString($self->group(),
+		my $logfile = Logfile->CreateFromString($parent->group(),
 							$bootlog);
 		if (defined($logfile)) {
-		    $logfile->SetMetadata({"bootlog" => $node->node_id()}, 1);
+		    $logfile->SetMetadata([["bootlog", $node->node_id()]], 1);
 		}
 	    }
 	    }
@@ -1825,9 +1825,9 @@ sub WaitDone($@)
 	
 	my $bootlog;
 	if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
-	    my $logfile = Logfile->CreateFromString($self->group(), $bootlog);
+	    my $logfile = Logfile->CreateFromString($parent->group(), $bootlog);
 	    if (defined($logfile)) {
-		$logfile->SetMetadata({"bootlog" => $node->node_id()}, 1);
+		$logfile->SetMetadata([["bootlog", $node->node_id()]], 1);
 	    }
 	    $node->_bootlog($bootlog);
 	}
