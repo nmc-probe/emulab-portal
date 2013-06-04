@@ -25,7 +25,12 @@
 echo -n ' Cpucheck..'
 
 source checkutils.sh
-source getfromtb.sh
+#source getfromtb.sh
+
+if [ -z "$BOOTDIR" ]
+then
+    BOOTDIR=/var/emulab/boot
+fi
 
 declare arch="" failed="" s=""
 declare -i sockets=0 cores_socket=0 threads_core=0 mhz=0 err=0
@@ -33,8 +38,8 @@ declare -i hyperthread=0  x64bit=0 hwvirt=0
 
 os=`uname`
 host=`hostname`
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
+if [ -e "$BOOTDIR/realname" ]; then
+    host=`cat $BOOTDIR/realname`
 fi
 
 ### setup logging

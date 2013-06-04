@@ -29,7 +29,7 @@ source checkutils.sh
 inithostname
 initlogs $@
 tmplog2=/tmp/.2tmp
-touch ${tmplog2}
+cp /dev/null ${tmplog2}
 add_on_exit "rm -f $tmplog2"
 
 

@@ -43,7 +43,7 @@ if [ $# -gt 1 -a "$2" = "gather" ]; then
     checks="disk cpu mem nic gather"
 fi
 
-host=`$BINDIR/tmcc.bin nodeid`
+host=`$BINDIR/tmcc nodeid`
 
 # XXX MFSes don't have all the apps we need, so mount an extra directory
 if [ -f "$ETCDIR/ismfs" ] ; then

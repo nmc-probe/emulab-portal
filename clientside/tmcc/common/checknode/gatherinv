@@ -85,7 +85,7 @@ set +e
     { printhwinv
 } > /tmp/nodecheck.log.inv
 
-    host=$($BINDIR/tmcc.bin nodeid)
+    host=$($BINDIR/tmcc nodeid)
     # make sure proj got mounted
     if [ ! -d $PROJDIR ] ; then
 	echo "OHhh all this work for nothing"
@@ -104,7 +104,7 @@ set +e
     $(chmod g+rw $PROJDIR/nodecheck/$host $PROJDIR/nodecheck/FullInventory/$host);
 
     # Test what found local against what is in the database
-    readtmcinfo # info from tmcc.bin hwinv
+    readtmcinfo # info from tmcc hwinv
 # for testing    readtmcinfo $PROJDIR/nodecheck/test
     copytmcinfo # copy into hwinvcopy
     readtmcinfo /tmp/nodecheck.log.tb.new # read local found into hwinv

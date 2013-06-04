@@ -62,8 +62,8 @@ declare host       #emulab hostname
 declare failed=""  #major falure to be commicated to user
 declare os=""      #[Linux|FreeBSD] for now
 declare -a todo_exit
-declare -A hwinv  # hwinv from tmcc.bin
-declare -A hwinvcopy  # a copy of hwinv from tmcc.bin
+declare -A hwinv  # hwinv from tmcc
+declare -A hwinvcopy  # a copy of hwinv from tmcc
 
 
 #declare -A tcm_out # hwinv for output
@@ -88,7 +88,7 @@ trap 'err_report $LINENO' ERR
 
 
 # read info from tmcc no args uses the globel array hwinv
-# if $1 then use that for a input file else use tmcc.bin
+# if $1 then use that for a input file else use tmcc
 readtmcinfo() {
     local -A ina
     local keyword
@@ -99,10 +99,10 @@ readtmcinfo() {
 
     ifile=${1+$1} # use $1 if set otherwise use nothing
     if [ -z "$ifile" ] ; then
-	# noinput file then use a tmp file to hold data from tmcc.bin
+	# noinput file then use a tmp file to hold data from tmcc
 	itmp="y"
 	ifile=/tmp/.$$tmcchwinv
-	$(/usr/local/etc/emulab/tmcc.bin hwinfo > $ifile)
+	$($BINDIR/tmcc hwinfo > $ifile)
     else
 	itmp=""
     fi
@@ -419,8 +419,9 @@ printhwinv() {
 
 # which is not in busybox and not a bash builtin
 which() {
-    mypath=$(env | grep PATH)
-    mypath=${mypath/PATH=/}
+    #mypath=$(env | grep PATH)
+    #mypath=${mypath/PATH=/}
+    mypath=$PATH
     mypath=${mypath//:/ }
     for i in $mypath ; do
 	if [ -e $i/$1 ] ; then
@@ -437,17 +438,17 @@ inithostname() {
 	echo "ERROR uname messed up"
 	exit 1
     fi
-    if [ -e "/usr/local/etc/emulab/tmcc.bin" ] ; then
-	host=$(/usr/local/etc/emulab/tmcc.bin nodeid)
+    if [ -e "$BINDIR/tmcc" ] ; then
+	host=$($BINDIR/tmcc nodeid)
     else
-	echo "ERROR no tmcc.bin command"
+	echo "ERROR no tmcc command"
 	exit 1
     fi
     if [ -z "$host" ] ; then 
-	if [ -e "/var/emulab/boot/realname" ] ; then
-	    host=$(cat /var/emulab/boot/realname)
-	elif [ -e "/var/emulab/boot/nodeid" ] ; then
-	    host=$(cat /var/emulab/boot/nodeid)
+	if [ -e "$BOOTDIR/realname" ] ; then
+	    host=$(cat $BOOTDIR/realname)
+	elif [ -e "$BOOTDIR/nodeid" ] ; then
+	    host=$(cat $BOOTDIR/nodeid)
 	else
 	    host=$(hostname)
 	fi
@@ -497,14 +498,14 @@ initlogs () {
 # start XXX XXX should be "" when in production
 #    logfile4tb=${2-""}
     logfile4tb=${2-"/tmp/nodecheck.log.tb"}
-    touch ${logfile4tb}
+    cp /dev/null ${logfile4tb}
 # end XXX XXX 
     tmplog=/tmp/.$$tmp.log ; cat /dev/null > ${tmplog} # create and truncate
     add_on_exit "rm -f $tmplog"
 
-    logout=/tmp/.$$logout.log ; touch ${logout} # make it exist
+    logout=/tmp/.$$logout.log ; cp /dev/null ${logout} # make it exist
     add_on_exit "rm -f $logout"
-    tmpout=/tmp/.$$tmpout.log ; touch ${tmpout}
+    tmpout=/tmp/.$$tmpout.log ; cp /dev/null ${tmpout}
     add_on_exit "rm -f $tmpout"
 #    tmpfunctionout=/tmp/.$$tmpfunctionout.log 
 
