@@ -556,6 +556,16 @@ case $STATUS in
 			echo "Invalidating MBR on $d"
 			dd if=/dev/zero of=/dev/$d bs=512 count=16
 		done
+
+		# XXX tmp, gather HW info (including disk speed tests)
+		if [ -x $BINDIR/rc.nodecheck ]; then
+		    $BINDIR/rc.nodecheck boot gather
+		fi
+
+		## if we have nodecheck, perform disk speed tests here
+		#if [ -x $BINDIR/rc.nodecheck ]; then
+		#    true
+		#fi
 		;;
 esac
 

@@ -83,6 +83,17 @@ path-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/paths.pm $(ETCDIR)/paths.pm
 	$(INSTALL) -m 755 $(SRCDIR)/paths.sh $(ETCDIR)/paths.sh
 
+nodecheck-install:	dir-install
+	$(INSTALL) -m 644 $(SRCDIR)/checknode/checkutils.sh $(BINDIR)/checkutils.sh
+	$(INSTALL) -m 644 $(SRCDIR)/checknode/hbis.sh $(BINDIR)/hbis.sh
+
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/cpucheck $(BINDIR)/cpucheck
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/diskcheck $(BINDIR)/diskcheck
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/memcheck $(BINDIR)/memcheck
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/niccheck $(BINDIR)/niccheck
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/gatherenv $(BINDIR)/gatherenv
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/rc.nodecheck $(BINDIR)/rc/rc.checknode
+
 common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/libsetup.pm $(BINDIR)/libsetup.pm
 	$(INSTALL) -m 755 $(SRCDIR)/libtmcc.pm $(BINDIR)/libtmcc.pm

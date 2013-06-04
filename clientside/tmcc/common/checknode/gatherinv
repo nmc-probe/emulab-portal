@@ -1,4 +1,26 @@
 #! /bin/bash
+#
+# Copyright (c) 2013 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
 
 mywhich() {
     mypath=$(env | grep PATH)
@@ -13,17 +35,27 @@ mywhich() {
     return 1
 }
 
+if [ -z "$BINDIR" ] ; then
+    if [ -r /etc/emulab/paths.sh ] ; then
+	source /etc/emulab/paths.sh
+    else
+	BINDIR=/usr/local/etc/emulab
+	LOGDIR=/var/tmp
+    fi
+fi
+PROJDIR=/proj/emulab-ops
+
 # need to make sure we are running with a full verseion of bash
 if [ -f '/etc/emulab/ismfs' ] ; then
     # check to see if we are using correct bash
     verbash=$(file `mywhich bash`)
     if [ -z "$verbash" ] ; then
-	verbash=$(file -m /proj/emulab-ops/nodecheck/FreeBSD/bin/magic `mywhich bash`)
+	verbash=$(file -m $PROJDIR/nodecheck/FreeBSD/bin/magic `mywhich bash`)
     fi
     if [ "$verbash" != "${verbash/busybox}" ] ; then
 	# NO! we are not, retstart using the correct bash
 	# we not be in a loop since correct path is now set
-	export PATH=/proj/emulab-ops/nodecheck/$(uname -s)/bin:$PATH
+	export PATH=$PROJDIR/nodecheck/$(uname -s)/bin:$PATH
 	bash $0
 	exit 0
     fi
@@ -38,7 +70,7 @@ gatherinv_main() {
 
     checks="disk cpu mem nic"
     for i in $checks ; do
-	bash /usr/local/etc/emulab/${i}check /var/emulab/logs/nodecheck.log /tmp/nodecheck.log.tb
+	bash $BINDIR/${i}check $LOGDIR/nodecheck.log /tmp/nodecheck.log.tb
     done
 set +e
 
@@ -53,38 +85,38 @@ set +e
     { printhwinv
 } > /tmp/nodecheck.log.inv
 
-    host=$(/usr/local/etc/emulab/tmcc.bin nodeid)
+    host=$($BINDIR/tmcc.bin nodeid)
     # make sure proj got mounted
-    if [ ! -d /proj/emulab-ops ] ; then
+    if [ ! -d $PROJDIR ] ; then
 	echo "OHhh all this work for nothing"
-	echo "/proj/emulab-ops not mounted can't save info"
+	echo "$PROJDIR not mounted can't save info"
 	exit 1
     fi
     # have needed dirs ?
-    if [ ! -d /proj/emulab-ops/nodecheck/FullInventory ] ; then
-	mkdir -p /proj/emulab-ops/nodecheck/FullInventory
-	chmod 755 /proj/emulab-ops/nodecheck /proj/emulab-ops/nodecheck/FullInventory
+    if [ ! -d $PROJDIR/nodecheck/FullInventory ] ; then
+	mkdir -p $PROJDIR/nodecheck/FullInventory
+	chmod 755 $PROJDIR/nodecheck $PROJDIR/nodecheck/FullInventory
     fi
 
 	
-    $(cp /tmp/nodecheck.log.tb.new /proj/emulab-ops/nodecheck/$host);
-    $(cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/FullInventory/$host);
-    $(chmod g+rw /proj/emulab-ops/nodecheck/$host /proj/emulab-ops/nodecheck/FullInventory/$host);
+    $(cp /tmp/nodecheck.log.tb.new $PROJDIR/nodecheck/$host);
+    $(cp /tmp/nodecheck.log.inv $PROJDIR/nodecheck/FullInventory/$host);
+    $(chmod g+rw $PROJDIR/nodecheck/$host $PROJDIR/nodecheck/FullInventory/$host);
 
     # Test what found local against what is in the database
     readtmcinfo # info from tmcc.bin hwinv
-# for testing    readtmcinfo /proj/emulab-ops/nodecheck/test
+# for testing    readtmcinfo $PROJDIR/nodecheck/test
     copytmcinfo # copy into hwinvcopy
     readtmcinfo /tmp/nodecheck.log.tb.new # read local found into hwinv
     comparetmcinfo /tmp/nodecheck.diff # file for output
 
     if [ -s /tmp/nodecheck.diff ] ; then
 	cat /tmp/nodecheck.diff
-	$(cp /tmp/nodecheck.diff /proj/emulab-ops/nodecheck/${host}.diff)
-	$(chmod g+rw /proj/emulab-ops/nodecheck/${host}.diff);
+	$(cp /tmp/nodecheck.diff $PROJDIR/nodecheck/${host}.diff)
+	$(chmod g+rw $PROJDIR/nodecheck/${host}.diff);
     else
 	# no diff maybe it got better
-	rm -f /proj/emulab-ops/nodecheck/${host}.diff
+	rm -f $PROJDIR/nodecheck/${host}.diff
     fi
 	
 #    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv"
