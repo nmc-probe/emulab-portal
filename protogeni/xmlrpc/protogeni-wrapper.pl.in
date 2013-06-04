@@ -551,6 +551,7 @@ if (!defined($user_certificate)) {
 # us the server cert, which is useless. So we have to recompute the
 # chain to find the CA.
 #
+if (0) {
 if ($user_certificate->VerifySSLChain(@chaincerts)) {
     print STDERR "Could not verify user certificate chain:\n";
     print STDERR Dumper([$user_certificate, @chaincerts]);
@@ -572,6 +573,7 @@ if ($user_certificate->VerifyGeniChain(\$errorstr, @chaincerts)) {
 	XMLError(XMLRPC_APPLICATION_ERROR(),
 		 "Could not verify user URN namespace chain: $errorstr");
     }
+}
 }
 
 my $result;
