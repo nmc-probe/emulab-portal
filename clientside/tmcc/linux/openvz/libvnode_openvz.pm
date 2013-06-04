@@ -648,6 +648,10 @@ sub vz_rootPreConfigNetwork {
 		    mysystem2("$ETHTOOL -K $vdev tso off gso off");
 		    makeIfaceMaps();
 
+		    # Another thing that seems to screw up, causing the ciscos
+		    # to drop packets with an undersize error.
+		    mysystem2("$ETHTOOL -K $iface txvlan off");
+		    
 		    #
 		    # We leave this behind in case of failure and at
 		    # teardown since it is possibly a shared device, and
