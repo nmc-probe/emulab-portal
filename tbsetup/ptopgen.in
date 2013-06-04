@@ -1161,10 +1161,8 @@ foreach $node (@nodenames) {
 	    my $i = 0;
 	    for (; $i < scalar(@features); ++$i) {
 		if ($features[$i] eq 'openvz-host') {
-		    print STDERR "emulab-openvz: " . $node . "\n";
 		    push(@sliver_types, "emulab-openvz");
 		} elsif ($features[$i] eq 'xen-host') {
-		    print STDERR "emulab-xen: " . $node . "\n";
 		    push(@sliver_types, "emulab-xen");
 		}
 	    }
