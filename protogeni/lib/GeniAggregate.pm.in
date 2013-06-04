@@ -2313,6 +2313,9 @@ sub Create($$$$$$)
 	    $ctrlip2 = $blob->{'physctrl'};
 	}
     }
+    my $member1_mac = GenFakeMac();
+    my $member2_mac = GenFakeMac();
+    
     # print STDERR "$ip1, $ip2, $ctrlip1, $ctrlip2\n";
 
     #
@@ -2332,6 +2335,7 @@ sub Create($$$$$$)
 	$member1->SetAttribute("tunnel_myid", $virtid1);
 	$member1->SetAttribute("tunnel_peerid", $virtid2);
 	$member1->SetAttribute("tunnel_tag", $cksum);
+	$member1->SetAttribute("tunnel_mac", $member1_mac);
 
 	my $sliver = GeniSliver::Interface->Create($slice,
 						   $owner,
@@ -2363,6 +2367,7 @@ sub Create($$$$$$)
 	$member2->SetAttribute("tunnel_myid", $virtid2);
 	$member2->SetAttribute("tunnel_peerid", $virtid1);
 	$member2->SetAttribute("tunnel_tag", $cksum);
+	$member1->SetAttribute("tunnel_mac", $member2_mac);
 
 	my $sliver = GeniSliver::Interface->Create($slice,
 						   $owner,
