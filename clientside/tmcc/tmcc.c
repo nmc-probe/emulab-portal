@@ -129,7 +129,7 @@ char *usagestr =
 void
 usage()
 {
-	fprintf(stderr, usagestr);
+	fprintf(stderr, "%s", usagestr);
 	exit(1);
 }
 
@@ -389,7 +389,12 @@ main(int argc, char **argv)
 	
 	/* Tack on vnodeid */
 	if (vnodeid) {
-		sprintf(&buf[strlen(buf)], "VNODEID=%s ", vnodeid);
+		if (proxypath || proxyport) {
+			sprintf(&buf[strlen(buf)], "PROXYFOR=%s ", vnodeid);
+		}
+		else {
+			sprintf(&buf[strlen(buf)], "VNODEID=%s ", vnodeid);
+		}
 	}
 
 	/* Tack on privkey */

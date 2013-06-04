@@ -205,6 +205,7 @@ typedef struct {
 	int		allocated;
 	int		jailflag;
 	int		isvnode;
+	int		asvnode;
 	int		issubnode;
 	int		islocal;
 	int		isdedicatedwa;
@@ -1097,6 +1098,35 @@ handle_request(int sock, struct sockaddr_in *client, char *rdata, int istcp)
 		}
 
 		/*
+		 * Look for PROXYFOR, which tells us the client making the
+		 * request is doing it on behalf of a container. This is
+		 * now used from the XEN dom0 so we can tailor the results
+		 * and should eventually replace the VNODEID below so that
+		 * we can tell the difference between the host asking for
+		 * the clients info and tmcc acting as a proxy (or even the
+		 * container asking itself, which can happen too now that
+		 * allow routable IPs for containers). 
+		 */
+		if (sscanf(bp, "PROXYFOR=%30s", buf)) {
+			for (i = 0; i < strlen(buf); i++){
+				if (! (isalnum(buf[i]) ||
+				       buf[i] == '_' || buf[i] == '-')) {
+					info("tmcd client provided invalid "
+					     "characters in vnodeid");
+					goto skipit;
+				}
+			}
+			reqp->isvnode = 1;
+			reqp->asvnode = 1;
+			strncpy(reqp->vnodeid, buf, sizeof(reqp->vnodeid));
+
+			if (debug) {
+				info("PROXYFOR %s\n", buf);
+			}
+			continue;
+		}
+
+		/*
 		 * Look for REDIRECT, which is a proxy request for a
 		 * client other than the one making the request. Good
 		 * for testing. Might become a general tmcd redirect at
@@ -1117,6 +1147,15 @@ handle_request(int sock, struct sockaddr_in *client, char *rdata, int istcp)
 		 * Look for VNODE. This is used for virtual nodes.
 		 * It indicates which of the virtual nodes (on the physical
 		 * node) is talking to us. Currently no perm checking.
+		 *
+		 * This is confusing cause we want to know the difference
+		 * between the host asking for the container info, and the
+		 * container asking for its own info (perhaps via the tmcc
+		 * proxy). We will continue to use this as the host asking
+		 * for the container info, and PROXYFOR to indicate the
+		 * the container asking for its own info (via the tmcc proxy).
+		 * Or if the actual IP of the caller is the container, which
+		 * can also happen.  
 		 */
 		if (sscanf(bp, "VNODEID=%30s", buf)) {
 			for (i = 0; i < strlen(buf); i++){
@@ -2231,6 +2270,25 @@ COMMAND_PROTOTYPE(doifconfig)
 		row = mysql_fetch_row(res);
 		nrows--;
 
+		/*
+		 * When the proxy is asking for the container, we give it info
+		 * for a plain interface, since that is all it sees.
+		 */
+		if (reqp->isvnode && reqp->asvnode) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       "INTERFACE IFACETYPE=any "
+				       "INET=%s MASK=%s MAC=%s "
+				       "SPEED=100Mbps DUPLEX=full "
+				       "IFACE= RTABID= LAN=%s\n",
+				       row[1], row[4], row[2], row[7]);
+
+			client_writeback(sock, buf, strlen(buf), tcp);
+			if (verbose)
+				info("%s: IFCONFIG: %s", reqp->nodeid, buf);
+			
+			continue;
+		}
+
 		if (strcmp(row[6], "vlan") == 0 && !row[3]) {
 			/*
 			 * Convert to a loopback lan, however the client
@@ -2320,6 +2378,77 @@ COMMAND_PROTOTYPE(doifconfig)
 	}
 	mysql_free_result(res);
 
+
+	/*
+	 * Containers do not see egre/gre tunnels, they see plain interfaces,
+	 * since the tunnel was set up in root (dom0) context. This applies to
+	 * both xen and openvz.
+	 */
+	if (reqp->isvnode && reqp->asvnode) {
+		MYSQL_RES *res2;
+		MYSQL_ROW row2;
+		int nrows2;
+		
+		res = mydb_query("select l.lanid from lans as l "
+				 "left join lan_attributes as la on "
+				 "     la.lanid=l.lanid and la.attrkey='style' "
+				 "where l.exptidx='%d' and l.type='tunnel'",
+				 1, reqp->exptidx, reqp->nodeid);
+
+		nrows = (int)mysql_num_rows(res);
+		while (nrows) {
+			char *bufp = buf;
+			char *ip = "", *ipmask = "", *mac = "", *lan = "";
+			
+			row = mysql_fetch_row(res);
+			nrows--;
+
+			res2 = mydb_query("select lma.attrkey,lma.attrvalue "
+					  " from lan_members as lm "
+					  "left join lan_member_attributes as lma on "
+					  "     lma.lanid=lm.lanid and "
+					  "     lma.memberid=lm.memberid "
+					  "where lm.lanid='%s' and lm.node_id='%s' ",
+					  2, row[0], reqp->nodeid);
+
+			if (!res2) {
+				error("IFCONFIG: %s: DB Error getting tunnel members\n",
+				      reqp->nodeid);
+				return 1;
+			}
+			nrows2 = (int)mysql_num_rows(res2);
+			while (nrows2) {
+				row2 = mysql_fetch_row(res2);
+				nrows2--;
+
+				if (!strcmp(row2[0], "tunnel_ip")) {
+					ip = row2[1];
+				}
+				else if (!strcmp(row2[0], "tunnel_ipmask")) {
+					ipmask = row2[1];
+				}
+				else if (!strcmp(row2[0], "tunnel_mac")) {
+					mac = row2[1];
+				}
+				else if (!strcmp(row2[0], "tunnel_lan")) {
+					lan = row2[1];
+				}
+			}
+			bufp = buf;
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       "INTERFACE IFACETYPE=any "
+				       "INET=%s MASK=%s MAC=%s "
+				       "SPEED=100Mbps DUPLEX=full "
+				       "IFACE= RTABID= LAN=%s\n",
+				       ip, ipmask, mac, lan);
+
+			client_writeback(sock, buf, strlen(buf), tcp);
+			if (verbose)
+				info("%s: IFCONFIG: %s", reqp->nodeid, buf);
+			mysql_free_result(res2);
+		}
+		mysql_free_result(res);
+	}
 	return 0;
 }
 
@@ -6299,17 +6428,31 @@ COMMAND_PROTOTYPE(dotunnels)
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
 	int		nrows;
+	char            *clause = "";
+
+	/*
+	 * There is no point in returning tunnel info to the container;
+	 * they cannot do anything with it. The host has setup the container
+	 * with interfaces that are linked to the tunnels, but within the
+	 * container they just look like regular interfaces, and so we return
+	 * them from doifconfig. 
+	 */
+	if (reqp->isvnode && reqp->asvnode) {
+		return 0;
+	}
 
 	res = mydb_query("select lma.lanid,lma.memberid,"
 			 "   lma.attrkey,lma.attrvalue from lans as l "
 			 "left join lan_members as lm on lm.lanid=l.lanid "
+			 "left join lan_attributes as la on "
+			 "     la.lanid=l.lanid and la.attrkey='style' "
 			 "left join lan_member_attributes as lma on "
 			 "     lma.lanid=lm.lanid and "
 			 "     lma.memberid=lm.memberid "
 			 "where l.exptidx='%d' and l.type='tunnel' and "
 			 "      lm.node_id='%s' and "
-			 "      lma.attrkey like 'tunnel_%%'",
-			 4, reqp->exptidx, reqp->nodeid);
+			 "      lma.attrkey like 'tunnel_%%' %s",
+			 4, reqp->exptidx, reqp->nodeid, clause);
 
 	if (!res) {
 		error("TUNNELS: %s: DB Error getting tunnels\n", reqp->nodeid);
