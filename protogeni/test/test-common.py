@@ -270,7 +270,7 @@ def do_method(module, method, params, URI=None, quiet=False, version=None,
         port = url.port if url.port else 443
 
         ctx = M2Crypto.SSL.Context("sslv23")
-        ctx.load_cert(CERTIFICATE, CERTIFICATE, PassPhraseCB)
+        ctx.load_cert_chain(CERTIFICATE, CERTIFICATE, PassPhraseCB)
         ctx.set_verify(M2Crypto.SSL.verify_none, 16)
         ctx.set_allow_unknown_ca(0)
     
