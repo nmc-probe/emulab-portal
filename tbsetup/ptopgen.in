@@ -817,7 +817,7 @@ if ($virtstuff) {
 	$node_ramusage{$pnode} = 0
 	    if (!exists($node_ramusage{$pnode}));
 	
-	$node_ramusage{$pnode} += $memory;
+	$node_ramusage{$pnode} += $ram;
     }
 }
 
