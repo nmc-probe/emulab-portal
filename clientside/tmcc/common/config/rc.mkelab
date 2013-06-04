@@ -2309,6 +2309,17 @@ sub SetupBossNode($)
 	print RC "ifconfig_${inner_controlif}=".
 	    "\"inet $inner_ip netmask $inner_netmask ".
 	    "media ${inner_speed}baseTX mediaopt full-duplex\"\n";
+
+	#
+	# Fixing the speed can cause the interface to take a while to come
+	# up causing DNS to not work immediately causing some startup
+	# operations to fail (ntp and mfrisbeed failures have been observed).
+	#
+	# We take advantage of a FreeBSD rc.named script option to force
+	# it to wait til it can resolve outer boss.
+	#
+	print RC "named_wait=\"YES\"\n";
+	print RC "named_wait_host=\"$bossname\"\n";
     }
     print RC "network_interfaces=\"\$network_interfaces lo0\"\n";
     print RC "static_routes=\"outerboss vnodes\"\n";
