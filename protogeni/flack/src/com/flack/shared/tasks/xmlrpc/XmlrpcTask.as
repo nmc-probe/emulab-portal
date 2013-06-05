@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -37,7 +37,6 @@ package com.flack.shared.tasks.xmlrpc
 	import com.flack.shared.utils.NetUtil;
 	import com.flack.shared.utils.StringUtil;
 	import com.mattism.http.xmlrpc.ConnectionImpl;
-	import com.mattism.http.xmlrpc.JSLoader;
 	import com.mattism.http.xmlrpc.MethodFault;
 	
 	import flash.display.Sprite;
@@ -46,7 +45,6 @@ package com.flack.shared.tasks.xmlrpc
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
 	import flash.events.TimerEvent;
-	import flash.net.URLLoader;
 	import flash.utils.Timer;
 	
 	import mx.controls.Alert;
@@ -75,6 +73,33 @@ package com.flack.shared.tasks.xmlrpc
 		// Options for retries
 		public var maxTries:int = 10;
 		public var promptAfterMaxTries:Boolean = true;
+		
+		public var errorLogUrn:String = "";
+		public var errorLogUrl:String = "";
+		public function get ErrorLog():String {
+			var errorLog:String = "";
+			if(errorLogUrl.length > 0)
+				errorLog += "For more information, please visit: " + errorLogUrl;
+			if(errorLogUrn.length > 0)
+			{
+				if(errorLog.length > 0)
+					errorLog += "\n";
+				errorLog += "For reference, the ProtoGENI error URN is: " + errorLogUrn;
+			}
+			return errorLog;
+		}
+		public function get ErrorLogHtml():String {
+			var errorLog:String = "";
+			if(errorLogUrl.length > 0)
+				errorLog += "For more information, please visit: <a href=\"" + errorLogUrl + "\">" + errorLogUrl + "</a>";
+			if(errorLogUrn.length > 0)
+			{
+				if(errorLog.length > 0)
+					errorLog += "<br>";
+				errorLog += "For reference, the error id is: <a href=\"" + errorLogUrn + "\">" + errorLogUrn + "</a>";
+			}
+			return errorLog;
+		}
 		
 		/**
 		 * 
@@ -178,7 +203,7 @@ package com.flack.shared.tasks.xmlrpc
 			{
 				clearFields();
 				createFields();
-				server = new ConnectionImpl(url, JSLoader);
+				server = new ConnectionImpl(url);
 				server.addEventListener(Event.COMPLETE, callSuccess);
 				server.addEventListener(ErrorEvent.ERROR, callErrorFailure);
 				server.addEventListener(IOErrorEvent.IO_ERROR, callErrorFailure);
@@ -376,8 +401,12 @@ package com.flack.shared.tasks.xmlrpc
 				runRetry();
 		}
 		
-		protected function runRetry():void
+		protected function runRetry(newDelay:int=-1):void
 		{
+			if(newDelay == -1)
+				delay =  MathUtil.randomNumberBetween(20, 60);
+			else
+				delay = newDelay;
 			delay =  MathUtil.randomNumberBetween(20, 60);
 			addMessage(
 				"Scheduling retry",

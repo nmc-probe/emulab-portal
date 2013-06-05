@@ -612,8 +612,14 @@ package com.flack.shared.utils
 			var finalDate:Date;
 			try
 			{
-				var dateStr:String = str.substring(0, str.indexOf("T"));
-				var timeStr:String = str.substring(str.indexOf("T")+1, str.length);
+				var separatorIdx:int = str.indexOf("T");
+				// Not complient...
+				if(separatorIdx == -1)
+				{
+					separatorIdx = str.indexOf(" ");
+				}
+				var dateStr:String = str.substring(0, separatorIdx);
+				var timeStr:String = str.substring(separatorIdx+1, str.length);
 				var dateArr:Array = dateStr.split("-");
 				var year:Number = Number(dateArr.shift());
 				var month:Number = Number(dateArr.shift());
@@ -639,13 +645,20 @@ package com.flack.shared.utils
 					offsetMinutes = Number(offsetStr.substring(offsetStr.indexOf(":")+1, offsetStr.length));
 					timeStr = timeStr.substring(0, timeStr.indexOf("+"));
 				}
-				else // offset is -
+				else if (timeStr.indexOf("-") != -1)
 				{
 					multiplier = -1;
 					offsetStr = timeStr.substring(timeStr.indexOf("-")+1, timeStr.length);
 					offsetHours = Number(offsetStr.substring(0, offsetStr.indexOf(":")));
 					offsetMinutes = Number(offsetStr.substring(offsetStr.indexOf(":")+1, offsetStr.length));
 					timeStr = timeStr.substring(0, timeStr.indexOf("-"));
+				}
+				// Not complient...
+				else
+				{
+					multiplier = 1;
+					offsetHours = 0;
+					offsetMinutes = 0;
 				}
 				var timeArr:Array = timeStr.split(":");
 				var hour:Number = Number(timeArr.shift());

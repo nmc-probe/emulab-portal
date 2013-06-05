@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -36,8 +36,8 @@ package com.flack.shared.utils
 	import flash.system.Security;
 	import flash.utils.Dictionary;
 	
-	import mx.controls.Alert;
 	import mx.core.FlexGlobals;
+	import mx.utils.StringUtil;
 	
 	/**
 	 * Common functions used for web stuff
@@ -118,13 +118,24 @@ package com.flack.shared.utils
 		private static var visitedSites:Dictionary = new Dictionary();
 		public static function checkLoadCrossDomain(url:String):void
 		{
+			var hostPattern:RegExp = /^(http(s?):\/\/([^\/]+))(\/.*)?$/;
+			var match : Object = hostPattern.exec(url);
+			
 			var baseUrl:String = tryGetBaseUrl(url);
 			if (visitedSites[baseUrl] == null)
 			{
 				visitedSites[baseUrl] = true;
 				Security.loadPolicyFile(baseUrl + "/protogeni/crossdomain.xml");
 				Security.loadPolicyFile(baseUrl + "/crossdomain.xml");
-				Security.loadPolicyFile(baseUrl + ":843");
+				//Security.loadPolicyFile("http://" + (match[3] as String).split(':')[0] + ":843");
+			}
+			
+			// Try loading all crossdomain files in the path
+			var directories:Array = (match[4] as String).split('/');
+			var currentPath:String = baseUrl;
+			for (var i:int = 1; i < directories.length-1; i++) {
+				currentPath += "/" + directories[i];
+				Security.loadPolicyFile(currentPath + "/crossdomain.xml");
 			}
 		}
 	}

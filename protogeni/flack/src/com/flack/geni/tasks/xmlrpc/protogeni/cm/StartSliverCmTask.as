@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.sites.ApiDetails;
@@ -43,7 +43,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class StartSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		public var getStatus:Boolean
 		
 		/**
@@ -51,7 +51,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param newSliver Sliver to start resources in
 		 * 
 		 */
-		public function StartSliverCmTask(newSliver:Sliver)
+		public function StartSliverCmTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.url,
@@ -64,18 +64,18 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 		}
 		
 		override protected function createFields():void
 		{
-			addNamedField("slice_urn", sliver.slice.id.full);
-			addNamedField("credentials", [sliver.slice.credential.Raw]);
+			addNamedField("slice_urn", aggregateSliver.slice.id.full);
+			addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
 		}
 		
 		override protected function runStart():void
 		{
-			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
+			if(aggregateSliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
 			{
 				afterError(
 					new TaskError(

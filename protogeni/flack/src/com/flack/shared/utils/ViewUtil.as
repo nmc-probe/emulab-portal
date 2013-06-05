@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -34,9 +34,9 @@ package com.flack.shared.utils
 	import com.flack.shared.display.areas.AreaContent;
 	import com.flack.shared.display.areas.LogMessageArea;
 	import com.flack.shared.display.components.DataButton;
-	import com.flack.shared.display.components.DefaultWindow;
-	import com.flack.shared.display.components.DocumentWindow;
-	import com.flack.shared.display.components.MultiDocumentWindow;
+	import com.flack.shared.display.windows.DefaultWindow;
+	import com.flack.shared.display.windows.DocumentWindow;
+	import com.flack.shared.display.windows.MultiDocumentWindow;
 	import com.flack.shared.logging.LogMessage;
 	
 	import spark.components.Label;

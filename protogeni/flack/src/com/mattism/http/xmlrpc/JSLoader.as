@@ -24,6 +24,11 @@ package com.mattism.http.xmlrpc
         ExternalInterface.call("setServerCert", newCert);
     }
 	
+	public static function addServerCertificate(newCert : String) : void
+	{
+		ExternalInterface.call("addServerCert", newCert);
+	}
+	
 	/**
 	 * 
 	 * @param password Password for the private key
@@ -35,7 +40,7 @@ package com.mattism.http.xmlrpc
     {
 	  var lines : Array = pem.split(/[\r\n]+/);
       var key : String = "";
-      var cert : String = "";
+      var certs : Array = [];
       var inKey : Boolean = false;
       var inCert : Boolean = false;
       for each (var line : String in lines)
@@ -44,9 +49,10 @@ package com.mattism.http.xmlrpc
         {
           inKey = true;
         }
-        else if (line == "-----BEGIN CERTIFICATE-----" && cert == "")
+        else if (line == "-----BEGIN CERTIFICATE-----")
         {
           inCert = true;
+		  certs.push("");
         }
 
         if (inKey)
@@ -55,7 +61,7 @@ package com.mattism.http.xmlrpc
         }
         if (inCert)
         {
-          cert += line + "\n";
+			certs[certs.length-1] += line + "\n";
         }
 
         if (line == "-----END RSA PRIVATE KEY-----")
@@ -70,7 +76,7 @@ package com.mattism.http.xmlrpc
 	  if(key.length == 0) {
 		  throw new Error("No RSA private key found");
 	  }
-	  if(cert.length == 0) {
+	  if(certs.length == 0) {
 		  throw new Error("No certificate found");
 	  }
       var iv : ByteArray = generateIv(key);
@@ -87,7 +93,7 @@ package com.mattism.http.xmlrpc
 		  ExternalInterface.call("setClientKey", key);
 		  //throw new Error("Invalid Key: " + key);
       }
-	  ExternalInterface.call("setClientCert", cert);
+	  ExternalInterface.call("setClientCert", certs);
     }
 
     private static function generateIv(key : String) : ByteArray

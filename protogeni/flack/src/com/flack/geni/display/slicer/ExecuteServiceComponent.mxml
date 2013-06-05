@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -40,7 +40,7 @@ IN THE WORK.
 		  verticalAlign="middle">
 	<fx:Script>
 		<![CDATA[
-			import com.flack.geni.resources.virtual.ExecuteService;
+			import com.flack.geni.resources.virt.ExecuteService;
 			import com.flack.shared.utils.ImageUtil;
 			
 			import spark.components.Group;
@@ -75,5 +75,5 @@ IN THE WORK.
 				 prompt="Shell? (sh, bash, etc.)"
 				 change="if(onChange != null) onChange();" />
 	<components:ImageButton icon="{ImageUtil.deleteIcon}"
-							click="if(onChange != null) onChange(); (parent as Group).removeElement(this)" />
+							click="if(onChange != null) onChange(); (parent as Group).removeElement(this);" />
 </s:HGroup>

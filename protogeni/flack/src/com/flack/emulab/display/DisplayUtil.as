@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -44,7 +44,7 @@ package com.flack.emulab.display
 	import com.flack.emulab.resources.virtual.VirtualNodeCollection;
 	import com.flack.shared.display.areas.Area;
 	import com.flack.shared.display.components.DataButton;
-	import com.flack.shared.display.components.DefaultWindow;
+	import com.flack.shared.display.windows.DefaultWindow;
 	import com.flack.shared.utils.ColorUtil;
 	import com.flack.shared.utils.ImageUtil;
 	import com.flack.shared.utils.ViewUtil;

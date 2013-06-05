@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,6 +29,8 @@
 
 package com.flack.geni.tasks.xmlrpc.am
 {
+	import com.flack.geni.resources.docs.GeniCredentialVersion;
+	import com.flack.geni.resources.docs.GeniCredentialVersionCollection;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -65,7 +67,8 @@ package com.flack.geni.tasks.xmlrpc.am
 				"Getting the version information of the aggregate manager for " + newManager.hrn,
 				"Get Version"
 			);
-			maxTries = 1;
+			maxTries = 2;
+			timeout = 30;
 			promptAfterMaxTries = false;
 			newManager.Status = FlackManager.STATUS_INPROGRESS;
 			relatedTo.push(newManager);
@@ -79,6 +82,10 @@ package com.flack.geni.tasks.xmlrpc.am
 			{
 				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
 				{
+					if(numberTries < maxTries) {
+						runRetry(5);
+						return;
+					}
 					faultOnSuccess();
 					return;
 				}
@@ -86,11 +93,18 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				manager.api.version = Number(data.geni_api);
+				manager.id.full = data.urn;
 				
-				manager.apis = new Vector.<ApiDetails>();
+				var apiDetail:ApiDetails = new ApiDetails(manager.api.type, Number(data.geni_api), manager.api.url, manager.api.level);
+				manager.api = apiDetail;
+				manager.apis.removeAll(manager.apis.getType(ApiDetails.API_GENIAM));
+				if(manager.type == GeniManager.TYPE_PROTOGENI && manager.apis.getType(ApiDetails.API_PROTOGENI).length == 0) {
+					manager.apis.add(new ApiDetails(ApiDetails.API_PROTOGENI, NaN, manager.url));
+				}
+				manager.apis.add(apiDetail);
 				if(data.geni_api_versions != null)
 				{
+					//URL
 					var highestSuppportedVersion:ApiDetails = manager.api;
 					for(var supportedApiVersion:String in data.geni_api_versions)
 					{
@@ -101,9 +115,11 @@ package com.flack.geni.tasks.xmlrpc.am
 								Number(supportedApiVersion),
 								supportedApiUrl
 							);
-						if(supportedApi.version <= 2 && supportedApi.version > highestSuppportedVersion.version)
+						if (manager.api.equals(supportedApi))
+							continue;
+						if(supportedApi.version <= 3 && supportedApi.version > highestSuppportedVersion.version)
 							highestSuppportedVersion = supportedApi;
-						manager.apis.push(supportedApi);
+						manager.apis.add(supportedApi);
 					}
 					var oldApi:ApiDetails = manager.api;
 					manager.setApi(highestSuppportedVersion);
@@ -115,6 +131,28 @@ package com.flack.geni.tasks.xmlrpc.am
 						
 						return;
 					}
+				}
+
+				//V3
+				if(data.geni_am_type != null)
+				{
+					manager.types = new Vector.<String>();
+					for(var amType:String in data.geni_am_type)
+					{
+						manager.types.push(amType);
+					}
+					if (manager.types.length == 1) {
+						manager.type = manager.types[0];
+					}
+				}
+				
+				if(data.geni_am_code_version != null)
+				{
+					manager.codeVersion = String(data.geni_am_code_version);
+				}
+				if(data.code_tag != null)
+				{
+					manager.codeVersion = String(data.code_tag);
 				}
 				
 				manager.inputRspecVersions = new RspecVersionCollection();
@@ -170,11 +208,22 @@ package com.flack.geni.tasks.xmlrpc.am
 					}
 				}
 				
-				//V3: geni_credential_types, geni_single_allocation, geni_allocate
+				if(data.geni_credential_types != null)
+				{
+					manager.credentialTypes = new GeniCredentialVersionCollection();
+					for each(var geniCredentialType:Object in data.geni_credential_types)
+					{
+						manager.credentialTypes.add(
+							new GeniCredentialVersion(
+								geniCredentialType.geni_type,
+								Number(geniCredentialType.geni_version)));
+					}
+				}
+
 				if(data.geni_single_allocation != null)
-					manager.singleAllocation = data.geni_single_allocation;
+					manager.singleAllocation = data.geni_single_allocation == "1" || data.geni_single_allocation == "true";
 				if(data.geni_allocate != null)
-					manager.singleAllocation = data.geni_allocate;
+					manager.allocate = data.geni_allocate;
 				//V3: geni_best_effort?
 				
 				// Make sure aggregate uses compatible rspec
@@ -224,6 +273,10 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function afterError(taskError:TaskError):void
 		{
+			if(numberTries < maxTries) {
+				runRetry(5);
+				return;
+			}
 			manager.Status = FlackManager.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_MANAGER,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -30,7 +30,8 @@
 package com.flack.geni.tasks.xmlrpc.am
 {
 	import com.flack.geni.GeniMain;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.GeniCollaborator;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.shared.FlackEvent;
@@ -44,14 +45,14 @@ package com.flack.geni.tasks.xmlrpc.am
 	/**
 	 * Allocates resources for the sliver using the given RSPEC, usually generated for the entire slice.
 	 * 
-	 * Deprecated in AMv3
+	 * Deprecated in AMv3, use Allocate+Provision instead.
 	 * 
 	 * @author mstrum
 	 * 
 	 */
 	public final class CreateSliverTask extends AmXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var request:Rspec;
 		
 		/**
@@ -60,16 +61,16 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * @param newRspec RSPEC to send
 		 * 
 		 */
-		public function CreateSliverTask(newSliver:Sliver,
+		public function CreateSliverTask(newSliver:AggregateSliver,
 										 newRspec:Rspec = null)
 		{
 			super(
 				newSliver.manager.api.url,
 				AmXmlrpcTask.METHOD_CREATESLIVER,
 				newSliver.manager.api.version,
-				"Create sliver @ " + newSliver.manager.hrn,
-				"Creating sliver on aggregate manager " + newSliver.manager.hrn + " for slice named " + newSliver.slice.hrn,
-				"Create Sliver"
+				"Create @ " + newSliver.manager.hrn,
+				"Creating on aggregate manager " + newSliver.manager.hrn + " for slice named " + newSliver.slice.hrn,
+				"Create"
 			);
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
@@ -80,7 +81,7 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			addMessage(
 				"Waiting to create...",
-				"A sliver will be created at " + sliver.manager.hrn,
+				"Resources will be created at " + sliver.manager.hrn,
 				LogMessage.LEVEL_INFO,
 				LogMessage.IMPORTANCE_HIGH
 			);
@@ -118,17 +119,25 @@ package com.flack.geni.tasks.xmlrpc.am
 			addOrderedField(sliver.slice.id.full);
 			addOrderedField([sliver.slice.credential.Raw]);
 			addOrderedField(request.document);
+			var users:Array = [];
+			var user:Object = {urn: sliver.slice.creator.id.full};
 			var userKeys:Array = [];
 			for each(var key:String in sliver.slice.creator.keys)
+			{
 				userKeys.push(key);
-			addOrderedField(
-				[
-					{
-						urn:GeniMain.geniUniverse.user.id.full,
-						keys:userKeys
-					}
-				]
-			);
+			}
+			user.keys = userKeys;
+			users.push(user);
+			for each(var friend:GeniCollaborator in sliver.slice.creator.collaborators) {
+				var friendObj:Object = {urn: friend.id.full};
+				var friendKeys:Array = [];
+				for each(var friendKey:String in friend.keys) {
+					friendKeys.push(friendKey);
+				}
+				friendObj.keys = friendKeys;
+				users.push(friendObj);
+			}
+			addOrderedField(users);
 			if(apiVersion > 1)
 				addOrderedField({});
 		}
@@ -174,7 +183,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function afterError(taskError:TaskError):void
 		{
-			sliver.status = Sliver.STATUS_FAILED;
+			//sliver.status = AggregateSliver.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
 				sliver,
@@ -186,7 +195,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function runCancel():void
 		{
-			sliver.status = Sliver.STATUS_UNKNOWN;
+			//sliver.status = AggregateSliver.STATUS_UNKNOWN;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
 				sliver,

@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -40,8 +40,8 @@ IN THE WORK.
 			import com.flack.geni.display.areas.VirtualNodeArea;
 			import com.flack.geni.resources.SliverType;
 			import com.flack.geni.resources.SliverTypes;
-			import com.flack.geni.resources.virtual.VirtualInterface;
-			import com.flack.geni.resources.virtual.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualInterface;
+			import com.flack.geni.resources.virt.VirtualNode;
 			
 			import mx.collections.ArrayCollection;
 			

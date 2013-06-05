@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -32,16 +32,16 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.SliverTypes;
-	import com.flack.geni.resources.virtual.ExecuteService;
-	import com.flack.geni.resources.virtual.InstallService;
-	import com.flack.geni.resources.virtual.LinkType;
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.ExecuteService;
+	import com.flack.geni.resources.virt.InstallService;
+	import com.flack.geni.resources.virt.LinkType;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualInterfaceCollection;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.tasks.Task;
 	
@@ -53,7 +53,7 @@ package com.flack.geni.tasks.process
 	 */
 	public final class GenerateNsTask extends Task
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var nsDocument:String = "";
 		
 		/**
@@ -61,7 +61,7 @@ package com.flack.geni.tasks.process
 		 * @param newSliver Sliver to generare NS file for
 		 * 
 		 */
-		public function GenerateNsTask(newSliver:Sliver)
+		public function GenerateNsTask(newSliver:AggregateSliver)
 		{
 			super(
 				"Generate NS Document",

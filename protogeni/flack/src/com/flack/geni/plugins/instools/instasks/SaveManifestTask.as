@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (c) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -32,8 +32,8 @@ package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
@@ -47,11 +47,11 @@ package com.flack.geni.plugins.instools.instasks
 	
 	public final class SaveManifestTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var details:SliceInstoolsDetails;
 		public var manifest:Rspec;
 		
-		public function SaveManifestTask(newSliver:Sliver, useDetails:SliceInstoolsDetails, newManifest:Rspec)
+		public function SaveManifestTask(newSliver:AggregateSliver, useDetails:SliceInstoolsDetails, newManifest:Rspec)
 		{
 			super(
 				newSliver.manager.url,

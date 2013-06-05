@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -33,15 +33,21 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.display.windows.ChooseManagerWindow;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingHop;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingLink;
+	import com.flack.geni.resources.virt.extensions.stitching.StitchingPath;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilityDescriptor;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoL2sc;
+	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoLsc;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.Rspec;
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.resources.sites.FlackManager;
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskError;
-	import com.flack.shared.utils.StringUtil;
 	
 	import flash.system.System;
 	
@@ -93,7 +99,7 @@ package com.flack.geni.tasks.process
 		override protected function runStart():void
 		{
 			var msg:String;
-			if(slice.slivers.length > 0 && !overwrite)
+			if(slice.aggregateSlivers.length > 0 && !overwrite)
 			{
 				msg = "The slice has already been allocated.";
 				Alert.show(msg);
@@ -297,6 +303,26 @@ package com.flack.geni.tasks.process
 				if(managersWithResources.indexOf(useManager) == -1)
 					managersWithResources.push(useManager);
 			}
+			var stitchingNamespace:Namespace = RspecUtil.stitchingNamespace;
+			for each(var stitchingXml:XML in checkRspec.stitchingNamespace::stitching)
+			{
+				for each(var pathXml:XML in stitchingXml.stitchingNamespace::path)
+				{
+					for each(var hopXml:XML in pathXml.stitchingNamespace::hop)
+					{
+						for each(var stitchingLinkXml:XML in hopXml.stitchingNamespace::link)
+						{
+							var linkId:String = String(stitchingLinkXml.@id);
+							var advertisedLink:StitchingLink = GeniMain.geniUniverse.managers.getComponentById(linkId) as StitchingLink;
+							if(advertisedLink == null) {
+								continue;
+							}
+							if(managersWithResources.indexOf(advertisedLink.manager) == -1)
+								managersWithResources.push(advertisedLink.manager);
+						}
+					}
+				}
+			}
 			
 			addMessage(
 				"Importing into " + managersWithResources.length + " manager(s)",
@@ -310,9 +336,9 @@ package com.flack.geni.tasks.process
 			// Import at each manager....
 			for each(var managerWithResources:GeniManager in managersWithResources)
 			{
-				var importSliver:Sliver = slice.slivers.getByManager(managerWithResources);
+				var importSliver:AggregateSliver = slice.aggregateSlivers.getByManager(managerWithResources);
 				if(importSliver == null)
-					importSliver = new Sliver(slice, managerWithResources);
+					importSliver = new AggregateSliver(slice, managerWithResources);
 				parent.add(new ParseRequestManifestTask(importSliver, importRspec, false));
 			}
 			

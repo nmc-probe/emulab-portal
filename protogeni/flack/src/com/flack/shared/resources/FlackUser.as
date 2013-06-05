@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -67,6 +67,20 @@ package com.flack.shared.resources
 				return "";
 		}
 		
+		public function get PrivateKeyEncrypted():Boolean
+		{
+			return PrivateKey.indexOf("DEK-Info:") > -1;
+		}
+		
+		public function get SslCertReady():Boolean
+		{
+			if(sslCert.length > 0) {
+				var isPrivateKeyEncrypted:Boolean = PrivateKeyEncrypted;
+				return !isPrivateKeyEncrypted || (isPrivateKeyEncrypted && password.length > 0);
+			}
+			return false;
+		}
+		
 		public function FlackUser()
 		{
 			super();
@@ -79,12 +93,12 @@ package com.flack.shared.resources
 		
 		/**
 		 * 
-		 * @param newPassword Password for the user's privake key
+		 * @param newPassword Password for the user's private key
 		 * @param newCertificate SSL certificate to use
 		 * @return TRUE if failed, FALSE if successful
 		 * 
 		 */
-		public function setSecurity(newPassword:String, newCertificate:String):Boolean
+		public function setSecurity(newCertificate:String, newPassword:String=""):Boolean
 		{
 			if(newCertificate.length > 0)
 			{

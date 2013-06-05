@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,8 +29,10 @@
 
 package com.flack.geni.tasks.groups.slice
 {
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.Sliver;
+	import com.flack.geni.tasks.xmlrpc.am.PerformOperationalActionTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.RestartSliverCmTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.StartSliverCmTask;
 	import com.flack.shared.logging.LogMessage;
@@ -69,7 +71,7 @@ package com.flack.geni.tasks.groups.slice
 			if(tasks.length == 0)
 			{
 				var runTasks:ParallelTaskGroup = new ParallelTaskGroup("Start all", "Starts all the slivers");
-				for each(var sliver:Sliver in slice.slivers.collection)
+				for each(var sliver:AggregateSliver in slice.aggregateSlivers.collection)
 				{
 					if(sliver.manager.api.type == ApiDetails.API_PROTOGENI)
 					{
@@ -78,12 +80,18 @@ package com.flack.geni.tasks.groups.slice
 						else // XXX this either needs to be optional or perhaps ask the user?
 							runTasks.add(new RestartSliverCmTask(sliver));
 					}
+					else if(sliver.manager.api.type == ApiDetails.API_GENIAM && sliver.manager.api.version >= 3)
+					{
+						runTasks.add(new PerformOperationalActionTask(sliver, PerformOperationalActionTask.ACTION_STOP));
+					}
 					else
+					{
 						addMessage(
 							"Can't start @ " + sliver.manager.hrn,
 							"The manager " + sliver.manager.hrn + " doesn't support the start task",
 							LogMessage.LEVEL_INFO,
 							LogMessage.IMPORTANCE_HIGH);
+					}
 				}
 				add(runTasks);
 				add(new RefreshSliceStatusTaskGroup(slice));
@@ -94,7 +102,7 @@ package com.flack.geni.tasks.groups.slice
 		// Sanity check
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			if(slice.Status != Sliver.STATUS_READY)
+			if(slice.OperationalState != Sliver.OPERATIONAL_READY)
 			{
 				addMessage("Failed to start", "All slivers don't report ready");
 				afterError(

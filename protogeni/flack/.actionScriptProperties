@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<actionScriptProperties analytics="false" mainApplicationPath="flack.mxml" projectUUID="b36db05d-671c-420d-a77c-fb5420040cb2" version="10">
-  <compiler additionalCompilerArguments="-locale en_US" autoRSLOrdering="true" copyDependentFiles="true" fteInMXComponents="false" generateAccessible="true" htmlExpressInstall="true" htmlGenerate="false" htmlHistoryManagement="true" htmlPlayerVersionCheck="true" includeNetmonSwc="false" outputFolderPath="js" removeUnusedRSL="true" sourceFolderPath="src" strict="true" targetPlayerVersion="0.0.0" useApolloConfig="false" useDebugRSLSwfs="true" verifyDigests="true" warn="true">
+<actionScriptProperties analytics="false" mainApplicationPath="flack.mxml" projectUUID="4ce6005b-0cb7-45ed-8c85-63d8eb364ed9" version="11">
+  <compiler additionalCompilerArguments="-locale en_US" autoRSLOrdering="true" copyDependentFiles="true" flex3CompatMode="false" fteInMXComponents="false" generateAccessible="true" htmlExpressInstall="true" htmlGenerate="false" htmlHistoryManagement="true" htmlPlayerVersionCheck="true" includeNetmonSwc="false" outputFolderPath="js" removeUnusedRSL="true" sourceFolderPath="src" strict="true" targetPlayerVersion="0.0.0" useApolloConfig="false" useDebugRSLSwfs="true" useFlashSDK="false" verifyDigests="true" warn="true">
     <compilerSourcePath/>
     <libraryPath defaultLinkType="1">
       <libraryPathEntry kind="4" path="">
@@ -17,6 +17,7 @@
     <application path="flack.mxml"/>
   </applications>
   <modules/>
+  <workers/>
   <buildCSSFiles/>
   <flashCatalyst validateFlashCatalystCompatibility="false"/>
 </actionScriptProperties>

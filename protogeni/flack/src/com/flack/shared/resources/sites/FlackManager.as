@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -50,35 +50,6 @@ package com.flack.shared.resources.sites
 		public static const STATUS_VALID:int = 2;
 		public static const STATUS_FAILED:int = 3;
 		
-		// What type of manager is this?
-		public static const TYPE_PROTOGENI:int = 0;
-		public static const TYPE_PLANETLAB:int = 1;
-		public static const TYPE_OTHER:int = 2;
-		public static const TYPE_OPENFLOW:int = 3;
-		public static const TYPE_ORCA:int = 4;
-		public static const TYPE_ORBIT:int = 5;
-		public static const TYPE_EMULAB:int = 6;
-		public static function typeToString(type:int):String
-		{
-			switch(type)
-			{
-				case FlackManager.TYPE_PROTOGENI:
-					return "ProtoGENI";
-				case FlackManager.TYPE_PLANETLAB:
-					return "PlanetLab";
-				case FlackManager.TYPE_OPENFLOW:
-					return "OpenFlow";
-				case FlackManager.TYPE_ORCA:
-					return "ORCA";
-				case FlackManager.TYPE_ORBIT:
-					return "ORBIT";
-				case FlackManager.TYPE_EMULAB:
-					return "Emulab";
-				default:
-					return "Unknown ("+type+")";
-			}
-		}
-		
 		// Why did it fail?
 		public static const FAIL_GENERAL:int = 0;
 		public static const FAIL_NOTSUPPORTED:int = 1;
@@ -94,10 +65,8 @@ package com.flack.shared.resources.sites
 		[Bindable]
 		public var hrn:String = "";
 		
-		public var type:int;
-		
 		public var api:ApiDetails;
-		public var apis:Vector.<ApiDetails> = new Vector.<ApiDetails>();
+		public var apis:ApiDetailsCollection = new ApiDetailsCollection();
 		
 		// Resources
 		public var advertisement:Rspec = null;
@@ -135,13 +104,11 @@ package com.flack.shared.resources.sites
 		 * @param newHrn Human-readable name
 		 * 
 		 */
-		public function FlackManager(newType:int = TYPE_OTHER,
-									newApi:int = 0,
+		public function FlackManager(newApi:int = 0,
 									newId:String = "",
 									newHrn:String = "")
 		{
 			super(newId);
-			type = newType;
 			api = new ApiDetails(newApi);
 			hrn = newHrn;
 			
@@ -186,7 +153,6 @@ package com.flack.shared.resources.sites
 			var result:String = "[FlackManager ID=" + id.full
 				+ ", Url=" + url
 				+ ", Hrn=" + hrn
-				+ ", Type=" + type
 				+ ", Api=" + api.type
 				+ ", Status=" + Status + "]\n";
 			return result += "[/FlackManager]";

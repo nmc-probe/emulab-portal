@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -36,6 +36,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.docs.RspecVersion;
 	import com.flack.shared.resources.docs.RspecVersionCollection;
+	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
 	import com.flack.shared.tasks.TaskError;
 	
@@ -65,6 +66,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				"Get Version"
 			);
 			maxTries = 1;
+			timeout = 60;
 			promptAfterMaxTries = false;
 			newManager.Status = FlackManager.STATUS_INPROGRESS;
 			relatedTo.push(newManager);
@@ -75,13 +77,19 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		{
 			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				manager.api.version = Number(data.api);
-				manager.api.level = int(data.level);
+				var apiDetail:ApiDetails = new ApiDetails(manager.api.type, Number(data.api), manager.api.url, int(data.level));
+				manager.setApi(apiDetail);
+				manager.apis.removeAll(manager.apis.getType(ApiDetails.API_PROTOGENI));
+				if(manager.apis.getType(ApiDetails.API_GENIAM).length == 0) {
+					manager.apis.add(new ApiDetails(ApiDetails.API_GENIAM, NaN, manager.api.url += "/am"));
+				}
+				manager.apis.add(apiDetail);
 				
 				manager.inputRspecVersions = new RspecVersionCollection();
 				manager.outputRspecVersions = new RspecVersionCollection();
 				
 				// request RSPEC versions
+				manager.inputRspecVersions = new RspecVersionCollection();
 				for each(var inputVersion:Number in data.input_rspec)
 				{
 					if(inputVersion)
@@ -97,6 +105,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				
 				// ad RSPEC versions
 				var outputRspecDefaultVersionNumber:Number = Number(data.output_rspec);
+				manager.outputRspecVersions = new RspecVersionCollection();
 				if(data.ad_rspec != null)
 				{
 					for each(var outputVersion:Number in data.ad_rspec)
@@ -148,11 +157,21 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				super.afterComplete(addCompletedMessage);
 			}
 			else
+			{
+				if(numberTries < maxTries) {
+					runRetry(5);
+					return;
+				}
 				faultOnSuccess();
+			}
 		}
 		
 		override protected function afterError(taskError:TaskError):void
 		{
+			if(numberTries < maxTries) {
+				runRetry(5);
+				return;
+			}
 			manager.Status = FlackManager.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_MANAGER,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (c) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -33,8 +33,9 @@ package com.flack.geni.plugins.instools
 	import com.flack.geni.plugins.Plugin;
 	import com.flack.geni.plugins.PluginArea;
 	import com.flack.geni.plugins.instools.instasks.InstrumentizeSliceGroupTask;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.Sliver;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.tasks.TaskCollection;
@@ -65,7 +66,7 @@ package com.flack.geni.plugins.instools
 			{
 				var slice:Slice = e.changedObject as Slice;
 				var hasMCNode:Boolean = false;
-				for each(var sliver:Sliver in slice.slivers.collection)
+				for each(var sliver:AggregateSliver in slice.aggregateSlivers.collection)
 				{
 					if(doesSliverHaveMc(sliver))
 						hasMCNode = true;
@@ -95,9 +96,9 @@ package com.flack.geni.plugins.instools
 		
 		public static var mcLocation:Dictionary = new Dictionary();
 		
-		public static function doesSliverHaveMc(sliver:Sliver):Boolean
+		public static function doesSliverHaveMc(sliver:AggregateSliver):Boolean
 		{
-			if(sliver.Created)
+			if(Sliver.isAllocated(sliver.AllocationState))
 			{
 				// See if MC node is at manager
 				if((sliver.manifest.document.indexOf("MC=\"1\"") != -1) && (sliver.manifest.document.indexOf("mc_type=\"juniper\"") == -1))
@@ -106,9 +107,9 @@ package com.flack.geni.plugins.instools
 			return false;
 		}
 		
-		public static function doesSliverHaveJuniperMc(sliver:Sliver):Boolean
+		public static function doesSliverHaveJuniperMc(sliver:AggregateSliver):Boolean
 		{
-			if(sliver.Created)
+			if(Sliver.isAllocated(sliver.AllocationState))
 			{
 				if(sliver.manifest.document.indexOf("mc_type=\"juniper\"") != -1)
 					return true;
@@ -139,7 +140,7 @@ package com.flack.geni.plugins.instools
 			
 			if(!creating)
 			{
-				for each(var sliver:Sliver in slice.slivers.collection)
+				for each(var sliver:AggregateSliver in slice.aggregateSlivers.collection)
 				{
 					newDetails.MC_present[sliver.manager.id.full] = doesSliverHaveMc(sliver);
 				}

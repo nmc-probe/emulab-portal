@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -33,12 +33,12 @@ package com.flack.geni.tasks.tests
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.Property;
 	import com.flack.geni.resources.SliverTypes;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 	import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.ImportSliceTaskGroup;
 	import com.flack.geni.tasks.groups.slice.RenewSliceTaskGroup;
@@ -116,18 +116,18 @@ package com.flack.geni.tasks.tests
 				var testInterface:VirtualInterface;
 				var errorFound:Boolean = false;
 				// Make sure the slivers are okay
-				if(slice.slivers.length != 2)
+				if(slice.aggregateSlivers.length != 2)
 				{
 					errorFound = true;
 					addMessage(
 						"Incorrect slivers",
-						"Found " + slice.slivers.length + " slivers instead of 2",
+						"Found " + slice.aggregateSlivers.length + " slivers instead of 2",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				
 				var testName:String = "utahemulab.cm";
-				var testSliver:Sliver = slice.slivers.getByManager(GeniMain.geniUniverse.managers.getByHrn(testName));
+				var testSliver:AggregateSliver = slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getByHrn(testName));
 				if(testSliver == null)
 				{
 					errorFound = true;
@@ -138,7 +138,7 @@ package com.flack.geni.tasks.tests
 					);
 				}
 				
-				testSliver = slice.slivers.getByManager(GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm"));
+				testSliver = slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm"));
 				if(testSliver == null)
 				{
 					errorFound = true;
@@ -155,12 +155,12 @@ package com.flack.geni.tasks.tests
 					errorFound = true;
 					addMessage(
 						"Incorrect number of nodes",
-						"Found " + slice.slivers.length + " node(s) instead of 2",
+						"Found " + slice.aggregateSlivers.length + " node(s) instead of 2",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				testName = "exclusive-0";
-				var testNode:VirtualNode = slice.nodes.getByClientId(testName);
+				var testNode:VirtualNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -250,7 +250,7 @@ package com.flack.geni.tasks.tests
 				}
 				
 				testName = "exclusive-1";
-				testNode = slice.nodes.getByClientId(testName);
+				testNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -336,12 +336,12 @@ package com.flack.geni.tasks.tests
 					errorFound = true;
 					addMessage(
 						"Incorrect links",
-						"Found " + slice.slivers.length + " links instead of 1",
+						"Found " + slice.aggregateSlivers.length + " links instead of 1",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				testName = "link-0";
-				var testLink:VirtualLink = slice.links.getByClientId(testName);
+				var testLink:VirtualLink = slice.links.getLinkByClientId(testName);
 				if(testLink == null)
 				{
 					errorFound = true;
@@ -453,18 +453,18 @@ package com.flack.geni.tasks.tests
 				var testInterface:VirtualInterface;
 				var errorFound:Boolean = false;
 				// Make sure the slivers are okay
-				if(slice.slivers.length != 2)
+				if(slice.aggregateSlivers.length != 2)
 				{
 					errorFound = true;
 					addMessage(
 						"Incorrect slivers",
-						"Found " + slice.slivers.length + " slivers instead of 2",
+						"Found " + slice.aggregateSlivers.length + " slivers instead of 2",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				
 				var testName:String = "utahemulab.cm";
-				var testSliver:Sliver = slice.slivers.getByManager(GeniMain.geniUniverse.managers.getByHrn(testName));
+				var testSliver:AggregateSliver = slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getByHrn(testName));
 				if(testSliver == null)
 				{
 					errorFound = true;
@@ -484,7 +484,7 @@ package com.flack.geni.tasks.tests
 					);
 				}
 				
-				testSliver = slice.slivers.getByManager(GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm"));
+				testSliver = slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm"));
 				if(testSliver == null)
 				{
 					errorFound = true;
@@ -510,12 +510,12 @@ package com.flack.geni.tasks.tests
 					errorFound = true;
 					addMessage(
 						"Incorrect number of nodes",
-						"Found " + slice.slivers.length + " node(s) instead of 2",
+						"Found " + slice.aggregateSlivers.length + " node(s) instead of 2",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				testName = "exclusive-0";
-				var testNode:VirtualNode = slice.nodes.getByClientId(testName);
+				var testNode:VirtualNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -632,7 +632,7 @@ package com.flack.geni.tasks.tests
 				}
 				
 				testName = "exclusive-1";
-				testNode = slice.nodes.getByClientId(testName);
+				testNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -736,12 +736,12 @@ package com.flack.geni.tasks.tests
 					errorFound = true;
 					addMessage(
 						"Incorrect links",
-						"Found " + slice.slivers.length + " links instead of 1",
+						"Found " + slice.aggregateSlivers.length + " links instead of 1",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				testName = "link-0";
-				var testLink:VirtualLink = slice.links.getByClientId(testName);
+				var testLink:VirtualLink = slice.links.getLinkByClientId(testName);
 				if(testLink == null)
 				{
 					errorFound = true;
@@ -852,7 +852,7 @@ package com.flack.geni.tasks.tests
 					testFailed("Slice renew failed");
 					return;
 				}
-				if(preRenewExpire == slice.slivers.EarliestExpiration)
+				if(preRenewExpire == slice.aggregateSlivers.EarliestExpiration)
 				{
 					testFailed("Sliver renew failed");
 					return;
@@ -995,18 +995,18 @@ package com.flack.geni.tasks.tests
 				var testProperty:Property;
 				var errorFound:Boolean = false;
 				// Make sure the slivers are okay
-				if(slice.slivers.length != 2)
+				if(slice.aggregateSlivers.length != 2)
 				{
 					errorFound = true;
 					addMessage(
 						"Incorrect slivers",
-						"Found " + slice.slivers.length + " slivers instead of 2",
+						"Found " + slice.aggregateSlivers.length + " slivers instead of 2",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				
 				var testName:String = "utahemulab.cm";
-				var testSliver:Sliver = slice.slivers.getByManager(GeniMain.geniUniverse.managers.getByHrn(testName));
+				var testSliver:AggregateSliver = slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getByHrn(testName));
 				if(testSliver == null)
 				{
 					errorFound = true;
@@ -1026,7 +1026,7 @@ package com.flack.geni.tasks.tests
 					);
 				}
 				
-				testSliver = slice.slivers.getByManager(GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm"));
+				testSliver = slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getByHrn("ukgeni.cm"));
 				if(testSliver == null)
 				{
 					errorFound = true;
@@ -1052,12 +1052,12 @@ package com.flack.geni.tasks.tests
 					errorFound = true;
 					addMessage(
 						"Incorrect number of nodes",
-						"Found " + slice.slivers.length + " node(s) instead of 5",
+						"Found " + slice.aggregateSlivers.length + " node(s) instead of 5",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				testName = "exclusive-0";
-				var testNode:VirtualNode = slice.nodes.getByClientId(testName);
+				var testNode:VirtualNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -1185,7 +1185,7 @@ package com.flack.geni.tasks.tests
 				}
 				
 				testName = "exclusive-1";
-				testNode = slice.nodes.getByClientId(testName);
+				testNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -1285,7 +1285,7 @@ package com.flack.geni.tasks.tests
 				
 				// Newly added nodes
 				testName = "test0";
-				testNode = slice.nodes.getByClientId(testName);
+				testNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -1374,7 +1374,7 @@ package com.flack.geni.tasks.tests
 					}
 				}
 				testName = "test1";
-				testNode = slice.nodes.getByClientId(testName);
+				testNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -1469,12 +1469,12 @@ package com.flack.geni.tasks.tests
 					errorFound = true;
 					addMessage(
 						"Incorrect links",
-						"Found " + slice.slivers.length + " links instead of 2",
+						"Found " + slice.aggregateSlivers.length + " links instead of 2",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				testName = "link-0";
-				var testLink:VirtualLink = slice.links.getByClientId(testName);
+				var testLink:VirtualLink = slice.links.getLinkByClientId(testName);
 				if(testLink == null)
 				{
 					errorFound = true;
@@ -1549,7 +1549,7 @@ package com.flack.geni.tasks.tests
 					}
 				}
 				testName = "lan";
-				testLink = slice.links.getByClientId(testName);
+				testLink = slice.links.getLinkByClientId(testName);
 				if(testLink == null)
 				{
 					errorFound = true;
@@ -1767,18 +1767,18 @@ package com.flack.geni.tasks.tests
 				// Check to make sure the slice parsed from the manifests mirrors what is expected
 				var errorFound:Boolean = false;
 				// Make sure the slivers are okay
-				if(slice.slivers.length != 1)
+				if(slice.aggregateSlivers.length != 1)
 				{
 					errorFound = true;
 					addMessage(
 						"Incorrect slivers",
-						"Found " + slice.slivers.length + " slivers instead of 1",
+						"Found " + slice.aggregateSlivers.length + " slivers instead of 1",
 						LogMessage.LEVEL_FAIL
 					);
 				}
 				
 				var testName:String = "utahemulab.cm";
-				var testSliver:Sliver = slice.slivers.getByManager(GeniMain.geniUniverse.managers.getByHrn(testName));
+				var testSliver:AggregateSliver = slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getByHrn(testName));
 				if(testSliver == null)
 				{
 					errorFound = true;
@@ -1799,7 +1799,7 @@ package com.flack.geni.tasks.tests
 				}
 				
 				testName = "test0";
-				var testNode:VirtualNode = slice.nodes.getByClientId(testName);
+				var testNode:VirtualNode = slice.nodes.getNodeByClientId(testName);
 				if(testNode == null)
 				{
 					errorFound = true;
@@ -1922,12 +1922,12 @@ package com.flack.geni.tasks.tests
 				
 				// Sanity check...
 				var errorFound:Boolean = false;
-				if(slice.slivers.length != 0)
+				if(slice.aggregateSlivers.length != 0)
 				{
 					errorFound = true;
 					addMessage(
-						"Found " + slice.slivers.length + " sliver(s) when there shouldn't be any.",
-						"Found " + slice.slivers.length + " sliver(s) when there shouldn't be any.",
+						"Found " + slice.aggregateSlivers.length + " sliver(s) when there shouldn't be any.",
+						"Found " + slice.aggregateSlivers.length + " sliver(s) when there shouldn't be any.",
 						LogMessage.LEVEL_FAIL
 					);
 				}

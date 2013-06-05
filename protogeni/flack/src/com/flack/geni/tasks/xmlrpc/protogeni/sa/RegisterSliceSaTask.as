@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -30,7 +30,7 @@
 package com.flack.geni.tasks.xmlrpc.protogeni.sa
 {
 	import com.flack.geni.resources.docs.GeniCredential;
-	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virt.Slice;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;

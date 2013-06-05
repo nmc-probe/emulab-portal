@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,7 +29,7 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
@@ -46,14 +46,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class ResolveSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		
 		/**
 		 * 
 		 * @param newSliver Sliver to resolve
 		 * 
 		 */
-		public function ResolveSliverCmTask(newSliver:Sliver)
+		public function ResolveSliverCmTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.url,
@@ -66,13 +66,13 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 		}
 		
 		override protected function createFields():void
 		{
-			addNamedField("urn", sliver.id.full);
-			addNamedField("credentials", [sliver.credential.Raw]);
+			addNamedField("urn", aggregateSliver.id.full);
+			addNamedField("credentials", [aggregateSliver.credential.Raw]);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
@@ -85,8 +85,8 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH);
 				
-				sliver.manifest = new Rspec(data.manifest,null, null,null, Rspec.TYPE_MANIFEST);
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
+				aggregateSliver.manifest = new Rspec(data.manifest,null, null,null, Rspec.TYPE_MANIFEST);
+				parent.add(new ParseRequestManifestTask(aggregateSliver, aggregateSliver.manifest, false, true));
 				
 				super.afterComplete(addCompletedMessage);
 			}
@@ -96,10 +96,10 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function afterError(taskError:TaskError):void
 		{
-			sliver.status = Sliver.STATUS_FAILED;
+			//sliver.status = AggregateSliver.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 			
@@ -108,10 +108,10 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function runCancel():void
 		{
-			sliver.status = Sliver.STATUS_UNKNOWN;
+			//sliver.status = AggregateSliver.STATUS_UNKNOWN;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 		}

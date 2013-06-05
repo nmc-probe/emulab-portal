@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,9 +29,9 @@
 
 package com.flack.geni.display.slicer
 {
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.VirtualComponent;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualComponent;
+	import com.flack.geni.resources.virt.VirtualNode;
 
 	public interface IComponentsArea
 	{

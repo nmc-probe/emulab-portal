@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -38,11 +38,11 @@ package com.flack.geni.display.mapping
 	import com.flack.geni.resources.physical.PhysicalNodeCollection;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
-	import com.flack.geni.resources.virtual.VirtualNode;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.resources.sites.FlackManager;
@@ -354,12 +354,12 @@ package com.flack.geni.display.mapping
 				preparedPhysicalNodes = null;
 				if(selectedSlice == null)
 				{
-					preparedVirtualNodes = GeniMain.geniUniverse.user.slices.Nodes.getByManagers(shownManagers).Created;
+					preparedVirtualNodes = GeniMain.geniUniverse.user.slices.Nodes.getByManagers(shownManagers).getNodesByAllocated(true);
 					preparedVirtualLinks = GeniMain.geniUniverse.user.slices.Links.getConnectedToManagers(shownManagers);
 				}
 				else
 				{
-					preparedVirtualNodes = selectedSlice.nodes.getByManagers(shownManagers).Created;
+					preparedVirtualNodes = selectedSlice.nodes.getByManagers(shownManagers).getNodesByAllocated(true);
 					preparedVirtualLinks = selectedSlice.links.getConnectedToManagers(shownManagers);
 				}
 				if(selectedNodes != null)

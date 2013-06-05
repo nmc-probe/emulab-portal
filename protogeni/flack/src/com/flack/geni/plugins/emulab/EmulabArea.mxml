@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -39,12 +39,12 @@ IN THE WORK.
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.resources.SliverTypes;
-			import com.flack.geni.resources.virtual.LinkType;
-			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.VirtualLink;
-			import com.flack.geni.resources.virtual.VirtualLinkCollection;
-			import com.flack.geni.resources.virtual.VirtualNode;
-			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.geni.resources.virt.LinkType;
+			import com.flack.geni.resources.virt.AggregateSliver;
+			import com.flack.geni.resources.virt.VirtualLink;
+			import com.flack.geni.resources.virt.VirtualLinkCollection;
+			import com.flack.geni.resources.virt.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualNodeCollection;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.utils.ImageUtil;

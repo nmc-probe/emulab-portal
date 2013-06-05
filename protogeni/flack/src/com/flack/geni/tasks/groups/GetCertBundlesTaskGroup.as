@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,6 +29,7 @@
 
 package com.flack.geni.tasks.groups
 {
+	import com.flack.geni.GeniMain;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.ParallelTaskGroup;
@@ -88,6 +89,13 @@ package com.flack.geni.tasks.groups
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			combineAndApplyBundles();
+			
+			if(GeniMain.skipStartup &&
+				!GeniMain.geniUniverse.user.CertificateSetUp &&
+				GeniMain.geniUniverse.user.SslCertReady) {
+				GeniMain.geniUniverse.user.setSecurity(GeniMain.geniUniverse.user.sslCert, GeniMain.geniUniverse.user.password);
+				GeniMain.geniUniverse.loadAuthenticated();
+			}
 			
 			super.afterComplete(addCompletedMessage);
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (c) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -33,7 +33,7 @@ package com.flack.geni.plugins.instools.instasks
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;
 	import com.flack.geni.tasks.xmlrpc.am.CreateSliverTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateSliverCmTask;
@@ -80,13 +80,13 @@ package com.flack.geni.plugins.instools.instasks
 		
 		override public function completedTask(task:Task):void
 		{
-			for each(var sliver:Sliver in details.slice.slivers.collection)
+			for each(var sliver:AggregateSliver in details.slice.aggregateSlivers.collection)
 			{
 				if(details.cmurn_to_contact[sliver.manager.id.full] == null || details.cmurn_to_contact[sliver.manager.id.full] == sliver.manager.id.full)
 					details.MC_present[sliver.manager.id.full] = Instools.doesSliverHaveMc(sliver);
 				else
 				{
-					var otherSliver:Sliver = details.slice.slivers.getByManager(GeniMain.geniUniverse.managers.getById(details.cmurn_to_contact[sliver.manager.id.full]));
+					var otherSliver:AggregateSliver = details.slice.aggregateSlivers.getByManager(GeniMain.geniUniverse.managers.getById(details.cmurn_to_contact[sliver.manager.id.full]));
 					details.MC_present[sliver.manager.id.full] = Instools.doesSliverHaveJuniperMc(otherSliver);
 					/*
 					for (var key:String in Instools.mcLocation)

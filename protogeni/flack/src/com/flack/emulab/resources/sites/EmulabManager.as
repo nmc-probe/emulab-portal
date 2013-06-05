@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -47,7 +47,7 @@ package com.flack.emulab.resources.sites
 		public var nodes:PhysicalNodeCollection = new PhysicalNodeCollection();
 		public function EmulabManager(newId:String)
 		{
-			super(FlackManager.TYPE_EMULAB, ApiDetails.API_EMULAB, newId);
+			super(ApiDetails.API_EMULAB, newId);
 			api.version = 0.1;
 		}
 		

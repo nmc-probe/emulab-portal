@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (c) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -33,7 +33,7 @@ package com.flack.geni.plugins.instools.instasks
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.shared.tasks.ParallelTaskGroup;
 	
 	/**
@@ -59,7 +59,7 @@ package com.flack.geni.plugins.instools.instasks
 			// Make sure a sliver exists in the slice for any we will be working on...
 			for each(var manager:GeniManager in details.slice.nodes.Managers.collection)
 			{
-				var sliver:Sliver = details.slice.slivers.getOrCreateByManager(manager, details.slice);
+				var sliver:AggregateSliver = details.slice.aggregateSlivers.getOrCreateByManager(manager, details.slice);
 				// Try to get INSTOOLS version on managers we don't have any data on
 				if(Instools.devel_version[sliver.manager.id.full] == null)
 					add(new InstoolsVersionTask(sliver, details));

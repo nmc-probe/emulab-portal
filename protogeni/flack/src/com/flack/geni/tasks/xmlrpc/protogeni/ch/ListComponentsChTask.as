@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -37,21 +37,15 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 	import com.flack.geni.plugins.emulab.FirewallSliverType;
 	import com.flack.geni.plugins.planetlab.PlanetlabSliverType;
 	import com.flack.geni.resources.GeniUser;
-	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.sites.SupportedSliverType;
-	import com.flack.geni.resources.sites.managers.PlanetlabAggregateManager;
-	import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
-	import com.flack.geni.resources.virtual.LinkType;
+	import com.flack.geni.resources.virt.LinkType;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.sites.ApiDetails;
-	import com.flack.shared.resources.sites.FlackManager;
-	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.utils.StringUtil;
 	
 	/**
@@ -101,97 +95,90 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 				{
 					try
 					{
-						var newManager:GeniManager = null;
 						var url:String = obj.url;
-						url = url.replace(":12369", "");
+						var hostPattern:RegExp = /^(http(s?):\/\/([^\/]+))(\/.*)?$/;
+						var match : Object = hostPattern.exec(url);
+						if(match != null && match[4] == null) {
+							url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
+						}
 						var newId:IdnUrn = new IdnUrn(obj.urn);
+						var newManager:GeniManager = new GeniManager(GeniManager.TYPE_UNKNOWN, ApiDetails.API_GENIAM, newId.full, obj.hrn);
 						
 						// ProtoGENI Component Manager
-						if(url.toLowerCase().lastIndexOf("/cm") == url.length - 3)
+						if(newId.name.toLowerCase() == "cm")
 						{
-							var protogeniManager:ProtogeniComponentManager = new ProtogeniComponentManager(newId.full);
-							protogeniManager.hrn = obj.hrn;
-							protogeniManager.url = url.substr(0, url.length-3);
+							newManager.type = GeniManager.TYPE_PROTOGENI;
+							newManager.api.type = ApiDetails.API_PROTOGENI;
+							newManager.url = url.substr(0, url.length-3);
 							
-							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
-							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
-							protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
+							newManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+							newManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
+							newManager.supportedLinkTypes.getOrCreateByName(LinkType.STITCHED);
 							
-							if(protogeniManager.hrn == "shadowgeni.cm")
+							if(newManager.hrn == "shadowgeni.cm")
 							{
-								protogeniManager.supportedLinkTypes.getByName(LinkType.LAN_V2).requiresIpAddresses = true;
+								newManager.supportedLinkTypes.getByName(LinkType.LAN_V2).requiresIpAddresses = true;
 							}
 							
 							// Link Types (not advertised...)
-							if(protogeniManager.hrn == "ukgeni.cm"
-								|| protogeniManager.hrn == "utahemulab.cm")
+							if(newManager.hrn == "ukgeni.cm"
+								|| newManager.hrn == "utahemulab.cm")
 							{
-								protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.ION);
+								newManager.supportedLinkTypes.getOrCreateByName(LinkType.ION);
 							}
-							if(protogeniManager.hrn == "wail.cm"
-								|| protogeniManager.hrn == "utahemulab.cm")
+							if(newManager.hrn == "wail.cm"
+								|| newManager.hrn == "utahemulab.cm")
 							{
-								protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.GPENI);
+								newManager.supportedLinkTypes.getOrCreateByName(LinkType.GPENI);
 							}
-							if(protogeniManager.hrn == "ukgeni.cm"
-								|| protogeniManager.hrn == "utahemulab.cm"
-								|| protogeniManager.hrn == "wail.cm"
-								|| protogeniManager.hrn == "shadowgeni.cm")
+							if(newManager.hrn == "ukgeni.cm"
+								|| newManager.hrn == "utahemulab.cm"
+								|| newManager.hrn == "wail.cm"
+								|| newManager.hrn == "shadowgeni.cm")
 							{
-								protogeniManager.supportedLinkTypes.getOrCreateByName(LinkType.VLAN);
+								newManager.supportedLinkTypes.getOrCreateByName(LinkType.VLAN);
 							}
 							
 							// Node Types (not advertised yet...)
-							if(protogeniManager.hrn == "utahemulab.cm")
+							if(newManager.hrn == "utahemulab.cm")
 							{
-								protogeniManager.supportedSliverTypes.getOrCreateByName(FirewallSliverType.TYPE_FIREWALL);
-								protogeniManager.supportedSliverTypes.getOrCreateByName(EmulabSppSliverType.TYPE_EMULAB_SPP);
+								newManager.supportedSliverTypes.getOrCreateByName(FirewallSliverType.TYPE_FIREWALL);
+								newManager.supportedSliverTypes.getOrCreateByName(EmulabSppSliverType.TYPE_EMULAB_SPP);
 							}
-							if(protogeniManager.hrn == "utahemulab.cm"
-								|| protogeniManager.hrn == "ukgeni.cm"
-								|| protogeniManager.hrn == "jonlab.cm")
+							if(newManager.hrn == "utahemulab.cm"
+								|| newManager.hrn == "ukgeni.cm"
+								|| newManager.hrn == "jonlab.cm")
 							{
-								protogeniManager.supportedSliverTypes.getOrCreateByName(DelaySliverType.TYPE_DELAY);
-							}
-							
-							if(protogeniManager.hrn == "utahemulab.cm"
-								|| protogeniManager.hrn == "ukgeni.cm"
-								|| protogeniManager.hrn == "wail.cm")
-							{
-								protogeniManager.supportedSliverTypes.getOrCreateByName(EmulabBbgSliverType.TYPE_EMULAB_BBG);
+								newManager.supportedSliverTypes.getOrCreateByName(DelaySliverType.TYPE_DELAY);
 							}
 							
-							newManager = protogeniManager;
+							if(newManager.hrn == "utahemulab.cm"
+								|| newManager.hrn == "ukgeni.cm"
+								|| newManager.hrn == "wail.cm")
+							{
+								newManager.supportedSliverTypes.getOrCreateByName(EmulabBbgSliverType.TYPE_EMULAB_BBG);
+							}
 						}
 						else if(newId.name == ProtogeniXmlrpcTask.MODULE_SA)
 						{
-							var planetLabManager:PlanetlabAggregateManager = new PlanetlabAggregateManager(newId.full);
-							planetLabManager.hrn = obj.hrn;
-							//url = "https://sfa-devel.planet-lab.org:12346";//"https://sfa-devel.planet-lab.org:12346";
-							planetLabManager.url = StringUtil.makeSureEndsWith(url, "/"); // needs this for forge...
-							planetLabManager.registryUrl = planetLabManager.url.replace("12346", "12345");
+							newManager.type = GeniManager.TYPE_SFA;
+							newManager.api.type = ApiDetails.API_GENIAM;
+							newManager.url = url;
 							
-							if(planetLabManager.hrn != "genicloud.hplabs.sa")
+							if(newManager.hrn != "genicloud.hplabs.sa")
 							{
-								planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
-								planetLabManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
+								newManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+								newManager.supportedLinkTypes.getOrCreateByName(LinkType.STITCHED);
 							}
 							
-							planetLabManager.supportedSliverTypes.getOrCreateByName(PlanetlabSliverType.TYPE_PLANETLAB_V2);
-							
-							newManager = planetLabManager;
+							newManager.supportedSliverTypes.getOrCreateByName(PlanetlabSliverType.TYPE_PLANETLAB_V2);
 						}
 						else
 						{
-							var otherManager:GeniManager = new GeniManager(FlackManager.TYPE_OTHER, ApiDetails.API_GENIAM, newId.full);
-							otherManager.hrn = obj.hrn;
-							otherManager.url = StringUtil.makeSureEndsWith(url, "/");
+							newManager.url = url;
 							
-							otherManager.supportedLinkTypes.getOrCreateByName(LinkType.UNSPECIFIED);
-							
-							newManager = otherManager;
+							newManager.supportedLinkTypes.getOrCreateByName(LinkType.STITCHED);
 						}
-						newManager.id = newId;
 						newManager.api.url = newManager.url;
 						
 						GeniMain.geniUniverse.managers.add(newManager);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -33,10 +33,10 @@ package com.flack.geni.plugins.emulab
 	import com.flack.geni.plugins.SliverTypeInterface;
 	import com.flack.geni.plugins.SliverTypePart;
 	import com.flack.geni.resources.physical.PhysicalNode;
-	import com.flack.geni.resources.virtual.Ip;
-	import com.flack.geni.resources.virtual.VirtualInterface;
-	import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.Ip;
+	import com.flack.geni.resources.virt.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualInterfaceCollection;
+	import com.flack.geni.resources.virt.VirtualNode;
 	import com.hurlant.util.der.ByteString;
 	
 	import flash.utils.ByteArray;

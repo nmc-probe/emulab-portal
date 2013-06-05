@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,8 +29,10 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
+	import com.flack.geni.resources.GeniCollaborator;
 	import com.flack.geni.resources.docs.GeniCredential;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Sliver;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
@@ -50,7 +52,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class RedeemTicketCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		// hack, afterError should probably be called instead of setting this
 		public var success:Boolean = false;
 		
@@ -59,7 +61,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param newSliver Sliver to redeem ticket for
 		 * 
 		 */
-		public function RedeemTicketCmTask(newSliver:Sliver)
+		public function RedeemTicketCmTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.url,
@@ -72,12 +74,12 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 		}
 		
 		override protected function runStart():void
 		{
-			if(sliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
+			if(aggregateSliver.manager.api.level == ApiDetails.LEVEL_MINIMAL)
 			{
 				afterError(
 					new TaskError(
@@ -88,25 +90,38 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 				return;
 			}
 			
-			sliver.markStaged();
-			sliver.manifest = null;
+			aggregateSliver.markStaged();
+			aggregateSliver.manifest = null;
 			
 			super.runStart();
 		}
 		
 		override protected function createFields():void
 		{
-			addNamedField("slice_urn", sliver.slice.id.full);
-			if(sliver.credential != null && sliver.credential.Raw.length > 0)
-				addNamedField("credentials", [sliver.credential.Raw]);
+			addNamedField("slice_urn", aggregateSliver.slice.id.full);
+			if(aggregateSliver.credential != null && aggregateSliver.credential.Raw.length > 0)
+				addNamedField("credentials", [aggregateSliver.credential.Raw]);
 			else
-				addNamedField("credentials", [sliver.slice.credential.Raw]);
-			addNamedField("ticket", sliver.ticket);
-			var keys:Array = [];
-			for each(var key:String in sliver.slice.creator.keys) {
-				keys.push({type:"ssh", key:key});
+				addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
+			addNamedField("ticket", aggregateSliver.ticket.document);
+			var users:Array = [];
+			var user:Object = {urn: aggregateSliver.slice.creator.id.full, login: aggregateSliver.slice.creator.id.name};
+			var userKeys:Array = [];
+			for each(var key:String in aggregateSliver.slice.creator.keys) {
+				userKeys.push({type:"ssh", key:key}); // XXX type
 			}
-			addNamedField("keys", keys);
+			user.keys = userKeys;
+			users.push(user);
+			for each(var friend:GeniCollaborator in aggregateSliver.slice.creator.collaborators) {
+				var friendObj:Object = {login: friend.id.name};
+				var friendKeys:Array = [];
+				for each(var friendKey:String in friend.keys) {
+					friendKeys.push({type:"ssh", key:friendKey}); // XXX type
+				}
+				friendObj.keys = friendKeys;
+				users.push(friendObj);
+			}
+			addNamedField("keys", users);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
@@ -114,13 +129,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
 				success = true;
-				sliver.credential = new GeniCredential(
+				aggregateSliver.credential = new GeniCredential(
 					data[0],
 					GeniCredential.TYPE_SLIVER,
-					sliver.manager);
-				sliver.id = sliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
-				sliver.expires = sliver.credential.Expires;
-				sliver.manifest = new Rspec(data[1], null, null, null, Rspec.TYPE_MANIFEST);
+					aggregateSliver.manager);
+				aggregateSliver.id = aggregateSliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
+				aggregateSliver.Expires = aggregateSliver.credential.Expires;
+				aggregateSliver.manifest = new Rspec(data[1], null, null, null, Rspec.TYPE_MANIFEST);
+				aggregateSliver.AllocationState = Sliver.ALLOCATION_PROVISIONED;
 				
 				addMessage(
 					"Credential received",
@@ -135,14 +151,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.IMPORTANCE_HIGH
 				);
 				addMessage(
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Expires in " + DateUtil.getTimeUntil(aggregateSliver.EarliestExpiration),
+					"Expires in " + DateUtil.getTimeUntil(aggregateSliver.EarliestExpiration),
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new ParseRequestManifestTask(sliver, sliver.manifest, false, true));
-				parent.add(new StartSliverCmTask(sliver));
+				parent.add(new ParseRequestManifestTask(aggregateSliver, aggregateSliver.manifest, false, true));
+				parent.add(new StartSliverCmTask(aggregateSliver));
 			}
 			else
 			{
@@ -152,12 +168,12 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 					LogMessage.LEVEL_FAIL,
 					LogMessage.IMPORTANCE_HIGH
 				);
-				Alert.show("Problem redeeming ticket at " + sliver.manager.hrn);
+				Alert.show("Problem redeeming ticket at " + aggregateSliver.manager.hrn);
 				
 				// Release the ticket so the user can get another
-				parent.add(new ReleaseTicketCmTask(sliver));
+				parent.add(new ReleaseTicketCmTask(aggregateSliver));
 				// Re-get the sliver to represent how it currently is
-				parent.add(new GetSliverCmTask(sliver));
+				parent.add(new GetSliverCmTask(aggregateSliver));
 			}
 				
 			super.afterComplete(addCompletedMessage);

@@ -1,5 +1,5 @@
 /* 
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,13 +29,17 @@
 
 package com.flack.geni.tasks.http
 {
+	import com.flack.geni.GeniCache;
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.sites.GeniAuthority;
+	import com.flack.geni.resources.sites.GeniAuthorityCollection;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.tasks.http.HttpTask;
-	import com.flack.shared.tasks.http.JsHttpTask;
 	
 	/**
 	 * Downloads a public list of ProtoGENI slice authorities
@@ -70,18 +74,30 @@ package com.flack.geni.tasks.http
 						sliceAuthorityLineParts[1],
 						true
 					);
-				sliceAuthority.url = sliceAuthority.url.replace(":12369", "");
 				if(GeniMain.geniUniverse.authorities.getByUrl(sliceAuthority.url) == null)
 					GeniMain.geniUniverse.authorities.add(sliceAuthority);
 				addMessage(
-					"Added authority: " +sliceAuthority.name,
+					"Added authority: " + sliceAuthority.name,
 					sliceAuthority.toString()
 				);
 			}
 			
+			var manuallyAddedAuthorities:GeniAuthorityCollection = GeniCache.getManualAuthorities();
+			for each(var cachedAuthority:GeniAuthority in manuallyAddedAuthorities.collection)
+			{
+				if(GeniMain.geniUniverse.authorities.getByUrl(cachedAuthority.url) == null)
+				{
+					GeniMain.geniUniverse.authorities.add(cachedAuthority);
+					addMessage(
+						"Added cached authority: " + sliceAuthority.name,
+						sliceAuthority.toString()
+					);
+				}
+			}
+			
 			addMessage(
-				"Added "+GeniMain.geniUniverse.authorities.length+" authorities",
-				"Added "+GeniMain.geniUniverse.authorities.length+" authorities",
+				GeniMain.geniUniverse.authorities.length+" authorities loaded",
+				GeniMain.geniUniverse.authorities.length+" authorities loaded",
 				LogMessage.LEVEL_INFO,
 				LogMessage.IMPORTANCE_HIGH
 			);

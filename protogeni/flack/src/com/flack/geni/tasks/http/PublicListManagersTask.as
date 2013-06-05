@@ -1,5 +1,5 @@
 /* 
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -30,14 +30,13 @@
 package com.flack.geni.tasks.http
 {
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
-	import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
+	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.http.HttpTask;
-	import com.flack.shared.tasks.http.JsHttpTask;
-	import com.flack.shared.utils.NetUtil;
 	
 	/**
 	 * Downloads a list of cached advertisements
@@ -65,7 +64,8 @@ package com.flack.geni.tasks.http
 			{
 				if(line.length == 0)
 					continue;
-				var newManager:ProtogeniComponentManager = new ProtogeniComponentManager(line);
+				// Need a way to know the manager type and/or api...
+				var newManager:GeniManager = new GeniManager(GeniManager.TYPE_PROTOGENI, ApiDetails.API_PROTOGENI, line);
 				newManager.url = url.substring(0, url.lastIndexOf('/')+1) + line;
 				newManager.hrn = newManager.id.authority;
 				GeniMain.geniUniverse.managers.add(newManager);

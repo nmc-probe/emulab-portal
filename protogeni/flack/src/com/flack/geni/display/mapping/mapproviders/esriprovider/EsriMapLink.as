@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -37,8 +37,8 @@ package com.flack.geni.display.mapping.mapproviders.esriprovider
 	import com.flack.geni.display.mapping.GeniMapLink;
 	import com.flack.geni.display.mapping.GeniMapNodeMarker;
 	import com.flack.geni.resources.physical.PhysicalLinkCollection;
-	import com.flack.geni.resources.virtual.VirtualLink;
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualLink;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
 	import com.flack.shared.utils.NetUtil;
 	
 	public class EsriMapLink implements GeniMapLink

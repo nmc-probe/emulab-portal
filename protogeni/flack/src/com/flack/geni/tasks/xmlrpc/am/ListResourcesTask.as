@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -106,7 +106,11 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				var uncompressedRspec:String = CompressUtil.uncompress(data);
+				var uncompressedRspec:String = data;
+				if(uncompressedRspec.indexOf("<") == -1)
+				{
+					uncompressedRspec = CompressUtil.uncompress(uncompressedRspec);
+				}
 				
 				addMessage(
 					"Received advertisement",

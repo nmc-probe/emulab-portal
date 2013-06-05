@@ -20,8 +20,8 @@
 
       <!-- Enable Browser History by replacing useBrowserHistory tokens with two hyphens -->
       <!-- BEGIN Browser History required section -->
-      <link rel="stylesheet" type="text/css" href="history/history.css" />
-      <script type="text/javascript" src="history/history.js"></script>
+      <!-- <link rel="stylesheet" type="text/css" href="history/history.css" /> -->
+      <!-- <script type="text/javascript" src="history/history.js"></script> -->
       <!-- END Browser History required section -->
 
       <script type="text/javascript" src="swfobject.js"></script>
@@ -62,11 +62,13 @@
       <script type="text/javascript" src="forge/aes.js"></script>
       <script type="text/javascript" src="forge/asn1.js"></script>
       <script type="text/javascript" src="forge/jsbn.js"></script>
-      <script type="text/javascript" src="forge/jsbn2.js"></script>
       <script type="text/javascript" src="forge/prng.js"></script>
       <script type="text/javascript" src="forge/random.js"></script>
+      <script type="text/javascript" src="forge/oids.js"></script>
+      <script type="text/javascript" src="forge/rsa.js"></script>
       <script type="text/javascript" src="forge/pki.js"></script>
       <script type="text/javascript" src="forge/tls.js"></script>
+      <script type="text/javascript" src="forge/tlssocket.js"></script>
       <script type="text/javascript" src="forge/http.js"></script>
 
       <script type="text/javascript">
@@ -158,6 +160,19 @@
   {
     try {
       serverCerts = [];
+      var list = newCert.split("-----END CERTIFICATE-----");
+      for (var i = 0; i < list.length - 1; ++i)
+      {
+        serverCerts.push(list[i] + "-----END CERTIFICATE-----\n");
+      }
+    } catch(ex) {
+       forge.log.error(cat, ex);
+    }
+  }
+
+  function addServerCert(newCert)
+  {
+    try {
       var list = newCert.split("-----END CERTIFICATE-----");
       for (var i = 0; i < list.length - 1; ++i)
       {

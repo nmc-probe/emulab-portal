@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -31,16 +31,17 @@ IN THE WORK.
 
 -->
 
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<windows:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						  xmlns:s="library://ns.adobe.com/flex/spark" 
 						  xmlns:mx="library://ns.adobe.com/flex/mx"
 						  xmlns:components="com.flack.shared.display.components.*"
-						  title="Add Authority">
-	<components:layout>
+						  title="Add Authority" xmlns:windows="com.flack.shared.display.windows.*" xmlns:layout="org.osmf.layout.*">
+	<windows:layout>
 		<s:VerticalLayout paddingBottom="4" paddingTop="4" paddingLeft="4" paddingRight="4" />
-	</components:layout>
+	</windows:layout>
 	<fx:Script>
 		<![CDATA[
+			import com.flack.geni.GeniCache;
 			import com.flack.geni.GeniMain;
 			import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
 			import com.flack.shared.FlackEvent;
@@ -50,8 +51,16 @@ IN THE WORK.
 			import com.flack.shared.tasks.file.FileTask;
 			import com.flack.shared.utils.ImageUtil;
 			
+			import mx.controls.Alert;
+			
 			public function addAndClose():void
 			{
+				if(urlTextinput.text.length == 0)
+				{
+					Alert.show("You must give a URL for the authority");
+					return;
+				}
+				
 				var newAuthority:ProtogeniSliceAuthority =
 					new ProtogeniSliceAuthority(
 						idTextinput.text,
@@ -61,6 +70,9 @@ IN THE WORK.
 				
 				if(certTextarea.text.length > 0)
 					SharedMain.Bundle += "\n" + certTextarea.text;
+				
+				if(cacheCheckbox.selected)
+					GeniCache.addAuthorityManually(newAuthority, certTextarea.text);
 				
 				GeniMain.geniUniverse.authorities.add(newAuthority);
 				SharedMain.sharedDispatcher.dispatchChanged(
@@ -117,13 +129,21 @@ IN THE WORK.
 	</s:HGroup>
 	<s:TextArea width="100%" height="100%" id="certTextarea" />
 	
-	<components:controlBarContent>
+	<windows:controlBarLayout>
+		<s:HorizontalLayout paddingBottom="4"
+							paddingTop="4"
+							paddingLeft="4"
+							paddingRight="4"
+							verticalAlign="middle" />
+	</windows:controlBarLayout>
+	<windows:controlBarContent>
 		<s:Button id="okButton"
 				  icon="{ImageUtil.availableIcon}"
 				  label="OK"
 				  click="addAndClose()" />
+		<s:CheckBox id="cacheCheckbox" label="Keep in cache" />
 		<s:Button label="Cancel"
 				  icon="{ImageUtil.cancelIcon}"
 				  click="closeWindow()" />
-	</components:controlBarContent>
-</components:DefaultWindow>
+	</windows:controlBarContent>
+</windows:DefaultWindow>

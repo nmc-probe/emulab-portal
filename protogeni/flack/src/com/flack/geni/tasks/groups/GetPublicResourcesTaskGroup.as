@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -34,7 +34,6 @@ package com.flack.geni.tasks.groups
 	import com.flack.geni.tasks.http.PublicListManagersTask;
 	import com.flack.geni.tasks.http.PublicListResourcesTask;
 	import com.flack.geni.tasks.process.ParseAdvertisementTask;
-	import com.flack.shared.tasks.ParallelTaskGroup;
 	import com.flack.shared.tasks.SerialTaskGroup;
 	import com.flack.shared.tasks.Task;
 

@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -82,13 +82,13 @@ IN THE WORK.
 			import com.flack.geni.display.areas.SliceArea;
 			import com.flack.geni.resources.physical.PhysicalNode;
 			import com.flack.geni.resources.sites.GeniManager;
-			import com.flack.geni.resources.virtual.Slice;
-			import com.flack.geni.resources.virtual.Sliver;
-			import com.flack.geni.resources.virtual.VirtualComponent;
-			import com.flack.geni.resources.virtual.VirtualLink;
-			import com.flack.geni.resources.virtual.VirtualLinkCollection;
-			import com.flack.geni.resources.virtual.VirtualNode;
-			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.geni.resources.virt.Slice;
+			import com.flack.geni.resources.virt.Sliver;
+			import com.flack.geni.resources.virt.VirtualComponent;
+			import com.flack.geni.resources.virt.VirtualLink;
+			import com.flack.geni.resources.virt.VirtualLinkCollection;
+			import com.flack.geni.resources.virt.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualNodeCollection;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			
@@ -139,7 +139,7 @@ IN THE WORK.
 			
 			public function updateInterface():void
 			{
-				var sliceNodes:VirtualNodeCollection = slice.nodes.Clone;
+				var sliceNodes:VirtualNodeCollection = new VirtualNodeCollection(slice.nodes.collection);
 				var i:int;
 				// Remove old nodes and nodes already drawn
 				for(i = 0; i < nodesVgroup.numElements; i++)
@@ -166,7 +166,7 @@ IN THE WORK.
 					newListNode.Node = node;
 				}
 				
-				var sliceLinks:VirtualLinkCollection = slice.links.Clone;
+				var sliceLinks:VirtualLinkCollection = new VirtualLinkCollection(slice.links.collection);
 				// Remove old links and links already drawn
 				for(i = 0; i < linksVgroup.numElements; i++)
 				{
@@ -191,28 +191,36 @@ IN THE WORK.
 					linksVgroup.addElement(newListLink);
 					newListLink.Link = link;
 				}
-				
-				switch(slice.Status)
+
+				switch(slice.AllocationState)
 				{
-					case Sliver.STATUS_READY:
-					//case Sliver.EMULAB_ACTIVE:
-						styleName = "validCanvasStyle";
+					case Sliver.ALLOCATION_PROVISIONED:
+						switch(slice.OperationalState)
+						{
+							case Sliver.OPERATIONAL_READY:
+								styleName = "validCanvasStyle";
+								break;
+							case Sliver.OPERATIONAL_FAILED:
+								styleName = "failedCanvasStyle";
+								break;
+							case Sliver.MIXED_CHANGING:
+							case Sliver.OPERATIONAL_CONFIGURING:
+								styleName = "inprogressCanvasStyle";
+								break;
+							case Sliver.MIXED_FINISHED:
+							case Sliver.OPERATIONAL_NOTREADY:
+								styleName = "pausedCanvasStyle";
+								break;
+							default:
+								styleName = "normalCanvasStyle";
+						}
 						break;
-					case Sliver.STATUS_FAILED:
-					//case Sliver.EMULAB_TERMINATED:
-						styleName = "failedCanvasStyle";
-						break;
-					case Sliver.STATUS_STOPPED:
-					//case Sliver.EMULAB_SWAPPED:
-						styleName = "pausedCanvasStyle";
-						break;
-					case Sliver.STATUS_CHANGING:
-					case Sliver.STATUS_NOTREADY:
-					case Sliver.STATUS_UNKNOWN:
-					case Sliver.STATUS_MIXED:
-					//case Sliver.EMULAB_ACTIVATING:
-					//case Sliver.EMULAB_SWAPPING:
-					//case Sliver.EMULAB_TESTING:
+					case Sliver.ALLOCATION_ALLOCATED:
+					case Sliver.ALLOCATION_UPDATING:
+					case Sliver.MIXED_ALLOCATED:
+					case Sliver.MIXED_UNALLOCATED:
+					case Sliver.MIXED_PROVISIONED:
+					case Sliver.MIXED_UPDATING:
 						styleName = "inprogressCanvasStyle";
 						break;
 					default:

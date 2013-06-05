@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -61,6 +61,7 @@ package com.flack.geni.tasks.groups
 		private var shouldListManagers:Boolean;
 		private var shouldGetResources:Boolean;
 		private var parseTasks:SerialTaskGroup;
+		private var limitToManagers:GeniManagerCollection;
 		
 		/**
 		 * 
@@ -69,7 +70,8 @@ package com.flack.geni.tasks.groups
 		 * 
 		 */
 		public function GetResourcesTaskGroup(listManagers:Boolean = true,
-											  newShouldGetResources:Boolean = true)
+											  newShouldGetResources:Boolean = true,
+											  newLimitToManagers:GeniManagerCollection = null)
 		{
 			super(
 				"Get resources",
@@ -79,6 +81,7 @@ package com.flack.geni.tasks.groups
 			forceSerial = true;
 			shouldListManagers = listManagers;
 			shouldGetResources = newShouldGetResources;
+			limitToManagers = newLimitToManagers;
 		}
 		
 		override protected function runStart():void
@@ -102,6 +105,8 @@ package com.flack.geni.tasks.groups
 					add(new ListComponentsChTask(GeniMain.geniUniverse.user));
 				else if(shouldGetResources)
 					tryGetResources();
+				else
+					afterComplete();
 			}
 			super.runStart();
 		}
@@ -131,19 +136,24 @@ package com.flack.geni.tasks.groups
 		{
 			if(GeniMain.geniUniverse.managers.length == 0)
 				afterComplete();
+			else if(limitToManagers != null)
+			{
+				getResources(limitToManagers);
+			}
 			else
 			{
-				if(GeniCache.shouldAskWhichManagersToWatch()
-					&& !GeniMain.loadAllManagers
-					&& GeniMain.geniUniverse.user.authority.type != GeniAuthority.TYPE_EMULAB)
+				if(GeniMain.loadAllManagersWithoutAsking)
+				{
+					getResources(GeniMain.geniUniverse.managers);
+				}
+				else if(GeniCache.shouldAskWhichManagersToWatch() &&
+					GeniMain.geniUniverse.user.authority.type != GeniAuthority.TYPE_EMULAB)
 				{
 					var askWindow:ChooseManagersToWatchWindow = new ChooseManagersToWatchWindow();
 					askWindow.callAfter = getResources;
 					askWindow.showWindow(true, true);
 					return true;
-				}
-				else
-				{
+				} else {
 					var managersToWatch:Dictionary = GeniCache.getManagersToWatch();
 					var managers:GeniManagerCollection = GeniMain.geniUniverse.managers.Clone;
 					for(var managerId:String in managersToWatch)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -31,7 +31,6 @@ package com.flack.geni.tasks.xmlrpc.am
 {
 	import com.flack.geni.resources.docs.GeniCredential;
 	import com.flack.shared.logging.LogMessage;
-	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.TaskError;
 	import com.flack.shared.tasks.TaskGroup;
 	import com.flack.shared.tasks.xmlrpc.XmlrpcTask;
@@ -39,7 +38,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	import flash.events.Event;
 
 	/**
-	 * Supports the syntax for XML-RPC calls with GENI AM v1-2
+	 * Supports the syntax for XML-RPC calls with GENI AM v4
 	 * 
 	 * @author mstrum
 	 * 
@@ -47,19 +46,27 @@ package com.flack.geni.tasks.xmlrpc.am
 	public class AmXmlrpcTask extends XmlrpcTask
 	{
 		// Methods
+		// Added in v1
+		public static const METHOD_GETVERSION:String = "GetVersion";
+		public static const METHOD_LISTRESOURCES:String = "ListResources";
+		// Added in v1 (deprecated)
+		public static const METHOD_CREATESLIVER:String = "CreateSliver";
+		public static const METHOD_DELETESLIVER:String = "DeleteSliver";
+		public static const METHOD_RENEWSLIVER:String = "RenewSliver";
+		public static const METHOD_SLIVERSTATUS:String = "SliverStatus";
+		// Added in v3
+		public static const METHOD_RENEW:String = "Renew";
 		public static const METHOD_ALLOCATE:String = "Allocate";
-		public static const METHOD_CREATESLIVER:String = "CreateSliver"; // Deprecated (v3)
-		public static const METHOD_DELETESLIVER:String = "DeleteSliver"; // Deprecated (v3)
 		public static const METHOD_DELETE:String = "Delete";
 		public static const METHOD_DESCRIBE:String = "Describe";
-		public static const METHOD_GETVERSION:String = "GetVersion";
-		public static const METHOD_PERFORMOPERATIONALACTION:String = "PerformOperationalAction";
 		public static const METHOD_PROVISION:String = "Provision";
-		public static const METHOD_RENEWSLIVER:String = "RenewSliver"; // Deprecated (v3)
-		public static const METHOD_RENEW:String = "Renew";
-		public static const METHOD_LISTRESOURCES:String = "ListResources";
-		public static const METHOD_SLIVERSTATUS:String = "SliverStatus"; // Deprecated (v3)
-		public static const METHOD_STATUS:String = "Sliver";
+		public static const METHOD_STATUS:String = "Status";
+		public static const METHOD_PERFORMOPERATIONALACTION:String = "PerformOperationalAction";
+		// Added in v4
+		public static const METHOD_CANCEL:String = "Cancel";
+		public static const METHOD_UPDATE:String = "Update";
+		// Available at ProtoGENI hosts
+		public static const METHOD_LISTIMAGES:String = "ListImages";
 		
 		// GENI response codes
 		public static const GENICODE_SUCCESS:int = 0;
@@ -120,6 +127,9 @@ package com.flack.geni.tasks.xmlrpc.am
 		 * Output string specified in a GENI XML-RPC result
 		 */
 		public var output:String;
+
+		public var amType:String = "";
+		public var amCode:Number = NaN;
 		
 		/**
 		 * Initializes a GENI AM XML-RPC call
@@ -169,9 +179,11 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			// GetVersion doesn't specify, so the api version is in the response
 			if(!apiVersion && response.geni_api != null)
+			{
 				apiVersion = Number(response.geni_api);
+			}
 			
-			switch(this.apiVersion)
+			switch(apiVersion)
 			{
 				case 1:
 					data = response;
@@ -184,9 +196,24 @@ package com.flack.geni.tasks.xmlrpc.am
 				case 3:
 				default:
 					genicode = int(response.code.geni_code);
-					// code.am_type
-					// code.am_code
 					output = response.output;
+					
+					if (response.protogeni_error_log_urn != null)
+					{
+						errorLogUrn = String(response.protogeni_error_log_urn);
+					}
+					if (response.protogeni_error_log_url != null)
+					{
+						errorLogUrl = String(response.protogeni_error_log_url);
+					}
+					if (response.am_type != null)
+					{
+						amType = String(response.am_type);
+					}
+					if (response.am_code != null)
+					{
+						amCode = Number(response.am_code);
+					}
 					
 					// Restart if busy
 					if(genicode == GENICODE_BUSY)
@@ -227,6 +254,9 @@ package com.flack.geni.tasks.xmlrpc.am
 			var errorMessage:String = GeniresponseToString(genicode);
 			if(output != null && output.length > 0)
 				errorMessage += ": " + output;
+			var errorLog:String = ErrorLog;
+			if(errorLog.length > 0)
+				errorMessage += "\n" + errorLog;
 			afterError(
 				new TaskError(
 					errorMessage,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,7 +29,7 @@
 
 package com.flack.geni.resources
 {
-	import com.flack.geni.resources.virtual.VirtualInterface;
+	import com.flack.geni.resources.virt.VirtualInterface;
 
 	/**
 	 * Properties of a link

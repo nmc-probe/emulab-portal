@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,8 +29,8 @@
 
 package com.flack.geni.resources.physical
 {
-	import com.flack.geni.resources.virtual.VirtualLinkCollection;
-	import com.flack.geni.resources.virtual.VirtualNodeCollection;
+	import com.flack.geni.resources.virt.VirtualLinkCollection;
+	import com.flack.geni.resources.virt.VirtualNodeCollection;
 
 	public class MapLocation
 	{

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (2) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -36,7 +36,7 @@ package com.flack.geni.plugins.instools.instasks
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
 	import com.flack.geni.resources.SliverTypes;
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.process.ParseRequestManifestTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.logging.LogMessage;
@@ -53,10 +53,10 @@ package com.flack.geni.plugins.instools.instasks
 	 */
 	public final class AddMCNodeTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var sliver:AggregateSliver;
 		public var details:SliceInstoolsDetails;
 		
-		public function AddMCNodeTask(newSliver:Sliver, useDetails:SliceInstoolsDetails)
+		public function AddMCNodeTask(newSliver:AggregateSliver, useDetails:SliceInstoolsDetails)
 		{
 			super(newSliver.manager.url,
 				Instools.instoolsModule + "/" + useDetails.apiVersion.toFixed(1),
@@ -85,7 +85,7 @@ package com.flack.geni.plugins.instools.instasks
 			if (code ==  ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
 				// Determine the sliver where the MC node will exist
-				var parseSliver:Sliver = sliver;
+				var parseSliver:AggregateSliver = sliver;
 				if(data.cmurn_to_contact != null)
 				{
 					var mcManager:GeniManager = GeniMain.geniUniverse.managers.getById(String(data.cmurn_to_contact));
@@ -93,7 +93,7 @@ package com.flack.geni.plugins.instools.instasks
 					{
 						// XXX error, manager not available
 					}
-					parseSliver = sliver.slice.slivers.getOrCreateByManager(mcManager, sliver.slice);
+					parseSliver = sliver.slice.aggregateSlivers.getOrCreateByManager(mcManager, sliver.slice);
 					details.cmurn_to_contact[sliver.manager.id.full] = parseSliver.manager.id.full;
 				}
 				Instools.mcLocation[sliver.manager.id.full] = parseSliver.manager.id.full;

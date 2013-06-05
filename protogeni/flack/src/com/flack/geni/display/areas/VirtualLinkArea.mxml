@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -36,18 +36,18 @@ IN THE WORK.
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
 		  xmlns:areas="com.flack.geni.display.areas.*"
 		  xmlns:components="com.flack.shared.display.components.*"
+		  xmlns:display="com.flack.geni.display.*"
 		  creationComplete="init()"
-		  title="{link.clientId}" xmlns:areas1="com.flack.shared.display.areas.*" xmlns:display="com.flack.geni.display.*">
+		  title="{link.clientId}" xmlns:areas1="com.flack.shared.display.areas.*">
 	<fx:Script>
 		<![CDATA[
 			import com.flack.geni.resources.Property;
 			import com.flack.geni.resources.PropertyCollection;
-			import com.flack.geni.resources.sites.SupportedLinkType;
-			import com.flack.geni.resources.sites.SupportedLinkTypeCollection;
-			import com.flack.geni.resources.virtual.LinkType;
-			import com.flack.geni.resources.virtual.VirtualComponent;
-			import com.flack.geni.resources.virtual.VirtualInterface;
-			import com.flack.geni.resources.virtual.VirtualLink;
+			import com.flack.geni.resources.sites.managers.SupportedLinkType;
+			import com.flack.geni.resources.sites.managers.SupportedLinkTypeCollection;
+			import com.flack.geni.resources.virt.Sliver;
+			import com.flack.geni.resources.virt.VirtualInterface;
+			import com.flack.geni.resources.virt.VirtualLink;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.DocumentArea;
@@ -100,28 +100,38 @@ IN THE WORK.
 						clientIdInput.text = link.clientId;
 						errorButton.visible = link.error.length > 0;
 						manifestButton.visible = link.manifest.length > 0;
-						if(link.status.length > 0)
+						if(link.allocationState != Sliver.ALLOCATION_UNALLOCATED)
 						{
 							statusImage.visible = true;
-							switch(link.status)
+							switch(link.allocationState)
 							{
-								case VirtualComponent.STATUS_READY:
-									this.statusImage.source = ImageUtil.flagGreenIcon;
+								case Sliver.ALLOCATION_PROVISIONED:
+									switch(link.operationalState)
+									{
+										case Sliver.OPERATIONAL_READY:
+											statusImage.source = ImageUtil.flagGreenIcon;
+											break;
+										case Sliver.OPERATIONAL_FAILED:
+											this.statusImage.source = ImageUtil.flagRedIcon;
+											break;
+										case Sliver.OPERATIONAL_CONFIGURING:
+										case Sliver.OPERATIONAL_NOTREADY:
+										case Sliver.OPERATIONAL_STOPPING:
+											statusImage.source = ImageUtil.flagYellowIcon;
+											break;
+										default:
+											statusImage.visible = false;
+									}
 									break;
-								case VirtualComponent.STATUS_FAILED:
-									this.statusImage.source = ImageUtil.flagRedIcon;
+								case Sliver.ALLOCATION_ALLOCATED:
+								case Sliver.ALLOCATION_UPDATING:
+									statusImage.source = ImageUtil.flagYellowIcon;
 									break;
-								case VirtualComponent.STATUS_NOTREADY:
-								case VirtualComponent.STATUS_CHANGING:
-								case VirtualComponent.STATUS_STOPPED:
-									this.statusImage.source = ImageUtil.flagYellowIcon;
-									break;
-								case VirtualComponent.STATUS_UNKNOWN:
 								default:
 									statusImage.visible = false;
 							}
 						}
-						
+
 						vlantagLabel.visible = link.vlantag.length > 0;
 						if(vlantagLabel.visible)
 							vlantagLabel.text = link.vlantag;
@@ -139,9 +149,9 @@ IN THE WORK.
 						for each(var supportedType:SupportedLinkType in supportedTypes.collection)
 						{
 							if(supportedType.name.length == 0)
-								supportedType.name = "Unspecified";
+								supportedType.name = "Stitched (Unspecified)";
 							types.addItem(supportedType);
-							if(supportedType.name == link.type.name || (supportedType.name == "Unspecified" && link.type.name.length == 0))
+							if(supportedType.name == link.type.name || (supportedType.name == "Stitched (Unspecified)" && link.type.name.length == 0))
 								typeList.selectedIndex = types.length-1;
 						}
 						if(supportedTypes.getByName(link.type.name) == null)
@@ -331,11 +341,12 @@ IN THE WORK.
 					 fontWeight="bold"
 					 fontSize="16"
 					 restrict="a-zA-Z0-9\-"
+					 maxChars="16"
 					 toolTip="{link.clientId}"
 					 change="okButton.enabled = true" />
 		<s:Image id="statusImage"
 				 visible="false" includeInLayout="{statusImage.visible}"
-				 toolTip="Status: {link.status}, State: {link.state}" />
+				 toolTip="Allocation: {link.allocationState}, Operational: {link.operationalState}" />
 		<components:ImageButton id="errorButton"
 								visible="false"
 								includeInLayout="{errorButton.visible}"
@@ -543,7 +554,7 @@ IN THE WORK.
 											<fx:Script>
 												<![CDATA[
 													import com.flack.geni.resources.Property;
-													import com.flack.geni.resources.virtual.VirtualInterface;
+													import com.flack.geni.resources.virt.VirtualInterface;
 												]]>
 											</fx:Script>
 											<s:HGroup height="100%" verticalAlign="middle" paddingLeft="2">

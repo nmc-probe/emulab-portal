@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -88,7 +88,8 @@ package com.mstrum
 					switch(newField.identifierTag) {
 						case Asn1Tags.RFC822NAME:
 						case Asn1Tags.UNIFORM_RESOURCE_IDENTIFIER:
-							newField.contents = newField.rawContents.readMultiByte(newField.length, "x-IA5");
+							//newField.contents = newField.rawContents.readMultiByte(newField.length, "x-IA5");
+							newField.contents = newField.rawContents.readMultiByte(newField.length, "US-ASCII");
 							break;
 						default:
 							newField.contents = newField.rawContents;
@@ -191,7 +192,8 @@ package com.mstrum
 						newField.contents = newField.rawContents.readMultiByte(newField.length, "latin1");
 						break;
 					case Asn1Tags.XIA5STRING:
-						newField.contents = newField.rawContents.readMultiByte(newField.length, "x-IA5");
+						//newField.contents = newField.rawContents.readMultiByte(newField.length, "x-IA5");
+						newField.contents = newField.rawContents.readMultiByte(newField.length, "US-ASCII");
 						break;
 					case Asn1Tags.GENERALIZEDTIME:
 						var GeneralizedTimeString:String = newField.rawContents.readMultiByte(newField.length, "US-ASCII");

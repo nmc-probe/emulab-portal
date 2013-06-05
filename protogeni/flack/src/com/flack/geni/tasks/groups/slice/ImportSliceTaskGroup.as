@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -30,7 +30,8 @@
 package com.flack.geni.tasks.groups.slice
 {
 	import com.flack.geni.resources.sites.GeniManager;
-	import com.flack.geni.resources.virtual.Slice;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.Sliver;
 	import com.flack.geni.tasks.process.StartImportSliceTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -95,11 +96,11 @@ package com.flack.geni.tasks.groups.slice
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			// Remove slivers we don't care about
-			for(var i:int = 0; i < slice.slivers.length; i++)
+			for(var i:int = 0; i < slice.aggregateSlivers.length; i++)
 			{
-				if(!slice.slivers.collection[i].Created && slice.slivers.collection[i].Nodes.length == 0)
+				if(!Sliver.isAllocated(slice.aggregateSlivers.collection[i].AllocationState) && slice.aggregateSlivers.collection[i].Nodes.length == 0)
 				{
-					slice.slivers.collection[i].removeFromSlice();
+					slice.aggregateSlivers.collection[i].removeFromSlice();
 					i--;
 				}
 			}

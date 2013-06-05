@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -31,14 +31,14 @@ IN THE WORK.
 
 -->
 
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<windows:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						  xmlns:s="library://ns.adobe.com/flex/spark" 
 						  xmlns:mx="library://ns.adobe.com/flex/mx"
 						  xmlns:components="com.flack.shared.display.components.*"
 						  title="Log in"
 						  creationComplete="onCreationComplete();"
 						  maxStartHeight="400"
-						  maxStartWidth="700">
+						  maxStartWidth="700" xmlns:windows="com.flack.shared.display.windows.*">
 	<components:layout>
 		<s:VerticalLayout paddingTop="4" paddingBottom="4" />
 	</components:layout>
@@ -241,4 +241,4 @@ IN THE WORK.
 				  click="closeWindow()" />
 	</components:controlBarContent>
 	
-</components:DefaultWindow>
+</windows:DefaultWindow>

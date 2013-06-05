@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -41,6 +41,7 @@ IN THE WORK.
 		<![CDATA[
 			import com.flack.emulab.resources.sites.EmulabManager;
 			import com.flack.emulab.tasks.groups.GetManagerTaskGroup;
+			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.LogMessagesRelatedToArea;
@@ -123,9 +124,6 @@ IN THE WORK.
 					}
 					messageButton.visible = manager.errorDescription.length > 0;
 					resourcesGroup.visible = manager.advertisement != null;
-					
-					apiLabel.text = manager.api.toString();
-					typeLabel.text = FlackManager.typeToString(manager.type);
 					
 					nodeTypes = new ArrayCollection();
 					var types:Vector.<String> = manager.nodes.Types;

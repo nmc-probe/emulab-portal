@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -31,15 +31,16 @@ IN THE WORK.
 
 -->
 
-<areas1:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<sharedareas:AreaContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
 		  xmlns:s="library://ns.adobe.com/flex/spark" 
 		  xmlns:mx="library://ns.adobe.com/flex/mx"
 		  xmlns:components="com.flack.shared.display.components.*"
 		  xmlns:display="com.flack.geni.display.*"
 		  xmlns:areas="com.flack.geni.display.areas.*"
+		  xmlns:sharedareas="com.flack.shared.display.areas.*"
 		  creationComplete="init()"
 		  paddingBottom="2"
-		  title="{node.clientId}" xmlns:areas1="com.flack.shared.display.areas.*">
+		  title="{node.clientId}" >
 	<fx:Declarations>
 		<s:RadioButtonGroup id="boundGroup"
 							valueCommit="boundGroup_valueCommitHandler(event)"/>
@@ -52,49 +53,46 @@ IN THE WORK.
 			import com.flack.geni.display.slicer.ExecuteServiceComponent;
 			import com.flack.geni.display.slicer.InstallServiceComponent;
 			import com.flack.geni.plugins.SliverTypePart;
-			import com.flack.geni.plugins.emulab.Pipe;
-			import com.flack.geni.plugins.emulab.PipeCollection;
 			import com.flack.geni.resources.DiskImage;
 			import com.flack.geni.resources.Extensions;
 			import com.flack.geni.resources.SliverType;
-			import com.flack.geni.resources.SliverTypes;
 			import com.flack.geni.resources.physical.HardwareType;
 			import com.flack.geni.resources.physical.HardwareTypeCollection;
 			import com.flack.geni.resources.physical.PhysicalNode;
 			import com.flack.geni.resources.physical.PhysicalNodeCollection;
 			import com.flack.geni.resources.sites.GeniManager;
-			import com.flack.geni.resources.sites.SupportedSliverType;
-			import com.flack.geni.resources.sites.SupportedSliverTypeCollection;
-			import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
-			import com.flack.geni.resources.virtual.ExecuteService;
-			import com.flack.geni.resources.virtual.InstallService;
-			import com.flack.geni.resources.virtual.VirtualComponent;
-			import com.flack.geni.resources.virtual.VirtualInterface;
-			import com.flack.geni.resources.virtual.VirtualInterfaceCollection;
-			import com.flack.geni.resources.virtual.VirtualLink;
-			import com.flack.geni.resources.virtual.VirtualLinkCollection;
-			import com.flack.geni.resources.virtual.VirtualNode;
-			import com.flack.geni.resources.virtual.VirtualNodeCollection;
+			import com.flack.geni.resources.sites.managers.SupportedSliverType;
+			import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
+			import com.flack.geni.resources.virt.ExecuteService;
+			import com.flack.geni.resources.virt.InstallService;
+			import com.flack.geni.resources.virt.Sliver;
+			import com.flack.geni.resources.virt.VirtualInterface;
+			import com.flack.geni.resources.virt.VirtualInterfaceCollection;
+			import com.flack.geni.resources.virt.VirtualLink;
+			import com.flack.geni.resources.virt.VirtualLinkCollection;
+			import com.flack.geni.resources.virt.VirtualNode;
+			import com.flack.geni.resources.virt.VirtualNodeCollection;
+			import com.flack.geni.tasks.groups.ListImagesTaskGroup;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateImageCmTask;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.DocumentArea;
 			import com.flack.shared.display.components.DataButton;
-			import com.flack.shared.display.components.TextInputWindow;
+			import com.flack.shared.display.windows.TextInputWindow;
 			import com.flack.shared.resources.sites.FlackManager;
-			import com.flack.shared.tasks.Tasker;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
-			import com.hurlant.math.bi_internal;
 			
 			import mx.collections.ArrayCollection;
+			import mx.collections.VectorCollection;
 			import mx.controls.Alert;
 			import mx.events.FlexEvent;
 			
 			import spark.collections.Sort;
 			import spark.collections.SortField;
 			import spark.components.Button;
+			import spark.events.IndexChangeEvent;
 			import spark.events.TextOperationEvent;
 			import spark.primitives.Rect;
 			
@@ -102,13 +100,18 @@ IN THE WORK.
 			public var node:VirtualNode = null;
 			
 			[Bindable]
-			private var managers:ArrayCollection = new ArrayCollection();
+			private var managers:VectorCollection = new VectorCollection();
 			[Bindable]
 			private var physicalNodes:ArrayCollection = new ArrayCollection();
 			[Bindable]
 			private var sliverTypes:ArrayCollection = new ArrayCollection();
 			[Bindable]
 			private var hardwareForVirtual:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var diskImageUsers:VectorCollection = new VectorCollection();
+			[Bindable]
+			private var userDiskImages:VectorCollection = new VectorCollection();
 			[Bindable]
 			private var diskImages:ArrayCollection = new ArrayCollection();
 			
@@ -140,9 +143,8 @@ IN THE WORK.
 			public function init():void
 			{
 				if(node != null)
-				{
 					load(node);
-				}
+				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_USERDISKIMAGES, loadUserDiskImageStuff);
 			}
 			
 			public function load(n:VirtualNode):void
@@ -163,12 +165,7 @@ IN THE WORK.
 				physicalNodes.sort = nameSort;
 				
 				// Build up lists
-				managers.removeAll();
-				for each(var manager:GeniManager in GeniMain.geniUniverse.managers.collection)
-				{
-					if(manager.Status == FlackManager.STATUS_VALID)
-						managers.addItem(manager);
-				}
+				managers = new VectorCollection(GeniMain.geniUniverse.managers.getByStatus(FlackManager.STATUS_VALID).collection);
 				
 				if(initialized)
 				{
@@ -177,23 +174,34 @@ IN THE WORK.
 					titleColor = ColorUtil.colorsLight[node.manager.colorIdx];
 					errorButton.visible = node.error.length > 0;
 					manifestButton.visible = node.manifest.length>0;
-					if(node.status.length > 0)
+					loadDiskImageUsers();
+					if(node.allocationState != Sliver.ALLOCATION_UNALLOCATED)
 					{
 						statusImage.visible = true;
-						switch(node.status)
+						switch(node.allocationState)
 						{
-							case VirtualComponent.STATUS_READY:
-								this.statusImage.source = ImageUtil.flagGreenIcon;
+							case Sliver.ALLOCATION_PROVISIONED:
+								switch(node.operationalState)
+								{
+									case Sliver.OPERATIONAL_READY:
+										statusImage.source = ImageUtil.flagGreenIcon;
+										break;
+									case Sliver.OPERATIONAL_FAILED:
+										this.statusImage.source = ImageUtil.flagRedIcon;
+										break;
+									case Sliver.OPERATIONAL_CONFIGURING:
+									case Sliver.OPERATIONAL_NOTREADY:
+									case Sliver.OPERATIONAL_STOPPING:
+										statusImage.source = ImageUtil.flagYellowIcon;
+										break;
+									default:
+										statusImage.visible = false;
+								}
 								break;
-							case VirtualComponent.STATUS_FAILED:
-								this.statusImage.source = ImageUtil.flagRedIcon;
-								break;
-							case VirtualComponent.STATUS_NOTREADY:
-							case VirtualComponent.STATUS_CHANGING:
-							case VirtualComponent.STATUS_STOPPED:
+							case Sliver.ALLOCATION_ALLOCATED:
+							case Sliver.ALLOCATION_UPDATING:
 								statusImage.source = ImageUtil.flagYellowIcon;
 								break;
-							case VirtualComponent.STATUS_UNKNOWN:
 							default:
 								statusImage.visible = false;
 						}
@@ -233,13 +241,15 @@ IN THE WORK.
 							diskImageNameCheckbox.selected = true;
 							diskImageText.text = node.sliverType.selectedImage.id.full;
 						}
+						diskImageVersionText.text = node.sliverType.selectedImage.version;
 					}
 					else
 					{
 						diskImageText.text = "";
+						diskImageVersionText.text = "";
 					}
 					
-					if(node.manager.type == FlackManager.TYPE_PROTOGENI && node.Created)
+					if(node.manager.type == GeniManager.TYPE_PROTOGENI && Sliver.isAllocated(node.allocationState))
 						createImageButton.visible = true;
 					
 					installVgroup.removeAllElements();
@@ -271,6 +281,46 @@ IN THE WORK.
 					}
 					
 					okButton.enabled = false;
+				}
+			}
+			
+			private function loadUserDiskImageStuff(e:FlackEvent):void
+			{
+				if(e.changedObject != null)
+				{
+					loadDiskImageUsers(e.changedObject as String);
+					loadUserDiskImages(e.changedObject as String);
+				}
+				else
+				{
+					loadDiskImageUsers();
+					loadUserDiskImages();
+				}
+			}
+			
+			public function loadDiskImageUsers(selectedUser:String = ""):void
+			{
+				diskImageUsers = new VectorCollection(GeniMain.geniUniverse.userDiskImages.Creators);
+				diskImageUsers.addItem("");
+				if(selectedUser.length > 0)
+					diskImageUserSelect.selectedItem = selectedUser;
+			}
+			
+			public function loadUserDiskImages(selectedUser:String = ""):void
+			{
+				if(selectedUser.length > 0)
+				{
+					userDiskImages = new VectorCollection(
+						GeniMain.geniUniverse.userDiskImages.getByCreator(selectedUser).collection);
+				}
+				else if(diskImageUserSelect.selectedItem != null
+					&& diskImageUserSelect.selectedItem.length > 0)
+				{
+					userDiskImages = new VectorCollection(
+						GeniMain.geniUniverse.userDiskImages.getByCreator(
+							diskImageUserSelect.selectedItem as String).collection);
+				} else {
+					userDiskImages = new VectorCollection();
 				}
 			}
 			
@@ -500,30 +550,32 @@ IN THE WORK.
 			private function addInstallService(installService:InstallService = null):void
 			{
 				var newInstallComponent:InstallServiceComponent = new InstallServiceComponent();
-				newInstallComponent.onChange = onChange;
 				if(installService != null)
 				{
 					newInstallComponent.url = installService.url;
 					newInstallComponent.path = installService.installPath;
 				}
+				newInstallComponent.onChange = markEdited;
 				installVgroup.addElement(newInstallComponent);
-				onChange();
+				if(!okButton.enabled)
+					okButton.enabled = true;
 			}
 			
 			private function addExecuteService(executeService:ExecuteService = null):void
 			{
 				var newExecuteComponent:ExecuteServiceComponent = new ExecuteServiceComponent();
-				newExecuteComponent.onChange = onChange;
 				if(executeService != null)
 				{
 					newExecuteComponent.cmd = executeService.command;
 					newExecuteComponent.shell = executeService.shell;
 				}
+				newExecuteComponent.onChange = markEdited;
 				executeVgroup.addElement(newExecuteComponent);
-				onChange();
+				if(!okButton.enabled)
+					okButton.enabled = true;
 			}
 			
-			private function onChange():void
+			public function markEdited():void
 			{
 				if(!okButton.enabled)
 					okButton.enabled = true;
@@ -586,7 +638,9 @@ IN THE WORK.
 				// Make sure we HAVE a client id
 				if(clientIdInput.text.length == 0)
 				{
-					Alert.show("Either choose an unbound node or choose a node to bind to.", "No bound node indicated");
+					Alert.show(
+						"Either choose an unbound node or choose a node to bind to.",
+						"No bound node indicated");
 					return true;
 				}
 				
@@ -689,9 +743,9 @@ IN THE WORK.
 					if(diskImageText.visible && diskImageText.text.length > 0)
 					{
 						if(diskImageUrlCheckbox.selected)
-							node.sliverType.selectedImage = new DiskImage("", "", "", "", false, diskImageText.text);
+							node.sliverType.selectedImage = new DiskImage("", "", diskImageVersionText.text, "", false, diskImageText.text);
 						else
-							node.sliverType.selectedImage = new DiskImage(diskImageText.text);
+							node.sliverType.selectedImage = new DiskImage(diskImageText.text, "", diskImageVersionText.text);
 					}
 					var serviceIdx:int;
 					if(selectedType.supportsInstallService)
@@ -796,6 +850,40 @@ IN THE WORK.
 				}
 			}
 			
+			private function diskImageUserDisplay(obj:Object):String
+			{
+				if(obj.length == 0)
+					return "Add user and list disk images";
+				return obj as String;
+			}
+			
+			protected function diskImageUserSelect_changeHandler(event:IndexChangeEvent):void
+			{
+				if(diskImageUserSelect.selectedItem == null)
+					return;
+				if(diskImageUserSelect.selectedItem.length == 0) {
+					SharedMain.tasker.add(new ListImagesTaskGroup());
+					diskImageUserSelect.selectedIndex = -1;
+				} else {
+					loadUserDiskImages();
+				}
+			}
+			
+			protected function userDiskImageSelect_changeHandler(event:IndexChangeEvent):void
+			{
+				var selectedImage:DiskImage = userDiskImageSelect.selectedItem as DiskImage;
+				if(selectedImage.id.authority == this.SelectedManager.id.authority)
+				{
+					diskImageText.text = selectedImage.id.full;
+					diskSourceGroup.selection = diskImageNameCheckbox;
+				}
+				else
+				{
+					diskImageText.text = selectedImage.url;
+					diskSourceGroup.selection = diskImageUrlCheckbox;
+				}
+			}
+			
 		]]>
 	</fx:Script>
 	
@@ -816,11 +904,12 @@ IN THE WORK.
 						 fontWeight="bold"
 						 fontSize="16"
 						 restrict="a-zA-Z0-9\-"
+						 maxChars="16"
 						 toolTip="{node.clientId}"
 						 change="if(!okButton.enabled) okButton.enabled = clientIdInput.text != node.clientId" />
 			<s:Image id="statusImage"
 					 visible="false" includeInLayout="{statusImage.visible}"
-					 toolTip="Status: {node.status}, State: {node.state}" />
+					 toolTip="Allocation: {node.allocationState}, Operational: {node.operationalState}" />
 			<components:ImageButton id="errorButton"
 									visible="false"
 									includeInLayout="{errorButton.visible}"
@@ -955,9 +1044,11 @@ IN THE WORK.
 									label="Exclusive?" />
 					</s:VGroup>
 				</s:HGroup>
+				<components:DefaultLine percentWidth="100" />
 				<s:VGroup id="diskImageGroup"
 						  width="100%"
 						  gap="2"
+						  verticalAlign="top"
 						  includeInLayout="{diskImageGroup.visible}">
 					<s:HGroup width="100%"
 							  gap="2"
@@ -965,12 +1056,29 @@ IN THE WORK.
 						<s:Label text="Disk Image"
 								 fontWeight="bold" />
 						<s:Rect />
-						<s:DropDownList id="diskImageSelect"
-										width="100%"
-										prompt="Select image to override default"
-										dataProvider="{diskImages}"
-										labelField="description"
-										change="diskImageText.text = diskImageSelect.selectedItem.id.full; diskImageNameCheckbox.selected = true;" />
+						<s:VGroup width="100%">
+							<s:DropDownList id="diskImageSelect"
+											width="100%"
+											prompt="Select advertised image"
+											dataProvider="{diskImages}"
+											labelField="description"
+											change="diskImageText.text = diskImageSelect.selectedItem.id.full; diskImageNameCheckbox.selected = true;" />
+							<s:HGroup width="100%">
+								<s:DropDownList id="diskImageUserSelect"
+												width="100%"
+												prompt="Select a user for user-created disk images"
+												dataProvider="{diskImageUsers}"
+												labelFunction="diskImageUserDisplay"
+												change="diskImageUserSelect_changeHandler(event)" />
+								<s:DropDownList id="userDiskImageSelect"
+												width="100%"
+												prompt="Select user-created disk image"
+												dataProvider="{userDiskImages}"
+												labelField="description"
+												change="userDiskImageSelect_changeHandler(event)" />
+							</s:HGroup>
+							
+						</s:VGroup>
 						<s:Rect />
 						<s:Button id="createImageButton"
 								  visible="false"
@@ -1001,7 +1109,17 @@ IN THE WORK.
 									 change="diskImageText_changeHandler(event)"
 									 valueCommit="diskImageText_changeHandler(event)" />
 					</s:HGroup>
+					<s:HGroup width="100%"
+							  verticalAlign="middle"
+							  gap="2">
+						<s:Label text="Version" />
+						<s:TextInput id="diskImageVersionText"
+									 width="100%"
+									 prompt="If required, give a disk image version."
+									 change="if(!okButton.enabled) okButton.enabled = exclusiveCheckbox.selected != node.exclusive" />
+					</s:HGroup>
 				</s:VGroup>
+				<components:DefaultLine percentWidth="100" />
 				<s:HGroup width="100%"
 						  height="100%"
 						  gap="2"
@@ -1207,4 +1325,4 @@ IN THE WORK.
 					  click="cancelAndClose();" />
 		</s:HGroup>
 	</s:Group>
-</areas1:AreaContent>
+</sharedareas:AreaContent>

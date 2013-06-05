@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (c) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -31,7 +31,7 @@
 package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.process.GenerateRequestManifestTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -64,12 +64,10 @@ package com.flack.geni.plugins.instools.instasks
 			var generate:GenerateRequestManifestTask = new GenerateRequestManifestTask(details.slice, true, true);
 			generate.start();
 			
-			for each(var sliver:Sliver in details.slice.slivers.collection)
+			for each(var sliver:AggregateSliver in details.slice.aggregateSlivers.collection)
 			{
 				if(details.MC_present[sliver.manager.id.full])
-				{
 					add(new SaveManifestTask(sliver, details, generate.resultRspec));
-				}
 				else
 				{
 					addMessage(

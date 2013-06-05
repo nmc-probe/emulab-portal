@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -81,8 +81,10 @@ IN THE WORK.
 		<![CDATA[
 			import com.flack.geni.display.DisplayUtil;
 			import com.flack.geni.resources.sites.GeniManagerCollection;
-			import com.flack.geni.resources.virtual.VirtualComponent;
-			import com.flack.geni.resources.virtual.VirtualLink;
+			import com.flack.geni.resources.virt.AggregateSliver;
+			import com.flack.geni.resources.virt.Sliver;
+			import com.flack.geni.resources.virt.VirtualComponent;
+			import com.flack.geni.resources.virt.VirtualLink;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			
@@ -126,28 +128,43 @@ IN THE WORK.
 			{
 				if(link != null)
 				{
-					switch(link.status)
+					switch(link.allocationState)
 					{
-						case VirtualComponent.STATUS_READY:
-							styleName = "validNodeStyle";
-							toolTip = link.state;
+						case Sliver.ALLOCATION_PROVISIONED:
+							switch(link.operationalState)
+							{
+								case Sliver.OPERATIONAL_READY:
+									styleName = "validNodeStyle";
+									break;
+								case Sliver.OPERATIONAL_FAILED:
+									styleName = "failedNodeStyle";
+									toolTip = "Error: " + link.error;
+									break;
+								case Sliver.OPERATIONAL_STOPPING:
+								case Sliver.OPERATIONAL_READY_BUSY:
+								case Sliver.OPERATIONAL_CONFIGURING:
+									styleName = "inprogressNodeStyle";
+									toolTip = "Status is changing...";
+									break;
+								case Sliver.OPERATIONAL_NOTREADY:
+									styleName = "pausedNodeStyle";
+									toolTip = "Stopped";
+									break;
+								default:
+									styleName = "normalNodeStyle";
+									toolTip = "Allocation: " + Sliver.readableAllocationState(link.allocationState) +
+									" Operational: " + Sliver.readableOperationalState(link.operationalState);
+							}
 							break;
-						case VirtualComponent.STATUS_FAILED:
-							styleName = "failedNodeStyle";
-							toolTip = "Error: " + link.error;
-							break;
-						case VirtualComponent.STATUS_CHANGING:
+						case Sliver.ALLOCATION_ALLOCATED:
+						case Sliver.ALLOCATION_UPDATING:
 							styleName = "inprogressNodeStyle";
 							toolTip = "Status is changing...";
 							break;
-						case VirtualComponent.STATUS_NOTREADY:
-							styleName = "inprogressNodeStyle";
-							toolTip = "Node is not ready";
-							break;
-						case VirtualComponent.STATUS_UNKNOWN:
 						default:
 							styleName = "normalNodeStyle";
-							toolTip = "State: " + link.state + " Status: " + link.status;
+							toolTip = "Allocation: " + Sliver.readableAllocationState(link.allocationState) +
+							" Operational: " + Sliver.readableOperationalState(link.operationalState);
 					}
 				}
 				else

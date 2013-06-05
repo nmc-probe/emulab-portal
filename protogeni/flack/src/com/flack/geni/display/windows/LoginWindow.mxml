@@ -2,7 +2,7 @@
 
 <!--
 
-Copyright (c) 2008-2012 University of Utah and the Flux Group.
+Copyright (c) 2008-2013 University of Utah and the Flux Group.
 
 {{{GENIPUBLIC-LICENSE
 
@@ -31,30 +31,28 @@ IN THE WORK.
 
 -->
 
-<components:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+<windows:DefaultWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
 						  xmlns:s="library://ns.adobe.com/flex/spark" 
 						  xmlns:mx="library://ns.adobe.com/flex/mx"
 						  xmlns:components="com.flack.shared.display.components.*"
 						  title="Log in"
 						  creationComplete="onCreationComplete();"
-						  maxStartHeight="400" maxStartWidth="700">
-	<components:layout>
+						  maxStartHeight="400" maxStartWidth="700" xmlns:windows="com.flack.shared.display.windows.*">
+	<windows:layout>
 		<s:VerticalLayout paddingTop="4" paddingBottom="4" />
-	</components:layout>
+	</windows:layout>
 	<fx:Declarations>
 		<s:RadioButtonGroup id="credentialGroup" />
 	</fx:Declarations>
 	
 	<fx:Script>
 		<![CDATA[
-			import avmplus.FLASH10_FLAGS;
-			
 			import com.flack.geni.GeniMain;
 			import com.flack.geni.display.DisplayUtil;
 			import com.flack.geni.resources.docs.GeniCredential;
 			import com.flack.geni.resources.sites.GeniAuthority;
 			import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
-			import com.flack.geni.resources.virtual.Slice;
+			import com.flack.geni.resources.virt.Slice;
 			import com.flack.geni.tasks.http.PublicListAuthoritiesTask;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedCache;
@@ -72,6 +70,7 @@ IN THE WORK.
 			import com.mstrum.Oids;
 			
 			import mx.collections.ArrayList;
+			import mx.collections.VectorList;
 			import mx.controls.Alert;
 			import mx.core.FlexGlobals;
 			import mx.events.CloseEvent;
@@ -80,9 +79,9 @@ IN THE WORK.
 			{
 				fillAuthorityList();
 				
-				this.sslPem.text = SharedMain.user.sslCert;
-				
-				this.authorities.selectedItem = GeniMain.geniUniverse.user.authority;
+				selectedAuthority = GeniMain.geniUniverse.user.authority;
+				authorities.selectedItem = GeniMain.geniUniverse.user.authority;
+				sslPem.text = SharedMain.user.sslCert;
 				
 				SharedMain.sharedDispatcher.addEventListener(FlackEvent.CHANGED_AUTHORITIES, fillAuthorityList);
 				
@@ -102,19 +101,20 @@ IN THE WORK.
 			private var selectedAuthority:GeniAuthority;
 			
 			[Bindable]
-			private var authorityList:ArrayList;
+			private var authorityList:VectorList;
 			private function fillAuthorityList(junk:* = null):void
 			{
 				// Create List
-				authorityList = new ArrayList();
-				for each(var authority:GeniAuthority in GeniMain.geniUniverse.authorities.collection)
-					authorityList.addItem(authority);
+				authorityList = new VectorList(GeniMain.geniUniverse.authorities.collection);
 					
 				// Set to user's
 				if(SharedMain.user.id != null)
 					setUserAuthority();
 				if(GeniMain.geniUniverse.user.authority != null)
+				{
+					selectedAuthority = GeniMain.geniUniverse.user.authority;
 					authorities.selectedItem = GeniMain.geniUniverse.user.authority;
+				}
 			}
 			
 			private function setUserAuthority():void
@@ -123,8 +123,9 @@ IN THE WORK.
 				{
 					if(sa.id.authority == SharedMain.user.id.authority)
 					{
+						selectedAuthority = sa;
 						GeniMain.geniUniverse.user.authority = sa;
-						this.authorities.selectedItem = sa;
+						authorities.selectedItem = sa;
 						return;
 					}
 				}
@@ -227,14 +228,14 @@ IN THE WORK.
 					catch(e:Error)
 					{
 						if(passwordGroup.visible)
-							this.detectedUrnLabel.text = "Please enter your private key passphrase below.";
+							this.enterPasswordLabel.text = "Please enter your private key passphrase below.";
 						else
-							this.detectedUrnLabel.text = "";
+							this.enterPasswordLabel.text = "";
 					}
 					if(passwordGroup.visible)
 						passwordField.setFocus();
 					else
-						this.okButton.setFocus();
+						okButton.setFocus();
 				}
 				else
 				{
@@ -247,9 +248,9 @@ IN THE WORK.
 			private function setUserId(idString:String):void
 			{
 				SharedMain.user.id = new IdnUrn(idString);
-				this.detectedUrnLabel.text = "Hello, " + SharedMain.user.id.name + " from " + SharedMain.user.id.authority + ".";
+				detectedUrnLabel.text = "Hello, " + SharedMain.user.id.name + " from " + SharedMain.user.id.authority + ".";
 				if(this.passwordGroup.visible)
-					this.detectedUrnLabel.text += " Please enter your private key passphrase below.";
+					this.enterPasswordLabel.text += " Please enter your private key passphrase below.";
 				setUserAuthority();
 			}
 			
@@ -399,7 +400,7 @@ IN THE WORK.
 			
 			public function saveAndClose():void
 			{
-				if(SharedMain.user.setSecurity(passwordField.text, sslPem.text))
+				if(SharedMain.user.setSecurity(sslPem.text, passwordField.text))
 				{
 					Alert.show("It appears that the password is incorrect, try again", "Incorrect password");
 					return;
@@ -510,7 +511,8 @@ IN THE WORK.
 				valueCommit="tryParseCert()"
 				change="tryParseCert()" />
 	<s:HGroup verticalAlign="middle" paddingLeft="4" paddingRight="4">
-		<s:Label id="detectedUrnLabel" width="100%" />
+		<s:Label id="detectedUrnLabel" />
+		<s:Label id="enterPasswordLabel" width="100%" />
 		<s:CheckBox id="rememberUnencryptedCertCheckbox" label="Remember" visible="false" includeInLayout="{rememberUnencryptedCertCheckbox.visible}" />
 	</s:HGroup>
 	
@@ -545,10 +547,10 @@ IN THE WORK.
 		<s:Label id="useCredentialLabel" styleName="validStyle" fontWeight="bold" />
 	</s:HGroup>
 
-	<components:controlBarLayout>
+	<windows:controlBarLayout>
 		<s:HorizontalLayout verticalAlign="middle" paddingBottom="2" paddingLeft="2" paddingRight="2" paddingTop="2" />
-	</components:controlBarLayout>
-	<components:controlBarContent>
+	</windows:controlBarLayout>
+	<windows:controlBarContent>
 		<s:Button id="okButton"
 				  label="OK"
 				  icon="{ImageUtil.authenticationIcon}"
@@ -557,6 +559,5 @@ IN THE WORK.
 		<s:Button label="Cancel"
 				  icon="{ImageUtil.crossIcon}"
 				  click="closeWindow()" />
-	</components:controlBarContent>
-	
-</components:DefaultWindow>
+	</windows:controlBarContent>
+</windows:DefaultWindow>

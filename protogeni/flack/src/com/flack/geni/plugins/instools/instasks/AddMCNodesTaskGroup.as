@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (c) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -32,7 +32,7 @@ package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.shared.tasks.ParallelTaskGroup;
 	
 	/**
@@ -53,7 +53,7 @@ package com.flack.geni.plugins.instools.instasks
 			relatedTo.push(newDetails.slice);
 			details = newDetails;
 			
-			for each(var sliver:Sliver in details.slice.slivers.collection)
+			for each(var sliver:AggregateSliver in details.slice.aggregateSlivers.collection)
 			{
 				if(Instools.devel_version[sliver.manager.id.full] != null)
 					add(new AddMCNodeTask(sliver, details));

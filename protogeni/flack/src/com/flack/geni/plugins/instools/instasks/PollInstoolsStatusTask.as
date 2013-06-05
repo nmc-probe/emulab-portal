@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * Copyright (c) 2011-2012 University of Kentucky.
  * 
  * {{{GENIPUBLIC-LICENSE
@@ -32,7 +32,8 @@ package com.flack.geni.plugins.instools.instasks
 {
 	import com.flack.geni.plugins.instools.Instools;
 	import com.flack.geni.plugins.instools.SliceInstoolsDetails;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Sliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.StartSliverCmTask;
 	import com.flack.shared.FlackEvent;
@@ -45,10 +46,10 @@ package com.flack.geni.plugins.instools.instasks
 	
 	public final class PollInstoolsStatusTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		public var details:SliceInstoolsDetails;
 		
-		public function PollInstoolsStatusTask(newSliver:Sliver, useDetails:SliceInstoolsDetails)
+		public function PollInstoolsStatusTask(newSliver:AggregateSliver, useDetails:SliceInstoolsDetails)
 		{
 			super(
 				newSliver.manager.url,
@@ -61,28 +62,29 @@ package com.flack.geni.plugins.instools.instasks
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.manager);
 			relatedTo.push(newSliver.slice);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 			details = useDetails;
 		}
 		
 		override protected function createFields():void
 		{
-			addNamedField("urn", sliver.slice.id.full);
-			addNamedField("INSTOOLS_VERSION", details.useStableINSTOOLS ? Instools.stable_version[sliver.manager.id.full] : Instools.devel_version[sliver.manager.id.full]);
+			addNamedField("urn", aggregateSliver.slice.id.full);
+			addNamedField("INSTOOLS_VERSION", details.useStableINSTOOLS ? Instools.stable_version[aggregateSliver.manager.id.full] : Instools.devel_version[aggregateSliver.manager.id.full]);
 			//addNamedField("INSTOOLS_VERSION",Instools.devel_version[sliver.manager.id.full]);
-			addNamedField("credentials", [sliver.slice.credential.Raw]);
+			addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			if (code ==  ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				details.instools_status[sliver.manager.id.full] = String(data.status);
+				details.instools_status[aggregateSliver.manager.id.full] = String(data.status);
 				var status:String = String(data.status);
 				switch(status) {
 					case "INSTRUMENTIZE_COMPLETE":		//instrumentize is finished, experiment is ready, etc.
-						details.portal_url[sliver.manager.id.full] = String(data.portal_url);
-						sliver.status = Sliver.STATUS_READY;
+						details.portal_url[aggregateSliver.manager.id.full] = String(data.portal_url);
+						//HACK
+						aggregateSliver.OperationalState = Sliver.OPERATIONAL_READY;
 						broadcastStatus();
 						var msg:String = details.creating ? "Instrumentizing complete!" : "INSTOOLS running!";
 						addMessage(
@@ -100,7 +102,7 @@ package com.flack.geni.plugins.instools.instasks
 							LogMessage.LEVEL_INFO,
 							LogMessage.IMPORTANCE_HIGH
 						);
-						if (details.started_instrumentize[sliver.manager.id.full] != "1")
+						if (details.started_instrumentize[aggregateSliver.manager.id.full] != "1")
 						{
 							addMessage(
 								"Instrumentizing...",
@@ -108,8 +110,8 @@ package com.flack.geni.plugins.instools.instasks
 								LogMessage.LEVEL_INFO,
 								LogMessage.IMPORTANCE_HIGH
 							);
-							parent.add(new InstrumentizeTask(sliver, details));
-							details.started_instrumentize[sliver.manager.id.full] = "1";
+							parent.add(new InstrumentizeTask(aggregateSliver, details));
+							details.started_instrumentize[aggregateSliver.manager.id.full] = "1";
 						}
 						break;
 					case "MC_NOT_STARTED":				//MC has been added, but not started
@@ -119,7 +121,7 @@ package com.flack.geni.plugins.instools.instasks
 							LogMessage.LEVEL_INFO,
 							LogMessage.IMPORTANCE_HIGH
 						);
-						if (details.started_MC[sliver.manager.id.full] != "1")
+						if (details.started_MC[aggregateSliver.manager.id.full] != "1")
 						{
 							addMessage(
 								"Starting...",
@@ -127,8 +129,8 @@ package com.flack.geni.plugins.instools.instasks
 								LogMessage.LEVEL_INFO,
 								LogMessage.IMPORTANCE_HIGH
 							);
-							parent.add(new StartSliverCmTask(sliver));
-							details.started_MC[sliver.manager.id.full] = "1";
+							parent.add(new StartSliverCmTask(aggregateSliver));
+							details.started_MC[aggregateSliver.manager.id.full] = "1";
 						}
 						break;
 					case "INSTRUMENTIZE_IN_PROGRESS":	//the instools server has started instrumentizing the nodes
@@ -164,12 +166,13 @@ package com.flack.geni.plugins.instools.instasks
 						);
 						break;
 					default:
-						sliver.status = Sliver.STATUS_FAILED;
-						broadcastStatus();
+						//HACK
+						aggregateSliver.OperationalState = Sliver.OPERATIONAL_FAILED;
 						addMessage(
 							status + "!",
 							status + "!"
 						);
+						broadcastStatus();
 						Alert.show("Unrecognized INSTOOLS status: " + status);
 						afterError(
 							new TaskError(
@@ -182,10 +185,8 @@ package com.flack.geni.plugins.instools.instasks
 				}
 				
 				// At this point, still changing and polling...
-				var wasChanging:Boolean = sliver.status != Sliver.STATUS_CHANGING;
-				sliver.status = Sliver.STATUS_CHANGING;
-				if(!wasChanging)
-					broadcastStatus();
+				//HACK
+				aggregateSliver.OperationalState = Sliver.OPERATIONAL_CONFIGURING;
 				broadcastStatus();
 				delay = MathUtil.randomNumberBetween(20, 60);
 				runCleanup();
@@ -210,12 +211,12 @@ package com.flack.geni.plugins.instools.instasks
 		{
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLICE,
-				sliver.slice,
+				aggregateSliver.slice,
 				FlackEvent.ACTION_STATUS
 			);
 		}
@@ -229,7 +230,7 @@ package com.flack.geni.plugins.instools.instasks
 				LogMessage.IMPORTANCE_HIGH
 			);
 			Alert.show(
-				"Failed to poll INSTOOLS status on " + sliver.manager.hrn + ". ",
+				"Failed to poll INSTOOLS status on " + aggregateSliver.manager.hrn + ". ",
 				"Problem polling INSTOOLS status"
 			);
 		}

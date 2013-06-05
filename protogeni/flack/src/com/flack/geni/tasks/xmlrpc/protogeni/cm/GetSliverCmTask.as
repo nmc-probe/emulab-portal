@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -30,7 +30,7 @@
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
 	import com.flack.geni.resources.docs.GeniCredential;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -47,14 +47,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 */
 	public final class GetSliverCmTask extends ProtogeniXmlrpcTask
 	{
-		public var sliver:Sliver;
+		public var aggregateSliver:AggregateSliver;
 		
 		/**
 		 * 
 		 * @param newSliver Sliver to get
 		 * 
 		 */
-		public function GetSliverCmTask(newSliver:Sliver)
+		public function GetSliverCmTask(newSliver:AggregateSliver)
 		{
 			super(
 				newSliver.manager.url,
@@ -67,42 +67,42 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			relatedTo.push(newSliver);
 			relatedTo.push(newSliver.slice);
 			relatedTo.push(newSliver.manager);
-			sliver = newSliver;
+			aggregateSliver = newSliver;
 		}
 		
 		override protected function createFields():void
 		{
-			addNamedField("slice_urn", sliver.slice.id.full);
-			addNamedField("credentials", [sliver.slice.credential.Raw]);
+			addNamedField("slice_urn", aggregateSliver.slice.id.full);
+			addNamedField("credentials", [aggregateSliver.slice.credential.Raw]);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			if(code == ProtogeniXmlrpcTask.CODE_SUCCESS)
 			{
-				sliver.credential =
+				aggregateSliver.credential =
 					new GeniCredential(
 						String(data),
 						GeniCredential.TYPE_SLIVER,
-						sliver.manager
+						aggregateSliver.manager
 					);
-				sliver.id = sliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
-				sliver.expires = sliver.credential.Expires;
+				aggregateSliver.id = aggregateSliver.credential.getIdWithType(IdnUrn.TYPE_SLIVER);
+				aggregateSliver.Expires = aggregateSliver.credential.Expires;
 				
 				addMessage(
 					"Credential received",
-					sliver.credential.Raw,
+					aggregateSliver.credential.Raw,
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
 				addMessage(
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
-					"Expires in " + DateUtil.getTimeUntil(sliver.expires),
+					"Expires in " + DateUtil.getTimeUntil(aggregateSliver.EarliestExpiration),
+					"Expires in " + DateUtil.getTimeUntil(aggregateSliver.EarliestExpiration),
 					LogMessage.LEVEL_INFO,
 					LogMessage.IMPORTANCE_HIGH
 				);
 				
-				parent.add(new ResolveSliverCmTask(sliver));
+				parent.add(new ResolveSliverCmTask(aggregateSliver));
 				
 				super.afterComplete(addCompletedMessage);
 			}
@@ -124,10 +124,10 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function afterError(taskError:TaskError):void
 		{
-			sliver.status = Sliver.STATUS_FAILED;
+			//sliver.status = AggregateSliver.STATUS_FAILED;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 			
@@ -136,10 +136,10 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function runCancel():void
 		{
-			sliver.status = Sliver.STATUS_UNKNOWN;
+			//sliver.status = AggregateSliver.STATUS_UNKNOWN;
 			SharedMain.sharedDispatcher.dispatchChanged(
 				FlackEvent.CHANGED_SLIVER,
-				sliver,
+				aggregateSliver,
 				FlackEvent.ACTION_STATUS
 			);
 		}

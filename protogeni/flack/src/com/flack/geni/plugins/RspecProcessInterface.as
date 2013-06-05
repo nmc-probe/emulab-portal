@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,12 +29,12 @@
 
 package com.flack.geni.plugins
 {
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
 
 	public interface RspecProcessInterface
 	{
 		function applyFrom(object:*, xml:XML):void;
-		function applyTo(sliver:Sliver, xml:XML):void;
+		function applyTo(sliver:AggregateSliver, xml:XML):void;
 		
 		function get namespace():Namespace;
 		function get schema():String;

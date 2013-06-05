@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -35,6 +35,10 @@ package com.flack.geni.resources.sites
 	import com.flack.geni.resources.physical.PhysicalLinkCollection;
 	import com.flack.geni.resources.physical.PhysicalNode;
 	import com.flack.geni.resources.physical.PhysicalNodeCollection;
+	import com.flack.geni.resources.sites.managers.SupportedLinkType;
+	import com.flack.geni.resources.sites.managers.SupportedLinkTypeCollection;
+	import com.flack.geni.resources.sites.managers.SupportedSliverType;
+	import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
 	import com.flack.shared.resources.IdnUrn;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
@@ -119,6 +123,17 @@ package com.flack.geni.resources.sites
 					return gm;
 			}
 			return null;
+		}
+		
+		public function getByStatus(status:int):GeniManagerCollection
+		{
+			var managers:GeniManagerCollection = new GeniManagerCollection();
+			for each(var gm:GeniManager in collection)
+			{
+				if(gm.Status == status)
+					managers.add(gm);
+			}
+			return managers;
 		}
 		
 		/**
@@ -321,7 +336,7 @@ package com.flack.geni.resources.sites
 				for(var i:int = 0; i < sharedVlans.length; i++)
 				{
 					var sharedVlan:String = sharedVlans[i];
-					if(manager.sharedVlans.indexOf(sharedVlan) == -1)
+					if(manager.sharedVlans != null && manager.sharedVlans.indexOf(sharedVlan) == -1)
 					{
 						sharedVlans.splice(i, 1);
 						i--;

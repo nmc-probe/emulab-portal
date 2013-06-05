@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,14 +29,14 @@
 
 package com.flack.geni.tasks.groups.slice
 {
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.Sliver;
 	import com.flack.geni.tasks.xmlrpc.am.StatusTask;
 	import com.flack.geni.tasks.xmlrpc.protogeni.cm.SliverStatusCmTask;
 	import com.flack.shared.logging.LogMessage;
 	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.tasks.ParallelTaskGroup;
-	import com.flack.shared.utils.StringUtil;
 	
 	/**
 	 * Refresh the status of the slice, slivers and all resources
@@ -59,7 +59,7 @@ package com.flack.geni.tasks.groups.slice
 		{
 			super(
 				"Refresh status for " + newSlice.Name,
-				"Refreshes status for all slivers on " + newSlice.Name
+				"Refreshes status for all aggregates on " + newSlice.Name
 			);
 			relatedTo.push(newSlice);
 			slice = newSlice;
@@ -71,7 +71,7 @@ package com.flack.geni.tasks.groups.slice
 			if(tasks.length == 0)
 			{
 				slice.clearStatus();
-				for each(var addedSliver:Sliver in slice.slivers.collection)
+				for each(var addedSliver:AggregateSliver in slice.aggregateSlivers.collection)
 				{
 					if(addedSliver.manager.api.type == ApiDetails.API_GENIAM)
 						add(new StatusTask(addedSliver, continueUntilDone));
@@ -84,9 +84,10 @@ package com.flack.geni.tasks.groups.slice
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
+			var sliceState:String = Sliver.describeState(slice.AllocationState, slice.OperationalState);
 			addMessage(
-				StringUtil.firstToUpper(slice.Status),
-				"Sliver statuses have been reported to be " + slice.Status,
+				sliceState,
+				"Slice state has been reported to be " + sliceState,
 				LogMessage.LEVEL_INFO,
 				LogMessage.IMPORTANCE_HIGH
 			);

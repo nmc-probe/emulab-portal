@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -32,14 +32,15 @@ package com.flack.geni.tasks.tests
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.SliverTypes;
-	import com.flack.geni.resources.sites.managers.ProtogeniComponentManager;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.virt.AggregateSliver;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualNode;
 	import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
-	import com.flack.geni.tasks.groups.slice.DeleteSliversTaskGroup;
+	import com.flack.geni.tasks.groups.slice.DeleteAggregateSliversTaskGroup;
 	import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;
 	import com.flack.shared.resources.IdnUrn;
+	import com.flack.shared.resources.sites.ApiDetails;
 	import com.flack.shared.resources.sites.FlackManager;
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskEvent;
@@ -56,7 +57,7 @@ package com.flack.geni.tasks.tests
 	 */
 	public final class TestSliceFailureModesTaskGroup extends TestTaskGroup
 	{
-		public var badManager:ProtogeniComponentManager;
+		public var badManager:GeniManager;
 		
 		public function TestSliceFailureModesTaskGroup()
 		{
@@ -65,7 +66,7 @@ package com.flack.geni.tasks.tests
 				"Tests to make sure all code dealing with failures in slices is correct"
 			);
 			
-			badManager = new ProtogeniComponentManager(IdnUrn.makeFrom("badmanager.com", IdnUrn.TYPE_AUTHORITY, "cm").full);
+			badManager = new GeniManager(GeniManager.TYPE_PROTOGENI, ApiDetails.API_PROTOGENI, IdnUrn.makeFrom("badmanager.com", IdnUrn.TYPE_AUTHORITY, "cm").full);
 			badManager.url = "https://www.google.com";
 			badManager.inputRspecVersion = GeniMain.usableRspecVersions.MaxVersion;
 			badManager.Status = FlackManager.STATUS_VALID;
@@ -118,8 +119,8 @@ package com.flack.geni.tasks.tests
 				);
 				
 				// Order matters, slivers are created in the order they are added
-				slice.slivers.add(new Sliver(slice, newBadNode.manager));
-				slice.slivers.add(new Sliver(slice, newGoodNode.manager));
+				slice.aggregateSlivers.add(new AggregateSliver(slice, newBadNode.manager));
+				slice.aggregateSlivers.add(new AggregateSliver(slice, newGoodNode.manager));
 				slice.nodes.add(newGoodNode);
 				slice.nodes.add(newBadNode);
 				
@@ -147,7 +148,7 @@ package com.flack.geni.tasks.tests
 					"Preparing slice with bad sliver second"
 				);
 				
-				slice.slivers.collection = slice.slivers.collection.reverse();
+				slice.aggregateSlivers.collection = slice.aggregateSlivers.collection.reverse();
 				
 				addTest(
 					"Submit slice with a bad sliver first and good second",
@@ -169,7 +170,7 @@ package com.flack.geni.tasks.tests
 				
 				addTest(
 					"Delete slivers",
-					new DeleteSliversTaskGroup(slice.slivers.Created, false)
+					new DeleteAggregateSliversTaskGroup(slice.aggregateSlivers.getByAllocated(true), false)
 				);
 			}
 		}

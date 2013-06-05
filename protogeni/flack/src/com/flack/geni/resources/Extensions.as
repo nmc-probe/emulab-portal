@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -62,7 +62,9 @@ package com.flack.geni.resources
 			
 			for each(var searchChild:XML in searchChildren)
 			{
-				if(searchChild.name().uri.length == 0 || ignoreNamespaces.indexOf(searchChild.name().uri) != -1)
+				if(searchChild.name() == null ||
+					searchChild.name().uri.length == 0 ||
+					ignoreNamespaces.indexOf(searchChild.name().uri) != -1)
 					continue;
 				
 				space = extensions.spaces.getForNamespace(searchChild.namespace());
@@ -86,7 +88,9 @@ package com.flack.geni.resources
 			var searchAttributes:XMLList = source.attributes();
 			for each(var searchAttribute:XML in searchAttributes)
 			{
-				if(searchAttribute.name().uri.length == 0 || ignoreNamespaces.indexOf(searchAttribute.name().uri) != -1)
+				if(searchAttribute.name() == null ||
+					searchAttribute.name().uri.length == 0 ||
+					ignoreNamespaces.indexOf(searchAttribute.name().uri) != -1)
 					continue;
 				
 				if(spaces != null)
@@ -110,7 +114,9 @@ package com.flack.geni.resources
 				var searchChildren:XMLList = source.children();
 				for each(var searchChild:XML in searchChildren)
 				{
-					if(searchChild.name().uri.length == 0 || ignoreNamespaces.indexOf(searchChild.name().uri) != -1)
+					if(searchChild.name() == null ||
+						searchChild.name().uri.length == 0 ||
+						ignoreNamespaces.indexOf(searchChild.name().uri) != -1)
 						continue;
 					
 					if(spaces != null)
@@ -121,7 +127,7 @@ package com.flack.geni.resources
 						space.namespace = searchChild.namespace();
 						spaces.add(space);
 					}
-					
+
 					space.children.push(searchChild.copy());
 				}
 			}

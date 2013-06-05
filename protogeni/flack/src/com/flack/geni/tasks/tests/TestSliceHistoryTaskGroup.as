@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -32,10 +32,10 @@ package com.flack.geni.tasks.tests
 	import com.flack.geni.GeniMain;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.resources.SliverTypes;
-	import com.flack.geni.resources.virtual.Slice;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.Slice;
+	import com.flack.geni.resources.virt.VirtualNode;
 	import com.flack.geni.tasks.groups.slice.CreateSliceTaskGroup;
-	import com.flack.geni.tasks.groups.slice.DeleteSliversTaskGroup;
+	import com.flack.geni.tasks.groups.slice.DeleteAggregateSliversTaskGroup;
 	import com.flack.geni.tasks.groups.slice.SubmitSliceTaskGroup;
 	import com.flack.shared.tasks.Task;
 	import com.flack.shared.tasks.TaskEvent;
@@ -232,7 +232,7 @@ package com.flack.geni.tasks.tests
 				
 				addTest(
 					"Submit slice",
-					new DeleteSliversTaskGroup(slice.slivers, false)
+					new DeleteAggregateSliversTaskGroup(slice.aggregateSlivers, false)
 				);
 			}
 		}

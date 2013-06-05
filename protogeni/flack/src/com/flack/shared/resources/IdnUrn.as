@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -56,24 +56,27 @@ package com.flack.shared.resources
 		
 		public function get authority():String
 		{
-			if(full.length > 0)
-				return full.split("+")[1];
+			var splits:Array = full.split("+");
+			if(splits.length == 4)
+				return splits[1];
 			else
 				return "";
 		}
 		
 		public function get type():String
 		{
-			if(full.length > 0)
-				return full.split("+")[2];
+			var splits:Array = full.split("+");
+			if(splits.length == 4)
+				return splits[2];
 			else
 				return "";
 		}
 		
 		public function get name():String
 		{
-			if(full.length > 0)
-				return full.split("+")[3];
+			var splits:Array = full.split("+");
+			if(splits.length == 4)
+				return splits[3];
 			else
 				return "";
 		}

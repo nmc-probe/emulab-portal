@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -32,7 +32,7 @@ package com.flack.geni.resources
 	import com.flack.geni.resources.docs.GeniCredential;
 	import com.flack.geni.resources.sites.GeniAuthority;
 	import com.flack.geni.resources.sites.GeniAuthorityCollection;
-	import com.flack.geni.resources.virtual.SliceCollection;
+	import com.flack.geni.resources.virt.SliceCollection;
 	import com.flack.shared.resources.FlackUser;
 
 	/**
@@ -51,6 +51,7 @@ package com.flack.geni.resources
 		public var credential:GeniCredential;
 		
 		public var keys:Vector.<String> = new Vector.<String>();
+		public var collaborators:Vector.<GeniCollaborator> = new Vector.<GeniCollaborator>();
 		
 		public var slices:SliceCollection = new SliceCollection();
 		

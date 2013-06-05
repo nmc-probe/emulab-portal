@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2008-2013 University of Utah and the Flux Group.
  * 
  * {{{GENIPUBLIC-LICENSE
  * 
@@ -29,18 +29,17 @@
 
 package com.flack.geni.tasks.xmlrpc.protogeni.cm
 {
-	import com.flack.geni.resources.virtual.Sliver;
-	import com.flack.geni.resources.virtual.VirtualNode;
+	import com.flack.geni.resources.virt.VirtualNode;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
-	import com.flack.shared.FlackEvent;
-	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
-	import com.flack.shared.logging.Logger;
-	import com.flack.shared.resources.IdnUrn;
-	import com.flack.shared.utils.DateUtil;
+	import com.flack.shared.tasks.TaskError;
+	import com.flack.shared.utils.NetUtil;
 	import com.flack.shared.utils.ViewUtil;
 	
+	import flash.events.TextEvent;
+	
 	import mx.controls.Alert;
+	import mx.core.mx_internal;
 	
 	/**
 	 * Renews the sliver until the given date
@@ -116,9 +115,30 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 			}
 			else
 			{
-				Alert.show("Failed to create image " + imageName);
+				var failMsg:String = "Failed to create image " + imageName;
+				var errorLogHtml:String = ErrorLogHtml;
+				if(errorLogHtml.length > 0)
+					failMsg += "<br>" + errorLogHtml;
+				var alert:Alert = Alert.show(failMsg);
+				alert.mx_internal::alertForm.mx_internal::textField.htmlText = failMsg;
+				alert.mx_internal::alertForm.mx_internal::textField.addEventListener(
+					TextEvent.LINK,
+					function clickHandler(e:TextEvent):void {
+						NetUtil.openWebsite(e.text);
+					});
+				
 				faultOnSuccess();
 			}
+		}
+		
+		override protected function afterError(taskError:TaskError):void
+		{
+			if((taskError.message as String).indexOf("not XML") != -1)
+			{
+				Alert.show("It appears that this manager doesn't support image creation.");
+			}
+			
+			super.afterError(taskError);
 		}
 	}
 }
