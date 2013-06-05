@@ -72,7 +72,6 @@ gatherinv_main() {
     for i in $checks ; do
 	bash $BINDIR/${i}check $LOGDIR/nodecheck.log /tmp/nodecheck.log.tb
     done
-set +e
 
     # read in the newly found info
     readtmcinfo /tmp/nodecheck.log.tb
@@ -93,30 +92,36 @@ set +e
 	exit 1
     fi
     # have needed dirs ?
-    if [ ! -d $PROJDIR/nodecheck/FullInventory ] ; then
-	mkdir -p $PROJDIR/nodecheck/FullInventory
-	chmod 755 $PROJDIR/nodecheck $PROJDIR/nodecheck/FullInventory
+    # note: a directory for each node and timestamps for 
+    if [ ! -d /proj/emulab-ops/nodecheck/$host/FullInventory ] ; then
+	mkdir -p /proj/emulab-ops/nodecheck/$host/FullInventory
+	chmod -R 755 /proj/emulab-ops/nodecheck/$host
     fi
 
-	
-    $(cp /tmp/nodecheck.log.tb.new $PROJDIR/nodecheck/$host);
-    $(cp /tmp/nodecheck.log.inv $PROJDIR/nodecheck/FullInventory/$host);
-    $(chmod g+rw $PROJDIR/nodecheck/$host $PROJDIR/nodecheck/FullInventory/$host);
+    # copy over the file including timestamps
+    timestamp=$(date +%y%m%d%H%M%S)
+    rm  -f /proj/emulab-ops/nodecheck/$host/$host
+    cp /tmp/nodecheck.log.tb.new /proj/emulab-ops/nodecheck/$host/$timestamp
+    ln -s /proj/emulab-ops/nodecheck/$host/${timestamp} /proj/emulab-ops/nodecheck/$host/$host
+    rm -f /proj/emulab-ops/nodecheck/$host/FullInventory/$host
+    cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/$host/FullInventory/$timestamp
+    ln -s /proj/emulab-ops/nodecheck/$host/FullInventory/$timestamp /proj/emulab-ops/nodecheck/$host/FullInventory/$host
+    $(chmod g+rw /proj/emulab-ops/nodecheck/$host /proj/emulab-ops/nodecheck/FullInventory/$host);
 
-    # Test what found local against what is in the database
-    readtmcinfo # info from tmcc hwinv
-# for testing    readtmcinfo $PROJDIR/nodecheck/test
+    # Test what found locally against what is in the database
+    readtmcinfo # info from tmcc.bin hwinv
+# for testing    readtmcinfo /proj/emulab-ops/nodecheck/test
     copytmcinfo # copy into hwinvcopy
     readtmcinfo /tmp/nodecheck.log.tb.new # read local found into hwinv
     comparetmcinfo /tmp/nodecheck.diff # file for output
 
     if [ -s /tmp/nodecheck.diff ] ; then
 	cat /tmp/nodecheck.diff
-	$(cp /tmp/nodecheck.diff $PROJDIR/nodecheck/${host}.diff)
-	$(chmod g+rw $PROJDIR/nodecheck/${host}.diff);
+	cp /tmp/nodecheck.diff /proj/emulab-ops/nodecheck/$host/diff.${timestamp}
+	$(chmod g+rw /proj/emulab-ops/nodecheck/${host}.diff);
     else
 	# no diff maybe it got better
-	rm -f $PROJDIR/nodecheck/${host}.diff
+	touch /proj/emulab-ops/nodecheck/${host}/diff.${timestamp}
     fi
 	
 #    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv"
