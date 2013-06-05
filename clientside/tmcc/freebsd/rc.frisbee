@@ -557,9 +557,6 @@ case $STATUS in
 			dd if=/dev/zero of=/dev/$d bs=512 count=16
 		done
 
-		# XXX rc.nodecheck expects this
-		cp /dev/null $ETCDIR/ismfs
-
 		# XXX tmp, gather HW info (including disk speed tests)
 		if [ -x $BINDIR/rc.nodecheck ]; then
 		    $BINDIR/rc.nodecheck boot gather
