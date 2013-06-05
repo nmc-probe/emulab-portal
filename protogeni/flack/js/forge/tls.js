@@ -243,6 +243,7 @@ else if(typeof(module) !== 'undefined' && module.exports) {
     aes: require('./aes'),
     asn1: require('./asn1'),
     hmac: require('./hmac'),
+    log: require('./log'),
     md: require('./md'),
     pki: require('./pki'),
     random: require('./random'),
@@ -3076,7 +3077,8 @@ tls.createCertificate = function(c) {
       }
       var asn1 = null;
       for(var i = 0; i < cert.length; ++i) {
-        var der = forge.pki.pemToDer(cert);
+      
+        var der = forge.pki.pemToDer(cert[i]);
         if(asn1 === null) {
           asn1 = forge.asn1.fromDer(der.bytes());
         }

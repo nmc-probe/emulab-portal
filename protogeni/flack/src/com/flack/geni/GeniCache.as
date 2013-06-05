@@ -29,8 +29,11 @@
 
 package com.flack.geni
 {
+	import com.flack.geni.resources.sites.GeniAuthority;
+	import com.flack.geni.resources.sites.GeniAuthorityCollection;
 	import com.flack.geni.resources.sites.GeniManager;
 	import com.flack.geni.resources.sites.GeniManagerCollection;
+	import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
 	import com.flack.shared.SharedCache;
 	import com.flack.shared.SharedMain;
 	
@@ -185,6 +188,85 @@ package com.flack.geni
 			if(SharedCache._sharedObject != null)
 			{
 				SharedCache._sharedObject.data.force_am_api = value;
+			}
+		}
+		
+		// Manual authorities
+		public static function wasAuthorityManuallyAdded(authority:GeniAuthority):Boolean
+		{
+			if(SharedCache._sharedObject == null || SharedCache._sharedObject.data.manual_authorities == null)
+				return false;
+			for each(var authorityObject:Object in SharedCache._sharedObject.data.manual_authorities)
+			{
+				if(authorityObject.id == authority.id.full)
+					return true;
+			}
+			return false;
+		}
+		
+		public static function removeManuallyAddedAuthority(authority:GeniAuthority):void
+		{
+			if(SharedCache._sharedObject == null || SharedCache._sharedObject.data.manual_authorities == null)
+				return;
+			for(var i:int = 0; i < SharedCache._sharedObject.data.manual_authorities.length; i++)
+			{
+				if(SharedCache._sharedObject.data.manual_authorities[i].id == authority.id.full)
+				{
+					SharedCache._sharedObject.data.manual_authorities.splice(i, 1);
+					return;
+				}
+			}
+			return;
+		}
+		
+		public static function addAuthorityManually(authority:ProtogeniSliceAuthority, authorityCert:String):void
+		{
+			if(SharedCache._sharedObject == null || !SharedCache.UsableCache())
+				return;
+			
+			if(SharedCache._sharedObject.data.manual_authorities == null)
+				SharedCache._sharedObject.data.manual_authorities = [];
+			
+			SharedCache._sharedObject.data.manual_authorities.push(
+				{
+					id:authority.id.full,
+					url:authority.url,
+					working_cert_get:authority.workingCertGet,
+					cert:authorityCert
+				}
+			);
+		}
+		
+		public static function getManualAuthorities():GeniAuthorityCollection
+		{
+			var results:GeniAuthorityCollection = new GeniAuthorityCollection();
+			
+			if(SharedCache._sharedObject != null && SharedCache._sharedObject.data.manual_authorities != null)
+			{
+				var authorityCerts:String = "";
+				for each(var authorityObject:Object in SharedCache._sharedObject.data.manual_authorities)
+				{
+					// Skip older cached managers.
+					var newAuthority:ProtogeniSliceAuthority = new ProtogeniSliceAuthority(
+						authorityObject.id,
+						authorityObject.url,
+						authorityObject.working_cert_get);
+					var newCert:String = authorityObject.cert;
+					if(newCert.length > 0 && SharedMain.Bundle.indexOf(newCert) == -1)
+						authorityCerts += newCert;
+					results.add(newAuthority);
+				}
+				if(authorityCerts.length > 0)
+					SharedMain.Bundle += authorityCerts;
+			}
+			return results;
+		}
+		
+		public static function clearManualAuthorities():void
+		{
+			if(SharedCache._sharedObject != null)
+			{
+				delete SharedCache._sharedObject.data.manual_authorities;
 			}
 		}
 		

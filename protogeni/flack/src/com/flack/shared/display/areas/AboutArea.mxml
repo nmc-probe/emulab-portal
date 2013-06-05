@@ -184,6 +184,8 @@ IN THE WORK.
 							  click="SharedCache.clearCertBundle(); Alert.show('Deleted certificate bundle cache', 'Deleted');" />
 					<s:Button label="Delete user cache"
 							  click="SharedCache.clearUser(); Alert.show('Deleted user cache', 'Deleted');" />
+					<s:Button label="Delete manually added authorities"
+							  click="GeniCache.clearManualAuthorities(); Alert.show('Deleted manually added authorities', 'Deleted');" />
 					<s:Button label="Delete manually added managers"
 							  click="GeniCache.clearManualManagers(); Alert.show('Deleted manually added managers', 'Deleted');" />
 					<s:Button label="Delete default managers to list"

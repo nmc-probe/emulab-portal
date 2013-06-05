@@ -100,7 +100,7 @@ package com.flack.geni
 			plugins = new Vector.<Plugin>();
 			plugins.push(new Gemini());
 			plugins.push(new Stitching());
-			plugins.push(new Instools());
+			//plugins.push(new Instools());
 			plugins.push(new Emulab());
 			plugins.push(new Planetlab());
 			plugins.push(new Openflow());

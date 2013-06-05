@@ -29,7 +29,12 @@
 
 package com.flack.geni.tasks.http
 {
+	import com.flack.geni.GeniCache;
 	import com.flack.geni.GeniMain;
+	import com.flack.geni.resources.sites.GeniAuthority;
+	import com.flack.geni.resources.sites.GeniAuthorityCollection;
+	import com.flack.geni.resources.sites.GeniManager;
+	import com.flack.geni.resources.sites.GeniManagerCollection;
 	import com.flack.geni.resources.sites.authorities.ProtogeniSliceAuthority;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
@@ -72,14 +77,27 @@ package com.flack.geni.tasks.http
 				if(GeniMain.geniUniverse.authorities.getByUrl(sliceAuthority.url) == null)
 					GeniMain.geniUniverse.authorities.add(sliceAuthority);
 				addMessage(
-					"Added authority: " +sliceAuthority.name,
+					"Added authority: " + sliceAuthority.name,
 					sliceAuthority.toString()
 				);
 			}
 			
+			var manuallyAddedAuthorities:GeniAuthorityCollection = GeniCache.getManualAuthorities();
+			for each(var cachedAuthority:GeniAuthority in manuallyAddedAuthorities.collection)
+			{
+				if(GeniMain.geniUniverse.authorities.getByUrl(cachedAuthority.url) == null)
+				{
+					GeniMain.geniUniverse.authorities.add(cachedAuthority);
+					addMessage(
+						"Added cached authority: " + sliceAuthority.name,
+						sliceAuthority.toString()
+					);
+				}
+			}
+			
 			addMessage(
-				"Added "+GeniMain.geniUniverse.authorities.length+" authorities",
-				"Added "+GeniMain.geniUniverse.authorities.length+" authorities",
+				GeniMain.geniUniverse.authorities.length+" authorities loaded",
+				GeniMain.geniUniverse.authorities.length+" authorities loaded",
 				LogMessage.LEVEL_INFO,
 				LogMessage.IMPORTANCE_HIGH
 			);
