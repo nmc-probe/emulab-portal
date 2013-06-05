@@ -1195,7 +1195,7 @@ sub Start($$$)
 	    $msg .= "$EXPORTS_SETUP failed\n";
 	    goto bad;
 	}
-	if (system("$ARPLOCKDOWN -v -d")) {
+	if (system("$ARPLOCKDOWN ")) {
 	    $msg .= "$ARPLOCKDOWN failed\n";
 	    goto bad;
 	}
