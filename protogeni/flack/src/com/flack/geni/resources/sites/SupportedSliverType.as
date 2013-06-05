@@ -32,6 +32,7 @@ package com.flack.geni.resources.sites
 	import com.flack.geni.plugins.emulab.DelaySliverType;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+        import com.flack.geni.plugins.emulab.EmulabXenSliverType;
 	import com.flack.geni.plugins.emulab.EmulabSppSliverType;
 	import com.flack.geni.plugins.emulab.FirewallSliverType;
 	import com.flack.geni.plugins.emulab.Netfpga2SliverType;
@@ -139,6 +140,7 @@ package com.flack.geni.resources.sites
 				case SliverTypes.QEMUPC:
 					supportsDiskImage = false;
 				case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
+                                case EmulabXenSliverType.TYPE_EMULABXEN:
 				default:
 			}
 		}

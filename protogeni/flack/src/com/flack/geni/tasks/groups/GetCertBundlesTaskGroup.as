@@ -58,7 +58,7 @@ package com.flack.geni.tasks.groups
 			
 			add(
 				new HttpTask(
-					"http://www.emulab.net/rootca.bundle",
+                                        "https://www.emulab.net/rootca.bundle",
 					"Download root bundle",
 					"Downloads the root cert bundle"
 				)
@@ -66,7 +66,7 @@ package com.flack.geni.tasks.groups
 			
 			add(
 				new HttpTask(
-					"http://www.emulab.net/genica.bundle",
+                                        "https://www.emulab.net/genica.bundle",
 					"Download GENI bundle",
 					"Downloads the GENI cert bundle"
 				)
