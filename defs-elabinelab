@@ -99,6 +99,10 @@ FRISEBEEMCASTADDR=changeme
 OPSVM_ENABLE=changeme
 OPSVM_MOUNTPOINT=changeme
 
+# So we do not conflict with real users.
+MIN_UNIX_UID=2000
+MIN_UNIX_GID=2000
+
 # Which console to use in the MFS. We need to set this for GeniRacks.
 NODECONSOLE=changeme
 # Which version of the MFS.
