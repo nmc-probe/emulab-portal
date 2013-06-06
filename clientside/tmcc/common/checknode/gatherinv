@@ -81,6 +81,7 @@ gatherinv_main() {
     if [ ! -d /proj/emulab-ops/nodecheck/$host/full ] ; then
 	mkdir -p /proj/emulab-ops/nodecheck/$host/tbdb
 	mkdir -p /proj/emulab-ops/nodecheck/$host/full
+	chmod g+x /proj/emulab-ops/nodecheck/$host /proj/emulab-ops/nodecheck/$host/tbdb /proj/emulab-ops/nodecheck/$host/full
     fi
 
     # copy over the file including timestamps
@@ -105,6 +106,7 @@ gatherinv_main() {
 # show it at runtime??	cat /tmp/nodecheck.diff
 	if [ ! -d /proj/emulab-ops/nodecheck/$host/diff ] ; then
 	    mkdir -p /proj/emulab-ops/nodecheck/$host/diff
+	    chmod g+x /proj/emulab-ops/nodecheck/$host/diff
 	fi
 	cp /tmp/nodecheck.diff /proj/emulab-ops/nodecheck/$host/diff/${timestamp}
     else
