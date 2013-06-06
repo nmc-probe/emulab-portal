@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -37,8 +37,14 @@ if [ -z "$IPODINFO" ]; then
 	echo "*** WARNING: no IPOD info, not enabled"
 	exit 0
 elif ! sysctl net.ipv4.icmp_ipod_enabled > /dev/null 2>&1; then
+    #
+    # Try to load ipod module.
+    #
+    modprobe ipod
+    if [ $? -ne 0 ]; then
 	echo "*** WARNING: no IPOD sysctls, not enabled"
 	exit 1
+    fi
 fi
 
 for token in $IPODINFO; do
