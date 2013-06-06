@@ -536,10 +536,9 @@ sub vnodeCreate($$$$)
 	print STDERR "xen_vnodeCreate: ".
 	    "no image specified, using default ('$imagename')\n";
 
-	my $vname = $imagename . ".0";
-	$lvname = "image+" . $vname;
+	$lvname = "image+" . $imagename;
 	if (!findLVMLogicalVolume($lvname)) {
-	    createRootDisk($vname);
+	    createRootDisk($imagename);
 	}
 	$imagemetadata = \%defaultImage;
     }
@@ -746,26 +745,44 @@ sub vnodeCreate($$$$)
 	    }
 	}
 	else {
-	    my $lv_size = lvSize($basedisk);
-	    if (!defined($lv_size)) {
-		TBScriptUnlock();
-		fatal("libvnode_xen: could not get size of $basedisk");
-	    }
-	    if (mysystem2("lvcreate -L ${lv_size} -n $vnode_id $VGNAME")) {
-		TBScriptUnlock();
-		fatal("libvnode_xen: could not create disk for $vnode_id");
-	    }
 	    #
-	    # Hacky attempt to determine if its a freebsd or linux disk.
+	    # Need to create a new disk for the container. But lets see
+	    # if we have a disk cached. We still have the imagelock at
+	    # this point.
 	    #
-	    mysystem2("$IMAGEZIP -i -b $basedisk > /dev/null 2>&1");
-	    my $ptypeopt = ($? ? "-l" : "-b");
+	    if (my (@files) = glob("/dev/$VGNAME/_C_${imagename}_*")) {
+		#
+		# Grab the first file and rename it. It becomes ours.
+		# Then drop the lock.
+		#
+		my $file = $files[0];
+		if (mysystem2("lvrename $file $rootvndisk")) {
+		    TBScriptUnlock();
+		    fatal("libvnode_xen: could not rename cache file");
+		}
+	    }
+	    else {
+		my $lv_size = lvSize($basedisk);
+		if (!defined($lv_size)) {
+		    TBScriptUnlock();
+		    fatal("libvnode_xen: could not get size of $basedisk");
+		}
+		if (mysystem2("lvcreate -L ${lv_size} -n $vnode_id $VGNAME")) {
+		    TBScriptUnlock();
+		    fatal("libvnode_xen: could not create disk for $vnode_id");
+		}
+		#
+		# Hacky attempt to determine if its a freebsd or linux disk.
+		#
+		mysystem2("$IMAGEZIP -i -b $basedisk > /dev/null 2>&1");
+		my $ptypeopt = ($? ? "-l" : "-b");
 	    
-	    mysystem2("nice $IMAGEZIP $ptypeopt $basedisk - | ".
-		      "nice $IMAGEUNZIP -f -o -W 128 - $rootvndisk");
-	    if ($?) {
-		TBScriptUnlock();
-		fatal("libvnode_xen: could no clone $basedisk");
+		mysystem2("nice $IMAGEZIP $ptypeopt $basedisk - | ".
+			  "nice $IMAGEUNZIP -f -o -W 128 - $rootvndisk");
+		if ($?) {
+		    TBScriptUnlock();
+		    fatal("libvnode_xen: could no clone $basedisk");
+		}
 	    }
 	}
     }
