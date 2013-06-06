@@ -62,16 +62,14 @@ use libvnode;
 my $IPTABLES	= "/sbin/iptables";
 my $IPBIN	= "/sbin/ip";
 my $IFCONFIG    = "/sbin/ifconfig";
+my $OVSCTL      = "/usr/local/bin/ovs-vsctl";
 
 usage()
-    if (@ARGV < 6);
+    if (@ARGV  < 3);
 
 my $vmid       = shift(@ARGV);
-my $inetip     = shift(@ARGV);
 my $mac        = shift(@ARGV);
 my $bridge     = shift(@ARGV);
-my $basetable  = shift(@ARGV);
-my $routetable = shift(@ARGV);
 
 # The caller (xmcreate) puts this into the environment.
 my $vif         = $ENV{'vif'};
@@ -84,6 +82,7 @@ chomp($vifname);
 #
 sub Online()
 {
+    # Rename so we can find it more easily.
     mysystem2("$IPBIN link set $vif name $vifname");
     if ($?) {
 	return -1;
@@ -92,29 +91,14 @@ sub Online()
     mysystem2("$IFCONFIG $vif 0 up");
     mysystem2("echo 1 > /proc/sys/net/ipv4/conf/$vif/forwarding");
     mysystem2("echo 1 > /proc/sys/net/ipv4/conf/$vif/proxy_arp");
-    mysystem2("$IPBIN link set $vif mtu 1472");
-    
-    #
-    # Insert the ip *rule* for the routetable that directs the traffic
-    # through the iproute inserted into this table in libvnode_xen.
-    #
-    mysystem2("$IPBIN rule add unicast iif $vif table $routetable");
-    if ($?) {
-	return -1;
-    }
+    mysystem2("$IPBIN link set $vif mtu 1450");
 
     #
-    # And this is the route that goes in the basetable that we attached
-    # to the gre in libvnode_xen. This sends all packets coming out of
-    # the physical gre, down the veth. onlink very important; it says
-    # to "pretend that the nexthop is directly attached to this link, even
-    # if it does not match any interface prefix."
+    # Add the veth to the OVS bridge. 
     #
-    mysystem2("$IPBIN route replace default ".
-	      "via $inetip dev $vif onlink table $basetable");
-    if ($?) {
-	return -1;
-    }
+    mysystem2("$OVSCTL add-port $bridge $vif") == 0
+	or return -1;
+    
     # Ug, tell xen hotplug that we really did what was needed.
     mysystem2("xenstore-write '$XENBUS_PATH/hotplug-status' connected");
     return 0;
@@ -122,10 +106,9 @@ sub Online()
 
 sub Offline()
 {
-    mysystem2("$IPBIN rule del unicast iif $vif table $routetable");
+    mysystem2("$OVSCTL del-port $bridge $vifname") == 0
+	or return -1;
     
-    mysystem2("$IPBIN route delete default ".
-	      "via $inetip dev $vif onlink table $basetable");
     return 0;
 }
 

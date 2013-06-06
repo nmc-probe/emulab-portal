@@ -135,11 +135,12 @@ my $GLOBAL_CONF_LOCK = "xenconf";
 # Just symlink /boot/vmlinuz-xenU and /boot/initrd-xenU
 # to the kernel and ramdisk you want to use by default.
 my %defaultImage = (
-    'name'    => "emulab-ops-emulab-ops-XEN-STD",
-    'kernel'  => "/boot/vmlinuz-xenU",
-    'ramdisk' => "/boot/initrd-xenU",
-    'version' => "any",
-    'OS'      => "Linux",
+    'name'      => "emulab-ops-emulab-ops-XEN-STD",
+    'kernel'    => "/boot/vmlinuz-xenU",
+    'ramdisk'   => "/boot/initrd-xenU",
+    'OSVERSION' => "any",
+    'PARTOS'    => "Linux",
+    'ISPACKAGE' => 0,
 );
 
 # where all our config files go
@@ -193,6 +194,10 @@ my $MAXROUTETTABLE = 255;
 # LVM snapshots suck.
 my $DOSNAP = 0;
 
+# Use openvswitch for gre tunnels.
+my $OVSCTL   = "/usr/local/bin/ovs-vsctl";
+my $OVSSTART = "/usr/local/share/openvswitch/scripts/ovs-ctl";
+
 #
 # Information about the running Xen hypervisor
 #
@@ -217,7 +222,7 @@ sub formatDHCP($$$);
 sub fixupMac($);
 sub createControlNetworkScript($$$);
 sub createExpNetworkScript($$$$$$$);
-sub createTunnelScript($$$$$$$);
+sub createTunnelScript($$$$);
 sub createExpBridges($$$);
 sub destroyExpBridges($$);
 sub domainStatus($);
@@ -312,6 +317,10 @@ sub rootPreConfig()
 	system("route del default >/dev/null 2>&1");
 	mysystem("route add default gw $cnet_gw");
     }
+
+    # For tunnels
+    mysystem("$MODPROBE openvswitch");
+    mysystem("$OVSSTART --delete-bridges start");
 
     #
     # We use xen's antispoofing when constructing the guest control net
@@ -1181,7 +1190,7 @@ sub vnodePreConfigExpNetwork($$$$)
     #
     # Tunnels
     #
-    if (0 && values(%{ $tunconfigs })) {
+    if (values(%{ $tunconfigs })) {
 	#
 	# gres and route tables are a global resource.
 	#
@@ -1192,57 +1201,11 @@ sub vnodePreConfigExpNetwork($$$$)
 	my %key2gre = ();
 	my $maxgre  = 0;
 	
-	my $basetable = AllocateRouteTable("VZ$vmid");
-	if (!defined($basetable)) {
-	    print STDERR "Could not allocate a routing table!\n";
-	    TBScriptUnlock();
-	    return -1;
-	}
-	$private->{'routetables'}->{"VZ$vmid"} = $basetable;
-
-	#
-	# Get current gre list.
-	#
-	if (! open(IP, "$IPBIN tunnel show|")) {
-	    print STDERR "Could not start $IPBIN\n";
-	    TBScriptUnlock();
-	    return -1;
-	}
-	my $table   = $vmid + 100;
-
-	while (<IP>) {
-	    if ($_ =~ /^(gre\d*):.*key\s*([\d\.]*)/) {
-		$key2gre{$2} = $1;
-		if ($1 =~ /^gre(\d*)$/) {
-		    $maxgre = $1
-			if ($1 > $maxgre);
-		}
-	    }
-	    elsif ($_ =~ /^(gre\d*):.*remote\s*([\d\.]*)\s*local\s*([\d\.]*)/) {
-		#
-		# This is just a temp fixup; delete tunnels with no key
-		# since we no longer use non-keyed tunnels, and cause it
-		# will cause the kernel to throw an error in the tunnel add
-		# below. 
-		#
-		mysystem2("$IPBIN tunnel del $1");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
-	    }
-	}
-	if (!close(IP)) {
-	    print STDERR "Could not get tunnel list\n";
-	    TBScriptUnlock();
-	    return -1;
-	}
-
 	foreach my $tunnel (values(%{ $tunconfigs })) {
 	    my $style = $tunnel->{"tunnel_style"};
-	    
+
 	    next
-		if (! ($style eq "gre"));
+		if (! ($style eq "egre"));
 
 	    my $name     = $tunnel->{"tunnel_lan"};
 	    my $srchost  = $tunnel->{"tunnel_srcip"};
@@ -1252,115 +1215,58 @@ sub vnodePreConfigExpNetwork($$$$)
 	    my $mask     = $tunnel->{"tunnel_ipmask"};
 	    my $unit     = $tunnel->{"tunnel_unit"};
 	    my $grekey   = $tunnel->{"tunnel_tag"};
-	    my $gre;
+	    my $mac      = undef;
 
-	    if (exists($key2gre{$grekey})) {
-		$gre = $key2gre{$grekey};
+	    if (exists($tunnel->{"tunnel_mac"})) {
+		$mac = $tunnel->{"tunnel_mac"};
 	    }
 	    else {
-		$grekey = inet_ntoa(pack("N", $grekey));
-		$gre    = "gre" . ++$maxgre;
-		mysystem2("$IPBIN tunnel add $gre mode gre ".
-			  "local $srchost remote $dsthost ttl 64 key $grekey");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
-		# Record gre creation.
-		$private->{'tunnels'}->{$gre} = $gre;
-
-		mysystem2("$IFCONFIG $gre 0 up");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
-		# Must do this else routing lookup fails. 
-		mysystem2("echo 1 > /proc/sys/net/ipv4/conf/$gre/forwarding");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
-		$key2gre{$grekey} = $gre;
+		$mac = GenFakeMac();
 	    }
-	    #
-	    # All packets arriving from gre devices will use the same table.
-	    # The route will be a network route to the root context device.
-	    # The route cannot be inserted until later, since the root 
-	    # context device does not exists until the VM is running.
-	    #
-	    mysystem2("$IPBIN rule add unicast iif $gre table $basetable");
-	    if ($?) {
-		TBScriptUnlock();
-		return -1;
-	    }
-	    $private->{'iprules'}->{$gre} = $gre;
 
 	    #
-	    # We need a routing table for each tunnel in the other
-	    # direction.  This makes sure that all packets coming out
-	    # of the root context device (leaving the VM) got shoved
-	    # into the real gre device.  Need to use a default route so
-	    # all packets are matched, which is why we need a table per
-	    # tunnel.
+	    # Need to create an openvswitch bridge and gre tunnel inside.
+	    # We can then put the veth device into the bridge. 
 	    #
-	    my $routetable = AllocateRouteTable("$vnode_id:$name");
-	    if (!defined($routetable)) {
-		print STDERR "No free route tables for $name\n";
-		TBScriptUnlock();
-		return -1;
-	    }
-	    $private->{'routetables'}->{"$vnode_id:$name"} = $routetable;
-	    
-	    #
-	    # Add a route to this table that will send all packets coming
-	    # out of the container, to the real gre device in the root
-	    # context. Note that we have not attached this route table to
-	    # the root veth device, since that does not exist yet. 
-	    #
-	    mysystem2("/sbin/ip route replace ".
-		      "  default dev $gre table $routetable");
-	    if ($?) {
-		TBScriptUnlock();
-		return -1;
+	    # These are the devices outside the container. 
+	    my $veth = "greth.${vmid}.${unit}";
+	    my $gre  = "gre$vmid.$unit";
+	    my $br   = "br$vmid.$unit";
+	    if (! -d "/sys/class/net/$br/bridge") {
+		mysystem2("$OVSCTL add-br $br");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
+		# Record tunnel bridge created. 
+		$private->{'tunnelbridges'}->{$br} = $br;
+
+		mysystem2("$OVSCTL add-port $br $gre -- set interface $gre ".
+			  "  type=gre options:remote_ip=$dsthost " .
+			  "           options:local_ip=$srchost " .
+			  (1 ? "      options:key=$grekey" : ""));
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
 	    }
 
 	    #
 	    # Create a wrapper script. All work handled in emulab-tun.pl
 	    #
-	    my $ifname = "greth.${vmid}.${unit}";
-	    my $mac    = GenFakeMac();
 	    my ($imac,$omac) = build_fake_macs($mac);
 	    my $script = "$VMDIR/$vnode_id/tun-$name";
 	    $imac = fixupMac($imac);
 	    $omac = fixupMac($omac);
 
-	    my $vbr   = "brgre.$vmid.$unit";
-		    
-	    if (! -d "/sys/class/net/$vbr/bridge") {
-		if (mysystem2("$BRCTL addbr $vbr")) {
-		    print STDERR "could not create $vbr\n";
-		    TBScriptUnlock();
-		    return -1;
-		}
-		# record bridge created.
-		$private->{'bridges'}->{$vbr} = $vbr;
-		
-		if (mysystem2("$IFCONFIG $vbr up")) {
-		    print STDERR "could not ifconfig $vbr\n";
-		    TBScriptUnlock();
-		    return -1;
-		}
-	    }
-	    
-	    if (createTunnelScript($vmid, $script, $inetip, $omac, $vbr,
-				   $basetable, $routetable)) {
+	    if (createTunnelScript($vmid, $script, $omac, $br)) {
 		print STDERR "Could not create tunnel script for $name\n";
 		TBScriptUnlock();
 		return -1;
 	    }
 
 	    # add interface to config file line
-	    $vifstr .= ", 'vifname=$ifname, mac=$imac, script=$script'";
+	    $vifstr .= ", 'vifname=$veth, mac=$imac, script=$script'";
 	}
 	TBScriptUnlock();
     }
@@ -2252,9 +2158,9 @@ sub createControlNetworkScript($$$)
 #
 # XXX can we get rid of this stub by using environment variables?
 #
-sub createTunnelScript($$$$$$$)
+sub createTunnelScript($$$$)
 {
-    my ($vmid, $file, $inetip, $mac, $vbr, $basetable, $thistable) = @_;
+    my ($vmid, $file, $mac, $vbr) = @_;
 
     open(FILE, ">$file")
 	or return -1;
@@ -2262,8 +2168,7 @@ sub createTunnelScript($$$$$$$)
     print FILE "#!/bin/sh\n";
     print FILE "/bin/mv -f ${file}.debug ${file}.debug.old\n";
     print FILE "/etc/xen/scripts/emulab-tun.pl ".
-	"$vmid $inetip $mac $vbr $basetable $thistable \$* ".
-	">${file}.debug 2>&1\n";
+	"$vmid $mac $vbr \$* >${file}.debug 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0555, $file);
@@ -2500,6 +2405,10 @@ sub createExpBridges($$$)
 		    mysystem2("$IFCONFIG $pdev up");
 		    mysystem2("$ETHTOOL -K $pdev tso off gso off");
 		    makeIfaceMaps();
+
+		    # Another thing that seems to screw up, causing the ciscos
+		    # to drop packets with an undersize error.
+		    mysystem2("$ETHTOOL -K $iface txvlan off");
 		}
 	    }
 	    else {
@@ -2565,11 +2474,11 @@ sub destroyExpBridges($$)
     my ($vmid,$private) = @_;
 
     # Delete bridges we created which we know have no members.
-    if (exists($private->{'bridges'})) {
-	foreach my $brname (keys(%{ $private->{'bridges'} })) {
+    if (exists($private->{'tunnelbridges'})) {
+	foreach my $brname (keys(%{ $private->{'tunnelbridges'} })) {
 	    mysystem2("$IFCONFIG $brname down");	    
-	    mysystem2("$BRCTL delbr $brname");
-	    delete($private->{'bridges'}->{$brname});
+	    mysystem2("$OVSCTL del-br $brname");
+	    delete($private->{'tunnelbridges'}->{$brname});
 	}
     }
 
