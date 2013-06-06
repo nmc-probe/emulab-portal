@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -273,7 +273,10 @@ sub Create($$$$$$)
 	#
 	# Get me an unused unix id. Nice query, eh? Basically, find
 	# unused numbers by looking at existing numbers plus one, and
-	# check to see if that number is taken.
+	# check to see if that number is taken. The point is to look
+	# for holes since the space is only 16 bits, but this is really
+	# ineffecient! Not really a problem with smallish number of groups
+	# but terrible for 1000s!
 	#
 	$query_result =
 	    DBQueryWarn("select g.unix_gid + 1 as start from groups as g ".
@@ -286,16 +289,22 @@ sub Create($$$$$$)
 	return undef
 	    if (! $query_result);
 
-	if (! $query_result->numrows) {
-	    print "*** WARNING: Could not find an unused unix_gid!\n";
-	    return undef;
-	}
+	my $unused;
 
-	my ($unused) = $query_result->fetchrow_array();
+	if (! $query_result->numrows) {
+	    $unused = $min_gid;
+	}
+	else {
+	    ($unused) = $query_result->fetchrow_array();
+	}
 
 	if (getgrgid($unused)) {
 	    # Keep going.
 	    $min_gid++;
+	    if ($min_gid >= 50000) {
+		print "*** WARNING: Could not find an unused unix_gid!\n";
+		return undef;
+	    }
 	}
 	else {
 	    # Break out of loop.
