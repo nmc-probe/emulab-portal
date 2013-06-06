@@ -610,14 +610,19 @@ getwspeed() {
 	args="bs=64k count=8000"
     fi
     # do we have a working dd
-    canwe=$(which dd)
-    canwe=$(ls -l $canwe | grep busybox)
+    dd=$(which dd)
+    canwe=$(ls -l $dd | grep busybox)
     [[ $canwe ]] && { echo bad_dd; return 0; }
+
+    # if we have a timed dd, use it
+    tdd=$(which tdd)
+    [[ $tdd ]] && { export TDD_DD=$dd; dd="$tdd timeout=5"; }
+
     add_on_exit 'rm -f /tmp/ddresultw'
     mynn=${#todo_exit[*]}
     todo_exit[$mynn]='those are mine'
     { 
-    $(dd if=/dev/zero of=$hdname $args)
+    $($dd if=/dev/zero of=$hdname $args)
 } > /tmp/ddresultw 2>&1
     res=$(grep bytes /tmp/ddresultw)
     echo $(parsedd $res)
@@ -632,12 +637,17 @@ getrspeed() {
 	args="bs=64k count=8000"
     fi
     # do we have a working dd
-    canwe=$(which dd)
-    canwe=$(ls -l $canwe | grep busybox)
+    dd=$(which dd)
+    canwe=$(ls -l $dd | grep busybox)
     [[ $canwe ]] && { echo bad_dd; return 0; }
+
+    # if we have a timed dd, use it
+    tdd=$(which tdd)
+    [[ $tdd ]] && { export TDD_DD=$dd; dd="$tdd timeout=5"; }
+
     add_on_exit 'rm -f /tmp/ddresultr'
 { 
-    $(dd of=/dev/null if=$hdname $args)
+    $($dd of=/dev/null if=$hdname $args)
 } > /tmp/ddresultr 2>&1
     res=$(grep bytes /tmp/ddresultr)
     echo $(parsedd $res)

@@ -22,19 +22,6 @@
 # }}}
 #
 
-mywhich() {
-    mypath=$(env | grep PATH)
-    mypath=${mypath/PATH=/}
-    mypath=${mypath//:/ }
-    for i in $mypath ; do
-	if [ -e $i/$1 ] ; then
-	    echo $i/$1
-	    return 0
-	fi
-    done
-    return 1
-}
-
 if [ -z "$BINDIR" ] ; then
     if [ -r /etc/emulab/paths.sh ] ; then
 	source /etc/emulab/paths.sh
@@ -45,7 +32,6 @@ if [ -z "$BINDIR" ] ; then
 fi
 PROJDIR=/proj/emulab-ops
 
-#don't try and source unless runing in a full bash shell
 source checkutils.sh
 
 gatherinv_main() {

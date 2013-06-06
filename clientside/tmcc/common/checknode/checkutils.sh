@@ -34,6 +34,10 @@ else
     checkutils="sourced"
 fi
 
+if [ -z "${BINDIR-""}" -a -f "/etc/emulab/paths.sh" ]; then
+    source /etc/emulab/paths.sh
+fi
+
 declare mfsmode="" #are we running in a MFS
 if [ -f /etc/emulab/ismfs ] ; then
     mfsmode=1
@@ -43,7 +47,7 @@ fi
 
 declare errext_val # used?
 
-# Gobal Vars
+# Global Vars
 declare NOSM="echo" #do nothing command
 declare host       #emulab hostname
 declare failed=""  #major falure to be commicated to user
@@ -590,4 +594,3 @@ timesys() {
     done
 } > $out 2>&1
 }
-
