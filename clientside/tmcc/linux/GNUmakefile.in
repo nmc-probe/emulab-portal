@@ -328,6 +328,7 @@ xen-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-cnet.pl $(SYSETCDIR)/xen/scripts/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-tun.pl $(SYSETCDIR)/xen/scripts/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/create-image $(LBINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/mkimagecache $(BINDIR)/
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(BINDIR)/grub
 	$(INSTALL) -m 755 $(SRCDIR)/xen/pygrub $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
