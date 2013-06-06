@@ -30,7 +30,7 @@ include $(OBJDIR)/Makeconf
 
 all:	fullclient client
 fullclient: tmcc
-client: tmcc tmcc-nossl findif dostype
+client: tmcc tmcc-nossl findif dostype tdd
 
 # for subboss we use the full SSL tmcc
 subboss: tmcc findif dostype
@@ -153,6 +153,9 @@ findif-debug: findif.o
 dostype-debug: dostype.o
 	$(CC) $(CFLAGS) -g -o $@ dostype.o $(LFLAGS)
 
+tdd-debug: tdd.o
+	$(CC) $(CFLAGS) -g -o $@ tdd.o $(LFLAGS) $(LDSTATIC)
+
 post-install:
 install:
 boss-install:	$(INSTALL_SBINDIR)/findif \
@@ -204,7 +207,7 @@ ${TESTBED_LIBOBJDIR}/libtb/%:
 	cd ${TESTBED_LIBOBJDIR}/tbdb && gmake $<
 
 clean:	subdir-clean
-	rm -f *.o core tmcd tmcc tmcc-nossl findif dostype *-debug
+	rm -f *.o core tmcd tmcc tmcc-nossl findif dostype tdd *-debug
 
 subdir-clean:
 	@$(MAKE) -C $(MDSUBDIR) clean
