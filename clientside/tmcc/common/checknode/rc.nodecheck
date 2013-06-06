@@ -28,20 +28,17 @@
 # only "basic" sh syntax, where the other shell scripts require bash.
 #
 
+mode="check"
+if [  $# -gt 1  -a "$2" = "gather" ]; then
+    mode="gather"
+fi
+
 if [ -r /etc/emulab/paths.sh ]; then
         . /etc/emulab/paths.sh
 else
         BINDIR=/etc/testbed
 fi
 PROJDIR=/proj/emulab-ops
-
-mode="check"
-checks="disk cpu mem time nic"
-if [ $# -gt 1 -a "$2" = "gather" ]; then
-    mode="gather"
-    # do not run timecheck for MFS hw gather mode
-    checks="disk cpu mem nic gather"
-fi
 
 host=`$BINDIR/tmcc nodeid`
 
@@ -65,6 +62,10 @@ if [ -f "/etc/emulab/ismfs" ] ; then
 	mounted=1
     fi
     os=`uname -s`
+    if [ ! -f $PROJDIR/nodecheck/$os/bin/bash ] ; then
+	echo "*** Did not find expected bash in $PROJDIR/$os/bin"
+    fi
+
     export PATH="/usr/local/bin:$PROJDIR/nodecheck/$os/bin:$PATH"
 
     echo 'Running Hardware Inventory Gather'
@@ -77,6 +78,7 @@ if [ -f "/etc/emulab/ismfs" ] ; then
     exit 0
 fi
 
+checks="disk cpu mem time nic"
 #
 # XXX see if hwinfo returns anything. If not, assume node checks are not
 # supported and don't bother with the rest.
