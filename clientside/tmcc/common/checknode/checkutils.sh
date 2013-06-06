@@ -21,7 +21,6 @@
 # }}}
 #
 
-#function debugging by setting  FUNCDEBUG=y
 
 #exit on unbound var
 set -u
@@ -35,24 +34,12 @@ else
     checkutils="sourced"
 fi
 
-# add static binaries if needed
-declare mfsmode="" #are we running in a MFS (ie busybox) mode
+declare mfsmode="" #are we running in a MFS
 if [ -f /etc/emulab/ismfs ] ; then
-    meos=$(uname -s)
     mfsmode=1
-    mfs_base="/proj/emulab-ops/nodecheck"
-    mfs_osdir="${mfs_base}/${meos}"
-    mfs_bin="${mfs_osdir}/bin"
-    mfs_lib="${mfs_osdir}/lib"
-    if [ $PATH == ${PATH/${mfs_bin}} ] ; then
-	if [ -d ${mfs_osdir} ] ; then
-	    export PATH=/proj/emulab-ops/nodecheck/${meos}/bin:$PATH
-	fi
-    fi
 else
     mfsmode=0
 fi
-
 
 declare errext_val # used?
 
@@ -71,7 +58,8 @@ declare -A hwinvcopy  # a copy of hwinv from tmcc
 # declare -p todo_exit
 
 # any command causes exit if -e option set
-# including a grep just used so see if some sting is in a file
+# including a grep just used so see if some string is in a file
+# have a way to save current state and restore
 save_e() {
     x=$-
     [[ "${x/e}" == "${x}" ]] &&	errexit_val=off || errexit_val=on
@@ -79,6 +67,7 @@ save_e() {
 restore_e() {
     [[ $errexit_val == "on" ]] && set -e || set +e
 }
+
 # give some indication of exit on ERR trap
 err_report() {
     echo "TRAP ERR at $1"
@@ -419,8 +408,6 @@ printhwinv() {
 
 # which is not in busybox and not a bash builtin
 which() {
-    #mypath=$(env | grep PATH)
-    #mypath=${mypath/PATH=/}
     mypath=$PATH
     mypath=${mypath//:/ }
     for i in $mypath ; do
@@ -442,15 +429,15 @@ inithostname() {
 	host=$($BINDIR/tmcc nodeid)
     else
 	echo "ERROR no tmcc command"
-	exit 1
-    fi
-    if [ -z "$host" ] ; then 
-	if [ -e "$BOOTDIR/realname" ] ; then
-	    host=$(cat $BOOTDIR/realname)
-	elif [ -e "$BOOTDIR/nodeid" ] ; then
-	    host=$(cat $BOOTDIR/nodeid)
-	else
-	    host=$(hostname)
+	# maybe its just time to give up
+	if [ -z "$host" ] ; then 
+	    if [ -e "$BOOTDIR/realname" ] ; then
+		host=$(cat $BOOTDIR/realname)
+	    elif [ -e "$BOOTDIR/nodeid" ] ; then
+		host=$(cat $BOOTDIR/nodeid)
+	    else
+		host=$(hostname)
+	    fi
 	fi
     fi
     return 0
@@ -469,18 +456,15 @@ findSmartctl() {
     return 0
 }
 
-
-function on_exit()
-{
+# Array of command to be run at exit time
+on_exit() {
     for i in "${todo_exit[@]}" ; do
 #echo "EXIT TODO doing: $i"
         $($i)
     done
     return 0
 }
-
-function add_on_exit()
-{
+add_on_exit() {
     local nex=${#todo_exit[*]}
 #echo "add on exit called B4n=${#todo_exit[*]} SHELL=$$ |$@|++++++++++++++++++++"
     todo_exit[$nex]="$@"
@@ -492,13 +476,21 @@ function add_on_exit()
 
 # setup logging
 initlogs () {
-    funcdebug $FUNCNAME:$LINENO enter $@
-
+    # the following syntax lets us test if a positional arg is set before we try and use it
+    # need if running with -u set. 
+    # It means use $1 if set else use a default path
     logfile=${1-"/tmp/nodecheck.log"}
-# start XXX XXX should be "" when in production
+
+    # this file is only used in gather mode
+    # should maybe test for mfsmode
+    logfile4tb=${2-"/tmp/nodecheck.log.tb"}
+# start XXX XXX should be "" when in production since if we don't pass in a $2 then we don't want to make the file
 #    logfile4tb=${2-""}
     logfile4tb=${2-"/tmp/nodecheck.log.tb"}
-    cp /dev/null ${logfile4tb}
+    # create file if set but don't truncate
+    if [ ! -f "${logfile4tb}" ] ; then
+	cp /dev/null ${logfile4tb} 
+fi
 # end XXX XXX 
     tmplog=/tmp/.$$tmp.log ; cat /dev/null > ${tmplog} # create and truncate
     add_on_exit "rm -f $tmplog"
@@ -509,13 +501,8 @@ initlogs () {
     add_on_exit "rm -f $tmpout"
 #    tmpfunctionout=/tmp/.$$tmpfunctionout.log 
 
-    funcdebug $FUNCNAME:$LINENO leave
     return 0
 }
-
-#cleanup() {
-#    rm -f $tmplog $logout $tmpout 
-#}
 
 getdrivenames() {
     # use smartctl if exits
@@ -603,46 +590,4 @@ timesys() {
     done
 } > $out 2>&1
 }
-
-# Internally used
-declare FUNCDEBUG=n
-declare ECHOCMDS=n
-
-#TOUPPER() { $(echo $@ |tr 'a-z' 'A-Z') } also ${par^^}
-#TOLOWER() { $(echo ${@,,}) }             also #{par,,}
-
-# Function Tracing
-funcdebug ()
-{
-    [[ $FUNCDEBUG = y ]] && echo -e "    ====> $(/bin/date +%k:%M:%S) $@" >&2
-    return 0
-}
-
-# command debugging
-runCmd ()
-{
-    if [[ $ECHOCMDS = y ]] ; then
-        echo "    =CMD> $@" >&2
-    fi
-    eval $@
-    return $?
-}
-
-# skeleton function
-functionSkel ()
-{
-    funcdebug $FUNCNAME:$LINENO enter $@
-
-printf "PROGRAMMING ERROR $FUNCNAME $LINENO \n" && exit 1
-
-    funcdebug $FUNCNAME:$LINENO leave
-    return 0
-}
-
-#init_tcminfo()
-#{
-#    <<EOF
-#
-#EOF
-#}
 
