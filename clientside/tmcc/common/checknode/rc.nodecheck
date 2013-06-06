@@ -46,7 +46,7 @@ fi
 host=`$BINDIR/tmcc nodeid`
 
 # XXX MFSes don't have all the apps we need, so mount an extra directory
-if [ -f "$ETCDIR/ismfs" ] ; then
+if [ -f "/etc/emulab/ismfs" ] ; then
     # XXX only support gather in the MFS
     if [ $mode != "gather" ]; then
 	echo '*** nodecheck skipped in MFS'

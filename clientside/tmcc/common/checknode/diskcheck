@@ -489,7 +489,7 @@ getserial() {
 	if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
 	    sd=$1
 	    sd=${sd#/dev/}
-	    res=$(camcontrol inquiry $sd -S)
+	    res=$(camcontrol inquiry $sd -S 2>/dev/null)
 	fi
     fi
     
@@ -679,5 +679,3 @@ main $@
 #cleanup
 
 exit 0
-
-
