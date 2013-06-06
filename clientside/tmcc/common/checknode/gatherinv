@@ -86,7 +86,7 @@ gatherinv_main() {
     # copy over the file including timestamps
     timestamp=$(date +%y%m%d%H%M%S)
     cp /tmp/nodecheck.log.tb.new /proj/emulab-ops/nodecheck/$host/tbdb/$timestamp
-    rm  -f /proj/emulab-ops/nodecheck/$host/tbdb/$host #this should be a symlink
+    rm  -f /proj/emulab-ops/nodecheck/$host/$host #this should be a symlink
     ln -s /proj/emulab-ops/nodecheck/$host/tbdb/${timestamp} /proj/emulab-ops/nodecheck/$host/$host
 
     cp /tmp/nodecheck.log.inv /proj/emulab-ops/nodecheck/$host/full/$timestamp
