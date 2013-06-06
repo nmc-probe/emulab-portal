@@ -472,7 +472,7 @@ getserial() {
 	#don't have smartctl, maybe we can use hdparm
 	    hdp=$(which hdparm)
 	    if [ "${hdp/hdparm}" != "${hdp}" ] ; then
-		res=$(hdparm -I $1 | grep -i 'Serial number:')
+		res=$(hdparm -I $1 2>/dev/null | grep -i 'Serial number:')
 	    fi
 	else
 	    res=$($smtcl -a $1 | grep -i 'Serial number:')
