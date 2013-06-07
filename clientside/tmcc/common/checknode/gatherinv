@@ -128,8 +128,8 @@ gatherinv_main() {
     # make sure no sudo is needed for read
     chmod -R g+rw ${INVDIR}/$host
 
-#    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv"
-#    echo "NEED TO ENABLE rm -f /tmp/nodecheck.log.tb.new /tmp/nodecheck.diff"
+    rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv
+    rm -f /tmp/nodecheck.log.tb.new /tmp/nodecheck.diff
 }
 
 gatherinv_main $0
