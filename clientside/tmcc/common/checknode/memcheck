@@ -31,43 +31,27 @@ _32KGiB=33554432
 echo -n ' Starting memcheck..'
 
 source checkutils.sh
-#source getfromtb.sh
 source hbis.sh
 
 declare failed="" s=""
 
 inithostname
-
-## # setup logging
-##if [ $1 ] ; then
-##    logfile=$1
-## else
-##    logfile="/tmp/nodecheck.log"
-## fi
-## tmplog=/tmp/.$$.log
-## cat /dev/null > ${tmplog}
-
 initlogs
 
 #set +x
 #exit on unbound var
 set -u
+#exit on any error
+set -e
 
+# only called on error, should just get rig of
 finish() {
     echo "memcheck `date`" >> ${logfile}
     cat ${tmplog} >> ${logfile} 
     
-#    if [ -z "${failed}" ]
-#    then
-#	echo -n ""
-#	echo "OK"
-#    else
-	echo "$failed"
-	echo "$failed" >> ${logfile} 
-	exit 1
-#    fi
-    
-    exit 0
+    echo "$failed"
+    echo "$failed" >> ${logfile} 
+    exit 1
 }
 
 s=""
@@ -103,33 +87,46 @@ fi
 case $os in
     Linux )
 	    unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
-	    # Linux under reports, add 11MiB (in KiB units) for reserved mem
+	    # we don't have the use of bc in mfs/load boot
 	    if [ -f ${logfile4tb} ] ; then
-		meminfo=${d[1]}
-		meminfo=$(($meminfo / 1000))
+		# punt punt punt
+		number=${d[1]}
+		if (( number > $_32KGiB )) ; then
+#		    ((number+=5033126))
+		    ((number+=2048000))
+		elif (( number > $_1KGiB )) ; then
+		    ((number+=31457))
+		elif (( number > $_256KMiB )) ; then
+		    ((number+=47972))
+		elif (( number > $_1KMiB )) ; then
+		    ((number+=48))
+		fi
 	    else
-	    if (( ${d[1]} > $_32KGiB )) ; then
-		number=$(echo "scale=0; (${d[1]} * 1.015) / 1;" | bc)
-	    elif (( ${d[1]} > $_1KGiB )) ; then
-		number=$(echo "scale=0; (${d[1]} * 1.03) / 1;" | bc)
-	    elif (( ${d[1]} > $_256KMiB )) ; then
-		number=$(echo "scale=0; (${d[1]} * 1.183) / 1;" | bc)
-	    elif (( ${d[1]} > $_1KMiB )) ; then
-		number=$(echo "scale=0; (${d[1]} * 1.047) / 1;" | bc)
-	    else 
-		number=$(echo "scale=0; (${d[1]} * 1.0) / 1;" | bc)
+	    # Linux under reports, add ??MiB (in KiB units) for reserved mem
+		if (( ${d[1]} > $_32KGiB )) ; then
+		    number=$(echo "scale=0; (${d[1]} * 1.015) / 1;" | bc) # divide by 1 for the truncate
+		elif (( ${d[1]} > $_1KGiB )) ; then
+		    number=$(echo "scale=0; (${d[1]} * 1.03) / 1;" | bc)
+		elif (( ${d[1]} > $_256KMiB )) ; then
+		    number=$(echo "scale=0; (${d[1]} * 1.183) / 1;" | bc)
+		elif (( ${d[1]} > $_1KMiB )) ; then
+		    number=$(echo "scale=0; (${d[1]} * 1.047) / 1;" | bc)
+		else 
+		    number=$(echo "scale=0; (${d[1]} * 1.0) / 1;" | bc)
+		fi
 	    fi
+		
 	    mi=${number}${d[2]}
-#echo  "$0:${LINENO} ========== was:${d[1]} now number:$number sent:$mi "
 	    meminfo=$(hbis $mi)
-#echo  "$0:${LINENO} ========== returned:$meminfo"
-	    fi
 	    ;;
     FreeBSD )
 	    unset -v d ; declare -a d=($(grep memory /var/run/dmesg.boot | grep real))
-	    w=${d[4]} ; x=${w#(}
-		z=${d[5]} ; y=${z%)}
-	    meminfo=$x$y
+	    # ???? use the bytes and not the stuff in the (), seem to round up using int rounding.
+	    # example: "real memory  = 268419072 (255 MB)" is not true, 268419072 = 255.984375 MB
+#	    w=${d[4]} ; x=${w#(}
+#		z=${d[5]} ; y=${z%)}
+#	    meminfo=$x$y
+	    meminfo=${d[3]}
 	    meminfo=$(hbis $meminfo)
 	    ;;
     * )
@@ -155,6 +152,7 @@ if [ -f ${logfile4tb} ] ; then
     exit 0
 fi
 
+# done at this point in MFS
 tbinfo=$(getfromtb meminfo $host)
 
 {
