@@ -605,25 +605,29 @@ getwspeed() {
     if [ "$os" == "Linux" ] ; then 
 	#args="bs=64k iflag=direct count=8000"
 	#note iflag direct can't be used with /dev/zero as infile 
-	args="bs=64k count=8000"
+	args="bs=64k"
     elif [ "$os" == "FreeBSD" ] ; then 
-	args="bs=64k count=8000"
+	args="bs=64k"
     fi
     # do we have a working dd
     dd=$(which dd)
     canwe=$(ls -l $dd | grep busybox)
     [[ $canwe ]] && { echo bad_dd; return 0; }
 
-    # if we have a timed dd, use it
+    # if we have a timed dd, use a timeout rather than a count
     tdd=$(which tdd)
-    [[ $tdd ]] && { export TDD_DD=$dd; dd="$tdd timeout=5"; }
-
+    if [[ $tdd ]]; then
+	export TDD_DD=$dd
+	dd=$tdd
+	# XXX paranoid: leave a count just in case
+	args="$args timeout=5 count=20000"
+    else
+	args="$args count=8000"
+    fi
     add_on_exit 'rm -f /tmp/ddresultw'
     mynn=${#todo_exit[*]}
     todo_exit[$mynn]='those are mine'
-    { 
-    $($dd if=/dev/zero of=$hdname $args)
-} > /tmp/ddresultw 2>&1
+    $dd if=/dev/zero of=$hdname $args >/tmp/ddresultw 2>&1
     res=$(grep bytes /tmp/ddresultw)
     echo $(parsedd $res)
     rm -f /tmp/ddresultw
@@ -632,23 +636,27 @@ getwspeed() {
 getrspeed() { 
     hdname=$1
     if [ "$os" == "Linux" ] ; then 
-	args="bs=64k iflag=direct count=8000"
+	args="bs=64k iflag=direct"
     elif [ "$os" == "FreeBSD" ] ; then 
-	args="bs=64k count=8000"
+	args="bs=64k"
     fi
     # do we have a working dd
     dd=$(which dd)
     canwe=$(ls -l $dd | grep busybox)
     [[ $canwe ]] && { echo bad_dd; return 0; }
 
-    # if we have a timed dd, use it
+    # if we have a timed dd, use a timeout rather than a count
     tdd=$(which tdd)
-    [[ $tdd ]] && { export TDD_DD=$dd; dd="$tdd timeout=5"; }
-
+    if [[ $tdd ]]; then
+	export TDD_DD=$dd
+	dd=$tdd
+	# XXX paranoid: leave a count just in case
+	args="$args timeout=5 count=20000"
+    else
+	args="$args count=8000"
+    fi
     add_on_exit 'rm -f /tmp/ddresultr'
-{ 
-    $($dd of=/dev/null if=$hdname $args)
-} > /tmp/ddresultr 2>&1
+    $dd of=/dev/null if=$hdname $args >/tmp/ddresultr 2>&1
     res=$(grep bytes /tmp/ddresultr)
     echo $(parsedd $res)
     rm -f /tmp/ddresultr
