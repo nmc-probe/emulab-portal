@@ -50,7 +50,7 @@ if [ -f "/etc/emulab/ismfs" ] ; then
 	exit 0
     fi
     if [ ! -d "$PROJDIR" ] ; then
-	mkdir $PROJDIR
+	mkdir -p $PROJDIR
     fi
     mounted=0
     if [ ! -d "$PROJDIR/nodecheck" ] ; then
