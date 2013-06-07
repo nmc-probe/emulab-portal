@@ -5,6 +5,8 @@ def command?(name)
   $?.success?
 end
 
+#TODO: Verify arch
+
 class EmulabExport
     attr_accessor :identity
 
@@ -67,14 +69,26 @@ class EmulabExport
 
         pkernels = []
         pkernels << "/boot/vmlinuz-" + version
-        pkernels << "/boot/vmlinuz-" + version + ".img"
+        pkernels << "/vmlinuz-" + version
+        pkernels << "/boot/kernel-" + version
+        pkernels << "/boot/vmlinux-" + version
+        pkernels << "/vmlinux-" + version
 
+        pkernels << "/boot/vmlinuz-" + version + ".img"
+        pkernels << "/vmlinuz-" + version + ".img"
+        pkernels << "/boot/kernel-" + version + ".img"
+        pkernels << "/boot/vmlinux-" + version + ".img"
+        pkernels << "/vmlinux-" + version + ".img"
+
+        # Well, this should cover MOST of the cases. 
+        # Parsing the grub config is really hard because grub 2 uses a script
+        # and not a menu.lst like the legacy one
         pinitrd = []
-        pinitrd << "/boot/initramfs-" + version + ".img"
-        pinitrd << "/boot/initrd-" + version
-        pinitrd << "/boot/initrd-" + version + ".img"
         pinitrd << "/boot/initrd.img-" + version
-        # TODO Screw this. A few more and I might as well parse the menu.lst
+        pinitrd << "/boot/initrd-" + version + ".img"
+        pinitrd << "/boot/initrd-" + version
+        pinitrd << "/boot/initramfs-" + version + ".img"
+        pinitrd << "/boot/initramfs-genkernel-" + version
 
         kernelfound = false
         pkernels.each do |kernel|
