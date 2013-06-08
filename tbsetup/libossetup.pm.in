@@ -116,6 +116,7 @@ sub New($$$@)
 	$node->_rebooted(0);
 	$node->_vnodecount(0);
 	$node->_reloaded(0);
+	$node->_bootlog(undef);
     }
 
     bless($self, $class);
