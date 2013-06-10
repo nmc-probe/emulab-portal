@@ -47,7 +47,6 @@ end
 class Grub1Image < GrubImage
     def parse
         @lines.each do |line|
-            puts line
             command, args = line.split(nil,2)
             case command
             when "kernel"
@@ -118,7 +117,6 @@ class Grub1ConfigFile < GrubConfigFile
         image_lines = nil
         image_title = nil
         @lines.each do |line|
-            puts line
             line.strip!
             next if line.length == 0
             next if line.start_with?("#")
@@ -127,8 +125,9 @@ class Grub1ConfigFile < GrubConfigFile
                 if image_title
                     self.add_image(Grub1Image.new(image_title, image_lines))
                 end
+                
                 image_lines = []
-                image_title = line
+                image_title = line.split(nil, 2)[1]
                 next
             end
 
@@ -176,7 +175,7 @@ class Grub2ConfigFile < GrubConfigFile
             if m = line.match('^menuentry ["\'](.*)["\'] (.*)\{') then
                 raise "nested menuentry" if image_title != nil
                 image_lines = []
-                image_title = line
+                image_title = m[1]
                 next
             end
             
@@ -213,8 +212,26 @@ class Grub2ConfigFile < GrubConfigFile
 
 end
 
+
+def usage()
+    puts "usage: " + File.basename(__FILE__) + " <config file> <1/2>"
+end
+
 if __FILE__ == $0
-    cfg = Grub1ConfigFile.new(ARGV[0])
+    if ARGV.length != 2
+        usage()
+        raise "Not enough arguments"
+    end
+
+    type = ARGV[1].to_i
+    if type == 1 then
+        cfg = Grub1ConfigFile.new(ARGV[0])
+    elsif type == 2 then
+        cfg = Grub2ConfigFile.new(ARGV[0])
+    else
+        usage()
+        raise "Type should be either 1 or 2"
+    end
     cfg.parse
     cfg.print
 end
