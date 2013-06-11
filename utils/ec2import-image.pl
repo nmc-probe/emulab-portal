@@ -116,15 +116,7 @@ if(system("echo \"mkdir -p ~/.emulab\" | ssh -o UserKnownHostsFile=/dev/null ".
     goto cleanup;
 }
 
-# Remotely execute the export script
-if(system("scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
-        "$TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb")){
-    print STDERR "*** Couldn't scp exporter script into $remote\n";
-    $error = 1;
-    goto cleanup;
-}
-
-# Check if Ruby exists
+# Check if Ruby and unzip exist
 if(system("ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
         "$remote 'which ruby unzip'")){
     print STDERR "*** Could not find either ruby or unzip on remote machine!";
@@ -132,7 +124,22 @@ if(system("ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
     goto cleanup;
 }
 
+# scp export scripts
+if(system("scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
+        "$TB/sbin/export-template-remote.rb $remote:~/.emulab/export.rb")){
+    print STDERR "*** Couldn't scp exporter script into $remote\n";
+    $error = 1;
+    goto cleanup;
+}
 
+if(system("scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
+        "$TB/sbin/GrubConf.rb $remote:~/.emulab/GrubConf.rb")){
+    print STDERR "*** Couldn't scp exporter-grubconf script into $remote\n";
+    $error = 1;
+    goto cleanup;
+}
+
+# Run it!
 if(system("ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
         "-t -t $remote 'sudo ruby -C ~/.emulab < ~/.emulab/export.rb'")){
     print STDERR "*** Remote image creation failed\n";
