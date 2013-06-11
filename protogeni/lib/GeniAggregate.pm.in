@@ -2368,7 +2368,7 @@ sub Create($$$$$$)
 	$member2->SetAttribute("tunnel_myid", $virtid2);
 	$member2->SetAttribute("tunnel_peerid", $virtid1);
 	$member2->SetAttribute("tunnel_tag", $cksum);
-	$member1->SetAttribute("tunnel_mac", $member2_mac);
+	$member2->SetAttribute("tunnel_mac", $member2_mac);
 
 	my $sliver = GeniSliver::Interface->Create($slice,
 						   $owner,
