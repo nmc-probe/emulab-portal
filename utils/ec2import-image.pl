@@ -47,19 +47,23 @@ $| = 1;
 # Need this for predicates.
 use libsetup;
 
+#
+# Configure variables
+#
+my $TB          = "@prefix@";
+my $IMPORT_BASE = "@IMPORT_TMPDIR@"
 
-my $TB       = "/usr/testbed";
 #
 # No configure vars.
 #
-my $WORK_BASE  = "/q/import_temp/";
-my $IN_BASE  = "/q/indir/";
-#TODO something in some script that creates these two directorieso
 my $TAR      = "tar";
 my $sudo;
 my $zipper   = "/usr/local/bin/imagezip";
 my $uploader = "/usr/local/etc/emulab/frisupload";
 my $error    = 0;
+
+my $WORK_BASE  = $IMPORT_BASE + "/import_temp/";
+my $IN_BASE  = $IMPORT_BASE + "/indir";
 
 for my $path (qw#/usr/local/bin /usr/bin#) {
     if (-e "$path/sudo") {
