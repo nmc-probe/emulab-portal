@@ -1,5 +1,7 @@
 #!/usr/bin/ruby
 
+require 'GrubConf'
+
 def command?(name)
   `which #{name}`
   $?.success?
@@ -9,15 +11,19 @@ end
 
 class EmulabExport
     attr_accessor :identity
+    attr_accessor :fssize
 
     def initialize()
         @workdir = File.dirname(File.expand_path $0) 
     end
 
     def finalize()
-        system("rm -Rf ec2-ami-tools-1.4.0.9 > /dev/null 2>&1")
-        system("rm ec2-ami-tools.zip > /dev/null 2>&1")
-        system("rm /tmp/emulab-image > /dev/null 2>&1")
+        system("rm /tmp/emulab-image >/dev/null 2>&1");
+        system("rm " + @workdir + "/kernel >/dev/null 2>&1");
+        system("rm " + @workdir + "/initrd >/dev/null 2>&1");
+        system("rm " + @workdir + "/bootopts >/dev/null 2>&1");
+        system("rm " + @workdir + "/ec2-ami-tools.zip >/dev/null 2>&1");
+        system("rm -Rf " + @workdir + "/ec2-ami-tools-1.4.0.9 >/dev/null 2>&1");
     end
 
     def create_image()
@@ -37,7 +43,7 @@ class EmulabExport
        
         image = EC2::Platform::Current::Image.new("/",
                         "/tmp/emulab-image",
-                        fssize+800,
+                        @fssize+800,
                         excludes,
                         [],
                         false,
@@ -52,16 +58,52 @@ class EmulabExport
 
         # Remove any previous image tries
         system("rm /tmp/emulab-image >/dev/null 2>&1");
-        system("rm " + @workdir + "/* >/dev/null 2>&1");
+        system("rm " + @workdir + "/kernel >/dev/null 2>&1");
+        system("rm " + @workdir + "/initrd >/dev/null 2>&1");
+        system("rm " + @workdir + "/bootopts >/dev/null 2>&1");
+        system("rm " + @workdir + "/ec2-ami-tools.zip >/dev/null 2>&1");
+        system("rm -Rf " + @workdir + "/ec2-ami-tools-1.4.0.9 >/dev/null 2>&1");
 
 
         # TODO this probably needs to be more elaborate
-        fssize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$3);print $3}'`)
+        @fssize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$3);print $3}'`)
         empsize = Integer(`df -PBM --total / | grep total | awk '{gsub(/M$/,"",$4);print $4}'`)
-        puts "Disk on / has " + fssize.to_s + "M of data and " +
+        puts "Disk on / has " + @fssize.to_s + "M of data and " +
             empsize.to_s + "M free space"
-        raise "Not enough disk space to create image" if empsize < fssize * 1.7
+        raise "Not enough disk space to create image" if empsize < @fssize * 1.7
         
+    end
+    
+    # Look for a menu.lst or grub.cfg and run the parser on that to find kern
+    def find_grub_cfgs()
+        cfgs = []
+        pgrub2 = ["/boot/grub2/grub.cfg", "/boot/grub/grub.cfg",
+                    "/grub/grub.cfg", "/grub2/grub.cfg"]
+
+        pgrub2.each do |grub_config|
+            if File.exists?(grub_config)
+                cfg = Grub2ConfigFile.new(grub_config)
+                cfg.parse()
+                if cfg.images.length > 0
+                    cfgs << cfg
+                end
+            end
+        end
+                    
+        pgrub1 = ["/boot/grub/menu.lst", "/boot/grub/grub.conf",
+                    "/grub/menu.lst", "/grub/grub.conf"]
+
+        pgrub1.each do |grub_config|
+            if File.exists?(grub_config)
+                cfg = Grub1ConfigFile.new(grub_config)
+                cfg.parse()
+                if cfg.images.length > 0
+                    cfgs << cfg
+                end
+            end
+        end
+
+        return cfgs
     end
 
     def get_kernel()
@@ -99,7 +141,6 @@ class EmulabExport
                 break
             end
         end
-        raise "Couldn't find kernel" if kernelfound == false
 
         initrdfound = false
         pinitrd.each do |initrd|
@@ -110,7 +151,32 @@ class EmulabExport
                 break
             end
         end
-        raise "Couldn't find initrd" if initrdfound == false
+
+        if kernelfound == false or initrdfound == false
+            cfgs = find_grub_cfgs()
+           
+            catch :donekernelsearch do
+                cfgs.each do |cfg|
+                    cfg.images.each do |image|
+                        if image.kernel and image.initrd and
+                            (image.title.include? version or
+                            image.kernel.include? version or
+                            image.initrd.include? version)
+
+                            if File.exists?(image.kernel) and File.exists?(image.initrd)
+                                raise "Couldn't copy kernel from " + image.kernel unless
+                                    system("cp " + image.kernel + " " + @workdir + "/kernel")
+                                raise "Couldn't copy initrd from " + image.initrd unless
+                                    system("cp " + image.initrd + " " + @workdir + "/initrd")
+                                kernelfound = initrdfound = true
+                                throw :donekernelsearch
+                            end
+                        end
+                    end
+                end
+            end #And she's buying a stairway to heaven
+        end
+        raise "Couldn't find your kernel and initrd properly" unless kernelfound and initrdfound
 
     end
 
