@@ -399,10 +399,8 @@ sub rootPreConfig()
 
 	my $size = lvmVGSize($VGNAME);
 	if ($size < $XEN_MIN_VGSIZE) {
-	    print STDERR "ERROR: physical disks not big enough to support".
-		" VMs ($size < $XEN_MIN_VGSIZE)\n";
-	    TBScriptUnlock();
-	    return -1;
+	    print STDERR "WARNING: physical disks not big enough to support".
+		" $MAX_VNODES VMs ($size < $XEN_MIN_VGSIZE)\n";
 	}
     }
 
