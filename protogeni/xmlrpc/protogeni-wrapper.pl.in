@@ -556,7 +556,7 @@ if ($user_certificate->VerifySSLChain(@chaincerts)) {
     print STDERR Dumper([$user_certificate, @chaincerts]);
     AddLogfileMetaData("cert_error",
 		       "Could not verify user certificate chain");
-    if (0) {
+    if (1) {
 	XMLError(XMLRPC_APPLICATION_ERROR(),
 		 "Could not verify user certificate chain");
     }
