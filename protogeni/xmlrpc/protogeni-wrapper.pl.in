@@ -551,29 +551,29 @@ if (!defined($user_certificate)) {
 # us the server cert, which is useless. So we have to recompute the
 # chain to find the CA.
 #
-if (0) {
 if ($user_certificate->VerifySSLChain(@chaincerts)) {
     print STDERR "Could not verify user certificate chain:\n";
     print STDERR Dumper([$user_certificate, @chaincerts]);
-#    AddLogfileMetaData("cert_error",
-#		       "Could not verify user certificate chain");
+    AddLogfileMetaData("cert_error",
+		       "Could not verify user certificate chain");
     if (0) {
 	XMLError(XMLRPC_APPLICATION_ERROR(),
 		 "Could not verify user certificate chain");
     }
 }
-@chaincerts = (@chaincerts, $user_certificate->rootcert());
-my $errorstr;
-if ($user_certificate->VerifyGeniChain(\$errorstr, @chaincerts)) {
-    print STDERR "Failed to verify Geni chain (user cert): $errorstr\n";
-    print STDERR Dumper([$user_certificate, @chaincerts]);
-    AddLogfileMetaData("cert_error",
-		       "Failed to verify Geni chain (user cert): $errorstr");
-    if (0) {
-	XMLError(XMLRPC_APPLICATION_ERROR(),
-		 "Could not verify user URN namespace chain: $errorstr");
+else {
+    @chaincerts = (@chaincerts, $user_certificate->rootcert());
+    my $errorstr;
+    if ($user_certificate->VerifyGeniChain(\$errorstr, @chaincerts)) {
+	print STDERR "Failed to verify Geni chain (user cert): $errorstr\n";
+	print STDERR Dumper([$user_certificate, @chaincerts]);
+	AddLogfileMetaData("cert_error",
+		   "Failed to verify Geni chain (user cert): $errorstr");
+	if (0) {
+	    XMLError(XMLRPC_APPLICATION_ERROR(),
+		     "Could not verify user URN namespace chain: $errorstr");
+	}
     }
-}
 }
 
 my $result;
