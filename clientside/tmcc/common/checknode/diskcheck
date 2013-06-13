@@ -140,6 +140,7 @@ main() {
 	    esac
 	done
 	# Must have sectors_val an bpers_val before calculating size
+
 	for ((i=0;i<=$lastslot;i++)) ; do
 	    case $i in
 		$size_val ) 
