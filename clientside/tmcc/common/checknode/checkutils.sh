@@ -122,6 +122,7 @@ readtmcinfo() {
 		keyword+="$ncnt"
 		((++ncnt))
 		;;
+	    \#* ) continue ;; 
 	esac
 	hwinv["hwinvidx"]+="$keyword " # keeping the keyword list preserves order
 	hwinv[$keyword]=$in
@@ -233,6 +234,7 @@ compareunits() {
 	    unit_pre_strip="*ID=\""
 	    unit_post_strip="\"*"
 	    unit_human_output="NIC"
+	    unit_human_case="lower"
 	    ;;
 	DISK )
 	    unitinfoidx_str="DISKINFO"
@@ -241,6 +243,7 @@ compareunits() {
 	    unit_pre_strip="*SN=\""
 	    unit_post_strip="\"*"
 	    unit_human_output="DISK"
+	    unit_human_case="upper"
 	    ;;
 	* )
 	    echo "Error in compareunits don't now type $unittype. Giving up."
@@ -273,39 +276,50 @@ compareunits() {
 	    # add just the address
 	    addr=${hwinv[$devunit]}
 	    addr=${addr#${unit_pre_strip}}
-	    addr=${addr%${unit_post_strip}}
+	    addr=${addr%%${unit_post_strip}}
 	    localunits+="$addr "
 	    localidx=${localidx/$devunit}
 	fi
 	if [ -n "${hwinvcopy[$devunit]+${hwinvcopy[$devunit]}}" ] ; then
 	    addr=${hwinvcopy[$devunit]}
 	    addr=${addr#${unit_pre_strip}}
-	    addr=${addr%${unit_post_strip}}
+	    addr=${addr%%${unit_post_strip}}
 	    tbdbunits+="$addr "
 	    tbdbidx=${tbdbidx/$devunit}
 	fi
     done
 
-    # remove from the lists all matching 
-    # lower case all
-    localunits=${localunits,,}
-    tbdbunits=${tbdbunits,,}
-    for i in $localunits ; do
+    # Adjust the case in both strings to the case we want
+    if [ "$unit_human_case" == "upper" ] ; then
+	localunits=${localunits^^}
+	tbdbunits=${tbdbunits^^}
+    else
+	localunits=${localunits,,}
+	tbdbunits=${tbdbunits,,}
+    fi
+
+    # remove from the lists all matching words
+    x=$localunits
+    for i in $x ; do
 	if [ "${tbdbunits/$i}" != "${tbdbunits}" ]; then
 	    tbdbunits=${tbdbunits/$i}
 	    localunits=${localunits/$i}
 	fi
     done
-    # same other swap arrays
-    for i in $tbdbunits ; do
+    # same but swap arrays
+    x=$tbdbunits
+    for i in $x ; do
 	if [ "${localunits/$i}" != "${localunits}" ]; then
 	    localunits=${localunits/$i}
 	    tbdbunits=${tbdbunits/$i}
 	fi
     done
     #remove extra spaces
-    read -rd '' localunits <<< "$localunits"
+    save_e
+    set +e
     read -rd '' tbdbunits <<< "$tbdbunits"
+    read -rd '' localunits <<< "$localunits"
+    restore_e
 
     # any mismatches would be in localunits and tbdbunits
     if [ -n "${localunits}" ]; then
@@ -321,7 +335,7 @@ compareunits() {
 	printf "%s%s %s\n" "${unit_human_output}" "s:" "$tbdbunits" >> $tbdbonly
     fi
 
-    echo "$localidx $tbdbidx"
+    return 0
 }
 
 
@@ -486,16 +500,10 @@ initlogs () {
     logfile=${1-"/tmp/nodecheck.log"}
 
     # this file is only used in gather mode
-    # should maybe test for mfsmode
-    logfile4tb=${2-"/tmp/nodecheck.log.tb"}
-# start XXX XXX should be "" when in production since if we don't pass in a $2 then we don't want to make the file
-#    logfile4tb=${2-""}
-    logfile4tb=${2-"/tmp/nodecheck.log.tb"}
-    # create file if set but don't truncate
-    if [ ! -f "${logfile4tb}" ] ; then
-	cp /dev/null ${logfile4tb} 
-fi
-# end XXX XXX 
+    # and should have been created in gatherinv
+    # set the name so it can be tested for
+    logfile4tb=${2-".$$no4tb"}
+
     tmplog=/tmp/.$$tmp.log ; cat /dev/null > ${tmplog} # create and truncate
     add_on_exit "rm -f $tmplog"
 
