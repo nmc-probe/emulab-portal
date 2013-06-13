@@ -28,11 +28,6 @@
 # only "basic" sh syntax, where the other shell scripts require bash.
 #
 
-mode="check"
-if [  $# -gt 1  -a "$2" = "gather" ]; then
-    mode="gather"
-fi
-
 if [ -r /etc/emulab/paths.sh ]; then
         . /etc/emulab/paths.sh
 else
@@ -44,11 +39,11 @@ host=`$BINDIR/tmcc nodeid`
 
 # XXX MFSes don't have all the apps we need, so mount an extra directory
 if [ -f "/etc/emulab/ismfs" ] ; then
-    # XXX only support gather in the MFS
-    if [ $mode != "gather" ]; then
-	echo '*** nodecheck skipped in MFS'
+    if [  $# -gt 1  -a "$2" = "gather" ]; then
+	echo 'nodecheck only supports gather mode in MFS at boot time, skipping'
 	exit 0
     fi
+
     if [ ! -d "$PROJDIR" ] ; then
 	mkdir -p $PROJDIR
     fi
@@ -78,7 +73,6 @@ if [ -f "/etc/emulab/ismfs" ] ; then
     exit 0
 fi
 
-checks="disk cpu mem time nic"
 #
 # XXX see if hwinfo returns anything. If not, assume node checks are not
 # supported and don't bother with the rest.
@@ -89,27 +83,21 @@ if [ -z "$hwinfo" ]; then
     exit 0
 fi
 
+checks="disk cpu mem time nic"
+
 echo "Running nodechecks"
 # truncate file at boot time
 if [ "$1" = "boot" ] ; then
     echo "-- Start boot_time_node_check --" > $LOGDIR/nodecheck.log
-    cp /dev/null /tmp/nodecheck.log.tb
-    for i in $checks
-    do
-	bash $BINDIR/${i}check $LOGDIR/nodecheck.log /tmp/nodecheck.log.tb
-    done
+fi
+
+for i in $checks
+do
+    bash $BINDIR/${i}check $LOGDIR/nodecheck.log 
+done
+
+if [ "$1" = "boot" ] ; then
     echo "-- Finish boot_time_node_check --" >> $LOGDIR/nodecheck.log
-    if [ -f /tmp/nodecheck.log.tb ] ; then
-	cp /tmp/nodecheck.log.tb $PROJDIR/nodecheck/$host
-	cp /tmp/nodecheck.log.inv $PROJDIR/nodecheck/$host.full
-	chmod a+r $PROJDIR/nodecheck/$host*
-    fi
-else
-    rm -f /tmp/nodecheck.log.tb
-    for i in $checks
-    do
-	bash $BINDIR/${i}check $LOGDIR/nodecheck.log
-    done
 fi
 
 echo "Done with nodechecks"
