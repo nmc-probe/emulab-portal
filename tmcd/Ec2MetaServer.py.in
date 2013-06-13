@@ -222,8 +222,9 @@ if __name__ == '__main__':
     import socket
     metad = daemon.DaemonContext()
     metad.pidfile = pidlockfile.PIDLockFile('/var/run/tmcd-meta.pid')
-    metad.stdout = tmplog
-    metad.stderr = tmplog
+    syslog = open("@prefix@/log/tmcd-meta.log","w+")
+    metad.stdout = syslog
+    metad.stderr = syslog
 
     with metad:
         server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787),
