@@ -7,7 +7,7 @@ import sys
 import syslog
 import mysql.connector
 import daemon
-from lockfile import pidlockfile
+from daemon import pidfile
 
 # This requires Python 2.6+
 class Ec2MetaHandler(BaseHTTPRequestHandler):
@@ -20,7 +20,30 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         BaseHTTPRequestHandler.__init__(self,req,ca,huh)
 
     def log_message(self, format, *args):
-        syslog.syslog(format.format(args))
+        outtext = format
+        alen = len(args)
+        if alen == 0:
+            outtext = format
+        elif alen == 1:
+            outtext = format % (args[0])
+        elif alen == 2:
+            outtext = format % (args[0], args[1])
+        elif alen == 3:
+            outtext = format % (args[0], args[1], args[2])
+        elif alen == 4:
+            outtext = format % (args[0], args[1], args[2], args[3])
+        elif alen == 5:
+            outtext = format % (args[0], args[1], args[2], args[3],
+                        args[4])
+        else:
+            outtext = "Too many format strings"
+
+        # All this retardness is because someone decided that 
+        # that format string functionality was ONLY exposed
+        # through a shitty operator(%) and not through a real
+        # function, so now its impossible to use it with *args
+        # because of some restrictive front end checks, meh
+        syslog.syslog(outtext)
 
     def do_GET(self):
         parsed_path = urlparse.urlparse(self.path)
@@ -221,10 +244,10 @@ if __name__ == '__main__':
     from BaseHTTPServer import HTTPServer
     import socket
     metad = daemon.DaemonContext()
-    metad.pidfile = pidlockfile.PIDLockFile('/var/run/tmcd-meta.pid')
-    syslog = open("@prefix@/log/tmcd-meta.log","w+")
-    metad.stdout = syslog
-    metad.stderr = syslog
+    metad.pidfile = pidfile.TimeoutPIDLockFile('/var/run/tmcd-meta.pid', acquire_timeout=10)
+    llog = open("@prefix@/log/tmcd-meta.log","w+")
+    metad.stdout = llog
+    metad.stderr = llog
 
     with metad:
         server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787),
