@@ -110,7 +110,8 @@ version.c: tmcd.c
 install:	all
 
 install:	$(INSTALL_SBINDIR)/tmcd \
-		$(INSTALL_SBINDIR)/tmcd.restart
+		$(INSTALL_SBINDIR)/tmcd.restart \
+        $(INSTALL_SBINDIR)/Ec2MetaServer.py
 
 control-install:
 boss-install: install

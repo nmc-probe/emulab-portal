@@ -1,9 +1,12 @@
+#!/usr/local/bin/python
 from BaseHTTPServer import BaseHTTPRequestHandler
 import urlparse
 import traceback
 import os
 import sys
 import mysql.connector
+import daemon
+from lockfile import pidlockfile
 
 
 class Ec2MetaHandler(BaseHTTPRequestHandler):
@@ -12,8 +15,6 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         self.cnx = mysql.connector.connect(user='tmcd',
                               database='tbdb', unix_socket='/tmp/mysql.sock')
         BaseHTTPRequestHandler.__init__(self,req,ca,huh)
-
-
 
 
     def do_GET(self):
@@ -214,21 +215,11 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     from BaseHTTPServer import HTTPServer
     import socket
-    server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787), Ec2MetaHandler)
-    pid = str(os.getpid())
-    pidfile = "/var/run/tmcd-meta.pid"
-
-    if os.path.isfile(pidfile):
-        print "%s already exists, exiting" % pidfile
-        sys.exit()
-    else:
-        file(pidfile, 'w').write(pid)
-
-
-    try:
-        print 'Starting server, use <Ctrl-C> to stop'
+    metad = daemon.DaemonContext()
+    metad.pidfile = pidlockfile.PIDLockFile('/var/run/tmcd-meta.pid')
+    with metad:
+        server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787),
+            Ec2MetaHandler)
         server.serve_forever()
-    finally:
-        os.unlink(pidfile)
 
 
