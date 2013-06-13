@@ -36,7 +36,7 @@ source hbis.sh
 declare failed="" s=""
 
 inithostname
-initlogs
+initlogs $@
 
 #set +x
 #exit on unbound var
@@ -55,6 +55,7 @@ finish() {
 }
 
 s=""
+
 # check that external need program are installed
 case $os in
     Linux )
@@ -153,6 +154,10 @@ if [ -f ${logfile4tb} ] ; then
 fi
 
 # done at this point in MFS
+# we are done if in MFS mode
+(( $mfsmode )) && exit 0
+
+
 tbinfo=$(getfromtb meminfo $host)
 
 {
