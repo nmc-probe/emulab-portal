@@ -38,7 +38,8 @@ INVDIR=${PROJDIR}/nodecheck
 
 gatherinv_main() {
     echo -n '  Gathering Inventory..'
-
+    
+    # create this file to hold the results we gather    
     $(cp /dev/null /tmp/nodecheck.log.tb)
 
     checks="disk cpu mem nic"
@@ -82,30 +83,35 @@ gatherinv_main() {
     # end XXX
 
     # have needed dirs ?
-    # note: a directory for each node and timestamps for each file
-    if [ ! -d ${INVDIR}/$host/.full ] ; then
-	mkdir -p ${INVDIR}/$host/.tbdb
-	mkdir -p ${INVDIR}/$host/full
-	chmod g+x ${INVDIR}/$host ${INVDIR}/$host/.tbdb ${INVDIR}/$host/.full
-    fi
+    [[ ! -d ${INVDIR}/$host ]] && ( mkdir -p ${INVDIR}/$host ; chmod g+x ${INVDIR}/$host )
+    [[ ! -d ${INVDIR}/$host/.tbdb ]] && ( mkdir -p ${INVDIR}/$host/.tbdb ; chmod g+x ${INVDIR}/$host/.tbdb )
+    [[ ! -d ${INVDIR}/$host/.full ]] && ( mkdir -p ${INVDIR}/$host/.full ; chmod g+x ${INVDIR}/$host/.full )
+    [[ ! -d ${INVDIR}/$host/.diff ]] && ( mkdir -p ${INVDIR}/$host/.diff ; chmod g+x ${INVDIR}/$host/.diff )
+    [[ ! -d ${INVDIR}/$host/.tmcc ]] && ( mkdir -p ${INVDIR}/$host/.tmcc ; chmod g+x ${INVDIR}/$host/.tmcc )
 
-    # copy over the file including timestamps
+    # copy over the files including timestamps
     timestamp=$(date +%y%m%d%H%M%S)
     cp /tmp/nodecheck.log.tb.new ${INVDIR}/$host/.tbdb/$timestamp
     cp /tmp/nodecheck.log.inv ${INVDIR}/$host/.full/$timestamp
+    # save what tmcc says right now
+    $($BINDIR/tmcc hwinfo > ${INVDIR}/$host/.tmcc/$timestamp)
 
-    # remove old symlink and make new ones
+    # remove old symlinks and make new ones
     owd=$PWD
     cd ${INVDIR}/$host
-    rm -f $host #this should be a symlink
-    rm -f full $host.full #another symlink
-    ln -s ./.tbdb/${timestamp} ${INVDIR}/$host/$host
-    ln -s ./.full/$timestamp ${INVDIR}/$host/full
+    [[ -L $host ]] && rm $host #this should be a symlink
+    [[ -L node ]] && rm node #this should be a symlink
+    [[ -L full ]] && rm -f full #another symlink
+    [[ -L tmcc ]] && rm -f tmcc #another symlink
+    ln -s .tbdb/${timestamp} ${INVDIR}/$host/$host
+    ln -s .tbdb/${timestamp} ${INVDIR}/$host/node
+    ln -s .full/$timestamp ${INVDIR}/$host/full
+    ln -s .tmcc/$timestamp ${INVDIR}/$host/tmcc
     cd $owd
 
-    # Test what found locally against what is in the database
+    # Test what was found locally against what is in the database
     readtmcinfo # info from tmcc.bin hwinv
-        # if testing can do some like    readtmcinfo ${INVDIR}/test
+        # if testing can do something like    readtmcinfo ${INVDIR}/test
     copytmcinfo # copy into hwinvcopy
     readtmcinfo /tmp/nodecheck.log.inv # read full listing of locally found into hwinv, diff for local stuff not in tbdb
     comparetmcinfo /tmp/nodecheck.diff # file for output
@@ -113,24 +119,19 @@ gatherinv_main() {
     # if we ended up with a diff file handle it
     if [ -s /tmp/nodecheck.diff ] ; then
 # show it at runtime??	cat /tmp/nodecheck.diff
-	# decided to change names again, rename if old names
-	if [ ! -d ${INVDIR}/$host/.diff ] ; then
-	    mkdir -p ${INVDIR}/$host/.diff
-	    chmod g+x ${INVDIR}/$host/.diff
-	fi
 	cp /tmp/nodecheck.diff ${INVDIR}/$host/.diff/${timestamp}
 	cd  ${INVDIR}/$host
-	rm -f diff ${host}.diff
-	ln -s ./.diff/${timestamp} ${INVDIR}/${host}/diff
+	[[ -L diff ]] && rm -f diff
+	ln -s .diff/${timestamp} ${INVDIR}/${host}/diff
     else
 	# no diff maybe it got better, put a marker out
 	# cp /dev/null ${INVDIR}/${host}/.diff/${timestamp}
 	cd  ${INVDIR}/$host
-	rm -f $host.diff diff
+	[[ -L diff ]] && rm -f diff
     fi
 	
     # make sure no sudo is needed for read
-    chmod -R g+rw ${INVDIR}/$host
+    chmod g+r ${INVDIR}/$host/.*/${timestamp}
 
     rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv
     rm -f /tmp/nodecheck.log.tb.new /tmp/nodecheck.diff
