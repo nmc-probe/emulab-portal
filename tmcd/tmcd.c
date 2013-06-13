@@ -11344,7 +11344,7 @@ getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
 	 * "nobody". If so, use the imageinfo helper to get the info
 	 * via the frisbee master server.
 	 */
-	if (! stat(path, &sb)) {
+	if (stat(path, &sb)) {
 		char _buf[512];
 		FILE *cfd;
 
@@ -11361,7 +11361,8 @@ getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
 		}
 		_buf[0] = 0;
 		fgets(_buf, sizeof _buf, cfd);
-		pclose(cfd);
+		if (pclose(cfd))
+			goto badimage1;
 		sb.st_mtime = 0;
 		if (_buf[0] != 0 && _buf[0] != '\n') {
 			sscanf(_buf, "%u", &sb.st_mtime);
@@ -11382,7 +11383,8 @@ getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
 		}
 		_buf[0] = 0;
 		fgets(_buf, sizeof _buf, cfd);
-		pclose(cfd);
+		if (pclose(cfd))
+			goto badimage2;
 		sb.st_size = 0;
 		if (_buf[0] != 0 && _buf[0] != '\n') {
 			sscanf(_buf, "%lld", &sb.st_size);
