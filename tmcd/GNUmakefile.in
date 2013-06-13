@@ -30,7 +30,7 @@ SYSTEM	       := $(shell $(TESTBED_SRCDIR)/utils/osstuff.sh -o)
 include $(OBJDIR)/Makeconf
 
 all:	server
-server: tmcd-meta tmcd tmcd.restart
+server: tmcd tmcd.restart
 
 # For VPATH.
 MOSTLY_SRCDIRS = ${TESTBED_LIBSRCDIR}/libtb ${TESTBED_SRCDIR}/pxe \
@@ -76,9 +76,6 @@ ifeq ($(EVENTSYS),1)
 	TMCDLIBS    = ${TESTBED_LIBOBJDIR}/event/libevent.a
 	ELVINFLAGS  = -lm -L/usr/local/lib -lpubsub 
 endif
-
-tmcd-meta:
-	easy_install mysql-connector
 
 tmcd: tmcd.c ${TMCDLIBS} tmcd.h version.o $(BOOTINFO) $(NOTPMLIB)
 	$(CC) $(CFLAGS) $(SSLFLAGS) $(TMCDCFLAGS) -o tmcd $< \
