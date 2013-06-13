@@ -160,22 +160,23 @@ comparetmcinfo() {
     local -i a b
     local x addr
 
-    rm -f ${fileout} ${fileout}_local ${fileout}_tbdb
-    retval=$(compareunits NET ${fileout}_local ${fileout}_tbdb)
-    retval2=$(compareunits DISK ${fileout}_local ${fileout}_tbdb)
+    rm -f ${fileout} ${fileout}_local ${fileout}_tbdb ${fileout}_local_pre ${fileout}_tbdb_pre
+    compareunits NET ${fileout}_local ${fileout}_tbdb
+    compareunits DISK ${fileout}_local ${fileout}_tbdb
 
-    # take NETUNIT out
+    # just tested, take NETUNIT out
     localidx=${localidx//NETUNIT[[:digit:]][[:digit:]]/}
     localidx=${localidx//NETUNIT[[:digit:]]/}
     tbdbidx=${tbdbidx//NETUNIT[[:digit:]][[:digit:]]/}
     tbdbidx=${tbdbidx//NETUNIT[[:digit:]]/}
 
-    # take DISKUNIT out
+    # just tested, take DISKUNIT out
     localidx=${localidx//DISKUNIT[[:digit:]][[:digit:]]/}
     localidx=${localidx//DISKUNIT[[:digit:]]/}
     tbdbidx=${tbdbidx//DISKUNIT[[:digit:]][[:digit:]]/}
     tbdbidx=${tbdbidx//DISKUNIT[[:digit:]]/}
 
+    # contact the two indexs then find get the uniq union
     arrayidx="$localidx $tbdbidx"
     arrayidx=$(uniqstr $arrayidx)
 
@@ -184,49 +185,59 @@ comparetmcinfo() {
 	# following bash syntax: "${a+$a}" says use $a if exists else use nothing
 	if [ -z "${hwinvcopy[$i]+${hwinvcopy[$i]}}" ] ; then
 	    # localidx has it - hwinvcopy does not
-	    printf "\n%s\n" "Local only ${hwinv[$i]}" >> ${fileout}
+	    printf "%s\n" "${hwinv[$i]}" >> ${fileout}_local_pre
 	    arrayidx=${arrayidx/$i} # nothing to compare with
 	fi
     done
     # step through the testbed index, looking only for one copy
     for i in ${tbdbidx} ; do
-	# followin bash syntax: "${a+$a}" says use $a if exists else use nothing
+	# following bash syntax: "${a+$a}" says use $a if exists else use nothing
 	if [ -z "${hwinv[$i]+${hwinv[$i]}}" ] ; then
-	    printf "\n%s\n" "Testbest db only"  >> ${fileout}
+	    printf "%s\n" "${hwinvcopy[$i]}"  >> ${fileout}_tbdb_pre
 	    arrayidx=${arrayidx/$i} 
 	fi
     done
-    
-    #compare what is left
+
+    #compare whats left
     for i in $arrayidx ; do
 	if [ "${hwinv[$i]}" != "${hwinvcopy[$i]}" ] ; then
-	    echo "" >> $fileout
+	    if [ ! -f $fileout ] ; then
+		echo "Differences found locally compared with testbed database" > $fileout
+	    fi
 	    echo "$i does not match" >> $fileout
 	    echo "local ${hwinv[$i]}" >> $fileout
 	    echo "tbdb ${hwinvcopy[$i]}" >> $fileout
 	fi
     done
 
-    [[ -f ${fileout}_local ]] && cat ${fileout}_local >> ${fileout}
-    [[ -f ${fileout}_tbdb ]] && cat ${fileout}_tbdb >> ${fileout}
-    rm -f ${fileout}_local ${fileout}_tbdb
+    if [ -f ${fileout}_local -o -f ${fileout}_local_pre ] ; then
+	printf "\nOnly found in local search and not in testbed database\n" >> $fileout
+	[[ -f ${fileout}_local_pre ]] && cat ${fileout}_local_pre >> ${fileout}
+	[[ -f ${fileout}_local ]] && cat ${fileout}_local >> ${fileout}	
+    fi
+    if [ -f ${fileout}_tbdb -o -f ${fileout}_tbdb_pre ] ; then
+	printf "\nIn testbed database but not found in local search\n" >> $fileout
+	[[ -f ${fileout}_tbdb_pre ]] && cat ${fileout}_tbdb_pre >> ${fileout}
+	[[ -f ${fileout}_tbdb ]] && cat ${fileout}_tbdb >> ${fileout}
+    fi
+
+    rm -f ${fileout}_local ${fileout}_tbdb ${fileout}_local_pre ${fileout}_tbdb_pre
 
     return 0
 }
 
-# multi-line units arg1=unittype arg2=localonlyfile arg3=tbdbonlyfile
+# Compare multi-line units arg1=unittype arg2=localonlyfile arg3=tbdbonlyfile
 compareunits() {
     local unittype=$1
     local localonly=$2
     local tbdbonly=$3
-    # need to handle differing order with disks and nic addresses
     local localidx="${hwinv["hwinvidx"]}"
     local tbdbidx="${hwinvcopy["hwinvidx"]}"
     local localunits="" tbdbunits="" devunit=""
     local -i a b
     local x addr
 
-    # How are things different between unit types
+    # How are things different between unit types, only NET and DISK right now
     case $unittype in
 	NET )
 	    unitinfoidx_str="NETINFO"
@@ -252,10 +263,7 @@ compareunits() {
 	    ;;
     esac
 
-
-    # Pull the units out and checkthem
-    # 
-    # if any UNITs test - note at this point the same # of UNITS are on both lists
+    # Find the number of units in each list use biggest number for compare test
     if [ -n "${hwinv["${unitinfoidx_str}"]+${hwinv["${unitinfoidx_str}"]}}" ] ; then
 	    x=${hwinv["${unitinfoidx_str}"]}
 	    a=${x/${unitinfo_strip}}
@@ -269,6 +277,8 @@ compareunits() {
 	b=0
     fi
     [[ $a > $b ]] && maxunits=$a || maxunits=$b 
+
+    # here we are pulling out just the address/serialnumber from each array and saving it in a list
     for ((i=0; i<$maxunits; i++)) ; do
 	# gather just the units addresses 
 	devunit="${unit_str}${i}"
@@ -322,17 +332,12 @@ compareunits() {
     read -rd '' localunits <<< "$localunits"
     restore_e
 
-    # any mismatches would be in localunits and tbdbunits
+
+    # any mismatches would be in ether localunits or tbdbunits
     if [ -n "${localunits}" ]; then
-	if [ ! -f $localonly ] ; then
-	    printf "\n%s\n" "Found only locally" > $localonly
-	fi
 	printf "%s%s %s\n" "${unit_human_output}" "s:" "$localunits"  >> $localonly
     fi
     if [ -n "${tbdbunits}" ]; then
-	if [ ! -f $tbdbonly ] ; then
-	    printf "\n%s\n" "In testbed db but not found" > $tbdbonly
-	fi
 	printf "%s%s %s\n" "${unit_human_output}" "s:" "$tbdbunits" >> $tbdbonly
     fi
 
