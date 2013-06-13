@@ -38,14 +38,14 @@ if [ -z "${BINDIR-""}" -a -f "/etc/emulab/paths.sh" ]; then
     source /etc/emulab/paths.sh
 fi
 
-declare mfsmode="" #are we running in a MFS
+declare -i mfsmode="" #are we running in a MFS
 if [ -f /etc/emulab/ismfs ] ; then
     mfsmode=1
 else
     mfsmode=0
 fi
 
-declare errext_val # used?
+declare errext_val # holding var for set value, ie -e
 
 # Global Vars
 declare NOSM="echo" #do nothing command
@@ -88,16 +88,17 @@ readtmcinfo() {
     local -i dcnt=0
     local -i ncnt=0
     local ifile 
-    local itmp
+    local rmtmp
 
+    # what file to read from, if not set then make tmcc call
     ifile=${1+$1} # use $1 if set otherwise use nothing
     if [ -z "$ifile" ] ; then
-	# noinput file then use a tmp file to hold data from tmcc
-	itmp="y"
+	# no input file then use a tmp file to hold data from tmcc
+	rmtmp="y"
 	ifile=/tmp/.$$tmcchwinv
 	$($BINDIR/tmcc hwinfo > $ifile)
     else
-	itmp=""
+	rmtmp=""
     fi
 
     # initalize array
@@ -127,7 +128,7 @@ readtmcinfo() {
 	hwinv["hwinvidx"]+="$keyword " # keeping the keyword list preserves order
 	hwinv[$keyword]=$in
     done < $ifile
-    [ -n "$itmp" ] && rm $ifile || : # the colon just stops a error being caught by -e
+    [ -n "$rmtmp" ] && rm $ifile || : # the colon just stops a error being caught by -e
 }
 
 # copy assoctive array hwinv into hwinvcopy
@@ -477,14 +478,12 @@ findSmartctl() {
 # Array of command to be run at exit time
 on_exit() {
     for i in "${todo_exit[@]}" ; do
-#echo "EXIT TODO doing: $i"
         $($i)
     done
     return 0
 }
 add_on_exit() {
     local nex=${#todo_exit[*]}
-#echo "add on exit called B4n=${#todo_exit[*]} SHELL=$$ |$@|++++++++++++++++++++"
     todo_exit[$nex]="$@"
     if [[ $nex -eq 0 ]]; then
         trap on_exit EXIT
@@ -511,7 +510,6 @@ initlogs () {
     add_on_exit "rm -f $logout"
     tmpout=/tmp/.$$tmpout.log ; cp /dev/null ${tmpout}
     add_on_exit "rm -f $tmpout"
-#    tmpfunctionout=/tmp/.$$tmpfunctionout.log 
 
     return 0
 }
@@ -568,23 +566,14 @@ getdrivenames() {
 	    ;;
     esac
     
-#echo "drivelist||$drivelist||" >&2
-#
-#    while (( ${#drivelist} ))  ; do
-#	elm=${drivelist%% *}
-#	drives+="$elm"
-#	drivelist=${drivelist//$elm/}
-#echo "drivelist||$drivelist|| drives||$drives||" >&2
-#    done
-#    echo $drives
     echo $drivelist
-#echo "checkutils drives:||$drives||"
     return 0
 }
 
 
 # The timesys function terminates its script unless it terminates earlier on its own
 # args: max_time output_file command command_args
+# does not work....
 timesys() {
     maxtime="$1"; shift;
     out="$1" ; shift;
