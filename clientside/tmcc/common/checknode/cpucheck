@@ -268,6 +268,7 @@ if (( $hyperthread | $x64bit | $hwvirt ))  ; then
 fi
 echo ""
 }>> ${tmplog} 2>&1
+cat $tmplog
 
 # if saving data for testbed database
 
