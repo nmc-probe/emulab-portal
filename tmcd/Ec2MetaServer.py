@@ -4,18 +4,23 @@ import urlparse
 import traceback
 import os
 import sys
+import syslog
 import mysql.connector
 import daemon
 from lockfile import pidlockfile
 
-
+# This requires Python 2.6+
 class Ec2MetaHandler(BaseHTTPRequestHandler):
 
     def __init__(self, req, ca, huh):
         self.cnx = mysql.connector.connect(user='tmcd',
                               database='tbdb', unix_socket='/tmp/mysql.sock')
+        facil = "LOG_" + "@TBLOGFACIL@".upper()
+        syslog.openlog("tmcd-meta", syslog.LOG_PID, getattr(syslog,facil))
         BaseHTTPRequestHandler.__init__(self,req,ca,huh)
 
+    def log_message(self, format, *args):
+        syslog.syslog(format.format(args))
 
     def do_GET(self):
         parsed_path = urlparse.urlparse(self.path)
@@ -38,7 +43,7 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
             message = self.handle_req(folders, self.metas)
             message = message + "\n"
         except Exception as e:
-            print traceback.format_exc()
+            syslog.syslog(traceback.format_exc())
             self.send_response(404)
             self.end_headers()
             return
@@ -217,6 +222,9 @@ if __name__ == '__main__':
     import socket
     metad = daemon.DaemonContext()
     metad.pidfile = pidlockfile.PIDLockFile('/var/run/tmcd-meta.pid')
+    metad.stdout = tmplog
+    metad.stderr = tmplog
+
     with metad:
         server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787),
             Ec2MetaHandler)

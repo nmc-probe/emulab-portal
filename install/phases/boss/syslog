@@ -9,7 +9,7 @@ my @LOGFILES = ("$LOGDIR/bootinfo.log", "$LOGDIR/tmcd.log",
     "$LOGDIR/capture.log", "$LOGDIR/dhcpd.log", "$LOGDIR/capserver.log",
     "$LOGDIR/frisbeed.log", "$LOGDIR/mfrisbeed.log", "$LOGDIR/proxydhcpd.log",
     "$LOGDIR/stated.log", "$LOGDIR/stated-mail.log",
-    "$LOGDIR/osselect.log", "$LOGDIR/power.log",
+    "$LOGDIR/osselect.log", "$LOGDIR/power.log", "$LOGDIR/tmcd-meta.log",
     "$LOGDIR/tftpd.log", "$LOGDIR/sdcollectd.log", "$LOGDIR/genlastlog.log",
     "$LOGDIR/sshxmlrpc.log", "$LOGDIR/plabgetfree.log", "$LOGDIR/xmlrpcbag.log",
     "$LOGDIR/plabrenew.log", "$LOGDIR/sslxmlrpc.log", "$LOGDIR/pubsubd.log",
@@ -86,6 +86,7 @@ sub Install($$$)
 	    my @syslog_lines = (
 			"!bootinfo",  "*.*\t\t\t\t\t\t$LOGDIR/bootinfo.log",
 			"!tmcd",      "*.*\t\t\t\t\t\t$LOGDIR/tmcd.log",
+			"!tmcd-meta", "*.*\t\t\t\t\t\t$LOGDIR/tmcd-meta.log",
 			"!capture",   "*.*\t\t\t\t\t\t$LOGDIR/capture.log",
 			"!dhcpd",     "*.*\t\t\t\t\t\t$LOGDIR/dhcpd.log",
 			"!proxydhcpd","*.*\t\t\t\t\t\t$LOGDIR/proxydhcpd.log",
@@ -142,6 +143,7 @@ sub Install($$$)
 	    DoneIfEdited($NEWSYSLOG_CONF);
 	    AppendToFileFatal($NEWSYSLOG_CONF,
 		      "$LOGDIR/tmcd.log               640  9     1000 *     Z",
+		      "$LOGDIR/tmcd-meta.log          640  9     1000 *     Z",
 		      "$LOGDIR/stated.log             640  9     1000 *     Z ".
 		      "/var/run/stated.pid 31",
 		      "$LOGDIR/stated-mail.log        640  9     1000 *     Z ".
