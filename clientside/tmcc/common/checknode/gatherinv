@@ -52,10 +52,14 @@ gatherinv_main() {
     # print it back out for the database
     { printtmcinfo
 } > /tmp/nodecheck.log.tb.new # .new not necessary should reuse old name
+    # note what kernel we are running
+    printf "#KERNEL %s\n" "$(uname -svr)" >> /tmp/nodecheck.log.tb.new
+
 
     # print full locally found inventory
     { printhwinv
 } > /tmp/nodecheck.log.inv
+    printf "#KERNEL %s\n" "$(uname -svr)" >> /tmp/nodecheck.log.inv
 
     host=$($BINDIR/tmcc nodeid)
     # make sure proj got mounted
