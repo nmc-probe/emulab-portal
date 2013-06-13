@@ -141,12 +141,15 @@ sub Install($$$)
 		    }
 		};
 	    }
-        Phase "mysql-python", "Installing mysql-connector-python package", sub {
+        Phase "python-deps", "Installing python deps for EC2 Meta server", sub {
             if (! -x $EASYINSTALL) {
                 PhaseSkip("Couldn't find easy_install. Skilling mysql connector");
             }
             ExecQuietFatal("$EASYINSTALL mysql-connector-python");
+            ExecQuietFatal("$EASYINSTALL https://pylockfile.googlecode.com/files/lockfile-0.9.1.tar.gz");
+            ExecQuietFatal("$EASYINSTALL python-daemon");
         }
+
 	};
 	if (ISFS($server)) {
 	    Phase "fs-packages", "Installing FS packages", sub {
