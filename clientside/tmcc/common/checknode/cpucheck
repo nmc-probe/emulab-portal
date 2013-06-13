@@ -51,7 +51,7 @@ fi
 ##tmplog=/tmp/.$$.log
 ##cat /dev/null > ${tmplog}
 
-initlogs
+initlogs $@
 
 
 #set +x
@@ -87,18 +87,18 @@ round1p() {
     # according to #digits add roundup and get most sig-bits
     if [ $n == 6 ] ; then
 	y=$(($y + 1000))
-	y=$(($y / 1000))
-	y=$(($y * 1000))
+	y=$(($y / 10000))
+	y=$(($y * 10000))
 	echo -n $y
     elif [ $n == 5 ] ; then
 	y=$(($y + 100))
-	y=$(($y / 100))
-	y=$(($y * 100))
+	y=$(($y / 1000))
+	y=$(($y * 1000))
 	echo -n $y
     elif [ $n == 4 ] ; then
 	y=$(($y + 10))
-	y=$(($y / 10))
-	y=$(($y * 10))
+	y=$(($y / 100))
+	y=$(($y * 100))
 	echo -n $y
     elif [ $n == 3 ] ; then
 	y=$(($y + 1))
@@ -255,14 +255,18 @@ if (( $hyperthread | $x64bit | $hwvirt ))  ; then
 fi
 echo ""
 }>> ${tmplog} 2>&1
+cat $tmplog
 
 # if saving data for testbed database
+
 [[ ${x64bit} == 1 ]] && bits=64 || bits=32
 if [ -f ${logfile4tb} ] ; then
     printf "CPUINFO SOCKETS=%s CORES=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
-      ${sockets} ${cores_socket} ${threads_core} ${mhz} ${bits} ${hwvirt} >> ${logfile4tb}
-    exit 0
+      ${sockets} ${cpus} ${threads_core} ${mhz} ${bits} ${hwvirt} >> ${logfile4tb}
 fi
+
+# we are done if in MFS mode
+(( $mfsmode )) && exit 0
 
 tbinfo=$(getfromtb cpuinfo $host)
 err=$?
