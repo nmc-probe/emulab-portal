@@ -168,6 +168,8 @@ void		client_writeback_done(int sock, struct sockaddr_in *client);
 MYSQL_RES *	mydb_query(char *query, int ncols, ...);
 int		mydb_update(char *query, ...);
 static int	safesymlink(char *name1, char *name2);
+static int      getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
+			     unsigned int *mtime, unsigned int *chunks);
 
 /* socket timeouts */
 static int	readtimo = READTIMO;
@@ -5116,15 +5118,18 @@ COMMAND_PROTOTYPE(doloadinfo)
 	 */
 	res = mydb_query("select loadpart,OS,mustwipe,mbr_version,access_key,"
 			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path, "
-			 "   o.version "
+			 "   o.version,pa.partition "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
 			 "left join frisbee_blobs as f on f.imageid=i.imageid "
 			 "left join os_info as o on i.default_osid=o.osid "
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
-			 "where node_id='%s' order by r.idx",
-			 12, reqp->nodeid);
+			 "left join partitions as pa on "
+			 "     pa.node_id=r.node_id and "
+			 "     pa.osid=i.default_osid and loadpart=0 "
+			 "where r.node_id='%s' order by r.idx",
+			 13, reqp->nodeid);
 
 	if (!res) {
 		error("doloadinfo: %s: DB Error getting loading address!\n",
@@ -5278,6 +5283,15 @@ COMMAND_PROTOTYPE(doloadinfo)
 		}
 		bufp += OUTPUT(bufp, ebufp - bufp,
 			       " OSVERSION=%s", version);
+		/*
+		 * For virtual node reloading, it is convenient to tell it what
+		 * partition to boot, for the case that it is a whole disk image
+		 * and the client can not derive which partition to boot from.
+		 */
+		if (row[12] && row[12][0]) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " BOOTPART=%s", row[12]);
+		}
 
 		/*
 		 * Add zero-fill free space, MBR version fields, and access_key
@@ -5426,8 +5440,6 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 * image.
 		 */
 		if (reqp->isvnode || (reqp->islocal && vers >= 33)) {
-			struct stat sb;
-
  			if (!row[7] || !row[7][0]) {
 				error("doloadinfo: %s: No imagename"
 				      " associated with imageid %s\n",
@@ -5461,6 +5473,8 @@ COMMAND_PROTOTYPE(doloadinfo)
 			 * the server.
 			 */
 			if (reqp->isvnode) {
+				unsigned int mtime, chunks;
+				
 				if (!row[10] || !row[10][0]) {
 					error("doloadinfo: %s: No path"
 					      " associated with imageid %s\n",
@@ -5468,50 +5482,17 @@ COMMAND_PROTOTYPE(doloadinfo)
 					mysql_free_result(res);
 					return 1;
 				}
-				else if (stat(row[10], &sb)) {
-					char _buf[512];
-					FILE *cfd;
-
-					/*
-					 * The image may not be directly
-					 * accessible since tmcd runs as
-					 * "nobody". If so, use the imageinfo
-					 * helper to get the info via the
-					 * frisbee master server.
-					 */
-					snprintf(_buf, sizeof _buf,
-						 "%s/sbin/imageinfo -qm -N %s "
-						 "%s/%s",
-						 TBROOT, reqp->nodeid,
-						 row[8], row[7]);
-					if ((cfd = popen(_buf, "r")) == NULL) {
-					badimage:
-						error("doloadinfo: %s: "
-						      "Could not determine "
-						      "mtime for %s/%s\n",
-						      reqp->nodeid,
-						      row[8], row[7]);
-						mysql_free_result(res);
-						return 1;
-					}
-					_buf[0] = 0;
-					fgets(_buf, sizeof _buf, cfd);
-					pclose(cfd);
-					sb.st_mtime = 0;
-					if (_buf[0] != 0 && _buf[0] != '\n') {
-						sscanf(_buf, "%u",
-						       &sb.st_mtime);
-					}
-					if (sb.st_mtime == 0)
-						goto badimage;
+				if (getImageInfo(row[10], reqp->nodeid,
+						 row[8], row[7], &mtime, &chunks)) {
+					mysql_free_result(res);
+					return 1;
 				}
 				bufp += OUTPUT(bufp, ebufp - bufp,
-					       " IMAGEMTIME=%u\n",
-					       sb.st_mtime);
+					       " IMAGEMTIME=%u", mtime);
+				bufp += OUTPUT(bufp, ebufp - bufp,
+					       " IMAGECHUNKS=%u", chunks);
 			}
-
 		}
-
 		/* Tack on the newline, finally */
 		bufp += OUTPUT(bufp, ebufp - bufp, "\n");
 
@@ -11346,5 +11327,70 @@ COMMAND_PROTOTYPE(dohwinfo)
 		client_writeback(sock, buf, strlen(buf), tcp);
 	mysql_free_result(res);
 
+	return 0;
+}
+
+/*
+ * Get image size and mtime.
+ */
+static int
+getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
+	     unsigned int *mtime, unsigned int *chunks)
+{
+	struct stat sb;
+
+	/*
+	 * The image may not be directly accessible since tmcd runs as
+	 * "nobody". If so, use the imageinfo helper to get the info
+	 * via the frisbee master server.
+	 */
+	if (! stat(path, &sb)) {
+		char _buf[512];
+		FILE *cfd;
+
+		snprintf(_buf, sizeof _buf,
+			 "%s/sbin/imageinfo -qm -N %s "
+			 "%s/%s",
+			 TBROOT, nodeid, pid, imagename);
+		if ((cfd = popen(_buf, "r")) == NULL) {
+		badimage1:
+			error("doloadinfo: %s: "
+			      "Could not determine "
+			      "mtime for %s/%s\n", nodeid, pid, imagename);
+			return 1;
+		}
+		_buf[0] = 0;
+		fgets(_buf, sizeof _buf, cfd);
+		pclose(cfd);
+		sb.st_mtime = 0;
+		if (_buf[0] != 0 && _buf[0] != '\n') {
+			sscanf(_buf, "%u", &sb.st_mtime);
+		}
+		if (sb.st_mtime == 0)
+			goto badimage1;
+
+		snprintf(_buf, sizeof _buf,
+			 "%s/sbin/imageinfo -qs -N %s "
+			 "%s/%s",
+			 TBROOT, nodeid, pid, imagename);
+		if ((cfd = popen(_buf, "r")) == NULL) {
+		badimage2:
+			error("doloadinfo: %s: "
+			      "Could not determine "
+			      "size for %s/%s\n", nodeid, pid, imagename);
+			return 1;
+		}
+		_buf[0] = 0;
+		fgets(_buf, sizeof _buf, cfd);
+		pclose(cfd);
+		sb.st_size = 0;
+		if (_buf[0] != 0 && _buf[0] != '\n') {
+			sscanf(_buf, "%lld", &sb.st_size);
+		}
+		if (sb.st_size == 0)
+			goto badimage2;
+	}
+	*mtime  = sb.st_mtime;
+	*chunks = sb.st_size / (1024*1024);
 	return 0;
 }
