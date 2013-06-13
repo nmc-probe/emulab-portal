@@ -159,42 +159,26 @@ main() {
 	driveinv[$idx]=${d[@]}
     done
 
-# debug
-# echo ""
-# echo ""
-# for ((idx=0; idx<$numberofdrives; idx++)) ; do
-# echo "${driveinv[$idx]}"
-# done
-# exit
-
-## # does number of drives and size match ?
-## # getfromtb operation node_id drivename drive size
-## for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
-##     unset -v d ; declare -a d=(${driveinv[$idx]})
-##     tbdata=getfromtb $host driveinfo ${d[$name]} 
-## done
-
-# if saving data for testbed database
-if [ -f ${logfile4tb} ] ; then
-    printf "%s%d\n"  "DISKINFO UNITS=" ${numberofdrives} >> ${logfile4tb}
-    for (( idx=0; idx<$numberofdrives; idx++)) ; do
-	unset -v d ; declare -a d=(${driveinv[$idx]})
-	printf "%s %s\""%s\"" %s\""%s\"" %s%s %s%s %s%s %s%s" \
-	    ${d[$header]} \
-	    ${d[$serial]} ${d[$serial_val]} \
-	    ${d[$type]} ${d[$type_val]} \
-	    ${d[$bpers]} ${d[$bpers_val]} \
-	    ${d[$sectors]} ${d[$sectors_val]} \
-	    ${d[$wspeed]} ${d[$wspeed_val]} \
-	    ${d[$rspeed]} ${d[$rspeed_val]} >> ${logfile4tb}
-	printf " %s%s %s%s %s%s %s%s %s%s\n" \
-	    ${d[$name]} ${d[$name_val]} \
-	    ${d[$size]} ${d[$size_val]} \
-	    ${d[$temp]} ${d[$temp_val]} \
-	    ${d[$model]} ${d[$model_val]} \
-	    ${d[$driver]} ${d[$driver_val]} >> ${logfile4tb}
-    done
-fi
+    if [ -f ${logfile4tb} ] ; then
+	printf "%s%d\n"  "DISKINFO UNITS=" ${numberofdrives} >> ${logfile4tb}
+	for (( idx=0; idx<$numberofdrives; idx++)) ; do
+	    unset -v d ; declare -a d=(${driveinv[$idx]})
+	    printf "%s %s\""%s\"" %s\""%s\"" %s%s %s%s %s%s %s%s" \
+		${d[$header]} \
+		${d[$serial]} ${d[$serial_val]} \
+		${d[$type]} ${d[$type_val]} \
+		${d[$bpers]} ${d[$bpers_val]} \
+		${d[$sectors]} ${d[$sectors_val]} \
+		${d[$wspeed]} ${d[$wspeed_val]} \
+		${d[$rspeed]} ${d[$rspeed_val]} >> ${logfile4tb}
+	    printf " %s%s %s%s %s%s %s%s %s%s\n" \
+		${d[$name]} ${d[$name_val]} \
+		${d[$size]} ${d[$size_val]} \
+		${d[$temp]} ${d[$temp_val]} \
+		${d[$model]} ${d[$model_val]} \
+		${d[$driver]} ${d[$driver_val]} >> ${logfile4tb}
+	done
+    fi
 
 # we are done if in MFS mode
 (( $mfsmode )) && exit 0
