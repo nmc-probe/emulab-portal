@@ -137,13 +137,11 @@ main() {
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
 		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
 		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
-		$wspeed_val ) d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
+		$wspeed_val ) (( $mfsmode )) && d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
 	    esac
 	done
-	# Must have sectors and dpers values first and case statments
-	#  might now execute in order
-        # for/case loop not need since only one values is being filled
-	#  keep commented just for documentation
+	# Must have sectors and dpers_val first. Case statments
+	#  might execute in any order
 	# same gos for rspeel, wspeed must be done first
 
 	for ((i=0;i<=$lastslot;i++)) ; do
@@ -153,7 +151,7 @@ main() {
 		d[$size_val]=$(($x / 1000000000))		
 		;;
 		# and getwspeed must be done before getrspeed
-		$rspeed_val ) d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
+		$rspeed_val ) (( $mfsmode )) && d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
 	    esac
 	done
 
@@ -199,9 +197,8 @@ if [ -f ${logfile4tb} ] ; then
 fi
 
 # we are done if in MFS mode
-if [ -f /etc/emulab/ismfs ] ; then
-    exit 0
-fi
+(( $mfsmode )) && exit 0
+
 #output to log file
 {
 echo -e "name\t\tdriver\ttype\tsize\ttemp\tmodel\t\t\tserial"
