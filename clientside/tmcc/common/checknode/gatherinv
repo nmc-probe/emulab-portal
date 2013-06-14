@@ -42,6 +42,9 @@ gatherinv_main() {
     # create this file to hold the results we gather    
     $(cp /dev/null /tmp/nodecheck.log.tb)
 
+#    bash $BINDIR/cpucheck $LOGDIR/nodecheck.log /tmp/nodecheck.log.tb
+#    exit 0
+
     checks="disk cpu mem nic"
     for i in $checks ; do
 	bash $BINDIR/${i}check $LOGDIR/nodecheck.log /tmp/nodecheck.log.tb
@@ -120,7 +123,12 @@ gatherinv_main() {
     # if we ended up with a diff file handle it
     if [ -s /tmp/nodecheck.diff ] ; then
 # show it at runtime??	cat /tmp/nodecheck.diff
-	cp /tmp/nodecheck.diff ${INVDIR}/$host/.diff/${timestamp}
+	# header
+	echo "" > ${INVDIR}/$host/.diff/${timestamp}
+	echo "Diff Report for $host @ $(date) Kernel $(uname -a)" >> ${INVDIR}/$host/.diff/${timestamp}
+	echo "------------------------------------------------------------------" >> ${INVDIR}/$host/.diff/${timestamp}
+
+	cat /tmp/nodecheck.diff >> ${INVDIR}/$host/.diff/${timestamp}
 	cd  ${INVDIR}/$host
 	[[ -L diff ]] && rm -f diff
 	ln -s .diff/${timestamp} ${INVDIR}/${host}/diff
