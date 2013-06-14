@@ -35,6 +35,8 @@ fi
 declare arch="" failed="" s=""
 declare -i sockets=0 cores_socket=0 threads_core=0 mhz=0 err=0
 declare -i hyperthread=0  x64bit=0 hwvirt=0
+declare p1="" p2="" p3=""
+declare phy="" cid=""
 
 os=`uname`
 host=`hostname`
@@ -128,6 +130,7 @@ case $os in
 	exit 1
 	;;
 esac
+
 for i in $progs ; do
     type $i &>/dev/null && continue  || s="$s $i "
 done
@@ -137,10 +140,9 @@ if [ -n "$s" ] ; then
     finish
 fi
 
-
 {
 case $os in
-    Linux )	
+    Linux )
 	    # XXX if have lscpu then us it to get arch
 	    x=$(grep "model name" /proc/cpuinfo | head -1)
 	    x=${x##*: }
@@ -149,21 +151,33 @@ case $os in
 	    [[ "${x:0:16}" == "Intel(R)Core(TM)" ]] && arch="x86_64" || arch=$x
 	    [[ "${x:0:15}" == "Intel(R)Xeon(R)" ]] && arch="x86_64" || arch=$x
 
+	    # count sockets using the 'physical id' string
+	    # need to find how many different ids there are, to bad on some 
+	    # it starts at zero and on other machines it starts at 1
+	    x=$(grep "physical id" /proc/cpuinfo)
+	    while read -rd p p1 p2 p3 phy  ; do
+		cid+="$phy "
+	    done <<< $x
+	    first=999 last=0
+	    for i in $cid ; do
+		[[ $i -lt $first ]] && first=$i
+		[[ $i -gt $last ]]  && last=$i
+	    done
+	    sockets=$(($last - $first))
+	    ((++sockets))
+
     	    x=$(grep "cpu cores" /proc/cpuinfo | head -1)
 	    x=${x##*: }
 	    cores_socket=$x
 
     	    x=$(grep "siblings" /proc/cpuinfo | head -1)
 	    x=${x##*: }
-	    threads_core=$(($x/$cores_socket))
+	    threads_core=$(($x / $cores_socket))
 
     	    x=$(grep "processor" /proc/cpuinfo | tail -1)
 	    x=${x##*: }
 	    ((++x))
 	    cpus=$x
-
-	    sockets=$(($cpus/$threads_core))
-	    sockets=$(($sockets/$cores_socket))
 
 	    #better if dmesg not to old
     	    dmesgmhz=$(dmesg | grep -i mhz | grep processor)
@@ -173,7 +187,6 @@ case $os in
 		rawmhz=$x
 	    fi
 	    mhz=$(round1p $rawmhz)
-
 	    echo -n "Architecture:$arch "
 	    echo -n "Sockets:$sockets "
 	    echo -n "Cores_socket:$cores_socket "
@@ -207,7 +220,7 @@ case $os in
 		x=$(grep 'FreeBSD/SMP:' /var/run/dmesg.boot | grep package)
 		x=${x#FreeBSD/SMP: }
 		[[ $x ]] && sockets=${x%%package*} || sockets=1
-		
+
 		x=$(grep 'FreeBSD/SMP:' /var/run/dmesg.boot | grep core)
 		x=${x#FreeBSD/SMP: }
 		x=${x#*package(s) x }
@@ -255,14 +268,13 @@ if (( $hyperthread | $x64bit | $hwvirt ))  ; then
 fi
 echo ""
 }>> ${tmplog} 2>&1
-cat $tmplog
 
 # if saving data for testbed database
 
 [[ ${x64bit} == 1 ]] && bits=64 || bits=32
 if [ -f ${logfile4tb} ] ; then
     printf "CPUINFO SOCKETS=%s CORES=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
-      ${sockets} ${cpus} ${threads_core} ${mhz} ${bits} ${hwvirt} >> ${logfile4tb}
+      ${sockets} ${cores_socket} ${threads_core} ${mhz} ${bits} ${hwvirt} >> ${logfile4tb}
 fi
 
 # we are done if in MFS mode
