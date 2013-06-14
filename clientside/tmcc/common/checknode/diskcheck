@@ -154,7 +154,7 @@ main() {
 		case $i in
 		    $rspeed_val ) 
 		# check the size, if small then might be a USB drive
-		    if [ ${d[$size_val]} -gt 16 ] ; then
+		    if [ ${d[$size_val]} -gt 8 ] ; then
 			d[$rspeed_val]=$(getrspeed ${drive[$idx]})
 		    else
 			d[$rspeed_val]=0
@@ -163,7 +163,7 @@ main() {
 		    fi
 		    ;;
 		    $wspeed_val ) 
-		    if [ ${d[$size_val]} -gt 16 ] ; then
+		    if [ ${d[$size_val]} -gt 8 ] ; then
 			d[$wspeed_val]=$(getwspeed ${drive[$idx]})
 		    else
 			d[$wspeed_val]=0
