@@ -108,7 +108,11 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 						if(newId.name.toLowerCase() == "cm")
 						{
 							newManager.type = GeniManager.TYPE_PROTOGENI;
-							newManager.api.type = ApiDetails.API_PROTOGENI;
+							if(url.indexOf("/am") != -1) {
+								newManager.api.type = ApiDetails.API_GENIAM;
+							} else {
+								newManager.api.type = ApiDetails.API_PROTOGENI;
+							}
 							newManager.url = url.substr(0, url.length-3);
 							
 							newManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
@@ -159,7 +163,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 								newManager.supportedSliverTypes.getOrCreateByName(EmulabBbgSliverType.TYPE_EMULAB_BBG);
 							}
 						}
-						else if(newId.name == ProtogeniXmlrpcTask.MODULE_SA)
+						else if(newId.name.toLowerCase() == ProtogeniXmlrpcTask.MODULE_SA)
 						{
 							newManager.type = GeniManager.TYPE_SFA;
 							newManager.api.type = ApiDetails.API_GENIAM;

@@ -93,7 +93,9 @@ package com.flack.geni.tasks.xmlrpc.am
 			
 			try
 			{
-				manager.id.full = data.urn;
+				if (data.urn != null) {
+					manager.id.full = data.urn;
+				}
 				
 				var apiDetail:ApiDetails = new ApiDetails(manager.api.type, Number(data.geni_api), manager.api.url, manager.api.level);
 				manager.api = apiDetail;
