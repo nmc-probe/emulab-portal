@@ -33,7 +33,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
-        import com.flack.geni.plugins.emulab.EmulabXenSliverType;
+	import com.flack.geni.plugins.emulab.EmulabXenSliverType;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.DiskImage;
@@ -70,6 +70,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilityDescriptor;
 	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoL2sc;
 	import com.flack.geni.resources.virt.extensions.stitching.SwitchingCapabilitySpecificInfoLsc;
+	import com.flack.geni.resources.virt.VirtualInterface;
 	import com.flack.shared.FlackEvent;
 	import com.flack.shared.SharedMain;
 	import com.flack.shared.logging.LogMessage;
@@ -476,6 +477,7 @@ package com.flack.geni.tasks.process
 						
 						var virtualInterface:VirtualInterface = virtualNode.interfaces.getByClientId(virtualInterfaceClientId);
 						
+						/*
 						if(rspec.type == Rspec.TYPE_MANIFEST
 							&& virtualNode.manager == aggregateSliver.manager
 							&& virtualInterfaceSliverId.length == 0)
@@ -490,6 +492,7 @@ package com.flack.geni.tasks.process
 							);
 							continue;
 						}
+						*/
 						
 						if(virtualInterface == null)
 						{
@@ -557,11 +560,22 @@ package com.flack.geni.tasks.process
 					}
 					
 					// Bind interfaces that need it.
-					for each(var interfaceToTest:VirtualInterface in virtualNode.interfaces.collection)
-					{
-						if(interfaceToTest.physicalId.full.length == 0 && virtualNode.Bound)
+					if(rspec.type != Rspec.TYPE_MANIFEST) {
+						for each(var interfaceToTest:VirtualInterface in virtualNode.interfaces.collection)
 						{
-							interfaceToTest.physicalId.full = virtualNode.allocateExperimentalInterface().physicalId.full;
+							if(interfaceToTest.physicalId.full.length == 0 && virtualNode.Bound)
+							{
+								var interfaceToAdd:VirtualInterface = virtualNode.allocateExperimentalInterface();
+								if (interfaceToAdd != null) {
+									interfaceToTest.physicalId.full = interfaceToAdd.physicalId.full;
+								} else {
+									addMessage(
+										"Experimental interface not available.",
+										"Experimental interface not available for " + interfaceToTest.clientId + ".",
+										LogMessage.LEVEL_WARNING
+									);
+								}
+							}
 						}
 					}
 					
