@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,6 +39,7 @@ if (! ($isadmin || OPSGUY() || STUDLY())) {
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("showall",   PAGEARG_BOOLEAN,
+				 "reverse",   PAGEARG_BOOLEAN,
 				 "datetime",  PAGEARG_STRING,
 				 "record",    PAGEARG_INTEGER,
 				 "count",     PAGEARG_INTEGER,
@@ -56,6 +57,9 @@ PAGEHEADER("Node History");
 
 if (!isset($showall)) {
     $showall = 0;
+}
+if (!isset($reverse)) {
+    $reverse = 0;
 }
 if (!isset($count)) {
     $count = 200;
@@ -149,16 +153,28 @@ else {
 }
 
 $opts="$node_opt$dateopt";
-echo "<b>Show records:</b> ";
+$revopt="&reverse=" . ($reverse ? "1" : "0");
+$showopt="&showall=" . ($showall ? "1" : "0");
+
+echo "<b>Order records:</b> ";
+if ($reverse) {
+    echo "<a href='shownodehistory.php3?$opts$showopt'>oldest first</a>,
+          newest first";
+} else {
+    echo "oldest first,
+          <a href='shownodehistory.php3?$opts$showopt&reverse=1'>newest first</a>";
+}
+
+echo "<br><b>Show records:</b> ";
 if ($showall) {
-    echo "<a href='shownodehistory.php3?$opts'>allocated only</a>,
+    echo "<a href='shownodehistory.php3?$opts$revopt'>allocated only</a>,
           all";
 } else {
     echo "allocated only,
-          <a href='shownodehistory.php3?$opts&showall=1'>all</a>";
+          <a href='shownodehistory.php3?$opts$revopt&showall=1'>all</a>";
 }
 
-$opts="$node_opt&showall=$showall$dateopt";
+$opts="$node_opt$revopt$showopt$dateopt";
 echo "<br><b>Show:</b> ";
 if ($when == "lastmonth") {
     echo "Last Month, ";
@@ -197,6 +213,7 @@ echo "<tr><form action=shownodehistory.php3 method=get>
              size=20 
              value=\"" . ($datetime ? $datetime : "mm/dd/yy HH:MM") . "\"></td>
       <input type=hidden name=showall value=$showall>
+      <input type=hidden name=reverse value=$reverse>
       <input type=hidden name=when    value=$when>
       $form_opt
       <td class=stealth>
@@ -209,6 +226,7 @@ echo "<tr><form action=shownodehistory.php3 method=get>
              size=20
              value=\"$node_id\"></td>
       <input type=hidden name=showall value=$showall>
+      <input type=hidden name=reverse value=$reverse>
       <input type=hidden name=when    value=$when>
       <td class=stealth>
        <b><input type=submit name=search2 value=Search></b></td>\n";
@@ -220,6 +238,7 @@ echo "<tr><form action=shownodehistory.php3 method=get>
              size=20
              value=\"$IP\"></td>
       <input type=hidden name=showall value=$showall>
+      <input type=hidden name=reverse value=$reverse>
       <input type=hidden name=when    value=$when>
       <td class=stealth>
          <b><input type=submit name=search3 value=Search></b></td>\n";
@@ -231,13 +250,14 @@ echo "<tr><form action=shownodehistory.php3 method=get>
              size=12
              value=\"$mac\"></td>
       <input type=hidden name=showall value=$showall>
+      <input type=hidden name=reverse value=$reverse>
       <input type=hidden name=when    value=$when>
       <td class=stealth>
          <b><input type=submit name=search3 value=Search></b></td>\n";
     echo "</form></tr>\n";
 echo "</table><br>\n";
 
-ShowNodeHistory($node_id, $record, $count, $showall, $datetime,
+ShowNodeHistory($node_id, $record, $count, $showall, $reverse, $datetime,
 		$IP, $mac, $node_opt);
 
 #

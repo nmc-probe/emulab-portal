@@ -1396,7 +1396,7 @@ class Node
 # Show history.
 #
 function ShowNodeHistory($node_id = null, $record = null,
-			 $count = 200, $showall = 0,
+			 $count = 200, $showall = 0, $reverse = 0,
 			 $date = null, $IP = null, $mac = null,
 			 $node_opt = "") {
     global $TBSUEXEC_PATH;
@@ -1410,6 +1410,9 @@ function ShowNodeHistory($node_id = null, $record = null,
     $opt = "-ls -n " . escapeshellarg($count);
     if (!$showall) {
 	$opt .= " -a";
+    }
+    if ($reverse) {
+	$opt .= " -r";
     }
     if ($date) {
 	$date = date("Y-m-d H:i:s", strtotime($date));
