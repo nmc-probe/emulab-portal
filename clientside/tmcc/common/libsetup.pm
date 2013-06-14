@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -40,7 +40,7 @@ use Exporter;
 	 gettraceconfig genhostsfile getmotelogconfig calcroutes fakejailsetup
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
          getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
-	 copyfilefromnfs getnodeuuid getarpinfo
+	 copyfilefromnfs getnodeuuid getarpinfo getstorageconfig
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs
 
@@ -52,7 +52,7 @@ use Exporter;
 
 	 SIMTRAFGEN SIMHOST ISDELAYNODEPATH JAILHOST DELAYHOST STARGATE
 	 ISFW FAKEJAILED LINUXJAILED GENVNODE GENVNODETYPE GENVNODEHOST
-	 SHAREDHOST SUBBOSS
+	 SHAREDHOST SUBBOSS STORAGEHOST
 
 	 CONFDIR LOGDIR TMDELAY TMBRIDGES TMJAILNAME TMSIMRC TMCC TMCCBIN
 	 TMNICKNAME TMSTARTUPCMD FINDIF
@@ -510,6 +510,7 @@ sub JAILHOST()     { return (($role eq "virthost" ||
 			      $role eq "sharedhost") ? 1 : 0); }
 sub GENVNODEHOST() { if ($role eq "virthost") { return 1; } else { return 0; }}
 sub SHAREDHOST()   { return ($role eq "sharedhost" ? 1 : 0); }
+sub STORAGEHOST()  { return ($role eq "storagehost" ? 1 : 0); }
 
 # A delay host?  Either a delay node or a node using linkdelays
 sub DELAYHOST()	{ if (-e ISDELAYNODEPATH()) { return 1; } else { return 0; } }
@@ -3247,7 +3248,7 @@ sub getlocalevserver()
 	    print STDERR "*** Could not determine event server!\n";
 	}
     }
-    if (-e "$BOOTDIR/localevserver") {
+    elsif (-e "$BOOTDIR/localevserver") {
 	$evserver = `cat $BOOTDIR/localevserver`;
 	chomp($evserver);
     }
@@ -3339,6 +3340,151 @@ sub getarpinfo($;$)
 	%$rptr = %arpinfo;
     }
     return $atype;
+}
+
+#
+# Grab and parse the storageconfig tmcd command output. Break each
+# line into a hash, verifying the fields.  Return sorted (by index)
+# list of storage commands hashes.
+#
+# ELEMENT format:
+#
+# CMD=ELEMENT IDX=<index> HOSTID=<some-storage-host> \
+#   CLASS=(SAN|local) PROTO=(iSCSI|local) \
+#   UUID=<unique-id> UUID_TYPE=<id-type> \
+#   VOLNAME=<id> VOLSIZE=<size-in-MiB> PERMS=<permissions>
+#
+# Where:
+#  
+# if CLASS=="SAN" && PROTO=="iSCSI" :
+# IDX :=
+#   \d+ -- monotonically increasing number indicating order of operations
+# HOSTID :=
+#   <bs-vm-shortname> -- short name for blockstore pseudo-VM
+# UUID :=
+#   "iqn.2000-12.net.emulab:<pid>:<eid>:<bs-vname>" -- iSCSI qualified name
+#   constructed from static prefix, pid, eid, and blockstore vname (from ns file).
+# UUID_TYPE :=
+#   "iqn" -- literal string
+# VOLNAME :=
+#   string -- Emulab name for the element
+# VOLSIZE :=
+#   \d+ -- size in mebibytes. Informational; could be used for sanity checking.
+# PERMS :=
+#   (RO|RW) -- i.e., read-only or read-write.
+# 
+# if CLASS=="local" :
+# IDX :=
+#   \d+ -- monotonically increasing number indicating order of operations
+# HOSTID :=
+#   "localhost" -- literal string
+# UUID :=
+#   \w+ -- unique serial number of device
+# UUID_TYPE :=
+#   "serial" -- literal string
+# VOLNAME :=
+#   string -- Emulab name for the element
+# VOLSIZE :=
+#   \d+ -- size in mebibytes. Informational; could be used for sanity checking.
+# PERMS :=
+#   <notpresent> -- this field will not show up for local elements
+#
+# SLICE format:
+#
+# CMD=SLICE IDX=<index> CLASS=local PROTO=<SAS|SCSI|SATA> \
+#   BSID=<local-disk-id> VOLNAME=<id> VOLSIZE=<size-in-MiB> MOUNTPOINT=<dir>
+#
+# Where:
+#  
+# if CLASS=="local" :
+# IDX :=
+#   \d+ -- monotonically increasing number indicating order of operations
+# BSID :=
+#   (ANY|SYSVOL|NONSYSVOL) -- i.e. where to take space from
+#   "ANY" will take from any disk, possibly from multiple disks via
+#	use of a logical volume manager
+#   "SYSVOL" will take from any remaining space on the boot disk
+#   "NONSYSVOL" will take from any space on any non-boot disk, possibly
+#	from multiple disks via a LVM.
+# VOLNAME :=
+#   string -- Emulab name for the element
+# VOLSIZE :=
+#   \d+ -- size in mebibytes
+# MOUNTPOINT :=
+#   If specified, implies the creation of a filesystem and mounting on
+#   the indicated directory.
+# 
+sub getstorageconfig($;$) {
+    my ($rptr,$nocache) = @_;
+    my @tmccresults = ();
+    my %opthash = ();
+
+    if (defined($nocache) && $nocache) {
+	$opthash{'nocache'} = 1;
+    }
+
+    if (tmcc(TMCCCMD_STORAGE, undef, \@tmccresults, %opthash) < 0) {
+	warn("*** WARNING: Could not get storageconfig from server!\n");
+	return -1;
+    }
+
+    my %fields = (
+	'CMD'	  => '(ELEMENT|EXPORT|SLICE)',
+	'IDX'	  => '\d+',
+        'BSID'    => '[-\w]+',
+	'CLASS'	  => '(SAN|local)',
+	'HOSTID'  => '[-\w\.]+',
+	'MOUNTPOINT' => '\/[-\w\/\.]+',
+	'PERMS'	  => '(RO|RW)',
+	'PROTO'	  => '(iSCSI|local|SCSI|SAS|SATA|PATA|IDE)',
+	'UUID'	  => '[-\w\.:]+',
+	'UUID_TYPE'=> '(iqn|serial)',
+	'VOLNAME' => '[-\w]+',
+	'VOLSIZE' => '\d+',
+    );
+    my @ops = ();
+
+    #
+    # Note that any error is fatal since these lines are interdependent.
+    #
+    foreach my $line (@tmccresults) {
+	chomp($line);
+
+	#
+	# Break the line into a hash of key/values
+	#
+	my @kvs = split(/\s+/, $line);
+	my %res = ();
+	foreach my $kv (@kvs) {
+	    my ($key,$val,$foo) = split(/=/, $kv);
+	    if (defined($foo)) {
+		warn("*** WARNING: malformed key-val pair in storageinfo: '$kv'\n");
+		return -1;
+	    }
+
+	    #
+	    # Validate the info and untaint.
+	    #
+	    if (!exists($fields{$key})) {
+		warn("*** WARNING: invalid keyword in storageinfo: '$key'\n");
+		return -1;
+	    }
+	    if ($val !~ /^$fields{$key}$/) {
+		warn("*** WARNING: invalid value for $key in storageinfo: '$val'\n");
+		return -1;
+	    }
+	    $res{$key} = $val;
+	}
+	push(@ops, \%res);
+    }
+
+    #
+    # return operations in decreasing order of IDX.
+    #
+    my @sortedops = sort {$a->{'IDX'} <=> $b->{'IDX'}} @ops;
+
+    @$rptr = @sortedops;
+    return 0;
 }
 
 #

@@ -2472,7 +2472,7 @@ class TemplateMetadata
                   <td colspan=2 align=center class=left>
                       <textarea readonly
                         rows=10 cols=80>" .
-	                ereg_replace("\r", "", $metadata_value) .
+	                str_replace("\r", "", $metadata_value) .
 	             "</textarea>
                   </td>
               </tr>\n";
@@ -2670,8 +2670,8 @@ function TBvalid_experiment_run_description($token) {
 
 function MakeMouseOver($string)
 {
-    $string = ereg_replace("\n", "<br>", $string);
-    $string = ereg_replace("\r", "", $string);
+    $string = str_replace("\n", "<br>", $string);
+    $string = str_replace("\r", "", $string);
     $string = htmlentities($string);
     $string = preg_replace("/\'/", "\&\#039;", $string);
 

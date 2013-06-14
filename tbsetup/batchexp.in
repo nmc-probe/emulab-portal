@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -112,6 +112,7 @@ my $TBLOGS   = "@TBLOGSEMAIL@";
 my $TBDOCBASE = "@TBDOCBASE@";
 my $TBBASE   = "@TBBASE@";
 my $CONTROL  = "@USERNODE@";
+my $ISFS     = ("@BOSSNODE_IP@" eq "@FSNODE_IP@") ? 1 : 0;
 
 #
 # Testbed Support libraries
@@ -208,6 +209,20 @@ if (system("$checkquota $user_uid") != 0) {
 }
 
 #
+# Lets check to make sure user did not delete their home dir.
+# Maybe in the future, when exports_setup does not cause all
+# mounts to hiccup.
+#
+if (0) {
+    my $homdirerror;
+    if ($this_user->HomeDirOkay(\$homdirerror) != 0) {
+	tberror({cause => 'user', type => 'primary', severity => SEV_ERROR},
+		$homdirerror);
+	exit(1);
+    }
+}
+
+#
 # Parse command arguments.
 #
 ParseArgs();
@@ -270,9 +285,11 @@ if (defined($copyarg)) {
     ;
 }
 elsif (!defined($tempnsfile)) {
-    # If no NS file, then override swap/idle stuff. 
-    $swappable     = 0;
-    $idleswap      = 0;
+    if (! $genimode) {
+	# If no NS file, then override swap/idle stuff. 
+	$swappable     = 0;
+	$idleswap      = 0;
+    }
 }
 elsif (! -f $tempnsfile || ! -r $tempnsfile || -z $tempnsfile) {
     # Exit so that user sees the error, not us.
@@ -322,7 +339,7 @@ $args{'state'}		   = $exptstate;
 $args{'priority'}	   = $priority;
 $args{'swappable'}	   = $swappable;
 $args{'idleswap'}	   = $idleswap;
-$args{'idleswap_timeout'}  = $swaptime;
+$args{'idleswap_timeout'}  = ($genimode ? 2 * $swaptime : $swaptime);
 $args{'autoswap'}	   = $autoswap;
 $args{'autoswap_timeout'}  = $autoswaptime;
 $args{'idle_ignore'}	   = $idleignore;
@@ -1010,7 +1027,7 @@ sub ParseArgs()
 	if (! ($tempnsfile =~ /^\/tmp\/[-\w]+-\d+\.nsfile/) &&
 	    ! ($tempnsfile =~ /^\/tmp\/\d+\.ns/) &&
 	    ! ($tempnsfile =~ /^\/var\/tmp\/php[-\w]+/) &&
-	    ! TBValidUserDir($tempnsfile, 0)) {
+	    ! TBValidUserDir($tempnsfile, $ISFS)) {
 	    tberror({type => 'primary', severity => SEV_ERROR,
 		     error => ['disallowed_directory', $tempnsfile]},
 		    "$tempnsfile does not resolve to an allowed directory!");

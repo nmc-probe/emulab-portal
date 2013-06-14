@@ -31,6 +31,7 @@ package com.flack.geni.resources.virt
 {
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+        import com.flack.geni.plugins.emulab.EmulabXenSliverType;
 	import com.flack.geni.plugins.emulab.Pipe;
 	import com.flack.geni.plugins.emulab.PipeCollection;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
@@ -95,6 +96,11 @@ package com.flack.geni.resources.virt
 				sliverType.name = EmulabOpenVzSliverType.TYPE_EMULABOPENVZ;
 				sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ).diskImages;
 			}
+                        else if(!newPhysicalNode.exclusive && newPhysicalNode.sliverTypes.getByName(EmulabXenSliverType.TYPE_EMULABXEN) != null)
+                        {
+                                sliverType.name = EmulabXenSliverType.TYPE_EMULABXEN;
+                                sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(EmulabXenSliverType.TYPE_EMULABXEN).diskImages;
+                        }
 			else if(newPhysicalNode.sliverTypes.length > 0)
 			{
 				sliverType.name = newPhysicalNode.sliverTypes.collection[0].name;

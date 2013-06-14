@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,14 +32,19 @@ include("table_defs.php");
 $this_user = CheckLoginOrDie();
 $uid       = $this_user->uid();
 $isadmin   = ISADMIN();
+$defaultsearchstring = 'Search CM for URN or IP or MAC';
 
 #
 # Verify Page Arguments.
 #
-$optargs = OptionalPageArguments("showtype",   PAGEARG_STRING);
+$optargs = OptionalPageArguments("showtype",   PAGEARG_STRING,
+				 "query",      PAGEARG_STRING);
 $showtypes = array();
 
-if (!isset($showtype)) {
+if (isset($query) && $query != $defaultsearchstring) {
+    $showtypes[] = "cm";
+}
+elseif (!isset($showtype)) {
     $showtypes[] = "cm";
     $showtypes[] = "sa";
     $showtypes[] = "ch";
@@ -60,8 +65,58 @@ if (! ($isadmin || STUDLY())) {
     USERERROR("You do not have permission to view Geni slice list!", 1);
 }
 
+#
+# Search box for CM only. 
+#
+if (isset($query) && $query != $defaultsearchstring) {
+    $searchstring = $query;
+}
+else {
+    $searchstring = $defaultsearchstring;
+}
+echo "<center>";
+echo "<table class=stealth>\n";
+echo "<tr>";
+echo "<td class=stealth>";
+echo "<form method='get' action='genislices.php'>";
+echo "<input name='query' class='textInputEmpty'
+        size=64 id='searchbox'
+	value='$searchstring' 
+        onfocus='focus_text(this, \"$defaultsearchstring\")'
+        onblur='blur_text(this, \"$defaultsearchstring\")' />";
+echo "</td><td><input type='submit' id='searchsub' value=Go />";
+echo "</form>";
+echo "</td></tr></table>";
+echo "</center>\n";
+
 foreach ($showtypes as $type) {
-    $slicelist = GeniSlice::AllSlices($type);
+    if ($type == "cm" && isset($query) && $query != $defaultsearchstring) {
+	$slicelist  = array();
+	$uuidlist   = array();
+	$safe_query = escapeshellarg($query);
+	
+	$fp = popen("$TBSUEXEC_PATH $uid nobody ".
+		    "webmaptoslice -w $safe_query", "r");
+	if (!$fp) {
+	    TBERROR("Could not start maptoslice: $safe_query", 1);
+	}
+	while ($line = fgets($fp)) {
+	    $uuidlist[] = rtrim($line);
+	}
+	$status = pclose($fp);
+	if ($status > 0 || !count($uuidlist)) {
+	    USERERROR("No slices matching your search term", 1);
+	}
+	elseif ($status < 0) {
+	    TBERROR("Could not run maptoslice: $safe_query", 1);
+	}
+	foreach ($uuidlist as $uuid) {
+	    $slicelist[] = GeniSlice::Lookup($type, $uuid);
+	}
+    }
+    else {
+	$slicelist = GeniSlice::AllSlices($type);
+    }
     $which = ($type == "cm" ? "Component Manager" :
 	      ($type == "sa" ? "Slice Authority" : "Clearing House"));
 

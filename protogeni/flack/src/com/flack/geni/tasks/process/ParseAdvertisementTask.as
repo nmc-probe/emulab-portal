@@ -32,6 +32,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+	import com.flack.geni.plugins.emulab.EmulabXenSliverType;	
 	import com.flack.geni.plugins.emulab.EmulabSppSliverType;
 	import com.flack.geni.plugins.emulab.Netfpga2SliverType;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
@@ -667,7 +668,9 @@ package com.flack.geni.tasks.process
 								case "pcvm":
 									if(manager.type == GeniManager.TYPE_PROTOGENI)
 									{
-										node.sliverTypes.add(new SliverType(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ));
+										
+node.sliverTypes.add(new SliverType(EmulabXenSliverType.TYPE_EMULABXEN));
+node.sliverTypes.add(new SliverType(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ));
 										nodeTypeSliverType = node.sliverTypes.collection[node.sliverTypes.length-1];
 									}
 									break;

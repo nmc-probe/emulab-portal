@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -100,6 +100,9 @@ elsif ($GENI_VERSION eq "2.0") {
 	"ReserveVlanTags"   => \&GeniCMV2::ReserveVlanTags,
 	"InjectEvent"       => \&GeniCMV2::InjectEvent,
 	"CreateImage"       => \&GeniCMV2::CreateImage,
+	"DeleteImage"       => \&GeniCMV2::DeleteImage,
+	"ListImages"        => \&GeniCMV2::ListImages,
+	"ListActiveSlivers" => \&GeniCMV2::ListActiveSlivers,
     };
 }
 

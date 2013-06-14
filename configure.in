@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -537,6 +537,12 @@ if test $OPSVM_ENABLE -eq 1; then
 fi
 if test $SPEWFROMOPS -eq 1; then
     AC_DEFINE_UNQUOTED(SPEWFROMOPS, 1)
+fi
+if test $PROTOGENI_SUPPORT -eq 1; then
+    AC_DEFINE_UNQUOTED(PROTOGENI_SUPPORT, 1)
+fi
+if test $PROTOGENI_GENIRACK -eq 1; then
+    AC_DEFINE_UNQUOTED(PROTOGENI_GENIRACK, 1)
 fi
 
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
@@ -1226,6 +1232,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	protogeni/rspec-emulab/2/GNUmakefile \
         collab/GNUmakefile \
         collab/trac/GNUmakefile \
+        collab/plone/GNUmakefile \
         collab/jabber/GNUmakefile \
         collab/mailman/GNUmakefile collab/cvstools/GNUmakefile \
 	collab/mailman/mmlistmembership \
@@ -1282,6 +1289,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/freebsd/init/7/GNUmakefile \
  clientside/tmcc/freebsd/init/8/GNUmakefile \
  clientside/tmcc/freebsd/init/9/GNUmakefile \
+ clientside/tmcc/freebsd/init/10/GNUmakefile \
  clientside/tmcc/freebsd/supfile clientside/tmcc/freebsd/sethostname \
  clientside/tmcc/linux/GNUmakefile clientside/tmcc/linux/supfile \
  clientside/tmcc/linux/sethostname.dhclient \

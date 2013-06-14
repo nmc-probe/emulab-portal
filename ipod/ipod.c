@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2002 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -140,7 +140,8 @@ int makehosts(char **hostlist)
 
 void usage(char *prog)
 {
-   fprintf(stderr, "%s [ -s src ] [ -i identityfile ] target [ target ... ]\n",
+   fprintf(stderr,
+	   "%s [ -s src ] [ -i hashfile ] [-h hash ] target [ target ... ]\n",
 	   prog);
 }
 
@@ -268,7 +269,7 @@ main(int argc, char **argv)
 
    querytype = IPOD_ICMPTYPE;  /* the magical death packet number */
 
-   while ((ch = getopt(argc, argv, "s:i:")) != -1)
+   while ((ch = getopt(argc, argv, "s:i:h:")) != -1)
       switch(ch)
       {
       case 's':
@@ -292,6 +293,15 @@ main(int argc, char **argv)
 	    exit(2);
 	 }
          break;
+      case 'h':
+	 myidlen = strlen(optarg);
+         if (myidlen != IPOD_IDLEN) {
+	    fprintf(stderr, "-h: identity hash must be %d bytes\n",
+		    IPOD_IDLEN);
+	    exit(2);
+	 }
+	 memcpy(myid, optarg, IPOD_IDLEN);
+	 break;
       default:
          usage(progname);
 	 exit(-1);

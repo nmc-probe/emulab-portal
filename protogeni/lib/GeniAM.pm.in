@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -263,6 +263,7 @@ sub ListResources()
 
     my $xml = undef;
     if ($slice_urn) {
+	main::AddLogfileMetaData("slice_urn", $slice_urn);
 
         # If $slice_urn is defined, this turns into a Resolve call.  We
         # need to resolve twice: once to get the sliver urn from the
@@ -545,10 +546,11 @@ sub DeleteSliver()
 sub XmlToJson
 {
     my ($node) = @_;
+    my $coder = Frontier::RPC2->new();
  
     my $attrs = {};
     foreach my $attr ($node->attributes) {
-        $attrs->{$attr->nodeName()} = $attr->nodeValue();
+        $attrs->{$attr->nodeName()} = $coder->string($attr->nodeValue());
     }
 
     my $children = [];
@@ -601,6 +603,8 @@ sub SliverStatus()
 
     # include the pg status
     $status->{'pg_status'} = $pgstatus->{'status'};
+    $status->{'pg_public_url'} = $pgstatus->{'public_url'}
+        if (exists($pgstatus->{'public_url'}));
 
     # include the expiration, converting to UTC
     my $slice = GeniSlice->Lookup($slice_urn);
@@ -715,11 +719,16 @@ sub Shutdown()
 
 sub CreateImage()
 {
-    my ($slice_urn, $imagename, $sliver_urn, $credentials, $options) = @_;
-    if (! defined($slice_urn) || ! defined($credentials) ||
+    my ($slice_urn, $imagename, $sliver_urn, $credential_args, $options) = @_;
+    if (! defined($slice_urn) || ! defined($credential_args) ||
 	! defined($sliver_urn) || ! defined($imagename)
 	|| (! defined($options) && $API_VERSION > 1)) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+
+    my $credentials = $credential_args;
+    if ($API_VERSION >= 3) {
+	$credentials = FilterCredentials($credential_args);
     }
 
     my $args = {
@@ -732,6 +741,25 @@ sub CreateImage()
         if (defined($options) && exists($options->{'global'}));
 	
     my $response = GeniCMV2::CreateImage($args);
+    return $response;
+}
+
+sub DeleteImage()
+{
+    my ($image_urn, $credentials, $options) = @_;
+    if (! defined($image_urn) || ! defined($credentials) ||
+	(! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+
+    my $args = {
+        'image_urn' => $image_urn,
+        'credentials' => $credentials
+    };
+    $args->{'creator_urn'} = $options->{'creator_urn'}
+        if (defined($options) && exists($options->{'creator_urn'}));
+    
+    my $response = GeniCMV2::DeleteImage($args);
     if (GeniResponse::IsError($response)) {
         return $response;
     }
@@ -739,6 +767,22 @@ sub CreateImage()
     # Return an XML-RPC boolean
     my $coder = Frontier::RPC2->new();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $coder->boolean(1));
+}
+
+sub ListImages()
+{
+    my ($user_urn, $credentials, $options) = @_;
+    if (! defined($user_urn) || ! defined($credentials) ||
+	(! defined($options) && $API_VERSION > 1)) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+
+    my $args = {
+        'user_urn' => $user_urn,
+        'credentials' => $credentials
+    };
+    my $response = GeniCMV2::ListImages($args);
+    return $response;
 }
 
 ###############################################################################
@@ -871,6 +915,14 @@ sub Update
 	if (GeniResponse::IsResponse($cred));
 
     my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
+    if (defined($slice)) {
+	main::AddLogfileMetaDataFromSlice($slice);
+
+	# If a monitor process is running, we are "busy".
+	if ($slice->monitor_pid()) {
+	    return GeniResponse->MonitorResponse();
+	}
+    }
 
     # The URN list must be either empty or contain the slice URN.
     if (scalar(@urns) > 1 ||
@@ -953,6 +1005,7 @@ sub AllocateTicket
     if (GeniResponse::IsResponse($combined)) {
 	return $combined;
     }
+
     my $args = {
 	'slice_urn' => $slice_urn,
 	'ticket' => $ticketStr,

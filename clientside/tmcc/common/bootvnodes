@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -121,6 +121,9 @@ if ($UID != 0) {
 my $sysname = `uname -s`;
 chomp($sysname);
 my $islinux = ($sysname eq "Linux");
+
+# ...
+my $isfreenas = -e "/etc/rc.freenas" ? 1 : 0;
 
 #
 # Put this into the background and log its output. We *must* do this cause
@@ -243,7 +246,7 @@ sub prebootvnodes($$)
     #
     # XXX OS dependent stuff.  Should move elsewhere.
     #
-    if ($islinux) {
+    if ($islinux || $isfreenas) {
 	# This is handled in the libvnode libraries.
 	return;
     }
@@ -306,7 +309,7 @@ sub postbootvnodes($$)
     #
     # XXX OS dependent stuff.  Should move elsewhere
     #
-    if ($islinux) {
+    if ($islinux || $isfreenas) {
 	return;
     }
 
@@ -326,6 +329,7 @@ sub bootvnode($$$)
     my ($vnode, $action, $jailed) = @_;
     my $opt;
     my $act;
+    my $extrawait;
 
     if ($action eq "halt") {
 	$opt = "-h";
@@ -334,6 +338,8 @@ sub bootvnode($$$)
     elsif ($action eq "reboot") {
 	$opt = "-r";
 	$act = "Rebooting";
+	$extrawait = 20
+	    if (GENVNODETYPE() eq "xen");
     }
     elsif ($action eq "kill") {
 	$opt = "-k";
@@ -342,11 +348,17 @@ sub bootvnode($$$)
     else {
 	$opt = "-b";
 	$act = "Booting";
+	$extrawait = 20
+	    if (GENVNODETYPE() eq "xen");
     }
     $opt .= ($jailed ? " -jVt" : " -i");
     
     print "$act vnode $vnode with options '$opt' at " .
 	libsetup::TBTimeStamp() . "\n";
     system("vnodesetup $opt $vnode");
-    return($?);
+    return($?)
+	if ($?);
+    sleep($extrawait)
+	if (defined($extrawait));
+    return 0;
 }

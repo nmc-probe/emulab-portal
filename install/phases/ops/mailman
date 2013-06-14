@@ -36,7 +36,7 @@ sub Install($$$)
     }
 
     Phase "Mailman", "Setting up Mailman", sub {
-	PhaseSkip("mailman no enabled")
+	PhaseSkip("mailman not enabled")
 	    if (!$MAILMANSUPPORT);
 	PhaseSkip("mailman not supported on ops")
 	    if ($FBSD_MAJOR == 4);

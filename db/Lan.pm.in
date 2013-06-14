@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2012 University of Utah and the Flux Group.
+# Copyright (c) 2007-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1057,6 +1057,29 @@ sub ExperimentLans($$$)
     }
     @$plist = @result;
     return 0;
+}
+
+#
+# Find a lan by looking an interface in the member list
+#
+sub FindLanByInterface($$$)
+{
+    my ($class, $experiment, $interface) = @_;
+    my $exptidx = $experiment->idx();
+    my $iface   = $interface->iface();
+    my @lans   = ();
+
+    #
+    # We do not do this often, so worry about optimizing later.
+    #
+    return undef
+	if (Lan->ExperimentLans($experiment, \@lans) != 0);
+
+    foreach my $lan (@lans) {
+	return $lan
+	    if ($lan->IsMember($interface->node_id(), $interface->iface()));
+    }
+    return undef;
 }
 
 #
@@ -3394,8 +3417,10 @@ sub RecordVlanInsertion($$$)
     my $vname     = $vlan->vname();
     my $vclass    = $vlan->GetClass();
     my $tag       = $vlan->GetReservedVlanTag();
-    return -1
-	if (!defined($tag));
+    if (!defined($tag)) {
+	print STDERR "No reserved vlan tag for $vlan!\n";
+	return -1;
+    }
     my $path      = $vlan->GetSwitchPath();
 
     my @portlist;
@@ -3457,24 +3482,26 @@ sub RecordVLanModification($$$$)
     if (defined($current) && $current ne "") {
 	%current = map { $_ => $_ } split(/\s+/, $current);
     }
+    print "RecordVLanModification: $vlan - @$removed\n";
+    print "RecordVLanModification: $vlan - " . join(" ", keys(%current)) . "\n";
 
     if ($added) {
 	foreach my $port (@$added) {
-	    my ($nodeid,$iface) = ($port =~ /(.+):(.+)/);
-
-	    $current{"$nodeid:$iface"} = "$nodeid:$iface"
-		if (!exists($current{"$nodeid:$iface"}));
+	    $current{$port} = $port
+		if (!exists($current{$port}));
 	}
     }
     if ($removed) {
 	foreach my $port (@$removed) {
-	    my ($nodeid,$iface) = ($port =~ /(.+):(.+)/);
+	    print "  $port\n";
 	    
-	    delete($current{"$nodeid:$iface"})
-		if (exists($current{"$nodeid:$iface"}));
+	    delete($current{$port})
+		if (exists($current{$port}));
 	}
     }
     my $members = join(" ", keys(%current));
+
+    print "RecordVLanModification (after): $vlan - $members\n";
 
     DBQueryWarn("update vlans set members='$members' ".
 		"where id='$lanid'")
@@ -3868,14 +3895,23 @@ use overload ('""' => 'Stringify');
 sub Lookup($$)
 {
     my ($class, $arg) = @_;
+    require GeniHRN;
 
-    # Always sanity check before hitting the DB.
-    return undef
-	if (! ($arg =~ /^[-\w]*$/));
+    my $query_result;
+    if (GeniHRN::IsValid($arg)) {
+	# If it is a URN, lookup by external_interface
+	$query_result =
+	    DBQueryWarn("select * from external_networks ".
+			"where external_interface='$arg'");
+    } elsif ($arg =~ /^[-\w]*$/) {
+	# Otherwise it must be a node or network id
+	$query_result =
+	    DBQueryWarn("select * from external_networks ".
+			"where node_id='$arg' or network_id='$arg'");
+    } else {
+	return undef;
+    }
 
-    my $query_result =
-	DBQueryWarn("select * from external_networks ".
-		    "where node_id='$arg' or network_id='$arg'");
     return undef
 	if (!$query_result || !$query_result->numrows);
 
@@ -3898,6 +3934,7 @@ sub node_type($)  { return field($_[0], 'node_type'); }
 sub network_id($) { return field($_[0], 'network_id'); }
 sub min_vlan($)	  { return field($_[0], 'min_vlan'); }
 sub max_vlan($)	  { return field($_[0], 'max_vlan'); }
+sub mode($)       { return field($_[0], 'mode'); }
 
 #
 # Stringify for output.
@@ -3919,7 +3956,7 @@ sub VlanTagOkay($$)
 {
     my ($self, $tag) = @_;
 
-    return ($tag >= $self->min_vlan() && $tag < $self->max_vlan() ? 1 : 0);
+    return ($tag >= $self->min_vlan() && $tag <= $self->max_vlan() ? 1 : 0);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

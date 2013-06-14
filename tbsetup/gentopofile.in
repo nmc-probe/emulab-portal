@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -56,6 +56,8 @@ my $TB		= "@prefix@";
 use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
+use Experiment;
+use Lan;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin';
@@ -98,9 +100,13 @@ if ($eid =~ /^([-\@\w]+)$/) {
 else {
     die("Bad data in eid: $eid.");
 }
-
+my $experiment = Experiment->Lookup($pid, $eid);
+if (! $experiment) {
+    die("*** $0:\n".
+	"    No such experiment $pid/$eid.\n");
+}
 # Do this in case we are not called from tbprerun.
-my $workdir = TBExptWorkDir($pid, $eid);
+my $workdir = $experiment->WorkDir();
 
 chdir("$workdir") or
     die("*** $0:\n".
@@ -142,7 +148,7 @@ our %linkparents = ();
 
 sub getRoot($) {
     my ($link) = @_;
-    while (exists($linkparents{$link})) {
+    while (exists($linkparents{$link}) && $linkparents{$link} ne $link) {
 	$link = $linkparents{$link};
     }
     return $link;
@@ -620,6 +626,71 @@ while (my ($vname,$member,$mask,$cost,$bridgelink) =
     # Store lan:ip into the portlist for the node.
     my $ip = $ips{$member};
     $nodes{$node}->{$port} = "$vname:$ip";
+}
+
+#
+# If this is a geni slice experiment, then look for tunnels.
+#
+if ($experiment->geniflags()) {
+    my @lanlist;
+    if (Lan->ExperimentLans($experiment, \@lanlist)) {
+	die("*** $0:\n".
+	    "    Could not get experiment lans!");
+    }
+    foreach my $lan (@lanlist) {
+	next
+	    if ($lan->type ne 'tunnel');
+	
+	my @members;
+	if ($lan->MemberList(\@members) != 0) {
+	    die("*** $0:\n".
+		"    Could not get member list for $lan\n");
+	}
+	my $vname;
+	my $mask;
+	
+	foreach my $member (@members) {
+	    my $node;
+	    my $vnode;
+	    my $ip;
+
+	    if (!defined($vname)) {
+		if ($member->GetAttribute("tunnel_lan", \$vname)) {
+		    print STDERR "Could not get mask for $member\n";
+		    last;
+		}
+		if ($member->GetAttribute("tunnel_ipmask", \$mask)) {
+		    print STDERR "Could not get mask for $member\n";
+		    last;
+		}
+		$lans{$vname} = {};
+		$lans{$vname}->{"mask"}  = $mask;
+		$lans{$vname}->{"cost"}  = 1;
+	    }
+	    if ($member->GetAttribute("tunnel_ip", \$ip)) {
+		print STDERR "Could not get ip for $member\n";
+		goto bad;
+	    }
+	    if ($member->GetAttribute("tunnel_myid", \$vnode)) {
+		print STDERR "Could not get vnode for $member\n";
+		goto bad;
+	    }
+	    if ($member->GetAttribute("node_id", \$node)) {
+		print STDERR "Could not get node for $member\n";
+		goto bad;
+	    }
+	    my $port = scalar(keys(%{ $nodes{$vnode} })) + 1;
+		
+	    # Store lan:ip into the portlist for the node.
+	    $nodes{$vnode}->{$port} = "$vname:$ip";
+	    next;
+
+	  bad:
+	    # Skip this tunnel.
+	    delete($lans{$vname});
+	    last;
+	}
+    }
 }
 
 #

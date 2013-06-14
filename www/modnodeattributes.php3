@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -84,7 +84,8 @@ $del_command_string = "";
 # different than the current value before adding them to the command string.
 if (isset($_modattrs)) {
   foreach ($_modattrs as $attrkey => $attrval) {
-    if ($cur_node_attrs[$attrkey] != $attrval) {
+      if (!array_key_exists($attrkey, $cur_node_attrs) ||
+	  $cur_node_attrs[$attrkey] != $attrval) {
       $mod_command_string .= "$attrkey='$attrval' ";
     }
   }

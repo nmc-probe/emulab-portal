@@ -1,14 +1,15 @@
 #
 # Additional stuff for setting up the geni racks. 
 #
-# This has to happen after reboot. Not sure yet ... 
-#  remove rc.local
+# TODO:
 #
 use strict;
 use libinstall;
 use installvars;
 
 my $CONFIGVARS   = "$PREFIX/configvars.txt";
+my $RACKNTPCONF  = "$TOP_SRCDIR/install/genirack/ntp.conf";
+my $ETCNTPCONF   = "/etc/ntp.conf";
 my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-9.0-ports.tar.gz";
 
 sub Install($$$)
@@ -61,6 +62,10 @@ sub Install($$$)
 	    DeleteFileFatal($RCLOCAL);
 	};
 
+	Phase "ntpconf", "Installing better /etc/ntp.conf", sub {
+	    ExecQuietFatal("/bin/cp -fp $RACKNTPCONF $ETCNTPCONF");
+	};
+
 	#
 	# Need to remove the ELABINELAB flag.
 	#
@@ -94,6 +99,10 @@ sub Install($$$)
 	    };
 	    Phase "rc.testbed", "Installing testbed RC scripts", sub {
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d control-install");
+	    };
+	    Phase "control", "Installing control node clientside scripts", sub {
+		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/clientside/tmcc/freebsd ".
+			       "control-install");
 	    };
 	    CreateFile("$PREFIX/marker", "genirack install marker");
 	};
@@ -149,8 +158,10 @@ sub Install($$$)
 	    ExecQuietFatal("cd $PREFIX; $TAR zxf $PREFIX/ports.tar.gz");
 	};
 	Phase "portlink", "Linking to unpacked ports tree", sub {
+	    ExecQuietFatal("/bin/rm -rf /usr/ports")
+		if (-e "/usr/ports" && -d "/usr/ports");
 	    ExecQuietFatal("cd /usr; ln -sf testbed/ports .");
-	}
+	};
 	
 	Phase "rcconf", "Updating rcconf for actual boot", sub {
 	    my @strings = ();
@@ -194,7 +205,7 @@ sub Install($$$)
 	#
 	if (defined($configvars{"NAMED_FORWARDERS"})) {
 	    my $forwarders = $configvars{"NAMED_FORWARDERS"};
-	    my @forwarders = split(/\s+/, $forwarders);
+	    my @forwarders = split(/[\s,]+/, $forwarders);
 	    if (@forwarders) {
 		@forwarders = map {"nameserver $_"} @forwarders;
 		

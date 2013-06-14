@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -83,10 +83,23 @@ path-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/paths.pm $(ETCDIR)/paths.pm
 	$(INSTALL) -m 755 $(SRCDIR)/paths.sh $(ETCDIR)/paths.sh
 
+nodecheck-install:	dir-install
+	$(INSTALL) -m 644 $(SRCDIR)/checknode/checkutils.sh $(BINDIR)/checkutils.sh
+	$(INSTALL) -m 644 $(SRCDIR)/checknode/hbis.sh $(BINDIR)/hbis.sh
+
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/cpucheck $(BINDIR)/cpucheck
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/diskcheck $(BINDIR)/diskcheck
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/memcheck $(BINDIR)/memcheck
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/niccheck $(BINDIR)/niccheck
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/gatherinv $(BINDIR)/gatherinv
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/rc.nodecheck $(BINDIR)/rc/rc.checknode
+
 common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/libsetup.pm $(BINDIR)/libsetup.pm
 	$(INSTALL) -m 755 $(SRCDIR)/libtmcc.pm $(BINDIR)/libtmcc.pm
 	$(INSTALL) -m 755 $(SRCDIR)/libtestbed.pm $(BINDIR)/libtestbed.pm
+	$(INSTALL) -m 755 $(SRCDIR)/libgenvnode.pm $(BINDIR)/libgenvnode.pm
+	$(INSTALL) -m 755 $(SRCDIR)/libutil.pm $(BINDIR)/libutil.pm
 	$(INSTALL) -m 755 $(SRCDIR)/tmcc.pl $(BINDIR)/tmcc
 	$(INSTALL) -m 755 $(SRCDIR)/logboot $(BINDIR)/logboot
 	$(INSTALL) -m 755 $(SRCDIR)/watchdog $(BINDIR)/watchdog
@@ -97,6 +110,7 @@ common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/ifsetup $(BINDIR)/ifsetup
 	$(INSTALL) -m 755 $(SRCDIR)/ifdynconfig $(BINDIR)/ifdynconfig
 	$(INSTALL) -m 755 $(SRCDIR)/vnodesetup $(BINDIR)/vnodesetup
+	$(INSTALL) -m 755 $(SRCDIR)/mkvnode.pl $(BINDIR)/mkvnode.pl
 	$(INSTALL) -m 755 $(SRCDIR)/bootsubnodes $(BINDIR)/bootsubnodes
 	$(INSTALL) -m 755 $(SRCDIR)/bootvnodes $(BINDIR)/bootvnodes
 	$(INSTALL) -m 755 $(SRCDIR)/startcmddone $(BINDIR)/startcmddone
@@ -117,6 +131,7 @@ subboss-common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/ifsetup $(BINDIR)/ifsetup
 	$(INSTALL) -m 755 $(SRCDIR)/ifdynconfig $(BINDIR)/ifdynconfig
 	$(INSTALL) -m 755 $(SRCDIR)/startcmddone $(BINDIR)/startcmddone
+	$(INSTALL) -m 755 $(SRCDIR)/localize_image $(BINDIR)/localize_image
 	$(INSTALL) -m 755 $(SRCDIR)/getblob $(BINDIR)/getblob
 	$(INSTALL) -m 755 $(SRCDIR)/fixarpinfo $(BINDIR)/fixarpinfo
 	(cd config; $(MAKE) DESTDIR=$(DESTDIR) subboss-script-install)

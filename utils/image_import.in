@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2012 University of Utah and the Flux Group.
+# Copyright (c) 2010-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,14 +33,15 @@ use URI::Escape;
 #
 sub usage()
 {
-    print("Usage: import_image [-d] [-v] [-u <user>] [-g] -p pid <url>\n");
+    print("Usage: import_image [-d] [-v] [-u <user>] [-g] [-p pid] <url>\n");
     print("       import_image [-d] [-u <user>] [-g] -i <imageid>\n");
     print("Options:\n");
     print(" -d      - Turn on debugging\n");
     print(" -v      - Verify XML description only\n");
     print(" -g      - Download image after creating descriptor\n");
     print(" -u uid  - Create image as user instead of caller\n");
-    print(" -p pid  - Create image in the specified project\n");
+    print(" -p pid  - Create image in the specified project.\n".
+	  "           Defaults to emulab-ops.\n");
     print(" -i id   - Update existing imported image.\n");
     exit(-1);
 }
@@ -92,6 +93,7 @@ if ($EUID != 0) {
 #
 use lib "@prefix@/lib";
 use libdb;
+use EmulabConstants;
 use libtestbed;
 use User;
 use Project;
@@ -150,6 +152,11 @@ if (defined($options{"p"})) {
 	    if (!defined($group));
     }
 }
+else {
+    $group = Group->Lookup(TBOPSPID(), TBOPSPID());
+    fatal("Error getting project group for " . TBOPSPID())
+	if (!defined($group));
+}
 
 if (!defined($user)) {
     $user = User->ThisUser();
@@ -180,7 +187,7 @@ if ($update) {
 }
 else {
     usage()
-	if (! (@ARGV & defined($group)));
+	if (! (@ARGV && defined($group)));
 
     $url = $ARGV[0];
     # We know this is valid, but must taint check anyway for shell command.
@@ -276,6 +283,7 @@ sub CreateImage($$$$)
 {
     my ($url, $xmlparse, $user, $group) = @_;
     my $alltypes = "-a";
+    my $global   = 0;
     
     $xmlparse->{'attribute'}->{"pid"} = {};
     $xmlparse->{'attribute'}->{"gid"} = {};
@@ -287,10 +295,16 @@ sub CreateImage($$$$)
     # to pcvm since the image is for a VM. Well, we also use this
     # for subnodes, but I am not going to worry about that case.
     #
-    if (exists($xmlparse->{'attribute'}->{"imagename"})) {
+    if (exists($xmlparse->{'attribute'}->{"def_parentosid"})) {
 	$xmlparse->{'attribute'}->{"mtype_pcvm"} = {};
 	$xmlparse->{'attribute'}->{"mtype_pcvm"}->{'value'} = 1;
 	$alltypes = "";
+    }
+
+    # For setting the path below.
+    if (exists($xmlparse->{'attribute'}->{"global"}) &&
+	$xmlparse->{'attribute'}->{"global"}->{'value'}) {
+	$global = 1;
     }
 
     #
@@ -321,8 +335,14 @@ sub CreateImage($$$$)
 	print STDERR "Using imagename: $imagename\n";
     }
     # do not trust path coming in.
-    $xmlparse->{'attribute'}->{"path"}->{'value'} =
-	"$TBPROJ_DIR/" . $group->pid() . "/images/${imagename}.ndz";
+    if ($global && $user->IsAdmin()) {
+	$xmlparse->{'attribute'}->{"path"}->{'value'} =
+	    "$TB/images/${imagename}.ndz";
+    }
+    else {
+	$xmlparse->{'attribute'}->{"path"}->{'value'} =
+	    "$TBPROJ_DIR/" . $group->pid() . "/images/${imagename}.ndz";
+    }
     
     #
     # Generate a new XML description to feed into newimageid.
@@ -372,37 +392,57 @@ sub CreateImage($$$$)
 #
 sub DownLoadImage($$$$)
 {
-    my ($image, $user, $group) = @_;
+    my ($image, $newhash, $user, $group) = @_;
     my $image_url = uri_unescape($image->imagefile_url());
     my $safe_url  = User::escapeshellarg($image_url);
     my $localfile = $image->path() . ".new";
 
     #
     # Build up a new command line to do the fetch on ops
+    # But no reason to do this if an admin, which is important
+    # when the image is going into /usr/testbed/images.
     #
-    my $cmdargs = "$TB/bin/fetchtar.proxy -h -u $user_uid";
-    my $glist = `/usr/bin/id -G $user_uid`;
-    if ($glist =~ /^([\d ]*)$/) {
-	$glist = join(",", split(/\s+/, $1));
+    if (!$user->IsAdmin()) {
+	my $cmdargs = "$TB/bin/fetchtar.proxy -h -u $user_uid";
+	my $glist = `/usr/bin/id -G $user_uid`;
+	if ($glist =~ /^([\d ]*)$/) {
+	    $glist = join(",", split(/\s+/, $1));
+	}
+	else {
+	    print STDERR "Unexpected results from 'id -G $user': $glist\n";
+	    return -1;
+	}
+	$cmdargs .= " -g '$glist' \"$safe_url\" $localfile";
+
+	print "Downloading $image_url ...\n";
+	if ($debug) {
+	    print "$cmdargs\n";
+	}
+	$EUID = $UID = 0;
+	system("sshtb -host $CONTROL $cmdargs ");
+	if ($?) {
+	    $EUID = $UID = $SAVEUID;
+	    print STDERR "Fetch of image file failed\n";
+	    return -1;
+	}
+	$UID = $SAVEUID;
     }
     else {
-	print STDERR "Unexpected results from 'id -G $user': $glist\n";
-	return -1;
-    }
-    $cmdargs .= " -g '$glist' \"$safe_url\" $localfile";
+	if (! open(GET, "| nice -15 $WGET --no-check-certificate ".
+		   "--timeout=30 -q -O $localfile -i -")) {
+	    print STDERR "Cannot start $WGET\n";
+	    return -1;
+	}
+	print GET "$image_url\n";
+	return -1
+	    if (!close(GET));
 
-    print "Downloading $image_url ...\n";
-    if ($debug) {
-	print "$cmdargs\n";
+	system("$SHA1 $localfile > ${localfile}.sha1");
+	if ($?) {
+	    print STDERR "Could not generate sha1 hash of $localfile\n";
+	    return -1;
+	}
     }
-    $EUID = $UID = 0;
-    system("sshtb -host $CONTROL $cmdargs ");
-    if ($?) {
-	$EUID = $UID = $SAVEUID;
-	print STDERR "Fetch of image file failed\n";
-	return -1;
-    }
-    $UID = $SAVEUID;
 
     #
     # Verify the hash.

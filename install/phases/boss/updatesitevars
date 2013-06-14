@@ -9,9 +9,9 @@ sub Install($$$)
 {
     my ($server, $isupdate, $impotent) = @_;
 
-    # Replace if this script does an update for ip/domain.
+    # Do not run this in a genirack setup; must wait till later.
     return 0
-	if ($isupdate);
+	if ($PROTOGENI_GENIRACK && !$isupdate);
 
     #
     # Initialize server IP/MAC sitevars (for ARP lockdown).

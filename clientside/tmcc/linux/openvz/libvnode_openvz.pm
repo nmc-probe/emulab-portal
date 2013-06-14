@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,7 +33,7 @@ use Exporter;
               vz_vnodePreConfig vz_vnodeUnmount vz_vnodeTearDown
               vz_vnodePreConfigControlNetwork vz_vnodePreConfigExpNetwork 
               vz_vnodeConfigResources vz_vnodeConfigDevices
-              vz_vnodePostConfig vz_vnode vz_vnodeExec
+              vz_vnodePostConfig vz_vnode vz_vnodeExec DOSNAP VGNAME
             );
 
 %ops = ( 'init' => \&vz_init,
@@ -68,7 +68,9 @@ use Socket;
 
 # Pull in libvnode
 require "/etc/emulab/paths.pm"; import emulabpaths;
+use libgenvnode;
 use libvnode;
+use libutil;
 use libtestbed;
 use libsetup;
 
@@ -83,11 +85,15 @@ $| = 1;
 # 
 
 my $defaultImage = "emulab-default";
+sub DefaultImage() { return $defaultImage; }
 
 my $DOLVM        = 1;
 my $DOSNAP       = 0;
 my $DOLVMDEBUG   = 0;
 my $LVMDEBUGOPTS = "-vvv -dddddd";
+
+# So we can ask this from outside;
+sub DOSNAP()	{ return $DOSNAP; }
 
 my $DOVZDEBUG = 0;
 my $VZDEBUGOPTS = "--verbose";
@@ -101,6 +107,7 @@ sub VZSTAT_MOUNTED() { return "mounted"; }
 my $VZCTL  = "/usr/sbin/vzctl";
 my $VZLIST = "/usr/sbin/vzlist";
 my $IFCONFIG = "/sbin/ifconfig";
+my $ETHTOOL = "/sbin/ethtool";
 my $NETSTAT  = "/bin/netstat";
 my $ROUTE = "/sbin/route";
 my $BRCTL = "/usr/sbin/brctl";
@@ -109,15 +116,31 @@ my $MODPROBE = "/sbin/modprobe";
 my $RMMOD = "/sbin/rmmod";
 my $VLANCONFIG = "/sbin/vconfig";
 my $IP = "/sbin/ip";
+my $TC = "/sbin/tc";
+
+# where all our config files go
+my $VMDIR = "/var/emulab/vms/vminfo";
 
 my $VZRC   = "/etc/init.d/vz";
 my $MKEXTRAFS = "/usr/local/etc/emulab/mkextrafs.pl";
 my $BRIDGESETUP = "/usr/local/etc/emulab/xenbridge-setup";
-
+# Extra space for images
+my $EXTRAFS = "/vzscratch";
+# LVM volume group name. 
+my $VGNAME = "openvz";
+# So we can ask this from outside;
+sub VGNAME()  { return $VGNAME; }
+sub EXTRAFS() { return $EXTRAFS; }
+    
 my $CTRLIPFILE = "/var/emulab/boot/myip";
 my $IMQDB      = "/var/emulab/db/imqdb";
 # The kernel will auto create up to 1024 IMQs
 my $MAXIMQ     = 1024;
+
+# IFBs
+my $IFBDB      = "/var/emulab/db/ifbdb";
+# Kernel auto-creates only two! Sheesh, why a fixed limit?
+my $MAXIFB     = 512;
 
 my $CONTROL_IFNUM  = 999;
 my $CONTROL_IFDEV  = "eth${CONTROL_IFNUM}";
@@ -127,6 +150,9 @@ my $RTDB           = "/var/emulab/db/rtdb";
 my $RTTABLES       = "/etc/iproute2/rt_tables";
 # Temporary; later kernel version increases this.
 my $MAXROUTETTABLE = 255;
+
+# Track image usage for GC.
+my $IMAGEDB           = "/var/emulab/db/imagedb";
 
 my $debug = 0;
 
@@ -139,17 +165,25 @@ my $USE_MACVLAN = 0;
 # Use control network bridging for all containers. 
 my $USE_CTRLBR  = 1;
 
+# Switch to openvswitch
+my $USE_OPENVSWITCH = 0;
+my $OVSCTL   = "/usr/local/bin/ovs-vsctl";
+my $OVSSTART = "/usr/local/share/openvswitch/scripts/ovs-ctl";
+
 #
 # If we are using a modern kernel, use netem instead of our own plr/delay
 # qdiscs (which are no longer maintained as of 11/2011).
 #
 my ($kmaj,$kmin,$kpatch) = libvnode::getKernelVersion();
-print STDERR "Got Linux kernel version numbers $kmaj $kmin $kpatch\n";
+#print STDERR "Got Linux kernel version numbers $kmaj $kmin $kpatch\n";
 if ($kmaj >= 2 && $kmin >= 6 && $kpatch >= 32) {
-    print STDERR "Using Linux netem instead of custom qdiscs.\n";
+#    print STDERR "Using Linux netem instead of custom qdiscs.\n";
     $USE_NETEM = 1;
-    print STDERR "Using Linux macvlan instead of OpenVZ veths.\n";
-    $USE_MACVLAN = 1;
+    # No longer using macvlan.
+    if (0) {
+        # print STDERR "Using Linux macvlan instead of OpenVZ veths.\n";
+	$USE_MACVLAN = 1;
+    }
 }
 
 #
@@ -170,14 +204,55 @@ sub vmstatus($);
 sub vmrunning($);
 sub vmstopped($);
 sub GClvm($);
-sub GCbridge($);
+
+#
+# Bridge stuff
+#
+sub addbr($)
+{
+    my $br  = $_[0];
+    my $cmd = ($USE_OPENVSWITCH ? "$OVSCTL add-br" : "$BRCTL addbr") . " $br";
+
+    system($cmd);
+}
+sub delbr($)
+{
+    my $br  = $_[0];
+    if ($USE_OPENVSWITCH) {
+	mysystem2("$OVSCTL del-br $br");
+    }
+    else {
+	mysystem2("$IFCONFIG $br down");
+	mysystem2("$BRCTL delbr $br");
+    }
+}
+sub addbrif($$)
+{
+    my $br  = $_[0];
+    my $if  = $_[1];
+    my $cmd = ($USE_OPENVSWITCH ? "$OVSCTL add-port" : "$BRCTL addif") .
+	" $br $if";
+
+    system($cmd);
+}
+sub delbrif($$)
+{
+    my $br  = $_[0];
+    my $if  = $_[1];
+    my $cmd = ($USE_OPENVSWITCH ? "$OVSCTL del-port" : "$BRCTL delif") .
+	" $br $if";
+
+    system($cmd);
+}
 
 #
 # Initialize the lib (and don't use BEGIN so we can do reinit).
 #
 sub vz_init {
     makeIfaceMaps();
-    makeBridgeMaps();
+    if (!$USE_MACVLAN) {
+	makeBridgeMaps();
+    }
 
     #
     # Turn off LVM if already using a /vz mount.
@@ -279,11 +354,11 @@ sub vz_rootPreConfig {
 	    }
 		    
 	    mysystem("pvcreate $LVMDEBUGOPTS $blockdevs");
-	    mysystem("vgcreate $LVMDEBUGOPTS openvz $blockdevs");
+	    mysystem("vgcreate $LVMDEBUGOPTS $VGNAME $blockdevs");
 	}
 	# make sure our volumes are active -- they seem to become inactive
 	# across reboots
-	mysystem("vgchange $LVMDEBUGOPTS -a y openvz");
+	mysystem("vgchange $LVMDEBUGOPTS -a y $VGNAME");
 
 	#
 	# If we reload the partition, the logical volumes will still
@@ -299,6 +374,10 @@ sub vz_rootPreConfig {
 	    mysystem("mkdir /vz")
 		if (! -e "/vz");
 	    mysystem("cp -pR /vz.save/* /vz/");
+	}
+	if (createExtraFS($EXTRAFS, $VGNAME, "15G")) {
+	    TBScriptUnlock();
+	    return -1;
 	}
     }
     else {
@@ -344,6 +423,10 @@ sub vz_rootPreConfig {
     # packets on the veths?
     mysystem("sysctl -w net.core.netdev_max_backlog=2048");
 
+    # Turn off ipv6; some kind of leaking kernel thing.
+    mysystem("sysctl -w net.ipv6.conf.all.disable_ipv6=1");
+    mysystem("sysctl -w net.ipv6.conf.default.disable_ipv6=1");
+
     #
     # Ryan figured this one out. It was causing 75% packet loss on
     # gre tunnels. 
@@ -382,7 +465,12 @@ sub vz_rootPreConfig {
     }
 
     # For tunnels
-    mysystem("$MODPROBE ip_gre");
+    if ($USE_OPENVSWITCH) {
+	mysystem("$MODPROBE openvswitch");
+    }
+    else {
+	mysystem("$MODPROBE ip_gre");
+    }
 
     # For VLANs
     mysystem("$MODPROBE 8021q");
@@ -417,13 +505,24 @@ sub vz_rootPreConfig {
     mysystem("$MODPROBE imq");
     mysystem("$MODPROBE ipt_IMQ");
 
+    # Switching to IFBs (eventually).
+    mysystem("$MODPROBE ifb numifbs=$MAXIFB");
+
+    # start up open vswitch stuff.
+    if ($USE_OPENVSWITCH) {
+	mysystem("$OVSSTART --delete-bridges start");
+    }
+
     #
     # Need to create a control network bridge to accomodate routable
     # control network addresses.
     #
-    mysystem("$BRIDGESETUP -b vzbr0");
+    if (! -e "/sys/class/net/vzbr0") {
+	mysystem("$BRIDGESETUP " .
+		 ($USE_OPENVSWITCH ? "-o" : "") . " -b vzbr0");
+    }
 
-    # Create a DB to manage them. 
+    # Create a DB to manage IMQs
     my %MDB;
     if (!dbmopen(%MDB, $IMQDB, 0660)) {
 	print STDERR "*** Could not create $IMQDB\n";
@@ -432,7 +531,19 @@ sub vz_rootPreConfig {
     }
     for (my $i = 0; $i < $MAXIMQ; $i++) {
 	$MDB{"$i"} = ""
-	    if (!exists($MDB{"$i"}));
+	    if (!defined($MDB{"$i"}));
+    }
+    dbmclose(%MDB);
+
+    # Create a DB to manage IFBs
+    if (!dbmopen(%MDB, $IFBDB, 0660)) {
+	print STDERR "*** Could not create $IFBDB\n";
+	TBScriptUnlock();
+	return -1;
+    }
+    for (my $i = 0; $i < $MAXIFB; $i++) {
+	$MDB{"$i"} = ""
+	    if (!defined($MDB{"$i"}));
     }
     dbmclose(%MDB);
 
@@ -463,7 +574,17 @@ sub vz_rootPreConfigNetwork {
 
     # Do this again after lock.
     makeIfaceMaps();
-    makeBridgeMaps();
+    if (!$USE_MACVLAN) {
+	makeBridgeMaps();
+    }
+
+    my $vmid;
+    if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
+	$vmid = $1;
+    }
+    else {
+	fatal("vz_rootPreConfigNetwork: bad vnode_id $vnode_id!");
+    }
     
     my @node_ifs = @{ $vnconfig->{'ifconfig'} };
     my @node_lds = @{ $vnconfig->{'ldconfig'} };
@@ -483,12 +604,12 @@ sub vz_rootPreConfigNetwork {
     #
     my %brs = ();
     my $prefix = "br.";
-    if ($USE_MACVLAN) {
-	$prefix = "mvsw.";
-    }
     {
 	foreach my $ifc (@node_ifs) {
 	    next if (!$ifc->{ISVIRT});
+
+	    my $brname;
+	    my $physdev;
 
 	    if ($ifc->{ITYPE} eq "loop") {
 		my $vtag  = $ifc->{VTAG};
@@ -497,7 +618,7 @@ sub vz_rootPreConfigNetwork {
 		# No physical device. Its a loopback (trivial) link/lan
 		# All we need is a common bridge to put the veth ifaces into.
 		#
-		my $brname = "${prefix}$vtag";
+		$physdev = $brname = "${prefix}$vtag";
 		$brs{$brname}{ENCAP} = 0;
 		$brs{$brname}{SHORT} = 0;
 	    }
@@ -512,9 +633,25 @@ sub vz_rootPreConfigNetwork {
 		    goto bad
 			if ($?);
 		    mysystem2("$VLANCONFIG set_name_type VLAN_PLUS_VID_NO_PAD");
+
+		    #
+		    # We do not want the vlan device to have the same
+		    # mac as the physical device, since that will confuse
+		    # findif later.
+		    #
+		    my $bmac = fixupMac(GenFakeMac());
+		    mysystem2("$IP link set $vdev address $bmac");
+		    goto bad
+			if ($?);
+		    
 		    mysystem2("$IFCONFIG $vdev up");
+		    mysystem2("$ETHTOOL -K $vdev tso off gso off");
 		    makeIfaceMaps();
 
+		    # Another thing that seems to screw up, causing the ciscos
+		    # to drop packets with an undersize error.
+		    mysystem2("$ETHTOOL -K $iface txvlan off");
+		    
 		    #
 		    # We leave this behind in case of failure and at
 		    # teardown since it is possibly a shared device, and
@@ -522,31 +659,37 @@ sub vz_rootPreConfigNetwork {
 		    # Leaving it behind is harmless, I think.
 		    #
 		}
+		# Temporary, to get existing devices after upgrade.
+		mysystem2("$ETHTOOL -K $vdev tso off gso off");
 
-		my $brname = "${prefix}$vdev";
+		$physdev =  $vdev;
+		$brname  = "${prefix}${vdev}";
 		$brs{$brname}{ENCAP} = 1;
 		$brs{$brname}{SHORT} = 0;
 		$brs{$brname}{PHYSDEV} = $vdev;
+		$brs{$brname}{IFC}   = $ifc;
 	    }
 	    elsif ($ifc->{PMAC} eq "none") {
-		my $brname = "${prefix}" . $ifc->{VTAG};
+		$physdev = $brname = "${prefix}" . $ifc->{VTAG};
 		# if no PMAC, we don't need encap on the bridge
 		$brs{$brname}{ENCAP} = 0;
-		# count up the members so we can figure out if this is a shorty
-		if (!exists($brs{$brname}{MEMBERS})) {
-		    $brs{$brname}{MEMBERS} = 0;
-		}
-		else {
-		    $brs{$brname}{MEMBERS}++;
-		}
+		# count members below so we can figure out if this is a shorty
+		$brs{$brname}{MEMBERS} = 0;
 	    }
 	    else {
 		my $iface = findIface($ifc->{PMAC});
-		my $brname = "${prefix}$iface";
+		$physdev = $iface;
+		$brname  = "${prefix}$iface";
 		$brs{$brname}{ENCAP} = 1;
 		$brs{$brname}{SHORT} = 0;
+		$brs{$brname}{IFC}   = $ifc;
 		$brs{$brname}{PHYSDEV} = $iface;
 	    }
+	    # Stash for later phase.
+	    $ifc->{'PHYSDEV'} = $physdev
+		if (defined($physdev));
+	    $ifc->{'BRIDGE'} = $brname
+		if (defined($brname));
 	}
     }
 
@@ -557,48 +700,66 @@ sub vz_rootPreConfigNetwork {
     # underlying physdev to "host" the macvlan.
     #
     foreach my $k (keys(%brs)) {
-	# postpass to setup SHORT if only two members and no PMAC
-	if (exists($brs{$k}{MEMBERS})) {
-	    if ($brs{$k}{MEMBERS} == 2) {
-		$brs{$k}{SHORT} = 1;
-	    }
-	    else {
-		$brs{$k}{SHORT} = 0;
-	    }
-	    $brs{$k}{MEMBERS} = undef;
-	}
-
 	if (!$USE_MACVLAN) {
-	    # building bridges is an important activity
+	    #
+	    # This bridge might be shared with other containers, so difficult
+	    # to delete. This really only matters on shared nodes though, where
+	    # bridges and vlans could stack up forever (or just a long time).
+	    #
 	    if (! -d "/sys/class/net/$k/bridge") {
-		mysystem2("$BRCTL addbr $k");
+		addbr($k);
 		goto bad
 		    if ($?);
-		# record bridge created.
-		$private->{'bridges'}->{$k} = $k;
+
+		#
+		# Bad feature of bridges; they take on the lowest numbered
+		# mac of the added interfaces (and it changes as interfaces
+		# are added and removed!). But the main point is that we end
+		# up with a bridge that has the same mac as a physical device
+		# and that screws up findIface(). But if we "assign" a mac
+		# address, it does not change and we know it will be unique.
+		#
+		my $bmac = fixupMac(GenFakeMac());
+		mysystem2("$IP link set $k address $bmac");
+		goto bad
+		    if ($?);
 	    }
+	    # record bridge used
+	    $private->{'physbridges'}->{$k} = $k;
+
 	    # repetitions of this should not hurt anything
 	    mysystem2("$IFCONFIG $k 0 up");
 	}
 
 	if (exists($brs{$k}{PHYSDEV})) {
 	    if (!$USE_MACVLAN) {
-		# make sure this iface isn't already part of another bridge;
-		# if it it is, remove it from there first and add to
-		# this bridge.
-		my $obr = findBridge($brs{$k}{PHYSDEV});
-		if (defined($obr)) {
-		    mysystem2("$BRCTL delif " . $obr . " " .$brs{$k}{PHYSDEV});
+		my $physdev = $brs{$k}{PHYSDEV};
+		my $ifc     = $brs{$k}{IFC};
+
+		#
+		# This interface should not be a member of another bridge.
+		# If it is, it is an error.
+		#
+		# Continuing the comment above, this bridge and this interface
+		# might be shared with other containers, so we cannot remove it
+		# unless it is the only one left. 
+		#
+		my $obr = findBridge($physdev);
+		if (defined($obr) && $obr ne $k) {
+		    # Avoid removing the device from the bridge if it
+		    # is in the correct bridge. 
+		    delbrif($obr, $physdev);
+		    goto bad
+			if ($?);
+		    $obr = undef;
+		}
+		if (!defined($obr)) {
+		    addbrif($k, $physdev);
 		    goto bad
 			if ($?);
 		    # rebuild hashes
 		    makeBridgeMaps();
 		}
-		mysystem2("$BRCTL addif $k $brs{$k}{PHYSDEV}");
-		goto bad
-		    if ($?);
-		# record iface added to bridge 
-		$private->{'bridgeifaces'}->{$k}->{$brs{$k}{PHYSDEV}} = $k;
 	    }
 	}
 	elsif ($USE_MACVLAN
@@ -613,83 +774,65 @@ sub vz_rootPreConfigNetwork {
     }
 
     #
-    # Use the IMQDB to reserve the devices to the container. We have the lock.
+    # IMQs are a little tricky. Once they are mapped into a container,
+    # we never get to see them again until the container is fully
+    # destroyed or until we explicitly unmap them from the container.
+    # We also want to hang onto them so we do not get into a situation
+    # where we stopped to take a disk image, and then cannot start
+    # again cause we ran out of resources (shared nodes). So, we have
+    # to look for IMQs (and IFBs) that are already allocated to the
+    # container. See the allocate routines, which make use of the tag.
     #
-    my %MDB;
-    if (!dbmopen(%MDB, $IMQDB, 0660)) {
-	print STDERR "*** Could not create $IMQDB\n";
-	goto bad;
-    }
-    my $i = 0;
-    {
-        foreach my $ldc (@node_lds) {
+    if (@node_lds) {
+	my $ifbs = AllocateIFBs($vmid, \@node_lds, $private);
+	my $imqs = AllocateIMQs($vmid, \@node_lds, $private);
+
+	goto bad
+	    if (! (defined($ifbs) && defined($imqs)));
+
+	foreach my $ldc (@node_lds) {
+	    my $tag = "$vnode_id:" . $ldc->{'LINKNAME'};
+	    my $ifb = pop(@$ifbs);
+	    $private->{'ifbs'}->{$ifb} = $tag;
+	    
+	    # Stash for later.
+	    $ldc->{'IFB'} = $ifb;
+
 	    if ($ldc->{"TYPE"} eq 'duplex') {
-		while ($i < $MAXIMQ) {
-		    my $current = $MDB{"$i"};
-
-		    if (!defined($current) ||
-			$current eq "" || $current eq $vnode_id) {
-			$MDB{"$i"} = $vnode_id;
-			$i++;
-			# Record imq in use
-			$private->{'imqs'}->{"$i"} = $i;
-			last;
-		    }
-		    $i++;
-		}
-		if ($i == $MAXIMQ) {
-		    print STDERR "*** No more IMQs\n";
-		    dbmclose(%MDB);
-		    goto bad;
-		}
-	    }
-	}
-	# Clear anything else this node is using; no longer needed.
-	for (my $j = $i; $j < $MAXIMQ; $j++) {
-	    my $current = $MDB{"$j"};
-
-	    if (!defined($current)) {
-		$MDB{"$j"} = $current = "";
-	    }
-	    if ($current eq $vnode_id) {
-		$MDB{"$j"} = "";
+		my $imq = pop(@$imqs);
+		$private->{'imqs'}->{$imq} = $tag;
 	    }
 	}
     }
-    dbmclose(%MDB);
     TBScriptUnlock();
     return 0;
 
   bad:
     #
-    # Unwind anything we did.
+    # Unwind anything we did. 
     #
-    if ($USE_MACVLAN) {
-	# Remove interfaces we *added* to bridges.
-	if (exists($private->{'bridgeifaces'})) {
-	    foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
-		my $ref = $private->{'bridgeifaces'}->{$brname};
+    # Remove interfaces we *added* to bridges.
+    if (exists($private->{'bridgeifaces'})) {
+	foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
+	    my $ref = $private->{'bridgeifaces'}->{$brname};
 
-		foreach my $iface (keys(%{ $ref })) {
-		    mysystem2("$BRCTL delif $brname $iface");
-		    delete($ref->{$brname}->{$iface})
-			if (! $?);
- 		}
-	    }
-	}
-	# Delete bridges we *created* 
-	if (exists($private->{'bridges'})) {
-	    foreach my $brname (keys(%{ $private->{'bridges'} })) {
-		mysystem2("$IFCONFIG $brname down");
-		# We can delete this cause we still have the lock and
-		# no one else got a chance to add to it. 
-		mysystem2("$BRCTL delbr $brname");		
-		delete($private->{'bridges'}->{$brname})
+	    foreach my $iface (keys(%{ $ref })) {
+		delbrif($brname, $iface);
+		delete($ref->{$brname}->{$iface})
 		    if (! $?);
 	    }
 	}
     }
-    else {
+    # Delete bridges we *created* 
+    if (exists($private->{'bridges'})) {
+	foreach my $brname (keys(%{ $private->{'bridges'} })) {
+	    mysystem2("$IFCONFIG $brname down");
+	    delbr($brname);		
+	    delete($private->{'bridges'}->{$brname})
+		if (! $?);
+	}
+    }
+    if ($USE_MACVLAN) {
 	# Delete the dummy macvlan thingies we created.
 	if (exists($private->{'dummys'})) {
 	    # We can delete this cause we have the lock and no one else got
@@ -701,18 +844,25 @@ sub vz_rootPreConfigNetwork {
 	    }
 	}
     }
-    # Undo the IMQs
-    if (exists($private->{'imqs'})) {
-	if (!dbmopen(%MDB, $IMQDB, 0660)) {
-	    print STDERR "*** Could not open $IMQDB\n";
-	    goto badbad;
+    # Delete the ip links
+    if (exists($private->{'iplinks'})) {
+	foreach my $iface (keys(%{ $private->{'iplinks'} })) {
+            if (-e "/sys/class/net/$iface") {
+	        mysystem2("$IP link del dev $iface");
+	        goto badbad
+		  if ($?);
+            }
+	    delete($private->{'iplinks'}->{$iface});
 	}
-	foreach my $i (keys(%{ $private->{'imqs'} })) {
-	    $MDB{"$i"} = "";
-	    delete($private->{'imqs'}->{"$i"});
-	}
-	dbmclose(%MDB);
     }
+    # Undo the IMQs
+    ReleaseIMQs($vmid, $private)
+	if (exists($private->{'imqs'}));
+		    
+    # Release the IFBs
+    ReleaseIFBs($vmid, $private)
+	if (exists($private->{'ifbs'}));
+
   badbad:
     TBScriptUnlock();
     return -1;
@@ -729,7 +879,8 @@ sub vz_rootPostConfig {
 sub vz_vnodeCreate {
     my ($vnode_id, undef, $vnconfig, $private) = @_;
     my $image = $vnconfig->{'image'};
-    my $reload_args_ref = $vnconfig->{'reloadinfo'};
+    my $raref = $vnconfig->{'reloadinfo'};
+    my $inreload = 0;
 
     my $vmid;
     if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
@@ -742,107 +893,14 @@ sub vz_vnodeCreate {
     if (!defined($image) || $image eq '') {
 	$image = $defaultImage;
     }
-
-    my $imagelockpath = "/var/emulab/db/openvz.image.$image.ready";
     my $imagelockname = "vzimage.$image";
-    my $imagepath = "/vz/template/cache/${image}.tar.gz";
 
-    my %reload_args;
-    if (defined($reload_args_ref)) {
-	%reload_args = %$reload_args_ref;
+    #
+    # This LVM size stuff is needs to go away.
+    #
+    my $rootSize;
+    my $snapSize;
 
-	# Tell stated via tmcd
-	libvnode::setState("RELOADSETUP");
-
-	#
-	# So, we are reloading this vnode (and maybe others).  Need to grab
-	# the global lock for this image, check if we really need to download
-	# the image based on the mtime for the currently cached image (if there
-	# is one), if there is old image state, move out of the way, then
-	# download the new image.  State to move out of teh way for an old
-	# image is the ready file, the image file, lvm "root" devices that we
-	# previously had built still-live VMs out of (we need to rename them),
-	# and finally, garbage collecting unused "root" devices.  
-	#
-	# Note that we need to be really careful with the last item -- we 
-	# only GC if our create has happened successfully, and we take the 
-	# global image GC lock to do so.  This may race due to the nature 
-	# of global locks and result in not all old devices getting reaped, 
-	# but oh well.  Best effort for now.
-	#
-	if ((my $locked = TBScriptLock($imagelockname,
-				       TBSCRIPTLOCK_GLOBALWAIT(), 1800))
-	    != TBSCRIPTLOCK_OKAY()) {
-	    print STDERR
-		"Could not get the $imagelockname lock after a long time!\n";
-	    return -1;
-	}
-
-	# do we have the right image file already?
-	my $incache = 0;
-	if (-e $imagepath) {
-	    my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
-		$mtime,undef,undef,undef) = stat($imagepath);
-	    if ("$mtime" eq $reload_args{"IMAGEMTIME"}) {
-		$incache = 1;
-	    }
-	    else {
-		print "mtimes for $imagepath differ: local $mtime, server " . 
-		    $reload_args{"IMAGEMTIME"} . "\n";
-		unlink($imagepath);
-	    }
-	}
-
-	if (!$incache && $DOLVM) {
-	    # did we create an lvm device for the old image at some point?
-	    # (i.e., does the image lock file exist?)
-	    if (-e $imagelockpath) {
-		# Remove the readyfile; no longer ready. 
-		unlink($imagelockpath);
-	    }
-	}
-	elsif (!$incache && -e $imagelockpath) {
-	    # now we can remove the readyfile
-	    unlink($imagelockpath);
-	}
-
-	# Tell stated via tmcd
-	libvnode::setState("RELOADING");
-
-	if (!$incache) {
-	    # Now we just download the file, then let create do its normal thing
-	    my $dret = libvnode::downloadImage($imagepath,
-					       0,$vnode_id,$reload_args_ref);
-
-	    # reload has finished, file is written... so let's set its mtime
-	    utime(time(),$reload_args{"IMAGEMTIME"},$imagepath);
-	}
-
-	TBScriptUnlock();
-    }
-    elsif ($image eq $defaultImage && -e $imagelockpath) {
-	#
-        # Image already unpacked, but lets see if the tarball changed.
-	#
-	my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
-	    $mtime1,undef,undef,undef) = stat($imagepath);
-	my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
-	    $mtime2,undef,undef,undef) = stat($imagelockpath);
-
-	if ($mtime1 > $mtime2) {
-	    print STDERR "Default image $imagepath appears to be newer\n";
-	    unlink($imagelockpath);
-	}
-    }
-
-    my $createArg = "";
-    if ((my $locked = TBScriptLock($imagelockname,
-				   TBSCRIPTLOCK_GLOBALWAIT(), 1800))
-	!= TBSCRIPTLOCK_OKAY()) {
-	print STDERR
-	    "Could not get the $imagelockname lock after a long time!\n";
-	return -1;
-    }
     if ($DOLVM) {
 	my $MIN_ROOT_LVM_VOL_SIZE = 2 * 2048;
 	my $MAX_ROOT_LVM_VOL_SIZE = 8 * 1024;
@@ -855,8 +913,8 @@ sub vz_vnodeCreate {
 	# figure out how big our volumes should be based on the volume
 	# group size
 	my $vgSize;
-	my $rootSize = $MAX_ROOT_LVM_VOL_SIZE;
-	my $snapSize = $MAX_SNAPSHOT_VOL_SIZE;
+	$rootSize = $MAX_ROOT_LVM_VOL_SIZE;
+	$snapSize = $MAX_SNAPSHOT_VOL_SIZE;
 
 	open (VFD,"vgdisplay openvz |")
 	    or die "popen(vgdisplay openvz): $!";
@@ -909,118 +967,147 @@ sub vz_vnodeCreate {
 
 	print STDERR "Using LVM with root size $rootSize MB, ".
 	    "snapshot size $snapSize MB.\n";
+    }
+
+    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_GLOBALWAIT(), 1800)
+	!= TBSCRIPTLOCK_OKAY()) {
+	fatal("Could not get $imagelockname lock after a long time!");
+    }
+
+    #
+    # We name the image lvms with a prefix so we know they are image
+    # LVMs. Hard to tell otherwise.
+    #
+    my $imagelvmname = "image+" . $image;
+    my $imagelvmpath = lvmVolumePath($imagelvmname);
+    my $vnodelvmpath = lvmVolumePath($vnode_id);
+
+    if ($image eq $defaultImage) {
+	#
+	# The default image might change, if the file in the template
+	# directory is changed. 
+	#
+	my $imagepath  = "/vz/template/cache/${image}.tar.gz";
+
+	my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
+	    $mtime,undef,undef,undef) = stat($imagepath);
 
 	#
-	# Got the lock; if the imagelock file does not exists, we have
-	# to create the base lvm for it. Otherwise, hold the lock until
-	# we check the existing lvm cache.
+	# createImageDisk() knows to throw the old one away if it changed.
+	# The only reason to go through this (instead of direct untar) is 
+	# so that we are consistent with image downloads in the else clause.
 	#
-	if (! -e $imagelockpath) {
-	    #
-	    # If there is already a logical device for this image, then
-	    # need to GC or rename it (might be in use). Note that a
-	    # reload of the partition will cause the lock files to get
-	    # deleted, which results in some needless work (recreating
-	    # the lvm even if it did not change), but I do not see a
-	    # way to stamp the lvm itself so that we can determine its
-	    # creation date. Besides, it is an atypical case.
-	    #
-	    if (system("lvdisplay /dev/openvz/$image >& /dev/null") == 0) {
-		if (GClvm("$image")) {
-		    fatal("Could not GC or rename $image");
-		}
-	    }
-	    print "Creating LVM core logical device for image $image\n";
+	my $reloadargs = {"IMAGEMTIME" => $mtime};
 
-	    # ok, create the lvm logical volume for this image.
-	    mysystem("lvcreate $LVMDEBUGOPTS ".
-		     "  -L${rootSize}M -n $image openvz");
-	    mysystem("mkfs -t ext3 /dev/openvz/$image");
-	    mysystem("mkdir -p /mnt/$image");
-	    mysystem("mount /dev/openvz/$image /mnt/$image");
-	    mysystem("mkdir -p /mnt/$image/root ".
-		     "         /mnt/$image/private");
-	    mysystem("tar -xzf $imagepath -C /mnt/$image/private");
-	    mysystem("umount /mnt/$image")
-		if ($DOSNAP);
-
-	    # ok, we're done
-	    mysystem("mkdir -p /var/emulab/run");
-	    mysystem("touch $imagelockpath");
+	if (createImageDisk($image, $vnode_id,
+			    $reloadargs, $imagepath, $rootSize)) {
+	    TBScriptUnlock();
+	    fatal("vz_vnodeCreate: ".
+		  "cannot create logical volume for $image");
 	}
+    }
+    elsif (defined($raref)) {
+	$inreload = 1;
+	
+	# Tell stated via tmcd
+	libutil::setState("RELOADSETUP");
 
-	if ($DOSNAP) {
-	    # Snapshots can happen in parallel.
+	#
+	# Immediately drop into RELOADING before calling createImageDisk as
+	# that is the place where any image will be downloaded from the image
+	# server and we want that download to take place in the longer timeout
+	# period afforded by the RELOADING state.
+	#
+	sleep(1);
+	libutil::setState("RELOADING");
+
+	if (createImageDisk($image, $vnode_id, $raref, undef, $rootSize)) {
+	    TBScriptUnlock();
+	    fatal("vz_vnodeCreate: ".
+		  "cannot create logical volume for $image");
+	}
+    }
+
+    #
+    # Now we can create the vnode disk from the base disk.
+    #
+    if ($DOSNAP) {
+	#
+	# So, we drop the lock so multiple snapshots can happen in
+	# parallel, but that introduces a small race; the base can
+	# get deleted before the lvcreate runs and the base has a
+	# new child that prevents it from getting garbage collected.
+	#
+	TBScriptUnlock();
+	
+	#
+	# Take a snapshot of this image's logical device
+	#
+	# As above, a partition reload will make it appear that the
+	# container does not exist, when in fact the lvm really does
+	# and we want to reuse it, not create another one. 
+	#
+	if (system("lvdisplay $vnodelvmpath >& /dev/null")) {
+	    mysystem("lvcreate $LVMDEBUGOPTS ".
+		     "  -s -L${snapSize}M -n $vnode_id $imagelvmpath");
+	}
+    }
+    elsif (system("lvdisplay $vnodelvmpath >& /dev/null")) {
+	#
+	# Need to create a new disk for the container. But lets see
+	# if we have a disk cached. We still have the imagelock at
+	# this point.
+	#
+	if (my (@files) = glob("/dev/$VGNAME/_C_${image}_*")) {
+	    #
+	    # Grab the first file and rename it. It becomes ours.
+	    # Then drop the lock.
+	    #
+	    my $file = $files[0];
+	    mysystem("lvrename $file $vnodelvmpath");
+	    TBScriptUnlock();
+	}
+	else {
+	    #
+	    # So, we really should not drop the lock here, cause if
+	    # another vnode comes along using the same image, but the
+	    # image was updated, it will get deleted right out from
+	    # underneath us. But if we hold the lock, we serialize
+	    # every create using this image, and the tar unpack takes
+	    # a while. 
+	    #
 	    TBScriptUnlock();
 	    
-	    #
-	    # Now take a snapshot of this image's logical device
-	    #
-	    # As above, a partition reload will make it appear that the
-	    # container does not exist, when in fact the lvm really does
-	    # and we want to reuse it, not create another one. 
-	    #
-	    if (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
-		mysystem("lvcreate $LVMDEBUGOPTS ".
-			 "  -s -L${snapSize}M -n $vnode_id /dev/openvz/$image");
-	    }
+	    mysystem("lvcreate $LVMDEBUGOPTS ".
+		     "  -L${rootSize}M -n $vnode_id $VGNAME");
+	    mysystem("mkfs -t ext3 $vnodelvmpath");
+	    mysystem("mkdir -p /mnt/$vnode_id")
+		if (! -e "/mnt/$vnode_id");
+	    mysystem("mount $vnodelvmpath /mnt/$vnode_id");
+	    mysystem("mkdir -p /mnt/$vnode_id/root /mnt/$vnode_id/private");
+	    TBDebugTimeStampWithDate("untaring to /mnt/$vnode_id");
+	    mysystem("cd /mnt/$image/private; ".
+		     "tar -b 64 -cf - . | ".
+		     "tar -b 64 -xf - -C /mnt/$vnode_id/private");
+	    TBDebugTimeStampWithDate("untar done");
 	}
-	elsif (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null")) {
-	    #
-	    # Need to create a new disk for the container. But lets see
-	    # if we have a disk cached. We still have the imagelock at
-	    # this point.
-	    #
-	    if (my (@files) = glob("/dev/openvz/_C_${image}_*")) {
-		#
-		# Grab the first file and rename it. It becomes ours.
-		# Then drop the lock.
-		#
-		my $file = $files[0];
-		mysystem("lvrename $file /dev/openvz/$vnode_id");
-		TBScriptUnlock();
-	    }
-	    else {
-		# This can happen in parallel with other VMs.
-		TBScriptUnlock();
-	    	    
-		mysystem("lvcreate $LVMDEBUGOPTS ".
-			 "  -L${rootSize}M -n $vnode_id openvz");
-		mysystem("mkfs -t ext3 /dev/openvz/$vnode_id");
-		mysystem("mkdir -p /mnt/$vnode_id")
-		    if (! -e "/mnt/$vnode_id");
-		mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
-		mysystem("mkdir -p /mnt/$vnode_id/root /mnt/$vnode_id/private");
-		TBDebugTimeStampWithDate("untaring to /mnt/$vnode_id");
-		if (! -e "/mnt/$image/private") {
-		    # Backwards compat.
-		    mysystem("tar -xzf $imagepath -C /mnt/$vnode_id/private");
-		}
-		else {
-		    mysystem("cd /mnt/$image/private; ".
-			     "tar -b 64 -cf - . | ".
-			     "tar -b 64 -xf - -C /mnt/$vnode_id/private");
-		}
-		TBDebugTimeStampWithDate("untar done");
-	    }
-	}
-	mysystem("mkdir -p /mnt/$vnode_id")
-	    if (! -e "/mnt/$vnode_id");
-	mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id")
-	    if (! -e "/mnt/$vnode_id/private");
+    }
+    mysystem("mkdir -p /mnt/$vnode_id")
+	if (! -e "/mnt/$vnode_id");
+    mysystem("mount $vnodelvmpath /mnt/$vnode_id")
+	if (! -e "/mnt/$vnode_id/private");
 
-	$createArg = "--private /mnt/$vnode_id/private" . 
+    my $createArg = "--private /mnt/$vnode_id/private" . 
 	    " --root /mnt/$vnode_id/root --nofs yes";
-    }
-    else {
-	TBScriptUnlock();
-    }
 
-    if (defined($reload_args_ref)) {
+    # For GC after teardown.
+    $private->{'baseimage'} = $image;
+
+    if ($inreload) {
 	# Tell stated via tmcd
-	libvnode::setState("RELOADDONE");
+	libutil::setState("RELOADDONE");
 	sleep(4);
-	libvnode::setState("SHUTDOWN");
+	libutil::setState("SHUTDOWN");
     }
 
     # build the container
@@ -1104,37 +1191,26 @@ sub vz_vnodeTearDown {
     #
     # Unwind anything we did.
     #
-    if (!$USE_MACVLAN) {
-	# Remove interfaces we *added* to bridges.
-	if (exists($private->{'bridgeifaces'})) {
-	    foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
-		my $ref = $private->{'bridgeifaces'}->{$brname};
-
-		foreach my $iface (keys(%{ $ref })) {
-		    mysystem2("$BRCTL delif $brname $iface");
-		    goto badbad
-			if ($?);
-		    delete($ref->{$brname}->{$iface});
-		}
-		# Delete bridge when no more members.
-		# Another container might have created the bridge, but
-		# it exited first. So we need to clean it up.
-		if (my $foo = GCbridge($brname)) {
-		    goto badbad
-			if ($foo < 0);
-		    delete($private->{'bridges'}->{$brname})
-			if (exists($private->{'bridges'}->{$brname}));
-		}
-		delete($private->{'bridgeifaces'}->{$brname});
-	    }
-	}
-	# Delete bridges we created which have no current members.
-	if (exists($private->{'bridges'})) {
-	    foreach my $brname (keys(%{ $private->{'bridges'} })) {
+    # Remove interfaces we *added* to bridges.
+    if (exists($private->{'bridgeifaces'})) {
+	foreach my $brname (keys(%{ $private->{'bridgeifaces'} })) {
+	    my $ref = $private->{'bridgeifaces'}->{$brname};
+	    
+	    foreach my $iface (keys(%{ $ref })) {
+		delbrif($brname, $iface);
 		goto badbad
-		    if (GCbridge($brname) < 0);
-		delete($private->{'bridges'}->{$brname});
+		    if ($?);
+		delete($ref->{$brname}->{$iface});
 	    }
+	    delete($private->{'bridgeifaces'}->{$brname});
+	}
+    }
+    # Delete bridges we created which have no current members.
+    if (exists($private->{'bridges'})) {
+	foreach my $brname (keys(%{ $private->{'bridges'} })) {
+	    mysystem2("$IFCONFIG $brname down");	    
+	    mysystem2("$BRCTL delbr $brname");
+	    delete($private->{'bridges'}->{$brname});
 	}
     }
     # Delete the tunnel devices.
@@ -1166,6 +1242,14 @@ sub vz_vnodeTearDown {
 	    delete($private->{'iplinks'}->{$iface});
 	}
     }
+    # Delete the control veth from the bridge (USE_OPENVSWITCH=1).
+    if ($USE_OPENVSWITCH && exists($private->{'controlveth'})) {
+	my $cnet_veth = $private->{'controlveth'};
+	
+	mysystem2("$OVSCTL -- --if-exists del-port vzbr0 $cnet_veth");
+	delete($private->{'controlveth'});
+    }
+
     #
     # A word about these two. David sez that it is impossible to garbage
     # collect these dummy devices cause once they move into a container,
@@ -1205,35 +1289,64 @@ sub vz_vnodeDestroy {
 	    delete($private->{'routetables'}->{$token});
 	}
     }
-
     #
     # We keep the IMQs until complete destruction since the container
-    # references them inside. It might be possible to reclaim them in
-    # TearDown above, but I am not sure.
+    # references them inside, and so they are not usable by anyone else
+    # until the container is fully destroyed. We do this cause we do
+    # want to get into a situation where we stopped a container to do
+    # something like take a disk snapshot, and then not be able to
+    # restart it cause there are no more resources available (as might
+    # happen on a shared node). 
     #
-    if (exists($private->{'imqs'})) {
-	my %MDB;
-	
-	if (!dbmopen(%MDB, $IMQDB, 0660)) {
-	    print STDERR "*** Could not open $IMQDB\n";
-	    dbmclose(%MDB);
-	    TBScriptUnlock();
-	    return -1;
-	}
-	foreach my $i (keys(%{ $private->{'imqs'} })) {
-	    $MDB{"$i"} = "";
-	}
-	dbmclose(%MDB);
-    }
-    TBScriptUnlock();
+    ReleaseIMQs($vmid, $private)
+	if (exists($private->{'imqs'}));
+
+    #
+    # Ditto the IFBs, although they are not mapped into the container,
+    # we just do not want to run out of them.
+    #
+    ReleaseIFBs($vmid, $private)
+	if (exists($private->{'ifbs'}));
 
     if ($DOLVM) {
+	my $vnodelvmpath = lvmVolumePath($vnode_id);
+	
 	mysystem2("umount /mnt/$vnode_id");
-	if (system("lvdisplay /dev/openvz/$vnode_id >& /dev/null") == 0) {
-	    mysystem("lvremove $LVMDEBUGOPTS -f /dev/openvz/$vnode_id");
+	if (system("lvdisplay $vnodelvmpath >& /dev/null") == 0) {
+	    my $origin;
+
+	    #
+	    # Grab the origin before deletion, since the origin might have
+	    # been renamed from the original base image name. If not doing
+	    # snapshots, then it does not change (not really an origin).
+	    #
+	    if ($DOSNAP) {
+		$origin = lvmOrigin($vnode_id);
+	    }
+	    mysystem2("lvremove $LVMDEBUGOPTS -f $vnodelvmpath");
+	    if ($?) {
+		TBScriptUnlock();
+		return -1;
+	    }
+	    if ($DOSNAP) {
+		my $baseimagelvmname = "image+" . $private->{'baseimage'};
+		
+		#
+		# See if we can delete the image now, but only if its
+		# a renamed origin; these will never be used again
+		# so delete now if we can (no children). 
+		#
+		if (defined($origin) &&
+		    $origin ne "" &&
+		    $origin ne $baseimagelvmname &&
+		    !lvmHasChildren($origin)) {
+		    mysystem2("lvremove $LVMDEBUGOPTS -f /dev/$VGNAME/$origin");
+		}
+	    }
 	}
     }
-    mysystem("$VZCTL $VZDEBUGOPTS destroy $vmid");
+    TBScriptUnlock();
+    mysystem2("$VZCTL $VZDEBUGOPTS destroy $vmid");
     return -1
 	if ($?);
 
@@ -1257,10 +1370,12 @@ sub vz_vnodeState {
     # only happen with LVM)... since the openvz utils seem to need to see the
     # vnode filesystem in order to work properly, which is sensible).
     if ($DOLVM) {
-	if (-e "/etc/vz/conf/$vmid.conf" && -e "/dev/openvz/$vnode_id"
+	my $lvmpath = lvmVolumePath($vnode_id);
+	
+	if (-e "/etc/vz/conf/$vmid.conf" && -e $lvmpath 
 	    && ! -e "/mnt/$vnode_id/private") {
 	    print "Trying to mount LVM logical device for vnode $vnode_id: ";
-	    mysystem("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	    mysystem("mount $lvmpath /mnt/$vnode_id");
 	    print "done.\n";
 	}
     }
@@ -1286,7 +1401,9 @@ sub vz_vnodeBoot {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     if ($DOLVM) {
-	system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	my $lvmpath = lvmVolumePath($vnode_id);
+	
+	system("mount $lvmpath /mnt/$vnode_id");
     }
 
     mysystem("$VZCTL $VZDEBUGOPTS start $vnode_id");
@@ -1343,7 +1460,9 @@ sub vz_vnodePreConfig {
     # Make sure we're mounted so that vzlist and friends work; see NOTE about
     # mounting LVM logical devices above.
     if ($DOLVM) {
-	system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	my $lvmpath = lvmVolumePath($vnode_id);
+
+	system("mount $lvmpath /mnt/$vnode_id");
     }
 
     #
@@ -1369,15 +1488,15 @@ sub vz_vnodePreConfig {
 	}
 	else {
 	    # was already mapped, leave alone
-	    $devs{$dev} = undef;
+	    delete($devs{$dev});
 	}
     }
 
     foreach my $dev (keys(%devs)) {
         if (! -d "/sys/class/net/$dev") {
-	    system("$IP link add name $dev type imq");
+	    mysystem("$IP link add name $dev type imq");
         }
-	    
+
 	if ($devs{$dev} == 1) {
 	    mysystem("$VZCTL $VZDEBUGOPTS set $vnode_id --netdev_add $dev --save");
 	}
@@ -1500,7 +1619,7 @@ sub vz_vnodePreConfigControlNetwork {
     # Make sure we're mounted so that vzlist and friends work; see NOTE about
     # mounting LVM logical devices above.
     if ($DOLVM) {
-	system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	system("mount /dev/$VGNAME/$vnode_id /mnt/$vnode_id");
     }
 
     my $privroot = "/vz/private/$vmid";
@@ -1522,6 +1641,9 @@ sub vz_vnodePreConfigControlNetwork {
 	# to the xen equivalent code, this is what ya do. 
 	$ext_vethmac = "fe:ff:ff:ff:ff:ff";
     }
+    # Record the name of the control network veth so it can be removed
+    # from the bridge (USE_OPENVSWITCH=1).
+    $private->{"controlveth"} = $cnet_veth;
 
     #
     # we have to hack the VEID.conf file BEFORE calling --netif_add ... --save
@@ -1619,7 +1741,7 @@ sub vz_vnodePreConfigControlNetwork {
     #
     print FD "$ctrlnet/$ctrlmaskbits dev ${CONTROL_IFDEV}\n";
     if ($isroutable) {
-	print FD "$JAILCTRLNET/$JAILCTRLNETMASK via $gw\n";
+	print FD "$JAILCTRLNET/$JAILCTRLNETMASK dev ${CONTROL_IFDEV}\n";
 	# Switch to real router.
 	$gw = `cat /var/emulab/boot/routerip`;
 	chomp($gw);
@@ -1722,7 +1844,7 @@ sub vz_vnodePreConfigExpNetwork {
     # Make sure we're mounted so that vzlist and friends work; see NOTE about
     # mounting LVM logical devices above.
     if ($DOLVM) {
-	system("mount /dev/openvz/$vnode_id /mnt/$vnode_id");
+	system("mount /dev/$VGNAME/$vnode_id /mnt/$vnode_id");
     }
 
     my $basetable;
@@ -1732,28 +1854,17 @@ sub vz_vnodePreConfigExpNetwork {
     foreach my $ifc (@$ifs) {
 	next if (!$ifc->{ISVIRT});
 
-	my $br;
-	my $prefix = "br.";
-	if ($USE_MACVLAN) {
-	    $prefix = "mvsw.";
-	}
+	my $br       = $ifc->{"BRIDGE"};
+	my $physdev  = $ifc->{"PHYSDEV"};
+	my $ldinfo;
 
-	my $physdev;
-	if ($ifc->{ITYPE} eq "vlan") {
-	    my $iface = $ifc->{IFACE};
-	    my $vtag  = $ifc->{VTAG};
-	    my $vdev  = "${iface}.${vtag}";
-	    $br = "${prefix}$vdev";
-	    $physdev = $vdev;
-	}
-	elsif ($ifc->{PMAC} eq "none" || $ifc->{ITYPE} eq "loop") {
-	    $br = "${prefix}" . $ifc->{VTAG};
-	    $physdev = $br;
-	}
-	else {
-	    my $iface = findIface($ifc->{PMAC});
-	    $br = "${prefix}$iface";
-	    $physdev = $iface;
+	#
+	# Find associated delay info
+	#
+	foreach my $ld (@$lds) {
+	    if ($ld->{"IFACE"} eq $ifc->{"MAC"}) {
+		$ldinfo = $ld;
+	    }
 	}
 
 	#
@@ -1769,8 +1880,19 @@ sub vz_vnodePreConfigExpNetwork {
 	# XXX The server has also set the local admin flag (0x02), which
 	# is required, but we set it anyway.
 	#
-	my $eth     = "eth" . $ifc->{VTAG};
-	my ($vethmac,$ethmac) = build_fake_macs($ifc->{VMAC});
+	my $veth;
+	#
+	# A note about the inner device name; we used to use eth${vlan}
+	# but then people started wanting multiple networks on the same
+	# vlan via the shared network mechanism, and so we have to look
+	# for that and use a different name. Its a special case; in the
+	# normal case I want the names to be pretty.
+	#
+	my $eth = "eth" . $ifc->{VTAG};
+	if (exists($netif_strs{$eth})) {
+	    $eth = "${eth}." . $ifc->{ID};
+	}
+	my ($ethmac,$vethmac) = build_fake_macs($ifc->{VMAC});
 	if (!defined($vethmac)) {
 	    print STDERR "Could not construct veth/eth macs\n";
 	    return -1;
@@ -1786,34 +1908,49 @@ sub vz_vnodePreConfigExpNetwork {
 	    # BUG here. interface might be left behind from a previous
 	    # failure. Broke during the tutorial.
 	    #
-	    my $vname = "mv$vmid.$ifc->{ID}";
-	    if (-e "/sys/class/net/$vname") {
-	        mysystem2("$IP link del dev $vname");
+	    $veth = "mv$vmid.$ifc->{ID}";
+	    if (-e "/sys/class/net/$veth") {
+	        mysystem2("$IP link del dev $veth");
 	    }
-	    mysystem("$IP link add link $physdev name $vname ".
-		     "  address $vethmac type macvlan mode bridge ");
-	    $private->{'iplinks'}->{$vname} = $physdev;
+	    mysystem("$IP link add link $physdev name $veth ".
+		     "  address $ethmac type macvlan mode bridge ");
+	    $private->{'iplinks'}->{$veth} = $physdev;
 	    
 	    #
 	    # When the bridge is a dummy, record that we added an interface
 	    # to it, so that we can garbage collect the dummy devices later.
 	    #
 	    if ($physdev eq $br) {
-		$private->{'dummyifaces'}->{$br}->{$vname} = $br;
+		$private->{'dummyifaces'}->{$br}->{$veth} = $br;
 	    }
 	    mysystem("$VZCTL $VZDEBUGOPTS set $vnode_id --netdev_add ".
-		     "  $vname --save");
+		     "  $veth --save");
 	}
 	else {
 	    #
 	    # Add to ELABIFS for addition to conf file (for runtime config by 
 	    # external custom script)
 	    #
-	    my $veth = "veth$vmid.$ifc->{ID}";
+	    $veth = "veth$vmid.$ifc->{ID}";
+
+	    #
+	    # Generate a script to install the shaping, once the veth device
+	    # is created. The nice thing is that since the caps are attached
+	    # to a veth, we do not to clean up anything; it all goes away
+	    # when the veth is destroyed by the container exit.
+	    #
+	    my $script = "";
+	    if (defined($ldinfo)) {
+		$script = "$VMDIR/$vnode_id/enet-$vethmac";		
+		my $ifb = $ldinfo->{"IFB"};
+	    
+		CreateCapScript($vmid, $script, $ldinfo, $veth, "ifb$ifb")
+		    == 0 or return -1;
+	    }
 	    if ($elabifs ne '') {
 		$elabifs .= ';';
 	    }
-	    $elabifs .= "$veth,$br";
+	    $elabifs .= "$veth,$br,$script";
 
 	    #
 	    # Save for later calling, since we need to hack the 
@@ -1831,60 +1968,65 @@ sub vz_vnodePreConfigExpNetwork {
 	# gres and route tables are a global resource.
 	#
 	if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	    print STDERR "Could not get the tunne lock after a long time!\n";
-	    return -1;
-	}
-	$basetable = AllocateRouteTable("VZ$vmid");
-	if (!defined($basetable)) {
-	    print STDERR "Could not allocate a routing table!\n";
-	    TBScriptUnlock();
-	    return -1;
-	}
-	$private->{'routetables'}->{"VZ$vmid"} = $basetable;
-
-	#
-	# Get current gre list.
-	#
-	if (! open(IP, "/sbin/ip tunnel show|")) {
-	    print STDERR "Could not start /sbin/ip\n";
-	    TBScriptUnlock();
+	    print STDERR "Could not get the global lock after a long time!\n";
 	    return -1;
 	}
 	my %key2gre = ();
 	my $maxgre  = 0;
-	my $table   = $vmid + 100;
+	
+	if (! $USE_OPENVSWITCH) {
+	    $basetable = AllocateRouteTable("VZ$vmid");
+	    if (!defined($basetable)) {
+		print STDERR "Could not allocate a routing table!\n";
+		TBScriptUnlock();
+		return -1;
+	    }
+	    $private->{'routetables'}->{"VZ$vmid"} = $basetable;
 
-	while (<IP>) {
-	    if ($_ =~ /^(gre\d*):.*key\s*([\d\.]*)/) {
-		$key2gre{$2} = $1;
-		if ($1 =~ /^gre(\d*)$/) {
-		    $maxgre = $1
-			if ($1 > $maxgre);
+	    #
+	    # Get current gre list.
+	    #
+	    if (! open(IP, "/sbin/ip tunnel show|")) {
+		print STDERR "Could not start /sbin/ip\n";
+		TBScriptUnlock();
+		return -1;
+	    }
+	    my $table   = $vmid + 100;
+
+	    while (<IP>) {
+		if ($_ =~ /^(gre\d*):.*key\s*([\d\.]*)/) {
+		    $key2gre{$2} = $1;
+		    if ($1 =~ /^gre(\d*)$/) {
+			$maxgre = $1
+			    if ($1 > $maxgre);
+		    }
+		}
+		elsif ($_ =~ /^(gre\d*):.*remote\s*([\d\.]*)\s*local\s*([\d\.]*)/) {
+		    #
+		    # This is just a temp fixup; delete tunnels with no key
+		    # since we no longer use non-keyed tunnels, and cause it
+		    # will cause the kernel to throw an error in the tunnel add
+		    # below. 
+		    #
+		    mysystem2("/sbin/ip tunnel del $1");
+		    if ($?) {
+			TBScriptUnlock();
+			return -1;
+		    }
 		}
 	    }
-	    elsif ($_ =~ /^(gre\d*):.*remote\s*([\d\.]*)\s*local\s*([\d\.]*)/) {
-		#
-		# This is just a temp fixup; delete tunnels with no key
-		# since we no longer use non-keyed tunnels, and cause it
-		# will cause the kernel to throw an error in the tunnel add
-		# below. 
-		#
-		mysystem2("/sbin/ip tunnel del $1");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
+	    if (!close(IP)) {
+		print STDERR "Could not get tunnel list\n";
+		TBScriptUnlock();
+		return -1;
 	    }
-	}
-	if (!close(IP)) {
-	    print STDERR "Could not get tunnel list\n";
-	    TBScriptUnlock();
-	    return -1;
 	}
 
 	foreach my $tunnel (values(%{ $tunnels })) {
+	    my $style = $tunnel->{"tunnel_style"};
+	    
 	    next
-		if ($tunnel->{"tunnel_style"} ne "gre");
+		if (! ($style eq "gre" || $style eq "egre"));
 
 	    my $name     = $tunnel->{"tunnel_lan"};
 	    my $srchost  = $tunnel->{"tunnel_srcip"};
@@ -1893,49 +2035,91 @@ sub vz_vnodePreConfigExpNetwork {
 	    my $peerip   = $tunnel->{"tunnel_peerip"};
 	    my $mask     = $tunnel->{"tunnel_ipmask"};
 	    my $unit     = $tunnel->{"tunnel_unit"};
-	    my $grekey   = inet_ntoa(pack("N", $tunnel->{"tunnel_tag"}));
+	    my $grekey   = $tunnel->{"tunnel_tag"};
 	    my $gre;
+	    my $br;
 
-	    if (exists($key2gre{$grekey})) {
-		$gre = $key2gre{$grekey};
-	    }
-	    else {
-		$gre = "gre" . ++$maxgre;
-		mysystem2("/sbin/ip tunnel add $gre mode gre ".
-			 "local $srchost remote $dsthost ttl 64 key $grekey");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
-		mysystem2("/sbin/ifconfig $gre 0 up");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
-		# Must do this else routing lookup fails. 
-		mysystem2("echo 1 > /proc/sys/net/ipv4/conf/$gre/forwarding");
-		if ($?) {
-		    TBScriptUnlock();
-		    return -1;
-		}
-		$key2gre{$grekey} = $gre;
-		# Record gre creation.
-		$private->{'tunnels'}->{$gre} = $gre;
-		
-	    }
-	    #
-	    # All packets arriving from gre devices will use the same table.
-	    # The route will be a network route to the root context device.
-	    # The route cannot be inserted until later, since the root 
-	    # context device does not exists until the VM is running.
-	    # See the route stuff in vznetinit-elab.sh.
-	    #
-	    mysystem2("/sbin/ip rule add unicast iif $gre table $basetable");
-	    if ($?) {
+	    if ($style eq "egre" && !$USE_OPENVSWITCH) {
+		print STDERR "Cannot create egre tunnel without OVS\n";
 		TBScriptUnlock();
 		return -1;
 	    }
-	    $private->{'iprules'}->{$gre} = $gre;
+	    if ($style eq "gre" && $USE_OPENVSWITCH) {
+		print STDERR "Cannot create gre tunnel with OVS\n";
+		TBScriptUnlock();
+		return -1;
+	    }
+
+	    if (!$USE_OPENVSWITCH) {
+		if (exists($key2gre{$grekey})) {
+		    $gre = $key2gre{$grekey};
+		}
+		else {
+		    $grekey = inet_ntoa(pack("N", $grekey));
+		    $gre    = "gre" . ++$maxgre;
+		    mysystem2("/sbin/ip tunnel add $gre mode gre ".
+			      "local $srchost remote $dsthost ttl 64 ".
+			      (1 ? "key $grekey" : ""));
+		    if ($?) {
+			TBScriptUnlock();
+			return -1;
+		    }
+		    mysystem2("/sbin/ifconfig $gre 0 up");
+		    if ($?) {
+			TBScriptUnlock();
+			return -1;
+		    }
+		    # Must do this else routing lookup fails. 
+		    mysystem2("echo 1 > /proc/sys/net/ipv4/conf/$gre/forwarding");
+		    if ($?) {
+			TBScriptUnlock();
+			return -1;
+		    }
+		    $key2gre{$grekey} = $gre;
+		    # Record gre creation.
+		    $private->{'tunnels'}->{$gre} = $gre;
+		}
+		#
+		# All packets arriving from gre devices will use the same table.
+		# The route will be a network route to the root context device.
+		# The route cannot be inserted until later, since the root 
+		# context device does not exists until the VM is running.
+		# See the route stuff in vznetinit-elab.sh.
+		#
+		mysystem2("/sbin/ip rule add unicast iif $gre table $basetable");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
+		$private->{'iprules'}->{$gre} = $gre;
+	    }
+	    else {
+		#
+		# Need to create an openvswitch bridge and gre tunnel inside.
+		# We can then put the veth device into the bridge. 
+		#
+		# These are the devices outside the container. 
+		$gre = "gre$vmid.$unit";
+		$br  = "br$vmid.$unit";
+		mysystem2("$OVSCTL add-br $br");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
+		# Record bridge created. 
+		$private->{'bridges'}->{$br} = $br;
+
+		mysystem2("$OVSCTL add-port $br $gre -- set interface $gre ".
+			  "  type=gre options:remote_ip=$dsthost " .
+			  "           options:local_ip=$srchost " .
+			  (1 ? "      options:key=$grekey" : ""));
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
+		# Record iface added to bridge 
+		$private->{'bridgeifaces'}->{$br}->{$gre} = $br;
+	    }
 	    
 	    # device name outside the container
 	    my $veth = "veth$vmid.tun$unit";
@@ -1947,47 +2131,56 @@ sub vz_vnodePreConfigExpNetwork {
 		$elabifs .= ';';
 	    }
 	    # Leave bridge blank; see vznetinit-elab.sh. It does stuff.
-	    $elabifs .= "$veth,";
-	    # Route.
+	    $elabifs .= "$veth,,";
 
-	    if ($elabroutes ne '') {
-		$elabroutes .= ';';
+	    if ($USE_OPENVSWITCH) {
+		# Unless we are using openvswitch; gre can go into a bridge.
+		$elabifs .= "$br";
+		# Record for removal, even though this happens in vznetinit.
+		$private->{'bridgeifaces'}->{$br}->{$veth} = $br;
 	    }
-	    $elabroutes .= "$veth,$inetip,$gre";
 
-	    #
-	    # We need a routing table for each tunnel in the other direction.
-	    # This makes sure that all packets coming out of the root context
-	    # device (leaving the VM) got shoved into the real gre device.
-	    # Need to use a default route so all packets ae matched, which is
-	    # why we need a table per tunnel.
-	    #
-	    my $routetable = AllocateRouteTable($veth);
-	    if (!defined($routetable)) {
+	    # Route.
+	    if (!$USE_OPENVSWITCH) {
+		if ($elabroutes ne '') {
+		    $elabroutes .= ';';
+		}
+		$elabroutes .= "$veth,$inetip,$gre";
+
+		#
+		# We need a routing table for each tunnel in the other
+		# direction.  This makes sure that all packets coming out
+		# of the root context device (leaving the VM) got shoved
+		# into the real gre device.  Need to use a default route so
+		# all packets are matched, which is why we need a table per
+		# tunnel.
+		#
+		my $routetable = AllocateRouteTable($veth);
+		if (!defined($routetable)) {
 		    print STDERR "No free route tables for $veth\n";
 		    TBScriptUnlock();
 		    return -1;
-	    }
-	    $private->{'routetables'}->{"$veth"} = $routetable;
+		}
+		$private->{'routetables'}->{"$veth"} = $routetable;
 
-	    #
-	    # Convenient, is that even though the root context device does
-	    # not exist, we can insert the ip *rule* for it that directs
-	    # the traffic through the iproute inserted below.
-	    #
-	    mysystem2("/sbin/ip rule add unicast iif $veth table $routetable");
-	    if ($?) {
-		TBScriptUnlock();
-		return -1;
-	    }
-	    $private->{'iprules'}->{$gre} = $gre;
+		#
+		# Convenient, is that even though the root context device does
+		# not exist, we can insert the ip *rule* for it that directs
+		# the traffic through the iproute inserted below.
+		#
+		mysystem2("/sbin/ip rule add unicast iif $veth table $routetable");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
+		$private->{'iprules'}->{$veth} = $veth;
 
-	    my $net = inet_ntoa(inet_aton($inetip) & inet_aton($mask));
-	    mysystem2("/sbin/ip route replace ".
-		      "  default dev $gre table $routetable");
-	    if ($?) {
-		TBScriptUnlock();
-		return -1;
+		mysystem2("/sbin/ip route replace ".
+			  "  default dev $gre table $routetable");
+		if ($?) {
+		    TBScriptUnlock();
+		    return -1;
+		}
 	    }
 	}
 	TBScriptUnlock();
@@ -2277,13 +2470,20 @@ sub InitializeRouteTables()
 #
 sub GClvm($)
 {
-    my ($image)  = @_;
+    my ($lvmname)= @_;
     my $oldest   = 0;
     my $inuse    = 0;
     my $found    = 0;
 
-    mysystem("umount /mnt/$image")
-	if (-e "/mnt/$image/private");
+    #
+    # If this is an image, we have to unmount it.
+    #
+    if ($lvmname =~ /^image\+(.*)/) {
+	my $image = $1;
+	
+	mysystem("umount /mnt/$image")
+	    if (-e "/mnt/$image/private");
+    }
 
     if (! open(LVS, "lvs --noheadings -o lv_name,origin openvz |")) {
 	print STDERR "Could not start lvs\n";
@@ -2294,10 +2494,10 @@ sub GClvm($)
 	my $imname;
 	my $origin;
 	
-	if ($line =~ /^\s*([-\w\.]+)\s*$/) {
+	if ($line =~ /^\s*([-\w\.\+]+)\s*$/) {
 	    $imname = $1;
 	}
-	elsif ($line =~ /^\s*([-\w\.]+)\s+([-\w\.]+)$/) {
+	elsif ($line =~ /^\s*([-\w\.\+]+)\s+([-\w\.\+]+)$/) {
 	    $imname = $1;
 	    $origin = $2;
 	}
@@ -2311,18 +2511,18 @@ sub GClvm($)
 
 	# The exact image we are trying to GC.
 	$found = 1
-	    if ($imname eq $image);
+	    if ($imname eq $lvmname);
 
 	# If the origin is the image we are looking for,
 	# then we mark it as inuse.
 	$inuse = 1
-	    if (defined($origin) && $origin eq $image);
+	    if (defined($origin) && $origin eq $lvmname);
 
 	# We want to find the highest numbered backup for this image.
 	# Might not be any of course.
-	if ($imname =~ /^([-\w]+)\.(\d+)$/) {
+	if ($imname =~ /^([-\w\+]+)\.(\d+)$/) {
 	    $oldest = $2
-		if ($1 eq $image && $2 > $oldest);
+		if ($1 eq $lvmname && $2 > $oldest);
 	}
     }
     close(LVS);
@@ -2330,54 +2530,419 @@ sub GClvm($)
 	if ($?);
     print "found:$found, inuse:$inuse, oldest:$oldest\n";
     if (!$found) {
-	print STDERR "GClvm($image): no such lvm found\n";
+	print STDERR "GClvm($lvmname): no such lvm found\n";
 	return -1;
     }
     if (!$inuse) {
-	print "GClvm($image): not in use; deleting\n";
-	system("lvremove $LVMDEBUGOPTS -f /dev/openvz/$image");
+	print "GClvm($lvmname): not in use; deleting\n";
+	system("lvremove $LVMDEBUGOPTS -f /dev/$VGNAME/$lvmname");
 	return -1
 	    if ($?);
 	return 0;
     }
     $oldest++;
     # rename nicely works even when snapshots exist
-    system("lvrename $LVMDEBUGOPTS /dev/openvz/$image" . 
-	   " /dev/openvz/$image.$oldest");
+    system("lvrename $LVMDEBUGOPTS /dev/$VGNAME/$lvmname" . 
+	   " /dev/$VGNAME/$lvmname.$oldest");
     return -1
 	if ($?);
-    
     return 0;
 }
 
 #
-# See if we can delete a bridge.
+# Create a logical volume for the image if it doesn't already exist.
 #
-sub GCbridge($)
+sub createImageDisk($$$$$)
 {
-    my ($brname) = @_;
-    
+    my ($image,$vnode_id,$raref,$tarfile,$lvsize) = @_;
+    my $tstamp = $raref->{'IMAGEMTIME'};
+    my $lvname = "image+" . $image;
+    my $imagepath;
+    my $lvmpath = lvmVolumePath($lvname);
+    my $imagedatepath = "/var/emulab/db/openvz.image.${image}.date";
+ 
+    # We are locked by the caller.
+
     #
-    # See if we need to delete the bridge; once all the members
-    # are removed, we want to get rid of the bridge. But the
-    # bridge might be shared with other containers, to have to
-    # explicitly check (we have the lock).
+    # Do we have the right image file already? No need to download it
+    # again if the timestamp matches.
     #
-    my $foo = `$BRCTL showmacs $brname | wc -l`;
-    if ($?) {
-	print STDERR "'brctl showmacs $brname' failed\n";
+    if (findLVMLogicalVolume($lvname)) {
+	# Watch for reload, the mnt dir will be gone.
+	goto bad
+	    if (! -e "/mnt/$image" && mysystem2("mkdir -p /mnt/$image"));
+	
+	if (! -e $imagedatepath) {
+	    #
+	    # See if we can figure out the date. Must be a reboot/reload.
+	    #
+	    if (! -e "/mnt/$image/private") {
+		mysystem2("mount $lvmpath /mnt/$image");
+		if ($? == 0 && -e "/mnt/$image/.created") {
+		    mysystem2("/bin/cp -p /mnt/$image/.created $imagedatepath");
+		}
+	    }
+	}
+	
+	if (-e $imagedatepath) {
+	    my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
+		$mtime,undef,undef,undef) = stat($imagedatepath);
+	    if ("$mtime" eq "$tstamp") {
+		#
+		# We want to update the access time to indicate a new
+		# use of this image, for pruning unused images later.
+		#
+		utime(time(), $mtime, $imagedatepath);
+		print "Found existing disk: $lvmpath.\n";
+		
+		#
+		# Make sure still mounted; might have been a reboot.
+		#
+		if (! -e "/mnt/$image/private") {
+		    mysystem2("mount $lvmpath /mnt/$image");
+		    goto bad
+			if ($?);
+		}
+		return 0;
+	    }
+	    print "mtime for $lvmpath differ: local $mtime, server $tstamp\n";
+	}
+	if (-e "/mnt/$image/private" && mysystem2("umount /mnt/$image")) {
+	    print STDERR "Could not umount /mnt/$image\n";
+	    return -1;
+	}
+	if (GClvm($lvname)) {
+	    print STDERR "Could not GC or rename $image\n";
+	    return -1;
+	}
+	unlink($imagedatepath)
+	    if (-e $imagedatepath);
+    }
+
+    if (system("lvcreate -n $lvname -L ${lvsize}M $VGNAME")) {
+	print STDERR "libvnode_openvz: could not create disk for $image\n";
 	return -1;
     }
+
+    #
+    # Format the volume as a filesystem to dump the tar file into.
+    #
+    goto bad
+	if (! -e "/mnt/$image" && mysystem2("mkdir -p /mnt/$image"));
+    goto bad
+	if (-e "/mnt/$image/private" && mysystem2("umount /mnt/$image"));
+    mysystem2("mkfs -t ext3 $lvmpath");
+    goto bad
+	if ($?);
+    mysystem2("mount $lvmpath /mnt/$image");
+    goto bad
+	if ($?);
+    mysystem2("mkdir -p /mnt/$image/root /mnt/$image/private");
+    goto bad
+	if ($?);
+
+    #
+    # If we were passed a tarfile, use that directly, as for the default.
+    #
+    if (defined($tarfile)) {
+	$imagepath = $tarfile;
+    }
     else {
-	chomp($foo);
-	# Just a header line. Ick. 
-	if ($foo <= 1) {
-	    mysystem2("$IFCONFIG $brname down");	    
-	    mysystem2("$BRCTL delbr $brname");
+	$imagepath = "$EXTRAFS/${image}.tar.gz";
+
+	# Now we just download the file, then let create do its normal thing
+	if (libvnode::downloadImage($imagepath, 0, $vnode_id, $raref)) {
+	    print STDERR "libvnode_openvz: could not download image $image\n";
+	    return -1;
+	}
+    }
+    # Now unpack the tar file, then remove it.
+    mysystem2("tar zxf $imagepath -C /mnt/$image/private");
+    goto bad
+	if ($?);
+    unlink($imagepath)
+	if (!$tarfile);
+
+    # reload has finished, file is written... so let's set its mtime
+    mysystem2("touch $imagedatepath")
+	if (! -e $imagedatepath);
+    utime(time(), $tstamp, $imagedatepath);
+    # Store inside so we can find out after reboot/reload.
+    mysystem2("/bin/cp -p $imagedatepath /mnt/$image/.created");
+    
+    #
+    # Need to unmount for snapshots.
+    #
+    if ($DOSNAP) {
+	mysystem2("umount /mnt/$image");
+	goto bad
+	    if ($?);
+    }
+
+    #
+    # XXX note that we don't declare RELOADDONE here since we haven't
+    # actually created the vnode shadow disk yet.  That is the caller's
+    # responsibility.
+    #
+    return 0;
+  bad:
+    return -1;
+}
+
+sub lvmVolumePath($)
+{
+    my ($name) = @_;
+    return "/dev/$VGNAME/$name";
+}
+
+sub findLVMLogicalVolume($)
+{
+    my ($lvm)  = @_;
+    my $lvpath = lvmVolumePath($lvm);
+    my $exists = `lvs --noheadings -o origin $lvpath > /dev/null 2>&1`;
+    return 0
+	if ($?);
+
+    return 1;
+}
+
+sub lvmHasChildren($)
+{
+    my ($lvname) = @_;
+
+    foreach (`lvs --noheadings -o origin $VGNAME`) {
+	if (/^\s*${lvname}\s*$/) {
 	    return 1;
 	}
     }
     return 0;
+}
+
+sub lvmOrigin($)
+{
+    my ($lvm)  = @_;
+    my $lvpath = lvmVolumePath($lvm);
+    my $origin = `lvs --noheadings -o origin $lvpath`;
+    return undef
+	if ($?);
+
+    # Trim
+    chomp($origin);
+    $origin =~ s/^\s+//;
+    $origin =~ s/\s+$//;
+    return $origin;
+}
+
+#
+# Create a file to run from vznet-init, to set up the caps for a link.
+#
+sub CreateCapScript($$$$$)
+{
+    my ($vmid, $script, $ldinfo, $iface, $ifb) = @_;
+    my $bw    = $ldinfo->{"BW"};
+    my $type  = $ldinfo->{'TYPE'};
+
+    if (! open(FILE, ">$script")) {
+	print STDERR "Error creating $script: $!\n";
+	return -1;
+    }
+    print FILE "#!/bin/sh\n";
+
+    my @cmds = ();
+    
+    push(@cmds, "$TC qdisc add dev $iface handle 1 root htb default 1");
+    push(@cmds, "$TC class add dev $iface classid 1:1 ".
+	        "parent 1 htb rate ${bw}kbit ceil ${bw}kbit");
+
+    push(@cmds, "$IFCONFIG $ifb up");
+    push(@cmds, "$TC qdisc del dev $ifb root");
+    push(@cmds, "$TC qdisc add dev $iface handle ffff: ingress");
+    push(@cmds, "$TC filter add dev $iface parent ffff: protocol ip ".
+	        "u32 match u32 0 0 action mirred egress redirect dev $ifb");
+    push(@cmds, "$TC qdisc add dev $ifb root handle 2: htb default 1");
+    push(@cmds, "$TC class add dev $ifb parent 2: classid 2:1 ".
+	        "htb rate ${bw}kbit ceil ${bw}kbit");
+
+    foreach my $cmd (@cmds) {
+	print FILE "echo \"$cmd\"\n";
+	print FILE "$cmd\n\n";
+    }
+    print FILE "exit 0\n";
+
+    close(FILE);
+    chmod(0554, $script);
+    return 0;
+}
+
+#
+# Deal with IFBs.
+#
+sub AllocateIFBs($$$)
+{
+    my ($vmid, $node_lds, $private) = @_;
+    my @ifbs = ();
+
+    my %MDB;
+    if (!dbmopen(%MDB, $IFBDB, 0660)) {
+	print STDERR "*** Could not create $IFBDB\n";
+	return undef;
+    }
+
+    #
+    # We need an IFB for every ld, so just make sure we can get that many.
+    #
+    my $needed = scalar(@$node_lds);
+
+    #
+    # First pass, look for enough before actually allocating them.
+    #
+    my $i = 0;
+    my $n = $needed;
+    
+    while ($n && $i < $MAXIFB) {
+	if (!defined($MDB{"$i"}) || $MDB{"$i"} eq "" || $MDB{"$i"} eq "$vmid") {
+	    $n--;
+	}
+	$i++;
+    }
+    if ($i == $MAXIFB || $n) {
+	print STDERR "*** No more IFBs\n";
+	dbmclose(%MDB);
+	return undef;
+    }
+    #
+    # Now allocate them.
+    #
+    $i = 0;
+    $n = $needed;
+    
+    while ($n && $i < $MAXIFB) {
+	if (!defined($MDB{"$i"}) || $MDB{"$i"} eq "" || $MDB{"$i"} eq "$vmid") {
+	    $MDB{"$i"} = $vmid;
+	    # Record ifb in use
+	    $private->{'ifbs'}->{$i} = $i;
+	    push(@ifbs, $i);
+	    $n--;
+	}
+	$i++;
+    }
+    dbmclose(%MDB);
+    return \@ifbs;
+}
+
+sub ReleaseIFBs($$)
+{
+    my ($vmid, $private) = @_;
+    
+    my %MDB;
+    if (!dbmopen(%MDB, $IFBDB, 0660)) {
+	print STDERR "*** Could not create $IFBDB\n";
+	return -1;
+    }
+    #
+    # Do not worry about what we think we have, just make sure we
+    # have released everything assigned to this vmid. 
+    #
+    for (my $i = 0; $i < $MAXIFB; $i++) {
+	if (defined($MDB{"$i"}) && $MDB{"$i"} eq "$vmid") {
+	    $MDB{"$i"} = "";
+	}
+    }
+    dbmclose(%MDB);
+    delete($private->{'ifbs'});
+    return 0;
+}
+
+sub AllocateIMQs($$$)
+{
+    my ($vmid, $node_lds, $private) = @_;
+    my @imqs = ();
+    
+    #
+    # We need an IMQ for every duplex ld.
+    #
+    my $needed = 0;
+
+    foreach my $ldc (@$node_lds) {
+	$needed++
+	    if ($ldc->{"TYPE"} eq 'duplex');
+    }
+    return \@imqs
+	if (!$needed);
+
+    my %MDB;
+    if (!dbmopen(%MDB, $IMQDB, 0660)) {
+	print STDERR "*** Could not create $IMQDB\n";
+	return undef;
+    }
+
+    #
+    # First pass, look for enough before actually allocating them.
+    #
+    my $i = 0;
+    my $n = $needed;
+    
+    while ($n && $i < $MAXIMQ) {
+	if (!defined($MDB{"$i"}) || $MDB{"$i"} eq "" || $MDB{"$i"} eq "$vmid") {
+	    $n--;
+	}
+	$i++;
+    }
+    if ($i == $MAXIMQ || $n) {
+	print STDERR "*** No more IMQs\n";
+	dbmclose(%MDB);
+	return undef;
+    }
+    #
+    # Now allocate them.
+    #
+    $i = 0;
+    $n = $needed;
+    
+    while ($n && $i < $MAXIMQ) {
+	if (!defined($MDB{"$i"}) || $MDB{"$i"} eq "" || $MDB{"$i"} eq "$vmid") {
+	    $MDB{"$i"} = $vmid;
+	    # Record imq in use
+	    $private->{'imqs'}->{$i} = $i;
+	    push(@imqs, $i);
+	    $n--;
+	}
+	$i++;
+    }
+    dbmclose(%MDB);
+    return \@imqs;
+}
+
+sub ReleaseIMQs($$)
+{
+    my ($vmid, $private) = @_;
+    
+    my %MDB;
+    if (!dbmopen(%MDB, $IMQDB, 0660)) {
+	print STDERR "*** Could not create $IMQDB\n";
+	return -1;
+    }
+    #
+    # Do not worry about what we think we have, just make sure we
+    # have released everything assigned to this vmid. 
+    #
+    for (my $i = 0; $i < $MAXIMQ; $i++) {
+	if (defined($MDB{"$i"}) && $MDB{"$i"} eq "$vmid") {
+	    $MDB{"$i"} = "";
+	}
+    }
+    dbmclose(%MDB);
+    delete($private->{'imqs'});
+    return 0;
+}
+
+# convert 123456 into 12:34:56
+sub fixupMac($)
+{
+    my ($x) = @_;
+    $x =~ s/(\w\w)/$1:/g;
+    chop($x);
+    return $x;
 }
 
 # what can I say?

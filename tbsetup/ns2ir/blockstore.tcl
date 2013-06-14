@@ -1,7 +1,7 @@
 
 # -*- tcl -*-
 #
-# Copyright (c) 2012 University of Utah and the Flux Group.
+# Copyright (c) 2012-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -26,7 +26,13 @@
 ######################################################################
 # blockstore.tcl
 #
-# This class defines the blockstore storage object.
+# This class defines the blockstore storage object.  Note: Each
+# blockstore object's finalize() method MUST be called AFTER all of
+# the set-* calls, but BEFORE the updatedb() method.  Generally,
+# finalize() should be called once it is clear that no other set-*
+# methods will be called; before the object is used.  E.g., the
+# sim.tcl code calls finalize() for all blockstore object near the top
+# of the run() method.
 #
 ######################################################################
 
@@ -45,6 +51,8 @@ Blockstore instproc init {s} {
     $self set size 0
     $self set type {}
     $self set role "unknown"
+    # for compat with LanLink
+    $self set simulated 0
 
     # storage attributes (class, protocol, etc.)
     $self instvar attributes
@@ -68,7 +76,7 @@ Blockstore instproc set-class {newclass} {
 	return
     }
 
-    $self set attributes(class) $newclass
+    set attributes(class) $newclass
     return
 }
 
@@ -81,23 +89,66 @@ Blockstore instproc set-protocol {newproto} {
 	return
     }
 
-    $self set attributes(protocol) $newproto
+    set attributes(protocol) $newproto
     return
 }
 
 Blockstore instproc set-type {newtype} {
     var_import ::TBCOMPAT::sotypes
+    $self instvar type
 
     if {![info exists sotypes($newtype)]} {
 	perror "\[set-type] Invalid storage object type: $newtype"
 	return
     }
 
-    $self set type $type
+    set type $type
+    return
+}
+
+Blockstore instproc set-placement {newplace} {
+    var_import ::TBCOMPAT::soplacementdesires
+    $self instvar attributes
+
+    set newplace [string toupper $newplace]
+    if {![info exists soplacementdesires($newplace)]} {
+	perror "Invalid placement specified: $newplace"
+	return
+    }
+
+    set attributes(placement) $newplace
+    return
+}
+
+Blockstore instproc set-mount-point {newmount} {
+    var_import ::TBCOMPAT::sodisallowedmounts
+    $self instvar attributes
+    $self instvar node
+
+    # Keep the mount point path rules simple but strict:
+    #  * Must start with a forward slash (absolute path)
+    #  * Directory names must only consist of characters in: [a-zA-Z0-9_]
+    #  * Two forward slashes in a row not allowed
+    #  * Optionally end with a forward slash
+    if {![regexp {^(/\w+){1,}/?$} $newmount]} {
+	perror "Bad mountpoint: $newmount"
+	return
+    }
+
+    # Try to prevent user from shooting their own foot.
+    if {[lsearch -exact $sodisallowedmounts $newmount] != -1} {
+	perror "Cannot mount over important system directory: $newmount"
+	return
+    }
+
+    set attributes(mountpoint) $newmount
     return
 }
 
 Blockstore instproc set-size {newsize} {
+    $self instvar node
+    $self instvar size
+
     set mindisksize 1; # 1 MiB
 
     # Convert various input size strings to mebibytes.
@@ -109,30 +160,235 @@ Blockstore instproc set-size {newsize} {
 	return
     }
 
-    $self set size $convsize
+    set size $convsize
     return
 }
 
+#
+# Alias for procedure below
+#
+Blockstore instproc set-node {pnode} {
+    return [$self set_fixed $pnode]
+}
+
+#
+# Explicitly fix a blockstore to a node.
+#
+Blockstore instproc set_fixed {pnode} {
+    $self instvar sim
+    $self instvar node
+    $self instvar attributes
+
+    if { [$pnode info class] != "Node" } {
+	perror "Can only fix blockstores to a node object!"
+    }
+
+    set node $pnode
+
+    return
+}
+
+# Create a "blockstore" pseudo-VM to represent the blockstore as a
+# node object within the guts of Emulab.
+Blockstore instproc alloc_pseudonode {} {
+    $self instvar sim
+
+    # Allocate blockstore pseudo-VM
+    set hname "blockhost-${self}"
+    uplevel "#0" "set $hname [$sim node]"
+    $hname set_hwtype "blockstore" 0 1 0
+
+    return $hname
+}
 
 # Create a node object to represent the host that contains this blockstore,
 # or return it if it already exists.
 Blockstore instproc get_node {} {
-    $self instvar sim
     $self instvar node
 
-    if {$node != {}} {
-	return $node
+    if {$node == {}} {
+	set node [$self alloc_pseudonode]
     }
 
-    # Allocate parent host and bind to it.
-    set hname "sanhost-${self}"
-    uplevel "#0" "set $hname [$sim node]"
-    $hname set subnodehost 1
-    $hname set subnodechild $self
-    set node $hname
+    return $node
+}
 
-    # Return parent node object.
-    return $hname
+# Do final (AFTER set-*, but BEFORE updatedb) validations and
+# initializations.
+Blockstore instproc finalize {} {
+    var_import ::TBCOMPAT::sodefaultplacement
+    var_import ::TBCOMPAT::sopartialplacements
+    var_import ::TBCOMPAT::sofullplacements
+    var_import ::TBCOMPAT::soplacementdesires
+    var_import ::TBCOMPAT::sonodemounts
+    $self instvar sim
+    $self instvar node
+    $self instvar size
+    $self instvar attributes
+
+    # Die if the user didn't attach the blockstore to anything.
+    if { $node == {} } {
+	perror "Blockstore is not attached to anything: $self"
+	return -1
+    }
+
+    # Make sure the blockstore has class...
+    if {![info exists attributes(class)]} {
+	perror "Blockstore's class must be specified: $self"
+	return -1
+    }
+    set myclass $attributes(class)
+
+    # Remote blockstore validation/handling.
+    if {$myclass == "SAN"} {
+	# Size matters here.
+	if {$size == 0} {
+	    perror "Remote blockstores must have a size: $self"
+	    return -1
+	}
+	# Placement directives are invalid for remote blockstores.
+	if {[info exists attributes(placement)]} {
+	    perror "Placement setting only makes sense with local blockstores: $self"
+	    return -1
+	}
+	# Deal with some syntactic sugar for 1-to-1 bindings to nodes.
+	if {[$node set type] != "blockstore"} {
+	    set pnode $node
+	    set node [$self alloc_pseudonode]
+	    uplevel "#0" "set ${self}-link [$sim duplex-link $pnode $node ~ 0ms DropTail]"
+	    ${self}-link set sanlan 1
+	}
+	# Die if the user has attempted to connect the blockstore via multiple
+	# links.  We only support one.
+	if {[llength [$node set portlist]] != 1} {
+	    perror "A remote blockstore must be connected to one, and only one, link/lan: $self"
+	    return -1
+	}
+    }
+
+    #
+    # Local node hacks and stuff.  For local blockstores, we simply add
+    # a disk space 'desire' to the attached node.
+    #
+    # Also perform validation checks.
+    #
+    if {$myclass == "local"} {
+	# Initialization for placement.
+	if {![info exists attributes(placement)]} {
+	    set attributes(placement) $sodefaultplacement
+	} 
+	set myplace $attributes(placement)
+	set nodeplace "${node}:${myplace}"
+	if {![info exists sopartialplacements($nodeplace)]} {
+	    set sopartialplacements($nodeplace) 0
+	}
+	if {![info exists sofullplacements($nodeplace)]} {
+	    set sofullplacements($nodeplace) 0
+	}
+
+	# Add a desire for space of the given placement type.
+	set pldesire $soplacementdesires($myplace)
+	if {$size != 0} {
+	    set cursize [$node get-desire $pldesire]
+	    if {$cursize == {}} {
+		set cursize 0
+	    }
+	    $node add-desire $pldesire [expr $size + $cursize] 1
+	    incr sopartialplacements($nodeplace) 1
+	} else {
+	    # In the case of a full-sized placement, add a token 1MiB
+	    # desire just to make sure something is there.
+	    $node add-desire $pldesire 1 1
+	    incr sofullplacements($nodeplace) 1
+	}
+
+	# Check that there is only one sysvol placement per node
+	set systotal [expr $sopartialplacements($nodeplace) + \
+			   $sofullplacements($nodeplace)]
+	if { $myplace == "SYSVOL" && $systotal > 1 } {
+	    perror "Only one sysvol placement allowed per node: $node"
+	    return -1
+	}
+
+	# Sanity check for full placements.  There can be only one per node
+	# per placement type.
+	if { $sofullplacements($nodeplace) > 1 ||
+	     ($sofullplacements($nodeplace) == 1 &&
+	      $sopartialplacements($nodeplace) > 0) } {
+	    perror "Full placement collision found for $nodeplace"
+	    return -1
+	}
+
+	# Look for an incompatible mix of "ANY" and other placements (per-node).
+	set srchres 0
+	set allplacements \
+	    [concat \
+		 [array names sopartialplacements -glob "${node}:*"] \
+		 [array names sofullplacements -glob "${node}:*"]]
+	if {$myplace == "ANY"} {
+	    set srchres [lsearch -exact -not $allplacements "${node}:ANY"]
+	} else {
+	    set srchres [lsearch -exact $allplacements "${node}:ANY"]
+	}
+	if {$srchres != -1} {
+	    perror "Incompatible mix of 'ANY' and other placements on $node"
+	    return -1
+	}
+    }
+
+    # Check for node mount collisions.
+    if {[info exists attributes(mountpoint)]} {
+	set mymount $attributes(mountpoint)
+	set mynode $node
+
+	# Dig up the other end of the link for remote blockstores since the
+	# node there will be the one doing the mounting.
+	if {$myclass == "SAN"} {
+	    # We only support a single link/lan - checked above.
+	    set link [lindex [$node set portlist] 0]
+	    # Don't allow mount points for shared remote blockstores (i.e.,
+	    # blockstores on a lan.
+	    if {[$link info class] != "Link"} {
+		perror "Cannot specify a mount point for blockstores connected to multiple nodes (i.e., on a lan): $self"
+		return -1
+	    }
+	    set src [$link set src_node]
+	    set dst [$link set dst_node]
+	    set mynode [expr {$src == $node ? $dst : $src}]
+	}
+
+	# Bit of init.
+	if {![info exists sonodemounts($mynode)]} {
+	    set sonodemounts($mynode) {}
+	}
+
+	# Look through all mount points for other blockstores attached
+	# to the same node as this blockstore.
+	set mplist [lreplace [split $mymount   "/"] 0 0]
+	foreach nodemount $sonodemounts($mynode) {
+	    set nmlist [lreplace [split $nodemount "/"] 0 0]
+	    set diff 0
+	    # Look for any differences in path components.  If one is a 
+	    # matching prefix of the other, then the mount is nested or
+	    # identical.
+	    foreach nmcomp $nmlist mpcomp $mplist {
+		# Have we hit the end of the list for one or the other?
+		if {$nmcomp == {} || $mpcomp == {}} {
+		    break
+		} elseif {$nmcomp != $mpcomp} {
+		    set diff 1
+		    break
+		}
+	    }
+	    if {!$diff} {
+		perror "Mount collision or nested mount detected on $node: $mymount, $nodemount"
+		return -1
+	    }
+	}
+	lappend sonodemounts($mynode) $mymount
+    }
+    
+    return 0
 }
 
 # updatedb DB
@@ -141,6 +397,7 @@ Blockstore instproc get_node {} {
 Blockstore instproc updatedb {DB} {
     var_import ::GLOBALS::pid
     var_import ::GLOBALS::eid
+    var_import ::TBCOMPAT::sodesires
     $self instvar sim
     $self instvar node
     $self instvar type
@@ -148,7 +405,7 @@ Blockstore instproc updatedb {DB} {
     $self instvar role
     $self instvar attributes
 
-    # XXX: role needs more thought...
+    # XXX: blockstore role needs more thought...
     #if { $role == "unknown" } {
     #    puts stderr "*** WARNING: blockstore role not set and unable to infer it."
     #}
@@ -161,7 +418,13 @@ Blockstore instproc updatedb {DB} {
     # Emit attributes.
     foreach key [lsort [array names attributes]] {
 	set val $attributes($key)
-	$sim spitxml_data "virt_blockstore_attributes" [list "vname" "attrkey" "attrvalue"] [list $self $key $val]
+	set vba_fields [list "vname" "attrkey" "attrvalue" "isdesire"] 
+	set vba_values [list $self $key $val]
+	
+	set isdesire [expr [info exists sodesires($key)] ? 1 : 0]
+	lappend vba_values $isdesire
+
+	$sim spitxml_data "virt_blockstore_attributes" $vba_fields $vba_values
+
     }
 }
-

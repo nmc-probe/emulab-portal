@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,7 +32,7 @@ use Exporter;
 	 AddAuditInfo
 	 LogStart LogEnd LogAbort
 	 LIBAUDIT_NODAEMON LIBAUDIT_DAEMON LIBAUDIT_LOGONLY
-	 LIBAUDIT_NODELETE LIBAUDIT_FANCY LIBAUDIT_LOGTBOPS
+	 LIBAUDIT_NODELETE LIBAUDIT_FANCY LIBAUDIT_LOGTBOPS LIBAUDIT_LOGTBLOGS
        );
 
 # After package decl.
@@ -67,8 +67,8 @@ my $logfile;
 
 # Logonly, not to audit list.
 my $logonly     = 0;
-# Log to tbops
-my $logtbops    = 0;
+# Log to tbops or tblogs
+my $logtblogs   = 0;
 
 # Save log when logging only.
 my $savelog     = 0;
@@ -104,6 +104,7 @@ sub LIBAUDIT_NODELETE	{ 0x04; }
 sub LIBAUDIT_FANCY      { 0x08; } # Only use if libdb and libtblog are
                                   # already in use
 sub LIBAUDIT_LOGTBOPS	{ 0x10; }
+sub LIBAUDIT_LOGTBLOGS	{ 0x20; }
 
 #
 # Start an audit (or log) of a script. First arg is a flag indicating if
@@ -126,14 +127,17 @@ sub AuditStart($;$$)
 
     # Logging instead of "auditing" ...
     if (defined($options)) {
+	if ($options & LIBAUDIT_NODELETE()) {
+	    $savelog = 1;
+	}
 	if ($options & LIBAUDIT_LOGONLY()) {
 	    $logonly = 1;
 
-	    if ($options & LIBAUDIT_NODELETE()) {
-		$savelog = 1;
-	    }
 	    if ($options & LIBAUDIT_LOGTBOPS()) {
 		$logtbops = 1;
+	    }
+	    elsif ($options & LIBAUDIT_LOGTBLOGS()) {
+		$logtblogs = 1;
 	    }
 	}
 	if ($options & LIBAUDIT_FANCY()) {
@@ -263,10 +267,8 @@ sub AuditEnd(;$)
     
     SendAuditMail($status);
     delete @ENV{'TBAUDITLOG', 'TBAUDITON'};
-    if (defined($logfile)) {
-	unlink($logfile)
-	    if (! ($logonly && $savelog));
-    }
+    unlink($logfile)
+	if (defined($logfile) && !$savelog);
     return 0;
 }
 
@@ -301,7 +303,8 @@ sub AuditAbort()
 	    # This should be okay; the process will keep writing to it,
 	    # but will be deleted once the process ends and its closed.
 	    #
-	    unlink($logfile);
+	    unlink($logfile)
+	    	if (!$savelog);
 	    undef($logfile);
 	}
 	delete @ENV{'TBAUDITLOG', 'TBAUDITON'};
@@ -318,40 +321,37 @@ sub AuditFork()
     return 0
 	if (!$auditing || !defined($logfile));
 
-    $logfile = TBMakeLogname("$SCRIPTNAME");
-    $ENV{'TBAUDITLOG'} = $logfile;
-
-    # Need to close these so that this side of the fork is disconnected.
-    if (!$daemon && $PERL_VERSION >= 5.008) {
-	close($libaudit::SAVE_STDOUT);
-	close($libaudit::SAVE_STDERR);
-	$libaudit::SAVE_STDOUT = 0;
-	$libaudit::SAVE_STDERR = 0;
-    }
+    open(LOG, ">> $logfile") or
+	die("opening $logfile for $logfile: $!");
+	
     close(STDOUT);
     close(STDERR);
-
-    if (0) {
-	open(STDOUT, ">> $logfile") or
-	    die("opening $logfile for STDOUT: $!");
-	open(STDERR, ">> $logfile") or
-	    die("opening $logfile for STDERR: $!");
-    }
-    else {
-	open(LOG, "> $logfile") or
-	    die("opening $logfile for $logfile: $!");
-	
-	POSIX::dup2(fileno(LOG), 1);
-	POSIX::dup2(fileno(LOG), 2);
-	STDOUT->fdopen(1, "a");
-	STDERR->fdopen(2, "a");
-    }
+    POSIX::dup2(fileno(LOG), 1);
+    POSIX::dup2(fileno(LOG), 2);
+    STDOUT->fdopen(1, "a");
+    STDERR->fdopen(2, "a");
+    close(LOG);
 
     #
     # Turn off line buffering on output
     #
     STDOUT->autoflush(1);
     STDERR->autoflush(1);
+
+    #
+    # Need to close these so that this side of the fork is disconnected.
+    # Do NOT close the saved STDOUT/STDERR descriptors until the new
+    # ones are open and dup'ed into fileno 1 and 2, and the LOG descriptor
+    # closed. This was causing SelfLoader to get confused abut something!
+    #
+    if (!$daemon && $PERL_VERSION >= 5.008) {
+	close($libaudit::SAVE_STDOUT)
+	    if ($libaudit::SAVE_STDOUT);
+	close($libaudit::SAVE_STDERR)
+	    if ($libaudit::SAVE_STDERR);
+	$libaudit::SAVE_STDOUT = 0;
+	$libaudit::SAVE_STDERR = 0;
+    }
 
     #
     # Create a new session to ensure we are clear of any process group.
@@ -439,6 +439,10 @@ sub SendAuditMail($)
 		elsif ($logtbops) {
 		    $TO    = $TBOPS;
 		}
+		elsif ($logtblogs) {
+		    $TO    = $TBLOGS;
+		    $HDRS .= "\nCC: $TBOPS" if ($exitstatus);
+		}
 		else {
 		    $TO    = $FROM;
 		    $HDRS .= "\nCC: ". ($exitstatus ? $TBOPS : $TBLOGS);
@@ -448,6 +452,10 @@ sub SendAuditMail($)
 		$TO    = $TBLOGS;
 		$HDRS .= "\nCC: $TBOPS" if ($exitstatus);
 	    }
+	}
+	elsif ($logtblogs) {
+	    $TO    = $TBLOGS;
+	    $HDRS .= "\nCC: $TBOPS" if ($exitstatus);
 	}
 	else {
 	    $TO    = $TBOPS;
@@ -460,7 +468,7 @@ sub SendAuditMail($)
 	# Leave logfile if sendmail fails. 
 	if (SENDMAIL($TO, $subject, $body, $FROM, $HDRS, @FILES)) {
 	    unlink($logfile)
-		if (defined($logfile) && (! ($logonly && $savelog)));
+		if (defined($logfile) && !$savelog);
 	}
     }
 }
@@ -542,7 +550,7 @@ sub SendFancyMail($)
     
     if ($sendmail_res) {
 	unlink($logfile)
-	    if (defined($logfile) && (! $savelog));
+	    if (defined($logfile) && !$savelog);
     }
 }
 

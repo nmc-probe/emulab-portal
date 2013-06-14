@@ -33,6 +33,8 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.plugins.SliverTypeInterface;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+        import com.flack.geni.plugins.emulab.EmulabXenSliverType;
+	import com.flack.geni.plugins.emulab.Pipe;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.Property;
@@ -318,6 +320,8 @@ package com.flack.geni.tasks.process
 					nodeXml.@virtualization_type = "emulab-vnode";
 					if(node.sliverType.name == EmulabOpenVzSliverType.TYPE_EMULABOPENVZ)
 						nodeXml.@virtualization_subtype = EmulabOpenVzSliverType.TYPE_EMULABOPENVZ;
+                                        if(node.sliverType.name == EmulabXenSliverType.TYPE_EMULABXEN)
+                                                nodeXml.@virtualization_subtype = EmulabXenSliverType.TYPE_EMULABXEN;
 					if(node.sliverType.name == EmulabBbgSliverType.TYPE_EMULAB_BBG)
 						nodeXml.@virtualization_subtype = EmulabBbgSliverType.TYPE_EMULAB_BBG;
 				}
@@ -326,7 +330,8 @@ package com.flack.geni.tasks.process
 					var nodeType:String = "";
 					if(node.sliverType.name == RawPcSliverType.TYPE_RAWPC_V2)
 						nodeType = "pc";
-					else if(node.sliverType.name == EmulabOpenVzSliverType.TYPE_EMULABOPENVZ)
+                                        else if(node.sliverType.name == EmulabOpenVzSliverType.TYPE_EMULABOPENVZ ||
+                                          node.sliverType.name == EmulabXenSliverType.TYPE_EMULABXEN)
 						nodeType = "pcvm";
 					else if(node.sliverType.name == JuniperRouterSliverType.TYPE_JUNIPER_LROUTER)
 						nodeType = JuniperRouterSliverType.TYPE_JUNIPER_LROUTER;

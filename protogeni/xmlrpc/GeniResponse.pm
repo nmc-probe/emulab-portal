@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -247,6 +247,14 @@ sub BusyResponse($;$)
     
     return GeniResponse->Create(GENIRESPONSE_BUSY,
 				undef, "$resource is busy; try again later");
+}
+
+sub MonitorResponse($)
+{
+    my (undef) = @_;
+
+    return GeniResponse->Create(GENIRESPONSE_BUSY,
+			undef, "start/restart in progress; try again later");
 }
 
 sub BadArgsResponse(;$)

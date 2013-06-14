@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -55,8 +55,12 @@ BEGIN {
 # Configure variables
 my $MAINSITE 	     = @TBMAINSITE@;
 my $TBOPS            = "@TBOPSEMAIL@";
+my $TBLOGS           = "@TBLOGSEMAIL@";
 my $PORTAL_ENABLE    = @PORTAL_ENABLE@;
 my $PORTAL_ISPRIMARY = @PORTAL_ISPRIMARY@;
+my $TBBASE           = "@TBBASE@";
+my $GENIGROUP        = "GeniSlices";
+my $PGERRORS	     = "protogeni-errors\@flux.utah.edu";
 my $MODULE;
 my $GENIURN;
 
@@ -90,13 +94,21 @@ use GeniUtil;
 use libaudit;
 use libEmulab;
 use libtestbed;
+use Logfile;
 use User;
+use Group;
 
 # Need a command line option.
 my $debug      = 0;
 my $mailerrors = 1;
+my $mailsendlog= 0;
+my $nostorelogs= 0;
 # Flag for XMLERROR.
 my $logging    = 0;
+my $logforked  = 0;
+my $iserror    = 0;
+my $rpcerror   = 0;
+my $logfile    = undef;
 
 # Determined by version.
 my $responder;
@@ -123,8 +135,13 @@ sub XMLError($$)
     $string     = $decoder->encode_fault($code, $string);
 
     # Make sure the error goes back to user not into the debug file.
-    LogEnd(0)
-	if ($logging);
+    if ($logging) {
+	LogEnd(0);
+	if (!$logforked) {
+	    # Use eval to avoid messing up the output stream if any errors.
+	    eval { $logfile->Store(); };
+	}
+    }
     print "Content-Type: text/xml \n\n";
     print $string;
     exit(0);
@@ -306,8 +323,8 @@ if( $PROJECT ) {
     my $authority = GeniAuthority->Lookup( $name );
 
     if (!defined($authority)) {
-	die("*** $0:\n".
-	    "    Could not resolve requested authority\n");
+	XMLError( XMLRPC_APPLICATION_ERROR(),
+		  "Could not resolve requested authority" );
     }
     $ENV{'MYUUID'} = $authority->uuid();
     $ENV{'MYURN'}  = $authority->urn();
@@ -316,26 +333,143 @@ if( $PROJECT ) {
     $ENV{'MYURN'}  = $certificate->urn();
 }
 
+# Look at sitevars to determine debugging level.
+my $sitevarname = "protogeni/wrapper_" . lc($MODULE) . "_debug_level";
+if (SiteVarExists($sitevarname)) {
+    my $debug_level;
+    if (GetSiteVar($sitevarname, \$debug_level) == 0) {
+	$debug = $debug_level
+	    if (defined($debug_level));
+    }
+}
+elsif (lc($MODULE) eq "ch") {
+    # Do no even bother with logs unless an error or debugging.
+    $nostorelogs = $debug;
+}
+elsif (lc($MODULE) eq "sa") {
+    # Do no even bother with logs unless an error or debugging.
+    $nostorelogs = $debug;
+}
+elsif (lc($MODULE) eq "emulab") {
+    # XXX Special case, obviously
+    $debug = 2;
+}
+# Override default setting above.
+if (SiteVarExists("protogeni/wrapper_debug_sendlog")) {
+    my $debug_sendlog;
+    if (GetSiteVar("protogeni/wrapper_debug_sendlog", \$debug_sendlog) == 0) {
+	$mailsendlog = $debug_sendlog
+	    if (defined($debug_sendlog));
+    }
+}
+
 #
 # Create and set our RPC context for any calls we end up making.
 #
 Genixmlrpc->SetContext(Genixmlrpc->Context($certificate));
 
 #
-# Use libaudit to capture any output from libraries and programs.
-# Send that to tbops so they can be fixed.
+# Create a Logfile to give to libaudit. We need our current group
+# for this. 
+#
+my $group   = Group->Lookup($GENIGROUP, $GENIGROUP);
+if (!defined($group)) {
+    die("*** $0:\n".
+	"    Could not resolve lookup group $GENIGROUP\n");
+}
+$logfile = Logfile->Create($group);
+if (!defined($logfile)) {
+    die("*** $0:\n".
+	"    Could not create a new logfile\n");
+}
+# Anon users can view the log if they know the secret id. 
+$logfile->SetPublic(1);
+# For web interface spewing while operating.
+$logfile->Open();
+# Put the logfile into the environment for callee.
+$ENV{'LOGFILEID'}  = $logfile->logid();
+$ENV{'LOGFILEIDX'} = $logfile->logidx();
+# Metadata
+my $message  = "";
+my @metadata = ();
+
+#
+# This is an upcall to fork the log and so we know it. See below.
+#
+sub WrapperFork()
+{
+    # Need this in the child.
+    my $parent_lockname = "lock_$PID";
+
+    # Before the fork, lock the lock in the parent. It will be
+    # unlocked just before the parent exits, this informing the
+    # child.
+    emdb::DBQueryWarn("select GET_LOCK('$parent_lockname', 5)");
+    
+    my $mypid = fork();
+    if ($mypid) {
+	# Flag for below (parent only).
+	$logforked = 1;
+
+	# Tell caller we are the parent,
+	return $mypid;
+    }
+    # Reset in the child so that we can WrapperFork() again.
+    $logforked = 0;
+    
+    # XXX Need to let the parent finish up first, but the parent is
+    # is in the "defunct" state, so cannot use kill(0) to figure out
+    # it is gone.
+    emdb::DBQueryWarn("select GET_LOCK('$parent_lockname', 15)");
+    
+    # This switches the file that we are writing to in the child.
+    libaudit::AuditFork();
+    return 0;
+}
+
+#
+# Upcall to add metadata to the logfile. Difficult to
+# know so let the callee tell us.
+#
+sub AddLogfileMetaData($$)
+{
+    my ($key, $val) = @_;
+
+    # We want to watch for duplicates,
+    foreach my $foo (@metadata) {
+	my ($metakey,$metaval) = @{$foo};
+	return
+	    if ($key eq $metakey);
+    }
+    $nostorelogs = 0
+	if ($key eq "cert_error");
+    push(@metadata, [$key, $val]);
+}
+sub AddLogfileMetaDataFromSlice($)
+{
+    my ($slice) = @_;
+
+    AddLogfileMetaData("slice_idx",  $slice->idx());
+    AddLogfileMetaData("slice_urn",  $slice->urn());
+    AddLogfileMetaData("slice_uuid", $slice->uuid());
+}
+
+#
+# Use libaudit to capture any output from libraries and programs.  We
+# do not let it send the email though, we do that below, unless it
+# exits abnormally via the END block.
 #
 if ($MAINSITE) {
-    LogStart(0);
-    AddAuditInfo("to", "protogeni-errors\@flux.utah.edu")
+    LogStart(0, $logfile->filename(), LIBAUDIT_NODELETE());
+    AddAuditInfo("to", $PGERRORS);
 }
 else {
-    LogStart(0, undef, LIBAUDIT_LOGTBOPS());
+    LogStart(0, $logfile->filename(), LIBAUDIT_LOGTBLOGS()|LIBAUDIT_NODELETE());
 }
 $logging = 1;
 
 # CC errors to Utah for now.
-AddAuditInfo("cc", "protogeni-errors\@flux.utah.edu");
+AddAuditInfo("cc", $PGERRORS);
 
 #
 # This is lifted from the Frontier code. I want the actual response
@@ -359,58 +493,95 @@ my $method = $call->{'method_name'};
 if (!defined($GENI_METHODS->{$method})) {
     XMLError(XMLRPC_APPLICATION_ERROR() + 3, "no such method $method\n");
 }
-# Strictly for debugging the CM.
-my $target;
-if (defined($call->{'value'})) {
-    my ($argref) = @{ $call->{'value'} };
-    if (ref($argref) eq "HASH") {
-	if (exists($argref->{'slice_urn'})) {
-	    $target = $argref->{'slice_urn'};
-	}
-	elsif (exists($argref->{'sliver_urn'})) {
-	    $target = $argref->{'sliver_urn'};
+# Debugging overrides, to avoid email blasting.
+# Too much output.
+if ($method eq "ListResources" ||
+    $method eq "GetVersion" ||
+    $method eq "ListUsage" ||
+    $method eq "GetKeys" ||
+    $method eq "RegisterSliver" ||
+    $method eq "UnRegisterSliver" ||
+    $method eq "GetCredential" ||
+    $method eq "Resolve" ||
+    $method eq "DiscoverResources") {
+    $debug = 0;
+    # Do not even bother with logs unless an error.
+    $nostorelogs = 1;
+}
+# We always want as much data as possible for these.
+if ($method eq "CreateSliver" ||
+    $method eq "RedeemTicket" ||
+    $method eq "GetTicket") {
+    $debug = 2;
+}
+
+#
+# Look for a cert chain and verify the URN namespace along the chain.
+#
+my @chaincerts  = ();
+
+for (my $i = 0; $i < 10; $i++) {
+    last
+	if (!exists($ENV{"SSL_CLIENT_CERT_CHAIN_${i}"}));
+
+    my $chaincert =
+	GeniCertificate->LoadFromString($ENV{"SSL_CLIENT_CERT_CHAIN_${i}"});
+    if (!defined($chaincert)) {
+	print STDERR "Could not load chain certificate:\n";
+	print STDERR $ENV{"SSL_CLIENT_CERT_CHAIN_${i}"} . "\n";
+	XMLError(XMLRPC_APPLICATION_ERROR(),
+		 "Could not load chain certificate $i");
+    }
+    push(@chaincerts, $chaincert);
+}
+#
+# We need the user cert and the CA cert so that we have an
+# entire chain to do namespace verification on.
+#
+my $user_certificate =
+    GeniCertificate->LoadFromString($ENV{'SSL_CLIENT_CERT'});
+if (!defined($user_certificate)) {
+    print STDERR "Could not load user certificate:\n";
+    print STDERR $ENV{'SSL_CLIENT_CERT'} . "\n";
+    XMLError(XMLRPC_APPLICATION_ERROR(),
+	     "Could not load user certificate");
+}
+#
+# Sadly, apache does not tell us what the CA cert is; it just tells
+# us the server cert, which is useless. So we have to recompute the
+# chain to find the CA.
+#
+if ($user_certificate->VerifySSLChain(@chaincerts)) {
+    print STDERR "Could not verify user certificate chain:\n";
+    print STDERR Dumper([$user_certificate, @chaincerts]);
+    AddLogfileMetaData("cert_error",
+		       "Could not verify user certificate chain");
+    if (1) {
+	XMLError(XMLRPC_APPLICATION_ERROR(),
+		 "Could not verify user certificate chain");
+    }
+}
+else {
+    @chaincerts = (@chaincerts, $user_certificate->rootcert());
+    my $errorstr;
+    if ($user_certificate->VerifyGeniChain(\$errorstr, @chaincerts)) {
+	print STDERR "Failed to verify Geni chain (user cert): $errorstr\n";
+	print STDERR Dumper([$user_certificate, @chaincerts]);
+	AddLogfileMetaData("cert_error",
+		   "Failed to verify Geni chain (user cert): $errorstr");
+	if (0) {
+	    XMLError(XMLRPC_APPLICATION_ERROR(),
+		     "Could not verify user URN namespace chain: $errorstr");
 	}
     }
 }
 
 my $result;
-my $message =
-    "URN:     $GENIURN\n";
-$message .=
-    "Target:  $target\n" if (defined($target));
-$message .=
-    "Module:  $MODULE\n".
-    "Method:  $method\n";
-$message .=
-    "Version: $GENI_VERSION\n" if (defined($GENI_VERSION));
-$message .=
-    "Start:   " . TBTimeStamp() . "\n";
-
-# Debug the CM and AM modules
-if ($MODULE eq "cm" || $MODULE eq $AM_MODULE) {
-    $debug = 0;
-
-    # Too much output.
-    if ($method eq "ListResources" ||
-	$method eq "DiscoverResources") {
-	$debug = 0;
-    }
-    # Happens too often and not interesting
-    if ($method eq "Resolve" ||
-	$method eq "SliverStatus" ||
-	$method eq "GetVersion") {
-	$debug = 0;
-    }
-    # We always want as much data as possible for these.
-    if ($method eq "CreateSliver" ||
-	$method eq "RedeemTicket" ||
-	$method eq "GetTicket") {
-	$debug = 2;
-    }
-}
-elsif ($MODULE eq "emulab") {
-    $debug = 2;
-}
+push(@metadata, ["URN", $GENIURN]);
+push(@metadata, ["Module", $MODULE]);
+push(@metadata, ["Method", $method]);
+push(@metadata, ["Version", $GENI_VERSION]) if (defined($GENI_VERSION));
+push(@metadata, ["StartTime", TBTimeStamp()]);
 
 my $starttime = [gettimeofday()];
 eval { $result = &{ $GENI_METHODS->{$method} }(@{ $call->{'value'} }) };
@@ -421,82 +592,107 @@ if ($@) {
     #
     # These errors should get mailed to tbops.
     #
+    $rpcerror = $iserror = 1;
     print STDERR "Error executing RPC method $method:\n" . $@ . "\n";
-    AddAuditInfo("to", $TBOPS);
     $response = $decoder->encode_fault(XMLRPC_SERVER_ERROR(),
 				       "Internal Error executing $method");
 
-    AddAuditInfo("message", $message .
-		 "Error executing RPC:\n" . $@ . "\n\n" . $request);
+    $logfile->SetMetadata(\@metadata, 0);
+    foreach my $foo (@metadata) {
+	my ($key,$val) = @{$foo};
+	$message .= sprintf("%-15s: %s\n", $key, $val);
+    }
 }
 else {
     # In case the callee flipped.
     GeniUtil::FlipToGeniUser();
 
     my $elapsed = tv_interval($starttime);
-    $message .= "End:     " . TBTimeStamp() . "\n";
-    $message .= "Elapsed: " . sprintf("%f", $elapsed) . "\n";
+    push(@metadata, ["EndTime", TBTimeStamp()]);
+    push(@metadata, ["Elapsed", sprintf("%.2f", $elapsed)]);
 
-    my $logNumber = TBGetUniqueIndex('next_geni_log', 1);
-    my $logurn = GeniHRN::Generate("@OURDOMAIN@", "log", $logNumber);
-    $message .=
-	"Log URN: " . $logurn . "\n";
+    my $logurn = GeniHRN::Generate("@OURDOMAIN@", "log",
+				   $logfile->logid());
+    my $logurl = "$TBBASE/spewlogfile.php3?logfile=" . $logfile->logid(); 
+    push(@metadata, ["LogURN", $logurn]);
+    push(@metadata, ["LogURL", $logurl]);
 
     if (!ref($result)) {
-	$message .= "Return:    $result\n";
+	push(@metadata, ["Return", $result]);
     }
     else {
 	if (GeniResponse::IsError($result)) {
-	    $message .= "Error:   " . $result->{'code'} . "\n";
+	    push(@metadata, ["Error", $result->{'code'}]);
 	}
 	else {
-	    $message .= "Code:    " . $result->{'code'} . "\n";
-	}
-	$message .= "Output:  " . $result->{'output'} . "\n"
-	    if (defined($result->{'output'}) && $result->{'output'} ne "");
-
-	if (GeniResponse::IsError($result) || $debug > 1) {
-	    $message .= "Result:\n"  . Dumper($result->{'value'}) . "\n\n";
+	    push(@metadata, ["Code", $result->{'code'}])
 	}
     }
-    if (GeniResponse::IsError($result) || $debug > 1) {
-	$message .= "Request:\n" . $request . "\n";
+    # Add first line of result output to metadata. Bigger stuff
+    # will land at the end of the file. 
+    if (ref($result) && defined($result->{'output'}) &&
+	$result->{'output'} ne "") {
+	push(@metadata, ["Output", ( split /\n/, $result->{'output'} )[0]]);
+    }
+    # Purge old data; if we forked we want latest. 
+    $logfile->SetMetadata(\@metadata, 1);
+    
+    foreach my $foo (@metadata) {
+	my ($key,$val) = @{$foo};
+	$message .= sprintf("%-15s: %s\n", $key, $val);
     }
     AddAuditInfo("message", $message);
 
-    if (! ref($result)) {
+    # Do not send debugging mail for these two errors and do not save
+    # the logfiles.
+    if (GeniResponse::IsError($result)) {
+	if ($result->{'code'} == GENIRESPONSE_SEARCHFAILED() ||
+	    $result->{'code'} == GENIRESPONSE_BUSY) {
+	    $debug = 0;
+	}
+	else {
+	    $iserror = 1;
+	}
+    }
+    elsif (! ref($result) && $result) {
 	#
 	# This could happen if the child forks. 
 	#
-	if ($result) {
-	    print STDERR "Forked child returned an error\n";
-	}
+	$iserror = 1;
+	print STDERR "Forked child returned an error\n";
     }
-    else {
-	#
-	# If the response indicates error, and no output is defined in
-	# the response, then send back the contents of the audit file.
-	# Not sure this makes any sense at all yet, but the point is to
-	# get more info back to the user.
-	#
-	if (GeniResponse::IsError($result) &&
-	    (!defined($result->{'output'}) || $result->{'output'} eq "") &&
-	    exists($ENV{'TBAUDITLOG'}) && -s $ENV{'TBAUDITLOG'}) {
-	    $result->{'output'} = `cat $ENV{'TBAUDITLOG'}`;
+    
+    #
+    # We do not want this stuff as metadata; too much. Also it has to
+    # go into the logfile so it gets saved, since AddAuditInfo() just
+    # adds it to the email message, so it would be lost. Lets spit
+    # it out to the end of the log file.
+    #
+    # We only do this in the parent of a fork, hence the ref() test.
+    # Yep, the child side of the fork will append any new log info
+    # after these prints. But thats okay. 
+    #
+    if (ref($result) && ($iserror || $debug > 1)) {
+	printf STDERR "\n";
+	if (defined($result->{'output'}) && $result->{'output'} ne "") {
+	    print STDERR "-------------- Output -----------------\n";
+	    print STDERR $result->{'output'} . "\n";
 	}
-	# Do this after above so that silly comment is not sent to user.
-	if (GeniResponse::IsError($result)) {
-	    if ($result->{'code'} == GENIRESPONSE_SEARCHFAILED() ||
-		$result->{'code'} == GENIRESPONSE_BUSY) {
-		# Do not send debugging mail for these two errors.
-		$debug = 0;
-	    }
-	    elsif ($mailerrors) {
-		print STDERR "Mail Errors is on.\n";
-	    }
+	print STDERR "-------------- Request -----------------\n";
+	print STDERR Dumper($request) . "\n";
+	if (defined($result->{'value'})) {
+	    print STDERR "-------------- Result ------------------\n";
+	    print STDERR Dumper($result->{'value'}) . "\n";
 	}
-
+	print STDERR "----------------------------------------\n";
+    }
+    if ($debug) {
+	print STDERR "\nDebugging is on.\n";
+    }
+    # Last bit of detail. 
+    if (ref($result)) {
 	$result->{'protogeni_error_log'} = $logurn;
+	$result->{'protogeni_error_url'} = $logurl;
 
 	#
 	# Added this for geni-am ...
@@ -510,15 +706,35 @@ else {
     }
 }
 
-if ($debug) {
-    print STDERR "Debugging is on.\n";
+#
+# Abort the log capture so that we can print the response to STDOUT
+# for the web server. But first deal with the email.
+#
+LogAbort();
+
+#
+# If nothing in the log and no error, then we just store the metadata
+# and skip the message.
+#
+if (-s $logfile->filename() || $iserror) {
+    my $to       = ($rpcerror ? $TBOPS : ($MAINSITE ? $PGERRORS : $TBLOGS));
+    my $cc       = ($MAINSITE ? undef : "CC: $PGERRORS");
+    SENDMAIL($to, "protogeni-wrapper.pl", $message,
+	     $TBOPS, $cc,
+	     ($mailsendlog || $rpcerror ? ($logfile->filename()) : undef));
+    $nostorelogs = 0;
 }
 
 #
-# Terminate the log capture so that we can print the response to STDOUT
-# for the web server.
+# Do not store/delete the log in the parent of a forked call.
+# It will happen when the child comes back here. 
 #
-LogEnd(0);
+if (!$logforked) {
+    # Use eval to avoid messing up the output stream if any errors.
+    # If nostorelogs is set, we do not bother to store, just delete.
+    eval { ($nostorelogs && !$iserror ?
+	    $logfile->Delete(1) : $logfile->Store()); };
+}
 
 print "Content-Type: text/xml \n\n" . $response
     if (defined($response));
@@ -531,7 +747,13 @@ END {
     my $exitcode = $?;
 
     if ($exitcode) {
-	LogEnd(0);
+	if ($logging) {
+	    LogEnd(0);
+	    if (!$logforked) {
+                # Use eval to avoid messing up the output stream if any errors.
+		eval { $logfile->Store(); };
+	    }
+	}
 
 	my $decoder = Frontier::RPC2->new();
 	print "Content-Type: text/xml \n\n";

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -47,8 +47,9 @@ LIB_SCRIPTS     = libdb.pm Node.pm libdb.py libadminctrl.pm Experiment.pm \
 		  NodeType.pm Interface.pm User.pm Group.pm Project.pm \
 		  Image.pm OSinfo.pm Archive.pm Logfile.pm Lan.pm emdbi.pm \
 		  emdb.pm emutil.pm Firewall.pm VirtExperiment.pm libGeni.pm \
-		  libEmulab.pm EmulabConstants.pm TraceUse.pm EmulabFeatures.pm \
-		  Port.pm BlockstoreType.pm
+		  libEmulab.pm EmulabConstants.pm TraceUse.pm \
+		  EmulabFeatures.pm Port.pm BlockstoreType.pm Blockstore.pm \
+		  IPBuddyAlloc.pm IPBuddyWrapper.pm
 
 # Stuff installed on plastic.
 USERSBINS	= genelists.proxy dumperrorlog.proxy backup

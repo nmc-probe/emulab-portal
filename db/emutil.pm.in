@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,11 +32,16 @@ use vars qw(@ISA @EXPORT);
 @EXPORT = qw(TBDB_CHECKDBSLOT_NOFLAGS TBDB_CHECKDBSLOT_WARN
 	     TBDB_CHECKDBSLOT_ERROR TBcheck_dbslot TBFieldErrorString
 	     TBGetUniqueIndex ParRun VersionInfo UpdateVersionInfo
-	     SpanningTree GenFakeMac BackTraceOnWarning PassWordHash);
+	     SpanningTree GenFakeMac BackTraceOnWarning PassWordHash
+             SSHwithTimeout
+);
 
 use emdb;
 use English;
 use Carp;
+
+# Configure variables.
+my $TB          = "@prefix@";
 
 #
 # Support for checking field values against what is specified.
@@ -524,11 +529,28 @@ sub ExecQuiet($)
     my ($command) = @_;
     my $output    = "";
     
-    open(PIPE,"$command 2>&1 |") or return -1;
-    while (<PIPE>) {
-	$output .= $_;
+    #
+    # This open implicitly forks a child, which goes on to execute the
+    # command. The parent is going to sit in this loop and capture the
+    # output of the child. We do this so that we have better control
+    # over the descriptors.
+    #
+    my $pid = open(PIPE, "-|");
+    if (!defined($pid)) {
+	print STDERR "ExecQuiet Failure; popen failed!\n";
+	return -1;
     }
-    close(PIPE);
+    
+    if ($pid) {
+	while (<PIPE>) {
+	    $output .= $_;
+	}
+	close(PIPE);
+    }
+    else {
+	open(STDERR, ">&STDOUT");
+	exec($command);
+    }
     return $output;
 }
 
@@ -670,6 +692,44 @@ sub GenFakeMac()
     # Set the "locally administered" bit, good practice.
     #
     return "02" . $mac;
+}
+
+#
+# SSH with timeout. 
+#
+sub SSHwithTimeout($$$$)
+{
+    my ($host, $cmd, $timeout, $debug) = @_;
+    my $childpid;
+    my $timedout = 0;
+    my $SSHTB    = "@prefix@/bin/sshtb";
+
+    $cmd = "$SSHTB -host $host $cmd";
+    print "SSHwithTimeout($timeout): $cmd\n"
+	if ($debug);
+
+    if ($timeout) {
+	$childpid = fork();
+
+	if ($childpid) {
+	    local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
+	    alarm $timeout;
+	    waitpid($childpid, 0);
+	    my $exitstatus = $?;
+	    alarm 0;
+
+	    if ($timedout) {
+		print STDERR "*** ssh timed out.\n";
+		return -1;
+	    }
+	    return $exitstatus;
+	}
+	exec($cmd);
+	die("Could not exec '$cmd'");
+    }
+    else {
+	return system($cmd);
+    }
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

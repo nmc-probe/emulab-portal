@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2010-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -93,6 +93,7 @@ static int	igmpqueryinterval = 0;
 
 /* XXX the following just keep network.c happy */
 int		portnum = MS_PORTNUM;
+int		sockbufsize = SOCKBUFSIZE;
 struct in_addr	mcastaddr;
 struct in_addr	mcastif;
 
@@ -114,7 +115,13 @@ main(int argc, char **argv)
 	myuid = geteuid();
 	mygid = getegid();
 
-	MasterServerLogInit();
+	if (daemonize && debug) {
+		int odebug = debug;
+		debug = 0;
+		MasterServerLogInit();
+		debug = odebug;
+	} else
+		MasterServerLogInit();
 
 	log("mfrisbeed daemon starting as %d/%d, methods=%s (debug level %d)",
 	    myuid, mygid, GetMSMethods(onlymethods), debug);
@@ -331,8 +338,17 @@ copy_imageinfo(struct config_imageinfo *ii)
 		goto fail;
 	if (ii->path && (nii->path = strdup(ii->path)) == NULL)
 		goto fail;
-	if (ii->sig && (nii->sig = strdup(ii->sig)) == NULL)
-		goto fail;
+	if (ii->sig) {
+		int sz = 0;
+		if (ii->flags & CONFIG_SIG_ISMTIME)
+			sz = sizeof(time_t);
+		if (sz) {
+			if ((nii->sig = malloc(sz)) == NULL)
+				goto fail;
+		}
+		if (nii->sig)
+			memcpy(nii->sig, ii->sig, sz);
+	}
 	nii->flags = ii->flags;
 	nii->uid = ii->uid;
 	for (i = 0; i < ii->ngids; i++)
@@ -744,7 +760,7 @@ handle_get(int sock, struct sockaddr_in *sip, struct sockaddr_in *cip,
 			 */
 			if ((reply.sigtype == MS_SIGTYPE_MTIME &&
 			     *(time_t *)reply.signature != sb.st_mtime)) {
-				uint32_t mt = *(uint32_t *)reply.signature;;
+				uint32_t mt = *(uint32_t *)reply.signature;
 
 				msg->body.getreply.sigtype =
 					htons(reply.sigtype);
@@ -1342,7 +1358,7 @@ usage(void)
 	fprintf(stderr, "  -p <port>   port to listen on\n");
 	fprintf(stderr, "Debug:\n");
 	fprintf(stderr, "  -d          debug mode; does not daemonize\n");
-	fprintf(stderr, "  -D          dump configuration and exit\n");
+	fprintf(stderr, "  -D          force daemonizing even with debug\n");
 	fprintf(stderr, "Proxying:\n");
 	fprintf(stderr, "  -S <parent> parent name or IP\n");
 	fprintf(stderr, "  -P <pport>  parent port to contact\n");
@@ -1356,6 +1372,7 @@ static void
 get_options(int argc, char **argv)
 {
 	int ch;
+	int forcedaemonize = 0;
 
 	while ((ch = getopt(argc, argv, "AC:O:DI:MRX:x:S:P:p:i:dhQ:")) != -1)
 		switch(ch) {
@@ -1413,7 +1430,7 @@ get_options(int argc, char **argv)
 			debug++;
 			break;
 		case 'D':
-			dumpconfig = 1;
+			forcedaemonize = 1;
 			break;
 		case 'I':
 		{
@@ -1482,6 +1499,9 @@ get_options(int argc, char **argv)
 			"Error: Must specify a parent (-S) in mirror mode\n");
 		usage();
 	}
+
+	if (forcedaemonize)
+		daemonize = 1;
 }
 
 /*
@@ -1508,7 +1528,7 @@ makesocket(int port, struct in_addr *ifip, int *tcpsockp)
 	i = 1;
 	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
 		       (char *)&i, sizeof(i)) < 0)
-		pwarning("setsockopt(SO_REUSEADDR)");;
+		pwarning("setsockopt(SO_REUSEADDR)");
 	
 	/* Create name. */
 	name.sin_family = AF_INET;

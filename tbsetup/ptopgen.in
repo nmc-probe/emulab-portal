@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -53,6 +53,8 @@ $sharedns = "http://www.geni.net/resources/rspec/ext/shared-vlan/1";
 $sharedurl = "http://www.geni.net/resources/rspec/ext/shared-vlan/1/ad.xsd";
 $stitchns = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
 $stitchurl = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/stitch-schema.xsd";
+$opns = "http://www.geni.net/resources/rspec/ext/opstate/1";
+$opurl = "http://www.geni.net/resources/rspec/ext/opstate/1/ad.xsd";
 
 sub usage()
 {
@@ -112,6 +114,7 @@ $opstate = <<'OPSTATE';
   start="geni_notready">
   <sliver_type name="raw-pc" />
   <sliver_type name="emulab-openvz" />
+  <sliver_type name="emulab-xen" />
 
   <state name="geni_notready">
     <action name="geni_start" next="geni_configuring">
@@ -369,11 +372,13 @@ my %external_ifaces;
 my %external_links;
 my %contact_nodes;
 my %contact_ifaces;
+my %stitch_points;
 
 $result = DBQueryFatal("select w.node_id1, w.card1, w.port1, i1.iface, ".
 		       "w.node_id2, w.card2, w.port2, i2.iface, ".
 		       "w.external_interface, w.external_wire, ".
-		       "e.node_id, e.min_vlan, e.max_vlan, e.external_manager ".
+		       "e.node_id, e.min_vlan, e.max_vlan, ".
+		       "e.external_manager, e.network_id, e.external_interface, e.external_wire ".
 		       "from wires as w ".
 		       "left join external_networks as e ".
 		       "on w.node_id1=e.node_id or w.node_id2=e.node_id ".
@@ -382,7 +387,9 @@ $result = DBQueryFatal("select w.node_id1, w.card1, w.port1, i1.iface, ".
 		       "where e.node_id is not null");
 while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
 	   $external_iface_urn, $external_link_urn, $external, $minLan,
-	   $maxLan, $external_manager_urn) = $result->fetchrow_array) {
+	   $maxLan, $external_manager_urn,
+	   $external_network_id, $external_network_iface_urn,
+       $external_network_link_urn) = $result->fetchrow_array) {
     if ($external eq $cnode) {
 	my $temp;
 	$temp = $cnode; $cnode = $enode; $enode = $temp;
@@ -390,18 +397,32 @@ while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
 	$temp = $cport; $cport = $eport; $eport = $temp;
 	$temp = $ciface; $ciface = $eiface; $eiface = $temp;
     }
+    $stitch_points{"$cnode:$enode"} = 1;
+    $enode = $external_network_id;
     if (! defined($eiface)) {
 	$eiface = "$ecard.$eport";
     }
     if (! defined($ciface)) {
 	$ciface = "$ccard.$cport";
     }
+    if (! defined($external_iface_urn)) {
+	$external_iface_urn = $external_network_iface_urn;
+    }
+    if (! defined($external_link_urn)) {
+	$external_link_urn = $external_network_link_urn;
+    }
     $external_nodes{$enode} = "$minLan-$maxLan";
     $external_managers{"$cnode:$enode"} = $external_manager_urn;
     $external_ifaces{"$cnode:$enode"} = $external_iface_urn;
     $external_links{"$cnode:$enode"} = $external_link_urn;
-    $contact_nodes{$cnode} = $enode;
-    $contact_ifaces{"$cnode:$enode"} = $ciface;
+    if (exists($contact_nodes{$cnode})) {
+	push(@{ $contact_nodes{$cnode} }, $enode);
+    } else {
+	$contact_nodes{$cnode} = [$enode];
+    }
+    $contact_ifaces{"$cnode:$enode"} = GeniHRN::GenerateInterface($OURDOMAIN,
+								  $cnode,
+								  $ciface);
 }
 
 print_header();
@@ -488,9 +509,22 @@ while (my ($class,$type,$isvirt) = $result->fetchrow_array) {
 # look for the pxe_boot_path pointing to the tpm version of grub.
 our %node_usb;
 
-$result = DBQueryFatal("select node_id from node_attributes where attrkey='pxe_boot_path' and attrvalue='/tftpboot/pxeboot_tpm'");
+$result = DBQueryFatal("select node_id from node_attributes ".
+		       "where attrkey='pxe_boot_path' and ".
+		       "      attrvalue='/tftpboot/pxeboot_tpm'");
 while (($node) = $result->fetchrow_array) {
     $node_usb{$node} = 1;
+}
+
+#
+# Physical RAM overrides.
+#
+my %node_ram;
+
+$result = DBQueryFatal("select node_id,attrvalue from node_attributes ".
+		       "where attrkey='physical_ram'");
+while (my ($nodeid,$ram) = $result->fetchrow_array) {
+    $node_ram{$nodeid} = $ram;
 }
 
 # Read node_startloc
@@ -532,6 +566,7 @@ while (my ($node_id, $feature, $weight) = $result->fetchrow()) {
 	push @{$features{$node_id}}, "$feature:$weight";
     }
 }
+
 #
 # Read in the node_auxtypes table for each node.
 #
@@ -749,6 +784,45 @@ while (my ($node_id,$count) = $result->fetchrow_array) {
     $globalcounts{$node_id} = $count;
 }
 
+#
+# Get the memory usage on each physical node. 
+# This will be subtracted from whatever the type/node info says.
+# Note that we have to exclude nodes from this experiment
+# that are already mapped to the node since the user already owns that memory.
+#
+my %node_ramusage;
+
+if ($virtstuff) {
+    $result =
+	DBQueryFatal("select n.phys_nodeid,n.reserved_memory from nodes as n ".
+		     "left join reserved as r on r.node_id=n.node_id ".
+		     "where n.node_id!=n.phys_nodeid ".
+		     (defined($experiment) ?
+		      "and r.exptidx!=" . $experiment->idx() : ""));
+
+    while (my ($pnode,$memory) = $result->fetchrow_array()) {
+	$node_ramusage{$pnode} = 0
+	    if (!exists($node_ramusage{$pnode}));
+	
+	$node_ramusage{$pnode} += $memory;
+    }
+
+    #
+    # When running xen and there is a dom0mem attribute, we need to
+    # subtract that too since it is not available. But we do not know
+    # for sure that the node is running XEN. Need to addres this at
+    # some point.
+    #
+    $result = DBQueryFatal("select node_id,attrvalue from node_attributes ".
+			   "where attrkey='dom0mem'");
+    while (my ($pnode,$ram) = $result->fetchrow_array) {
+	$node_ramusage{$pnode} = 0
+	    if (!exists($node_ramusage{$pnode}));
+	
+	$node_ramusage{$pnode} += $ram;
+    }
+}
+
 # Find available nodes.
 #
 # This first query deals with just local nodes. Local nodes can host
@@ -826,7 +900,8 @@ $result =
 		 "  np.battery_percentage,np.uuid,b.sharing_mode, ".
 		 "  ru.load_1min, ru.load_5min, ru.status_timestamp, ".
 		 "  a.def_boot_osid, nat2.attrvalue, wn.country, " .
-                 "  wn.latitude, wn.longitude, t.isremotenode, b.erole ".
+                 "  wn.latitude, wn.longitude, t.isremotenode, b.erole, ".
+		 "  nat3.attrvalue, so.osfeatures ".
 		 "from nodes as a ".
 		 "left join reserved as b on a.node_id=b.node_id ".
 		 "left join reserved as m on a.phys_nodeid=m.node_id ".
@@ -838,6 +913,9 @@ $result =
 		 "left join node_attributes as nat2 on ".
 		 "     nat2.node_id=a.node_id and ".
 		 "     nat2.attrkey='shared_weight' ".
+		 "left join node_attributes as nat3 on ".
+		 "     nat3.node_id=a.node_id and ".
+		 "     nat3.attrkey='allowed_projects' ".
 		 "left join node_rusage as ru on ru.node_id=a.node_id ".
 		 "left outer join ". 
 		 "  (select type,attrvalue ".
@@ -846,8 +924,8 @@ $result =
 		 "   group by type) as dedicated_wa_types ".
 		 "  on t.type=dedicated_wa_types.type ".
                  "left join widearea_nodeinfo as wn on a.node_id=wn.node_id ".
+		 "left join os_info as so on a.def_boot_osid=so.osid ".
 		 "where $free_condition and ".
-#		 "      a.role='testnode'"
 		 "   (a.role='testnode' and (t.isremotenode=0 or ".
 		 "                           dedicated_wa_types.attrvalue=1))");
 
@@ -862,13 +940,21 @@ $result =
 while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 	$prereserved,$eventstate,$battery_perc,$uuid,$sharing_mode,
 	$load_1min,$load_5min,$load_tstamp,$osid,$weight,$country,$latitude,
-        $longitude,$isremote,$erole) = $result->fetchrow_array) {
+        $longitude,$isremote,$erole,
+	$allowed_projects,$osfeatures) = $result->fetchrow_array) {
     my $current = $top->CreateNode($node);
     $current->SetSubnode($physnode, $issubnode);
     $current->SetRemote($isremote);
 
-#    next
-#	if ($isremote);
+    #
+    # Look for a specific node restriction. Easier to to do here
+    # then trying to do this up above in the already bizarre query.
+    #
+    if (defined($pid) && defined($allowed_projects)) {
+	my @allowed = split(",", $allowed_projects);
+	next
+	    if (! grep {$_ eq $pid} @allowed);	
+    }
 
     $nodes{$node} = $type
 	if (!defined($pid) ||
@@ -885,7 +971,8 @@ while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 				 "load_5min"   => $load_5min,
 				 "load_tstamp" => $load_tstamp,
 				 "osid"        => $osid,
-				 "weight"      => $weight};
+				 "osfeatures"  => $osfeatures,
+				 "weight"      => $weight };
     } else {
 	$sharing_mode{$node} = 0;
     }
@@ -954,11 +1041,21 @@ foreach $node (@nodenames) {
     my $uuid = $nodetouuid{$node};
     
     my @types = ("$type:1");
+    my @sliver_types = ();
     my @features = ();
     my @flags;
     my $needvirtgoo = 0;
 
     my ($latitude, $longitude, $country);
+
+    # per-node override RAM.
+    $ram = $node_ram{$node} if (exists($node_ram{$node}));
+    if (exists($node_ramusage{$node})) {
+	$ram -= $node_ramusage{$node};
+	# Should this be an error?
+	$ram = 0
+	    if ($ram < 0);
+    }
 
     # XXX temporary hack until node reboot avoidance 
     # is available. Nodes running the FBSD-NSE image
@@ -1060,6 +1157,22 @@ foreach $node (@nodenames) {
 		#push(@features, "shareweight:$weight");
 	    }
 	}
+	my $osfeatures = $sharing_mode{$node}->{'osfeatures'};
+	if (defined($osfeatures)) {
+	    my @features = split(',', $osfeatures);
+	    my $i = 0;
+	    for (; $i < scalar(@features); ++$i) {
+		if ($features[$i] eq 'openvz-host') {
+		    push(@sliver_types, "emulab-openvz");
+		} elsif ($features[$i] eq 'xen-host') {
+		    push(@sliver_types, "emulab-xen");
+		}
+	    }
+	}
+    } else {
+	push(@sliver_types, "raw-pc");
+	push(@sliver_types, "emulab-openvz");
+	push(@sliver_types, "emulab-xen");	
     }
 
     #
@@ -1129,9 +1242,10 @@ foreach $node (@nodenames) {
 	if ($trivspeed) {
 	    push @flags, "trivial_bw:$trivspeed";
 	}
+	# Add CPU and RAM information
+	$cpu_ram_features_present++;
+
 	if (! $sharing_mode{$node}) {
-	    # Add CPU and RAM information
-	    $cpu_ram_features_present++;
 	    # This number can be use for fine-tuning packing
 	    push @features, "?+virtpercent:100";
 	}
@@ -1284,7 +1398,7 @@ foreach $node (@nodenames) {
     my @parse_features = split(" ", join(" ", @features));
     print_node($node, \@types, \@parse_features, \@flags, $uuid,
 	       $nodetointerface{$node}, $country, $latitude, $longitude,
-	       $type);
+	       $type, \@sliver_types);
 }
 
 #
@@ -1295,21 +1409,19 @@ if ($useblockstore) {
 			   "s.remaining_capacity ".
 			   "from blockstores as b ".
 			   "left join blockstore_state as s ".
-			   "on b.bsidx=s.bsidx");
+			   "on b.bsidx=s.bsidx ".
+			   "where s.ready=1");
     while (my ($nodeId, $bsId, $typeName,
 	       $capacity) = $result->fetchrow_array) {
 	my $type = BlockstoreType->Lookup($typeName);
 	if (defined($type)) {
 	    my @features = ();
-	    my $class;
-	    $type->GetAttribute("class", \$class);
-	    if (defined($class)) {
-		push(@features, "bs-class-$class:0.5");
-	    }
-	    my $protocol;
-	    $type->GetAttribute("protocol", \$protocol);
-	    if (defined($protocol)) {
-		push(@features, "bs-protocol-$protocol:0.5");
+	    foreach my $attr (values %{$type->GetAttributes()}) {
+		if (exists($attr->{'isfeature'}) && $attr->{'isfeature'}) {
+		    my $attrkey = $attr->{'key'};
+		    my $attrval = $attr->{'value'};
+		    push (@features, "bs-${attrkey}-${attrval}:0.5");
+		}
 	    }
 	    my $divisible;
 	    $type->GetAttribute("divisible", \$divisible);
@@ -1321,7 +1433,7 @@ if ($useblockstore) {
 	    print_node("$nodeId:$bsId", ["blockstore:$slots"], \@features,
 		       ["subnode_of:$nodeId"], "", $nodetointerface{$nodeId},
 		       $node_countries{$nodeId}, $node_latitudes{$nodeId},
-		       $node_longitudes{$nodeId}, "blockstore");
+		       $node_longitudes{$nodeId}, "blockstore", []);
 	}
     }
 }
@@ -1336,7 +1448,7 @@ if (($widearea && ! defined($component_name)) || $genimode ne $NO_GENI) {
     #
     my @types = map("*$_:*", @inet_protos);
     print_node($fake_inet_switch, \@types, [], [], undef, [], undef, undef,
-        undef, undef);
+        undef, undef, []);
 }
 
 #
@@ -1485,7 +1597,7 @@ if ($widearea && ! defined($component_name)) {
 
 	print_node($physnode, \@types, \@features, \@flags, $uuid,
 		   $nodetointerface{$physnode},$country,$latitude,$longitude,
-		   undef);
+		   undef, []);
 
         #
         # Print out a link to the 'internet'.
@@ -1705,8 +1817,28 @@ while (($node1,$card1,$port1,$node2,$card2,$port2) =
             # that it allows people to ask for links to specific
             # switches, specific interface types, etc.
 	    #
-	    push(@types, $basetype . "-" . $switchobj->node_id())
-		if (defined($switchobj));
+	    if (defined($switchobj)) {
+		push(@types, $basetype . "-" . $switchobj->node_id());
+
+		#
+		# Look for wire_* atrributes on the switch and convert that
+		# to a link type. Added, so we could associate a
+		# highvlan feature on wires attached to switches that
+		# allow high numbered vlans. This is needed in Utah,
+		# where only parts of the fabric support high vlans.
+		#
+		my $attributes = $switchobj->GetNodeAttributes();
+		if (defined($attributes)) {
+		    foreach my $key (keys(%{ $attributes })) {
+			next
+			    if ($key !~ /^wire_/);
+
+			my $val = $attributes->{$key}->{"attrvalue"};
+			
+			push @types, "$basetype-$val";
+		    }
+		}
+	    }
 
             if ($interfacetypes{"$node1:$card1:$port1"}) {
                 push @types, "$basetype-" .
@@ -1863,7 +1995,7 @@ if (! defined($component_name)) {
       }
       if (! $air_printed) {
 	  print_node($fake_air_switch, \@fake_switch_types, [], [], undef,
-		     [], undef, undef, undef, undef);
+		     [], undef, undef, undef, undef, []);
 	  $air_printed = 1;
       }
       print_simple_link($node, $iface,
@@ -1960,6 +2092,7 @@ sub print_header {
 		print "xsi:schemaLocation=\"$ns $url $emulabns $emulaburl ";
 		print "$stitchns $stitchurl ";
 		print "$sharedns $sharedurl ";
+		print "$opns $opurl ";
 		print "\" ";
 	    }
 	    else {
@@ -2038,13 +2171,14 @@ sub print_footer {
 
 
 		foreach my $node (keys(%contact_nodes)) {
-		    my $external = $contact_nodes{$node};
-		    my $vlans = $external_nodes{$external};
-		    if (defined($external_links{"$node:$external"})) {
+		    foreach my $external (@{ $contact_nodes{$node} }) {
+		      my $vlans = $external_nodes{$external};
+		      if (defined($external_links{"$node:$external"})) {
 			print_stitch_node($node,
 					  $contact_ifaces{"$node:$external"},
 					  $external_ifaces{"$node:$external"},
 					  1000000, $vlans, 0);
+		      }
 		    }
 		}
 		print "</aggregate>\n";
@@ -2095,7 +2229,7 @@ sub print_switch
     # real switch. See corresponding change in libvtop. 
     my $features = ["real-switch:0"];
     print_node($name, $types, $features, [], $uuid, $interfaces,
-        $country, $latitude, $longitude, undef);
+        $country, $latitude, $longitude, undef, []);
 }
 
 sub print_node
@@ -2110,6 +2244,7 @@ sub print_node
     my $lat = shift(@_);
     my $long = shift(@_);
     my $mainType = shift(@_);
+    my $sliverTypes = shift(@_);
     if (! defined($lat) || ! defined($long)) {
 	$lat = $default_lat;
 	$long = $default_long;
@@ -2156,7 +2291,7 @@ sub print_node
 	if (defined($mainType) && $genimode eq $V_0_2) {
 	    print_raw_osids($mainType);
 	}
-	print_node_types($mainType, @$types);
+	print_node_types($mainType, $types, $sliverTypes);
 	my $avail = "false";
 	if ($nodetoavailable{$name}
 	    || $name eq $fake_inet_switch
@@ -2197,7 +2332,7 @@ sub print_node
 	# ptop format
 	print "<node name=\"$name\"";
 	print ">\n";
-	print_node_types($mainType, @$types);
+	print_node_types($mainType, $types);
 	print_node_flags(@$flags);
 	print_node_features(@$features);
 	print "</node>\n";
@@ -2218,10 +2353,11 @@ sub add_stitch_point
 	foreach my $key (keys(%$stitch_ifaces)) {
 	    if ($key =~ /([^:]+):([^:]+)/) {
 		if ($name eq $1 || $name eq $2) {
-		    my $foundCount = grep $_ eq $stitch_ifaces->{$key},
+		    my (undef, undef, $iface) = GeniHRN::ParseInterface($stitch_ifaces->{$key});
+		    my $foundCount = grep $_ eq $iface,
 		                          @$interfaces;
 		    if ($foundCount == 0) {
-			push(@$interfaces, $stitch_ifaces->{$key});
+			push(@$interfaces, $iface);
 		    }
 		}
 	    }
@@ -2240,20 +2376,22 @@ sub print_raw_osids
 sub print_osids
 {
     my ($osids_arg, $default) = @_;
-    my @osids = @{ $osids_arg };
-    foreach my $os (@osids) {
-	if (defined($osid_name{$os})) {
-	    my $urn = GeniHRN::Generate($OURDOMAIN, "image",
-				      $osid_pid{$os} . "//" . $osid_name{$os});
-	    print "<disk_image ";
-	    print "name=\"" . $urn . "\" ";
-	    print "os=\"" . $osid_os{$os} . "\" ";
-	    print "version=\"" . $osid_version{$os} . "\" ";
-	    print "description=\"" . $osid_description{$os} . "\" ";
-	    if (defined($default) && $os eq $default) {
-		print "default=\"true\" ";
+    if (defined ($osids_arg)) {
+	my @osids = @{ $osids_arg };
+	foreach my $os (@osids) {
+	    if (defined($osid_name{$os})) {
+		my $urn = GeniHRN::Generate($OURDOMAIN, "image",
+					    $osid_pid{$os} . "//" . $osid_name{$os});
+		print "<disk_image ";
+		print "name=\"" . $urn . "\" ";
+		print "os=\"" . $osid_os{$os} . "\" ";
+		print "version=\"" . $osid_version{$os} . "\" ";
+		print "description=\"" . $osid_description{$os} . "\" ";
+		if (defined($default) && $os eq $default) {
+		    print "default=\"true\" ";
+		}
+		print "/>\n";
 	    }
-	    print "/>\n";
 	}
     }
 }
@@ -2290,9 +2428,11 @@ sub print_type_limits
 sub print_node_types
 {
     my $mainType = shift(@_);
+    my @types = @{ shift(@_) };
+    my @sliverTypes = @{ shift(@_) };
     my $i = 0;
-    for (; $i < scalar(@_); ++$i) {
-	my ($name, $count) = split(/:/, $_[$i], 2);
+    for (; $i < scalar(@types); ++$i) {
+	my ($name, $count) = split(/:/, $types[$i], 2);
 	my $is_static = 0;
 	if ($name =~ /^\*/) {
 	    $name = substr($name, 1);
@@ -2311,20 +2451,20 @@ sub print_node_types
 	    }
 	    print "  />\n";
 	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	    if ($name eq "pc" || $name eq "pcRemote") {
-		print "  <sliver_type name=\"raw-pc\">\n";
-		if (defined($mainType)) {
-		    print_raw_osids($mainType);
-		}
-		print "  </sliver_type>\n";
-	    }
-	    if ($name eq "pcvm") {
-		print "  <sliver_type name=\"emulab-openvz\">\n";
-		if (defined($openvzid)) {
-		    print_osids($osid_subosids{$openvzid}, undef);
-		}
-		print "  </sliver_type>\n";
-	    }
+#	    if ($name eq "pc" || $name eq "pcRemote") {
+#		print "  <sliver_type name=\"raw-pc\">\n";
+#		if (defined($mainType)) {
+#		    print_raw_osids($mainType);
+#		}
+#		print "  </sliver_type>\n";
+#	    }
+#	    if ($name eq "pcvm") {
+#		print "  <sliver_type name=\"emulab-openvz\">\n";
+#		if (defined($openvzid)) {
+#		    print_osids($osid_subosids{$openvzid}, undef);
+#		}
+#		print "  </sliver_type>\n";
+#	    }
 	    print "  <hardware_type name=\"$name\">\n";
 	    if ($count eq "*") {
 		print "    <emulab:node_type type_slots=\"unlimited\" ";
@@ -2336,6 +2476,24 @@ sub print_node_types
 	    }
 	    print "/>\n";
 	    print "  </hardware_type>\n";
+	}
+    }
+    if ($genimode eq $V_2 || $genimode eq $V_3) {
+	for ($i = 0; $i < scalar(@sliverTypes); ++$i) {
+	    print "  <sliver_type name=\"" . $sliverTypes[$i] . "\">\n";
+
+	    if ($sliverTypes[$i] eq "raw-pc") {
+		if (defined($mainType)) {
+		    print_raw_osids($mainType);
+		}
+	    } elsif ($sliverTypes[$i] eq "emulab-openvz") {
+		if (defined($openvzid)) {
+		    print_osids($osid_subosids{$openvzid}, undef);
+		}
+	    } elsif ($sliverTypes[$i] eq "emulab-openvz") {
+		print_raw_osids("pcvm");
+	    }
+	    print "  </sliver_type>\n";
 	}
     }
 }
@@ -2535,7 +2693,121 @@ sub print_named_link_ptop
 	. "$dest_full $bw $delay $loss 1 " . join(" ", @proto) . "\n";
 }
 
-sub print_named_link_xml
+sub print_named_link_xml_geni
+{
+    my $name = shift(@_);
+    my $source = shift(@_);
+    my $source_if = shift(@_);
+    my $dest = shift(@_);
+    my $dest_if = shift(@_);
+    my $bw = shift(@_);
+    my $delay = shift(@_);
+    my $loss = shift(@_);
+    my @proto = @{ shift(@_) };
+    my $is_interconnect = shift(@_);
+    my $source_urn = GeniHRN::GenerateInterface($OURDOMAIN, $source,
+						$source_if);
+    my $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
+					      $dest_if);
+    if (defined($MAINSITE) && $MAINSITE &&
+	(($source eq "instageni-nc7" && $source_if ne "eth5") ||
+	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
+	return;
+    }
+	$name =~ s/:/\/\//g;
+	my $external_manager_urn;
+	my $urn = GeniHRN::Generate($OURDOMAIN, "link", $name);
+    my $contact;
+    my %source_ifaces;
+    my %dest_ifaces;
+	if (exists($stitch_points{"$source:$dest"})) {
+	    $contact = $source;
+	    %source_ifaces = %contact_ifaces;
+	    %dest_ifaces = %external_ifaces;
+	} elsif (exists($stitch_points{"$dest:$source"})) {
+	    $contact = $dest;
+	    %source_ifaces = %external_ifaces;
+	    %dest_ifaces = %contact_ifaces;
+	}
+    if (defined($contact)) {
+	foreach my $external (@{ $contact_nodes{$contact} }) {
+	    $source_urn = $source_ifaces{"$contact:$external"};
+	    $dest_urn = $dest_ifaces{"$contact:$external"};
+	    $urn = $external_links{"$contact:$external"};
+	    $external_manager_urn = $external_managers{"$contact:$external"};
+      print_single_link_xml_geni($source, $source_if, $dest, $dest_if,
+			         $bw, $delay, $loss, \@proto, $is_interconnect,
+			         $urn, $source_urn, $dest_urn,
+			         $external_manager_urn);
+	}
+    } else {
+      print_single_link_xml_geni($source, $source_if, $dest, $dest_if,
+			         $bw, $delay, $loss, \@proto, $is_interconnect,
+			         $urn, $source_urn, $dest_urn,
+			         $external_manager_urn);
+    }
+}
+
+sub print_single_link_xml_geni
+{
+    my $source = shift(@_);
+    my $source_if = shift(@_);
+    my $dest = shift(@_);
+    my $dest_if = shift(@_);
+    my $bw = shift(@_);
+    my $delay = shift(@_);
+    my $loss = shift(@_);
+    my @proto = @{ shift(@_) };
+    my $is_interconnect = shift(@_);
+    my $urn = shift(@_);
+    my $source_urn = shift(@_);
+    my $dest_urn = shift(@_);
+    my $external_manager_urn = shift(@_);
+
+    my $proto_count = scalar(@proto);
+	my (undef, undef, $name) = GeniHRN::Parse($urn);
+	print "<link ";
+	my $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
+	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
+	    print "component_manager_uuid=\"$cmurn\" ";
+	}
+	print "component_name=\"$name\" ";
+	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
+	    print "component_uuid=\"$urn\" ";
+	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
+	    print "component_id=\"$urn\" ";
+	}
+	print ">\n";
+	if ($genimode eq $V_2 || $genimode eq $V_3) {
+	    print "<component_manager name=\"$cmurn\" />\n";
+	    if (defined($external_manager_urn)) {
+		print "<component_manager name=\"$external_manager_urn\" />\n";
+	    }
+	}
+	print_interface($source, $source_urn);
+	print_interface($dest, $dest_urn);
+    if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
+	print "  <bandwidth>$bw</bandwidth>\n";
+	print "  <latency>$delay</latency>\n";
+	print "  <packet_loss>$loss</packet_loss>\n";
+    } elsif ($genimode eq $V_2 || $genimode eq $V_3) {
+	print_property($source_urn, $dest_urn,
+		       $bw, $delay, $loss);
+	print_property($dest_urn, $source_urn,
+		       $bw, $delay, $loss);
+    }
+    my $i = 0;
+    for (; $i < $proto_count; ++$i) {
+	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
+	    print "  <link_type type_name=\"" . $proto[$i] . "\" />\n";
+	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
+	    print "  <link_type name=\"" . $proto[$i] . "\" />\n";
+	}
+    }
+    print "</link>\n\n";
+}
+
+sub print_named_link_xml_plain
 {
     my $name = shift(@_);
     my $source = shift(@_);
@@ -2557,45 +2829,6 @@ sub print_named_link_xml
 	 ($dest eq "instageni-nc7" && $dest_if ne "eth5"))) {
 	return;
     }
-    if ($genimode ne $NO_GENI) {
-	$name =~ s/:/\/\//g;
-	my $external_manager_urn;
-	my $urn = GeniHRN::Generate($OURDOMAIN, "link", $name);
-	if (exists($external_ifaces{"$source:$dest"})) {
-	    $source_urn = GeniHRN::GenerateInterface($OURDOMAIN, $source,
-					     $contact_ifaces{"$source:$dest"});
-	    $dest_urn = $external_ifaces{"$source:$dest"};
-	    $urn = $external_links{"$source:$dest"};
-	    $external_manager_urn = $external_managers{"$source:$dest"};
-	} elsif (exists($external_ifaces{"$dest:$source"})) {
-	    $source_urn = $external_ifaces{"$dest:$source"};
-	    $dest_urn = GeniHRN::GenerateInterface($OURDOMAIN, $dest,
-					     $contact_ifaces{"$dest:$source"});
-	    $urn = $external_links{"$dest:$source"};
-	    $external_manager_urn = $external_managers{"$dest:$source"};
-	}
-	(undef, undef, $name) = GeniHRN::Parse($urn);
-	print "<link ";
-	my $cmurn = GeniHRN::Generate($OURDOMAIN, "authority", "cm");
-	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
-	    print "component_manager_uuid=\"$cmurn\" ";
-	}
-	print "component_name=\"$name\" ";
-	if ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
-	    print "component_uuid=\"$urn\" ";
-	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	    print "component_id=\"$urn\" ";
-	}
-	print ">\n";
-	if ($genimode eq $V_2 || $genimode eq $V_3) {
-	    print "<component_manager name=\"$cmurn\" />\n";
-	    if (defined($external_manager_urn)) {
-		print "<component_manager name=\"$external_manager_urn\" />\n";
-	    }
-	}
-	print_interface($source, $source_urn);
-	print_interface($dest, $dest_urn);
-    } else {
 	print "<link name=\"$name\">\n";
 	print "  <source_interface><interface>\n";
 	print_interface_contents($source, $source_if);
@@ -2603,28 +2836,13 @@ sub print_named_link_xml
 	print "  <destination_interface><interface>\n";
 	print_interface_contents($dest, $dest_if);
 	print "  </interface></destination_interface>\n";
-    }
-    if ($genimode eq $NO_GENI || $genimode eq $V_0_1 || $genimode eq $V_0_2)
-    {
 	print "  <bandwidth>$bw</bandwidth>\n";
 	print "  <latency>$delay</latency>\n";
 	print "  <packet_loss>$loss</packet_loss>\n";
-    } elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	print_property($source_urn, $dest_urn,
-		       $bw, $delay, $loss);
-	print_property($dest_urn, $source_urn,
-		       $bw, $delay, $loss);
-    }
     my $i = 0;
     for (; $i < $proto_count; ++$i) {
-	if ($genimode eq $NO_GENI) {
 	    print "  <link_type><type_name>" . $proto[$i]
 		. "</type_name></link_type>\n";
-	} elsif ($genimode eq $V_0_1 || $genimode eq $V_0_2) {
-	    print "  <link_type type_name=\"" . $proto[$i] . "\" />\n";
-	} elsif ($genimode eq $V_2 || $genimode eq $V_3) {
-	    print "  <link_type name=\"" . $proto[$i] . "\" />\n";
-	}
     }
     print "</link>\n\n";
 }
@@ -2664,8 +2882,10 @@ sub print_named_link
 {
     if (!$do_xml) {
 	print_named_link_ptop(@_, 0);
+    } elsif ($do_xml && $genimode eq $NO_GENI) {
+	print_named_link_xml_plain(@_, 0);
     } elsif ($do_xml) {
-	print_named_link_xml(@_, 0);
+	print_named_link_xml_geni(@_, 0);
     }
 }
 
@@ -2673,8 +2893,10 @@ sub print_named_interconnect
 {
     if (!$do_xml) {
 	print_named_link_ptop(@_, 1);
+    } elsif ($do_xml && $genimode eq $NO_GENI) {
+	print_named_link_xml_plain(@_, 1);
     } elsif ($do_xml) {
-	print_named_link_xml(@_, 1);
+	print_named_link_xml_geni(@_, 1);
     }
 }
 
@@ -2693,35 +2915,33 @@ sub print_type_relation
 
 sub print_stitch_node
 {
-    my ($node, $iface, $remote_iface_urn, $capacity,
+    my ($node, $iface_urn, $remote_iface_urn, $capacity,
 	$vlans, $vlan_will_translate) = @_;
+    my (undef, undef, $iface) = GeniHRN::ParseInterface($iface_urn);
     my $node_urn = GeniHRN::Generate($OURDOMAIN, "node", $node);
     my $port_urn = GeniHRN::Generate($OURDOMAIN, "stitchport",
 				     $node . "//" . $iface);
-    my $iface_urn = GeniHRN::GenerateInterface($OURDOMAIN, $node, $iface);
-    # Capacity is in kilobits/sec but needs to be converted to bits/sec
-    my $bits = $capacity * 1000;
     my $vlan_translate = "false";
     if ($vlan_will_translate) {
 	$vlan_translate = "true";
     }
     print "<node id=\"$node_urn\">\n";
     print "  <port id=\"$port_urn\">\n";
-    print "    <capacity>$bits</capacity>\n";
-    print "    <maximumReservableCapacity>$bits".
+    print "    <capacity>$capacity</capacity>\n";
+    print "    <maximumReservableCapacity>$capacity".
 	"</maximumReservableCapacity>\n";
-    print "    <minimumReservableCapacity>1000000".
+    print "    <minimumReservableCapacity>1000".
 	"</minimumReservableCapacity>\n";
-    print "    <granularity>1000000</granularity>\n";
+    print "    <granularity>1</granularity>\n";
     print "    <link id=\"$iface_urn\">\n";
     print "      <remoteLinkId>$remote_iface_urn</remoteLinkId>\n";
     print "      <trafficEngineeringMetric>10</trafficEngineeringMetric>\n";
-    print "      <capacity>$bits</capacity>\n";
-    print "      <maximumReservableCapacity>$bits".
+    print "      <capacity>$capacity</capacity>\n";
+    print "      <maximumReservableCapacity>$capacity".
 	"</maximumReservableCapacity>\n";
-    print "      <minimumReservableCapacity>1000000".
+    print "      <minimumReservableCapacity>1000".
 	"</minimumReservableCapacity>\n";
-    print "      <granularity>1000000</granularity>\n";
+    print "      <granularity>1</granularity>\n";
     print "      <switchingCapabilityDescriptor>\n";
     print "        <switchingcapType>l2sc</switchingcapType>\n";
     print "        <encodingType>ethernet</encodingType>\n";

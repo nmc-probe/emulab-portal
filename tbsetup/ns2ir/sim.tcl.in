@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -225,11 +225,11 @@ Simulator instproc duplex-link {n1 n2 bw delay type args} {
 	punsup "Arguments for duplex-link: $args"
     }
     set error 0
-    if {! [$n1 info class Node]} {
+    if {! [$n1 info class Node] && ! [$n1 info class Blockstore] } {
 	perror "\[duplex-link] $n1 is not a node."
 	set error 1
     }
-    if {! [$n2 info class Node]} {
+    if {! [$n2 info class Node] && ! [$n2 info class Blockstore] } {
 	perror "\[duplex-link] $n2 is not a node."
 	set error 1
     }
@@ -375,6 +375,11 @@ Simulator instproc make-cloud {nodelist bw delay args} {
     $retval mustdelay
 
     return $retval
+}
+
+# Storage sugar.
+Simulator instproc make-san {nodelist} {
+    return [$self make-lan $nodelist ~ 0ms]
 }
 
 Simulator instproc event-timeline {args} {
@@ -554,6 +559,14 @@ Simulator instproc run {} {
 	uplevel 1 real_source "@prefix@/lib/ns2ir/fw.ns"
     }
 
+    # Finalize the blockstore objects - last minute initialization and checks
+    # before they are spit out to the db.
+    foreach bstore [array names blockstore_list] {
+	if {[$bstore finalize] != 0} {
+	    break
+	}
+    }
+
     # Fill out IPs
     if {! $use_ipassign } {
 	foreach obj [concat [array names lanlink_list]] {
@@ -564,16 +577,12 @@ Simulator instproc run {} {
     # Go through the list of nodes, and find subnode hosts:
     # - If the subnode is of class Node, we have to add a
     #   desire to have the hosts-<type-of-child> feature.
-    # - If it is of type Blockstore, we add a "sanhost"
-    #   desire.
     foreach node [lsort [array names node_list]] {
 	if { [$node set subnodehost] == 1 } {
 	    set child [$node set subnodechild]
 	    if {[$child info class Node]} {
 		set childtype [$child set type]
 		$node add-desire "hosts-$childtype" 1.0
-	    } elseif {[$child info class Blockstore]} {
-		$node add-desire "sanhost" 1.0
 	    }
 	}
     }
@@ -672,7 +681,8 @@ Simulator instproc run {} {
 	$node updatedb "sql"
 
 	if { $default_sync_server == {} &&
-	     ![$node set issubnode] && ![$node set isbridgenode]} {
+	     ![$node set issubnode] && ![$node set isbridgenode] &&
+	     [$node set type] != "blockstore" } {
 	    set default_sync_server $node
 	}
     }

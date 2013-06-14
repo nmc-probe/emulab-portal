@@ -1,39 +1,25 @@
 #
 # TODO:
-# Build from /usr/testbed/src/emulab-stable.
 #
-# Additional stuff for setting up the geni racks. 
+# Bake in the routable ip space if possible
+# Add partial reverse zone stuff. See the NOTES file.
 #
-# Switch tasks:
-#  2610> vlan 1 ip address 10.1.1.253/24
-#  2610> ip default-gateway 10.1.1.254
-#  5400> vlan 1 ip address 10.2.1.253/24
-#  5400> ip default-gateway 10.2.1.254
-#  2610> show ip igmp
-#  2610> vlan 1 ip igmp
-#  2610> vlan 1 ip igmp querier
-#  both> no web-management
-#  both> password all (type in password).
-#  both> no snmp-server community public
-#  both> snmp-server community XXXXX manager unrestricted
-#  both> write memory
-#
-# Control node image changes before it can booted.
-#  fix up the interfaces file.
-#  Add /etc/hostname.
-#  Add /etc/resolv.conf
-#  Set Root password.
-#
+# Add /usr/testbed/bin and sbin to elabman path.
+# Kill OUTERBOSS_NODENAME and OUTERBOSS_SSLCERTNAME from defs
+
 use strict;
 use libinstall;
 use installvars;
 use libtestbed;
 use emutil;
+use libEmulab;
 use emdb;
 use User;
 use NodeType;
 use OSinfo;
 use Image;
+use Node;
+use EmulabFeatures;
 
 my $EMULABDEVEL  = "git://git-public.flux.utah.edu/emulab-devel.git";
 my $EMULABSTABLE = "git://git-public.flux.utah.edu/emulab-stable.git";
@@ -43,7 +29,7 @@ my $CONFIGVARS   = "$PREFIX/configvars.txt";
 my $RACKVARS     = "$PREFIX/etc/genirack/variables.txt";
 my $RACKIPS      = "$PREFIX/etc/genirack/ips.txt";
 my $RACKILO      = "$PREFIX/etc/genirack/ilo.xml";
-my $RACKWIRES    = "$TOP_SRCDIR/install/genirack/wiring.xml";
+my $RACKWIRES    = "$TOP_SRCDIR/install/genirack/wiring-A.xml";
 my $ILOPASSWORD  = "$PREFIX/etc/ilo.pswd";
 my $ELABPASSWORD = "$PREFIX/etc/elabman.pswd";
 my $HPPASSWORD   = "$PREFIX/etc/switch.pswd";
@@ -52,6 +38,12 @@ my $ZZZ		 = "/usr/local/etc/rc.d/zzz-inelab.sh";
 my $DEFAULTOSID  = "FEDORA15-STD";
 my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU12-64-STD");
 my $PGOSSITEVAR  = "protogeni/default_osname";
+my $CHPASS	 = "/usr/bin/chpass";
+my $SSHTB	 = "$PREFIX/bin/sshtb";
+my $DELETENODE	 = "$PREFIX/sbin/deletenode";
+my $RACKNTPCONF  = "$TOP_SRCDIR/install/genirack/ntp.conf";
+my $ETCNTPCONF   = "/etc/ntp.conf";
+my $ELABMANDIR   = "/users/elabman";
 
 my %INTERFACES = (
     "xn1"   => "inet 10.1.1.1 netmask 255.255.255.0",
@@ -174,16 +166,85 @@ sub Install($$$)
 	#
 	# This is the elabman password.
 	#
-	if (exists($configvars{'PASSWORD'}) && $configvars{'PASSWORD'} ne "" &&
-	    ! -e $ELABPASSWORD) {
-	    CreateFileFatal($ELABPASSWORD, $configvars{'PASSWORD'});
-	    ExecQuietFatal("$CHMOD 400 $ELABPASSWORD");
+	if (exists($configvars{'PASSWORD'}) && $configvars{'PASSWORD'} ne "") {
+	    my $PASSWORD = $configvars{'PASSWORD'};
+	    my $passhash = PassWordHash($PASSWORD);
+	    
+	    Phase "elabman_pswd", "Storing the elabman password", sub {
+		PhaseSkip("exists")
+		    if (-e $ELABPASSWORD);
+		
+		CreateFileFatal($ELABPASSWORD, $PASSWORD);
+		ExecQuietFatal("$CHMOD 400 $ELABPASSWORD");
+	    };
+
+	    #
+	    # Make sure root/toor have the same password on boss/ops.
+	    #
+	    Phase "root_pswd", "Setting root password on boss", sub {
+		ExecQuietFatal("$CHPASS -p '$passhash' root");
+		ExecQuietFatal("$CHPASS -p '$passhash' toor");
+	    };
+
+	    # shell escape.
+	    $passhash =~ s/\$/\\\$/g;
+	    $passhash =~ s/\*/\\\*/g;
+
+	    Phase "root_pswdops", "Setting root password on ops", sub {
+		ExecQuietFatal("$SSHTB -host $USERNODE ".
+			       "  $CHPASS -p '$passhash' root");
+		ExecQuietFatal("$SSHTB -host $USERNODE ".
+			       "  $CHPASS -p '$passhash' toor");
+	    };
 	}
+
+	#
+	# This is the elabman SSL cert password.
+	#
+	my $SSLCERT_PSWDFILE = "/users/elabman/.ssl/password";
+	
+	if (exists($configvars{'ELABMAN_SSLCERT_PASSWORD'}) &&
+	    $configvars{'ELABMAN_SSLCERT_PASSWORD'} ne "") {
+	    if (! -e $SSLCERT_PSWDFILE) {
+		CreateFileFatal($SSLCERT_PSWDFILE,
+				$configvars{'ELABMAN_SSLCERT_PASSWORD'});
+		ExecQuietFatal("$CHMOD 400 $SSLCERT_PSWDFILE");
+		ExecQuietFatal("$CHOWN elabman:emulab-ops $SSLCERT_PSWDFILE");
+	    }
+	    #
+	    # Create encrypted SSL cert for elabman, for testing PG later.
+	    #
+	    ExecQuietFatal("$SUDO -u $PROTOUSER $PREFIX/sbin/mkusercert ".
+	         " -p " . $configvars{'ELABMAN_SSLCERT_PASSWORD'} . " elabman");
+	}
+
+	#
+	# Trun on arp lockdown.
+	#
+	Phase "arplockdown", "Turning on arplockdown", sub {
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "general/arplockdown static");
+	};
+
+	#
+	# Mike says: With the default server/client settings, the
+	# client is still dropping packets and causing re-requests of
+	# blocks. So for now, use the sitevars to scale back the frisbeed
+	# send rate to 50000000 (50Mb/sec) for both system and user
+	# images. The run time for single client is actually slightly
+	# improved at this lower rate due to many fewer re-requests.
+	#
+	Phase "frisbeerate", "Setting frisbeed max rate", sub {
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "images/frisbee/maxrate_std 50000000");
+	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
+			   "images/frisbee/maxrate_usr 50000000");
+	};
 
 	#
 	# A reasonable default image.
 	#
-	Phase "sitevar", "Setting sitevar $PGOSSITEVAR", sub {
+	Phase "sitevar1", "Setting sitevar $PGOSSITEVAR", sub {
 	    my $osinfo = OSinfo->LookupByName($DEFAULTOSID);
 	    PhaseFail("Could not look up $DEFAULTOSID osid")
 		if (!defined($osinfo));
@@ -191,6 +252,35 @@ sub Install($$$)
 	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
 			   "'$PGOSSITEVAR' '$DEFAULTOSID'");
 	};
+
+	#
+	# Latitude/Longitude
+	#
+	if (exists($configvars{'GENIRACK_COUNTRY'}) &&
+	    $configvars{'GENIRACK_COUNTRY'} ne "") {
+	    Phase "sitevar2", "Setting country sitevar", sub {
+		SetSiteVar("general/default_country",
+			   $configvars{'GENIRACK_COUNTRY'})
+		    or PhaseFail("failed");
+	    };
+	}
+	if (exists($configvars{'GENIRACK_LATITUDE'}) &&
+	    $configvars{'GENIRACK_LATITUDE'} ne "") {
+	    Phase "sitevar3", "Setting latitude sitevar", sub {
+		SetSiteVar("general/default_latitude",
+			   $configvars{'GENIRACK_LATITUDE'})
+		    or PhaseFail("failed");
+	    };
+	}
+	if (exists($configvars{'GENIRACK_LONGITUDE'}) &&
+	    $configvars{'GENIRACK_LONGITUDE'} ne "") {
+	    Phase "sitevar4", "Setting longitude sitevar", sub {
+		SetSiteVar("general/default_longitude",
+			   $configvars{'GENIRACK_LONGITUDE'})
+		    or PhaseFail("failed");
+	    };
+	}
+	
 	
 	#
 	# Shutdown the testbed for the rest of this.
@@ -204,6 +294,7 @@ sub Install($$$)
 	#
 	# Create a clone of emulab-devel while we are close to the server.
 	#
+	if (0) {
 	Phase "cloning1", "Cloning emulab-devel repository", sub {
 	    DoneIfExists("$PREFIX/src/emulab-devel");
 	    ExecQuietFatal("cd $PREFIX/src; ".
@@ -214,6 +305,7 @@ sub Install($$$)
 	    ExecQuietFatal("cd $PREFIX/src; ".
 			   "    git clone $EMULABSTABLE emulab-stable");
 	};
+	}
 
 	#
 	# Also grab the port source while close to the server.
@@ -227,8 +319,10 @@ sub Install($$$)
 	    ExecQuietFatal("cd $PREFIX; $TAR zxf $PREFIX/ports.tar.gz");
 	};
 	Phase "portlink", "Linking to unpacked ports tree", sub {
+	    ExecQuietFatal("/bin/rm -rf /usr/ports")
+		if (-e "/usr/ports" && -d "/usr/ports");
 	    ExecQuietFatal("cd /usr; ln -sf testbed/ports .");
-	}
+	};
 
 	# Need to add a symlink. 
 	
@@ -351,8 +445,17 @@ sub Install($$$)
 	};
 
 	#
+	# Extra install
+	# 
+	Phase "genirack", "Installing extra scripts", sub {
+	    ExecQuietFatal("cd $TOP_OBJDIR/install/genirack; $GMAKE install");
+	};
+
+	#
 	# Add the nodes to the DB.
 	#
+	my $ILOIP = $configvars{"GENIRACK_ILOIP"};
+
 	Phase "nodes", "Adding nodes to the DB", sub {
 	    my $query_result =
 		DBQueryWarn("select node_id from nodes where node_id='pc1'");
@@ -363,8 +466,12 @@ sub Install($$$)
 
 	    ExecQuietFatal("cd $TOP_OBJDIR/install/genirack; ".
 			   "  $SUDO -u $PROTOUSER $WAP ".
-			   "  perl mknewconfig ".
+			   "  perl mknewconfig -i $ILOIP ".
 			   "       /tmp/output $RACKIPS $RACKILO $RACKWIRES");
+
+	    PhaseFail("initilo.sh not generated")
+		if (! -e "/tmp/output/initilo.sh");
+	    ExecQuietFatal("/bin/cp -p /tmp/output/initilo.sh $PREFIX/etc");
 	};
 
 	Phase "outlets", "Adding outlets to the DB", sub {
@@ -391,6 +498,26 @@ sub Install($$$)
 	};
 
 	#
+	# Add this feature so we get the right libvtop.
+	#
+	my $LIBVTOP_FEATURE     = "LibVtopTest";
+	my $LIBVTOP_DESRIPTION  = "Test version of libvtop";
+    
+	my $feature = EmulabFeatures->Lookup($LIBVTOP_FEATURE);
+	Phase "feature", "Adding libvtop_test feature", sub {
+	    PhaseSkip("already exists")
+		if (defined($feature));
+	    $feature = EmulabFeatures->Create($LIBVTOP_FEATURE,
+					      $LIBVTOP_DESRIPTION);
+	    PhaseFail("Failed to create feature")
+		if (!defined($feature));
+	};
+	Phase "feature", "Enabling libvtop_test feature", sub {
+	    $feature->SetGlobalEnable(1) == 0
+		or PhaseFail("Could not enable feature");
+	};
+
+	#
 	# Update the DB with the switch community string.
 	#
 	if (exists($configvars{'GENIRACK_COMMUNITY'})) {
@@ -399,6 +526,15 @@ sub Install($$$)
 			"snmp_community=$safe_password")
 		or PhaseFail("Could not set snmp community strings");
 	}
+
+	#
+	# Delete existing ops node; we recreate it later. 
+	#
+	Phase "opsnode", "Deleting ops node", sub {
+	    PhaseSkip("already deleted")
+		if (!defined(Node->Lookup("ops")));
+	    ExecQuietFatal("$DELETENODE -f -s ops");
+	};
 
 	#
 	# Shutdown DHCP and fix the dynamic range that rc.mkelab changed.
@@ -433,6 +569,7 @@ sub Install($$$)
 	# Create a local named forward fragment file with some extra stuff.
 	#
 	my $reversedots;
+	my $forwarddots;
 	my @forward_strings = ();
 	my @reverse_strings = ();
 	my %local_dns = ("GENIRACK_FOAMIP"    => "foam",
@@ -447,6 +584,7 @@ sub Install($$$)
 	    my $hostname = $local_dns{$name};
 	    my $ip = $configvars{$name};
 	    my ($a,$b,$c,$num) = split(/\./, $ip);
+	    $forwarddots = "${a}.${b}.${c}";
 	    $reversedots = "${c}.${b}.${a}";
 	    
 	    push(@forward_strings, "$hostname\tIN\tA\t$ip");
@@ -454,7 +592,7 @@ sub Install($$$)
 	}
 	my $FORWARDFRAGMENT1 = "$NAMED_DIR/${OURDOMAIN}.internal.db.local";
 	my $FORWARDFRAGMENT2 = "$NAMED_DIR/${OURDOMAIN}.db.local";
-	my $REVERSEFRAGMENT  = "$NAMED_DIR/reverse/${reversedots}.db.local";
+	my $REVERSEFRAGMENT  = "$NAMED_DIR/reverse/${forwarddots}.db.local";
 	Phase "forward1", "Creating $FORWARDFRAGMENT1", sub {
 	    DoneIfExists($FORWARDFRAGMENT1);
 	    CreateFileFatal($FORWARDFRAGMENT1, @forward_strings);
@@ -467,6 +605,53 @@ sub Install($$$)
 	    DoneIfExists($REVERSEFRAGMENT);
 	    CreateFileFatal($REVERSEFRAGMENT, @reverse_strings);
 	};
+
+	Phase "ntpconf", "Installing better /etc/ntp.conf", sub {
+	    ExecQuietFatal("/bin/cp -fp $RACKNTPCONF $ETCNTPCONF");
+	};
+
+	#
+	# 
+	#
+	Phase "buildenv", "Creating build environment", sub {
+	    Phase "mkdir", "Creating directory in elabman", sub {
+		DoneIfExists("$ELABMANDIR/emulab-devel");
+		mkdir "$ELABMANDIR/emulab-devel",0775 or
+		    PhaseFail("Unable to create $ELABMANDIR/emulab-devel: $!");
+
+	    };
+	    Phase "cpdefs", "Coping defs file to elabman", sub {
+		DoneIfExists("$ELABMANDIR/emulab-devel/defs-genirack");
+		ExecQuietFatal("/bin/cp -f $PREFIX/src/testbed/defs-genirack ".
+			       "        $ELABMANDIR/emulab-devel");
+	    };
+	    Phase "mvsrc", "Moving src directory to elabman", sub {
+		DoneIfExists("$ELABMANDIR/emulab-devel/emulab-devel");
+		ExecQuietFatal("/bin/mv -f $PREFIX/src/testbed ".
+			       "        $ELABMANDIR/emulab-devel/emulab-devel");
+	    };
+	    Phase "mvobj", "Moving obj directory to elabman", sub {
+		DoneIfExists("$ELABMANDIR/emulab-devel/obj");
+		ExecQuietFatal("/bin/mv -f $PREFIX/obj/testbed ".
+			       "        $ELABMANDIR/emulab-devel/obj");
+	    };
+	    Phase "srcsymlink", "Leaving src symlink behind", sub {
+		DoneIfExists("$PREFIX/src/testbed");
+		ExecQuietFatal("cd $PREFIX/src; ln -s ".
+			       "  $ELABMANDIR/emulab-devel/emulab-devel ".
+			       "  testbed");
+	    };
+	    Phase "objsymlink", "Leaving obj symlink behind", sub {
+		DoneIfExists("$PREFIX/obj/testbed");
+		ExecQuietFatal("cd $PREFIX/obj; ln -s ".
+			       "  $ELABMANDIR/emulab-devel/obj obj");
+	    };
+	    Phase "chown", "Changing owner and group", sub {
+		ExecQuietFatal("$CHOWN -R elabman:emulab-ops ".
+			       "   $ELABMANDIR/emulab-devel");
+	    };
+	};
+
 	PhaseSucceed("Rack Setup Done");
     };
     return 0;

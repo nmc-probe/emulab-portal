@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2004-2007 University of Utah and the Flux Group.
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,12 +29,12 @@ UNIFIED         = @UNIFIED_BOSS_AND_OPS@
 
 include $(OBJDIR)/Makeconf
 
-BIN_SCRIPTS	= sshxmlrpc_client.py sslxmlrpc_client.py
-SBIN_SCRIPTS	= sshxmlrpc_server.py xmlrpcbag sslxmlrpc_server.py 
-LIB_STUFF	= sshxmlrpc.py emulabserver.py emulabclient.py libxmlrpc.pm
+BIN_SCRIPTS	= sslxmlrpc_client.py
+SBIN_SCRIPTS	= xmlrpcbag sslxmlrpc_server.py 
+LIB_STUFF	= emulabserver.py emulabclient.py libxmlrpc.pm
 LIBEXEC_STUFF	= webxmlrpc
 WWW_STUFF	= xmlrpcapi.php3
-DOWNLOAD_STUFF  = sshxmlrpc.py sshxmlrpc_client.py emulabclient.py README \
+DOWNLOAD_STUFF  = emulabclient.py README \
                   script_wrapper.py sslxmlrpc_client.py
 DEBUG_STUFF     = experiment node imageid osid fs user emulab server
 
@@ -43,8 +43,8 @@ EXPANDCOPYRIGHT	= /usr/site/lib/copyright/expand-copyr
 #
 # These are the ones installed on plastic (users, control, etc). 
 # 
-CLIENTBINS      = sshxmlrpc_client.py script_wrapper.py sslxmlrpc_client.py
-USERLIBS	= sshxmlrpc.py emulabclient.py libxmlrpc.pm \
+CLIENTBINS      = script_wrapper.py sslxmlrpc_client.py
+USERLIBS	= emulabclient.py libxmlrpc.pm \
 		  BasicXMLRPCServers.py
 SYMLINKS        = node_admin node_reboot os_load create_image node_list \
 		  delay_config wilink_config savelogs portstats eventsys_control \

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -34,15 +34,17 @@ use POSIX ":sys_wait_h";
 sub usage()
 {
     print STDERR "Usage: initilo.pl [-d] [-n] <ilopswd> <nodeid>\n";
+    print STDERR "Usage: initilo.pl [-d] [-n] -b <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -o <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -c <ip> <ilopswd>\n";
     exit(-1);
 }
-my $optlist	= "dnco";
+my $optlist	= "dncobs";
 my $debug	= 0;
 my $impotent    = 0;
 my $control     = 0;
 my $dooutlet    = 0;
+my $bootorder   = 0;
 my $tempfile    = "/tmp/$$.xml";
 
 #
@@ -100,6 +102,9 @@ if (defined($options{"n"})) {
 if (defined($options{"c"})) {
     $control = 1;
 }
+if (defined($options{"b"})) {
+    $bootorder = 1;
+}
 if (defined($options{"o"})) {
     $dooutlet = 1;
 }
@@ -121,6 +126,7 @@ chomp($elabmanpswd);
 my $setupgoo  = `cat $SRCDIR/setupilo.xml`;
 my $resetgoo  = `cat $SRCDIR/resetilo.xml`;
 my $chpswdgoo = `cat $SRCDIR/chpswd.xml`;
+my $sshkeygoo = `cat $SRCDIR/addsshkey.xml`;
 
 # The pubkey.
 my $pubkey = `cat ${DSAKEY}.pub`;
@@ -145,6 +151,26 @@ if ($dooutlet) {
 
     exit(DoOutlet($ARGV[0]));
 }
+if ($bootorder) {
+    usage()
+	if (@ARGV != 1);
+
+    my $node = Node->Lookup($ARGV[0]);
+    if (!defined($node)) {
+	Fatal("No such node");
+    }
+    # This has to be in the interfaces table already.
+    my $management_interface = Interface->LookupManagement($node);
+    if (!defined($management_interface)) {
+	Fatal("No management interface for $node");
+    }
+    my $iloIP = $management_interface->IP();
+    if (ChangeBootOrder($iloIP)) {
+	Fatal("Failed to change the boot order on $iloIP")
+    }
+    exit(0);
+}
+
 usage()
     if (@ARGV != 2);
 
@@ -168,7 +194,7 @@ my $iloIP = $management_interface->IP();
 #
 # Replace the appropriate parts of the XML goo.
 #
-my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd, $pubkey);
+my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd);
 if (SendXML($iloIP, $xmlgoo)) {
     Fatal("Failed to send xmlgoo to $iloIP");
 }
@@ -176,7 +202,7 @@ if (SendXML($iloIP, $xmlgoo)) {
 #
 # The boot order cannot be changed via ribcl. What a pain.
 #
-if (ChangeBootOrder($iloIP)) {
+if (0 && ChangeBootOrder($iloIP)) {
     Fatal("Failed to change the boot order on $iloIP")
 }
 
@@ -191,6 +217,11 @@ if (ChangeBootOrder($iloIP)) {
 $xmlgoo = sprintf($chpswdgoo, $ilopswd, $elabmanpswd);
 if (SendXML($iloIP, $xmlgoo)) {
     Fatal("Failed to send chpswd xml to $iloIP");
+}
+
+$xmlgoo = sprintf($sshkeygoo, $elabmanpswd, $pubkey, $pubkey);
+if (SendXML($iloIP, $xmlgoo)) {
+    Fatal("Failed to send addsshkey xml to $iloIP");
 }
     
 #
@@ -378,13 +409,17 @@ sub SetupControlNode($$)
 {
     my ($ip, $ilopswd) = @_;
     
-    my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd, $pubkey);
+    my $xmlgoo = sprintf($setupgoo, $ilopswd, $elabmanpswd);
     if (SendXML($ip, $xmlgoo)) {
 	Fatal("Failed to send setup xml to $ip");
     }
     $xmlgoo = sprintf($chpswdgoo, $ilopswd, $elabmanpswd);
     if (SendXML($ip, $xmlgoo)) {
 	Fatal("Failed to send chpswd xml to $ip");
+    }
+    $xmlgoo = sprintf($sshkeygoo, $elabmanpswd, $pubkey, $pubkey);
+    if (SendXML($ip, $xmlgoo)) {
+	Fatal("Failed to send addsshkey xml to $ip");
     }
     return 0;
 }

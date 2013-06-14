@@ -61,7 +61,7 @@ print "Got the slice credential, asking for a sliver credential ..."
 #
 # Get the sliver status
 #
-params = [SLICEURN, [slicecred]]
+params = [SLICEURN, [slicecred], []]
 
 try:
     response = do_method("am/2.0", "SliverStatus", params,

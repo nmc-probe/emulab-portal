@@ -34,7 +34,7 @@ if [ -z "$head" ]; then
 		esac
 	elif [ -f $version_file ]; then
 		# This is only used for exported tarballs
-		head=`sed -n 's#^Version: $Format:\([a-f0-9]*\) .*\$.*$#\1#p' \
+		head=`sed -n 's#^Version: \([a-f0-9]*\) .*$#\1#p' \
 			$version_file`
 	else
 		exit 1

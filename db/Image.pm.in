@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2012 University of Utah and the Flux Group.
+# Copyright (c) 2007-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,6 +46,7 @@ my $CONTROL	  = "@USERNODE@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $TBAUDIT       = "@TBAUDITEMAIL@";
 my $TBBASE        = "@TBBASE@";
+my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $TBWWW         = "@TBWWW@";
 
 # Cache of instances to avoid regenerating them.
@@ -328,6 +329,15 @@ sub Create($$$$$$$$)
     $query .= ",description=$desc";
     $query .= ",hash=" . DBQuoteSpecial($argref->{'hash'})
 	if (exists($argref->{'hash'}));
+
+    #
+    # If this is set in the environment, we use it. This allows
+    # us to track actual geni users, since all of that happens
+    # as geniuser. We do not bother to set this for local users.
+    #
+    if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
+	$query .= ",creator_urn=". DBQuoteSpecial($ENV{'GENIURN'});
+    }
     
     if (! DBQueryWarn($query)) {
 	DBQueryWarn("unlock tables");
@@ -812,16 +822,31 @@ sub UnLockTables($)
 #
 # Mark the update time in the record,
 #
-sub MarkUpdateTime($;$)
+sub MarkUpdate($$;$)
 {
-    my ($self, $stamp) = @_;
+    my ($self, $user, $stamp) = @_;
 
     # Must be a real reference. 
     return -1
 	if (! ref($self));
 
-    my $imageid = $self->imageid();
-
+    my $imageid     = $self->imageid();
+    my $updater     = "";
+    my $updater_idx = "";
+    my $updater_urn = "";
+    if (defined($user)) {
+	$updater     = ", updater='" . $user->uid() . "'";
+	$updater_idx = ", updater_idx='" . $user->uid_idx() . "'";
+    }
+    #
+    # If this is set in the environment, we use it. This allows
+    # us to track actual geni users, since all of that happens
+    # as geniuser. We do not bother to set this for local users.
+    #
+    if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
+	$updater_urn = ", updater_urn=". DBQuoteSpecial($ENV{'GENIURN'});
+    }
+    
     if (defined($stamp)) {
 	$stamp="FROM_UNIXTIME($stamp)";
     }
@@ -831,6 +856,7 @@ sub MarkUpdateTime($;$)
 
     return -1
 	if (! DBQueryWarn("update images set updated=$stamp " .
+			  "  $updater $updater_idx $updater_urn ".
 			  "where imageid='$imageid'"));
 
     return 0;
@@ -1021,6 +1047,231 @@ sub RevokeAccess($$)
 			 "where imageid='$imageid' and ".
 			 "  permission_type='$perm_type' and ".
 			 "  permission_idx='$perm_idx'"));
+    return 0;
+}
+
+#
+# Class method to record image history info. 
+#
+sub RecordImageHistory($$$$$$)
+{
+    my ($class, $experiment, $action, $log_session, $impotent, $noderef) = @_;
+    require Node;
+    
+    # Flush info; we want most recent.
+    $experiment->Refresh();
+    
+    my $exptidx   = $experiment->idx();
+    my $pid       = $experiment->pid();
+    my $eid       = $experiment->eid();
+    my $state     = $experiment->state();
+    my $rsrcidx   = $experiment->rsrcidx();
+    my $lastrsrc  = $experiment->lastrsrc();
+    $log_session  = 'NULL' if (!defined($log_session));
+
+    my %prev_alloc;
+    my $cant_find_prev_alloc = 0;
+    if ($state eq 'modify_reswap') {
+	if (!defined($lastrsrc)) {
+	    print STDERR "lastrsrc not set during swapmod\n";
+	    return -1;
+	}
+	my $db_result =
+	    DBQueryWarn("select node_id from image_history ".
+			"where rsrcidx=$lastrsrc");
+	return -1
+	    if (!$db_result);
+	
+	if ($db_result->numrows() < 1) {
+	    print STDERR "could not find previous state (rsrcidx=$lastrsrc) ".
+		"in image_history table, won't be able to determine ".
+		"newly allocated nodes\n";
+	    $cant_find_prev_alloc = 1;
+	}
+	while (my $n = $db_result->fetchrow) {
+	    $prev_alloc{$n} = 1;
+	}
+    }
+
+    foreach my $node_id (keys(%{$noderef})) {
+	my $node = Node->Lookup($node_id);
+	if (! defined($node)) {
+	    print STDERR "No DB record for $node_id\n";
+	    next;
+	}
+	# Need uptodate info below.
+	$node->FlushReserved();
+	
+	my $ref  = $noderef->{$node_id};
+	my ($osid, $imageid) = @{$ref};
+	my $newly_alloc      = (exists($prev_alloc{$node_id}) ? 0 : 1);
+	$newly_alloc = 'NULL'
+	    if ($cant_find_prev_alloc);
+
+	my $history_result =
+	    DBQueryWarn("select max(history_id) ".
+			"  from node_history where node_id = '$node_id'");
+	return -1
+	    if (! $history_result);
+
+	if (! $history_result->numrows) {
+	  nohistory:
+	    print STDERR "No node_history for $node_id, ".
+		"cannot log image usage for node.\n";
+	    next;
+	}
+	my ($node_history_id) = $history_result->fetchrow_array();
+	if (!defined($node_history_id)) {
+	    goto nohistory;
+	}
+	my $vname      = $node->vname();
+	my $erole      = $node->erole();
+	my $phys_type  = $node->type();
+
+	if (!defined($vname)) {
+	    print STDERR "$node is no longer reserved!\n";
+	    next;
+	}
+
+	# Ick. Should go into the Node object.
+	my ($virt_result) =
+	    DBQueryWarn("select osname,type from virt_nodes ".
+			"where exptidx='$exptidx' and vname='$vname'");
+	return -1
+	    if (!$virt_result);
+	if (!$virt_result->numrows) {
+	    print STDERR "No virt info for node $node_id ($vname)\n";
+	    next;
+	}
+	my ($osname, $req_type) = $virt_result->fetchrow_array();
+	my $req_os = defined $osname ? ($osname ? 1 : 0) : 'NULL';
+	$erole = 'delay' if $erole eq 'delaynode';
+	$req_type = $erole unless defined $req_type;
+
+	next
+	    if ($impotent);
+	
+	DBQueryWarn("insert into image_history ".
+		    "(stamp, node_history_id, node_id, ".
+		    " action, newly_alloc, rsrcidx, log_session, ".
+		    " req_type, phys_type, req_os, osid, imageid) ".
+		    "values(UNIX_TIMESTAMP(now()), ".
+		    "       $node_history_id, '$node_id', '$action', ".
+		    "       $newly_alloc, $rsrcidx, ".
+		    "       $log_session, '$req_type', '$phys_type', ".
+		    "       $req_os, $osid, $imageid)")
+	    or return -1;
+    }
+    return 0;
+}
+
+#
+# List of images created by a user urn.
+#
+sub ListForURN($$)
+{
+    my ($class, $urn) = @_;
+    my @result = ();
+
+    return undef
+	if (! $PGENISUPPORT);
+
+    require GeniHRN;
+    return undef
+	if (! GeniHRN::IsValid($urn));
+
+    my $query_result =
+	DBQueryWarn("select imageid from images ".
+		    "where creator_urn='$urn'");
+
+    while (my ($imageid) = $query_result->fetchrow_array()) {
+	my $image = Image->Lookup($imageid);
+	next
+	    if (!defined($image));
+
+	push(@result, $image);
+    }
+
+    return @result;
+}
+
+#
+# Set to use the logfile. It becomes the "current" spew.
+#
+sub SetLogFile($$)
+{
+    my ($self, $logfile) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self) || !ref($logfile));
+
+    return -1
+	if (! $self->Update({'logfileid' => $logfile->logid()}));
+
+    return 0;
+}
+
+#
+# Get the logfile.
+#
+sub GetLogFile($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return undef
+	if (! ref($self));
+
+    # Must do this to catch updates to the logfile variables.
+    return undef
+	if ($self->Refresh());
+
+    return undef
+	if (! $self->logfileid());
+
+    return Logfile->Lookup($self->logfileid());
+}
+
+#
+# And clear it ...
+#
+sub ClearLogFile($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $logfile = $self->GetLogFile();
+    return -1
+	if (!defined($logfile));
+
+    $logfile->Delete(1) == 0
+	or return -1;
+
+    my $imageid = $self->imageid();
+    DBQueryWarn("update images set logfileid=NULL ".
+		"where imageid='$imageid'")
+	or return -1;
+
+    return $self->Refresh();
+}
+
+#
+# Mark an image as running on a type. I am assuming EZ images these days.
+#
+sub SetRunsOnNodeType($$)
+{
+    my ($self, $type) = @_;
+
+    my $imageid = $self->imageid();
+
+    DBQueryWarn("replace into osidtoimageid (osid, type, imageid) ".
+		"values ('$imageid', '$type', '$imageid')")
+	or return -1;
+
     return 0;
 }
 

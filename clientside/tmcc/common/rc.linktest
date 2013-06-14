@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -52,7 +52,7 @@ sub LINKDELAYHOST() { if (-e TMLINKDELAY()) { return 1; } else { return 0; } }
 # Exit if not a valid node to run linktest on.
 # 
 exit(0)
-    if (MFS() || REMOTE() || SIMHOST() || JAILHOST() ||
+    if (MFS() || REMOTE() || SIMHOST() || JAILHOST() || STORAGEHOST() ||
 	(DELAYHOST() && !LINKDELAYHOST()));
 
 #
@@ -103,5 +103,29 @@ print("Starting linktest daemon\n");
 my $server = getlocalevserver();
 my $args = "-s $server -l $logfile -i $pidfile -k $keyfile -u $swapper";
 
-system("linktest -e $pid/$eid $args");
-exit($? >> 0);
+#
+# Only wait for 60 seconds, to avoid pointless wait forever.
+# We will report an error.
+#
+my $childpid = fork();
+if ($childpid) {
+    my $timedout = 0;
+    local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
+    alarm 90;
+    waitpid($childpid, 0);
+    alarm 0;
+
+    #
+    # If failure then we want to report an error.
+    #
+    if ($? || $timedout) {
+	print STDERR "*** ERROR: linktest daemon failed to start. ";
+	print STDERR ($? ? "Status: $?" : "Timed out.") . "\n";
+	exit(-1);
+    }
+    exit(0);
+}
+else {
+    exec("linktest -e $pid/$eid $args");
+    exit($? >> 8);
+}

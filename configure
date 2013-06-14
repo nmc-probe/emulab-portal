@@ -5510,6 +5510,18 @@ if test $SPEWFROMOPS -eq 1; then
 _ACEOF
 
 fi
+if test $PROTOGENI_SUPPORT -eq 1; then
+    cat >>confdefs.h <<_ACEOF
+#define PROTOGENI_SUPPORT 1
+_ACEOF
+
+fi
+if test $PROTOGENI_GENIRACK -eq 1; then
+    cat >>confdefs.h <<_ACEOF
+#define PROTOGENI_GENIRACK 1
+_ACEOF
+
+fi
 
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
 cat >>confdefs.h <<_ACEOF
@@ -7611,6 +7623,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	protogeni/rspec-emulab/2/GNUmakefile \
         collab/GNUmakefile \
         collab/trac/GNUmakefile \
+        collab/plone/GNUmakefile \
         collab/jabber/GNUmakefile \
         collab/mailman/GNUmakefile collab/cvstools/GNUmakefile \
 	collab/mailman/mmlistmembership \
@@ -7667,6 +7680,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/freebsd/init/7/GNUmakefile \
  clientside/tmcc/freebsd/init/8/GNUmakefile \
  clientside/tmcc/freebsd/init/9/GNUmakefile \
+ clientside/tmcc/freebsd/init/10/GNUmakefile \
  clientside/tmcc/freebsd/supfile clientside/tmcc/freebsd/sethostname \
  clientside/tmcc/linux/GNUmakefile clientside/tmcc/linux/supfile \
  clientside/tmcc/linux/sethostname.dhclient \

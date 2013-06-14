@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -58,6 +58,7 @@ my $oneshot   = 0;
 my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $TBLOGS        = "@TBLOGSEMAIL@";
+my $TBAUTOMAIL    = "@TBAUTOMAILEMAIL@";
 my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
 my $OURDOMAIN     = "@OURDOMAIN@";
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
@@ -99,7 +100,7 @@ if (! getopts($optlist, \%options)) {
     usage();
 }
 if (defined($options{"d"})) {
-    $debug = 1;
+    $debug++;
 }
 if (defined($options{"i"})) {
     $idlecheck = 1;
@@ -117,6 +118,7 @@ $GENI_DBNAME = "geni-cm";
 
 # Load the Testbed support stuff.
 use lib "@prefix@/lib";
+use emdb;
 require GeniDB;
 require GeniUtil;
 require GeniTicket;
@@ -383,7 +385,7 @@ sub ExpireSlices()
 	# See if we have any local nodes. No point in using the idle
 	# check if there are no nodes. 
 	#
-	if ($idlecheck && !$slice->isplaceholder()) {
+	if (0 && $idlecheck && !$slice->isplaceholder()) {
 	    my @localnodes = ();
 	    $experiment->LocalNodeListNames(\@localnodes);
 	    if (@localnodes) {
@@ -801,8 +803,231 @@ sub PushStats()
     return 0;
 }
 
+#
+# Look for idle slivers. 
+#
+sub CheckIdle()
+{
+    my $mailinterval;
+    my $threshold;
+    my $idlecheck_terminate;
+    my $debug = 1;
+    
+    if (! (GetSiteVar("idle/mailinterval", \$mailinterval) &&
+	   GetSiteVar("idle/threshold", \$threshold) &&
+	   GetSiteVar("protogeni/idlecheck_terminate",\$idlecheck_terminate))) {
+	print STDERR "Could not get idle parameters.\n";
+	return;
+    }
+    # Threshold in hours, convert to minutes.
+    $threshold = $threshold * 60;
+    
+    my $query_result =
+	GeniDB::DBQueryWarn("select idx,UNIX_TIMESTAMP(created) ".
+			    "  from geni_slices ".
+			    "where shutdown is null and isplaceholder=0");
+
+    while (my ($idx,$created) = $query_result->fetchrow_array()) {
+	my $slice = GeniSlice->Lookup($idx);
+
+	if (!defined($slice)) {
+	    # Slice is gone, lets not worry.
+	    next;
+	}
+	if ($slice->Lock() != 0) {
+	    print STDERR "Could not lock slice $slice.\n";
+	    goto skip;
+	}
+
+	# We want the aggregate for the sliver urn, but it might
+	# not actually exist yet.
+	my $aggregate = GeniAggregate->SliceAggregate($slice);
+	if (!defined($aggregate)) {
+	    print STDERR "No aggregate created yet for $slice\n";
+	    $slice->UnLock();
+	    goto skip;
+	}
+	my $experiment = $slice->GetExperiment();
+	if (!defined($experiment)) {
+	    print STDERR "Could not get experiment for $slice. Expiring ...\n";
+	    $slice->UnLock();
+	    goto cleanup;
+	}
+	if ($experiment->Refresh() != 0) {
+	    print STDERR "Could not flush $experiment\n";
+	    $slice->UnLock();
+	    goto skip;
+	}
+	my $exptidx = $experiment->idx();
+
+	if ($debug) {
+	    print STDERR "Checking idle for $slice\n";
+	}
+
+	#
+	# This query comes out of db/idlemail.in ... I'm not willing
+	# to mess with that code.
+	#
+	my $idle_result =
+	    emdb::DBQueryWarn(
+		        "select r.pid, e.gid, r.eid, idleswap_timeout, ".
+			"  swap_requests, idle_ignore, idleswap, ".
+			"  round((unix_timestamp(now()) - ".
+			"         unix_timestamp(last_swap_req))/3600,2) ".
+			"    as lastreq, ".
+			"  count(r.node_id) as nodes, ".
+			"  round((unix_timestamp(now()) - ".
+			"         unix_timestamp(max(greatest(last_tty_act, ".
+			"           last_net_act, last_cpu_act, ".
+			"           last_ext_act))))/60,1) as idle_time, ".
+			"  max(greatest(last_tty_act, last_net_act, ".
+			"               last_cpu_act, ".
+			"               last_ext_act)) as lastact, ".
+			"  (unix_timestamp(now()) - ".
+			"   unix_timestamp(min(last_report))) as staleness ".
+			"from node_activity as na ".
+			"left join reserved as r on na.node_id=r.node_id ".
+		        "left join nodes as n on na.node_id=n.node_id ".
+		        "left join node_types as nt on nt.type=n.type ".
+			"left join experiments as e on r.exptidx=e.idx ".
+			"where r.exptidx=$exptidx and nt.isvirtnode=0 ".
+			"group by pid,eid having nodes > 0 ");
+	if (!defined($idle_result)) {
+	    print STDERR "Could not get idle data for $experiment\n";
+	    $slice->UnLock();
+	    goto skip;
+	}
+	my $row = $idle_result->fetchrow_hashref();
+
+	my $idleswap   = $row->{'idleswap'};
+	# idleswap_timeout in minutes
+	my $timeout    = $row->{'idleswap_timeout'};
+	my $ignore     = $row->{'idle_ignore'};
+	my $swapreqs   = $row->{'swap_requests'};
+	# lastreq in hours
+	my $lastreq    = $row->{'lastreq'};
+	my $nodes      = $row->{'nodes'};
+	# idletime in in minutes
+	my $idletime   = $row->{'idle_time'};
+	my $lastact    = $row->{'lastact'};
+        my $staleness  = $row->{'staleness'};
+	my $stale      = 0;
+
+	#
+	# staleness. If undef, none of the nodes have reported any idle data
+	# since inception, lets skip since we do not know anything. Note
+	# that idletime will also be null. If the staleness is really big,
+	# all of the nodes have stopped reporting, and that means they are
+	# all offline or otherwise munged to stop reporting. I am going to
+	# treat those as idle. The user can argue with us about it.  If the
+	# staleness is small, we trust the data idle data to be accurate.
+	# If the staleness is medium, then wait longer.
+	#
+	if (defined($staleness)) {
+	    # Stale if more then 10 minutes but less then six hours.
+	    $stale = 1
+		if ($staleness >= 600 && $staleness < 6 * 3600);
+	}
+
+	#
+	# if no idle data, nothing do do.
+	#
+	if (!defined($idletime)) {
+	    print STDERR "No idle data for $slice\n"
+		if ($debug);
+	    $slice->UnLock();
+	    goto skip;
+	}
+	my $idletime_hours = sprintf("%.2f", $idletime / 60.0);
+	
+	# We do not know (from the query) that idletime>threshold.  So
+	# check that we're either forcing, or that it is idle, and
+	# then check the swap requests and time of last request, to
+	# make sure we can send a message.
+	if ($idletime > $timeout || $idletime > $threshold) {
+	    print STDERR "$slice is using $nodes physical nodes ".
+		"and has been idle for $idletime_hours hours\n";
+	    if ($ignore) {
+		print STDERR "*** but idle ignore is set.\n";
+	    }
+	}
+	#
+	# We want to report as much idle data as possible, but
+	# if the slice has not passed its idletime setting, or
+	# if idleswap is off, we skip.
+	#
+	if ($idletime > $timeout && $idleswap) {
+	    #
+	    # Send email if none sent or if the minimum time since
+	    # since the last message has passed. In general, we will not
+	    # send more then one message, but for testing lets not
+	    # annoy people by actually terminating slices. Just annoy
+	    # them with email, but only once a day.
+	    #
+	    if ($swapreqs == 0 || $lastreq > 24) {
+		my $geniuser  = GeniUser->Lookup($slice->creator_uuid(), 1);
+		my $emailaddr = $geniuser->email();
+		my $sliver_urn= $aggregate->urn();
+		my $urn       = $slice->urn();
+
+		print STDERR
+		    "Sending mail to $geniuser about idle sliver $aggregate\n";
+		
+		if (!$impotent) {
+		    SENDMAIL($emailaddr, "Sliver $sliver_urn is idle",
+			"Sliver $sliver_urn\n".
+			"from slice $urn,\n".
+			"has been idle for approximately ".
+			     "$idletime_hours hour(s), ".
+			"and is using $nodes physical nodes.\n".
+		        "This sliver will be terminated if it stays idle.\n",
+		         $TBAUTOMAIL, "CC: $TBAUTOMAIL");
+
+		    emdb::DBQueryWarn("update experiments set ".
+				      "   swap_requests=swap_requests+1, ".
+				      "   last_swap_req=now() ".
+				      "where idx='$exptidx'");
+		}
+	    }
+	    elsif ($idletime > (2 * $timeout) && $idlecheck_terminate) {
+		print STDERR "Expiring idle $slice $experiment.\n";
+
+		if (!$impotent) {
+		    my $slice_uuid  = $slice->uuid();
+		    system("$CLEANUPSLICE -f -m $slice_uuid");
+		    if ($?) {
+			print STDERR "Could not release idle $slice\n";
+			SENDMAIL($TBOPS, "Could not release idle slice $slice",
+				 "Could not release idle slice $slice");
+			# Leave it locked. 
+			goto skip;
+		    }
+		}
+	    }
+	    else {
+		print STDERR "Waiting to see if idle slice $slice ".
+		    "does something useful.\n";
+	    }
+	}
+	else {
+	    # Reset warnings.
+	    print STDERR "Resetting swap_requests for $slice\n"
+		if ($debug);
+	   
+	    emdb::DBQueryWarn("update experiments set swap_requests=0 ".
+			      "where idx='$exptidx'")
+		if (!$impotent);
+	}
+	$slice->UnLock();
+      skip:
+	$slice->Flush()
+	    if (defined($slice));
+    }
+}    
+
 if ($oneshot) {
-    PushStats();
+    CheckIdle()
+	if ($idlecheck);
     exit(0);
 }
 
@@ -811,13 +1036,25 @@ sleep(5);
 ReportLockedSlices();
 ReportOrphanedCerts();
 
-my $counter = 0;
+my $reportcounter = 0;
+my $idlecounter   = 0;
 
 while (1) {
     if (NoLogins()) {
 	sleep(5);
 	next;
     }
+    my $doidlechecks;
+
+    # Site var normally controls idle checks, but it can be turned
+    # via the command line as well.
+    if (! GetSiteVar('protogeni/idlecheck', \$doidlechecks)) {
+	# Cannot get the value, default it to off.
+	$doidlechecks = 0;
+    }
+    
+    $reportcounter += $SLEEP_INTERVAL;
+    $idlecounter   += $SLEEP_INTERVAL;
     
     print "Running at ".
 	POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime()) . "\n";
@@ -825,15 +1062,23 @@ while (1) {
     ExpireTickets();
     WarnSlices();
     ExpireSlices();
+
+    #
+    # Run the idle check periodically. 
+    # 
+    if ($idlecounter >= (15 * 60)) {
+	CheckIdle()
+	    if ($idlecheck || $doidlechecks);
+	$idlecounter = 0;
+    }
     ShutdownSlices();
     RegisterSlices();
     PushStats();
 
-    $counter += $SLEEP_INTERVAL;
-    if ($counter >= (24 * 60 * 60)) {
+    if ($reportcounter >= (24 * 60 * 60)) {
 	ReportLockedSlices();
 	ReportOrphanedCerts();
-	$counter = 0;
+	$reportcounter = 0;
     }
 
     # Be certain stale info is gone.
@@ -841,6 +1086,7 @@ while (1) {
     Node->FlushAll();
     GeniUtil::FlushCaches();
 
+    print "Sleeping for $SLEEP_INTERVAL seconds ...\n";
     sleep($SLEEP_INTERVAL);
 }
 exit(0);

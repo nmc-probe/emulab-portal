@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -67,6 +67,7 @@ proc tb-set-usewatunnels {onoff} {}
 proc tb-set-wasolver-weights {delay bw plr} {}
 proc tb-use-endnodeshaping {onoff} {}
 proc tb-force-endnodeshaping {onoff} {}
+proc tb-set-node-memory-size {node mem} {}
 proc tb-set-multiplexed {link onoff} {}
 proc tb-set-endnodeshaping {link onoff} {}
 proc tb-set-noshaping {link onoff} {}
@@ -329,6 +330,10 @@ Simulator instproc make-path {linklist} {
 }
 
 Simulator instproc make-portinvlan {node token} {
+}
+
+Simulator instproc make-san {nodelist} {
+    return [$self make-lan $nodelist ~ 0ms]
 }
 
 Simulator instproc blockstore {args} {

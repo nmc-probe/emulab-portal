@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -88,8 +88,12 @@ AUTOLOAD {
     my $name  = $AUTOLOAD;
     $name =~ s/.*://;   # strip fully-qualified portion
 
+    # canceled is a special case.
+    if ($name eq "canceled") {
+	return Canceled($self);
+    }
     # A DB row proxy method call.
-    if (exists($self->{'EXPT'}->{$name})) {
+    elsif (exists($self->{'EXPT'}->{$name})) {
 	return $self->{'EXPT'}->{$name};
     }
     elsif (exists($self->{'STATS'}->{$name})) {
@@ -183,7 +187,8 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "linkdelays"    => ["node_id", "vlan", "vnode"],
 		   "traces"        => ["node_id", "idx"],
 		   "portmap"       => undef,
-		   "bridges"       => ["node_id", "bridx", "iface"]); 
+		   "bridges"       => ["node_id", "bridx", "iface"],
+                   "reserved_addresses" => undef); 
 
 # These are slots in the node table that need to be restored. 
 @nodetable_fields = ("def_boot_osid",
@@ -377,20 +382,10 @@ sub Stringify($)
 # the stats stats record, but was not being updated
 sub elabinelab($) { return $_[0]->elab_in_elab(); }
 
-1;
-@SELFLOADER_DATA@
-
-sub dbrow($$)     { return $_[0]->{'EXPT'}; }
-sub locked($)     { return $_[0]->expt_locked(); }
-sub description($){ return $_[0]->expt_name(); }
-sub creator($)    { return $_[0]->expt_head_uid(); }
-sub created($)	  { return $_[0]->expt_created(); }
-sub swapper($)	  { return $_[0]->expt_swap_uid(); }
-
 #
-# For canceled, goto to the DB.
+# For canceled, goto to the DB. See AUTOLOAD above.
 #
-sub canceled($)
+sub Canceled($)
 {
     my ($self) = @_;
     
@@ -407,6 +402,16 @@ sub canceled($)
     $self->{'EXPT'}->{'canceled'} = $canceled;
     return $canceled;
 }
+
+1;
+@SELFLOADER_DATA@
+
+sub dbrow($$)     { return $_[0]->{'EXPT'}; }
+sub locked($)     { return $_[0]->expt_locked(); }
+sub description($){ return $_[0]->expt_name(); }
+sub creator($)    { return $_[0]->expt_head_uid(); }
+sub created($)	  { return $_[0]->expt_created(); }
+sub swapper($)	  { return $_[0]->expt_swap_uid(); }
 
 #
 # Lookup an experiment given an experiment index.
@@ -2841,6 +2846,13 @@ sub CleanLogFiles($)
     }
     mysystem("/bin/rm -f @delete") == 0
 	or return -1;
+
+    #
+    # Whenever we clean the log files, we might as well clear the
+    # current log file, cause it no longer is there, but the web
+    # interface will not know that.
+    #
+    $self->ClearLogFile();
 
     return 0;
 }
@@ -5291,6 +5303,24 @@ sub GetVirtNodeAttribute($$$$)
 
     my ($val) = $query_result->fetchrow_array();
     $$pval = $val;
+    return 0;
+}
+
+sub SetVirtNodeAttribute($$$$)
+{
+    my ($self, $vname, $key, $val) = @_;
+
+    my $exptidx  = $self->idx();
+    my $pid      = $self->pid();
+    my $eid      = $self->eid();
+    my $safe_key = DBQuoteSpecial($key);
+    my $safe_val = DBQuoteSpecial($val);
+
+    DBQueryWarn("replace into virt_node_attributes set ".
+		"  pid='$pid', eid='$eid', exptidx='$exptidx', ".
+		"  vname='$vname', attrkey=$safe_key, attrvalue=$safe_val")
+	or return -1;
+
     return 0;
 }
 

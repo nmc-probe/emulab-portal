@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -35,15 +35,17 @@ my $TAR         = "/bin/tar";
 
 #
 # Client-side to create a disk image. Caller must have sudo permission!
-# This is the OpenVZ specific version. 
+# This is the XEN specific version. 
 #
 sub usage()
 {
-    print STDOUT "Usage: create-image [-S image-server] [-F imageid] ".
+    print STDOUT "Usage: create-image [-p] [-r] [-S image-server] [-F imageid] ".
 	"<vnodeid> <filename>\n";
     exit(-1);
 }
-my  $optlist = "F:S:";
+my $optlist   = "F:S:pr";
+my $aspack    = 0;
+my $norestart = 0;
 
 #
 # Turn off line buffering on output
@@ -52,7 +54,6 @@ $| = 1;
 
 # Need this for predicates.
 use libsetup;
-use libvnode;
 use libvnode_xen;
 
 #
@@ -63,6 +64,7 @@ my $zipper   = "/usr/local/bin/imagezip";
 my $uploader = "/usr/local/etc/emulab/frisupload";
 my $vnodeid;
 my $filename;
+my $cmd;
 my $error    = 0;
 
 for my $path (qw#/usr/local/bin /usr/bin#) {
@@ -88,6 +90,9 @@ if (@ARGV != 2) {
     usage();
 }
 
+if (defined($options{"p"})) {
+    $aspack = 1;
+}
 if (defined($options{"S"})) {
     $iserver = $options{"S"};
     if ($iserver =~ /^([-\w\.]+)$/) {
@@ -163,27 +168,50 @@ if ($status ne "") {
     }
 }
 
-#
-# Use capture.pl; there are potentially multiple disks, the kernel,
-# and a config file. All of this goes into a directory which we then
-# tar up and upload. 
-#
-system("$sudo $CAPTURE $vnodeid");
-if ($?) {
-    print STDERR "Failed to capture the container!\n";
-    $error = 1;
-    goto cleanup;
+if ($aspack) {
+    #
+    # Use capture.pl; there are potentially multiple disks, the kernel,
+    # and a config file. All of this goes into a directory which we then
+    # tar up and upload. 
+    #
+    system("$sudo $CAPTURE $vnodeid");
+    if ($?) {
+	print STDERR "Failed to capture the container!\n";
+	$error = 1;
+	goto cleanup;
+    }
+    if (! -e "$EXTRAFS/$vnodeid" || ! -e "$EXTRAFS/$vnodeid/xm.conf") {
+	print STDERR "$EXTRAFS/$vnodeid appears to be missing or incomplete\n";
+	$error = 1;
+	goto cleanup;
+    }
+    $cmd = "$TAR zcf - -C $EXTRAFS/$vnodeid . | $zipper -f - $filename";    
 }
-if (! -e "$EXTRAFS/$vnodeid" || ! -e "$EXTRAFS/$vnodeid/xm.conf") {
-    print STDERR "$EXTRAFS/$vnodeid appears to be missing or incomplete\n";
-    $error = 1;
-    goto cleanup;
+else {
+    my $device = libvnode_xen::lvmVolumePath($vnodeid);
+    my $opt    = "";
+
+    #
+    # Hacky way to determine what kind of filesystem, since there
+    # is nothing in the MBR to tell us.
+    #
+    if (system("$zipper -i -b $device >/dev/null 2>&1") == 0) {
+	$opt = "-b";
+    }
+    elsif (system("$zipper -i -l $device >/dev/null 2>&1") == 0) {
+	$opt = "-l";
+    }
+    else {
+	print STDERR "Cannot determine imagezip FS type of $device\n";
+	$error = 1;
+	goto cleanup;
+    }
+    $cmd = "$zipper $opt $device $filename";    
 }
 
 #
 # If imageid is defined, we use the frisbee uploader.
 #
-my $cmd = "$TAR zcf - -C $EXTRAFS/$vnodeid . | $zipper -f - $filename";
 if (defined($imageid)) {
     $cmd .= " | $uploader -S $iserver -F $imageid";
     if (SHAREDHOST()) {
@@ -205,14 +233,17 @@ if (system("$sudo $cmd")) {
 
 cleanup:
 # Clean up the directory.
-system("$sudo /bin/rm -rf $EXTRAFS/$vnodeid");
+system("$sudo /bin/rm -rf $EXTRAFS/$vnodeid")
+    if ($aspack);
 
 #
 # Reboot the vnode.
 #
-system("$sudo $VNODESETUP -jbVt $vnodeid");
-if ($?) {
-    die("Could not restart container!\n");
+if (! $norestart) {
+    system("$sudo $VNODESETUP -jbVt $vnodeid");
+    if ($?) {
+	die("Could not restart container!\n");
+    }
 }
 exit($error);
 

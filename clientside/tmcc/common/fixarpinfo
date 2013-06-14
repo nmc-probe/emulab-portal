@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012 University of Utah and the Flux Group.
+# Copyright (c) 2012, 2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -140,7 +140,8 @@ if (!$myip) {
 }
 
 
-print STDERR libsetup::TBTimeStampWithDate() . ": arpinfo $action\n";
+print STDERR libsetup::TBTimeStampWithDate() . ": arpinfo $action\n"
+    if ($verbose);
 
 # Execute the action.
 SWITCH: for ($action) {
@@ -208,7 +209,7 @@ sub doset()
     foreach my $ip (keys %arpinfo) {
 	my $mac = $arpinfo{$ip}{'mac'};
 	if (!$doit) {
-	    print STDERR "Would do: arp -i $iface -s $ip $mac\n";
+	    print STDERR "Would do: arp -s $ip $mac\n";
 	} else {
 	    print STDERR "  Adding arp entry for $ip ($mac) on $iface\n"
 		if ($verbose);
@@ -369,7 +370,7 @@ sub doupdate()
 		os_removearpentry($iface, $ip);
 	    }
 	    if (!$doit) {
-		print STDERR "Would do: arp -i $iface -s $ip $mac\n";
+		print STDERR "Would do: arp -s $ip $mac\n";
 	    } else {
 		os_createarpentry($iface, $ip, $mac);
 	    }
@@ -389,7 +390,7 @@ sub doupdate()
 	my $mac = $newinfo{$ip}{'mac'};
 
 	if (!$doit) {
-	    print STDERR "Would do: arp -i $iface -s $ip $mac\n";
+	    print STDERR "Would do: arp -s $ip $mac\n";
 	} else {
 	    print STDERR "  Adding arp entry for $ip ($mac) on $iface\n"
 		if ($verbose);

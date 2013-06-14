@@ -6,6 +6,13 @@ REPLACE INTO `interface_capabilities`
   VALUES ('bce','ethernet_defspeed','1000000');
 
 REPLACE INTO `interface_types`
+  VALUES ('igb',1000000,1,'Intel','Gigabit Ethernet',1,'RJ45');
+REPLACE INTO `interface_capabilities`
+  VALUES ('igb','protocols','ethernet');
+REPLACE INTO `interface_capabilities`
+  VALUES ('igb','ethernet_defspeed','1000000');
+
+REPLACE INTO `interface_types`
   VALUES ('ilo2',0,1,'HP','HP iLO 2',1,'RJ45');
 
 replace into node_types set
@@ -36,3 +43,8 @@ REPLACE INTO `switch_stack_types`
 replace into switch_stacks (node_id,stack_id,is_primary)
       values ('procurve2','Experiment',1),("procurve1",'Control',1);
 
+replace into node_types set
+      class='switch', isswitch=1, type='external-switch';
+replace into node_type_attributes set
+      type='external-switch',attrkey='forwarding_protocols',
+      attrvalue='ethernet',attrtype='string';

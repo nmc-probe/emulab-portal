@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Copyright (c) 2001-2006 University of Utah and the Flux Group.
+# Copyright (c) 2001-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -24,6 +24,7 @@
 
 # CONSTANTS INIT
 PIDFILE=/var/run/apache.pid
+ALTPIDFILE=/var/run/httpd.pid
 LOGDIR=/usr/testbed/log
 DESTDIR=/z/testbed/logs/apache
 APACHECTL=/usr/local/sbin/apachectl
@@ -70,11 +71,20 @@ done
 #
 if [ $MOVED -eq 1 ]
 then
+    mypid=""
+    if [ -e $PIDFILE ]
+    then
+	mypid=`cat $PIDFILE`
+    elif [ -e $ALTPIDFILE ]
+    then
+	mypid=`cat $ALTPIDFILE`
+    fi
+    
     # Should be a proc entry if the process is running!
     # Note that a graceful restart waits for all clients to disconnect.
-    if [ -e /proc/`cat $PIDFILE` ]
+    if [ "x$mypid" != "x" -a -e "/proc/$mypid" ]
     then
-        $APACHECTL graceful
+        $APACHECTL restart
         if [ $? -ne 0 ]
         then
             echo "Apache restart failed"

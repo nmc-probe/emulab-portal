@@ -27,6 +27,7 @@ IFCONFIG=/sbin/ifconfig
 ROUTE=/sbin/route
 IP=/sbin/ip
 BRCTL=/usr/sbin/brctl
+OVSCTL=/usr/local/bin/ovs-vsctl
 
 # ELABIFS="veth100.1,br0;veth100.2,brp3"
 # ELABBRS="br0:noencap,short;brp3:encap"
@@ -43,7 +44,11 @@ fi
 if [ $ELABCTRLDEV = $DEV ]; then
     echo "Emulab configuring network for CT$VEID: control net ($ELABCTRLDEV)"
     if [ "x$ELABCTRLBR" != "x" ]; then
-	$BRCTL addif $ELABCTRLBR $ELABCTRLDEV
+	if [ -e /usr/local/var/run/openvswitch/ovsdb-server.pid ]; then
+	    $OVSCTL add-port $ELABCTRLBR $ELABCTRLDEV
+	else
+	    $BRCTL addif $ELABCTRLBR $ELABCTRLDEV
+	fi
     fi
     $IFCONFIG $ELABCTRLDEV 2&>1 > /dev/null
     while [ $? -ne 0 ]; do
@@ -72,13 +77,18 @@ fi
 echo "$ELABIFS" | sed -e 's/;/\n/g' | \
     while read iface; \
     do \
-        _if=`echo "$iface" | sed -r -e 's/([^,]*),[^,]*/\1/'`
-        _br=`echo "$iface" | sed -r -e 's/[^,]*,([^,]*)/\1/'`
+        _if=`echo "$iface" | sed -r -e 's/([^,]*),[^,]*,[^,]*/\1/'`
+        _br=`echo "$iface" | sed -r -e 's/[^,]*,([^,]*),[^,]*/\1/'`
+        _sc=`echo "$iface" | sed -r -e 's/[^,]*,[^,]*,([^,]*)/\1/'`
 
 	if [ $_if = $DEV ]; then
 	    echo "Emulab configuring network for CT$VEID: exp net ($_if)"
     	    if [ "x$_br" != "x" ]; then
-	        $BRCTL addif $_br $_if
+		if [ -e /usr/local/var/run/openvswitch/ovsdb-server.pid ]; then
+		    $OVSCTL add-port $_br $_if
+		else
+	            $BRCTL addif $_br $_if
+		fi
 	    fi
 	    $IFCONFIG $_if 2&>1 > /dev/null
 	    while [ $? -ne 0 ]; do
@@ -90,22 +100,25 @@ echo "$ELABIFS" | sed -e 's/;/\n/g' | \
 	    $IFCONFIG $_if 0 up
 	    echo 1 > /proc/sys/net/ipv4/conf/$_if/forwarding
 	    echo 1 > /proc/sys/net/ipv4/conf/$_if/proxy_arp
+	    $_sc
 	fi
     done
 
 #
 # Get the routes, as for tunnels. This is not a workable approach.
 #
-echo "$ELABROUTES" | sed -e 's/;/\n/g' | \
-    while read route; \
-    do \
-        _if=`echo "$route" | sed -r -e 's/([^,]*),[^,]*,[^,]*/\1/'`
-        _rt=`echo "$route" | sed -r -e 's/[^,]*,([^,]*),[^,]*/\1/'`
+if [ "x$ELABROUTES" != "x" ]; then
+    echo "$ELABROUTES" | sed -e 's/;/\n/g' | \
+	while read route; \
+	do \
+            _if=`echo "$route" | sed -r -e 's/([^,]*),[^,]*,[^,]*/\1/'`
+            _rt=`echo "$route" | sed -r -e 's/[^,]*,([^,]*),[^,]*/\1/'`
 
-	if [ $_if = $DEV ]; then
-	    echo "Emulab configuring route for CT$VEID: exp net ($_if)"
-	    $IP route replace $_rt dev $_if table $ROUTETABLE
-	fi
+	    if [ $_if = $DEV ]; then
+		echo "Emulab configuring route for CT$VEID: exp net ($_if)"
+		$IP route replace default via $_rt dev $_if onlink table $ROUTETABLE
+	    fi
     done
+fi
 
 exit 0

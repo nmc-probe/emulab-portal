@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -98,6 +98,34 @@ namespace eval TBCOMPAT {
     variable sotypes
     variable soclasses
     variable soprotocols
+
+    variable sodesires 
+    array set sodesires {
+	"class" 1
+	"protocol" 1
+    }
+
+    variable soplacementdesires
+    array set soplacementdesires {
+	"ANY"       "?+disk_any"
+	"SYSVOL"    "?+disk_sysvol"
+	"NONSYSVOL" "?+disk_nonsysvol"
+    }
+    variable sodefaultplacement "ANY"
+    variable sopartialplacements
+    array set sopartialplacements {}
+    variable sofullplacements
+    array set sofullplacements {}
+
+    variable sodisallowedmounts {
+	"/" "/bin" "/boot" "/dev" "/etc" "/lib" "/libexec" "/proc" 
+	"/sbin" "/sys" "/usr" "/usr/bin" "/usr/local" "/usr/local/etc" 
+	"/usr/local/bin" "/usr/local/sbin" "/usr/sbin" "/var"
+	"/etc/emulab" "/group" "/proj" "/share" "/scratch" 
+	"/users" "/usr/local/etc/emulab" "/var/emulab"
+    }
+    variable sonodemounts
+    array set sonodemounts {}
 
     # NSE hack: sim type is not in DB. Just adding it now
     set hwtypes(sim) 1
@@ -1092,7 +1120,8 @@ proc tb-set-link-failure-action {lanlink type} {
 }
 
 proc tb-fix-node {vnode pnode} {
-    if {[$vnode info class] != "Node"} {
+    if {[$vnode info class] != "Node" && 
+	[$vnode info class] != "Blockstore"} {
 	perror "\[tb-fix-node] $vnode is not a node."
 	return
     }
@@ -2302,6 +2331,16 @@ proc tb-set-node-routable-ip {node onoff} {
     } else {
 	perror "\[tb-set-node-routable-ip] $onoff must be 0/1"
     }
+}
+
+# This number is MBs.
+proc tb-set-node-memory-size {node mem} {
+    if {[$node info class] != "Node"} {
+	perror "\[tb-set-node-memory-size] $node is not a node."
+	return
+    }
+    $node add-attribute "MEMORY_SIZE" "$mem"
+    $node add-desire "?+ram" "$mem"
 }
 
 # The following codes are written, in order to use OML to send data to a server

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -117,6 +117,7 @@ class GeniSlice
     function idx()	    { return $this->field('idx'); }
     function hrn()	    { return $this->field('hrn'); }
     function uuid()	    { return $this->field('uuid'); }
+    function publicid()	    { return $this->field('publicid'); }
     function exptidx()	    { return $this->field('exptidx'); }
     function created()	    { return $this->field('created'); }
     function expires()	    { return $this->field('expires'); }
@@ -126,7 +127,7 @@ class GeniSlice
     function name()	    { return $this->field('name'); }
     function sa_uuid()	    { return $this->field('sa_uuid'); }
     function needsfirewall(){ return $this->field('needsfirewall'); }
-
+    function monitor_pid()  { return $this->field('monitor_pid'); }
 
     #
     # Class function to return a list of all slices.
@@ -167,6 +168,26 @@ class GeniSlice
 	$query_result =
 	    DBQueryFatal("select idx from geni_slices ".
 			 "where exptidx=$exptidx",
+			 $dblink);
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$idx = $row[0];
+ 	return GeniSlice::Lookup($authority, $idx);
+    }
+
+    function LookupByPublicID($authority, $publicid) {
+	$dblink     = GetDBLink($authority);
+	$safeid     = addslashes($publicid);
+
+	if (! $dblink) {
+	    return null;
+	}
+	$query_result =
+	    DBQueryFatal("select idx from geni_slices ".
+			 "where publicid='$safeid'",
 			 $dblink);
 
 	if (! ($query_result && mysql_num_rows($query_result))) {

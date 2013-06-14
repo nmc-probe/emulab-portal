@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -26,6 +26,7 @@ use Getopt::Std;
 use English;
 use Data::Dumper;
 use POSIX qw(setsid);
+use Socket;
 
 #
 # Invoked by xmcreate script to configure the control network for a vnode.
@@ -53,8 +54,9 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 # 
 use libsetup;
 use libtmcc;
-use libvnode;
+use libutil;
 use libtestbed;
+use libgenvnode;
 
 #
 # Configure.
@@ -91,6 +93,19 @@ my $fs_ip = `host fs | grep 'has address'`;
 if ($fs_ip =~ /has address ([0-9\.]*)$/) {
     $fs_ip = $1;
 }
+my $PCNET_IP_FILE   = "$BOOTDIR/myip";
+my $PCNET_MASK_FILE = "$BOOTDIR/mynetmask";
+my $PCNET_GW_FILE   = "$BOOTDIR/routerip";
+
+my $cnet_ip   = `cat $PCNET_IP_FILE`;
+my $cnet_mask = `cat $PCNET_MASK_FILE`;
+my $cnet_gw   = `cat $PCNET_GW_FILE`;
+chomp($cnet_ip);
+chomp($cnet_mask);
+chomp($cnet_gw);
+my $network   = inet_ntoa(inet_aton($cnet_ip) & inet_aton($cnet_mask));
+
+my ($jail_network,$jail_netmask) = findVirtControlNet();
 
 # Each container gets a tmcc proxy running on another port.
 my $local_tmcd_port = $TMCD_PORT + $vmid;
@@ -185,6 +200,33 @@ sub Online()
 	return -1
 	    if ($?);
     }
+
+    # 
+    # If the source is from the vnode, headed to the local control 
+    # net, no need for any NAT; just let it through.
+    # 
+    mysystem2("$IPTABLES -t nat -A POSTROUTING -j ACCEPT " . 
+	      " -s $vnode_ip -d $network/$cnet_mask");
+    return -1
+	if ($?);
+
+    # 
+    # Ditto for the jail network.
+    # 
+    mysystem2("$IPTABLES -t nat -A POSTROUTING -j ACCEPT " . 
+	      " -s $vnode_ip -d $jail_network/$jail_netmask");
+    return -1
+	if ($?);
+
+    # 
+    # Otherwise, setup NAT so that traffic leaving the vnode on its 
+    # control net IP, that has been routed out the phys host's
+    # control net iface, is NAT'd to the phys host's control
+    # net IP, using SNAT.
+    # 
+    mysystem2("$IPTABLES -t nat -A POSTROUTING ".
+	      " -s $vnode_ip -o $bridge -j SNAT --to-source $host_ip");
+    
     return 0;
 }
 
@@ -222,6 +264,15 @@ sub Offline()
 	       "  --to-source $host_ip -s $vnode_ip --destination $fs_ip ".
 	       "  -o $bridge");
     }
+
+    mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
+	      " -s $vnode_ip -d $jail_network/$jail_netmask");
+
+    mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
+	      " -s $vnode_ip -d $network/$cnet_mask");
+
+    mysystem2("$IPTABLES -t nat -D POSTROUTING ".
+	      " -s $vnode_ip -o $bridge -j SNAT --to-source $host_ip");
 
     # evproxy
     mysystem2("$IPTABLES -t nat -D PREROUTING -j DNAT -p tcp ".

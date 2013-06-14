@@ -1,0 +1,19 @@
+#
+# NS file to create the shared node pool. 
+#
+source tb_compat.tcl
+set ns [new Simulator]
+
+set vhost1 [$ns node]
+tb-set-node-os $vhost1 FEDORA15-OPENVZ-STD
+tb-set-node-sharingmode $vhost1 "shared_local"
+
+set vhost2 [$ns node]
+tb-set-node-os $vhost2 FEDORA15-OPENVZ-STD
+tb-set-node-sharingmode $vhost2 "shared_local"
+
+tb-fix-node $vhost1 pc1
+tb-fix-node $vhost2 pc2
+
+$ns rtproto Static
+$ns run

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -59,12 +59,51 @@ my $BATCHCOUNT  = 12;
 my $BATCHSLEEP	= 5;
 
 #
+# Various timeouts that really should come from the DB.
+#
+# These determine the max time per-node that we take to attempt to effect
+# a reboot short of power cycling (i.e., the time spent in RebootNode):
+#
+# node is in PXEWAIT, returns after sending a PXEWAKEUP ("immediately").
+# node does not ping, returns after 2 seconds.
+# node is pingable and ssh is running, returns after between
+#   2 and ($REBOOTTIMO + $PINGWAIT) seconds.
+# ssh reboot fails but ipod works, returns after between
+#   ($REBOOTTIMO + $PINGWAIT) and ($REBOOTTIMO + 2 * $PINGWAIT) seconds.
+# unresponsive to ipod, returns after ($REBOOTTIMO + 2 * $PINGWAIT) seconds.
+#
+# With current settings, this is between "immediately" and 80 seconds
+# per node. In the common cases where nodes are in PXEWAIT, alive and
+# well (ssh running), or completely dead it takes around 10 seconds max.
+# Ironically, the slowest case if for the "alive and well" scenario where
+# we have to wait for the node to stop pinging, which means after it has
+# shutdown all services and reached the point where it shuts down network
+# interfaces.
+#
+
+#
+# SSH timeouts.
+# Connection timeout value should be less than the reboot/reconfig values,
+# since the latter two are for the entire operation. Set to zero to not
+# have a connect timeout (the historic case).
+#
+my $CONNECTTIMO		= 10;
+my $REBOOTTIMO		= 20;
+my $REBOOTVNODETIMO	= 30;
+my $RECONFIGTIMO	= 30;
+
+#
 # Default reboot waittime.
 # If the user doesn't specify, we use this historic value.
 #
-# XXX should come from DB.
-#
 my $MAXWAITTIME	= (6 * 60);
+
+#
+# Wait times for a node to stop pinging.
+# Both regular case and when the prepare script has to be run.
+#
+my $PINGWAIT	= 30;
+my $PREPAREWAIT	= 200;
 
 #
 # Testbed Support libraries
@@ -82,8 +121,10 @@ if ($PGENISUPPORT) {
 
 # External Programs
 my $ssh		= "$TB/bin/sshtb -n";
+if ($CONNECTTIMO) {
+    $ssh .= " -o ConnectTimeout=$CONNECTTIMO";
+}
 my $power	= "$TB/bin/power";
-my $ipod	= "$TB/sbin/apod";
 my $vnodesetup	= "$TB/sbin/vnode_setup";
 my $bisend      = "$TB/sbin/bootinfosend";
 my $logfile	= "$TB/log/reboot.log";
@@ -382,13 +423,14 @@ sub nodereboot($$)
 	    $i++;
 	}
 
+	info("BATCH: ". ($powercycle ? "power cycling " : "rebooting ").
+	     join(" ", @batch));
 	if ($powercycle) {
 	    #
 	    # In powercyle mode, call the power program for the whole
 	    # batch, and continue on. We do not wait for them to go down or
 	    # reboot.
 	    #
-	    info("*** reboot: Powercycle mode: power cycle ".join(" ",@batch));
 	    if (PowerCycle(@batch)) {
 		tberror "Powercycle failed for one or more of " .
 		    join(" ",@batch);
@@ -405,7 +447,7 @@ sub nodereboot($$)
 	    #
 	    foreach my $node ( @batch ) {
 		$pids{$node} = RebootNode($nodeobjects{$node}, $reconfig,
-					  $killmode, $rebootmode, $prepare, $waittime);
+					  $killmode, $rebootmode, $prepare);
 	    }
 	}
 
@@ -415,8 +457,7 @@ sub nodereboot($$)
 	# moment.
 	#
 	if (@sortednodes) {
-	    print STDERR "reboot: Pausing to give some nodes time to reboot\n"
-		if ($debug);
+	    info("BATCH: pausing for ${BATCHSLEEP}s");
 	    sleep($BATCHSLEEP);
 	}
     }
@@ -513,7 +554,7 @@ sub nodereboot($$)
     if ($waitmode) {
 	my $waitstart = time;
 
-	print STDOUT "reboot: Waiting ($waittime s) for nodes to come up.\n"
+	print STDOUT "reboot: Waiting (${waittime}s) for nodes to come up.\n"
 	    if (!$silent);
 
 	# Wait for events to filter through stated! If we do not wait, then we
@@ -584,7 +625,7 @@ sub nodereboot($$)
 #
 sub RebootNode {
     my ($nodeobject, $reconfig, $killmode, $rebootmode, $prepare) = @_;
-    my ($status, $syspid, $mypid, $didipod, $nodestate);
+    my ($status, $syspid, $mypid, $nodestate);
     my $pc = $nodeobject->node_id();
 
     #
@@ -617,9 +658,7 @@ sub RebootNode {
     # the -k option to force a power cycle.
     #
     if ($nodeobject->GetEventState(\$nodestate)) {
-	info("$pc has no event state: power cycle");
-	print STDERR "*** reboot ($pc): no event state; will power cycle.\n"
-	    if $debug;
+	info("*** $pc: no event state, power cycling");
 	
 	# Signal to the called that the node needs to be power cycled
 	return -2;
@@ -633,9 +672,7 @@ sub RebootNode {
 	# is in waitmode, but not responding to the wakeups.
 	#
 	if ($killmode) {
-	    info("$pc: in $nodestate: but power cycling in killmode");
-	    print STDERR "reboot ($pc): in $nodestate, ".
-		"but power cycling in killmode.\n" if $debug;
+	    info("$pc: in $nodestate, but power cycling in killmode");
 	    
 	    # Signal to the caller that the node needs to be power cycled
 	    return -2;
@@ -652,13 +689,13 @@ sub RebootNode {
 	# The aux program sends the event to stated ...
 	#
 	my $reqarg = ($rebootmode ? "-r" : "-q");
-	my $optarg = ($debug ? "-dd" : "");
+	#my $optarg = ($debug ? "-dd" : "");
+	my $optarg = "";
 	
-	print STDERR "reboot ($pc): in $nodestate: sending wakeup command.\n"
-	    if $debug;
+	info("$pc: in $nodestate, sending PXEWAKEUP");
 	system("$bisend $optarg $reqarg $pc");
 	if ($?) {
-	    info("$pc: PXEWAKEUP failed ... power cycle");
+	    info("$pc: PXEWAKEUP failed, power cycling");
 	    tbnotice "$pc: PXEWAKEUP failed; will power cycle.\n";
 	    
 	    # Signal to the caller that the node needs to be power cycled
@@ -681,13 +718,13 @@ sub RebootNode {
     # See if the machine is pingable. If its not pingable, then we just
     # power cycle the machine rather than wait for ssh to time out.
     #
-    if (! DoesPing($pc, 0)) {
+    if (! DoesPing($pc, 0, 1)) {
         if ($nodestate eq TBDB_NODESTATE_POWEROFF) {
-            info("$pc powered off: will power on");
+            info("$pc: powered off, will power on");
             tbnotice "$pc powered off; will power on.";
             exit(3);
         }
-	info("$pc appears dead: power cycle");
+	info("$pc: appears dead, power cycle");
 	tbnotice "$pc appears dead; will power cycle.";
 	
 	# Signal to the parent that the node needs to be power cycled
@@ -699,8 +736,7 @@ sub RebootNode {
     # Machine is pingable at least. Try to reboot it gracefully,
     # or power cycle anyway if that does not work.
     #
-    print STDERR "reboot ($pc): Trying ssh ",
-                 ($reconfig ? "reconfig" : "reboot"), ".\n" if $debug;
+    info("$pc: trying ssh ".($reconfig ? "reconfig" : "reboot"));
 
     #
     # Must change our real UID to root so that ssh will work. We save the old
@@ -718,7 +754,7 @@ sub RebootNode {
 
 	if ($syspid) {
 	    local $SIG{ALRM} = sub { kill("TERM", $syspid); };
-	    alarm 30;
+	    alarm $RECONFIGTIMO;
 	    waitpid($syspid, 0);
 	    alarm 0;
 
@@ -727,8 +763,7 @@ sub RebootNode {
 	    # FreeBSD for example.
 	    #
 	    my $stat = $?;
-	    print STDERR "reboot ($pc): reconfig returned ", ($stat >> 8), ".\n"
-		if $debug;
+	    info("$pc: reconfig returned ".($stat >> 8));
 
 	    #
 	    # Any failure, revert to plain reboot below.
@@ -776,6 +811,8 @@ sub RebootNode {
 	}
     }
 
+    my $didipod = 0;
+
     #
     # Run an ssh command in a child process, protected by an alarm to
     # ensure that the ssh is not hung up forever if the machine is in
@@ -786,7 +823,7 @@ sub RebootNode {
     if ($syspid) {
 	my $timedout = 0;
 	local $SIG{ALRM} = sub { kill("TERM", $syspid); $timedout = 1; };
-	alarm 20;;
+	alarm $REBOOTTIMO;
 	waitpid($syspid, 0);
 	alarm 0;
 	my $stat = $? >> 8;
@@ -801,20 +838,18 @@ sub RebootNode {
 	# of seconds.
 	#
 	if ($timedout) {
-	    print STDERR "*** reboot ($pc): wedged, sending ipod.\n" if $debug;
-	    info("$pc: ssh reboot failed (hung) ... sending ipod");
+	    info("$pc: ssh reboot hung, sending ipod");
 
-	    system("$ipod $pc");
-	    $didipod = 1;
+	    if ($nodeobject->SendApod(1) == 0) {
+		$didipod = 1;
+	    }
 	}
 	#
 	# The ssh can return non-zero exit status, but still have worked.
 	# FreeBSD for example.
 	#
 	else {
-	    print STDERR "reboot ($pc): reboot returned $stat.\n" if $debug;
-	    info("$pc: ssh reboot ($stat)");
-	    $didipod = 0;
+	    info("$pc: ssh reboot returned $stat");
 	}
     }
     else {
@@ -837,7 +872,14 @@ sub RebootNode {
     # We wait a while for the node to stop responding to pings, and if it never
     # goes silent, whack it with a bigger stick.
     #
-    if (WaitTillDead($pc, ($prepare ? 200 : 30)) == 0) {
+    # We need to give shared hosts a chance to stop their containers.
+    # The standard pingwait is too small. 
+    #
+    my $wtime = ($prepare ||
+		 $nodeobject->sharing_mode() ? $PREPAREWAIT : $PINGWAIT);
+    info("$pc: waiting ${wtime}s for reboot");
+    if (WaitTillDead($pc, $wtime) == 0) {
+	info("$pc: rebooted");
 	my $state = TBDB_NODESTATE_SHUTDOWN;
 	TBSetNodeEventState($pc,$state);
 	exit(0);
@@ -851,19 +893,22 @@ sub RebootNode {
     # power cycle capability to fall back on.
     #
     if (! $didipod) {
-	info("$pc: ssh reboot failed ... sending ipod");
+	info("$pc: ssh reboot failed, sending ipod");
 	$UID = 0;
-	system("$ipod $pc");
+	my $rv = $nodeobject->SendApod(1);
 	$UID = $oldUID;
-	if (WaitTillDead($pc, 20) == 0) {
-	    my $state = TBDB_NODESTATE_SHUTDOWN;
-	    TBSetNodeEventState($pc,$state);
-	    exit(0);
+	if ($rv == 0) {
+	    info("$pc: waiting ${PINGWAIT}s for ipod");
+	    if (WaitTillDead($pc, $PINGWAIT) == 0) {
+		info("$pc: rebooted");
+		my $state = TBDB_NODESTATE_SHUTDOWN;
+		TBSetNodeEventState($pc,$state);
+		exit(0);
+	    }
 	}
     }
 
-    info("$pc: ipod failed ... power cycle");
-    print STDERR "*** reboot ($pc): ipod failed, will power cycle.\n" if $debug;
+    info("$pc: ipod failed, power cycling");
     exit(2);
 }
 
@@ -896,7 +941,7 @@ sub RebootVNode($$) {
 
     if ($syspid) {
 	local $SIG{ALRM} = sub { kill("TERM", $syspid); };
-	alarm 30;
+	alarm $REBOOTVNODETIMO;
 	waitpid($syspid, 0);
 	alarm 0;
 	my $exitstatus = $?;
@@ -985,29 +1030,51 @@ sub WaitTillDead {
     #
     my $iters = int(($waittime + 1) / 2);
     for (my $i = 0; $i < $iters; $i++) {
-	if (! DoesPing($pc, $i)) {
+	if (! DoesPing($pc, $i, 0)) {
 	    print STDERR "reboot ($pc): Died off.\n" if $debug > 1;
 	    return 0;
 	}
     }
-    print STDERR "reboot ($pc): still alive after $waittime seconds.\n" if $debug;
+    print STDERR "reboot ($pc): still alive after $waittime seconds.\n"
+	if $debug > 1;
     return 1;
 }
 
 #
 # Returns 1 if host is responding to pings, 0 otherwise.
 # Pings for roughly two seconds.
+# If $immediate is set, return after the first successful ping.
 # This routine is NOT allowed to do any DB queries!
 #
 sub DoesPing {
-    my ($pc, $index) = @_;
+    my ($pc, $index, $immediate) = @_;
     my $status;
     my $saveuid;
 
-    $saveuid = $UID;
-    $UID = 0;
-    system("$ping -q -i 0.25 -c 9 -t 2 $pc >/dev/null 2>&1");
-    $UID = $saveuid;
+    #
+    # We fork/exec rather than system() for two reasons.
+    # One, is so that we don't have to flip the UID back and forth in
+    # the parent, and two, so that we can throw away stdout/stderr without
+    # an extra level of "sh -c" to setup redirection (">/dev/null 2>&1").
+    #
+    # XXX I am not sure either of these is particularly compelling,
+    # but when we can have literally hundreds of pending nodereboots
+    # outstanding at any time, it might matter.
+    #
+    my $child = fork();
+    if ($child == 0) {
+	my $args = "-q -i 0.25 -c 9 -t 2";
+	$args .= " -o" if ($immediate);
+
+	# get rid of output that -q doesn't
+	open(STDOUT, ">/dev/null");
+	open(STDERR, ">&STDOUT");
+
+	$UID = 0;
+	exec("$ping $args $pc");
+	exit(1);
+    }
+    waitpid($child, 0);
     $status = $? >> 8;
 
     #
@@ -1022,14 +1089,18 @@ sub DoesPing {
     return 1;
 }
 
-
 sub info($) {
     my $message = shift;
-    # Print out log entries like this:
+
+    # Time stamp log messages like:
     # Sep 20 09:36:00 $message
+    my $tstamp = strftime("%b %e %H:%M:%S", localtime);
+
     open(LOG,">> $logfile");
-    print LOG strftime("%b %e %H:%M:%S",localtime)." $message\n";
+    print LOG "$tstamp $message\n";
     close(LOG);
+
+    print STDERR "$message\n" if ($debug);
 }
 
 #

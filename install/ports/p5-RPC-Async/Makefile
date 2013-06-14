@@ -9,8 +9,7 @@ MAINTAINER=	sklower@berkeley.edu
 COMMENT=	Perl5 module providing a framework for Asynchronous RPC
 
 RUN_DEPENDS=    ${SITE_PERL}/IO/EventMux.pm:${PORTSDIR}/misc/p5-IO-EventMux \
-		${SITE_PERL}/Privileges/Drop.pm:${PORTSDIR}/misc/p5-Privileges-Drop \
-		${SITE_PERL}/Class/ISA.pm:${PORTSDIR}/devel/p5-Class-ISA
+		${SITE_PERL}/Privileges/Drop.pm:${PORTSDIR}/misc/p5-Privileges-Drop
 
 BUILD_DEPENDS=  ${RUN_DEPENDS}
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -147,9 +147,13 @@ script-install:	dir-install
 #
 frisbee-mfs-install: destdircheck
 	(cd ../freebsd5; $(MAKE) all frisbee-mfs-install)
+	rm -rf $(SYSETCDIR)/rc.conf.d
 	rm -f $(SYSETCDIR)/testbed/dhclient
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
 	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	rmdir $(DESTDIR)/usr/local/etc/emulab
+	$(INSTALL) -m 644 $(SRCDIR)/mfs-frisbee-rc.conf $(SYSETCDIR)/rc.conf
+	$(INSTALL) -m 555 ./netif-emulab $(SYSETCDIR)/rc.d/netif-emulab
 	@if [ -r $(SRCDIR)/master.passwd ]; then \
 	    $(INSTALL) -m 600 $(SRCDIR)/master.passwd $(SYSETCDIR); \
 	    pwd_mkdb -d $(SYSETCDIR) $(SYSETCDIR)/master.passwd; \
@@ -158,11 +162,16 @@ frisbee-mfs-install: destdircheck
 	    $(INSTALL) -m 644 $(SRCDIR)/group $(SYSETCDIR); \
 	fi
 
-mfs-install:
+mfs-install: destdircheck
 	(cd ../freebsd5; $(MAKE) all mfs-install)
+	rm -rf $(JAILDIR)
+	rm -rf $(SYSETCDIR)/rc.conf.d
+	rm -rf $(DESTDIR)/root/.cvsup
 	rm -f $(SYSETCDIR)/testbed/dhclient
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
 	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	$(INSTALL) -m 644 $(SRCDIR)/mfs-rc.conf $(SYSETCDIR)/rc.conf
+	$(INSTALL) -m 555 ./netif-emulab $(SYSETCDIR)/rc.d/netif-emulab
 	@if [ -r $(SRCDIR)/master.passwd ]; then \
 	    $(INSTALL) -m 600 $(SRCDIR)/master.passwd $(SYSETCDIR); \
 	    pwd_mkdb -d $(SYSETCDIR) $(SYSETCDIR)/master.passwd; \

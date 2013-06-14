@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -164,7 +164,7 @@ function SPITFORM($action, $formfields, $errors)
               <td colspan=2 align=center class=left>
                   <textarea $readonly_value name=\"formfields[value]\"
                     rows=10 cols=80>" .
-	            ereg_replace("\r", "", $formfields["value"]) .
+	            str_replace("\r", "", $formfields["value"]) .
 	           "</textarea>
               </td>
           </tr>\n";

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -154,7 +154,7 @@ while (<IF>) {
 		}
 		else {
 		    print $1 . "forwarders {\n";
-		    foreach my $forwarder (split(" ", $NAMED_FORWARDERS)) {
+		    foreach my $forwarder (split(/[\s+,]/, $NAMED_FORWARDERS)) {
 			print $1 . $1 . "$forwarder;\n";
 		    }
 		    print $1 . "};\n";

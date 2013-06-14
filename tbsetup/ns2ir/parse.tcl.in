@@ -564,9 +564,17 @@ proc parse_bw {bspec {islink 1}} {
     # "*" means let assign pick the bandwidth. Make it zero.
     # "~" means "best effort" bandwidth - not conservatively allocated.
     #
-    if {"$bspec" == "*" || "$bspec" == "~"} {
+    if {"$bspec" == "*"} {
 	return 0
     } 
+    if {"$bspec" == "~"} {
+	# XXX: this is not the right way to handle this.  However, since
+	# it's only supposed to be used for sanlans with no shaping
+	# (enforced in lanlink.tcl), this is WAAAY easier than trying
+	# to feed some new flag or sentinel value down into the guts
+	# of the mapper.
+	return 10
+    }
 
     # Default to bytes
     if {[scan $bspec "%f%s" bw unit] == 1} {

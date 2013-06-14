@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -21,34 +21,22 @@
 # 
 # }}}
 #
-# Implements the libvnode API for OpenVZ support in Emulab.
+# General vnode setup routines and helpers (Linux)
 #
 package libvnode;
 use Exporter;
 @ISA    = "Exporter";
-@EXPORT = qw( VNODE_STATUS_RUNNING VNODE_STATUS_STOPPED VNODE_STATUS_BOOTING 
-              VNODE_STATUS_INIT VNODE_STATUS_STOPPING VNODE_STATUS_UNKNOWN
-	      VNODE_STATUS_MOUNTED
-              ipToMac macAddSep fatal mysystem mysystem2
-	      makeIfaceMaps makeBridgeMaps
+@EXPORT = qw( makeIfaceMaps makeBridgeMaps
 	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
-              findVirtControlNet findDNS downloadImage setState
-              getKernelVersion isRoutable findDomain createExtraFS
+              downloadImage getKernelVersion createExtraFS
+              forwardPort removePortForward lvSize
             );
 
 use Data::Dumper;
-use libtmcc;
+use libutil;
+use libgenvnode;
 use libsetup;
-use Socket;
-
-sub VNODE_STATUS_RUNNING() { return "running"; }
-sub VNODE_STATUS_STOPPED() { return "stopped"; }
-sub VNODE_STATUS_MOUNTED() { return "mounted"; }
-sub VNODE_STATUS_BOOTING() { return "booting"; }
-sub VNODE_STATUS_INIT()    { return "init"; }
-sub VNODE_STATUS_STOPPING(){ return "stopping"; }
-sub VNODE_STATUS_UNKNOWN() { return "unknown"; }
 
 #
 # Magic control network config parameters.
@@ -56,13 +44,11 @@ sub VNODE_STATUS_UNKNOWN() { return "unknown"; }
 my $PCNET_IP_FILE   = "/var/emulab/boot/myip";
 my $PCNET_MASK_FILE = "/var/emulab/boot/mynetmask";
 my $PCNET_GW_FILE   = "/var/emulab/boot/routerip";
-my $VCNET_NET	    = "172.16.0.0";
-my $VCNET_MASK      = "255.240.0.0";
-my $VCNET_GW	    = "172.16.0.1";
+
+# Other local constants
+my $IPTABLES   = "/sbin/iptables";
 
 my $debug = 0;
-
-sub mysystem($);
 
 sub setDebug($) {
     $debug = shift;
@@ -70,10 +56,66 @@ sub setDebug($) {
 	if ($debug);
 }
 
-sub setState($) {
-    my ($state) = @_;
+#
+# Setup (or teardown) a port forward according to input hash containing:
+# * ext_ip:   External IP address traffic is destined to
+# * ext_port: External port traffic is destined to
+# * int_ip:   Internal IP address traffic is redirected to
+# * int_port: Internal port traffic is redirected to
+#
+# 'protocol' - a string; either "tcp" or "udp"
+# 'remove'   - a boolean indicating whether or not to do a teardown.
+#
+# Side effect: uses iptables command to manipulate NAT.
+#
+sub forwardPort($;$) {
+    my ($ref, $remove) = @_;
+    
+    my $int_ip   = $ref->{'int_ip'};
+    my $ext_ip   = $ref->{'ext_ip'};
+    my $int_port = $ref->{'int_port'};
+    my $ext_port = $ref->{'ext_port'};
+    my $protocol = $ref->{'protocol'};
 
-    libtmcc::tmcc(TMCCCMD_STATE(),"$state");
+    if (!(defined($int_ip) && 
+	  defined($ext_ip) && 
+	  defined($int_port) &&
+	  defined($ext_port) && 
+	  defined($protocol))
+	) {
+	print STDERR "WARNING: forwardPort: parameters missing!";
+	return -1;
+    }
+
+    if ($protocol !~ /^(tcp|udp)$/) {
+	print STDERR "WARNING: forwardPort: Unknown protocol: $protocol\n";
+	return -1;
+    }
+    
+    # Are we removing or adding the rule?
+    my $op = (defined($remove) && $remove) ? "D" : "A";
+
+    # Retry a few times cause of iptables locking stupidity.
+    for (my $i = 0; $i < 10; $i++) {
+	system("$IPTABLES -v -t nat -$op PREROUTING -p $protocol -d $ext_ip ".
+	       "--dport $ext_port -j DNAT ".
+	       "--to-destination $int_ip:$int_port");
+	
+	if ($? == 0) {
+	    return 0;
+	}
+	sleep(2);
+    }
+
+    # Operation failed after multiple retries - return error
+    print STDERR "WARNING: forwardPort: Failed to manipulate NAT after ".
+	         "several attempts!\n";
+    return -1;
+}
+
+sub removePortForward($) {
+    my $ref = shift;
+    forwardPort($ref,1)
 }
 
 #
@@ -212,6 +254,9 @@ sub makeIfaceMaps()
     closedir(SD);
 
     foreach my $iface (@ifs) {
+	next
+	    if ($iface =~ /^ifb/ || $iface =~ /^imq/);
+	
 	if ($iface =~ /^([\w\d\-_]+)$/) {
 	    $iface = $1;
 	}
@@ -292,15 +337,6 @@ sub findControlNet()
     }
     return ($ip2if{$ip}, $ip, $ip2mask{$ip}, $ip2maskbits{$ip}, $ip2net{$ip},
 	    $if2mac{$ip2if{$ip}}, $gw);
-}
-
-#
-# Find virtual control net iface info.  Returns:
-# (net,mask,GW)
-#
-sub findVirtControlNet()
-{
-    return ($VCNET_NET, $VCNET_MASK, $VCNET_GW);
 }
 
 sub existsIface($) {
@@ -424,7 +460,7 @@ sub downloadImage($$$$) {
 	    $proxyopt = "-P $nodeid";
 	}
 	if ($server && $imageid) {
-	    mysystem2("$FRISBEE -M 64 $proxyopt ".
+	    mysystem2("$FRISBEE -f -M 64 $proxyopt ".
 		     "         -S $server -B 30 -F $imageid $imagepath");
 	    return -1
 		if ($?);
@@ -438,99 +474,20 @@ sub downloadImage($$$$) {
 	my $mcastaddr = $1;
 	my $mcastport = $2;
 
-	mysystem2("$FRISBEE -M 64 -m $mcastaddr -p $mcastport $imagepath");
+	mysystem2("$FRISBEE -f -M 64 -m $mcastaddr -p $mcastport $imagepath");
 	return -1
 	    if ($?);
     }
     elsif ($addr =~ /^http/) {
 	if ($todisk) {
 	    mysystem("wget -nv -N -P -O - '$addr' | ".
-		     "$IMAGEUNZIP -W 32 - $imagepath");
+		     "$IMAGEUNZIP -f -W 32 - $imagepath");
 	} else {
 	    mysystem("wget -nv -N -P -O $imagepath '$addr'");
 	}
     }
 
     return 0;
-}
-
-sub ipToMac($) {
-    my $ip = shift;
-
-    return sprintf("0000%02x%02x%02x%02x",$1,$2,$3,$4)
-	if ($ip =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-
-    return undef;
-}
-
-sub macAddSep($;$) {
-    my ($mac,$sep) = @_;
-    if (!defined($sep)) {
-	$sep = ":";
-    }
-
-    return "$1$sep$2$sep$3$sep$4$sep$5$sep$6"
-	if ($mac =~ /^([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})([0-9a-zA-Z]{2})$/);
-
-    return undef;
-}
-
-#
-# XXX boss is the DNS server for everyone
-#
-sub findDNS($)
-{
-    my ($ip) = @_;
-
-    my ($bossname,$bossip) = libtmcc::tmccbossinfo();
-    if ($bossip =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
-	$bossip = $1;
-    } else {
-	die "Could not find boss IP address (tmccbossinfo failed?)";
-    }
-
-    return $bossip;
-}
-
-#
-# Print error and exit.
-#
-sub fatal($)
-{
-    my ($msg) = @_;
-
-    die("*** $0:\n".
-	"    $msg\n");
-}
-
-#
-# Run a command string, redirecting output to a logfile.
-#
-sub mysystem($)
-{
-    my ($command) = @_;
-
-    if (1) {
-	print STDERR "mysystem: '$command'\n";
-    }
-
-    system($command);
-    if ($?) {
-	fatal("Command failed: $? - $command");
-    }
-}
-sub mysystem2($)
-{
-    my ($command) = @_;
-
-    if (1) {
-	print STDERR "mysystem: '$command'\n";
-    }
-
-    system($command);
-    if ($?) {
-	print STDERR "Command failed: $? - '$command'\n";
-    }
 }
 
 #
@@ -549,74 +506,60 @@ sub getKernelVersion()
 }
 
 #
-# Is an IP routable?
-#
-sub isRoutable($)
-{
-    my ($IP)  = @_;
-    my ($a,$b,$c,$d) = ($IP =~ /^(\d*)\.(\d*)\.(\d*)\.(\d*)/);
-
-    #
-    # These are unroutable:
-    # 10.0.0.0        -   10.255.255.255  (10/8 prefix)
-    # 172.16.0.0      -   172.31.255.255  (172.16/12 prefix)
-    # 192.168.0.0     -   192.168.255.255 (192.168/16 prefix)
-    #
-
-    # Easy tests.
-    return 0
-	if (($a eq "10") ||
-	    ($a eq "192" && $b eq "168"));
-
-    # Lastly
-    return 0
-	if (inet_ntoa((inet_aton($IP) & inet_aton("255.240.0.0"))) eq
-	    "172.16.0.0");
-
-    return 1;
-}
-
-#
-# Get our domain
-#
-sub findDomain()
-{
-    import emulabpaths;
-
-    return undef
-	if (! -e "$BOOTDIR/mydomain");
-    
-    my $domain = `cat $BOOTDIR/mydomain`;
-    chomp($domain);
-    return $domain;
-}
-
-#
 # Create an extra FS using an LVM.
 #
 sub createExtraFS($$$)
 {
     my ($path, $vgname, $size) = @_;
     
-    return
-	if (-e $path);
-
-    system("mkdir $path") == 0
-	or return -1;
+    if (! -e $path) {
+	system("mkdir $path") == 0
+	    or return -1;
+    }
+    return 0
+	if (-e "$path/.mounted");
     
-    system("lvcreate -n extrafs -L $size $vgname") == 0
-	or return -1;
+    my $lvname;
+    if ($path =~ /\/(.*)$/) {
+	$lvname = $1;
+    }
+    my $lvpath = "/dev/$vgname/$lvname";
+    my $exists = `lvs --noheadings -o origin $lvpath > /dev/null 2>&1`;
+    if ($?) {
+	system("lvcreate -n $lvname -L $size $vgname") == 0
+	    or return -1;
 
-    system("mke2fs -j /dev/$vgname/extrafs") == 0
-	or return -1;
+	system("mke2fs -j $lvpath") == 0
+	    or return -1;
+    }
+    if (! -e "$path/.mounted") {
+	system("mount $lvpath $path") == 0
+	    or return -1;
+    }
+    system("touch $path/.mounted");
 
-    system("mount /dev/$vgname/extrafs $path") == 0
-	or return -1;
-
-    system("echo '/dev/$vgname/extrafs $path ext3 defaults 0 0' >> /etc/fstab")
-	== 0 or return -1;
-
+    if (system("egrep -q -s '^${lvpath}' /etc/fstab")) {
+	system("echo '$lvpath $path ext3 defaults 0 0' >> /etc/fstab")
+	    == 0 or return -1;
+    }
     return 0;
+}
+
+#
+# Figure out the size of the LVM.
+#
+sub lvSize($)
+{
+    my ($device) = @_;
+    
+    my $lv_size = `lvs -o lv_size --noheadings --units g $device`;
+    return undef
+	if ($?);
+    
+    chomp($lv_size);
+    $lv_size =~ s/^\s+//;
+    $lv_size =~ s/\s+$//;
+    return $lv_size;
 }
 
 #

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2011, 2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,7 +28,7 @@ use Exporter;
 use vars qw(@ISA @EXPORT @EXPORT_OK
 	    $VTOP_FLAGS_UPDATE $VTOP_FLAGS_VERBOSE $VTOP_FLAGS_QUIET
 	    $VTOP_FLAGS_FIXNODES $VTOP_FLAGS_IMPOTENT $VTOP_FLAGS_ALLOCONLY
-	    $VTOP_FLAGS_REGRESSION);
+	    $VTOP_FLAGS_REGRESSION $VTOP_FLAGS_FIXLANNODES);
 
 @ISA    = "Exporter";
 @EXPORT = qw( );
@@ -47,6 +47,7 @@ $VTOP_FLAGS_IMPOTENT	= 0x0;
 $VTOP_FLAGS_REGRESSION  = 0x0;
 $VTOP_FLAGS_QUIET       = 0x0;
 $VTOP_FLAGS_ALLOCONLY	= 0x0;
+$VTOP_FLAGS_FIXLANNODES	= 0x0;
 
 @EXPORT_OK = qw($VTOP_FLAGS_UPDATE $VTOP_FLAGS_VERBOSE $VTOP_FLAGS_FIXNODES
 		$VTOP_FLAGS_IMPOTENT $VTOP_FLAGS_REGRESSION $VTOP_FLAGS_QUIET
@@ -71,6 +72,7 @@ sub Init($$$)
 	$VTOP_FLAGS_REGRESSION  = $libvtop_test::VTOP_FLAGS_REGRESSION;
 	$VTOP_FLAGS_QUIET       = $libvtop_test::VTOP_FLAGS_QUIET;
 	$VTOP_FLAGS_ALLOCONLY	= $libvtop_test::VTOP_FLAGS_ALLOCONLY;
+	$VTOP_FLAGS_FIXLANNODES	= $libvtop_test::VTOP_FLAGS_FIXLANNODES;
     }
     else {
 	require libvtop_stable;
@@ -82,6 +84,7 @@ sub Init($$$)
 	$VTOP_FLAGS_REGRESSION  = $libvtop_stable::VTOP_FLAGS_REGRESSION;
 	$VTOP_FLAGS_QUIET       = $libvtop_stable::VTOP_FLAGS_QUIET;
 	$VTOP_FLAGS_ALLOCONLY	= $libvtop_stable::VTOP_FLAGS_ALLOCONLY;
+	$VTOP_FLAGS_FIXLANNODES	= $libvtop_stable::VTOP_FLAGS_FIXLANNODES;
     }
     return 0;
 }

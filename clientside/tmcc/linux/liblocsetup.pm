@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -133,6 +133,7 @@ my $RMMOD       = '/sbin/rmmod';
 my $MODPROBE    = '/sbin/modprobe';
 my $IWPRIV      = '/usr/local/sbin/iwpriv';
 my $BRCTL       = "/usr/sbin/brctl";
+my $ISCSI	= "/sbin/iscsiadm";
 
 my $PASSDB   = "$VARDIR/db/passdb";
 my $GROUPDB  = "$VARDIR/db/groupdb";
@@ -888,6 +889,9 @@ sub os_ifconfig_veth($$$$$;$$$$%)
 
 	$uplines   .= "$VLANCONFIG add $iface $vtag\n    ";
 	$uplines   .= sprintf($IFCONFIG, $vdev, $inet, $mask);
+	# configure the MAC address.
+	$uplines   .= "\n    $IFCONFIGBIN $vdev hw ether $vmac"
+	    if ($vmac);
 	$downlines .= "$IFCONFIGBIN $vdev down\n    ";
 	$downlines .= "$VLANCONFIG rem $vdev";
     }
@@ -2159,7 +2163,7 @@ sub os_config_gre($$$$$$$;$)
     if (GENVNODE() && GENVNODETYPE() eq "openvz") {
 	$dev = "gre$unit";
 
-	if (system("$IFCONFIGBIN $dev $inetip netmask $mask up")) {
+	if (system("$IFCONFIGBIN $dev $inetip netmask $mask mtu 1472 up")) {
 	    warn("Could not start tunnel $dev!\n");
 	    return -1;
 	}
@@ -2167,7 +2171,7 @@ sub os_config_gre($$$$$$$;$)
     }
     # This gre key stuff is not ready yet. 
     my $keyopt = "";
-    if (0 && defined($tag)) {
+    if (defined($tag)) {
 	my $grekey = inet_ntoa(pack("N", $tag));
 	$keyopt = "key $grekey";
     }
@@ -2353,6 +2357,10 @@ sub os_getarpinfo($$)
 	    if ($diface ne $iface) {
 		next;
 	    }
+
+	    # Skip aliases.
+	    next
+		if (system("$BINDIR/findif -i $ip >/dev/null 2>&1") == 0);
 
 	    if (exists($arpinfo{$ip})) {
 		if ($arpinfo{$ip}{'mac'} ne $mac) {

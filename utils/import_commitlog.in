@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2010 University of Utah and the Flux Group.
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -26,10 +26,9 @@ use Getopt::Std;
 use POSIX;
 
 #
-# Yuck. Take the cvs log for the testbed which is rsync'ed over from
-# the flux cvs server each night, and pull out the last N months of
-# entries, reversing them in the process. Then write the file into the
-# www directory!
+# Yuck. Take the cvs log for the testbed, and pull out the last N
+# months of entries, reversing them in the process. Then write the
+# file into the www directory!
 #
 # This script should be run from crontab on the main emulab site only.
 #
@@ -60,7 +59,7 @@ if ($UID) {
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $GIT         = "/usr/local/bin/git";
-my $GITDIR      = "/z/GIT/emulab-devel.git";
+my $GITDIR      = "/z/GIT/emulab-devel";
 my $OUTPUTLOG   = "$TB/www/doc/ChangeLog.txt";
 my $MONTHROOT   = "$TB/www/doc/ChangeLog";
 my $HTMLFILE    = "$TB/www/doc/changelog-months.html";
@@ -96,8 +95,16 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{d})) {
     $debug = 1;
 }
+chdir($GITDIR) or
+    fatal("Could not chdir to $GITDIR");
 
-if (!open(INPUT, "$GIT --git-dir=$GITDIR log ".
+#
+# Pull down latest.
+#
+system("$GIT pull -q") == 0
+    or fatal("Could not pull down latest repo");
+
+if (!open(INPUT, "$GIT log ".
 	  "--pretty=medium --numstat --date=iso --reverse |")) {
     fatal("Could not start $GIT log process!");
 }

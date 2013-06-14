@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -61,10 +61,12 @@ if (defined($opts{'S'})) {
     $exportsback = "$etcdir/smb.conf.backup";
     $exportshead = "$etcdir/smb.conf.head";
     $exportstail = "$etcdir/smb.conf.tail";
-    if (-d "/var/run/samba") {
+    if (-r "/var/run/samba/smbd.pid") {
 	$pidfile = "/var/run/samba/smbd.pid";
-    } else {
+    } elsif (-r "/var/run/smbd.pid") {
 	$pidfile = "/var/run/smbd.pid";
+    } else {
+	fatal("Cannot locate pidfile for smbd\n");
     }
     $daemon      = "smbd";
 }

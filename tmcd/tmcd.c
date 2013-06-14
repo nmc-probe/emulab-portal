@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -51,6 +51,7 @@
 #include "ssl.h"
 #include "log.h"
 #include "tbdefs.h"
+#include "bsdefs.h"
 #include "bootwhat.h"
 #include "bootinfo.h"
 
@@ -73,6 +74,8 @@
 #ifdef  FSDIR_SCRATCH
 #define FSSCRATCHDIR	FSNODE ":" FSDIR_SCRATCH
 #endif
+/* XXX InstaGeni Rack Hack. Hack until I decide on a better way */
+#define FSJAILIP       "172.17.253.254"
 #define PROJDIR		PROJROOT_DIR
 #define GROUPDIR	GROUPSROOT_DIR
 #define USERDIR		USERSROOT_DIR
@@ -165,6 +168,8 @@ void		client_writeback_done(int sock, struct sockaddr_in *client);
 MYSQL_RES *	mydb_query(char *query, int ncols, ...);
 int		mydb_update(char *query, ...);
 static int	safesymlink(char *name1, char *name2);
+static int      getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
+			     unsigned int *mtime, unsigned int *chunks);
 
 /* socket timeouts */
 static int	readtimo = READTIMO;
@@ -202,6 +207,7 @@ typedef struct {
 	int		allocated;
 	int		jailflag;
 	int		isvnode;
+	int		asvnode;
 	int		issubnode;
 	int		islocal;
 	int		isdedicatedwa;
@@ -243,6 +249,8 @@ typedef struct {
 } tmcdreq_t;
 static int	iptonodeid(struct in_addr, tmcdreq_t *, char*);
 static int	checkdbredirect(tmcdreq_t *);
+static int      sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, 
+			      char *vname);
 
 #ifdef EVENTSYS
 int			myevent_send(address_tuple_t address);
@@ -275,6 +283,7 @@ COMMAND_PROTOTYPE(dostartcmd);
 COMMAND_PROTOTYPE(dostartstat);
 COMMAND_PROTOTYPE(doready);
 COMMAND_PROTOTYPE(doreadycount);
+COMMAND_PROTOTYPE(dostorageconfig);
 COMMAND_PROTOTYPE(domounts);
 COMMAND_PROTOTYPE(dosfshostid);
 COMMAND_PROTOTYPE(doloadinfo);
@@ -339,6 +348,7 @@ COMMAND_PROTOTYPE(doimagekey);
 COMMAND_PROTOTYPE(donodeattributes);
 COMMAND_PROTOTYPE(dodisks);
 COMMAND_PROTOTYPE(doarpinfo);
+COMMAND_PROTOTYPE(dohwinfo);
 
 /*
  * The fullconfig slot determines what routines get called when pushing
@@ -388,6 +398,7 @@ struct command {
 	{ "startstat",	  FULLCONFIG_NONE, 0, dostartstat },
 	{ "readycount",   FULLCONFIG_NONE, F_ALLOCATED, doreadycount },
 	{ "ready",	  FULLCONFIG_NONE, F_ALLOCATED, doready },
+	{ "storageconfig", FULLCONFIG_ALL, F_ALLOCATED, dostorageconfig},
 	{ "mounts",	  FULLCONFIG_ALL,  F_ALLOCATED, domounts },
 	{ "sfshostid",	  FULLCONFIG_NONE, F_ALLOCATED, dosfshostid },
 	{ "loadinfo",	  FULLCONFIG_NONE, 0, doloadinfo},
@@ -450,7 +461,7 @@ struct command {
 	{ "nodeattributes", FULLCONFIG_ALL, 0, donodeattributes},
 	{ "disks",	  FULLCONFIG_ALL, 0, dodisks},
 	{ "arpinfo",	  FULLCONFIG_NONE, 0, doarpinfo},
-	
+	{ "hwinfo",	  FULLCONFIG_NONE, 0, dohwinfo},
 };
 static int numcommands = sizeof(command_array)/sizeof(struct command);
 
@@ -1089,6 +1100,35 @@ handle_request(int sock, struct sockaddr_in *client, char *rdata, int istcp)
 		}
 
 		/*
+		 * Look for PROXYFOR, which tells us the client making the
+		 * request is doing it on behalf of a container. This is
+		 * now used from the XEN dom0 so we can tailor the results
+		 * and should eventually replace the VNODEID below so that
+		 * we can tell the difference between the host asking for
+		 * the clients info and tmcc acting as a proxy (or even the
+		 * container asking itself, which can happen too now that
+		 * allow routable IPs for containers). 
+		 */
+		if (sscanf(bp, "PROXYFOR=%30s", buf)) {
+			for (i = 0; i < strlen(buf); i++){
+				if (! (isalnum(buf[i]) ||
+				       buf[i] == '_' || buf[i] == '-')) {
+					info("tmcd client provided invalid "
+					     "characters in vnodeid");
+					goto skipit;
+				}
+			}
+			reqp->isvnode = 1;
+			reqp->asvnode = 1;
+			strncpy(reqp->vnodeid, buf, sizeof(reqp->vnodeid));
+
+			if (debug) {
+				info("PROXYFOR %s\n", buf);
+			}
+			continue;
+		}
+
+		/*
 		 * Look for REDIRECT, which is a proxy request for a
 		 * client other than the one making the request. Good
 		 * for testing. Might become a general tmcd redirect at
@@ -1109,6 +1149,15 @@ handle_request(int sock, struct sockaddr_in *client, char *rdata, int istcp)
 		 * Look for VNODE. This is used for virtual nodes.
 		 * It indicates which of the virtual nodes (on the physical
 		 * node) is talking to us. Currently no perm checking.
+		 *
+		 * This is confusing cause we want to know the difference
+		 * between the host asking for the container info, and the
+		 * container asking for its own info (perhaps via the tmcc
+		 * proxy). We will continue to use this as the host asking
+		 * for the container info, and PROXYFOR to indicate the
+		 * the container asking for its own info (via the tmcc proxy).
+		 * Or if the actual IP of the caller is the container, which
+		 * can also happen.  
 		 */
 		if (sscanf(bp, "VNODEID=%30s", buf)) {
 			for (i = 0; i < strlen(buf); i++){
@@ -2223,6 +2272,25 @@ COMMAND_PROTOTYPE(doifconfig)
 		row = mysql_fetch_row(res);
 		nrows--;
 
+		/*
+		 * When the proxy is asking for the container, we give it info
+		 * for a plain interface, since that is all it sees.
+		 */
+		if (reqp->isvnode && reqp->asvnode) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       "INTERFACE IFACETYPE=any "
+				       "INET=%s MASK=%s MAC=%s "
+				       "SPEED=100Mbps DUPLEX=full "
+				       "IFACE= RTABID= LAN=%s\n",
+				       row[1], row[4], row[2], row[7]);
+
+			client_writeback(sock, buf, strlen(buf), tcp);
+			if (verbose)
+				info("%s: IFCONFIG: %s", reqp->nodeid, buf);
+			
+			continue;
+		}
+
 		if (strcmp(row[6], "vlan") == 0 && !row[3]) {
 			/*
 			 * Convert to a loopback lan, however the client
@@ -2312,6 +2380,77 @@ COMMAND_PROTOTYPE(doifconfig)
 	}
 	mysql_free_result(res);
 
+
+	/*
+	 * Containers do not see egre/gre tunnels, they see plain interfaces,
+	 * since the tunnel was set up in root (dom0) context. This applies to
+	 * both xen and openvz.
+	 */
+	if (reqp->isvnode && reqp->asvnode) {
+		MYSQL_RES *res2;
+		MYSQL_ROW row2;
+		int nrows2;
+		
+		res = mydb_query("select l.lanid from lans as l "
+				 "left join lan_attributes as la on "
+				 "     la.lanid=l.lanid and la.attrkey='style' "
+				 "where l.exptidx='%d' and l.type='tunnel'",
+				 1, reqp->exptidx, reqp->nodeid);
+
+		nrows = (int)mysql_num_rows(res);
+		while (nrows) {
+			char *bufp = buf;
+			char *ip = "", *ipmask = "", *mac = "", *lan = "";
+			
+			row = mysql_fetch_row(res);
+			nrows--;
+
+			res2 = mydb_query("select lma.attrkey,lma.attrvalue "
+					  " from lan_members as lm "
+					  "left join lan_member_attributes as lma on "
+					  "     lma.lanid=lm.lanid and "
+					  "     lma.memberid=lm.memberid "
+					  "where lm.lanid='%s' and lm.node_id='%s' ",
+					  2, row[0], reqp->nodeid);
+
+			if (!res2) {
+				error("IFCONFIG: %s: DB Error getting tunnel members\n",
+				      reqp->nodeid);
+				return 1;
+			}
+			nrows2 = (int)mysql_num_rows(res2);
+			while (nrows2) {
+				row2 = mysql_fetch_row(res2);
+				nrows2--;
+
+				if (!strcmp(row2[0], "tunnel_ip")) {
+					ip = row2[1];
+				}
+				else if (!strcmp(row2[0], "tunnel_ipmask")) {
+					ipmask = row2[1];
+				}
+				else if (!strcmp(row2[0], "tunnel_mac")) {
+					mac = row2[1];
+				}
+				else if (!strcmp(row2[0], "tunnel_lan")) {
+					lan = row2[1];
+				}
+			}
+			bufp = buf;
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       "INTERFACE IFACETYPE=any "
+				       "INET=%s MASK=%s MAC=%s "
+				       "SPEED=100Mbps DUPLEX=full "
+				       "IFACE= RTABID= LAN=%s\n",
+				       ip, ipmask, mac, lan);
+
+			client_writeback(sock, buf, strlen(buf), tcp);
+			if (verbose)
+				info("%s: IFCONFIG: %s", reqp->nodeid, buf);
+			mysql_free_result(res2);
+		}
+		mysql_free_result(res);
+	}
 	return 0;
 }
 
@@ -3098,7 +3237,7 @@ COMMAND_PROTOTYPE(doaccounts)
 				 "  u.name, "
 				 "  'local_root',g.pid,g.gid,g.unix_gid,0, "
 				 "  NULL,NULL, "
-				 "  UNIX_TIMESTAMP(now()), "
+				 "  UNIX_TIMESTAMP(u.created), "
 				 "  u.email,'csh', "
 				 "  0,0, "
 				 "  NULL,u.uid_idx "
@@ -3975,6 +4114,384 @@ COMMAND_PROTOTYPE(doreadycount)
 }
 
 /*
+ * Return information on storage composition.  This ultimately looks like
+ * a series of commands that results in a layering of: remote disk
+ * mounts, local disk checks, aggregate creation (volume managment),
+ * slicing operations, and finally exports.
+ *
+ */
+COMMAND_PROTOTYPE(dostorageconfig)
+{
+        MYSQL_RES	*res, *res2;
+	MYSQL_ROW	row, row2;
+	char		buf[MYBUFSIZE];
+	char		*bufp, *ebufp = &buf[sizeof(buf)];
+	char            *mynodeid;
+	char            *vname, *bsid, *hostid;
+	int             rv;
+	int             volsize, bsidx, cmdidx = 1;
+	int		nrows, nrows2, nattrs;
+
+	/* Request for a blockstore VM? If so, return blockstore slice info */
+	if (reqp->isvnode &&
+	    (strcmp(reqp->type, BS_VNODE_TYPE) == 0)) {
+		/* Do Stuff:
+		   0) A vlan interface setup is handled elsewhere (ifconfig).
+		   1) Grab reservation info, log error if it does not exist and
+		      return nothing.
+		   - What local blockstore to slice (bs_id)
+		   - Size (in mebibytes)
+		   - Permissions (node and/or lan)
+		   - Other attributes ... ?
+		   2) Construct volume name
+		   - "pid:eid:vname"
+		*/
+		res = mydb_query("select bsidx,bs_id,vname,size "
+				 "from reserved_blockstores "
+				 "where exptidx=%d and "
+				 "vnode_id='%s'",
+				 4, reqp->exptidx, reqp->vnodeid);
+
+		if (!res) {
+			error("STORAGECONFIG: %s: DB Error getting reserved "
+			      "info.\n",
+			      reqp->vnodeid);
+			return 1;
+		}
+
+		nrows = (int) mysql_num_rows(res);
+		if (nrows != 1) {
+			/* Should only be one reserved row per blockstore vm. */
+			error("STORAGECONFIG: %s: Wrong number of reserved "
+			      "entries for blockstore vm: %d.\n",
+			      reqp->vnodeid, nrows);
+			mysql_free_result(res);
+			return 0;
+		}
+
+		row = mysql_fetch_row(res);
+		bsidx = atoi(row[0]);
+		bsid = row[1];
+		vname = row[2];
+		volsize = atoi(row[3]);
+
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=SLICE IDX=%d BSID=%s VOLNAME=%s VOLSIZE=%d\n",
+		       cmdidx++, bsid, vname, volsize);
+		client_writeback(sock, buf, strlen(buf), tcp);
+
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=EXPORT IDX=%d VOLNAME=%s",
+		       cmdidx++, vname);
+		rv = sendstoreconf(sock, tcp, reqp, buf, vname);
+
+		mysql_free_result(res);
+		return rv;
+	}
+
+	/* 
+	 * If we are here, then this is a regular node.  Send over its
+	 * list of storage-related commands so that it can build things
+         * up.
+	 *
+	 * - List of local storage elements to verify.
+	 * - List of remote storage elements to link up to.
+	 * - List of static slices to setup
+	 * - ... XXX: Other stuff later (e.g., aggregates).
+	 */
+	
+	/* Remember the nodeid we care about up front. */
+	mynodeid = reqp->isvnode ? reqp->vnodeid : reqp->nodeid;
+
+	/* return blockstores entries (XXX: for now, just the elements) */
+	res = mydb_query("select bsidx,bs_id,total_size "
+			  "from blockstores "
+			  "where node_id='%s' and role='element'", 
+			  3, mynodeid);
+
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting blockstores.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	/* Find out what type of blockstore we are dealing with and
+	   grab some additional attributes. */
+	nrows = (int) mysql_num_rows(res);
+	while (nrows--) {
+		char *class, *protocol, *serial;
+
+		row = mysql_fetch_row(res);
+		bsidx = atoi(row[0]);
+		bsid = row[1];
+		volsize = atoi(row[2]);
+
+		/* Nifty sql union query that lets a blockstore's specific 
+		   attributes override those inherited from its type. */
+		res2 = mydb_query("(select attrkey,attrvalue "
+				  " from blockstores as b "
+				  " left join blockstore_type_attributes as a on "
+				  "      b.type=a.type "
+				  " where b.bsidx=%d) "
+				  "union "
+				  "(select attrkey,attrvalue "
+				  "   from blockstore_attributes "
+				  " where bsidx=%d) ",
+				  2, bsidx, bsidx);
+
+		nrows2 = nattrs = (int) mysql_num_rows(res2);
+		class = protocol = serial = "\0";
+		while (nrows2--) {
+			char *key, *val;
+			row2 = mysql_fetch_row(res2);
+			key = row2[0];
+			val = row2[1];
+			if (strcmp(key,"class") == 0) {
+				class = val;
+			} else if (strcmp(key,"protocol") == 0) {
+				protocol = val;
+			} else if (strcmp(key, "serialnum") == 0) {
+				serial = val;
+			}
+		}
+
+		if (!(class && *class && 
+		      protocol && *protocol && 
+		      serial && *serial)) {
+			error("STORAGECONFIG: %s: Missing attributes!", 
+			      mynodeid);
+			mysql_free_result(res);
+			mysql_free_result(res2);
+			return 0;
+		}
+		
+		/* Now that we have the current blockstore's info, spit it out
+		   for the client to consume. */
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=ELEMENT IDX=%d CLASS=%s PROTO=%s "
+		       "HOSTID=%s BSID=%s UUID=%s UUID_TYPE=serial "
+		       "SIZE=%d\n",
+		       cmdidx++, class, protocol, mynodeid, bsid,
+		       serial, volsize);
+
+		client_writeback(sock, buf, strlen(buf), tcp);
+		mysql_free_result(res2);
+	}
+	mysql_free_result(res);
+
+	/* 
+	 * Send across local blockstore volumes (slices).  These don't
+	 * show up in the reserved table, existing entirely in the
+	 * virt_blockstore* tables since local disk space is dedicated
+	 * to the current experiment.
+	 */
+	res = mydb_query("select vname,size "
+			 "from virt_blockstores "
+			 "where exptidx=%d and "
+			 "fixed='%s'",
+			 2, reqp->exptidx, reqp->nickname);
+	
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting virt_blockstore "
+		      "info.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	nrows = (int) mysql_num_rows(res);
+	while (nrows--) {
+		row = mysql_fetch_row(res);
+		vname = row[0];
+		volsize = atoi(row[1]);
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=SLICE IDX=%d VOLNAME=%s VOLSIZE=%d", 
+		       cmdidx++, vname, volsize);
+		sendstoreconf(sock, tcp, reqp, buf, vname);
+	}
+	mysql_free_result(res);
+	
+	/* 
+	 * Now to send the remote elements (a.k.a SAN disks). Figuring
+	 * out which ones we need to tell the client about is a little
+	 * bit tricky.  It requires iterating over the lans that the
+	 * node is a member of, looking for blockstores, and then
+	 * sending back any found.
+	 */
+
+	/* First, get the lans that the node is a member of. */
+	res = mydb_query("select vname "
+			 "from virt_lans as vl "
+			 "where pid='%s' and eid='%s' and vnode='%s'", 
+			 1, reqp->pid, reqp->eid, reqp->nickname);
+
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting lan listing.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	/* Now within the lans this node is a member of, find any blockstore
+	   pseudo-VMs. (Yes, this could probably be done with a subquery.
+	   Maybe later...) */
+	nrows = (int) mysql_num_rows(res);
+	if (nrows == 0) {
+	  /* No lans connected to this node, so nothing else to do. */
+	  mysql_free_result(res);
+	  return 0;
+	}
+	bufp = buf;
+	while (nrows--) {
+		row = mysql_fetch_row(res);
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       nrows ? "'%s'," : "'%s'", 
+			       row[0]);
+	}
+	mysql_free_result(res);
+
+	res = mydb_query("select rb.bsidx, r.vname, rb.vname, rb.size "
+			 "from reserved_blockstores as rb "
+			 " left join reserved as r "
+			 "  on r.node_id = rb.vnode_id "
+			 " left join virt_lans as vl "
+			 "  on r.vname = vl.vnode "
+			 "where vl.vname in (%s) "
+			 " and vl.pid='%s' and vl.eid='%s'",
+			 4, buf, reqp->pid, reqp->eid);
+
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting connected "
+		      "blockstore info.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	/* For each blockstore, spit out info for the client. */
+	nrows = (int) mysql_num_rows(res);
+	while (nrows--) {
+		row = mysql_fetch_row(res);
+		bsidx = atoi(row[0]);
+		hostid = row[1];
+		vname = row[2];
+		volsize = atoi(row[3]);
+	       
+		OUTPUT(buf, sizeof(buf), 
+		       "CMD=ELEMENT IDX=%d HOSTID=%s VOLNAME=%s VOLSIZE=%d", 
+		       cmdidx++, hostid, vname, volsize);
+		sendstoreconf(sock, tcp, reqp, buf, vname);
+	}
+	mysql_free_result(res);
+	
+	/* All done. */
+	return 0;
+}
+
+/* Helper function for "dostorageconfig" */
+static int 
+sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname)
+{
+        MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	char		buf[MYBUFSIZE];
+	char            *bufp, *ebufp = &buf[sizeof(buf)];
+	char            iqn[BS_IQN_MAXSIZE];
+	char            *mynodeid;
+	char            *class, *protocol, *placement, *mountpoint;
+	int		nrows, nattrs;
+
+	/* Remember the nodeid we care about up front. */
+	mynodeid = reqp->isvnode ? reqp->vnodeid : reqp->nodeid;
+
+	/* Get the virt attributes for the blockstore. */
+	res = mydb_query("select attrkey,attrvalue "
+			 "from virt_blockstore_attributes "
+			 "where exptidx=%d and vname='%s'", 
+			 2, reqp->exptidx, vname);
+
+	if (!res) {
+		error("STORAGECONFIG: %s: DB Error getting vattrs.\n",
+		      mynodeid);
+		return 1;
+	}
+
+	/* Find out what type of blockstore we are dealing with and
+	   grab some additional attributes. */
+	nrows = nattrs = (int) mysql_num_rows(res);
+	class = protocol = placement = mountpoint = "\0";
+	while (nrows--) {
+		char *key, *val;
+		row = mysql_fetch_row(res);
+		key = row[0];
+		val = row[1];
+		if (strcmp(key,"class") == 0) {
+			class = val;
+		} else if (strcmp(key,"protocol") == 0) {
+			protocol = val;
+		} else if (strcmp(key,"placement") == 0) {
+			placement = val;
+		} else if (strcmp(key,"mountpoint") == 0) {
+			mountpoint = val;
+		}
+	}
+
+	/* iSCSI blockstore */
+	if ((strcmp(class, BS_CLASS_SAN) == 0) &&
+	    (strcmp(protocol, BS_PROTO_ISCSI) == 0)) {
+		/* Construct IQN string. */
+		if (snprintf(iqn, sizeof(iqn), "%s:%s:%s:%s",
+			     BS_IQN_PREFIX, reqp->pid, 
+			     reqp->eid, vname) >= sizeof(iqn)) {
+			error("STORAGECONFIG: %s: Not enough room in "
+			      "IQN string buffer", mynodeid);
+			mysql_free_result(res);
+			return 1;
+		}
+
+		bufp = buf;
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       "%s CLASS=%s PROTO=%s UUID=%s UUID_TYPE=iqn",
+			       bscmd, class, protocol, iqn);
+
+		if (strlen(mountpoint)) {
+			bufp += OUTPUT(bufp, ebufp-bufp, " MOUNTPOINT=%s",
+				       mountpoint);
+		}
+
+		bufp += OUTPUT(bufp, ebufp-bufp, "\n");
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+
+	/* local disk. */
+	else if (strcmp(class, BS_CLASS_LOCAL) == 0) {
+		/* Set default placement if not defined. */
+		placement = strlen(placement) ? placement : BS_PLACEMENT_DEF;
+
+		bufp = buf;
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       "%s CLASS=%s BSID=%s",
+			       bscmd, class, placement);
+
+		/* Add the protocol to the buffer, if present.*/
+		if (strlen(protocol)) {
+			bufp += OUTPUT(bufp, ebufp-bufp, " PROTO=%s",
+				       protocol);
+		}
+
+		/* Add the mountpoint to the buffer, if requested.*/
+		if (strlen(mountpoint)) {
+			bufp += OUTPUT(bufp, ebufp-bufp, " MOUNTPOINT=%s",
+				       mountpoint);
+		}
+
+		bufp += OUTPUT(bufp, ebufp-bufp, "\n");
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+
+	mysql_free_result(res);
+
+	return 0;
+}
+
+/*
  * Return mount stuff.
  */
 COMMAND_PROTOTYPE(domounts)
@@ -3985,6 +4502,7 @@ COMMAND_PROTOTYPE(domounts)
 	char		*bufp, *ebufp = &buf[sizeof(buf)];
 	int		nrows, usesfs;
 	int		nomounts = 0;
+	char		*fsnode = FSNODE;
 #ifdef  ISOLATEADMINS
 	int		isadmin;
 #endif
@@ -4061,7 +4579,6 @@ COMMAND_PROTOTYPE(domounts)
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
 
-
 	/*
 	 * A local phys node acting as a shared host gets toplevel mounts only.
 	 */
@@ -4115,13 +4632,22 @@ COMMAND_PROTOTYPE(domounts)
 		return 0;
 	}
 	else if (!usesfs) {
+#ifdef  PROTOGENI_GENIRACK
+		/*
+		 * XXX Fix this ...
+		 */
+		if (reqp->isvnode) {
+			fsnode = FSJAILIP;
+		}
+#endif
 		/*
 		 * Return project mount first.
 		 */
 		bufp = buf;
 		if (!nomounts)
 			bufp += OUTPUT(bufp, ebufp-bufp,
-				       "REMOTE=%s/%s ", FSPROJDIR, reqp->pid);
+				       "REMOTE=%s:%s/%s ",
+				       fsnode, FSDIR_PROJ, reqp->pid);
 		OUTPUT(bufp, ebufp-bufp, "LOCAL=%s/%s\n",
 		       PROJDIR, reqp->pid);
 		client_writeback(sock, buf, strlen(buf), tcp);
@@ -4136,7 +4662,8 @@ COMMAND_PROTOTYPE(domounts)
 			bufp = buf;
 			if (!nomounts)
 				bufp += OUTPUT(bufp, ebufp-bufp,
-					       "REMOTE=%s/%s/%s ", FSGROUPDIR,
+					       "REMOTE=%s:%s/%s/%s ",
+					       fsnode, FSDIR_GROUPS,
 					       reqp->pid, reqp->gid);
 			OUTPUT(bufp, ebufp-bufp, "LOCAL=%s/%s/%s\n",
 			       GROUPDIR, reqp->pid, reqp->gid);
@@ -4151,8 +4678,8 @@ COMMAND_PROTOTYPE(domounts)
 		bufp = buf;
 		if (!nomounts)
 			bufp += OUTPUT(bufp, ebufp-bufp,
-				       "REMOTE=%s/%s ",
-				       FSSCRATCHDIR, reqp->pid);
+				       "REMOTE=%s:%s/%s ",
+				       fsnode, FSDIR_SCRATCH, reqp->pid);
 		OUTPUT(bufp, ebufp-bufp, "LOCAL=%s/%s\n",
 		       SCRATCHDIR, reqp->pid);
 		client_writeback(sock, buf, strlen(buf), tcp);
@@ -4166,7 +4693,7 @@ COMMAND_PROTOTYPE(domounts)
 		bufp = buf;
 		if (!nomounts)
 			bufp += OUTPUT(bufp, ebufp-bufp,
-				       "REMOTE=%s ", FSSHAREDIR);
+				       "REMOTE=%s:%s ", fsnode, FSDIR_SHARE);
 		OUTPUT(bufp, ebufp-bufp, "LOCAL=%s\n", SHAREDIR);
 		client_writeback(sock, buf, strlen(buf), tcp);
 		/* Leave this logging on all the time for now. */
@@ -4331,8 +4858,8 @@ COMMAND_PROTOTYPE(domounts)
 #endif
 		bufp = buf;
 		if (!nomounts)
-			bufp += OUTPUT(bufp, ebufp-bufp, "REMOTE=%s/%s ",
-				       FSUSERDIR, row[0]);
+			bufp += OUTPUT(bufp, ebufp-bufp, "REMOTE=%s:%s/%s ",
+				       fsnode, FSDIR_USERS, row[0]);
 		OUTPUT(bufp, ebufp-bufp, "LOCAL=%s/%s\n", USERDIR, row[0]);
 		client_writeback(sock, buf, strlen(buf), tcp);
 
@@ -4578,26 +5105,31 @@ COMMAND_PROTOTYPE(doloadinfo)
 	MYSQL_ROW	row, row2;
 	char		buf[MYBUFSIZE];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
-	char		*disktype, *useacpi, *useasf, *noclflush, *vgaonly;
+	char		*disktype, *useacpi, *useasf, *noclflush;
+	char		*vgaonly, *consoletype;
 	char		address[MYBUFSIZE];
 	char            server_address[MYBUFSIZE];
 	char		mbrvers[51];
-	char            *loadpart, *OS, *prepare, *attrclause;
-	int		disknum, nrows, zfill;
+	char            *loadpart, *OS, *prepare, *attrclause, *version, *dom0mem;
+	int		disknum, biosdisknum, nrows, zfill;
 
 	/*
 	 * Get the address the node should contact to load its image
 	 */
 	res = mydb_query("select loadpart,OS,mustwipe,mbr_version,access_key,"
-			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path "
+			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path, "
+			 "   o.version,pa.partition "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
 			 "left join frisbee_blobs as f on f.imageid=i.imageid "
 			 "left join os_info as o on i.default_osid=o.osid "
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
-			 "where node_id='%s' order by r.idx",
-			 11, reqp->nodeid);
+			 "left join partitions as pa on "
+			 "     pa.node_id=r.node_id and "
+			 "     pa.osid=i.default_osid and loadpart=0 "
+			 "where r.node_id='%s' order by r.idx",
+			 13, reqp->nodeid);
 
 	if (!res) {
 		error("doloadinfo: %s: DB Error getting loading address!\n",
@@ -4650,6 +5182,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 		loadpart = row[0];
 		OS = row[1];
 		prepare = row[6];
+		version = row[11];
 
 		res2 = mydb_query("select IP "
 				  " from interfaces as i, subbosses as s "
@@ -4748,6 +5281,17 @@ COMMAND_PROTOTYPE(doloadinfo)
 			bufp += OUTPUT(bufp, ebufp - bufp,
 			               " SERVER=%s", server_address);
 		}
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       " OSVERSION=%s", version);
+		/*
+		 * For virtual node reloading, it is convenient to tell it what
+		 * partition to boot, for the case that it is a whole disk image
+		 * and the client can not derive which partition to boot from.
+		 */
+		if (row[12] && row[12][0]) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " BOOTPART=%s", row[12]);
+		}
 
 		/*
 		 * Add zero-fill free space, MBR version fields, and access_key
@@ -4764,10 +5308,12 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 */
 		disktype = DISKTYPE;
 		disknum = DISKNUM;
+		biosdisknum = -1;
 		useacpi = "unknown";
 		useasf = "unknown";
 		noclflush = "unknown";
-		vgaonly = (char *) NULL;
+		vgaonly = consoletype = (char *) NULL;
+		dom0mem = "1024M";
 
 		/*
 		 * This query is intended to select certain attributes from
@@ -4778,6 +5324,12 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 * overwrite anything returned for the same key in the first
 		 * select on node_type_attributes.
 		 *
+		 * N.B. the above paragraph is not correct. The union actually
+		 * returns key/value rows from BOTH tables unless the values
+		 * are also identical. It is the while loop below that always
+		 * chooses the second value (the node_attributes value) in
+		 * preference to the first.
+		 *
 		 * The original select required that the key be in the
 		 * node_type_attributes table, else it would fail to find
 		 * it in the node_attributes table. This was the easiest
@@ -4785,10 +5337,13 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 */
 		attrclause =
 			"(attrkey='bootdisk_unit' or "
+			" attrkey='bootdisk_bios_id' or "
 			" attrkey='disktype' or "
 			" attrkey='use_acpi' or "
 			" attrkey='use_asf' or "
+			" attrkey='console_type' or "
 			" attrkey='vgaonly' or "
+			" attrkey='dom0mem' or "
 			" attrkey='no_clflush')";
 
 		res2 = mydb_query("(select attrkey,attrvalue from nodes as n "
@@ -4825,6 +5380,9 @@ COMMAND_PROTOTYPE(doloadinfo)
 					if (strcmp(row2[0], "bootdisk_unit") == 0) {
 						disknum = atoi(attrstr);
 					}
+					if (strcmp(row2[0], "bootdisk_bios_id") == 0) {
+						biosdisknum = strtol(attrstr, 0, 0);
+					}
 					else if (strcmp(row2[0], "disktype") == 0) {
 						disktype = attrstr;
 					}
@@ -4840,6 +5398,12 @@ COMMAND_PROTOTYPE(doloadinfo)
 					else if (strcmp(row2[0], "vgaonly") == 0) {
 						vgaonly = attrstr;
 					}
+					else if (strcmp(row2[0], "dom0mem") == 0) {
+						dom0mem = attrstr;
+					}
+					else if (strcmp(row2[0], "console_type") == 0) {
+						consoletype = attrstr;
+					}
 				}
 				nrows2--;
 			}
@@ -4848,10 +5412,20 @@ COMMAND_PROTOTYPE(doloadinfo)
 		bufp += OUTPUT(bufp, ebufp - bufp,
 			       " DISK=%s%d ZFILL=%d ACPI=%s MBRVERS=%s ASF=%s PREPARE=%s NOCLFLUSH=%s",
 			       disktype, disknum, zfill, useacpi, mbrvers, useasf, prepare, noclflush);
-		if (vgaonly) {
+		if (consoletype) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " CONSOLE=%s", consoletype);
+		} else if (vgaonly) {
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       " VGAONLY=%s", vgaonly);
 		}
+		if (biosdisknum >= 0) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " BIOSDISK=0x%02x", biosdisknum);
+		}
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       " DOM0MEM=%s", dom0mem);
+		
 		/*
 		 * Do this here, so that we are not using strings above,
 		 * that have been released to the malloc pool.
@@ -4866,8 +5440,6 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 * image.
 		 */
 		if (reqp->isvnode || (reqp->islocal && vers >= 33)) {
-			struct stat sb;
-
  			if (!row[7] || !row[7][0]) {
 				error("doloadinfo: %s: No imagename"
 				      " associated with imageid %s\n",
@@ -4901,6 +5473,8 @@ COMMAND_PROTOTYPE(doloadinfo)
 			 * the server.
 			 */
 			if (reqp->isvnode) {
+				unsigned int mtime, chunks;
+				
 				if (!row[10] || !row[10][0]) {
 					error("doloadinfo: %s: No path"
 					      " associated with imageid %s\n",
@@ -4908,50 +5482,17 @@ COMMAND_PROTOTYPE(doloadinfo)
 					mysql_free_result(res);
 					return 1;
 				}
-				else if (stat(row[10], &sb)) {
-					char _buf[512];
-					FILE *cfd;
-
-					/*
-					 * The image may not be directly
-					 * accessible since tmcd runs as
-					 * "nobody". If so, use the imageinfo
-					 * helper to get the info via the
-					 * frisbee master server.
-					 */
-					snprintf(_buf, sizeof _buf,
-						 "%s/sbin/imageinfo -qm -N %s "
-						 "%s/%s",
-						 TBROOT, reqp->nodeid,
-						 row[8], row[7]);
-					if ((cfd = popen(_buf, "r")) == NULL) {
-					badimage:
-						error("doloadinfo: %s: "
-						      "Could not determine "
-						      "mtime for %s/%s\n",
-						      reqp->nodeid,
-						      row[8], row[7]);
-						mysql_free_result(res);
-						return 1;
-					}
-					_buf[0] = 0;
-					fgets(_buf, sizeof _buf, cfd);
-					pclose(cfd);
-					sb.st_mtime = 0;
-					if (_buf[0] != 0 && _buf[0] != '\n') {
-						sscanf(_buf, "%u",
-						       &sb.st_mtime);
-					}
-					if (sb.st_mtime == 0)
-						goto badimage;
+				if (getImageInfo(row[10], reqp->nodeid,
+						 row[8], row[7], &mtime, &chunks)) {
+					mysql_free_result(res);
+					return 1;
 				}
 				bufp += OUTPUT(bufp, ebufp - bufp,
-					       " IMAGEMTIME=%u\n",
-					       sb.st_mtime);
+					       " IMAGEMTIME=%u", mtime);
+				bufp += OUTPUT(bufp, ebufp - bufp,
+					       " IMAGECHUNKS=%u", chunks);
 			}
-
 		}
-
 		/* Tack on the newline, finally */
 		bufp += OUTPUT(bufp, ebufp - bufp, "\n");
 
@@ -5193,7 +5734,8 @@ COMMAND_PROTOTYPE(dostate)
 	tuple->eventtype = newstate;
 
 	if (myevent_send(tuple)) {
-		error("dostate: Error sending event\n");
+		error("Error sending event\n");
+		info("%s: STATE: %s failed!\n", reqp->nodeid, newstate);
 		return 1;
 	}
 
@@ -5867,17 +6409,31 @@ COMMAND_PROTOTYPE(dotunnels)
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
 	int		nrows;
+	char            *clause = "";
+
+	/*
+	 * There is no point in returning tunnel info to the container;
+	 * they cannot do anything with it. The host has setup the container
+	 * with interfaces that are linked to the tunnels, but within the
+	 * container they just look like regular interfaces, and so we return
+	 * them from doifconfig. 
+	 */
+	if (reqp->isvnode && reqp->asvnode) {
+		return 0;
+	}
 
 	res = mydb_query("select lma.lanid,lma.memberid,"
 			 "   lma.attrkey,lma.attrvalue from lans as l "
 			 "left join lan_members as lm on lm.lanid=l.lanid "
+			 "left join lan_attributes as la on "
+			 "     la.lanid=l.lanid and la.attrkey='style' "
 			 "left join lan_member_attributes as lma on "
 			 "     lma.lanid=lm.lanid and "
 			 "     lma.memberid=lm.memberid "
 			 "where l.exptidx='%d' and l.type='tunnel' and "
 			 "      lm.node_id='%s' and "
-			 "      lma.attrkey like 'tunnel_%%'",
-			 4, reqp->exptidx, reqp->nodeid);
+			 "      lma.attrkey like 'tunnel_%%' %s",
+			 4, reqp->exptidx, reqp->nodeid, clause);
 
 	if (!res) {
 		error("TUNNELS: %s: DB Error getting tunnels\n", reqp->nodeid);
@@ -6101,7 +6657,7 @@ mydb_query(char *query, int ncols, ...)
 int
 mydb_update(char *query, ...)
 {
-	char		querybuf[8 * 1024];
+	char		querybuf[64 * 1024];
 	va_list		ap;
 	int		n;
 
@@ -6878,7 +7434,7 @@ COMMAND_PROTOTYPE(dojailconfig)
 	char		buf[MYBUFSIZE];
 	char		jailip[TBDB_FLEN_IP], jailipmask[TBDB_FLEN_IPMASK];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
-	int		low, high;
+	int		low, high, nrows;
 
 	/*
 	 * Only vnodes get a jailconfig of course, and only allocated ones.
@@ -6951,12 +7507,14 @@ COMMAND_PROTOTYPE(dojailconfig)
 	row   = mysql_fetch_row(res);
 	if (row[3]) {
 		strcpy(jailip, row[3]);
-		strcpy(jailipmask, row[4]);
+		strcpy(jailipmask, (row[4] ? row[4] : CONTROL_NETMASK));
 	}
 	else if (row[1]) {
 		strcpy(jailip, row[1]);
 		strcpy(jailipmask, (row[2] ? row[2] : JAILIPMASK));
 	}
+	else
+		jailip[0] = '\0';
 
 	bzero(buf, sizeof(buf));
 	if (jailip[0]) {
@@ -7016,8 +7574,8 @@ COMMAND_PROTOTYPE(dojailconfig)
 				bufp = buf;
 				bufp += OUTPUT(bufp, ebufp - bufp,
 					       "VDSIZE=%s\n", attrvalue);
+				client_writeback(sock, buf, strlen(buf), tcp);
 			}
-			client_writeback(sock, buf, strlen(buf), tcp);
 		}
 		mysql_free_result(res);
 	}
@@ -7040,9 +7598,7 @@ COMMAND_PROTOTYPE(dojailconfig)
 		      reqp->nodeid);
 		return 1;
 	}
-	if (mysql_num_rows(res)) {
-		int nrows = mysql_num_rows(res);
-
+	if ((nrows = (int)mysql_num_rows(res))) {
 		while (nrows) {
 			nrows--;
 			row = mysql_fetch_row(res);
@@ -7059,14 +7615,16 @@ COMMAND_PROTOTYPE(dojailconfig)
 	bufp += OUTPUT(bufp, ebufp - bufp, "\"\n");
 
 	/*
-	 * Get the image to be booted. There is an implicit assumption that
-	 * virtual nodes get a single partition table entry.
+	 * Get the image to be booted. 
 	 */
-	res = mydb_query("select p.pid,g.gid,i.imagename from partitions as pa "
+	res = mydb_query("select p.pid,g.gid,i.imagename from nodes as n "
+			 "left join partitions as pa on "
+			 "     pa.node_id=n.node_id and "
+			 "     pa.osid=n.def_boot_osid "
 			 "left join images as i on i.imageid=pa.imageid "
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
-			 "where pa.node_id='%s'",
+			 "where n.node_id='%s'",
 			 3, reqp->nodeid);
 
 	if (!res) {
@@ -9943,9 +10501,11 @@ COMMAND_PROTOTYPE(doarpinfo)
 
 		res = mydb_query("select i.node_id,i.IP,i.mac,n.role "
 				 "from interfaces as i,nodes as n "
+				 "left join reserved as r on r.node_id=n.node_id "
 				 "where n.node_id=i.node_id and i.role='ctrl' "
-				 " and n.role in ('testnode','virtnode') "
-				 " and i.mac not like '000000%%' ", 4);
+				 " and i.mac not like '000000%%' "
+				 " and (n.role='testnode' or "
+				 "      n.role='virtnode') ", 4);
 		if (!res) {
 			error("doarpinfo: %s: DB Error getting"
 			      "control interface info\n", reqp->nodeid);
@@ -10539,4 +11099,300 @@ COMMAND_PROTOTYPE(dodisks)
 	return 0;
 }
 
+/*
+ * Return info about hardware that should be present on the node.
+ * Current info looks like:
+ *
+ * CPU (one line per node):
+ *
+ * CPUINFO SOCKETS=<#> CORES=<#> THREADS=<#> SPEED=<MHz> BITS=<32|64> HV=<1|0>
+ *
+ * Memory (one line per node):
+ *
+ * MEMINFO SIZE=<MiB>
+ *
+ * Disks (one DISKINFO per node, one DISKUNIT per disk):
+ *
+ * DISKINFO UNITS=<#>
+ * DISKUNIT SN=<serial> TYPE=<PATA|SATA|...> SECSIZE=<#> \
+ *    SIZE=<MB> RSPEED=<MB/s> WSPEED=<MB/s>
+ *
+ * Network (one NETINFO per node, one NETUNIT per interface):
+ *
+ * NETINFO UNITS=<#>
+ * NETUNIT TYPE=<ETH|WIFI|...> ID=<mac>
+ */
+COMMAND_PROTOTYPE(dohwinfo)
+{
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	char		buf[MYBUFSIZE];
+	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
+	int		nrows;
 
+	/* XXX only done for allocated physical nodes right now */
+	if (!reqp->allocated || reqp->isvnode) {
+		return 0;
+	}
+
+	/*
+	 * CPU and memory info comes from node_type_attributes or
+	 * node_attributes.
+	 */
+
+	/*
+	 * Note that the union query returns key/value rows from both
+	 * node_attributes and node_type_attributes. The while loop
+	 * following the query chooses the last value (from node_attributes)
+	 * in preference to the first for any attrkey.
+	 */
+	res = mydb_query("(select attrkey,attrvalue from nodes as n,"
+			 " node_type_attributes as a where "
+			 "   n.type=a.type and n.node_id='%s' and "
+			 "   a.attrkey like 'hw_%%') "
+			 "union "
+			 "(select attrkey,attrvalue "
+			 "   from node_attributes "
+			 " where node_id='%s' and attrkey like 'hw_%%')",
+			 2, reqp->nodeid, reqp->nodeid);
+	if (!res) {
+		error("dohwinfo: %s: DB Error getting CPU attributes!\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	if ((nrows = (int)mysql_num_rows(res)) > 0) {
+		int sockets, cores, threads, speed, bits, hv, memsize;
+
+		sockets = cores = threads = speed = bits = hv = memsize = -1;
+		while (nrows) {
+			row = mysql_fetch_row(res);
+			if (row[1] && row[1][0]) {
+				char *key = row[0] + 3; /* skip "hw_" */
+				char *val = row[1];
+
+				if (strcmp(key, "cpu_sockets") == 0) {
+					sockets = atoi(val);
+				}
+				else if (strcmp(key, "cpu_cores") == 0) {
+					cores = atoi(val);
+				}
+				else if (strcmp(key, "cpu_threads") == 0) {
+					threads = atoi(val);
+				}
+				else if (strcmp(key, "cpu_speed") == 0) {
+					speed = atoi(val);
+				}
+				else if (strcmp(key, "cpu_bits") == 0) {
+					bits = atoi(val);
+				}
+				else if (strcmp(key, "cpu_hv") == 0) {
+					hv = atoi(val);
+				}
+				else if (strcmp(key, "mem_size") == 0) {
+					memsize = atoi(val);
+				}
+			}
+			nrows--;
+		}
+
+		bufp += OUTPUT(bufp, ebufp - bufp, "CPUINFO");
+		if (sockets >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " SOCKETS=%d",
+				       sockets);
+		if (cores >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " CORES=%d",
+				       cores);
+		if (threads >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " THREADS=%d",
+				       threads);
+		if (speed >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " SPEED=%d",
+				       speed);
+		if (bits >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " BITS=%d",
+				       bits);
+		if (hv >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, " HV=%d",
+				       hv);
+		bufp += OUTPUT(bufp, ebufp - bufp, "\n");
+
+		if (memsize >= 0)
+			bufp += OUTPUT(bufp, ebufp - bufp, "MEMINFO SIZE=%d\n",
+				       memsize);
+		client_writeback(sock, buf, strlen(buf), tcp);
+		bufp = buf;
+	}
+	mysql_free_result(res);
+
+	/*
+	 * Disk info comes from blockstores, blockstore_type_attributes, and
+	 * blockstore_attributes.
+	 */
+	res = mydb_query("select bs.total_size,a.attrvalue,ta.attrvalue "
+			 "from "
+			 "  blockstores as bs,"
+			 "  blockstore_type_attributes as ta,"
+			 "  blockstore_attributes as a "
+			 "where "
+			 "  bs.bsidx=a.bsidx and bs.role='element' and "
+			 "  bs.type=ta.type and ta.attrkey='protocol' and "
+			 "  a.attrkey='serialnum' and node_id='%s'",
+			 3, reqp->nodeid);
+	if (!res) {
+		error("dohwinfo: %s: DB Error getting DISK attributes!\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	nrows = (int)mysql_num_rows(res);
+	if (nrows)
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       "DISKINFO UNITS=%d\n", nrows);
+
+	while (nrows) {
+		row = mysql_fetch_row(res);
+		bufp += OUTPUT(bufp, ebufp - bufp, "DISKUNIT");
+
+		/* SN */
+		if (row[1] && row[1][0])
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " SN=\"%s\"", row[1]);
+
+		/* TYPE */
+		if (row[2] && row[2][0])
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " TYPE=\"%s\"", row[2]);
+
+		/* SECSIZE -- XXX hardwired for now */
+		bufp += OUTPUT(bufp, ebufp - bufp, " SECSIZE=512");
+
+		/* SIZE -- convert MiB to MB */
+		if (row[0] && row[0][0]) {
+			long disksize;
+
+			disksize = strtol(row[0], 0, 0);
+			disksize = (long)(((long long)disksize *
+					   1048576) / 1000000);
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " SIZE=%ld", disksize);
+		}
+
+		bufp += OUTPUT(bufp, ebufp - bufp, "\n");
+		nrows--;
+	}
+
+	if (bufp != buf) {
+		client_writeback(sock, buf, strlen(buf), tcp);
+		bufp = buf;
+	}
+	mysql_free_result(res);
+
+	/*
+	 * Network info comes from interfaces table.
+	 */
+	res = mydb_query("select mac from interfaces "
+			 "where mac not like '000000%%' and node_id='%s'"
+			 "order by card",
+			 1, reqp->nodeid);
+	if (!res) {
+		error("dohwinfo: %s: DB Error getting NET attributes!\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	nrows = (int)mysql_num_rows(res);
+	if (nrows)
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       "NETINFO UNITS=%d\n", nrows);
+
+	while (nrows) {
+		row = mysql_fetch_row(res);
+		bufp += OUTPUT(bufp, ebufp - bufp, "NETUNIT");
+
+		if (row[0] && row[0][0]) {
+			/* TYPE -- XXX everything it "ETH" right now */
+			bufp += OUTPUT(bufp, ebufp - bufp, " TYPE=\"ETH\"");
+
+			/* ID is MAC */
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " ID=\"%s\"", row[0]);
+
+			bufp += OUTPUT(bufp, ebufp - bufp, "\n");
+		}
+		nrows--;
+	}
+
+	if (bufp != buf)
+		client_writeback(sock, buf, strlen(buf), tcp);
+	mysql_free_result(res);
+
+	return 0;
+}
+
+/*
+ * Get image size and mtime.
+ */
+static int
+getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
+	     unsigned int *mtime, unsigned int *chunks)
+{
+	struct stat sb;
+
+	/*
+	 * The image may not be directly accessible since tmcd runs as
+	 * "nobody". If so, use the imageinfo helper to get the info
+	 * via the frisbee master server.
+	 */
+	if (stat(path, &sb)) {
+		char _buf[512];
+		FILE *cfd;
+
+		snprintf(_buf, sizeof _buf,
+			 "%s/sbin/imageinfo -qm -N %s "
+			 "%s/%s",
+			 TBROOT, nodeid, pid, imagename);
+		if ((cfd = popen(_buf, "r")) == NULL) {
+		badimage1:
+			error("doloadinfo: %s: "
+			      "Could not determine "
+			      "mtime for %s/%s\n", nodeid, pid, imagename);
+			return 1;
+		}
+		_buf[0] = 0;
+		fgets(_buf, sizeof _buf, cfd);
+		if (pclose(cfd))
+			goto badimage1;
+		sb.st_mtime = 0;
+		if (_buf[0] != 0 && _buf[0] != '\n') {
+			sscanf(_buf, "%u", &sb.st_mtime);
+		}
+		if (sb.st_mtime == 0)
+			goto badimage1;
+
+		snprintf(_buf, sizeof _buf,
+			 "%s/sbin/imageinfo -qs -N %s "
+			 "%s/%s",
+			 TBROOT, nodeid, pid, imagename);
+		if ((cfd = popen(_buf, "r")) == NULL) {
+		badimage2:
+			error("doloadinfo: %s: "
+			      "Could not determine "
+			      "size for %s/%s\n", nodeid, pid, imagename);
+			return 1;
+		}
+		_buf[0] = 0;
+		fgets(_buf, sizeof _buf, cfd);
+		if (pclose(cfd))
+			goto badimage2;
+		sb.st_size = 0;
+		if (_buf[0] != 0 && _buf[0] != '\n') {
+			sscanf(_buf, "%lld", &sb.st_size);
+		}
+		if (sb.st_size == 0)
+			goto badimage2;
+	}
+	*mtime  = sb.st_mtime;
+	*chunks = sb.st_size / (1024*1024);
+	return 0;
+}

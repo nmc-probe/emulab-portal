@@ -10,16 +10,20 @@ use User;
 
 my $TB = "@prefix@";
 my $NEWSCRIPT = "$TB/bin/newscript";
+my $controliloip;
 
-if (scalar(@ARGV) != 4) {
-    fatal("Usage: mknewconfig <out-path> <ip-file> <hp-xml> <wiring-file>\n");
+if ($ARGV[0] eq "-i") {
+    shift(@ARGV);
+    $controliloip = shift(@ARGV);
 }
-
+if (scalar(@ARGV) != 4) {
+    fatal("Usage: mknewconfig [-i controliloip] ".
+	  "<out-path> <ip-file> <hp-xml> <wiring-file>\n");
+}
 my $outpath = shift(@ARGV);
 my $ipfile = shift(@ARGV);
 my $hpfile = shift(@ARGV);
 my $wiringfile = shift(@ARGV);
-
 
 #
 # Can only be invoked by Admin.
@@ -55,6 +59,7 @@ foreach my $line (@iplist) {
 close(IP);
 
 my %devices = ();
+my $controlnode;
 
 # Load node data
 my $hpdoc = XML::LibXML->load_xml( location => $hpfile );
@@ -67,10 +72,13 @@ foreach my $node ($hpdoc->documentElement()->find("Device")->get_nodelist()) {
     my $blob = {
 	'location' => GetText("u_location", $node),
 	'ilomac' => GetText("lo_mac", $node),
+	'ilopswd' => GetText("lo_password", $node),
 	'maclist' => \@maclist
     };
-    if ($blob->{'location'} ne "n/a" &&
-	$blob->{'location'} ne "U34") {
+    if ($blob->{'location'} eq "U34") {
+	$controlnode = $blob;
+    }
+    elsif ($blob->{'location'} ne "n/a") {
 	$devices{$blob->{'location'}} = $blob;
     }
 }
@@ -235,6 +243,29 @@ foreach my $current (@wires) {
 
     ++$wireid;
 }
+exit(0)
+    if (!defined($controliloip));
+
+#
+# Print script to initialize the ilo
+#
+open(SCRIPT, ">$outpath/initilo.sh")
+    or die("Could not create initilo.sh\n");
+
+foreach my $current (values(%devices)) {
+    my $id = $current->{'id'};
+    my $ilopswd = $current->{'ilopswd'};
+    my $node_id = $current->{'node_id'};
+    if (! exists($control_ips{$node_id})) {
+	print STDERR "No IP address for node: $node_id\n";
+	next;
+    }
+    print SCRIPT "$TB/sbin/initilo.pl $ilopswd $node_id\n";
+}
+print SCRIPT "$TB/sbin/initilo.pl -c $controliloip " .
+    $controlnode->{"ilopswd"} . "\n";
+close(SCRIPT);
+exit(0);
 
 # Get the text contents of a child of a node with a particular
 # name. This can be either an attribute or an element.

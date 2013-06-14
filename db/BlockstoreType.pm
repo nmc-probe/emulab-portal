@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012 University of Utah and the Flux Group.
+# Copyright (c) 2012,2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -170,15 +170,16 @@ sub LoadAttributes($)
     my $type = $self->type();
     
     my $query_result =
-	DBQueryWarn("select attrkey,attrvalue,attrtype ".
+	DBQueryWarn("select attrkey,attrvalue,attrtype,isfeature ".
 		    "  from blockstore_type_attributes ".
 		    "where type='$type'");
 
     $self->{"ATTRS"} = {};
-    while (my ($key,$val,$type) = $query_result->fetchrow_array()) {
+    while (my ($key,$val,$type,$isfeature) = $query_result->fetchrow_array()) {
 	$self->{"ATTRS"}->{$key} = { "key"   => $key,
 				     "value" => $val,
-				     "type"  => $type };
+				     "type"  => $type ,
+				     "isfeature" => $isfeature };
     }
     return 0;
 }
@@ -199,9 +200,9 @@ sub Stringify($)
 #
 # Look for an attribute.
 #
-sub GetAttribute($$;$$)
+sub GetAttribute($$;$$$)
 {
-    my ($self, $attrkey, $pattrvalue, $pattrtype) = @_;
+    my ($self, $attrkey, $pattrvalue, $pattrtype, $pattrfeature) = @_;
     
     goto bad
 	if (!ref($self));
@@ -220,11 +221,13 @@ sub GetAttribute($$;$$)
 
     # Return value instead if a $pattrvalue not provided. 
     return $ref->{'value'}
-	if (!defined($pattrvalue));
+        if (!defined($pattrvalue));
     
     $$pattrvalue = $ref->{'value'};
     $$pattrtype  = $ref->{'type'}
         if (defined($pattrtype));
+    $$pattrfeature = $ref->{'isfeature'}
+        if (defined($pattrfeature));
 
     return 0;
     
@@ -252,16 +255,16 @@ sub GetAttributes($)
 }
 
 # Shortcuts for typical attributes.
-sub type($)           { return $_[0]->{'TYPE'}; }
+sub type($)            {return $_[0]->{'TYPE'}; }
 sub class($;$)         {return GetAttribute($_[0], "class", $_[1]); }
 sub protocol($;$)      {return GetAttribute($_[0], "protocol", $_[1]); }
 
 #
 # Set the value of an attribute
 #
-sub SetAttribute($$$;$)
+sub SetAttribute($$$;$$)
 {
-    my ($self, $attrkey, $attrvalue, $attrtype) = @_;
+    my ($self, $attrkey, $attrvalue, $attrtype, $attrfeature) = @_;
     
     goto bad
 	if (!ref($self));
@@ -271,12 +274,14 @@ sub SetAttribute($$$;$)
 
     $attrtype = "string"
 	if (!defined($attrtype));
+    $attrfeature = (defined($attrfeature) && $attrfeature) ? 1 : 0;
     my $safe_attrvalue = DBQuoteSpecial($attrvalue);
     my $type = $self->type();
 
     DBQueryWarn("replace into blockstore_type_attributes set ".
 		"  type='$type', attrkey='$attrkey', ".
-		"  attrtype='$attrtype', attrvalue=$safe_attrvalue")
+		"  attrtype='$attrtype', attrvalue=$safe_attrvalue, ".
+		"  isfeature='$attrfeature'")
 	or return -1;
 
     $self->{"ATTRS"}->{$attrkey} = $attrvalue;

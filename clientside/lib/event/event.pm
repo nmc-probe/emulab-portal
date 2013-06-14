@@ -645,17 +645,6 @@ sub EventFork() {
     $event::EventSendHandle = undef;
 }
 
-#
-# When we exit, unregister with the event system if we're connected
-#
-END {
-    	if ($event::EventSendHandle) {
-		if (event_unregister($event::EventSendHandle) == 0) {
-			warn "Could not unregister with event system";
-		}
-	}
-}
-
 push @EXPORT, qw(event_subscribe event_poll event_poll_blocking EventSend
 	EventSendFatal EventSendWarn EventFork EventRegister);
 1;

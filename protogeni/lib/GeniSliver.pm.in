@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2011, 2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -134,11 +134,12 @@ sub Lookup($$)
     return undef
 	if (!$query_result || !$query_result->numrows);
 
-    my $self              = {};
-    $self->{'SLIVER'}     = $query_result->fetchrow_hashref();
-    $self->{'SLICE'}      = undef;	# server
-    $self->{'AGGREGATE'}  = undef;	# server
-    $self->{'RSPEC'}      = undef;	# server
+    my $self               = {};
+    $self->{'SLIVER'}      = $query_result->fetchrow_hashref();
+    $self->{'SLICE'}       = undef;	# server
+    $self->{'AGGREGATE'}   = undef;	# server
+    $self->{'RSPEC'}       = undef;	# server
+    $self->{'CERTIFICATE'} = undef;
 
     my $rspec_string = $self->{'SLIVER'}->{'rspec_string'};
     if (defined($rspec_string) && $rspec_string ne "") {
@@ -153,12 +154,14 @@ sub Lookup($$)
     # Grab the certificate, since we will probably want it.
     #
     my $uuid = $self->{'SLIVER'}->{'uuid'};
+    if (0) {
     my $certificate = GeniCertificate->Lookup($uuid);
     if (!defined($certificate)) {
 	print STDERR "Could not find certificate for sliver $idx ($uuid)\n";
 	return undef;
     }
     $self->{'CERTIFICATE'} = $certificate;
+    }
 
     # Bless into sub package if called for.
     my $resource_type = $self->{'SLIVER'}->{'resource_type'};
@@ -214,6 +217,7 @@ sub Create($$$$$$$$)
 
     # Sanity check.
     my $certificate = GeniCertificate->Lookup($urn);
+    if (0) {
     if (defined($certificate)) {
 	print STDERR "GeniSliver::Create: ".
 	    "Already have a certificate for $hrn/$urn\n";
@@ -227,9 +231,11 @@ sub Create($$$$$$$$)
 	    "Could not generate new certificate for $hrn/$urn\n";
 	return undef;
     }
+    }
     my $slice_uuid     = $slice->uuid();
     my $owner_uuid     = $owner->uuid();
-    my $sliver_uuid    = $certificate->uuid();
+    my $sliver_uuid    = (defined($certificate) ?
+			  $certificate : GeniUtil::NewUUID());
 
     # Now tack on other stuff we need.
     push(@insert_data, "created=now()");
@@ -256,7 +262,8 @@ sub Create($$$$$$$$)
     # Insert into DB.
     if (!DBQueryWarn("insert into geni_slivers set " .
 		     join(",", @insert_data))) {
-	$certificate->Delete();
+	$certificate->Delete()
+	    if (defined($certificate));
 	return undef;
     }
 
@@ -293,9 +300,16 @@ sub rspec_string($)     { return field($_[0], "rspec_string"); }
 sub status($)		{ return field($_[0], "status"); }
 sub state($)		{ return field($_[0], "state"); }
 sub ErrorLog($)		{ return field($_[0], "errorlog"); }
-sub cert($)		{ return $_[0]->{'CERTIFICATE'}->cert(); }
-sub GetCertificate($)   { return $_[0]->{'CERTIFICATE'}; }
+sub cert($)		{ return GetCertificate($_[0])->cert(); }
 sub rspec($)            { return $_[0]->{'RSPEC'}; }
+# Watch for slivers that no longer get a certificate.
+sub GetCertificate($)
+{
+    if (!defined($_[0]->{'CERTIFICATE'})) {
+	print STDERR "*** No certificate for sliver: " . $_[0] . "\n";
+    }
+    return $_[0]->{'CERTIFICATE'};
+}
 
 # Return the sliver URN. 
 sub sliver_urn($)

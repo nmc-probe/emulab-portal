@@ -1,0 +1,140 @@
+#! /bin/bash
+#
+# Copyright (c) 2013 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+
+if [ -z "$BINDIR" ] ; then
+    if [ -r /etc/emulab/paths.sh ] ; then
+	source /etc/emulab/paths.sh
+    else
+	BINDIR=/usr/local/etc/emulab
+	LOGDIR=/var/tmp
+    fi
+fi
+PROJDIR=/proj/emulab-ops
+
+source checkutils.sh
+
+INVDIR=${PROJDIR}/nodecheck
+
+gatherinv_main() {
+    echo -n '  Gathering Inventory..'
+
+    $(cp /dev/null /tmp/nodecheck.log.tb)
+
+    checks="disk cpu mem nic"
+    for i in $checks ; do
+	bash $BINDIR/${i}check $LOGDIR/nodecheck.log /tmp/nodecheck.log.tb
+    done
+
+    # read in the newly found info
+    readtmcinfo /tmp/nodecheck.log.tb
+
+    # print it back out for the database
+    { printtmcinfo
+} > /tmp/nodecheck.log.tb.new # .new not necessary should reuse old name
+
+    # print full locally found inventory
+    { printhwinv
+} > /tmp/nodecheck.log.inv
+
+    host=$($BINDIR/tmcc nodeid)
+    # make sure proj got mounted
+    if [ ! -d $PROJDIR ] ; then
+	echo "OHhh all this work for nothing"
+	echo "$PROJDIR not mounted can't save info"
+	exit 1
+    fi
+
+    # start XXX
+    # decided to change names again, rename if old names -- XXX remove this after all node have run the new code
+    if [ -d ${INVDIR}/$host ] ; then
+	owd=$PWD
+	cd ${INVDIR}/$host
+	[[ -d full ]] && ( mv full .full ; rm -f $host.full )
+	[[ -d diff ]] && ( mv diff .diff ; rm -f $host.diff )
+	[[ -d tbdb ]] && ( mv tbdb .tbdb ; rm -f $host )
+	cd $owd
+    fi
+    # end XXX
+
+    # have needed dirs ?
+    # note: a directory for each node and timestamps for each file
+    if [ ! -d ${INVDIR}/$host/.full ] ; then
+	mkdir -p ${INVDIR}/$host/.tbdb
+	mkdir -p ${INVDIR}/$host/full
+	chmod g+x ${INVDIR}/$host ${INVDIR}/$host/.tbdb ${INVDIR}/$host/.full
+    fi
+
+    # copy over the file including timestamps
+    timestamp=$(date +%y%m%d%H%M%S)
+    cp /tmp/nodecheck.log.tb.new ${INVDIR}/$host/.tbdb/$timestamp
+    cp /tmp/nodecheck.log.inv ${INVDIR}/$host/.full/$timestamp
+
+    # remove old symlink and make new ones
+    owd=$PWD
+    cd ${INVDIR}/$host
+    rm -f $host #this should be a symlink
+    rm -f full $host.full #another symlink
+    ln -s ./.tbdb/${timestamp} ${INVDIR}/$host/$host
+    ln -s ./.full/$timestamp ${INVDIR}/$host/full
+    cd $owd
+
+    # Test what found locally against what is in the database
+    readtmcinfo # info from tmcc.bin hwinv
+        # if testing can do some like    readtmcinfo ${INVDIR}/test
+    copytmcinfo # copy into hwinvcopy
+    readtmcinfo /tmp/nodecheck.log.tb.new # read local found into hwinv
+    comparetmcinfo /tmp/nodecheck.diff # file for output
+
+    # if we ended up with a diff file handle it
+    if [ -s /tmp/nodecheck.diff ] ; then
+# show it at runtime??	cat /tmp/nodecheck.diff
+	# decided to change names again, rename if old names
+	if [ ! -d ${INVDIR}/$host/.diff ] ; then
+	    mkdir -p ${INVDIR}/$host/.diff
+	    chmod g+x ${INVDIR}/$host/.diff
+	fi
+	cp /tmp/nodecheck.diff ${INVDIR}/$host/.diff/${timestamp}
+	cd  ${INVDIR}/$host
+	rm -f diff ${host}.diff
+	ln -s ./.diff/${timestamp} ${INVDIR}/${host}/diff
+    else
+	# no diff maybe it got better, put a marker out
+	# cp /dev/null ${INVDIR}/${host}/.diff/${timestamp}
+	cd  ${INVDIR}/$host
+	rm -f $host.diff diff
+    fi
+	
+    # make sure no sudo is needed for read
+    chmod -R g+rw ${INVDIR}/$host
+
+    rm -f /tmp/nodecheck.log.tb /tmp/nodecheck.log.inv
+    rm -f /tmp/nodecheck.log.tb.new /tmp/nodecheck.diff
+}
+
+gatherinv_main $0
+
+
+
+
+

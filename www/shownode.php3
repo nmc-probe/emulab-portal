@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -93,6 +93,9 @@ if ($node->HasSerialConsole()) {
 	"<a href=\"faq.php3#tiptunnel\">(howto)",
 	"nodetipacl.php3?node_id=$node_id");
 
+    WRITESUBMENUBUTTON("Report a Problem&nbsp;<img src=\"/new.gif\">" ,
+		       "reportnode.php3?node_id=$node_id");
+
     WRITESUBMENUBUTTON("Show Console Log",
 		       "showconlog.php3?node_id=$node_id&linecount=500");
 }
@@ -132,7 +135,7 @@ if ($node->AccessCheck($this_user, $TB_NODEACCESS_LOADIMAGE)) {
     if ($baseimage &&
 	$baseimage->AccessCheck($this_user, $TB_IMAGEID_DESTROY)) {
 	WRITESUBMENUBUTTON("Create a Disk Image",
-			   "loadimage.php3?node_id=$node_id" .
+			   "loadimage.php3?target=$node_id" .
 			   "&imageid=" . $baseimage->imageid());
     }
     else {

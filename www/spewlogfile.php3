@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -24,10 +24,11 @@
 include("defs.php3");
 
 #
-# Only known and logged in users.
+# Get current user, but allow for anon access.
 #
-$this_user = CheckLoginOrDie();
-$uid       = $this_user->uid();
+$this_user = CheckLogin($check_status);
+$uid       = ($this_user ? $this_user->uid() : "nobody");
+$anonopt   = ($this_user ? "" : "-a");
 
 #
 # Verify page arguments.
@@ -38,8 +39,7 @@ if (! isset($logfile)) {
     PAGEARGERROR("Must provide either a logfile ID");
 }
 
-# Check permission in the backend. The user is logged in, so its safe enough
-# to pass it through.
+# Check permission in the backend.
 $logfileid = $logfile->logid();
 
 #
@@ -61,8 +61,9 @@ function SPEWCLEANUP()
 ignore_user_abort(1);
 register_shutdown_function("SPEWCLEANUP");
 
-if ($fp = popen("$TBSUEXEC_PATH $uid nobody ".
-		"spewlogfile -w -i " . escapeshellarg($logfileid), "r")) {
+if ($fp =
+    popen("$TBSUEXEC_PATH $uid nobody ".
+	  "spewlogfile $anonopt -w -i " . escapeshellarg($logfileid), "r")) {
     header("Content-Type: text/plain");
     header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
     header("Cache-Control: no-cache, must-revalidate");

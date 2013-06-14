@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -63,6 +63,7 @@ my $NFREE	   = "$TB/bin/nfree";
 my $OPENSSL	   = "/usr/bin/openssl";
 my $SHA1	   = "/sbin/sha1";
 my $MKCERT         = "$TB/sbin/mksyscert";
+my $GENICERTS      = "$TB/etc/genicacerts";
 
 # Cache of instances to avoid regenerating them.
 my %certificates  = ();
@@ -126,10 +127,9 @@ sub Stringify($)
 {
     my ($self) = @_;
     
-    my $uuid = $self->uuid();
-    my $hrn  = $self->hrn();
+    my $urn  = $self->urn();
 
-    return "[GeniCertificate: $uuid, $hrn]";
+    return "[GeniCertificate: $urn]";
 }
 
 # accessors
@@ -140,11 +140,14 @@ sub expires($)		{ return undef; }
 sub created($)		{ return field($_[0], "created"); }
 sub cert($)		{ return field($_[0], "cert"); }
 sub DN($)		{ return field($_[0], "DN"); }
+sub subject($)		{ return field($_[0], "subject"); }
+sub issuer($)		{ return field($_[0], "issuer"); }
 sub privkey($)		{ return field($_[0], "privkey"); }
 sub revoked($)		{ return field($_[0], "revoked"); }
 sub certfile($)		{ return field($_[0], "certfile"); }
 sub uri($)              { return field($_[0], "uri"); }
 sub urn($)              { return field($_[0], "urn"); }
+sub rootcert($)	        { return $_[0]->{'ROOTCERT'}; }
 sub GetCertificate($)   { return $_[0]; }
 
 # Kludge for SFA certs.
@@ -378,7 +381,7 @@ sub LoadFromString($$)
 	open(STDOUT, ">&PARENT") || die "Cannot redirect stdout";
 	open(STDERR, ">&PARENT") || die "Cannot redirect stderr";
 
-	exec("$OPENSSL x509 -subject -text");
+	exec("$OPENSSL x509 -subject -issuer -text");
 	die("*** $0:\n".
 	    "    exec openssl x509 failed: $!\n");
     }
@@ -428,7 +431,7 @@ sub LoadFromFile($$)
 {
     my ($class, $filename) = @_;
 
-    if (! open(X509, "$OPENSSL x509 -in $filename -subject -text |")) {
+    if (! open(X509, "$OPENSSL x509 -in $filename -subject -issuer -text |")) {
 	print STDERR "Could not start $OPENSSL on $filename\n";
 	return undef;
     }
@@ -460,6 +463,15 @@ sub LoadFromArray($@)
     #
     my $DN = shift(@certlines);
     chomp($DN);
+
+    # And second line is issuer.
+    my $issuer = shift(@certlines);
+    chomp($issuer);
+    my $subject = $DN;
+
+    # Get rid of the tags on both.
+    $issuer  =~ s/^issuer=\s+//;
+    $subject =~ s/^subject=\s+//;
 
     #
     # The text output is next. Look for the URN, URL and UUID in the
@@ -517,7 +529,7 @@ sub LoadFromArray($@)
     # of places the UUID might be stored (and we continue to store UUIDs
     # in multiple places ourselves, to maintain backward compatibility).
     # The GPO want UUIDs in a subjectAltName extension (which would have
-    # been found above), so we use that one if it exists.  If it doesn't,
+    # been found above), so we use that one if it exists.  If it does not,
     # we'll have to dig...
     #
     # The uuid that PLC puts in the certificate is not associated with the
@@ -548,6 +560,8 @@ sub LoadFromArray($@)
     $self->{'CERT'}->{'uuid'}      = $uuid;
     $self->{'CERT'}->{'cert'}      = $cert;
     $self->{'CERT'}->{'DN'}        = $DN;
+    $self->{'CERT'}->{'subject'}   = $subject;
+    $self->{'CERT'}->{'issuer'}    = $issuer;
     $self->{'CERT'}->{'privkey'}   = undef;
     $self->{'CERT'}->{'revoked'}   = undef;
     $self->{'CERT'}->{'created'}   = undef;
@@ -793,7 +807,7 @@ sub SubjectHash($)
     my @result = $self->PipeTo(0, "$OPENSSL x509 -subject_hash -noout");
     if (! @result) {
 	print STDERR "Could not convert $self to subject hash\n";
-	return undef;
+ 	return undef;
     }
     my $hash = $result[0];
     if ($hash =~ /^(\w*)$/) {
@@ -937,6 +951,164 @@ sub WriteKeyToFile($)
     print $tempfile "-----END RSA PRIVATE KEY-----\n";
 
     return $filename;
+}
+
+#
+# Find the root certificate for a single certificate. Optional set of
+# chain certs provided.
+#
+sub VerifySSLChain($@)
+{
+    my ($self, @chaincerts)   = @_;
+    my @pemfiles = ();
+    my $rootpem = undef;
+    my ($tempfile, $filename);
+
+    if (opendir(DIR, "$GENICERTS")) {
+	my @files = grep {/^.*\.pem$/} readdir(DIR);
+	closedir(DIR);
+	@pemfiles = map("$GENICERTS/$_", @files);
+    }
+    else {
+	print STDERR "Failed to opendir $GENICERTS!\n";
+	return -1;
+    }
+    if (opendir(DIR, "$GENICERTS/local")) {
+	my @files = grep {/^.*\.pem$/} readdir(DIR);
+	@pemfiles = (@pemfiles, map("$GENICERTS/local/$_", @files))
+	    if (@files);
+	closedir(DIR);
+    }
+    if (!@pemfiles) {
+	print STDERR "No CA certs in $GENICERTS!\n";
+	return -1;
+    }
+
+    #
+    # Simple optimization; put our own CA at the head of the list.
+    #
+    @pemfiles = ("$TB/etc/emulab.pem", @pemfiles);
+
+    #
+    # If there are chain certs, must write those to a file for verify.
+    #
+    my $optarg = "";
+    
+    if (@chaincerts) {
+	($tempfile, $filename) = tempfile(UNLINK => 1);
+
+	foreach my $cert (@chaincerts) {
+	    print $tempfile "-----BEGIN CERTIFICATE-----\n";
+	    print $tempfile $cert->cert();
+	    print $tempfile "-----END CERTIFICATE-----\n";
+	}
+	$optarg = "-untrusted $filename";
+    }
+
+    #
+    # Try with each certificate until we find one that works.
+    #
+    foreach my $pem (@pemfiles) {
+	# Silly taint check.
+	if ($pem =~ /^(.*)$/) {
+            $pem = $1;
+        }
+	my @result = $self->PipeTo(0, "$OPENSSL verify -CAfile $pem ".
+				   "-purpose sslclient $optarg");
+
+	# We should always get something back.
+	return -1
+	    if (!@result);
+
+	# Stupid openssl programs; always exit with zero status.
+	# Have to look at output.
+	if ($result[0] =~ /OK$/) {
+	    $rootpem = $pem;
+	    last;
+	}
+    }
+    if (!defined($rootpem)) {
+	print STDERR "Could not verify $self\n";
+	return -1;
+    }
+    my $rootcert = GeniCertificate->LoadFromFile($rootpem);
+    if (!defined($rootcert)) {
+	print STDERR "Could not load CA cert from $rootpem\n";
+	return -1;
+    }
+    
+    $self->{'ROOTCERT'} = $rootcert;
+    return 0;
+}
+
+#
+# Make sure that the thing that signed the certificate is really
+# listed as the issuer.
+#
+sub VerifySigner($$)
+{
+    my ($self, $signer) = @_;
+
+    return -1
+	if ($self->issuer() ne $signer->subject());
+    
+    return 0;
+}
+
+#
+# Verify the URN namespace of the certificate against the thing that
+# we think signed it. At the moment, we are being pretty loose with
+# this test; just needs to be a prefix. 
+#
+sub VerifySignerURN($$)
+{
+    my ($self, $signer) = @_;
+
+    my $urn = $self->urn();
+    my $signer_urn = $signer->urn();
+
+    return -1
+	if (! GeniHRN::IsValid($urn));
+    return -1
+	if (! GeniHRN::IsValid($signer_urn));
+
+    my ($authority, $type, undef) = GeniHRN::Parse($urn);
+    my ($signer_authority, $signer_type, undef) = GeniHRN::Parse($signer_urn);
+
+    return -1
+	if ($authority !~ /^$signer_authority/);
+
+    return 0;
+}
+
+#
+# Verify the chain with respect to Geni rules.
+#
+sub VerifyGeniChain($$@)
+{
+    my ($self, $errorstr, @signer_certs) = @_;
+    my $certificate  = $self;
+	
+    while (@signer_certs) {
+	my $signer     = shift(@signer_certs);
+	my $urn        = $certificate->urn();
+	my $signer_urn = $signer->urn();
+	    
+	if ($certificate->VerifySigner($signer)) {
+	    $$errorstr =
+		"signer is invalid for signee: $urn // $signer_urn"
+		if (defined($errorstr));
+	    return -1;
+	}
+	if ($certificate->VerifySignerURN($signer)) {
+	    $$errorstr =
+		"signer in wrong URN space for signee: $urn // $signer_urn"
+		if (defined($errorstr));
+	    return -1;
+	}
+	$certificate = $signer;
+    }
+    return 0;
 }
 
 ############################################################################

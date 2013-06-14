@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -336,7 +336,7 @@ NODE: foreach my $node_id (@node_ids) {
     #
     my $outer_control_ip;
     
-    if ($ELABINELAB) {
+    if ($ELABINELAB && $role ne "ctrlnode") {
         libxmlrpc::Config({"server"  => $RPCSERVER,
 			   "verbose" => 0,
 			   "cert"    => $RPCCERT,
@@ -354,7 +354,7 @@ NODE: foreach my $node_id (@node_ids) {
 					 {"mac" => $macstr});
 
 	if (!defined($rval)) {
-	    print "XMPRPC server did not return control iface info!\n";
+	    print "XMLRPC server did not return control iface info!\n";
 	    next NODE;
 	}
 	else {
@@ -481,7 +481,7 @@ NODE: foreach my $node_id (@node_ids) {
 	    $iface_IP  = "";
 	}
 
-	if (! $useScriptFeature)
+	if (!$useScriptFeature || !defined($port))
 	{
 	    $port = 1;
 	}
@@ -571,7 +571,7 @@ if ($exports_rv) {
 #
 # Start rebooting nodes
 #
-if (!$noreboot) {
+if (!$noreboot && @reboot_IPs) {
     print "Rebooting nodes...\n";
     foreach my $IP (@reboot_IPs) {
 	print "Rebooting $IP\n";

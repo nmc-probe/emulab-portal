@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2011 University of Utah and the Flux Group.
+# Copyright (c) 2011-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -176,6 +176,7 @@ my %nodefields =
      "node_id"		=> ["node_id",		$SLOT_OPTIONAL,    undef],
      "type"		=> ["type",		$SLOT_OPTIONAL,    undef],
      "IP"		=> ["IP",		$SLOT_OPTIONAL,    undef],
+     "role"		=> ["role",		$SLOT_OPTIONAL,    undef],
      "identifier"      	=> ["identifier",      	$SLOT_OPTIONAL,	   undef]);
 
 my %ifacefields =

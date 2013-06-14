@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LGPL
 # 
@@ -113,10 +113,10 @@ Usage: $0 [-h] [-v level] [-q] [-n] [-i device] [-S stack]
 	  [-p <10|100|1000> ports] [-u <half|full> ports]
 	  [-c]
           [--redirect-err]
-          [--of-disable vlanid pid eid]
-          [--of-enable vlanid pid eid]
-          [--of-controller vlanid pid eid tcp:ip:port]
-          [--of-listener vlanid pid eid]
+          [--of-disable name pid eid]
+          [--of-enable name pid eid]
+          [--of-controller name pid eid tcp:ip:port]
+          [--of-listener name pid eid]
 General:
   -h              Display this help message
   -v <level>      Verbose mode
@@ -158,19 +158,18 @@ VLAN Control:
                         WITH EXTREME CAUTION **
   -F                Create all vlans in the given stack on the leader for
 		    use in leader->{ALLVLANSONLEADER} (Internal use only)
-  --of-enable <vlanid> <pid> <eid> 
-                    Enable Openflow on VLAN with the id <vlanid> that is 
+  --of-enable <name> <pid> <eid> 
+                    Enable Openflow on VLAN with the name that is 
 		        associated with the given experiment 
-  --of-disable <vlanid> <pid> <eid>
-                    Disable Openflow on VLAN with the id <vlanid> that is 
+  --of-disable <name> <pid> <eid>
+                    Disable Openflow on VLAN with the name that is 
 		        associated with the given experiment
-  --of-controller <vlanid> <pid> <eid> tcp:ip:port
+  --of-controller <name> <pid> <eid> tcp:ip:port
                     Set controller for Openflow-enabled VLAN with the 
-		        id <vlanid> that is associated with the given 
-			experiment
-  --of-listener <vlanid> <pid> <eid> 
+		        name that is associated with the given experiment
+  --of-listener <name> <pid> <eid> 
                     Enable listener for Openflow-enabled VLAN with the 
-		        id <vlanid> that is associated with the given 
+		        name that is associated with the given 
 			experiment, snmpit will print out the listener 
 			connection string
 
@@ -964,16 +963,25 @@ COMMAND: foreach my $command (@commands) {
             last;
         };
 	(/ofenable/ || /ofdisable/ || /ofcontroller/ || /oflistener/) && do {
-	    @vlans = @args;
-
-	    # Same to 'remove', we find stacks by VLAN 
+	    my ($vlan_name) = @args;
 	    my ($vlanobj, $stack);
+	    if ($vlan_name =~ /^\d*$/) {
+		$vlanobj = VLan->Lookup($vlan_name);
+	    }
+	    else {
+		$vlanobj = VLan->Lookup($experiment, $vlan_name);
+	    }
+	    if (!defined($vlanobj)) {
+		print STDERR "No such vlan '$vlan_name' in $experiment\n";
+		next COMMAND;
+	    }
+	    @vlans = ($vlanobj->id());
+	    
             if ($supplied_switches && !$skip_supplied) {
                 debug("Openflow operations: using supplied switches\n");
                 @devicenames = @supplied_switches;
-            } elsif (defined($experiment) &&
-                     defined($vlanobj = VLan->Lookup($experiment,$vlans[0])) &&
-                     defined($stack = $vlanobj->GetStack())) {
+            }
+	    elsif (defined($stack = $vlanobj->GetStack())) {
                 debug("Openflow operations: found stack $stack in database\n");
                 @devicenames = getSwitchesInStack($stack);
             } else {
@@ -1722,14 +1730,20 @@ sub doRestorePortStatus($@) {
 	    print "Could not yank $port from $source_vlan\n";
 	    $errors++;
 	}
-	VLan->RecordVlanInsertion($source_vlan->id(), $stack->{STACKID});
+	if (VLan->RecordVlanInsertion($source_vlan->id(), $stack->{STACKID})){
+	    print "Could not record vlan insertion for $source_vlan\n";
+	    $errors++;
+	}
     }
     if (defined($target_vlan) && $target_vlan->KeepInSync()) {
 	if ($target_vlan->AddPort($port)) {
 	    print "Could not add $port to $target_vlan\n";
 	    $errors++;
 	}
-	VLan->RecordVlanInsertion($target_vlan->id(), $stack->{STACKID});
+	if (VLan->RecordVlanInsertion($target_vlan->id(), $stack->{STACKID})){
+	    print "Could not record vlan insertion for $target_vlan\n";
+	    $errors++;
+	}
     }
 
     # Enable or disable the port
@@ -1891,6 +1905,11 @@ sub doVlansFromTables($$@) {
 		if (!$trunk_vlan->CreatedOnSwitches()) {
 		    die("Trunk vlanid $trunk_vlan is not instantiated\n");
 		}
+		#
+		# To maintain backwards compatibility with how snmpit used
+		# to operate, "internal" vlans are sometimes named on the switch
+		# by the symbolic name instead of the lanid.
+		#
 		if ($trunk_vlan->IsInternal() &&
 		    !$stack->vlanExists($trunk_vlanid)) {
 		    $trunk_vlanid = $trunk_vlan->vname();
@@ -2068,7 +2087,10 @@ sub CreateOneVlan($$$@)
     # Record an insertion to make sure the DB reflects the current state
     # of the vlan. 
     #
-    VLan->RecordVlanInsertion($vlanid, $stack->{STACKID});
+    if (VLan->RecordVlanInsertion($vlanid, $stack->{STACKID})) {
+	print STDERR "Could not record vlan insertion for $vlanid\n";
+	$errors++;
+    }
 
     #
     # Set the speed and duplex of each interface depending on the
@@ -2430,8 +2452,12 @@ sub syncVlansFromTables($$@) {
 	# Must record a modification so that the loop below that adds new 
 	# ports does not get confused.
 	#
-	my @tmp = Port->toIfaceStrings(@staleports, @staletrunks);
-	VLan->RecordVLanModification($vlanid, undef, \@tmp);
+	my $tmp = Port->toIfaceStrings(@staleports, @staletrunks);
+	my @tmp = split(/\s+/, $tmp);
+	if (VLan->RecordVLanModification($vlanid, undef, \@tmp)) {
+	    print STDERR "Could not record vlan modification: $vlanid - @tmp\n";
+	    goto bad;
+	}
     }
 
     #
@@ -2440,7 +2466,10 @@ sub syncVlansFromTables($$@) {
     my @controlports = ();
     
     foreach my $port (values(%currentTrunks)) {
-	if (!exists($needTrunking{"$port"})) {
+	#
+	# Look at the actual physical port; whatever it says goes.
+	#
+	if (!$port->trunk()) {
 	    debug("Disabling trunking on $port\n");
 	    
 	    next
@@ -2516,6 +2545,11 @@ sub syncVlansFromTables($$@) {
 		if (!$trunk_vlan->CreatedOnSwitches()) {
 		    die("Trunk vlanid $trunk_vlan is not instantiated\n");
 		}
+		#
+		# To maintain backwards compatibility with how snmpit used
+		# to operate, "internal" vlans are sometimes named on the switch
+		# by the symbolic name instead of the lanid.
+		#
 		if ($trunk_vlan->IsInternal() &&
 		    !$stack->vlanExists($trunk_vlanid)) {
 		    $trunk_vlanid = $trunk_vlan->vname();
@@ -3119,7 +3153,10 @@ sub doSyncVlansWithDB($) {
 			$errors++;
 		    }
 		}
-		VLan->RecordVlanInsertion($vlan->id(), $stackid);
+		if (VLan->RecordVlanInsertion($vlan->id(), $stackid)) {
+		    print "Could not record vlan insertion for $vlan\n";
+		    $errors++;
+		}
 	    }
 	}
     }
@@ -3279,11 +3316,17 @@ sub doMakeVlan($$@) {
     # to operate, "internal" vlans are named on the switch by the
     # symbolic name instead of the lanid.
     #
-    my $device_id = ($target_vlan->IsInternal() ?
-		     $target_vlan->vname() : $target_vlan->id());
+    my $device_id;
 
-    # Save for error recovery.
-    $vlanexists = $stack->vlanExists($device_id);
+    if ($target_vlan->IsInternal() &&
+	$stack->vlanExists($target_vlan->vname())) {
+	$vlanexists = 1;
+	$device_id  = $target_vlan->vname();
+    }
+    else {
+	$device_id  = $target_vlan->id();
+	$vlanexists = $stack->vlanExists($device_id);
+    }
 
     #
     # Remove the current set of switch trunks since we have to generate
@@ -3393,7 +3436,10 @@ sub doMakeVlan($$@) {
 	    # since we need to compute the path each time we sync it (-X).
 	    setSwitchTrunkPath($source_vlan)
 		if (! $source_vlan->IsShared());
-	    VLan->RecordVlanInsertion($source_vlan, $stack->{STACKID});
+	    if (VLan->RecordVlanInsertion($source_vlan, $stack->{STACKID})) {
+		print "Could not record vlan insertion for $source_vlan\n";
+		$errors++;
+	    }
 	}
 	if (defined($target_vlan) && $target_vlan->KeepInSync()) {
 	    # Have to do this cause we cleared it above
@@ -3407,7 +3453,10 @@ sub doMakeVlan($$@) {
 	    # since we need to compute the path each time we sync it (-X).
 	    setSwitchTrunkPath($target_vlan)
 		if (! $target_vlan->IsShared());
-	    VLan->RecordVlanInsertion($target_vlan, $stack->{STACKID});
+	    if (VLan->RecordVlanInsertion($target_vlan, $stack->{STACKID})) {
+		print "Could not record vlan insertion for $target_vlan\n";
+		$errors++;
+	    }
 	}
     }
     return $errors;
@@ -3444,6 +3493,9 @@ sub doDeleteVlan($@) {
 	    if (defined($vlan) && $vlan->GetAliases()) {
 		die("$vlan has aliases; cannot delete before aliases\n");
 	    }
+	    if (defined($vlan) && $vlan->IsShared()) {
+		die("$vlan is shared; cannot delete while shared\n");
+	    }
 	    # Allow deletion by name without vlan object, by force only.
 	    $vlans{$vlan_name} = $vlan || $vlan_name;
 	}
@@ -3463,7 +3515,7 @@ sub doDeleteVlan($@) {
     if ($ELABINELAB) {
 	foreach my $vlan (values(%vlans)) {
 	    if (RemoteDeleteVlan($vlan, $opt{C}) == 0) {
-		if ($vlan->Destroy() != 0) {
+		if (ref($vlan) && $vlan->Destroy() != 0) {
 		    print STDERR "*** Could not destroy $vlan\n";
 		}
 	    }
@@ -3483,21 +3535,25 @@ sub doDeleteVlan($@) {
 	my $vlan_name;
 	my $vlan_id;
 
-	#
-	# To maintain backwards compatibility with how snmpit used
-	# to operate, "internal" vlans are named on the switch by the
-	# symbolic name instead of the lanid.
-	#
-	if (ref($vlan)) {
-	    $vlan_name = ($vlan->IsInternal() ?
-			  $vlan->vname() : $vlan->id());
-	    $vlan_id   = $vlan->id();
-	}
-	else {
-	    $vlan_name = $vlan_id = $vlan;
-	}
-
 	foreach my $stack (@$stacks) {
+	    #
+	    # To maintain backwards compatibility with how snmpit used
+	    # to operate, "internal" vlans are (sometimes) named on the
+	    # switch by the symbolic name instead of the lanid. 
+	    #
+	    if (ref($vlan)) {
+		if ($vlan->IsInternal() && $stack->vlanExists($vlan->vname())) {
+		    $vlan_name = $vlan->vname();
+		}
+		else {
+		    $vlan_name = $vlan->id();
+		}
+		$vlan_id   = $vlan->id();
+	    }
+	    else {
+		$vlan_name = $vlan_id = $vlan;
+	    }
+
 	    next
 		if (! $stack->vlanExists($vlan_name));
 		

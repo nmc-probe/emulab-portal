@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -290,7 +290,7 @@ function SPITFORM($template, $formfields, $parameters, $errors)
               <td colspan=2 align=center class=left>
                   <textarea name=\"formfields[description]\"
                     rows=5 cols=80>" .
-	            ereg_replace("\r", "", $formfields["description"]) .
+	            str_replace("\r", "", $formfields["description"]) .
 	           "</textarea>
               </td>
           </tr>\n";

@@ -8,7 +8,8 @@ use installvars;
 my @LOGFILES = ("$LOGDIR/bootinfo.log", "$LOGDIR/tmcd.log",
     "$LOGDIR/capture.log", "$LOGDIR/dhcpd.log", "$LOGDIR/capserver.log",
     "$LOGDIR/frisbeed.log", "$LOGDIR/mfrisbeed.log", "$LOGDIR/proxydhcpd.log",
-    "$LOGDIR/stated.log", "$LOGDIR/osselect.log", "$LOGDIR/power.log",
+    "$LOGDIR/stated.log", "$LOGDIR/stated-mail.log",
+    "$LOGDIR/osselect.log", "$LOGDIR/power.log",
     "$LOGDIR/tftpd.log", "$LOGDIR/sdcollectd.log", "$LOGDIR/genlastlog.log",
     "$LOGDIR/sshxmlrpc.log", "$LOGDIR/plabgetfree.log", "$LOGDIR/xmlrpcbag.log",
     "$LOGDIR/plabrenew.log", "$LOGDIR/sslxmlrpc.log", "$LOGDIR/pubsubd.log");
@@ -20,6 +21,12 @@ sub Install($$$)
     # Replace if this script does an update for ip/domain.
     return 0
 	if ($isupdate);
+
+    # Extras for Geni Racks, to handle foam stuff.
+    if ($PROTOGENI_GENIRACK) {
+	push(@LOGFILES, "$LOGDIR/foam.log");
+	push(@LOGFILES, "$LOGDIR/flowvisor.log");
+    }
 
     Phase "syslog", "Setting up syslog", sub {
 	Phase "sysconf", "Editing $SYSLOG_CONF", sub {
@@ -35,6 +42,24 @@ sub Install($$$)
 	    if (scalar(grep(/$LOGFACIL/, @sc)) != 0) {
 		PhaseFail("Testbed chosen facility $LOGFACIL already in use in /etc/syslog.conf!");
 	    }
+	    #
+	    # If there is already a pubsubd line, kill it since it
+	    # is going to be added below. This happens on elabinelab
+	    # cause we already have the entry, but in a different place.
+	    #
+	    my @tmp = ();
+	    while (@sc) {
+		my $line = shift(@sc);
+
+		# Cut two lines out.
+		if ($line =~ /pubsubd/) {
+		    shift(@sc);
+		    next;
+		}
+		push(@tmp, $line);
+	    }
+	    @sc = @tmp;
+
 	    seek(SC,0,0);
 	    truncate(SC,0);
 	    foreach my $line (@sc) {
@@ -76,6 +101,8 @@ sub Install($$$)
 			"!plabrenew", "*.*\t\t\t\t\t\t$LOGDIR/plabrenew.log",
 			"!xmlrpcbag", "*.*\t\t\t\t\t\t$LOGDIR/xmlrpcbag.log",
 			"!sshxmlrpc", "*.*\t\t\t\t\t\t$LOGDIR/sshxmlrpc.log",
+			"!foam",      "*.*\t\t\t\t\t\t$LOGDIR/foam.log",
+			"!flowvisor", "*.*\t\t\t\t\t\t$LOGDIR/flowvisor.log",
 			"!sslxmlrpc", "*.*\t\t\t\t\t\t$LOGDIR/sslxmlrpc.log");
 	};
 
@@ -111,6 +138,8 @@ sub Install($$$)
 		      "$LOGDIR/tmcd.log               640  9     1000 *     Z",
 		      "$LOGDIR/stated.log             640  9     1000 *     Z ".
 		      "/var/run/stated.pid 31",
+		      "$LOGDIR/stated-mail.log        640  9     1000 *     Z ".
+		      "/var/run/stated.pid 31",
 		      "$LOGDIR/checknodes.log         640  14    300  *     Z ".
 		      "/var/run/checknodes_daemon.pid",
 		      "$LOGDIR/osselect.log           640  9     300  *     Z",
@@ -140,7 +169,10 @@ sub Install($$$)
 		      "$LOGDIR/expire_daemon.log      640  9     1000 *     Z ".
 		      "/var/run/expire_daemon.pid",
 		      "$LOGDIR/sa_daemon.log          640  9     1000 *     Z ".
-		      "/var/run/sa_daemon.pid");
+		      "/var/run/sa_daemon.pid",
+		      "$LOGDIR/foam.log               640  7     *    168   Z",
+		      "$LOGDIR/flowvisor.log          640  7    1000  *     Z");
+			      
 	};
     };
 

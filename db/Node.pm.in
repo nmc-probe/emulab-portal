@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -30,13 +30,14 @@ use vars qw(@ISA @EXPORT $AUTOLOAD @EXPORT_OK);
 @EXPORT = qw();
 
 # Configure variables
-use vars qw($TB $BOSSNODE $WOL $OSSELECT $ISUTAH $CONTROL_NETMASK
+use vars qw($TB $BOSSNODE $WOL $OSSELECT $IPOD $ISUTAH $CONTROL_NETMASK
             $TBOPS $JAILIPMASK);
 $TB	     = "@prefix@";
 $BOSSNODE    = "@BOSSNODE@";
 $TBOPS       = "@TBOPSEMAIL@";
 $WOL         = "$TB/sbin/whol";
 $OSSELECT    = "$TB/bin/os_select";
+$IPOD	     = "$TB/sbin/ipod";
 # XXX stinky hack detection
 $ISUTAH	     = @TBMAINSITE@;
 # Need this for jail ip assignment.
@@ -46,14 +47,13 @@ $JAILIPMASK  = "@JAILIPMASK@";
 use libdb;
 use libtestbed;
 use emutil;
-use event;
 use English;
 use Socket;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
 
 use vars qw($NODEROLE_TESTNODE $MFS_INITIAL $STATE_INITIAL
-	    %nodes @cleantables %carped);
+	    %nodes @cleantables);
 
 # Exported defs
 $NODEROLE_TESTNODE	= 'testnode';
@@ -63,35 +63,6 @@ $NODEROLE_TESTNODE	= 'testnode';
 
 # Cache of instances to avoid regenerating them.
 %nodes = ();
-
-# Sorry, one carp per customer...
-%carped = ();
-
-#
-# XXX debugging
-# Find out where nulls at end of strings are coming from
-#
-sub checknodeid($$)
-{
-    my ($nid,$msg) = @_;
-
-    if ($nid =~ /^(.*)\x0/) {
-	my $onid = $nid;
-	$nid = $1;
-	if (!exists($carped{$nid}) && open(MAIL, "| /usr/sbin/sendmail -t")) {
-	    $carped{$nid} = 1;
-	    require Carp;
-	    print MAIL "To: $TBOPS\n";
-	    print MAIL "Subject: NUL in node_id '$nid' ('$onid')\n";
-	    print MAIL "$msg\n";
-	    print MAIL "\n";
-	    print MAIL Carp::longmess();
-	    print MAIL "\n";
-	    close(MAIL);
-	}
-    }
-    return $nid;
-}
 
 # Little helper and debug function.
 sub mysystem($)
@@ -168,18 +139,9 @@ sub Lookup($$)
 	return undef;
     }
 
-    # XXX debug
-    $nodeid = checknodeid($nodeid, "Argument");
-
     # Look in cache first
-    if (exists($nodes{$nodeid})) {
-
-	# XXX debug
-	my $row = $nodes{$nodeid}->{"DBROW"};
-	$row->{'node_id'} = checknodeid($row->{'node_id'}, "Cache");
-
-	return $nodes{$nodeid};
-    }
+    return $nodes{$nodeid}
+        if (exists($nodes{$nodeid}));
 
     my $query_result =
 	DBQueryWarn("select * from nodes as n ".
@@ -188,17 +150,7 @@ sub Lookup($$)
     return undef
 	if (!$query_result || !$query_result->numrows);
 
-    #
-    # Make a copy of the array. Still fighting memory corruption error.
-    #
-    my $hash_orig = $query_result->fetchrow_hashref();
-    my $hash_copy = {};
-    foreach my $key (keys(%{ $hash_orig })) {
-	my $val = $hash_orig->{$key};
-	$hash_copy->{$key} = $val;
-    }
-
-    return LookupRow($class, $hash_copy);
+    return LookupRow($class, $query_result->fetchrow_hashref());
 }
 
 #
@@ -207,25 +159,34 @@ sub Lookup($$)
 #
 sub LookupRow($$)
 {
-    my ($class, $hash_copy) = @_;
+    my ($class, $row) = @_;
 
     my $self            = {};
-    $self->{"DBROW"}    = $hash_copy;
+    $self->{"DBROW"}    = $row;
     $self->{"RSRV"}     = undef;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
+    $self->{"FEATURES"} = undef;
     $self->{"IFACES"}   = undef;
     $self->{"WAROW"}    = undef;
     $self->{"HASH"}     = {};
     bless($self, $class);
 
-    # XXX debug
-    my $row = $self->{"DBROW"};
-    my $nodeid = checknodeid($row->{'node_id'}, "From DB");
-
-    # Add to cache.
-    $nodes{$nodeid} = $self;
+    $nodes{$row->{'node_id'}} = $self;
     return $self;
+}
+
+#
+# Force a reload of the data.
+#
+sub LookupSync($$)
+{
+    my ($class, $nodeid) = @_;
+
+    # delete from cache
+    delete($nodes{$nodeid});
+
+    return Lookup($class, $nodeid);
 }
 
 # Break circular reference someplace to avoid exit errors.
@@ -236,21 +197,10 @@ sub DESTROY {
     $self->{"RSRV"}     = undef;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
+    $self->{"FEATURES"} = undef;
     $self->{"IFACES"}   = undef;
     $self->{"HASH"}     = undef;
     $self->{"WAROW"}    = undef;
-}
-
-sub node_id($)
-{
-    my $self = shift;
-    return checknodeid($self->{"DBROW"}->{'node_id'}, "node_id method");
-}
-
-sub phys_nodeid($)
-{
-    my $self = shift;
-    return $self->{"DBROW"}->{'phys_nodeid'};
 }
 
 #
@@ -288,6 +238,7 @@ sub MakeFake($$$$)
     $self->{"RSRV"}     = $rsrvrow;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
+    $self->{"FEATURES"} = undef;
     $self->{"IFACES"}   = undef;
     $self->{"WAROW"}    = undef;
     $self->{"HASH"}     = {};
@@ -316,7 +267,7 @@ sub BulkLookup($$$)
 	if (!defined($query_result));
 
     while (my $row = $query_result->fetchrow_hashref()) {
-	my $nodeid = checknodeid($row->{'node_id'}, "BulkLookup method I");
+	my $nodeid = $row->{'node_id'};
 	my $node;
 
 	if (exists($nodes{$nodeid})) {
@@ -334,6 +285,7 @@ sub BulkLookup($$$)
 	$node->{"RSRV"}     = undef;
 	$node->{"TYPEINFO"} = undef;
 	$node->{"ATTRS"}    = undef;
+	$node->{"FEATURES"} = undef;
 	$node->{"IFACES"}   = undef;
 	$node->{"WAROW"}    = undef;
 	$node->{"HASH"}     = {};
@@ -348,7 +300,7 @@ sub BulkLookup($$$)
 	if (!defined($query_result));
     
     while (my $row = $query_result->fetchrow_hashref()) {
-	my $nodeid = checknodeid($row->{'node_id'}, "BulkLookup method II");
+	my $nodeid = $row->{'node_id'};
 	my $node   = $nodelist{$nodeid};
 
 	return -1
@@ -365,7 +317,7 @@ sub BulkLookup($$$)
 	if (!defined($query_result));
     
     while (my $row = $query_result->fetchrow_hashref()) {
-	my $nodeid = checknodeid($row->{'node_id'}, "BulkLookup method III");
+	my $nodeid = $row->{'node_id'};
 	my $key    = $row->{'attrkey'};
 	my $node   = $nodelist{$nodeid};
 
@@ -640,15 +592,11 @@ sub Refresh($)
 	if (!$query_result || !$query_result->numrows);
 
     $self->{"DBROW"}  = $query_result->fetchrow_hashref();
-
-    # XXX debug
-    my $row = $nodes{$nodeid}->{"DBROW"};
-    $row->{'node_id'} = checknodeid($row->{'node_id'}, "Refresh");
-
     # Force reload
     $self->{"RSRV"}     = undef;
     $self->{"TYPEINFO"} = undef;
     $self->{"ATTRS"}    = undef;
+    $self->{"FEATURES"} = undef;
     $self->{"IFACES"}   = undef;
     $self->{"WAROW"}    = undef;
     return 0;
@@ -1430,6 +1378,37 @@ sub GetNodeAttributes($)
 }
 
 #
+# Return a hash of the node features for this node.
+#
+sub GetNodeFeatures($)
+{
+    my ($self) = @_;
+    
+    return undef
+	if (!ref($self));
+
+    my $node_id = $self->node_id();
+
+    if (!defined($self->{"FEATURES"})) {
+	my $query_result =
+	    DBQueryWarn("select * from node_features ".
+			"where node_id='$node_id'");
+
+	return -1
+	    if (!defined($query_result));
+
+       	$self->{"FEATURES"} = {};
+	while (my $row = $query_result->fetchrow_hashref()) {
+	    my $feature = $row->{'feature'};
+	    my $weight  = $row->{'weight'};
+
+	    $self->{"FEATURES"}->{$feature} = $weight;
+	}
+    }
+    return $self->{"FEATURES"};
+}
+
+#
 # Return type info. We cache this in the instance since node_type stuff
 # does not change much.
 #
@@ -1551,6 +1530,36 @@ sub default_pxeboot($) {
     return NodeTypeAttribute($self, "pxe_boot_path", undef);
 }
 
+sub disksize($;$) {
+    my ($self,$stuff) = @_;
+    my $val = undef;
+
+    if (NodeAttribute($self, "disksize", \$val) == 0 && defined($val)) {
+	return $val;
+    }
+    return NodeTypeInfo($self)->disksize($stuff);
+}
+
+sub disktype($;$) {
+    my ($self,$stuff) = @_;
+    my $val = undef;
+
+    if (NodeAttribute($self, "disktype", \$val) == 0 && defined($val)) {
+	return $val;
+    }
+    return NodeTypeInfo($self)->disktype($stuff);
+}
+
+sub bootdisk_unit($;$) {
+    my ($self,$stuff) = @_;
+    my $val = undef;
+
+    if (NodeAttribute($self, "bootdisk_unit", \$val) == 0 && defined($val)) {
+	return $val;
+    }
+    return NodeTypeInfo($self)->bootdisk_unit($stuff);
+}
+
 #
 # And these are the less common attributes, but still common enough to
 # warrant shortcuts.
@@ -1564,15 +1573,6 @@ sub jail_osid($;$) {
 sub imageable($;$) {
     return NodeTypeInfo($_[0])->imageable($_[1]);
 }
-sub disksize($;$) {
-    return NodeTypeInfo($_[0])->disksize($_[1]);
-}
-sub disktype($;$) {
-    return NodeTypeInfo($_[0])->disktype($_[1]);
-}
-sub bootdisk_unit($;$) {
-    return NodeTypeInfo($_[0])->bootdisk_unit($_[1]);
-}
 sub control_iface($;$) {
     return NodeTypeInfo($_[0])->control_iface($_[1]);
 }
@@ -1581,6 +1581,9 @@ sub rebootable($;$) {
 }
 sub bios_waittime($;$) {
     return NodeTypeInfo($_[0])->bios_waittime($_[1]);
+}
+sub memory($;$) {
+    return NodeTypeInfo($_[0])->memory($_[1]);
 }
 
 #
@@ -1657,7 +1660,7 @@ sub ClearBootAttributes($)
 		"update_accounts=0,ipport_next=ipport_low,rtabid=0, ".
 		"sfshostid=NULL,allocstate='$allocFreeState',boot_errno=0, ".
 		"destination_x=NULL,destination_y=NULL, ".
-		"destination_orientation=NULL ".
+		"destination_orientation=NULL,reserved_memory=0 ".
 		"where node_id='$node_id'")
 	or return -1;
 
@@ -1746,6 +1749,31 @@ sub ReleaseSharedBandwidth($)
   done:
     DBQueryWarn("unlock tables");
     return 0;
+}
+
+#
+# Relase the reserved blockstore, which requires updating the
+# remaining_capacity on the underyling store. At the present
+# time, one blockstore is mapped to one pcvm. 
+#
+sub ReleaseBlockStore($)
+{
+    my ($self) = @_;
+
+    require Blockstore;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id    = $self->node_id();
+    my $blockstore = Blockstore::Reservation->LookupByNodeid($node_id);
+    return 0
+	if (!defined($blockstore));
+    return -1
+	if (!ref($blockstore));
+
+    return $blockstore->Release();
 }
 
 #
@@ -1919,6 +1947,7 @@ sub GetBootLog($$)
 sub SetEventState($$)
 {
     my ($self, $state) = @_;
+    require event;
 
     # Must be a real reference. 
     return -1
@@ -1930,10 +1959,10 @@ sub SetEventState($$)
     # If using the event system, we send out an event for the state daemon to
     # pick up. Otherwise, we just set the state in the database ourselves
     #
-    return EventSendFatal(objtype   => TBDB_TBEVENT_NODESTATE,
-			  objname   => $node_id,
-			  eventtype => $state,
-			  host      => $BOSSNODE);
+    return event::EventSendFatal(objtype   => TBDB_TBEVENT_NODESTATE,
+				 objname   => $node_id,
+				 eventtype => $state,
+				 host      => $BOSSNODE);
 
     return $self->Update({"eventstate"      => $state,
 			  "state_timestamp" => time()});
@@ -2102,6 +2131,14 @@ sub CreateVnodes($$$)
 	return -1;
     }
 
+    # Need this below.
+    my $total_memory    = $node->memory();
+    my $node_attributes = $node->GetNodeAttributes();
+    if (defined($node_attributes) &&
+	exists($node_attributes->{"physical_ram"})) {
+	$total_memory = $node_attributes->{"physical_ram"};
+    }
+
     #
     # Assign however many we are told to (typically by assign). Locally
     # this is not a problem since nodes are not shared; assign always
@@ -2129,8 +2166,7 @@ sub CreateVnodes($$$)
     my $sharing_mode = $node->sharing_mode();
     
     if (! ($impotent || $isfednode)) {
-	my $reservation = $node->Reservation();
-	if (!defined($reservation)) {
+	if (!$node->IsReserved()) {
 	    print STDERR "*** CreateVnodes: no reservation for $node!\n";
 	    DBQueryFatal("unlock tables");
 	    return -1;
@@ -2142,7 +2178,11 @@ sub CreateVnodes($$$)
 	# is on and the pnode is in sharedmode. Locking in nfree and in
 	# the pool daemon prevents the race. 
 	#
-	if (!$experiment->SameExperiment($reservation)) {
+	# Cause of locking above, we need to make the comparison directly
+	# using the slot data in the node.
+	#
+	if (! ($experiment->pid() eq $node->pid() &&
+	       $experiment->eid() eq $node->eid())) {
 	    if (! ($sharedokay && $sharing_mode)) {
 		print STDERR "*** CreateVnodes: $node is not shared!\n";
 		DBQueryFatal("unlock tables");
@@ -2184,6 +2224,44 @@ sub CreateVnodes($$$)
     my $allocstate = TBDB_ALLOCSTATE_FREE_CLEAN();
 
     #
+    # Check memory constraints before we create anything. 
+    #
+    my %reserved_memory = ();
+
+    if (defined($total_memory)) {
+	foreach my $ref (@tocreate) {
+	    my ($n, $vname) = @{ $ref };
+	    my $vm_memsize;
+
+	    #
+	    # Look to see if the container can actually get the memory it
+	    # needs. This really only matters on a shared node. On a
+	    # dedicated node, assign will never violate this, but on a
+	    # shared node it could happen if two swapins are running
+	    # at the same time. Like bandwidth.
+	    #
+	    $experiment->GetVirtNodeAttribute($vname,
+					      "VM_MEMSIZE", \$vm_memsize)
+		== 0 or goto bad;
+
+	    if ($vm_memsize) {
+		if ($verbose) {
+		    print STDERR
+			"$vname is reserving $vm_memsize MB on $node\n";
+		}
+		if ($total_memory < $vm_memsize) {
+		    print STDERR "*** CreateVnodes: ".
+			"no free memory for $vname on $pnode\n";
+		    goto bad;
+		}
+		$total_memory -= $vm_memsize;
+		# remember for below.
+		$reserved_memory{$vname} = $vm_memsize;
+	    }
+	}
+    }
+
+    #
     # Create a bunch.
     #
     foreach my $ref (@tocreate) {
@@ -2193,14 +2271,14 @@ sub CreateVnodes($$$)
 	my ( $jailip, $jailmask );
 
 	if ($isjailed) {
-	    $query_result =
-		DBQueryWarn( "SELECT attrvalue FROM virt_node_attributes " .
-			     "WHERE pid='$pid' AND eid='$eid' AND " .
-			     "vname='$vname' AND " .
-			     "attrkey='routable_control_ip'" );
-	    
-	    if( $query_result && $query_result->numrows &&
-		( $query_result->fetchrow_array() )[ 0 ] eq "true" ) {
+	    my $routable_control_ip;
+
+	    $experiment->GetVirtNodeAttribute($vname, "routable_control_ip",
+					      \$routable_control_ip)
+		== 0 or goto bad;
+
+	    if ($routable_control_ip &&
+		$routable_control_ip eq "true") {
 		#
 		# Grab a public IP address from the free pool, if there
 		# is one.
@@ -2281,12 +2359,10 @@ sub CreateVnodes($$$)
 			"def_boot_osid" => $osid,
 			"update_accounts" => 1,
 			"jailflag" => $isjailed);
-	# This is deprecated and will be removed. We now create real
-	# interfaces, see below.
-	if (0 && $isjailed && !$isremote) {
-	    $nodesets{"jailip"} = $jailip;
-	    $nodesets{"jailipmask"} = $JAILIPMASK;
-	}
+
+	if (exists($reserved_memory{$vname})) {
+	    $nodesets{"reserved_memory"} = $reserved_memory{$vname};
+	}	    
 	my $statement = "insert into nodes set ".
 	    join(",", map("$_='" . $nodesets{$_} . "'", keys(%nodesets)));
 
@@ -2478,6 +2554,7 @@ sub DeleteVnodes(@)
 	DBQueryWarn("delete from node_hostkeys where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_status where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_rusage where node_id='$vnodeid'");
+	DBQueryWarn("delete from node_attributes where node_id='$vnodeid'");
 	# Need to clean out some additional tables since some vnodes can be
 	# reimaged now!
 	DBQueryWarn("delete from current_reloads where node_id='$vnodeid'");
@@ -3526,6 +3603,48 @@ sub RunningOsImage($)
     # This might not exist for a virtnode; caller has to deal with it.
     my $image = Image->Lookup($imageid);
     return ($osinfo, $image);
+}
+
+#
+# Send an authenticated ipod to the node.
+# Return 0 on success, non-zero otherwise.
+#
+sub SendApod($$)
+{
+    my ($self,$tryipod)  = @_;
+    return -1
+	if (! ref($self));
+
+    my $nodeid = $self->node_id();
+
+    my $query_result =
+	DBQueryFatal("select ipodhash from nodes where node_id='$nodeid'");
+    if ($query_result && $query_result->numrows == 1) {
+	my ($hash) = $query_result->fetchrow_array();
+	if ($hash) {
+	    #
+	    # It is okay to put this hash on the command line in the
+	    # Emulab context. These are one-time passwords, and for that
+	    # one time, if someone sees it on the command line the worst
+	    # they can do is reboot the node. And that is what we are trying
+	    # to do anyway!
+	    #
+	    # Also, note there we do not quote the hash, we don't want
+	    # perl to invoke an extra level of shell. The hash had better
+	    # not have any spaces or shell metachars!
+	    #
+	    if (system("$IPOD -h $hash $nodeid") == 0) {
+		return 0;
+	    }
+	}
+    }
+
+    # no hash or authenticated version failed, try plain ole ipod
+    if ($tryipod && system("$IPOD $nodeid") == 0) {
+	return 0;
+    }
+
+    return -1;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,7 +36,7 @@ $isadmin   = ISADMIN();
 #
 # Verify Page Arguments.
 #
-$reqargs = RequiredPageArguments("slice_idx",   PAGEARG_INTEGER);
+$reqargs = RequiredPageArguments("slice_idx",  PAGEARG_INTEGER);
 $optargs = OptionalPageArguments("showtype",   PAGEARG_STRING);
 
 if (!isset($showtype)) {
@@ -86,6 +86,14 @@ $rows[] = array("created"  => $slice->created());
 $rows[] = array("expires"  => $slice->expires());
 if ($slice->locked()) {
     $rows[] = array("locked"  => $slice->locked());
+}
+if ($slice->monitor_pid()) {
+    $rows[] = array("Monitor PID"  => $slice->monitor_pid());
+}
+if ($slice->publicid()) {
+    $url = "$TBDOCBASE/showslicepub.php?publicid=" . $slice->publicid();
+    
+    $rows[] = array("Public URL" => "<a href='$url'>http:// ...</a>");
 }
 if (($manifest = $slice->GetManifest())) {
     $popups[] = GeneratePopupDiv("manifest$manifestidx", $manifest);
@@ -175,6 +183,50 @@ if ($clientslivers && count($clientslivers)) {
 }
 foreach ($popups as $i => $popup) {
     echo "$popup\n";
+}
+
+#
+# Find all logs associated with this slice.
+#
+$query_result =
+    DBQueryFatal("select m.logidx,l.logid,l.date_created,m2.metaval ".
+		 "  from logfile_metadata as m ".
+		 "left join logfiles as l on l.logidx=m.logidx ".
+		 "left join logfile_metadata as m2 on ".
+		 "      m2.logidx=m.logidx and m2.metakey='Method' ".
+		 "where m.metakey='slice_idx' and m.metaval='$slice_idx' ".
+		 "order by l.date_created asc");
+
+if ($query_result && mysql_num_rows($query_result)) {
+    $table = array('#id'	   => 'logfiles',
+		   '#title'        => "Log Files",
+		   '#headings'     => array("idx"      => "ID",
+					    "method"   => "Op",
+					    "created"  => "Created",
+					    "log"      => "Link"));
+    $rows = array();
+    $img  = "<img border='0' src='greenball.gif' />";
+    
+    while ($row = mysql_fetch_array($query_result)) {
+	$logidx = $row["logidx"];
+	$logid  = $row["logid"];
+	$op     = $row["metaval"];
+	$date   = $row["date_created"];
+	$url    = CreateURL("spewlogfile", "logfile", $logid);
+
+	$row = array("idx"      => $logidx,
+		     "method"   => $op,
+		     "created"  => $date,
+		     "log"      => "<a href='$url'>$img</a>",
+	    );
+	
+	$rows[] = $row;
+    }
+    list ($html, $button) = TableRender($table, $rows);
+    echo $html;
+    echo "<center>
+            <a href='showslicelogs.php?slice_idx=$slice_idx&download=1'>
+            Download All Logs</a></center>";
 }
 
 #

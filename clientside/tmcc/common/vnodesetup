@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -96,6 +96,7 @@ sub cleanup();
 sub killvserver();
 sub fatal($);
 sub removeconfdir($);
+sub BootReport();
 
 #
 # Must be root.
@@ -126,6 +127,9 @@ if ($UID) {
 my $sysname = `uname -s`;
 chomp($sysname);
 my $islinux = ($sysname eq "Linux");
+
+# ...
+my $isfreenas = -e "/etc/rc.freenas" ? 1 : 0;
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -418,7 +422,7 @@ if ($doplab) {
     $GID = 0;
     ($pid, $eid, $vname) = vnodeplabsetup($vnodeid);
 }
-elsif ($islinux) {
+elsif ($islinux || $isfreenas) {
     ($pid, $eid, $vname) = genvnodesetup($vnodeid);
 }
 else {
@@ -472,15 +476,17 @@ if ($dojail) {
 	    cleanup();
 	    exit(0);
 	}
-	$cleanupstate = "TBFAILED"
-	    if ($jstat);
+	if ($jstat) {
+	    $cleanupstate = "TBFAILED";
+	    BootReport();
+	}
 	fatal("Jail exited unexpectedly with status $jstat!");
     }
     else {
 	my $options      = "";
 	my $mkv;
 
-	if ($islinux) {
+	if ($islinux || $isfreenas) {
 	    $mkv = "mkvnode.pl";
 	}
 	else {
@@ -610,8 +616,7 @@ sub killvnode() {
     my $i = 0;
     while (-e $pidfile) {
 	if ($i >= 30) {
-	    print "*** Not able to kill running vnode manager process ".
-		"$mpid!\n";
+	    print "*** vnode manager process ($mpid) has not stopped yet.\n";
 	    last;
 	}
 	sleep(1);
@@ -953,3 +958,19 @@ sub hackwaitandexit($)
     }
     exit(1);
 }
+
+#
+# Send in boot log.
+#
+sub BootReport()
+{
+    #
+    # Send the console log to the server.
+    #
+    if (-e $logname && -s $logname &&
+	tmcc(TMCCCMD_BOOTLOG, "", undef,
+	     ("datafile" => $logname, "timeout" => 5)) < 0) {
+	print STDERR "Error sending logname to Emulab Control!\n";
+    }
+}
+

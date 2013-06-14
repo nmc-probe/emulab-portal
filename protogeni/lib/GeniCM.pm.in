@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -55,6 +55,7 @@ use GeniRegistry;
 use GeniUtil;
 use GeniHRN;
 use GeniXML;
+use GeniStitch;
 use GeniUsage;
 use libtestbed;
 use emutil;
@@ -74,13 +75,14 @@ use Compress::Zlib;
 use File::Temp qw(tempfile);
 use MIME::Base64;
 use Digest::SHA1 qw(sha1_hex);
-use Scalar::Util qw(looks_like_number);
 
 # Configure variables
 my $TB		   = "@prefix@";
 my $TBOPS          = "@TBOPSEMAIL@";
 my $TBAPPROVAL     = "@TBAPPROVALEMAIL@";
 my $TBAUDIT   	   = "@TBAUDITEMAIL@";
+my $TBBASE         = "@TBBASE@";
+my $TBDOCBASE      = "@TBDOCBASE@";
 my $BOSSNODE       = "@BOSSNODE@";
 my $OURDOMAIN      = "@OURDOMAIN@";
 my $MAINSITE       = @TBMAINSITE@;
@@ -171,7 +173,7 @@ sub Resolve($)
 	return GeniResponse->MalformedArgsResponse();
     }
 
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -226,7 +228,7 @@ sub DiscoverResources($)
     my $compress  = $argref->{'compress'} || 0;
     my $version   = $argref->{'rspec_version'} || undef;
 
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -461,7 +463,7 @@ sub GetTicket($;$)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "Improper characters in rspec");
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -513,6 +515,7 @@ sub GetTicketAux($$$$$$$)
 	return $slice
 	    if (GeniResponse::IsResponse($slice));
     }
+    main::AddLogfileMetaDataFromSlice($slice);
     
     return GetTicketAuxAux($slice, $user, $rspecstr,
 			   $isupdate, $impotent, $v2, $level, $ticket,
@@ -604,12 +607,11 @@ sub GetTicketAuxAux($$$$$$$$$)
     #
     my $expires = GeniXML::GetExpires($rspec);
     if (defined($expires)) {
-	if (! ($expires =~ /^[-\w:.\/]+/)) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					"Illegal valid_until in rspec");
+	if (GeniResponse::IsResponse($expires)) {
+	    return $expires;
 	}
 	# Convert to a localtime.
-	my $when = timegm(strptime($expires));
+	my $when = str2time($expires);
 	if (!defined($when)) {
 	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 					"Could not parse valid_until");
@@ -802,7 +804,6 @@ sub GetTicketAuxAux($$$$$$$$$)
     my %external_nodemap  = ();
     my %external_linkmap  = ();
     my %external_vportmap = ();
-    my %stitching_paths   = ();
 
     # Always do this to avoid buildup.
     $slice_experiment->ClearBackupState();
@@ -859,6 +860,19 @@ sub GetTicketAuxAux($$$$$$$$$)
 				 "Bad resource $component_id in ticket");
 		goto bad;
 	    }
+	    #
+	    # Check for total hostname length > 63 characters. This
+	    # breaks a lot of clients. Do this until we have a plan
+	    # for dealing with it on the clients. Why 63 instead of 64?
+	    # Cause of a bug in the event library code, that is now fixed,
+	    # but will not make it out to all images for a while. 
+	    #
+	    my $fullhostname = $node_nickname . ".${eid}.${pid}.${OURDOMAIN}";
+	    if (length($fullhostname) > 63) {
+		$response = GeniResponse->Create(GENIRESPONSE_TOOBIG, undef,
+				 "Hostname > 63 characters: $fullhostname");
+	    }
+	    
 	    #
 	    # Is the node a virtual node? Must be an update to an
 	    # existing sliver/ticket, since we now return the node_id
@@ -1509,32 +1523,7 @@ sub GetTicketAuxAux($$$$$$$$$)
     goto skiplinks
 	if (!defined(GeniXML::FindFirst("n:link", $rspec)));
 
-    #
-    # Look for a stitching section. The paths are indexed by the id, which
-    # will match the client_id in the link.
-    #
-    foreach my $ref (GeniXML::FindNodesNS("n:stitching",
-					  $rspec,
-					  $GeniXML::STITCH_NS)->get_nodelist()) {
-	foreach my $path (GeniXML::FindNodes("n:path",
-					     $ref)->get_nodelist()) {
-	    my $path_id = GeniXML::GetText("id", $path);
-	    
-	    #
-	    # Get the hop list and create and create a hash too.
-	    #
-	    my @hoplist = GeniXML::FindNodes("n:hop",
-					     $path)->get_nodelist();
-	    my %hophash = ();
-	    foreach my $hop (@hoplist) {
-		my $hop_id = GeniXML::GetText("id", $hop);
-		$hophash{$hop_id} = $hop;
-	    }
-	    $stitching_paths{$path_id} = { "path"    => $path,
-					   "hophash" => \%hophash,
-					   "hoplist" => \@hoplist };
-	}
-    }
+    GeniStitch->LookupAll($rspec);
     
     #
     # Now deal with links for wildcarded nodes. 
@@ -1554,8 +1543,6 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $ifacenum   = 1;
 	my $vindex     = 0;
 	my $trivial_ok = 1;
-	# Avoid multiple insertions for this setting.
-	my $sharedvlansetting = 0;
 
 	if (!defined($lanname)) {
 	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -1639,6 +1626,29 @@ sub GetTicketAuxAux($$$$$$$$$)
 	}
 
 	#
+	# Look for shared and tagging attributes for the link.
+	#
+	my $isshared = 0;
+	my $encap    = "default";
+
+	if (my $shared_vlan = GeniXML::GetSharedLanName($linkref)) {
+	    # This is the magic for libvtop.
+	    $virtexperiment->NewTableRow("virt_lan_settings",
+					 {"vname"   => $lanname,
+					  "capkey"  => "sharedvlan",
+					  "capval"  => $shared_vlan});
+	    $isshared = 1;
+	    $encap    = "vlan";
+	}
+	#
+	# Allow user to specify vlan encap, which might override that we
+	# just set it above. Experts only please.
+	#
+	if (GeniXML::HasTagSetting($linkref)) {
+	    $encap = (IsTaggedLan($linkref) ? "vlan" : "default");
+	}
+
+	#
 	# Sanity check, and determine if the link has any virtnodes
 	# in it, cause that is going to change the default bandwidth
 	# we use for the entire link or lan.
@@ -1676,12 +1686,22 @@ sub GetTicketAuxAux($$$$$$$$$)
 		# 100Mb
 		$default_bandwidth = 100000;
 	    }
+
+	    #
+	    # Stitched links always use vlan encap. We could probably
+	    # set this latter in the mapper.
+	    #
+	    if (!$istunnel && exists($external_nodemap{$node_nickname})) {
+		$encap = "vlan";
+	    }
 	}
+
+	my $edgecount = 0;
 
 	foreach my $ref (@interfaces) {
 	    my $node_nickname = GeniXML::GetInterfaceNodeId($ref);
 	    my $iface_id = GeniXML::GetInterfaceId($ref);
-	    my ($iface_ref,$iface_name,$iface_vport);
+	    my ($iface_ref,$iface_name,$iface_vport, $ip, $mask);
 
 	    if (! GeniXML::IsVersion0($ref) && defined($iface_id)) {
 		$node_nickname = $iface2node{$iface_id};
@@ -1710,123 +1730,122 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    # the user has specified something impossible.
 	    #
 	    if (exists($external_nodemap{$node_nickname})) {
-		if (exists($stitching_paths{$lanname})) {
-		    #
-		    # The hop path is an ordered list; need to figure out which
-		    # end to start at. We want whichever end has he same domain
-		    # as us.
-		    #
-		    my @hoplist = @{ $stitching_paths{$lanname}->{'hoplist'} };
-		    my ($edgeiface, $network, $edgehop, $edgeresponse)
-			= findStitchPoint($lanname, @hoplist);
-		    if (defined($edgeresponse)) {
-			$response = $edgeresponse;
-			goto bad;
-		    }
-
-		    # Stash for later. We need to allocate a vlan tag, and
-		    # this stores the min/max vlan numbers we have to use.
-		    $stitching_paths{$lanname}->{'network'} = $network;
-
-		    #
-		    # Look for a vlan tag reservation request. We only
-		    # support a single tag, not a range.
-		    #
-		    my $vlan_tag = GetSuggestedVlanFromHop($edgehop);
-		    if ($vlan_tag) {
-			my $result = ReserveLocalVlanTag($slice_experiment,
-							 $lanname, $vlan_tag);
-			if (GeniResponse::IsResponse($result)) {
-			    $response = $result;
-			    goto bad;
-			}
-			# Record newly reserved tags for rollback.
-			if (ref($result)) {
-			    $vlan_reservations{$lanname} = $result;
-			}
-		    }
-
-		    #
-		    # We do this so we can keep track of vport numbers,
-		    # since we can have multiple links to the same
-		    # external mode.
-		    #
-		    if (!exists($external_vportmap{$node_nickname})) {
-			$external_vportmap{$node_nickname} = 0;
-		    
-			#
-			# Stick in a reference to the fake node.
-			#
-			my $virtnode =
-			    $virtexperiment->NewTableRow("virt_nodes",
-				    {"vname"   => $node_nickname,
-				     "type"    => $network->node_type(),
-				     "osname"  => '',
-				     "ips"     => '', # deprecated
-				     "cmd_line"=> '', # bogus
-				     "fixed"   => $network->node_id()});
-			if (!defined($virtnode)) {
-			    print STDERR "Error creating edge node\n";
-			    $response =
-				GeniResponse->Create(GENIRESPONSE_ERROR);
-			    goto bad;
-			}
-			# These nodes are technically shared. 
-			$virtexperiment->NewTableRow("virt_node_desires",
-						 {"vname"    => $node_nickname,
-						  "desire"   => "pcshared",
-						  "weight"   => 0.95});
-			$virtexperiment->encap_style("vlan");
-		    }
-		    $iface_name  = $edgeiface->iface();
-		    $iface_vport = $external_vportmap{$node_nickname};
-		    $external_vportmap{$node_nickname} += 1;
-		    $external_linkmap{$lanname} = $linkref;
-
-		    goto stitch;
-		}
-		else {
+		my $stitchpath = GeniStitch->Lookup($lanname, $rspec);
+		if (! defined($stitchpath)) {
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 					  "$lanname: No stitching path to ".
 					  "$node_nickname");
 		    goto bad;
 		}
-	    }
+		if (defined($stitchpath->error())) {
+		    $response = $stitchpath->error();
+		    goto bad;
+		}
+
+		# XXX: This is completely bogus. There is no current
+		# way to map interface refs in the link with
+		# individual stitchpoints inside of a stitch path. So
+		# we assume lexical order.
+		my $edgeiface = $stitchpath->edge_iface($edgecount);
+		my $network = $stitchpath->network($edgecount);
+		$edgecount += 1;
+		if (! defined($edgeiface) || ! defined($network)) {
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					     "$lanname: Edge iface mismatch ".
+					     "when stitching");
+		    goto bad;
+		}
+
+		#
+		# Look for a vlan tag reservation request. We only
+		# support a single tag, not a range.
+		#
+		my $vlan_tag = $stitchpath->suggested_vlan();
+		if ($vlan_tag) {
+		    my $result = ReserveLocalVlanTag($slice_experiment,
+						     $lanname, $vlan_tag);
+		    if (GeniResponse::IsResponse($result)) {
+			$response = $result;
+			goto bad;
+		    }
+		    # Record newly reserved tags for rollback.
+		    if (ref($result)) {
+			$vlan_reservations{$lanname} = $result;
+		    }
+		}
+
+		#
+		# We do this so we can keep track of vport numbers,
+		# since we can have multiple links to the same
+		# external mode.
+		#
+		if (!exists($external_vportmap{$node_nickname})) {
+		    $external_vportmap{$node_nickname} = 0;
+		    
+		    #
+		    # Stick in a reference to the fake node.
+		    #
+		    my $virtnode =
+			$virtexperiment->NewTableRow("virt_nodes",
+				    {"vname"   => $node_nickname,
+				     "type"    => $network->node_type(),
+				     "osname"  => '',
+				     "ips"     => '', # deprecated
+				     "cmd_line"=> '', # bogus
+				     "fixed"   => $network->node_id()});
+		    if (!defined($virtnode)) {
+			print STDERR "Error creating edge node\n";
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_ERROR);
+			goto bad;
+		    }
+		    # These nodes are technically shared. 
+		    $virtexperiment->NewTableRow("virt_node_desires",
+						 {"vname"    => $node_nickname,
+						  "desire"   => "pcshared",
+						  "weight"   => 0.95});
+		}
+		$iface_name  = $edgeiface->iface();
+		$iface_vport = $external_vportmap{$node_nickname};
+		$external_vportmap{$node_nickname} += 1;
+		$external_linkmap{$lanname} = $linkref;
+	    } else {
 	    
-	    #
-	    # Sanity check the interface.
-	    #
-	    if (!exists($ifacemap{$node_nickname}->{$iface_id})) {
-		$response =
-		    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				 "$lanname: No such interface on component: ".
-				 "$node_nickname:$iface_id");
-		goto bad;
-	    }
-	    $iface_ref   = $ifacemap{$node_nickname}->{$iface_id}->{"rspec"};
-	    $iface_name  = GeniXML::GetText("component_id", $iface_ref);
-	    if (!defined($iface_name)) {
-		$iface_name = "";
-	    }
-	    if( GeniHRN::IsValid( $iface_name ) ) {
-		my ($urn_authority,$urn_node,$urn_iface) =
-		    GeniHRN::ParseInterface( $iface_name );
-		$iface_name = $urn_iface;
-	    }
-	    #
-	    # Hack to catch a loopback (trivial link).
-	    #
-	    if ($iface_name eq "loopback") {
-		$iface_name = "";
-		$trivial_ok = 1;
-	    }
-	    $iface_vport = $ifacemap{$node_nickname}->{$iface_id}->{"vport"};
+		#
+		# Sanity check the interface.
+		#
+		if (!exists($ifacemap{$node_nickname}->{$iface_id})) {
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				  "$lanname: No such interface on component: ".
+				  "$node_nickname:$iface_id");
+		    goto bad;
+		}
+		$iface_ref   = $ifacemap{$node_nickname}->{$iface_id}->{"rspec"};
+		$iface_name  = GeniXML::GetText("component_id", $iface_ref);
+		if (!defined($iface_name)) {
+		    $iface_name = "";
+		}
+		if( GeniHRN::IsValid( $iface_name ) ) {
+		    my ($urn_authority,$urn_node,$urn_iface) =
+			GeniHRN::ParseInterface( $iface_name );
+		    $iface_name = $urn_iface;
+		}
+		#
+		# Hack to catch a loopback (trivial link).
+		#
+		if ($iface_name eq "loopback") {
+		    $iface_name = "";
+		    $trivial_ok = 1;
+		}
+		$iface_vport = $ifacemap{$node_nickname}->{$iface_id}->{"vport"};
 
-	    my $ip = GeniXML::GetIp($ref, $nodemap{$node_nickname}->{'rspec'});
-	    my $mask = GeniXML::GetMask($ref, $nodemap{$node_nickname}->{'rspec'});
+		$ip = GeniXML::GetIp($ref, $nodemap{$node_nickname}->{'rspec'});
+		$mask = GeniXML::GetMask($ref, $nodemap{$node_nickname}->{'rspec'});
+	    }
 
-	  stitch:
 	    # XXX
 	    $ip     = "10.10.${linknum}.${ifacenum}" if (!defined($ip));
 	    $mask   = "255.255.255.0" if (!defined($mask));
@@ -1865,27 +1884,13 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    if (defined($bblob->{'latency'}));
 		$bridge_vname = $bblob->{'name'};
 	    }
-	    
-	    # Watch for shared lans; we have to add the lan entries for them.
-	    my $shared_vlan = GeniXML::GetSharedLanName($linkref);
-	    if (defined($shared_vlan) && !$sharedvlansetting) {
-		# This is the magic for libvtop.
-		$virtexperiment->NewTableRow("virt_lan_settings",
-					     {"vname"   => $lanname,
-					      "capkey"  => "sharedvlan",
-					      "capval"  => $shared_vlan});
-
-		# Must use vlan encap.
-		$virtexperiment->encap_style("vlan");
-
+	    if ($isshared) {
 		# Clear all this.
 		$bandwidth = 0;
 		$latency   = 0.0;
 		$lossrate  = 0.0;
-		$sharedvlansetting = 1;
 	    }
 	    
-	  stitch:	    
 	    my $virtlan =
 		$virtexperiment->NewTableRow("virt_lans",
 					 {"vname"       => $lanname,
@@ -1905,6 +1910,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 					  "rest_bandwidth" => $estbw,
 					  "rlossrate"   => 0.0,
 					  "bridge_vname"=> $bridge_vname,
+					  "encap_style" => $encap,
 					  "fixed_iface" => $iface_name});
 	    $vportmap{$member}->{"virtlan"} = $virtlan;
 	    $ifacenum++;
@@ -2213,10 +2219,22 @@ sub GetTicketAuxAux($$$$$$$$$)
     #
     foreach my $linkname (keys(%external_linkmap)) {
 	my $linkref   = $external_linkmap{$linkname};
-	my $network   = $stitching_paths{$linkname}->{'network'};
+	my $stitchpath   = GeniStitch->Lookup($linkname);
 	my $slice_urn = $slice->urn();
 	my $retries   = 10;
-	my $chainmode = ($network->node_type() eq "interconnect-vm" ? 1 : 0);
+
+	if (! defined($stitchpath)) {
+	    $response =
+		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				     "$linkname: No stitching path");
+	    goto bad;
+	}
+	if (defined($stitchpath->error())) {
+	    $response = $stitchpath->error();
+	    goto bad;
+	}
+
+	my $chainmode = ($stitchpath->mode() eq "chain" ? 1 : 0);
 	my $madevlan  = 0;
 
 	#
@@ -2246,9 +2264,8 @@ sub GetTicketAuxAux($$$$$$$$$)
 		# Look in the network object to get the limits. This is not an
 		# efficient way to do this; should put some of this into snmpit.
 		#
-		my $network = $stitching_paths{$linkname}->{'network'};
-		my $mintag  = $network->min_vlan();
-		my $maxtag  = $network->max_vlan();
+		my $mintag  = $stitchpath->min_vlan();
+		my $maxtag  = $stitchpath->max_vlan();
 		my @tags    = ();
 		while (scalar(@tags) < 20 && $mintag < $maxtag) {
 		    my $t = $mintag++;
@@ -2296,14 +2313,14 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    # Change all of the stitching hops to our edge point, since
 	    # that is how our network is setup.
 	    #
-	    my @hoplist = @{ $stitching_paths{$linkname}->{'hoplist'} };
+	    my @hoplist = @{ $stitchpath->hoplist() };
 	    foreach my $hop (@hoplist) {
 		my $hopurn = GetHopLinkID($hop);
 		my ($auth,undef,undef) = GeniHRN::Parse($hopurn);
 		next
 		    if (!defined($auth) || $auth ne $OURDOMAIN);
 
-		SetVlanTagInHop($hop, $tag);
+		GeniXML::SetVlanTagInHop($hop, $tag);
 	    }
 	    next;	    
 	}
@@ -2312,7 +2329,17 @@ sub GetTicketAuxAux($$$$$$$$$)
 	# Chainmode
 	#
 	while ($retries) {
-	    my $network = $stitching_paths{$linkname}->{'network'};
+	    my $stitchpath   = GeniStitch->Lookup($linkname);
+	    if (! defined($stitchpath)) {
+		$response =
+		    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					 "$linkname: No stitching path to ");
+		    goto bad;
+	    }
+	    if (defined($stitchpath->error())) {
+		$response = $stitchpath->error();
+		goto bad;
+	    }
 	    
 	    #
 	    # Already have a reserved tag? This could happen if the other CM
@@ -2335,7 +2362,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    }
 	    print $fh GeniXML::Serialize($rspec);
 	    close($fh);
-	    my $networkid = $network->node_id();
+	    my $networkid = $stitchpath->network_id();
 	    system("$RESERVEVLANS ".
 		   "'$slice_urn' '$linkname' '$networkid' $filename");
 	    if ($CHILD_ERROR) {
@@ -2386,7 +2413,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 		    # Change all of the stitching hops to our edge point, since
 		    # that is how our network is setup.
 		    #
-		    my @hoplist = @{ $stitching_paths{$linkname}->{'hoplist'} };
+		    my @hoplist = @{ $stitchpath->hoplist() };
 		    foreach my $hop (@hoplist) {
 			my $hopurn = GetHopLinkID($hop);
 			my ($auth,undef,undef) = GeniHRN::Parse($hopurn);
@@ -2555,7 +2582,7 @@ sub SliverWork($$)
     if (! (defined($credstr) && defined($ticketstr))) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -2790,7 +2817,7 @@ sub SliverWorkAux($$$$$$$)
     #
     my $expires = GeniXML::GetExpires($rspec);
     if (defined($expires)) {
-	if (! ($expires =~ /^[-\w:.\/]+/)) {
+	if (GeniResponse::IsResponse($expires)) {
 	    $message = "Illegal valid_until in rspec";
 	    goto bad;
 	}
@@ -3048,18 +3075,6 @@ sub SliverWorkAux($$$$$$$)
     $experiment->CleanLogFiles();
 
     #
-    # Download the images. Do this before we assign nodes, to avoid
-    # pointless cleanup. 
-    #
-    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP -g $pid,$eid");
-    if ($?) {
-	$message = "Could not setup images:\n$output";
-	print STDERR $message;
-	goto bad;
-    }
-    print STDERR $output;
-
-    #
     # The mapper is going to update the resource record, so we have to
     # call PreSwap() first, since it generates a new record. 
     #
@@ -3074,7 +3089,7 @@ sub SliverWorkAux($$$$$$$)
     $didpreswap = 1;
     
     # Add -u for update mode, but not -f (fixnode). 
-    $output = GeniUtil::ExecQuiet("$MAPPER -d -v -z -u $pid $eid");
+    my $output = GeniUtil::ExecQuiet("$MAPPER -d -v -z -u $pid $eid");
     if ($?) {
 	my $logstuff = "";
 	$message = "Could not map to resources";
@@ -3902,7 +3917,7 @@ sub RenewSlice($)
     if (! (defined($credstr))) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4045,7 +4060,7 @@ sub ReleaseTicket($)
     if (! (defined($tickstr) && defined($credstr))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4104,7 +4119,7 @@ sub StartSliver($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4197,7 +4212,7 @@ sub DeleteSliver($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4328,7 +4343,7 @@ sub DeleteSlice($)
     if (! defined($credstr)) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($credstr);
+    my $credential = GeniCredential::CheckCredential($credstr);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4377,7 +4392,7 @@ sub GetSliver($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4453,7 +4468,7 @@ sub BindToSlice($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4502,7 +4517,7 @@ sub Shutdown($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4574,7 +4589,7 @@ sub ListUsage($)
 	return GeniResponse->MalformedArgsResponse();
     }
 
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4620,8 +4635,7 @@ sub ListUsage($)
 	    next
 		if ($sliver->resource_type() ne "Node");
 
-	    my $node = {"sliver_gid"    => $sliver->cert(),
-			"sliver_hrn"    => $sliver->hrn(),
+	    my $node = {"sliver_hrn"    => $sliver->hrn(),
 			"sliver_urn"    => $sliver->sliver_urn() };
 	    
 	    my $component = GeniComponent->Lookup($sliver->resource_uuid());
@@ -4673,7 +4687,7 @@ sub ListHistory($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4722,7 +4736,7 @@ sub SliceStatus($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4806,7 +4820,7 @@ sub SliverTicket($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -4902,7 +4916,7 @@ sub SliverStatus($)
     if (!defined($cred)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -5010,7 +5024,7 @@ sub ListTickets($)
     if (! (defined($cred))) {
 	return GeniResponse->MalformedArgsResponse();
     }
-    my $credential = CheckCredential($cred);
+    my $credential = GeniCredential::CheckCredential($cred);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -5107,6 +5121,7 @@ sub CreateSliceFromCertificate($$)
 	}
     }
     $slice->SetExpiration($expires);
+    $slice->SetPublicID();
     return $slice;
 }
 
@@ -5139,6 +5154,15 @@ sub CreateUserFromCertificate($)
 	#
 	return $user
 	    if ($certificate->SameCert($user));
+
+	#
+	# Oh, but if this is a local user, we already have the
+	# updated certificate in the DB (we get it from tbdb),
+	# so no point in changing and we do not want to store it!
+	#
+	if ($user->IsLocal()) {
+	    return $user;
+	}
 
 	#
 	# Replace the user certificate. I think this is okay, since we
@@ -5456,6 +5480,19 @@ sub CleanupDeadSlice($;$)
 	return -1;
     }
 
+    #
+    # If a monitor process is running, then cancel it so that
+    # we do not leave it behind on a slice/experiment that is
+    # now gone.
+    #
+    if ($slice->monitor_pid()) {
+	my $response = KillMonitor($slice);
+	if (GeniResponse::IsResponse($response)) {
+	    print STDERR "CleanupDeadSlice: Could not kill monitor process\n";
+	    return -1;
+	}
+    }
+
     # print "Cleaning up dead slice $slice\n";
     my $slice_uuid = $slice->uuid();
     my $experiment = $slice->GetExperiment();
@@ -5654,6 +5691,12 @@ sub GeniExperiment($;$)
 
     require Project;
     require Group;
+
+    #
+    # BUG: We need to check the sub auth chain to make sure that
+    # there the common prefix. Otherwise, a subsa could sign a
+    # slice credential for someone else.
+    #
     
     #
     # If the slice is from this Emulab (SA), then we are going to create the
@@ -5834,7 +5877,6 @@ sub GeniExperiment($;$)
 	    $gid = $group->gid();
 	}
     }
-
     #
     # Form an eid for the experiment. 
     #
@@ -5842,6 +5884,22 @@ sub GeniExperiment($;$)
 	# What shall we do?
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "$eid is not a valid experiment ID");
+    }
+
+    #
+    # Look to see if this eid is already in use. Normally we do not
+    # allow this, but if the slice urn has a subauthority, we really
+    # do want to accept it, since it would be really confusing for
+    # users otherwise.
+    #
+    $experiment = Experiment->Lookup($project->pid(), $eid);
+    if (defined($experiment)) {
+	if (!defined($group)) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Slice name already exists");
+	}
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Slice name already exists");
     }
 
     #
@@ -5860,10 +5918,9 @@ sub GeniExperiment($;$)
     }
 
     # Note the -h option; allows experiment with no NS file.
-    system("$CREATEEXPT -N -q -i -k -w -n ".
+    system("$CREATEEXPT -N -q -i -k -w ".
 	   "-S 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
 	   "-E '$urn' ".
-	   "-L 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
 	   "-h '$uuid' -p $pid -g $gid -e $eid");
     my $saved_exitcode = $?;
 
@@ -5920,9 +5977,6 @@ sub FlipToUser($$)
 	    if (!defined($geniuser));
 	$geniuser = GeniUser::LocalUser->Create($geniuser);
 
-	print STDERR "FlipToUser: $geniuser, $group\n"
-	    if ($debug);
-	
 	return undef
 	    if ($geniuser->FlipTo($group->unix_gid()));
 	return $geniuser;
@@ -5940,8 +5994,6 @@ sub FlipToUser($$)
 	    if (!defined($user));
 
 	# No subgroups yet.
-	print STDERR "FlipToUser: $user, $project\n"
-	    if ($debug);
 	return undef
 	    if ($user->FlipTo($project->unix_gid()));
 
@@ -5959,9 +6011,6 @@ sub FlipToUser($$)
 	if (!$experiment->AccessCheck($user->emulab_user(),
 				      $Experiment::EXPT_ACCESS_MODIFY));
 
-    print STDERR "FlipToUser: $user, $project\n"
-	if ($debug);
-    
     return undef
 	if ($user->FlipTo($project->unix_gid()));
     return $user;
@@ -6038,34 +6087,6 @@ sub UpdateManifest($)
 		"where slice_uuid='$slice_uuid'");
 
     return 0;
-}
-
-sub CheckCredential($)
-{
-    my $credential = GeniCredential->CreateFromSigned($_[0]);
-    if (!defined($credential)) {
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    $GeniCredential::CreateFromSignedError);
-    }
-
-    #
-    # Well formed credentials must now have URNs.
-    #
-    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				"Malformed credentials; missing URNs")
-	if (! (defined($credential->owner_urn()) &&
-	       defined($credential->target_urn()) &&
-	       GeniHRN::IsValid($credential->owner_urn()) &&
-	       GeniHRN::IsValid($credential->target_urn())));
-	
-    #
-    # Make sure the credential was issued to the caller.
-    #
-    if ($credential->owner_urn() ne $ENV{'GENIURN'}) {
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				    "This is not your credential");
-    }
-    return $credential;
 }
 
 sub CheckTicket($$)
@@ -6224,64 +6245,6 @@ sub AddKeys($$$)
     return GeniResponse->Create(GENIRESPONSE_ERROR, undef, "Internal Error");
 }
 
-sub GetHopLinkID($)
-{
-    my ($ref)  = @_;
-    my $result = "";
-			
-    my $link = FindFirst("n:link", $ref);
-    if (defined($link)) {
-	$result = GetText("id", $link);
-    }
-    return $result;
-}
-
-sub GetHopCapabilitySection($)
-{
-    my ($hopref) = @_;
-    
-    #
-    # Dig out the section we need from the hop.
-    #
-    my $tmp = FindFirst("n:link", $hopref);
-    $tmp = (FindFirst("n:switchingCapabilityDescriptor", $tmp) ||
-	    FindFirst("n:switchingCapabilityDescriptors", $tmp))
-	if (defined($tmp));
-    $tmp = FindFirst("n:switchingCapabilitySpecificInfo", $tmp)
-	if (defined($tmp));
-    if (defined($tmp) &&
-	FindFirst("n:switchingCapabilitySpecificInfo_L2sc", $tmp)) {
-	$tmp = FindFirst("n:switchingCapabilitySpecificInfo_L2sc", $tmp)
-    }
-    return $tmp;
-}
-
-sub GetSuggestedVlanFromHop($)
-{
-    my ($hopref) = @_;
-    my $capref   = GetHopCapabilitySection($hopref);
-    return undef
-	if (!defined($capref));
-
-    my $tag = GeniXML::GetText("suggestedVLANRange", $capref);
-    $tag = undef
-	if (defined($tag) && ! looks_like_number($tag));
-    return $tag;
-}
-
-sub SetVlanTagInHop($$)
-{
-    my ($hopref, $tag) = @_;
-
-    my $capref = GetHopCapabilitySection($hopref);
-    return undef
-	if (!defined($capref));
-
-    GeniXML::SetText("vlanRangeAvailability", $capref, "$tag");
-    GeniXML::SetText("suggestedVLANRange", $capref, "$tag");
-    return 0;
-}
-
 sub ReserveLocalVlanTag($$$)
 {
     my ($experiment, $lanname, $tag) = @_;
@@ -6360,114 +6323,68 @@ sub ReserveLocalVlanTag($$$)
     return [$lanid, $tag];
 }
 
-
-sub findStitchPoint
+#
+# Kill the monitor process.
+#
+sub KillMonitor($)
 {
-    my $lanname = shift(@_);
-    my @hoplist = @_;
-    my $hopurn  = GetHopLinkID($hoplist[0]);
-    if (! @hoplist) {
-	return (undef, undef, undef,
-		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				     "$lanname: No hops in the stitching ".
-				     "path"));
+    my ($slice) = @_;
+    my $pid = $slice->monitor_pid();
+
+    return 0
+	if (!$pid);
+	
+    print STDERR "Monitor in progress: process id $pid ...\n";
+
+    my $experiment = $slice->GetExperiment();
+    if (!defined($experiment)) {
+	print STDERR "No experiment for $slice\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "No slice experiment");
     }
-    if (!GeniHRN::IsValid($hopurn)) {
-	return (undef, undef, undef,
-		GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				     "$lanname: Invalid URN in first hop ".
-				     "in path"));
-    }
-    my ($hopauth,undef,undef) = GeniHRN::Parse($hopurn);
-    if ($hopauth ne $OURDOMAIN) {
-	# Reverse the list to make life easier.
-	@hoplist = reverse(@hoplist);
-#	$stitching_paths{$lanname}->{'hoplist'} = \@hoplist;
-    }
-    # Make sure the other end is really us. 
-    $hopurn  = GetHopLinkID($hoplist[0]);
-    ($hopauth,undef,undef) = GeniHRN::Parse($hopurn);
-    if ($hopauth ne $OURDOMAIN) {
-	return (undef, undef, undef,
-		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				     "$lanname: no local path hop"));
+    if ($experiment->canceled()) {
+	print STDERR "Cancel flag already set for $experiment\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Unable to stop monitor");
     }
     #
-    # Go through the hop list to find the edge point. This will
-    # be the first hop that is in a different domain.
+    # Okay, before we commit to waiting for something that might
+    # not happen, or erroneously setting the cancel flag, lets lock
+    # the tables and check again, to avoid race in start/restart.
     #
-    my $edgehop;
-    my $lasthop;
-    foreach my $hop (@hoplist) {
-	my $hopurn = GetHopLinkID($hop);
-	next
-	    if (! GeniHRN::IsValid($hopurn));
-	
-	my ($auth,undef,undef) = GeniHRN::Parse($hopurn);
-	next
-	    if (!defined($auth));
-	
-	if ($auth ne $OURDOMAIN) {
-	    $edgehop = $hop;
-	    last;
+    $slice->LockTables();
+    if ($slice->GetMonitorPid()) { 
+	$experiment->SetCancelFlag(1);
+	$slice->UnLockTables();
+
+	#
+	# Wait for the monitor to go away, but should not take long.
+	#
+	my $count = 6;
+	while ($count > 0) {
+	    sleep(5);
+	    # Go to the DB.
+	    my $monitor_pid = $slice->GetMonitorPid();
+	    last
+		if (! $monitor_pid);
+	    $count--;
 	}
-	$lasthop = $hop;
+	if ($slice->GetMonitorPid()) {
+	    print STDERR "Monitor process $pid would not die!\n";
+	    SENDMAIL($TBOPS, "Monitor for slice would not die!",
+		     "Monitor would not die: $slice\n\n" .
+		     "$TBBASE/showslice.php?slice_idx=" . $slice->idx() .
+		     "&showtype=cm",
+		     $TBOPS);
+	    print STDERR "Could not shutdown $slice!\n";
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Monitor would not die");
+	}
     }
-    if (!defined($edgehop)) {
-	return (undef, undef, undef,
-		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				     "$lanname: no edge hop"));
+    else {
+	$slice->UnLockTables();
     }
-    #
-    # Look inside the hop urn; it tells the local iface/node
-    # which corresponds to our "fake" nodes.
-    #
-    my $edgeurn = GetHopLinkID($edgehop);
-    my $edgewire = Interface::Wire->Lookup($edgeurn);
-    if (!defined($edgewire)) {
-	return (undef, undef, undef,
-		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				     "$lanname: unknown ".
-				     "external_interface for ".
-				     $edgeurn));
-    }
-    
-    #
-    # Look in the external networks table to get the hop
-    # details. 
-    #
-    my $edgenodeid = $edgewire->node_id1();
-    my $edgecard = $edgewire->card1();
-    my $edgeport = $edgewire->port1();
-    my $network = ExternalNetwork->Lookup($edgenodeid);
-    
-    # The external network may be attached to node_id2
-    if (! defined($network)) {
-	$edgenodeid = $edgewire->node_id2();
-	$edgecard = $edgewire->card2();
-	$edgeport = $edgewire->port2();
-	$network = ExternalNetwork->Lookup($edgenodeid);
-    }
-    if (!defined($network)) {
-	return (undef, undef, undef,
-		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				     "$lanname: unknown network for ".
-				     $edgewire->node_id1() . " and ".
-				     $edgewire->node_id2()));
-    }
-    
-    #
-    # The edge interface must exist.
-    #
-    my $edgeiface = Interface->Lookup($edgenodeid, $edgecard,
-				      $edgeport);
-    if (!defined($edgeiface)) {
-	return (undef, undef, undef,
-		GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				     "$lanname: unknown iface for ".
-				     "$edgenodeid:$edgecard.$edgeport"));
-    }
-    return ($edgeiface, $network, $lasthop, undef);
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

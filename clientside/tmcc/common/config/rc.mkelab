@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2012 University of Utah and the Flux Group.
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -800,7 +800,7 @@ sub SetupFsNode()
     # This avoids nfs mounts interruptions
     if (exists($emulabconfig{PACKAGE_TARBALL})) {
 	RecreateDir("$TBDIR/packages", 1);
-	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR/packages");
+	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR");
     }
 
     #
@@ -1292,7 +1292,7 @@ sub SetupOpsNode($)
     # This avoids nfs mounts interruptions
     if (exists($emulabconfig{PACKAGE_TARBALL})) {
 	RecreateDir("$TBDIR/packages", 1);
-	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR/packages");
+	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR");
     }
 
     #
@@ -1935,7 +1935,7 @@ sub SetupBossNode($)
     # This avoids nfs mounts interruptions
     if (exists($emulabconfig{PACKAGE_TARBALL})) {
 	RecreateDir("$TBDIR/packages", 1);
-	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR/packages");
+	mysystem("tar zxf /usr/packages.tar.gz -C $TBDIR");
     }
 
     #
@@ -2309,6 +2309,17 @@ sub SetupBossNode($)
 	print RC "ifconfig_${inner_controlif}=".
 	    "\"inet $inner_ip netmask $inner_netmask ".
 	    "media ${inner_speed}baseTX mediaopt full-duplex\"\n";
+
+	#
+	# Fixing the speed can cause the interface to take a while to come
+	# up causing DNS to not work immediately causing some startup
+	# operations to fail (ntp and mfrisbeed failures have been observed).
+	#
+	# We take advantage of a FreeBSD rc.named script option to force
+	# it to wait til it can resolve outer boss.
+	#
+	print RC "named_wait=\"YES\"\n";
+	print RC "named_wait_host=\"$bossname\"\n";
     }
     print RC "network_interfaces=\"\$network_interfaces lo0\"\n";
     print RC "static_routes=\"outerboss vnodes\"\n";
@@ -2576,7 +2587,11 @@ sub CreateOpsJail($)
 
     # Need the package dir inside the jail.
     mysystem("mkdir $OPSMOUNTDIR/packages") if (! -e "$OPSMOUNTDIR/packages");
-    mysystem("mount -t nullfs /packages $OPSMOUNTDIR/packages");
+    if (exists($emulabconfig{PACKAGE_TARBALL})) {
+	mysystem("mount -t nullfs $TBDIR/packages $OPSMOUNTDIR/packages");
+    } else {
+	mysystem("mount -t nullfs /packages $OPSMOUNTDIR/packages");
+    }
 
     print "Copying over current testbed software into the jail\n";
     mysystem("rsync -a --delete $TBDIR/src $OPSMOUNTDIR/$TBDIR");
@@ -2653,7 +2668,11 @@ sub CreateOpsJail($)
 
     print "Creating the ops node inside the jail\n";
     # Use -d so output comes back to us.
-    mysystem("jexec -n ops '' $BINDIR/rc/rc.mkelab -d -j");
+    if ($FBSD_VERSION >= 8.2) {
+	mysystem("jexec -n ops $BINDIR/rc/rc.mkelab -d -j");
+    } else {
+	mysystem("jexec -n ops '' $BINDIR/rc/rc.mkelab -d -j");
+    }
 }
 
 #

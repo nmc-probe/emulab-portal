@@ -671,7 +671,7 @@ class User
     }
 
     function Show($html = FALSE) {
-	global $WIKISUPPORT, $GENIRACK;
+	global $WIKISUPPORT;
 
 	$user = $this;
 
@@ -846,13 +846,12 @@ class User
                       <td>Administrator:</td>
                       <td>$admintag";
 	    
-	    if ($GENIRACK) {
-		$adminflip = ($admin ? 0 : 1);
-		$toggle_url = CreateURL("toggle", $user, "type", "adminflag",
-					"value", $adminflip);
+	    $adminflip = ($admin ? 0 : 1);
+	    $toggle_url = CreateURL("toggle", $user, "type", "adminflag",
+				    "value", $adminflip);
 
-		echo " (<a href='$toggle_url'>Toggle</a>)";
-	    }
+	    echo " (<em>Be very careful with this</em> ".
+		"<a href='$toggle_url'>Toggle</a>)";
 
 	    echo "</td>
                   </tr>\n";

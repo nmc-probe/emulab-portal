@@ -680,15 +680,30 @@ Node instproc start-command {command} {
 
 #
 # Add a desire to the node, with the given weight
-# Fails if the desire already exists, but maybe it could just update the
-# weight?
+# Fails if the desire already exists unless the override parameter is
+# set.
 #
-Node instproc add-desire {desire weight} {
+Node instproc add-desire {desire weight {override 0}} {
     $self instvar desirelist
-    if {[info exists desirelist($desire)]} {
+    if {[info exists desirelist($desire)] && !$override} {
 	perror "\[add-desire] Desire $desire on $self already exists!"
     }
     set desirelist($desire) $weight
+}
+
+#
+# Grab a desire that was already set.  return empty string if it is not set.
+#
+Node instproc get-desire {desire} {
+    $self instvar desirelist
+
+    # desire exists.
+    if {[info exists desirelist($desire)]} {
+	return [set desirelist($desire)]
+    }
+
+    # desire does not exist.
+    return {}
 }
 
 #

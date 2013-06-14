@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2011 University of Utah and the Flux Group.
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -556,6 +556,8 @@ sub VMmount()
 {
     my $JAILDB    = CONFDIR() . "/mounts";
     my $mountstr;
+    my %MDB;
+    my %SDB;
 
     #
     # No mounts on remote nodes.
@@ -588,7 +590,10 @@ sub VMmount()
     # from the pnode, something is probably going to break). 
     #
     my %MOUNTS = ();
-    dbmopen(%SDB, $JAILDB,  0644);
+    if (! dbmopen(%SDB, $JAILDB,  0644)) {
+	warn("Could not create $JAILDB!\n");
+	return -1;
+    }
 
     if (SHAREDHOST()) {
 	my @tmccresults;
@@ -604,7 +609,10 @@ sub VMmount()
 	}
     }
     else {
-        dbmopen(%MDB, $MOUNTDB, 0444);
+        if (! dbmopen(%MDB, $MOUNTDB, 0444)) {
+	    warn("Could not open $MOUNTDB!\n");
+	    return -1;
+	}
 	while (my ($remote, $path) = each %MDB) {
 	    $MOUNTS{$remote} = $path;
 	}
@@ -647,6 +655,7 @@ sub VMunmount()
     my $errors  = 0;
     my @deletes = ();
     my %mounts;
+    my %SDB;
 
     #
     # No NFS mounts on remote nodes.
@@ -659,7 +668,9 @@ sub VMunmount()
     # Get all the mounts from the DB and unmount. Any failures *MUST*
     # be reported back via failure code.
     #
-    dbmopen(%SDB, $JAILDB,  0444);
+    if (! dbmopen(%SDB, $JAILDB,  0444)) {
+	fatal("Could not open $JAILDB!\n");
+    }
 
     if (!open MOUNT, "$MOUNT|") {
 	fatal("Could not get current mounts: $!");

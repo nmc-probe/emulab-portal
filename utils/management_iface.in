@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -218,23 +218,45 @@ $node->AddOutlet($type, 0,
     or fatal("Could not add outlet records");
 
 #
-# Add the interface.
+# Add the interface, if not there.
 #
-my $ifaceargs = {
-    "card"      => 99,	# XXX Bogus.
-    "iface"     => $type,
-    "role"      => TBDB_IFACEROLE_MANAGEMENT(),
-    "MAC"       => $mac,
-    "IP"        => $IP,
-    "type"      => $type,
-};
-if (defined($switchinfo)) {
-    $ifaceargs->{'switch_id'}   = $switchid;
-    $ifaceargs->{'switch_port'} = $switchcard;
-    $ifaceargs->{'switch_card'} = $switchport;
+my $interface = Interface->LookupManagement($node);
+if (defined($interface)) {
+    #
+    # Check to make sure consistent.
+    #
+    fatal("Inconsistent mac in $interface")
+	if ($interface->mac() ne $mac);
+    
+    fatal("Inconsistent ip in $interface")
+	if ($interface->IP() ne $IP);
+    
+    if (defined($switchinfo)) {
+	fatal("Inconsistent switch_id in $interface")
+	    if ($interface->switch_id() ne $switchid);
+	fatal("Inconsistent switch_port in $interface")
+	    if ($interface->switch_port() != $switchport);
+	fatal("Inconsistent switch_card in $interface")
+	    if ($interface->switch_card() ne $switchcard);
+    }
 }
-Interface->Create($node, $ifaceargs)
-    or fatal("Could not create interface entry");
+else {
+    my $ifaceargs = {
+	"card"      => 99,	# XXX Bogus.
+	"iface"     => $type,
+	"role"      => TBDB_IFACEROLE_MANAGEMENT(),
+	"MAC"       => $mac,
+	"IP"        => $IP,
+	"type"      => $type,
+    };
+    if (defined($switchinfo)) {
+	$ifaceargs->{'switch_id'}   = $switchid;
+	$ifaceargs->{'switch_port'} = $switchport;
+	$ifaceargs->{'switch_card'} = $switchcard;
+    }
+    Interface->Create($node, $ifaceargs)
+	or fatal("Could not create interface entry");
+}
 
 #
 # Restart DHCPD. 

@@ -1,4 +1,25 @@
 #
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
 # Emulab version of netif to DHCP on all interfaces simultaneously.
 # Runs before the standard netif, and effectively neuters that script.
 # Note the dependencies below.  Every script that declares that it must run
@@ -44,11 +65,15 @@ fi
 #
 cnet_nfe_hack()
 {
-	for i in 5 10 15 20 20 20 30 30 30 60 60; do
+	# XXX try for 10 minutes at fixed 30s intervals
+	# XXX tried slowly increasing intervals, but didn't work
+	for i in 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30; do
 		echo "`date`: nfe_hack: taking interfaces down and up ..."
 		for _if in $*; do
 			ifconfig $_if down
-			sleep 2
+		done
+		sleep 2
+		for _if in $*; do
 			ifconfig $_if up
 		done
 		sleep $i

@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -309,6 +309,11 @@ LanLink instproc init {s nodes bw d type} {
 	    set bs $node
 	    set node [$bs get_node]
 	    $self set sanlan 1
+	    # XXX: see comment in parse_bw() in parse.tcl
+	    if {$bw != 10} {
+		perror "Only '~' (indicating best-effort) is supported as the bandwidth for network links/lans containing storage members."
+		return
+	    }
 	}
 	set nodepair [list $node [$node add_lanlink $self]]
 	set bandwidth($nodepair) $bw
@@ -960,6 +965,7 @@ Link instproc updatedb {DB} {
     $self instvar bridge_links
     $self instvar settings
     $self instvar member_settings
+    $self instvar sanlan
     set vindex 0
 
     $sim spitxml_data "virt_lan_lans" [list "vname" "failureaction"] [list $self $failureaction]
@@ -972,6 +978,14 @@ Link instproc updatedb {DB} {
 	set values [list $self $setting $settings($setting)]
 	
 	$sim spitxml_data "virt_lan_settings" $fields $values
+    }
+
+    #
+    # If this is a SAN, then nullify shaping and set up vlan encapsulation.
+    #
+    if {$sanlan == 1} {
+	set nobwshaping 1
+	set encap "vlan"
     }
 
     foreach nodeport $nodelist {
@@ -1209,10 +1223,11 @@ Lan instproc updatedb {DB} {
     }
 
     #
-    # If this is a SAN, then nullify shaping
+    # If this is a SAN, then nullify shaping and setup vlan encapsulation.
     #
     if {$sanlan == 1} {
 	set nobwshaping 1
+	set encap "vlan"
     }
 
     foreach nodeport $nodelist {

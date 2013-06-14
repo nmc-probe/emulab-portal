@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -114,6 +114,9 @@ my $GATED	= "/usr/local/sbin/gated";
 my $ROUTE	= "/sbin/route";
 my $SHELLS	= "/etc/shells";
 my $DEFSHELL	= "/bin/tcsh";
+my $ISCSI	= "/sbin/iscontrol";
+my $ISCSICNF	= "/etc/iscsi.conf";
+my $SMARTCTL	= "/usr/local/sbin/smartctl";
 
 #
 # OS dependent part of account cleanup. On a remote node, this will
@@ -930,9 +933,21 @@ sub os_fwrouteconfig_line($$$)
     return ($upline, $downline);
 }
 
-sub os_config_gre($$$$$$$)
+sub os_config_gre($$$$$$$;$)
 {
-    my ($name, $unit, $inetip, $peerip, $mask, $srchost, $dsthost) = @_;
+    my ($name, $unit, $inetip, $peerip, $mask, $srchost, $dsthost, $tag) = @_;
+
+    if (GENVNODE() && GENVNODETYPE() eq "openvz") {
+	$dev = "gre$unit";
+
+	if (system("$IFCONFIGBIN $dev $inetip netmask $mask mtu 1472 up")) {
+	    warn("Could not start tunnel $dev!\n");
+	    return -1;
+	}
+	return 0;
+    }
+    require Socket;
+    import Socket;
 
     my $gre = `ifconfig gre create`;
     if ($?) {
@@ -950,6 +965,15 @@ sub os_config_gre($$$$$$$)
 	system("ifconfig $gre tunnel $srchost $dsthost")) {
 	warn("Could not start tunnel!\n");
 	return -1;
+    }
+    if (defined($tag)) {
+	my $grekey = inet_ntoa(pack("N", $tag));
+
+	system("ifconfig $gre grekey $grekey");
+	if ($?) {
+	    warn("Could not add key to $gre interface!\n");
+	    return -1;
+	}
     }
     return 0;
 }
@@ -1305,6 +1329,10 @@ sub os_getarpinfo($$)
 	    if ($diface ne $iface) {
 		next;
 	    }
+
+	    # Skip aliases.
+	    next
+		if (system("$BINDIR/findif -i $ip >/dev/null 2>&1") == 0);
 
 	    if (exists($arpinfo{$ip})) {
 		if ($arpinfo{$ip}{'mac'} ne $mac) {

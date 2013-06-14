@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,6 +36,8 @@ TARGETS = initnodes.pl initilo.pl mknewconfig
 all: $(TARGETS)
 
 include $(TESTBED_SRCDIR)/GNUmakerules
+
+install: $(INSTALL_SBINDIR)/initilo.pl
 
 clean: 
 	rm -f $(TARGETS)

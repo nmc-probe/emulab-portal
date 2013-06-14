@@ -1108,7 +1108,7 @@ REPLACE INTO table_regex VALUES ('mailman_lists','listname','text','redirect','m
 REPLACE INTO table_regex VALUES ('mailman_listnames','listname','text','regex','^[-\\w\\.\\+]+$',3,64,NULL);
 
 REPLACE INTO table_regex VALUES ('node_attributes','attrkey','text','regex','^[-\\w]+$',1,32,NULL);
-REPLACE INTO table_regex VALUES ('node_attributes','attrvalue','text','regex','^[-\\w\\.+,\\s]+$',0,255,NULL);
+REPLACE INTO table_regex VALUES ('node_attributes','attrvalue','text','regex','^[-\\w\\.\\+,\\s\\/:]+$',0,255,NULL);
 REPLACE INTO table_regex VALUES ('archive_tags','description','text','redirect','projects:why',1,2048,NULL);
 REPLACE INTO table_regex VALUES ('archive_tags','tag','text','regex','^[a-zA-Z][-\\w\\.\\+]+$',2,64,NULL);
 REPLACE INTO table_regex VALUES ('experiment_templates','description','text','redirect','default:fulltext',1,4096,NULL);
@@ -1225,6 +1225,7 @@ REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','eid','text','redi
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','vname','text','redirect','virt_blockstores:vname',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','attrkey','text','regex','^[-\\w]+$',1,64,NULL);
 REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','attrvalue','text','regex','^[-\\w\\.\\+,\\s\\/:]+$',0,255,NULL);
+REPLACE INTO table_regex VALUES ('virt_blockstore_attributes','isdesire','int','redirect','default:boolean',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('emulab_sites','certificate','text','regex','^[\\012\\015\\040-\\176]*$',128,4096,NULL);
 REPLACE INTO table_regex VALUES ('emulab_sites','url','text','redirect','default:tinytext',0,0,NULL);

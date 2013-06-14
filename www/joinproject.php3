@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -51,6 +51,7 @@ $this_user = CheckLogin($check_status);
 $optargs = OptionalPageArguments("submit",       PAGEARG_STRING,
 				 "forwikionly",  PAGEARG_BOOLEAN,
 				 "finished",     PAGEARG_BOOLEAN,
+				 "nopidokay",    PAGEARG_STRING,
 				 "target_pid",   PAGEARG_STRING,
 				 "target_gid",   PAGEARG_STRING,
 				 "formfields",   PAGEARG_ARRAY);
@@ -80,7 +81,10 @@ if ($old_forwikionly == True) {
 if (!isset($forwikionly)) {
     $forwikionly = False;
 }
+$nopidconfirm = 0;
 unset($addpubkeyargs);
+unset($pid);
+unset($gid);
 
 $ACCOUNTWARNING =
     "Before continuing, please make sure your username " .
@@ -777,7 +781,23 @@ if (! $returning) {
 }
 if (!$forwikionly) {
     if (!isset($formfields["pid"]) || $formfields["pid"] == "") {
-	$errors["Project Name"] = "Missing Field";
+	if ($returning) {
+	    $errors["Project Name"] = "Missing Field";
+	}
+	elseif (!isset($nopidokay)) {
+	    # 
+	    # Sigh, no one reads or follows simple instructions.
+	    #
+	    $errors["Project Name"] = "Missing Field";
+	}
+	elseif (isset($nopidokay) && $nopidokay != "1") {
+	    if ($nopidokay != "Confirm") {
+		$errors["Project Name"] = "Please tell us the Project";
+	    }
+	}
+	else {
+	    $nopidconfirm = 1;
+	}
     }
     else {
         # Confirm pid/gid early to avoid spamming the page.
@@ -807,9 +827,45 @@ if (count($errors)) {
 }
 
 #
+# No project, lets confirm. 
+#
+if ($nopidconfirm) {
+    PAGEHEADER("Apply for Project Membership");
+    
+    echo "<blockquote>\n";
+    echo "You did not specify a project to join. If you do not join a project ";
+    echo "you will not be able to use the testbed. ";
+    echo "But if you are sure, click on <b>Confirm</b>. ";
+    echo "Else click <b>Back</b> and ";
+    echo "enter the name of the project you want to join.\n";
+    echo "<br>\n";
+    
+    echo "<form enctype=\"multipart/form-data\" action='joinproject.php3'
+            method=post name=idform>";
+    #
+    # Send all of their stuff along.
+    #
+    reset($formfields);
+    while (list($key, $value) = each($formfields)) {
+	if ($key != "nopidokay") {
+	    echo "<input type=hidden name=\"formfields[$key]\" ".
+		"value=\"$value\"></input>\n";
+	}
+    }
+    echo "<input type=hidden name='submit' value='Submit'>\n";
+    echo "<center><br>\n";
+    echo "<input type=submit name=nopidokay value=Confirm>&nbsp;";
+    echo "<input type=submit name=nopidokay value=Back>\n";
+    echo "</center></form>";
+
+    PAGEFOOTER();
+    return;
+}
+
+#
 # Need the user, project and group objects for the rest of this.
 #
-if (!$forwikionly) {
+if (!$forwikionly && isset($pid)) {
     if (! ($project = Project::Lookup($pid))) {
 	TBERROR("Could not lookup object for $pid!", 1);
     }
@@ -829,7 +885,8 @@ if (!$forwikionly) {
 # doing so would not add a non-admin (default for new users) to a 
 # project with admins.
 #
-if ($ISOLATEADMINS && !$returning && count($project->GetAdmins())) {
+if ($ISOLATEADMINS && !$returning &&
+    isset($project) && count($project->GetAdmins())) {
     $errors["Joining Project"] =
 	"You cannot join this project due to security restrictions!"
 	. "  If you were told to join this project specifically, email"
@@ -917,7 +974,7 @@ if ($forwikionly) {
 # If this sitevar is set, check to see if this addition will create a
 # mix of admin and non-admin people in the group. 
 #
-if ($ISOLATEADMINS &&
+if ($ISOLATEADMINS && isset($project) &&
     !$project->IsMember($user, $ignore)) {
     $members = $project->MemberList();
 
@@ -947,6 +1004,12 @@ if ($ISOLATEADMINS &&
 	    }
 	}
     }
+}
+
+# Done if no project to join
+if (!isset($project)) {
+    header("Location: joinproject.php3?finished=1");
+    exit();
 }
 
 #

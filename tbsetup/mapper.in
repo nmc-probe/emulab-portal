@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -71,10 +71,11 @@ sub usage ()
     print STDERR " -A   - Tell ptopgen all nodes are free; only with -n\n";
     exit($WRAPPER_FAILED);
 }
-my $optlist    = "dvunfprqczxm:ko:altzZAC";
+my $optlist    = "dvunfprqczxm:ko:altzZACFNL:";
 my $verbose    = 0;
 my $debug      = 0;
 my $fixmode    = 0;
+my $fixlannodes= 0;
 my $updating   = 0;
 my $impotent   = 0;
 my $precheck   = 0;
@@ -88,6 +89,7 @@ my $regression = 0;
 my $noassign   = 0;  # Only with regression mode, use previous solution.
 my $noregfree  = 0;  # Only with regression mode, leave physical state at end.
 my $usecurrent = 0;  # Only with regression mode, use current solution.
+my $assignfile;
 my $quiet      = 0;
 my $clear      = 0;
 my $warnings   = 0;
@@ -185,8 +187,17 @@ if (defined($options{"t"})) {
 if (defined($options{"n"})) {
     $impotent = 1;
 }
+if (defined($options{"N"})) {
+    $noassign = 1;
+}
+if (defined($options{"L"})) {
+    $assignfile = $options{"L"};
+}
 if (defined($options{"f"})) {
     $fixmode = 1;
+}
+if (defined($options{"F"})) {
+    $fixlannodes = 1;
 }
 if (defined($options{"p"})) {
     $precheck = 1;
@@ -283,6 +294,13 @@ if ($usecontrol && $MAINSITE) {
     $verbose = 1;
 }
 
+# XXX Hacky!
+if ($MAINSITE && $TB ne "/usr/testbed") {
+    $debug   = 1;
+    $verbose = 1;
+    $fixlannodes = $fixmode;
+}
+
 libvtop::Init($this_user, $experiment->GetGroup(), $experiment);
     
 #
@@ -297,6 +315,8 @@ $vtopflags |= $libvtop::VTOP_FLAGS_UPDATE
     if ($updating);
 $vtopflags |= $libvtop::VTOP_FLAGS_FIXNODES
     if ($fixmode || $usecurrent);
+$vtopflags |= $libvtop::VTOP_FLAGS_FIXLANNODES
+    if ($fixlannodes);
 $vtopflags |= $libvtop::VTOP_FLAGS_IMPOTENT
     if ($impotent);
 $vtopflags |= $libvtop::VTOP_FLAGS_ALLOCONLY
@@ -311,7 +331,8 @@ if ($regression) {
 	$fixmode    = 1;
 	$clear      = 0;
 	$vtopflags |=
-	    ($libvtop::VTOP_FLAGS_UPDATE|$libvtop::VTOP_FLAGS_FIXNODES);
+	    ($libvtop::VTOP_FLAGS_UPDATE|$libvtop::VTOP_FLAGS_FIXLANNODES|
+	     $libvtop::VTOP_FLAGS_FIXNODES);
 
 	MapperWrapper();
     }
@@ -513,6 +534,7 @@ sub RunAssign($$)
 	$vtopfile .= ".xml";
     }
     my $assignexitcode = 0;
+    my $assignlog = "assign.log";
 
     #
     # Now generate a vtop file and dump it to a file.
@@ -551,9 +573,12 @@ sub RunAssign($$)
     goto skipassign
 	if ($vtop->nodecount() == $vtop->genicount());
 
-    # Debugging hack for regression mode. Avoid really long assign runs.
-    if ($regression && $noassign) {
-	if (! -e "assign.log") {
+    # Debugging hack.
+    if ($regression || $noassign || $assignfile) {
+	$assignlog = $assignfile
+	    if ($assignfile);
+	
+	if (! -e $assignlog) {
 	    chat("No existing assign results file!\n");
 	    return -1;
 	}
@@ -611,6 +636,8 @@ sub RunAssign($$)
 	if ($vtop->simnodecount());
     $ptopargs   .= "-h "
 	if ($vtop->sharednodecount());
+    $ptopargs   .= "-b "
+	if ($vtop->bstorecount());
     $ptopargs	.= "-a "
     	if ($precheck || $allnodesfree);
     $ptopargs	.= "-c " . $experiment->delay_capacity() . " "
@@ -700,7 +727,7 @@ sub RunAssign($$)
 	# the parent. 
 	#
         POSIX::setsid();
-	exec("nice $WRAPPER2 $cmd $args > assign.log 2>&1");
+	exec("nice $WRAPPER2 $cmd $args > $assignlog 2>&1");
 	die("Could not start assign!\n");
     }
     TBDebugTimeStamp("assign finished");
@@ -714,8 +741,8 @@ sub RunAssign($$)
     }
 
     # Check for possible full filesystem ...
-    if (-z "assign.log") {
-	tbnotice("assign.log is zero length! Stopping ...\n");
+    if (-z $assignlog) {
+	tbnotice("$assignlog is zero length! Stopping ...\n");
 	return -1;
     }
 
@@ -725,13 +752,13 @@ sub RunAssign($$)
     # purposes We do not call it .log though, since we do not want it
     # copied out to the user directory every swapin. See Experiment.pm
     #
-    system("/bin/cp -fp assign.log ${prefix}.assign");
-    system("/bin/cp -fp assign.log ${pid}-${eid}.assign") if ($debug);
+    system("/bin/cp -fp $assignlog ${prefix}.assign");
+    system("/bin/cp -fp $assignlog ${pid}-${eid}.assign") if ($debug);
 
     if ($assignexitcode) {
 	print "Assign exited with $assignexitcode\n" if ($debug);
 	
-	system("/bin/cat assign.log");
+	system("/bin/cat $assignlog");
 	#
 	# assign returns two positive error codes (that we care about).
 	# The distinction between them is somewhat murky. An exitval of
@@ -752,7 +779,7 @@ sub RunAssign($$)
     }
   skiprun:
     chat("Reading assign results.\n");
-    if (!open(ASSIGNFP, "assign.log")) {
+    if (!open(ASSIGNFP, $assignlog)) {
 	print("Could not open assign logfile! $!\n");
 	return -1;
     }

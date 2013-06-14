@@ -2,8 +2,7 @@
 package libosload_switch;
 
 use strict;
-use lib '@prefix@/lib';
-use libosload;
+use libosload_new;
 
 use base qw(libosload_common);
 use vars qw($AUTOLOAD);

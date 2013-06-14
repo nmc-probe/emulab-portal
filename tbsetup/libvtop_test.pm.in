@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,7 +28,7 @@ use Exporter;
 use vars qw(@ISA @EXPORT @EXPORT_OK
 	    $VTOP_FLAGS_UPDATE $VTOP_FLAGS_VERBOSE $VTOP_FLAGS_QUIET
 	    $VTOP_FLAGS_FIXNODES $VTOP_FLAGS_IMPOTENT $VTOP_FLAGS_ALLOCONLY
-	    $VTOP_FLAGS_REGRESSION);
+	    $VTOP_FLAGS_REGRESSION $VTOP_FLAGS_FIXLANNODES);
 
 @ISA    = "Exporter";
 @EXPORT = qw( );
@@ -37,11 +37,13 @@ use libdb;
 use libtblog_simple;
 use libtestbed;
 use Experiment;
+use EmulabConstants;
 use VirtExperiment;
 use Node;
 use NodeType;
 use Lan;
 use OSinfo;
+use Blockstore;
 use Image;
 use Port;
 use English;
@@ -80,10 +82,11 @@ $VTOP_FLAGS_IMPOTENT	= 0x08;
 $VTOP_FLAGS_REGRESSION  = 0x10;
 $VTOP_FLAGS_QUIET       = 0x20;
 $VTOP_FLAGS_ALLOCONLY	= 0x40;
+$VTOP_FLAGS_FIXLANNODES	= 0x80;
 
 @EXPORT_OK = qw($VTOP_FLAGS_UPDATE $VTOP_FLAGS_VERBOSE $VTOP_FLAGS_FIXNODES
 		$VTOP_FLAGS_IMPOTENT $VTOP_FLAGS_REGRESSION $VTOP_FLAGS_QUIET
-		$VTOP_FLAGS_ALLOCONLY);
+		$VTOP_FLAGS_ALLOCONLY $VTOP_FLAGS_FIXLANNODES);
 
 #
 # Create an object representing the stuff we need to create the vtop file.
@@ -107,6 +110,8 @@ sub Create($$$$)
     $self->{'DELAYNODES'} = {};
     $self->{'LANNODES'}   = {};
     $self->{'BRIDGES'}    = {};
+    $self->{'BLOCKSTORES'}= {};
+    $self->{'SANHOSTS'}   = {};
     $self->{'VLANS'}      = {};
     $self->{'VPATHS'}     = {};
     $self->{'MEMBEROF'}   = {};
@@ -129,10 +134,14 @@ sub Create($$$$)
     # Mostly for update mode.
     $self->{'FIXEDNODES'}  = {};
     $self->{'CURRENT_V2P'} = {};
+    $self->{'CURRENT_V2P'} = {};
     $self->{'CURRENT_P2V'} = {};
     $self->{'CURRENT_V2V'} = {};
     $self->{'OLDRSRVCLEAN_FLAG'}  = 0;
     $self->{'OLDRSRVCLEAN_NODES'} = {};
+
+    # This is just for lannodes.
+    $self->{'CURRENT_V2PMAP'} = {};
 
     # Below is for interpretation of assign results.
     $self->{'PNODES'}      = {};
@@ -154,6 +163,8 @@ sub flags($)            { return $_[0]->{'FLAGS'}; }
 sub vnodes($)           { return $_[0]->{'VNODES'}; }
 sub delaynodes($)       { return $_[0]->{'DELAYNODES'}; }
 sub bridges($)          { return $_[0]->{'BRIDGES'}; }
+sub blockstores($)      { return $_[0]->{'BLOCKSTORES'}; }
+sub sanhosts($)         { return $_[0]->{'SANHOSTS'}; }
 sub lannodes($)         { return $_[0]->{'LANNODES'}; }
 sub vlans($)            { return $_[0]->{'VLANS'}; }
 sub memberof($)         { return $_[0]->{'MEMBEROF'}; }
@@ -172,6 +183,7 @@ sub results($)          { return $_[0]->{'RESULTS'}; }
 sub current_v2p($)      { return $_[0]->{'CURRENT_V2P'}; }
 sub current_p2v($)      { return $_[0]->{'CURRENT_P2V'}; }
 sub current_v2v($)      { return $_[0]->{'CURRENT_V2V'}; }
+sub current_v2pmap($)   { return $_[0]->{'CURRENT_V2PMAP'}; }
 sub pnodes($)           { return $_[0]->{'PNODES'}; }
 sub fixednodes($)       { return $_[0]->{'FIXEDNODES'}; }
 sub newreserved($)      { return $_[0]->{'NEWRESERVED'}; }
@@ -194,21 +206,27 @@ sub virt_lan_lans($)    { return $_[0]->virt_table("virt_lan_lans"); }
 sub virt_paths($)       { return $_[0]->virt_table("virt_paths"); }
 sub virt_bridges($)     { return $_[0]->virt_table("virt_bridges"); }
 sub virt_desires($)	{ return $_[0]->virt_table("virt_node_desires"); }
+sub virt_attributes($)	{ return $_[0]->virt_table("virt_node_attributes"); }
 sub virt_startloc($)	{ return $_[0]->virt_table("virt_node_startloc"); }
 sub virt_trafgens($)	{ return $_[0]->virt_table("virt_trafgens"); }
 sub virt_lan_settings($){ return $_[0]->virt_table("virt_lan_settings"); }
 sub virt_lan_member_settings($)	{
     return $_[0]->virt_table("virt_lan_member_settings"); }
+sub virt_blockstores($) { return $_[0]->virt_table("virt_blockstores"); }
+sub virt_blockstore_attributes($) {
+    return $_[0]->virt_table("virt_blockstore_attributes"); }
 
 # Given a vname, is it a node in the topo (or something else like a delay).
 sub isatoponode($$)     { return exists($_[0]->vnodes()->{$_[1]}); }
 sub isadelaynode($$)    { return exists($_[0]->delaynodes()->{$_[1]}); }
+sub isasanhost($$)      { return exists($_[0]->sanhosts()->{$_[1]}); }
 
 # Debug output.
 sub verbose($)		{ return $_[0]->flags() & $VTOP_FLAGS_VERBOSE; }
 sub quiet($)		{ return $_[0]->flags() & $VTOP_FLAGS_QUIET; }
 sub updating($)		{ return $_[0]->flags() & $VTOP_FLAGS_UPDATE; }
 sub fixcurrent($)	{ return $_[0]->flags() & $VTOP_FLAGS_FIXNODES; }
+sub fixlanodes($)	{ return $_[0]->flags() & $VTOP_FLAGS_FIXLANNODES; }
 sub impotent($)		{ return $_[0]->flags() & $VTOP_FLAGS_IMPOTENT; }
 sub alloconly($)	{ return $_[0]->flags() & $VTOP_FLAGS_ALLOCONLY; }
 sub regression($)	{ return $_[0]->flags() & $VTOP_FLAGS_REGRESSION; }
@@ -239,6 +257,7 @@ sub virtnodecount($)	{ return $_[0]->counter("virtcount"); }
 sub simnodecount($)	{ return $_[0]->counter("simcount"); }
 sub remotenodecount($)	{ return $_[0]->counter("remotecount"); }
 sub sharednodecount($)	{ return $_[0]->counter("sharedcount"); }
+sub bstorecount($)	{ return $_[0]->counter("bstorecount"); }
 
 sub createLink($$$$$$$$$)
 {
@@ -924,6 +943,7 @@ sub interfacespeedmbps($$$)
 sub LoadCurrentResources($)
 {
     my ($self) = @_;
+    my $exptidx = $self->exptidx();
 
     $self->counters()->{'reserved_simcount'}  = 0;
     $self->counters()->{'reserved_virtcount'} = 0;
@@ -1041,6 +1061,20 @@ sub LoadCurrentResources($)
 	    }
 	}
     }
+    #
+    # Grab the v2pmap table so we can find out where lan nodes were
+    # assigned last time.
+    #
+    my $query_result =
+	DBQueryWarn("select vname,node_id from v2pmap where exptidx='$exptidx'");
+    return -1
+	if (!$query_result);
+
+    while (my ($vname,$nodeid) = $query_result->fetchrow_array()) {
+	$self->printdb("current v2p: $nodeid -> $vname\n");
+	
+	$self->current_v2pmap()->{$vname} = $nodeid;
+    }
     return 0;
 }
 
@@ -1059,6 +1093,7 @@ sub LoadVirtNodes($)
 	my $vnode    = libvtop::virt_node->Create($self, $virt_node);
 	my $vname    = $vnode->vname();
 	my $desires  = {};
+	my $attrs    = {};
 	my $startloc = undef;
 
 	# Other fields we need.
@@ -1136,6 +1171,9 @@ sub LoadVirtNodes($)
 	$vnode->_sharedokay(0);
 	$vnode->_fixedvm(undef);
 	$vnode->_isbridge(($vnode->role() eq "bridge" ? 1 : 0));
+	$vnode->_blockstore(undef);
+	$vnode->_blockstore_attributes(undef);
+	$vnode->_sanhostname(undef);
 
 	#
 	# Explicit type request desire to match feature.
@@ -1345,6 +1383,62 @@ sub LoadVirtNodes($)
 	$vnode->_desires($desires);
 
 	#
+	# Add in attributes.
+	#
+	foreach my $attr ($self->virt_attributes()->Rows()) {
+	    next
+		if ($attr->vname() ne $vname);
+	    
+	    $attrs->{$attr->attrkey()} = $attr->attrvalue();
+
+	    if ($attr->attrkey() eq "XEN_MEMSIZE" ||
+		$attr->attrkey() eq "MEMORYSIZE") {
+		$vnode->_desires()->{"?+ram"} = $attr->attrvalue();
+	    }
+	}
+	$vnode->_atttributes($attrs);
+
+	#
+	# Need to set a default. But this needs to be seen on
+	# the client too, via virt_node_attributes.
+	#
+	# We need a way to associate these defaults with the virtualization
+	# type, but that is a function of the image. Needs more thought.
+	#
+	if ($isvirt && $vnode->type() ne "blockstore") {
+	    my $defmem = 128;
+	    my $maxmem = 128;
+
+	    if (defined($vnode->_parent_osinfo())
+		&& $vnode->_parent_osinfo()->osname() =~ /xen/i) {
+		$defmem = 256;
+		$maxmem = 1024;
+	    }	    
+	    if (!exists($vnode->_desires()->{"?+ram"})) {
+		$self->printdb("Setting VM memsize to $defmem for $vname\n");
+		$vnode->_desires()->{"?+ram"} = $defmem;
+	    }
+	    else {
+		#
+		# If the user wants a shared node, they are not allowed to
+		# ask for more then the max, unless its an admin. 
+		#
+		if ($vnode->_desires()->{"?+ram"} > $maxmem &&
+		    $vnode->_sharedokay() &&
+		    !$self->user()->IsAdmin()) {
+		    tberror("You asked for too much memory on $vnode\n");
+		    return -1;
+		}
+	    }
+	    $self->experiment()->SetVirtNodeAttribute($vname, "VM_MEMSIZE",
+					      $vnode->_desires()->{"?+ram"});
+
+	    # We will deal with later, but set a default=1 for now.
+	    $self->experiment()->SetVirtNodeAttribute($vname, "VM_VCPUS", 1)
+		if (!$self->user()->IsAdmin());
+	}
+
+	#
 	# And the startloc, but doubt this is used anymore.
 	#
 	foreach my $startloc ($self->virt_startloc()->Rows()) {
@@ -1450,7 +1544,71 @@ sub LoadVirtNodes($)
 
 	$self->printdb("Fixing VM $vname to $fixnode, $osinfo\n");
     }
-    
+
+    #
+    # Load up the blockstore stuff since we have to spit out the
+    # attributes as desires.
+    #
+    foreach my $virt_bs ($self->virt_blockstores()->Rows()) {
+	#
+	# The blockstore is fixed to a node in the topo.
+	#
+	my $fixnode = $self->vnodes()->{$virt_bs->fixed()};
+	if (!defined($fixnode)) {
+	    tberror("Blockstore $virt_bs is fixed to non-existent node\n");
+	    return -1;
+	}
+
+	# XXX: If the virt blockstore object isn't fixed to a
+	# blockstore pseudo-VM, then abort the bookkeeping and mapping
+	# for it.  This means we are dealing with local node storage
+	# via a features and desires hack.  Check that the OS on the
+	# host has the local blockstore feature.
+	if ($fixnode->type() ne "blockstore") {
+	    my $fosinfo = $fixnode->_osinfo();
+	    if (!defined($fosinfo)) {
+		tberror("OS unknown on node $fixnode: ".
+			"Can't check for local blockstore support!");
+		return -1;
+	    } elsif (!$fosinfo->FeatureSupported("loc-bstore")) {
+		tberror("OS $fosinfo on $fixnode hosting $virt_bs doesn't ".
+			"support local blockstores.\n");
+		return -1;
+	    }
+	    next;
+	}
+
+	#
+	# We need a place to hang the attributes, but they are split
+	# between the blockstore and the blockstore_attributes. Another
+	# wrinkle is that the blockstore is assigned to a node in the
+	# topo, and it is that node that we have to hang the desires off.
+	#
+	$self->blockstores()->{$virt_bs->vname()} = $fixnode;
+	$fixnode->_blockstore($virt_bs);
+	$fixnode->_sanhostname("sanhost-" . $virt_bs->vname());
+	$fixnode->_blockstore_attributes({});
+	# XXX Are these always in shared mode?
+	$fixnode->_sharedokay(1);
+	
+	$self->{'COUNTERS'}->{'bstorecount'}++;
+    }
+    foreach my $virt_bs_attr ($self->virt_blockstore_attributes()->Rows()) {
+	my $vname   = $virt_bs_attr->vname();
+	my $attrkey = $virt_bs_attr->attrkey();
+	my $attrval = $virt_bs_attr->attrvalue();
+	my $isdesire = $virt_bs_attr->isdesire();
+
+	# Skip any blockstores that don't have a corresponding entry in the
+	# 'blockstores' libvtop hash.  Also skip any attributes that are not
+	# marked as a desire.
+	next
+	    if (! exists($self->blockstores()->{$vname}) ||
+		! $isdesire);
+
+	my $fixnode = $self->blockstores()->{$vname};
+	$fixnode->_blockstore_attributes()->{$attrkey} = $attrval;
+    }
     return 0;
 }
 
@@ -1475,6 +1633,7 @@ sub LoadVirtLans($)
 	    # Add it to the toplevel list of lans.
 	    $self->vlans()->{$vlanname} = $virtlan;
 	    $virtlan->_accesspoint(undef);
+	    $virtlan->_sanlan(0);
 	}
 
 	# Now the local wrapper for the virt_lan table entry (the "member").
@@ -1559,6 +1718,7 @@ sub LoadVirtLans($)
 	$virtlan->_implemented_by($implemented_by);
 	$virtlan->_vpath(undef);
 	$virtlan->_bridged(0);
+	$virtlan->_wiretype("ethernet");
 	
 	if (defined($encap) &&
 	    ($encap eq "vtun" || $encap eq "gre" || $encap eq "egre")) {
@@ -1672,6 +1832,28 @@ sub LoadVirtLans($)
 	    $vlanmember->_nobwshaping(1);
 	    $self->printdb("  Forcing $vlanmember to reserve shared bandwidth\n");
 	}
+
+	# If any vlan member is a blockstore pseudo-VM, then mark the virtlan
+	# as a sanlan.  This designation is used later to do an OS feature
+	# check.
+	if ($vlanmember->virt_node()->type() eq "blockstore") {
+	    $virtlan->_sanlan(1);
+	}
+	
+    }
+
+    #
+    # Look for lans with reserved tags in the highvlan range. Ick.
+    # Luckily, only at Utah.
+    #
+    if ($MAINSITE) {
+	foreach my $virtlan (values(%{ $self->vlans() })) {
+	    my $tag = VLan::GetReservedVlanTag($self->experiment(),
+					       $virtlan->vname());
+	    if (defined($tag) && $tag > 1000) {
+		$virtlan->_wiretype("ethernet-highvlan");
+	    }
+	}
     }
 
     #
@@ -1715,9 +1897,10 @@ sub LoadVirtLans($)
 		#
 		# Add a desire to all of the nodes.
 		#
-		foreach my $member ($virtlan->memberlist()) {
-		    $member->virt_node()->_desires()->{"highvlan"} = "1.0";
-		}
+		#foreach my $member ($virtlan->memberlist()) {
+		#    $member->virt_node()->_desires()->{"highvlan"} = "1.0";
+		#}
+		$virtlan->_wiretype("ethernet-highvlan");
 	    }
 	}
 	# Convert to actual object for later
@@ -1949,6 +2132,37 @@ sub GenVirtNodes($)
 	if ($vnode->_issubnode()) {
 	    $others->{'subnode'} = $vnode->_parent();
 	}
+	if (defined($vnode->_blockstore())) {
+	    my $virt_bs  = $vnode->_blockstore();
+	    my $bs_vname = $virt_bs->vname();
+
+	    # This is an additive desire. 
+	    $desires->{"bs-capacity"} = ['+', $virt_bs->size()];
+
+	    # The rest come from the attributes.
+	    foreach my $attrkey (keys(%{ $vnode->_blockstore_attributes() })) {
+		my $attrval = $vnode->_blockstore_attributes()->{$attrkey};
+
+		$desires->{"bs-${attrkey}-${attrval}"} = ['', 1.0];
+	    }
+	    my $sanhost = $vnode->_sanhostname();
+	    
+	    #
+	    # Create a parent node for the sanhost. 
+	    #
+	    $self->createNode($sanhost, $mycmurn,
+			      "pcsanhost", '1', {"pcstorage" => ['', 1.0]}, 
+			      undef);
+	    $self->sanhosts()->{$sanhost} = $sanhost;
+
+	    #
+	    # We must do this so that assign maps the blockhost and
+	    # sanhost as a unit. Otherwise, it might allocate a subnode
+	    # but pick some other physical node to be the parent. Note that
+	    # ptop file also has subnode decls in it. 
+	    #
+	    $others->{'subnode'} = $sanhost;
+	}
 	foreach my $desirename (keys(%{ $vnode->_desires() })) {
 	    my $weight = $vnode->_desires()->{$desirename};
 	    $desires->{$desirename} = ['', $weight];
@@ -1967,7 +2181,7 @@ sub GenVirtNodes($)
 	# the OS it is going to run. However, if the OS is one with a
 	# 'path' (like an OSKit kernel), we don't have an entry in
 	# osidtoimageid for it, and thus we leave it off of the desire list
-	if (defined($vnode->_osinfo())) {
+	if (defined($vnode->_osinfo()) && !defined($vnode->_blockstore())) {
 	    my $osinfo = $vnode->_osinfo();
 	    #
 	    # Support subOSes with a multi-OS desire.  Since the pnodes
@@ -2127,7 +2341,8 @@ sub GenFixNodes($)
 	}
 
 	# Normal nodes have a vnode but delay nodes do not.
-	if (!defined($vnode) && !$self->isadelaynode($vname)) {
+	if (!defined($vnode) && !$self->isadelaynode($vname) &&
+	    !$self->isasanhost($vname)) {
 	    tbinfo("GenFixNodes: No vnode for $vname\n");
 	}
 
@@ -2147,8 +2362,29 @@ sub GenFixNodes($)
 	    if (defined($vnode) && 
 		$vnode->_isvirtnode() && defined($vnode->_fixedvm()));
 
-	if ($self->isatoponode($vname) || $self->isadelaynode($vname)) {
+	if ($self->isatoponode($vname) || $self->isadelaynode($vname) ||
+	    $self->isasanhost($vname)) {
 	    $self->createFixedNode($vname, $fixed);
+	}
+    }
+    if ($self->fixlanodes()) {
+	#
+	# Add lan node fixnodes.
+	#
+	foreach my $lannode (sort(keys(%{ $self->lannodes() }))) {
+	    next
+		if (!exists($self->current_v2pmap()->{$lannode}));
+
+	    $self->createFixedNode($lannode,
+				   $self->current_v2pmap()->{$lannode});
+	}
+	foreach my $delaynode (sort(keys(%{ $self->delaynodes() }))) {
+	    next
+		if (exists($self->fixednodes()->{$delaynode}) ||
+		    ! exists($self->current_v2pmap()->{$delaynode}));
+	    
+	    $self->createFixedNode($delaynode,
+				   $self->current_v2pmap()->{$delaynode});
 	}
     }
     return 0;
@@ -2287,6 +2523,7 @@ sub GenVirtLans($)
     my %osdoesvlan       = ();
     my %osdoesmlink      = ();
     my %osdoeslinkdelays = ();
+    my %osdoesrembstore  = ();  # Remote blockstore support
 
     foreach my $vname (sort(keys(%{ $self->{'VLANS'} }))) {
 	my $vlan = $self->vlans()->{$vname};
@@ -2305,7 +2542,7 @@ sub GenVirtLans($)
 	my $sharednodes  = 0;
 	my $geninodes    = 0;
 	my %nodesdo      = ("alias"=>0, "veth"=>0, "vlan"=>0, "ldelay"=>0,
-			    "veth-ne"=>0, "veth-en"=>0);
+			    "veth-ne"=>0, "veth-en"=>0, "rem-bstore"=>0);
 	my $trivial_ok   = 0;
 	my $emulated     = $vlan->_emulated();
         my $uselinkdelay = $vlan->_uselinkdelay();
@@ -2314,6 +2551,7 @@ sub GenVirtLans($)
 	my $protocol     = $vlan->_protocol();
 	my $linkencap    = $vlan->_encapstyle();
 	my $layer        = $vlan->_layer();
+	my $sanlan       = $vlan->_sanlan();
 
 	# For mixing pnodes and vnodes.
 	$vlan->_mixedencap(0);
@@ -2351,6 +2589,7 @@ sub GenVirtLans($)
 		    $osdoesvethEN{$osid} = 1;
 		    $osdoesvlan{$osid} = 0;
 		    $osdoeslinkdelays{$osid} = 1;
+		    $osdoesrembstore{$osid} = 0;
 		}
 	    }
 	    else {
@@ -2413,18 +2652,22 @@ sub GenVirtLans($)
 			# Need this for phys nodes requesting lindelays.
 			$osdoeslinkdelays{$osid} =
 			    $osinfo->FeatureSupported('linkdelays');
+			# remote blockstore support.
+			$osdoesrembstore{$osid} =
+			    $osinfo->FeatureSupported('rem-bstore');
 		    }
 		} else {
 		    # XXX If the user doesn't explicitly set an OS on a PC.
 		    # Be conservative and assume minimum features.
 		    $osid = "<DEFAULT>";
-		    if (!exists($osdoesmlink{$osid})) {
+ 		    if (!exists($osdoesmlink{$osid})) {
 			$osdoesmlink{$osid} = 0;
 			$osdoesveth{$osid} = 0;
 			$osdoesvethNE{$osid} = 0;
 			$osdoesvethEN{$osid} = 0;
 			$osdoesvlan{$osid} = 0;
 			$osdoeslinkdelays{$osid} = 0;
+			$osdoesrembstore{$osid} = 0;
 		    }
 		}
 		$realnodes++;
@@ -2443,6 +2686,8 @@ sub GenVirtLans($)
 		if ($osdoesvlan{$osid});
 	    $nodesdo{"ldelay"}++
 		if ($osdoeslinkdelays{$osid});
+	    $nodesdo{"rem-bstore"}++
+		if ($osdoesrembstore{$osid});
 
 	    # Remember since we went to the trouble of determining the osid.
 	    $member->_osdoesvethNE($osdoesvethNE{$osid});
@@ -2464,12 +2709,21 @@ sub GenVirtLans($)
 		       scalar(@members) .
 		       " real/virt/sim = ".
 		       "$nonvirtnodes/$virtnodes/$simnodes ".
-		       "mlink/veth-ne/veth-en/vlan/ldelay = ".
+		       "mlink/veth-ne/veth-en/vlan/ldelay/rbstore = ".
 		       $nodesdo{"alias"} . "/".
 		       $nodesdo{"veth-en"} . "/".
 		       $nodesdo{"veth-ne"} . "/".
 		       $nodesdo{"vlan"} . "/".
-		       $nodesdo{"ldelay"} . "\n");
+		       $nodesdo{"ldelay"} . "/".
+		       $nodesdo{"rem-bstore"} . "\n");
+
+	# The OS on all nodes in a lan containing remote blockstores
+	# (sanlan) must support the "rem-bstore" OS feature.
+	if ($sanlan && $nodesdo{"rem-bstore"} != $realnodes) {
+	    tberror("The OS on all nodes in sanlan $vname must support ".
+		    "remote blockstores.\n");
+	    return -1;
+	}
 
 	#
 	# Determine the emulation/encapsulation style for the link.
@@ -2482,9 +2736,7 @@ sub GenVirtLans($)
 	# for all vlinks on a physical link to use the same style!
 	# But we don't want to go there right now, so for simplicity,
 	# we require that the user specify identical values for all
-	# members of a virt_lan.  For now, we do this by ignoring per-link
-	# settings ($encap) and using only the global setting ($encapstyle)
-	# except for backward compat (see next paragraph).
+	# members of a virt_lan.  
 	#
 	# XXX this is made hideous by having both global and per-link
 	# encapsulation values that were previously used for two
@@ -2541,11 +2793,9 @@ sub GenVirtLans($)
 	# some pseudo-device on which to hang a route table ID; i.e:
 	# we cannot just do IP aliasing.
 	#
-	#
         # Encapsulation can be specified per link.  The default link
         # encapsulation can also be specified by a per-experiment
-        # setting.  At the moment, only the latter (global) is
-        # implemented.
+        # setting. 
         #
 	my $globalencap = $experiment->encap_style();
 
@@ -2562,12 +2812,6 @@ sub GenVirtLans($)
 	    $errors++;
 	    next;
 	}
-	if ($linkencap ne "default" && $linkencap ne $globalencap) {
-	    tbwarn("$vname: per-link encapsulation type not supported\n");
-	    $errors++;
-	    next;
-	}
-
 	if ($virtnodes) {
 	    #
 	    # At the present time, links with virtnodes require that we 
@@ -2582,7 +2826,11 @@ sub GenVirtLans($)
 	    # resource, and most VM implementations should support them in
 	    # some manner (eg: openvz veth device). 
 	    #
-	    if ($globalencap eq "default") {
+	    if ($linkencap ne "default") {
+		# Non default link encap overrides global encap.
+		$encapval = $linkencap;
+	    }
+	    elsif ($globalencap eq "default") {
 		$encapval = "veth-ne";
 	    }
 	    else {
@@ -2595,18 +2843,26 @@ sub GenVirtLans($)
 	    # be multiplexed (emulated). This allows the experimentor to
 	    # have more links then just the number of physical interfaces.
 	    # Encapsulation without multiplexing is okay, although useful
-	    # mostly for testing purposes. If the link is emulated but not
+	    # mostly for testing purposes. If the link is multiplexed but not
 	    # encapsulated, an encapsulation method must be chosen. We
 	    # prefer vlan these days cause it runs everywhere. Might want
 	    # to look at the nodesdo info at some point.
 	    #
 	    if ($emulated) {
-		if ($globalencap eq "default") {
+		if ($linkencap ne "default") {
+		    # Non default link encap overrides global encap.
+		    $encapval = $linkencap;
+		}
+		elsif ($globalencap eq "default") {
 		    $encapval = "vlan";
 		}
 		else {
 		    $encapval = $globalencap;
 		}
+	    }
+	    elsif ($linkencap ne "default") {
+		# Non default link encap overrides global encap.
+		$encapval = $linkencap;
 	    }
 	    elsif ($globalencap ne "default") {
 		$encapval = $globalencap;
@@ -2792,16 +3048,29 @@ sub GenVirtLans($)
 	    my $lannode  = "portlan/$vname";
 	    
 	    # Lan node for assign.
-	    $self->createNode($lannode, $mycmurn, "lan", '1', '',
+	    $self->createNode($lannode, $mycmurn, "lan", '1',
+			      { 'real-switch' => ['' , "1.0"] },
 			      { 'virtualization_type' => 'raw' });
 	    
 	    # So we ignore it when it comes back from assign.
 	    $self->lannodes()->{$lannode} = 1;
 
+	    my $others = {};
+	    my $bw     = '*';
+
+	    #
+	    # We do not do link delays, but we do want to multiplex
+	    # these links. For now, use usevirtiface() as an indicator.
+	    #
+	    if ($vlan->usevirtiface()) {
+		$others->{'emulated'}   = 1;
+		# assign seems to require this, but it seems wrong.
+		$others->{'trivial_ok'} = 1;
+		$bw = 1000;
+	    }
 	    foreach my $member (@members) {
 		my $virtnode   = $member->virt_node();
 		my $vnodevname = $virtnode->vname();
-		my $others     = {};
 		my $plink      = "portlan/$vname/$member";
 
 		$self->createLink($vname, $plink,
@@ -2809,7 +3078,7 @@ sub GenVirtLans($)
 				  {'virtual_node_id' => $vnodevname,
 				   'virtual_interface_id' =>"$member" },
 				  {'virtual_node_id' => $lannode },
-				  '*', $protocol, $others);
+				  $bw, $vlan->_wiretype(), $others);
 	    }
 	}
 	elsif (@members == 2 && !$vlan->_bridged()) {
@@ -2917,7 +3186,7 @@ sub GenVirtLans($)
 	    # check is only made for links comprised of physical nodes,
 	    # since if the OS supports virtual nodes, it supports linkdelays.
 	    #
-	    if ($shaped && $virtnodes == 0 &&
+	    if ($shaped && $virtnodes != scalar(@members)  &&
 		$self->virtlan_use_linkdelay($vlan, $shaped)) {
 		#
 		# The user had to specify the OS.
@@ -2935,6 +3204,11 @@ sub GenVirtLans($)
 		    #
 		    foreach my $virtnode ($virtnode0, $virtnode1) {
 			my $osinfo = $virtnode->_osinfo();
+
+			# Always supports.
+			# XXX Ignore for GEC16
+			next
+			    if (1 || $virtnode->_isvirtnode());
 			
 			if (! $osdoeslinkdelays{$osinfo->osid()}) {
 			    my $osname = $osinfo->osname();
@@ -3013,7 +3287,8 @@ sub GenVirtLans($)
 				    {'virtual_node_id' => $vname1,
 				     'virtual_interface_id' => "$member1" },
 				      ($top_bw == 0 ? "*" : 
-				       max($top_bw, $top_rbw)), $protocol,
+				       max($top_bw, $top_rbw)),
+				      $vlan->_wiretype(),
 				      $others);
 		    }
 		    my @delayinfo = ($delay,$bw,$backfill,$loss,
@@ -3053,7 +3328,7 @@ sub GenVirtLans($)
 				      {'virtual_node_id' => $delayname,
 				       'virtual_interface_id' => "$member1" },
 				      ($top_bw == 0 ? "*" : $top_bw), 
-				      $protocol, $others);
+				      $vlan->_wiretype(), $others);
 		    
 		    $self->createLink($vname,
 				      "linksdelaydst/$vname/$member1,$member0",
@@ -3063,7 +3338,7 @@ sub GenVirtLans($)
 				      {'virtual_node_id' => $delayname,
 				       'virtual_interface_id' =>"$member0" },
 				      ($top_bw == 0 ? "*" : $top_bw), 
-				      $protocol, $others);
+				      $vlan->_wiretype(), $others);
 		    
 		    $self->printdb("Delay node $plink ($delayname) = " . 
 				   join(" ", @delayinfo) . "\n");
@@ -3137,8 +3412,14 @@ sub GenVirtLans($)
 		    if (defined($virtnode0->_fixedvm())) {
 			$vname0 = $virtnode0->_fixedvm()->vname();
 		    }
+		    elsif (defined($virtnode0->_sanhostname())) {
+			$vname0 = $virtnode0->_sanhostname();
+		    }
 		    if (defined($virtnode1->_fixedvm())) {
 			$vname1 = $virtnode1->_fixedvm()->vname();
+		    }
+		    elsif (defined($virtnode1->_sanhostname())) {
+			$vname1 = $virtnode1->_sanhostname();
 		    }
 		    $self->createLink($vname, $plink,
 				      [$virtnode0->_cmurn(),
@@ -3147,7 +3428,7 @@ sub GenVirtLans($)
 				       'virtual_interface_id' =>"$member0" },
 				      {'virtual_node_id' => $vname1,
 				       'virtual_interface_id' =>"$member1" },
-				      $bw, $protocol, $others);
+				      $bw, $vlan->_wiretype(), $others);
 		}
 	    }
 	}
@@ -3187,7 +3468,7 @@ sub GenVirtLans($)
 		my ($delay,$bw,$ebw,$backfill,$loss,
 		    $rdelay,$rbw,$rebw,$rbackfill,$rloss) =
 			@{$member->_delayinfo()};
-		
+
 		# Need to know about tracing on a per queue basis, since the
 		# user can specify tracing asymmetrically.
 		my ($traced,$trace_endnode)  = @{$member->_traceinfo()};
@@ -3228,7 +3509,7 @@ sub GenVirtLans($)
 		# nodes, since if the OS supports virtual nodes, it
 		# supports linkdelays.
 		#
-		if ($shaped && $virtnodes == 0 &&
+		if ($shaped && $virtnodes != scalar(@members) &&
 		    $self->virtlan_use_linkdelay($vlan, $shaped)) {
 		    #
 		    # The user had to specify the OS.
@@ -3239,7 +3520,7 @@ sub GenVirtLans($)
 				"(endnode traffic shaping)\n");
 			$errors++;
 		    }
-		    else {
+		    elsif (!$virtnode->_isvirtnode()) {
 			#
 			# All the OSes have to support linkdelays.
 			#
@@ -3307,7 +3588,7 @@ sub GenVirtLans($)
 					  {'virtual_node_id' => "$lannode" },
 					  $top_bw == 0 ? "*" : 
 					  max($top_bw,$top_rbw),
-					  $protocol, $others);
+					  $vlan->_wiretype(), $others);
 			
 			$self->printdb("Delay link $plink = " .
 				       join(" ", @delayinfo) . "\n");
@@ -3342,7 +3623,7 @@ sub GenVirtLans($)
 				       {'virtual_node_id' => $delayname,
 					 'virtual_interface_id' =>"$member" },
 					  $top_bw == 0 ? "*" : $top_bw,
-					  $protocol, $others);
+					  $vlan->_wiretype(), $others);
 				
 			$self->createLink($vname,
 					  "linkdelaydst/$vname/$member",
@@ -3352,7 +3633,7 @@ sub GenVirtLans($)
 					{'virtual_node_id' => $delayname,
 					 'virtual_interface_id' =>"$member" },
 					  $top_bw == 0 ? "*" : $top_bw,
-					  $protocol, {});
+					  $vlan->_wiretype(), {});
 			
 			$self->printdb("Delay node $plink ($delayname) = " .
 				       join(" ", @delayinfo) . "\n");
@@ -3393,6 +3674,9 @@ sub GenVirtLans($)
 		    if (defined($virtnode->_fixedvm())) {
 			$vnodevname = $virtnode->_fixedvm()->vname();
 		    }
+		    elsif (defined($virtnode->_sanhostname())) {
+			$vnodevname = $virtnode->_sanhostname();
+		    }
 		    
 		    #
 		    # We store this info in case assign actually does
@@ -3416,7 +3700,7 @@ sub GenVirtLans($)
 				       'virtual_interface_id' =>"$member" },
 				      {'virtual_node_id' => $lannode },
 				      ($top_bw == 0 ? "*" : $top_bw), 
-				      $protocol, $others);
+				      $vlan->_wiretype(), $others);
 		}
 	    }
 	}
@@ -3629,6 +3913,7 @@ sub CreateVtop($)
     $self->{'COUNTERS'}->{'simcount'}    = 0;
     $self->{'COUNTERS'}->{'remotecount'} = 0;
     $self->{'COUNTERS'}->{'sharedcount'} = 0;
+    $self->{'COUNTERS'}->{'bstorecount'} = 0;
     $self->{'COUNTERS'}->{'physcount'}   = 0;
 
     #
@@ -3823,12 +4108,12 @@ sub requires_delay($$$$)
     # A target bandwidth of zero indicates that we want assign to choose.
     # Therefore, no delay is needed since assign picks the native bw.
     #
-    return 0
+    goto norequire
 	if ($targetbw == 0);
 	
     if (!exists($linkbws->{$node_type}{$protocol})) {    
 	warn("requires_delay(): $virtnode - invalid type $node_type!\n");
-	return 0;
+	goto norequire;
     }
 
     if (! $virtnode->_isvtyped()) {
@@ -3836,21 +4121,26 @@ sub requires_delay($$$$)
 	
 	if (!exists($linkbws->{$node_class}{$protocol})) {
 	    warn("requires_delay(): $virtnode - invalid class $node_class!\n");
-	    return 0;
+	    goto norequire;
 	}
     }
 
     foreach my $bw (keys(%{ $linkbws->{$node_type}{$protocol} })) {
-	return 0
+	goto norequire
 	    if ($targetbw == $bw);
     }
     if (defined($node_class)) {
 	foreach my $bw (keys(%{ $linkbws->{$node_class}{$protocol} })) {
-	    return 0
+	    goto norequire
 		if ($targetbw == $bw);
 	}
     }
+    $self->printdb("requires_delay:1 $virtnode, $virtlan, $targetbw\n");
     return 1;
+
+  norequire:
+    $self->printdb("requires_delay:0 $virtnode, $virtlan, $targetbw\n");
+    return 0;
 }
 
 #
@@ -3970,6 +4260,8 @@ sub solution_vethpatch($) { return $_[0]->{'SOLUTION'}->{'VETHPATCHES'}; }
 sub solution_portmap($)   { return $_[0]->{'SOLUTION'}->{'PORTMAP'}; }
 sub solution_vifacemap($) { return $_[0]->{'SOLUTION'}->{'VIFACEMAP'}; }
 sub solution_ifacemap($)  { return $_[0]->{'SOLUTION'}->{'IFACEMAP'}; }
+sub solution_blockstores($){ return $_[0]->{'SOLUTION'}->{'BLOCKSTORES'}; }
+sub solution_sanhosts($)  { return $_[0]->{'SOLUTION'}->{'SANHOSTS'}; }
 
 sub MapResources($)
 {
@@ -4014,6 +4306,8 @@ sub ClearSolution($)
     $self->{'SOLUTION'}->{'PORTMAP'}     = {};
     $self->{'SOLUTION'}->{'VIFACEMAP'}   = {};
     $self->{'SOLUTION'}->{'IFACEMAP'}    = {};
+    $self->{'SOLUTION'}->{'BLOCKSTORES'} = {};
+    $self->{'SOLUTION'}->{'SANHOSTS'}    = {};
 
     return 0;
 }
@@ -4022,9 +4316,13 @@ sub AddNodeToSolution($$$)
 {
     my ($self, $virtual, $physical) = @_;
 
-    # Skip LAN/Fake nodes.
-    return 0
-	if (exists($self->lannodes()->{$virtual}));
+    #
+    # We generally ignore lannodes, but lets remember the mapping.
+    #
+    if (exists($self->lannodes()->{$virtual})) {
+	$self->lannodes()->{$virtual} = $physical;
+	return 0;
+    }
 
     #
     # XXX Must distinguish between local and ProtoGeni resources
@@ -4047,6 +4345,25 @@ sub AddNodeToSolution($$$)
     }
     elsif ($PGENISUPPORT && GeniHRN::IsValid($physical)) {
 	(undef,undef,$physical) = GeniHRN::Parse($physical);
+    }
+
+    #
+    # Watch for blockstore nodes; the physical nodes in the
+    # ptop file are fictitious. For example, dbox1:raid1 is
+    # the blockstore raid1 on physical host dbox1. The virtnode
+    # is then mapped to dbox1, and the blockstore is the raid1
+    # entry in the physical blockstores table. 
+    #
+    if ($virtnode && defined($virtnode->_blockstore())) {
+	my ($bphys,$bstore) = split(":", $physical);
+	my $virt_bs  = $virtnode->_blockstore();
+	my $bs_name  = $virt_bs->vname();
+
+	# Record blockstore assignment for upload later.
+	$self->solution_blockstores()->{$bs_name} = $bstore;
+
+	# Actual mapping.
+	$physical = $bphys;
     }
 
     # All we do in this stage is store the results.
@@ -4165,7 +4482,9 @@ sub AddLinkToSolution($$$$$$$$;$)
 	$self->printdb("  $vlink ".
 		       (defined($nodeA) ? "A:$nodeA:$portA " : "") .
 		       (defined($nodeB) ? "B:$nodeB:$portB " : "") .
-		       ($direct ? " (direct)" : "") . "\n");
+		       ($direct ? " (direct)" : "") .
+		       (defined($switchpath) ? " $switchpath" : "") .
+		       "\n");
     }
     else {
 	$self->printdb("  $vlink trivial\n");
@@ -4337,10 +4656,13 @@ sub ReadRspecSolution($$)
 	my $node_urn  = GeniXML::GetNodeId($ref);
 	my $virtual   = GeniXML::GetVirtualId($ref);
 
-	# Skip LAN/Fake nodes.
-	return 0
-	    if (exists($self->lannodes()->{$virtual}));
-
+	#
+	# We generally ignore lannodes, but lets remember the mapping.
+	#
+	if (exists($self->lannodes()->{$virtual})) {
+	    $self->lannodes()->{$virtual} = $node_urn;
+	    return 0;
+	}
 	$self->AddNodeToSolution($virtual, $node_urn);
 	    
 	$ifacemap{$virtual} = {};
@@ -4452,6 +4774,16 @@ sub InterpNodes($)
 	# This might not exist, as for internal nodes.
 	my $virtnode = $self->vnodes()->{$virtual};
 
+	$self->printdb("$physical, $virtual" .
+		       (defined($pnode) ? ", $pnode" : "") .
+		       (defined($virtnode) ? ", $virtnode" : "") . "\n");
+
+	#
+	# Skip sanhosts; only there cause of the subnode relationship.
+	#
+	next
+	    if (!defined($virtnode) && exists($self->sanhosts()->{$virtual}));
+
 	#
 	# A node already allocated to this experiment, and still wanted.
 	# We also have to watch for shared nodes; we will not have the
@@ -4538,18 +4870,25 @@ sub InterpNodes($)
 
 	if (!defined($virtnode)) {
 	    #
-	    # Internally created node. At the moment, these should be
-	    # delay nodes.
+	    # Internally created node.
 	    #
-	    if (! exists($self->delaynodes()->{$virtual})) {
+	    if (! ($self->isadelaynode($virtual) ||
+		   $self->isasanhost($virtual))) {
 		tbwarn("Unknown node $virtual on $physical\n");
 		return -1;
 	    }
-	    if (!exists($self->solution_delaynodes()->{$physical})) {
-		$self->solution_delaynodes()->{$physical} = [];
+	    if ($self->isadelaynode($virtual)) {
+		if (!exists($self->solution_delaynodes()->{$physical})) {
+		    $self->solution_delaynodes()->{$physical} = [];
+		}
+		push(@{$self->solution_delaynodes()->{$physical}}, $virtual);
 	    }
-	    push(@{$self->solution_delaynodes()->{$physical}}, $virtual);
-	    
+	    elsif ($self->isasanhost($virtual)) {
+		if (!exists($self->solution_sanhosts()->{$physical})) {
+		    $self->solution_sanhosts()->{$physical} = [];
+		}
+		push(@{$self->solution_sanhosts()->{$physical}}, $virtual);
+	    }
 	}
 	elsif ($virtnode->_isvirtnode()) {
 	    #
@@ -4586,6 +4925,16 @@ sub InterpNodes($)
 	    }
 	}
     }
+
+    # Check nodes for shared members that require special address
+    # treatment.  Perform address substitution and reservation
+    # on attached lans / lan members.  Have to do this before InterpLinks
+    # because node allocation results in the creation of 'vinterfaces'
+    # entries prior to InterpLinks.
+    $self->CheckIPAddressReservations() == 0
+	or return -1;
+
+    return 0;
 }
 
 #
@@ -4785,9 +5134,14 @@ sub AllocNodes($)
 	
 	$pnode->FlushReserved();
 	my $reservation = $pnode->Reservation();
-	if (!defined($reservation) ||
-	    (! $reservation->SameExperiment($self->experiment()) &&
-	     ! $pnode->erole() eq "sharedhost")) {
+
+	# We got the node we wanted. 
+	next
+	    if (defined($reservation) &&
+		$reservation->SameExperiment($self->experiment()));
+	
+	if (! ($pnode->erole() eq "sharedhost" ||
+	       $pnode->erole() eq "storagehost")) {
 	    tbinfo("$pnode is not in shared mode.\n");
 	    $rerun++;
 	}
@@ -5044,8 +5398,7 @@ sub AllocNodes($)
     }
 
     #
-    # Upload the v2pmap table. The only place I know that cares about
-    # this table is dohosts() in tmcd.c
+    # Upload the v2pmap table. 
     #
     foreach my $vnodename (keys(%{ $self->solution_v2p() })) {
 	#
@@ -5063,7 +5416,16 @@ sub AllocNodes($)
 		    "  vname='$vnodename', node_id='$pnodename'")
 	    or return -1 if (!($self->impotent() || $self->alloconly()));
     }
-    
+    foreach my $vnodename (keys(%{ $self->lannodes() })) {
+	my $pnodename = $self->lannodes()->{$vnodename};
+
+	$self->printdb("v2pmap (lannode): $vnodename $pnodename\n");
+
+	DBQueryWarn("insert into v2pmap set ".
+		    "  pid='$pid', eid='$eid', exptidx='$idx', ".
+		    "  vname='$vnodename', node_id='$pnodename'")
+	    or return -1 if (!($self->impotent() || $self->alloconly()));
+    }
     return 0;
 }
 
@@ -5389,7 +5751,8 @@ sub InterpLinks($)
 	    if ($pnode->isvirtnode());
 
 	if (defined($virtnode->sharing_mode()) &&
-	    $virtnode->sharing_mode() eq "shared_local") {
+	    ($virtnode->sharing_mode() eq "shared_local" ||
+	     $virtnode->sharing_mode() eq "storage_pool")) {
 	    push(@sharedpnodes, $pnode);
 	}
     }
@@ -5491,7 +5854,8 @@ sub InterpLinks($)
 	or return -1;
     $self->UpLoadInterfaceSettings() == 0
 	or return -1;
-
+    $self->UploadBlockstores() == 0
+	or return -1;
     return 0;
 }
 
@@ -5528,7 +5892,7 @@ sub InterpLinksAux($)
 	else {
 	    $self->printdb("plink $plink\n");
 	}
-	$self->printdb("  path - $pathA\n")
+	$self->printdb("  pathA - $pathA\n")
 	    if (defined($pathA));
 
 	# There is always a member0.
@@ -5660,6 +6024,7 @@ sub InterpLinksAux($)
 	    }
 	    $protolanlan->AddMember($nodeD, $portD);
 	    if (defined($pathB)) {
+		$self->printdb("  pathB - $pathB\n");
 		my $path = $protolanlan->GetAttribute("switchpath");
 		$protolanlan->SetAttribute("switchpath",
 					   AddToSwitchPath($path, $pathB));
@@ -6194,7 +6559,7 @@ sub InterpLinksAux($)
 		    # If the "lannode" is placed on a node, and that node is
 		    # different than the current node, we have to connect the
 		    # two in the vlan. Typically, the lannode is placed on a
-		    # switch, and this is not an issue. Rob understands this!
+		    # switch, and this is not an issue. 
 		    #
 		    if (!$virtnodeA->_onsharednode() &&
 			! ($member0->_lannode() ne "null" &&
@@ -6416,6 +6781,8 @@ sub InitializePhysNodes($)
 	$pnode->FlushReserved();
 	my $reservation = $pnode->Reservation();
 
+	print STDERR "$pnodename\n";
+
 	#
 	# We should never try to initialize a node that is not
 	# allocated to the experiment. 
@@ -6427,6 +6794,11 @@ sub InitializePhysNodes($)
 	     !$self->experiment()->SameExperiment($reservation))) {
 	    if (defined($pnode->sharing_mode())) {
 		$self->printdb("InitPnode: Skipping shared host $pnodename\n");
+		next;
+	    }
+	    elsif (defined($pnode->erole()) &&
+		   $pnode->erole() eq TBDB_RSRVROLE_STORAGEHOST()) {
+		tbinfo("InitPnode: Skipping $pnodename; storage host\n");
 		next;
 	    }
 	    elsif (! ($self->impotent() && 
@@ -6452,6 +6824,11 @@ sub InitializePhysNodes($)
 
 	if (exists($self->solution_delaynodes()->{$pnodename})) {
 	    $role = TBDB_RSRVROLE_DELAYNODE;
+	    # Need only one of the virtnodes to complete the initialization
+	    $vnodename = $vnodelist[0];
+	}
+	elsif (exists($self->solution_sanhosts()->{$pnodename})) {
+	    $role = TBDB_RSRVROLE_STORAGEHOST;
 	    # Need only one of the virtnodes to complete the initialization
 	    $vnodename = $vnodelist[0];
 	}
@@ -6544,11 +6921,17 @@ sub InitializePhysNode($$$)
     my $routertype;
 
     if ($role eq TBDB_RSRVROLE_DELAYNODE() ||
+	$role eq TBDB_RSRVROLE_STORAGEHOST() ||
 	($role eq TBDB_RSRVROLE_VIRTHOST() && $virtnode->_isvirtnode())) {
 	#
 	# One of our internally created nodes. 
 	#
-	if ($role eq TBDB_RSRVROLE_DELAYNODE()) {
+	if ($role eq TBDB_RSRVROLE_STORAGEHOST()) {
+	    #
+	    # A storage host.
+	    #
+	}
+	elsif ($role eq TBDB_RSRVROLE_DELAYNODE()) {
 	    #
 	    # A delay node.
 	    #
@@ -6925,7 +7308,10 @@ sub NewVirtIface($$$$;$)
     if (!defined($virtiface)) {
 	return undef;
     }
-    $self->printdb("$virtiface: $member, isvdev:$isvdev, isveth:$isveth\n");
+    $self->printdb("$virtiface: $member, ".
+		   "isvdev:$isvdev, isveth:$isveth" .
+		   (defined($pport) ? ", pport:$pport" : "") . "\n");
+    
     my $newid = $virtiface->unit();
 
     # Record this vinterface mapping.
@@ -6957,7 +7343,7 @@ sub NewVirtIface($$$$;$)
     }
 
     #
-    # XXX hackery that only Rob and Leigh understand.
+    # This is to assist with patching up virts. See AddVirtPatch().
     # A LAN of vnodes split across multiple physical machines may
     # not have the correct physical LAN info coming out of assign
     # and may need to be patched up later.
@@ -6968,7 +7354,7 @@ sub NewVirtIface($$$$;$)
 	$self->solution_vethmap()->{$lan}->{$pnodename} = []
 	  if (!exists($self->solution_vethmap()->{$lan}->{$pnodename}));
 	
-	push(@{ $self->solution_vethmap()->{$lan}->{$pnodename} }, $newid);
+	push(@{ $self->solution_vethmap()->{$lan}->{$pnodename} }, $virtiface);
     }
     return $virtiface;
 }
@@ -7484,6 +7870,143 @@ sub SetUpTracing($$$$$)
 }
 
 #
+# Look for shared entities that require special IP address treatment.
+# This usually means getting a new mutually exclusive address range,
+# reserving it for this experiment in the database.  Substitute
+# addresses on co-located link/lan members to accomodate.  This
+# reservation purposely does _NOT_ persist across swapins.
+#
+sub CheckIPAddressReservations($) {
+    my ($self) = @_;
+
+    # For stashing lans we need to take a closer look at.
+    my @sharedlans = ();
+
+    $self->printdb("Checking IP Address Reservations.\n");
+
+    # Round 1, peel off lans that contain members that need special
+    # address treatment.  These lans could probably be marked when
+    # such a node is added to them, but doing it here keeps this
+    # procedure self-contained.
+  virtlans:
+    foreach my $virtlan (values(%{ $self->vlans() })) {
+	next
+	    if ($virtlan->_layer() != 2);  # foo from the beyond.
+
+	foreach my $member ($virtlan->memberlist()) {
+	    my $vnodename = $member->vnode();
+	    my $virtnode  = $member->virt_node();
+	    my $vtype     = $virtnode->type();
+	    # XXX: This isn't quite right.  Need to figure out how to
+	    # check to see if the current lan member is attached to a
+	    # 'sanhost', but I can't figure out the right path through
+	    # the libvtop objects...
+	    if ($vtype eq "blockstore") {
+		push @sharedlans, $virtlan;
+		next virtlans;
+	    }
+	}
+    }
+
+    # Round 2: re-assign addresses using the IP buddy allocator, via
+    # its testbed wrapper.  Note that this amends the addresses assigned
+    # in the virt_lans table as well.
+    if (@sharedlans) {
+	$self->printdb("Modifying address allocations for: ".
+		       join(", ", map { $_->vname() } @sharedlans) .
+		       "\n");
+	require Socket;
+	# Don't pull this module in until now to avoid unnecessary
+	# dependencies.  If we find ourselves using it in other places,
+	# then move this up to package scope.
+	require IPBuddyWrapper;
+	# Tie this buddy allocator to the "storage_pool" global address range.
+	my $buddy = IPBuddyWrapper->new("storage_pool");
+	return -1 
+	    unless defined($buddy);
+	# Grab the reserved addresses buddy allocator lock.
+	$buddy->lock() 
+	    or return -1;
+	# Now preload the reservations in the DB, including those associated
+	# with this experiment.  The buddy allocator will allocate around
+	# these.
+	$buddy->loadReservedRanges($self->experiment()) == 0
+	    or return -1;
+
+	foreach my $virtlan (@sharedlans) {
+	    my $vlanname    = $virtlan->vname();
+	    my @members     = $virtlan->memberlist();
+	    my $hbits       = 1;
+
+	    # Figure out how many host bits this lan actually needs.
+	    # XXX: This is only compatible with IPv4
+	    while (scalar(@members)+2 > 2**$hbits) {
+		$hbits++;
+	    }
+	    if ($hbits > 24) {
+		tberror("Lan $vlanname has too many members!\n");
+		return -1;
+	    }
+	    my $prefix = 32 - $hbits;
+	    my $newmask = Socket::inet_ntoa(pack("B32", "1" x $prefix));
+	    $virtlan->_mask($newmask);
+	    
+	    my $range       = $buddy->requestAddressRange($self->experiment(),
+							  $prefix);
+	    if (!defined($range)) {
+		$buddy->unlock();
+		return -1;
+	    }
+	    $self->printdb("Reserved shared address range for ".
+			   "$vlanname: $range\n");
+
+	    # Got a new reserved range, so re-IP members of this lan.
+	    foreach my $member (@members) {
+		# Grab some info/objects for the current lan member.
+		my $vmember   = $member->virt_member();
+		my $ip        = $vmember->ip();
+		my $vnodename = $vmember->vnode();
+
+		# re-IP this member.  Push back into the virt_lans
+		# table; otherwise, things that expect the IP set
+		# there to match what is set in the
+		# interfaces/vinterfaces table will go wonky.
+		my $new_ip = $buddy->getNextAddress($range);
+		if (!defined($new_ip)) {
+		    tberror("Could not get an address in range: $range\n");
+		    $buddy->unlock();
+		    return -1;
+		}
+		$self->printdb("$vnodename: $ip -> $new_ip\n");
+		$vmember->ip($new_ip);
+		$vmember->mask($newmask);
+		# Replace the virt_lans row.  It already exists, so an insert
+		# would fail.
+		my $sflags = $VirtExperiment::STORE_FLAGS_REPLACE;
+		$sflags |= $self->verbose() ? 
+		    $VirtExperiment::STORE_FLAGS_DEBUG :
+		    0;
+		$sflags |= $self->impotent() ?
+		    $VirtExperiment::STORE_FLAGS_IMPOTENT :
+		    0;
+		if ($vmember->Store($sflags) != 0 && !$self->impotent()) {
+		    tberror("Could not store updated virt_lans row!\n");
+		    $buddy->unlock();
+		    return -1;
+		}
+	    }
+	}
+
+	# All done with reservations, so commit and unlock.
+	$buddy->commitReservations()
+	    unless $self->impotent();
+	$buddy->unlock();
+    }
+
+    return 0;
+}
+
+#
 # Write the vlans table to the DB.
 #
 sub UploadVlans($)
@@ -7918,6 +8441,43 @@ sub UploadVlans($)
     }
 
     #
+    # Patch up virts.
+    #
+    foreach my $vname (keys(%{ $self->vlans() })) {
+	next
+	    if (!exists($self->solution_vethpatch()->{$vname}));
+
+	foreach my $pname (keys(%{ $self->solution_vethmap()->{$vname} })) {
+	    next
+		if (!exists($self->solution_vethpatch()->{$vname}->{$pname}));
+
+	    my $pport = $self->solution_vethpatch()->{$vname}->{$pname};
+	    my $pnode = $self->pnodes()->{$pname};
+
+	    foreach my $viface (@{$self->solution_vethmap()->{$vname}->{$pname}}) {
+		#
+		# For veth and vlan interfaces, we need to set the
+		# characteristics of the underlying physical
+		# interface.
+		#
+		my $speed =
+		    $self->interfacespeedmbps(physinterfacetype($pnode, $pport),
+					      "ethernet");
+		    
+		$self->printdb("Virt Patch: ".
+			       "$vname $pname $viface $pport $speed\n");
+
+		my $member = $viface->_member();
+		$viface->_speed($speed);
+		$viface->_trunk(($viface->type() eq "vlan") ? 1 : 0);
+		# This is a fake data structure in impotent mode.
+		$viface->Update({"iface" => $pport})
+		    if (! $self->alloconly());
+	    }
+	}
+    }
+
+    #
     # Upload the port bw to the interfaces table for each iface.
     #
     foreach my $virtlan (values(%{ $self->vlans() })) {
@@ -8054,46 +8614,7 @@ sub UploadVlans($)
 	    }
 	}
     }
-
-    #
-    # Patch up virts.
-    #
-    foreach my $vname (keys(%{ $self->vlans() })) {
-	next
-	    if (!exists($self->solution_vethpatch()->{$vname}));
-
-	foreach my $pname (keys(%{ $self->solution_vethmap()->{$vname} })) {
-	    next
-		if (!exists($self->solution_vethpatch()->{$vname}->{$pname}));
-
-	    my $pport = $self->solution_vethpatch()->{$vname}->{$pname};
-	    my $pnode = $self->pnodes()->{$pname};
-
-	    foreach my $vid (@{$self->solution_vethmap()->{$vname}->{$pname}}) {
-		#
-		# For veth and vlan interfaces, we need to set the
-		# characteristics of the underlying physical
-		# interface.
-		#
-		my $speed =
-		    $self->interfacespeedmbps(physinterfacetype($pnode, $pport),
-					      "ethernet");
-		$self->printdb("Virt Patch: ".
-			       "$vname $pname $vid $pport $speed\n");
-	
-		if (!($self->impotent() || $self->alloconly())) {
-		    DBQueryWarn("update vinterfaces set iface='$pport' ".
-				"where node_id='$pname' and unit='$vid'")
-			or return -1;
-
-		    DBQueryWarn("update interfaces set " .
-				"   current_speed='$speed' " .
-				"where node_id='$pname' and iface='$pport'")
-			or return -1;
-		}
-	    }
-	}
-    }
+    return 0;
 }
 
 #
@@ -8344,6 +8865,8 @@ sub UpLoadTunnels($)
 	if ($tunnel_tag =~ /^(\d+)/) {
 	    $tunnel_tag = $1;
 	}
+	my $iface0_mac = GenFakeMac();
+	my $iface1_mac = GenFakeMac();
 
 	# Need to set a bunch of attributes later returned by tmcd.
 	if ($iface0->SetAttribute("tunnel_ip", $ip0) ||
@@ -8358,6 +8881,7 @@ sub UpLoadTunnels($)
 	    $iface0->SetAttribute("tunnel_lan", $virtlan->vname()) ||
 	    $iface0->SetAttribute("tunnel_unit", $iface0->memberid() + 1) ||
 	    $iface0->SetAttribute("tunnel_tag", $tunnel_tag) ||
+	    $iface0->SetAttribute("tunnel_mac", $iface0_mac) ||
 	    $iface0->SetAttribute("tunnel_style", $virtlan->_encapstyle())) {
 	    tberror("Could not set attributes for $iface0 in $tunnel\n");
 	    return -1;
@@ -8374,6 +8898,7 @@ sub UpLoadTunnels($)
 	    $iface1->SetAttribute("tunnel_lan", $virtlan->vname()) ||
 	    $iface1->SetAttribute("tunnel_unit", $iface1->memberid() + 1) ||
 	    $iface1->SetAttribute("tunnel_tag", $tunnel_tag) ||
+	    $iface0->SetAttribute("tunnel_mac", $iface1_mac) ||
 	    $iface1->SetAttribute("tunnel_style", $virtlan->_encapstyle())) {
 	    tberror("Could not set attributes for $iface1 in $tunnel\n");
 	    return -1;
@@ -8506,6 +9031,47 @@ sub UpLoadInterfaceSettings($)
     return 0;
 }
 
+sub UploadBlockstores($)
+{
+    my ($self) = @_;
+    my $experiment = $self->experiment();
+    my $exptidx = $experiment->idx();
+    my $pid = $experiment->pid();
+    my $eid = $experiment->eid();
+
+    #
+    # vname   = "blockstore-d1"
+    # bs_name = "d1"
+    # bstore  = "raid1"
+    # vvnode  = "dboxvm1-1"
+    # pnode   = "dbox1"
+    #
+    foreach my $bs_name (keys(%{ $self->blockstores() })) {
+	my $virtnode = $self->blockstores()->{$bs_name};
+	my $bstore   = $self->solution_blockstores()->{$bs_name};
+	my $vname    = $virtnode->vname();
+	my $vvnode   = $self->solution_v2v()->{$vname};
+	my $vpnode   = $virtnode->_pnode();
+	my $pnode    = $vpnode->phys_nodeid();
+	my $size     = $virtnode->_blockstore()->size();
+
+	$self->printdb("BlockStore: ".
+		       "$vname, $bstore, $size, $vvnode, $vpnode, $pnode\n");
+
+	my $blockstore = Blockstore->Lookup($pnode, $bstore);
+	if (!defined($blockstore)) {
+	    tberror("Could not lookup blockstore $pnode:$bstore\n");
+	    return -1;
+	}
+	if (!$self->impotent() &&
+	    $blockstore->Reserve($experiment, $vvnode, $bs_name, $size)) {
+	    tberror("Could not lookup reserve $pnode:$bstore $size\n");
+	    return -1;
+	}
+    }
+    return 0;
+}
+
 # getnodeport(s)
 # Takes a ports result from assign (mac0,mac1) and converts null strings to undef.
 sub getnodeport($)
@@ -8530,7 +9096,23 @@ sub getportlist(@)
     my @result = ();
     # The beginning and end of the list are ignored for the path
     # since we care only about the Trunk links.
-    @info = splice(@info, 4, $#info);
+    @info = splice(@info, 2, $#info);
+
+    #
+    # The first thing might actually be a path member, as for a
+    # fake lan node. According to Rob, the path is path from the
+    # source to destination and when the lannode is on a switch,
+    # the first item is that switch, and that is part of the path.
+    # When it is a node, we do not need/want that in the path and
+    # so we skip it.
+    #
+    # The problem is how to properly distinguish between them. This
+    # is the best I came up with.
+    #
+    if ($info[0] =~ /^link\-([-\w]*):([-\w]*):/) {
+	shift(@info);
+	shift(@info);
+    }
 
     while (@info) {
 	#
@@ -9080,7 +9662,8 @@ sub AddToSwitchPath($$)
 	    if (! ((grep {$_ eq $n} @cur) ||
 		   (grep {$_ eq "$s2:$s1"} @cur)));
     }
-    return join(" ", @cur);
+    my $rval = join(" ", @cur);
+    return $rval;
 }
 
 1;

@@ -42,6 +42,7 @@
 #define TBDB_FLEN_RPMS		4096
 #define TBDB_FLEN_TINYTEXT	(256 + 1)
 #define TBDB_FLEN_UUID		(64 + 1)
+#define TBDB_FLEN_BSVOL         (32 + 1)
 
 /*
  * Event system stuff.

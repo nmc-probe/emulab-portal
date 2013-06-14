@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2012 University of Utah and the Flux Group.
+# Copyright (c) 2006-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -60,7 +60,12 @@ class OSinfo
 
     # Lookup by osname in a project
     function LookupByName($project, $name) {
-	$pid       = $project->pid();
+	if (is_a($project, "Project")) {
+	    $pid = $project->pid();
+	}
+	else {
+	    $pid = addslashes($project);
+	}
 	$safe_name = addslashes($name);
 	
 	$query_result =
@@ -215,6 +220,19 @@ class OSinfo
     function mfs()		{ return $this->field("mfs"); }
     function reboot_waittime()  { return $this->field("reboot_waittime"); }
     function def_parentosid()   { return $this->field("def_parentosid"); }
+
+    function SetParent($parent_osid) {
+	$osid = $this->osid();
+	$safe_osid = addslashes($parent_osid);
+
+	DBQueryFatal("update os_info set def_parentosid='$safe_osid' ".
+		     "where osid='$osid'");
+
+	DBQueryFatal("replace into os_submap set ".
+		     " parent_osid='$safe_osid', osid='$osid'");
+
+	return 0;
+    }
 
     #
     # Access Check, determines if $user can access $this record.

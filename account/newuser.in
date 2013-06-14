@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -35,11 +35,12 @@ sub usage()
     print("Usage: newuser [-s] -t <type> <xmlfile>\n");
     exit(-1);
 }
-my $optlist = "dt:ns";
+my $optlist = "dt:nsp";
 my $debug   = 0;
 my $impotent= 0;
 my $type    = "";
 my $silent  = 0;
+my $portal  = 0;
 my @keyfiles = ();
 
 #
@@ -213,6 +214,11 @@ foreach my $key (keys(%required)) {
     fatal("Missing required attribute '$key'")
 	if (! exists($xmlparse->{'attribute'}->{"$key"}));
 }
+#
+# Always delete this. Used by the portal code but we ignore it.
+#
+delete($xmlparse->{'attribute'}->{"passhash"})
+    if (exists($xmlparse->{'attribute'}->{"passhash"}));
 
 #
 # We build up an array of arguments to pass to User->Create() as we check

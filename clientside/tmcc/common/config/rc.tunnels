@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2011 University of Utah and the Flux Group.
+# Copyright (c) 2004-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -377,9 +377,11 @@ sub DoGRE($)
 	my $peerip   = $tunnel->{"tunnel_peerip"};
 	my $mask     = $tunnel->{"tunnel_ipmask"};
 	my $unit     = $tunnel->{"tunnel_unit"};
+	my $tag      = (exists($tunnel->{"tunnel_tag"}) ?
+			$tunnel->{"tunnel_tag"} : undef);
 
 	os_config_gre($name, $unit,
-		      $inetip, $peerip, $mask, $srchost, $dsthost)
+		      $inetip, $peerip, $mask, $srchost, $dsthost, $tag)
 	    == 0 or fatal("Could not configure gre tunnel!");
     }
 }

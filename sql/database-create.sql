@@ -16,6 +16,19 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
+-- Table structure for table `address_ranges`
+--
+
+DROP TABLE IF EXISTS `address_ranges`;
+CREATE TABLE `address_ranges` (
+  `baseaddr` varchar(40) NOT NULL default '',
+  `prefix` tinyint(4) unsigned NOT NULL default '0',
+  `type` varchar(30) NOT NULL default '',
+  `role` enum('public','internal') NOT NULL default 'internal',
+  PRIMARY KEY (`baseaddr`,`prefix`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `accessed_files`
 --
 
@@ -184,6 +197,7 @@ CREATE TABLE `blockstore_type_attributes` (
   `attrkey` varchar(32) NOT NULL default '',
   `attrvalue` tinytext NOT NULL,
   `attrtype` enum('integer','float','boolean','string') default 'string',
+  `isfeature` tinyint(4) unsigned NOT NULL default '0',
   PRIMARY KEY  (`type`,`attrkey`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -199,6 +213,7 @@ CREATE TABLE `blockstores` (
   `type` varchar(30) NOT NULL default '',
   `role` enum('element','compound') NOT NULL default 'element',
   `total_size` int(10) unsigned NOT NULL default '0',
+  `exported` tinyint(1) NOT NULL default '0',
   `inception` datetime default NULL,
   PRIMARY KEY (`bsidx`),
   UNIQUE KEY nidbid (`node_id`,`bs_id`)
@@ -745,7 +760,6 @@ CREATE TABLE `emulab_sites` (
   `os_version` tinytext NOT NULL,
   `perl_version` tinytext NOT NULL,
   `tbops` tinytext,
-  PRIMARY KEY  (`urn`),
   UNIQUE KEY `commonname` (`commonname`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -1463,8 +1477,11 @@ CREATE TABLE `external_networks` (
   `min_vlan` int(11) NOT NULL default '256',
   `max_vlan` int(11) NOT NULL default '1000',
   `external_manager` tinytext,
-  PRIMARY KEY  (`network_id`),
-  UNIQUE KEY `node_id` (`node_id`)
+  `external_interface` tinytext,
+  `external_wire` tinytext,
+  `external_subport` tinytext,
+  `mode` enum('chain','tree') NOT NULL default 'tree',
+  PRIMARY KEY  (`network_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
   
 --
@@ -1801,7 +1818,8 @@ CREATE TABLE `image_history` (
   KEY `node_id` (`node_id`,`history_id`),
   KEY `stamp` (`stamp`),
   KEY `rsrcidx` (`rsrcidx`),
-  KEY `node_history_id` (`node_history_id`)
+  KEY `node_history_id` (`node_history_id`),
+  KEY `imagestamp` (`imageid`,`stamp`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -1835,7 +1853,11 @@ CREATE TABLE `images` (
   `old_imageid` varchar(45) NOT NULL default '',
   `creator` varchar(8) default NULL,
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
+  `creator_urn` varchar(128) default NULL,
   `created` datetime default NULL,
+  `updater` varchar(8) default NULL,
+  `updater_idx` mediumint(8) unsigned NOT NULL default '0',
+  `updater_urn` varchar(128) default NULL,
   `description` tinytext NOT NULL,
   `loadpart` tinyint(4) NOT NULL default '0',
   `loadlength` tinyint(4) NOT NULL default '0',
@@ -1861,6 +1883,7 @@ CREATE TABLE `images` (
   `locker_pid` int(11) default '0',
   `metadata_url` tinytext,
   `imagefile_url` tinytext,
+  `logfileid` varchar(40) default NULL,
   PRIMARY KEY  (`imageid`),
   UNIQUE KEY `pid` (`pid`,`imagename`),
   KEY `gid` (`gid`),
@@ -2186,11 +2209,31 @@ CREATE TABLE `log` (
 DROP TABLE IF EXISTS `logfiles`;
 CREATE TABLE `logfiles` (
   `logid` varchar(40) NOT NULL default '',
+  `logidx` int(10) unsigned NOT NULL default '0',
   `filename` tinytext,
   `isopen` tinyint(4) NOT NULL default '0',
   `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `date_created` datetime default NULL,
-  PRIMARY KEY  (`logid`)
+  `public` tinyint(1) NOT NULL default '0',
+  `compressed` tinyint(1) NOT NULL default '0',
+  `stored` tinyint(1) NOT NULL default '0',
+  PRIMARY KEY  (`logid`),
+  KEY `logidx` (`logidx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `logfile_metadata`
+--
+
+DROP TABLE IF EXISTS `logfile_metadata`;
+CREATE TABLE `logfile_metadata` (
+  `logidx` int(10) unsigned NOT NULL default '0',
+  `idx` int(10) unsigned NOT NULL auto_increment,
+  `metakey` tinytext,
+  `metaval` tinytext,
+  PRIMARY KEY  (`logidx`,`idx`),
+  UNIQUE KEY `logidxkey` (`logidx`,`metakey`(128)),
+  KEY `headervalue` (`metakey`(64),`metaval`(128))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -2784,6 +2827,7 @@ CREATE TABLE `nodes` (
   `destination_orientation` float default NULL,
   `reserved_pid` varchar(48) default NULL,
   `uuid` varchar(40) NOT NULL default '',
+  `reserved_memory` int(10) unsigned default '0',
   PRIMARY KEY  (`node_id`),
   KEY `phys_nodeid` (`phys_nodeid`),
   KEY `node_id` (`node_id`,`phys_nodeid`),
@@ -3006,7 +3050,7 @@ CREATE TABLE `os_info` (
   `path` tinytext,
   `magic` tinytext,
   `machinetype` varchar(30) NOT NULL default '',
-  `osfeatures` set('ping','ssh','ipod','isup','veths','veth-ne','veth-en','mlinks','linktest','linkdelays','vlans','suboses','ontrustedboot','no-usb-boot') default NULL,
+  `osfeatures` set('ping','ssh','ipod','isup','veths','veth-ne','veth-en','mlinks','linktest','linkdelays','vlans','suboses','ontrustedboot','no-usb-boot','egre','loc-bstore','rem-bstore','openvz-host','xen-host') default NULL,
   `ezid` tinyint(4) NOT NULL default '0',
   `shared` tinyint(4) NOT NULL default '0',
   `mustclean` tinyint(4) NOT NULL default '1',
@@ -3631,6 +3675,25 @@ CREATE TABLE `reserved` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `reserved_addresses`
+--
+
+DROP TABLE IF EXISTS `reserved_addresses`;
+CREATE TABLE `reserved_addresses` (
+  `rsrvidx` int(10) unsigned NOT NULL default '0',
+  `pid` varchar(48) NOT NULL default '',
+  `eid` varchar(32) NOT NULL default '',
+  `exptidx` int(10) unsigned NOT NULL default '0',
+  `rsrv_time` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  `baseaddr` varchar(40) NOT NULL default '',
+  `prefix` tinyint(4) unsigned NOT NULL default '0',
+  `type` varchar(30) NOT NULL default '',
+  `role` enum('public','internal') NOT NULL default 'internal',
+  PRIMARY KEY (`rsrvidx`),
+  UNIQUE KEY `type_base` (`type`,`baseaddr`,`prefix`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `reserved_blockstores`
 --
 
@@ -3643,6 +3706,8 @@ CREATE TABLE `reserved_blockstores` (
   `pid` varchar(48) NOT NULL default '',
   `eid` varchar(32) NOT NULL default '',
   `exptidx` int(11) NOT NULL default '0',
+  `size` int(10) unsigned NOT NULL default '0',
+  `vnode_id` varchar(32) NOT NULL default '',
   `rsrv_time` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
   PRIMARY KEY (`exptidx`,`bsidx`,`vname`),
   UNIQUE KEY `vname` (`exptidx`,`vname`),
@@ -4397,6 +4462,7 @@ CREATE TABLE `virt_blockstore_attributes` (
   `attrkey` varchar(32) NOT NULL default '',
   `attrvalue` tinytext NOT NULL,
   `attrtype` enum('integer','float','boolean','string') default 'string',
+  `isdesire` tinyint(4) unsigned NOT NULL default '0',
   PRIMARY KEY (`exptidx`,`vname`,`attrkey`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 

@@ -186,7 +186,7 @@ sub CallMethod($$$@)
 	return undef;
     }
     
-    if ($FBSD_MAJOR >= 9) {
+    if ($FBSD_MAJOR >= 8) {
 	require LWP::UserAgent;
 	require IO::Socket::SSL;
 	require Net::HTTPS;
@@ -255,7 +255,7 @@ sub CallMethod($$$@)
     my $hreq = HTTP::Request->new(POST => $httpURL);
     $hreq->content_type('text/xml');
     $hreq->content($reqstr);
-    $hreq->protocol('HTTP/1.0')	if ($FBSD_MAJOR >= 9);
+    $hreq->protocol('HTTP/1.0')	if ($FBSD_MAJOR >= 8);
     my $hresp = $ua->request($hreq);
 
     # Do this or the next call gets messed up.
@@ -316,6 +316,12 @@ sub CallMethod($$$@)
     }
     else {
 	$code   = $goo->value()->{'code'}->value;
+	#
+	# New SFA based AMs use a hash for the code. Why?
+	#
+	if (UNIVERSAL::isa($code,"HASH")) {
+	    $code = $code->{'geni_code'};
+	}
 	$value  = $goo->value()->{'value'}->value;
 	$output = $goo->value()->{'output'}->value;
     }

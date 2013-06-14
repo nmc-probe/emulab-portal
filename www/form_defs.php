@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2006-2012 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -517,8 +517,8 @@ function FormRenderElements($fields, $submitted)
 
 function FormRenderMouseOver($string)
 {
-    $string = ereg_replace("\n", "<br>", $string);
-    $string = ereg_replace("\r", "", $string);
+    $string = str_replace("\n", "<br>", $string);
+    $string = str_replace("\r", "", $string);
     $string = htmlentities($string);
     $string = preg_replace("/\'/", "\&\#039;", $string);
 

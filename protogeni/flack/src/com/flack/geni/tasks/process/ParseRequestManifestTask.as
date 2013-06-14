@@ -33,6 +33,7 @@ package com.flack.geni.tasks.process
 	import com.flack.geni.RspecUtil;
 	import com.flack.geni.plugins.emulab.EmulabBbgSliverType;
 	import com.flack.geni.plugins.emulab.EmulabOpenVzSliverType;
+        import com.flack.geni.plugins.emulab.EmulabXenSliverType;
 	import com.flack.geni.plugins.emulab.RawPcSliverType;
 	import com.flack.geni.plugins.shadownet.JuniperRouterSliverType;
 	import com.flack.geni.resources.DiskImage;
@@ -404,6 +405,9 @@ package com.flack.geni.tasks.process
 											case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
 												virtualNode.sliverType = new SliverType(EmulabOpenVzSliverType.TYPE_EMULABOPENVZ);
 												break;
+                                                                                        case EmulabXenSliverType.TYPE_EMULABXEN:
+                                                                                                virtualNode.sliverType = new SliverType(EmulabXenSliverType.TYPE_EMULABXEN);
+                                                                                                break;
 											case EmulabBbgSliverType.TYPE_EMULAB_BBG:
 												virtualNode.sliverType = new SliverType(EmulabBbgSliverType.TYPE_EMULAB_BBG);
 												break;

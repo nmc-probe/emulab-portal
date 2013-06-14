@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2010, 2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -602,6 +602,12 @@ sub cleanup()
 sub fatal($)
 {
     my $msg = shift;
+
+    #
+    # In case we get killed while updating the vis node info.
+    # We be smarter, but it really does not matter too much.
+    #
+    DBQueryWarn("unlock tables");
 
     cleanup();
     DBQueryFatal("DELETE FROM vis_nodes WHERE pid='$pid' AND eid='$eid'");

@@ -1,0 +1,429 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use English;
+use Getopt::Std;
+use Socket qw(inet_ntoa);
+use Storable;
+
+sub usage()
+{
+    print "Usage: " .
+	scriptname() . " [-j vnodeid] boot|shutdown|reconfig|reset\n";
+    exit(1);
+}
+my $optlist = "j:";
+my $action  = "boot";
+
+# Turn off line buffering on output
+$| = 1;
+
+# Drag in path stuff so we can find emulab stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+
+# Only root.
+if ($EUID != 0) {
+    die("*** $0:\n".
+	"    Must be root to run this script!\n");
+}
+
+# Script specific goo
+my $IQN_PREFIX = "iqn.2000-10.net.emulab";
+my $OLDCONFIG = "$VARDIR/db/storage.conf";
+my $STORAGEMAP = "$BOOTDIR/storagemap";
+
+#
+# Load the OS independent support library. It will load the OS dependent
+# library and initialize itself. 
+# 
+use libsetup;
+use liblocsetup;
+use liblocstorage;
+use libtmcc;
+use librc;
+
+#
+# Not all clients support this.
+#
+exit(0)
+    if (MFS() || (REMOTE() && !(REMOTEDED() || JAILED() || PLAB())));
+
+# Protos.
+sub doboot();
+sub doshutdown();
+sub doreconfig();
+sub docleanup($);
+
+# Parse command line.
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{'j'})) {
+    my $vnodeid = $options{'j'};
+    libsetup_setvnodeid($vnodeid);
+}
+# Allow default above.
+if (@ARGV) {
+    $action = $ARGV[0];
+}
+
+# Execute the action.
+SWITCH: for ($action) {
+    /^boot$/i && do {
+	doboot();
+	last SWITCH;
+    };
+    /^shutdown$/i && do {
+	doshutdown();
+	last SWITCH;
+    };
+    /^reconfig$/i && do {
+	doreconfig();
+	last SWITCH;
+    };
+    /^reset$/i && do {
+	docleanup(1);
+	last SWITCH;
+    };
+    # XXX non-standard, for debugging
+    /^fullreset$/i && do {
+	docleanup(2);
+	last SWITCH;
+    };
+    fatal("Invalid action: $action\n");
+}
+exit(0);
+
+#
+# Boot Action.
+#
+sub doboot()
+{
+    my $bossip;
+
+    print STDOUT "Checking Testbed storage configuration ... \n";
+
+    # XXX uncomment this for tmp testing with alternate tmcd
+    #configtmcc("portnum",7778);
+
+    my @cmds;
+    if (getstorageconfig(\@cmds) != 0) {
+	fatal("Error grabbing storage config!");
+    }
+
+    if (!@cmds) {
+	#warn("*** No storageconfig output - nothing to do");
+	return;
+    }
+
+    #
+    # Process each command in turn.  Already sorted by
+    # getstorageconfig().
+    #
+    my $so = os_init_storage(\@cmds);
+    if (!$so) {
+	fatal("Could not initialize storage subsystem!");
+    }
+    foreach my $cmd (@cmds) {
+	if (!process($so, $cmd, 1, 0)) {
+	    fatal("Could not process storage commands!");
+	}
+    }
+
+    #
+    # Save config
+    #
+    my $ret = eval { Storable::store(\@cmds, $OLDCONFIG); };
+    if ($@) {
+	fatal("$@");
+    }
+    if (!$ret) {
+	fatal("Error stashing away storage config!");
+    }
+
+    #
+    # Stash mapping of block stores to local names for the convenience
+    # of the user.
+    #
+    if (open(MAP, ">$STORAGEMAP")) {
+	foreach my $cmd (@cmds) {
+	    print MAP $cmd->{'VOLNAME'};
+	    if (exists($cmd->{'LVDEV'})) {
+		print MAP " " . $cmd->{'LVDEV'};
+	    }
+	    if (exists($cmd->{'MOUNTPOINT'})) {
+		print MAP " " . $cmd->{'MOUNTPOINT'};
+	    }
+	    print MAP "\n";
+	}
+	close(MAP);
+    } else {
+	warn("*** Could not create storage map: $STORAGEMAP\n");
+    }
+}
+
+#
+# Shutdown Action.
+#
+sub doshutdown()
+{
+    docleanup(0);
+}
+
+#
+# Node Reconfig Action (without rebooting).
+# XXX don't do anything til we figure out what would be correct.
+#
+sub doreconfig()
+{
+}
+
+#
+# Node cleanup action (node is reset to clean state, as if just allocated).
+#
+sub docleanup($)
+{
+    my ($doteardown) = @_;
+    my $cmdref = [];
+
+    if (-r "$OLDCONFIG") {
+	$cmdref = eval { Storable::retrieve($OLDCONFIG); };
+	if ($@) {
+	    fatal("$@");
+	}
+	if (!$cmdref) {
+	    fatal("Could not retrieve stashed storage config!");
+	}
+
+	if ($doteardown) {
+	    unlink($OLDCONFIG);
+	}
+    }
+    if (!@$cmdref) {
+	if ($doteardown != 2) {
+	    return;
+	}
+
+	# no old config, try current config
+	getstorageconfig($cmdref);
+	if (!@$cmdref) {
+	    return;
+	}
+    }
+
+    if ($doteardown == 2) {
+	print "Forcing teardown of storage, ignore errors...\n";
+    }
+
+    #
+    # Process each command in turn.  Already sorted.
+    #
+    my $so = os_init_storage($cmdref);
+    if (!$so) {
+	fatal("Could not initialize storage subsystem!");
+    }
+    foreach my $cmd (@$cmdref) {
+	if (!process($so, $cmd, 0, $doteardown)) {
+	    fatal("Could not process storage commands!");
+	}
+    }
+
+    unlink($STORAGEMAP);
+}
+
+#
+# XXX Currently it isn't clear how much we can do here in a generic fashion.
+# This may wind up just being a call to the os-specific setup. But for now
+# we do further validation of params based on what we currently implement.
+#
+sub process($$$$)
+{
+    my ($so,$href,$dosetup,$doteardown) = @_;
+    my $class = $href->{'CLASS'};
+
+    #
+    # XXX get rid of any trailing slashes on the mountpoint so it
+    # doesn't cause grief for the OS-dependent backend.
+    #
+    if (exists($href->{'MOUNTPOINT'})) {
+	$href->{'MOUNTPOINT'} =~ s#/+$##;
+    }
+
+    if ($href->{'CMD'} eq "ELEMENT") {
+	# look up the host name and convert to IP
+	if (exists($href->{'HOSTID'})) {
+	    my $hostip = gethostbyname($href->{'HOSTID'});
+	    if (!defined($hostip)) {
+		warn("*** Cannot resolve hostname '" . $href->{'HOSTID'} . "'\n");
+		return 0;
+	    }
+	    $href->{'HOSTIP'} = inet_ntoa($hostip);
+	}
+
+	if ($class eq "SAN") {
+	    if ($href->{'PROTO'} ne "iSCSI") {
+		warn("*** SAN protocol '" .
+		     $href->{'PROTO'} . "' not implemented\n");
+		return 0;
+	    }
+	    if (!exists($href->{'HOSTID'})) {
+		warn("*** No iSCSI target portal specified\n");
+		return 0;
+	    }
+	    if ($href->{'UUID_TYPE'} ne "iqn" ||
+		$href->{'UUID'} !~ /^$IQN_PREFIX/) {
+		warn("*** Invalid iSCSI target name '".$href->{'UUID'}."'\n");
+		return 0;
+	    }
+
+	}
+	elsif ($class eq "local") {
+	    if ($href->{'HOSTID'} ne "localhost" ||
+		$href->{'UUID_TYPE'} ne "serial") {
+		warn("*** Unexpected parameters for local storage\n");
+		return 0;
+	    }
+	} else {
+	    warn("*** Unknown storage element class '$class'\n");
+	    return 0;
+	}
+    } elsif ($href->{'CMD'} eq "SLICE") {
+	if ($class ne "local") {
+	    warn("*** Unknown storage slice class '$class'\n");
+	    return 0;
+	}
+	if ($href->{'BSID'} !~ /^(ANY|SYSVOL|NONSYSVOL)$/) {
+	    warn("*** Unknown storage slice bsid '".$href->{'BSID'}."'\n");
+	    return 0;
+	}
+    } else {
+	warn("*** Unrecognized storage command '".$href->{'CMD'}."'\n");
+	return 0;
+    }
+
+    my $vname = $href->{'VOLNAME'};
+    my $exists;
+    if ($doteardown == 2) {
+	$exists = 1;
+    } else {
+	print "  Checking '$vname'...\n";
+	$exists = os_check_storage($so, $href);
+    }
+    my $dev = $href->{'LVDEV'};
+
+    #
+    # Infrastructure failure or storage unit was partially configured.
+    # Be conservative for both setup and teardown: just punt.
+    #
+    if ($exists < 0) {
+	warn("*** Storage device '$vname' incorrectly configured, " .
+	     "doing nothing\n");
+	return 0;
+    }
+
+    #
+    # Storage unit is already properly configured.
+    # If setting up, we are done. Otherwise, tear it down.
+    #
+    if ($exists > 0) {
+	if ($dosetup) {
+	    if ($href->{'CMD'} eq "ELEMENT") {
+		my $msg;
+
+		if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
+		    $msg = "iSCSI node";
+		} elsif ($href->{'CLASS'} eq "local") {
+		    $msg = "local disk";
+		}
+		print "  $vname: $msg at $dev";
+	    } elsif ($href->{'CMD'} eq "SLICE") {
+		if ($href->{'CLASS'} eq "local") {
+		    print "  $vname: $dev";
+		}
+	    }
+	    if ($href->{'MOUNTPOINT'}) {
+		print " mounted on " . $href->{'MOUNTPOINT'};
+	    } else {
+		print " exists";
+	    }
+	    print "\n";
+	} else {
+	    print "  Deconfiguring '$vname'...\n";
+	    if (!os_remove_storage($so, $href, $doteardown)) {
+		if ($doteardown == 2) {
+		    return 1;
+		}
+		warn("*** Could not remove storage device '$vname'\n");
+		return 0;
+	    }
+	    if ($doteardown == 2) {
+		return 1;
+	    }
+	    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
+		print "  $vname: iSCSI node detached from $dev\n";
+	    } elsif ($href->{'CMD'} eq "SLICE") {
+		print "  $vname: ";
+		if ($href->{'MOUNTPOINT'}) {
+		    print "unmounted " . $href->{'MOUNTPOINT'} .
+			($doteardown ? " and " : " ");
+		}
+		if ($doteardown) {
+		    print "destroyed $dev";
+		}
+		print "\n";
+	    }
+	}
+	return 1;
+    }
+
+    #
+    # Storage unit not setup.
+    # If setting up, do it. Otherwise there is nothing to do.
+    #
+    if ($dosetup) {
+	print "  Configuring '$vname'...\n";
+	if (!os_create_storage($so, $href)) {
+	    warn("*** Could not create storage device '$vname'\n");
+	    return 0;
+	}
+	my $dev = $href->{'LVDEV'};
+
+	if ($href->{'CMD'} eq "ELEMENT") {
+	    if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
+		print "  $vname: iSCSI node attached as $dev";
+	    }
+	}
+	elsif ($href->{'CMD'} eq "SLICE") {
+	    if ($href->{'CLASS'} eq "local") {
+		print "  $vname: $dev";
+	    }
+	}
+	if ($href->{'MOUNTPOINT'}) {
+	    print " mounted on " . $href->{'MOUNTPOINT'};
+	}
+	print "\n";
+    } else {
+	print "  $vname: not configured\n";
+    }
+    return 1;
+}

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,7 +39,7 @@ include("showlogfile_sup.php3");
 # Verify page arguments.
 #
 $reqargs = RequiredPageArguments("image",     PAGEARG_IMAGE);
-$optargs = OptionalPageArguments("node",      PAGEARG_NODE,
+$optargs = OptionalPageArguments("target",    PAGEARG_STRING,
 				 "canceled",  PAGEARG_STRING,
 				 "confirmed", PAGEARG_STRING);
 
@@ -54,17 +54,19 @@ $image_pid  = $image->pid();
 $image_gid  = $image->gid();
 $image_name = $image->imagename();
 $image_path = $image->path();
-$node_id    = (isset($node) ? $node->node_id() : "");
 
 if (!$image->AccessCheck($this_user, $TB_IMAGEID_MODIFYINFO )) {
     USERERROR("You do not have permission to modify image '$imageid'.", 1);
 }
 
-if (! isset($node) || isset($canceled)) {
+if (! isset($target) || isset($canceled)) {
     echo "<center>";
 
     if (isset($canceled)) {
 	echo "<h3>Operation canceled.</h3>";
+    }
+    else {
+	$target = "";
     }
     echo "<br />";
 
@@ -72,7 +74,7 @@ if (! isset($node) || isset($canceled)) {
 
     echo "<form action='$url' method='post'>\n".
 	 "<font size=+1>Node to snapshot into image '$image_name':</font> ".
-	 "<input type='text'   name='node_id' value='$node_id'></input>\n".
+	 "<input type='text'   name='target' value='$target' size=32></input>\n".
 	 "<input type='submit' name='submit'  value='Go!'></input>\n".
 	 "</form><br>";
     echo "<font size=+1>Information for Image Descriptor '$image_name':</font>\n";
@@ -84,33 +86,51 @@ if (! isset($node) || isset($canceled)) {
     return;
 }
 
-if (!$node->AccessCheck($this_user, $TB_NODEACCESS_LOADIMAGE)) {
-    USERERROR("You do not have permission to ".
-	      "snapshot an image from node '$node_id'.", 1);
+#
+# A node or something else to pass through?
+#
+if (preg_match("/^[-\w]+$/", "$target")) {
+    $node = Node::Lookup($target);
+    if (!$node) {
+	USERERROR("No such node $node_id!", 1);
+
+    }
+    if (!$node->AccessCheck($this_user, $TB_NODEACCESS_LOADIMAGE)) {
+	USERERROR("You do not have permission to ".
+		  "snapshot an image from node '$node_id'.", 1);
+    }
+    $experiment = $node->Reservation();
+    if (!$experiment) {
+	USERERROR("$node_id is not currently reserved to an experiment!", 1);
+    }
+    $node_pid = $experiment->pid();
+    $unix_gid = $experiment->UnixGID();
+    $project  = $experiment->Project();
+    $unix_groups = $project->unix_gid() . "," . $unix_gid;
+    if ($project->pid() != $node_pid) {
+	$unix_groups = "$unix_groups,$node_pid";
+    }
 }
-$experiment = $node->Reservation();
-if (!$experiment) {
-    USERERROR("$node_id is not currently reserved to an experiment!", 1);
+elseif (preg_match("/^[-\w\@\.\+]+$/", "$target")) {
+    $unix_groups = "$image_pid,$image_gid";
 }
-$node_pid = $experiment->pid();
-$node_eid = $experiment->eid();
-$unix_gid = $experiment->UnixGID();
-$project  = $experiment->Project();
-$unix_pid = $project->unix_gid();
+else {
+    USERERROR("Illegal characters in '$target'.", 1);
+}
 
 # Should check for file file_exists($image_path),
 # but too messy.
 
 if (! isset($confirmed)) {
     $url = CreateURL("loadimage", $image);
-    $newurl = CreateURL("newimageid_ez", $node);
+    $newurl = CreateURL("newimageid_ez", "target", $target);
     
     echo "<center><form action='$url' method='post'>\n".
          "<h2><b>Warning!</b></h2>".
-	 "<b>Doing a snapshot of node '$node_id' into image '$image_name' ".
+	 "<b>Doing a snapshot of '$target' into image '$image_name' ".
 	 "will overwrite any previous snapshot for that image.<br><br> ".
 	 "Are you sure you want to continue?</b><br>".
-         "<input type='hidden' name='node_id'   value='$node_id'></input>".
+         "<input type='hidden' name='target'    value='$target'></input>".
          "<input type='submit' name='confirmed' value='Confirm'></input>".
          "&nbsp;".
          "<input type='submit' name='canceled' value='Cancel'></input>\n".    
@@ -125,24 +145,26 @@ if (! isset($confirmed)) {
 }
 
 echo "<br>
-      Taking a snapshot of node '$node_id' into image '$image_name' ...
+      Taking a snapshot of '$target' into image '$image_name' ...
       <br><br>\n";
 flush();
 
 SUEXEC($uid,
-       "$unix_pid,$unix_gid" . ($image_pid != $node_pid ? ",$node_pid" : ""),
-       "webcreate_image -p $image_pid $image_name $node_id",
+       $unix_groups,
+       "webcreate_image -p $image_pid $image_name " . escapeshellarg($target),
        SUEXEC_ACTION_DUPDIE);
 
-echo "This will take 10 minutes or more; you will receive email
-      notification when the snapshot is complete. In the meantime,
-      <b>PLEASE DO NOT</b> delete the imageid or the experiment
-      $node_id is in. In fact, it is best if you do not mess with 
-      the node or the experiment at all until you receive email.<br>\n";
+echo "This will take as little as 10 minutes or as much as an hour;
+      you will receive email
+      notification when the image is complete. In the meantime,
+      <b>PLEASE DO NOT</b> delete the imageid or mess with
+      the node at all!<br>\n";
 
 flush();
-
-STARTLOG($experiment);
+$logfile = $image->GetLogfile();
+if ($logfile) {
+    STARTLOG($logfile);
+}
 
 #
 # Standard Testbed Footer

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2012 University of Utah and the Flux Group.
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -54,18 +54,23 @@ if (!TBAdmin()) {
 # Handle command-line arguments
 #
 sub usage {
-    die "usage: deletenode [-b] [-f] [-q] [-n] [-s] [-S] <node>\n";
+    print STDERR "Usage: $0 [-f | -F] [-q] [-n] [-s] [-S] <node>\n";
+    print STDERR "Options:\n";
+    print STDERR " -n       - Dry run mode\n";
+    print STDERR " -q       - Be less chatty\n";
+    print STDERR " -S       - Save off DB state before deletion\n";
+    print STDERR " -f       - Force mode; deletenode even if not in hwdown\n";
+    print STDERR " -F       - FORCE MODE; deletenode even if not in hwdown\n";
+    exit(1);
 }
 
 my %options = ();
-if (!getopts("bfqnSs",\%options)) {
+if (!getopts("bFfqnSs",\%options)) {
     usage();
 }
-
-my $node = shift @ARGV;
-if (!$node || @ARGV) {
-    usage();
-}
+usage()
+    if (!@ARGV);
+my $node = shift(@ARGV);
 
 #
 # Start off with some serious sanity checks
@@ -79,8 +84,9 @@ if ($result->num_rows() != 1) {
     die "Node $node does not exist!\n";
 }
 my ($role) = $result->fetchrow_array();
-if ($role ne "testnode") {
-    die "Node $node is not a testnode!\n";
+if ($role ne "testnode" &&
+    ! (defined($options{"f"}) || defined($options{"F"}))) {
+    die "Node $node is not a testnode! Use the -f option.\n";
 }
 
 #
@@ -92,7 +98,8 @@ my $allocated = NodeidToExp($node,\$pid,\$eid);
 if ($allocated && (($pid ne NODEDEAD_PID) || ($eid ne NODEDEAD_EID))) {
     print "Node is not free or in the " .
 	NODEDEAD_PID . "/" . NODEDEAD_EID . "experiment!\n";
-    if (defined($options{"f"}) && ($ELABINELAB || $MAINSITE)) {
+    if (defined($options{"F"}) ||
+	(defined($options{"f"}) && ($ELABINELAB || $MAINSITE))) {
 	print "WARNING: Continuing anyway!\n";
     }
     else {

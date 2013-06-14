@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -50,6 +50,8 @@ if ($isadmin) {
 		       "editnodetype.php3?new_type=1&node_class=pc");
     WRITESUBMENUBUTTON("Create a Switch type",
 		       "editnodetype.php3?new_type=1&node_class=switch");
+    WRITESUBMENUBUTTON("Create a device type",
+		       "editnodetype.php3?new_type=1&node_class=device");
     SUBMENUEND();
 }
 echo "<br>";

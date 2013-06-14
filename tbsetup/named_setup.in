@@ -125,7 +125,8 @@ my $db_result =
 		 "where (n.node_id=i.node_id and ".
                  "       (n.role='testnode' or n.role='virtnode')) ".
 		 "    and i.IP is not null ".
-		 "    and i.role='" . TBDB_IFACEROLE_CONTROL() . "'");
+		 "    and (i.role='" . TBDB_IFACEROLE_CONTROL() . "' or " .
+		 "         i.role='" . TBDB_IFACEROLE_MANAGEMENT() . "')");
 
 my %routable;
 my %unroutable;
@@ -347,7 +348,11 @@ sub process_nodes($) {
 	# are a separate node
 	#
 	if ($irole && $irole eq TBDB_IFACEROLE_GW()) {
-	    $node_id = "$node_id-gw";
+	    $node_id = "${node_id}-gw";
+	}
+	# Ditto for management interface.
+	if ($irole && $irole eq TBDB_IFACEROLE_MANAGEMENT()) {
+	    $node_id = "${node_id}-mng";
 	}
 
 	#

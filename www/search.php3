@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -76,7 +76,12 @@ if (!isset($query) || $query == "") {
 }
 
 if ($TBMAINSITE || $REMOTEWIKIDOCS) {
-    $query = urlencode($query);
+    if ($query == "Search Documentation") {
+	$query = "";
+    }
+    else {
+	$query = urlencode($query);
+    }
     header("Location: search_cse.php?query=$query");
     return;
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # Copyright (c) 2004-2010 Regents, University of California.
 # 
 # {{{EMULAB-LGPL
@@ -1591,6 +1591,17 @@ sub setVlansOnTrunk($$$$) {
 	# vlan to the port before removing. 
 	#
 	if (!$value && $vlancount == 1) {
+	    if ($untag) {
+		#
+		# Dual mode. Before we can add the default lan, we have to
+		# switch it back to equal (remove the forbid flag). See
+		# comment above about how we remember a port is in dual mode. 
+		#
+		$self->updateOneVlan(0,0,1,$vlan_number,$modport); #make tagged
+		$self->updateOneVlan(0,0,0,1,$modport); # clear dual marker.
+		# No longer need to untag below
+		$untag = 0;
+	    }
 	    $self->updateOneVlan(0,0,1,1,$modport);
 	}
 	$RetVal = $self->updateOneVlan(0,$untag,$value,$vlan_number,$modport);

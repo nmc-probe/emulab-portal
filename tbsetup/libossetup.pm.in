@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,6 +43,7 @@ use libosload;
 use Node;
 use NodeType;
 use libtblog;
+use Logfile;
 use English;
 use Data::Dumper;
 use EmulabFeatures;
@@ -92,7 +93,8 @@ sub New($$$@)
     my $self              = {};
     $self->{'USER'}       = $user;
     $self->{'EXPT'}       = $experiment;
-    $self->{'GROUP'}      = (defined($experiment)) ? $experiment->GetGroup() : undef;
+    $self->{'GROUP'}      = (defined($experiment) ?
+			     $experiment->GetGroup() : undef);
     $self->{'HASH'}       = {};
     $self->{'NODES'}      = {};
     $self->{'PHYSNODES'}  = {};
@@ -114,6 +116,7 @@ sub New($$$@)
 	$node->_rebooted(0);
 	$node->_vnodecount(0);
 	$node->_reloaded(0);
+	$node->_bootlog(undef);
     }
 
     bless($self, $class);
@@ -290,6 +293,25 @@ sub ClearInformLists($)
 }
 
 #
+# Collect up log files and create a list of urls.
+#
+sub CollectBootLogFiles($@)
+{
+    my ($self, @node_ids) = @_;
+    my $logmsg = "";
+
+    foreach my $node_id (@node_ids) {
+	my $node = $self->node($node_id);
+	next
+	    if (!defined($node) || !defined($node->_bootlog()));
+
+	$logmsg .= sprintf("%-15s : %s\n",
+			   $node->node_id(), $node->_bootlog()->URL());
+    }
+    return $logmsg;
+}
+
+#
 # Spam time! Send mail to the user and testbed-ops about failures.
 #
 sub InformUser($)
@@ -301,6 +323,7 @@ sub InformUser($)
     my $email  = $self->user()->email();
 
     my @nodelist = keys(%{ $self->{'INFORM_USER'} });
+    my $logmsg   = $self->CollectBootLogFiles(@nodelist);
     my $count    = scalar(@nodelist);
     if ($count > 0) {
 	SENDMAIL("$name <$email>", "$count nodes are down",
@@ -313,9 +336,8 @@ sub InformUser($)
 		 "You should terminate this experiment if it cannot ".
 		 "tolerate these failures.\n\n".
 		 "Testbed Operations has also been notified.\n\n".
-		 "Thanks\n".
-		 "Testbed Operations\n",
-		 0,
+		 "$logmsg\n",
+		 undef,
 		 "Cc: $TBOPS");
     }
 }
@@ -329,13 +351,14 @@ sub InformTBopsFatal($)
     my $email  = $self->user()->email();
 
     my @nodelist = keys(%{ $self->{'INFORM_TBOPSFATAL'} });
+    my $logmsg   = $self->CollectBootLogFiles(@nodelist);
     my $count    = scalar(@nodelist);
     if ($count > 0) {
 	SENDMAIL($TBOPS, "$count nodes are down",
 		 "Nodes:\n".
 		 "  " . join(" ", @nodelist) . "\n".
 		 "in pid/eid $pid/$eid appear to be dead.\n\n".
-		 "The nodes have been moved into hardware checkup.\n",
+		 "The nodes have been moved into hardware checkup.\n\n$logmsg",
 		 "$name <$email>");
     }
 }
@@ -349,13 +372,14 @@ sub InformTBopsWarn($)
     my $email  = $self->user()->email();
 
     my @nodelist = keys(%{ $self->{'INFORM_TBOPSWARN'} });
+    my $logmsg   = $self->CollectBootLogFiles(@nodelist);
     my $count    = scalar(@nodelist);
     if ($count > 0) {
 	SENDMAIL($TBOPS, "$count nodes are down",
 		 "Nodes:\n".
 		 "  " . join(" ", @nodelist) . "\n".
 		 "in pid/eid $pid/$eid failed to boot after loading OS.\n\n".
-		 "The nodes have been freed.\n",
+		 "The nodes have been freed.\n\n$logmsg",
 		 "$name <$email>");
     }
 }
@@ -406,7 +430,7 @@ sub SetOS($$)
 	if (! $osinfo) {
 	    die_noretry("$node has no bootpath and no def_boot_osid set!");
 	}
-	$self->SetOSAux($node, $osinfo, 0);
+	$self->SetOSAux($node, $osinfo, 0, $loadlist);
 
 	#
 	# Now look for additional loads. 
@@ -421,7 +445,7 @@ sub SetOS($$)
 		die_noretry("Could not map $osname to its object!")
 		    if (!defined($osinfo));
 
-		$self->SetOSAux($node, $osinfo, 1);
+		$self->SetOSAux($node, $osinfo, 1, 1);
 	    }
 	}
     }
@@ -435,9 +459,9 @@ sub SetOS($$)
 #
 # Helper for above.
 #
-sub SetOSAux($$$$)
+sub SetOSAux($$$$$)
 {
-    my ($self, $node, $osinfo, $auxload) = @_;
+    my ($self, $node, $osinfo, $auxload, $multiple) = @_;
     my $node_id       = $node->node_id();
     my $experiment    = $self->experiment();
     my $pid           = $experiment->pid();
@@ -471,9 +495,18 @@ sub SetOSAux($$$$)
 	}
 	if ($isloaded) {
 	    #
+	    # XXX the primary (boot) OSID is already loaded, but we are loading
+	    # multiple images. In this case we reload the primary OS anyway so that
+	    # the logic in osload continues to work (it assumes that it is responsible
+	    # for setting the def_boot_osid based on the last image specified).
+	    #
+	    if (!$auxload && $multiple) {
+		$self->SetupReload($node, $osinfo, $auxload);
+	    }
+	    #
 	    # OSID is loaded, but might need to be cleaned.
 	    #
-	    if ($self->dolastload() &&
+	    elsif ($self->dolastload() &&
 		defined($node->last_reservation()) &&
 		$node->last_reservation() ne $pid) {
 		$self->SetupReload($node, $osinfo, $auxload);
@@ -918,7 +951,7 @@ sub NewType($$)
     # Not loaded?
     if ($@) {
 	#print STDERR "module load failed: " . $@ . "\n";
-	eval "require libossetup_$type";
+	eval "require \"libossetup_" . $type . "\"";
 	$newtype  = eval { $packname->New($self); };
 	if ($@) {
 #	    print STDERR "$self NewType($type): module load failed: " . $@ . "\n"
@@ -1698,18 +1731,18 @@ sub Volunteers($)
         # as a function of the number of vnodes on the parent pnode.
         #
 	my $osinfo      = $node->_bootosinfo();
-	my $reboot_time = $osinfo->reboot_waittime() || 15;
+	my $reboot_time = $osinfo->reboot_waittime() || 90;
 
 	#
 	# The wait times are totally bogus! Need a better way to do this.
 	#
-	$node->_maxwait($reboot_time + (90 * $pnode->_vnodecount()));
+	$node->_maxwait($reboot_time + (120 * $pnode->_vnodecount()));
 
 	# Add some time if the node is getting a reload. Also bogus.
-	$node->_maxwait($node->_maxwait() + 300)
+	$node->_maxwait($node->_maxwait() + 500)
 	    if ($node->_reloaded());
 	
-	$node->_seteupstatus($libossetup::SETUP_OKAY);
+	$node->_setupstatus($libossetup::SETUP_OKAY);
     }
     return @nodelist;
 }
@@ -1754,6 +1787,20 @@ sub WaitDone($@)
 	    print "$node_id is alive and well\n";
 	    $node->SetBootStatus(NODEBOOTSTATUS_OKAY);
 	    $node->SetAllocState(TBDB_ALLOCSTATE_RES_READY());
+
+	    #
+	    # Look for a node boot log and create a logfile from it. 
+	    #
+	    if (0) {
+	    my $bootlog;
+	    if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
+		my $logfile = Logfile->CreateFromString($parent->group(),
+							$bootlog);
+		if (defined($logfile)) {
+		    $logfile->SetMetadata([["bootlog", $node->node_id()]], 1);
+		}
+	    }
+	    }
 	    next;
 	}
 	$node->SetBootStatus(NODEBOOTSTATUS_FAILED);
@@ -1772,6 +1819,20 @@ sub WaitDone($@)
 	else {
 	    tbwarn("$node_id failed to boot\n");
 	}
+	#
+	# Look for a node boot log and create a logfile from it. 
+	#
+	$node->_bootlog(undef);
+	
+	my $bootlog;
+	if ($node->GetBootLog(\$bootlog) == 0 && $bootlog ne "") {
+	    my $logfile = Logfile->CreateFromString($parent->group(), $bootlog);
+	    if (defined($logfile)) {
+		$logfile->SetMetadata([["bootlog", $node->node_id()]], 1);
+	    }
+	    $node->_bootlog($bootlog);
+	}
+	
 	if ($node->_canfail() &&
 	    !($experiment->canceled() || $parent->noretry())) {
 
@@ -2007,6 +2068,42 @@ sub WaitDone($@)
     # I think this will work; just use the virtnode waitdone function.
     #
     return libossetup_virtnode::WaitDone($self, @nodelist);
+}
+
+#####################################################################
+#
+# Blockstore pseudo-VMs - treat like other VMs since the client-side
+# is coded to emulate a VM (in the interest of simplified
+# handling).
+#
+package libossetup_blockstore;
+use base qw(libossetup_virtnode);
+
+use libdb;
+use libtestbed;
+use libossetup;
+use libtblog;
+use Node;
+use English;
+use Data::Dumper;
+use overload ('""' => 'Stringify');
+
+#
+# A constructor for an object to handle all nodes of this type.
+#
+sub New($$) {
+    my ($class, $parent) = @_;
+
+    my $self = $class->SUPER::New("blockstore", $parent);
+    bless($self, $class);
+    return $self;
+}
+
+sub AddNode($$)
+{
+    my ($self, $node) = @_;
+
+    return $self->SUPER::AddNode($node);
 }
 
 1;
