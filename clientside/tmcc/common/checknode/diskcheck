@@ -137,24 +137,44 @@ main() {
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
 		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
 		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
-		$wspeed_val ) (( $mfsmode )) && d[$wspeed_val]=$(getwspeed ${drive[$idx]}) ;;
 	    esac
 	done
-	# Must have sectors and dpers_val first. Case statments
-	#  might execute in any order
-	# same gos for rspeel, wspeed must be done first
-
+	# Must have sectors_val an bpers_val before calculating size
 	for ((i=0;i<=$lastslot;i++)) ; do
 	    case $i in
 		$size_val ) 
 		x=$((${d[$sectors_val]}*${d[$bpers_val]}))
 		d[$size_val]=$(($x / 1000000000))		
 		;;
-		# and getwspeed must be done before getrspeed
-		$rspeed_val ) (( $mfsmode )) && d[$rspeed_val]=$(getrspeed ${drive[$idx]}) ;;
 	    esac
 	done
-
+	# Must have size val before attempting disk speed tests
+	if (( $mfsmode == 1 )) ; then
+	    for ((i=0;i<=$lastslot;i++)) ; do
+		case $i in
+		    $rspeed_val ) 
+		# check the size, if small then might be a USB drive
+		    if [ ${d[$size_val]} -gt 16 ] ; then
+			d[$rspeed_val]=$(getrspeed ${drive[$idx]})
+		    else
+			d[$rspeed_val]=0
+			d[$type_val]="USB"
+			d[$serial_val]="SMALL"
+		    fi
+		    ;;
+		    $wspeed_val ) 
+		    if [ ${d[$size_val]} -gt 16 ] ; then
+			d[$wspeed_val]=$(getwspeed ${drive[$idx]})
+		    else
+			d[$wspeed_val]=0
+			d[$type_val]="USB"
+			d[$serial_val]="SMALL"
+		    fi
+		    ;;
+		esac
+	    done
+	fi
+	
 	# update driveinv with modified data
 	driveinv[$idx]=${d[@]}
     done
