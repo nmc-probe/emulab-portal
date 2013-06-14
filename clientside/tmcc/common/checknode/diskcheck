@@ -157,18 +157,14 @@ main() {
 		    if [ ${d[$size_val]} -gt 8 ] ; then
 			d[$rspeed_val]=$(getrspeed ${drive[$idx]})
 		    else
-			d[$rspeed_val]=0
-			d[$type_val]="USB"
-			d[$serial_val]="SMALL"
+			d[$type_val]="SMALL"
 		    fi
 		    ;;
 		    $wspeed_val ) 
 		    if [ ${d[$size_val]} -gt 8 ] ; then
 			d[$wspeed_val]=$(getwspeed ${drive[$idx]})
 		    else
-			d[$wspeed_val]=0
-			d[$type_val]="USB"
-			d[$serial_val]="SMALL"
+			d[$type_val]="SMALL"
 		    fi
 		    ;;
 		esac
