@@ -838,6 +838,7 @@ NODE_USAGE_SUPPORT
 NOSTACKMIB
 EXP_VIS_SUPPORT
 NOSHAREDFS
+IMPORT_TMPDIR
 SELFLOADER_DATA
 TBUSEDBI
 NEEDMCQUERIER
@@ -5092,6 +5093,8 @@ done
 
 
 
+
+
 #
 # Offer both versions of the email addresses that have the @ escaped
 # for perl (the default), and that don't
@@ -5194,6 +5197,7 @@ NODE_USAGE_SUPPORT=0
 EXP_VIS_SUPPORT=0
 NOSTACKMIB=0
 NOSHAREDFS=0
+IMPORT_TMPDIR="/q"
 NFSRACY=1
 SELFLOADER_DATA="__DATA__"
 NEEDMCQUERIER=0
@@ -5522,6 +5526,10 @@ if test $PROTOGENI_GENIRACK -eq 1; then
 _ACEOF
 
 fi
+cat >>confdefs.h <<_ACEOF
+#define IMPORT_TMPDIR "$IMPORT_TMPDIR"
+_ACEOF
+
 
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
 cat >>confdefs.h <<_ACEOF

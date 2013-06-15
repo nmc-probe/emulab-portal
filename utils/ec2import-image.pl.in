@@ -51,7 +51,7 @@ use libsetup;
 # Configure variables
 #
 my $TB          = "@prefix@";
-my $IMPORT_BASE = "@IMPORT_TMPDIR@"
+my $IMPORT_BASE = "@IMPORT_TMPDIR@";
 
 #
 # No configure vars.
