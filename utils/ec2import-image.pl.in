@@ -186,10 +186,10 @@ $filesize = $filesize + 4;
 
 my $console = 'hvc0';
 if (-e "$workdir/bootopts") {
-    if(open(my $bo, "<", "/mnt/$imagename/bootopts")) {
+    if(open(my $bo, "<", "$workdir/bootopts")) {
         my $bootopts = join('', <$bo>);
         if ($bootopts =~ /xvc0/){
-            $extra =~ s/hvc0/xvc0/g;
+            $console =~ s/hvc0/xvc0/g;
         }
     }
 }
