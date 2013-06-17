@@ -123,6 +123,8 @@ INSERT INTO sitevariables VALUES ('protogeni/wrapper_ch_debug_level',NULL,'0','W
 INSERT INTO sitevariables VALUES ('protogeni/wrapper_cm_debug_level',NULL,'1','When set, send debugging email for CM wrapper calls',0);
 INSERT INTO sitevariables VALUES ('protogeni/wrapper_am_debug_level',NULL,'1','When set, send debugging email for AM wrapper calls',0);
 INSERT INTO sitevariables VALUES ('protogeni/wrapper_debug_sendlog',NULL,'1','When set, wrapper debugging email will send log files in addition to the metadata',0);
+INSERT INTO sitevariables VALUES ('nodecheck/collect',NULL,'0','When set, collect and record node hardware info in /proj/<pid>/nodecheck/.',0);
+INSERT INTO sitevariables VALUES ('nodecheck/check',NULL,'0','When set, perform nodecheck at swapin.',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 

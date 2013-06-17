@@ -11103,6 +11103,10 @@ COMMAND_PROTOTYPE(dodisks)
  * Return info about hardware that should be present on the node.
  * Current info looks like:
  *
+ * General test info:
+ *
+ * TESTINFO LOGDIR=<path> COLLECT=<1|0> CHECK=<1|0>
+ *
  * CPU (one line per node):
  *
  * CPUINFO SOCKETS=<#> CORES=<#> THREADS=<#> SPEED=<MHz> BITS=<32|64> HV=<1|0>
@@ -11129,11 +11133,59 @@ COMMAND_PROTOTYPE(dohwinfo)
 	char		buf[MYBUFSIZE];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
 	int		nrows;
+	int		collect = 0, check = 0;
+	char		*path = NULL;
 
 	/* XXX only done for allocated physical nodes right now */
 	if (!reqp->allocated || reqp->isvnode) {
 		return 0;
 	}
+
+	/*
+	 * Are we collecting, checking, or both?
+	 */
+	res = mydb_query("select value,defaultvalue from sitevariables "
+			 "where name='nodecheck/collect'", 2);
+	if (res && (int)mysql_num_rows(res) > 0) {
+		row = mysql_fetch_row(res);
+		if (row[0] && row[0][0])
+			collect = atoi(row[0]);
+		else if (row[1] && row[1][0])
+			collect = atoi(row[1]);
+	}
+	if (res)
+		mysql_free_result(res);
+
+	res = mydb_query("select value,defaultvalue from sitevariables "
+			 "where name='nodecheck/check'", 2);
+	if (res && (int)mysql_num_rows(res) > 0) {
+		row = mysql_fetch_row(res);
+		if (row[0] && row[0][0])
+			check = atoi(row[0]);
+		else if (row[1] && row[1][0])
+			check = atoi(row[1]);
+	}
+	if (res)
+		mysql_free_result(res);
+
+	/*
+	 * If collecting, set the path
+	 * XXX hardwired for now.
+	 */
+	if (collect) {
+		path = malloc(strlen("/proj//nodecheck") +
+			      strlen(reqp->pid) + 1);
+		if (path)
+			sprintf(path, "/proj/%s/nodecheck", reqp->pid);
+	}
+
+	bufp += OUTPUT(bufp, ebufp - bufp,
+		       "TESTINFO LOGDIR=\"%s\" COLLECT=%d CHECK=%d\n",
+		       (path ? path : ""), collect, check);
+	client_writeback(sock, buf, strlen(buf), tcp);
+	bufp = buf;
+	if (path)
+		free(path);
 
 	/*
 	 * CPU and memory info comes from node_type_attributes or
