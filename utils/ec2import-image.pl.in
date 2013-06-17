@@ -62,8 +62,11 @@ my $zipper   = "/usr/local/bin/imagezip";
 my $uploader = "/usr/local/etc/emulab/frisupload";
 my $error    = 0;
 
-my $WORK_BASE  = $IMPORT_BASE + "/import_temp/";
-my $IN_BASE  = $IMPORT_BASE + "/indir";
+my $WORK_BASE  = $IMPORT_BASE . "/import_temp/";
+my $IN_BASE  = $IMPORT_BASE . "/indir/";
+
+mkdir $WORK_BASE unless -d $WORK_BASE;
+mkdir $IN_BASE unless -d $IN_BASE;
 
 for my $path (qw#/usr/local/bin /usr/bin#) {
     if (-e "$path/sudo") {
