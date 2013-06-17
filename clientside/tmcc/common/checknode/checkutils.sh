@@ -55,6 +55,7 @@ declare os=""      #[Linux|FreeBSD] for now
 declare -a todo_exit
 declare -A hwinv  # hwinv from tmcc
 declare -A hwinvcopy  # a copy of hwinv from tmcc
+declare -A tmccinfo # info from tmcc hwinfo
 
 
 #declare -A tcm_out # hwinv for output
@@ -80,35 +81,45 @@ err_report() {
 trap 'err_report $LINENO' ERR
 
 
-# read info from tmcc no args uses the globel array hwinv
-# if $1 then use that for a input file else use tmcc
+# read info from tmcc or a file. Copy into one of the three global arrays
+# hwinv, hwinvcopy, tmccinfo
+# $1 is the source $2 is the output array
+# error if not both set
 readtmcinfo() {
-    local -A ina
+    local -A ref_hwinv
     local keyword
     local -i dcnt=0
     local -i ncnt=0
-    local ifile 
+    local source output
     local rmtmp
 
     # what file to read from, if not set then make tmcc call
-    ifile=${1+$1} # use $1 if set otherwise use nothing
-    if [ -z "$ifile" ] ; then
-	# no input file then use a tmp file to hold data from tmcc
-	rmtmp="y"
-	ifile=/tmp/.$$tmcchwinv
-	$($BINDIR/tmcc hwinfo > $ifile)
+    source=${1+$1} # use $1 if set otherwise use nothing
+    output=${2+$2} 
+    if [ $# -ne 2 ] ; then
+	printf "\n%s\n" "Script error missing arg source:|$source| output:|$output|"
+	printf "Where %s:%s called from %s\n" $FUNCNAME $LINENO "$(caller)"
+	exit 1
+    fi
+
+    if [ "$source" = "tmcc" ] ; then
+	rmtmp="y" # remove tmp file
+	source=/tmp/.$$tmcchwinv
+	$($BINDIR/tmcc hwinfo > $source)
     else
 	rmtmp=""
     fi
 
-    # initalize array
-    if [ -z "${hwinv["hwinvidx"]+${hwinv["hwinvidx"]}}" ] ; then
-	hwinv["hwinvidx"]="" #start the array
-    else	
-	for i in ${hwinv["hwinvidx"]} ; do
-	    unset hwinv[$i]
+    # initalize output array
+    if [ -z "${ref_hwinv["hwinvidx"]+${ref_hwinv["hwinvidx"]}}" ] ; then
+	ref_hwinv["hwinvidx"]="" #start the array
+    else
+	# reset the array
+	for i in ${ref_hwinv["hwinvidx"]} ; do
+	    unset ref_hwinv[$i]
 	done
-	hwinv["hwinvidx"]="" #restart the array
+	# hwinvidx is always expected to be set
+	ref_hwinv["hwinvidx"]="" #restart the array
     fi
 
     # handle mult-line  input for disks and nets
@@ -125,10 +136,59 @@ readtmcinfo() {
 		;;
 	    \#* ) continue ;; 
 	esac
-	hwinv["hwinvidx"]+="$keyword " # keeping the keyword list preserves order
-	hwinv[$keyword]=$in
-    done < $ifile
-    [ -n "$rmtmp" ] && rm $ifile || : # the colon just stops a error being caught by -e
+	ref_hwinv["hwinvidx"]+="$keyword " # keeping the keyword list preserves order
+	ref_hwinv[$keyword]=$in
+    done < $source
+    [ -n "$rmtmp" ] && rm $source || : # the colon just stops a error being caught by -e
+
+    case $output in 
+	tmccinfo )
+	    if [ -z "${tmccinfo["hwinvidx"]+${tmccinfo["hwinvidx"]}}" ] ; then
+		tmccinfo["hwinvidx"]="" #start the array
+	    else	
+		for i in ${tmccinfo["hwinvidx"]} ; do
+		    unset tmccinfo[$i]
+		done
+		tmccinfo["hwinvidx"]="" #restart the array
+	    fi
+	    tmccinfo["hwinvidx"]=${ref_hwinv["hwinvidx"]} 
+	    for i in ${ref_hwinv["hwinvidx"]} ; do
+		tmccinfo[$i]=${ref_hwinv[$i]}
+	    done
+	    ;;
+	hwinv )
+	    if [ -z "${hwinv["hwinvidx"]+${hwinv["hwinvidx"]}}" ] ; then
+		hwinv["hwinvidx"]="" #start the array
+	    else	
+		for i in ${hwinv["hwinvidx"]} ; do
+		    unset hwinv[$i]
+		done
+		hwinv["hwinvidx"]="" #restart the array
+	    fi
+	    hwinv["hwinvidx"]=${ref_hwinv["hwinvidx"]} 
+	    for i in ${ref_hwinv["hwinvidx"]} ; do
+		hwinv[$i]=${ref_hwinv[$i]}
+	    done
+	    ;;
+	hwinvcopy )
+	    if [ -z "${hwinvcopy["hwinvidx"]+${hwinvcopy["hwinvidx"]}}" ] ; then
+		hwinvcopy["hwinvidx"]="" #start the array
+	    else	
+		for i in ${hwinvcopy["hwinvidx"]} ; do
+		    unset hwinvcopy[$i]
+		done
+		hwinvcopy["hwinvidx"]="" #restart the array
+	    fi
+	    hwinvcopy["hwinvidx"]=${ref_hwinv["hwinvidx"]} 
+	    for i in ${ref_hwinv["hwinvidx"]} ; do
+		hwinvcopy[$i]=${ref_hwinv[$i]}
+	    done
+	    ;;
+	* ) 
+	    printf "\n%s\n" "Script error illegal output array |$output|"
+	    printf "Where %s:%s called from %s\n" $FUNCNAME $LINENO "$(caller)"
+	    exit 1
+    esac
 }
 
 # copy assoctive array hwinv into hwinvcopy
@@ -175,6 +235,10 @@ comparetmcinfo() {
     localidx=${localidx//DISKUNIT[[:digit:]]/}
     tbdbidx=${tbdbidx//DISKUNIT[[:digit:]][[:digit:]]/}
     tbdbidx=${tbdbidx//DISKUNIT[[:digit:]]/}
+
+    # take the TESTINFO line out 
+    localidx=${localidx//TESTINFO/}
+    tbdbidx=${localidx//TESTINFO/}
 
     # contact the two indexs then find get the uniq union
     arrayidx="$localidx $tbdbidx"
@@ -575,7 +639,6 @@ getdrivenames() {
     return 0
 }
 
-
 # The timesys function terminates its script unless it terminates earlier on its own
 # args: max_time output_file command command_args
 # does not work....
@@ -599,3 +662,4 @@ timesys() {
     done
 } > $out 2>&1
 }
+

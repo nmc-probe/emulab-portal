@@ -57,7 +57,7 @@ gatherinv_main() {
     done
 
     # read in the newly found info
-    readtmcinfo /tmp/nodecheck.log.tb
+    readtmcinfo /tmp/nodecheck.log.tb hwinv
 
     # print it back out for the database
     { printtmcinfo
@@ -120,10 +120,10 @@ gatherinv_main() {
     cd $owd
 
     # Test what was found locally against what is in the database
-    readtmcinfo # info from tmcc.bin hwinv
+    readtmcinfo tmcc hwinvcopy # info from tmcc.bin hwinv
         # if testing can do something like    readtmcinfo ${INVDIR}/test
-    copytmcinfo # copy into hwinvcopy
-    readtmcinfo /tmp/nodecheck.log.inv # read full listing of locally found into hwinv, diff for local stuff not in tbdb
+#    copytmcinfo # copy into hwinvcopy
+    readtmcinfo /tmp/nodecheck.log.inv hwinv # read full listing of locally found into hwinv, diff for local stuff not in tbdb
     comparetmcinfo /tmp/nodecheck.diff # file for output
 
     # if we ended up with a diff file handle it
