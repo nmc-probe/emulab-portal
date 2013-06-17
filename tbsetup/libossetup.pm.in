@@ -1829,8 +1829,8 @@ sub WaitDone($@)
 	    my $logfile = Logfile->CreateFromString($parent->group(), $bootlog);
 	    if (defined($logfile)) {
 		$logfile->SetMetadata([["bootlog", $node->node_id()]], 1);
+		$node->_bootlog($logfile);
 	    }
-	    $node->_bootlog($bootlog);
 	}
 	
 	if ($node->_canfail() &&
