@@ -33,44 +33,64 @@ if [ -r /etc/emulab/paths.sh ]; then
 else
         BINDIR=/etc/testbed
 fi
-PROJDIR=/proj/emulab-ops
 
-host=`$BINDIR/tmcc nodeid`
+MFSPROJDIR=/proj/emulab-ops
 
-# XXX MFSes don't have all the apps we need, so mount an extra directory
+testinfo=`$BINDIR/tmcc hwinfo | grep TESTINFO`
+if [ -n "$testinfo" ] ; then
+    x=`echo $testinfo | awk -F = '{print $3}' | awk '{print $1}'`
+    if [ -n "$x" ] ; then
+	collect=$x
+    else
+	collect=1
+    fi
+    x=`echo $testinfo | awk -F = '{print $4}'`
+    if [ -n "$x" ] ; then
+	check=$x
+    else
+	check=1
+    fi
+fi    
+    
+
 if [ -f "/etc/emulab/ismfs" ] ; then
     if [ $# -eq 2 -a "$1" = "boot" -a "$2" = "gather" ] ; then
-	:
+	if [ "$collect" = "0" ] ; then
+	    echo 'testbed says not run nodecheck gather, skipping'
+	    exit 0
+	fi
     else
 	echo 'nodecheck only supports gather mode in MFS at boot time, skipping'
 	exit 0
     fi
 
-    if [ ! -d "$PROJDIR" ] ; then
-	mkdir -p $PROJDIR
+    # MFSes don't have all the apps we need, so mount an extra directory
+    # and put in the path
+    if [ ! -d "$MFSPROJDIR" ] ; then
+	mkdir -p $MFSPROJDIR
     fi
     mounted=0
-    if [ ! -d "$PROJDIR/nodecheck" ] ; then
-	mount -o soft,intr,bg fs:$PROJDIR $PROJDIR
+    if [ ! -d "$MFSPROJDIR/nodecheck" ] ; then
+	mount -o soft,intr,bg fs:$MFSPROJDIR $MFSPROJDIR
 	if [ $? -ne 0 ]; then
-	    echo '*** Could not mount $PROJDIR, nodecheck not done'
+	    echo '*** Could not mount $MFSPROJDIR, nodecheck gather not done'
 	    exit 0
 	fi
 	mounted=1
     fi
     os=`uname -s`
-    if [ ! -f $PROJDIR/nodecheck/$os/bin/bash ] ; then
-	echo "*** Did not find expected bash in $PROJDIR/$os/bin"
+    if [ ! -f $MFSPROJDIR/nodecheck/$os/bin/bash ] ; then
+	echo "*** Did not find expected bash in $MFSPROJDIR/$os/bin"
     fi
 
-    export PATH="/usr/local/bin:$PROJDIR/nodecheck/$os/bin:$PATH"
+    export PATH="/usr/local/bin:$MFSPROJDIR/nodecheck/$os/bin:$PATH"
 
     echo 'Running Hardware Inventory Gather'
     bash $BINDIR/gatherinv
     echo 'Done Running Hardware Inventory'
 
     if [ $mounted -ne 0 ]; then
-	umount $PROJDIR
+	umount $MFSPROJDIR
     fi
     exit 0
 fi
@@ -81,9 +101,15 @@ fi
 #
 hwinfo=`$BINDIR/tmcc hwinfo`
 if [ -z "$hwinfo" ]; then
-    echo "Skipping nodechecks"
+    echo "Skipping nodechecks tmcc does not support hwinfo"
     exit 0
 fi
+
+if [ "$check" = "0" ] ; then
+    echo 'testbed says not run nodecheck, skipping'
+    exit 0
+fi
+
 
 if [ $# -eq 2 -a "$1" = "boot" -a "$2" = "gather" ] ; then
     echo 'nodecheck only supports gather mode in MFS at boot time, skipping'
