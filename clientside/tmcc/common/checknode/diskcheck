@@ -482,11 +482,21 @@ getserial() {
     if [ "$os" == "FreeBSD" ] ; then
 	# note: if the device is mfi then 'mfiutil show drives' will list
 	# serial numbers 
-	cmc=$(which camcontrol)
-	if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
-	    sd=$1
-	    sd=${sd#/dev/}
-	    res=$(camcontrol inquiry $sd -S 2>/dev/null)
+	smtcl=$(findSmartctl)
+	if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
+	#don't have smartctl, maybe we can use camcontrol
+	    cmc=$(which camcontrol)
+	    if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
+		sd=$1
+		sd=${sd#/dev/}
+		    res=$(camcontrol inquiry $sd -S 2>/dev/null)
+	    fi
+	else
+	    res=$($smtcl -a $1 | grep -i 'Serial number:')
+	    res=${res,,} # lower case
+	    res=${res/serial number: }
+#	    res=$(echo $res | tr 'a-z' 'A-Z') # upper case
+	    res=${res^^} # upper case
 	fi
     fi
     
