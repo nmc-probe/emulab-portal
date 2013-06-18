@@ -114,6 +114,7 @@ while (my $arg = shift @ARGV) {
 			my $cardinfo = ${$cards{$row[8]}}[$row[1]];
 			my $switchinfo = $switches{$row[2]};
 			my $wireinfo = $wires{$row[7]};
+			$row[5] = "0" if (!defined($row[5]));
 			print "$row[0] port $row[1] ($cardinfo) connects to $row[2] " .
 				"($switchinfo), module $row[3], port $row[4] via wire #" .
 				"$row[5] (length $row[6], color $wireinfo)\n";
@@ -121,6 +122,7 @@ while (my $arg = shift @ARGV) {
 	} else {
 	    while (my @row = $result->fetchrow) {
 		my $i = 0;
+		$row[5] = "0" if (!defined($row[5]));
 		printf("%9s %5d", $row[$i++], $row[$i++]);
 		printf("%16s", $row[$i++])
 		    if ($opt{I});
