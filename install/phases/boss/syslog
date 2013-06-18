@@ -82,7 +82,7 @@ sub Install($$$)
 	    }
 	    close(SC);
 
-	    AppendToFileFatal($SYSLOG_CONF,
+	    my @syslog_lines = (
 			"!bootinfo",  "*.*\t\t\t\t\t\t$LOGDIR/bootinfo.log",
 			"!tmcd",      "*.*\t\t\t\t\t\t$LOGDIR/tmcd.log",
 			"!capture",   "*.*\t\t\t\t\t\t$LOGDIR/capture.log",
@@ -101,9 +101,14 @@ sub Install($$$)
 			"!plabrenew", "*.*\t\t\t\t\t\t$LOGDIR/plabrenew.log",
 			"!xmlrpcbag", "*.*\t\t\t\t\t\t$LOGDIR/xmlrpcbag.log",
 			"!sshxmlrpc", "*.*\t\t\t\t\t\t$LOGDIR/sshxmlrpc.log",
-			"!foam",      "*.*\t\t\t\t\t\t$LOGDIR/foam.log",
-			"!flowvisor", "*.*\t\t\t\t\t\t$LOGDIR/flowvisor.log",
 			"!sslxmlrpc", "*.*\t\t\t\t\t\t$LOGDIR/sslxmlrpc.log");
+
+	    if ($PROTOGENI_GENIRACK) {
+		@syslog_lines = (@syslog_lines,
+			"!foam",      "*.*\t\t\t\t\t\t$LOGDIR/foam.log",
+			"!flowvisor", "*.*\t\t\t\t\t\t$LOGDIR/flowvisor.log");
+	    }
+	    AppendToFileFatal($SYSLOG_CONF, @syslog_lines);
 	};
 
 	Phase "logdir", "Creating log directory", sub {
