@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -30,8 +30,8 @@ my $RSYNC = 'rsync';
 
 my $RSYNC_OPTS = "-W -u -av --delete --force";
 
-my @excludes=qw#cisco-config/ cisco-config. hp-config/ OLD/ tmp/ /proj/#;
-my @includes=qw#INCLUDE_ME#;
+my @excludes=qw#cisco-config/ cisco-config. hp-config/ OLD/ tmp/ /proj/ switch-backup#;
+my @includes=qw##;
 
 #
 # dhcpd_makeconf - helper script to create dhcpd.conf files from the database.
@@ -101,13 +101,14 @@ for (@includes) {
 
 $cmdline .= " -e ssh /tftpboot/";
 
-# Slurp in all of the subboss data to know A) if we should serve the DHCP
+# Slurp in all of the subboss data to know if we should serve the DHCP
 # lease to a given node, or if the next-server field should be something
 # other than the IP for boss.
 $query_result =
-    DBQueryWarn("select distinct subboss_id from subbosses where service = 'tftp'");
-if (! $query_result) {
-    fatal("Could not dhcpd data from DB!");
+    DBQueryWarn("select distinct subboss_id from subbosses ".
+		"where service='tftp'");
+if (!$query_result) {
+    fatal("Could not subboss data from DB!");
 }
 while (my %row = $query_result->fetchhash()) {
     my $subboss_id = $row{"subboss_id"};
