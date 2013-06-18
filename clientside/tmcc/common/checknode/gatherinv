@@ -78,16 +78,24 @@ gatherinv_main() {
 	echo "$PROJDIR not mounted can't save info"
 	exit 1
     fi
-
     # start XXX
     # decided to change names again, rename if old names -- XXX remove this after all node have run the new code
     # take into consideration if old directory structure was added to to a new directory structure 
     if [ -d ${INVDIR}/$host ] ; then
 	owd=$PWD
 	cd ${INVDIR}/$host
-	[[ -d full ]] && ( mkdir -p .full ; mv -f full/* .full ; rm -rf full $host.full )
-	[[ -d diff ]] && ( mkdir -p .diff ; mv -f diff/* .diff ; rm -rf diff $host.diff )
-	[[ -d tbdb ]] && ( mkdir -p .tbdb ; mv -f tbdb/* .tbdb ; rm -rf tbdb $host )
+	[[ -L $host.full ]] && rm $host.full
+	[[ -L $host.diff ]] && rm $host.diff
+	for i in full diff tbdb ; do
+	    if [ -d $i ] ; then
+		[[ ! -d .$i ]] && (mkdir .$i ; chmod g+x .$i)
+		list=$(ls -A $i)
+		for j in $list ; do
+		    mv $i/$j .$i
+		done
+		rmdir $i
+	    fi
+	done
 	cd $owd
     fi
     # end XXX
