@@ -189,7 +189,7 @@ sub Create($$$$)
     my ($prefix) = ($certificate->uuid() =~ /^\w+\-\w+\-\w+\-\w+\-(\w+)$/);
 
     my $safe_hrn    = DBQuoteSpecial($certificate->hrn());
-    my $safe_urn    = DBQuoteSpecial($certificate->URN());
+    my $safe_urn    = DBQuoteSpecial($certificate->urn());
     my $safe_url    = DBQuoteSpecial($url);
     my $safe_uuid   = DBQuoteSpecial($certificate->uuid());
     my $safe_prefix = DBQuoteSpecial($prefix);
@@ -239,6 +239,8 @@ sub version($)		{ return $_[0]->VersionInfo()->{"version"}; }
 sub apilevel($)		{ return $_[0]->VersionInfo()->{"apilevel"}; }
 sub api($)		{ return $_[0]->VersionInfo()->{"api"}; }
 sub issfa($)		{ return $_[0]->VersionInfo()->{"issfa"}; }
+sub isAM($)		{ return $_[0]->VersionInfo()->{"api"} eq "AM" ? 1 : 0;}
+sub isorca($)		{ return $_[0]->VersionInfo()->{"isorca"}; }
 sub versiondata($)	{ return $_[0]->VersionInfo()->{"versiondata"}; }
 sub cert($)		{ return $_[0]->{'CERT'}->cert(); }
 sub GetCertificate($)   { return $_[0]->{'CERT'}; }
@@ -417,7 +419,10 @@ sub VersionInfo($)
 	print STDERR "  " . $response->output() . "\n";
 	return undef;
     }
-    my $ref = {"versiondata" => $response->value() };
+    my $ref = {"versiondata" => $response->value(),
+	       "issfa"       => 0,
+	       "isorca"      => 0,
+    };
     
     if (ref($response->value())) {
 	# Look for the AM interface.
@@ -428,19 +433,18 @@ sub VersionInfo($)
 	    $ref->{'apilevel'} = 0;
 	    $ref->{'api'}      = "AM";
 	    $ref->{'issfa'}    = exists($response->value()->{'sfa'});
+	    $ref->{'isorca'}   = exists($response->value()->{'orca_version'});
 	}
 	else {
 	    $ref->{'version'}  = $response->value()->{'api'};
 	    $ref->{'apilevel'} = $response->value()->{'level'};
 	    $ref->{'api'}      = "CM";
-	    $ref->{'issfa'}    = 0;
 	}
     }
     else {
 	$ref->{'version'}  = $response->value();
 	$ref->{'apilevel'} = 1;
 	$ref->{'api'}      = "CM";
-	$ref->{'issfa'}    = 0;
     }
     $self->{'_version_info'} = $ref;
     return $ref;
@@ -703,19 +707,33 @@ sub DiscoverResources($$;$$)
 	return undef;
     }
 
+    my $method;
     my $method_args;
-    if ($manager_version == 2.0) {
+    my @method_args = ($method_args);
+    
+    if ($self->isorca()) {
+	@method_args = ([$credential->asString()],
+			{'geni_available'  => $available});
+	$method = "ListResources";
+    }
+    elsif ($self->isAM()) {
+	@method_args = ([$credential->asString()],
+			{'geni_available'  => $available,
+			 'geni_compressed' => $compress});
+	$method = "ListResources";
+    }
+    elsif ($manager_version == 2.0) {
 	$method_args->{'credentials'} = [$credential->asString()];
 	$method_args->{'available'}   = $available;
 	$method_args->{'compress'}    = $compress;
+	$method = "DiscoverResources";
     }
     else {
 	print STDERR "GeniAuthority::Discover: Unknown version at $self\n";
 	return undef;
     }
     my $response =
-	Genixmlrpc::CallMethod($self->url(), undef,
-			       "DiscoverResources", $method_args);
+	Genixmlrpc::CallMethod($self->url(), undef, $method, @method_args);
     if (!defined($response)) {
 	print STDERR "*** Internal error discovering resources at $self\n";
 	return undef;
