@@ -134,6 +134,7 @@ use Node;
 use libtestbed;
 use emutil;
 use libEmulab;
+use Logfile;
 
 #
 # So we know who/what we are acting as.
@@ -416,7 +417,18 @@ sub ExpireSlices()
 	}
       cleanup:
 	my $slice_uuid  = $slice->uuid();
-	system("$CLEANUPSLICE -f -m $slice_uuid");
+	my $output = emutil::ExecQuiet("$CLEANUPSLICE -f -m $slice_uuid");
+	my $status = $?;
+	my $logfile = Logfile->CreateFromString($experiment->gid_idx(),
+						$output);
+	if (defined($logfile)) {
+	    $logfile->SetMetadata([["slice_idx",  $slice->idx()],
+				   ["slice_urn",  $slice->urn()],
+				   ["slice_uuid", $slice->uuid()],
+				   # For web interface listing
+				   ["Method",     "Cleanup"],
+				  ], 1);
+	}
 	if ($?) {
 	    print STDERR "Could not release $slice\n";
 	    SENDMAIL($TBOPS, "Could not release slice $slice",
