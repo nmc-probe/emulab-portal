@@ -1798,6 +1798,7 @@ sub WaitDone($@)
 							$bootlog);
 		if (defined($logfile)) {
 		    $logfile->SetMetadata([["bootlog", $node->node_id()]], 1);
+		    $logfile->Store();
 		}
 	    }
 	    }
@@ -1830,6 +1831,7 @@ sub WaitDone($@)
 	    if (defined($logfile)) {
 		$logfile->SetMetadata([["bootlog", $node->node_id()]], 1);
 		$node->_bootlog($logfile);
+		$logfile->Store();
 	    }
 	}
 	

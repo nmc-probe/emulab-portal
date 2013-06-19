@@ -1616,6 +1616,7 @@ sub WaitForNodes($@)
 					   ["slice_uuid", $slice->uuid()]], 1);
                      # Anon users can view the log if they know the secret id. 
 		    $logfile->SetPublic(1);
+		    $logfile->Store();
 		    $node->_bootlog($logfile);
 		}
 	    }
