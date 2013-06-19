@@ -243,6 +243,7 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     print "Fetching $metaurl\n";
     system("$FETCH  -o $metafilename $metaurl") == 0
 	or fatal("Could not fetch $metaurl");
+    chmod(0666, $metafilename);
 
     #
     # Load up the descriptor if we do not have it.
