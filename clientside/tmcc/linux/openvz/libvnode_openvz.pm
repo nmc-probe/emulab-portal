@@ -2651,7 +2651,7 @@ sub createImageDisk($$$$$)
 	$imagepath = "$EXTRAFS/${image}.tar.gz";
 
 	# Now we just download the file, then let create do its normal thing
-	if (libvnode::downloadImage($imagepath, 0, $vnode_id, $raref)) {
+	if (libvnode::downloadImage($imagepath, 1, $vnode_id, $raref)) {
 	    print STDERR "libvnode_openvz: could not download image $image\n";
 	    return -1;
 	}
