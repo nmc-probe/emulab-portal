@@ -75,7 +75,7 @@ static_widearea_config()
 	echo "$cnetif" > $BOOTDIR/controlif
 	if [ -e "/etc/emulab/bossnode" ]; then
 		bossnode=`cat /etc/emulab/bossnode`
-		i = 0
+		i=0
 		while [ $i -lt 6 ]; do
 			bossip=`host -t A "$bossnode"`
 			[ $? -eq 0 ] && break
@@ -105,6 +105,8 @@ while ! mkdir $lockdir 2> /dev/null; do
 	sleep 1
 done
 
+echo "`date`: $iface: starting" >>$LOGDIR/dhclient.log
+
 cnetfile="/var/run/cnet"
 cnetif=''
 
@@ -115,10 +117,23 @@ cnetif=''
 
 if [ -f $cnetfile ]; then
     cnetif=`cat $cnetfile`
+    echo "`date`: $iface: $cnetfile already had $cnetif" >>$LOGDIR/dhclient.log
 elif static_widearea_config $iface; then
+    #
+    # Make sure that static_widearea_config matched $iface to the target WA_MAC.
+    #
+    if [ "$cnetif" = "$iface" ]; then
 	echo $iface > $cnetfile
 	cnetif=`cat $cnetfile`
 	/sbin/initctl emit -n 'emulab-findcnet-done'
+    else
+        #
+        # If not, don't fail; there was widearea config info; but also don't
+	# succeed in the final check at the end of the script.  This $iface is
+	# not the control net.
+        #
+	cnetif=''
+    fi
 else
     #
     # Find a list of candidate interfaces
