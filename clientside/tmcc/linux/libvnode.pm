@@ -448,7 +448,8 @@ sub downloadImage($$$$) {
     if (!defined($addr) || $addr eq "") {
 	# frisbee master server world
 	my ($server, $imageid);
-	my $proxyopt = "";
+	my $proxyopt  = "";
+	my $todiskopt = "";
 
 	if ($reload_args_ref->{"SERVER"} =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
 	    $server = $1;
@@ -459,8 +460,11 @@ sub downloadImage($$$$) {
 	if (SHAREDHOST()) {
 	    $proxyopt = "-P $nodeid";
 	}
+	if (!$todisk) {
+	    $todiskopt = "-N";
+	}
 	if ($server && $imageid) {
-	    mysystem2("$FRISBEE -f -M 64 $proxyopt ".
+	    mysystem2("$FRISBEE -f -M 64 $proxyopt $todiskopt ".
 		     "         -S $server -B 30 -F $imageid $imagepath");
 	    return -1
 		if ($?);
@@ -529,7 +533,7 @@ sub createExtraFS($$$)
 	system("lvcreate -n $lvname -L $size $vgname") == 0
 	    or return -1;
 
-	system("mke2fs -j $lvpath") == 0
+	system("mke2fs -j -q $lvpath") == 0
 	    or return -1;
     }
     if (! -e "$path/.mounted") {
@@ -552,7 +556,7 @@ sub lvSize($)
 {
     my ($device) = @_;
     
-    my $lv_size = `lvs -o lv_size --noheadings --units g $device`;
+    my $lv_size = `lvs -o lv_size --noheadings --units k --nosuffix $device`;
     return undef
 	if ($?);
     
