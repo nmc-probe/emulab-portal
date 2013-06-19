@@ -25,12 +25,9 @@
 echo -n ' Cpucheck..'
 
 source checkutils.sh
-#source getfromtb.sh
 
-if [ -z "$BOOTDIR" ]
-then
-    BOOTDIR=/var/emulab/boot
-fi
+x=$(caller)
+[[ "${x/NULL}" = "$x" ]] && declare -ri cpucheck_standalone=0 || declare -ri cpucheck_standalone=1
 
 declare arch="" failed="" s=""
 declare -i sockets=0 cores_socket=0 threads_core=0 mhz=0 err=0
@@ -38,45 +35,25 @@ declare -i hyperthread=0  x64bit=0 hwvirt=0
 declare p1="" p2="" p3=""
 declare phy="" cid=""
 
-os=`uname`
-host=`hostname`
-if [ -e "$BOOTDIR/realname" ]; then
-    host=`cat $BOOTDIR/realname`
-fi
-
-### setup logging
-##if [ $1 ] ; then
-##    logfile=$1
-##else
-##    logfile="/tmp/nodecheck.log"
-##fi
-##tmplog=/tmp/.$$.log
-##cat /dev/null > ${tmplog}
-
-initlogs $@
-
-
-#set +x
-
-#exit on unbound var
-set -u
-
 finish() {
-    echo "cpucheck `date`" >> ${logfile}
-    cat ${tmplog} >> ${logfile} 
+    echo -n "Cpucheck `date`: " >> ${logfile}
+
+#    cat ${tmplog} >> ${logfile} 
     
+    summary="Arch:$arch Sockets:$sockets Cores_socket:$cores_socket Threads_core:$th\
+reads_core Mhz:$mhz HT:${hyperthread} 64bit:${x64bit} HV:${hwvirt}"
     if [ -z "${failed}" ]
     then
-	echo -n "Arch:$arch Sockets:$sockets Cores_socket:$cores_socket Threads_core:$threads_core Mhz:$mhz F:${hyperthread}${x64bit}${hwvirt} "
+	echo -n "$summary"
+	echo "$summary" >> ${logfile}
 	echo "OK"
     else
 	echo "$failed"
-	exit 1
+	(( $cpucheck_standalone )) && exit 1 || return 1
     fi
     
-    exit 0
+   (( $cpucheck_standalone )) && exit 0 || return 0
 }
-
 
 round1p() {
     # round up 1 place
@@ -114,6 +91,9 @@ round1p() {
     return 0
 }
 
+initialize $@
+cp /dev/null ${tmplog}
+
 # check that external need program are installed
 
 s=""
@@ -140,7 +120,6 @@ if [ -n "$s" ] ; then
     finish
 fi
 
-{
 case $os in
     Linux )
 	    # XXX if have lscpu then us it to get arch
@@ -187,12 +166,7 @@ case $os in
 		rawmhz=$x
 	    fi
 	    mhz=$(round1p $rawmhz)
-	    echo -n "Architecture:$arch "
-	    echo -n "Sockets:$sockets "
-	    echo -n "Cores_socket:$cores_socket "
-	    echo -n "Threads_core:$threads_core "
-	    echo -n "MHz:$mhz "
-	    
+
 	    cpuflags=$(grep flags /proc/cpuinfo | head -1)
 	    [[ "${cpuflags}" = "${cpuflags/ht/}" ]] && hyperthread=0 || hyperthread=1
 	    [[ "${cpuflags}" = "${cpuflags/lm/}" ]] && x64bit=0 || x64bit=1
@@ -250,51 +224,33 @@ case $os in
 	    ;;
 esac
 
-if (( $hyperthread | $x64bit | $hwvirt ))  ; then
-    echo -n "Flags="
-    if (( ${hyperthread} & ((${x64bit} | ${hwvirt})) )) ; then
-	echo -n "HT:"
-    else
-	echo -n "HT"
-    fi
-    if (( ${x64bit} & ${hwvirt} )) ; then
-	echo -n "64x:"
-    else
-	echo -n "64x"
-    fi
-    if (( ${hwvirt} )) ; then
-	echo -n "HWVIRT"
-    fi
-fi
-echo ""
-}>> ${tmplog} 2>&1
-
 # if saving data for testbed database
 
 [[ ${x64bit} == 1 ]] && bits=64 || bits=32
-if [ -f ${logfile4tb} ] ; then
-    printf "CPUINFO SOCKETS=%s CORES=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
+(( $collect_flag )) && printf "CPUINFO SOCKETS=%s CORES=%s THREADS=%s SPEED=%s BITS=%s HV=%s\n"\
       ${sockets} ${cores_socket} ${threads_core} ${mhz} ${bits} ${hwvirt} >> ${logfile4tb}
-fi
 
 # we are done if in MFS mode
-(( $mfsmode )) && exit 0
-
-tbinfo=$(getfromtb cpuinfo $host)
-err=$?
-if [ $err != 0 ] ; then 
-    failed="$tbinfo FAILED"; finish
+if (( $mfsmode )) ; then
+   (( $cpucheck_standalone )) && exit 0 || return 0
 fi
 
-# echo $tbinfo
-if [ "$tbinfo" = "${arch} ${sockets} ${cores_socket} ${threads_core} ${mhz} ${hyperthread}${x64bit}${hwvirt}" ] ; then
-    failed=""
-else
-    failed="TBmiss Have |${arch} ${sockets} ${cores_socket} ${threads_core} ${mhz} ${hyperthread}${x64bit}${hwvirt}| Want |$tbinfo| FAILED"
-fi
+if (( $check_flag )) ; then
+    tbinfo=$(getfromtb CPUINFO)
+    err=$?
+    if [ $err != 0 ] ; then 
+	failed="call to tbinfo $tbinfo FAILED"; finish
+    fi
 
+    if [ "$tbinfo" = "SOCKETS=$sockets CORES=$cores_socket THREADS=$threads_core SPEED=$mhz BITS=$bits HV=$hwvirt" ] ; then
+	failed=""
+    else
+	failed="TBmiss Have |SOCKETS=$sockets CORES=$cores_socket THREADS=$threads_core SPEED=$mhz BITS=$bits HV=$hwvirt| Want |$tbinfo| FAILED"
+    fi
+fi
 
 finish
 
+# should never get here
+(( $cpucheck_standalone )) && exit 0 || return 0
 
-exit 0

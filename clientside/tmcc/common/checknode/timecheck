@@ -27,36 +27,25 @@ echo -n ' Starting timecheck.. '
 ntpserver="ntp1"
 maxdrift="0.001"
 
-#ntpserver="time.xmission.com"
+source checkutils.sh
 
-os=`uname`
-host=`hostname`
-failed=""
-if [ -e "/var/emulab/boot/realname" ]; then
-    host=`cat /var/emulab/boot/realname`
-fi
+initialize $@
 
-
-# setup logging
-if [ $1 ] ; then
-    logfile=$1
-else
-    logfile="/tmp/nodecheck.log"
-fi
-tmplog=/tmp/.$$.log
-cat /dev/null > ${tmplog}
+# are we called from somewhere or are we standalone
+x=$(caller)
+[[ "${x/NULL}" = "$x" ]] && declare -ri timecheck_standalone=0 || declare -ri timecheck_standalone=1
 
 # check that external need program are installed
 s=""
 case $os in
     Linux | FreeBSD )
-	progs="tr bc ntpdate"
+	progs="tr bc ntpdate host"
 	;;
     * )
 	failed="Unknown OS :$os: FAILED"
 	echo "$failed" >> ${logfile}
 	echo "$failed"
-	exit 1
+	(( $timecheck_standalone )) && exit 0 || return 0
 	;;
 esac
 for i in $progs ; do
@@ -66,14 +55,34 @@ if [ -n "$s" ] ; then
     failed=" Unable to run need missing command(s) $s FAILED"
     echo "$failed" >> ${logfile}
     echo "$failed"
-    exit 1
+    (( $timecheck_standalone )) && exit 0 || return 0
 fi
-
-#exit on unbound var
-set -u
 
 {
 unset -v d ; declare -a d=()
+
+dnsok=$(host $ntpserver) 2>/dev/null
+if [ "${dnsok/NXDOMAIN}" != "$dnsok" ] ; then
+    echo -n "WARNING ntpserver $ntpserver unknown. " >> ${logfile}
+    x=$(/usr/local/etc/emulab/tmcc ntpinfo)
+    if [ -n "$x" ] ; then
+	ntpserver=${x/SERVER=}
+    else
+	echo -n "tmcc ntpinfo also failed. Last try from resolv.conf" >> ${logfile}
+	x=$(grep search /etc/resolv.conf)
+	if [ -n "$x" ] ; then
+	    ntpserver="${ntpserver}.${x/search }"
+	fi
+    fi
+    echo -n "Trying ntpserver $ntpserver " >> ${logfile}
+    dnsok=$(host $ntpserver) 2>/dev/null
+    if [ "${dnsok/NXDOMAIN}" != "$dnsok" ] ; then
+	echo "WARNING $ntpserver also unknown. " >> ${logfile}
+	echo "Giving up">> ${logfile}
+	(( $timecheck_standalone )) && exit 0 || return 0
+    fi
+fi
+
 case $os in
     Linux | FreeBSD )
 	d=($(ntpdate -q $ntpserver))
@@ -89,7 +98,7 @@ case $os in
 	[[ $a > $maxdrift ]] && failed="maxdrift"
 	if  [ -z "${failed}" ]; then
 	    echo "Time check passed offset $offset allowed $maxdrift"
-	elif [ "${failed}" == "maxdrift" ] ; then
+	elif [ "${failed}" = "maxdrift" ] ; then
 	    echo "Time check failed offset $offset greater then $maxdrift second "
 	else
 	    echo "${failed}"
@@ -103,7 +112,7 @@ case $os in
 esac
 } >> ${tmplog} 2>&1
 
-echo "timecheck `date`" >> ${logfile}
+echo -n "Timecheck `date`: " >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
 if [ -z "${failed}" ] ; then 
@@ -114,4 +123,7 @@ else
     echo "${failed} FAILED"
 fi
 
-exit 0
+# Check to if called standalone or source from another shell
+(( $timecheck_standalone )) && exit 0 || return 0
+
+# return 0

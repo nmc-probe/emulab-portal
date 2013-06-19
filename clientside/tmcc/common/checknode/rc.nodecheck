@@ -32,40 +32,55 @@ if [ -r /etc/emulab/paths.sh ]; then
         . /etc/emulab/paths.sh
 else
         BINDIR=/etc/testbed
+	LOGDIR=/var/emulab/logs
 fi
 
 MFSPROJDIR=/proj/emulab-ops
 
+# defaults will be collect=0 check=0 
+
+#
+# XXX see if hwinfo returns anything. If not, assume node checks are not
+# supported and don't bother with the rest.
+#
 testinfo=`$BINDIR/tmcc hwinfo | grep TESTINFO`
-if [ -n "$testinfo" ] ; then
-    x=`echo $testinfo | awk -F = '{print $3}' | awk '{print $1}'`
-    if [ -n "$x" ] ; then
-	collect=$x
-    else
-	collect=1
-    fi
-    x=`echo $testinfo | awk -F = '{print $4}'`
-    if [ -n "$x" ] ; then
-	check=$x
-    else
-	check=1
-    fi
-fi    
+if [ -z "$testinfo" ]; then
+    echo "Skipping nodechecks tmcc does not support hwinfo"
+    exit 0
+fi
+
+x=`echo $testinfo | awk -F = '{print $3}' | awk '{print $1}'`
+if [ -n "$x" ] ; then
+    collect=$x
+else
+    collect=0
+fi
+x=`echo $testinfo | awk -F = '{print $4}'`
+if [ -n "$x" ] ; then
+    check=$x
+else
+    check=0
+fi
+
     
 
 if [ -f "/etc/emulab/ismfs" ] ; then
-    if [ $# -eq 2 -a "$1" = "boot" -a "$2" = "gather" ] ; then
-	if [ "$collect" = "0" ] ; then
-	    echo 'testbed says not run nodecheck gather, skipping'
-	    exit 0
-	fi
-    else
-	echo 'nodecheck only supports gather mode in MFS at boot time, skipping'
+    if [ "$collect" = "0" ] ; then
+	echo 'testbed says not run nodecheck collect, skipping'
 	exit 0
     fi
 
     # MFSes don't have all the apps we need, so mount an extra directory
     # and put in the path
+    collectdir=`echo $testinfo | awk -F \" '{print $2}'` # make sure we are in the emulab-ops pid
+    a=`echo $collectdir | awk -F \/ '{print $2}'`
+    b=`echo $collectdir | awk -F \/ '{print $3}'`
+    mountpoint="/$a/$b"
+    if [ "$mountpoint" != "$MFSPROJDIR" ] ; then
+	echo "Nodecheck - Can not run in MFS mode without being in emulab-ops pid."
+	exit 0
+    fi
+
     if [ ! -d "$MFSPROJDIR" ] ; then
 	mkdir -p $MFSPROJDIR
     fi
@@ -86,7 +101,7 @@ if [ -f "/etc/emulab/ismfs" ] ; then
     export PATH="/usr/local/bin:$MFSPROJDIR/nodecheck/$os/bin:$PATH"
 
     echo 'Running Hardware Inventory Gather'
-    bash $BINDIR/gatherinv
+    bash $BINDIR/checknode $@
     echo 'Done Running Hardware Inventory'
 
     if [ $mounted -ne 0 ]; then
@@ -95,52 +110,21 @@ if [ -f "/etc/emulab/ismfs" ] ; then
     exit 0
 fi
 
-#
-# XXX see if hwinfo returns anything. If not, assume node checks are not
-# supported and don't bother with the rest.
-#
-hwinfo=`$BINDIR/tmcc hwinfo`
-if [ -z "$hwinfo" ]; then
-    echo "Skipping nodechecks tmcc does not support hwinfo"
-    exit 0
-fi
-
-if [ "$check" = "0" ] ; then
+if [ "$check" = "0" -a "$collect" = "0" ] ; then
     echo 'testbed says not run nodecheck, skipping'
     exit 0
 fi
 
-
-if [ $# -eq 2 -a "$1" = "boot" -a "$2" = "gather" ] ; then
-    echo 'nodecheck only supports gather mode in MFS at boot time, skipping'
-    exit 0
-fi
-
-
-x=`bash --version | grep [0-9]\.[0-9]`
-x=`echo $x | sed -e 's/GNU bash, version //'`
-bversion=`echo "$x" | sed -e 's/\.[0-9].*//'`
-#bversion=`bash -c echo "${BASH_VERSINFO[0]}"`
-if [ $bversion -lt 4 ] ; then
-    echo "Need at least BASH version 4 to run nodecheck, Skipping"
-    exit 0
-fi
-
-checks="disk cpu mem time nic"
-
 echo "Running nodechecks"
 # truncate file at boot time
 if [ "$1" = "boot" ] ; then
-    echo "-- Start boot_time_node_check --" > $LOGDIR/nodecheck.log
+    printf "%s------ Start boottime_nodecheck ------\n" "$(date)" > $LOGDIR/nodecheck.log
 fi
 
-for i in $checks
-do
-    bash $BINDIR/${i}check $LOGDIR/nodecheck.log 
-done
+bash $BINDIR/checknode $LOGDIR/nodecheck.log
 
 if [ "$1" = "boot" ] ; then
-    echo "-- Finish boot_time_node_check --" >> $LOGDIR/nodecheck.log
+    printf "%s------ Finish boottime_nodecheck -----\n\n" "$(date)" >> $LOGDIR/nodecheck.log
 fi
 
 echo "Done with nodechecks"

@@ -91,7 +91,7 @@ nodecheck-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/checknode/diskcheck $(BINDIR)/diskcheck
 	$(INSTALL) -m 755 $(SRCDIR)/checknode/memcheck $(BINDIR)/memcheck
 	$(INSTALL) -m 755 $(SRCDIR)/checknode/niccheck $(BINDIR)/niccheck
-	$(INSTALL) -m 755 $(SRCDIR)/checknode/gatherinv $(BINDIR)/gatherinv
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/checknode $(BINDIR)/checknode
 	$(INSTALL) -m 755 $(SRCDIR)/checknode/rc.nodecheck $(BINDIR)/rc/rc.checknode
 
 common-script-install:	dir-install

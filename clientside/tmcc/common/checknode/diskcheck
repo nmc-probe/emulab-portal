@@ -35,18 +35,21 @@ declare err=""
 source checkutils.sh
 source hbis.sh
 
+x=$(caller)
+[[ "${x/NULL}" = "$x" ]] && declare -ri diskcheck_standalone=0 || declare -ri diskcheck_standalone=1
+
 ## declare -p todo_exit
 
-main() {
-    inithostname
-    initlogs $@
+main_diskcheck() {
+    initialize $@
+    cp /dev/null $tmplog
 
     SMARTCTL=$(findSmartctl)
     drivenames=$(getdrivenames)
 
     if [ -z "$drivenames" ] ; then
 	echo "No drives found. exit"
-	exit 1
+	(( $diskcheck_standalone )) && exit 1 || return 1
     fi
 
     # array to put drive inventory
@@ -175,7 +178,7 @@ main() {
 	driveinv[$idx]=${d[@]}
     done
 
-    if [ -f ${logfile4tb} ] ; then
+    if (( $collect_flag )) ; then
 	printf "%s%d\n"  "DISKINFO UNITS=" ${numberofdrives} >> ${logfile4tb}
 	for (( idx=0; idx<$numberofdrives; idx++)) ; do
 	    unset -v d ; declare -a d=(${driveinv[$idx]})
@@ -197,10 +200,13 @@ main() {
     fi
 
 # we are done if in MFS mode
-(( $mfsmode )) && exit 0
+if (( $mfsmode )) ; then
+    (( $diskcheck_standalone )) && exit 0 || return 0
+fi
 
 #output to log file
 {
+echo "Diskcheck $(date): "
 echo -e "name\t\tdriver\ttype\tsize\ttemp\tmodel\t\t\tserial"
 for ((idx=0; idx<${numberofdrives}; idx++)) ; do
     unset -v d ; declare -a d=(${driveinv[$idx]})
@@ -210,83 +216,80 @@ done
 cat ${tmplog} >> ${logfile} 
 
 driveinfo=""
-
 # echo name,size and serial to stdout, addr serialnumber
 for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${driveinv[$idx]})
     echo -n "${d[$name_val]} ${d[$size_val]} ${d[$serial_val]}  "
-    driveinfo+="${d[$serial]} "
+    driveinfo+="${d[$serial_val]} "
 done
-
-echo "" ; exit
-
+echo ""
 
 driveinfo=${driveinfo% } # get rid of trailing space
 
+if (( $check_flag )) ; then
 # Now check against the testbed DB
-
-tbinfo=$(getfromtb diskinfo $host)
-echo tbinfo:|"$tbinfo"|
-exit
-error=$?
-# echo drivesize:$drivesize: tbinfo:$tbinfo: error:$error
-
-
-{ 
+# readtmcinfo /proj/emulab-ops/nodecheck/pc507/pc507  tmccinfo
+    tbinfo=$(getfromtb DISKUNIT)
+    tbinfo=${tbinfo% }  # get rid of trailing space
+    
+# echo driveinfo:$driveinfo: tbinfo:$tbinfo: 
+    
+{
 #save for both output to stdout and log file 
-if [ -z "$tbinfo" ] ; then
-    failed="TBmiss no info"
-    echo "TBmiss empty info returned. Have ${tbinfo[@]} FAILED"
-fi
-
-#lower case
-tbinfo=${tbinfo,,}
-driveinfo=${driveinfo,,}
+    if [ -z "$tbinfo" ] ; then
+	failed="TBmiss no info"
+	echo "TBmiss empty info returned. "
+    fi
+    
+#upper case
+    tbinfo=${tbinfo^^}
+    driveinfo=${driveinfo^^}
 # turn space seperated string into array
-unset -v tb; declare -a tb=(${tbinfo// / })
-unset -v have; declare -a have=(${driveinfo// / })
-
-havecnt=${#have[*]}
-tbcnt=${#tb[*]}
-numserial=${tbcnt}
-maxcnt=${tbcnt}
-
-if [[ ${tbcnt} -ne ${havecnt} ]] ; then
-    failed="TBmiss"
+    unset -v tb; declare -a tb=(${tbinfo// / })
+    unset -v have; declare -a have=(${driveinfo// / })
+    
+    havecnt=${#have[*]}
+    tbcnt=${#tb[*]}
+    numserial=${tbcnt}
+    maxcnt=${tbcnt}
+    
+    if [[ ${tbcnt} -ne ${havecnt} ]] ; then
+	failed="TBmiss"
     [[ ${tbcnt} -gt ${havecnt} ]] && maxcnt=${tbcnt} || maxcnt=${havecnt}
-fi
-
-for ((idx=0; idx<$maxcnt; idx++)) ; do
-    for ((ifi=0; ifi<$havecnt; ifi++)) ; do
-	for ((tbi=0; tbi<$tbcnt; tbi++)) ; do
-	    if [ "${have[$ifi]}" = "${tb[$tbi]}" ] ; then
-		have[$ifi]=''
-		tb[$tbi]=''
+    fi
+    
+    for ((idx=0; idx<$maxcnt; idx++)) ; do
+	for ((ifi=0; ifi<$havecnt; ifi++)) ; do
+	    for ((tbi=0; tbi<$tbcnt; tbi++)) ; do
+		if [ "${have[$ifi]}" = "${tb[$tbi]}" ] ; then
+		    have[$ifi]=''
+		    tb[$tbi]=''
 	    fi
+	    done
 	done
     done
-done
 #turn array into string
-haveresult=${have[@]}
-tbresult=${tb[@]}
-
-if [[ "$haveresult" || "$tbresult" ]] ; then
-    if [[ $haveresult ]] ; then
+    haveresult=${have[@]-""}
+    tbresult=${tb[@]-""}
+    
+    if [[ "$haveresult" || "$tbresult" ]] ; then
+	if [[ $haveresult ]] ; then
 	failed="${failed}: NotIn TB $haveresult"
-    fi
-    if [[ $tbresult ]] ; then
-	failed="${failed}: TB Claims $tbresult"
-    fi
+	fi
+	if [[ $tbresult ]] ; then
+	    failed="${failed}: TB Claims $tbresult"
+	fi
 fi
-
-echo -n "Have $havecnt drive"
-[[ ${havecnt} -gt 1 ]] && echo -n "s" 
-[[ -z ${failed} ]] && echo " OK" || echo " $failed" FAILED
-
+    
+    echo -n "Have $havecnt drive"
+    [[ ${havecnt} -gt 1 ]] && echo -n "s" 
+    [[ -z ${failed} ]] && echo " OK" || echo " $failed" FAILED
+    
 
 } > ${tmplog} 2>&1
-cat ${tmplog} >> $logfile
-cat ${tmplog}
+    cat ${tmplog} >> $logfile
+    cat ${tmplog}
+fi # check_flag
 
 }
 
@@ -351,7 +354,7 @@ case $err in
 		;;
 	    * )
 		echo "${FUNCNAME[0]}:${LINENO} Internal error"
-		exit
+		(( $diskcheck_standalone )) && exit 1 || return 1
 		;;
 	esac
 	unset -v scan
@@ -542,7 +545,7 @@ getbpers() {
 	    [[ $res ]] || res=512
 	    ;;
 	* ) echo "$FUNCNAME internal error"
-	    exit 1
+	(( $diskcheck_standalone )) && exit 1 || return 1
 	    ;;
     esac
     echo $res
@@ -597,7 +600,7 @@ getsectors() {
 	    [[ $res ]] || res=0
 	    ;;
 	* ) echo "$FUNCNAME internal error"
-	    exit 1
+	(( $diskcheck_standalone )) && exit 1 || return 1
 	    ;;
     esac
     echo $res
@@ -632,12 +635,9 @@ getwspeed() {
 	args="$args count=8000"
     fi
     add_on_exit 'rm -f /tmp/ddresultw'
-    mynn=${#todo_exit[*]}
-    todo_exit[$mynn]='those are mine'
     $dd if=/dev/zero of=$hdname $args >/tmp/ddresultw 2>&1
     res=$(grep bytes /tmp/ddresultw)
     echo $(parsedd $res)
-    rm -f /tmp/ddresultw
     return 0
 }
 getrspeed() { 
@@ -666,7 +666,6 @@ getrspeed() {
     $dd of=/dev/null if=$hdname $args >/tmp/ddresultr 2>&1
     res=$(grep bytes /tmp/ddresultr)
     echo $(parsedd $res)
-    rm -f /tmp/ddresultr
     return 0
 }
 
@@ -700,7 +699,6 @@ parsedd() {
     return 0
 }
 
-main $@
-#cleanup
+main_diskcheck $@
 
-exit 0
+(( $diskcheck_standalone )) && exit 0 || return 0

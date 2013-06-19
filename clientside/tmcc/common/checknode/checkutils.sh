@@ -21,46 +21,75 @@
 # }}}
 #
 
-
-#exit on unbound var
-set -u
-#exit on any error
-set -e
-
-#only source this file once
-if [ "${checkutils+"beenhere"}" == "beenhere" ] ; then
-    return 0
-else
-    checkutils="sourced"
+if [ -z ${BASH_VERSINFO[0]} -o ${BASH_VERSINFO[0]} -lt 4 ] ; then
+    echo "Need at least BASH version 4 to run nodecheck tests or to Collect Inventory, Not running checks"
+    exit 0
 fi
-
-if [ -z "${BINDIR-""}" -a -f "/etc/emulab/paths.sh" ]; then
-    source /etc/emulab/paths.sh
-fi
-
-declare -i mfsmode="" #are we running in a MFS
-if [ -f /etc/emulab/ismfs ] ; then
-    mfsmode=1
-else
-    mfsmode=0
-fi
-
-declare errext_val # holding var for set value, ie -e
 
 # Global Vars
-declare NOSM="echo" #do nothing command
-declare host       #emulab hostname
-declare failed=""  #major falure to be commicated to user
-declare os=""      #[Linux|FreeBSD] for now
-declare -a todo_exit
-declare -A hwinv  # hwinv from tmcc
-declare -A hwinvcopy  # a copy of hwinv from tmcc
-declare -A tmccinfo # info from tmcc hwinfo
+       # the bash syntax ${var-1} means: use var if set else use nothing  
+[[ -z "${NOSM-}" ]] && declare NOSM="echo" #do nothing command
+[[ -z "${host-}" ]] && declare host       #emulab hostname
+[[ -z "${failed-}" ]] && declare failed=""  #major falure to be commicated to user
+[[ -z "${os-}" ]] && declare os=""      #[Linux|FreeBSD] for now
+[[ -z "${todo_exit-}" ]] && declare -a todo_exit
+[[ -z "${hwinv[hwinvidx]-}" ]] && declare -A hwinv["hwinvidx"]=""  # hwinv from tmcc
+[[ -z "${hwinvcopy[hwinvidx]-}" ]] && declare -A hwinvcopy["hwinvidx"]=""  # a copy of hwinv from tmcc
+[[ -z "${tmccinfo[hwinvidx]-}" ]] && declare -A tmccinfo["hwinvidx"]="" # info from tmcc hwinfo
+[[ -z "${collect_flag-}" ]] && declare -i collect_flag # from tmcc hwinfo
+[[ -z "${check_flag-}" ]] && declare -i check_flag # from tmcc hwinfo
+[[ -z "${projdir-}" ]] && declare projdir # from tmcc hwinfo
+[[ -z "${errexit_val-}" ]] && declare errexit_val # holding var for set values, ie -e
+[[ -z "${mfsmode-}" ]] && declare -i mfsmode=0 #are we running in a MFS?
 
+# PathNames
+[[ -z "${logfile-}" ]] && declare logfile # output log
+[[ -z "${logfile4tb-}" ]] && declare -r logfile4tb="/tmp/nodecheck.log.tb" # for data to saved in perm storage
+[[ -z "${tmplog-}" ]] && declare -r tmplog="/tmp/.$$tmp.log"
+[[ -z "${logout-}" ]] && declare -r logout="/tmp/.$$logout.log" # temperary logging while building inventory"
+[[ -z "${tmpout-}" ]] && declare -r tmpout="/tmp/.$$tempout.log" # ditto
 
-#declare -A tcm_out # hwinv for output
-#declare -A tcm_inv # what we have discovered
-# declare -p todo_exit
+# DEBUG
+[[ -z "${DEBUG-}" ]] && declare -ir DEBUG=0 # Some debugging if set
+
+initialize () {
+    #exit on unbound var
+    set -u
+    #exit on any error
+    set -e
+
+    #call only once
+    if [ "${initdone-uninit}" != "uninit" ] ; then
+    	(( $DEBUG )) && printf "Attempt to call twice %s:%s called from %s\n" $FUNCNAME $LINENO "$(caller)"
+	return 0
+    fi
+
+    if [ -z "${BINDIR-""}" ] ; then 
+	if [ -f "/etc/emulab/paths.sh" ]; then
+	    source /etc/emulab/paths.sh
+	else
+	    export BINDIR=/usr/local/etc/emulab
+	    export LOGDIR=/var/tmp
+	fi
+    fi
+    
+    if [ -f /etc/emulab/ismfs ] ; then
+	mfsmode=1
+    else
+	mfsmode=0
+    fi
+
+    inithostname
+    initlogs $@
+    inittestinfo
+
+    #trap 'err_report $FUNCNAME:$LINENO' ERR
+    trap 'err_report $LINENO' ERR
+
+    initdone="done"
+    export initdone
+    return 0
+}
 
 # any command causes exit if -e option set
 # including a grep just used so see if some string is in a file
@@ -75,10 +104,8 @@ restore_e() {
 
 # give some indication of exit on ERR trap
 err_report() {
-    echo "TRAP ERR at $1"
+    echo "TRAP ERR at Caller Line $(caller)"
 }
-#trap 'err_report $FUNCNAME:$LINENO' ERR
-trap 'err_report $LINENO' ERR
 
 
 # read info from tmcc or a file. Copy into one of the three global arrays
@@ -496,15 +523,20 @@ printhwinv() {
 
 # which is not in busybox and not a bash builtin
 which() {
-    mypath=$PATH
-    mypath=${mypath//:/ }
-    for i in $mypath ; do
-	if [ -e $i/$1 ] ; then
-	    echo $i/$1
-	    return 0
-	fi
-    done
-    return 1
+    if [ -x /usr/bin/which ] ; then
+	# have real which, use it
+	/usr/bin/which $@
+	return 0
+    else
+	mypath=$PATH
+	mypath=${mypath//:/ }
+	for i in $mypath ; do
+	    if [ -e $i/$1 ] ; then
+		echo $i/$1
+		return 0
+	    fi
+	done
+    fi
 }
 
 inithostname() {
@@ -546,13 +578,15 @@ findSmartctl() {
 
 # Array of command to be run at exit time
 on_exit() {
+#  (( $DEBUG )) && echo "EXIT on_exit $(caller)"
     for i in "${todo_exit[@]}" ; do
         $($i)
     done
     return 0
 }
+
 add_on_exit() {
-    local nex=${#todo_exit[*]}
+    local -i nex=${#todo_exit[*]}
     todo_exit[$nex]="$@"
     if [[ $nex -eq 0 ]]; then
         trap on_exit EXIT
@@ -560,28 +594,63 @@ add_on_exit() {
     return 0
 }
 
-# setup logging
+# setup logging $1 is local log file if not set default to /tmp file
+# $2 is the collect file, if not set then no collection is done
 initlogs () {
-    # the following syntax lets us test if a positional arg is set before we try and use it
-    # need if running with -u set. 
+    #call only once
+    if [ "${initlogdone-notdone}" != "notdone" ] ; then
+    	(( $DEBUG )) && printf "Attempt to call twice %s:%s called from %s\n" $FUNCNAME $LINENO "$(caller)"
+	return 0
+    fi
+
+    # the following bash syntax lets us test if a positional arg is set
+    # before we try and use it
+    # needed if running with -u set. 
     # It means use $1 if set else use a default path
     logfile=${1-"/tmp/nodecheck.log"}
 
-    # this file is only used in gather mode
-    # and should have been created in gatherinv
-    # set the name so it can be tested for
-    logfile4tb=${2-".$$no4tb"}
+    # need to have inittestinfo run, help programmer out
+    [[ "${collect_flag-undef}" = "undef" ]] && inittestinfo
 
-    tmplog=/tmp/.$$tmp.log ; cat /dev/null > ${tmplog} # create and truncate
+    # this file is only used in gather mode
+    # set the name so it can be tested for
+    (( $collect_flag )) && { cat /dev/null > $logfile4tb ; add_on_exit "rm -f $logfile4tb" ; }
+
+    cat /dev/null > ${tmplog} # create and truncate
     add_on_exit "rm -f $tmplog"
 
-    logout=/tmp/.$$logout.log ; cp /dev/null ${logout} # make it exist
+    cp /dev/null ${logout} # make it exist
     add_on_exit "rm -f $logout"
-    tmpout=/tmp/.$$tmpout.log ; cp /dev/null ${tmpout}
+    
+    cp /dev/null ${tmpout}
     add_on_exit "rm -f $tmpout"
 
+    initlogdone="done"
+    export initlogdone
     return 0
 }
+
+inittestinfo () {
+    local testinfo
+    #call only once
+    if [ "${inittestdone-notdone}" != "notdone" ] ; then
+    	(( $DEBUG )) && printf "Attempt to call twice %s:%s called from %s\n" $FUNCNAME $LINENO "$(caller)"
+	return 0
+    fi
+
+    # if tmccinfo array not set then read it in
+    [[ -z "${tmccinfo["hwinvidx"]+${tmccinfo["hwinvidx"]}}" ]] && readtmcinfo tmcc tmccinfo
+    testinfo=${tmccinfo["TESTINFO"]}
+    collect_flag=$(echo $testinfo | awk -F = '{print $3}' | awk '{print $1}')
+    check_flag=$(echo $testinfo | awk -F = '{print $4}')
+    (( $collect_flag )) && projdir=$(echo $testinfo | awk -F \" '{print $2}') || projdir=""
+    [[ "${projdir:0:1}" != '/' ]] && ( printf "%s():collect is set but invaild path given |%s|" $FUNCNAME $projdir ;  exit 1 )
+
+    inittestdone="done"
+    export inittestdone
+    return 0
+}
+    
 
 getdrivenames() {
     # use smartctl if exits
@@ -639,6 +708,91 @@ getdrivenames() {
     return 0
 }
 
+# return the requested hwinfo 
+# $1 is the type
+getfromtb() {
+    local info=$1
+    local -i units=0
+    
+    case $info in
+	TESTINFO | CPUINFO )
+            # make sure that tmccinfo does have the info requested.
+	    [[ -z "${tmccinfo[$info]+${tmccinfo[$info]}}" ]] && return 0
+	    # take off the info
+	    s=${tmccinfo[$info]}
+	    s=${s/$info }
+	    printf "%s" "$s"
+	    ;;
+	NETINFO | DISKINFO )
+	    [[ -z "${tmccinfo[$info]+${tmccinfo[$info]}}" ]] && return 0
+	    s=${tmccinfo[$info]}
+	    s=${s//=/}
+	    s=${s/UNITS}
+	    s=${s/$info }
+	    printf "%s" "$s"
+	    ;;
+	MEMINFO )
+	    [[ -z "${tmccinfo[$info]+${tmccinfo[$info]}}" ]] && return 0
+	    s=${tmccinfo[$info]}
+	    s=${s/$info SIZE=}
+	     printf "%s" "$s"
+	     ;;
+	DISKUNIT )
+	    [[ -z "${tmccinfo[${info}0]+${tmccinfo[${info}0]}}" ]] && return 0
+	    # only returning serial numbers
+	    x=${tmccinfo["DISKINFO"]}
+	    units=${x/#DISKINFO UNITS=/}
+	    for ((n=0; n<$units; n++)) ; do
+		s=${tmccinfo[DISKUNIT$n]}
+		    # turn space seperated string into array
+		unset -v d ; declare -a d=(${s// / })
+		numelm=${#d[*]}
+		for ((elm=1; elm<$numelm; elm++)) ; do
+		    objval=${d[$elm]}
+		    [[ -z $objval ]] && continue  # that's bad no tupil
+		    obj=${objval%%=*}
+		    val=${objval##*=}
+		    [[ -z $val ]] && continue # bad also no value (or empty s
+		    if [ "$obj" = "SN" ] ;  then
+			val=${val//=/}
+			val=${val//\"/}
+			printf "%s " "$val"
+		    fi
+		done
+	    done
+	    ;;
+	NETUNIT )
+	    [[ -z "${tmccinfo[${info}0]+${tmccinfo[${info}0]}}" ]] && return 0
+	    # only return ID
+	    x=${tmccinfo["NETINFO"]}
+	    units=${x/#NETINFO UNITS=/}
+	    for ((i=0; i<$units; i++)) ; do
+		s=${tmccinfo[NETUNIT$i]}
+		unset -v d ; declare -a d=(${s// / })
+		numelm=${#d[*]}
+		for ((elm=1; elm<$numelm; elm++)) ; do
+		    objval=${d[$elm]}
+		    [[ -z $objval ]] && continue  # that's bad no tupil
+		    obj=${objval%%=*}
+		    val=${objval##*=}
+		    [[ -z $val ]] && continue # bad also no value (or empty s
+		    if [ "$obj" = "ID" ] ;  then
+			val=${val//=/}
+			val=${val//\"/}
+			printf "%s " "$val"
+		    fi
+		done
+	    done
+	    ;;
+	* ) printf "ibinfo what is this in my case statment |%s|\n" "$info" ; exit 1
+	    ;;
+    esac
+    return 0
+}
+
+
+
+
 # The timesys function terminates its script unless it terminates earlier on its own
 # args: max_time output_file command command_args
 # does not work....
@@ -663,3 +817,4 @@ timesys() {
 } > $out 2>&1
 }
 
+return 0

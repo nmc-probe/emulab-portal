@@ -28,30 +28,26 @@ _256KMiB=262144
 _1KGiB=1048576
 _32KGiB=33554432
 
-echo -n ' Starting memcheck..'
+echo -n ' Starting Memcheck..'
 
 source checkutils.sh
 source hbis.sh
 
+x=$(caller)
+[[ "${x/NULL}" = "$x" ]] && declare -ri memcheck_standalone=0 || declare -ri memcheck_standalone=1
+
 declare failed="" s=""
 
-inithostname
-initlogs $@
+initialize $@
+cp /dev/null $tmplog
 
-#set +x
-#exit on unbound var
-set -u
-#exit on any error
-set -e
-
-# only called on error, should just get rig of
 finish() {
-    echo "memcheck `date`" >> ${logfile}
+    echo -n "Memcheck `date`: " >> ${logfile}
     cat ${tmplog} >> ${logfile} 
     
     echo "$failed"
     echo "$failed" >> ${logfile} 
-    exit 1
+    (( $memcheck_standalone )) && exit 0 || return 0
 }
 
 s=""
@@ -59,7 +55,7 @@ s=""
 # check that external need program are installed
 case $os in
     Linux )
-	if [ -f ${logfile4tb} ] ; then
+	if (( $mfsmode )) ; then
 	    progs="cat grep"
 	else
 	    progs="cat grep bc"
@@ -71,7 +67,7 @@ case $os in
     * )
 	failed="Unknown OS :$os:"
 	finish
-	exit 1
+	(( $memcheck_standalone )) && exit 1 || return 1
 	;;
 esac
 for i in $progs ; do
@@ -89,7 +85,7 @@ case $os in
     Linux )
 	    unset -v d ; declare -a d=($(cat /proc/meminfo | grep MemTotal))
 	    # we don't have the use of bc in mfs/load boot
-	    if [ -f ${logfile4tb} ] ; then
+	    if (( $collect_flag )) ; then
 		# punt punt punt
 		number=${d[1]}
 		if (( number > $_32KGiB )) ; then
@@ -116,7 +112,7 @@ case $os in
 		    number=$(echo "scale=0; (${d[1]} * 1.0) / 1;" | bc)
 		fi
 	    fi
-		
+	    
 	    mi=${number}${d[2]}
 	    meminfo=$(hbis $mi)
 	    ;;
@@ -140,28 +136,28 @@ esac
 echo -n "Found phys memory $meminfo"
 } >> ${tmplog} 2>&1
 
-# if saving data for testbed database
 num=${meminfo//[a-z]*/}
 num=${meminfo//[A-Z]*/}
 base=${meminfo//[0-9]/}
-#it is MiB or GiB
-if [ "$base" == "GiB" ] ; then
+    #it is MiB or GiB
+if [ "$base" = "GiB" ] ; then
     num=$(($num * 1024))
 fi
-if [ -f ${logfile4tb} ] ; then
+
+# if saving data for testbed database
+if (( $collect_flag )) ; then
     printf "MEMINFO SIZE=%s\n" ${num} >> ${logfile4tb}
-    exit 0
 fi
 
-# done at this point in MFS
 # we are done if in MFS mode
-(( $mfsmode )) && exit 0
+if (( $mfsmode )) ; then
+    (( $memcheck_standalone )) && exit 0 || return 0
+fi
 
-
-tbinfo=$(getfromtb meminfo $host)
+tbinfo=$(getfromtb MEMINFO)
 
 {
-if [ "$meminfo" == "$tbinfo" ] ; then
+if [ "$num" = "$tbinfo" ] ; then
     echo " Equals node inventory $tbinfo"
 else
     echo " Does not equals node inventory $tbinfo"    
@@ -169,9 +165,9 @@ else
 fi
 } >> ${tmplog} 2>&1
 
-echo "memcheck `date`" >> ${logfile}
+echo -n "Memcheck `date`: " >> ${logfile}
 cat ${tmplog} >> ${logfile} 
 
-[[ -z ${failed} ]] && echo "$tbinfo OK" || echo "TBmiss Have |$meminfo| Want |$tbinfo| FAILED"
+[[ -z ${failed} ]] && echo "$meminfo" || echo "TBmiss Have |$meminfo| Want |$tbinfo| FAILED"
 
-exit 0
+(( $memcheck_standalone )) && exit 0 || return 0
