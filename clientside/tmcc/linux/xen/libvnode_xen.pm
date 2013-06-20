@@ -83,6 +83,7 @@ use Socket;
 use File::Basename;
 use File::Path;
 use File::Copy;
+use File::Temp;
 
 # Pull in libvnode
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
@@ -122,6 +123,7 @@ my $IPBIN	= "/sbin/ip";
 my $NETSTAT     = "/bin/netstat";
 my $IMAGEZIP    = "/usr/local/bin/imagezip";
 my $IMAGEUNZIP  = "/usr/local/bin/imageunzip";
+my $IMAGEDUMP   = "/usr/local/bin/imagedump";
 my $debug  = 0;
 
 ##
@@ -141,6 +143,8 @@ my %defaultImage = (
     'OSVERSION' => "any",
     'PARTOS'    => "Linux",
     'ISPACKAGE' => 0,
+    'PART'      => 2,
+    'BOOTPART'  => 2,
 );
 
 # where all our config files go
@@ -177,8 +181,13 @@ my $MIN_MB_DOM0MEM = 256;
 # Minimum acceptible size (in GB) of LVM VG for domUs.
 my $XEN_MIN_VGSIZE = ($MAX_VNODES * $MIN_GB_DISK);
 
-# XXX fixed-for-now LV size for all logical disks
-my $XEN_LDSIZE = $MIN_GB_DISK;
+# XXX fixed-for-now LV size for all logical disks. This number reflects
+# the actual size of all of our single slice images. Size in 1k blocks.
+my $XEN_LDSIZE    = 6152895;
+# And this is the swap size. Also the same as our version 2 mbr.
+my $XEN_SWAPSIZE  = 1024 * 1024 * 2;
+# And room for an empty slice so we can mimic our MBR.
+my $XEN_EMPTYSIZE = 1024;
 
 # IFBs
 my $IFBDB      = "/var/emulab/db/ifbdb";
@@ -501,7 +510,7 @@ sub vnodeCreate($$$$)
     my $inreload = 0;
 
     my $vmid;
-    if ($vnode_id =~ /^\w+\d+\-(\d+)$/) {
+    if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
 	$vmid = $1;
     }
     else {
@@ -535,10 +544,11 @@ sub vnodeCreate($$$$)
 	    "no image specified, using default ('$imagename')\n";
 
 	$lvname = "image+" . $imagename;
-	if (!findLVMLogicalVolume($lvname)) {
-	    createRootDisk($imagename);
+	if (!findLVMLogicalVolume($lvname) && createRootDisk($imagename)) {
+	    TBScriptUnlock();
+	    fatal("xen_vnodeCreate: ".
+		  "cannot find create root disk for default image");
 	}
-	$imagemetadata = \%defaultImage;
     }
     elsif (!defined($raref)) {
 	#
@@ -606,6 +616,11 @@ sub vnodeCreate($$$$)
 		  "cannot restore logical volumes from $imagename");
 	}
 	mysystem2("umount /mnt/$imagename");
+
+	if ($inreload) {
+	    libutil::setState("RELOADDONE");
+	    sleep(4);
+	}
 	
 	#
 	# All of the lvms are created and a new xm.conf created.
@@ -639,7 +654,154 @@ sub vnodeCreate($$$$)
     
     if ($imagemetadata->{'PARTOS'} =~ /freebsd/i) {
 	$os = "FreeBSD";
-	my $kernel = ExtractKernelFromFreeBSDImage($lvname, "$VMDIR/$vnode_id");
+    }
+    else {
+	$os = "Linux";
+
+	if ($xeninfo{xen_major} >= 4) {
+	    $vdiskprefix = 'xvd';
+	}
+    }
+    $private->{'os'} = $os;
+
+    # All of the disk stanzas for the config file.
+    my @alldisks = ();
+    # Cache the config file, but will read it later.
+    $private->{'disks'} = {};
+
+    #
+    # The root disk.
+    #
+    my $rootvndisk = lvmVolumePath($vnode_id);
+
+    #
+    # Since we may have (re)loaded a new image for this vnode, check
+    # and make sure the vnode snapshot disk is associated with the
+    # correct image.  Otherwise destroy the current vnode LVM so it
+    # will get correctly associated below.
+    #
+    if (findLVMLogicalVolume($vnode_id)) {
+	my $olvname = findLVMOrigin($vnode_id);
+	if ($olvname ne $lvname) {
+	    if (mysystem2("lvremove -f $VGNAME/$vnode_id")) {
+		TBScriptUnlock();
+		fatal("xen_vnodeCreate: ".
+		      "could not destroy old disk for $vnode_id");
+	    }
+	}
+    }
+
+    #
+    # Figure out what slice the image is going in. It might be a whole
+    # disk image though, so need to figure out what partition to boot.
+    # Otherwise we force single slice images into its partition, and
+    # put a swap partition after it. Lastly, if an extra disk partition
+    # was requested, put that after the swap partition. This will allow
+    # the user to take a whole disk image snapshot and load it on a physical
+    # node later. 
+    #
+    print Dumper($imagemetadata);
+    my $loadslice  = $imagemetadata->{'PART'};
+    my $bootslice  = $loadslice;
+    my $rootvdisk  = "${vdiskprefix}a";
+    my $rootstanza = "phy:$rootvndisk,${vdiskprefix}a,w";
+    push(@alldisks, "'$rootstanza'");
+
+    #
+    # Create the snapshot LVM.
+    #
+    if (!findLVMLogicalVolume($vnode_id)) {
+	#
+	# Need to create a new disk for the container. But lets see
+	# if we have a disk cached. We still have the imagelock at
+	# this point.
+	#
+	if (my (@files) = glob("/dev/$VGNAME/_C_${imagename}_*")) {
+	    #
+	    # Grab the first file and rename it. It becomes ours.
+	    # Then drop the lock.
+	    #
+	    my $file = $files[0];
+	    if (mysystem2("lvrename $file $rootvndisk")) {
+		TBScriptUnlock();
+		fatal("libvnode_xen: could not rename cache file");
+	    }
+	}
+	else {
+	    my $extrafs = 
+		(exists($attributes->{'XEN_EXTRAFS'}) ?
+		 $attributes->{'XEN_EXTRAFS'} : undef);
+		 
+	    if (CreatePrimaryDisk($lvname,
+				  $imagemetadata, $vnode_id, $extrafs)) {
+		TBScriptUnlock();
+		fatal("libvnode_xen: could not clone $lvname");
+	    }
+	    if ($inreload) {
+		libutil::setState("RELOADDONE");
+		sleep(5);
+		
+		#
+		# We have to ask what partition to boot, since the
+		# that info does not come across in the loadinfo, and
+		# we cannot ask until RELOADDONE is sent. 
+		#
+		if ($loadslice == 0) {
+		    my @tmp;
+
+		    if (getbootwhat(\@tmp) || !scalar(@tmp) ||
+			!exists($tmp[0]->{"WHAT"}) ||
+			$tmp[0]->{"WHAT"} !~ /^\d*$/) {
+			print STDERR Dumper(\@tmp);
+			TBScriptUnlock();
+			fatal("libvnode_xen: could not get bootwhat info");
+		    }
+		    $bootslice = $tmp[0]->{"WHAT"};
+		    #
+		    # Store it back into the metadata for next time.
+		    #
+		    $imagemetadata->{'BOOTPART'} = $bootslice;
+		    StoreImageMetadata($imagename, $imagemetadata);
+		}
+	    }
+	}
+	if ($loadslice == 0) {
+	    $bootslice = $imagemetadata->{'BOOTPART'};
+	}
+	# Need to tell slicefix where to find the root partition.
+	# Naming convention is a pain.
+	my $devname = "$VGNAME/${vnode_id}p$bootslice";
+	$devname =~ s/\-/\-\-/g;
+	$devname =~ s/\//\-/g;
+	$private->{'rootpartition'} = "/dev/mapper/$devname";
+	$rootvdisk .= "${bootslice}";
+		
+	#
+	# Need to create mapper entries so we can mount the
+	# boot filesystem later, for slicefix.
+	#
+	if (mysystem2("kpartx -av $rootvndisk")) {
+	    TBScriptUnlock();
+	    fatal("libvnode_xen: could not add /dev/mapper entries");
+	}
+	# Hmm, some kind of kpartx race ...
+	sleep(2);
+    }
+    # Mark the lvm as created, for cleanup on error.
+    $private->{'disks'}->{$vnode_id} = $vnode_id;
+
+    #
+    # The rest of this can proceed in parallel with other VMs.
+    #
+    TBScriptUnlock();
+
+    #
+    # Extract kernel and ramdisk.
+    #
+    if ($os eq "FreeBSD") {
+	my $kernel = ExtractKernelFromFreeBSDImage($vnode_id,
+						   $private->{'rootpartition'},
+						   "$VMDIR/$vnode_id");
 	    
 	if (!defined($kernel)) {
 	    if ($imagemetadata->{'OSVERSION'} >= 9) {
@@ -660,8 +822,6 @@ sub vnodeCreate($$$$)
 	undef $image{'ramdisk'};
     }
     else {
-	$os = "Linux";
-
 	if ($imagemetadata->{'PARTOS'} =~ /fedora/i &&
 	    $imagemetadata->{'OSVERSION'} >= 8 &&
 	    $imagemetadata->{'OSVERSION'} < 9) {
@@ -673,7 +833,7 @@ sub vnodeCreate($$$$)
 	    # See if we can dig the kernel out from the image.
 	    #
 	    my ($kernel,$ramdisk) =
-		ExtractKernelFromLinuxImage($lvname, "$VMDIR/$vnode_id");
+		ExtractKernelFromLinuxImage($vnode_id, "$VMDIR/$vnode_id");
 
 	    if (defined($kernel)) {
 		$image{'kernel'}  = $kernel;
@@ -694,109 +854,13 @@ sub vnodeCreate($$$$)
 	    }
 	    # Use the booted kernel. Works sometimes. 
 	}
-	if ($xeninfo{xen_major} >= 4) {
-	    $vdiskprefix = 'xvd';
-	}
     }
-    $private->{'os'} = $os;
-
-    # All of the disk stanzas for the config file.
-    my @alldisks = ();
-    # Cache the config file, but will read it later.
-    $private->{'disks'} = {};
-
-    #
-    # The root disk.
-    #
-    my $rootvdisk  = $vdiskprefix . "a";
-    my $rootvndisk = lvmVolumePath($vnode_id);
-    my $rootstanza = "phy:$rootvndisk,$rootvdisk,w";
-    push(@alldisks, "'$rootstanza'");
-
-    #
-    # Since we may have (re)loaded a new image for this vnode, check
-    # and make sure the vnode snapshot disk is associated with the
-    # correct image.  Otherwise destroy the current vnode LVM so it
-    # will get correctly associated below.
-    #
-    if (findLVMLogicalVolume($vnode_id)) {
-	my $olvname = findLVMOrigin($vnode_id);
-	if ($olvname ne $lvname) {
-	    if (mysystem2("lvremove -f $VGNAME/$vnode_id")) {
-		TBScriptUnlock();
-		fatal("xen_vnodeCreate: ".
-		      "could not destroy old disk for $vnode_id");
-	    }
-	}
-    }
-
-    #
-    # Create the snapshot LVM.
-    #
-    if (!findLVMLogicalVolume($vnode_id)) {
-	my $basedisk = lvmVolumePath($lvname);
-	if ($DOSNAP) {
-	    if (mysystem2("lvcreate -s -L ".
-			  "${XEN_LDSIZE}G -n $vnode_id $basedisk")) {
-		TBScriptUnlock();
-		fatal("libvnode_xen: could not create disk for $vnode_id");
-	    }
-	}
-	else {
-	    #
-	    # Need to create a new disk for the container. But lets see
-	    # if we have a disk cached. We still have the imagelock at
-	    # this point.
-	    #
-	    if (my (@files) = glob("/dev/$VGNAME/_C_${imagename}_*")) {
-		#
-		# Grab the first file and rename it. It becomes ours.
-		# Then drop the lock.
-		#
-		my $file = $files[0];
-		if (mysystem2("lvrename $file $rootvndisk")) {
-		    TBScriptUnlock();
-		    fatal("libvnode_xen: could not rename cache file");
-		}
-	    }
-	    else {
-		my $lv_size = lvSize($basedisk);
-		if (!defined($lv_size)) {
-		    TBScriptUnlock();
-		    fatal("libvnode_xen: could not get size of $basedisk");
-		}
-		if (mysystem2("lvcreate -L ${lv_size} -n $vnode_id $VGNAME")) {
-		    TBScriptUnlock();
-		    fatal("libvnode_xen: could not create disk for $vnode_id");
-		}
-		#
-		# Hacky attempt to determine if its a freebsd or linux disk.
-		#
-		mysystem2("$IMAGEZIP -i -b $basedisk > /dev/null 2>&1");
-		my $ptypeopt = ($? ? "-l" : "-b");
-	    
-		mysystem2("nice $IMAGEZIP $ptypeopt $basedisk - | ".
-			  "nice $IMAGEUNZIP -f -o -W 128 - $rootvndisk");
-		if ($?) {
-		    TBScriptUnlock();
-		    fatal("libvnode_xen: could no clone $basedisk");
-		}
-	    }
-	}
-    }
-    # Mark the lvm as created, for cleanup on error.
-    $private->{'disks'}->{$vnode_id} = $vnode_id;
-
-    #
-    # The rest of this can proceed in parallel with other VMs.
-    #
-    TBScriptUnlock();
 
     my $auxchar  = ord('b');
     #
     # Create a swap disk.
     #
-    if ($os eq "FreeBSD") {
+    if (0 && $os eq "FreeBSD") {
 	my $auxlvname = "${vnode_id}.swap";
 	my $vndisk = lvmVolumePath($auxlvname);
 	
@@ -865,7 +929,7 @@ sub vnodeCreate($$$$)
 
     if ($os eq "FreeBSD") {
 	addConfig($vninfo, "extra = 'boot_verbose=1" .
-		  ",vfs.root.mountfrom=ufs:/dev/da0a".
+		  ",vfs.root.mountfrom=ufs:/dev/da0s1a".
 		  ",kern.bootfile=/boot/kernel/kernel'", 2);
     } else {
 	addConfig($vninfo, "root = '/dev/$rootvdisk ro'", 2);
@@ -885,11 +949,8 @@ sub vnodeCreate($$$$)
     # Finish off the state transitions as necessary.
     #
     if ($inreload) {
-	libutil::setState("RELOADDONE");
-	sleep(4);
 	libutil::setState("SHUTDOWN");
     }
-
     return $vmid;
 }
 
@@ -936,8 +997,18 @@ sub vnodePreConfig($$$$$){
 	if (! ($vninfo->{'os'} eq "Linux" || $vninfo->{'os'} eq "FreeBSD"));
     
     mkpath(["/mnt/xen/$vnode_id"]);
-    my $dev = lvmVolumePath($vnode_id);
+    my $dev = $private->{'rootpartition'};
     my $vnoderoot = "/mnt/xen/$vnode_id";
+
+    #
+    # On a reboot, we might not have the mapper entries ...
+    #
+    if (! -e $dev) {
+	my $rootvndisk = lvmVolumePath($vnode_id);
+	if (mysystem2("kpartx -av $rootvndisk")) {
+	    fatal("libvnode_xen: could not add /dev/mapper entries");
+	}
+    }
 
     #
     # We rely on the UFS module (with write support compiled in) to
@@ -983,15 +1054,22 @@ sub vnodePreConfig($$$$$){
 	    goto bad
 		if ($?);
 	}
+	# change the devices in fstab
+	my $ldisk = ($xeninfo{xen_major} >= 4 ? "xvd" : "sd");
+
+	mysystem2("sed -i -e 's;^/dev/[hs]d;/dev/${ldisk};' ".
+		  "  $vnoderoot/etc/fstab");
+	goto bad
+	    if ($?);
     }
     else {
 	if (-e "$vnoderoot/etc/dumpdates") {
-	    mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/da0;' ".
+	    mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/da0s1;' ".
 		      "  $vnoderoot/etc/dumpdates");
 	    goto bad
 		if ($?);
 	}
-	mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/da0;' ".
+	mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/da0s1;' ".
 		  "  $vnoderoot/etc/fstab");
 	goto bad
 	    if ($?);
@@ -1493,6 +1571,10 @@ sub vnodeDestroy($$$$)
 	my $lvname = $private->{'disks'}->{$key};
 	
 	if (findLVMLogicalVolume($lvname)) {
+	    if ($lvname eq $vnode_id) {
+		my $rootvndisk = lvmVolumePath($lvname);
+		mysystem2("kpartx -dv $rootvndisk");
+	    }
 	    if (mysystem2("lvremove -f $VGNAME/$lvname")) {
 		print STDERR "libvnode_xen: could not destroy disk $lvname!\n";
 	    }
@@ -1602,7 +1684,7 @@ sub copyRoot($$)
     mysystem("mount -o loop $to $disk_path");
     mkpath([map{"$disk_path/$_"} qw(proc sys home tmp)]);
     print "Copying files\n";
-    system("cp -a $root_path/* $disk_path");
+    system("nice cp -a $root_path/* $disk_path");
 
     # hacks to make things work!
     disk_hacks($disk_path);
@@ -1620,15 +1702,182 @@ sub createRootDisk($)
     my ($lv) = @_;
     my $lvname = "image+" . $lv;
     my $full_path = lvmVolumePath($lvname);
-    my $size = $XEN_LDSIZE;
 
     #
-    # We only want to do this once.
+    # We only want to do this once. Lets wrap in an eval since
+    # there are so many ways this will die.
     #
-    system("lvcreate -n $lvname -L ${size}G $VGNAME");
-    system("echo y | mkfs -t ext3 $full_path");
-    mysystem("e2label $full_path /");
-    copyRoot(findRoot(), $full_path);
+    eval {
+	mysystem("lvcreate -n rootdisk -L ${XEN_LDSIZE}k $VGNAME");
+	my $vndisk = lvmVolumePath("rootdisk");
+	
+	#
+	# Put an MBR in so that it is exactly the correct size.
+	#
+	my $sectors = $XEN_LDSIZE * 2;
+	mysystem("echo '0,$sectors,L' | sfdisk --force -u S $vndisk -N0");
+
+	# Need the device special file.
+	mysystem("kpartx -av $vndisk");
+
+	my $dev = "$VGNAME/rootdisk1";
+	$dev =~ s/\-/\-\-/g;
+	$dev =~ s/\//\-/g;
+	$dev = "/dev/mapper/$dev";
+
+	mysystem("mke2fs -j -q $dev");
+	
+	copyRoot(findRoot(), $dev);
+
+	#
+	# Now imagezip it for space/time efficiency later.
+	#
+	mysystem("nice $IMAGEZIP -o -l -s 1 $dev $EXTRAFS/rootdisk.ndz");
+
+	#
+	# Now kill off the lvm and create one for the compressed version.
+	# Need to know the number of CHUNKS for later.
+	#
+	mysystem("kpartx -dv $vndisk");
+	mysystem("lvremove -f $VGNAME/rootdisk");
+
+	my (undef,undef,undef,undef,undef,undef,undef,$lvsize) =
+	    stat("$EXTRAFS/rootdisk.ndz");
+
+	my $chunks = $lvsize / (1024 * 1024);
+	$defaultImage{'IMAGECHUNKS'} = $chunks;
+
+	mysystem("lvcreate -n $lvname -L ${chunks}M $VGNAME");
+	mysystem("nice dd if=$EXTRAFS/rootdisk.ndz of=$full_path bs=256k");
+
+	# This was modified, so save out for next time. 
+	StoreImageMetadata($lv, \%defaultImage)
+    };
+    if ($@) {
+	fatal("$@");
+    }
+    return 0;
+}
+
+#
+# Create primary disk.
+#
+sub CreatePrimaryDisk($$$$)
+{
+    my ($lvname, $imagemetadata, $target, $extrafs) = @_;
+    my $basedisk   = lvmVolumePath($lvname);
+    my $rootvndisk = lvmVolumePath($target);
+    my $loadslice  = $imagemetadata->{'PART'};
+    
+    #
+    # The basedisk now contains the ndz data, so we need to
+    # run imagedump on it to find out how big it will be when
+    # uncompressed.
+    #
+    my $lv_size;
+    my $chunks = $imagemetadata->{'IMAGECHUNKS'};
+		
+    foreach my $line (`dd if=$basedisk bs=1M count=$chunks | $IMAGEDUMP - 2>&1`){
+	if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
+	    $lv_size = $2 / 2;
+	    last;
+	}
+    }
+    if (!defined($lv_size)) {
+	print STDERR "libvnode_xen: could not get size of $basedisk\n";
+	return -1;
+    }
+    
+    #
+    # Add room for "empty" slice, swap partition and for extra disk.
+    #
+    if ($loadslice != 0) {
+	$lv_size += $XEN_EMPTYSIZE;
+	$lv_size += $XEN_SWAPSIZE;
+	if (defined($extrafs)) {
+	    # In GB, so convert to K
+	    $lv_size += $extrafs * (1024 * 1024);
+	}
+    }
+    if (mysystem2("lvcreate -L ${lv_size}k -n $target $VGNAME")) {
+	print STDERR "libvnode_xen: could not create disk for $target\n";
+	return -1;
+    }
+
+    #
+    # If not a whole disk image, need to construct an MBR.
+    #
+    if ($loadslice != 0) {
+	#
+	# We put the image into the same slice that tmcd
+	# tells us it should be in, but we leave the other slice
+	# smallest possible since there is no reason to waste the
+	# space. A snapshot of this "disk" should run on a physical
+	# node if desired.
+	#
+	my $partfile = tmpnam();
+	if (!open(FILE, ">$partfile")) {
+	    print STDERR "libvnode_xen: could not create $partfile\n";
+	    return -1;
+	}
+	#
+	# sfdisk is very tempermental about its inputs. Using
+	# sector sizes seems to be the best way to avoid complaints.
+	#
+	# We mirror our version 2 MBR layout ...
+	#
+	my ($slice1_size,$slice2_size);
+	my ($slice1_type,$slice2_type);
+
+	my $slice1_start = 63; 
+	if ($loadslice == 1) {
+	    $slice1_size  = $XEN_LDSIZE * 2;
+	    $slice2_size  = ($XEN_EMPTYSIZE * 2) - 63;
+	    $slice1_type  = "0xA5";
+	    $slice2_type  = 0;
+	}
+	else {
+	    $slice1_size = ($XEN_EMPTYSIZE * 2) - 63;
+	    $slice2_size = $XEN_LDSIZE * 2;
+	    $slice1_type  = 0;
+	    $slice2_type  = "L";
+	}
+	my $slice2_start = $slice1_start + $slice1_size;
+	my $slice3_size  = $XEN_SWAPSIZE * 2;
+	my $slice3_start = $slice2_start + $slice2_size;
+	
+	print FILE "$slice1_start,$slice1_size,$slice1_type\n";
+	print FILE "$slice2_start,$slice2_size,$slice2_type\n";
+	print FILE "$slice3_start,$slice3_size,S\n";
+
+	if (defined($extrafs)) {
+	    my $slice4_size  = $extrafs;
+	    # In GB, so convert to sectors
+	    $slice4_size = $slice4_size * (1024 * 1024) * 2;
+	    my $slice4_start = $slice3_start + $slice3_size;
+
+	    print FILE "$slice4_start,$slice4_size,0\n";
+	}
+	close(FILE);
+		    
+	if (mysystem2("cat $partfile | ".
+		      "    sfdisk --force -x -D -u S $rootvndisk")) {
+	    print STDERR "libvnode_xen: could not partition root disk\n";
+	    return -1;
+	}
+	unlink($partfile);
+	mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
+		  "nice $IMAGEUNZIP -s $loadslice -f -o ".
+		  "                 -W 128 - $rootvndisk");
+    }
+    else {
+	mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
+		  "nice $IMAGEUNZIP -f -o -W 128 - $rootvndisk");
+    }
+    if ($?) {
+	return -1;
+    }
+    return 0;
 }
 
 #
@@ -1657,7 +1906,10 @@ sub createImageDisk($$$)
     my $lvmpath = lvmVolumePath($lvname);
     my $imagedatepath = "$METAFS/${image}.date";
     my $imagemetapath = "$METAFS/${image}.metadata";
+    my $imagepath = $lvmpath;
     my $unpack = 0;
+    my $nochunks = 0;
+    my $lv_size;
 
     # We are locked by the caller.
 
@@ -1696,14 +1948,6 @@ sub createImageDisk($$$)
 	unlink($imagemetapath)
 	    if (-e $imagemetapath);
     }
-
-    my $size = $XEN_LDSIZE;
-    if (mysystem2("lvcreate -n $lvname -L ${size}G $VGNAME")) {
-	print STDERR "libvnode_xen: could not create disk for $image\n";
-	return -1;
-    }
-    my $imagepath = $lvmpath;
-
     #
     # If the version info indicates a packaged container, then we
     # create a filesystem inside the lvm and download the package to
@@ -1713,6 +1957,26 @@ sub createImageDisk($$$)
     # XXX Using MBRVERS for now, need something else.
     #
     if (exists($raref->{'MBRVERS'}) && $raref->{'MBRVERS'} == 99) {
+	$unpack  = 1;
+	$lv_size = 6 * 1024;
+    }
+    elsif (!exists($raref->{'IMAGECHUNKS'})) {
+	print STDERR "Did not get chunksize in loadinfo. Using 6GB ...\n";
+	$nochunks = 1;
+	$lv_size  = 6 * 1024;
+    }
+    else {
+	#
+	# tmcd tells us number of chunks (size of image file). Create properly
+	# sized LVM. 
+	#
+	$lv_size = $raref->{'IMAGECHUNKS'};
+    }
+    if (mysystem2("lvcreate -n $lvname -L ${lv_size}m $VGNAME")) {
+	print STDERR "libvnode_xen: could not create disk for $image\n";
+	return -1;
+    }
+    if ($unpack) {
 	goto bad
 	    if (! -e "/mnt/$image" && mysystem2("mkdir -p /mnt/$image"));
 	goto bad
@@ -1726,12 +1990,17 @@ sub createImageDisk($$$)
 	mysystem2("touch /mnt/$image/.mounted");
 	goto bad
 	    if ($?);
-	$unpack = 1;
 	$imagepath = "$EXTRAFS/${image}.tar.gz";
+    }
+    elsif ($nochunks) {
+	#
+	# Write to plain file so we can determine IMAGECHUNKS and reduce lvm.
+	#
+	$imagepath = "$EXTRAFS/${image}.ndz";
     }
 
     # Now we just download the file, then let create do its normal thing
-    if (libvnode::downloadImage($imagepath, 1, $vnode_id, $raref)) {
+    if (libvnode::downloadImage($imagepath, $unpack, $vnode_id, $raref)) {
 	print STDERR "libvnode_xen: could not download image $image\n";
 	return -1;
     }
@@ -1746,6 +2015,20 @@ sub createImageDisk($$$)
 	goto bad
 	    if ($?);
     }
+    elsif ($nochunks) {
+	my (undef,undef,undef,undef,undef,undef,undef,$fsize) =
+	    stat($imagepath);
+
+	my $chunks = $fsize / (1024 * 1024);
+	$raref->{'IMAGECHUNKS'} = $chunks;
+	mysystem2("lvreduce --force -L ${chunks}m $VGNAME/$lvname");
+	goto bad
+	    if ($?);
+	mysystem2("dd if=$imagepath of=$lvmpath bs=256k");
+	goto bad
+	    if ($?);
+	unlink($imagepath);
+    }
     # reload has finished, file is written... so let's set its mtime
     mysystem2("touch $imagedatepath")
 	if (! -e $imagedatepath);
@@ -1754,7 +2037,7 @@ sub createImageDisk($$$)
     #
     # Additional info about the image. Just store the loadinfo data.
     #
-    StoreImageMetadata($imagemetapath, $raref);
+    StoreImageMetadata($image, $raref);
 
     #
     # XXX note that we don't declare RELOADDONE here since we haven't
@@ -3117,10 +3400,9 @@ sub ExtractKernelFromLinuxImage($$)
     return ("$outdir/kernel", "$outdir/ramdisk");
 }
 
-sub ExtractKernelFromFreeBSDImage($$)
+sub ExtractKernelFromFreeBSDImage($$$)
 {
-    my ($lvname, $outdir) = @_;
-    my $lvmpath = lvmVolumePath($lvname);
+    my ($lvname, $lvmpath, $outdir) = @_;
     my $mntpath = "/mnt/$lvname";
     my $kernel  = undef;
 
@@ -3159,6 +3441,8 @@ sub ExtractKernelFromFreeBSDImage($$)
     }
   skip:
     mysystem2("umount $mntpath");
+    return undef
+	if ($?);
     return $kernel;
 }
 
@@ -3167,7 +3451,8 @@ sub ExtractKernelFromFreeBSDImage($$)
 #
 sub StoreImageMetadata($$)
 {
-    my ($metapath, $metadata) = @_;
+    my ($imagename, $metadata) = @_;
+    my $metapath = "$METAFS/${imagename}.metadata";
 
     if (!open(META, ">$metapath")) {
 	print STDERR "libvnode_xen: could not create $metapath\n";

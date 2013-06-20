@@ -96,6 +96,7 @@ use Experiment;
 use Node;
 use User;
 use Image;
+use OSinfo;
 use Logfile;
 
 #
@@ -502,10 +503,24 @@ if ($isec2node) {
 }
 elsif ($isvirtnode) {
     #
+    # Need to know this is a xen-host to tailor options.
+    #
+    my $pnode  = Node->Lookup($node->phys_nodeid());
+    my $osinfo = OSinfo->Lookup($pnode->def_boot_osid());
+    if (!defined($osinfo)) {
+	fatal("Could not get osinfo for $pnode");
+    }
+    
+    #
     # XXX Need to add XEN package flag to descriptor.
     #
-    if ($image->mbr_version() == 99) {
-	$command .= " -p";
+    if ($osinfo->FeatureSupported("xen-host")) {
+	if ($image->mbr_version() == 99) {
+	    $command .= " -p";
+	}
+	if ($image->loadpart()) {
+	    $command .= " -s " . $image->loadpart();
+	}
     }
     $command .= " $node_id";
 }

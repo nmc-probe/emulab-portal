@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009-2012 University of Utah and the Flux Group.
+# Copyright (c) 2009-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,7 +39,6 @@ sub usage()
 my $optlist     = "dix:r:";
 my $debug       = 1;
 my $infomode    = 0;
-my $islinux     = 0;
 my $VMPATH      = "/var/emulab/vms/vminfo";
 my $EXTRAFS	= "/capture";
 my $VGNAME	= "xen-vg";
@@ -141,11 +140,6 @@ if (exists($xminfo{"ramdisk"})) {
     system("cp " . $xminfo{"ramdisk"} . " $ramdisk") == 0
 	or Fatal("Could not copy ramdisk to $ramdisk");
     $xminfo{"ramdisk"} = basename($xminfo{"ramdisk"});
-
-    #
-    # Yuck. Need a better way to determine this.
-    #
-    $islinux = 1;
 }
 
 #
@@ -207,26 +201,11 @@ foreach my $device (keys(%diskinfo)) {
     print "Working on $device.\n";
     print "Size is $lv_size. Writing to $EXTRAFS/$filename\n";
     
-    #
-    # The root FS is a single partition image, while the aux disks
-    # have a real MBR in them. 
-    #
-    my $opts = "";
-    if (defined($options{"x"})) {
-	if ($device =~ /sda/ || $device =~ /xvda/) {
-	    $opts = ($islinux ? "-l" : "-b");
-	}
-    }
-    else {
-	if (! ($device =~ /disk/)) {
-	    $opts = ($islinux ? "-l" : "-b");
-	}
-    }
     if ($infomode) {
-	system("imagezip -i $opts $device");
+	system("imagezip -i $device");
     }
     else {
-	system("imagezip -o $opts $device $EXTRAFS/$filename");
+	system("imagezip -o $device $EXTRAFS/$filename");
     }
     if ($?) {
 	Fatal("imagezip failed");

@@ -239,7 +239,7 @@ my %xmlfields =
      "op_mode",		=> $base_osinfo->op_mode(),
      "global"           => (defined($global) ?
 			    ($global ? 1 : 0) : $base_osinfo->shared()),
-     "wholedisk",	=> ($isvirtnode ? 1 : $wholedisk),
+     "wholedisk",	=> $wholedisk,
 );
 $xmlfields{"reboot_waittime"} = $base_osinfo->reboot_waittime()
     if (defined($base_osinfo->reboot_waittime()));
@@ -249,9 +249,18 @@ $xmlfields{"osfeatures"} = $base_osinfo->osfeatures()
     
 if (defined($base_image)) {
     $xmlfields{"mbr_version"}     = $base_image->mbr_version();
-    $xmlfields{"loadpart"}        = ($isvirtnode ? 1 : $base_image->loadpart());
+    $xmlfields{"loadpart"}        = $base_image->loadpart();
     $xmlfields{"global"}          = (defined($global) ?
 				     ($global ? 1 : 0) : $base_image->global());
+
+    # Short form uses wholedisk instead. Should fix this. 
+    if ($base_image->loadpart() == 0 && $base_image->loadlength() == 4) {
+	$xmlfields{"loadpart"}    = 1;
+	$xmlfields{"wholedisk"}   = 1;
+    }
+    elsif ($wholedisk) {
+	$xmlfields{"loadpart"}    = 1;
+    }
 }
 elsif ($isvirtnode) {
     $xmlfields{"reboot_waittime"} = 240;

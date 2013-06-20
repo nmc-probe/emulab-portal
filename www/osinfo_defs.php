@@ -338,6 +338,20 @@ class OSinfo
     }
 
     #
+    # See if a feature is supported
+    #
+    function FeatureSupported($feature) {
+	if ($this->osfeatures()) {
+	    foreach (preg_split("/,/", $this->osfeatures()) as $f) {
+		if ($feature == $f) {
+		    return 1;
+		}
+	    }
+	}
+	return 0;
+    }
+
+    #
     # Spit out an OSID link in user format.
     #
     function SpitLink() {

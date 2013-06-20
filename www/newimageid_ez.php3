@@ -83,6 +83,16 @@ if (isset($node)) {
     if (! $baseimage) {
 	$baseosinfo = OSinfo::Lookup($node->def_boot_osid());
     }
+    else {
+	$baseosinfo = OSinfo::Lookup($baseimage->imageid());
+    }
+    if ($baseosinfo && $baseosinfo->def_parentosid()) {
+	$def_parentosinfo = OSinfo::Lookup($baseosinfo->def_parentosid());
+	if (! $def_parentosinfo) {
+	    TBERROR("Could not lookup osinfo object for parent " .
+		    $baseosinfo->def_parentosid(), 1);
+	}
+    }
 }
 elseif ($ec2) {
     $nodetype = "pcvm";
@@ -104,6 +114,9 @@ if (isset($nodetype) && $nodetype == "pcvm") {
 		  'hide_concurrent' => 1,
 		  'hide_footnotes' => 1,
 		  'hide_wholedisk' => 1);
+    if ($def_parentosinfo && $def_parentosinfo->FeatureSupported("xen-host")) {
+	$view['hide_wholedisk'] = 0;
+    }
 }
 elseif (isset($nodetype) && $nodetype == "mote") {
     $view = array('hide_partition' => 1, 'hide_os' => 1, 'hide_version' => 1,
@@ -624,7 +637,7 @@ function SPITFORM($formfields, $errors)
     #
     # Whole Disk Image
     #
-    if (isset($view["hide_wholedisk"])) {
+    if (isset($view["hide_wholedisk"]) && $view["hide_wholedisk"]) {
 	spithidden($formfields, 'wholedisk');
     } else {
 	echo "<tr>

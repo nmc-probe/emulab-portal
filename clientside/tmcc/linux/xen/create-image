@@ -43,9 +43,10 @@ sub usage()
 	"<vnodeid> <filename>\n";
     exit(-1);
 }
-my $optlist   = "F:S:pr";
+my $optlist   = "F:S:prs:";
 my $aspack    = 0;
 my $norestart = 0;
+my $slice     = 0;
 
 #
 # Turn off line buffering on output
@@ -55,6 +56,7 @@ $| = 1;
 # Need this for predicates.
 use libsetup;
 use libvnode_xen;
+use libutil;
 
 #
 # No configure vars.
@@ -92,6 +94,9 @@ if (@ARGV != 2) {
 
 if (defined($options{"p"})) {
     $aspack = 1;
+}
+if (defined($options{"s"})) {
+    $slice = $options{"s"};
 }
 if (defined($options{"S"})) {
     $iserver = $options{"S"};
@@ -189,23 +194,8 @@ if ($aspack) {
 }
 else {
     my $device = libvnode_xen::lvmVolumePath($vnodeid);
-    my $opt    = "";
+    my $opt    = ($slice ? "-s $slice" : "");
 
-    #
-    # Hacky way to determine what kind of filesystem, since there
-    # is nothing in the MBR to tell us.
-    #
-    if (system("$zipper -i -b $device >/dev/null 2>&1") == 0) {
-	$opt = "-b";
-    }
-    elsif (system("$zipper -i -l $device >/dev/null 2>&1") == 0) {
-	$opt = "-l";
-    }
-    else {
-	print STDERR "Cannot determine imagezip FS type of $device\n";
-	$error = 1;
-	goto cleanup;
-    }
     $cmd = "$zipper $opt $device $filename";    
 }
 
@@ -225,9 +215,8 @@ if (defined($imageid)) {
 # with proper trust should be able to zip up a disk. sudo will fail
 # if the user is not in the proper group.
 #
-if (system("$sudo $cmd")) {
+if (mysystem2("$sudo $cmd")) {
     print STDERR "*** Failed to create image!\n";
-    print STDERR "    command: '$sudo $cmd'\n";
     $error = 1;
 }
 

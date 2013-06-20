@@ -123,7 +123,7 @@ else {
 
 if (! isset($confirmed)) {
     $url = CreateURL("loadimage", $image);
-    $newurl = CreateURL("newimageid_ez", "target", $target);
+    $newurl = CreateURL("newimageid_ez", "node_id", $target);
     
     echo "<center><form action='$url' method='post'>\n".
          "<h2><b>Warning!</b></h2>".

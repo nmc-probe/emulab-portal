@@ -146,12 +146,6 @@ else {
     chomp($lvsize);
 }
 
-#
-# Hacky attempt to determine if its a freebsd or linux disk.
-#
-system("$IMAGEZIP -i -b $imagelvmpath > /dev/null 2>&1");
-my $zipopt = ($? ? "-l" : "-b");
-	    
 while ($count > 0) {
     if (grep {$_ eq "/dev/$VGNAME/_C_${imagename}_${idx}"} @files) {
 	$count--
@@ -161,14 +155,17 @@ while ($count > 0) {
     }
     my $cachename = "_C_${imagename}_${idx}";
     my $cachefile = "/dev/$VGNAME/$cachename";
+    my $imagemetadata;
     
-    if (mysystem2("lvcreate -d -v -L${lvsize} -n $cachename $VGNAME")) {
+    if (libvnode_xen::LoadImageMetadata($imagename, \$imagemetadata)) {
+	print STDERR "Cannot load image metadata for $imagename\n";
 	TBScriptUnlock();
 	exit(1);
     }
-    if (mysystem2("nice $IMAGEZIP $zipopt $imagelvmpath - | ".
-		  "nice $IMAGEUNZIP -f -o -W 128 - $cachefile")) {
-	mysystem2("lvremove -f $cachefile");
+    if (libvnode_xen::CreatePrimaryDisk("image+" . $imagename,
+					$imagemetadata, $cachename, undef)) {
+	mysystem2("lvremove -f $cachefile")
+	    if (-e $cachefile);
 	TBScriptUnlock();
 	exit(1);
     }
