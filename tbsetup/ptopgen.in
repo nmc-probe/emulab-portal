@@ -813,12 +813,19 @@ if ($virtstuff) {
     # for sure that the node is running XEN. Need to addres this at
     # some point.
     #
-    $result = DBQueryFatal("select node_id,attrvalue from node_attributes ".
-			   "where attrkey='dom0mem'");
+    $result = DBQueryFatal("select node_id,attrvalue from nodes as n ".
+			   "left join node_type_attributes as na on ".
+			   "     na.type=n.type and ".
+			   "     na.attrkey='dom0mem' ".
+			   "where na.attrkey is not null");
     while (my ($pnode,$ram) = $result->fetchrow_array) {
 	$node_ramusage{$pnode} = 0
 	    if (!exists($node_ramusage{$pnode}));
-	
+
+	# Ug, units.
+	if ($ram =~ /^(\d*)M$/) {
+	    $ram = $1;
+	}
 	$node_ramusage{$pnode} += $ram;
     }
 }
