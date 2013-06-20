@@ -917,6 +917,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	my $node;
 	my $isbridge    = 0;
 	my $isfirewall  = 0;
+	my $xensettings;
 	
 	if (exists($nodeexistsmap{lc($node_nickname)})) {
 	    $response =
@@ -1055,6 +1056,12 @@ sub GetTicketAuxAux($$$$$$$$$)
 			elsif (!defined($osname)) {
 			    # Allow for url above.
 			    $osname = "XEN-STD";
+			}
+			#
+			# Look for the knobs
+			#
+			if (GeniXML::HasXenSettings($ref)) {
+			    $xensettings = GeniXML::GetXenSettings($ref);
 			}
 		    }
 		    elsif ($virtualization_subtype eq "emulab-spp") {
@@ -1441,6 +1448,36 @@ sub GetTicketAuxAux($$$$$$$$$)
 				    # Grab the type object for later.
 				    "nodetype" => NodeType->Lookup($pctype),
 	};
+
+	if (defined($xensettings)) {
+	    print STDERR "foo\n";
+	    print STDERR Dumper($xensettings);
+	    
+	    foreach my $setting (keys(%$xensettings)) {
+		my $attrvalue = $xensettings->{$setting};
+		my $attrkey;
+
+		if ($attrvalue !~ /^\d*$/) {
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					     "Bad XEN setting; integers only");
+		    goto bad;
+		}
+		if ($setting eq "ram") {
+		    $attrkey = "XEN_MEMSIZE";
+		}
+		elsif ($setting eq "cores") {
+		    $attrkey = "XEN_CORES";
+		}
+		elsif ($setting eq "disk") {
+		    $attrkey   = "XEN_EXTRAFS";
+		}
+		$virtexperiment->NewTableRow("virt_node_attributes",
+					     {"vname"     => $node_nickname,
+					      "attrkey"   => $attrkey,
+					      "attrvalue" => $attrvalue });
+	    }
+	}
 	
 	#
 	# Look for interface forward declarations that will be used later

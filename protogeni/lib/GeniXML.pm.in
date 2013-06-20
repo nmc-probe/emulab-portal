@@ -46,6 +46,7 @@ GetDiskImage IsUntaggedLan IsTaggedLan GetHopLinkID GetCapabilitySection
 GetSuggestedVlanFromHop SetVlanTagInHop);
 
 use English;
+use Data::Dumper;
 use XML::LibXML;
 use XML::LibXML::XPathContext;
 use XML::LibXML::NodeList;
@@ -704,6 +705,45 @@ sub GetDelayPipes($)
 	}
     }
     return @result;
+}
+
+sub HasXenSettings($)
+{
+    my ($node) = @_;
+
+    my $type = FindFirst("n:sliver_type", $node);
+    if (defined($type)) {
+	my $settings = FindNodesNS("n:xen", $type, $EMULAB_NS)->pop();
+	return 1
+	    if (defined($settings));
+    }
+    return 0;
+}
+
+sub GetXenSettings($)
+{
+    my ($node) = @_;
+    my $result = {};
+
+    my $type = FindFirst("n:sliver_type", $node);
+    return undef
+	if (!defined($type));
+    
+    my $settings = FindNodesNS("n:xen", $type, $EMULAB_NS)->pop();
+    return undef
+	if (!defined($settings));
+    
+    my $tmp = GetText("cores", $settings);
+    $result->{"cores"} = $tmp
+	if (defined($tmp));
+    $tmp = GetText("ram", $settings);
+    $result->{"ram"} = $tmp
+	if (defined($tmp));
+    $tmp = GetText("disk", $settings);
+    $result->{"disk"} = $tmp
+	if (defined($tmp));
+
+    return $result;
 }
 
 sub HasTagSetting($)
