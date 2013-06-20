@@ -483,6 +483,7 @@ if ($opt{B}) {
             push @ports, convertPortsFromStrings($optdev, $args{port});
         }
     }
+    @optports = @ports;
 }
 
 #
@@ -728,6 +729,7 @@ COMMAND: foreach my $command (@commands) {
 		    @devicenames = mapPortsToSwitches(
 			snmpit_lib::uniq_ports(getVlanPorts($vlanobj->lanid()),
 					       @ports));
+
 		}
 		else {
 		    # All devices needed includes trunks to transit.
@@ -953,7 +955,7 @@ COMMAND: foreach my $command (@commands) {
             if (!$args{port}) {
                 tbdie "No port given in status string";
             }
-            @ports = Port->converPortsFromStrings($args{port}); 
+            @ports = convertPortsFromStrings($optdev, $args{port}); 
             if ($args{vlan}) {
                 @vlans = ($args{vlan});
             }
@@ -3338,7 +3340,7 @@ sub doMakeVlan($$@) {
 	    if (!$stack->setVlanOnSwitchTrunks($target_vlan->lanid(), 0)) {
 		print STDERR
 		    "Could not disable switch trunks on $target_vlan\n";
-		goto bad;
+		return ++$errors;
 	    }
 	}
 	# This causes fallback to snmpit switch path generation.
@@ -3357,7 +3359,7 @@ sub doMakeVlan($$@) {
 	    if (!$stack->setVlanOnSwitchTrunks($source_vlan->lanid(), 0)) {
 		print STDERR
 		    "Could not disable switch trunks on $source_vlan\n";
-		goto bad;
+		return ++$errors;
 	    }
 
 	    # This causes fallback to snmpit switch path generation.
@@ -3372,7 +3374,7 @@ sub doMakeVlan($$@) {
 	    
 	    if ($source_vlan->DelPort($port)) {
 		print STDERR "Could not yank $port from $source_vlan\n";
-		goto bad;
+		return ++$errors;
 	    }
 	}
     }
@@ -3380,7 +3382,7 @@ sub doMakeVlan($$@) {
     foreach my $port (@ports) {
 	if (!defined($target_vlan->AddPort($port))) {
 	    print STDERR "Could not add $port to $target_vlan\n";
-	    goto bad;
+	    return ++$errors;
 	}
     }
 
@@ -3419,7 +3421,6 @@ sub doMakeVlan($$@) {
 
     }
     if ($errors) {
-      bad:
 	$errors++;
     }
     else {
