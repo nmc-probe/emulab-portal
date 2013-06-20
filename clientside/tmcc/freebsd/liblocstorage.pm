@@ -631,21 +631,39 @@ sub os_init_storage($)
 	$so{'USEZFS'} = $usezfs;
 
 	#
-	# Allow for the zpool to exist.
-	# XXX we create the empty SPACEMAP so we don't try to initialize
-	# it later. ZFS never uses the SPACEMAP once the pool is created.
+	# zfs: see if pool already exists, set zfs_enable in /etc/rc.conf.
 	#
-	if ($usezfs && is_lvm_initialized(1)) {
-	    $so{'ZFS_POOLCREATED'} = 1;
-	    $so{'SPACEMAP'} = ();
+	if ($usezfs) {
+	    #
+	    # XXX we create the empty SPACEMAP so we don't try to initialize
+	    # it later. ZFS never uses the SPACEMAP once the pool is created.
+	    #
+	    if (is_lvm_initialized(1)) {
+		$so{'ZFS_POOLCREATED'} = 1;
+		$so{'SPACEMAP'} = ();
+	    }
+
+	    if (mysystem("grep -q 'zfs_enable=\"YES\"' /etc/rc.conf")) {
+		if (!open(FD, ">>/etc/rc.conf")) {
+		    warn("*** storage: could not enable zfs in /etc/rc.conf\n");
+		    return undef;
+		}
+		print FD "# added by $BINDIR/rc/rc.storage\n";
+		print FD "zfs_enable=\"YES\"\n";
+		close(FD);
+
+		# and do a one-time start
+		if (-x "/etc/rc.d/zfs") {
+		    mysystem("/etc/rc.d/zfs start");
+		}
+	    }
 	}
 
 	#
 	# gvinum: put module load in /boot/loader.conf so that /etc/fstab
 	# mounts will work.
 	#
-	if (!$usezfs &&
-	    mysystem("grep -q 'geom_vinum_load=\"YES\"' /boot/loader.conf")) {
+	elsif (mysystem("grep -q 'geom_vinum_load=\"YES\"' /boot/loader.conf")) {
 	    if (!open(FD, ">>/boot/loader.conf")) {
 		warn("*** storage: could not enable gvinum in /boot/loader.conf\n");
 		return undef;
@@ -1732,6 +1750,15 @@ sub os_remove_storage_slice($$$)
 			    mysystem("$GPART destroy -F $disk $redir")) {
 			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
+		    }
+		}
+
+		#
+		# If we are the one that enabled ZFS, disable it
+		#
+		if (!mysystem("grep -q '^# added by.*rc.storage' /etc/rc.conf")) {
+		    if (mysystem("sed -i -e '/^# added by.*rc.storage/,+1d' /etc/rc.conf")) {
+			warn("*** $lv: could not remove zfs_enable from /etc/rc.conf\n");
 		    }
 		}
 	    }
