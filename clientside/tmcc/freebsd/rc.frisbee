@@ -547,26 +547,25 @@ $BINDIR/tmcc state RELOADING
 # Since a new MBR will be laid down anyway there is no harm in doing
 # this as long as we are sure we are in the reloading experiment.
 case $STATUS in
-	*ALLOCATED=emulab-ops/reloading*)
-		disks=`find_disks`
-		for d in $disks; do
-			#[ $d = $DISK ] && continue
-			mount | grep "^/dev/$d" > /dev/null && continue
-			zapsuperblocks $d
-			echo "Invalidating MBR on $d"
-			dd if=/dev/zero of=/dev/$d bs=512 count=16
-		done
+*ALLOCATED=emulab-ops/reloading*)
+    disks=`find_disks`
+    for d in $disks; do
+	#[ $d = $DISK ] && continue
+	mount | grep "^/dev/$d" > /dev/null && continue
+	zapsuperblocks $d
+	echo "Invalidating MBR on $d"
+	dd if=/dev/zero of=/dev/$d bs=512 count=16
+    done
 
-		# XXX tmp, gather HW info (including disk speed tests)
-		if [ -x $BINDIR/rc.nodecheck ]; then
-		    $BINDIR/rc.nodecheck boot gather
-		fi
-
-		## if we have nodecheck, perform disk speed tests here
-		#if [ -x $BINDIR/rc.nodecheck ]; then
-		#    true
-		#fi
-		;;
+    #
+    # If we have nodecheck, run it. This allows us to both collect HW info
+    # (if nodecheck "collect" is enabled in the DB) and to run a destructive
+    # disk write speed test (as part of a nodecheck "check" operation).
+    #
+    if [ -x $BINDIR/rc.nodecheck ]; then
+	$BINDIR/rc.nodecheck boot
+    fi
+    ;;
 esac
 
 #
