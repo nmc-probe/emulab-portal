@@ -131,19 +131,86 @@ sub doboot()
 	fatal("Error grabbing storage config!");
     }
 
-    if (!@cmds) {
+    #
+    # We could have just rebooted as the result of a swapmod operation.
+    # We read in any old config so we can see if we have added or removed
+    # any blockstores.
+    #
+    my $ocmdref = [];
+    if (-r "$OLDCONFIG") {
+	$ocmdref = eval { Storable::retrieve($OLDCONFIG); };
+	if ($@ || !$ocmdref) {
+	    warn "*** Could not read old config, ignoring...\n";
+	    unlink($OLDCONFIG);
+	    $ocmdref = [];
+	}
+    }
+
+    #
+    # No blockstores old or new.
+    #
+    if (!@cmds && !@$ocmdref) {
 	#warn("*** No storageconfig output - nothing to do");
 	return;
+    }
+
+    #
+    # Added blockstores will get created as a natural consequence of
+    # processing code. However, we need to check explicitly for removed
+    # blockstores and remove them up front, in case new blockstores are
+    # counting on reusing their space.
+    #
+    if (@$ocmdref > 0) {
+	my @dcmds = ();
+
+	#
+	# For each element of the old list, see if it exists in the new.
+	#
+	OUTER: foreach my $ohref (@$ocmdref) {
+	    foreach my $href (@cmds) {
+		next if ($ohref->{'VOLNAME'} ne $href->{'VOLNAME'});
+
+		#
+		# Names are the same. In theory, the blockstore could have
+		# changed in other ways, but right now they don't and we
+		# are relying on the parser to prevent that from happening.
+		# So we just declare that the blockstores are identical
+		# and move on.
+		#
+		next OUTER;
+	    }
+
+	    #
+	    # Found an old blockstore that is no longer present, take note.
+	    #
+	    push(@dcmds, $ohref);
+	}
+
+	#
+	# Remove the blockstores that are no longer present.
+	#
+	if (@dcmds > 0) {
+	    my $so = os_init_storage(\@dcmds);
+	    if (!$so) {
+		fatal("Could not initialize storage subsystem!");
+	    }
+	    foreach my $cmd (@dcmds) {
+		if (!process($so, $cmd, 0, 1)) {
+		    fatal("Could not process storage commands!");
+		}
+	    }
+	}
+    }
+
+    my $so = os_init_storage(\@cmds);
+    if (!$so) {
+	fatal("Could not initialize storage subsystem!");
     }
 
     #
     # Process each command in turn.  Already sorted by
     # getstorageconfig().
     #
-    my $so = os_init_storage(\@cmds);
-    if (!$so) {
-	fatal("Could not initialize storage subsystem!");
-    }
     foreach my $cmd (@cmds) {
 	if (!process($so, $cmd, 1, 0)) {
 	    fatal("Could not process storage commands!");

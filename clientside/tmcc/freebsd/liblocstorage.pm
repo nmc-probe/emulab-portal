@@ -663,17 +663,22 @@ sub os_init_storage($)
 	# gvinum: put module load in /boot/loader.conf so that /etc/fstab
 	# mounts will work.
 	#
-	elsif (mysystem("grep -q 'geom_vinum_load=\"YES\"' /boot/loader.conf")) {
-	    if (!open(FD, ">>/boot/loader.conf")) {
-		warn("*** storage: could not enable gvinum in /boot/loader.conf\n");
-		return undef;
+	else {
+	    if (is_lvm_initialized(0)) {
+		$so{'VINUM_DRIVES'} = 1;
 	    }
-	    print FD "# added by $BINDIR/rc/rc.storage\n";
-	    print FD "geom_vinum_load=\"YES\"\n";
-	    close(FD);
+	    if (mysystem("grep -q 'geom_vinum_load=\"YES\"' /boot/loader.conf")) {
+		if (!open(FD, ">>/boot/loader.conf")) {
+		    warn("*** storage: could not enable gvinum in /boot/loader.conf\n");
+		    return undef;
+		}
+		print FD "# added by $BINDIR/rc/rc.storage\n";
+		print FD "geom_vinum_load=\"YES\"\n";
+		close(FD);
 
-	    # and do a one-time start
-	    mysystem("$GVINUM start");
+		# and do a one-time start
+		mysystem("$GVINUM start");
+	    }
 	}
 
 	#
@@ -1234,39 +1239,48 @@ sub os_create_storage_slice($$$)
 	    if (!exists($so->{'SPACEMAP'})) {
 		my %spacemap = ();
 
-		if ($bsid eq "ANY") {
-		    $spacemap{$bdisk}{'pnum'} = 4;
-		}
-		foreach my $dev (keys %$dinfo) {
-		    if ($dinfo->{$dev}->{'type'} eq "DISK" &&
-			$dinfo->{$dev}->{'inuse'} == 0) {
-			$spacemap{$dev}{'pnum'} = 0;
+		if (exists($so->{'VINUM_DRIVES'})) {
+		    foreach my $vdev (get_vinum_drives()) {
+			if ($vdev =~ /^(.*)s(\d+)$/) {
+			    $spacemap{$1}{'pnum'} = $2;
+			}
 		    }
 		}
-		if (keys(%spacemap) == 0) {
-		    warn("*** $lv: no space found\n");
-		    return 0;
-		}
-
-		#
-		# Create partitions on each disk
-		#
-		foreach my $disk (keys %spacemap) {
-		    my $pnum = $spacemap{$disk}{'pnum'};
+		else {
+		    if ($bsid eq "ANY") {
+			$spacemap{$bdisk}{'pnum'} = 4;
+		    }
+		    foreach my $dev (keys %$dinfo) {
+			if ($dinfo->{$dev}->{'type'} eq "DISK" &&
+			    $dinfo->{$dev}->{'inuse'} == 0) {
+			    $spacemap{$dev}{'pnum'} = 0;
+			}
+		    }
+		    if (keys(%spacemap) == 0) {
+			warn("*** $lv: no space found\n");
+			return 0;
+		    }
 
 		    #
-		    # If pnum==0, we need an MBR first
+		    # Create partitions on each disk
 		    #
-		    if ($pnum == 0) {
-			if (mysystem("$GPART create -s mbr $disk $redir")) {
-			    warn("*** $lv: could not create MBR on $disk$logmsg\n");
+		    foreach my $disk (keys %spacemap) {
+			my $pnum = $spacemap{$disk}{'pnum'};
+
+			#
+			# If pnum==0, we need an MBR first
+			#
+			if ($pnum == 0) {
+			    if (mysystem("$GPART create -s mbr $disk $redir")) {
+				warn("*** $lv: could not create MBR on $disk$logmsg\n");
+				return 0;
+			    }
+			    $pnum = $spacemap{$disk}{'pnum'} = 1;
+			}
+			if (mysystem("$GPART add -i $pnum -t freebsd $disk $redir")) {
+			    warn("*** $lv: could not create ${disk}s${pnum}$logmsg\n");
 			    return 0;
 			}
-			$pnum = $spacemap{$disk}{'pnum'} = 1;
-		    }
-		    if (mysystem("$GPART add -i $pnum -t freebsd $disk $redir")) {
-			warn("*** $lv: could not create ${disk}s${pnum}$logmsg\n");
-			return 0;
 		    }
 		}
 
