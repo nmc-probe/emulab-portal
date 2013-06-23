@@ -428,6 +428,7 @@ sub ExpireSlices()
 				   # For web interface listing
 				   ["Method",     "Cleanup"],
 				  ], 1);
+	    $logfile->Store();
 	}
 	if ($?) {
 	    print STDERR "Could not release $slice\n";
