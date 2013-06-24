@@ -833,6 +833,8 @@ $experiment->Lock($nextswapstate, 1) == 0
     or tbdie({type => 'secondary', severity => SEV_SECONDARY,
 	      error => ['set_experiment_state_failed', $nextswapstate]},
 	     "Failed to set experiment state to $nextswapstate");
+# Maybe Lock() should do this?
+$experiment->Refresh();
 
 #
 # At this point, we need to force a cleanup no matter how we exit.
