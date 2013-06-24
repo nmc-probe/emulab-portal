@@ -334,7 +334,7 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
 
 # No email if no errors.
 LogAbort();
-
+unlink($metadata);
 exit(0);
 
 sub fatal($)
