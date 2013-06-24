@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2012 University of Utah and the Flux Group.
+# Copyright (c) 2010-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -147,6 +147,11 @@ if ($ARGV[0] eq "boot") {
     }
     $stopped = 1;
     Restart();
+    #
+    # Inform TBOPS.
+    #
+    SENDMAIL($TBOPS, "Testbed has been restarted!",
+	     "Testbed has been restarted ...\n");
     exit(0);
 }
 
@@ -218,10 +223,21 @@ if (system("$STARTUP stop >/dev/null 2>&1") ||
 }
 $stopped = 1;
 
+#
+# Inform TBOPS.
+#
+SENDMAIL($TBOPS, "Testbed has been shutdown!",
+	 "Testbed has been shutdown ...\n");
+
 if ($ARGV[0] eq "restart") {
     print "** Testbed is stopped. Waiting a moment before restarting ...\n";
     sleep(2);
     Restart();
+    #
+    # Inform TBOPS.
+    #
+    SENDMAIL($TBOPS, "Testbed has been restarted!",
+	     "Testbed has been restarted ...\n");
     exit(0);
 }
 print "** Testbed is stopped. Safe to power off or reboot\n";
