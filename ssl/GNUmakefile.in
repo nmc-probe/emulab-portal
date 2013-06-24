@@ -251,7 +251,7 @@ boss-installX:	install-dirs \
 		$(INSTALL_SBINDIR)/updatecert \
 		install-conf
 	$(INSTALL_DATA) localnode.pem $(INSTALL_ETCDIR)/client.pem
-	chmod 640 $(INSTALL_ETCDIR)/emulab.pem
+	chmod 644 $(INSTALL_ETCDIR)/emulab.pem
 	chmod 600 $(INSTALL_ETCDIR)/emulab.key
 	chmod 640 $(INSTALL_ETCDIR)/server.pem
 	chmod 640 $(INSTALL_ETCDIR)/client.pem
@@ -278,7 +278,7 @@ remote-site-boss-install:	install-dirs \
 		$(INSTALL_SBINDIR)/updatecert \
 		install-conf
 	$(INSTALL_DATA) localnode.pem $(INSTALL_ETCDIR)/client.pem
-	chmod 640 $(INSTALL_ETCDIR)/emulab.pem
+	chmod 644 $(INSTALL_ETCDIR)/emulab.pem
 	chmod 600 $(INSTALL_ETCDIR)/emulab.key
 	chmod 640 $(INSTALL_ETCDIR)/capture.pem
 	chmod 644 $(INSTALL_ETCDIR)/capture.fingerprint
