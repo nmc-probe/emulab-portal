@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -253,7 +253,7 @@ TBDebugTimeStamp("nalloc allocated all nodes");
 # Unlock tables.
 DBQueryFatal("unlock tables");
 
-# Okay, not safe to do this
+# Okay, now safe to do this
 
 # Update node_activity table; no need to do this with tables locked.
 if (!$error && (!$noalloc || $partial) && @nodes) {
