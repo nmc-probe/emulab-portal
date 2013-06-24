@@ -631,7 +631,11 @@ sub PipeTo($$$)
     waitpid($childpid, 0);
     if ($? || !@certlines) {
 	print STDERR "*** Failed to parse certificate: '$string'\n";
-	return undef;
+	print STDERR $self->cert() . "\n\n";
+	foreach my $line (@certlines) {
+	    print STDERR $line;
+	}
+	return ();
     }
     return @certlines;
 }
