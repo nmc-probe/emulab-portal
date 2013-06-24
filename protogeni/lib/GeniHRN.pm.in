@@ -97,7 +97,7 @@ sub IsValid($)
     #   mandatory: partly to avoid ambiguity between resource type
     #   namespaces, and partly to avoid ambiguity between a resource-type
     #   and a resource-name containing (escaped) whitespace.
-    return $hrn =~ m'^[uU][rR][nN]:[pP][uU][bB][lL][iI][cC][iI][dD]:IDN\+[A-Za-z0-9.-]+(?::[A-Za-z0-9.-_]+)*\+\w+\+(?:[-!$()*,./0-9:=@A-Z_a-z]|(?:%[0-9A-Fa-f][0-9A-Fa-f]))+$';
+    return $hrn =~ m'^[uU][rR][nN]:[pP][uU][bB][lL][iI][cC][iI][dD]:IDN\+[A-Za-z0-9.-]+(?::[A-Za-z0-9._-]+)*\+\w+\+(?:[-!$()*,./0-9:=@A-Z_a-z]|(?:%[0-9A-Fa-f][0-9A-Fa-f]))+$';
 }
 
 # Perform RFC 3151 transcription (from a string of legal public identifier
