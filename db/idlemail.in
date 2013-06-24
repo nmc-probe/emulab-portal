@@ -44,6 +44,7 @@ use libtestbed;
 use Experiment;
 use English;
 use Getopt::Std;
+use Sys::Syslog;
 
 # Grab our site variables...
 my $mailinterval = TBGetSiteVar("idle/mailinterval");
@@ -63,9 +64,10 @@ exit (0)
 
 sub help {
     die("Usage:
-idlemail [-h] [-d] [-n] [-i] [[-f] <pid> <eid>]
+idlemail [-h] [-d] [-v] [-n] [-i] [[-f] <pid> <eid>]
  -h     Show this help message
- -d     Enable debugging/verbose output
+ -d     Enable debugging (uses stdout instead of syslog)
+ -v     Enable verbose output 
  -n	No email sending. (for debugging only)
  -i	Impotent mode. (for debugging only)
  -f	Force sending a message for <pid> <eid>
@@ -95,42 +97,85 @@ my $TBMAIL_OPS       = "Testbed Ops <$TBMAILADDR_OPS>";
 my $TBMAIL_WWW       = "Testbed WWW <$TBMAILADDR_WWW>";
 my $TBMAIL_AUDIT     = "Testbed Audit <$TBMAILADDR_AUDIT>";
 my $TBMAIL_AUTOMAIL  = "@TBAUTOMAILEMAIL@";
+my $TBLOG	     = "@TBLOGFACIL@";
 
 # Turn off line buffering on output
 $| = 1;
-
-# Defaults
-
-# Don't put 'my' on these, or they won't be settable with ${$var}
-$h = 0; # help mode
-$d = 0; # debug mode
-$n = 0; # no-mail mode
-$f = 0; # force mode
-$i = 0; # impotent mode
-
-print "Got ARGV = ",join(" ",@ARGV),"\n" if $d;
-
-my $optlist = "hdnfi";
-my %opt = ();
-if (! getopts($optlist,\%opt)) { help(); }
-# Copy the options into global vars
-foreach $var (keys %opt) {
-    ${$var} += $opt{$var};
-    print "\$$var = $opt{$var} (".${$var}.")\n" if $d;
-}
-
-my $pid = shift || "";
-my $eid = shift || "";
-
-print "Settings: h=$h  d=$d  n=$n  f=$f  pid=$pid  eid=$eid\n".
-  "Sitevars: thresh=$threshold interval=$mailinterval cc=$cc_grp_ldrs\n" if $d;
-
-if ($h) { help(); }
 
 # Only root or admin types!
 if (($UID != 0) && (!TBAdmin($UID))) {
     die("Only root or TB administrators can run idlemail.\n");
 }
+
+sub Debug($)
+{
+    my ($msg) = @_;
+
+    return
+	if (!$v);
+    
+    if ($d || $i) {
+	print $msg;
+    }
+    else {
+	chomp($msg);
+	syslog("debug", "$msg");
+    }
+}
+
+sub Notify($)
+{
+    my ($msg) = @_;
+    
+    if ($d || $i) {
+	print $msg;
+    }
+    else {
+	chomp($msg);
+	syslog("notice", "$msg");
+    }
+}
+
+sub Fatal($)
+{
+    my ($msg) = @_;
+    
+    if ($d || $i) {
+	print STDERR "*** $0:\n".
+	             "    $msg\n";
+    }
+    else {
+	chomp($msg);
+	syslog("error", "$msg");
+    }
+    exit(-1);
+}
+
+# Defaults
+
+# Don't put 'my' on these, or they won't be settable with ${$var}
+$h = 0; # help mode
+$v = 0; # verbose mode
+$d = 0; # debug mode
+$n = 0; # no-mail mode
+$f = 0; # force mode
+$i = 0; # impotent mode
+
+my $optlist = "hdnfiv";
+my %opt = ();
+if (! getopts($optlist,\%opt)) { help(); }
+# Copy the options into global vars
+foreach $var (keys %opt) {
+    ${$var} += $opt{$var};
+}
+if ($h) { help(); }
+
+my $pid = shift || "";
+my $eid = shift || "";
+
+# Set up syslog
+openlog("idlemail", "pid", $TBLOG)
+    if (!($d || $i));
 
 if ($pid eq "" || $eid eq "") {
     # Normal mode
@@ -143,7 +188,7 @@ if ($pid eq "" || $eid eq "") {
 	$pid = $r{'pid'};
 	$eid = $r{'eid'};
 	push(@idle,"$pid:$eid");
-	if ($d) { print "Was idle: $pid/$eid\n"; }
+	Debug("Was idle: $pid/$eid\n");
     }
 
     # Important note: this query only counts nodes in the
@@ -198,8 +243,6 @@ EOT
 	if ($swapreqs == 0 || ($swapreqs > 0 && $lastreq > $mailinterval)) {
 	    SendMessage($pid,$gid,$eid,$swappable,$swapreqs,$nodes,
 			$time,$lastact,$stale);
-	} elsif ($d) {
-	    print "$pid/$eid got msg #$swapreqs only $lastreq hrs ago\n";
 	}
     }
 
@@ -211,12 +254,12 @@ EOT
 	    if ($e eq $expt) { $found=1; last; }
 	}
 	if (!$found) {
-	    if ($d) { print "Not idle: $pid/$eid\n"; }
+	    Debug("Not idle: $pid/$eid\n");
 	    DBQueryFatal("update experiments set swap_requests='' ".
 			 "where pid='$pid' and eid='$eid'")
 		if (! $i);
 	} else {
-	    if ($d) { print "Still idle: $pid/$eid\n"; }
+	    Debug("Still idle: $pid/$eid\n");
 	}
     }
 
@@ -243,12 +286,21 @@ EOT
     while (%r = $q->fetchhash()) {
 	$pid = $r{'pid'};
 	$eid = $r{'eid'};
+	my $staleness = $r{'staleness'};
+	my $idlemin   = $r{'idlemin'};
+	my $idletimo  = $r{'idleswap_timeout'};
+	
+	Notify("$pid/$pid: staleness:$staleness, ".
+	       "idlemin:$idlemin, idletimo:$idletimo\n");
+	    
 	if ($i) {
-	    print "Would idleswap $pid,$eid\n";
+	    Debug("Would idleswap $pid,$eid\n");
 	}
 	else {
+	    Notify("Starting idleswap of $pid/$pid\n");
+
 	    system("$TB/sbin/idleswap -r -i $pid,$eid > /dev/null") &&
-		warn("idlemail: Problem idleswapping $pid/$eid: $!\n");
+		Notify("Problem idleswapping $pid/$eid: $!\n");
 	}
     }
 
@@ -266,12 +318,19 @@ EOT
     while (%r = $q->fetchhash()) {
 	$pid = $r{'pid'};
 	$eid = $r{'eid'};
+	my $autotimo  = $r{'autoswap_timeout'};
+	my $activemin = $r{'activemin'};
+
+	Notify("$pid/$pid: active:$activemin, autotimo:$autotimo\n");
+	    
 	if ($i) {
-	    print "Would autoswap $pid,$eid\n";
+	    Debug("Would autoswap $pid,$eid\n");
 	}
 	else {
+	    Notify("Starting autoswap of $pid/$pid");
+
 	    system("$TB/sbin/idleswap -r -a $pid,$eid > /dev/null") &&
-		warn("idlemail: Problem autoswapping $pid/$eid: $!\n");
+		Notify("Problem autoswapping $pid/$eid: $!\n");
 	}
     }
 
@@ -338,9 +397,7 @@ EOT
     # pid/eid mode - only check pid/eid, and let $f force sending,
     # even if msg was sent recently or expt isn't idle long enough.
 
-    if ($d) {
-	print "Checking $pid/$eid only... force is $f\n";
-    }
+    Debug("Checking $pid/$eid only... force is $f\n");
 
     # Important note: this query only counts nodes in the
     # node_activity table, which are all local nodes. So no virt or
@@ -393,10 +450,8 @@ EOT
 	    SendMessage($pid,$gid,$eid,$swappable,$swapreqs,$nodes,
 			$time,$lastact,$stale);
 	} else {
-	    if ($d) {
-		print "$pid/$eid: no msg (idle $time hrs, ".
-		  "ignore=$ignore, msg #$swapreqs $lastreq hrs ago)\n";
-	    }
+	    Debug("$pid/$eid: no msg (idle $time hrs, ".
+		  "ignore=$ignore, msg #$swapreqs $lastreq hrs ago)\n");
 	    # no message sent for whatever reason
 	    exit(2);
 	}
@@ -424,23 +479,19 @@ sub SendMessage {
     $idlehrs = int($time);
     $idlemin = int(($time-$idlehrs)*60);
 
-    if ($d) {
-	if ($warn) {
-	    print "Sending warning message to $pid/$eid before swap\n";
-	} else {
-	    print "Sending message to $pid/$eid, ".
-	      "idle $idlehrs hrs $idlemin min, total $time hrs\n";
-	}
+    if ($warn) {
+	Notify("Sending warning message to $pid/$eid before swap\n");
+    } else {
+	Notify("Sending message to $pid/$eid, ".
+	       "idle $idlehrs hrs $idlemin min, total $time hrs\n");
     }
     my $experiment = Experiment->Lookup($pid, $eid);
     if (!defined($experiment)) {
-	die("*** $0:\n".
-	    "    Could not lookup object for experiment $pid/$eid\n");
+	Fatal("Could not lookup object for experiment $pid/$eid");
     }
     my $creator = $experiment->GetCreator();
     if (!defined($creator)) {
-	die("*** $0:\n".
-	    "    Could not lookup object for creator of $pid/$eid\n");
+	Fatal("Could not lookup object for creator of $pid/$eid");
     }
     my $swapper = $experiment->GetSwapper();
     if (!defined($swapper)) {
@@ -453,10 +504,10 @@ sub SendMessage {
     my $expswapper_email = $swapper->email();
     my $leaders =          $experiment->GetGroup()->LeaderMailList();
     
-    if ($d > 1) {
-	print "expt=$pid/$eid (gid=$gid)\n".
-	  "uid=$expcreator_uid  ($expcreator_name <$expcreator_email>)\n".
-	  "leaders=$leaders\n";
+    if ($v > 1) {
+	Debug("expt=$pid/$eid (gid=$gid)\n".
+	      "uid=$expcreator_uid  ($expcreator_name <$expcreator_email>)\n".
+	      "leaders=$leaders\n");
     }
 
     my $wrapwidth=75;
@@ -572,8 +623,8 @@ sub SendMessage {
 	if ($warn!=1) {
 	    # if I'm not doing an autoswap warning,
 	    # Update the count and the time in the database
-	    DBQueryWarn("update experiments set swap_requests=swap_requests+1,
-                         last_swap_req=now() where pid='$pid' and eid='$eid'");
+	    DBQueryFatal("update experiments set swap_requests=swap_requests+1,
+                       last_swap_req=now() where pid='$pid' and eid='$eid'");
 	}
     }
 
@@ -589,9 +640,10 @@ sub wordwrap($$) {
     # so we'll temporarily disable it in this function only
     local $WARNING = 0;
 
-    if ($d > 1) { print "WRAPPING: $str => $width\n"; }
+    if ($v > 1) { Debug("WRAPPING: $str => $width\n"); }
     $str=~s/(?:^|\G\n?)(?:(.{1,$width})(?:\s|\n|$)|(\S{$width})|\n)/$1$2\n/sg;
-    if ($d > 1) { print "WRAPPING: => \n$str\n"; }
+    if ($v > 1) { Debug("WRAPPING: => \n$str\n"); }
 
     return $str;
 }
+
