@@ -19,10 +19,6 @@ sub Install($$$)
 {
     my ($server, $isupdate, $impotent) = @_;
 
-    # Replace if this script does an update for ip/domain.
-    return 0
-	if ($isupdate);
-
     # Configure can override setting it here.
     if ($MFSVERSION eq "") {
 	if ($FBSD_MAJOR > 8 || ($FBSD_MAJOR == 8 && $FBSD_MINOR >= 2)) {
@@ -38,6 +34,24 @@ sub Install($$$)
     if ($MFSVERSION eq "62" || $MFSVERSION eq "47") {
 	$MFSTARBALL = "tftpboot-legacy.tar.gz";
 	$MFSURL = "http://www.emulab.net/downloads/$MFSTARBALL";
+    }
+
+    #
+    # Want to recreate the directory and start over. 
+    #
+    if ($isupdate) {
+	Phase "tftpboot_rename", "Backing up $TFTP_DIR", sub {
+	    DoneIfDoesntExist($TFTP_DIR);
+	    BackupDirectoryFatal($TFTP_DIR);
+	    ExecQuietFatal("/bin/rm -rf $TFTP_DIR")
+		if (!$impotent);
+	};
+	Phase "tftpboot_recreate", "Recreating $TFTP_DIR", sub {
+	    DoneIfExists($TFTP_DIR);
+	    mkdir $TFTP_DIR,0775 or
+		PhaseFail("Unable to create $TFTP_DIR : $!");
+	    ExecQuietFatal("$CHGRP tbadmin $TFTP_DIR");
+	};
     }
 
     Phase "mfs", "Setting up MFSs", sub {
@@ -99,6 +113,10 @@ sub Install($$$)
 	#
 	Phase "password", "Setting up MFS password", sub {
 	    my $passhash;
+
+	    # Skip in update mode.
+	    PhaseSkip("update mode")
+		if ($isupdate);
 	    
 	    my ($status, @output) =
 		ExecQuiet("$PREFIX/sbin/setsitevar -c $IMAGEPASSWORDSITEVAR");
@@ -154,11 +172,13 @@ sub Install($$$)
 	# already loaded, but the script will just skip over them without
 	# raising an error.
 	#
-	Phase "descriptors", "Loading the Image and OS IDS", sub {
-	    ExecQuietFatal("cd $TOP_OBJDIR/install; ".
-			   "   $SUDO -u $PROTOUSER $WAP ".
-			   "   perl load-descriptors $MFSDESCRIPTORS");
-	};
+	if (!$isupdate) {
+	    Phase "descriptors", "Loading the Image and OS IDS", sub {
+		ExecQuietFatal("cd $TOP_OBJDIR/install; ".
+			       "   $SUDO -u $PROTOUSER $WAP ".
+			       "   perl load-descriptors $MFSDESCRIPTORS");
+	    };
+	}
 	PhaseSucceed("done");
     };
     return 0;
