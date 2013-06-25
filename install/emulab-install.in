@@ -37,6 +37,7 @@ sub usage()
 	"-l        - Generate a complete log file in /tmp. Defaults on\n" .
 	"-i <name> - Run (or check) just the one install script\n" .
 	"-b        - Batch mode, do not ask for confirmation\n" .
+	"-u        - Update mode, run script(s) for update\n" .
 	"-s        - Turn on makes. Huh?\n" .
 	"-P|-F     - Set the name of the boss/ops and fs port\n" .
 	"-w <pswd> - Provide password instead of being asked for it\n" .
@@ -344,7 +345,7 @@ if ($updatemode) {
     print "-----------------------------------------------------------------\n";
     print "Update completed succesfully!\n\n";
     
-    if (!PhaseWasSkipped("sslcerts")) {
+    if (!PhaseWasSkipped("sslcerts") && !$single) {
 	print
 	    "Since your SSL certificates were regenerated, you will need to\n".
 	    "regenerate the user SSL certificates as well.\n";
