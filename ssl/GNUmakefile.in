@@ -288,7 +288,11 @@ remote-site-boss-install:	install-dirs \
 	chmod 640 $(INSTALL_ETCDIR)/ctrlnode.pem
 
 # Do not run this if you have a "real" web certificate.
-apache-install: $(APACHE_CERTFILE) $(APACHE_KEYFILE)
+apache-install:
+	$(INSTALL_DATA) apache.pem $(DESTDIR)$(APACHE_CERTFILE)
+	$(INSTALL_DATA) apache.key $(DESTDIR)$(APACHE_KEYFILE)
+        chmod 640 $(DESTDIR)$(APACHE_CERTFILE)
+        chmod 640 $(DESTDIR)$(APACHE_KEYFILE)
 
 client-install:
 	$(INSTALL_DATA) localnode.pem $(DESTDIR)$(CLIENT_ETCDIR)/client.pem
