@@ -297,10 +297,11 @@ EOT
 	    Debug("Would idleswap $pid,$eid\n");
 	}
 	else {
-	    Notify("Starting idleswap of $pid/$pid\n");
+	    Notify("Starting idleswap of $pid/$eid\n");
 
-	    system("$TB/sbin/idleswap -r -i $pid,$eid > /dev/null") &&
-		Notify("Problem idleswapping $pid/$eid: $!\n");
+	    if (system("$TB/sbin/idleswap -r -i $pid,$eid > /dev/null")) {
+		Notify("Problem idleswapping $pid/$eid\n");
+	    }
 	}
     }
 
@@ -327,10 +328,11 @@ EOT
 	    Debug("Would autoswap $pid,$eid\n");
 	}
 	else {
-	    Notify("Starting autoswap of $pid/$pid");
+	    Notify("Starting autoswap of $pid/$eid");
 
-	    system("$TB/sbin/idleswap -r -a $pid,$eid > /dev/null") &&
-		Notify("Problem autoswapping $pid/$eid: $!\n");
+	    if (system("$TB/sbin/idleswap -r -a $pid,$eid > /dev/null")) {
+		Notify("Problem autoswapping $pid/$eid\n");
+	    }
 	}
     }
 
