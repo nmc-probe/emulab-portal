@@ -272,6 +272,7 @@ sub makeIfaceMaps()
 
 	$mac =~ s/://g;
 	chomp($mac);
+	$mac = lc($mac);
 	$if2mac{$iface} = $mac;
 	$mac2if{$mac} = $iface;
 
@@ -352,6 +353,7 @@ sub findIface($) {
     my $mac = shift;
 
     $mac =~ s/://g;
+    $mac = lc($mac);
     return $mac2if{$mac}
         if (exists($mac2if{$mac}));
 
