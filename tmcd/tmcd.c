@@ -6704,7 +6704,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 	 * Widearea nodes have wanodekeys that should be used to get
 	 * the nodeid.
 	 */
-	if ((nodekey != NULL) && (strlen(nodekey) > 1)) {
+	if ((nodekey != NULL) && (strlen(nodekey) > 1) && !reqp->isvnode) {
 		res = mydb_query("SELECT t.class,t.type,n.node_id,"
 				 " n.jailflag,r.pid,r.eid,r.vname, "
 				 " e.gid,e.testdb,n.update_accounts, "
@@ -6757,6 +6757,12 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				"r.external_resource_key is not null and "
 				"r.external_resource_key='%s'",
 				reqp->external_key);
+		}
+		else if (nodekey != NULL && strlen(nodekey) > 1) {
+			sprintf(clause,
+				"(np.node_id IN "
+				"     (SELECT node_id FROM widearea_nodeinfo "
+				"      WHERE privkey='%s')) ", nodekey);
 		}
 		else {
 			sprintf(clause,
