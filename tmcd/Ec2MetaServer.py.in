@@ -6,8 +6,6 @@ import os
 import sys
 import syslog
 import mysql.connector
-import daemon
-from daemon import pidfile
 
 # This requires Python 2.6+
 class Ec2MetaHandler(BaseHTTPRequestHandler):
@@ -243,15 +241,33 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     from BaseHTTPServer import HTTPServer
     import socket
-    metad = daemon.DaemonContext()
-    metad.pidfile = pidfile.TimeoutPIDLockFile('/var/run/tmcd-meta.pid', acquire_timeout=10)
-    llog = open("@prefix@/log/tmcd-meta.log","w+")
-    metad.stdout = llog
-    metad.stderr = llog
 
-    with metad:
-        server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787),
+    #
+    # Daemonize. We redirect our output into a log file cause I have no
+    # idea what is going to use plain print. 
+    # Lifted from xmlrpc/sslxmlrpc_server.py.in
+    #
+    try:
+        fp = open("@prefix@/log/tmcd-meta.log", "a");
+        sys.stdout = fp
+        sys.stderr = fp
+        sys.stdin.close();
+        pass
+    except:
+        print "Could not open log file for append"
+        sys.exit(1);
+        pass
+
+    pid = os.fork()
+    if pid:
+        os.system("echo " + str(pid) + " > /var/run/tmcd-meta.pid")
+        sys.exit(0)
+        pass
+    os.setsid();
+    pass
+
+    server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787),
             Ec2MetaHandler)
-        server.serve_forever()
+    server.serve_forever()
 
 
