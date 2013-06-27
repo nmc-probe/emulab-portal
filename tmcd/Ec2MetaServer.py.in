@@ -5,15 +5,25 @@ import traceback
 import os
 import sys
 import syslog
-import mysql.connector
+
+# Configure variables
+TBDIR = "@prefix@"
+TBFACIL = "@TBLOGFACIL@"
+AVAIL = "@THISHOMEBASE@"
+
+TBPATH = os.path.join(TBDIR, "lib")
+if TBPATH not in sys.path:
+    sys.path.append(TBPATH)
+    pass
+
+from libdb        import *
+
 
 # This requires Python 2.6+
 class Ec2MetaHandler(BaseHTTPRequestHandler):
 
     def __init__(self, req, ca, huh):
-        self.cnx = mysql.connector.connect(user='tmcd',
-                              database='tbdb', unix_socket='/tmp/mysql.sock')
-        facil = "LOG_" + "@TBLOGFACIL@".upper()
+        facil = "LOG_" + TBFACIL.upper()
         syslog.openlog("tmcd-meta", syslog.LOG_PID, getattr(syslog,facil))
         BaseHTTPRequestHandler.__init__(self,req,ca,huh)
 
@@ -92,37 +102,32 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         return "\n";
 
     def doamiid(self, arg):
-        cursor = self.cnx.cursor()
         ip = self.client_address[0]
-        cursor.execute("select osname from os_info "
+        rows = DBQueryWarn("select osname from os_info "
             "join nodes on os_info.osid = nodes.osid "
             "join interfaces on nodes.node_id=interfaces.node_id "
             "where interfaces.ip=%s", (ip,));
-        if cursor.with_rows:
-            ami_id = cursor.fetchone()
+        if len(rows) > 0:
+            ami_id = rows[0]
             ami_id = ami_id[0]
         else:
             ami_id = ""
-        cursor.close()
         return ami_id;
 
     def dolocal_hostname(self, args):
-        cursor = self.cnx.cursor()
         ip = self.client_address[0]
-        cursor.execute("select vname,eid,pid from reserved join interfaces on interfaces.node_id=reserved.node_id"
+        rows = DBQueryWarn("select vname,eid,pid from reserved join interfaces "
+            "on interfaces.node_id=reserved.node_id"
             " where interfaces.ip=%s",(ip,))
-        if cursor.with_rows:
-            node_id = cursor.fetchone()
+        if len(rows) > 0:
+            node_id = rows[0]
         else:
-            cursor.close()
             return ""
 
-        cursor.close()
         return node_id[0] + "." + node_id[1] + "." + node_id[2] + "." + "emulab.net"
 
     def doavail(self, args):
-        #TODO
-        return "emulab"
+        return AVAIL
 
 
     def domacs(self, args):
@@ -130,75 +135,65 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         return "324AF"
 
     def domac(self, args):
-        cursor = self.cnx.cursor()
         ip = self.client_address[0]
-        cursor.execute("select mac from interfaces"
+        rows = DBQueryWarn("select mac from interfaces"
             " where interfaces.ip=%s",(ip,))
-        if cursor.with_rows:
-            mac = cursor.fetchone()
+        if len(rows) > 0:
+            mac = rows[0]
         else:
-            cursor.close()
             return ""
 
-        cursor.close()
         split = [mac[0][i:i+2] for i in range(0, len(mac[0]),2)]
         return ":".join(split)
 
     def doinstance_id(self, args):
-        cursor = self.cnx.cursor()
         ip = self.client_address[0]
-        cursor.execute("select uuid from interfaces"
+        rows = DBQueryWarn("select uuid from interfaces"
             " where interfaces.ip=%s",(ip,))
-        if cursor.with_rows:
-            uuid = cursor.fetchone()
+        if len(rows) > 0:
+            uuid = rows[0]
         else:
-            cursor.close()
             return ""
 
-        cursor.close()
         return uuid[0]
 
 
     def dopublic_keys(self, args):
         if len(args) == 0:
             #Throw out all the users. Hope the stuff don't change between queries
-            cursor = self.cnx.cursor()
             ip = self.client_address[0]
-            cursor.execute("select user_pubkeys.uid,user_pubkeys.idx from user_pubkeys "
+            rows = DBQueryWarn("(select user_pubkeys.uid,user_pubkeys.idx from user_pubkeys "
                 "join group_membership on group_membership.uid = user_pubkeys.uid "
                 "join experiments on experiments.pid=group_membership.pid AND experiments.gid=group_membership.gid "
                 "join reserved on reserved.exptidx=experiments.idx "
                 "join interfaces on reserved.node_id=interfaces.node_id "
-                "where interfaces.ip=%s and user_pubkeys.uid=experiments.expt_swap_uid ORDER BY idx DESC "
+                "where interfaces.ip=%s and user_pubkeys.uid=experiments.expt_swap_uid ORDER BY idx DESC) "
                 "UNION "
-                "select user_pubkeys.uid,user_pubkeys.idx from user_pubkeys "
+                "(select user_pubkeys.uid,user_pubkeys.idx from user_pubkeys "
                 "join group_membership on group_membership.uid = user_pubkeys.uid "
                 "join experiments on experiments.pid=group_membership.pid AND experiments.gid=group_membership.gid "
                 "join reserved on reserved.exptidx=experiments.idx "
                 "join interfaces on reserved.node_id=interfaces.node_id "
-                "where interfaces.ip=%s and user_pubkeys.uid!=experiments.expt_swap_uid;"
+                "where interfaces.ip=%s and user_pubkeys.uid!=experiments.expt_swap_uid);"
                 , (ip,ip,))
 
             list = ""
             ctr = 0
-            if cursor.with_rows:
-                for (user,uid) in cursor:
+            if len(rows) > 0:
+                for (user,uid) in rows:
                     list = list + str(ctr) + "=" + str(user) + str(uid) + "\n"
                     ctr = ctr+1
             else:
-                cursor.close()
                 return ""
 
-            cursor.close()
             return list
         elif len(args) == 1:
             #TODO: Verify ig idx is within limits
             return "openssh-key"
         elif len(args) == 2:
             val = int(args[0])
-            cursor = self.cnx.cursor()
             ip = self.client_address[0]
-            cursor.execute("select * from "
+            rows = DBQueryWarn("select * from "
                 "((select user_pubkeys.pubkey from user_pubkeys "
                 "join group_membership on group_membership.uid = user_pubkeys.uid "
                 "join experiments on experiments.pid=group_membership.pid AND experiments.gid=group_membership.gid "
@@ -215,13 +210,11 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
                 "as T limit " + str(val) + ", 1;",
                 (ip, ip,))
 
-            if cursor.with_rows:
-                key = cursor.fetchone()
+            if len(rows):
+                key = rows[0]
             else:
-                cursor.close()
                 return ""
 
-            cursor.close()
             return key[0]
 
     metas = {
@@ -248,7 +241,7 @@ if __name__ == '__main__':
     # Lifted from xmlrpc/sslxmlrpc_server.py.in
     #
     try:
-        fp = open("@prefix@/log/tmcd-meta.log", "a");
+        fp = open(TBDIR + "/log/tmcd-meta.log", "a");
         sys.stdout = fp
         sys.stderr = fp
         sys.stdin.close();
