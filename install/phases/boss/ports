@@ -141,12 +141,6 @@ sub Install($$$)
 		    }
 		};
 	    }
-        Phase "mysql-python", "Installing mysql-connector-python package", sub {
-            if (! -x $EASYINSTALL) {
-                PhaseSkip("Couldn't find easy_install. Skilling mysql connector");
-            }
-            ExecQuietFatal("$EASYINSTALL mysql-connector-python");
-        }
 	};
 	if (ISFS($server)) {
 	    Phase "fs-packages", "Installing FS packages", sub {
