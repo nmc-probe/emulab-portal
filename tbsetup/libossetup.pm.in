@@ -1523,7 +1523,7 @@ sub AddNode($$)
     # We are dropping plab support for now ...
     #
     return 0
-	if (! ($node->jailflag() || $node->isremote()));
+	if (! ($node->jailflag() || $node->isremotenode()));
 
     $self->SUPER::AddNode($node);
 
@@ -2097,6 +2097,39 @@ sub New($$) {
     my ($class, $parent) = @_;
 
     my $self = $class->SUPER::New("blockstore", $parent);
+    bless($self, $class);
+    return $self;
+}
+
+sub AddNode($$)
+{
+    my ($self, $node) = @_;
+
+    return $self->SUPER::AddNode($node);
+}
+
+#####################################################################
+#
+#
+package libossetup_pcvwa;
+use base qw(libossetup_virtnode);
+
+use libdb;
+use libtestbed;
+use libossetup;
+use libtblog;
+use Node;
+use English;
+use Data::Dumper;
+use overload ('""' => 'Stringify');
+
+#
+# A constructor for an object to handle all nodes of this type.
+#
+sub New($$) {
+    my ($class, $parent) = @_;
+
+    my $self = $class->SUPER::New("pcvwa", $parent);
     bless($self, $class);
     return $self;
 }
