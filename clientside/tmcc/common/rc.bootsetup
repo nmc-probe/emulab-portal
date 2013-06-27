@@ -251,6 +251,19 @@ sub doboot()
     }
 
     #
+    # On the REMOTEDED nodes, we have to look for the ssl version
+    # of tmcc in case the image was built with nonssl version.
+    #
+    if (REMOTEDED()) {
+	if (-e "$BINDIR/tmcc-ssl.bin") {
+	    if (-e "$BINDIR/tmcc.bin") {
+		system("/bin/mv -f $BINDIR/tmcc.bin $BINDIR/tmcc-nossl.bin");
+	    }
+	    system("/bin/mv -f $BINDIR/tmcc-ssl.bin $BINDIR/tmcc.bin");
+	}
+    }
+
+    #
     # We need a hostname that resolves to something. If we get here and
     # there is no hostname, set it.
     #
