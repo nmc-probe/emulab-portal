@@ -275,6 +275,7 @@ def DBQuery(queryPat, querySub = (), asDict = False, dbnum = 0):
                     rs = rs[:60] + "..."
                 print "Result: %s" % rs
                 pass
+            cursor.close()
             if ret == None:
                 return ()
             return ret
