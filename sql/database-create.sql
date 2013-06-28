@@ -1884,6 +1884,7 @@ CREATE TABLE `images` (
   `metadata_url` tinytext,
   `imagefile_url` tinytext,
   `logfileid` varchar(40) default NULL,
+  `noexport` tinyint(1) NOT NULL default '0',
   PRIMARY KEY  (`imageid`),
   UNIQUE KEY `pid` (`pid`,`imagename`),
   KEY `gid` (`gid`),

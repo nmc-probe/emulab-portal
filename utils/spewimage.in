@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -190,6 +190,16 @@ sub SpewImage()
 #
 sub VerifyImage()
 {
+    #
+    # Some images are not allowed to be exported.
+    #
+    if ($image->noexport()) {
+	if ($debug) {
+	    print STDERR "Not allowed to export this image!\n";
+	}
+	return 1;
+    }
+    
     #
     # The current user needs to be able to read the image file and must
     # have provided proper access key. 

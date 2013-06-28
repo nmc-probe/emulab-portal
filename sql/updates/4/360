@@ -1,0 +1,22 @@
+#
+# Add noexport flag to images.
+#
+use strict;
+use libdb;
+
+my $impotent = 0;
+
+sub DoUpdate($$$)
+{
+    my ($dbhandle, $dbname, $version) = @_;
+
+    if (!DBSlotExists("images", "noexport")) {
+	DBQueryFatal("alter table images add  ".
+		     " `noexport` tinyint(1) NOT NULL default '0'");
+    }
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:
