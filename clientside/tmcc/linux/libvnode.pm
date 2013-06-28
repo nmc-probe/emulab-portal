@@ -486,10 +486,10 @@ sub downloadImage($$$$) {
     }
     elsif ($addr =~ /^http/) {
 	if ($todisk) {
-	    mysystem("wget -nv -N -P -O - '$addr' | ".
+	    mysystem("wget -nv -N -O - '$addr' | ".
 		     "$IMAGEUNZIP -f -W 32 - $imagepath");
 	} else {
-	    mysystem("wget -nv -N -P -O $imagepath '$addr'");
+	    mysystem("wget -nv -N -O $imagepath '$addr'");
 	}
     }
 
