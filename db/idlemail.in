@@ -310,7 +310,8 @@ select e.pid,e.eid,e.autoswap_timeout,
 (unix_timestamp(now()) - unix_timestamp(s.swapin_last))/60 as activemin
 from experiments as e
 left join experiment_stats as s on s.exptidx=e.idx
-where e.swappable>0 and e.state="active" and e.autoswap>0
+where e.swappable>0 and e.state="active" and e.expt_locked is null
+and e.autoswap>0
 and e.geniflags=0
 and e.paniced=0 
 having activemin>=e.autoswap_timeout order by e.pid,e.eid
