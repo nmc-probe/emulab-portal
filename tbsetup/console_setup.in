@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -50,7 +50,14 @@ use libtestbed;
 # Turn off line buffering on output
 $| = 1; 
 
-my $SSH		= "$TB/bin/sshtb -n ";
+#
+# We put a timeout on the SSH commands. If they fail, it probably means
+# the tipserver is screwed up or dead. This is bad, but the experiment
+# can continue without it so don't hang. We include the Protocol=2 spec
+# so we don't try twice which would double the effective timeout wait.
+#
+my $SSH		= "$TB/bin/sshtb -o ConnectTimeout=5 -o Protocol=2 -n ";
+
 my $PROG	= "/usr/testbed/sbin/console_setup.proxy";
 my %cmdargs     = ();
 my @row;
