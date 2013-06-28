@@ -2162,7 +2162,17 @@ sub getloadinfo($)
 	foreach my $kv (@kvs) {
 	    my @kvpair = split(/=/,$kv);
 	    if (scalar(@kvpair) != 2) {
-		warn("*** WARNING: malformed key-val pair in loadinfo: $kv\n");
+		#
+		# Ick. ADDR is a URL.
+		#
+		if ($kvpair[0] eq "ADDR") {
+		    my $key = shift(@kvpair);
+		    $resh{$key} = join("=", @kvpair);
+		}
+		else {
+		    warn("*** WARNING: ".
+			 "malformed key-val pair in loadinfo: $kv\n");
+		}
 	    }
 	    else {
 		$resh{$kvpair[0]} = $kvpair[1];
