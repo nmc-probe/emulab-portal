@@ -250,6 +250,7 @@ $xmlfields{"osfeatures"} = $base_osinfo->osfeatures()
 if (defined($base_image)) {
     $xmlfields{"mbr_version"}     = $base_image->mbr_version();
     $xmlfields{"loadpart"}        = $base_image->loadpart();
+    $xmlfields{"noexport"}        = $base_image->noexport();
     $xmlfields{"global"}          = (defined($global) ?
 				     ($global ? 1 : 0) : $base_image->global());
 
