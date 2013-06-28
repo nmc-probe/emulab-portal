@@ -506,7 +506,7 @@ sub CreateSliver($)
     #
     # Leave the slice intact on error, so we can go look at it. 
     #
-    if ($slice->Lock() != 0) {
+    if ($slice->WaitForLock(30) != 0) {
 	print STDERR "CreateSliver: Could not lock $slice before start\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Internal Error");

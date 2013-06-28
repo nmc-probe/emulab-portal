@@ -479,6 +479,26 @@ sub UnLock($)
 }
 
 #
+# Wait for lock with timeout (in seconds).
+#
+sub WaitForLock($$)
+{
+    my ($self, $timeout) = @_;
+
+    return $self->Lock()
+	if (! $timeout);
+	
+    while ($timeout >= 0) {
+	return 0
+	    if ($self->Lock() == 0);
+	
+	$timeout--;
+	sleep(1);
+    }
+    return -1;
+}
+
+#
 # The stitching lock is used solely for controlling concurrency related
 # to stitching.
 #
