@@ -1063,6 +1063,9 @@ sub GetTicketAuxAux($$$$$$$$$)
 			if (GeniXML::HasXenSettings($ref)) {
 			    $xensettings = GeniXML::GetXenSettings($ref);
 			}
+			my $ptype = GeniXML::XenPtype($ref);
+			$pctype = $ptype
+			    if (defined($ptype));
 		    }
 		    elsif ($virtualization_subtype eq "emulab-spp") {
 			$osname = "SPPVM-FAKE";
@@ -1450,9 +1453,6 @@ sub GetTicketAuxAux($$$$$$$$$)
 	};
 
 	if (defined($xensettings)) {
-	    print STDERR "foo\n";
-	    print STDERR Dumper($xensettings);
-	    
 	    foreach my $setting (keys(%$xensettings)) {
 		my $attrvalue = $xensettings->{$setting};
 		my $attrkey;
@@ -1468,9 +1468,27 @@ sub GetTicketAuxAux($$$$$$$$$)
 		}
 		elsif ($setting eq "cores") {
 		    $attrkey = "XEN_CORES";
+
+		    if ($attrvalue < 0 || $attrvalue > 4) {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+						 "Bad XEN setting; ".
+						 "limited to 1-4 cores");
+			goto bad;
+		    }
 		}
 		elsif ($setting eq "disk") {
 		    $attrkey   = "XEN_EXTRAFS";
+		    if ($attrvalue > 8) {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+						 "Bad XEN setting; ".
+						 "limited to 8GB extra disk");
+			goto bad;
+		    }
+		}
+		else {
+		    next;
 		}
 		$virtexperiment->NewTableRow("virt_node_attributes",
 					     {"vname"     => $node_nickname,
