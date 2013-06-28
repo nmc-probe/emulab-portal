@@ -47,12 +47,12 @@ finish() {
     
     echo "$failed"
     echo "$failed" >> ${logfile} 
-    (( $memcheck_standalone )) && exit 0 || return 0
+    return 0
 }
 
 s=""
 
-# check that external need program are installed
+# check that externally need programs are installed
 case $os in
     Linux )
 	if (( $mfsmode )) ; then
@@ -77,6 +77,7 @@ if [ -n "$s" ] ; then
     failed=" Unable to run need missing command(s) $s"
     echo "$failed" >> ${tmplog}
     finish
+    (( $memcheck_standalone )) && exit 0 || return 0
 fi
 
 
