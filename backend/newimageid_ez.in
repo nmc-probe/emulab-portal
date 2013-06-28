@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -185,6 +185,7 @@ my %xmlfields =
      "max_concurrent",	=> ["max_concurrent",	$SLOT_OPTIONAL,    0],
      "shared",		=> ["shared",		$SLOT_OPTIONAL,    0],
      "global",		=> ["global",		$SLOT_OPTIONAL,    0],
+     "noexport",	=> ["noexport",		$SLOT_OPTIONAL,    0],
      "mbr_version",	=> ["mbr_version",	$SLOT_OPTIONAL],
      "metadata_url",	=> ["metadata_url",	$SLOT_ADMINONLY],
      "imagefile_url",	=> ["imagefile_url",	$SLOT_ADMINONLY],
