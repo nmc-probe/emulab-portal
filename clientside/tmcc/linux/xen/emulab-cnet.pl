@@ -80,16 +80,23 @@ my $XENBUS_PATH = $ENV{'XENBUS_PATH'};
 my $bridge      = `xenstore-read "$XENBUS_PATH/bridge"`;
 chomp($bridge);
 
+my ($bossdomain) = tmccbossinfo();
+die("Could not get bossname from tmcc!")
+    if (!defined($bossdomain));
+if ($bossdomain =~ /^[-\w]+\.(.*)$/) {
+    $bossdomain = $1;
+}
+
 # We need these IP addresses.
-my $boss_ip = `host boss | grep 'has address'`;
+my $boss_ip = `host boss.${bossdomain} | grep 'has address'`;
 if ($boss_ip =~ /has address ([0-9\.]*)$/) {
     $boss_ip = $1;
 }
-my $ops_ip = `host ops | grep 'has address'`;
+my $ops_ip = `host ops.${bossdomain} | grep 'has address'`;
 if ($ops_ip =~ /has address ([0-9\.]*)$/) {
     $ops_ip = $1;
 }
-my $fs_ip = `host fs | grep 'has address'`;
+my $fs_ip = `host fs.${bossdomain} | grep 'has address'`;
 if ($fs_ip =~ /has address ([0-9\.]*)$/) {
     $fs_ip = $1;
 }
@@ -204,14 +211,22 @@ sub Online()
     # 
     # If the source is from the vnode, headed to the local control 
     # net, no need for any NAT; just let it through.
-    # 
-    mysystem2("$IPTABLES -t nat -A POSTROUTING -j ACCEPT " . 
-	      " -s $vnode_ip -d $network/$cnet_mask");
-    return -1
-	if ($?);
+    #
+    # On a remote node (pcpg) we are not bridged to the control
+    # network, and so we route to the control network, and then
+    # rely on the SNAT rule below. 
+    #
+    if (!REMOTEDED()) {
+	mysystem2("$IPTABLES -t nat -A POSTROUTING -j ACCEPT " . 
+		  " -s $vnode_ip -d $network/$cnet_mask");
+	return -1
+	    if ($?);
+    }
 
     # 
-    # Ditto for the jail network.
+    # Ditto for the jail network. On a remote node, the only
+    # jail network in on our node, and all of them are bridged
+    # togther anyway. 
     # 
     mysystem2("$IPTABLES -t nat -A POSTROUTING -j ACCEPT " . 
 	      " -s $vnode_ip -d $jail_network/$jail_netmask");
@@ -225,7 +240,7 @@ sub Online()
     # net IP, using SNAT.
     # 
     mysystem2("$IPTABLES -t nat -A POSTROUTING ".
-	      " -s $vnode_ip -o $bridge -j SNAT --to-source $host_ip");
+	      " -s $vnode_ip -o $outer_controlif -j SNAT --to-source $host_ip");
     
     return 0;
 }
@@ -266,13 +281,15 @@ sub Offline()
     }
 
     mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
-	      " -s $vnode_ip -d $jail_network/$jail_netmask");
+		  " -s $vnode_ip -d $jail_network/$jail_netmask");
 
-    mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
-	      " -s $vnode_ip -d $network/$cnet_mask");
+    if (!REMOTEDED()) {
+	mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
+		  " -s $vnode_ip -d $network/$cnet_mask");
+    }
 
     mysystem2("$IPTABLES -t nat -D POSTROUTING ".
-	      " -s $vnode_ip -o $bridge -j SNAT --to-source $host_ip");
+	      " -s $vnode_ip -o $outer_controlif -j SNAT --to-source $host_ip");
 
     # evproxy
     mysystem2("$IPTABLES -t nat -D PREROUTING -j DNAT -p tcp ".

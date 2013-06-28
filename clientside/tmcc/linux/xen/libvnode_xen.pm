@@ -207,6 +207,9 @@ my $DOSNAP = 0;
 my $OVSCTL   = "/usr/local/bin/ovs-vsctl";
 my $OVSSTART = "/usr/local/share/openvswitch/scripts/ovs-ctl";
 
+my $ISREMOTENODE = REMOTEDED();
+my $BRIDGENAME   = "xenbr0";
+
 #
 # Information about the running Xen hypervisor
 #
@@ -308,39 +311,79 @@ sub rootPreConfig()
     print "Configuring root vnode context\n";
 
     #
+    # For compatibility with existing (physical host) Emulab images,
+    # the physical host provides DHCP info for the vnodes. We manage
+    # the dhcpd.conf file here. See below. 
+    #
+    # Note that we must first add an alias to the control net bridge so
+    # that we (the physical host) are in the same subnet as the vnodes,
+    # otherwise dhcpd will fail.
+    #
+    my ($alias_iface, $alias_ip, $alias_mask);
+
+    #
     # Start the Xen daemon if not running.
     # There doesn't seem to be a sure fire way to tell this.
     # However, one of the important things xend should do for us is
     # set up a bridge device for the control network, so we look for this.
     # The bridge should have the same name as the control network interface.
     #
-    my ($cnet_iface,undef,undef,undef,undef,undef,$cnet_gw) = findControlNet();
-    if (!existsBridge($cnet_iface)) {
-	print "Starting xend and configuring cnet bridge...\n"
-	    if ($debug);
-	mysystem("/usr/sbin/xend start");
+    if (!$ISREMOTENODE) {
+	my ($cnet_iface,undef,undef,undef,undef,undef,$cnet_gw) =
+	    findControlNet();
+	if (!existsBridge($cnet_iface)) {
+	    print "Starting xend and configuring cnet bridge...\n"
+		if ($debug);
+	    mysystem("/usr/sbin/xend start");
+
+	    #
+	    # xend tends to lose the default route, so make sure it exists.
+	    #
+	    system("route del default >/dev/null 2>&1");
+	    mysystem("route add default gw $cnet_gw");
+	}
+	($alias_ip,$alias_mask) = domain0ControlNet();
+	$alias_iface = "$cnet_iface:1";
 
 	#
-	# xend tends to lose the default route, so make sure it exists.
+	# We use xen's antispoofing when constructing the guest control net
+	# interfaces. This is most useful on a shared host, but no
+	# harm in doing it all the time.
 	#
-	system("route del default >/dev/null 2>&1");
-	mysystem("route add default gw $cnet_gw");
+	mysystem("$IPTABLES -P FORWARD DROP");
+	mysystem("$IPTABLES -F FORWARD");
+	# This says to forward traffic across the bridge.
+	mysystem("$IPTABLES -A FORWARD ".
+		 "-m physdev --physdev-in $cnet_iface -j ACCEPT");
+    }
+    else {
+	if (!existsBridge($BRIDGENAME)) {
+	    if (mysystem2("$BRCTL addbr $BRIDGENAME")) {
+		TBScriptUnlock();
+		return -1;
+	    }
+	    #
+	    # We do not set the mac address; we want it to take
+	    # on the address of the attached vif interfaces so that
+	    # arp works. This is quite kludgy of course, but otherwise
+	    # the arp comes into the bridge interface and then kernel
+	    # drops it. There is a brouter (ebtables) work around
+	    # but not worth worrying about. 
+	    #
+	}
+	(undef,$alias_mask,$alias_ip) = findVirtControlNet();
+	$alias_iface = $BRIDGENAME;
+    }
+    if (system("ifconfig $alias_iface | grep -q 'inet addr'")) {
+	print "Creating $alias_iface alias...\n";
+	mysystem("ifconfig $alias_iface $alias_ip netmask $alias_mask");
     }
 
     # For tunnels
     mysystem("$MODPROBE openvswitch");
     mysystem("$OVSSTART --delete-bridges start");
 
-    #
-    # We use xen's antispoofing when constructing the guest control net
-    # interfaces. This is most useful on a shared host, but no harm
-    # in doing it all the time. 
-    #
-    mysystem("$IPTABLES -P FORWARD DROP");
-    mysystem("$IPTABLES -F FORWARD");
-    mysystem("$IPTABLES -A FORWARD ".
-	     "-m physdev --physdev-in $cnet_iface -j ACCEPT");
-
+    # For bandwidth contraints.
     mysystem("$MODPROBE ifb numifbs=$MAXIFB");
 
     # Create a DB to manage them. 
@@ -418,22 +461,6 @@ sub rootPreConfig()
     # across reboots
     #
     mysystem("vgchange -a y $VGNAME");
-
-    #
-    # For compatibility with existing (physical host) Emulab images,
-    # the physical host provides DHCP info for the vnodes.  So we create
-    # a skeleton dhcpd.conf file here.
-    #
-    # Note that we must first add an alias to the control net bridge so
-    # that we (the physical host) are in the same subnet as the vnodes,
-    # otherwise dhcpd will fail.
-    #
-    if (system("ifconfig $cnet_iface:1 | grep -q 'inet addr'")) {
-	print "Creating $cnet_iface:1 alias...\n"
-	    if ($debug);
-	my ($vip,$vmask) = domain0ControlNet();
-	mysystem("ifconfig $cnet_iface:1 $vip netmask $vmask");
-    }
 
     print "Creating dhcp.conf skeleton...\n"
         if ($debug);
@@ -1109,7 +1136,7 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 
     my $fmac = fixupMac($mac);
     # Note physical host control net IF is really a bridge
-    my ($cbridge) = findControlNet();
+    my ($cbridge) = ($ISREMOTENODE ? ($BRIDGENAME) : findControlNet());
     my $cscript = "$VMDIR/$vnode_id/cnet-$mac";
 
     # Save info for the control net interface for config file.
@@ -1135,7 +1162,7 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 
     # a route to reach the vnodes. Do it for the entire network,
     # and no need to remove it.
-    if (!$isroutable && system("$NETSTAT -r | grep -q $network")) {
+    if (!$ISREMOTENODE && system("$NETSTAT -r | grep -q $network")) {
 	mysystem2("$ROUTE add -net $network netmask $mask dev $cbridge");
 	if ($?) {
 	    return -1;
@@ -2111,6 +2138,10 @@ sub disk_hacks($)
 
     if (-f "$path/etc/init/ttyS0.conf") {
 	    system("sed -i.bak -e 's/ttyS0/hvc0/' $path/etc/init/ttyS0.conf");
+    }
+
+    if (-e "$BINDIR/tmcc-nossl.bin") {
+	system("/bin/cp -f $BINDIR/tmcc-nossl.bin $path/$BINDIR/tmcc.bin");
     }
 }
 

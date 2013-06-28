@@ -29,6 +29,7 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
 use libsetup;
 use liblocsetup;
+use libgenvnode;
 
 #
 # Set up bridging in a way that will make Xen 4 happy
@@ -67,6 +68,32 @@ if (@ARGV == 1) {
     $interface = $ARGV[0];
 } elsif (@ARGV != 0) {
     usage();
+}
+
+#
+# Special case for the remoteded nodes (pcpg, pcpg-i2). We want the
+# bridge, but it is to create a private network for the VMs; the
+# control interface is not attached to the bridge, and the bridge
+# serves as the router interface for the VMs. We create this bridge
+# early so that dhcpd does not throw up and die cause there is no
+# such interface, which causes a respawning deluge. 
+#
+if (REMOTEDED()) {
+    if ($USE_OPENVSWITCH) {
+	system("$OVSCTL add-br $XENBR");
+    }
+    else {
+	system("$BRCTL addbr $XENBR");
+    }
+    die "xenbridge-setup: Unable to create bridge $XENBR\n"
+	if ($?);
+
+    my (undef,$alias_mask,$alias_ip) = findVirtControlNet();
+    system("$IFCONFIGBIN $XENBR $alias_ip netmask $alias_mask");
+    die "xenbridge-setup: Unable to ifconfig bridge $XENBR\n"
+	if ($?);
+
+    exit(0);
 }
 
 #
