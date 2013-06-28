@@ -720,6 +720,22 @@ sub HasXenSettings($)
     return 0;
 }
 
+sub XenPtype($)
+{
+    my ($node) = @_;
+
+    my $type = FindFirst("n:sliver_type", $node);
+    if (defined($type)) {
+	my $ptype = FindNodesNS("n:xen_ptype", $type, $EMULAB_NS)->pop();
+	if (defined($ptype)) {
+	    my $name = GetText("name", $ptype);
+	    return $name
+		if (defined($name) && $name ne "");
+	}
+    }
+    return undef;
+}
+
 sub GetXenSettings($)
 {
     my ($node) = @_;
