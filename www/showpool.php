@@ -81,7 +81,9 @@ $query_result =
 		 "left join reserved as r2 on r2.node_id=n.phys_nodeid ".
 		 "where n.node_id!=n.phys_nodeid and ".
 		 "      r.sharing_mode is not null and " .
-		 "      r2.pid='$pid' and r2.eid='$eid'");
+		 "      r2.pid='$pid' and ".
+		 "      (r2.eid='$eid' or r2.eid='shared-pcpg') ".
+		 "order by node_id");
 while ($row = mysql_fetch_array($query_result)) {
     $node_id  = $row["node_id"];
     
@@ -89,7 +91,7 @@ while ($row = mysql_fetch_array($query_result)) {
 }
 
 $query_result =
-    DBQueryFatal("select r.node_id,n.type,n.def_boot_osid,ru.*,o.osname, ".
+    DBQueryFatal("select ru.*,r.node_id,n.type,n.def_boot_osid,o.osname, ".
 		 " ns.status as nodestatus, ".
 		 " date_format(rsrv_time,\"%Y-%m-%d&nbsp;%T\") as rsrvtime ".
 		 "from reserved as r ".
@@ -98,7 +100,7 @@ $query_result =
 		 "left join node_status as ns on ns.node_id=r.node_id ".
 		 "left join node_rusage as ru on ru.node_id=r.node_id ".
 		 "left join os_info as o on o.osid=n.def_boot_osid ".
-		 "where r.eid='$eid' and r.pid='$pid' ".
+		 "where r.pid='$pid' and (r.eid='$eid' or r.eid='shared-pcpg') ".
 		 "order BY rsrvtime");
 
 $url = CreateURL("showexp", $experiment);
