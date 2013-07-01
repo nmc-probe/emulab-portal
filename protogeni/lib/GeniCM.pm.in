@@ -1798,6 +1798,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    # the user has specified something impossible.
 	    #
 	    if (exists($external_nodemap{$node_nickname})) {
+		my $external_noderef = $external_nodemap{$node_nickname};
 		my $stitchpath = GeniStitch->Lookup($lanname, $rspec);
 		if (! defined($stitchpath)) {
 		    $response =
@@ -1879,8 +1880,11 @@ sub GetTicketAuxAux($$$$$$$$$)
 		$iface_vport = $external_vportmap{$node_nickname};
 		$external_vportmap{$node_nickname} += 1;
 		$external_linkmap{$lanname} = $linkref;
-	    } else {
-	    
+
+		# Allow rspec to provide IP for other side.
+		$ip = GeniXML::GetIp($ref, $external_noderef);
+	    }
+	    else {
 		#
 		# Sanity check the interface.
 		#
