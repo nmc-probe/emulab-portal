@@ -935,6 +935,7 @@ if (!isset($submit)) {
     $defaults["wholedisk"]	 = "No";
     $defaults["reboot_waittime"] = "";
     $defaults["mbr_version"]     = "";
+    $defaults["noexport"]        = "No";
 
     #
     # Use the base image to seed the form.
@@ -951,6 +952,7 @@ if (!isset($submit)) {
 	    $defaults["wholedisk"]   = "Yep";
 	}
 	$defaults["mbr_version"]     = $baseimage->mbr_version();
+	$defaults["noexport"]        = ($baseimage->noexport() ? "Yes" : "No");
 	#
 	# Same types as the parent.
 	#
@@ -1250,6 +1252,9 @@ if (isset($formfields["shared"])) {
 }
 if (isset($formfields["global"])) {
    $args["global"] = strcmp($formfields["global"], "Yep") ? 0 : 1;
+}
+if (isset($formfields["noexport"]) && $formfields["noexport"] == "Yep") {
+    $args["noexport"] = 1;
 }
 
 if (isset($formfields["max_concurrent"]) &&
