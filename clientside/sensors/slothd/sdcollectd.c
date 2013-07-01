@@ -214,15 +214,16 @@ int CollectData(int sd, IDLE_DATA *iddata) {
   time_t curtime;
   /* struct hostent *hent; */
   struct sockaddr_in cliaddr;
+  char *ipaddr;
 
   bzero(&cliaddr, sizeof(struct sockaddr_in));
   slen = sizeof(struct sockaddr_in);
 
   if((numbytes = recvfrom(sd, iddata->buf, sizeof(iddata->buf), 0,
                           (struct sockaddr*)&cliaddr, &slen))) {
-
-    if (!mydb_iptonodeid(inet_ntoa(cliaddr.sin_addr), iddata->id)) {
-      error("Couldn't obtain node id");
+    ipaddr = inet_ntoa(cliaddr.sin_addr);
+    if (!mydb_iptonodeid(ipaddr, iddata->id)) {
+      error("Couldn't obtain node id for IP: %s", ipaddr);
       return 0;
     }
     if (opts->debug) {
