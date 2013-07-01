@@ -1232,6 +1232,19 @@ sub GetTicketAuxAux($$$$$$$$$)
 		}
 		$node = $namemap{$node_nickname};
 	    }
+	    #
+	    # Watch for pcvm type set above. If the user specified
+	    # a hardware type for their VMs, then form a proper
+	    # hardware specific pcvm type.
+	    #
+	    if (defined($pctype) && $pctype eq "pcvm" &&
+		(my $usertype =
+		 GeniXML::FindFirst("n:hardware_type", $ref))) {
+		my $htype = GeniXML::GetText("name", $usertype);
+		if (defined($htype)) {
+		    $pctype = "${htype}-vm";
+		}
+	    }
 	    $pctype = $node->type()
 		if (!defined($pctype));
 	}
