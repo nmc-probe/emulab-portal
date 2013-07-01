@@ -1469,7 +1469,7 @@ sub WaitForNodes($@)
     }
     # Set the waitmax time for each node. 
     foreach my $node (@nodes) {
-	$node->_maxwait(500 + ($node->_reloaded() ? 600 : 0));
+	$node->_maxwait(1000 + ($node->_reloaded() ? 600 : 0));
 	
 	if ($node->isvirtnode()) {
 	    #
