@@ -2497,7 +2497,7 @@ sub print_node_types
 		if (defined($openvzid)) {
 		    print_osids($osid_subosids{$openvzid}, undef);
 		}
-	    } elsif ($sliverTypes[$i] eq "emulab-openvz") {
+	    } elsif ($sliverTypes[$i] eq "emulab-xen") {
 		print_raw_osids("pcvm");
 	    }
 	    print "  </sliver_type>\n";
