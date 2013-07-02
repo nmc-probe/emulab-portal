@@ -32,7 +32,7 @@ sub DoUpdate($$$)
     #
     # Turn on arplockdown for XEN image support
     #
-    SetSiteVar("general/arplockdown", "static") == 0
+    SetSiteVar("general/arplockdown", "static")
 	or return -1;
 
     #
