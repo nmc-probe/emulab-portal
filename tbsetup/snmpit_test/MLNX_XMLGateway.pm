@@ -23,9 +23,8 @@
 # }}}
 #
 
-
 # Mellanox XML-Gateway handler class.  Hides all of the connection
-# management, method invocation, and response parsing goo from the caller.
+# management, XML method invocation, and response parsing goo from the caller.
 
 package MLNX_XMLGateway;
 
@@ -38,13 +37,17 @@ use strict;
 
 $| = 1; # Turn off line buffering on output
 
+my $DEBUG = 0;
+
 my $MLNX_GATEWAY_PATH = "/xtree";
 my $MLNX_AUTH_PATH  = '/admin/launch?script=rh&template=login&action=login';
+my $MLNX_CHECK_RPATH = "/mlnxos/v1/chassis/model";
 my %MLNX_ACTIONS = ("action"     => 1, 
 		    "get"        => 1, 
 		    "set-create" => 1, 
 		    "set-modify" => 1, 
 		    "set-delete" => 1);
+
 
 #
 # Create a new Mellanox XML-Gateway object.  $authority is an authority
@@ -97,6 +100,54 @@ sub DESTROY($) {
 }
 
 #
+# Set/unset/query debug level
+#
+sub debug($;$) {
+    my ($self,$level) = @_;
+    
+    if (defined($level)) {
+	$level =~ /^\d+$/ or
+	    die "Debug level must be a positive integer or zero!";
+	$DEBUG = $level;
+    }
+
+    return $DEBUG;
+}
+
+#
+# Debug print wrapper function
+#
+sub debugpr($;$) {
+    my ($msg, $level) = @_;
+
+    # Default to debug level '1' if not specified.
+    $level ||= 1;
+
+    if ($DEBUG >= $level) {
+	print $msg;
+    }
+}
+
+#
+# Pretty print a parsed XML::LibXML DOM object.  Requires a separate
+# perl module.  Assumes you are passing in a valid DOM object!
+#
+sub XMLPrettyPrint($) {
+    my ($xmldom,) = @_;
+    my $retstr;
+
+    eval { require XML::LibXML::PrettyPrint };
+    if ($@) {
+	$retstr = "-> Can't pretty print: XML::LibXML::PrettyPrint not found.";
+    } else {
+	my $pp = XML::LibXML::PrettyPrint->new(indent_string => "  ");
+	$retstr = $pp->pretty_print($xmldom->documentElement()->cloneNode(1))->toString();
+    }
+
+    return $retstr;
+}
+
+#
 # Establish an authenticated session with the XML gateway on the switch.
 # Users of this module should not call this method directly.
 #
@@ -107,24 +158,39 @@ sub connect($) {
     my $user = $self->{'USER'};
     my $pass = $self->{'PASS'};
 
-    # See if we have a connection, and if it is still valid/active.
+    # See if we already have a connection, and if it is still valid.
     if (defined($self->{'CONN'})) {
-	my $ccache = $self->{'CONN'}->conn_cache();
-	$ccache->prune();  # test the connection, and remove if closed.
-	if (scalar($ccache->get_connections()) == 1) {
-	    # Existing connection is valid - pass it back to the caller.
-	    return $self->{'CONN'};
-	} else {
-	    # De-alloc the connection object.  We will try to reconnect
-	    # and authenticate again below.
-	    $ccache = undef;
+	# Do a quick check to make sure we have a valid session.
+	my $checkdom = XMLEncodeCallStack(
+	    [XMLEncodeCall("get",$MLNX_CHECK_RPATH),]);
+	my $resp = $self->{'CONN'}->post($self->{'URI'},
+					 Content => $checkdom->serialize());
+	my $resp2 = 
+	    eval { XMLDecodeResponse(
+		       XML::LibXML->load_xml(string =>
+					     $resp->decoded_content())) };
+	if ($@ || scalar(@{$resp2}) == 0) {
+	    if ($@) {
+		debugpr "Failed connection test message:\n$@\n";
+	    } elsif (!scalar(@{$resp2})) {
+		debugpr "No response to basic get [$MLNX_CHECK_RPATH] ...\n";
+	    }
+	    $resp2 = $resp = $checkdom = undef;
 	    $self->{'CONN'} = undef;
+	    warn "Cached connection invalid.  Attempting to reconnect.\n";
+	} else {
+	    return $self->{'CONN'};
 	}
     }
 
     my $ua = LWP::UserAgent->new();
-    $ua->conn_cache(LWP::ConnCache->new()); # need an http 1.1 session.
-    $ua->cookie_jar({});
+    $ua->cookie_jar({});         # need to store the session cookie.
+
+    # Enable debug output from www user agent if debug level is high.
+    if ($DEBUG > 3) {
+	$ua->add_handler("request_send",  sub { shift->dump; return });
+	$ua->add_handler("response_done", sub { shift->dump; return });
+    }
 
     # Create a new URI with the host defined in the URI created via
     # the constructor.
@@ -140,14 +206,26 @@ sub connect($) {
 	'f_password' => $pass
     );
     # Make the call and check that it went through OK.  Die if not.
-    # XXX: may want to put in some retry logic, and/or check for timeout.
+    # If there is a valid "session" cookie sent back, then we're good
+    # to go.  Note: Almost unbelievably, if authentication fails, then
+    # the web service on the switch will return a "200" code along
+    # with some big old long login page.  On success, it returns a
+    # code "302".  Really Mellanox?
     my $authres = $ua->post($authuri, \%form);
-    if ($authres->code != 302) {
-	die "Failed to authenticate to ". $authuri->host() .": ".
-	    $authres->dump();
+    my $valid_session = 0;
+    $ua->cookie_jar()->scan(
+	sub {
+	    my ($version, $key, $val, $path, $domain, $port, 
+		$path_spec, $secure, $expires, $discard, $hash) = @_;
+	    debugpr("scanning cookie: $domain: $key => $val\n", 2);
+	    $valid_session = 1 if ($key eq "session");
+	});
+    if (!$valid_session) {
+	die "Failed to authenticate to ". $authuri->host();
     }
 
     # Connected.  Stash the LWP::UserAgent object and pass it back to caller.
+    debugpr "Successfully connected to ". $authuri->host() ."\n";
     $self->{'CONN'} = $ua;
     return $ua;
 }
@@ -178,7 +256,7 @@ sub call($$) {
     }
 
     # will die() if it encounters a problem, which we let flow through.
-    return $self->DispatchCallStack(XMLEncodeCallStack(@callstack));
+    return $self->DispatchCallStack(XMLEncodeCallStack(\@callstack));
 }
 
 #
@@ -195,19 +273,29 @@ sub XMLEncodeCall($$;$) {
     exists($MLNX_ACTIONS{$action})
 	or die "Unknown call type: $action";
 
-    $restpath =~ qr|^(/[\w\*]+){1,}/?$|
+    $restpath =~ qr|^(/[\w\*=]+){1,}/?$|
 	or die "REST-path does not look valid: $restpath";
 
     if (defined($arguments) && ref($arguments) eq "HASH") {
-	$action ne "action" && $action ne "set-modify"
-	    and die "Must NOT supply arguments hash with 'set-create', 'set-delete' or 'get' calls.";
+	$action ne "action"
+	    and die "Must NOT supply an arguments hash with 'set-*' or 'get' calls.";
 	# Append arguments on to the REST-path.
 	while (my ($arg_name,$arg_val) = each %{$arguments}) {
 	    $restpath .= "|${arg_name}=${arg_val}";
 	}
     } else {
-	$action eq "action" || $action eq "set-modify"
-	    and die "Must supply an arguments hash with 'action' or 'set-modify' calls.";
+	$action eq "action"
+	    and die "Must supply an arguments hash with 'action' calls.";
+    }
+
+    # Print out some debug stuff, if requested.
+    if ($DEBUG > 1) {
+	debugpr "XML Encoding: $action, $restpath\n";
+	if (defined($arguments)) {
+	    while (my ($k,$v) = each %$arguments) {
+		debugpr "\tArg: $k => $v\n";
+	    }
+	}
     }
 
     # Conjure a partial XML tree for this call.
@@ -225,10 +313,10 @@ sub XMLEncodeCall($$;$) {
 # individual calls passed in (preserving their order).  Meant for
 # internal use by this module.
 #
-sub XMLEncodeCallStack(@) {
-    my @callstack = @_;
+sub XMLEncodeCallStack($) {
+    my ($callstack,) = @_;
 
-    scalar(@callstack) > 0
+    scalar(@{$callstack}) > 0
 	or die "Must pass in at least one call to add";
 
     # Create the boilerplate that wraps the RPCs to send.
@@ -248,8 +336,14 @@ sub XMLEncodeCallStack(@) {
     $areq->appendChild($nodes);
 
     # drop in each of the call nodes (created by XMLEncodeCall()).
-    foreach my $call (@callstack) {
+    foreach my $call (@{$callstack}) {
 	$nodes->appendChild($call);
+    }
+
+    # Pretty print the XML if debug level is sufficiently high.
+    # Requires another module that is not part of core XML::LibXML.
+    if ($DEBUG > 2) {
+	debugpr "Encoded XML Call Stack:\n". XMLPrettyPrint($dom) ."\n";
     }
 
     return $dom;
@@ -271,10 +365,7 @@ sub DispatchCallStack($$) {
 			 Content => $dom->serialize());
 
     if ($resp->is_error()) {
-	print "Error while calling XML-gateway. XML callstack:\n".
-	    $dom->serialize() ."\n\n".
-	    "Server output: ". $resp->dump() ."\n";
-	die "Error dispatching call stack.";
+	die "Error dispatching call stack: ". $resp->status_line();
     }
 
     # Parse the XML encoded response from the gateway into a DOM object.
@@ -282,9 +373,12 @@ sub DispatchCallStack($$) {
     my $respdom = eval { XML::LibXML->load_xml(string => 
 					       $resp->decoded_content()) };
     if ($@) {
-	print "Invalid gateway response (not XML?).  Full HTTP contents:\n".
-	      $resp->dump() ."\n";
-	die "Invalid gateway response (not XML?).";
+	die "Invalid gateway response (not XML?): $@";
+    }
+
+    # Purty print the response.
+    if ($DEBUG > 2) {
+	debugpr "XML Response from switch:\n". XMLPrettyPrint($dom) ."\n";
     }
 
     # Allow any die() exceptions to just flow on through.
@@ -313,7 +407,7 @@ sub XMLDecodeResponse($) {
     my $nodes_xlist = $respdom->findnodes("//nodes/node");
 
     # Return an empty list of there aren't any data nodes in the response.
-    return () if !defined($nodes_xlist);
+    return [] if !defined($nodes_xlist);
 
     # Process the list of data nodes.  Extract the path,type,value
     # tuples from the XML and return these as a list of anonymous arrays.
@@ -331,5 +425,5 @@ sub XMLDecodeResponse($) {
 		    $value->string_value()];
 	});
 
-    return @nodelist;
+    return \@nodelist;
 }
