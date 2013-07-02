@@ -967,6 +967,11 @@ sub GetTicketAuxAux($$$$$$$$$)
 	    my $dname = GeniXML::GetText("name", $diskref);
 	    my $url   = GeniXML::GetText("url", $diskref);
 
+	    # url is deprecated; name can be anything.
+	    if (defined($dname) && $dname =~ /^http/) {
+		$url = $dname;
+	    }
+
 	    if (defined($url)) {
 		if (! TBcheck_dbslot($url, "virt_nodes", "osname",
 				 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)){
