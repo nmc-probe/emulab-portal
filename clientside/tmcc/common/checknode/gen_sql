@@ -1,0 +1,86 @@
+#! /usr/local/bin/bash
+
+source checkutils.sh
+
+
+gentbsql_main() {
+    set -u
+    projdir=/proj/emulab-ops/nodecheck
+    cd $projdir
+    allnodes=$(ls -d pc* pg* dbox*)
+
+    for host in $allnodes ; do
+:	
+    done
+
+}
+
+setdirstructure() {
+    # start XXX
+    # decided to change names again, rename if old names -- XXX remove this after all node have run the new code
+    # take into consideration if old directory structure was added to to a new directory structure 
+    set -u
+    projdir=/proj/emulab-ops/nodecheck
+    cd $projdir
+    allnodes=$(ls -d pc* pg* dbox*)
+    dirs2workon=""
+    for i in $allnodes; do [[ -L $i/$i.diff ]] && dirs2workon+="$i "; done
+    owd=$PWD
+
+    for host in $dirs2workon ; do
+    	if [ -d ${projdir}/$host ] ; then
+	    cd ${projdir}/$host
+	    [[ -L $host.full ]] && rm $host.full
+	    [[ -L $host.diff ]] && rm $host.diff
+	    [[ -L $host ]] && rm $host
+	    for i in full diff tbdb ; do
+		if [ -d $i ] ; then
+		    [[ ! -d .$i ]] && (mkdir .$i ; chmod g+x .$i)
+		    list=$(ls -A $i)
+		    for j in $list ; do
+			mv $i/$j .$i
+		    done
+		    rmdir $i
+		fi
+	    done
+	    cd $owd
+	fi
+    done
+    
+    # put links in place
+    for i in $dirs2workon ; do
+	cd $projdir/$i
+	links="full diff node"
+	for link in $links ; do
+	    case $link in
+		full | diff )
+		    # make the symlinks
+		    if [ ! -e ${link} -a -d .${link} ] ; then
+			linkto=$(ls -t .${link} | head -1)
+			if [ -n "$linkto" ] ; then
+ 			    ln -s .${link}/${linkto} $link
+			fi
+		    fi
+		    ;;
+		node )
+		    if [ ! -e ${link} -a -d .tbdb ] ; then
+			linkto=$(ls -t .tbdb | head -1)
+			if [ -n "$linkto" ] ; then
+ 			    ln -s .tbdb/${linkto} $link
+			    ln -s .tbdb/${linkto} $i
+			fi
+		    fi
+		    ;;
+	    esac
+	done
+    done
+}
+
+
+if [ "$0" = "${0/sql}" ] ; then
+    setdirstructure
+else
+  echo  gentbsql_main
+fi
+
+
