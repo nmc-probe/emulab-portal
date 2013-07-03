@@ -548,16 +548,14 @@ inithostname() {
     if [ -e "$BINDIR/tmcc" ] ; then
 	host=$($BINDIR/tmcc nodeid)
     else
-	echo "ERROR no tmcc command"
+	echo "WARN no $BINDIR/tmcc command for nodeid"
 	# maybe its just time to give up
-	if [ -z "$host" ] ; then 
-	    if [ -e "$BOOTDIR/realname" ] ; then
-		host=$(cat $BOOTDIR/realname)
-	    elif [ -e "$BOOTDIR/nodeid" ] ; then
-		host=$(cat $BOOTDIR/nodeid)
-	    else
-		host=$(hostname)
-	    fi
+	if [ -e "${BOOTDIR}/realname" ] ; then
+	    host=$(cat $BOOTDIR/realname)
+	elif [ -e "$BOOTDIR/nodeid" ] ; then
+	    host=$(cat $BOOTDIR/nodeid)
+	else
+	    host=$(hostname)
 	fi
     fi
     return 0
