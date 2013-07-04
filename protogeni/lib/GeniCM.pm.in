@@ -1071,6 +1071,7 @@ sub GetTicketAuxAux($$$$$$$$$)
 			my $ptype = GeniXML::XenPtype($ref);
 			$pctype = $ptype
 			    if (defined($ptype));
+			$virtexperiment->encap_style("vlan");
 		    }
 		    elsif ($virtualization_subtype eq "emulab-spp") {
 			$osname = "SPPVM-FAKE";
