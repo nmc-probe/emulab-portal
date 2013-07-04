@@ -364,6 +364,7 @@ class Image
     function metadata_url()	{ return $this->field("metadata_url"); }
     function imagefile_url()	{ return $this->field("imagefile_url"); }
     function logfileid()	{ return $this->field("logfileid"); }
+    function noexport()		{ return $this->field("noexport"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
