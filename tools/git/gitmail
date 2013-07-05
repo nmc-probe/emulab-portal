@@ -264,6 +264,12 @@ my $max_patches = get_config("maxpatches",20);
 #
 my $gitweb_url = get_config("gitweburl",undef);
 
+#
+# If true, include clone URLs in the mail. These will be guessed from
+# the local hostname and the path
+#
+my $include_urls = get_config("includeurls",1);
+
 ######################################################################
 # Constants
 ######################################################################
@@ -300,6 +306,12 @@ my $CT_REWIND = "rewind";
 my $CT_REBASE = "rebase";
 
 #
+# Types of clone URLs
+#
+my $CLONE_SSH    = "ssh";
+my $CLONE_PUBLIC = "public";
+
+#
 # Tired of typing this and getting it wrong
 #
 my $STDERRNULL = " 2> /dev/null";
@@ -328,6 +340,7 @@ sub filter_out_objects_in_repo($@);
 sub generate_messageid();
 sub get_hostname();
 sub get_pathname();
+sub get_clone_url($);
 
 ######################################################################
 # Main Body
@@ -847,6 +860,23 @@ sub commit_mail($$$\@$@) {
     $actionstring .= "\n\n";
 
     #
+    # Show clone URLs
+    #
+    my $cloneurls = "";
+    if ($include_urls) {
+        my $ssh_url = get_clone_url($CLONE_SSH);
+        my $public_url = get_clone_url($CLONE_PUBLIC);
+
+        $cloneurls .= "Clone via ssh: $ssh_url\n";
+        if ($public_url) {
+            # This one might not be set, since the repo may only be
+            # accessable through ssh
+            $cloneurls .= "Clone read-only: $public_url\n";
+        }
+        $cloneurls .= "\n";
+    }
+
+    #
     # Make a pretty summary of commits if there are enough of them
     #
     my $summary = "";
@@ -955,6 +985,7 @@ sub commit_mail($$$\@$@) {
     if (!$separate_mail && @commitmessages) {
         send_mail($subject,
             $actionstring .
+            $cloneurls .
             $summary .
             join($SEP, map { join "",@$_} @commitmessages) .
             (scalar(@patches) ? "$BODYSEP" : "") .
@@ -1335,4 +1366,33 @@ sub get_pathname() {
     my $pwd = `pwd`;
     chomp $pwd;
     return $pwd;
+}
+
+#
+# Returns a URL for cloning the repo, or undef if it can't figure it out
+#
+sub get_clone_url($) {
+    my ($type) = @_;
+
+    my $hostname = get_hostname();
+    my $path = get_pathname();
+
+    if ($type eq $CLONE_SSH) {
+        return "$hostname:$path";
+    }
+
+    if ($type eq $CLONE_PUBLIC) {
+        # Check to see if this repo is exported publicly - only method
+        # supported at the moment is anonymous git URLs; would be good to
+        # support http/https in the future
+        if (-e "$path/git-daemon-export-ok") {
+            my $reponame = `basename $path`;
+            chomp $reponame;
+            return "git://$hostname/$reponame";
+        } else {
+            return undef;
+        }
+    }
+
+    return undef;
 }
