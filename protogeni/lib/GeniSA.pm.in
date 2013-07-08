@@ -1012,13 +1012,16 @@ sub RenewSlice($)
 	$message = "Expiration is in the past";
 	goto bad;
     }
-    if ($when < timegm( strptime( $slice->expires() ) ) ) {
+    if ($when < timelocal(strptime($slice->expires()))) {
 	$message = "Cannot shorten slice lifetime";
 	goto bad;
     }
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse("slice");
     }
+    print STDERR "Changing expiration for $slice from " .
+	$slice->expires() . " to $expires\n";
+	
     if ($slice->SetExpiration($when) != 0) {
 	$message = "Could not set expiration time";
 	$slice->UnLock();
