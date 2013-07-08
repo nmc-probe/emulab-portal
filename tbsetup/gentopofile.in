@@ -675,12 +675,28 @@ if ($experiment->geniflags()) {
 		print STDERR "Could not get vnode for $member\n";
 		goto bad;
 	    }
-	    if ($member->GetAttribute("node_id", \$node)) {
-		print STDERR "Could not get node for $member\n";
+	    my $port = scalar(keys(%{ $nodes{$vnode} })) + 1;
+	    # Store lan:ip into the portlist for the node.
+	    $nodes{$vnode}->{$port} = "$vname:$ip";
+
+	    #
+	    # Add the other side of the tunnel, even though it is
+	    # probably at a remote AM. We do this so that the hosts
+	    # file is generated correctly.
+	    #
+	    if ($member->GetAttribute("tunnel_peerip", \$ip)) {
+		print STDERR "Could not get peer ip for $member\n";
 		goto bad;
 	    }
-	    my $port = scalar(keys(%{ $nodes{$vnode} })) + 1;
-		
+	    if ($member->GetAttribute("tunnel_peerid", \$vnode)) {
+		print STDERR "Could not get peer id for $member\n";
+		goto bad;
+	    }
+	    # If it is remote, it will be in the nodes table. 
+	    if (!exists($nodes{$vnode})) {
+		$nodes{$vnode} = {};
+	    }
+	    $port = scalar(keys(%{ $nodes{$vnode} })) + 1;
 	    # Store lan:ip into the portlist for the node.
 	    $nodes{$vnode}->{$port} = "$vname:$ip";
 	    next;
