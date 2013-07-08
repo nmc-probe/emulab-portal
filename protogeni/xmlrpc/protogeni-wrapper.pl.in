@@ -344,11 +344,11 @@ if (SiteVarExists($sitevarname)) {
 }
 elsif (lc($MODULE) eq "ch") {
     # Do no even bother with logs unless an error or debugging.
-    $nostorelogs = $debug;
+    $nostorelogs = !$debug;
 }
 elsif (lc($MODULE) eq "sa") {
     # Do no even bother with logs unless an error or debugging.
-    $nostorelogs = $debug;
+    $nostorelogs = !$debug;
 }
 elsif (lc($MODULE) eq "emulab") {
     # XXX Special case, obviously
