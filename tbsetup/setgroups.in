@@ -411,8 +411,10 @@ foreach my $token (@userlist) {
 	or fatal("Could not chown home dir to $uid:$project");
 
     foreach my $dot (@dots) {
-	system("$CHOWN -R $uid:$project $homedir/$dot") == 0
-	    or fatal("Could not chown $homedir/$dot to $uid:$project");
+	if (-e "$homedir/$dot") {
+	    system("$CHOWN -R $uid:$project $homedir/$dot") == 0
+		or fatal("Could not chown $homedir/$dot to $uid:$project");
+	}
     }
     
     #
