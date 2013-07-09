@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2012 University of Utah and the Flux Group.
+# Copyright (c) 2006-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -560,6 +560,14 @@ function VerifyPageArguments($argspec, $required)
 	    if (isset($_REQUEST[URL_IMAGEID])) {
 		$imageid = $_REQUEST[URL_IMAGEID];
 		$yep    = 1;
+
+		if (ValidateArgument(PAGEARG_IMAGE, $imageid)) {
+		    $object = Image::Lookup($imageid);
+		}
+	    }
+	    elseif (isset($_REQUEST[$name]) && $_REQUEST[$name] != "") {
+		$imageid = $_REQUEST[$name];
+		$yep = 1;
 
 		if (ValidateArgument(PAGEARG_IMAGE, $imageid)) {
 		    $object = Image::Lookup($imageid);
