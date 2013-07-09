@@ -536,7 +536,7 @@ class Image
 	$uuid           = $this->uuid();
 	$mbr_version    = $this->mbr_version();
 	$hash           = $this->hash();
-
+	
 	#
 	# An imported image has a metadata_url, and at the moment I
 	# do want to worry about exporting an imported image.
@@ -746,6 +746,31 @@ class Image
                     <td class=left>Yes</td>
                   </tr>\n";
 	}
+	if ($this->ezid()) {
+	    $doesxen = 0;
+	    $osinfo = OSinfo::Lookup($imageid);
+	    if ($osinfo && $osinfo->def_parentosid()) {
+		$parentosinfo = OSinfo::Lookup($osinfo->def_parentosid());
+		if ($parentosinfo &&
+		    $parentosinfo->FeatureSupported("xen-host")) {
+		    $doesxen = 1;
+		}
+	    }
+	    $xenval  = ($doesxen ? "Yes" : "No");
+	    $xenflip = ($doesxen ? 0 : 1);
+
+	    echo "<tr>
+                  <td>XEN Capable?:</td>
+   	          <td class=left>
+                     $xenval (<a href=toggle.php?imageid=$imageid".
+		          "&type=imagedoesxen&value=$xenflip>Toggle</a>
+                      if you know this image can run
+               as a XEN guest. More info
+               <a target=_blank
+                  href='https://wiki.emulab.net/wiki/Emulab/wiki/xen'>here</a>)
+              </td>
+             </tr>\n";
+	}
 
 	if ($hash) {
 	    echo "<tr>
@@ -857,5 +882,34 @@ class Image
 	if ($this->logfileid()) 
 	    return Logfile::Lookup($this->logfileid());
 	return null;
+    }
+
+    function DoesXen($does) {
+	$imageid = $this->imageid();
+	
+	if ($does) {
+	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
+						 "XEN41-64-STD");
+	    if (!$parentosinfo) {
+		return -1;
+	    }
+	    $parentosid = $parentosinfo->osid();
+
+	    DBQueryFatal("update os_info set def_parentosid='$parentosid' ".
+			 "where osid='$imageid'");
+	    DBQueryFatal("replace into os_submap set ".
+			 "  osid='$imageid', parent_osid='$parentosid'");
+	    DBQueryFatal("replace into osidtoimageid set ".
+			 " osid='$imageid', type='pcvm', imageid='$imageid'");
+	}
+	else {
+	    DBQueryFatal("delete from osidtoimageid ".
+			 "where osid='$imageid' and type='pcvm'");
+	    DBQueryFatal("delete from os_submap ".
+			 "where osid='$imageid'");
+	    DBQueryFatal("update os_info set def_parentosid=NULL ".
+			 "where osid='$imageid'");
+	}
+	return 0;
     }
 }

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -42,7 +42,7 @@ $isadmin   = ISADMIN();
 # List of valid toggles
 $toggles = array("adminon", "webfreeze", "cvsweb", "lockdown", "stud",
 		 "cvsrepo_public", "workbench", "hiderun", "widearearoot",
-		 "imageglobal", "skipvlans", "adminflag");
+		 "imageglobal", "skipvlans", "adminflag", "imagedoesxen");
 
 # list of valid values for each toggle
 $values  = array("adminon"        => array(0,1),
@@ -55,6 +55,7 @@ $values  = array("adminon"        => array(0,1),
 		 "workbench"      => array(0,1),
 		 "widearearoot"   => array(0,1),
 		 "imageglobal"    => array(0,1),
+		 "imagedoesxen"   => array(0,1),
 		 "adminflag"      => array(0,1),
 		 "hiderun"        => array(0,1));
 
@@ -69,6 +70,7 @@ $optargs = array("adminon"        => array(),
 		 "workbench"      => array("pid" => 1),
 		 "widearearoot"   => array("user" => 1),
 		 "imageglobal"    => array("imageid" => 1),
+		 "imagedoesxen"   => array("imageid" => 1),
 		 "adminflag"      => array("user" => 1),
 		 "hiderun"        => array("instance" => 1, "runidx" => 1));
 
@@ -216,7 +218,7 @@ elseif ($type == "skipvlans") {
     $zapurl = CreateURL("showexp", $experiment);
     $experiment->SetSkipVlans($value);
 }
-elseif ($type == "imageglobal") {
+elseif ($type == "imageglobal" || $type == "imagedoesxen") {
     include("imageid_defs.php");
     
     # Must validate since we allow non-admins to do this.
@@ -231,7 +233,12 @@ elseif ($type == "imageglobal") {
 	USERERROR("You do not have permission to toggle $type!", 1);
     }
     $zapurl = CreateURL("showimageid", $image);
-    $image->SetGlobal($value);
+    if ($type == "imagedoesxen") {
+	$image->DoesXen($value);
+    }
+    else {
+	$image->SetGlobal($value);
+    }
 }
 elseif ($type == "cvsrepo_public") {
     # Must validate the pid since we allow non-admins to do this.

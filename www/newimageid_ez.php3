@@ -49,8 +49,7 @@ include("showlogfile_sup.php3");
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("submit",       PAGEARG_STRING,
-				 "nodetype",     PAGEARG_STRING,
-				 "nodeclass",    PAGEARG_STRING,
+				 "imagetype",    PAGEARG_STRING,
 				 "canceled",     PAGEARG_BOOLEAN,
 				 "confirmed",    PAGEARG_BOOLEAN,
 				 "ec2",		 PAGEARG_BOOLEAN,
@@ -69,8 +68,6 @@ if (!isset($ec2)) {
 # the baseimage from it. 
 #
 if (isset($node)) {
-    $nodetype   = $node->type();
-    
     #
     # If we can find the running osid, then we can setup the page instead
     # of having the user figure it out. Note that only makes sense for
@@ -86,71 +83,43 @@ if (isset($node)) {
     else {
 	$baseosinfo = OSinfo::Lookup($baseimage->imageid());
     }
-    if ($baseosinfo && $baseosinfo->def_parentosid()) {
-	$def_parentosinfo = OSinfo::Lookup($baseosinfo->def_parentosid());
-	if (! $def_parentosinfo) {
-	    TBERROR("Could not lookup osinfo object for parent " .
-		    $baseosinfo->def_parentosid(), 1);
-	}
-    }
+}
+elseif (isset($baseimage)) {
+    $baseosinfo = OSinfo::Lookup($baseimage->imageid());
 }
 elseif ($ec2) {
-    $nodetype = "pcvm";
+    $imagetype = "xen";
+}
+if (isset($baseosinfo) && $baseosinfo->def_parentosid()) {
+    $def_parentosinfo = OSinfo::Lookup($baseosinfo->def_parentosid());
+    if (! $def_parentosinfo) {
+	TBERROR("Could not lookup osinfo object for parent " .
+		$baseosinfo->def_parentosid(), 1);
+    }
 }
 
 #
-# Options for using this page with different types of nodes.
-# nodetype controls the view and trumps nodeclass.
-# nodeclass determines what node types are visible from the DB.
+# Try to determine what kind of image so we can tailor the form
+# a little bit for openvz and xen.
 #
-if (isset($nodetype) && $nodetype == "pcvm") {
-    $title = "PCVM Form";
-    $nodeclass = "pcvm";
-    # Default to imagezip ndz files
-    $filename_extension = "ndz";
-    $view = array('hide_partition' => 1,
-		  'hide_upload' => 1,
-		  'hide_mbr' => 1,
-		  'hide_concurrent' => 1,
-		  'hide_footnotes' => 1,
-		  'hide_wholedisk' => 1);
-    if ($def_parentosinfo && $def_parentosinfo->FeatureSupported("xen-host")) {
-	$view['hide_wholedisk'] = 0;
+if (!isset($imagetype) && isset($def_parentosinfo)) {
+    if ($def_parentosinfo->FeatureSupported("xen-host")) {
+	$imagetype = "xen";
+    }
+    else {
+	$imagetype = "openvz";
     }
 }
-elseif (isset($nodetype) && $nodetype == "mote") {
-    $view = array('hide_partition' => 1, 'hide_os' => 1, 'hide_version' => 1,
-		  'hide_snapshot' => 1,
-		  'hide_concurrent' => 1,
-		  'hide_wholedisk' => 1,
-		  'hide_features' => 1,
-		  'hide_opmode' => 1, 'hide_footnotes' => 1);
-    $nodeclass = "mote";
-    $title = "Mote Form";
-    $help_message = 
-          "See the
-          <a href=\"$WIKIDOCURL/emotes#PROGRAMMING\">
-          mote documentation</a> for more info on creating/using custom
-          mote images.";
-    # Default to 'srec' files for use with uisp
-    $filename_extension = "srec";
-} else {
-    # Defaults to PC view.
-    $view = array('hide_upload' => 1);
-    if (!isset($nodeclass)) 
-	$nodeclass = "pc";
-    else {
-	if (! preg_match("/^[-\w]*$/", $nodeclass)) {
-	    PAGEARGERROR("Invalid characters in $nodeclass");
-	}
-	$nodeclass = addslashes($nodeclass);
-    }
-    if (isset($nodetype)) {
-	if (! preg_match("/^[-\w]*$/", $nodetype)) {
-	    PAGEARGERROR("Invalid characters in $nodetype");
-	}
-    }
-    $title = "EZ Form";
+$title  = "EZ Form";
+
+#
+# Options for using this page with different types of nodes.
+#
+if (!isset($imagetype)) {
+    #
+    # Generic PC image.
+    #
+    $view  = array('hide_upload' => 1);
     $help_message = 
           "See the
           <a href=$WIKIDOCURL/Tutorial#CustomOS>
@@ -158,6 +127,22 @@ elseif (isset($nodetype) && $nodetype == "mote") {
     # Default to imagezip ndz files
     $filename_extension = "ndz";
 }
+else {
+    $view = array('hide_partition' => 1,
+		  'hide_upload' => 1);
+    
+    if ($imagetype == "openvz") {
+	$title = "OpenVZ Form";
+
+	$view['hide_mbr']        = 1;
+	$view['hide_concurrent'] = 1;
+	$view['hide_footnotes']  = 1;
+	$view['hide_wholedisk']  = 1;
+    }
+    # Default to imagezip ndz files
+    $filename_extension = "ndz";
+}
+
 #
 # If we are lucky enough to get a baseimage, do not show footnotes.
 #
@@ -182,35 +167,38 @@ if (! count($projlist)) {
 
 #
 # Need a list of node types. We join this over the nodes table so that
-# we get a list of just the nodes that currently in the testbed, not
+# we get a list of just the nodes that are currently in the testbed, not
 # just in the node_types table. Limit by class if given.
 #
-$types_querystring = "select distinct n.type from nodes as n ".
-    "left join node_types as nt on n.type=nt.type ".
-    "left join node_type_attributes as a on a.type=n.type ".
-    "where a.attrkey='imageable' and ".
-    "      a.attrvalue!='0' and n.role='testnode'";
+$types_list = array();
 
-if ($nodeclass) {
-    if ($nodeclass == "pcvm") {
-	$types_querystring = "select distinct type from node_types ".
-	    "where type='pcvm'";
+if (isset($imagetype) && $imagetype == "openvz") {
+    $types_list['pcvm'] = 1;
+}
+else {
+    $types_result =
+	DBQueryFatal("select distinct n.type from nodes as n ".
+		     "left join node_types as nt on n.type=nt.type ".
+		     "left join node_type_attributes as a on a.type=n.type ".
+		     "where a.attrkey='imageable' and nt.class='pc' and ".
+		     "      a.attrvalue!='0' and n.role='testnode'");
+
+    while ($row = mysql_fetch_array($types_result)) {
+        $types_list[$row["type"]] = 1;
     }
-    else {
-	$types_querystring .= " and nt.class='$nodeclass' ";
+    if (isset($imagetype) && $imagetype == "xen") {
+	$types_list['pcvm'] = 1;
     }
 }
-
-$types_result = DBQueryFatal($types_querystring);
 
 #
 # Spit the form out using the array of data.
 #
 function SPITFORM($formfields, $errors)
 {
-    global $projlist, $isadmin, $types_result, $osid_oslist, $osid_opmodes,
-	$osid_featurelist, $nodetype, $filename_extension, $help_message;
-    global $nodeclass, $node;
+    global $projlist, $isadmin, $types_list, $osid_oslist, $osid_opmodes,
+	$osid_featurelist, $filename_extension, $help_message, $askxen;
+    global $node;
     global $TBDB_OSID_OSNAMELEN, $TBDB_NODEIDLEN;
     global $TBDB_OSID_VERSLEN, $TBBASE, $TBPROJ_DIR, $TBGROUP_DIR;
     global $view, $ec2;
@@ -325,17 +313,7 @@ function SPITFORM($formfields, $errors)
           <form action='newimageid_ez.php3' enctype=\"multipart/form-data\"
               method=post name=idform>\n";
 
-    #
-    # Carry along the nodetype variable - have to do it here, so that's inside
-    # the form
-    #
-    if (isset($nodetype)) {
-	echo "<input type=hidden name=nodetype value='$nodetype'>";
-
-    }
-    elseif (isset($nodeclass)) {
-	echo "<input type=hidden name=nodeclass value='$nodeclass'>";
-    }
+    # Carry along stuff ...
     if (isset($node)) {
 	$id = $node->node_id();
 	echo "<input type=hidden name=node_id value='$id'>";
@@ -614,9 +592,7 @@ function SPITFORM($formfields, $errors)
               <td>Node Types${footnote}:</td>
               <td>\n";
 
-    mysql_data_seek($types_result, 0);
-    while ($row = mysql_fetch_array($types_result)) {
-        $type    = $row["type"];
+    foreach ($types_list as $type => $value) {
         $checked = "";
 
         if ((isset($formfields["mtype_$type"]) &&
@@ -783,21 +759,22 @@ function SPITFORM($formfields, $errors)
   	          <td class=left><a href='$url'>$osname</a></td>
 	  </tr>\n";
 
-	echo "<tr>
-		  <td>Package:</td>
-		  <td class=left>
-		      <input type=checkbox
-			     name=\"formfields[package]\"
-			     value=Yep";
+	if ($ec2) {
+	    echo "<tr>
+	  	    <td>Package:</td>
+		    <td class=left>
+		        <input type=checkbox
+		  	       name=\"formfields[package]\"
+			       value=Yep";
 
-	if (isset($formfields["package"]) &&
-	    strcmp($formfields["package"], "Yep") == 0)
-	    echo "           checked";
+	    if (isset($formfields["package"]) &&
+		strcmp($formfields["package"], "Yep") == 0)
+		echo "           checked";
 	    
-	echo "         > Yes (XEN only, and only if you know what this means!)
+	    echo "         > Yes (XEN only, and only if you know what this means!)
 		  </td>
 	      </tr>\n";
-	
+	}
     }
 
     echo "<tr>
@@ -960,17 +937,12 @@ if (!isset($submit)) {
 	    $defaults["mtype_${type}"] = "Yep";
 	}
     }
-    elseif (isset($nodetype) && $nodetype == "pcvm") {
+    elseif (isset($imagetype) && $imagetype == "openvz") {
 	$defaults["loadpart"]    = "1";
 	$defaults["wholedisk"]   = "Yep";
-        # mtype_all is a "fake" variable which makes all
-	# mtypes checked in the virgin form.
-	$defaults["mtype_all"] = "Yep";
+	$defaults["mtype_pcvm"]  = "Yep";
     }
-    elseif (isset($nodetype) && $nodetype == "mote") {
-	# Defaults for mote-type nodes
-	$defaults["loadpart"]    = "1";
-    } else {
+    else {
 	# Defaults for PC-type nodes
 	$defaults["loadpart"] = "X";
 	# mtype_all is a "fake" variable which makes all
@@ -1002,47 +974,46 @@ if (!isset($submit)) {
 	    $defaults["def_parentosid"]   = $def_parentosinfo->osid();
 	}
     }
-    elseif (isset($nodetype) && $nodetype == "pcvm") {
-	$defaults["op_mode"]     = TBDB_PCVM_OPMODE;
+    elseif (isset($imagetype) && $imagetype == "openvz") {
+	$defaults["op_mode"]             = TBDB_PCVM_OPMODE;
 	$defaults["reboot_waittime"]     = "240";
 	$defaults["os_feature_ping"]	 = "checked";
 	$defaults["os_feature_ssh"]	 = "checked";
+	$defaults["os_feature_isup"]	 = "checked";
+	$defaults["os_feature_linktest"] = "checked";
 	$defaults["package"]             = "No";
 
-	if ($ec2) {
-	    #
-	    # XXX Need to fix this.
-	    # 
-	    $def_parentosinfo =
-		OSinfo::LookupByName("emulab-ops", "XEN41-64-STD");
-
-	    $defaults["package"] = "Yep";
-	}
-	else {
-	    #
-            # XXX At the moment we have only one parent that can run openvz
-            # container images, so rather then give the user a choice, just
-            # hardwire it. Needs more thought, cause we also have the os_submap
-            # table and not sure how to deal with that either.
-	    #
-	    $def_parentosinfo =
-		OSinfo::LookupByName("emulab-ops", "FEDORA15-OPENVZ-STD");
-
-	    $defaults["os_feature_isup"]	 = "checked";
-	    $defaults["os_feature_linktest"] = "checked";
-	}
+	#
+        # XXX Need to fix this.
+        # 
+	$def_parentosinfo = OSinfo::LookupByName("emulab-ops",
+						 "FEDORA15-OPENVZ-STD");
 	if (! $def_parentosinfo) {
-	    TBERROR("Could not lookup osinfo object for ".
-		    "FEDORA15-OPENVZ-STD" , 1);
+	    TBERROR("Could not lookup osinfo object for FEDORA15-OPENVZ-STD",1);
 	}
 	$defaults["def_parentosid"]   = $def_parentosinfo->osid();
     }
-    elseif (isset($nodetype) && $nodetype == "mote") {
-	# Defaults for mote-type nodes
-	$defaults["op_mode"]     = TBDB_ALWAYSUP_OPMODE;
-	$defaults["OS"]          = "TinyOS";
-	$defaults["version"]     = "1.1.0";
-    } else {
+    elseif (isset($imagetype) && $imagetype == "xen") {
+	#
+        # XXX Need to fix this.
+        # 
+	$def_parentosinfo = OSinfo::LookupByName("emulab-ops", "XEN41-64-STD");
+	if (! $def_parentosinfo) {
+	    TBERROR("Could not lookup osinfo object for XEN41-64-STD", 1);
+	}
+	$defaults["def_parentosid"]   = $def_parentosinfo->osid();
+
+	if ($ec2) {
+	    $defaults["package"] = "Yep";
+	}
+	$defaults["reboot_waittime"]     = "240";
+	$defaults["os_feature_ping"]	 = "checked";
+	$defaults["os_feature_ssh"]	 = "checked";
+	$defaults["os_feature_ipod"]	 = "checked";
+	$defaults["os_feature_isup"]	 = "checked";
+	$defaults["os_feature_linktest"] = "checked";
+    }
+    else {
 	# Defaults for PC-type nodes
 	$defaults["op_mode"]  = TBDB_DEFAULT_OSID_OPMODE;
 	$defaults["os_feature_ping"]	 = "checked";
@@ -1317,10 +1288,7 @@ if (isset($formfields["node_id"]) &&
 # Store the valid types in a new array for simplicity.
 #
 $mtypes_array = array();
-mysql_data_seek($types_result, 0);
-while ($row = mysql_fetch_array($types_result)) {
-    $type = $row["type"];
-
+foreach ($types_list as $type => $value) {
     #
     # Look for a post variable with name.
     # 
@@ -1374,18 +1342,7 @@ $confirmationWarning = "";
 # If user does not define a node to suck the image from,
 # we seek confirmation.
 #
-if (isset($nodetype) && $nodetype == "mote") {
-    # We expect them to give us a file to upload
-    if (! isset($_FILES['upload_file'])) {
-        # We expect them to pick a node to take a snapshot from
-        $confirmationWarning .=
-              "<h2>You have not uploaded a file for this image.
-               If you continue, the image descriptor will be created,
-               but, you will need to copy your image into the pathname
-               you gave in the form yourself.<br />
-               Continue only if this is what you want.</h2>";
-    }
-} elseif (! $ec2) {
+if (! $ec2) {
     if (! isset($node)) {
         # We expect them to pick a node to take a snapshot from
         $confirmationWarning .=
@@ -1413,12 +1370,6 @@ if (!isset($confirmed) && 0 != strcmp($confirmationWarning,"")) {
     reset($formfields);
     while (list($key, $value) = each($formfields)) {
 	echo "<input type=hidden name=\"formfields[$key]\" value=\"$value\"></input>\n";
-    }
-    if (isset($nodetype)) {
-	echo "<input type=hidden name=nodetype value='$nodetype'>";
-    }
-    elseif (isset($nodeclass)) {
-	echo "<input type=hidden name=nodeclass value='$nodeclass'>";
     }
     if (isset($node)) {
 	$id = $node->node_id();

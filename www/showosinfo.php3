@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -57,6 +57,8 @@ SUBMENUSTART("OSID Options");
 #
 if ($osinfo->ezid()) {
     $fooid = rawurlencode($osinfo->osid());
+    WRITESUBMENUBUTTON("Clone this OS Descriptor",
+		       "newimageid_ez.php3?baseimage=$fooid");
     WRITESUBMENUBUTTON("Delete this OS Descriptor",
 		       "deleteimageid.php3?imageid=$fooid");
 }
