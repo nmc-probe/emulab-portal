@@ -3,6 +3,47 @@
 source checkutils.sh
 
 
+checkdrift_main() {
+    set -u
+    projdir=/proj/emulab-ops/nodecheck
+    cd $projdir
+    if (( $# )) ; then
+	allnodes="$@"
+    else
+	allnodes=$(ls -d pc* pg* dbox*)
+    fi
+    for host in $allnodes ; do
+	if [ -d $projdir/$host/.tbdb ] ; then
+	    cd $projdir/$host/.tbdb
+	    newest=$(ls -t | head -1)
+	    allchecks=$(ls -t)
+	    readtmcinfo $newest hwinvcopy
+	    declare -i countsame=-1
+	    for tocheck in $allchecks ; do
+		readtmcinfo $tocheck hwinv
+		# note: will check against self for sanity
+		comparetmcinfo /tmp/.$$checkdiff
+		if [ -s /tmp/.$$checkdiff ] ; then
+		    echo "$host $newest $tocheck are not the same"
+		    # XXX - start
+		    # XXX Do not enable this code unless you want
+		    # the files moved out of the way
+#		    [[ ! -d $projdir/$host/.tbdb/.notsame ]] && sudo mkdir -p $projdir/$host/.tbdb/.notsame 
+#		    sudo mv $tocheck $projdir/$host/.tbdb/.notsame
+		    # XXX - end
+		else
+#		    echo "$host $newest $tocheck SAME"
+		    ((countsame++))
+		fi
+		rm -f /tmp/.$$checkdiff
+	    done
+	    echo "$host $countsame inventory files are the same"
+	else
+	    echo "No record of node id \"$host\"."
+	fi
+    done
+}
+
 gentbsql_main() {
     set -u
     projdir=/proj/emulab-ops/nodecheck
@@ -122,10 +163,14 @@ setdirstructure() {
 }
 
 
-if [ "$0" = "${0/sql}" ] ; then
+if [ "$0" != "${0/setdir}" ] ; then
     setdirstructure
-else
+elif [ "$0" != "${0/sql}" ] ; then
     gentbsql_main $@
+elif [ "$0" != "${0/drift}" ] ; then
+    checkdrift_main $@
+else
+    "Print useage help"
 fi
 
 
