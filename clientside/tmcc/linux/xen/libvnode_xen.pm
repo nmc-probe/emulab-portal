@@ -710,6 +710,7 @@ sub vnodeCreate($$$$)
     if (findLVMLogicalVolume($vnode_id)) {
 	my $olvname = findLVMOrigin($vnode_id);
 	if ($olvname ne $lvname) {
+	    mysystem2("kpartx -dv $rootvndisk");
 	    if (mysystem2("lvremove -f $VGNAME/$vnode_id")) {
 		TBScriptUnlock();
 		fatal("xen_vnodeCreate: ".
