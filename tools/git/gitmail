@@ -861,23 +861,6 @@ sub commit_mail($$$\@$@) {
     $actionstring .= "\n\n";
 
     #
-    # Show clone URLs
-    #
-    my $cloneurls = "";
-    if ($include_urls) {
-        my $ssh_url = get_clone_url($CLONE_SSH);
-        my $public_url = get_clone_url($CLONE_PUBLIC);
-
-        $cloneurls .= "Clone via ssh: $ssh_url\n";
-        if ($public_url) {
-            # This one might not be set, since the repo may only be
-            # accessable through ssh
-            $cloneurls .= "Clone read-only: $public_url\n";
-        }
-        $cloneurls .= "\n";
-    }
-
-    #
     # Make a pretty summary of commits if there are enough of them
     #
     my $summary = "";
@@ -981,16 +964,33 @@ sub commit_mail($$$\@$@) {
     }
 
     #
+    # Show clone URLs
+    #
+    my $cloneurls = $BODYSEP;
+    if ($include_urls) {
+        my $ssh_url = get_clone_url($CLONE_SSH);
+        my $public_url = get_clone_url($CLONE_PUBLIC);
+
+        $cloneurls .= "Clone via ssh: $ssh_url\n";
+        if ($public_url) {
+            # This one might not be set, since the repo may only be
+            # accessable through ssh
+            $cloneurls .= "Clone read-only: $public_url\n";
+        }
+        $cloneurls .= "\n";
+    }
+
+    #
     # Send all the changes together in one message
     #
     if (!$separate_mail && @commitmessages) {
         send_mail($subject,
             $actionstring .
-            $cloneurls .
             $summary .
             join($SEP, map { join "",@$_} @commitmessages) .
             (scalar(@patches) ? "$BODYSEP" : "") .
-            join("\n", map { join "",@$_} @patches),
+            join("\n", map { join "",@$_} @patches) .
+            $cloneurls,
             short_refname($refname),
             @mailaddrs);
     }
