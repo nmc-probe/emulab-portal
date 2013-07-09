@@ -319,6 +319,7 @@ my $STDERRNULL = " 2> /dev/null";
 ######################################################################
 # Function Prototypes
 ######################################################################
+sub fix_truefalse($);
 sub change_type($$$);
 sub ref_type($);
 sub rev_type($);
@@ -1192,8 +1193,30 @@ sub debug(@) {
 }
 
 #
+# Return the input value, unless it's 'true' (in which case return 1), or
+# 'false' (in which case return 0)
+#
+# Intended to be used by map'ing over arrays of config options
+#
+sub fix_truefalse($) {
+    my ($val) = @_;
+    if (defined($val)) {
+        if ($val eq 'true') {
+            return 1;
+        } elsif ($val eq 'false') {
+            return 0;
+        } else {
+            return $val;
+        }
+    } else {
+        return $val;
+    }
+}
+
+#
 # Return either the config value associated with the repo or the second
 # argument, which supplies the default.
+# Note: 'true' and 'false' are special values, which turn into '1' and '0'
 #
 sub get_config($$) {
     my ($var,$default) = @_;
@@ -1218,12 +1241,12 @@ sub get_config($$) {
                 if ($multivalue) {
                     push @values, $value;
                 } else {
-                    return $value;
+                    return fix_truefalse($value);
                 }
             }
         }
         if ($multivalue && (@values > 0)) {
-            return @values;
+            return map {fix_truefalse($_)} @values;
         }
     }
 
@@ -1242,15 +1265,15 @@ sub get_config($$) {
             foreach my $value (@value) {
                 debug("Got $value from git config for $var");
             }
-            return @value;
+            return map {fix_truefalse($_)} @value;
         } else {
             debug("Got $value[0] from git config for $var");
-            return $value[0];
+            return fix_truefalse($value[0]);
         }
     } else {
         if (!$multivalue) {
             debug("Using " , defined($default)?$default : "(undef)" , " for $var");
-            return $default;
+            return fix_truefalse($default);
         } else {
             # Multivalue always returns the empty array for the defauly
             debug("Using the emtpy list for $var");
