@@ -7,13 +7,17 @@ gentbsql_main() {
     set -u
     projdir=/proj/emulab-ops/nodecheck
     cd $projdir
-    allnodes=$(ls -d pc* pg* dbox*)
+    if (( $# )) ; then
+	allnodes="$@"
+    else
+	allnodes=$(ls -d pc* pg* dbox*)
+    fi
 
     for host in $allnodes ; do
 	if [ -d $projdir/$host ] ; then
 	    cd $projdir/$host
 	    if [ -z "$(grep "Diff Report" diff)" ] ; then
-#		echo "$host Inventory Report to old to use"
+		echo "$host Inventory Report to old to use"
 		continue
 	    fi
 	    listofobjs="DISKINFO CPUINFO MEMINFO NETINFO"
@@ -22,23 +26,35 @@ gentbsql_main() {
 		[[ "$toadd" = "${toadd/match}" ]] || continue
 		if [ -n "$toadd" ] ; then
 		    toadd=${toadd/$i}
-		    printf "mysql -e \"insert into %s set node_id='%s' %s;\" tbdb\n" "$i" "$host" "$toadd"
+		    printf "\nmysql -e \"insert into %s set node_id='%s' %s;\" tbdb\n" "$i" "$host" "$toadd"
 		fi
 	    done
 	    listofdisks=$(grep 'DISKs:' diff)
-	    listofdisks=${listofdisks/DISKs:}
+	    listofdisks=${listofdisks//DISKs:}
 	    for i in $listofdisks ; do
 		toadd=$(grep $i node)
-		toadd=${toadd/DISKUNIT}
-		printf "mysql -e \"insert into DISKUNIT set node_id='%s' %s;\" tbdb\n" "$host" "$toadd"
+		if [ -n "$toadd" ] ; then
+		    toadd=${toadd/DISKUNIT}
+		    printf "mysql -e \"insert into DISKUNIT set node_id='%s' %s;\" tbdb\n" "$host" "$toadd"
+		else
+		    toadd="SN=\"$i\""
+		    printf "mysql -e \"delete from DISKUNIT where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+		fi
 	    done
 	    listofnics=$(grep 'NICs:' diff)
-	    listofnics=${listofnics/NICs:}
+	    listofnics=${listofnics//NICs:/}
 	    for i in $listofnics ; do
 		toadd=$(grep $i node)
-		toadd=${toadd/NETUNIT}
-		printf "mysql -e \"insert into NETUNIT set node_id='%s' %s;\" tbdb\n" "$host" "$toadd"
+		if [ -n "$toadd" ] ; then
+		    toadd=${toadd/NETUNIT}
+		    printf "mysql -e \"insert into NETUNIT set node_id='%s' %s;\" tbdb\n" "$host" "$toadd"
+		else
+		    toadd="ID=\"$i\""
+		    printf "mysql -e \"delete from NETUNIT where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+		fi
 	    done
+	else
+	    echo "No record of node id \"$host\"."
 	fi
     done
 
@@ -109,7 +125,7 @@ setdirstructure() {
 if [ "$0" = "${0/sql}" ] ; then
     setdirstructure
 else
-    gentbsql_main
+    gentbsql_main $@
 fi
 
 
