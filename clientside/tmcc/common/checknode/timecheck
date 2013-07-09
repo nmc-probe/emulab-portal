@@ -61,6 +61,8 @@ fi
 {
 unset -v d ; declare -a d=()
 
+save_e
+set +e
 dnsok=$(host $ntpserver) 2>/dev/null
 if [ "${dnsok/NXDOMAIN}" != "$dnsok" ] ; then
     echo -n "WARNING ntpserver $ntpserver unknown. " >> ${logfile}
@@ -110,6 +112,7 @@ case $os in
 	failed="os $os unknown"
 	;;
 esac
+restore_e
 } >> ${tmplog} 2>&1
 
 echo -n "Timecheck `date`: " >> ${logfile}
