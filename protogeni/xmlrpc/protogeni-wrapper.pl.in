@@ -453,6 +453,15 @@ sub AddLogfileMetaDataFromSlice($)
     AddLogfileMetaData("slice_urn",  $slice->urn());
     AddLogfileMetaData("slice_uuid", $slice->uuid());
 }
+sub AddLogfileMetaDataFromSpeaksFor($)
+{
+    my ($speaksfor) = @_;
+
+    AddLogfileMetaData("speakfor_urn",   $speaksfor->target_urn());
+    AddLogfileMetaData("speakfor_uuid",  $speaksfor->target_uuid());
+    AddLogfileMetaData("speaking_urn",   $speaksfor->owner_urn());
+    AddLogfileMetaData("speaking_uuid",  $speaksfor->owner_uuid());
+}
 
 #
 # Use libaudit to capture any output from libraries and programs.  We
@@ -508,11 +517,20 @@ if ($method eq "ListResources" ||
     # Do not even bother with logs unless an error.
     $nostorelogs = 1;
 }
-# We always want as much data as possible for these.
-if ($method eq "CreateSliver" ||
-    $method eq "RedeemTicket" ||
-    $method eq "GetTicket") {
+# We always want as much data as possible for these, since they are
+# destructive operations. Eventually we should have the individual
+# routines use an upcall to set their own debugging level.
+if ($method eq "CreateSliver"    ||
+    $method eq "UpdateSliver"    ||
+    $method eq "DeleteSliver"    ||
+    $method eq "Shutdown"        ||
+    $method eq "GetTicket"       ||
+    $method eq "ReleaseTicket"   ||
+    $method eq "UpdateTicket"    ||
+    $method eq "RedeemTicket"    ||
+    $method eq "DeleteSlice") {
     $debug = 2;
+    $nostorelogs = 0;
 }
 
 #
