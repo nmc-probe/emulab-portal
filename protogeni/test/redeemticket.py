@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -40,7 +40,8 @@ import re
 ACCEPTSLICENAME=1
 
 debug    = 0
-impotent = 1
+impotent = 0
+dokeys   = 1
 
 execfile( "test-common.py" )
 
@@ -63,36 +64,29 @@ if len(REQARGS) == 1:
 #
 # Lookup my ssh keys.
 #
-params = {}
-params["credential"] = mycredential
-params["version"]    = 2
-rval,response = do_method("sa", "GetKeys", params)
-if rval:
+if dokeys:
+  params = {}
+  params["credential"] = mycredential
+  params["version"]    = 2
+  rval,response = do_method("sa", "GetKeys", params)
+  if rval:
     Fatal("Could not get my keys")
     pass
-mykeys = response["value"]
-if debug: print str(mykeys)
+  mykeys = response["value"]
+  if debug: print str(mykeys)
+  pass
 
 #
-# Lookup slice.
+# Lookup slice and get credential.
 #
-params = {}
-params["credential"] = mycredential
-params["type"]       = "Slice"
-params["hrn"]        = SLICENAME
-rval,response = do_method("sa", "Resolve", params)
-if rval:
-    Fatal("No such slice at SA");
-    pass
-else:
-    #
-    # Get the slice credential.
-    #
-    print "Asking for slice credential for " + SLICENAME
-    myslice = response["value"]
-    slicecred = get_slice_credential( myslice, mycredential )
-    print "Got the slice credential"
-    pass
+myslice = resolve_slice( SLICENAME, mycredential )
+
+#
+# Get the slice credential.
+#
+print "Asking for slice credential for " + SLICENAME
+slicecred = get_slice_credential( myslice, mycredential )
+print "Got the slice credential"
 
 if ticket == "":
   #
@@ -148,7 +142,9 @@ params = {}
 params["credentials"] = (redeemcred,)
 params["ticket"]      = ticket
 params["slice_urn"]   = myslice["urn"]
-params["keys"]        = mykeys
+if dokeys:
+  params["keys"]        = mykeys
+  pass
 rval,response = do_method("cm", "RedeemTicket", params, version="2.0")
 if rval:
     Fatal("Could not redeem the ticket")

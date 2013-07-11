@@ -58,6 +58,7 @@ DELETE          = 0
 selfcredentialfile = None
 slicecredentialfile = None
 admincredentialfile = None
+speaksforcredential = None
 
 if "Usage" not in dir():
     def Usage():
@@ -88,15 +89,17 @@ def BaseOptions():
                                             [default: ~/.ssl/password]
     -r file, --read-commands=file       specify additional configuration file
     -s file, --slicecredentials=file    read slice credentials from file
-                                            [default: query from SA]"""
+                                            [default: query from SA]
+    -S file, --speaksfor=file           read speaksfor credential from file"""
     pass
 
 try:
-    opts, REQARGS = getopt.gnu_getopt( sys.argv[ 1: ], "a:c:df:hl:m:n:p:r:s:",
+    opts, REQARGS = getopt.gnu_getopt( sys.argv[ 1: ], "a:c:df:hl:m:n:p:r:s:S:",
                                        [ "admincredentials=", "credentials=",
                                          "debug", "certificate=",
                                          "help", "sa=", "cm=", "slicename=",
                                          "passphrase=", "read-commands=",
+                                         "speaksfor=",
                                          "slicecredentials=", "delete" ] )
 except getopt.GetoptError, err:
     print >> sys.stderr, str( err )
@@ -142,6 +145,10 @@ for opt, arg in opts:
         EXTRACONF = arg
     elif opt in ( "-s", "--slicecredentials" ):
         slicecredentialfile = arg
+    elif opt in ( "-S", "--speaksfor" ):
+        f = open(arg)
+        speaksforcredential = f.read()
+        f.close()
     elif opt in ( "--delete" ):
         DELETE = 1
 
@@ -230,6 +237,15 @@ def geni_am_response_handler(method, method_args):
 #
 def do_method(module, method, params, URI=None, quiet=False, version=None,
               response_handler=None):
+    #
+    # Add speaksforcredential for credentials list.
+    #
+    if "credentials" in params and speaksforcredential:
+        if 1 or type(params["credentials"]) is tuple:
+            params["credentials"] = list(params["credentials"])
+            pass
+        params["credentials"].append(speaksforcredential);
+        pass
     
     if URI == None and CMURI and (module == "cm" or module == "cmv2"):
         URI = CMURI
@@ -358,6 +374,10 @@ def get_self_credential():
     return response["value"]
 
 def resolve_slice( name, selfcredential ):
+    if slicecredentialfile:
+        myslice = {}
+	myslice["urn"] = SLICEURN
+        return myslice
     params = {}
     params["credential"] = mycredential
     params["type"]       = "Slice"

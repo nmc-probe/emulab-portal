@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -40,7 +40,8 @@ import re
 ACCEPTSLICENAME=1
 
 debug    = 0
-impotent = 1
+impotent = 0
+dokeys   = 1
 
 execfile( "test-common.py" )
 
@@ -72,14 +73,16 @@ print "Got my SA credential"
 #
 # Lookup my ssh keys.
 #
-params = {}
-params["credential"] = mycredential
-rval,response = do_method("sa", "GetKeys", params)
-if rval:
-    Fatal("Could not get my keys")
+if dokeys:
+    params = {}
+    params["credential"] = mycredential
+    rval,response = do_method("sa", "GetKeys", params)
+    if rval:
+        Fatal("Could not get my keys")
+        pass
+    mykeys = response["value"]
+    if debug: print str(mykeys)
     pass
-mykeys = response["value"]
-if debug: print str(mykeys)
 
 #
 # Lookup slice and get credential.
@@ -98,7 +101,9 @@ params = {}
 params["credentials"] = (slicecredential,)
 params["slice_urn"]   = myslice["urn"]
 params["rspec"]       = rspec
-params["keys"]        = mykeys
+if dokeys:
+    params["keys"]        = mykeys
+    pass
 params["impotent"]    = impotent
 rval,response = do_method("cm", "CreateSliver", params, version="2.0")
 if rval:

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2008-2010 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -51,25 +51,16 @@ mycredential = get_self_credential()
 print "Got my SA credential"
 
 #
-# Lookup slice.
+# Lookup slice and get credential.
 #
-params = {}
-params["credential"] = mycredential
-params["type"]       = "Slice"
-params["hrn"]        = SLICENAME
-rval,response = do_method("sa", "Resolve", params)
-if rval:
-    Fatal("No such slice at SA");
-    pass
-else:
-    #
-    # Get the slice credential.
-    #
-    print "Asking for slice credential for " + SLICENAME
-    myslice = response["value"]
-    slicecred = get_slice_credential( myslice, mycredential )
-    print "Got the slice credential"
-    pass
+myslice = resolve_slice( SLICENAME, mycredential )
+
+#
+# Get the slice credential.
+#
+print "Asking for slice credential for " + SLICENAME
+slicecred = get_slice_credential( myslice, mycredential )
+print "Got the slice credential"
 
 #
 # Do a resolve to get the ticket urn.
