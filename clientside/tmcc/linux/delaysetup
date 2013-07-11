@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -106,6 +106,9 @@ my $KERNELLDELAY= "linkdelay";
 my $TMDELMAP	= TMDELMAP;	# Really comes from libloc.
 my $TC          = "/usr/local/sbin/tc";       # This is the working version!
 my $IPTABLES    = "/usr/local/sbin/iptables"; # This is the working version!
+# Unless they do not exist!
+$TC = "/sbin/tc" if (! -e $TC);
+$IPTABLES = "/sbin/iptables" if (! -e $IPTABLES);
 
 # This should never happen!
 if ((REMOTE() && !REMOTEDED()) || MFS()) {
@@ -144,6 +147,7 @@ sub LinkDelaySetup()
     my $checkreplace = 0;
     my $gotjails = 0;
     my @jails;
+    my $useifb = 0;
 
     # Lets clean out old instructions.
     unlink TMLINKDELAY;
@@ -182,11 +186,22 @@ sub LinkDelaySetup()
 	open(DEL, ">" . TMLINKDELAY)
 	    or die("Could not open " . TMLINKDELAY . ": $!");
 
+	system("modinfo imq");
+	if ($?) {
+	    print "Using ifb instead\n";
+	    $useifb = 1;
+	}
+
 	print DEL "#!/bin/sh\n";
 # Figure out how we're going to flush iproute2+tc!
 #	print DEL "ipfw -f flush\n";
 
-        print DEL "modprobe imq numdevs=10\n";
+	if ($useifb) {
+	    print DEL "modprobe ifb numifbs=10\n";
+	}
+	else {
+	    print DEL "modprobe imq numdevs=10\n";
+	}
         print DEL "sysctl -w net.core.rmem_max=8388608\n";
         print DEL "sysctl -w net.core.wmem_max=8388608\n";
         print DEL "sysctl -w net.core.netdev_max_backlog=2048\n";
@@ -309,63 +324,99 @@ sub LinkDelaySetup()
 
             # XXX: temporarily select between delay, plr, and [g]red
             # until they become classful queues.
-            
-            print DEL "ifconfig $iface txqueuelen $queue\n";
 
-            print DEL "$TC qdisc add dev $iface handle $pipeno root ";
-            print DEL "plr $plr\n";
+	    #
+	    # Using IFBs implies using netem. We no longer use IMQs or
+	    # our home grown stuff on newer kernels.
+	    #
+	    if ($useifb) {
+		print DEL "ifconfig $iface txqueuelen $queue\n";
+		print DEL "$TC qdisc del dev $iface root\n";
+		print DEL "$TC qdisc del dev $iface ingress\n";
+		print DEL "$TC qdisc add dev $iface handle ". ($pipeno+20) .
+		    " root htb default 1\n";
 
-            print DEL "$TC qdisc add dev $iface handle ". ($pipeno+10) ." ";
-            print DEL "parent ${pipeno}:1 delay usecs $delay\n";
-
-            print DEL "$TC qdisc add dev $iface handle ". ($pipeno+20) ." ";
-            print DEL "parent ". ($pipeno+10) .":1 htb default 1\n";
-
-	    if ($bandw != 0) {
-		print DEL "$TC class add dev $iface classid ". ($pipeno+20) .":1 ";
-		print DEL "parent ". ($pipeno+20) ." htb rate ${bandw} ";
-		print DEL "ceil ${bandw}\n";
+		if ($bandw != 0) {
+		    print DEL "$TC class add dev $iface classid ".
+			($pipeno+20) .":1 parent " . ($pipeno+20) .
+			" htb rate ${bandw} ceil ${bandw}\n";
+		}
+		print DEL "$TC qdisc add dev $iface handle ".
+		    ($pipeno+10) . " parent " . ($pipeno+20) . ":1 " .
+		    "netem drop $plr delay ${delay}us\n";
 	    }
+	    else {
+		print DEL "$TC qdisc add dev $iface handle $pipeno root ";
+		print DEL "plr $plr\n";
 
+		print DEL "$TC qdisc add dev $iface handle ". ($pipeno+10) ." ";
+		print DEL "parent ${pipeno}:1 delay usecs $delay\n";
+
+		print DEL "$TC qdisc add dev $iface handle ". ($pipeno+20) ." ";
+		print DEL "parent ". ($pipeno+10) .":1 htb default 1\n";
+
+		if ($bandw != 0) {
+		    print DEL "$TC class add dev $iface classid ".
+			($pipeno+20) .":1 ";
+		    print DEL "parent ". ($pipeno+20) ." htb rate ${bandw} ";
+		    print DEL "ceil ${bandw}\n";
+		}
+	    }
             $iface =~ /\D+(\d+)/;
-            my $imqnum = $1;
+	    my $inum = $1;
+	    my $idev = ($useifb ? "ifb" : "imq") . "$inum";
 	    if ($type eq "duplex") {
-		if (! -e "/sys/class/net/imq${imqnum}") {
-		    die("No such IMQ device: imq${imqnum}");
+		if ($useifb) {
+		    print DEL "ifconfig $idev up\n";
+		    print DEL "$TC qdisc del dev $idev root\n";
+		    print DEL "$TC qdisc add dev $iface handle ffff: ingress\n";
+		    print DEL "$TC filter add dev $iface parent ffff: ".
+			"protocol ip u32 match u32 0 0 flowid 2:1 ".
+			"action mirred egress redirect dev $idev\n";
+		    print DEL "$TC qdisc add dev $idev root handle 2: ".
+			"htb default 1\n";
+		    print DEL "$TC class add dev $idev parent 2: classid 2:1 ".
+			"htb rate ${rbandw} ceil ${rbandw}\n";
+		    # Do not use a colon: in the handle. It BREAKS!
+		    print DEL "$TC qdisc add dev $idev handle 3 parent 2:1 ".
+			"netem drop $rplr delay ${rdelay}us\n";
 		}
-                print DEL "$TC qdisc add dev imq${imqnum} handle $pipeno ";
-                print DEL "root plr $rplr\n";
+		else {
+		    print DEL "$TC qdisc add dev $idev handle $pipeno ";
+		    print DEL "root plr $rplr\n";
 
-                print DEL "$TC qdisc add dev imq${imqnum} handle ";
-                print DEL "". ($pipeno+10) ." parent ${pipeno}:1 ";
-                print DEL "delay usecs $rdelay reset_time 1\n";
+		    print DEL "$TC qdisc add dev $idev handle ";
+		    print DEL "". ($pipeno+10) ." parent ${pipeno}:1 ";
+		    print DEL "delay usecs $rdelay reset_time 1\n";
 
-                print DEL "$TC qdisc add dev imq${imqnum} handle "; 
-                print DEL "". ($pipeno+20) ." parent ". ($pipeno+10) .":1 ";
-                print DEL "htb default 1\n";
+		    print DEL "$TC qdisc add dev $idev handle "; 
+		    print DEL "". ($pipeno+20) ." parent ". ($pipeno+10) .":1 ";
+		    print DEL "htb default 1\n";
 
-		if ($rbandw != 0) {
-		    print DEL "$TC class add dev imq${imqnum} classid ";
-		    print DEL "". ($pipeno+20) .":1 parent ". ($pipeno+20) ." ";
-		    print DEL "htb rate ${rbandw} ceil ${rbandw}\n";
+		    if ($rbandw != 0) {
+			print DEL "$TC class add dev $idev classid ";
+			print DEL "". ($pipeno+20) .":1 parent ".
+			    ($pipeno+20) . " ";
+			print DEL "htb rate ${rbandw} ceil ${rbandw}\n";
+		    }
+		    print DEL "$IPTABLES -t mangle -A PREROUTING -i $iface ";
+		    print DEL "-j IMQ --todev $inum\n";
+                
+		    print DEL "ifconfig $idev up\n";
+
+		    #
+		    # *** From FreeBSD version:
+		    #
+		    # Want to force the reverse side to 1 queue slot to enforce
+		    # the proper bandwidth. Not ideal, especially
+		    # since at 1000HZ 1 queue slot is not enough. Make
+		    # it 4 instead.
+		    # 
+		    # XXX: Why do we do this, and does Linux need to?
+		    #
 		}
-                
-                print DEL "$IPTABLES -t mangle -A PREROUTING -i $iface ";
-                print DEL "-j IMQ --todev $imqnum\n";
-                
-                print DEL "ifconfig imq${imqnum} up\n";
-
-		#
-                # *** From FreeBSD version:
-                #
-		# Want to force the reverse side to 1 queue slot to enforce
-		# the proper bandwidth. Not ideal, especially since at 1000HZ
-		# 1 queue slot is not enough. Make it 4 instead. 
-		# 
-                # XXX: Why do we do this, and does Linux need to?
-                #
 		print MAP "$linkname duplex $vnode $vnode $iface ".
-		    "imq${imqnum} $pipeno $rpipeno\n";
+		    "$idev $pipeno $rpipeno\n";
 	    }
 	    else {
 		print MAP "$linkname simplex $vnode $iface $pipeno\n";
