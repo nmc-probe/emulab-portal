@@ -320,17 +320,32 @@ sub IsLocalNode($)
 
 sub IsTunnel($)
 {
+    my ($link)  = @_;
+    my $tunnel_type = TunnelType($link);
+
+    return 1
+	if (defined($tunnel_type) &&
+	    $tunnel_type =~ /^(tunnel|gre-tunnel|egre-tunnel)$/);
+
+    return 0;
+}
+
+sub TunnelType($)
+{
     my ($link) = @_;
-    my $result = 0;
+    my $result = undef;
+    
     if (IsVersion0($link)) {
 	my $link_type = GetText("link_type", $link);
-	$result = (defined($link_type) && $link_type eq "tunnel");
+	if (defined($link_type)) {
+	    $result = "tunnel";
+	}
     } else {
 	my @types = FindNodes("n:link_type", $link)->get_nodelist();
 	foreach my $current (@types) {
 	    my $name = GetText("name", $current);
-	    if (defined($name) && $name eq "gre-tunnel") {
-		$result = 1;
+	    if (defined($name)) {
+		$result = $name;
 		last;
 	    }
 	}
