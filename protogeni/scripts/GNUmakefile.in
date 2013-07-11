@@ -61,7 +61,7 @@ SETUID_LIBX_SCRIPTS  =
 # configure if the .in file is changed.
 # 
 all:	$(SBIN_STUFF) $(PSBIN_STUFF) \
-	initsite resolve resolvenode resolve-ch getversion
+	initsite resolve resolvenode resolve-ch getversion genspeaksfor
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
