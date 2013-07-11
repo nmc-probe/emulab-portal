@@ -272,6 +272,8 @@ sub created($)		{ return field($_[0], "created"); }
 sub registered($)	{ return field($_[0], "registered"); }
 sub credential_idx($)	{ return field($_[0], "credential_idx"); }
 sub aggregate_idx($)	{ return field($_[0], "aggregate_idx"); }
+sub speaksfor_uuid($)	{ return field($_[0], "speaksfor_uuid"); }
+sub speaksfor_urn($)	{ return field($_[0], "speaksfor_urn"); }
 sub status($)		{ return field($_[0], "status"); }
 sub state($)		{ return field($_[0], "state"); }
 sub ErrorLog($)		{ return field($_[0], "errorlog"); }
@@ -628,6 +630,29 @@ sub SetRegistered($$)
 			 "  registered=$val ".
 			 "where idx='$idx'"));
     
+    return 0;
+}
+
+#
+# Set the speaksfor stuff.
+#
+sub SetSpeaksFor($$)
+{
+    my ($self, $speaksfor) = @_;
+    my $idx = $self->idx();
+    my $safe_speaksfor_uuid = DBQuoteSpecial($speaksfor->owner_uuid());
+    my $safe_speaksfor_urn  = DBQuoteSpecial($speaksfor->owner_urn());
+
+    print "GeniAggregate->SetSpeaksFor($self, $speaksfor)\n";
+
+    return -1
+	if (!DBQueryWarn("update geni_aggregates set ".
+			 "  speaksfor_uuid=$safe_speaksfor_uuid ".
+			 "where idx='$idx'"));
+
+    $self->{'AGGREGATE'}->{'speaksfor_urn'}  = $speaksfor->owner_urn();
+    $self->{'AGGREGATE'}->{'speaksfor_uuid'} = $speaksfor->owner_uuid();
+
     return 0;
 }
 
@@ -2116,10 +2141,19 @@ sub Create($$$$$$)
 
     my $linkname = GeniXML::GetVirtualId($linkrspec);
     if (!defined($linkname)) {
-	print STDERR "Could not create tunnel aggregate: Undefined linkname";
+	print STDERR "Could not create tunnel aggregate: Undefined linkname\n";
 	print STDERR GeniXML::Serialize($linkrspec, 1);
 	return undef;
     }
+    # We support gre and egre, only.
+    my $tunnel_type = GeniXML::TunnelStyle($linkrspec);
+    if (!defined($tunnel_type)) {
+	print STDERR "Could not create tunnel aggregate: Bad tunnel type\n";
+	print STDERR GeniXML::Serialize($linkrspec, 1);
+	return undef;
+    }
+    my $tunnel_style = ($tunnel_type eq "egre-tunnel" ? "egre" : "gre");
+    
     my @interfaces = GeniXML::FindNodes("n:interface_ref",
 					$linkrspec)->get_nodelist();
     
@@ -2144,7 +2178,8 @@ sub Create($$$$$$)
     #
     # Create a tunnel entry in the lans table.
     #
-    my $tunnel = Tunnel->Create($experiment, $aggregate->uuid(), "", "gre");
+    my $tunnel = Tunnel->Create($experiment,
+				$aggregate->uuid(), "", $tunnel_style);
     if (!defined($tunnel)) {
 	print STDERR "Could not create tunnel entry in lans table\n";
 	return undef;
@@ -2333,7 +2368,7 @@ sub Create($$$$$$)
 	$member1->SetAttribute("tunnel_ipmask", "255.255.255.0");
 	$member1->SetAttribute("tunnel_lan", $linkname);
 	$member1->SetAttribute("tunnel_unit", $tunnel_number + 1);
-	$member1->SetAttribute("tunnel_style", "gre");
+	$member1->SetAttribute("tunnel_style", $tunnel_style);
 	$member1->SetAttribute("tunnel_myid", $virtid1);
 	$member1->SetAttribute("tunnel_peerid", $virtid2);
 	$member1->SetAttribute("tunnel_tag", $cksum);
@@ -2365,7 +2400,7 @@ sub Create($$$$$$)
 	$member2->SetAttribute("tunnel_ipmask", "255.255.255.0");
 	$member2->SetAttribute("tunnel_lan", $linkname);
 	$member2->SetAttribute("tunnel_unit", $tunnel_number + 1);
-	$member2->SetAttribute("tunnel_style", "gre");
+	$member2->SetAttribute("tunnel_style", $tunnel_style);
 	$member2->SetAttribute("tunnel_myid", $virtid2);
 	$member2->SetAttribute("tunnel_peerid", $virtid1);
 	$member2->SetAttribute("tunnel_tag", $cksum);

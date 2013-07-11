@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2009, 2010, 2012 University of Utah and the Flux Group.
+# Copyright (c) 2009-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -154,6 +154,8 @@ sub NewAggregate($$$$)
     my $owner_uuid     = $owner->uuid();
     my $owner_hrn      = $owner->hrn();
     my $owner_urn      = $owner->urn();
+    my $speaksfor_uuid = $aggregate->speaksfor_uuid();
+    my $speaksfor_urn  = $aggregate->speaksfor_urn();
 
     # Now tack on other stuff we need.
     push(@insert_data, "idx='$aggregate_idx'");
@@ -170,6 +172,10 @@ sub NewAggregate($$$$)
     push(@insert_data, "created=now()");
     push(@insert_data, "exptidx=$exptidx")
 	if (defined($exptidx));
+    push(@insert_data, "speaksfor_uuid=" . DBQuoteSpecial($speaksfor_uuid))
+	if (defined($speaksfor_uuid));
+    push(@insert_data, "speaksfor_urn=" . DBQuoteSpecial($speaksfor_urn))
+	if (defined($speaksfor_urn));
 
     # Insert into DB.
     if (!DBQueryWarn("insert into aggregate_history set " .
@@ -231,6 +237,8 @@ sub NewTicket($$)
     my $owner_uuid     = $ticket->owner_uuid();
     my $owner_hrn      = $ticket->owner_hrn();
     my $owner_urn      = $ticket->owner_urn();
+    my $speaksfor_uuid = $ticket->speaksfor_uuid();
+    my $speaksfor_urn  = $ticket->speaksfor_urn();
 
     # Now tack on other stuff we need.
     push(@insert_data, "idx='$ticket_idx'");
@@ -242,6 +250,10 @@ sub NewTicket($$)
     push(@insert_data, "owner_hrn=" . DBQuoteSpecial($owner_hrn));
     push(@insert_data, "owner_urn=" . DBQuoteSpecial($owner_urn));
     push(@insert_data, "created=now()");
+    push(@insert_data, "speaksfor_uuid=" . DBQuoteSpecial($speaksfor_uuid))
+	if (defined($speaksfor_uuid));
+    push(@insert_data, "speaksfor_urn=" . DBQuoteSpecial($speaksfor_urn))
+	if (defined($speaksfor_urn));
 
     if (defined($ticket->rspec())) {
 	my $safe_rspec = DBQuoteSpecial($ticket->rspecXML());

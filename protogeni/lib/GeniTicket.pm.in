@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -187,6 +187,8 @@ sub Create($$$$)
     $self->{'slice'}         = undef;
     $self->{'stored'}        = 0;	# Stored to the DB.
     $self->{'LOCKED'}        = 0;
+    $self->{'speaksfor_uuid'}= undef;
+    $self->{'speaksfor_urn'} = undef;
 
     #
     # For now, all tickets expire very quickly ...
@@ -228,6 +230,8 @@ sub redeem_before($)	{ return field($_[0], "redeem_before"); }
 sub expires($)	        { return field($_[0], "expires"); }
 sub redeemed($   )	{ return field($_[0], "redeemed"); }
 sub stored($)		{ return field($_[0], "stored"); }
+sub speaksfor_uuid($)	{ return field($_[0], "speaksfor_uuid"); }
+sub speaksfor_urn($)	{ return field($_[0], "speaksfor_urn"); }
 sub slice($)            { return $_[0]->{'slice'}; }
 sub slice_uuid($)	{ return $_[0]->slice()->uuid(); }
 sub slice_hrn($)	{ return $_[0]->slice()->hrn(); }
@@ -438,6 +442,8 @@ sub CreateFromSignedTicket($$;$)
     $self->{'stored'}        = 0;
     $self->{'slice'}         = undef;
     $self->{'LOCKED'}        = 0;
+    $self->{'speaksfor_uuid'}= undef;
+    $self->{'speaksfor_urn'} = undef;
     
     #
     # We save copies of the tickets we hand out, but delete them
@@ -451,6 +457,8 @@ sub CreateFromSignedTicket($$;$)
 	$self->{'redeem_before'} = $row->{'redeem_before'};
 	$self->{'idx'}    = $seqno;
 	$self->{'stored'} = 1;
+	$self->{'speaksfor_uuid'} = $row->{'speaksfor_uuid'};
+	
 	#
 	# Older tickets might not have the slice set. The CM will
 	# set it later though.
@@ -583,6 +591,20 @@ sub SetSlice($$)
 }
 
 #
+# Set the speaksfor stuff.
+#
+sub SetSpeaksFor($$)
+{
+    my ($self, $speaksfor) = @_;
+
+    print "GeniTicket->SetSpeaksFor($self, $speaksfor)\n";
+    $self->{'speaksfor_uuid'} = $speaksfor->owner_uuid();
+    $self->{'speaksfor_urn'}  = $speaksfor->owner_urn();
+
+    return 0;
+}
+
+#
 # Return the outstanding ticket for a slice.
 #
 sub SliceTicket($$)
@@ -670,6 +692,10 @@ sub Store($;$)
     push(@insert_data, "owner_uuid='$owner_uuid'");
     push(@insert_data, "slice_uuid='$slice_uuid'");
     push(@insert_data, "redeem_before='$expires'");
+    if (defined($self->{'speaksfor_uuid'})) {
+	my $speaksfor_uuid = $self->{'speaksfor_uuid'};
+	push(@insert_data, "speaksfor_uuid='$speaksfor_uuid'");
+    }
     
     my $safe_ticket = DBQuoteSpecial($self->ticket_string());
     push(@insert_data, "ticket_string=$safe_ticket");

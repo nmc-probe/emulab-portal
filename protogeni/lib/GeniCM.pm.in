@@ -476,10 +476,10 @@ sub GetTicket($;$)
 			$rspecstr, $isupdate, $impotent, 0, 1, $ticket);
 }
 
-sub GetTicketAux($$$$$$$)
+sub GetTicketAux($$$$$$$$)
 {
     my ($credential, $rspecstr, $isupdate, $impotent, $v2, $level,
-	$ticket) = @_;
+	$ticket, $speaksfor) = @_;
     
     defined($credential) &&
 	($credential->HasPrivilege( "pi" ) or
@@ -515,16 +515,19 @@ sub GetTicketAux($$$$$$$)
 	return $slice
 	    if (GeniResponse::IsResponse($slice));
     }
+    $slice->SetSpeaksFor($speaksfor)
+	if (defined($speaksfor));
+	
     main::AddLogfileMetaDataFromSlice($slice);
     
     return GetTicketAuxAux($slice, $user, $rspecstr,
 			   $isupdate, $impotent, $v2, $level, $ticket,
-			   [$credential]);
+			   [$credential], $speaksfor);
 }
-sub GetTicketAuxAux($$$$$$$$$)
+sub GetTicketAuxAux($$$$$$$$$$)
 {
-    my ($slice, $user, $rspecstr, 
-        $isupdate, $impotent, $v2, $level, $ticket, $credentials) = @_;
+    my ($slice, $user, $rspecstr, $isupdate,
+	$impotent, $v2, $level, $ticket, $credentials, $speaksfor) = @_;
     my $response    = undef;
     my $restorevirt = 0;	# Flag to restore virtual state
     my $restorephys = 0;	# Flag to restore physical state
@@ -2542,6 +2545,8 @@ sub GetTicketAuxAux($$$$$$$$$)
 	goto bad;
     }
     $newticket->SetSlice($slice);
+    $newticket->SetSpeaksFor($speaksfor)
+	if (defined($speaksfor));
     
     if ($newticket->Sign()) {
 	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
@@ -2674,12 +2679,13 @@ sub SliverWork($$)
 				    "This ticket was already redeemed!");
     }
     return SliverWorkAux($credential, $ticket,
-			 $keys, $isupdate, $impotent, 0, 0);
+			 $keys, $isupdate, $impotent, 0, 0, undef);
 }
 
-sub SliverWorkAux($$$$$$$)
+sub SliverWorkAux($$$$$$$$)
 {
-    my ($credential, $object, $keys, $isupdate, $impotent, $v2, $level) = @_;
+    my ($credential, $object,
+	$keys, $isupdate, $impotent, $v2, $level, $speaksfor) = @_;
     my $didfwsetup  = 0;
     my $shouldrollback = 0;
     my $restorephys = 0;	# Flag to restore physical state
@@ -3840,6 +3846,9 @@ sub SliverWorkAux($$$$$$$)
     if (GeniUsage->NewManifest($aggregate, $manifest, $rspec)) {
 	print STDERR "GeniUsage->NewManifest($aggregate) failed\n";
     }
+    $aggregate->SetSpeaksFor($speaksfor)
+	if (defined($speaksfor));
+    
     #
     # Each new aggregate gets a history record.
     #

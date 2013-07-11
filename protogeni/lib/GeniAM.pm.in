@@ -337,6 +337,9 @@ sub auto_add_sa($)
     my $cred = GeniCredential->CreateFromSigned($cred_str, $verify_sig);
     my $signers = $cred->signer_certs();
 
+    return
+	if ($cred->type() eq "speaksfor");
+
     # The credential has been verified, so the signer derives from a
     # trusted root.
     my $sa_cert = @$signers[0];

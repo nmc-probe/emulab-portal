@@ -145,6 +145,7 @@ sub issuer($)		{ return field($_[0], "issuer"); }
 sub privkey($)		{ return field($_[0], "privkey"); }
 sub revoked($)		{ return field($_[0], "revoked"); }
 sub certfile($)		{ return field($_[0], "certfile"); }
+sub passphrase($)	{ return undef; }
 sub uri($)              { return field($_[0], "uri"); }
 sub urn($)              { return field($_[0], "urn"); }
 sub rootcert($)	        { return $_[0]->{'ROOTCERT'}; }
@@ -687,7 +688,16 @@ sub WriteToFile($;$)
     print $tempfile "-----END CERTIFICATE-----\n";
     if ($withkey && $self->privkey()) {
 	print $tempfile "-----BEGIN RSA PRIVATE KEY-----\n";
-	print $tempfile $self->privkey();
+	
+	if ($self->can('DecryptKey')) {
+	    my $key = $self->DecryptKey();
+	    return undef
+		if (!defined($key));
+	    print $tempfile $key;
+	}
+	else {
+	    print $tempfile $self->privkey();
+	}
 	print $tempfile "-----END RSA PRIVATE KEY-----\n";
     }
     return $filename;
@@ -1156,12 +1166,14 @@ sub created($)		{ return field($_[0], "created"); }
 sub cert($)		{ return field($_[0], "cert"); }
 sub privkey($)		{ return field($_[0], "privkey"); }
 sub revoked($)		{ return field($_[0], "revoked"); }
+sub passphrase($)	{ return field($_[0], "password"); }
 sub uri($)              { return undef; }
 sub urn($)              { return field($_[0], "urn"); }
 sub URL($)              { return undef; }
 sub URN($)              { return field($_[0], "urn"); }
+sub certfile($)		{ return undef; }
 sub GetCertificate($)   { return $_[0]; }
-
+sub WriteToFile($$)      { return GeniCertificate::WriteToFile($_[0], $_[1]); }
 #
 # Need to add DN to the emulab table.
 #
@@ -1182,6 +1194,89 @@ sub DN($)
     chomp($dn);
     $self->{'CERT'}->{'DN'} = $dn;
     return $dn;
+}
+
+#
+# Decrypt a key. Only used on local Emulab users.
+#
+sub DecryptKey($)
+{
+    my ($self) = @_;
+    my $passphrase = $self->passphrase();
+    $passphrase =~ s/\'/\'\\\'\'/g;
+    my $command = "$OPENSSL rsa -passin 'pass:${passphrase}'";
+
+    require Socket;
+    import Socket qw(:DEFAULT);
+    require IO::Handle;     # thousands of lines just for autoflush :-(
+    
+    if (! socketpair(CHILD, PARENT, AF_UNIX(), SOCK_STREAM(), PF_UNSPEC())) {
+	print STDERR "*** PipeTo: Could not create socketpair\n";
+	return undef;
+    }
+    CHILD->autoflush(1);
+    PARENT->autoflush(1);
+
+    my $childpid = fork();
+    if (! $childpid) {
+	close CHILD;
+
+	#
+	# Dup our descriptors to the parent, and exec the program.
+	# The parent then talks to it read/write.
+	#
+	open(STDIN,  "<&PARENT") || die "Cannot redirect stdin";
+	open(STDOUT, ">&PARENT") || die "Cannot redirect stdout";
+	open(STDERR, ">&PARENT") || die "Cannot redirect stderr";
+
+	exec($command);
+	die("*** $0:\n".
+	    "    exec '$command' failed: $!\n");
+    }
+    close PARENT;
+
+    #
+    # Write the key to the child.
+    #
+    print CHILD "-----BEGIN RSA PRIVATE KEY-----\n";
+    print CHILD $self->privkey();
+    print CHILD "-----END RSA PRIVATE KEY-----\n";
+    # Tell the process we are done writing. ie: Send it an EOF.
+    shutdown(CHILD,1);
+    
+    my @certlines = ();
+    while (<CHILD>) {
+	push(@certlines, $_);
+    }
+    close(CHILD);
+    waitpid($childpid, 0);
+    if ($? || !@certlines) {
+	print STDERR "*** Failed to decrypt key\n";
+	foreach my $line (@certlines) {
+	    print STDERR $line;
+	}
+	return undef;
+    }
+    my $privkey;
+    my $string;
+    foreach my $line (@certlines) {
+	if ($line =~ /^-----BEGIN RSA/) {
+	    $string = "";
+	    next;
+	}
+	if ($line =~ /^-----END RSA/) {
+	    $privkey = $string;
+	    $string = undef;
+	    next;
+	}
+	$string .= $line
+	    if (defined($string));
+    }
+    if (! defined($privkey)) {
+	print STDERR "Could not parse private key\n";
+	return undef;
+    }
+    return $privkey;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

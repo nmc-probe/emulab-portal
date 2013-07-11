@@ -141,7 +141,7 @@ sub Resolve($)
     if (! GeniHRN::IsValid($urn)) {
 	return GeniResponse->MalformedArgsResponse("Invalid URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -368,18 +368,12 @@ sub DiscoverResources($)
     if (! (defined($credentials))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor,@morecreds) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
-    my $credential_objects = [];
-    foreach my $credstr (@$credentials) {
-        my $cred = GeniCredential::CheckCredential($credstr);
-        push(@$credential_objects, $cred) 
-            if(!GeniResponse::IsResponse($cred));
-    }
     return GeniCM::DiscoverResourcesAux($available, $compress,
-        $version, $credential_objects);
+        $version, [$credential, @morecreds]);
 }
 
 #
@@ -409,7 +403,7 @@ sub CreateSliver($)
     if (! GeniHRN::IsValid($slice_urn)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -464,8 +458,8 @@ sub CreateSliver($)
 					"Must delete existing slice first");
 	}
     }
-    my $rspec = GeniCM::GetTicketAux($credential,
-				     $rspecstr, 0, $impotent, 1, 0, undef);
+    my $rspec = GeniCM::GetTicketAux($credential, $rspecstr,
+				     0, $impotent, 1, 0, undef, $speaksfor);
     return $rspec
 	if (GeniResponse::IsResponse($rspec));
 
@@ -475,13 +469,13 @@ sub CreateSliver($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,"Internal Error");
     }
     main::AddLogfileMetaDataFromSlice($slice);
-        
+
     # Make sure that the next phase sees all changes.
     Experiment->FlushAll();
     Node->FlushAll();
 
-    my $response = GeniCM::SliverWorkAux($credential,
-					 $rspec, $keys, 0, $impotent, 1, 0);
+    my $response = GeniCM::SliverWorkAux($credential, $rspec,
+					 $keys, 0, $impotent, 1, 0, $speaksfor);
 
     if (GeniResponse::IsError($response)) {
 	#
@@ -502,7 +496,7 @@ sub CreateSliver($)
 	return $response;
     }
     my ($sliver_credential, $sliver_manifest) = @{ $response->{'value'} };
-    
+
     #
     # Leave the slice intact on error, so we can go look at it. 
     #
@@ -517,6 +511,7 @@ sub CreateSliver($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Internal Error");
     }
+
     #
     # At this point we want to return and let the startsliver proceed
     # in the background. Parent never returns, just the child.
@@ -570,7 +565,7 @@ sub DeleteSliver($)
     if (! GeniHRN::IsValid($sliver_urn)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -641,6 +636,8 @@ sub DeleteSliver($)
 	goto bad;
     }
     $ticket->SetSlice($slice);
+    $ticket->SetSpeaksFor($speaksfor)
+	if (defined($speaksfor));
     
     if ($ticket->Sign()) {
 	$ticket->Delete();
@@ -683,7 +680,7 @@ sub DeleteSlice($)
     if (! GeniHRN::IsValid($slice_urn)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -744,7 +741,7 @@ sub GetSliver($)
     if (! GeniHRN::IsValid($slice_urn)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -814,7 +811,7 @@ sub SliverAction($$$$$)
 	   (defined($slice_urn) || defined($sliver_urns)))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1043,7 +1040,7 @@ sub SliverStatus($)
     if (! GeniHRN::IsValid($slice_urn)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1147,7 +1144,7 @@ sub Shutdown($)
     if (! (defined($credentials) && defined($slice_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1243,7 +1240,7 @@ sub RenewSlice($)
     if (! GeniHRN::IsValid($slice_urn)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor,@morecreds) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1264,13 +1261,7 @@ sub RenewSlice($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
     }
-    my $credential_objects = [];
-    foreach my $credstr (@$credentials) {
-        my $cred = GeniCredential::CheckCredential($credstr);
-        push(@$credential_objects, $cred) 
-            if(!GeniResponse::IsResponse($cred));
-    }
-    return GeniCM::RenewSliverAux($credential_objects, $valid_until);
+    return GeniCM::RenewSliverAux([$credential, @morecreds], $valid_until);
 }
 
 #
@@ -1291,7 +1282,7 @@ sub GetTicket($)
     if (! ($rspecstr =~ /^[\040-\176\012\015\011]+$/)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in rspec");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1372,8 +1363,8 @@ sub GetTicket($)
     else {
 	# Slice does not exist yet. 
     }
-    return GeniCM::GetTicketAux($credential,
-				$rspecstr, 0, $impotent, 1, 1, undef);
+    return GeniCM::GetTicketAux($credential, $rspecstr,
+				0, $impotent, 1, 1, undef, $speaksfor);
 }    
 	
 #
@@ -1395,7 +1386,7 @@ sub UpdateTicket($)
     if (! ($rspecstr =~ /^[\040-\176\012\015\011]+$/)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in rspec");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor,@morecreds) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1454,9 +1445,11 @@ sub UpdateTicket($)
 				    $GeniTicket::CreateFromSignedError);
     }
     #
-    # Make sure the ticket was issued to the caller.
+    # Make sure the ticket was issued to the caller. Note special
+    # case for speaksfor.
     #
-    if ($ticket->owner_urn() ne $ENV{'GENIURN'}) {
+    if ($ticket->owner_urn() ne
+	(defined($speaksfor) ? $speaksfor->target_urn() : $ENV{'GENIURN'})) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "This is not your ticket");
     }
@@ -1476,14 +1469,9 @@ sub UpdateTicket($)
     return $user
 	if (GeniResponse::IsResponse($user));
     
-    my $credential_objects = [];
-    foreach my $credstr (@$credentials) {
-        my $cred = GeniCredential::CheckCredential($credstr);
-        push(@$credential_objects, $cred) 
-            if(!GeniResponse::IsResponse($cred));
-    }
     return GeniCM::GetTicketAuxAux($slice, $user,
-				   $rspecstr, 1, $impotent, 1, 1, $ticket, $credential_objects);
+				   $rspecstr, 1, $impotent, 1, 1, $ticket,
+				   [$credential, @morecreds], $speaksfor);
 }
 
 #
@@ -1504,7 +1492,7 @@ sub UpdateSliver($)
     if (! ($rspecstr =~ /^[\040-\176\012\015\011]+$/)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in rspec");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor,@morecreds) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1562,14 +1550,9 @@ sub UpdateSliver($)
     return $user
 	if (GeniResponse::IsResponse($user));
     
-    my $credential_objects = [];
-    foreach my $credstr (@$credentials) {
-        my $cred = GeniCredential::CheckCredential($credstr);
-        push(@$credential_objects, $cred) 
-            if(!GeniResponse::IsResponse($cred));
-    }
     return GeniCM::GetTicketAuxAux($slice, $user,
-				   $rspecstr, 1, $impotent, 1, 1, undef, $credential_objects);
+				   $rspecstr, 1, $impotent, 1, 1, undef,
+				   [$credential, @morecreds], $speaksfor);
 }
 
 #
@@ -1588,7 +1571,7 @@ sub RedeemTicket($)
 	   defined($slice_urn) && defined($ticketstr))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1598,9 +1581,11 @@ sub RedeemTicket($)
 				    $GeniTicket::CreateFromSignedError);
     }
     #
-    # Make sure the ticket was issued to the caller.
+    # Make sure the ticket was issued to the caller. Note special
+    # case for speaksfor.
     #
-    if ($ticket->owner_urn() ne $ENV{'GENIURN'}) {
+    if ($ticket->owner_urn() ne
+	(defined($speaksfor) ? $speaksfor->target_urn() : $ENV{'GENIURN'})) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "This is not your ticket");
     }
@@ -1631,7 +1616,7 @@ sub RedeemTicket($)
     my $isupdate = defined($aggregate);
 
     return GeniCM::SliverWorkAux($credential, $open_ticket, $keys,
-				 $isupdate, $impotent, 1, 1);
+				 $isupdate, $impotent, 1, 1, $speaksfor);
 }
 
 #
@@ -1648,7 +1633,7 @@ sub BindToSlice($)
 	   defined($slice_urn) && defined($keys))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1706,7 +1691,7 @@ sub ReleaseTicket($)
 	   defined($slice_urn) && defined($ticketstr))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -1835,7 +1820,7 @@ sub ReserveVlanTags($)
 	    return GeniResponse->MalformedArgsResponse("Bad tag in list");
 	}
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -2135,18 +2120,117 @@ sub ReserveVlanTags($)
 #
 sub CheckCredentials($)
 {
-    if (ref($_[0]) ne "ARRAY") {
-	return
-	    GeniResponse->MalformedArgsResponse("Credentials should be a ".
-						"array not a singleton");
-    }
+    my ($speakee, $speaksfor);
+    my @rest = ();
+    my $error;
     
-    my @credentials = @{ $_[0] };
-    if (scalar(@credentials) != 1) {
-	return
-	    GeniResponse->MalformedArgsResponse("Wrong number of credentials");
+    if (ref($_[0]) ne "ARRAY") {
+	$error = GeniResponse->MalformedArgsResponse("Credentials should be a ".
+						     "array not a singleton");
+	goto bad;
     }
-    return GeniCredential::CheckCredential($credentials[0]);
+    else {
+	my @credential_strings = @{ $_[0] };
+
+	if (scalar(@credential_strings) == 1) {
+	    #
+	    # Must be a speaks-as credential.
+	    #
+	    $speakee = GeniCredential::CheckCredential($credential_strings[0]);
+	}
+	else {
+	    #
+	    # The only other case is that we get multiple credentials. One
+	    # is the speaks-for credential and another one is the real
+	    # credential. Other credentials may also be included, but the
+	    # caller knows when to care about those.
+	    #
+	    my @credentials = ();
+	    
+	    foreach my $credstring (@credential_strings) {
+		my $credential = GeniCredential->CreateFromSigned($credstring);
+		if (!defined($credential)) {
+		    $error = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    $GeniCredential::CreateFromSignedError);
+		    goto bad;
+		}
+		if ($credential->type() eq "speaksfor") {
+		    $speaksfor = $credential;
+		}
+		else {
+		    push(@credentials, $credential);
+		}
+	    }
+	    if (!defined($speaksfor)) {
+		#
+		# speaks-as credential has to be first. No reason, its
+		# just the way I want it. 
+		#
+		$speakee = shift(@credentials);
+		$speakee = GeniCredential::CheckCredential($speakee);
+		if (!GeniResponse::IsError($speakee)) {
+		    $error = $speakee;
+		    goto bad;
+		}
+		@rest = @credentials;
+
+		#
+		# The rest of the credentials have to be valid too.
+		#
+		foreach my $credential (@rest) {
+		    $credential = GeniCredential::CheckCredential($credential);
+		    if (!GeniResponse::IsError($credential)) {
+			$error = $credential;
+			goto bad;
+		    }
+		}
+	    }
+	    else {
+		$speaksfor = GeniCredential::CheckCredential($speaksfor);
+		if (GeniResponse::IsError($speaksfor)) {
+		    $error = $speaksfor;
+		    goto bad;
+		}
+		main::AddLogfileMetaDataFromSpeaksFor($speaksfor);
+
+		#
+		# All the rest of the credentials are being spoken for;
+		# its owner is equal to the owner of the speaksfor
+		# credential. In other words, the speaksfor is signed
+		# (owned) by the user, and grants to the tool that is in
+		# the target. The real credential (say, a slice) is owned
+		# by the user, so the owners must match.
+		#
+		foreach my $credential (@credentials) {
+		    my $cred = GeniCredential::CheckCredential($credential,
+							       undef, 1);
+		    if (GeniResponse::IsError($cred)) {
+			$error = $cred;
+			goto bad;
+		    }
+		    if ($cred->owner_urn() ne $speaksfor->target_urn()) {
+			$error = GeniResponse->Create(GENIRESPONSE_FORBIDDEN,
+						      undef,
+			   "Credential owner does not match speaksfor target");
+			goto bad;
+		    }
+		    push(@rest, $cred);
+		}
+		#
+		# speaks-as credential has to be first. No reason, its
+		# just the way I want it. 
+		#
+		$speakee = shift(@credentials);
+		@rest = @credentials;
+	    }
+	}
+    }
+    if (wantarray()) {
+	return ($speakee, $speaksfor, @rest);
+    }
+    return $speakee;
+  bad:
+    return (wantarray() ? ($error) : $error);
 }
 
 #
@@ -2294,7 +2378,7 @@ sub InjectEvent($)
     $waitmode = 1
 	if (exists($argref->{'waitmode'}) && $argref->{'waitmode'});
     
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -2353,7 +2437,7 @@ sub CreateImage($)
     $wholedisk = 1
 	if (exists($argref->{'wholedisk'}) && $argref->{'wholedisk'});
     
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -2519,7 +2603,7 @@ sub DeleteImage($)
     if (! GeniHRN::IsValid($image_urn)) {
 	return GeniResponse->MalformedArgsResponse("Invalid URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -2609,7 +2693,7 @@ sub ListImages($)
     if (defined($user_urn) && !GeniHRN::IsValid($user_urn)) {
 	return GeniResponse->MalformedArgsResponse("Invalid User URN");
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -2674,7 +2758,7 @@ sub ListActiveSlivers($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = CheckCredentials($credentials);
+    my ($credential,$speaksfor) = CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
