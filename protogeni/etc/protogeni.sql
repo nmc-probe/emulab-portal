@@ -59,6 +59,8 @@ CREATE TABLE `geni_slices` (
   `stitch_locked` datetime default NULL,
   `creator_uuid` varchar(40) NOT NULL default '',
   `creator_urn` tinytext,
+  `speaksfor_uuid` varchar(40) default NULL,
+  `speaksfor_urn` tinytext,
   `name` tinytext,
   `sa_uuid` varchar(40) NOT NULL default '',
   `registered` tinyint(1) NOT NULL default '0',
@@ -106,6 +108,7 @@ CREATE TABLE `geni_aggregates` (
   `type` varchar(40) NOT NULL default '',
   `slice_uuid` varchar(40) NOT NULL default '',
   `creator_uuid` varchar(40) NOT NULL default '',
+  `speaksfor_uuid` varchar(40) default NULL,
   `created` datetime default NULL,
   `expires` datetime default NULL,
   `locked` datetime default NULL,
@@ -128,6 +131,7 @@ CREATE TABLE `geni_tickets` (
   `owner_uuid` varchar(40) NOT NULL default '',
   `slice_uuid` varchar(40) NOT NULL default '',
   `target_uuid` varchar(40) NOT NULL default '',
+  `speaksfor_uuid` varchar(40) default NULL,
   `created` datetime default NULL,
   `redeem_before` datetime default NULL,
   `redeemed` datetime default NULL,
@@ -290,6 +294,8 @@ CREATE TABLE `aggregate_history` (
   `creator_hrn` varchar(256) NOT NULL default '',
   `creator_uuid` varchar(40) NOT NULL default '',
   `creator_urn` tinytext,
+  `speaksfor_uuid` varchar(40) default NULL,
+  `speaksfor_urn` tinytext,
   `created` datetime default NULL,
   `destroyed` datetime default NULL,
   `reported` datetime default NULL,
@@ -325,6 +331,8 @@ CREATE TABLE `ticket_history` (
   `slice_urn` tinytext,
   `slice_uuid` varchar(40) NOT NULL default '',
   `slice_hrn` varchar(256) NOT NULL default '',
+  `speaksfor_uuid` varchar(40) default NULL,
+  `speaksfor_urn` tinytext,
   `created` datetime default NULL,
   `redeemed` datetime default NULL,
   `expired` datetime default NULL,
@@ -353,4 +361,3 @@ CREATE TABLE `client_slivers` (
   PRIMARY KEY  (`idx`),
   INDEX `slice_uuid` (`slice_idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
-
