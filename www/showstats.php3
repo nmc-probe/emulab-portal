@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -117,12 +117,13 @@ elseif ($showby == "project") {
 	USERERROR("Must supply a project to view!", 1);
     }
     $pid = $target_project->pid();
+    $pid_idx = $target_project->pid_idx();
     
     if (!$target_project->AccessCheck($this_user, $TB_PROJECT_READINFO)) {
 	USERERROR("You do not have permission to view stats for ".
 		  "project $pid!", 1);
     }
-    $wclause = "where (s.pid='$pid')";
+    $wclause = "where (s.pid_idx='$pid_idx')";
 }
 elseif ($showby == "expt") {
     #
@@ -167,12 +168,13 @@ elseif ($showby == "expt") {
 elseif ($showby == "all") {
     if (isset($target_project)) {
 	$pid = $target_project->pid();
+	$pid_idx = $target_project->pid_idx();
     
 	if (!$target_project->AccessCheck($this_user, $TB_PROJECT_READINFO)) {
 	    USERERROR("You do not have permission to view stats for ".
 		      "project $pid!", 1);
 	}
-	$wclause = "where (s.pid='$pid')";
+	$wclause = "where (s.pid_idx='$pid_idx')";
     }
     elseif (!$isadmin) {
         #
@@ -213,7 +215,7 @@ $query_result =
     DBQueryFatal("select t.exptidx,s.pid,s.eid,t.action,t.exitcode,t.uid, ".
                  "       r.pnodes,t.idx as statno,t.start_time,t.end_time, ".
 		 "       s.archive_idx,r.archive_tag,t.uid_idx ".
-		 "  from testbed_stats as t force index (end_time, idx) ".
+		 "  from testbed_stats as t ".
 		 "left join experiment_stats as s on s.exptidx=t.exptidx ".
 		 "left join experiment_resources as r on r.idx=t.rsrcidx ".
 		 "$wclause ".
