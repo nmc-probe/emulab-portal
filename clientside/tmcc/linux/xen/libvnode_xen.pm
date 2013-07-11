@@ -2632,8 +2632,9 @@ sub createExpNetworkScript($$$$$$$)
 	     "htb rate ${rbandw} ceil ${rbandw}");
 
 	if ($type eq "duplex") {
+	    # Do not use a colon: in the handle. It BREAKS!
 	    push(@cmds,
-		 "$TC qdisc add dev $ifb handle 2:2 parent 2:1 ".
+		 "$TC qdisc add dev $ifb handle 3 parent 2:1 ".
 		 "netem drop $rplr delay ${rdelay}us");
 	}
     }
