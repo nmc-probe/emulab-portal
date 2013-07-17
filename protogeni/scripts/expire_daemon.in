@@ -409,26 +409,37 @@ sub ExpireSlices()
 	}
 	else {
 	    if ($slice->isplaceholder()) {
-		print STDERR "Releasing placeholder $slice $experiment.\n";
+		print STDERR "Releasing placeholder $slice";
+		print STDERR " - $experiment"
+		    if (defined($experiment));
+		print STDERR "\n";
 	    }
 	    else {
-		print STDERR "Expiring $slice $experiment.\n";
+		print STDERR "Expiring $slice";
+		print STDERR " - $experiment"
+		    if (defined($experiment));
+		print STDERR "\n";
 	    }
 	}
       cleanup:
 	my $slice_uuid  = $slice->uuid();
 	my $output = emutil::ExecQuiet("$CLEANUPSLICE -f -m $slice_uuid");
 	my $status = $?;
-	my $logfile = Logfile->CreateFromString($experiment->gid_idx(),
-						$output);
-	if (defined($logfile)) {
-	    $logfile->SetMetadata([["slice_idx",  $slice->idx()],
-				   ["slice_urn",  $slice->urn()],
-				   ["slice_uuid", $slice->uuid()],
-				   # For web interface listing
-				   ["Method",     "Cleanup"],
-				  ], 1);
-	    $logfile->Store();
+	if (defined($experiment)) {
+	    my $gid_idx = $experiment->gid_idx();
+	    my $logfile = Logfile->CreateFromString($gid_idx, $output);
+	    if (defined($logfile)) {
+		$logfile->SetMetadata([["slice_idx",  $slice->idx()],
+				       ["slice_urn",  $slice->urn()],
+				       ["slice_uuid", $slice->uuid()],
+				       # For web interface listing
+				       ["Method",     "Cleanup"],
+				      ], 1);
+		$logfile->Store();
+	    }
+	}
+	else {
+	    print STDERR "$output\n";
 	}
 	if ($?) {
 	    print STDERR "Could not release $slice\n";
@@ -443,6 +454,8 @@ sub ExpireSlices()
       skip:
 	$slice->Flush()
 	    if (defined($slice));
+	$experiment->Flush()
+	    if (defined($experiment));
     }
 }
 
