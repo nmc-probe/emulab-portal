@@ -143,14 +143,6 @@ sub new($$$;$) {
     # Default the SNMP community string to "public" if not specified.
     $self->{COMMUNITY} = $community || "public";
  
-    # other global variables - XXX: check.
-    $self->{DOALLPORTS} = 0;
-    $self->{SKIPIGMP} = 1;
-
-    # Max # of ports, must be a multiple of 8.
-    # XXX: ?
-    $self->{MAX_NUM_PORTS} = 144;
-
     if ($self->{DEBUG}) {
         print "snmpit_mellanox initializing $self->{NAME}, " .
             "debug level $self->{DEBUG}\n" ;   
@@ -226,7 +218,7 @@ sub initSNMPSession($) {
 sub initRPCSession($) {
     my $self = shift;
 
-    $self->{CLT} = eval { MLNX_XMLGateway->new("$self->{COMMUNITY}\@".
+    $self->{CLT} = eval { MLNX_XMLGateway->new("$self->{USER}:$self->{PASS}\@".
 					       "$self->{NAME}") };
     if ($@) {
 	warn "WARNING: Unable to create XML-gateway object for ".
@@ -471,11 +463,6 @@ sub get1($$$) {
     return $RetVal;
 }
 
-sub walk($$) {
-    my ($self, $oid) = @_;
-
-    return $self->{SESS}->bulkwalk(0, 32, [[$oid]]);
-}
 
 sub set($$;$$) {
     my ($self, $varbind, $id, $retries) = @_;
@@ -497,37 +484,6 @@ sub set($$;$$) {
     };
     my $RetVal = $self->hammer($closure, $id, $retries);
     return $RetVal;
-}
-
-# XXX: may not need.
-sub strtrim($$) {
-    my ($self, $str) = @_;
-
-    $str =~ s/^\s+|\s+$//g;
-    return $str;
-}
-
-# XXX: may not need.
-sub iidCatHelper($$) {
-    my $self = shift;
-    my $iid = shift;
-
-    if (length($self->strtrim($iid)) > 0) {
-	return ".".$self->strtrim($iid);
-    }
-
-    return "";
-}
-
-# XXX: may not need.
-sub isExpVlanName($$) {
-    my ($self, $vid) = @_;
-
-    if ($vid =~ /^$VLAN_ID_PREFIX/ ) {
-	return 1;
-    }
-
-    return 0;
 }
 
 #
@@ -585,6 +541,13 @@ sub getPortState($$) {
 	    my $ifindex;
 	    qr|^$MLNX_IFC_PREFIX/(\d+)/| && do {
 		$ifindex = $1;
+		if (!exists($ret{$ifindex})) {
+		    $ret{$ifindex} = {};
+		    $ret{$ifindex}{PVID} = 0;
+		    $ret{$ifindex}{ALLOWED} = {};
+		    $ret{$ifindex}{MODE} = "*UNKNOWN*";
+		    $ret{$ifindex}{ENABLED} = "*UNKNOWN*";
+		}
 		# fall through to next tests.
 	    };
 	    goto DEFCASE unless defined($ifindex);
@@ -855,7 +818,7 @@ sub setPortVlan($$@) {
 
     my @setcmds = ();
     foreach my $ifindex (@swports) {
-	MODESW: for ($pstates->{$ifindex}{MODE}) {
+        MODESW: for ($pstates->{$ifindex}{MODE}) {
 	    /^access$/ && do {
 		push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$vlan_number"];
 		last MODESW;
@@ -867,12 +830,10 @@ sub setPortVlan($$@) {
 		}
 		last MODESW;
 	    };
-	    
+
 	    /^hybrid$/ && do {
-		if ($pstates->{$ifindex}{PVID} == $MLNX_DEF_VLAN) {
-		    push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/mode=trunk"];
-		}
-		if (!exists($pstates->{$ifindex}{ALLOWED}{$vlan_number})) {
+		if (!exists($pstates->{$ifindex}{ALLOWED}{$vlan_number})
+		    && $pstates->{$ifindex}{PVID} != $vlan_number) {
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", {vlan_ids => $vlan_number}];
 		}
 	    };
@@ -882,21 +843,21 @@ sub setPortVlan($$@) {
 		 "$self->{NAME}: $_";
 	    $errors++;
 	}
+	  
+	# enable/disable ports: if the vlan is 'default', then disable
+	# ports (which means deleting the ports from some vlan).
+	my $truth = $vlan_number eq $MLNX_DEF_VLAN ? "false" : "true";
+	push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/enabled=$truth"];
     }
 
     my $resp = $self->callRPC(\@setcmds);
     $self->unlock();
 
     # XXX: This is pretty indiscriminate...  If anything fails, we say
-    # everything failed!
+    # everything failed!  May need to refine if failures are common.
     if (!defined($resp)) {
 	$errors = scalar(@ports);
     }
-
-    # enable/disable ports: if the vlan is 'default', then disable
-    # ports (which means deleting the ports from some vlan).
-    my $onoroff = ($vlan_number ne $MLNX_DEF_VLAN)? "enable":"disable";
-    $errors += $self->portControl($onoroff, @ports);
 
     return $errors;
 }
@@ -910,7 +871,6 @@ sub setPortVlan($$@) {
 #	 returns 0 on sucess.
 #	 returns the number of failed ports on failure.
 #
-# XXX: Do we need to disable ports when they are in "access" mode?
 sub delPortVlan($$@) {
     my $self = shift;
     my $vlan_number = shift;
@@ -937,11 +897,64 @@ sub delPortVlan($$@) {
 
     my @setcmds = ();
     foreach my $ifindex (@swports) {
-	if ($pstates->{$ifindex}{PVID} == $vlan_number) {
-	    push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$MLNX_DEF_VLAN"];
-	}
-	if (exists($pstates->{$ifindex}{ALLOWED}{$vlan_number})) {
-	    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $vlan_number}];
+	my %ifc = %{$pstates->{$ifindex}};
+
+	# Figuring out what to do with the port is something of a
+	# nasty business that depends on what mode it's in, and how
+	# the given vlan is affiliated with it.
+        MODESW: for ($ifc{MODE}) {
+
+	    /^access$/ && do {
+		# Disable the port if the access vlan matches.
+		if ($ifc{PVID} == $vlan_number) {
+		    push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$MLNX_DEF_VLAN"];
+		    push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/enabled=false"];
+		}
+		last MODESW;
+	    };
+
+	    /^trunk$/ && do {
+		# If the vlan is in the allowed list for this trunk
+		# link, then remove it from the list.
+		if (exists($ifc{ALLOWED}{$vlan_number})) {
+		    if (scalar(keys %{$ifc{ALLOWED}}) == 1) {
+			# If we are removing the last vlan in the
+			# list, then emit a warning and add the
+			# default vlan since a port in "trunk" mode
+			# must be a member of at least one vlan.
+			push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", { vlan_ids => $MLNX_DEF_VLAN }];
+			warn "WARNING: Removing last vlan from an equal-mode ".
+			     "trunk's allowed list on $self->{NAME} ".
+			     "(ifindex: $ifindex).\n";
+		    }
+		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $vlan_number}];
+		}
+		last MODESW;
+	    };
+
+	    /^hybrid$/ && do {
+		# Zap the untagged access vlan back to the default if
+		# the given vlan is the same as what is currently set
+		# on the port.  Emit a warning when doing this.
+		if ($ifc{PVID} == $vlan_number) {
+		    push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$MLNX_DEF_VLAN"];
+		    warn "WARNING: native vlan removal requested on ".
+			 "dual-mode trunk port on $self->{NAME} ".
+			 "(ifindex: $ifindex).\n";
+		}
+		# Remove the vlan from the allowed list if it's there.
+		# Note that the native vlan CANNOT show up in the
+		# allowed list on a Mellanox switch (thus the elsif here).
+		# When in dual/hybrid mode, the "allow" list CAN be empty.
+		elsif (exists($ifc{ALLOWED}{$vlan_number})) {
+		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $vlan_number}];
+		}
+		last MODESW;
+	    };
+
+	    # default
+	    warn "Unknown port mode - $_ - for ifindex $ifindex on $self->{NAME}";
+	    $errors++;
 	}
     }
 
@@ -1093,23 +1106,30 @@ sub listVlans($) {
 	return undef;
     }
 
+    my @vlcmds = ();
     foreach my $vlan ($self->getAllVlanNumbers()) {
+	push @vlcmds, ["get","$MLNX_VLAN_PREFIX/$vlan/name"];
+    }
+    
+    my $resp = $self->callRPC(\@vlcmds);
+    if (!defined($resp) || !@$resp) {
+	warn "Unable to get vlan names on $self->{NAME}\n";
+	return undef;
+    }
+
+    foreach my $rv (@$resp) {
+	my ($path, $type, $vlname) = @{$rv};
+	my $path =~ qr|^$MLNX_VLAN_PREFIX/(\d+)/|;
+	my $vlnum = $1;
 	my @vlifindexes = ();
-	# XXX: very inefficient.  Lots of separate RPCs.
-	my $resp = $self->callRPC(["get","$MLNX_VLAN_PREFIX/$vlan/name"]);
-	if (!defined($resp) || !@$resp) {
-	    warn "Unable to get name for vlan $vlan on $self->{NAME}\n";
-	    next;
-	}
-	my $vlname = $resp->[0]->[2];
 	foreach my $ifindex (keys %$pstates) {
-	    if ($pstates->{$ifindex}{PVID} == $vlan_number ||
-		exists($pstates->{$ifindex}{ALLOWED}{$vlan_number})) {
+	    if ($pstates->{$ifindex}{PVID} == $vlnum ||
+		exists($pstates->{$ifindex}{ALLOWED}{$vlnum})) {
 		push @vlifindexes, $ifindex;
 	    }
 	}
 	my @ports = $self->convertPortFormat($PORT_FORMAT_PORT, @vlifindexes);
-	push @list, [$vlname, $vlan, \@ports];
+	push @list, [$vlname, $vlnum, \@ports];
     }
     
     return @list;
@@ -1242,34 +1262,50 @@ sub resetVlanIfOnTrunk($$$) {
 #        Returns: undef if more than one port is given, and no channel is found
 #           an ifindex if a channel is found and/or only one port is given
 #
-# N.B. by Sklower - cisco's use this to put vlans on multiwire trunks;
-# it gets called from _stack.pm
-#
-# HP's also require a different ifindex for putting a vlan on a multiwire
-# trunk from the individual ifindex from any constituent port.
-#
-# although Rob Ricci's vision is that this would only get called when putting
-# vlans on multi-wire interswitch trunks and the check would happen in
-# _stack, it is 1.) possible to use snmpit -i Switch <mod>/<port> to do
-# maintenance functions of vlans and so you should check for each port
-# any way, and 2.) the check is cheap and can be done in convertPortFormat.
-#
 sub getChannelIfIndex($@) {
     my $self = shift;
     my @ports = @_;
     my $id = $self->{NAME}."::getChannelIfIndex";
 
+    my $chifindex = undef;
+
     my @swports = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
-
-    my $resp = $self->callRPC($id, 'getPortChannel', \@swports);
-
-    if ($resp) {
-	my ($ifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $resp);
-	$self->debug("$id gets $ifindex ($resp)\n",1);
-	return $ifindex;
+    my @getcmds = ();
+    foreach my $ifindex (@swports) {
+	push @getcmds, ["get","$MLNX_IFC_PREFIX/$ifindex/lag/membership"];
     }
 
-    return undef;
+    my $resp = $self->callRPC(\@getcmds);
+
+    if (!defined($resp)) {
+	warn "Failed to lookup port channel membership on $self->{NAME}.\n";
+	return undef;
+    }
+
+    # Go through the LAG membership for each port.  If it's '0', then
+    # the port doesn't belong to a LAG.  Otherwise, lookup the LAG's
+    # ifindex and set it to be returned.  The index returned by the
+    # above "get" calls corresponds to the interface number,
+    # e.g. "Po1", not to the ifindex of the LAG interface. As with other
+    # snmpit modules, we'll take the first valid interface we find here.
+    foreach my $rv (@$resp) {
+	my (undef, undef, $chidx) = @$rv;
+	if ($chidx != 0 && exists($self->{IFINDEX}{"Po${chidx}"})) {
+	    $chifindex = $self->{IFINDEX}{"Po${chidx}"};
+	    last;
+	}
+    }
+
+    # If no port channel was found, but only one port was provided, attempt
+    # to set the return value to its ifindex.  This follows the semantics in
+    # snmpit_cisco.pm
+    if (!defined($chifindex) && scalar(@swports) == 1 && 
+	exists($self->{IFINDEX}{$swports[0]})) {
+	$chifindex = $self->{IFINDEX}{$swports[0]};
+    }
+
+    $self->debug("$id gets $ifindex\n",1);
+    return $ifindex;
 }
 
 
@@ -1298,18 +1334,25 @@ sub setVlansOnTrunk($$$$) {
 	return 0;
     }
 
-    my ($swport) = $self->convertPortFormat($PORT_FORMAT_SYSDB, $modport);
-    my $resp = $self->callRPC($id, 'setAllowedVlansOnTrunkedPort', $swport,
-			      ($value?1:0), \@vlan_numbers);
-    if ($resp) {
-	if (int($resp) == -1) {
-	    warn "$id: port $modport is normal port, " .
-		"refusing to add vlan(s) @vlan_numbers\n";
-	}
+    my ($poifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $modport);
+    if ($self->{IFINDEX}{$poifindex} !~ /^Po\d+$/) {
+	warn "$id: port $modport is not a portchannel - not adding/removing vlans!\n";
 	return 0;
-    } else {
-	return 1;
     }
+
+    my @setcmds = ();
+    my $action = $value ? "add" : "delete";
+    # XXX: argh!  Deal with case where we are trying to remove the last vlan
+    # from the allowed list.
+    foreach my $vlnum (@vlan_numbers) {
+	push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/$action",{ vlan_ids => $vlnum }];
+    }
+
+    my $resp = $self->callRPC(\@setcmds);
+    if (!defined($resp)) {
+	return 0;
+    }
+    return 1;
 }
 
 #
@@ -1335,18 +1378,46 @@ sub enablePortTrunking2($$$$) {
 	return 0;
     }
 
-    if (!defined($native_vlan)) {
-	$native_vlan = -1;
-    }
+    my ($ifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $port);
 
-    my ($swport) = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
-    my $resp = $self->callRPC($id, 'enablePortTrunking',
-			      $swport, $native_vlan, ($equaltrunking?1:0));
-    if ($resp) {
-	return 1;
-    } else {
+    my $pstate = $self->getPortState($ifindex);
+    if (!defined($pstate)) {
+	warn "$id: unable to get port state for ifindex $ifindex\n";
 	return 0;
     }
+
+    my @setcmds = ();
+    if ($equaltrunking) {
+	# Don't try to change the mode if it's already 'trunk' (will
+	# throw an error).
+	push @setcmds, ["set-modify","$MLNX_IFC_PREFIX/$ifindex/vlans/mode=trunk"]
+	    if $pstate->{$ifindex}{MODE} ne "trunk";
+
+	# By default Mellanox puts all existing vlans in the 'allowed'
+	# list when a port is placed in 'trunk' mode.  So, we zap the
+	# whole list, save for the given native vlan.  Major derp on
+	# Mellanox's part: You can't ask to delete a vlan from the
+	# allowed list if it isn't actually in the list (even within a
+	# range spec).  Therefore, we have to list out the known vlans
+	# individually for deletion.
+	foreach my $vlnum ($self->getAllVlanNumbers()) {
+	    push @setcmds, ["action","$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", { vlan_ids => $vlnum }]
+		if $vlnum != $native_vlan;
+	}
+    } else {
+	# Mellanox does _not_ put all existing vlans in the allowed list when
+	# a port is placed in 'hybrid' mode.  Way to be consistent guys!
+	push @setcmds, ["set-modify","$MLNX_IFC_PREFIX/$ifindex/vlans/mode=hybrid"]
+	    if $pstate->{$ifindex}{MODE} ne "hybrid";
+	push @setcmds, ["set-modify","$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$native_vlan"];
+    }
+
+    my $resp = $self->callRPC(\@setcmds);
+    if (!defined($resp)) {
+	return 0;
+    }
+
+    return 1;
 }
 
 #
@@ -1361,14 +1432,26 @@ sub disablePortTrunking($$) {
 
     $self->debug($id."\n");
 
-    my ($swport) = $self->convertPortFormat($PORT_FORMAT_SYSDB, $port);
-    my $resp = $self->callRPC($id, 'disablePortTrunking',
-			      $swport);
-    if ($resp) {
-	return 1;
-    } else {
+    my ($ifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $port);
+    my $pstate = $self->getPortState($ifindex);
+    if (!defined($pstate)) {
+	warn "$id: unable to get port state for ifindex $ifindex\n";
 	return 0;
     }
+
+    my @setcmds = ();
+    push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/mode=access"];
+    if ($pstate->{$ifindex}{MODE} eq "hybrid") {
+	# The port "forgets" what its native vlan was set to when the mode is
+	# changed to "access", so we put it back as the access vlan.
+	push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$pstate->{$ifindex}{PVID}"];
+    }
+    my $resp = $self->callRPC(\@setcmds);
+    if (!defined($resp)) {
+	return 0;
+    }
+
+    return 1;
 }
 
 
