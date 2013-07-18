@@ -57,6 +57,7 @@ my @pget_test1 = (
     ["get","/mlnxos/v1/vsr/default_vsr/interfaces/101/supported_speed"],
     ["get","/mlnxos/v1/vsr/default_vsr/interfaces/101/configured_speed"],
     ["get","/mlnxos/v1/vsr/default_vsr/interfaces/101/actual_speed"],
+    ["get","/mlnxos/v1/vsr/default_vsr/interfaces/101/lag/membership"],
     ["submit"]
 );
 
@@ -107,8 +108,29 @@ my @vport_test1 = (
     ["submit"]
 );
 
+my @trunk_test1 = (
+    ["name", "Trunk Test (Eth1/8) #1"],
+    ["action","/mlnxos/v1/vsr/default_vsr/vlans/add",{vlan_id => 666}],
+    ["set-modify","/mlnxos/v1/vsr/default_vsr/vlans/666/name=testvlan1"],
+    ["action","/mlnxos/v1/vsr/default_vsr/vlans/add",{vlan_id => 777}],
+    ["set-modify","/mlnxos/v1/vsr/default_vsr/vlans/666/name=testvlan2"],
+    ["set-modify","/mlnxos/v1/vsr/default_vsr/interfaces/101/vlans/mode=trunk"],
+    ["action","/mlnxos/v1/vsr/default_vsr/interfaces/101/vlans/allowed/add",{vlan_ids => "666"}],
+    ["action","/mlnxos/v1/vsr/default_vsr/interfaces/101/vlans/allowed/add",{vlan_ids => "777"}],
+    ["submit"],
+    ["get","/mlnxos/v1/vsr/default_vsr/interfaces/101/vlans/allowed/*"],
+    ["get","/mlnxos/v1/vsr/default_vsr/interfaces/101/vlans/mode"],
+    ["submit"],
+    ["action","/mlnxos/v1/vsr/default_vsr/interfaces/101/vlans/allowed/delete",{vlan_ids => "666"}],
+    ["action","/mlnxos/v1/vsr/default_vsr/interfaces/101/vlans/allowed/delete",{vlan_ids => "777"}],
+    ["set-modify","/mlnxos/v1/vsr/default_vsr/interfaces/101/vlans/mode=access"],
+    ["action","/mlnxos/v1/vsr/default_vsr/vlans/delete",{vlan_id => 666}],
+    ["action","/mlnxos/v1/vsr/default_vsr/vlans/delete",{vlan_id => 777}],
+    ["submit"]
+);
+
 # List the tests to run here.
-my @testsets = (\@get_test1, \@pget_test1);
+my @testsets = (\@pget_test1,);
 
 my %opts = ();
 

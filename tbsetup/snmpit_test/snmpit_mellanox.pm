@@ -49,12 +49,11 @@ my $MLNX_IFC_PREFIX = "$MLNX_VSR/interfaces";
 my $MLNX_VLAN_PREFIX = "$MLNX_VSR/vlans";
 
 my $MLNX_DEF_VLAN = 1;
-my $RPC_NODATA = "_NULL_";
 
 # status indicators for ports (ifTable entries).
 my $STATUS_UP = 1;
 my $STATUS_DOWN = 2;
-my $SNMP_NO_INSTANCE = "NOSUCHINSTNCE";
+my $SNMP_NO_INSTANCE = "NOSUCHINSTANCE";
 
 #
 # Port status and control.
@@ -178,13 +177,13 @@ sub new($$$;$) {
     #
     my $test_case = $self->get1("sysObjectID", 0);
     if (!defined($test_case)) {
-	warn "WARNING: Unable to retrieve via SNMP from $self->{NAME}\n";
+	warn "ERROR: Unable to retrieve via SNMP from $self->{NAME}\n";
 	return undef;
     }
 
     # Creat ifindex interface map
     if (!$self->readifIndex()) {
-	warn "WARNING: Unable to produce iftable map for $self->{NAME}\n";
+	warn "ERROR: Unable to produce ifindex map for $self->{NAME}\n";
 	return undef;
     }
 
@@ -205,7 +204,7 @@ sub initSNMPSession($) {
 	#
 	# Bomb out if the session could not be established
 	#
-	warn "WARNING: Unable to connect via SNMP to $self->{NAME}\n";
+	warn "ERROR: Unable to connect via SNMP to $self->{NAME}\n";
 	return 0;
     }
 
@@ -221,7 +220,7 @@ sub initRPCSession($) {
     $self->{CLT} = eval { MLNX_XMLGateway->new("$self->{USER}:$self->{PASS}\@".
 					       "$self->{NAME}") };
     if ($@) {
-	warn "WARNING: Unable to create XML-gateway object for ".
+	warn "ERROR: Unable to create XML-gateway object for ".
 	     "$self->{NAME}: $@\n";
 	return 0;
     }
@@ -240,13 +239,14 @@ sub initRPCSession($) {
 #
 sub readifIndex($) {
     my $self = shift;
-    $self->debug($self->{NAME} . "::readifIndex:\n", 2);
+    my $id = $self->{NAME} . "::readifIndex";
+    $self->debug("$id:\n", 2);
 
     my $rows = snmpitBulkwalkFatal($self->{SESS}, ["ifDescr"]);
 
     if (!@$rows) {
-	warn "WARNING: No interface description rows returned (snmp) ".
-	     "while attempting to build ifindex table!";
+	warn "$id: ERROR: No interface description rows returned ".
+	     "while attempting to build ifindex table.\n";
 	return 0;
     }
 
@@ -254,7 +254,7 @@ sub readifIndex($) {
 	my ($name,$ifindex,$descr) = @$rowref;
 	$self->debug("got $name, $ifindex, description: $descr\n", 2);
 	if ($name ne "ifDescr") {
-	    warn "WARNING: Foreign snmp var returned: $name";
+	    warn "$id: WARNING: Foreign snmp var returned: $name";
 	    return 0;
 	}
 	# Ethernet ports and port channels are all we care about.
@@ -280,7 +280,7 @@ sub callRPC {
 
     my $resp = eval { $self->{CLT}->call($callstack) };
     if ($@) {
-	warn "WARNING: XML-gateway call failed to self->{NAME}, error: $@\n";
+	warn "WARNING: XML-gateway call failed to self->{NAME}: $@\n";
 	return undef;
     }
 
@@ -354,6 +354,8 @@ sub convertPortFormat($$@) {
     my $output = shift;
     my @ports = @_;
 
+    my $id = $self->{NAME} . "::convertPortFormat";
+
     #
     # Avoid warnings by exiting if no ports given
     # 
@@ -366,7 +368,7 @@ sub convertPortFormat($$@) {
     #
     my $sample = $ports[0];
     if (!defined($sample)) {
-	warn "convertPortFormat: Given a bad list of ports\n";
+	warn "$id: Given a bad list of ports\n";
 	return undef;
     }
 
@@ -418,7 +420,7 @@ sub convertPortFormat($$@) {
     #
     # Some combination we don't know how to handle
     #
-    warn "convertPortFormat: Bad input/output combination ($input/$output)\n";
+    warn "$id: Bad input/output combination ($input/$output)\n";
     return undef;    
 }
 
@@ -494,6 +496,7 @@ sub getAllVlanNumbers($) {
 
     my $resp = $self->callRPC(["get", "$MLNX_VLAN_PREFIX/*"]);
     return () if !defined($resp);
+
     my @vlnums = ();
     foreach my $rv (@$resp) {
 	push @vlnums, $rv->[2];
@@ -511,13 +514,14 @@ sub getPortState($$) {
     my ($self, $ports) = @_;
 
     my %ret = ();
+    my $id = $self->{NAME} . "::getPortState";
 
     if (ref($ports) eq "ARRAY") {
 	# nothing to do - just a valid case.
     } elsif ($ports eq "ALL") {
 	@{$ports} = map {$_ if $_ =~ /^\d+$/} keys %{$self->{IFINDEX}};
     } else {
-	warn "Invalid argument passed to getPortState().\n";
+	warn "$id: WARNING: Invalid argument\n";
 	return undef;
     }
 
@@ -531,7 +535,8 @@ sub getPortState($$) {
 
     my $resp = $self->callRPC(\@getcmds);
     if (!defined($resp)) {
-	warn "getPortState() Failed to obtain information for requested ports on $self->{NAME}.\n";
+	warn "$id: WARNING: Failed to obtain information for requested ".
+	     "ports.\n";
 	return undef;
     }
 
@@ -573,7 +578,7 @@ sub getPortState($$) {
 	    };
 
 	    DEFCASE:
-	    warn "Unexpected path returned from $self->{NAME}: $path.\n";
+	    warn "$id: WARNING: Unexpected path found in response.";
 	}
     }
 
@@ -603,6 +608,7 @@ sub portControl ($$@) {
     my $cmd = shift;
     my @ports = @_;
 
+    my $id = $self->{NAME} . "::portControl";
     my $errors = 0;
     
     $self->debug("portControl: $cmd -> (".Port->toStrings(@ports).")\n");
@@ -622,10 +628,11 @@ sub portControl ($$@) {
     if (defined $cmdPaths{$cmd}) {
 	my $path = $cmdPaths{$cmd};
 	foreach my $ifport (@ifports) {
-	    my $cmd = [$path->[0], "$MLNX_IFC_PREFIX/$ifindex/$path->[1]", 
+	    my $cmd = [$path->[0], "$MLNX_IFC_PREFIX/$ifport/$path->[1]", 
 		       $path->[2]];
 	    my $retval = $self->callRPC($cmd);
 	    if (!defined($retval)) {
+		warn "$id: WARNING: Failed to execute $cmd on $ifport.\n";
 		$errors++;
 	    }
 	}
@@ -689,7 +696,7 @@ sub findVlans($@) {
 	    $mps{$vlan_id} = undef;
 	}
     }
-    $self->debug("$id RPC results: ".Dumper(\%mps));
+    $self->debug("$id RPC results: " . Dumper(\%mps), 2);
     return %mps;
 }
 
@@ -706,7 +713,7 @@ sub findVlan($$;$) {
     my $self = shift;
     my $vlan_id = shift;
     my $no_retry = shift; # ignored here
-    my $id = $self->{NAME} . ":findVlan";
+    my $id = $self->{NAME} . "::findVlan";
 
     $self->debug("$id ( $vlan_id )\n",2);
 
@@ -730,10 +737,10 @@ sub createVlan($$$) {
     my $self = shift;
     my $vlan_id = shift;
     my $vlan_number = shift;
-    my $id = $self->{NAME} . ":createVlan";
+    my $id = $self->{NAME} . "::createVlan";
 
     if (!defined($vlan_number)) {
-	warn "$id called without supplying vlan_number";
+	warn "$id: WARNING: called without supplying vlan_number";
 	return 0;
     }
 
@@ -741,7 +748,7 @@ sub createVlan($$$) {
     my $check_number = $self->findVlan($vlan_id,1);
     if (defined($check_number)) {
 	if ($check_number != $vlan_number) {
-	    warn "  ERROR: $id: Not creating $vlan_id because it already ".
+	    warn "$id: WARNING: Not creating $vlan_id because it already ".
 	         "exists with name $check_number\n";
 	    $self->unlock();
             return 0;
@@ -759,7 +766,7 @@ sub createVlan($$$) {
     $self->unlock();
     
     if (!defined($resp)) {
-	warn "  WARNING: $id Creating VLAN $vlan_id as VLAN #$vlan_number on ".
+	warn "$id: WARNING: Creating VLAN $vlan_id as VLAN #$vlan_number on ".
 	     "$self->{NAME} failed.\n";
 	# XXX: Why shouldn't this be a hard failure?
     }
@@ -801,22 +808,28 @@ sub setPortVlan($$@) {
     my $id = $self->{NAME} . "::setPortVlan($vlan_number)";
     $self->debug($id."\n");
 
+    # Vlan must exist before being used in this function.
     if (!$self->vlanNumberExists($vlan_number)) {
-	warn "VLAN $vlan_number does not exist on $self->{NAME}\n";
+	warn "$id: WARNING: VLAN $vlan_number does not exist.\n";
 	return 1;
     }
 
+    # Anything to do?
     return 0 unless(@ports);
 
     my @swports = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
 
+    $self->lock();
     my $pstates = $self->getPortState(\@swports);
     if (!defined($pstates)) {
-	warn "Failed to get port states on $self->{NAME}\n";
+	warn "$id: WARNING: Failed to get port states.\n";
+	$self->unlock();
 	return scalar(@ports);
     }
 
     my @setcmds = ();
+    # Figure out what to do based on the mode each port is in.  Queue up the
+    # right command(s).
     foreach my $ifindex (@swports) {
         MODESW: for ($pstates->{$ifindex}{MODE}) {
 	    /^access$/ && do {
@@ -825,13 +838,21 @@ sub setPortVlan($$@) {
 	    };
 
 	    /^trunk$/ && do {
+		# Only attempt to add the vlan if it isn't already in the
+		# port's allowed list.
 		if (!exists($pstates->{$ifindex}{ALLOWED}{$vlan_number})) {
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", {vlan_ids => $vlan_number}];
+		    # Remove the default vlan sentinel if it's present.
+		    if (exists($pstates->{$ifindex}{ALLOWED}{$MLNX_DEF_VLAN})) {
+			push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $MLNX_DEF_VLAN}];
+		    }
 		}
 		last MODESW;
 	    };
 
 	    /^hybrid$/ && do {
+		# Only add the vlan to the port's list if it isn't already
+		# there, or if it isn't the native vlan.
 		if (!exists($pstates->{$ifindex}{ALLOWED}{$vlan_number})
 		    && $pstates->{$ifindex}{PVID} != $vlan_number) {
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", {vlan_ids => $vlan_number}];
@@ -839,8 +860,7 @@ sub setPortVlan($$@) {
 	    };
 
 	    # default case
-	    warn "WARNING: Unknown port mode for ifindex $ifindex on ".
-		 "$self->{NAME}: $_";
+	    warn "$id: WARNING: Unknown port mode for ifindex $ifindex: $_\n";
 	    $errors++;
 	}
 	  
@@ -881,7 +901,7 @@ sub delPortVlan($$@) {
     $self->debug($id."\n");
 
     if (!$self->vlanNumberExists($vlan_number)) {
-	warn "VLAN $vlan_number does not exist on $self->{NAME}\n";
+	warn "$id: WARNING: VLAN $vlan_number does not exist.\n";
 	return 1;
     }
     
@@ -889,9 +909,11 @@ sub delPortVlan($$@) {
 
     my @swports = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
 
+    $self->lock();
     my $pstates = $self->getPortState(\@swports);
     if (!defined($pstates)) {
-	warn "Failed to get port states on $self->{NAME}\n";
+	warn "$id: WARNING: Failed to get port states.\n";
+	$self->unlock();
 	return scalar(@ports);
     }
 
@@ -917,14 +939,14 @@ sub delPortVlan($$@) {
 		# If the vlan is in the allowed list for this trunk
 		# link, then remove it from the list.
 		if (exists($ifc{ALLOWED}{$vlan_number})) {
-		    if (scalar(keys %{$ifc{ALLOWED}}) == 1) {
+		    if (keys(%{$ifc{ALLOWED}}) == 1) {
 			# If we are removing the last vlan in the
 			# list, then emit a warning and add the
 			# default vlan since a port in "trunk" mode
 			# must be a member of at least one vlan.
 			push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", { vlan_ids => $MLNX_DEF_VLAN }];
-			warn "WARNING: Removing last vlan from an equal-mode ".
-			     "trunk's allowed list on $self->{NAME} ".
+			warn "$id: WARNING: Removing last vlan from an ".
+			     "equal-mode trunk's allowed list ".
 			     "(ifindex: $ifindex).\n";
 		    }
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $vlan_number}];
@@ -938,7 +960,7 @@ sub delPortVlan($$@) {
 		# on the port.  Emit a warning when doing this.
 		if ($ifc{PVID} == $vlan_number) {
 		    push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$MLNX_DEF_VLAN"];
-		    warn "WARNING: native vlan removal requested on ".
+		    warn "$id: WARNING: native vlan removal requested on ".
 			 "dual-mode trunk port on $self->{NAME} ".
 			 "(ifindex: $ifindex).\n";
 		}
@@ -953,12 +975,13 @@ sub delPortVlan($$@) {
 	    };
 
 	    # default
-	    warn "Unknown port mode - $_ - for ifindex $ifindex on $self->{NAME}";
+	    warn "$id: WARNING: Unknown port mode ($_) for ifindex $ifindex.\n";
 	    $errors++;
 	}
     }
 
     my $resp = $self->callRPC(\@setcmds);
+    $self->unlock();
 
     # XXX: This is pretty indiscriminate...  If anything fails, we say
     # everything failed!
@@ -1041,16 +1064,24 @@ sub removeVlan($@) {
     my $errors = 0;
     my $id = $self->{NAME} . "::removeVlan";
     
+    $self->removePortsFromVlan(@vlan_numbers);
+
+    my @setcmds = ();
+    $self->lock();
+    my @curvlans = $self->getAllVlanNumbers();
     foreach my $vlan_number (@vlan_numbers) {
-	$self->removePortsFromVlan($vlan_number);
-	my $resp = $self->callRPC(["action", "$MLNX_VLAN_PREFIX/delete", {vlan_id => $vlan_number}]);
-	if (!defined($resp)) {
-	    warn "$id remove VLAN #$vlan_number failed on $self->{NAME}.\n"
-	    $errors++;
-	}
+	push @setcmds, ["action", "$MLNX_VLAN_PREFIX/delete", {vlan_id => $vlan_number}]
+	    if grep(/^$vlan_number$/, @curvlans);
     }
-   
-    return ($errors == 0) ? 1 : 0;
+
+    my $resp = $self->callRPC(\@setcmds);
+    $self->unlock();
+    if (!defined($resp)) {
+	warn "$id: failed on $self->{NAME}.\n";
+	return scalar(@vlan_numbers);
+    }
+
+    return 0;
 }
 
 #
@@ -1059,7 +1090,7 @@ sub removeVlan($@) {
 # portControl().
 #
 sub UpdateField($$$@) {
-    warn "ERROR: snmpit_mellanox does not support UpdateField().\n";
+    warn "WARNING: snmpit_mellanox does not support UpdateField().\n";
     return 0;
 }
 
@@ -1073,7 +1104,7 @@ sub vlanHasPorts($$) {
 
     my $pstates = $self->getPortState("ALL");
     if (!defined($pstates)) {
-	warn "Failed to get port states on $self->{NAME}\n";
+	warn "$id: WARNING: Failed to get port states.\n";
 	return 0;
     }
 
@@ -1102,7 +1133,7 @@ sub listVlans($) {
 
     my $pstates = $self->getPortState("ALL");
     if (!defined($pstates)) {
-	warn "Failed to get port states on $self->{NAME}\n";
+	warn "$id: WARNING: Failed to get port states.\n";
 	return undef;
     }
 
@@ -1113,13 +1144,13 @@ sub listVlans($) {
     
     my $resp = $self->callRPC(\@vlcmds);
     if (!defined($resp) || !@$resp) {
-	warn "Unable to get vlan names on $self->{NAME}\n";
+	warn "$id: WARNING: Unable to get vlan names.\n";
 	return undef;
     }
 
     foreach my $rv (@$resp) {
 	my ($path, $type, $vlname) = @{$rv};
-	my $path =~ qr|^$MLNX_VLAN_PREFIX/(\d+)/|;
+	$path =~ qr|^$MLNX_VLAN_PREFIX/(\d+)/|;
 	my $vlnum = $1;
 	my @vlifindexes = ();
 	foreach my $ifindex (keys %$pstates) {
@@ -1278,7 +1309,7 @@ sub getChannelIfIndex($@) {
     my $resp = $self->callRPC(\@getcmds);
 
     if (!defined($resp)) {
-	warn "Failed to lookup port channel membership on $self->{NAME}.\n";
+	warn "$id: WARNING: Failed to lookup port channel membership.\n";
 	return undef;
     }
 
@@ -1304,8 +1335,8 @@ sub getChannelIfIndex($@) {
 	$chifindex = $self->{IFINDEX}{$swports[0]};
     }
 
-    $self->debug("$id gets $ifindex\n",1);
-    return $ifindex;
+    $self->debug("$id gets $chifindex\n",1);
+    return $chifindex;
 }
 
 
@@ -1321,38 +1352,71 @@ sub getChannelIfIndex($@) {
 sub setVlansOnTrunk($$$$) {
     my ($self, $modport, $value, @vlan_numbers) = @_;
     my $id = $self->{NAME} . "::setVlansOnTrunk";
+    my $errors = 0;
 
     #
     # Some error checking (from HP)
     #
     if (($value != 1) && ($value != 0)) {
-	warn "Invalid value $value passed to setVlansOnTrunk\n";
+	warn "$id: WARNING: Invalid value $value passed to function.\n";
 	return 0;
     }
     if (grep(/^1$/,@vlan_numbers)) {
-	warn "VLAN 1 passed to setVlansOnTrunk\n";
+	warn "$id: WARNING: VLAN 1 passed to function.\n";
 	return 0;
     }
 
     my ($poifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $modport);
     if ($self->{IFINDEX}{$poifindex} !~ /^Po\d+$/) {
-	warn "$id: port $modport is not a portchannel - not adding/removing vlans!\n";
+	warn "$id: WARNING: port $modport is not a portchannel - ".
+	     "not adding/removing vlans.\n";
 	return 0;
     }
 
+    $self->lock();
     my @setcmds = ();
-    my $action = $value ? "add" : "delete";
-    # XXX: argh!  Deal with case where we are trying to remove the last vlan
-    # from the allowed list.
+    # Yuck.  Have to process each vlan in turn, and deal with the "empty list"
+    # problem.  More details in the comments below.
     foreach my $vlnum (@vlan_numbers) {
-	push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/$action",{ vlan_ids => $vlnum }];
+	# Need to refresh the port's state each time since each iteration
+	# modifies it.  We could try to do our own bookkeeping here, but it
+	# would get messy.
+	my $pstate = $self->getPortState([$poifindex]);
+	if (!defined($pstate)) {
+	    warn "$id: WARNING: Could not get port state for ifindex $poifindex\n";
+	    $errors++;
+	    next;
+	}
+	# Only attempt removal if the vlan is actually in the allowed list.
+	if ($value == 0 && exists($pstate->{$poifindex}{ALLOWED}{$vlnum})) { 
+	    # If removing the last entry, then add the default
+	    # vlan as a sentinel.  Trunks have to have at least
+	    # one entry in their allowed list on Mellanox switches.
+	    if (keys(%{$pstate->{$poifindex}{ALLOWED}}) == 1) {
+		push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/add",{ vlan_ids => $MLNX_DEF_VLAN }];
+	    }
+	    push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/delete",{ vlan_ids => $vlnum }];
+	}
+	# Only add the vlan if it isn't already in the allowed list.
+	elsif ($value == 1 && !exists($pstate->{$poifindex}{ALLOWED}{$vlnum})) {
+	    push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/add",{ vlan_ids => $vlnum }];
+	    # If adding vlans, check to see if the default vlan (sentinel)
+	    # is in the allowed list.  Zap it if so.
+	    if (exists($pstate->{$poifindex}{ALLOWED}{$MLNX_DEF_VLAN})) {
+		push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/delete",{ vlan_ids => $MLNX_DEF_VLAN }];
+	    }
+	}
+	
+	my $resp = $self->callRPC(\@setcmds);
+	$self->unlock();
+	if (!defined($resp)) {
+	    warn "$id: WARNING: Could not add vlan $vlnum to portchannel ".
+		 "with ifindex $poifindex\n";
+	    $errors++;
+	} 
     }
 
-    my $resp = $self->callRPC(\@setcmds);
-    if (!defined($resp)) {
-	return 0;
-    }
-    return 1;
+    return $errors ? 0 : 1;
 }
 
 #
@@ -1374,15 +1438,16 @@ sub enablePortTrunking2($$$$) {
     $self->debug($id."\n");
     if ((!$equaltrunking) &&
 	(!defined($native_vlan) || ($native_vlan <= 1))) {
-	warn "$id: inappropriate or missing PVID for trunk\n";
+	warn "$id: WARNING: inappropriate or missing PVID for trunk.\n";
 	return 0;
     }
 
     my ($ifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $port);
 
-    my $pstate = $self->getPortState($ifindex);
+    $self->lock();
+    my $pstate = $self->getPortState([$ifindex]);
     if (!defined($pstate)) {
-	warn "$id: unable to get port state for ifindex $ifindex\n";
+	warn "$id: WARNING: unable to get port state for ifindex $ifindex\n";
 	return 0;
     }
 
@@ -1406,13 +1471,15 @@ sub enablePortTrunking2($$$$) {
 	}
     } else {
 	# Mellanox does _not_ put all existing vlans in the allowed list when
-	# a port is placed in 'hybrid' mode.  Way to be consistent guys!
+	# a port is placed in 'hybrid' mode.  It starts off empty. Way to be 
+	# consistent guys!
 	push @setcmds, ["set-modify","$MLNX_IFC_PREFIX/$ifindex/vlans/mode=hybrid"]
 	    if $pstate->{$ifindex}{MODE} ne "hybrid";
 	push @setcmds, ["set-modify","$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$native_vlan"];
     }
 
     my $resp = $self->callRPC(\@setcmds);
+    $self->unlock();
     if (!defined($resp)) {
 	return 0;
     }
@@ -1433,10 +1500,22 @@ sub disablePortTrunking($$) {
     $self->debug($id."\n");
 
     my ($ifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $port);
-    my $pstate = $self->getPortState($ifindex);
+
+    $self->lock();
+    my $pstate = $self->getPortState([$ifindex]);
     if (!defined($pstate)) {
-	warn "$id: unable to get port state for ifindex $ifindex\n";
+	warn "$id: WARNING: unable to get port state for ifindex $ifindex\n";
+	$self->unlock();
 	return 0;
+    }
+
+    # If for whatever reason the port is already in access mode, we just
+    # abort and report success.
+    if ($pstate->{$ifindex}{MODE} eq "access") {
+	warn "$id: WARNING: Interface with ifindex $ifindex is ".
+	     "already in access mode";
+	$self->unlock();
+	return 1;
     }
 
     my @setcmds = ();
