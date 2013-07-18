@@ -1,5 +1,6 @@
 #!/usr/bin/ruby
 
+$: << File.dirname(__FILE__)
 require 'GrubConf'
 
 def command?(name)
