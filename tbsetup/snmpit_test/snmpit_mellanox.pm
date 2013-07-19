@@ -76,7 +76,7 @@ my $PORT_FORMAT_MLNX      = 3;
 # Creates a new object. 
 #
 # usage: new($classname,$devicename,$debuglevel,$community)
-#        returns a new object, blessed into the snmpit_arista class.
+#        returns a new object, blessed into the snmpit_mellanox class.
 #
 sub new($$$;$) {
 
@@ -1542,10 +1542,6 @@ sub disablePortTrunking($$) {
 #        oids: A list of OIDs to reteive values for
 #
 # On sucess, returns a two-dimensional list indexed by port,oid
-#
-# Note: Since we mostly use XML-RPC to communicate with Arista switch,
-#       this function is just borrowed from snmpit_hp without any big
-#       change. Let's hope it can work...
 #
 sub getFields($$$) {
     my $self = shift;

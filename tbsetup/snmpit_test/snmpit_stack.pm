@@ -1618,6 +1618,12 @@ sub snap($) {
 			$device = new snmpit_arista($devicename, $self->{DEBUG});
 			last;
 		}; # /arista.*/
+	    (/mellanox/)
+		    && do {
+		require snmpit_mellanox;
+		$device = new snmpit_mellanox($devicename,$self->{DEBUG});
+		last;
+	        }; # /mellanox.*/
 	    print "Device $devicename is not of a known type\n";
 	}
 	if (!$device) {
