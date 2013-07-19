@@ -966,11 +966,12 @@ sub commit_mail($$$\@$@) {
     #
     # Show clone URLs
     #
-    my $cloneurls = $BODYSEP;
+    my $cloneurls = "";
     if ($include_urls) {
         my $ssh_url = get_clone_url($CLONE_SSH);
         my $public_url = get_clone_url($CLONE_PUBLIC);
 
+        $cloneurls .= $BODYSEP;
         $cloneurls .= "Clone via ssh: $ssh_url\n";
         if ($public_url) {
             # This one might not be set, since the repo may only be
