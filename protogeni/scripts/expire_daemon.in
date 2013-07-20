@@ -67,6 +67,7 @@ my $IDLETIMES	  = "$TB/sbin/idletimes";
 my $EMULAB_PEMFILE = "$TB/etc/genicm.pem";
 my $REGISTER      = "$TB/sbin/protogeni/register_sliver";
 my $CLEANUPSLICE  = "$TB/sbin/cleanupslice";
+my $CLEANUPTICKET = "$TB/sbin/cleanupticket";
 my $SLEEP_INTERVAL= 60;
 
 # un-taint path
@@ -135,6 +136,7 @@ use libtestbed;
 use emutil;
 use libEmulab;
 use Logfile;
+use Project;
 
 #
 # So we know who/what we are acting as.
@@ -199,19 +201,56 @@ sub ExpireTickets()
 	    print STDERR "Could not lock ticket $ticket\n";
 	    goto skip;
 	}
+	my $slice = $ticket->slice();
+	#
+	# Lock the slice from further access.
+	#
+	if ($slice->Lock() != 0) {
+	    $ticket->UnLock();
+	    print STDERR "Could not lock ticket slice $slice\n";
+	    goto skip;
+	}
+	my $experiment = $slice->GetExperiment();
+	if (!defined($experiment)) {
+	    $ticket->UnLock();
+	    $slice->UnLock();
+	    print STDERR "Could not get experiment for $ticket\n";
+	    goto skip;
+	}
+	my $ticket_idx = $ticket->idx();
+	    
 	print "Expiring ticket $ticket\n";
-
-	if ($ticket->Release(GeniTicket::TICKET_EXPIRED()) != 0) {
+	my $output = emutil::ExecQuiet("$CLEANUPTICKET -f $ticket_idx");
+	my $status = $?;
+	my $logfile = Logfile->CreateFromString($experiment->gid_idx(),
+						$output);
+	if (defined($logfile)) {
+	    $logfile->SetMetadata([["ticket_idx",  $ticket->idx()],
+				   ["slice_idx",   $slice->idx()],
+				   ["slice_urn",   $slice->urn()],
+				   ["slice_uuid",  $slice->uuid()],
+				   # For web interface listing
+ 				   ["Method",     "CleanupTicket"],
+				  ], 1);
+	    $logfile->Store();
+	}
+	if ($status) {
 	    print STDERR "Could not delete $ticket\n";
 	    SENDMAIL($TBOPS, "Could not delete ticket $idx",
-		     "Could not delete ticket $ticket");
+		     "Could not delete ticket $ticket\nfor $slice");
 	    # We leave it locked.
 	}
 	else {
 	    print STDERR "$ticket has been deleted\n";
+	    $slice->UnLock();
 	}
       skip:
-	$ticket->Flush();
+	$ticket->Flush()
+	    if (defined($ticket));
+	$slice->Flush()
+	    if (defined($slice));
+	$experiment->Flush()
+	    if (defined($experiment));
     }
 }
 
@@ -441,7 +480,7 @@ sub ExpireSlices()
 	else {
 	    print STDERR "$output\n";
 	}
-	if ($?) {
+	if ($status) {
 	    print STDERR "Could not release $slice\n";
 	    SENDMAIL($TBOPS, "Could not release slice $slice",
 		     "Could not release slice $slice");
