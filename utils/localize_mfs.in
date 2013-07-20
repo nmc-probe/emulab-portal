@@ -34,8 +34,9 @@ sub usage()
     print("Usage: localize_mfs [-d] [-c vga|sio|sio2|sio3|sio4|null] <path>\n");
     exit(-1);
 }
-my $optlist = "dc:";
+my $optlist = "dc:i";
 my $debug   = 0;
+my $igbcruft= 0;
 
 #
 # Configure variables
@@ -102,6 +103,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"i"})) {
+    $igbcruft = 1;
 }
 if (defined($options{"c"})) {
     $MFSCONSOLE = $options{"c"};
@@ -261,6 +265,14 @@ sub LocalizeBSD()
 	== 0 or goto bad;
     ExecQuiet("echo '$passhash' | $PW -V $mpoint/etc usermod root -H 0")
 	== 0 or goto bad;
+
+    #
+    # IGB cruft; See the comment in loader.conf.orig about this. 
+    #
+    if ($igbcruft) {
+	ExecQuiet("$SED -i -e 's,^#kern\.ipc\.nmb,kern.ipc.nmb,' " .
+		  "     loader.conf.orig") == 0 or goto bad;
+    }
 
     #
     # Console handling.
