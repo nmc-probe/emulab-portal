@@ -3798,13 +3798,19 @@ COMMAND_PROTOTYPE(dorpms)
 	bp  = row[0];
 	sp  = bp;
 	do {
+		char *bufp = buf, *ebufp = &buf[sizeof(buf)];
 		bp = strsep(&sp, ":");
 
 		if (vers < 36) {
 			OUTPUT(buf, sizeof(buf), "RPM=%s\n", bp);
-		} else {
-			OUTPUT(buf, sizeof(buf), "SERVER=%s RPM=%s\n",
-			       srv, bp);
+		}
+		else {
+			bufp += OUTPUT(bufp, ebufp - bufp, "SERVER=%s ", srv);
+			if (vers >= 37 &&
+			    reqp->sharing_mode[0] && reqp->isvnode) {
+				bufp += OUTPUT(bufp, ebufp - bufp, "USEWEB=1 ");
+			}
+			OUTPUT(bufp, ebufp - bufp, "RPM=%s\n", bp);
 		}
 		client_writeback(sock, buf, strlen(buf), tcp);
 		if (verbose)
@@ -3855,6 +3861,8 @@ COMMAND_PROTOTYPE(dotarballs)
 	bp  = row[0];
 	sp  = bp;
 	do {
+		char *bufp = buf, *ebufp = &buf[sizeof(buf)];
+		
 		bp = strsep(&sp, ":");
 		if ((tp = strchr(bp, ' ')) == NULL)
 			continue;
@@ -3864,8 +3872,14 @@ COMMAND_PROTOTYPE(dotarballs)
 			OUTPUT(buf, sizeof(buf),
 			       "DIR=%s TARBALL=%s\n", bp, tp);
 		} else {
-			OUTPUT(buf, sizeof(buf),
-			       "SERVER=%s DIR=%s TARBALL=%s\n", srv, bp, tp);
+			bufp += OUTPUT(bufp, ebufp - bufp, "SERVER=%s ", srv);
+			if (vers >= 37 &&
+			    reqp->sharing_mode[0] && reqp->isvnode) {
+				bufp += OUTPUT(bufp,
+					       ebufp - bufp, "USEWEB=1 ");
+			}
+			OUTPUT(bufp, ebufp - bufp,
+			       "DIR=%s TARBALL=%s\n", bp, tp);
 		}
 		client_writeback(sock, buf, strlen(buf), tcp);
 		if (verbose)
