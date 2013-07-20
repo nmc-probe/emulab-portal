@@ -229,5 +229,5 @@ $myops  add-attribute XEN_MEMSIZE 1000
 # Note that the FreeBSD guest starts with the root disk on da0 and the
 # swap disk on da1. So we start at da2 ...
 #
-tb-set-elabinelab-role-attribute "boss" "EXTRADISKS" "da2:/usr/testbed,da3:/usr/testbed/data,da4:/usr/testbed/log"
-tb-set-elabinelab-role-attribute "ops"  "EXTRADISKS" "da2:/usr/testbed,da3:/q,da4:/share"
+tb-set-elabinelab-role-attribute "boss" "EXTRADISKS" "da1:/usr/testbed,da2:/usr/testbed/data,da3:/usr/testbed/log"
+tb-set-elabinelab-role-attribute "ops"  "EXTRADISKS" "da1:/usr/testbed,da2:/q,da3:/share"
