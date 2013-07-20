@@ -82,6 +82,9 @@ Utah Emulab is also the DNS server for the control node IPs. So in
 
 Be sure to change the serial number at the top of the file.
 
+ALSO: need to add new boss/ops ips to boss:/etc/namedb/named.conf
+so that they can do recursive lookups.
+
 Now run named_setup to get named restarted on boss. Be sure to tail
 /var/log/messages to make sure no problems in the restart. 
 
