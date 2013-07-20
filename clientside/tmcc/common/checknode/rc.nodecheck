@@ -40,6 +40,14 @@ MFSPROJDIR=/proj/emulab-ops
 # defaults will be collect=0 check=0 
 
 #
+# XXX compat with other Emulab rc.* scripts
+# We only run on a "boot" invocation, not shutdown/reconfig/reset.
+#
+if [ $# -gt 0 -a "$1" != "boot" ]; then
+    exit 0
+fi
+
+#
 # XXX see if hwinfo returns anything. If not, assume node checks are not
 # supported and don't bother with the rest.
 #
