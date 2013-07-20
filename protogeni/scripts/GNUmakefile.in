@@ -35,11 +35,11 @@ ISCLEARINGHOUSE = @PROTOGENI_ISCLEARINGHOUSE@
 
 include $(OBJDIR)/Makeconf
 
-SBIN_STUFF	= cleanupslice gencabundle
+SBIN_STUFF	= cleanupslice gencabundle cleanupticket
 PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  addauthority getcacerts \
 		  gencrlbundle shutdownslice remauthority listusage \
-		  update reregister cleanupticket listhistory \
+		  update reregister listhistory \
 		  register_sliver sa_daemon genadmincredential \
 		  getchcredential genallow_extcred advt-merge.py \
 		  reservevlans delgeniuser delegatecredential \
@@ -53,7 +53,7 @@ endif
 
 # These scripts installed setuid, with sudo. 
 SETUID_BIN_SCRIPTS   = 
-SETUID_SBIN_SCRIPTS  = cleanupslice gencabundle
+SETUID_SBIN_SCRIPTS  = cleanupslice gencabundle cleanupticket
 SETUID_LIBX_SCRIPTS  =
 
 #
@@ -69,6 +69,7 @@ install: $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
 	$(addprefix $(INSTALL_SBINDIR)/protogeni/, $(PSBIN_STUFF)) \
 	$(INSTALL_LIBEXECDIR)/webcacontrol \
 	$(INSTALL_LIBEXECDIR)/webmaptoslice
+	-rm -f $(INSTALL_SBINDIR)/protogeni/cleanupticket
 
 control-install:
 
