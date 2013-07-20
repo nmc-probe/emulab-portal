@@ -97,8 +97,7 @@ my %configvars = ("address"    => undef,
 		  "forwarders" => undef,
 		  "hostname"   => undef,
 		  "timezone"   => undef,
-		  "rootpswd"   => undef,
-		  "adminuser"  => undef);
+		  "rootpswd"   => undef);
 
 open(CN, $filename)
     or Fatal("Could not open $filename: $!");
@@ -211,15 +210,19 @@ if (-e "$MNTPOINT/etc/lastadmin") {
 	system("chroot $MNTPOINT /usr/local/bin/mkadmin.pl -r $lastadmin") == 0
 	    or Fatal("Could not add admin user");
     }
+    unlink("$MNTPOINT/etc/lastadmin");
 }
 
-my $admin = $configvars{"adminuser"};
-print "Adding admin user $admin\n";
-system("/bin/cp -f $pubkey $MNTPOINT/tmp/key.pub") == 0
-    or Fatal("Could not copy $pubkey to $MNTPOINT/tmp");
-system("chroot $MNTPOINT /usr/local/bin/mkadmin.pl $admin /tmp/key.pub") == 0
-    or Fatal("Could not add admin user");
-system("echo '$admin' > $MNTPOINT/etc/lastadmin");
+if (exists($configvars{"adminuser"})) {
+    my $admin = $configvars{"adminuser"};
+    print "Adding admin user $admin\n";
+    system("/bin/cp -f $pubkey $MNTPOINT/tmp/key.pub") == 0
+	or Fatal("Could not copy $pubkey to $MNTPOINT/tmp");
+    system("chroot $MNTPOINT ".
+	   "/usr/local/bin/mkadmin.pl $admin /tmp/key.pub")
+	== 0 or Fatal("Could not add admin user");
+    system("echo '$admin' > $MNTPOINT/etc/lastadmin");
+}
 
 exit(0)
     if (!$snapshot);
