@@ -354,7 +354,7 @@ sub doboot()
 	runbootscript(\%manifest,$RCDIR,'rc.healthd','boot','start');
     }
     
-    if (-x "$RCDIR/rc.slothd" && !REMOTE()) {
+    if (-x "$RCDIR/rc.slothd" && (SHAREDHOST() || !REMOTE())) {
 	print("Starting slothd usage detector\n");
 	runbootscript(\%manifest,$RCDIR,'rc.slothd','boot','start');
     }
