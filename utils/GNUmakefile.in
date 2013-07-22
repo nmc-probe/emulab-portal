@@ -50,7 +50,7 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  addvpubaddr imageinfo ctrladdr image_import \
 		  prereserve_check tcppd addexternalnetwork \
 		  update_sitevars delete_image sitecheckin sitecheckin_client \
-		  mktestbedtest fixrootcert addservers
+		  mktestbedtest fixrootcert addservers poolmonitor
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
                   webwanodecheckin webspewimage webdumpdescriptor \

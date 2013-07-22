@@ -177,7 +177,10 @@ sub Install($$$)
 		      "$LOGDIR/sa_daemon.log          640  9     1000 *     Z ".
 		      "/var/run/sa_daemon.pid",
 		      "$LOGDIR/foam.log               640  7     *    168   Z",
-		      "$LOGDIR/flowvisor.log          640  7    1000  *     Z");
+		      "$LOGDIR/flowvisor.log          640  7    1000  *     Z",
+		      "$LOGDIR/poolmonitor.log        644  7    2000  *     Z ".
+			      "/var/run/poolmonitor.pid",
+		);
 			      
 	};
     };

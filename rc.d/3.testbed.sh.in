@@ -117,6 +117,11 @@ case "$1" in
 			@prefix@/sbin/portal_daemon
 		fi
 
+		if [ -x @prefix@/sbin/poolmonitor ]; then
+			echo -n " poolmonitor"
+			@prefix@/sbin/poolmonitor
+		fi
+
 		if [ -x @prefix@/sbin/tcppd ]; then
 		        echo -n " tcppd"
 			@prefix@/sbin/tcppd &
@@ -194,6 +199,9 @@ case "$1" in
 		fi
 		if [ -r /var/run/portal_daemon.pid ]; then
 			kill `cat /var/run/portal_daemon.pid`
+		fi
+		if [ -r /var/run/poolmonitor.pid ]; then
+			kill `cat /var/run/poolmonitor.pid`
 		fi
 		if [ -r /var/run/tcppd.pid ]; then
 			kill `cat /var/run/tcppd.pid`
