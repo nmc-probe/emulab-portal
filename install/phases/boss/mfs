@@ -158,11 +158,15 @@ sub Install($$$)
 	#
 	# Localize the MFSs
 	#
+	# This opt says to include igb cruft. Needed on G8s.
+	#
+	my $opt = ($PROTOGENI_GENIRACK ? "-i" : "");
+	
 	Phase "localize", "Localizing the MFSes", sub {
 	    foreach my $mfs ("frisbee", "freebsd", "freebsd.newnode") {
 		Phase "$mfs", "Localizing $mfs", sub {
 		    DoneIfExists("$TFTP_DIR/$mfs/boot/mfsroot.gz");
-		    ExecQuietFatal("$LOCALIZE_MFS $TFTP_DIR/$mfs");
+		    ExecQuietFatal("$LOCALIZE_MFS $opt $TFTP_DIR/$mfs");
 		};
 	    }
 	};
