@@ -30,7 +30,7 @@
 <attribute name="attr_integer_virtnode_capacity">  <value>100</value></attribute>
 <attribute name="attr_integer_virtnode_disksize">  <value>4096</value></attribute>
 <attribute name="attr_boolean_has_management_iface">  <value>1</value></attribute>
-<attribute name="attr_string_management_iface_type">  <value>ilo</value></attribute>
+<attribute name="attr_string_management_iface_type">  <value>ilo3</value></attribute>
 <attribute name="attr_string_dom0mem">  <value>2038M</value></attribute>
 <attribute name="attr_boolean_add_management_iface">  <value>1</value></attribute>
 <attribute name="node_type">  <value>dl360</value></attribute>
