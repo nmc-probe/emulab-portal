@@ -363,7 +363,7 @@ sub slicename($)
 {
     my ($self) = @_;
 
-    my ($slicename) = ($self->hrn() =~ /^.*\.(\w*)$/);
+    my ($slicename) = ($self->hrn() =~ /^.*\.([-\w]*)$/);
     $slicename = $self->hrn()
 	if (!defined($slicename));
 
