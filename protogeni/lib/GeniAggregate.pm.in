@@ -2146,7 +2146,7 @@ sub Create($$$$$$)
 	return undef;
     }
     # We support gre and egre, only.
-    my $tunnel_type = GeniXML::TunnelStyle($linkrspec);
+    my $tunnel_type = GeniXML::TunnelType($linkrspec);
     if (!defined($tunnel_type)) {
 	print STDERR "Could not create tunnel aggregate: Bad tunnel type\n";
 	print STDERR GeniXML::Serialize($linkrspec, 1);
