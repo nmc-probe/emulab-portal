@@ -378,7 +378,7 @@ sub DispatchCallStack($$) {
 
     # Purty print the response.
     if ($DEBUG > 2) {
-	debugpr "XML Response from switch:\n". XMLPrettyPrint($dom) ."\n";
+	debugpr "XML Response from switch:\n". XMLPrettyPrint($respdom) ."\n";
     }
 
     # Allow any die() exceptions to just flow on through.

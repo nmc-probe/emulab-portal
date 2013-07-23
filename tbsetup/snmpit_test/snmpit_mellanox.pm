@@ -43,7 +43,7 @@ use Port;
 use Data::Dumper;
 
 # Mellanox REST API static paths
-my $MLNX_BASE  = "/mlnx/v1";
+my $MLNX_BASE  = "/mlnxos/v1";
 my $MLNX_VSR   = "$MLNX_BASE/vsr/default_vsr";
 my $MLNX_IFC_PREFIX = "$MLNX_VSR/interfaces";
 my $MLNX_VLAN_PREFIX = "$MLNX_VSR/vlans";
@@ -225,6 +225,11 @@ sub initRPCSession($) {
 	return 0;
     }
 
+    # Enable debugging in gateway wrapper library if set for snmpit.
+    if ($self->{DEBUG} > 0) {
+	$self->{CLT}->debug($self->{DEBUG});
+    }
+
     return 1;
 }
 
@@ -242,7 +247,7 @@ sub readifIndex($) {
     my $id = $self->{NAME} . "::readifIndex";
     $self->debug("$id:\n", 2);
 
-    my $rows = snmpitBulkwalkFatal($self->{SESS}, ["ifDescr"]);
+    my ($rows) = snmpitBulkwalkFatal($self->{SESS}, ["ifDescr"]);
 
     if (!@$rows) {
 	warn "$id: ERROR: No interface description rows returned ".
@@ -502,6 +507,8 @@ sub getAllVlanNumbers($) {
 	push @vlnums, $rv->[2];
     }
 
+    $self->debug("Found VLANS: @vlnums\n", 2);
+    
     return @vlnums;
 }
 
@@ -519,7 +526,8 @@ sub getPortState($$) {
     if (ref($ports) eq "ARRAY") {
 	# nothing to do - just a valid case.
     } elsif ($ports eq "ALL") {
-	@{$ports} = map {$_ if $_ =~ /^\d+$/} keys %{$self->{IFINDEX}};
+	$ports = [];
+	@{$ports} = grep {/^\d+$/} keys %{$self->{IFINDEX}};
     } else {
 	warn "$id: WARNING: Invalid argument\n";
 	return undef;
@@ -544,7 +552,7 @@ sub getPortState($$) {
 	my ($path, $type, $val) = @$rv;
         RETPATH: for ($path) {
 	    my $ifindex;
-	    qr|^$MLNX_IFC_PREFIX/(\d+)/| && do {
+	    /^$MLNX_IFC_PREFIX\/(\d+)\// && do {
 		$ifindex = $1;
 		if (!exists($ret{$ifindex})) {
 		    $ret{$ifindex} = {};
@@ -557,22 +565,22 @@ sub getPortState($$) {
 	    };
 	    goto DEFCASE unless defined($ifindex);
 
-	    qr|vlans/pvid$| && do {
+	    /vlans\/pvid$/ && do {
 		$ret{$ifindex}{PVID} = $val;
 		last RETPATH;
 	    };
 
-	    qr|vlans/allowed/\d+$| && do {
+	    /vlans\/allowed\/\d+$/ && do {
 		$ret{$ifindex}{ALLOWED}{$val} = 1;
 		last RETPATH;
 	    };
 
-	    qr|vlans/mode$| && do {
+	    /vlans\/mode$/ && do {
 		$ret{$ifindex}{MODE} = $val;
 		last RETPATH;
 	    };
 
-	    qr|enabled$| && do {
+	    /enabled$/ && do {
 		$ret{$ifindex}{ENABLED} = $val;
 		last RETPATH;
 	    };
@@ -681,21 +689,36 @@ sub findVlans($@) {
     my $id = $self->{NAME} . "::findVlans";
     $self->debug("$id\n");
 
+    my %all = ();
     my %mps = ();
-    if (!@vlan_ids) {
-	@vlan_ids = $self->getAllVlanNumbers();
-    }
-    foreach my $vlan_id (@vlan_ids) {
-	my $resp = $self->callRPC(["get", "$MLNX_VLAN_PREFIX/$vlan_id/name"]);
-	# XXX: if the return value is not defined (indicating an error
-	# talking to the switch), should we return undef, or just a null
-	# mapping?  I'm thinking the former...
+
+    foreach my $vlnum ($self->getAllVlanNumbers()) {
+	my $resp = $self->callRPC(["get", "$MLNX_VLAN_PREFIX/$vlnum/name"]);
 	if (defined($resp) && @$resp) {
-	    $mps{$vlan_id} = $resp->[2];
-	} else {
-	    $mps{$vlan_id} = undef;
+	    my $vlid = $resp->[0]->[2] ? $resp->[0]->[2] : "unnamed-$vlnum";
+	    $self->debug("$id: Adding $vlid => $vlnum\n",2);
+	    $all{$vlid} = $vlnum;
 	}
     }
+
+    # Filter through looking for those vlans that we care about.
+    #
+    # XXX: if the return value is not defined (indicating an error
+    # talking to the switch), should we return undef, or just a null
+    # mapping?  I'm thinking the former...
+    foreach my $vlid (@vlan_ids) {
+	if (exists($all{$vlid})) {
+	    $mps{$vlid} = $all{$vlid};
+	} else {
+	    $mps{$vlid} = undef;
+	}
+    }
+
+    # Did caller ask for info on all vlans?
+    if (!@vlan_ids) {
+	%mps = %all;
+    }
+
     $self->debug("$id RPC results: " . Dumper(\%mps), 2);
     return %mps;
 }
@@ -761,7 +784,7 @@ sub createVlan($$$) {
 	"$self->{NAME} ...\n";
 
     my $crcmd = ["action", "$MLNX_VLAN_PREFIX/add", {vlan_id => $vlan_number}];
-    my $nmcmd = ["set-modify","$MLNX_VLAN_PREFIX/$vlan_id/name=$vlan_id"];
+    my $nmcmd = ["set-modify","$MLNX_VLAN_PREFIX/$vlan_number/name=$vlan_id"];
     my $resp = $self->callRPC([$crcmd, $nmcmd]);
     $self->unlock();
     
@@ -1162,7 +1185,8 @@ sub listVlans($) {
 	my @ports = $self->convertPortFormat($PORT_FORMAT_PORT, @vlifindexes);
 	push @list, [$vlname, $vlnum, \@ports];
     }
-    
+
+    $self->debug("vlan list:\n".Dumper(\@list), 2);
     return @list;
 }
 
@@ -1183,23 +1207,28 @@ sub listPorts($) {
 
     my $id = $self->{NAME}."::listPorts";
 
-    my $ifTable = [$PORT_ADMIN_STATUS, 0];
     my ($varname, $modport, $ifIndex, $portIndex, $status, $portname);
-    $self->{SESS}->getnext($ifTable);
-    do {
+
+    for (my $ifTable = [$PORT_ADMIN_STATUS, 0]; 
+	 $self->{SESS}->getnext($ifTable);
+	 $varname =~ /^$PORT_ADMIN_STATUS/) 
+    {
 	($varname,$ifIndex,$status) = @{$ifTable};
 
+	# Skip non-Ethernet ports.
+	next unless exists($self->{IFINDEX}{$ifIndex})
+	    && $self->{IFINDEX}{$ifIndex} =~ /^Eth/;			   
+
 	# Make sure this port is wired up and connecting to a node.
-	my $port = $self->convertPortFormat($PORT_FORMAT_PORT, $ifIndex);
-	if (defined($port) && defined($port->GetOtherEndPort())) {
+	my ($port) = $self->convertPortFormat($PORT_FORMAT_PORT, $ifIndex);
+	if (defined($port) && defined($port->getOtherEndPort())) {
 	    $self->debug("$varname $ifIndex $status\n");
 	    if ($varname =~ /$PORT_ADMIN_STATUS/) { 
 		$Able{$ifIndex} = ($status =~ /up/ || "$status" eq $STATUS_UP)  ? "yes" : "no";
-		$NodePorts{$ifIndex} = $port->GetOtherEndPort();
+		$NodePorts{$ifIndex} = $port->getOtherEndPort();
 	    }
 	}
-	$self->{SESS}->getnext($ifTable);
-    } while ( $varname =~ /^$PORT_ADMIN_STATUS/) ;
+    }
 
     foreach $ifIndex (keys %Able) {
 	my ($link, $speed);
@@ -1210,11 +1239,11 @@ sub listPorts($) {
 
 	$status = $self->get1($PORT_SPEED, $ifIndex);
 	if (defined($status)) {
-	    $speed = "$status"."Mbs";
+	    $speed = "$status"."Mbps";
 	}
 
 	push @rv, [$NodePorts{$ifIndex}, $Able{$ifIndex},
-		   $link, $speed, "duplex"];
+		   $link, $speed, "full"];
     }
 
     return @rv;
@@ -1252,10 +1281,14 @@ sub getStats() {
 	while (@$array) {
 	    my ($name,$ifindex,$value) = @{shift @$array};
 
+	    # We only want the Ethernet ports.
+	    next unless exists($self->{IFINDEX}{$ifindex})
+		&& $self->{IFINDEX}{$ifindex} =~ /^Eth/;
+
 	    # Make sure this port is wired up and connecting to a node.
-	    my $swport = $self->convertPortFormat($PORT_FORMAT_PORT, $ifindex);
-	    if (defined($swport) && defined($swport->GetOtherEndPort())) {
-		my $nportstr = $swport->GetOtherEndPort()->toTripleString();
+	    my ($swport) = $self->convertPortFormat($PORT_FORMAT_PORT, $ifindex);
+	    if (defined($swport) && defined($swport->getOtherEndPort())) {
+		my $nportstr = $swport->getOtherEndPort()->toTripleString();
 		$allports{$nportstr} = $swport;
 		${$stats{$nportstr}}[$i] = $value;
 	    }
