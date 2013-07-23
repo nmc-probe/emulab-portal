@@ -47,6 +47,8 @@ use emutil qw(TBGetUniqueIndex);
 use GeniUtil;
 use GeniHRN;
 use GeniXML;
+use GeniSlice;
+use GeniUsage;
 use English;
 use XML::Simple;
 use XML::LibXML;
@@ -236,6 +238,7 @@ sub slice($)            { return $_[0]->{'slice'}; }
 sub slice_uuid($)	{ return $_[0]->slice()->uuid(); }
 sub slice_hrn($)	{ return $_[0]->slice()->hrn(); }
 sub slice_urn($)	{ return $_[0]->slice()->urn(); }
+sub slice_idx($)	{ return $_[0]->slice()->idx(); }
 sub LOCKED($)           { return $_[0]->{'LOCKED'}; }
 
 
