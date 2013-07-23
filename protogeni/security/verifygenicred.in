@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -337,10 +337,14 @@ if( opendir( DIR, "$GENICERTS/local" ) ) {
 # covers the credential and all the parents up to the top.
 #
 foreach my $sigid (keys(%credentials)) {
+    my $nosigref = 0;
+  again:
     my $cmd = "$XMLSEC1 --verify --store-signatures ";
     $cmd .= "--print-debug "
 	if ($debug);
-    $cmd .= "--node-id Sig_$sigid $certarg $xmlfile";
+    $cmd .= "--node-id ". ($nosigref ? $sigid : "Sig_${sigid}");
+
+    $cmd .= "$certarg $xmlfile";
     print STDERR "$cmd\n"
 	if ($debug);
 
@@ -370,9 +374,18 @@ foreach my $sigid (keys(%credentials)) {
 	    $issuer = undef;
 	}
     }
-    close(SEC) or
-	fatal($! ? "Error closing $XMLSEC1 pipe: $!"
-	         : "Exit status $? from $XMLSEC1");
+    if (!close(SEC)) {
+	if (! $|) {
+	    fatal("Error closing $XMLSEC1 pipe: $!");
+	}
+	if ($debug) {
+	    print STDERR "Exit status $? from $XMLSEC1\n";
+	}
+    }
+    if ($bad && !$nosigref) {
+	$nosigref = 1;
+	goto again;
+    }
     fatal("$sigid in $xmlfile did not verify!")
 	if ($bad);
 }

@@ -30,6 +30,7 @@
 use strict;
 use English;
 use Getopt::Std;
+use Data::Dumper;
 
 #
 # Generate a speaksfor credential, useful only for testing.
@@ -37,11 +38,11 @@ use Getopt::Std;
 #
 sub usage()
 {
-    print STDERR "Usage: $0 <user-urn> <speaker-urn>";
-    print STDERR "[permission,delegate ...]\n";
+    print STDERR "Usage: $0 [-a] <user-urn> <speaker-urn>";
     exit(1);
 }
-my $optlist = "";
+my $optlist = "a";
+my $doabac  = 0;
 
 # Configure ...
 my $TB		  = "@prefix@";
@@ -75,6 +76,9 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"a"})) {
+    $doabac = 1;
+}
 usage()
     if (@ARGV < 2);
 my $user_urn = shift();
@@ -98,14 +102,54 @@ if (!defined($speaker)) {
     fatal("No such speaker in the DB");
 }
 
-my $credential = GeniCredential->Create($geniuser, $speaker);
-fatal("Could not create credential")
-    if (!defined($credential));
-$credential->SetType("speaksfor");
-fatal("Could not sign speaksfor credential")
-    if ($credential->Sign($speaker->GetCertificate()));
+if ($doabac) {
+    require ABAC;
+    import ABAC;
 
-print $credential->{'string'};
+    my $userfile = $geniuser->GetCertificate()->WriteToFile(1);
+    fatal("Could not write user cert/key to file!")
+	if (!defined($userfile));
+    my $speakerfile = $speaker->GetCertificate()->WriteToFile(1);
+    fatal("Could not write speaker cert/key to file!")
+	if (!defined($speakerfile));
+
+    my $abacuser = ABAC::ID->new($userfile);
+    fatal("Could not create user ABAC:ID")
+	if (!defined($abacuser));
+    $abacuser->load_privkey($userfile);
+
+    my $abactool = ABAC::ID->new($speakerfile);
+    fatal("Could not create speaker ABAC:ID")
+	if (!defined($abactool));
+    
+    my $abacattr = ABAC::Attribute->new($abacuser,
+					"speaks_for_" . $abacuser->keyid(),
+					365 * 24 * 60 * 60);
+    fatal("Could not create ABAC::Attribute")
+	if (!defined($abacattr));
+    
+    $abacattr->principal($abactool->keyid());
+    $abacattr->bake();
+    my $xml = $abacattr->cert_chunk();
+    if (0) {
+	my $cred = GeniCredential->CreateFromSigned($xml);
+	$cred->SetTargetCert($geniuser->GetCertificate());
+	$cred->SetOwnerCert($speaker->GetCertificate());
+	$cred->CheckCredential();
+    }
+    else {
+	print $xml;
+    }
+}
+else {
+    my $credential = GeniCredential->Create($geniuser, $speaker);
+    fatal("Could not create credential")
+	if (!defined($credential));
+    $credential->SetType("speaksfor");
+    fatal("Could not sign speaksfor credential")
+	if ($credential->Sign($speaker->GetCertificate()));
+    print $credential->{'string'};
+}
 exit(0);
 
 
