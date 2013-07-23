@@ -288,7 +288,9 @@ sub vz_init {
 #
 # Prepare the root context.  Run once at boot.
 #
-sub vz_rootPreConfig {
+sub vz_rootPreConfig($)
+{
+    my $bossip = shift;
     #
     # Only want to do this once, so use file in /var/run, which
     # is cleared at boot.

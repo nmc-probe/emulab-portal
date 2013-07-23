@@ -1,15 +1,43 @@
 #!/usr/local/bin/python
+#
+# Copyright (c) 2012-2013 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+from BaseHTTPServer import HTTPServer
 from BaseHTTPServer import BaseHTTPRequestHandler
 import urlparse
 import traceback
 import os
 import sys
 import syslog
+import socket
+import re
 
 # Configure variables
 TBDIR = "@prefix@"
 TBFACIL = "@TBLOGFACIL@"
 AVAIL = "@THISHOMEBASE@"
+
+# When debugging, runs in foreground printing to stdout instead of syslog
+debug = 0
 
 TBPATH = os.path.join(TBDIR, "lib")
 if TBPATH not in sys.path:
@@ -18,40 +46,30 @@ if TBPATH not in sys.path:
 
 from libdb        import *
 
-
 # This requires Python 2.6+
 class Ec2MetaHandler(BaseHTTPRequestHandler):
 
     def __init__(self, req, ca, huh):
-        facil = "LOG_" + TBFACIL.upper()
-        syslog.openlog("tmcd-meta", syslog.LOG_PID, getattr(syslog,facil))
         BaseHTTPRequestHandler.__init__(self,req,ca,huh)
 
-    def log_message(self, format, *args):
-        outtext = format
-        alen = len(args)
-        if alen == 0:
-            outtext = format
-        elif alen == 1:
-            outtext = format % (args[0])
-        elif alen == 2:
-            outtext = format % (args[0], args[1])
-        elif alen == 3:
-            outtext = format % (args[0], args[1], args[2])
-        elif alen == 4:
-            outtext = format % (args[0], args[1], args[2], args[3])
-        elif alen == 5:
-            outtext = format % (args[0], args[1], args[2], args[3],
-                        args[4])
+    ##
+    # Log a message to stdout, if in debug mode, otherwise write to syslog.
+    #
+    # @param msg The message to log.
+    #
+    def logit(self, msg):
+        if debug:
+            print msg
+            pass
         else:
-            outtext = "Too many format strings"
+            syslog.syslog(syslog.LOG_INFO, msg);
+            pass
+        return
 
-        # All this retardness is because someone decided that 
-        # that format string functionality was ONLY exposed
-        # through a shitty operator(%) and not through a real
-        # function, so now its impossible to use it with *args
-        # because of some restrictive front end checks, meh
-        syslog.syslog(outtext)
+    # Override so we can use above function.
+    def log_message(self, format, *args):
+        self.logit(format%args)
+        return
 
     def do_GET(self):
         parsed_path = urlparse.urlparse(self.path)
@@ -85,8 +103,10 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
         return
 
     def listmetas(self, metas):
-        message = "\n".join(map(lambda x: x + "/" if (x == "public-keys" or not(callable(metas[x])))  else x,
-                        metas.keys()));
+        message = "\n".join(map(lambda x: x + "/"
+                                if (x == "public-keys" or
+                                    not(callable(metas[x])))
+                                else x, metas.keys()));
         return message
 
     def handle_req(self, arg, metas):
@@ -128,7 +148,6 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
 
     def doavail(self, args):
         return AVAIL
-
 
     def domacs(self, args):
         #TODO
@@ -191,7 +210,10 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
             #TODO: Verify ig idx is within limits
             return "openssh-key"
         elif len(args) == 2:
-            val = int(args[0])
+            val = args[0]
+            # Always check args before using in query!
+            if not re.match("^[\d]*$", val):
+                return ""
             ip = self.client_address[0]
             rows = DBQueryWarn("select * from "
                 "((select user_pubkeys.pubkey from user_pubkeys "
@@ -229,11 +251,25 @@ class Ec2MetaHandler(BaseHTTPRequestHandler):
             "public-keys": dopublic_keys },
         "user-data" : do_userdata
     }
+    pass
 
+#
+# Check for debug flag.
+# 
+if len(sys.argv) > 1 and sys.argv[1] == "-d":
+    debug = 1
+    pass
 
-if __name__ == '__main__':
-    from BaseHTTPServer import HTTPServer
-    import socket
+#
+# Daemonize when not running in debug mode.
+#
+if not debug:
+    #
+    # Connect to syslog.
+    #
+    syslog.openlog("tmcd-meta", syslog.LOG_PID,
+                   getattr(syslog, "LOG_" + string.upper(TBFACIL)))
+    syslog.syslog(syslog.LOG_INFO, "EC2 Meta server starting up");
 
     #
     # Daemonize. We redirect our output into a log file cause I have no
@@ -241,7 +277,7 @@ if __name__ == '__main__':
     # Lifted from xmlrpc/sslxmlrpc_server.py.in
     #
     try:
-        fp = open(TBDIR + "/log/tmcd-meta.log", "a");
+        fp = open(TBDIR + "/log/ec2meta.log", "a");
         sys.stdout = fp
         sys.stderr = fp
         sys.stdin.close();
@@ -259,8 +295,6 @@ if __name__ == '__main__':
     os.setsid();
     pass
 
-    server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787),
-            Ec2MetaHandler)
-    server.serve_forever()
-
-
+server = HTTPServer((socket.gethostbyname(socket.gethostname()), 8787),
+                    Ec2MetaHandler)
+server.serve_forever()

@@ -111,7 +111,6 @@ my $BRCTL = "brctl";
 my $IFCONFIG = "/sbin/ifconfig";
 my $ETHTOOL = "/sbin/ethtool";
 my $ROUTE = "/sbin/route";
-my $IP = "/sbin/ip";
 my $SYSCTL = "/sbin/sysctl";
 my $VLANCONFIG = "/sbin/vconfig";
 my $MODPROBE = "/sbin/modprobe";
@@ -168,7 +167,7 @@ sub VGNAME()  { return $VGNAME; }
 ##
 
 # Maximum vnodes per physical host, used to size memory and disks
-my $MAX_VNODES = 16;
+my $MAX_VNODES = 32;
 
 # Minimum GB of disk per vnode
 my $MIN_GB_DISK = 6;
@@ -357,6 +356,14 @@ sub rootPreConfig($)
 	# This says to forward traffic across the bridge.
 	mysystem("$IPTABLES -A FORWARD ".
 		 "-m physdev --physdev-in $cnet_iface -j ACCEPT");
+
+	# Set up for metadata server for ec2 support
+	print "Setting up redirection for meta server...\n";
+	mysystem("$IPBIN addr add 169.254.169.254/32 ".
+		 "   scope global dev $cnet_iface");
+	mysystem("$IPTABLES -t nat -A PREROUTING -d 169.254.169.254/32 " .
+		 "   -p tcp -m tcp --dport 80 -j DNAT ".
+		 "   --to-destination ${bossip}:8787");
     }
     else {
 	if (!existsBridge($BRIDGENAME)) {
@@ -467,12 +474,6 @@ sub rootPreConfig($)
     print "Creating dhcp.conf skeleton...\n"
         if ($debug);
     createDHCP();
-
-    # Set up for metadata server for ec2 support
-    print "Setting up redirection for meta server...\n";
-    mysystem("$IP addr add 169.254.169.254/32 scope global dev $cnet_iface");
-    mysystem("$IPTABLES -t nat -A PREROUTING -d 169.254.169.254/32 -p tcp " .
-        "-m tcp --dport 80 -j DNAT --to-destination " . $bossip . ":8787");
 
     print "Creating scratch FS ...\n";
     if (createExtraFS($EXTRAFS, $VGNAME, "50G")) {

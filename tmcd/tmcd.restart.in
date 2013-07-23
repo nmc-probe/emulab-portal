@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2001-2010 University of Utah and the Flux Group.
+# Copyright (c) 2001-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -23,6 +23,7 @@
 #
 
 DIR=@prefix@/sbin
+EC2META_ENABLE=@EC2META_ENABLE@
 
 if [ -f /var/run/tmcd.pid ]
 then
@@ -38,6 +39,8 @@ fi
 
 
 sleep 1
-${DIR}/Ec2MetaServer.py
+if test $EC2META_ENABLE -ne 0; then
+    ${DIR}/Ec2MetaServer.py
+fi
 ${DIR}/tmcd -i @BOSSNODE_IP@
 exit 0
