@@ -37,6 +37,7 @@ use Data::Dumper;
 use libutil;
 use libgenvnode;
 use libsetup;
+use libtestbed;
 
 #
 # Magic control network config parameters.
@@ -95,27 +96,31 @@ sub forwardPort($;$) {
     # Are we removing or adding the rule?
     my $op = (defined($remove) && $remove) ? "D" : "A";
 
-    # Retry a few times cause of iptables locking stupidity.
-    for (my $i = 0; $i < 10; $i++) {
-	system("$IPTABLES -v -t nat -$op PREROUTING -p $protocol -d $ext_ip ".
-	       "--dport $ext_port -j DNAT ".
-	       "--to-destination $int_ip:$int_port");
-	
-	if ($? == 0) {
-	    return 0;
-	}
-	sleep(2);
+    #
+    # Oh jeez, iptables is about the dumbest POS I've ever seen;
+    # it fails if you run two at the same time. So we have to
+    # serialize the calls. 
+    #
+    if (TBScriptLock("iptables", 0, 900) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get the iptables lock after a long time!\n";
+	return -1;
     }
-
+    mysystem2("$IPTABLES -v -t nat -$op PREROUTING -p $protocol -d $ext_ip ".
+	      "--dport $ext_port -j DNAT ".
+	      "--to-destination $int_ip:$int_port");
+    TBScriptUnlock();
+	
+    if ($? == 0) {
+	return 0;
+    }
     # Operation failed after multiple retries - return error
-    print STDERR "WARNING: forwardPort: Failed to manipulate NAT after ".
-	         "several attempts!\n";
+    print STDERR "WARNING: forwardPort: Failed to manipulate NAT!\n";
     return -1;
 }
 
 sub removePortForward($) {
     my $ref = shift;
-    forwardPort($ref,1)
+    return forwardPort($ref,1);
 }
 
 #
