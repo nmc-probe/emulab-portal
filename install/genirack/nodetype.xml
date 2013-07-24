@@ -12,12 +12,12 @@
 <attribute name="isfednode">  <value>0</value></attribute>
 <attribute name="isswitch">  <value>0</value></attribute>
 <attribute name="attr_integer_bios_waittime">  <value>120</value></attribute>
-<attribute name="attr_integer_bootdisk_unit">  <value>0</value></attribute>
+<attribute name="attr_integer_bootdisk_unit">  <value>4</value></attribute>
 <attribute name="attr_string_control_interface">  <value>eth0</value></attribute>
 <attribute name="attr_integer_control_network">  <value>0</value></attribute>
 <attribute name="attr_integer_delay_capacity">  <value>1</value></attribute>
 <attribute name="attr_float_disksize">  <value>476.908</value></attribute>
-<attribute name="attr_string_disktype">  <value>da</value></attribute>
+<attribute name="attr_string_disktype">  <value>ad</value></attribute>
 <attribute name="attr_integer_frequency">  <value>2666</value></attribute>
 <attribute name="attr_boolean_imageable">  <value>1</value></attribute>
 <attribute name="attr_integer_max_interfaces">  <value>4</value></attribute>
