@@ -62,6 +62,13 @@ sub Install($$$)
 	    DeleteFileFatal($RCLOCAL);
 	};
 
+	Phase "emulabvar", "Removing stuff from /var/emulab/boot", sub {
+	    PhaseSkip("already deleted")
+		if (! -e "/var/emulab/boot/vmname");
+
+	    DeleteFileFatal("/var/emulab/boot/vmname");
+	};
+
 	Phase "ntpconf", "Installing better /etc/ntp.conf", sub {
 	    ExecQuietFatal("/bin/cp -fp $RACKNTPCONF $ETCNTPCONF");
 	};
