@@ -1181,7 +1181,7 @@ class experiment:
             return argerror
 
         nsfilename = None
-        argstr     = "-q"
+        argstr     = "-q -R"
 	extrainfo  = False
         
         for opt, val in argdict.items():

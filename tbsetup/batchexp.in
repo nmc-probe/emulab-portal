@@ -77,7 +77,7 @@ sub CheckCopyArgs();
 sub CopyInArchive();
 sub fatal($;$);
 
-my $optlist = "iE:g:e:p:S:L:a:l:sfwqt:nzc:bx:y:h:jkNX";	# Enough options?
+my $optlist = "iE:g:e:p:S:L:a:l:sfwqt:nzc:bx:y:h:jkNXR"; # Enough options?
 my $batchmode= 1;
 my $frontend = 0;
 my $waitmode = 0;
@@ -86,6 +86,7 @@ my $lockdown = 0;
 my $linktest = 0;	# non-zero means level to run at.
 my $zeemode  = 0;	# Hey, out of options.
 my $zeeopt   = "";	# To pass along.
+my $fromrpc  = 0;	# Invoked from XMLRPC server.
 my $genimode;           # Allow creation with no NS file, uuid given.
 my $savestate= 0;
 my $nonsfile = 0;	# Admin only option to activate experiment anyway.
@@ -1236,6 +1237,27 @@ sub ParseArgs()
     if (defined($options{"X"})) {
 	$quiet = 1;
 	$xmlout = 1;
+    }
+    if (defined($options{"R"})) {
+	$fromrpc = 1;
+	#
+	# Do not allow certain options to be turned off.
+	#
+	if (!$autoswap) {
+	    tbdie("Not allowed to disable autoswap from XMLRPC server");
+	}
+	if ($autoswaptime > (24 * 60)) {
+	    tbdie("Maximum autoswap timeout is 24 hours from XMLRPC server");
+	}
+	if (!$idleswap) {
+	    tbdie("Not allowed to disable idleswap from XMLRPC server");
+	}
+	if ($idleswaptime > (4 * 60)) {
+	    tbdie("Maximum autoswap timeout is 4 hours from XMLRPC server");
+	}
+	if (!$swappable) {
+	    tbdie("Not allowed to disable swappable from XMLRPC server");
+	}
     }
 }
 
