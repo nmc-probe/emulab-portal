@@ -1641,7 +1641,7 @@ sub vnodeHalt($$$$)
     my $childpid = fork();
     if ($childpid) {
 	local $SIG{ALRM} = sub { kill("TERM", $childpid); };
-	alarm 45;
+	alarm 60;
 	waitpid($childpid, 0);
 	my $stat = $?;
 	alarm 0;
