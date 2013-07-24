@@ -221,6 +221,15 @@ sub Online()
 		  " -s $vnode_ip -d $network/$cnet_mask");
 	return -1
 	    if ($?);
+
+	#
+	# Boss/ops/fs specific rules in case the control network is
+	# segmented like it is in Utah.
+	#
+	mysystem2("$IPTABLES -t nat -A POSTROUTING -j ACCEPT " . 
+		  " -s $vnode_ip -d $boss_ip,$ops_ip");
+	return -1
+	    if ($?);
     }
 
     # 
@@ -286,6 +295,9 @@ sub Offline()
     if (!REMOTEDED()) {
 	mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
 		  " -s $vnode_ip -d $network/$cnet_mask");
+
+	mysystem2("$IPTABLES -t nat -D POSTROUTING -j ACCEPT " . 
+		  " -s $vnode_ip -d $boss_ip,$ops_ip");
     }
 
     mysystem2("$IPTABLES -t nat -D POSTROUTING ".
