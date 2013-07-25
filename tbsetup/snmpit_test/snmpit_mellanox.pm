@@ -257,7 +257,7 @@ sub readifIndex($) {
 
     foreach my $rowref (@$rows) {
 	my ($name,$ifindex,$descr) = @$rowref;
-	$self->debug("got $name, $ifindex, description: $descr\n", 2);
+	$self->debug("got $name, $ifindex, description: $descr\n", 3);
 	if ($name ne "ifDescr") {
 	    warn "$id: WARNING: Foreign snmp var returned: $name";
 	    return 0;
@@ -285,7 +285,7 @@ sub callRPC {
 
     my $resp = eval { $self->{CLT}->call($callstack) };
     if ($@) {
-	warn "WARNING: XML-gateway call failed to self->{NAME}: $@\n";
+	warn "WARNING: XML-gateway call failed to $self->{NAME}: $@\n";
 	return undef;
     }
 
@@ -526,12 +526,15 @@ sub getPortState($$) {
     if (ref($ports) eq "ARRAY") {
 	# nothing to do - just a valid case.
     } elsif ($ports eq "ALL") {
+	$self->debug("$id: state for all ports requested.\n");
 	$ports = [];
 	@{$ports} = grep {/^\d+$/} keys %{$self->{IFINDEX}};
     } else {
 	warn "$id: WARNING: Invalid argument\n";
 	return undef;
     }
+
+    $self->debug("$id: getting state for ifindexes: @{$ports}\n",2);
 
     my @getcmds = ();
     foreach my $ifindex (@{$ports}) {
@@ -692,10 +695,17 @@ sub findVlans($@) {
     my %all = ();
     my %mps = ();
 
+    my @getcmds = ();
     foreach my $vlnum ($self->getAllVlanNumbers()) {
-	my $resp = $self->callRPC(["get", "$MLNX_VLAN_PREFIX/$vlnum/name"]);
-	if (defined($resp) && @$resp) {
-	    my $vlid = $resp->[0]->[2] ? $resp->[0]->[2] : "unnamed-$vlnum";
+	push @getcmds, ["get", "$MLNX_VLAN_PREFIX/$vlnum/name"];
+    }
+
+    my $resp = $self->callRPC(\@getcmds);
+    if (defined($resp) && @$resp) {
+	foreach my $rv (@$resp) {
+	    $rv->[0] =~ qr|^$MLNX_VLAN_PREFIX/(\d+)/|;
+	    my $vlnum = $1;
+	    my $vlid = $rv->[2] ? $rv->[2] : "unnamed-$vlnum";
 	    $self->debug("$id: Adding $vlid => $vlnum\n",2);
 	    $all{$vlid} = $vlnum;
 	}
@@ -930,6 +940,8 @@ sub delPortVlan($$@) {
     
     return 0 unless(@ports);
 
+    $self->debug("$id: incoming ports list: @ports\n",2);
+
     my @swports = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
 
     $self->lock();
@@ -997,9 +1009,11 @@ sub delPortVlan($$@) {
 		last MODESW;
 	    };
 
-	    # default
-	    warn "$id: WARNING: Unknown port mode ($_) for ifindex $ifindex.\n";
-	    $errors++;
+	    # default - if we get here, it's probably because the port is
+	    # a member of a portchannel.  Querying the mode seems to not
+	    # return anything in this case.  We don't want to do anything
+	    # directly to these ports in any case.
+	    $self->debug("$id: Unknown port mode ($_) for ifindex $ifindex.\n");
 	}
     }
 
@@ -1034,7 +1048,7 @@ sub removePortsFromVlan($@) {
     return 0 unless(@vlan_numbers);
 
     # Just the ifindexes ma'am (filter out the reverse mappings).
-    my @allports = map {$_ if $_ =~ /^\d+$/} keys %{$self->{IFINDEX}};
+    my @allports = grep {/^\d+$/} keys %{$self->{IFINDEX}};
 
     foreach my $vlan_number (@vlan_numbers) {
 	$errors += $self->delPortVlan($vlan_number, @allports);
@@ -1098,13 +1112,13 @@ sub removeVlan($@) {
     }
 
     my $resp = $self->callRPC(\@setcmds);
-    $self->unlock();
     if (!defined($resp)) {
 	warn "$id: failed on $self->{NAME}.\n";
-	return scalar(@vlan_numbers);
+	$errors = scalar(@vlan_numbers);
     }
 
-    return 0;
+    $self->unlock();
+    return $errors;
 }
 
 #
