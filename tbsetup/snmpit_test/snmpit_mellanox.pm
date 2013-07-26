@@ -107,6 +107,7 @@ sub new($$$;$) {
 
     # ifIndex mapping store
     $self->{IFINDEX} = {};
+    $self->{POIFINDEX} = {};
 
     #
     # Get config options from the database
@@ -263,9 +264,13 @@ sub readifIndex($) {
 	    return 0;
 	}
 	# Ethernet ports and port channels are all we care about.
-	next unless ($descr =~ /^(Eth\d+\/\d+|Po\d+)$/);
-	$self->{'IFINDEX'}{$descr}   = $ifindex;
-	$self->{'IFINDEX'}{$ifindex} = $descr;
+	if ($descr =~ /^Eth\d+\/\d+$/) {
+	    $self->{IFINDEX}{$descr}   = $ifindex;
+	    $self->{IFINDEX}{$ifindex} = $descr;
+	} elsif ($descr =~ /^Po\d+$/) {
+	    $self->{POIFINDEX}{$descr}   = $ifindex;
+	    $self->{POIFINDEX}{$ifindex} = $descr;
+	}
     }
 
     # Success
@@ -294,19 +299,19 @@ sub callRPC {
 
 sub PortInstance2ifindex($$) {
     my ($self, $Port) = @_;
-    my $portstr = $self->PortInstance2mlnx($Port);
 
-    if (exists($self->{IFINDEX}{$portstr})) {
-	return $self->{IFINDEX}{$portstr};
-    }
-
-    warn "WARNING: No such port on $self->{NAME}: $portstr\n";
-    return undef;
+    return $self->mlnx2ifindex($self->PortInstance2mlnx($Port));
 }
 
 sub PortInstance2mlnx($$) {
     my ($self, $Port) = @_;
-    return "Eth". $Port->card() ."/". $Port->port();
+
+    # Ports instances of type "other" are switch portchannels.
+    if ($Port->role() eq "other") {
+	return $Port->iface();
+    } else {
+	return "Eth". $Port->card() ."/". $Port->port();
+    }
 }
 
 sub ifindex2PortInstance($$) {
@@ -316,6 +321,8 @@ sub ifindex2PortInstance($$) {
 	$self->{IFINDEX}{$ifindex} =~ /^Eth(\d+)\/(\d+)$/;
 	return Port->LookupByStringForced(
 	    Port->Tokens2TripleString($self->{NAME}, $1, $2));
+    } elsif (exists($self->{POIFINDEX}{$ifindex})) {
+	return Port->LookupIface($self->{NAME}, $self->{POIFINDEX}{$ifindex});
     }
 
     warn "WARNING: No such port on $self->{NAME} with ifindex: $ifindex\n";
@@ -327,28 +334,26 @@ sub ifindex2mlnx($$) {
 
     if (exists($self->{IFINDEX}{$ifindex})) {
 	return $self->{IFINDEX}{$ifindex};
+    } elsif (exists($self->{POIFINDEX}{$ifindex})) {
+	return $self->{POIFINDEX}{$ifindex};
     }
 
-    warn "WARNING: No such port on $self->{NAME} with ifindex: $ifindex\n";
+    warn "WARNING: No such port on $self->{NAME} with ident: $ifindex\n";
     return undef;
 }
 
 sub mlnx2PortInstance($$) {
     my ($self, $mlnx) = @_;
-    $mlnx =~ /^Eth(\d+)\/(\d+)/;
-    return Port->LookupByStringForced(
-	Port->Tokens2TripleString($self->{NAME}, $1, $2));
+    
+    return $self->ifindex2PortInstance($self->mlnx2ifindex($mlnx));
 }
 
 sub mlnx2ifindex($$) {
     my ($self, $mlnx) = @_;
 
-    if (exists($self->{IFINDEX}{$mlnx})) {
-	return $self->{IFINDEX}{$mlnx};
-    }
-
-    warn "WARNING: No such port on $self->{NAME} with description: $mlnx\n";
-    return undef;
+    # The IFINDEX hash contains forward and reverse entries, so just
+    # call the reverse function.
+    return $self->ifindex2mlnx($mlnx);
 }
 
 #
@@ -528,7 +533,8 @@ sub getPortState($$) {
     } elsif ($ports eq "ALL") {
 	$self->debug("$id: state for all ports requested.\n");
 	$ports = [];
-	@{$ports} = grep {/^\d+$/} keys %{$self->{IFINDEX}};
+	@{$ports} = grep {/^\d+$/} ((keys %{$self->{IFINDEX}}), 
+				    (keys %{$self->{POIFINDEX}}));
     } else {
 	warn "$id: WARNING: Invalid argument\n";
 	return undef;
@@ -1295,9 +1301,8 @@ sub getStats() {
 	while (@$array) {
 	    my ($name,$ifindex,$value) = @{shift @$array};
 
-	    # We only want the Ethernet ports.
-	    next unless exists($self->{IFINDEX}{$ifindex})
-		&& $self->{IFINDEX}{$ifindex} =~ /^Eth/;
+	    # Skip if this isn't an Ethernet port.
+	    next unless exists($self->{IFINDEX}{$ifindex});
 
 	    # Make sure this port is wired up and connecting to a node.
 	    my ($swport) = $self->convertPortFormat($PORT_FORMAT_PORT, $ifindex);
@@ -1368,8 +1373,8 @@ sub getChannelIfIndex($@) {
     # snmpit modules, we'll take the first valid interface we find here.
     foreach my $rv (@$resp) {
 	my (undef, undef, $chidx) = @$rv;
-	if ($chidx != 0 && exists($self->{IFINDEX}{"Po${chidx}"})) {
-	    $chifindex = $self->{IFINDEX}{"Po${chidx}"};
+	if ($chidx != 0 && exists($self->{POIFINDEX}{"Po${chidx}"})) {
+	    $chifindex = $self->{POIFINDEX}{"Po${chidx}"};
 	    last;
 	}
     }
@@ -1414,7 +1419,7 @@ sub setVlansOnTrunk($$$$) {
     }
 
     my ($poifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $modport);
-    if ($self->{IFINDEX}{$poifindex} !~ /^Po\d+$/) {
+    if (!exists($self->{POIFINDEX}{$poifindex})) {
 	warn "$id: WARNING: port $modport is not a portchannel - ".
 	     "not adding/removing vlans.\n";
 	return 0;
