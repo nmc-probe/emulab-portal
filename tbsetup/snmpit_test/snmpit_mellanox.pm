@@ -322,7 +322,9 @@ sub ifindex2PortInstance($$) {
 	return Port->LookupByStringForced(
 	    Port->Tokens2TripleString($self->{NAME}, $1, $2));
     } elsif (exists($self->{POIFINDEX}{$ifindex})) {
-	return Port->LookupIface($self->{NAME}, $self->{POIFINDEX}{$ifindex});
+	return Port->LookupByStringForced(
+	    Port->Tokens2IfaceString($self->{NAME}, 
+				     $self->{POIFINDEX}{$ifindex}));
     }
 
     warn "WARNING: No such port on $self->{NAME} with ifindex: $ifindex\n";
@@ -884,6 +886,7 @@ sub setPortVlan($$@) {
 		    # Remove the default vlan sentinel if it's present.
 		    if (exists($pstates->{$ifindex}{ALLOWED}{$MLNX_DEF_VLAN})) {
 			push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $MLNX_DEF_VLAN}];
+			delete $pstates->{$ifindex}{$MLNX_DEF_VLAN};
 		    }
 		}
 		last MODESW;
@@ -896,6 +899,7 @@ sub setPortVlan($$@) {
 		    && $pstates->{$ifindex}{PVID} != $vlan_number) {
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", {vlan_ids => $vlan_number}];
 		}
+		last MODESW;
 	    };
 
 	    # default case
@@ -985,12 +989,13 @@ sub delPortVlan($$@) {
 			# list, then emit a warning and add the
 			# default vlan since a port in "trunk" mode
 			# must be a member of at least one vlan.
-			push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", { vlan_ids => $MLNX_DEF_VLAN }];
+			push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", { vlan_ids => $MLNX_DEF_VLAN }];
 			warn "$id: WARNING: Removing last vlan from an ".
 			     "equal-mode trunk's allowed list ".
 			     "(ifindex: $ifindex).\n";
 		    }
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $vlan_number}];
+		    delete $ifc{ALLOWED}{$vlan_number};
 		}
 		last MODESW;
 	    };
@@ -1011,6 +1016,7 @@ sub delPortVlan($$@) {
 		# When in dual/hybrid mode, the "allow" list CAN be empty.
 		elsif (exists($ifc{ALLOWED}{$vlan_number})) {
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $vlan_number}];
+		    delete $ifc{ALLOWED}{$vlan_number};
 		}
 		last MODESW;
 	    };
@@ -1023,15 +1029,16 @@ sub delPortVlan($$@) {
 	}
     }
 
-    my $resp = $self->callRPC(\@setcmds);
-    $self->unlock();
-
-    # XXX: This is pretty indiscriminate...  If anything fails, we say
-    # everything failed!
-    if (!defined($resp)) {
-	$errors = scalar(@ports);
+    if (@setcmds) {
+	my $resp = $self->callRPC(\@setcmds);
+	# XXX: This is pretty indiscriminate...  If anything fails, we say
+	# everything failed!
+	if (!defined($resp)) {
+	    $errors = scalar(@ports);
+	}
     }
 
+    $self->unlock();
     return $errors;
 }
 
@@ -1124,7 +1131,7 @@ sub removeVlan($@) {
     }
 
     $self->unlock();
-    return $errors;
+    return $errors ? 0 : 1;
 }
 
 #
@@ -1202,7 +1209,8 @@ sub listVlans($) {
 		push @vlifindexes, $ifindex;
 	    }
 	}
-	my @ports = $self->convertPortFormat($PORT_FORMAT_PORT, @vlifindexes);
+	my @ports = map {$_->getOtherEndPort()} 
+	            $self->convertPortFormat($PORT_FORMAT_PORT, @vlifindexes);
 	push @list, [$vlname, $vlnum, \@ports];
     }
 
@@ -1486,6 +1494,7 @@ sub enablePortTrunking2($$$$) {
     my ($self,$port,$native_vlan,$equaltrunking) = @_;
     my $id = $self->{NAME} .
 		"::enablePortTrunking($port,$native_vlan,$equaltrunking)";
+    my $retval = 1;
 
     $self->debug($id."\n");
     if ((!$equaltrunking) &&
@@ -1505,21 +1514,25 @@ sub enablePortTrunking2($$$$) {
 
     my @setcmds = ();
     if ($equaltrunking) {
-	# Don't try to change the mode if it's already 'trunk' (will
-	# throw an error).
-	push @setcmds, ["set-modify","$MLNX_IFC_PREFIX/$ifindex/vlans/mode=trunk"]
-	    if $pstate->{$ifindex}{MODE} ne "trunk";
+	# Don't try to enable trunk mode if it's already set on the port.
+	if ($pstate->{$ifindex}{MODE} ne "trunk") {
+	    push @setcmds, ["set-modify","$MLNX_IFC_PREFIX/$ifindex/vlans/mode=trunk"];
 
-	# By default Mellanox puts all existing vlans in the 'allowed'
-	# list when a port is placed in 'trunk' mode.  So, we zap the
-	# whole list, save for the given native vlan.  Major derp on
-	# Mellanox's part: You can't ask to delete a vlan from the
-	# allowed list if it isn't actually in the list (even within a
-	# range spec).  Therefore, we have to list out the known vlans
-	# individually for deletion.
-	foreach my $vlnum ($self->getAllVlanNumbers()) {
-	    push @setcmds, ["action","$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", { vlan_ids => $vlnum }]
-		if $vlnum != $native_vlan;
+	    # By default Mellanox puts all existing vlans in the 'allowed'
+	    # list when a port is placed in 'trunk' mode.  So, we zap the
+	    # whole list, save for the given native vlan.  Major derp on
+	    # Mellanox's part: You can't ask to delete a vlan from the
+	    # allowed list if it isn't actually in the list (even within a
+	    # range spec).  Therefore, we have to list out the known vlans
+	    # individually for deletion.
+	    foreach my $vlnum ($self->getAllVlanNumbers()) {
+		push @setcmds, ["action","$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", { vlan_ids => $vlnum }]
+		    if $vlnum != $native_vlan;
+	    }
+	}
+	# Add the native vlan if we need to for ports already in trunk mode.
+	elsif (!exists($pstate->{$ifindex}{ALLOWED}{$native_vlan})) {
+	    push @setcmds, ["action","$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", { vlan_ids => $native_vlan }];
 	}
     } else {
 	# Mellanox does _not_ put all existing vlans in the allowed list when
@@ -1530,13 +1543,15 @@ sub enablePortTrunking2($$$$) {
 	push @setcmds, ["set-modify","$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$native_vlan"];
     }
 
-    my $resp = $self->callRPC(\@setcmds);
-    $self->unlock();
-    if (!defined($resp)) {
-	return 0;
+    if (@setcmds) {
+	my $resp = $self->callRPC(\@setcmds);
+	if (!defined($resp)) {
+	    $retval = 0;
+	}
     }
 
-    return 1;
+    $self->unlock();
+    return $retval;
 }
 
 #
@@ -1577,6 +1592,7 @@ sub disablePortTrunking($$) {
 	# changed to "access", so we put it back as the access vlan.
 	push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$pstate->{$ifindex}{PVID}"];
     }
+
     my $resp = $self->callRPC(\@setcmds);
     if (!defined($resp)) {
 	return 0;
