@@ -883,10 +883,12 @@ sub setPortVlan($$@) {
 		# port's allowed list.
 		if (!exists($pstates->{$ifindex}{ALLOWED}{$vlan_number})) {
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", {vlan_ids => $vlan_number}];
+		    $pstates->{$ifindex}{ALLOWED}{$vlan_number} = 1;
 		    # Remove the default vlan sentinel if it's present.
-		    if (exists($pstates->{$ifindex}{ALLOWED}{$MLNX_DEF_VLAN})) {
+		    if ($vlan_number != $MLNX_DEF_VLAN &&
+			exists($pstates->{$ifindex}{ALLOWED}{$MLNX_DEF_VLAN})) {
 			push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/delete", {vlan_ids => $MLNX_DEF_VLAN}];
-			delete $pstates->{$ifindex}{$MLNX_DEF_VLAN};
+			delete $pstates->{$ifindex}{ALLOWED}{$MLNX_DEF_VLAN};
 		    }
 		}
 		last MODESW;
@@ -898,6 +900,7 @@ sub setPortVlan($$@) {
 		if (!exists($pstates->{$ifindex}{ALLOWED}{$vlan_number})
 		    && $pstates->{$ifindex}{PVID} != $vlan_number) {
 		    push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", {vlan_ids => $vlan_number}];
+		    $pstates->{$ifindex}{ALLOWED}{$vlan_number} = 1;
 		}
 		last MODESW;
 	    };
@@ -990,6 +993,7 @@ sub delPortVlan($$@) {
 			# default vlan since a port in "trunk" mode
 			# must be a member of at least one vlan.
 			push @setcmds, ["action", "$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", { vlan_ids => $MLNX_DEF_VLAN }];
+			$ifc{ALLOWED}{$MLNX_DEF_VLAN} = 1;
 			warn "$id: WARNING: Removing last vlan from an ".
 			     "equal-mode trunk's allowed list ".
 			     "(ifindex: $ifindex).\n";
@@ -1434,19 +1438,18 @@ sub setVlansOnTrunk($$$$) {
     }
 
     $self->lock();
-    my @setcmds = ();
+
+    my $pstate = $self->getPortState([$poifindex]);
+    if (!defined($pstate)) {
+	warn "$id: WARNING: Could not get port state for ifindex $poifindex\n";
+	$self->unlock();
+	return 0;
+    }
+
     # Yuck.  Have to process each vlan in turn, and deal with the "empty list"
     # problem.  More details in the comments below.
+    my @setcmds = ();
     foreach my $vlnum (@vlan_numbers) {
-	# Need to refresh the port's state each time since each iteration
-	# modifies it.  We could try to do our own bookkeeping here, but it
-	# would get messy.
-	my $pstate = $self->getPortState([$poifindex]);
-	if (!defined($pstate)) {
-	    warn "$id: WARNING: Could not get port state for ifindex $poifindex\n";
-	    $errors++;
-	    next;
-	}
 	# Only attempt removal if the vlan is actually in the allowed list.
 	if ($value == 0 && exists($pstate->{$poifindex}{ALLOWED}{$vlnum})) { 
 	    # If removing the last entry, then add the default
@@ -1454,16 +1457,20 @@ sub setVlansOnTrunk($$$$) {
 	    # one entry in their allowed list on Mellanox switches.
 	    if (keys(%{$pstate->{$poifindex}{ALLOWED}}) == 1) {
 		push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/add",{ vlan_ids => $MLNX_DEF_VLAN }];
+		$pstate->{$poifindex}{ALLOWED}{$MLNX_DEF_VLAN} = 1;
 	    }
 	    push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/delete",{ vlan_ids => $vlnum }];
+	    delete $pstate->{$poifindex}{ALLOWED}{$vlnum};
 	}
 	# Only add the vlan if it isn't already in the allowed list.
 	elsif ($value == 1 && !exists($pstate->{$poifindex}{ALLOWED}{$vlnum})) {
 	    push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/add",{ vlan_ids => $vlnum }];
+	    $pstate->{$poifindex}{ALLOWED}{$vlnum} = 1;
 	    # If adding vlans, check to see if the default vlan (sentinel)
 	    # is in the allowed list.  Zap it if so.
 	    if (exists($pstate->{$poifindex}{ALLOWED}{$MLNX_DEF_VLAN})) {
 		push @setcmds, ["action","$MLNX_IFC_PREFIX/$poifindex/vlans/allowed/delete",{ vlan_ids => $MLNX_DEF_VLAN }];
+		delete $pstate->{$poifindex}{ALLOWED}{$MLNX_DEF_VLAN};
 	    }
 	}
 	
