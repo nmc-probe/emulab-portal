@@ -1004,7 +1004,9 @@ if (!isset($submit)) {
 	$defaults["def_parentosid"]   = $def_parentosinfo->osid();
 
 	if ($ec2) {
-	    $defaults["package"] = "Yep";
+	    $defaults["package"]  = "Yep";
+	    $defaults["op_mode"]  = TBDB_ALWAYSUP_OPMODE;
+	    $defaults["loadpart"] = 2;
 	}
 	$defaults["reboot_waittime"]     = "240";
 	$defaults["os_feature_ping"]	 = "checked";
