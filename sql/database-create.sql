@@ -2608,7 +2608,7 @@ CREATE TABLE `node_idlestats` (
 DROP TABLE IF EXISTS `node_licensekeys`;
 CREATE TABLE `node_licensekeys` (
   `node_id` varchar(32) NOT NULL default '',
-  `keytype` varchar(16) default NULL,
+  `keytype` varchar(16) NOT NULL default '',
   `keydata` mediumtext,
   PRIMARY KEY  (`node_id`,`keytype`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
