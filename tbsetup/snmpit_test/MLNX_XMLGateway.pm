@@ -290,7 +290,7 @@ sub XMLEncodeCall($$;$) {
 
     # Print out some debug stuff, if requested.
     if ($DEBUG > 1) {
-	debugpr "XML Encoding: $action, $restpath\n";
+	debugpr("XML Encoding: $action, $restpath\n",2);
 	if (defined($arguments)) {
 	    while (my ($k,$v) = each %$arguments) {
 		debugpr "\tArg: $k => $v\n";

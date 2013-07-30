@@ -874,7 +874,8 @@ sub setPortVlan($$@) {
     foreach my $ifindex (@swports) {
         MODESW: for ($pstates->{$ifindex}{MODE}) {
 	    /^access$/ && do {
-		push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$vlan_number"];
+		push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/vlans/pvid=$vlan_number"]
+		    if $pstates->{$ifindex}{PVID} != $vlan_number;
 		last MODESW;
 	    };
 
@@ -916,15 +917,14 @@ sub setPortVlan($$@) {
 	push @setcmds, ["set-modify", "$MLNX_IFC_PREFIX/$ifindex/enabled=$truth"];
     }
 
-    my $resp = $self->callRPC(\@setcmds);
-    $self->unlock();
-
-    # XXX: This is pretty indiscriminate...  If anything fails, we say
-    # everything failed!  May need to refine if failures are common.
-    if (!defined($resp)) {
-	$errors = scalar(@ports);
+    if (@setcmds) {
+	my $resp = $self->callRPC(\@setcmds);
+	if (!defined($resp)) {
+	    $errors = scalar(@ports);
+	}
     }
 
+    $self->unlock();
     return $errors;
 }
 
@@ -1035,8 +1035,6 @@ sub delPortVlan($$@) {
 
     if (@setcmds) {
 	my $resp = $self->callRPC(\@setcmds);
-	# XXX: This is pretty indiscriminate...  If anything fails, we say
-	# everything failed!
 	if (!defined($resp)) {
 	    $errors = scalar(@ports);
 	}
@@ -1537,8 +1535,10 @@ sub enablePortTrunking2($$$$) {
 		    if $vlnum != $native_vlan;
 	    }
 	}
-	# Add the native vlan if we need to for ports already in trunk mode.
-	elsif (!exists($pstate->{$ifindex}{ALLOWED}{$native_vlan})) {
+	# Add the native vlan if we need to for ports already in trunk mode,
+	# unless the requested vlan is the default vlan.
+	elsif (!exists($pstate->{$ifindex}{ALLOWED}{$native_vlan})
+	       && $native_vlan != $MLNX_DEF_VLAN) {
 	    push @setcmds, ["action","$MLNX_IFC_PREFIX/$ifindex/vlans/allowed/add", { vlan_ids => $native_vlan }];
 	}
     } else {
