@@ -96,6 +96,7 @@ use lib "@prefix@/lib";
 use libtestbed;
 use emdb;
 use Experiment;
+use EmulabConstants;
 use Node;
 use emutil;
 use libEmulab;
@@ -143,7 +144,9 @@ while (1) {
 	DBQueryWarn("select r.node_id from reserved as r ".
 		    "left join nodes as n on n.node_id=r.node_id ".
 		    "left join node_types as t on t.type=n.type ".
+		    "left join experiments as e on e.idx=r.exptidx ".
 		    "where sharing_mode is not null and ".
+		    "      e.state='" . EXPTSTATE_ACTIVE() . "' and ".
 		    "      n.node_id=n.phys_nodeid and t.class='pc'");
     goto skip
 	if (!$query_result || !$query_result->numrows);
