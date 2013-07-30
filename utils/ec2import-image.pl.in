@@ -1,4 +1,4 @@
-#!/usr/bin/perl -d:Trace
+#!/usr/bin/perl
 #
 # Copyright (c) 2013 University of Utah and the Flux Group.
 #
@@ -37,7 +37,8 @@ sub usage()
     print STDOUT "Usage: ec2import-image remote-user remote-addr project user osid";
     exit(-1);
 }
-my  $optlist = "";
+my $optlist = "d";
+my $debug   = 1;
 
 #
 # Turn off line buffering on output
@@ -51,6 +52,7 @@ use libsetup;
 # Configure variables
 #
 my $TB          = "@prefix@";
+my $TBPROJ_DIR	= "@PROJROOT_DIR@";
 my $IMPORT_BASE = "@IMPORT_TMPDIR@";
 
 #
@@ -61,12 +63,6 @@ my $sudo;
 my $zipper   = "/usr/local/bin/imagezip";
 my $uploader = "/usr/local/etc/emulab/frisupload";
 my $error    = 0;
-
-my $WORK_BASE  = $IMPORT_BASE . "/import_temp/";
-my $IN_BASE  = $IMPORT_BASE . "/indir/";
-
-mkdir $WORK_BASE unless -d $WORK_BASE;
-mkdir $IN_BASE unless -d $IN_BASE;
 
 for my $path (qw#/usr/local/bin /usr/bin#) {
     if (-e "$path/sudo") {
@@ -94,11 +90,14 @@ my $user = $ARGV[2];
 my $osid = $ARGV[3];
 my $outfile = $ARGV[4];
 
-#my $ruser = split('@',$remote)[0];
-#my $raddr = split('@',$remote)[1];
-
-my $infile = $IN_BASE . $project . "/" . $user . "/" . $osid . ".tar.gz";
-my $workdir = $WORK_BASE . $project . "/" . $user . "/" . $osid . "-tmp";
+my $infile  = "$TBPROJ_DIR/$project/images/${osid}.tar.gz";
+my $workdir = "$TBPROJ_DIR/$project/ec2import/$user/${osid}-tmp";
+if (!-e $workdir) {
+    system("/bin/mkdir -p $workdir");
+    if ($?) {
+	die("Could not create $workdir\n");
+    }
+}
 
 # Man, this really needs some exception handling
 
@@ -118,7 +117,7 @@ if(system("ssh -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no" 
 
 if(system("echo \"mkdir -p ~/.emulab\" | ssh -o UserKnownHostsFile=/dev/null ".
         "-o StrictHostKeyChecking=no $remote bash")){
-    print STDERR "*** Couldn't mkdir ~/.emulab";
+    print STDERR "*** Couldn't mkdir ~/.emulab\n";
     $error = 1;
     goto cleanup;
 }
@@ -126,7 +125,7 @@ if(system("echo \"mkdir -p ~/.emulab\" | ssh -o UserKnownHostsFile=/dev/null ".
 # Check if Ruby and unzip exist
 if(system("ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ".
         "$remote 'which ruby unzip'")){
-    print STDERR "*** Could not find either ruby or unzip on remote machine!";
+    print STDERR "*** Could not find either ruby or unzip on remote machine!\n";
     $error = 1;
     goto cleanup;
 }
@@ -225,7 +224,8 @@ if (system("$zipper -o -l $workdir/emulab-image $workdir/xvda1")) {
 
 
 # Tar everything up and then imagezip
-my $cmd = "$TAR zcf - -C $workdir xvda1 xm.conf kernel initrd | $zipper -f - $outfile";
+my $cmd = "$TAR zcf - -C $workdir xvda1 xm.conf kernel initrd | ".
+    "$zipper -o -f - $outfile";
 if (system("$cmd")) {
     print STDERR "*** Failed to create image!\n";
     print STDERR "    command: '$cmd'\n";
@@ -235,9 +235,11 @@ if (system("$cmd")) {
 
 cleanup:
 # Clean up the directory.
-print STDOUT "Performing cleanup...\n";
-system("$sudo /bin/rm -rf $workdir 2>/dev/null");
-system("echo 'rm -Rf ~/.emulab' | ssh -o UserKnownHostsFile=/dev/null ".
-            "-o StrictHostKeyChecking=no $remote bash");
+if (! $debug) {
+	print STDOUT "Performing cleanup...\n";
+	system("$sudo /bin/rm -rf $workdir 2>/dev/null");
+	system("echo 'rm -Rf ~/.emulab' | ssh -o UserKnownHostsFile=/dev/null ".
+	       "-o StrictHostKeyChecking=no $remote bash");
+}
 
 exit($error);
