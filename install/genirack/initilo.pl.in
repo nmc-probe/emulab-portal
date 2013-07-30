@@ -24,6 +24,8 @@
 use English;
 use Getopt::Std;
 use Socket;
+use XML::Simple;
+use Data::Dumper;
 use IO::Handle;     # thousands of lines just for autoflush :-(
 use POSIX ":sys_wait_h";
 
@@ -36,14 +38,16 @@ sub usage()
     print STDERR "Usage: initilo.pl [-d] [-n] <ilopswd> <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -b <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -o <nodeid>\n";
+    print STDERR "Usage: initilo.pl [-d] [-n] -k <nodeid> ...\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -c <ip> <ilopswd>\n";
     exit(-1);
 }
-my $optlist	= "dncobs";
+my $optlist	= "dncobsk";
 my $debug	= 0;
 my $impotent    = 0;
 my $control     = 0;
 my $dooutlet    = 0;
+my $doilokey    = 0;
 my $bootorder   = 0;
 my $tempfile    = "/tmp/$$.xml";
 
@@ -65,6 +69,7 @@ sub ChangeBootOrder($);
 sub SendXML($$);
 sub SetupControlNode($$);
 sub DoOutlet($);
+sub DoIloKey($);
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/site/bin';
@@ -101,6 +106,9 @@ if (defined($options{"n"})) {
 }
 if (defined($options{"c"})) {
     $control = 1;
+}
+if (defined($options{"k"})) {
+    $doilokey = 1;
 }
 if (defined($options{"b"})) {
     $bootorder = 1;
@@ -151,6 +159,15 @@ if ($dooutlet) {
 
     exit(DoOutlet($ARGV[0]));
 }
+if ($doilokey) {
+    usage()
+	if (!@ARGV);
+
+    foreach my $node (@ARGV) {
+	DoIloKey($node);
+    }
+    exit(0);
+}
 if ($bootorder) {
     usage()
 	if (@ARGV != 1);
@@ -200,13 +217,6 @@ if (SendXML($iloIP, $xmlgoo)) {
 }
 
 #
-# The boot order cannot be changed via ribcl. What a pain.
-#
-if (0 && ChangeBootOrder($iloIP)) {
-    Fatal("Failed to change the boot order on $iloIP")
-}
-
-#
 # This changes the Administrator password. We do this cause it is
 # an 8 digit number, and the login is well known. So eventually it
 # can be guessed. 
@@ -223,7 +233,14 @@ $xmlgoo = sprintf($sshkeygoo, $elabmanpswd, $pubkey, $pubkey);
 if (SendXML($iloIP, $xmlgoo)) {
     Fatal("Failed to send addsshkey xml to $iloIP");
 }
-    
+
+#
+# The boot order cannot be changed via ribcl. What a pain.
+#
+if (ChangeBootOrder($iloIP)) {
+    Fatal("Failed to change the boot order on $iloIP")
+}
+
 #
 # This resets the ilo.
 #
@@ -445,3 +462,40 @@ sub DoOutlet($)
     return 0;
 }
 
+sub DoIloKey($)
+{
+    my ($node_id) = @_;
+    
+    my $node = Node->Lookup($node_id);
+    if (!defined($node)) {
+	Fatal("No such node");
+    }
+    # This has to be in the interfaces table already.
+    my $management_interface = Interface->LookupManagement($node);
+    if (!defined($management_interface)) {
+	Fatal("No management interface for $node");
+    }
+    my $iloIP = $management_interface->IP();
+    
+    my $cmd = "wget -q -O - --no-check-certificate ".
+	"https://$iloIP/xmldata?item=CpqKey";
+
+    my $ilostuff = `$cmd`;
+    Fatal("wget failed")
+	if ($?);
+
+    my $xmlparse = eval { XMLin($ilostuff,
+				ContentKey => '-content',
+				SuppressEmpty => undef); };
+    Fatal($@)
+	if ($@);
+    
+    if (!exists($xmlparse->{'KEY'})) {
+	Fatal("No KEY in:\n$ilostuff")
+    }
+    my $ilokey = $xmlparse->{'KEY'};
+    my $safe_ilokey = DBQuoteSpecial($ilokey);
+    DBQueryFatal("replace into node_licensekeys set ".
+		 "  node_id='$node_id', keytype='ilo', keydata=$safe_ilokey");
+    return 0;
+}
