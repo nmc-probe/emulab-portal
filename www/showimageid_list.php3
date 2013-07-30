@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -122,6 +122,8 @@ SUBPAGESTART();
 SUBMENUSTART("More Options");
 WRITESUBMENUBUTTON("Create an Image Descriptor",
 		   "newimageid_ez.php3");
+WRITESUBMENUBUTTON("Import an Amazon EC2 Instance Image",
+		   "newimageid_ez.php3?ec2=1");
 WRITESUBMENUBUTTON("More info on Images",
 		   "$WIKIDOCURL/Tutorial#CustomOS");
 if ($isadmin) {
