@@ -725,7 +725,9 @@ sub findVlans($@) {
     # talking to the switch), should we return undef, or just a null
     # mapping?  I'm thinking the former...
     foreach my $vlid (@vlan_ids) {
-	if (exists($all{$vlid})) {
+	if ($vlid eq "default") {
+	    $mps{$vlid} = $MLNX_DEF_VLAN;
+	} elsif (exists($all{$vlid})) {
 	    $mps{$vlid} = $all{$vlid};
 	} else {
 	    $mps{$vlid} = undef;
