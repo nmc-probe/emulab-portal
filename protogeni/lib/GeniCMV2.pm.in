@@ -1030,7 +1030,7 @@ sub SliverAction($$$$$)
 #
 sub SliverStatus($)
 {
-    my ($argref) = @_;
+    my ($argref)     = @_;
     my $slice_urn    = $argref->{'slice_urn'};
     my $credentials  = $argref->{'credentials'};
 
@@ -1628,6 +1628,7 @@ sub BindToSlice($)
     my $slice_urn    = $argref->{'slice_urn'};
     my $credentials  = $argref->{'credentials'};
     my $keys         = $argref->{'keys'};
+    my $amapi	     = exists($argref->{'amapiv3'});
     
     if (! (defined($credentials) &&
 	   defined($slice_urn) && defined($keys))) {
@@ -1672,7 +1673,25 @@ sub BindToSlice($)
 	    return $response;
 	}
     }
-    $slice->MarkNodesForUpdate();
+    # Need experiment for this.
+    if (defined($aggregate)) {
+	if ($amapi) {
+	    if ($aggregate->ComputeState()) {
+		print STDERR "Could not compute state for $aggregate\n";
+		$slice->UnLock();
+		return GeniResponse->Create(GENIRESPONSE_ERROR);
+	    }
+	    if ($aggregate->state() ne "started") {
+		$slice->UnLock();
+		return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+					    "Slice is not in the proper state");
+	    }
+	}
+	if ($aggregate->UpdateAccounts($amapi)) {
+	    $slice->UnLock();
+	    return GeniResponse->Create(GENIRESPONSE_ERROR());
+	}
+    }
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }

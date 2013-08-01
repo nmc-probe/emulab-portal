@@ -53,6 +53,7 @@ use GeniHRN;
 use GeniXML;
 use emutil;
 use EmulabConstants;
+use Node;
 use Logfile;
 use libtestbed;
 use Data::Dumper;
@@ -1912,6 +1913,7 @@ sub ComputeState($)
     my ($self) = @_;
     my $started = 0;
     my $stopped = 0;
+    my $updating= 0;
     my $unknown = 0;
     my $ready   = 0;
     my $notready= 0;
@@ -1936,13 +1938,14 @@ sub ComputeState($)
 	    if (ref($sliver) ne "GeniSliver::Node");
 
 	my $status;
+	# This might change the state, so get state next.
+	if ($sliver->ComputeStatus(\$status)) {
+	    print STDERR "Could not determine status for $sliver in $self\n";
+	    return -1;
+	}
 	my $state = $sliver->state();
 	if (!defined($state)) {
 	    print STDERR "Could not determine state for $sliver in $self\n";
-	    return -1;
-	}
-	if ($sliver->ComputeStatus(\$status)) {
-	    print STDERR "Could not determine status for $sliver in $self\n";
 	    return -1;
 	}
 	if ($state eq "started") {
@@ -1950,6 +1953,9 @@ sub ComputeState($)
 	}
 	elsif ($state eq "stopped" || $state eq "new") {
 	    $stopped++;
+	}
+	elsif ($state eq "updating_users") {
+	    $updating++;
 	}
 	else {
 	    $unknown++;
@@ -1968,6 +1974,17 @@ sub ComputeState($)
 	    $changing++;
 	}
 	$count++;
+    }
+    if ($self->state() eq "updating_users") {
+	# If slivers still updating, we stay in this state.
+	# Otherwise, fall through to below to compute normal state.
+	if ($updating) {
+	    $self->SetStatus("changing");
+	    return 0;
+	}
+	else {
+
+	}
     }
     if ($stopped == $count) {
 	$self->SetState("stopped");
@@ -2013,6 +2030,66 @@ sub FindSliverByNickname($$)
 
     my ($idx) = $query_result->fetchrow_array();
     return GeniSliver->Lookup($idx);
+}
+
+#
+# Mark aggregate and slivers for update accounts.
+#
+sub UpdateAccounts($$)
+{
+    my ($self, $amapi) = @_;
+    
+    my @slivers = ();
+    if ($self->SliverList(\@slivers) != 0) {
+	print STDERR "Could not get sliver list for $self\n";
+	return -1;
+    }
+    foreach my $sliver (@slivers) {
+	next
+	    if (ref($sliver) ne "GeniSliver::Node");
+
+	my $node = Node->Lookup($sliver->resource_id());
+	next
+	    if (!defined($node) ||
+		$node->erole() ne EmulabConstants::TBDB_RSRVROLE_NODE());
+
+	$node->MarkForUpdate();
+
+	if ($amapi) {
+	    $sliver->SetState("updating_users");
+	}
+    }
+    if ($amapi) {
+	$self->SetState("updating_users");
+    }
+    return 0;
+}
+
+sub CancelUpdateAccounts($)
+{
+    my ($self) = @_;
+    
+    my @slivers = ();
+    if ($self->SliverList(\@slivers) != 0) {
+	print STDERR "Could not get sliver list for $self\n";
+	return -1;
+    }
+    foreach my $sliver (@slivers) {
+	next
+	    if (ref($sliver) ne "GeniSliver::Node");
+
+	my $node = Node->Lookup($sliver->resource_id());
+	next
+	    if (!defined($node));
+
+	$node->CancelUpdate();
+	$sliver->SetState("started")
+	    if ($sliver->state() eq "updating_users");
+    }
+    $self->SetState("updating_users")
+	if ($self->state() eq "updating_users");
+
+    return 0;
 }
 
 ############################################################################

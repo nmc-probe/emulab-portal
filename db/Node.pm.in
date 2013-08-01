@@ -1859,6 +1859,42 @@ sub MarkForUpdate($)
 
     return Refresh($self);
 }
+sub CancelUpdate($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id = $self->node_id();
+
+    return -1
+	if (! DBQueryWarn("update nodes set update_accounts=0 ".
+			  "where node_id='$node_id'"));
+
+    return Refresh($self);
+}
+sub IsUpdated($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $node_id = $self->node_id();
+    my $query_result =
+	DBQueryWarn("select update_accounts from nodes ".
+		    "where node_id='$node_id'");
+    return -1
+	if (! $query_result);
+    return 1
+	if (!$query_result->numrows);
+    my ($update_accounts) = $query_result->fetchrow_array();
+
+    return ($update_accounts ? 0 : 1);
+}
 # Class method!
 sub CheckUpdateStatus($$$@)
 {

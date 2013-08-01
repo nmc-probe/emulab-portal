@@ -834,11 +834,6 @@ sub Describe
 
     # Add any slivers that are provisioned (exist in the aggregate)
     if (defined($aggregate)) {
-	my $expires = GeniXML::GetText("expires", $manifest);
-	if (! defined($expires)) {
-	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					"Manifest is missing expires tag");
-	}
 	my @slivers = ();
 	if ($aggregate->SliverList(\@slivers) != 0) {
 	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
@@ -1055,7 +1050,7 @@ sub Renew
     }
     my $credentials = FilterCredentials($credential_args);
     my @urns = @{ $urn_args};
-    return GeniResponse->MalformedArgsResposne("Empty URN List")
+    return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
     my $args = {
 	'slice_urn' => $urns[0],
@@ -1083,7 +1078,7 @@ sub Provision
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
     my @urns = @{ $urn_args };
-    return GeniResponse->MalformedArgsResposne("Empty URN List")
+    return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
     my $credentials = FilterCredentials($credential_args);
     my $users = $options->{'geni_users'};
@@ -1165,7 +1160,7 @@ sub PerformOperationalAction
 {
     my ($urn_args, $credential_args, $action, $options) = @_;
     my @urns = @{ $urn_args };
-    return GeniResponse->MalformedArgsResposne("Empty URN List")
+    return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
 
     my $credentials = FilterCredentials($credential_args);
@@ -1177,7 +1172,7 @@ sub PerformOperationalAction
     return $cred
 	if (GeniResponse::IsResponse($cred));
 
-    my ($slice, undef) = GeniCMV2::Credential2SliceAggregate($cred);
+    my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
 				"Slice credential not provided")
 	if (! defined($slice));
@@ -1194,18 +1189,44 @@ sub PerformOperationalAction
 	return GeniCMV2::RestartSliver($args);
     } elsif ($action eq 'geni_stop') {
 	return GeniCMV2::StopSliver($args);
-    } else {
-	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				    "Invalid operational action");
+    } elsif ($action eq 'geni_update_users') {
+	if (!exists($options->{"keys"})) {
+	    return GeniResponse->MalformedArgsResponse("No keys provided!");
+	}
+	$args->{'slice_urn'} = $slice->urn();
+	$args->{'keys'}      = $options->{"keys"};
+ 	$args->{'amapiv3'}   = 1;
+	
+	return GeniCMV2::BindToSlice($args);
     }
-
+    elsif ($action eq 'geni_update_users_cancel') {
+	#
+	# All we care about is making sure the state is cleared
+	# from the aggregate and all of the slivers. 
+	#
+	if ($slice->Lock() != 0) {
+	    return GeniResponse->BusyResponse();
+	}
+	if ($aggregate->state() ne "updating_users") {
+	    $slice->UnLock();
+	    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+	}
+	if ($aggregate->CancelUpdateAccounts()) {
+	    $slice->UnLock();
+	    return GeniResponse->Create(GENIRESPONSE_ERROR);
+	}
+	$slice->UnLock();
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+    }
+    return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				"Invalid operational action");
 }
 
 sub Delete
 {
     my ($urn_args, $credential_args, $option_args) = @_;
     my @urns = @{ $urn_args };
-    return GeniResponse->MalformedArgsResposne("Empty URN List")
+    return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
 
     # Must create return structure before deletion because this data
@@ -1240,7 +1261,7 @@ sub Cancel
 {
     my ($urn_args, $credential_args, $option_args) = @_;
     my @urns = @{ $urn_args };
-    return GeniResponse->MalformedArgsResposne("Empty URN List")
+    return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
 
     my $credentials = FilterCredentials($credential_args);
@@ -1305,6 +1326,9 @@ sub GetOpState
     } elsif ($sliver->status() eq 'created'
 	     && $sliver->state() eq 'new') {
 	$result = 'geni_notready';
+    } elsif ($sliver->status() eq 'changing'
+	     && $sliver->state() eq 'updating_users') {
+	$result = 'geni_updating_users';
     }
     print STDERR $sliver->status() . ", " . $sliver->state() . ", " . $result . "\n";
     return $result;

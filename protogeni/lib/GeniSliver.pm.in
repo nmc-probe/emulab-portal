@@ -1268,6 +1268,21 @@ sub ComputeStatus($$)
 	return -1;
     }
     #
+    # Special state for updating user accounts. We never go into the
+    # state unless the sliver was started/ready, so we know we can go
+    # back into the started state when it is done. 
+    #
+    if ($self->state() eq "updating_users") {
+	if ($node->IsUpdated() == 0) {
+	    $status = "changing";
+	    goto done;
+	}
+	else {
+	    # return to normal started state and continue below.
+	    $self->SetState("started");
+	}
+    }
+    #
     # Emulab does not return "unknown" ... we always know ...
     #
     my $eventstate = $node->eventstate();
@@ -1284,6 +1299,7 @@ sub ComputeStatus($$)
     else {
 	$status = "changing";
     }
+  done:
     $self->SetStatus($status);
     $$pref = $status;
     return 0;
