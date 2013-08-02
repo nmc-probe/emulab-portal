@@ -148,6 +148,9 @@ CHECKMASK(char *arg)
 #define SECURELOAD_OPMODE "SECURELOAD"
 #define SECURELOAD_STATE  "RELOADSETUP"
 
+/* Our answer to "geni-get --version" */
+#define GENI_VERSION "1"
+
 int		debug = 0;
 static int	verbose = 0;
 static int	insecure = 0;
@@ -349,6 +352,20 @@ COMMAND_PROTOTYPE(donodeattributes);
 COMMAND_PROTOTYPE(dodisks);
 COMMAND_PROTOTYPE(doarpinfo);
 COMMAND_PROTOTYPE(dohwinfo);
+#if PROTOGENI_SUPPORT
+COMMAND_PROTOTYPE(dogeniclientid);
+COMMAND_PROTOTYPE(dogenisliceurn);
+COMMAND_PROTOTYPE(dogenisliceemail);
+COMMAND_PROTOTYPE(dogeniuserurn);
+COMMAND_PROTOTYPE(dogeniuseremail);
+COMMAND_PROTOTYPE(dogenigeniuser);
+COMMAND_PROTOTYPE(dogenimanifest);
+COMMAND_PROTOTYPE(dogenicontrolmac);
+COMMAND_PROTOTYPE(dogeniversion);
+COMMAND_PROTOTYPE(dogenigetversion);
+COMMAND_PROTOTYPE(dogenisliverstatus);
+COMMAND_PROTOTYPE(dogeniall);
+#endif
 
 /*
  * The fullconfig slot determines what routines get called when pushing
@@ -462,6 +479,21 @@ struct command {
 	{ "disks",	  FULLCONFIG_ALL, 0, dodisks},
 	{ "arpinfo",	  FULLCONFIG_NONE, 0, doarpinfo},
 	{ "hwinfo",	  FULLCONFIG_NONE, 0, dohwinfo},
+#if PROTOGENI_SUPPORT
+	{ "geni_client_id", FULLCONFIG_NONE, 0, dogeniclientid },
+	{ "geni_slice_urn", FULLCONFIG_NONE, 0, dogenisliceurn },
+	{ "geni_slice_email", FULLCONFIG_NONE, 0, dogenisliceemail },
+	{ "geni_user_urn", FULLCONFIG_NONE, 0, dogeniuserurn },
+	{ "geni_user_email", FULLCONFIG_NONE, 0, dogeniuseremail },
+	/* Yes, "geni_user" is a stupid name.  Wasn't my idea. */
+	{ "geni_geni_user", FULLCONFIG_NONE, 0, dogenigeniuser },
+	{ "geni_manifest", FULLCONFIG_NONE, 0, dogenimanifest },
+	{ "geni_control_mac", FULLCONFIG_NONE, 0, dogenicontrolmac },
+	{ "geni_version", FULLCONFIG_NONE, 0, dogeniversion },
+	{ "geni_getversion", FULLCONFIG_NONE, 0, dogenigetversion },
+	{ "geni_sliverstatus", FULLCONFIG_NONE, 0, dogenisliverstatus },
+	{ "geni_all",     FULLCONFIG_NONE, 0, dogeniall },
+#endif
 };
 static int numcommands = sizeof(command_array)/sizeof(struct command);
 
@@ -11392,6 +11424,590 @@ COMMAND_PROTOTYPE(dohwinfo)
 
 	return 0;
 }
+
+#if PROTOGENI_SUPPORT
+/* ProtoGENI "geni-get" commands. */
+
+/* Output macro to check for string overflow */
+#define GOUTPUT(buf, size, format...) \
+({ \
+	int __count__ = snprintf((buf), (size), ##format); \
+        \
+        if (__count__ >= (size)) { \
+		error("Not enough room in output buffer! line %d.\n", __LINE__);\
+		return NULL; \
+	} \
+	__count__; \
+})
+
+static int dogeni( int sock, tmcdreq_t *reqp, int tcp,
+		   char *( *func )( tmcdreq_t * ) ) {
+
+    char *result = func( reqp );
+
+    if( result ) {
+	client_writeback( sock, result, strlen( result ), tcp );
+	client_writeback( sock, "\n", 1, tcp );
+	free( result );
+	
+	return 0;
+    } else
+	return 1;
+}
+
+static char *geni_append( char *buf, char *buf_end, char *p ) {
+
+    while( *p && buf < buf_end )
+	*buf++ = *p++;
+
+    if( buf >= buf_end )
+	buf--;
+
+    *buf = 0;
+
+    return buf;
+}
+
+static char *geni_quote( char *buf, char *buf_end, char *p ) {
+
+    if( buf < buf_end )
+	*buf++ = '"';
+    
+    while( *p && buf < buf_end )
+	if( *p == '"' ) {
+	    *buf++ = '\\';
+	    if( buf < buf_end )
+		*buf++ = *p++;
+	} else
+	    *buf++ = *p++;
+
+    if( buf < buf_end )
+	*buf++ = '"';
+    
+    if( buf >= buf_end )
+	buf--;
+
+    *buf = 0;
+
+    return buf;
+}
+
+static char *getgeniclientid( tmcdreq_t *reqp ) {
+
+	char buf[ MYBUFSIZE ];
+
+	GOUTPUT( buf, sizeof buf, "%s", reqp->nickname );
+
+	if( verbose )
+		info( "%s: geni_client_id: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgenisliceurn( tmcdreq_t *reqp ) {
+
+	MYSQL_RES	*res;
+	char		buf[MYBUFSIZE];
+
+	res = mydb_query( "SELECT c.urn FROM `geni-cm`.geni_slivers AS s, "
+			  "`geni-cm`.geni_certificates AS c WHERE "
+			  "s.resource_uuid='%s' AND "
+			  "c.uuid = s.slice_uuid", 1, reqp->nodeuuid );
+
+	if( !res ) {
+		error( "geni_slice_urn: %s: DB error getting URN!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( mysql_num_rows( res ) ) {
+		MYSQL_ROW row = mysql_fetch_row( res );
+
+		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
+	}
+
+	mysql_free_result( res );
+
+	if( verbose )
+		info( "%s: geni_slice_urn: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *cert_email( char *cert, char *DN ) {
+    
+    /* NB: We should really hunt through the certificate's
+       subjectAltName extensions (which is where the GENI spec says
+       e-mail addresses go) and extract the address from there.  Right
+       now, we don't do that for two reasons: (1) OpenSSL makes that
+       seemingly trivial task excruciatingly painful; and (2) it's not
+       actually where Emulab sticks e-mail addresses anyway. */
+
+    char *p = strstr( DN, "/emailAddress=" );
+
+    if( p )
+	return p + 14;
+    else
+	return NULL;
+}
+
+static char *getgenisliceemail( tmcdreq_t *reqp ) {
+
+	MYSQL_RES	*res;
+	char		buf[MYBUFSIZE];
+
+	
+	res = mydb_query( "SELECT c.cert, c.DN FROM `geni-cm`.geni_slivers "
+			  "AS s, `geni-cm`.geni_certificates AS c WHERE "
+			  "s.resource_uuid='%s' AND "
+			  "c.uuid = s.slice_uuid", 2, reqp->nodeuuid );
+
+	if( !res ) {
+		error( "geni_slice_urn: %s: DB error getting slice cert!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( mysql_num_rows( res ) ) {
+		MYSQL_ROW row = mysql_fetch_row( res );
+		
+		char *p = cert_email( row[ 0 ], row[ 1 ] );
+		    
+		if( p )
+			GOUTPUT( buf, sizeof buf, "%s", p );
+		else {
+		        /* oh well */
+		        mysql_free_result( res );
+			return NULL;
+		}
+	}
+
+	mysql_free_result( res );
+
+	if( verbose )
+		info( "%s: geni_slice_email: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgeniuserurn( tmcdreq_t *reqp ) {
+    
+	MYSQL_RES	*res;
+	char		buf[MYBUFSIZE];
+
+	res = mydb_query( "SELECT IFNULL( slice.speaksfor_urn, "
+			  "slice.creator_urn ) FROM "
+			  "`geni-cm`.geni_slices AS slice, "
+			  "`geni-cm`.geni_slivers AS sliver WHERE "
+			  "sliver.resource_uuid='%s' AND "
+			  "slice.uuid = sliver.slice_uuid", 1,
+			  reqp->nodeuuid );
+
+	if( !res ) {
+		error( "geni_user_urn: %s: DB error getting URN!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( mysql_num_rows( res ) ) {
+		MYSQL_ROW row = mysql_fetch_row( res );
+
+		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
+	}
+
+	mysql_free_result( res );
+
+	if( verbose )
+		info( "%s: geni_user_urn: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgeniuseremail( tmcdreq_t *reqp ) {
+    
+	MYSQL_RES	*res, *res_cert;
+	MYSQL_ROW	row;
+	char		buf[MYBUFSIZE];
+	char		*urn, *p;
+	static char     localurn[] = "urn:publicid:IDN+" OURDOMAIN "+";
+	
+	/* This is a big pain, because certificates for local users are
+	   stored differently than those for foreign users.  First
+	   figure out who the user is... */
+	res = mydb_query( "SELECT IFNULL( slice.speaksfor_urn, "
+			  "slice.creator_urn ) FROM "
+			  "`geni-cm`.geni_slices AS slice, "
+			  "`geni-cm`.geni_slivers AS sliver WHERE "
+			  "sliver.resource_uuid='%s' AND "
+			  "slice.uuid = sliver.slice_uuid", 1,
+			  reqp->nodeuuid );
+	
+	if( !res ) {
+		error( "geni_user_email: %s: DB error getting URN!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( !mysql_num_rows( res ) ) {
+		error( "geni_user_email: %s: No record for URN!\n",
+		       reqp->nodeid );
+		mysql_free_result( res );
+		return NULL;
+	}
+
+	row = mysql_fetch_row( res );
+	urn = row[ 0 ];
+
+	if( strncasecmp( urn, localurn, ( sizeof localurn ) - 1 ) ) {
+	        /* Foreign user -- they should have an entry in
+		   geni-cm.geni_certificates. */
+	        res_cert = mydb_query( "SELECT cert, DN FROM "
+				       "`geni-cm`.geni_certificates WHERE "
+				       "urn='%s'", 2, urn );
+		
+		if( !res_cert ) {
+		        error( "geni_user_email: %s: DB error getting "
+			       "foreign cert!\n", reqp->nodeid );
+			mysql_free_result( res );
+			return NULL;
+		}
+
+		row = mysql_fetch_row( res_cert );
+	} else {
+	        /* Local user -- they should have an entry in
+		   tbdb.user_sslcerts. */
+	        if( strncmp( urn + ( sizeof localurn ) - 1, "user+", 5 ) ) {
+ 		        /* Unrecognised URL.  Give up. */
+			mysql_free_result( res );
+			return NULL;
+		}
+		
+	        res_cert = mydb_query( "SELECT cert, DN FROM user_sslcerts "
+				       "WHERE uid='%s' AND revoked IS NULL "
+				       "AND encrypted=1", 2, urn +
+				       ( sizeof localurn - 1 ) + 5 );
+		
+		if( !res_cert ) {
+		        error( "geni_user_email: %s: DB error getting "
+			       "local cert!\n", reqp->nodeid );
+			mysql_free_result( res );
+			return NULL;
+		}
+
+		row = mysql_fetch_row( res_cert );
+	}
+	
+	p = cert_email( row[ 0 ], row[ 1 ] );
+		    
+	if( p )
+	        GOUTPUT( buf, sizeof buf, "%s", p );
+	else {
+	        /* oh well */
+	        mysql_free_result( res );
+		mysql_free_result( res_cert );
+		return NULL;
+	}
+	
+	mysql_free_result( res );
+	mysql_free_result( res_cert );
+
+	if( verbose )
+		info( "%s: geni_user_urn: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgenimanifest( tmcdreq_t *reqp ) {
+    
+	MYSQL_RES	*res;
+	char		buf[MYBUFSIZE];
+
+	res = mydb_query( "SELECT m.manifest FROM `geni-cm`.geni_slivers AS s, "
+			  "`geni-cm`.geni_manifests AS m WHERE "
+			  "s.resource_uuid='%s' AND "
+			  "m.slice_uuid = s.slice_uuid", 1, reqp->nodeuuid );
+
+	if( !res ) {
+		error( "geni_slice_urn: %s: DB error getting manifest!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( mysql_num_rows( res ) ) {
+		MYSQL_ROW row = mysql_fetch_row( res );
+
+		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
+	}
+
+	mysql_free_result( res );
+
+	if( verbose )
+		info( "%s: geni_slice_urn: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgenigeniuser( tmcdreq_t *reqp ) {
+    
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	char		buf[ 0x4000 ], *p;
+	int             first = 1;
+	
+	res = mydb_query( "SELECT a.urn, p.idx, p.pubkey FROM "
+			  "nonlocal_user_accounts AS a, "
+			  "nonlocal_user_pubkeys AS p WHERE "
+			  "a.uid_idx=p.uid_idx AND "
+			  "a.exptidx=%d ORDER BY a.urn, p.idx", 3,
+			  reqp->exptidx );
+
+	if( !res ) {
+		error( "geni_slice_urn: %s: DB error getting users!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( !mysql_num_rows( res ) ) {
+		error( "geni_user_email: %s: No users found\n",
+		       reqp->nodeid );
+		mysql_free_result( res );
+		return NULL;
+	}
+
+	p = geni_append( buf, buf + sizeof buf, "[" );
+	
+	while( ( row = mysql_fetch_row( res ) ) ) {
+		if( !strcmp( row[ 1 ], "1" ) ) {
+			if( !first )
+			        p = geni_append( p, buf + sizeof buf, "]}," );
+
+			p = geni_append( p, buf + sizeof buf, "{\"urn\":" );
+			p = geni_quote( p, buf + sizeof buf, row[ 0 ] );
+			p = geni_append( p, buf + sizeof buf, ",\"keys\":[" );
+		} else
+			p = geni_append( p, buf + sizeof buf, "," );
+
+		p = geni_quote( p, buf + sizeof buf, row[ 2 ] );
+				
+		first = 0;
+	}
+	
+	geni_append( p, buf + sizeof buf, "]}]" );
+	
+	mysql_free_result( res );
+	
+	if( verbose )
+		info( "%s: geni_geni_users: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgenicontrolmac( tmcdreq_t *reqp ) {
+
+	MYSQL_RES	*res;
+	char		buf[MYBUFSIZE];
+
+	res = mydb_query( "SELECT mac FROM interfaces WHERE node_id='%s' AND "
+			  "role='ctrl'", 1, reqp->nodeid );
+
+	if( !res ) {
+		error( "geni_slice_urn: %s: DB error getting interface!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( mysql_num_rows( res ) ) {
+		MYSQL_ROW row = mysql_fetch_row( res );
+
+		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
+	}
+
+	mysql_free_result( res );
+
+	if( verbose )
+		info( "%s: geni_control_mac: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgeniversion( tmcdreq_t *reqp ) {
+
+	char buf[ MYBUFSIZE ];
+
+	GOUTPUT( buf, sizeof buf, GENI_VERSION );
+
+	if( verbose )
+		info( "%s: geni_version: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+/* This is "getversion".  Not to be confused with "version", which is
+   obviously completely different. */
+static char *getgenigetversion( tmcdreq_t *reqp ) {
+
+	MYSQL_RES	*res;
+	char		buf[MYBUFSIZE];
+
+	res = mydb_query( "SELECT value FROM version_info WHERE "
+			  "name='commithash'", 1 );
+
+	if( !res ) {
+		error( "geni_slice_urn: %s: DB error getting version!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( mysql_num_rows( res ) ) {
+		MYSQL_ROW row = mysql_fetch_row( res );
+
+		GOUTPUT( buf, sizeof buf, "{'code_tag':'%s',"
+			 "'urn':'urn:publicid:IDN+" OURDOMAIN "+authority+cm',"
+			 "'url':'" TBBASE ":12369/protogeni/xmlrpc/am',"
+			 "'geni_am_type':'protogeni',"
+			 "'geni_single_allocation':true,"
+			 "'geni_allocate':'geni_disjoint',"
+			 "'geni_credential_types':{"
+			 "'geni_type':'geni_sfa','geni_version':'2',"
+			 "'geni_type':'geni_sfa','geni_version':'3'}}",
+			 row[ 0 ] );
+	}
+			 
+	mysql_free_result( res );
+
+	if( verbose )
+		info( "%s: geni_slice_urn: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgenisliverstatus( tmcdreq_t *reqp ) {
+
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	char		buf[ 0x4000 ], *p;
+	int		first = 1;
+	
+	res = mydb_query( "SELECT a.status, a.state, a.errorlog, l.publicid "
+			  "FROM `geni-cm`.geni_aggregates AS a, "
+			  "`geni-cm`.geni_slices AS l, "
+			  "`geni-cm`.geni_slivers AS s WHERE "
+			  "s.resource_uuid = '%s' AND "
+			  "a.uuid = s.aggregate_uuid AND "
+			  "a.slice_uuid = l.uuid", 4, reqp->nodeuuid );
+
+	if( !res || !mysql_num_rows( res ) ) {
+		error( "geni_slice_urn: %s: DB error getting aggregate!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	row = mysql_fetch_row( res );
+
+	p = buf + snprintf( buf, sizeof buf, "{'status':'%s','state':'%s',"
+			    "'error':'%s','public_url':'"
+			    TBBASE "/showslicepub.php?publicid="
+			    "%s','details':{",
+			    row[ 0 ], row[ 1 ], row[ 2 ], row[ 3 ] );
+
+	mysql_free_result( res );
+
+	res = mydb_query( "SELECT x.idx, x.status, x.state, x.resource_id, "
+			  "x.errorlog FROM `geni-cm`.geni_slivers AS x, "
+			  "`geni-cm`.geni_slivers AS y WHERE "
+			  "x.aggregate_uuid = y.aggregate_uuid AND "
+			  "y.resource_uuid = '%s'", 5, reqp->nodeuuid );
+	
+	if( !res || !mysql_num_rows( res ) ) {
+		error( "geni_slice_urn: %s: DB error getting sliver!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	while( ( row = mysql_fetch_row( res ) ) ) {
+		p += snprintf( p, buf + sizeof buf - p, "%s'urn:publicid:IDN+"
+			       OURDOMAIN "+sliver+%s':{'status':"
+			       "'%s','state':'%s','component_urn':'%s',"
+			       "'error':'%s'}", first ? "" : ",", row[ 0 ],
+			       row[ 1 ], row[ 2 ], row[ 3 ], row[ 4 ] ?
+			       row[ 4 ] : "" );
+		first = 0;
+	}
+
+	mysql_free_result( res );
+	
+	geni_append( p, buf + sizeof buf, "}}" );
+	
+	if( verbose )
+		info( "%s: geni_slice_urn: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+#define MAKEGENICOMMAND( cmd ) \
+        COMMAND_PROTOTYPE( dogeni ## cmd ) { \
+		return dogeni( sock, reqp, tcp, getgeni ## cmd ); \
+	}
+
+MAKEGENICOMMAND(clientid)
+MAKEGENICOMMAND(sliceurn)
+MAKEGENICOMMAND(sliceemail)
+MAKEGENICOMMAND(userurn)
+MAKEGENICOMMAND(useremail)
+MAKEGENICOMMAND(geniuser)
+MAKEGENICOMMAND(manifest)
+MAKEGENICOMMAND(controlmac)
+MAKEGENICOMMAND(version)
+MAKEGENICOMMAND(getversion)
+MAKEGENICOMMAND(sliverstatus)
+
+COMMAND_PROTOTYPE(dogeniall)
+{
+    /* Glob all the other stuff into a JSON structure.  Hey, at least
+       it's not XML! */
+    char buf[ 0x4000 ], *p;
+    struct work {
+	char *tag;
+	char *( *func )( tmcdreq_t * );
+	int quote;
+    } work[] = {
+	{ "client_id", getgeniclientid, 1 },
+	{ "slice_urn", getgenisliceurn, 1 },
+	{ "slice_email", getgenisliceemail, 1 },
+	{ "user_urn", getgeniuserurn, 1 },
+	{ "user_email", getgeniuseremail, 1 },
+	{ "geni_user", getgenigeniuser, 0 },
+	{ "manifest", getgenimanifest, 1 },
+	{ "control_mac", getgenicontrolmac, 1 },
+	{ "version", getgeniversion, 1 },
+	{ "getversion", getgenigetversion, 1 },
+	{ "sliverstatus", getgenisliverstatus, 1 }
+    };
+    int i;
+    
+    p = geni_append( buf, buf + sizeof buf, "{" );
+
+    for( i = 0; i < sizeof work / sizeof *work; i++ ) {
+	char *val;
+
+	if( i )
+	    p = geni_append( p, buf + sizeof buf, "," );
+	    
+	p = geni_quote( p, buf + sizeof buf, work[ i ].tag );
+	p = geni_append( p, buf + sizeof buf, ":" );
+	val = work[ i ].func( reqp );
+	p = ( work[ i ].quote ? geni_quote : geni_append )( p, buf + sizeof
+							    buf, val );
+	free( val );
+    }
+
+    geni_append( p, buf + sizeof buf, "}\n" );
+    
+    client_writeback( sock, buf, strlen( buf ), tcp );
+
+    return 0;
+}
+#endif
 
 /*
  * Get image size and mtime.
