@@ -201,6 +201,7 @@ function SPITFORM($formfields, $errors)
     global $node;
     global $TBDB_OSID_OSNAMELEN, $TBDB_NODEIDLEN;
     global $TBDB_OSID_VERSLEN, $TBBASE, $TBPROJ_DIR, $TBGROUP_DIR;
+    global $WIKIDOCURL;
     global $view, $ec2;
     
     #
@@ -833,6 +834,12 @@ function SPITFORM($formfields, $errors)
                       </li>
 		      <li> If it is based on one of our standard Linux, Fedora,
 			   FreeBSD, or Windows XP images, mark linktest.
+		      </li>
+		      <li> If it is based on an image with
+			   <a href=$WIKIDOCURL/EmulabStorage#section-9>
+			   blockstore support</a>, then mark the loc-bstore
+			   and/or rem-bstore checkboxes (indicating local
+			   and remote blockstore support, respectively).
 		      </li>
 		    </ul>
 		 </li>

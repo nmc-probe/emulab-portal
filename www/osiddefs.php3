@@ -47,6 +47,8 @@ $osid_featurelist["linktest"]	= 1;
 $osid_featurelist["linkdelays"]	= 0;
 $osid_featurelist["vlans"]	= 0;
 $osid_featurelist["suboses"]	= 1;
+$osid_featurelist["loc-bstore"] = 1;
+$osid_featurelist["rem-bstore"] = 1;
 
 # Default op modes. The value is a user-okay flag.
 $osid_opmodes			= array();
