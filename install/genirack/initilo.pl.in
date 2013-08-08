@@ -490,7 +490,8 @@ sub DoIloKey($)
     Fatal($@)
 	if ($@);
     
-    if (!exists($xmlparse->{'KEY'}) || $xmlparse->{'KEY'} eq "") {
+    if (!exists($xmlparse->{'KEY'}) || !defined($xmlparse->{'KEY'}) ||
+	$xmlparse->{'KEY'} eq "") {
 	Fatal("No KEY in:\n$ilostuff")
     }
     my $ilokey = $xmlparse->{'KEY'};
