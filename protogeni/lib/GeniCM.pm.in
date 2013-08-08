@@ -5489,6 +5489,7 @@ sub RegisterAux($$)
     my $version = $authority->Version();
     if (!defined($version)) {
 	print STDERR "No version for $authority; skipping registration\n";
+	$aggregate->SetRegistered(1);
 	return 0;
     }
     if ($version == 1) {
