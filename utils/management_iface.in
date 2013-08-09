@@ -65,6 +65,7 @@ sub RemoveManagementInterface($);
 my $TB		   = "@prefix@";
 my $SWITCHMAC      = "$TB/libexec/switchmac";
 my $DHCPD_MAKECONF = "$TB/sbin/dhcpd_makeconf";
+my $NAMED_SETUP    = "$TB/sbin/named_setup";
 
 #
 # Testbed Support libraries
@@ -265,6 +266,10 @@ if (!$node->isremotenode()) {
     print "Re-generating dhcpd.conf and restarting dhcpd\n";
     if (system("$DHCPD_MAKECONF -i -r")) {
 	fatal("Unable to restart dhcpd");
+    }
+    print "Re-generating named config and restarting named\n";
+    if (system("$NAMED_SETUP")) {
+	fatal("Unable to restart named");
     }
 }
 exit(0);
