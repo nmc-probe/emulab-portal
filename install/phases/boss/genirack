@@ -199,6 +199,28 @@ sub Install($$$)
 	}
 
 	#
+	# Create an ssh config file for root, to ssh to the switches.
+	# Need to also put root public key here tftp can get it.
+	#
+	my $SSHCONFIG = "/root/.ssh/config";
+	my $SSHPUBKEY = "/root/.ssh/id_rsa.pub";
+	my $COPYPUBKEY= "$TFTP_DIR/id_rsa.pub";
+	
+	Phase "sshconfig", "Creating $SSHCONFIG", sub {
+	    DoneIfExists($SSHCONFIG);
+	    CreateFileFatal($SSHCONFIG,
+			    "Host procurve1 procurve2", 
+			    "User manager",
+			    "IdentitiesOnly yes",
+			    "IdentityFile /root/.ssh/id_rsa");
+	    ExecQuietFatal("$CHMOD 644 $SSHCONFIG");
+	};
+	Phase "sshpubkey", "Copying $SSHPUBKEY to $TFTP_DIR", sub {
+	    DoneIfExists($COPYPUBKEY);
+	    ExecQuietFatal("/bin/cp -p $SSHPUBKEY $COPYPUBKEY");
+	};
+
+	#
 	# This is the elabman SSL cert password.
 	#
 	my $SSLCERT_PSWDFILE = "/users/elabman/.ssl/password";
@@ -648,6 +670,8 @@ sub Install($$$)
 	    };
 	    Phase "chown", "Changing owner and group", sub {
 		ExecQuietFatal("$CHOWN -R elabman:emulab-ops ".
+			       "   $ELABMANDIR/emulab-devel");
+		ExecQuietFatal("$CHOWN -R -h elabman:emulab-ops ".
 			       "   $ELABMANDIR/emulab-devel");
 	    };
 	};
