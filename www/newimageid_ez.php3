@@ -1015,12 +1015,14 @@ if (!isset($submit)) {
 	    $defaults["op_mode"]  = TBDB_ALWAYSUP_OPMODE;
 	    $defaults["loadpart"] = 2;
 	}
+	else {
+	    $defaults["os_feature_ipod"]	 = "checked";
+	    $defaults["os_feature_isup"]	 = "checked";
+	    $defaults["os_feature_linktest"]     = "checked";
+	}
 	$defaults["reboot_waittime"]     = "240";
 	$defaults["os_feature_ping"]	 = "checked";
 	$defaults["os_feature_ssh"]	 = "checked";
-	$defaults["os_feature_ipod"]	 = "checked";
-	$defaults["os_feature_isup"]	 = "checked";
-	$defaults["os_feature_linktest"] = "checked";
     }
     else {
 	# Defaults for PC-type nodes
