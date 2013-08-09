@@ -1865,6 +1865,8 @@ sub CreatePrimaryDisk($$$$)
 	#
 	my ($slice1_size,$slice2_size);
 	my ($slice1_type,$slice2_type);
+	# pygrub really likes there to be an active partition.
+	my ($slice1_active,$slice2_active);
 
 	my $slice1_start = 63; 
 	if ($loadslice == 1) {
@@ -1872,19 +1874,23 @@ sub CreatePrimaryDisk($$$$)
 	    $slice2_size  = ($XEN_EMPTYSIZE * 2) - 63;
 	    $slice1_type  = "0xA5";
 	    $slice2_type  = 0;
+	    $slice1_active= ",*";
+	    $slice2_active= "";
 	}
 	else {
 	    $slice1_size = ($XEN_EMPTYSIZE * 2) - 63;
 	    $slice2_size = $XEN_LDSIZE * 2;
 	    $slice1_type  = 0;
 	    $slice2_type  = "L";
+	    $slice1_active= "";
+	    $slice2_active= ",*";
 	}
 	my $slice2_start = $slice1_start + $slice1_size;
 	my $slice3_size  = $XEN_SWAPSIZE * 2;
 	my $slice3_start = $slice2_start + $slice2_size;
 	
-	print FILE "$slice1_start,$slice1_size,$slice1_type\n";
-	print FILE "$slice2_start,$slice2_size,$slice2_type\n";
+	print FILE "$slice1_start,$slice1_size,$slice1_type${slice1_active}\n";
+	print FILE "$slice2_start,$slice2_size,$slice2_type${slice2_active}\n";
 	print FILE "$slice3_start,$slice3_size,S\n";
 
 	if (defined($extrafs)) {
@@ -3434,12 +3440,35 @@ sub ExtractKernelFromLinuxImage($$)
     my $lvmpath = lvmVolumePath($lvname);
     my $PYGRUB  = "$BINDIR/pygrub";
 
-    mysystem2("$PYGRUB --quiet --output-format=simple ".
+    #
+    # Not sure what is going here; pygrub sometimes heads off into
+    # inifinity, looping and using 100% CPU. So, lets put a timer
+    # on it.
+    #
+    my $childpid = fork();
+    if ($childpid) {
+	local $SIG{ALRM} = sub { kill("TERM", $childpid); };
+	alarm 60;
+	waitpid($childpid, 0);
+	my $stat = $?;
+	alarm 0;
+
+	if ($stat) {
+	    print STDERR "pygrub returned $stat ... \n";
+	    return ();
+	}
+	return ("$outdir/kernel", "$outdir/ramdisk");	
+    }
+    else {
+	#
+	# We have blocked most signals in mkvnode, including TERM.
+	# Temporarily unblock and set to default so we die. 
+	#
+	local $SIG{TERM} = 'DEFAULT';
+	exec("$PYGRUB --quiet --output-format=simple ".
 	      "--output-directory=$outdir $lvmpath");
-    return ()
-	if ($?);
-	    
-    return ("$outdir/kernel", "$outdir/ramdisk");
+	exit(1);
+    }
 }
 
 sub ExtractKernelFromFreeBSDImage($$$)
