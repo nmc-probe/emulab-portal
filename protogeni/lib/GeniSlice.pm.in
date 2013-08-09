@@ -311,6 +311,8 @@ sub isplaceholder($)	{ return field($_[0], "isplaceholder"); }
 sub monitor_pid($)	{ return field($_[0], "monitor_pid"); }
 sub speaksfor_urn($)	{ return field($_[0], "speaksfor_urn"); }
 sub speaksfor_uuid($)	{ return field($_[0], "speaksfor_uuid"); }
+sub expiration_max($)	{ return field($_[0], "expiration_max"); }
+sub renew_limit($)	{ return field($_[0], "renew_limit"); }
 sub cert($)		{ return $_[0]->{'CERT'}->cert(); }
 sub GetCertificate($)   { return $_[0]->{'CERT'}; }
 sub LOCKED($)           { return $_[0]->{'LOCKED'}; }
@@ -922,6 +924,86 @@ sub SetSpeaksFor($$)
     $self->{'SLICE'}->{'speaksfor_uuid'} = $speaksfor->owner_uuid();
 
     return 0;
+}
+
+sub SetRenewLimit($$)
+{
+    my ($self, $limit) = @_;
+    my $uuid = $self->uuid();
+
+    if (!defined($limit)) {
+	$limit = "null";
+    }
+    elsif ($limit =~ /^\d+$/) {
+	$limit = "SEC_TO_TIME($limit)";
+    }
+    else {
+	$limit = DBQuoteSpecial($limit);
+    }
+    return -1
+	if (!DBQueryWarn("update geni_slices set renew_limit=$limit " .
+			 "where uuid='$uuid'"));
+
+    return 0;
+}
+
+sub SetExpirationMax($$)
+{
+    my ($self, $expires) = @_;
+    my $uuid = $self->uuid();
+
+    if (!defined($expires)) {
+	$expires = "null";
+    }
+    elsif ($expires =~ /^\d+$/) {
+	$expires = "FROM_UNIXTIME($expires)";
+    }
+    else {
+	$expires = DBQuoteSpecial($expires);
+    }
+    return -1
+	if (!DBQueryWarn("update geni_slices set expiration_max=$expires " .
+			 "where uuid='$uuid'"));
+
+    return 0;
+}
+
+sub expiration_max_stamp($)
+{
+    my ($self) = @_;
+
+    return undef
+	if (!defined($self->expiration_max()));
+
+    return str2time($self->expiration_max());
+}
+sub renew_limit_stamp($)
+{
+    my ($self) = @_;
+
+    return undef
+	if (!defined($self->renew_limit()));
+
+    if ($self->renew_limit() =~ /^(\d*):(\d*):(\d*)$/) {
+	return ($1 * 3600) + ($2 * 60) + $3;
+    }
+    return undef;
+}
+
+sub SetIdleIgnore($$)
+{
+    my ($self, $ignore) = @_;
+
+    my $experiment = $self->GetExperiment();
+    return -1
+	if (!defined($experiment));
+
+    if ($ignore) {
+	return $experiment->SetIdleSwapFlags(0, 1);
+    }
+    else {
+	return $experiment->SetIdleSwapFlags(1, 0);
+    }
 }
 
 #
