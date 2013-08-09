@@ -1251,9 +1251,9 @@ sub RenewSlice($)
     return $slice
 	if (defined($slice) && GeniResponse::IsResponse($slice));
 
-    if (! (defined($slice) && defined($aggregate))) {
+    if (! defined($slice)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				    "No slice or aggregate here");
+				    "No such slice here");
     }
     main::AddLogfileMetaDataFromSlice($slice);
     
@@ -2358,24 +2358,6 @@ sub Credential2SliceAggregate($)
 	if (!$target_cert->SameCert($slice)) {
 	    return (GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				 "Duplicate slice URN already exists here"));
-	}
-	my $cred_expires = str2time( $credential->expires() );
-	my $slice_expires = str2time( $slice->expires() );
-
-	if( $cred_expires > $slice_expires ) {
-	    # The credential presented lasts longer than we thought the
-	    # slice did: our expiry date must have been stale.  This can
-	    # happen because the SA is always free to extend the lifetime
-	    # of a slice, and is not required to tell us.
-	    #
-	    # This is important, because we use the slice expiry time
-	    # for a whole bunch of validity checks.  Requiring the user
-	    # to renew their sliver is not sufficient, because they might
-	    # not even HAVE a sliver (and if we don't keep the slice
-	    # expiry time right, they might not have permission to create
-	    # one, either).
-	    print STDERR "Changing expiration from $slice_expires to $cred_expires\n";
-	    $slice->SetExpiration( $cred_expires );
 	}
 	$aggregate = GeniAggregate->SliceAggregate($slice);
     }
