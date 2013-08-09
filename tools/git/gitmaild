@@ -1,0 +1,75 @@
+#!/usr/bin/perl -w
+
+#
+# gitmaild - simple gitmail wrapper for use with gitlab
+# Note: *must* be run on the same host, and have permission to read the
+# git repos in gitlab's home
+#
+
+use HTTP::Daemon;
+use HTTP::Request;
+use HTTP::Status;
+use HTTP::Response;
+use LWP::UserAgent;
+use JSON;
+
+use strict;
+
+# Made up
+my $PORT = 4577;
+
+my $GITMAIL = "./gitmail";
+
+my $TOKEN = "";
+my $BASEURL = "http://git.flux.utah.edu/";
+my $BASEPATH = "/home/git/repositories";
+
+sub run_gitmail($);
+
+# TODO: listen only on localhost
+my $d = HTTP::Daemon->new(LocalPort => $PORT) || die;
+print "Please contact me at: <URL:", $d->url, ">\n";
+
+while (my $c = $d->accept) {
+
+    # TODO: Fork
+    while (my $r = $c->get_request) {
+        print $r->as_string;
+        print "="x80 . "\n";
+        # TODO: Error handling
+        run_gitmail(decode_json($r->content));
+    }
+    $c->close;
+    undef($c);
+
+}
+
+sub run_gitmail($) {
+    my ($data) = @_;
+    print "Running gitmail\n";
+
+    # Make it look like it got called as a regular post-recieve hook
+    my $refline = $data->{"before"} . " " . $data->{"after"} . " " .
+        $data->{"ref"};
+    print $refline . "\n";
+
+    my $userinfo = call_gitlab_api("/users/" . $data->{"user_id"});
+
+    my $repoinfo = call_gitlab_api("/projects/" . $data->{"repository"}{"project_id"});
+
+    my $repodir = $BASEPATH . "/" . $repinfo->{"path_with_namespace"} . ".git";
+
+}
+
+# TODO: Error checking
+sub call_gitlab_api($) {
+    my ($call) = @_;
+    my $url = $BASEURL . "api/v3" . $call . "?private_token=" . $TOKEN;
+
+    my $request = HTTP::Request->new(GET => $url);
+    my $ua = LWP::UserAgent->new;
+    my $response = $ua->request($request);
+    print "Response: " . $response->as_string . "\n";
+    # Error checking
+    return decode_json($response->content);
+}
