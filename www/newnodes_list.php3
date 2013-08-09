@@ -1,6 +1,6 @@
 <?PHP
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -155,7 +155,7 @@ if (isset($create)) {
     echo "<h3>Creating nodes - this could take a while, please wait</h3>\n";
     echo "<hr>\n";
     echo "<pre>\n";
-    passthru("$TBSUEXEC_PATH $uid $gid webnewnode $option $nodelist 2>&1");
+    passthru("$TBSUEXEC_PATH $uid $gid webnewnode $option -w $nodelist 2>&1");
     echo "</pre>\n";
     echo "<hr>\n";
 }
