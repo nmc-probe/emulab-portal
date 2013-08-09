@@ -128,6 +128,8 @@ class GeniSlice
     function sa_uuid()	    { return $this->field('sa_uuid'); }
     function needsfirewall(){ return $this->field('needsfirewall'); }
     function monitor_pid()  { return $this->field('monitor_pid'); }
+    function expiration_max()  { return $this->field('expiration_max'); }
+    function renew_limit()  { return $this->field('renew_limit'); }
 
     #
     # Class function to return a list of all slices.

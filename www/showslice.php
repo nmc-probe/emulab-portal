@@ -87,6 +87,12 @@ $rows[] = array("expires"  => $slice->expires());
 if ($slice->locked()) {
     $rows[] = array("locked"  => $slice->locked());
 }
+if ($slice->expiration_max()) {
+    $rows[] = array("expires limit"  => $slice->expiration_max());
+}
+if ($slice->renew_limit()) {
+    $rows[] = array("renew limit"  => $slice->renew_limit());
+}
 if ($slice->monitor_pid()) {
     $rows[] = array("Monitor PID"  => $slice->monitor_pid());
 }
