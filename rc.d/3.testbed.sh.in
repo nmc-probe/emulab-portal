@@ -82,11 +82,6 @@ case "$1" in
 			@prefix@/sbin/checkup_daemon
 		fi
 
-		if [ -x @prefix@/sbin/pool_daemon  ]; then
-			echo -n " poold"
-			@prefix@/sbin/pool_daemon
-		fi
-
 		if [ -x @prefix@/sbin/mysqld_watchdog  ]; then
 			echo -n " mysqld_watchdog"
 			@prefix@/sbin/mysqld_watchdog
