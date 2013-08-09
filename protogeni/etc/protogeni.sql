@@ -68,6 +68,8 @@ CREATE TABLE `geni_slices` (
   `isplaceholder` tinyint(1) NOT NULL default '0',
   `isshutdown` tinyint(1) NOT NULL default '0',
   `monitor_pid` int(11) default '0',
+  `expiration_max` datetime default NULL,
+  `renew_limit` time default NULL,
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `hrn` (`hrn`),
   UNIQUE KEY `uuid` (`uuid`)
