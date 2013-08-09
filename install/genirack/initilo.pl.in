@@ -33,22 +33,25 @@ use POSIX ":sys_wait_h";
 # Setup management interfaces for nodes, given a data file we get
 # from HP.
 #
+# This needs to be redone as a library!
+#
 sub usage()
 {
     print STDERR "Usage: initilo.pl [-d] [-n] <ilopswd> <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -b <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -o <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -k <nodeid> ...\n";
-    print STDERR "Usage: initilo.pl [-d] [-n] -c <ip> <ilopswd>\n";
+    print STDERR "Usage: initilo.pl [-d] [-n] [-c | -r] <ip> <ilopswd>\n";
     exit(-1);
 }
-my $optlist	= "dncobsk";
+my $optlist	= "dncobskr";
 my $debug	= 0;
 my $impotent    = 0;
 my $control     = 0;
 my $dooutlet    = 0;
 my $doilokey    = 0;
 my $bootorder   = 0;
+my $resetilo    = 0;
 my $tempfile    = "/tmp/$$.xml";
 
 #
@@ -70,6 +73,7 @@ sub SendXML($$);
 sub SetupControlNode($$);
 sub DoOutlet($);
 sub DoIloKey($);
+sub DoResetILO($$);
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/site/bin';
@@ -116,6 +120,9 @@ if (defined($options{"b"})) {
 if (defined($options{"o"})) {
     $dooutlet = 1;
 }
+if (defined($options{"r"})) {
+    $resetilo = 1;
+}
 Fatal("$ILOPSWD does not exist")
     if (! -e $ILOPSWD);
 
@@ -152,6 +159,12 @@ if ($control) {
 	if (@ARGV != 2);
 
     exit(SetupControlNode($ARGV[0], $ARGV[1]));
+}
+if ($resetilo) {
+    usage()
+	if (@ARGV != 2);
+
+    exit(DoResetILO($ARGV[0], $ARGV[1]));
 }
 if ($dooutlet) {
     usage()
@@ -242,12 +255,16 @@ if (ChangeBootOrder($iloIP)) {
 }
 
 #
+# Harvest the ILO license key.
+#
+DoIloKey($node_id);
+
+#
 # This resets the ilo.
 #
-$xmlgoo = sprintf($resetgoo, $elabmanpswd);
-if (SendXML($iloIP, $xmlgoo)) {
-    Fatal("Failed to send xmlgoo to $iloIP");
-}
+DoResetILO($iloIP, $elabmanpswd);
+
+exit(0);
 
 #
 # SSH over to change the boot order,
@@ -438,6 +455,15 @@ sub SetupControlNode($$)
     if (SendXML($ip, $xmlgoo)) {
 	Fatal("Failed to send addsshkey xml to $ip");
     }
+    #
+    # Save this off. Maybe we should put the control node into the
+    # Emulab DB?
+    #
+    my $cmd = "wget -q -O - --no-check-certificate ".
+	"'https://$ip/xmldata?item=CpqKey' > $TB/etc/control-ilo.txt";
+    if (system($cmd)) {
+	Fatal("Failed to get control node ilo key info");
+    }
     return 0;
 }
 
@@ -500,3 +526,18 @@ sub DoIloKey($)
 		 "  node_id='$node_id', keytype='ilo', keydata=$safe_ilokey");
     return 0;
 }
+
+#
+# Reset the ILO.
+#
+sub DoResetILO($$)
+{
+    my ($ip, $pswd) = @_;
+    
+    my $xmlgoo = sprintf($resetgoo, $pswd);
+    if (SendXML($ip, $xmlgoo)) {
+	Fatal("Failed to send xmlgoo to $ip");
+    }
+    return 0;
+}
+
