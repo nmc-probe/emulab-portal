@@ -109,7 +109,7 @@ my $noreboot = 0;
 my $quiet    = 0;
 my $force_unconnected_interfaces = 0;
 my %options = ();
-if (! getopts("fnq", \%options)) {
+if (! getopts("fnqw", \%options)) {
     usage();
 }
 if ($options{f}) {
@@ -120,6 +120,11 @@ if ($options{'n'}) {
 }
 if ($options{'q'}) {
     $quiet = 1;
+}
+if ($options{'w'}) {
+    # See the web page that calls this. From that interface, we
+    # use the old style newnode. 
+    $useScriptFeature = 0;
 }
 
 #
