@@ -3137,6 +3137,22 @@ sub UpdateIdleSwapTime($$)
 }
 
 #
+# Set the idle swap flags.
+#
+sub SetIdleSwapFlags($$$)
+{
+    my ($self, $idleswap, $idleignore) = @_;
+    $idleswap   = ($idleswap ? 1 : 0);
+    $idleignore = ($idleignore ? 1 : 0);
+
+    return -1
+	if (! $self->Update({'idleswap'    => $idleswap,
+			     'idle_ignore' => $idleignore}));
+
+    return 0;
+}
+
+#
 # Experiment tables.
 #
 sub BackupVirtualState($;$)
