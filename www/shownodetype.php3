@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -122,9 +122,13 @@ if (mysql_num_rows($query_result)) {
 	    }
 	}
 	elseif ($key == "default_imageid") {
-	    if ($image = Image::Lookup($val)) {
-		$val = $image->imagename();
+	    $inames = array();
+	    foreach (explode(',', $val) as $imageid) {
+		if ($image = Image::Lookup($imageid)) {
+		    $inames[] = $image->imagename();
+		}
 	    }
+	    $val = implode(',', $inames);
 	}
 	echo "<tr>\n";
 	echo "<td>$key:</td>\n";
