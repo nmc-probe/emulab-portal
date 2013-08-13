@@ -2255,15 +2255,7 @@ COMMAND_PROTOTYPE(doifconfig)
 		      reqp->nodeid);
 		return 1;
 	}
-	if ((nrows = (int)mysql_num_rows(res)) == 0) {
-		mysql_free_result(res);
-		/* XXX not sure why this is ever an error? */
-		if (!reqp->isplabdslice && num_interfaces == 0) {
-			error("%s: IFCONFIG: No interfaces!\n", reqp->nodeid);
-			return 1;
-		}
-		return 0;
-	}
+	nrows = (int)mysql_num_rows(res);
 	while (nrows) {
 		char *bufp   = buf;
 		char *ifacetype;
@@ -2379,7 +2371,6 @@ COMMAND_PROTOTYPE(doifconfig)
 			info("%s: IFCONFIG: %s", reqp->nodeid, buf);
 	}
 	mysql_free_result(res);
-
 
 	/*
 	 * Containers do not see egre/gre tunnels, they see plain interfaces,
