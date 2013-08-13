@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -519,9 +519,27 @@ sub freebsd_get_disksize {
     while (<DMESG>) {
 	chomp;
 	#
-	# Take the first of ad or da, whichever we find first
+	# FreeBSD 9.x and above have renamed IDE and SATA devs.
+	# Use the compat name for now.
 	#
-	if (/^((ad|da|ar|aacd|amrd|mfid|mfisyspd)\d): (\d+)MB/) {
+	if (/^(ada\d+): (\d+)MB/) {
+	    $diskdev = $1;
+	    $disksize = $2;
+	    next;
+	}
+	if (/^(ada\d+): Previously was known as (ad\d+)/) {
+	    if (defined($disksize) && defined($diskdev) && $1 eq $diskdev) {
+		$diskdev = $2;
+	    } else {
+		$diskdev = "";
+	    }
+	    last;
+	}
+
+	#
+	# Take the first disk of a recognized type
+	#
+	if (/^((ad|da|ar|aacd|amrd|mfid|mfisyspd)\d+): (\d+)MB/) {
 	    $diskdev = $1;
 	    $disksize = $3;
 	    last;
