@@ -131,6 +131,7 @@ $SIG{HUP} = \&handler
     if (! ($debug || $oneshot));
 
 print "Pool Monitor starting... pid $$, at ".`date`;
+$lastmail = time();
 
 while (1) {
     if (NoLogins()) {
@@ -153,7 +154,7 @@ while (1) {
 
     while (my ($node_id) = $query_result->fetchrow_array()) {
 	print "Checking to see if $node_id is reactive ...\n";
-	my $status = SSHwithTimeout($node_id, "ls / > /dev/null", 15, $debug);
+	my $status = SSHwithTimeout($node_id, "ls / > /dev/null", 30, $debug);
 	if ($status) {
 	    print "--> $node_id is down for the count!\n";
 	    if (!exists($warned{$node_id})) {
