@@ -137,6 +137,9 @@ $opstate = <<'OPSTATE';
     <action name="geni_stop" next="geni_stopping">
       <description>Power down or stop the node.</description>
     </action>
+    <action name="geni_update_users" next="geni_updating_users">
+      <description>Update user SSH keys.</description>
+    </action>
     <description>The node is up and ready to use.</description>
   </state>
   <state name="geni_stopping">
@@ -148,6 +151,14 @@ $opstate = <<'OPSTATE';
     <description>The node has failed and requires administrator
     intervention before it can be used. Please contact
     the administrator for assistance.</description>
+  </state>
+  <state name="geni_updating_users">
+    <action name="geni_update_users_cancel" next="geni_ready">
+      <description>Cancel an update users action</description>
+    </action>
+    <wait type="geni_success" next="geni_ready" />
+    <description>Updating users can take a fair amount of time, so it
+    happens asynchronously in this state.</description>
   </state>
 </rspec_opstate>
 OPSTATE
