@@ -261,7 +261,9 @@ if (!$error && (!$noalloc || $partial) && @nodes) {
 	if ($debug);
 
     # It isn't an error if this fails...
-    DBQueryWarn("update node_activity set last_ext_act=now() where ".
+    DBQueryWarn("update node_activity set ".
+		"  last_ext_act=now(), last_report=now() ".
+		"where ".
 		join(" or ",
 		     map("node_id='" . $_->node_id() . "'", @nodes)));
 
