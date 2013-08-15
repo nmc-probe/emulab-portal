@@ -1106,7 +1106,7 @@ sub CheckIdle()
 		$slice->SetRenewLimit(0)
 		    if (!$impotent);
 	    }
-	    elsif ($swapreqs == 0 || $lastreq > 24 || $debug) {
+	    elsif ($swapreqs == 0 || $lastreq > 24 || $debug > 1) {
 		my $geniuser  = GeniUser->Lookup($slice->creator_uuid(), 1);
 		my $emailaddr = $geniuser->email();
 		my $sliver_urn= $aggregate->urn();
