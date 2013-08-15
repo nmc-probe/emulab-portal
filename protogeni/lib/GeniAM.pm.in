@@ -1190,11 +1190,27 @@ sub PerformOperationalAction
     } elsif ($action eq 'geni_stop') {
 	return GeniCMV2::StopSliver($args);
     } elsif ($action eq 'geni_update_users') {
-	if (!exists($options->{"keys"})) {
+	if (!exists($options->{"geni_users"})) {
 	    return GeniResponse->MalformedArgsResponse("No keys provided!");
 	}
+	my $users = $options->{'geni_users'};
+	my $sliver_keys = [];
+	if (defined($users) && @$users) {
+	    foreach my $user (@$users) {
+		my $user_urn  = $user->{'urn'};
+		my @user_keys = ();
+
+		foreach my $key (@{ $user->{keys} }) {
+		    # The CMV2 does not like newlines at the end of the keys.
+		    chomp($key);
+		    push(@user_keys, {'type' => 'ssh', 'key' => $key});
+		}
+		push(@{$sliver_keys}, {'urn'  => $user_urn,
+				       'keys' => \@user_keys});
+	    }
+	}
 	$args->{'slice_urn'} = $slice->urn();
-	$args->{'keys'}      = $options->{"keys"};
+	$args->{'keys'}      = $sliver_keys;
  	$args->{'amapiv3'}   = 1;
 	
 	return GeniCMV2::BindToSlice($args);
@@ -1330,7 +1346,6 @@ sub GetOpState
 	     && $sliver->state() eq 'updating_users') {
 	$result = 'geni_updating_users';
     }
-    print STDERR $sliver->status() . ", " . $sliver->state() . ", " . $result . "\n";
     return $result;
 }
 
