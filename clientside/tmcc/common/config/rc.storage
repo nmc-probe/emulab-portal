@@ -102,7 +102,21 @@ SWITCH: for ($action) {
 	last SWITCH;
     };
     /^reset$/i && do {
-	docleanup(1);
+	#
+	# XXX this should be docleanup(3), but we have not implemented
+	# the nasty temporary removal of LVM/ZFS/etc state from the
+	# imageable filesystems.
+	#
+	# So for now we just do a shutdown. This is correct in the SYSVOL
+	# case where you want that blockstore to be included in the image.
+	# It is not correct for other blockstores, where you will get
+	# partial state in the image (e.g., in /etc/lvm or /etc/zfs).
+	#
+	# The moral is: if you are going to do a custom image, you should
+	# only create a SYSVOL blockstore and you should take a whole-disk
+	# image!
+	#
+	docleanup(0);
 	last SWITCH;
     };
     # XXX non-standard, for debugging
@@ -259,14 +273,33 @@ sub doshutdown()
 
 #
 # Node Reconfig Action (without rebooting).
-# XXX don't do anything til we figure out what would be correct.
 #
 sub doreconfig()
 {
+    # Tear down existing config
+    docleanup(1);
+
+    # Setup new config
+    doboot();
 }
 
 #
 # Node cleanup action (node is reset to clean state, as if just allocated).
+#
+# $doteardown == 0 is for shutdown.
+#	This means just unmount local filesystems and cleanly detach
+#	from remote blockstores.
+# $doteardown == 1 is for reconfig and full reset.
+#	This means destroying all existing blockstores, wiping out all
+#	on-disk data structures (MBR partitions, BSD partitions,
+#	LVM/ZFS metadata) as well.
+# $doteardown == 2 is for cleaning up after any partial or failed setups.
+#	This means terminating with extreme prejudice. It destroys all
+#	existing blockstores but ignores any errors along the way.
+# $doteardown == 3 is (rather, will be) for taking an image.
+#	This means also removing entries from /etc/fstab and removing
+#	other ZFS/LVM/gvinum state stored in the imagable filesystems.
+#	Not implemented yet.
 #
 sub docleanup($)
 {
@@ -304,6 +337,7 @@ sub docleanup($)
 
     #
     # Process each command in turn.  Already sorted.
+    # XXX do we need to reverse the order for teardown?
     #
     my $so = os_init_storage($cmdref);
     if (!$so) {

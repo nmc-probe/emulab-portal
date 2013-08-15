@@ -775,6 +775,7 @@ sub os_create_storage($$)
 		warn("*** $lv: could not add mount to /etc/fstab\n");
 		return 0;
 	    }
+	    print FD "# $mdev added by $BINDIR/rc/rc.storage\n";
 	    print FD "$mdev\t$mpoint\t$fstype\tdefaults\t0\t0\n";
 	    close(FD);
 	    if (mysystem("$MOUNT $mpoint $redir")) {
@@ -1107,7 +1108,7 @@ sub os_remove_storage_slice($$$)
 	    if ($teardown) {
 		my $tdev = "/dev/$dev";
 		$tdev =~ s/\//\\\//g;
-		if (mysystem("sed -E -i -e '/^$tdev/d' /etc/fstab")) {
+		if (mysystem("sed -E -i -e '/^(# )?$tdev/d' /etc/fstab")) {
 		    warn("*** $lv: could not remove mount from /etc/fstab\n");
 		}
 	    }
