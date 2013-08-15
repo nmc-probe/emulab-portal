@@ -15,7 +15,7 @@ sub DoUpdate($$$)
 	if (!TBSiteVarExists("protogeni/idlecheck_norenew"));
 
     DBQueryFatal("INSERT INTO sitevariables VALUES ".
-		 " ('protogeni/idlecheck_threshold',NULL,'4', ".
+		 " ('protogeni/idlecheck_threshold',NULL,'3', ".
 		 "  'Number of hours after which a slice is ".
 		 "considered idle.',0)")
 	if (!TBSiteVarExists("protogeni/idlecheck_threshold"));
