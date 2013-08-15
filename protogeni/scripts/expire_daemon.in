@@ -1093,7 +1093,7 @@ sub CheckIdle()
 	    # send more then one message in a 24 hour period to avoid
 	    # annoying people to much.
 	    #
-	    if ($idlecheck_norenew &&
+	    if (0 && $idlecheck_norenew &&
 		$swapreqs && ($lastreq * 60) > (2 * $idlecheck_threshold)) {
 		#
 		# Current policy is no second warnings; the 
