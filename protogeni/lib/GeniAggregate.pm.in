@@ -2086,7 +2086,7 @@ sub CancelUpdateAccounts($)
 	$sliver->SetState("started")
 	    if ($sliver->state() eq "updating_users");
     }
-    $self->SetState("updating_users")
+    $self->SetState("started")
 	if ($self->state() eq "updating_users");
 
     return 0;
