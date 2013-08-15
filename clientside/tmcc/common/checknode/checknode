@@ -184,10 +184,11 @@ postprocessing()
     [[ -f /tmp/nodecheck.log.inv ]] && rm /tmp/nodecheck.log.inv
     [[ -f /tmp/nodecheck.log.tb.new ]] && rm /tmp/nodecheck.log.tb.new 
     [[ -f /tmp/nodecheck.diff ]] && rm /tmp/nodecheck.diff
+
+    return 0
 }
 
 initialize $@
 
 (( $mfsmode )) && gatherinv_main $@ || nodecheck_main $@ 
 postprocessing
-
