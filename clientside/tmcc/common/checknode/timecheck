@@ -25,7 +25,7 @@
 echo -n ' Starting timecheck.. '
 
 ntpserver="ntp1"
-maxdrift="0.001"
+maxdrift="0.005"
 
 source checkutils.sh
 
@@ -39,7 +39,7 @@ x=$(caller)
 s=""
 case $os in
     Linux | FreeBSD )
-	progs="tr bc ntpdate host"
+	progs="tr ntpdate host"
 	;;
     * )
 	failed="Unknown OS :$os: FAILED"
@@ -96,7 +96,7 @@ case $os in
 	((++idx))
 	z=${d[$idx]}
 	offset=$(echo ${z} | tr -d ,) # remove comma
-	[[ $offset < 0 ]] && a=$(echo "-($offset)" | bc) || a=$(echo "($offset)") # make $a abs()
+	[[ $offset < 0 ]] && a=$(echo $offset | tr -d '-') || a=$offset # make $a abs()
 	[[ $a > $maxdrift ]] && failed="maxdrift"
 	if  [ -z "${failed}" ]; then
 	    echo "Time check passed offset $offset allowed $maxdrift"
