@@ -4306,10 +4306,9 @@ COMMAND_PROTOTYPE(dostorageconfig)
 		   for the client to consume. */
 		OUTPUT(buf, sizeof(buf), 
 		       "CMD=ELEMENT IDX=%d CLASS=%s PROTO=%s "
-		       "HOSTID=%s BSID=%s UUID=%s UUID_TYPE=serial "
-		       "SIZE=%d\n",
-		       cmdidx++, class, protocol, mynodeid, bsid,
-		       serial, volsize);
+		       "HOSTID=localhost VOLNAME=%s UUID=%s UUID_TYPE=serial "
+		       "VOLSIZE=%d\n",
+		       cmdidx++, class, protocol, bsid, serial, volsize);
 
 		client_writeback(sock, buf, strlen(buf), tcp);
 		mysql_free_result(res2);
