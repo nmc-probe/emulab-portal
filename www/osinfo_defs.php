@@ -589,7 +589,7 @@ class OSinfo
         #
 	if ($pid == $TBOPSPID) {
 	    $query_result =
-		DBQueryFatal("select distinct v.pid, v.eid, e.state " .
+		DBQueryFatal("select distinct v.pid, v.eid, e.state, e.expt_swapped " .
 			     "     from virt_nodes as v ".
 			     "left join os_info as o on " .
 			     "     v.osname=o.osname and v.pid=o.pid ".
@@ -600,7 +600,7 @@ class OSinfo
 	}
 	else {
 	    $query_result =
-		DBQueryFatal("select distinct v.pid, v.eid, e.state " .
+		DBQueryFatal("select distinct v.pid, v.eid, e.state, e.expt_swapped " .
 			     "  from virt_nodes as v ".
 			     "left join experiments as e " .
 			     "     on v.pid=e.pid and v.eid=e.eid " .
@@ -620,11 +620,16 @@ class OSinfo
 		        <th>PID</th>
    		        <th>EID</th>
 		        <th>State</th>
+		        <th>Last Swap</th>
 		    </tr>\n";
 	    while($row = mysql_fetch_array($query_result)) {
 		$pid   = $row[0];
 		$eid   = $row[1];
 		$state = $row[2];
+		$lswap = $row[3];
+		if (!$lswap) {
+		    $lswap = "Never";
+		}
 
                 #
 	        # Gotta make sure that the user actually has the right to 
@@ -644,6 +649,7 @@ class OSinfo
 		echo "  <td>$pid</td>\n";
 		echo "  <td><a href='$showexp_url'>$eid</td>\n";
 		echo "  <td>$state</td>\n";
+		echo "  <td>$lswap</td>\n";
 		echo "</tr>\n";
 	    }
 	    if ($other_exps) {
