@@ -1628,7 +1628,7 @@ sub BindToSlice($)
     my $slice_urn    = $argref->{'slice_urn'};
     my $credentials  = $argref->{'credentials'};
     my $keys         = $argref->{'keys'};
-    my $amapi	     = exists($argref->{'amapiv3'});
+    my $amapi	     = (exists($argref->{'amapiv3'}) ? 1 : 0);
     
     if (! (defined($credentials) &&
 	   defined($slice_urn) && defined($keys))) {
