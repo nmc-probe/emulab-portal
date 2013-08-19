@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -40,6 +40,9 @@ import xmlrpclib
 from M2Crypto import X509
 
 ACCEPTSLICENAME=1
+dokeys   = 1
+amapiv3  = 0
+cancel   = 0
 
 execfile( "test-common.py" )
 
@@ -62,12 +65,73 @@ slicecredential = get_slice_credential( myslice, mycredential )
 print "Got slice credential"
 
 #
+# Lookup my ssh keys.
+#
+if dokeys:
+    params = {}
+    params["credential"] = mycredential
+    rval,response = do_method("sa", "GetKeys", params)
+    if rval:
+        Fatal("Could not get my keys")
+        pass
+    mykeys = response["value"]
+    if debug: print str(mykeys)
+    pass
+
+#
 # Bind to slice at the CM.
 #
-params = {}
-params["credential"] = slicecredential
-rval,response = do_method("cm", "BindToSlice", params)
-if rval:
-    Fatal("Could not bind myself to slice")
+if amapiv3:
+    #
+    # Convert keys to AM style.
+    #
+    keys = []
+    for key in mykeys:
+        keys.append(key['key'])
+        pass
+    mykeys = {'urn' : 'urn:publicid:IDN+emulab.net+user+testuser',
+              'keys': keys }
+    options = {}
+    options["geni_users"] = [ mykeys ]
+    cred = {}
+    cred["geni_type"] = "geni_sfa"
+    cred["geni_version"] = "2"
+    cred["geni_value"] = slicecredential
+    params = [[SLICEURN], [cred], "geni_update_users" , options]
+    try:
+        response = do_method("am/3.0", "PerformOperationalAction", params,
+                             response_handler=geni_am_response_handler)
+        pass
+    except xmlrpclib.Fault, e:
+        Fatal("Could not bind myself to slice: %s" % (str(e)))
+        pass
+    pass
+else:
+    params = {}
+    params["credentials"] = (slicecredential,)
+    params["slice_urn"]   = myslice["urn"]
+    params["keys"]        = mykeys
+    rval,response = do_method("cm", "BindToSlice", params, version="2.0")
+    if rval:
+        Fatal("Could not bind myself to slice")
+        pass
     pass
 print "Bound myself to slice"
+
+if amapiv3 and cancel:
+    print "Canceling update ... just testing if it works."
+    options = {}
+    cred = {}
+    cred["geni_type"] = "geni_sfa"
+    cred["geni_version"] = "2"
+    cred["geni_value"] = slicecredential
+    params = [[SLICEURN], [cred], "geni_update_users_cancel" , options]
+    try:
+        response = do_method("am/3.0", "PerformOperationalAction", params,
+                             response_handler=geni_am_response_handler)
+        pass
+    except xmlrpclib.Fault, e:
+        Fatal("Could not cancel account update: %s" % (str(e)))
+        pass
+    print "Update canceled"
+    pass
