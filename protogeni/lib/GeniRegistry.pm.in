@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -535,6 +535,34 @@ sub GetCertificate($)
 	return undef;
     }
     return $certificate;
+}
+
+#
+# Flush the cached credential.
+#
+sub FlushCredential($$)
+{
+    my ($class, $context) = @_;
+
+    $context = Genixmlrpc->GetContext()
+	if (!defined($context));
+
+    if (!defined($context)) {
+	print STDERR "Need a context for registry credential\n";
+	return -1;
+    }
+    my $clearinghousecert = GeniRegistry::ClearingHouse->GetCertificate();
+    if (!defined($clearinghousecert)) {
+	return -1;
+    }
+    my $clearinghousecred =
+	GeniCredential->Lookup($clearinghousecert->uuid(),
+			       $context->certificate()->uuid());
+
+    $clearinghousecred->Delete()
+	if (defined($clearinghousecred));
+
+    return 0;
 }
 
 #
