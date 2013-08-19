@@ -1194,20 +1194,21 @@ sub PerformOperationalAction
 	    return GeniResponse->MalformedArgsResponse("No keys provided!");
 	}
 	my $users = $options->{'geni_users'};
+	if (! (ref($users) && ref($users) eq "ARRAY")) {
+	    return GeniResponse->MalformedArgsResponse("Malformed keys!");
+	}
 	my $sliver_keys = [];
-	if (defined($users) && @$users) {
-	    foreach my $user (@$users) {
-		my $user_urn  = $user->{'urn'};
-		my @user_keys = ();
-
-		foreach my $key (@{ $user->{keys} }) {
-		    # The CMV2 does not like newlines at the end of the keys.
-		    chomp($key);
-		    push(@user_keys, {'type' => 'ssh', 'key' => $key});
-		}
-		push(@{$sliver_keys}, {'urn'  => $user_urn,
-				       'keys' => \@user_keys});
+	foreach my $user (@$users) {
+	    my $user_urn  = $user->{'urn'};
+	    my @user_keys = ();
+	    
+	    foreach my $key (@{ $user->{'keys'} }) {
+		# The CMV2 does not like newlines at the end of the keys.
+		chomp($key);
+		push(@user_keys, {'type' => 'ssh', 'key' => $key});
 	    }
+	    push(@{$sliver_keys}, {'urn'  => $user_urn,
+				   'keys' => \@user_keys});
 	}
 	$args->{'slice_urn'} = $slice->urn();
 	$args->{'keys'}      = $sliver_keys;
