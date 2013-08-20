@@ -169,6 +169,12 @@ my @archivemail = get_config("archivemail",undef);
 my $replyto = get_config("replyto",undef);
 
 #
+# If set, set the 'From' header in the mail - useful when being called
+# from outside to set make the sender look right
+#
+my $mailfrom = get_config("mailfrom",undef);
+
+#
 # If set to true, detach and run in background - the push doesn't return until
 # the hook finishes, so doing this means the pusher doesn't have to wait for
 # us to finish
@@ -1119,6 +1125,11 @@ sub send_mail($$$@) {
                # -t causes sendmail to look in the message for 'To:' 'Cc:' and
                #    'Bcc:' lines
                open(MAIL, "| $SENDMAIL -odb -oem -t");
+        }
+
+        # If requested, set the From header
+        if (defined($mailfrom)) {
+            print MAIL "From: $mailfrom\n";
         }
 
         print MAIL "To: " . join(", ",@$mailto) . "\n";
