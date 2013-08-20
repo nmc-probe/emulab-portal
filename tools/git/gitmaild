@@ -79,6 +79,12 @@ sub run_gitmail($) {
 
     $options{'archivemail'} = $DEFAULT_ARCHIVEMAIL;
     $options{'mailfrom'} = $userinfo->{name} . " <" . $userinfo->{email} . ">";
+    $options{'reponame'} = $repoinfo->{path_with_namespace};
+    $options{'sshcloneurl'} = $repoinfo->{ssh_url_to_repo};
+    if (exists $repoinfo->{http_url_to_repo}) {
+        $options{'rocloneurl'} = $repoinfo->{http_url_to_repo};
+    }
+    $options{'weburl'} = $repoinfo->{web_url};
 
     my $optionstr = format_options(%options);
     print "optionstr is '$optionstr'\n";
