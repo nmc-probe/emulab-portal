@@ -276,6 +276,22 @@ my $gitweb_url = get_config("gitweburl",undef);
 #
 my $include_urls = get_config("includeurls",1);
 
+#
+# If set, and includeurls is too, override the SSH clone URL
+#
+my $ssh_clone_url = get_config("sshcloneurl",undef);
+
+#
+# Same as above, but for read-only clone
+#
+my $ro_clone_url = get_config("rocloneurl",undef);
+
+#
+# If set, include this URL at tne end of the mail to direct readers
+# to the repo's webpage
+#
+my $web_url = get_config("weburl",undef);
+
 ######################################################################
 # Constants
 ######################################################################
@@ -984,6 +1000,9 @@ sub commit_mail($$$\@$@) {
             # accessable through ssh
             $cloneurls .= "Clone read-only: $public_url\n";
         }
+        if ($web_url) {
+            $cloneurls .= "Web: $web_url\n";
+        }
         $cloneurls .= "\n";
     }
 
@@ -1413,19 +1432,27 @@ sub get_clone_url($) {
     my $path = get_pathname();
 
     if ($type eq $CLONE_SSH) {
-        return "$hostname:$path";
+        if ($ssh_clone_url) {
+            return $ssh_clone_url;
+        } else {
+            return "$hostname:$path";
+        }
     }
 
     if ($type eq $CLONE_PUBLIC) {
-        # Check to see if this repo is exported publicly - only method
-        # supported at the moment is anonymous git URLs; would be good to
-        # support http/https in the future
-        if (-e "$path/git-daemon-export-ok") {
-            my $reponame = `basename $path`;
-            chomp $reponame;
-            return "git://$hostname/$reponame";
+        if ($ro_clone_url) {
+            return $ro_clone_url;
         } else {
-            return undef;
+            # Check to see if this repo is exported publicly - only method
+            # supported at the moment is anonymous git URLs; would be good to
+            # support http/https in the future
+            if (-e "$path/git-daemon-export-ok") {
+                my $reponame = `basename $path`;
+                chomp $reponame;
+                return "git://$hostname/$reponame";
+            } else {
+                return undef;
+            }
         }
     }
 
