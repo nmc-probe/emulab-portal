@@ -69,6 +69,9 @@ my $listen_socket = HTTP::Daemon->new(LocalAddr => 'localhost',
                                       LocalPort => $PORT) || die;
 print "gitmaild running at: ", $listen_socket->url, "\n";
 
+# This causes children to be auto-reaped
+$SIG{CHLD}="IGNORE";
+
 #
 # Main loop - pretty simple!
 #
@@ -80,7 +83,12 @@ while (my $connection = $listen_socket->accept()) {
             print "="x80 . "\n";
         }
         # Fork off child
-        run_gitmail(decode_json($request->content()));
+        if (fork()) {
+            # Parent
+        } else {
+            # Child
+            exit run_gitmail(decode_json($request->content()));
+        }
     }
 
     # Both are necessary to make sure the connection is really closed
