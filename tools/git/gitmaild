@@ -29,6 +29,7 @@ print "GITMAIL is $GITMAIL\n";
 my $TOKEN = "";
 my $BASEURL = "http://git.flux.utah.edu/";
 my $BASEPATH = "/home/git/repositories";
+my $DEFAULT_ARCHIVEMAIL = 'ricci@cs.utah.edu';
 
 sub run_gitmail($);
 
@@ -74,11 +75,28 @@ sub run_gitmail($) {
     my $repodir = $BASEPATH . "/" . $repoinfo->{"path_with_namespace"} . ".git";
     chdir $repodir;
 
+    my %options;
+
+    $options{'archivemail'} = $DEFAULT_ARCHIVEMAIL;
+    $options{'mailfrom'} = $userinfo->{name} . " <" . $userinfo->{email} . ">";
+
+    my $optionstr = format_options(%options);
+    print "optionstr is '$optionstr'\n";
+
     #
     # Run gitmail in test mode for now
     #
-    my $pid = open3(\*CHLD_IN, \*CHLD_OUT, \*CHLD_ERR,
-                "$GITMAIL -d -t");
+    my $pid = open3(\*CHILD_IN, \*CHILD_OUT, \*CHILD_ERR,
+                "$GITMAIL $optionstr");
+
+    #
+    # Pass along the commit information we were given, in the form expected
+    # by a git commit hook
+    #
+    print CHILD_IN $refline . "\n";
+    close CHILD_IN;
+
+
     waitpid $pid,0;
     print STDOUT <CHILD_OUT>;
     print STDOUT <CHILD_ERR>;
@@ -100,4 +118,14 @@ sub call_gitlab_api($) {
     print "Response: " . $response->as_string . "\n";
     # Error checking
     return decode_json($response->content);
+}
+
+#
+# Re-format a hash as a string sutable for passing to gitmail
+# TODO: support mutiple options
+# TODO: proper command line escaping
+#
+sub format_options(@) {
+    my %opt = @_;
+    return join(" ",map { "-o " . $_ . "='$opt{$_}'"} keys %opt);
 }
