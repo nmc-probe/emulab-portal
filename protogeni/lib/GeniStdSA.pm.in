@@ -1,0 +1,202 @@
+#!/usr/bin/perl -wT
+#
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+package GeniMA;
+
+#
+# The server side of the CM interface on remote sites. Also communicates
+# with the GMC interface at Geni Central as a client.
+#
+use strict;
+use Exporter;
+use vars qw(@ISA @EXPORT);
+
+@ISA    = "Exporter";
+@EXPORT = qw ( );
+
+use GeniSA;
+use GeniResponse;
+use GeniCredential;
+use GeniRegistry;
+use emutil;
+
+sub GetVersion()
+{
+    my $blob = {
+	"VERSION" => "0.1",
+	"SERVICES" => ["SLICE", "PROJECT", "SLICE_MEMBER", "PROJECT_MEMBER"],
+	"CREDENTIAL_TYPES" => ["SFA"],
+	"ROLES" => ["AUTHORITY", "ADMIN", "MEMBER"]
+    };
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+}
+
+sub CreateSlice($$$)
+{
+    my ($slice_urn, $credential_args, $options) = @_;
+    my $credential = GeniStd::CheckCredentials($credential_args);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $args = {
+	"credential" => $credential->Stringify(),
+	"urn" => $slice_urn
+    };
+    my $response = GeniSA::Register($args);
+    if (! GeniResponse->IsError($response)) {
+	my $slice = GeniSlices::Lookup($slice_urn);
+	if (defined($slice)) {
+	    my $blob = {
+		"SLICE_URN" => $slice_urn,
+		"SLICE_EXPIRATION" => $slice->expires(),
+		"SLICE_CREDENTIAL" => $response->value()
+	    };
+	    $response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+	} else {
+	    $response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					     "Internal Error: Looking up slice during creation");
+	}
+    }
+    return $response;
+}
+
+sub LookupSlices()
+{
+    my ($credential_args, $options) = @_;
+
+    my $credential = GeniStd::CheckCredentials($credential_args);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege( "authority" ) or
+	$credential->HasPrivilege( "resolve" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+
+    my $match = $options->{'match'};
+    my $filter = $options->{'filter'};
+
+    my $members = {};
+    if (exists($match) && defined($match)) {
+	foreach my $key (@{ $match }) {
+	    my $slice = GeniSlice->Lookup($key, 0);
+	    if (defined($slice)) {
+		my $blob = {};
+		GeniStd::addField($blob, "SLICE_URN", $slice->urn(),
+				  $filter);
+		GeniStd::addField($blob, "SLICE_UID", $slice->uid(),
+				  $filter);
+		GeniStd::addField($blob, "SLICE_CREATION", $slice->created(),
+				  $filter);
+		GeniStd::addField($blob, "SLICE_EXPIRATION", $slice->expires(),
+				  $filter);
+		GeniStd::addField($blob, "EXPIRED", "False",
+				  $filter);
+		GeniStd::addField($blob, "SLICE_NAME", $slice->hrn(),
+				  $filter);
+		GeniStd::addField($blob, "SLICE_DESCRIPTION", "A Slice",
+				  $filter);
+	    }
+	}
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $members);
+}
+
+sub UpdateSlice()
+{
+    my ($slice_urn, $credential_args, $options) = @_;
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				"Update Slice is Unimplemented");
+}
+
+sub GetCredentials()
+{
+    my ($slice_urn, $credential_args, $options) = @_;
+
+    my $credential = GeniSA::GetCredential($slice_urn);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $blob = {
+	"geni_type" => "sfa",
+	"geni_type" => "3",
+	"geni_credential" => $credential->value()
+    };
+
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, [$blob]);
+}
+
+sub ModifySliceMembership()
+{
+}
+
+sub LookupSliceMembers()
+{
+}
+
+sub LookupSlicesForMember()
+{
+}
+
+sub RegisterAggregate($$$$)
+{
+    my ($slice_urn, $aggregate_url, $credentials, $options) = @_;
+}
+
+sub RemoveAggregate()
+{
+}
+
+sub GetSliceAggregates()
+{
+}
+
+sub CreateProject()
+{
+}
+
+sub LookupProjects()
+{
+}
+
+sub UpdateProject()
+{
+}
+
+sub ModifyProjectMembership()
+{
+}
+
+sub LookupProjectMembers()
+{
+}
+
+sub LookupProjectsForMember()
+{
+}
