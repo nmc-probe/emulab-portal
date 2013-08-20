@@ -55,11 +55,15 @@ sub run_gitmail($);
 sub format_options(@);
 sub call_gitlab_api($);
 
-# TODO: listen only on localhost
-my $d = HTTP::Daemon->new(LocalPort => $PORT) || die;
-print "Please contact me at: <URL:", $d->url, ">\n";
+#
+# Open up a new socket - runs only on localhost, this thing is not nearly
+# secure enough to be open to the world
+#
+my $listen_socket = HTTP::Daemon->new(LocalAddr => 'localhost',
+                                      LocalPort => $PORT) || die;
+print "gitmaild running at: ", $listen_socket->url, "\n";
 
-while (my $c = $d->accept) {
+while (my $c = $listen_socket->accept) {
 
     # TODO: Fork
     while (my $r = $c->get_request) {
