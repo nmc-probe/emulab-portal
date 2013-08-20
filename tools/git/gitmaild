@@ -51,6 +51,12 @@ my $DEFAULT_ARCHIVEMAIL = 'ricci@cs.utah.edu';
 # End settable options
 #
 
+#
+# Command line options
+# TODO: actually accept on command line
+#
+my $verbose = 0;
+
 sub run_gitmail($);
 sub format_options(@);
 sub call_gitlab_api($);
@@ -63,28 +69,39 @@ my $listen_socket = HTTP::Daemon->new(LocalAddr => 'localhost',
                                       LocalPort => $PORT) || die;
 print "gitmaild running at: ", $listen_socket->url, "\n";
 
-while (my $c = $listen_socket->accept) {
+#
+# Main loop - pretty simple!
+#
+while (my $connection = $listen_socket->accept()) {
 
-    # TODO: Fork
-    while (my $r = $c->get_request) {
-        print $r->as_string;
-        print "="x80 . "\n";
-        # TODO: Error handling
-        run_gitmail(decode_json($r->content));
+    while (my $request = $connection->get_request()) {
+        if ($verbose) {
+            print $request->as_string();
+            print "="x80 . "\n";
+        }
+        # Fork off child
+        run_gitmail(decode_json($request->content()));
     }
-    $c->close;
-    undef($c);
+
+    # Both are necessary to make sure the connection is really closed
+    $connection->close();
+    undef($connection);
 
 }
 
 sub run_gitmail($) {
     my ($data) = @_;
-    print "Running gitmail\n";
+
+    if ($verbose) {
+        print "Running gitmail\n";
+    }
 
     # Make it look like it got called as a regular post-recieve hook
     my $refline = $data->{"before"} . " " . $data->{"after"} . " " .
         $data->{"ref"};
-    print $refline . "\n";
+    if ($verbose) {
+        print $refline . "\n";
+    }
 
     my $userinfo = call_gitlab_api("/users/" . $data->{"user_id"});
 
@@ -113,7 +130,10 @@ sub run_gitmail($) {
     $options{'weburl'} = $repoinfo->{web_url};
 
     my $optionstr = format_options(%options);
-    print "optionstr is '$optionstr'\n";
+
+    if ($verbose) {
+        print "optionstr is '$optionstr'\n";
+    }
 
     #
     # Run gitmail in test mode for now
@@ -147,7 +167,9 @@ sub call_gitlab_api($) {
     my $request = HTTP::Request->new(GET => $url);
     my $ua = LWP::UserAgent->new;
     my $response = $ua->request($request);
-    print "Response: " . $response->as_string . "\n";
+    if ($verbose) {
+        print "Response: " . $response->as_string . "\n";
+    }
     # Error checking
     return decode_json($response->content);
 }
