@@ -97,6 +97,10 @@ while (my $connection = $listen_socket->accept()) {
 
 }
 
+#
+# Actually run gitmail, using the data that we pulled out of the JSON that
+# was passed to us
+#
 sub run_gitmail($) {
     my ($data) = @_;
 
@@ -104,16 +108,17 @@ sub run_gitmail($) {
         print "Running gitmail\n";
     }
 
-    # Make it look like it got called as a regular post-recieve hook
-    my $refline = $data->{"before"} . " " . $data->{"after"} . " " .
-        $data->{"ref"};
-    if ($verbose) {
-        print $refline . "\n";
-    }
+    # TODO: Error handling (or at least reporting)
 
+    #
+    # Get information about the user so that we can set, eg., 'from'
+    # appropriately
+    #
     my $userinfo = call_gitlab_api("/users/" . $data->{"user_id"});
 
     #
+    # Get information about the project, so that we know where the repo lives,
+    # etc.
     # NB: This depends on the Utah patch to gitlab that adds the project ID
     # to the data in the hook
     #
@@ -126,25 +131,47 @@ sub run_gitmail($) {
     my $repodir = $BASEPATH . "/" . $repoinfo->{"path_with_namespace"} . ".git";
     chdir $repodir;
 
+    #
+    # Build up options that we'll pass to gitmail
+    #
     my %options;
 
+    # Address to always send mail to
     $options{'archivemail'} = $DEFAULT_ARCHIVEMAIL;
+
+    # Who the mail comes from - user doing the push
     $options{'mailfrom'} = $userinfo->{name} . " <" . $userinfo->{email} . ">";
+
+    # Name of the repo
     $options{'reponame'} = $repoinfo->{path_with_namespace};
+
+    # URLs to push/pull from
     $options{'sshcloneurl'} = $repoinfo->{ssh_url_to_repo};
     if (exists $repoinfo->{http_url_to_repo}) {
         $options{'rocloneurl'} = $repoinfo->{http_url_to_repo};
     }
+
+    # gitlab's URL for this project
     $options{'weburl'} = $repoinfo->{web_url};
 
+    # Turn all of this into a string to pass on the command line
     my $optionstr = format_options(%options);
-
     if ($verbose) {
         print "optionstr is '$optionstr'\n";
     }
 
+    # 
+    # Build up a refline that makes it look like gitmail got called
+    # as a regular post-recieve hook
     #
-    # Run gitmail in test mode for now
+    my $refline = $data->{"before"} . " " . $data->{"after"} . " " .
+        $data->{"ref"};
+    if ($verbose) {
+        print $refline . "\n";
+    }
+
+    #
+    # Actually run gitmail
     #
     my $pid = open3(\*CHILD_IN, \*CHILD_OUT, \*CHILD_ERR,
                 "$GITMAIL $optionstr");
@@ -156,10 +183,17 @@ sub run_gitmail($) {
     print CHILD_IN $refline . "\n";
     close CHILD_IN;
 
-
+    #
+    # Wait for the child to finish
+    #
     waitpid $pid,0;
     print STDOUT <CHILD_OUT>;
     print STDOUT <CHILD_ERR>;
+
+    #
+    # Done!
+    #
+    return 0;
 
 }
 
