@@ -204,15 +204,19 @@ sub run_gitmail($) {
 # TODO: Error checking
 sub call_gitlab_api($) {
     my ($call) = @_;
+
+    # Hardcode API v3 for now
     my $url = $BASEURL . "api/v3" . $call . "?private_token=" . $TOKEN;
 
+    # Super simple, make the call
     my $request = HTTP::Request->new(GET => $url);
     my $ua = LWP::UserAgent->new;
     my $response = $ua->request($request);
     if ($verbose) {
         print "Response: " . $response->as_string . "\n";
     }
-    # Error checking
+
+    # TODO: Error checking
     return decode_json($response->content);
 }
 
