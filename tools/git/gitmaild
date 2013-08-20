@@ -11,14 +11,20 @@ use HTTP::Request;
 use HTTP::Status;
 use HTTP::Response;
 use LWP::UserAgent;
+use IPC::Open3;
 use JSON;
+
+use Cwd 'abs_path';
+use File::Basename;
+my $dirname = dirname(abs_path($0));
 
 use strict;
 
 # Made up
 my $PORT = 4577;
 
-my $GITMAIL = "./gitmail";
+my $GITMAIL = $dirname . "/gitmail";
+print "GITMAIL is $GITMAIL\n";
 
 my $TOKEN = "";
 my $BASEURL = "http://git.flux.utah.edu/";
@@ -61,7 +67,21 @@ sub run_gitmail($) {
     #
     my $repoinfo = call_gitlab_api("/projects/" . $data->{"repository"}{"project_id"});
 
-    my $repodir = $BASEPATH . "/" . $repinfo->{"path_with_namespace"} . ".git";
+    #
+    # Change to the directory where the repo lives - this is the simplest way
+    # to make all tools happy
+    #
+    my $repodir = $BASEPATH . "/" . $repoinfo->{"path_with_namespace"} . ".git";
+    chdir $repodir;
+
+    #
+    # Run gitmail in test mode for now
+    #
+    my $pid = open3(\*CHLD_IN, \*CHLD_OUT, \*CHLD_ERR,
+                "$GITMAIL -d -t");
+    waitpid $pid,0;
+    print STDOUT <CHILD_OUT>;
+    print STDOUT <CHILD_ERR>;
 
 }
 
