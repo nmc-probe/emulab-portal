@@ -6,7 +6,6 @@
 # git repos in gitlab's home
 # TODO: Support ignoring commits from repo you forked from
 # TODO: Accept options in URL
-# TODO: Fork and run in background
 # TODO: Read options from a file
 # TODO: Better error handling; try really hard not to die
 #
@@ -17,9 +16,11 @@ use HTTP::Status;
 use HTTP::Response;
 use LWP::UserAgent;
 use IPC::Open3;
+use Getopt::Long;
 use JSON;
 use Cwd 'abs_path';
 use File::Basename;
+use POSIX "setsid";
 
 use strict;
 
@@ -56,6 +57,9 @@ my $DEFAULT_ARCHIVEMAIL = 'ricci@cs.utah.edu';
 # TODO: actually accept on command line
 #
 my $verbose = 0;
+my $debug   = 0;
+
+my $result = GetOptions("v" => \$verbose, "d" => \$debug);
 
 sub run_gitmail($);
 sub format_options(@);
@@ -71,6 +75,18 @@ print "gitmaild running at: ", $listen_socket->url, "\n";
 
 # This causes children to be auto-reaped
 $SIG{CHLD}="IGNORE";
+
+# Daemonize
+if (!$debug) {
+    chdir("/")                      || die "can't chdir to /: $!";
+    open(STDIN,  "< /dev/null")     || die "can't read /dev/null: $!";
+    open(STDOUT, "> /dev/null")     || die "can't write to /dev/null: $!";
+    defined(my $pid = fork())       || die "can't fork: $!";
+    exit if $pid;                   # non-zero now means I am the parent
+    (setsid() != -1)                || die "Can't start a new session: $!";
+    open(STDERR, ">&STDOUT")        || die "can't dup stdout: $!";
+}
+
 
 #
 # Main loop - pretty simple!
