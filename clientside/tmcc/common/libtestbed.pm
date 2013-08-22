@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,6 +33,8 @@ use Exporter;
 	      TBScriptLock TBScriptUnlock
 	      TBSCRIPTLOCK_OKAY TBSCRIPTLOCK_TIMEDOUT
 	      TBSCRIPTLOCK_IGNORE TBSCRIPTLOCK_FAILED TBSCRIPTLOCK_GLOBALWAIT
+	      TBSCRIPTLOCK_SHAREDLOCK TBSCRIPTLOCK_NONBLOCKING
+	      TBSCRIPTLOCK_WOULDBLOCK
 	      TBTimeStamp TBTimeStampWithDate TBBackGround ReOpenLog
 	    );
 
@@ -264,13 +266,16 @@ my $lockhandle;
 sub TBSCRIPTLOCK_OKAY()		{ 0;  }
 sub TBSCRIPTLOCK_TIMEDOUT()	{ 1;  }
 sub TBSCRIPTLOCK_IGNORE()	{ 2;  }
+sub TBSCRIPTLOCK_WOULDBLOCK()	{ 4;  }
 sub TBSCRIPTLOCK_FAILED()	{ -1; }
-sub TBSCRIPTLOCK_GLOBALWAIT()	{ 1; }
+sub TBSCRIPTLOCK_GLOBALWAIT()	{ 0x01; }
+sub TBSCRIPTLOCK_SHAREDLOCK()	{ 0x10; }
+sub TBSCRIPTLOCK_NONBLOCKING()	{ 0x20; }
 
 #
 # There are two kinds of serialization.
 #
-#   * Usual Kind: Each party just waits for a chance to go.
+#   * Usual Kind: Each party just waits the lock.
 #   * Other Kind: Only the first party really needs to run; the others just
 #                 need to wait. For example; exports_setup operates globally,
 #                 so there is no reason to run it more then once. We just
@@ -279,8 +284,10 @@ sub TBSCRIPTLOCK_GLOBALWAIT()	{ 1; }
 #
 sub TBScriptLock($;$$$)
 {
-    my ($token, $global, $waittime, $lockhandle_ref) = @_;
+    my ($token, $flags, $waittime, $lockhandle_ref) = @_;
     local *LOCK;
+    my $global = 0;
+    my $shared = 0;
 
     if (!defined($waittime)) {
 	$waittime = 30;
@@ -288,8 +295,10 @@ sub TBScriptLock($;$$$)
     elsif ($waittime == 0) {
 	$waittime = 99999999;
     }
-    $global = 0
-	if (defined($global) || $global != TBSCRIPTLOCK_GLOBALWAIT());
+    $global = 1
+	if (defined($flags) && ($flags & TBSCRIPTLOCK_GLOBALWAIT()));
+    $shared = 1
+	if (defined($flags) && ($flags & TBSCRIPTLOCK_SHAREDLOCK()));
     $lockname = "/var/tmp/testbed_${token}_lockfile";
 
     my $oldmask = umask(0000);
@@ -303,10 +312,14 @@ sub TBScriptLock($;$$$)
 
     if (! $global) {
 	#
-	# A plain old serial lock.
+	# A plain old lock.
 	#
 	my $tries = 0;
-	while (flock(LOCK, LOCK_EX|LOCK_NB) == 0) {
+	my $ltype = ($shared ? LOCK_SH : LOCK_EX);
+	while (flock(LOCK, $ltype|LOCK_NB) == 0) {
+	    return TBSCRIPTLOCK_WOULDBLOCK()
+		if ($flags & TBSCRIPTLOCK_NONBLOCKING());
+	    
 	    print "Another $token is in progress (${tries}s). Waiting ...\n"
 		if (($tries++ % 60) == 0);
 
@@ -409,11 +422,12 @@ sub TBScriptUnlock(;$)
 {
     my ($lockhandle_arg) = @_;
     if (defined($lockhandle_arg)) {
+	flock($lockhandle_arg, LOCK_UN);
 	close($lockhandle_arg);
     }
-    else {
-	close($lockhandle)
-	    if defined($lockhandle);
+    elsif (defined($lockhandle)) {
+	flock($lockhandle, LOCK_UN);
+	close($lockhandle);
     }
 }
 
