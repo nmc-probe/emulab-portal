@@ -5,6 +5,7 @@ default_keyfile 	= privkey.pem
 distinguished_name	= req_distinguished_name
 attributes		= req_attributes
 x509_extensions	        = v3_ca	# The extentions to add to the self signed cert
+req_extensions	        = v3_ca	# The extentions to add to the self signed cert
 encrypt_key		= no
 string_mask             = nombstr
 
@@ -23,5 +24,8 @@ emailAddress           = @TBOPSEMAIL@
 
 [ v3_ca ]
 subjectKeyIdentifier=hash
-authorityKeyIdentifier=keyid:always,issuer:always
-basicConstraints = CA:true
+subjectAltName=@req_altname
+basicConstraints = CA:false
+
+[ req_altname ]
+DNS.1 = boss.@OURDOMAIN@
