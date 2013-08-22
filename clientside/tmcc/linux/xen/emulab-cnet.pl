@@ -113,6 +113,8 @@ chomp($cnet_gw);
 my $network   = inet_ntoa(inet_aton($cnet_ip) & inet_aton($cnet_mask));
 
 my ($jail_network,$jail_netmask) = findVirtControlNet();
+# XXX InstaGeni Rack Hack. Hack until I decide on a better way
+my $fs_jailip = "172.17.253.254";
 
 # Each container gets a tmcc proxy running on another port.
 my $local_tmcd_port = $TMCD_PORT + $vmid;
@@ -202,7 +204,7 @@ sub Online()
     # 
     if (!SHAREDHOST()) {
 	mysystem2("$IPTABLES -t nat -A POSTROUTING -j SNAT ".
-	       "  --to-source $host_ip -s $vnode_ip --destination $fs_ip ".
+	       "  --to-source $host_ip -s $vnode_ip -d $fs_ip,$fs_jailip ".
 	       "  -o $bridge");
 	return -1
 	    if ($?);
