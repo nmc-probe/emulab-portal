@@ -22,5 +22,4 @@ emailAddress           = @TBOPSEMAIL@
 
 [ v3_ca ]
 subjectKeyIdentifier=hash
-authorityKeyIdentifier=keyid:always,issuer:always
-basicConstraints = CA:true
+basicConstraints = CA:false
