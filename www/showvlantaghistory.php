@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -236,6 +236,7 @@ if (mysql_num_rows($query_result)) {
 	$pid     = $row{"pid"};
 	$eid     = $row{"eid"};
 	$alloc   = $row{"allocated"};
+	$lanid   = $row{"lanid"};
 	$id      = 0;
 	$slice   = "--";
 
@@ -275,6 +276,7 @@ if (mysql_num_rows($query_result)) {
 	if (!$tag) {
 	    $html .= "<td>$thistag</td>";
 	}
+	$html .= "<td>$lanid</td>";
  	$html .= "<td>$pid</td>";
 	if ($expurl) {
 	    $html .= "<td><a href='$expurl'>$eid</a></td>";
@@ -299,7 +301,8 @@ if (mysql_num_rows($query_result)) {
     if (! $tag) {
 	echo "<th>Tag</th>";
     }
-    echo "<th>Pid</th>
+    echo "<th>Lanid</th>
+	  <th>Pid</th>
           <th>Eid</th>";
     if ($PROTOGENI) {
 	echo "<th>Slice</th>";
