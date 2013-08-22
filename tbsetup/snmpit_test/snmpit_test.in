@@ -2077,8 +2077,13 @@ sub CreateOneVlan($$$@)
 		     error => ['create_vlan_failed', $vlanid]},
 		    "Failed to create VLAN with id $vlanid");
 	    #
-	    # Don't try to put ports in a VLAN if it couldn't be created
+	    # Don't try to put ports in a VLAN if it couldn't be created.
+	    # Lets make sure the vlan is not partially created, lest we
+	    # have a vlan on the switch but not in the DB.
 	    #
+	    if (!$stack->removeVlan($vlanid)) {
+		print STDERR "*** Could not remove failed vlan: $vlanid\n";
+	    }
 	    $errors++;
 	}
     }
@@ -3416,6 +3421,12 @@ sub doMakeVlan($$@) {
 	    print $vlan_number? "succeeded":"failed",".\n";
 	}
 	if (!$vlan_number) {
+	    #
+	    # Do not leave a partially created vlan.
+	    # 
+	    if (!$stack->removeVlan($device_id)) {
+		print STDERR "*** Could not remove failed vlan: $device_id\n";
+	    }
 	    $errors++;
 	}
 
