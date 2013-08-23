@@ -1067,6 +1067,15 @@ sub updateOneVlan($$$$$@)
     }
     my $result = $self->setVlanLists($vlan_number, $vlist);
     $self->unlock();
+    if (!defined($result)) {
+	print STDERR $self->{NAME} .
+	    ": updateOneVlan($untag,$mem,$vlan_number) failed for: ";
+	foreach my $port (@ports) {
+	    my $ifindex = shift(@portlist);
+	    print STDERR "$port:$ifindex ";
+	}
+	print STDERR "\n";
+    }
     return defined($result) ? 0 : 1;
 }
 
