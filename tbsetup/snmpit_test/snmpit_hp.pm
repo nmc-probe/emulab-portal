@@ -211,6 +211,8 @@ sub new($$$;$) {
 
     $self->readifIndex();
 
+    # Utah debugging.
+    $self->{DEBUG} = 1;    
     return $self;
 }
 
