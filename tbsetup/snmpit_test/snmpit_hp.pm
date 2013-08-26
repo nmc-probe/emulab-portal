@@ -36,6 +36,7 @@ $| = 1; # Turn off line buffering on output
 use English;
 use SNMP;
 use snmpit_lib;
+use Carp qw(cluck);
 
 use libtestbed;
 use Lan;
@@ -863,7 +864,7 @@ sub setVlanLists($@) {
 	}
     }
     $j = $self->set($todo);
-    if (!defined($j)) { print "vlists failed\n";}
+    if (!defined($j)) { cluck "vlists failed\n";}
     return $j;
 }
 
@@ -1046,7 +1047,8 @@ sub updateOneVlan($$$$$@)
 {
     my ($self,$forbid,$untag,$mem,$vlan_number,@ports) = @_;
 
-    $self->debug($self->{NAME} . "::updateOneVlan($untag,$mem,$vlan_number) ");
+    $self->debug($self->{NAME} .
+		 "::updateOneVlan($forbid,$untag,$mem,$vlan_number) ");
 	   
     #
     # Run the port list through portmap to find the ports on the switch that
@@ -1069,7 +1071,7 @@ sub updateOneVlan($$$$$@)
     $self->unlock();
     if (!defined($result)) {
 	print STDERR $self->{NAME} .
-	    ": updateOneVlan($untag,$mem,$vlan_number) failed for: ";
+	    ": updateOneVlan($forbid,$untag,$mem,$vlan_number) failed for: ";
 	foreach my $port (@ports) {
 	    my $ifindex = shift(@portlist);
 	    print STDERR "$port:$ifindex ";
@@ -1095,7 +1097,9 @@ sub removePortsFromVlan($@) {
 
     foreach my $vlan_number (@vlan_numbers) {
 	my @ports = $self->portSetToList($self->get1($egressOID, $vlan_number));
-	$errors += $self->removeSomePortsFromVlan($vlan_number, @ports);
+	if (@ports) {
+	    $errors += $self->removeSomePortsFromVlan($vlan_number, @ports);
+	}
     }
     return $errors;
 }
@@ -1112,6 +1116,10 @@ sub removeSomePortsFromVlan($$@) {
     my ($self, $vlan_number, @ports) = @_;
     my ($errors, $changes, $id, %porthash, $tagOnly, $pvid) =
 	(0, 0, $self->{NAME} . "::removeSomePortsFromVlan");
+
+    # Callers should know better.
+    return 0
+	if (@ports);
 
     @ports = $self->convertPortFormat($PORT_FORMAT_IFINDEX,@ports);
     return -1

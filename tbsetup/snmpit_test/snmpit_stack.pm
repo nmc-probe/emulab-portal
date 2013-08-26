@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # Copyright (c) 2004-2009 Regents, University of California.
 # 
 # {{{EMULAB-LGPL
@@ -863,13 +863,22 @@ sub removeVlan($@) {
 	print "Removing ports on $devicename from VLANS " . 
 	    join(",",@existant_vlans)."\n" if $self->{DEBUG};
 
-	$errors += $device->removePortsFromVlan(@existant_vlans);
+	my $err = $device->removePortsFromVlan(@existant_vlans);
+	if ($err) {
+	    warn "ERROR: Unable to remove ports from vlans on ".
+		"$devicename: @existant_vlans\n";
+	    $errors += $err;
+	}
 
 	#
 	# Since mixed stacks doesn't use VTP, delete the VLAN, too.
 	#
 	my $ok = $device->removeVlan(@existant_vlans);
-	if (!$ok) { $errors++; }
+	if (!$ok) {
+	    warn "ERROR: Unable to remove vlans from ".
+		"$devicename: @existant_vlans\n";
+	    $errors++;
+	}
     }
 
     return ($errors == 0);
