@@ -771,7 +771,7 @@ sub doesimplement($$)
 #############################################################################
 # Back to the main package.
 #
-package libvtop_test;
+package libvtop_stable;
 
 #
 # Load some physical info (for types, interfaces, speeds).
