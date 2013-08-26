@@ -21,7 +21,7 @@
 # 
 # }}}
 #
-package libvtop_test;
+package libvtop_stable;
 
 use strict;
 use Exporter;
