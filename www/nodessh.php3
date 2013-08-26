@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011, 2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -95,8 +95,11 @@ if (!isset($pid)) {
 }
 
 $filename = $node_id . ".tbssh"; 
-header("Content-Type: text/x-testbed-ssh");
-header("Content-Disposition: inline; filename=$filename;");
+header("Content-Type: application/x-unknown");
+header("Content-Type: application/force-download");
+header("Content-Type: application/octet-stream");
+header("Content-Type: application/download");
+header("Content-Disposition: attachment; filename=\"$filename\"");
 header("Content-Description: SSH description file for a testbed node");
 
 if ($NONAMEDSETUP) {
