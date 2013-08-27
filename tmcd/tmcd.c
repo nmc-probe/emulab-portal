@@ -4670,9 +4670,9 @@ COMMAND_PROTOTYPE(domounts)
 	else if (!usesfs) {
 #ifdef  PROTOGENI_GENIRACK
 		/*
-		 * XXX Fix this ...
+		 * XXX Fix this ... crazy routing problems on the racks.
 		 */
-		if (reqp->isvnode) {
+		if (reqp->isvnode && reqp->sharing_mode[0]) {
 			fsnode = FSJAILIP;
 		}
 #endif
