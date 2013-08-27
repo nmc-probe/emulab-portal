@@ -1427,10 +1427,11 @@ sub disableOpenflow($$) {
 # setController(self, vlan_id, controller);
 # return # of errors
 #
-sub setOpenflowController($$$) {
+sub setOpenflowController($$$$) {
     my $self = shift;
     my $vlan_id = shift;
     my $controller = shift;
+    my $option = shift;
     
     my $errors = 0;
     foreach my $devicename (keys %{$self->{DEVICES}})
@@ -1448,7 +1449,8 @@ sub setOpenflowController($$$) {
 		print "Setting Openflow controller on $devicename for VLAN $vlan_id".
 		    "..." if $self->{DEBUG};
 
-		my $ok = $device->setOpenflowController($vlan_number, $controller);
+		my $ok = $device->setOpenflowController($vlan_number,
+							$controller, $option);
 		if (!$ok) { $errors++; }
 		else {print "Done! \n" if $self->{DEBUG};}
 	    } else {

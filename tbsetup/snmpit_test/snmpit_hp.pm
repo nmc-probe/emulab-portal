@@ -76,6 +76,7 @@ my $ofOID = '1.3.6.1.4.1.11.2.14.11.5.1.7.1.35';
 my $ofEnableOID     = $ofOID.'.1.1.2';
 my $ofControllerOID = $ofOID.'.1.1.3';
 my $ofListenerOID   = $ofOID.'.1.1.4';
+my $ofFailModeOID   = $ofOID.'.1.1.11';
 my $ofSupportOID    = $ofOID.'.2.1.0';
 
 # This string is enough now, but the Openflow OID may change in future. 
@@ -1991,16 +1992,25 @@ sub disableOpenflow($$) {
 #
 # Set controller
 #
-sub setOpenflowController($$$) {
+sub setOpenflowController($$$$) {
     my $self = shift;
     my $vlan = shift;
     my $controller = shift;
+    my $option = shift;
     my $RetVal;
     
     $RetVal = $self->set([$ofControllerOID, $vlan, $controller, "OCTETSTR"]);
     if (!defined($RetVal)) {
 	warn "ERROR: Unable to set controller on VLAN $vlan\n";
 	return 0;
+    }
+    if (defined($option) && $option eq "fail-secure") {
+	$RetVal = $self->set([$ofFailModeOID, $vlan, 1, "INTEGER"]);
+	if (!defined($RetVal)) {
+	    warn "ERROR: Unable to set controller option $option ".
+		"on VLAN $vlan\n";
+	    return 0;
+	}
     }
     return 1;
 }

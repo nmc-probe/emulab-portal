@@ -76,7 +76,7 @@ sub doSynchLeader($);
 sub CreateOneVlan($$$@);
 sub doOpenflowEnable($$);
 sub doOpenflowDisable($$);
-sub doSetOpenflowController($$$);
+sub doSetOpenflowController($$$;$);
 sub doSetOpenflowListener($$$);
 sub doEnableOpenflowListener($$);
 sub doReserveVlanTags($$@);
@@ -115,7 +115,7 @@ Usage: $0 [-h] [-v level] [-q] [-n] [-i device] [-S stack]
           [--redirect-err]
           [--of-disable name pid eid]
           [--of-enable name pid eid]
-          [--of-controller name pid eid tcp:ip:port]
+          [--of-controller name pid eid tcp:ip:port [fail-secure]]
           [--of-listener name pid eid]
 General:
   -h              Display this help message
@@ -256,6 +256,7 @@ my %optvlantags = ();
 my $equaltrunking = 0;
 my $this_user;
 my $ofconnstr; # Openflow connection string, for controller 
+my $ofconnopt; # Openflow option string, for controller 
 our $next_vlan_tag; # XXX see doMakeVlan for explanation
 my %stack_ids = ();
 my $optdev; # when -i only specify a single device
@@ -380,6 +381,8 @@ if ($opt{t} || $opt{r} || $opt{D} || $opt{R} || $opt{X} ||
     } else {
 	$ofconnstr = shift @ARGV;
     }
+    $ofconnopt = shift @ARGV
+        if (@ARGV);
 } elsif ($opt{'of-enable'} || $opt{'of-disable'} || $opt{'of-listener'}) {
     #
     # Options that need pid eid
@@ -1258,7 +1261,8 @@ COMMAND: foreach my $command (@commands) {
 	    last;
 	}; # /ofdisable/ && do
 	(/ofcontroller/) && do {
-	    $exitval += doSetOpenflowController(\@stacks,$vlans[0],$ofconnstr);
+	    $exitval += doSetOpenflowController(\@stacks,$vlans[0],
+						$ofconnstr, $ofconnopt);
 	    last;
 	}; # /ofcontroller/ && do
 	(/oflistener/) && do {
@@ -3931,10 +3935,11 @@ sub doOpenflowDisable($$) {
 # doSetOpenflowController(stack, vlan, controller)
 # Set controller for an Openflow-enabled VLAN
 #
-sub doSetOpenflowController($$$) {
+sub doSetOpenflowController($$$;$) {
     my $stacks = shift;
     my $vlan = shift;
     my $controller = shift;
+    my $option = shift if (@_);
     my $errors = 0;
 
     #
@@ -3943,7 +3948,7 @@ sub doSetOpenflowController($$$) {
     print "Set controller for VLAN $vlan ...\n"
 	if (!$quiet);
     foreach my $stack (@$stacks) {
-        $errors += $stack->setOpenflowController($vlan, $controller);	
+        $errors += $stack->setOpenflowController($vlan, $controller, $option);
     }
     
     if (!$errors) {
