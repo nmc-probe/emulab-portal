@@ -588,20 +588,6 @@ sub doreconfig()
     }
 
     #
-    # Very hacky. These options just tell bootvnodes to halt/kill vnodes.
-    # 
-    # Don't run the reconfig hooks for vnodes here -- run them when
-    # they reboot!!
-    if (-x "$BINDIR/bootvnodes") {
-	print("Halting vnodes\n");
-	# Foreground mode. -c is "reconfig" mode.
-	system("$BINDIR/bootvnodes -f -c -h");
-	if ($?) {
-	    fatal("Error running $BINDIR/bootvnodes");
-	}
-    }
-
-    #
     # Now tell the node to reconfig, but first have to make sure we have the
     # right hostname since that can change to. Silly, stupid, dumb. Will
     # probably break anyway since DHCP has to run again as well.
@@ -623,9 +609,7 @@ sub doreconfig()
     }
 
     #
-    # And (re)boot vnodes. As with boot, doing it after ISUP is better;
-    # os_setup will consider the node ready, and move onto waiting for
-    # vnodes to boot.
+    # Send our ISUP.
     #
     print("Informing Emulab Control that we are back up and running\n");
     runhooks(\%manifest,'pre','rc.isup','reconfig');
@@ -634,20 +618,6 @@ sub doreconfig()
     }
     runhooks(\%manifest,'post','rc.isup','reconfig');
 
-    #
-    # And (re)boot vnodes.
-    #
-    if (-x "$BINDIR/bootvnodes") {
-	print("Booting vnodes\n");
-	runhooks(\%manifest,'pre','rc.vnodes','reconfig');
-	# Foreground mode. -c is "reconfig" mode.
-	system("$BINDIR/bootvnodes -f -c -b");
-	if ($?) {
-	    fatal("Error running $BINDIR/bootvnodes");
-	}
-	runhooks(\%manifest,'post','rc.vnodes','reconfig');
-    }
-    
     return 0;
 }
 
