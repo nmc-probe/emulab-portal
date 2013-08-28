@@ -1120,7 +1120,7 @@ sub removeSomePortsFromVlan($$@) {
 
     # Callers should know better.
     return 0
-	if (@ports);
+	if (!@ports);
 
     @ports = $self->convertPortFormat($PORT_FORMAT_IFINDEX,@ports);
     return -1
