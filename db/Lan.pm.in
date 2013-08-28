@@ -3968,7 +3968,7 @@ sub CalculateVlans($)
     my ($self) = @_;
     # vlans is a comma-delimited list
     my @vlans = split(",", $self->vlans());
-    foreach $range (@vlans) {
+    foreach my $range (@vlans) {
 	# Each range is either a single vlan number or min-max inclusive.
 	my ($min, $max) = split("-", $range);
 	if (! defined($max)) {
