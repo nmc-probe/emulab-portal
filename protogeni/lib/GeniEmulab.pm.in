@@ -148,8 +148,14 @@ sub AddUser($)
 
     my $user = User->Lookup($login);
     if (defined($user)) {
-	return GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS, undef,
-				    "User already exists");
+	if (defined($user->manager_urn())) {
+	    return GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS, undef,
+					"User already added");
+	}
+	else {
+	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+					"User already exists");
+	}
     }
     my ($domain,undef,$id) = GeniHRN::Parse($urn);
     if ($domain ne $authority->domain()) {
