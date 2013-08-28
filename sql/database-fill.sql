@@ -766,6 +766,10 @@ REPLACE INTO table_regex VALUES ('nseconfigs','eid','text','redirect','experimen
 REPLACE INTO table_regex VALUES ('nseconfigs','vname','text','redirect','virt_nodes:vname',0,0,NULL);
 REPLACE INTO table_regex VALUES ('nseconfigs','nseconfig','text','redirect','default:fulltext',0,16777215,NULL);
 
+REPLACE INTO table_regex VALUES ('project_leases','lease_id','text','redirect','virt_nodes:vname',1,32,NULL);
+REPLACE INTO table_regex VALUES ('project_quotas','quota_id','text','regex','^[-_\\w\\.:+]+$',1,128,NULL);
+REPLACE INTO table_regex VALUES ('project_quotas','notes','text','redirect','default:tinytext',0,256,NULL);
+
 REPLACE INTO table_regex VALUES ('projects','newuser_xml','text','regex','^[-_\\w\\.\\/:+]*$',1,256,NULL);
 REPLACE INTO table_regex VALUES ('projects','newpid','text','regex','^[a-zA-Z][-a-zA-Z0-9]+$',2,48,NULL);
 REPLACE INTO table_regex VALUES ('projects','head_uid','text','redirect','users:uid',0,0,NULL);
