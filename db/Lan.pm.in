@@ -3922,6 +3922,8 @@ sub Lookup($$)
     }
     my $self          = {};
     $self->{'DBROW'}  = $query_result->fetchrow_hashref();
+    $self->{'VLANSET'} = {};
+    $self->CalculateVlans();
     bless($self, $class);
     
     return $self;
@@ -3932,8 +3934,7 @@ sub field($$)     { return ((! ref($_[0])) ? -1 : $_[0]->{'DBROW'}->{$_[1]}); }
 sub node_id($)	  { return field($_[0], 'node_id'); }
 sub node_type($)  { return field($_[0], 'node_type'); }
 sub network_id($) { return field($_[0], 'network_id'); }
-sub min_vlan($)	  { return field($_[0], 'min_vlan'); }
-sub max_vlan($)	  { return field($_[0], 'max_vlan'); }
+sub vlans($)      { return field($_[0], 'vlans'); }
 sub mode($)       { return field($_[0], 'mode'); }
 
 #
@@ -3955,8 +3956,29 @@ sub Stringify($)
 sub VlanTagOkay($$)
 {
     my ($self, $tag) = @_;
+    if (exists($self->{'VLANSET'}->{$tag})) {
+	return 1;
+    } else {
+	return 0;
+    }
+}
 
-    return ($tag >= $self->min_vlan() && $tag <= $self->max_vlan() ? 1 : 0);
+sub CalculateVlans($)
+{
+    my ($self) = @_;
+    # vlans is a comma-delimited list
+    my @vlans = split(",", $self->vlans());
+    foreach $range (@vlans) {
+	# Each range is either a single vlan number or min-max inclusive.
+	my ($min, $max) = split("-", $range);
+	if (! defined($max)) {
+	    $max = $min;
+	}
+	my $i = $min;
+	for ($i = $min; $i <= $max; $i += 1) {
+	    $self->{'VLANSET'}->{$i} = 1;
+	}
+    }
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

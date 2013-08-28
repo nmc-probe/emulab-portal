@@ -2042,11 +2042,7 @@ sub ReserveVlanTags($)
 	    #
 	    # Return a list of okay tags. 
 	    #
-	    my @okaytags = ();
-	    for (my $i = $stitchpath->min_vlan();
-		 $i < $stitchpath->max_vlan(); $i++) {
-		push(@okaytags, $i);
-	    }
+	    my @okaytags = $stitchpath->vlan_list();
 	    $response = GeniResponse->Create(GENIRESPONSE_SEARCHFAILED,
 					     \@okaytags,
 					     "Could not find a suitable tag");

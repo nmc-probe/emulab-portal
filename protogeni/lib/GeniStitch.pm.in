@@ -107,30 +107,26 @@ sub hoplist($)          { return field($_[0], 'hoplist'); }
 sub points($)           { return field($_[0], 'points'); }
 sub error($)            { return field($_[0], 'error'); }
 
-sub min_vlan($)
+sub vlan_list($)
 {
     my ($self) = @_;
-    my $result = undef;
+    my @candidates = ();
+    my $first = 1;
     foreach my $point (@{ $self->points() }) {
-	my $network = $point->{'network'};
-	if (! defined($result) || $network->min_vlan() > $result) {
-	    $result = $network->min_vlan();
+	if ($first) {
+	    @candidates = keys(%{ $point->{'network'}->{'VLANSET'} });
+	    $first = 0;
+	} else {
+	    my @newlist = ();
+	    foreach my $can (@candidates) {
+		if ($point->{'network'}->VlanTagOkay($can)) {
+		    push($can, @newlist);
+		}
+	    }
+	    @candidates = @newlist;
 	}
     }
-    return $result;
-}
-
-sub max_vlan($)
-{
-    my ($self) = @_;
-    my $result = undef;
-    foreach my $point (@{ $self->points() }) {
-	my $network = $point->{'network'};
-	if (! defined($result) || $network->max_vlan() < $result) {
-	    $result = $network->max_vlan();
-	}
-    }
-    return $result;
+    return @candidates;
 }
 
 sub vlan_ok($$)

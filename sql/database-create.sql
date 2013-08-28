@@ -1474,13 +1474,12 @@ CREATE TABLE `external_networks` (
   `network_id` varchar(32) NOT NULL default '',
   `node_id` varchar(32) NOT NULL default '',
   `node_type` varchar(30) NOT NULL default '',
-  `min_vlan` int(11) NOT NULL default '256',
-  `max_vlan` int(11) NOT NULL default '1000',
   `external_manager` tinytext,
   `external_interface` tinytext,
   `external_wire` tinytext,
   `external_subport` tinytext,
   `mode` enum('chain','tree') NOT NULL default 'tree',
+  `vlans` tinytext,
   PRIMARY KEY  (`network_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
   

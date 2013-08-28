@@ -388,7 +388,7 @@ my %stitch_points;
 $result = DBQueryFatal("select w.node_id1, w.card1, w.port1, i1.iface, ".
 		       "w.node_id2, w.card2, w.port2, i2.iface, ".
 		       "w.external_interface, w.external_wire, ".
-		       "e.node_id, e.min_vlan, e.max_vlan, ".
+		       "e.node_id, ".
 		       "e.external_manager, e.network_id, e.external_interface, e.external_wire ".
 		       "from wires as w ".
 		       "left join external_networks as e ".
@@ -397,8 +397,8 @@ $result = DBQueryFatal("select w.node_id1, w.card1, w.port1, i1.iface, ".
 		       "left join interfaces as i2 on w.node_id2=i2.node_id and w.card2=i2.card and w.port2=i2.port ".
 		       "where e.node_id is not null");
 while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
-	   $external_iface_urn, $external_link_urn, $external, $minLan,
-	   $maxLan, $external_manager_urn,
+	   $external_iface_urn, $external_link_urn, $external, $vlanList,
+	   $external_manager_urn,
 	   $external_network_id, $external_network_iface_urn,
        $external_network_link_urn) = $result->fetchrow_array) {
     if ($external eq $cnode) {
@@ -422,7 +422,7 @@ while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
     if (! defined($external_link_urn)) {
 	$external_link_urn = $external_network_link_urn;
     }
-    $external_nodes{$enode} = "$minLan-$maxLan";
+    $external_nodes{$enode} = $vlanList;
     $external_managers{"$cnode:$enode"} = $external_manager_urn;
     $external_ifaces{"$cnode:$enode"} = $external_iface_urn;
     $external_links{"$cnode:$enode"} = $external_link_urn;

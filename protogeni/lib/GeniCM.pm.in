@@ -2299,11 +2299,11 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		# Look in the network object to get the limits. This is not an
 		# efficient way to do this; should put some of this into snmpit.
 		#
-		my $mintag  = $stitchpath->min_vlan();
-		my $maxtag  = $stitchpath->max_vlan();
-		my @tags    = ();
-		while (scalar(@tags) < 20 && $mintag < $maxtag) {
-		    my $t = $mintag++;
+		my @candidates = $stitchpath->vlan_list();
+		my @tags       = ();
+		my $i = 0;
+		for ($i = 0; $i < scalar(@candidates) && $i < 20; $i++) {
+		    my $t = $candidates[$i];
 		    push(@tags, $t)		
 			if (VLan->VlanTagAvailable($t));
 		}

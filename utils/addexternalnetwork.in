@@ -31,7 +31,7 @@ use File::Temp qw(tempfile);
 #
 sub usage()
 {
-    print STDERR "Usage: addexternalnetwork [-d] [-n] [-w external_wire_urn] [-i external_interface_urn] [-t vm-type] <network_id> <node_id> <external_manager> <minvlan>-<maxvlan>\n";
+    print STDERR "Usage: addexternalnetwork [-d] [-n] [-w external_wire_urn] [-i external_interface_urn] [-t vm-type] <network_id> <node_id> <external_manager> <vlan-vlan[,vlan-vlan]*>\n";
     print STDERR "Options:\n";
     print STDERR " -d       - Turn on debugging\n";
     print STDERR " -n       - Dry run mode\n";
@@ -44,8 +44,6 @@ my $network;
 my $node_id;
 my $external;
 my $vlans;
-my $minvlan;
-my $maxvlan;
 my $wire;
 my $iface;
 my $vmtype;
@@ -110,9 +108,7 @@ usage()
 
 ($network, $node_id, $external, $vlans) = @ARGV;
 
-if ($vlans =~ /([0-9]+)-([0-9]+)/) {
-    $minvlan = $1;
-    $maxvlan = $2;
+if ($vlans =~ /([0-9,\-]+)/) {
 } else {
     usage();
 }
@@ -153,11 +149,10 @@ $network = DBQuoteSpecial($network);
 $node_id = DBQuoteSpecial($node_id);
 $type = DBQuoteSpecial($type);
 $external = DBQuoteSpecial($external);
-$minvlan = DBQuoteSpecial($minvlan);
-$maxvlan = DBQuoteSpecial($maxvlan);
+$vlans = DBQuoteSpecial($vlans);
 
 my $query = "REPLACE INTO external_networks SET node_id=$node_id, ".
-    "node_type=$type, min_vlan=$minvlan, max_vlan=$maxvlan, ".
+    "node_type=$type, vlans=$vlans, ".
     "external_manager=$external, network_id=$network";
 if (defined($wire)) {
     $wire = DBQuoteSpecial($wire);
