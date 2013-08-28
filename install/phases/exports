@@ -97,6 +97,11 @@ sub Install($$$)
 		    push(@exports_lines,
 			 "$realdir\t-network ${a}.${b}.${c} ".
 			 "-mask $CONTROL_NETMASK -maproot=root -ro -alldirs");
+		    if ($PROTOGENI_GENIRACK) {
+			push(@exports_lines,
+			     "$realdir\t-network 172.16.0.0 ".
+			     "-mask 255.240.0.0 -maproot=root -ro -alldirs");
+		    }
 		}
 	    }
 	    
