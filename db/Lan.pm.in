@@ -3923,8 +3923,8 @@ sub Lookup($$)
     my $self          = {};
     $self->{'DBROW'}  = $query_result->fetchrow_hashref();
     $self->{'VLANSET'} = {};
-    $self->CalculateVlans();
     bless($self, $class);
+    $self->CalculateVlans();
     
     return $self;
 }
