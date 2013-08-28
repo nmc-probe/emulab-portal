@@ -2936,6 +2936,7 @@ CREATE TABLE `nonlocal_user_accounts` (
   `uid_uuid` varchar(40) NOT NULL default '',
   `unix_uid` smallint(5) unsigned NOT NULL auto_increment,
   `created` datetime default NULL,
+  `updated` datetime default NULL,
   `urn` tinytext,
   `name` tinytext,
   `email` tinytext,

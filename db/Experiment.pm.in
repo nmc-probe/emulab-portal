@@ -4621,12 +4621,18 @@ sub BindNonLocalUser($$$$$$)
     
     if ($query_result->numrows) {
 	($uid_idx) = $query_result->fetchrow_array();
+
+	# Mark for update.
+	DBQueryWarn("update nonlocal_user_accounts set updated=now()  ".
+		    "where uid_idx='$uid_idx'")
+	    or return -1;
     }
     else {
 	my @insert_data = ();
 	
 	$uid_idx = User->NextIDX();
 	push(@insert_data, "created=now()");
+	push(@insert_data, "updated=now()");
 	push(@insert_data, "uid_idx='$uid_idx'");
 	push(@insert_data, "unix_uid=NULL");
 	push(@insert_data, "exptidx='$exptidx'");
@@ -4649,7 +4655,7 @@ sub BindNonLocalUser($$$$$$)
     DBQueryWarn("delete from nonlocal_user_pubkeys  ".
 		"where uid_idx='$uid_idx'")
 	or return -1;
-    
+
     foreach my $key (@{ $keys }) {
 	my $safe_key = DBQuoteSpecial($key);
 
