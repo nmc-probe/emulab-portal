@@ -57,7 +57,7 @@ sub usage {
     print STDERR "Usage: $0 [-f | -F] [-q] [-n] [-s] [-S] <node>\n";
     print STDERR "Options:\n";
     print STDERR " -n       - Dry run mode\n";
-    print STDERR " -q       - Be less chatty\n";
+    print STDERR " -v       - Be more chatty\n";
     print STDERR " -S       - Save off DB state before deletion\n";
     print STDERR " -f       - Force mode; deletenode even if not in hwdown\n";
     print STDERR " -F       - FORCE MODE; deletenode even if not in hwdown\n";
@@ -65,7 +65,7 @@ sub usage {
 }
 
 my %options = ();
-if (!getopts("bFfqnSs",\%options)) {
+if (!getopts("bFfvnSs",\%options)) {
     usage();
 }
 usage()
@@ -183,7 +183,7 @@ foreach $node (@subnodes) {
     while (my ($table, $clist) = each %clean_tables) {
 	foreach my $column (@$clist) {
 	    print "${pre}Removing from table $table, column $column\n"
-		if (! defined($options{"q"}));
+		if (defined($options{"v"}));
 	    
 	    DBQueryFatal("DELETE FROM $table WHERE $column='$node';")
 		if (!defined($options{"n"}));
@@ -196,24 +196,26 @@ foreach $node (@subnodes) {
 #
 if (! (defined($options{"n"}) || defined($options{"s"}))) {
     print "Regenerating exports file and restarting daemon.\n"
-	if (! defined($options{"q"}));
+	if (defined($options{"v"}));
     if (system("$TB/sbin/exports_setup")) {
 	print STDERR "*** Failed to reset mountpoints.\n";
     }
     print "Regenerating named maps and restarting daemon.\n"
-	if (! defined($options{"q"}));
+	if (defined($options{"v"}));
     if (system("$TB/sbin/named_setup")) {
 	print STDERR "*** Failed to reset named maps.\n";
     }
     print "Regenerating DHCPD config file and restarting daemon.\n"
-	if (! defined($options{"q"}));
+	if (defined($options{"v"}));
     if (system("$TB/sbin/dhcpd_makeconf -i -r")) {
 	print STDERR "*** Failed to reset DHCPD config file.\n";
     }
-    print "Hupping stated so that it will reload its tables\n"
-	if (! defined($options{"q"}));
-    if (system("sudo $KILL -HUP `cat /var/run/stated.pid`")) {
-	print STDERR "*** Failed to HUP stated.\n";
+    if (-e "/var/run/stated.pid") {
+	print "Hupping stated so that it will reload its tables\n"
+	    if (defined($options{"v"}));
+	if (system("sudo $KILL -HUP `cat /var/run/stated.pid`")) {
+	    print STDERR "*** Failed to HUP stated.\n";
+	}
     }
 }
 exit 0;
