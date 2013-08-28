@@ -120,7 +120,7 @@ sub vlan_list($)
 	    my @newlist = ();
 	    foreach my $can (@candidates) {
 		if ($point->{'network'}->VlanTagOkay($can)) {
-		    push($can, @newlist);
+		    push(@newlist, $can);
 		}
 	    }
 	    @candidates = @newlist;
