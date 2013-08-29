@@ -288,7 +288,8 @@ outfiles="Makeconf GNUmakefile setversion \
 	  os/imagezip/ffs/GNUmakefile \
 	  os/imagezip/extfs/GNUmakefile \
 	  $winfiles \
-	  os/imagezip/hashmap/GNUmakefile"
+	  os/imagezip/hashmap/GNUmakefile \
+	  protogeni/GNUmakefile"
 
 #
 # Do this for easy distclean.
