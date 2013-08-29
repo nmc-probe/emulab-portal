@@ -45,10 +45,8 @@ fs-install:
 client:
 
 client-install: client
-ifeq (@PROTOGENI_SUPPORT@,1)
 	-mkdir -p $(USRBINDIR)
 	$(INSTALL_PROGRAM) $(SRCDIR)/geni-get $(USRBINDIR)
-endif
 
 subboss:
 
