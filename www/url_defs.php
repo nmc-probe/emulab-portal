@@ -133,6 +133,7 @@ $url_mapping["submitpub"]           = "submitpub.php";
 $url_mapping["showslice"]           = "showslice.php";
 $url_mapping["genihistory"]         = "genihistory.php";
 $url_mapping["showmanifest"]        = "showmanifest.php";
+$url_mapping["showslicelogs"]       = "showslicelogs.php";
 	     
 #
 # The caller will pass in a page id, and a list of things. If the thing

@@ -40,8 +40,9 @@ if (! ($isadmin || OPSGUY() || STUDLY())) {
 $optargs = OptionalPageArguments("datetime",  PAGEARG_STRING,
 				 "record",    PAGEARG_INTEGER,
 				 "count",     PAGEARG_INTEGER,
-				 "when",      PAGEARG_STRING,
-				 "tag",       PAGEARG_INTEGER);
+				 "current",   PAGEARG_BOOLEAN,
+				 "tag",       PAGEARG_INTEGER,
+				 "lanid",     PAGEARG_INTEGER);
 
 #
 # Standard Testbed Header
@@ -50,6 +51,9 @@ PAGEHEADER("Vlan Tag History");
 
 if (!isset($count)) {
     $count = 200;
+}
+if (!isset($current)) {
+    $current = false;
 }
 if (!isset($record) || $record == "") {
     $record = null;
@@ -66,79 +70,23 @@ elseif (isset($datetime) && $datetime != "") {
     }
     $dateopt = "&datetime=" . urlencode($datetime);
     $record  = null;
-}
-elseif (isset($when) && $when == "current") {
-    $datetime = null;
-    $dateopt  = "";
-    $record   = null;
-}
-elseif (isset($when) && $when == "yesterday") {
-    $datetime = date("Y-m-d H:i:s", time() - (24 * 3600));
-    $dateopt = "&datetime=" . urlencode($datetime);
-    $record  = null;
-}
-elseif (isset($when) && $when == "lastweek") {
-    $datetime = date("Y-m-d H:i:s", time() - (7 * 24 * 3600));
-    $dateopt = "&datetime=" . urlencode($datetime);
-    $record  = null;
-}
-elseif (isset($when) && $when == "lastmonth") {
-    $datetime = date("Y-m-d H:i:s", time() - (30 * 24 * 3600));
-    $dateopt = "&datetime=" . urlencode($datetime);
-    $record  = null;
-}
-else {
-    $dateopt  = "";
-    $datetime = null;
-    $when     = "epoch";
+    $lanid   = null;
 }
 if (isset($tag)) {
     $tag_opt  = "tag=$tag";
     $form_opt = "<input type=hidden name=tag value=$tag>";
-    $IP      = null;
-    $mac     = null;
+    $lanid    = null;
 }
-else {
+elseif (isset($lanid)) {
+    $dateopt  = "";
     $tag_opt  = "";
     $form_opt = "";
     $tag      = null;
 }
-
-$opts="$tag_opt$dateopt";
-echo "<br><b>Show:</b> ";
-if ($when == "lastmonth") {
-    echo "Last Month, ";
-}
 else {
-    echo "<a href='showvlantaghistory.php?$opts&when=lastmonth'>".
-	"Last Month</a>, ";
-}
-if ($when == "lastweek") {
-    echo "Last Week, ";
-}
-else {
-    echo "<a href='showvlantaghistory.php?$opts&when=lastweek'>".
-	"Last Week</a>, ";
-}
-if ($when == "yesterday") {
-    echo "Yesterday, ";
-}
-else {
-    echo "<a href='showvlantaghistory.php?$opts&when=yesterday'>".
-	"Yesterday</a>, ";
-}
-if ($when == "current") {
-    echo "Current, ";
-}
-else {
-    echo "<a href='showvlantaghistory.php?$opts&when=current'>".
-	"Current</a>, ";
-}
-if ($when == "epoch") {
-    echo "Epoch";
-}
-else {
-    echo "<a href='showvlantaghistory.php?$opts&when=epoch'>Epoch</a>";
+    $tag_opt  = "";
+    $tag      = null;
+    $form_opt = "";
 }
 
 #
@@ -146,14 +94,19 @@ else {
 #
 echo "<br>";
 echo "<table class=stealth>\n";
+echo "<tr><td class=stealth>
+              <a href='showvlantaghistory.php?current=1'>Show Current</a>,
+              <a href='showvlantaghistory.php'>All</a>
+          </td>
+          <td class=stealth></td>
+      </tr>";
 echo "<tr><form action=showvlantaghistory.php method=get>
       <td class=stealth><b>Show Datetime:</b></td>
       <td class=stealth><input type=text style=\"float:right\"
              name=datetime
              size=20 
              value=\"" . ($datetime ? $datetime : "mm/dd/yy HH:MM") . "\"></td>
-      <input type=hidden name=when    value=$when>
-      $tag_opt
+      $form_opt
       </td><td class=stealth>
         <b><input type=submit name=search1 value=Search></b></td>\n";
 echo "</form></tr>\n";
@@ -163,16 +116,24 @@ echo "<tr><form action=showvlantaghistory.php method=get>
              name=tag
              size=6
              value=\"$tag\"></td>
-      <input type=hidden name=when    value=$when></td>
       <td class=stealth>
          <b><input type=submit name=search3 value=Search></b></td>\n";
+    echo "</form></tr>\n";
+echo "<tr><form action=showvlantaghistory.php method=get>
+      <td class=stealth><b>Search for lanid:</b></td>
+      <td class=stealth><input type=text style=\"float:right\"
+             name=lanid
+             size=10
+             value=\"$lanid\"></td>
+      <td class=stealth>
+         <b><input type=submit name=search4 value=Search></b></td>\n";
     echo "</form></tr>\n";
 echo "</table><br>\n";
 
 #
 #
 #
-if ($when == "current") {
+if ($current) {
     $clauses = array();
     $clause  = "";
 
@@ -201,11 +162,14 @@ else {
     if ($tag) {
 	$clauses[] = "tag='$tag'";
     }
-    if ($datetime) {
-	$clauses[] = "allocated>" . strtotime($datetime);
+    elseif ($lanid) {
+	$clauses[] = "lanid='$lanid'";
     }
     if ($record) {
-	$clauses[] = "history_id>$record";
+	$clauses[] = "history_id<$record";
+    }
+    elseif ($datetime) {
+	$clauses[] = "allocated>" . strtotime($datetime);
     }
     if (count($clauses)) {
 	$clause = "where " . join(" and ", $clauses);
@@ -218,14 +182,14 @@ else {
 		     " from vlantag_history as v ".
 		     "left join experiment_stats as s on s.exptidx=v.exptidx ".
 		     "$clause ".
-		     "order by history_id limit $count");
+		     "order by history_id desc limit $count");
 }
 
 if (mysql_num_rows($query_result)) {
     $num_records = mysql_num_rows($query_result);
     
     # Keep track of history record bounds, for paging through.
-    $max_history_id = 0;
+    $min_history_id = -1;
 
     # Build up table contents.
     $html = "";
@@ -264,13 +228,19 @@ if (mysql_num_rows($query_result)) {
 	    $expurl = CreateURL("showexp",
 				URLARG_EID, $experiment->idx());
 	}
+	elseif ($experiment_stats->slice_uuid()) {
+	    $expurl = CreateURL("showslicelogs",
+				"slice_uuid",
+				$experiment_stats->slice_uuid());
+	}
 	else {
 	    $expurl = CreateURL("showexpstats",
 				"record",
 				$experiment_stats->exptidx());
 	}
-	if ($id > $max_history_id)
-	    $max_history_id = $id;
+	if ($min_history_id <= 0 || $id < $min_history_id) {
+	    $min_history_id = $id;
+	}
 
 	$html .= "<tr>";
 	if (!$tag) {
@@ -293,7 +263,7 @@ if (mysql_num_rows($query_result)) {
     }
 
     if ($num_records >= $count && $when != "current") {
-	echo "<center><a href='showvlantaghistory.php?record=$max_history_id".
+	echo "<center><a href='showvlantaghistory.php?record=$min_history_id".
 	    "&count=$count&$tag_opt'>Next $count records</a></center>\n";
     }
     echo "<table border=1 cellpadding=2 cellspacing=2 align='center'>\n";
