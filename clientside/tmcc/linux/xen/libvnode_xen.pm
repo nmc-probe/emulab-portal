@@ -423,6 +423,14 @@ sub rootPreConfig($)
     }
 
     #
+    # Turn on write caching. Hacky. 
+    #
+    my %devs = libvnode::findSpareDisks();
+    foreach my $dev (keys(%devs)) {
+	mysystem2("hdparm -W1 /dev/$dev");
+    }
+
+    #
     # See if our LVM volume group for VMs exists and create it if not.
     #
     my $vg = `vgs | grep $VGNAME`;
@@ -435,7 +443,6 @@ sub rootPreConfig($)
 	# and incorporate them into a volume group.
 	#
 	my $blockdevs = "";
-	my %devs = libvnode::findSpareDisks();
 	my $totalSize = 0;
 	foreach my $dev (keys(%devs)) {
 	    if (defined($devs{$dev}{"size"})) {
@@ -476,12 +483,12 @@ sub rootPreConfig($)
     createDHCP();
 
     print "Creating scratch FS ...\n";
-    if (createExtraFS($EXTRAFS, $VGNAME, "50G")) {
+    if (createExtraFS($EXTRAFS, $VGNAME, "25G")) {
 	TBScriptUnlock();
 	return -1;
     }
     print "Creating metadata FS ...\n";
-    if (createExtraFS($METAFS, $VGNAME, "10M")) {
+    if (createExtraFS($METAFS, $VGNAME, "1G")) {
 	TBScriptUnlock();
 	return -1;
     }
@@ -555,11 +562,20 @@ sub vnodeCreate($$$$)
     $vninfo->{'vmid'} = $vmid;
 
     #
-    # We need to lock while messing with the image.
+    # 
+    #
+    if (CreateVnodeLock() != 0) {
+	return -1;
+    }
+
+    #
+    # We need to lock while messing with the image. But we can use
+    # shared lock so that others can proceed in parallel. We will have
+    # to promote to an exclusive lock if the image has to be changed.
     #
     my $imagelockname = "xenimage." .
 	(defined($imagename) ? $imagename : $defaultImage{'name'});
-    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_GLOBALWAIT(), 1800)
+    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
 	!= TBSCRIPTLOCK_OKAY()) {
 	fatal("Could not get $imagelockname lock after a long time!");
     }
@@ -579,11 +595,36 @@ sub vnodeCreate($$$$)
 	print STDERR "xen_vnodeCreate: ".
 	    "no image specified, using default ('$imagename')\n";
 
+	# Okay to fail if image does not exist yet.
+	LoadImageMetadata($imagename, \$imagemetadata);
+
 	$lvname = "image+" . $imagename;
-	if (!findLVMLogicalVolume($lvname) && createRootDisk($imagename)) {
+	if (!findLVMLogicalVolume($lvname) &&
+	    !defined($imagemetadata)) {
+	    
+	    #
+	    # Need an exclusive lock for this.
+	    #
+	    TBScriptUnlock();	    
+	    if (TBScriptLock($imagelockname, undef, 1800)
+		!= TBSCRIPTLOCK_OKAY()) {
+		fatal("Could not get $imagelockname write lock".
+		      "after a long time!");
+	    }
+	    # And now check again in case someone else snuck in.
+	    if (!findLVMLogicalVolume($lvname) && createRootDisk($imagename)) {
+		TBScriptUnlock();
+		fatal("xen_vnodeCreate: ".
+		      "cannot find create root disk for default image");
+	    }
+	    # And back to a shared lock.
 	    TBScriptUnlock();
-	    fatal("xen_vnodeCreate: ".
-		  "cannot find create root disk for default image");
+	    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
+		!= TBSCRIPTLOCK_OKAY()) {
+		fatal("Could not get $imagelockname lock back ".
+		      "after a long time!");
+	    }
+	    $imagemetadata = undef;
 	}
     }
     elsif (!defined($raref)) {
@@ -604,6 +645,15 @@ sub vnodeCreate($$$$)
 
 	print STDERR "xen_vnodeCreate: loading image '$imagename'\n";
 
+	#
+	# Need an exclusive lock for this.
+	#
+	TBScriptUnlock();	    
+	if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
+	    fatal("Could not get $imagelockname write lock".
+		  "after a long time!");
+	}
+
 	# Tell stated we are getting ready for a reload
 	libutil::setState("RELOADSETUP");
 
@@ -619,6 +669,13 @@ sub vnodeCreate($$$$)
 	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
 		  "cannot create logical volume for $imagename");
+	}
+	# And back to a shared lock.
+	TBScriptUnlock();
+	if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
+	    != TBSCRIPTLOCK_OKAY()) {
+	    fatal("Could not get $imagelockname lock back ".
+		  "after a long time!");
 	}
     }
 
@@ -718,8 +775,9 @@ sub vnodeCreate($$$$)
     #
     if (findLVMLogicalVolume($vnode_id)) {
 	my $olvname = findLVMOrigin($vnode_id);
-	if ($olvname ne $lvname) {
-	    mysystem2("kpartx -dv $rootvndisk");
+	if (defined($raref) ||
+	    ($olvname ne "" && $olvname ne $lvname)) {
+	    RunWithLock("kpartx", "kpartx -dv $rootvndisk");
 	    if (mysystem2("lvremove -f $VGNAME/$vnode_id")) {
 		TBScriptUnlock();
 		fatal("xen_vnodeCreate: ".
@@ -753,6 +811,12 @@ sub vnodeCreate($$$$)
 	# if we have a disk cached. We still have the imagelock at
 	# this point.
 	#
+	# Ick, this has to be done under an exclusive lock, but we
+	# are currently running under a shared lock. We cannot drop
+	# the shared lock though (and flock does promotion by drop
+	# and relock). So, need to take another lock if we find
+	# cached files.
+	#
 	if (my (@files) = glob("/dev/$VGNAME/_C_${imagename}_*")) {
 	    #
 	    # Grab the first file and rename it. It becomes ours.
@@ -783,7 +847,7 @@ sub vnodeCreate($$$$)
 		# that info does not come across in the loadinfo, and
 		# we cannot ask until RELOADDONE is sent. 
 		#
-		if ($loadslice == 0) {
+		if ($loadslice == 0 && !exists($imagemetadata->{'BOOTPART'})) {
 		    my @tmp;
 
 		    if (getbootwhat(\@tmp) || !scalar(@tmp) ||
@@ -805,25 +869,25 @@ sub vnodeCreate($$$$)
 	if ($loadslice == 0) {
 	    $bootslice = $imagemetadata->{'BOOTPART'};
 	}
-	# Need to tell slicefix where to find the root partition.
-	# Naming convention is a pain.
-	my $devname = "$VGNAME/${vnode_id}p$bootslice";
-	$devname =~ s/\-/\-\-/g;
-	$devname =~ s/\//\-/g;
-	$private->{'rootpartition'} = "/dev/mapper/$devname";
-	$rootvdisk .= "${bootslice}";
-		
 	#
 	# Need to create mapper entries so we can mount the
 	# boot filesystem later, for slicefix.
 	#
-	if (mysystem2("kpartx -av $rootvndisk")) {
+	if (RunWithLock("kpartx", "kpartx -av $rootvndisk")) {
 	    TBScriptUnlock();
 	    fatal("libvnode_xen: could not add /dev/mapper entries");
 	}
 	# Hmm, some kind of kpartx race ...
 	sleep(2);
     }
+    # Need to tell slicefix where to find the root partition.
+    # Naming convention is a pain.
+    my $devname = "$VGNAME/${vnode_id}p$bootslice";
+    $devname =~ s/\-/\-\-/g;
+    $devname =~ s/\//\-/g;
+    $private->{'rootpartition'} = "/dev/mapper/$devname";
+    $rootvdisk .= "${bootslice}";
+    
     # Mark the lvm as created, for cleanup on error.
     $private->{'disks'}->{$vnode_id} = $vnode_id;
 
@@ -831,7 +895,8 @@ sub vnodeCreate($$$$)
     # The rest of this can proceed in parallel with other VMs.
     #
     TBScriptUnlock();
-
+    CreateVnodeUnlock();
+    
     #
     # Extract kernel and ramdisk.
     #
@@ -884,7 +949,6 @@ sub vnodeCreate($$$$)
 		    $imagename =~ /ubuntu/i ||
 		    system("strings $kernel | grep -q -i ubuntu") == 0) {
 		    if (FixRamFs($vnode_id, $ramdisk)) {
-			TBScriptUnlock();
 			fatal("xen_vnodeCreate: Failed to fix ramdisk");
 		    }
 		}
@@ -1042,7 +1106,7 @@ sub vnodePreConfig($$$$$){
     #
     if (! -e $dev) {
 	my $rootvndisk = lvmVolumePath($vnode_id);
-	if (mysystem2("kpartx -av $rootvndisk")) {
+	if (RunWithLock("kpartx", "kpartx -av $rootvndisk")) {
 	    fatal("libvnode_xen: could not add /dev/mapper entries");
 	}
     }
@@ -1610,7 +1674,7 @@ sub vnodeDestroy($$$$)
 	if (findLVMLogicalVolume($lvname)) {
 	    if ($lvname eq $vnode_id) {
 		my $rootvndisk = lvmVolumePath($lvname);
-		mysystem2("kpartx -dv $rootvndisk");
+		RunWithLock("kpartx", "kpartx -dv $rootvndisk");
 	    }
 	    if (mysystem2("lvremove -f $VGNAME/$lvname")) {
 		print STDERR "libvnode_xen: could not destroy disk $lvname!\n";
@@ -1641,7 +1705,7 @@ sub vnodeHalt($$$$)
     my $childpid = fork();
     if ($childpid) {
 	local $SIG{ALRM} = sub { kill("TERM", $childpid); };
-	alarm 60;
+	alarm 90;
 	waitpid($childpid, 0);
 	my $stat = $?;
 	alarm 0;
@@ -1739,6 +1803,7 @@ sub createRootDisk($)
     my ($lv) = @_;
     my $lvname = "image+" . $lv;
     my $full_path = lvmVolumePath($lvname);
+    my $mountpoint= "/mnt/$lv";
 
     #
     # We only want to do this once. Lets wrap in an eval since
@@ -1755,7 +1820,7 @@ sub createRootDisk($)
 	mysystem("echo '0,$sectors,L' | sfdisk --force -u S $vndisk -N0");
 
 	# Need the device special file.
-	mysystem("kpartx -av $vndisk");
+	RunWithLock("kpartx", "kpartx -av $vndisk");
 
 	my $dev = "$VGNAME/rootdisk1";
 	$dev =~ s/\-/\-\-/g;
@@ -1775,7 +1840,7 @@ sub createRootDisk($)
 	# Now kill off the lvm and create one for the compressed version.
 	# Need to know the number of CHUNKS for later.
 	#
-	mysystem("kpartx -dv $vndisk");
+	RunWithLock("kpartx", "kpartx -dv $vndisk");
 	mysystem("lvremove -f $VGNAME/rootdisk");
 
 	my (undef,undef,undef,undef,undef,undef,undef,$lvsize) =
@@ -1783,9 +1848,10 @@ sub createRootDisk($)
 
 	my $chunks = $lvsize / (1024 * 1024);
 	$defaultImage{'IMAGECHUNKS'} = $chunks;
+	$defaultImage{'LVSIZE'}      = $XEN_LDSIZE;
 
-	mysystem("lvcreate -n $lvname -L ${chunks}M $VGNAME");
-	mysystem("nice dd if=$EXTRAFS/rootdisk.ndz of=$full_path bs=256k");
+	# Mark as being inside an FS.
+	$defaultImage{'FROMFILE'} = "$EXTRAFS/rootdisk.ndz";
 
 	# This was modified, so save out for next time. 
 	StoreImageMetadata($lv, \%defaultImage)
@@ -1805,24 +1871,31 @@ sub CreatePrimaryDisk($$$$)
     my $basedisk   = lvmVolumePath($lvname);
     my $rootvndisk = lvmVolumePath($target);
     my $loadslice  = $imagemetadata->{'PART'};
-    
-    #
-    # The basedisk now contains the ndz data, so we need to
-    # run imagedump on it to find out how big it will be when
-    # uncompressed.
-    #
+    my $chunks     = $imagemetadata->{'IMAGECHUNKS'};
     my $lv_size;
-    my $chunks = $imagemetadata->{'IMAGECHUNKS'};
-		
-    foreach my $line (`dd if=$basedisk bs=1M count=$chunks | $IMAGEDUMP - 2>&1`){
-	if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
-	    $lv_size = $2 / 2;
-	    last;
-	}
+    
+    if (exists($imagemetadata->{'LVSIZE'})) {
+	$lv_size = $imagemetadata->{'LVSIZE'};
     }
-    if (!defined($lv_size)) {
-	print STDERR "libvnode_xen: could not get size of $basedisk\n";
-	return -1;
+    else {
+	#
+	# The basedisk now contains the ndz data, so we need to
+	# run imagedump on it to find out how big it will be when
+	# uncompressed.
+	#
+	foreach my $line
+	    (`dd if=$basedisk bs=1M count=$chunks | $IMAGEDUMP - 2>&1`){
+		if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
+		    $lv_size = $2 / 2;
+		    last;
+		}
+	}
+	if (!defined($lv_size)) {
+	    print STDERR "libvnode_xen: could not get size of $basedisk\n";
+	    return -1;
+	}
+	$imagemetadata->{'LVSIZE'} = $lv_size;
+	StoreImageMetadata($imagemetadata->{'IMAGENAME'}, $imagemetadata);
     }
     
     #
@@ -1909,13 +1982,21 @@ sub CreatePrimaryDisk($$$$)
 	    return -1;
 	}
 	unlink($partfile);
-	mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
-		  "nice $IMAGEUNZIP -s $loadslice -f -o ".
-		  "                 -W 128 - $rootvndisk");
+	if (exists($imagemetadata->{'FROMFILE'})) {
+	    my $ndzfile = $imagemetadata->{'FROMFILE'};
+	    
+	    mysystem2("time $IMAGEUNZIP -s $loadslice -f -o ".
+		      "                 -W 164 $ndzfile $rootvndisk");
+	}
+	else {
+	    mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
+		      "nice $IMAGEUNZIP -s $loadslice -f -o ".
+		      "                 -W 164 - $rootvndisk");
+	}
     }
     else {
 	mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
-		  "nice $IMAGEUNZIP -f -o -W 128 - $rootvndisk");
+		  "nice $IMAGEUNZIP -f -o -W 164 - $rootvndisk");
     }
     if ($?) {
 	return -1;
@@ -2070,6 +2151,26 @@ sub createImageDisk($$$)
 	mysystem2("dd if=$imagepath of=$lvmpath bs=256k");
 	goto bad
 	    if ($?);
+
+	#
+	# The basedisk now contains the ndz data, so we need to
+	# run imagedump on it to find out how big it will be when
+	# uncompressed.
+	#
+	my $lv_size;
+		
+	foreach my $line
+	    (`dd if=$imagepath bs=1M count=$chunks | $IMAGEDUMP - 2>&1`) {
+		if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
+		    $lv_size = $2 / 2;
+		    last;
+		}
+	}
+	if (!defined($lv_size)) {
+	    print STDERR "libvnode_xen: could not get size of $imagepath\n";
+	    goto bad;
+	}
+	$raref->{'LVSIZE'} = $lv_size;
 	unlink($imagepath);
     }
     # reload has finished, file is written... so let's set its mtime
@@ -3554,6 +3655,7 @@ sub LoadImageMetadata($$)
 	}
     }
     close(META);
+    $result{'IMAGENAME'} = $imagename;
     $$metadata = \%result;
     return 0;
 }
@@ -3594,6 +3696,59 @@ sub FixRamFs($$)
 done:
     mysystem2("/bin/rm -rf $tempdir");
     return 0;
+}
+
+#
+# Helper function to run a shell command wrapped by a lock.
+#
+sub RunWithLock($$)
+{
+    my ($token, $command) = @_;
+    my $lockref;
+
+    if (TBScriptLock($token, undef, 900, \$lockref) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $token lock after a long time!\n";
+	return -1;
+    }
+    mysystem2($command);
+    my $status = $?;
+
+    TBScriptUnlock($lockref);
+    return $status;
+}
+
+#
+# We need to control how many simultaneous creates happen at once.
+#
+my $createvnode_lockref;
+
+sub CreateVnodeLock()
+{
+    my $tries = 1000;
+    
+    while ($tries) {
+	for (my $i = 0; $i < 4; $i++) {
+	    my $token  = "createvnode_${i}";
+	    my $locked = TBScriptLock($token, TBSCRIPTLOCK_NONBLOCKING(),
+				      0, \$createvnode_lockref);
+
+	    return 0
+		if ($locked == TBSCRIPTLOCK_OKAY());
+	    return -1
+		if ($locked == TBSCRIPTLOCK_FAILED());
+	}
+	print "Still trying to get the create lock at " . time() . "\n"
+	    if (($tries % 60) == 0);
+	sleep(2);
+	$tries--;
+    }
+    print STDERR "Could not get the createvnode lock after a long time!\n";
+    return -1;
+}
+
+sub CreateVnodeUnlock()
+{
+    TBScriptUnlock($createvnode_lockref);
 }
 
 1;
