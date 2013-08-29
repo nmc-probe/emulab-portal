@@ -537,6 +537,8 @@ sub Install($$$)
 	Phase "feature", "Enabling libvtop_test feature", sub {
 	    $feature->SetGlobalEnable(1) == 0
 		or PhaseFail("Could not enable feature");
+	    $feature->SetGlobalDisable(0) == 0
+		or PhaseFail("Could not clear disable flag on feature");
 	};
 
 	#
