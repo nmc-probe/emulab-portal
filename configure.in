@@ -1320,7 +1320,8 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/os/imagezip/GNUmakefile \
  clientside/os/imagezip/ffs/GNUmakefile \
  clientside/os/imagezip/extfs/GNUmakefile \
- clientside/os/imagezip/hashmap/GNUmakefile"
+ clientside/os/imagezip/hashmap/GNUmakefile \
+ clientside/protogeni/GNUmakefile"
  
 #
 # Do this for easy distclean.

@@ -28,7 +28,7 @@ SYSTEM	       := $(shell uname -s)
 
 include $(OBJDIR)/Makeconf
 
-SUBDIRS         = lib event tools os sensors tmcc
+SUBDIRS         = lib event tools os sensors tmcc protogeni
 
 ifeq ($(WITH_EMULAB),1)
 all:	all-subdirs
