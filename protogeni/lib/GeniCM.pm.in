@@ -6229,7 +6229,7 @@ sub ReserveLocalVlanTag($$$)
     #
     if (!VLan->VlanTagAvailable($tag)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				    "vlan tag for $lanname not available");
+				    "vlan tag $tag for $lanname not available");
     }
 
     #
