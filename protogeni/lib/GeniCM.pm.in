@@ -6228,8 +6228,14 @@ sub ReserveLocalVlanTag($$$)
     # Lets see if the tag is available.
     #
     if (!VLan->VlanTagAvailable($tag)) {
+	my $optmsg = "";
+	my $info = VLan->ReservedVlanArrayByTag($tag);
+	if (defined($info) &&
+	    $info->{'exptidx'} == $experiment->idx()) {
+	    $optmsg = ": already in use by link '" . $info->{'vname'} . "'";
+	}
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				    "vlan tag $tag for $lanname not available");
+		    "vlan tag $tag for '$lanname' not available${optmsg}");
     }
 
     #

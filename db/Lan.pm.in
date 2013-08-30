@@ -3082,6 +3082,20 @@ sub FindVlanByTag($$)
     return VLan->Lookup($lanid);
 }
 
+# Gack, make this an object!
+sub ReservedVlanArrayByTag($$)
+{
+    my ($class, $tag) = @_;
+
+    my $query_result =
+	DBQueryWarn("select * from reserved_vlantags where tag='$tag'");
+
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    return $query_result->fetchrow_hashref();
+}
+
 # Find out which stack a VLAN resides on
 sub GetStack($) {
     my ($self) = @_;
