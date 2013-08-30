@@ -1086,41 +1086,60 @@ sub CheckIdle()
 	# if the slice has not passed its idletime setting, or
 	# if idleswap is off, we skip.
 	#
+	my $geniuser  = GeniUser->Lookup($slice->creator_uuid(), 1);
+	my $emailaddr = $geniuser->email();
+	my $sliver_urn= $aggregate->urn();
+	
 	if ($idleswap && ($idlenodes / ($reporting * 1.0) >= 0.50)) {
+	    my $stats     = "";
+
+	    foreach my $node (keys(%node_idledata)) {
+		if (exists($node_idledata{$node}->{'idle'})) {
+		    $stats .=
+			sprintf("%40s - %.2f hours idle\n",
+				"${node}.${OURDOMAIN}",
+				$node_idledata{$node}->{'idle_time'}/60.0);
+		}
+	    }
+	    
 	    #
 	    # Send email if none sent or if the minimum time since
 	    # since the last message has passed. In general, we will not
 	    # send more then one message in a 24 hour period to avoid
 	    # annoying people to much.
 	    #
-	    if (0 && $idlecheck_norenew &&
+	    if ($idlecheck_norenew &&
 		$swapreqs && ($lastreq * 60) > (2 * $idlecheck_threshold)) {
-		#
-		# Current policy is no second warnings; the 
-		# slice may not be renewed, even if it goes non idle
-		# again. Setting the renew limit to zero tells the CM
-		# to not allow any renew.
-		#
-		print STDERR "** Slice can no longer be renewed!\n";
-		
-		$slice->SetRenewLimit(0)
-		    if (!$impotent);
-	    }
-	    elsif ($swapreqs == 0 || $lastreq > 24 || $debug > 1) {
-		my $geniuser  = GeniUser->Lookup($slice->creator_uuid(), 1);
-		my $emailaddr = $geniuser->email();
-		my $sliver_urn= $aggregate->urn();
-		my $urn       = $slice->urn();
-		my $stats     = "";
+		if (!defined($slice->renew_limit()) ||
+		    $slice->renew_limit_stamp()) {
+		    #
+		    # Current policy is no second warnings; the 
+		    # slice may not be renewed, even if it goes non idle
+		    # again. Setting the renew limit to zero tells the CM
+		    # to not allow any renew.
+		    #
+		    print STDERR "** Slice can no longer be renewed!\n";
 
-		foreach my $node (keys(%node_idledata)) {
-		    if (exists($node_idledata{$node}->{'idle'})) {
-			$stats .=
-			    sprintf("%40s - %.2f hours idle\n",
-				    "${node}.${OURDOMAIN}",
-				    $node_idledata{$node}->{'idle_time'}/60.0);
+		    if (!$impotent) {
+			SENDMAIL($emailaddr,
+			     "Sliver $sliver_urn may not be renewed",
+			     "Sliver $sliver_urn\n".
+			     "from slice $urn,\n".
+			     "has been mostly idle for too long,\n".
+			     "and is using $nodes physical nodes.\n\n".
+			     "$stats\n".
+			     "You will not be allowed to renew this sliver!\n",
+			     $TBAUTOMAIL, "CC: $TBAUTOMAIL");
+		
+			$slice->SetRenewLimit(0);
 		    }
 		}
+	    }
+	    elsif ($swapreqs == 0 || $lastreq > 24 || $debug > 1) {
+		my $norenew   =
+		    (defined($slice->renew_limit()) &&
+		     $slice->renew_limit_stamp() == 0 ? 1 : 0);
+
 		if ($impotent) {
 		    print STDERR "   Would send email to $geniuser\n";
 		    print STDERR $stats if ($stats ne "");
@@ -1136,7 +1155,10 @@ sub CheckIdle()
 			"and is using $nodes physical nodes.\n\n".
 			"$stats\n".
 			($idlecheck_norenew ?
-			 "You will not be allowed to renew this sliver " :
+			 ($norenew ?
+			  "You may no longer renew this sliver, and it might ".
+			  "be terminated " :
+			  "You will not be allowed to renew this sliver ") :
 			 "This sliver might be terminated ") .
 			"if it stays idle.\n",
 			$TBAUTOMAIL, "CC: $TBAUTOMAIL");
