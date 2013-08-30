@@ -14,6 +14,7 @@ use HTTP::Daemon;
 use HTTP::Request;
 use HTTP::Status;
 use HTTP::Response;
+use URI;
 use LWP::UserAgent;
 use IPC::Open3;
 use Getopt::Long;
@@ -61,9 +62,10 @@ my $debug   = 0;
 
 my $result = GetOptions("v" => \$verbose, "d" => \$debug);
 
-sub run_gitmail($);
+sub run_gitmail($$);
 sub format_options(@);
 sub call_gitlab_api($);
+sub get_member_addresses($);
 
 #
 # Open up a new socket - runs only on localhost, this thing is not nearly
@@ -95,15 +97,26 @@ while (my $connection = $listen_socket->accept()) {
 
     while (my $request = $connection->get_request()) {
         if ($verbose) {
+            print "\n" . "="x80 . "\n";
             print $request->as_string();
-            print "="x80 . "\n";
+            print "\n" . "="x80 . "\n";
         }
         # Fork off child
         if (fork()) {
             # Parent
         } else {
+            #
+            # Pull out variables passed in the GET request
+            #
+            my %get_vars = $request->uri->query_form;
+            if ($verbose) {
+                print "Request URL is " . $request->uri. "\n";
+                print "Query part is " . $request->uri->query . "\n";
+                print "GET vars are: " . join(",",keys %get_vars) . "\n";
+            }
+
             # Child
-            exit run_gitmail(decode_json($request->content()));
+            exit run_gitmail(decode_json($request->content()),\%get_vars);
         }
     }
 
@@ -117,8 +130,8 @@ while (my $connection = $listen_socket->accept()) {
 # Actually run gitmail, using the data that we pulled out of the JSON that
 # was passed to us
 #
-sub run_gitmail($) {
-    my ($data) = @_;
+sub run_gitmail($$) {
+    my ($data,$get_vars) = @_;
 
     if ($verbose) {
         print "Running gitmail\n";
@@ -165,6 +178,12 @@ sub run_gitmail($) {
     $options{'sshcloneurl'} = $repoinfo->{ssh_url_to_repo};
     if (exists $repoinfo->{http_url_to_repo}) {
         $options{'rocloneurl'} = $repoinfo->{http_url_to_repo};
+    }
+
+    # If requested, send mail to everyone who's listed on the project
+    if (exists $get_vars->{'mailmembers'}) {
+        $options{'alwaysmail'} =
+            get_member_addresses($data->{"repository"}{"project_id"});
     }
 
     # gitlab's URL for this project
@@ -224,12 +243,16 @@ sub call_gitlab_api($) {
     # Hardcode API v3 for now
     my $url = $BASEURL . "api/v3" . $call . "?private_token=" . $TOKEN;
 
+    print "Calling '$url'\n";
+
     # Super simple, make the call
     my $request = HTTP::Request->new(GET => $url);
     my $ua = LWP::UserAgent->new;
     my $response = $ua->request($request);
     if ($verbose) {
-        print "Response: " . $response->as_string . "\n";
+        print "\n" . "="x80 . "\n";
+        print $response->as_string . "\n";
+        print "\n" . "="x80 . "\n";
     }
 
     # TODO: Error checking
@@ -238,10 +261,37 @@ sub call_gitlab_api($) {
 
 #
 # Re-format a hash as a string sutable for passing to gitmail
-# TODO: support mutiple options
 # TODO: proper command line escaping
 #
 sub format_options(@) {
     my %opt = @_;
-    return join(" ",map { "-o " . $_ . "='$opt{$_}'"} keys %opt);
+    # This is some evil-wizard level shit right here
+    return join(" ",map {
+        if (ref($opt{$_}) eq "ARRAY") {
+            my @vals = @{$opt{$_}};
+            my $name = $_;
+            join(" ", map { "-o " . $name . "='$_'" } @vals)
+        } else {
+            "-o " . $_ . "='$opt{$_}'"
+        }
+    } keys %opt);
+}
+
+#
+# Get email addresses for all memebers of the given project
+#
+sub get_member_addresses($) {
+    my ($repo_id) = @_;
+    my $memberinfo = call_gitlab_api("/projects/" . $repo_id . "/members");
+
+    my @addresses;
+    foreach my $member (@$memberinfo) {
+        my $address = $member->{'email'};
+        if ($verbose) {
+            print "Member: $address\n";
+        }
+        push @addresses, $address;
+    }
+
+    return \@addresses;
 }
