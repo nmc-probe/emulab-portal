@@ -22,7 +22,7 @@
 # }}}
 #
 
-# gaterinv now has two duties. gather/collect in MFS mode
+# checknode now has two duties. gather/collect in MFS mode
 # and run in normal mode so sub-programs can be called by sourcing,
 # letting everthing run in the same shell. Sub-programs should 
 # also be allowed to run standalone.
