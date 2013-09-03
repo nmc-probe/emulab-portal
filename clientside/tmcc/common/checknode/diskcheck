@@ -85,7 +85,9 @@ main_diskcheck() {
     declare -i -r wspeed_val=21
     declare -i -r rspeed=22
     declare -i -r rspeed_val=23
-    declare -i -r lastslot=23
+    declare -i -r wcache=24
+    declare -i -r wcache_val=25
+    declare -i -r lastslot=25
 
     # init a default string
     unset -v d; declare -a d=()
@@ -107,12 +109,16 @@ main_diskcheck() {
 	    $model_val ) d[$model_val]="unk" ;;
 	    $serial  ) d[$serial]="SN=" ;;
 	    $serial_val ) d[$serial_val]="\"UNKNOWN\"" ;;
+	    $wcache  ) d[$wcache]="wcache=" ;;
+	    $wcache_val ) d[$wcache_val]="\"UNKNOWN\"" ;;
 	    $bpers ) d[$bpers]="SECSIZE=" ;;
 	    $bpers_val ) d[$bpers_val]="unk" ;;
 	    $sectors ) d[$sectors]="SECTORS=" ;;
 	    $sectors_val ) d[$sectors_val]="\"UNKNOWN\"" ;;
 	    $wspeed   ) d[$wspeed]="WSPEED=" ;;
 	    $wspeed_val ) d[$wspeed_val]="\"UNKNOWN\"" ;;
+	    $rspeed ) d[$rspeed]="RSPEED=" ;;
+	    $rspeed_val ) d[$rspeed_val]="\"UNKNOWN\"" ;;
 	    $rspeed ) d[$rspeed]="RSPEED=" ;;
 	    $rspeed_val ) d[$rspeed_val]="\"UNKNOWN\"" ;;
 	esac
@@ -140,6 +146,7 @@ main_diskcheck() {
 		$temp_val ) d[$temp_val]=$(gettemp ${drive[$idx]}) ;;
 		$model_val ) d[$model_val]=$(getmodel ${drive[$idx]}) ;;
 		$serial_val ) d[$serial_val]=$(getserial ${drive[$idx]}) ;;
+		$wcache_val ) d[$wcache_val]=$(getwcache ${drive[$idx]}) ;;
 	    esac
 	done
 	# Must have sectors_val an bpers_val before calculating size
@@ -182,9 +189,10 @@ main_diskcheck() {
 	printf "%s%d\n"  "DISKINFO UNITS=" ${numberofdrives} >> ${logfile4tb}
 	for (( idx=0; idx<$numberofdrives; idx++)) ; do
 	    unset -v d ; declare -a d=(${driveinv[$idx]})
-	    printf "%s %s\""%s\"" %s\""%s\"" %s%s %s%s %s%s %s%s" \
+	    printf "%s %s\""%s\"" %s\""%s\"" %s%s %s%s %s%s %s%s %s%s" \
 		${d[$header]} \
 		${d[$serial]} ${d[$serial_val]} \
+		${d[$wcache]} ${d[$wcache_val]} \
 		${d[$type]} ${d[$type_val]} \
 		${d[$bpers]} ${d[$bpers_val]} \
 		${d[$sectors]} ${d[$sectors_val]} \
@@ -207,10 +215,10 @@ fi
 #output to log file
 {
 echo "Diskcheck $(date): "
-echo -e "name\t\tdriver\ttype\tsize\ttemp\tmodel\t\t\tserial"
+echo -e "name\t\tdriver\ttype\tsize\ttemp\tmodel\t\t\tserial\t\twcache"
 for ((idx=0; idx<${numberofdrives}; idx++)) ; do
     unset -v d ; declare -a d=(${driveinv[$idx]})
-    echo -e "${d[$name_val]}\t${d[$driver_val]}\t${d[$type_val]}\t${d[$size_val]}\t${d[$temp_val]}\t${d[$model_val]}\t\t${d[$serial_val]}"
+    echo -e "${d[$name_val]}\t${d[$driver_val]}\t${d[$type_val]}\t${d[$size_val]}\t${d[$temp_val]}\t${d[$model_val]}\t\t${d[$serial_val]}\t${d[$wcache_val]}"
 done
 } > ${tmplog} 2>&1
 cat ${tmplog} >> ${logfile} 
@@ -219,7 +227,7 @@ driveinfo=""
 # echo name,size and serial to stdout, addr serialnumber
 for ((idx=0; idx<${#driveinv[*]}; idx++)) ; do
     unset -v d ; declare -a d=(${driveinv[$idx]})
-    echo -n "${d[$name_val]} ${d[$size_val]} ${d[$serial_val]}  "
+    echo -n "${d[$name_val]} ${d[$size_val]} ${d[$serial_val]} ${d[$wcache_val]}  "
     driveinfo+="${d[$serial_val]} "
 done
 echo ""
@@ -500,6 +508,56 @@ getserial() {
 	    res=${res/serial number: }
 #	    res=$(echo $res | tr 'a-z' 'A-Z') # upper case
 	    res=${res^^} # upper case
+	fi
+    fi
+    
+    [[ $res ]] && echo "$res" || echo "UNKNOWN"
+    return 0
+}
+getwcache() {
+    res=""
+    if [ "$os" == "Linux" ] ; then
+	smtcl=$(findSmartctl_getopt)
+	if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
+	#don't have smartctl, maybe we can use hdparm
+	    hdp=$(which hdparm)
+	    if [ "${hdp/hdparm}" != "${hdp}" ] ; then
+		x=$(hdparm -W $1 2>/dev/null | grep -i 'write-caching')
+		if [ "${x/on}" == "$x" ] ; then
+		    res="disabled"
+		else
+		    res="enabled"
+		fi
+	    fi
+	else
+	    x=$($smtcl --get=wcache $1 | grep -i 'Write cache')
+	    if [ "${x/Enabled}" == "$x" ] ; then
+		res="disabled"
+	    else
+		res="enabled"
+	    fi
+	fi
+    fi
+    if [ "$os" == "FreeBSD" ] ; then
+	smtcl=$(findSmartctl_getopt)
+	if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
+	#don't have smartctl, maybe we can use camcontrol
+	    cmc=$(which camcontrol)
+	    if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
+		x=$(camcontrol modepage $1 -m8 | grep WCE 2>/dev/null)
+		if [ "${x/1}" == "$x" ] ; then
+		    res="disabled"
+		else
+		    res="enabled"
+		fi
+	    fi
+	else
+	    x=$($smtcl --get=wcache $1 | grep -i 'Write cache')
+	    if [ "${x/Enabled}" == "$x" ] ; then
+		res="disabled"
+	    else
+		res="enabled"
+	    fi
 	fi
     fi
     

@@ -573,6 +573,25 @@ findSmartctl() {
     echo $findit
     return 0
 }
+findSmartctl_getopt() {
+    local findit=$(which smartctl)
+    if [ -z "${findit}" ] ; then
+	# didn't findit try other location
+	if [ -x "/usr/sbin/smartctl" ]; then
+	    findit="/usr/sbin/smartctl"
+	else
+	    findit=$NOSM
+	fi
+    fi
+    # if found check functionally
+    if [ -n "${findit}" ] ; then
+	x=$(/usr/sbin/smartctl --get | grep REQUIRED)
+	    [[ -z "$x" ]] && findit=$NOSM
+    fi
+
+    echo $findit
+    return 0
+}
 
 # Array of command to be run at exit time
 on_exit() {
