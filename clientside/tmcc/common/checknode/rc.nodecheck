@@ -31,7 +31,7 @@
 if [ -r /etc/emulab/paths.sh ]; then
         . /etc/emulab/paths.sh
 else
-        BINDIR=/etc/testbed
+        BINDIR=/usr/local/etc/emulab
 	LOGDIR=/var/emulab/logs
 fi
 
