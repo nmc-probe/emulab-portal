@@ -26,6 +26,16 @@ use POSIX "setsid";
 use strict;
 
 #
+# Options that can be passed in the URL
+# (eg.  # http://localhost:4557/?foo=1&bar=1)
+#
+# mailmembers=1 : If set, automatically sends mail to all members of the
+#                 project
+# noarchive=1   : If set, does *not* send mail to the default archive list,
+#                 and turns on mailmembers=1
+#
+
+#
 # Settable options
 #
 
@@ -176,7 +186,9 @@ sub run_gitmail($$) {
     my %options;
 
     # Address to always send mail to
-    $options{'archivemail'} = $DEFAULT_ARCHIVEMAIL;
+    if (!exists $get_vars->{'noarchive'}) {
+        $options{'archivemail'} = $DEFAULT_ARCHIVEMAIL;
+    }
 
     # Who the mail comes from - user doing the push
     $options{'mailfrom'} = $userinfo->{name} . " <" . $userinfo->{email} . ">";
@@ -191,7 +203,7 @@ sub run_gitmail($$) {
     }
 
     # If requested, send mail to everyone who's listed on the project
-    if (exists $get_vars->{'mailmembers'}) {
+    if (exists $get_vars->{'mailmembers'} || exists $get_vars->{'noarchive'}) {
         $options{'alwaysmail'} =
             get_member_addresses($data->{"repository"}{"project_id"});
     }
