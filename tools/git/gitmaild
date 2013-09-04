@@ -4,6 +4,11 @@
 # gitmaild - simple gitmail wrapper for use with gitlab
 # Note: *must* be run on the same host, and have permission to read the
 # git repos in gitlab's home
+# TODO: Support ignoring commits from repo you forked from
+# TODO: Accept options in URL
+# TODO: Fork and run in background
+# TODO: Read options from a file
+# TODO: Better error handling; try really hard not to die
 #
 
 use HTTP::Daemon;
@@ -13,25 +18,42 @@ use HTTP::Response;
 use LWP::UserAgent;
 use IPC::Open3;
 use JSON;
-
 use Cwd 'abs_path';
 use File::Basename;
-my $dirname = dirname(abs_path($0));
 
 use strict;
 
-# Made up
+#
+# Settable options
+#
+
+# Path to gitmail - defaults to same directory as gmaild lives in
+my $GITMAIL = dirname(abs_path($0)) . "/gitmail";
+
+# Port to run on - made up crap
 my $PORT = 4577;
 
-my $GITMAIL = $dirname . "/gitmail";
-print "GITMAIL is $GITMAIL\n";
-
+# Token to use when calling gitmail API - should belong to an administrator
 my $TOKEN = "";
+
+# URL used to make gitlab API calls
+>>>>>>> 344221c... Clean up and document options
 my $BASEURL = "http://git.flux.utah.edu/";
+
+# Path where gitlab repos live in the FS - doesn't seem available through
+# the gitlab API
 my $BASEPATH = "/home/git/repositories";
+
+# Unless specified, send mail to this email address on all commits
 my $DEFAULT_ARCHIVEMAIL = 'ricci@cs.utah.edu';
 
+#
+# End settable options
+#
+
 sub run_gitmail($);
+sub format_options(@);
+sub call_gitlab_api($);
 
 # TODO: listen only on localhost
 my $d = HTTP::Daemon->new(LocalPort => $PORT) || die;
