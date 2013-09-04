@@ -268,10 +268,17 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     my $attempt = 1;
     while( 1 ) {
 	print "Fetching $imageurl (attempt $attempt of $MAXATTEMPTS)...\n";
+
+	my $expectedsize = `$FETCH -s $imageurl`;
+	chomp( $expectedsize );
+	if( $expectedsize !~ /^[0-9]+$/ ) {
+	    print "Could not retrieve image size, retrying...\n";
+	    next;
+	}
+
 	# Ignore exit code from fetch.  Maybe we got lucky and got a
 	# good transfer before it died; maybe it gave up halfway through
 	# and we have half a good file and can continue where we left off.
-	my $expectedsize = `$FETCH -s $imageurl`;
 	system("$FETCH -a -F -R -r -o $tmpfilename $imageurl");
 
 	if( -s $tmpfilename < $expectedsize ) {
