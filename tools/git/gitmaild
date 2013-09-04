@@ -5,8 +5,6 @@
 # Note: *must* be run on the same host, and have permission to read the
 # git repos in gitlab's home
 # TODO: Support ignoring commits from repo you forked from
-# TODO: Accept options in URL
-# TODO: Read options from a file
 # TODO: Better error handling; try really hard not to die
 #
 
@@ -36,8 +34,17 @@ use strict;
 #
 
 #
-# Settable options
+# Settable options - these can be set here, or by passing a config file on the
+# command line. This config file is simple a perl file that will be eval'ed, so
+# just set variables there as you would here, they will override the defaults
 #
+
+# The only mandatory option: Token to use when calling gitmail API - should
+# belong to an administrator
+my $TOKEN = "";
+
+# Unless specified, send mail to this email address on all commits
+my $DEFAULT_ARCHIVEMAIL = 'commits@flux.utah.edu';
 
 # Path to gitmail - defaults to same directory as gmaild lives in
 my $GITMAIL = dirname(abs_path($0)) . "/gitmail";
@@ -45,19 +52,12 @@ my $GITMAIL = dirname(abs_path($0)) . "/gitmail";
 # Port to run on - made up crap
 my $PORT = 4577;
 
-# Token to use when calling gitmail API - should belong to an administrator
-my $TOKEN = "";
-
 # URL used to make gitlab API calls
->>>>>>> 344221c... Clean up and document options
 my $BASEURL = "http://git.flux.utah.edu/";
 
 # Path where gitlab repos live in the FS - doesn't seem available through
 # the gitlab API
 my $BASEPATH = "/home/git/repositories";
-
-# Unless specified, send mail to this email address on all commits
-my $DEFAULT_ARCHIVEMAIL = 'ricci@cs.utah.edu';
 
 #
 # End settable options
@@ -65,17 +65,39 @@ my $DEFAULT_ARCHIVEMAIL = 'ricci@cs.utah.edu';
 
 #
 # Command line options
-# TODO: actually accept on command line
 #
 my $verbose = 0;
 my $debug   = 0;
+my $configfile = undef;
 
-my $result = GetOptions("v" => \$verbose, "d" => \$debug);
+my $result = GetOptions("v" => \$verbose, "d" => \$debug, "c:s" => \$configfile);
 
 sub run_gitmail($$);
 sub format_options(@);
 sub call_gitlab_api($);
 sub get_member_addresses($);
+
+#
+# Parse config file if given
+#
+if ($configfile) {
+    open CF, "<$configfile" || die "Unable to open $configfile: $!\n";
+    my $configdata = "";
+    while (my $data = <CF>) {
+        $configdata .= $data;
+    }
+    close CF;
+    if (!defined(eval $configdata)) {
+        die "Error in $configfile: $!\n";
+    }
+}
+
+#
+# Make sure they gave a key, ain't gonna work without one
+#
+if ($TOKEN eq "") {
+    die "Must set a \$TOKEN!\n";
+}
 
 #
 # Open up a new socket - runs only on localhost, this thing is not nearly
