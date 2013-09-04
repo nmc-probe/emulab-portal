@@ -136,6 +136,7 @@ while (my $connection = $listen_socket->accept()) {
                 # content to the caller
                 $connection->send_status_line(RC_NO_CONTENT);
                 $connection->close();
+                exit 0;
             }
         }
     }
