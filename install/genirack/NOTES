@@ -161,6 +161,10 @@ Setting up an InstaGeni Rack. First, we need the following info:
   2620(config)> no snmp-server community public
   2620(config)> snmp-server community XXXXX manager unrestricted
   2620(config)> password all (type in same password for manager/operator)
+  2620(config)> ip ssh
+  2620(config)> aaa authentication ssh login public-key none
+  2620(config)> aaa authentication ssh enable public-key node
+  2620(config)> copy tftp pub-key-file 10.1.1.1 id_rsa.pub manager
   2620(config)> write memory
   2620(config)> reload
 
@@ -200,6 +204,10 @@ Setting up an InstaGeni Rack. First, we need the following info:
   5400(config)> no snmp-server community public
   5400(config)> snmp-server community XXXXX manager unrestricted
   5400(config)> password all (type in same password for manager/operator)
+  5400(config)> ip ssh
+  5400(config)> aaa authentication ssh login public-key none
+  5400(config)> aaa authentication ssh enable public-key none
+  5400(config)> copy tftp pub-key-file 10.3.1.1 id_rsa.pub manager
   5400(config)> write memory
   5400(config)> reload
   
@@ -407,6 +415,12 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	boss> wap sharevlan -f -o emulab-ops,openflow-vlans \
 		mesoscale-openflow mesoscale-openflow
 
+* Run update_sitevars and addservers to get boss/ops into the DB
+  and to turn on arp lockdown.
+
+	boss> wap /usr/testbed/sbin/update_sitevars 
+	boss> wap /usr/testbed/sbin/addservers
+
 * Create some test experiments. Test the ProtoGeni API.
 
 * Create the shared-pool experiment. Use this NS file:
@@ -426,12 +440,6 @@ Setting up an InstaGeni Rack. First, we need the following info:
 * Run register_resources
 
 	boss> wap /usr/testbed/sbin/protogeni/register_resources
-
-* Run update_sitevars and addservers to get boss/ops into the DB
-  and to turn on arp lockdown.
-
-	boss> wap /usr/testbed/sbin/update_sitevars 
-	boss> wap /usr/testbed/sbin/addservers
 
 * Send email to local admin with pointer to instructions on getting their
   admin account on boss: http://www.protogeni.net/wiki/RackAdminAccounts
