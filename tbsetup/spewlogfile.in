@@ -144,14 +144,15 @@ STDOUT->autoflush(1);
 # mess up sometimes.
 #
 if (!$isopen || $nowait) {
+    printf("%-15s %s\n", "Created:", $logfile->date_created());
     if ($logfile->MetadataList()) {
 	foreach my $ref (@{ $logfile->MetadataList() }) {
 	    my ($key,$val) = @{$ref};
 	    printf("%-15s %s\n", "$key:", $val);
 	}
-	print "\n";
-	print "----------------------------------\n";
     }
+    print "\n";
+    print "----------------------------------\n";
     if (!defined($logname)) {
 	print STDOUT "Log file has no content; this is not an error.\n";
     }
