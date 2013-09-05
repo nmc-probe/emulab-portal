@@ -2977,6 +2977,15 @@ sub ClearReservedVlanTag($;$)
     return 0;
 }
 
+sub DeleteReservedVlanTag($$)
+{
+    my ($class, $lanid) = @_;
+
+    DBQueryWarn("delete from reserved_vlantags where lanid='$lanid'")
+	or return -1;
+    return 0;
+}
+
 sub GetReservedVlanTags($)
 {
     my ($self) = @_;
@@ -3541,6 +3550,34 @@ sub IsNodeInAVlan($$)
 	if (!$query_result);
 
     return $query_result->numrows;
+}
+
+#
+# See if there is a vlans table entry for a tag.
+#
+sub FindTableEntryByTag($$)
+{
+    my ($class, $tag) = @_;
+
+    my $query_result =
+	DBQueryWarn("select * from vlans where tag='$tag'");
+
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    return $query_result->fetchrow_hashref();
+}
+sub FindTableEntryByLanid($$)
+{
+    my ($class, $lanid) = @_;
+
+    my $query_result =
+	DBQueryWarn("select * from vlans where id='$lanid'");
+
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    return $query_result->fetchrow_hashref();
 }
 
 sub FindVlanByPort_OLD($$$) 

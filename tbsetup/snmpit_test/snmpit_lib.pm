@@ -1009,7 +1009,8 @@ sub getSwitchPrimaryStack($) {
     my $result = DBQueryFatal("SELECT stack_id FROM switch_stacks WHERE " .
     		"node_id='$switch' and is_primary=1");
     if (!$result->numrows()) {
-	print STDERR "No primary stack_id found for switch $switch\n";
+	print STDERR "No primary stack_id found for switch $switch\n"
+	    if ($debug);
 	return undef;
     } elsif ($result->numrows() > 1) {
 	print STDERR "Switch $switch is marked as primary in more than one " .

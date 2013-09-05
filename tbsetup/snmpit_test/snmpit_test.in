@@ -63,6 +63,7 @@ sub doGetStats($);
 sub doVlansFromTables($$@);
 sub syncVlansFromTables($$@);
 sub doSyncVlansWithDB($);
+sub doPruneStaleVlans($);
 sub doReset($@);
 sub doMakeVlan($$@);
 sub doDeleteVlan($@);
@@ -207,7 +208,8 @@ GetOptions(\%opt,
     'y=s','x=s','z=s','F','L=s','O', 'D', 'R', 'f', 'X', 'Z', 'vlan_tag=i', 
     'of-disable=s', 'of-enable=s', 'of-controller=s', 'of-listener=s',
     'o=s@{1,1}', 'redirect-err', 'blockmode', 'syncvlans', 'impotent',
-    'shadow', 'skip-supplied', 'whol-magic', 'backtraceonwarning');
+    'shadow', 'skip-supplied', 'whol-magic', 'backtraceonwarning',
+    'prunestalevlans');
 
 if ($opt{h}) {
     exit &usage;
@@ -433,6 +435,7 @@ if ($opt{b}) { push @commands, ["portstatus"]; }
 if ($opt{F}) { push @commands, ["synchleader"]; }
 if ($opt{A}) { push @commands, ["reservetags"]; }
 if ($opt{'syncvlans'}) { push @commands, ["syncvlans"]; }
+if ($opt{'prunestalevlans'}) { push @commands, ["prunestalevlans"]; }
 
 # This option combines with reset/remove
 if ($opt{C} && !($opt{r} || $opt{o})) { push @commands, ["unreservetags"]; }
@@ -699,7 +702,7 @@ COMMAND: foreach my $command (@commands) {
     my @vlans;
     SWITCH: for ($operation) {
 	(/listvlans/ || /getstats/ || /vlannumber/ || /synchleader/ ||
-	 /syncvlans/) && do {
+	 /syncvlans/ || /prunestalevlans/) && do {
 	    @devicenames = ($supplied_switches && !$skip_supplied)?
 			   @supplied_switches : getTestSwitches();
 	    last;
@@ -1176,6 +1179,10 @@ COMMAND: foreach my $command (@commands) {
 	}; # /listvlans/ && do 
 	/syncvlans/ && do {
 	    $exitval += doSyncVlansWithDB(\@stacks);
+	    last;
+	}; # /listvlans/ && do 
+	/prunestalevlans/ && do {
+	    $exitval += doPruneStaleVlans(\@stacks);
 	    last;
 	}; # /listvlans/ && do 
 	/listports/ && do {
@@ -2509,13 +2516,13 @@ sub syncVlansFromTables($$@) {
 
 	if (@$stacks[0]->setPortVlan("Control", @controlports)) {
 	    print STDERR "Failed to move some ports back: @controlports\n";
-	    goto bad;
+ 	    goto bad;
 	}
     }
 
     #
     # Look for special vlans that need dual trunking. The vlan becomes
-    # the "native" vlan, but it must be created before enabling trunking
+    # the native vlan, but it must be created before enabling trunking
     # on the port. 
     #
     foreach my $vlanid (keys(%expvlans)) {
@@ -4045,4 +4052,140 @@ sub doEnableOpenflowListener($$) {
     $vlaninst->SetAttribute('oflistener', $listenerConnStr, 'string');
 
     return $errors;
+}
+
+#
+# Check for and delete stale vlans.
+#
+sub doPruneStaleVlans($)
+{
+    my $stacks = shift;
+    my $errors = 0;
+
+    if ($ELABINELAB) {
+	die "Not allowed to do this inside an ELABINELAB\n";
+    }
+    #
+    # Sanity checking
+    #
+    if (@$stacks != 1) {
+	die "Disabling trunk ports should only involve one stack\n" .
+	    "Stacks are " . join(",",@$stacks) . "\n";
+    }
+    my $stack = @$stacks[0];
+
+    my %vlans;
+    my @vlanList = @$stacks[0]->listVlans();
+    foreach my $vlan (@vlanList) {
+	my ($id,$tag,$memberref) = @$vlan;
+	${$vlans{$id}}[0] = $tag;
+        push @{${$vlans{$id}}[1]}, @$memberref;
+    }
+    my @sorted = sort {tbsort($a,$b)} keys %vlans;
+
+    foreach my $vlan_id (@sorted) {
+        my $vlan;
+	my ($tag,$memberref) = @{$vlans{$vlan_id}};
+
+	if ($vlan_id =~ /^\d*$/) {
+	    $vlan = VLan->Lookup($vlan_id);
+	}
+        else {
+	    debug("Skipping non-numeric VLAN: $vlan_id ($tag)\n");
+	    next;
+	}
+	if (!defined($vlan)) {
+	    my $delete = 1;
+	    
+	    print("No such VLAN $vlan_id ($tag) in lans table.\n");
+	    if (@$memberref) {
+		print "  Ports: ";
+		foreach my $member (@$memberref) {
+		    my $port = Port->Triple2Iface($member);
+		    if (defined($port)) {
+			print $port;
+		    }
+		    else {
+			print $member;
+		    }
+		    print " ";
+		}
+		print "\n";
+	    }
+	    my $vlantablerow = VLan->FindTableEntryByLanid($vlan_id);
+	    if (defined($vlantablerow)) {
+		my $pid = $vlantablerow->{'pid'};
+		my $eid = $vlantablerow->{'eid'};
+		
+		print("  there is a vlan table entry: $pid,$eid,\n");
+		my $experiment = Experiment->Lookup($vlantablerow->{'exptidx'});
+		if (defined($experiment)) {
+		    print "  and the experiment exists and is ";
+		    if ($experiment->state() eq EXPTSTATE_ACTIVE() ||
+			$experiment->state() eq EXPTSTATE_SWAPPING() ||
+			$experiment->state() eq EXPTSTATE_ACTIVATING()) {
+			print "active\n";
+			$delete = 0;
+		    }
+		    else {
+			print "inactive\n";
+		    }
+		}
+		else {
+		    print "  but the experiment does not exist.\n";
+		}
+	    }
+	    my $vlantablerow2 = VLan->FindTableEntryByTag($tag);
+	    if (defined($vlantablerow2) &&
+		(!defined($vlantablerow) ||
+		 $vlantablerow2->{'id'} != $vlantablerow->{'id'})) {
+		my $pid = $vlantablerow2->{'pid'};
+		my $eid = $vlantablerow2->{'eid'};
+		
+		print("  the tag is in use by: $pid,$eid,\n");
+		my $experiment = Experiment->Lookup($vlantablerow2->{'exptidx'});
+		if (defined($experiment)) {
+		    print "  and the experiment exists and is ";
+		    if ($experiment->state() eq EXPTSTATE_ACTIVE() ||
+			$experiment->state() eq EXPTSTATE_SWAPPING() ||
+			$experiment->state() eq EXPTSTATE_ACTIVATING()) {
+			print "active\n";
+			$delete = 0;
+		    }
+		    else {
+			print "inactive\n";
+		    }
+		}
+		else {
+		    print "  but the experiment does not exist.\n";
+		}
+	    }
+	    if ($delete) {
+		print "  so we will delete VLAN $vlan_id ($tag)\n";
+		if (!$impotent) {
+		    if (!$stack->removeVlan($vlan_id)) {
+			print STDERR "*** Could not remove vlan: $vlan_id\n";
+			return -1;
+		    }
+		    #
+		    # Also delete the vlan table rows since they reference
+		    # experiments that no longer exist. Lets do
+		    # reserved_vlantags too.
+		    #
+		    if (defined($vlantablerow)) {
+			VLan->RecordVLanDeletion($vlantablerow->{'id'});
+			VLan->DeleteReservedVlanTag($vlantablerow->{'id'});
+		    }
+		    if (defined($vlantablerow2)) {
+			VLan->RecordVLanDeletion($vlantablerow2->{'id'});
+			VLan->DeleteReservedVlanTag($vlantablerow2->{'id'});
+		    }
+		}
+	    }
+	    else {
+		print "  so we will keep the entry.\n";
+	    }
+	}
+    }
+    return 0;
 }

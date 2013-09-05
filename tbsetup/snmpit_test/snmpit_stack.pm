@@ -229,6 +229,12 @@ sub listVlans($) {
 	    my ($vlan_id, $vlan_number, $memberRef) = @$line;
 	    ${$vlans{$vlan_id}}[0] = $vlan_number;
 	    push @{${$vlans{$vlan_id}}[1]}, @$memberRef;
+
+	    if (0 && ! @$memberRef) {
+		print STDERR
+		    "$vlan_id ($vlan_number) ".
+		    "exists on $devicename with no members\n";
+	    }
 	}
     }
 

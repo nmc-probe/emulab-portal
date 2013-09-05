@@ -24,7 +24,7 @@
 # or merely parse tokens from string and vice-verse must
 # use the converters provided in this class.
 #
-# Copyright (c) 2011, 2012 University of Utah and the Flux Group.
+# Copyright (c) 2011-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -649,6 +649,7 @@ sub wire_end($) { return $_[0]->{'WIRE_END'}; }
 sub is_switch_side($) { return $_[0]->wire_end() eq "switch"; }
 
 sub wire_type($)   { return $_[0]->{'WIRES_ROW'}->{'type'}; }
+sub is_trunk_port($)  { return $_[0]->wire_type() eq "Trunk"; }
 
 sub is_forced($) { return $_[0]->{"FORCED"};}
 sub has_fields($) { return $_[0]->{"HAS_FIELDS"};}

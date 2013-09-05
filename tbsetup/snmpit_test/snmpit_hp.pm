@@ -34,6 +34,7 @@ use strict;
 $| = 1; # Turn off line buffering on output
 
 use English;
+use Carp;
 use SNMP;
 use snmpit_lib;
 use Carp qw(cluck);
@@ -214,7 +215,7 @@ sub new($$$;$) {
     $self->readifIndex();
 
     # Utah debugging.
-    $self->{DEBUG} = 1;    
+    $self->{DEBUG} = 0;    
     return $self;
 }
 
@@ -511,8 +512,16 @@ sub convertPortFormat($$@) {
 	    $self->debug("Converting ifindex to modport\n",3);
 	    @results = @mps;
 	    goto done;
-	} 
-	
+	}
+	my @tmp = @ports;
+	foreach my $mp (@mps) {
+	    my $port = shift(@tmp);
+	    if (!defined($mp)) {
+		cluck("convertPortFormat: ".
+		      "bad modport conversion for $port on " .
+		      $self->{NAME} . "\n");
+	    }
+	}
 	my @pos = map Port->LookupByStringForced($self->{NAME}.":".$_), @mps;
 	
 	if ($output == $PORT_FORMAT_NODEPORT) {
@@ -1207,6 +1216,7 @@ sub removeVlan($@) {
 	    print "Removed VLAN $vlan_number on switch $name.\n";
 	} else {
 	    print STDERR "Removing VLAN $vlan_number failed on switch $name.\n";
+	    $errors++;
 	}
 	# The next call would buy time to let switch consolidate itself
 	# Nortels have bizarre failures when quickly creating and destroying
@@ -1313,6 +1323,7 @@ sub listVlans($) {
     my ($modport, $node, $ifIndex, @portlist, @memberlist);
     $self->debug($self->{NAME} . "::listVlans()\n",1);
     my $maxport = $self->{MAXPORT};
+    my $devicename = $self->{NAME};
 
     #
     # Walk the tree to find the VLAN names
@@ -1353,7 +1364,9 @@ sub listVlans($) {
 		$modport =~ s/\./\//;
 		$node = Port->LookupByStringForced($self->{NAME} . ".$modport");
 	    }
-	    push @{$Members{$vlan_number}}, $node->getPCPort();
+	    my $pcport = $node->getPCPort();
+	    $self->debug("$devicename:$vlan_number $node:$pcport\n", 3);
+	    push @{$Members{$vlan_number}}, $pcport;
 	    if (!$Names{$vlan_number}) {
 		$self->debug("listVlans: WARNING: port $node in non-existant " .
 		    "VLAN $vlan_number\n", 1);
