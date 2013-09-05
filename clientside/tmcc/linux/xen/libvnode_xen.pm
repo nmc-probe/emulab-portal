@@ -2260,6 +2260,7 @@ sub disk_hacks($)
     if (-e "$BINDIR/tmcc-nossl.bin") {
 	system("/bin/cp -f $BINDIR/tmcc-nossl.bin $path/$BINDIR/tmcc.bin");
     }
+    system("/bin/rm -rf $path/var/emulab/vms");
 }
 
 sub configFile($)
