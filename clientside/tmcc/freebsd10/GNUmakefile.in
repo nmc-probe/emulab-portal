@@ -102,13 +102,15 @@ basefbsd-install: dir-install
 	(cd ../freebsd5; $(MAKE) all install)
 	rm -rf $(SYSETCDIR)/rc.conf.d
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
 
 basefbsd-subboss-install: dir-install
 	(cd ../freebsd5; $(MAKE) all subboss-install)
 	rm -rf $(SYSETCDIR)/rc.conf.d
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
 
 tweak-syslog:
 	@if [ -f $(SYSETCDIR)/newsyslog.conf ]; then \
@@ -148,7 +150,8 @@ frisbee-mfs-install: destdircheck
 	(cd ../freebsd5; $(MAKE) all frisbee-mfs-install)
 	rm -f $(SYSETCDIR)/testbed/dhclient
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
 	@if [ -r $(SRCDIR)/master.passwd ]; then \
 	    $(INSTALL) -m 600 $(SRCDIR)/master.passwd $(SYSETCDIR); \
 	    pwd_mkdb -d $(SYSETCDIR) $(SYSETCDIR)/master.passwd; \
@@ -161,7 +164,8 @@ mfs-install:
 	(cd ../freebsd5; $(MAKE) all mfs-install)
 	rm -f $(SYSETCDIR)/testbed/dhclient
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
 	@if [ -r $(SRCDIR)/master.passwd ]; then \
 	    $(INSTALL) -m 600 $(SRCDIR)/master.passwd $(SYSETCDIR); \
 	    pwd_mkdb -d $(SYSETCDIR) $(SYSETCDIR)/master.passwd; \

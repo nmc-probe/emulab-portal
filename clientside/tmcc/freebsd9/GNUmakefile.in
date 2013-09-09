@@ -102,13 +102,15 @@ basefbsd-install: dir-install
 	(cd ../freebsd5; $(MAKE) all install)
 	rm -rf $(SYSETCDIR)/rc.conf.d
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
 
 basefbsd-subboss-install: dir-install
 	(cd ../freebsd5; $(MAKE) all subboss-install)
 	rm -rf $(SYSETCDIR)/rc.conf.d
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
 
 tweak-syslog:
 	@if [ -f $(SYSETCDIR)/newsyslog.conf ]; then \
@@ -150,7 +152,8 @@ frisbee-mfs-install: destdircheck
 	rm -rf $(SYSETCDIR)/rc.conf.d
 	rm -f $(SYSETCDIR)/testbed/dhclient
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
 	rmdir $(DESTDIR)/usr/local/etc/emulab
 	$(INSTALL) -m 644 $(SRCDIR)/mfs-frisbee-rc.conf $(SYSETCDIR)/rc.conf
 	$(INSTALL) -m 555 ./netif-emulab $(SYSETCDIR)/rc.d/netif-emulab
@@ -169,7 +172,8 @@ mfs-install: destdircheck
 	rm -rf $(DESTDIR)/root/.cvsup
 	rm -f $(SYSETCDIR)/testbed/dhclient
 	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient* $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
+	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
 	$(INSTALL) -m 644 $(SRCDIR)/mfs-rc.conf $(SYSETCDIR)/rc.conf
 	$(INSTALL) -m 555 ./netif-emulab $(SYSETCDIR)/rc.d/netif-emulab
 	@if [ -r $(SRCDIR)/master.passwd ]; then \
