@@ -3210,6 +3210,16 @@ sub SliverWorkAux($$$$$$$$)
 	# Must do this after mapper has run
 	$node->Refresh();
 
+	if ($MAINSITE && $node->sharing_mode()) {
+	    my $physhost = $node->GetPhysHost();
+	    if (defined($physhost)) {
+		my ($osinfo) = $physhost->RunningOsImage();
+		if (defined($osinfo) && $osinfo->FeatureSupported("xen-host")){
+		    $node->NoNFSMounts();
+		}
+	    }
+	}
+	
 	if (grep {$_ eq $virtual_id} keys(%nodemap)) {
 	    #
 	    # Already in the aggregate, so reuse sliver.
