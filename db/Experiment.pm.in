@@ -3029,6 +3029,25 @@ sub SetCancelFlag($$)
 }
 
 #
+# No NFS Mounts.
+#
+sub NoNFSMounts($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $idx   = $self->idx();
+    
+    return -1
+	if (!DBQueryWarn("update experiments set nonfsmounts=1 ".
+			 "where idx='$idx'"));
+    return 0;
+}
+
+#
 # Clear the panic bit.
 #
 sub SetPanicBit($$)

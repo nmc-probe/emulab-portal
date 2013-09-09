@@ -1434,6 +1434,7 @@ CREATE TABLE `experiments` (
   `nonlocal_id` varchar(128) default NULL,
   `nonlocal_user_id` varchar(128) default NULL,
   `nonlocal_type` tinytext,
+  `nonfsmounts` tinyint(1) NOT NULL default '0',
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `pideid` (`pid`,`eid`),
   UNIQUE KEY `pididxeid` (`pid_idx`,`eid`),
