@@ -500,7 +500,7 @@ getserial() {
 	    if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
 		sd=$1
 		sd=${sd#/dev/}
-		    res=$(camcontrol inquiry $sd -S 2>/dev/null)
+		res=$(camcontrol inquiry $sd -S 2>/dev/null)
 	    fi
 	else
 	    res=$($smtcl -a $1 | grep -i 'Serial number:')
@@ -544,7 +544,8 @@ getwcache() {
 	#don't have smartctl, maybe we can use camcontrol
 	    cmc=$(which camcontrol)
 	    if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
-		x=$(camcontrol modepage $1 -m8 | grep WCE 2>/dev/null)
+		sd=${1#/dev/}
+		x=$(camcontrol modepage $sd -m8 | grep WCE 2>/dev/null)
 		if [ "${x/1}" == "$x" ] ; then
 		    res="disabled"
 		else
