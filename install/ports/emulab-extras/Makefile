@@ -47,6 +47,7 @@ NO_BUILD=	yes
 
 # XXX do vim-lite to avoid dragging in gtk
 RUN_DEPENDS=	\
+        ${LOCALBASE}/bin/bash:${PORTSDIR}/shells/bash \
         ${LOCALBASE}/bin/jove:${PORTSDIR}/editors/jove \
         ${LOCALBASE}/bin/emacs:${PORTSDIR}/editors/emacs \
         ${LOCALBASE}/bin/vim:${PORTSDIR}/editors/vim-lite \
