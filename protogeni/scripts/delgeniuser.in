@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -109,7 +109,7 @@ if (!defined($geniuser)) {
     fatal("No such user");
 }
 my @slices = GeniSlice->LookupByCreator($geniuser);
-if (@slices) {
+if (@slices && !$force) {
     fatal("$geniuser has active slices. Not deleting.\n");
 }
 $geniuser->Delete() == 0
