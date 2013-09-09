@@ -1156,7 +1156,7 @@ sub Start($$$)
 	#
 	if ($node->isvirtnode() && $node->sharing_mode()) {
 	    if ($node->eventstate() eq TBDB_NODESTATE_SHUTDOWN()) {
-		system("$VNODESETUP -j -q -m $pid $eid $node_id");
+		system("$VNODESETUP -j -m $pid $eid $node_id");
 	    }
 	}
 	else {
@@ -1169,7 +1169,7 @@ sub Start($$$)
 		system("$POWER on $node_id");
 	    }
 	    else {
-		system("$NODEREBOOT -s $node_id");
+		system("$NODEREBOOT $node_id");
 	    }
 	}
 	return -1
@@ -1220,7 +1220,7 @@ sub Stop($$)
 	#
 	if ($node->isvirtnode() && $node->sharing_mode()) {
 	    if ($node->eventstate() eq TBDB_NODESTATE_SHUTDOWN()) {
-		system("$VNODESETUP -j -k -q -m $pid $eid $node_id");
+		system("$VNODESETUP -j -k -m $pid $eid $node_id");
 	    }
 	}
 	else {
