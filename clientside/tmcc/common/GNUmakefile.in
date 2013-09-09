@@ -93,7 +93,7 @@ nodecheck-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/checknode/niccheck $(BINDIR)/niccheck
 	$(INSTALL) -m 755 $(SRCDIR)/checknode/timecheck $(BINDIR)/timecheck
 	$(INSTALL) -m 755 $(SRCDIR)/checknode/checknode $(BINDIR)/checknode
-	$(INSTALL) -m 755 $(SRCDIR)/checknode/rc.nodecheck $(BINDIR)/rc/
+	$(INSTALL) -m 755 $(SRCDIR)/checknode/rc.nodecheck $(RCDIR)/rc.nodecheck
 
 common-script-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/libsetup.pm $(BINDIR)/libsetup.pm
@@ -147,7 +147,7 @@ symlinks:	dir-install
 	rm -f $(TBLIBDIR)
 	ln -s $(CLIENT_BINDIR) $(TBLIBDIR)
 
-local-script-install:	common-script-install
+local-script-install:	common-script-install nodecheck-install
 	$(INSTALL) -m 755 $(SRCDIR)/sendevent $(BINDIR)/sendevent
 	$(INSTALL) -m 755 $(SRCDIR)/rc.testbed $(RCDIR)/rc.testbed
 	$(INSTALL) -m 755 $(SRCDIR)/rc.bootsetup $(RCDIR)/rc.bootsetup
