@@ -226,6 +226,7 @@ typedef struct {
 	int		swapper_isadmin;
         int		genisliver_idx;
         int		geniflags;
+        int		nonfsmounts;
 	char		nodeid[TBDB_FLEN_NODEID];
 	char		vnodeid[TBDB_FLEN_NODEID];
 	char		pnodeid[TBDB_FLEN_NODEID]; /* XXX */
@@ -4537,7 +4538,7 @@ COMMAND_PROTOTYPE(domounts)
 	char		buf[MYBUFSIZE];
 	char		*bufp, *ebufp = &buf[sizeof(buf)];
 	int		nrows, usesfs;
-	int		nomounts = 0;
+	int		nomounts = reqp->nonfsmounts;
 	char		*fsnode = FSNODE;
 #ifdef  ISOLATEADMINS
 	int		isadmin;
@@ -4545,7 +4546,6 @@ COMMAND_PROTOTYPE(domounts)
 
 	/*
 	 * Do we export filesystems at all?
-	 * XXX this could be made per-experiment/project/whatever.
 	 */
 #ifdef	NOSHAREDFS
 	nomounts = 1;
@@ -6754,7 +6754,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " u.admin,dedicated_wa_types.attrvalue "
 				 "   AS isdedicated_wa, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
-				 " r.sharing_mode,e.geniflags,n.uuid "
+				 " r.sharing_mode,e.geniflags,n.uuid, "
+				 " n.nonfsmounts "
 				 "FROM nodes AS n "
 				 "LEFT JOIN reserved AS r ON "
 				 "  r.node_id=n.node_id "
@@ -6783,7 +6784,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "     (SELECT node_id FROM widearea_nodeinfo "
 				 "      WHERE privkey='%s') "
 				 "  AND notmcdinfo_types.attrvalue IS NULL",
-				 35, nodekey);
+				 36, nodekey);
 	}
 	else if (reqp->isvnode) {
 		char	clause[BUFSIZ];
@@ -6818,7 +6819,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " e.idx,e.creator_idx,e.swapper_idx, "
 				 " u.admin,null, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
-				 " r.sharing_mode,e.geniflags,nv.uuid "
+				 " r.sharing_mode,e.geniflags,nv.uuid, "
+				 " nv.nonfsmounts "
 				 "from nodes as nv "
 				 "left join nodes as np on "
 				 " np.node_id=nv.phys_nodeid "
@@ -6839,7 +6841,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "left join users as u on "
 				 " u.uid_idx=e.swapper_idx "
 				 "where nv.node_id='%s' and (%s)",
-				 35, reqp->vnodeid, clause);
+				 36, reqp->vnodeid, clause);
 	}
 	else {
 		char	clause[BUFSIZ];
@@ -6867,7 +6869,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " u.admin,dedicated_wa_types.attrvalue "
 				 "   as isdedicated_wa, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
-				 " r.sharing_mode,e.geniflags,n.uuid "
+				 " r.sharing_mode,e.geniflags,n.uuid, "
+				 " n.nonfsmounts "
 				 "from interfaces as i "
 				 "left join nodes as n on n.node_id=i.node_id "
 				 "left join reserved as r on "
@@ -6895,7 +6898,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "  on n.type=dedicated_wa_types.type "
 				 "where (%s) "
 				 "  and notmcdinfo_types.attrvalue is NULL",
-				 35, clause);
+				 36, clause);
 	}
 
 	if (!res) {
@@ -7018,6 +7021,12 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 
 	reqp->iscontrol = (! strcasecmp(row[10], "ctrlnode") ? 1 : 0);
 
+	/* nonfsmounts */
+	if (row[35])
+		reqp->nonfsmounts = atoi(row[35]);
+	else
+		reqp->nonfsmounts = 0;
+	
 	/* If a vnode, copy into the nodeid. Eventually split this properly */
 	strcpy(reqp->pnodeid, reqp->nodeid);
 	if (reqp->isvnode) {
