@@ -11986,22 +11986,24 @@ COMMAND_PROTOTYPE(dogeniall)
 	{ "manifest", getgenimanifest, 1 },
 	{ "control_mac", getgenicontrolmac, 1 },
 	{ "version", getgeniversion, 1 },
-	{ "getversion", getgenigetversion, 1 },
-	{ "sliverstatus", getgenisliverstatus, 1 }
+	{ "getversion", getgenigetversion, 0 },
+	{ "sliverstatus", getgenisliverstatus, 0 }
     };
     int i;
     
     p = geni_append( buf, buf + sizeof buf, "{" );
 
     for( i = 0; i < sizeof work / sizeof *work; i++ ) {
-	char *val;
+	char *val = work[ i ].func( reqp );
+
+	if( !val )
+	    continue;
 
 	if( i )
 	    p = geni_append( p, buf + sizeof buf, "," );
 	    
 	p = geni_quote( p, buf + sizeof buf, work[ i ].tag );
 	p = geni_append( p, buf + sizeof buf, ":" );
-	val = work[ i ].func( reqp );
 	p = ( work[ i ].quote ? geni_quote : geni_append )( p, buf + sizeof
 							    buf, val );
 	free( val );
