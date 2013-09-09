@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -589,6 +589,21 @@ sub ListAll($$)
     return 0;
 }
 
+#
+# Register this local user at the ClearingHouse.
+#
+sub Register($)
+{
+    my ($self) = @_;
+
+    my $clearinghouse = GeniRegistry::ClearingHouse->Create();
+    return -1
+	if (!defined($clearinghouse));
+
+    return $clearinghouse->RegisterUser($self->name(), $self->email(),
+					$self->cert());
+}
+
 ############################################################################
 #
 # Wrapper for local users.
@@ -657,21 +672,6 @@ sub urn($)
     my ($self) = @_;
 
     return GeniHRN::Generate("@OURDOMAIN@", "user", $self->uid());
-}
-
-#
-# Register this local user at the ClearingHouse.
-#
-sub Register($)
-{
-    my ($self) = @_;
-
-    my $clearinghouse = GeniRegistry::ClearingHouse->Create();
-    return -1
-	if (!defined($clearinghouse));
-
-    return $clearinghouse->RegisterUser($self->name(), $self->email(),
-					$self->cert());
 }
 
 #
