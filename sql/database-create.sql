@@ -2869,6 +2869,7 @@ CREATE TABLE `nodes` (
   `reserved_pid` varchar(48) default NULL,
   `uuid` varchar(40) NOT NULL default '',
   `reserved_memory` int(10) unsigned default '0',
+  `nonfsmounts` tinyint(1) NOT NULL default '0',
   PRIMARY KEY  (`node_id`),
   KEY `phys_nodeid` (`phys_nodeid`),
   KEY `node_id` (`node_id`,`phys_nodeid`),

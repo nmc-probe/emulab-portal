@@ -14,6 +14,10 @@ sub DoUpdate($$$)
 	DBQueryFatal("alter table experiments add ".
 		     " `nonfsmounts` tinyint(1) NOT NULL default '0'");
     }
+    if (!DBSlotExists("nodes", "nonfsmounts")) {
+	DBQueryFatal("alter table nodes add ".
+		     " `nonfsmounts` tinyint(1) NOT NULL default '0'");
+    }
     return 0;
 }
 
