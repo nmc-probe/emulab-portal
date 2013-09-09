@@ -11893,61 +11893,59 @@ static char *getgenisliverstatus( tmcdreq_t *reqp ) {
 
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
-	char		buf[ 0x4000 ], *p;
+	char		buf[ 0x4000 ], *p, *status;
 	int		first = 1;
 	
-	res = mydb_query( "SELECT a.status, a.state, a.errorlog, l.publicid "
-			  "FROM `geni-cm`.geni_aggregates AS a, "
-			  "`geni-cm`.geni_slices AS l, "
+	res = mydb_query( "SELECT a.idx, a.status FROM "
+			  "`geni-cm`.geni_aggregates AS a, "
 			  "`geni-cm`.geni_slivers AS s WHERE "
 			  "s.resource_uuid = '%s' AND "
-			  "a.uuid = s.aggregate_uuid AND "
-			  "a.slice_uuid = l.uuid", 4, reqp->nodeuuid );
+			  "a.uuid = s.aggregate_uuid", 2, reqp->nodeuuid );
 
 	if( !res || !mysql_num_rows( res ) ) {
-		error( "geni_slice_urn: %s: DB error getting aggregate!\n",
+		error( "geni_sliverstatus: %s: DB error getting aggregate!\n",
 		       reqp->nodeid );
 		return NULL;
 	}
 
 	row = mysql_fetch_row( res );
 
-	p = buf + snprintf( buf, sizeof buf, "{'status':'%s','state':'%s',"
-			    "'error':'%s','public_url':'"
-			    TBBASE "/showslicepub.php?publicid="
-			    "%s','details':{",
-			    row[ 0 ], row[ 1 ], row[ 2 ], row[ 3 ] );
+	status = strcmp( row[ 1 ], "ready" ) && strcmp( row[ 1 ], "failed" ) ?
+	        "unknown" : row[ 1 ];
+	
+	p = buf + snprintf( buf, sizeof buf, "{'geni_urn':'urn:publicid:IDN+"
+			    OURDOMAIN "+sliver+%s','geni_status':'%s',"
+			    "'geni_resources':[", row[ 0 ], status );
 
 	mysql_free_result( res );
 
-	res = mydb_query( "SELECT x.idx, x.status, x.state, x.resource_id, "
-			  "x.errorlog FROM `geni-cm`.geni_slivers AS x, "
+	res = mydb_query( "SELECT x.idx, x.status, x.errorlog FROM "
+			  "`geni-cm`.geni_slivers AS x, "
 			  "`geni-cm`.geni_slivers AS y WHERE "
 			  "x.aggregate_uuid = y.aggregate_uuid AND "
-			  "y.resource_uuid = '%s'", 5, reqp->nodeuuid );
+			  "y.resource_uuid = '%s'", 3, reqp->nodeuuid );
 	
 	if( !res || !mysql_num_rows( res ) ) {
-		error( "geni_slice_urn: %s: DB error getting sliver!\n",
+		error( "geni_sliverstatus: %s: DB error getting sliver!\n",
 		       reqp->nodeid );
 		return NULL;
 	}
 
 	while( ( row = mysql_fetch_row( res ) ) ) {
-		p += snprintf( p, buf + sizeof buf - p, "%s'urn:publicid:IDN+"
-			       OURDOMAIN "+sliver+%s':{'status':"
-			       "'%s','state':'%s','component_urn':'%s',"
-			       "'error':'%s'}", first ? "" : ",", row[ 0 ],
-			       row[ 1 ], row[ 2 ], row[ 3 ], row[ 4 ] ?
-			       row[ 4 ] : "" );
+		p += snprintf( p, buf + sizeof buf - p, "%s{'geni_urn':"
+			       "'urn:publicid:IDN+" OURDOMAIN "+sliver+%s',"
+			       "'geni_status':'%s','geni_error':'%s'}",
+			       first ? "" : ",", row[ 0 ], row[ 1 ],
+			       row[ 2 ] ? row[ 2 ] : "" );
 		first = 0;
 	}
 
 	mysql_free_result( res );
 	
-	geni_append( p, buf + sizeof buf, "}}" );
+	geni_append( p, buf + sizeof buf, "]}" );
 	
 	if( verbose )
-		info( "%s: geni_slice_urn: %s", reqp->nodeid, buf );
+		info( "%s: geni_sliverstatus: %s", reqp->nodeid, buf );
 	
 	return strdup( buf );
 }
