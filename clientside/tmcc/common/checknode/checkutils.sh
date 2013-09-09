@@ -584,9 +584,9 @@ findSmartctl_getopt() {
 	fi
     fi
     # if found check functionally
-    if [ -n "${findit}" ] ; then
-	x=$(/usr/sbin/smartctl --get | grep REQUIRED)
-	    [[ -z "$x" ]] && findit=$NOSM
+    if [ "${findit}" != "$NOSM" ] ; then
+	x=$(${findit} --get | grep REQUIRED)
+	[[ -z "$x" ]] && findit=$NOSM
     fi
 
     echo $findit
