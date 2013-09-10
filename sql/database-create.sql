@@ -2113,9 +2113,9 @@ CREATE TABLE `last_reservation` (
   UNIQUE KEY `pid` (`node_id`,`pid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
----
---- Table structure for table `lease_attributes`
----
+--
+-- Table structure for table `lease_attributes`
+--
 
 DROP TABLE IF EXISTS `lease_attributes`;
 CREATE TABLE `lease_attributes` (
@@ -2126,9 +2126,9 @@ CREATE TABLE `lease_attributes` (
   PRIMARY KEY (`lease_idx`,`attrkey`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
----
---- Table structure for table `lease_attributes`
----
+--
+-- Table structure for table `lease_attributes`
+--
 
 DROP TABLE IF EXISTS `lease_permissions`;
 CREATE TABLE `lease_permissions` (
