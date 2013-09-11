@@ -359,7 +359,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
   No worries, you can ignore it.
 
-* Copy root publix ssh key to the tftp directory:
+* Copy root public ssh key to the tftp directory:
 
 	boss> sudo cp /root/.ssh/id_rsa.pub /tftpboot
 
@@ -368,7 +368,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	2629> config
 	2620(config)> ip ssh
 	2620(config)> aaa authentication ssh login public-key none
-	2620(config)> aaa authentication ssh enable public-key node
+	2620(config)> aaa authentication ssh enable public-key none
 	2620(config)> copy tftp pub-key-file 10.1.1.1 id_rsa.pub manager
         2620(config)> write memory
 
@@ -416,8 +416,6 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	boss> wap /usr/testbed/sbin/update_sitevars 
 	boss> wap /usr/testbed/sbin/addservers
 
-* Create some test experiments. Test the ProtoGeni API.
-
 * Create the shared-pool experiment. Use this NS file:
 
 	testbed/install/genirack/shared-exp.ns
@@ -425,6 +423,10 @@ Setting up an InstaGeni Rack. First, we need the following info:
   You will need to toggle the lockdown on the Show Experiment page first,
   and then toggle it back after the experiment has swapped in. Be sure to
   test shared node experiments.
+
+* Create an experiment that uses the shared nodes. Use this NS file.
+
+	testbed/install/genirack/shared-vms.ns
 
 * Need to reset the mailing lists to the local admin.
 
@@ -446,9 +448,3 @@ routable ip space when baking the images.
 Enable necessary features.
 
 -----
-SSH enable on the switches does not work.
-
-ip ssh public-key manager "ssh-rsa AAA ..."
-# aaa authentication ssh enable public-key
-HP-E2620-24(config)# aaa authentication ssh login public-key 
-
