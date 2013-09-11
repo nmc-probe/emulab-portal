@@ -286,31 +286,13 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	sudo sh /usr/testbed/etc/initilo.sh
 
-* NOTE: scripted ssh key upload broke in the new iLo, which the script
-  above used to take care of. So now we need to upload the root ssh
-  key to each node's ilo using the web interface instead. The above
-  command happily changed all the passwords so they are now the same
-  so that makes it a little easier. Use this key:
-
-	/root/.ssh/id_dsa.pub
-
-  Install the key into BOTH the ELABMAN and ADMINISTRATOR accounts!!!!!
-  Do this for all five pcs *and* the control node. 
-
-  After you have installed the keys, do this:
-
-	sudo /usr/testbed/sbin/initilo.pl -b pc1
-	sudo /usr/testbed/sbin/initilo.pl -b pc2
-	sudo /usr/testbed/sbin/initilo.pl -b pc3
-	sudo /usr/testbed/sbin/initilo.pl -b pc4
-	sudo /usr/testbed/sbin/initilo.pl -b pc5
-
-  DAMN YOU HP!
-
 * The above command resets the ilo, so lets play the minute waltz, maybe
   twice.
 
 	http://www.pianoparadise.com/downloadmp3/nocturne.wav
+
+* Now you have to log into all of the consoles and change the BIOS
+  so that the disk controller is SATA AHCI instead of the raid controller.
 
 * Now we power on all of the nodes.
 
