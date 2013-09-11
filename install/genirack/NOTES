@@ -70,6 +70,10 @@ Setting up an InstaGeni Rack. First, we need the following info:
   text representation of the graphic console. To exit from the
   text console, use ESC-(
 
+* Disable IPMI; When logged into the ilo web interface, go to
+  Administration->Access Settings and uncheck the IPMI box. Be sure
+  to click on apply.
+
 * Go to the Virtual Media tab, and then on the right hand side specify
   the url of the boot ISO image. This will be something like:
   
@@ -85,9 +89,9 @@ Setting up an InstaGeni Rack. First, we need the following info:
   whatever number is to the left of the CD choice.  
 
 * The ISO will load and give you a boot prompt. This takes a while.
-  You will eventually get a shell prompt after a lot of noisy
-  output. This can take several minutes since it is demand loading the
-  "CD" from Utah's web server. Be patient.
+  Just hit return. You will eventually get a shell prompt after a lot
+  of noisy output. This can take several minutes since it is demand
+  loading the "CD" from Utah's web server. Be patient.
 
 * Fire up the network:
 
@@ -161,10 +165,6 @@ Setting up an InstaGeni Rack. First, we need the following info:
   2620(config)> no snmp-server community public
   2620(config)> snmp-server community XXXXX manager unrestricted
   2620(config)> password all (type in same password for manager/operator)
-  2620(config)> ip ssh
-  2620(config)> aaa authentication ssh login public-key none
-  2620(config)> aaa authentication ssh enable public-key node
-  2620(config)> copy tftp pub-key-file 10.1.1.1 id_rsa.pub manager
   2620(config)> write memory
   2620(config)> reload
 
@@ -204,10 +204,6 @@ Setting up an InstaGeni Rack. First, we need the following info:
   5400(config)> no snmp-server community public
   5400(config)> snmp-server community XXXXX manager unrestricted
   5400(config)> password all (type in same password for manager/operator)
-  5400(config)> ip ssh
-  5400(config)> aaa authentication ssh login public-key none
-  5400(config)> aaa authentication ssh enable public-key none
-  5400(config)> copy tftp pub-key-file 10.3.1.1 id_rsa.pub manager
   5400(config)> write memory
   5400(config)> reload
   
@@ -379,7 +375,20 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	No such VLAN control-hardware in lans table
 
-  No worries, you can ignore it. 
+  No worries, you can ignore it.
+
+* Copy root publix ssh key to the tftp directory:
+
+	boss> sudo cp /root/.ssh/id_rsa.pub /tftpboot
+
+* Telnet to procurve1 (/usr/testbed/etc/switch.pswd):
+
+	2629> config
+	2620(config)> ip ssh
+	2620(config)> aaa authentication ssh login public-key none
+	2620(config)> aaa authentication ssh enable public-key node
+	2620(config)> copy tftp pub-key-file 10.1.1.1 id_rsa.pub manager
+        2620(config)> write memory
 
 * Telnet to procurve2 (/usr/testbed/etc/switch.pswd):
 
@@ -390,6 +399,10 @@ Setting up an InstaGeni Rack. First, we need the following info:
 	5400(openFlow vlan-1750)# controller "tcp:10.3.1.7:6633" fail-secure on
 	5400(openFlow vlan-1750)# exit
 	5400(openFlow)# exit
+        5400(config)> ip ssh
+        5400(config)> aaa authentication ssh login public-key none
+        5400(config)> aaa authentication ssh enable public-key none
+        5400(config)> copy tftp pub-key-file 10.3.1.1 id_rsa.pub manager
 	5400(config)> write memory
 
 * Add the public IP space, if appropriate. See the site survey response.

@@ -83,7 +83,8 @@ Utah Emulab is also the DNS server for the control node IPs. So in
 Be sure to change the serial number at the top of the file.
 
 ALSO: need to add new boss/ops ips to boss:/etc/namedb/named.conf
-so that they can do recursive lookups.
+so that they can do recursive lookups. Look for the 'rd-allowed'
+section.
 
 Now run named_setup to get named restarted on boss. Be sure to tail
 /var/log/messages to make sure no problems in the restart. 
@@ -176,6 +177,8 @@ need the ssh pubkey file from the site admin. For example:
 	timezone='America/New_York'
 	rootpswd="cleverpswd"
 	adminuser="acb"
+
+*** Be sure to write down the root password in the pswd.txt file!
 
 Copy this file and ssh pubkey file over to /tmp on Utah's control
 node. Then log in and do this:
