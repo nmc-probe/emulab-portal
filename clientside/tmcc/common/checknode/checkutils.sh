@@ -574,22 +574,14 @@ findSmartctl() {
     return 0
 }
 findSmartctl_getopt() {
-    local findit=$(which smartctl)
-    if [ -z "${findit}" ] ; then
-	# didn't findit try other location
-	if [ -x "/usr/sbin/smartctl" ]; then
-	    findit="/usr/sbin/smartctl"
-	else
-	    findit=$NOSM
-	fi
+    local smrtctl=$(findSmartctl)
+    if [ "${smrtctl/smartctl}" != "$smrtctl" ] ; then
+        # check functionally
+	x=$($smrtctl --get | grep REQUIRED)
+	[[ -z "$x" ]] && smrtctl=$NOSM
     fi
-    # if found check functionally
-    if [ "${findit}" != "$NOSM" ] ; then
-	x=$(${findit} --get | grep REQUIRED)
-	[[ -z "$x" ]] && findit=$NOSM
-    fi
-
-    echo $findit
+    
+    echo $smrtctl
     return 0
 }
 

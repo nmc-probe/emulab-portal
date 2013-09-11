@@ -119,8 +119,6 @@ main_diskcheck() {
 	    $wspeed_val ) d[$wspeed_val]="\"UNKNOWN\"" ;;
 	    $rspeed ) d[$rspeed]="RSPEED=" ;;
 	    $rspeed_val ) d[$rspeed_val]="\"UNKNOWN\"" ;;
-	    $rspeed ) d[$rspeed]="RSPEED=" ;;
-	    $rspeed_val ) d[$rspeed_val]="\"UNKNOWN\"" ;;
 	esac
     done
 
@@ -523,18 +521,18 @@ getwcache() {
 	    hdp=$(which hdparm)
 	    if [ "${hdp/hdparm}" != "${hdp}" ] ; then
 		x=$(hdparm -W $1 2>/dev/null | grep -i 'write-caching')
-		if [ "${x/on}" == "$x" ] ; then
-		    res="disabled"
-		else
+		if [ "${x/on}" != "$x" ] ; then
 		    res="enabled"
+		elif [ "${x/off}" != "$x" ] ; then
+		    res="disabled"
 		fi
 	    fi
 	else
-	    x=$($smtcl --get=wcache $1 | grep -i 'Write cache')
-	    if [ "${x/Enabled}" == "$x" ] ; then
-		res="disabled"
-	    else
+	    x=$($smtcl --get=wcache $1 | grep -i Write | grep -i cache)
+	    if [ "${x/Enabled}" != "$x" ] ; then
 		res="enabled"
+	    elif [ "${x/Disabled}" != "$x" ] ; then
+		res="disabled"
 	    fi
 	fi
     fi
@@ -544,20 +542,20 @@ getwcache() {
 	#don't have smartctl, maybe we can use camcontrol
 	    cmc=$(which camcontrol)
 	    if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
-		sd=${1#/dev/}
+		sd=${1#/dev/}		
 		x=$(camcontrol modepage $sd -m8 | grep WCE 2>/dev/null)
-		if [ "${x/1}" == "$x" ] ; then
-		    res="disabled"
-		else
+		if [ "${x/1}" != "$x" ] ; then
 		    res="enabled"
+		elif [ "${x/0}" != "$x" ] ; then
+		    res="disabled"
 		fi
 	    fi
 	else
-	    x=$($smtcl --get=wcache $1 | grep -i 'Write cache')
-	    if [ "${x/Enabled}" == "$x" ] ; then
-		res="disabled"
-	    else
+	    x=$($smtcl --get=wcache $1 | grep -i Write | grep -i cache)
+	    if [ "${x/Enabled}" != "$x" ] ; then
 		res="enabled"
+	    elif [ "${x/Disabled}" != "$x" ] ; then
+		res="disabled"
 	    fi
 	fi
     fi
