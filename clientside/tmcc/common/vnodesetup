@@ -252,7 +252,9 @@ if ($killit || $haltit) {
 }
 if ($rebootit) {
     if ($doplab || -e $pidfile) {
-	exit(rebootvnode());
+	my $rval = rebootvnode();
+	exit($rval)
+	    if ($rval <= 0);
     }
     # if vnode isn't already running, just try to (re)start it
 }
@@ -676,6 +678,11 @@ sub rebootvnode() {
 	}
     }
     elsif (kill('USR2', $mpid) == 0) {
+	if ($!{ESRCH}) {
+	    unlink($pidfile);
+	    # Tell caller there is no process, and just start one.
+	    return 1;
+	}
 	if ($debug) {
 	    print"*** Could not kill(USR2) process $mpid: $!\n";
 	}
