@@ -11,6 +11,7 @@ $TTL	30
 				3600000   ; Expire
 				3600 )    ; Minimum
 	IN	NS	ns.@OURDOMAIN@.
+%secondaries%
 
 $TTL	30
 

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,6 +38,7 @@ sub usage {
 # Configure variables
 #
 my $ELABINELAB		     = "@ELABINELAB@";
+my $PROTOGENI_GENIRACK       = @PROTOGENI_GENIRACK@;
 my $OURDOMAIN                = "@OURDOMAIN@";
 my $TESTBED_NETWORK          = "@TESTBED_NETWORK@";
 my $TESTBED_NETMASK          = "@TESTBED_NETMASK@";
@@ -99,6 +100,10 @@ for (my $i = $jb; $i <= $jb + (255 - $jmb); $i++) {
     system("cp -f reverse.head $internal_revfile") == 0 or
 	die("Unable to copy $infile to $internal_revfile\n");
 
+    if ($PROTOGENI_GENIRACK) {
+	system("echo '	IN	NS	ns.emulab.net.' >> $internal_revfile");
+    }
+
     #
     # This is for the case that boss/ops/fs are actually *in* the jail
     # network space, as would happen in an elabinelab that is using a
@@ -138,6 +143,10 @@ for (my $i = $ic; $i <= $ic + (255 - $imc); $i++) {
     print "Generating internal reverse lookup file ...\n";
     system("cp -f reverse.head $internal_revfile") == 0 or
 	die("Unable to copy $infile to $internal_revfile\n");
+
+    if ($PROTOGENI_GENIRACK) {
+	system("echo '	IN	NS	ns.emulab.net.' >> $internal_revfile");
+    }
 
     open(REV, ">>$internal_revfile")
 	or die("Unable to open $internal_revfile for appending!\n");
