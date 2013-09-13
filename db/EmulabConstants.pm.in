@@ -560,6 +560,17 @@ sub TBDB_IFACEROLE_OTHER()	{ "other"; }
 sub TBDB_IFACEROLE_OUTER_CONTROL(){ "outer_ctrl"; }
 sub TBDB_IFACEROLE_MANAGEMENT()	{ "mngmnt"; }
 
+# Wire types.
+sub TBDB_WIRETYPE_NODE          { "Node"; }
+sub TBDB_WIRETYPE_SERIAL        { "Serial"; }
+sub TBDB_WIRETYPE_POWER         { "Power"; }
+sub TBDB_WIRETYPE_DNARD         { "Dnard"; }
+sub TBDB_WIRETYPE_CONTROL       { "Control"; }
+sub TBDB_WIRETYPE_TRUNK         { "Trunk"; }
+sub TBDB_WIRETYPE_OUTERCONTROL  { "OuterControl"; }
+sub TBDB_WIRETYPE_UNUSED        { "Unused"; }
+sub TBDB_WIRETYPE_MANAGEMENT    { "Management"; }
+
 # Routertypes.
 sub TBDB_ROUTERTYPE_NONE()	{ "none"; }
 sub TBDB_ROUTERTYPE_OSPF()	{ "ospf"; }
