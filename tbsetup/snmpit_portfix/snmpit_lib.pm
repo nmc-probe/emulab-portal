@@ -67,7 +67,7 @@ use Lan;
 use emutil qw(SpanningTree);
 use strict;
 use SNMP;
-use Port;
+use Port_portfix;
 use Carp qw(cluck);
 
 my $TBOPS = libtestbed::TB_OPSEMAIL;

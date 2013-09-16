@@ -40,7 +40,7 @@ use libdb;
 use libtestbed;
 use Expect;
 use Lan;
-use Port;
+use Port_portfix;
 
 
 # CLI constants

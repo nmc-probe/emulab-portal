@@ -38,7 +38,7 @@ use snmpit_lib;
 
 use libtestbed;
 use Lan;
-use Port;
+use Port_portfix;
 use Data::Dumper;
 use RPC::XML;
 use RPC::XML::Client;

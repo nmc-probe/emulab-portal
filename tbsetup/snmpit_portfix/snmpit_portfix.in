@@ -48,7 +48,7 @@ use emutil;
 use strict;
 
 # Optional alternate version of libraries.
-use lib '@prefix@/lib/snmpit_test';
+use lib '@prefix@/lib/snmpit_portfix';
 use snmpit_lib;
 use snmpit_remote;
 

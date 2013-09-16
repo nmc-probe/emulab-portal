@@ -39,7 +39,7 @@ use MLNX_XMLGateway;
 
 use libtestbed;
 use Lan;
-use Port;
+use Port_portfix;
 use Data::Dumper;
 
 # Mellanox REST API static paths

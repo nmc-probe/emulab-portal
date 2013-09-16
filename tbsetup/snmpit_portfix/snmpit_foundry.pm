@@ -36,7 +36,7 @@ $| = 1; # Turn off line buffering on output
 use English;
 use SNMP;
 use snmpit_lib;
-use Port;
+use Port_portfix;
 
 #
 # These are the commands that can be passed to the portControl function

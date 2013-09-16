@@ -62,6 +62,13 @@ if (EmulabFeatures->FeatureEnabled("OldSnmpit", $this_user, undef, undef)) {
     die("*** $0:\n".
 	"    Could not exec $newpath: $!");
 }
+if (EmulabFeatures->FeatureEnabled("PortfixSnmpit", $this_user, undef, undef)) {
+    my $newpath = "$TB/lib/snmpit_portfix/portstats";
+    print STDERR "Invoking alternate portstats from $newpath\n";
+    exec $newpath, @ARGV;
+    die("*** $0:\n".
+	"    Could not exec $newpath: $!");
+}
 my $newpath = "$TB/lib/snmpit_test/portstats";
 exec $newpath, @ARGV;
 die("*** $0:\n".

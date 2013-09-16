@@ -40,7 +40,7 @@ use SNMP;
 use snmpit_lib;
 use Socket;
 use libtestbed;
-use Port;
+use Port_portfix;
 use Lan;
 
 #

@@ -35,7 +35,7 @@ SYSTEM         := $(shell uname -s)
 include $(OBJDIR)/Makeconf
 
 SUBDIRS		= checkpass ns2ir nseparse checkup template_cvsroot \
-		  snmpit_test snmpit_old
+		  snmpit_test snmpit_old snmpit_portfix
 ifeq ($(NSVERIFY),1)
 SUBDIRS		+= nsverify
 endif
@@ -175,6 +175,9 @@ snmpit_test:
 snmpit_old:
 	@$(MAKE) -C snmpit_old all
 
+snmpit_portfix:
+	@$(MAKE) -C snmpit_old all
+
 nsverify:
 	@$(MAKE) -C nsverify all
 
@@ -231,6 +234,7 @@ endif
 	@$(MAKE) -C checkup install
 	@$(MAKE) -C snmpit_test install
 	@$(MAKE) -C snmpit_old install
+	@$(MAKE) -C snmpit_portfix install
 
 script-install:	$(addprefix $(INSTALL_BINDIR)/, $(BIN_STUFF)) \
 	 $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
@@ -343,6 +347,7 @@ subdir-clean:
 	@$(MAKE) -C checkup clean
 	@$(MAKE) -C snmpit_test clean
 	@$(MAKE) -C snmpit_old clean
+	@$(MAKE) -C snmpit_portfix clean
 
 distclean:	subdir-distclean
 
@@ -356,6 +361,7 @@ subdir-distclean:
 	@$(MAKE) -C checkup distclean
 	@$(MAKE) -C snmpit_test distclean
 	@$(MAKE) -C snmpit_old distclean
+	@$(MAKE) -C snmpit_portfix distclean
 #
 # XXX Create non .tcl files.
 #

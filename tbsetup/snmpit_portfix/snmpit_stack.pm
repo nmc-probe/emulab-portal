@@ -36,7 +36,7 @@ use Data::Dumper;
 
 use libdb;
 use libtestbed;
-use Port;
+use Port_portfix;
 use overload ('""' => 'Stringify');
 our %devices;
 our $parallelized = 1;

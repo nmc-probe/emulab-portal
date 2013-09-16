@@ -24,7 +24,7 @@
 SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
 OBJDIR		= ../..
-SUBDIR		= tbsetup/snmpit_test
+SUBDIR		= tbsetup/snmpit_portfix
 ISMAINSITE	= @TBMAINSITE@
 SYSTEM         := $(shell uname -s)
 
@@ -32,7 +32,7 @@ include $(OBJDIR)/Makeconf
 
 SUBDIRS		= 
 
-BIN_STUFF	= snmpit_test
+BIN_STUFF	= snmpit_portfix
 LIB_STUFF       = portstats snmpit_intel.pm \
                   snmpit_cisco.pm snmpit_lib.pm \
 		  snmpit_cisco_stack.pm snmpit_intel_stack.pm \
@@ -51,7 +51,7 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 
 install: all script-install
 
-script-install:	 $(addprefix $(INSTALL_LIBDIR)/snmpit_test/, $(LIB_STUFF)) \
+script-install:	 $(addprefix $(INSTALL_LIBDIR)/snmpit_portfix/, $(LIB_STUFF)) \
 		$(addprefix $(INSTALL_BINDIR)/, $(BIN_STUFF))
 
 control-install:
@@ -64,14 +64,14 @@ clrhouse-install:
 
 clean:
 	rm -f snmpit_arista_switch_daemon.py snmpit_remote.pm \
-		snmpit_test portstats snmpit_arista.pm
+		snmpit_portfix portstats snmpit_arista.pm
 
-$(INSTALL_DIR)/lib/snmpit_test/%: %
+$(INSTALL_DIR)/lib/snmpit_portfix/%: %
 	@echo "Installing $<"
-	-mkdir -p $(INSTALL_DIR)/lib/snmpit_test
+	-mkdir -p $(INSTALL_DIR)/lib/snmpit_portfix
 	$(INSTALL) $< $@
 
-$(INSTALL_DIR)/lib/snmpit_test/portstats: portstats
+$(INSTALL_DIR)/lib/snmpit_portfix/portstats: portstats
 	@echo "Installing $<"
-	-mkdir -p $(INSTALL_DIR)/lib/snmpit_test
+	-mkdir -p $(INSTALL_DIR)/lib/snmpit_portfix
 	$(INSTALL_PROGRAM) $< $@

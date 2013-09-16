@@ -41,7 +41,7 @@ use Carp qw(cluck);
 
 use libtestbed;
 use Lan;
-use Port;
+use Port_portfix;
 
 
 #

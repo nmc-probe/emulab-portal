@@ -46,10 +46,10 @@ my $ELABINELAB = @ELABINELAB@;
 use lib '@prefix@/lib';
 use libdb;
 use libtblog;
-use Port;
+use Port_portfix;
 
 # Optional alternate version of libraries.
-use lib '@prefix@/lib/snmpit_test';
+use lib '@prefix@/lib/snmpit_portfix';
 use snmpit_lib;
 
 use English;
