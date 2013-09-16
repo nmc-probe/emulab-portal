@@ -12,6 +12,7 @@ checkdrift_main() {
     else
 	allnodes=$(ls -d pc* pg* dbox*)
     fi
+allnodes="pc27 pc164 pc318 pc341 pc490"
     for host in $allnodes ; do
 	if [ -d $projdir/$host/.tbdb ] ; then
 	    cd $projdir/$host/.tbdb
@@ -24,7 +25,14 @@ checkdrift_main() {
 		# note: will check against self for sanity
 		comparetmcinfo /tmp/.$$checkdiff
 		if [ -s /tmp/.$$checkdiff ] ; then
+		    echo ""
 		    echo "$host $newest $tocheck are not the same"
+		    echo "====================================================="
+		    # reset compar file
+		    echo "diff $tocheck $newest"
+		    diff $tocheck $newest
+		    newest=$tocheck
+		    readtmcinfo $newest hwinvcopy
 		    # XXX - start
 		    # XXX Do not enable this code unless you want
 		    # the files moved out of the way
@@ -32,7 +40,7 @@ checkdrift_main() {
 #		    sudo mv $tocheck $projdir/$host/.tbdb/.notsame
 		    # XXX - end
 		else
-#		    echo "$host $newest $tocheck SAME"
+# 		    echo "$host $newest $tocheck SAME"
 		    ((countsame++))
 		fi
 		rm -f /tmp/.$$checkdiff
