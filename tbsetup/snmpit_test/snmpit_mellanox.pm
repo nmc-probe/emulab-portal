@@ -1213,7 +1213,7 @@ sub listVlans($) {
 		push @vlifindexes, $ifindex;
 	    }
 	}
-	my @ports = map {$_->getOtherEndPort()} 
+	my @ports = map {$_->is_trunk_port() ? $_ : $_->getOtherEndPort()} 
 	            $self->convertPortFormat($PORT_FORMAT_PORT, @vlifindexes);
 	push @list, [$vlname, $vlnum, \@ports];
     }
