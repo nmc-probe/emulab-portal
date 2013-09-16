@@ -115,10 +115,11 @@ sub Install($$$)
 
 		    $image->SetRunsOnNodeType("pcvm") == 0
 			or PhaseFail("Could not set $imagename to run on pcvm");
-		    $osinfo->SetRunsOnParent($nextosinfo) == 0
-			or PhaseFail("Could not set $imagename to run on parent");
+		    # This must be first. 
 		    $osinfo->SetParentOS($nextosinfo) == 0
 			or PhaseFail("Could not set $imagename parent os");
+		    $osinfo->SetRunsOnParent($nextosinfo) == 0
+			or PhaseFail("Could not set $imagename to run on parent");
 		};
 	    }
 	};
