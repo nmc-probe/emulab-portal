@@ -414,7 +414,7 @@ sub LookupByStringForced($$)
 
 	# XXX: Incomplete, but if the port isn't in the wires table,
 	# what are we to do?  We know nothing about the other end.
-	$wrowref->{'type'} = $TBDB_WIRETYPE_UNUSED;
+	$wrowref->{'type'} = TBDB_WIRETYPE_UNUSED();
 	$wrowref->{'node_id1'} = $nodeid;
 	$wrowref->{'card1'} = $card;
 	$wrowref->{'port1'} = $port;
@@ -491,14 +491,14 @@ sub LookupByIface($$;$)
 	if (!$query_result or !$query_result->numrows);
 
     $rowref = $query_result->fetchrow_hashref();
-    if ($rowref->{'type'} eq $TBDB_WIRETYPE_NODE ||
-	$rowref->{'type'} eq $TBDB_WIRETYPE_CONTROL) {
+    if ($rowref->{'type'} eq TBDB_WIRETYPE_NODE() ||
+	$rowref->{'type'} eq TBDB_WIRETYPE_CONTROL()) {
 	if ($rowref->{'node_id1'} eq $nodeid) {
 	    $inst->{"WIRE_END"} = $WIRE_END_NODE;
 	} else {
 	    $inst->{"WIRE_END"} = $WIRE_END_SWITCH;
 	}
-    } elsif ($rowref->{'type'} eq $TBDB_WIRETYPE_TRUNK) {
+    } elsif ($rowref->{'type'} eq TBDB_WIRETYPE_TRUNK()) {
 	$inst->{"WIRE_END"} = $WIRE_END_SWITCH;
     } elsif ($rowref->{'node_id2'} eq $nodeid) {
 	$inst->{"WIRE_END"} = $WIRE_END_SWITCH;	
@@ -554,8 +554,8 @@ sub LookupByTriple($$;$$)
 	if (!$query_result or !$query_result->numrows);
 
     my $rowref = $query_result->fetchrow_hashref();
-    if ($rowref->{'type'} eq $TBDB_WIRETYPE_NODE ||
-	$rowref->{'type'} eq $TBDB_WIRETYPE_CONTROL) {
+    if ($rowref->{'type'} eq TBDB_WIRETYPE_NODE() ||
+	$rowref->{'type'} eq TBDB_WIRETYPE_CONTROL()) {
 	# Emulab is consistent about using the node_id1, etc. fields for the
 	# endpoint for the above wire types.  If it were not, we would need
 	# to consult the 'nodes' table to see what role the node has.
@@ -564,7 +564,7 @@ sub LookupByTriple($$;$$)
 	} else {
 	    $inst->{"WIRE_END"} = $WIRE_END_SWITCH;
 	}
-    } elsif ($rowref->{'type'} eq $TBDB_WIRETYPE_TRUNK) {
+    } elsif ($rowref->{'type'} eq TBDB_WIRETYPE_TRUNK()) {
 	$inst->{"WIRE_END"} = $WIRE_END_SWITCH;
     } elsif ($rowref->{'node_id2'} eq $nodeid) {
 	# This is a failsafe case for wire types that are 'exotic'.
@@ -683,7 +683,7 @@ sub wire_end($) { return $_[0]->{'WIRE_END'}; }
 sub is_switch_side($) { return $_[0]->wire_end() eq $WIRE_END_SWITCH; }
 
 sub wire_type($)   { return $_[0]->{'WIRES_ROW'}->{'type'}; }
-sub is_trunk_port($)  { return $_[0]->wire_type() eq $TBDB_WIRETYPE_TRUNK; }
+sub is_trunk_port($)  { return $_[0]->wire_type() eq TBDB_WIRETYPE_TRUNK(); }
 
 sub is_forced($) { return $_[0]->{"FORCED"};}
 sub has_fields($) { return $_[0]->{"HAS_FIELDS"};}

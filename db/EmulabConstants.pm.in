@@ -169,6 +169,11 @@ use vars qw(@ISA @EXPORT);
 
 	 TBDB_WIDEAREA_LOCALNODE
 
+         TBDB_WIRETYPE_NODE TBDB_WIRETYPE_SERIAL TBDB_WIRETYPE_POWER
+         TBDB_WIRETYPE_DNARD TBDB_WIRETYPE_CONTROL TBDB_WIRETYPE_TRUNK
+         TBDB_WIRETYPE_OUTERCONTROL TBDB_WIRETYPE_UNUSED 
+         TBDB_WIRETYPE_MANAGEMENT
+
 	 TBDB_IFACEROLE_CONTROL TBDB_IFACEROLE_EXPERIMENT
 	 TBDB_IFACEROLE_JAIL TBDB_IFACEROLE_FAKE TBDB_IFACEROLE_OTHER
 	 TBDB_IFACEROLE_GW TBDB_IFACEROLE_OUTER_CONTROL
@@ -561,15 +566,15 @@ sub TBDB_IFACEROLE_OUTER_CONTROL(){ "outer_ctrl"; }
 sub TBDB_IFACEROLE_MANAGEMENT()	{ "mngmnt"; }
 
 # Wire types.
-sub TBDB_WIRETYPE_NODE          { "Node"; }
-sub TBDB_WIRETYPE_SERIAL        { "Serial"; }
-sub TBDB_WIRETYPE_POWER         { "Power"; }
-sub TBDB_WIRETYPE_DNARD         { "Dnard"; }
-sub TBDB_WIRETYPE_CONTROL       { "Control"; }
-sub TBDB_WIRETYPE_TRUNK         { "Trunk"; }
-sub TBDB_WIRETYPE_OUTERCONTROL  { "OuterControl"; }
-sub TBDB_WIRETYPE_UNUSED        { "Unused"; }
-sub TBDB_WIRETYPE_MANAGEMENT    { "Management"; }
+sub TBDB_WIRETYPE_NODE()          { "Node"; }
+sub TBDB_WIRETYPE_SERIAL()        { "Serial"; }
+sub TBDB_WIRETYPE_POWER()         { "Power"; }
+sub TBDB_WIRETYPE_DNARD()         { "Dnard"; }
+sub TBDB_WIRETYPE_CONTROL()       { "Control"; }
+sub TBDB_WIRETYPE_TRUNK()         { "Trunk"; }
+sub TBDB_WIRETYPE_OUTERCONTROL()  { "OuterControl"; }
+sub TBDB_WIRETYPE_UNUSED()        { "Unused"; }
+sub TBDB_WIRETYPE_MANAGEMENT()    { "Management"; }
 
 # Routertypes.
 sub TBDB_ROUTERTYPE_NONE()	{ "none"; }
