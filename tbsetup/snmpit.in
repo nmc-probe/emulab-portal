@@ -39,11 +39,9 @@ use libtestbed;
 use EmulabFeatures;
 
 #
-# See if we use the alternate version of snmpit. Only user, global
-# and default group checks are performed.
+# See if we use the alternate version of snmpit.
 #
 my $this_user;
-my $user_def_pid;
 
 if ($UID) {
     $this_user = User->ThisUser();

@@ -39,8 +39,7 @@ use libtestbed;
 use EmulabFeatures;
 
 #
-# See if we use the alternate version of snmpit. Only user and
-# global checks are done. 
+# See if we use the alternate version of snmpit.
 #
 my $this_user;
 
@@ -64,7 +63,7 @@ if (EmulabFeatures->FeatureEnabled("OldSnmpit", $this_user, undef, undef)) {
 }
 
 # Check feature access for both the user and the projects they belong to
-# for the portfix version of snmpit.  The user should be a member of at least
+# for the portfix version of portstats.  The user should be a member of at least
 # one project, so we will get into the foreach loop to check 'global' and
 # 'user' permissions as well.
 my @user_projects = ();

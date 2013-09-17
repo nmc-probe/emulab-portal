@@ -176,7 +176,7 @@ snmpit_old:
 	@$(MAKE) -C snmpit_old all
 
 snmpit_portfix:
-	@$(MAKE) -C snmpit_old all
+	@$(MAKE) -C snmpit_portfix all
 
 nsverify:
 	@$(MAKE) -C nsverify all
