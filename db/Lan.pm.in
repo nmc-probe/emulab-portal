@@ -34,7 +34,8 @@ use vars qw(@ISA @EXPORT);
 use libdb;
 use libtestbed;
 use Node;
-use Port;
+# Doesn't seem to be used presently...
+# use Port;
 use English;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
