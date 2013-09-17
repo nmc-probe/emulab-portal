@@ -5421,7 +5421,7 @@ sub CheckUpdateStatus($$)
 	push(@tmp, $node);
     }
     my @done     = ();
-    my @notedone = ();
+    my @notdone  = ();
 
     return -1
 	if (Node->CheckUpdateStatus(\@done, \@notdone, @tmp));
