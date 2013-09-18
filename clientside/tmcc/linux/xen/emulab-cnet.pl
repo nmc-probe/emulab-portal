@@ -287,7 +287,7 @@ sub Offline()
 
     if (!SHAREDHOST()) {
 	mysystem2("$IPTABLES -t nat -D POSTROUTING -j SNAT ".
-	       "  --to-source $host_ip -s $vnode_ip --destination $fs_ip ".
+	       "  --to-source $host_ip -s $vnode_ip -d $fs_ip,$fs_jailip ".
 	       "  -o $bridge");
     }
 
