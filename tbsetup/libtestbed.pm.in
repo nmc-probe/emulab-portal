@@ -108,7 +108,7 @@ sub TBMAIL_AUDIT()  { "Testbed Audit <$TBAUDITEMAIL>" }
 # TBMAIL_PROJADMIN should, in general, not be used directly, use
 # SendProjAdminMail
 sub TBMAIL_PROJADMIN($) {
-    @MAILMANSUPPORT@ ? "$_[0]-admin\@@OURDOMAIN@" : "@TBAPPROVALEMAIL@";
+    0 && @MAILMANSUPPORT@ ? "$_[0]-admin\@@OURDOMAIN@" : "@TBAPPROVALEMAIL@";
 }
 sub TBMAIL_APPROVAL() {
     "@TBAPPROVALEMAIL@";

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -235,7 +235,7 @@ if (system("$RMGROUP $pid_idx")) {
 # Now remote the proj admin list, but only if the proj was never
 # approved
 #
-if ($MAILMANSUPPORT) {
+if (0 && $MAILMANSUPPORT) {
     my $approved =
 	DBQuerySingleFatal("select approved from projects where pid='$pid'");
     if (!$approved) {
