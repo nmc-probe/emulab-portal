@@ -2400,7 +2400,7 @@ sub CreateVnodes($$$)
 	if (exists($reserved_memory{$vname})) {
 	    $nodesets{"reserved_memory"} = $reserved_memory{$vname};
 	}	    
-	my $statement = "insert into nodes set ".
+	my $statement = "insert into nodes set inception=now(), ".
 	    join(",", map("$_='" . $nodesets{$_} . "'", keys(%nodesets)));
 
 	print STDERR "$statement\n"
