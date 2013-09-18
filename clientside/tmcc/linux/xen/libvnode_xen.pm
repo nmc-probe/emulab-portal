@@ -3713,6 +3713,7 @@ sub RunWithLock($$)
     }
     mysystem2($command);
     my $status = $?;
+    sleep(1);
 
     TBScriptUnlock($lockref);
     return $status;
