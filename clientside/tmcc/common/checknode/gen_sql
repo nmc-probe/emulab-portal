@@ -12,7 +12,7 @@ checkdrift_main() {
     else
 	allnodes=$(ls -d pc* pg* dbox*)
     fi
-allnodes="pc27 pc164 pc318 pc341 pc490"
+
     for host in $allnodes ; do
 	if [ -d $projdir/$host/.tbdb ] ; then
 	    cd $projdir/$host/.tbdb
@@ -52,8 +52,33 @@ allnodes="pc27 pc164 pc318 pc341 pc490"
     done
 }
 
+#   README
+#   to get HD info from serial number
+# select b.node_id,b.bs_id,b.bsidx,a.attrvalue from blockstores as b,blockstore_attributes as a where b.bsidx=a.bsidx and b.role='element' and a.attrkey='serialnum' and a.attrvalue='$sn';
+#   to get HD info from node_id
+# select b.node_id,b.bs_id,b.bsidx,a.attrvalue from blockstores as b,blockstore_attributes as a where b.bsidx=a.bsidx and b.role='element' and a.attrkey='serialnum' and b.node_id='pc510';
+#
+#   to get bsidx from serial number
+# db_bsidx=$(mysql -B -N -e "select b.bsidx from blockstores as b,blockstore_attributes as a where b.bsidx=a.bsidx and b.role='element' and a.attrkey='serialnum' and a.attrvalue='$sn';" tbdb)
+#   to get serial number from bsidx
+# db_sn=$(mysql -B -N -e "select a.attrvalue from blockstores as b,blockstore_attributes as a where b.bsidx=a.bsidx and b.role='element' and a.attrkey='serialnum' and b.bsidx=$bsidx;" tbdb);
+
+get_bsidx_from_sn() {
+    echo $(mysql -B -N -e "select b.bsidx from blockstores as b,blockstore_attributes as a where b.bsidx=a.bsidx and b.role='element' and a.attrkey='serialnum' and a.attrvalue='$1';" tbdb)
+}
+get_sn_from_bsidx() {
+    echo $(mysql -B -N -e "select a.attrvalue from blockstores as b,blockstore_attributes as a where b.bsidx=a.bsidx and b.role='element' and a.attrkey='serialnum' and b.bsidx=$1;" tbdb);
+}
+get_host_from_bsidx() {
+    echo $(mysql -B -N -e "select node_id from blockstores where bsidx=$1;" tbdb);
+}
+get_drive_from_bsidx() {
+    echo $(mysql -B -N -e "select bs_id from blockstores where bsidx=$1;" tbdb);
+}
+
 gentbsql_main() {
     set -u
+    local sn="UNK" hdtype="UNK" secsize="UNK" sectors="UNK" wspeed="UNK" rspeed="UNK"
     projdir=/proj/emulab-ops/nodecheck
     cd $projdir
     if (( $# )) ; then
@@ -62,32 +87,118 @@ gentbsql_main() {
 	allnodes=$(ls -d pc* pg* dbox*)
     fi
 
+    # unique BlockStore number based on first mac address
+    bsidx_base=$(mysql -B -N -e "select idx from emulab_indicies where name='next_bsidx';" tbdb)
+    keep_bsidx_base=$bsidx_base
+    
     for host in $allnodes ; do
 	if [ -d $projdir/$host ] ; then
 	    cd $projdir/$host
+	    sn="UNK" hdtype="UNK" secsize="UNK" sectors="UNK" wspeed="UNK" rspeed="UNK"
+	    [[ -f "diff" ]] || { echo "# $host: No changes needed"; continue; }
+	    [[ -f "node" ]] || { echo "# $host: Missing node file"; continue; }
 	    if [ -z "$(grep "Diff Report" diff)" ] ; then
-		echo "$host Inventory Report to old to use"
+		echo "# $host Inventory Report to old to use"
 		continue
 	    fi
-	    listofobjs="DISKINFO CPUINFO MEMINFO NETINFO"
-	    for i in $listofobjs ; do
-		toadd="$(grep $i diff)"
-		[[ "$toadd" = "${toadd/match}" ]] || continue
-		if [ -n "$toadd" ] ; then
-		    toadd=${toadd/$i}
-		    printf "\nmysql -e \"insert into %s set node_id='%s' %s;\" tbdb\n" "$i" "$host" "$toadd"
-		fi
-	    done
+# these values are returned by tmcc hwinfo, not contained in the db
+#	    listofobjs="DISKINFO CPUINFO MEMINFO NETINFO"
+#	    for i in $listofobjs ; do
+#		toadd="$(grep $i diff)"
+#		[[ "$toadd" = "${toadd/match}" ]] || continue
+#		if [ -n "$toadd" ] ; then
+#		    toadd=${toadd/$i}
+#		    printf "\nmysql -e \"insert into %s set node_id='%s' %s;\" tbdb\n" "$i" "$host" "$toadd"
+#		fi
+#	    done
 	    listofdisks=$(grep 'DISKs:' diff)
 	    listofdisks=${listofdisks//DISKs:}
+	    hdnum=0
 	    for i in $listofdisks ; do
 		toadd=$(grep $i node)
 		if [ -n "$toadd" ] ; then
 		    toadd=${toadd/DISKUNIT}
-		    printf "mysql -e \"insert into DISKUNIT set node_id='%s' %s;\" tbdb\n" "$host" "$toadd"
+                    # get info we want in the database
+# didn't work if one missing. read -rd '' sn type secsize sectors wspeed rspeed <<< $toadd
+		    if [ "${toadd/SN=}" != "$toadd" ]; then
+			sn=${toadd##*SN=}
+			sn=${sn%% *}
+			sn=${sn//\"/}
+			# check and see if serial number is already in database
+			bsidx=$(get_bsidx_from_sn $sn)
+			[[ "$bsidx" ]] && { h=$(get_host_from_bsidx $bsidx); d=$(get_drive_from_bsidx $bsidx); echo "# $host SN:$sn already in DB bsidx=${bsidx}@${h} $d"; continue; }
+		    fi
+
+		    if [ "${toadd/TYPE=}" != "$toadd" ]; then
+# /* by Mike's orders
+#  type		"class"	"protocol"	"rot-speed"	nodes with this type
+# 
+#  pata-generic	local	PATA		7200		pc600,pc850,pc2000
+#  scsi-generic	local	SCSI		10000		pc3000,pc6000
+#  sata-generic	local	SATA		7200		pc2400w,d710,d820,pcivy
+#  sas-generic	local	SAS		10000		d820
+#  ssd-generic	local	SATA		0		gpuhost,d820(pc601)
+#  c2100-sas	local	SAS		15000		c2100
+# */
+			nodetype=$(mysql -B -N -e "select type from nodes where node_id='$host';" tbdb)
+			case $nodetype in
+			    pc600 | pc850 | pc2000 ) hdtype="pata-generic" ;;
+			    pc3000 | pc6000 ) hdtype="scsi-generic" ;;
+			    pc2400w | d710 | d820 | pcivy ) hdtype="sata-generic" ;;
+			    d820 ) hdtype="sas-generic" ;;
+			    gpuhost ) hdtype="ssd-generic" ;;
+			    c2100 ) hdtype="c2100-sas" ;;
+			    * ) 
+				hdtype=${toadd##*TYPE=}
+				hdtype=${hdtype%% *}
+				;;
+			esac
+			# XXX XXX XXX special case
+			if [ "$host" == "pc601" ] ; then
+			    hdtype="ssd-generic"
+			fi
+		    fi
+		    if [ "${toadd/SECSIZE=}" != "$toadd" ]; then
+			secsize=${toadd##*SECSIZE=}
+			secsize=${secsize%% *}
+		    fi
+		    if [ "${toadd/SECTORS=}" != "$toadd" ]; then
+			sectors=${toadd##*SECTORS=}
+			sectors=${sectors%% *}
+		    fi
+		    if [ "${toadd/RSPEED=}" != "$toadd" ]; then
+			rspeed=${toadd##*RSPEED=}
+			rspeed=${rspeed%% *}
+		    fi
+		    if [ "${toadd/WSPEED=}" != "$toadd" ]; then
+			wspeed=${toadd##*WSPEED=}
+			wspeed=${wspeed%% *}
+		    fi
+		    size=$(($sectors / 2048))
+		    # check and see if bsidx already used
+		    while [ "$(mysql -B -N -e "select bsidx from blockstores where bsidx=$bsidx_base;" tbdb)" ] ; do
+			echo "# bsidx=$bsidx_base already used, bumping bsidx_base again"
+			((++bsidx_base))
+		    done
+                    # check and see if drive already used
+		    while [ "$(mysql -B -N -e "select bs_id from blockstores where node_id=\"$host\" and bs_id=\"disk${hdnum}\";" tbdb)" ] ; do
+			echo "# drive${hdnum} already used, bumping hdnum again"
+			((++hdnum))
+		    done
+		    printf "mysql -e \"insert into blockstores values (%d, '%s', 'disk%d', '%s', 'element', %d, 1, now());\" tbdb\n" "$bsidx_base" "$host" "$hdnum" "$hdtype" "$size" 
+		    # now the second table
+		    printf "mysql -e \"insert into blockstore_attributes values (%d, '%s', '%s', '%s');\" tbdb\n" "$bsidx_base" "serialnum" "$sn" "string" 
+		    ((++bsidx_base))
+		    ((++hdnum))
 		else
-		    toadd="SN=\"$i\""
-		    printf "mysql -e \"delete from DISKUNIT where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+		    if [ "$i" == "UNKNOWN" ] ; then
+			echo "# Missing Serial Number for disk${hdnum} on $host"
+			((++hdnum))
+		    else
+			toadd="SN=\"$i\""
+			printf "mysql -e \"delete from blockstore_attributes where attrkey='%s';\" tbdb\n" "$sn"
+			printf "mysql -e \"delete from blockstores where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+		    fi
 		fi
 	    done
 	    listofnics=$(grep 'NICs:' diff)
@@ -95,18 +206,22 @@ gentbsql_main() {
 	    for i in $listofnics ; do
 		toadd=$(grep $i node)
 		if [ -n "$toadd" ] ; then
-		    toadd=${toadd/NETUNIT}
-		    printf "mysql -e \"insert into NETUNIT set node_id='%s' %s;\" tbdb\n" "$host" "$toadd"
+		    toadd=${toadd/*ID=\"}
+		    toadd=${toadd/\"}
+		    uuid=$(uuidgen)
+		    printf "#BYHAND mysql -e \"insert into interfaces set node_id='%s',mac='%s',card=X,port=X,interface_type='?',iface='ethX',role='?',uuid='$uuid';\" tbdb\n" "$host" "$toadd"
 		else
 		    toadd="ID=\"$i\""
-		    printf "mysql -e \"delete from NETUNIT where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+		    printf "#BYHAND mysql -e \"delete from interfaces where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
 		fi
 	    done
 	else
 	    echo "No record of node id \"$host\"."
 	fi
     done
-
+    if [ $keep_bsidx_base -ne $bsidx_base ] ; then
+	printf "mysql -e \"update emulab_indicies set idx=%d where name='next_bsidx';\" tbdb\n" "$bsidx_base"
+    fi
 }
 
 setdirstructure() {
