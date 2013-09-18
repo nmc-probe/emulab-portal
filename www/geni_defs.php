@@ -110,6 +110,25 @@ class GeniSlice
 	}
 	return null;
     }
+    function LookupByName($authority, $token) {
+	$dblink     = GetDBLink($authority);
+	$safe_token = addslashes($token);
+
+	if (! $dblink) {
+	    return null;
+	}
+	$query_result =
+	    DBQueryFatal("select idx from geni_slices ".
+			 "where name='$safe_token'",
+			 $dblink);
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$idx = $row[0];
+ 	return GeniSlice::Lookup($authority, $idx);
+    }
     # accessors
     function field($name) {
 	return (is_null($this->slice) ? -1 : $this->slice[$name]);
@@ -320,6 +339,26 @@ class GeniUser
 	}
 	return null;
     }
+    function LookupByEmail($authority, $token) {
+	$dblink     = GetDBLink($authority);
+	$safe_token = addslashes($token);
+
+	if (! $dblink) {
+	    return null;
+	}
+	$query_result =
+	    DBQueryFatal("select idx from geni_users ".
+			 "where email='$safe_token'",
+			 $dblink);
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$idx = $row[0];
+ 	return GeniUser::Lookup($authority, $idx);
+    }
+    
     # accessors
     function field($name) {
 	return (is_null($this->user) ? -1 : $this->user[$name]);
@@ -336,6 +375,7 @@ class GeniUser
     function name()	    { return $this->field('name'); }
     function email()	    { return $this->field('email'); }
     function sa_uuid()	    { return $this->field('sa_uuid'); }
+    function IsActive()     { $this->status() == 'active'; }
 }
 
 class ClientSliver
