@@ -173,7 +173,7 @@ my $idleswap     = 1;
 my $idleswaptime = 60 * TBGetSiteVar("idle/threshold");
 my $noidleswap_reason;
 my $autoswap     = 0;
-my $autoswaptime = 10 * 60;
+my $autoswaptime = 60 * TBGetSiteVar("general/autoswap_max");
 my $idleignore   = 0;
 my $priority     = TB_EXPTPRIORITY_LOW;
 my $exptstate    = EXPTSTATE_NEW();
