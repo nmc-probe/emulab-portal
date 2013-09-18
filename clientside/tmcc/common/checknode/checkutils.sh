@@ -612,7 +612,7 @@ initlogs () {
 	return 0
     fi
 
-    # the following bash syntax lets us test if a positional arg is set
+    # the following bash syntax lets us test ifa  positional arg is set
     # before we try and use it
     # needed if running with -u set. 
     # It means use $1 if set else use a default path
