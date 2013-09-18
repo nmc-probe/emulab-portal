@@ -491,6 +491,11 @@ if (-e "$VNDIR/vnode.info") {
 	    print "Cannot determine status container $vmid. Deleting ...\n";
 	    $teardown = 1;
 	}
+	elsif ($ret eq VNODE_STATUS_MOUNTED()) {
+	    print("vnode $vnodeid still mounted. Unmounting then restarting\n");
+	    $teardown = 1;
+	    $leaveme  = $LEAVEME_REBOOT;
+	}
 	elsif ($ret ne VNODE_STATUS_STOPPED()) {
 	    fatal("vnode $vnodeid not stopped, not booting!");
 	}
@@ -498,6 +503,9 @@ if (-e "$VNDIR/vnode.info") {
     if ($teardown) {
 	TearDownStaleVM() == 0
 	    or fatal("Could not tear down stale container");
+	# See MOUNTED case above; we set leaveme to keep the container
+	# file systems, but must reset leaveme. 
+	$leaveme = 0;
     }
     else {
 	$rebooting = 1;
