@@ -30,8 +30,7 @@
 package GeniMA;
 
 #
-# The server side of the CM interface on remote sites. Also communicates
-# with the GMC interface at Geni Central as a client.
+# Shim for implementing standard GENI MA interface.
 #
 use strict;
 use Exporter;
@@ -40,16 +39,20 @@ use vars qw(@ISA @EXPORT);
 @ISA    = "Exporter";
 @EXPORT = qw ( );
 
+use GeniStd;
 use GeniSA;
 use GeniResponse;
 use GeniCredential;
 use GeniRegistry;
 use emutil;
+use Data::Dumper;
+
+my $coder = Frontier::RPC2->new('use_objects' => 1);
 
 sub GetVersion()
 {
     my $blob = {
-	"VERSION" => "0.1",
+	"VERSION" => $coder->string("0.1"),
 	"CREDENTIAL_TYPES" => ["SFA"]
     };
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
@@ -58,24 +61,20 @@ sub GetVersion()
 sub LookupPublic($)
 {
     my ($options) = @_;
-    
-    my $match = $options->{'match'};
-    my $filter = $options->{'filter'};
+
+    my ($match, $filter) = GeniStd::GetMatchFilter($options);
 
     my $members = {};
-    if (exists($match) && defined($match)) {
-	foreach my $key (@{ $match }) {
-	    my $geniuser = GeniUser->Lookup($key, 0);
-	    if (defined($geniuser)) {
-		my $blob = {};
-		GeniStd::addField($blob, "MEMBER_URN", $geniuser->urn(),
-				  $filter);
-		GeniStd::addField($blob, "MEMBER_UID", $geniuser->uid(),
-				  $filter);
-		GeniStd::addField($blob, "MEMBER_USERNAME", $geniuser->hrn(),
-				  $filter);
-		$members->{$geniuser->urn()} = $blob;
-	    }
+    foreach my $key (@{ $match }) {
+	my $geniuser = GeniUser->Lookup($key, 1);
+	if (defined($geniuser)) {
+	    my $completeblob = {
+		"MEMBER_URN"      => $geniuser->urn(),
+		"MEMBER_UID"      => $geniuser->uid(),
+		"MEMBER_USERNAME" => $geniuser->hrn()
+	    };
+	    my $blob = GeniStd::FilterFields($completeblob, $filter);
+	    $members->{$geniuser->urn()} = $blob;
 	}
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $members);
@@ -84,26 +83,32 @@ sub LookupPublic($)
 sub LookupPrivate($$)
 {
     my ($credential_args, $options) = @_;
-    my $credential = GeniStd::CheckCredentials($credential_args);
+    my ($credential) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
     return $credential
 	if (GeniResponse::IsResponse($credential));
-   
+    #
+    # We need to enforce Emulab permissions here, since the credential
+    # allows anyone with a credential for this registry to lookup anyone
+    # else. Good feature of the Geni API.
+    #
+    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    if (!defined($this_user)) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "Permission denied. Only local users are allowed to make private lookups.");
+    }
+
     $credential->HasPrivilege( "authority" ) or
 	$credential->HasPrivilege( "resolve" ) or
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
-
-    my $match = $options->{'match'};
-    my $filter = $options->{'filter'};
+    my ($match, $filter) = GeniStd::GetMatchFilter($options);
 
     my $members = {};
-    if (exists($match) && defined($match)) {
-	foreach my $key (@{ $match }) {
-	    my $geniuser = GeniUser->Lookup($key, 0);
-	    if (defined($geniuser)) {
-		my $blob = {};
-		$members->{$geniuser->urn()} = $blob;
-	    }
+    foreach my $key (@{ $match }) {
+	my $geniuser = GeniUser->Lookup($key, 1);
+	if (defined($geniuser)) {
+	    my $blob = {};
+	    $members->{$geniuser->urn()} = $blob;
 	}
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $members);
@@ -113,36 +118,42 @@ sub LookupIdentifying($$)
 {
     my ($credential_args, $options) = @_;
 
-    my $credential = GeniStd::CheckCredentials($credential_args);
+    my ($credential) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
+    #
+    # We need to enforce Emulab permissions here, since the credential
+    # allows anyone with a credential for this registry to lookup anyone
+    # else. Good feature of the Geni API.
+    #
+    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    if (!defined($this_user)) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "Permission denied. Only local users are allowed to make identifying lookups.");
+    }
+
     $credential->HasPrivilege( "authority" ) or
 	$credential->HasPrivilege( "resolve" ) or
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
 
-    my $match = $options->{'match'};
-    my $filter = $options->{'filter'};
+    my ($match, $filter) = GeniStd::GetMatchFilter($options);
 
     my $members = {};
-    if (exists($match) && defined($match)) {
-	foreach my $key (@{ $match }) {
-	    my $geniuser = GeniUser->Lookup($key, 0);
-	    if (defined($geniuser)) {
-		my @namelist = split(/ /, $neinuser->name());
-		my $lastname = pop(@namelist);
-		my $firstname = join(" ", @namelist);
-		my $blob = {};
-		GeniStd::addField($blob, "MEMBER_URN", $geniuser->urn(),
-				  $filter);
-		GeniStd::addField($blob, "MEMBER_FIRSTNAME", $firstname,
-				  $filter);
-		GeniStd::addField($blob, "MEMBER_LASTNAME", $lastname,
-				  $filter);
-		GeniStd::addField($blob, "MEMBER_EMAIL", $geniuser->email(),
-				  $filter);
-	    }
+    foreach my $key (@{ $match }) {
+	my $geniuser = GeniUser->Lookup($key, 1);
+	if (defined($geniuser)) {
+	    my @namelist = split(/ /, $geniuser->name());
+	    my $lastname = pop(@namelist);
+	    my $firstname = join(" ", @namelist);
+	    my $completeblob = {
+		"MEMBER_FIRSTNAME" => $firstname,
+		"MEMBER_LASTNAME"  => $lastname,
+		"MEMBER_EMAIL"     => $geniuser->email()
+	    };
+	    my $blob = GeniStd::FilterFields($completeblob, $filter);
+	    $members->{$geniuser->urn()} = $blob;
 	}
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $members);
@@ -165,9 +176,29 @@ sub GetCredentials($$$)
 
     my $blob = {
 	"geni_type" => "sfa",
-	"geni_type" => "3",
+	"geni_version" => $coder->string("3"),
 	"geni_credential" => $credential->value()
     };
 
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, [$blob]);
+}
+
+sub CreateKey($$$)
+{
+    my ($member_urn, $credential_args, $options) = @_;
+}
+
+sub DeleteKey($$$$)
+{
+    my ($member_urn, $key_id, $credentials, $options) = @_;
+}
+
+sub UpdateKey($$$$)
+{
+    my ($member_urn, $key_id, $credentials, $options) = @_;
+}
+
+sub LookupKeys($$)
+{
+    my ($credentials, $options) = @_;
 }

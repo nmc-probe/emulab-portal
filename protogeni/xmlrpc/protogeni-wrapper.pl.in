@@ -69,6 +69,8 @@ my $AM_MODULE = "am";
 # These are the modules we load for each service.
 my %GENI_MODULES = ( "cm"        => "@prefix@/lib/protogeni-cm.pm",
 		     $AM_MODULE  => "@prefix@/lib/geni-am.pm",
+		     "geni-ma"   => "@prefix@/lib/geni-ma.pm",
+		     "geni-sa"   => "@prefix@/lib/geni-sa.pm",
 		     "sa"        => "@prefix@/lib/protogeni-sa.pm",
 		     "ch"        => "@prefix@/lib/protogeni-ch.pm",
 		     "ses"       => "@prefix@/lib/protogeni-ses.pm",

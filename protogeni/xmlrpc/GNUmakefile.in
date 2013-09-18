@@ -45,7 +45,7 @@ SETUID_SUEXEC_SCRIPTS  = protogeni-wrapper.pl
 # 
 all:	Genixmlrpc.pm GeniResponse.pm \
 	protogeni-ch.pm protogeni-sa.pm protogeni-cm.pm protogeni-emulab.pm \
-	protogeni-ses.pm geni-am.pm  \
+	protogeni-ses.pm geni-am.pm geni-ma.pm geni-sa.pm \
 	protogeni-wrapper.pl
 
 include $(TESTBED_SRCDIR)/GNUmakerules
@@ -58,6 +58,8 @@ install-libs: $(INSTALL_LIBDIR)/Genixmlrpc.pm \
          $(INSTALL_LIBDIR)/protogeni-ses.pm \
          $(INSTALL_LIBDIR)/protogeni-emulab.pm \
          $(INSTALL_LIBDIR)/geni-am.pm \
+         $(INSTALL_LIBDIR)/geni-ma.pm \
+         $(INSTALL_LIBDIR)/geni-sa.pm \
          $(INSTALL_DIR)/opsdir/lib/Genixmlrpc.pm \
          $(INSTALL_DIR)/opsdir/lib/GeniResponse.pm
 

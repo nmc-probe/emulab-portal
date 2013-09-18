@@ -35,7 +35,7 @@ use Frontier::RPC2;
 # Do this early so that we talk to the right DB.
 use vars qw($GENI_DBNAME $GENI_METHODS $EMULAB_PEMFILE
 	    $GENI_RESPONSE_CONVERTER);
-BEGIN { $GENI_DBNAME = "geni-sa"; }
+BEGIN { $GENI_DBNAME = "geni"; }
 
 # Configure variables
 my $ETCDIR         = "@prefix@/etc";
@@ -43,7 +43,7 @@ $EMULAB_PEMFILE    = "$ETCDIR/genisa.pem";
 
 # Testbed libraries.
 use lib '@prefix@/lib';
-use GeniSA;
+use GeniStdSA;
 use GeniResponse;
 
 $GENI_METHODS = {
@@ -60,9 +60,10 @@ $GENI_METHODS = {
     "lookup_slices_for_member"     => \&GeniStdSA::LookupSlicesForMember,
 
     # SLIVER INFO
-    "register_aggregate"           => \&GeniStdSA::RegisterAggregate,
-    "remove_aggregate"             => \&GeniStdSA::RemoveAggregate,
-    "get_slice_aggregates"         => \&GeniStdSA::GetSliceAggregates,
+    "create_sliver_info"           => \&GeniStdSA::CreateSliverInfo,
+    "update_sliver_info"           => \&GeniStdSA::UpdateSliverInfo,
+    "delete_sliver_info"           => \&GeniStdSA::DeleteSliverInfo,
+    "lookup_sliver_info"           => \&GeniStdSA::LookupSliverInfo,
 
     # PROJECT_SERVICE
     "create_project"               => \&GeniStdSA::CreateProject,

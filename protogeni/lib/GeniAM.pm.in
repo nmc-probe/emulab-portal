@@ -40,6 +40,7 @@ use vars qw(@ISA @EXPORT);
 @ISA    = "Exporter";
 @EXPORT = qw ( );
 
+use GeniStd;
 use GeniCMV2;
 use GeniResponse;
 use GeniCredential;
@@ -49,7 +50,6 @@ use emutil;
 use Compress::Zlib;
 use MIME::Base64;
 use XML::LibXML;
-use URI;
 use Date::Parse;
 use Data::Dumper;
 use Frontier::RPC2;
@@ -258,7 +258,7 @@ sub ListResources()
 
     my $credentials = $credential_args;
     if ($API_VERSION >= 3) {
-	$credentials = FilterCredentials($credential_args);
+	$credentials = GeniStd::FilterCredentials($credential_args);
     }
 
     my $xml = undef;
@@ -330,128 +330,6 @@ sub ListResources()
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $xml);
 }
 
-sub auto_add_sa($)
-{
-    my ($cred_str) = @_;
-    my $verify_sig = 1;
-    my $cred = GeniCredential->CreateFromSigned($cred_str, $verify_sig);
-    my $signers = $cred->signer_certs();
-
-    return
-	if ($cred->type() eq "speaksfor");
-
-    # The credential has been verified, so the signer derives from a
-    # trusted root.
-    my $sa_cert = @$signers[0];
-
-    # These are borrowed from protogeni/scripts/addauthority
-    my $certificate = GeniCertificate->LoadFromString($sa_cert);
-    if (!defined($certificate)) {
-        print STDERR "auto_add_sa: could not get certificate from $sa_cert\n";
-        return;
-    }
-    if (! ($certificate->uuid() =~ /\w*-(\w*)$/)) {
-        print STDERR "auto_add_sa: could not get prefix from uuid\n";
-        return;
-    }
-    my $url = $certificate->URL();
-    if (!defined($url)) {
-        print STDERR "auto_add_sa: certificate does not have a URL extension\n";
-    }
-    my $urn = $certificate->urn();
-    if (!defined($urn)) {
-        print STDERR "auto_add_sa: certificate does not have a URN extension\n";
-        return;
-    }
-    # Look to see if already registered.
-    my $authority = GeniAuthority->Lookup($urn);
-    if (defined($authority)) {
-	#
-	# See if the certificate has changed. If so we want to replace it.
-	#
-	return
-	    if ($certificate->SameCert($authority->GetCertificate()));
-
-	#
-	# Want to reuse the old uuid since we use it as a table cross
-	# reference index. Eventually need to use the URN. Anyway, change
-	# the uuid in the new certificate so that it goes into the DB
-	# with the original one. Then update the Authority record with
-	# the new certificate.
-	#
-	print STDERR "Updating $authority with new certificate: $certificate\n";
-	
-	$certificate->setuuid($authority->uuid());
-	if ($authority->UpdateCertificate($certificate)) {
-	    print STDERR "Failed to update $authority with $certificate\n";
-	    return;
-	}
-	return;
-    }
-    #
-    # We want the URL! 
-    #
-    goto goturl
-	if (defined($url));
-    
-    # First get the list of registries from PLC.
-    my $registry = GeniRegistry::PLC->Create();
-    if (!defined($registry)) {
-	print STDERR "Cannot create a PLC registry object\n";
-	return;
-    }
-    my $blob;
-    if ($registry->GetRegistries(\$blob)) {
-	print STDERR "Cannot get PLC registry listing\n";
-	return;
-    }
-    print STDERR Dumper($blob);
-
-    #
-    # Now look at the last signer certificate; this is the actual authority.
-    #
-    my $authcertstr = @$signers[scalar(@$signers) - 1];
-    my $authcert = GeniCertificate->LoadFromString($authcertstr);
-    if (!defined($authcert)) {
-        print STDERR
-	    "auto_add_sa: could not get certificate from $authcertstr\n";
-        return;
-    }
-    my $authurn = $authcert->urn();
-    if (!defined($authurn)) {
-        print STDERR "auto_add_sa: $authcert does not have a URN extension\n";
-        return;
-    }
-
-    #
-    # Now search ...
-    #
-    foreach my $ref (@$blob) {
-	if ($ref->{'urn'} eq $authurn) {
-	    $url = $ref->{'url'};
-	    last;
-	}
-    }
-    if (!defined($url)) {
-        print STDERR "auto_add_sa: could not get a URL for $authcert\n";
-	return;
-    }
-    #
-    # Gack. Replace the URL with a modified URL which says https.
-    # Why does PLC set the scheme to http?
-    #
-  goturl:
-    my $uri = URI->new($url);
-    $uri->scheme("https");
-    $url = "$uri";
-    
-    if (!GeniAuthority->Create($certificate, $url, "sa")) {
-        print STDERR "auto_add_sa: unable to add authority\n";
-        return;
-    }
-    return $certificate;
-}
-
 ###############################################################################
 # AM API V2
 ###############################################################################
@@ -471,7 +349,7 @@ sub CreateSliver()
         # onto a list here and remove them at the end of this
         # function. The other AM calls do not need the dynamically
         # added SA.
-        auto_add_sa($cred);
+        GeniStd::auto_add_sa($cred);
     }
 
     # Package the caller_keys in a list of hashes the way the CM wants
@@ -731,7 +609,7 @@ sub CreateImage()
 
     my $credentials = $credential_args;
     if ($API_VERSION >= 3) {
-	$credentials = FilterCredentials($credential_args);
+	$credentials = GeniStd::FilterCredentials($credential_args);
     }
 
     my $args = {
@@ -800,9 +678,9 @@ sub Describe
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
     my @urns = @{ $urn_args };
-    my $credentials = FilterCredentials($credential_args);
+    my $credentials = GeniStd::FilterCredentials($credential_args);
 
-    my $cred = GeniCMV2::CheckCredentials($credentials);
+    my $cred = GeniStd::CheckCredentials($credentials);
     return $cred
 	if (GeniResponse::IsResponse($cred));
 
@@ -907,8 +785,8 @@ sub Update
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
     my @urns = @{ $urn_args };
-    my $credentials = FilterCredentials($credential_args);
-    my $cred = GeniCMV2::CheckCredentials($credentials);
+    my $credentials = GeniStd::FilterCredentials($credential_args);
+    my $cred = GeniStd::CheckCredentials($credentials);
     return $cred
 	if (GeniResponse::IsResponse($cred));
 
@@ -1048,7 +926,7 @@ sub Renew
 	! defined($expiration_time) || ! defined($options)) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    my $credentials = FilterCredentials($credential_args);
+    my $credentials = GeniStd::FilterCredentials($credential_args);
     my @urns = @{ $urn_args};
     return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
@@ -1080,7 +958,7 @@ sub Provision
     my @urns = @{ $urn_args };
     return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
-    my $credentials = FilterCredentials($credential_args);
+    my $credentials = GeniStd::FilterCredentials($credential_args);
     my $users = $options->{'geni_users'};
     my $sliver_keys = [];
     if (defined($users) && @$users) {
@@ -1098,7 +976,7 @@ sub Provision
 	}
     }
 
-    my $cred = GeniCMV2::CheckCredentials($credentials);
+    my $cred = GeniStd::CheckCredentials($credentials);
     return $cred
 	if (GeniResponse::IsResponse($cred));
 
@@ -1163,12 +1041,12 @@ sub PerformOperationalAction
     return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
 
-    my $credentials = FilterCredentials($credential_args);
+    my $credentials = GeniStd::FilterCredentials($credential_args);
     my $args = {
 	'credentials' => $credentials
     };
 
-    my $cred = GeniCMV2::CheckCredentials($credentials);
+    my $cred = GeniStd::CheckCredentials($credentials);
     return $cred
 	if (GeniResponse::IsResponse($cred));
 
@@ -1262,7 +1140,7 @@ sub Delete
 	push(@{ $slivers }, $blob);
     }
 
-    my $credentials = FilterCredentials($credential_args);
+    my $credentials = GeniStd::FilterCredentials($credential_args);
     my $args = {
 	'slice_urn' => $urns[0],
 	'credentials' => $credentials
@@ -1281,8 +1159,8 @@ sub Cancel
     return GeniResponse->MalformedArgsResponse("Empty URN List")
 	if (scalar(@urns) < 1);
 
-    my $credentials = FilterCredentials($credential_args);
-    my $cred = GeniCMV2::CheckCredentials($credentials);
+    my $credentials = GeniStd::FilterCredentials($credential_args);
+    my $cred = GeniStd::CheckCredentials($credentials);
     return $cred
 	if (GeniResponse::IsResponse($cred));
 
@@ -1290,7 +1168,7 @@ sub Cancel
     my $response;
     my $ticket = GeniTicket->SliceTicket($slice);
     if (defined($ticket)) {
-	my $credentials = FilterCredentials($credential_args);
+	my $credentials = GeniStd::FilterCredentials($credential_args);
 	my $args = {
 	    'slice_urn' => $urns[0],
 	    'ticket' => $ticket->ticket_string(),
@@ -1302,23 +1180,6 @@ sub Cancel
 	$response = Describe($urn_args, $credential_args, []);
     }
     return $response;
-}
-
-# Filter out any credentials of an uknown type leaving only geni_sfa
-# version 2 and version 3 credentials in a list. Also invokes
-# auto_add_sa on each credential.
-sub FilterCredentials
-{
-    my ($credentials) = @_;
-    my $result = [];
-    foreach my $cred (@{ $credentials }) {
-	if ($cred->{'geni_type'} eq "geni_sfa" &&
-	    ($cred->{'geni_version'} eq 2 || $cred->{'geni_version'} eq 3)) {
-	    push(@{ $result }, $cred->{'geni_value'});
-	    auto_add_sa($cred->{'geni_value'});
-	}
-    }
-    return $result;
 }
 
 # Determines operational state based on the state/status of a sliver.
