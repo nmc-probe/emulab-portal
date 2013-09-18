@@ -132,7 +132,7 @@ if (getpwuid($UID) ne "nobody") {
 	fatal("You ($UID) do not exist!");
     }
     fatal("You must have admin privledges to create new users")
-	if (!TBAdmin());
+	if (!$this_user->IsAdmin());
 }
 else {
     #
