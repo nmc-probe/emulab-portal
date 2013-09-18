@@ -136,6 +136,9 @@ elseif ($type == "adminflag") {
     if (! ($target_user = User::Lookup($user))) {
 	PAGEARGERROR("Target user '$user' is not a valid user!");
     }
+    if ($value && $target_user->status() != TBDB_USERSTATUS_ACTIVE) {
+	PAGEARGERROR("Target user '$user' has not been activated yet!");
+    }
     $zapurl = CreateURL("showuser", $target_user);
     $target_user->SetAdminFlag($value);
     $target_uid = $target_user->uid();
