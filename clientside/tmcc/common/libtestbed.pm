@@ -318,7 +318,7 @@ sub TBScriptLock($;$$$)
 	my $ltype = ($shared ? LOCK_SH : LOCK_EX);
 	while (flock(LOCK, $ltype|LOCK_NB) == 0) {
 	    return TBSCRIPTLOCK_WOULDBLOCK()
-		if ($flags & TBSCRIPTLOCK_NONBLOCKING());
+		if (defined($flags) && ($flags & TBSCRIPTLOCK_NONBLOCKING()));
 	    
 	    print "Another $token is in progress (${tries}s). Waiting ...\n"
 		if (($tries++ % 60) == 0);
