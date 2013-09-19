@@ -109,6 +109,7 @@ sub Create($$$) {
     $self->{'extensions'}    = undef;
     $self->{'uuid'}          = GeniUtil::NewUUID();
     $self->{'idx'}	     = undef;	# Only set when stored to DB.
+    $self->{'type'}          = "privilege";
     bless($self, "GeniCredential");
 
     $self->SetExpiration(time() + ($expires * 60 * 60 * 24));
