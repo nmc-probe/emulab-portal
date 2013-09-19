@@ -118,8 +118,6 @@ gentbsql_main() {
 		toadd=$(grep $i node)
 		if [ -n "$toadd" ] ; then
 		    toadd=${toadd/DISKUNIT}
-                    # get info we want in the database
-# didn't work if one missing. read -rd '' sn type secsize sectors wspeed rspeed <<< $toadd
 		    if [ "${toadd/SN=}" != "$toadd" ]; then
 			sn=${toadd##*SN=}
 			sn=${sn%% *}
@@ -129,7 +127,8 @@ gentbsql_main() {
 			[[ "$bsidx" ]] && { h=$(get_host_from_bsidx $bsidx); d=$(get_drive_from_bsidx $bsidx); echo "# $host SN:$sn already in DB bsidx=${bsidx}@${h} $d"; continue; }
 		    fi
 
-		    if [ "${toadd/TYPE=}" != "$toadd" ]; then
+#  just do it don't check for TYPE from file
+#		    if [ "${toadd/TYPE=}" != "$toadd" ]; then
 # /* by Mike's orders
 #  type		"class"	"protocol"	"rot-speed"	nodes with this type
 # 
@@ -157,7 +156,8 @@ gentbsql_main() {
 			if [ "$host" == "pc601" ] ; then
 			    hdtype="ssd-generic"
 			fi
-		    fi
+# just do it don't check for TYPE from file
+#		    fi
 		    if [ "${toadd/SECSIZE=}" != "$toadd" ]; then
 			secsize=${toadd##*SECSIZE=}
 			secsize=${secsize%% *}
