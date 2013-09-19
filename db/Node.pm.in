@@ -3630,6 +3630,7 @@ sub GetOutletAuthInfo($$)
 sub RunningOsImage($)
 {
     require OSinfo;
+    require Image;
 
     my ($self)  = @_;
     my $nodeid  = $self->node_id();
