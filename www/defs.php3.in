@@ -226,7 +226,8 @@ function TBMAIL($to, $subject, $message, $headers = 0)
 function SendProjAdminMail($proj, $from, $to, $subject, $message, $headers = "")
 {
     global $MAILMANSUPPORT, $TBMAIL_APPROVAL, $TBMAIL_AUDIT, $OURDOMAIN, $TBMAIL_WWW;
-    $projadminmail = $MAILMANSUPPORT ? "$proj-admin@$OURDOMAIN" : $TBMAIL_APPROVAL;
+    $projadminmail = 0 && $MAILMANSUPPORT ?
+	"$proj-admin@$OURDOMAIN" : $TBMAIL_APPROVAL;
     if ($headers) {
         $headers .= "\n";
     }
