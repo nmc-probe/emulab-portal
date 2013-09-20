@@ -57,3 +57,7 @@ INSERT INTO `node_type_attributes` VALUES ('bbgenivm','imageable','0','boolean')
 INSERT INTO `interface_types` VALUES ('bbg',1000000,1,'Unknown','Gigabit Ethernet',1,'RJ45');
 INSERT INTO `interface_capabilities` VALUES ('bbg','ethernet_defspeed','1000000');
 INSERT INTO `interface_capabilities` VALUES ('bbg','protocols','ethernet');
+
+-- Bump first lan above real vlan number. Cause of a bug in how we
+-- calculate tag numbers for looped links. Need a better fix later.
+ALTER TABLE lans AUTO_INCREMENT = 5000;
