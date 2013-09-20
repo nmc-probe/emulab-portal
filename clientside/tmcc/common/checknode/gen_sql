@@ -10,7 +10,7 @@ checkdrift_main() {
     if (( $# )) ; then
 	allnodes="$@"
     else
-	allnodes=$(ls -d pc* pg* dbox*)
+	allnodes=$(ls -d pc* pg* dbox* gpu* 2> /dev/null)
     fi
 
     for host in $allnodes ; do
@@ -45,7 +45,44 @@ checkdrift_main() {
 		fi
 		rm -f /tmp/.$$checkdiff
 	    done
-	    echo "$host $countsame inventory files are the same"
+: #	    echo "$host $countsame inventory files are the same"
+	else
+	    echo "No record of node id \"$host\"."
+	fi
+    done
+}
+checkwce_main() {
+    set -u
+    projdir=/proj/emulab-ops/nodecheck
+    cd $projdir
+    if (( $# )) ; then
+	allnodes="$@"
+    else
+	allnodes=$(ls -d pc* pg* dbox* gpu* 2> /dev/null)
+    fi
+
+    for host in $allnodes ; do
+	if [ -f $projdir/$host/full ] ; then
+
+	#    wcestate=$(grep $projdir/$host/full$)
+	    readtmcinfo $projdir/$host/full hwinv
+	    numberofdrives=${hwinv["DISKINFO"]}
+	    numberofdrives=${numberofdrives/DISKINFO UNITS=/}
+	    
+            for ((idx=0; idx<${numberofdrives}; idx++)) ; do
+		unset -v d ; declare -a d=(${hwinv["DISKUNIT$idx"]})
+                wce=${d[2]}
+		if [ "$wce" != "${wce/enabled}" ] ; then
+		    :
+		elif [ "$wce" != "${wce/disabled}" ] ; then
+		    x=${d[1]}
+		    x=${x##*SN=}; x=${x%% *}; x=${x//\"/}
+		    echo "$host ${d[8]} Write Cache Disabled bsidx=$(get_bsidx_from_sn $x)"
+		else
+		    :
+		fi
+            done
+
 	else
 	    echo "No record of node id \"$host\"."
 	fi
@@ -75,6 +112,9 @@ get_host_from_bsidx() {
 get_drive_from_bsidx() {
     echo $(mysql -B -N -e "select bs_id from blockstores where bsidx=$1;" tbdb);
 }
+get_bsidx_from_hostAnddrive() {
+    echo $(mysql -B -N -e "select bsidx from blockstores where node_id=\"$1\" and bs_id=\"disk${2}\";" tbdb)
+}
 
 gentbsql_main() {
     set -u
@@ -84,7 +124,7 @@ gentbsql_main() {
     if (( $# )) ; then
 	allnodes="$@"
     else
-	allnodes=$(ls -d pc* pg* dbox*)
+	allnodes=$(ls -d pc* pg* dbox* gpu* 2> /dev/null )
     fi
 
     # unique BlockStore number based on first mac address
@@ -95,7 +135,8 @@ gentbsql_main() {
 	if [ -d $projdir/$host ] ; then
 	    cd $projdir/$host
 	    sn="UNK" hdtype="UNK" secsize="UNK" sectors="UNK" wspeed="UNK" rspeed="UNK"
-	    [[ -f "diff" ]] || { echo "# $host: No changes needed"; continue; }
+#	    [[ -f "diff" ]] || { echo "# $host: No changes needed"; continue; }
+	    [[ -f "diff" ]] || continue;
 	    [[ -f "node" ]] || { echo "# $host: Missing node file"; continue; }
 	    if [ -z "$(grep "Diff Report" diff)" ] ; then
 		echo "# $host Inventory Report to old to use"
@@ -124,7 +165,8 @@ gentbsql_main() {
 			sn=${sn//\"/}
 			# check and see if serial number is already in database
 			bsidx=$(get_bsidx_from_sn $sn)
-			[[ "$bsidx" ]] && { h=$(get_host_from_bsidx $bsidx); d=$(get_drive_from_bsidx $bsidx); echo "# $host SN:$sn already in DB bsidx=${bsidx}@${h} $d"; continue; }
+#			[[ "$bsidx" ]] && { h=$(get_host_from_bsidx $bsidx); d=$(get_drive_from_bsidx $bsidx); echo "# $host SN:$sn already in DB bsidx=${bsidx}@${h} $d"; continue; }
+			[[ "$bsidx" ]] && continue
 		    fi
 
 #  just do it don't check for TYPE from file
@@ -192,12 +234,20 @@ gentbsql_main() {
 		    ((++hdnum))
 		else
 		    if [ "$i" == "UNKNOWN" ] ; then
-			echo "# Missing Serial Number for disk${hdnum} on $host"
+			echo -n "# Missing Serial Number for disk${hdnum} on $host"
+			x=$(get_bsidx_from_hostAnddrive $host ${hdnum})
+			if [ -n "$x" ] ; then
+			    echo " but found $(get_drive_from_bsidx $x) $(get_host_from_bsidx $x) @ bsidx=$x SN=$(get_sn_from_bsidx $x)" 
+			else
+			    echo ""
+			fi
 			((++hdnum))
 		    else
 			toadd="SN=\"$i\""
-			printf "mysql -e \"delete from blockstore_attributes where attrkey='%s';\" tbdb\n" "$sn"
-			printf "mysql -e \"delete from blockstores where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+			if [ "$sn" != "UNK" ] ; then
+			    printf "mysql -e \"delete from blockstore_attributes where attrkey='%s';\" tbdb\n" "$sn"
+			    printf "mysql -e \"delete from blockstores where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+			fi
 		    fi
 		fi
 	    done
@@ -216,7 +266,7 @@ gentbsql_main() {
 		fi
 	    done
 	else
-	    echo "No record of node id \"$host\"."
+	    echo "# No record of node id \"$host\"."
 	fi
     done
     if [ $keep_bsidx_base -ne $bsidx_base ] ; then
@@ -231,7 +281,7 @@ setdirstructure() {
     set -u
     projdir=/proj/emulab-ops/nodecheck
     cd $projdir
-    allnodes=$(ls -d pc* pg* dbox*)
+    allnodes=$(ls -d pc* pg* dbox* gpu* 2> /dev/null)
     dirs2workon=""
     for i in $allnodes; do [[ -L $i/$i.diff ]] && dirs2workon+="$i "; done
     owd=$PWD
@@ -292,6 +342,8 @@ elif [ "$0" != "${0/sql}" ] ; then
     gentbsql_main $@
 elif [ "$0" != "${0/drift}" ] ; then
     checkdrift_main $@
+elif [ "$0" != "wce" ] ; then
+    checkwce_main $@
 else
     "Print useage help"
 fi
