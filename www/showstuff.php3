@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,6 +33,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
     global $SCRIPT_NAME;
     global $TBOPSPID;
     global $WIKIDOCURL;
+    global $login_user;
     
     #
     # If this is an expt in emulab-ops, we also want to see the reserved
@@ -226,7 +227,8 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 		    <th class='sorttable_nosort'>Last Log Message</th>\n";
 	}
 
-        echo "  <th class='sorttable_nosort'><a href=\"$WIKIDOCURL/ssh_mine\">SSH</a></th>
+        echo "  <th class='sorttable_nosort'>SSH<br>URL</th>
+                <th class='sorttable_nosort'>SSH<br>mime</th>
                 <th class='sorttable_nosort'><a href=\"$WIKIDOCURL/kb25\">Console</a></th>
                 <th class='sorttable_nosort'>Log</th>";
 
@@ -327,6 +329,11 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
                             (<a href='shownodelog.php3?node_id=$node_id'>LOG</a>)
                         </td>\n";
 	    }
+	    $sshurl = $node->sshurl($login_user->uid());
+	    echo "  <td align=center>
+                          <a href='$sshurl'>
+                            <img src=\"ssh.gif\" alt=s></a>
+                    </td>\n";
 
 	    echo "  <td align=center>
                         <a href='nodessh.php3?node_id=$node_id'>

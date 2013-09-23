@@ -104,6 +104,9 @@ if ($node->HasSerialConsole()) {
 # SSH to option.
 # 
 if ($experiment) {
+    $sshurl = $node->sshurl($uid);
+    WRITESUBMENUBUTTON("SSH URL", $sshurl);
+    
     WRITESUBMENUBUTTON("SSH to node</a> ".
 		       "<a href='$WIKIDOCURL/ssh_mine'>".
 		       "(howto)", "nodessh.php3?node_id=$node_id");
