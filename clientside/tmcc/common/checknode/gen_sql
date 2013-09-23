@@ -142,16 +142,7 @@ gentbsql_main() {
 		echo "# $host Inventory Report to old to use"
 		continue
 	    fi
-# these values are returned by tmcc hwinfo, not contained in the db
-#	    listofobjs="DISKINFO CPUINFO MEMINFO NETINFO"
-#	    for i in $listofobjs ; do
-#		toadd="$(grep $i diff)"
-#		[[ "$toadd" = "${toadd/match}" ]] || continue
-#		if [ -n "$toadd" ] ; then
-#		    toadd=${toadd/$i}
-#		    printf "\nmysql -e \"insert into %s set node_id='%s' %s;\" tbdb\n" "$i" "$host" "$toadd"
-#		fi
-#	    done
+
 	    listofdisks=$(grep 'DISKs:' diff)
 	    listofdisks=${listofdisks//DISKs:}
 	    hdnum=0
@@ -165,7 +156,6 @@ gentbsql_main() {
 			sn=${sn//\"/}
 			# check and see if serial number is already in database
 			bsidx=$(get_bsidx_from_sn $sn)
-#			[[ "$bsidx" ]] && { h=$(get_host_from_bsidx $bsidx); d=$(get_drive_from_bsidx $bsidx); echo "# $host SN:$sn already in DB bsidx=${bsidx}@${h} $d"; continue; }
 			[[ "$bsidx" ]] && continue
 		    fi
 
@@ -243,10 +233,19 @@ gentbsql_main() {
 			fi
 			((++hdnum))
 		    else
-			toadd="SN=\"$i\""
+			toadd="SN='$i'"
 			if [ "$sn" != "UNK" ] ; then
-			    printf "mysql -e \"delete from blockstore_attributes where attrkey='%s';\" tbdb\n" "$sn"
-			    printf "mysql -e \"delete from blockstores where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+			    x_bsidx=$(get_bsidx_from_sn $i)
+			    [[ $x_bsidx ]] && y_hostid=$(get_host_from_bsidx $x_bsidx) || y_hostid=""
+			    if [ -n "$x_bsidx" -a -n "$y_hostid" ] ; then
+				printf "mysql -e \"delete from blockstores where node_id='%s' and bsidx='%s';\" tbdb\n" "$host" "$x_bsidx"
+				printf "mysql -e \"delete from blockstore_attributes where attrkey='%s';\" tbdb\n" "$i"
+			    else
+				echo "#Discovery error node_id $host"
+				      # Discovery error
+				      # Have only seen this when the "full" file for host lists a hard drive, including SN
+				      # but the "node" file does not have serial number for for the HD
+			    fi
 			fi
 		    fi
 		fi
