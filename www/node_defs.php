@@ -296,7 +296,7 @@ class Node
 	    return 0;
 	}
 	$row = mysql_fetch_array($query_result);
-	return $row["isremotenode"];
+	return $row["isvirtnode"];
     }
 
     function NodeStatus() {
@@ -1389,6 +1389,21 @@ class Node
 		     "node_id='$node_id' and log_id=$safe_id");
 
 	return 0;
+    }
+
+    function sshurl($uid) {
+	global $OURDOMAIN;
+	$node_id = $this->node_id();
+
+	if ($this->IsVirtNode()) {
+	    $pnode_id = $this->phys_nodeid();
+	    $sshdport = $this->sshdport();
+
+	    return "ssh://${uid}@${pnode_id}.${OURDOMAIN}:$sshdport";
+	}
+	else {
+	    return "ssh://${uid}@${node_id}.${OURDOMAIN}";
+	}
     }
 }
 
