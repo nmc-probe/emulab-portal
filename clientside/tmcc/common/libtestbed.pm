@@ -428,6 +428,7 @@ sub TBScriptUnlock(;$)
     elsif (defined($lockhandle)) {
 	flock($lockhandle, LOCK_UN);
 	close($lockhandle);
+	undef($lockhandle);
     }
 }
 
