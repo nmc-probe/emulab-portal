@@ -3246,7 +3246,11 @@ sub getlocalevserver()
 {
     my $evserver = "localhost";
 
-    if (INXENVM()) {
+    if (-e "$BOOTDIR/localevserver") {
+	$evserver = `cat $BOOTDIR/localevserver`;
+	chomp($evserver);
+    }
+    elsif (INXENVM()) {
 	#
 	# XXX gawdawful hack alert!
 	# Will only work with Utah naming convention.
@@ -3254,15 +3258,13 @@ sub getlocalevserver()
 	if ($vnodeid =~ /^pcvm(\d+)-\d+$/) {
 	    $evserver = "pc$1";
 	}
+        elsif ($vnodeid =~ /^([-\w]+)vm\-(\d+)$/) {
+	    $evserver = "$1";
+	}
 	else {
 	    print STDERR "*** Could not determine event server!\n";
 	}
     }
-    elsif (-e "$BOOTDIR/localevserver") {
-	$evserver = `cat $BOOTDIR/localevserver`;
-	chomp($evserver);
-    }
-
     return $evserver;
 }
 
