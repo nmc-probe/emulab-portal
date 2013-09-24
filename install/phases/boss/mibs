@@ -6,8 +6,8 @@ use libinstall;
 use installvars;
 
 my $MIBPATH       = "/usr/local/share/snmp/mibs";
-my $CISCO_MIB_FTP = "ftp://ftp.cisco.com/pub/mibs/v2";
-my $HP_MIB_FTP    = "http://www.emulab.net/downloads";
+my $CISCO_MIB_FTP = "http://www.emulab.net/downloads/mibs";
+my $HP_MIB_FTP    = "http://www.emulab.net/downloads/mibs";
 
 my @CISCO_MIBS = ("CISCO-SMI", "CISCO-TC", "CISCO-VTP-MIB", "CISCO-PAGP-MIB",
     "CISCO-PRIVATE-VLAN-MIB", "CISCO-STACK-MIB", "CISCO-VLAN-MEMBERSHIP-MIB",
