@@ -283,6 +283,14 @@ sub setDebug($)
 	if ($debug);
 }
 
+sub ImageLockName($)
+{
+    my ($imagename) = @_;
+
+    return "xenimage." .
+	(defined($imagename) ? $imagename : $defaultImage{'name'});
+}
+
 #
 # Called on each vnode, but should only be executed once per boot.
 # We use a file in /var/run (cleared on reboots) to ensure this.
@@ -573,8 +581,7 @@ sub vnodeCreate($$$$)
     # shared lock so that others can proceed in parallel. We will have
     # to promote to an exclusive lock if the image has to be changed.
     #
-    my $imagelockname = "xenimage." .
-	(defined($imagename) ? $imagename : $defaultImage{'name'});
+    my $imagelockname = ImageLockName($imagename);
     if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
 	!= TBSCRIPTLOCK_OKAY()) {
 	fatal("Could not get $imagelockname lock after a long time!");
@@ -645,15 +652,6 @@ sub vnodeCreate($$$$)
 
 	print STDERR "xen_vnodeCreate: loading image '$imagename'\n";
 
-	#
-	# Need an exclusive lock for this.
-	#
-	TBScriptUnlock();	    
-	if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
-	    fatal("Could not get $imagelockname write lock".
-		  "after a long time!");
-	}
-
 	# Tell stated we are getting ready for a reload
 	libutil::setState("RELOADSETUP");
 
@@ -669,13 +667,6 @@ sub vnodeCreate($$$$)
 	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
 		  "cannot create logical volume for $imagename");
-	}
-	# And back to a shared lock.
-	TBScriptUnlock();
-	if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
-	    != TBSCRIPTLOCK_OKAY()) {
-	    fatal("Could not get $imagelockname lock back ".
-		  "after a long time!");
 	}
     }
 
@@ -2030,12 +2021,13 @@ sub createImageDisk($$$)
     my $lvmpath = lvmVolumePath($lvname);
     my $imagedatepath = "$METAFS/${image}.date";
     my $imagemetapath = "$METAFS/${image}.metadata";
+    my $imagelockname = ImageLockName($image);
     my $imagepath = $lvmpath;
     my $unpack = 0;
     my $nochunks = 0;
     my $lv_size;
 
-    # We are locked by the caller.
+    # We are locked by the caller with a shared lock.
 
     #
     # Do we have the right image file already? No need to download it
@@ -2058,20 +2050,33 @@ sub createImageDisk($$$)
 	    }
 	    print "mtime for $lvmpath differ: local $mtime, server $tstamp\n";
 	}
+    }
+
+    #
+    # Need to promote to an exclusive lock.
+    #
+    TBScriptUnlock();
+    if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $imagelockname write lock".
+	    "after a long time!\n";
+	return -1;
+    }
+    if (findLVMLogicalVolume($lvname)) {
 	# For the package case.
 	if (-e "/mnt/$image/.mounted" && mysystem2("umount /mnt/$image")) {
 	    print STDERR "Could not umount /mnt/$image\n";
-	    return -1;
+	    goto bad;
 	}
 	if (GClvm($lvname)) {
 	    print STDERR "Could not GC or rename $lvname\n";
-	    return -1;
+	    goto bad;
 	}
 	unlink($imagedatepath)
 	    if (-e $imagedatepath);
 	unlink($imagemetapath)
 	    if (-e $imagemetapath);
     }
+
     #
     # If the version info indicates a packaged container, then we
     # create a filesystem inside the lvm and download the package to
@@ -2098,7 +2103,7 @@ sub createImageDisk($$$)
     }
     if (mysystem2("lvcreate -n $lvname -L ${lv_size}m $VGNAME")) {
 	print STDERR "libvnode_xen: could not create disk for $image\n";
-	return -1;
+	goto bad;
     }
     if ($unpack) {
 	goto bad
@@ -2126,7 +2131,7 @@ sub createImageDisk($$$)
     # Now we just download the file, then let create do its normal thing
     if (libvnode::downloadImage($imagepath, $unpack, $vnode_id, $raref)) {
 	print STDERR "libvnode_xen: could not download image $image\n";
-	return -1;
+	goto bad;
     }
     if ($unpack) {
 	# Now unpack the tar file, then remove it.
@@ -2183,6 +2188,15 @@ sub createImageDisk($$$)
     #
     StoreImageMetadata($image, $raref);
 
+    # And back to a shared lock.
+    TBScriptUnlock();
+    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
+	!= TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $imagelockname lock back ".
+	    "after a long time!\n";
+	return -1;
+    }
+
     #
     # XXX note that we don't declare RELOADDONE here since we haven't
     # actually created the vnode shadow disk yet.  That is the caller's
@@ -2190,6 +2204,7 @@ sub createImageDisk($$$)
     #
     return 0;
   bad:
+    TBScriptUnlock();
     return -1;
 }
 
