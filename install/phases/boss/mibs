@@ -30,7 +30,7 @@ sub Install($$$)
 	
 	foreach my $mib (@CISCO_MIBS) {
 	    my $localfile = "$MIBPATH/$mib.txt";
-	    my $mibURL = "$CISCO_MIB_FTP/$mib.my";
+	    my $mibURL = "$CISCO_MIB_FTP/$mib.txt";
 	    Phase "$mib", "Fetching $mib", sub {
 		DoneIfExists($localfile);
 		FetchFileFatal($mibURL,$localfile);
