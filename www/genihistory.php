@@ -111,11 +111,11 @@ if (1) {
 	    if (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $searchfor)) {
 		$clause = "$clause and a.slice_uuid='$safe_searchfor' ";
 	    }
-	    elseif (preg_match("/^urn:publicid:IDN\+[-\w\.]+\+slice\+[-\w]*$/",
+	    elseif (preg_match("/^urn:publicid:IDN\+[-\w\.:]+\+slice\+[-\w]*$/",
 			       $searchfor)) {
 		$clause = "$clause and a.slice_urn='$safe_searchfor' ";
 	    }
-	    elseif (preg_match("/^urn:publicid:IDN\+[-\w\.]+\+user\+[-\w]*$/",
+	    elseif (preg_match("/^urn:publicid:IDN\+[-\w\.:]+\+user\+[-\w]*$/",
 			       $searchfor)) {
 		$clause = "$clause and a.creator_urn='$safe_searchfor' ";
 	    }
