@@ -131,7 +131,6 @@ $SIG{HUP} = \&handler
     if (! ($debug || $oneshot));
 
 print "Pool Monitor starting... pid $$, at ".`date`;
-$lastmail = time();
 
 while (1) {
     if (NoLogins()) {
@@ -154,7 +153,7 @@ while (1) {
 
     while (my ($node_id) = $query_result->fetchrow_array()) {
 	print "Checking to see if $node_id is reactive ...\n";
-	my $status = SSHwithTimeout($node_id, "ls / > /dev/null", 30, $debug);
+	my $status = SSHwithTimeout($node_id, "ls / > /dev/null", 45, $debug);
 	if ($status) {
 	    print "--> $node_id is down for the count!\n";
 	    if (!exists($warned{$node_id})) {
@@ -175,15 +174,18 @@ while (1) {
     #
     # Warn of all nodes down once a day.
     #
-    if (keys(%warned) && (time() - $lastmail) > (24 * 3600)) {
-	my @nodes = keys(%warned);
-	print "Nodes still unresponsive after (another) 24 hours: @nodes\n";
-	SENDMAIL($TBOPS,
+    if ((time() - $lastmail) > (24 * 3600)) {
+	$lastmail = time();
+	
+	if (keys(%warned)) {
+	    my @nodes = keys(%warned);
+	    print "Nodes still unresponsive after (another) 24 hours: @nodes\n";
+	    SENDMAIL($TBOPS,
 		 "WARNING: unresponsive shared nodes",
 		 "Nodes still unresponsive after (another) 24 hours:\n" .
 		 "@nodes\n",
 		 $TBOPS);
-	$lastmail = time();
+	}
     }
     if ($oneshot) {
 	exit(0);
