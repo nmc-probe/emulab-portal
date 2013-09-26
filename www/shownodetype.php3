@@ -114,18 +114,18 @@ if (mysql_num_rows($query_result)) {
 	$val      = $row["attrvalue"];
 	$attrtype = $row["attrtype"];
 	
-	if ($key == "default_osid" ||
-	    $key == "jail_osid" ||
-	    $key == "delay_osid") {
+	if (preg_match("/_osid$/", $key)) {
 	    if ($osinfo = OSinfo::Lookup($val)) {
-		$val = $osinfo->osname();
+		$name = $osinfo->osname();
+		$val = "<a href=showosinfo.php3?osid=$val>$name</a>";
 	    }
 	}
 	elseif ($key == "default_imageid") {
 	    $inames = array();
 	    foreach (explode(',', $val) as $imageid) {
 		if ($image = Image::Lookup($imageid)) {
-		    $inames[] = $image->imagename();
+		    $name = $image->imagename();
+		    $inames[] = "<a href=showimageid.php3?imageid=$imageid>$name</a>";
 		}
 	    }
 	    $val = implode(',', $inames);
