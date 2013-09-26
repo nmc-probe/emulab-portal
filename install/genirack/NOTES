@@ -216,7 +216,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
 
 	sudo fdisk /dev/sda
 
-  Use the "n" option, primary partition type, default start, +950G, "w"
+  Use the "n" option, primary partition type, default start, default end, "w"
   to write it out.
 
   Then inform the kernel:
