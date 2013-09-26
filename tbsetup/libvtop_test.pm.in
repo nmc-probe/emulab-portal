@@ -1407,11 +1407,13 @@ sub LoadVirtNodes($)
 	#
 	if ($isvirt && $vnode->type() ne "blockstore") {
 	    my $defmem = 128;
+	    my $minmem = 128;
 	    my $maxmem = 128;
 
 	    if (defined($vnode->_parent_osinfo())
 		&& $vnode->_parent_osinfo()->osname() =~ /xen/i) {
 		$defmem = 256;
+		$minmem = 192;
 		$maxmem = 1024;
 	    }	    
 	    if (!exists($vnode->_desires()->{"?+ram"})) {
@@ -1426,7 +1428,14 @@ sub LoadVirtNodes($)
 		if ($vnode->_desires()->{"?+ram"} > $maxmem &&
 		    $vnode->_sharedokay() &&
 		    !$self->user()->IsAdmin()) {
-		    tberror("You asked for too much memory on $vnode\n");
+		    tberror("You asked for too much memory (> $maxmem) ".
+			    "on $vnode\n");
+		    return -1;
+		}
+		# Ditto min memory.
+		if ($vnode->_desires()->{"?+ram"} < $minmem) {
+		    tberror("You asked for too little memory (< $minmem) ".
+			    "on $vnode\n");
 		    return -1;
 		}
 	    }
