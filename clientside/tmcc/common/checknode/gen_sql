@@ -21,6 +21,7 @@ checkdrift_main() {
 	    readtmcinfo $newest hwinvcopy
 	    declare -i countsame=-1
 	    for tocheck in $allchecks ; do
+		[[ $(grep 'ismfs=0' $tocheck) ]] && continue # if not in ismfs mode then don't check
 		readtmcinfo $tocheck hwinv
 		# note: will check against self for sanity
 		comparetmcinfo /tmp/.$$checkdiff
@@ -40,12 +41,12 @@ checkdrift_main() {
 #		    sudo mv $tocheck $projdir/$host/.tbdb/.notsame
 		    # XXX - end
 		else
-# 		    echo "$host $newest $tocheck SAME"
+: # echo "$host $newest $tocheck SAME"
 		    ((countsame++))
 		fi
 		rm -f /tmp/.$$checkdiff
 	    done
-: #	    echo "$host $countsame inventory files are the same"
+: # echo "$host $countsame inventory files are the same"
 	else
 	    echo "No record of node id \"$host\"."
 	fi
