@@ -326,7 +326,7 @@ compareunits() {
     local tbdbidx="${hwinvcopy["hwinvidx"]}"
     local localunits="" tbdbunits="" devunit=""
     local -i a b
-    local x addr
+    local x addr ckaddr
 
     # How are things different between unit types, only NET and DISK right now
     case $unittype in
@@ -375,18 +375,24 @@ compareunits() {
 	devunit="${unit_str}${i}"
         # following bash syntax: "${a+$a}" says use $a if exists else use nothing
 	if [ -n "${hwinv[$devunit]+${hwinv[$devunit]}}" ] ; then
-	    # add just the address
-	    addr=${hwinv[$devunit]}
-	    addr=${addr#${unit_pre_strip}}
-	    addr=${addr%%${unit_post_strip}}
-	    localunits+="$addr "
+	    ckaddr=${hwinv[$devunit]}
+	    # add just the address/serialnumber
+	    addr=${ckaddr#${unit_pre_strip}}
+	    if [ "$ckaddr" != "$addr" ] ; then
+		# make sure that we have removed the pre_strip
+		# -- for example if a disk serial number is not removed cause we don't have it then we don't have anything to compare
+		addr=${addr%%${unit_post_strip}}
+		localunits+="$addr "
+	    fi
 	    localidx=${localidx/$devunit}
 	fi
 	if [ -n "${hwinvcopy[$devunit]+${hwinvcopy[$devunit]}}" ] ; then
-	    addr=${hwinvcopy[$devunit]}
-	    addr=${addr#${unit_pre_strip}}
-	    addr=${addr%%${unit_post_strip}}
-	    tbdbunits+="$addr "
+	    ckaddr=${hwinvcopy[$devunit]}
+	    addr=${ckaddr#${unit_pre_strip}}
+	    if [ "$ckaddr" != "$addr" ] ; then
+		addr=${addr%%${unit_post_strip}}
+		tbdbunits+="$addr "
+	    fi
 	    tbdbidx=${tbdbidx/$devunit}
 	fi
     done
