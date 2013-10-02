@@ -894,9 +894,10 @@ sub Start($$$)
     print STDERR $output;
 
     #
-    # This could result in more work then we want. 
+    # This could result in more work then we want.
+    # XXX Back this out; might not make sense after all.
     #
-    if ($restart) {
+    if (0 && $restart) {
 	$output = GeniUtil::ExecQuiet("$TARFILES_SETUP -q $pid $eid");
 	if ($?) {
 	    $msg = "Could not setup tarfiles:\n$output";
