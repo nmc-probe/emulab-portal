@@ -62,37 +62,47 @@ else
     check=0
 fi
 
-    
+if [ "$check" = "0" -a "$collect" = "0" ] ; then
+    echo 'testbed says not run nodecheck, skipping'
+    exit 0
+fi
 
-if [ -f "/etc/emulab/ismfs" ] ; then
-    if [ "$collect" = "0" ] ; then
-	echo 'testbed says not run nodecheck collect, skipping'
-	exit 0
-    fi
-
-    # MFSes don't have all the apps we need, so mount an extra directory
-    # and put in the path
-    collectdir=`echo $testinfo | awk -F \" '{print $2}'` # make sure we are in the emulab-ops pid
+# if asked to collect need the collect dir for this project
+# (as given by tmcc hwinfo) mounted to save logs
+if [ "$collect" = "1" ] ; then
+    collectdir=`echo $testinfo | awk -F \" '{print $2}'`
     a=`echo $collectdir | awk -F \/ '{print $2}'`
     b=`echo $collectdir | awk -F \/ '{print $3}'`
     mountpoint="/$a/$b"
+    
+    if [ ! -d "$mountpoint" ] ; then
+	mkdir -p $mountpoint
+    fi
+
+    mounted=0
+    isitmounted=$(mount | grep -c $mountpoint)
+    if [ $isitmounted -eq 0 ] ; then
+	mount -o soft,intr,bg fs:$mountpoint $mountpoint
+	if [ $? -ne 0 ]; then
+	    echo "*** Could not mount $mountpoint, nodecheck gather not done"
+	    collect=0
+	else
+	    mounted=1
+	    if [ ! -d "$collectdir" ] ; then
+		mkdir -p $collectdir
+	    fi
+	fi
+    fi
+fi
+if [ -f "/etc/emulab/ismfs" ] ; then
+    # MFSes doesn't have all the apps we need, so mount an extra directory
+    # and put in the path
+
     if [ "$mountpoint" != "$MFSPROJDIR" ] ; then
 	echo "Nodecheck - Can not run in MFS mode without being in emulab-ops pid."
 	exit 0
     fi
 
-    if [ ! -d "$MFSPROJDIR" ] ; then
-	mkdir -p $MFSPROJDIR
-    fi
-    mounted=0
-    if [ ! -d "$MFSPROJDIR/nodecheck" ] ; then
-	mount -o soft,intr,bg fs:$MFSPROJDIR $MFSPROJDIR
-	if [ $? -ne 0 ]; then
-	    echo '*** Could not mount $MFSPROJDIR, nodecheck gather not done'
-	    exit 0
-	fi
-	mounted=1
-    fi
     os=`uname -s`
     if [ ! -f $MFSPROJDIR/nodecheck/$os/bin/bash ] ; then
 	echo "*** Did not find expected bash in $MFSPROJDIR/$os/bin"
@@ -101,17 +111,12 @@ if [ -f "/etc/emulab/ismfs" ] ; then
     export PATH="/usr/local/bin:$MFSPROJDIR/nodecheck/$os/bin:$PATH"
 
     echo 'Running Hardware Inventory Gather'
-    bash $BINDIR/checknode $@
+    bash $BINDIR/checknode $LOGDIR/nodecheck.log
     echo 'Done Running Hardware Inventory'
 
     if [ $mounted -ne 0 ]; then
-	umount $MFSPROJDIR
+	umount $mountpoint
     fi
-    exit 0
-fi
-
-if [ "$check" = "0" -a "$collect" = "0" ] ; then
-    echo 'testbed says not run nodecheck, skipping'
     exit 0
 fi
 
@@ -127,6 +132,9 @@ if [ "$1" = "boot" ] ; then
     printf "%s------ Finish boottime_nodecheck -----\n\n" "$(date)" >> $LOGDIR/nodecheck.log
 fi
 
-echo "Done with nodechecks"
+if [ $mounted -ne 0 ]; then
+    umount $mountpoint
+fi
 
+echo "Done with nodechecks"
 exit 0
