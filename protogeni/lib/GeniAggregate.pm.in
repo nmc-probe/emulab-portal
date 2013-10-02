@@ -87,6 +87,7 @@ my $EXPORTS_SETUP  = "$TB/sbin/exports_setup";
 my $GENTOPOFILE    = "$TB/libexec/gentopofile";
 my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $ARPLOCKDOWN    = "$TB/sbin/arplockdown";
+my $TARFILES_SETUP = "$TB/bin/tarfiles_setup";
 
 # Cache of instances to avoid regenerating them.
 my %aggregates     = ();
@@ -891,6 +892,17 @@ sub Start($$$)
 	goto bad;
     }
     print STDERR $output;
+
+    #
+    # This could result in more work then we want. 
+    #
+    if ($action eq "restart") {
+	$output = GeniUtil::ExecQuiet("$TARFILES_SETUP -q $pid $eid");
+	if ($?) {
+	    $msg = "Could not setup tarfiles:\n$output";
+	    goto bad;
+	}
+    }
 
     foreach $sliver (@slivers) {
 	if (ref($sliver) ne "GeniSliver::Node") {
