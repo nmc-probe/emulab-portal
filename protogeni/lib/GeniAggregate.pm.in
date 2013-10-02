@@ -896,7 +896,7 @@ sub Start($$$)
     #
     # This could result in more work then we want. 
     #
-    if ($action eq "restart") {
+    if ($restart) {
 	$output = GeniUtil::ExecQuiet("$TARFILES_SETUP -q $pid $eid");
 	if ($?) {
 	    $msg = "Could not setup tarfiles:\n$output";
