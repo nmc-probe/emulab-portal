@@ -61,6 +61,7 @@ my $MKFS	= "/sbin/mke2fs";
 my $FSCK	= "/sbin/e2fsck";
 my $DOSTYPE	= "$BINDIR/dostype";
 my $ISCSI	= "/sbin/iscsiadm";
+my $SMARTCTL	= "/usr/sbin/smartctl";
 
 #
 #
@@ -138,22 +139,82 @@ sub is_iscsi_dev($)
     return 0;
 }
 
-sub serial_to_dev($)
+sub find_serial($)
 {
-    my ($sn) = @_;
+    my ($dev) = @_;
+    my @lines;
 
     #
-    # XXX this is a total hack and maybe distro dependent?
+    # Try using "smartctl -i" first
     #
-    my @lines = `ls -l /dev/disk/by-id/ 2>&1`;
-    foreach (@lines) {
-	if (m#.*_([^_\s]+) -> ../../(sd.)$#) {
-	    if ($1 eq $sn) {
-		return $2;
+    if (-x "$SMARTCTL") {
+	@lines = `$SMARTCTL -i /dev/$dev 2>&1`;
+	foreach (@lines) {
+	    if (/^Serial Number:\s+(\S.*)/) {
+		return $1;
 	    }
 	}
     }
 
+    #
+    # Try /dev/disk/by-id.
+    # XXX this is a total hack and maybe distro dependent?
+    #
+    @lines = `ls -l /dev/disk/by-id/ 2>&1`;
+    foreach (@lines) {
+	if (m#.*_([^_\s]+) -> ../../(sd.)$#) {
+	    if ($2 eq $dev) {
+		return $1;
+	    }
+	}
+    }
+
+    # XXX Parse dmesg output?
+
+    return undef;
+}
+
+#
+# Do a one-time initialization of a serial number -> /dev/sd? map.
+#
+sub init_serial_map()
+{
+    #
+    # XXX this is a total hack and maybe distro dependent?
+    #
+    my %snmap = ();
+    my @lines = `ls -l /sys/block/sd? 2>&1`;
+    foreach (@lines) {
+	# XXX if a pci device, assume a local disk
+	if (m#/sys/block/(sd.) -> ../devices/pci\d+#) {
+	    my $dev = $1;
+	    $sn = find_serial($dev);
+	    if ($sn) {
+		$snmap{$sn} = $dev;
+	    }
+	}
+    }
+
+    if (0) {
+	print STDERR "SN map:\n";
+	foreach my $sn (keys %snmap) {
+	    print STDERR "$sn -> $snmap{$sn}\n";
+	}
+    }
+
+    return \%snmap;
+}
+
+sub serial_to_dev($$)
+{
+    my ($so, $sn) = @_;
+
+    if (defined($so->{'LOCAL_SNMAP'})) {
+	my $snmap = $so->{'LOCAL_SNMAP'};
+	if (exists($snmap->{$sn})) {
+	    return $snmap->{$sn};
+	}
+    }
     return undef;
 }
 
@@ -382,6 +443,11 @@ sub os_init_storage($)
 	return undef;
     }
 	
+    # initialize mapping of serial numbers to devices
+    if ($gotlocal && $gotelement) {
+	$so{'LOCAL_SNMAP'} = init_serial_map();
+    }
+
     # initialize volume manage if needed for local slices
     if ($gotlocal && $gotslice) {
 	#
@@ -572,22 +638,28 @@ sub os_check_storage_element($$)
     # local disk:
     #  make sure disk exists
     #
-    if ($href->{'PROTO'} eq "local") {
+    if ($href->{'CLASS'} eq "local") {
 	my $bsid = $href->{'VOLNAME'};
 	my $sn = $href->{'UUID'};
 
-	my $dev = serial_to_dev($sn);
+	my $dev = serial_to_dev($so, $sn);
 	if (defined($dev)) {
 	    $href->{'LVDEV'} = "/dev/$dev";
 	    return 1;
 	}
+
+	# XXX not an error for now, until we can be sure that we can
+	# get SN info for all disks
+	$href->{'LVDEV'} = "<UNKNOWN>";
+	return 1;
 
 	# for physical disks, there is no way to "create" it so return error
 	warn("*** $bsid: could not find HD with serial '$sn'\n");
 	return -1;
     }
 
-    warn("*** Only support iSCSI now\n");
+    warn("*** $bsid: unsupported class/proto '" .
+	 $href->{'CLASS'} . "/" . $href->{'PROTO'} . "'\n");
     return -1;
 }
 
@@ -731,24 +803,24 @@ sub os_create_storage($$)
 	#
 	# Create the filesystem:
 	#
-	# If this is SYSVOL, stick with ext2 or ext3 for the benefit
-	# of older versions of imagezip that don't know ext4.
-	# Otherwise, lets start by trying ext4 which is much faster
-	# when creating large FSes.
+	# Start by trying ext4 which is much faster when creating large FSes.
+	# Otherwise fall back on ext3 and then ext2.
 	#
 	my $failed = 1;
 	my $fstype;
-	if ($href->{'CLASS'} ne "local" || $href->{'BSID'} ne "SYSVOL") {
+	my $fsopts = "-F -q";
+	if ($failed) {
 	    $fstype = "ext4";
-	    $failed = mysystem("$MKFS -t $fstype -F $mdev $redir");
+	    $fsopts .= " -E lazy_itable_init=1";
+	    $failed = mysystem("$MKFS -t $fstype $fsopts $mdev $redir");
 	}
 	if ($failed) {
 	    $fstype = "ext3";
-	    $failed = mysystem("$MKFS -t $fstype -F $mdev $redir");
+	    $failed = mysystem("$MKFS -t $fstype $fsopts $mdev $redir");
 	}
 	if ($failed) {
 	    $fstype = "ext2";
-	    $failed = mysystem("$MKFS -t $fstype -F $mdev $redir");
+	    $failed = mysystem("$MKFS -t $fstype $fsopts $mdev $redir");
 	}
 	if ($failed) {
 	    warn("*** $lv: could not create FS\n");
@@ -1040,7 +1112,7 @@ sub os_remove_storage_element($$$)
     #
     # Nothing to do (yet) for a local disk
     #
-    if ($href->{'PROTO'} eq "local") {
+    if ($href->{'CLASS'} eq "local") {
 	return 1;
     }
 

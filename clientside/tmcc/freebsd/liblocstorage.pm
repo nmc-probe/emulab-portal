@@ -153,28 +153,72 @@ sub iscsi_to_dev($)
     return undef;
 }
 
-sub serial_to_dev($)
+sub find_serial($)
 {
-    my ($sn) = @_;
+    my ($dev) = @_;
 
     #
-    # XXX this is a total hack
+    # Try using "smartctl -i" first
     #
-    if (! -x "$SMARTCTL") {
-	return undef;
-    }
-
-    my @lines = `ls /dev/da* 2>&1`;
-    foreach (@lines) {
-	if (m#^/dev/(da\d+)$#) {
-	    my $dev = $1;
-	    my $out = `$SMARTCTL -i /dev/$dev 2>&1 | grep 'Serial Number'`;
-	    if ($out =~ /^Serial Number:\s+$sn/) {
-		return $dev;
+    if (-x "$SMARTCTL") {
+	@lines = `$SMARTCTL -i /dev/$dev 2>&1`;
+	foreach (@lines) {
+	    if (/^Serial Number:\s+(\S.*)/) {
+		return $1;
 	    }
 	}
     }
 
+    # XXX Parse dmesg output?
+
+    return undef;
+}
+
+#
+# Do a one-time initialization of a serial number -> /dev/sd? map.
+#
+sub init_serial_map()
+{
+    my %snmap = ();
+
+    my @lines = `ls /dev/ad* /dev/da* /dev/mfid* /dev/mfisyspd* 2>&1`;
+    foreach (@lines) {
+	# XXX just use the /dev/ad? traditional names for now
+	if (m#^/dev/ada\d+$#) {
+	    next;
+	}
+	if (m#^/dev/((?:da|ad|mfid|mfisyspd)\d+)$#) {
+	    my $dev = $1;
+	    $sn = find_serial($dev);
+	    if ($sn) {
+		$snmap{$sn} = $dev;
+	    } else {
+		# XXX just so we know how many disks we found
+		$snmap{$dev} = $dev;
+	    }
+	}
+    }
+
+    if (0) {
+	print STDERR "SN map:\n";
+	foreach my $sn (keys %snmap) {
+	    print STDERR "$sn -> $snmap{$sn}\n";
+	}
+    }
+
+    return \%snmap;
+}
+
+sub serial_to_dev($$)
+{
+    my ($so, $sn) = @_;
+
+    if (defined($so->{'LOCAL_SNMAP'})) {
+	my $snmap = $so->{'LOCAL_SNMAP'};
+	if (exists($snmap->{$sn})) {
+	    return $snmap->{$sn};
+	}
+    }
     return undef;
 }
 
@@ -617,6 +661,11 @@ sub os_init_storage($)
 	return undef;
     }
 	
+    # initialize mapping of serial numbers to devices
+    if ($gotlocal && $gotelement) {
+	$so{'LOCAL_SNMAP'} = init_serial_map();
+    }
+
     # initialize volume manage if needed for local slices
     if ($gotlocal && $gotslice) {
 
@@ -889,11 +938,16 @@ sub os_check_storage_element($$)
 	my $bsid = $href->{'VOLNAME'};
 	my $sn = $href->{'UUID'};
 
-	my $dev = serial_to_dev($sn);
+	my $dev = serial_to_dev($so, $sn);
 	if (defined($dev)) {
 	    $href->{'LVDEV'} = "/dev/$dev";
 	    return 1;
 	}
+
+	# XXX not an error for now, until we can be sure that we can
+	# get SN info for all disks
+	$href->{'LVDEV'} = "<UNKNOWN>";
+	return 1;
 
 	# for physical disks, there is no way to "create" it so return error
 	warn("*** $bsid: could not find HD with serial '$sn'\n");
