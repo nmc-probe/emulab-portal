@@ -16,8 +16,16 @@ checkdrift_main() {
     for host in $allnodes ; do
 	if [ -d $projdir/$host/.tbdb ] ; then
 	    cd $projdir/$host/.tbdb
-	    newest=$(ls -t | head -1)
-	    allchecks=$(ls -t)
+	    allchecks=$(ls | sort -r | paste -s -d \\\  -) # paste command used to convert into space seperated words.
+
+	    # check that the first file is has a mfsmode=1
+	    newest=${allchecks%%\ *}
+	    allchecks=${allchecks#* } # pop the list
+	    while (grep -c 'ismfs=0' $newest &> /dev/null) ; do
+		newest=${allchecks%% *}
+		allchecks=${allchecks#* } # pop the list
+	    done
+
 	    readtmcinfo $newest hwinvcopy
 	    declare -i countsame=-1
 	    for tocheck in $allchecks ; do
@@ -29,9 +37,9 @@ checkdrift_main() {
 		    echo ""
 		    echo "$host $newest $tocheck are not the same"
 		    echo "====================================================="
-		    # reset compar file
 		    echo "diff $tocheck $newest"
 		    diff $tocheck $newest
+		    # reset compare file
 		    newest=$tocheck
 		    readtmcinfo $newest hwinvcopy
 		    # XXX - start
