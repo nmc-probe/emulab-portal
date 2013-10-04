@@ -5,6 +5,7 @@ source checkutils.sh
 
 checkdrift_main() {
     set -u
+    declare -i countsame=1 filecount=0 hostcount=0
     projdir=/proj/emulab-ops/nodecheck
     cd $projdir
     if (( $# )) ; then
@@ -14,25 +15,30 @@ checkdrift_main() {
     fi
 
     for host in $allnodes ; do
+	((hostcount++))
 	if [ -d $projdir/$host/.tbdb ] ; then
 	    cd $projdir/$host/.tbdb
 	    allchecks=$(ls | sort -r | paste -s -d \\\  -) # paste command used to convert into space seperated words.
+	    allchecks+=' ' # grr string matching, expect space at end
 
 	    # check that the first file is has a mfsmode=1
 	    newest=${allchecks%%\ *}
 	    allchecks=${allchecks#* } # pop the list
-	    while (grep -c 'ismfs=0' $newest &> /dev/null) ; do
-		newest=${allchecks%% *}
+	    [[ ! $allchecks ]] && continue
+
+	    while (grep -c 'ismfs=0' $newest &> /dev/null ) ; do
+		newest=${allchecks%%\ *} # take off the top
 		allchecks=${allchecks#* } # pop the list
+		[[ ! $allchecks ]] && break
 	    done
 
 	    readtmcinfo $newest hwinvcopy
-	    declare -i countsame=-1
 	    for tocheck in $allchecks ; do
 		[[ $(grep 'ismfs=0' $tocheck) ]] && continue # if not in ismfs mode then don't check
 		readtmcinfo $tocheck hwinv
 		# note: will check against self for sanity
 		comparetmcinfo /tmp/.$$checkdiff
+		((filecount++))
 		if [ -s /tmp/.$$checkdiff ] ; then
 		    echo ""
 		    echo "$host $newest $tocheck are not the same"
@@ -49,16 +55,19 @@ checkdrift_main() {
 #		    sudo mv $tocheck $projdir/$host/.tbdb/.notsame
 		    # XXX - end
 		else
-: # echo "$host $newest $tocheck SAME"
+# : echo "$host $newest $tocheck SAME"
 		    ((countsame++))
 		fi
 		rm -f /tmp/.$$checkdiff
 	    done
-: # echo "$host $countsame inventory files are the same"
+# :[[ $countsame -gt 1 ]] && echo "$host $countsame inventory files are the same"
+	    echo -n .
 	else
 	    echo "No record of node id \"$host\"."
 	fi
     done
+    echo ""
+    echo "$filecount files in $hostcount nodes checked"
 }
 checkwce_main() {
     set -u
