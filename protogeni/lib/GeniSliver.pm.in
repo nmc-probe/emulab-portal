@@ -843,13 +843,20 @@ sub AnnotateManifest($)
 	    $services = GeniXML::AddElement("services", $rspec);
 	}
 	my $login = GeniXML::FindFirst("n:login", $services);
-	if (! defined($login)) {
-	    $login = GeniXML::AddElement("login", $services);
+	while (defined($login)) {
+	    $services->RemoveChild($login);
+	    $login = GeniXML::FindFirst("n:login", $services);	    
 	}
-	GeniXML::SetText("authentication", $login, "ssh-keys");
-	GeniXML::SetText("hostname", $login, $sshdhost);
-	GeniXML::SetText("port", $login, $sshdport);
-	GeniXML::SetText("username", $login, $user->uid());
+	my $nonlocalusers;
+	$experiment->NonLocalUsers(\$nonlocalusers);
+	foreach my $localuser (@$nonlocalusers) {
+	    $login = GeniXML::AddElement("login", $services);
+
+	    GeniXML::SetText("authentication", $login, "ssh-keys");
+	    GeniXML::SetText("hostname", $login, $sshdhost);
+	    GeniXML::SetText("port", $login, $sshdport);
+	    GeniXML::SetText("username", $login, $localuser->{"login"});
+	}
     }
 
     if ($self->UpdateRspec($rspec)) {
@@ -1410,7 +1417,8 @@ sub UnProvision($)
     my $aggregate = $self->GetAggregate();
     if (!defined($aggregate)) {
 	print STDERR "Could not find aggregate for $self\n";
-	return -1;
+	$self->ClearAggregate();
+	return 0;
     }
 
     #
