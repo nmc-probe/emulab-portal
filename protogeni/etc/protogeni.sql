@@ -9,10 +9,12 @@ CREATE TABLE `geni_users` (
   `last_activity` datetime default NULL,
   `locked` datetime default NULL,
   `archived` datetime default NULL,
-  `status` enum('active','archived','frozen') NOT NULL default 'frozen',
+  `status` enum('active','unverified','frozen') NOT NULL default 'unverified',
   `name` tinytext,
   `email` tinytext,
   `sa_uuid` varchar(40) NOT NULL default '',
+  `uuid` varchar(40) NOT NULL default '',
+  `auth_token` varchar(32) default NULL,
   PRIMARY KEY  (`idx`),
   KEY `hrn` (`hrn`),
   UNIQUE KEY `uuid` (`uuid`)
@@ -211,6 +213,7 @@ CREATE TABLE `geni_userkeys` (
   `type` enum('ssh','password') NOT NULL default 'ssh',
   `uuid` varchar(40) NOT NULL default '',
   `created` datetime default NULL,
+  `internal` tinyint(1) NOT NULL default '0',
   `key` text,
   INDEX `uuid` (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -362,4 +365,16 @@ CREATE TABLE `client_slivers` (
   `manifest` mediumtext,
   PRIMARY KEY  (`idx`),
   INDEX `slice_uuid` (`slice_idx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+DROP TABLE IF EXISTS `quickvms`;
+CREATE TABLE `quickvms` (
+  `uuid` varchar(40) NOT NULL default '',
+  `slice_uuid` varchar(40) NOT NULL default '',
+  `creator_uuid` varchar(40) NOT NULL default '',
+  `name` tinytext,
+  `status` varchar(32) default NULL,
+  `profile` tinytext,
+  `manifest` mediumtext,
+  PRIMARY KEY  (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
