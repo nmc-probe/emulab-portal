@@ -1,0 +1,677 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use XML::Simple;
+use File::Temp qw(tempfile);
+use Data::Dumper;
+
+#
+# Create a quick VM.
+# 
+sub usage()
+{
+    print "Usage: quickvm <xmlfile>\n";
+    print "Usage: quickvm -k <uuid>\n";
+    exit(1);
+}
+my $optlist = "dkv";
+my $debug   = 0;
+my $verbose = 1;
+my $killit  = 0;
+my $xmlfile;
+my $quickuuid;
+
+# Protos
+sub fatal($);
+sub UserError($);
+sub GiveMeRspec($);
+sub Terminate($);
+
+#
+# Configure variables
+#
+my $TB		  = "@prefix@";
+my $TBOPS         = "@TBOPSEMAIL@";
+my $TBLOGS        = "@TBLOGSEMAIL@";
+my $OURDOMAIN     = "@OURDOMAIN@";
+my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
+my $SACERT	  = "$TB/etc/genisa.pem";
+my $CMCERT	  = "$TB/etc/genicm.pem";
+my $SSHKEYGEN     = "/usr/bin/ssh-keygen";
+my $GATEONESETUP  = "$TB/sbin/gateone-setup";
+
+# un-taint path
+$ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Turn off line buffering on output
+#
+$| = 1; 
+
+# Load the Testbed support stuff.
+use lib "@prefix@/lib";
+use libtestbed;
+use libaudit;
+use User;
+use OSinfo;
+use emutil;
+use GeniDB;
+use GeniUser;
+use GeniCertificate;
+use GeniCredential;
+use GeniSlice;
+use GeniAuthority;
+use GeniHRN;
+use Genixmlrpc;
+use GeniResponse;
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"v"})) {
+    $verbose = 1;
+}
+if (defined($options{"k"})) {
+    $killit = 1;
+}
+if (@ARGV != 1) {
+    usage();
+}
+if ($killit) {
+    $quickuuid = shift(@ARGV);
+}
+else {
+    $xmlfile = shift(@ARGV);
+
+    #
+    # Check the filename when invoked from the web interface; must be a
+    # file in /tmp.
+    #
+    if (getpwuid($UID) ne "nobody") {
+	my $this_user = User->ThisUser();
+
+	if (! defined($this_user)) {
+	    fatal("You ($UID) do not exist!");
+	}
+	fatal("Only admins can run this script.")
+	    if (!$this_user->IsAdmin());
+    }
+    else {
+	if ($xmlfile =~ /^([-\w\.\/]+)$/) {
+	    $xmlfile = $1;
+	}
+	else {
+	    fatal("Bad data in pathname: $xmlfile");
+	}
+
+	# Use realpath to resolve any symlinks.
+	my $translated = `realpath $xmlfile`;
+	if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
+	    $xmlfile = $1;
+	}
+	else {
+	    fatal("Bad data in translated pathname: $xmlfile");
+	}
+    }
+}
+
+# Email record. 
+AuditStart(0, undef, LIBAUDIT_NODELETE())
+    if (! $debug);
+
+# Connect to the SA DB.
+DBConnect(GENISA_DBNAME());
+
+#
+# Load the SA cert to act as caller context.
+#
+my $sa_certificate = GeniCertificate->LoadFromFile($SACERT);
+if (!defined($sa_certificate)) {
+    fatal("Could not load certificate from $SACERT\n");
+}
+my $sa_authority = GeniAuthority->Lookup($sa_certificate->urn());
+if (!defined($sa_authority)) {
+    fatal("Could not load SA authority object");
+}
+
+#
+# We want to contact our local CM to create the sliver.
+# We use the normal XMLRPC route.
+#
+my $context = Genixmlrpc->Context($sa_certificate);
+if (!defined($context)) {
+    fatal("Could not create context to talk to CM");
+}
+Genixmlrpc->SetContext($context);
+
+#
+# Load the CM cert and authority, since that is who we talk to.
+#
+my $cm_certificate = GeniCertificate->LoadFromFile($CMCERT);
+if (!defined($cm_certificate)) {
+    fatal("Could not load certificate from $CMCERT\n");
+}
+my $cm_authority = GeniAuthority->Lookup($cm_certificate->urn());
+if (!defined($cm_authority)) {
+    fatal("Could not load CM authority object");
+}
+
+if ($killit) {
+    exit(Terminate($quickuuid));
+}
+
+#
+# Must wrap the parser in eval since it exits on error.
+#
+my $xmlparse = eval { XMLin($xmlfile,
+			    VarAttr => 'name',
+			    ContentKey => '-content',
+			    SuppressEmpty => undef); };
+fatal($@)
+    if ($@);
+print STDERR Dumper($xmlparse)
+    if ($debug || $verbose);
+
+#
+# Make sure all the required arguments were provided.
+#
+foreach my $key ("username", "email", "imageid", "name") {
+    fatal("Missing required attribute '$key'")
+	if (! (exists($xmlparse->{'attribute'}->{"$key"}) &&
+	       defined($xmlparse->{'attribute'}->{"$key"}) &&
+	       $xmlparse->{'attribute'}->{"$key"} ne ""));
+}
+
+#
+# Gather up args and sanity check.
+#
+my ($value, $user_urn, $user_uid, $user_hrn, $user_email, $sshkey, $imageid);
+
+#
+# Username and email has to be acceptable to Emulab user system.
+#
+$value = $xmlparse->{'attribute'}->{"username"}->{'value'};
+if (! TBcheck_dbslot($value, "users", "usr_name",
+		     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+    fatal("Illegal username: $value");
+}
+$user_uid = $value;
+$user_urn = GeniHRN::Generate("$OURDOMAIN", "user", $user_uid);
+$user_hrn = "${PGENIDOMAIN}.${user_uid}";
+
+$value = $xmlparse->{'attribute'}->{"email"}->{'value'};
+if (! TBcheck_dbslot($value, "users", "usr_email",
+		     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+    fatal("Illegal email address: $value");
+}
+$user_email = $value;
+
+#
+# Not many choices; see if it exists.
+#
+$value = $xmlparse->{'attribute'}->{"imageid"}->{'value'};
+if (! TBcheck_dbslot($value, "os_info", "osname",
+		     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+    fatal("Illegal imageid: $value");
+}
+if (!defined(OSinfo->LookupByName($value))) {
+    fatal("No such imageid: $value");
+}
+$imageid = $value;
+
+#
+# This is so the php code can look it up in the DB. Silly.
+#
+my $quickvm_name = $xmlparse->{'attribute'}->{"name"}->{'value'};
+if ($quickvm_name !~ /^[\w]+$/) {
+    fatal("Bad name: $quickvm_name");
+}
+
+#
+# Use ssh-keygen to see if the key is valid and convertable. We first
+# try to get the fingerprint, which will tells us if its already in
+# openssh format. If not, try to convert it.
+#
+if (exists($xmlparse->{'attribute'}->{"sshkey"}) &&
+    defined($xmlparse->{'attribute'}->{"sshkey"}) &&
+    $xmlparse->{'attribute'}->{"sshkey"} ne "") {
+    $sshkey = $xmlparse->{'attribute'}->{"sshkey"}->{'value'};
+    my ($fh, $keyfile) = tempfile(UNLINK => 0);
+    print $fh $sshkey;
+
+    if (system("$SSHKEYGEN -l -f $keyfile >/dev/null 2>/dev/null")) {
+	if (! open(KEYGEN, "$SSHKEYGEN -i -f $keyfile 2>/dev/null |")) {
+	    fatal("Could not start ssh-keygen");
+	}
+	$sshkey = <KEYGEN>;
+	if (!close(KEYGEN)) {
+	    UserError("Could not parse ssh key!");
+	}
+	chomp($sshkey);
+    }
+}
+
+#
+# See if the GeniUser exists. Create if not, but that means we
+# have to create an ssl certificate (which the user will never see)
+# so that we can operate on behalf of the user (via speaksfor).
+#
+my $geniuser = GeniUser->Lookup($user_urn, 0);
+if (!defined($geniuser)) {
+    #
+    # Do not allow overlap with local users.
+    #
+    if (User->Lookup($user_uid)) {
+	fatal("User $user_uid exists in the local user table");
+    }
+
+    #
+    # New users must have a key.
+    #
+    if (!defined($sshkey)) {
+	UserError("You must supply an ssh key!");
+    }
+    print "Geni user does not exist; creating one ...\n"
+	if ($debug);
+
+    #
+    # Want to remember the auth token we emailed for later.
+    #
+    my $auth_token = $xmlparse->{'attribute'}->{"auth_token"}->{'value'};
+    if ($auth_token !~ /^[\w]+$/) {
+	fatal("Bad auth token: $auth_token");
+    }
+
+    my $certificate = GeniCertificate->Create({"urn"   => $user_urn,
+					       "hrn"   => $user_hrn,
+					       "email" => $user_email,
+					       "showuuid" => 1});
+    fatal("Could not create certificate")
+	if (!defined($certificate));
+
+    $geniuser = GeniUser->Create($certificate, $sa_authority);
+    fatal("Could not create new geni user")
+	if (!defined($geniuser));
+
+    $geniuser->SetAuthToken($auth_token);
+
+    #
+    # Setup GateOne browser ssh.
+    #
+    if (0) {
+	system("$GATEONESETUP -g " . $geniuser->uuid());
+	fatal("Could not create ssh key pair")
+	    if ($?);
+    }
+}
+my $user_uuid = $geniuser->uuid();
+# So we know this user has dome something lately.
+$geniuser->BumpActivity();
+
+# Remember key. For now we accept only one key. We store it simply
+# so we can display it again for the user in the web interface.
+# We allow key reuse for existing users, see above.
+if (defined($sshkey)) {
+    $geniuser->DeleteKeys();
+    $geniuser->AddKey($sshkey);
+}
+# There will be "internal" keys ...
+my @sshkeys = $geniuser->GetKeys();
+if (! @sshkeys) {
+    fatal("No ssh keys to use for $geniuser!");
+}
+@sshkeys = map { "key" => "$_", "type" => "ssh" }, @sshkeys;
+
+#
+# Now generate a slice registration and credential
+#
+my $slice_id   = "QV" . TBGetUniqueIndex('next_quickvm', 1);
+my $slice_urn  = GeniHRN::Generate($OURDOMAIN, "slice", $slice_id);
+my $slice_hrn  = "${PGENIDOMAIN}.${slice_id}";
+
+#
+# Make sure slice is unique. Probably retry here at some point. 
+#
+if (GeniSlice->Lookup($slice_hrn) || GeniSlice->Lookup($slice_urn)) {
+    fatal("Could not form a unique slice name");
+}
+	    
+#
+# Generate a certificate for this new slice.
+#
+my $slice_certificate =
+    GeniCertificate->Create({'urn'  => $slice_urn,
+			     'hrn'  => $slice_hrn,
+			     'showuuid' => 1,
+			     'email'=> $user_email});
+
+if (!defined($slice_certificate)) {
+    fatal("Could not generate certificate for $slice_urn");
+}
+# Slice is created as locked.
+my $slice = GeniSlice->Create($slice_certificate,
+			      $geniuser, $sa_authority, undef, 1);
+if (!defined($slice)) {
+    $slice_certificate->Delete();
+    fatal("Could not create new slice object for $slice_urn");
+}
+# These get quick expirations.
+if ($slice->SetExpiration(time() + (3 * 3600)) != 0) {
+    $slice->Delete();
+    fatal("Could not set the slice expiration for $slice_urn");
+}
+my $slice_uuid = $slice->uuid();
+
+# Create a slice credential
+my $slice_credential =
+    GeniCredential->CreateSigned($slice,
+				 $geniuser,
+				 $GeniCredential::LOCALSA_FLAG);
+if (!defined($slice_credential)) {
+    $slice->Delete();
+    fatal("Could not create credential for $slice_urn");
+}
+
+#
+# In order to connect as the SA instead of the user we just created,
+# lets generate a speaksfor credential that allows the SA to speakfor
+# for the new user. Fancy, eh?
+#
+my $speaksfor_credential = GeniCredential->Create($geniuser, $sa_authority);
+fatal("Could not create speaksfor credential")
+    if (!defined($speaksfor_credential));
+$speaksfor_credential->SetType("speaksfor");
+fatal("Could not sign speaksfor credential")
+    if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
+
+#
+# Got this far, lets create a quickvm record in the SA database.
+# Mostly this for the web interface.
+#
+my $quickvm_uuid = NewUUID();
+if (!defined($quickvm_uuid)) {
+    fatal("Could not generate a new uuid");
+}
+
+sub SetQuickVMStatus($$)
+{
+    my ($uuid, $status) = @_;
+
+    GeniDB::DBQueryWarn("update quickvms set status='$status' ".
+			"where uuid='$uuid'")
+	or return -1;
+
+    return 0;
+}
+
+if (!GeniDB::DBQueryWarn("insert into quickvms set ".
+			 "  uuid='$quickvm_uuid', slice_uuid='$slice_uuid', ".
+			 "  creator_uuid='$user_uuid', status='created', ".
+			 "  profile='$imageid', name='$quickvm_name'")) {
+    $slice->Delete();
+    fatal("Could not create quickvm record");
+}
+
+#
+# Exit and let caller poll for status.
+#
+if (!$debug) {
+    my $child = fork();
+    if ($child) {
+	# Parent exits but avoid libaudit email.
+	exit(0);
+    }
+    # Let parent exit;
+    sleep(2);
+    # All of the logging magic happens in here.
+    libaudit::AuditFork();
+}
+print STDERR "Child pid $PID\n";
+
+my $rspecstr = GiveMeRspec($imageid);
+
+#
+# This creates the sliver and starts it.
+#
+my $response =
+    Genixmlrpc::CallMethod($cm_authority->url(), undef,
+			   "CreateSliver",
+			   { "slice_urn"   => $slice_urn,
+			     "rspec"       => $rspecstr,
+			     "keys"        =>
+				 [{'urn'   => $user_urn,
+				   'login' => $user_uid,
+				   'keys'  => \@sshkeys }],
+			     "credentials" =>
+				 [$slice_credential->asString(),
+				  $speaksfor_credential->asString()]});
+
+if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+    $slice->Delete();
+    fatal("CreateSliver failed: ".
+	  (defined($response) ? $response->output() : "") . "\n");
+}
+
+#
+# We are going to use the manifests table.
+#
+my $manifest = $response->value()->[1];
+if (!defined($manifest)) {
+    $slice->UnLock();
+    SetQuickVMStatus($quickvm_uuid, "failed");
+    fatal("Could not find the manifest in the response!");
+}
+my $safe_manifest = DBQuoteSpecial($manifest);
+GeniDB::DBQueryWarn("update quickvms set ".
+		    " status='provisioned', manifest=$safe_manifest ".
+		    "where uuid='$quickvm_uuid'");
+
+#
+# but have to wait for the sliver to be ready, which means polling.
+#
+my $seconds  = 600;
+my $interval = 15;
+my $ready    = 0;
+my $failed   = 0;
+
+while ($seconds > 0) {
+    sleep($interval);
+    $seconds -= $interval;
+    
+    my $response =
+	Genixmlrpc::CallMethod($cm_authority->url(), undef,
+			       "SliverStatus",
+			       { "slice_urn"   => $slice_urn,
+				 "credentials" =>
+				     [$slice_credential->asString(),
+				      $speaksfor_credential->asString()]});
+
+    if (!defined($response) || !defined($response->value()) ||
+	($response->code() != GENIRESPONSE_SUCCESS &&
+	 $response->code() != GENIRESPONSE_BUSY)) {
+	fatal("SliverStatus failed: ".
+	      (defined($response) ? $response->output() : "") . "\n");
+    }
+    next
+	if ($response->code() == GENIRESPONSE_BUSY);
+
+    my $blob = $response->value();
+    if ($blob->{'status'} eq "ready") {
+	$ready = 1;
+	last;
+    }
+    elsif ($blob->{'status'} eq "failed") {
+	$failed = 1;
+	SetQuickVMStatus($quickvm_uuid, "failed");
+	last;
+    }
+}
+if ($failed) {
+    fatal("$slice_urn failed."); 
+}
+elsif (!$ready) {
+    fatal("$slice_urn timed out."); 
+}
+$slice->UnLock();
+SetQuickVMStatus($quickvm_uuid, "ready");
+exit(0);
+
+sub fatal($) {
+    my ($mesg) = $_[0];
+
+    print STDERR "*** $0:\n".
+	         "    $mesg\n";
+    exit(-1);
+}
+sub UserError($) {
+    my($mesg) = $_[0];
+
+    AuditAbort()
+	if (!$debug);
+    print $mesg;
+    exit(1);
+}
+
+sub GiveMeRspec($)
+{
+    my ($imageid) = @_;
+    
+    my $diskimage = 
+	"<disk_image ".
+	"    name='urn:publicid:IDN+emulab.net+image+emulab-ops//$imageid'/>\n";
+    
+    my $rspecstr = <<'EOL';
+<?xml version='1.0' encoding='UTF-8'?>
+    <rspec xmlns='http://www.protogeni.net/resources/rspec/2'
+           xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'
+	   xsi:schemaLocation='http://www.protogeni.net/resources/rspec/2 http://www.protogeni.net/resources/rspec/2/request.xsd'
+	   type='request' >
+      <node client_id='node1'
+            exclusive='false'>
+         <sliver_type name='emulab-xen'></sliver_type>
+         <interface client_id="node1:if0" />
+      </node>
+      <node client_id='node2'
+            exclusive='false'>
+         <sliver_type name='emulab-xen'></sliver_type>
+         <interface client_id="node2:if0" />
+      </node>
+      <link client_id='link0'>
+        <interface_ref client_id='node1:if0' />
+        <interface_ref client_id='node2:if0' />
+        <property source_id='node1:if0' dest_id='node2:if0' capacity='10000'/>
+        <property source_id='node2:if0' dest_id='node1:if0' capacity='10000'/>
+      </link>
+    </rspec>
+EOL
+    return $rspecstr;
+}
+
+#
+# Terminate a quick VM.
+#
+sub Terminate($)
+{
+    my ($uuid) = @_;
+    my $safe_uuid = DBQuoteSpecial($uuid);
+
+    my $query_result =
+	DBQueryWarn("select * from quickvms where uuid=$safe_uuid");
+    if (! ($query_result && $query_result->numrows)) {
+	fatal("No such quick VM: $uuid");
+    }
+    my $row = $query_result->fetchrow_hashref();
+
+    my $geniuser = GeniUser->Lookup($row->{'creator_uuid'}, 0);
+    if (!defined($geniuser)) {
+	fatal("No creator for quick VM: $uuid");
+    }
+    my $slice = GeniSlice->Lookup($row->{'slice_uuid'});
+    if (!defined($slice)) {
+	fatal("No slice for quick VM: $uuid");
+    }
+    # Create a slice credential
+    my $slice_credential =
+	GeniCredential->CreateSigned($slice,
+				     $geniuser,
+				     $GeniCredential::LOCALSA_FLAG);
+    if (!defined($slice_credential)) {
+	fatal("Could not create credential for $slice");
+    }
+    my $speaksfor_credential = GeniCredential->Create($geniuser, $sa_authority);
+    fatal("Could not create speaksfor credential")
+	if (!defined($speaksfor_credential));
+    $speaksfor_credential->SetType("speaksfor");
+    fatal("Could not sign speaksfor credential")
+	if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
+
+    SetQuickVMStatus($uuid, "terminating");
+
+    #
+    # Exit and let caller poll for status.
+    #
+    if (!$debug) {
+	my $child = fork();
+	if ($child) {
+	    # Parent exits but avoid libaudit email.
+	    exit(0);
+	}
+	# Let parent exit;
+	sleep(2);
+	# All of the logging magic happens in here.
+	libaudit::AuditFork();
+    }
+    my $response =
+	Genixmlrpc::CallMethod($cm_authority->url(), undef,
+			       "DeleteSlice",
+			       { "slice_urn"   => $slice->urn(),
+				 "credentials" =>
+				     [$slice_credential->asString(),
+				      $speaksfor_credential->asString()]});
+
+    if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	fatal("DeleteSlice failed: ".
+	      (defined($response) ? $response->output() : "") . "\n");
+    }
+    $slice->Delete();
+    DBQueryWarn("delete from quickvms where uuid=$safe_uuid");
+    exit(0);
+}

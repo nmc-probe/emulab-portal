@@ -45,7 +45,7 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  reservevlans delgeniuser delegatecredential \
 		  updatecert fixcerts initcerts cacontrol webcacontrol \
 		  genextend_lifetime rspeclint chstats listactive \
-		  maptoslice webmaptoslice setexpiration
+		  maptoslice webmaptoslice setexpiration quickvm webquickvm
 
 ifeq ($(ISCLEARINGHOUSE),1)
 PSBIN_STUFF     += ch_daemon
@@ -67,6 +67,7 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 
 install: $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
 	$(addprefix $(INSTALL_SBINDIR)/protogeni/, $(PSBIN_STUFF)) \
+	$(INSTALL_LIBEXECDIR)/webquickvm \
 	$(INSTALL_LIBEXECDIR)/webcacontrol \
 	$(INSTALL_LIBEXECDIR)/webmaptoslice
 	-rm -f $(INSTALL_SBINDIR)/protogeni/cleanupticket
