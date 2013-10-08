@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -50,7 +50,15 @@ sub usage {
     die "Usage:\nrender [-v] [-t <thumbsize>] [-z <zoomfactor>] [-d <detaillevel>] <pid> <eid>\n";
 }
 
-my  $optlist = "z:d:vt:";
+#
+# Look for -x option, and chain to SVG rendering.
+#
+if (grep {$_ eq "-x"} @ARGV) {
+    exec "$TB/libexec/vis/svgrender", @ARGV;
+    die("render: Could not exec svgrender: $!");
+}
+
+my  $optlist = "z:d:vt:x";
 if (! getopts($optlist, \%options)) { usage; }
 
 if (@ARGV != 2) { usage; }

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2003, 2006 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -35,7 +35,7 @@ sub usage()
 	"Usage: dbvistoplogy [-o <outputfile>] [-t <thumbsize> ] [-z <zoomfactor>] [-d <detaillevel>] <pid> <eid>\n";
     exit(-1);
 }
-my  $optlist = "o:z:d:t:";
+my  $optlist = "o:z:d:t:xs:";
 
 #
 # Configure variables
@@ -145,18 +145,18 @@ if (! ExpState($pid, $eid)) {
     die("*** $0:\n".
 	"    No such experiment $pid/$eid\n");
 }
-
-#
-# Verify that this person is allowed to look at experiment.
-#
-
-if (! TBExptAccessCheck($UID, $pid, $eid, TB_EXPT_READINFO)) {
-    die("*** $0:\n".
-	"    You do not have permission to view experiment $pid/$eid\n");
-}
-
 my $args = "";
 
+if (defined($options{"x"})) {
+    $args .= "-x ";
+}
+if (defined($options{"s"})) {
+    my $uid = $options{"s"};
+    if ($uid =~ /^([-\w]+)$/) {
+	$uid = $1;
+    }
+    $args .= "-s $uid ";
+}
 
 if (defined($zoom)) {
     $args .= "-z $zoom ";

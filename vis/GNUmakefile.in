@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2004 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -30,7 +30,7 @@ include $(OBJDIR)/Makeconf
 
 BIN_SCRIPTS	= dbvistopology
 LIBEXEC_SCRIPTS = webvistopology webfloormap
-LIBEXEC_VIS	= prerender render prerender_all floormap
+LIBEXEC_VIS	= prerender render prerender_all floormap svgrender
 
 #
 # Force dependencies on the scripts so that they will be rerun through
