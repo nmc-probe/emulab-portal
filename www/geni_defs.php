@@ -110,25 +110,6 @@ class GeniSlice
 	}
 	return null;
     }
-    function LookupByName($authority, $token) {
-	$dblink     = GetDBLink($authority);
-	$safe_token = addslashes($token);
-
-	if (! $dblink) {
-	    return null;
-	}
-	$query_result =
-	    DBQueryFatal("select idx from geni_slices ".
-			 "where name='$safe_token'",
-			 $dblink);
-
-	if (! ($query_result && mysql_num_rows($query_result))) {
-	    return null;
-	}
-	$row = mysql_fetch_row($query_result);
-	$idx = $row[0];
- 	return GeniSlice::Lookup($authority, $idx);
-    }
     # accessors
     function field($name) {
 	return (is_null($this->slice) ? -1 : $this->slice[$name]);
@@ -364,6 +345,7 @@ class GeniUser
 	return (is_null($this->user) ? -1 : $this->user[$name]);
     }
     function idx()	    { return $this->field('idx'); }
+    function uid()	    { return $this->field('uid'); }
     function hrn()	    { return $this->field('hrn'); }
     function urn()	    { return $this->field('urn'); }
     function uuid()	    { return $this->field('uuid'); }
@@ -371,11 +353,27 @@ class GeniUser
     function created()	    { return $this->field('created'); }
     function expires()	    { return $this->field('expires'); }
     function locked()	    { return $this->field('locked'); }
-    function status()	    { return $this->field('staus'); }
+    function status()	    { return $this->field('status'); }
     function name()	    { return $this->field('name'); }
     function email()	    { return $this->field('email'); }
     function sa_uuid()	    { return $this->field('sa_uuid'); }
-    function IsActive()     { $this->status() == 'active'; }
+    function auth_token()   { return $this->field('auth_token'); }
+    function IsActive()     { return $this->status() == 'active' ? 1 : 0; }
+
+    function SSHKey() {
+	$uuid = $this->uuid();
+	
+	$query_result =
+	    DBQueryFatal("select `key` from geni_userkeys ".
+			 "where uuid='$uuid' and internal=0",
+			 $this->dblink);
+
+	if ($query_result && mysql_num_rows($query_result)) {
+	    $row = mysql_fetch_row($query_result);
+	    return $row[0];
+	}
+	return null;
+    }
 }
 
 class ClientSliver
@@ -474,6 +472,106 @@ class ClientSliver
 	    $result[] = $sliver;
 	}
 	return $result;
+    }
+}
+
+class QuickVM
+{
+    var	$quickvm;
+    var $dblink;
+
+    #
+    # Constructor lookup.
+    #
+    function QuickVM($uuid) {
+	$safe_uuid  = addslashes($uuid);
+	$dblink     = GetDBLink("sa");
+	$idx        = null;
+
+	if (! $dblink) {
+	    $this->quickvm = null;
+	    return;
+	}
+	if (! preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $uuid)) {
+	    $this->quickvm = null;
+	    return;
+	}
+
+	$query_result =
+	    DBQueryWarn("select * from quickvms where uuid='$safe_uuid'",
+			$dblink);
+
+	if (!$query_result || !mysql_num_rows($query_result)) {
+	    $this->quickvm = null;
+	    return;
+	}
+	$this->dblink  = $dblink;
+	$this->quickvm = mysql_fetch_array($query_result);
+    }
+
+    # Hmm, how does one cause an error in a php constructor?
+    function IsValid() {
+	return !is_null($this->quickvm);
+    }
+
+    # Lookup.
+    function Lookup($token) {
+	$foo = new QuickVM($token);
+
+	if ($foo->IsValid()) {
+	    return $foo;
+	}
+	return null;
+    }
+    # accessors
+    function field($name) {
+	return (is_null($this->quickvm) ? -1 : $this->quickvm[$name]);
+    }
+    function uuid()	    { return $this->field('uuid'); }
+    function slice_uuid()   { return $this->field('slice_uuid'); }
+    function creator_uuid() { return $this->field('creator_uuid'); }
+    function name()	    { return $this->field('name'); }
+    function status()	    { return $this->field('status'); }
+    function profile()	    { return $this->field('profile'); }
+    function manifest()	    { return $this->field('manifest'); }
+
+    function LookupByName($token) {
+	$dblink     = GetDBLink("sa");
+	$safe_token = addslashes($token);
+
+	if (! $dblink) {
+	    return null;
+	}
+	$query_result =
+	    DBQueryFatal("select uuid from quickvms ".
+			 "where name='$safe_token'",
+			 $dblink);
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$uuid = $row[0];
+ 	return QuickVM::Lookup($uuid);
+    }
+    function LookupByCreator($token) {
+	$dblink     = GetDBLink("sa");
+	$safe_token = addslashes($token);
+
+	if (! $dblink) {
+	    return null;
+	}
+	$query_result =
+	    DBQueryFatal("select uuid from quickvms ".
+			 "where creator_uuid='$safe_token'",
+			 $dblink);
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$uuid = $row[0];
+ 	return QuickVM::Lookup($uuid);
     }
 }
 ?>
