@@ -306,6 +306,7 @@ sub expires($)		{ return field($_[0], "expires"); }
 sub sa_uuid($)		{ return field($_[0], "sa_uuid"); }
 sub exptidx($)		{ return field($_[0], "exptidx"); }
 sub needsfirewall($)	{ return field($_[0], "needsfirewall"); }
+sub name($)		{ return field($_[0], "name"); }
 sub registered($)	{ return field($_[0], "registered"); }
 sub isplaceholder($)	{ return field($_[0], "isplaceholder"); }
 sub monitor_pid($)	{ return field($_[0], "monitor_pid"); }
@@ -1079,6 +1080,23 @@ sub SetFirewallFlag($$)
 	if (!$query_result);
 
     $self->{'SLICE'}->{'needsfirewall'} = $needsfirewall;
+    return 0;
+}
+
+#
+# Set the name field.
+#
+sub SetName($$)
+{
+    my ($self, $name) = @_;
+    my $uuid = $self->uuid();
+    my $safe_name = DBQuoteSpecial($name);
+
+    DBQueryWarn("update geni_slices set name=$safe_name " .
+		"where uuid='$uuid'")
+	or return -1;
+    
+    $self->{'SLICE'}->{'name'} = $name;
     return 0;
 }
 
