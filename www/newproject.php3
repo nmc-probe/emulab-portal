@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,6 +36,8 @@ $this_user = CheckLogin($check_status);
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("submit",       PAGEARG_STRING,
+				 "uid",          PAGEARG_STRING,
+				 "email",        PAGEARG_STRING,
 				 "finished",     PAGEARG_BOOLEAN,
 				 "formfields",   PAGEARG_ARRAY);
 
@@ -674,14 +676,14 @@ if (isset($finished)) {
 #
 if (! isset($submit)) {
     $defaults = array();
-    $defaults["proj_head_uid"]  = "";
+    $defaults["proj_head_uid"]  = (isset($uid) ? $uid : "");
     $defaults["usr_name"]       = "";
     $defaults["wikiname"]       = "";
     $defaults["usr_title"]      = "";
     $defaults["usr_affil"]      = "";
     $defaults["usr_affil_abbrev"] = "";
     $defaults["usr_URL"]        = "$HTTPTAG";
-    $defaults["usr_email"]      = "";
+    $defaults["usr_email"]      = (isset($email) ? $email : "");
     $defaults["usr_addr"]       = "";
     $defaults["usr_addr2"]      = "";
     $defaults["usr_city"]       = "";
