@@ -96,6 +96,10 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 					try
 					{
 						var url:String = obj.url;
+						var foamPattern : RegExp = /\Wfoam\W/;
+						if (foamPattern.test(url)) {
+							continue;
+						}
 						var hostPattern:RegExp = /^(http(s?):\/\/([^\/]+))(\/.*)?$/;
 						var match : Object = hostPattern.exec(url);
 						if(match != null && match[4] == null) {

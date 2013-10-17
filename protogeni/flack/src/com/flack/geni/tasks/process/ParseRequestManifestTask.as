@@ -263,12 +263,17 @@ package com.flack.geni.tasks.process
 						);
 						return;
 					}
-					var virtualNodeManager:GeniManager = GeniMain.geniUniverse.managers.getById(managerIdString);
+					var managerLookupId : String = sliverIdString;
+					if (managerLookupId == null || managerLookupId == '')
+					{
+						managerLookupId = managerIdString;
+					}
+					var virtualNodeManager:GeniManager = GeniMain.geniUniverse.managers.getById(managerLookupId);
 					if(virtualNodeManager == null)
 					{
 						afterError(
 							new TaskError(
-								"Manager with ID '"+managerIdString+"' was not found for node named " + clientIdString + 
+								"Manager with ID '"+managerLookupId+"' was not found for node named " + clientIdString + 
 								". You may need to refresh the manager if there is a refresh button next to its name on the left.",
 								TaskError.CODE_PROBLEM
 							)

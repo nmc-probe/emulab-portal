@@ -523,7 +523,7 @@ IN THE WORK.
 			public function regetSlice():void
 			{
 				Alert.show(
-					"Do you really want to clear and reload this slice?",
+					"Do you want to clear the canvas and refetch manifests for this slice?",
 					"Reload slice?",
 					Alert.YES|Alert.NO,
 					this,

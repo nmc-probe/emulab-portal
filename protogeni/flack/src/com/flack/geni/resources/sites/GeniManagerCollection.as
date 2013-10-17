@@ -114,7 +114,7 @@ package com.flack.geni.resources.sites
 		 * @return Manager matching the ID
 		 * 
 		 */
-		public function getById(id:String):GeniManager
+		public function getById(id:String, log: Object = null):GeniManager
 		{
 			var idnUrn:IdnUrn = new IdnUrn(id);
 			for each(var gm:GeniManager in collection)

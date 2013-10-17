@@ -207,7 +207,7 @@ package com.flack.geni.tasks.xmlrpc.am
 						LogMessage.LEVEL_INFO,
 						LogMessage.IMPORTANCE_HIGH
 					);
-					
+					parent.add(new DescribeTask(aggregateSliver));
 					super.afterComplete(addCompletedMessage);
 				}
 				else

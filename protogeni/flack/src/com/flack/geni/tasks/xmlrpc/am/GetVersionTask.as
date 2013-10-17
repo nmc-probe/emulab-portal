@@ -119,7 +119,8 @@ package com.flack.geni.tasks.xmlrpc.am
 							);
 						if (manager.api.equals(supportedApi))
 							continue;
-						if(supportedApi.version <= 3 && supportedApi.version > highestSuppportedVersion.version)
+						if(supportedApi.version <= 2
+						   && supportedApi.version > highestSuppportedVersion.version)
 							highestSuppportedVersion = supportedApi;
 						manager.apis.add(supportedApi);
 					}

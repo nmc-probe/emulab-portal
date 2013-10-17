@@ -101,6 +101,11 @@ package com.flack.geni.resources.virt
                                 sliverType.name = EmulabXenSliverType.TYPE_EMULABXEN;
                                 sliverType.diskImages = newPhysicalNode.sliverTypes.getByName(EmulabXenSliverType.TYPE_EMULABXEN).diskImages;
                         }
+                        else if(!newPhysicalNode.exclusive && newPhysicalNode.sliverTypes.getByName('XOSmall') != null)
+                        {
+                                sliverType.name = 'XOSmall';
+                                sliverType.diskImages = newPhysicalNode.sliverTypes.getByName('XOSmall').diskImages;
+                        }
 			else if(newPhysicalNode.sliverTypes.length > 0)
 			{
 				sliverType.name = newPhysicalNode.sliverTypes.collection[0].name;
