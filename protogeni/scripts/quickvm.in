@@ -482,7 +482,6 @@ if (!$debug) {
     # All of the logging magic happens in here.
     libaudit::AuditFork();
 }
-my $rspecstr = GiveMeRspec($imageid);
 
 #
 # This creates the sliver and starts it.
