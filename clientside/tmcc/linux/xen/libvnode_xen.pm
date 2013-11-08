@@ -511,6 +511,18 @@ sub rootPreConfig($)
 	TBScriptUnlock();
 	return -1;
     }
+
+    #
+    # Need these to avoid overflowing the NAT tables.
+    #
+    mysystem("$SYSCTL -w ".
+	     "  net.ipv4.netfilter.ip_conntrack_generic_timeout=120");
+    mysystem("$SYSCTL -w ".
+	     "  net.ipv4.netfilter.ip_conntrack_tcp_timeout_established=54000");
+    mysystem("$SYSCTL -w ".
+	     "  net.netfilter.nf_conntrack_max=131071");
+    mysystem("echo 16384 > /sys/module/nf_conntrack/parameters/hashsize");
+    
     mysystem("touch /var/run/xen.ready");
     TBScriptUnlock();
     return 0;
@@ -2665,10 +2677,7 @@ sub createExpNetworkScript($$$$$$$)
     }
     print FILE "#!/bin/sh\n";
     print FILE "/bin/mv -f ${lfile} ${lfile}.old\n";
-    print FILE "echo \"\$*\" >$lfile\n";
-    print FILE "echo \"\$vif\" >>$lfile\n";
-    print FILE "echo \"\$XENBUS_PATH\" >>$lfile\n";
-    print FILE "sh $file \$* >>$lfile 2>&1\n";
+    print FILE "/etc/xen/scripts/emulab-enet.pl $file \$* >${lfile} 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0554, $wrapper);
