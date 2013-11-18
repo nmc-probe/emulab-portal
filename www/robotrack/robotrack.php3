@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -142,6 +142,7 @@ PAGEHEADER("Real Time Robot Tracking Applet");
 #
 # Draw the legend and some explanatory text.
 #
+$REQUEST_URI = $_SERVER["REQUEST_URI"];
 echo "<table cellspacing=5 cellpadding=5 border=0 class=\"stealth\">
       <tr>
        <td align=\"left\" valign=\"top\" class=\"stealth\">
@@ -200,7 +201,7 @@ if ($retval) {
     die("");
 }
 
-$auth    = $HTTP_COOKIE_VARS[$TBAUTHCOOKIE];
+$auth    = $_COOKIE[$TBAUTHCOOKIE];
 $pipeurl = "robopipe.php3?building=$building&floor=$floor";
 $baseurl = "../floormap_aux.php3?prefix=$uniqueid";
 
