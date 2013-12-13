@@ -1,0 +1,404 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2013 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use Date::Parse;
+
+#
+# Create a new dataset.
+#
+sub usage()
+{
+    print STDERR "Usage: createdataset [-hdU] [-o uid] [-a attrs] -s size -t type -e expiration name\n";
+    print STDERR "   -h       This message\n";
+    print STDERR "   -d       Print additional debug info\n";
+    print STDERR "   -U       Create but do not approve; admin will need to approve later\n";
+    print STDERR "   -s size  Size in MiB\n";
+    print STDERR "   -t type  Type (stdataset or ltdataset)\n";
+    print STDERR "   -o uid   Owner (defaults to caller)\n";
+    print STDERR "   -e date  Expiration date\n";
+    print STDERR "   -a attrs comma-seperated string of key=value attributes\n";
+    print STDERR "   name     Name (in the form <pid>/<id>)\n";
+    exit(-1);
+}
+my $optlist  = "dhUo:s:t:e:a:";
+my $debug = 0;
+my $pid;
+my $uid;
+my $expire;
+my $dstype;
+my $lname;
+my $size;
+my $approveme = 1;
+my $attrstr = "";
+my %attrs = ();
+
+my $qname = "global_ltdataset";
+my $quota;
+
+# Valid dataset types
+my %descrip = (
+    "stdataset" => "short-term dataset",
+    "ltdataset" => "long-term dataset"
+);
+
+#
+# Sitevars:
+#
+# maxsize	Max size (MiB) of a dataset
+#		(0 == unlimited)
+# maxlease	Max time (days) from creation before lease is marked expired
+#		(0 == unlimited)
+# maxidle	Max time (days) from last use before lease is marked expired
+#		(0 == unlimited)
+# graceperiod	Time (days) before an expired dataset will be destroyed
+#		(0 == no grace period, unlimited makes no sense here)
+# autodestroy	If non-zero, destroy expired datasets after grace period
+#		otherwise lock them
+# usequotas	If non-zero, enforce per-project dataset quotas
+# maxextend	Number of times a user can extend the lease
+#		(0 == unlimited)
+# extendperiod	Length (days) of each user-requested extention
+#		(0 == do not allow extensions (when maxextend != 0))
+#
+# Plausible defaults:
+#
+# Short-term datasets. Allow large datasets but with short lease and grace
+# periods. They are not quota-controlled and there is not an idle limit.
+# Users can extend their leases by small amounts for a little while.
+# After the grace period, these are automatically destroyed.
+#
+# storage/stdataset/maxsize	 1048576 # 1 TiB
+# storage/stdataset/maxlease	 7	 # 7 days
+# storage/stdataset/maxidle	 0	 # none
+# storage/stdataset/graceperiod	 1	 # 1 day
+# storage/stdataset/autodestroy	 1	 # yes
+# storage/stdataset/usequotas	 0	 # no
+# storage/stdataset/maxextend	 2	 # 2 user extentions
+# storage/stdataset/extendperiod 1	 # 1 day per extention
+#
+# Long-term datasets. Allow any-sized dataset that fits within the quota.
+# These are generally expired based on idle time but have a really long
+# lease time as well. They are quota-controlled and users cannot extend
+# their leases. After the grace period, these are are just marked as locked
+# and unavailable.
+#
+# storage/ltdataset/maxsize	 0	# none, limited by project quota
+# storage/ltdataset/maxlease	 365	# 1 year
+# storage/ltdataset/maxidle	 30	# 1 month
+# storage/ltdataset/graceperiod	 30	# 1 month
+# storage/ltdataset/autodestroy	 0	# no
+# storage/ltdataset/usequotas	 1	# yes
+# storage/ltdataset/maxextend	 1	# combined with...
+# storage/ltdataset/extendperiod 0	# ...means no user extention
+#
+
+# Maximum sizes
+# XXX should come from sitevars
+my %maxsize = (
+    "stdataset" => (10*1024*1024),	# 10TiB
+    "ltdataset" => (1*1024*1024),	# 1TiB
+);
+
+# Maximum length of a lease
+# XXX should come from sitevars
+my %maxlength = (
+    "stdataset" => (5*24*60*60),	# 5 days
+    "ltdataset" => 0,			# forever
+);
+
+# Protos
+sub fatal($);
+
+#
+# Configure variables
+#
+my $TB		 = "@prefix@";
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use libdb;
+use Quota;
+use Lease;
+use Project;
+use User;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{h})) {
+    usage();
+}
+if (defined($options{d})) {
+    $debug++;
+}
+if (defined($options{U})) {
+    $approveme = 0;
+}
+if (defined($options{o})) {
+    $uid = $options{o};
+}
+if (defined($options{s})) {
+    if ($options{s} =~ /^(\d+)$/) {
+	$size = $1;
+    } else {
+	fatal("Could not parse size.");
+    }
+}
+if (defined($options{t})) {
+    $dstype = $options{t};
+}
+if (defined($options{e})) {
+    $expire = str2time($options{e});
+    if (!$expire) {
+	fatal("Could not parse expiration date.");
+    }
+}
+if (defined($options{a})) {
+    $attrstr = $options{a};
+}
+
+if (!$size || !$dstype || !$expire || @ARGV != 1) {
+    print STDERR "Must specify size, type, expiration date, and name\n";
+    usage();
+}
+
+# name must include a project
+$lname = $ARGV[0];
+if ($lname =~ /^([-\w]+)\/([-\w]+)$/) {
+    $pid = $1;
+    $lname = $2;
+} else {
+    fatal("Dataset name $lname not in the form <pid>/<lname>.");
+}
+
+my $this_user = User->ThisUser();
+if (! defined($this_user)) {
+    fatal("You ($UID) do not exist!");
+}
+
+#
+# Check owner: caller must be admin or be the specified user.
+#
+my $user;
+if ($uid) {
+    $user = User->Lookup($uid);
+    if (TBAdmin()) {
+	if (!defined($user)) {
+	    fatal("No such user $uid\n");
+	}
+    } else {
+	if (!$user || !$user->SameUser($this_user)) {
+	    fatal("Must be admin to act on behalf of uid $uid");
+	}
+    }
+} else {
+    $user = $this_user;
+    $uid = $this_user->uid();
+}
+
+#
+# Check project: caller must be admin or have local_root access in the project.
+#
+my $project = Project->Lookup($pid);
+if (!defined($project)) {
+    fatal("No such project $pid\n");
+}
+if (!TBAdmin() &&
+    !$project->AccessCheck($this_user, PROJMEMBERTRUST_ROOT())) {
+    fatal("Must have local_root privileges in pid $pid");
+}
+
+#
+# Check type: currently only two defined.
+#
+if (!exists($descrip{$dstype})) {
+    print STDERR "Invalid dataset type $dstype, should be one of:\n";
+    foreach my $l (keys %descrip) {
+	print STDERR "'$l': ", $descrip{$l}, "\n";
+    }
+    exit(1);
+}
+
+#
+# Check size: size must be > 0 and the size must be less than site limit.
+#
+if ($size <= 0) {
+    fatal("Size must be greater than zero.");
+}
+if ($approveme && $size > $maxsize{$dstype}) {
+    print STDERR
+	"Requested size ($size) is larger than allowed by default (" .
+	$maxsize{$dstype} . ").\n";
+    print STDERR
+	"Try again with '-U' option and request special approval by testbed-ops.\n";
+    exit(1);
+}
+
+#
+# Check expiration: must be in the future and within the site-specific
+# max lengths.
+#
+my $now = time();
+my $delta = $expire - $now;
+if ($delta < 0) {
+    fatal("Expiration date is in the past!");
+}
+if ($maxlength{$dstype} != 0 && $approveme && $delta > $maxlength{$dstype}) {
+    my $mdate = localtime($now + $maxlength{$dstype});
+    my $rdate = localtime($expire);
+    print STDERR
+	"Expiration ($rdate) is beyond the maximum allowed by default ($mdate).\n";
+    print STDERR
+	"Try again with '-U' option and request special approval by testbed-ops.\n";
+    exit(1);
+}
+
+#
+# Check attributes: right now, must just be a well-formed string.
+#
+foreach my $kv (split(',', $attrstr)) {
+    if ($kv =~ /^([-\w]+)=([-\w\.\+\/:]+)$/) {
+	# XXX filter out any size= attribute, we will re-add at the end.
+	if ($1 eq "size") {
+	    next;
+	}
+	$attrs{$1} = $2;
+    } else {
+	fatal("Malformed attribute string '$attrstr'.");
+    }
+}
+$attrs{'size'} = $size;
+
+#
+# Check name: lease with this name must not already exist.
+#
+if (Lease->Lookup($pid, $lname)) {
+    fatal("Lease $pid/$lname already exists.");
+}
+
+#
+# Check quota: long-term datasets count against the project quota.
+#
+if ($dstype eq "ltdataset") {
+    $quota = Quota->Lookup($pid, $qname);
+    if (!defined($quota)) {
+	fatal("No $qname quota associated with $pid.");
+    }
+
+    #
+    # Lock the quota object while we are performing the check.
+    #
+    # This is the convention we used to atomically access quotas.
+    # Blockstores that count against the quota should not come or go
+    # while the lock is held, nor should the quota change.
+    #
+    if ($quota->Lock()) {
+	fatal("Could not lock $pid quota object, try later.");
+    }
+
+    #
+    # Unless they have an unlimited quota, add up all the existing
+    # ltdataset datasets to see if the new one will put them over quota.
+    #
+    if (!$quota->IsUnlimited()) {
+	my $qsize = $quota->size();
+	my $allocated = 0;
+
+	my @datasets = Lease->AllProjectLeases($pid, $dstype);
+	foreach my $dataset (@datasets) {
+	    my $lsize = $dataset->GetAttribute("size");
+	    fatal("ltdataset dataset $dataset has no size!?")
+		if (!defined($lsize));
+	    $allocated += $lsize;
+	}
+	if ($allocated + $size > $qsize) {
+	    fatal("Allocation of $size would put $pid over quota ($qsize).");
+	}
+    }
+}
+
+my $args = {
+    "lease_id" => $lname,
+    "pid" => $project,
+    "uid" => $user,
+    "type" => $dstype,
+    "lease_end" => $expire,
+    "state" => "unapproved"
+};
+my $lease = Lease->Create($args, \%attrs);
+if (!$lease) {
+    fatal("Could not create dataset lease $lname in $pid.");
+}
+
+# No longer need to hold the quota lock
+if (defined($quota)) {
+    $quota->Unlock();
+    $quota = undef;
+}
+
+if ($approveme) {
+    if ($lease->Approve("valid")) {
+	fatal("Created lease, but could not approve it!?");
+    }
+}
+
+print "Created lease '$pid/$lname' for " . $descrip{$dstype} .
+      ", expires on " . localtime($expire) . "\n";
+
+if (!$approveme) {
+    # send message to testbed-ops to approve?
+    print "NOTE: lease must still be approved before it can be used\n";
+}
+
+exit(0);
+
+sub fatal($)
+{
+    my ($mesg) = $_[0];
+
+    $quota->Unlock()
+	if (defined($quota));
+    die("*** $0:\n".
+	"    $mesg\n");
+}
+

@@ -30,6 +30,11 @@ use vars qw(@ISA @EXPORT);
 @ISA    = "Exporter";
 @EXPORT = qw ( );
 
+# Configure variables
+use vars qw($TB $BSCONTROL);
+$TB        = "@prefix@";
+$BSCONTROL = "$TB/sbin/bscontrol";
+
 use libdb;
 use libtestbed;
 use EmulabConstants;
@@ -290,20 +295,20 @@ sub Create($$;$) {
 sub Delete($) {
     my ($self) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
     my $idx  = $self->idx();
     my $plid = $self->pid() .":". $self->lease_id();
 
     DBQueryWarn("delete from project_leases where lease_idx=$idx")
-	or return -1;
+	or return LEASE_ERROR_FAILED();
     
     DBQueryWarn("delete from lease_attributes where lease_idx=$idx")
-	or return -1;
+	or return LEASE_ERROR_FAILED();
 
     DBQueryWarn("delete from lease_permissions where lease_idx=$idx")
-	or return -1;
+	or return LEASE_ERROR_FAILED();
 
     delete($leases{$idx})
 	if (exists($leases{$idx}));
@@ -311,6 +316,83 @@ sub Delete($) {
 	if (exists($leases{$plid}));
 
     return 0
+}
+
+#
+# Approve a lease.
+#
+sub Approve($$) {
+    my ($self,$state) = @_;
+
+    return LEASE_ERROR_FAILED()
+	if (!ref($self));
+
+    my $hadlock = GotLock();
+
+    # Lock the lease once we start messing with the state.
+    return LEASE_ERROR_BUSY()
+	if (!$hadlock && $self->Lock());
+
+    if ($self->state() eq "initializing") {
+	$self->Unlock()
+	    if (!$hadlock);
+	return LEASE_ERROR_BUSY();
+    }
+
+    if ($self->state() ne "unapproved") {
+	print STDERR "$self: lease has already been approved.\n";
+	goto bad;
+    }
+
+    #
+    # Force allocation of storage for dataset leases.
+    # We put the lease in the special "initializing" state while doing this.
+    # XXX this should be in Lease::Blockstore object!
+    #
+    if ($self->type() =~ /dataset$/) {
+	#
+	# Must be an associated size attribute.
+	#
+	my $size = $self->GetAttribute("size");
+	if ($size == 0 || $size !~ /^\d+$/) {
+	    print STDERR "$self: no valid 'size' attribute\n";
+	    goto bad;
+	}
+
+	#
+	# Mark the lease as in-transition and unlock it since allocating
+	# storage could take a long time.
+	#
+	$self->UpdateState("initializing");
+	$self->Unlock();
+
+	#
+	# Call the blockstore control program to handle all things
+	# blockstore related (e.g., the actual allocation of storage
+	# on the storage servers).
+	#
+	my $idx = $self->lease_idx();
+	if (system("$BSCONTROL -l $idx -s $size create lease-$idx")) {
+	    print STDERR "$self: could not allocate storage.\n";
+	    $self->UpdateState("unapproved");
+	    goto bad;
+	}
+
+	# no need to re-lock transitioning out of initializing state
+	$self->UpdateState($state);
+    } else {
+	$self->UpdateState($state);
+	$self->Unlock();
+    }
+
+    # It all worked!
+    $self->BumpLastUsed();
+    return 0;
+
+bad:
+    $self->Unlock()
+	if (!$hadlock && $self->GotLock());
+    return LEASE_ERROR_FAILED();
 }
 
 #
@@ -341,10 +423,12 @@ sub AllLeases($)
 
 #
 # Return a list of all leases belonging to a particular project.
+# Optionally, only those of the given type.
+# The list will be ordered by increasing lease_idx.
 #
-sub AllProjectLeases($$)
+sub AllProjectLeases($$;$)
 {
-    my ($class, $pid)  = @_;
+    my ($class, $pid, $type)  = @_;
     my @pleases = ();
     
     return undef
@@ -354,8 +438,18 @@ sub AllProjectLeases($$)
 	$pid = $pid->pid();
     }
     
+    my $tclause = "";
+    if (defined($type)) {
+	if (!grep {/^$type$/} @LEASE_TYPES) {
+	    print STDERR "Lease->AllProjectLeases: unknown type: $type\n";
+	    return undef;
+	}
+	$tclause = "and type='$type'";
+    }
+
     my $query_result =
-	DBQueryWarn("select lease_id from project_leases where pid='$pid'");
+	DBQueryWarn("select lease_id from project_leases where ".
+		    "pid='$pid' $tclause order by lease_idx");
     
     return ()
 	if (!$query_result || !$query_result->numrows);
@@ -413,7 +507,7 @@ sub Update($$)
     my ($self, $argref) = @_;
 
     # Must be a real reference. 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (! ref($self));
 
     my $idx = $self->idx();
@@ -423,7 +517,7 @@ sub Update($$)
 	my $val = $argref->{$key};
 
 	# Don't let caller update the lease's index - that would be bad.
-	return -1
+	return LEASE_ERROR_FAILED()
 	    if ($key eq "lease_idx");
 
 	# Treat NULL special.
@@ -434,7 +528,7 @@ sub Update($$)
     my $query = "update project_leases set " . join(",", @sets) .
 	" where lease_idx='$idx'";
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (! DBQueryWarn($query));
 
     return Refresh($self);
@@ -447,7 +541,7 @@ sub Refresh($)
 {
     my ($self) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (! ref($self));
 
     my $idx = $self->idx();
@@ -456,7 +550,7 @@ sub Refresh($)
 	DBQueryWarn("select * from project_leases".
 		    " where lease_idx='$idx'");
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!$query_result || !$query_result->numrows);
 
     $self->{"DBROW"}    = $query_result->fetchrow_hashref();
@@ -471,21 +565,21 @@ sub Refresh($)
 sub UpdateState($$) {
     my ($self, $state) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!defined($state));
 
     if (!grep {/^$state$/} @LEASE_STATES) {
 	print STDERR "Lease->UpdateState: Invalid state: $state\n";
-	return -1;
+	return LEASE_ERROR_FAILED();
     }
 
     my $idx = $self->idx();
     DBQueryWarn("update project_leases set state='$state',statestamp=NOW() ".
 		"where lease_idx=$idx")
-	or return -1;
+	or return LEASE_ERROR_FAILED();
 
     $self->Refresh();
     return 0;
@@ -497,7 +591,7 @@ sub UpdateState($$) {
 sub BumpLastUsed($) {
     my ($self) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
     my $idx = $self->idx();
@@ -512,12 +606,12 @@ sub BumpLastUsed($) {
 sub SetLastUsedTime($$) {
     my ($self, $ntime) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
     if ($ntime > time()) {
 	print STDERR "Lease->SetLastUsedTime: Can't set lease last-used time in the future.\n";
-	return -1
+	return LEASE_ERROR_FAILED();
     }
     if ($ntime < $self->inception()) {
 	$ntime = 0;
@@ -525,7 +619,7 @@ sub SetLastUsedTime($$) {
 
     my $idx = $self->idx();
     DBQueryWarn("update project_leases set last_used=FROM_UNIXTIME($ntime) where lease_idx=$idx")
-	or return -1;
+	or return LEASE_ERROR_FAILED();
 
     $self->Refresh();
     return 0;
@@ -537,18 +631,18 @@ sub SetLastUsedTime($$) {
 sub AddTime($$) {
     my ($self, $ntime) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
     if ($ntime < 1) {
 	print STDERR "Lease->AddTime: Time to add must be a positive number of seconds.\n";
-	return -1
+	return LEASE_ERROR_FAILED()
     }
 
     my $idx = $self->idx();
     my $newend = $self->lease_end() + $ntime;
     DBQueryWarn("update project_leases set lease_end=FROM_UNIXTIME($newend) where lease_idx=$idx")
-	or return -1;
+	or return LEASE_ERROR_FAILED();
 
     $self->Refresh();
     return 0;
@@ -560,17 +654,17 @@ sub AddTime($$) {
 sub SetEndTime($$) {
     my ($self, $ntime) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
     if ($ntime < time()) {
 	print STDERR "Lease->SetEndTime: Can't move lease end time into the past.\n";
-	return -1
+	return LEASE_ERROR_FAILED();
     }
 
     my $idx = $self->idx();
     DBQueryWarn("update project_leases set lease_end=FROM_UNIXTIME($ntime) where lease_idx=$idx")
-	or return -1;
+	or return LEASE_ERROR_FAILED();
 
     $self->Refresh();
     return 0;
@@ -693,10 +787,10 @@ sub GrantAccess($$$)
     } 
     else {
 	print STDERR "Lease->GrantAccess: Bad target: $target\n";
-	return -1;
+	return LEASE_ERROR_FAILED();
     }
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!DBQueryWarn("replace into lease_permissions set ".
 			 "  lease_idx=$idx, lease_id='$lease_id', ".
 			 "  permission_type='$perm_type', ".
@@ -727,10 +821,10 @@ sub RevokeAccess($$)
     }
     else {
 	print STDERR "Lease->RevokeAccess: Bad target: $target\n";
-	return -1;
+	return LEASE_ERROR_FAILED();
     }
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!DBQueryWarn("delete from lease_permissions ".
 			 "where lease_idx=$idx and ".
 			 "  permission_type='$perm_type' and ".
@@ -745,7 +839,7 @@ sub LoadAttributes($)
 {
     my ($self) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
     return 0
@@ -824,7 +918,7 @@ sub GetAttribute($$;$$$)
     $$pattrvalue = undef;
     $$pattrtype = undef
 	if (defined($pattrtype));
-    return -1;
+    return LEASE_ERROR_FAILED();
 }
 
 #
@@ -851,11 +945,11 @@ sub SetAttribute($$$;$)
 {
     my ($self, $attrkey, $attrvalue, $attrtype) = @_;
     
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
     $self->LoadAttributes() == 0
-	or return -1;
+	or return LEASE_ERROR_FAILED();
 
     $attrtype = "string"
 	if (!defined($attrtype));
@@ -865,7 +959,7 @@ sub SetAttribute($$$;$)
     DBQueryWarn("replace into lease_attributes set ".
 		"  lease_idx='$idx', attrkey='$attrkey', ".
 		"  attrtype='$attrtype', attrval=$safe_attrvalue")
-	or return -1;
+	or return LEASE_ERROR_FAILED();
 
     $self->{"ATTRS"}->{$attrkey} = {
 	"key" => $attrkey,
@@ -882,7 +976,7 @@ sub SetAttribute($$$;$)
 sub DeleteAttribute($$) {
     my ($self, $attrkey) = @_;
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
     my $idx = $self->idx();
@@ -902,7 +996,7 @@ sub Lock($)
     my ($self) = @_;
 
     # Must be a real reference. 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (! ref($self));
 
     # Already locked?
@@ -910,7 +1004,7 @@ sub Lock($)
 	return 0;
     }
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (!DBQueryWarn("lock tables project_leases write"));
 
     my $idx = $self->idx();
@@ -922,7 +1016,7 @@ sub Lock($)
     if (! $query_result ||
 	$query_result->numrows == 0) {
 	DBQueryWarn("unlock tables");
-	return -1;
+	return LEASE_ERROR_FAILED();
     }
     DBQueryWarn("unlock tables");
     $self->{'LOCKED'} = time();
@@ -935,12 +1029,12 @@ sub Unlock($)
     my ($self) = @_;
 
     # Must be a real reference. 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (! ref($self));
 
     my $idx   = $self->idx();
 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (! DBQueryWarn("update project_leases set locked=null,locker_pid=0 " .
 			  "where lease_idx=$idx"));
     
@@ -968,7 +1062,7 @@ sub WaitLock($$)
     my ($self, $seconds) = @_;
 
     # Must be a real reference. 
-    return -1
+    return LEASE_ERROR_FAILED()
 	if (! ref($self));
 
     while ($seconds > 0) {

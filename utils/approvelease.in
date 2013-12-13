@@ -44,7 +44,6 @@ my $debug = 0;
 my $pid;
 my $state = "valid";
 my $lname;
-my $now = time();
 my $lease;
 
 # Protos
@@ -54,7 +53,6 @@ sub fatal($);
 # Configure variables
 #
 my $TB		 = "@prefix@";
-my $BSCONTROL	 = "$TB/sbin/bscontrol";
 
 #
 # Testbed Support libraries
@@ -107,7 +105,10 @@ if ($lname =~ /^([-\w]+)\/([-\w]+)$/) {
     fatal("Lease name $lname not in the form <pid>/<lname>.");
 }
 
-# XXX must be admin right now
+#
+# Normally, leases are approved at creation time. To approve other leases
+# explicitly, you must be admin.
+# 
 if (!TBAdmin()) {
     fatal("Only admins can approve leases.");
 }
@@ -132,63 +133,18 @@ if (!$lease) {
 if (!$lease->AccessCheck($this_user, LEASE_ACCESS_MODIFY())) {
     fatal("$pid/$lname: you are not allowed to modify lease.");
 }
-
-# Lock the lease once we start messing with the state.
-if ($lease->Lock()) {
-    fatal("$pid/$lname: currently locked, try again later.");
-}
-
 if ($lease->state() ne "unapproved") {
-    fatal("$pid/$lname: lease has already been approved!?");
+    fatal("$pid/$lname: lease has already been approved.");
 }
 
-#
 # Check new state. Must be something other than "unapproved".
-#
 if ($state eq "unapproved") {
     fatal("$pid/$lname: must set to one of the approved states.");
 }
 
-#
-# Force allocation of storage for dataset leases.
-# We put the lease in the special "initializing" state while doing this.
-#
-if ($lease->type() =~ /dataset$/) {
-    #
-    # Must be an associated size attribute.
-    #
-    my $size = $lease->GetAttribute("size");
-    if ($size && $size =~ /^(\d+)$/) {
-	$size = $1;
-    } else {
-	fatal("$pid/$lname: no valid 'size' attribute");
-    }
-
-    #
-    # Mark the lease as in-transition and unlock it since allocating
-    # storage could take a long time.
-    #
-    if ($lease->UpdateState("initializing")) {
-	fatal("$pid/$lname: could not set state to 'initializing'.");
-    }
-    $lease->Unlock();
-
-    #
-    # Call the blockstore control program to handle all things blockstore
-    # related (e.g., the actual allocation of storage on the storage servers).
-    #
-    my $idx = $lease->lease_idx();
-    if (system("$BSCONTROL -l $idx -s $size create lease-$idx")) {
-	$lease->UpdateState("unapproved");
-	fatal("$pid/$lname: could not allocate storage");
-    }
-
-    # no need to re-lock transitioning out of initializing state
-    $lease->UpdateState($state);
-    print "$pid/$lname: allocated $size MiB of storage\n";
-} else {
-    $lease->UpdateState($state);
-    $lease->Unlock();
+# Do it.
+if ($lease->Approve($state)) {
+    fatal("$pid/$lname: could not approve lease into state '$state'");
 }
 
 # It all worked!
@@ -199,9 +155,6 @@ sub fatal($)
 {
     my ($mesg) = $_[0];
 
-    if (defined($lease) && $lease->GotLock()) {
-	$lease->Unlock();
-    }
     die("*** $0:\n".
 	"    $mesg\n");
 }
