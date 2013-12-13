@@ -126,11 +126,6 @@ if ($EUID != 0) {
 	"    Must be root! Maybe its a development version?\n");
 }
 
-# Must be admin to do this.
-if (!TBAdmin()) {
-    fatal("Must be admin\n");
-}
-
 # Commands
 my %cmds = (
    "list"   => \&bs_list,
@@ -724,7 +719,8 @@ sub bs_create($$$@)
     # Now we can begin the task of actually creating the blockstore!
     # First, lookup the blockstore object for the underlying pool.
     #
-    print STDERR "$name: size=$size, server=$srv, pool=$pool\n";
+    print STDERR "$name: size=$size, server=$srv, pool=$pool\n"
+	if ($debug);
     my $bstore = Blockstore->Lookup($srv, $pool);
     if (!$bstore) {
 	fatal("create: could not find blockstore for $srv:$pool");
