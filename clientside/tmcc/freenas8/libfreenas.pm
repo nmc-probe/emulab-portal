@@ -438,7 +438,7 @@ sub listPools() {
 sub convertZfsToMebi($) {
     my ($zsize) = @_;
 
-    if ($zsize =~ /(\d+[KMGT])B?$/) {
+    if ($zsize =~ /([\d\.]+[KMGT])B?$/) {
 	$zsize = $1 . "iB";
     }
     return convertToMebi($zsize);
