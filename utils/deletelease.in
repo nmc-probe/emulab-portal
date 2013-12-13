@@ -104,11 +104,6 @@ if ($lname =~ /^([-\w]+)\/([-\w]+)$/) {
     fatal("Lease name $lname not in the form <pid>/<lname>.");
 }
 
-# XXX must be admin right now
-if (!TBAdmin()) {
-    fatal("Only admins can delete leases.");
-}
-
 my $this_user = User->ThisUser();
 if (! defined($this_user)) {
     fatal("You ($UID) do not exist!");
@@ -132,7 +127,7 @@ if ($lease->Lock()) {
 
 my $ostate = $lease->state();
 if (!$force && $ostate eq "initializing") {
-    fatal("$pid/$lname: in transition, cannot delete");
+    fatal("$pid/$lname: currently in transition, try again later.");
 }
 
 #
