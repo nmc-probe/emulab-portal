@@ -890,8 +890,13 @@ sub GenDefsFile($)
 	my @leases = Lease->AllProjectLeases($pid);
 	print TCL "# Available datasets\n";
 	foreach my $lease (@leases) {
-	    # lease must be valid
-	    next if ($lease->state() ne "valid");
+	    #
+	    # Lease must be valid.
+	    # XXX we might relax this in the future and allow RO mapping
+	    # of leases in their grace period.
+	    #
+	    next if ($lease->state() ne LEASE_STATE_VALID());
+
 	    # must have associated blockstore
 	    my $idx = $lease->lease_idx();
 	    my $bstore = Blockstore->LookupByLease($idx);
