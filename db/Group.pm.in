@@ -750,7 +750,8 @@ sub AccessCheck($$$)
     }
     elsif ($access_type == TB_PROJECT_MAKEOSID() ||
 	   $access_type == TB_PROJECT_MAKEIMAGEID() ||
-	   $access_type == TB_PROJECT_CREATEEXPT()) {
+	   $access_type == TB_PROJECT_CREATEEXPT() ||
+	   $access_type == TB_PROJECT_CREATELEASE()) {
 	$mintrust = PROJMEMBERTRUST_LOCALROOT();
     }
     elsif ($access_type == TB_PROJECT_ADDUSER() ||
