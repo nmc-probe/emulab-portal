@@ -34,16 +34,18 @@ sub usage()
     print STDERR "Usage: deletelease [-fhd] lname\n";
     print STDERR "   -h       This message\n";
     print STDERR "   -d       Print additional debug info\n";
-    print STDERR "   -f       Force destruction even if lease is in transition\n";
+    print STDERR "   -f       Force destruction even if lease is not in the correct state\n";
+    print STDERR "   -w time  Try for up to time seconds to lock lease (0 means forever)\n";
     print STDERR "   lname    Name of lease in <pid>/<id> form\n";
     exit(-1);
 }
-my $optlist  = "dhf";
+my $optlist  = "dhfw:";
 my $debug = 0;
 my $force = 0;
 my $pid;
 my $lname;
 my $lease;
+my $waittime;
 
 # Protos
 sub fatal($);
@@ -60,7 +62,6 @@ my $BSCONTROL	 = "$TB/sbin/bscontrol";
 use lib "@prefix@/lib";
 use libdb;
 use Lease;
-use Blockstore;
 use Project;
 use User;
 
@@ -90,6 +91,12 @@ if (defined($options{d})) {
 }
 if (defined($options{f})) {
     $force = 1;
+}
+if (defined($options{w})) {
+    $waittime = $options{w};
+    if ($waittime !~ /^\d+$/) {
+	fatal("Wait time must be >= 0.");
+    }
 }
 if (@ARGV != 1) {
     print STDERR "Must specify exactly one lname\n";
@@ -121,63 +128,78 @@ if (!Project->Lookup($pid) || !($lease = Lease->Lookup($pid, $lname)) ||
 #
 # Lock the lease and handle cleanup.
 #
-if ($lease->Lock()) {
-    fatal("$pid/$lname: currently locked, try again later.");
-}
-
 my $ostate = $lease->state();
-if (!$force && $ostate eq "initializing") {
-    fatal("$pid/$lname: currently in transition, try again later.");
+if (!defined($waittime)) {
+    fatal("$pid/$lname: could not acquire lock, try again with -w")
+	if ($lease->Lock());
+} else {
+    my $rv = $lease->WaitLock($waittime, 1);
+
+    # someone else deleted it, that is okay with us
+    if ($rv == LEASE_ERROR_GONE()) {
+	print "Someone else deleted '$pid/$lname'.\n";
+	exit(0);
+    }
+
+    # any other error is fatal (maybe not if $force is set?)
+    if ($rv) {
+	fatal("$pid/$lname: could not acquire lock after $waittime seconds");
+    }
+
+    #
+    # Warn about state changes while waiting for the lock.
+    # Note that ValidTransition will ensure we don't do anything
+    # really stupid in this case (e.g., lease was un-expired at the
+    # last second).
+    #
+    my $nstate = $lease->state();
+    if ($ostate ne $nstate) {
+	print STDERR
+	    "WARNING: lease changed state while waiting for the lock".
+	    " ($ostate => $nstate).\n";
+	$ostate = $nstate;
+    }
 }
 
-#
-# For an approved dataset lease, we must free up the server storage
-#
-if ($lease->type() =~ /dataset$/ && $ostate ne "unapproved") {
-    #
-    # Put in initializing state and unlock since this could be
-    # time consuming.
-    #
-    if ($lease->UpdateState("initializing")) {
-	fatal("$pid/$lname: could not mark lease as in-transition.");
+# if the lease is in use, disallow unless forced
+if ($lease->InUse()) {
+    my $expts = int(@{$lease->UsingResources()});
+    if (!$force) {
+	fatal("$pid/$lname is in use by $expts experiment(s) right now");
     }
-    $lease->Unlock();
+    print STDERR "$pid/$lname is in use by $expts experiment(s) right now,".
+	" continuing anyway\n";
+}
 
-    my $idx = $lease->lease_idx();
-
-    #
-    # For efficiency, lookup the server in the blockstores table.
-    # Saves gathering info from every storage server.
-    #
-    my $bstore = Blockstore->LookupByLease($idx);
-    if (!$bstore) {
-	fatal("$pid/$lname: could not find blockstore object.");
+# make sure we can destroy a lease from the current state.
+if (!$lease->ValidTransition("DEAD")) {
+    if (!$force) {
+	fatal("$pid/$lname: cannot destroy lease from state '$ostate'.");
     }
-    my $srv = $bstore->node_id();
+    print STDERR
+	"$pid/$lname: should not destroy lease from state '$ostate', ".
+	"continuing anyway.\n";
+}
 
-    #
-    # Call the blockstore control program to handle all things blockstore
-    # related (e.g., the actual deallocation of storage on the servers).
-    #
-    if (system("$BSCONTROL -S $srv destroy lease-$idx")) {
-	$lease->UpdateState("unapproved");
-	fatal("$pid/$lname: could not deallocate storage");
-    }
+# Dealloc will put the lease back into the unapproved state
+if ($lease->DeallocResources()) {
+    $lease->UpdateState(LEASE_STATE_LOCKED());
+    fatal("$pid/$lname: could not deallocate resources, left in 'locked' state.");
 }
 
 if ($lease->Delete()) {
-    fatal("Could not destroy lease $pid/$lname.");
+    fatal("$pid/$lname: could not destroy lease.");
 }
 
+print "Deleted lease '$pid/$lname'.\n";
 exit(0);
 
 sub fatal($)
 {
     my ($mesg) = $_[0];
 
-    if (defined($lease) && $lease->GotLock()) {
-	$lease->Unlock();
-    }
+    $lease->Unlock()
+	if (defined($lease) && $lease->GotLock());
     die("*** $0:\n".
 	"    $mesg\n");
 }
