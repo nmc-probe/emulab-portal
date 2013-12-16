@@ -41,13 +41,74 @@ use EmulabConstants;
 use User;
 use Group;
 use Project;
+use Blockstore;
 use English;
 use Date::Parse;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
 
 my @LEASE_TYPES  = ("stdataset","ltdataset");
-my @LEASE_STATES = ("valid","unapproved","grace","locked","expired","initializing");
+
+#
+# Lease states.
+#
+# "unapproved".
+#    All leases are in this state when they are created. No resources are
+#    allocated in this state, but the desired resources may count against
+#    a quota. A lease in this state can not be accessed other than to
+#    destroy or approve it. The latter moves it to the valid state, a
+#    step that triggers resource allocation.
+#
+# "valid"
+#    A valid lease can be mapped into an experiment. A lease remains valid
+#    unless it is explicitly or implicitly freed. Explicit would be if the
+#    user deletes the lease, implicit if the lease reaches its expiration
+#    date or has exceeded the "idle" limit. At this time, a lease moves to
+#    the "grace" state. This transition may or may not revoke permission
+#    from any experiment which has it mapped; resources remain allocated.
+#    A valid lease may also transition into the locked state if an admin
+#    administratively decides to prohibit access to a resource. Again, it
+#    is no clear what happens if the lease is currently mapped.
+#
+# "grace"
+#    A lease in the grace state may still make resources available to
+#    experiments, but in a "read-only" mode. For example, for storage
+#    leases, the storage would be exported without write permissions.
+#    When the grace period expires (or immediately if there was no grace
+#    period), the lease will transition to either the "expired" or "locked"
+#    state. The former is for resources where the policy is to immediately
+#    reclaim and reuse the resources, suitable for an automatic reclamation
+#    policy. The latter is for policies where a human should make the
+#    reclamation decision. From here a lease can also go back into the
+#    valid state (if the lease is extended).
+#
+# "locked"
+#    In the locked state, a lease may not be mapped. Resources are still
+#    allocated, and the lease may return to the valid state. The lease may
+#    also be moved to the "expired" state so that the resources can be
+#    reclaimed.
+#
+# "expired"
+#    This is the "roach motel" for leases, they check in but they never
+#    check out. Once in this state, a reaper will reclaim the resources
+#    and destroy the lease.
+#
+my @LEASE_STATES = (
+    "unapproved",
+    "valid",
+    "grace",
+    "locked",
+    "expired");
+
+# Valid transitions for each state.
+my %LEASE_TRANSITIONS = (
+    "unapproved" => { "valid" => 1, "DEAD" => 1 },
+    "valid"      => { "grace" => 1, "locked" => 1 },
+    "grace"      => { "valid" => 1, "expired" => 1, "locked" => 1 },
+    "locked"     => { "valid" => 1, "expired" => 1 },
+    "expired"    => { "unapproved" => 1, "DEAD" => 1 },
+);
+    
 
 # Cache of instances to avoid regenerating them.
 my %leases	= ();
@@ -78,7 +139,8 @@ sub expiration($)      {return $_[0]->lease_end(); }
 sub last_used($)       {return str2time($_[0]->{'DBROW'}->{'last_used'}); }
 sub state($)           {return $_[0]->{'DBROW'}->{'state'}; }
 sub statestamp($)      {return str2time($_[0]->{'DBROW'}->{'statestamp'}); }
-
+sub locktime($)        {return str2time($_[0]->{'DBROW'}->{'locked'}); }
+sub lockpid($)         {return $_[0]->{'DBROW'}->{'locker_pid'}; }
 
 #
 # Lookup a lease in the DB and return an object representing it.
@@ -215,7 +277,7 @@ sub Create($$;$) {
     if (ref($uid) ne "User") {
 	my $nuid = User->Lookup($uid);
 	if (!defined($nuid)) {
-	    print STDERR "Lease->Create: Bad/unknown user: $uid\n";
+	    print STDERR "Lease->Create: Bad/unknown owner: $uid\n";
 	    return undef;
 	}
 	$uid = $nuid
@@ -225,7 +287,7 @@ sub Create($$;$) {
     # should have already checked to be sure that the caller has permission
     # to create the lease in the first place.
     if (!$pid->LookupUser($uid)) {
-	print STDERR "Lease->Create: User $uid is not a member of project $pid\n";
+	print STDERR "Lease->Create: Owner $uid is not a member of project $pid\n";
 	return undef;
     }
     
@@ -318,35 +380,82 @@ sub Delete($) {
     return 0
 }
 
-#
-# Approve a lease.
-#
-sub Approve($$) {
-    my ($self,$state) = @_;
+sub InUse($) {
+    my ($self) = @_;
 
     return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
-    my $hadlock = GotLock();
-
-    # Lock the lease once we start messing with the state.
-    return LEASE_ERROR_BUSY()
-	if (!$hadlock && $self->Lock());
-
-    if ($self->state() eq "initializing") {
-	$self->Unlock()
-	    if (!$hadlock);
-	return LEASE_ERROR_BUSY();
+    my $lref = $self->UsingResources();
+    if (!$lref) {
+	return 0;
     }
 
+    return ((@$lref > 0) ? 1 : 0);
+}
+
+#
+# Returns a list of experiment indicies that are currently using the
+# resources associated with this lease.
+#
+sub UsingResources($) {
+    my ($self) = @_;
+
+    return undef
+	if (!ref($self));
+
+    my @eidxlist = ();
+
+    #
+    # Before doing a big honkin query, see if the lease has resources
+    # allocated to it.
+    #
+    if ($self->type() =~ /dataset$/ && $self->state() ne "unapproved") {
+	my $lidx = $self->lease_idx();
+
+	my $query_result =
+	    DBQueryWarn("select r.exptidx from blockstores as b,".
+			"   reserved_blockstores as r,project_leases as l ".
+			"where b.node_id=r.node_id and b.bs_id=r.bs_id ".
+			"   and b.lease_idx=l.lease_idx ".
+			"   and l.lease_idx='$lidx'");
+	while (my ($eidx) = $query_result->fetchrow_array()) {
+	    push(@eidxlist, $eidx);
+	}
+    }
+
+    return \@eidxlist;
+}
+
+#
+# Allocate resources to a lease and transition to the indicated state.
+# Note that this could take a long time. It is up to the caller to lock
+# the lease if atomicity is a concern.
+#
+sub AllocResources($;$) {
+    my ($self,$state) = @_;
+
+    $state = "valid"
+	if (!defined($state));
+
+    return LEASE_ERROR_FAILED()
+	if (!ref($self));
+
+    #
+    # Lease must be in the unapproved state to allocate resources.
+    # Any other state implies that resources have been allocated already.
+    #
     if ($self->state() ne "unapproved") {
-	print STDERR "$self: lease has already been approved.\n";
-	goto bad;
+	print STDERR "$self: AllocResources: must be in state 'unapproved'.\n";
+	return LEASE_ERROR_FAILED();
+    }
+    if (!$self->ValidTransition($state)) {
+	print STDERR "$self: AllocResources: cannot transition to state '$state' from unapproved.\n";
+	return LEASE_ERROR_FAILED();
     }
 
     #
     # Force allocation of storage for dataset leases.
-    # We put the lease in the special "initializing" state while doing this.
     # XXX this should be in Lease::Blockstore object!
     #
     if ($self->type() =~ /dataset$/) {
@@ -355,16 +464,9 @@ sub Approve($$) {
 	#
 	my $size = $self->GetAttribute("size");
 	if ($size == 0 || $size !~ /^\d+$/) {
-	    print STDERR "$self: no valid 'size' attribute\n";
-	    goto bad;
+	    print STDERR "$self: AllocResources: no valid 'size' attribute\n";
+	    return LEASE_ERROR_FAILED();
 	}
-
-	#
-	# Mark the lease as in-transition and unlock it since allocating
-	# storage could take a long time.
-	#
-	$self->UpdateState("initializing");
-	$self->Unlock();
 
 	#
 	# Call the blockstore control program to handle all things
@@ -373,26 +475,63 @@ sub Approve($$) {
 	#
 	my $idx = $self->lease_idx();
 	if (system("$BSCONTROL -l $idx -s $size create lease-$idx")) {
-	    print STDERR "$self: could not allocate storage.\n";
+	    print STDERR "$self: AllocResources: could not allocate storage.\n";
 	    $self->UpdateState("unapproved");
-	    goto bad;
+	    return LEASE_ERROR_FAILED();
 	}
-
-	# no need to re-lock transitioning out of initializing state
-	$self->UpdateState($state);
-    } else {
-	$self->UpdateState($state);
-	$self->Unlock();
     }
 
     # It all worked!
+    $self->UpdateState($state);
     $self->BumpLastUsed();
-    return 0;
 
-bad:
-    $self->Unlock()
-	if (!$hadlock && $self->GotLock());
-    return LEASE_ERROR_FAILED();
+    return 0;
+}
+
+sub DeallocResources($) {
+    my ($self) = @_;
+
+    return LEASE_ERROR_FAILED()
+	if (!ref($self));
+
+    #
+    # If lease is in the unapproved state, assume there is nothing to do.
+    #
+    if ($self->state() eq "unapproved") {
+	return 0;
+    }
+
+    #
+    # For a dataset lease, we must free up the server storage.
+    # XXX this should be in Lease::Blockstore object!
+    #
+    if ($self->type() =~ /dataset$/) {
+	my $idx = $self->lease_idx();
+	my $sarg = "";
+
+	#
+	# For efficiency, lookup the server in the blockstores table.
+	# Saves gathering info from every storage server.
+	#
+	my $bstore = Blockstore->LookupByLease($idx);
+	if ($bstore) {
+	    $sarg = "-S " . $bstore->node_id();
+	}
+
+	#
+	# Call the blockstore control program to handle all things blockstore
+	# related (e.g., the actual deallocation of storage on the servers).
+	#
+	if (system("$BSCONTROL $sarg destroy lease-$idx")) {
+	    print STDERR
+		"$self: DeallocResources: could not deallocate storage.\n";
+	    return LEASE_ERROR_FAILED();
+	}
+    }
+
+    $self->UpdateState("unapproved");
+    $self->SetLastUsedTime(0);
+    return 0;
 }
 
 #
@@ -551,7 +690,9 @@ sub Refresh($)
 		    " where lease_idx='$idx'");
 
     return LEASE_ERROR_FAILED()
-	if (!$query_result || !$query_result->numrows);
+	if (!$query_result);
+    return LEASE_ERROR_GONE()
+	if (!$query_result->numrows);
 
     $self->{"DBROW"}    = $query_result->fetchrow_hashref();
     $self->{"ATTRS"}    = undef;
@@ -668,6 +809,20 @@ sub SetEndTime($$) {
 
     $self->Refresh();
     return 0;
+}
+
+#
+# Deterimines if a lease can transtion into the indicated state.
+# Returns 1 if so, 0 otherwise.
+#
+sub ValidTransition($$) {
+    my ($self,$nstate) = @_;
+
+    return 0
+	if (!ref($self));
+
+    my $state = $self->state();
+    return (exists($LEASE_TRANSITIONS{$state}{$nstate}) ? 1 : 0);
 }
 
 #
@@ -1057,21 +1212,40 @@ sub GotLock($)
 #
 # Wait to get lock.
 #
-sub WaitLock($$)
+sub WaitLock($$;$)
 {
-    my ($self, $seconds) = @_;
+    my ($self, $seconds, $verbose) = @_;
+    my $forever = 0;
+    my $interval = 5;
 
     # Must be a real reference. 
     return LEASE_ERROR_FAILED()
 	if (! ref($self));
 
-    while ($seconds > 0) {
+    $forever = 1
+	if ($seconds <= 0);
+    $verbose = 0
+	if (!defined($verbose));
+
+    while ($forever || $seconds > 0) {
 	return 0
 	    if ($self->Lock() == 0);
 
 	# Sleep and try again.
-	sleep(5);
-	$seconds -= 5;
+	print STDERR
+	    "$self: locked, waiting $interval seconds and trying again...\n"
+	    if ($verbose);
+	sleep($interval);
+	$seconds -= $interval;
+
+	#
+	# Refresh our state since we slept for a non-trivial amount of time.
+	# If there is an error, it probably means that the lease has been
+	# deleted.
+	#
+	my $rv = $self->Refresh();
+	return $rv
+	    if ($rv);
     }
     # One last try.
     return $self->Lock();
