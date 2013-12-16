@@ -32,19 +32,21 @@ use Date::Parse;
 #
 sub usage()
 {
-    print STDERR "Usage: approvelease [-hd] [-s state] name\n";
+    print STDERR "Usage: approvelease [-hd] [-w waittime] [-s state] name\n";
     print STDERR "   -h         This message\n";
     print STDERR "   -d         Print additional debug info\n";
     print STDERR "   -s state   New state for the lease (defaults to 'valid')\n";
+    print STDERR "   -w time	Try for up to time seconds to lock lease (0 means forever)\n";
     print STDERR "   name       Name of lease (of form <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhs:";
+my $optlist  = "dhs:w:";
 my $debug = 0;
 my $pid;
 my $state = "valid";
 my $lname;
 my $lease;
+my $waittime;
 
 # Protos
 sub fatal($);
@@ -90,6 +92,12 @@ if (defined($options{d})) {
 if (defined($options{s})) {
     $state = $options{s};
 }
+if (defined($options{w})) {
+    $waittime = $options{w};
+    if ($waittime !~ /^\d+$/) {
+	fatal("Wait time must be >= 0.");
+    }
+}
 
 if (@ARGV != 1) {
     print STDERR "Must specify exactly one lease.\n";
@@ -106,8 +114,8 @@ if ($lname =~ /^([-\w]+)\/([-\w]+)$/) {
 }
 
 #
-# Normally, leases are approved at creation time. To approve other leases
-# explicitly, you must be admin.
+# Normally, leases are approved at creation time after quota checks.
+# To approve other leases explicitly, you must be admin.
 # 
 if (!TBAdmin()) {
     fatal("Only admins can approve leases.");
@@ -133,21 +141,41 @@ if (!$lease) {
 if (!$lease->AccessCheck($this_user, LEASE_ACCESS_MODIFY())) {
     fatal("$pid/$lname: you are not allowed to modify lease.");
 }
-if ($lease->state() ne "unapproved") {
-    fatal("$pid/$lname: lease has already been approved.");
+
+# Aquire the lease lock before we start making state changes.
+if (!defined($waittime)) {
+    fatal("$pid/$lname: could not acquire lock, try again with -w")
+	if ($lease->Lock());
+} else {
+    fatal("$pid/$lname: could not acquire lock after $waittime seconds")
+	if ($lease->WaitLock($waittime, 1));
 }
 
-# Check new state. Must be something other than "unapproved".
-if ($state eq "unapproved") {
-    fatal("$pid/$lname: must set to one of the approved states.");
+# Sanity checks on the state.
+if ($lease->state() ne LEASE_STATE_UNAPPROVED()) {
+    #
+    # XXX since we might have waited for the lock, it is possible that
+    # someone beat us to the punch. Don't consider a current state of
+    # "valid" or "locked" as an error.
+    #
+    if ($lease->state() eq LEASE_STATE_VALID() ||
+	$lease->state() eq LEASE_STATE_LOCKED()) {
+	$lease->Unlock();
+	print "$pid/$lname: has already been approved.\n";
+	exit(0);
+    }
+    fatal("$pid/$lname: lease is in invalid state '$state'.");
+}
+if (!$lease->ValidTransition($state)) {
+    fatal("$pid/$lname: cannot approve lease to state '$state'.");
 }
 
-# Do it.
-if ($lease->Approve($state)) {
+# Allocate the resources.
+if ($lease->AllocResources($state)) {
     fatal("$pid/$lname: could not approve lease into state '$state'");
 }
 
-# It all worked!
+$lease->Unlock();
 print "$pid/$lname: state is now '$state'\n";
 exit(0);
 
@@ -155,6 +183,8 @@ sub fatal($)
 {
     my ($mesg) = $_[0];
 
+    $lease->Unlock()
+	if (defined($lease) && $lease->GotLock());
     die("*** $0:\n".
 	"    $mesg\n");
 }
