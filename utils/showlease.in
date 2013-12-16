@@ -36,16 +36,18 @@ sub usage()
     print STDERR "   -h      This message\n";
     print STDERR "   -d      Print additional debug info\n";
     print STDERR "   -a      Show all leases (admin only)\n";
+    print STDERR "   -L      Show lock holders (admin only)\n";
     print STDERR "   -p pid  Show all leases for project <pid>\n";
     print STDERR "   -u uid  Show all leases owned by user <uid>\n";
     print STDERR "   lid ... Show named leases (name is <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhap:u:";
+my $optlist  = "dhaLp:u:";
 my $debug = 0;
 my $pid;
 my $uid;
 my $showall;
+my $showlockers;
 my @lids = ();
 
 # Protos
@@ -93,6 +95,9 @@ if (defined($options{d})) {
 if (defined($options{a})) {
     $showall = 1;
 }
+if (defined($options{L})) {
+    $showlockers = 1;
+}
 if (defined($options{p})) {
     $pid = $options{p};
 }
@@ -117,6 +122,10 @@ if (($pid || $uid) && @lnames > 0) {
     print STDERR "Specify only one of -p/-u and explicit list of lids\n";
     usage();
 }
+if ($showlockers && !TBAdmin()) {
+    print STDERR "Only admin can use -L\n";
+    usage();
+}
 
 my $this_user = User->ThisUser();
 if (! defined($this_user)) {
@@ -134,7 +143,7 @@ if ($pid) {
     }
     # must be admin or have access to the project
     if (!TBAdmin() &&
-	!$project->AccessCheck($this_user, PROJMEMBERTRUST_USER())) {
+	!$project->AccessCheck($this_user, TB_PROJECT_READINFO())) {
 	fatal("You do not have access to pid $pid");
     }
     @lids = Lease->AllProjectLeases($project);
@@ -173,7 +182,6 @@ print STDERR "Found ", scalar(@lids), " leases\n"
     if ($debug);
 @lids = sort { $a->pid() cmp $b->pid() || $a->lease_id() cmp $b->lease_id() } @lids;
 if (@lids > 0) {
-    my $fmt = "%-20s %-8s %-10s %-15s %-15s %-15s %-6s %s\n";
     my %states = (
 	"valid" =>      'valid',
 	"unapproved" => 'unappr',
@@ -181,11 +189,36 @@ if (@lids > 0) {
 	"locked" =>     'locked',
 	"expired" =>    'expire'
     );
+    my $fmt;
 
-    printf $fmt, "Pid/Name", "Owner", "Type", "Inception", "End",
-        "Last used", "State", "Attrs";
+    if ($showlockers) {
+	$fmt = "%-24s %-8s %-10s %-6s %-15s %s\n";
+
+	printf $fmt, "Pid/Name", "Owner", "Type", "State",
+	    "Lock Time", "Lock Process ID";
+    } else {
+	$fmt = "%-24s %-8s %-10s %-6s %3s %-15s %-15s %-15s %s\n";
+
+	printf $fmt, "Pid/Name", "Owner", "Type", "State", "Use",
+	    "Inception", "End", "Last used", "Attrs";
+    }
 
     foreach my $lease (@lids) {
+	if ($showlockers) {
+	    my $lname = $lease->pid() . "/" . $lease->lease_id();
+	    my $lproc = $lease->lockpid();
+	    my $ltime;
+	    if ($lproc != 0) {
+		$ltime = strftime("%D %R", localtime($lease->locktime()));
+	    } else {
+		$ltime = "Unlocked";
+		$lproc = "";
+	    }
+	    printf $fmt, $lname, $lease->owner(), $lease->type(),
+	        $states{$lease->state()}, $ltime, $lproc;
+	    next;
+	}
+
 	if (!$lease->AccessCheck($this_user, LEASE_ACCESS_READINFO())) {
 	    print STDERR "Admin cannot access lease $lease?!\n"
 		if (TBAdmin());
@@ -211,9 +244,13 @@ if (@lids > 0) {
 	if ($lease->last_used()) {
 	    $ltime = strftime("%D %R", localtime($lease->last_used()));
 	}
+	my $lusers = $lease->UsingResources();
+	if (!$lusers) {
+	    $lusers = ();
+	}
 	printf $fmt, $lname, $lease->owner(), $lease->type(),
-	    $stime, $etime, $ltime, $states{$lease->state()}, $attrstr;
-
+	    $states{$lease->state()}, int(@$lusers),
+	    $stime, $etime, $ltime, $attrstr;
     }
 }
 
