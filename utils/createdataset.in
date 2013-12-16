@@ -244,7 +244,7 @@ if (!defined($project)) {
     fatal("No such project $pid\n");
 }
 if (!TBAdmin() &&
-    !$project->AccessCheck($this_user, PROJMEMBERTRUST_ROOT())) {
+    !$project->AccessCheck($this_user, TB_PROJECT_CREATELEASE())) {
     fatal("Must have local_root privileges in pid $pid");
 }
 
@@ -376,10 +376,17 @@ if (defined($quota)) {
     $quota = undef;
 }
 
+#
+# Approve the lease unless otherwise told not to.
+# This can take a long time so we lock it to avoid races with others.
+#
 if ($approveme) {
-    if ($lease->Approve("valid")) {
-	fatal("Created lease, but could not approve it!?");
+    if ($lease->Lock() || $lease->AllocResources("valid")) {
+	print STDERR "WARNING: could not approve new lease, contact testbed-ops.\n";
+	$approveme = 0;
     }
+    $lease->Unlock()
+	if ($lease->GotLock());
 }
 
 print "Created lease '$pid/$lname' for " . $descrip{$dstype} .

@@ -162,7 +162,7 @@ if (!defined($project)) {
     fatal("No such project $pid\n");
 }
 if (!TBAdmin() &&
-    !$project->AccessCheck($this_user, PROJMEMBERTRUST_ROOT())) {
+    !$project->AccessCheck($this_user, TB_PROJECT_CREATELEASE())) {
     fatal("Must have local_root privileges in pid $pid");
 }
 
@@ -208,7 +208,7 @@ my $args = {
     "uid" => $user,
     "type" => $ltype,
     "lease_end" => $expire,
-    "state" => "unapproved"
+    "state" => LEASE_STATE_UNAPPROVED()
 };
 
 if (!Lease->Create($args, \%attrs)) {
