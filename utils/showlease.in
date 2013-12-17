@@ -107,12 +107,10 @@ if (defined($options{u})) {
 my @lnames = @ARGV;
 
 if ($showall) {
-    if (!TBAdmin()) {
-	print STDERR "Only admin can use -a\n";
+    if ($pid || $uid || @lnames > 0) {
+	print STDERR "Cannot use -p/-u or explicit list with -a\n";
 	usage();
     }
-    $pid = $uid = 0;
-    @lnames = ();
 }
 if ($pid && $uid) {
     print STDERR "Specify only one of -p and -u\n";
@@ -133,10 +131,14 @@ if (! defined($this_user)) {
 }
 
 if ($showall) {
-    @lids = Lease->AllLeases();
+    # Admin can see all leases, others not so much
+    foreach my $lid (Lease->AllLeases()) {
+	if ($lid->AccessCheck($this_user, LEASE_ACCESS_READINFO())) {
+	    push @lids, $lid;
+	}
+    }
 }
-
-if ($pid) {
+elsif ($pid) {
     my $project = Project->Lookup($pid);
     if (!defined($project)) {
 	fatal("No such project $pid\n");
@@ -148,8 +150,7 @@ if ($pid) {
     }
     @lids = Lease->AllProjectLeases($project);
 }
-
-if ($uid) {
+elsif ($uid) {
     my $user = User->Lookup($uid);
     if (!defined($user)) {
 	fatal("No such user $uid\n");
@@ -160,22 +161,23 @@ if ($uid) {
     }
     @lids = Lease->AllUserLeases($user);
 }
-# special case: no args, show all leases owned by the caller
-elsif (!$showall && @lnames == 0) {
-    @lids = Lease->AllUserLeases($this_user);
-}
-
-foreach my $name (@lnames) {
-    # lease names must have a project context
-    if ($name =~ /^([-\w]+)\/([-\w]+)$/) {
-	my $lid = Lease->Lookup($1, $2);
-	if (!defined($lid)) {
-	    fatal("Could not access lease $name\n.");
+elsif (@lnames > 0) {
+    foreach my $name (@lnames) {
+	# lease names must have a project context
+	if ($name =~ /^([-\w]+)\/([-\w]+)$/) {
+	    my $lid = Lease->Lookup($1, $2);
+	    if (!defined($lid)) {
+		fatal("Could not access lease $name\n.");
+	    }
+	    push @lids, $lid;
+	} else {
+	    fatal("Lease name $name not in the form <pid>/<lname>.");
 	}
-	push @lids, $lid;
-    } else {
-	fatal("Lease name $name not in the form <pid>/<lname>.");
     }
+}
+# special case: no args, show all leases owned by the caller
+else {
+    @lids = Lease->AllUserLeases($this_user);
 }
 
 print STDERR "Found ", scalar(@lids), " leases\n"
