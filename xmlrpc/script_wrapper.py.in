@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2004-2011 , 2013University of Utah and the Flux Group.
+# Copyright (c) 2004-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -160,7 +160,13 @@ API = {
     "mkblob"            : { "func" : "mkblob",
                             "help" : "Create a new blob in the blob store" },
     "rmblob"            : { "func" : "rmblob",
-                            "help" : "Remove a blob from the blob store" }
+                            "help" : "Remove a blob from the blob store" },
+    "createdataset"     : { "func" : "createdataset",
+                            "help" : "Create a persistent dataset" },
+    "deletedataset"     : { "func" : "deletedataset",
+                            "help" : "Delete a persistent dataset" },
+    "showdataset"       : { "func" : "showdataset",
+                            "help" : "Show persistent datasets" }
 };
 
 #
@@ -2692,6 +2698,171 @@ class rmblob:
 
     def usage(self):
         print "rmblob [options] uuid"
+        wrapperoptions();
+        return
+    pass
+
+#
+# createdataset
+#
+class createdataset:
+    def __init__(self, argv=None):
+        self.argv = argv;
+        return
+
+    def apply(self):
+        try:
+            opts, req_args = getopt.getopt(self.argv, "hUs:t:e:", [ "help" ]);
+            pass
+        except getopt.error, e:
+            print e.args[0]
+            self.usage();
+            return -1;
+
+        params = {};
+        for opt, val in opts:
+            if opt in ("-h", "--help"):
+                self.usage()
+                return 0
+            elif opt == "-U":
+                params["noapprove"] = "yes";
+                pass
+            elif opt == "-s":
+                params["size"] = val;
+                pass
+            elif opt == "-t":
+                params["type"] = val;
+                pass
+            elif opt == "-e":
+                params["expire"] = val;
+                pass
+            pass
+
+        # Do this after so --help is seen.
+        if len(req_args) < 1 or not params.has_key("size"):
+            self.usage();
+            return -1;
+
+        # Send the rest of the args along as a list.
+        params["dataset"] = req_args[0];
+
+        rval,response = do_method("dataset", "create", params);
+        return rval;
+
+    def usage(self):
+ 	print "createdataset [-hU] [-t type] [-e expire] -s size dataset_id";
+	print "where:";
+        print "    -U        - Create but do not approve dataset";
+        print "    -s size   - Size in MiB (1 MiB == 1024*1024)";
+        print "    -t type   - Type: one of 'stdataset' (default) or 'ltdataset'";
+        print "    -e expire - Expiration date";
+        print "";
+        print "Create a dataset with the indicated size and name";
+        wrapperoptions();
+        return
+    pass
+
+#
+# deletedataset
+#
+class deletedataset:
+    def __init__(self, argv=None):
+        self.argv = argv;
+        return
+
+    def apply(self):
+        try:
+            opts, req_args = getopt.getopt(self.argv, "hf", [ "help" ]);
+            pass
+        except getopt.error, e:
+            print e.args[0]
+            self.usage();
+            return -1;
+
+        params = {};
+        for opt, val in opts:
+            if opt in ("-h", "--help"):
+                self.usage()
+                return 0
+            elif opt == "-f":
+                params["force"] = "yes";
+                pass
+            pass
+
+        # Do this after so --help is seen.
+        if len(req_args) < 1:
+            self.usage();
+            return -1;
+
+        # Send the rest of the args along as a list.
+        params["dataset"] = req_args[0];
+
+        rval,response = do_method("dataset", "delete", params);
+        return rval;
+
+    def usage(self):
+ 	print "deletedataset [-hf] dataset_id";
+	print "where:";
+        print "    -f        - Try extra hard to delete the dataset";
+        print "";
+        print "Delete the dataset with the indicated name.";
+        print "The -f flag allows destruction of a dataset that is";
+        print "currently mapped into an experiment or that is not in";
+        print "the expired state. Obviously, this option should be used";
+        print "with caution."
+        wrapperoptions();
+        return
+    pass
+
+#
+# showdataset
+#
+class showdataset:
+    def __init__(self, argv=None):
+        self.argv = argv;
+        return
+
+    def apply(self):
+        try:
+            opts, req_args = getopt.getopt(self.argv, "au:p:h", [ "help" ]);
+            pass
+        except getopt.error, e:
+            print e.args[0]
+            self.usage();
+            return -1;
+
+        params = {};
+        for opt, val in opts:
+            if opt in ("-h", "--help"):
+                self.usage()
+                return 0
+            elif opt == "-a":
+                params["all"] = "yes";
+                pass
+            elif opt == "-u":
+                params["user"] = val;
+                pass
+            elif opt == "-p":
+                params["proj"] = val;
+                pass
+            pass
+
+        # Send the rest of the args along as a list.
+        params["datasets"] = req_args;
+
+        rval,response = do_method("dataset", "getlist", params);
+        return rval;
+
+    def usage(self):
+ 	print "showdataset [-ha] [-p pid] [-u uid] dataset_id...";
+	print "where:";
+        print "    -a     - Show all datasets";
+        print "    -p pid - Show all datasets for given project";
+        print "    -u uid - Show all datasets for given user";
+        print "";
+        print "Show all (-a) datasets or those associated with a particular";
+        print "project (-p), user (-u), or those listed.";
+        print "Only one of -a, -p, -u or an explicit list should be specified.";
         wrapperoptions();
         return
     pass

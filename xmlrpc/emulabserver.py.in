@@ -342,6 +342,7 @@ class EmulabServer:
         self.instances["elabinelab"] = elabinelab(self);
         self.instances["subboss"] = subboss(self);
         self.instances["blob"]       = blob(self);
+        self.instances["dataset"]    = dataset(self);
         return
 
     def __getattr__(self, name):
@@ -5844,6 +5845,150 @@ class blob:
             return argerror
 
         (exitval, output) = runcommand( TBDIR + "/bin/rmblob " + self.uid + " " + argdict[ "uuid" ] )
+
+        if exitval:
+            return EmulabResponse( RESPONSE_ERROR, exitval >> 8, output=output )
+        else:
+            return EmulabResponse( RESPONSE_SUCCESS, value=0, output=output )
+
+#
+# This class implements the server side of the XMLRPC interface to datasets,
+# aka leases, aka persistent blockstores.
+#
+class dataset:
+    ##
+    # Initialize the object.
+    #
+    def __init__(self, server):
+        self.server   = server
+        self.readonly = server.readonly
+        self.uid      = server.uid
+        self.uid_idx  = server.uid_idx
+        self.debug    = server.debug
+        self.VERSION  = VERSION
+        return
+
+    def create( self, version, argdict ):
+        if version != self.VERSION:
+            return EmulabResponse(RESPONSE_BADVERSION,
+                                  output="Client version mismatch!")
+
+        try:
+            checknologins()
+            pass
+        except NoLoginsError, e:
+            return EmulabResponse(RESPONSE_REFUSED, output=str(e))
+        
+        argerror = CheckRequiredArgs(argdict, ("size","dataset"))
+        if (argerror):
+            return argerror
+
+        #
+        # Pass the whole thing off to the backend script. It would be nice
+        # to do this differently, but too much trouble.
+        #
+        argstr = ""
+        for opt, val in argdict.items():
+            if opt == "noapprove":
+                if xbool(val):
+                    argstr += " -U "
+                    pass
+                pass
+            elif opt == "size":
+                argstr += " -s "
+                argstr += escapeshellarg(val)
+                pass
+            elif opt == "type":
+                argstr += " -t "
+                argstr += escapeshellarg(val)
+                pass
+            elif opt == "expire":
+                argstr += " -e "
+                argstr += escapeshellarg(val)
+                pass
+            pass
+        argstr += " " + escapeshellarg(argdict["dataset"])
+
+        (exitval, output) = runcommand( TBDIR + "/bin/createdataset " + argstr)
+
+        if exitval:
+            return EmulabResponse( RESPONSE_ERROR, exitval >> 8, output=output )
+        else:
+            return EmulabResponse( RESPONSE_SUCCESS, value=0, output=output )
+
+    def delete( self, version, argdict ):
+        if version != self.VERSION:
+            return EmulabResponse(RESPONSE_BADVERSION,
+                                  output="Client version mismatch!")
+
+        try:
+            checknologins()
+            pass
+        except NoLoginsError, e:
+            return EmulabResponse(RESPONSE_REFUSED, output=str(e))
+        
+        argerror = CheckRequiredArgs(argdict, ("dataset",))
+        if (argerror):
+            return argerror
+
+        #
+        # Pass the whole thing off to the backend script. It would be nice
+        # to do this differently, but too much trouble.
+        #
+        argstr = ""
+        for opt, val in argdict.items():
+            if opt == "force":
+                if xbool(val):
+                    argstr += " -f "
+                    pass
+                pass
+            pass
+        argstr += " " + escapeshellarg(argdict["dataset"])
+
+        (exitval, output) = runcommand( TBDIR + "/bin/deletelease " + argstr)
+
+        if exitval:
+            return EmulabResponse( RESPONSE_ERROR, exitval >> 8, output=output )
+        else:
+            return EmulabResponse( RESPONSE_SUCCESS, value=0, output=output )
+
+    def getlist( self, version, argdict ):
+        if version != self.VERSION:
+            return EmulabResponse(RESPONSE_BADVERSION,
+                                  output="Client version mismatch!")
+
+        try:
+            checknologins()
+            pass
+        except NoLoginsError, e:
+            return EmulabResponse(RESPONSE_REFUSED, output=str(e))
+        
+        #
+        # Pass the whole thing off to the backend script. It would be nice
+        # to do this differently, but too much trouble.
+        #
+        argstr = ""
+        for opt, val in argdict.items():
+            if opt == "all":
+                if xbool(val):
+                    argstr += " -a "
+                    pass
+                pass
+            elif opt == "proj":
+                argstr += " -p "
+                argstr += escapeshellarg(val)
+                pass
+            elif opt == "user":
+                argstr += " -u "
+                argstr += escapeshellarg(val)
+                pass
+            pass
+
+        for name in argdict["datasets"]:
+            argstr += " " + escapeshellarg(name);
+            pass
+        
+        (exitval, output) = runcommand(TBDIR + "/bin/showlease " + argstr)
 
         if exitval:
             return EmulabResponse( RESPONSE_ERROR, exitval >> 8, output=output )
