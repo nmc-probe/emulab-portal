@@ -224,7 +224,7 @@ if ($uid) {
     $user = User->Lookup($uid);
     if (TBAdmin()) {
 	if (!defined($user)) {
-	    fatal("No such user $uid\n");
+	    fatal("No such user $uid");
 	}
     } else {
 	if (!$user || !$user->SameUser($this_user)) {
@@ -241,7 +241,7 @@ if ($uid) {
 #
 my $project = Project->Lookup($pid);
 if (!defined($project)) {
-    fatal("No such project $pid\n");
+    fatal("No such project $pid");
 }
 if (!TBAdmin() &&
     !$project->AccessCheck($this_user, TB_PROJECT_CREATELEASE())) {

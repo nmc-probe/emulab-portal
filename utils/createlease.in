@@ -64,7 +64,6 @@ sub fatal($);
 # Configure variables
 #
 my $TB		 = "@prefix@";
-my $TBOPS        = "@TBOPSEMAIL@";
 
 #
 # Testbed Support libraries
