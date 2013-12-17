@@ -108,7 +108,7 @@ AUTOLOAD {
 	    return $self->{'HASH'}->{$name};
 	}
     }
-    carp("No such slot '$name' field in $self");
+    carp("No such slot '$name' in $self");
     return undef;
 }
 
@@ -624,7 +624,7 @@ AUTOLOAD {
     if (exists($self->{'DBROW'}->{$name})) {
 	return $self->{'DBROW'}->{$name};
     }
-    carp("No such slot '$name' field in $self");
+    carp("No such slot '$name' in $self");
     return undef;
 }
 
@@ -648,7 +648,7 @@ sub Stringify($)
     my $node_id = $self->node_id();
     my $vname   = $self->vname();
 
-    return "[BlockStore:$bsidx, $bs_id, $node_id ($vname)]";
+    return "[BlockStore::Reservation:$bsidx, $bs_id, $node_id ($vname)]";
 }
 
 #
