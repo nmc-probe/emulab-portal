@@ -751,6 +751,21 @@ sub XenPtype($)
     return undef;
 }
 
+sub OpenFlowController($)
+{
+    my ($link) = @_;
+    my $result = undef;
+    
+    my @stuff = FindNodesNS("n:openflow_controller", $link,
+			    $EMULAB_NS)->get_nodelist();
+    if (scalar(@stuff) > 0) {
+	my $controller = GetText("url", $stuff[0]);
+	$result = $controller
+	    if (defined($controller));
+    }
+    return $result;
+}
+
 sub GetXenSettings($)
 {
     my ($node) = @_;
