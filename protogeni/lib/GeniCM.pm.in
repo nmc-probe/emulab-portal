@@ -1434,6 +1434,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    foreach my $setting (keys(%$xensettings)) {
 		my $attrvalue = $xensettings->{$setting};
 		my $attrkey;
+		my $isshared  = (!defined($exclusive) || !$exclusive ? 1 : 0);
 
 		if ($attrvalue !~ /^\d*$/) {
 		    $response =
@@ -1442,12 +1443,26 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		    goto bad;
 		}
 		if ($setting eq "ram") {
+		    if ($attrvalue < 128) {
+			# ignore silly user.
+			next;
+		    }
+		    if ($isshared && $attrvalue > 1024) {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+						 "Bad XEN setting; ".
+						 "limited to 1024 MB");
+			goto bad;
+		    }
 		    $attrkey = "XEN_MEMSIZE";
 		}
 		elsif ($setting eq "cores") {
 		    $attrkey = "XEN_CORES";
-
-		    if ($attrvalue < 0 || $attrvalue > 4) {
+		    if ($attrvalue <= 0) {
+			# ignore silly user.
+			next;
+		    }
+		    if ($isshared && $attrvalue > 4) {
 			$response =
 			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						 "Bad XEN setting; ".
@@ -1457,7 +1472,11 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		}
 		elsif ($setting eq "disk") {
 		    $attrkey   = "XEN_EXTRAFS";
-		    if ($attrvalue > 8) {
+		    if ($attrvalue <= 0) {
+			# ignore silly user.
+			next;
+		    }
+		    if ($isshared && $attrvalue > 8) {
 			$response =
 			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						 "Bad XEN setting; ".
@@ -1572,6 +1591,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	my @interfaces = GeniXML::FindNodes("n:linkendpoints | ".
 					    "n:interface_ref",
 					    $linkref)->get_nodelist();
+	my $ofcontroller = GeniXML::OpenFlowController($linkref);
 	my %managers   = ();
 	my $ifacenum   = 1;
 	my $vindex     = 0;
@@ -1949,6 +1969,10 @@ sub GetTicketAuxAux($$$$$$$$$$)
 					  "bridge_vname"=> $bridge_vname,
 					  "encap_style" => $encap,
 					  "fixed_iface" => $iface_name});
+	    if ($ofcontroller && $ofcontroller ne "") {
+		$virtlan->ofenabled(1);
+		$virtlan->ofcontroller($ofcontroller);
+	    }
 	    $vportmap{$member}->{"virtlan"} = $virtlan;
 	    $ifacenum++;
 	    $vindex++;
@@ -5034,6 +5058,27 @@ sub CreateSliceFromCertificate($$)
 	# Same certificate means it really is the same slice.
 	return $slice
 	    if ($certificate->SameCert($slice));
+
+	#
+	# The above is the common case, but we need to support regen
+	# of the certificate, which will change the version number.
+	# Which means a straight comparison will fail. So look to see
+	# if the UUID is the same. If so, we store the new certificate.
+	#
+	# We should possibly check the public key as well, but I am
+	# going to punt on that for now.
+	#
+	if ($certificate->uuid() eq $slice->uuid()) {
+	    print STDERR "Updating certificate for $slice to $certificate\n";
+	    $slice->GetCertificate()->Delete();
+	    $slice->Flush();
+	    $certificate->Store();
+	    $slice = GeniSlice->Lookup($certificate->urn());
+	    if (!defined($slice)) {
+		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Problem updating slice certificate");
+	    }
+	}
 
 	# In the past we would destroy the old slice, but no longer
 	# think this is the correct thing to do.
