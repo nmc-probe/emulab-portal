@@ -40,8 +40,8 @@ sub usage()
     print STDERR "   -U         Unlock the lease (do not do this unless you know what you are doing!)\n";
     print STDERR "   -w time    Try for up to time seconds to lock lease (0 means forever)\n";
     print STDERR "   -s state   Update the state\n";
-    print STDERR "   -e date    Update the expiration date ('now' for current time)\n";
-    print STDERR "   -l date    Update the last used date ('now' for current time, '0' for never)\n";
+    print STDERR "   -e date    Update the expiration date ('now' for current time, 'never' for never)\n";
+    print STDERR "   -l date    Update the last used date ('now' for current time, 'never' for never)\n";
 
     print STDERR "   -a key=val Add or update attribute 'key' with value 'val'\n";
     print STDERR "   -r key     Remove attribute 'key'\n";
@@ -116,9 +116,11 @@ if (defined($options{s})) {
 if (defined($options{e})) {
     if ($options{e} eq "now") {
 	$expire = $now;
+    } elsif ($options{e} eq "never") {
+	$expire = 0;
     } else {
 	$expire = str2time($options{e});
-	if (!$expire) {
+	if (!defined($expire)) {
 	    fatal("Could not parse expiration date.");
 	}
     }
@@ -126,6 +128,8 @@ if (defined($options{e})) {
 if (defined($options{l})) {
     if ($options{l} eq "now") {
 	$lastused = $now;
+    } elsif ($options{l} eq "never") {
+	$lastused = 0;
     } else {
 	$lastused = str2time($options{l});
 	if (!defined($lastused)) {
@@ -152,7 +156,8 @@ if (defined($options{w})) {
     }
 }
 
-if (!($state || $expire || defined($lastused) || $addattr || $delattr || $dounlock)) {
+if (!($state || defined($expire) || defined($lastused) ||
+      $addattr || $delattr || $dounlock)) {
     print STDERR "Must specify SOME action!\n";
     usage();
 }
@@ -191,7 +196,7 @@ if (!defined($project)) {
 #
 # Check dates: must be appropriately in the past/future.
 #
-if ($expire && $expire < $now) {
+if (defined($expire) && $expire != 0 && $expire < $now) {
     fatal("Cannot set expiration date in the past.");
 }
 if (defined($lastused) && $lastused > $now) {
@@ -260,7 +265,7 @@ else {
 	fatal("$pid/$lname: lease state changed ".
 	      "while waiting for the lock ($ostate => $nstate).");
     }
-    if ($expire && ($oexpire != $nexpire)) {
+    if (defined($expire) && ($oexpire != $nexpire)) {
 	fatal("$pid/$lname: lease expiration changed ".
 	      "while waiting for the lock ($oexpire => $nexpire).");
     }
@@ -336,15 +341,19 @@ if ($state) {
 }
 
 # Handle expiration date
-if ($expire) {
+if (defined($expire)) {
     # XXX in case time ticked on us after we got "now"
     $expire = time()
 	if ($expire == $now);
     if ($lease->SetEndTime($expire)) {
 	fatal("$pid/$lname: could not update expiration time.");
     } else {
-	my $t = localtime($expire);
-	print "$pid/$lname: set expiration date to '$t'.\n";
+	if ($expire == 0) {
+	    print "$pid/$lname: set to no expiration date.\n";
+	} else {
+	    my $t = localtime($expire);
+	    print "$pid/$lname: set expiration date to '$t'.\n";
+	}
     }
 }
 

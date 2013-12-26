@@ -2755,7 +2755,7 @@ class createdataset:
         print "    -U        - Create but do not approve dataset";
         print "    -s size   - Size in MiB (1 MiB == 1024*1024)";
         print "    -t type   - Type: one of 'stdataset' (default) or 'ltdataset'";
-        print "    -e expire - Expiration date";
+        print "    -e expire - Expiration date ('0' == never, default is system defined)";
         print "";
         print "Create a dataset with the indicated size and name";
         wrapperoptions();

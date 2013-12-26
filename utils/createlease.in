@@ -27,18 +27,18 @@ use Getopt::Std;
 use Date::Parse;
 
 #
-# Create a lease.
+# Create a new lease.
 #
 sub usage()
 {
     print STDERR "Usage: createlease [-hd] [-o uid] [-a attrs] -t type -e expiration name\n";
     print STDERR "   -h       This message\n";
     print STDERR "   -d       Print additional debug info\n";
-    print STDERR "   -t type  Type of lease (stdataset or ltdataset)\n";
-    print STDERR "   -o uid   Owner of lease (defaults to caller)\n";
-    print STDERR "   -e date  Expiration date for lease\n";
+    print STDERR "   -t type  Type (must be specified)\n";
+    print STDERR "   -o uid   Owner (defaults to caller)\n";
+    print STDERR "   -e date  Expiration date (or 'never')\n";
     print STDERR "   -a attrs comma-seperated string of key=value attributes\n";
-    print STDERR "   name     Name of lease (of form <pid>/<id>)\n";
+    print STDERR "   name     Name (in the form <pid>/<id>)\n";
     exit(-1);
 }
 my $optlist  = "dho:t:e:a:";
@@ -48,7 +48,7 @@ my $uid;
 my $expire;
 my $ltype;
 my $lname;
-my $attrstr;
+my $attrstr = "";
 my %attrs = ();
 
 # Valid lease types
@@ -85,6 +85,14 @@ $| = 1;
 $ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
 
 #
+# XXX this is out of date right now, "deprecated" in favor of
+# createdataset since those are the only recognized lease types right
+# now. When we have other lease types, this should be updated and
+# generalized to handle quotas, etc.
+#
+fatal("Use 'createdataset' to create dataset leases.");
+
+#
 # Parse command arguments. Once we return from getopts, all that should be
 # left are the required arguments.
 #
@@ -105,17 +113,21 @@ if (defined($options{t})) {
     $ltype = $options{t};
 }
 if (defined($options{e})) {
-    $expire = str2time($options{e});
-    if (!$expire) {
-	fatal("Could not parse expiration date.");
+    if ($options{e} eq "never") {
+	$expire = 0;
+    } else {
+	$expire = str2time($options{e});
+	if (!defined($expire)) {
+	    fatal("Could not parse expiration date.");
+	}
     }
 }
 if (defined($options{a})) {
     $attrstr = $options{a};
 }
 
-if (!$ltype || !$expire || @ARGV != 1) {
-    print STDERR "Must specify type, expiration date, and lease name\n";
+if (!$ltype || @ARGV != 1) {
+    print STDERR "Must specify type and lease name\n";
     usage();
 }
 
@@ -141,7 +153,7 @@ if ($uid) {
     $user = User->Lookup($uid);
     if (TBAdmin()) {
 	if (!defined($user)) {
-	    fatal("No such user $uid\n");
+	    fatal("No such user $uid");
 	}
     } else {
 	if (!$user || !$user->SameUser($this_user)) {
@@ -154,11 +166,11 @@ if ($uid) {
 }
 
 #
-# Check project: user must be admin or have access to the project.
+# Check project: caller must be admin or have local_root access in the project.
 #
 my $project = Project->Lookup($pid);
 if (!defined($project)) {
-    fatal("No such project $pid\n");
+    fatal("No such project $pid");
 }
 if (!TBAdmin() &&
     !$project->AccessCheck($this_user, TB_PROJECT_CREATELEASE())) {

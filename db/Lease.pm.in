@@ -47,7 +47,84 @@ use Date::Parse;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
 
-my @LEASE_TYPES  = ("stdataset","ltdataset");
+#
+# More DB fields we need:
+#
+# * last_check - a timestamp we update everytime we look at a lease.
+#   This way we can differentiate a lease that has truly been idle for
+#   a long time, from one that we just haven't checked in a long time
+#   (because the lease_daemon died or something).
+#
+# * renewals - if renewing a lease is going to be a first-class thing,
+#   we need to keep track of how many times it has been renewed (see
+#   the LEASE_VARS comments below.
+#
+
+my @LEASE_TYPES  = ("stdataset", "ltdataset");
+
+#
+# Per-type Lease sitevars:
+#
+# maxsize	Max size (MiB) of a dataset
+#		(0 == unlimited)
+# maxlease	Max time (days) from creation before lease is marked expired
+#		(0 == unlimited)
+# maxidle	Max time (days) from last use before lease is marked expired
+#		(0 == unlimited)
+# graceperiod	Time (days) before an expired dataset will be destroyed
+#		(0 == no grace period, unlimited makes no sense here)
+# autodestroy	If non-zero, destroy expired datasets after grace period
+#		otherwise lock them
+# usequotas	If non-zero, enforce per-project dataset quotas
+# maxextend	Number of times a user can extend the lease
+#		(0 == unlimited)
+# extendperiod	Length (days) of each user-requested extention
+#		(0 == do not allow extensions (when maxextend != 0))
+#
+my @LEASE_VARS = (
+    "maxsize",
+    "maxlease",
+    "maxidle",
+    "graceperiod",
+    "autodestroy",
+    "usequotas",
+    "maxextend",
+    "extendperiod"
+);
+
+#
+# Plausible defaults:
+#
+# Short-term datasets. Allow large datasets but with short lease and grace
+# periods. They are not quota-controlled and there is not an idle limit.
+# Users can extend their leases by small amounts for a little while.
+# After the grace period, these are automatically destroyed.
+#
+# Long-term datasets. Allow any-sized dataset that fits within the quota.
+# These are generally expired based on idle time but may have a really long
+# lease time as well. They are quota-controlled and users cannot extend
+# their leases. After the grace period, these are are just marked as locked
+# and unavailable.
+#
+my %LEASE_VAR_DEFAULTS = (
+    "stdataset/maxsize"      => 1048576,# 1 TiB
+    "stdataset/maxlease"     => 7,	# 7 days
+    "stdataset/maxidle"      => 0,	# none
+    "stdataset/graceperiod"  => 1,	# 1 day
+    "stdataset/autodestroy"  => 1,	# yes
+    "stdataset/usequotas"    => 0,	# no
+    "stdataset/maxextend"    => 2,	# 2 user extentions
+    "stdataset/extendperiod" => 1,	# 1 day per extention
+
+    "ltdataset/maxsize"      => 0,	# none
+    "ltdataset/maxlease"     => 0,	# none, use idle time
+    "ltdataset/maxidle"      => 180,	# 6 months
+    "ltdataset/graceperiod"  => 180,	# 6 months
+    "ltdataset/autodestroy"  => 0,	# no
+    "ltdataset/usequotas"    => 1,	# yes
+    "ltdataset/maxextend"    => 1,	# combined with...
+    "ltdataset/extendperiod" => 0,	# ...means no user extention
+);
 
 #
 # Lease states.
@@ -253,7 +330,8 @@ sub Create($$;$) {
     $lease_end = $argref->{'lease_end'};
     $state     = $argref->{'state'};
     
-    if (!($lease_id && $pid && $uid && $type && $lease_end && $state)) {
+    if (!($lease_id && $pid && $uid && $type &&
+	  defined($lease_end) && $state)) {
 	print STDERR "Lease->Create: Missing required parameters in argref\n";
 	return undef;
     }
@@ -298,12 +376,11 @@ sub Create($$;$) {
 	return undef;
     }
 
-    # XXX: minimum lease length should be changeable via sitevar.
     if ($lease_end !~ /^\d+$/) {
 	print "Lease->Create: Invalid lease end time: $lease_end\n";
 	return undef;
     }
-    if ($lease_end < time()) {
+    if ($lease_end && $lease_end < time()) {
 	print STDERR "Lease->Create: Lease end cannot be in the past\n";
 	return undef;
     }
@@ -313,16 +390,20 @@ sub Create($$;$) {
 	return undef;
     }
 
+    #
     # Get a unique lease index and slam this stuff into the DB.
+    # Note that lease_end == 0 means unlimited, for which we use the
+    # DB default value of 2037-01-19 03:14:07, one year before the
+    # (Unix) universe ends.
+    #
     my $lease_idx = TBGetUniqueIndex('next_leaseidx');
-
     DBQueryWarn("insert into project_leases set ".
 		"lease_idx=$lease_idx,".
 		"lease_id='$lease_id',".
 		"pid='". $pid->pid() ."',".
 		"owner_uid='". $uid->uid() ."',".
 		"type='$type',".
-		"lease_end=FROM_UNIXTIME($lease_end),".
+		($lease_end ? "lease_end=FROM_UNIXTIME($lease_end)," : "").
 		"state='$state',".
 		"statestamp=NOW(),".
 		"inception=NOW()")
@@ -532,6 +613,46 @@ sub DeallocResources($) {
     $self->UpdateState("unapproved");
     $self->SetLastUsedTime(0);
     return 0;
+}
+
+#
+# Return a hashref of sitevars for the indicated lease type.
+# Why not let the caller make individual GetSiteVar calls? Well, efficiency
+# mostly. There are a lot of em, and they are generally needed all together.
+# By having them all fetched from here, I can also avoid putting these into
+# the database until we decide for sure on the right set; i.e., by using
+# LEASE_VAR_DEFAULTS.
+#
+sub SiteVars($$) {
+    my ($class, $ltype) = @_;
+    my %vars = ();
+
+    if (!grep {/^$ltype$/} @LEASE_TYPES) {
+	return undef;
+    }
+
+    my $hdr = "storage/$ltype";
+
+    my $query = DBQueryWarn("select name,value,defaultvalue ".
+			    "from sitevariables where name like '$hdr/%%'");
+    return undef
+	if (!$query);
+
+    foreach my $var (@LEASE_VARS) {
+	$vars{$var} = undef;
+
+	# XXX tmp, til we settle on the set of vars
+	if (exists($LEASE_VAR_DEFAULTS{"$ltype/$var"})) {
+	    $vars{$var} = $LEASE_VAR_DEFAULTS{"$ltype/$var"};
+	}
+    }
+    while (my ($var,$val,$defval) = $query->fetchrow_array()) {
+	if ($var =~ /^$hdr\/([-\w]+)$/ && exists($vars{$1})) {
+	    $vars{$1} = defined($val) ? $val : $defval;
+	}
+    }
+
+    return \%vars;
 }
 
 #
@@ -790,7 +911,9 @@ sub AddTime($$) {
 }
 
 #
-# Set a specific lease end time
+# Set a specific lease end time.
+# A value of zero means "unlimited" which is represented by a very large
+# value in the DB (the default value).
 #
 sub SetEndTime($$) {
     my ($self, $ntime) = @_;
@@ -803,8 +926,15 @@ sub SetEndTime($$) {
 	return LEASE_ERROR_FAILED();
     }
 
+    my $estr;
+    if ($ntime == 0) {
+	$estr = "DEFAULT(lease_end)";
+    } else {
+	$estr = "FROM_UNIXTIME($ntime)";
+    }
+
     my $idx = $self->idx();
-    DBQueryWarn("update project_leases set lease_end=FROM_UNIXTIME($ntime) where lease_idx=$idx")
+    DBQueryWarn("update project_leases set lease_end=$estr where lease_idx=$idx")
 	or return LEASE_ERROR_FAILED();
 
     $self->Refresh();
@@ -831,7 +961,7 @@ sub ValidTransition($$) {
 sub IsExpired($) {
     my ($self) = @_;
     
-    if ($self->lease_end() < time()) {
+    if ($self->lease_end() <= time()) {
 	return 1;
     }
 
