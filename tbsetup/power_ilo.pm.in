@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2008-2010, 2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -26,6 +26,12 @@
 #
 # Handle iLO[23] remote power control.
 # Also handle DRAC since its so similar.
+#
+# Even though not that similar, also handle IPMI so that we
+# can have per-node passwords not allowed by power_ipmi.
+# "ipmi15" uses the IPMI 1.5 "lan" interface, "ipmi20" uses
+# the IPMI 2.0 "lanplus" interface.
+#
 # Node must have an interface such that role='mngmnt' and
 # interface_type='ilo[23]'.
 #
@@ -58,7 +64,7 @@ my %portinfo = ();
 
 #
 # usage: iloctrl(type, cmd, nodes)
-# type = { "ilo" | "ilo2" | "ilo3" }
+# type = { "ilo" | "ilo2" | "ilo3" | "drac" | "ipmi15" | "ipmi20" }
 # cmd = { "cycle" | "on" | "off" }
 # nodes = list of one or more physical node names
 #
@@ -113,7 +119,11 @@ sub iloctrl($$@) {
 	    
 	    my $tret;
 	    eval {
-		$tret = iloexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$timeout);
+		if ($type =~ /^ipmi/) {
+		    $tret = ipmiexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$timeout);
+		} else {
+		    $tret = iloexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$timeout);
+		}
 	    };
 	    if ($@) {
 		print "$@";
@@ -355,6 +365,70 @@ sub iloexec($$$$$$$;$) {
 
     # if we get here, things probably went ok...
     return 0;
+}
+
+#
+# Arguments: $node_id,$type,$cmd,$IP,$key_role,$key_uid,$key[,$timeout]
+#
+sub ipmiexec($$$$$$$;$) {
+    my ($node_id,$type,$cmd,$IP,$key_role,$key_uid,$key,$timeout) = @_;
+
+    if ($debug) {
+	print "ipmiexec called with (" . join(',',@_) . ")\n";
+    }
+
+    if (!defined($type) || !defined($cmd) || !defined($IP) 
+	|| !defined($key_role) || !defined($key_uid) || !defined($key)) {
+	warn "Incomplete argument list, skipping node" . 
+	    (defined($node_id)?" $node_id":"");
+
+	return -1;
+    }
+
+    if ($cmd =~ /^(cycle|reset|on|off)$/) {
+	$cmd = $1;
+    }
+    else {
+	warn "Bad IPMI power command $cmd";
+	return -11;
+    }
+
+    my $iface;
+    if ($type eq 'ipmi15') {
+	$iface = "lan";
+    } elsif ($type eq 'ipmi20') {
+	$iface = "lanplus";
+    } else {
+	warn "Unsupported IPMI type $type!";
+	return -7;
+    }
+
+    if ($key_role ne 'ipmi-passwd') {
+	warn "Unsupported IPMI key_role $key_role!";
+	return -14;
+    }
+
+    # XXX IPMI takes about 40 seconds to timeout and doesn't
+    # have an option to control?!
+
+    my $ipmicmd = "ipmitool -I $iface -H $IP -U $key_uid -P $key power $cmd";
+    if ($debug > 1) {
+	my $str;
+	($str = $ipmicmd) =~ s/$key/XXXX/;
+        print "*** Executing '$str', output:\n";
+    }
+    my $output = `$ipmicmd 2>&1`;
+    my $stat = $?;
+    if ($stat || $debug > 1) {
+	if ($stat) {
+	    my $str;
+	    ($str = $ipmicmd) =~ s/$key/XXXX/;
+	    print "*** '$str' failed (stat=$stat):\n";
+	}
+	print $output;
+    }
+
+    return $stat;
 }
 
 1;

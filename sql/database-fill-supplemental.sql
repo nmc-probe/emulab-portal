@@ -46,6 +46,8 @@ INSERT IGNORE INTO `interface_capabilities` VALUES ('generic_10G','ethernet_defs
 INSERT INTO `interface_types` VALUES ('ilo2',0,1,'HP','HP iLO 2',1,'RJ45');
 INSERT INTO `interface_types` VALUES ('ilo3',0,1,'HP','HP iLO 3',1,'RJ45');
 INSERT INTO `interface_types` VALUES ('drac',0,1,'Dell','Dell Drac',1,'RJ45');
+INSERT INTO `interface_types` VALUES ('ipmi15',0,1,'IPMI','IPMI 1.5',1,'RJ45');
+INSERT INTO `interface_types` VALUES ('ipmi20',0,1,'IPMI','IPMI 2.0',1,'RJ45');
 
 -- For the external link support.
 INSERT INTO `node_types` VALUES ('bbgeni','bbgeni',NULL,NULL,0,0,0,0,0,0,0,0,0,0,0,0);

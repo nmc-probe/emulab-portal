@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -358,6 +358,7 @@ foreach my $power_id (keys %outlets) {
 
     if ($power_id eq "mail" || $power_id =~ /^whol-/ 
 	|| $power_id=~ /^rmcp-/
+	|| $power_id eq 'ipmi15' || $power_id eq 'ipmi20'
 	|| $power_id eq 'drac'
 	|| $power_id eq 'ilo' || $power_id eq 'ilo2' || $power_id eq 'ilo3') {
 	$type = $power_id;
@@ -452,7 +453,7 @@ foreach my $power_id (keys %outlets) {
 	    ++$errors;
 	}
     } elsif ($type eq 'ilo3' || $type eq 'ilo2' || $type eq 'ilo' ||
-	     $type eq 'drac') {
+	     $type eq 'drac' || $type eq 'ipmi15' || $type eq 'ipmi20') {
 	if (iloctrl($type,$op,@nodes)) {
 	    print "Control of $nodestr failed.\n"; ++$exitval;
             ++$errors;
