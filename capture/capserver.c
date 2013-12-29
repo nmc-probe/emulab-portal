@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2013 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -84,6 +84,7 @@ main(int argc, char **argv)
 	int			i, nrows;
 	unsigned int		length;
 	struct sockaddr_in	name;
+	struct in_addr		bossaddr;
 	struct timeval		timeout;
 	struct group		*group;
 	struct sigaction	sa;
@@ -132,6 +133,8 @@ main(int argc, char **argv)
 	sa.sa_mask = actionsigmask;
 	sigaction(SIGINT, &sa, NULL);
 	sigaction(SIGTERM, &sa, NULL);
+
+	inet_aton(BOSSNODE_IP, &bossaddr);
 
 	/*
 	 * Grab the GID for the default group.
@@ -242,7 +245,7 @@ main(int argc, char **argv)
 		int		   clientsock;
 		int		   cc, port, srv;
 		whoami_t	   whoami;
-		char		   node_id[64];
+		char		   node_id[64], *server = "";
 		tipowner_t	   tipown;
 		void		  *reply = &tipown;
 		size_t		   reply_size = sizeof(tipown);
@@ -266,13 +269,21 @@ main(int argc, char **argv)
 		/*
 		 * Check IP address of server. Must be in tipservers table.
 		 */
-		for (srv = 0; srv < nservers; srv++)
-			if (client.sin_addr.s_addr == servers[srv].ip.s_addr)
-				break;
-		if (srv == nservers) {
-			syslog(LOG_ERR, "%s: Illegal server ignored.",
-			       inet_ntoa(client.sin_addr));
-			goto done;
+		if (client.sin_addr.s_addr == bossaddr.s_addr) {
+			server = BOSSNODE;
+		}
+		else {
+			for (srv = 0; srv < nservers; srv++)
+				if (client.sin_addr.s_addr ==
+				    servers[srv].ip.s_addr) {
+					server = servers[srv].name;
+					break;
+				}
+			if (srv == nservers) {
+				syslog(LOG_ERR, "%s: Illegal server ignored.",
+				       inet_ntoa(client.sin_addr));
+				goto done;
+			}
 		}
 
 		/*
@@ -343,11 +354,11 @@ main(int argc, char **argv)
 			goto done;
 		}
 		row = mysql_fetch_row(res);
-		if (strcmp(row[0], servers[srv].name) != 0) {
+		if (strcmp(row[0], server) != 0) {
 			syslog(LOG_WARNING,
 			       "%s: caller ('%s') is not the right server "
 			       "('%s') for node '%s'",
-			       inet_ntoa(client.sin_addr), servers[srv].name,
+			       inet_ntoa(client.sin_addr), server,
 			       row[0], row[1]);
 		}
 		strcpy(node_id, row[1]);
