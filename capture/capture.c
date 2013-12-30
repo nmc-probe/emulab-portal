@@ -72,6 +72,7 @@
 #include <arpa/inet.h>
 #include <setjmp.h>
 #include <netdb.h>
+#include <sys/wait.h>
 #ifndef __linux__
 #include <rpc/rpc.h>
 #endif
@@ -91,6 +92,7 @@ void newrun(int);
 void terminate(int);
 void cleanup(void);
 void capture(void);
+void deadchild(int);
 
 void usage(void);
 void warning(char *format, ...);
@@ -100,6 +102,7 @@ void dolog(int level, char *format, ...);
 int val2speed(int val);
 void rawmode(char *devname, int speed);
 int netmode();
+int progmode();
 void writepid(void);
 void createkey(void);
 int handshake(void);
@@ -150,10 +153,12 @@ int	stamplast = 0;
 sigset_t actionsigmask;
 sigset_t allsigmask;
 int	 powermon = 0;
+char   **programargv;
 #ifndef  USESOCKETS
 #define relay_snd 0
 #define relay_rcv 0
 #define remotemode 0
+#define programmode 0
 #else
 char		  *Bossnode = BOSSNODE;
 struct sockaddr_in Bossaddr;
@@ -161,6 +166,7 @@ char		  *Aclname;
 int		   serverport = SERVERPORT;
 int		   sockfd, tipactive, portnum, relay_snd, relay_rcv;
 int		   remotemode;
+int		   programmode;
 int		   upportnum = -1, upfd = -1, upfilefd = -1;
 char		   uptmpnam[64];
 size_t		   upfilesize = 0;
@@ -172,6 +178,7 @@ char		   ourhostname[MAXHOSTNAMELEN];
 int		   needshake;
 gid_t		   tipgid;
 uid_t		   tipuid;
+int		   progpid;
 char		  *uploadCommand;
 
 int		   docircbuf = 0;
@@ -364,7 +371,7 @@ main(int argc, char **argv)
 	else
 		Progname = *argv;
 
-	while ((op = getopt(argc, argv, "rds:Hb:ip:c:T:aonu:v:PmLC")) != EOF)
+	while ((op = getopt(argc, argv, "rds:Hb:ip:c:T:aonu:v:PmMLC")) != EOF)
 		switch (op) {
 #ifdef	USESOCKETS
 #ifdef  WITHSSL
@@ -389,6 +396,10 @@ main(int argc, char **argv)
 
 		case 'm':
 			remotemode = 1;
+			break;
+
+		case 'M':
+			programmode = 1;
 			break;
 #endif /* USESOCKETS */
 		case 'H':
@@ -444,13 +455,14 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 2)
+	if (!programmode && argc != 2)
 		usage();
 
 	if (!debug)
 		(void)daemon(0, 0);
 
 	Machine = argv[0];
+	programargv = argv;
 
 	(void) snprintf(strbuf, sizeof(strbuf), PIDNAME, LOGPATH, argv[0]);
 	Pidname = newstr(strbuf);
@@ -462,8 +474,9 @@ main(int argc, char **argv)
 	Ttyname = newstr(strbuf);
 	(void) snprintf(strbuf, sizeof(strbuf), PTYNAME, TIPPATH, argv[0]);
 	Ptyname = newstr(strbuf);
-	if (remotemode)
+	if (remotemode || programmode) {
 		strcpy(strbuf, argv[1]);
+	}
 	else
 		(void) snprintf(strbuf, sizeof(strbuf),
 				DEVNAME, DEVPATH, argv[1]);
@@ -480,6 +493,8 @@ main(int argc, char **argv)
 	sigaddset(&actionsigmask, SIGHUP);
 	sigaddset(&actionsigmask, SIGUSR1);
 	sigaddset(&actionsigmask, SIGUSR2);
+	if (programmode) 
+		sigaddset(&actionsigmask, SIGCHLD);
 	allsigmask = actionsigmask;
 	sigaddset(&allsigmask, SIGINT);
 	sigaddset(&allsigmask, SIGTERM);
@@ -499,7 +514,11 @@ main(int argc, char **argv)
 	}
 	sa.sa_handler = terminate;
 	sigaction(SIGUSR2, &sa, NULL);
-
+	if (programmode) {
+		sa.sa_handler = deadchild;
+		sigaction(SIGCHLD, &sa, NULL);
+	}
+	
 #ifdef HAVE_SRANDOMDEV
 	srandomdev();
 #else
@@ -650,6 +669,10 @@ main(int argc, char **argv)
 	    if (remotemode) {
 		if (netmode() != 0)
 		    die("Could not establish connection to %s\n", Devname);
+	    }
+	    else if (programmode) {
+		if (progmode() != 0)
+		    die("Could not start program %s\n", Devname);
 	    }
 	    else
 #endif
@@ -1031,13 +1054,23 @@ capture(void)
 					Machine, cc);
 			if (cc <= 0) {
 #ifdef  USESOCKETS
-				if (remotemode) {
+				if (remotemode || programmode) {
 					FD_CLR(devfd, &sfds);
 					close(devfd);
-					warning("remote socket closed;"
+					if (remotemode) {
+						warning("remote socket closed;"
 						"attempting to reconnect");
-					while (netmode() != 0) {
-					    usleep(5000000);
+						while (netmode() != 0) {
+							usleep(5000000);
+						}
+					}
+					else {
+						warning("sub program died "
+							"attempting to "
+							"restart");
+						while (progmode() != 0) {
+							usleep(5000000);
+						}
 					}
 					FD_SET(devfd, &sfds);
 					continue;
@@ -1305,6 +1338,31 @@ terminate(int sig)
 #endif
 	
 	dolog(LOG_NOTICE, "pty reset");
+#endif	/* USESOCKETS */
+}
+
+/*
+ * Our child has died. We do not restart it here, but wait till
+ * it is noticed in the capture loop above. 
+ */
+void
+deadchild(int sig)
+{
+#ifdef	USESOCKETS
+	int	status, rval;
+
+	rval = waitpid(progpid, &status, WNOHANG);
+	if (rval < 0) {
+		die("waitpid(%d): %s", progpid, geterr(errno));
+	}
+	if (rval == 0) {
+		dolog(LOG_NOTICE, "waitpid returned zero");
+		return;
+	}
+	if (rval != progpid) {
+		die("waitpid(%d): waitpid returned some other pid", progpid);
+	}
+	dolog(LOG_NOTICE, "child died");
 #endif	/* USESOCKETS */
 }
 
@@ -1615,6 +1673,64 @@ netmode()
 		proto_telnet_init();
 #endif
 
+	return 0;
+}
+
+/*
+ * The console line is really a pipe connected to a program we start.
+ */
+int
+progmode()
+{
+	int		pipefds[2];
+
+	/*
+	 * We probably need a check for a respawning loop.
+	 */
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, pipefds) < 0) {
+		warning("socketpair(): %s", geterr(errno));
+		return -1;
+	}
+	if ((progpid = fork()) < 0) {
+		warning("fork(): %s", geterr(errno));
+		return -1;
+	}
+	if (progpid) {
+		close(pipefds[1]);
+		devfd = pipefds[0];
+
+		if (fcntl(devfd, F_SETFL, O_NONBLOCK) < 0) {
+			warning("%s: fcntl(O_NONBLOCK): %s", Devname,
+				geterr(errno));
+			close(devfd);
+			return -1;
+		}
+	}
+	else {
+		int	i, max;
+		
+		close(pipefds[0]);
+
+		/*
+		 * Change the childs descriptors over to the socket.
+		 */
+		close(0);
+		close(1);
+		close(2);
+		dup(pipefds[1]);
+		dup(pipefds[1]);
+		dup(pipefds[1]);
+
+		/*
+		 * Close all other descriptors.
+		 */
+		max = getdtablesize();
+		for (i = 3; i < max; i++)
+			(void) close(i); 		
+
+		execvp(programargv[1], &programargv[1]);
+		exit(666);
+	}
 	return 0;
 }
 #endif
