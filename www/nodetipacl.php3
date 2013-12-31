@@ -28,21 +28,41 @@ include("xmlrpc.php3");
 #
 # This script generates an "acl" file.
 #
-
 #
-# Only known and logged in users can get acls..
-#
-$this_user = CheckLoginOrDie();
-$uid       = $this_user->uid();
-$isadmin   = ISADMIN();
-
-#
-# Verify form arguments.
+# Verify form arguments first, since we might be using optional key.
 #
 $reqargs = RequiredPageArguments("node", PAGEARG_NODE);
+$optargs = OptionalPageArguments("key",  PAGEARG_STRING);
 
 # Need these below
 $node_id = $node->node_id();
+
+if (isset($key)) {
+    $safe_key = addslashes($key);
+    
+    $query_result =
+	DBQueryFatal("select node_id,urlstamp from tiplines ".
+		     "where node_id='$node_id' and urlhash='$safe_key' and ".
+		     "      urlstamp!=0 and ".
+		     "      (UNIX_TIMESTAMP(now()) - urlstamp) < 30");
+    
+    if (mysql_num_rows($query_result) == 0) {
+	USERERROR("Invalid node, invalid key or key has expired", 1);
+    }
+    # Use once URL. Clear it.
+    DBQueryFatal("update tiplines set urlhash=NULL,urlstamp=0 ".
+		 "where node_id='$node_id'");
+    $uid = "geniuser";
+    $isadmin = 0;
+}
+else {
+    #
+    # Only known and logged in users can get acls..
+    #
+    $this_user = CheckLoginOrDie();
+    $uid       = $this_user->uid();
+    $isadmin   = ISADMIN();
+}
 
 #
 # Admin users can look at any node, but normal users can only control
@@ -50,7 +70,7 @@ $node_id = $node->node_id();
 #
 # XXX is MODIFYINFO the correct one to check? (probably)
 #
-if (!$isadmin &&
+if (!$isadmin && !isset($key) &&
     !$node->AccessCheck($this_user, $TB_NODEACCESS_READINFO)) {
     USERERROR("You do not have permission to tip to node $node_id!", 1);
 }
@@ -189,11 +209,13 @@ function ConsoleAuthObject($uid, $nodeid, $console)
 }
 $console_auth = ConsoleAuthObject($uid, $node_id, $console);
 
-PAGEHEADER("$node_id Console");
-
+if (!isset($key)) {
+    PAGEHEADER("$node_id Console");
+}
 $referrer = $_SERVER['HTTP_REFERER'];
 
 echo "\n";
+echo "<script src='$TBBASE/emulab_sup.js'></script>\n";
 echo "<script src='https://code.jquery.com/jquery.js'></script>\n";
 echo "<script>\n";
 echo "var tbbaseurl = '$referrer';\n";
@@ -213,34 +235,66 @@ function StartConsole(id, authobject)
         var iwidth  = $('#' + id).width();
         var iheight = GetMaxHeight(id) - 50;
 
-        $('#' + id).html('<iframe id="' + id + '_iframe" ' +
-			   'width=' + iwidth + ' ' +
-                           'height=' + iheight + ' ' +
-                           'src=\'' + url + '\'>');
+	/*
+	 * Oh, this is a pain.
+	 *
+	 * Firefox views the same server certificate on different
+	 * ports, as needing to be confirmed. Since the server side of
+	 * the console picks a new port each time, firefox wants to
+	 * confirm the security exception each time.
+	 *
+	 * Firefox will not allow you to confirm aforementioned
+	 * security exception when it is inside an iframe. It just
+	 * tells you it is insecure, and thats it. The only way around
+	 * it is to right-click and say open in new tab, and then you
+	 * get the option to confirm.
+	 *
+	 * So put the damn in the current tab and be done with it. DUMB!
+	 */
+	if (is_firefox) {
+	    PageReplace(url);
+	}
+	else {
+	    $('#' + id).html('<iframe id="' + id + '_iframe" ' +
+			     'width=' + iwidth + ' ' +
+			     'height=' + iheight + ' ' +
+			     'src=\'' + url + '\'>');
 
-	//
-	// Setup a custom event handler so we can kill the connection.
-	//
-	$('#' + id).on("killconsole",
-		       { "url": jsonauth.baseurl + ':' + port + '/quit' +
-			        '?session=' + session },
-		       function(e) {
-			   console.log("killconsole: " + e.data.url);
-			   $.ajax({
-     			       url: e.data.url,
-			       type: 'GET',
-			   });
-		       });
+	    //
+	    // Setup a custom event handler so we can kill the connection.
+	    //
+	    $('#' + id).on("killconsole",
+		{ "url": jsonauth.baseurl + ':' + port + '/quit' +
+			'?session=' + session },
+		function(e) {
+		    console.log("killconsole: " + e.data.url);
+		    $.ajax({
+			url: e.data.url,
+				type: 'GET',
+		    });
+		});
+	    
+	    // Install a click handler for the X button.
+	    $("#" + id + "_kill").click(function(e) {
+		    e.preventDefault();
+		    // Trigger the custom event.
+		    $("#" + id).trigger("killconsole");
 
-	// Install a click handler for the X button.
-	$("#" + id + "_kill").click(function(e) {
-	    e.preventDefault();
-	    // Trigger the custom event.
-	    $("#" + id).trigger("killconsole");
-
-	    PageReplace(tbbaseurl);
-	})
+		    PageReplace(tbbaseurl);
+		});
+	}
     }
+    var callback_failed = function(jqXHR, textStatus) {
+	var acceptURL = jsonauth.baseurl + '/accept_root.html';
+	
+	console.log("Request failed: " + textStatus);
+	
+	$('#' + id).html("An SSL certificate must be accepted by your " +
+			 "browser to continue.  Please click " +
+			 "<a href='" + acceptURL + "'>here</a> " +
+			 "to be redirected.");
+    }
+
     var xmlthing = $.ajax({
 	// the URL for the request
      	url: jsonauth.baseurl + '/d77e8041d1ad',
@@ -257,6 +311,7 @@ function StartConsole(id, authobject)
 	dataType : 'text',
     });
     xmlthing.done(callback);
+    xmlthing.fail(callback_failed);
 }
 </script>
 
@@ -265,8 +320,12 @@ echo "<div id='${node_id}_console' style='width: 100%;'></div>";
 echo "<center><button type=button id='${node_id}_console_kill'>Close</button>" .
      "</center>\n";
 echo "<script language=JavaScript>
-      StartConsole('${node_id}_console', '$console_auth');
+        window.onload = function() {
+            StartConsole('${node_id}_console', '$console_auth');
+        }
       </script>\n";
 
-PAGEFOOTER();
+if (!isset($key)) {
+    PAGEFOOTER();
+}
 ?>
