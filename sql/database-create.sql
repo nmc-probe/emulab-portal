@@ -4117,6 +4117,8 @@ CREATE TABLE `tiplines` (
   `portnum` int(11) NOT NULL default '0',
   `keylen` smallint(6) NOT NULL default '0',
   `keydata` text,
+  `urlhash` varchar(64) default NULL,
+  `urlstamp` int(10) unsigned NOT NULL default '0',
   PRIMARY KEY  (`tipname`),
   KEY `node_id` (`node_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
