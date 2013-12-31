@@ -31,7 +31,7 @@ use vars qw(@ISA @EXPORT $AUTOLOAD @EXPORT_OK);
 
 # Configure variables
 use vars qw($TB $BOSSNODE $WOL $OSSELECT $IPOD $ISUTAH $CONTROL_NETMASK
-            $TBOPS $JAILIPMASK);
+            $TBOPS $JAILIPMASK $TBBASE);
 $TB	     = "@prefix@";
 $BOSSNODE    = "@BOSSNODE@";
 $TBOPS       = "@TBOPSEMAIL@";
@@ -43,6 +43,7 @@ $ISUTAH	     = @TBMAINSITE@;
 # Need this for jail ip assignment.
 $CONTROL_NETMASK = "@CONTROL_NETMASK@";
 $JAILIPMASK  = "@JAILIPMASK@";
+$TBBASE      = "@TBBASE@";
 
 use libdb;
 use libtestbed;
@@ -3704,6 +3705,36 @@ sub SendApod($$)
     }
 
     return -1;
+}
+
+#
+# Generate a hash value to store in the tiplines table for the node,
+# The hash can only be used once and is valid for a short time
+# (say, 30 seconds). 
+#
+sub GenTipAclUrl($)
+{
+    my ($self) = @_;
+    my $node_id = $self->node_id();
+    my $hash = TBGenSecretKey();
+    if (!defined($hash)) {
+	print STDERR "Error creating new hash code\n";
+	return undef;
+    }
+    DBQueryWarn("update tiplines set urlhash='$hash', ".
+		"  urlstamp=UNIX_TIMESTAMP(now()) ".
+		"where node_id='$node_id'")
+	or return undef;
+
+    return "$TBBASE/nodetipacl.php3?node_id=$node_id&key=$hash";
+}
+sub ClrTipAclUrl($)
+{
+    my ($self) = @_;
+    my $node_id = $self->node_id();
+    
+    DBQueryWarn("update tiplines set urlhash=NULL,urlstamp=0 ".
+		"where node_id='$node_id'");
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

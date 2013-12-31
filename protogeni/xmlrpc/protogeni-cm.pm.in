@@ -105,6 +105,7 @@ elsif ($GENI_VERSION eq "2.0") {
 	"ShareLan"          => \&GeniCMV2::ShareLan,
 	"UnShareLan"        => \&GeniCMV2::UnShareLan,
 	"ListActiveSlivers" => \&GeniCMV2::ListActiveSlivers,
+	"ConsoleURL"	    => \&GeniCMV2::ConsoleURL,
     };
 }
 
