@@ -152,6 +152,8 @@ chomp($outer_controlif);
 #
 sub Online()
 {
+    mysystem2("ifconfig $vif txqueuelen 256");
+
     # Prevent dhcp requests from leaving the physical host.
     DoIPtables("-A FORWARD -o $bridge -m pkttype ".
 	       "--pkt-type broadcast " .
