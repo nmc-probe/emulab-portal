@@ -214,7 +214,8 @@ my $isipmi = ($type =~ /^ipmi/ ? 1 : 0);
 #
 $node->AddOutlet($type, 0,
 		 {"key_type"  => $type,
-		  "key_role"  => ($authtype eq "key" ? "ssh-key" :
+		  "key_role"  => ($authtype eq "key" ?
+				  ($isipmi ? "ipmi-kgkey" : "ssh-key") :
 				  ($isipmi ? "ipmi-passwd" : "ssh-passwd")),
 		  "key_uid"   => $ARGV[0],
 		  "key"       => $ARGV[1]}) == 0

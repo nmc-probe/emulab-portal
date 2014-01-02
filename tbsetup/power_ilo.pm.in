@@ -393,17 +393,27 @@ sub ipmiexec($$$$$$$;$) {
 	return -11;
     }
 
-    my $iface;
+    my ($iface,$pwdmax,$usekey);
     if ($type eq 'ipmi15') {
 	$iface = "lan";
+	$pwdmax = 15;
     } elsif ($type eq 'ipmi20') {
 	$iface = "lanplus";
+	$pwdmax = 20;
     } else {
 	warn "Unsupported IPMI type $type!";
 	return -7;
     }
 
-    if ($key_role ne 'ipmi-passwd') {
+    if ($key_role eq 'ipmi-passwd') {
+	$usekey = 0;
+    } elsif ($key_role eq 'ipmi-kgkey') {
+	if ($type eq 'ipmi15') {
+	    warn "Cannot use key_role 'kgkey' for IPMI 1.5!";
+	    return -21;
+	}
+	$usekey = 1;
+    } else {
 	warn "Unsupported IPMI key_role $key_role!";
 	return -14;
     }
@@ -411,20 +421,25 @@ sub ipmiexec($$$$$$$;$) {
     # XXX IPMI takes about 40 seconds to timeout and doesn't
     # have an option to control?!
 
-    my $ipmicmd = "ipmitool -I $iface -H $IP -U $key_uid -P $key power $cmd";
-    if ($debug > 1) {
-	my $str;
-	($str = $ipmicmd) =~ s/$key/XXXX/;
-        print "*** Executing '$str', output:\n";
-    }
+    my $ipmicmd = "ipmitool -I $iface -H $IP -U $key_uid -E -K power $cmd";
+    print "*** Executing '$ipmicmd', output:\n"
+	if ($debug > 1);
+
+    # Set the password and key environment variables
+    $ENV{'IPMI_PASSWORD'} = substr($key, 0, $pwdmax);
+    $ENV{'IPMI_KGKEY'} = $key
+	if ($usekey);
+
     my $output = `$ipmicmd 2>&1`;
     my $stat = $?;
+
+    # And clear them again
+    delete $ENV{'IPMI_PASSWORD'};
+    delete $ENV{'IPMI_KGKEY'};
+
     if ($stat || $debug > 1) {
-	if ($stat) {
-	    my $str;
-	    ($str = $ipmicmd) =~ s/$key/XXXX/;
-	    print "*** '$str' failed (stat=$stat):\n";
-	}
+	print "*** '$ipmicmd' failed (stat=$stat):\n"
+	    if ($stat);
 	print $output;
     }
 
