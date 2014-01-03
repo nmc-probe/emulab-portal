@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -91,7 +91,7 @@ capserver:	capserver.c capdecls.h
 #
 # Do not capture install by default.
 #
-install:	all $(INSTALL_SBINDIR)/capserver
+install:	all $(INSTALL_SBINDIR)/capserver $(INSTALL_SBINDIR)/capture
 	$(INSTALL_PROGRAM) capture $(INSTALL_DIR)/opsdir/sbin/capture
 
 client-install: client
