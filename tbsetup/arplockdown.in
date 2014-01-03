@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -161,6 +161,9 @@ if (!$impotent) {
     }
 }
 
+# For XEN shared nodes,
+my $xenvifrouting = GetSiteVar("general/xenvifrouting");
+
 #
 # Current arp info so we know how to update.
 #
@@ -265,10 +268,27 @@ while (my ($name,$mac) = $query_result->fetchrow_array()) {
 }
 
 #
+# Find the set of XEN hosts; we have to treat these differently.
+#
+my %xenhosts = ();
+
+$query_result =
+    DBQueryFatal("select r.node_id,i.mac from reserved as r ".
+		 "left join nodes as n on n.node_id=r.node_id ".
+		 "left join interfaces as i on ".
+		 "     i.node_id=r.node_id and i.role='$CTRL' ".
+		 "left join os_info as o on o.osid=n.def_boot_osid ".
+		 "where FIND_IN_SET('xen-host',o.osfeatures)");
+
+while (my ($node_id, $mac) = $query_result->fetchrow_array()) {
+    $xenhosts{$node_id} = $mac;
+}
+
+#
 # Now the experimental nodes. Control and Management interfaces.
 #
 $query_result =
-    DBQueryFatal("select i.node_id,i.IP,i.mac,n.role,i.role ".
+    DBQueryFatal("select i.node_id,i.IP,i.mac,n.role,i.role,n.phys_nodeid ".
 		 "from interfaces as i,nodes as n ".
 		 "left join reserved as r on r.node_id=n.node_id ".
 		 "where n.node_id=i.node_id ".
@@ -276,12 +296,24 @@ $query_result =
 		 " and i.mac not like '000000%%' ".
 		 " and (n.role='testnode' or n.role='virtnode')");
 
-while (my ($node_id,$IP,$mac,$nrole,$irole) = $query_result->fetchrow_array()) {
+while (my ($node_id,$IP,$mac,$nrole,$irole,$phys_nodeid) =
+       $query_result->fetchrow_array()) {
     #
     # Lockdown only when the IP is on our network, or the jail network.
     #
     next
 	if (! (isJailIP($IP) || isPrivateIP($IP)));
+
+    #
+    # If a XEN virtnode on a shared host, use the mac of the physical node. 
+    #
+    if ($xenvifrouting && $nrole eq "virtnode" && $irole eq $CTRL &&
+	exists($xenhosts{$phys_nodeid})) {
+	if ($verbose) {
+	    print "Using mac of physical host $phys_nodeid on $node_id\n";
+	}
+	$mac = $xenhosts{$phys_nodeid};
+    }
 	    
     # convert 123456 into 12:34:56
     $mac =~ s/(\w\w)/$1:/g;
@@ -296,6 +328,7 @@ while (my ($node_id,$IP,$mac,$nrole,$irole) = $query_result->fetchrow_array()) {
 	print "$node_id, $IP, $mac, $nrole, $irole\n";
     }
 }
+exit(0);
 
 #
 # We use a different approach then what Mike did for the clientside

@@ -129,6 +129,7 @@ INSERT INTO sitevariables VALUES ('protogeni/wrapper_debug_sendlog',NULL,'1','Wh
 INSERT INTO sitevariables VALUES ('protogeni/plc_url',NULL,'https://www.planet-lab.org:12345','PlanetLab does not put a URL in their certificates.',0);
 INSERT INTO sitevariables VALUES ('nodecheck/collect',NULL,'0','When set, collect and record node hardware info in /proj/<pid>/nodecheck/.',0);
 INSERT INTO sitevariables VALUES ('nodecheck/check',NULL,'0','When set, perform nodecheck at swapin.',0);
+INSERT INTO sitevariables VALUES ('general/xenvifrouting',NULL,'0','Non-zero value says to use vif routing on XEN shared nodes.',0);
 
 INSERT INTO sitevariables VALUES ('storage/stdataset/usequotas',NULL,'0','If non-zero, enforce per-project dataset quotas',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/maxextend',NULL,'2','Number of times a user can extend the lease (0 == unlimited)',0);
