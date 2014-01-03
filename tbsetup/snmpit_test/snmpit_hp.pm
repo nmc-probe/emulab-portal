@@ -262,8 +262,12 @@ sub set($$;$$) {
 	my $status = $RetVal;
 	if (!defined($RetVal)) {
 	    $status = "(undefined)";
+	    my ($op)  = @{$varbind};
+	    if (ref($op)) {
+		($op) = @{$op};
+	    }
 	    if ($sess->{ErrorNum}) {
-		my $bad = "$id had error number " . $sess->{ErrorNum} .
+		my $bad = "$id $op had error number " . $sess->{ErrorNum} .
 			  " and had error string " . $sess->{ErrorStr} . "\n";
 		print $bad;
 	    }
@@ -1874,6 +1878,7 @@ sub readifIndex($) {
 	my $portindex = $iidoid ? ($t_off + $iidoid) : $ifindex ;
 	$self->{IFINDEX}{$modport} = $portindex;
 	$self->{IFINDEX}{$ifindex} = $modport;
+	$self->debug("$ifindex, $modport\n", 2);
     }
     foreach $j (keys %{$self->{TRUNKS}}) {
 	$ifindex = $j + $t_off;
@@ -1883,6 +1888,7 @@ sub readifIndex($) {
 	$self->{IFINDEX}{$ifindex} = $port;
 	$self->{IFINDEX}{$port} = $ifindex;
 	$self->{TRUNKINDEX}{$ifindex} = 0; # simplifies convertPortIndex
+	$self->debug("$ifindex, $port\n", 2);
     }
     $self->{MAXPORT} = $maxport;
     $self->{MAXTRUNK} = $maxtrunk;
