@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -66,17 +66,16 @@ my $IFCONFIG    = "/sbin/ifconfig";
 my $OVSCTL      = "/usr/local/bin/ovs-vsctl";
 
 usage()
-    if (@ARGV  < 3);
+    if (@ARGV  < 4);
 
 my $vmid       = shift(@ARGV);
 my $mac        = shift(@ARGV);
 my $bridge     = shift(@ARGV);
+my $vifname    = shift(@ARGV);
 
 # The caller (xmcreate) puts this into the environment.
 my $vif         = $ENV{'vif'};
 my $XENBUS_PATH = $ENV{'XENBUS_PATH'};
-my $vifname     = `xenstore-read "$XENBUS_PATH/vifname"`;
-chomp($vifname);
 
 #
 # Set up ip rules and routes for tunnels.
