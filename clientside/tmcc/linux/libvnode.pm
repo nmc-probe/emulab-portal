@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -30,7 +30,7 @@ use Exporter;
 	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
               downloadImage getKernelVersion createExtraFS
-              forwardPort removePortForward lvSize DoIPtables
+              forwardPort removePortForward lvSize DoIPtables restartDHCP
             );
 
 use Data::Dumper;
@@ -590,6 +590,25 @@ sub lvSize($)
     $lv_size =~ s/^\s+//;
     $lv_size =~ s/\s+$//;
     return $lv_size;
+}
+
+sub restartDHCP()
+{
+    my $dhcpd_service = 'dhcpd';
+    if (-f '/etc/init/isc-dhcp-server.conf') {
+        $dhcpd_service = 'isc-dhcp-server';
+    }
+
+    # make sure dhcpd is running
+    if (-x '/sbin/initctl') {
+        # Upstart
+        if (mysystem2("/sbin/initctl restart $dhcpd_service") != 0) {
+            mysystem2("/sbin/initctl start $dhcpd_service");
+        }
+    } else {
+        #sysvinit
+        mysystem2("/etc/init.d/$dhcpd_service restart");
+    }
 }
 
 #
