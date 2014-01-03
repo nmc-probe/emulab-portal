@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -172,6 +172,7 @@ $FSNODE_IP		= '@FSNODE_IP@';
 $CONTROL_NETWORK	= "@CONTROL_NETWORK@";
 $CONTROL_NETMASK	= "@CONTROL_NETMASK@";
 $PUBLIC_NETMASK		= "@PUBLIC_NETMASK@";
+$NTPSERVER		= "@NTPSERVER@";
 $LOGFACIL		= '@TBLOGFACIL@';
 $QUOTA_FSLIST		= '@FS_WITH_QUOTAS@';
 $OURTIMEZONE	        = "@OURTIMEZONE@";

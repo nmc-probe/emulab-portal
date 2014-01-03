@@ -234,6 +234,35 @@ DHCPD_DYNRANGE="10.1.34.200 10.1.34.219"
 NAMED_FORWARDERS="1.1.1.1 1.1.2.1"
 
 #
+# NTP server configuration:
+#
+# NTPSERVER: boss|ops|fs|<external-server-name-or-IP>
+#   Default: "ops"
+#   Normally, one of boss, ops, or fs is designated as a local NTP server
+#   but this can be set to a fully qualified name of some other machine.
+#   If NTPSERVER is set to an external server, then boss/ops/fs are made
+#   clients of that server just as any testbed node is.
+#
+# EXTERNAL_NTPSERVER[1-4]: <external-server-name-or-IP>
+#   Default: "[0-3].pool.ntp.org"
+#   If NTPSERVER is one of boss/ops/fs, then these values are used as the
+#   upstream servers for the local server. These can be changed to four of
+#   your favorite NTP servers.
+#
+# NTPDRIFTFILE: <path>
+#   Default: "/var/db/ntp.drift"
+#   If NTPSERVER is one of boss/ops/fs, then this is the name of the drift
+#   file for the local server.
+#
+
+#NTPSERVER="ops"
+#EXTERNAL_NTPSERVER1="0.pool.ntp.org"
+#EXTERNAL_NTPSERVER2="1.pool.ntp.org"
+#EXTERNAL_NTPSERVER3="2.pool.ntp.org"
+#EXTERNAL_NTPSERVER4="3.pool.ntp.org"
+#NTPDRIFTFILE="/var/db/ntp.drift"
+
+#
 # Windows support. Turn this on if you think you might want to use WindowsXP
 # or Windows7 images on your experimental nodes. Note though, that Utah cannot
 # provide those images to you (because of obvious licensing issues), so it

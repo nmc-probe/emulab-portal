@@ -136,6 +136,9 @@ NAMED_FORWARDERS=""
 VPUBADDR_BASE=none
 VPUBADDR_BITLEN=none
 
+# XXX backward compat for anyone using this defs file
+NTPDRIFTFILE="/etc/ntp.drift"
+
 #
 # Google Maps API key, for user map
 #

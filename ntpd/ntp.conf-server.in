@@ -1,0 +1,15 @@
+#
+# Generic Emulab NTP server configuration.
+#
+
+# Our servers
+server @EXTERNAL_NTPSERVER1@ iburst
+server @EXTERNAL_NTPSERVER2@ iburst
+server @EXTERNAL_NTPSERVER3@ iburst
+server @EXTERNAL_NTPSERVER4@ iburst
+
+# Restrict access to servers and clients but not localhost
+restrict default nomodify nopeer noquery notrap
+restrict 127.0.0.1
+
+driftfile @NTPDRIFTFILE@

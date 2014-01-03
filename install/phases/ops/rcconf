@@ -60,6 +60,13 @@ sub Install($$$)
 		 qq|pubsubd_flags="-T 10"|);
     }
 
+    # Turn on NTP.
+    if ($FBSD_MAJOR < 6) {
+	push(@adds, qq|xntpd_enable="YES"|);
+    } else {
+	push(@adds, qq|ntpd_enable="YES"|);
+    }
+
     # Turn on firewall.
     if ($FIREWALL_OPS) {
 	push(@adds, qq|firewall_enable="YES"|);

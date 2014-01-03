@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2013 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -196,9 +196,9 @@ my $XENVM = 0;
 # Node to use as ntp server for inner nodes and other inner servers.
 # This node will use the outside "ntp1" server as its server.
 #
-# XXX this has never been tested with anything but "boss".
+# XXX this has never been tested with anything but "boss" and "ops".
 #
-my $NTPSERVER = "boss";
+my $NTPSERVER = "ops";
 
 #
 # Defaults for configuration attributes (options).
@@ -1125,13 +1125,6 @@ sub SetupFsNode()
 	     "cp /tmp/syslog.conf /etc/syslog.conf");
 
     #
-    # If not us, fixup our ntp.conf file to talk to the inner ntp server.
-    #
-    if ($NTPSERVER ne "fs") {
-	mysystem("sed -i '.orig' -E -e 's/^server .*/server $NTPSERVER/' /etc/ntp.conf");
-    }
-
-    #
     # Create a defs file. Note that this will move to boss at some point.
     #
     CreateDefsFile("$TBDIR/src/testbed/defs-elabinelab");
@@ -1728,13 +1721,6 @@ sub SetupOpsNode($)
     mysystem("cat /etc/syslog.conf | grep -v '\@users' > /tmp/syslog.conf");
     mysystem("cp -pf /etc/syslog.conf /etc/syslog.conf.old ; ".
 	     "cp /tmp/syslog.conf /etc/syslog.conf");
-
-    #
-    # If not us, fixup our ntp.conf file to talk to the inner ntp server.
-    #
-    if ($NTPSERVER ne "ops") {
-	mysystem("sed -i '.orig' -E -e 's/^server .*/server $NTPSERVER/' /etc/ntp.conf");
-    }
 
     #
     # Create a defs file. Note that this will move to boss at some point.
@@ -2450,13 +2436,6 @@ sub SetupBossNode($)
 	     "cp /tmp/syslog.conf /etc/syslog.conf");
 
     #
-    # If not us, fixup our ntp.conf file to talk to the inner ntp server.
-    #
-    if ($NTPSERVER ne "boss") {
-	mysystem("sed -i '.orig' -E -e 's/^server .*/server $NTPSERVER/' /etc/ntp.conf");
-    }
-
-    #
     # Create a defs file. Note that this will move to boss at some point.
     #
     CreateDefsFile("$TBDIR/src/testbed/defs-elabinelab");
@@ -3126,6 +3105,11 @@ sub CreateDefsFile($)
 		};
 		/^NTPSERVER$/ && do {
 		    print OUTDEFS "NTPSERVER=${NTPSERVER}\n";
+		    # make sure the inner NTP server uses the outer NTP server
+		    print OUTDEFS "EXTERNAL_NTPSERVER1=ntp1.${outer_domain}\n";
+		    print OUTDEFS "EXTERNAL_NTPSERVER2=ntp1.${outer_domain}\n";
+		    print OUTDEFS "EXTERNAL_NTPSERVER3=ntp1.${outer_domain}\n";
+		    print OUTDEFS "EXTERNAL_NTPSERVER4=ntp1.${outer_domain}\n";
 		    last SWITCH;
 		};
 		/^TESTBED_NETWORK$/ && do {
