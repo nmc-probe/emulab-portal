@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2004-2013 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -55,6 +55,19 @@ SYMLINKS        = node_admin node_reboot os_load create_image node_list \
 		  template_checkout node_avail_list mkblob rmblob \
 		  createdataset deletedataset showdataset
 
+ifneq ($(UNIFIED),1)
+LINKS		= cd $(INSTALL_BINDIR) && \
+		  list='$(SYMLINKS)'; for file in $$list; do \
+			rm -f $$file; \
+			ln -s script_wrapper.py $$file; \
+		  done;
+OPSLINKS	= cd $(INSTALL_DIR)/opsdir/bin && \
+		  list='$(SYMLINKS)'; for file in $$list; do \
+			rm -f $$file; \
+			ln -s script_wrapper.py $$file; \
+		  done;
+endif
+
 #
 # Force dependencies on the scripts so that they will be rerun through
 # configure if the .in file is changed.
@@ -75,6 +88,7 @@ install: $(addprefix $(INSTALL_BINDIR)/, $(BIN_SCRIPTS)) \
 	$(addprefix $(INSTALL_DIR)/opsdir/bin/, $(CLIENTBINS))
 	-rm -f $(INSTALL_SBINDIR)/paperbag
 	ln -s xmlrpcbag $(INSTALL_SBINDIR)/paperbag
+	$(OPSLINKS)
 
 $(INSTALL_WWWDIR)/%: %
 	@echo "Installing $<"
@@ -104,13 +118,6 @@ $(INSTALL_DIR)/opsdir/lib/%: %
 #
 # Control node installation (okay, plastic)
 #
-ifneq ($(UNIFIED),1)
-LINKS=	cd $(INSTALL_BINDIR) && \
-		list='$(SYMLINKS)'; for file in $$list; do \
-			rm -f $$file; \
-			ln -s script_wrapper.py $$file; \
-		done;
-endif
 control-install:	$(CLIENTBINS) $(USERLIBS) \
 			$(addprefix $(INSTALL_LIBDIR)/, $(USERLIBS)) \
 			$(addprefix $(INSTALL_BINDIR)/, $(CLIENTBINS))
