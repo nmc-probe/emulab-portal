@@ -12,7 +12,7 @@ sub DoUpdate($$$)
 	DBQueryFatal("alter table tiplines add ".
 		     "  `urlhash` varchar(64) default NULL");
     }
-    if (! DBSlotExists("tiplines", "urlhash")) {
+    if (! DBSlotExists("tiplines", "urlstamp")) {
 	DBQueryFatal("alter table tiplines add ".
 		     "  `urlstamp` int(10) unsigned NOT NULL default '0'");
     }
