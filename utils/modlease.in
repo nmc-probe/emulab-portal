@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -302,7 +302,7 @@ if ($state) {
 
     if ($state ne $curstate) {
 	if (!$lease->ValidTransition($state)) {
-	    fatal("$pid/$lname: cannot transtion from $curstate to $state.");
+	    fatal("$pid/$lname: cannot transition from $curstate to $state.");
 	}
 
 	if ($curstate eq LEASE_STATE_UNAPPROVED()) {
