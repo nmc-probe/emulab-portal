@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012,2013 University of Utah and the Flux Group.
+# Copyright (c) 2012-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,19 +46,6 @@ use English;
 use Date::Parse;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
-
-#
-# More DB fields we need:
-#
-# * last_check - a timestamp we update everytime we look at a lease.
-#   This way we can differentiate a lease that has truly been idle for
-#   a long time, from one that we just haven't checked in a long time
-#   (because the lease_daemon died or something).
-#
-# * renewals - if renewing a lease is going to be a first-class thing,
-#   we need to keep track of how many times it has been renewed (see
-#   the LEASE_VARS comments below.
-#
 
 my @LEASE_TYPES  = ("stdataset", "ltdataset");
 
@@ -140,12 +127,13 @@ my %LEASE_VAR_DEFAULTS = (
 #    A valid lease can be mapped into an experiment. A lease remains valid
 #    unless it is explicitly or implicitly freed. Explicit would be if the
 #    user deletes the lease, implicit if the lease reaches its expiration
-#    date or has exceeded the "idle" limit. At this time, a lease moves to
-#    the "grace" state. This transition may or may not revoke permission
-#    from any experiment which has it mapped; resources remain allocated.
-#    A valid lease may also transition into the locked state if an admin
-#    administratively decides to prohibit access to a resource. Again, it
-#    is no clear what happens if the lease is currently mapped.
+#    date or has exceeded the "idle" limit. In the case of expiration or
+#    idleness, a lease moves to the "grace" state. This transition may or
+#    may not revoke permission from any experiment which has it mapped;
+#    resources remain allocated. A valid lease may also transition into
+#    the locked state if an admin administratively decides to prohibit
+#    access to a resource. Again, it is not clear what happens if the
+#    lease is currently mapped.
 #
 # "grace"
 #    A lease in the grace state may still make resources available to
@@ -214,6 +202,7 @@ sub inception($)       {return str2time($_[0]->{'DBROW'}->{'inception'}); }
 sub lease_end($)       {return str2time($_[0]->{'DBROW'}->{'lease_end'}); }
 sub expiration($)      {return $_[0]->lease_end(); }
 sub last_used($)       {return str2time($_[0]->{'DBROW'}->{'last_used'}); }
+sub last_checked($)    {return str2time($_[0]->{'DBROW'}->{'last_checked'}); }
 sub state($)           {return $_[0]->{'DBROW'}->{'state'}; }
 sub statestamp($)      {return str2time($_[0]->{'DBROW'}->{'statestamp'}); }
 sub locktime($)        {return str2time($_[0]->{'DBROW'}->{'locked'}); }
@@ -822,6 +811,25 @@ sub Refresh($)
 }
 
 #
+# Flush from our little cache, as for the lease daemon.
+#
+sub Flush($)
+{
+    my ($self) = @_;
+    if (ref($self)) {
+	delete($leases{$self->pid().":".$self->lease_id()});
+	delete($leases{$self->lease_idx()});
+    }
+}
+
+sub FlushAll($)
+{
+    my ($class) = @_;
+    
+    %leases = ();
+}
+
+#
 # Update to the given state and bump timestamp.
 #
 sub UpdateState($$) {
@@ -883,6 +891,21 @@ sub SetLastUsedTime($$) {
     DBQueryWarn("update project_leases set last_used=FROM_UNIXTIME($ntime) where lease_idx=$idx")
 	or return LEASE_ERROR_FAILED();
 
+    $self->Refresh();
+    return 0;
+}
+
+#
+# Bump last_checked column
+#
+sub BumpLastChecked($) {
+    my ($self) = @_;
+
+    return LEASE_ERROR_FAILED()
+	if (!ref($self));
+
+    my $idx = $self->idx();
+    DBQueryWarn("update project_leases set last_checked=NOW() where lease_idx=$idx");
     $self->Refresh();
     return 0;
 }
@@ -1356,6 +1379,8 @@ sub WaitLock($$;$)
 	if ($seconds <= 0);
     $verbose = 0
 	if (!defined($verbose));
+    $interval = $seconds
+	if (!$forever && $seconds < $interval);
 
     while ($forever || $seconds > 0) {
 	return 0
