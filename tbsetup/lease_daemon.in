@@ -385,6 +385,9 @@ while (1) {
 		}
 		if (lockify($lease)) {
 		    logit("  WARNING: $lease: could not lockdown, skipping");
+		} else {
+		    # XXX make a note of why it is locked
+		    $lease->SetAttribute("why", "lease_daemon_no_autodestroy");
 		}
 	    }
 	    $lease->BumpLastChecked();
@@ -550,6 +553,8 @@ sub destroy($)
     # If Dealloc fails, we put the lease in the locked state instead
     if ($lease->DeallocResources()) {
 	$lease->UpdateState(LEASE_STATE_LOCKED());
+	# XXX make a note of why it is locked
+	$lease->SetAttribute("why", "lease_daemon_dealloc_failed");
 	$lease->Unlock();
 	notify("$lease: resource dealloc failed during destruction. Manual cleanup required.");
 	return 4;
@@ -561,6 +566,8 @@ sub destroy($)
 
     # If Delete fails, we are left in the unapproved state
     if ($lease->Delete()) {
+	# XXX make a note of why it is here
+	$lease->SetAttribute("why", "lease_daemon_delete_failed");
 	$lease->Unlock();
 	notify("$lease: could not destroy lease, left in unapproved state. Manual cleanup required.");
 	return 5;
