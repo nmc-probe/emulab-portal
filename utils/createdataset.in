@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -208,8 +208,6 @@ if (!exists($descrip{$dstype})) {
 # usequotas	If non-zero, enforce per-project dataset quotas
 #
 my $vars = Lease->SiteVars($dstype);
-# convert to seconds
-$vars->{"maxlease"} *= (24 * 60 * 60);
 
 #
 # Check size: size must be > 0 and the size must be less than site limit

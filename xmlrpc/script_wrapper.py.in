@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2004-2013 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -165,6 +165,8 @@ API = {
                             "help" : "Create a persistent dataset" },
     "deletedataset"     : { "func" : "deletedataset",
                             "help" : "Delete a persistent dataset" },
+    "extenddataset"     : { "func" : "extenddataset",
+                            "help" : "Extend the lease on a persistent dataset" },
     "showdataset"       : { "func" : "showdataset",
                             "help" : "Show persistent datasets" }
 };
@@ -2810,6 +2812,51 @@ class deletedataset:
         print "currently mapped into an experiment or that is not in";
         print "the expired state. Obviously, this option should be used";
         print "with caution."
+        wrapperoptions();
+        return
+    pass
+
+#
+# extenddataset
+#
+class extenddataset:
+    def __init__(self, argv=None):
+        self.argv = argv;
+        return
+
+    def apply(self):
+        try:
+            opts, req_args = getopt.getopt(self.argv, "h", [ "help" ]);
+            pass
+        except getopt.error, e:
+            print e.args[0]
+            self.usage();
+            return -1;
+
+        params = {};
+        for opt, val in opts:
+            if opt in ("-h", "--help"):
+                self.usage()
+                return 0
+            pass
+
+        # Do this after so --help is seen.
+        if len(req_args) < 1:
+            self.usage();
+            return -1;
+
+        # Send the rest of the args along as a list.
+        params["dataset"] = req_args[0];
+
+        rval,response = do_method("dataset", "extend", params);
+        return rval;
+
+    def usage(self):
+ 	print "extenddataset [-h] dataset_id";
+        print "";
+        print "Extend the lease on the dataset with the indicated name.";
+        print "The lease will be extended by a fixed, site-specific length";
+        print "of time. Only datasets in the 'grace' state can be extended.";
         wrapperoptions();
         return
     pass

@@ -66,7 +66,7 @@ my @LEASE_TYPES  = ("stdataset", "ltdataset");
 # maxextend	Number of times a user can extend the lease
 #		(0 == unlimited)
 # extendperiod	Length (days) of each user-requested extention
-#		(0 == do not allow extensions (when maxextend != 0))
+#		(0 == do not allow extensions)
 #
 my @LEASE_VARS = (
     "maxsize",
@@ -109,7 +109,7 @@ my %LEASE_VAR_DEFAULTS = (
     "ltdataset/graceperiod"  => 180,	# 6 months
     "ltdataset/autodestroy"  => 0,	# no
     "ltdataset/usequotas"    => 1,	# yes
-    "ltdataset/maxextend"    => 1,	# combined with...
+    "ltdataset/maxextend"    => 1,	# ignored because...
     "ltdataset/extendperiod" => 0,	# ...means no user extention
 );
 
@@ -205,6 +205,7 @@ sub last_used($)       {return str2time($_[0]->{'DBROW'}->{'last_used'}); }
 sub last_checked($)    {return str2time($_[0]->{'DBROW'}->{'last_checked'}); }
 sub state($)           {return $_[0]->{'DBROW'}->{'state'}; }
 sub statestamp($)      {return str2time($_[0]->{'DBROW'}->{'statestamp'}); }
+sub renewals($)	       {return $_[0]->{'DBROW'}->{'renewals'}; }
 sub locktime($)        {return str2time($_[0]->{'DBROW'}->{'locked'}); }
 sub lockpid($)         {return $_[0]->{'DBROW'}->{'locker_pid'}; }
 
@@ -605,6 +606,68 @@ sub DeallocResources($) {
 }
 
 #
+# Extend (renew) a lease by the indicated amount.
+# Also increments the renewal count and transitions the lease back into
+# the valid state. Returns 0 on success, non-zero otherwise.
+#
+# N.B. The caller is responsible for locking the lease during this operation.
+#
+sub Extend($$)
+{
+    my ($self,$addtime) = @_;
+
+    #
+    # Lease must be in some state other than unapproved/valid but that
+    # can transition to valid.
+    #
+    my $cstate = $self->state();
+    if ($cstate eq "unapproved" || $cstate eq "valid" ||
+	!$self->ValidTransition("valid")) {
+	print STDERR
+	    "$self: Extend: cannot transition from '$cstate' -> 'valid'\n";
+	return LEASE_ERROR_FAILED();
+    }
+
+    #
+    # If the expiration time has been reached, extend it by the
+    # indicated time.
+    #
+    if ($self->IsExpired()) {
+	if ($self->AddTime($addtime)) {
+	    print STDERR
+		"$self: Extend: could not extend lease\n";
+	    return LEASE_ERROR_FAILED();
+	}
+    }
+    #
+    # Otherwise we assume that the lease went idle and we bump
+    # the last_used time so it is no longer idle.
+    #
+    else {
+	if ($self->BumpLastUsed()) {
+	    print STDERR
+		"$self: Extend: could not extend lease\n";
+	    return LEASE_ERROR_FAILED();
+	}
+    }
+
+    #
+    # Increment the renewal count and put lease back into the valid state.
+    #
+    my $idx = $self->idx();
+    DBQueryWarn("update project_leases set renewals=renewals+1 ".
+		"where lease_idx=$idx")
+	or return LEASE_ERROR_FAILED();
+    if ($self->UpdateState("valid")) {
+	print STDERR
+	    "$self: Extend: could not extend lease\n";
+	return LEASE_ERROR_FAILED();
+    }
+
+    return 0;
+}
+
+#
 # Return a hashref of sitevars for the indicated lease type.
 # Why not let the caller make individual GetSiteVar calls? Well, efficiency
 # mostly. There are a lot of em, and they are generally needed all together.
@@ -638,6 +701,13 @@ sub SiteVars($$) {
     while (my ($var,$val,$defval) = $query->fetchrow_array()) {
 	if ($var =~ /^$hdr\/([-\w]+)$/ && exists($vars{$1})) {
 	    $vars{$1} = defined($val) ? $val : $defval;
+	}
+    }
+
+    # Convert day values to seconds
+    foreach my $n ("maxlease", "maxidle", "graceperiod", "extendperiod") {
+	if (exists($vars{$n})) {
+	    $vars{$n} *= (24 * 60 * 60);
 	}
     }
 

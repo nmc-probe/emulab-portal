@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -199,9 +199,9 @@ if (@lids > 0) {
 	printf $fmt, "Pid/Name", "Owner", "Type", "State",
 	    "Lock Time", "Lock Process ID";
     } else {
-	$fmt = "%-24s %-8s %-10s %-6s %3s %-15s %-15s %-15s %s\n";
+	$fmt = "%-24s %-8s %-10s %-6s %3s %3s %-15s %-15s %-15s %s\n";
 
-	printf $fmt, "Pid/Name", "Owner", "Type", "State", "Use",
+	printf $fmt, "Pid/Name", "Owner", "Type", "State", "Use", "Ext",
 	    "Inception", "End", "Last used", "Attrs";
     }
 
@@ -251,7 +251,7 @@ if (@lids > 0) {
 	    $lusers = ();
 	}
 	printf $fmt, $lname, $lease->owner(), $lease->type(),
-	    $states{$lease->state()}, int(@$lusers),
+	    $states{$lease->state()}, int(@$lusers), $lease->renewals(),
 	    $stime, $etime, $ltime, $attrstr;
     }
 }

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,7 +36,7 @@ BIN_SCRIPTS	= delay_config sshtb create_image node_admin link_config \
 		  template_record spewevents \
 		  wbts_dump mkblob rmblob \
 		  showlease createlease deletelease modlease approvelease \
-		  createdataset
+		  extendlease createdataset
 SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
                   eventping grantnodetype import_commitlog daemon_wrapper \
 		  opsreboot deletenode node_statewait grabwebcams \
