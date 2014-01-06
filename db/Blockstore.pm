@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012-2013 University of Utah and the Flux Group.
+# Copyright (c) 2012-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -517,6 +517,20 @@ sub Reserve($$$$$)
     }
 done:
     DBQueryWarn("unlock tables");
+
+    #
+    # If there is a lease associated with this blockstore, update the
+    # last used time since this represents a mapping (aka swapin) of the
+    # lease.
+    #
+    if ($self->lease_idx() != 0) {
+	require Lease;
+
+	my $lease = Lease->Lookup($self->lease_idx());
+	$lease->BumpLastUsed()
+	    if ($lease);
+    }
+
     return 0;
   bad:
     DBQueryWarn("unlock tables");
@@ -709,6 +723,24 @@ sub Release($)
 	or goto bad;
 
     DBQueryWarn("unlock tables");
+
+    #
+    # If there is a lease associated with this blockstore, update the
+    # last used time since this represents an unmapping (aka swapout)
+    # of the lease.
+    #
+    $query_result =
+	DBQueryWarn("select lease_idx from blockstores ".
+		    "where bsidx='$bsidx'");
+    if ($query_result && $query_result->numrows) {
+	require Lease;
+
+	my ($lidx) = $query_result->fetchrow_array();
+	my $lease = Lease->Lookup($lidx);
+	$lease->BumpLastUsed()
+	    if ($lease);
+    }
+
     return 0;
   bad:
     DBQueryWarn("unlock tables");
