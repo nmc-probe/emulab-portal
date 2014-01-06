@@ -56,16 +56,30 @@ use POSIX qw(strftime);
 #
 # * For 'expired' leases, destroy them!
 #
+# We alter our behavior if we are starting up after having not run for
+# "a long time". This is because we want to ensure that a lease gets the
+# full benefit of its grace period. We don't want a user to miss their only
+# notification about the grace period because it came and went while we were
+# not running.
+#
+# So what exactly is "a long time"? Since our granularity for most actions
+# is one day, we choose that. If we have not checked a lease in 24 hours,
+# we do the following:
+#
+# If a lease would have entered the grace period while we were not running
+# then 
+#
 
-#my $CHECK		= (15 * 60);
-#my $REPORT_UNAPPROVED	= ( 1 * 24 * 60 * 60);
-#my $REPORT_LOCKED	= (30 * 24 * 60 * 60);
-#my $REPORT_EXPIRED	= ( 1 * 24 * 60 * 60);
+my $CHECK		= (15 * 60);
+my $REPORT_UNAPPROVED	= ( 1 * 24 * 60 * 60);
+my $REPORT_LOCKED	= (30 * 24 * 60 * 60);
+my $REPORT_EXPIRED	= ( 1 * 24 * 60 * 60);
 
-my $CHECK		= (1 * 60);
-my $REPORT_UNAPPROVED	= (2 * 60);
-my $REPORT_LOCKED	= (3 * 60);
-my $REPORT_EXPIRED	= (2 * 60);
+## debugging
+#my $CHECK		= (1 * 60);
+#my $REPORT_UNAPPROVED	= (2 * 60);
+#my $REPORT_LOCKED	= (3 * 60);
+#my $REPORT_EXPIRED	= (2 * 60);
 
 sub usage()
 {
@@ -589,11 +603,6 @@ sub get_vars()
 	$v = Lease->SiteVars($lt);
 	return -1
 	    if (!defined($v));
-
-	# convert time vals to seconds
-	foreach my $n ("maxlease", "maxidle", "graceperiod", "extendperiod") {
-	    $v->{$n} *= (24 * 60 * 60);
-	}
 
 	$vars{$lt} = $v;
     }
