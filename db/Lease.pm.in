@@ -671,8 +671,9 @@ sub Extend($$)
 # Return a hashref of sitevars for the indicated lease type.
 # Why not let the caller make individual GetSiteVar calls? Well, efficiency
 # mostly. There are a lot of em, and they are generally needed all together.
-# By having them all fetched from here, I can also avoid putting these into
-# the database until we decide for sure on the right set; i.e., by using
+#
+# XXX by having them all fetched from here, I can also avoid putting these
+# into the database until we decide for sure on the right set; i.e., by using
 # LEASE_VAR_DEFAULTS.
 #
 sub SiteVars($$) {
@@ -683,23 +684,21 @@ sub SiteVars($$) {
 	return undef;
     }
 
-    my $hdr = "storage/$ltype";
+    # XXX tmp til sitevariables are settled upon
+    foreach my $var (@LEASE_VARS) {
+	if (exists($LEASE_VAR_DEFAULTS{"$ltype/$var"})) {
+	    $vars{$var} = $LEASE_VAR_DEFAULTS{"$ltype/$var"};
+	}
+    }
 
+    my $hdr = "storage/$ltype";
     my $query = DBQueryWarn("select name,value,defaultvalue ".
 			    "from sitevariables where name like '$hdr/%%'");
     return undef
 	if (!$query);
 
-    foreach my $var (@LEASE_VARS) {
-	$vars{$var} = undef;
-
-	# XXX tmp, til we settle on the set of vars
-	if (exists($LEASE_VAR_DEFAULTS{"$ltype/$var"})) {
-	    $vars{$var} = $LEASE_VAR_DEFAULTS{"$ltype/$var"};
-	}
-    }
     while (my ($var,$val,$defval) = $query->fetchrow_array()) {
-	if ($var =~ /^$hdr\/([-\w]+)$/ && exists($vars{$1})) {
+	if ($var =~ /^$hdr\/([-\w]+)$/) {
 	    $vars{$1} = defined($val) ? $val : $defval;
 	}
     }

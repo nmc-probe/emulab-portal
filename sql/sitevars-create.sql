@@ -130,6 +130,23 @@ INSERT INTO sitevariables VALUES ('protogeni/plc_url',NULL,'https://www.planet-l
 INSERT INTO sitevariables VALUES ('nodecheck/collect',NULL,'0','When set, collect and record node hardware info in /proj/<pid>/nodecheck/.',0);
 INSERT INTO sitevariables VALUES ('nodecheck/check',NULL,'0','When set, perform nodecheck at swapin.',0);
 
+INSERT INTO sitevariables VALUES ('storage/stdataset/usequotas',NULL,'0','If non-zero, enforce per-project dataset quotas',0);
+INSERT INTO sitevariables VALUES ('storage/stdataset/maxextend',NULL,'2','Number of times a user can extend the lease (0 == unlimited)',0);
+INSERT INTO sitevariables VALUES ('storage/stdataset/extendperiod',NULL,'1','Length (days) of each user-requested extention (0 == do not allow extensions)',0);
+INSERT INTO sitevariables VALUES ('storage/stdataset/maxidle',NULL,'0','Max time (days) from last use before lease is marked expired (0 == unlimited)',0);
+INSERT INTO sitevariables VALUES ('storage/stdataset/graceperiod',NULL,'1','Time (days) before an expired dataset will be destroyed (0 == no grace period)',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/maxextend',NULL,'1','Number of times a user can extend the lease (0 == unlimited)',0);
+INSERT INTO sitevariables VALUES ('storage/stdataset/maxlease',NULL,'7','Max time (days) from creation before lease is marked expired (0 == unlimited)',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/autodestroy',NULL,'0','If non-zero, destroy expired datasets after grace period, otherwise lock them',0);
+INSERT INTO sitevariables VALUES ('storage/stdataset/maxsize',NULL,'1048576','Max size (MiB) of a dataset (0 == unlimited)',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/extendperiod',NULL,'0','Length (days) of each user-requested extention (0 == do not allow extensions)',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/maxlease',NULL,'0','Max time (days) from creation before lease is marked expired (0 == unlimited)',0);
+INSERT INTO sitevariables VALUES ('storage/stdataset/autodestroy',NULL,'1','If non-zero, destroy expired datasets after grace period, otherwise lock them',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/usequotas',NULL,'1','If non-zero, enforce per-project dataset quotas',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/maxsize',NULL,'0','Max size (MiB) of a dataset (0 == unlimited)',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/graceperiod',NULL,'180','Time (days) before an expired dataset will be destroyed (0 == no grace period)',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/maxidle',NULL,'180','Max time (days) from last use before lease is marked expired (0 == unlimited)',0);
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
