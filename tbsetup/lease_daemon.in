@@ -87,10 +87,11 @@ sub usage()
 	"    -d     Prevent daemonization\n" .
 	"    -n     Just state what would be done without doing it\n" .
 	"    -A     Automatically destroy expired leases (ow, they are locked)\n" .
+	"    -1     Run a single pass and then quit\n" .
 	"    -I int Time between checks (in minutes)\n";
     exit(-1);
 }
-my  $optlist = "dnAI:";
+my  $optlist = "dnAI:1";
 
 #
 # Configure variables
@@ -126,6 +127,7 @@ my $debug	= 0;
 my $impotent	= 0;
 my $autodestroy = 0;
 my $checkint	= $CHECK;
+my $onceonly	= 0;
 
 #
 # Turn off line buffering on output (dots ...).
@@ -160,6 +162,9 @@ if (defined($options{"A"})) {
 }
 if (defined($options{"I"})) {
     $checkint = $options{"I"} * 60;
+}
+if (defined($options{"1"})) {
+    $onceonly = 1;
 }
 
 # This should always run as root.
@@ -206,6 +211,8 @@ logit("Lease monitoring daemon starting... pid $$");
 my $started = 0;
 while (1) {
     if ($started) {
+	exit(0)
+	    if ($onceonly);
 	Lease->FlushAll();
 	sleep($checkint);
     } else {
@@ -305,12 +312,20 @@ while (1) {
 	    if ($debug);
 
 	if ($lease->InUse() > 0) {
+	    push(@report, $lease);
 	    if ($impotent) {
-		logit("  Would update last_used");
-	    } else {
-		$lease->SetLastUsed($now);
+		next;
 	    }
+	    $lease->SetLastUsedTime($now);
 	}
+    }
+    if (@report > 0) {
+	if ($impotent) {
+	    logit("  Would update last_used for: " . join(' ', @report));
+	} else {
+	    logit("  Updated last_used for: " . join(' ', @report));
+	}
+	@report = ();
     }
 
     #
@@ -326,18 +341,21 @@ while (1) {
 	logit("  $lease")
 	    if ($debug);
 
-	my $delta = $now - $lease->last_used();
+	my $delta = $now -
+	    ($lease->last_used() ? $lease->last_used() : $lease->inception());
 	my $limit = $vars{$ltype}->{'maxidle'};
 	if ($limit > 0 && $delta > $limit) {
 	    logit("    idle ($delta > $limit)...")
 		if ($debug);
+
 	    if ($impotent) {
-		logit("  Would move to grace state due to idleness");
+		push(@report, $lease);
 		next;
 	    }
 	    if (graceify($lease, 0)) {
 		logit("  WARNING: $lease: could not change state, skipping");
 	    } else {
+		push(@report, $lease);
 		push(@{$leases{LEASE_STATE_GRACE()}}, $lease);
 	    }
 	    $lease->BumpLastChecked();
@@ -348,13 +366,15 @@ while (1) {
 	if ($now >= $expire) {
 	    logit("    expired ($now > $expire)...")
 		if ($debug);
+
 	    if ($impotent) {
-		logit("  Would move to grace state due to expiration");
+		push(@report, $lease);
 		next;
 	    }
 	    if (graceify($lease, 1)) {
 		logit("  WARNING: $lease: could not change state, skipping");
 	    } else {
+		push(@report, $lease);
 		push(@{$leases{LEASE_STATE_GRACE()}}, $lease);
 	    }
 	    $lease->BumpLastChecked();
@@ -362,6 +382,14 @@ while (1) {
 	}
 
 	$lease->BumpLastChecked();
+    }
+    if (@report > 0) {
+	if ($impotent) {
+	    logit("  Would move to grace: " . join(' ', @report));
+	} else {
+	    logit("  Moved to grace: " . join(' ', @report));
+	}
+	@report = ();
     }
 
     #
@@ -384,28 +412,38 @@ while (1) {
 	if ($delta >= $limit) {
 	    if ($vars{$ltype}->{'autodestroy'} && $autodestroy) {
 		if ($impotent) {
-		    logit("  Would move to expired state due to grace period expiration");
+		    push(@report, $lease);
 		    next;
 		}
 		if (changestate($lease, LEASE_STATE_EXPIRED())) {
 		    logit("  WARNING: $lease: could not expire, skipping");
 		} else {
+		    push(@report, $lease);
 		    push(@{$leases{LEASE_STATE_EXPIRED()}}, $lease);
 		}
 	    } else {
 		if ($impotent) {
-		    logit("  Would move to locked state due to grace period expiration");
+		    push(@report, $lease);
 		    next;
 		}
 		if (lockify($lease)) {
 		    logit("  WARNING: $lease: could not lockdown, skipping");
 		} else {
+		    push(@report, $lease);
 		    # XXX make a note of why it is locked
 		    $lease->SetAttribute("why", "lease_daemon_no_autodestroy");
 		}
 	    }
 	    $lease->BumpLastChecked();
 	}
+    }
+    if (@report > 0) {
+	if ($impotent) {
+	    logit("  Would move to expired: " . join(' ', @report));
+	} else {
+	    logit("  Moved to expired: " . join(' ', @report));
+	}
+	@report = ();
     }
 
     #
@@ -434,6 +472,7 @@ while (1) {
 	    if (destroy($lease)) {
 		logit("  WARNING: $lease: could not destroy, skipping");
 	    } else {
+		logit("  $lease: destroyed!");
 		$lease = undef;
 	    }
 	}
@@ -487,24 +526,28 @@ sub graceify($$)
 {
     my ($lease,$expired) = @_;
     my $ltype = $lease->type();
-    my $glen = $vars{$ltype}->{'graceperiod'} / (24 * 60 * 60);
+    my $grace = $vars{$ltype}->{'graceperiod'};
 
     if (changestate($lease, LEASE_STATE_GRACE())) {
 	return 1;
     }
 
-    if ($glen > 0) {
+    if ($grace > 0) {
+	my $ghours = sprintf("%.1f", $grace / (60 * 60));
 	my $reason = ($expired ? "expired" : "been idle too long");
 	my $name = $lease->pid() . "/" . $lease->lease_id();
 	my $msg =
-	    "Your '$ltype' lease $name has $reason and has entered a $glen day grace period.\n";
+	    "Your '$ltype' lease $name has $reason.\n".
+	    "It has entered a $ghours hour grace period.\n";
 	if ($expired) {
-	    $msg .= "You need to request an extension for the dataset";
+	    $msg .= "You need to request an extension for the dataset\n";
 	} else {
-	    $msg .= "You need to make use of the dataset";
+	    $msg .= "You need to make use of the dataset\n";
 	}
-	$msg .= " or move your data elsewhere within this time period.\n";
-	$msg .= "If you do not, the dataset will be destroyed and THE DATA WILL NOT BE RECOVERABLE.\n";
+	$msg .=
+	    "or move your data out of Emulab within this time period.\n".
+	    "If you do not, the dataset will be destroyed and\n".
+	    "THE DATA WILL NOT BE RECOVERABLE.\n";
 	notifyuser($lease->owner(), $msg);
     }
 
@@ -522,7 +565,8 @@ sub lockify($)
 
     my $name = $lease->pid() . "/" . $lease->lease_id();
     my $msg =
-	"Your '$ltype' lease $name has expired and has been administratively locked.\n";
+	"Your '$ltype' lease $name has expired.\n".
+	"It has been administratively locked.\n";
     notifyuser($lease->owner(), $msg);
 
     return 0;
