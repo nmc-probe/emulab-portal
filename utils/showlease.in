@@ -36,22 +36,26 @@ sub usage()
     print STDERR "   -h      This message\n";
     print STDERR "   -d      Print additional debug info\n";
     print STDERR "   -a      Show all leases (admin only)\n";
+    print STDERR "   -g      Show only leases in the 'grace' state\n";
     print STDERR "   -L      Show lock holders (admin only)\n";
     print STDERR "   -p pid  Show all leases for project <pid>\n";
     print STDERR "   -u uid  Show all leases owned by user <uid>\n";
     print STDERR "   lid ... Show named leases (name is <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhaLp:u:";
+my $optlist  = "dhaLp:u:g";
 my $debug = 0;
 my $pid;
 my $uid;
 my $showall;
+my $showgrace;
 my $showlockers;
 my @lids = ();
+my %sitevars = ();
 
 # Protos
 sub fatal($);
+sub datestr($);
 
 #
 # Configure variables
@@ -94,6 +98,9 @@ if (defined($options{d})) {
 }
 if (defined($options{a})) {
     $showall = 1;
+}
+if (defined($options{g})) {
+    $showgrace = 1;
 }
 if (defined($options{L})) {
     $showlockers = 1;
@@ -197,7 +204,11 @@ if (@lids > 0) {
 	$fmt = "%-24s %-8s %-10s %-6s %-15s %s\n";
 
 	printf $fmt, "Pid/Name", "Owner", "Type", "State",
-	    "Lock Time", "Lock Process ID";
+	    "Lock Time", "Locker Proc ID";
+    } elsif ($showgrace) {
+	$fmt = "%-24s %-8s %-10s %-11s %-15s %-15s %-15s %-15s %-15s\n";
+
+	printf $fmt, "Pid/Name", "Owner", "Type", "Exp Policy", "Grace Start", "Grace End", "Last Checked", "Last Used", "Expiration";
     } else {
 	$fmt = "%-24s %-8s %-10s %-6s %3s %3s %-15s %-15s %-15s %s\n";
 
@@ -211,7 +222,7 @@ if (@lids > 0) {
 	    my $lproc = $lease->lockpid();
 	    my $ltime;
 	    if ($lproc != 0) {
-		$ltime = strftime("%D %R", localtime($lease->locktime()));
+		$ltime = datestr($lease->locktime());
 	    } else {
 		$ltime = "Unlocked";
 		$lproc = "";
@@ -224,6 +235,40 @@ if (@lids > 0) {
 	if (!$lease->AccessCheck($this_user, LEASE_ACCESS_READINFO())) {
 	    print STDERR "Admin cannot access lease $lease?!\n"
 		if (TBAdmin());
+	    next;
+	}
+
+	if ($showgrace) {
+	    next
+		if ($lease->state() ne LEASE_STATE_GRACE());
+
+	    my $ltype = $lease->type();
+	    if (!exists($sitevars{$ltype})) {
+		$sitevars{$ltype} = Lease->SiteVars($ltype);
+	    }
+	    my $grace = $sitevars{$ltype}->{'graceperiod'};
+	    next
+		if (!defined($grace));
+	    $grace += $lease->statestamp();
+
+	    my $policy = "none";
+	    if ($sitevars{$ltype}->{'maxlease'} != 0) {
+		if ($sitevars{$ltype}->{'maxidle'} != 0) {
+		    $policy = "expire+idle";
+		} else {
+		    $policy = "expire";
+		}
+	    } elsif ($sitevars{$ltype}->{'maxidle'} != 0) {
+		$policy = "idle";
+	    }
+	    my $lname = $lease->pid() . "/" . $lease->lease_id();
+	    my $stime = datestr($lease->statestamp());
+	    my $etime = datestr($grace);
+	    my $lchecked = datestr($lease->last_checked());
+	    my $lused = datestr($lease->last_used());
+	    my $expire = datestr($lease->lease_end());
+	    printf $fmt, $lname, $lease->owner(), $ltype, $policy,
+	        $stime, $etime, $lchecked, $lused, $expire;
 	    next;
 	}
 
@@ -240,12 +285,9 @@ if (@lids > 0) {
 	}
 
 	my $lname = $lease->pid() . "/" . $lease->lease_id();
-	my $stime = strftime("%D %R", localtime($lease->inception()));
-	my $etime = strftime("%D %R", localtime($lease->lease_end()));
-	my $ltime = "never";
-	if ($lease->last_used()) {
-	    $ltime = strftime("%D %R", localtime($lease->last_used()));
-	}
+	my $stime = datestr($lease->inception());
+	my $etime = datestr($lease->lease_end());
+	my $ltime = datestr($lease->last_used());
 	my $lusers = $lease->UsingResources();
 	if (!$lusers) {
 	    $lusers = ();
@@ -257,6 +299,17 @@ if (@lids > 0) {
 }
 
 exit(0);
+
+sub datestr($)
+{
+    my ($date) = @_;
+
+    if (defined($date)) {
+	return strftime("%D %R", localtime($date));
+    }
+
+    return "never";
+}
 
 sub fatal($)
 {
