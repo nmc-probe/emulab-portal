@@ -25,7 +25,7 @@ use strict;
 
 #
 # Options that can be passed in the URL
-# (eg.  # http://localhost:4557/?foo=1&bar=1)
+# (eg.  # http://localhost:4577/?foo=1&bar=1)
 #
 # mailmembers=1 : If set, automatically sends mail to all members of the
 #                 project
@@ -58,6 +58,10 @@ my $BASEURL = "http://git.flux.utah.edu/";
 # Path where gitlab repos live in the FS - doesn't seem available through
 # the gitlab API
 my $BASEPATH = "/home/git/repositories";
+
+# If set, send to members, not archivemail, by default - ie. act as if 
+# noarchive=1 was passed in the URL
+my $NOARCHIVE_DEFAULT = 0;
 
 #
 # End settable options
@@ -209,7 +213,7 @@ sub run_gitmail($$) {
     my %options;
 
     # Address to always send mail to
-    if (!exists $get_vars->{'noarchive'}) {
+    if ((!exists $get_vars->{'noarchive'}) && (!$NOARCHIVE_DEFAULT)) {
         $options{'archivemail'} = $DEFAULT_ARCHIVEMAIL;
     }
 
@@ -226,7 +230,8 @@ sub run_gitmail($$) {
     }
 
     # If requested, send mail to everyone who's listed on the project
-    if (exists $get_vars->{'mailmembers'} || exists $get_vars->{'noarchive'}) {
+    if (exists $get_vars->{'mailmembers'} || exists $get_vars->{'noarchive'} ||
+        $NOARCHIVE_DEFAULT) {
         $options{'alwaysmail'} =
             get_member_addresses($data->{"project_id"});
     }
