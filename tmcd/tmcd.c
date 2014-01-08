@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2013 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -10245,7 +10245,7 @@ COMMAND_PROTOTYPE(doarpinfo)
 {
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
-	int		nrows;
+	int		nrows, xenvifrouting = 0;
 	char		buf[MYBUFSIZE], erole[32], arptype[32];
 #ifdef GET_SERVERS_FROM_SITEVARS
 	struct serv {
@@ -10300,12 +10300,29 @@ COMMAND_PROTOTYPE(doarpinfo)
 		      "has invalid value '%s', using 'none' instead\n");
 		goto noinfo;
 	}
-	if (strcmp(arptype, "none") == 0) {
+	if (0 && strcmp(arptype, "none") == 0) {
 	noinfo:
 		OUTPUT(buf, sizeof(buf), "ARPTYPE=none\n");
 		client_writeback(sock, buf, strlen(buf), tcp);
 		return 0;
 	}
+
+	/*
+	 * Look for xenvifrouting sitevar
+	 */
+	res = mydb_query("select value,defaultvalue from sitevariables "
+			 "where name='general/xenvifrouting'", 2);
+	if (!res || (int)mysql_num_rows(res) == 0) {
+		error("ARPINFO: general/xenvifrouting sitevar "
+		      "not set, assuming no\n");
+		if (res)
+			mysql_free_result(res);
+	}
+	row = mysql_fetch_row(res);
+	if (row[0] && row[0][0]) {
+		xenvifrouting = 1;
+	}
+	mysql_free_result(res);
 
 	res = mydb_query("select erole from reserved where node_id='%s'",
 			 1, reqp->nodeid);
@@ -10574,7 +10591,7 @@ COMMAND_PROTOTYPE(doarpinfo)
 	}
 
 	/*
-	 * Ops/fs nodes: in addition to other servers on the on the control
+	 * Ops/fs nodes: in addition to other servers on the control
 	 * net, we also provide info for all testnodes and virtnodes on
 	 * either the node control net or the "jail" net.
 	 *
@@ -10585,13 +10602,24 @@ COMMAND_PROTOTYPE(doarpinfo)
 		 strcmp(reqp->nodeid, "fs") == 0) {
 		struct in_addr nnet;
 
-		res = mydb_query("select i.node_id,i.IP,i.mac,n.role "
-				 "from interfaces as i,nodes as n "
-				 "left join reserved as r on r.node_id=n.node_id "
-				 "where n.node_id=i.node_id and i.role='ctrl' "
-				 " and i.mac not like '000000%%' "
-				 " and (n.role='testnode' or "
-				 "      n.role='virtnode') ", 4);
+		res = mydb_query(
+			"select i.node_id,i.IP,i.mac,n.role,"
+			"   FIND_IN_SET('xen-host',o.osfeatures) as isxen, "
+			"   vn.attrvalue as vif,ip.mac "
+			"from interfaces as i,nodes as n "
+			"left join reserved as r on r.node_id=n.node_id "
+			"left join nodes as np on np.node_id=n.phys_nodeid "
+			"left join os_info as o on o.osid=np.def_boot_osid "
+			"left join reserved as rp on rp.node_id=n.phys_nodeid "
+			"left join interfaces as ip on "
+			"     ip.node_id=rp.node_id and ip.role='ctrl' "
+			"left join virt_node_attributes as vn on "
+			"     vn.exptidx=rp.exptidx and vn.vname=rp.vname and "
+			"     vn.attrkey='xenvifrouting' "
+			"where n.node_id=i.node_id and "
+			"      (i.role='ctrl' or i.role='mngmnt') and "
+			"      i.mac not like '000000%%' and "
+			"      (n.role='testnode' or n.role='virtnode')", 7);
 		if (!res) {
 			error("doarpinfo: %s: DB Error getting"
 			      "control interface info\n", reqp->nodeid);
@@ -10599,6 +10627,8 @@ COMMAND_PROTOTYPE(doarpinfo)
 		}
 
 		for (nrows = (int)mysql_num_rows(res); nrows > 0; nrows--) {
+			char *cnetmac;
+			
 			row = mysql_fetch_row(res);
 			if (!row[0] || !row[0][0] ||
 			    !row[1] || !row[1][0] ||
@@ -10614,10 +10644,26 @@ COMMAND_PROTOTYPE(doarpinfo)
 			      (strcmp(row[3], "virtnode") == 0 &&
 			       (nnet.s_addr & jmask.s_addr) == jnet.s_addr)))
 				continue;
+			cnetmac = row[2];
+			
+			/*
+			 * If virtnode on a xen-host doing xenvifrouting,
+			 * then we want to return the mac of the physical
+			 * host instead of the virtual host.
+			 */
+			if (strcmp(row[3], "virtnode") == 0 &&
+			    /* isxen != 0 */
+			    row[4] && row[4][0] && atoi(row[4]) &&
+			    /* xenvifrouting != NULL */
+			    row[5] &&
+			    /* mac is set, should always be set though */
+			    row[6]) {
+				cnetmac = row[6];
+			}
 			
 			OUTPUT(buf, sizeof(buf),
 			       "HOST=%s CNETIP=%s CNETMAC=%s\n",
-			       row[0], row[1], row[2]);
+			       row[0], row[1], cnetmac);
 			client_writeback(sock, buf, strlen(buf), tcp);
 		}
 
