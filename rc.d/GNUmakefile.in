@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -35,7 +35,7 @@ SYSTEM         := $(shell uname -s)
 include $(OBJDIR)/Makeconf
 
 RC_SCRIPTS	= 2.mysql-server.sh 3.mfrisbeed.sh 3.testbed.sh \
-		  2.dhcpd.sh 1.mysql-client.sh
+		  2.dhcpd.sh 1.mysql-client.sh 
 SUBBOSS_SCRIPTS	= 2.dhcpd.sh 3.mfrisbeed-subboss.sh arplock.sh
 OPS_SCRIPTS     = 3.and.sh 1.mysql-client.sh 1.mysql-server.sh arplock-opsfs.sh
 ifeq ($(ELVINCOMPAT),1)
@@ -66,7 +66,8 @@ endif
 # Force dependencies to make sure configure regenerates if the .in file
 # is changed.
 # 
-all: $(RC_SCRIPTS) $(OPS_SCRIPTS) $(FS_SCRIPTS) $(SUBBOSS_SCRIPTS) capture.sh 3.v0_gateway.sh
+all: $(RC_SCRIPTS) $(OPS_SCRIPTS) $(FS_SCRIPTS) $(SUBBOSS_SCRIPTS) \
+	capture.sh 3.v0_gateway.sh 2.tbdbcheck.sh
 
 control-build:	$(OPS_SCRIPTS) 
 fs-build:	$(FS_SCRIPTS) 
