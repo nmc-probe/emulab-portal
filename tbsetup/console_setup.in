@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -109,9 +109,11 @@ foreach my $node (@nodes) {
     # next query, but that would be confusing.
     #
     my $tiplines_result =
-	DBQueryFatal("select tipname,server,disabled from tiplines ".
-		     "where node_id='$node' and ".
-		     "server!='' and keydata is not null");
+	DBQueryFatal("select t.tipname,t.server,t.disabled from tiplines as t ".
+		     "left join nodes as n on n.node_id=t.node_id ".
+		     "left join node_types as nt on nt.type=n.type ".
+		     "where t.node_id='$node' and nt.isvirtnode=0 and ".
+		     "      t.server!='' and t.keydata is not null");
 
     if (! $tiplines_result->numrows) {
 	next;
