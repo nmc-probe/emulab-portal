@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2013 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -3412,11 +3412,16 @@ sub GetJailIP($;$)
 	print STDERR "*** GetJailIP: No control IP for $interface\n";
 	return undef;
     }
-    my $tmp = ~inet_aton($CONTROL_NETMASK) & inet_aton($ctrlip);
-    $ipbase = unpack("N", $tmp);
-    if ($ipbase == 0 || $ipbase < 0 || $ipbase > 0x3fff) {
-	print STDERR "*** GetJailIP: Bad ipbase '$ipbase' for $interface\n";
-	return undef;
+    if ($self->node_id() =~ /^(.*\D)(\d+)$/) {
+	$ipbase     = $2;
+    }
+    else {
+	my $tmp = ~inet_aton($CONTROL_NETMASK) & inet_aton($ctrlip);
+	$ipbase = unpack("N", $tmp);
+	if ($ipbase == 0 || $ipbase < 0 || $ipbase > 0x3fff) {
+	    print STDERR "*** GetJailIP: Bad ipbase '$ipbase' for $interface\n";
+	    return undef;
+	}
     }
 
     my $node_id = $self->node_id();
