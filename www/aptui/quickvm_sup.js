@@ -649,19 +649,62 @@ function StartCountdownClock(when)
 
 function maketopmap(divname, width, height, json)
 {
+	var ismousedown = false;
+	var savedTrans;
+	var savedScale;
+
+	var change_view = d3.behavior.zoom()
+	.scaleExtent([1,5])
+	.on("zoom", rescaleg);
+
+	function rescaleg(d, i, j) {
+		if (!ismousedown)
+		{
+			trans=d3.event.translate;
+			scale=d3.event.scale;
+
+			tx = Math.min(0, Math.max(width * (1 - scale), trans[0]));
+			ty = Math.min(0, Math.max(height * (1 - scale), trans[1]));
+
+			change_view.translate([tx, ty]);
+			vis.attr("transform",
+			    "translate(" + tx + "," + ty + ")"
+			    + " scale(" + scale + ")");
+		}
+	}	
+
+	function mousedown()
+	{
+		$("#quickvm_topomodal").addClass("unselectable");
+	}
+
+	function mouseup()
+	{
+		$("#quickvm_topomodal").removeClass("unselectable");
+	}	
+
     $(divname).html("<div></div>");
     
-    var vis = d3.select(divname).append("svg:svg")
-	.attr("class", "topomap")
-        .style("visibility", "hidden")
-	.attr("width", width)
-	.attr("height", height);
+    var outer = d3.select(divname).append("svg:svg")
+		.attr("class", "topomap")
+	        .style("visibility", "hidden")
+		.attr("width", width)
+		.attr("height", height)
+		.attr("pointer-events", "all");
 
-    vis.append("svg:rect")
+    var vis = outer
+		.append('svg:g')
+			.on("dblclick.zoom", null)
+			.call(change_view)
+		.append('svg:g')
+			.on("mousedown", mousedown)
+			.on("mouseup", mouseup);
+
+    var rect = vis.append("svg:rect")
 	.attr("width", width)
 	.attr("height", height)
         .style("fill-opacity", 0.0)
-	.style("stroke", "#000");
+        .style("stroke", "#000");
 
     var topo = function(json) {
 	var force = self.force = d3.layout.force()
@@ -697,6 +740,10 @@ function maketopmap(divname, width, height, json)
 	function dragstart(d, i) {
 	    // stops the force auto positioning before you start dragging
 	    force.stop() 
+	    ismousedown = true;
+
+	    savedTrans = change_view.translate();
+	    savedScale = change_view.scale();
 	}
 
 	function dragmove(d, i) {
@@ -714,6 +761,10 @@ function maketopmap(divname, width, height, json)
 	    // include the node in its auto positioning stuff
 	    d.fixed = true; 
 	    force.resume();
+
+	    ismousedown = false;
+	    change_view.translate(savedTrans);
+	    change_view.scale(savedScale);
 	}
 
 	var nodeg = vis.selectAll("g.node")
@@ -743,7 +794,7 @@ function maketopmap(divname, width, height, json)
 	
 	function tick(e) {
 	    if (e && e.alpha < 0.05) {
-		vis.style("visibility", "visible")
+		outer.style("visibility", "visible")
 		force.stop();
 		return;
 	    }
