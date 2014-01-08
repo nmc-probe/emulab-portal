@@ -106,7 +106,7 @@ else
 MDSUBDIR  = fedora
 endif
 endif
-ifeq ($(findstring centos,$(MDSUBDIR)),centos)
+ifeq ($(MDSUBDIR),centos5)
 MDSUBDIR  = fedora
 endif
 ifeq ($(MDSUBDIR),stargate1)
