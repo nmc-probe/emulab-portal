@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -45,7 +45,7 @@ SUBDIRS = tutorial
 # Force dependencies to make sure configure regenerates if the .in file
 # is changed.
 # 
-all: defs.php3 dbdefs.php3 swish.conf websearch htmlinstall xmlrpc.php3 \
+all: defs.php3 dbdefs.php3 websearch htmlinstall xmlrpc.php3 \
 	xmlrpcpipe.php3 blob/read.php3 all-subdirs
 
 include $(TESTBED_SRCDIR)/GNUmakerules
@@ -224,13 +224,12 @@ INSTALLFILES = $(addprefix $(INSTALL_SBINDIR)/, htmlinstall) \
 	$(addprefix $(INSTALL_SBINDIR)/, htmlinstall) \
 	$(addprefix $(INSTALL_WWWDIR)/cvsweb/, $(ALLCVSWEB)) \
 	$(addprefix $(INSTALL_DIR)/opsdir/www/cvsweb/, $(ALLOPSCVSWEB)) \
+	$(INSTALL_DIR)/opsdir/www/accept_cert.html \
 	$(INSTALL_WWWDIR)/wikidocs/wiki/ignore.html \
-	$(INSTALL_WWWDIR)/doc/LICENSE.txt \
-	$(addprefix $(INSTALL_ETCDIR)/, swish.conf)
+	$(INSTALL_WWWDIR)/doc/LICENSE.txt
 
 install: $(INSTALLFILES)
 	-mkdir -p $(INSTALL_WWWDIR)/wikidocs/wiki
-	(swish-e -c ./swish.conf)
 	cd $(INSTALL_WWWDIR) && \
 		rm -f tbdb.html; \
 		ln -s index.html tbdb.html; \
