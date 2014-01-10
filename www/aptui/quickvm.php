@@ -175,7 +175,7 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
             </span>
 
               <button id='profile' class='btn btn-primary btn-xs pull-right' 
-              type='button' name='profile' onClick='ShowModal(\"#quickvm_topomodal\")'>
+              type='button' name='profile'>
               Select a Profile
               </button>\n";
     echo " <label
@@ -183,8 +183,7 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
                        for='profile'>$profile_error</label>
             </div>
             <button class='btn btn-primary btn-sm pull-left'
-                type='button' name='reset'
-                      onclick='formReset(); return false;'>
+                type='button' name='reset' id='reset-form'>
                       Reset Form</button>
             <button class='btn btn-success pull-right'
               type='submit' name='create'>Create!
@@ -263,8 +262,7 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
                       if ($profile_value == $id)
                           $selected = "selected";
                       
-                      echo "<li class='list-group-item' $selected value='$id' 
-                                onClick='ShowProfileList(this);'>$title </li>\n";
+                      echo "<li class='list-group-item profile-item' $selected value='$id'>$title </li>\n";
                         }
 
                         echo "</ul>
@@ -283,8 +281,7 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
                  <div id='showtopo_buttons' class='pull-right'>
                      <button id='showtopo_select'
                            class='btn btn-primary btn-sm'
-                           type='submit' name='select' 
-                           onClick='UpdateProfileSelection($(\".selected\"))'>
+                           type='submit' name='select'>
                               Select Profile</button>
                       <button type='button' class='btn btn-default btn-sm' 
                       data-dismiss='modal' aria-hidden='true'>
@@ -294,25 +291,13 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
             </div>
           </div>
        </div>\n";
-    echo "<script type='text/javascript'>
-            $(UpdateProfileSelection($('#profile_name li:eq(0)')));
-            $('#quickvm_topomodal').on('hidden.bs.modal', function() {
-              ShowProfileList($('.current'))
-            });
-          </script>";
-    echo "<SCRIPT LANGUAGE=JavaScript>
-               window.onload = InitProfileSelector;
-          </SCRIPT>\n";
-    echo "<SCRIPT LANGUAGE=JavaScript>\n";
-    
+    echo "<script type='text/javascript'>\n";
+    echo "window.APT_OPTIONS = {\n";
     if ($newuser) {
-	echo "ShowModal('#working');\n";
+        echo "  isNewUser: true\n";
     }
-    echo "function formReset()
-          {
-              resetForm($('#quickvm_form'));
-          }
-          </SCRIPT>\n";
+    echo "};\n";
+    echo "</script>\n";
 }
 
 if (!isset($create)) {

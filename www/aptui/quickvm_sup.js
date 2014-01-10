@@ -120,11 +120,11 @@ function Terminate(uuid, url)
 function ShowTopo(uuid)
 {
     var callback = function(json) {
-	console.log(json.value);
+	console.info(json.value);
 	var xmlDoc = $.parseXML(json.value);
 	var xml    = $(xmlDoc);
 	var topo   = ConvertManifestToJSON(null, xml);
-	console.log(topo);
+	console.info(topo);
 
 	$("#showtopo_container").removeClass("invisible");
 	maketopmap("#topo-container",
@@ -132,7 +132,7 @@ function ShowTopo(uuid)
 		   300, topo);
 
     }
-    console.log(uuid);
+    console.info(uuid);
     var $xmlthing = CallMethod("manifest", null, uuid, null);
     $xmlthing.done(callback);
 }
@@ -168,11 +168,11 @@ function ShowProfileList(selectedElement)
 	}
 
 	var callback = function(json) {
-	console.log(json.value);
+	console.info(json.value);
 	var xmlDoc = $.parseXML(json.value.rspec);
 	var xml    = $(xmlDoc);
 	var topo   = ConvertManifestToJSON(profile, xml);
-	console.log(topo);
+	console.info(topo);
     
 	$('#showtopo_title').html("<h3>" + profile + "</h3>");
 	$('#showtopo_description').html(json.value.description);
@@ -192,7 +192,7 @@ function ShowProfile(direction)
     
     if (direction) {
 	var max = $('#profile_name option').length;
-	console.log(max);
+	console.info(max);
 	index = ShowProfile.index + direction;
 	
 	if (index < 1) {
@@ -209,15 +209,15 @@ function ShowProfile(direction)
 	profile = $('#profile_name').val();
     }
     ShowProfile.index = index;
-    console.log(profile);
-    console.log(index);
+    console.info(profile);
+    console.info(index);
 
     var callback = function(json) {
-	console.log(json.value);
+	console.info(json.value);
 	var xmlDoc = $.parseXML(json.value.rspec);
 	var xml    = $(xmlDoc);
 	var topo   = ConvertManifestToJSON(profile, xml);
-	console.log(topo);
+	console.info(topo);
 
 	ShowModal("#quickvm_topomodal");
     
@@ -234,14 +234,14 @@ function ShowProfile(direction)
 
 function ShowProfileSlider(direction)
 {
-    console.log(direction);
+    console.info(direction);
     
     var callback = function(json) {
-	console.log(json.value);
+	console.info(json.value);
 	var xmlDoc = $.parseXML(json.value.rspec);
 	var xml    = $(xmlDoc);
 	var topo   = ConvertManifestToJSON(null, xml);
-	console.log(topo);
+	console.info(topo);
 
 	$('#showtopo_title').html("<h3>" + json.value.name + "</h3>");
 	$('#showtopo_description').html(json.value.description);
@@ -281,7 +281,7 @@ function Setsshurl(uuid)
 	var port   = login.attr("port");
 	var url    = "ssh://" + user + "@" + host + ":" + port + "/";
 	var href   = "<a href='" + url + "'>" + url + "</a>";
-	console.log(url);
+	console.info(url);
 	$("#quickvm_sshurl").html(href);
     }
     var $xmlthing = CallMethod("manifest", null, uuid, null);
@@ -294,13 +294,13 @@ function Setsshurl(uuid)
 function RequestExtension(uuid)
 {
     var reason = $("#why_extend").val();
-    console.log(reason);
+    console.info(reason);
     if (reason.length < 30) {
 	alert("Your reason is too short! Say more please.");
 	return;
     }
     var callback = function(json) {
-	console.log(json.value);
+	console.info(json.value);
 	
 	if (json.code) {
 	    if (json.code < 0) {
@@ -324,12 +324,12 @@ function RequestExtension(uuid)
 function Extend(uuid)
 {
     var code = $("#extend_code").val();
-    console.log(code);
+    console.info(code);
     if (code == "") {
 	return;
     }
     var callback = function(json) {
-	console.log(json.value);
+	console.info(json.value);
     }
     var $xmlthing = CallMethod("extend", null, uuid, code);
     HideModal('#extend_modal');
@@ -356,10 +356,10 @@ function InitQuickVM(uuid, slice_expires)
     });
     // Use an unload event to terminate any shells.
     $(window).bind("unload", function() {
-	console.log("Unload function called");
+	console.info("Unload function called");
 	
 	$('#quicktabs_content div').each(function () {
-	    console.log(this);
+	    console.info(this);
 	    var $this = $(this);
 	    // Skip the main profile tab
 	    if ($this.attr("id") == "profile") {
@@ -372,10 +372,10 @@ function InitQuickVM(uuid, slice_expires)
 	});
     });
     $(window).bind("beforeunload", function() {
-	console.log("BeforeUnload function called");
+	console.info("BeforeUnload function called");
     });
     $(window).bind("pagehide", function() {
-	console.log("Pagehide function called");
+	console.info("Pagehide function called");
     });
     StartResizeWatchdog(uuid);
     StartCountdownClock(slice_expires);
@@ -398,7 +398,7 @@ function StartSSH(id, authobject)
 
         var url   = jsonauth.baseurl + ':' + port + '/' + '#' +
             encodeURIComponent(document.location.href) + ',' + session;
-        console.log(url);
+        console.info(url);
         var iwidth  = $('#' + id).width();
         var iheight = 300;
 
@@ -414,7 +414,7 @@ function StartSSH(id, authobject)
 		       { "url": jsonauth.baseurl + ':' + port + '/quit' +
 			        '?session=' + session },
 		       function(e) {
-			   console.log("killssh: " + e.data.url);
+			   console.info("killssh: " + e.data.url);
 			   $.ajax({
      			       url: e.data.url,
 			       type: 'GET',
@@ -515,7 +515,7 @@ function NewSSHTab(hostport, client_id)
     // Ask the server for an authentication object that allows
     // to start an ssh shell.
     var callback = function(json) {
-	console.log(json.value);
+	console.info(json.value);
 
 	if (json.code) {
 	    alert("Failed to gain authentication for ssh.");
@@ -539,7 +539,7 @@ function StartResizeWatchdog(uuid)
     // This does the actual work, called from the timer.
     //
     function resizeFunction() {
-	console.log("resizing topo");
+	console.info("resizing topo");
 	// Must clear the div for the D3 library.
 	$("#showtopo_div").html("<div></div>");
 	$("#showtopo_div").removeClass("invisible");
@@ -568,7 +568,7 @@ function StartResizeWatchdog(uuid)
 //
 function StartCountdownClock(when)
 {
-    console.log(when);
+    console.info(when);
 
     // Use this static variable to force clock reset.
     StartCountdownClock.reset = when;
@@ -584,7 +584,7 @@ function StartCountdownClock(when)
 
     // Need the timezone offset to format a local time.
     var timeOffsetInHours = (new Date().getTimezoneOffset()/60) * (-1);
-    console.log(timeOffsetInHours);
+    console.info(timeOffsetInHours);
 
     // variables for time units
     var days, hours, minutes, seconds;
@@ -875,7 +875,7 @@ function ConvertManifestToJSON(name, xml)
 	var link_type = $(this).find("link_type");
 
 	if (link_type && $(link_type).attr("name") == "lan") {
-	    console.log("Oops, a lan");
+	    console.info("Oops, a lan");
 	}
 	else {
 	    var ifacerefs = $(this).find("interface_ref");
