@@ -51,9 +51,12 @@ echo "<ul class='nav nav-tabs'>
 echo "</div>\n";
 echo "</div>\n";
 
-echo "<SCRIPT LANGUAGE=JavaScript>
-      StartSSH('sshpanel', '$auth_object');
-      </script>\n";
+echo "<script type='text/javascript'>\n";
+echo "window.APT_OPTIONS = {\n";
+echo "  pageType: 'sshterm',\n";
+echo "  authObject: '" . $auth_object . "'\n";
+echo "};\n";
+echo "</script>\n";
 
 SPITFOOTER();
 ?>

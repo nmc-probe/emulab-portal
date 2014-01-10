@@ -292,6 +292,7 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
        </div>\n";
     echo "<script type='text/javascript'>\n";
     echo "window.APT_OPTIONS = {\n";
+    echo "  pageType: 'index',\n";
     if ($newuser) {
         echo "  isNewUser: true\n";
     }

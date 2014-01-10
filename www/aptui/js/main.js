@@ -22,12 +22,7 @@ function ($, sup)
 
     function initialize()
     {
-        sup.UpdateProfileSelection($('#profile_name li:eq(0)'));
-        $('#quickvm_topomodal').on('hidden.bs.modal', function() {
-            sup.ShowProfileList($('.current'))
-        });
-	sup.InitProfileSelector();
-
+	var pageType = 'index';
 	if (window.APT_OPTIONS)
 	{
 	    console.log('APT_OPTIONS: ' + JSON.stringify(window.APT_OPTIONS));
@@ -35,18 +30,47 @@ function ($, sup)
 	    {
 		sup.ShowModal('#working');
 	    }
+	    if (window.APT_OPTIONS.pageType)
+	    {
+		pageType = window.APT_OPTIONS.pageType;
+	    }
 	}
 	else
 	{
 	    console.log('APT_OPTIONS is undefined');
 	}
 
-	initButtons();
+	if (pageType === 'index')
+	{
+	    initIndex();
+	}
+	else if (pageType === 'sshterm')
+	{
+	    sup.StartSSH('sshpanel', window.APT_OPTIONS.authObject);
+	}
+	else if (pageType === 'status')
+	{
+	    sup.InitQuickVM(window.APT_OPTIONS.uuid,
+			    window.APT_OPTIONS.sliceExpires);
+	    initStatusButtons();
+	}
 
 	$('body').show();
     }
 
-    function initButtons()
+    function initIndex()
+    {
+        sup.UpdateProfileSelection($('#profile_name li:eq(0)'));
+        $('#quickvm_topomodal').on('hidden.bs.modal', function() {
+            sup.ShowProfileList($('.current'))
+        });
+	sup.InitProfileSelector();
+
+
+	initIndexButtons();
+    }
+
+    function initIndexButtons()
     {
 	$('button#reset-form').click(function (event) {
 	    event.preventDefault();
@@ -61,7 +85,29 @@ function ($, sup)
 	    sup.ShowProfileList(event.target);
 	});
 	$('button#showtopo_select').click(function (event) {
+	    event.preventDefault();
 	    sup.UpdateProfileSelection($('.selected'));
+	});
+    }
+
+    function initStatusButtons()
+    {
+	$('button#register-account').click(function (event) {
+	    event.preventDefault();
+	    sup.RegisterAccount(window.APT_OPTIONS.creatorUid,
+				window.APT_OPTIONS.creatorEmail);
+	});
+	$('button#request-extension').click(function (event) {
+	    event.preventDefault();
+	    sup.RequestExtension(window.APT_OPTIONS.uuid);
+	});
+	$('button#extend').click(function (event) {
+	    event.preventDefault();
+	    sup.Extend(window.APT_OPTIONS.uuid);
+	});
+	$('button#terminate').click(function (event) {
+	    event.preventDefault();
+	    sup.Terminate(window.APT_OPTIONS.uuid, 'quickvm.php');
 	});
     }
 

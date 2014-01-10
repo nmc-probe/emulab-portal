@@ -246,15 +246,15 @@ echo "</table>\n";
 echo "<div class='pull-right'>\n";
 echo "  <button class='btn btn-primary'
            id='register_button' type=button
-           onclick=\"ShowModal('#register_modal'); return false;\">
+	   data-toggle='modal' data-target='#register_modal'>
            Register</button>\n";
 echo "  <button class='btn btn-success' $disabled
            id='extend_button' type=button
-           onclick=\"ShowModal('#extend_modal'); return false;\">
+	   data-toggle='modal' data-target='#extend_modal'>
            Extend</button>\n";
 echo "  <button class='btn btn-danger' $disabled
            id='terminate_button' type=button
-           onclick=\"ShowModal('#terminate_modal'); return false;\">
+	   data-toggle='modal' data-target='#terminate_modal'>
            Terminate</button>\n";
 echo "</div>\n";
 echo "</div>\n";
@@ -301,8 +301,7 @@ echo "<!-- This is a modal -->
              Click on the link below to take you to the registration page.
           </p><br>
                <button class='btn btn-primary align-center'
-                  onclick=\"RegisterAccount('$creator_uid',
-                              '$creator_email'); return false;\"
+	          id='register-account'
                   type='submit' name='register'>Register</button>
         </div>
         </div>
@@ -337,7 +336,7 @@ echo "<!-- This is a modal -->
                </div></div>
                <br>
                <button class='btn btn-primary btn-sm align-center'
-                       onclick=\"RequestExtension('$uuid'); return false;\"
+	               id='request-extension'
                        type='submit' name='request'>Request Extension</button>
               </form>
             </div>
@@ -350,8 +349,7 @@ echo "<!-- This is a modal -->
                     class='align-center'
                     placeholder='Extension code' autofocus type='text' />
                 <br>
-                <button class='btn btn-primary btn-sm align-center'
-                       onclick=\"Extend('$uuid'); return false;\"
+                <button class='btn btn-primary btn-sm align-center' id='extend'
                        type='submit' name='extend'>Extend</button>
               </form>
             </div>
@@ -373,18 +371,21 @@ echo "<!-- This is a modal -->
                    aria-hidden='true'>&times;</button>
          <p>Are you sure you want to terminate this experiment? 
             Click on the button below if you are really sure.</p><br>
-             <button class='btn btn-primary align-center'
-                onclick=\"Terminate('$uuid', 'quickvm.php'); return false;\"
+             <button class='btn btn-primary align-center' id='terminate'
                 type='submit' name='terminate'>Terminate</button>
         </div>
         </div>
         </div>
       </div>\n";
 
-echo "<script src='d3.v3.js'></script>\n";
-echo "<SCRIPT LANGUAGE=JavaScript>
-                 InitQuickVM('$uuid', '$slice_expires');
-              </SCRIPT>\n";
+echo "<script type='text/javascript'>\n";
+echo "window.APT_OPTIONS = {\n";
+echo "  pageType: 'status',\n";
+echo "  uuid: '" . $uuid . "',\n";
+echo "  sliceExpires: '" . $slice_expires . "',\n";
+echo "  creatorUid: '" . $creator_uid . "',\n";
+echo "  creatorEmail: '" . $creator_email . "'\n";
+echo "</script>\n";
 
 SPITFOOTER();
 ?>
