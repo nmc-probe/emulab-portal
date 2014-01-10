@@ -921,12 +921,16 @@ function ConvertManifestToJSON(name, xml)
 
 // Exports from this module for use elsewhere
 return {
+    Extend: Extend,
     InitProfileSelector: InitProfileSelector,
     InitQuickVM: InitQuickVM,
+    RegisterAccount: RegisterAccount,
+    RequestExtension: RequestExtension,
     resetForm: resetForm,
     ShowModal: ShowModal,
     ShowProfileList: ShowProfileList,
     StartSSH: StartSSH,
+    Terminate: Terminate,
     UpdateProfileSelection: UpdateProfileSelection
 };
 });
