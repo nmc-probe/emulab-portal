@@ -11956,16 +11956,21 @@ static char *getgenigetversion( tmcdreq_t *reqp ) {
 	if( mysql_num_rows( res ) ) {
 		MYSQL_ROW row = mysql_fetch_row( res );
 
-		GOUTPUT( buf, sizeof buf, "{\"code_tag\":\"%s\","
-			 "\"urn\":\"urn:publicid:IDN+" OURDOMAIN
+		GOUTPUT( buf, sizeof buf, "{\"geni_am_code_version\":\"%s\","
+			 "\"geni_urn\":\"urn:publicid:IDN+" OURDOMAIN
 			 "+authority+cm\","
-			 "\"url\":\"" TBBASE ":12369/protogeni/xmlrpc/am\","
 			 "\"geni_am_type\":\"protogeni\","
 			 "\"geni_single_allocation\":true,"
 			 "\"geni_allocate\":\"geni_disjoint\","
+			 "\"geni_api_versions\":{"
+			 "\"1\":\"" TBBASE ":12369/protogeni/xmlrpc/am/1.0\","
+			 "\"2\":\"" TBBASE ":12369/protogeni/xmlrpc/am/2.0\","
+			 "\"3\":\"" TBBASE ":12369/protogeni/xmlrpc/am/3.0\"},"
 			 "\"geni_credential_types\":{"
-			 "\"geni_type\":\"geni_sfa\",\"geni_version\":\"2\","
-			 "\"geni_type\":\"geni_sfa\",\"geni_version\":\"3\"}}",
+			 "{\"geni_type\":\"geni_sfa\","
+			 "\"geni_version\":\"2\"},"
+			 "{\"geni_type\":\"geni_sfa\","
+			 "\"geni_version\":\"3\"}}}",
 			 row[ 0 ] );
 	}
 			 
