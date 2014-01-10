@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -631,7 +631,7 @@ function CleanString($string)
 # emulab generated (no passphrase) key. This is basically a clone
 # of what GateOne does, but that code was a mess. 
 #
-function SSHAuthObject($uid)
+function UnusedSSHAuthObject($uid)
 {
     $file = "/usr/testbed/etc/sshauth.key";
     
