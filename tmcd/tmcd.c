@@ -12135,24 +12135,28 @@ struct genicommand {
     char *desc;
 } genicommands[] = {
     { "all", NULL, 0, NULL },
-    { "client_id", getgeniclientid, 1, "Return the client-specified "
-      "sliver ID" },
+    { "client_id", getgeniclientid, 1, "Return the experimenter-specified "
+      "client_id for this node" },
     { "commands", NULL, 0, "Show all available commands" },
     { "control_mac", getgenicontrolmac, 1, "Show the MAC address of the "
-      "control interface" },
-    { "geni_user", getgenigeniuser, 0, "Show user accounts and public keys" },
-    { "getversion", getgenigetversion, 0, "Report the AM version" },
-    { "manifest", getgenimanifest, 1, "Show the sliver manifest" },
+      "control interface on this node" },
+    { "geni_user", getgenigeniuser, 0, "Show user accounts and public keys "
+      "installed on this node" },
+    { "getversion", getgenigetversion, 0, "Report the GetVersion output of "
+      "the aggregate manager that allocated this node" },
+    { "manifest", getgenimanifest, 1, "Show the manifest rspec for the local "
+      "aggregate sliver" },
     { "slice_email", getgenisliceemail, 1, "Retrieve the e-mail address from "
-      "the slice certificate" },
-    { "slice_urn", getgenisliceurn, 1, "Show the URN of the slice" },
+      "the certificate of the slice containing this node" },
+    { "slice_urn", getgenisliceurn, 1, "Show the URN of the slice containing "
+      "this node" },
     { "sliverstatus", getgenisliverstatus, 0, "Give the current status of "
-      "the sliver (AM API v2)" },
+      "this sliver (AM API v2)" },
     { "status", getgenistatus, 0, "Give the current status of "
-      "the sliver (AM API v3)" },
-    { "user_email", getgeniuseremail, 1, "Show the e-mail address of the "
-      "sliver creator" },
-    { "user_urn", getgeniuserurn, 1, "Show the URN of the sliver creator" },
+      "this sliver (AM API v3)" },
+    { "user_email", getgeniuseremail, 1, "Show the e-mail address of this "
+      "sliver's creator" },
+    { "user_urn", getgeniuserurn, 1, "Show the URN of this sliver's creator" },
     { "version", getgeniversion, 1, NULL }
 };
 
