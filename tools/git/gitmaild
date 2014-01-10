@@ -63,6 +63,10 @@ my $BASEPATH = "/home/git/repositories";
 # noarchive=1 was passed in the URL
 my $NOARCHIVE_DEFAULT = 0;
 
+# If set, aways mail the following address (see gitmail for difference between
+# alwaysmail and archivemail)
+my $ALWAYSMAIL_ADDRESS = "";
+
 #
 # End settable options
 #
@@ -235,6 +239,14 @@ sub run_gitmail($$) {
         $options{'alwaysmail'} =
             get_member_addresses($data->{"project_id"});
     }
+    if (defined($ALWAYSMAIL_ADDRESS) && $ALWAYSMAIL_ADDRESS ne "") {
+        if (exists($options{'alwaysmail'})) {
+            push @{$options{'alwaysmail'}}, $ALWAYSMAIL_ADDRESS;
+        } else {
+            $options{'alwaysmail'} = $ALWAYSMAIL_ADDRESS;
+        }
+    }
+
 
     # gitlab's URL for this project
     $options{'weburl'} = $repoinfo->{web_url};
