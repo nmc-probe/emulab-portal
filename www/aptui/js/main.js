@@ -28,10 +28,17 @@ function ($, sup)
         });
 	sup.InitProfileSelector();
 
-	console.log('APT_OPTIONS: ' + JSON.stringify(window.APT_OPTIONS));
-	if (window.APT_OPTIONS.isNewUser)
+	if (window.APT_OPTIONS)
 	{
-	    sup.ShowModal('#working');
+	    console.log('APT_OPTIONS: ' + JSON.stringify(window.APT_OPTIONS));
+	    if (window.APT_OPTIONS.isNewUser)
+	    {
+		sup.ShowModal('#working');
+	    }
+	}
+	else
+	{
+	    console.log('APT_OPTIONS is undefined');
 	}
 
 	initButtons();
