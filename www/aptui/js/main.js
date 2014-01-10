@@ -9,9 +9,9 @@ require.config({
     },
 });
 
-define(['jquery',
-	// jQuery modules
-	'bootstrap'],
+require(['jquery',
+	 // jQuery modules
+	 'bootstrap'],
 function ($)
 {
     'use strict';

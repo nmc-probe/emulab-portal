@@ -33,11 +33,9 @@ function SPITHEADER($thinheader = 0)
         <link rel='stylesheet' href='bootstrap/css/bootstrap.css'>
         <link rel='stylesheet' href='quickvm.css'>
 	<script src='js/lib/require.js' data-main='js/main'></script>
-        <script src='quickvm_sup.js'></script>
-        <script src='date.format.js'></script>
+        <script src='js/quickvm_sup.js'></script>
+        <script src='js/date.format.js'></script>
         <script src='https://www.emulab.net/emulab_sup.js'></script>
-        <script src='https://code.jquery.com/jquery.js'></script>
-        <script src='bootstrap/js/bootstrap.js'></script>
       </head>
     <body style='display: none'>\n";
     

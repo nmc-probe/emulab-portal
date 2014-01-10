@@ -147,9 +147,10 @@ JSFILES += $(wildcard $(SRCDIR)/js/*.js)
 BLOBFILES += $(wildcard blob/*.php3)
 
 APTUIFILES  = $(wildcard $(SRCDIR)/aptui/*.php)
-APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.js)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.css)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.png)
+APTJSFILES  = $(wildcard $(SRCDIR)/aptui/js/*.js)
+APTLIBFILES = $(wildcard $(SRCDIR)/aptui/js/lib/*.js)
 UIKITFILES  = $(wildcard $(SRCDIR)/aptui/uikit/fonts/*)
 BOOTSTFONTS = $(wildcard $(SRCDIR)/aptui/bootstrap/fonts/*)
 BOOTSTCSS   = $(wildcard $(SRCDIR)/aptui/bootstrap/css/*)
@@ -212,6 +213,8 @@ ALLJS     = $(notdir $(JSFILES))
 ALLWISTATS = $(notdir $(WIRELESSSTATSFILES))
 ALLBLOB   = $(notdir $(BLOBFILES))
 ALLAPTUI  = $(notdir $(APTUIFILES))
+ALLAPTJS  = $(notdir $(APTJSFILES))
+ALLAPTLIB = $(notdir $(APTLIBFILES))
 ALLUIKITFONTS = $(notdir $(UIKITFILES))
 ALLBOOTSTFONTS = $(notdir $(BOOTSTFONTS))
 ALLBOOTSTCSS   = $(notdir $(BOOTSTCSS))
@@ -258,6 +261,8 @@ endif
 	$(INSTALL_OPSCVSWEBCGI)
 
 apt-install: 	$(addprefix $(INSTALL_WWWDIR)/apt/, $(ALLAPTUI)) \
+	$(addprefix $(INSTALL_WWWDIR)/apt/js/, $(ALLAPTJS)) \
+	$(addprefix $(INSTALL_WWWDIR)/apt/js/lib/, $(ALLAPTLIB)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/bootstrap/css/, $(ALLBOOTSTCSS)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/bootstrap/js/, $(ALLBOOTSTJS)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/bootstrap/fonts/, $(ALLBOOTSTFONTS))
