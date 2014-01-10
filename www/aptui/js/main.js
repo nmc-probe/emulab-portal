@@ -2,32 +2,36 @@ require.config({
     baseUrl: '.',
     paths: {
 	'jquery': 'js/lib/jquery-2.0.3.min',
-	'bootstrap': 'bootstrap/js/bootstrap'
+	'bootstrap': 'bootstrap/js/bootstrap',
+	'dateformat': 'js/lib/date.format',
+	'd3': 'js/lib/d3.v3'
     },
     shim: {
-	'bootstrap': { deps: ['jquery'] }
+	'bootstrap': { deps: ['jquery'] },
+	'dateformat': { exports: 'dateFormat' },
+	'd3': { exports: 'd3' }
     },
 });
 
-require(['jquery',
+require(['jquery', 'js/quickvm_sup',
 	 // jQuery modules
 	 'bootstrap'],
-function ($)
+function ($, sup)
 {
     'use strict';
 
     function initialize()
     {
-        UpdateProfileSelection($('#profile_name li:eq(0)'));
+        sup.UpdateProfileSelection($('#profile_name li:eq(0)'));
         $('#quickvm_topomodal').on('hidden.bs.modal', function() {
-            ShowProfileList($('.current'))
+            sup.ShowProfileList($('.current'))
         });
-	InitProfileSelector();
+	sup.InitProfileSelector();
 
 	console.log('APT_OPTIONS: ' + JSON.stringify(window.APT_OPTIONS));
 	if (window.APT_OPTIONS.isNewUser)
 	{
-	    ShowModal('#working');
+	    sup.ShowModal('#working');
 	}
 
 	initButtons();
@@ -39,18 +43,18 @@ function ($)
     {
 	$('button#reset-form').click(function (event) {
 	    event.preventDefault();
-	    resetForm($('#quickvm_form'));
+	    sup.resetForm($('#quickvm_form'));
 	});
 	$('button#profile').click(function (event) {
 	    event.preventDefault();
-	    ShowModal('#quickvm_topomodal');
+	    sup.ShowModal('#quickvm_topomodal');
 	});
 	$('li.profile-item').click(function (event) {
 	    event.preventDefault();
-	    ShowProfileList(event.target);
+	    sup.ShowProfileList(event.target);
 	});
 	$('button#showtopo_select').click(function (event) {
-	    UpdateProfileSelection($('.selected'));
+	    sup.UpdateProfileSelection($('.selected'));
 	});
     }
 

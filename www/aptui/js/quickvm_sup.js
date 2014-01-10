@@ -1,3 +1,6 @@
+define(['jquery', 'd3', 'dateformat'],
+function ($, d3) {
+
 var myuuid = null;
 
 function ShowModal(which) 
@@ -777,10 +780,9 @@ function maketopmap(divname, width, height, json)
 	
 	var node = nodeg.append("svg:rect")
 	    .attr("class", "nodebox")
-	    .attr("onclick",
-		  function(d) {
-		      return "NewSSHTab('" + d.hostport + "', " +
-			  "             '" + d.client_id + "')" })
+	    .on("click", function(d) {
+		NewSSHTab(d.hostport, d.client_id);
+	    })
 	    .attr("x", "-10px")
 	    .attr("y", "-10px")
 	    .attr("width", "20px")
@@ -916,3 +918,13 @@ function ConvertManifestToJSON(name, xml)
     }
     return json;
 }
+
+// Exports from this module for use elsewhere
+return {
+    InitProfileSelector: InitProfileSelector,
+    resetForm: resetForm,
+    ShowModal: ShowModal,
+    ShowProfileList: ShowProfileList,
+    UpdateProfileSelection: UpdateProfileSelection
+};
+});

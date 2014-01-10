@@ -129,7 +129,6 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
     if ($internal_error) {
 	echo "<center><h2>$internal_error</h2></center><br>\n";
     }
-    echo "<script src='js/d3.v3.js'></script>\n";
     echo "<div class='row'>
           <div class='col-lg-6  col-lg-offset-3
                       col-md-6  col-md-offset-3
