@@ -421,6 +421,7 @@ package com.flack.geni.tasks.groups.slice
 		
 		public function notFullySubmitted():void
 		{
+/*
 			// ask user if they would like to delete...
 			Alert.show(
 				"Slice was not submitted and processed correctly. Deallocate resources so that slice isn't in an unknown state?",
@@ -430,6 +431,20 @@ package com.flack.geni.tasks.groups.slice
 				userChoice,
 				null,
 				Alert.YES
+			);
+*/
+			addMessage(
+				"User didn't remove slice",
+				"User decided to not delete slice which is in an unknown state",
+				LogMessage.LEVEL_WARNING,
+				LogMessage.IMPORTANCE_HIGH
+			);
+				
+			afterError(
+				new TaskError(
+					"Slice in unkown state",
+					TaskError.CODE_PROBLEM
+				)
 			);
 		}
 		
@@ -445,7 +460,6 @@ package com.flack.geni.tasks.groups.slice
 					LogMessage.IMPORTANCE_HIGH
 				);
 				deletingAfterProblem = true;
-				
 				// Run a delete at all managers
 				var deleteSlivers:AggregateSliverCollection = new AggregateSliverCollection();
 				for each(var deleteSliverInManager:GeniManager in GeniMain.geniUniverse.managers.collection)
@@ -458,6 +472,7 @@ package com.flack.geni.tasks.groups.slice
 					}
 				}
 				add(new DeleteAggregateSliversTaskGroup(deleteSlivers, false));
+				
 			}
 			else
 			{

@@ -148,10 +148,8 @@ IN THE WORK.
 						var supportedTypes:SupportedLinkTypeCollection = link.interfaceRefs.Interfaces.Managers.CommonLinkTypes;
 						for each(var supportedType:SupportedLinkType in supportedTypes.collection)
 						{
-							if(supportedType.name.length == 0)
-								supportedType.name = "Stitched (Unspecified)";
-							types.addItem(supportedType);
-							if(supportedType.name == link.type.name || (supportedType.name == "Stitched (Unspecified)" && link.type.name.length == 0))
+						  types.addItem(supportedType);
+						  if(supportedType.name == link.type.name)
 								typeList.selectedIndex = types.length-1;
 						}
 						if(supportedTypes.getByName(link.type.name) == null)

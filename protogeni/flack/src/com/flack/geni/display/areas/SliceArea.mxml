@@ -358,7 +358,7 @@ IN THE WORK.
 				{
 					if(workingSliceTasks.getOfClass(DescribeSlicesTaskGroup).length == 0 || Sliver.isAllocated(_slice.AllocationState))
 					{
-						dashboardViewstack.selectedChild = sliceView;
+//						dashboardViewstack.selectedChild = sliceView;
 						validateNow();
 					}
 				}

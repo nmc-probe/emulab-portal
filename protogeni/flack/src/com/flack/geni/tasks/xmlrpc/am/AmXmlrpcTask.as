@@ -67,6 +67,7 @@ package com.flack.geni.tasks.xmlrpc.am
 		public static const METHOD_UPDATE:String = "Update";
 		// Available at ProtoGENI hosts
 		public static const METHOD_LISTIMAGES:String = "ListImages";
+		public static const CREATE_IMAGE:String = "CreateImage";
 		
 		// GENI response codes
 		public static const GENICODE_SUCCESS:int = 0;

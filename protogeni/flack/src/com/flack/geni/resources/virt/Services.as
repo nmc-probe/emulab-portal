@@ -30,6 +30,7 @@
 package com.flack.geni.resources.virt
 {
 	import com.flack.geni.resources.Extensions;
+	import com.flack.shared.SharedMain;
 
 	/**
 	 * Services
@@ -44,6 +45,29 @@ package com.flack.geni.resources.virt
 		public var loginServices:Vector.<LoginService> = null;
 		
 		public var extensions:Extensions = new Extensions();
+
+		public function getDefaultLogin() : LoginService
+		{
+			var result : LoginService = null;
+			var userName : String = SharedMain.user.id.name;
+			if (loginServices != null)
+			{
+				var i : int = 0;
+				for (; i < loginServices.length; i++)
+				{
+					if (userName == loginServices[i].username)
+					{
+						result = loginServices[i];
+						break;
+					}
+				}
+				if (result == null && loginServices.length > 0)
+				{
+					result = loginServices[0];
+				}
+			}
+			return result;
+		}
 		
 		public function Services()
 		{

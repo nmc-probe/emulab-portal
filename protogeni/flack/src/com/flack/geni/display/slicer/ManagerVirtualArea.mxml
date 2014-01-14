@@ -42,6 +42,7 @@ IN THE WORK.
 		<![CDATA[
 			import com.flack.geni.display.DisplayUtil;
 			import com.flack.geni.plugins.emulab.RawPcSliverType;
+			import com.flack.geni.plugins.emulab.EmulabXenSliverType;
 			import com.flack.geni.resources.SliverTypes;
 			import com.flack.geni.resources.sites.GeniManager;
 			import com.flack.geni.resources.sites.managers.SupportedSliverType;
@@ -110,12 +111,30 @@ IN THE WORK.
 				);
 				if(managerTypes.Shared.length > 0)
 				{
+					var sharedTypes : SupportedSliverTypeCollection = managerTypes.Shared;
+					var defaultType : SupportedSliverType = null;
+					if (defaultType == null)
+					{
+						defaultType = sharedTypes.getByName('emulab-openvz');
+					}
+					if (defaultType == null)
+					{
+						defaultType = sharedTypes.getByName('emulab-xen');
+					}
+					if (defaultType == null)
+					{
+						defaultType = sharedTypes.getByName('XOSmall');
+					}
+					if (defaultType == null)
+					{
+						defaultType = sharedTypes.collection[0];
+					}
 					var sharedVm:VirtualNode = new VirtualNode(
 						null,
 						manager,
 						"VM",
 						false,
-						managerTypes.Shared.collection[0].type.name
+						defaultType.type.name
 					);
 					managerTypes.remove(managerTypes.getByName(sharedVm.sliverType.name));
 					addVmSharedButton.setStyle("chromeColor", ColorUtil.colorsDark[manager.colorIdx]);

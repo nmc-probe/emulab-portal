@@ -1050,7 +1050,23 @@ package com.flack.geni.tasks.process
 					
 					// Make sure links between managers aren't normal
 					if(virtualLink.interfaceRefs.Interfaces.Managers.length > 1 && virtualLink.type.name == LinkType.LAN_V2)
-						virtualLink.type.name = LinkType.GRETUNNEL_V2;
+					{
+					  var isXen:Boolean = true;
+					  for each (var ref:VirtualInterfaceReference in virtualLink.interfaceRefs.collection) {
+					      if (ref.referencedInterface.Owner.sliverType.name != EmulabXenSliverType.TYPE_EMULABXEN) {
+						isXen = false;
+						break;
+					      }
+					  }
+					  if (isXen)
+					  {
+					    virtualLink.type.name = LinkType.GRETUNNEL_V2;
+					  }
+					  else
+					  {
+					    virtualLink.type.name = LinkType.EGRE;
+					  }
+					}
 					
 					virtualLink.extensions.buildFromOriginal(linkXml, [defaultNamespace.uri, RspecUtil.sharedVlanNamespace.uri]);
 					

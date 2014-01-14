@@ -83,6 +83,7 @@ IN THE WORK.
 			
 			public function addMessageToView(msg:LogMessage, scrollToPosition:Boolean = true):void
 			{
+			try {
 				if(showInfoCheckbox != null)
 				{
 					switch(msg.level)
@@ -108,6 +109,7 @@ IN THE WORK.
 					list.validateNow();
 					list.ensureIndexIsVisible(viewMsgs.length-1);
 				}
+				} catch (e : Error) { }
 			}
 			
 			private function logEvent(event:FlackEvent):void

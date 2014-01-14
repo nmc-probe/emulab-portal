@@ -35,6 +35,7 @@ package com.flack.shared
 	import com.flack.shared.resources.FlackUser;
 	import com.flack.shared.tasks.Tasker;
 	import com.mattism.http.xmlrpc.JSLoader;
+        import flash.external.ExternalInterface;
 	
 	import flash.system.Capabilities;
 	
@@ -51,7 +52,7 @@ package com.flack.shared
 		/**
 		 * Flack version
 		 */
-		public static const version:String = "v17.11";
+		public static const version:String = "v17.19";
 		
 		public static const MODE_GENI:int = 0;
 		public static const MODE_EMULAB:int = 1;
@@ -114,6 +115,11 @@ package com.flack.shared
 				default:
 					GeniMain.runFirst();
 			}
+		}
+
+		public static function logToJS(message : String):void
+		{
+			ExternalInterface.call("logToConsole", message);
 		}
 		
 		/**

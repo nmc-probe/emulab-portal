@@ -665,7 +665,6 @@ package com.flack.shared.tasks
 		protected function afterComplete(addCompletedMessage:Boolean = true):void
 		{
 			/* EXTEND */
-			
 			cancelTimers();
 			Status = STATUS_SUCCESS;
 			State = STATE_FINISHED;
@@ -680,7 +679,10 @@ package com.flack.shared.tasks
 			}
 			dispatchFinished();
 			if(parent != null)
+			{
 				parent.completedTask(this);
+			}
+
 			runCleanup();
 			removeHandlers();
 		}

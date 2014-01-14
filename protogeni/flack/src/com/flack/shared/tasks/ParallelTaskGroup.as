@@ -115,6 +115,7 @@ package com.flack.shared.tasks
 					return;
 				}
 			}
+
 			afterComplete();
 		}
 		

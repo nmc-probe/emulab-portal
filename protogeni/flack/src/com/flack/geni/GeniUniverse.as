@@ -100,7 +100,7 @@ package com.flack.geni
 				{
 					var sliceCollection:SliceCollection = new SliceCollection();
 					sliceCollection.add(GeniMain.useSlice);
-					SharedMain.tasker.add(new GetSlicesTaskGroup(sliceCollection));
+					SharedMain.tasker.add(new GetSlicesTaskGroup(sliceCollection, GeniMain.loadAllManagersWithoutAsking));
 					var sliceArea:SliceArea = new SliceArea();
 					FlexGlobals.topLevelApplication.viewContent(sliceArea);
 					sliceArea.slice = GeniMain.useSlice;

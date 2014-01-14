@@ -101,145 +101,179 @@ package com.flack.geni.tasks.xmlrpc.am
 			if(apiVersion > 1)
 				addOrderedField({});
 		}
-		
-		override protected function afterComplete(addCompletedMessage:Boolean=false):void
-		{
-			// Sanity check for AM API 2+
-			if(apiVersion > 1)
-			{
-				if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
-				{
-					faultOnSuccess();
-					return;
-				}
-			}
-			
-			try
-			{
-				if(apiVersion < 3)
-				{
-					aggregateSliver.AllocationState = Sliver.ALLOCATION_PROVISIONED;
-					aggregateSliver.OperationalState = Sliver.GeniStatusToOperationalState(data.geni_status);
-					aggregateSliver.id = new IdnUrn(data.geni_urn);
-					for each(var componentObject:Object in data.geni_resources)
-					{
-						var componentSliver:Sliver = new Sliver(
-							componentObject.geni_urn,
-							aggregateSliver.slice,
-							Sliver.ALLOCATION_PROVISIONED);
-						if(componentObject.geni_status != null)
-							componentSliver.operationalState = Sliver.GeniStatusToOperationalState(componentObject.geni_status);
-						//V4: geni_next_allocation_status
-						if(componentObject.geni_error != null)
-							componentSliver.error = componentObject.geni_error;
-						else
-							componentSliver.error = "";
-						aggregateSliver.idsToSlivers[componentSliver.id.full] = componentSliver;
-						
-						var virtualComponent:VirtualComponent = aggregateSliver.Components.getComponentById(componentSliver.id.full);
-						if(virtualComponent != null)
-						{
-							virtualComponent.copyFrom(componentSliver);
-						}
-						else
-						{
-							addMessage(
-								"Node not found",
-								"Node with sliver id " + componentSliver.id.full + " wasn't found in the sliver! " +
-								"This may indicate that the manager failed to include the sliver id in the manifest.",
-								LogMessage.LEVEL_FAIL,
-								LogMessage.IMPORTANCE_HIGH,
-								true
-							);
-						}
-					}
-				}
-				else
-				{
-					for each(var geniSliver:Object in data.geni_slivers)
-					{
-						var sliver:Sliver = new Sliver(
-							geniSliver.geni_sliver_urn,
-							aggregateSliver.slice,
-							geniSliver.geni_allocation_status,
-							geniSliver.geni_operational_status);
-						sliver.expires = DateUtil.parseRFC3339(geniSliver.geni_expires);
-						if(geniSliver.geni_error != null)
-							sliver.error = geniSliver.geni_error;
-						aggregateSliver.idsToSlivers[sliver.id.full] = sliver;
-						
-						var component:VirtualComponent = aggregateSliver.Components.getComponentById(sliver.id.full);
-						if(component != null)
-						{
-							component.copyFrom(sliver);
-						}
-						else
-						{
-							addMessage(
-								"Node not found",
-								"Node with sliver id " + sliver.id.full + " wasn't found in the sliver! " +
-								"This may indicate that the manager failed to include the sliver id in the manifest.",
-								LogMessage.LEVEL_FAIL,
-								LogMessage.IMPORTANCE_HIGH,
-								true
-							);
-						}
-					}
-				}
-				
-				SharedMain.sharedDispatcher.dispatchChanged(
-					FlackEvent.CHANGED_SLIVER,
-					aggregateSliver,
-					FlackEvent.ACTION_STATUS
-				);
-				SharedMain.sharedDispatcher.dispatchChanged(
-					FlackEvent.CHANGED_SLICE,
-					aggregateSliver.slice,
-					FlackEvent.ACTION_STATUS
-				);
-				
-				var aggregateStatus:String = Sliver.describeState(aggregateSliver.AllocationState, aggregateSliver.OperationalState);
-				if(!Sliver.isOperationalStateChanging(aggregateSliver.OperationalState))
-				{
-					addMessage(
-						StringUtil.firstToUpper(aggregateStatus),
-						"Status was received and is finished. Current status is " + aggregateStatus,
-						LogMessage.LEVEL_INFO,
-						LogMessage.IMPORTANCE_HIGH
-					);
-					parent.add(new DescribeTask(aggregateSliver));
-					super.afterComplete(addCompletedMessage);
-				}
-				else
-				{
-					addMessage(
-						StringUtil.firstToUpper(aggregateStatus) + "...",
-						"Status was received but is still changing. Current status is " + aggregateStatus,
-						LogMessage.LEVEL_INFO,
-						LogMessage.IMPORTANCE_HIGH
-					);
+
+	  private function afterV2(addCompletedMessage : Boolean) : void
+	  {
+	    aggregateSliver.AllocationState = Sliver.ALLOCATION_PROVISIONED;
+	    var globalStatus:String = data.geni_status;
 					
-					// Continue until the status is finished if desired
-					if(continueUntilDone)
-					{
-						delay = MathUtil.randomNumberBetween(20, 60);
-						runCleanup();
-						start();
-					}
-					else
-						super.afterComplete(addCompletedMessage);
-				}
-			}
-			catch(e:Error)
-			{
-				afterError(
-					new TaskError(
-						StringUtil.errorToString(e),
-						TaskError.CODE_UNEXPECTED,
-						e
-					)
-				);
-			}
+	    if (data.pg_status && data.geni_status == 'unknown' && data.pg_status == 'changing') {
+	      globalStatus = 'configuring';
+	    }
+	    aggregateSliver.OperationalState = Sliver.GeniStatusToOperationalState(globalStatus);
+	    addMessage(
+	      "Global status: " + globalStatus,
+	      "pg_status: " + String(data.pg_status) + ", geni_status: " + String(data.geni_status) + ', conversion: ' + String(Sliver.GeniStatusToOperationalState(globalStatus)) + ', aggregateSliver: ' + String(aggregateSliver.OperationalState),
+	      LogMessage.LEVEL_INFO,
+	      LogMessage.IMPORTANCE_HIGH
+	    );
+	    aggregateSliver.id = new IdnUrn(data.geni_urn);
+	    for each(var componentObject:Object in data.geni_resources)
+	    {
+	      var componentSliver:Sliver = new Sliver(
+		componentObject.geni_urn,
+		aggregateSliver.slice,
+		Sliver.ALLOCATION_PROVISIONED);
+	      if(componentObject.geni_status != null)
+	      {
+		var sliverStatus : String = componentObject.geni_status;
+		if (sliverStatus == 'changing')
+		{
+		  sliverStatus = 'configuring';
 		}
+		componentSliver.operationalState = Sliver.GeniStatusToOperationalState(sliverStatus);
+		addMessage(
+		  "Sliver status: " + componentSliver.operationalState,
+		  "geni_status: " + componentObject.geni_status,
+		  LogMessage.LEVEL_INFO,
+		  LogMessage.IMPORTANCE_HIGH
+		);
+	      }
+	      //V4: geni_next_allocation_status
+	      if(componentObject.geni_error != null)
+		componentSliver.error = componentObject.geni_error;
+	      else
+		componentSliver.error = "";
+	      aggregateSliver.idsToSlivers[componentSliver.id.full] = componentSliver;
+			
+	      var virtualComponent:VirtualComponent = aggregateSliver.Components.getComponentById(componentSliver.id.full);
+	      if(virtualComponent != null)
+	      {
+		virtualComponent.copyFrom(componentSliver);
+	      }
+	      else
+	      {
+		addMessage(
+		  "Node not found",
+		  "Node with sliver id " + componentSliver.id.full + " wasn't found in the sliver! " +
+		  "This may indicate that the manager failed to include the sliver id in the manifest.",
+		  LogMessage.LEVEL_FAIL,
+		  LogMessage.IMPORTANCE_HIGH,
+		  true
+		);
+	      }
+	    }
+	  }
+
+	  private function afterV3(addCompletedMessage:Boolean) : void
+	  {
+	    for each(var geniSliver:Object in data.geni_slivers)
+	    {
+	      var sliver:Sliver = new Sliver(
+		geniSliver.geni_sliver_urn,
+		aggregateSliver.slice,
+		geniSliver.geni_allocation_status,
+		geniSliver.geni_operational_status);
+	      sliver.expires = DateUtil.parseRFC3339(geniSliver.geni_expires);
+	      if(geniSliver.geni_error != null)
+		sliver.error = geniSliver.geni_error;
+	      aggregateSliver.idsToSlivers[sliver.id.full] = sliver;
+	      
+	      var component:VirtualComponent = aggregateSliver.Components.getComponentById(sliver.id.full);
+	      if(component != null)
+	      {
+		component.copyFrom(sliver);
+	      }
+	      else
+	      {
+		addMessage(
+		  "Node not found",
+		  "Node with sliver id " + sliver.id.full + " wasn't found in the sliver! " +
+		  "This may indicate that the manager failed to include the sliver id in the manifest.",
+		  LogMessage.LEVEL_FAIL,
+		  LogMessage.IMPORTANCE_HIGH,
+		  true
+		);
+	      }
+	    }
+	  }
+		
+	  override protected function afterComplete(addCompletedMessage:Boolean=false):void
+	  {
+	    // Sanity check for AM API 2+
+	    if(apiVersion > 1)
+	    {
+	      if(genicode != AmXmlrpcTask.GENICODE_SUCCESS)
+	      {
+		faultOnSuccess();
+		return;
+	      }
+	    }
+	    
+	    try
+	    {
+	      if(apiVersion < 3)
+	      {
+		afterV2(addCompletedMessage);
+	      }
+	      else
+	      {
+		afterV3(addCompletedMessage);
+	      }
+		    
+	      SharedMain.sharedDispatcher.dispatchChanged(
+		FlackEvent.CHANGED_SLIVER,
+		aggregateSliver,
+		FlackEvent.ACTION_STATUS
+	      );
+	      SharedMain.sharedDispatcher.dispatchChanged(
+		FlackEvent.CHANGED_SLICE,
+		aggregateSliver.slice,
+		FlackEvent.ACTION_STATUS
+	      );
+		    
+	      var aggregateStatus:String = Sliver.describeState(aggregateSliver.AllocationState, aggregateSliver.OperationalState);
+	      if(!Sliver.isOperationalStateChanging(aggregateSliver.OperationalState))
+	      {
+		addMessage(
+		  StringUtil.firstToUpper(aggregateStatus),
+		  "Status was received and is finished. Current status is " + aggregateStatus,
+		  LogMessage.LEVEL_INFO,
+		  LogMessage.IMPORTANCE_HIGH
+		);
+		parent.add(new DescribeTask(aggregateSliver));
+		super.afterComplete(addCompletedMessage);
+	      }
+	      else
+	      {
+		addMessage(
+		  StringUtil.firstToUpper(aggregateStatus) + "...",
+		  "Status was received but is still changing. Current status is " + aggregateStatus,
+		  LogMessage.LEVEL_INFO,
+		  LogMessage.IMPORTANCE_HIGH
+		);
+		
+		// Continue until the status is finished if desired
+		if(continueUntilDone)
+		{
+		  delay = MathUtil.randomNumberBetween(20, 60);
+		  runCleanup();
+		  start();
+		}
+		else
+		  super.afterComplete(addCompletedMessage);
+	      }
+	    }
+	    catch(e:Error)
+	    {
+	      afterError(
+		new TaskError(
+		  StringUtil.errorToString(e),
+		  TaskError.CODE_UNEXPECTED,
+		  e
+		)
+	      );
+	    }
+	  }
 	}
 }

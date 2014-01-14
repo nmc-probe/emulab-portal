@@ -27,7 +27,7 @@
  * }}}
  */
 
-package com.flack.geni.tasks.xmlrpc.protogeni.cm
+package com.flack.geni.tasks.xmlrpc.am
 {
 	import com.flack.geni.resources.virt.VirtualNode;
 	import com.flack.geni.tasks.xmlrpc.protogeni.ProtogeniXmlrpcTask;
@@ -48,7 +48,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 	 * @author mstrum
 	 * 
 	 */
-	public final class CreateImageCmTask extends ProtogeniXmlrpcTask
+	public final class CreateImageTask extends AmXmlrpcTask
 	{
 		public var sourceNode:VirtualNode;
 		public var imageName:String;
@@ -64,14 +64,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		 * @param newExpirationDate Desired expiration date
 		 * 
 		 */
-		public function CreateImageCmTask(newSourceNode:VirtualNode,
+		public function CreateImageTask(newSourceNode:VirtualNode,
 										  newImageName:String,
 										  newGlobal:Boolean = true)
 		{
 			super(
 				newSourceNode.manager.url,
-				ProtogeniXmlrpcTask.MODULE_CM,
-				ProtogeniXmlrpcTask.METHOD_CREATEIMAGE,
+				AmXmlrpcTask.CREATE_IMAGE,
+				newSourceNode.manager.api.version,
 				"Create image " + newImageName + " based on " + newSourceNode.clientId,
 				"Creating image " + newImageName + " based on " + newSourceNode.clientId + " on slice named " + newSourceNode.slice.hrn,
 				"Create image"
@@ -86,19 +86,21 @@ package com.flack.geni.tasks.xmlrpc.protogeni.cm
 		
 		override protected function createFields():void
 		{
-			addNamedField("slice_urn", sourceNode.slice.id.full);
-			addNamedField("sliver_urn", sourceNode.id.full);
-			addNamedField("imagename", imageName);
-			addNamedField("credentials", [sourceNode.slice.credential.Raw]);
+			var options:Object = {};
 			if(!global)
-				addNamedField("global", global);
+				options.global = global;
+			addOrderedField(sourceNode.slice.id.full);
+			addOrderedField(imageName);
+			addOrderedField(sourceNode.id.full);
+			addOrderedField([sourceNode.slice.credential.Raw]);
+			addOrderedField(options);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
 			try
 			{
-				if (code == ProtogeniXmlrpcTask.CODE_SUCCESS)
+				if (genicode == AmXmlrpcTask.GENICODE_SUCCESS)
 				{
 					imageId = data[0];
 					imageUrl = data[1];

@@ -177,7 +177,7 @@ package com.flack.geni.resources.virt
 			var d:Date = null;
 			for each(var sliver:AggregateSliver in collection)
 			{
-				var sliverExpiration:Date = EarliestExpiration;
+				var sliverExpiration:Date = sliver.EarliestExpiration;
 				if(sliverExpiration != null && (d == null || sliverExpiration < d))
 				{
 					sliverExpiration;

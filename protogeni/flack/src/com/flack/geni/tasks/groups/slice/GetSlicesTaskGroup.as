@@ -61,6 +61,7 @@ package com.flack.geni.tasks.groups.slice
 	public final class GetSlicesTaskGroup extends SerialTaskGroup
 	{
 		public var slices:SliceCollection;
+		public var queryAllManagers : Boolean;
 		
 		/**
 		 * 
@@ -69,12 +70,14 @@ package com.flack.geni.tasks.groups.slice
 		 * @param shouldQueryAllManagers Query all managers? Needed if resources exist at non-ProtoGENI managers.
 		 * 
 		 */
-		public function GetSlicesTaskGroup(newSlices:SliceCollection)
+		public function GetSlicesTaskGroup(newSlices:SliceCollection,
+						shouldQueryAllManagers : Boolean = false)
 		{
 			super(
 				"Get slices",
 				"Gets the slices for the user"
 			);
+			queryAllManagers = shouldQueryAllManagers;
 			slices = newSlices;
 		}
 
@@ -83,7 +86,7 @@ package com.flack.geni.tasks.groups.slice
 			if(tasks.length == 0)
 			{
 				add(new ResolveSlicesTaskGroup(slices));
-				add(new DescribeSlicesTaskGroup(slices));
+				add(new DescribeSlicesTaskGroup(slices, queryAllManagers));
 			}
 
 			super.runStart();
@@ -126,7 +129,7 @@ package com.flack.geni.tasks.groups.slice
 							if(event.detail == Alert.YES)
 								add(new GetResourcesTaskGroup(false, true, queryUnloadedManagers));
 							else
-								add(new DescribeSlicesTaskGroup(slices));
+								add(new DescribeSlicesTaskGroup(slices, queryAllManagers));
 						},
 						null,
 						Alert.YES
@@ -136,7 +139,7 @@ package com.flack.geni.tasks.groups.slice
 			}
 			else if(task is GetResourcesTaskGroup)
 			{
-				add(new DescribeSlicesTaskGroup(slices));
+				add(new DescribeSlicesTaskGroup(slices, queryAllManagers));
 			}
 			super.completedTask(task);
 		}

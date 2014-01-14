@@ -81,8 +81,10 @@ package com.flack.geni.tasks.xmlrpc.am
 		
 		override protected function createFields():void
 		{
+			var options:Object = {};
+			addOrderedField(creatorUrn);
 			addOrderedField([AmXmlrpcTask.credentialToObject(GeniMain.geniUniverse.user.credential, apiVersion)]);
-			addOrderedField({creator_urn: creatorUrn});
+			addOrderedField(options);
 		}
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void

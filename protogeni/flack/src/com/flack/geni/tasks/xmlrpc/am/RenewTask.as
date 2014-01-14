@@ -174,7 +174,7 @@ package com.flack.geni.tasks.xmlrpc.am
 			{
 				afterError(
 					new TaskError(
-						StringUtil.errorToString(e),
+					  StringUtil.errorToString(e),
 						TaskError.CODE_UNEXPECTED,
 						e
 					)

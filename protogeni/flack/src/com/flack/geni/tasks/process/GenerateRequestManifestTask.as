@@ -656,7 +656,7 @@ package com.flack.geni.tasks.process
 							interfaceRefXml.@component_urn = currentReference.referencedInterface.physicalId.full;
 					}
 					
-					if (link.type.name == LinkType.GRETUNNEL_V2)
+					if (link.type.name == LinkType.GRETUNNEL_V2 || link.type.name == LinkType.EGRE)
 					{
 						interfaceRefXml.@tunnel_ip = currentReference.referencedInterface.ip.address;
 						interfaceRefXml.@virtual_interface_id = "control";
@@ -703,7 +703,13 @@ package com.flack.geni.tasks.process
 					propertyXml.@source_id = (property.source as VirtualInterface).clientId;
 					propertyXml.@dest_id = (property.destination as VirtualInterface).clientId;
 					if(property.capacity > 0)
+					{
 						propertyXml.@capacity = property.capacity;
+					}
+					else if (link.type.name == LinkType.STITCHED)
+					{
+					  propertyXml.@capacity = '100000';
+					}
 					if(property.latency > 0)
 						propertyXml.@latency = property.latency;
 					if(property.packetLoss > 0)
@@ -711,12 +717,12 @@ package com.flack.geni.tasks.process
 					linkXml.appendChild(propertyXml);
 				}
 			}
-			
+			var gretunnel_type:XML;
 			switch(link.type.name)
 			{
 				case LinkType.GRETUNNEL_V1:
 				case LinkType.GRETUNNEL_V2:
-					var gretunnel_type:XML = link.type.extensions.createAndApply("link_type");
+					gretunnel_type = link.type.extensions.createAndApply("link_type");
 					if(version.version < 1)
 					{
 						gretunnel_type.setChildren(LinkType.GRETUNNEL_V1);
@@ -728,6 +734,11 @@ package com.flack.geni.tasks.process
 						gretunnel_type.@name = LinkType.GRETUNNEL_V2;
 					linkXml.appendChild(gretunnel_type);
 					break;
+			case LinkType.EGRE:
+			  gretunnel_type = link.type.extensions.createAndApply("link_type");
+						gretunnel_type.@name = LinkType.EGRE;
+			  linkXml.appendChild(gretunnel_type);
+			  break;
 				case LinkType.ION:
 				case LinkType.GPENI:
 					break;

@@ -120,6 +120,7 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 							newManager.url = url.substr(0, url.length-3);
 							
 							newManager.supportedLinkTypes.getOrCreateByName(LinkType.GRETUNNEL_V2);
+							newManager.supportedLinkTypes.getOrCreateByName(LinkType.EGRE);
 							newManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
 							newManager.supportedLinkTypes.getOrCreateByName(LinkType.STITCHED);
 							
@@ -184,6 +185,14 @@ package com.flack.geni.tasks.xmlrpc.protogeni.ch
 						else
 						{
 							newManager.url = url;
+							if (newManager.hrn == "exogeni.net.am"
+								|| newManager.hrn == "exogeni.net.bbnvmsite.am"
+								|| newManager.hrn == "exogeni.net.fiuvmsite.am"
+								|| newManager.hrn == "exogeni.net.rcivmsite.am"
+								|| newManager.hrn == "exogeni.net.uhvmsite.am")
+							{
+								newManager.supportedLinkTypes.getOrCreateByName(LinkType.LAN_V2);
+							}
 							
 							newManager.supportedLinkTypes.getOrCreateByName(LinkType.STITCHED);
 						}

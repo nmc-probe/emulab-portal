@@ -141,6 +141,7 @@ package com.flack.geni.resources.sites.managers
 					supportsDiskImage = false;
 				case EmulabOpenVzSliverType.TYPE_EMULABOPENVZ:
                                 case EmulabXenSliverType.TYPE_EMULABXEN:
+				  defaultExclusiveSetting = false;
 				default:
 			}
 		}

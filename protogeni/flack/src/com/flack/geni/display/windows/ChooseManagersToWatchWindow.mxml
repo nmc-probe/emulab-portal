@@ -36,8 +36,8 @@ IN THE WORK.
 							 xmlns:mx="library://ns.adobe.com/flex/mx"
 							 xmlns:components="com.flack.shared.display.components.*"
 							 skinClass="com.flack.shared.display.skins.TitleWindowSkinNoCloseButton"
-							 width="440"
-							 height="300"
+							 width="540"
+							 height="400"
 							 title="List resources from..."
 							 initialize="init()"
 							 defaultButton="{okButton}" xmlns:windows="com.flack.shared.display.windows.*">

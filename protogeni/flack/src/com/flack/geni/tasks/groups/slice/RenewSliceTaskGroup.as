@@ -127,38 +127,38 @@ package com.flack.geni.tasks.groups.slice
 		
 		override protected function afterComplete(addCompletedMessage:Boolean=false):void
 		{
-			var earliestSliverExpiration:Date = slice.aggregateSlivers.EarliestExpiration;
-			if(earliestSliverExpiration == null)
-			{
-				addMessage(
-					"Renewed. Slice espires in "+DateUtil.getTimeUntil(slice.expires)+".",
-					"Slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
-					LogMessage.LEVEL_INFO,
-					LogMessage.IMPORTANCE_HIGH
-				);
-			}
-			else
-			{
-				if(earliestSliverExpiration < slice.expires)
-				{
-					addMessage(
-						"Renewed. Aggregates expire before slice in "+DateUtil.getTimeUntil(earliestSliverExpiration) +".",
-						"Aggregates will start to expire in " + DateUtil.getTimeUntil(earliestSliverExpiration) + ". The slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
-						LogMessage.LEVEL_INFO,
-						LogMessage.IMPORTANCE_HIGH
-					);
-				}
-				else
-				{
-					addMessage(
-						"Renewed. All expire at the same time in "+DateUtil.getTimeUntil(slice.expires)+".",
-						"Aggregates and slice will start to expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
-						LogMessage.LEVEL_INFO,
-						LogMessage.IMPORTANCE_HIGH
-					);
-				}
-			}
-			super.afterComplete(addCompletedMessage);
+		  var earliestSliverExpiration:Date = slice.aggregateSlivers.EarliestExpiration;
+		  if(earliestSliverExpiration == null)
+		  {
+		    addMessage(
+		      "Renewed. Slice espires in "+DateUtil.getTimeUntil(slice.expires)+".",
+		      "Slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
+		      LogMessage.LEVEL_INFO,
+		      LogMessage.IMPORTANCE_HIGH
+		    );
+		  }
+		  else
+		  {
+		    if(earliestSliverExpiration < slice.expires)
+		    {
+		      addMessage(
+			"Renewed. Aggregates expire before slice in "+DateUtil.getTimeUntil(earliestSliverExpiration) +".",
+			"Aggregates will start to expire in " + DateUtil.getTimeUntil(earliestSliverExpiration) + ". The slice will expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
+			LogMessage.LEVEL_INFO,
+			LogMessage.IMPORTANCE_HIGH
+		      );
+		    }
+		    else
+		    {
+		      addMessage(
+			"Renewed. All expire at the same time in "+DateUtil.getTimeUntil(slice.expires)+".",
+			"Aggregates and slice will start to expire in " + DateUtil.getTimeUntil(slice.expires) + ".",
+			LogMessage.LEVEL_INFO,
+			LogMessage.IMPORTANCE_HIGH
+		      );
+		    }
+		  }
+		  super.afterComplete(addCompletedMessage);
 		}
 	}
 }

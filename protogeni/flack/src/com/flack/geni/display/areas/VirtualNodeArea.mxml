@@ -65,6 +65,7 @@ IN THE WORK.
 			import com.flack.geni.resources.sites.managers.SupportedSliverTypeCollection;
 			import com.flack.geni.resources.virt.ExecuteService;
 			import com.flack.geni.resources.virt.InstallService;
+			import com.flack.geni.resources.virt.LoginService;
 			import com.flack.geni.resources.virt.Sliver;
 			import com.flack.geni.resources.virt.VirtualInterface;
 			import com.flack.geni.resources.virt.VirtualInterfaceCollection;
@@ -74,12 +75,14 @@ IN THE WORK.
 			import com.flack.geni.resources.virt.VirtualNodeCollection;
 			import com.flack.geni.tasks.groups.ListImagesTaskGroup;
 			import com.flack.geni.tasks.xmlrpc.protogeni.cm.CreateImageCmTask;
+			import com.flack.geni.tasks.xmlrpc.am.CreateImageTask;
 			import com.flack.shared.FlackEvent;
 			import com.flack.shared.SharedMain;
 			import com.flack.shared.display.areas.DocumentArea;
 			import com.flack.shared.display.components.DataButton;
 			import com.flack.shared.display.windows.TextInputWindow;
 			import com.flack.shared.resources.sites.FlackManager;
+			import com.flack.shared.resources.sites.ApiDetails;
 			import com.flack.shared.utils.ColorUtil;
 			import com.flack.shared.utils.ImageUtil;
 			import com.flack.shared.utils.NetUtil;
@@ -206,13 +209,14 @@ IN THE WORK.
 								statusImage.visible = false;
 						}
 					}
-					if(node.services.loginServices != null && node.services.loginServices.length > 0)
+					var defaultLogin : LoginService = node.services.getDefaultLogin();
+					if(defaultLogin != null)
 					{
 						loginGroup.visible = true;
-						usernameText.text = node.services.loginServices[0].username;
-						hostnameText.text = node.services.loginServices[0].FullHostname;
-						visitButton.toolTip = "Click to launch http://" + node.services.loginServices[0].hostname;
-						sshButton.toolTip = "Click to launch ssh://" + node.services.loginServices[0].FullLogin;
+						usernameText.text = defaultLogin.username;
+						hostnameText.text = defaultLogin.FullHostname;
+						visitButton.toolTip = "Click to launch http://" + defaultLogin.hostname;
+						sshButton.toolTip = "Click to launch ssh://" + defaultLogin.FullLogin;
 					}
 					
 					managerList.selectedItem = node.manager;
@@ -339,8 +343,11 @@ IN THE WORK.
 			
 			public function openSsh():void
 			{
-				if(node.services.loginServices.length > 0)
-					NetUtil.openWebsite("ssh://" + node.services.loginServices[0].FullLogin);
+				var defaultLogin : LoginService = node.services.getDefaultLogin();
+				if(defaultLogin != null)
+				{
+					NetUtil.openWebsite("ssh://" + defaultLogin.FullLogin);
+				}
 			}
 			
 			public function viewManifest():void
@@ -836,9 +843,18 @@ IN THE WORK.
 			
 			public function userChoseImageName(newName:String):void
 			{
-				var createImageTask:CreateImageCmTask = new CreateImageCmTask(node, newName, diskImageGlobalCheckbox.selected);
-				createImageTask.forceRunNow = true;
-				SharedMain.tasker.add(createImageTask);
+				if (node.manager.api.type == ApiDetails.API_GENIAM)
+				{
+					var amTask:CreateImageTask = new CreateImageTask(node, newName, diskImageGlobalCheckbox.selected);
+					amTask.forceRunNow = true;
+					SharedMain.tasker.add(amTask);
+				}
+				else if (node.manager.api.type == ApiDetails.API_PROTOGENI)
+				{
+					var cmTask:CreateImageCmTask = new CreateImageCmTask(node, newName, diskImageGlobalCheckbox.selected);
+					cmTask.forceRunNow = true;
+					SharedMain.tasker.add(cmTask);
+				}
 			}
 			
 			protected function diskImageText_changeHandler(event:Event):void
