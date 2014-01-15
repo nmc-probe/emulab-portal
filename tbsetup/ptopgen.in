@@ -478,7 +478,11 @@ while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
     if (! defined($external_link_urn)) {
 	$external_link_urn = $external_network_link_urn;
     }
-    $external_nodes{$enode} = AvailableVlans($vlanList);
+    if ($allnodes) {
+	$external_nodes{$enode} = $vlanList;
+    } else {
+	$external_nodes{$enode} = AvailableVlans($vlanList);
+    }
     $external_managers{"$cnode:$enode"} = $external_manager_urn;
     $external_ifaces{"$cnode:$enode"} = $external_iface_urn;
     $external_links{"$cnode:$enode"} = $external_link_urn;
