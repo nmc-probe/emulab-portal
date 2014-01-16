@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2012-2013 University of Utah and the Flux Group.
+# Copyright (c) 2012-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -190,6 +190,17 @@ Blockstore instproc set-size {newsize} {
     return
 }
 
+Blockstore instproc set-readonly {roflag} {
+    $self instvar attributes
+
+    if {$roflag != 0} {
+	set roflag 1
+    }
+
+    set attributes(readonly) $roflag
+    return
+}
+
 #
 # Alias for procedure below
 #
@@ -207,6 +218,7 @@ Blockstore instproc set_fixed {pnode} {
 
     if { [$pnode info class] != "Node" } {
 	perror "Can only fix blockstores to a node object!"
+	return
     }
 
     set node $pnode
@@ -251,6 +263,7 @@ Blockstore instproc finalize {} {
     var_import ::TBCOMPAT::dataset_size
     var_import ::TBCOMPAT::dataset_type
     var_import ::TBCOMPAT::dataset_bsid
+    var_import ::TBCOMPAT::dataset_readonly
     $self instvar sim
     $self instvar node
     $self instvar size
@@ -264,6 +277,18 @@ Blockstore instproc finalize {} {
 	return -1
     }
 
+    # Check RO status
+    set ro 0
+    if {[info exists attributes(readonly)]} {
+	set ro $attributes(readonly)
+	# RO anon blockstore is just dumb
+	if {$leasename == {} && $ro} {
+	    puts stderr "*** WARNING: marking ephemeral blockstore $self read-only is useless, ignoring RO setting"
+	    set ro 0
+	}
+    }
+    set attributes(readonly) $ro
+
     # If the blockstore is associated with a lease, disallow/override certain
     # explicitly-specified values
     if {$leasename != {}} {
@@ -274,8 +299,14 @@ Blockstore instproc finalize {} {
 	if {$size != 0 || $type != {} ||
 	    [info exists attributes(class)] ||
 	    [info exists attributes(protocol)]} {
-	    perror "Cannot explicitly set size/type/class/protocol of lease-associated blockstore $self";
-	    return -1;
+	    perror "Cannot explicitly set size/type/class/protocol of lease-associated blockstore $self"
+	    return -1
+	}
+	if {$ro == 0 &&
+	    [info exists dataset_readonly($leasename)] &&
+	    $dataset_readonly($leasename) != 0} {
+	    perror "Cannot RW access RO lease-associated blockstore $self"
+	    return -1
 	}
 
 	if {! ${GLOBALS::anonymous} && ! ${GLOBALS::passmode}} {

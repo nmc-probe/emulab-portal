@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -890,12 +890,18 @@ sub GenDefsFile($)
 	my @leases = Lease->AllProjectLeases($pid);
 	print TCL "# Available datasets\n";
 	foreach my $lease (@leases) {
+	    my $ro;
+
 	    #
-	    # Lease must be valid.
-	    # XXX we might relax this in the future and allow RO mapping
-	    # of leases in their grace period.
+	    # Lease must be valid (RW) or grace (RO).
 	    #
-	    next if ($lease->state() ne LEASE_STATE_VALID());
+	    if ($lease->state() eq LEASE_STATE_VALID()) {
+		$ro = 0;
+	    } elsif ($lease->state() eq LEASE_STATE_GRACE()) {
+		$ro = 1;
+	    } else {
+		next;
+	    }
 
 	    # must have associated blockstore
 	    my $idx = $lease->lease_idx();
@@ -913,6 +919,7 @@ sub GenDefsFile($)
 	    print TCL "set dataset_type($name) $type\n";
 	    print TCL "set dataset_size($name) $size\n";
 	    print TCL "set dataset_index($name) $idx\n";
+	    print TCL "set dataset_readonly($name) $ro\n";
 	}
 	print TCL "\n";
     }
