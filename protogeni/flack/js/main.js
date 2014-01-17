@@ -4,17 +4,52 @@
 var swfVersionStr = "11.1.0";
   // To use express install, set to playerProductInstall.swf, otherwise the empty string.
   var xiSwfUrlStr = "playerProductInstall.swf";
+
+  var saUrlTag = document.getElementById('sa-url-parameter');
+  var saUrnTag = document.getElementById('sa-urn-parameter');
+
   var flashvars = {};
   if (isPortal)
   {
-    flashvars.skipstartup = '1';
-    flashvars.bundlepreset = '1';
-    flashvars.keycertpreset = '1';
-    flashvars.loadallmanagerswithoutasking = '1';
-    flashvars.saurl = encodeURIComponent(document.getElementById('sa-url-parameter').innerText);
-    flashvars.saurn = encodeURIComponent(document.getElementById('sa-urn-parameter').innerText);
-    flashvars.churl = encodeURIComponent(document.getElementById('ch-url-parameter').innerText);
-    flashvars.sliceurn = encodeURIComponent(document.getElementById('slice-urn-parameter').innerText);
+    var chUrlTag = document.getElementById('ch-url-parameter');
+    var sliceUrnTag = document.getElementById('slice-urn-parameter');
+
+    if (saUrlTag && saUrnTag && chUrlTag && sliceUrnTag)
+    {
+      flashvars.skipstartup = '1';
+      flashvars.bundlepreset = '1';
+      flashvars.keycertpreset = '1';
+      flashvars.loadallmanagerswithoutasking = '1';
+      flashvars.saurl = encodeURIComponent(saUrlTag.innerText);
+      flashvars.saurn = encodeURIComponent(saUrnTag.innerText);
+      flashvars.churl = encodeURIComponent(chUrlTag.innerText);
+      flashvars.sliceurn = encodeURIComponent(sliceUrnTag.innerText);
+    }
+    else
+    {
+      alert('ERROR: Could not find saurl/saurn/churl/sliceurn tags');
+    }
+  }
+  if (window.isDesktopPg)
+  {
+    var clientKeyTag = document.getElementById('client-key-parameter');
+    var clientCertTag = document.getElementById('client-cert-parameter');
+    var clientPassphraseTag = document.getElementById('client-passphrase-parameter');
+
+    if (clientKeyTag && clientCertTag && clientPassphraseTag && saUrlTag &&
+	saUrnTag)
+    {
+      flashvars.skipstartup = '1';
+      flashvars.keycert = encodeURIComponent(clientKeyTag.innerText + '\n' + clientCertTag.innerText);
+      flashvars.keypassphrase = encodeURIComponent(clientPassphraseTag.innerText);
+      flashvars.loadallmanagerswithoutasking = '0';
+      flashvars.saurl = encodeURIComponent(saUrlTag.innerText);
+      flashvars.saurn = encodeURIComponent(saUrnTag.innerText);
+    }
+    else
+    {
+      alert('ERROR: Could not find clientkey/clientcert/clientphrase/saurl/saurn parameters');
+    }
   }
   var params = {};
   params.quality = "high";
@@ -34,7 +69,7 @@ var swfVersionStr = "11.1.0";
   // JavaScript enabled so display the flashContent div in case it is not replaced with a swf object.
   swfobject.createCSS("#flashContent", "display:block;text-align:left;");
   swfobject.embedSWF(
-    basePath + 'forge/SocketPool.swf', 'socketPool',
+    'SocketPool.swf', 'socketPool',
     '0', '0',
     '9.0.0', false,
     {}, {allowscriptaccess: 'always'}, {});
@@ -66,11 +101,22 @@ function init(new_flash_id)
 {
   try
   {
+    var serverCertTag = document.getElementById('server-cert-parameter');
+    var clientKeyTag = document.getElementById('client-key-parameter');
+    var clientCertTag = document.getElementById('client-cert-parameter');
+
     if (isPortal)
     {
-      setServerCert(document.getElementById('server-cert-parameter').innerHTML);
-      setClientKey(document.getElementById('client-key-parameter').innerHTML);
-      setClientCert(document.getElementById('client-cert-parameter').innerHTML);
+      if (serverCertTag && clientKeyTag && clientCertTag)
+      {
+	setServerCert(serverCertTag.innerText);
+	setClientKey(clientKeyTag.innerText);
+	setClientCert(clientCertTag.innerText);
+      }
+      else
+      {
+	alert('ERROR: Could not fetch server-cert/client-key/client-cert parameters for the portal');
+      }
     }
 
     flash_id = new_flash_id;

@@ -1,4 +1,5 @@
 var isPortal = false;
+var isDesktopPg = false;
 var basePath = '';
 
 (function () {
@@ -54,8 +55,13 @@ var basePath = '';
   {
     isPortal = true;
   }
+  if (params['desktoppg'] && params['desktoppg'] === '1')
+  {
+    isDesktopPg = true;
+  }
+
   var sourceName = params['source'];
-  var basePath = sourceOptions['stable'];
+  basePath = sourceOptions['stable'];
   if (sourceOptionList.indexOf(sourceName) !== -1)
   {
     basePath = sourceOptions[sourceName];
