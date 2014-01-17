@@ -2002,6 +2002,9 @@ sub SetupBossNode($)
 
     # Copy over creators ssl certificate for XMLRPC. See below.
     mysystem("cp -fp ~${creator}/.ssl/emulab.pem $stuffdir");
+    # Copy extra ssh pub key for adding to elabman.
+    mysystem("cp -fp ~${creator}/.ssh/elabinelab.pub $stuffdir")
+	if (-e "/users/${creator}/.ssh/elabinelab.pub");
 
     #
     # Write the config variables out. genirack install phase needs it.
@@ -2483,6 +2486,10 @@ sub SetupBossNode($)
 	# XXX FBSD4 is such a pain...
 	mysystem("/etc/rc.sendmail start");
     }
+
+    # Copy additional key into the install directory.
+    mysystem("cp -fp $stuffdir/elabinelab.pub $TBDIR/src/testbed/install")
+	if (-e "$stuffdir/elabinelab.pub");
 
     #
     # INNER OPS DEPENDENCY: boss-install eventually wants to NFS mount

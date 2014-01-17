@@ -5,6 +5,8 @@ use strict;
 use libinstall;
 use installvars;
 
+my $EXTRADSA_KEY = "$main::TOP_SRCDIR/install/elabinelab.pub";
+
 sub Install($$$)
 {
     my ($server, $isupdate, $impotent) = @_;
@@ -67,6 +69,13 @@ sub Install($$$)
 	    }
 	    ExecQuietFatal("$SUDO -u $PROTOUSER $WAP ".
 			   "  $ADDPUBKEY -f -u $PROTOUSER $PROTOUSER_KEY");
+	};
+	Phase "DSAKey2", "Adding Extra DSA key to $PROTOUSER account", sub {
+	    PhaseSkip("No key found")
+		if (! -e $EXTRADSA_KEY);
+
+	    ExecQuietFatal("$SUDO -u $PROTOUSER $WAP ".
+			   "  $ADDPUBKEY -R -f -u $PROTOUSER $EXTRADSA_KEY");
 	};
 	Phase "authkeys", "Generating authorized_keys for $PROTOUSER", sub {
 	    ExecQuietFatal("$SUDO -u $PROTOUSER $WAP $ADDPUBKEY -w $PROTOUSER");
