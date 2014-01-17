@@ -173,7 +173,6 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
                        style='color: red'
                        for='sshkey'>$sshkey_error</label>
             </div>
-            <input type=hidden name=profile value='$profile_default'>
             <div id='profile_well' class='form-group well well-md'>
 
             <span id='selected_profile_text' class='pull-left'>
