@@ -143,6 +143,7 @@ function ShowTopo(uuid)
 function UpdateProfileSelection(selectedElement)
 {
 	var profile = $(selectedElement).attr('value');
+	$('#selected_profile').attr('value', profile);
 	$('#selected_profile_text').html("" + profile);
 
 	if (!$(selectedElement).hasClass('current'))

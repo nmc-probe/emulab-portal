@@ -177,11 +177,11 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
             <div id='profile_well' class='form-group well well-md'>
 
             <span id='selected_profile_text' class='pull-left'>
-
             </span>
+            <input id='selected_profile' type='hidden' name='profile'/>
 
               <button id='profile' class='btn btn-primary btn-xs pull-right' 
-              type='button' name='profile'>
+              type='button' name='profile_button'>
               Select a Profile
               </button>\n";
     echo " <label
