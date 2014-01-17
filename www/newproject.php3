@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1056,7 +1056,7 @@ if (!$returning) {
     # on NewNewUser would block and then unblock and get done; meanwhile the
     # PHP thread went away so we never returned here to call NewNewProject.
     #
-    if (! ($newuser_xml = User::NewNewUserXML($args, $errors)) != 0) {
+    if (! ($newuser_xml = User::NewNewUserXML($args, $error)) != 0) {
 	$errors["Error Creating User XML"] = $error;
 	TBERROR("B\n${error}\n\n" . print_r($args, TRUE), 0);
 	SPITFORM($formfields, $returning, $errors);

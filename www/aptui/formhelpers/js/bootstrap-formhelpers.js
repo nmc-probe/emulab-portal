@@ -14201,7 +14201,10 @@ var BFHTimezonesList = {
 
       this.$element.html('');
 
-      if (this.options.blank === true) {
+      if (this.options.ask === true) {
+        this.$element.append('<option value="">Please Select Country</option>');
+      }
+      else if (this.options.blank === true) {
         this.$element.append('<option value=""></option>');
       }
 
@@ -14292,7 +14295,8 @@ var BFHTimezonesList = {
     country: '',
     available: '',
     flags: false,
-    blank: true
+    blank: true,
+    ask: false
   };
 
 
@@ -17140,7 +17144,10 @@ var BFHTimezonesList = {
 
       this.$element.html('');
 
-      if (this.options.blank === true) {
+      if (this.options.ask === true) {
+        this.$element.append('<option value="">Please Select State</option>');
+      }
+      else if (this.options.blank === true) {
         this.$element.append('<option value=""></option>');
       }
 
@@ -17281,7 +17288,8 @@ var BFHTimezonesList = {
   $.fn.bfhstates.defaults = {
     country: '',
     state: '',
-    blank: true
+    blank: true,
+    ask: false
   };
 
 

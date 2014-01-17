@@ -72,7 +72,10 @@
 
       this.$element.html('');
 
-      if (this.options.blank === true) {
+      if (this.options.ask === true) {
+        this.$element.append('<option value="">Please Select State</option>');
+      }
+      else if (this.options.blank === true) {
         this.$element.append('<option value=""></option>');
       }
 
@@ -213,7 +216,8 @@
   $.fn.bfhstates.defaults = {
     country: '',
     state: '',
-    blank: true
+    blank: true,
+    ask: false
   };
 
 

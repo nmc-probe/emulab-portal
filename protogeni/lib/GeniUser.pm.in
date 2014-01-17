@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -562,6 +562,32 @@ sub GetKeys($)
 	push(@keys, $key);
     }
     return @keys;
+}
+
+#
+# Get the key bundle for a local user, which are just sshkeys. 
+# This function is intended to be used only by the SA to get the
+# key bundle from the emulab ssh keys for the local user. 
+#
+sub GetKeyBundle($$)
+{
+    my ($self, $pref) = @_;
+    my @results = ();
+
+    return -1
+	if (! (ref($self) && ref($pref)));
+
+    my @tmp = $self->GetKeys();
+    goto done
+	if (!@tmp);
+
+    foreach my $sshkey (@tmp) {
+	push(@results, {"type" => 'ssh',
+			"key"  => $sshkey});
+    }
+  done:
+    @$pref = @results;
+    return 0;
 }
 
 #

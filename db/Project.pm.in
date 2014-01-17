@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2013 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -435,17 +435,17 @@ sub SendNewProjectEmail($;$)
     my $leader             = $self->GetLeader();
     my $usr_uid            = $leader->uid();
     my $usr_idx            = $leader->uid_idx();
-    my $usr_title	   = $leader->title();
+    my $usr_title	   = $leader->title() || "";
     my $usr_name	   = $leader->name();
     my $usr_affil	   = $leader->affil();
     my $usr_email	   = $leader->email();
-    my $usr_addr	   = $leader->addr();
+    my $usr_addr	   = $leader->addr() || "";
     my $usr_addr2	   = $leader->addr2();
     my $usr_city	   = $leader->city();
     my $usr_state	   = $leader->state();
-    my $usr_zip	           = $leader->zip();
+    my $usr_zip	           = $leader->zip() || "";
     my $usr_country        = $leader->country();
-    my $usr_phone	   = $leader->phone();
+    my $usr_phone	   = $leader->phone() || "";
     my $usr_URL            = $leader->URL();
     my $wikiname           = $leader->wikiname();
     my $returning          = $leader->status() ne $User::USERSTATUS_NEWUSER;

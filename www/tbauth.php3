@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1058,7 +1058,14 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null, $adminon = 0)
 	setcookie($WIKICOOKIENAME, "", $flushtime, "/",
 		  $TBAUTHDOMAIN, $TBSECURECOOKIES);
     }
-	
+    if (0) {
+	#
+	# Some incomplete code for auto login to new (plone based) wiki.
+	#
+	setcookie("emulab_wiki",
+		  "user=$uid&hash=Fooey", time() + 5000, "/", $TBAUTHDOMAIN, 0);
+    }
+    
     #
     # Ditto for bugdb
     # 

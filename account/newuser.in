@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,6 +41,7 @@ my $impotent= 0;
 my $type    = "";
 my $silent  = 0;
 my $portal  = 0;
+my $viaAPT  = 0;
 my @keyfiles = ();
 
 #
@@ -205,6 +206,20 @@ fatal($@)
 
 print STDERR Dumper($xmlparse)
     if ($debug);
+
+# APT flag. Notice and delete.
+if (exists($xmlparse->{'attribute'}->{"viaAPT"})) {
+    $viaAPT = 1;
+    delete($xmlparse->{'attribute'}->{"viaAPT"});
+
+    # Remove these, we do not require them on the APT path.
+    delete($required{"affiliation_abbreviation"});
+    delete($required{"phone"});
+    delete($required{"title"});
+    delete($required{"address"});
+    delete($required{"zip"});
+    delete($required{"wikiname"});
+}
 
 #
 # Make sure all the required arguments were provided.
@@ -428,6 +443,9 @@ elsif ($type eq "wikionly") {
 elsif ($type eq "leader") {
     $flags = $User::NEWUSER_FLAGS_PROJLEADER;
 }
+if ($viaAPT) {
+    $flags |= $User::NEWUSER_FLAGS_VIAAPT;
+}
 my $newuser = User->Create($new_uid, $flags, \%newuser_args);
 if (!defined($newuser)) {
     fatal("Could not create new user!");
@@ -500,7 +518,7 @@ SENDMAIL("$usr_name '$usr_uid' <$usr_email>",
 	 "Testbed Operations\n",
 	 "$TBAPPROVAL",
 	 "Bcc: $TBAUDIT")
-    if (!$silent);
+    if (!($silent || $viaAPT));
 
 #
 # Do we have a keyfile? If so, rerun addpubkey for real now that the

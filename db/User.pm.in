@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2013 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,7 +38,7 @@ use File::Basename;
 use overload ('""' => 'Stringify');
 use vars qw($NEWUSER_FLAGS_PROJLEADER $NEWUSER_FLAGS_WIKIONLY
 	    $NEWUSER_FLAGS_WEBONLY $NEWUSER_FLAGS_ARCHIVED
-	    $NEWUSER_FLAGS_NOUUID $NEWUSER_FLAGS_NONLOCAL
+	    $NEWUSER_FLAGS_NOUUID $NEWUSER_FLAGS_NONLOCAL $NEWUSER_FLAGS_VIAAPT
 	    $USERSTATUS_ACTIVE $USERSTATUS_FROZEN
 	    $USERSTATUS_UNAPPROVED $USERSTATUS_UNVERIFIED
 	    $USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED $USERSTATUS_NONLOCAL
@@ -66,6 +66,7 @@ $NEWUSER_FLAGS_WEBONLY		= 0x04;
 $NEWUSER_FLAGS_ARCHIVED		= 0x08;
 $NEWUSER_FLAGS_NOUUID		= 0x80;
 $NEWUSER_FLAGS_NONLOCAL		= 0x40;
+$NEWUSER_FLAGS_VIAAPT		= 0x20;
 
 # Status values.
 $USERSTATUS_ACTIVE		= "active";
@@ -79,7 +80,7 @@ $USERSTATUS_NONLOCAL	        = "nonlocal";
 # Why, why, why?
 @EXPORT_OK = qw($NEWUSER_FLAGS_PROJLEADER $NEWUSER_FLAGS_WIKIONLY
 		$NEWUSER_FLAGS_WEBONLY $NEWUSER_FLAGS_ARCHIVED
-		$NEWUSER_FLAGS_NOUUID
+		$NEWUSER_FLAGS_NOUUID $NEWUSER_FLAGS_VIAAPT
 		$USERSTATUS_ACTIVE $USERSTATUS_FROZEN
 		$USERSTATUS_UNAPPROVED $USERSTATUS_UNVERIFIED
 		$USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED $USERSTATUS_NONLOCAL);
@@ -394,6 +395,7 @@ sub Create($$$$)
     my $archived = ($flags & $NEWUSER_FLAGS_ARCHIVED   ? 1 : 0);
     my $nonlocal = ($flags & $NEWUSER_FLAGS_NONLOCAL   ? 1 : 0);
     my $nouuid   = ($flags & $NEWUSER_FLAGS_NOUUID     ? 1 : 0);
+    my $viaapt   = ($flags & $NEWUSER_FLAGS_VIAAPT     ? 1 : 0);
 
     #
     # If no uid, we need to generate a unique one for the user.
@@ -577,6 +579,11 @@ sub Create($$$$)
 	push(@insert_data, "status='$USERSTATUS_NONLOCAL'");
 	push(@insert_data, "pswd_expires=now()");
 	push(@insert_data, "usr_pswd='*'");
+    }
+    elsif ($viaapt) {
+	push(@insert_data, "status='$USERSTATUS_UNAPPROVED'");
+	push(@insert_data, "pswd_expires=date_add(now(), interval 1 year)");
+	push(@insert_data, "viaAPT='1'");
     }
     else {
 	push(@insert_data, "status='$USERSTATUS_NEWUSER'");

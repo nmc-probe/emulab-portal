@@ -83,7 +83,10 @@
 
       this.$element.html('');
 
-      if (this.options.blank === true) {
+      if (this.options.ask === true) {
+        this.$element.append('<option value="">Please Select Country</option>');
+      }
+      else if (this.options.blank === true) {
         this.$element.append('<option value=""></option>');
       }
 
@@ -174,7 +177,8 @@
     country: '',
     available: '',
     flags: false,
-    blank: true
+    blank: true,
+    ask: false
   };
 
 

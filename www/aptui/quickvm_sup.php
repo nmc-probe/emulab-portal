@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -21,12 +21,44 @@
 # 
 # }}}
 #
+$APTHOST	= "$WWWHOST";
+$APTBASE	= "$TBBASE/apt";
+
+#
+# Global flag to disable accounts. We do this on some pages which
+# should not display login/account info.
+#
+$disable_accounts = 0;
+
+#
+# So, we could be coming in on the alternate APT address (virtual server)
+# which causes cookie problems. I need to look into avoiding this problem
+# but for now, just change the global value of the TBAUTHDOMAIN when we do.
+# The downside is that users will have to log in twice if they switch back
+# and forth.
+#
+if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
+    $TBAUTHDOMAIN = ".aptlab.net";
+    $APTHOST      = "www.aptlab.net";
+    $APTBASE      = "https://www.aptlab.net";
+}
+
 function SPITHEADER($thinheader = 0)
 {
     global $TBMAINSITE;
+    global $login_user, $login_status;
+    global $disable_accounts;
     
     $height = ($thinheader ? 150 : 250);
-    
+
+    #
+    # Figure out who is logged in, if anyone.
+    #
+    if (($login_user = CheckLogin($status)) != null) {
+	$login_status = $status;
+	$login_uid    = $login_user->uid();
+    }
+
     echo "<html>
       <head>
         <title>AptLab</title>
@@ -44,19 +76,35 @@ function SPITHEADER($thinheader = 0)
     echo "
     <!-- Container for body, needed for sticky footer -->
     <div id='wrap'>
-      <div style='background-color: #ff6600'>
-         <img class='align-center' style='width: ${height}px'
+      <div style='background-color: #ff6600'>";
+    if (!$disable_accounts) {
+	if ($login_user) {
+	    echo "<div id='loginbutton'>
+                      $login_uid logged in<br>
+                  </div>\n";
+	}
+	elseif (!NOLOGINS()) {
+	    echo "<div id='loginbutton'>
+                   <button class='btn btn-primary'
+                           id='login_button' type=button
+	                   data-toggle='modal' data-target='#quickvm_login_modal'>
+                        Login</button>
+                 </div>\n";
+	}
+    }
+    echo "<img class='align-center' style='width: ${height}px'
                src='aptlogo.png'/>
       </div>
      <!-- Page content -->
      <div class='container'>\n";
-
+    SpitLoginModal("quickvm_login_modal");
 }
 
 function SPITFOOTER()
 {
     echo "</div>
-      </div>
+      </div>\n";
+    echo "
       <!--- Footer -->
       <div>
        <div id='footer'>
@@ -67,6 +115,11 @@ function SPITFOOTER()
       </div>
       <!-- Placed at the end of the document so the pages load faster -->
      </body></html>\n";
+}
+
+function SPITUSERERROR($msg)
+{
+    echo "<b>$msg</b>\n";
 }
 
 #
@@ -99,6 +152,97 @@ function SpitToolTip($info)
 	"data-content='$info'> ".
         "<span class='glyphicon glyphicon-question-sign'></span> ".
         "</a>\n";
+}
+
+#
+# Spit out the verify modal. We are not using real password authentication
+# like the rest of the Emulab website. Assumed to be inside of a form
+# that handles a create button.
+#
+function SpitVerifyModal($id, $label)
+{
+    echo "<!-- This is the user verify modal -->
+          <div id='$id' class='modal fade'>
+            <div class='modal-dialog'>
+            <div class='modal-content'>
+               <div class='modal-header'>
+                <button type='button' class='close' data-dismiss='modal'
+                   aria-hidden='true'>&times;</button>
+                <h3>Important</h3>
+               </div>
+               <div class='modal-body'>
+                    <p>Check your email for a verification code, and
+                       enter it here:</p>
+                       <div class='form-group'>
+                        <input name='verify' class='form-control'
+                               placeholder='Verification code'
+                               autofocus type='text' />
+                       </div>
+                       <div class='form-group'>
+                        <button class='btn btn-primary form-control'
+                            type='submit' name='create'>
+                            $label</button>
+                       </div>
+               </div>
+            </div>
+            </div>
+         </div>\n";
+}
+
+#
+# Spit out the login modal. 
+#
+function SpitLoginModal($id, $embedded = 0)
+{
+    echo "<!-- This is the login modal -->
+          <div id='$id' class='modal fade'>
+            <div class='modal-dialog'>
+            <div class='modal-content'>
+               <div class='modal-header'>
+                <button type='button' class='close' data-dismiss='modal'
+                   aria-hidden='true'>&times;</button>
+                  Please login to your account.
+               </div>
+               <div class='modal-body'>\n";
+    echo "     <div class='row'>
+               <div class='col-lg-4 col-lg-offset-4
+                           col-md-6 col-md-offset-3
+                           col-sm-8 col-sm-offset-2
+                           col-xs-12'>\n";
+    if (!$embedded) {
+	echo "   <form id='quickvm_login_form'
+		       role='form'
+                       method='post' action='login.php'>";
+	echo "<input type=hidden name=refer value=1>\n";
+	echo "<div id='quickvm_login_form_error'
+			class='align-center'></div>\n";
+    }
+    echo "             <div class='form-group'>
+                        <input name='uid' class='form-control'
+                               placeholder='Email or Username'
+                               autofocus type='text'>
+                       </div>
+                       <div class='form-group'>
+                        <input name='password' class='form-control'
+                               placeholder='Password'
+                               type='password'>
+                       </div>
+                       <div class='form-group'>
+                        <button class='btn btn-primary btn-sm'
+                            id='quickvm_login_modal_button'
+                            class='form-control'
+                            type='submit' name='login'>
+                            Login</button>
+                       </div>\n";
+    if (!$embedded) {
+	echo "   </form>";
+    }
+    echo "     </div>
+               </div>
+               </div>
+            </div>
+            </div>
+         </div>\n";
 }
 
 #
@@ -169,6 +313,19 @@ function GetTopoMap($uid, $pid, $eid)
     }
     else {
 	return "";
+    }
+}
+
+#
+# Redirect request to https
+#
+function RedirectSecure()
+{
+    global $APTHOST;
+
+    if (!isset($_SERVER["SSL_PROTOCOL"])) {
+	header("Location: https://$APTHOST". $_SERVER['REQUEST_URI']);
+	exit();
     }
 }
 

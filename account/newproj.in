@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011, 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,6 +41,7 @@ my $debug   = 0;
 my $nonlocal= 0;
 my $impotent= 0;
 my $silent  = 0;
+my $viaAPT  = 0;
 my $resend;
 
 #
@@ -221,6 +222,11 @@ my $xmlparse = eval { XMLin($xmlfile,
 fatal($@)
     if ($@);
 
+# APT flag. Notice and delete.
+if (exists($xmlparse->{'attribute'}->{"viaAPT"})) {
+    $viaAPT = 1;
+    delete($xmlparse->{'attribute'}->{"viaAPT"});
+}
 
 #
 # Make sure all the required arguments were provided.
@@ -326,8 +332,12 @@ if (exists($newproj_args{'newuser_xml'})) {
     print $cmd . "\n"
 	if ($debug);
     my $cmd_out = `$cmd`;
-    UserError("Transient Error: (3, $?, $cmd) $cmd_out")
-	if ($?);
+    if ($?) {
+	if (($? >> 8) > 0) {
+	    UserError($cmd_out);
+	}
+	fatal("Error creating new user: (3, $?, $cmd) $cmd_out");
+    }
 
     #
     # Parse the last line of output. Ick.
@@ -360,6 +370,9 @@ exit(0)
 my $new_pid = $newproj_args{'pid'};
 delete($newproj_args{'pid'});
 delete($newproj_args{'head_uid'});
+# APT flag.
+$newproj_args{'viaAPT'} = 1
+    if ($viaAPT);
 
 my $newproj = Project->Create($new_pid, $leader, \%newproj_args);
 if (!defined($newproj)) {

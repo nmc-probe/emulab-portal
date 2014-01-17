@@ -130,7 +130,7 @@ function ShowTopo(uuid)
 	console.info(topo);
 
 	$("#showtopo_container").removeClass("invisible");
-	maketopmap("#topo-container",
+	maketopmap("#showtopo_container",
 		   $("#showtopo_div").width() - 30,
 		   300, topo);
 
@@ -345,7 +345,7 @@ function Extend(uuid)
 function RegisterAccount(uid, email)
 {
     HideModal('#register_modal');
-    var url = "../newproject.php3?uid=" + uid + "&email=" + email + "";
+    var url = "signup.php?uid=" + uid + "&email=" + email + "";
     var win = window.open(url, '_blank');
     win.focus();
 }
@@ -387,7 +387,7 @@ function InitQuickVM(uuid, slice_expires)
 }
 
 function resetForm($form) {
-    $form.find('input:text, select, textarea').val('');
+    $form.find('input:text, input:password, select, textarea').val('');
 }
 
 function StartSSH(id, authobject)
@@ -919,6 +919,62 @@ function ConvertManifestToJSON(name, xml)
     return json;
 }
 
+function ShowUploadedRspec(content)
+{
+    var xmlDoc = $.parseXML(content);
+    var xml    = $(xmlDoc);
+    var topo   = ConvertManifestToJSON(null, xml);
+    console.info(topo);
+
+    ShowModal("#quickvm_topomodal");
+    
+    maketopmap("#showtopo_div",
+	       ($("#showtopo_dialog").outerWidth()) - 90,
+	       300, topo);
+}
+
+/*
+ * Try to log the user in via an ajax call.
+ */
+function LoginByModal()
+{
+    var uid = $("#quickvm_login_form [name='uid']").val();
+    var password = $("#quickvm_login_form [name='password']").val();
+
+    // Clear previous error.
+    $("#quickvm_login_form_error").html("");
+
+    var callback = function(json) {
+	if (json.code) {
+	    $("#quickvm_login_form_error").html("Login failed. Try again?");
+	}
+	else {
+	    // Clear previous error.
+	    $("#quickvm_login_form_error").html("");
+	    HideModal("#quickvm_login_modal");
+	    $("#loginbutton").html(uid + " logged in");
+	}
+    }
+    var xmlthing = $.ajax({
+	// the URL for the request
+	url: "login.php",
+ 
+	// the data to send (will be converted to a query string)
+	data: {
+	    ajax_request: 1,
+	    uid: uid,
+	    password: password
+	},
+ 
+	// whether this is a POST or GET request
+	type: "POST",
+ 
+	// the type of data we expect back
+	dataType : "json",
+    });
+    xmlthing.done(callback);
+}
+
 // Exports from this module for use elsewhere
 return {
     Extend: Extend,
@@ -931,6 +987,8 @@ return {
     ShowProfileList: ShowProfileList,
     StartSSH: StartSSH,
     Terminate: Terminate,
-    UpdateProfileSelection: UpdateProfileSelection
+    UpdateProfileSelection: UpdateProfileSelection,
+    ShowUploadedRspec: ShowUploadedRspec,
+    LoginByModal: LoginByModal
 };
 });
