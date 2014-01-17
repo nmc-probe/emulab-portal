@@ -586,7 +586,10 @@ sub destroy($)
 	logit("$lease: someone else deleted it");
 	return 0;
     }
+    # could not get the lock, leave expired so we will try again next pass
     if ($rv) {
+	# XXX make a note of why it is left expired
+	$lease->SetAttribute("why", "lease_daemon_cannot_lock");
 	logit("$lease: could not get lock");
 	return 1;
     }
@@ -598,20 +601,23 @@ sub destroy($)
 
     # if the lease is in use, disallow
     if ($lease->InUse()) {
+	# XXX make a note of why it is left expired
+	$lease->SetAttribute("why", "lease_daemon_in_use");
 	$lease->Unlock();
 	logit("$lease: in use, cannot be destroyed");
 	return 3;
     }
 
     #
-    # Failures of the following will leave the lease in a weird way.
-    # So we reports failures to testbed-ops.
+    # Failures after this will leave the lease in a weird way.
+    # So we report failures to testbed-ops and make sure we are not left
+    # in the expired state.
     #
 
     # If Dealloc fails, we put the lease in the locked state instead
     if ($lease->DeallocResources()) {
 	$lease->UpdateState(LEASE_STATE_LOCKED());
-	# XXX make a note of why it is locked
+	# XXX make a note of why it is left locked
 	$lease->SetAttribute("why", "lease_daemon_dealloc_failed");
 	$lease->Unlock();
 	notify("$lease: resource dealloc failed during destruction. Manual cleanup required.");
