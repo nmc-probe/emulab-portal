@@ -1,29 +1,18 @@
-var isPortal = false;
-var isDesktopPg = false;
-var basePath = '';
+var LOADER = {
+  params: {},
+  basePath: '',
+  loadFile: function (relPath) {
+    var body = document.getElementsByTagName('body')[0];
+    var script = document.createElement('script');
+    script.src = this.basePath + relPath;
+    script.type = 'application/javascript';
+    script.async = false;
+    script.defer = false;
+    body.appendChild(script);
+  }
+};
 
 (function () {
-  var importList = [
-    'forge/debug.js',
-    'forge/util.js',
-    'forge/log.js',
-    'forge/socket.js',
-    'forge/md5.js',
-    'forge/sha1.js',
-    'forge/hmac.js',
-    'forge/aes.js',
-    'forge/asn1.js',
-    'forge/jsbn.js',
-    'forge/prng.js',
-    'forge/random.js',
-    'forge/oids.js',
-    'forge/rsa.js',
-    'forge/pki.js',
-    'forge/tls.js',
-    'forge/tlssocket.js',
-    'forge/http.js',
-    'main.js'
-  ];
 
   var sourceOptionList = ['local', 'devel', 'stable', 'none'];
 
@@ -49,33 +38,15 @@ var basePath = '';
     return params;
   }
 
-  var params = getQueryParams(window.location.search);
+  LOADER.params = getQueryParams(window.location.search);
+  LOADER.basePath = sourceOptions['stable'];
 
-  if (params['portal'] && params['portal'] === '1')
-  {
-    isPortal = true;
-  }
-  if (params['desktoppg'] && params['desktoppg'] === '1')
-  {
-    isDesktopPg = true;
-  }
-
-  var sourceName = params['source'];
-  basePath = sourceOptions['stable'];
+  var sourceName = LOADER.params['source'];
   if (sourceOptionList.indexOf(sourceName) !== -1)
   {
-    basePath = sourceOptions[sourceName];
+    LOADER.basePath = sourceOptions[sourceName];
   }
 
-  var body = document.getElementsByTagName('body')[0];
-  var i = 0;
-  for (i = 0; i < importList.length; i += 1)
-  {
-    var script = document.createElement('script');
-    script.src = basePath + importList[i];
-    script.type = 'application/javascript';
-    script.async = false;
-    script.defer = false;
-    body.appendChild(script);
-  }
+  LOADER.loadFile('main.js');
+
 }());

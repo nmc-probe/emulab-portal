@@ -1,5 +1,49 @@
 (function ()
 {
+  var importList = [
+    'forge/debug.js',
+    'forge/util.js',
+    'forge/log.js',
+    'forge/socket.js',
+    'forge/md5.js',
+    'forge/sha1.js',
+    'forge/hmac.js',
+    'forge/aes.js',
+    'forge/asn1.js',
+    'forge/jsbn.js',
+    'forge/prng.js',
+    'forge/random.js',
+    'forge/oids.js',
+    'forge/rsa.js',
+    'forge/pki.js',
+    'forge/tls.js',
+    'forge/tlssocket.js',
+    'forge/http.js',
+  ];
+
+  for (var i = 0; i < importList.length; i += 1)
+  {
+    LOADER.loadFile(importList[i]);
+  }
+
+  if (window.isPortal === undefined)
+  {
+    window.isPortal = false;
+    if (LOADER.params['portal'] && LOADER.params['portal'] === '1')
+    {
+      window.isPortal = true;
+    }
+  }
+
+  if (window.isDesktopPg === undefined)
+  {
+    window.isDesktopPg = false;
+    if (LOADER.params['desktoppg'] && LOADER.params['desktoppg'] === '1')
+    {
+      window.isDesktopPg = true;
+    }
+  }
+
   // For version detection, set to min. required Flash Player version, or 0 (or 0.0.0), for no version detection.
 var swfVersionStr = "11.1.0";
   // To use express install, set to playerProductInstall.swf, otherwise the empty string.
@@ -62,7 +106,7 @@ var swfVersionStr = "11.1.0";
   attributes.name = "flack";
   attributes.align = "middle";
   swfobject.embedSWF(
-    basePath + "flack.swf", "flashContent",
+    LOADER.basePath + "flack.swf", "flashContent",
     "100%", "100%",
     swfVersionStr, xiSwfUrlStr,
     flashvars, params, attributes);
@@ -132,11 +176,6 @@ function init(new_flash_id)
     console.dir(ex);
   }
 }
-
-// local aliases
-var tls = window.forge.tls;
-var http = window.forge.http;
-var util = window.forge.util;
 
 var clients = new Object();
 
@@ -262,8 +301,8 @@ function client_init(host)
       // optional cipher suites in order of preference
       caCerts : serverCerts,
       cipherSuites: [
-        tls.CipherSuites.TLS_RSA_WITH_AES_128_CBC_SHA,
-        tls.CipherSuites.TLS_RSA_WITH_AES_256_CBC_SHA],
+        forge.tls.CipherSuites.TLS_RSA_WITH_AES_128_CBC_SHA,
+        forge.tls.CipherSuites.TLS_RSA_WITH_AES_256_CBC_SHA],
       verify: function(c, verified, depth, certs)
       {
 
@@ -289,7 +328,7 @@ function client_init(host)
       arg.getCertificate = function(c, request) { return clientCerts; };
       arg.getPrivateKey = function(c, cert) { return clientKey; };
     }
-    result = http.createClient(arg);
+    result = forge.http.createClient(arg);
   }
   catch(ex)
   {
@@ -317,7 +356,7 @@ function client_send(client, path, data, instance)
     requestArg.headers = [{'Content-Type': 'text/xml'}];
     requestArg.body = data;
   }
-  var request = http.createRequest(requestArg);
+  var request = forge.http.createRequest(requestArg);
   client.send({
     request: request,
     connected: function(e)
