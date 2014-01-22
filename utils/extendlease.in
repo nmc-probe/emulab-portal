@@ -29,9 +29,9 @@ use Date::Parse;
 #
 # Extend (renew) a lease.
 #
-# A user can extend a lease iff the lease type allows extentions
+# A user can extend a lease iff the lease type allows extensions
 # (sitevar:extendperiod != 0) and either the leasetype allows unlimitied
-# extentions (sitevar:maxextend == 0) or the lease has not yet been extended
+# extensions (sitevar:maxextend == 0) or the lease has not yet been extended
 # the maximum number of times (lease:renewals < sitevar:maxextend).
 #
 # Currently, the lease must be in the "grace" state to extend it.
@@ -171,7 +171,7 @@ if ($lease->state() ne LEASE_STATE_GRACE()) {
 }
 
 #
-# See if we have already hit the extention limit
+# See if we have already hit the extension limit
 #
 if ($vars->{'maxextend'} > 0 && $lease->renewals() >= $vars->{'maxextend'}) {
     fatal("$pid/$lname: already extended maximum number of times");
