@@ -65,7 +65,7 @@ my @LEASE_TYPES  = ("stdataset", "ltdataset");
 # usequotas	If non-zero, enforce per-project dataset quotas
 # maxextend	Number of times a user can extend the lease
 #		(0 == unlimited)
-# extendperiod	Length (days) of each user-requested extention
+# extendperiod	Length (days) of each user-requested extension
 #		(0 == do not allow extensions)
 #
 my @LEASE_VARS = (
@@ -100,8 +100,8 @@ my %LEASE_VAR_DEFAULTS = (
     "stdataset/graceperiod"  => 1,	# 1 day
     "stdataset/autodestroy"  => 1,	# yes
     "stdataset/usequotas"    => 0,	# no
-    "stdataset/maxextend"    => 2,	# 2 user extentions
-    "stdataset/extendperiod" => 1,	# 1 day per extention
+    "stdataset/maxextend"    => 2,	# 2 user extensions
+    "stdataset/extendperiod" => 1,	# 1 day per extension
 
     "ltdataset/maxsize"      => 0,	# none
     "ltdataset/maxlease"     => 0,	# none, use idle time
@@ -110,7 +110,7 @@ my %LEASE_VAR_DEFAULTS = (
     "ltdataset/autodestroy"  => 0,	# no
     "ltdataset/usequotas"    => 1,	# yes
     "ltdataset/maxextend"    => 1,	# ignored because...
-    "ltdataset/extendperiod" => 0,	# ...means no user extention
+    "ltdataset/extendperiod" => 0,	# ...means no user extension
 );
 
 #
@@ -554,7 +554,6 @@ sub AllocResources($;$) {
 
     # It all worked!
     $self->UpdateState($state);
-    $self->BumpLastUsed();
 
     return 0;
 }
