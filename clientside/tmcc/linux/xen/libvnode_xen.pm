@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -210,6 +210,7 @@ my $OVSSTART = "/usr/local/share/openvswitch/scripts/ovs-ctl";
 
 my $ISREMOTENODE = REMOTEDED();
 my $BRIDGENAME   = "xenbr0";
+my $VIFROUTING   = ((-e "$ETCDIR/xenvifrouting") ? 1 : 0);
 
 #
 # Information about the running Xen hypervisor
@@ -235,7 +236,7 @@ sub formatDHCP($$$);
 sub fixupMac($);
 sub createControlNetworkScript($$$);
 sub createExpNetworkScript($$$$$$$$);
-sub createTunnelScript($$$$);
+sub createTunnelScript($$$$$);
 sub createExpBridges($$$);
 sub destroyExpBridges($$);
 sub domainStatus($);
@@ -337,28 +338,11 @@ sub rootPreConfig($)
     my ($alias_iface, $alias_ip, $alias_mask);
 
     #
-    # Start the Xen daemon if not running.
-    # There doesn't seem to be a sure fire way to tell this.
-    # However, one of the important things xend should do for us is
-    # set up a bridge device for the control network, so we look for this.
-    # The bridge should have the same name as the control network interface.
-    #
+    # Locally, we just need to add the alias to the control interface
+    # (which might be a bridge).
+    # 
     if (!$ISREMOTENODE) {
-	my ($cnet_iface,undef,undef,undef,undef,undef,$cnet_gw) =
-	    findControlNet();
-	if (!existsBridge($cnet_iface)) {
-	    print "Starting xend and configuring cnet bridge...\n"
-		if ($debug);
-	    mysystem("/usr/sbin/xend start");
-
-	    #
-	    # xend tends to lose the default route, so make sure it exists.
-	    #
-	    system("route del default >/dev/null 2>&1");
-	    mysystem("route add default gw $cnet_gw");
-	}
-	($alias_ip,$alias_mask) = domain0ControlNet();
-	$alias_iface = "$cnet_iface:1";
+	my ($cnet_iface) = findControlNet();
 
 	#
 	# We use xen's antispoofing when constructing the guest control net
@@ -370,6 +354,13 @@ sub rootPreConfig($)
 	# This says to forward traffic across the bridge.
 	mysystem("$IPTABLES -A FORWARD ".
 		 "-m physdev --physdev-in $cnet_iface -j ACCEPT");
+	
+	if ($VIFROUTING) {
+	    mysystem("echo 1 >/proc/sys/net/ipv4/conf/$cnet_iface/proxy_arp");
+	    mysystem("echo 1 >/proc/sys/net/ipv4/ip_forward");
+	    # This is for arping -A to work. See emulab-cnet.pl
+	    mysystem("echo 1 >/proc/sys/net/ipv4/ip_nonlocal_bind");
+	}
 
 	# Set up for metadata server for ec2 support
 	print "Setting up redirection for meta server...\n";
@@ -396,10 +387,11 @@ sub rootPreConfig($)
 	}
 	(undef,$alias_mask,$alias_ip) = findVirtControlNet();
 	$alias_iface = $BRIDGENAME;
-    }
-    if (system("ifconfig $alias_iface | grep -q 'inet addr'")) {
-	print "Creating $alias_iface alias...\n";
-	mysystem("ifconfig $alias_iface $alias_ip netmask $alias_mask");
+
+	if (system("ifconfig $alias_iface | grep -q 'inet addr'")) {
+	    print "Creating $alias_iface alias...\n";
+	    mysystem("ifconfig $alias_iface $alias_ip netmask $alias_mask");
+	}
     }
 
     # For tunnels
@@ -541,6 +533,17 @@ sub rootPreConfigNetwork($$$$)
 
     createDHCP()
 	if (! -e $DHCPCONF_FILE && ! -e $NEW_DHCPCONF_FILE);
+
+    if (!$ISREMOTENODE) {
+	my ($cnet_iface) = findControlNet();
+	my ($alias_ip,$alias_mask) = domain0ControlNet();
+	my $alias_iface = "$cnet_iface:1";
+
+	if (system("ifconfig $alias_iface | grep -q 'inet addr'")) {
+	    print "Creating $alias_iface alias...\n";
+	    mysystem("ifconfig $alias_iface $alias_ip netmask $alias_mask");
+	}
+    }
 
     #
     # If we blocked, it would be because vnodes have come or gone,
@@ -744,6 +747,13 @@ sub vnodeCreate($$$$)
 	    fatal("xen_vnodeCreate: Could not restore disk info from $conf");
 	}
 	$private->{'disks'} = $disks;
+	#
+	# We want to support extra disk space on this path, but we cannot
+	# just stick into the 4th partition like we do below, but have to
+	# add an extra disk instead. But to do that we have to look at the
+	# disks we just parsed and see what the highest lettered drive is.
+	#
+	
 	TBScriptUnlock();
 	goto done;
     }
@@ -898,7 +908,7 @@ sub vnodeCreate($$$$)
     $rootvdisk .= "${bootslice}";
     
     # Mark the lvm as created, for cleanup on error.
-    $private->{'disks'}->{$vnode_id} = $vnode_id;
+    $private->{'disks'}->{$vnode_id} = [$vnode_id, $rootvndisk, $rootvndisk];
 
     #
     # The rest of this can proceed in parallel with other VMs.
@@ -999,7 +1009,7 @@ sub vnodeCreate($$$$)
 	my $vdisk  = $vdiskprefix . chr($auxchar++);
 	my $stanza = "phy:$vndisk,$vdisk,w";
 
-	$private->{'disks'}->{$auxlvname} = $auxlvname;
+	$private->{'disks'}->{$auxlvname} = [$auxlvname, $vndisk, $vdisk];
 	push(@alldisks, "'$stanza'");
     }
 
@@ -1021,7 +1031,7 @@ sub vnodeCreate($$$$)
 	    my $vdisk  = $vdiskprefix . chr($auxchar++);
 	    my $stanza = "phy:$vndisk,$vdisk,w";
 
-	    $private->{'disks'}->{$auxlvname} = $auxlvname;
+	    $private->{'disks'}->{$auxlvname} = [$auxlvname, $vndisk, $vdisk];
 	    push(@alldisks, "'$stanza'");
 	}
     }
@@ -1045,7 +1055,7 @@ sub vnodeCreate($$$$)
     addConfig($vninfo, "# Xen configuration script for $os vnode $vnode_id", 2);
     addConfig($vninfo, "name = '$vnode_id'", 2);
     if (defined($bootloader)) {
-	addConfig($vninfo, "bootloader = 'pygrub'", 2);
+	addConfig($vninfo, "bootloader = '$bootloader'", 2);
     }
     else {
 	addConfig($vninfo, "kernel = '$kernel'", 2);
@@ -1060,7 +1070,8 @@ sub vnodeCreate($$$$)
 		  ",kern.bootfile=/boot/kernel/kernel'", 2);
     } else {
 	addConfig($vninfo, "root = '/dev/$rootvdisk ro'", 2);
-	addConfig($vninfo, "extra = 'console=hvc0 xencons=tty'", 2);
+	addConfig($vninfo, "extra = ".
+		  "        'console=hvc0 xencons=tty apparmor=0 selinux=0'", 2);
     }
   done:
 
@@ -1310,6 +1321,8 @@ sub vnodePreConfigExpNetwork($$$$)
 	# This tells vif-bridge to use antispoofing iptable rules.
 	"ip=" . $vninfo->{'cnet'}->{'ip'} . ", " .
         "bridge=" . $vninfo->{'cnet'}->{'bridge'} . ", " .
+	# For vif-route.
+        "gatewaydev=" . $vninfo->{'cnet'}->{'bridge'} . ", " .
         "script=" . $vninfo->{'cnet'}->{'script'} . "'";
 
     #
@@ -1493,7 +1506,7 @@ sub vnodePreConfigExpNetwork($$$$)
 	    $imac = fixupMac($imac);
 	    $omac = fixupMac($omac);
 
-	    if (createTunnelScript($vmid, $script, $omac, $br)) {
+	    if (createTunnelScript($vmid, $script, $omac, $br, $veth)) {
 		print STDERR "Could not create tunnel script for $name\n";
 		TBScriptUnlock();
 		return -1;
@@ -1566,9 +1579,12 @@ sub vnodeState($$$$)
 	$out = VNODE_STATUS_RUNNING();
     }
     # otherwise, if the logical (root) disk exists, consider it stopped
-    elsif (exists($private->{'disks'}->{$vnode_id}) &&
-	   findLVMLogicalVolume($private->{'disks'}->{$vnode_id})) {
-	$out = VNODE_STATUS_STOPPED();
+    elsif (exists($private->{'disks'}->{$vnode_id})) {
+	my ($lvname) = @{ $private->{'disks'}->{$vnode_id} };
+
+	if (findLVMLogicalVolume($lvname)) {
+	    $out = VNODE_STATUS_STOPPED();
+	}
     }
     return ($err, $out);
 }
@@ -1577,6 +1593,7 @@ sub vnodeBoot($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
     my $vninfo = $private;
+    my $ip = $vninfo->{'dhcp'}->{'ip'};
 
     if (!exists($vninfo->{'cffile'})) {
 	print STDERR "vnodeBoot $vnode_id: no essential state!\n";
@@ -1601,14 +1618,37 @@ sub vnodeBoot($$$$)
     # notify stated that we are about to boot
     libutil::setState("BOOTING");
 
-    # and finally, create the VM
-    my $status = RunWithLock("xmtool", "$XM create $config");
-    if ($status) {
-	print STDERR "$XM create failed: $status\n";
-	return -1;
+    #
+    # We are going to watch for a busted control network interface, which
+    # happens a lot. There is a problem with the control vif not working,
+    # no idea why, some kind of XEN bug. But the symptom is easy enough
+    # to catch (no reply to pings), and retry. 
+    #
+    for (my $i = 0; $i < 3; $i++) {
+	my $status = RunWithLock("xmtool", "nice $XM create $config");
+	if ($status) {
+	    print STDERR "$XM create failed: $status\n";
+	    return -1;
+	}
+	my $countdown = 10;
+	while ($countdown >= 0) {
+	    print "Pinging $ip. Five pings only please ...\n";
+	    system("ping -q -c 5 -t 5 $ip > /dev/null 2>&1");
+	    # Ping returns zero if any packets received.
+	    if (! $?) {
+		print "Created virtual machine $vnode_id\n";
+		return 0;
+	    }
+	    $countdown--;
+	}
+	#
+	# Tear it down and try again. Use vnodeHalt cause it protects
+	# itself with an alarm.
+	#
+	vnodeHalt($vnode_id, $vmid, $vnconfig, $private);
+	sleep(10);
     }
-    print "Created virtual machine $vnode_id\n";
-    return 0;
+    return -1;
 }
 
 sub vnodePostConfig($)
@@ -1718,7 +1758,7 @@ sub vnodeDestroy($$$$)
 
     # Destroy the all the disks.
     foreach my $key (keys(%{ $private->{'disks'} })) {
-	my $lvname = $private->{'disks'}->{$key};
+	my ($lvname) = @{ $private->{'disks'}->{$key} };
 	
 	if (findLVMLogicalVolume($lvname)) {
 	    if ($lvname eq $vnode_id) {
@@ -2381,19 +2421,30 @@ sub totalMemory()
 }
 
 #
-# Returns the control net IP of the physical host.
+# Contruct and returns the jail control net IP of the physical host.
 #
 sub domain0ControlNet()
 {
     #
     # XXX we use a woeful hack to get the virtual control net address,
-    # just adding one to the GW address.  With our current hacky vnode IP
-    # assignment, this address will always be available.
+    # that is unique. I will assume that control network is never
+    # bigger then /16 and so just combine the top of the jail network
+    # with the lower half of the control network address.
     #
     my (undef,$vmask,$vgw) = findVirtControlNet();
+    my (undef, $ctrlip, $ctrlmask) = findControlNet();
+    my ($a,$b,$c,$d);
+
     if ($vgw =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
-	my $vip = "$1.$2.$3." . ($4+1);
-	return ($vip, $vmask);
+	$a = $1;
+	$b = 31;
+
+	my $tmp    = ~inet_aton("255.255.0.0") & inet_aton($ctrlip);
+	my $ipbase = inet_ntoa($tmp);
+
+	if ($ipbase =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
+	    return ("$a.$b.$3.$4", $vmask);
+	}
     }
     die("domain0ControlNet: could not create control net virtual IP");
 }
@@ -2478,8 +2529,8 @@ sub modDHCP($$$$$)
     my $bak = "$dhcp_config_file.old";
     my $tmp = "$dhcp_config_file.new";
 
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the global lock after a long time!\n";
+    if (TBScriptLock("dhcpd", 0, 900) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get the dhcpd lock after a long time!\n";
 	return -1;
     }
 
@@ -2609,25 +2660,6 @@ sub modDHCP($$$$$)
     return 0;
 }
 
-sub restartDHCP()
-{
-    my $dhcpd_service = 'dhcpd';
-    if (-f '/etc/init/isc-dhcp-server.conf') {
-        $dhcpd_service = 'isc-dhcp-server';
-    }
-
-    # make sure dhcpd is running
-    if (-x '/sbin/initctl') {
-        # Upstart
-        if (mysystem2("/sbin/initctl restart $dhcpd_service") != 0) {
-            mysystem2("/sbin/initctl start $dhcpd_service");
-        }
-    } else {
-        #sysvinit
-        mysystem2("/etc/init.d/$dhcpd_service restart");
-    }
-}
-
 sub formatDHCP($$$)
 {
     my ($host,$ip,$mac) = @_;
@@ -2662,12 +2694,13 @@ sub createControlNetworkScript($$$)
     my $host_ip = $data->{'hip'};
     my $name = $data->{'name'};
     my $ip = $data->{'ip'};
+    my $mac = $data->{'mac'};
 
     open(FILE, ">$file") or die $!;
     print FILE "#!/bin/sh\n";
     print FILE "/bin/mv -f ${file}.debug ${file}.debug.old\n";
-    print FILE "/etc/xen/scripts/emulab-cnet.pl $vmid $host_ip $name $ip \$* ".
-	">${file}.debug 2>&1\n";
+    print FILE "/etc/xen/scripts/emulab-cnet.pl $vmid $host_ip $name $ip $mac ".
+	" \$* >${file}.debug 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0555, $file);
@@ -2680,9 +2713,9 @@ sub createControlNetworkScript($$$)
 #
 # XXX can we get rid of this stub by using environment variables?
 #
-sub createTunnelScript($$$$)
+sub createTunnelScript($$$$$)
 {
-    my ($vmid, $file, $mac, $vbr) = @_;
+    my ($vmid, $file, $mac, $vbr, $veth) = @_;
 
     open(FILE, ">$file")
 	or return -1;
@@ -2690,7 +2723,7 @@ sub createTunnelScript($$$$)
     print FILE "#!/bin/sh\n";
     print FILE "/bin/mv -f ${file}.debug ${file}.debug.old\n";
     print FILE "/etc/xen/scripts/emulab-tun.pl ".
-	"$vmid $mac $vbr \$* >${file}.debug 2>&1\n";
+	"$vmid $mac $vbr $veth \$* >${file}.debug 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0555, $file);
@@ -3235,10 +3268,10 @@ sub parseXenDiskInfo($$)
 		
 	    # The root disk is marked by sda or xvda.
 	    if ($2 eq "sda" || $2 eq "xvda") {
-		$disks->{$vnode_id} = $lvname;
+		$disks->{$vnode_id} = [$lvname, $device, $vndisk];
 	    }
 	    else {
-		$disks->{$lvname} = $lvname;
+		$disks->{$lvname} = [$lvname, $device, $vndisk];
 	    }
 	}
 	else {
