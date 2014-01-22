@@ -2871,7 +2871,7 @@ class showdataset:
 
     def apply(self):
         try:
-            opts, req_args = getopt.getopt(self.argv, "au:p:h", [ "help" ]);
+            opts, req_args = getopt.getopt(self.argv, "Dau:p:h", [ "help" ]);
             pass
         except getopt.error, e:
             print e.args[0]
@@ -2883,6 +2883,9 @@ class showdataset:
             if opt in ("-h", "--help"):
                 self.usage()
                 return 0
+            elif opt == "-D":
+                params["limits"] = "yes";
+                pass
             elif opt == "-a":
                 params["all"] = "yes";
                 pass
@@ -2901,11 +2904,15 @@ class showdataset:
         return rval;
 
     def usage(self):
- 	print "showdataset [-ha] [-p pid] [-u uid] dataset_id...";
+ 	print "showdataset [-hDa] [-p pid] [-u uid] dataset_id...";
 	print "where:";
+        print "    -D     - Describe the site-specific limits of datasets";
         print "    -a     - Show all datasets";
         print "    -p pid - Show all datasets for given project";
         print "    -u uid - Show all datasets for given user";
+        print "";
+        print "Describe the site-specific limits on the size/duration";
+        print "of the different dataset types (-D), or";
         print "";
         print "Show all (-a) datasets or those associated with a particular";
         print "project (-p), user (-u), or those listed.";
