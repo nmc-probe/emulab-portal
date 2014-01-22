@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -328,6 +328,7 @@ xen-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/interfaces $(SYSETCDIR)/network/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-cnet.pl $(SYSETCDIR)/xen/scripts/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-enet.pl $(SYSETCDIR)/xen/scripts/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/vif-route-emulab $(SYSETCDIR)/xen/scripts/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-tun.pl $(SYSETCDIR)/xen/scripts/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/create-image $(LBINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/mkimagecache $(BINDIR)/
