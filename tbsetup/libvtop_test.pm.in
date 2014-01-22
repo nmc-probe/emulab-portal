@@ -1613,6 +1613,19 @@ sub LoadVirtNodes($)
 	
 	$self->{'COUNTERS'}->{'bstorecount'}++;
     }
+
+    #
+    # Make a quick pass of the virt_blockstores looking for RO attributes.
+    # We do this before we make the main pass below so that we have this
+    # info available when we lookup a lease.
+    #
+    my %roleases = ();
+    foreach my $virt_bs_attr ($self->virt_blockstore_attributes()->Rows()) {
+	if ($virt_bs_attr->attrkey() eq "readonly") {
+	    $roleases{$virt_bs_attr->vname()} = $virt_bs_attr->attrvalue();
+	}
+    }
+
     foreach my $virt_bs_attr ($self->virt_blockstore_attributes()->Rows()) {
 	my $vname   = $virt_bs_attr->vname();
 	my $attrkey = $virt_bs_attr->attrkey();
@@ -1624,7 +1637,12 @@ sub LoadVirtNodes($)
 	# attribute) then make sure the user/pid have access to the lease
 	# and that the associated blockstore is not already mapped.
 	# If it is currently in use, the remaining capacity will be zero.
-	# Note: we do not make this check during a pre-assign pass.
+	#
+	# We also check and make sure that leases in the grace state are
+	# only mounted RO. We make this check in the parser as well, but
+	# the state of the lease can change between parses.
+	#
+	# Note: we do not make these checks during a pre-assign pass.
 	#
 	if ($attrkey eq "lease" && !$self->preassign()) {
 	    my $lease = Lease->Lookup($attrval);
@@ -1639,6 +1657,11 @@ sub LoadVirtNodes($)
 	    my $bs = Blockstore->LookupByLease($attrval);
 	    if ($bs && $bs->AvailableCapacity() == 0) {
 		tberror("Persistent blockstore $vname is already in use.\n");
+		return -1;
+	    }
+	    if ($lease->state() eq LEASE_STATE_GRACE() &&
+		(!exists($roleases{$vname}) || $roleases{$vname} == 0)) {
+		tberror("Persistent blockstore $vname in grace period, must specify '\$$vname set-readonly 1' in NS file.\n");
 		return -1;
 	    }
 	}
