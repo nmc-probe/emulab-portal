@@ -24,6 +24,7 @@ dir=$(dirname "$0")
 . "${dir}/vif-common.sh"
 
 main_ip=$(dom0_ip)
+# Do not use the main ip, as that confuses arp. So does 172.16.0.2.
 bogus_ip="172.16.0.3"
 
 case "${command}" in
