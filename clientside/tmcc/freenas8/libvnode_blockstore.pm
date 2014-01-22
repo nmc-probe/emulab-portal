@@ -741,11 +741,16 @@ sub exportSlice($$$$) {
 	return -1;
     }
 
+    my $perm = "rw";
+    if (exists($sconf->{'PERMS'}) && $sconf->{'PERMS'} eq "RO") {
+	$perm = "ro";
+    }
+
     # Create iSCSI target
     my $serial = genSerial();
     eval { freenasRunCmd($FREENAS_CLI_VERB_IST_TARGET,
 		      "add $iqn $serial $ISCSI_GLOBAL_PORTAL ".
-			 "$tag Auto -1") };
+			 "$tag Auto -1 flags=$perm") };
     if ($@) {
 	warn("*** ERROR: blockstore_exportSlice: $volname: ".
 	     "Failed to create iSCSI target: $@");
