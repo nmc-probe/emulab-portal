@@ -64,10 +64,10 @@ var swfVersionStr = "11.1.0";
       flashvars.bundlepreset = '1';
       flashvars.keycertpreset = '1';
       flashvars.loadallmanagerswithoutasking = '1';
-      flashvars.saurl = encodeURIComponent(saUrlTag.innerText);
-      flashvars.saurn = encodeURIComponent(saUrnTag.innerText);
-      flashvars.churl = encodeURIComponent(chUrlTag.innerText);
-      flashvars.sliceurn = encodeURIComponent(sliceUrnTag.innerText);
+      flashvars.saurl = encodeURIComponent(saUrlTag.textContent);
+      flashvars.saurn = encodeURIComponent(saUrnTag.textContent);
+      flashvars.churl = encodeURIComponent(chUrlTag.textContent);
+      flashvars.sliceurn = encodeURIComponent(sliceUrnTag.textContent);
     }
     else
     {
@@ -84,11 +84,11 @@ var swfVersionStr = "11.1.0";
 	saUrnTag)
     {
       flashvars.skipstartup = '1';
-      flashvars.keycert = encodeURIComponent(clientKeyTag.innerText + '\n' + clientCertTag.innerText);
-      flashvars.keypassphrase = encodeURIComponent(clientPassphraseTag.innerText);
+      flashvars.keycert = encodeURIComponent(clientKeyTag.textContent + '\n' + clientCertTag.textContent);
+      flashvars.keypassphrase = encodeURIComponent(clientPassphraseTag.textContent);
       flashvars.loadallmanagerswithoutasking = '0';
-      flashvars.saurl = encodeURIComponent(saUrlTag.innerText);
-      flashvars.saurn = encodeURIComponent(saUrnTag.innerText);
+      flashvars.saurl = encodeURIComponent(saUrlTag.textContent);
+      flashvars.saurn = encodeURIComponent(saUrnTag.textContent);
     }
     else
     {
@@ -153,9 +153,9 @@ function init(new_flash_id)
     {
       if (serverCertTag && clientKeyTag && clientCertTag)
       {
-	setServerCert(serverCertTag.innerText);
-	setClientKey(clientKeyTag.innerText);
-	setClientCert(clientCertTag.innerText);
+	setServerCert(serverCertTag.textContent);
+	setClientKey(clientKeyTag.textContent);
+	setClientCert(clientCertTag.textContent);
       }
       else
       {
