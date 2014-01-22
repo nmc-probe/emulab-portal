@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -60,6 +60,7 @@ sub VNODE_PATH(;$) {
 my $VCNET_NET	    = "172.16.0.0";
 my $VCNET_MASK      = "255.240.0.0";
 my $VCNET_GW	    = "172.16.0.1";
+my $VCNET_SLASHMASK = "12";
 
 #
 # Find virtual control net iface info.  Returns:
@@ -67,5 +68,5 @@ my $VCNET_GW	    = "172.16.0.1";
 #
 sub findVirtControlNet()
 {
-    return ($VCNET_NET, $VCNET_MASK, $VCNET_GW);
+    return ($VCNET_NET, $VCNET_MASK, $VCNET_GW, $VCNET_SLASHMASK);
 }
