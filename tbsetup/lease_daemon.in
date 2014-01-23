@@ -86,12 +86,12 @@ sub usage()
     print STDOUT "Usage: reload_daemon [-d]\n" .
 	"    -d     Prevent daemonization\n" .
 	"    -n     Just state what would be done without doing it\n" .
-	"    -A     Automatically destroy expired leases (ow, they are locked)\n" .
+	"    -D     Disable auto-destruction of expired leases, locking them instead\n" .
 	"    -1     Run a single pass and then quit\n" .
 	"    -I int Time between checks (in minutes)\n";
     exit(-1);
 }
-my  $optlist = "dnAI:1";
+my  $optlist = "dnDI:1";
 
 #
 # Configure variables
@@ -125,7 +125,7 @@ my %vars	= ();
 my $logfile	= "$TB/log/lease_daemon.log";
 my $debug	= 0;
 my $impotent	= 0;
-my $autodestroy = 0;
+my $autodestroy = 1;
 my $checkint	= $CHECK;
 my $onceonly	= 0;
 
@@ -157,8 +157,8 @@ if (defined($options{"d"})) {
 if (defined($options{"n"})) {
     $impotent = 1;
 }
-if (defined($options{"A"})) {
-    $autodestroy = 1;
+if (defined($options{"D"})) {
+    $autodestroy = 0;
 }
 if (defined($options{"I"})) {
     $checkint = $options{"I"} * 60;
