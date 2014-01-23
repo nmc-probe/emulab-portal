@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2013 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -405,6 +405,9 @@ sub process($$$$)
 	    if (!exists($href->{'PERSIST'})) {
 		$href->{'PERSIST'} = 0;
 	    }
+	    if (!exists($href->{'PERMS'})) {
+		$href->{'PERMS'} = "RW";
+	    }
 	}
 	elsif ($class eq "local") {
 	    if ($href->{'HOSTID'} ne "localhost" ||
@@ -528,6 +531,9 @@ sub process($$$$)
 		if ($href->{'PERSIST'}) {
 		    $msg .= " persistent";
 		}
+		if ($href->{'PERMS'} eq "RO") {
+		    $msg .= " read-only";
+		}
 		print "  $msg iSCSI node attached as $dev";
 	    }
 	}
@@ -537,7 +543,11 @@ sub process($$$$)
 	    }
 	}
 	if ($href->{'MOUNTPOINT'}) {
-	    print " mounted on " . $href->{'MOUNTPOINT'};
+	    my $w = "RW";
+	    if ($href->{'PERMS'} eq "RO") {
+		$w = "RO";
+	    }
+	    print " mounted $w on " . $href->{'MOUNTPOINT'};
 	}
 	print "\n";
     } else {
