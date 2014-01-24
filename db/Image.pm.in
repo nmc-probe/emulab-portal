@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2013 University of Utah and the Flux Group.
+# Copyright (c) 2007-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -82,6 +82,16 @@ sub Lookup($$;$)
 	       $arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
 	    $arg1 = $1;
 	    $arg2 = $2;
+	}
+	elsif ($arg1 =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
+	    my $result =
+		DBQueryWarn("select imageid from images ".
+			    "where uuid='$arg1'");
+
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    ($imageid) = $result->fetchrow_array();
 	}
 	else {
 	    return undef;
