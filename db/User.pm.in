@@ -582,7 +582,7 @@ sub Create($$$$)
     }
     elsif ($viaapt) {
 	push(@insert_data, "status='$USERSTATUS_UNAPPROVED'");
-	push(@insert_data, "pswd_expires=date_add(now(), interval 1 year)");
+	push(@insert_data, "pswd_expires=date_add(now(), interval 5 year)");
 	push(@insert_data, "viaAPT='1'");
     }
     else {
