@@ -594,7 +594,7 @@ sub vnodeCreate($$$$)
     # 
     #
     if (CreateVnodeLock() != 0) {
-	return -1;
+	fatal("CreateVnodeLock()");
     }
 
     #
@@ -636,7 +636,7 @@ sub vnodeCreate($$$$)
 	    TBScriptUnlock();	    
 	    if (TBScriptLock($imagelockname, undef, 1800)
 		!= TBSCRIPTLOCK_OKAY()) {
-		fatal("Could not get $imagelockname write lock".
+		fatal("Could not get $imagelockname write lock ".
 		      "after a long time!");
 	    }
 	    # And now check again in case someone else snuck in.
@@ -753,6 +753,39 @@ sub vnodeCreate($$$$)
 	# add an extra disk instead. But to do that we have to look at the
 	# disks we just parsed and see what the highest lettered drive is.
 	#
+	if (exists($attributes->{'XEN_EXTRAFS'})) {
+	    my $dsize   = $attributes->{'XEN_EXTRAFS'};
+	    my $auxchar = ord('c');
+	    my @stanzas = ();
+	    
+	    foreach my $disk (keys(%{$private->{'disks'}})) {
+		my ($lvname,$vndisk,$vdisk) = @{$private->{'disks'}->{$disk}};
+		if ($vdisk =~ /^sd(\w)$/ || $vdisk =~ /^xvd(\w)$/) {
+		    $auxchar = ord($1)
+			if (ord($1) > $auxchar);
+		}
+		# Generate a new set of stanzas. see below.
+		push(@stanzas, "'phy:$vndisk,$vdisk,w'");
+	    }
+	    my $vdisk = ($xeninfo{xen_major} >= 4 ? 'xvd' : "sd") .
+		chr($auxchar);
+	    my $auxlvname = "${vnode_id}.${vdisk}";
+	    
+	    if (!findLVMLogicalVolume($auxlvname)) {
+		if (createAuxDisk($auxlvname, $dsize . "G")) {
+		    fatal("libvnode_xen: could not create aux disk: $vdisk");
+		}
+	    }
+	    my $vndisk = lvmVolumePath($auxlvname);
+	    my $stanza = "'phy:$vndisk,$vdisk,w'";
+	    $private->{'disks'}->{$auxlvname} = [$auxlvname, $vndisk, $vdisk];
+	    push(@stanzas, $stanza);
+
+	    #
+	    # Replace the existing line in the conf file. 
+	    #
+	    addConfig($vninfo, "disk = [" . join(",", @stanzas) . "]", 2);
+	}
 	
 	TBScriptUnlock();
 	goto done;
@@ -1646,7 +1679,13 @@ sub vnodeBoot($$$$)
 	# itself with an alarm.
 	#
 	vnodeHalt($vnode_id, $vmid, $vnconfig, $private);
-	sleep(10);
+	$countdown = 10;
+	while ($countdown >= 0) {
+	    sleep(5);
+	    last
+		if (! domainExists($vnode_id));
+	    $countdown--;
+	}
     }
     return -1;
 }
@@ -1872,8 +1911,9 @@ sub copyRoot($$)
     print "Mount root\n";
     mkpath(['/mnt/xen/root']);
     mkpath(['/mnt/xen/disk']);
+    # This is a nice way to avoid traversing NFS filesystems. 
     mysystem("mount $from $root_path");
-    mysystem("mount -o loop $to $disk_path");
+    mysystem("mount -o async $to $disk_path");
     mkpath([map{"$disk_path/$_"} qw(proc sys home tmp)]);
     print "Copying files\n";
     system("nice cp -a $root_path/* $disk_path");
@@ -2351,6 +2391,10 @@ sub disk_hacks($)
 
     # Clear out the cached control net interface name
     unlink("$path/var/run/cnet");
+
+    # Get rid of pam nonsense.
+    system("sed -i.bak -e 's/UsePAM yes/UsePAM no/'".
+	   "   $path/etc/ssh/sshd_config");
 
     # remove swap partitions from fstab
     system("sed -i.bak -e '/swap/d' $path/etc/fstab");
@@ -3085,13 +3129,13 @@ sub domainStatus($)
 
     if ($XM =~ /xl/) {
 	my $status = `$XM list $id | tail -n 1 | awk '{print \$5}'`;
-	if ($status =~ /([\w-]+)/) {
+	if (!$? && $status =~ /([\w-]+)/) {
 	    return $1;
 	}
     }
     else {
 	my $status = `$XM list --long $id 2>/dev/null`;
-	if ($status =~ /\(state ([\w-]+)\)/) {
+	if (!$? && $status =~ /\(state ([\w-]+)\)/) {
 	    return $1;
 	}
     }

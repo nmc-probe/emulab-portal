@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009-2013 University of Utah and the Flux Group.
+# Copyright (c) 2009-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -99,6 +99,7 @@ my $cleaning   = 0;
 my $rebooting  = 0;
 my $reload     = 0;
 my ($vmid,$vmtype,$ret,$err);
+my $ISXENVM    = (GENVNODETYPE() eq "xen" ? 1 : 0);
 
 # Flags for leaveme.
 my $LEAVEME_REBOOT = 0x1;
@@ -134,6 +135,21 @@ $VNDIR   = "$VMPATH/$vnodeid";
 if ($UID != 0) {
     die("*** $0:\n".
 	"    Must be root to run this script!\n");
+}
+
+#
+# Deal with VIFROUTING flag from the server. Do this before we switch
+# our vnode_id below since it is a physical host attribute. This will
+# go away at some point.
+#
+my %attributes = ();
+if (getnodeattributes(\%attributes)) {
+    die("*** $0:\n".
+	"Could not get node attributes");
+}
+if (exists($attributes{"xenvifrouting"})) {
+    # Gack, tell backend network scripts.
+    system("touch $ETCDIR/xenvifrouting");
 }
 
 # Tell the library what vnode we are messing with.
@@ -657,7 +673,7 @@ if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "" &&
 }
 
 #
-# Start the container. If all goes well, this will exit cleanly, with the
+# Start the container. If all goes well, this will exit cleanly, with 
 # it running in its new context. Still, lets protect it with a timer
 # since it might get hung up inside and we do not want to get stuck here.
 #
@@ -665,9 +681,11 @@ my $childpid = fork();
 if ($childpid) {
     my $timedout = 0;
     local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
-    alarm 180;
+    alarm 180
+	if (!INXENVM());
     waitpid($childpid, 0);
-    alarm 0;
+    alarm 0
+	if (!INXENVM());
 
     #
     # If failure then cleanup.
