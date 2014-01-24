@@ -123,6 +123,7 @@ CREATE TABLE `geni_aggregates` (
   `status` varchar(16) NOT NULL default 'created',
   `state` varchar(16) NOT NULL default 'stopped',
   `errorlog` text,
+  `boot_failure` tinyint(1) default '0',
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `uuid` (`uuid`),
   INDEX `slice_uuid` (`slice_uuid`)

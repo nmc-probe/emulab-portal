@@ -279,6 +279,7 @@ sub speaksfor_uuid($)	{ return field($_[0], "speaksfor_uuid"); }
 sub speaksfor_urn($)	{ return field($_[0], "speaksfor_urn"); }
 sub status($)		{ return field($_[0], "status"); }
 sub state($)		{ return field($_[0], "state"); }
+sub boot_failed($)      { return field($_[0], "boot_failed"); }
 sub ErrorLog($)		{ return field($_[0], "errorlog"); }
 sub cert($)		{ return GetCertificate($_[0])->cert(); }
 # Watch for aggregates that no longer get a certificate.
@@ -615,6 +616,34 @@ sub SetErrorLog($$)
     return 0;
 }
 
+sub SetBootFailure($)
+{
+    return undef
+	if (! ref($self));
+
+    my $idx = $self->idx();
+
+    return -1
+	if (!DBQueryWarn("update geni_aggregates set ".
+			 "  boot_failure='1' ".
+			 "where idx='$idx'"));
+    return 0;
+}
+
+sub ClearBootFailure($)
+{
+    return undef
+	if (! ref($self));
+
+    my $idx = $self->idx();
+
+    return -1
+	if (!DBQueryWarn("update geni_aggregates set ".
+			 "  boot_failure='0' ".
+			 "where idx='$idx'"));
+    return 0;
+}
+
 #
 # Set the registered datetime for the aggregate
 #
@@ -837,6 +866,7 @@ sub ProcessManifest($$)
 sub Start($$$)
 {
     my ($self, $version, $restart) = @_;
+    $self->ClearBootFailure();
     my $msg = "Internal Error: ";
     require Lan;
     require OSinfo;
@@ -1431,6 +1461,7 @@ sub Start($$$)
     return 0;
 
   bad:
+    $self->SetBootFailure();
     if (defined($msg)) {
 	$self->SetErrorLog($msg);
 	print STDERR "$msg\n";
@@ -1710,6 +1741,7 @@ sub WaitForNodes($@)
 sub Stop($$)
 {
     my ($self, $version) = @_;
+    $self->ClearBootFailure();
     my $msg = "Internal Error: ";
 
     return -1
@@ -1842,6 +1874,7 @@ sub Stop($$)
     return 0;
 
   bad:
+    $self->SetBootFailure();
     if (defined($msg)) {
 	$self->SetErrorLog($msg);
 	print STDERR "$msg\n";
@@ -1938,6 +1971,7 @@ sub ComputeState($)
     my $failed  = 0;
     my $changing= 0;
     my $count   = 0;
+    my $boot_failed = $self->boot_failed();
 
     return -1
 	if (! ref($self));
@@ -2004,7 +2038,10 @@ sub ComputeState($)
 
 	}
     }
-    if ($stopped == $count) {
+    if ($boot_failed == 1) {
+	$self->SetState("failed");
+    }
+    elsif ($stopped == $count) {
 	$self->SetState("stopped");
     }
     elsif ($started == $count) {
