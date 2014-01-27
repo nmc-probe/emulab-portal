@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,35 +32,40 @@ use Date::Parse;
 #
 sub usage()
 {
-    print STDERR "Usage: approvelease [-hd] [-w waittime] [-s state] name\n";
+    print STDERR "Usage: approvelease [-hd] [-D reason] [-w waittime] [-s state] name\n";
     print STDERR "   -h         This message\n";
     print STDERR "   -d         Print additional debug info\n";
     print STDERR "   -s state   New state for the lease (defaults to 'valid')\n";
-    print STDERR "   -w time	Try for up to time seconds to lock lease (0 means forever)\n";
+    print STDERR "   -w time    Try for up to time seconds to lock lease (0 means forever)\n";
+    print STDERR "   -D reason  Deny the lease and destroy it\n";
     print STDERR "   name       Name of lease (of form <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhs:w:";
+my $optlist  = "dhs:w:D:";
 my $debug = 0;
 my $pid;
 my $state = "valid";
 my $lname;
 my $lease;
 my $waittime;
+my $deny;
 
 # Protos
 sub fatal($);
+sub notifyuser($$$);
 
 #
 # Configure variables
 #
-my $TB		 = "@prefix@";
+my $TB	     = "@prefix@";
+my $TBOPS    = "@TBOPSEMAIL@";
 
 #
 # Testbed Support libraries
 #
 use lib "@prefix@/lib";
 use libdb;
+use libtestbed;
 use Lease;
 use Project;
 use User;
@@ -98,7 +103,9 @@ if (defined($options{w})) {
 	fatal("Wait time must be >= 0.");
     }
 }
-
+if (defined($options{D})) {
+    $deny = $options{D};
+}
 if (@ARGV != 1) {
     print STDERR "Must specify exactly one lease.\n";
     usage();
@@ -170,14 +177,48 @@ if (!$lease->ValidTransition($state)) {
     fatal("$pid/$lname: cannot approve lease to state '$state'.");
 }
 
+# If we are denying, send a message to the owner and destroy the lease
+if (defined($deny)) {
+    print "$pid/$lname: denied, destroying\n";
+    notifyuser($lease, 0, $deny);
+    if ($lease->Delete()) {
+	fatal("$pid/$lname: could not destroy lease.");
+    }
+    exit(0);
+}
+
 # Allocate the resources.
 if ($lease->AllocResources($state)) {
     fatal("$pid/$lname: could not approve lease into state '$state'");
 }
 
 $lease->Unlock();
-print "$pid/$lname: state is now '$state'\n";
+print "$pid/$lname: approved, state is now '$state'\n";
+
+#
+# Send mail to the lease owner.
+#
+notifyuser($lease, 1, "");
+
 exit(0);
+
+sub notifyuser($$$)
+{
+    my ($lease,$approved,$msg) = @_;
+    my $action = ($approved ? "approved" : "denied");
+
+    my $user = User->LookupByUid($lease->owner());
+    if ($user) {
+	my $email = $user->email();
+	my $pid = $lease->pid();
+	my $lname = $lease->lease_id();
+	SENDMAIL($email,
+		 "Dataset lease $action",
+		 "Your Emulab dataset lease $pid/$lname has been $action.\n".
+		 "$msg.\n",
+		 $TBOPS);
+    }
+}
 
 sub fatal($)
 {

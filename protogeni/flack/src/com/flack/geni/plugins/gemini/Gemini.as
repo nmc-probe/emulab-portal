@@ -124,7 +124,7 @@ package com.flack.geni.plugins.gemini
 			var globalNode:VirtualNode = new VirtualNode(
 				slice,
 				manager,
-				manager.makeValidClientIdFor(slice.getUniqueId(null, ("GN" + manager.hrn).replace(/\./g, "").substr(0, 16))),
+				manager.makeValidClientIdFor(slice.getUniqueId(null, "GN")),
 				false,
 				"emulab-openvz");
 			globalNode.emulabRoutableControlIp = true;

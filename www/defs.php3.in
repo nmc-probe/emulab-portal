@@ -506,7 +506,7 @@ function CHECKPASSWORD($uid, $password, $name, $email, &$error)
 
     # Watch for caller errors since this calls to the shell.
     if (empty($uid) || empty($password) || empty($name) || empty($email)) {
-	$error = "";
+	$error = "Internal Error";
 	return 0;
     }
     # Ascii only.

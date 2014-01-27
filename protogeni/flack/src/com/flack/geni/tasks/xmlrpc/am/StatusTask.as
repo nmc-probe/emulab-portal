@@ -107,7 +107,7 @@ package com.flack.geni.tasks.xmlrpc.am
 	    aggregateSliver.AllocationState = Sliver.ALLOCATION_PROVISIONED;
 	    var globalStatus:String = data.geni_status;
 					
-	    if (data.pg_status && data.geni_status == 'unknown' && data.pg_status == 'changing') {
+	    if (data.pg_status && data.geni_status == 'unknown' && (data.pg_status == 'changing' || data.pg_status == 'mixed')) {
 	      globalStatus = 'configuring';
 	    }
 	    aggregateSliver.OperationalState = Sliver.GeniStatusToOperationalState(globalStatus);

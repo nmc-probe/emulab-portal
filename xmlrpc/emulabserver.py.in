@@ -5996,7 +5996,12 @@ class dataset:
         #
         argstr = ""
         for opt, val in argdict.items():
-            if opt == "all":
+            if opt == "limits":
+                if xbool(val):
+                    argstr += " -D "
+                    pass
+                pass
+            elif opt == "all":
                 if xbool(val):
                     argstr += " -a "
                     pass

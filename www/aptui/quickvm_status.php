@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -27,8 +27,12 @@ include_once("osinfo_defs.php");
 include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
-
 $ajax_request = 0;
+
+#
+# Get current user.
+#
+$this_user = CheckLogin($check_status);
 
 #
 # Verify page arguments.
@@ -58,7 +62,7 @@ if (!isset($uuid)) {
 $quickvm = QuickVM::Lookup($uuid);
 if (!$quickvm) {
     if ($ajax_request) {
-	SPITAJAX_ERROR(1, "no such quickvm uuid");
+	SPITAJAX_ERROR(1, "no such quickvm uuid: $uuid");
 	exit();
     }
     SPITHEADER(1);
@@ -74,9 +78,12 @@ if (!$quickvm) {
     return;
 }
 $creator = GeniUser::Lookup("sa", $quickvm->creator_uuid());
+if (!$creator && $this_user && $quickvm->creator_uuid() == $this_user->uuid()) {
+    $creator = $this_user;
+}
 if (!$creator) {
     if ($ajax_request) {
-	SPITAJAX_ERROR(1, "no such quickvm uuid");
+	SPITAJAX_ERROR(1, "no such quickvm user uuid");
 	exit();
     }
     SPITHEADER(1);
@@ -120,15 +127,6 @@ if (isset($ajax_request)) {
     }
     elseif ($ajax_method == "manifest") {
 	SPITAJAX_RESPONSE($quickvm->manifest());
-    }
-    elseif ($ajax_method == "gettopomap") {
-	$experiment = Experiment::LookupByUUID($slice->uuid());
-	if (!$experiment) {
-	    return "";
-	}
-	$pid = $experiment->pid();
-	$eid = $experiment->eid();
-	SPITAJAX_RESPONSE(GetTopoMap($creator->uid(), $pid, $eid));
     }
     elseif ($ajax_method == "ssh_authobject") {
 	SPITAJAX_RESPONSE(SSHAuthObject($creator->uid(), $ajax_argument));
@@ -175,7 +173,6 @@ $style = "style='border: none;'";
 $slice_urn       = $slice->urn();
 $slice_expires   = gmdate("Y-m-d H:i:s", strtotime($slice->expires()));
 $quickvm_status  = $quickvm->status();
-$sshkey          = chunk_split($creator->SSHKey(), 40);
 $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
 $quickvm_profile = $quickvm->profile();
@@ -282,6 +279,16 @@ echo "</div>\n"; # container
 echo "</div>\n"; # cols
 echo "</div>\n"; # row
 
+echo "<script type='text/javascript'>\n";
+echo "window.APT_OPTIONS = {\n";
+echo "  pageType: 'status',\n";
+echo "  uuid: '" . $uuid . "',\n";
+echo "  sliceExpires: '" . $slice_expires . "',\n";
+echo "  creatorUid: '" . $creator_uid . "',\n";
+echo "  creatorEmail: '" . $creator_email . "'\n";
+echo "};\n";
+echo "</script>\n";
+
 #
 # A modal to tell people how to register
 #
@@ -377,15 +384,6 @@ echo "<!-- This is a modal -->
         </div>
         </div>
       </div>\n";
-
-echo "<script type='text/javascript'>\n";
-echo "window.APT_OPTIONS = {\n";
-echo "  pageType: 'status',\n";
-echo "  uuid: '" . $uuid . "',\n";
-echo "  sliceExpires: '" . $slice_expires . "',\n";
-echo "  creatorUid: '" . $creator_uid . "',\n";
-echo "  creatorEmail: '" . $creator_email . "'\n";
-echo "</script>\n";
 
 SPITFOOTER();
 ?>

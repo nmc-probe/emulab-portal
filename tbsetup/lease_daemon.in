@@ -86,12 +86,12 @@ sub usage()
     print STDOUT "Usage: reload_daemon [-d]\n" .
 	"    -d     Prevent daemonization\n" .
 	"    -n     Just state what would be done without doing it\n" .
-	"    -A     Automatically destroy expired leases (ow, they are locked)\n" .
+	"    -D     Disable auto-destruction of expired leases, locking them instead\n" .
 	"    -1     Run a single pass and then quit\n" .
 	"    -I int Time between checks (in minutes)\n";
     exit(-1);
 }
-my  $optlist = "dnAI:1";
+my  $optlist = "dnDI:1";
 
 #
 # Configure variables
@@ -125,7 +125,7 @@ my %vars	= ();
 my $logfile	= "$TB/log/lease_daemon.log";
 my $debug	= 0;
 my $impotent	= 0;
-my $autodestroy = 0;
+my $autodestroy = 1;
 my $checkint	= $CHECK;
 my $onceonly	= 0;
 
@@ -157,8 +157,8 @@ if (defined($options{"d"})) {
 if (defined($options{"n"})) {
     $impotent = 1;
 }
-if (defined($options{"A"})) {
-    $autodestroy = 1;
+if (defined($options{"D"})) {
+    $autodestroy = 0;
 }
 if (defined($options{"I"})) {
     $checkint = $options{"I"} * 60;
@@ -586,7 +586,10 @@ sub destroy($)
 	logit("$lease: someone else deleted it");
 	return 0;
     }
+    # could not get the lock, leave expired so we will try again next pass
     if ($rv) {
+	# XXX make a note of why it is left expired
+	$lease->SetAttribute("why", "lease_daemon_cannot_lock");
 	logit("$lease: could not get lock");
 	return 1;
     }
@@ -598,20 +601,23 @@ sub destroy($)
 
     # if the lease is in use, disallow
     if ($lease->InUse()) {
+	# XXX make a note of why it is left expired
+	$lease->SetAttribute("why", "lease_daemon_in_use");
 	$lease->Unlock();
 	logit("$lease: in use, cannot be destroyed");
 	return 3;
     }
 
     #
-    # Failures of the following will leave the lease in a weird way.
-    # So we reports failures to testbed-ops.
+    # Failures after this will leave the lease in a weird way.
+    # So we report failures to testbed-ops and make sure we are not left
+    # in the expired state.
     #
 
     # If Dealloc fails, we put the lease in the locked state instead
     if ($lease->DeallocResources()) {
 	$lease->UpdateState(LEASE_STATE_LOCKED());
-	# XXX make a note of why it is locked
+	# XXX make a note of why it is left locked
 	$lease->SetAttribute("why", "lease_daemon_dealloc_failed");
 	$lease->Unlock();
 	notify("$lease: resource dealloc failed during destruction. Manual cleanup required.");

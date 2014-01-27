@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2013 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -662,7 +662,7 @@ function VerifyPageArguments($argspec, $required)
 		$yep = 1;
 
                 # Only printable chars.
-		if (!preg_match("/^[\040-\176]+$/", $object)) {
+		if (!preg_match("/^[\040-\176]*$/", $object)) {
 		    PAGEARGERROR("Invalid characters in '$name'");
 		}
 	    }

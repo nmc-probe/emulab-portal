@@ -162,6 +162,7 @@ class Project
     function linked_to_us()  { return $this->field("linked_to_us"); }
     function cvsrepo_public(){ return $this->field("cvsrepo_public"); }
     function allow_workbench(){ return $this->field("allow_workbench"); }
+    function viaAPT()	     { return $this->field("viaAPT"); }
 
     function unix_gid() {
 	$group = $this->DefaultGroup();

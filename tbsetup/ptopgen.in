@@ -377,6 +377,54 @@ while (($node,$card,$port,$iface,$type,$role,$ip) = $result->fetchrow_array) {
     }
 }
 
+my %used_vlans = ();
+
+$result =
+    DBQueryFatal("SELECT tag from reserved_vlantags");
+while (($vlantag) = $result->fetchrow_array) {
+    $used_vlans{$vlantag} = 1;
+}
+
+sub AvailableVlans($)
+{
+    my ($vlanString) = @_;
+    my $result = '';
+    my $comma = '';
+    my @ranges = split(',', $vlanString);
+    foreach my $range (@ranges) {
+	my @bounds = split('-', $range);
+	my $lower = $bounds[0];
+	my $upper = $lower;
+	if (scalar(@bounds) > 1) {
+	    $upper = $bounds[1];
+	}
+	my $least = $lower;
+	my $greatest = $lower;
+	my $inRange = 0;
+	my $i = $lower;
+	for (; $i <= $upper; ++$i) {
+	    if ($inRange && (exists($used_vlans{$i}) || $i == $upper)) {
+		if ($i == $upper && ! exists($used_vlans{$i})) {
+		    $greatest = $i;
+		}
+		if ($least != $greatest) {
+		    $result .= $comma . $least . '-' . $greatest;
+		} else {
+		    $result .= $comma . $least;
+		}
+		$comma = ',';
+		$inRange = 0;
+	    }
+	    elsif (! $inRange && ! exists($used_vlans{$i})) {
+		$least = $i;
+		$inRange = 1;
+	    }
+	    $greatest = $i;
+	}
+    }
+    return $result;
+}
+
 my %external_nodes;
 my %external_managers;
 my %external_ifaces;
@@ -430,7 +478,11 @@ while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
     if (! defined($external_link_urn)) {
 	$external_link_urn = $external_network_link_urn;
     }
-    $external_nodes{$enode} = $vlanList;
+    if ($allnodes) {
+	$external_nodes{$enode} = $vlanList;
+    } else {
+	$external_nodes{$enode} = AvailableVlans($vlanList);
+    }
     $external_managers{"$cnode:$enode"} = $external_manager_urn;
     $external_ifaces{"$cnode:$enode"} = $external_iface_urn;
     $external_links{"$cnode:$enode"} = $external_link_urn;

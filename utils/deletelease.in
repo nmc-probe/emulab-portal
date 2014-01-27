@@ -173,12 +173,20 @@ if ($lease->InUse()) {
 
 # make sure we can destroy a lease from the current state.
 if (!$lease->ValidTransition("DEAD")) {
-    if (!$force) {
-	fatal("$pid/$lname: cannot destroy lease from state '$ostate'.");
+    # XXX special case: if the lease is valid but has never been used, allow
+    if ($lease->state() eq LEASE_STATE_VALID() &&
+	(!defined($lease->last_used()) || $lease->last_used() == 0 ||
+	 $lease->last_used() == $lease->inception())) {
+	print STDERR "$pid/$lname: lease is VALID but never used, ".
+	    "allowing destroy.\n";
+    } else {
+	if (!$force) {
+	    fatal("$pid/$lname: cannot destroy lease from state '$ostate'.");
+	}
+	print STDERR
+	    "$pid/$lname: should not destroy lease from state '$ostate', ".
+	    "continuing anyway.\n";
     }
-    print STDERR
-	"$pid/$lname: should not destroy lease from state '$ostate', ".
-	"continuing anyway.\n";
 }
 
 # Dealloc will put the lease back into the unapproved state

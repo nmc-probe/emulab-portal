@@ -39,15 +39,16 @@ use Data::Dumper;
 # 
 sub usage()
 {
-    print "Usage: quickvm <xmlfile>\n";
+    print "Usage: quickvm [-l] <xmlfile>\n";
     print "Usage: quickvm -k <uuid>\n";
     print "Usage: quickvm -e <seconds> <uuid>\n";
     exit(1);
 }
-my $optlist = "dkve:";
+my $optlist = "dkve:l";
 my $debug   = 0;
 my $verbose = 1;
 my $killit  = 0;
+my $localuser = 0;;
 my $xmlfile;
 my $extend;
 my $quickuuid;
@@ -110,6 +111,9 @@ if (defined($options{"d"})) {
 }
 if (defined($options{"v"})) {
     $verbose = 1;
+}
+if (defined($options{"l"})) {
+    $localuser = 1;
 }
 if (defined($options{"k"})) {
     $killit = 1;
@@ -314,8 +318,11 @@ if (exists($xmlparse->{'attribute'}->{"sshkey"}) &&
 # have to create an ssl certificate (which the user will never see)
 # so that we can operate on behalf of the user (via speaksfor).
 #
-my $geniuser = GeniUser->Lookup($user_urn, 0);
+my $geniuser = GeniUser->Lookup($user_urn, $localuser);
 if (!defined($geniuser)) {
+    if ($localuser) {
+	fatal("Could not lookup local user $user_urn");
+    }
     #
     # Do not allow overlap with local users.
     #
@@ -367,16 +374,15 @@ $geniuser->BumpActivity();
 # Remember key. For now we accept only one key. We store it simply
 # so we can display it again for the user in the web interface.
 # We allow key reuse for existing users, see above.
-if (defined($sshkey)) {
+if (!$localuser && defined($sshkey)) {
     $geniuser->DeleteKeys();
     $geniuser->AddKey($sshkey);
 }
 # There will be "internal" keys ...
-my @sshkeys = $geniuser->GetKeys();
-if (! @sshkeys) {
+my @sshkeys;
+if ($geniuser->GetKeyBundle(\@sshkeys) < 0 || !@sshkeys) {
     fatal("No ssh keys to use for $geniuser!");
 }
-@sshkeys = map { "key" => "$_", "type" => "ssh" }, @sshkeys;
 
 #
 # Now generate a slice registration and credential
@@ -604,7 +610,7 @@ sub Terminate($)
     }
     my $row = $query_result->fetchrow_hashref();
 
-    my $geniuser = GeniUser->Lookup($row->{'creator_uuid'}, 0);
+    my $geniuser = GeniUser->Lookup($row->{'creator_uuid'}, 1);
     if (!defined($geniuser)) {
 	fatal("No creator for quick VM: $uuid");
     }
@@ -677,7 +683,7 @@ sub Extend($$)
     }
     my $row = $query_result->fetchrow_hashref();
 
-    my $geniuser = GeniUser->Lookup($row->{'creator_uuid'}, 0);
+    my $geniuser = GeniUser->Lookup($row->{'creator_uuid'}, 1);
     if (!defined($geniuser)) {
 	fatal("No creator for quick VM: $uuid");
     }

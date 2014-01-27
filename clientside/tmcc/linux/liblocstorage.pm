@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -610,17 +610,26 @@ sub os_check_storage_element($$)
 	if ($mpoint) {
 	    my $line = `$MOUNT | grep '^/dev/$dev on '`;
 	    if (!$line) {
+		my $mopt = "";
+		my $fopt = "-p";
+
+		# check for RO export and adjust options accordingly
+		if (exists($href->{'PERMS'}) && $href->{'PERMS'} eq "RO") {
+		    $mopt = "-o ro";
+		    $fopt = "-n";
+		}
+
 		# the mountpoint should exist
 		if (! -d "$mpoint") {
 		    warn("*** $bsid: no mount point $mpoint\n");
 		    return -1;
 		}
 		# fsck it in case of an abrupt shutdown
-		if (mysystem("$FSCK -p /dev/$dev $redir")) {
+		if (mysystem("$FSCK $fopt /dev/$dev $redir")) {
 		    warn("*** $bsid: fsck of /dev/$dev failed\n");
 		    return -1;
 		}
-		if (mysystem("$MOUNT /dev/$dev $mpoint $redir")) {
+		if (mysystem("$MOUNT $mopt /dev/$dev $mpoint $redir")) {
 		    warn("*** $bsid: could not mount /dev/$dev on $mpoint\n");
 		    return -1;
 		}
@@ -789,6 +798,9 @@ sub os_create_storage($$)
 	return 0;
     }
 
+    my $mopt = "";
+    my $fopt = "-p";
+
     if (exists($href->{'MOUNTPOINT'})) {
 	my $lv = $href->{'VOLNAME'};
 	my $mdev = $href->{'LVDEV'};
@@ -808,6 +820,11 @@ sub os_create_storage($$)
 	#
 	if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI" &&
 	    $href->{'PERSIST'} != 0) {
+	    # check for RO export and adjust options accordingly
+	    if (exists($href->{'PERMS'}) && $href->{'PERMS'} eq "RO") {
+		$mopt = "-o ro";
+		$fopt = "-n";
+	    }
 	    # figure out what the fstype is
 	    $fstype = `blkid -s TYPE -o value $mdev`;
 	    chomp($fstype);
@@ -818,7 +835,7 @@ sub os_create_storage($$)
 		$fstype = "ext4";
 	    }
 
-	    if (mysystem("$FSCK -p $mdev $redir")) {
+	    if (mysystem("$FSCK $fopt $mdev $redir")) {
 		warn("*** $lv: fsck of persistent store $mdev failed\n");
 		return 0;
 	    }
@@ -880,7 +897,7 @@ sub os_create_storage($$)
 		return 0;
 	    }
 	} else {
-	    if (mysystem("$MOUNT -t $fstype $mdev $mpoint $redir")) {
+	    if (mysystem("$MOUNT $mopt -t $fstype $mdev $mpoint $redir")) {
 		warn("*** $lv: could not mount $mdev on $mpoint$logmsg\n");
 		return 0;
 	    }

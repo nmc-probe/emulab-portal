@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -37,7 +37,7 @@ SBIN_SCRIPTS	= avail inuse showgraph if2port backup webcontrol node_status \
 		  idletimes idlemail setsitevar audit changeuid changepid \
 		  elabinelab_bossinit update_permissions mysqld_watchdog \
 		  dumperrorlog changeleader checkstats changecreator \
-		  dbupdate geni_control subboss_sync
+		  dbupdate geni_control subboss_sync showvlans
 
 WEB_SBIN_SCRIPTS= webnodelog webnewwanode webidlemail webchangeuid \
 		  webchangeleader

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2010 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -655,7 +655,7 @@ class Group
     # Notify leaders of new (and verified) group member.
     #
     function NewMemberNotify($user) {
-	global $TBWWW, 
+	global $TBWWW, $APTBASE,
 	       $TBMAIL_APPROVAL, $TBMAIL_AUDIT, $TBMAIL_WWW, $TBMAIL_NOREPLY;
 	
 	if (! $this->project) {
@@ -691,23 +691,26 @@ class Group
 	   "Contact Info:\n".
 	   "Name:            $usr_name\n".
 	   "Emulab ID:       $joining_uid\n".
-	   "Email:           $usr_email\n".
+	   "Email:           $usr_email\n" .
+	   "Affiliation:     $usr_affil\n".
 	   "User URL:        $usr_URL\n".
 	   "Job Title:       $usr_title\n".
-	   "Affiliation:     $usr_affil\n".
 	   "Address 1:       $usr_addr\n".
-	   "Address 2:       $usr_addr2\n".
+	   "Address 2:       $usr_addr2\n" .
 	   "City:            $usr_city\n".
 	   "State:           $usr_state\n".
 	   "ZIP/Postal Code: $usr_zip\n".
 	   "Country:         $usr_country\n".
 	   "Phone:           $usr_phone\n".
 	   "\n".
-	   "Please return to $TBWWW,\n".
-	   "log in, and select the 'New User Approval' page to enter your\n".
-	   "decision regarding $usr_name's membership in your project.\n\n".
-	   "Thanks,\n".
-	   "Testbed Operations\n",
+	    ($project->viaAPT() ?
+	     "You can approve or reject this user at:\n\n".
+	     "$APTBASE/approveuser.php?uid=$joining_uid\n\n"
+	     :
+	     "Please return to $TBWWW,\n".
+	     "log in, and select the 'New User Approval' page to enter your\n".
+	     "decision regarding $usr_name's membership in your project.\n\n") .
+	   "Thanks!\n",
 	   "From: $usr_name '$joining_uid' <$usr_email>\n".
 	   "Cc: $allleaders\n".
 	   "Bcc: $TBMAIL_AUDIT\n".

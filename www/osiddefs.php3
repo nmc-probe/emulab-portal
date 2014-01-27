@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -44,8 +44,8 @@ $osid_featurelist["isup"]	= 1;
 $osid_featurelist["veths"]	= 0;
 $osid_featurelist["mlinks"]	= 0;
 $osid_featurelist["linktest"]	= 1;
-$osid_featurelist["linkdelays"]	= 0;
-$osid_featurelist["vlans"]	= 0;
+$osid_featurelist["linkdelays"]	= 1;
+$osid_featurelist["vlans"]	= 1;
 $osid_featurelist["suboses"]	= 1;
 $osid_featurelist["loc-bstore"] = 1;
 $osid_featurelist["rem-bstore"] = 1;

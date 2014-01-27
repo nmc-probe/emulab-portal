@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -66,24 +66,29 @@ my $TMCD_PORT	= 7777;
 my $SLOTHD_PORT = 8509;
 my $EVPROXY_PORT= 16505;
 my $IPTABLES	= "/sbin/iptables";
+my $ARPING      = "/usr/bin/arping";
+# For testing.
+my $VIFROUTING  = ((-e "$ETCDIR/xenvifrouting") ? 1 : 0);
 
 usage()
-    if (@ARGV < 4);
+    if (@ARGV < 5);
 
-my $vmid     = shift(@ARGV);
-my $host_ip  = shift(@ARGV);
-my $vnode_id = shift(@ARGV);
-my $vnode_ip = shift(@ARGV);
+my $vmid      = shift(@ARGV);
+my $host_ip   = shift(@ARGV);
+my $vnode_id  = shift(@ARGV);
+my $vnode_ip  = shift(@ARGV);
+my $vnode_mac = shift(@ARGV);
 
 # The caller (xmcreate) puts this into the environment.
 my $vif         = $ENV{'vif'};
 my $XENBUS_PATH = $ENV{'XENBUS_PATH'};
 my $bridge      = `xenstore-read "$XENBUS_PATH/bridge"`;
 #
-# Well, this is interesting; we could get called with the XEN store
+# Well, this is interesting; we are called with the XEN store
 # gone and so not able to find the bridge. vif-bridge does the same
-# thing and just ignores it! So if we cannot get, default to what
-# currently think is the control network bridge.
+# thing and just ignores it! So if we cannot get it, default to what
+# currently think is the control network bridge, so that vif-bridge
+# does not leave a bunch of iptables rules behind. 
 #
 if ($?) {
     $bridge = "xenbr0";
@@ -154,18 +159,44 @@ sub Online()
 {
     mysystem2("ifconfig $vif txqueuelen 256");
 
+    if ($VIFROUTING) {
+	#
+	# When using routing instead of bridging, we have to restart
+	# dhcp *after* the vif has been created so that dhcpd will
+	# start listening on it. 
+	#
+	if (TBScriptLock("dhcpd", 0, 900) != TBSCRIPTLOCK_OKAY()) {
+	    print STDERR "Could not get the dhcpd lock after a long time!\n";
+	    return -1;
+	}
+	restartDHCP();
+	TBScriptUnlock();
+
+	#
+	# And this clears the arp caches.
+	#
+	mysystem("$ARPING -c 4 -A -I $bridge $vnode_ip");
+    }
+
     # Prevent dhcp requests from leaving the physical host.
     DoIPtables("-A FORWARD -o $bridge -m pkttype ".
 	       "--pkt-type broadcast " .
 	       "-m physdev --physdev-in $vif --physdev-is-bridged ".
 	       "--physdev-out $outer_controlif -j DROP")
 	== 0 or return -1;
-
+    
     #
-    # We ask vif-bridge to turn on antispoofing; this rule would negate that.
+    # We turn on antispoofing. In bridge mode, vif-bridge adds a rule
+    # to allow outgoing traffic. But vif-route does this wrong, so we
+    # do it here. We also need an incoming rule since in route mode,
+    # incoming packets go throught the FORWARD table, which is set to
+    # DROP for antispoofing.
     #
-    if (0) {
-	DoIPtables("-A FORWARD -m physdev --physdev-in $vif -j ACCEPT")
+    if ($VIFROUTING) {
+	DoIPtables("-A FORWARD -i $vif -s $vnode_ip ".
+		   "  -m mac --mac-source $vnode_mac -j ACCEPT")
+	    == 0 or return -1;
+	DoIPtables("-A FORWARD -o $vif -d $vnode_ip -j ACCEPT")
 	    == 0 or return -1;
     }
     
@@ -269,6 +300,20 @@ sub Online()
 	    == 0 or return -1;
 
 	#
+	# Do not rewrite multicast (frisbee) traffic. Client throws up.
+	# 
+	DoIPtables("-t nat -A POSTROUTING -j ACCEPT " . 
+		   " -s $vnode_ip -d 224.0.0.0/4")
+	    == 0 or return -1;
+
+	#
+	# Ditto the apod packet.
+	#
+	DoIPtables("-t nat -A POSTROUTING -j ACCEPT ".
+		   " -s $vnode_ip -m icmp --protocol icmp --icmp-type 6/6")
+	    == 0 or return -1;
+
+	#
 	# Boss/ops/fs specific rules in case the control network is
 	# segmented like it is in Utah.
 	#
@@ -309,9 +354,10 @@ sub Offline()
 	       "--physdev-out $outer_controlif -j DROP");
 
     # See above. 
-    if (0) {
-	DoIPtables("-D FORWARD -m physdev ".
-		   "--physdev-in $vif -j ACCEPT");
+    if ($VIFROUTING) {
+	DoIPtables("-D FORWARD -i $vif -s $vnode_ip ".
+		   "  -m mac --mac-source $vnode_mac -j ACCEPT");
+	DoIPtables("-D FORWARD -o $vif -d $vnode_ip -j ACCEPT");
     }
 
     # tmcc
@@ -350,6 +396,12 @@ sub Offline()
 
 	DoIPtables("-t nat -D POSTROUTING -j ACCEPT " . 
 		   " -s $vnode_ip -d $boss_ip,$ops_ip");
+	
+	DoIPtables("-t nat -D POSTROUTING -j ACCEPT " . 
+		  " -s $vnode_ip -d 224.0.0.0/4");
+	
+	DoIPtables("-t nat -D POSTROUTING -j ACCEPT ".
+		   " -s $vnode_ip -m icmp --protocol icmp --icmp-type 6/6");
     }
 
     DoIPtables("-t nat -D POSTROUTING ".
@@ -379,7 +431,19 @@ if (@ARGV) {
     # First run the xen script to do the bridge interface. We do this
     # inside the lock since vif-bridge does some iptables stuff.
     #
-    mysystem2("/etc/xen/scripts/vif-bridge @ARGV");
+    # vif-bridge/vif-route has bugs that cause it to leave iptables
+    # rules behind. If we put this stuff into the environment, they
+    # will work properly.
+    #
+    $ENV{"ip"} = $vnode_ip;
+    if ($VIFROUTING) {
+	$ENV{"netdev"} = "xenbr0";
+	$ENV{"gatewaydev"} = "xenbr0";
+	mysystem2("/etc/xen/scripts/vif-route-emulab @ARGV");
+    }
+    else {
+	mysystem2("/etc/xen/scripts/vif-bridge @ARGV");
+    }
     if ($?) {
 	TBScriptUnlock();
 	exit(1);

@@ -182,7 +182,14 @@ IN THE WORK.
 						sliverTypeButton.setStyle("chromeColor", ColorUtil.colorsDark[manager.colorIdx]);
 						sliverTypeButton.setStyle("color", ColorUtil.colorsLight[manager.colorIdx]);
 						sliverTypeButton.alpha = 0.8;
-						sliverTypeButton.data = new VirtualNode(null, manager, sliverTypeName, true, sliverTypeName);
+						var name:String = sliverTypeName;
+						if (name == "emulab-xen") {
+						  name = "xen";
+						} else if (name == "emulab-openvz") {
+						  name = "ovz";
+						}
+						name = "node"
+						sliverTypeButton.data = new VirtualNode(null, manager, name, true, sliverTypeName);
 						sliverTypeButton.addEventListener(MouseEvent.CLICK, addVirtualNode);
 						basicGroup.addElementAt(sliverTypeButton, 1);
 					}
@@ -218,10 +225,16 @@ IN THE WORK.
 						addExtraButton.setStyle("chromeColor", ColorUtil.colorsDark[manager.colorIdx]);
 						addExtraButton.setStyle("color", ColorUtil.colorsLight[manager.colorIdx]);
 						addExtraButton.alpha = 0.8;
+						var name:String = supportedType.type.name;
+						if (name == "emulab-xen") {
+						  name = "xen";
+						} else if (name == "emulab-openvz") {
+						  name = "ovz";
+						}
 						addExtraButton.data = new VirtualNode(
 							null,
 							manager,
-							supportedType.type.name,
+							name,
 							supportedType.defaultExclusiveSetting,
 							supportedType.type.name);
 						addExtraButton.addEventListener(MouseEvent.CLICK, addVirtualNode);

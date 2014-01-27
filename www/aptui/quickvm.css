@@ -17,6 +17,15 @@ body {
   padding: 0 0 2.5em;
 }
 
+#loginbutton {
+  display:inline-block;
+  padding-right:15px;
+  padding-top:15px;
+  position:absolute;
+  right:0;
+  top:0;
+}
+
 /* Set the fixed height of the footer here */
 #footer {
   clear: both;
@@ -144,11 +153,6 @@ body {
   height: 180px;
   overflow-y: scroll;
 }
-}
-
-.modal-dialog .form-group {
-  width: 24%;
-  float: left;
 }
 
 .modal-dialog .modal-content {

@@ -4,7 +4,7 @@ require.config({
 	'jquery': 'js/lib/jquery-2.0.3.min',
 	'bootstrap': 'bootstrap/js/bootstrap',
 	'dateformat': 'js/lib/date.format',
-	'd3': 'js/lib/d3.v3'
+	'd3': 'js/lib/d3.v3',
     },
     shim: {
 	'bootstrap': { deps: ['jquery'] },
@@ -14,6 +14,7 @@ require.config({
 });
 
 require(['jquery', 'js/quickvm_sup',
+	 'formhelpers/js/bootstrap-formhelpers',
 	 // jQuery modules
 	 'bootstrap'],
 function ($, sup)
@@ -22,18 +23,19 @@ function ($, sup)
 
     function initialize()
     {
-	var pageType = 'index';
+	var pageType = 'donotsetthistoindex';
 	if (window.APT_OPTIONS)
 	{
 	    console.log('APT_OPTIONS: ' + JSON.stringify(window.APT_OPTIONS));
 	    if (window.APT_OPTIONS.isNewUser)
 	    {
-		sup.ShowModal('#working');
+		sup.ShowModal('#verify_modal');
 	    }
 	    if (window.APT_OPTIONS.pageType)
 	    {
 		pageType = window.APT_OPTIONS.pageType;
 	    }
+	    initLoginButton();
 	}
 	else
 	{
@@ -54,7 +56,32 @@ function ($, sup)
 			    window.APT_OPTIONS.sliceExpires);
 	    initStatusButtons();
 	}
+	else if (pageType == 'signup') {
+ 	    $('button#reset-form').click(function (event) {
+		event.preventDefault();
+		sup.resetForm($('#quickvm_signup_form'));
+	    });
+	    if (window.APT_OPTIONS.ShowVerifyModal)
+	    {
+		sup.ShowModal('#verify_modal');
+	    }
+	}
+	else if (pageType == 'manage_profile') {
+	    try {
+		$('#rspecfile').change(function() {
+		    var reader = new FileReader();
+		    reader.onload = function(event) {
+			var content = event.target.result;
 
+			sup.ShowUploadedRspec(content);
+		    };
+		    reader.readAsText(this.files[0]);
+		});
+	    }
+	    catch (e) {
+		alert(e);
+	    }
+	}
 	$('body').show();
     }
 
@@ -108,6 +135,13 @@ function ($, sup)
 	$('button#terminate').click(function (event) {
 	    event.preventDefault();
 	    sup.Terminate(window.APT_OPTIONS.uuid, 'quickvm.php');
+	});
+    }
+    function initLoginButton()
+    {
+	$('#quickvm_login_modal_button').click(function (event) {
+	    event.preventDefault();
+	    sup.LoginByModal();
 	});
     }
 

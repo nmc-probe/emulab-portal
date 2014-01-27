@@ -4450,7 +4450,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 	char            iqn[BS_IQN_MAXSIZE];
 	char            *mynodeid;
 	char            *class, *protocol, *placement, *mountpoint, *lease;
-	int		nrows, nattrs;
+	int		nrows, nattrs, ro;
 
 	/* Remember the nodeid we care about up front. */
 	mynodeid = reqp->isvnode ? reqp->vnodeid : reqp->nodeid;
@@ -4471,6 +4471,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 	   grab some additional attributes. */
 	nrows = nattrs = (int) mysql_num_rows(res);
 	class = protocol = placement = mountpoint = lease = "\0";
+	ro = 0;
 	while (nrows--) {
 		char *key, *val;
 		row = mysql_fetch_row(res);
@@ -4486,6 +4487,8 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 			mountpoint = val;
 		} else if (strcmp(key,"lease") == 0) {
 			lease = val;
+		} else if (strcmp(key,"readonly") == 0) {
+			ro = (strcmp(val, "0") == 0) ? 0 : 1;
 		}
 	}
 
@@ -4506,6 +4509,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 		bufp += OUTPUT(bufp, ebufp-bufp,
 			       "%s CLASS=%s PROTO=%s UUID=%s UUID_TYPE=iqn",
 			       bscmd, class, protocol, iqn);
+		bufp += OUTPUT(bufp, ebufp-bufp, " PERMS=%s", ro? "RO" : "RW");
 
 		if (strlen(mountpoint)) {
 			bufp += OUTPUT(bufp, ebufp-bufp, " MOUNTPOINT=%s",

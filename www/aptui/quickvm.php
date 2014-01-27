@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,6 +28,12 @@ include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
 $dblink = GetDBLink("sa");
+
+#
+# Get current user but make sure coming in on SSL.
+#
+RedirectSecure();
+$this_user = CheckLogin($check_status);
 
 #
 # Verify page arguments.
@@ -194,31 +200,8 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
         </div>
         </div>\n";
 
-    if (1) {
-    echo "<!-- This is the user verify modal -->
-          <div id='working' class='modal fade'>
-            <div class='modal-dialog'>
-            <div class='modal-content'>
-               <div class='modal-header'>
-                <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>&times;</button>
-                <h3>Important</h3>
-               </div>
-               <div class='modal-body'>
-                    <p>Check your email for a verification code, and
-                       enter it here:</p>
-                        <input name='verify'
-                               placeholder='Verification code'
-                               autofocus type='text' />
-                        <button class='btn btn-primary'
-                            type='submit' name='create'>
-                            Create</button>
-               </div>
-            </div>
-            </div>
-         </div>\n";
-    }
-
+    SpitVerifyModal("verify_modal", "Create");
+    
     if ($newuser) {
 	if (is_string($newuser)) {
 	    $stuffing = $newuser;
@@ -247,7 +230,6 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
                 <h3>Select a Profile</h3>
                </div>
                <div class='modal-body'>
-
                  <!-- This topo diagram goes inside this div -->
                  <div class='panel panel-default'
                             id='showtopo_container'>
@@ -301,13 +283,13 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
 }
 
 if (!isset($create)) {
-    #
-    # Look for cookie that tells us who the user is. 
-    #
     $username = null;
     $email    = null;
     $sshkey   = null;
-    
+
+    # 
+    # Look for cookie that tells us who the user is. 
+    #
     if (isset($_COOKIE['quickvm_user'])) {
 	$geniuser = GeniUser::Lookup("sa", $_COOKIE['quickvm_user']);
 	if ($geniuser) {
@@ -325,6 +307,10 @@ if (!isset($create)) {
 	    $sshkey   = $geniuser->SSHKey();
 	}
     }
+    elseif ($this_user) {
+	$username = $this_user->uid();
+	$email    = $this_user->email();
+    }
     SPITFORM($username, $email, $sshkey, null, false, null);
     SPITFOOTER();
     return;
@@ -335,24 +321,28 @@ if (!isset($create)) {
 $errors = array();
 $args   = array();
 
-if (!isset($email) || $email == "" || $email == $email_default) {
-    $errors["email"] = "Missing Field";
+if (!$this_user) {
+    #
+    # These check do not matter for a logged in user; we ignore the values.
+    #
+    if (!isset($email) || $email == "" || $email == $email_default) {
+	$errors["email"] = "Missing Field";
+    }
+    elseif (! TBvalid_email($email)) {
+	$errors["email"] = TBFieldErrorString();
+    }
+    if (!isset($username) || $username == "" ||
+	$username == $username_default) {
+	$errors["username"] = "Missing Field";
+    }
+    elseif (! TBvalid_uid($username)) {
+	$errors["username"] = TBFieldErrorString();
+    }
+    elseif (User::LookupByUid($username)) {
+        # Do not allow uid overlap with real users.
+	$errors["username"] = "Already in use";
+    }
 }
-elseif (! TBvalid_email($email)) {
-    $errors["email"] = TBFieldErrorString();
-}
-
-if (!isset($username) || $username == "" || $username == $username_default) {
-    $errors["username"] = "Missing Field";
-}
-elseif (! TBvalid_uid($username)) {
-    $errors["username"] = TBFieldErrorString();
-}
-elseif (User::LookupByUid($username)) {
-    # Do not allow uid overlap with real users.
-    $errors["username"] = "Already in use";
-}
-
 if (!isset($profile) || $profile == "") {
     $errors["profile"] = "No selection made";
 }
@@ -372,17 +362,19 @@ if (count($errors)) {
 #
 # More sanity checks. 
 #
-$exists = GeniUser::LookupByEmail("sa", $email);
-if ($exists) {
-    if ($exists->name() != $username) {    
-	$errors["email"] = "Already in use by another user";
-	unset($exists);
+if (!$this_user) {
+    $geniuser = GeniUser::LookupByEmail("sa", $email);
+    if ($geniuser) {
+	if ($geniuser->name() != $username) {    
+	    $errors["email"] = "Already in use by another user";
+	    unset($geniuser);
+	}
     }
 }
 # Existing users are allowed to resuse their ssh key, but can supply
 # a new one if they want.
 if (!isset($sshkey) || $sshkey == "" || $sshkey == $sshkey_default) {
-    if (!$exists) {
+    if (!($geniuser || $this_user)) {
 	$errors["sshkey"] = "Missing Field";
     }
 }
@@ -395,8 +387,9 @@ if (count($errors)) {
     SPITFOOTER();
     return;
 }
-$args["username"] = $username;
-$args["email"]    = $email;
+# Silently ignore the form for a logged in user. 
+$args["username"] = ($this_user ? $this_user->uid() : $username);
+$args["email"]    = ($this_user ? $this_user->email() : $email);
 $args["profile"]  = $profile;
 
 #
@@ -408,8 +401,9 @@ $args["profile"]  = $profile;
 # force the user to repeat the verification with the same code we
 # have stored in the DB.
 #
-if (!$exists || !isset($_COOKIE['quickvm_authkey']) ||
-    $_COOKIE['quickvm_authkey'] != $exists->auth_token()) {
+if (!$this_user &&
+    (!$geniuser || !isset($_COOKIE['quickvm_authkey']) ||
+     $_COOKIE['quickvm_authkey'] != $geniuser->auth_token())) {
     if (isset($stuffing) && $stuffing != "") {
 	if (! (isset($verify) && $verify == $stuffing)) {
 	    SPITFORM($username, $email, $sshkey, $profile, $stuffing, $errors);
@@ -421,8 +415,8 @@ if (!$exists || !isset($_COOKIE['quickvm_authkey']) ||
 	# we can check again for an existing VM and redirect to the
 	# status page, like we do above.
 	#
-	if ($exists) {
-	    $quickvm = QuickVM::LookupByCreator($exists->uuid());
+	if ($geniuser) {
+	    $quickvm = QuickVM::LookupByCreator($geniuser->uuid());
 	    if ($quickvm && $quickvm->status() != "terminating") {
 		header("Location: quickvm_status.php?uuid=" . $quickvm->uuid());
 		return;
@@ -434,7 +428,7 @@ if (!$exists || !isset($_COOKIE['quickvm_authkey']) ||
     else {
 	# Existing user, use existing auth token.
 	# New user, we create a new one.
-	$token = ($exists ? $exists->auth_token() : true);
+	$token = ($geniuser ? $geniuser->auth_token() : true);
 
 	SPITFORM($username, $email, $sshkey, $profile, $token, $errors);
 	SPITFOOTER();
@@ -481,8 +475,12 @@ if (count($errors)) {
 # and javascript to watch for progress. We use a cookie that holds
 # the slice uuid so that the JS code can ask about it.
 #
+# This option is used to tell the backend that it is okay to look
+# in the emulab users table.
 #
-$retval = SUEXEC("nobody", "nobody", "webquickvm $xmlname",
+$opt = ($this_user ? "-l" : "");
+
+$retval = SUEXEC("nobody", "nobody", "webquickvm $opt $xmlname",
 		 SUEXEC_ACTION_CONTINUE);
 
 if ($retval != 0) {
@@ -511,7 +509,12 @@ if (!$quickvm) {
     SPITFOOTER();
     return;
 }
-$creator = GeniUser::Lookup("sa", $quickvm->creator_uuid());
+if ($this_user) {
+    $creator = $this_user;
+}
+else {
+    $creator = GeniUser::Lookup("sa", $quickvm->creator_uuid());
+}
 if (! $creator) {
     $errors["internal"] = "Transient error(6); please try again later.";
     SPITFORM($username, $email, $sshkey, $profile, false, $errors);
@@ -526,19 +529,19 @@ if (! $creator) {
 # cookies do not work. So, we have to look at our SERVER_NAME and
 # set the cookie appropriately. 
 #
-if (stristr($_SERVER["SERVER_NAME"], $TBAUTHDOMAIN)) {
-    $cookiedomain = $TBAUTHDOMAIN;
+if (!$this_user) {
+    if (stristr($_SERVER["SERVER_NAME"], $TBAUTHDOMAIN)) {
+	$cookiedomain = $TBAUTHDOMAIN;
+    }
+    else {
+	$cookiedomain = $_SERVER["SERVER_NAME"];
+    }
+    setcookie("quickvm_user",
+	      $creator->uuid(), time() + (24 * 3600 * 30),
+	      "/", $cookiedomain, 0);
+    setcookie("quickvm_authkey",
+	      $creator->auth_token(), time() + (24 * 3600 * 30),
+	      "/", $cookiedomain, 0);
 }
-else {
-    $cookiedomain = $_SERVER["SERVER_NAME"];
-}
-    
-setcookie("quickvm_user",
-	  $creator->uuid(), time() + (24 * 3600 * 30),
-	  "/", $cookiedomain, 0);
-setcookie("quickvm_authkey",
-	  $creator->auth_token(), time() + (24 * 3600 * 30),
-	  "/", $cookiedomain, 0);
-
 header("Location: quickvm_status.php?uuid=" . $quickvm->uuid());
 ?>
