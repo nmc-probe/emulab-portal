@@ -2369,6 +2369,9 @@ sub disk_hacks($)
     # Run prepare inside to clean up.
     system("/usr/sbin/chroot $path /usr/local/etc/emulab/prepare -N");
 
+    # Fix of grub to boot non-xen env.
+    system("sed -i.bak -e 's/default=.*/default=0/' $path/boot/grub/grub.cfg");
+
     # don't try to recursively boot vnodes!
     unlink("$path/usr/local/etc/emulab/bootvnodes");
 
