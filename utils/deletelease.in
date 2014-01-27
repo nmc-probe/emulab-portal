@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,15 +31,16 @@ use Date::Parse;
 #
 sub usage()
 {
-    print STDERR "Usage: deletelease [-fhd] lname\n";
+    print STDERR "Usage: deletelease [-fFhd] lname\n";
     print STDERR "   -h       This message\n";
     print STDERR "   -d       Print additional debug info\n";
     print STDERR "   -f       Force destruction even if lease is not in the correct state\n";
+    print STDERR "   -F       Force destruction even if lease is in use (admin only)\n";
     print STDERR "   -w time  Try for up to time seconds to lock lease (0 means forever)\n";
     print STDERR "   lname    Name of lease in <pid>/<id> form\n";
     exit(-1);
 }
-my $optlist  = "dhfw:";
+my $optlist  = "dhfFw:";
 my $debug = 0;
 my $force = 0;
 my $pid;
@@ -91,6 +92,9 @@ if (defined($options{d})) {
 }
 if (defined($options{f})) {
     $force = 1;
+}
+if (defined($options{F})) {
+    $force = 2;
 }
 if (defined($options{w})) {
     $waittime = $options{w};
@@ -164,7 +168,7 @@ if (!defined($waittime)) {
 # if the lease is in use, disallow unless forced
 if ($lease->InUse()) {
     my $expts = int(@{$lease->UsingResources()});
-    if (!$force) {
+    if ($force < 2) {
 	fatal("$pid/$lname is in use by $expts experiment(s) right now");
     }
     print STDERR "$pid/$lname is in use by $expts experiment(s) right now,".
