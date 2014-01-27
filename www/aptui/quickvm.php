@@ -272,14 +272,24 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
             </div>
           </div>
        </div>\n";
-    echo "<script type='text/javascript'>\n";
-    echo "window.APT_OPTIONS = {\n";
-    echo "  pageType: 'index',\n";
-    if ($newuser) {
-        echo "  isNewUser: true\n";
-    }
-    echo "};\n";
-    echo "</script>\n";
+
+      echo "<script type='text/javascript'>\n";
+      if (isset($profile) && $profile != "") {
+        echo "window.PROFILE = '$profile_value';\n";
+      }
+      else {
+        echo "window.PROFILE = '$profile_default';\n";
+      }
+      echo "</script>\n";
+      echo "<script type='text/javascript'>\n";
+
+      echo "window.APT_OPTIONS = {\n";
+      echo "  pageType: 'index',\n";
+      if ($newuser) {
+          echo "  isNewUser: true\n";
+      }
+      echo "};\n";
+      echo "</script>\n";
 }
 
 if (!isset($create)) {

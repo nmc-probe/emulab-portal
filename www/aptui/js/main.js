@@ -87,7 +87,7 @@ function ($, sup)
 
     function initIndex()
     {
-        sup.UpdateProfileSelection($('#profile_name li:eq(0)'));
+        sup.UpdateProfileSelection($('#profile_name li[value = ' + window.PROFILE + ']'));
         $('#quickvm_topomodal').on('hidden.bs.modal', function() {
             sup.ShowProfileList($('.current'))
         });
