@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -343,6 +343,10 @@ function TBvalid_mailman_listname($token) {
 }
 function TBvalid_fulltext($token) {
     return TBcheck_dbslot($token, "default", "fulltext",
+			  TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR);
+}
+function TBvalid_html_fulltext($token) {
+    return TBcheck_dbslot($token, "default", "html_fulltext",
 			  TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR);
 }
 function TBvalid_archive_tag($token) {
