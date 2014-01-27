@@ -709,12 +709,14 @@ sub exportSlice($$$$) {
 	     "bad UUID information!");
 	return -1;
     }
+    # Check (and untaint) the UUID.
     if ($sconf->{'UUID'} !~ /^([-\.:\w]+)$/) {
 	warn("*** ERROR: blockstore_exportSlice: $volname: ".
 	     "bad characters in UUID!");
 	return -1;
     }
-    my $iqn = $1; # untaint.
+    # XXX we lowercase the IQN since the ist_assoc will blow up with caps!
+    my $iqn = lc($1);
 
     # Create iSCSI extent
     eval { freenasRunCmd($FREENAS_CLI_VERB_IST_EXTENT, 
@@ -1060,7 +1062,7 @@ sub unexportSlice($$$$) {
     # All of the sanity checking was done when we first created and
     # exported this blockstore.  Assume nothing has changed...
     $sconf->{'UUID'} =~ /^([-\.:\w]+)$/;
-    my $iqn = $1; # untaint.
+    my $iqn = lc($1); # untaint and lowercase.
 
     # Remove iSCSI target.  This will also zap the target-to-extent
     # association.
