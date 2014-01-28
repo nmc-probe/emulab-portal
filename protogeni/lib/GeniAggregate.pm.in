@@ -279,7 +279,7 @@ sub speaksfor_uuid($)	{ return field($_[0], "speaksfor_uuid"); }
 sub speaksfor_urn($)	{ return field($_[0], "speaksfor_urn"); }
 sub status($)		{ return field($_[0], "status"); }
 sub state($)		{ return field($_[0], "state"); }
-sub boot_failed($)      { return field($_[0], "boot_failed"); }
+sub boot_failure($)     { return field($_[0], "boot_failure"); }
 sub ErrorLog($)		{ return field($_[0], "errorlog"); }
 sub cert($)		{ return GetCertificate($_[0])->cert(); }
 # Watch for aggregates that no longer get a certificate.
@@ -618,6 +618,8 @@ sub SetErrorLog($$)
 
 sub SetBootFailure($)
 {
+    my ($self) = @_;
+
     return undef
 	if (! ref($self));
 
@@ -632,6 +634,8 @@ sub SetBootFailure($)
 
 sub ClearBootFailure($)
 {
+    my ($self) = @_;
+
     return undef
 	if (! ref($self));
 
@@ -1971,7 +1975,7 @@ sub ComputeState($)
     my $failed  = 0;
     my $changing= 0;
     my $count   = 0;
-    my $boot_failed = $self->boot_failed();
+    my $boot_failure = $self->boot_failure();
 
     return -1
 	if (! ref($self));
@@ -2038,10 +2042,7 @@ sub ComputeState($)
 
 	}
     }
-    if ($boot_failed == 1) {
-	$self->SetState("failed");
-    }
-    elsif ($stopped == $count) {
+    if ($stopped == $count) {
 	$self->SetState("stopped");
     }
     elsif ($started == $count) {
@@ -2064,6 +2065,9 @@ sub ComputeState($)
     }
     else {
 	$self->SetStatus("mixed");
+    }
+    if ($boot_failure == 1) {
+	$self->SetStatus("failed");
     }
     return 0;
 }
