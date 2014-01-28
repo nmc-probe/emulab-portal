@@ -17,7 +17,7 @@ require.config({
 
 require(['jquery', 'js/quickvm_sup',
 	 // jQuery modules
-	 'bootstrap'],
+	 'bootstrap', 'formhelpers'],
 function ($, sup)
 {
     'use strict';
