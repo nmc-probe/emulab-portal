@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -37,8 +37,8 @@ sub usage()
     print STDERR "commands:\n";
     print STDERR "   pools    Print size info about pools\n";
     print STDERR "   volumes  Print info about volumes\n";
-    print STDERR "   create <pool> <vol> <size>\n";
-    print STDERR "            Create <vol> in <pool> with <size> in MiB\n";
+    print STDERR "   create <pool> <vol> <size> [ <fstype> ]\n";
+    print STDERR "            Create <vol> in <pool> with <size> in MiB; optionally create a filesystem of type <fstype> on it\n";
     print STDERR "   destroy <pool> <vol>\n";
     print STDERR "            Destroy <vol> in <pool>\n";
     exit(-1);
@@ -132,9 +132,9 @@ sub volumes()
     return 0;
 }
 
-sub create($$$)
+sub create($$$;$)
 {
-    my ($pool,$vol,$size) = @_;
+    my ($pool,$vol,$size,$fstype) = @_;
 
     if (defined($pool) && $pool =~ /^([-\w]+)$/) {
 	$pool = $1;
@@ -154,8 +154,21 @@ sub create($$$)
 	print STDERR "bscontrol_proxy: bogus size arg\n";
 	return 1;
     }
+    if (!defined($fstype)) {
+	$fstype = "none";
+    } elsif ($fstype =~ /^(ext2|ext3|ext4|ufs)$/) {
+	$fstype = $1;
+    } else {
+	print STDERR "bscontrol_proxy: bogus fstype arg\n";
+	return 1;
+    }
 
-    return freenasVolumeCreate($pool, $vol, $size);
+    my $rv = freenasVolumeCreate($pool, $vol, $size);
+    if ($rv == 0 && $fstype ne "none") {
+	$rv = freenasFSCreate($pool, $vol, $fstype);
+    }
+
+    return $rv;
 }
 
 sub destroy($$$)

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,7 +31,7 @@ use Exporter;
 @EXPORT =
     qw( 
 	freenasPoolList freenasVolumeList
-	freenasVolumeCreate freenasVolumeDestroy
+	freenasVolumeCreate freenasVolumeDestroy freenasFSCreate
 	freenasRunCmd freenasParseListing
 	$FREENAS_CLI_VERB_IFACE $FREENAS_CLI_VERB_IST_EXTENT
 	$FREENAS_CLI_VERB_IST_AUTHI $FREENAS_CLI_VERB_IST_TARGET
@@ -84,6 +84,8 @@ my $VOLUME_BUSY_WAIT      = 10;
 my $VOLUME_GONE_WAIT      = 5;
 my $IFCONFIG             = "/sbin/ifconfig";
 my $ALIASMASK            = "255.255.255.255";
+my $LINUX_MKFS		 = "/usr/local/sbin/mke2fs";
+my $FBSD_MKFS		 = "/sbin/newfs";
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -114,6 +116,7 @@ sub freenasPoolList();
 sub freenasVolumeList($);
 sub freenasVolumeCreate($$$);
 sub freenasVolumeDestroy($$);
+sub freenasFSCreate($$$);
 sub freenasRunCmd($$);
 sub freenasParseListing($);
 
@@ -365,6 +368,27 @@ sub freenasParseListing($) {
     }
     close(CLI);
     return @retlist;
+}
+
+sub freenasFSCreate($$$) {
+    my ($pool,$vol,$fstype) = @_;
+    my $cmd;
+
+    if ($fstype =~ /^ext[234]$/) {
+	$cmd = "$LINUX_MKFS -t $fstype -o Linux";
+    } elsif ($fstype eq "ufs") {
+	$cmd = "$FBSD_MKFS";
+    } else {
+	warn("*** WARNING: freenasFSCreate: unknown fs type '$fstype'");
+	return -1;
+    }
+    my $redir = ">/dev/null 2>&1";
+    if (system("$cmd /dev/zvol/$pool/$vol $redir") != 0) {
+	warn("*** WARNING: freenasFSCreate: '$cmd /dev/zvol/$pool/$vol' failed");
+	return -1;
+    }
+
+    return 0;
 }
 
 #######################################################################
