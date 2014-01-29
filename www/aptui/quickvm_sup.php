@@ -40,6 +40,7 @@ $disable_accounts = 0;
 if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $TBAUTHDOMAIN = ".aptlab.net";
     $APTHOST      = "www.aptlab.net";
+    $WWWHOST      = "www.aptlab.net";
     $APTBASE      = "https://www.aptlab.net";
 }
 
@@ -84,11 +85,11 @@ function SPITHEADER($thinheader = 0)
              <ul class='nav navbar-nav navbar-right'>";
     if (!$disable_accounts) {
 	if ($login_user) {
-	    echo "<li><a>$login_uid logged in</a></li>\n";
+	    echo "<li><a id='loginbutton'>$login_uid logged in</a></li>\n";
 	}
 	elseif (!NOLOGINS()) {
 	    echo "<li><a class='btn btn-primary navbar-btn'
-                           id='login_button'
+                           id='loginbutton'
 	                   data-toggle='modal'
                            href='#quickvm_login_modal'
                            data-target='#quickvm_login_modal'>
@@ -100,7 +101,7 @@ function SPITHEADER($thinheader = 0)
              <ul class='nav navbar-nav navbar-left'>
                 <li><a href='quickvm.php'>Home</a></li>\n";
     if (!$disable_accounts && $login_user) {
-	echo "  <li><a href='#' id='logout_button'>Logout</a></li>\n";
+	echo "  <li><a href='#' id='logoutbutton'>Logout</a></li>\n";
     }
     echo "   </ul>
            </div>
