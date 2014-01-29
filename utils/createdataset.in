@@ -31,19 +31,20 @@ use Date::Parse;
 #
 sub usage()
 {
-    print STDERR "Usage: createdataset [-hdU] [-o uid] [-a attrs] [-t type] [-e expiration] -s size name\n";
-    print STDERR "   -h       This message\n";
-    print STDERR "   -d       Print additional debug info\n";
-    print STDERR "   -U       Create but do not approve; admin will need to approve later\n";
-    print STDERR "   -s size  Size in MiB\n";
-    print STDERR "   -t type  Type ('stdataset' or 'ltdataset')\n";
-    print STDERR "   -o uid   Owner (defaults to caller)\n";
-    print STDERR "   -e date  Expiration date (or 'never')\n";
-    print STDERR "   -a attrs comma-seperated string of key=value attributes\n";
-    print STDERR "   name     Name (in the form <pid>/<id>)\n";
+    print STDERR "Usage: createdataset [-hdU] [-o uid] [-a attrs] [-t type] [-f fstype] [-e expiration] -s size name\n";
+    print STDERR "   -h        This message\n";
+    print STDERR "   -d        Print additional debug info\n";
+    print STDERR "   -U        Create but do not approve; admin will need to approve later\n";
+    print STDERR "   -s size   Size in MiB\n";
+    print STDERR "   -t type   Type ('stdataset' or 'ltdataset')\n";
+    print STDERR "   -f fstype Type of filesystem to create on dataset (default is none)\n";
+    print STDERR "   -o uid    Owner (defaults to caller)\n";
+    print STDERR "   -e date   Expiration date (or 'never')\n";
+    print STDERR "   -a attrs  comma-seperated string of key=value attributes\n";
+    print STDERR "   name      Name (in the form <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhUo:s:t:e:a:";
+my $optlist  = "dhUo:s:t:e:a:f:";
 my $debug = 0;
 my $pid;
 my $uid;
@@ -51,6 +52,7 @@ my $expire;
 my $dstype = "stdataset";
 my $lname;
 my $size;
+my $fstype = "";
 my $approveme = 1;
 my $attrstr = "";
 my %attrs = ();
@@ -121,6 +123,12 @@ if (defined($options{s})) {
 }
 if (defined($options{t})) {
     $dstype = $options{t};
+}
+if (defined($options{f})) {
+    $fstype = $options{f};
+    if ($fstype !~ /^(ext2|ext3|ext4|ufs)$/) {
+	fatal("FS type must be one of ext2, ext3, ext4, or ufs");
+    }
 }
 if (defined($options{e})) {
     if ($options{e} eq "never") {
@@ -271,8 +279,9 @@ if ($needapproval) {
 #
 foreach my $kv (split(',', $attrstr)) {
     if ($kv =~ /^([-\w]+)=([-\w\.\+\/:]+)$/) {
-	# XXX filter out any size= attribute, we will re-add at the end.
-	if ($1 eq "size") {
+	# XXX filter out any attributes with explicit options,
+	# we will re-add those at the end.
+	if ($1 eq "size" || $1 eq "fstype") {
 	    next;
 	}
 	$attrs{$1} = $2;
@@ -281,6 +290,9 @@ foreach my $kv (split(',', $attrstr)) {
     }
 }
 $attrs{'size'} = $size;
+if ($fstype) {
+    $attrs{'fstype'} = $fstype;
+}
 
 #
 # Check name: lease with this name must not already exist.

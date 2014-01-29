@@ -5902,6 +5902,10 @@ class dataset:
                 argstr += " -t "
                 argstr += escapeshellarg(val)
                 pass
+            elif opt == "fstype":
+                argstr += " -f "
+                argstr += escapeshellarg(val)
+                pass
             elif opt == "expire":
                 argstr += " -e "
                 argstr += escapeshellarg(val)

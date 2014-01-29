@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -45,7 +45,7 @@ use Getopt::Std;
 # The following commands are for persistent blockstores.
 # For these, a blockstore name, "bsname", had better be unique.
 #
-# bscontrol [ -S server [ -P pool ] ] [-l leaseidx] -s size -t type create bsname
+# bscontrol [ -S server [ -P pool ] ] [-l leaseidx] [-f fstype] -s size -t type create bsname
 #	Create a blockstore of the given size with the given name.
 #	If the server is not specified, we pick the "best" server,
 #	based on availability of space.
@@ -70,13 +70,14 @@ sub usage()
     print STDERR "   info     For each server, show all extant volumes\n";
     exit(-1);
 }
-my $optlist  = "hds:t:l:S:P:F";
+my $optlist  = "hds:t:l:S:P:Ff:";
 my $debug = 0;
 my $server;
 my $pool;
 my $size;
 my $type = "stdataset";
 my $leaseidx = 0;
+my $fstype = "";
 my $fakeit = 0;
 
 # Protos
@@ -170,6 +171,9 @@ if (defined($options{t})) {
 }
 if (defined($options{l})) {
     $leaseidx = $options{l};
+}
+if (defined($options{f})) {
+    $fstype = $options{f};
 }
 if (defined($options{F})) {
     $fakeit = 1;
@@ -637,6 +641,13 @@ sub bs_create($$$@)
     if ($leaseidx !~ /^\d+$/) {
 	fatal("create: lease index must be an integer");
     }
+    if ($fstype) {
+	if ($fstype !~ /^(ext2|ext3|ext4|ufs)$/) {
+	    fatal("create: fstype must be one of ext2|ext3|ext4|ufs");
+	} else {
+	    $fstype = $1;
+	}
+    }
     if ($type !~ /^(st|lt)dataset$/) {
 	fatal("create: type must be either 'stdataset' or 'ltdataset'");
     }
@@ -736,7 +747,7 @@ sub bs_create($$$@)
 
     # Call out to the server to allocate the actual storage.
     my $outref;
-    if (bsserver_cmd($srv, "$PROXYCMD create $pool $name $size", \$outref)) {
+    if (bsserver_cmd($srv, "$PROXYCMD create $pool $name $size $fstype", \$outref)) {
 	$pbstore->Delete();
 	print STDERR "*** create: could not allocate storage for '$name' on $srv/$pool:";
 	foreach my $str (@$outref) {

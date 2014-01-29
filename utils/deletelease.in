@@ -55,7 +55,6 @@ sub fatal($);
 # Configure variables
 #
 my $TB		 = "@prefix@";
-my $BSCONTROL	 = "$TB/sbin/bscontrol";
 
 #
 # Testbed Support libraries

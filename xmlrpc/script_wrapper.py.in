@@ -2714,7 +2714,7 @@ class createdataset:
 
     def apply(self):
         try:
-            opts, req_args = getopt.getopt(self.argv, "hUs:t:e:", [ "help" ]);
+            opts, req_args = getopt.getopt(self.argv, "hUs:t:e:f:", [ "help" ]);
             pass
         except getopt.error, e:
             print e.args[0]
@@ -2735,6 +2735,9 @@ class createdataset:
             elif opt == "-t":
                 params["type"] = val;
                 pass
+            elif opt == "-f":
+                params["fstype"] = val;
+                pass
             elif opt == "-e":
                 params["expire"] = val;
                 pass
@@ -2752,11 +2755,12 @@ class createdataset:
         return rval;
 
     def usage(self):
- 	print "createdataset [-hU] [-t type] [-e expire] -s size dataset_id";
+ 	print "createdataset [-hU] [-t type] [-e expire] [-f fstype] -s size dataset_id";
 	print "where:";
         print "    -U        - Create but do not approve dataset";
         print "    -s size   - Size in MiB (1 MiB == 1024*1024)";
         print "    -t type   - Type: one of 'stdataset' (default) or 'ltdataset'";
+        print "    -f fstype - Filesystem type: one of 'ext2', 'ext3', 'ext4', 'ufs' (default is no filesystem creation)";
         print "    -e expire - Expiration date ('0' == never, default is system defined)";
         print "";
         print "Create a dataset with the indicated size and name";

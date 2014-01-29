@@ -540,12 +540,24 @@ sub AllocResources($;$) {
 	}
 
 	#
+	# There may also be an associated fstype attribute.
+	# Note: we let caller or bscontrol do checking on the vaildity
+	# of the type.
+	#
+	my $fstype = $self->GetAttribute("fstype");
+	if (defined($fstype) && $fstype ne "") {
+	    $fstype = "-f $fstype";
+	} else {
+	    $fstype = "";
+	}
+
+	#
 	# Call the blockstore control program to handle all things
 	# blockstore related (e.g., the actual allocation of storage
 	# on the storage servers).
 	#
 	my $idx = $self->lease_idx();
-	if (system("$BSCONTROL -l $idx -s $size create lease-$idx")) {
+	if (system("$BSCONTROL -l $idx -s $size $fstype create lease-$idx")) {
 	    print STDERR "$self: AllocResources: could not allocate storage.\n";
 	    $self->UpdateState("unapproved");
 	    return LEASE_ERROR_FAILED();
