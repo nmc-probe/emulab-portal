@@ -203,6 +203,6 @@ else {
     #
     # Zap back to front page in secure mode.
     # 
-    header("Location: $APTBASE");
+    header("Location: $APTBASE/quickvm.php");
 }
 ?>

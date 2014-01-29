@@ -68,19 +68,21 @@ function ($, sup)
 	    }
 	}
 	else if (pageType == 'manage_profile') {
-	    try {
-		$('#rspecfile').change(function() {
-		    var reader = new FileReader();
-		    reader.onload = function(event) {
-			var content = event.target.result;
+	    if (0) {
+		try {
+		    $('#rspecfile').change(function() {
+			var reader = new FileReader();
+			reader.onload = function(event) {
+			    var content = event.target.result;
 
-			sup.ShowUploadedRspec(content);
-		    };
-		    reader.readAsText(this.files[0]);
-		});
-	    }
-	    catch (e) {
-		alert(e);
+			    sup.ShowUploadedRspec(content);
+			};
+			reader.readAsText(this.files[0]);
+		    });
+		}
+		catch (e) {
+		    alert(e);
+		}
 	    }
 	}
 	$('body').show();
@@ -143,6 +145,10 @@ function ($, sup)
 	$('#quickvm_login_modal_button').click(function (event) {
 	    event.preventDefault();
 	    sup.LoginByModal();
+	});
+	$('#logout_button').click(function (event) {
+	    event.preventDefault();
+	    sup.Logout();
 	});
     }
 

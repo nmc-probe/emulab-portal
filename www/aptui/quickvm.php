@@ -54,19 +54,20 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 #
 if (isset($ajax_request)) {
     if ($ajax_method == "getprofile") {
-	$profile_name = addslashes($ajax_argument);
+	$profile_idx = addslashes($ajax_argument);
 	$query_result =
-	    DBQueryWarn("select * from quickvm_rspecs ".
-			"where name='$profile_name'", $dblink);
+	    DBQueryWarn("select * from apt_profiles ".
+			"where idx='$profile_idx'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
-	    SPITAJAX_ERROR(1, "No such profile!");
+	    SPITAJAX_ERROR(1, "No such profile $profile_idx!");
 	    exit();
 	}
 	$row = mysql_fetch_array($query_result);
 	
 	SPITAJAX_RESPONSE(array('rspec' => $row['rspec'],
 				'name'  => $row['name'],
+				'idx'   => $row['idx'],
 				'description' => $row['description']));
     }
     exit();
@@ -76,13 +77,16 @@ if (isset($ajax_request)) {
 $username_default = "Pick a user name";
 $email_default    = "Your email address";
 $sshkey_default   = "Your SSH public key";
-$profile_default  = "UBUNTU12-64-STD";
+$profile_default  = "ThreeVMs";
 $profile_array    = array();
 
 $query_result =
-    DBQueryFatal("select * from quickvm_rspecs", $dblink);
+    DBQueryFatal("select * from apt_profiles where public=1");
 while ($row = mysql_fetch_array($query_result)) {
-    $profile_array[$row["name"]] = $row["name"];
+    $profile_array[$row["idx"]] = $row["name"];
+    if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
+	$profile_default = $row["idx"];
+    }
 }
 
 function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)

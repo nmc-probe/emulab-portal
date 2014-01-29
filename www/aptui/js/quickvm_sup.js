@@ -142,7 +142,8 @@ function ShowTopo(uuid)
 
 function UpdateProfileSelection(selectedElement)
 {
-	var profile = $(selectedElement).attr('value');
+    console.log(selectedElement);
+        var profile = $(selectedElement).text();
 	$('#selected_profile').attr('value', profile);
 	$('#selected_profile_text').html("" + profile);
 
@@ -178,15 +179,15 @@ function ShowProfileList(selectedElement)
 	var topo   = ConvertManifestToJSON(profile, xml);
 	console.info(topo);
     
-	$('#showtopo_title').html("<h3>" + profile + "</h3>");
+	$('#showtopo_title').html("<h3>" + json.value.name + "</h3>");
 	$('#showtopo_description').html(json.value.description);
 
 	maketopmap("#showtopo_div",
 		   ($("#showtopo_div").outerWidth()),
 		   300, topo);
-    }
-    var $xmlthing = CallMethod("getprofile", null, 0, profile);
-    $xmlthing.done(callback);
+	}
+        var $xmlthing = CallMethod("getprofile", null, 0, profile);
+        $xmlthing.done(callback);
 }
 
 function ShowProfile(direction)
@@ -233,29 +234,6 @@ function ShowProfile(direction)
 		   300, topo);
     }
     var $xmlthing = CallMethod("getprofile", null, 0, profile);
-    $xmlthing.done(callback);
-}
-
-function ShowProfileSlider(direction)
-{
-    console.info(direction);
-    
-    var callback = function(json) {
-	console.info(json.value);
-	var xmlDoc = $.parseXML(json.value.rspec);
-	var xml    = $(xmlDoc);
-	var topo   = ConvertManifestToJSON(null, xml);
-	console.info(topo);
-
-	$('#showtopo_title').html("<h3>" + json.value.name + "</h3>");
-	$('#showtopo_description').html(json.value.description);
-	
-	$("#slider_container").removeClass("invisible");
-	maketopmap("#slider_div",
-		   ($("#slider_div").outerWidth()) - 90,
-		   200, topo);
-    }
-    var $xmlthing = CallMethod("getprofile", null, 0, null);
     $xmlthing.done(callback);
 }
 
@@ -976,6 +954,38 @@ function LoginByModal()
     xmlthing.done(callback);
 }
 
+/*
+ * log the user out via an ajax call.
+ */
+function Logout()
+{
+    var callback = function(json) {
+	if (json.code) {
+	    alert("Logout failed!");
+	}
+	else {
+	    // Need to stick the button back in ...
+	    $("#loginbutton").html("");
+	}
+    }
+    var xmlthing = $.ajax({
+	// the URL for the request
+	url: "logout.php",
+ 
+	// the data to send (will be converted to a query string)
+	data: {
+	    ajax_request: 1,
+	},
+ 
+	// whether this is a POST or GET request
+	type: "GET",
+ 
+	// the type of data we expect back
+	dataType : "json",
+    });
+    xmlthing.done(callback);
+}
+
 // Exports from this module for use elsewhere
 return {
     Extend: Extend,
@@ -990,6 +1000,7 @@ return {
     Terminate: Terminate,
     UpdateProfileSelection: UpdateProfileSelection,
     ShowUploadedRspec: ShowUploadedRspec,
-    LoginByModal: LoginByModal
+    LoginByModal: LoginByModal,
+    Logout: Logout
 };
 });

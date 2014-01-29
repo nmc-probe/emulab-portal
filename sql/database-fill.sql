@@ -1269,6 +1269,12 @@ REPLACE INTO table_regex VALUES ('default','tinytext_utf8','text','regex','^(?:[
 REPLACE INTO table_regex VALUES ('default','text_utf8','text','regex','^(?:[\\x20-\\x7E]|[\\xC2-\\xDF][\\x80-\\xBF]|\\xE0[\\xA0-\\xBF][\\x80-\\xBF]|[\\xE1-\\xEC\\xEE\\xEF][\\x80-\\xBF]{2}|\\xED[\\x80-\\x9F][\\x80-\\xBF])*$',0,65535,'adopted from http://www.w3.org/International/questions/qa-forms-utf-8.en.php');
 REPLACE INTO table_regex VALUES ('default','fulltext_utf8','text','regex','^(?:[\\x09\\x0A\\x0D\\x20-\\x7E]|[\\xC2-\\xDF][\\x80-\\xBF]|\\xE0[\\xA0-\\xBF][\\x80-\\xBF]|[\\xE1-\\xEC\\xEE\\xEF][\\x80-\\xBF]{2}|\\xED[\\x80-\\x9F][\\x80-\\xBF])*$',0,65535,'adopted from http://www.w3.org/International/questions/qa-forms-utf-8.en.php');
 
+REPLACE INTO table_regex VALUES ('apt_profiles','pid','text','redirect','projects:pid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','creator','text','redirect','users:uid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','name','text','redirect','images:imagename',0,64,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','public','int','redirect','default:boolean',0,0,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','description','text','redirect','default:html_fulltext',0,512,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','rspec','text','redirect','default:html_fulltext',0,8192,NULL);
 
 --
 -- Dumping data for table `testsuite_preentables`

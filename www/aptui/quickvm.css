@@ -17,13 +17,36 @@ body {
   padding: 0 0 2.5em;
 }
 
-#loginbutton {
-  display:inline-block;
-  padding-right:15px;
-  padding-top:15px;
-  position:absolute;
-  right:0;
+.navbar img {
+  display: block;
+  margin: 0 auto;
+  height: 75px;
+}
+
+.navbar-static-top {
+  background-color: #ff6600;
+}
+
+.navbar-inner {
+  background-color: #ff6600;
+  height: 75px;
+  width: 95%;
+  margin: 0 auto;
+}
+
+.navbar .brand {
+  position: absolute;
   top:0;
+  left:0;
+  width: 100%;
+}
+
+.navbar-nav > li > a {
+  margin-top: 20px;
+}
+
+.navbar-btn {
+  margin-top: 20px;
 }
 
 /* Set the fixed height of the footer here */

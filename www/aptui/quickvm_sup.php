@@ -72,32 +72,43 @@ function SPITHEADER($thinheader = 0)
     if ($TBMAINSITE && file_exists("../google-analytics.php")) {
 	readfile("../google-analytics.php");
     }
-    
+
     echo "
     <!-- Container for body, needed for sticky footer -->
     <div id='wrap'>
-      <div style='background-color: #ff6600'>";
+         <div class='navbar navbar-static-top' role='navigation'>
+           <div class='navbar-inner'>
+             <div class='brand'>
+                 <img src='aptlogo.png'/>
+             </div>
+             <ul class='nav navbar-nav navbar-right'>";
     if (!$disable_accounts) {
 	if ($login_user) {
-	    echo "<div id='loginbutton'>
-                      $login_uid logged in<br>
-                  </div>\n";
+	    echo "<li><a>$login_uid logged in</a></li>\n";
 	}
 	elseif (!NOLOGINS()) {
-	    echo "<div id='loginbutton'>
-                   <button class='btn btn-primary'
-                           id='login_button' type=button
-	                   data-toggle='modal' data-target='#quickvm_login_modal'>
-                        Login</button>
-                 </div>\n";
+	    echo "<li><a class='btn btn-primary navbar-btn'
+                           id='login_button'
+	                   data-toggle='modal'
+                           href='#quickvm_login_modal'
+                           data-target='#quickvm_login_modal'>
+                        Login</a></li>
+                  \n";
 	}
     }
-    echo "<img class='align-center' style='width: ${height}px'
-               src='aptlogo.png'/>
-      </div>
-     <!-- Page content -->
-     <div class='container'>\n";
+    echo "   </ul>
+             <ul class='nav navbar-nav navbar-left'>
+                <li><a href='quickvm.php'>Home</a></li>\n";
+    if (!$disable_accounts && $login_user) {
+	echo "  <li><a href='#' id='logout_button'>Logout</a></li>\n";
+    }
+    echo "   </ul>
+           </div>
+         </div>\n";
+
     SpitLoginModal("quickvm_login_modal");
+    echo " <!-- Page content -->
+           <div class='container'>\n";
 }
 
 function SPITFOOTER()
@@ -195,7 +206,7 @@ function SpitVerifyModal($id, $label)
 function SpitLoginModal($id, $embedded = 0)
 {
     echo "<!-- This is the login modal -->
-          <div id='$id' class='modal fade'>
+          <div id='$id' class='modal fade' role='dialog'>
             <div class='modal-dialog'>
             <div class='modal-content'>
                <div class='modal-header'>

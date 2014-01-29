@@ -55,6 +55,28 @@ CREATE TABLE `active_checkups` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `apt_profiles`
+--
+
+DROP TABLE IF EXISTS `apt_profiles`;
+CREATE TABLE `apt_profiles` (
+  `name` varchar(64) NOT NULL default '',
+  `idx` int(10) unsigned NOT NULL auto_increment,  
+  `creator` varchar(8) NOT NULL default '',
+  `creator_idx` mediumint(8) unsigned NOT NULL default '0',
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `created` datetime default NULL,
+  `uuid` varchar(40) NOT NULL,
+  `public` tinyint(1) NOT NULL default '0',
+  `description` mediumtext,
+  `rspec` mediumtext,
+  PRIMARY KEY (`idx`),
+  UNIQUE KEY `pidname` (`pid_idx`,`name`),
+  UNIQUE KEY `uuid` (`uuid`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `archive_revisions`
 --
 

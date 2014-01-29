@@ -35,15 +35,14 @@ $this_user = CheckLogin($check_status);
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
-				 "profile",     PAGEARG_STRING,
 				 "formfields",  PAGEARG_ARRAY);
 
 #
 # Spit the form
 #
-function SPITFORM($formfields, $needlogin, $errors)
+function SPITFORM($formfields, $errors)
 {
-    global $this_user;
+    global $this_user, $projlist;
 
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
@@ -56,15 +55,20 @@ function SPITFORM($formfields, $needlogin, $errors)
 	}
     }
 
-    $formatter = function($field, $label, $html) use ($errors) {
+    $formatter = function($field, $label, $html, $help = null) use ($errors) {
 	$class = "form-group";
 	if ($errors && array_key_exists($field, $errors)) {
 	    $class .= " has-error";
 	}
 	echo "<div class='$class'>\n";
 	echo "  <label for='$field' ".
-	"         class='col-sm-2 control-label'>$label</label>\n";
-	echo "  <div class='col-sm-10'>\n";
+	"         class='col-sm-3 control-label'>$label ";
+	if ($help) {
+	    echo "<a href='#' data-toggle='tooltip' title='$help'>".
+		"<span class='glyphicon glyphicon-question-sign'></span></a>";
+	}
+	echo "  </label>\n";
+	echo "  <div class='col-sm-7'>\n";
 	echo "     $html\n";
 	if ($errors && array_key_exists($field, $errors)) {
 	    echo "<label class='control-label' for='inputError'>" .
@@ -88,6 +92,7 @@ function SPITFORM($formfields, $needlogin, $errors)
               </h3>
              </div>
              <div class='panel-body'>\n";
+
     echo "   <form id='quickvm_create_profile_form'
                    class='form-horizontal' role='form'
                    enctype='multipart/form-data'
@@ -96,13 +101,45 @@ function SPITFORM($formfields, $needlogin, $errors)
     echo "     <div class='col-sm-12'>\n";
     echo "      <fieldset>\n";
 
+    #
+    # Look for non-specific error.
+    #
+    if ($errors && array_key_exists("error", $errors)) {
+	echo "<font color=red>" . $errors["error"] . "</font>";
+    }
 
     $formatter("profile_name", "Profile Name",
 	       "<input name=\"formfields[profile_name]\"
 		       id='profile_name'
 		       value='" . $formfields["profile_name"] . "'
                        class='form-control'
-                       placeholder='' type='text'>");
+                       placeholder='' type='text'>",
+	       "alphanumeric, dash, underscore, no whitespace");
+    #
+    # If user is a member of only one project, then just pass it
+    # through, no need for the user to see it. Otherwise we have
+    # to let the user choose.
+    #
+    if (count($projlist) == 1) {
+	echo "<input type='hidden' name='formfields[profile_pid]' ".
+	    "value='" . $projlist[0] . "'>\n";
+    }
+    else {
+	$pid_options = "";
+	while (list($project) = each($projlist)) {
+	    $selected = "";
+	    if ($formfields["profile_pid"] == $project) {
+		$selected = "selected";
+	    }
+	    $pid_options .= 
+		"<option $selected value='$project'>$project</option>\n";
+	}
+	$formatter("profile_pid", "Project",
+		   "<select name=\"formfields[profile_pid]\"
+		            id='profile_pid' class='form-control'
+                            placeholder='Please Select'>$pid_options</select>");
+    }
+       
     $formatter("profile_description", "Description",
 	       "<textarea name=\"formfields[profile_description]\"
 		          id='profile_description'
@@ -115,16 +152,24 @@ function SPITFORM($formfields, $needlogin, $errors)
 	       "<input name='rspecfile' id='rspecfile'
                        type=file class='form-control'>");
 
+    $formatter("profile_public", "Public?",
+	       "<div class='checkbox'>
+                <label><input name=\"formfields[profile_public]\" ".
+	               $formfields["profile_public"] .
+	       "       id='profile_public' value=checked
+                       type=checkbox> ".
+	       "List on the public page for anyone to use?</label></div>");
+
     echo "      </fieldset>\n";
 
     echo "<div class='form-group'>
             <div class='col-sm-offset-2 col-sm-10'>
-               <button class='btn btn-primary btm-sm'
+               <button class='btn btn-primary btm-sm pull-right'
                    id='profile_submit_button'
                    type='submit' name='create'>Create</button>
             </div>
           </div>\n";
-    
+
     echo "     </div>\n";
     echo "    </div>\n";
     echo "   </form></div>\n";
@@ -163,23 +208,6 @@ function SPITFORM($formfields, $needlogin, $errors)
     
     SPITFOOTER();
 }
-#
-# If not clicked, then put up a form. We use a session variable to
-# save the form data in case we have to force the user to login.
-#
-session_start();
-
-if (! isset($create)) {
-    if (isset($_SESSION["formfields"])) {
-	$defaults = $_SESSION["formfields"];
-    }
-    else {
-	$defaults = array();
-    }
-
-    SPITFORM($defaults, 0, null);
-    return;
-}
 
 #
 # The user must be logged in.
@@ -188,13 +216,174 @@ if (!$this_user) {
     if (isset($formfields)) {
 	$_SESSION["formfields"] = $formfields;
     }
-    header("Location: login.php?refer=1");
+    # HTTP_REFERER will not work reliably when redirecting so
+    # pass in the URI for this page as an argument
+    header("Location: login.php?referrer=".
+	   urlencode($_SERVER['REQUEST_URI']));
     # Use exit because of the session. 
     exit();
 }
-# No longer needed, the user is logged in. 
-session_destroy();
 
-SPITFORM($formfields, 0, null);
+#
+# See what projects the user can do this in.
+#
+$projlist = $this_user->ProjectAccessList($TB_PROJECT_MAKEIMAGEID);
+
+if (! isset($create)) {
+    $errors = array();
+    
+    if (isset($_SESSION["formfields"])) {
+	$defaults = $_SESSION["formfields"];
+    }
+    else {
+	$defaults = array();
+    }
+    if (! (isset($projlist) && count($projlist))) {
+	$errors["error"] =
+	    "You do not appear to be a member of any projects in which ".
+	    "you have permission to create new profiles";
+    }
+    SPITFORM($defaults, $errors);
+    return;
+}
+
+#
+# Otherwise, must validate and redisplay if errors
+#
+$errors = array();
+
+#
+# Quick check for required fields.
+#
+$required = array("pid", "name", "description");
+		  
+foreach ($required as $key) {
+    if (!isset($formfields["profile_${key}"]) ||
+	strcmp($formfields["profile_${key}"], "") == 0) {
+	$errors["profile_${key}"] = "Missing Field";
+    }
+    elseif (! TBcheck_dbslot($formfields["profile_${key}"], "apt_profiles", $key,
+			     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	$errors["profile_${key}"] = TBFieldErrorString();
+    }
+}
+
+#
+# The rspec has to be treated specially of course.
+#
+if (isset($_FILES['rspecfile']) &&
+    $_FILES['rspecfile']['name'] != "" &&
+    $_FILES['rspecfile']['name'] != "none") {
+
+    $rspec = file_get_contents($_FILES['rspecfile']['tmp_name']);
+    if (!$rspec) {
+	$errors["rspecfile"] = "Could not process file";
+    }
+    elseif (! TBvalid_html_fulltext($rspec)) {
+	$errors["rspecfile"] = TBFieldErrorString();	
+    }
+}
+else {
+    $errors["rspecfile"] = "Missing Field";
+}
+
+#
+# Project has to exist. We need to know it for the SUEXEC call
+# below. 
+#
+$project = Project::LookupByPid($formfields["profile_pid"]);
+if (!$project) {
+    $errors["profile_pid"] = "No such project";
+}
+
+# Present these errors before we call out to do anything else.
+if (count($errors)) {
+    SPITFORM($formfields, $errors);
+    return;
+}
+
+#
+# Pass to the backend as an XML data file. If this gets too complicated,
+# we might eed to do all the checking in the backend and have it pass
+# back the error set. 
+#
+# Generate a temporary file and write in the XML goo.
+#
+$xmlname = tempnam("/tmp", "newprofile");
+if (! $xmlname) {
+    TBERROR("Could not create temporary filename", 0);
+    $errors["error"] = "Internal error; Could not create temp file";
+}
+elseif (! ($fp = fopen($xmlname, "w"))) {
+    TBERROR("Could not open temp file $xmlname", 0);
+    $errors["error"] = "Internal error; Could not open temp file";
+}
+else {
+    fwrite($fp, "<profile>\n");
+    fwrite($fp, "<attribute name='profile_pid'>");
+    fwrite($fp, "  <value>" . $formfields["profile_pid"] . "</value>");
+    fwrite($fp, "</attribute>\n");
+    fwrite($fp, "<attribute name='profile_name'>");
+    fwrite($fp, "  <value>" .
+	   htmlspecialchars($formfields["profile_name"]) . "</value>");
+    fwrite($fp, "</attribute>\n");
+    fwrite($fp, "<attribute name='profile_description'>");
+    fwrite($fp, "  <value>" .
+	   htmlspecialchars($formfields["profile_description"]) . "</value>");
+    fwrite($fp, "</attribute>\n");
+    fwrite($fp, "<attribute name='rspec'>");
+    fwrite($fp, "  <value>" . htmlspecialchars($rspec) . "</value>");
+    fwrite($fp, "</attribute>\n");
+    if (isset($formfields["profile_public"]) &&
+	$formfields["profile_public"] == "checked") {
+	fwrite($fp, "<attribute name='profile_public'>");
+	fwrite($fp, "  <value>1</value>");
+	fwrite($fp, "</attribute>\n");
+    }
+    fwrite($fp, "</profile>\n");
+    fclose($fp);
+    chmod($xmlname, 0666);
+}
+if (count($errors)) {
+    unlink($xmlname);
+    SPITFORM($formfields, $errors);
+    return;
+}
+
+#
+# Call out to the backend.
+#
+$retval = SUEXEC($this_user->uid(), $project->unix_gid(),
+		 "webmanage_profile $xmlname",
+		 SUEXEC_ACTION_IGNORE);
+if ($retval) {
+    if ($retval < 0) {
+	$errors["error"] = "Internal Error; please try again later.";
+	SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+    }
+    else {
+	#
+	# Decode simple XML that is returned. 
+	#
+	$parsed = simplexml_load_string($suexec_output);
+	if (!$parsed) {
+	    $errors["error"] = "Internal Error; please try again later.";
+	    TBERROR("Could not parse XML output:\n$suexec_output\n", 0);
+	}
+	else {
+	    foreach ($parsed->error as $error) {
+		$errors[(string)$error['name']] = $error;
+	    }
+	}
+    }
+}
+if (count($errors)) {
+    unlink($xmlname);
+    SPITFORM($formfields, $errors);
+    return;
+}
+
+SPITFORM($formfields, $errors);
+
 
 ?>
