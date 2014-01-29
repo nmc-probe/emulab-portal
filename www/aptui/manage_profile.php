@@ -382,8 +382,6 @@ if (count($errors)) {
     SPITFORM($formfields, $errors);
     return;
 }
-
-SPITFORM($formfields, $errors);
-
+header("Location: $APTBASE/quickvm.php");
 
 ?>

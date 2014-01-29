@@ -219,5 +219,18 @@ sub Create($$$$$)
     return Lookup($class, $pid, $argref->{'name'});
 }
 
+#
+# Stringify for output.
+#
+sub Stringify($)
+{
+    my ($self) = @_;
+    
+    my $pid       = $self->pid();
+    my $name      = $self->name();
+
+    return "[Profile: $pid,$name]";
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
