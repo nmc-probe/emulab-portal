@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -59,6 +59,7 @@ my $SLEEP_INTERVAL= 300;
 
 # Lets not warn more then once a day.
 my %warned    = ();
+my %noanswer  = ();
 my $lastmail  = time();
 
 # un-taint path
@@ -153,19 +154,27 @@ while (1) {
 
     while (my ($node_id) = $query_result->fetchrow_array()) {
 	print "Checking to see if $node_id is reactive ...\n";
-	my $status = SSHwithTimeout($node_id, "ls / > /dev/null", 45, $debug);
+	my $status = SSHwithTimeout($node_id, "ls / > /dev/null", 60, $debug);
 	if ($status) {
-	    print "--> $node_id is down for the count!\n";
-	    if (!exists($warned{$node_id})) {
-		SENDMAIL($TBOPS,
-			 "Shared node $node_id is unresponsive",
-			 "Shared node $node_id is unresponsive",
-			 $TBOPS);
-		$warned{$node_id} = time();
+	    if (!exists($noanswer{$node_id})) {
+		print "--> $node_id is not answering!\n";
+		$noanswer{$node_id} = time();
+	    }
+	    else {
+		print "--> $node_id is down for the count!\n";
+		if (!exists($warned{$node_id})) {
+		    SENDMAIL($TBOPS,
+			     "Shared node $node_id is unresponsive",
+			     "Shared node $node_id is unresponsive",
+			     $TBOPS);
+		    $warned{$node_id} = time();
+		}
 	    }
 	}
 	else {
 	    print "--> $node_id appears to be alive and kicking!\n";
+	    delete($noanswer{$node_id})
+		if (exists($noanswer{$node_id}));
 	    delete($warned{$node_id})
 		if (exists($warned{$node_id}));
 	}
