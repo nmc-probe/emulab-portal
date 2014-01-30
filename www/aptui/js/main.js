@@ -144,7 +144,7 @@ function ($, sup)
 	    event.preventDefault();
 	    sup.LoginByModal();
 	});
-	$('#logout_button').click(function (event) {
+	$('#logoutbutton').click(function (event) {
 	    event.preventDefault();
 	    sup.Logout();
 	});
