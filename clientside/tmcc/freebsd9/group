@@ -1,22 +1,22 @@
-# $FreeBSD: src/etc/group,v 1.36.2.1 2011/09/23 00:51:37 kensmith Exp $
+# $FreeBSD: releng/9.2/etc/group 218046 2011-01-28 22:28:12Z pjd $
 #
 wheel:*:0:root,toor
 daemon:*:1:
-kmem:*:2:root,toor
-sys:*:3:root,toor
-tty:*:4:root,toor
-operator:*:5:root,toor
+kmem:*:2:root
+sys:*:3:root
+tty:*:4:root
+operator:*:5:root
 mail:*:6:
 bin:*:7:
 news:*:8:
 man:*:9:
 games:*:13:
 ftp:*:14:
-staff:*:20:root,toor
+staff:*:20:root
 sshd:*:22:
 smmsp:*:25:
 mailnull:*:26:
-guest:*:31:root,toor
+guest:*:31:
 bind:*:53:
 proxy:*:62:
 authpf:*:63:
