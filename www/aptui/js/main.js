@@ -68,7 +68,7 @@ function ($, sup)
 	    }
 	}
 	else if (pageType == 'manage_profile') {
-	    if (0) {
+	    if (1) {
 		try {
 		    $('#rspecfile').change(function() {
 			var reader = new FileReader();
@@ -94,8 +94,6 @@ function ($, sup)
         $('#quickvm_topomodal').on('hidden.bs.modal', function() {
             sup.ShowProfileList($('.current'))
         });
-	sup.InitProfileSelector();
-
 
 	initIndexButtons();
     }

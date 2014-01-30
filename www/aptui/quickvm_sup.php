@@ -341,4 +341,15 @@ function RedirectSecure()
     }
 }
 
+#
+# Redirect to the login page()
+#
+function RedirectLoginPage()
+{
+    # HTTP_REFERER will not work reliably when redirecting so
+    # pass in the URI for this page as an argument
+    header("Location: login.php?referrer=".
+	   urlencode($_SERVER['REQUEST_URI']));
+}
+
 ?>

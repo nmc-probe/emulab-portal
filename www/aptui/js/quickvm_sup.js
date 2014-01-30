@@ -237,21 +237,6 @@ function ShowProfile(direction)
     $xmlthing.done(callback);
 }
 
-function InitProfileSelector()
-{
-    $('#scrollleft').click(function () {
-	ShowProfile(-1);
-    });
-    $('#scrollright').click(function () {
-	ShowProfile(1);
-    });
-    $('#showtopo_select').click(function () {
-	HideModal("#quickvm_topomodal");
-	profile = $("#profile_name :nth("+ ShowProfile.index + ")").val();	
-	$('#profile_name').val(profile);
-    });
-}
-
 function Setsshurl(uuid)
 {
     var callback = function(json) {
@@ -989,7 +974,6 @@ function Logout()
 // Exports from this module for use elsewhere
 return {
     Extend: Extend,
-    InitProfileSelector: InitProfileSelector,
     InitQuickVM: InitQuickVM,
     RegisterAccount: RegisterAccount,
     RequestExtension: RequestExtension,
