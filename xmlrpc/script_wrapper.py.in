@@ -2748,6 +2748,11 @@ class createdataset:
             self.usage();
             return -1;
 
+        # Warn about filesystem creation
+        if params.has_key("fstype"):
+            print "WARNING: FS creation can take 5 minutes or longer, be patient!";
+            pass
+
         # Send the rest of the args along as a list.
         params["dataset"] = req_args[0];
 

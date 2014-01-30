@@ -503,8 +503,8 @@ sub UsingResources($) {
 # Note that this could take a long time. It is up to the caller to lock
 # the lease if atomicity is a concern.
 #
-sub AllocResources($;$) {
-    my ($self,$state) = @_;
+sub AllocResources($;$$) {
+    my ($self,$state,$interruptable) = @_;
 
     $state = "valid"
 	if (!defined($state));
@@ -552,12 +552,33 @@ sub AllocResources($;$) {
 	}
 
 	#
+	# XXX hack, hack
+	# XXX this doesn't belong here
+	#
+	if ($fstype) {
+	    print STDERR "NOTE: FS creation could take 5 minutes or longer, ";
+	    if ($interruptable) {
+		print STDERR "please be patient!\n";
+	    } else {
+		print STDERR "disabling SIGINT.\n";
+	    }
+	}
+
+	#
 	# Call the blockstore control program to handle all things
 	# blockstore related (e.g., the actual allocation of storage
 	# on the storage servers).
 	#
 	my $idx = $self->lease_idx();
-	if (system("$BSCONTROL -l $idx -s $size $fstype create lease-$idx")) {
+	my $cmd = "$BSCONTROL -l $idx -s $size $fstype create lease-$idx";
+	my $rv;
+	if (!$interruptable) {
+	    local $SIG{INT} = "IGNORE";
+	    $rv = system($cmd);
+	} else {
+	    $rv = system($cmd);
+	}
+	if ($rv) {
 	    print STDERR "$self: AllocResources: could not allocate storage.\n";
 	    $self->UpdateState("unapproved");
 	    return LEASE_ERROR_FAILED();
