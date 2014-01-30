@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -198,11 +198,27 @@ while (<NTP>) {
 	/^driftfile[\s]*(\/.*)$/ && do {
 	    $driftfile = $1;
 	};
-	/^restrict\s+default\s+noserve$/ && do {
+	# Make sure the default is to not allow queries to prevent
+	# "modlist" amplification attacks in older ntpds
+	/^restrict\s+default\s.*/ && do {
+	    if ($_ !~ /noquery/) {
+		print NEW "# XXX Emulab added 'noquery'\n";
+		print NEW "$_ noquery\n";
+	    } else {
+		print NEW "$_\n";
+	    }
 	    $needrestrict = 1;
+	    last SWITCH1;
 	};
-	/^restrict\s+-4\s+default\s.*nomodify/ && do {
+	/^restrict\s+-[46]\s+default\s.*/ && do {
+	    if ($_ !~ /noquery/) {
+		print NEW "# XXX Emulab added 'noquery'\n";
+		print NEW "$_ noquery\n";
+	    } else {
+		print NEW "$_\n";
+	    }
 	    $needrestrict = 1;
+	    last SWITCH1;
 	};
 	# Make a note if there were restrict lines
 	/^restrict\s+(\S+)$/ && do {
