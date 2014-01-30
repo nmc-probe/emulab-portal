@@ -68,6 +68,9 @@ my $GVINUM	= "/sbin/gvinum";
 my $ZPOOL	= "/sbin/zpool";
 my $ZFS		= "/sbin/zfs";
 
+my $TUNEFS	= "/sbin/tunefs";
+my $EXT_TUNEFS	= "/usr/local/sbin/tune2fs";
+
 #
 # We orient the FS blocksize toward larger files.
 # (64K/8K is the largest that UFS supports).
@@ -618,6 +621,97 @@ sub get_diskinfo($)
 }
 
 #
+# See if this is a filesystem type we can deal with.
+# If so, return the type suitable for use by fsck and mount.
+#
+sub get_fstype($$;$)
+{
+    my ($href,$dev,$rwref) = @_;
+    my $type = "";
+
+    #
+    # If there is an explicit type set, believe it.
+    #
+    if (exists($href->{'FSTYPE'})) {
+	$type = $href->{'FSTYPE'};
+    }
+
+    #
+    # No explicit type set, see if we can intuit what the FS is.
+    #
+    else {
+	# UFS
+	if (mysystem("$TUNEFS -p $dev >/dev/null 2>&1") == 0) {
+	    $type = "ufs";
+	}
+
+	# EXTFS
+	elsif (-x "$EXT_TUNEFS") {
+	    #
+	    # XXX attempt to determine whether it is ext[234]:
+	    # ext2 features:
+	    #   ext_attr resize_inode dir_index filetype sparse_super large_file
+	    # ext3 features:
+	    #   ext2 + has_journal
+	    # ext4 features:
+	    #   ext3 + extent flex_bg huge_file uninit_bg dir_nlink extra_isize
+	    #
+	    my $feat = `$EXT_TUNEFS -l $dev | grep 'Filesystem features:'`;
+	    if ($? == 0) {
+		$type = "ext2";
+		if ($feat =~ /has_journal/) {
+		    $type = "ext3";
+		    if ($feat =~ /flex_bg/) {
+			$type = "ext4";
+		    }
+		}
+	    }
+	}
+	if ($type && !exists($href->{'FSTYPE'})) {
+	    $href->{'FSTYPE'} = $type;
+	}
+    }
+
+    # Get the FreeBSD version for version specific checks
+    my $FBSD_VERSION = `uname -r`;
+    if ($FBSD_VERSION =~ /^([0-9]+).*/) {
+	$FBSD_VERSION = $1;
+    }
+
+    # UFS is okay
+    if ($type eq "ufs") {
+	if ($rwref) {
+	    $$rwref = 1;
+	}
+	return "ufs";
+    }
+
+    # ext2/3 are okay
+    if ($type eq "ext2" || $type eq "ext3") {
+	if ($rwref) {
+	    $$rwref = 1;
+	}
+	return "ext2fs";
+    }
+
+    # Only FreeBSD 10+ can handle ext4 and then only RO
+    if ($type eq "ext4") {
+	if ($rwref) {
+	    $$rwref = 0;
+	}
+	if ($FBSD_VERSION < 10) {
+	    return undef;
+	}
+	return "ext2fs";
+    }
+
+    if ($rwref) {
+	$$rwref = 0;
+    }
+    return undef;
+}
+
+#
 # Handle one-time operations.
 # Return a cookie (object) with current state of storage subsystem.
 #
@@ -915,10 +1009,30 @@ sub os_check_storage_element($$)
 		my $mopt = "";
 		my $fopt = "-p";
 
+		# determine the filesystem type
+		my $rw = 0;
+		my $fstype = get_fstype($href, "/dev/$dev", \$rw);
+		if (!$fstype) {
+		    if (exists($href->{'FSTYPE'})) {
+			warn("*** $bsid: unsupported FS (".
+			     $href->{'FSTYPE'}.
+			     ") on /dev/$dev\n");
+		    } else {
+			warn("*** $bsid: unknown FS on /dev/$dev\n");
+		    }
+		    return -1;
+		}
+
 		# check for RO export and adjust options accordingly
-		if (exists($href->{'PERMS'}) && $href->{'PERMS'} eq "RO") {
+		if ($href->{'PERMS'} eq "RO") {
 		    $mopt = "-o ro";
 		    $fopt = "-n";
+		}
+		# OS only supports RO mounting, right now we just fail
+		elsif ($rw == 0) {
+		    warn("*** $bsid: OS only supports RO mounting of ".
+			 $href->{'FSTYPE'}. " FSes\n");
+		    return -1;
 		}
 
 		# the mountpoint should exist
@@ -926,12 +1040,13 @@ sub os_check_storage_element($$)
 		    warn("*** $bsid: no mount point $mpoint\n");
 		    return -1;
 		}
+
 		# fsck it in case of an abrupt shutdown
-		if (mysystem("$FSCK $fopt -t ufs /dev/$dev $redir")) {
+		if (mysystem("$FSCK $fopt -t $fstype /dev/$dev $redir")) {
 		    warn("*** $bsid: fsck of /dev/$dev failed\n");
 		    return -1;
 		}
-		if (mysystem("$MOUNT $mopt -t ufs /dev/$dev $mpoint $redir")) {
+		if (mysystem("$MOUNT $mopt -t $fstype /dev/$dev $mpoint $redir")) {
 		    warn("*** $bsid: could not mount /dev/$dev on $mpoint\n");
 		    return -1;
 		}
@@ -1108,6 +1223,7 @@ sub os_create_storage($$)
 
     my $mopt = "";
     my $fopt = "-p";
+    my $fstype = "ufs";
 
     if (exists($href->{'MOUNTPOINT'}) && !exists($href->{'MOUNTED'})) {
 	my $lv = $href->{'VOLNAME'};
@@ -1128,12 +1244,33 @@ sub os_create_storage($$)
 	#
 	if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI" &&
 	    $href->{'PERSIST'} != 0) {
+	    # determine the filesystem type
+	    my $rw = 0;
+	    $fstype = get_fstype($href, $mdev, \$rw);
+	    if (!$fstype) {
+		if (exists($href->{'FSTYPE'})) {
+		    warn("*** $lv: unsupported FS (".
+			 $href->{'FSTYPE'}.
+			 ") on $mdev\n");
+		} else {
+		    warn("*** $lv: unknown FS on $mdev\n");
+		}
+		return 0;
+	    }
+
 	    # check for RO export and adjust options accordingly
-	    if (exists($href->{'PERMS'}) && $href->{'PERMS'} eq "RO") {
+	    if ($href->{'PERMS'} eq "RO") {
 		$mopt = "-o ro";
 		$fopt = "-n";
 	    }
-	    if (mysystem("$FSCK $fopt -t ufs $mdev $redir")) {
+	    # OS only supports RO mounting, right now we just fail
+	    elsif ($rw == 0) {
+		warn("*** $lv: OS only supports RO mounting of ".
+		     $href->{'FSTYPE'}. " FSes\n");
+		return 0;
+	    }
+
+	    if (mysystem("$FSCK $fopt -t $fstype $mdev $redir")) {
 		warn("*** $lv: fsck of persistent store $mdev failed\n");
 		return 0;
 	    }
@@ -1167,14 +1304,14 @@ sub os_create_storage($$)
 		return 0;
 	    }
 	    print FD "# $mdev added by $BINDIR/rc/rc.storage\n";
-	    print FD "$mdev\t$mpoint\tufs\trw\t2\t2\n";
+	    print FD "$mdev\t$mpoint\t$fstype\trw\t2\t2\n";
 	    close(FD);
 	    if (mysystem("$MOUNT $mpoint $redir")) {
 		warn("*** $lv: could not mount on $mpoint$logmsg\n");
 		return 0;
 	    }
 	} else {
-	    if (mysystem("$MOUNT $mopt -t ufs $mdev $mpoint $redir")) {
+	    if (mysystem("$MOUNT $mopt -t $fstype $mdev $mpoint $redir")) {
 		warn("*** $lv: could not mount $mdev on $mpoint$logmsg\n");
 		return 0;
 	    }

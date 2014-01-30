@@ -62,6 +62,7 @@ my $FSCK	= "/sbin/e2fsck";
 my $DOSTYPE	= "$BINDIR/dostype";
 my $ISCSI	= "/sbin/iscsiadm";
 my $SMARTCTL	= "/usr/sbin/smartctl";
+my $BLKID	= "/sbin/blkid";
 
 #
 #
@@ -397,6 +398,59 @@ sub get_diskinfo()
 }
 
 #
+# See if this is a filesystem type we can deal with.
+# If so, return the type suitable for use by fsck and mount.
+#
+sub get_fstype($$;$)
+{
+    my ($href,$dev,$rwref) = @_;
+    my $type = "";
+
+    #
+    # If there is an explicit type set, believe it.
+    #
+    if (exists($href->{'FSTYPE'})) {
+	$type = $href->{'FSTYPE'};
+    }
+
+    #
+    # No explicit type set, see if we can intuit what the FS is.
+    #
+    else {
+	my $blkid = `$BLKID -s TYPE -o value $dev`;
+	if ($? == 0) {
+	    chomp($blkid);
+	    $type = $blkid;
+	}
+
+	if ($type && !exists($href->{'FSTYPE'})) {
+	    $href->{'FSTYPE'} = $type;
+	}
+    }
+
+    # ext? is okay
+    if ($type =~ /^ext[234]$/) {
+	if ($rwref) {
+	    $$rwref = 1;
+	}
+	return $type;
+    }
+
+    # UFS can be mounted RO
+    if ($type eq "ufs") {
+	if ($rwref) {
+	    $$rwref = 0;
+	}
+	return "ufs";
+    }
+
+    if ($rwref) {
+	$$rwref = 0;
+    }
+    return undef;
+}
+
+#
 # Handle one-time operations.
 # Return a cookie (object) with current state of storage subsystem.
 #
@@ -613,10 +667,34 @@ sub os_check_storage_element($$)
 		my $mopt = "";
 		my $fopt = "-p";
 
+		# determine the filesystem type
+		my $rw = 0;
+		my $fstype = get_fstype($href, "/dev/$dev", \$rw);
+		if (!$fstype) {
+		    if (exists($href->{'FSTYPE'})) {
+			warn("*** $bsid: unsupported FS (".
+			     $href->{'FSTYPE'}.
+			     ") on /dev/$dev\n");
+		    } else {
+			warn("*** $bsid: unknown FS on /dev/$dev\n");
+		    }
+		    return -1;
+		}
+
 		# check for RO export and adjust options accordingly
-		if (exists($href->{'PERMS'}) && $href->{'PERMS'} eq "RO") {
+		if ($href->{'PERMS'} eq "RO") {
 		    $mopt = "-o ro";
+		    # XXX for ufs
+		    if ($fstype eq "ufs") {
+			$mopt .= ",ufstype=ufs2";
+		    }
 		    $fopt = "-n";
+		}
+		# OS only supports RO mounting, right now we just fail
+		elsif ($rw == 0) {
+		    warn("*** $bsid: OS only supports RO mounting of ".
+			 $href->{'FSTYPE'}. " FSes\n");
+		    return -1;
 		}
 
 		# the mountpoint should exist
@@ -624,8 +702,11 @@ sub os_check_storage_element($$)
 		    warn("*** $bsid: no mount point $mpoint\n");
 		    return -1;
 		}
+
 		# fsck it in case of an abrupt shutdown
-		if (mysystem("$FSCK $fopt /dev/$dev $redir")) {
+		# XXX cannot fsck ufs
+		if ($fstype ne "ufs" &&
+		    mysystem("$FSCK $fopt /dev/$dev $redir")) {
 		    warn("*** $bsid: fsck of /dev/$dev failed\n");
 		    return -1;
 		}
@@ -820,22 +901,39 @@ sub os_create_storage($$)
 	#
 	if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI" &&
 	    $href->{'PERSIST'} != 0) {
-	    # check for RO export and adjust options accordingly
-	    if (exists($href->{'PERMS'}) && $href->{'PERMS'} eq "RO") {
-		$mopt = "-o ro";
-		$fopt = "-n";
-	    }
-	    # figure out what the fstype is
-	    $fstype = `blkid -s TYPE -o value $mdev`;
-	    chomp($fstype);
-	    if ($fstype =~ /^(ext\d)$/) {
-		$fstype = $1;
-	    } else {
-		warn("*** $lv: could not determine FS type for persistent store on $mdev, assuming ext4\n");
-		$fstype = "ext4";
+	    # determine the filesystem type
+	    my $rw = 0;
+	    $fstype = get_fstype($href, $mdev, \$rw);
+	    if (!$fstype) {
+		if (exists($href->{'FSTYPE'})) {
+		    warn("*** $lv: unsupported FS (".
+			 $href->{'FSTYPE'}.
+			 ") on $mdev\n");
+		} else {
+		    warn("*** $lv: unknown FS on $mdev\n");
+		}
+		return 0;
 	    }
 
-	    if (mysystem("$FSCK $fopt $mdev $redir")) {
+	    # check for RO export and adjust options accordingly
+	    if ($href->{'PERMS'} eq "RO") {
+		$mopt = "-o ro";
+		# XXX for ufs
+		if ($fstype eq "ufs") {
+		    $mopt .= ",ufstype=ufs2";
+		}
+		$fopt = "-n";
+	    }
+	    # OS only supports RO mounting, right now we just fail
+	    elsif ($rw == 0) {
+		warn("*** $lv: OS only supports RO mounting of ".
+		     $href->{'FSTYPE'}. " FSes\n");
+		return 0;
+	    }
+
+	    # XXX cannot fsck ufs
+	    if ($fstype ne "ufs" &&
+		mysystem("$FSCK $fopt $mdev $redir")) {
 		warn("*** $lv: fsck of persistent store $mdev failed\n");
 		return 0;
 	    }

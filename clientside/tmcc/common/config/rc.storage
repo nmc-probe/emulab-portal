@@ -376,6 +376,17 @@ sub process($$$$)
 	$href->{'MOUNTPOINT'} =~ s#/+$##;
     }
 
+    #
+    # Make sure a couple of newer options exist so we don't have
+    # to check it on every use.
+    #
+    if (!exists($href->{'PERSIST'})) {
+	$href->{'PERSIST'} = 0;
+    }
+    if (!exists($href->{'PERMS'})) {
+	$href->{'PERMS'} = "RW";
+    }
+
     if ($href->{'CMD'} eq "ELEMENT") {
 	# look up the host name and convert to IP
 	if (exists($href->{'HOSTID'})) {
@@ -401,12 +412,6 @@ sub process($$$$)
 		$href->{'UUID'} !~ /^$IQN_PREFIX/) {
 		warn("*** Invalid iSCSI target name '".$href->{'UUID'}."'\n");
 		return 0;
-	    }
-	    if (!exists($href->{'PERSIST'})) {
-		$href->{'PERSIST'} = 0;
-	    }
-	    if (!exists($href->{'PERMS'})) {
-		$href->{'PERMS'} = "RW";
 	    }
 	}
 	elsif ($class eq "local") {
@@ -479,9 +484,13 @@ sub process($$$$)
 		}
 	    }
 	    if ($href->{'MOUNTPOINT'}) {
+		print ", ";
+		if ($href->{'FSTYPE'}) {
+		    print $href->{'FSTYPE'} . " FS";
+		}
 		print " mounted on " . $href->{'MOUNTPOINT'};
 	    } else {
-		print " exists";
+		print ", exists";
 	    }
 	    print "\n";
 	} else {
@@ -543,11 +552,15 @@ sub process($$$$)
 	    }
 	}
 	if ($href->{'MOUNTPOINT'}) {
+	    my $fs = "FS";
+	    if ($href->{'FSTYPE'}) {
+		$fs = $href->{'FSTYPE'} . " FS";
+	    }
 	    my $w = "RW";
 	    if ($href->{'PERMS'} eq "RO") {
 		$w = "RO";
 	    }
-	    print " mounted $w on " . $href->{'MOUNTPOINT'};
+	    print ", $fs mounted $w on " . $href->{'MOUNTPOINT'};
 	}
 	print "\n";
     } else {
