@@ -126,9 +126,12 @@ if (defined($options{t})) {
 }
 if (defined($options{f})) {
     $fstype = $options{f};
-    if ($fstype !~ /^(ext2|ext3|ext4|ufs)$/) {
-	fatal("FS type must be one of ext2, ext3, ext4, or ufs");
+    if ($fstype !~ /^(ext2|ext3|ext4|ufs|ufs2)$/) {
+	fatal("FS type must be one of ext2, ext3, ext4, ufs, or ufs2");
     }
+    # XXX ufs means ufs2, but we use ufs as the canonical token
+    $fstype = "ufs"
+	if ($fstype eq "ufs2");
 }
 if (defined($options{e})) {
     if ($options{e} eq "never") {
