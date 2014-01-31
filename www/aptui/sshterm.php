@@ -52,11 +52,9 @@ echo "</div>\n";
 echo "</div>\n";
 
 echo "<script type='text/javascript'>\n";
-echo "window.APT_OPTIONS = {\n";
-echo "  pageType: 'sshterm',\n";
-echo "  authObject: '" . $auth_object . "'\n";
-echo "};\n";
+echo "window.APT_OPTIONS.authObject = '" . $auth_object . "';\n";
 echo "</script>\n";
+echo "<script src='js/lib/require.js' data-main='js/sshterm'></script>";
 
 SPITFOOTER();
 ?>

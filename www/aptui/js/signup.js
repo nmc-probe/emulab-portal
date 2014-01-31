@@ -10,6 +10,14 @@ function ($, sup)
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+ 	$('button#reset-form').click(function (event) {
+	    event.preventDefault();
+	    sup.resetForm($('#quickvm_signup_form'));
+	});
+	if (window.APT_OPTIONS.ShowVerifyModal)
+	{
+	    sup.ShowModal('#verify_modal');
+	}
     }
 
     $(document).ready(initialize);

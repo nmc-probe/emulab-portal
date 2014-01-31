@@ -65,7 +65,7 @@ function SPITHEADER($thinheader = 0)
         <title>AptLab</title>
         <link rel='stylesheet' href='bootstrap/css/bootstrap.css'>
         <link rel='stylesheet' href='quickvm.css'>
-	<script src='js/lib/require.js' data-main='js/main'></script>
+	<script src='js/common.js'></script>
         <script src='https://www.emulab.net/emulab_sup.js'></script>
       </head>
     <body style='display: none'>\n";

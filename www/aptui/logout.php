@@ -44,6 +44,7 @@ if ($this_user) {
 	else {
 	    SPITHEADER();
 	    echo "<center><font color=red>Logout failed!</font></failed>\n";
+            echo "<script src='js/lib/require.js' data-main='js/main'></script>";
 	    SPITFOOTER();
 	}
     }

@@ -200,12 +200,7 @@ function SPITFORM($formfields, $errors)
           </div>
           </div>\n";
     
-    echo "<script type='text/javascript'>\n";
-    echo "window.APT_OPTIONS = {\n";
-    echo "  pageType: 'manage_profile',\n";
-    echo "};\n";
-    echo "</script>\n";
-    
+    echo "<script src='js/lib/require.js' data-main='js/manage_profile'></script>"
     SPITFOOTER();
 }
 

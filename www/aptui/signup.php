@@ -274,13 +274,11 @@ function SPITFORM($formfields, $showverify, $errors)
        \n";
 
     echo "<script type='text/javascript'>\n";
-    echo "window.APT_OPTIONS = {\n";
-    echo "  pageType: 'signup',\n";
     if ($showverify) {
-        echo "  ShowVerifyModal: true\n";
+        echo "window.APT_OPTIONS.ShowVerifyModal = true;\n";
     }
-    echo "};\n";
     echo "</script>\n";
+    echo "<script src='js/lib/require.js' data-main='js/signup'></script>"
     SPITFOOTER();
 }
 #

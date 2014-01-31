@@ -10,6 +10,7 @@ function ($, sup)
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+	sup.StartSSH('sshpanel', window.APT_OPTIONS.authObject);
     }
 
     $(document).ready(initialize);

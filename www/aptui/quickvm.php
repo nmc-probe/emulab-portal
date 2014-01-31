@@ -284,16 +284,11 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
       else {
         echo "window.PROFILE = '$profile_default';\n";
       }
-      echo "</script>\n";
-      echo "<script type='text/javascript'>\n";
-
-      echo "window.APT_OPTIONS = {\n";
-      echo "  pageType: 'index',\n";
       if ($newuser) {
-          echo "  isNewUser: true\n";
+          echo "window.APT_OPTIONS.isNewUser = true;\n";
       }
-      echo "};\n";
       echo "</script>\n";
+      echo "<script src='js/lib/require.js' data-main='js/quickvm'></script>"
 }
 
 if (!isset($create)) {

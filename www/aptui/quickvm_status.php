@@ -280,14 +280,12 @@ echo "</div>\n"; # cols
 echo "</div>\n"; # row
 
 echo "<script type='text/javascript'>\n";
-echo "window.APT_OPTIONS = {\n";
-echo "  pageType: 'status',\n";
-echo "  uuid: '" . $uuid . "',\n";
-echo "  sliceExpires: '" . $slice_expires . "',\n";
-echo "  creatorUid: '" . $creator_uid . "',\n";
-echo "  creatorEmail: '" . $creator_email . "'\n";
-echo "};\n";
+echo "  window.APT_OPTIONS.uuid = '" . $uuid . "';\n";
+echo "  window.APT_OPTIONS.sliceExpires = '" . $slice_expires . "';\n";
+echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
+echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "</script>\n";
+echo "<script src='js/lib/require.js' data-main='js/quickvm_status'></script>";
 
 #
 # A modal to tell people how to register
