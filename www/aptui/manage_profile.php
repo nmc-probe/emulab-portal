@@ -200,7 +200,7 @@ function SPITFORM($formfields, $errors)
           </div>
           </div>\n";
     
-    echo "<script src='js/lib/require.js' data-main='js/manage_profile'></script>"
+    echo "<script src='js/lib/require.js' data-main='js/manage_profile'></script>";
     SPITFOOTER();
 }
 

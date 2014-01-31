@@ -278,7 +278,7 @@ function SPITFORM($formfields, $showverify, $errors)
         echo "window.APT_OPTIONS.ShowVerifyModal = true;\n";
     }
     echo "</script>\n";
-    echo "<script src='js/lib/require.js' data-main='js/signup'></script>"
+    echo "<script src='js/lib/require.js' data-main='js/signup'></script>";
     SPITFOOTER();
 }
 #

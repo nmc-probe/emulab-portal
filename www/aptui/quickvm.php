@@ -288,7 +288,7 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
           echo "window.APT_OPTIONS.isNewUser = true;\n";
       }
       echo "</script>\n";
-      echo "<script src='js/lib/require.js' data-main='js/quickvm'></script>"
+      echo "<script src='js/lib/require.js' data-main='js/quickvm'></script>";
 }
 
 if (!isset($create)) {
