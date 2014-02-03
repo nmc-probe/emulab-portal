@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -85,6 +85,7 @@ $| = 1;
 use lib "@prefix@/lib";
 use libtestbed;
 use libaudit;
+use APT_Profile;
 use User;
 use OSinfo;
 use emutil;
@@ -266,20 +267,15 @@ $user_email = $value;
 # Not many choices; see if it exists.
 #
 $value = $xmlparse->{'attribute'}->{"profile"}->{'value'};
-if (! TBcheck_dbslot($value, "os_info", "osname",
-		     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-    fatal("Illegal imageid: $profile");
+if ($value !~ /^\d*$/) {
+    fatal("Illegal imageid: $value");
 }
-my $safe_profile = DBQuoteSpecial($value);
-my $profile_result =
-    GeniDB::DBQueryWarn("select * from quickvm_rspecs ".
-			"where name=$safe_profile");
-if (!$profile_result || !$profile_result->numrows()) {
+my $profile_object = APT_Profile->Lookup($value);
+if (!defined($profile_object)) {
     fatal("No such profile: $value");
 }
-my $row = $profile_result->fetchrow_hashref();
-my $rspecstr = $row->{'rspec'};
-my $profile = $value;
+my $rspecstr = $profile_object->rspec();
+$profile = $value;
 
 #
 # This is so the php code can look it up in the DB. Silly.

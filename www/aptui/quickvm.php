@@ -313,9 +313,6 @@ if (!isset($profile) || $profile == "") {
 elseif (! array_key_exists($profile, $profile_array)) {
     $errors["profile"] = "Invalid Profile: $profile";
 }
-elseif (! in_array($profile, $profile_array)) {
-    $errors["profile"] = "Nonexistant Profile: $profile";
-}
 
 if (count($errors)) {
     SPITFORM($username, $email, $sshkey, $profile, false, $errors);
