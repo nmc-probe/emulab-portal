@@ -10,12 +10,14 @@ window.APT_OPTIONS.config = function ()
 	    'formhelpers': 'formhelpers/js/bootstrap-formhelpers',
 	    'dateformat': 'js/lib/date.format',
 	    'd3': 'js/lib/d3.v3',
+	    'filestyle': 'js/lib/filestyle',
 	},
 	shim: {
 	    'bootstrap': { deps: ['jquery'] },
 	    'formhelpers': { deps: ['bootstrap']},
 	    'dateformat': { exports: 'dateFormat' },
-	    'd3': { exports: 'd3' }
+	    'd3': { exports: 'd3' },
+	    'filestyle': { deps: ['bootstrap']},
 	},
     });
 }

@@ -25,6 +25,7 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+$page_title = "Manage Profile";
 
 #
 # Get current user.
@@ -35,6 +36,8 @@ $this_user = CheckLogin($check_status);
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
+				 "action",      PAGEARG_STRING,
+				 "idx",         PAGEARG_INTEGER,
 				 "formfields",  PAGEARG_ARRAY);
 
 #
@@ -42,8 +45,19 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 #
 function SPITFORM($formfields, $errors)
 {
-    global $this_user, $projlist;
+    global $this_user, $projlist, $action, $idx;
+    $editing = 0;
 
+    if ($action == "edit") {
+	$button_label = "Modify";
+	$title        = "Modify Profile";
+	$editing = 1;
+    }
+    else  {
+	$button_label = "Create";
+	$title        = "Create Profile";
+    }
+    
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
 	$formfields[$key] = CleanString($val);
@@ -64,7 +78,8 @@ function SPITFORM($formfields, $errors)
 	echo "  <label for='$field' ".
 	"         class='col-sm-3 control-label'>$label ";
 	if ($help) {
-	    echo "<a href='#' data-toggle='tooltip' title='$help'>".
+	    echo "<a href='#' class='btn btn-xs'
+                     data-toggle='popover' data-content='$help'>".
 		"<span class='glyphicon glyphicon-question-sign'></span></a>";
 	}
 	echo "  </label>\n";
@@ -87,9 +102,7 @@ function SPITFORM($formfields, $errors)
                        col-xs-12'>\n";
     echo "  <div class='panel panel-default'>
              <div class='panel-heading'>
-              <h3 class='panel-title'>
-                Create Profile
-              </h3>
+              <h3 class='panel-title'>$title</h3>
              </div>
              <div class='panel-body'>\n";
 
@@ -107,22 +120,43 @@ function SPITFORM($formfields, $errors)
     if ($errors && array_key_exists("error", $errors)) {
 	echo "<font color=red>" . $errors["error"] . "</font>";
     }
+    # Mark as editing mode on post.
+    if ($editing) {     
+	echo "<input type='hidden' name='action' value='edit'>\n";
+    }
 
-    $formatter("profile_name", "Profile Name",
-	       "<input name=\"formfields[profile_name]\"
+    # In editing mode, pass through static values.
+    if ($editing) {
+	$formatter("profile_name", "Profile Name",
+		   "<p class='form-control-static'>" .
+		       $formfields["profile_name"] . "</p>");
+		   
+	echo "<input type='hidden' name='formfields[profile_name]' ".
+		"value='" . $formfields["profile_name"] . "'>\n";
+    }
+    else {
+	$formatter("profile_name", "Profile Name",
+		   "<input name=\"formfields[profile_name]\"
 		       id='profile_name'
 		       value='" . $formfields["profile_name"] . "'
                        class='form-control'
                        placeholder='' type='text'>",
-	       "alphanumeric, dash, underscore, no whitespace");
+		   "alphanumeric, dash, underscore, no whitespace");
+    }
     #
     # If user is a member of only one project, then just pass it
     # through, no need for the user to see it. Otherwise we have
     # to let the user choose.
     #
-    if (count($projlist) == 1) {
+    if (count($projlist) == 1 || $editing) {
+	$pid = ($editing ? $formfields["profile_pid"] : $projlist[0]);
+	
+	if ($editing) {
+	    $formatter("profile_pid", "Project",
+		       "<p class='form-control-static'>$pid</p>");
+	}
 	echo "<input type='hidden' name='formfields[profile_pid]' ".
-	    "value='" . $projlist[0] . "'>\n";
+		"value='$pid'>\n";
     }
     else {
 	$pid_options = "";
@@ -148,9 +182,38 @@ function SPITFORM($formfields, $errors)
                           placeholder=''
                           type='textarea'>" .
 		    $formfields["profile_description"] . "</textarea>");
-    $formatter("rspecfile", "Your rspec",
-	       "<input name='rspecfile' id='rspecfile'
-                       type=file class='form-control'>");
+
+    #
+    # In edit mode, display current rspec in text area inside a modal.
+    # See below for the modal. So, we need buttons to display the source
+    # modal, the topo modal, in addition to a file chooser for a new rspec.
+    #
+    if ($editing) {
+	$rspec_html =
+	         "<div class='row'>
+                   <div class='col-xs-3'>
+                     <button class='btn btn-primary btn-xs'
+                         id='showtopo_modal_button'>
+                        Show Topology</button>
+                   </div>
+                   <div class='col-xs-3'>
+                     <button class='btn btn-primary btn-xs'
+                         data-toggle='modal' data-target='#rspec_modal'>
+                          Edit rspec</button>
+                   </div>
+                   <div class='col-xs-6'>
+                     <input name='rspecfile' id='rspecfile' type=file
+                         class='filestyle'
+			 data-classButton='btn btn-primary btn-xs'
+                         data-input='false' data-buttonText='Choose new file'>
+                   </div>
+                  </div>\n";
+    }
+    else {
+	$rspec_html = "<input name='rspecfile' id='rspecfile'
+                       type=file class='form-control'>";
+    }
+    $formatter("profile_rspec", "Your rspec", $rspec_html);
 
     $formatter("profile_public", "Public?",
 	       "<div class='checkbox'>
@@ -164,14 +227,51 @@ function SPITFORM($formfields, $errors)
 
     echo "<div class='form-group'>
             <div class='col-sm-offset-2 col-sm-10'>
-               <button class='btn btn-primary btm-sm pull-right'
+               <button class='btn btn-primary btm-xs pull-right'
                    id='profile_submit_button'
-                   type='submit' name='create'>Create</button>
-            </div>
-          </div>\n";
-
+                   type='submit' name='create'>$button_label</button>\n";
+    echo "     <a class='btn btn-primary btm-xs pull-right'
+                   style='margin-right: 10px;'
+                   href='quickvm.php?profile=$idx'
+                   type='submit' name='create'>Instantiate</a>\n";
+    if ($editing) {
+	echo " <a class='btn btn-danger btm-xs pull-left'
+                   style='margin-right: 10px;'
+                   href='manage_profile.php?action=delete&idx=$idx'
+                   type='button' name='delete'>Delete</a>\n";
+    }
+    echo "  </div>\n";
+    echo "</div>\n";
     echo "     </div>\n";
     echo "    </div>\n";
+
+    echo "<!-- This is the rspec text view modal -->
+          <div id='rspec_modal' class='modal fade'>
+          <div class='modal-dialog'>
+            <div class='modal-content'>
+               <div class='modal-header'>
+                <button type='button' class='close' data-dismiss='modal'
+                   aria-hidden='true'>
+                   &times;</button>
+                <h3>rspec XML</h3>
+               </div>
+               <div class='modal-body'>
+                 <div class='panel panel-default'>
+                    <div class='panel-body'>
+	              <textarea name=\"formfields[profile_rspec]\"
+		          id='profile_rspec'
+		          rows=20
+                          class='form-control'
+                          placeholder=''
+                          type='textarea'>" .
+	                $formfields["profile_rspec"] . "</textarea>
+                    </div>
+                 </div>
+               </div>
+            </div>
+          </div>
+          </div>\n";
+    
     echo "   </form></div>\n";
     echo "  </div>\n";
     echo " </div>\n";
@@ -200,7 +300,8 @@ function SPITFORM($formfields, $errors)
           </div>
           </div>\n";
     
-    echo "<script src='js/lib/require.js' data-main='js/manage_profile'></script>";
+    echo "<script src='js/lib/require.js' data-main='js/manage_profile'>
+          </script>";
     SPITFOOTER();
 }
 
@@ -214,6 +315,7 @@ if (!$this_user) {
     RedirectLoginPage();
     exit();
 }
+$this_idx = $this_user->uid_idx();
 
 #
 # See what projects the user can do this in.
@@ -221,18 +323,41 @@ if (!$this_user) {
 $projlist = $this_user->ProjectAccessList($TB_PROJECT_MAKEIMAGEID);
 
 if (! isset($create)) {
-    $errors = array();
+    $errors   = array();
+    $defaults = array();
     
-    if (isset($_SESSION["formfields"])) {
-	$defaults = $_SESSION["formfields"];
-    }
-    else {
-	$defaults = array();
-    }
     if (! (isset($projlist) && count($projlist))) {
 	$errors["error"] =
 	    "You do not appear to be a member of any projects in which ".
 	    "you have permission to create new profiles";
+    }
+    if ($action == "edit" || $action == "delete") {
+	if (!isset($idx)) {
+	    $errors["error"] = "No profile specified for edit/delete!";
+	}
+	else {
+	    $query_result =
+		DBQueryFatal("select * from apt_profiles ".
+			     "where idx='$idx' and creator_idx='$this_idx'");
+
+	    if (!$query_result || !mysql_num_rows($query_result)) {
+		$errors["error"] = "No such profile!";
+	    }
+	    else if ($action == "delete") {
+		DBQueryFatal("delete from apt_profiles where idx='$idx'");
+		header("Location: $APTBASE/myprofiles.php");
+		return;
+	    }
+	    else {
+		$row = mysql_fetch_array($query_result);
+		$defaults["profile_pid"]         = $row["pid"];
+		$defaults["profile_description"] = $row["description"];
+		$defaults["profile_name"]        = $row["name"];
+		$defaults["profile_rspec"]       = $row["rspec"];
+		$defaults["profile_public"]      =
+		    ($row["public"] ? "checked" : "");
+	    }
+	}
     }
     SPITFORM($defaults, $errors);
     return;
@@ -247,7 +372,7 @@ $errors = array();
 # Quick check for required fields.
 #
 $required = array("pid", "name", "description");
-		  
+
 foreach ($required as $key) {
     if (!isset($formfields["profile_${key}"]) ||
 	strcmp($formfields["profile_${key}"], "") == 0) {
@@ -260,7 +385,7 @@ foreach ($required as $key) {
 }
 
 #
-# The rspec has to be treated specially of course.
+# The rspec file has to be treated specially of course.
 #
 if (isset($_FILES['rspecfile']) &&
     $_FILES['rspecfile']['name'] != "" &&
@@ -268,14 +393,29 @@ if (isset($_FILES['rspecfile']) &&
 
     $rspec = file_get_contents($_FILES['rspecfile']['tmp_name']);
     if (!$rspec) {
-	$errors["rspecfile"] = "Could not process file";
+	$errors["profile_rspec"] = "Could not process file";
     }
     elseif (! TBvalid_html_fulltext($rspec)) {
-	$errors["rspecfile"] = TBFieldErrorString();	
+	$errors["profile_rspec"] = TBFieldErrorString();	
+    }
+}
+elseif (isset($formfields["profile_rspec"]) &&
+	$formfields["profile_rspec"] != "") {
+    if (! TBvalid_html_fulltext($formfields["profile_rspec"])) {
+	$errors["profile_rspec"] = TBFieldErrorString();	
+    }
+    else {
+	$rspec = $formfields["profile_rspec"];
     }
 }
 else {
     $errors["rspecfile"] = "Missing Field";
+}
+
+# Present these errors before we call out to do anything else.
+if (count($errors)) {
+    SPITFORM($formfields, $errors);
+    return;
 }
 
 #
@@ -285,6 +425,10 @@ else {
 $project = Project::LookupByPid($formfields["profile_pid"]);
 if (!$project) {
     $errors["profile_pid"] = "No such project";
+}
+# User better be a member.
+if (!$project->IsMember($this_user, $isapproved) || !$isapproved) {
+    $errors["profile_pid"] = "Illegal project";
 }
 
 # Present these errors before we call out to do anything else.
@@ -320,7 +464,8 @@ else {
     fwrite($fp, "</attribute>\n");
     fwrite($fp, "<attribute name='profile_description'>");
     fwrite($fp, "  <value>" .
-	   htmlspecialchars($formfields["profile_description"]) . "</value>");
+	   htmlspecialchars($formfields["profile_description"]) .
+	   "</value>");
     fwrite($fp, "</attribute>\n");
     fwrite($fp, "<attribute name='rspec'>");
     fwrite($fp, "  <value>" . htmlspecialchars($rspec) . "</value>");
@@ -344,8 +489,9 @@ if (count($errors)) {
 #
 # Call out to the backend.
 #
+$optarg = ($action == "edit" ? "-u" : "");
 $retval = SUEXEC($this_user->uid(), $project->unix_gid(),
-		 "webmanage_profile $xmlname",
+		 "webmanage_profile $optarg $xmlname",
 		 SUEXEC_ACTION_IGNORE);
 if ($retval) {
     if ($retval < 0) {
@@ -373,6 +519,21 @@ if (count($errors)) {
     SPITFORM($formfields, $errors);
     return;
 }
-header("Location: $APTBASE/quickvm.php");
+#
+# Need the index to pass back through.
+#
+$pid  = $formfields["profile_pid"];
+$name = $formfields["profile_name"];
+$query_result =
+    DBQueryFatal("select idx from apt_profiles ".
+		 "where pid='$pid' and name='$name'");
+if (!$query_result || !mysql_num_rows($query_result)) {
+    header("Location: $APTBASE/myprofiles.php");
+}
+else {
+    $row = mysql_fetch_array($query_result);
+    $idx = $row["idx"];
+    header("Location: $APTBASE/manage_profile.php?action=edit&idx=$idx");
+}
 
 ?>

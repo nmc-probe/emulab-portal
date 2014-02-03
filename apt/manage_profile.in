@@ -33,13 +33,15 @@ use CGI;
 #
 sub usage()
 {
-    print("Usage: manage_profile [-v] <xmlfile>\n");
+    print("Usage: manage_profile [-u] <xmlfile>\n");
     print("Usage: manage_profile -r profile\n");
     exit(-1);
 }
-my $optlist     = "dv";
+my $optlist     = "dur";
 my $debug       = 0;
 my $verify      = 0;	# Check data and return status only.
+my $update      = 0;
+my $delete      = 0;
 my $skipadmin   = 0;
 
 #
@@ -73,6 +75,7 @@ use APT_Profile;
 # Protos
 sub fatal($);
 sub UserError();
+sub DeleteProfile($);
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -88,6 +91,9 @@ if (defined($options{"d"})) {
 if (defined($options{"v"})) {
     $verify = 1;
 }
+if (defined($options{"u"})) {
+    $update = 1;
+}
 if (@ARGV != 1) {
     usage();
 }
@@ -102,7 +108,7 @@ if (! defined($this_user)) {
 
 # Remove profile.
 if (defined($options{"r"})) {
-    exit(DeleteProfile());
+    exit(DeleteProfile($ARGV[0]));
 }
 my $xmlfile  = shift(@ARGV);
 
@@ -112,6 +118,7 @@ my $xmlfile  = shift(@ARGV);
 my $SLOT_OPTIONAL	= 0x1;	# The field is not required.
 my $SLOT_REQUIRED	= 0x2;  # The field is required and must be non-null.
 my $SLOT_ADMINONLY	= 0x4;  # Only admins can set this field.
+my $SLOT_UPDATE 	= 0x8;  # Allowed to update.
 #
 # XXX We should encode all of this in the DB so that we can generate the
 # forms on the fly, as well as this checking code.
@@ -121,9 +128,9 @@ my %xmlfields =
     ("profile_name"	   => ["name",		$SLOT_REQUIRED],
      "profile_pid"	   => ["pid",		$SLOT_REQUIRED],
      "profile_creator"	   => ["creator",	$SLOT_OPTIONAL],
-     "profile_description" => ["description",	$SLOT_REQUIRED],
-     "profile_public"      => ["public",	$SLOT_OPTIONAL],
-     "rspec"		   => ["rspec",		$SLOT_REQUIRED],
+     "profile_description" => ["description",	$SLOT_REQUIRED|$SLOT_UPDATE],
+     "profile_public"      => ["public",	$SLOT_OPTIONAL|$SLOT_UPDATE],
+     "rspec"		   => ["rspec",		$SLOT_REQUIRED|$SLOT_UPDATE],
 );
 
 #
@@ -161,6 +168,7 @@ UserError()
 # We build up an array of arguments to create.
 #
 my %new_args = ();
+my %update_args = ();
 
 foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
     my $value = $xmlparse->{'attribute'}->{"$key"}->{'value'};
@@ -206,6 +214,8 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
 	next;
     }
     $new_args{$dbslot} = $value;
+    $update_args{$dbslot} = $value
+	if ($update && ($required & $SLOT_UPDATE));
 }
 UserError()
     if (keys(%errors));
@@ -222,14 +232,31 @@ elsif (!$project->AccessCheck($this_user, TB_PROJECT_MAKEIMAGEID())) {
     $errors{"profile_pid"} = "Not enough permission in this project";
 }
 
-my $usererror;
-my $profile = APT_Profile->Create($project, $this_user, \%new_args, \$usererror);
-if (!defined($profile)) {
-    if (defined($usererror)) {
-	$errors{"profile_name"} = $usererror;
+my $profile = APT_Profile->Lookup($new_args{"pid"}, $new_args{"name"});
+
+if ($update) {
+    if (!defined($profile)) {
+	$errors{"profile_name"} = "No such profile exists";
 	UserError();
     }
-    fatal("Could not create new profile");
+    $profile->Update(\%update_args) == 0 or
+	fatal("Could not update profile record");
+}
+else {
+    my $usererror;
+    if (defined($profile)) {
+	$errors{"profile_name"} = "Already in use";
+	UserError();
+    }
+    $profile =
+	APT_Profile->Create($project, $this_user, \%new_args, \$usererror);
+    if (!defined($profile)) {
+	if (defined($usererror)) {
+	    $errors{"profile_name"} = $usererror;
+	    UserError();
+	}
+	fatal("Could not create new profile");
+    }
 }
 exit(0);
 
@@ -268,4 +295,19 @@ sub escapeshellarg($)
 
     $str =~ s/[^[:alnum:]]/\\$&/g;
     return $str;
+}
+
+#
+# Delete a profile.
+#
+sub DeleteProfile($)
+{
+    my ($name)  = @_;
+    my $profile = APT_Profile->Lookup($name);
+    if (!defined($profile)) {
+	fatal("No such profile exists");
+    }
+    $profile->Delete() == 0 or
+	fatal("Could not delete profile");
+    return 0;
 }

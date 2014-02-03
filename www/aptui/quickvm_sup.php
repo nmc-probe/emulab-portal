@@ -48,7 +48,11 @@ function SPITHEADER($thinheader = 0)
 {
     global $TBMAINSITE;
     global $login_user, $login_status;
-    global $disable_accounts;
+    global $disable_accounts, $page_title;
+    $title = "AptLab";
+    if (isset($page_title)) {
+	$title .= " - $page_title";
+    }
     
     $height = ($thinheader ? 150 : 250);
 
@@ -62,7 +66,7 @@ function SPITHEADER($thinheader = 0)
 
     echo "<html>
       <head>
-        <title>AptLab</title>
+        <title>$title</title>
         <link rel='stylesheet' href='bootstrap/css/bootstrap.css'>
         <link rel='stylesheet' href='quickvm.css'>
 	<script src='js/common.js'></script>
@@ -101,7 +105,16 @@ function SPITHEADER($thinheader = 0)
              <ul class='nav navbar-nav navbar-left'>
                 <li><a href='quickvm.php'>Home</a></li>\n";
     if (!$disable_accounts && $login_user) {
-	echo "  <li><a href='#' id='logoutbutton'>Logout</a></li>\n";
+	echo "  <li class='dropdown'>
+                  <a href='#' class='dropdown-toggle' data-toggle='dropdown'>
+                    Actions <b class='caret'></b></a>
+                  <ul class='dropdown-menu'>
+                   <li><a href='myprofiles.php'>My Profiles</a></li>
+                   <li><a href='manage_profile.php'>Create Profile</a></li>
+                   <li class='divider'></li>
+	           <li><a href='#' id='logoutbutton'>Logout</a></li>
+                  </ul>
+                </li>\n";
     }
     echo "   </ul>
            </div>
@@ -255,6 +268,62 @@ function SpitLoginModal($id, $embedded = 0)
             </div>
             </div>
          </div>\n";
+}
+
+#
+# Topology view modal, shared across a few pages.
+#
+function SpitTopologyViewModal($modal_name, $profile_array)
+{
+    echo "<!-- This is the topology view modal -->
+          <div id='$modal_name' class='modal fade'>
+          <div class='modal-dialog'  id='showtopo_dialog'>
+            <div class='modal-content'>
+               <div class='modal-header'>
+                <button type='button' class='close' data-dismiss='modal'
+                   aria-hidden='true'>
+                   &times;</button>
+                <h3>Select a Profile</h3>
+               </div>
+               <div class='modal-body'>
+                 <!-- This topo diagram goes inside this div -->
+                 <div class='panel panel-default'
+                            id='showtopo_container'>
+                  <div class='form-group pull-left'>
+                    <ul class='list-group' id='profile_name'
+                            name='profile'
+                            >\n";
+    while (list ($id, $title) = each ($profile_array)) {
+	$selected = "";
+	if ($profile_value == $id)
+	    $selected = "selected";
+                      
+	echo "          <li class='list-group-item profile-item' $selected
+                            value='$id'>$title </li>\n";
+    }
+    echo "          </ul>
+                  </div> 
+                  <div class='pull-right'>
+                    <span id='showtopo_title'></span>
+                    <div class='panel-body'>
+                     <div id='showtopo_div'></div>
+                     <span class='pull-left' id='showtopo_description'></span>
+                    </div>
+                   </div>
+                 </div>
+                 <div id='showtopo_buttons' class='pull-right'>
+                     <button id='showtopo_select'
+                           class='btn btn-primary btn-sm'
+                           type='submit' name='select'>
+                              Select Profile</button>
+                      <button type='button' class='btn btn-default btn-sm' 
+                      data-dismiss='modal' aria-hidden='true'>
+                     Cancel</button>
+                    </div>
+               </div>
+            </div>
+          </div>
+       </div>\n";
 }
 
 #

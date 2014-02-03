@@ -2,7 +2,7 @@ window.APT_OPTIONS.config();
 
 require(['jquery', 'js/quickvm_sup',
 	 // jQuery modules
-	 'bootstrap', 'formhelpers'],
+	 'bootstrap'],
 function ($, sup)
 {
     'use strict';
@@ -10,15 +10,13 @@ function ($, sup)
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
-        sup.UpdateProfileSelection($('#profile_name li[value = ' + window.PROFILE + ']'));
+
+        sup.UpdateProfileSelection($('#profile_name li[value = ' +
+				     window.PROFILE + ']'));
         $('#quickvm_topomodal').on('hidden.bs.modal', function() {
-            sup.ShowProfileList($('.current'))
+	    sup.ShowProfileList($('.current'))
         });
 
-	$('button#reset-form').click(function (event) {
-	    event.preventDefault();
-	    sup.resetForm($('#quickvm_form'));
-	});
 	$('button#profile').click(function (event) {
 	    event.preventDefault();
 	    sup.ShowModal('#quickvm_topomodal');

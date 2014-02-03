@@ -2,7 +2,7 @@ window.APT_OPTIONS.config();
 
 require(['jquery', 'js/quickvm_sup',
 	 // jQuery modules
-	 'bootstrap', 'formhelpers'],
+	 'bootstrap'],
 function ($, sup)
 {
     'use strict';

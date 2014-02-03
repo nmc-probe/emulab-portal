@@ -27,6 +27,7 @@ include_once("osinfo_defs.php");
 include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
+$page_title = "QuickVM Status";
 $ajax_request = 0;
 
 #

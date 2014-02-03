@@ -142,38 +142,39 @@ function ShowTopo(uuid)
 
 function UpdateProfileSelection(selectedElement)
 {
-    console.log(selectedElement);
-        var profile = $(selectedElement).text();
-	$('#selected_profile').attr('value', profile);
-	$('#selected_profile_text').html("" + profile);
+    var profile_name = $(selectedElement).text();
+    var profile_value = $(selectedElement).attr('value');
+    $('#selected_profile').attr('value', profile_value);
+    $('#selected_profile_text').html("" + profile_name);
 
-	if (!$(selectedElement).hasClass('current'))
-	{
-		$('#profile_name li').each(function() {
-			$(this).removeClass('current');
-		});
-
-		$(selectedElement).addClass('current');
-	}
-
-	ShowProfileList(selectedElement);
+    if (!$(selectedElement).hasClass('current')) {
+	$('#profile_name li').each(function() {
+	    $(this).removeClass('current');
+	});
+	$(selectedElement).addClass('current');
+    }
+    ShowProfileList(selectedElement);
 }
 
 function ShowProfileList(selectedElement)
 {
-	var profile = $(selectedElement).attr('value');
+    var profile = $(selectedElement).attr('value');
 
-	if (!$(selectedElement).hasClass('selected'))
-	{
-		$('#profile_name li').each(function() {
-			$(this).removeClass('selected');
-		});
+    if (!$(selectedElement).hasClass('selected')) {
+	$('#profile_name li').each(function() {
+	    $(this).removeClass('selected');
+	});
+	$(selectedElement).addClass('selected');
+    }
 
-		$(selectedElement).addClass('selected');
-	}
-
-	var callback = function(json) {
+    var callback = function(json) {
 	console.info(json.value);
+
+	if (json.code) {
+	    alert("Could not get profile: " + json.value);
+	    return;
+	}
+	
 	var xmlDoc = $.parseXML(json.value.rspec);
 	var xml    = $(xmlDoc);
 	var topo   = ConvertManifestToJSON(profile, xml);
@@ -185,9 +186,9 @@ function ShowProfileList(selectedElement)
 	maketopmap("#showtopo_div",
 		   ($("#showtopo_div").outerWidth()),
 		   300, topo);
-	}
-        var $xmlthing = CallMethod("getprofile", null, 0, profile);
-        $xmlthing.done(callback);
+    }
+    var $xmlthing = CallMethod("getprofile", null, 0, profile);
+    $xmlthing.done(callback);
 }
 
 function ShowProfile(direction)
@@ -979,12 +980,15 @@ return {
     RequestExtension: RequestExtension,
     resetForm: resetForm,
     ShowModal: ShowModal,
+    HideModal: HideModal,
     ShowProfileList: ShowProfileList,
     StartSSH: StartSSH,
     Terminate: Terminate,
     UpdateProfileSelection: UpdateProfileSelection,
     ShowUploadedRspec: ShowUploadedRspec,
     LoginByModal: LoginByModal,
-    Logout: Logout
+    Logout: Logout,
+    ConvertManifestToJSON: ConvertManifestToJSON,
+    maketopmap: maketopmap,
 };
 });

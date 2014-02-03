@@ -27,6 +27,7 @@ include_once("osinfo_defs.php");
 include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
+$page_title = "QuickVM Create";
 $dblink = GetDBLink("sa");
 
 #
@@ -45,6 +46,7 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "stuffing",    PAGEARG_STRING,
 				 "verify",      PAGEARG_STRING,
 				 "sshkey",	PAGEARG_STRING,
+				 "profile",     PAGEARG_INTEGER,
 				 "ajax_request",  PAGEARG_BOOLEAN,
 				 "ajax_method",   PAGEARG_STRING,
 				 "ajax_argument", PAGEARG_STRING);
@@ -81,12 +83,18 @@ $profile_default  = "ThreeVMs";
 $profile_array    = array();
 
 $query_result =
-    DBQueryFatal("select * from apt_profiles where public=1");
+    DBQueryFatal("select * from apt_profiles ".
+		 "where public=1 " .
+		 ($this_user ? "or creator_idx=" . $this_user->uid_idx() : ""));
 while ($row = mysql_fetch_array($query_result)) {
     $profile_array[$row["idx"]] = $row["name"];
     if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
 	$profile_default = $row["idx"];
     }
+}
+# URL specified profile to use.
+if (isset($profile) && array_key_exists($profile, $profile_array)) {
+    $profile_default = $profile;
 }
 
 function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
@@ -222,73 +230,20 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
     }
     echo "</form>\n";
 
-    echo "<!-- This is the topology view modal -->
-          <div id='quickvm_topomodal' class='modal fade'>
-          <div class='modal-dialog'  id='showtopo_dialog'>
+    SpitTopologyViewModal("quickvm_topomodal", $profile_array);
 
-            <div class='modal-content'>
-               <div class='modal-header'>
-                <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>
-                   &times;</button>
-                <h3>Select a Profile</h3>
-               </div>
-               <div class='modal-body'>
-                 <!-- This topo diagram goes inside this div -->
-                 <div class='panel panel-default'
-                            id='showtopo_container'>
-                  <div class='form-group pull-left'>
-                    <ul class='list-group' id='profile_name'
-                            name='profile'
-                            >\n";
-                      while (list ($id, $title) = each ($profile_array)) {
-                      $selected = "";
-                      
-                      if ($profile_value == $id)
-                          $selected = "selected";
-                      
-                      echo "<li class='list-group-item profile-item' $selected value='$id'>$title </li>\n";
-                        }
-
-                        echo "</ul>
-                          <label
-                         style='color: red'
-                         for='profile'>$profile_error</label>
-                  </div> 
-                  <div class='pull-right'>
-                    <span id='showtopo_title'></span>
-                    <div class='panel-body'>
-                     <div id='showtopo_div'></div>
-                     <span class='pull-left' id='showtopo_description'></span>
-                    </div>
-                   </div>
-                 </div>
-                 <div id='showtopo_buttons' class='pull-right'>
-                     <button id='showtopo_select'
-                           class='btn btn-primary btn-sm'
-                           type='submit' name='select'>
-                              Select Profile</button>
-                      <button type='button' class='btn btn-default btn-sm' 
-                      data-dismiss='modal' aria-hidden='true'>
-                     Cancel</button>
-                    </div>
-               </div>
-            </div>
-          </div>
-       </div>\n";
-
-      echo "<script type='text/javascript'>\n";
-      if (isset($profile) && $profile != "") {
+    echo "<script type='text/javascript'>\n";
+    if (isset($profile) && $profile != "") {
         echo "window.PROFILE = '$profile_value';\n";
-      }
-      else {
+    }
+    else {
         echo "window.PROFILE = '$profile_default';\n";
-      }
-      if ($newuser) {
-          echo "window.APT_OPTIONS.isNewUser = true;\n";
-      }
-      echo "</script>\n";
-      echo "<script src='js/lib/require.js' data-main='js/quickvm'></script>";
+    }
+    if ($newuser) {
+	echo "window.APT_OPTIONS.isNewUser = true;\n";
+    }
+    echo "</script>\n";
+    echo "<script src='js/lib/require.js' data-main='js/quickvm'></script>";
 }
 
 if (!isset($create)) {
