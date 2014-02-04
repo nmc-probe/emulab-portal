@@ -491,12 +491,8 @@ if (! $creator) {
 # set the cookie appropriately. 
 #
 if (!$this_user) {
-    if (stristr($_SERVER["SERVER_NAME"], $TBAUTHDOMAIN)) {
-	$cookiedomain = $TBAUTHDOMAIN;
-    }
-    else {
-	$cookiedomain = $_SERVER["SERVER_NAME"];
-    }
+    $cookiedomain = $TBAUTHDOMAIN;
+
     setcookie("quickvm_user",
 	      $creator->uuid(), time() + (24 * 3600 * 30),
 	      "/", $cookiedomain, 0);
