@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -3997,12 +3997,20 @@ sub RenewSliverAux($$$)
 	$message = "Slice has been shutdown";
 	goto bad;
     }
+    #
+    # We do not save renew logs, so add a metadata tag with the
+    # expiration so we can see what the user actually tried to do.
+    #
+    main::AddLogfileMetaData("renew_request", $expires);
+    
     my $response = SetSliceExpiration($slice,
 				      $expires, 0, $alap, @{ $credentials });
     if (GeniResponse::IsError($response)) {
 	$slice->UnLock();
 	return $response;
     }
+    main::AddLogfileMetaData("renew_granted", $slice->ExpirationGMT());
+    
     #
     # Need to delete any cached credentials.
     #
