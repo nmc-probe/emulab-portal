@@ -917,7 +917,10 @@ function LoginByModal()
 	    // Clear previous error.
 	    $("#quickvm_login_form_error").html("");
 	    HideModal("#quickvm_login_modal");
-	    $("#loginbutton").html(uid + " logged in");
+	    $("#loginstatus").html("<a>" + uid + " logged in</a>");
+	    $("#loginstatus").removeClass("hidden");
+	    $("#quickvm_actions_menu").removeClass("hidden");
+	    $("#loginbutton").addClass("hidden");
 	}
     }
     var xmlthing = $.ajax({
@@ -950,8 +953,9 @@ function Logout()
 	    alert("Logout failed!");
 	}
 	else {
-	    // Need to stick the button back in ...
-	    $("#loginbutton").html("");
+	    $("#loginstatus").addClass("hidden");
+	    $("#quickvm_actions_menu").addClass("hidden");
+	    $("#loginbutton").removeClass("hidden");
 	}
     }
     var xmlthing = $.ajax({

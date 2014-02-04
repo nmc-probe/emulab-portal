@@ -88,11 +88,13 @@ function SPITHEADER($thinheader = 0)
              </div>
              <ul class='nav navbar-nav navbar-right'>";
     if (!$disable_accounts) {
-	if ($login_user) {
-	    echo "<li><a id='loginbutton'>$login_uid logged in</a></li>\n";
-	}
-	elseif (!NOLOGINS()) {
-	    echo "<li><a class='btn btn-primary navbar-btn'
+	echo "<li id='loginstatus'>".
+	    ($login_user ? "<a>$login_uid logged in</a>" : "") . "</li>\n";
+	
+	if (!NOLOGINS()) {
+	    echo "<li id='loginbutton' " .
+		($login_user ? "class='hidden'" : "") . ">" .
+		"       <a class='btn btn-primary navbar-btn'
                            id='loginbutton'
 	                   data-toggle='modal'
                            href='#quickvm_login_modal'
@@ -104,9 +106,10 @@ function SPITHEADER($thinheader = 0)
     echo "   </ul>
              <ul class='nav navbar-nav navbar-left'>
                 <li><a href='quickvm.php'>Home</a></li>\n";
-    if (!$disable_accounts && $login_user) {
-	echo "  <li class='dropdown'>
-                  <a href='#' class='dropdown-toggle' data-toggle='dropdown'>
+    if (!$disable_accounts) {
+	echo "  <li id='quickvm_actions_menu' class='dropdown ".
+	    (!$login_user ? "hidden" : "") . "'>" .
+	         "<a href='#' class='dropdown-toggle' data-toggle='dropdown'>
                     Actions <b class='caret'></b></a>
                   <ul class='dropdown-menu'>
                    <li><a href='myprofiles.php'>My Profiles</a></li>
