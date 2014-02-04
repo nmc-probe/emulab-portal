@@ -41,12 +41,21 @@ body {
   width: 100%;
 }
 
-.navbar-nav > li > a {
+.navbar-nav > li > a,
+.navbar-nav > li > p {
+  color: #000000;
   margin-top: 20px;
 }
 
 .navbar-btn {
   margin-top: 20px;
+}
+
+.btn-quickvm-home, .btn-quickvm-home:hover {
+  color: #000000;
+  background-color: #D3D3D3;
+  border-color: #357ebd;
+  margin-right: 10px;
 }
 
 /* Set the fixed height of the footer here */

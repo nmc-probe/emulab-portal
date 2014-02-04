@@ -100,7 +100,7 @@ function SPITHEADER($thinheader = 0)
              <ul class='nav navbar-nav navbar-right'>";
     if (!$disable_accounts) {
 	echo "<li id='loginstatus'>".
-	    ($login_user ? "<a>$login_uid logged in</a>" : "") . "</li>\n";
+	    ($login_user ? "<p>$login_uid logged in</p>" : "") . "</li>\n";
 	
 	if (!NOLOGINS()) {
 	    echo "<li id='loginbutton' " .
@@ -116,7 +116,8 @@ function SPITHEADER($thinheader = 0)
     }
     echo "   </ul>
              <ul class='nav navbar-nav navbar-left'>
-                <li><a href='quickvm.php'>Home</a></li>\n";
+                <li><a class='btn btn-quickvm-home navbar-btn'
+                       href='quickvm.php'>Home</a></li>\n";
     if (!$disable_accounts) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown ".
 	    (!$login_user ? "hidden" : "") . "'>" .
