@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1331,7 +1331,10 @@ define("HTTP_400_BAD_REQUEST", 400);
 define("HTTP_403_FORBIDDEN", 403);
 define("HTTP_404_NOT_FOUND", 404);
 
-function PAGEERROR($msg, $status_code = 0) {
+#
+# Use a function pointer so we can redefine it in the APT module.
+#
+$PAGEERROR_HANDLER = function($msg, $status_code = 0) {
     global $drewheader, $noheaders;
 
     if (! $drewheader && $status_code != 0)
@@ -1346,6 +1349,13 @@ function PAGEERROR($msg, $status_code = 0) {
     if (! $noheaders) 
 	PAGEFOOTER();
     die("");
+
+};
+
+function PAGEERROR($msg, $status_code = 0) {
+    global $PAGEERROR_HANDLER;
+    
+    $PAGEERROR_HANDLER($msg, $status_code);
 }
 
 #

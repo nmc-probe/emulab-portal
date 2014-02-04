@@ -44,6 +44,17 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $APTBASE      = "https://www.aptlab.net";
 }
 
+#
+# Redefine this so APT errors are styled properly.
+#
+$PAGEERROR_HANDLER = function($msg, $status_code = 0) {
+    SPITHEADER();
+    echo $msg;
+    echo "<script src='js/lib/require.js' data-main='js/null.js'></script>\n";
+    SPITFOOTER();
+    die("");
+};
+
 function SPITHEADER($thinheader = 0)
 {
     global $TBMAINSITE;
