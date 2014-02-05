@@ -1014,12 +1014,12 @@ sub GetTicketAuxAux($$$$$$$$$$)
 			if (defined($osinfo)) {
 			    if (! $osinfo->IsSubOS()) {
 				$parent_osname = $osname;
-				$osname = "XEN-STD";
+				$osname = "UBUNTU12-64-STD";
 			    }
 			}
 			elsif (!defined($osname)) {
 			    # Allow for url above.
-			    $osname = "XEN-STD";
+			    $osname = "UBUNTU12-64-STD";
 			}
 			#
 			# Look for the knobs
