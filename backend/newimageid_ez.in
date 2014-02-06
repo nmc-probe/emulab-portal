@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -733,6 +733,18 @@ my $imageid = $new_image->imageid();
 #
 if (defined($parentos)) {
     $new_osinfo->SetRunsOnParent($parentos);
+    #
+    # Temp hack until we put all mappings into XML file.
+    #
+    if ($parentos->osname() =~ /^XEN4/) {
+	my $other = ($parentos->osname() =~ /^XEN41/ ?
+		     "XEN43-64-STD" : "XEN41-64-STD");
+
+	my $otheros = OSinfo->LookupByName($other);
+	if (defined($otheros)) {
+	    $new_osinfo->SetRunsOnParent($otheros);
+	}
+    }
 }
 
 # The web interface requires this line to be printed.
