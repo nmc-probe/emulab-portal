@@ -186,6 +186,7 @@ if ($lease->Extend($vars->{'extendperiod'})) {
 
 $lease->Unlock();
 
+print "$pid/$lname: has been extended til ", scalar(localtime($lease->lease_end())), "\n";
 exit(0);
 
 sub fatal($)
