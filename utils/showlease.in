@@ -411,22 +411,37 @@ sub showsitevars()
 		print " locked-down";
 	    }
 	    print " after expiration";
-	    if ($extend != 0) {
+	    if ($grace != 0) {
 		print " plus";
-		if ($maxext == 0) {
-		    print " an unlimited number of";
+		if ($grace < 1) {
+		    $v = sprintf("%.1f", $grace * 24);
+		    print " $v hours";
 		} else {
-		    print " up to $maxext";
+		    $v = sprintf("%.1f", $grace);
+		    print " $v days";
 		}
-		if ($extend < 1) {
-		    $v = sprintf("%.1f", $extend * 24);
-		    print " $v hour";
-		} else {
-		    $v = sprintf("%.1f", $extend);
-		    print " $v day";
-		}
-		print " extensions";
+		print " grace period";
 	    }
+	}
+	print ".\n";
+	print "  Extensions:";
+	if ($extend != 0) {
+	    print " allows";
+	    if ($maxext == 0) {
+		print " an unlimited number of";
+	    } else {
+		print " up to $maxext";
+	    }
+	    if ($extend < 1) {
+		$v = sprintf("%.1f", $extend * 24);
+		print " $v hour";
+	    } else {
+		$v = sprintf("%.1f", $extend);
+		print " $v day";
+	    }
+	    print " extensions during grace period";
+	} else {
+	    print " none";
 	}
 	print ".\n";
     }
