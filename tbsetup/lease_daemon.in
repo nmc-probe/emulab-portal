@@ -98,6 +98,7 @@ my  $optlist = "dnDI:1";
 #
 my $TB       = "@prefix@";
 my $TBOPS    = "@TBOPSEMAIL@";
+my $OPSNODE  = "@USERNODE@";
 
 # Set this to turn off tblog in libraries.
 $ENV{'TBLOG_OFF'} = "yep";
@@ -538,16 +539,16 @@ sub graceify($$)
 	my $name = $lease->pid() . "/" . $lease->lease_id();
 	my $msg =
 	    "Your '$ltype' lease $name has $reason.\n".
-	    "It has entered a $ghours hour grace period.\n";
-	if ($expired) {
-	    $msg .= "You need to request an extension for the dataset\n";
-	} else {
-	    $msg .= "You need to make use of the dataset\n";
-	}
+	    "It has entered a $ghours hour grace period.\n\n";
 	$msg .=
+	    "You need to extend the dataset lifetime\n".
 	    "or move your data out of Emulab within this time period.\n".
 	    "If you do not, the dataset will be destroyed and\n".
-	    "THE DATA WILL NOT BE RECOVERABLE.\n";
+	    "THE DATA WILL NOT BE RECOVERABLE.\n\n";
+	$msg .=
+	    "To extend the dataset, ssh into $OPSNODE and run:\n".
+	    "  $TB/bin/extenddataset $name\n".
+	    "If that fails, contact $TBOPS\n";
 	notifyuser($lease->owner(), $msg);
     }
 
