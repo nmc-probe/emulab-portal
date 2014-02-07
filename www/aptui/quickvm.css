@@ -119,13 +119,21 @@ body {
   padding: 5px;
 }
 
+#showtopo_nopicker {
+  border: 1px solid #000;
+}
+
 @media (min-width: 970px) {
   .modal-dialog {
   width: 950px;
 }
 
+#showtopo_description,
 #showtopo_div {
   width: 643px;
+}
+#showtopo_nopicker {
+  width: 850px;
 }
 }
 
@@ -136,38 +144,62 @@ body {
 }
 
 @media (min-width: 910px) and (max-width: 969px) {
+  #showtopo_description,
   #showtopo_div {
   width: 610px;
+}
+  #showtopo_nopicker {
+  width: 800px;
 }
 }
 
 @media (min-width: 850px) and (max-width: 909px) {
+  #showtopo_description,
   #showtopo_div {
   width: 560px;
+}
+  #showtopo_nopicker {
+  width: 750px;
 }
 }
 
 @media (min-width: 790px) and (max-width: 849px) {
+  #showtopo_description,
   #showtopo_div {
   width: 510px;
+}
+  #showtopo_nopicker {
+  width: 710px;
 }
 }
 
 @media (min-width: 768px) and (max-width: 789px) {
+  #showtopo_description,
   #showtopo_div {
   width: 500px;
+}
+  #showtopo_nopicker {
+  width: 700px;
 }
 }
 
 @media (min-width: 740px) and (max-width: 767px) {
+  #showtopo_description,
   #showtopo_div {
   width: 470px;
+}
+  #showtopo_nopicker {
+  width: 670px;
 }
 }
 
 @media (min-width: 690px) and (max-width: 739px) {
+  #showtopo_description,
   #showtopo_div {
   width: 430px;
+}
+  #showtopo_nopicker {
+  width: 630px;
 }
 }
 

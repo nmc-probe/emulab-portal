@@ -130,8 +130,9 @@ function ShowTopo(uuid)
 	console.info(topo);
 
 	$("#showtopo_container").removeClass("invisible");
+	// Subtract -2 cause of the border. 
 	maketopmap("#showtopo_container",
-		   $("#showtopo_div").width() - 30,
+		   $("#showtopo_statuspage").outerWidth() - 2,
 		   300, topo);
 
     }
@@ -568,6 +569,10 @@ function StartCountdownClock(when)
 	// Clock reset
 	if (StartCountdownClock.reset != when) {
 	    when = StartCountdownClock.reset;
+	    if (when === "n/a") {
+		StartCountdownClock.stop = 1;
+		return;
+	    }
 
 	    // Reformat in local time and show the user.
 	    var local_date = new Date(when);
@@ -818,10 +823,21 @@ function ConvertManifestToJSON(name, xml)
 	"nodes": [],
 	"links": [],
     };
+    var interfaces = new Array();
+    var count = 0;
 
     $(xml).find("node").each(function(){
 	var client_id = $(this).attr("client_id");
 	var jobj      = {"name" : client_id};
+	
+	$(this).find("interface").each(function() {
+	    var interface_id = $(this).attr("client_id");
+	    var interface    = new Object();
+	    interface.client_id  = interface_id;
+	    interface.node_id    = client_id;
+	    interface.node_index = count;
+	    interfaces.push(interface);
+	});
 	
 	var login  = $(this).find("login");
 	if (login) {
@@ -834,18 +850,22 @@ function ConvertManifestToJSON(name, xml)
 	    jobj.hostport  = host + ":" + port;
 	    jobj.sshurl    = sshurl;
 	}
-	json.nodes.push(jobj);
+	json.nodes[count] = jobj;
+	count++;
     });
 
     $(xml).find("link").each(function(){
 	var client_id = $(this).attr("client_id");
 	var link_type = $(this).find("link_type");
+	var ifacerefs = $(this).find("interface_ref");
 
-	if (link_type && $(link_type).attr("name") == "lan") {
-	    console.info("Oops, a lan");
+	if (ifacerefs.length < 2) {
+	    console.info("Oops, not enough interfaces in " + client_id);
+	}
+	else if (ifacerefs.length > 2) {
+	    console.info("Oops, too many interfaces in " + client_id);
 	}
 	else {
-	    var ifacerefs = $(this).find("interface_ref");
 	    var source    = ifacerefs[0];
 	    var target    = ifacerefs[1];
 
@@ -854,20 +874,26 @@ function ConvertManifestToJSON(name, xml)
 	    
 	    var source_ifname = source.attr("client_id");
 	    var target_ifname = target.attr("client_id");
-	    var source_ifpair = source_ifname.split(":");
-	    var target_ifpair = target_ifname.split(":");
-	    var source_name   = source_ifpair[0];
-	    var target_name   = target_ifpair[0];
+	    var source_name   = null;
+	    var target_name   = null;
 	    var source_index  = null;
 	    var target_index  = null;
-	
-	    // Javascript does not do dictionaries. Too bad.
-	    for (i = 0; i < json.nodes.length; i++) {
-		if (json.nodes[i].name == source_name) {
-		    source_index = i;
+
+	    /*
+	     * First we have map the client_ids to the node by
+	     * searching all of the interfaces we put into the
+	     * list above.
+	     *
+	     * Javascript does not do dictionaries. Too bad.
+	     */
+	    for (i = 0; i < interfaces.length; i++) {
+		if (interfaces[i].client_id == source_ifname) {
+		    source_name  = interfaces[i].node_id;
+		    source_index = interfaces[i].node_index;
 		}
-		if (json.nodes[i].name == target_name) {
-		    target_index = i;
+		if (interfaces[i].client_id == target_ifname) {
+		    target_name  = interfaces[i].node_id;
+		    target_index = interfaces[i].node_index;
 		}
 	    }
 	    json.links.push({"name"         : client_id,
@@ -916,11 +942,16 @@ function LoginByModal()
 	else {
 	    // Clear previous error.
 	    $("#quickvm_login_form_error").html("");
-	    HideModal("#quickvm_login_modal");
 	    $("#loginstatus").html("<a>" + uid + " logged in</a>");
 	    $("#loginstatus").removeClass("hidden");
 	    $("#quickvm_actions_menu").removeClass("hidden");
 	    $("#loginbutton").addClass("hidden");
+	    $("#quickvm_login_form_error").html(
+		"<center>" + "Login successful</center><br>");
+	    setTimeout(function() {
+		HideModal("#quickvm_login_modal");
+		$("#quickvm_login_form_error").html("");
+	    }, 2000);
 	}
     }
     var xmlthing = $.ajax({

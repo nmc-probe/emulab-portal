@@ -46,7 +46,6 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "stuffing",    PAGEARG_STRING,
 				 "verify",      PAGEARG_STRING,
 				 "sshkey",	PAGEARG_STRING,
-				 "profile",     PAGEARG_INTEGER,
 				 "ajax_request",  PAGEARG_BOOLEAN,
 				 "ajax_method",   PAGEARG_STRING,
 				 "ajax_argument", PAGEARG_STRING);
@@ -91,10 +90,6 @@ while ($row = mysql_fetch_array($query_result)) {
     if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
 	$profile_default = $row["idx"];
     }
-}
-# URL specified profile to use.
-if (isset($profile) && array_key_exists($profile, $profile_array)) {
-    $profile_default = $profile;
 }
 
 function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
@@ -275,7 +270,7 @@ if (!isset($create)) {
 	$username = $this_user->uid();
 	$email    = $this_user->email();
     }
-    SPITFORM($username, $email, $sshkey, null, false, null);
+    SPITFORM($username, $email, $sshkey, $profile, false, null);
     SPITFOOTER();
     return;
 }

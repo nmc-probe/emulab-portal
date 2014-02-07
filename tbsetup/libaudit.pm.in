@@ -30,7 +30,7 @@ use Exporter;
 @EXPORT =
     qw ( AuditStart AuditEnd AuditAbort AuditFork AuditSetARGV AuditGetARGV
 	 AddAuditInfo
-	 LogStart LogEnd LogAbort
+	 LogStart LogEnd LogAbort AuditDisconnect
 	 LIBAUDIT_NODAEMON LIBAUDIT_DAEMON LIBAUDIT_LOGONLY
 	 LIBAUDIT_NODELETE LIBAUDIT_FANCY LIBAUDIT_LOGTBOPS LIBAUDIT_LOGTBLOGS
        );
@@ -285,6 +285,20 @@ sub AuditGetARGV()
     return @SAVEARGV;
 }
 
+sub AuditDisconnect()
+{
+    if ($auditing) {
+	if (!$daemon && $PERL_VERSION >= 5.008 && $libaudit::SAVE_STDOUT) {
+	    close($libaudit::SAVE_STDOUT);
+	    close($libaudit::SAVE_STDERR);
+
+	    open(FOO, "> /dev/null");
+	    $libaudit::SAVE_STDOUT = *FOO;
+	    $libaudit::SAVE_STDERR = *FOO;
+	}
+    }
+}
+
 #
 # Abort an Audit. Dump the log file and do not send email.
 #
@@ -293,7 +307,7 @@ sub AuditAbort()
     if ($auditing) {
 	$auditing = 0;
 
-	if (!$daemon && $PERL_VERSION >= 5.008) {
+	if (!$daemon && $PERL_VERSION >= 5.008 && $libaudit::SAVE_STDOUT) {
 	    eval("open(STDOUT, \">&\", \$libaudit::SAVE_STDOUT); ".
 		 "open(STDERR, \">&\", \$libaudit::SAVE_STDERR);");
 	}

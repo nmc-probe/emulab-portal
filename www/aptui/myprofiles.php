@@ -99,6 +99,8 @@ $query_result =
 if (mysql_num_rows($query_result) == 0) {
     echo "<b>No profiles to show you. Maybe you want to ".
 	"<a href='manage_profile.php'>create one?</a></b>\n";
+    echo "<script src='js/lib/require.js' data-main='js/null'>
+          </script>\n";
     SPITFOOTER();
     exit();
 }
@@ -135,8 +137,12 @@ echo "    <div class='panel panel-default'>
                        type='button' name='profile_button'>
                   Select a Profile</button>\n";
 echo "        </div>
-              <button class='btn btn-primary btn-xs pull-right'
-                       type='submit' name='submit'>Go</button>
+              <button class='btn btn-primary btn-sm pull-right'
+                       type='submit' name='submit'>Modify</button>
+	      <a id='instantiate'
+                   class='btn btn-primary btn-sm pull-right'
+                   style='margin-right: 10px;'
+                   type='button'>Instantiate</a>
             </form>
            </div>
           </div>

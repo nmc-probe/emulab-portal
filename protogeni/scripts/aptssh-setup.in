@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -62,6 +62,7 @@ my $user;
 use lib "@prefix@/lib";
 use GeniDB;
 use GeniUser;
+use emutil;
 # Connect to the SA DB.
 GeniDB::DBConnect(GeniDB::GENISA_DBNAME());
 
@@ -136,18 +137,14 @@ system("$SSH -host $CONTROL '/usr/sbin/chown -R nobody:nobody $dir'")
     == 0 or fatal("Could not mkdir $dir: $!");
 system("$SSH -host $CONTROL '/bin/chmod -R 700 $dir'")
     == 0 or fatal("Could not mkdir $dir: $!");
-
-system("/usr/bin/fsync $udir");
-system("/usr/bin/fsync $udir/id_rsa.pub");
-sleep(5);
-$UID = $SAVEUID;
-
 # Grab a copy for the DB.
-my $pubkey = `cat $udir/id_rsa.pub`;
+my $pubkey =
+    emutil::ExecQuiet("$SSH -host $CONTROL '/bin/cat $dir/id_dsa.pub'");
 if ($?) {
     fatal("Could not read new key from file");
 }
 chomp($pubkey);
+$UID = $SAVEUID;
 
 # Only one.
 $geniuser->DeleteInternalKeys();

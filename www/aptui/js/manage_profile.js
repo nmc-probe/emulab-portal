@@ -43,9 +43,10 @@ function ($, sup)
 	console.info(topo);
 
 	sup.ShowModal("#quickvm_topomodal");
-    
-	sup.maketopmap("#showtopo_div",
-		   ($("#showtopo_dialog").outerWidth()) - 90,
+
+	// Subtract -2 cause of the border. 
+	sup.maketopmap("#showtopo_nopicker",
+ 		   ($("#showtopo_nopicker").outerWidth() - 2),
 		   300, topo);
     }
 

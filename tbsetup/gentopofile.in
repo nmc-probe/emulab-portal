@@ -601,12 +601,16 @@ while (my ($sim) = $query_result->fetchrow_array) {
 # we need to convert port:ip above to lan:ip.
 # 
 $query_result =
-    DBQueryFatal("select v.vname,member,mask,cost,vlink from virt_lans as v ".
+    DBQueryFatal("select v.vname,member,mask,cost,vlink,s.capkey ".
+		 "  from virt_lans as v ".
+		 "left join virt_lan_settings as s on ".
+		 "     s.exptidx=v.exptidx and s.vname=v.vname and ".
+		 "     s.capkey='portvlan' ".
 		 "left join virt_bridges as b on b.vname=v.bridge_vname and ".
 		 "     b.pid=v.pid and b.eid=v.eid ".
 		 "where v.pid='$pid' and v.eid='$eid' ");
 
-while (my ($vname,$member,$mask,$cost,$bridgelink) =
+while (my ($vname,$member,$mask,$cost,$bridgelink,$lantype) =
        $query_result->fetchrow_array()) {
     my ($node,$port) = split(":", $member);
     
@@ -620,7 +624,12 @@ while (my ($vname,$member,$mask,$cost,$bridgelink) =
 	$lans{$vname} = {};
 	$lans{$vname}->{"mask"}    = $mask;
 	$lans{$vname}->{"cost"}    = $cost;
+	$lans{$vname}->{"noroute"} = 0;
 	$lans{$vname}->{"members"} = {};
+
+	if (defined($lantype)) {
+	    $lans{$vname}->{"noroute"} = 1;
+	}
     }
 
     # Store lan:ip into the portlist for the node.
@@ -664,8 +673,9 @@ if ($experiment->geniflags()) {
 		    last;
 		}
 		$lans{$vname} = {};
-		$lans{$vname}->{"mask"}  = $mask;
-		$lans{$vname}->{"cost"}  = 1;
+		$lans{$vname}->{"mask"}    = $mask;
+		$lans{$vname}->{"cost"}    = 1;
+		$lans{$vname}->{"noroute"} = 1;
 	    }
 	    if ($member->GetAttribute("tunnel_ip", \$ip)) {
 		print STDERR "Could not get ip for $member\n";
@@ -730,12 +740,14 @@ foreach my $node (sort keys(%nodes)) {
 #
 # Then spit out the lans. As above, ALWAYS print the header.
 #
-print $OUT "# lans: vname,mask,cost\n";
+print $OUT "# lans: vname,mask,cost,noroute\n";
 
 foreach my $lan (sort keys(%lans)) {
-    my $cost = $lans{$lan}->{"cost"};
-    my $mask = $lans{$lan}->{"mask"};
-    print $OUT "$lan,$mask,$cost\n";
+    my $cost    = $lans{$lan}->{"cost"};
+    my $mask    = $lans{$lan}->{"mask"};
+    my $noroute = $lans{$lan}->{"noroute"};
+    
+    print $OUT "$lan,$mask,$cost,$noroute\n";
 }
 
 #

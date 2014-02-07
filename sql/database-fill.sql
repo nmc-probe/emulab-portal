@@ -1273,6 +1273,8 @@ REPLACE INTO table_regex VALUES ('apt_profiles','pid','text','redirect','project
 REPLACE INTO table_regex VALUES ('apt_profiles','creator','text','redirect','users:uid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','name','text','redirect','images:imagename',0,64,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','public','int','redirect','default:boolean',0,0,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','listed','int','redirect','default:boolean',0,0,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','shared','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','description','text','redirect','default:html_fulltext',0,512,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','rspec','text','redirect','default:html_fulltext',0,8192,NULL);
 

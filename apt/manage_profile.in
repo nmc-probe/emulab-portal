@@ -129,6 +129,7 @@ my %xmlfields =
      "profile_pid"	   => ["pid",		$SLOT_REQUIRED],
      "profile_creator"	   => ["creator",	$SLOT_OPTIONAL],
      "profile_description" => ["description",	$SLOT_REQUIRED|$SLOT_UPDATE],
+     "profile_listed"      => ["listed",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "profile_public"      => ["public",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "rspec"		   => ["rspec",		$SLOT_REQUIRED|$SLOT_UPDATE],
 );
@@ -241,6 +242,8 @@ if ($update) {
     }
     $profile->Update(\%update_args) == 0 or
 	fatal("Could not update profile record");
+    # Bump the modtime.
+    $profile->MarkModified();
 }
 else {
     my $usererror;

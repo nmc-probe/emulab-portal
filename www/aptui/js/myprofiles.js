@@ -16,7 +16,6 @@ function ($, sup)
         $('#quickvm_topomodal').on('hidden.bs.modal', function() {
 	    sup.ShowProfileList($('.current'))
         });
-
 	$('button#profile').click(function (event) {
 	    event.preventDefault();
 	    sup.ShowModal('#quickvm_topomodal');
@@ -29,6 +28,12 @@ function ($, sup)
 	    event.preventDefault();
 	    sup.UpdateProfileSelection($('.selected'));
 	    sup.HideModal('#quickvm_topomodal');
+	});
+	// We have to get the selected profile from the hidden form variable.
+	$('a#instantiate').click(function (event) {
+	    event.preventDefault();
+	    var profile = $('#selected_profile').attr('value');	    
+	    window.location.replace("quickvm.php?profile=" + profile);
 	});
     }
 

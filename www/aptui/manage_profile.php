@@ -25,7 +25,9 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+include("profile_defs.php");
 $page_title = "Manage Profile";
+$notifyupdate = 0;
 
 #
 # Get current user.
@@ -38,6 +40,7 @@ $this_user = CheckLogin($check_status);
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "action",      PAGEARG_STRING,
 				 "idx",         PAGEARG_INTEGER,
+				 "finished",    PAGEARG_BOOLEAN,
 				 "formfields",  PAGEARG_ARRAY);
 
 #
@@ -45,7 +48,7 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 #
 function SPITFORM($formfields, $errors)
 {
-    global $this_user, $projlist, $action, $idx;
+    global $this_user, $projlist, $action, $idx, $notifyupdate;
     $editing = 0;
 
     if ($action == "edit") {
@@ -118,7 +121,11 @@ function SPITFORM($formfields, $errors)
     # Look for non-specific error.
     #
     if ($errors && array_key_exists("error", $errors)) {
-	echo "<font color=red>" . $errors["error"] . "</font>";
+	echo "<font color=red><center>" . $errors["error"] . "</center></font>";
+    }
+    # Did we just complete an update.
+    if ($notifyupdate) {
+	echo "<font color=green><center>Update Successful!</center></font>";
     }
     # Mark as editing mode on post.
     if ($editing) {     
@@ -215,11 +222,11 @@ function SPITFORM($formfields, $errors)
     }
     $formatter("profile_rspec", "Your rspec", $rspec_html);
 
-    $formatter("profile_public", "Public?",
+    $formatter("profile_listed", "Listed?",
 	       "<div class='checkbox'>
-                <label><input name=\"formfields[profile_public]\" ".
-	               $formfields["profile_public"] .
-	       "       id='profile_public' value=checked
+                <label><input name=\"formfields[profile_listed]\" ".
+	               $formfields["profile_listed"] .
+	       "       id='profile_listed' value=checked
                        type=checkbox> ".
 	       "List on the public page for anyone to use?</label></div>");
 
@@ -227,15 +234,15 @@ function SPITFORM($formfields, $errors)
 
     echo "<div class='form-group'>
             <div class='col-sm-offset-2 col-sm-10'>
-               <button class='btn btn-primary btm-xs pull-right'
+               <button class='btn btn-primary btn-sm pull-right'
                    id='profile_submit_button'
                    type='submit' name='create'>$button_label</button>\n";
-    echo "     <a class='btn btn-primary btm-xs pull-right'
+    if ($editing) {
+	echo " <a class='btn btn-primary btn-sm pull-right'
                    style='margin-right: 10px;'
                    href='quickvm.php?profile=$idx'
                    type='submit' name='create'>Instantiate</a>\n";
-    if ($editing) {
-	echo " <a class='btn btn-danger btm-xs pull-left'
+	echo " <a class='btn btn-danger btn-sm pull-left'
                    style='margin-right: 10px;'
                    href='manage_profile.php?action=delete&idx=$idx'
                    type='button' name='delete'>Delete</a>\n";
@@ -292,7 +299,7 @@ function SPITFORM($formfields, $errors)
                  <div class='panel panel-default'
                             id='showtopo_container'>
                     <div class='panel-body'>
-                     <div id='showtopo_div'></div>
+                     <div id='showtopo_nopicker'></div>
                     </div>
                  </div>
                </div>
@@ -336,11 +343,9 @@ if (! isset($create)) {
 	    $errors["error"] = "No profile specified for edit/delete!";
 	}
 	else {
-	    $query_result =
-		DBQueryFatal("select * from apt_profiles ".
-			     "where idx='$idx' and creator_idx='$this_idx'");
-
-	    if (!$query_result || !mysql_num_rows($query_result)) {
+	    $profile = Profile::Lookup($idx);
+	    
+	    if (!$profile || $this_idx != $profile->creator_idx()) {
 		$errors["error"] = "No such profile!";
 	    }
 	    else if ($action == "delete") {
@@ -349,13 +354,30 @@ if (! isset($create)) {
 		return;
 	    }
 	    else {
-		$row = mysql_fetch_array($query_result);
-		$defaults["profile_pid"]         = $row["pid"];
-		$defaults["profile_description"] = $row["description"];
-		$defaults["profile_name"]        = $row["name"];
-		$defaults["profile_rspec"]       = $row["rspec"];
-		$defaults["profile_public"]      =
-		    ($row["public"] ? "checked" : "");
+		$defaults["profile_pid"]         = $profile->pid();
+		$defaults["profile_description"] = $profile->description();
+		$defaults["profile_name"]        = $profile->name();
+		$defaults["profile_rspec"]       = $profile->rspec();
+		$defaults["profile_listed"]      =
+		    ($profile->listed() ? "checked" : "");
+
+		#
+		# If we are displaying after a successful edit, and it
+		# just happened (by looking at the modify time), show
+		# a message that the update was successful. This is pretty
+		# crappy, but I do not want to go for a fancy thing (popover)
+		# just yet, maybe later.
+		#
+		if (isset($finished) && $profile->modified()) {
+		    $mod = new DateTime($profile->modified());
+		    if ($mod) {
+			$now  = new DateTime("now");
+			$diff = $now->getTimestamp() - $mod->getTimestamp();
+			if ($diff < 2) {
+			    $notifyupdate = 1;
+			}
+		    }
+		}
 	    }
 	}
     }
@@ -470,12 +492,15 @@ else {
     fwrite($fp, "<attribute name='rspec'>");
     fwrite($fp, "  <value>" . htmlspecialchars($rspec) . "</value>");
     fwrite($fp, "</attribute>\n");
-    if (isset($formfields["profile_public"]) &&
-	$formfields["profile_public"] == "checked") {
-	fwrite($fp, "<attribute name='profile_public'>");
-	fwrite($fp, "  <value>1</value>");
-	fwrite($fp, "</attribute>\n");
+    fwrite($fp, "<attribute name='profile_listed'><value>");
+    if (isset($formfields["profile_listed"]) &&
+	$formfields["profile_listed"] == "checked") {
+	fwrite($fp, "1");
     }
+    else {
+	fwrite($fp, "0");
+    }
+    fwrite($fp, "</value></attribute>\n");
     fwrite($fp, "</profile>\n");
     fclose($fp);
     chmod($xmlname, 0666);
@@ -533,7 +558,8 @@ if (!$query_result || !mysql_num_rows($query_result)) {
 else {
     $row = mysql_fetch_array($query_result);
     $idx = $row["idx"];
-    header("Location: $APTBASE/manage_profile.php?action=edit&idx=$idx");
+    header("Location: $APTBASE/manage_profile.php?action=edit&idx=$idx".
+	   "&finished=1");
 }
 
 ?>

@@ -98,21 +98,6 @@ if (!$creator) {
     return;
 }
 $slice = GeniSlice::Lookup("sa", $quickvm->slice_uuid());
-if (!$slice) {
-    if ($ajax_request) {
-	SPITAJAX_ERROR(1, "no slice for quickvm ");
-	exit();
-    }
-    SPITHEADER(1);
-    echo "<div class='align-center'>
-            <p class='lead text-center'>
-               Hmm, there seems to be a problem.
-            </p>
-          </div>\n";
-    SPITFOOTER();
-    TBERROR("No slice for quickvm $uuid", 0);
-    return;
-}
 
 #
 # Deal with ajax requests.
@@ -133,6 +118,10 @@ if (isset($ajax_request)) {
 	SPITAJAX_RESPONSE(SSHAuthObject($creator->uid(), $ajax_argument));
     }
     elseif ($ajax_method == "request_extension") {
+	if (!isset($slice)) {
+	    SPITAJAX_ERROR(1, "Nothing to extend!");
+	    return;
+	}
         # Only extend for 24 hours. More later.
 	$expires_time = strtotime($slice->expires());
 	if ($expires_time > time() + (3600 * 36)) {
@@ -171,8 +160,12 @@ if (isset($ajax_request)) {
 SPITHEADER(1);
 
 $style = "style='border: none;'";
-$slice_urn       = $slice->urn();
-$slice_expires   = gmdate("Y-m-d H:i:s", strtotime($slice->expires()));
+$slice_urn       = "n/a";
+$slice_expires   = "n/a";
+if (isset($slice)) {
+    $slice_urn       = $slice->urn();
+    $slice_expires   = gmdate("Y-m-d H:i:s", strtotime($slice->expires()));
+}
 $quickvm_status  = $quickvm->status();
 $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
@@ -271,7 +264,7 @@ echo "<div class='row'>
 echo "<div class='panel panel-default invisible' id='showtopo_container'>\n";
 echo "<div class='panel-body'>\n";
 echo "<div id='quicktabs_div'>\n";
-echo "<div id='showtopo_div'></div>\n";
+echo "<div id='showtopo_statuspage'></div>\n";
 SpitToolTip("Click on a node to SSH to that node.\n".
 	    "Click and drag on a node to move things around.");
 echo "</div>\n"; # showtopo

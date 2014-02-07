@@ -53,5 +53,5 @@ if ($ajax_request) {
     SPITAJAX_RESPONSE("");
     exit();
 }
-header("Location: quickvm.php");
+header("Location: login.php");
 ?>

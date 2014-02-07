@@ -28,6 +28,11 @@ include("quickvm_sup.php");
 $page_title = "Login";
 
 #
+# Get current user in case we need an error message.
+#
+$this_user = CheckLogin($check_status);
+
+#
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("login",       PAGEARG_STRING,
@@ -71,6 +76,11 @@ function SPITFORM($uid, $referrer, $error)
 {
     global $TBDB_UIDLEN, $TBBASE, $refer;
     
+    header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+    header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
+    header("Cache-Control: no-cache, max-age=0, must-revalidate, no-store");
+    header("Pragma: no-cache");
+
     SPITHEADER();
  
     echo "<div class='row'>
@@ -97,6 +107,9 @@ function SPITFORM($uid, $referrer, $error)
             break;
         case "timedout":
 	    echo "Your login has timed out!";
+	    break;
+        case "alreadyloggedin":
+	    echo "You are already logged in. Logout first?";
 	    break;
 	default:
 	    echo "Unknown Error ($error)!";
@@ -140,7 +153,8 @@ function SPITFORM($uid, $referrer, $error)
 # If not clicked, then put up a form.
 #
 if (!$ajax_request && !isset($login)) {
-    SPITFORM(REMEMBERED_ID(), $referrer, null);
+    SPITFORM(REMEMBERED_ID(), $referrer,
+	     ($this_user ? "alreadyloggedin" : null));
     return;
 }
 
@@ -181,6 +195,11 @@ else {
 	$login_status = $STATUS_LOGINFAIL;
     }
 }
+
+header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
+header("Cache-Control: no-cache, max-age=0, must-revalidate, no-store");
+header("Pragma: no-cache");
 
 #
 # Failed, then try again with an error message.

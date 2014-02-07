@@ -503,6 +503,7 @@ my $response =
 
 if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
     $slice->Delete();
+    SetQuickVMStatus($quickvm_uuid, "failed");
     fatal("CreateSliver failed: ".
 	  (defined($response) ? $response->output() : "") . "\n");
 }
@@ -605,6 +606,7 @@ sub Terminate($)
 	fatal("No such quick VM: $uuid");
     }
     my $row = $query_result->fetchrow_hashref();
+    my $status = $row->{"status"};
 
     my $geniuser = GeniUser->Lookup($row->{'creator_uuid'}, 1);
     if (!defined($geniuser)) {
@@ -612,6 +614,9 @@ sub Terminate($)
     }
     my $slice = GeniSlice->Lookup($row->{'slice_uuid'});
     if (!defined($slice)) {
+	if ($status eq "failed") {
+	    goto done;
+	}
 	fatal("No slice for quick VM: $uuid");
     }
     # Create a slice credential
@@ -660,6 +665,7 @@ sub Terminate($)
 	      (defined($response) ? $response->output() : "") . "\n");
     }
     $slice->Delete();
+  done:
     DBQueryWarn("delete from quickvms where uuid=$safe_uuid");
     exit(0);
 }

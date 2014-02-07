@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2012, 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -35,16 +35,19 @@ use Getopt::Std;
 sub usage()
 {
     print STDERR "Usage: grantnodetype [-h] [-r] [-m] -p <pid> <type> [count]\n";
+    print STDERR "       grantnodetype [-h] -R <type>\n";
     print STDERR "	-h   This message\n";
     print STDERR "	-r   Revoke access instead of grant\n";
     print STDERR "	-m   Force insert of missing minus policy\n";
+    print STDERR "      -R   Remove all projects for type, and minus policy\n";
     print STDERR "   count   Overdide default count of 999999\n";
     exit(-1);
 }
-my $optlist  = "hp:dnrm";
+my $optlist  = "hp:dnrmR";
 my $impotent = 0;
 my $debug    = 0;
 my $revoke   = 0;
+my $revokeall= 0;
 my $addminus = 0;
 my %newtypes = ();
 my $pid;
@@ -106,13 +109,17 @@ if (defined($options{n})) {
 if (defined($options{r})) {
     $revoke = 1;
 }
+if (defined($options{R})) {
+    $revokeall = 1;
+}
 if (defined($options{d})) {
     $debug = 1;
 }
 if (defined($options{p})) {
     $pid = $options{p};
 }
-if (scalar(@ARGV) < 1 || scalar(@ARGV) > 2 || !defined($pid)) {
+if (!$revokeall &&
+    (scalar(@ARGV) < 1 || scalar(@ARGV) > 2 || !defined($pid))) {
     usage();
 }
 my $type = $ARGV[0];
@@ -126,6 +133,19 @@ if ($type =~ /^([-\w]+)$/) {
 }
 else {
     die("Tainted type name: $type");
+}
+
+#
+# Clear the type from the group_policies table, including the minus policy,
+# which allows the type to be used by everyone.
+#
+if ($revokeall) {
+    DBQueryFatal("delete from group_policies ".
+		 "where policy='type' and auxdata='$type'")
+	if (!$impotent);
+
+    system($update_perms);
+    exit($? >> 8);
 }
 
 if ($pid =~ /^([-\w]+)$/) {
