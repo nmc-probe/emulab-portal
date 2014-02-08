@@ -1199,6 +1199,9 @@ class IscsiTarget(CommandSet):
                                 'logical_blocksize' ],
                    'kwDefaults' : { 'flags' : 'rw', 'queue_depth' : 32,
                                     'logical_blocksize' : 512 },
+                   'argForeignKeyModel' : { 'initiatorgroup' : 'freenasUI.services.models.iSCSITargetAuthorizedInitiator' },
+
+                   'argForeignKeyName' : { 'initiatorgroup' : 'iscsi_target_initiator_tag' },
                    'instanceFilterArgs' : [ 'name' ],
                    'type' : 'add' })
         self.commands['edit'] = \
@@ -1208,6 +1211,9 @@ class IscsiTarget(CommandSet):
                    'kwArgs' : [ ],
                    'kwDefaults' : { 'flags' : 'rw', 'queue_depth' : 32,
                                     'logical_blocksize' : 512 },
+                   'argForeignKeyModel' : { 'initiatorgroup' : 'freenasUI.services.models.iSCSITargetAuthorizedInitiator' },
+
+                   'argForeignKeyName' : { 'initiatorgroup' : 'iscsi_target_initiator_tag' },
                    'instanceFilterArgs' : [ 'name' ],
                    'type' : 'edit' })
         self.commands['del'] = \
