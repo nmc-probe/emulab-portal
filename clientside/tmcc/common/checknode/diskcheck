@@ -286,7 +286,7 @@ if (( $check_flag )) ; then
 	 failed=" found $haveresult but tbdb says $tbresult "
      fi
 #-#     
-#-#     if [[ "$haveresult" || "$tbresult" ]] ; then
+#-#     if [[ "$haveresult" != "$tbresult" ]] ; then
 #-# 	if [[ $haveresult ]] ; then
 #-# 	    failed="${failed}: NotIn TB $haveresult"
 #-# 	fi
