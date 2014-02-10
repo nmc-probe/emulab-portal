@@ -806,10 +806,16 @@ sub os_check_storage_slice($$)
 	    warn("*** $lv: actual type ($atype) != expected type ($devtype)\n");
 	    return -1;
 	}
-	# ditto for size, unless this is the SYSVOL where we ignore user size
+	#
+	# Ditto for size, unless this is the SYSVOL where we ignore user size
 	# or if the size was not specified.
+	#
+	# XXX Note that the size of the volume may be rounded up from what we
+	# asked for, hopefully not more than 1 MiB!
+	#
 	my $asize = $ginfo->{$dev}->{'size'};
-	if ($bsid ne "SYSVOL" && $devsize && $asize != $devsize) {
+	if ($bsid ne "SYSVOL" && $devsize &&
+	    !($asize == $devsize || $asize == $devsize+1)) {
 	    warn("*** $lv: actual size ($asize) != expected size ($devsize)\n");
 	    return -1;
 	}
