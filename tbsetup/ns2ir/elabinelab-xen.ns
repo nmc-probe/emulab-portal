@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2004-2013 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -119,6 +119,9 @@ for {set i 1} {$i <= $maxpcs} {incr i} {
 	    }
 	}
 
+	#
+	# This does not work! I have no idea why, I hate TCL!
+	# 
 	if {[info exists ::TBCOMPAT::elabinelab_fixnodes($name)]} {
 	    namespace eval TBCOMPAT {
         	tb-fix-node [set $name] $elabinelab_fixnodes($name)
