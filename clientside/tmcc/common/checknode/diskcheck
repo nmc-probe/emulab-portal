@@ -45,6 +45,15 @@ main_diskcheck() {
     SMARTCTL=$(findSmartctl)
     drivenames=$(getdrivenames)
 
+    # run through the drivelist filtering out non-local drives or other devices 
+    for i in $drivenames ; do
+        model=$(getmodel $i)
+    	if [ "$model" == "iSCSIDisk" ] ; then
+	    echo "Filter out $i because $model"
+	    drivenames=${drivenames/${i}}
+	fi
+    done
+    
     if [ -z "$drivenames" ] ; then
 	echo "No drives found. exit"
 	(( $diskcheck_standalone )) && exit 1 || return 1
@@ -183,7 +192,7 @@ main_diskcheck() {
 	# update driveinv with modified data
 	driveinv[$idx]=${d[@]}
     done
-
+    
     if (( $collect_flag )) ; then
 	printf "%s%d\n"  "DISKINFO UNITS=" ${numberofdrives} >> ${logfile4tb}
 	for (( idx=0; idx<$numberofdrives; idx++)) ; do
@@ -445,6 +454,7 @@ gettemp() {
 }
 getmodel() { 
     smtcl=$(findSmartctl)
+
     if [ "${smtcl/smartctl}" == "$smtcl" ] ; then
 	#don't have smartctl, maybe we can use hdparm
 	hdp=$(which hdparm)
@@ -468,11 +478,13 @@ getmodel() {
 	    res=${res/Product: }
 	fi
         # remove leading spaces
-	res=${res##* }
+#	res=${res##* }
     fi
     # no internal spaces
     res=${res// /}
     res=${res// /-}
+
+
     [[ $res ]] && echo "$res" || echo "UNKNOWN"
     return 0
 }

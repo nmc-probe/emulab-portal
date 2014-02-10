@@ -106,7 +106,7 @@ if [ -f "/etc/emulab/ismfs" ] ; then
     fi
 
     os=`uname -s`
-    export PATH="/usr/local/bin:$mountpoint/nodecheck/`uname -s`/bin-`uname -m`:$PATH"
+    export PATH="/usr/local/sbin:/usr/local/bin:$mountpoint/nodecheck/`uname -s`/bin-`uname -m`:$PATH"
     
     echo 'Running Hardware Inventory Gather'
     bash $BINDIR/checknode $LOGDIR/nodecheck.log
@@ -123,7 +123,7 @@ echo "Running nodechecks"
 # set path if we have the extra static binaries
 os=`uname -s`
 if [ -d "$mountpoint"/nodecheck/`uname -s`/bin-`uname -m` ] ; then
-    export PATH="/usr/local/bin:$mountpoint/nodecheck/`uname -s`/bin-`uname -m`:$PATH"
+    export PATH="/usr/local/sbin:/usr/local/bin:$mountpoint/nodecheck/`uname -s`/bin-`uname -m`:$PATH"
 fi
 
 # if booting node then truncate local log file

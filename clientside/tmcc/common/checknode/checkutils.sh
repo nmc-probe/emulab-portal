@@ -479,18 +479,17 @@ compareunits() {
 		(( ! $offline )) && printf "ERROR %s%s OUT OF ORDER found %s from tbdb %s\n" "${unit_human_output}" "s:" "$localunits" "$tbdbunits" 
 		(( ! $offline )) && ( printf "ERROR %s OUT OF ORDER found %s from tbdb %s\n" "${unit_human_output}" "$localunits" "$tbdbunits" >> $fileout ) || ( printf "WARNING %s%s ORDER '%s' compared to '%s'\n" "${unit_human_output}" "s:" "$localunits" "$tbdbunits" >> $fileout )
 	    else
-
-	if [ -n "${localunits}" ]; then
-	    printf "%s%s %s\n" "${unit_human_output}" "s:" "$localunits"  >> $localonly
-	fi
-	if [ -n "${tbdbunits}" ]; then
-	    printf "%s%s %s\n" "${unit_human_output}" "s:" "$tbdbunits" >> $tbdbonly
-	fi
+		if [ -n "${localunits}" ]; then
+		    printf "%s%s %s\n" "${unit_human_output}" "s:" "$localunits"  >> $localonly
+		fi
+		if [ -n "${tbdbunits}" ]; then
+		    printf "%s%s %s\n" "${unit_human_output}" "s:" "$tbdbunits" >> $tbdbonly
+		fi
 		(( ! $offline )) && printf "ERROR %s MISSING found %s from tbdb %s\n" "${unit_human_output}" "s:" "$localunits" "$tbdbunits" 
 		(( ! $offline )) && ( printf "ERROR %s MISSING found %s from tbdb %s\n" "${unit_human_output}" "$localunits" "$tbdbunits" >> $fileout ) || ( printf "WARNING MISSING %s%s ORDER '%s' compared to '%s'\n" "${unit_human_output}" "s:" "$localunits" "$tbdbunits" >> $fileout )
+	    fi
 	fi
     fi
-
 
     return 0
 }
@@ -617,6 +616,7 @@ findSmartctl() {
 	    findit=$NOSM
 	fi
     fi
+
     echo $findit
     return 0
 }
@@ -759,7 +759,7 @@ getdrivenames() {
 	    exit
 	    ;;
     esac
-    
+
     echo $drivelist
     return 0
 }
