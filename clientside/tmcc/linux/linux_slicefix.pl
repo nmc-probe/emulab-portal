@@ -495,8 +495,10 @@ sub set_grub2_root_device
 	     die "Couldn't open GRUB config: $!\n";
 	my @buffer;
 	while (<FILE>) {
-		s/^(\s*set\s+root\s*=\s*["']?\(?)[^)]*(\)?["']?)/$1hd$grub_disk,$root_part$2/;
-		push @buffer, $_;
+		# XXX eat the newline so the RE does not!
+		chomp;
+		s/^(\s*set\s+root\s*=\s*["']?\(?)[^)'"]*(\)?["']?)/$1hd$grub_disk,$root_part$2/;
+		push @buffer, "$_\n";
 	}
 	seek FILE, 0, 0;
 	print FILE @buffer;
