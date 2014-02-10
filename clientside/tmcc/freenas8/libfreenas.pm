@@ -317,7 +317,7 @@ sub freenasRunCmd($$) {
     } elsif ($output =~ /"error": true/) {
 	$errstate = 1;
 	$output =~ /"message": "([^"]+)"/;
-	$message = $1;
+	$message = defined($1) ? $1 : "Unknown error";
     }
 
     if ($errstate) {
