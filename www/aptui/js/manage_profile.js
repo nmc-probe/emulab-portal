@@ -25,10 +25,43 @@ function ($, sup)
 	    alert(e);
 	}
 
+	$.fn.animateBackgroundHighlight = function(highlightColor, duration) {
+	    var highlightBg = highlightColor || "#FFFF9C";
+	    var animateMs = duration || 1500;
+	    var originalBg = this.css("backgroundColor");
+	    console.log(originalBg);
+	};
+
 	$('#showtopo_modal_button').click(function (event) {
 	    event.preventDefault();
 	    // The rspec is taken from the text area.
 	    ShowRspecContent($('#profile_rspec').val());
+	});
+	$('#expand_rspec_modal_button').click(function (event) {
+	    $('#modal_profile_rspec_textarea').val(
+		$('#profile_rspec_textarea').val());
+	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
+	    $('#rspec_modal').modal('show');
+	});
+	$('#collapse_rspec_modal_button').click(function (event) {
+	    $('#profile_rspec_textarea').val(
+		$('#modal_profile_rspec_textarea').val());
+	    $('#rspec_modal').modal('hide');
+	    $('#modal_profile_rspec_textarea').val("");	    
+	    $('#profile_rspec_textarea').css({"opacity":"0.2"});
+	    $('#profile_rspec_textarea').animate({"opacity":"1.0"}, 1500);
+	});
+	// Enable the Modify button if the form changes.
+        $('#quickvm_create_profile_form :input').each(function() {
+	    // Need to use keyup since an input does not "change"
+	    // until focus is lost.
+	    $(this).keyup(function() {
+		$('#profile_submit_button').prop('disabled', false);
+	    });
+	});
+	// This one for the checkboxes.
+        $('#quickvm_create_profile_form').change(function() {
+	    $('#profile_submit_button').prop('disabled', false);
 	});
     }
 

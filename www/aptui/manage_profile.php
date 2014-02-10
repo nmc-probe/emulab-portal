@@ -86,7 +86,7 @@ function SPITFORM($formfields, $errors)
 		"<span class='glyphicon glyphicon-question-sign'></span></a>";
 	}
 	echo "  </label>\n";
-	echo "  <div class='col-sm-7'>\n";
+	echo "  <div class='col-sm-9'>\n";
 	echo "     $html\n";
 	if ($errors && array_key_exists($field, $errors)) {
 	    echo "<label class='control-label' for='inputError'>" .
@@ -184,7 +184,7 @@ function SPITFORM($formfields, $errors)
     $formatter("profile_description", "Description",
 	       "<textarea name=\"formfields[profile_description]\"
 		          id='profile_description'
-		          rows=4
+		          rows=3
                           class='form-control'
                           placeholder=''
                           type='textarea'>" .
@@ -198,23 +198,43 @@ function SPITFORM($formfields, $errors)
     if ($editing) {
 	$rspec_html =
 	         "<div class='row'>
-                   <div class='col-xs-3'>
+                   <div class='col-xs-2'>
                      <button class='btn btn-primary btn-xs'
                          id='showtopo_modal_button'>
-                        Show Topology</button>
+                        Show</button>
                    </div>
-                   <div class='col-xs-3'>
-                     <button class='btn btn-primary btn-xs'
-                         data-toggle='modal' data-target='#rspec_modal'>
-                          Edit rspec</button>
+                   <div class='col-xs-2'>
+                     <button class='btn btn-primary btn-xs' type='button'
+                         data-toggle='collapse' data-target='#rspec_textarea'>
+                          Edit</button>
                    </div>
-                   <div class='col-xs-6'>
+                   <div class='col-xs-8'>
                      <input name='rspecfile' id='rspecfile' type=file
                          class='filestyle'
 			 data-classButton='btn btn-primary btn-xs'
                          data-input='false' data-buttonText='Choose new file'>
                    </div>
-                  </div>\n";
+                  </div>
+                  <div class='collapse' id='rspec_textarea'
+                       style='margin-top: 4px;'>
+                   <div class='row'>
+                    <div class='col-xs-12'>
+ 	             <textarea name=\"formfields[profile_rspec]\"
+		           id='profile_rspec_textarea'
+		           rows=5
+                           class='form-control'
+                           type='textarea'>" .
+		     $formfields["profile_rspec"] . "</textarea>
+                    </div>
+                   </div>
+                   <div class='row' style='margin-top: 4px;'>
+                    <div class='col-xs-12'>
+                     <button class='btn btn-primary btn-xs' type='button'
+                         id='expand_rspec_modal_button'>
+                          Expand</button>
+                    </div>
+                  </div>
+                </div>\n";
     }
     else {
 	$rspec_html = "<input name='rspecfile' id='rspecfile'
@@ -236,6 +256,8 @@ function SPITFORM($formfields, $errors)
             <div class='col-sm-offset-2 col-sm-10'>
                <button class='btn btn-primary btn-sm pull-right'
                    id='profile_submit_button'
+                   disabled='disabled'
+                   style='margin-right: 10px;'
                    type='submit' name='create'>$button_label</button>\n";
     if ($editing) {
 	echo " <a class='btn btn-primary btn-sm pull-right'
@@ -260,18 +282,20 @@ function SPITFORM($formfields, $errors)
                 <button type='button' class='close' data-dismiss='modal'
                    aria-hidden='true'>
                    &times;</button>
+                <button type='button' class='btn btn-primary btn-xs pull-right'
+                   style='margin-right: 10px;'
+                   id='collapse_rspec_modal_button'>
+                   Collapse</button>
                 <h3>rspec XML</h3>
                </div>
                <div class='modal-body'>
                  <div class='panel panel-default'>
                     <div class='panel-body'>
-	              <textarea name=\"formfields[profile_rspec]\"
-		          id='profile_rspec'
+	              <textarea name=\"formfields[profile_rspec_modal]\"
+		          id='modal_profile_rspec_textarea'
 		          rows=20
                           class='form-control'
-                          placeholder=''
-                          type='textarea'>" .
-	                $formfields["profile_rspec"] . "</textarea>
+                          type='textarea'></textarea>
                     </div>
                  </div>
                </div>
