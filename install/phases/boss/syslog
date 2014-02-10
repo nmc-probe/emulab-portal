@@ -182,6 +182,8 @@ sub Install($$$)
 		      "$LOGDIR/flowvisor.log          640  7    1000  *     Z",
 		      "$LOGDIR/poolmonitor.log        644  7    2000  *     Z ".
 			      "/var/run/poolmonitor.pid",
+		      "$LOGDIR/lease_daemon.log       644  14   1000  *     Z ".
+		      "/var/run/lease_daemon.pid",
 		);
 			      
 	};
