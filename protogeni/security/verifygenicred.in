@@ -235,11 +235,14 @@ while (defined($temp)) {
 # all privileges which are delegated.  We should also check that the
 # owner GID is correctly identified and authenticated by the included
 # X.509 certificate, but this is NOT yet implemented!
-
 foreach my $credential ( keys( %credentials ) ) {
     my $node = $credentials{$credential}->{"node"};
 
     my $expiry = lookup( $node, "expires" )->textContent;
+    if ($expiry =~ /^(\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?Z?$/)
+    {
+	$expiry = $1 . 'Z';
+    }
     my $dateregexp = '^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ?$';
 
     fatal( "invalid credential (malformed expiry)" )
