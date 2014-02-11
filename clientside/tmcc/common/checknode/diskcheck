@@ -177,7 +177,7 @@ main_diskcheck() {
 		    fi
 		    ;;
 		    $wspeed_val ) 
-# XXX teriable test to call getwcache a second time just before write-test - really for testing only
+# XXX test to call getwcache a second time just before write-test - really for testing only
 		    d[$wcache_val]=$(getwcache ${drive[$idx]})
 		    if [ ${d[$size_val]} -gt 8 ] ; then
 			d[$wspeed_val]=$(getwspeed ${drive[$idx]})
