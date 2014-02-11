@@ -361,6 +361,7 @@ sub Install($$$)
 			   " cat $OLDDEFSFILE - | sed ".
 			   "   -e 's/^ELABINELAB/#ELABINELAB/' ".
 			   "   -e 's/^WWWHOST=boss/WWWHOST=www/' ".
+			   "   -e 's/^EXTERNAL_NTPS/#EXTERNAL_NTPS/' ".
 			   "   > $NEWDEFSFILE");
 	};
 
@@ -390,6 +391,9 @@ sub Install($$$)
 	    };
 	    Phase "rc.testbed", "Installing testbed RC scripts", sub {
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d install");
+	    };
+	    Phase "ntpd", "Installing testbed ntp config", sub {
+		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/ntpd install");
 	    };
 	    CreateFile("$PREFIX/marker", "genirack install marker");
 	};
@@ -630,10 +634,6 @@ sub Install($$$)
 	Phase "reverse", "Creating $REVERSEFRAGMENT", sub {
 	    DoneIfExists($REVERSEFRAGMENT);
 	    CreateFileFatal($REVERSEFRAGMENT, @reverse_strings);
-	};
-
-	Phase "ntpconf", "Installing better /etc/ntp.conf", sub {
-	    ExecQuietFatal("/bin/cp -fp $RACKNTPCONF $ETCNTPCONF");
 	};
 
 	#
