@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -40,6 +40,7 @@ MFSPROJDIR=/proj/emulab-ops
 # XXX compat with other Emulab rc.* scripts
 # We only run on a "boot" invocation, not shutdown/reconfig/reset.
 # Note if invoked with no args then treat as "boot"
+#
 if [ $# -gt 0 -a "$1" != "boot" ]; then
     exit 0
 fi
@@ -70,7 +71,7 @@ else
 fi
 
 if [ "$check" = "0" -a "$collect" = "0" ] ; then
-    echo 'testbed says not run nodecheck, skipping'
+    echo 'testbed says not to run nodecheck, skipping'
     exit 0
 fi
 
@@ -92,7 +93,7 @@ isitmounted=$(mount | grep -c $mountpoint)
 if [ $isitmounted -eq 0 ] ; then
     mount -o soft,intr,bg fs:$mountpoint $mountpoint
     if [ $? -ne 0 ]; then
-	echo "*** Could not mount $mountpoint, nodecheck gather not done"
+	echo "*** Could not mount $mountpoint, nodecheck collect not done"
 	collect=0
     else
 	mounted=1
@@ -125,7 +126,18 @@ if [ -f "/etc/emulab/ismfs" ] ; then
     exit 0
 fi
 
-echo "Running nodechecks"
+action=""
+if [ "$check" = "1" -a "$collect" = "1" ] ; then
+    action="collect and check"
+else
+    if [ "$check" = "1" ] ; then
+	action="check"
+    else
+	action="collect"
+    fi
+fi
+
+echo "Starting nodecheck $action at `date`"
 
 # set path if we have the extra static binaries
 os=`uname -s`
@@ -148,5 +160,5 @@ if [ $mounted -ne 0 ]; then
     umount $mountpoint
 fi
 
-echo "Done with nodechecks"
+echo "Finishing nodecheck $action at `date`"
 exit 0
