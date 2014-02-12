@@ -1150,6 +1150,7 @@ sub vnodePreConfig($$$$$){
     my ($vnode_id, $vmid, $vnconfig, $private, $callback) = @_;
     my $vninfo = $private;
     my $retval = 0;
+    my $fixups = 0;
 
     #
     # XXX vnodeCreate is not called when a vnode was halted or is rebooting.
@@ -1172,9 +1173,23 @@ sub vnodePreConfig($$$$$){
 	}
 	$private->{'disks'} = $disks;
     }
-    return 0
-	if (!exists($vninfo->{'os'}));
-
+    if (!exists($vninfo->{'os'})) {
+	#
+	# Ick, we lost this info during reboot cause we start with a
+	# fresh private info. Need to ponder this. But anyway, this is
+	# a temp hack to get a new ntp.conf into all containers on next
+	# reboot. Will remove later. 
+	#
+	# No one uses FreeBSD, just mount as linux.
+	#
+	$fixups = 1;
+	$vninfo->{'os'} = "Linux";
+	my $devname = "$VGNAME/${vnode_id}p2";
+	$devname =~ s/\-/\-\-/g;
+	$devname =~ s/\//\-/g;
+	$private->{'rootpartition'} = "/dev/mapper/$devname";
+    }
+    
     #
     # XXX can only do the rest for nodes whose files systems we can mount.
     #
@@ -1204,6 +1219,14 @@ sub vnodePreConfig($$$$$){
     }
     else {
 	mysystem("mount $dev $vnoderoot");
+    }
+
+    #
+    # Deal with fixups and return
+    #
+    if ($fixups) {
+	mysystem2("/bin/cp -fp /etc/ntp.conf $vnoderoot/etc/ntp.conf");
+	goto done;
     }
 
     # XXX We need to get rid of this or get it from tmcd!
@@ -1267,9 +1290,12 @@ sub vnodePreConfig($$$$$){
 	if ($?);
     
     $retval = &$callback($vnoderoot);
-  bad:
+  done:
     mysystem("umount $dev");
     return $retval;
+  bad:
+    mysystem("umount $dev");
+    return 1;
 }
 
 #
