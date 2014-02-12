@@ -475,7 +475,7 @@ compareunits() {
 	    # and we care about order report it
 	    # NOTE: if !local or !tb then not out of order, just a missmatch
 	    [[ -z "${offline-}" ]] && declare -i offline=0 # if set from gen_sql
-	    if [ ${localunits} -a ${tbdbunits} ] ; then
+	    if [ "${localunits}" -a "${tbdbunits}" ] ; then
 		(( ! $offline )) && printf "ERROR %s%s OUT OF ORDER found %s from tbdb %s\n" "${unit_human_output}" "s:" "$localunits" "$tbdbunits" 
 		(( ! $offline )) && ( printf "ERROR %s OUT OF ORDER found %s from tbdb %s\n" "${unit_human_output}" "$localunits" "$tbdbunits" >> $fileout ) || ( printf "WARNING %s%s ORDER '%s' compared to '%s'\n" "${unit_human_output}" "s:" "$localunits" "$tbdbunits" >> $fileout )
 	    else
