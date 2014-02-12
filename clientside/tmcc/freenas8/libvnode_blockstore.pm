@@ -799,18 +799,20 @@ sub findAuthITag($) {
 sub getNextAuthITag() {
     my @authentries = freenasParseListing($FREENAS_CLI_VERB_IST_AUTHI);
 
-    my $maxtag = 1;
+    my $freetag = 1;
 
-    return $maxtag
+    return $freetag
 	if !@authentries;
 
-    foreach my $authent (@authentries) {
-	my $curtag = $authent->{'tag'};
-	next if !defined($curtag) || $curtag !~ /^\d+$/;
-	$maxtag = $curtag > $maxtag ? $curtag : $maxtag;
+    foreach my $curtag (sort {$a <=> $b} map {$_->{'tag'}} @authentries) {
+	next if (!defined($curtag) || $curtag !~ /^\d+$/);
+	if ($freetag < $curtag) {
+	    last;
+	}
+	$freetag += 1;
     }
 
-    return $maxtag+1;
+    return $freetag;
 }
 
 # Helper function - Generate a random serial number for an iSCSI target
@@ -1064,8 +1066,15 @@ sub unexportSlice($$$$) {
     $sconf->{'UUID'} =~ /^([-\.:\w]+)$/;
     my $iqn = lc($1); # untaint and lowercase.
 
-    # Remove iSCSI target.  This will also zap the target-to-extent
-    # association.
+    # Remove iSCSI target to extent mapping.
+    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_ASSOC,
+			 "del $iqn $iqn") };
+    if ($@) {
+	warn("*** WARNING: blockstore_unexportSlice: $volname: ".
+	     "Failed to disassociate iSCSI target with extent: $@");
+    }
+
+    # Remove iSCSI target.
     eval { freenasRunCmd($FREENAS_CLI_VERB_IST_TARGET,
 			 "del $iqn") };
     if ($@) {
