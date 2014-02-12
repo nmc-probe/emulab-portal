@@ -954,6 +954,20 @@ sub localize
 	    }
 	}
     }
+
+    # Check the NTP configuration.
+    if (-e "/etc/ntp.conf") {
+	system("cmp -s /etc/ntp.conf $imageroot/etc/ntp.conf >/dev/null 2>&1");
+	if ($?) {
+	    print "Updating /etc/ntp.conf\n";
+
+	    system("cp -p /etc/ntp.conf $imageroot/etc/ntp.conf");
+	    if ($?) {
+		print STDERR "Failed to create /etc/ntp.conf\n";
+		return;
+	    }
+	}
+    }
 }
 
 sub hardwire_boss_node

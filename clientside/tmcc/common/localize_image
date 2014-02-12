@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -144,6 +144,20 @@ localize_image() {
 	    }
 	fi
     fi
+
+    # Check the NTP configuration.
+    if [ -e /etc/ntp.conf ]; then
+	cmp -s /etc/ntp.conf $MNT/etc/ntp.conf
+	if [ $? -ne 0 ]; then
+	    echo "  updating /etc/ntp.conf"
+
+	    cp -p /etc/ntp.conf $MNT/etc/ntp.conf || {
+		echo "Failed to create /etc/ntp.conf"
+		return 1
+	    }
+	fi
+    fi
+
     return 0
 }
 

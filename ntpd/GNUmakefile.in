@@ -52,6 +52,7 @@ FS_FILE=ntp.conf-external
 endif
 endif
 endif
+NODE_FILE=ntp.conf-node
 
 #
 # Force dependencies to make sure configure regenerates if the .in file
@@ -67,7 +68,7 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 # clobber the "real" version.
 #
 ifeq ($(TBROOT),/usr/testbed)
-install: $(BOSS_FILE)
+install: $(BOSS_FILE) clientconfig
 	mv -f $(DESTDIR)/etc/ntp.conf $(DESTDIR)/etc/ntp.conf.bak
 	$(INSTALL_DATA) $(BOSS_FILE) $(DESTDIR)/etc/ntp.conf
 control-install: $(OPS_FILE)
@@ -76,8 +77,10 @@ control-install: $(OPS_FILE)
 fs-install: $(FS_FILE)
 	mv -f $(DESTDIR)/etc/ntp.conf $(DESTDIR)/etc/ntp.conf.bak
 	$(INSTALL_DATA) $(FS_FILE) $(DESTDIR)/etc/ntp.conf
+clientconfig: $(NODE_FILE)
+	$(INSTALL_DATA) $(NODE_FILE) $(TBROOT)/etc/image_ntp.conf
 else
-install control-install fs-install:
+install control-install fs-install clientconfig:
 	@echo "Cannot install NTP config in dev tree"
 endif
 

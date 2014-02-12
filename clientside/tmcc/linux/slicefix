@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -311,6 +311,7 @@ dofreebsd() {
 	changehostkeys=0
 	changerootkeys=0
 	changezone=0
+	changentp=0
 
 	fixit=0
 
@@ -509,6 +510,16 @@ dofreebsd() {
 		    fixit=1
 		fi
 	    fi
+
+	    # Check the NTP config.
+	    if [ -e /etc/ntp.conf ]; then
+		cmp -s /etc/ntp.conf /mnt/etc/ntp.conf
+		if [ $? -ne 0 ]; then
+		    changentp=1
+		    fixit=1
+		fi
+	    fi
+
 	fi
 
 	if [ $fixit -eq 0 ]; then
@@ -822,6 +833,17 @@ EOF1
 
 	    cp -p /etc/localtime /mnt/etc/localtime || {
 	        echo "Failed to create /etc/localtime"
+		umount $rootdev
+		return 1
+	    }
+	fi
+
+	# Copy in new NTP config
+	if [ $changentp -eq 1 ]; then
+	    echo "  updating /etc/ntp.conf"
+
+	    cp -p /etc/ntp.conf /mnt/etc/ntp.conf || {
+	        echo "Failed to create /etc/ntp.conf"
 		umount $rootdev
 		return 1
 	    }
