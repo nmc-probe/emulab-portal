@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -545,7 +545,7 @@ case $STATUS in
 
 		# XXX tmp, gather HW info (including disk speed tests)
 		if [ -x $BINDIR/rc.nodecheck ]; then
-		    $BINDIR/rc.nodecheck boot gather
+		    $BINDIR/rc.nodecheck boot
 		fi
 
 		## if we have nodecheck, perform disk speed tests here
