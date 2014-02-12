@@ -95,6 +95,9 @@ if (@ARGV != 2) {
 if (defined($options{"p"})) {
     $aspack = 1;
 }
+if (defined($options{"r"})) {
+    $norestart = 1;
+}
 if (defined($options{"s"})) {
     $slice = $options{"s"};
 }
