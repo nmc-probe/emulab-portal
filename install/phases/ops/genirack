@@ -69,10 +69,6 @@ sub Install($$$)
 	    DeleteFileFatal("/var/emulab/boot/vmname");
 	};
 
-	Phase "ntpconf", "Installing better /etc/ntp.conf", sub {
-	    ExecQuietFatal("/bin/cp -fp $RACKNTPCONF $ETCNTPCONF");
-	};
-
 	#
 	# Need to remove the ELABINELAB flag.
 	#
@@ -83,6 +79,8 @@ sub Install($$$)
 	    DoneIfExists($NEWDEFSFILE);
 	    ExecQuietFatal("cat $OLDDEFSFILE | ".
 			   "   sed -e 's/^ELABINELAB/#ELABINELAB/' ".
+			   "   -e 's/^WWWHOST=boss/WWWHOST=www/' ".
+			   "   -e 's/^EXTERNAL_NTPS/#EXTERNAL_NTPS/' ".
 			   "   > $NEWDEFSFILE");
 	};
 
@@ -106,6 +104,9 @@ sub Install($$$)
 	    };
 	    Phase "rc.testbed", "Installing testbed RC scripts", sub {
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d control-install");
+	    };
+	    Phase "ntpd", "Installing testbed ntp config", sub {
+		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/ntpd control-install");
 	    };
 	    Phase "control", "Installing control node clientside scripts", sub {
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/clientside/tmcc/freebsd ".
