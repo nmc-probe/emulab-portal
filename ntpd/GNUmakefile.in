@@ -58,7 +58,7 @@ NODE_FILE=ntp.conf-node
 # Force dependencies to make sure configure regenerates if the .in file
 # is changed.
 # 
-all: $(CONFIG_FILES)
+all: $(CONFIG_FILES) $(NODE_FILE)
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
