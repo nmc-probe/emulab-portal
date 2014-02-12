@@ -37,12 +37,19 @@ fi
 
 MFSPROJDIR=/proj/emulab-ops
 
-# defaults will be collect=0 check=0 
+# XXX compat with other Emulab rc.* scripts
+# We only run on a "boot" invocation, not shutdown/reconfig/reset.
+# Note if invoked with no args then treat as "boot"
+if [ $# -gt 0 -a "$1" != "boot" ]; then
+    exit 0
+fi
 
 #
 # XXX see if hwinfo returns anything. If not, assume node checks are not
 # supported and don't bother with the rest.
 #
+# defaults will be collect=0 check=0 
+
 testinfo=`$BINDIR/tmcc hwinfo | grep TESTINFO`
 if [ -z "$testinfo" ]; then
     echo "Skipping nodechecks tmcc does not support hwinfo"
