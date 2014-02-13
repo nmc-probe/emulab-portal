@@ -48,20 +48,37 @@ if (!$this_user) {
     RedirectLoginPage();
     exit();
 }
+if (!isset($target_user)) {
+    $target_user = $this_user;
+}
+if (!$this_user->SameUser($target_user)) {
+    if (!ISADMIN()) {
+	if (isset($ajax_request)) {
+	    SPITAJAX_ERROR(1, "You do not have permission to do this");
+	}
+	else {
+	    SPITHEADER(1);
+	    SPITUSERERROR("You do not have permission to view ".
+			  "target user's profiles");
+	    echo "<script src='js/lib/require.js' data-main='js/null'>
+                  </script>\n";
+	    SPITFOOTER();
+	}
+	exit();
+    }
+}
+$target_idx = $target_user->uid_idx();
+
 #
 # Deal with ajax requests.
 #
 if (isset($ajax_request)) {
     if ($ajax_method == "getprofile") {
 	$profile_idx = addslashes($ajax_argument);
-	#
-	# XXX This query effectively allows a user to look at another
-	# users profile, by cheating the ajax interface. Not a big
-	# deal yet, but something to worry about right now.
-	#
 	$query_result =
 	    DBQueryWarn("select * from apt_profiles ".
-			"where idx='$profile_idx'");
+			"where idx='$profile_idx' and ".
+			"      creator_idx='$target_idx'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    SPITAJAX_ERROR(1, "No such profile $profile_idx!");
@@ -79,21 +96,12 @@ if (isset($ajax_request)) {
 
 SPITHEADER(1);
 
-if (isset($target_user) && !$this_user->SameUser($target_user)) {
-    if (!ISADMIN()) {
-	SPITUSERERROR("You do not have permission to view ".
-		      "target user's profiles");
-	SPITFOOTER();
-	exit();
-    }
-}
-else {
-    $target_user = $this_user;
-}
-$target_idx = $target_user->uid_idx();
+echo "<link rel='stylesheet'
+            href='tablesorter.css'>\n";
 
 $query_result =
-    DBQueryFatal("select * from apt_profiles ".
+    DBQueryFatal("select *,DATE(created) as created ".
+		 "  from apt_profiles ".
 		 "where creator_idx=$target_idx");
 
 if (mysql_num_rows($query_result) == 0) {
@@ -104,56 +112,79 @@ if (mysql_num_rows($query_result) == 0) {
     SPITFOOTER();
     exit();
 }
-$profile_array  = array();
-$profile_default = null;
+echo "<div class='row'>
+       <div class='col-lg-12 col-lg-offset-0
+                   col-md-12 col-md-offset-0
+                   col-sm-12 col-sm-offset-0
+                   col-xs-12 col-xs-offset-0'>\n";
+
+echo "<input class='form-control search' type='search'
+             id='profile_search' placeholder='Search'>\n";
+
+echo "  <table class='tablesorter'>
+         <thead>
+          <tr>
+           <th>Name</th>
+           <th>Project</th>
+           <th>Description</th>
+           <th>Show</th>
+           <th>Created</th>
+           <th>Public</th>
+          </tr>
+         </thead>
+         <tbody>\n";
 
 while ($row = mysql_fetch_array($query_result)) {
-    $profile_array[$row["idx"]] = $row["name"];
-    if (!$profile_default) {
-	$profile_default = $row["idx"];
-    }
+    $idx     = $row["idx"];
+    $name    = $row["name"];
+    $pid     = $row["pid"];
+    $desc    = $row["description"];
+    $created = $row["created"];
+    $public  = $row["public"];
+    
+    echo " <tr>
+            <td>
+             <a href='manage_profile.php?action=edit&idx=$idx'>$name</a>
+            </td>
+            <td style='white-space:nowrap'>$pid</td>
+            <td>$desc</td>
+            <td style='text-align:center'>
+             <button class='btn btn-primary btn-xs showtopo_modal_button'
+                     data-profile=$idx>
+               Show</button>
+            </td>
+            <td>$created</td>
+            <td>$public</td>
+           </tr>\n";
 }
+echo "   </tbody>
+        </table>
+       </div>
+      </div>\n";
 
-echo "<div class='row'>
-       <div class='col-lg-6  col-lg-offset-3
-                   col-md-6  col-md-offset-3
-                   col-sm-8  col-sm-offset-2
-                   col-xs-12 col-xs-offset-0'>\n";
-echo "    <div class='panel panel-default'>
-            <div class='panel-heading'>
-              <h3 class='panel-title'>
-                 Your Profiles</h3>
+echo "<!-- This is the topology view modal -->
+      <div id='quickvm_topomodal' class='modal fade'>
+        <div class='modal-dialog' id='showtopo_dialog'>
+          <div class='modal-content'>
+            <div class='modal-header'>
+              <button type='button' class='close' data-dismiss='modal'
+                      aria-hidden='true'>
+                      &times;</button>
+                <h3>Topology Viewer</h3>
             </div>
-            <div class='panel-body'>
-             <form id='quickvm_create_profile_form'
-                   role='form'
-                   method='get' action='manage_profile.php'>
-              <input type='hidden' name='action' value='edit'/>
-              <div id='profile_well' class='form-group well well-md'>
-                <span id='selected_profile_text' class='pull-left'>
-                </span>
-                <input id='selected_profile' type='hidden' name='idx'/>
-                <button id='profile' class='btn btn-primary btn-xs pull-right' 
-                       type='button' name='profile_button'>
-                  Select a Profile</button>\n";
-echo "        </div>
-              <button class='btn btn-primary btn-sm pull-right'
-                       type='submit' name='submit'>Modify</button>
-	      <a id='instantiate'
-                   class='btn btn-primary btn-sm pull-right'
-                   style='margin-right: 10px;'
-                   type='button'>Instantiate</a>
-            </form>
-           </div>
+            <div class='modal-body'>
+              <!-- This topo diagram goes inside this div -->
+              <div class='panel panel-default'
+                         id='showtopo_container'>
+                <div class='panel-body'>
+                  <div id='showtopo_nopicker'></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-       </div>\n";
+      </div>\n";
 
-SpitTopologyViewModal("quickvm_topomodal", $profile_array);
-
-echo "<script type='text/javascript'>\n";
-echo "window.PROFILE = '$profile_default';\n";
-echo "</script>\n";
 echo "<script src='js/lib/require.js' data-main='js/myprofiles'></script>\n";
 
 SPITFOOTER();
