@@ -35,7 +35,7 @@ function ($, sup)
 	$('#showtopo_modal_button').click(function (event) {
 	    event.preventDefault();
 	    // The rspec is taken from the text area.
-	    ShowRspecContent($('#profile_rspec').val());
+	    ShowRspecContent($('#profile_rspec_textarea').val());
 	});
 	$('#expand_rspec_modal_button').click(function (event) {
 	    $('#modal_profile_rspec_textarea').val(
@@ -44,6 +44,8 @@ function ($, sup)
 	    $('#rspec_modal').modal('show');
 	});
 	$('#collapse_rspec_modal_button').click(function (event) {
+	    // Copy back to the plain textarea and kill the modal contents.
+	    // The topo is drawn from the plain textarea. 
 	    $('#profile_rspec_textarea').val(
 		$('#modal_profile_rspec_textarea').val());
 	    $('#rspec_modal').modal('hide');
