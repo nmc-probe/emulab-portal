@@ -36,6 +36,12 @@ echo "`date`: rc.frisbee starting"
 #
 RESIDMEM=32
 
+#
+# Maximum socket buffer size in KB.
+# Big enough to buffer a whole chunk.
+#
+MAXSOCKBUF=1024
+
 if [ -r /etc/emulab/paths.sh ]; then
 	. /etc/emulab/paths.sh
 else
@@ -286,6 +292,7 @@ loadone() {
     #	allow $RESIDMEM MB for non-frisbee stuff
     #	split remaining memory (min of 2MB) between network/disk buffering
     #
+    MEMARGS=""
     HOSTMEM=`sysctl -n hw.usermem`
     HOSTMEM=`expr $HOSTMEM / 1048576`
     if [ $HOSTMEM -ge `expr $RESIDMEM + 2` ]; then
@@ -302,6 +309,22 @@ loadone() {
 	# Let the client split up the memory
 	MEMARGS="-M $HOSTMEM"
     fi
+
+
+    #
+    # Allow for large-ish socketbuf for frisbee
+    # NOTE: add 12.5% slop to get socketbuf of the appropriate size
+    # NOTE: if the sysctl fails, it doesn't matter as frisbee will downsize
+    #
+    osbs=`sysctl -n kern.ipc.maxsockbuf`
+    sbs=`expr $MAXSOCKBUF \* 1024`
+    sbs=`expr $sbs \+ \( $sbs / 8 \)`
+    if [ $sbs -gt $osbs ]; then
+	sysctl kern.ipc.maxsockbuf=$sbs
+    fi
+
+    # NOTE: make sure you install the latest frisbee client for -k!
+    MEMARGS="$MEMARGS -k $MAXSOCKBUF"
 
     #
     # Make sure the necessary device files exist (only necessary on
