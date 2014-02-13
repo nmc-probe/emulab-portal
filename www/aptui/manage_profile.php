@@ -136,7 +136,8 @@ function SPITFORM($formfields, $errors)
     if ($editing) {
 	$formatter("profile_name", "Profile Name",
 		   "<p class='form-control-static'>" .
-		       $formfields["profile_name"] . "</p>");
+		       $formfields["profile_name"] .
+		   " (created " . $formfields["profile_created"] . ")</p>");
 		   
 	echo "<input type='hidden' name='formfields[profile_name]' ".
 		"value='" . $formfields["profile_name"] . "'>\n";
@@ -340,9 +341,6 @@ function SPITFORM($formfields, $errors)
 # The user must be logged in.
 #
 if (!$this_user) {
-    if (isset($formfields)) {
-	$_SESSION["formfields"] = $formfields;
-    }
     RedirectLoginPage();
     exit();
 }
@@ -369,8 +367,11 @@ if (! isset($create)) {
 	else {
 	    $profile = Profile::Lookup($idx);
 	    
-	    if (!$profile || $this_idx != $profile->creator_idx()) {
-		$errors["error"] = "No such profile!";
+	    if (!$profile) {
+		SPITUSERERROR("No such profile!");
+	    }
+	    else if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+		SPITUSERERROR("Not enough permission!");
 	    }
 	    else if ($action == "delete") {
 		DBQueryFatal("delete from apt_profiles where idx='$idx'");
@@ -382,6 +383,7 @@ if (! isset($create)) {
 		$defaults["profile_description"] = $profile->description();
 		$defaults["profile_name"]        = $profile->name();
 		$defaults["profile_rspec"]       = $profile->rspec();
+		$defaults["profile_created"]     = $profile->created();
 		$defaults["profile_listed"]      =
 		    ($profile->listed() ? "checked" : "");
 
