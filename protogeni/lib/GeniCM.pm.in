@@ -1493,6 +1493,17 @@ sub GetTicketAuxAux($$$$$$$$$$)
 					      "attrvalue" => $attrvalue });
 	    }
 	}
+
+	#
+	# Look for general node attributes that pass through to the
+	# backend.
+	#
+	foreach my $attr_ref (GeniXML::GetNodeAttributes($ref)) {
+	    $virtexperiment->NewTableRow("virt_node_attributes",
+					 {"vname"     => $node_nickname,
+					  "attrkey"   => $attr_ref->{'key'},
+					  "attrvalue" => $attr_ref->{'value'}});
+	}
 	
 	#
 	# Look for interface forward declarations that will be used later
@@ -1699,6 +1710,17 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	#
 	if (GeniXML::HasTagSetting($linkref)) {
 	    $encap = (IsTaggedLan($linkref) ? "vlan" : "default");
+	}
+
+	#
+	# Look for general link attributes that pass through to the
+	# backend.
+	#
+	foreach my $attr_ref (GeniXML::GetLinkAttributes($linkref)) {
+	    $virtexperiment->NewTableRow("virt_lan_settings",
+					 {"vname"   => $lanname,
+					  "capkey"  => $attr_ref->{'key'},
+					  "capval"  => $attr_ref->{'value'} });
 	}
 
 	#

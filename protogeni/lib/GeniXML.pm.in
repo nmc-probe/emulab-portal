@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2013 University of Utah and the Flux Group.
+# Copyright (c) 2010-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -571,6 +571,24 @@ sub GetServices($)
     return @result;
 }
 
+sub GetNodeAttributes($)
+{
+    my ($node) = @_;
+    my @result = ();
+
+    my @attributes =
+	FindNodesNS("n:node_attribute", $node, $EMULAB_NS)->get_nodelist();
+
+    foreach my $attr (@attributes) {
+	my $key   = GetText("key", $attr);
+	my $value = GetText("value", $attr);
+	if (defined($key) && $key ne "" && defined($value)) {
+	    push(@result, {"key" => $key, "value" => $value});
+	}
+    }
+    return @result;
+}
+
 sub GetStartupCommand($)
 {
     my ($node) = @_;
@@ -696,6 +714,24 @@ sub SetExclusive($$)
 	$result = SetText("exclusive", $node, $textArg);
     }
     return $result;
+}
+
+sub GetLinkAttributes($)
+{
+    my ($link) = @_;
+    my @result = ();
+
+    my @attributes =
+	FindNodesNS("n:link_attribute", $link, $EMULAB_NS)->get_nodelist();
+
+    foreach my $attr (@attributes) {
+	my $key   = GetText("key", $attr);
+	my $value = GetText("value", $attr);
+	if (defined($key) && $key ne "" && defined($value)) {
+	    push(@result, {"key" => $key, "value" => $value});
+	}
+    }
+    return @result;
 }
 
 sub GetLinkManager($)
