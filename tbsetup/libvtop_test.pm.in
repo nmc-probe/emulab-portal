@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2013 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -8989,12 +8989,8 @@ sub UpLoadInterfaceSettings($)
     foreach my $virtlan (values(%{ $self->vlans() })) {
 	my $protocol = $virtlan->_protocol();
 	my $vlanname = $virtlan->vname();
-
-	next
-	    if (! ($protocol =~ /^(80211|flex900|xcvr2450)/));
-
-	my @members = $virtlan->memberlist();
-	my $ssid    = "${vlanname}_${idx}";
+	my @members  = $virtlan->memberlist();
+	my $ssid     = "${vlanname}_${idx}";
 	my $apmac;
 
 	if (defined($virtlan->_accesspoint())) {
@@ -9073,25 +9069,27 @@ sub UpLoadInterfaceSettings($)
 	    $self->printdb("interface_setting: ".
 			   "$pnodename $iface protocol $protocol\n");
 
-	    DBQueryWarn("replace into interface_settings ".
-			"       (node_id, iface, capkey, capval) ".
-			"values ('$pnodename', '$iface', 'ssid', '$ssid')")
-		or return -1 if (! ($self->impotent() ||
-				    $self->alloconly()));
-	
-	    $self->printdb("interface_setting: ".
-			   "$pnodename $iface ssid $ssid\n");
-
-	    if (defined($apmac)) {
+	    if ($protocol =~ /^(80211|flex900|xcvr2450)/) {
 		DBQueryWarn("replace into interface_settings ".
 			    "       (node_id, iface, capkey, capval) ".
-			    "values ('$pnodename', '$iface', ".
-			    "        'accesspoint', '$apmac')")
+			    "values ('$pnodename', '$iface', 'ssid', '$ssid')")
 		    or return -1 if (! ($self->impotent() ||
 					$self->alloconly()));
-		    
+	
 		$self->printdb("interface_setting: ".
-			       "$pnodename $iface accesspoint $apmac\n");
+			       "$pnodename $iface ssid $ssid\n");
+
+		if (defined($apmac)) {
+		    DBQueryWarn("replace into interface_settings ".
+				"       (node_id, iface, capkey, capval) ".
+				"values ('$pnodename', '$iface', ".
+				"        'accesspoint', '$apmac')")
+			or return -1 if (! ($self->impotent() ||
+					    $self->alloconly()));
+		    
+		    $self->printdb("interface_setting: ".
+				   "$pnodename $iface accesspoint $apmac\n");
+		}
 	    }
 	}
     }
