@@ -31,6 +31,7 @@ $page_title = "My Profiles";
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("target_user",   PAGEARG_USER,
+				 "all",           PAGEARG_BOOLEAN,
 				 "ajax_request",  PAGEARG_BOOLEAN,
 				 "ajax_method",   PAGEARG_STRING,
 				 "ajax_argument", PAGEARG_STRING);
@@ -102,7 +103,8 @@ echo "<link rel='stylesheet'
 $query_result =
     DBQueryFatal("select *,DATE(created) as created ".
 		 "  from apt_profiles ".
-		 "where creator_idx=$target_idx");
+		 (isset($all) && ISADMIN() ?
+		  "order by creator" : "where creator_idx=$target_idx"));
 
 if (mysql_num_rows($query_result) == 0) {
     echo "<b>No profiles to show you. Maybe you want to ".
@@ -124,8 +126,11 @@ echo "<input class='form-control search' type='search'
 echo "  <table class='tablesorter'>
          <thead>
           <tr>
-           <th>Name</th>
-           <th>Project</th>
+           <th>Name</th>\n";
+if (isset($all) && ISADMIN()) {
+    echo " <th>Creator</th>";
+}
+echo "     <th>Project</th>
            <th>Description</th>
            <th>Show</th>
            <th>Created</th>
@@ -141,12 +146,16 @@ while ($row = mysql_fetch_array($query_result)) {
     $desc    = $row["description"];
     $created = $row["created"];
     $public  = $row["public"];
+    $creator = $row["creator"];
     
     echo " <tr>
             <td>
              <a href='manage_profile.php?action=edit&idx=$idx'>$name</a>
-            </td>
-            <td style='white-space:nowrap'>$pid</td>
+            </td>";
+    if (isset($all) && ISADMIN()) {
+	echo "<td>$creator</td>";
+    }
+    echo "  <td style='white-space:nowrap'>$pid</td>
             <td>$desc</td>
             <td style='text-align:center'>
              <button class='btn btn-primary btn-xs showtopo_modal_button'
