@@ -251,6 +251,14 @@ function SPITFORM($formfields, $errors)
                        type=checkbox> ".
 	       "List on the public page for anyone to use?</label></div>");
 
+    if ($editing) {
+    	$formatter("profile_url", "Public URL",
+		   "<input name=\"formfields[profile_url]\"
+		       id='profile_url' readonly
+		       value='" . $formfields["profile_url"] . "'
+                       class='form-control'
+                       placeholder='' type='text'>");
+    }
     echo "      </fieldset>\n";
 
     echo "<div class='form-group'>
@@ -384,6 +392,7 @@ if (! isset($create)) {
 		$defaults["profile_name"]        = $profile->name();
 		$defaults["profile_rspec"]       = $profile->rspec();
 		$defaults["profile_created"]     = $profile->created();
+		$defaults["profile_url"]         = $profile->url();
 		$defaults["profile_listed"]      =
 		    ($profile->listed() ? "checked" : "");
 

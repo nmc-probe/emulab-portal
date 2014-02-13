@@ -107,5 +107,16 @@ class Profile
 	$this->project    = null;
 	return 0;
     }
+
+    #
+    # URL.
+    #
+    function URL() {
+	global $APTBASE;
+	
+	$uuid = $this->uuid();
+
+	return "$APTBASE/p/$uuid";
+    }
 }
 ?>

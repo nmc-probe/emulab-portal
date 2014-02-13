@@ -65,6 +65,11 @@ function ($, sup)
         $('#quickvm_create_profile_form').change(function() {
 	    $('#profile_submit_button').prop('disabled', false);
 	});
+	// Auto select the URL if the user clicks in the box.
+	$('#profile_url').click(function() {
+	    $(this).focus();
+	    $(this).select();
+	});
     }
 
     //
