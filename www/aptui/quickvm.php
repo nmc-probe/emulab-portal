@@ -90,6 +90,10 @@ while ($row = mysql_fetch_array($query_result)) {
     if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
 	$profile_default = $row["idx"];
     }
+    # Look for the profile by uuid and switch to index.
+    if (isset($profile) && $profile == $row["uuid"]) {
+	$profile = $row["idx"];
+    }
 }
 
 function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
