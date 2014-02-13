@@ -11,6 +11,8 @@ window.APT_OPTIONS.config = function ()
 	    'dateformat': 'js/lib/date.format',
 	    'd3': 'js/lib/d3.v3',
 	    'filestyle': 'js/lib/filestyle',
+	    'tablesorter': 'js/lib/jquery.tablesorter.min',
+	    'tablesorterwidgets': 'js/lib/jquery.tablesorter.widgets.min',
 	},
 	shim: {
 	    'bootstrap': { deps: ['jquery'] },
@@ -18,6 +20,8 @@ window.APT_OPTIONS.config = function ()
 	    'dateformat': { exports: 'dateFormat' },
 	    'd3': { exports: 'd3' },
 	    'filestyle': { deps: ['bootstrap']},
+	    'tablesorter': { deps: ['jquery'] },
+	    'tablesorterwidgets': { deps: ['tablesorter'] },
 	},
     });
 }
