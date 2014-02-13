@@ -192,53 +192,6 @@ function ShowProfileList(selectedElement)
     $xmlthing.done(callback);
 }
 
-function ShowProfile(direction)
-{
-    var profile;
-    var index;
-    
-    if (direction) {
-	var max = $('#profile_name option').length;
-	console.info(max);
-	index = ShowProfile.index + direction;
-	
-	if (index < 1) {
-	    index = max;
-	}
-	else if (index >= max) {
-	    index = 1;
-	}
-	profile = $("#profile_name :nth("+ index + ")").val();
-    }
-    else {
-	// Use this static variable to track current index
-	index = $("#profile_name").prop("selectedIndex");
-	profile = $('#profile_name').val();
-    }
-    ShowProfile.index = index;
-    console.info(profile);
-    console.info(index);
-
-    var callback = function(json) {
-	console.info(json.value);
-	var xmlDoc = $.parseXML(json.value.rspec);
-	var xml    = $(xmlDoc);
-	var topo   = ConvertManifestToJSON(profile, xml);
-	console.info(topo);
-
-	ShowModal("#quickvm_topomodal");
-    
-	$('#showtopo_title').html("<h3>" + profile + "</h3>");
-	$('#showtopo_description').html(json.value.description);
-
-	maketopmap("#showtopo_div",
-		   ($("#showtopo_dialog").outerWidth()) - 90,
-		   300, topo);
-    }
-    var $xmlthing = CallMethod("getprofile", null, 0, profile);
-    $xmlthing.done(callback);
-}
-
 function Setsshurl(uuid)
 {
     var callback = function(json) {
@@ -1025,5 +978,6 @@ return {
     Logout: Logout,
     ConvertManifestToJSON: ConvertManifestToJSON,
     maketopmap: maketopmap,
+    CallMethod: CallMethod,
 };
 });
