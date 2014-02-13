@@ -48,7 +48,11 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
 # Redefine this so APT errors are styled properly.
 #
 $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
-    SPITHEADER();
+    global $drewheader;
+
+    if (! $drewheader) {
+	SPITHEADER();
+    }
     echo $msg;
     echo "<script src='js/lib/require.js' data-main='js/null.js'></script>\n";
     SPITFOOTER();
@@ -59,13 +63,13 @@ function SPITHEADER($thinheader = 0)
 {
     global $TBMAINSITE;
     global $login_user, $login_status;
-    global $disable_accounts, $page_title;
+    global $disable_accounts, $page_title, $drewheader;
     $title = "AptLab";
     if (isset($page_title)) {
 	$title .= " - $page_title";
     }
-    
     $height = ($thinheader ? 150 : 250);
+    $drewheader = 1;
 
     #
     # Figure out who is logged in, if anyone.
@@ -99,9 +103,31 @@ function SPITHEADER($thinheader = 0)
              </div>
              <ul class='nav navbar-nav navbar-right'>";
     if (!$disable_accounts) {
+	if ($login_user && ISADMINISTRATOR()) {
+	    echo "<li>\n";
+	    if (ISADMIN()) {
+		$url = CreateURL("toggle", $login_user,
+				 "type", "adminon", "value", 0);
+		
+		echo "<a href='/$url'>
+                             <img src='/redball.gif'
+                                  style='height: 10px;'
+                                  border='0' alt='Admin On'></a>\n";
+	    }
+	    else {
+		$url = CreateURL("toggle", $login_user,
+				 "type", "adminon", "value", 1);
+
+		echo "<a href='/$url'>
+                              <img src='/greenball.gif'
+                                   style='height: 10px;'
+                                   border='0' alt='Admin Off'></a>\n";
+	    }
+	    echo "</li>\n";
+	}
 	echo "<li id='loginstatus'>".
 	    ($login_user ? "<p>$login_uid logged in</p>" : "") . "</li>\n";
-	
+
 	if (!NOLOGINS()) {
 	    echo "<li id='loginbutton' " .
 		($login_user ? "class='hidden'" : "") . ">" .
@@ -159,7 +185,7 @@ function SPITFOOTER()
 
 function SPITUSERERROR($msg)
 {
-    echo "<b>$msg</b>\n";
+    PAGEERROR($msg, 0);
 }
 
 #
