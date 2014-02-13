@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -21,7 +21,7 @@
 # 
 # }}}
 #
-include("defs.php3");
+include_once("defs.php3");
 
 #
 # This page is a generic toggle page, like adminmode.php3, but more
