@@ -131,7 +131,7 @@ function ShowTopo(uuid)
 
 	$("#showtopo_container").removeClass("invisible");
 	// Subtract -2 cause of the border. 
-	maketopmap("#showtopo_container",
+	maketopmap("#showtopo_statuspage",
 		   $("#showtopo_statuspage").outerWidth() - 2,
 		   300, topo);
 
@@ -383,8 +383,8 @@ function NewSSHTab(hostport, client_id)
 	    "</ul>\n" +
 	    "<div id='quicktabs_content' class='tab-content'>\n" +
 	    " <div class='tab-pane' id='profile'>" +
-	    "  <div id='showtopo_div'>\n" +
-   	         $('#showtopo_div').html() +
+	    "  <div id='showtopo_statuspage'>\n" +
+   	         $('#showtopo_statuspage').html() +
 	    "  </div>\n" +
 	    " </div>\n" +
 	    "</div>\n";

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -241,7 +241,7 @@ else {
 	    fatal("$uid is not in the passwd file or $APTDIR");
 	}
     }
-    $command = "/usr/bin/ssh" . ($port ? "-p $port" : "") . " " .
+    $command = "/usr/bin/ssh " . ($port ? "-p $port" : "") . " " .
 	"$sshopts ${uid}\@${nodeid}";
 }
 
