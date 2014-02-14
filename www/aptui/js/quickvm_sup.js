@@ -374,21 +374,24 @@ function NewSSHTab(hostport, client_id)
 
     //
     // On first ssh, we convert the topo div into a tabs array,
-    // and place each ssh session as a new tab.
+    // and place each ssh session as a new tab. The original svg
+    // DOM is saved and then moved into the new fragment. 
     //
     if (! $("#quicktabs").length) {
+	// SVG DOM fragment.
+	var svg  = $('#showtopo_statuspage>svg');
+	
 	var html =
 	    "<ul id='quicktabs' class='nav nav-tabs'>\n" +
 	    " <li><a href='#profile' data-toggle='tab'>Profile</a></li>\n" +
 	    "</ul>\n" +
 	    "<div id='quicktabs_content' class='tab-content'>\n" +
-	    " <div class='tab-pane' id='profile'>" +
-	    "  <div id='showtopo_statuspage'>\n" +
-   	         $('#showtopo_statuspage').html() +
-	    "  </div>\n" +
+	    " <div class='tab-pane' id='profile'>\n" +
+	    "  <div id='showtopo_statuspage'></div>\n" +
 	    " </div>\n" +
 	    "</div>\n";
 	$('#quicktabs_div').html(html);
+	$('#showtopo_statuspage').append(svg);
     }
     //
     // Need to create the tab before we can create the topo, since
