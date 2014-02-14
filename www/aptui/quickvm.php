@@ -46,12 +46,15 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "stuffing",    PAGEARG_STRING,
 				 "verify",      PAGEARG_STRING,
 				 "sshkey",	PAGEARG_STRING,
+				 "project",     PAGEARG_PROJECT,
 				 "ajax_request",  PAGEARG_BOOLEAN,
 				 "ajax_method",   PAGEARG_STRING,
 				 "ajax_argument", PAGEARG_STRING);
 
 #
 # Deal with ajax requests.
+#
+# XXX Need permission checks here. 
 #
 if (isset($ajax_request)) {
     if ($ajax_method == "getprofile") {
@@ -90,9 +93,17 @@ while ($row = mysql_fetch_array($query_result)) {
     if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
 	$profile_default = $row["idx"];
     }
-    # Look for the profile by uuid and switch to index.
-    if (isset($profile) && $profile == $row["uuid"]) {
-	$profile = $row["idx"];
+    if (isset($profile)) {
+        # Look for the profile by project/name and switch to index.
+	if (isset($project) &&
+	    $row["pid"] == $project->pid() &&
+	    $row["name"] == $profile) {
+	    $profile = $row["idx"];
+	}
+        # Look for the profile by uuid and switch to index.
+	elseif ($profile == $row["uuid"]) {
+	    $profile = $row["idx"];
+	}
     }
 }
 
