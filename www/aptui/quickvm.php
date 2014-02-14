@@ -262,9 +262,13 @@ if (!isset($create)) {
     $sshkey   = null;
 
     # 
-    # Look for cookie that tells us who the user is. 
+    # Look for current user or cookie that tells us who the user is. 
     #
-    if (isset($_COOKIE['quickvm_user'])) {
+    if ($this_user) {
+	$username = $this_user->uid();
+	$email    = $this_user->email();
+    }
+    elseif (isset($_COOKIE['quickvm_user'])) {
 	$geniuser = GeniUser::Lookup("sa", $_COOKIE['quickvm_user']);
 	if ($geniuser) {
 	    #
@@ -280,10 +284,6 @@ if (!isset($create)) {
 	    $email    = $geniuser->email();
 	    $sshkey   = $geniuser->SSHKey();
 	}
-    }
-    elseif ($this_user) {
-	$username = $this_user->uid();
-	$email    = $this_user->email();
     }
     SPITFORM($username, $email, $sshkey, $profile, false, null);
     SPITFOOTER();
