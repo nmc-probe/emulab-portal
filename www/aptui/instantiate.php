@@ -163,7 +163,7 @@ function SPITFORM($username, $email, $sshkey, $profile, $newuser, $errors)
                       col-sm-8  col-sm-offset-2
                       col-xs-12 col-xs-offset-0'>\n";
     echo "<form id='quickvm_form' role='form'
-            method='post' action='quickvm.php'>\n";
+            method='post' action='quickv.php'>\n";
     echo "<div class='panel panel-default'>
            <div class='panel-heading'>
               <h3 class='panel-title'>

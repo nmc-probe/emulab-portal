@@ -27,7 +27,7 @@ function ($, sup)
 	});
 	$('button#terminate').click(function (event) {
 	    event.preventDefault();
-	    sup.Terminate(window.APT_OPTIONS.uuid, 'quickvm.php');
+	    sup.Terminate(window.APT_OPTIONS.uuid, 'instantiate.php');
 	});
     }
 
