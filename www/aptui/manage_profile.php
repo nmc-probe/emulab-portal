@@ -271,7 +271,7 @@ function SPITFORM($formfields, $errors)
     if ($editing) {
 	echo " <a class='btn btn-primary btn-sm pull-right'
                    style='margin-right: 10px;'
-                   href='quickvm.php?profile=$idx'
+                   href='instantiate.php?profile=$idx'
                    type='submit' name='create'>Instantiate</a>\n";
 	echo " <a class='btn btn-danger btn-sm pull-left'
                    style='margin-right: 10px;'

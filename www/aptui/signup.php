@@ -542,7 +542,7 @@ if (!$this_user) {
 	    TBERROR("Could not add new user to project group $pid", 1);
 	}
 	$group->NewMemberNotify($user);
-	header("Location: quickvm.php");
+	header("Location: instantiate.php");
 	return;
     }
 

@@ -466,8 +466,8 @@ function StartResizeWatchdog(uuid)
     function resizeFunction() {
 	console.info("resizing topo");
 	// Must clear the div for the D3 library.
-	$("#showtopo_div").html("<div></div>");
-	$("#showtopo_div").removeClass("invisible");
+	$("#showtopo_statuspage").html("<div></div>");
+	$("#showtopo_statuspage").removeClass("invisible");
 	ShowTopo(uuid);
     }
 
@@ -481,7 +481,7 @@ function StartResizeWatchdog(uuid)
     // after the user stops dinking around.
     //
     $(window).resize(function() {
-	$("#showtopo_div").addClass("invisible");
+	$("#showtopo_statuspage").addClass("invisible");
 	
 	clearTimeout(resizeTimer);
 	resizeTimer = setTimeout(resizeFunction, 250);

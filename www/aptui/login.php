@@ -226,6 +226,6 @@ else {
     #
     # Zap back to front page in secure mode.
     # 
-    header("Location: $APTBASE/quickvm.php");
+    header("Location: $APTBASE/instantiate.php");
 }
 ?>

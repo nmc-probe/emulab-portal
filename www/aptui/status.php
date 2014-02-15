@@ -75,7 +75,7 @@ if (!$quickvm) {
     SPITFOOTER();
     flush();
     sleep(3);
-    PAGEREPLACE("quickvm.php");
+    PAGEREPLACE("instantiate.php");
     return;
 }
 $creator = GeniUser::Lookup("sa", $quickvm->creator_uuid());
@@ -279,7 +279,7 @@ echo "  window.APT_OPTIONS.sliceExpires = '" . $slice_expires . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "</script>\n";
-echo "<script src='js/lib/require.js' data-main='js/quickvm_status'></script>";
+echo "<script src='js/lib/require.js' data-main='js/status'></script>";
 
 #
 # A modal to tell people how to register
