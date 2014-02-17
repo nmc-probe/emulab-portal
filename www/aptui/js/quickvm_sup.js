@@ -576,6 +576,9 @@ function StartCountdownClock(when)
     }, 1000);
 }
 
+// Flag to distinguish between click and click/drag.
+var isDragging = false;
+
 function maketopmap(divname, width, height, json)
 {
 	var ismousedown = false;
@@ -701,13 +704,25 @@ function maketopmap(divname, width, height, json)
 	    .enter().append("svg:g")
 	    .call(node_drag);
 
-//	var nodea = nodeg.append("svg:a")
-//	    .attr("xlink:href", function(d) { return d.sshurl });
-	
+	//
+	// The mouse events are to distinguish between click and drag.
+	// I found it with a Google search of course.
+	//
 	var node = nodeg.append("svg:rect")
 	    .attr("class", "nodebox")
-	    .on("click", function(d) {
-		NewSSHTab(d.hostport, d.client_id);
+	    .on("mousedown", function(d) {
+		$(window).mousemove(function() {
+		    isDragging = true;
+		    $(window).unbind("mousemove");
+		});
+	    })
+	    .on("mouseup", function(d) {
+		var wasDragging = isDragging;
+		isDragging = false;
+		$(window).unbind("mousemove");
+		if (!wasDragging) { //was clicking
+		    NewSSHTab(d.hostport, d.client_id);
+		}
 	    })
 	    .attr("x", "-10px")
 	    .attr("y", "-10px")
