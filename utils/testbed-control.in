@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2013 University of Utah and the Flux Group.
+# Copyright (c) 2010-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,12 +31,12 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print STDERR "Usage: testbed-control [-d] [-f] shutdown | boot | restart\n";
+    print STDERR "Usage: testbed-control [-n] shutdown|boot|restart\n";
+    print STDERR "Use -n option to leave logins disabled after restart.\n";
     exit(-1);
 }
-my $optlist   = "df";
-my $debug     = 0;
-my $force     = 0;
+my $optlist   = "n";
+my $noenable  = 0;
 my $stopped   = 0;
 my $committed = 0;
 
@@ -74,11 +74,8 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
-if (defined($options{"d"})) {
-    $debug = 1;
-}
-if (defined($options{"f"})) {
-    $force = 1;
+if (defined($options{"n"})) {
+    $noenable = 1;
 }
 usage()
     if (@ARGV != 1);
@@ -125,13 +122,20 @@ sub Restart()
 	}
 	print "\n";
     }
-
-    print "Turning on the web interface and allowing swaps\n";
-    if (system("$SETSITEVAR general/testbed_shutdown -") ||
-	system("$SETSITEVAR web/nologins -") ||
-	system("$SETSITEVAR web/message -")) {
-	print "*** Could not renable the web interface and swapping!\n";
-	exit(1);
+    system("$SETSITEVAR general/testbed_shutdown -");
+    if ($?) {
+	Fatal("Could not clear general/testbed_shutdown");
+    }
+    if ($noenable) {
+	print "Leaving the web interface disabled as directed.\n";
+    }
+    else {
+	print "Turning on the web interface and allowing swaps\n";
+	if (system("$SETSITEVAR web/nologins -") ||
+	    system("$SETSITEVAR web/message -")) {
+	    print "*** Could not renable the web interface and swapping!\n";
+	    exit(1);
+	}
     }
 }
 
