@@ -224,7 +224,8 @@ if (exists($auth->{'console'})) {
     $command = "$CONSOLEBIN -e -a $tempfile $nodeid";
 }
 else {
-    my $sshopts = "";
+    my $sshopts  = "";
+    my $username = $uid;
     
     # No gid, see if a phony user.
     if (!defined($gid)) {
@@ -242,7 +243,7 @@ else {
 	}
     }
     $command = "/usr/bin/ssh " . ($port ? "-p $port" : "") . " " .
-	"$sshopts ${uid}\@${nodeid}";
+	"$sshopts ${username}\@${nodeid}";
 }
 
 # Silly taint check stuff.
