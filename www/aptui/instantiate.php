@@ -27,6 +27,7 @@ include_once("osinfo_defs.php");
 include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
+include("instance_defs.php");
 $page_title = "QuickVM Create";
 $dblink = GetDBLink("sa");
 
@@ -252,9 +253,9 @@ if (!isset($create)) {
 	    # Look for existing quickvm. User not allowed to create
 	    # another one.
 	    #
-	    $quickvm = QuickVM::LookupByCreator($geniuser->uuid());
-	    if ($quickvm && $quickvm->status() != "terminating") {
-		header("Location: status.php?uuid=" . $quickvm->uuid());
+	    $instance = Instance::LookupByCreator($geniuser->uuid());
+	    if ($instance && $instance->status() != "terminating") {
+		header("Location: status.php?uuid=" . $instance->uuid());
 		return;
 	    }
 	    $defaults["username"] = $geniuser->name();
@@ -363,9 +364,9 @@ if (!$this_user &&
 	# status page, like we do above.
 	#
 	if ($geniuser) {
-	    $quickvm = QuickVM::LookupByCreator($geniuser->uuid());
-	    if ($quickvm && $quickvm->status() != "terminating") {
-		header("Location: status.php?uuid=" . $quickvm->uuid());
+	    $instance = Instance::LookupByCreator($geniuser->uuid());
+	    if ($instance && $instance->status() != "terminating") {
+		header("Location: status.php?uuid=" . $instance->uuid());
 		return;
 	    }
 	}
@@ -383,8 +384,11 @@ if (!$this_user &&
     }
 }
 
+#
 # This is so we can look up the slice after the backend creates it.
-$args["name"] = substr(GENHASH(), 0, 16);
+# We tell the backend what uuid to use.
+#
+$quickvm_uuid = NewUUID();
 
 #
 # Generate a temporary file and write in the XML goo. 
@@ -427,7 +431,8 @@ if (count($errors)) {
 #
 $opt = ($this_user ? "-l" : "");
 
-$retval = SUEXEC("nobody", "nobody", "webquickvm $opt $xmlname",
+$retval = SUEXEC("nobody", "nobody",
+		 "webquickvm $opt -u $quickvm_uuid $xmlname",
 		 SUEXEC_ACTION_CONTINUE);
 
 if ($retval != 0) {
@@ -449,8 +454,8 @@ if ($retval != 0) {
 }
 unlink($xmlname);
 
-$quickvm = QuickVM::LookupByName($args["name"]);
-if (!$quickvm) {
+$instance = Instance::Lookup($quickvm_uuid);
+if (!$instance) {
     $errors["error"] = "Transient error(5); please try again later.";
     SPITFORM($formfields, false, $errors);
     SPITFOOTER();
@@ -460,7 +465,7 @@ if ($this_user) {
     $creator = $this_user;
 }
 else {
-    $creator = GeniUser::Lookup("sa", $quickvm->creator_uuid());
+    $creator = GeniUser::Lookup("sa", $instance->creator_uuid());
 }
 if (! $creator) {
     $errors["error"] = "Transient error(6); please try again later.";
@@ -486,5 +491,5 @@ if (!$this_user) {
 	      $creator->auth_token(), time() + (24 * 3600 * 30),
 	      "/", $cookiedomain, 0);
 }
-header("Location: status.php?uuid=" . $quickvm->uuid());
+header("Location: status.php?uuid=" . $instance->uuid());
 ?>

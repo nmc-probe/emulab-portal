@@ -27,7 +27,9 @@ include_once("osinfo_defs.php");
 include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
-$page_title = "QuickVM Status";
+include("profile_defs.php");
+include("instance_defs.php");
+$page_title = "Experiment Status";
 $ajax_request = 0;
 
 #
@@ -58,12 +60,12 @@ if (!isset($uuid)) {
 }
 
 #
-# See if the quickvm exists. If not, redirect back to the create page
+# See if the instance exists. If not, redirect back to the create page
 #
-$quickvm = QuickVM::Lookup($uuid);
-if (!$quickvm) {
+$instance = Instance::Lookup($uuid);
+if (!$instance) {
     if ($ajax_request) {
-	SPITAJAX_ERROR(1, "no such quickvm uuid: $uuid");
+	SPITAJAX_ERROR(1, "no such instance uuid: $uuid");
 	exit();
     }
     SPITHEADER(1);
@@ -78,13 +80,13 @@ if (!$quickvm) {
     PAGEREPLACE("instantiate.php");
     return;
 }
-$creator = GeniUser::Lookup("sa", $quickvm->creator_uuid());
-if (!$creator && $this_user && $quickvm->creator_uuid() == $this_user->uuid()) {
-    $creator = $this_user;
+$creator = GeniUser::Lookup("sa", $instance->creator_uuid());
+if (! $creator) {
+    $creator = User::LookupByUUID($instance->creator_uuid());
 }
 if (!$creator) {
     if ($ajax_request) {
-	SPITAJAX_ERROR(1, "no such quickvm user uuid");
+	SPITAJAX_ERROR(1, "no such instance creator uuid");
 	exit();
     }
     SPITHEADER(1);
@@ -94,17 +96,27 @@ if (!$creator) {
             </p>
           </div>\n";
     SPITFOOTER();
-    TBERROR("No creator for quickvm $uuid", 0);
+    TBERROR("No creator for instance: $uuid", 0);
     return;
 }
-$slice = GeniSlice::Lookup("sa", $quickvm->slice_uuid());
+#
+# We do not enforce strict permissions on a guest created instance,
+# but we do if it was created by a real user.
+#
+if (get_class($creator) == "User") {
+    if (! (isset($this_user) &&
+	   ($creator->uuid() == $this_user->uuid() || ISADMIN()))) {
+
+    }
+}
+$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 
 #
 # Deal with ajax requests.
 #
 if (isset($ajax_request)) {
     if ($ajax_method == "status") {
-	SPITAJAX_RESPONSE($quickvm->status());
+	SPITAJAX_RESPONSE($instance->status());
     }
     elseif ($ajax_method == "terminate") {
 	SUEXEC("nobody", "nobody", "webquickvm -k $uuid",
@@ -112,7 +124,7 @@ if (isset($ajax_request)) {
 	SPITAJAX_RESPONSE("");
     }
     elseif ($ajax_method == "manifest") {
-	SPITAJAX_RESPONSE($quickvm->manifest());
+	SPITAJAX_RESPONSE($instance->manifest());
     }
     elseif ($ajax_method == "ssh_authobject") {
 	SPITAJAX_RESPONSE(SSHAuthObject($creator->uid(), $ajax_argument));
@@ -135,7 +147,7 @@ if (isset($ajax_request)) {
 
 	if ($retval == 0) {
 	    # Refresh. 
-	    $slice = GeniSlice::Lookup("sa", $quickvm->slice_uuid());
+	    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 	    $new_expires = gmdate("Y-m-d H:i:s",strtotime($slice->expires()));
 	    
 	    SPITAJAX_RESPONSE($new_expires);
@@ -166,27 +178,27 @@ if (isset($slice)) {
     $slice_urn       = $slice->urn();
     $slice_expires   = gmdate("Y-m-d H:i:s", strtotime($slice->expires()));
 }
-$quickvm_status  = $quickvm->status();
+$instance_status = $instance->status();
 $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
-$quickvm_profile = $quickvm->profile();
-$slice_url       = "";
+$profile         = Profile::Lookup($instance->profile_idx());
+$profile_name    = $profile->name();
 $color           = "";
 $disabled        = "disabled";
 $spin            = 1;
-if ($quickvm_status == "failed") {
+if ($instance_status == "failed") {
     $color = "color=red";
     $spin  = 0;
 }
-elseif ($quickvm_status == "ready") {
+elseif ($instance_status == "ready") {
     $color = "color=green";
     $spin  = 0;
     $disabled = "";
 }
-elseif ($quickvm_status == "created") {
+elseif ($instance_status == "created") {
     $spinwidth = "33";
 }
-elseif ($quickvm_status == "provisioned") {
+elseif ($instance_status == "provisioned") {
     $spinwidth = "66";
 }
 
@@ -220,12 +232,12 @@ echo "<tr>\n";
 echo "<td class='uk-width-1-5' $style>State:</td>\n";
 echo "<td id='quickvm_status'
           class='uk-width-4-5' $style>
-          <font $color>$quickvm_status</font>\n";
+          <font $color>$instance_status</font>\n";
 echo "</td>\n";
 echo "</tr>\n";
 echo "<tr>\n";
 echo "<td class='uk-width-1-5' $style>Profile:</td>\n";
-echo "<td class='uk-width-4-5' $style>$quickvm_profile</td>\n";
+echo "<td class='uk-width-4-5' $style>$profile_name</td>\n";
 echo "</tr>\n";
 echo "<tr>\n";
 echo "<td class='uk-width-1-5' $style>Expires:</td>\n";

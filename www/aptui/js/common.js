@@ -37,10 +37,6 @@ window.APT_OPTIONS.initialize = function (sup)
 	event.preventDefault();
 	sup.LoginByModal();
     });
-    $('#logoutbutton').click(function (event) {
-	event.preventDefault();
-	sup.Logout();
-    });
 
     $('body').show();
 }

@@ -53,5 +53,5 @@ if ($ajax_request) {
     SPITAJAX_RESPONSE("");
     exit();
 }
-header("Location: login.php");
+header("Location: instantiate.php");
 ?>

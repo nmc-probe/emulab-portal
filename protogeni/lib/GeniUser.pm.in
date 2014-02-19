@@ -569,9 +569,9 @@ sub GetKeys($)
 # This function is intended to be used only by the SA to get the
 # key bundle from the emulab ssh keys for the local user. 
 #
-sub GetKeyBundle($$)
+sub GetKeyBundle($$;$)
 {
-    my ($self, $pref) = @_;
+    my ($self, $pref, $ignored) = @_;
     my @results = ();
 
     return -1
@@ -789,9 +789,9 @@ sub urn($)
 # This function is intended to be used only by the SA to get the
 # key bundle from the emulab ssh keys for the local user. 
 #
-sub GetKeyBundle($$)
+sub GetKeyBundle($$;$)
 {
-    my ($self, $pref) = @_;
+    my ($self, $pref, $internal) = @_;
     my @results = ();
 
     return -1
@@ -804,6 +804,19 @@ sub GetKeyBundle($$)
     foreach my $sshkey (@sshkeys) {
 	push(@results, {"type" => 'ssh',
 			"key"  => $sshkey});
+    }
+    #
+    # Add in unencrypted keys if requested. Be careful with this, only
+    # from APT at the moment since we know those resources are local.
+    #
+    if (defined($internal) && $internal) {
+	@sshkeys = ();
+	$self->emulab_user()->GetDefaultSSHKeys(\@sshkeys);
+    
+	foreach my $sshkey (@sshkeys) {
+	    push(@results, {"type" => 'ssh',
+			    "key"  => $sshkey});
+	}
     }
     @$pref = @results;
     return 0;

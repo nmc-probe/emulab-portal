@@ -104,7 +104,7 @@ $query_result =
     DBQueryFatal("select *,DATE(created) as created ".
 		 "  from apt_profiles ".
 		 (isset($all) && ISADMIN() ?
-		  "order by creator" : "where creator_idx=$target_idx"));
+		  "order by creator" : "where creator_idx='$target_idx'"));
 
 if (mysql_num_rows($query_result) == 0) {
     echo "<b>No profiles to show you. Maybe you want to ".

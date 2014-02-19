@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -123,6 +123,11 @@ use libtestbed;
 use emutil;
 use libEmulab;
 use POSIX qw(strftime ceil);
+
+# Experimental
+if ($MAINSITE) {
+    require APT_Instance;
+}
 
 #
 # So we know who/what we are acting as.
@@ -354,8 +359,10 @@ sub ExpireSlices()
 
 	# Experimental
 	if ($MAINSITE) {
-	    GeniDB::DBQueryWarn("delete from quickvms ".
-				"where slice_uuid='$slice_uuid'");
+	    my $instance = APT_Instance->Lookup($slice_uuid);
+	    if (defined($instance)) {
+		$instance->Delete();
+	    }
 	}
 
 	# Needs to move.

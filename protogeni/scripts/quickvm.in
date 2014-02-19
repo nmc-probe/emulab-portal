@@ -86,6 +86,7 @@ use lib "@prefix@/lib";
 use libtestbed;
 use libaudit;
 use APT_Profile;
+use APT_Instance;
 use User;
 use OSinfo;
 use emutil;
@@ -369,9 +370,9 @@ if (!$localuser && defined($sshkey)) {
     $geniuser->DeleteKeys();
     $geniuser->AddKey($sshkey);
 }
-# There will be "internal" keys ...
+# There will be "internal" keys cause we pass the flag asking for them.
 my @sshkeys;
-if ($geniuser->GetKeyBundle(\@sshkeys) < 0 || !@sshkeys) {
+if ($geniuser->GetKeyBundle(\@sshkeys, 1) < 0 || !@sshkeys) {
     fatal("No ssh keys to use for $geniuser!");
 }
 
@@ -444,24 +445,16 @@ my $quickvm_uuid = (defined($quickuuid) ? $quickuuid : NewUUID());
 if (!defined($quickvm_uuid)) {
     fatal("Could not generate a new uuid");
 }
-
-sub SetQuickVMStatus($$)
-{
-    my ($uuid, $status) = @_;
-
-    GeniDB::DBQueryWarn("update quickvms set status='$status' ".
-			"where uuid='$uuid'")
-	or return -1;
-
-    return 0;
-}
-
-if (!GeniDB::DBQueryWarn("insert into quickvms set ".
-			 "  uuid='$quickvm_uuid', slice_uuid='$slice_uuid', ".
-			 "  creator_uuid='$user_uuid', status='created', ".
-			 "  profile='$profile'")) {
+my $instance = APT_Instance->Create({'uuid'         => $quickvm_uuid,
+				     'profile_idx'  => $profile,
+				     'slice_uuid'   => $slice_uuid,
+				     'creator'      => $geniuser->uid(),
+				     'creator_idx'  => $geniuser->idx(),
+				     'creator_uuid' => $geniuser->uuid(),
+				     'status'       => "created"});
+if (!defined($instance)) {
     $slice->Delete();
-    fatal("Could not create quickvm record");
+    fatal("Could not create instance record for $quickvm_uuid");
 }
 
 #
@@ -497,7 +490,7 @@ my $response =
 
 if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
     $slice->Delete();
-    SetQuickVMStatus($quickvm_uuid, "failed");
+    $instance->SetStatus("failed");
     fatal("CreateSliver failed: ".
 	  (defined($response) ? $response->output() : "") . "\n");
 }
@@ -508,13 +501,11 @@ if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
 my $manifest = $response->value()->[1];
 if (!defined($manifest)) {
     $slice->UnLock();
-    SetQuickVMStatus($quickvm_uuid, "failed");
+    $instance->SetStatus("failed");
     fatal("Could not find the manifest in the response!");
 }
-my $safe_manifest = DBQuoteSpecial($manifest);
-GeniDB::DBQueryWarn("update quickvms set ".
-		    " status='provisioned', manifest=$safe_manifest ".
-		    "where uuid='$quickvm_uuid'");
+$instance->SetStatus("provisioned");
+$instance->SetManifest($manifest);
 
 print STDERR "\n";
 print STDERR "$manifest\n\n";
@@ -555,7 +546,7 @@ while ($seconds > 0) {
     }
     elsif ($blob->{'status'} eq "failed") {
 	$failed = 1;
-	SetQuickVMStatus($quickvm_uuid, "failed");
+	$instance->SetStatus("failed");
 	last;
     }
 }
@@ -563,11 +554,11 @@ if ($failed) {
     fatal("$slice_urn failed."); 
 }
 elsif (!$ready) {
-    SetQuickVMStatus($quickvm_uuid, "failed");
+    $instance->SetStatus("failed");
     fatal("$slice_urn timed out."); 
 }
 $slice->UnLock();
-SetQuickVMStatus($quickvm_uuid, "ready");
+$instance->SetStatus("ready");
 exit(0);
 
 sub fatal($) {
@@ -592,23 +583,19 @@ sub UserError($) {
 sub Terminate($)
 {
     my ($uuid) = @_;
-    my $safe_uuid = DBQuoteSpecial($uuid);
 
-    my $query_result =
-	DBQueryWarn("select * from quickvms where uuid=$safe_uuid");
-    if (! ($query_result && $query_result->numrows)) {
+    my $instance = APT_Instance->Lookup($uuid);
+    if (! defined($instance)) {
 	fatal("No such quick VM: $uuid");
     }
-    my $row = $query_result->fetchrow_hashref();
-    my $status = $row->{"status"};
 
-    my $geniuser = GeniUser->Lookup($row->{'creator_uuid'}, 1);
+    my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
     if (!defined($geniuser)) {
 	fatal("No creator for quick VM: $uuid");
     }
-    my $slice = GeniSlice->Lookup($row->{'slice_uuid'});
+    my $slice = GeniSlice->Lookup($instance->slice_uuid());
     if (!defined($slice)) {
-	if ($status eq "failed") {
+	if ($instance->status() eq "failed") {
 	    goto done;
 	}
 	fatal("No slice for quick VM: $uuid");
@@ -628,7 +615,7 @@ sub Terminate($)
     fatal("Could not sign speaksfor credential")
 	if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
 
-    SetQuickVMStatus($uuid, "terminating");
+    $instance->SetStatus("terminating");
 
     #
     # Exit and let caller poll for status.
@@ -660,7 +647,7 @@ sub Terminate($)
     }
     $slice->Delete();
   done:
-    DBQueryWarn("delete from quickvms where uuid=$safe_uuid");
+    $instance->Delete();
     exit(0);
 }
 
@@ -670,21 +657,20 @@ sub Terminate($)
 sub Extend($$)
 {
     my ($uuid, $seconds) = @_;
-    my $safe_uuid = DBQuoteSpecial($uuid);
 
-    my $query_result =
-	DBQueryWarn("select * from quickvms where uuid=$safe_uuid");
-    if (! ($query_result && $query_result->numrows)) {
+    my $instance = APT_Instance->Lookup($uuid);
+    if (! defined($instance)) {
 	fatal("No such quick VM: $uuid");
     }
-    my $row = $query_result->fetchrow_hashref();
-
-    my $geniuser = GeniUser->Lookup($row->{'creator_uuid'}, 1);
+    my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
     if (!defined($geniuser)) {
 	fatal("No creator for quick VM: $uuid");
     }
-    my $slice = GeniSlice->Lookup($row->{'slice_uuid'});
+    my $slice = GeniSlice->Lookup($instance->slice_uuid());
     if (!defined($slice)) {
+	if ($instance->status() eq "failed") {
+	    goto done;
+	}
 	fatal("No slice for quick VM: $uuid");
     }
 

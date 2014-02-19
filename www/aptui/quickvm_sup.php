@@ -151,9 +151,10 @@ function SPITHEADER($thinheader = 0)
                     Actions <b class='caret'></b></a>
                   <ul class='dropdown-menu'>
                    <li><a href='myprofiles.php'>My Profiles</a></li>
+                   <li><a href='myexperiments.php'>My Experiments</a></li>
                    <li><a href='manage_profile.php'>Create Profile</a></li>
                    <li class='divider'></li>
-	           <li><a href='#' id='logoutbutton'>Logout</a></li>
+	           <li><a href='logout.php'>Logout</a></li>
                   </ul>
                 </li>\n";
     }

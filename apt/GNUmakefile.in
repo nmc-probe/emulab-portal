@@ -32,7 +32,7 @@ SUBDIRS		=
 
 BIN_SCRIPTS	= manage_profile
 SBIN_SCRIPTS	=
-LIB_SCRIPTS     = APT_Profile.pm
+LIB_SCRIPTS     = APT_Profile.pm APT_Instance.pm
 WEB_BIN_SCRIPTS = webmanage_profile
 WEB_SBIN_SCRIPTS=
 LIBEXEC_SCRIPTS	= $(WEB_BIN_SCRIPTS) $(WEB_SBIN_SCRIPTS)
