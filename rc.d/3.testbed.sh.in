@@ -179,6 +179,9 @@ case "$1" in
 		if [ -r /var/run/mysqld_watchdog.pid ]; then
 			kill `cat /var/run/mysqld_watchdog.pid`
 		fi
+		if [ -r /var/run/lease_daemon.pid ]; then
+			kill `cat /var/run/lease_daemon.pid`
+		fi
 		if [ -r /var/run/expire_daemon.pid ]; then
 			kill `cat /var/run/expire_daemon.pid`
 		fi
