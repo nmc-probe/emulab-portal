@@ -39,12 +39,12 @@ use Data::Dumper;
 # 
 sub usage()
 {
-    print "Usage: quickvm [-l] <xmlfile>\n";
+    print "Usage: quickvm [-l] [-u uuid] <xmlfile>\n";
     print "Usage: quickvm -k <uuid>\n";
     print "Usage: quickvm -e <seconds> <uuid>\n";
     exit(1);
 }
-my $optlist = "dkve:l";
+my $optlist = "dkve:lu:";
 my $debug   = 0;
 my $verbose = 1;
 my $killit  = 0;
@@ -121,6 +121,9 @@ if (defined($options{"k"})) {
 }
 if (defined($options{"e"})) {
     $extend = $options{"e"};
+}
+if (defined($options{"u"})) {
+    $quickuuid = $options{"u"};
 }
 if (@ARGV != 1) {
     usage();
@@ -232,7 +235,7 @@ print STDERR Dumper($xmlparse)
 #
 # Make sure all the required arguments were provided.
 #
-foreach my $key ("username", "email", "profile", "name") {
+foreach my $key ("username", "email", "profile") {
     fatal("Missing required attribute '$key'")
 	if (! (exists($xmlparse->{'attribute'}->{"$key"}) &&
 	       defined($xmlparse->{'attribute'}->{"$key"}) &&
@@ -276,14 +279,6 @@ if (!defined($profile_object)) {
 }
 my $rspecstr = $profile_object->rspec();
 $profile = $value;
-
-#
-# This is so the php code can look it up in the DB. Silly.
-#
-my $quickvm_name = $xmlparse->{'attribute'}->{"name"}->{'value'};
-if ($quickvm_name !~ /^[\w]+$/) {
-    fatal("Bad name: $quickvm_name");
-}
 
 #
 # Use ssh-keygen to see if the key is valid and convertable. We first
@@ -443,10 +438,9 @@ fatal("Could not sign speaksfor credential")
     if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
 
 #
-# Got this far, lets create a quickvm record in the SA database.
-# Mostly this for the web interface.
+# Got this far, lets create a quickvm record.
 #
-my $quickvm_uuid = NewUUID();
+my $quickvm_uuid = (defined($quickuuid) ? $quickuuid : NewUUID());
 if (!defined($quickvm_uuid)) {
     fatal("Could not generate a new uuid");
 }
@@ -465,7 +459,7 @@ sub SetQuickVMStatus($$)
 if (!GeniDB::DBQueryWarn("insert into quickvms set ".
 			 "  uuid='$quickvm_uuid', slice_uuid='$slice_uuid', ".
 			 "  creator_uuid='$user_uuid', status='created', ".
-			 "  profile='$profile', name='$quickvm_name'")) {
+			 "  profile='$profile'")) {
     $slice->Delete();
     fatal("Could not create quickvm record");
 }
