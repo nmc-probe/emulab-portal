@@ -149,14 +149,18 @@ my %defaultImage = (
 );
 
 # where all our config files go
-my $VMDIR = "/var/emulab/vms/vminfo";
+my $VMS    = "/var/emulab/vms";
+my $VMDIR  = "$VMS/vminfo";
 my $XENDIR = "/var/xen";
 
-# Extra space for restore.
+# Extra space for capture/restore.
 my $EXTRAFS = "/capture";
 
-# Extra space for metadata between reloads.
+# Extra space for image metadata between reloads.
 my $METAFS = "/metadata";
+
+# Extra space for vminfo (/var/emulab/vms) between reloads.
+my $INFOFS = "/vminfo";
 
 # Xen LVM volume group name. Accessible outside this file.
 $VGNAME = "xen-vg";
@@ -493,11 +497,31 @@ sub rootPreConfig($)
 	TBScriptUnlock();
 	return -1;
     }
-    print "Creating metadata FS ...\n";
+    print "Creating image metadata FS ...\n";
     if (createExtraFS($METAFS, $VGNAME, "1G")) {
 	TBScriptUnlock();
 	return -1;
     }
+    print "Creating container info FS ...\n";
+    if (createExtraFS($INFOFS, $VGNAME, "3G")) {
+	TBScriptUnlock();
+	return -1;
+    }
+    if (! -l $VMS) {
+	#
+	# We need this stuff to be sticky across reloads, so move it
+	# into an lvm. If we lose the lvm, well then we are screwed.
+	#
+	my @files = glob("$VMS/*");
+	foreach my $file (@files) {
+	    my $base = basename($file);
+	    mysystem("/bin/mv $file $INFOFS")
+		if (! -e "$INFOFS/$base");
+	}
+	mysystem("/bin/rm -rf $VMS");
+	mysystem("/bin/ln -s $INFOFS $VMS");
+    }
+
     if (InitializeRouteTables()) {
 	print STDERR "*** Could not initialize routing table DB\n";
 	TBScriptUnlock();
@@ -1178,7 +1202,7 @@ sub vnodePreConfig($$$$$){
 	# Ick, we lost this info during reboot cause we start with a
 	# fresh private info. Need to ponder this. But anyway, this is
 	# a temp hack to get a new ntp.conf into all containers on next
-	# reboot. Will remove later. 
+	# reboot. Will remove later.
 	#
 	# No one uses FreeBSD, just mount as linux.
 	#
@@ -1490,6 +1514,13 @@ sub vnodePreConfigExpNetwork($$$$)
                     'tag' => $tag,
 		    'itype' => $interface->{'ITYPE'},
                     };
+
+	# Prototyping hack for Nick.
+	if (exists($interface->{'SETTINGS'}) &&
+	    exists($interface->{'SETTINGS'}->{'nomac_learning'}) &&
+	    $interface->{'SETTINGS'}->{'nomac_learning'}) {
+	    $link->{'nomac_learning'} = 1;
+	}
         push @links, $link;
     }
 
@@ -3090,6 +3121,12 @@ sub createExpBridges($$$)
 		print STDERR
 		    "createExpBridges: could not add $pdev to $brname\n";
 		goto bad;
+	    }
+	}
+	# Prototyping for Nick.
+	if (exists($link->{'nomac_learning'})) {
+	    if (mysystem2("$BRCTL setageing $brname 0")) {
+		print STDERR "createExpBridges: could zero agin on $brname\n";
 	    }
 	}
     }
