@@ -179,6 +179,24 @@ sub Stringify($)
     return "[APT_Instance: $uuid]";
 }
 
+sub LookupBySlice($$)
+{
+    my ($class, $slice_uuid) = @_;
+
+    if ($slice_uuid !~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
+	return undef
+    }
+    my $query_result =
+	DBQueryWarn("select uuid from apt_instances ".
+		    "where slice_uuid='$slice_uuid'");
+
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    my ($uuid) = $query_result->fetchrow_array();
+    return APT_Instance->Lookup($uuid);
+}
+
 #
 # Perform some updates ...
 #
