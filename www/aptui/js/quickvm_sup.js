@@ -532,7 +532,6 @@ function StartCountdownClock(when)
 
 	    // Reformat in local time and show the user.
 	    var local_date = new Date(when);
-	    local_date.setHours(local_date.getHours() + timeOffsetInHours);
 
 	    var local_string = local_date.format("yyyy-mm-dd hh:MM:ss Z");
 	    $("#quickvm_expires").html(local_string);
@@ -895,89 +894,6 @@ function ShowUploadedRspec(content)
 	       300, topo);
 }
 
-/*
- * Try to log the user in via an ajax call.
- */
-function LoginByModal()
-{
-    var uid = $("#quickvm_login_form [name='uid']").val();
-    var password = $("#quickvm_login_form [name='password']").val();
-
-    // Clear previous error.
-    $("#quickvm_login_form_error").html("");
-
-    var callback = function(json) {
-	if (json.code) {
-	    $("#quickvm_login_form_error").html("Login failed. Try again?");
-	}
-	else {
-	    // Clear previous error.
-	    $("#quickvm_login_form_error").html("");
-	    $("#loginstatus").html("<a>" + uid + " logged in</a>");
-	    $("#loginstatus").removeClass("hidden");
-	    $("#quickvm_actions_menu").removeClass("hidden");
-	    $("#loginbutton").addClass("hidden");
-	    $("#quickvm_login_form_error").html(
-		"<center>" + "Login successful</center><br>");
-	    setTimeout(function() {
-		HideModal("#quickvm_login_modal");
-		$("#quickvm_login_form_error").html("");
-	    }, 2000);
-	}
-    }
-    var xmlthing = $.ajax({
-	// the URL for the request
-	url: "login.php",
- 
-	// the data to send (will be converted to a query string)
-	data: {
-	    ajax_request: 1,
-	    uid: uid,
-	    password: password
-	},
- 
-	// whether this is a POST or GET request
-	type: "POST",
- 
-	// the type of data we expect back
-	dataType : "json",
-    });
-    xmlthing.done(callback);
-}
-
-/*
- * log the user out via an ajax call.
- */
-function Logout()
-{
-    var callback = function(json) {
-	if (json.code) {
-	    alert("Logout failed!");
-	}
-	else {
-	    $("#loginstatus").addClass("hidden");
-	    $("#quickvm_actions_menu").addClass("hidden");
-	    $("#loginbutton").removeClass("hidden");
-	}
-    }
-    var xmlthing = $.ajax({
-	// the URL for the request
-	url: "logout.php",
- 
-	// the data to send (will be converted to a query string)
-	data: {
-	    ajax_request: 1,
-	},
- 
-	// whether this is a POST or GET request
-	type: "GET",
- 
-	// the type of data we expect back
-	dataType : "json",
-    });
-    xmlthing.done(callback);
-}
-
 // Exports from this module for use elsewhere
 return {
     Extend: Extend,
@@ -992,8 +908,6 @@ return {
     Terminate: Terminate,
     UpdateProfileSelection: UpdateProfileSelection,
     ShowUploadedRspec: ShowUploadedRspec,
-    LoginByModal: LoginByModal,
-    Logout: Logout,
     ConvertManifestToJSON: ConvertManifestToJSON,
     maketopmap: maketopmap,
     CallMethod: CallMethod,

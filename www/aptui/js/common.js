@@ -33,10 +33,5 @@ window.APT_OPTIONS.initialize = function (sup)
 	sup.ShowModal('#verify_modal');
     }
 
-    $('#quickvm_login_modal_button').click(function (event) {
-	event.preventDefault();
-	sup.LoginByModal();
-    });
-
     $('body').show();
 }

@@ -106,7 +106,11 @@ if (!$creator) {
 if (get_class($creator) == "User") {
     if (! (isset($this_user) &&
 	   ($creator->uuid() == $this_user->uuid() || ISADMIN()))) {
-
+	if ($ajax_request) {
+	    SPITAJAX_ERROR(1, "You do not have permission!");
+	    exit();
+	}
+	PAGEERROR("You do not have permission to look at this experiment!");
     }
 }
 $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
@@ -148,7 +152,8 @@ if (isset($ajax_request)) {
 	if ($retval == 0) {
 	    # Refresh. 
 	    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
-	    $new_expires = gmdate("Y-m-d H:i:s",strtotime($slice->expires()));
+	    $new_expires = gmdate("Y-m-d\TH:i:s\Z",
+				  strtotime($slice->expires()));
 	    
 	    SPITAJAX_RESPONSE($new_expires);
 
@@ -176,7 +181,7 @@ $slice_urn       = "n/a";
 $slice_expires   = "n/a";
 if (isset($slice)) {
     $slice_urn       = $slice->urn();
-    $slice_expires   = gmdate("Y-m-d H:i:s", strtotime($slice->expires()));
+    $slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
 }
 $instance_status = $instance->status();
 $creator_uid     = $creator->uid();
