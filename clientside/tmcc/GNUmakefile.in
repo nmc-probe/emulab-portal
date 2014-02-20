@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -192,6 +192,7 @@ newnode-mfs-install: newnode-mfs
 # XXX argh!  assumes FreeBSD inner boss
 #
 elabinelabfiles:
+	mkdir -p $(INSTALL_ETCDIR)
 	$(INSTALL_PROGRAM) $(SRCDIR)/common/config/rc.mkelab \
 			   $(INSTALL_ETCDIR)/rc.mkelab
 	$(INSTALL_PROGRAM) $(SRCDIR)/freebsd/mkextrafs.pl \

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -268,7 +268,7 @@ client-src-tarball:
 # This is not finished yet.
 client-shadow-rpm:
 	-$(RM) -rf rpmbuild
-	$(MKDIR_P) rpmbuild/SOURCES rpmbuild/SRPMS
+	mkdir -p rpmbuild/SOURCES rpmbuild/SRPMS
 	$(CP) emulab-client-src.tar.gz rpmbuild/SOURCES
 	$(RPM) -v -bs --nodeps --define='_topdir $(TOPDIR)/rpmbuild' \
 		clientside/shadow.spec
@@ -470,6 +470,7 @@ undo-configure:
 # They are copied over to the embryonic boss and ops during setup.
 #
 elabinelab-scripts:
+	mkdir -p $(INSTALL_TOPDIR)/etc
 	cp -f $(SRCDIR)/clientside/tmcc/freebsd/mkextrafs.pl $(INSTALL_TOPDIR)/etc/
 	cp -f $(SRCDIR)/clientside/tmcc/common/config/rc.mkelab $(INSTALL_TOPDIR)/etc/
 
