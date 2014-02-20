@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -56,12 +56,18 @@ PTHREADCFLAGS = -D_THREAD_SAFE
 PTHREADLIBS   = -lpthread
 endif
 
+ifneq ($(EVENTSYS),0)
 ELVINFLAGS    = -I/usr/local/include
 ELVINLIBS     = -L/usr/local/lib -lpubsub -lm
 EVENTFLAGS    = -DEVENTSYS -I$(TESTBED_LIBSRCDIR)/event $(ELVINFLAGS)
 EVENTOBJS     = $(TESTBED_LIBOBJDIR)/event/event.o \
 		$(TESTBED_LIBOBJDIR)/event/util.o
 EVENTLIBS     = $(ELVINLIBS) -lcrypto
+else
+EVENTFLAGS    = 
+EVENTOBJS     = 
+EVENTLIBS     = 
+endif
 
 TBCFLAGS      = $(EVENTFLAGS) -I$(TESTBED_LIBSRCDIR)/libtb
 TBLIBS        = $(EVENTOBJS) $(TESTBED_LIBOBJDIR)/libtb/libtb.a $(EVENTLIBS)

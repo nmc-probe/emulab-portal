@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,7 +28,10 @@ SYSTEM	       := $(shell uname -s)
 
 include $(OBJDIR)/Makeconf
 
-SUBDIRS         = lib event tools os sensors tmcc protogeni
+SUBDIRS         = lib tools os sensors tmcc protogeni
+ifneq ($(EVENTSYS),0)
+SUBDIRS += event
+endif
 
 ifeq ($(WITH_EMULAB),1)
 all:	all-subdirs
