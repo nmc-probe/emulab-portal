@@ -1670,8 +1670,13 @@ sub vnodeState($$$$)
     }
     # otherwise, if the logical (root) disk exists, consider it stopped
     elsif (exists($private->{'disks'}->{$vnode_id})) {
-	my ($lvname) = @{ $private->{'disks'}->{$vnode_id} };
-
+	my $lvname;
+	if (ref($private->{'disks'}->{$vnode_id})) {
+	    ($lvname) = @{ $private->{'disks'}->{$vnode_id} };
+	}
+	else {
+	    $lvname = $private->{'disks'}->{$vnode_id};
+	}
 	if (findLVMLogicalVolume($lvname)) {
 	    $out = VNODE_STATUS_STOPPED();
 	}
@@ -1854,8 +1859,13 @@ sub vnodeDestroy($$$$)
 
     # Destroy the all the disks.
     foreach my $key (keys(%{ $private->{'disks'} })) {
-	my ($lvname) = @{ $private->{'disks'}->{$key} };
-	
+	my $lvname;
+	if (ref($private->{'disks'}->{$key})) {
+	    ($lvname) = @{ $private->{'disks'}->{$vnode_id} };
+	}
+	else {
+	    $lvname = $private->{'disks'}->{$key};
+	}
 	if (findLVMLogicalVolume($lvname)) {
 	    if ($lvname eq $vnode_id) {
 		my $rootvndisk = lvmVolumePath($lvname);
