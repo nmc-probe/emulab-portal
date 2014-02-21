@@ -170,7 +170,7 @@ sub find_serial($)
     if (-x "$SMARTCTL") {
 	@lines = `$SMARTCTL -i /dev/$dev 2>&1`;
 	foreach (@lines) {
-	    if (/^Serial Number:\s+(\S.*)/) {
+	    if (/^serial number:\s+(\S.*)/i) {
 		return $1;
 	    }
 	}
