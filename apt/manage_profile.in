@@ -128,7 +128,6 @@ my %xmlfields =
     ("profile_name"	   => ["name",		$SLOT_REQUIRED],
      "profile_pid"	   => ["pid",		$SLOT_REQUIRED],
      "profile_creator"	   => ["creator",	$SLOT_OPTIONAL],
-     "profile_description" => ["description",	$SLOT_REQUIRED|$SLOT_UPDATE],
      "profile_listed"      => ["listed",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "profile_public"      => ["public",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "rspec"		   => ["rspec",		$SLOT_REQUIRED|$SLOT_UPDATE],
