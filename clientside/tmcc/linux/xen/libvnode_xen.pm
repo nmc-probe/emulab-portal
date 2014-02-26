@@ -2476,6 +2476,7 @@ sub disk_hacks($)
     system("sed -i.bak -e '/scratch/d' $path/etc/fstab");
     system("sed -i.bak -e '${EXTRAFS}/d' $path/etc/fstab");
     system("sed -i.bak -e '${METAFS}/d' $path/etc/fstab");
+    system("sed -i.bak -e '${INFOFS}/d' $path/etc/fstab");
 
     # fixup fstab: change UUID=blah to LABEL=/
     system("sed -i.bak -e 's/UUID=[0-9a-f-]*/LABEL=\\//' $path/etc/fstab");
