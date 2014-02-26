@@ -682,10 +682,10 @@ if ($childpid) {
     my $timedout = 0;
     local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
     alarm 180
-	if (!INXENVM());
+	if (!$ISXENVM);
     waitpid($childpid, 0);
     alarm 0
-	if (!INXENVM());
+	if (!$ISXENVM);
 
     #
     # If failure then cleanup.
