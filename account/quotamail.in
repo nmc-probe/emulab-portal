@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2003-2006 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,6 +46,12 @@ else
     SCRATCHSTR=""
 fi
 
+MAINSITE=@TBMAINSITE@
+if [ $MAINSITE -ne 0 ]; then
+    QUOTAHELP="See https://wiki.emulab.net/wikidocs/wiki/kb81 for more info on quotas."
+else
+    QUOTAHELP=""
+fi
 
 for i in `/usr/sbin/repquota -v @FS_WITH_QUOTAS@ | awk '$2 ~ /\+/ {print $1}'`
 do
@@ -80,6 +86,8 @@ $SCRATCHSTR
 PLEASE NOTE: just login to @USERNODE@ directly to do the cleanup!
 You will not be able to swapin an experiment to access these directories
 while over quota.
+
+$QUOTAHELP
 
 Thanks,
 @THISHOMEBASE@ Testbed Operations
