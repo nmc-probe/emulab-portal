@@ -10,6 +10,13 @@ function ($, sup)
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+
+	// This activates the popover subsystem.
+	$('[data-toggle="popover"]').popover({
+	    trigger: 'hover',
+	    'placement': 'top'
+	});
+	
 	sup.InitQuickVM(window.APT_OPTIONS.uuid,
 			window.APT_OPTIONS.sliceExpires);
 	$('button#register-account').click(function (event) {

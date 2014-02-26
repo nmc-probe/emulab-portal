@@ -72,21 +72,31 @@ function SPITFORM($formfields, $errors)
 	}
     }
 
-    $formatter = function($field, $label, $html, $help = null) use ($errors) {
+    $format_label = function($field, $label, $help = null) {
+	echo "  <label for='$field' ".
+	"         class='col-sm-2 control-label'>$label ";
+	if ($help) {
+	    echo "<a href='#' class='btn btn-xs'
+                     data-toggle='popover' data-content='$help'>".
+		    "<span class='glyphicon glyphicon-question-sign'>
+                      </span></a>";
+	}
+	echo "  </label>\n";
+    };
+
+    $formatter = function($field, $label, $html, $help = null)
+	          use ($errors, $format_label) {
 	$class = "form-group";
 	if ($errors && array_key_exists($field, $errors)) {
 	    $class .= " has-error";
 	}
+	$size = 12;
 	echo "<div class='$class'>\n";
-	echo "  <label for='$field' ".
-	"         class='col-sm-3 control-label'>$label ";
-	if ($help) {
-	    echo "<a href='#' class='btn btn-xs'
-                     data-toggle='popover' data-content='$help'>".
-		"<span class='glyphicon glyphicon-question-sign'></span></a>";
+	if ($label) {
+	    $format_label($field, $label, $help);
+	    $size = 10;
 	}
-	echo "  </label>\n";
-	echo "  <div class='col-sm-9'>\n";
+	echo "  <div class='col-sm-${size}'>\n";
 	echo "     $html\n";
 	if ($errors && array_key_exists($field, $errors)) {
 	    echo "<label class='control-label' for='inputError'>" .
@@ -115,7 +125,6 @@ function SPITFORM($formfields, $errors)
                    method='post' action='manage_profile.php'>\n";
     echo "    <div class='row'>\n";
     echo "     <div class='col-sm-12'>\n";
-    echo "      <fieldset>\n";
 
     #
     # Look for non-specific error.
@@ -131,26 +140,38 @@ function SPITFORM($formfields, $errors)
     if ($editing) {     
 	echo "<input type='hidden' name='action' value='edit'>\n";
     }
+    echo "      </div></div><fieldset>\n";
+
+    # First row has both name and project, which makes the layout odd.
+    echo "<div class='row'>\n";
+    $format_label("profile_name", "Name",
+		  ($editing ? null :
+		   "alphanumeric, dash, underscore, no whitespace"));
+    echo "<div class='col-sm-4'>\n";
 
     # In editing mode, pass through static values.
     if ($editing) {
-	$formatter("profile_name", "Profile Name",
+	$formatter("profile_name", null,
 		   "<p class='form-control-static'>" .
-		       $formfields["profile_name"] .
-		   " (created " . $formfields["profile_created"] . ")</p>");
+		       $formfields["profile_name"] . "</p>");
 		   
 	echo "<input type='hidden' name='formfields[profile_name]' ".
 		"value='" . $formfields["profile_name"] . "'>\n";
     }
     else {
-	$formatter("profile_name", "Profile Name",
+	$formatter("profile_name", null,
 		   "<input name=\"formfields[profile_name]\"
 		       id='profile_name'
 		       value='" . $formfields["profile_name"] . "'
                        class='form-control'
-                       placeholder='' type='text'>",
-		   "alphanumeric, dash, underscore, no whitespace");
+                       placeholder='' type='text'>");
     }
+    # End of first half of row
+    echo "  </div>\n";
+    # Second half of the row.
+    $format_label("profile_pid", "Project");
+    echo "<div class='col-sm-4'>\n";
+
     #
     # If user is a member of only one project, then just pass it
     # through, no need for the user to see it. Otherwise we have
@@ -159,15 +180,13 @@ function SPITFORM($formfields, $errors)
     if (count($projlist) == 1 || $editing) {
 	$pid = ($editing ? $formfields["profile_pid"] : $projlist[0]);
 	
-	if ($editing) {
-	    $formatter("profile_pid", "Project",
-		       "<p class='form-control-static'>$pid</p>");
-	}
+	$formatter("profile_pid", null,
+		   "<p class='form-control-static'>$pid</p>");
 	echo "<input type='hidden' name='formfields[profile_pid]' ".
 		"value='$pid'>\n";
     }
     else {
-	$pid_options = "";
+	$pid_options = "<option value=''>Please Select</option>\n";
 	while (list($project) = each($projlist)) {
 	    $selected = "";
 	    if ($formfields["profile_pid"] == $project) {
@@ -176,12 +195,67 @@ function SPITFORM($formfields, $errors)
 	    $pid_options .= 
 		"<option $selected value='$project'>$project</option>\n";
 	}
-	$formatter("profile_pid", "Project",
+	$formatter("profile_pid", null,
 		   "<select name=\"formfields[profile_pid]\"
 		            id='profile_pid' class='form-control'
                             placeholder='Please Select'>$pid_options</select>");
     }
-       
+    # End of first row.
+    echo "  </div>
+          </div>\n";
+    echo "</fieldset><fieldset>\n";
+
+    #
+    # In edit mode, display current rspec in text area inside a modal.
+    # See below for the modal. So, we need buttons to display the source
+    # modal, the topo modal, in addition to a file chooser for a new rspec.
+    #
+    $invisible = ($editing ? "" : "invisible");
+    
+    $rspec_html =
+	"<div class='row'>
+           <div class='col-xs-3'>
+                <input name='rspecfile' id='rspecfile' type=file
+                 class='filestyle'
+	         data-classButton='btn btn-primary btn-xs'
+                 data-input='false'
+                 data-buttonText='Choose " . ($editing ? "new" : "") . " file'>
+           </div>
+	   <div class='col-xs-2'>
+              <button class='btn btn-primary btn-xs $invisible'
+                      id='showtopo_modal_button'>
+                      Show</button>
+           </div>
+           <div class='col-xs-2'>
+              <button class='btn btn-primary btn-xs $invisible' type='button'
+                      id='show_rspec_textarea_button'
+                      data-toggle='collapse' data-target='#rspec_textarea'>
+                      Edit</button>
+           </div>
+         </div>
+         <div class='collapse' id='rspec_textarea'
+                 style='margin-top: 4px;'>
+              <div class='row'>
+                <div class='col-xs-12'>
+ 	          <textarea name=\"formfields[profile_rspec]\"
+		            id='profile_rspec_textarea'
+		            rows=5
+                            class='form-control'
+                            type='textarea'>" .
+		     $formfields["profile_rspec"] . "</textarea>
+                </div>
+              </div>
+              <div class='row' style='margin-top: 4px;'>
+                <div class='col-xs-12'>
+                  <button class='btn btn-primary btn-xs' type='button'
+                          id='expand_rspec_modal_button'>
+                        Expand</button>
+                </div>
+              </div>
+          </div>\n";
+
+    $formatter("profile_rspec", "Your rspec", $rspec_html);
+
     $formatter("profile_description", "Description",
 	       "<textarea name=\"formfields[profile_description]\"
 		          id='profile_description'
@@ -189,59 +263,17 @@ function SPITFORM($formfields, $errors)
                           class='form-control'
                           placeholder=''
                           type='textarea'>" .
-		    $formfields["profile_description"] . "</textarea>");
+	       $formfields["profile_description"] . "</textarea>",
+	       "Briefly describe what this profile does");
 
-    #
-    # In edit mode, display current rspec in text area inside a modal.
-    # See below for the modal. So, we need buttons to display the source
-    # modal, the topo modal, in addition to a file chooser for a new rspec.
-    #
-    if ($editing) {
-	$rspec_html =
-	         "<div class='row'>
-                   <div class='col-xs-2'>
-                     <button class='btn btn-primary btn-xs'
-                         id='showtopo_modal_button'>
-                        Show</button>
-                   </div>
-                   <div class='col-xs-2'>
-                     <button class='btn btn-primary btn-xs' type='button'
-                         data-toggle='collapse' data-target='#rspec_textarea'>
-                          Edit</button>
-                   </div>
-                   <div class='col-xs-8'>
-                     <input name='rspecfile' id='rspecfile' type=file
-                         class='filestyle'
-			 data-classButton='btn btn-primary btn-xs'
-                         data-input='false' data-buttonText='Choose new file'>
-                   </div>
-                  </div>
-                  <div class='collapse' id='rspec_textarea'
-                       style='margin-top: 4px;'>
-                   <div class='row'>
-                    <div class='col-xs-12'>
- 	             <textarea name=\"formfields[profile_rspec]\"
-		           id='profile_rspec_textarea'
-		           rows=5
-                           class='form-control'
-                           type='textarea'>" .
-		     $formfields["profile_rspec"] . "</textarea>
-                    </div>
-                   </div>
-                   <div class='row' style='margin-top: 4px;'>
-                    <div class='col-xs-12'>
-                     <button class='btn btn-primary btn-xs' type='button'
-                         id='expand_rspec_modal_button'>
-                          Expand</button>
-                    </div>
-                  </div>
-                </div>\n";
-    }
-    else {
-	$rspec_html = "<input name='rspecfile' id='rspecfile'
-                       type=file class='form-control'>";
-    }
-    $formatter("profile_rspec", "Your rspec", $rspec_html);
+    $formatter("profile_instructions", "Instructions",
+	       "<textarea name=\"formfields[profile_instructions]\"
+		          id='profile_instructions'
+		          rows=3
+                          class='form-control'
+                          placeholder=''
+                          type='textarea'></textarea>",
+	       "Briefly describe how to use this profile after it starts");
 
     $formatter("profile_listed", "Listed?",
 	       "<div class='checkbox'>
@@ -265,7 +297,6 @@ function SPITFORM($formfields, $errors)
             <div class='col-sm-offset-2 col-sm-10'>
                <button class='btn btn-primary btn-sm pull-right'
                    id='profile_submit_button'
-                   disabled='disabled'
                    style='margin-right: 10px;'
                    type='submit' name='create'>$button_label</button>\n";
     if ($editing) {
@@ -278,8 +309,6 @@ function SPITFORM($formfields, $errors)
                    href='manage_profile.php?action=delete&idx=$idx'
                    type='button' name='delete'>Delete</a>\n";
     }
-    echo "  </div>\n";
-    echo "</div>\n";
     echo "     </div>\n";
     echo "    </div>\n";
 
@@ -340,6 +369,9 @@ function SPITFORM($formfields, $errors)
           </div>
           </div>\n";
     
+    echo "<script type='text/javascript'>\n";
+    echo "    window.EDITING = $editing;\n";
+    echo "</script>\n";
     echo "<script src='js/lib/require.js' data-main='js/manage_profile'>
           </script>";
     SPITFOOTER();
@@ -428,7 +460,7 @@ $errors = array();
 #
 # Quick check for required fields.
 #
-$required = array("pid", "name", "description");
+$required = array("pid", "name");
 
 foreach ($required as $key) {
     if (!isset($formfields["profile_${key}"]) ||
@@ -444,7 +476,7 @@ foreach ($required as $key) {
 #
 # The rspec file has to be treated specially of course.
 #
-if (isset($_FILES['rspecfile']) &&
+if (0 && isset($_FILES['rspecfile']) &&
     $_FILES['rspecfile']['name'] != "" &&
     $_FILES['rspecfile']['name'] != "none") {
 
@@ -518,11 +550,6 @@ else {
     fwrite($fp, "<attribute name='profile_name'>");
     fwrite($fp, "  <value>" .
 	   htmlspecialchars($formfields["profile_name"]) . "</value>");
-    fwrite($fp, "</attribute>\n");
-    fwrite($fp, "<attribute name='profile_description'>");
-    fwrite($fp, "  <value>" .
-	   htmlspecialchars($formfields["profile_description"]) .
-	   "</value>");
     fwrite($fp, "</attribute>\n");
     fwrite($fp, "<attribute name='rspec'>");
     fwrite($fp, "  <value>" . htmlspecialchars($rspec) . "</value>");

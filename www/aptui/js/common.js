@@ -13,6 +13,7 @@ window.APT_OPTIONS.config = function ()
 	    'filestyle': 'js/lib/filestyle',
 	    'tablesorter': 'js/lib/jquery.tablesorter.min',
 	    'tablesorterwidgets': 'js/lib/jquery.tablesorter.widgets.min',
+	    'marked': 'js/lib/marked',
 	},
 	shim: {
 	    'bootstrap': { deps: ['jquery'] },
@@ -22,6 +23,7 @@ window.APT_OPTIONS.config = function ()
 	    'filestyle': { deps: ['bootstrap']},
 	    'tablesorter': { deps: ['jquery'] },
 	    'tablesorterwidgets': { deps: ['tablesorter'] },
+	    'marked' : { exports: 'marked' },
 	},
     });
 }

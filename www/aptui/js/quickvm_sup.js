@@ -1,4 +1,4 @@
-define(['jquery', 'd3', 'dateformat'],
+define(['jquery', 'd3', 'dateformat', 'marked'],
 function ($, d3) {
 
 var myuuid = null;
@@ -127,8 +127,24 @@ function ShowTopo(uuid)
 	var xmlDoc = $.parseXML(json.value);
 	var xml    = $(xmlDoc);
 	var topo   = ConvertManifestToJSON(null, xml);
-	console.info(topo);
 
+	console.log(json.value);
+
+	// Deal with the instructions.
+	$(xml).find("rspec_tour").each(function() {
+	    $(this).find("instructions").each(function() {
+		var marked = require('marked');
+		marked.setOptions({"sanitize" : true});
+		
+		var text = $(this).text();
+		console.log(text);
+		// Make the div visible.
+		$('#instructions_panel').removeClass("invisible");
+		// And stick the text in
+		$('#instructions_text').html(marked(text));
+	    });
+	});
+	
 	$("#showtopo_container").removeClass("invisible");
 	// Subtract -2 cause of the border. 
 	maketopmap("#showtopo_statuspage",
@@ -179,10 +195,30 @@ function ShowProfileList(selectedElement)
 	var xmlDoc = $.parseXML(json.value.rspec);
 	var xml    = $(xmlDoc);
 	var topo   = ConvertManifestToJSON(profile, xml);
-	console.info(topo);
     
 	$('#showtopo_title').html("<h3>" + json.value.name + "</h3>");
-	$('#showtopo_description').html(json.value.description);
+
+	/*
+	 * We now use the desciption from inside the rspec, unless there
+	 * is none, in which case look to see if the we got one in the
+	 * rpc reply, which we will until all profiles converted over to
+	 * new format rspecs.
+	 */
+	var description = null;
+	$(xml).find("rspec_tour").each(function() {
+	    $(this).find("description").each(function() {
+		description = $(this).text();
+	    });
+	});
+	if (!description) {
+	    if (json.value.description != "") {
+		description = json.value.description;
+	    }
+	    else {
+		description = "Hmm, no description for this profile";
+	    }
+	}
+	$('#showtopo_description').html(description);
 
 	maketopmap("#showtopo_div",
 		   ($("#showtopo_div").outerWidth()),
@@ -271,11 +307,6 @@ function RegisterAccount(uid, email)
 
 function InitQuickVM(uuid, slice_expires)
 {
-    // This activates the popover subsystem.
-    $('[data-toggle="popover"]').popover({
-	trigger: 'hover',
-	'placement': 'top'
-    });
     // Use an unload event to terminate any shells.
     $(window).bind("unload", function() {
 	console.info("Unload function called");

@@ -194,7 +194,6 @@ sub Create($$$$$)
     }
     
     my $uuid  = NewUUID();
-    my $desc  = DBQuoteSpecial($argref->{'description'});
     my $rspec = DBQuoteSpecial($argref->{'rspec'});
 
 
@@ -205,7 +204,8 @@ sub Create($$$$$)
     $query .= ",uuid='$uuid'";
     $query .= ",pid='$pid',pid_idx='$pid_idx'";
     $query .= ",creator='$uid',creator_idx='$uid_idx'";
-    $query .= ",description=$desc";
+    # This is temporary until all rspecs using tour format.
+    $query .= ",description=''";
     $query .= ",rspec=$rspec";
     $query .= ",public=1"
 	if (exists($argref->{'public'}) && $argref->{'public'});
