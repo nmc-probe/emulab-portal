@@ -48,6 +48,8 @@ my $optlist = "dkve:lu:";
 my $debug   = 0;
 my $verbose = 1;
 my $killit  = 0;
+my $utahddc = 1;
+my $DDCURN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
 my $localuser = 0;;
 my $xmlfile;
 my $extend;
@@ -203,15 +205,26 @@ if (!defined($context)) {
 Genixmlrpc->SetContext($context);
 
 #
-# Load the CM cert and authority, since that is who we talk to.
+# Load the CM authority, since that is who we talk to.
 #
-my $cm_certificate = GeniCertificate->LoadFromFile($CMCERT);
-if (!defined($cm_certificate)) {
-    fatal("Could not load certificate from $CMCERT\n");
+my $CMURN;
+
+if ($utahddc) {
+    $CMURN = $DDCURN;
 }
-my $cm_authority = GeniAuthority->Lookup($cm_certificate->urn());
+else {
+    my $cm_certificate = GeniCertificate->LoadFromFile($CMCERT);
+    if (!defined($cm_certificate)) {
+	fatal("Could not load certificate from $CMCERT\n");
+    }
+    $CMURN = $cm_certificate->urn();
+}
+my $cm_authority = GeniAuthority->Lookup($CMURN);
 if (!defined($cm_authority)) {
-    fatal("Could not load CM authority object");
+    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
+    if (!defined($cm_authority)) {    
+	fatal("Could not load CM authority object");
+    }
 }
 
 if ($killit) {
