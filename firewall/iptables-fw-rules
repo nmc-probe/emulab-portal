@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -220,14 +220,8 @@ iptables -A OUTSIDE -s fs -d me -f -j ACCEPT # BASIC,CLOSED,ELABINELAB
 
 # Special services
 
-# cvsup to boss
-iptables -A INSIDE -p tcp -d boss --dport 5999 --syn -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
-iptables -A OUTPUT -p tcp -s me -d boss --dport 5999 --syn -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
-
-# elvind or pubsubd to ops (unicast TCP and multicast UDP)
-iptables -A INSIDE -p udp -d ops --dport 2917 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
+# pubsubd to ops (unicast TCP and multicast UDP)
 iptables -A INSIDE -p udp -d ops --dport 16505 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
-iptables -A INSIDE -p tcp -d ops --dport 2917 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
 iptables -A INSIDE -p tcp -d ops --dport 16505 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
 iptables -A OUTPUT -p tcp -s me -d ops --dport 16505 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
 
