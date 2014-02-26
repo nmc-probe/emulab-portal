@@ -6,6 +6,11 @@ DirectoryIndex instantiate.php
 RewriteBase /
 RewriteEngine on
 
+## Only perform this rule if we're on the expected domain
+RewriteCond %{HTTP_HOST} aptlab\.net$ [NC]
+RewriteCond %{HTTPS} off
+RewriteRule (.*) https://www.aptlab.net%{REQUEST_URI} 
+
 # Old quickvm page.
 RewriteRule ^/quickvm.php /instantiate.php [R=301,L]
 
