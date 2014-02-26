@@ -1741,13 +1741,16 @@ sub vnodeBoot($$$$)
 	# itself with an alarm.
 	#
 	vnodeHalt($vnode_id, $vmid, $vnconfig, $private);
+	print "Container halted, waiting for it do disappear ...\n";
 	$countdown = 10;
 	while ($countdown >= 0) {
 	    sleep(5);
 	    last
 		if (! domainExists($vnode_id));
 	    $countdown--;
+	    print "Container not gone yet\n";
 	}
+	print "Container is gone ($i)!\n";
     }
     return -1;
 }
