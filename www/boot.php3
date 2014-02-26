@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -44,7 +44,8 @@ $optargs = OptionalPageArguments("experiment", PAGEARG_EXPERIMENT,
 				 "confirmed", PAGEARG_BOOLEAN);
 
 if (isset($experiment)) {
-    if (! $experiment->AccessCheck($this_user, $TB_EXPT_MODIFY)) {
+    if (! ($isadmin ||
+	   $experiment->AccessCheck($this_user, $TB_EXPT_MODIFY))) {
 	USERERROR("You do not have permission to reboot nodes in this ".
 		  "experiment", 1);
     }
@@ -52,7 +53,8 @@ if (isset($experiment)) {
     $eid = $experiment->eid();
 }
 elseif (isset($node)) {
-    if (! $node->AccessCheck($this_user, $TB_NODEACCESS_REBOOT)) {
+    if (! ($isadmin ||
+	   $node->AccessCheck($this_user, $TB_NODEACCESS_REBOOT))) {
         USERERROR("You do not have permission to reboot this node", 1);
     }
     $node_id = $node->node_id();
