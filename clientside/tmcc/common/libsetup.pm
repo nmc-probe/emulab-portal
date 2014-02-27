@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -42,7 +42,7 @@ use Exporter;
          getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
 	 copyfilefromnfs getnodeuuid getarpinfo getstorageconfig
          getmanifest fetchmanifestblobs runbootscript runhooks 
-         build_fake_macs
+         build_fake_macs getenvvars
 
 	 TBDebugTimeStamp TBDebugTimeStampWithDate
 	 TBDebugTimeStampsOn TBDebugTimeStampsOff
@@ -1800,13 +1800,38 @@ sub calcroutes ($)
     # Gather up all the link info from the topomap
     my %lans     = ();
     my $nnodes   = 0;
+    my %noroute  = ();
+
+    #
+    # Prepass the lans section to see which lans are not routed.
+    #
+    foreach my $lanref (@{ $topomap->{"lans"} }) {
+	#
+	# look for no-route flag. They are in the topomap cause of
+	# hostnames generation, but we do not want to run them through
+	# the route calculator. Shared vlans are the only current
+	# usage case.
+	#
+	if (exists($lanref->{"noroute"}) && $lanref->{"noroute"}) {
+	    $noroute{$lanref->{"vname"}} = 1;
+	}
+    }
 
     # The nodes section tells us the name of each node, and all its links.
     foreach my $noderef (@{ $topomap->{"nodes"} }) {
 	my $vname  = $noderef->{"vname"};
-	my $links  = $noderef->{"links"};
+	my @links  = ();
 
-	if (!defined($links)) {
+	# Cull out non routable networks.
+	if (defined($noderef->{"links"})) {
+	    foreach my $link (split(" ", $noderef->{"links"})) {
+		my ($lan,$ip) = split(":", $link);
+		push(@links, $link)
+		    if (! exists($noroute{$lan}));
+	    }
+	}
+
+	if (!@links) {
 	    # If we have no links, there are no routes to compute.
 	    if ($vname eq $myname) {
 		@$rptr = ();
@@ -1816,7 +1841,7 @@ sub calcroutes ($)
 	}
 
 	# Links is a string of "$lan1:$ip1 $lan2:$ip2 ..."
-	foreach my $link (split(" ", $links)) {
+	foreach my $link (@links) {
 	    my ($lan,$ip) = split(":", $link);
 
 	    if (! defined($lans{$lan})) {
@@ -3222,6 +3247,38 @@ sub getnodeattributes($)
 
     if (tmcc(TMCCCMD_NODEATTRIBUTES, undef, \@tmccresults, %tmccopts) < 0) {
 	warn("*** WARNING: Could not get node attributes from server!\n");
+	%$rptr = ();
+	return -1;
+    }
+
+    foreach my $line (@tmccresults) {
+	if ($line =~ /^(.*)="(.*)"$/ ||
+	    $line =~ /^(.*)=(.+)$/) {
+	    $result{$1} = $2;
+	}
+    }
+
+    %$rptr = %result;
+    return 0;
+}
+
+#
+# Return the environment variables in a key/value array.
+#
+sub getenvvars($)
+{
+    my ($rptr) = @_;
+    my @tmccresults = ();
+    my %result = ();
+    my $issharedhost = SHAREDHOST();
+
+    my %tmccopts = ();
+    if ($issharedhost) {
+	$tmccopts{"nocache"} = 1;
+    }
+
+    if (tmcc(TMCCCMD_USERENV, undef, \@tmccresults, %tmccopts) < 0) {
+	warn("*** WARNING: Could not get environment vars from server!\n");
 	%$rptr = ();
 	return -1;
     }

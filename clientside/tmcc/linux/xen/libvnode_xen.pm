@@ -1516,9 +1516,9 @@ sub vnodePreConfigExpNetwork($$$$)
                     };
 
 	# Prototyping hack for Nick.
-	if (exists($interface->{'SETTINGS'}) &&
-	    exists($interface->{'SETTINGS'}->{'nomac_learning'}) &&
-	    $interface->{'SETTINGS'}->{'nomac_learning'}) {
+	my $envvar = $interface->{"LAN"} . "_nomac_learning";
+	if (exists($vnconfig->{'environment'}->{$envvar}) &&
+	    $vnconfig->{'environment'}->{$envvar}) {
 	    $link->{'nomac_learning'} = 1;
 	}
         push @links, $link;

@@ -1713,14 +1713,18 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	}
 
 	#
-	# Look for general link attributes that pass through to the
-	# backend.
+	# Look for general link attributes. We cannot use the
+	# virt_lan_settings here, we do not pass them through for
+	# regular lans. That needs to be fixed. At the moment,
+	# I just need this for Nick zero aging stuff, so make it
+	# an environment variable instead. Yuck.
 	#
 	foreach my $attr_ref (GeniXML::GetLinkAttributes($linkref)) {
-	    $virtexperiment->NewTableRow("virt_lan_settings",
-					 {"vname"   => $lanname,
-					  "capkey"  => $attr_ref->{'key'},
-					  "capval"  => $attr_ref->{'value'} });
+	    if ($attr_ref->{'key'} eq "nomac_learning") {
+		$virtexperiment->NewTableRow("virt_user_environment",
+			     {"name"  => $lanname . "_" . "nomac_learning",
+			      "value" => $attr_ref->{'value'} });
+	    }
 	}
 
 	#

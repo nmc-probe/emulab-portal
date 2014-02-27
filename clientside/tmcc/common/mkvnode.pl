@@ -299,6 +299,7 @@ my %vnconfig = ( "vnodeid"   => $vnodeid,
 		 "ldconfig"  => undef,
 		 "tunconfig" => undef,
 		 "attributes"=> undef,
+		 "environment" => undef,
                  "storageconfig" => undef,
 );
 sub VNCONFIG($) { return $vnconfig{'config'}->{$_[0]}; }
@@ -332,6 +333,7 @@ my %tmp;
 my @tmp;
 my $tmp;
 my %attrs;
+my %envvars;
 
 fatal("Could not get vnode config for $vnodeid")
     if (getgenvnodeconfig(\%tmp));
@@ -356,6 +358,10 @@ $vnconfig{"attributes"} = \%attrs;
 fatal("getstorageconfig($vnodeid): $!")
     if (getstorageconfig(\@tmp));
 $vnconfig{"storageconfig"} = [ @tmp ];
+
+fatal("getenvvars(): $!")
+    if (getenvvars(\%envvars));
+$vnconfig{"environment"} = \%envvars;
 
 if ($debug) {
     print "VN Config:\n";
