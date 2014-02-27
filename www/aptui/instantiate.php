@@ -321,14 +321,11 @@ if (!$this_user) {
 	}
     }
 }
-# Existing guest users are allowed to resuse their ssh key, but can supply
-# a new one if they want.
-if (!isset($formfields["sshkey"]) || $formfields["sshkey"] == "") {
-    if (!($geniuser || $this_user)) {
-	$errors["sshkey"] = "Missing Field";
-    }
-}
-else {
+#
+# SSH keys are now optional for guest users; they just have to
+# use the web based ssh windo.
+#
+if (isset($formfields["sshkey"]) && $formfields["sshkey"] != "") {
     $args["sshkey"] = $formfields["sshkey"];
 }
 

@@ -335,12 +335,6 @@ if (!defined($geniuser)) {
 	fatal("User $user_uid exists in the local user table");
     }
 
-    #
-    # New users must have a key.
-    #
-    if (!defined($sshkey)) {
-	UserError("You must supply an ssh key!");
-    }
     print "Geni user does not exist; creating one ...\n"
 	if ($debug);
 
