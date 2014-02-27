@@ -239,6 +239,9 @@ if ($update) {
 	$errors{"profile_name"} = "No such profile exists";
 	UserError();
     }
+    # Kill the description.. No longer used.
+    $update_args{"description"} = "";
+    
     $profile->Update(\%update_args) == 0 or
 	fatal("Could not update profile record");
     # Bump the modtime.
