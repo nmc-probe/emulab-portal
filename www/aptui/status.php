@@ -310,8 +310,8 @@ echo "<div class='panel panel-default invisible' id='showtopo_container'>\n";
 echo "<div class='panel-body'>\n";
 echo "<div id='quicktabs_div'>\n";
 echo "<div id='showtopo_statuspage'></div>\n";
-SpitToolTip("Click on a node to SSH to that node.\n".
-	    "Click and drag on a node to move things around.");
+echo "<small>Click on a node to SSH to that node. ".
+     "Click and drag to move things around.</small>\n";
 echo "</div>\n"; # showtopo
 echo "</div>\n"; # quicktabs
 echo "</div>\n"; # container
