@@ -7382,6 +7382,8 @@ sub NewVirtIface($$$$;$)
     my $newid = $virtiface->unit();
 
     # Record this vinterface mapping.
+    # XXX This should be a list since there are multiple virtifaces per
+    # physical member. 
     $self->solution_vifacemap()->{$member} = $virtiface;
     $member->_virtiface($virtiface);
     $virtiface->_member($member);
@@ -8719,7 +8721,8 @@ sub UpLoadIPAddresses($)
 		my $pnodename = $self->solution_v2p()->{$vnodename};
 		my $ip        = $member->ip();
 
-		$self->printdb("IP(v): $member - $pnodename:$iface $ip\n");
+		$self->printdb("IP(v): $member - ".
+			       "$pnodename:$vnodename:$iface $ip\n");
 	    }
 	    else {
 		#
@@ -8989,6 +8992,10 @@ sub UpLoadInterfaceSettings($)
     foreach my $virtlan (values(%{ $self->vlans() })) {
 	my $protocol = $virtlan->_protocol();
 	my $vlanname = $virtlan->vname();
+
+	next
+	    if (! (($protocol =~ /^(80211|flex900|xcvr2450)/)));
+	
 	my @members  = $virtlan->memberlist();
 	my $ssid     = "${vlanname}_${idx}";
 	my $apmac;
