@@ -128,7 +128,7 @@ function ShowTopo(uuid)
 	var xml    = $(xmlDoc);
 	var topo   = ConvertManifestToJSON(null, xml);
 
-	console.log(json.value);
+	console.info(json.value);
 
 	// Deal with the instructions.
 	$(xml).find("rspec_tour").each(function() {
@@ -137,11 +137,10 @@ function ShowTopo(uuid)
 		marked.setOptions({"sanitize" : true});
 		
 		var text = $(this).text();
-		console.log(text);
+		// Stick the text in
+		$('#instructions_text').html(marked(text));
 		// Make the div visible.
 		$('#instructions_panel').removeClass("invisible");
-		// And stick the text in
-		$('#instructions_text').html(marked(text));
 	    });
 	});
 	
@@ -219,6 +218,7 @@ function ShowProfileList(selectedElement)
 	    }
 	}
 	$('#showtopo_description').html(description);
+	$('#selected_profile_description').html(description);
 
 	maketopmap("#showtopo_div",
 		   ($("#showtopo_div").outerWidth()),
@@ -524,8 +524,6 @@ function StartResizeWatchdog(uuid)
 //
 function StartCountdownClock(when)
 {
-    console.info(when);
-
     // Use this static variable to force clock reset.
     StartCountdownClock.reset = when;
 
@@ -540,7 +538,6 @@ function StartCountdownClock(when)
 
     // Need the timezone offset to format a local time.
     var timeOffsetInHours = (new Date().getTimezoneOffset()/60) * (-1);
-    console.info(timeOffsetInHours);
 
     // variables for time units
     var days, hours, minutes, seconds;
@@ -564,7 +561,7 @@ function StartCountdownClock(when)
 	    // Reformat in local time and show the user.
 	    var local_date = new Date(when);
 
-	    var local_string = local_date.format("yyyy-mm-dd hh:MM:ss Z");
+	    var local_string = local_date.format("yyyy-mm-dd HH:MM:ss Z");
 	    $("#quickvm_expires").html(local_string);
 
 	    // Countdown also based on local time. 
