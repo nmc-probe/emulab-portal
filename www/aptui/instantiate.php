@@ -171,7 +171,7 @@ function SPITFORM($formfields, $newuser, $errors)
 
 	$formatter("sshkey", 
 		  "<textarea name=\"formfields[sshkey]\" 
-                             placeholder='Your ssh public key'
+                             placeholder='Optional: your ssh public key.'
                              class='form-control'
                              rows=4 cols=45>" . $formfields["sshkey"] .
                   "</textarea>");
