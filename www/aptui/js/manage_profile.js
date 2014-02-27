@@ -2,7 +2,7 @@ window.APT_OPTIONS.config();
 
 require(['jquery', 'js/quickvm_sup', 
 	 // jQuery modules
-	 'bootstrap','filestyle'],
+	 'bootstrap','filestyle','marked'],
 function ($, sup)
 {
     'use strict';
@@ -119,6 +119,17 @@ function ($, sup)
 	});
 
 	/*
+	 * A double click handler that will render the instructions
+	 * in a modal.
+	 */
+	$('#profile_instructions').dblclick(function() {
+	    var text = $(this).val();
+	    var marked = require("marked");
+	    $('#renderer_modal_div').html(marked(text));
+	    sup.ShowModal("#renderer_modal");
+	});
+
+	/*
 	 * If editing, need to suck the description and instructions
 	 * out of the rspec and put them into the text boxes. But
 	 * watch for some already in the description box, it is an old
@@ -136,7 +147,7 @@ function ($, sup)
 	else {
 	    /*
 	     * Not editing, so disable the text boxes until we get
-	     * an rspec.
+	     * an rspec via the file chooser. 
 	     */
 	    $('#profile_instructions').prop("disabled", true);
 	    $('#profile_description').prop("disabled", true);

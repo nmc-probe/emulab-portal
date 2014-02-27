@@ -273,7 +273,8 @@ function SPITFORM($formfields, $errors)
                           class='form-control'
                           placeholder=''
                           type='textarea'></textarea>",
-	       "Briefly describe how to use this profile after it starts");
+	       "Briefly describe how to use this profile after it starts. ".
+	       "Double click to see it rendered.");
 
     $formatter("profile_listed", "Listed?",
 	       "<div class='checkbox'>
@@ -362,6 +363,28 @@ function SPITFORM($formfields, $errors)
                             id='showtopo_container'>
                     <div class='panel-body'>
                      <div id='showtopo_nopicker'></div>
+                    </div>
+                 </div>
+               </div>
+            </div>
+          </div>
+          </div>\n";
+    
+    echo "<!-- This is the renderer modal -->
+          <div id='renderer_modal' class='modal fade'>
+          <div class='modal-dialog'>
+            <div class='modal-content'>
+               <div class='modal-header'>
+                <button type='button' class='close' data-dismiss='modal'
+                   aria-hidden='true'>
+                   &times;</button>
+                <h3>Markdown Renderer</h3>
+               </div>
+               <div class='modal-body'>
+                 <!-- This rendering goes inside this div -->
+                 <div class='panel panel-default'>
+                    <div class='panel-body'>
+                     <div id='renderer_modal_div'></div>
                     </div>
                  </div>
                </div>
