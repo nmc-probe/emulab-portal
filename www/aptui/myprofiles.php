@@ -147,6 +147,13 @@ while ($row = mysql_fetch_array($query_result)) {
     $created = $row["created"];
     $public  = $row["public"];
     $creator = $row["creator"];
+    $rspec   = $row["rspec"];;
+
+    $parsed_xml = simplexml_load_string($rspec);
+    if ($parsed_xml &&
+	$parsed_xml->rspec_tour && $parsed_xml->rspec_tour->description) {
+	$desc = $parsed_xml->rspec_tour->description;
+    }
     
     echo " <tr>
             <td>

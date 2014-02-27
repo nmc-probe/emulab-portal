@@ -109,6 +109,7 @@ body {
 #profile_well {
   height: 32px;
   padding: 0 0 0 9px;
+  margin-bottom: 10px;
 }
 
 #profile_well #selected_profile_text {
