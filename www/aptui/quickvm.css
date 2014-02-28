@@ -128,10 +128,11 @@ body {
   border: 1px solid #000;
 }
 
-/*@media (min-width: 970px) {
-  .modal-dialog {
+@media (min-width: 970px) {
+
+#showtopo_dialog {
   width: 950px;
-}*/
+}
 
 #showtopo_description,
 #showtopo_div {

@@ -325,7 +325,7 @@ function SpitTopologyViewModal($modal_name, $profile_array)
 {
     echo "<!-- This is the topology view modal -->
           <div id='$modal_name' class='modal fade'>
-          <div class='modal-dialog'  id='showtopo_dialog'>
+          <div class='modal-dialog topo-modal'  id='showtopo_dialog'>
             <div class='modal-content'>
                <div class='modal-header'>
                 <button type='button' class='close' data-dismiss='modal'
