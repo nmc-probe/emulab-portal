@@ -171,16 +171,18 @@ function ($, sup)
 	// See if we need to add the section to top level.
 	var tour = $(xml).find("rspec_tour");
 	if (! tour.length) {
-	    $(xml).find("rspec").prepend($('<rspec_tour xmlns=' +
+	    var newdoc = $.parseXML('<rspec_tour xmlns=' +
                  '"http://www.protogeni.net/resources/rspec/ext/apt-tour/1">' +
-					  '</rspec_tour>'));
+				    '</rspec_tour>');
+	    $(xml).find("rspec").prepend($(newdoc).find("rspec_tour"));
 	}
 	var tour = $(xml).find("rspec_tour");
 	// Ditto the subsection.
 	var sub  = $(tour).find(which);
 	if (!sub.length) {
-	    $(xml).find("rspec_tour").append($('<'  + which + ' type="text">' +
-					       '</' + which + '>'));
+	    var newdoc = $.parseXML('<'  + which + ' type="text">' +
+				    '</' + which + '>');
+	    $(xml).find("rspec_tour").append($(newdoc).find(which));
 	}
 	var sub  = $(tour).find(which);
 	$(sub).text(text);
