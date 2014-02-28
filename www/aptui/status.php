@@ -259,10 +259,6 @@ echo "<td class='uk-width-4-5' $style>
 echo "</tr>\n";
 echo "</table>\n";
 echo "<div class='pull-right'>\n";
-echo "  <button class='btn btn-primary'
-           id='register_button' type=button
-	   data-toggle='modal' data-target='#register_modal'>
-           Register</button>\n";
 echo "  <button class='btn btn-success' $disabled
            id='extend_button' type=button
 	   data-toggle='modal' data-target='#extend_modal'>
