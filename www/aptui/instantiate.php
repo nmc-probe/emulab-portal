@@ -147,7 +147,7 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "<div class='panel panel-default'>
            <div class='panel-heading'>
               <h3 class='panel-title'>
-                 Create an Experiment</h3></div>
+                 Run an Experiment</h3></div>
            <div class='panel-body'>\n";
     echo "   <fieldset>\n";
 
