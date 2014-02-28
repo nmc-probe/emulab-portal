@@ -271,11 +271,6 @@ function SpitLoginModal($id, $embedded = 0)
                    <h4 class='modal-title'>Log in to Apt</h4>
                </div>
                <div class='modal-body'>\n";
-    echo "     <div class='row'>
-               <div class='col-lg-4 col-lg-offset-4
-                           col-md-6 col-md-offset-3
-                           col-sm-8 col-sm-offset-2
-                           col-xs-12'>\n";
     if (!$embedded) {
 	echo "   <form id='quickvm_login_form'
 		       role='form'
@@ -305,8 +300,6 @@ function SpitLoginModal($id, $embedded = 0)
 	echo "   </form>";
     }
     echo "     </div>
-               </div>
-               </div>
             </div>
             </div>
          </div>\n";
