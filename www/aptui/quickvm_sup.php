@@ -184,6 +184,7 @@ function SPITFOOTER()
        <div id='footer'>
         <div class='pull-left'>Powered by
              <img src='emulab-whiteout.png' id='elabpower'></div>
+	<span>Bug? Join the <a href='https://groups.google.com/forum/#!forum/apt-users'>Help Forum</a></span>
         <div class='pull-right'>&copy; 2014 The University of Utah</div>
        </div>
       </div>
@@ -510,6 +511,10 @@ Apt is built on <a href="http:/www.emulab.net">Emulab</a> and
 It is built and operated by the <a href="http://www.utah.edu">University of 
     Utah</a>'s <a href="http://www.flux.utah.edu">Flux Research Group</a>
     with support from NSF under award CNS-1338155.
+</p>
+
+<p>
+For help, bug reports, or other questions, come join the <a href="https://groups.google.com/forum/#!forum/apt-users">Discussion Forum</a>
 </p>
 
 </div> <!-- Panel body -->

@@ -70,6 +70,17 @@ body {
   padding: 0.5em;
   color: #ddd;
   background-color: #ff6600;
+  text-align: center;
+}
+
+#footer a {
+  height: 1.0em;
+  color: #fff;
+}
+
+#footer a:hover {
+  height: 1.0em;
+  color: #ccc;
 }
 
 #footer #elabpower {
