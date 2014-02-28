@@ -1,8 +1,7 @@
 window.APT_OPTIONS.config();
 
 require(['jquery', 'js/quickvm_sup',
-	 // jQuery modules
-	 'bootstrap'],
+	 'tablesorter', 'tablesorterwidgets', 'bootstrap'],
 function ($, sup)
 {
     'use strict';

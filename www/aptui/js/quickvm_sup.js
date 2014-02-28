@@ -130,7 +130,8 @@ function ShowTopo(uuid)
 
 	console.info(json.value);
 
-	// Deal with the instructions.
+	// Suck the instructions out of the tour and put them into
+	// the Usage area.
 	$(xml).find("rspec_tour").each(function() {
 	    $(this).find("instructions").each(function() {
 		var marked = require('marked');
@@ -143,7 +144,44 @@ function ShowTopo(uuid)
 		$('#instructions_panel').removeClass("invisible");
 	    });
 	});
-	
+	// Find all of the nodes, and put them into the list tab.
+	// Clear current table.
+        $('#listview_table > tbody').html("");
+	$(xml).find("node").each(function() {
+	    var node   = $(this).attr("client_id");
+	    var login  = $(this).find("login");
+	    var href   = "n/a";
+	    var ssh    = "n/a";
+	    
+	    if (login.length) {
+		var user   = login.attr("username");
+		var host   = login.attr("hostname");
+		var port   = login.attr("port");
+		var url    = "ssh://" + user + "@" + host + ":" + port + "/";
+		href       = "<a href='" + url + "'>" + url + "</a>";
+		console.info(url);
+		
+		var hostport  = host + ":" + port;
+		ssh = "<button class='btn btn-primary btn-xs' " +
+		    "    id='" + "sshbutton_" + node + "' " +
+                    "    type='button'>" +
+		    "   <span class='glyphicon glyphicon-log-in'><span>" +
+		    "  </button>";
+		console.info(ssh);
+
+		// Use this to attach handlers to things that do not exist.
+		$('#listview_table').off('click', '#sshbutton_' + node);
+		$('#listview_table').on('click',
+					'#sshbutton_' + node, function () {
+					    NewSSHTab(hostport, node);
+					});
+	    }
+            $('#listview_table > tbody:last').append(
+		'<tr><td>' + node + '</td><td>' + ssh + '</td><td>' +
+		    href + '</td></tr>'
+	    );
+	});
+
 	$("#showtopo_container").removeClass("invisible");
 	// Subtract -2 cause of the border. 
 	maketopmap("#showtopo_statuspage",
@@ -312,7 +350,6 @@ function InitQuickVM(uuid, slice_expires)
 	console.info("Unload function called");
 	
 	$('#quicktabs_content div').each(function () {
-	    console.info(this);
 	    var $this = $(this);
 	    // Skip the main profile tab
 	    if ($this.attr("id") == "profile") {
@@ -330,7 +367,6 @@ function InitQuickVM(uuid, slice_expires)
     $(window).bind("pagehide", function() {
 	console.info("Pagehide function called");
     });
-    StartResizeWatchdog(uuid);
     StartCountdownClock(slice_expires);
     GetStatus(uuid);
     myuuid = uuid;
@@ -403,27 +439,6 @@ function NewSSHTab(hostport, client_id)
     var host = pair[0];
     var port = pair[1];
 
-    //
-    // On first ssh, we convert the topo div into a tabs array,
-    // and place each ssh session as a new tab. The original svg
-    // DOM is saved and then moved into the new fragment. 
-    //
-    if (! $("#quicktabs").length) {
-	// SVG DOM fragment.
-	var svg  = $('#showtopo_statuspage>svg');
-	
-	var html =
-	    "<ul id='quicktabs' class='nav nav-tabs'>\n" +
-	    " <li><a href='#profile' data-toggle='tab'>Profile</a></li>\n" +
-	    "</ul>\n" +
-	    "<div id='quicktabs_content' class='tab-content'>\n" +
-	    " <div class='tab-pane' id='profile'>\n" +
-	    "  <div id='showtopo_statuspage'></div>\n" +
-	    " </div>\n" +
-	    "</div>\n";
-	$('#quicktabs_div').html(html);
-	$('#showtopo_statuspage').append(svg);
-    }
     //
     // Need to create the tab before we can create the topo, since
     // we need to know the dimensions of the tab.

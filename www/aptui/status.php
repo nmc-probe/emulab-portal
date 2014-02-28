@@ -309,11 +309,40 @@ echo "<div class='row'>
 echo "<div class='panel panel-default invisible' id='showtopo_container'>\n";
 echo "<div class='panel-body'>\n";
 echo "<div id='quicktabs_div'>\n";
-echo "<div id='showtopo_statuspage'></div>\n";
-echo "<small>Click on a node to SSH to that node. ".
-     "Click and drag to move things around.</small>\n";
-echo "</div>\n"; # showtopo
+echo "  <ul id='quicktabs' class='nav nav-tabs'>
+	  <li class='active'>
+             <a href='#profile' data-toggle='tab'>Map</a>
+          </li>
+	  <li>
+             <a href='#listview' data-toggle='tab'>List</a>
+          </li>
+	</ul>
+	<div id='quicktabs_content' class='tab-content'>
+          <div class='tab-pane active' id='profile'>
+	    <div id='showtopo_statuspage'></div>
+            <small>Click on a node to SSH to that node. 
+                   Click and drag to move things around.</small>
+	  </div>
+          <div class='tab-pane' id='listview'>
+	    <div id='showtopo_listview'>
+              <table class='table table-striped table-hover table-condensed'
+                     id='listview_table'>
+                <thead>
+                  <tr>
+                    <th>Node ID</th>
+                    <th>SSH</th>
+                    <th>SSH URL <small>(if you provided your own key)</small>
+                     </th>
+                  </tr>
+                </thead>
+                <tbody>
+                </tbody>
+              </table>
+            </div>
+	  </div>
+	</div>\n";
 echo "</div>\n"; # quicktabs
+echo "</div>\n"; # body
 echo "</div>\n"; # container
 echo "</div>\n"; # cols
 echo "</div>\n"; # row
