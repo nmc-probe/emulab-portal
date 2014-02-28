@@ -196,16 +196,22 @@ $creator_email   = $creator->email();
 $profile         = Profile::Lookup($instance->profile_idx());
 $profile_name    = $profile->name();
 $color           = "";
+$bgtype          = "bg-info";
+$statustext      = "Please wait while we get your experiment ready";
 $disabled        = "disabled";
 $spin            = 1;
 if ($instance_status == "failed") {
     $color = "color=red";
     $spin  = 0;
+    $bgtype = "bg-danger";
+    $statustext = "Something went wrong, sorry! Our staff has been notified.";
 }
 elseif ($instance_status == "ready") {
     $color = "color=green";
     $spin  = 0;
     $disabled = "";
+    $bgtype = "bg-success";
+    $statustext = "Your experiment is ready!";
 }
 elseif ($instance_status == "created") {
     $spinwidth = "33";
@@ -224,7 +230,8 @@ echo "<div class='panel-body'>\n";
 echo "<table class='table table-condensed' $style>\n";
 if ($spin) {
     echo "<tr>\n";
-    echo "<td colspan=2 $style>\n";
+    echo "<td colspan=2 $style class='$bgtype'>\n";
+    echo "<h4 id='statusmessage'>$statusmessage</h4>\n";
     echo "<div id='quickvm_spinner'>\n";
     echo " <div id='quickvm_progress'
                 class='progress progress-striped active'>\n";
@@ -236,6 +243,11 @@ if ($spin) {
     echo "</td>\n";
     echo "</tr>\n";
 }
+echo "<tr>\n";
+echo "<td colspan=2 $style class='$bgtype'>\n";
+echo "<h4 id='statusmessage'>$statusmessage</h4>\n";
+echo "</td>\n";
+echo "</tr>\n";
 echo "<tr>\n";
 echo "<td class='uk-width-1-5' $style>URN:</td>\n";
 echo "<td class='uk-width-4-5' $style>$slice_urn</td>\n";
