@@ -184,7 +184,7 @@ function SPITFOOTER()
        <div id='footer'>
         <div class='pull-left'>Powered by
              <img src='emulab-whiteout.png' id='elabpower'></div>
-        <div class='pull-right'>&copy; 2013 The University of Utah</div>
+        <div class='pull-right'>&copy; 2014 The University of Utah</div>
        </div>
       </div>
       <!-- Placed at the end of the document so the pages load faster -->
@@ -325,7 +325,7 @@ function SpitTopologyViewModal($modal_name, $profile_array)
 {
     echo "<!-- This is the topology view modal -->
           <div id='$modal_name' class='modal fade'>
-          <div class='modal-dialog topo-modal'  id='showtopo_dialog'>
+          <div class='modal-dialog'  id='showtopo_dialog'>
             <div class='modal-content'>
                <div class='modal-header'>
                 <button type='button' class='close' data-dismiss='modal'
