@@ -126,7 +126,7 @@ function SPITHEADER($thinheader = 0)
 	    echo "</li>\n";
 	}
 	echo "<li id='loginstatus'>".
-	    ($login_user ? "<p>$login_uid logged in</p>" : "") . "</li>\n";
+	    ($login_user ? "<p class='navbar-text'>$login_uid logged in</p>" : "") . "</li>\n";
 
 	if (!NOLOGINS()) {
 	    echo "<li id='signupitem' " .
@@ -467,6 +467,63 @@ function RedirectLoginPage()
     # pass in the URI for this page as an argument
     header("Location: login.php?referrer=".
 	   urlencode($_SERVER['REQUEST_URI']));
+}
+
+function SpitAboutApt()
+{
+?>
+
+<div class='row'>
+<div class='col-lg-6  col-lg-offset-3
+          col-md-6  col-md-offset-3
+          col-sm-8  col-sm-offset-2
+          col-xs-12 col-xs-offset-0'>
+
+<div class="panel panel-info">
+
+<div class="panel-heading">
+    <h3 class="panel-title" data-toggle="collapse" href="#aboutapt">What is Apt? <span class="glyphicon glyphicon-expand"></span></h3>
+</div>
+
+<div id="aboutapt" class="panel-collapse collapse">
+
+<div class="panel-body">
+
+<p>
+Apt is a testbed facility build around <em>profiles</em>.
+A profile describes an <em>experiment</em>; when you instantiate a profile,
+    that specification is realized on the Apt cluster using virtual or
+    physical machines.
+The creator of a profile may put code, data, and other resources into it,
+    and the profile may consist of a single machine or may describe an
+    entire network.
+</p>
+
+<p>
+Apt is a platform for sharing research; it is open to all researchers, 
+    educators, and students.
+Basic access to Apt is provided without account registration to keep the
+    barriers to accessing research results low.
+If you find the limited resources that are provided to unregistered users 
+    useful, you may want to <a href="signup.php">sign up</a> for a (free)
+    account to get access to more resources and to create profiles of your
+    own.
+</p>
+
+<p>
+Apt is built on <a href="http:/www.emulab.net">Emulab</a> and
+    <a href="http://www.geni.net">GENI</a> technologies.
+It is built and operated by the <a href="http://www.utah.edu">University of 
+    Utah</a>'s <a href="http://www.flux.utah.edu">Flux Research Group</a>
+    with support from NSF under award CNS-1338155.
+</p>
+
+</div> <!-- Panel body -->
+</div> <!-- Collapser -->
+</div> <!-- Panel -->
+</div> <!-- Sizing -->
+</div> <!-- Row -->
+<?
 }
 
 ?>
