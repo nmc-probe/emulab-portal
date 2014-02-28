@@ -215,7 +215,7 @@ function SPITFORM($formfields, $newuser, $errors)
 		$stuffing = substr(GENHASH(), 0, 16);
 	    }
 	    mail($formfields["email"],
-		 "Confirm your email to create your Experiment",
+		 "aptlab.net: Verification code for creating your experiment",
 		 "Here is your user verification code. Please copy and\n".
 		 "paste this code into the box on the experiment page.\n\n".
 		 "      $stuffing\n",
