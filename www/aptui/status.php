@@ -294,7 +294,9 @@ if ($parsed_xml &&
     echo "<div class='panel panel-default'>\n";
     echo "<div class='panel-heading'>
             <a data-toggle='collapse' data-target='#instructions_collapse'
-               href='#'>Usage Instructions</a>
+               href='#'>Usage Instructions
+                <span class='glyphicon glyphicon-chevron-right pull-right'>
+                </span></a>
           </div>\n";
     echo "<div class='panel-collapse collapse' id='instructions_collapse'>\n";
     echo "<div class='panel-body' id='instructions_text'>\n";
