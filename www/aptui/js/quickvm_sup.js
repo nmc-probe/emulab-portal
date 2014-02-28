@@ -67,11 +67,16 @@ function StatusWatchCallBack(uuid, json)
     
     if (status != StatusWatchCallBack.laststatus) {
 	status_html = status;
+
+	var bgtype = '';
+	var statustext = '';
 	
 	if (status == 'provisioned') {
 	    $("#quickvm_progress_bar").width("66%");
 	}
 	else if (status == 'ready') {
+	    bgtype = "bg-success";
+	    statustext = "Your experiment is ready!";
 	    status_html = "<font color=green>ready</font>";
 	    if ($("#quickvm_progress").length) {
 		$("#quickvm_progress").removeClass("progress-striped");
@@ -84,6 +89,8 @@ function StatusWatchCallBack(uuid, json)
 	    ShowTopo(uuid);
 	}
 	else if (status == 'failed') {
+	    bgtype = "bg-danger";
+	    statustext = "Something went wrong, sorry! We've been notified.";
 	    status_html = "<font color=red>failed</font>";
 	    if ($("#quickvm_progress").length) {
 		$("#quickvm_progress").removeClass("progress-striped");
@@ -99,6 +106,7 @@ function StatusWatchCallBack(uuid, json)
 	    $("#extend_button").prop("disabled", true);
 	    StartCountdownClock.stop = 0;
 	}
+	$("#statusmessage").addClass(bgtype).html(statustext);
 	$("#quickvm_status").html(status_html);
     } 
     StatusWatchCallBack.laststatus = status;
