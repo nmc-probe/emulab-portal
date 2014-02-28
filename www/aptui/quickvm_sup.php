@@ -259,50 +259,59 @@ function SpitVerifyModal($id, $label)
 #
 # Spit out the login modal. 
 #
-function SpitLoginModal($id, $embedded = 0)
+function SpitLoginModal($id)
 {
-    echo "<!-- This is the login modal -->
-          <div id='$id' class='modal fade' role='dialog'>
-            <div class='modal-dialog'>
-            <div class='modal-content'>
-               <div class='modal-header'>
-                <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>&times;</button>
-                   <h4 class='modal-title'>Log in to Apt</h4>
-               </div>
-               <div class='modal-body'>\n";
-    if (!$embedded) {
-	echo "   <form id='quickvm_login_form'
-		       role='form'
-                       method='post' action='login.php'>";
-	echo "<input type=hidden name=refer value=1>\n";
-	echo "<div id='quickvm_login_form_error'
-			class='align-center'></div>\n";
-    }
-    echo "             <div class='form-group'>
-                        <input name='uid' class='form-control'
-                               placeholder='Aptlab.net or Emulab.net Username'
-                               autofocus type='text'>
+?>
+    <!-- This is the login modal -->
+    <div id='<?php echo $id ?>' class='modal fade' role='dialog'>
+        <div class='modal-dialog'>
+        <form id='quickvm_login_form'
+              role='form'
+              method='post' action='login.php'>
+        <input type=hidden name=refer value=1>
+        <div id='quickvm_login_form_error'
+             class='align-center'></div>
+        <div class='modal-content'>
+           <div class='modal-header'>
+            <button type='button' class='close' data-dismiss='modal'
+               aria-hidden='true'>&times;</button>
+               <h4 class='modal-title'>Log in to Apt</h4>
+           </div>
+           <div class='modal-body form-horizontal'>
+             <div class='form-group'>
+                       <label for='uid' class='col-sm-2 control-label'>Username</label>
+                       <div class='col-sm-10'>
+                           <input name='uid' class='form-control'
+                                  placeholder='Aptlab.net or Emulab.net Username'
+                                  autofocus type='text'>
                        </div>
-                       <div class='form-group'>
-                        <input name='password' class='form-control'
-                               placeholder='Password'
-                               type='password'>
+                   </div>
+                   <div class='form-group'>
+                       <label for='password' class='col-sm-2 control-label'>Password </label>
+                       <div class='col-sm-10'>
+                           <input name='password' class='form-control'
+                                  placeholder='Password'
+                                  type='password'>
                        </div>
-                       <div class='form-group'>
-                        <button class='btn btn-primary btn-sm'
+                   </div>
+             </div>
+             <div class='modal-footer'>
+                   <div class='form-group'>
+                        <button class='btn btn-success btn-sm'
                             id='quickvm_login_modal_button'
                             class='form-control'
                             type='submit' name='login'>
                             Login</button>
-                       </div>\n";
-    if (!$embedded) {
-	echo "   </form>";
-    }
-    echo "     </div>
-            </div>
-            </div>
-         </div>\n";
+                         or
+                         <a class='btn btn-primary btn-sm'
+                            href='signup.php'>Sign Up</a> 
+                   </div>
+             </div>
+        </div>
+        </form>
+        </div>
+     </div>
+<?php
 }
 
 #
