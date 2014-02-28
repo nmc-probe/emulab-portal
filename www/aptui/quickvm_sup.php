@@ -129,21 +129,28 @@ function SPITHEADER($thinheader = 0)
 	    ($login_user ? "<p>$login_uid logged in</p>" : "") . "</li>\n";
 
 	if (!NOLOGINS()) {
-	    echo "<li id='loginbutton' " .
+	    echo "<li id='signupitem' " .
 		($login_user ? "class='hidden'" : "") . ">" .
-		"       <a class='btn btn-primary navbar-btn'
+                    "<form><a class='btn btn-primary navbar-btn'
+                           id='signupbutton'
+                           href='signup.php'>
+                        Sign Up</a></form></li>
+                  \n";
+	    echo "<li id='loginitem' " .
+		($login_user ? "class='hidden'" : "") . ">" .
+                    "<form><a class='btn btn-primary navbar-btn'
                            id='loginbutton'
 	                   data-toggle='modal'
                            href='#quickvm_login_modal'
                            data-target='#quickvm_login_modal'>
-                        Login</a></li>
+                        Login</a></form></li>
                   \n";
 	}
     }
     echo "   </ul>
              <ul class='nav navbar-nav navbar-left'>
-                <li><a class='btn btn-quickvm-home navbar-btn'
-                       href='instantiate.php'>Home</a></li>\n";
+                <li><form><a class='btn btn-quickvm-home navbar-btn'
+                       href='instantiate.php'>Home</a></form></li>\n";
     if (!$disable_accounts) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown ".
 	    (!$login_user ? "hidden" : "") . "'>" .
@@ -302,9 +309,6 @@ function SpitLoginModal($id)
                             class='form-control'
                             type='submit' name='login'>
                             Login</button>
-                         or
-                         <a class='btn btn-primary btn-sm'
-                            href='signup.php'>Sign Up</a> 
                    </div>
              </div>
         </div>
