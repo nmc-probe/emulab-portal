@@ -485,7 +485,7 @@ function SpitAboutApt()
 <div class="panel-body">
 
 <p>
-Apt is a testbed facility build around <em>profiles</em>.
+Apt is a testbed facility built around <em>profiles</em>.
 A profile describes an <em>experiment</em>; when you instantiate a profile,
     that specification is realized on the Apt cluster using virtual or
     physical machines.
@@ -495,12 +495,12 @@ The creator of a profile may put code, data, and other resources into it,
 </p>
 
 <p>
-Apt is a platform for sharing research; it is open to all researchers, 
+Apt is a <em>platform for sharing research</em>; it is open to all researchers, 
     educators, and students.
-Basic access to Apt is provided without account registration to keep the
-    barriers to accessing research results low.
+Basic access to public profiles on Apt is provided without the need to register 
+    for an account - this keeps the barriers to accessing research results low.
 If you find the limited resources that are provided to unregistered users 
-    useful, you may want to <a href="signup.php">sign up</a> for a (free)
+    valuable, we recommend <a href="signup.php">signing up</a> for a <em>(free)</em>
     account to get access to more resources and to create profiles of your
     own.
 </p>
@@ -508,9 +508,11 @@ If you find the limited resources that are provided to unregistered users
 <p>
 Apt is built on <a href="http:/www.emulab.net">Emulab</a> and
     <a href="http://www.geni.net">GENI</a> technologies.
-It is built and operated by the <a href="http://www.utah.edu">University of 
-    Utah</a>'s <a href="http://www.flux.utah.edu">Flux Research Group</a>
-    with support from NSF under award CNS-1338155.
+It is built and operated by the <a href="http://www.flux.utah.edu">Flux 
+    Research Group</a>, part of the <a href="http://www.utah.edu">University of 
+    Utah</a>'s <a href="http://www.cs.utah.edu">School of Computing</a>.
+Apt is funded by the National Science Foundation under award CNS-1338155 and
+    by the University of Utah.
 </p>
 
 <p>
