@@ -139,9 +139,9 @@ system("$SSH -host $CONTROL '/bin/chmod -R 700 $dir'")
     == 0 or fatal("Could not mkdir $dir: $!");
 # Grab a copy for the DB.
 my $pubkey =
-    emutil::ExecQuiet("$SSH -host $CONTROL '/bin/cat $dir/id_dsa.pub'");
+    emutil::ExecQuiet("$SSH -host $CONTROL '/bin/cat $dir/id_rsa.pub'");
 if ($?) {
-    fatal("Could not read new key from file");
+    fatal("Could not read new key from file: $pubkey");
 }
 chomp($pubkey);
 $UID = $SAVEUID;
