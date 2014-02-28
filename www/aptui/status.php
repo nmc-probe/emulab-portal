@@ -400,9 +400,11 @@ echo "<!-- This is a modal -->
          <div class='modal-body'>
           <button type='button' class='close' data-dismiss='modal'
                    aria-hidden='true'>&times;</button>
+          <div class='clearfix'></div>
           <div class='row'>
             <div class='col-lg-7 col-md-7'
                  style='padding-right:20px; border-right: 1px solid #ccc;'>
+                <h4>Extend for 24 hours</h4>
                 If you want to extend this experiment so that it does
                 not self-terminate at the time shown, just tell us why
                 and we will extend it for another 24 hours.
@@ -422,18 +424,15 @@ echo "<!-- This is a modal -->
                        type='submit' name='request'>Request Extension</button>
               </form>
             </div>
-            <div class='col-lg-5 col-md-5 invisible'>
-               To extend your experiment for more then another 24 hours,
-               you need an extension code. If you do not have a code then
-               you need not worry about it.
-               <form id='extend_form' role='form'>
-                <input id='extend_code' name='extend_code' 
-                    class='align-center'
-                    placeholder='Extension code' autofocus type='text' />
-                <br>
-                <button class='btn btn-primary btn-sm align-center' id='extend'
-                       type='submit' name='extend'>Extend</button>
-              </form>
+            <div class='col-lg-5 col-md-5'>
+               <h4>Extend for longer</h4>
+               If you want to be able to use resources for more than 24
+                   hours, you will need to <a href='signup.php'>sign up</a>
+                   for an account, or
+                   <a data-toggle='modal' data-dismiss='modal'
+                      href='#quickvm_login_modal'
+                      data-target='#quickvm_login_modal'>log in</a> if you 
+                      already have an acount at aptlab.net or emulab.net</a>
             </div>
             </div>
             </div>
