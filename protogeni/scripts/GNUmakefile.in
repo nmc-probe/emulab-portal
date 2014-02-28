@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -32,6 +32,7 @@ TESTBED_SRCDIR	= @top_srcdir@
 OBJDIR		= ../..
 SUBDIR		= protogeni/scripts
 ISCLEARINGHOUSE = @PROTOGENI_ISCLEARINGHOUSE@
+PGENISUPPORT    = @PROTOGENI_SUPPORT@
 
 include $(OBJDIR)/Makeconf
 
@@ -67,15 +68,20 @@ all:	$(SBIN_STUFF) $(PSBIN_STUFF) \
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
-install: $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
+install: apt-install \
+        $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
 	$(addprefix $(INSTALL_SBINDIR)/protogeni/, $(PSBIN_STUFF)) \
 	$(INSTALL_LIBEXECDIR)/webquickvm \
 	$(INSTALL_LIBEXECDIR)/webcacontrol \
 	$(INSTALL_LIBEXECDIR)/webmaptoslice
 	-rm -f $(INSTALL_SBINDIR)/protogeni/cleanupticket
 
+ifeq ($(PGENISUPPORT),1)
 apt-install: $(addprefix $(INSTALL_DIR)/opsdir/cgi-bin/, shellinabox.pl) \
 	     $(addprefix $(INSTALL_SBINDIR)/, aptssh-setup)
+else
+apt-install:
+endif
 
 control-install:
 
