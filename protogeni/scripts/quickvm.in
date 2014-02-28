@@ -314,9 +314,9 @@ if (exists($xmlparse->{'attribute'}->{"sshkey"}) &&
 	if (!close(KEYGEN)) {
 	    UserError("Could not parse ssh key!");
 	}
-	chomp($sshkey);
     }
 }
+chomp($sshkey);
 
 #
 # See if the GeniUser exists. Create if not, but that means we
