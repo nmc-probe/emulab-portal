@@ -28,7 +28,7 @@ include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("instance_defs.php");
-$page_title = "QuickVM Create";
+$page_title = "Instantiate a Profile";
 $dblink = GetDBLink("sa");
 
 #
