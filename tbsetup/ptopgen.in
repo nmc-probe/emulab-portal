@@ -3043,7 +3043,7 @@ sub print_stitch_port
     print "        <encodingType>ethernet</encodingType>\n";
     print "        <switchingCapabilitySpecificInfo>\n";
     print "         <switchingCapabilitySpecificInfo_L2sc>\n";
-    print "          <interfaceMTU>9000</interfaceMTU>\n";
+    print "          <interfaceMTU>1500</interfaceMTU>\n";
     print "          <vlanRangeAvailability>$vlans".
 	"</vlanRangeAvailability>\n";
     print "          <vlanTranslation>$vlan_translate</vlanTranslation>\n";
