@@ -281,7 +281,7 @@ function SpitLoginModal($id, $embedded = 0)
     }
     echo "             <div class='form-group'>
                         <input name='uid' class='form-control'
-                               placeholder='Email or Username'
+                               placeholder='Aptlab.net or Emulab.net Username'
                                autofocus type='text'>
                        </div>
                        <div class='form-group'>
