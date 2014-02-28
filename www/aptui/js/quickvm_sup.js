@@ -68,8 +68,8 @@ function StatusWatchCallBack(uuid, json)
     if (status != StatusWatchCallBack.laststatus) {
 	status_html = status;
 
-	var bgtype = '';
-	var statustext = '';
+	var bgtype = "";
+	var statustext = "Please wait while we get your experiment ready";
 	
 	if (status == 'provisioned') {
 	    $("#quickvm_progress_bar").width("66%");
@@ -106,7 +106,9 @@ function StatusWatchCallBack(uuid, json)
 	    $("#extend_button").prop("disabled", true);
 	    StartCountdownClock.stop = 0;
 	}
-	$("#statusmessage").addClass(bgtype).html(statustext);
+	$("#statusmessage").html(statustext);
+	$("#statusmessage-container").attr('class', bgtype);
+	console.log('setting statustext to ', statustext);
 	$("#quickvm_status").html(status_html);
     } 
     StatusWatchCallBack.laststatus = status;

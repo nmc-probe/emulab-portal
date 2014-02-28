@@ -229,7 +229,7 @@ echo "<div class='panel panel-default'>\n";
 echo "<div class='panel-body'>\n";
 echo "<table class='table table-condensed' $style>\n";
 echo "<tr>\n";
-echo "<td colspan=2 $style class='$bgtype'>\n";
+echo "<td id='statusmessage-container' colspan=2 $style class='$bgtype'>\n";
 echo "<h4 id='statusmessage'>$statustext</h4>\n";
 echo "</td>\n";
 echo "</tr>\n";
