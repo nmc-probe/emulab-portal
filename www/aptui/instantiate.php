@@ -76,7 +76,7 @@ if (isset($ajax_request)) {
     exit();
 }
 
-$profile_default  = "ThreeVMs";
+$profile_default  = "OneVM";
 $profile_array    = array();
 
 $query_result =
