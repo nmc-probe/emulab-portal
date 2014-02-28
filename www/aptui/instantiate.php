@@ -134,13 +134,14 @@ function SPITFORM($formfields, $newuser, $errors)
 
     SPITHEADER(1);
 
-    SpitAboutApt();
-
     echo "<div class='row'>
           <div class='col-lg-6  col-lg-offset-3
                       col-md-6  col-md-offset-3
                       col-sm-8  col-sm-offset-2
                       col-xs-12 col-xs-offset-0'>\n";
+
+    SpitAboutApt();
+
     echo "<form id='quickvm_form' role='form'
             method='post' action='instantiate.php'>\n";
     echo "<div class='panel panel-default'>

@@ -473,16 +473,10 @@ function SpitAboutApt()
 {
 ?>
 
-<div class='row'>
-<div class='col-lg-6  col-lg-offset-3
-          col-md-6  col-md-offset-3
-          col-sm-8  col-sm-offset-2
-          col-xs-12 col-xs-offset-0'>
-
 <div class="panel panel-info">
 
 <div class="panel-heading">
-    <h3 class="panel-title" data-toggle="collapse" href="#aboutapt">What is Apt? <span class="glyphicon glyphicon-expand"></span></h3>
+   <h5><a data-toggle="collapse" href="#aboutapt">What is Apt? <span class="glyphicon glyphicon-chevron-right pull-right"></span></a></h5>
 </div>
 
 <div id="aboutapt" class="panel-collapse collapse">
@@ -521,8 +515,6 @@ It is built and operated by the <a href="http://www.utah.edu">University of
 </div> <!-- Panel body -->
 </div> <!-- Collapser -->
 </div> <!-- Panel -->
-</div> <!-- Sizing -->
-</div> <!-- Row -->
 <?
 }
 
