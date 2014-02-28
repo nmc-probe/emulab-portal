@@ -320,16 +320,16 @@ echo "<div class='panel-body'>\n";
 echo "<div id='quicktabs_div'>\n";
 echo "  <ul id='quicktabs' class='nav nav-tabs'>
 	  <li class='active'>
-             <a href='#profile' data-toggle='tab'>Map</a>
+             <a href='#profile' data-toggle='tab'>Topology View</a>
           </li>
 	  <li>
-             <a href='#listview' data-toggle='tab'>List</a>
+             <a href='#listview' data-toggle='tab'>List View</a>
           </li>
 	</ul>
 	<div id='quicktabs_content' class='tab-content'>
           <div class='tab-pane active' id='profile'>
 	    <div id='showtopo_statuspage'></div>
-            <small>Click on a node to SSH to that node. 
+            <small>Click on a node to open a shell on that node. 
                    Click and drag to move things around.</small>
 	  </div>
           <div class='tab-pane' id='listview'>
@@ -338,8 +338,8 @@ echo "  <ul id='quicktabs' class='nav nav-tabs'>
                      id='listview_table'>
                 <thead>
                   <tr>
-                    <th>Node ID</th>
-                    <th>SSH</th>
+                    <th>Node</th>
+                    <th>Shell (in-browser)</th>
                     <th>SSH URL <small>(if you provided your own key)</small>
                      </th>
                   </tr>
