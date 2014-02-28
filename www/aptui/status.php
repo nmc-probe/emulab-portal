@@ -100,12 +100,16 @@ if (!$creator) {
     return;
 }
 #
-# We do not enforce strict permissions on a guest created instance,
-# but we do if it was created by a real user.
+# Only logged in admins can access an experiment created by someone else.
 #
-if (get_class($creator) == "User") {
-    if (! (isset($this_user) &&
-	   ($creator->uuid() == $this_user->uuid() || ISADMIN()))) {
+if (! (isset($this_user) && ISADMIN())) {
+    # An experiment created by a real user, can be accessed by that user only.
+    # Ditto a guest user; must be the same guest.
+    if (! ((get_class($creator) == "User" &&
+	    isset($this_user) && $creator->uuid() == $this_user->uuid()) ||
+	   (get_class($creator) == "GeniUser" &&
+	    isset($_COOKIE['quickvm_user']) &&
+	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
 	if ($ajax_request) {
 	    SPITAJAX_ERROR(1, "You do not have permission!");
 	    exit();
@@ -131,6 +135,9 @@ if (isset($ajax_request)) {
 	SPITAJAX_RESPONSE($instance->manifest());
     }
     elseif ($ajax_method == "ssh_authobject") {
+	#
+	#
+	#
 	SPITAJAX_RESPONSE(SSHAuthObject($creator->uid(), $ajax_argument));
     }
     elseif ($ajax_method == "request_extension") {
