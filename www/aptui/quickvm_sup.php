@@ -268,7 +268,7 @@ function SpitLoginModal($id, $embedded = 0)
                <div class='modal-header'>
                 <button type='button' class='close' data-dismiss='modal'
                    aria-hidden='true'>&times;</button>
-                  Please login to your account.
+                   <h4 class='modal-title'>Log in to Apt</h4>
                </div>
                <div class='modal-body'>\n";
     echo "     <div class='row'>
