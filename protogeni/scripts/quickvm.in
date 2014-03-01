@@ -175,9 +175,11 @@ else {
     }
 }
 
-# Email record. 
-AuditStart(0, undef)
-    if (! $debug);
+# Email record.
+if (! $debug) {
+    AuditStart(0, undef, LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY());
+    AddAuditInfo("cc", "apt-logs\@flux.utah.edu");
+}
 
 # Connect to the SA DB.
 DBConnect(GENISA_DBNAME());
@@ -316,7 +318,8 @@ if (exists($xmlparse->{'attribute'}->{"sshkey"}) &&
 	}
     }
 }
-chomp($sshkey);
+chomp($sshkey)
+    if (defined($sshkey));
 
 #
 # See if the GeniUser exists. Create if not, but that means we
