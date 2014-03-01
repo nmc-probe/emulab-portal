@@ -39,6 +39,7 @@ $optargs = OptionalPageArguments("create",       PAGEARG_STRING,
 				 "email",        PAGEARG_STRING,
 				 "pid",          PAGEARG_STRING,
 				 "verify",       PAGEARG_STRING,
+				 "finished",     PAGEARG_BOOLEAN,
 				 "joinproject",  PAGEARG_BOOLEAN,
 				 "formfields",   PAGEARG_ARRAY);
 
@@ -281,6 +282,15 @@ function SPITFORM($formfields, $showverify, $errors)
     echo "<script src='js/lib/require.js' data-main='js/signup'></script>";
     SPITFOOTER();
 }
+
+if (isset($finished) && $finished) {
+    SPITHEADER(1);
+    echo "Thank you! Your project application is being considered by the approval committee, and you should hear back within 72 hours.";
+    SPITNULLREQUIRE();
+    SPITFOOTER();
+    exit(0);
+}
+
 #
 # If not clicked, then put up a form.
 #
@@ -612,6 +622,6 @@ if (!$this_user) {
 # in it. The back button skips over the post and to the form.
 # See above for conclusion.
 # 
-header("Location: manage_profile.php");
+header("Location: signup.php?finished=1");
 
 ?>
