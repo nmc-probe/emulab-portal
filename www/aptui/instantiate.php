@@ -227,6 +227,10 @@ function SPITFORM($formfields, $newuser, $errors)
         echo "  <span class=''
                       id='selected_profile_description'></span>\n";
     }
+    else {
+	echo "<input id='selected_profile' type='hidden' value='$profile'
+                       name='formfields[profile]'/>\n";
+    }
     echo "</fieldset>
            <button class='btn btn-success pull-right'
               type='submit' name='create'>Create!

@@ -289,30 +289,25 @@ echo "</div>\n";
 # will actually fill in the div though, since it is markdown and that
 # is more easily done on the client side for now.
 #
-$parsed_xml = simplexml_load_string($instance->manifest());
-if ($parsed_xml &&
-    $parsed_xml->rspec_tour && $parsed_xml->rspec_tour->instructions) {
-    
-    echo "<div class='row invisible' id='instructions_panel'>
-          <div class='col-lg-6  col-lg-offset-3
-                      col-md-8  col-md-offset-2
-                      col-sm-8  col-sm-offset-2
-                      col-xs-12 col-xs-offset-0'>\n";
-    echo "<div class='panel panel-default'>\n";
-    echo "<div class='panel-heading'>
-            <a data-toggle='collapse' data-target='#instructions_collapse'
-               href='#'>Usage Instructions
-                <span class='glyphicon glyphicon-chevron-right pull-right'>
-                </span></a>
-          </div>\n";
-    echo "<div class='panel-collapse collapse' id='instructions_collapse'>\n";
-    echo "<div class='panel-body' id='instructions_text'>\n";
-    echo "</div>\n"; # panel-body
-    echo "</div>\n"; # collapse
-    echo "</div>\n"; # panel
-    echo "</div>\n"; # cols
-    echo "</div>\n"; # row
-}
+echo "<div class='row invisible' id='instructions_panel'>
+      <div class='col-lg-6  col-lg-offset-3
+                  col-md-8  col-md-offset-2
+                  col-sm-8  col-sm-offset-2
+                  col-xs-12 col-xs-offset-0'>\n";
+echo "<div class='panel panel-default'>\n";
+echo "<div class='panel-heading'>
+        <a data-toggle='collapse' data-target='#instructions_collapse'
+           href='#'>Usage Instructions
+            <span class='glyphicon glyphicon-chevron-right pull-right'>
+            </span></a>
+      </div>\n";
+echo "<div class='panel-collapse collapse' id='instructions_collapse'>\n";
+echo "<div class='panel-body' id='instructions_text'>\n";
+echo "</div>\n"; # panel-body
+echo "</div>\n"; # collapse
+echo "</div>\n"; # panel
+echo "</div>\n"; # cols
+echo "</div>\n"; # row
 
 #
 # The topo diagram goes inside this div, when it becomes available.
