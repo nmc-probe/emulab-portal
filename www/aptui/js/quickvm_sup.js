@@ -107,8 +107,9 @@ function StatusWatchCallBack(uuid, json)
 	    StartCountdownClock.stop = 0;
 	}
 	$("#statusmessage").html(statustext);
-	$("#statusmessage-container").attr('class', bgtype);
-	console.log('setting statustext to ', statustext);
+	$("#statusmessage-container")
+	    .removeClass('bg-success bg-danger')
+	    .addClass(bgtype);
 	$("#quickvm_status").html(status_html);
     } 
     StatusWatchCallBack.laststatus = status;
