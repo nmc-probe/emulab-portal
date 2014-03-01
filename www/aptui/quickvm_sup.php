@@ -184,7 +184,7 @@ function SPITFOOTER()
        <div id='footer'>
         <div class='pull-left'>Powered by
              <img src='emulab-whiteout.png' id='elabpower'></div>
-	<span>Bug? Join the <a href='https://groups.google.com/forum/#!forum/apt-users'>Help Forum</a></span>
+	<span>Question or comment? Join the <a href='https://groups.google.com/forum/#!forum/apt-users'>Help Forum</a></span>
         <div class='pull-right'>&copy; 2014 The University of Utah</div>
        </div>
       </div>
