@@ -218,6 +218,11 @@ function SPITAJAX_ERROR($code, $msg)
     echo json_encode($results);
 }
 
+function SPITNULLREQUIRE()
+{
+    echo "<script src='js/lib/require.js' data-main='js/null'></script>\n";
+}
+
 #
 # Spit out an info tooltip.
 #
