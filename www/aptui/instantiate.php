@@ -79,6 +79,10 @@ if (isset($ajax_request)) {
 $profile_default  = "OneVM";
 $profile_array    = array();
 
+if (isset($profile)) {
+    $profilename = $profile;
+}
+
 $query_result =
     DBQueryFatal("select * from apt_profiles ".
 		 "where public=1 " .
@@ -105,7 +109,7 @@ while ($row = mysql_fetch_array($query_result)) {
 function SPITFORM($formfields, $newuser, $errors)
 {
     global $TBBASE, $TBMAIL_OPS;
-    global $profile_array, $this_user;
+    global $profile_array, $this_user, $profilename, $profile;
 
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
@@ -147,8 +151,22 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "<div class='panel panel-default'>
            <div class='panel-heading'>
               <h3 class='panel-title'>
-                 Run an Experiment</h3></div>
+              Run an Experiment";
+    if (isset($profilename)) {
+        echo " using profile &quot;$profilename&quot";
+    }
+    echo "</h3></div>
            <div class='panel-body'>\n";
+    
+    #
+    # If linked to a specific profile, description goes here
+    #
+    if ($profile) {
+        # Note: Following line is also duplicatd below
+        echo "  <span class='' style='display: inline-block; margin-bottom: 10px'
+                      id='selected_profile_description'></span>\n";
+    }
+
     echo "   <fieldset>\n";
 
     #
@@ -157,6 +175,11 @@ function SPITFORM($formfields, $newuser, $errors)
     if ($errors && array_key_exists("error", $errors)) {
 	echo "<font color=red><center>" . $errors["error"] . "</center></font>";
     }
+
+
+    #
+    # Ask for user information
+    #
     if (!isset($this_user)) {
 	$formatter("username", 
 		  "<input name=\"formfields[username]\"
@@ -179,23 +202,31 @@ function SPITFORM($formfields, $newuser, $errors)
                              rows=4 cols=45>" . $formfields["sshkey"] .
                   "</textarea>");
     }
-    echo "<div id='profile_well' class='form-group well well-md'>
-            <span id='selected_profile_text' class='pull-left'>
-            </span>
-            <input id='selected_profile' type='hidden' 
-                   name='formfields[profile]'/>
-              <button id='profile' class='btn btn-primary btn-xs pull-right' 
-                     type='button' name='profile_button'>
-                Select a Profile
-              </button>\n";
-    if ($errors && array_key_exists("profile", $errors)) {
-	echo "<label class='control-label' for='inputError'>" .
-	    $errors["profile"] .
-	    " </label>\n";
+
+    #
+    # Only print profile selection box if we weren't linked to a specific
+    # profile
+    #
+    if (!isset($profile)) {
+        echo "<div id='profile_well' class='form-group well well-md'>
+                <span id='selected_profile_text' class='pull-left'>
+                </span>
+                <input id='selected_profile' type='hidden' 
+                       name='formfields[profile]'/>
+                  <button id='profile' class='btn btn-primary btn-xs pull-right' 
+                         type='button' name='profile_button'>
+                    Select a Profile
+                  </button>\n";
+        if ($errors && array_key_exists("profile", $errors)) {
+            echo "<label class='control-label' for='inputError'>" .
+                $errors["profile"] .
+                " </label>\n";
+        }
+        echo " </div>\n";
+        # Note: Following line is also duplicatd above
+        echo "  <span class=''
+                      id='selected_profile_description'></span>\n";
     }
-    echo " </div>\n";
-    echo "  <span class=''
-                  id='selected_profile_description'></span>\n";
     echo "</fieldset>
            <button class='btn btn-success pull-right'
               type='submit' name='create'>Create!
