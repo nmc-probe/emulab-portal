@@ -400,7 +400,7 @@ function StartSSH(id, authobject)
             encodeURIComponent(document.location.href) + ',' + session;
         console.info(url);
         var iwidth  = $('#' + id).width();
-        var iheight = 300;
+        var iheight = 400;
 
         $('#' + id).html('<iframe id="' + id + '_iframe" ' +
 			   'width=' + iwidth + ' ' +
