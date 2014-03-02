@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -52,7 +52,7 @@ if (isset($key)) {
     # Use once URL. Clear it.
     DBQueryFatal("update tiplines set urlhash=NULL,urlstamp=0 ".
 		 "where node_id='$node_id'");
-    $uid = "geniuser";
+    $uid = "nobody";
     $isadmin = 0;
 }
 else {
