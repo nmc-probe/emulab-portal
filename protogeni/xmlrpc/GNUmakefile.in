@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -37,7 +37,7 @@ include $(OBJDIR)/Makeconf
 # These scripts installed setuid, with sudo. 
 SETUID_BIN_SCRIPTS   = 
 SETUID_SBIN_SCRIPTS  = 
-SETUID_SUEXEC_SCRIPTS  = protogeni-wrapper.pl
+SETUID_SUEXEC_SCRIPTS  = protogeni-wrapper.pl protogeni-console.pl
 
 #
 # Force dependencies on the scripts so that they will be rerun through
@@ -46,7 +46,7 @@ SETUID_SUEXEC_SCRIPTS  = protogeni-wrapper.pl
 all:	Genixmlrpc.pm GeniResponse.pm \
 	protogeni-ch.pm protogeni-sa.pm protogeni-cm.pm protogeni-emulab.pm \
 	protogeni-ses.pm geni-am.pm geni-ma.pm geni-sa.pm \
-	protogeni-wrapper.pl
+	protogeni-wrapper.pl protogeni-console.pl
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
@@ -63,10 +63,18 @@ install-libs: $(INSTALL_LIBDIR)/Genixmlrpc.pm \
          $(INSTALL_DIR)/opsdir/lib/Genixmlrpc.pm \
          $(INSTALL_DIR)/opsdir/lib/GeniResponse.pm
 
-install-scripts: $(INSTALL_LIBEXECDIR)/protogeni-wrapper.pl
+install-scripts: $(INSTALL_LIBEXECDIR)/protogeni-wrapper.pl \
+		 $(INSTALL_LIBEXECDIR)/protogeni-console.pl
 	-mkdir -p $(INSTALL_DIR)/protogeni/xmlrpc
 	-rm -f $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
 	ln  $< $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-wrapper.pl
+	-rm -f $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-console.pl
+	ln  $< $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-console.pl
+
+install-console: $(INSTALL_LIBEXECDIR)/protogeni-console.pl
+	-mkdir -p $(INSTALL_DIR)/protogeni/xmlrpc
+	-rm -f $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-console.pl
+	ln  $< $(INSTALL_DIR)/protogeni/xmlrpc/protogeni-console.pl
 
 install: all install-libs install-scripts
 
