@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2013 University of Utah and the Flux Group.
+# Copyright (c) 2007-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -4003,6 +4003,29 @@ sub Stringify($)
 }
 
 #
+# All external networks.
+#
+sub LookupAll($$)
+{
+    my ($class, $pref) = @_;
+    my @result  = ();
+
+    my $query_result =
+	DBQueryWarn("select network_id from external_networks");
+    return -1
+	if (!$query_result);
+
+    while (my ($network_id) = $query_result->fetchrow_array()) {
+	my $network = ExternalNetwork->Lookup($network_id);
+	return -1
+	    if (!defined($network));
+	push(@result, $network);
+    }
+    @$pref = @result;
+    return 0;
+}
+
+#
 # Given a vlan tag, is it okay (in the range).
 #
 sub VlanTagOkay($$)
@@ -4031,6 +4054,19 @@ sub CalculateVlans($)
 	    $self->{'VLANSET'}->{$i} = 1;
 	}
     }
+}
+
+# Return the list calculated above.
+sub VlanTagList($$)
+{
+    my ($self, $pref) = @_;
+    my @result  = ();
+
+    foreach my $tag (keys(%{ $self->{'VLANSET'} })) {
+	push(@result, $tag);
+    }
+    @$pref = @result;
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

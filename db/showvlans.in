@@ -26,14 +26,16 @@ use English;
 use Getopt::Std;
 
 #
-# This does none thing; dumps the set of current vlans (in use).
+# This does one thing; dumps the set of current vlans (in use),
+# plus all of the vlans reserved for stitching, since technically
+# they aer in use too at most sites.
 #
 sub usage()
 {
-    print(STDERR "Usage: showvlans\n");
+    print(STDERR "Usage: showvlans [-s]\n");
     exit(-1);
 }
-my $optlist = "d";
+my $optlist = "ds";
 my $debug   = 0;
 
 #
@@ -46,6 +48,7 @@ my $TB		= "@prefix@";
 #
 use lib "@prefix@/lib";
 use emdb;
+use Lan;
 
 #
 # Turn off line buffering on output
@@ -58,9 +61,48 @@ $| = 1;
 $ENV{'PATH'} = "/bin:/sbin:/usr/bin:/usr/sbin";
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
-my $query_result =
-    DBQueryFatal("select tag from reserved_vlantags order by tag");
-while (my ($tag) = $query_result->fetchrow_array()) {
-    print "$tag\n";
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
 }
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+
+if (defined($options{"s"})) {
+    #
+    # Stitching vlans, which might not be in use but are still
+    # considered reserved.
+    #
+    my %vlantags = ();
+    my @networks;
+    if (ExternalNetwork->LookupAll(\@networks) < 0) {
+	die("Could not get external network\n");
+    }
+    foreach my $network (@networks) {
+	my @tags;
+
+	if ($network->VlanTagList(\@tags) < 0) {
+	    die("Could not get tag list for $network\n");
+	}
+	foreach my $tag (@tags) {
+	    $vlantags{"$tag"} = $tag;
+	}
+    }
+    foreach my $tag (sort(keys(%vlantags))) {
+	print "$tag\n";
+    }
+}
+else {
+    my $query_result =
+	DBQueryFatal("select tag from reserved_vlantags order by tag");
+    while (my ($tag) = $query_result->fetchrow_array()) {
+	print "$tag\n";
+    }
+}
+
 exit(0);
