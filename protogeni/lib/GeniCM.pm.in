@@ -1968,7 +1968,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		$bridge_vname = $bblob->{'name'};
 	    }
 	    if ($isshared) {
-		# Clear all this.
+		# Clear all this on "shared" vlans. Maybe later.
 		$bandwidth = 0;
 		$latency   = 0.0;
 		$lossrate  = 0.0;
