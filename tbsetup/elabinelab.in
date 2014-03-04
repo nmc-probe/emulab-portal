@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2012 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -319,6 +319,20 @@ $UID = 0;
 # XXX ugh, copy over a newer mkextrafs.pl as well (one that supports -2).
 # XXX ughII, we only copy over a FreeBSD version, this will break a Linux boss.
 #
+# XXX ughIII, copy over to /var/run instead of /tmp since we run prepare
+# from rc.mkelab and that cleans out /tmp. I thought this would work since
+# /tmp/rc.mkelab would be open when /tmp was cleared and it would not affect
+# execution of the script, but I actually had it fail once with:
+#  ...
+#  Building and Installing Software                  
+#  | Building (please be patient)                    /tmp/rc.mkelab: Command not found.
+#
+# right out of the middle of running the boss-install! This was on a VM with
+# only 600MB of memory, so it is possible that due to memory pressure perl
+# had not read the entire script? The build phase it started never actually
+# happened. There was also no "phase stack dump" after that message, so
+# everything got blown out of the water suddenly and decisively.
+#
 my $mkelab = "$TB/etc/rc.mkelab";
 if (-e "$expdir/rc.mkelab") {
     $mkelab = "$expdir/rc.mkelab";
@@ -333,16 +347,16 @@ print "/${opsnode}"
 print "/${fsnode}"
     if (defined($fsnode));
 print "\n";
-system("scp $mkelab $mkextrafs ${bossnode}:/tmp");
-system("scp $mkelab $mkextrafs ${opsnode}:/tmp")
+system("scp $mkelab $mkextrafs ${bossnode}:/var/run/");
+system("scp $mkelab $mkextrafs ${opsnode}:/var/run/")
     if (defined($opsnode));
-system("scp $mkelab $mkextrafs ${fsnode}:/tmp")
+system("scp $mkelab $mkextrafs ${fsnode}:/var/run/")
     if (defined($fsnode));
 
 if (defined($fsnode)) {
     TBDebugTimeStamp("Setting up fsnode");
     print "Setting up fsnode on $fsnode\n";
-    system("$SSH -host $fsnode /tmp/rc.mkelab -s -d > $fslogfile 2>&1");
+    system("$SSH -host $fsnode /var/run/rc.mkelab -s -d > $fslogfile 2>&1");
     if ($?) {
 	$UID = $SAVEUID;
 	SENDMAIL("$user_name <$user_email>",
@@ -359,7 +373,7 @@ if (defined($fsnode)) {
 if (defined($opsnode)) {
     TBDebugTimeStamp("Setting up opsnode");
     print "Setting up opsnode on $opsnode\n";
-    system("$SSH -host $opsnode /tmp/rc.mkelab -s -d > $opslogfile 2>&1");
+    system("$SSH -host $opsnode /var/run/rc.mkelab -s -d > $opslogfile 2>&1");
     if ($?) {
 	$UID = $SAVEUID;
 	SENDMAIL("$user_name <$user_email>",
@@ -375,7 +389,7 @@ if (defined($opsnode)) {
 }
 TBDebugTimeStamp("Setting up bossnode");
 print "Setting up bossnode on $bossnode\n";
-system("$SSH -host $bossnode /tmp/rc.mkelab -s -d > $bosslogfile 2>&1");
+system("$SSH -host $bossnode /var/run/rc.mkelab -s -d > $bosslogfile 2>&1");
 if ($?) {
     $UID = $SAVEUID;
     SENDMAIL("$user_name <$user_email>",
