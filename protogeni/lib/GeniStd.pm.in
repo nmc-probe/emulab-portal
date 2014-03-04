@@ -46,6 +46,7 @@ use GeniCredential;
 use GeniRegistry;
 use emutil;
 use URI;
+use Data::Dumper;
 
 # Filter out any credentials of an uknown type leaving only geni_sfa
 # version 2 and version 3 credentials in a list. Also invokes
@@ -242,7 +243,7 @@ sub CheckCredentials($)
 		#
 		$speakee = shift(@credentials);
 		$speakee = GeniCredential::CheckCredential($speakee);
-		if (!GeniResponse::IsError($speakee)) {
+		if (GeniResponse::IsError($speakee)) {
 		    $error = $speakee;
 		    goto bad;
 		}
@@ -253,7 +254,7 @@ sub CheckCredentials($)
 		#
 		foreach my $credential (@rest) {
 		    $credential = GeniCredential::CheckCredential($credential);
-		    if (!GeniResponse::IsError($credential)) {
+		    if (GeniResponse::IsError($credential)) {
 			$error = $credential;
 			goto bad;
 		    }
