@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -47,15 +47,23 @@ from M2Crypto import X509
 ACCEPTSLICENAME=1
 
 minutes = 60
+extracred = None;
 
 execfile( "test-common.py" )
 
-if len(REQARGS) != 1:
+if len(REQARGS) < 1:
     print >> sys.stderr, "Must provide number of minutes to renew for"
     sys.exit(1)
-else:
-    minutes = REQARGS[0]
     pass
+
+# Always first argument.
+minutes = REQARGS[0]
+if len(REQARGS) == 2:
+    f = open(REQARGS[1])
+    extracred = f.read()
+    f.close()
+    pass
+
 #
 # Get a credential for myself, that allows me to do things at the SA.
 #
@@ -100,7 +108,11 @@ slicecred = get_slice_credential( myslice, mycredential )
 print "Got the slice credential, attempting to renew the sliver...";
 
 params = {}
-params["credentials"]  = (slicecred,)
+if extracred:
+    params["credentials"]  = (slicecred,extracred)
+else:
+    params["credentials"]  = (slicecred,)
+    pass
 params["slice_urn"]    = myslice["urn"]
 params["valid_until"]  = valid_until
 rval,response = do_method("cm", "RenewSlice", params, version="2.0")
