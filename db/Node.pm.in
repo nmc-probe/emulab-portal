@@ -3742,5 +3742,144 @@ sub ClrTipAclUrl($)
 		"where node_id='$node_id'");
 }
 
+#
+# Check to see if the node is tainted, or tainted in a
+# particular way.
+#
+sub IsTainted($;$)
+{
+    my ($self, $taint) = @_;
+
+    my $taint_states = $self->taint_states();
+    return 0
+	if (!defined($taint_states) || $taint_states eq "");
+
+    # Just looking to see if any taint is applied?
+    return 1
+	if (!defined($taint));
+
+    # Looking for a specific taint.
+    return grep {$_ eq $taint} split(',', $taint_states);
+}
+
+#
+# Get the current set of taint states for the Node
+#
+sub GetTaintStates($) {
+    my ($self) = @_;
+
+    my $taint_states = $self->taint_states();
+    return ()
+	if (!defined($taint_states) || $taint_states eq "");
+
+    return split(',', $taint_states);
+}
+
+#
+# Explicitly set the taint states based on an input array of states.
+# Squash any duplicates or empty/undefined entries.
+#
+sub SetTaintStates($@) {
+    my ($self, @taint_states) = @_;
+
+    my @newtstates = ();
+    my @validtstates = TB_TAINTSTATE_ALL();
+
+    foreach my $tstate (@taint_states) {
+	next if (!$tstate);
+	if (!grep {$_ eq $tstate} @validtstates) {
+	    warn "Invalid taint state: $tstate\n";
+	    return -1;
+	}
+	if (!grep {$_ eq $tstate} @newtstates) {
+	    push @newtstates, $tstate;
+	}
+    }
+
+    return 0
+	if (!@newtstates);
+
+    return $self->Update({"taint_states" => join(',', @newtstates)});
+}
+
+#
+# Add a taint state to the node.
+#
+sub AddTaint($$)
+{
+    my ($self, $taint) = @_;
+
+    if (!grep {$_ eq $taint} TB_TAINTSTATE_ALL()) {
+	warn "Invalid taint state: $taint\n";
+	return -1;
+    }
+
+    return 0
+	if ($self->IsTainted($taint));
+
+    my $taint_states = $self->taint_states();
+    if (!defined($taint_states) || $taint_states eq "") {
+	$taint_states = $taint;
+    }
+    else {
+	$taint_states .= ",$taint";
+    }
+
+    return $self->Update({"taint_states" => $taint_states});
+}
+
+#
+# Inherit the taint states from an OS.  Take the union with whatever
+# taint states are already set for the node.
+#
+sub InheritTaintStates($$) {
+    my ($self, $osinfo) = @_;
+    require OSinfo;
+
+    if (!ref($osinfo)) {
+	my $tmp = OSinfo->Lookup($osinfo);
+	if (!defined($tmp)) {
+	    warn "Cannot lookup osinfo for $osinfo\n";
+	    return -1;
+	}
+	$osinfo = $tmp;
+    }
+
+    my $os_taint_states   = $osinfo->taint_states();
+    return 0
+	if (!defined($os_taint_states) || $os_taint_states eq "");
+    my @taint_states      = split(',', $os_taint_states);
+    my $node_taint_states = $self->taint_states();
+    if ($node_taint_states) {
+	push @taint_states, split(',', $node_taint_states);
+    }
+
+    return $self->SetTaintStates(@taint_states);
+}
+
+#
+# Remove a taint state (or all taint states) from the node.
+#
+sub RemoveTaint($;$)
+{
+    my ($self, $taint) = @_;
+
+    return 0
+	if (!$self->IsTainted($taint));
+
+    my $taint_states = $self->taint_states();
+    return 0
+	if (!defined($taint_states) || $taint_states eq "");
+
+    if (defined($taint)) {
+	$taint_states = join(',', 
+			     grep {$_ ne $taint} split(',', $taint_states));
+    } else {
+	$taint_states = "";
+    }
+
+    return $self->Update({"taint_states" => $taint_states});
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
