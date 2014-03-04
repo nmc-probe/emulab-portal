@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LGPL
 # 
@@ -33,6 +33,7 @@ my $TESTMODE   = @TESTMODE@;
 my $ELABINELAB = @ELABINELAB@;
 my $NOSTACKMIB = @NOSTACKMIB@;
 my $MAINSITE   = @TBMAINSITE@;
+my $GENIRACK   = @PROTOGENI_GENIRACK@;
 my $TB = '@prefix@';
 
 use lib '@prefix@/lib';
@@ -3950,6 +3951,10 @@ sub doSetOpenflowController($$$;$) {
     my $controller = shift;
     my $option = shift if (@_);
     my $errors = 0;
+
+    # Always enable this on geniracks for now.
+    $option = "fail-secure"
+	if ($GENIRACK && !defined($option));
 
     #
     # Set controller on each stack
