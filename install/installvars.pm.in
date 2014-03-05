@@ -196,6 +196,7 @@ $OPSVM_ENABLE		= @OPSVM_ENABLE@;
 # mrouted no longer needed; replaced by IGMP querier in mfrisbeed
 $NEEDMROUTED		= 0;
 $ARCHSUPPORT		= @ARCHIVESUPPORT@;
+$BROWSER_CONSOLE_ENABLE = @BROWSER_CONSOLE_ENABLE@;
 
 #
 # Some programs we use

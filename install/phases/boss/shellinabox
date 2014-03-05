@@ -15,7 +15,6 @@ use libinstall;
 use installvars;
 
 my $SHAREDKEY	= "$PREFIX/etc/sshauth.key";
-my $LOGFILE     = "$PREFIX/log/shellinabox.log";
 
 sub Install($$$)
 {
@@ -26,18 +25,9 @@ sub Install($$$)
 	if ($isupdate);
 
     Phase "shellinabox", "Adding ShellInABox Support", sub {
-	Phase "syslog", "Setting up syslog on ops", sub {
-	    if (ExecQuiet("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
-			  "  grep -q -s shellinabox $SYSLOG_CONF")) {
-		ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
-			       " 'echo \"\\\!shellinabox\" >> $SYSLOG_CONF'");
-		ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
-			       " 'echo \"*.*\t\t $LOGFILE\" >> $SYSLOG_CONF'");
-		ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
-			       " 'echo \"$LOGFILE\t\t640   7 1000 *    Z\" ".
-			       "   >> $NEWSYSLOG_CONF'");
-	    }
-	};
+	PhaseSkip("shellinabox not enabled")
+	    if (!$BROWSER_CONSOLE_ENABLE);
+	
 	#
 	# Need a secret shared key for signing.
 	#
@@ -60,22 +50,6 @@ sub Install($$$)
 			   " ${USERNODE}:${INSTALL_APACHE_CONFIG}/httpd.conf");
 	    ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
 			   "  $APACHE_START_COMMAND restart");
-	};
-	Phase "logfile", "Creating logfile on ops", sub {
-	    ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
-			   "  'touch $LOGFILE; chmod 640 $LOGFILE'");
-	};
-	Phase "json", "Installing json port on ops", sub {
-	    ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
-			   " 'cd /usr/ports/converters/p5-JSON; make install'");
-	};
-	Phase "hmac", "Installing hmac digest port on ops", sub {
-	    ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
-		   " 'cd /usr/ports/secret/p5-Digest-HMAC; make install'");
-	};
-	Phase "sha1", "Installing sha1 digest port on ops", sub {
-	    ExecQuietFatal("$SSH -o 'BatchMode=yes' root\@${USERNODE} ".
-		   " 'cd /usr/ports/secret/p5-digest-SHA1; make install'");
 	};
     };
     return 0;
