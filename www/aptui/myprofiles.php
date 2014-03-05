@@ -174,8 +174,13 @@ while ($row = mysql_fetch_array($query_result)) {
            </tr>\n";
 }
 echo "   </tbody>
-        </table>
-       </div>
+        </table>\n";
+
+if (ISADMIN()) {
+    echo "<img src='/redball.gif'>
+          <a href='myprofiles.php?all=1'>Show all user Profiles</a>\n";
+}
+echo"   </div>
       </div>\n";
 
 echo "<!-- This is the topology view modal -->

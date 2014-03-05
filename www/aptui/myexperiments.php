@@ -79,7 +79,11 @@ $query_result =
 
 if (mysql_num_rows($query_result) == 0) {
     echo "<b>No experiments to show you. Maybe you want to ".
-	"<a href='instantiate.php'>start one?</a></b>\n";
+	"<a href='instantiate.php'>start one?</a></b><br><br>\n";
+if (ISADMIN()) {
+    echo "<img src='/redball.gif'>
+          <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
+}
     echo "<script src='js/lib/require.js' data-main='js/null'>
           </script>\n";
     SPITFOOTER();
@@ -133,8 +137,13 @@ while ($row = mysql_fetch_array($query_result)) {
            </tr>\n";
 }
 echo "   </tbody>
-        </table>
-       </div>
+        </table>\n";
+
+if (ISADMIN()) {
+    echo "<img src='/redball.gif'>
+          <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
+}
+echo " </div>
       </div>\n";
 
 echo "<script src='js/lib/require.js' data-main='js/myexperiments'></script>\n";
