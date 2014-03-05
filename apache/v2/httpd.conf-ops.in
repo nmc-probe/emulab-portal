@@ -405,40 +405,12 @@ DocumentRoot "/usr/local/www/data"
 </Directory>
 
 #
-# Flyspray
-#
-<Directory /usr/local/www/data/flyspray>
-    Options FollowSymLinks
-    AllowOverride All
-    Order allow,deny
-    Allow from all
-    SSLRequireSSL
-    Satisfy all
-</Directory>
-
-#
 # CVSWEB
 #
 <Directory /usr/testbed/www/cvsweb>
     Options +ExecCGI
     SetHandler cgi-script
     SetEnv USER "nobody"
-    AllowOverride None
-    Order allow,deny
-    Allow from all
-</Directory>
-
-#
-# Jeti
-#
-<Directory /usr/local/www/data/jeti>
-    Options None
-    AllowOverride None
-    Order allow,deny
-    Allow from all
-</Directory>
-<Directory /usr/testbed/www/jabber>
-    Options None
     AllowOverride None
     Order allow,deny
     Allow from all
@@ -715,9 +687,16 @@ Alias /jabber/ "/usr/testbed/www/jabber/"
 
 ScriptAlias /spewrpmtar  /usr/testbed/cgi-bin/spewrpmtar_cgi
 ScriptAlias /d77e8041d1ad /usr/testbed/cgi-bin/shellinabox.pl
+Alias /accept_cert.html /usr/testbed/www/accept_cert.html
 
 <Directory "/usr/testbed/cgi-bin">
     Options FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+</Directory>
+<Directory "/usr/testbed/www">
+    Options None
     AllowOverride None
     Order allow,deny
     Allow from all
