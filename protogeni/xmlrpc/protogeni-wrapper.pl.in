@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -37,6 +37,34 @@ use strict;
 use English;
 use Frontier::Responder;
 use Frontier::RPC2;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+#
+$ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+BEGIN {
+    $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin';
+    my $uptime = `/usr/bin/uptime`;
+    if ($uptime =~ /load averages:\s+([\.\d]+),\s+([\.\d]+),\s+[\.\d]+/) {
+	if ($1 > 12.0) {
+	    sleep(5);
+	    my $decoder = Frontier::RPC2->new();
+	    my $string  = $decoder->encode_fault(503, 
+		     "Server is WAY too busy; please try again later");
+	    print "Content-Type: text/xml \n\n";
+	    print $string;
+	    exit(0);
+	}
+    }
+}
+
 use Data::Dumper;
 use POSIX;
 use Crypt::X509;
@@ -117,17 +145,6 @@ my $logfile    = undef;
 my $responder;
 
 #
-# Turn off line buffering on output
-#
-$| = 1;
-
-#
-# Untaint the path
-#
-$ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin';
-delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
-
-#
 # Helper function to return a properly formated XML error.
 #
 sub XMLError($$)
@@ -164,6 +181,7 @@ if ($MAINSITE) {
     my $uptime = `uptime`;
     if ($uptime =~ /load averages:\s+([\.\d]+),\s+([\.\d]+),\s+[\.\d]+/) {
 	if ($1 > 10.0) {
+	    sleep(10);
 	    XMLError(503, "Server is WAY too busy; please try again later");
 	}
     }
