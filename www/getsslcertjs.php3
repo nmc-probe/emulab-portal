@@ -93,8 +93,10 @@ PAGEHEADER("Export SSL Certificate");
 
 <center>
   <h2><br>
-  Do you wish to export your private certificate?
+  A tool has requested your private certificate.
   </h2>
+  <p>If you accept, the tool will be able to act on your behalf. Click confirm below if you wish to proceed or close this window to cancel.
+  </p>
 
   <form onsubmit="sendCertificate(); return false;" >
     <b><input type=submit name=confirmed value=Confirm></b>
