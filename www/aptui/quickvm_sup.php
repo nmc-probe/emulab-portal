@@ -182,10 +182,18 @@ function SPITFOOTER()
       <!--- Footer -->
       <div>
        <div id='footer'>
-        <div class='pull-left'>Powered by
-             <img src='emulab-whiteout.png' id='elabpower'></div>
-	<span>Question or comment? Join the <a href='https://groups.google.com/forum/#!forum/apt-users'>Help Forum</a></span>
-        <div class='pull-right'>&copy; 2014 The University of Utah</div>
+        <div class='pull-left'>
+          <a href='http://www.emulab.net' target='_blank'>
+             Powered by
+             <img src='emulab-whiteout.png' id='elabpower'></a>
+        </div>
+	<span>Question or comment? Join the
+           <a href='https://groups.google.com/forum/#!forum/apt-users'
+              target='_blank'>Help Forum</a></span>
+        <div class='pull-right'>&copy; 2014
+          <a href='http://www.utah.edu' target='_blank'>
+             The University of Utah</a>
+        </div>
        </div>
       </div>
       <!-- Placed at the end of the document so the pages load faster -->
