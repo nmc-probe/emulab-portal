@@ -630,7 +630,7 @@ sub osload($$$) {
 	# Check to see if the node is tainted.  If so, then the disk
 	# needs to be cleaned up (zeroed).
 	if ($nodeobject->IsTainted()) {
-	    $nargs{'zerofree'} = 2;  # use maximum firepower.
+	    $nargs{'zerofree'} = 2;
 	}
 
 	# Wait, don't do this -- waitmode is global; nowait is per-node!
@@ -1144,21 +1144,6 @@ sub WaitTillReloadDone($$$$$@)
 		    }
 		    else {
 			# success!
-
-			#
-			# Now reset tainting for the node.  Start off
-			# with a clean slate. Next, apply any taint states
-			# previously identified and saved off for the
-			# still-existing and/or newly-loaded OSes.  Doing this
-			# now allows us to clear any remnant taint states
-			# nullified by OS loading and/or disk zeroing.
-			#
-			$nodeobject->RemoveTaint();
-			my $tstates = $self->nodeinfo($nodeobject,'tstates');
-			if (@{$tstates}) {
-			    $nodeobject->SetTaintStates(@{$tstates});
-			}
-
 			$count--;
 			$done{$node} = 1;
 			$typeobject->ReloadDone($nodeobject);
@@ -2005,7 +1990,6 @@ sub UpdatePartitions($$)
     #
     my %partitions = ();
     my $curmbrvers = 0;
-    my @tstates = ();
 
     #
     # XXX assumes a DOS MBR, but this is ingrained in the DB schema
@@ -2111,14 +2095,10 @@ sub UpdatePartitions($$)
 		# existing states until OS loading and disk
 		# zeroing have been performed.
 		my $osinfo = OSinfo->Lookup($osid);
-		if (defined($osinfo)) {
-		    if ($osinfo->IsTainted()) {
-			# Save new/incoming taint states for later...
-			push @tstates, $osinfo->GetTaintStates();
-			$nodeobject->InheritTaintStates($osinfo) == 0 or
-			    warn "Node $node_id could not inherit taint ".
-			    "states from osid $osid\n";
-		    }
+		if (defined($osinfo) && $osinfo->IsTainted()) {
+		    $nodeobject->InheritTaintStates($osinfo) == 0 or
+			warn "Node $node_id could not inherit taint ".
+			"states from osid $osid\n";
 		}
 
 		my %part = (
@@ -2136,9 +2116,6 @@ sub UpdatePartitions($$)
 	    }
 	}
     }
-
-    # Store the taint states for this node object
-    $self->nodeinfo($nodeobject,'tstates',\@tstates);
 
     #
     # Now that we have processed all images, update the actual DB

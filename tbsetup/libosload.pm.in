@@ -258,7 +258,7 @@ sub osload ($$) {
 	# to zero all node disks, then capture that here too.
 	my $zeronode = 0;
 	if ($nodeobject->IsTainted()) {
-	    $zeronode = 2;  # use maximum firepower.
+	    $zeronode = 2;
 	}
 	elsif ($zerofree) {
 	    $zeronode = $zerofree;
@@ -311,7 +311,6 @@ sub osload ($$) {
 	my $defosid;
 	my $maxwait = 0;
 	my @access_keys;
-	my @tstates = ();
 
 	#
 	# Most of the DB work related to images is determining what
@@ -471,14 +470,10 @@ sub osload ($$) {
 		    # until OS loading and disk zeroing have been
 		    # performed.
 		    my $osinfo = OSinfo->Lookup($osid);
-		    if (defined($osinfo)) {
-			if ($osinfo->IsTainted()) {
-			    # Save new/incoming taint states for later...
-			    push @tstates, $osinfo->GetTaintStates();
-			    $nodeobject->InheritTaintStates($osinfo) == 0 or
-				warn "Node $node could not inherit taint ".
-				     "states from osid $osid\n";
-			}
+		    if (defined($osinfo) && $osinfo->IsTainted()) {
+			$nodeobject->InheritTaintStates($osinfo) == 0 or
+			    warn "Node $node could not inherit taint ".
+			    "states from osid $osid\n";
 		    }
 
 		    my %part = (
@@ -622,7 +617,6 @@ sub osload ($$) {
 	    'reboot'   => $reboot_required,
 	    'wait'     => $wait_required,
 	    'zerofree' => $zeronode,
-	    'tstates'  => \@tstates,
 	    'prepare'  => $prepare,
 	    'maxwait'  => $maxwait,
 	    'isremote' => $isremote,
@@ -1043,20 +1037,6 @@ sub WaitTillReloadDone($$$$$@)
 		if (!$query_result->numrows) {
 		    print STDERR "osload ($node): left reloading mode at ".`date`
 			if ($debug);
-
-		    #
-		    # Now reset tainting for the node.  Start off
-		    # with a clean slate. Next, apply any taint states
-		    # previously identified and saved off for the
-		    # still-existing and/or newly-loaded OSes.  Doing this
-		    # now allows us to clear any remnant taint states
-		    # nullified by OS loading and/or disk zeroing.
-		    #
-		    $nodeobject->RemoveTaint();
-		    my $tstates = $reload_info->{$node}{'tstates'};
-		    if (@{$tstates}) {
-			$nodeobject->SetTaintStates(@{$tstates});
-		    }
 
 		    $count--;
 		    $done{$node} = 1;
