@@ -809,6 +809,9 @@ sub vnodeCreate($$$$)
 	    # Replace the existing line in the conf file. 
 	    #
 	    addConfig($vninfo, "disk = [" . join(",", @stanzas) . "]", 2);
+
+	    # Cause we have no idea.
+	    $private->{'os'} = "other";
 	}
 	
 	TBScriptUnlock();
@@ -1212,6 +1215,9 @@ sub vnodePreConfig($$$$$){
 	$devname =~ s/\-/\-\-/g;
 	$devname =~ s/\//\-/g;
 	$private->{'rootpartition'} = "/dev/mapper/$devname";
+	# Must be a package. Ick.
+	return 0
+	    if (! -e $private->{'rootpartition'});
     }
     
     #
