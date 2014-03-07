@@ -1865,7 +1865,7 @@ sub vnodeDestroy($$$$)
     foreach my $key (keys(%{ $private->{'disks'} })) {
 	my $lvname;
 	if (ref($private->{'disks'}->{$key})) {
-	    ($lvname) = @{ $private->{'disks'}->{$vnode_id} };
+	    ($lvname) = @{ $private->{'disks'}->{$key} };
 	}
 	else {
 	    $lvname = $private->{'disks'}->{$key};
