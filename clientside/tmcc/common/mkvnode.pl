@@ -697,7 +697,8 @@ if ($childpid) {
     # If failure then cleanup.
     #
     if ($? || $timedout) {
-	MyFatal("$vnodeid container startup failed or timed out");
+	MyFatal("$vnodeid container startup ".
+		($timedout ? "timed out." : "failed."));
     }
 }
 else {

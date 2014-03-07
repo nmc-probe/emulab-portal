@@ -1740,6 +1740,7 @@ sub vnodeBoot($$$$)
 	# Tear it down and try again. Use vnodeHalt cause it protects
 	# itself with an alarm.
 	#
+	print "Container did not start, halting for retry ...\n";
 	vnodeHalt($vnode_id, $vmid, $vnconfig, $private);
 	print "Container halted, waiting for it do disappear ...\n";
 	$countdown = 10;
