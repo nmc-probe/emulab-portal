@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -528,6 +528,7 @@ Simulator instproc run {} {
     var_import ::GLOBALS::optarray_order
     var_import ::GLOBALS::optarray_count
     var_import ::GLOBALS::dpdb
+    var_import ::GLOBALS::nonfs
    
 #for oml begin
     var_import ::TBCOMPAT::oml_use_control
@@ -800,6 +801,11 @@ Simulator instproc run {} {
     if {$security_level} {
 	lappend fields "security_level"
 	lappend values $security_level
+    }
+
+    if {$nonfs} {
+	lappend fields "nonfsmounts"
+	lappend values $nonfs
     }
 
     if {$dpdb} {

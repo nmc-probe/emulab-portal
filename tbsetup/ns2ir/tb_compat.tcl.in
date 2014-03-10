@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -2023,6 +2023,19 @@ proc tb-elab-in-elab {onoff} {
 	set elab_in_elab 1
     } else {
 	set elab_in_elab 0
+    }
+}
+
+#
+# Mark this experiment as not needing/wanting/allowed NFS mounts.
+#
+proc tb-set-nonfs {onoff} {
+    var_import ::GLOBALS::nonfs
+
+    if {$onoff} {
+	set nonfs 1
+    } else {
+	set nonfs 0
     }
 }
 

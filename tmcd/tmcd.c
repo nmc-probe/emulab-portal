@@ -3095,13 +3095,14 @@ COMMAND_PROTOTYPE(doaccounts)
 			goto skipkeys;
 
 		/*
-		 * Locally, everything is NFS mounted so no point in
-		 * sending back pubkey stuff; it's never used except on CygWin.
-		 * Add an argument of "pubkeys" to get the PUBKEY data.
-		 * An "windows" argument also returns a user's Windows Password.
+		 * Skip pubkeys locally unless the node/experiment has
+		 * no shared mounts (nonfsmounts), is a GENI sliver
+		 * (genisliver_idx), is running Windows ("windows" arg),
+		 * or explicitly asks for them ("pubkeys" arg).
 		 */
 #ifndef NOSHAREDFS
 		if (reqp->islocal &&
+		    ! reqp->nonfsmounts &&
 		    ! reqp->genisliver_idx &&
 		    ! reqp->sharing_mode[0] &&
 		    ! (strncmp(rdata, "pubkeys", 7) == 0
@@ -6794,7 +6795,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "   AS isdedicated_wa, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,n.uuid, "
-				 " n.nonfsmounts "
+				 " n.nonfsmounts,e.nonfsmounts AS enonfs "
 				 "FROM nodes AS n "
 				 "LEFT JOIN reserved AS r ON "
 				 "  r.node_id=n.node_id "
@@ -6823,7 +6824,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "     (SELECT node_id FROM widearea_nodeinfo "
 				 "      WHERE privkey='%s') "
 				 "  AND notmcdinfo_types.attrvalue IS NULL",
-				 36, nodekey);
+				 37, nodekey);
 	}
 	else if (reqp->isvnode) {
 		char	clause[BUFSIZ];
@@ -6859,7 +6860,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " u.admin,null, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,nv.uuid, "
-				 " nv.nonfsmounts "
+				 " nv.nonfsmounts,e.nonfsmounts AS enonfs "
 				 "from nodes as nv "
 				 "left join nodes as np on "
 				 " np.node_id=nv.phys_nodeid "
@@ -6880,7 +6881,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "left join users as u on "
 				 " u.uid_idx=e.swapper_idx "
 				 "where nv.node_id='%s' and (%s)",
-				 36, reqp->vnodeid, clause);
+				 37, reqp->vnodeid, clause);
 	}
 	else {
 		char	clause[BUFSIZ];
@@ -6909,7 +6910,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "   as isdedicated_wa, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,n.uuid, "
-				 " n.nonfsmounts "
+				 " n.nonfsmounts,e.nonfsmounts AS enonfs "
 				 "from interfaces as i "
 				 "left join nodes as n on n.node_id=i.node_id "
 				 "left join reserved as r on "
@@ -6937,7 +6938,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "  on n.type=dedicated_wa_types.type "
 				 "where (%s) "
 				 "  and notmcdinfo_types.attrvalue is NULL",
-				 36, clause);
+				 37, clause);
 	}
 
 	if (!res) {
@@ -7060,8 +7061,10 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 
 	reqp->iscontrol = (! strcasecmp(row[10], "ctrlnode") ? 1 : 0);
 
-	/* nonfsmounts */
-	if (row[35])
+	/* nonfsmounts - per-experiment disable overrides per-node setting */
+	if (row[36] && atoi(row[36]) != 0)
+		reqp->nonfsmounts = atoi(row[36]);
+	else if (row[35])
 		reqp->nonfsmounts = atoi(row[35]);
 	else
 		reqp->nonfsmounts = 0;

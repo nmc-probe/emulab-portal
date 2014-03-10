@@ -1,7 +1,7 @@
 #!/usr/local/bin/otclsh
 
 #
-# Copyright (c) 2000-2006, 2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -283,6 +283,10 @@ namespace eval GLOBALS {
     variable elabinelab_eid {}
     variable elabinelab_cvstag {}
     variable elabinelab_singlenet 0
+    variable elabinelab_fw_type "ipfw2-vlan"
+
+    # Disable NFS mounts for experiment?
+    variable nonfs 0
 
     # Does user want a per-experiment DB?
     variable dpdb 0

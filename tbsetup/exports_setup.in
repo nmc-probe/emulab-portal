@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -197,19 +197,20 @@ if ($WINSUPPORT) {
 # avoid extra db queries (see lastpid/lastgid/lastadmin).
 #
 $nodes_result =
-    DBQueryFatal("select r.node_id,r.pid,r.eid,e.gid,i.IP,u.admin, ".
-		 "       r.sharing_mode,r.erole,nt.isvirtnode ".
+    DBQueryFatal("select r.node_id,r.pid,r.eid,e.gid,".
+		 "       e.nonfsmounts as enonfs,n.nonfsmounts as nnonfs,".
+		 "       i.IP,u.admin,r.sharing_mode,r.erole,nt.isvirtnode ".
 		 "from reserved as r ".
 		 "left join experiments as e on r.pid=e.pid and r.eid=e.eid ".
-		 "left join nodes on r.node_id=nodes.node_id ".
-		 "left join node_types as nt on nt.type=nodes.type ".
+		 "left join nodes as n on r.node_id=n.node_id ".
+		 "left join node_types as nt on nt.type=n.type ".
 		 "left join interfaces as i on r.node_id=i.node_id ".
 		 "left join users as u on e.swapper_idx=u.uid_idx ".
 		 " where i.IP!='NULL' and ".
 		 "       i.role='" . TBDB_IFACEROLE_CONTROL() . "' ".
-		 "       and (nodes.role='testnode' or nodes.role='virtnode')".
+		 "       and (n.role='testnode' or n.role='virtnode')".
 		 "       and nt.isremotenode=0 ".
-		 "order by r.pid,e.gid,r.eid,u.admin,nodes.priority");
+		 "order by r.pid,e.gid,r.eid,u.admin,n.priority");
 
 my %ipgroups    = ();
 my %globalsmbshares   = ();
@@ -240,6 +241,8 @@ while ($row = $nodes_result->fetchrow_hashref) {
     my $isvirt  = $row->{'isvirtnode'};
     my $shared  = (defined($row->{'sharing_mode'}) ? 1 : 0);
     my $erole   = $row->{'erole'};
+    my $enonfs  = $row->{'enonfs'};
+    my $nnonfs  = $row->{'nnonfs'};
     my %fslist = ();
     my @dirlist = ();
     my @smbshares = ();
@@ -252,6 +255,10 @@ while ($row = $nodes_result->fetchrow_hashref) {
 	print "         $node_id\n" if defined($node_id);
 	next;
     }
+
+    # Skip nodes that belong to a "no nfs" experiment or are marked "no nfs".
+    next
+	if ($enonfs || $nnonfs);
 
     # Skip non-shared virtnode nodes; NFS mounts are handled differently.
     next

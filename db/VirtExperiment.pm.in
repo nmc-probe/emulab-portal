@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2009-2012 University of Utah and the Flux Group.
+# Copyright (c) 2009-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -135,7 +135,8 @@ my $debug	      = 0;
 		      "elabinelab_singlenet"	=> 1,
 		      "security_level"		=> 1,
 		      "delay_capacity"		=> 1,
-		      "dpdb"			=> 1);
+		      "dpdb"			=> 1,
+		      "nonfsmounts"		=> 1);
 
 #
 # Grab the virtual topo for an experiment.

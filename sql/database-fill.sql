@@ -953,6 +953,7 @@ REPLACE INTO table_regex VALUES ('experiments','use_ipassign','int','redirect','
 REPLACE INTO table_regex VALUES ('experiments','ipassign_args','text','regex','^[\\w\\s-]*$',0,255,NULL);
 REPLACE INTO table_regex VALUES ('experiments','expt_name','text','redirect','default:fulltext',1,255,NULL);
 REPLACE INTO table_regex VALUES ('experiments','dpdb','int','redirect','default:tinyint',0,1,NULL);
+REPLACE INTO table_regex VALUES ('experiments','nonfsmounts','int','redirect','default:tinyint',0,1,NULL);
 
 REPLACE INTO table_regex VALUES ('experiments','description','text','redirect','default:fulltext',1,256,NULL);
 REPLACE INTO table_regex VALUES ('experiments','idle_ignore','int','redirect','default:boolean',0,0,NULL);
