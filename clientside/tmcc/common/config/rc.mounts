@@ -264,7 +264,12 @@ sub doboot()
 		    unlink($local);
 		}
 
-		# Otherwise if it exists, move it out of the way.
+		# If it is an empty directory, remove it
+		if (-d "$local") {
+		    rmdir($local);
+		}
+
+		# If it still exists, move it out of the way.
 		if (-e "$local") {
 		    my $bak = "$local.$PID.bak";
 		    if (-e "$bak" || !rename($local, $bak)) {
