@@ -84,7 +84,7 @@ sub IsTainted($;$)
 	return -1;
     }
 
-    my @taint_states = GetTaintStates(@obj);
+    my @taint_states = GetTaintStates($obj);
     return 0
 	if (!@taint_states);
 
@@ -129,7 +129,7 @@ sub SetTaintStates($@)
 #
 # Add a taint state to the object.
 #
-sub AddTaint($$)
+sub AddTaintState($$)
 {
     my ($obj, $taint) = @_;
 
@@ -158,7 +158,7 @@ sub AddTaint($$)
 #
 # Remove a taint state (or all taint states).
 #
-sub RemoveTaint($;$)
+sub RemoveTaintState($;$)
 {
     my ($obj, $taint) = @_;
 
