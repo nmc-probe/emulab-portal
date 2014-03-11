@@ -36,5 +36,6 @@ ok($emuclient, 'Emulab new works');
 isa_ok($emuclient, 'TestBed::XMLRPC::Client::Emulab');
 
 my $time = timegm(0,0,0,1,0,2008);
-my $resp = $emuclient->news('starting' => time2iso8601($time));
+my $utctime =>  time2iso8601($time); # chop off the Z
+my $resp = $emuclient->news('starting' => chop($utctime)); #? chop off the trailing Z
 ok($resp, 'Valid Emulab::new response');
