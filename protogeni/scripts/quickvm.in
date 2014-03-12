@@ -625,6 +625,7 @@ sub Terminate($)
     fatal("Could not sign speaksfor credential")
 	if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
 
+    my $old_status = $instance->status();
     $instance->SetStatus("terminating");
 
     #
@@ -652,6 +653,7 @@ sub Terminate($)
     if (!defined($response) ||
 	($response->code() != GENIRESPONSE_SUCCESS &&
 	 $response->code() != GENIRESPONSE_SEARCHFAILED)) {
+	$instance->SetStatus($old_status);
 	fatal("DeleteSlice failed: ".
 	      (defined($response) ? $response->output() : "") . "\n");
     }
