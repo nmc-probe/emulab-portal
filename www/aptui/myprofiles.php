@@ -176,7 +176,7 @@ while ($row = mysql_fetch_array($query_result)) {
 echo "   </tbody>
         </table>\n";
 
-if (ISADMIN()) {
+if (ISADMIN() && !isset($all)) {
     echo "<img src='/redball.gif'>
           <a href='myprofiles.php?all=1'>Show all user Profiles</a>\n";
 }
