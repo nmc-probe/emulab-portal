@@ -2,7 +2,7 @@ window.APT_OPTIONS.config();
 
 require(['jquery', 'js/quickvm_sup', 
 	 // jQuery modules
-	 'bootstrap','filestyle','marked'],
+	 'bootstrap','filestyle','marked','jquery-ui','jquery-grid'],
 function ($, sup)
 {
     'use strict';
@@ -95,12 +95,27 @@ function ($, sup)
 	    $(this).select();
 	});
 
-	// Prevent submit if the description is empty.
+	//
+	// Sync up the steps when toggling the edit button.
+	//
+	$('#show_rspec_textarea_button').click(function (event) {
+	    SyncSteps();
+	});
+
+	//
+	// Perform actions on the rspec before submit.
+	//
 	$('#profile_submit_button').click(function (event) {
+	    // Prevent submit if the description is empty.
 	    var description = $('#profile_description').val();
 	    if (description === "") {
 		event.preventDefault();
 		alert("Please provide a description. Its handy!");
+		return false;
+	    }
+	    // Add steps to the tour.
+	    if (SyncSteps()) {
+		event.preventDefault();
 		return false;
 	    }
 	    return true;
@@ -154,6 +169,152 @@ function ($, sup)
 	}
     }
 
+    /*
+     * Yank the steps out of the xml and create the editable table.
+     * Before the form is submitted, we have to convert (update the
+     * table data into steps section of the rspec.
+     */
+    function InitStepsTable(xml)
+    {
+	var steps = [];
+	var count = 0;
+	
+	$(xml).find("rspec_tour").each(function() {
+	    $(this).find("steps").each(function() {
+		$(this).find("step").each(function() {
+		    var desc = $(this).find("description").text();
+		    var id   = $(this).attr("point_id");
+		    var type = $(this).attr("point_type");
+		    steps[count++] = {
+			'Type' : type,
+			'ID'   : id,
+			'Description': desc,
+		    };
+		});
+	    });
+	});
+
+	$(function () {
+	    // Initialize appendGrid
+	    $('#profile_steps').appendGrid('init', {
+		// We rewrite these to formfields variables before submit.
+		idPrefix: "StepsTable",
+		caption: null,
+		initRows: 0,
+		hideButtons: {
+		    removeLast: true
+		},
+		columns: [
+                    { name: 'Type', display: 'Type', type: 'text',
+		      ctrlAttr: { maxlength: 100 },
+		      ctrlCss: { width: '80px'}
+		    },
+                    { name: 'ID', display: 'ID', type: 'text',
+		      ctrlAttr: { maxlength: 100,
+				},
+		      ctrlCss: { width: '100px' },
+		    },
+                    { name: 'Description', display: 'Description', type: 'text',
+		      ctrlAttr: { maxlength: 100 },
+		    },
+		],
+		initData: steps
+	    });
+	});
+    }
+
+    //
+    // Sync the steps table to the rspec textarea.
+    //
+    function SyncSteps()
+    {
+	var rspec   = $('#profile_rspec_textarea').val();
+	if (rspec === "") {
+	    return;
+	}
+	var xmlDoc = $.parseXML(rspec);
+	var xml    = $(xmlDoc);
+
+	// Add the tour section and the subsection (if needed).
+	xml = AddTourSection(xml);
+
+	// Kill existing steps, we create new ones.
+	var tour  = $(xml).find("rspec_tour");
+	var sub   = $(tour).find("steps");
+	$(sub).remove();
+	xml = AddTourSubSection(xml, "steps");
+	
+	// Get all data rows from the steps tab;e
+	var data = $('#profile_steps').appendGrid('getAllValue');
+
+	// And create each step.
+	for (var i = 0; i < data.length; i++) {
+	    var desc = data[i].Description;
+	    var id   = data[i].ID;
+	    var type = data[i].Type;
+
+	    // Skip completely empty rows.
+	    if (desc == "" && id == "" && type == "") {
+		continue;
+	    }
+	    // But error on partially empty rows.
+	    if (desc == "" || id == "" || type == "") {
+		alert("Partial step data in step " + i);
+		return -1;
+	    }
+	    var newdoc = $.parseXML('<step point_type="' + type + '" ' +
+				    'point_id="' + id + '">' +
+				    '<description type="text">' + desc +
+				    '</description>' +
+				    '</step>');
+	    $(tour).find("steps").append($(newdoc).find("step"));
+	}
+	// Write it back to the text area.
+	var s = new XMLSerializer();
+	var str = s.serializeToString(xml[0]);
+	console.log(str);
+	$('#profile_rspec_textarea').val(str);
+	return 0;
+    }
+
+    // See if we need to add the tour section to top level.
+    function AddTourSection(xml)
+    {
+	var tour = $(xml).find("rspec_tour");
+	if (! tour.length) {
+	    var newdoc = $.parseXML('<rspec_tour xmlns=' +
+                 '"http://www.protogeni.net/resources/rspec/ext/apt-tour/1">' +
+				    '</rspec_tour>');
+	    $(xml).find("rspec").prepend($(newdoc).find("rspec_tour"));
+	}
+	return xml;
+    }
+    // See if we need to add the tour sub section.
+    function AddTourSubSection(xml, which)
+    {
+	// Add the tour section (if needed).
+	xml = AddTourSection(xml);
+
+	var tour = $(xml).find("rspec_tour");
+	var sub  = $(tour).find(which);
+	if (!sub.length) {
+	    var text;
+	    
+	    if (which == "description") {
+		text = "<description type='text'></description>";
+	    }
+	    else if (which == "description") {
+		text = "<instructions type='markdown'></instructions>";
+	    }
+	    else if (which == "steps") {
+		text = "<steps></steps>";
+	    }
+	    var newdoc = $.parseXML(text);
+	    $(xml).find("rspec_tour").append($(newdoc).find(which));
+	}
+
+	return xml;
+    }
     //
     // Helper function for instructions/description change handler above.
     //
@@ -168,22 +329,10 @@ function ($, sup)
 	var xmlDoc = $.parseXML(rspec);
 	var xml    = $(xmlDoc);
 
-	// See if we need to add the section to top level.
-	var tour = $(xml).find("rspec_tour");
-	if (! tour.length) {
-	    var newdoc = $.parseXML('<rspec_tour xmlns=' +
-                 '"http://www.protogeni.net/resources/rspec/ext/apt-tour/1">' +
-				    '</rspec_tour>');
-	    $(xml).find("rspec").prepend($(newdoc).find("rspec_tour"));
-	}
-	var tour = $(xml).find("rspec_tour");
-	// Ditto the subsection.
-	var sub  = $(tour).find(which);
-	if (!sub.length) {
-	    var newdoc = $.parseXML('<'  + which + ' type="text">' +
-				    '</' + which + '>');
-	    $(xml).find("rspec_tour").append($(newdoc).find(which));
-	}
+	// Add the tour section and the subsection (if needed).
+	xml = AddTourSection(xml);
+	xml = AddTourSubSection(xml, which);
+
 	var sub  = $(tour).find(which);
 	$(sub).text(text);
 
@@ -202,16 +351,15 @@ function ($, sup)
      */
     function ExtractFromRspec(xml)
     {
-	$(xml).find("rspec_tour").each(function() {
-	    $(this).find("description").each(function() {
-		var text = $(this).text();
-		$('#profile_description').val(text);
-	    });
-	    $(this).find("instructions").each(function() {
-		var text = $(this).text();
-		$('#profile_instructions').val(text);
-	    });
+	$(xml).find("rspec_tour > description").each(function() {
+	    var text = $(this).text();
+	    $('#profile_description').val(text);
 	});
+	$(xml).find("rspec_tour > instructions").each(function() {
+	    var text = $(this).text();
+	    $('#profile_instructions').val(text);
+	});
+	InitStepsTable(xml);
     }
 
     //

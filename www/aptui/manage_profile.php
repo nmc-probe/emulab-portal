@@ -108,6 +108,11 @@ function SPITFORM($formfields, $errors)
 
     SPITHEADER(1);
 
+    echo "<link rel='stylesheet'
+            href='jquery-ui/css/smoothness/jquery-ui-1.10.4.custom.min.css'>\n";
+    echo "<link rel='stylesheet'
+            href='jquery.appendGrid/css/jquery.appendGrid-1.3.1.min.css'>\n";
+
     echo "<div class='row'>
            <div class='col-lg-8  col-lg-offset-2
                        col-md-10 col-md-offset-1
@@ -275,6 +280,12 @@ function SPITFORM($formfields, $errors)
                           type='textarea'></textarea>",
 	       "Briefly describe how to use this profile after it starts. ".
 	       "Double click to see it rendered.");
+
+    echo "<div class='row'>\n";
+    $format_label("profile_steps", "Steps");
+    echo "<div class='col-sm-10'>\n";
+    echo "<table id='profile_steps' class='col-sm-12'></table>\n";
+    echo "</div></div>\n";
 
     $formatter("profile_listed", "Listed?",
 	       "<div class='checkbox'>
