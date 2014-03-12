@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -132,7 +132,7 @@ if (!$archived && !$target_user->wikionly() &&
     WRITESUBMENUBUTTON("Generate SSL Cert",
 		       CreateURL("gensslcert", $target_user));
 
-    if ($target_user->HasEncryptedCert()) {
+    if ($target_user->HasEncryptedCert(0)) {
 	WRITESUBMENUBUTTON("Download your SSL Cert",
 			   CreateURL("gensslcert", $target_user,
 				     "finished", 1));

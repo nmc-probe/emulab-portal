@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2012 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1123,10 +1123,12 @@ class User
 
 	return $this->Refresh();
     }
-    function HasEncryptedCert() {
-	$query_result = $this->TableLookUp("user_sslcerts",
-					   "cert,privkey",
-					   "encrypted=1 and revoked is null");
+    function HasEncryptedCert($expired_notokay) {
+	$query_result =
+	    $this->TableLookUp("user_sslcerts", "cert,privkey",
+			       "encrypted=1 and revoked is null ".
+			       ($expired_notokay ? "and expires > now()" : ""));
+					   
 	return mysql_num_rows($query_result);
     }
 
