@@ -118,6 +118,11 @@ function SPITFORM($formfields, $newuser, $errors)
     # XSS prevention.
     if ($errors) {
 	while (list ($key, $val) = each ($errors)) {
+	    # Skip internal error, we want the html in those errors
+	    # ands we know it is safe.
+	    if ($key == "error") {
+		continue;
+	    }
 	    $errors[$key] = CleanString($val);
 	}
     }
@@ -147,6 +152,7 @@ function SPITFORM($formfields, $newuser, $errors)
     SpitAboutApt();
 
     echo "<form id='quickvm_form' role='form'
+            enctype='multipart/form-data'
             method='post' action='instantiate.php'>\n";
     echo "<div class='panel panel-default'>
            <div class='panel-heading'>
@@ -173,9 +179,9 @@ function SPITFORM($formfields, $newuser, $errors)
     # Look for non-specific error.
     #
     if ($errors && array_key_exists("error", $errors)) {
-	echo "<font color=red><center>" . $errors["error"] . "</center></font>";
+	echo "<font color=red><center>" . $errors["error"] .
+	    "</center></font><br>";
     }
-
 
     #
     # Ask for user information
@@ -195,9 +201,14 @@ function SPITFORM($formfields, $newuser, $errors)
                           class='form-control'
                           placeholder='Your email address' type='text'>");
 
+	$formatter("keyfile",
+		   "<span class='help-block'>
+                     SSH Public Key (choose file or paste in)</span>".
+		   "<input type=file name='keyfile'>");
+
 	$formatter("sshkey", 
 		  "<textarea name=\"formfields[sshkey]\" 
-                             placeholder='Optional: your ssh public key.'
+                             placeholder='Paste in your ssh public key.'
                              class='form-control'
                              rows=4 cols=45>" . $formfields["sshkey"] .
                   "</textarea>");
@@ -341,16 +352,18 @@ elseif (! array_key_exists($formfields["profile"], $profile_array)) {
     $errors["profile"] = "Invalid Profile: " . $formfields["profile"];
 }
 
-if (count($errors)) {
-    SPITFORM($formfields, false, $errors);
-    SPITFOOTER();
-    return;
-}
-
 #
 # More sanity checks. 
 #
-if (!$this_user) {
+if ($this_user) {
+    if (! $this_user->HasEncryptedCert(1)) {
+	$url = CreateURL("gensslcert", $this_user);
+    
+	$errors["error"] = "Oops, registered Emulab users must create a ".
+	    "<a href='$TBBASE/$url'>ssl certificate</a> first";
+    }
+}
+else {
     $geniuser = GeniUser::LookupByEmail("sa", $formfields["email"]);
     if ($geniuser) {
 	if ($geniuser->name() != $formfields["username"]) {    
@@ -359,11 +372,28 @@ if (!$this_user) {
 	}
     }
 }
+
+if (count($errors)) {
+    SPITFORM($formfields, false, $errors);
+    SPITFOOTER();
+    return;
+}
+
 #
 # SSH keys are now optional for guest users; they just have to
-# use the web based ssh windo.
+# use the web based ssh window.
 #
-if (isset($formfields["sshkey"]) && $formfields["sshkey"] != "") {
+# Backend verifies pubkey and returns error. We first look for a 
+# file and then fall back to an inline field.
+#
+if (isset($_FILES['keyfile']) &&
+    $_FILES['keyfile']['name'] != "" &&
+    $_FILES['keyfile']['name'] != "none") {
+
+    $localfile = $_FILES['keyfile']['tmp_name'];
+    $args["sshkey"] = file_get_contents($localfile);
+}
+elseif (isset($formfields["sshkey"]) && $formfields["sshkey"] != "") {
     $args["sshkey"] = $formfields["sshkey"];
 }
 
