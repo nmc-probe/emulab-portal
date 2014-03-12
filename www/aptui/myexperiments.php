@@ -139,7 +139,7 @@ while ($row = mysql_fetch_array($query_result)) {
 echo "   </tbody>
         </table>\n";
 
-if (ISADMIN()) {
+if (ISADMIN() && !isset($all)) {
     echo "<img src='/redball.gif'>
           <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
 }
