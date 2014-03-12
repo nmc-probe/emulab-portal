@@ -330,3 +330,8 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+
+.sidebyside-form {
+    padding-left:  5px;
+    padding-right: 5px;
+}
