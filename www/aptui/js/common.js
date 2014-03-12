@@ -6,6 +6,8 @@ window.APT_OPTIONS.config = function ()
 	baseUrl: '.',
 	paths: {
 	    'jquery': 'js/lib/jquery-2.0.3.min',
+	    'jquery-ui': 'jquery-ui/js/jquery-ui-1.10.4.custom',
+	    'jquery-grid':'jquery.appendGrid/js/jquery.appendGrid-1.3.1.min',
 	    'bootstrap': 'bootstrap/js/bootstrap',
 	    'formhelpers': 'formhelpers/js/bootstrap-formhelpers',
 	    'dateformat': 'js/lib/date.format',
@@ -17,6 +19,8 @@ window.APT_OPTIONS.config = function ()
 	},
 	shim: {
 	    'bootstrap': { deps: ['jquery'] },
+	    'jquery-ui': { deps: ['jquery'] },
+	    'jquery-grid': { deps: ['jquery-ui'] },
 	    'formhelpers': { deps: ['bootstrap']},
 	    'dateformat': { exports: 'dateFormat' },
 	    'd3': { exports: 'd3' },
