@@ -81,7 +81,7 @@ function SPITFORM($formfields, $showverify, $errors)
 	if (array_key_exists($field, $errors)) {
 	    $class .= " has-error";
 	}
-	echo "<div class='$class'>\n";
+	echo "<div class='$class sidebyside-form'>\n";
 	echo "$html\n";
 	if (array_key_exists($field, $errors)) {
 	    echo "<label class='control-label' for='inputError'>" .
@@ -124,10 +124,19 @@ function SPITFORM($formfields, $showverify, $errors)
 	echo "<font color=red>" . $errors["error"] . "</font>";
     }
     
-    echo "<form id='quickvm_signup_form' class='container' role='form'
+    echo "<form id='quickvm_signup_form'
+            class='form-horizontal' role='form'
             enctype='multipart/form-data'
             method='post' action='signup.php'>\n";
 
+    echo "  <div class='row'>\n";
+    if (!$this_user) {
+	echo "   <div class='col-sm-6'>\n";
+    }
+    else {
+	echo "   <div class='col-sm-12'>\n";
+    }
+    
     # Want to pass this along for later.
     if ($joinproject) {
 	echo "<input type='hidden' name='joinproject' value=1>\n";
@@ -158,9 +167,7 @@ function SPITFORM($formfields, $showverify, $errors)
 	    "value='" . CleanString($formfields["pubkey"]) . "'>";
     }
     
-    echo "   <div class='row'>\n";
     if (!$this_user) {
-	echo "   <div class='col-sm-6'>\n";
 	echo "    <fieldset>
                    <legend>Personal Information</legend>\n";
 	$formatter("uid",			  
@@ -220,9 +227,6 @@ function SPITFORM($formfields, $showverify, $errors)
 	echo "    </div>\n";
 	echo "   <div class='col-sm-6'>\n";
     }
-    else {
-	echo "   <div class='col-sm-12'>\n";
-    }
     echo "       <fieldset>";
     if ($joinproject) {
 	echo "   <legend>Project Name</legend>\n";
@@ -260,7 +264,7 @@ function SPITFORM($formfields, $showverify, $errors)
     echo "      </fieldset>
               </div>
              </div>
-            <div class='row'>
+            <div class='row sidebyside-form'>
                <button class='btn btn-primary btn-xs pull-left'
                    type='button' name='reset' id='reset-form'>
                       Reset Form</button>
