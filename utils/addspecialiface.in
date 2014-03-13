@@ -42,15 +42,17 @@ sub usage()
     print STDERR " -n       - Dry run mode\n";
     print STDERR " -t       - Do not call snmpit to set trunk mode\n";
     print STDERR " -r       - Delete interface\n";
+    print STDERR " -f       - (with -r) force deletion, even if iface used\n";
     print STDERR " -b speed - Interface speed; 100Mb, 1Gb or 10Gb \n";
     print STDERR " -s info  - switchname,switchcard,switchport\n";
     print STDERR " iface_id - eth0, eth1, etc (must end in an integer)\n";
     exit(-1);
 }
-my $optlist   = "b:dns:rt";
+my $optlist   = "b:dfns:rt";
 my $debug     = 0;
 my $impotent  = 0;
 my $removing  = 0;
+my $force     = 0;
 my $notrunk   = 0;
 my $speed;
 my $switchinfo;
@@ -106,6 +108,9 @@ if (defined($options{'n'})) {
 if (defined($options{'r'})) {
     $removing = 1;
 }
+if (defined($options{'f'})) {
+    $force = 1;
+}
 if (defined($options{'t'})) {
     $notrunk = 1;
 }
@@ -147,19 +152,39 @@ else {
 	if (defined($interface));
 }
 if ($removing) {
-    if ($node->IsReserved() &&
-	$node->erole() eq "sharedhost" && !$notrunk) {
-	print "Turning off trunk mode for $node_id:$iface_id\n";
-	system("$SNMPIT -U $node_id:$iface_id") == 0
-	    or fatal("Could not turn off port trunking mode");
+    my $query_result =
+	DBQueryWarn("select lma1.lanid from lan_member_attributes as lma1, " .
+		    "lan_member_attributes as lma2 where " .
+		    "lma1.lanid = lma2.lanid and lma1.memberid=lma2.memberid " .
+		    "and lma1.attrkey='node_id' and " .
+		    "lma1.attrvalue='$node_id' and " .
+		    "lma2.attrkey='iface' and " .
+		    "lma2.attrvalue='$iface_id'");
+    if( $query_result && $query_result->numrows > 0 ) {
+	if( $force ) {
+	    print "$node_id:$iface_id appears to be in use; " .
+		"continuing anyway...\n";
+	} else {
+	    print "warning: $node_id:$iface_id appears to be in use; " .
+		"entering impotent mode (use -f to force removal)\n";
+	    $impotent = 1;
+	}
     }
+    if( !$impotent ) {
+	if ($node->IsReserved() &&
+	    $node->erole() eq "sharedhost" && !$notrunk) {
+	    print "Turning off trunk mode for $node_id:$iface_id\n";
+	    system("$SNMPIT -U $node_id:$iface_id") == 0
+		or fatal("Could not turn off port trunking mode");
+	}
 
-    $interface->DeleteWire() == 0
-	or fatal("Could not delete wire for $interface");
+	$interface->DeleteWire() == 0
+	    or fatal("Could not delete wire for $interface");
 
-    # Flag indicates it is okay to delete real interface.
-    $interface->Delete(1) == 0
-	or fatal("Could not delete $interface");
+	# Flag indicates it is okay to delete real interface.
+	$interface->Delete(1) == 0
+	    or fatal("Could not delete $interface");
+    }
 
     exit(0);
 }
