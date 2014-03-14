@@ -286,15 +286,13 @@ $user_email = $value;
 # Not many choices; see if it exists.
 #
 $value = $xmlparse->{'attribute'}->{"profile"}->{'value'};
-if ($value !~ /^\d*$/) {
-    fatal("Illegal imageid: $value");
-}
+# This is a safe lookup.
 my $profile_object = APT_Profile->Lookup($value);
 if (!defined($profile_object)) {
     fatal("No such profile: $value");
 }
 my $rspecstr = $profile_object->rspec();
-$profile = $value;
+$profile = $profile_object->idx();
 
 #
 # Use ssh-keygen to see if the key is valid and convertable. We first
@@ -642,20 +640,45 @@ sub Terminate($)
 	# All of the logging magic happens in here.
 	libaudit::AuditFork();
     }
-    my $response =
-	Genixmlrpc::CallMethod($cm_authority->url(), undef,
-			       "DeleteSlice",
-			       { "slice_urn"   => $slice->urn(),
-				 "credentials" =>
-				     [$slice_credential->asString(),
-				      $speaksfor_credential->asString()]});
+    #
+    # We have to watch for resource busy errors, and retry. For a while
+    # at least. Eventually give up cause it might be a permanently locked
+    # slice cause of earlier error. 
+    #
+    my $tries = 10;
+    while ($tries) {
+	my $response =
+	    Genixmlrpc::CallMethod($cm_authority->url(), undef,
+				   "DeleteSlice",
+				   { "slice_urn"   => $slice->urn(),
+				     "credentials" =>
+					 [$slice_credential->asString(),
+					  $speaksfor_credential->asString()]});
 
-    if (!defined($response) ||
-	($response->code() != GENIRESPONSE_SUCCESS &&
-	 $response->code() != GENIRESPONSE_SEARCHFAILED)) {
+	if (!defined($response) ||
+	    ($response->code() != GENIRESPONSE_SUCCESS &&
+	     $response->code() != GENIRESPONSE_SEARCHFAILED &&
+	     $response->code() != GENIRESPONSE_BUSY)) {
+	    $instance->SetStatus($old_status);
+	    fatal("DeleteSlice failed: ".
+		  (defined($response) ? $response->output() : "") . "\n");
+	}
+	last
+	    if ($response->code() == GENIRESPONSE_SUCCESS ||
+		$response->code() == GENIRESPONSE_SEARCHFAILED);
+
+	#
+	# Wait for a while and try again. 
+	#
+	$tries--;
+	if ($tries) {
+	    print STDERR "Slice is busy, will retry again in a bit ...\n";
+	    sleep(30);
+	}
+    }
+    if (!$tries) {
 	$instance->SetStatus($old_status);
-	fatal("DeleteSlice failed: ".
-	      (defined($response) ? $response->output() : "") . "\n");
+	fatal("DeleteSlice failed: Slice was busy for way too long");
     }
     $slice->Delete();
   done:
