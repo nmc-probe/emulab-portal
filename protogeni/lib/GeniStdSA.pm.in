@@ -190,7 +190,13 @@ sub GetCredentials()
 	return GeniResponse->MalformedArgsResponse('Requires a slice urn, a list of credentials, and an options field');
     }
 
-    my $credential = GeniSA::GetCredential({ "urn" => $slice_urn });
+    my $user_credential = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    return $user_credential
+        if (GeniResponse::IsResponse($user_credential));
+
+    my $credential = GeniSA::GetCredential({
+	"urn" => $slice_urn,
+	"credential" => $user_credential });
     return $credential
 	if (GeniResponse::IsError($credential));
 
