@@ -22,7 +22,7 @@
 # }}}
 #
 chdir("..");
-include_once("defs.php");
+include_once("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
 chdir("..");
