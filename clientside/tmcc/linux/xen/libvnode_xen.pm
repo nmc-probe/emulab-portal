@@ -532,13 +532,19 @@ sub rootPreConfig($)
     # Need these to avoid overflowing the NAT tables.
     #
     mysystem("$SYSCTL -w ".
-	     "  net.ipv4.netfilter.ip_conntrack_generic_timeout=120");
+	     "  net.netfilter.nf_conntrack_generic_timeout=120");
     mysystem("$SYSCTL -w ".
-	     "  net.ipv4.netfilter.ip_conntrack_tcp_timeout_established=54000");
+	     "  net.netfilter.nf_conntrack_tcp_timeout_established=54000");
     mysystem("$SYSCTL -w ".
 	     "  net.netfilter.nf_conntrack_max=131071");
     mysystem("echo 16384 > /sys/module/nf_conntrack/parameters/hashsize");
-    
+ 
+    # These might fail on new kernels.  
+    mysystem2("$SYSCTL -w ".
+	      " net.ipv4.netfilter.ip_conntrack_generic_timeout=120");
+    mysystem2("$SYSCTL -w ".
+	      " net.ipv4.netfilter.ip_conntrack_tcp_timeout_established=54000");
+
     mysystem("touch /var/run/xen.ready");
     TBScriptUnlock();
     return 0;
