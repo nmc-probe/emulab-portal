@@ -61,7 +61,7 @@ sub automate_module_install {
 
 sub install_deps_from_cpan {
   my @deps = qw(
-      Mouse
+      Moose
       RPC::XML::Client
       RPC::XML
       Test::More

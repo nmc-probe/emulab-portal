@@ -22,40 +22,40 @@
 # }}}
 #
 package TestBed::ParallelRunner::Executor::Exception;
-use Mouse;
+use Moose;
   has original => ( is => 'rw');
-no Mouse;
+no Moose;
 
 package TestBed::ParallelRunner::Executor::PrerunError;
-use Mouse;
+use Moose;
   extends('TestBed::ParallelRunner::Executor::Exception');
-no Mouse;
+no Moose;
 
 package TestBed::ParallelRunner::Executor::SwapinError;
-use Mouse;
+use Moose;
   extends('TestBed::ParallelRunner::Executor::Exception');
-no Mouse;
+no Moose;
 
 package TestBed::ParallelRunner::Executor::RunError;
-use Mouse;
+use Moose;
   extends('TestBed::ParallelRunner::Executor::Exception');
-no Mouse;
+no Moose;
 
 package TestBed::ParallelRunner::Executor::SwapoutError;
-use Mouse;
+use Moose;
   extends('TestBed::ParallelRunner::Executor::Exception');
-no Mouse;
+no Moose;
 
 package TestBed::ParallelRunner::Executor::KillError;
-use Mouse;
+use Moose;
   extends('TestBed::ParallelRunner::Executor::Exception');
-no Mouse;
+no Moose;
 
 package TestBed::ParallelRunner::Executor;
 use TestBed::ParallelRunner::ErrorStrategy;
 use SemiModern::Perl;
 use TestBed::TestSuite::Experiment;
-use Mouse;
+use Moose;
 use Data::Dumper;
 
 has 'e'    => ( isa => 'TestBed::TestSuite::Experiment', is => 'rw');

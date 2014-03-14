@@ -26,7 +26,7 @@ use SemiModern::Perl;
 use Data::Dumper;
 use TBConfig;
 use IPC::Run3;
-use Mouse;
+use Moose;
 
 has 'host' => ( isa => 'Str', is => 'rw');
 has 'user' => ( isa => 'Str', is => 'rw');

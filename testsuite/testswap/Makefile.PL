@@ -29,7 +29,7 @@ perl_version    '5.008';
 author          'Testbed Developers <testbed-dev@flux.utah.edu>';
 version         '0.01';
 
-requires      'Mouse'               => '0.22';
+requires      'Moose'               => '0.22';
 requires      'RPC::XML::Client'    => '1.24';
 requires      'RPC::XML'            => '1.41';
 requires      'Test::More'          => '0.86';

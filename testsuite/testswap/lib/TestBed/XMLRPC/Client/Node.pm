@@ -26,7 +26,7 @@ use Mouse;
 
 package TestBed::XMLRPC::Client::Node;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use Data::Dumper;
 
 extends 'TestBed::XMLRPC::Client';

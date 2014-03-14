@@ -27,7 +27,7 @@ use TestBed::ParallelRunner::Executor;
 use TestBed::ForkFramework;
 use TestBed::TestBuilderWrapper;
 use Data::Dumper;
-use Mouse;
+use Moose;
 use TBConfig;
 
 has executors => ( is => 'rw', default => sub { [] } );

@@ -23,7 +23,7 @@
 #
 package TestBed::XMLRPC::Client;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use RPC::XML::Client;
 use Net::SSL;
 use LWP::Protocol::https;

@@ -23,7 +23,7 @@
 #
 package TestBed::TestSuite::Experiment;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use TBConfig;
 use TestBed::XMLRPC::Client::Experiment;
 use TestBed::Wrap::tevc;

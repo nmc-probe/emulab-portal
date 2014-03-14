@@ -23,7 +23,7 @@
 #
 package TestBed::XMLRPC::Client::Experiment;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use Data::Dumper;
 use TestBed::XMLRPC::Client::NodeInfo;
 use TBConfig;

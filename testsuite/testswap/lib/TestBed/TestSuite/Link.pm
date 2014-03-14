@@ -23,7 +23,7 @@
 #
 package TestBed::TestSuite::Link;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 #use TestBed::XMLRPC::Client::Link;
 use Tools::Network;
 use Tools::TBSSH;

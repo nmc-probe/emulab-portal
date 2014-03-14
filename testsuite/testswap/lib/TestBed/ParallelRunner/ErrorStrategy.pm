@@ -23,7 +23,7 @@
 #
 package TestBed::ParallelRunner::ErrorStrategy;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 has 'executor' => (is => 'rw');
 has 'scheduler' => (is => 'rw');
@@ -89,7 +89,7 @@ sub end_error     { shift->ensure_end_and_report; }
 
 package TestBed::ParallelRunner::PrerunExpectFail;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 extends 'TestBed::ParallelRunner::ErrorStrategy';
 
@@ -100,7 +100,7 @@ sub prerun_error {
 
 package TestBed::ParallelRunner::ErrorRetryStrategy;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 extends 'TestBed::ParallelRunner::ErrorStrategy';
 
@@ -115,7 +115,7 @@ sub swapin_error {
 
 package TestBed::ParallelRunner::BackoffStrategy;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 has 'starttime'  => (is => 'rw', default => sub { time; } );
 has 'retries'    => (is => 'rw', default => 0 );
