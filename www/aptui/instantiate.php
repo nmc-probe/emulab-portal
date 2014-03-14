@@ -28,6 +28,7 @@ include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("instance_defs.php");
+include("profile_defs.php");
 $page_title = "Instantiate a Profile";
 $dblink = GetDBLink("sa");
 
@@ -53,55 +54,67 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 #
 # Deal with ajax requests.
 #
-# XXX Need permission checks here. 
-#
 if (isset($ajax_request)) {
     if ($ajax_method == "getprofile") {
-	$profile_idx = addslashes($ajax_argument);
-	$query_result =
-	    DBQueryWarn("select * from apt_profiles ".
-			"where idx='$profile_idx'");
-
-	if (!$query_result || !mysql_num_rows($query_result)) {
-	    SPITAJAX_ERROR(1, "No such profile $profile_idx!");
+	$obj = Profile::Lookup($ajax_argument);
+	if (!$obj) {
+	    SPITAJAX_ERROR(1, "No such profile $ajax_argument");
 	    exit();
 	}
-	$row = mysql_fetch_array($query_result);
-	
-	SPITAJAX_RESPONSE(array('rspec' => $row['rspec'],
-				'name'  => $row['name'],
-				'idx'   => $row['idx'],
-				'description' => $row['description']));
+	#
+	# Need permission checks here.
+	#
+	SPITAJAX_RESPONSE(array('rspec'       => $obj->rspec(),
+				'name'        => $obj->name(),
+				'description' => $obj->description()));
     }
     exit();
+
 }
 
 $profile_default  = "OneVM";
 $profile_array    = array();
 
+#
+# if using the super secret URL, make sure the profile exists, and
+# add to the array now since it might not be public or belong to the user.
+#
 if (isset($profile)) {
-    $profilename = $profile;
+    if (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $profile)) {
+	$obj = Profile::Lookup($profile);
+	if (! $obj) {
+	    SPITHEADER(1);
+	    SPITUSERERROR("No such profile: $profile");
+	    echo "<script src='js/lib/require.js' data-main='js/null'>
+                  </script>\n";
+	    SPITFOOTER();
+	}
+	$profile_array[$profile] = $obj->name();
+	$profilename = $obj->name();
+    }
+    else {
+	$profilename = $profile;
+    }
 }
 
+#
+# Still do this cause of non-secret URLs. This needs more work.
+#
 $query_result =
     DBQueryFatal("select * from apt_profiles ".
 		 "where public=1 " .
 		 ($this_user ? "or creator_idx=" . $this_user->uid_idx() : ""));
 while ($row = mysql_fetch_array($query_result)) {
-    $profile_array[$row["idx"]] = $row["name"];
+    $profile_array[$row["uuid"]] = $row["name"];
     if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
-	$profile_default = $row["idx"];
+	$profile_default = $row["uuid"];
     }
     if (isset($profile)) {
-        # Look for the profile by project/name and switch to index.
+        # Look for the profile by project/name and switch to uuid.
 	if (isset($project) &&
 	    $row["pid"] == $project->pid() &&
 	    $row["name"] == $profile) {
-	    $profile = $row["idx"];
-	}
-        # Look for the profile by uuid and switch to index.
-	elseif ($profile == $row["uuid"]) {
-	    $profile = $row["idx"];
+	    $profile = $row["uuid"];
 	}
     }
 }
@@ -168,7 +181,7 @@ function SPITFORM($formfields, $newuser, $errors)
     # If linked to a specific profile, description goes here
     #
     if ($profile) {
-        # Note: Following line is also duplicatd below
+        # Note: Following line is also duplicated below
         echo "  <span class='' style='display: inline-block; margin-bottom: 10px'
                       id='selected_profile_description'></span>\n";
     }
@@ -234,13 +247,18 @@ function SPITFORM($formfields, $newuser, $errors)
                 " </label>\n";
         }
         echo " </div>\n";
-        # Note: Following line is also duplicatd above
+        # Note: Following line is also duplicated above
         echo "  <span class=''
                       id='selected_profile_description'></span>\n";
     }
     else {
-	echo "<input id='selected_profile' type='hidden' value='$profile'
-                       name='formfields[profile]'/>\n";
+	echo "<input id='selected_profile' type='hidden'
+                     name='formfields[profile]'
+                     value='" . $formfields["profile"] . "'>\n";
+
+	# Send the original argument for the initial array stuff above.
+        # Needs more work.
+	echo "<input type='hidden' name='profile' value='$profile'>\n";
     }
     echo "</fieldset>
            <button class='btn btn-success pull-right'
