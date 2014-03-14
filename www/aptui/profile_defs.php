@@ -30,12 +30,29 @@ class Profile
     #
     # Constructor by lookup on unique index.
     #
-    function Profile($idx) {
-	$safe_idx = addslashes($idx);
+    function Profile($token) {
+	$idx = null;
+	
+	if (preg_match("/^\d+$/", $token)) {
+	    $idx = $token;
+	}
+	elseif (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $token)) {
+	    $query_result =
+		DBQueryWarn("select idx from apt_profiles ".
+			    "where uuid='$token'");
 
+	    if ($query_result && mysql_num_rows($query_result)) {
+		$row = mysql_fetch_row($query_result);
+		$idx = $row[0];
+	    }
+	}
+	if (is_null($idx)) {
+	    $this->profile = null;
+	    return;
+	}
 	$query_result =
 	    DBQueryWarn("select * from apt_profiles ".
-			"where idx='$safe_idx'");
+			"where idx='$idx'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    $this->profile = null;
@@ -72,8 +89,8 @@ class Profile
     }
 
     # Lookup up a single profile by idx. 
-    function Lookup($idx) {
-	$foo = new Profile($idx);
+    function Lookup($token) {
+	$foo = new Profile($token);
 
 	if ($foo->IsValid()) {
             # Insert into cache.
