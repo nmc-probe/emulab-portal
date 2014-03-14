@@ -333,6 +333,7 @@ function ($, sup)
 	xml = AddTourSection(xml);
 	xml = AddTourSubSection(xml, which);
 
+	var tour = $(xml).find("rspec_tour");
 	var sub  = $(tour).find(which);
 	$(sub).text(text);
 
