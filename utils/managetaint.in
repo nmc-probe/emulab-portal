@@ -40,6 +40,7 @@ my $TB		 = "@prefix@";
 # Testbed Support libraries
 #
 use lib "@prefix@/lib";
+use libdb;
 use EmulabConstants;
 use User;
 
@@ -49,13 +50,14 @@ sub fatal($);
 sub ParseArgs(@);
 sub DoAction($$$@);
 sub GetObject($$);
+sub PrintAllObjects($);
 
 #
 # Top level constants
 #
 my @ALLTAINTS = TB_TAINTSTATE_ALL();
 my @TAINT_OBJECT_TYPES = ("node","os");
-my @TAINT_ACTIONS = ("add","remove","set","clear","show");
+my @TAINT_ACTIONS = ("add","remove","set","clear","show","showall");
 
 #
 # Global variables
@@ -66,19 +68,20 @@ my @TAINT_ACTIONS = ("add","remove","set","clear","show");
 #
 sub usage()
 {
-    print STDERR "Usage: managetaint <object> <OID> <action> [<taint> ...]\n";
+    print STDERR "Usage: managetaint <action> <objtype> [<OID> <taint> ...]\n";
     print STDERR "  -h       This message\n";
-    print STDERR " Objects:\n";
+    print STDERR " Actions:\n";
+    print STDERR "  add      Apply one or more taint modes to an object.\n";
+    print STDERR "  remove   Remove one or more taint modes from an object.\n";
+    print STDERR "  set      Set a taint mode on specified object.\n";
+    print STDERR "  clear    Clear all taint states from an object.\n";
+    print STDERR "  show     Show all taint modes set for an object.\n";
+    print STDERR "  showall  Display all taint modes across all objects.\n";
+    print STDERR " Object Types (and associated object identifiers):\n";
     print STDERR "  Node     Testbed Node\n";
     print STDERR "   OID     node_id\n";
     print STDERR "  OS       OS Descriptor\n";
     print STDERR "   OID     <project>/<osname>";
-    print STDERR " Actions:\n";
-    print STDERR "  add      Apply one or more taint modes to the object.\n";
-    print STDERR "  remove   Remove one or more taint modes from the object.\n";
-    print STDERR "  set      Set a taint mode on the object.\n";
-    print STDERR "  clear    Clear all taint states from the object.\n";
-    print STDERR "  show     Show all taint modes set for the object.\n";
     print STDERR " Taint States: ". join(",",@ALLTAINTS) ."\n";
     exit(-1);
 }
@@ -127,14 +130,14 @@ if (defined($options{h})) {
     usage();
 }
 usage()
-    if (@ARGV < 3);
+    if (@ARGV < 2);
 
-my ($objtype, $oid, $action, @in_states) = ParseArgs(@ARGV);
+my ($action, $objtype, $oid, @in_states) = ParseArgs(@ARGV);
 
 fatal("Argument parsing failed!") 
     if (!defined($objtype));
 
-DoAction($objtype, $oid, $action, @in_states) or
+DoAction($action, $objtype, $oid, @in_states) or
     fatal("Failed to perform $action on $objtype object $oid");
 
 exit 0;
@@ -154,15 +157,15 @@ sub ParseArgs(@) {
 	}
     }
 
-    my ($objtype, $oid, $action, @in_states) = @UARGV;
+    my ($action, $objtype, $oid, @in_states) = @UARGV;
 
     # Argument sanity checks.
-    if (!grep {$_ eq $objtype} @TAINT_OBJECT_TYPES) {
-	fatal("Invalid taint object type: $objtype");
-    }
-
     if (!grep {$_ eq $action} @TAINT_ACTIONS) {
 	fatal("Invalid action: $action");
+    }
+
+    if (!grep {$_ eq $objtype} @TAINT_OBJECT_TYPES) {
+	fatal("Invalid taint object type: $objtype");
     }
 
     if (@in_states) {
@@ -173,13 +176,17 @@ sub ParseArgs(@) {
 	}
     }
 
+    if (!defined($oid) && $action ne "showall") {
+	fatal("You must supply an OID for this operation");
+    }
+
     if (($action eq "set" || $action eq "remove" || $action eq "add") 
 	&& !scalar(@in_states)) {
 	fatal("You must supply one or more taint states when using the ".
 	      "'add', 'remove', or 'set' actions");
     }
 
-    return ($objtype, $oid, $action, @in_states);
+    return ($action, $objtype, $oid, @in_states);
 }
 
 #
@@ -187,16 +194,19 @@ sub ParseArgs(@) {
 # @in_states are taint states to be applied / removed (based on $action).
 #
 sub DoAction($$$@) {
-    my ($objtype, $oid, $action, @in_states) = @_;
+    my ($action, $objtype, $oid, @in_states) = @_;
 
     # Any objects returned are expected to implement the 'libTaintStates'
     # interface.
-    my $obj = GetObject($objtype,$oid) or
-	fatal("Could not lookup object with type '$objtype' ".
-	      "and identity '$oid'");
+    my $obj;
+    if ($action ne "showall") {
+	$obj = GetObject($objtype,$oid) or
+	    fatal("Could not lookup object with type '$objtype' ".
+		  "and identity '$oid'");
+    }
 
   ACTION: for ($action) {
-      /add/ && do {
+      /^add$/ && do {
 	  foreach my $tstate (@in_states) {
 	      $obj->AddTaintState($tstate) == 0 or
 		  fatal("Failed to apply '$tstate' taint to '$oid'");
@@ -205,7 +215,7 @@ sub DoAction($$$@) {
 	  last ACTION;
       };
 
-      /remove/ && do {
+      /^remove$/ && do {
 	  foreach my $tstate (@in_states) {
 	      $obj->RemoveTaintState($tstate) == 0 or
 		  fatal("Failed to remove '$tstate' taint from '$oid'");
@@ -214,19 +224,19 @@ sub DoAction($$$@) {
 	  last ACTION;
       };
 
-      /set/ && do {
+      /^set$/ && do {
 	  $obj->SetTaintStates(@in_states) == 0 or
 	      fatal("Failed to set taint states for '$oid'");
 	  last ACTION;
       };
 
-      /clear/ && do {
+      /^clear$/ && do {
 	  $obj->SetTaintStates(()) == 0 or
 	      fatal("Failed to clear taint states from '$oid'");
 	  last ACTION;
       };
 
-      /show/ && do {
+      /^show$/ && do {
 	  my @taint_states = $obj->GetTaintStates();
 	  if (@taint_states) {
 	      my $pstr = join(", ", @taint_states);
@@ -234,6 +244,11 @@ sub DoAction($$$@) {
 	  } else {
 	      print "No taint states set on '$oid'\n";
 	  }
+	  last ACTION;
+      };
+
+      /^showall$/ && do {
+	  PrintAllObjects($objtype);
 	  last ACTION;
       };
 
@@ -254,13 +269,13 @@ sub GetObject($$) {
     my $retobj;
 
   TYPE: for ($objtype) {
-      /node/ && do {
+      /^node$/ && do {
 	  require Node;
 	  $retobj = Node->Lookup($oid);
 	  last TYPE;
       };
 
-      /os/ && do {
+      /^os$/ && do {
 	  require OSinfo;
 	  my ($ospid, $osname) = split("/", $oid);
 	  fatal("OS identifier must be specified as '<project_id>/<os_name>'") 
@@ -268,9 +283,67 @@ sub GetObject($$) {
 	  $retobj = OSinfo->Lookup($ospid, $osname);
 	  last TYPE;
       };
+
+      # Default
+      fatal("Unknown object type: $objtype");
   }
 
     return $retobj;
+}
+
+#
+# Grab all objects of the given type that have taint states.  Return them
+# as an array of arrays.  The elements of the contained arrays are the
+# object identifier and the list of taint states for the associated object.
+#
+sub PrintAllObjects($) {
+    my ($objtype) = @_;
+
+  TYPE: for ($objtype) {
+      /^node$/ && do {
+	  my $query_result =
+	      DBQueryWarn("select node_id, taint_states from nodes ".
+			  "where taint_states is not null ".
+			  "and taint_states != ''");
+
+	  fatal("Database lookup error.")
+	      if (!$query_result);
+
+	  print "Node_id\tTaint_States\n";
+	  print "----------------------------------------------------------\n";
+
+	  while (my ($nodeid, $tstates) = $query_result->fetchrow_array()) {
+	      print "$nodeid\t$tstates\n";
+	  }
+
+	  last TYPE;
+      };
+
+      /^os$/ && do {
+	  my $query_result =
+	      DBQueryWarn("select pid, osname, taint_states from os_info ".
+			  "where taint_states is not null ".
+			  "and taint_states != ''");
+
+	  fatal("Database lookup error.")
+	      if (!$query_result);
+
+	  print "OS(pid/name)\tTaint_States\n";
+	  print "----------------------------------------------------------\n";
+
+	  while (my ($pid, $osname, $tstates) = 
+		 $query_result->fetchrow_array()) {
+	      print "$pid/$osname\t$tstates\n";
+	  }
+
+	  last TYPE;
+      };
+
+      # Default
+      fatal("Unknown object type: $objtype");
+  }
+
+    return;
 }
 
 sub fatal($)
