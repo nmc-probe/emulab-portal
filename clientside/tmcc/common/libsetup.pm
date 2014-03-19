@@ -2551,6 +2551,14 @@ sub getfwconfig($$;$)
         $fwsrvmacs{$fwvars{"EMULAB_GWIP"}} =~ s/://g;
     }
 
+    my $vgwip = "";
+    if (defined($fwvars{"EMULAB_VGWIP"})) {
+        # XXX assume vnode GW is just an alias for the real GW (same MAC)
+        $fwsrvmacs{$fwvars{"EMULAB_VGWIP"}} = $fwvars{"EMULAB_GWMAC"};
+        $fwsrvmacs{$fwvars{"EMULAB_VGWIP"}} =~ s/://g;
+	$vgwip = $fwvars{"EMULAB_VGWIP"};
+    }
+
     # info for proxy ARP, to publish inside...
     if (%fwsrvmacs) {
 	#
@@ -2561,7 +2569,8 @@ sub getfwconfig($$;$)
 	} else {
 	    my %lsrv = ();
 	    foreach my $ip (keys %fwsrvmacs) {
-		if (insubnet($fwvars{"EMULAB_CNET"}, $ip)) {
+		if (insubnet($fwvars{"EMULAB_CNET"}, $ip) ||
+		    $ip eq $vgwip) {
 		    $lsrv{$ip} = $fwsrvmacs{$ip};
 		}
 	    }
@@ -2584,6 +2593,9 @@ sub getfwconfig($$;$)
     foreach my $rule (@fwrules) {
 	$bad += expandfwvars($rule);
     }
+
+    # return the variables too
+    $fwinfo->{"VARS"} = \%fwvars;
 
     $$infoptr = $fwinfo;
     @$rptr = @fwrules;

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -742,6 +742,7 @@ sub os_fwconfig_line($@)
 	}
 
 	my $vlandev = "vlan0";
+	my $vip;
 	my $vlanno  = $fwinfo->{IN_VLAN};
 	my $pdev    = `$BINDIR/findif $fwinfo->{IN_IF}`;
 	chomp($pdev);
@@ -779,6 +780,34 @@ sub os_fwconfig_line($@)
 
 	    $upline .=
 		"    ifconfig $vlandev inet $myip netmask $mymask rtabid 2\n";
+
+	    #
+	    # XXX this blows II: for vnodes, we need to proxy arp the vnode
+	    # network GW, so we have to give both devices a vnode addr
+	    # alias as well! To give us a unique addr, we make sure that the
+	    # vnode net is at least /16 and take the last two octets of the
+	    # real address. This will work for Utah.
+	    #
+	    if (defined($fwinfo->{VARS}->{EMULAB_VGWIP}) &&
+		defined($fwinfo->{VARS}->{EMULAB_VCNET})) {
+		my $vgwip = $fwinfo->{VARS}->{EMULAB_VGWIP};
+		my $bits = 0;
+		if ($fwinfo->{VARS}->{EMULAB_VCNET} =~ /\/(\d+)$/) {
+		    $bits = 32 - $1;
+		}
+		if ($bits >= 16) {
+		    if ($vgwip =~ /^(\d+\.\d+)\.\d+\.\d+$/ && ($vip = $1) &&
+			$myip =~ /^\d+\.\d+\.(\d+\.\d+)$/) {
+			$vip .= ".$1";
+			my $vmask =
+			    sprintf "0x%08x", (~0 << $bits) & 0xFFFFFFFF;
+			$upline .=
+			    "    ifconfig $pdev alias $vip netmask $vmask\n";
+			$upline .=
+			    "    ifconfig $vlandev alias $vip netmask $vmask rtabid 2\n";
+		    }
+		}
+	    }
 
 	    # publish servers (including GW) on inside and for us on outside
 	    if (defined($fwinfo->{SRVMACS})) {
@@ -860,7 +889,17 @@ sub os_fwconfig_line($@)
 		$downline .= "    arp -r 2 -d $node\n";
 	    }
 	}
-	$downline .= "    ifconfig $vlandev destroy";
+	if (defined($fwinfo->{SRVMACS})) {
+	    my $href = $fwinfo->{SRVMACS};
+	    while (my ($ip,$mac) = each %$href) {
+		$downline .= "    arp -d $ip\n";
+		$downline .= "    arp -r 2 -d $ip pub\n";
+	    }
+	}
+	$downline .= "    ifconfig $vlandev destroy\n";
+	if ($vip) {
+	    $downline .= "    ifconfig $pdev -alias $vip";
+	}
 
 	return ($upline, $downline);
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -50,13 +50,16 @@ my %fwvars;
 
 sub getfwvars()
 {
-    # XXX for Utah Emulab as of 11/11
+    # XXX for Utah Emulab as of 04/14
     $fwvars{EMULAB_GWIP} = "155.98.36.1";
+    $fwvars{EMULAB_VGWIP} = "172.16.0.1";
+    # XXX assume vnode GW MAC same as GW MAC
     $fwvars{EMULAB_GWMAC} = "00:d0:bc:f4:14:f8";
     $fwvars{EMULAB_NS} = "155.98.32.70";
     $fwvars{EMULAB_CNET} = "155.98.36.0/22";
-    $fwvars{EMULAB_BOSSES} = "boss,subboss";
-    $fwvars{EMULAB_SERVERS} = "boss,subboss,ops";
+    $fwvars{EMULAB_VNET} = "172.16.0.0/12";
+    $fwvars{EMULAB_BOSSES} = "boss,subboss,subboss2";
+    $fwvars{EMULAB_SERVERS} = "boss,subboss,subboss2,ops";
     $fwvars{EMULAB_MCADDR} = "234.0.0.0/8";
     $fwvars{EMULAB_MCPORT} = "1025-65535";
 }

@@ -48,8 +48,10 @@
 # Variables expanded by rc.firewall script that can be used here:
 #
 #	EMULAB_GWIP	IP address of gateway
+#	EMULAB_VGWIP	IP address of gateway on virtual node network
 #	EMULAB_NS	IP address of name server
 #	EMULAB_CNET	Node control network in CIDR notation
+#	EMULAB_VCNET	Virtual node control network in CIDR notation
 #	EMULAB_MCADDR	Multicast address range used by frisbee
 #	EMULAB_MCPORT	Port range used by frisbee
 #	EMULAB_BOSSES	Comma separated list of subbosses (including "boss"),
@@ -59,8 +61,8 @@
 #			(EMULAB_BOSSES + "ops" + "fs")
 #
 # Currently these are sufficient for rules we use.  Note that you can
-# safely use symbolic hostnames "boss", "ops", "fs", "users", "ntp1"
-# and "ntp2" as they are all guaranteed to resolve, either via the local
+# safely use symbolic hostnames "boss", "ops", "fs", "users" and "ntp1"
+# as they are all guaranteed to resolve, either via the local
 # hosts file or via DNS (assuming the firewall is not yet up or allows
 # DNS traffic, which it should at that point in time).
 #
@@ -101,11 +103,11 @@ iptables -N OUTSIDE # BASIC,CLOSED,ELABINELAB
 iptables -F OUTSIDE # BASIC,CLOSED,ELABINELAB
 
 # Inside nodes cannot spoof other IP addresses
-iptables -A FORWARD -m physdev --physdev-in vlandev -s EMULAB_CNET,0.0.0.0/32,255.255.255.255 -j INSIDE # BASIC,CLOSED,ELABINELAB
+iptables -A FORWARD -m physdev --physdev-in vlandev -s EMULAB_CNET,EMULAB_VCNET,0.0.0.0/32,255.255.255.255 -j INSIDE # BASIC,CLOSED,ELABINELAB
 iptables -A FORWARD -m physdev --physdev-in pdev -j OUTSIDE # BASIC,CLOSED,ELABINELAB
 
 # Allow everything from the gateway, since the gateway may be part of the node control net
-iptables -A OUTSIDE -s EMULAB_GWIP -j ACCEPT # BASIC,CLOSED,ELABINELAB
+iptables -A OUTSIDE -s EMULAB_GWIP,EMULAB_VGWIP -j ACCEPT # BASIC,CLOSED,ELABINELAB
 
 # Can talk to myself.  Does this do anything?
 # This appears to be used by elvind?
@@ -154,8 +156,8 @@ iptables -A INSIDE -d EMULAB_SERVERS -j ACCEPT # CLOSED,ELABINELAB+SAMENET
 #
 # Otherwise, nodes inside/outside of the firewall cannot talk to each other. 
 #
-iptables -A INSIDE -d EMULAB_CNET -j DROP # CLOSED,ELABINELAB
-iptables -A OUTSIDE -d EMULAB_CNET -j DROP # CLOSED,ELABINELAB
+iptables -A INSIDE -d EMULAB_CNET,EMULAB_VCNET -j DROP # CLOSED,ELABINELAB
+iptables -A OUTSIDE -d EMULAB_CNET,EMULAB_VCNET -j DROP # CLOSED,ELABINELAB
 
 # DNS to NS (for firewalled nodes)
 # Note: elabinelab myops/myfs use myboss for NS
@@ -171,7 +173,7 @@ iptables -A OUTSIDE -p tcp -s myfs --dport 22 --syn -m conntrack --ctstate NEW -
 iptables -A INPUT -p tcp -s boss -d me --dport 22 --syn -m conntrack --ctstate NEW -j ACCEPT # CLOSED,ELABINELAB
 iptables -A INPUT -p tcp -d me --dport 22 --syn -m conntrack --ctstate NEW -j ACCEPT # BASIC
 
-# NTP to ntp servers
+# NTP to ntp server
 # Note: elabinelab myops/myfs use myboss for NTP
 iptables -A INSIDE -p udp -d ntp1 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
 iptables -A INSIDE -p tcp -d ntp1 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
@@ -179,12 +181,6 @@ iptables -A INSIDE -p udp -s myboss -d ntp1 --dport 123 -m conntrack --ctstate N
 iptables -A INSIDE -p tcp -s myboss -d ntp1 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # ELABINELAB
 iptables -A INPUT -p udp -s me -d ntp1 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
 iptables -A INPUT -p tcp -s me -d ntp1 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A INSIDE -p udp -d ntp2 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
-iptables -A INSIDE -p tcp -d ntp2 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
-iptables -A INSIDE -p udp -s myboss -d ntp2 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # ELABINELAB
-iptables -A INSIDE -p tcp -s myboss -d ntp2 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # ELABINELAB
-iptables -A INPUT -p udp -s me -d ntp2 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A INPUT -p tcp -s me -d ntp2 --dport 123 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
 
 # syslog with ops
 iptables -A INSIDE -p udp -d ops --dport 514 -j ACCEPT # BASIC,CLOSED
@@ -311,10 +307,9 @@ iptables -A INPUT -p udp --dport 1434 -j DROP # BASIC,CLOSED,ELABINELAB+WINDOWS
 # Boot time only services (DHCP, TFTP, bootinfo, TMCC).
 
 # DHCP requests from, and replies to, inside requests are always broadcast,
-# replies may be broadcast or unicast
+# replies may be broadcast or unicast but should come from a boss or GW.
 iptables -A INSIDE -p udp --sport 68 -d 255.255.255.255 --dport 67 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A OUTSIDE -p udp --sport 67 --dport 68 -d 255.255.255.255 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-iptables -A OUTSIDE -p udp --sport 67 -s EMULAB_BOSSES -d EMULAB_CNET -j ACCEPT # BASIC,CLOSED,ELABINELAB
+iptables -A OUTSIDE -p udp --sport 67 -s EMULAB_BOSSES,EMULAB_GWIP,EMULAB_VGWIP --dport 68 -j ACCEPT # BASIC,CLOSED,ELABINELAB
 
 #
 # TFTP with boss or ops

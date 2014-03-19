@@ -48,8 +48,10 @@
 # Variables expanded by rc.firewall script that can be used here:
 #
 #	EMULAB_GWIP	IP address of gateway
+#	EMULAB_VGWIP	IP address of gateway on virtual node network
 #	EMULAB_NS	IP address of name server
 #	EMULAB_CNET	Node control network in CIDR notation
+#	EMULAB_VCNET	Virtual node control network in CIDR notation
 #	EMULAB_MCADDR	Multicast address range used by frisbee
 #	EMULAB_MCPORT	Port range used by frisbee
 #	EMULAB_BOSSES	Comma separated list of subbosses (including "boss"),
@@ -59,8 +61,8 @@
 #			(EMULAB_BOSSES + "ops" + "fs")
 #
 # Currently these are sufficient for rules we use.  Note that you can
-# safely use symbolic hostnames "boss", "ops", "fs", "users", "ntp1"
-# and "ntp2" as they are all guaranteed to resolve, either via the local
+# safely use symbolic hostnames "boss", "ops", "fs", "users" and "ntp1"
+# as they are all guaranteed to resolve, either via the local
 # hosts file or via DNS (assuming the firewall is not yet up or allows
 # DNS traffic, which it should at that point in time).
 #
@@ -161,8 +163,8 @@ allow udp from me to EMULAB_NS 53 keep-state	# 20: BASIC,CLOSED,ELABINELAB
 allow tcp from boss to me 22 setup keep-state	# 22: CLOSED,ELABINELAB
 allow tcp from any to me 22 setup keep-state	# 22: BASIC
 
-# NTP to ntp servers
-allow ip from me to ntp1,ntp2 123 keep-state	# 24: BASIC,CLOSED,ELABINELAB
+# NTP to ntp server
+allow ip from me to ntp1 123 keep-state		# 24: BASIC,CLOSED,ELABINELAB
 
 # syslog with ops
 allow udp from me 514 to ops 514		# 26: BASIC,CLOSED,ELABINELAB
@@ -194,7 +196,7 @@ allow udp from me to boss 8509 			# 40: BASIC,CLOSED,ELABINELAB
 # we need to remain engaged in the multicast protocol
 # XXX maybe not needed after all
 #allow igmp from any to any			# 48: BASIC,CLOSED,ELABINELAB
-#allow pim from EMULAB_GWIP to any		# 49: BASIC,CLOSED,ELABINELAB
+#allow pim from EMULAB_GWIP,EMULAB_VGWIP to any	# 49: BASIC,CLOSED,ELABINELAB
 
 # Ping, IPoD from boss
 allow icmp from boss to me icmptypes 6,8	# 50: BASIC,CLOSED,ELABINELAB
@@ -244,7 +246,7 @@ deny not mac-type ip				# 80: BASIC,CLOSED,ELABINELAB
 #    (due to the helper function).
 # so for now we allow any IP traffic from the gateway.
 #
-allow ip from EMULAB_GWIP to any in not via vlan0	# 81: CLOSED,ELABINELAB
+allow ip from EMULAB_GWIP,EMULAB_VGWIP to any in not via vlan0 # 81: CLOSED,ELABINELAB
 
 #
 # XXX yuk 2!  In a non-segmented control network or in a configuration with
@@ -259,8 +261,8 @@ skipto 90 ip from any to EMULAB_SERVERS in via vlan0	 # 83: CLOSED,ELABINELAB+SA
 #
 # Otherwise, nodes inside/outside of the firewall cannot talk to each other. 
 #
-deny ip from any to EMULAB_CNET in via vlan0		# 84: CLOSED,ELABINELAB
-deny ip from EMULAB_CNET to any in not via vlan0	# 85: CLOSED,ELABINELAB
+deny ip from any to EMULAB_CNET,EMULAB_VCNET in via vlan0     # 84: CLOSED,ELABINELAB
+deny ip from EMULAB_CNET,EMULAB_VCNET to any in not via vlan0 # 85: CLOSED,ELABINELAB
 
 #
 # Inside nodes cannot spoof other IP addresses.
@@ -268,7 +270,7 @@ deny ip from EMULAB_CNET to any in not via vlan0	# 85: CLOSED,ELABINELAB
 # Beyond this rule we no longer have to check to make sure that source
 # hosts like "boss" and "ops" come in the correct interface.
 #
-deny ip from not 0.0.0.0,255.255.255.255,EMULAB_CNET to any in via vlan0 # 90: BASIC,CLOSED,ELABINELAB
+deny ip from not 0.0.0.0,255.255.255.255,EMULAB_CNET,EMULAB_VCNET to any in via vlan0 # 90: BASIC,CLOSED,ELABINELAB
 
 #
 # By convention, user supplied rules are in the 100-60000 range
@@ -298,8 +300,8 @@ allow tcp from any to any 22 in not via vlan0 setup keep-state	# 60022: BASIC
 
 # NTP to ntp servers
 # Note: elabinelab myops/myfs use myboss for NTP
-allow ip from any to ntp1,ntp2 123 keep-state			# 60024: BASIC,CLOSED
-allow ip from myboss to ntp1,ntp2 123 keep-state		# 60024: ELABINELAB
+allow ip from any to ntp1 123 keep-state		# 60024: BASIC,CLOSED
+allow ip from myboss to ntp1 123 keep-state		# 60024: ELABINELAB
 
 # syslog with ops
 allow udp from any 514 to ops 514		# 60026: BASIC,CLOSED
@@ -398,9 +400,9 @@ deny udp from any to any 1434				# 60061: BASIC,CLOSED,ELABINELAB+WINDOWS
 # Boot time only services (DHCP, TFTP, bootinfo, TMCC).
 
 # DHCP requests from, and replies to, inside requests are always broadcast,
-# replies may be broadcast or unicast
+# replies may be broadcast or unicast but should come from a boss or GW.
 allow udp from any 68 to 255.255.255.255 67 recv vlan0	# 60064: BASIC,CLOSED,ELABINELAB
-allow udp from any 67 to any 68 in not recv vlan0	# 60065: BASIC,CLOSED,ELABINELAB
+allow udp from EMULAB_BOSSES,EMULAB_GWIP,EMULAB_VGWIP 67 to any 68 in not recv vlan0	# 60065: BASIC,CLOSED,ELABINELAB
 
 #
 # TFTP with boss or ops
