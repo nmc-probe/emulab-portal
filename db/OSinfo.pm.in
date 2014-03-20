@@ -761,6 +761,12 @@ sub RemoveTaintState($;$) {
 
     return libTaintStates::RemoveTaintState($self, $taint);
 }
+sub InheritTaintStates($$) {
+    my ($self, $osinfo) = @_;
+    require libTaintStates;
+
+    return libTaintStates::InheritTaintStates($self, $osinfo);
+}
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

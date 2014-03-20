@@ -3773,36 +3773,18 @@ sub RemoveTaintState($;$) {
 
     return libTaintStates::RemoveTaintState($self, $taint);
 }
-
-#
-# Inherit the taint states from an OS.  Take the union with whatever
-# taint states are already set for the node.
-#
-sub InheritTaintStates($$)
-{
+sub InheritTaintStates($$) {
     my ($self, $osinfo) = @_;
-    require OSinfo;
+    require libTaintStates;
 
-    if (!ref($osinfo)) {
-	my $tmp = OSinfo->Lookup($osinfo);
-	if (!defined($tmp)) {
-	    warn "Cannot lookup osinfo for $osinfo\n";
-	    return -1;
-	}
-	$osinfo = $tmp;
-    }
-
-    my @taint_states = $osinfo->GetTaintStates();
-    return 0
-	if (!@taint_states);
-    push @taint_states, $self->GetTaintStates();
-
-    return $self->SetTaintStates(@taint_states);
+    return libTaintStates::InheritTaintStates($self, $osinfo);
 }
+
 
 #
 # Synchornize the node's taint states based on the OSes listed
-# for its partitions.
+# for its partitions.  Any existing taint states on the node are
+# lost (unless they appear on one or more partition OSes).
 #
 sub SyncTaintStates($)
 {

@@ -179,5 +179,31 @@ sub RemoveTaintState($;$)
     return SetTaintStates($obj, @ntstates);
 }
 
+#
+# Inherit the taint states from an OS.  Take the union with whatever
+# taint states are already set for the node.
+#
+sub InheritTaintStates($$)
+{
+    my ($obj, $osinfo) = @_;
+    require OSinfo;
+
+    if (!ref($osinfo)) {
+	my $tmp = OSinfo->Lookup($osinfo);
+	if (!defined($tmp)) {
+	    warn "Cannot lookup osinfo for $osinfo\n";
+	    return -1;
+	}
+	$osinfo = $tmp;
+    }
+
+    my @taint_states = GetTaintStates($osinfo);
+    return 0
+	if (!@taint_states);
+    push @taint_states, GetTaintStates($obj);
+
+    return SetTaintStates($obj, @taint_states);
+}
+
 # Next line required by perl for modules
 1;
