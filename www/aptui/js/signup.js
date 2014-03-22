@@ -12,12 +12,16 @@ function ($, sup)
 	window.APT_OPTIONS.initialize(sup);
  	$('button#reset-form').click(function (event) {
 	    event.preventDefault();
-	    sup.resetForm($('#quickvm_signup_form'));
+	    resetForm($('#quickvm_signup_form'));
 	});
 	if (window.APT_OPTIONS.ShowVerifyModal)
 	{
 	    sup.ShowModal('#verify_modal');
 	}
+    }
+    
+    function resetForm($form) {
+	$form.find('input:text, input:password, select, textarea').val('');
     }
 
     $(document).ready(initialize);

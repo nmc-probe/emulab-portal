@@ -56,6 +56,14 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 #
 if (isset($ajax_request)) {
     if ($ajax_method == "getprofile") {
+	#
+	# We require the UUID on this path, until proper permission
+	# checks are done; too easy to guess an index.
+	#
+	if (!IsValidUUID($ajax_argument)) {
+	    SPITAJAX_ERROR(1, "Not a valid UUID: $ajax_argument");
+	    exit();
+	}
 	$obj = Profile::Lookup($ajax_argument);
 	if (!$obj) {
 	    SPITAJAX_ERROR(1, "No such profile $ajax_argument");
@@ -80,25 +88,42 @@ $profile_array    = array();
 # add to the array now since it might not be public or belong to the user.
 #
 if (isset($profile)) {
-    if (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $profile)) {
-	$obj = Profile::Lookup($profile);
-	if (! $obj) {
-	    SPITHEADER(1);
-	    SPITUSERERROR("No such profile: $profile");
-	    echo "<script src='js/lib/require.js' data-main='js/null'>
-                  </script>\n";
-	    SPITFOOTER();
-	}
+    #
+    # Guest users must use the uuid, but logged in users may use the
+    # internal index.
+    #
+    if (! ($this_user || IsValidUUID($profile))) {
+	SPITUSERERROR("Illegal profile for guest user: $profile");
+	exit();
+    }
+    $obj = Profile::Lookup($profile);
+    if (! $obj) {
+	SPITUSERERROR("No such profile: $profile");
+	exit();
+    }
+    if (IsValidUUID($profile)) {
 	$profile_array[$profile] = $obj->name();
 	$profilename = $obj->name();
     }
     else {
-	$profilename = $profile;
+	#
+	# Must be public or belong to user. 
+	#
+	if (! ($obj->ispublic() ||
+	       $obj->creator_idx == $this_user->uid_idx())) {
+	    SPITUSERERROR("No permission to use profile: $profile");
+	    exit();
+	}
+	$profile = $obj->uuid();
+	$profile_array[$profile] = $obj->name();
+	$profilename = $obj->name();
     }
 }
 
 #
-# Still do this cause of non-secret URLs. This needs more work.
+# Find all the public and user profiles. We use the UUID instead of
+# indicies cause we do not want to leak internal DB state to guest
+# users.
 #
 $query_result =
     DBQueryFatal("select * from apt_profiles ".

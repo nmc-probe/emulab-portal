@@ -58,12 +58,8 @@ if (!$this_user->SameUser($target_user)) {
 	    SPITAJAX_ERROR(1, "You do not have permission to do this");
 	}
 	else {
-	    SPITHEADER(1);
 	    SPITUSERERROR("You do not have permission to view ".
 			  "target user's profiles");
-	    echo "<script src='js/lib/require.js' data-main='js/null'>
-                  </script>\n";
-	    SPITFOOTER();
 	}
 	exit();
     }
@@ -107,11 +103,14 @@ $query_result =
 		  "order by creator" : "where creator_idx='$target_idx'"));
 
 if (mysql_num_rows($query_result) == 0) {
-    echo "<b>No profiles to show you. Maybe you want to ".
-	"<a href='manage_profile.php'>create one?</a></b>\n";
-    echo "<script src='js/lib/require.js' data-main='js/null'>
-          </script>\n";
-    SPITFOOTER();
+    $message = "<b>No profiles to show you. Maybe you want to ".
+	"<a href='manage_profile.php'>create one?</a></b><br><br>";
+
+    if (ISADMIN()) {
+	$message .= "<img src='/redball.gif'>".
+	    "<a href='myprofiles.php?all=1'>Show all user Profile</a>";
+    }
+    SPITUSERERROR($message);
     exit();
 }
 echo "<div class='row'>

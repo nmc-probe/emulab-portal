@@ -63,7 +63,7 @@ function ($, sup)
 	    // Subtract -2 cause of the border. 
 	    sup.maketopmap("#showtopo_nopicker",
  			   ($("#showtopo_nopicker").outerWidth() - 2),
-			   300, topo);
+			   300, topo, null);
 	};
 	var $xmlthing = sup.CallMethod("getprofile", null, 0, profile);
 	$xmlthing.done(callback);

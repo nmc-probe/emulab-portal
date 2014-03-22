@@ -45,7 +45,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
 }
 
 #
-# Redefine this so APT errors are styled properly.
+# Redefine this so APT errors are styled properly. Called by PAGEERROR();.
 #
 $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
     global $drewheader;
@@ -481,6 +481,7 @@ function RedirectLoginPage()
     # pass in the URI for this page as an argument
     header("Location: login.php?referrer=".
 	   urlencode($_SERVER['REQUEST_URI']));
+    
 }
 
 function SpitAboutApt()

@@ -55,14 +55,10 @@ if (!isset($target_user)) {
 }
 if (!$this_user->SameUser($target_user)) {
     if (!ISADMIN()) {
-	SPITHEADER(1);
 	SPITUSERERROR("You do not have permission to view ".
 		      "target user's profiles");
-	echo "<script src='js/lib/require.js' data-main='js/null'>
-                  </script>\n";
-	SPITFOOTER();
+	exit();
     }
-    exit();
 }
 $target_idx  = $target_user->uid_idx();
 $target_uuid = $target_user->uuid();
@@ -78,15 +74,14 @@ $query_result =
 		  "order by creator" : "where creator_uuid='$target_uuid'"));
 
 if (mysql_num_rows($query_result) == 0) {
-    echo "<b>No experiments to show you. Maybe you want to ".
-	"<a href='instantiate.php'>start one?</a></b><br><br>\n";
-if (ISADMIN()) {
-    echo "<img src='/redball.gif'>
-          <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
-}
-    echo "<script src='js/lib/require.js' data-main='js/null'>
-          </script>\n";
-    SPITFOOTER();
+    $message = "<b>No experiments to show you. Maybe you want to ".
+	"<a href='instantiate.php'>start one?</a></b><br><br>";
+
+    if (ISADMIN()) {
+	$message .= "<img src='/redball.gif'>".
+	    "<a href='myexperiments.php?all=1'>Show all user Experiments</a>";
+    }
+    SPITUSERERROR($message);
     exit();
 }
 echo "<div class='row'>

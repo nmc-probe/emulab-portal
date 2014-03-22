@@ -39,7 +39,6 @@ function ($, sup)
 		    $('#profile_rspec_textarea').val(content);
 
 		    ExtractFromRspec(xml);
-		    //ShowRspecTopo(xml);
 		};
 		reader.readAsText(this.files[0]);
 	});
@@ -205,9 +204,10 @@ function ($, sup)
 		    removeLast: true
 		},
 		columns: [
-                    { name: 'Type', display: 'Type', type: 'text',
+                    { name: 'Type', display: 'Type', type: 'select',
 		      ctrlAttr: { maxlength: 100 },
-		      ctrlCss: { width: '80px'}
+		      ctrlCss: { width: '80px'},
+		      ctrlOptions: ["node", "link"],
 		    },
                     { name: 'ID', display: 'ID', type: 'text',
 		      ctrlAttr: { maxlength: 100,
@@ -221,6 +221,9 @@ function ($, sup)
 		initData: steps
 	    });
 	});
+	
+	// Show the steps area.
+	$('#profile_steps_div').removeClass("hidden");
     }
 
     //
@@ -376,7 +379,7 @@ function ($, sup)
 	// Subtract -2 cause of the border. 
 	sup.maketopmap("#showtopo_nopicker",
  		   ($("#showtopo_nopicker").outerWidth() - 2),
-		   300, topo);
+		       300, topo, null);
     }
 
     $(document).ready(initialize);
