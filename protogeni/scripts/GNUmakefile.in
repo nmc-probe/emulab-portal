@@ -36,7 +36,8 @@ PGENISUPPORT    = @PROTOGENI_SUPPORT@
 
 include $(OBJDIR)/Makeconf
 
-SBIN_STUFF	= cleanupslice gencabundle cleanupticket aptssh-setup
+SBIN_STUFF	= cleanupslice gencabundle cleanupticket aptssh-setup \
+		  sliveraction
 
 PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  addauthority getcacerts \
@@ -55,7 +56,8 @@ endif
 
 # These scripts installed setuid, with sudo. 
 SETUID_BIN_SCRIPTS   = 
-SETUID_SBIN_SCRIPTS  = cleanupslice gencabundle cleanupticket aptssh-setup
+SETUID_SBIN_SCRIPTS  = cleanupslice gencabundle cleanupticket aptssh-setup \
+			sliveraction
 SETUID_LIBX_SCRIPTS  =
 
 #
