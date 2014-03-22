@@ -703,7 +703,7 @@ function ISADMINISTRATOR() {
     global $CHECKLOGIN_STATUS;
     
     if ($CHECKLOGIN_STATUS == CHECKLOGIN_NOSTATUS)
-	TBERROR("ISADMIN: $uid is not logged in!", 1);
+	TBERROR("ISADMINISTRATOR: $uid is not logged in!", 1);
 
     return (($CHECKLOGIN_STATUS &
 	     (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_ISADMIN)) ==
