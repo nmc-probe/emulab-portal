@@ -387,9 +387,14 @@ if ($geniuser->GetKeyBundle(\@sshkeys, 1) < 0 || !@sshkeys) {
 #
 # Now generate a slice registration and credential
 #
-my $slice_id   = "QV" . TBGetUniqueIndex('next_quickvm', 1);
+my $slice_id   = $user_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1);
 my $slice_urn  = GeniHRN::Generate($OURDOMAIN, "slice", $slice_id);
 my $slice_hrn  = "${PGENIDOMAIN}.${slice_id}";
+
+print STDERR "\n";
+print STDERR "$user_urn\n";
+print STDERR "$slice_urn\n\n\n";
+print STDERR "$rspecstr\n";
 
 #
 # Make sure slice is unique. Probably retry here at some point. 
@@ -515,9 +520,6 @@ if (!defined($manifest)) {
 $instance->SetStatus("provisioned");
 $instance->SetManifest($manifest);
 
-print STDERR "\n";
-print STDERR "$manifest\n\n";
-
 #
 # but have to wait for the sliver to be ready, which means polling.
 #
@@ -525,6 +527,7 @@ my $seconds  = 600;
 my $interval = 15;
 my $ready    = 0;
 my $failed   = 0;
+my $public_url;
 
 while ($seconds > 0) {
     sleep($interval);
@@ -541,13 +544,21 @@ while ($seconds > 0) {
     if (!defined($response) || !defined($response->value()) ||
 	($response->code() != GENIRESPONSE_SUCCESS &&
 	 $response->code() != GENIRESPONSE_BUSY)) {
-	fatal("SliverStatus failed: ".
-	      (defined($response) ? $response->output() : "") . "\n");
+	print STDERR "SliverStatus failed";
+	if (defined($response)) {
+	    print STDERR ": " . $response->output();
+	}
+	print STDERR "\n";
+	$failed = 1;
+	last;
     }
     next
 	if ($response->code() == GENIRESPONSE_BUSY);
 
     my $blob = $response->value();
+    if (exists($blob->{'public_url'})) {
+	$public_url = $blob->{'public_url'};
+    }
     if ($blob->{'status'} eq "ready") {
 	$ready = 1;
 	last;
@@ -558,6 +569,12 @@ while ($seconds > 0) {
 	last;
     }
 }
+print STDERR "$slice_urn\n";
+print STDERR "$public_url\n"
+    if (defined($public_url));
+print STDERR "\n";
+print STDERR "$manifest\n\n";
+
 if ($failed) {
     fatal("$slice_urn failed."); 
 }
