@@ -1,5 +1,5 @@
 #
-# Add noexport flag to images.
+# Add "taint_states" column to nodes and os_info tables for taint tracking.
 #
 use strict;
 use libdb;
