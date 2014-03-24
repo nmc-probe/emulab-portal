@@ -3742,5 +3742,73 @@ sub ClrTipAclUrl($)
 		"where node_id='$node_id'");
 }
 
+# Stubs for calling "libTaintStates" common taint handling code
+sub GetTaintStates($) {
+    my ($self) = @_;
+    require libTaintStates;
+
+    return libTaintStates::GetTaintStates($self);
+}
+sub IsTainted($;$) {
+    my ($self, $taint) = @_;
+    require libTaintStates;
+
+    return libTaintStates::IsTainted($self, $taint);
+}
+sub SetTaintStates($@) {
+    my ($self, @taint_states) = @_;
+    require libTaintStates;
+
+    return libTaintStates::SetTaintStates($self, @taint_states);
+}
+sub AddTaintState($$) {
+    my ($self, $taint) = @_;
+    require libTaintStates;
+
+    return libTaintStates::AddTaintState($self, $taint);
+}
+sub RemoveTaintState($;$) {
+    my ($self, $taint) = @_;
+    require libTaintStates;
+
+    return libTaintStates::RemoveTaintState($self, $taint);
+}
+sub InheritTaintStates($$) {
+    my ($self, $osinfo) = @_;
+    require libTaintStates;
+
+    return libTaintStates::InheritTaintStates($self, $osinfo);
+}
+
+
+#
+# Synchornize the node's taint states based on the OSes listed
+# for its partitions.  Any existing taint states on the node are
+# lost (unless they appear on one or more partition OSes).
+#
+sub SyncTaintStates($)
+{
+    my ($self) = @_;
+    require OSinfo;
+
+    my $node_id = $self->node_id();
+
+    my $query_result =
+	DBQueryWarn("select osid from partitions ".
+		    "where node_id='$node_id' and osid is not null");
+    return -1
+	if (!$query_result);
+
+    my @taint_states = ();
+    while (my ($osid) = $query_result->fetchrow_array()) {
+	my $osinfo = OSinfo->Lookup($osid);
+	if (defined($osinfo) && $osinfo->IsTainted()) {
+	    push @taint_states, $osinfo->GetTaintStates();
+	}
+    }
+
+    return $self->SetTaintStates(@taint_states);
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;

@@ -252,6 +252,17 @@ sub osload ($$) {
 	    tberror "$node: Could not map to object!";
 	    goto failednode;
 	}
+
+	# Check to see if the node is tainted.  If so, then the disk
+	# needs to be cleaned up (zeroed).  If there was an explicit request
+	# to zero all node disks, then capture that here too.
+	my $zeronode = 0;
+	if ($nodeobject->IsTainted()) {
+	    $zeronode = 2;
+	}
+	elsif ($zerofree) {
+	    $zeronode = $zerofree;
+	}
 	
 	# Get default imageid for this node.
 	# NOTE that virtnodes don't have default imageids -- they are only 
@@ -449,6 +460,22 @@ sub osload ($$) {
 
 		my $osid = $rowref->{$partname};
 		if (defined($osid)) {
+		    # Have the node inherit taint states from each OS
+		    # to be loaded on it (or that is already loaded on
+		    # it).  This action is additive, i.e. the node
+		    # will end up with the union of taint states
+		    # across all partition OSes.  We also retain any
+		    # taint states the node had previously; it's
+		    # important not to clear these existing states
+		    # until OS loading and disk zeroing have been
+		    # performed.
+		    my $osinfo = OSinfo->Lookup($osid);
+		    if (defined($osinfo) && $osinfo->IsTainted()) {
+			$nodeobject->InheritTaintStates($osinfo) == 0 or
+			    warn "Node $node could not inherit taint ".
+			    "states from osid $osid\n";
+		    }
+
 		    my %part = (
 			'node_id' => $node,
 			'partition' => $i,
@@ -545,7 +572,7 @@ sub osload ($$) {
 	    $reload_mode = "UISP";
 	    $reload_func = \&SetupReloadUISP;
 	    $reboot_required = 0; # We don't reboot motes to reload them
-	    $zerofree = 0; # and we don't zero "the disk"
+	    $zeronode = 0; # and we don't zero "the disk"
 	} else {
 	    $reload_mode = "Frisbee";
 	    $reload_func = \&SetupReloadFrisbee;
@@ -589,7 +616,7 @@ sub osload ($$) {
 	    'osid'     => $defosid,
 	    'reboot'   => $reboot_required,
 	    'wait'     => $wait_required,
-	    'zerofree' => $zerofree,
+	    'zerofree' => $zeronode,
 	    'prepare'  => $prepare,
 	    'maxwait'  => $maxwait,
 	    'isremote' => $isremote,
@@ -1010,7 +1037,7 @@ sub WaitTillReloadDone($$$$$@)
 		if (!$query_result->numrows) {
 		    print STDERR "osload ($node): left reloading mode at ".`date`
 			if ($debug);
-		    
+
 		    $count--;
 		    $done{$node} = 1;
 		    next;
