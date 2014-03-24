@@ -610,6 +610,39 @@ function YesNo($bool) {
 }
 
 #
+# See if someone is logged in, and if they need to be redirected.
+#
+function CheckRedirect($wwwbase) {
+    global $stayhome;
+
+    if (($this_user = CheckLogin($check_status))) {
+	$check_status = $check_status & CHECKLOGIN_STATUSMASK;
+	if ($check_status == CHECKLOGIN_MAYBEVALID) {
+            # Maybe the reason was because they where not using HTTPS ...
+	    RedirectHTTPS();
+	}
+	
+	if (($firstinitstate = TBGetFirstInitState())) {
+	    unset($stayhome);
+	}
+	if (!isset($stayhome)) {
+	    if ($check_status == CHECKLOGIN_LOGGEDIN) {
+		if ($firstinitstate == "createproject") {
+                    # Zap to NewProject Page,
+		    header("Location: $wwwbase/newproject.php3");
+		}
+		else {
+                    # Zap to My Emulab page.
+		    header("Location: $wwwbase/".
+			   CreateURL("showuser", $this_user));
+		}
+		exit;
+	    }
+	}
+    }
+}
+
+#
 # If the page was accessed via http redirect to https and exit
 # otherwise do nothing
 #
