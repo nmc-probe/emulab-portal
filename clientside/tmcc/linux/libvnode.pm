@@ -110,30 +110,33 @@ sub forwardPort($;$) {
 # to get a perfect lock. So, we do our best and if it fails sleep for
 # a couple of seconds and try again. 
 #
-sub DoIPtables($)
+sub DoIPtables(@)
 {
-    my ($cmd) = @_;
+    my (@rules) = @_;
 
     if (TBScriptLock("iptables", 0, 900) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the iptables lock after a long time!\n";
 	return -1;
     }
-    my $retries = 5;
-    my $status  = 0;
-    while ($retries > 0) {
-	mysystem2("$IPTABLES $cmd");
-	$status = $?;
-	last
-	    if (!$status || $status >> 8 != 4);
-	print STDERR "will retry in a couple of seconds ...\n";
-	sleep(2);
-	$retries--;
+    foreach my $rule (@rules) {
+	my $retries = 5;
+	my $status  = 0;
+	while ($retries > 0) {
+	    mysystem2("$IPTABLES $rule");
+	    $status = $?;
+	    last
+		if (!$status || $status >> 8 != 4);
+	    print STDERR "will retry in a couple of seconds ...\n";
+	    sleep(2);
+	    $retries--;
+	}
+	# Operation failed - return error
+	if (!$retries || $status) {
+	    TBScriptUnlock();
+	    return -1;
+	}
     }
     TBScriptUnlock();
-    
-    # Operation failed - return error
-    return -1
-	if (!$retries || $status);
     return 0;
 }
 
