@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -268,8 +268,12 @@ sub osload ($$) {
 	# NOTE that virtnodes don't have default imageids -- they are only 
 	# loaded (and thus arrive here) if the user specifically set a loadable
 	# subOS for the node.
-	if (!$nodeobject->isvirtnode()) {
-	    if ($usedefault) {
+	if ($usedefault) {
+	    if ($nodeobject->isvirtnode()) {
+		tberror("Virtnodes do not have default images!");
+		goto failednode;
+	    }
+	    else {
 		my $default_imageid = $nodeobject->default_imageid();
 		if (! defined($default_imageid)) {
 		    tberror "$node: No default imageid defined!";
@@ -289,22 +293,22 @@ sub osload ($$) {
 		@imageids = @default_imageids;
 		@images   = @default_images;
 	    }
-	    elsif ($usecurrent) {
-		my $def_boot_osid  = $nodeobject->def_boot_osid();
-		my $osinfo = OSinfo->Lookup($def_boot_osid);
+	}
+	elsif ($usecurrent) {
+	    my $def_boot_osid  = $nodeobject->def_boot_osid();
+	    my $osinfo = OSinfo->Lookup($def_boot_osid);
 
-		if (! defined($osinfo)) {
-		    tberror("Could not find OS $def_boot_osid in the DB!");
-		    goto failednode;
-		}
-		my $best_image = $osinfo->MapToImage($nodeobject->type());
-		if (!defined($best_image)) {
-		    tberror("Could not map $osinfo to an image for $node!");
-		    goto failednode;
-		}
-		@imageids = $best_image->imageid();
-		@images   = ($best_image);
+	    if (! defined($osinfo)) {
+		tberror("Could not find OS $def_boot_osid in the DB!");
+		goto failednode;
 	    }
+	    my $best_image = $osinfo->MapToImage($nodeobject->type());
+	    if (!defined($best_image)) {
+		tberror("Could not map $osinfo to an image for $node!");
+		goto failednode;
+	    }
+	    @imageids = $best_image->imageid();
+	    @images   = ($best_image);
 	}
 	
 	my @imageidxs = (0 .. $#imageids);
