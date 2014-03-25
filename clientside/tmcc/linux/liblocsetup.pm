@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1319,7 +1319,9 @@ sub os_fwconfig_line($@) {
 	$mymask = `cat $BOOTDIR/mynetmask`;
 	chomp($mymask);
 
-	if ($fwinfo->{TYPE} ne "iptables" && $fwinfo->{TYPE} ne "iptables-vlan") {
+	if ($fwinfo->{TYPE} ne "iptables" &&
+	    $fwinfo->{TYPE} ne "iptables-vlan" &&
+	    $fwinfo->{TYPE} ne "iptables-dom0") {
 		warn "*** WARNING: unsupported firewall type '", $fwinfo->{TYPE}, "'\n";
 		return ("false", "false");
 	}
@@ -1453,8 +1455,10 @@ sub os_fwconfig_line($@) {
 		$upline .= "sleep 30\n";
 
 	} else {
-		$upline .= "sysctl -w net.ipv4.ip_forward=1\n";
-		$downline .= "sysctl -w net.ipv4.ip_forward=0\n";
+		if ($fwinfo->{TYPE} ne "iptables-dom0") {
+		    $upline .= "sysctl -w net.ipv4.ip_forward=1\n";
+		    $downline .= "sysctl -w net.ipv4.ip_forward=0\n";
+		}
 	}
 
 	# XXX This is ugly.  Older version of iptables can't handle source or
@@ -1523,7 +1527,8 @@ sub os_fwconfig_line($@) {
 			$upline .= "    $rulestr || {\n";
 			$upline .= "        echo 'WARNING: could not load iptables rule:'\n";
 			$upline .= "        echo '  $rulestr'\n";
-			$upline .= "        iptables -F\n";
+			$upline .= "        iptables -F\n"
+			    if ($fwinfo->{TYPE} ne "iptables-dom0");
 			$upline .= "        iptables -P INPUT ACCEPT\n";
 			$upline .= "        iptables -P OUTPUT ACCEPT\n";
 			$upline .= "        exit 1\n";
@@ -1532,7 +1537,8 @@ sub os_fwconfig_line($@) {
 			$upline .= "    $rulestr || {\n";
 			$upline .= "        echo 'WARNING: could not load ebtables rule:'\n";
 			$upline .= "        echo '  $rulestr'\n";
-			$upline .= "        ebtables -F\n";
+			$upline .= "        ebtables -F\n"
+			    if ($fwinfo->{TYPE} ne "iptables-dom0");
 			$upline .= "        ebtables -P INPUT ACCEPT\n";
 			$upline .= "        ebtables -P OUTPUT ACCEPT\n";
 			$upline .= "        exit 1\n";
@@ -1541,23 +1547,39 @@ sub os_fwconfig_line($@) {
 
 	}
 
+	#
+	# In dom0, we cannot just flush the entire rule set, as below.
+	#
+	if ($fwinfo->{TYPE} eq "iptables-dom0") {
+	        $downline .= "   iptables -P INPUT ACCEPT\n";
+		$downline .= "   iptables -P OUTPUT ACCEPT\n";
+	        $downline .=
+		    "   iptables -F INPUT > /dev/null 2>&1 || true\n";
+	        $downline .=
+		    "   iptables -F OUTPUT > /dev/null 2>&1 || true\n";
+	}
+
 	# This is a brute-force way to flush all ebtables and iptables
 	# rules, delete all custom chains, and restore all built-in
 	# chains to their default policies.  This will produce errors
 	# since not all tables exist for both tools, and not every
 	# chain exists for all tables, so all output is sent to /dev/null.
 	for my $table (qw/filter nat mangle raw broute/) {
-		$downline .=
-		  "   iptables -t $table -F > /dev/null 2>&1 || true\n";
-		$downline .=
-		  "   iptables -t $table -X > /dev/null 2>&1 || true\n";
+		if ($fwinfo->{TYPE} ne "iptables-dom0") {
+		    $downline .=
+			"   iptables -t $table -F > /dev/null 2>&1 || true\n";
+		    $downline .=
+			"   iptables -t $table -X > /dev/null 2>&1 || true\n";
+		}
 		$downline .=
 		  "   ebtables -t $table -F > /dev/null 2>&1 || true\n";
 		$downline .=
 		  "   ebtables -t $table -X > /dev/null 2>&1 || true\n";
 		for my $chain (qw/INPUT OUTPUT FORWARD PREROUTING POSTROUTING BROUTING/) {
-			$downline .=
-			  "   iptables -t $table -P $chain ACCEPT > /dev/null 2>&1 || true\n";
+		        if ($fwinfo->{TYPE} ne "iptables-dom0") {
+			    $downline .=
+				"   iptables -t $table -P $chain ACCEPT > /dev/null 2>&1 || true\n";
+			}
 			$downline .=
 			  "   ebtables -t $table -P $chain ACCEPT > /dev/null 2>&1 || true\n";
 		}
