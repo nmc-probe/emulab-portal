@@ -8818,7 +8818,7 @@ vnodefw:
 			 "order by ruleno",
 			 2, reqp->pid, reqp->eid,
 			 ((reqp->isvnode || reqp->sharing_mode[0]) ?
-			  reqp->nickname ? fwname));
+			  reqp->nickname : fwname));
 	if (!res) {
 		error("FWINFO: %s: DB Error getting firewall rules!\n",
 		      reqp->nodeid);
