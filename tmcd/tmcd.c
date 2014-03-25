@@ -8802,7 +8802,7 @@ vnodefw:
 			row  = mysql_fetch_row(res);
 
 			OUTPUT(buf, sizeof(buf), "VAR=%s VALUE=\"%s\"\n",
-			       "SSHDPORT", row[0]);
+			       "EMULAB_SSHDPORT", row[0]);
 			client_writeback(sock, buf, strlen(buf), tcp);
 		}
 		mysql_free_result(res);
