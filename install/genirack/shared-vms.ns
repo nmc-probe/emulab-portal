@@ -13,7 +13,7 @@ tb-set-node-usesharednode $n1 1.0
 set n2 [$ns node]
 tb-set-hardware $n2 pcvm
 tb-set-node-failure-action $n2 "nonfatal"
-tb-set-node-os $n2 OPENVZ-STD
+tb-set-node-os $n2 XEN-STD
 tb-set-node-usesharednode $n2 1.0
 
 set n3 [$ns node]
