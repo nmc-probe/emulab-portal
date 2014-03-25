@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009-2011 University of Utah and the Flux Group.
+# Copyright (c) 2009-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -611,6 +611,9 @@ sub Panic($$$)
 	
     if ($which == PANIC_ZAP()) {
 	$level = $experiment->paniced();
+	goto nonodes1
+	    if (!@nodes);
+	
 	print STDERR "Powering down paniced nodes.\n";
 	system("$POWER off @nodes");
 	if ($?) {
@@ -630,6 +633,7 @@ sub Panic($$$)
 	    print STDERR "Failed to force all nodes into admin mode!\n";
 	    goto badzap;
 	}
+      nonodes1:
 
 	#
 	# This code is not used for firewalled experiments, so we only
@@ -641,7 +645,9 @@ sub Panic($$$)
 		goto badzap;
 	    }
 	}
-
+	goto nonodes2
+	    if (!@nodes);
+	
 	#
 	# Now we power on the nodes and let them boot into the MFS,
 	# where they will run the disk bootblock zapper.
@@ -678,11 +684,15 @@ sub Panic($$$)
 		     "paniced experiment $pid/$eid.\n");
 	    goto bad;
 	}
+      nonodes2:
     }
     elsif ($which == PANIC_CLEAR()) {
 	$level = $experiment->paniced();
 	
 	if ($level == 1) {
+	    goto nonodes
+		if (!@nodes);
+	    
 	    #
 	    # Turn admin mode back off and reboot back to the old OS
 	    #
@@ -702,6 +712,7 @@ sub Panic($$$)
 		print STDERR "Failed to reboot nodes out of admin mode\n";
 		goto bad;
 	    }
+	  nonodes:
 	}
 	else {
 	    print "Enabling the control network ...\n";
