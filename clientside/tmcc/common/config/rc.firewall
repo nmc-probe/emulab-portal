@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2011 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -70,7 +70,7 @@ if ($UID != 0) {
 # Only local cluster nodes right now
 #
 exit(0)
-    if (MFS() || REMOTE() || SIMHOST() || JAILHOST());
+    if (MFS() || REMOTE() || SIMHOST());
 
 # Protos.
 sub doboot();
@@ -166,6 +166,10 @@ sub doboot()
 	    last SWITCH;
 	};
 	/^iptables-vlan$/i && do {
+	    $rc = firewaller();
+	    last SWITCH;
+	};
+	/^iptables-dom0$/i && do {
 	    $rc = firewaller();
 	    last SWITCH;
 	};
