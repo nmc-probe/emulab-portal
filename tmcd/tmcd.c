@@ -246,6 +246,7 @@ typedef struct {
 	char		sfshostid[TBDB_FLEN_SFSHOSTID];
 	char		testdb[TBDB_FLEN_TINYTEXT];
 	char		sharing_mode[TBDB_FLEN_TINYTEXT];
+	char		erole[TBDB_FLEN_TINYTEXT];
 	char            privkey[PRIVKEY_LEN+1];
 	char		nodeuuid[TBDB_FLEN_UUID];
         /* This key is a replacement for privkey, on protogeni resources */
@@ -6795,7 +6796,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "   AS isdedicated_wa, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,n.uuid, "
-				 " n.nonfsmounts,e.nonfsmounts AS enonfs "
+				 " n.nonfsmounts,e.nonfsmounts AS enonfs, "
+				 " r.erole "
 				 "FROM nodes AS n "
 				 "LEFT JOIN reserved AS r ON "
 				 "  r.node_id=n.node_id "
@@ -6824,7 +6826,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "     (SELECT node_id FROM widearea_nodeinfo "
 				 "      WHERE privkey='%s') "
 				 "  AND notmcdinfo_types.attrvalue IS NULL",
-				 37, nodekey);
+				 38, nodekey);
 	}
 	else if (reqp->isvnode) {
 		char	clause[BUFSIZ];
@@ -6860,7 +6862,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " u.admin,null, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,nv.uuid, "
-				 " nv.nonfsmounts,e.nonfsmounts AS enonfs "
+				 " nv.nonfsmounts,e.nonfsmounts AS enonfs, "
+				 " r.erole "
 				 "from nodes as nv "
 				 "left join nodes as np on "
 				 " np.node_id=nv.phys_nodeid "
@@ -6881,7 +6884,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "left join users as u on "
 				 " u.uid_idx=e.swapper_idx "
 				 "where nv.node_id='%s' and (%s)",
-				 37, reqp->vnodeid, clause);
+				 38, reqp->vnodeid, clause);
 	}
 	else {
 		char	clause[BUFSIZ];
@@ -6910,7 +6913,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "   as isdedicated_wa, "
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,n.uuid, "
-				 " n.nonfsmounts,e.nonfsmounts AS enonfs "
+				 " n.nonfsmounts,e.nonfsmounts AS enonfs, "
+				 " r.erole "
 				 "from interfaces as i "
 				 "left join nodes as n on n.node_id=i.node_id "
 				 "left join reserved as r on "
@@ -6938,7 +6942,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "  on n.type=dedicated_wa_types.type "
 				 "where (%s) "
 				 "  and notmcdinfo_types.attrvalue is NULL",
-				 37, clause);
+				 38, clause);
 	}
 
 	if (!res) {
@@ -7048,6 +7052,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 			reqp->geniflags = atoi(row[33]);
 		else
 			reqp->geniflags = 0;
+		if (row[37])
+			strcpy(reqp->erole, row[37]);
 	}
 
 	if (row[9])
@@ -8156,34 +8162,12 @@ COMMAND_PROTOTYPE(doroutelist)
  */
 COMMAND_PROTOTYPE(dorole)
 {
-	MYSQL_RES	*res;
-	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
 
-	/*
-	 * Get the erole from the reserved table
-	 */
-	res = mydb_query("select erole from reserved where node_id='%s'",
-			 1, reqp->nodeid);
-
-	if (!res) {
-		error("ROLE: %s: DB Error getting the role of this node!\n",
-		      reqp->nodeid);
-		return 1;
-	}
-
-	if ((int)mysql_num_rows(res) == 0) {
-		mysql_free_result(res);
+	if (! reqp->allocated) {
 		return 0;
 	}
-
-	row = mysql_fetch_row(res);
-	if (! row[0] || !row[0][0]) {
-		mysql_free_result(res);
-		return 0;
-	}
-	sprintf(buf, "%s\n", row[0]);
-	mysql_free_result(res);
+	sprintf(buf, "%s\n", reqp->erole);
 
 	client_writeback(sock, buf, strlen(buf), tcp);
 	if (verbose)
@@ -8572,16 +8556,82 @@ COMMAND_PROTOTYPE(dofwinfo)
 	char		fwname[TBDB_FLEN_VNAME+2];
 	char		fwtype[TBDB_FLEN_VNAME+2];
 	char		fwstyle[TBDB_FLEN_VNAME+2];
+	char		fwlog[TBDB_FLEN_TINYTEXT+1];
 	int		n, nrows;
 	char		*vlan;
 
+	bzero(fwlog, sizeof(fwlog));
+
 	/*
-	 * See if this node's experiment has an associated firewall
-	 *
-	 * XXX will only work if there is one firewall per experiment.
+	 * Containers and shared hosts can each have specific rules.
+	 * The shared host can protect itself with iptables-dom0 rules,
+	 * and containers themselves can be firewalled with iptables-domU
+	 * rules (in the default_firewall_rules table). The main point
+	 * though, is that this done on the virt host dom0, not with a
+	 * separate firewall node. 
 	 */
-	res = mydb_query("select r.node_id,v.type,v.style,v.log,f.fwname,"
-			 "  i.IP,i.mac,f.vlan "
+	if (reqp->isvnode ||
+	    strcmp(reqp->erole, "virthost") == 0 ||
+	    strcmp(reqp->erole, "sharedhost") == 0) {
+		/*
+		 * Since we implement the firewall code on the outside of
+		 * the container (dom0), containers themselves know
+		 * nothing about it, nor can containers act *as* firewall
+		 * nodes for an entire experiment (although this is
+		 * something we should implement some day).  So just tell
+		 * the container not to worry about it.
+		 */
+		if (reqp->asvnode) {
+			goto nofirewall;
+		}
+		res = mydb_query("select firewall_style,firewall_log "
+				 "from virt_nodes "
+				 "where exptidx='%d' and "
+				 "      vname='%s' and "
+				 "      firewall_style is not null ",
+				 2, reqp->exptidx, reqp->nickname);
+		if (!res) {
+			error("FWINFO: %s: DB Error getting firewall info!\n",
+			      reqp->nodeid);
+			return 1;
+		}
+		if ((int)mysql_num_rows(res) == 0) {
+			mysql_free_result(res);
+			goto nofirewall;
+		}
+		row = mysql_fetch_row(res);
+		/*
+		 * Ignore the type, we decide. 
+		 */
+		if (reqp->isvnode) {
+			strcpy(fwtype, "iptables-domU");
+		}
+		else {
+			strcpy(fwtype, "iptables-dom0");
+		}
+		strncpy(fwstyle, row[0], sizeof(fwstyle));
+		if (row[1] && row[1][0])
+			strncpy(fwlog, row[1], sizeof(fwlog));
+		mysql_free_result(res);
+
+		OUTPUT(buf, sizeof(buf),
+		       "TYPE=%s STYLE=%s "
+		       "IN_IF=na OUT_IF=na IN_VLAN=0 OUT_VLAN=0\n",
+		       fwtype, fwstyle);
+		client_writeback(sock, buf, strlen(buf), tcp);
+		if (verbose)
+			info("FWINFO: %s", buf);
+	
+		goto vnodefw;
+	}
+	else {
+		/*
+		 * See if this node's experiment has an associated firewall
+		 *
+		 * XXX will only work if there is one firewall per experiment.
+		 */
+		res = mydb_query("select r.node_id,v.type,v.style,v.log,"
+			 "  f.fwname,i.IP,i.mac,f.vlan "
 			 "from firewalls as f "
 			 "left join reserved as r on"
 			 "  f.pid=r.pid and f.eid=r.eid and f.fwname=r.vname "
@@ -8592,10 +8642,11 @@ COMMAND_PROTOTYPE(dofwinfo)
 			 "and i.role='ctrl'",	/* XXX */
 			 8, reqp->pid, reqp->eid);
 
-	if (!res) {
-		error("FWINFO: %s: DB Error getting firewall info!\n",
-		      reqp->nodeid);
-		return 1;
+		if (!res) {
+			error("FWINFO: %s: DB Error getting firewall info!\n",
+			      reqp->nodeid);
+			return 1;
+		}
 	}
 
 	/*
@@ -8603,6 +8654,7 @@ COMMAND_PROTOTYPE(dofwinfo)
 	 */
 	if ((int)mysql_num_rows(res) == 0) {
 		mysql_free_result(res);
+	nofirewall:
 		strncpy(buf, "TYPE=none\n", sizeof(buf));
 		client_writeback(sock, buf, strlen(buf), tcp);
 		return 0;
@@ -8666,20 +8718,23 @@ COMMAND_PROTOTYPE(dofwinfo)
 	if (verbose)
 		info("FWINFO: %s", buf);
 
+	strncpy(fwtype, row[1], sizeof(fwtype));
+	strncpy(fwstyle, row[2], sizeof(fwstyle));
+	strncpy(fwname, row[4], sizeof(fwname));
+	if (row[3] && row[3][0])
+		strncpy(fwlog, row[3], sizeof(fwlog));
+	mysql_free_result(res);
+
+vnodefw:
 	/*
 	 * Put out info about firewall rule logging
 	 */
-	if (vers > 25 && row[3] && row[3][0]) {
-		OUTPUT(buf, sizeof(buf), "LOG=%s\n", row[3]);
+	if (vers > 25 && fwlog[0]) {
+		OUTPUT(buf, sizeof(buf), "LOG=%s\n", fwlog);
 		client_writeback(sock, buf, strlen(buf), tcp);
 		if (verbose)
 			info("FWINFO: %s", buf);
 	}
-
-	strncpy(fwtype, row[1], sizeof(fwtype));
-	strncpy(fwstyle, row[2], sizeof(fwstyle));
-	strncpy(fwname, row[4], sizeof(fwname));
-	mysql_free_result(res);
 
 	/*
 	 * Return firewall variables
@@ -8729,13 +8784,41 @@ COMMAND_PROTOTYPE(dofwinfo)
 			info("FWINFO: %d variables\n", nrows);
 	}
 
+	if (reqp->isvnode) {
+		/*
+		 * Write a var for the sshdport number.
+		 */
+		res = mydb_query("select n.sshdport from nodes as n "
+				 "where n.node_id='%s'",
+				 1, reqp->nodeid);
+
+		if (!res) {
+			error("FWINFO: %s: DB Error getting sshdport!\n",
+			      reqp->nodeid);
+			return 1;
+		}
+
+		if ((int)mysql_num_rows(res)) {
+			row  = mysql_fetch_row(res);
+
+			OUTPUT(buf, sizeof(buf), "VAR=%s VALUE=\"%s\"\n",
+			       "SSHDPORT", row[0]);
+			client_writeback(sock, buf, strlen(buf), tcp);
+		}
+		mysql_free_result(res);
+	}
+
 	/*
 	 * Get the user firewall rules from the DB and return them.
+	 * Note difference for vnodes/vhosts; these can store rules
+	 # for each vnode/vhost in the topo.
 	 */
 	res = mydb_query("select ruleno,rule from firewall_rules "
 			 "where pid='%s' and eid='%s' and fwname='%s' "
 			 "order by ruleno",
-			 2, reqp->pid, reqp->eid, fwname);
+			 2, reqp->pid, reqp->eid,
+			 ((reqp->isvnode || reqp->sharing_mode[0]) ?
+			  reqp->nickname ? fwname));
 	if (!res) {
 		error("FWINFO: %s: DB Error getting firewall rules!\n",
 		      reqp->nodeid);
@@ -8749,10 +8832,9 @@ COMMAND_PROTOTYPE(dofwinfo)
 		       row[0], row[1]);
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
-
 	mysql_free_result(res);
 	if (verbose)
-	    info("FWINFO: %d user rules\n", nrows);
+		info("FWINFO: %d user rules\n", nrows);
 
 	/*
 	 * Get the default firewall rules from the DB and return them.
@@ -10253,7 +10335,7 @@ COMMAND_PROTOTYPE(doarpinfo)
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
 	int		nrows, xenvifrouting = 0;
-	char		buf[MYBUFSIZE], erole[32], arptype[32];
+	char		buf[MYBUFSIZE], arptype[32];
 #ifdef GET_SERVERS_FROM_SITEVARS
 	struct serv {
 		char name[8];
@@ -10329,25 +10411,6 @@ COMMAND_PROTOTYPE(doarpinfo)
 	if (row[0] && row[0][0]) {
 		xenvifrouting = 1;
 	}
-	mysql_free_result(res);
-
-	res = mydb_query("select erole from reserved where node_id='%s'",
-			 1, reqp->nodeid);
-	if (!res) {
-		error("doarpinfo: %s: DB Error checking for reserved.erole\n",
-		      reqp->nodeid);
-		return 1;
-	}
-
-	if (mysql_num_rows(res) == 0 || (row = mysql_fetch_row(res)) == NULL ||
-	    row[0] == NULL) {
-		error("doarpinfo: %s: Could not deterimine erole\n",
-		      reqp->nodeid);
-		mysql_free_result(res);
-		return 1;
-	}
-
-	strncpy(erole, row[0], sizeof(erole));
 	mysql_free_result(res);
 
 	/*
@@ -10571,7 +10634,7 @@ COMMAND_PROTOTYPE(doarpinfo)
 	/*
 	 * Subbosses get info for all nodes they provide a service for. 
 	 */
-	if (strcmp(erole, "subboss") == 0) {
+	if (strcmp(reqp->erole, "subboss") == 0) {
 		res = mydb_query("select distinct i.node_id,i.IP,i.mac from "
 				 "interfaces as i,subbosses as s where "
 				 "s.node_id=i.node_id and "

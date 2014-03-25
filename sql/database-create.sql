@@ -507,7 +507,7 @@ CREATE TABLE `datapository_databases` (
 
 DROP TABLE IF EXISTS `default_firewall_rules`;
 CREATE TABLE `default_firewall_rules` (
-  `type` enum('ipfw','ipfw2','iptables','ipfw2-vlan','iptables-vlan') NOT NULL default 'ipfw',
+  `type` enum('ipfw','ipfw2','iptables','ipfw2-vlan','iptables-vlan','iptables-dom0','iptables-domU') NOT NULL default 'ipfw',
   `style` enum('open','closed','basic','emulab') NOT NULL default 'basic',
   `enabled` tinyint(4) NOT NULL default '0',
   `ruleno` int(10) unsigned NOT NULL default '0',
@@ -4957,6 +4957,8 @@ CREATE TABLE `virt_nodes` (
   `numeric_id` int(11) default NULL,
   `sharing_mode` varchar(32) default NULL,
   `role` enum('node','bridge') NOT NULL default 'node',
+  `firewall_style` tinytext,
+  `firewall_log` tinytext,
   PRIMARY KEY  (`exptidx`,`vname`),
   UNIQUE KEY `pideid` (`pid`,`eid`,`vname`),
   KEY `pid` (`pid`,`eid`,`vname`)

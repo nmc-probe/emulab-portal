@@ -73,6 +73,7 @@ proc tb-set-endnodeshaping {link onoff} {}
 proc tb-set-noshaping {link onoff} {}
 proc tb-set-useveth {link onoff} {}
 proc tb-set-link-encap {link style} {}
+proc tb-set-fw-style {vnode style} {}
 proc tb-set-allowcolocate {lanlink onoff} {}
 proc tb-set-colocate-factor {factor} {}
 proc tb-set-sync-server {node} {}

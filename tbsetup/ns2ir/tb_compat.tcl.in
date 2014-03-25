@@ -2291,6 +2291,20 @@ proc tb-set-elabinelab-fw-type {type} {
 }
 
 #
+# Set firewall style for an individual node. Really only makes sense
+# for linux nodes with iptables. Might need to add an os_feature.
+#
+proc tb-set-fw-style {vnode style}
+{
+    if ($style != "basic" && $style != "closed" &&
+	$style != "open" && $style != "elabinelab") {
+	perror "\[tb-set-fw-style] $style is not a valid type"
+	return
+    }
+    $vnode set fw_style $style
+}
+
+#
 # Set numeric ID (this is a mote thing)
 #
 proc tb-set-node-id {vnode myid} {

@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -146,6 +146,9 @@ Node instproc init {s} {
 
     # This is a blockstore thing.
     $self set bstore_agent 0
+
+    # Per node firewall thing.
+    $self set fw_style ""
 }
 
 Bridge instproc init {s} {
@@ -229,6 +232,7 @@ Node instproc updatedb {DB} {
     $self instvar simulated
     $self instvar sharing_mode
     $self instvar topo
+    $self instvar fw_style
     $self instvar X_
     $self instvar Y_
     $self instvar orientation_
@@ -400,6 +404,11 @@ Node instproc updatedb {DB} {
     if { $parent_osid != {} && $parent_osid != 0} {
 	lappend fields "parent_osname"
 	lappend values $parent_osid
+    }
+
+    if { $fw_style != "" } {
+	lappend fields "firewall_style"
+	lappend values $fw_style
     }
 
     $sim spitxml_data "virt_nodes" $fields $values
