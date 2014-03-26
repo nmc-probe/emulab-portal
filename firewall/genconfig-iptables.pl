@@ -26,11 +26,12 @@ use English;
 
 my $datafile = "fw-rules";
 
-my $optlist = "eMIf:";
+my $optlist = "eMIf:t:";
 my $domysql = 0;
 my $doiptables = 1;
 my $expand = 0;
 my $qualifiers = 0;
+my $type = "iptables-vlan";
 my @lines;
 
 sub usage()
@@ -41,8 +42,10 @@ sub usage()
 	"  -q      include qualifiers\n".
 	"  -M      generate mysql commands\n".
 	"  -I      generate iptables commands\n".
+	"  -t type defaults to iptables-vlan\n".
 	"\n".
-	" Valid configs are: open, closed, basic, elabinelab\n";
+	" Valid configs are: open, closed, basic, elabinelab\n".
+	" Valid types are: iptables-vlan, iptables-dom0\n";
     exit(1);
 }
 
@@ -83,11 +86,11 @@ sub expandfwvars($)
     return $rule;
 }
 
-sub doconfig($)
+sub doconfig($$)
 {
-    my ($config) = @_;
+    my ($config,$type) = @_;
     my $ruleno = 1;
-    my ($type, $style, $enabled);
+    my ($style, $enabled);
 
     if ($doiptables) {
 	print "# $config\n";
@@ -95,7 +98,6 @@ sub doconfig($)
 	print "iptables -X\n";
     }
     if ($domysql) {
-	$type = "iptables-vlan";
 	$style = lc($config);
 	# XXX
 	$style = "emulab" if ($style eq "elabinelab");
@@ -159,6 +161,9 @@ if (defined($options{"e"})) {
 if (defined($options{"f"})) {
     $datafile = $options{"f"};
 }
+if (defined($options{"t"})) {
+    $type = $options{"t"};
+}
 if (defined($options{"q"})) {
     $qualifiers = 1;
 }
@@ -169,6 +174,6 @@ if (@ARGV == 0) {
 @lines = `cat $datafile`;
 foreach my $config (@ARGV) {
     $config = uc($config);
-    doconfig($config);
+    doconfig($config,$type);
 }
 exit(0);
