@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -181,8 +181,20 @@ if (! -e $expinfo) {
     if (! mkdir($expinfo, 0777)) {
 	fatal("Could not create $expinfo: $!");
     }
-    if (! chowner($UID, $unix_gid, "$expinfo")) {
-	fatal("Could not chown $expinfo to $UID/$unix_gid: $!");
+    #
+    # expinfo dir should have the group ID of the primary project group.
+    # This is because at different times, users in different subgroups can
+    # create an experiment with the same name. If the directory has the
+    # group of the initial experiment with that name, then any other future
+    # experiment with that name but in a different subgroup will not be able
+    # to write the directory.
+    #
+    my $ugid = $unix_gid;
+    if ($pid ne $gid) {
+	$ugid = $group->GetProject()->unix_gid();
+    }
+    if (! chowner($UID, $ugid, "$expinfo")) {
+	fatal("Could not chown $expinfo to $UID/$ugid: $!");
     }
 }
 
