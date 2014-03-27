@@ -149,6 +149,9 @@ Node instproc init {s} {
 
     # Per node firewall thing.
     $self set fw_style ""
+    $self set next_rule 100
+    $self instvar fw_rules
+    array set fw_rules {}
 }
 
 Bridge instproc init {s} {
@@ -233,6 +236,7 @@ Node instproc updatedb {DB} {
     $self instvar sharing_mode
     $self instvar topo
     $self instvar fw_style
+    $self instvar fw_rules
     $self instvar X_
     $self instvar Y_
     $self instvar orientation_
@@ -449,6 +453,13 @@ Node instproc updatedb {DB} {
     }
     
     $sim spitxml_data "virt_agents" [list "vnode" "vname" "objecttype"] [list $self $agentname $objtypes(NODE)]
+
+    foreach rule [array names fw_rules] {
+	set names [list "fwname" "ruleno" "rule"]
+	set vals  [list $self $rule $fw_rules($rule)]
+	$sim spitxml_data "firewall_rules" $names $vals
+    }
+    
 }
 
 # add_lanlink lanlink
@@ -826,6 +837,32 @@ Node instproc set_numeric_id {myid} {
     $self instvar numeric_id
 
     set numeric_id $myid
+}
+
+#
+# Set firewall style for an individual node. Really only makes sense
+# for linux nodes with iptables. Might need to add an os_feature.
+#
+Node instproc set-fw-style {style} {
+    $self instvar fw_style
+
+    if {$style != "basic" && $style != "closed" &&
+	$style != "open" && $style != "elabinelab"} {
+	perror "\[set-fw-style] $style is not a valid type"
+	return
+    }
+    set fw_style $style
+}
+
+#
+# Add rules to the per-vnode firewall.
+# 
+Node instproc add-rule {rule} {
+    $self instvar next_rule
+    $self instvar fw_rules
+
+    set fw_rules($next_rule) $rule
+    incr next_rule
 }
 
 #
