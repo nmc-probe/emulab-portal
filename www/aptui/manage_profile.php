@@ -84,14 +84,15 @@ function SPITFORM($formfields, $errors)
 	echo "  </label>\n";
     };
 
-    $formatter = function($field, $label, $html, $help = null)
-	          use ($errors, $format_label) {
+    $formatter = function($field, $label, $html, $help = null, $compact = 0)
+		use ($errors, $format_label) {
 	$class = "form-group";
 	if ($errors && array_key_exists($field, $errors)) {
 	    $class .= " has-error";
 	}
 	$size = 12;
-	echo "<div class='$class'>\n";
+	$margin = ($compact ? 5 : 15);
+	echo "<div class='$class' style='margin-bottom: ${margin}px;'>\n";
 	if ($label) {
 	    $format_label($field, $label, $help);
 	    $size = 10;
@@ -281,27 +282,72 @@ function SPITFORM($formfields, $errors)
 	       "Briefly describe how to use this profile after it starts. ".
 	       "Double click to see it rendered.");
 
-    echo "<div class='row'>\n";
+    # Hide this until the steps table is initialized from the rspec.
+    echo "<div class='row hidden' id='profile_steps_div'>\n";
     $format_label("profile_steps", "Steps");
     echo "<div class='col-sm-10'>\n";
     echo "<table id='profile_steps' class='col-sm-12'></table>\n";
     echo "</div></div>\n";
 
-    $formatter("profile_listed", "Listed?",
-	       "<div class='checkbox'>
+    echo "<div class='row'>\n";
+    echo "<div class='col-sm-10 col-sm-offset-2'>\n";
+    $formatter("profile_listed", null,
+	       "<div class='checkbox' >
                 <label><input name=\"formfields[profile_listed]\" ".
 	               $formfields["profile_listed"] .
 	       "       id='profile_listed' value=checked
                        type=checkbox> ".
-	       "List on the public page for anyone to use?</label></div>");
+	       "List on the home page for anyone to view.</label></div>",
+	       null, true);
+    echo "  </div>\n";
+    echo "</div>\n";
 
+    echo "<div class='row'>\n";
+    echo "<div class='col-sm-10 col-sm-offset-2'>\n";
+    echo "Who can instantiate your profile?";
+    echo "  </div>\n";
+    echo "</div>\n";
+    
+    echo "<div class='row'>\n";
+    echo "  <div class='col-sm-9 col-sm-offset-3'>\n";
+    $formatter("profile_who", null,
+	       "<div class='radio'>
+                 <label>
+                  <input type='radio' name='formfields[profile_who]' " .
+   	          ($formfields["profile_who"] == 'public' ? "checked " : " ") .
+                      "value='public'>
+                   <em>Anyone</em> on the internet (guest users)
+    	         </label>
+                </div>
+                <div class='radio'>
+                 <label>
+                  <input type='radio' name='formfields[profile_who]' ".
+  	          ($formfields["profile_who"] == 'shared' ? "checked " : " ") .
+                      "value='shared'>
+                   Only registered users of the APT website
+    	         </label>
+                </div>
+                <div class='radio'>
+                 <label>
+                  <input type='radio' name='formfields[profile_who]' ".
+	          ($formfields["profile_who"] == 'private' ? "checked " : " ") .
+                      "value='private'>
+                   Only members of your project
+    	         </label>
+                </div>",
+	       null, false);
+    echo "  </div>\n";
+    echo "</div>\n";
+    
     if ($editing) {
-    	$formatter("profile_url", "Public URL",
+    	$formatter("profile_url", "Shared URL",
 		   "<input name=\"formfields[profile_url]\"
 		       id='profile_url' readonly
 		       value='" . $formfields["profile_url"] . "'
                        class='form-control'
-                       placeholder='' type='text'>");
+                       placeholder='' type='text'>",
+		   "Anyone with this URL can instantiate this profile",
+		   false);
     }
     echo "      </fieldset>\n";
 
@@ -461,6 +507,9 @@ if (! isset($create)) {
 		$defaults["profile_url"]         = $profile->url();
 		$defaults["profile_listed"]      =
 		    ($profile->listed() ? "checked" : "");
+		$defaults["profile_who"] =
+		    ($profile->shared() ? "shared" : 
+		     ($profile->ispublic() ? "public" : "private"));
 
 		#
 		# If we are displaying after a successful edit, and it
@@ -554,6 +603,19 @@ if (!$project->IsMember($this_user, $isapproved) || !$isapproved) {
     $errors["profile_pid"] = "Illegal project";
 }
 
+#
+# Convert profile_who to arguments.
+#
+if (!isset($formfields["profile_who"]) || $formfields["profile_who"] == "") {
+    $errors["profile_who"] = "Missing value";
+}
+else {
+    $who = $formfields["profile_who"];
+    if (! ($who == "private" || $who == "shared" || $who == "public")) {
+	$errors["profile_who"] = "Illegal value";
+    }
+}
+
 # Present these errors before we call out to do anything else.
 if (count($errors)) {
     SPITFORM($formfields, $errors);
@@ -571,10 +633,15 @@ $xmlname = tempnam("/tmp", "newprofile");
 if (! $xmlname) {
     TBERROR("Could not create temporary filename", 0);
     $errors["error"] = "Internal error; Could not create temp file";
+    SPITFORM($formfields, $errors);
+    return;
 }
 elseif (! ($fp = fopen($xmlname, "w"))) {
     TBERROR("Could not open temp file $xmlname", 0);
     $errors["error"] = "Internal error; Could not open temp file";
+    SPITFORM($formfields, $errors);
+    unlink($xmlname);
+    return;
 }
 else {
     fwrite($fp, "<profile>\n");
@@ -597,14 +664,13 @@ else {
 	fwrite($fp, "0");
     }
     fwrite($fp, "</value></attribute>\n");
+    fwrite($fp, "<attribute name='profile_shared'><value>" .
+	   ($who == "shared" ? 1 : 0) . "</value></attribute>\n");
+    fwrite($fp, "<attribute name='profile_public'><value>" .
+	   ($who == "public" ? 1 : 0) . "</value></attribute>\n");
     fwrite($fp, "</profile>\n");
     fclose($fp);
     chmod($xmlname, 0666);
-}
-if (count($errors)) {
-    unlink($xmlname);
-    SPITFORM($formfields, $errors);
-    return;
 }
 
 #
@@ -635,11 +701,12 @@ if ($retval) {
 	}
     }
 }
+unlink($xmlname);
 if (count($errors)) {
-    unlink($xmlname);
     SPITFORM($formfields, $errors);
     return;
 }
+
 #
 # Need the index to pass back through.
 #

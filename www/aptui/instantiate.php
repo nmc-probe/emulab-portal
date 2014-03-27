@@ -82,6 +82,10 @@ if (isset($ajax_request)) {
 
 $profile_default  = "OneVM";
 $profile_array    = array();
+$am_array = array('Utah DDC' =>
+		     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
+		  'Utah PG'  =>
+		     "urn:publicid:IDN+emulab.net+authority+cm");
 
 #
 # if using the super secret URL, make sure the profile exists, and
@@ -110,7 +114,7 @@ if (isset($profile)) {
 	# Must be public or belong to user. 
 	#
 	if (! ($obj->ispublic() ||
-	       $obj->creator_idx == $this_user->uid_idx())) {
+	       $obj->creator_idx() == $this_user->uid_idx())) {
 	    SPITUSERERROR("No permission to use profile: $profile");
 	    exit();
 	}
@@ -147,7 +151,7 @@ while ($row = mysql_fetch_array($query_result)) {
 function SPITFORM($formfields, $newuser, $errors)
 {
     global $TBBASE, $TBMAIL_OPS;
-    global $profile_array, $this_user, $profilename, $profile;
+    global $profile_array, $this_user, $profilename, $profile, $am_array;
 
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
@@ -285,6 +289,21 @@ function SPITFORM($formfields, $newuser, $errors)
         # Needs more work.
 	echo "<input type='hidden' name='profile' value='$profile'>\n";
     }
+    if (isset($this_user) && ISADMIN()) {
+	$am_options = "";
+	while (list($am, $urn) = each($am_array)) {
+	    $selected = "";
+	    if ($formfields["where"] == $am) {
+		$selected = "selected";
+	    }
+	    $am_options .= 
+		"<option $selected value='$am'>$am</option>\n";
+	}
+	$formatter("where",
+		   "<br><select name=\"formfields[where]\"
+		              id='profile_where' class='form-control'>".
+		   "$am_options</select>");
+    }
     echo "</fieldset>
            <button class='btn btn-success pull-right'
               type='submit' name='create'>Create!
@@ -332,6 +351,7 @@ if (!isset($create)) {
     $defaults["email"]    = "";
     $defaults["sshkey"]   = "";
     $defaults["profile"]  = (isset($profile) ? $profile : $profile_default);
+    $defaults["where"]    = 'Utah DDC';
 	
     # 
     # Look for current user or cookie that tells us who the user is. 
@@ -412,6 +432,22 @@ else {
 	if ($geniuser->name() != $formfields["username"]) {    
 	    $errors["email"] = "Already in use by another user";
 	    unset($geniuser);
+	}
+    }
+}
+
+#
+# Allow admin users to select the Aggregate. Experimental.
+#
+$aggregate_urn = "";
+
+if ($this_user && ISADMIN()) {
+    if (isset($formfields["where"]) && $formfields["where"] != "") {
+	if (array_key_exists($formfields["where"], $am_array)) {
+	    $aggregate_urn = $am_array[$formfields["where"]];
+	}
+	else {
+	    $errors["where"] = "Invalid Aggregate";
 	}
     }
 }
@@ -539,7 +575,8 @@ if (count($errors)) {
 # This option is used to tell the backend that it is okay to look
 # in the emulab users table.
 #
-$opt = ($this_user ? "-l" : "");
+$opt  = ($this_user ? "-l" : "");
+$opt .= ($aggregate_urn != "" ? " -a '$aggregate_urn'" : "");
 
 $retval = SUEXEC("nobody", "nobody",
 		 "webquickvm $opt -u $quickvm_uuid $xmlname",

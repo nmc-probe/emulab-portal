@@ -133,7 +133,8 @@ echo "     <th>Project</th>
            <th>Description</th>
            <th>Show</th>
            <th>Created</th>
-           <th>Public</th>
+           <th>Listed</th>
+           <th>Privacy</th>
           </tr>
          </thead>
          <tbody>\n";
@@ -145,8 +146,17 @@ while ($row = mysql_fetch_array($query_result)) {
     $desc    = $row["description"];
     $created = $row["created"];
     $public  = $row["public"];
+    $listed  = ($row["listed"] ? "Yes" : "No");
+    $shared  = $row["shared"];
     $creator = $row["creator"];
-    $rspec   = $row["rspec"];;
+    $rspec   = $row["rspec"];
+
+    if ($public)
+	$privacy = "Public";
+    elseif ($shared)
+	$privacy = "Shared";
+    else
+	$privacy = "Private";
 
     $parsed_xml = simplexml_load_string($rspec);
     if ($parsed_xml &&
@@ -169,7 +179,8 @@ while ($row = mysql_fetch_array($query_result)) {
                Show</button>
             </td>
             <td>$created</td>
-            <td>$public</td>
+            <td>$listed</td>
+            <td>$privacy</td>
            </tr>\n";
 }
 echo "   </tbody>
