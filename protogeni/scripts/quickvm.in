@@ -39,12 +39,12 @@ use Data::Dumper;
 # 
 sub usage()
 {
-    print "Usage: quickvm [-l] [-u uuid] <xmlfile>\n";
+    print "Usage: quickvm [-l] [-u uuid] [-a aggregate] <xmlfile>\n";
     print "Usage: quickvm -k <uuid>\n";
     print "Usage: quickvm -e <seconds> <uuid>\n";
     exit(1);
 }
-my $optlist = "dkve:lu:";
+my $optlist = "dkve:lu:a:";
 my $debug   = 0;
 my $verbose = 1;
 my $killit  = 0;
@@ -54,6 +54,7 @@ my $localuser = 0;;
 my $xmlfile;
 my $extend;
 my $quickuuid;
+my $aggregate;
 
 # Protos
 sub fatal($);
@@ -101,6 +102,7 @@ use GeniAuthority;
 use GeniHRN;
 use Genixmlrpc;
 use GeniResponse;
+use GeniXML;
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -109,6 +111,9 @@ use GeniResponse;
 my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
+}
+if (defined($options{"a"})) {
+    $aggregate = $options{"a"};
 }
 if (defined($options{"d"})) {
     $debug = 1;
@@ -211,7 +216,10 @@ Genixmlrpc->SetContext($context);
 #
 my $CMURN;
 
-if ($utahddc) {
+if (defined($aggregate)) {
+    $CMURN = $aggregate;
+}
+elsif ($utahddc) {
     $CMURN = $DDCURN;
 }
 else {
@@ -291,7 +299,9 @@ my $profile_object = APT_Profile->Lookup($value);
 if (!defined($profile_object)) {
     fatal("No such profile: $value");
 }
-my $rspecstr = $profile_object->rspec();
+my $rspecstr =
+    ($profile_object->public() ?
+     $profile_object->Condomize() : $profile_object->rspec());
 $profile = $profile_object->idx();
 
 #
@@ -464,6 +474,7 @@ my $instance = APT_Instance->Create({'uuid'         => $quickvm_uuid,
 				     'creator'      => $geniuser->uid(),
 				     'creator_idx'  => $geniuser->idx(),
 				     'creator_uuid' => $geniuser->uuid(),
+				     'aggregate_urn'=> $CMURN,
 				     'status'       => "created"});
 if (!defined($instance)) {
     $slice->Delete();
@@ -613,7 +624,18 @@ sub Terminate($)
     if (! defined($instance)) {
 	fatal("No such quick VM: $uuid");
     }
-
+    if (defined($instance->aggregate_urn()) &&
+	$instance->aggregate_urn() ne $CMURN) {
+	$CMURN = $instance->aggregate_urn();
+	
+	$cm_authority = GeniAuthority->Lookup($CMURN);
+	if (!defined($cm_authority)) {
+	    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
+	    if (!defined($cm_authority)) {    
+		fatal("Could not load CM authority object");
+	    }
+	}
+    }
     my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
     if (!defined($geniuser)) {
 	fatal("No creator for quick VM: $uuid");
@@ -713,6 +735,18 @@ sub Extend($$)
     my $instance = APT_Instance->Lookup($uuid);
     if (! defined($instance)) {
 	fatal("No such quick VM: $uuid");
+    }
+    if (defined($instance->aggregate_urn()) &&
+	$instance->aggregate_urn() ne $CMURN) {
+	$CMURN = $instance->aggregate_urn();
+	
+	$cm_authority = GeniAuthority->Lookup($CMURN);
+	if (!defined($cm_authority)) {
+	    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
+	    if (!defined($cm_authority)) {    
+		fatal("Could not load CM authority object");
+	    }
+	}
     }
     my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
     if (!defined($geniuser)) {
