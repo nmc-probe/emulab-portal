@@ -864,6 +864,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	my $isbridge    = 0;
 	my $isfirewall  = 0;
 	my $xensettings;
+	my $fwsettings;
 	
 	if (exists($nodeexistsmap{lc($node_nickname)})) {
 	    $response =
@@ -1031,6 +1032,13 @@ sub GetTicketAuxAux($$$$$$$$$$)
 			$pctype = $ptype
 			    if (defined($ptype));
 			$virtexperiment->encap_style("vlan");
+
+			#
+			# Per-vnode firewall options.
+			#
+			if (GeniXML::HasFirewallSettings($ref)) {
+			    $fwsettings = GeniXML::GetFirewallSettings($ref);
+			}
 		    }
 		    elsif ($virtualization_subtype eq "emulab-spp") {
 			$osname = "SPPVM-FAKE";
@@ -1493,6 +1501,39 @@ sub GetTicketAuxAux($$$$$$$$$$)
 					      "attrvalue" => $attrvalue });
 	    }
 	}
+	if (defined($fwsettings)) {
+	    if (exists($fwsettings->{'style'})) {
+		$virtnode->firewall_style($fwsettings->{'style'});
+		# 
+		# If this is closed, then turn off NFS mounts competely.
+		# We do this experiment wide, need per-node setting. 
+		#
+		if ($fwsettings->{'style'} eq "closed") {
+		    $virtexperiment->nonfsmounts(1);
+		}
+		my $ruleno = 0;
+		foreach my $exception (@{ $fwsettings->{'exceptions'} }) {
+		    my $port = $exception->{'port'};
+		    next
+			if ($port !~ /^\d*$/);
+
+		    my $rule = "iptables -A OUTSIDE -p tcp --dport $port ";
+		    if (exists($exception->{'ip'})) {
+			my $ip = $exception->{'ip'};
+			if ($ip eq "myip") {
+			    $ip = $ENV{'REMOTE_ADDR'};
+			}
+			$rule .= "-s $ip ";
+		    }
+		    $rule .= "-m conntrack --ctstate NEW -j ACCEPT";
+		    
+		    $virtexperiment->NewTableRow("firewall_rules",
+						 {"fwname" => $node_nickname,
+						  "ruleno" => $ruleno++,
+						  "rule"   => $rule});
+		}
+	    }
+	}
 
 	#
 	# Look for general node attributes that pass through to the
@@ -1558,7 +1599,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		my $dest     = GetText("dest", $pipe);
 		my $capacity = GetText("capacity", $pipe);
 		my $latency  = GetText("latency", $pipe);
-		my $lossrate = GetText("lossrate", $pipe);
+		my $lossrate = GetText("packet_loss", $pipe);
 
 		# Get the vport we computed above
 		if (!exists($ifacemap{$node_nickname}->{$source})) {
@@ -1627,9 +1668,18 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	# we assume the link is for this CM.
 	#
 	if (GeniXML::FindNodes("n:component_manager", $linkref)) {
-	    %managers = map { GetLinkManager($_) => $_ } 
-	                      GeniXML::FindNodes("n:component_manager",
-						 $linkref)->get_nodelist();
+	    foreach my $mref (GeniXML::FindNodes("n:component_manager",
+						 $linkref)->get_nodelist()) {
+		my $manager = GetLinkManager($mref);
+		# Watch for a bogus name.
+		if ($manager eq "") {
+		    $response = 
+			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				     "Bad component_manager in link: $lanname");
+		    goto bad;
+		}
+		$managers{$manager} = $manager;
+	    }
 
 	    #
 	    # Initial check for the entire link. We check on a per interface
@@ -1937,6 +1987,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    my $latency   = 0.0;
 	    my $lossrate  = 0.0;
 	    my $estbw     = undef;
+	    my $uselinkdelay = 0;
 
 	    # Let user override.
 	    my $user_bandwidth = GeniXML::GetBandwidth($linkref);
@@ -1967,6 +2018,27 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		    if (defined($bblob->{'latency'}));
 		$bridge_vname = $bblob->{'name'};
 	    }
+	    else {
+		my @properties = GeniXML::GetLinkProperties($linkref);
+		foreach my $property (@properties) {
+		    $uselinkdelay = 1;
+		    
+		    #
+		    # Need to make sure we get the correct direction.
+		    #
+		    my $source   = GetText("source_id", $property);
+		    
+		    if ($source eq $iface_id) {
+			$bandwidth = GetText("capacity", $property)
+			    if (defined(GetText("capacity", $property)));
+			$latency   = GetText("latency", $property)
+			    if (defined(GetText("latency", $property)));
+			$lossrate  = GetText("packet_loss", $property)
+			    if (defined(GetText("packet_loss", $property)));
+			last;
+		    }
+		}
+	    }
 	    if ($isshared) {
 		# Clear all this on "shared" vlans. Maybe later.
 		$bandwidth = 0;
@@ -1994,7 +2066,9 @@ sub GetTicketAuxAux($$$$$$$$$$)
 					  "rlossrate"   => 0.0,
 					  "bridge_vname"=> $bridge_vname,
 					  "encap_style" => $encap,
-					  "fixed_iface" => $iface_name});
+					  "fixed_iface" => $iface_name,
+					  "uselinkdelay"=> $uselinkdelay,
+					 });
 	    if ($ofcontroller && $ofcontroller ne "") {
 		$virtlan->ofenabled(1);
 		$virtlan->ofcontroller($ofcontroller);
