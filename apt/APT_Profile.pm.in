@@ -23,6 +23,17 @@
 #
 package APT_Profile;
 
+#
+# Note about permissions bits.
+#
+# listed - The profile will be listed on the home page for anyone to see/use.
+# public - Anyone can instantiate the profile, regardless of its listed bit
+#          Say, if you send a URL to someone. 
+# shared - Shared with logged in users. If not listed, then the default is
+#          that only project members can see/use the profile, unless the public
+#          is set (but they need a url). Shared says any logged in user can
+#          see and use the profile.  
+
 use strict;
 use Carp;
 use Exporter;
@@ -34,6 +45,7 @@ use vars qw(@ISA @EXPORT $AUTOLOAD);
 # Must come after package declaration!
 use EmulabConstants;
 use emdb;
+use GeniXML;
 use libtestbed;
 use English;
 use Data::Dumper;
@@ -211,6 +223,8 @@ sub Create($$$$$)
 	if (exists($argref->{'public'}) && $argref->{'public'});
     $query .= ",listed=1"
 	if (exists($argref->{'listed'}) && $argref->{'listed'});
+    $query .= ",shared=1"
+	if (exists($argref->{'shared'}) && $argref->{'shared'});
 
     if (! DBQueryWarn($query)) {
 	DBQueryWarn("unlock tables");
@@ -277,7 +291,7 @@ sub Delete($)
 #
 # Mark the update time.
 #
-sub MarkModified()
+sub MarkModified($)
 {
     my ($self) = @_;
 
@@ -294,5 +308,48 @@ sub MarkModified()
     return 0;
 }
 
+#
+# Condomize a profile rspec by inserting the necessary firewall section
+# to each of the nodes.
+#
+sub Condomize($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $rspec = GeniXML::Parse($self->rspec());
+    if (! defined($rspec)) {
+	print STDERR "Could not parse rspec\n";
+	return undef;
+    }
+    foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+	#
+	# No settings is easy; wrap it tight.
+	#
+	if (!GeniXML::HasFirewallSettings($ref)) {
+	    my $firewall = GeniXML::AddElement("firewall", $ref,
+					       $GeniXML::EMULAB_NS);
+	    GeniXML::SetText("style", $firewall, "closed");
+	    next;
+	}
+	#
+	# Make sure the existing section has a reasonable setting.
+	#
+	my $settings = GeniXML::FindNodesNS("n:firewall", $ref,
+					    $GeniXML::EMULAB_NS)->pop();
+	my $style = GeniXML::GetText("style", $settings);
+	if (!defined($style) || $style ne "basic" || $style ne "closed") {
+	    GeniXML::SetText("style", $settings, "closed");
+	}
+
+	#
+	# What about exceptions?
+	#
+    }
+    return GeniXML::Serialize($rspec);
+}
 # _Always_ make sure that this 1 is at the end of the file...
 1;
