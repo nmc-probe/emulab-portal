@@ -94,13 +94,20 @@ $am_array = array('Utah DDC' =>
 if (isset($profile)) {
     #
     # Guest users must use the uuid, but logged in users may use the
-    # internal index. 
+    # internal index. But, we have to support simple the URL too, which
+    # is /p/project/profilename, but only for public profiles. Need to
+    # deal with the version at some point.
     #
-    if (! ($this_user || IsValidUUID($profile))) {
+    if (isset($project) && isset($profile)) {
+	$obj = Profile::LookupByName($project, $profile);
+    }
+    elseif ($this_user || IsValidUUID($profile)) {
+	$obj = Profile::Lookup($profile);
+    }
+    else {
 	SPITUSERERROR("Illegal profile for guest user: $profile");
 	exit();
     }
-    $obj = Profile::Lookup($profile);
     if (! $obj) {
 	SPITUSERERROR("No such profile: $profile");
 	exit();

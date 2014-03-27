@@ -99,9 +99,22 @@ class Profile
 	return null;
     }
 
-    # Lookup by name/version. If no version, then return highest
-    # numbered version.
-    function LookupByName() {}
+    function LookupByName($project, $profile) {
+	$pid = $project->pid();
+	$safe_profile = addslashes($profile);
+	
+	$query_result =
+	    DBQueryWarn("select idx from apt_profiles ".
+			"where pid='$pid' and ".
+			"      (name='$safe_profile' or uuid='$safe_profile')");
+	
+	if ($query_result && mysql_num_rows($query_result)) {
+	    $row = mysql_fetch_row($query_result);
+	    $idx = $row[0];
+	    return Profile::Lookup($idx);
+	}
+	return null;
+    }
 
     #
     # Refresh an instance by reloading from the DB.
