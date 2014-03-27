@@ -66,6 +66,7 @@ CREATE TABLE `apt_instances` (
   `creator` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `creator_uuid` varchar(40) NOT NULL default '',
+  `aggregate_urn` varchar(128) default NULL,
   `created` datetime default NULL,
   `status` varchar(32) default NULL,
   `extension_code` varchar(32) default NULL,
