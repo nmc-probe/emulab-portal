@@ -17,6 +17,14 @@ body {
   padding: 0 0 2.5em;
 }
 
+.apt-left {
+  float: left;
+}
+
+.apt-right {
+  float: right;
+}
+
 .navbar img {
   display: block;
   margin: 0 auto;

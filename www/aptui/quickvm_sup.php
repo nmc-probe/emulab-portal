@@ -101,10 +101,10 @@ function SPITHEADER($thinheader = 0)
              <div class='brand'>
                  <img src='aptlogo.png'/>
              </div>
-             <ul class='nav navbar-nav navbar-right'>";
+             <ul class='nav navbar-nav navbar-right apt-right'>";
     if (!$disable_accounts) {
 	if ($login_user && ISADMINISTRATOR()) {
-	    echo "<li>\n";
+	    echo "<li class='apt-left'>\n";
 	    if (ISADMIN()) {
 		$url = CreateURL("toggle", $login_user,
 				 "type", "adminon", "value", 0);
@@ -125,18 +125,18 @@ function SPITHEADER($thinheader = 0)
 	    }
 	    echo "</li>\n";
 	}
-	echo "<li id='loginstatus'>".
+	echo "<li id='loginstatus' class='apt-left'>".
 	    ($login_user ? "<p class='navbar-text'>$login_uid logged in</p>" : "") . "</li>\n";
 
 	if (!NOLOGINS()) {
-	    echo "<li id='signupitem' " .
+	    echo "<li id='signupitem' class='apt-left'" .
 		($login_user ? "class='hidden'" : "") . ">" .
                     "<form><a class='btn btn-primary navbar-btn'
                            id='signupbutton'
                            href='signup.php'>
                         Sign Up</a></form></li>
                   \n";
-	    echo "<li id='loginitem' " .
+	    echo "<li id='loginitem' class='apt-left'" .
 		($login_user ? "class='hidden'" : "") . ">" .
                     "<form><a class='btn btn-primary navbar-btn'
                            id='loginbutton'
@@ -148,11 +148,11 @@ function SPITHEADER($thinheader = 0)
 	}
     }
     echo "   </ul>
-             <ul class='nav navbar-nav navbar-left'>
-                <li><form><a class='btn btn-quickvm-home navbar-btn'
+             <ul class='nav navbar-nav navbar-left apt-left'>
+                <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='instantiate.php'>Home</a></form></li>\n";
     if (!$disable_accounts) {
-	echo "  <li id='quickvm_actions_menu' class='dropdown ".
+	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left ".
 	    (!$login_user ? "hidden" : "") . "'>" .
 	         "<a href='#' class='dropdown-toggle' data-toggle='dropdown'>
                     Actions <b class='caret'></b></a>
