@@ -851,7 +851,8 @@ sub HasFirewallSettings($)
 {
     my ($node) = @_;
 
-    my @settings = FindNodesNS("n:firewall", $node, $EMULAB_NS);
+    my @settings = FindNodesNS("n:firewall", $node,
+			       $EMULAB_NS)->get_nodelist();
     return 1
 	if (@settings);
 
@@ -861,7 +862,8 @@ sub HasFirewallSettings($)
 sub GetFirewallSettings($)
 {
     my ($node) = @_;
-    my $result = {};
+    my $result = { "style"      => "basic",
+		   "exceptions" => [] };
 
     my $settings = FindNodesNS("n:firewall", $node, $EMULAB_NS)->pop();
     return undef
@@ -870,7 +872,22 @@ sub GetFirewallSettings($)
     my $tmp = GetText("style", $settings);
     $result->{"style"} = $tmp
 	if (defined($tmp));
-    
+
+    foreach my $exception (FindNodesNS("n:firewall/n:exception", $node,
+				       $EMULAB_NS)->get_nodelist()) {
+	my $port = GetText("port", $exception);
+	next
+	    if (!defined($port));
+	my $foo = {"port" => $port};
+	my $ip  = GetText("ip", $exception);
+	$foo->{'ip'} = $ip
+	    if (defined($ip));
+	my $dir  = GetText("direction", $exception);
+	$foo->{'direction'} = $dir
+	    if (defined($dir));
+	
+	push(@{ $result->{'exceptions'} }, $foo);
+    }
     return $result;
 }
 
