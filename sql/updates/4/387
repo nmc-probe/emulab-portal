@@ -26,6 +26,7 @@ sub DoUpdate($$$)
 	DBQueryFatal("alter table virt_nodes add ".
 		     "  `firewall_log` tinytext");
     }
+    return 0;
 }
 
 # Local Variables:
