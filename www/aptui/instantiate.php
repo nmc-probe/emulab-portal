@@ -94,7 +94,7 @@ $am_array = array('Utah DDC' =>
 if (isset($profile)) {
     #
     # Guest users must use the uuid, but logged in users may use the
-    # internal index.
+    # internal index. 
     #
     if (! ($this_user || IsValidUUID($profile))) {
 	SPITUSERERROR("Illegal profile for guest user: $profile");

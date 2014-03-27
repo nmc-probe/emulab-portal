@@ -55,6 +55,7 @@ function SPITFORM($formfields, $errors)
 	$button_label = "Modify";
 	$title        = "Modify Profile";
 	$editing = 1;
+	$uuid         = $formfields["profile_uuid"];
     }
     else  {
 	$button_label = "Create";
@@ -360,7 +361,7 @@ function SPITFORM($formfields, $errors)
     if ($editing) {
 	echo " <a class='btn btn-primary btn-sm pull-right'
                    style='margin-right: 10px;'
-                   href='instantiate.php?profile=$idx'
+                   href='instantiate.php?profile=$uuid'
                    type='submit' name='create'>Instantiate</a>\n";
 	echo " <a class='btn btn-danger btn-sm pull-left'
                    style='margin-right: 10px;'
@@ -499,6 +500,7 @@ if (! isset($create)) {
 		return;
 	    }
 	    else {
+		$defaults["profile_uuid"]        = $profile->uuid();
 		$defaults["profile_pid"]         = $profile->pid();
 		$defaults["profile_description"] = $profile->description();
 		$defaults["profile_name"]        = $profile->name();

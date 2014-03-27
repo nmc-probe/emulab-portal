@@ -74,8 +74,7 @@ if (isset($ajax_request)) {
 	$profile_idx = addslashes($ajax_argument);
 	$query_result =
 	    DBQueryWarn("select * from apt_profiles ".
-			"where idx='$profile_idx' and ".
-			"      creator_idx='$target_idx'");
+			"where idx='$profile_idx'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    SPITAJAX_ERROR(1, "No such profile $profile_idx!");
