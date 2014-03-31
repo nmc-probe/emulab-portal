@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -926,7 +926,12 @@ sub Start($$$)
 	$msg = "Could not setup images:\n$output";
 	goto bad;
     }
-    print STDERR $output;
+    # The nodes will not boot locally unless there is a DNS record,
+    # but we also need it before we can issue the reloads.
+    if (system("$NAMEDSETUP")) {
+	$msg .= "$NAMEDSETUP failed\n";
+	goto bad;
+    }
 
     #
     # This could result in more work then we want.
