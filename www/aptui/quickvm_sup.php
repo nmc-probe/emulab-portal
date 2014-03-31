@@ -389,6 +389,50 @@ function SpitTopologyViewModal($modal_name, $profile_array)
 }
 
 #
+# Please Wait.
+#
+function SpitWaitModal($id)
+{
+    echo "<!-- This is the Please Wait modal -->
+          <div id='$id' class='modal fade'>
+            <div class='modal-dialog'>
+            <div class='modal-content'>
+               <div class='modal-header'>
+                <center><h3>Please Wait</h3></center>
+               </div>
+               <div class='modal-body'>
+                 <center><img src='spinner.gif' /></center>
+               </div>
+            </div>
+            </div>
+         </div>\n";
+}
+
+#
+# Oops modal.
+#
+function SpitOopsModal($id)
+{
+    echo "<!-- This is the Oops modal -->
+          <div id='$id' class='modal fade'>
+            <div class='modal-dialog'>
+            <div class='modal-content'>
+               <div class='modal-header'>
+                 <button type='button'
+                      class='btn btn-default btn-sm pull-right' 
+                      data-dismiss='modal' aria-hidden='true'>
+                   Close</button>
+                 <center><h3>Oops!</h3></center>
+               </div>
+               <div class='modal-body'>
+                 <div id='${id}_text'></div>
+               </div>
+            </div>
+            </div>
+         </div>\n";
+}
+
+#
 # Generate an authentication object to pass to the browser that
 # is passed to the web server on boss. This is used to grant
 # permission to the user to invoke ssh to a local node using their
