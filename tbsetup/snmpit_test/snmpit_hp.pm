@@ -70,6 +70,11 @@ my $aftOID = "dot1qPortAcceptableFrameTypes";
 my $createOID = "dot1qVlanStaticRowStatus";
 
 #
+# Enterprise OID for toggling jumbo frame support on a vlan
+#
+my $jumboOID = '1.3.6.1.4.1.11.2.14.11.5.1.12.1.8.1.1.1';
+
+#
 # Openflow OIDs, only number format now.
 #
 #my $ofOID = 'iso.org.dod.internet.private.enterprises.11.2.14.11.5.1.7.1.35';
@@ -149,6 +154,14 @@ sub new($$$;$) {
 	$self->{COMMUNITY}    = $community;
     } else {
 	$self->{COMMUNITY}    = $options->{'snmp_community'};
+    }
+
+    # Use jumbo frames?
+    if (exists($options->{'use_jumbo'}) 
+	&& $options->{'use_jumbo'} == 1) {
+	$self->{DOJUMBO} = 1;
+    } else {
+	$self->{DOJUMBO} = 0;
     }
 
     #
@@ -452,6 +465,55 @@ sub checkLACP($$) {
    if (my $j = $self->{TRUNKINDEX}{$port})
        { $port = $j + $self->{TRUNKOFFSET}; }
    return $port;
+}
+
+#
+# Get a vlan's ifindex given it's tag
+#
+sub getVlanIfindexFromTag($$) {
+    my ($self, $tag) = @_;
+    my $id = $self->{NAME} . "::getVlanIfindexFromTag";
+
+    my ($rows) = snmpitBulkwalkFatal($self->{SESS}, ["ifDescr"]);
+
+    if (!@$rows) {
+	warn "$id: ERROR: No interface description rows returned ".
+	     "while attempting to search for vlan ifindex!\n";
+	return undef;
+    }
+
+    foreach my $rowref (@$rows) {
+	my ($name,$ifindex,$descr) = @$rowref;
+	next unless $descr =~ /VLAN(\d+)/i;
+	if ($tag == $1) {
+	    return $ifindex;
+	}
+    }
+
+    warn "$id: no ifindex found for vlan with tag: $tag\n";
+    return undef;
+}
+
+#
+# Set jumbo frames on a vlan
+#
+sub setVlanJumbo($$) {
+    my ($self, $tag) = @_;
+    my $id = $self->{NAME} . "::setVlanJumbo";
+
+    my $vifindex = $self->getVlanIfindexFromTag($tag);
+    goto bad if !defined($vifindex);
+
+    $self->debug("id: Enabling jumbo frames on vlan $tag (ifindex: $vifindex)\n");
+
+    my $res = $self->set([$jumboOID,$vifindex,1,"INTEGER"], $id);
+    goto bad if !defined($res);
+
+    return 0;
+
+  bad:
+    warn "$id: Could not enable jumbo frames for vlan with tag: $tag\n";
+    return 1;
 }
 
 #
@@ -771,6 +833,15 @@ sub createVlan($$$) {
     if (!defined($RetVal) || ("$RetVal" ne $hpvlan_id)) {
 	warn "$id: created vlan $vlan_id with name $RetVal" .
 	  "instead of $hpvlan_id\n";
+    }
+
+    #
+    # Enable jumbo frames, if switch option is set.
+    #
+    if ($self->{DOJUMBO}) {
+	if ($self->setVlanJumbo($vlan_number) != 0) {
+	    warn "$id: enable jumbo failed for vlan $vlan_id ...\n";
+	}
     }
 
     if ($self->{SKIPIGMP}) { return $vlan_number ; }
