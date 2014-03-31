@@ -273,9 +273,9 @@ function SPITFORM($formfields, $newuser, $errors)
                        name='formfields[profile]'/>";
         echo "<div class='col-md-8'><div class='panel panel-default'>\n";
         echo "<div class='panel-heading'>
-                  <span class='panel-title'>Selected Profile: </span>
+                  <span class='panel-title'><strong>Selected Profile:</strong> 
                   <span id='selected_profile_text'>
-                  </span> \n";
+                  </span></span>\n";
         if ($errors && array_key_exists("profile", $errors)) {
             echo "<label class='control-label' for='inputError'>" .
                 $errors["profile"] .
